@@ -1,0 +1,9 @@
+const snap = {
+  xform: localStorage.getItem('gh-img-xform'),
+  cal:   localStorage.getItem('gh-cal'),
+  marks: localStorage.getItem('gcc-landmark-overrides-v1'),
+  when:  new Date().toISOString()
+};
+copy(JSON.stringify(snap, null, 2));
+console.log('Copied to clipboard. Also logged below:');
+console.log(JSON.stringify(snap, null, 2));

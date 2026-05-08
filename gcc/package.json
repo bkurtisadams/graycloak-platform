@@ -1,0 +1,8 @@
+{
+  "name": "gcc",
+  "version": "0.0.0",
+  "private": true,
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.5"
+  }
+}

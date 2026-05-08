@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mighty Protectors Vehicle Builder</title>
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Bitter:wght@400;700&family=Cinzel:wght@500;700&family=Alegreya:ital,wght@0,400;0,700;1,400&family=Alegreya+SC:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="gcc-header.css">
+<link rel="stylesheet" href="gcc-auth.css">
+<link rel="stylesheet" href="gcc-dialog.css">
+<link rel="stylesheet" href="mp-style.css">
+</head>
+<body>
+<div id="gcc-bar" class="gcc-bar">
+  <div class="gcc-bar-in">
+    <a href="index.html" class="gcc-brand" title="Back to Dashboard">
+      <div class="gcc-title-wrap">
+        <div class="gcc-title">GRAYCLOAK'S</div>
+        <div class="gcc-subtitle">CAMPAIGN CORNER</div>
+      </div>
+    </a>
+    <div class="gcc-nav">
+      <div class="gcc-tools-wrap">
+        <button class="gcc-nav-btn" id="gcc-btn-tools">🎲 Tools ▾</button>
+        <div class="gcc-tools-dd" id="gcc-tools-dd"></div>
+      </div>
+      <span id="gcc-auth-slot"></span>
+      <button class="gcc-nav-btn" id="gcc-btn-theme" title="Toggle light/dark"><span id="gcc-theme-icon">◑</span></button>
+    </div>
+  </div>
+</div>
+<div class="gcc-tools-overlay" id="gcc-tools-overlay"></div>
+
+<header class="gcc-mp-bar">
+  <div class="gcc-mp-bar-in">
+    <div class="gcc-mp-logo-wrap">
+      <img src="MP_logo_v3.png" alt="Mighty Protectors" class="gcc-mp-logo-img">
+      <span class="gcc-mp-logo-sub">Vehicle Builder</span>
+    </div>
+    <div class="gcc-mp-template">
+      <label class="gcc-mp-tpl-label">Template:</label>
+      <select id="sel-template" class="gcc-mp-tpl-sel">
+        <option value="">— blank —</option>
+      </select>
+    </div>
+    <div class="gcc-mp-btns">
+      <span class="view-badge">VIEW MODE</span>
+      <button class="gcc-mp-btn gcc-mp-btn-view-edit" id="btn-view-edit" title="Switch to Edit Mode">Edit</button>
+      <button class="gcc-mp-btn" id="btn-new">New</button>
+      <button class="gcc-mp-btn" id="btn-save">Save</button>
+      <button class="gcc-mp-btn" id="btn-load">Load</button>
+      <button class="gcc-mp-btn" id="btn-delete" title="Delete current vehicle">Delete</button>
+      <button class="gcc-mp-btn" id="btn-campaign" title="Add to or change campaign">Campaign</button>
+      <button class="gcc-mp-btn" id="btn-export">Export JSON</button>
+      <button class="gcc-mp-btn" id="btn-import">Import JSON</button>
+      <button class="gcc-mp-btn" id="btn-csv">CSV</button>
+      <button class="gcc-mp-btn" id="btn-pdf">PDF</button>
+      <input type="file" id="inp-json" accept=".json" style="display:none">
+    </div>
+  </div>
+</header>
+
+<main class="mp-main">
+
+<div class="vs-wrap">
+<div class="vs-sheet">
+
+  <div class="vs-row vs-identity">
+    <label>NAME:</label><input type="text" id="vs-name" class="vs-inp vs-inp-wide">
+    <label>MODEL:</label><input type="text" id="vs-model" class="vs-inp vs-inp-med">
+    <label>OPERATOR:</label><input type="text" id="vs-operator" class="vs-inp vs-inp-med">
+  </div>
+
+  <div class="vs-row">
+    <label title="Total system spaces from chassis">SYSTEM SPACES:</label><span class="vs-val" id="vs-sys-spaces">16</span>
+    <label title="Vehicle profile modifier">PROFILE:</label><span class="vs-val" id="vs-profile">x4</span>
+    <label title="Vehicle weight">WEIGHT:</label><span class="vs-val" id="vs-weight">2,880</span><span class="vs-unit">lbs</span>
+    <label title="Mass roll">MASS:</label><span class="vs-val" id="vs-mass">d10+1</span>
+  </div>
+
+  <div class="vs-row">
+    <label>ARMOR:</label>
+    <label class="vs-sub">Kinetic:</label><input type="number" id="vs-armor-kin" class="vs-inp vs-inp-sm" value="3" title="Kinetic armor rating">
+    <label class="vs-sub">Energy:</label><input type="number" id="vs-armor-eng" class="vs-inp vs-inp-sm" value="3" title="Energy armor rating">
+    <label class="vs-sub">Biochem:</label><input type="number" id="vs-armor-bio" class="vs-inp vs-inp-sm" value="3" title="Biochem armor rating">
+    <label class="vs-sub">Entropy:</label><input type="number" id="vs-armor-ent" class="vs-inp vs-inp-sm" value="3" title="Entropy armor rating">
+    <label class="vs-sub">Psychic:</label><input type="number" id="vs-armor-psy" class="vs-inp vs-inp-sm" value="0" title="Psychic armor rating">
+  </div>
+
+  <div class="vs-row vs-mods">
+    <label>Vehicle Mods:</label>
+    <label class="vs-sub">Hi/Lo Tech</label>
+    <input type="number" id="vs-tech" class="vs-inp-xs" value="0" step="2.5" title="±5 CPs per step. Adds/subtracts CPs to every system.">
+    <label class="vs-sub">Maneuver</label>
+    <input type="number" id="vs-maneuver" class="vs-inp-xs" value="0" step="5" title="±1 Turn Rate per ±5 CP cost adjustment">
+    <label class="vs-sub">Won't Explode</label><input type="checkbox" id="vs-noexplode" title="+5 CP. Central Power System won't explode.">
+    <label class="vs-sub">Base</label><input type="checkbox" id="vs-base" title="Vehicle is a stationary Base">
+  </div>
+
+  <div class="vs-row vs-hp">
+    <div class="vs-cost-box">
+      <div class="vs-cost-box-label">BASIC<br>COST</div>
+      <input type="number" id="vs-basic-cost" class="vs-cost-input" value="15" min="0" step="2.5" title="Vehicle base CP cost — determines size, spaces, ST/EN, hits">
+    </div>
+    <label>HITS (</label><span class="vs-val" id="vs-hits">25</span><label>):</label>
+    <input type="number" id="vs-hits-cur" class="vs-inp vs-inp-sm" value="25" title="Current hit points">
+    <label>POWER (</label><span class="vs-val" id="vs-power">57</span><label>):</label>
+    <input type="number" id="vs-power-cur" class="vs-inp vs-inp-sm" value="57" title="Current power points">
+    <label>EXPLOSION:</label><span class="vs-val" id="vs-explosion">4d8</span>
+    <label>AREA:</label><span class="vs-val" id="vs-area">5</span><span class="vs-unit">"</span>
+  </div>
+
+  <!-- SYSTEMS TABLE -->
+  <div class="vs-sys-scroll">
+  <div class="vs-sys-inner">
+  <div class="vs-sys-hdr-wrap">
+    <div class="vs-sys-hdr">
+      <span title="Extra CPs added to this system (adds to vehicle cost)">COST</span>
+      <span title="System spaces allocated">SYSTEM<br>SPACES</span>
+      <span title="Auto-calculated from system spaces">PROFILE</span>
+      <span title="Auto-calculated from spaces, modified by Bulky/Delicate">HITS</span>
+      <span title="Damage taken by this system">DMG</span>
+      <span title="CPs generated by system spaces (auto)">CPs</span>
+      <span></span>
+      <span class="vs-sh-desc">VEHICLE SYSTEMS &amp; MODIFIERS</span>
+    </div>
+    <div class="vs-mod-hdr">
+      <span title="Integral — hidden, can't be targeted. Halves CPs.">Int</span>
+      <span title="Bulky — +4.3 Hits per dose, +2.5 CP cost per dose">Blk</span>
+      <span title="Delicate — -4.3 Hits per dose, -2.5 CP cost per dose">Del</span>
+      <span title="Open System — passable, yields ¼ CPs">Opn</span>
+      <span title="ST adjustment from this system">ST</span>
+      <span title="EN adjustment from this system">EN</span>
+      <span title="AG adjustment (e.g. Automation)">AG</span>
+      <span title="IN adjustment (e.g. Robot Brain)">IN</span>
+      <span title="CL adjustment (e.g. Performance)">CL</span>
+    </div>
+  </div>
+  <div id="vs-sys-rows" class="vs-sys-rows"></div>
+  </div>
+  </div>
+
+  <!-- TOTAL COST + Stats -->
+  <div class="vs-total-stats">
+    <div class="vs-cost-box vs-cost-box-total">
+      <span class="vs-val-box" id="vs-total-cost">15</span>
+      <div class="vs-cost-box-label">TOTAL<br>COST</div>
+    </div>
+    <div class="vs-stats-grid">
+      <div class="vs-stats-row">
+        <span><label>ST:</label><span class="vs-stat-val" id="vs-st">24</span></span>
+        <span><label>HTH:</label><span class="vs-stat-val" id="vs-hth">d8+1</span></span>
+        <span><label>EN:</label><span class="vs-stat-val" id="vs-en">24</span></span>
+        <span><label>EN Sv:</label><span class="vs-stat-val" id="vs-en-save">22</span></span>
+        <span><label>Turn Rate:</label><span class="vs-stat-val" id="vs-turn-rate">3</span></span>
+      </div>
+      <div class="vs-stats-row">
+        <span><label>AG:</label><span class="vs-stat-val" id="vs-ag">9</span></span>
+        <span><label>AG Sv:</label><span class="vs-stat-val" id="vs-ag-save">10</span></span>
+        <span><label>Handling:</label><span class="vs-stat-val" id="vs-handling">0</span></span>
+        <span><label>Init:</label><span class="vs-stat-val" id="vs-init">d4</span></span>
+      </div>
+      <div class="vs-stats-row">
+        <span><label>IN:</label><span class="vs-stat-val" id="vs-in">0</span></span>
+        <span><label>IN Sv:</label><span class="vs-stat-val" id="vs-in-save">6</span></span>
+        <span><label>CL:</label><span class="vs-stat-val" id="vs-cl">9</span></span>
+        <span><label>CL Sv:</label><span class="vs-stat-val" id="vs-cl-save">10</span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom: Picture + Key + Layout -->
+  <div class="vs-bottom">
+    <div class="vs-bottom-left">
+      <div class="vs-section-hdr">VEHICLE PICTURE</div>
+      <div class="vs-picture-area" id="vs-picture-area">
+        <img id="vs-picture-img" class="vs-picture-img" style="display:none">
+        <input type="file" id="inp-picture" accept="image/*" style="display:none">
+      </div>
+      <div class="vs-picture-controls" id="vs-picture-controls">
+        <button class="ed-btn-sm" id="btn-import-img2">Import</button>
+        <button class="ed-btn-sm" id="btn-clear-img">Clear</button>
+        <label class="vs-pic-label">H:</label>
+        <input type="range" id="vs-pic-height" class="vs-pic-range" min="60" max="400" value="120" title="Picture area height">
+        <span id="vs-pic-height-val" class="vs-pic-hval">120</span>
+      </div>
+      <div class="vs-section-hdr" style="margin-top:6px">VEHICLE KEY</div>
+      <table class="vs-key-table" id="vs-key-table">
+        <tbody id="vs-key-tbody"></tbody>
+      </table>
+    </div>
+    <div class="vs-bottom-right">
+      <div class="vs-section-hdr">VEHICLE LAYOUT</div>
+      <div class="vs-layout-toolbar">
+        <select id="sel-layout-sys" class="vs-sys-sel" title="Select a system to paint">
+          <option value="">— select system —</option>
+        </select>
+        <button id="btn-mode-select" class="ed-btn ed-btn-mode active" title="Select a painted cell, Delete to remove">Select</button>
+        <button id="btn-mode-paint" class="ed-btn ed-btn-mode" title="Paint cells for selected system">Paint</button>
+        <button id="btn-mode-wall" class="ed-btn ed-btn-mode" title="Click edges to add/remove walls. Shift-click to cycle: wall→door→hatch→remove. Drag to draw walls.">Wall</button>
+        <button id="btn-mode-sil" class="ed-btn ed-btn-mode" title="Move/resize silhouette overlay">Sil.</button>
+        <span class="ed-sep"></span>
+        <button id="btn-hull-trace" class="ed-btn" title="Auto-trace hull outline around all painted cells">Hull</button>
+        <span class="ed-sep"></span>
+        <button id="btn-zoom-in" class="ed-btn" title="Zoom in">+</button>
+        <button id="btn-zoom-out" class="ed-btn" title="Zoom out">&minus;</button>
+        <button id="btn-zoom-reset" class="ed-btn" title="Reset view">Reset</button>
+        <label class="ed-chk-label" title="Enable/disable scroll-wheel zoom"><input type="checkbox" id="chk-zoom-enable" checked>Zoom</label>
+        <span class="ed-sep"></span>
+        <button id="btn-lock" class="ed-btn" title="Lock layout to prevent editing (pan/zoom still work)">&#x1F513;</button>
+        <span class="ed-sep"></span>
+        <button id="btn-popout" class="ed-btn" title="Open layout in a separate window">Popout</button>
+        <button id="btn-del-cell" class="ed-btn" title="Delete selected cell" style="background:#c03030">Del</button>
+        <button id="btn-clear-layout" class="ed-btn" title="Clear all painted cells" style="background:#c03030">Clear</button>
+        <button id="btn-clear-walls" class="ed-btn" title="Remove all walls" style="background:#c03030">&#x2327;W</button>
+        <span id="vs-active-sys" class="vs-active-sys"></span>
+        <span id="vs-placed-count" class="vs-placed-count" title="Total spaces placed on layout vs total system spaces"></span>
+      </div>
+      <div class="vs-layout-canvas" id="vs-layout-wrap">
+        <canvas id="vs-layout-canvas"></canvas>
+      </div>
+      <div id="vs-cell-menu" class="vs-cell-menu" style="display:none">
+        <div class="vs-cell-menu-hdr" id="vs-cell-menu-hdr"></div>
+        <div class="vs-cell-menu-item" data-action="highlight">Highlight System</div>
+        <div class="vs-cell-menu-item" data-action="info">System Info</div>
+        <div class="vs-cell-menu-item" data-action="select">Select for Painting</div>
+        <div class="vs-cell-menu-item" data-action="label">Edit Cell Label</div>
+        <div class="vs-cell-menu-item" data-action="togglelabels">Toggle Labels</div>
+        <div class="vs-cell-menu-sep"></div>
+        <div class="vs-cell-menu-item vs-cell-menu-del" data-action="delete">Delete Cell</div>
+      </div>
+      <div class="vs-sil-bar" id="vs-sil-bar">
+        <label class="vs-sil-label">Silhouette:</label>
+        <button id="btn-sil-import" class="ed-btn-sm" title="Import silhouette image">Import</button>
+        <button id="btn-sil-clear" class="ed-btn-sm" title="Remove silhouette overlay">Clear</button>
+        <input type="file" id="inp-silhouette" accept="image/*" style="display:none">
+        <span class="ed-sep"></span>
+        <label class="vs-sil-label">X:</label><input type="number" id="sil-x" class="vs-sil-inp" step="0.5" title="Silhouette X position (grid units)">
+        <label class="vs-sil-label">Y:</label><input type="number" id="sil-y" class="vs-sil-inp" step="0.5" title="Silhouette Y position (grid units)">
+        <label class="vs-sil-label">W:</label><input type="number" id="sil-w" class="vs-sil-inp" step="0.5" min="1" title="Silhouette width (grid units)">
+        <label class="vs-sil-label">H:</label><input type="number" id="sil-h" class="vs-sil-inp" step="0.5" min="1" title="Silhouette height (grid units)">
+        <label class="vs-sil-label">Rot:</label><input type="number" id="sil-rot" class="vs-sil-inp" step="15" title="Silhouette rotation (degrees)">
+        <span class="ed-sep"></span>
+        <input type="color" id="sil-color" class="vs-sil-color" value="#4a7a9a" title="Silhouette tint color">
+        <label class="vs-sil-label" title="Silhouette opacity">Op:</label><input type="range" id="sil-alpha" min="5" max="100" value="25" step="5" class="vs-sil-range" title="Silhouette opacity"><span id="sil-alpha-val" class="vs-sil-label" style="min-width:22px;text-align:right">25%</span>
+      </div>
+      <div class="vs-layout-hint">
+        <b>Del</b>=delete selected cell &bull; <b>Right-click</b>=cell menu &bull; Middle-drag/Scroll=pan/zoom &bull;
+        1 cell = 1 system space (2.5') / heavy lines = 5' &bull;
+        <b>Wall mode:</b> click edge=toggle wall, shift-click=cycle (wall→door→hatch→remove), drag=draw walls &bull;
+        <b>Touch:</b> tap=paint/select, tap empty=move, long-press=edit label, 2-finger=pan/zoom &bull;
+        <b>Ctrl+I</b>=insert ability on focused system row
+      </div>
+    </div>
+  </div>
+
+  <div class="vs-sheet-ftr">
+    Mighty Protectors&trade; &amp; Jeff Dee &amp; Jack Herman &mdash; Monkey House Games
+  </div>
+
+</div>
+</div>
+
+</main>
+
+<!-- Ability Insert Dialog (Ctrl+I on system row) -->
+<div id="ability-dlg-overlay" class="aid-overlay" style="display:none">
+<div class="aid-dialog">
+  <div class="aid-title" id="aid-title">Insert Ability</div>
+  <div class="aid-body">
+    <!-- Ability picker -->
+    <div class="aid-row">
+      <label class="aid-lbl">Ability:</label>
+      <button type="button" id="aid-ability-btn" class="aid-ability-btn">— select ability —</button>
+      <input type="hidden" id="aid-ability-val" value="">
+    </div>
+    <!-- Cost breakdown panel with integrated inputs -->
+    <div class="aid-cost-panel" id="aid-cost-panel">
+      <div class="aid-cost-left">
+        <div class="aid-cost-hdr">SYSTEM</div>
+        <div class="aid-cost-row"><span class="aid-cost-lbl">Spaces:</span><select id="aid-sp-input" class="aid-sp-sel"></select></div>
+        <div class="aid-cost-row"><span class="aid-cost-lbl">Generates:</span><span class="aid-cost-val" id="aid-cp-gen">20 CPs</span></div>
+        <div class="aid-cost-row"><span class="aid-cost-lbl">Profile:</span><span class="aid-cost-val" id="aid-cp-prof">x2.83</span></div>
+        <div class="aid-cost-row"><span class="aid-cost-lbl">Hits:</span><span class="aid-cost-val" id="aid-cp-hits">20</span></div>
+        <div class="aid-cost-row aid-cost-tech" id="aid-cp-tech-row"><span class="aid-cost-lbl">Tech:</span><span class="aid-cost-val" id="aid-cp-tech"></span></div>
+        <div class="aid-cost-row aid-cost-budget"><span class="aid-cost-lbl">Budget:</span><span class="aid-cost-val" id="aid-cp-budget">20 CPs</span></div>
+      </div>
+      <div class="aid-cost-right">
+        <div class="aid-cost-hdr">ABILITY COST</div>
+        <div id="aid-cost-lines"></div>
+        <div class="aid-cost-total"><span class="aid-cost-lbl">Total:</span><span class="aid-cost-val" id="aid-cp-total">20</span></div>
+      </div>
+      <div class="aid-cost-balance" id="aid-cost-balance">═══ balanced ═══</div>
+    </div>
+    <input type="hidden" id="aid-cp-input" value="20">
+    <!-- Live description preview -->
+    <div class="aid-preview-wrap">
+      <div class="aid-preview" id="aid-preview">—</div>
+      <div class="aid-preview-modes">
+        <label class="aid-mode-lbl"><input type="radio" name="aid-desc-mode" value="full" class="aid-mode-radio"> Full</label>
+        <label class="aid-mode-lbl"><input type="radio" name="aid-desc-mode" value="compact" checked class="aid-mode-radio"> Compact</label>
+        <label class="aid-mode-lbl"><input type="radio" name="aid-desc-mode" value="min" class="aid-mode-radio"> Min</label>
+      </div>
+    </div>
+    <div class="aid-divider"></div>
+    <div class="aid-mod-list" id="aid-ability-mods"></div>
+    <div class="aid-section-hdr" id="aid-generic-hdr">MODIFIERS</div>
+    <div class="aid-2col" id="aid-generic-mods">
+      <div class="aid-2c"><label class="aid-mlbl2">Area Effect:</label><select id="aid-area" class="aid-msel2"></select></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Armor Pierce:</label><select id="aid-ap" class="aid-msel2"></select></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Autofire:</label><select id="aid-autofire" class="aid-msel2"></select></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Duration:</label><select id="aid-duration" class="aid-msel2"></select></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Hardened:</label><select id="aid-hardened" class="aid-msel2"></select></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Gear:</label><input type="checkbox" id="aid-gear" class="aid-mchk"><span class="aid-mh2">-5</span></div>
+      <div class="aid-2c"><label class="aid-mlbl2">PR:</label><select id="aid-pr" class="aid-msel2"></select></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Charges:</label><select id="aid-charges" class="aid-msel2"></select></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Range:</label><select id="aid-range" class="aid-msel2"></select></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Concentrate:</label><select id="aid-conc" class="aid-msel2"></select></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Knockback:</label><select id="aid-kb" class="aid-msel2"></select></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Breakdown:</label><input type="number" id="aid-breakdown" class="aid-mnum2" value="0" min="0" max="6"><span class="aid-mh2">-2.5/step</span></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Partial Cov:</label><select id="aid-partial" class="aid-msel2"></select></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Poor Pen:</label><select id="aid-poorpen" class="aid-msel2"></select></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Obvious:</label><select id="aid-obvious" class="aid-msel2"></select></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Carrier/Cont:</label><select id="aid-carrier" class="aid-msel2"></select></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Dmg Type:</label><select id="aid-dmgtype" class="aid-msel2"></select></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Indirect:</label><select id="aid-indirect" class="aid-msel2"></select></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Time Req:</label><select id="aid-timereq" class="aid-msel2"></select></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Activation:</label><select id="aid-activation" class="aid-msel2"></select></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Ability Loss:</label><select id="aid-loss" class="aid-msel2"></select></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Can't Hold:</label><select id="aid-canthold" class="aid-msel2"></select></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Linked:</label><input type="checkbox" id="aid-linked" class="aid-mchk"><span class="aid-mh2">-2.5</span></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Multi-Ability:</label><select id="aid-multi" class="aid-msel2"></select></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Usable:</label><select id="aid-usable" class="aid-msel2"></select></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Req Save:</label><select id="aid-reqsave" class="aid-msel2"></select></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Other:</label><select id="aid-other" class="aid-msel2"></select></div>
+    </div>
+    <div class="aid-section-hdr">SYSTEM MODIFIERS</div>
+    <div class="aid-2col" id="aid-sys-mods">
+      <div class="aid-2c"><label class="aid-mlbl2">Integral:</label><input type="checkbox" id="aid-integral" class="aid-mchk"><span class="aid-mh2">½ CPs, hidden</span></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Open:</label><input type="checkbox" id="aid-open" class="aid-mchk"><span class="aid-mh2">¼ CPs</span></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Bulky:</label><input type="number" id="aid-bulky" class="aid-mnum2" value="0" min="0" max="20"><span class="aid-mh2">+2.5/+4.3H</span></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Delicate:</label><input type="number" id="aid-delicate" class="aid-mnum2" value="0" min="0" max="20"><span class="aid-mh2">-2.5/-4.3H</span></div>
+      <div class="aid-2c"><label class="aid-mlbl2">Indep. Power:</label><input type="checkbox" id="aid-indep" class="aid-mchk"><span class="aid-mh2">own 10 Pwr</span></div>
+      <div class="aid-2c"><label class="aid-mlbl2">No Explode:</label><input type="checkbox" id="aid-wontexplode" class="aid-mchk"><span class="aid-mh2">+5 CPs</span></div>
+      <div class="aid-2c-full"><label class="aid-mlbl2">Arc:</label><select id="aid-arc" class="aid-msel2"></select></div>
+      <div class="aid-2c-full"><label class="aid-mlbl2">Facing:</label><select id="aid-facing" class="aid-msel2"></select><input type="checkbox" id="aid-facing-show" class="aid-mchk" title="Include facing in description"><span class="aid-mh2">show</span></div>
+    </div>
+  </div>
+  <div class="aid-footer">
+    <button class="aid-btn aid-btn-ok" id="aid-ok">OK</button>
+    <button class="aid-btn aid-btn-cancel" id="aid-cancel">Cancel</button>
+  </div>
+</div>
+</div>
+
+<!-- Ability Picker Popup (multi-column grid) -->
+<div id="aid-picker-overlay" class="aid-picker-overlay" style="display:none" tabindex="-1">
+<div class="aid-picker" id="aid-picker">
+  <div class="aid-picker-title">Select Ability</div>
+  <div class="aid-picker-grid" id="aid-picker-grid"></div>
+</div>
+</div>
+
+<script src="gcc-data.js"></script>
+<script src="gcc-header.js"></script>
+<script src="gcc-firebase-config.js"></script>
+<script src="gcc-auth.js"></script>
+<script src="gcc-sync.js"></script>
+<script src="gcc-dialog.js"></script>
+<script src="mp-data.js"></script>
+<script src="mp-vehicle.js"></script>
+<script src="mp-canvas.js"></script>
+<script src="mp-app.js"></script>
+<script>
+if(new URLSearchParams(window.location.search).get('mode')==='view'){
+  document.body.classList.add('view-mode');
+  document.title='Mighty Protectors — View Vehicle';
+  document.getElementById('btn-view-edit').addEventListener('click',()=>{
+    const u=new URL(window.location); u.searchParams.delete('mode'); window.location=u;
+  });
+}
+</script>
+</body>
+</html>

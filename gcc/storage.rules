@@ -1,0 +1,24 @@
+// Firebase Storage Security Rules for GCC
+// Go to Firebase Console → Storage → Rules tab
+// Replace existing rules with everything below this comment header
+
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Campaign shared images: owner can write, any authenticated user can read
+    match /campaigns/{campaignId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && firestore.get(/databases/(default)/documents/campaigns/$(campaignId)).data.ownerUid == request.auth.uid
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // Deny everything else
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

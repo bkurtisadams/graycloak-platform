@@ -1,0 +1,343 @@
+/* gcc-auth.css v1.0.0 — 2026-04-08 */
+/* Authentication UI: modal + header user chip */
+
+/* ── Auth button in header nav ── */
+.gcc-auth-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  font-size: 10px;
+  font-family: 'Alegreya', serif;
+  font-weight: 700;
+  background: transparent;
+  border: 1px solid var(--gcc-bar-btn-brd);
+  color: var(--gcc-bar-btn-tx);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gcc-auth-chip:hover {
+  border-color: var(--gcc-bar-tx3);
+  color: var(--gcc-bar-tx);
+  background: var(--gcc-bar-hover);
+}
+.gcc-auth-chip .gcc-auth-avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--gcc-bar-btn-brd);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--gcc-bar-tx);
+  flex-shrink: 0;
+  line-height: 1;
+}
+.gcc-auth-chip .gcc-auth-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Auth Dropdown (user menu when signed in) ── */
+.gcc-auth-wrap { position: relative; }
+.gcc-auth-dd {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  width: 220px;
+  background: var(--gcc-dd-bg);
+  border: 1px solid var(--gcc-dd-brd);
+  border-radius: 5px;
+  box-shadow: var(--gcc-dd-shadow);
+  z-index: 201;
+  padding: 8px 0;
+}
+.gcc-auth-dd.open { display: block; }
+.gcc-auth-dd-email {
+  padding: 6px 14px 8px;
+  font-family: 'Alegreya', serif;
+  font-size: 11px;
+  color: var(--gcc-dd-tx2);
+  border-bottom: 1px solid var(--gcc-dd-sep);
+  margin-bottom: 4px;
+  word-break: break-all;
+}
+.gcc-auth-dd-sync {
+  padding: 4px 14px 6px;
+  font-family: 'Alegreya', serif;
+  font-size: 10px;
+  color: var(--gcc-dd-tx2);
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--gcc-dd-sep);
+  margin-bottom: 4px;
+}
+.gcc-auth-dd-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 14px;
+  font-family: 'Alegreya', serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gcc-dd-tx);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.gcc-auth-dd-item:hover {
+  background: var(--gcc-dd-hover);
+  color: var(--gcc-bar-active);
+}
+
+/* ── Modal overlay ── */
+.gcc-auth-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 9000;
+  align-items: flex-start;              /* CHANGED from center */
+  justify-content: center;
+  padding: 20px;
+  overflow-y: auto;                     /* ADDED */
+  -webkit-overflow-scrolling: touch;    /* ADDED — iOS momentum */
+}
+.gcc-auth-overlay.open {
+  display: flex;
+}
+
+/* ── Modal box ── */
+.gcc-auth-modal {
+  background: var(--gcc-dd-bg);
+  border: 1px solid var(--gcc-dd-brd);
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+  width: 100%;
+  max-width: 380px;
+  padding: 0;
+  position: relative;
+  margin: auto 0;                       /* ADDED — keeps desktop centering */
+  animation: gccAuthSlideIn 0.2s ease-out;
+}
+@keyframes gccAuthSlideIn {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Modal header ── */
+.gcc-auth-hdr {
+  padding: 20px 24px 0;
+  text-align: center;
+}
+.gcc-auth-hdr-title {
+  font-family: 'Cinzel', serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--gcc-dd-tx);
+  letter-spacing: 2px;
+  margin-bottom: 4px;
+}
+.gcc-auth-hdr-sub {
+  font-family: 'Alegreya', serif;
+  font-size: 12px;
+  color: var(--gcc-dd-tx2);
+}
+.gcc-auth-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  background: none;
+  border: none;
+  color: var(--gcc-dd-tx2);
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px;
+  transition: color 0.15s;
+}
+.gcc-auth-close:hover { color: var(--gcc-dd-tx); }
+
+/* ── Tabs (Sign In / Register) ── */
+.gcc-auth-tabs {
+  display: flex;
+  margin: 16px 24px 0;
+  border-bottom: 1px solid var(--gcc-dd-sep);
+}
+.gcc-auth-tab {
+  flex: 1;
+  padding: 8px 0;
+  font-family: 'Alegreya', serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gcc-dd-tx2);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+.gcc-auth-tab:hover { color: var(--gcc-dd-tx); }
+.gcc-auth-tab.active {
+  color: var(--gcc-bar-active);
+  border-bottom-color: var(--gcc-bar-active);
+}
+
+/* ── Form ── */
+.gcc-auth-form {
+  padding: 20px 24px 24px;
+}
+.gcc-auth-field {
+  margin-bottom: 14px;
+}
+.gcc-auth-label {
+  display: block;
+  font-family: 'Alegreya', serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gcc-dd-tx2);
+  margin-bottom: 4px;
+  letter-spacing: 0.5px;
+}
+.gcc-auth-input {
+  width: 100%;
+  padding: 8px 10px;
+  font-family: 'Alegreya', serif;
+  font-size: 13px;
+  color: var(--gcc-dd-tx);
+  background: var(--gcc-bar-bg);
+  border: 1px solid var(--gcc-dd-brd);
+  border-radius: 4px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.gcc-auth-input:focus {
+  border-color: var(--gcc-bar-active);
+}
+.gcc-auth-input::placeholder {
+  color: var(--gcc-dd-tx2);
+  opacity: 0.6;
+}
+
+/* ── Submit button ── */
+.gcc-auth-submit {
+  width: 100%;
+  padding: 10px;
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #fff;
+  background: var(--gcc-bar-active);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  margin-top: 4px;
+}
+.gcc-auth-submit:hover { opacity: 0.9; }
+.gcc-auth-submit:active { transform: scale(0.98); }
+.gcc-auth-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Google sign-in divider + button ── */
+.gcc-auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0;
+  font-family: 'Alegreya', serif;
+  font-size: 10px;
+  color: var(--gcc-dd-tx2);
+  letter-spacing: 1px;
+}
+.gcc-auth-divider::before,
+.gcc-auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--gcc-dd-sep);
+}
+.gcc-auth-google {
+  width: 100%;
+  padding: 9px 10px;
+  font-family: 'Alegreya', serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gcc-dd-tx);
+  background: var(--gcc-bar-bg);
+  border: 1px solid var(--gcc-dd-brd);
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.15s;
+}
+.gcc-auth-google:hover {
+  border-color: var(--gcc-bar-active);
+  background: var(--gcc-bar-hover);
+}
+.gcc-auth-google svg { flex-shrink: 0; }
+
+/* ── Error / status message ── */
+.gcc-auth-msg {
+  font-family: 'Alegreya', serif;
+  font-size: 11px;
+  padding: 6px 10px;
+  border-radius: 3px;
+  margin-bottom: 12px;
+  display: none;
+}
+.gcc-auth-msg.error {
+  display: block;
+  background: rgba(180,40,40,0.15);
+  color: #cc3333;
+  border: 1px solid rgba(180,40,40,0.25);
+}
+.gcc-auth-msg.success {
+  display: block;
+  background: rgba(40,140,60,0.15);
+  color: #2a8a3a;
+  border: 1px solid rgba(40,140,60,0.25);
+}
+
+/* ── Password reset link ── */
+.gcc-auth-forgot {
+  display: inline-block;
+  font-family: 'Alegreya', serif;
+  font-size: 11px;
+  color: var(--gcc-bar-active);
+  text-decoration: none;
+  cursor: pointer;
+  margin-top: 2px;
+  border: none;
+  background: none;
+  padding: 0;
+}
+.gcc-auth-forgot:hover { text-decoration: underline; }
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .gcc-auth-modal { max-width: 340px; }
+  .gcc-auth-hdr-title { font-size: 15px; }
+  .gcc-auth-chip { padding: 3px 7px; font-size: 9px; max-width: 120px; }
+  .gcc-auth-dd { width: 200px; }
+}
+
+/* ── Print: hide auth ── */
+@media print {
+  .gcc-auth-overlay, .gcc-auth-wrap { display: none !important; }
+}

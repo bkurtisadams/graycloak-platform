@@ -1,0 +1,12 @@
+{
+  "projects": {
+    "default": "graycloaks-campaign-corner"
+  },
+  "targets": {
+    "graycloaks-campaign-corner": {
+      "hosting": {
+        "adnd": ["adnd-graycloak"]
+      }
+    }
+  }
+}

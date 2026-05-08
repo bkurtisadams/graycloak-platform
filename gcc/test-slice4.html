@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Slice 4 — gcc-encounters.js v2.0.0 lake branch test runner</title>
+<style>
+  :root {
+    --bg: #1e1e1e;
+    --fg: #e8e6e3;
+    --muted: #888;
+    --pass: #5b7a3a;
+    --fail: #b03030;
+    --warn: #c0a070;
+    --accent: #8b0000;
+    --panel: #2a2a2a;
+    --border: #444;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    font: 13px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    background: var(--bg);
+    color: var(--fg);
+  }
+  h1 { margin: 0 0 4px 0; font-size: 18px; font-weight: 600; }
+  h1 .ver { color: var(--muted); font-weight: 400; }
+  .sub { color: var(--muted); margin-bottom: 16px; font-size: 12px; }
+  .toolbar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  button {
+    background: var(--panel); color: var(--fg); border: 1px solid var(--border);
+    padding: 6px 12px; cursor: pointer; font: inherit;
+  }
+  button.primary { border-color: var(--accent); background: #3a1a1a; }
+  button:hover { background: #3a3a3a; }
+  button.primary:hover { background: #4a2020; }
+  .summary {
+    display: flex; gap: 16px; align-items: baseline;
+    margin-bottom: 12px; padding: 8px 12px;
+    background: var(--panel); border-left: 3px solid var(--border);
+  }
+  .summary.all-pass { border-left-color: var(--pass); }
+  .summary.has-fail { border-left-color: var(--fail); }
+  .summary .count { font-size: 16px; font-weight: 600; }
+  .summary .pass-n { color: var(--pass); }
+  .summary .fail-n { color: var(--fail); }
+  .summary .pending { color: var(--muted); font-style: italic; }
+  .group { margin-bottom: 12px; border: 1px solid var(--border); background: var(--panel); }
+  .group-header {
+    padding: 6px 10px; background: #333; font-weight: 600;
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between;
+  }
+  .group-header .stat { color: var(--muted); font-weight: 400; }
+  .group-header .stat.has-fail { color: var(--fail); }
+  .test {
+    padding: 4px 10px; border-bottom: 1px solid #333;
+    display: flex; gap: 8px; align-items: flex-start;
+  }
+  .test:last-child { border-bottom: none; }
+  .test .mark { width: 14px; flex-shrink: 0; font-weight: 600; }
+  .test.pass .mark { color: var(--pass); }
+  .test.fail .mark { color: var(--fail); }
+  .test .name { flex: 1; }
+  .test .extra { color: var(--warn); font-size: 11px; margin-top: 2px; }
+  .console {
+    margin-top: 16px; padding: 10px; background: #111;
+    border: 1px solid var(--border); color: #ccc; font-size: 11px;
+    max-height: 200px; overflow: auto; white-space: pre-wrap;
+  }
+  .console:empty { display: none; }
+  .notice {
+    padding: 8px 12px; background: #2a2418;
+    border-left: 3px solid var(--warn); margin-bottom: 12px;
+    font-size: 12px; color: #d0c8a8;
+  }
+  .notice strong { color: var(--warn); }
+</style>
+</head>
+<body>
+
+<h1>Slice 4 test runner <span class="ver">— gcc-encounters.js v2.0.0 (lake branch)</span></h1>
+<div class="sub">
+  Loads gcc-encounter-data.js (with new WATERBORNE_TABLES) + gcc-rng + gcc-subhex-data
+  + gcc-encounters, then exercises the new lake-branch dispatch in check().
+  Sandboxed localStorage.
+</div>
+
+<div class="notice">
+  <strong>Sandboxed.</strong> Refresh the page to wipe.
+</div>
+
+<div id="install-error" class="notice" style="display:none; background:#3a1818; border-left-color:#b03030; color:#f0c0c0;"></div>
+
+<div class="toolbar">
+  <button class="primary" id="run-btn">▶ Run all tests</button>
+  <button id="clear-btn">Clear results</button>
+  <button id="dump-btn">Dump sandbox storage</button>
+</div>
+
+<div id="summary" class="summary">
+  <span class="count pending">No tests run yet.</span>
+</div>
+
+<div id="results"></div>
+
+<div class="console" id="console"></div>
+
+<!-- Sandbox -->
+<script>
+(function(){
+  const memory = new Map();
+  const sandbox = {
+    getItem: k => memory.has(k) ? memory.get(k) : null,
+    setItem: (k, v) => { memory.set(k, String(v)); },
+    removeItem: k => { memory.delete(k); },
+    clear: () => memory.clear(),
+    key: i => Array.from(memory.keys())[i] || null,
+    get length(){ return memory.size; },
+    __dump: () => Object.fromEntries(memory),
+  };
+  let installed = false; let installError = null;
+  try {
+    Object.defineProperty(window, 'localStorage', {
+      value: sandbox, writable: false, configurable: true,
+    });
+    installed = true;
+  } catch(e1){
+    installError = e1;
+    try {
+      const real = window.localStorage;
+      real.getItem = sandbox.getItem; real.setItem = sandbox.setItem;
+      real.removeItem = sandbox.removeItem; real.clear = sandbox.clear;
+      real.key = sandbox.key;
+      installed = true;
+    } catch(e2){ installError = e2; }
+  }
+  window.__sandboxStorage = sandbox;
+  window.__sandboxInstalled = installed;
+  window.__sandboxError = installError ? String(installError) : null;
+})();
+</script>
+
+<!-- Modules. Order: encounter-data (defines GCCEncounterData),
+     rng + subhex-data (lakes), encounters last. -->
+<script src="gcc-encounter-data.js"></script>
+<script src="gcc-rng.js"></script>
+<script src="gcc-subhex-data.js"></script>
+<script src="gcc-encounters.js"></script>
+
+<script>
+(function(){
+  'use strict';
+
+  const E  = window.GCCEncounters;
+  const D  = window.GCCEncounterData;
+  const SD = window.GCCSubhexData;
+  const resultsEl  = document.getElementById('results');
+  const summaryEl  = document.getElementById('summary');
+  const consoleEl  = document.getElementById('console');
+  const runBtn     = document.getElementById('run-btn');
+  const clearBtn   = document.getElementById('clear-btn');
+  const dumpBtn    = document.getElementById('dump-btn');
+
+  let groups = [];
+  let currentGroup = null;
+  let consoleLines = [];
+
+  function group(name){
+    currentGroup = { name, tests: [] };
+    groups.push(currentGroup);
+    log(`── ${name} ──`);
+  }
+  function assert(name, cond, extra){
+    const test = { name, pass: !!cond, extra: cond ? null : (extra || null) };
+    currentGroup.tests.push(test);
+    log(`  ${cond ? '✓' : '✗'} ${name}${test.extra ? ': ' + test.extra : ''}`);
+  }
+  function log(line){ consoleLines.push(line); }
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;',
+    }[c]));
+  }
+
+  function render(){
+    const allTests = groups.flatMap(g => g.tests);
+    const pass = allTests.filter(t => t.pass).length;
+    const fail = allTests.length - pass;
+    summaryEl.classList.toggle('all-pass', fail === 0 && pass > 0);
+    summaryEl.classList.toggle('has-fail', fail > 0);
+    summaryEl.innerHTML = pass === 0 && fail === 0
+      ? `<span class="count pending">No tests run yet.</span>`
+      : `<span class="count pass-n">${pass} pass</span>
+         <span class="count fail-n">${fail} fail</span>
+         <span class="count">${groups.length} groups, ${allTests.length} tests</span>`;
+    resultsEl.innerHTML = groups.map(g => {
+      const gFail = g.tests.filter(t => !t.pass).length;
+      const tests = g.tests.map(t => `
+        <div class="test ${t.pass ? 'pass' : 'fail'}">
+          <span class="mark">${t.pass ? '✓' : '✗'}</span>
+          <span class="name">${escapeHtml(t.name)}${
+            t.extra ? `<div class="extra">${escapeHtml(t.extra)}</div>` : ''
+          }</span>
+        </div>
+      `).join('');
+      return `
+        <div class="group">
+          <div class="group-header">
+            <span>${escapeHtml(g.name)}</span>
+            <span class="stat ${gFail ? 'has-fail' : ''}">${
+              gFail ? `${gFail} fail / ` : ''
+            }${g.tests.length} tests</span>
+          </div>
+          ${tests}
+        </div>
+      `;
+    }).join('');
+    consoleEl.textContent = consoleLines.join('\n');
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+  }
+
+  function resetState(){
+    if (SD){
+      try { SD.listLakes().forEach(l => SD.deleteLake(l.id)); } catch(e){}
+    }
+    // Reset waterborne tables to empty between runs (tests append for
+    // some checks). Mutating the live arrays is fine since they're
+    // sandboxed in this page session.
+    if (D && D.WATERBORNE_TABLES){
+      D.WATERBORNE_TABLES.lake_shallow.length = 0;
+      D.WATERBORNE_TABLES.lake_deep.length = 0;
+      D.WATERBORNE_TABLES.sea_shallow.length = 0;
+      D.WATERBORNE_TABLES.sea_deep.length = 0;
+    }
+    window.__sandboxStorage.clear();
+    groups = [];
+    consoleLines = [];
+  }
+
+  function runAll(){
+    resetState();
+
+    if (!E || !D || !SD){
+      group('FATAL: required modules not loaded');
+      assert('GCCEncounters',     !!E);
+      assert('GCCEncounterData',  !!D);
+      assert('GCCSubhexData',     !!SD);
+      render();
+      return;
+    }
+
+    // 1. Module surface
+    group('1. Module surface');
+    assert('GCCEncounters loaded', !!E);
+    assert('check exposed',        typeof E.check === 'function');
+    assert('contextFor exposed',   typeof E.contextFor === 'function');
+    assert('WATERBORNE_TABLES exposed', !!D.WATERBORNE_TABLES);
+    assert('lake_shallow key', 'lake_shallow' in D.WATERBORNE_TABLES);
+    assert('lake_deep key',    'lake_deep' in D.WATERBORNE_TABLES);
+    assert('sea_shallow key',  'sea_shallow' in D.WATERBORNE_TABLES);
+    assert('sea_deep key',     'sea_deep' in D.WATERBORNE_TABLES);
+    assert('lake_shallow empty after reset',
+      D.WATERBORNE_TABLES.lake_shallow.length === 0);
+
+    // 2. Unknown lakeId
+    group('2. Unknown lakeId returns specific reason');
+    {
+      const r = E.check({ col: 70, row: 50 }, { lakeId: 'no-such-lake' });
+      assert('occurred=false', r.occurred === false);
+      assert('reason mentions unknown',
+        /Unknown lake id/i.test(r.reason || ''),
+        r.reason);
+    }
+
+    // 3. Empty table = no entries seeded
+    group('3. Empty placeholder returns "no entries seeded"');
+    {
+      const lake = SD.createLake('Quagflow', 'lake', 'shallow');
+      assert('lake created', !!lake);
+      const r = E.check({ col: 70, row: 50 }, { lakeId: 'quagflow' });
+      assert('occurred=false',           r.occurred === false);
+      assert('lake doc surfaced',        r.lake && r.lake.id === 'quagflow');
+      assert('tableKey = lake_shallow',  r.tableKey === 'lake_shallow');
+      assert('reason mentions seeded',
+        /No waterborne table seeded/i.test(r.reason || ''),
+        r.reason);
+      SD.deleteLake('quagflow');
+    }
+
+    // 4. Table key dispatch by kind × depth
+    group('4. Table dispatch by kind × depth');
+    {
+      SD.createLake('Sl', 'lake', 'shallow');
+      SD.createLake('Ld', 'lake', 'deep');
+      SD.createLake('Ss', 'sea', 'shallow');
+      SD.createLake('Sd', 'sea', 'deep');
+      const cases = [
+        { id: 'sl', expect: 'lake_shallow' },
+        { id: 'ld', expect: 'lake_deep' },
+        { id: 'ss', expect: 'sea_shallow' },
+        { id: 'sd', expect: 'sea_deep' },
+      ];
+      for (const c of cases){
+        const r = E.check({ col: 70, row: 50 }, { lakeId: c.id });
+        assert(`${c.id} → ${c.expect}`,
+          r.tableKey === c.expect, `got ${r.tableKey}`);
+      }
+      SD.deleteLake('sl'); SD.deleteLake('ld');
+      SD.deleteLake('ss'); SD.deleteLake('sd');
+    }
+
+    // 5. Lake branch fires before dmgTerrain reject
+    group('5. Lake branch precedes dmgTerrain reject');
+    {
+      SD.createLake('Test', 'lake', 'shallow');
+      const noLake = E.check({ col: 99, row: 99 });
+      assert('without lakeId, no-outdoor-table',
+        /no outdoor encounter table|no terrain set/i.test(noLake.reason || ''),
+        noLake.reason);
+      const withLake = E.check({ col: 99, row: 99 }, { lakeId: 'test' });
+      assert('with lakeId, lake branch fires',
+        /No waterborne table seeded/i.test(withLake.reason || ''),
+        withLake.reason);
+      SD.deleteLake('test');
+    }
+
+    // 6. Settlement wins over lake
+    group('6. Settlement check precedes lake branch');
+    {
+      SD.createLake('LakeWithCity', 'lake', 'shallow');
+      const ctx = {
+        col: 1, row: 1,
+        gccTerrain: 'plains', dmgTerrain: 'plains',
+        regionName: null, regionCategory: null,
+        tableKey: null, tableSource: null,
+        population: 'patrolled', timeOfDay: 'morning',
+        climate: 'temperate',
+        settlement: { kind: 'city', name: 'City of the Lake' },
+      };
+      const r = E.check(ctx, { lakeId: 'lakewithcity' });
+      assert('settlement wins', r.settlement && r.settlement.kind === 'city');
+      assert('reason mentions city', /City hex/i.test(r.reason || ''));
+      SD.deleteLake('lakewithcity');
+    }
+
+    // 7. Seeded table produces a roll
+    group('7. Seeded table produces a roll');
+    {
+      D.WATERBORNE_TABLES.lake_shallow.push(
+        { min: 1,  max: 50,  encounter: 'Frog, Giant' },
+        { min: 51, max: 100, encounter: 'Crayfish, Giant' },
+      );
+      SD.createLake('Seed', 'lake', 'shallow');
+      const r = E.check({ col: 1, row: 1 }, { lakeId: 'seed' });
+      assert('occurred=true',          r.occurred === true);
+      assert('lake doc preserved',     r.lake && r.lake.id === 'seed');
+      assert('tableKey carried',       r.tableKey === 'lake_shallow');
+      assert('tableSourceUsed=waterborne', r.tableSourceUsed === 'waterborne');
+      assert('monster set',
+        r.monster === 'Frog, Giant' || r.monster === 'Crayfish, Giant',
+        r.monster);
+      assert('reaction object',  typeof r.reaction === 'object');
+      assert('surprise object',  typeof r.surprise === 'object');
+      assert('tableRoll 1..100',
+        typeof r.tableRoll === 'number' && r.tableRoll >= 1 && r.tableRoll <= 100);
+      D.WATERBORNE_TABLES.lake_shallow.length = 0;
+      SD.deleteLake('seed');
+    }
+
+    // 8. Force flag
+    group('8. force flag marks result');
+    {
+      D.WATERBORNE_TABLES.lake_deep.push({ min: 1, max: 100, encounter: 'Pike, Giant' });
+      SD.createLake('Forced', 'lake', 'deep');
+      const r = E.check({ col: 1, row: 1 }, { lakeId: 'forced', force: true });
+      assert('forced=true',     r.occurs && r.occurs.forced === true);
+      assert('still occurred',  r.occurred === true);
+      assert('still rolled',    r.monster === 'Pike, Giant');
+      D.WATERBORNE_TABLES.lake_deep.length = 0;
+      SD.deleteLake('forced');
+    }
+
+    // 9. Land path unchanged regression
+    group('9. Existing land paths still resolve');
+    {
+      const ctx = {
+        col: 0, row: 0,
+        gccTerrain: 'plains', dmgTerrain: 'plains',
+        regionName: null, regionCategory: null,
+        tableKey: null, tableSource: null,
+        population: 'patrolled', timeOfDay: 'morning',
+        climate: 'temperate',
+      };
+      const r = E.check(ctx);
+      assert('result has ctx',  !!r.ctx);
+      assert('no error field',  !r.error);
+      assert('no lake field on land path', r.lake === undefined);
+      assert('no waterborne tableKey',
+        !(r.tableKey && /^(lake|sea)_/.test(r.tableKey)));
+    }
+
+    render();
+  }
+
+  if (window.__sandboxError){
+    const banner = document.getElementById('install-error');
+    banner.style.display = 'block';
+    banner.innerHTML = `<strong>Sandbox install failed:</strong> ${
+      escapeHtml(String(window.__sandboxError))
+    }`;
+  }
+  if (!E || !D || !SD){
+    const banner = document.getElementById('install-error');
+    banner.style.display = 'block';
+    banner.innerHTML = `<strong>Module load failed.</strong> Check DevTools console.`;
+  }
+
+  runBtn.addEventListener('click', () => {
+    runBtn.disabled = true;
+    try { runAll(); }
+    catch(e){
+      group('FATAL: harness crashed');
+      assert(e.message, false, e.stack);
+      render();
+    }
+    finally { runBtn.disabled = false; }
+  });
+  clearBtn.addEventListener('click', () => {
+    groups = []; consoleLines = []; render();
+  });
+  dumpBtn.addEventListener('click', () => {
+    const dump = window.__sandboxStorage.__dump();
+    consoleLines.push('── Sandbox storage ──');
+    for (const [k, v] of Object.entries(dump)){
+      try { consoleLines.push(`${k}: ${JSON.stringify(JSON.parse(v), null, 2)}`); }
+      catch(e){ consoleLines.push(`${k}: ${v}`); }
+    }
+    render();
+  });
+
+  render();
+})();
+</script>
+
+</body>
+</html>

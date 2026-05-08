@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Session Recap — Graycloak's Campaign Corner</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Alegreya:ital,wght@0,400;0,700;1,400&family=Alegreya+SC:wght@700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="gcc-header.css">
+<link rel="stylesheet" href="gcc-auth.css">
+<style>
+[data-gcc-theme="dark"]{
+  --bg:#101418;--bg2:#161a20;--bg-card:#1a1e26;--bg-section:#141820;
+  --brd:#252a34;--brd-lt:#303848;--tx:#c8ccd4;--tx2:#7a8494;--tx3:#4a5464;
+  --accent:#60a0d0;--accent-lt:#78b8e8;--accent-dim:#3a6a90;
+  --amber:#d0a040;--green:#48a858;--red:#d04848;
+  --card-shadow:0 1px 3px rgba(0,0,0,0.2);--dd-shadow:0 8px 30px rgba(0,0,0,0.5);
+  --hover-bg:rgba(255,255,255,0.03);--noise-opacity:0.3;
+  --lore-npc:#7a5a8a;--lore-location:#5a9a40;--lore-faction:#5090b0;--lore-item:#d0a040;--lore-other:#7a8494;
+  --recap-rule:rgba(96,160,208,0.2);
+  --recap-num-bg:rgba(96,160,208,0.08);
+}
+[data-gcc-theme="light"]{
+  --bg:#eef0f4;--bg2:#e4e8ee;--bg-card:#ffffff;--bg-section:#e8eaee;
+  --brd:#d0d4dc;--brd-lt:#bcc2cc;--tx:#181c24;--tx2:#505868;--tx3:#8890a0;
+  --accent:#30508a;--accent-lt:#2a4878;--accent-dim:#8890a0;
+  --amber:#a07818;--green:#287830;--red:#c03030;
+  --card-shadow:0 1px 4px rgba(0,0,0,0.07);--dd-shadow:0 8px 24px rgba(0,0,0,0.12);
+  --hover-bg:rgba(0,0,0,0.02);--noise-opacity:0.15;
+  --lore-npc:#7a5a8a;--lore-location:#5a9a40;--lore-faction:#5090b0;--lore-item:#d0a040;--lore-other:#7a8494;
+  --recap-rule:rgba(48,80,138,0.15);
+  --recap-num-bg:rgba(48,80,138,0.06);
+}
+:root{--fd:'Cinzel',serif;--fb:'Alegreya',serif;--fsc:'Alegreya SC',serif;--fm:'IBM Plex Mono',monospace}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{min-height:100%;background:var(--bg)}
+body{min-height:100vh;background:var(--bg);color:var(--tx);font-family:var(--fb);font-size:15px;display:flex;flex-direction:column}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.65' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");opacity:var(--noise-opacity)}
+
+.main{flex:1;padding:0 16px 60px;position:relative;z-index:1}
+.main-in{max-width:800px;margin:0 auto}
+
+/* ── Breadcrumb nav ── */
+.recap-nav{display:flex;align-items:center;justify-content:space-between;padding:16px 0 0;gap:8px;flex-wrap:wrap}
+.recap-back{display:inline-flex;align-items:center;gap:5px;font-family:var(--fsc);font-size:10px;letter-spacing:1px;color:var(--tx3);text-decoration:none;transition:color .12s}
+.recap-back:hover{color:var(--accent)}
+.recap-back-arrow{font-size:12px}
+.recap-camp-link{font-family:var(--fsc);font-size:10px;letter-spacing:1px;color:var(--tx3);text-decoration:none;transition:color .12s}
+.recap-camp-link:hover{color:var(--accent)}
+
+/* ── Issue header ── */
+.recap-header{margin:28px 0 0;padding-bottom:20px;border-bottom:1px solid var(--recap-rule)}
+.recap-num{display:inline-flex;align-items:center;gap:8px;background:var(--recap-num-bg);border:1px solid var(--recap-rule);border-radius:3px;padding:4px 12px;margin-bottom:12px}
+.recap-num-label{font-family:var(--fsc);font-size:9px;letter-spacing:2px;color:var(--tx3)}
+.recap-num-val{font-family:var(--fm);font-size:12px;color:var(--accent)}
+.recap-title{font-family:var(--fd);font-size:32px;font-weight:900;color:var(--tx);letter-spacing:2px;line-height:1.1;margin-bottom:10px}
+.recap-dates{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+.recap-date-game{font-family:var(--fm);font-size:12px;color:var(--amber)}
+.recap-date-real{font-family:var(--fm);font-size:11px;color:var(--tx3)}
+.recap-xp{font-family:var(--fm);font-size:11px;color:var(--accent)}
+.recap-tags{display:flex;gap:6px;flex-wrap:wrap}
+.recap-tag{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;font-size:10px;border-radius:2px;border:1px solid var(--brd-lt);color:var(--tx2);background:var(--bg2)}
+.recap-tag-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+
+/* ── Cover layout: image left, summary right ── */
+.recap-cover{display:flex;gap:24px;margin:24px 0;align-items:flex-start}
+.recap-cover-img{flex:0 0 280px;max-width:280px}
+.recap-cover-img img{width:100%;border-radius:4px;border:1px solid var(--brd);display:block}
+.recap-summary{flex:1;min-width:0}
+.recap-summary-text{font-size:16px;line-height:1.7;color:var(--tx);white-space:pre-line}
+.recap-cover-noimg .recap-summary-text{font-size:16px;line-height:1.7;color:var(--tx);white-space:pre-line}
+
+/* ── Roster strip ── */
+.recap-roster{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--brd);border-bottom:1px solid var(--brd);margin:0 0 24px}
+.recap-roster-label{font-family:var(--fsc);font-size:8px;letter-spacing:1.5px;color:var(--tx3);margin-right:4px}
+.recap-roster-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;font-size:11px;border-radius:2px;border:1px solid var(--brd);color:var(--tx2);background:var(--bg-card)}
+.recap-roster-chip img{width:20px;height:20px;border-radius:50%;object-fit:contain}
+.recap-roster-chip .roster-ph{width:20px;height:20px;border-radius:50%;background:var(--bg-section);display:inline-flex;align-items:center;justify-content:center;font-size:9px;color:var(--tx3)}
+
+/* ── Body sections ── */
+.recap-sections{margin:0}
+.recap-sec{margin-bottom:28px;padding-bottom:28px;border-bottom:1px solid var(--recap-rule)}
+.recap-sec:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.recap-sec-title{font-family:var(--fd);font-size:14px;font-weight:700;letter-spacing:1.5px;color:var(--accent-dim);margin-bottom:12px;text-transform:uppercase}
+.recap-sec-text{font-size:15px;line-height:1.75;color:var(--tx);white-space:pre-line}
+
+/* ── Section images (same float model as campaign-detail) ── */
+.clearfix::after{content:'';display:table;clear:both}
+.recap-sec-images{display:block}
+.recap-sec-img-wrap{display:inline-block;margin:0 0 10px 0}
+.recap-sec-img-wrap.pos-right{float:right;margin:2px 0 10px 18px}
+.recap-sec-img-wrap.pos-left{float:left;margin:2px 18px 10px 0}
+.recap-sec-img-wrap.pos-center{float:none;display:block;margin:0 auto 14px;text-align:center}
+.recap-sec-img-wrap.pos-inline{float:none;display:block;margin:0 0 14px}
+.recap-sec-img{border-radius:4px;border:1px solid var(--brd);display:block;height:auto}
+.recap-sec-img.sz-sm{max-width:120px}
+.recap-sec-img.sz-md{max-width:220px}
+.recap-sec-img.sz-lg{max-width:380px}
+.recap-sec-img.sz-full{width:100%;max-height:500px;object-fit:contain}
+.recap-img-caption{display:block;font-size:11px;color:var(--tx3);font-style:italic;margin-top:4px;text-align:center;max-width:100%}
+
+/* ── Prev/Next navigation ── */
+.recap-pagination{display:flex;align-items:stretch;gap:0;margin:40px 0 0;border:1px solid var(--brd);border-radius:4px;overflow:hidden}
+.recap-pag-btn{flex:1;display:flex;flex-direction:column;padding:12px 16px;text-decoration:none;color:var(--tx2);background:var(--bg-card);transition:all .15s;gap:3px;min-width:0}
+.recap-pag-btn:hover{background:var(--bg2);color:var(--tx)}
+.recap-pag-btn.disabled{opacity:.35;pointer-events:none}
+.recap-pag-btn.next{text-align:right;border-left:1px solid var(--brd)}
+.recap-pag-label{font-family:var(--fsc);font-size:8px;letter-spacing:1.5px;color:var(--tx3)}
+.recap-pag-arrow{font-size:11px;color:var(--accent)}
+.recap-pag-title{font-family:var(--fd);font-size:12px;font-weight:700;letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ── Not found ── */
+.recap-error{text-align:center;padding:80px 20px;color:var(--tx3)}
+.recap-error-title{font-family:var(--fd);font-size:18px;color:var(--tx2);margin-bottom:8px;letter-spacing:1px}
+.recap-error a{color:var(--accent);text-decoration:none}
+.recap-error a:hover{text-decoration:underline}
+
+/* ── Loading ── */
+.recap-loading{text-align:center;padding:60px 20px;color:var(--tx3);font-family:var(--fsc);font-size:10px;letter-spacing:2px}
+
+/* ── Footer ── */
+.ftr{padding:10px 16px;font-size:10px;color:var(--tx3);border-top:1px solid var(--brd);background:var(--bg-section);position:relative;z-index:1}
+.ftr-inner{max-width:800px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px}
+
+@media(max-width:600px){
+  .recap-cover{flex-direction:column}
+  .recap-cover-img{flex:none;max-width:100%}
+  .recap-title{font-size:22px}
+  .recap-sec-img-wrap.pos-left,.recap-sec-img-wrap.pos-right{float:none;margin:0 auto 14px;display:block;text-align:center}
+  .recap-sec-img.sz-lg,.recap-sec-img.sz-md{max-width:100%}
+}
+</style>
+</head>
+<body>
+<div id="gcc-bar" class="gcc-bar"><div class="gcc-bar-in">
+  <a href="index.html" class="gcc-brand" title="Back to Dashboard"><div class="gcc-title-wrap"><div class="gcc-title">GRAYCLOAK'S</div><div class="gcc-subtitle">CAMPAIGN CORNER</div></div></a>
+  <div class="gcc-nav"><div class="gcc-tools-wrap"><button class="gcc-nav-btn" id="gcc-btn-tools">🎲 Tools ▾</button><div class="gcc-tools-dd" id="gcc-tools-dd"></div></div><span id="gcc-auth-slot"></span><button class="gcc-nav-btn" id="gcc-btn-theme" title="Toggle light/dark"><span id="gcc-theme-icon">◑</span></button></div>
+</div></div>
+<div class="gcc-tools-overlay" id="gcc-tools-overlay"></div>
+
+<div class="main">
+  <div class="main-in" id="recap-root">
+    <div class="recap-loading">LOADING…</div>
+  </div>
+</div>
+
+<div class="ftr"><div class="ftr-inner"><span>Graycloak's Campaign Corner</span><span id="ftr-camp-name"></span></div></div>
+
+<script src="gcc-dialog.js"></script>
+<script src="gcc-data.js"></script>
+<script src="gcc-images.js"></script>
+<script src="gcc-header.js"></script>
+<script src="gcc-firebase-config.js"></script>
+<script src="gcc-auth.js"></script>
+<script src="gcc-sync.js"></script>
+<script src="gcc-storage.js"></script>
+<script src="gcc-invite.js"></script>
+<script>
+const ESC = s => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; };
+
+const params = new URLSearchParams(window.location.search);
+const campId = params.get('id');
+const sesIdx  = parseInt(params.get('idx') ?? '-1');
+
+const LORE_COLORS = {
+  npc: 'var(--lore-npc)', location: 'var(--lore-location)',
+  faction: 'var(--lore-faction)', item: 'var(--lore-item)', other: 'var(--lore-other)'
+};
+
+function formatDate(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+// ── Image resolution ──
+let _imgMap = {};
+function resolveImg(val) {
+  if (!val) return '';
+  if (GCCImages.isKey(val)) return _imgMap[val] || '';
+  return val;
+}
+
+// ── Real session number (skips timeline entries) ──
+function realSessionNum(sessions, idx) {
+  let n = 0;
+  for (let i = sessions.length - 1; i >= 0; i--) {
+    if (sessions[i].type !== 'timeline') n++;
+    if (i === idx) break;
+  }
+  return n;
+}
+
+// ── Adjacent navigable session indices (skip dm-only for players, skip timeline) ──
+function adjacentSessions(sessions, idx, isPlayer) {
+  const navigable = sessions
+    .map((s, i) => ({ s, i }))
+    .filter(({ s }) => s.type !== 'timeline' && !(isPlayer && s.visible === false));
+
+  const pos = navigable.findIndex(({ i }) => i === idx);
+  return {
+    prev: pos > 0 ? navigable[pos - 1] : null,
+    next: pos >= 0 && pos < navigable.length - 1 ? navigable[pos + 1] : null,
+  };
+}
+
+function buildRecapNav(campId, sesIdx, label, title) {
+  if (!label) return `<div class="recap-pag-btn disabled"></div>`;
+  const url = `recap.html?id=${encodeURIComponent(campId)}&idx=${sesIdx}`;
+  return `<a class="recap-pag-btn ${label === 'NEXT' ? 'next' : ''}" href="${ESC(url)}">
+    <span class="recap-pag-label">${label}</span>
+    <span class="recap-pag-arrow">${label === 'NEXT' ? '→' : '←'}</span>
+    <span class="recap-pag-title">${ESC(title || 'Untitled')}</span>
+  </a>`;
+}
+
+async function render(camp, isPlayer) {
+  const root = document.getElementById('recap-root');
+  const sessions = camp.sessions || [];
+  const session = sessions[sesIdx];
+
+  if (!session) {
+    root.innerHTML = `<div class="recap-error">
+      <div class="recap-error-title">SESSION NOT FOUND</div>
+      <p><a href="campaign-detail.html?id=${encodeURIComponent(campId)}">← Back to campaign</a></p>
+    </div>`;
+    return;
+  }
+
+  // Block dm-only for players
+  if (isPlayer && session.visible === false) {
+    root.innerHTML = `<div class="recap-error">
+      <div class="recap-error-title">NOT AVAILABLE</div>
+      <p style="margin-bottom:10px;font-size:13px">This entry isn't visible yet.</p>
+      <p><a href="campaign-detail.html?id=${encodeURIComponent(campId)}">← Back to campaign</a></p>
+    </div>`;
+    return;
+  }
+
+  // Resolve all images
+  const imgKeys = [];
+  if (session.image && GCCImages.isKey(session.image)) imgKeys.push(session.image);
+  (session.sections || []).forEach(sec =>
+    (sec.images || []).forEach(img => { if (img.src && GCCImages.isKey(img.src)) imgKeys.push(img.src); })
+  );
+  if (!isPlayer && imgKeys.length) _imgMap = await GCCImages.getBulk(imgKeys);
+
+  const sesLabel = GCC.sessionLabel(camp.system);
+  const xpLbl = GCC.xpLabel(camp.system);
+  const isTimeline = session.type === 'timeline';
+  const realNum = isTimeline ? null : realSessionNum(sessions, sesIdx);
+  const campDetailUrl = `campaign-detail.html?id=${encodeURIComponent(campId)}&tab=sessions`;
+
+  document.title = session.title
+    ? `${sesLabel} #${realNum} — ${session.title} · GCC`
+    : `${sesLabel} #${realNum} · GCC`;
+  document.getElementById('ftr-camp-name').textContent = camp.name || '';
+
+  // ── Issue number badge ──
+  const numBadge = isTimeline
+    ? `<div class="recap-num"><span class="recap-num-label">TIMELINE</span></div>`
+    : `<div class="recap-num"><span class="recap-num-label">${ESC(sesLabel.toUpperCase())}</span><span class="recap-num-val">#${realNum}</span></div>`;
+
+  // ── Dates / XP ──
+  let datesHtml = '';
+  if (session.gameDate || session.date || session.xp) {
+    datesHtml = '<div class="recap-dates">';
+    if (session.gameDate) datesHtml += `<span class="recap-date-game">⌛ ${ESC(session.gameDate)}</span>`;
+    if (session.date)     datesHtml += `<span class="recap-date-real">${formatDate(session.date)}</span>`;
+    if (session.xp)       datesHtml += `<span class="recap-xp">+${session.xp} ${ESC(xpLbl)}</span>`;
+    datesHtml += '</div>';
+  }
+
+  // ── Tags ──
+  let tagsHtml = '';
+  if (session.tags && session.tags.length) {
+    tagsHtml = '<div class="recap-tags">';
+    session.tags.forEach(tag => {
+      const color = LORE_COLORS[tag.type] || 'var(--tx3)';
+      tagsHtml += `<span class="recap-tag"><span class="recap-tag-dot" style="background:${color}"></span>${ESC(tag.name)}</span>`;
+    });
+    tagsHtml += '</div>';
+  }
+
+  // ── Cover image + summary ──
+  const coverSrc = resolveImg(session.image);
+  let coverHtml = '';
+  if (session.text) {
+    const summaryHtml = `<div class="recap-summary-text">${ESC(session.text)}</div>`;
+    if (coverSrc) {
+      coverHtml = `<div class="recap-cover">
+        <div class="recap-cover-img"><img src="${ESC(coverSrc)}" alt=""></div>
+        <div class="recap-summary">${summaryHtml}</div>
+      </div>`;
+    } else {
+      coverHtml = `<div class="recap-cover recap-cover-noimg"><div class="recap-summary">${summaryHtml}</div></div>`;
+    }
+  } else if (coverSrc) {
+    coverHtml = `<div class="recap-cover">
+      <div class="recap-cover-img" style="flex:0 0 100%;max-width:100%"><img src="${ESC(coverSrc)}" alt="" style="max-height:360px;object-fit:contain;width:100%"></div>
+    </div>`;
+  }
+
+  // ── Roster ──
+  let rosterHtml = '';
+  if (session.roster && session.roster.length) {
+    const chars = camp.characters || [];
+    rosterHtml = '<div class="recap-roster"><span class="recap-roster-label">ROSTER</span>';
+    session.roster.forEach(id => {
+      const ch = chars.find(c => (c._id || c.name) === id);
+      if (!ch) return;
+      let name = ch.heroName || ch.characterName || ch.name || '?';
+      let portrait = ch.portraitData || ch.portrait || ch._image || '';
+      const refKey = ch.storageKey || ch.listKey || (ch._ref ? ch._ref.storageKey : '') || '';
+      if (refKey && !isPlayer) {
+        try {
+          const saved = JSON.parse(localStorage.getItem(refKey)) || [];
+          let found = ch._id ? saved.find(x => x._id === ch._id) : null;
+          if (!found && ch.name) found = saved.find(x => (x.heroName || x.characterName || x.name) === ch.name);
+          if (found) { name = found.heroName || found.characterName || found.name || name; portrait = found.portraitData || found.portrait || found._image || portrait; }
+        } catch(e) {}
+      }
+      const ava = portrait ? `<img src="${portrait}" alt="">` : `<span class="roster-ph">?</span>`;
+      rosterHtml += `<span class="recap-roster-chip">${ava} ${ESC(name)}</span>`;
+    });
+    rosterHtml += '</div>';
+  }
+
+  // ── Body sections ──
+  let sectionsHtml = '';
+  if (session.sections && session.sections.length) {
+    sectionsHtml = '<div class="recap-sections">';
+    session.sections.forEach(sec => {
+      if (!sec.title && !sec.text && !(sec.images && sec.images.length)) return;
+      sectionsHtml += '<div class="recap-sec clearfix">';
+      if (sec.title) sectionsHtml += `<div class="recap-sec-title">${ESC(sec.title)}</div>`;
+      const imgs = sec.images || [];
+      if (imgs.length) {
+        sectionsHtml += '<div class="recap-sec-images">';
+        imgs.forEach(img => {
+          const src = resolveImg(img.src);
+          if (!src) return;
+          const pos = img.pos || 'right';
+          sectionsHtml += `<div class="recap-sec-img-wrap pos-${pos}">`;
+          sectionsHtml += `<img class="recap-sec-img sz-${img.size || 'md'}" src="${ESC(src)}" alt="">`;
+          if (img.caption) sectionsHtml += `<span class="recap-img-caption">${ESC(img.caption)}</span>`;
+          sectionsHtml += '</div>';
+        });
+        sectionsHtml += '</div>';
+      }
+      if (sec.text) sectionsHtml += `<div class="recap-sec-text">${ESC(sec.text)}</div>`;
+      sectionsHtml += '</div>';
+    });
+    sectionsHtml += '</div>';
+  }
+
+  // ── Prev/Next ──
+  const { prev, next } = adjacentSessions(sessions, sesIdx, isPlayer);
+  const prevHtml = prev
+    ? buildRecapNav(campId, prev.i, 'PREVIOUS', (prev.s.title || `${sesLabel} #${realSessionNum(sessions, prev.i)}`))
+    : `<div class="recap-pag-btn disabled"></div>`;
+  const nextHtml = next
+    ? buildRecapNav(campId, next.i, 'NEXT', (next.s.title || `${sesLabel} #${realSessionNum(sessions, next.i)}`))
+    : `<div class="recap-pag-btn next disabled"></div>`;
+
+  root.innerHTML = `
+    <div class="recap-nav">
+      <a class="recap-back" href="${ESC(campDetailUrl)}"><span class="recap-back-arrow">←</span> <span>${ESC(camp.name || 'Campaign')}</span></a>
+      ${tagsHtml}
+    </div>
+    <div class="recap-header">
+      ${numBadge}
+      <h1 class="recap-title">${ESC(session.title || `${sesLabel} #${realNum}`)}</h1>
+      ${datesHtml}
+    </div>
+    ${coverHtml}
+    ${rosterHtml}
+    ${sectionsHtml}
+    <div class="recap-pagination">${prevHtml}${nextHtml}</div>
+  `;
+}
+
+// ── Boot ──
+let _isPlayerMode = false;
+let _sharedCamp = null;
+
+function getCamp() {
+  if (_isPlayerMode && _sharedCamp) return _sharedCamp;
+  return GCC.getCampaign(campId);
+}
+
+async function boot() {
+  if (!campId || isNaN(sesIdx) || sesIdx < 0) {
+    document.getElementById('recap-root').innerHTML = `<div class="recap-error">
+      <div class="recap-error-title">INVALID LINK</div>
+      <p><a href="index.html">← Return to dashboard</a></p>
+    </div>`;
+    return;
+  }
+
+  // Try player shared data first (via invite)
+  try {
+    const shared = await Promise.race([
+      GCCInvite.getSharedData(campId),
+      new Promise(r => setTimeout(() => r(null), 3000))
+    ]);
+    if (shared && shared.sessions) {
+      _isPlayerMode = true;
+      _sharedCamp = Object.assign({ id: campId }, shared);
+    }
+  } catch(e) {}
+
+  // Fall back to local GM data
+  const camp = getCamp();
+  if (!camp) {
+    document.getElementById('recap-root').innerHTML = `<div class="recap-error">
+      <div class="recap-error-title">CAMPAIGN NOT FOUND</div>
+      <p><a href="index.html">← Return to dashboard</a></p>
+    </div>`;
+    return;
+  }
+
+  await render(camp, _isPlayerMode);
+}
+
+window.addEventListener('gcc-sync-ready', boot);
+// Fire immediately if sync already done or Firebase not present
+if (typeof GCCAuth === 'undefined' || document.readyState === 'complete') {
+  setTimeout(boot, 50);
+} else {
+  window.addEventListener('load', () => setTimeout(boot, 200));
+}
+</script>
+</body>
+</html>

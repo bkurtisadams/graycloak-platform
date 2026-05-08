@@ -1,0 +1,40 @@
+/* adnd-nwp.css — styles for the NWP tab on the AD&D sheet */
+
+.nwp-panels{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.nwp-panel{border:1px solid var(--ink);background:var(--paper-lt);padding:6px 8px}
+.nwp-panel-hd{font-family:var(--fh);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--ink);padding-bottom:2px;margin-bottom:4px}
+.nwp-kv{display:flex;justify-content:space-between;font-size:11px;padding:1px 0}
+.nwp-kv b{font-weight:700}
+.nwp-kv.nwp-total{border-top:1px solid var(--ink);margin-top:3px;padding-top:3px;font-weight:700}
+.nwp-kv.nwp-note-sm{color:var(--ink-md);font-size:10px;margin-top:4px;font-style:italic}
+.nwp-over{color:#8b0000}
+
+.nwp-tbl{width:100%;border-collapse:collapse;margin-bottom:6px;table-layout:fixed;font-size:11px}
+.nwp-tbl th{background:var(--paper-dk);border:1px solid var(--ink);padding:2px 4px;font-family:var(--fh);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;text-align:left}
+.nwp-tbl td{border:1px solid var(--ink);padding:2px 4px;vertical-align:middle}
+.nwp-cell-c{text-align:center}
+.nwp-tbl th.nwp-cell-c{text-align:center}
+.nwp-tbl th:nth-child(2),.nwp-tbl td:nth-child(2){width:48px}
+.nwp-tbl th:nth-child(3),.nwp-tbl td:nth-child(3){width:70px}
+.nwp-tbl th:nth-child(4),.nwp-tbl td:nth-child(4){width:60px}
+.nwp-tbl th:nth-child(5),.nwp-tbl td:nth-child(5){width:110px}
+
+.nwp-name{overflow:hidden;text-overflow:ellipsis}
+.nwp-name-txt{cursor:help;border-bottom:1px dotted var(--ink-lt)}
+.nwp-cc{color:#8b0000;font-weight:700;margin-left:3px}
+.nwp-extra{color:#3a6a30;font-weight:700;font-size:9px;margin-left:2px}
+.nwp-note-dot{color:#d4a843;margin-left:3px;font-size:9px}
+.nwp-empty{text-align:center;color:var(--ink-md);font-style:italic;padding:8px !important}
+
+.nwp-actions{text-align:center;white-space:nowrap}
+.nwp-btn{border:1px solid var(--ink);background:var(--paper);color:var(--ink);font-family:var(--fb);font-size:11px;font-weight:700;cursor:pointer;padding:0 5px;height:18px;line-height:16px;margin:0 1px}
+.nwp-btn:hover{background:var(--paper-dk)}
+.nwp-btn.danger{color:#8b0000}
+.nwp-btn.danger:hover{background:#f5e0e0}
+
+.nwp-add-row{margin-top:4px}
+
+@media print{
+  .nwp-actions,.nwp-add-row{display:none !important}
+  .nwp-tbl th:nth-child(5),.nwp-tbl td:nth-child(5){display:none}
+}

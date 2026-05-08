@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Slice 2 — Subhex paths v3 test runner</title>
+<style>
+  :root {
+    --bg: #1e1e1e;
+    --fg: #e8e6e3;
+    --muted: #888;
+    --pass: #5b7a3a;
+    --fail: #b03030;
+    --warn: #c0a070;
+    --accent: #8b0000;
+    --panel: #2a2a2a;
+    --border: #444;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    font: 13px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    background: var(--bg);
+    color: var(--fg);
+  }
+  h1 {
+    margin: 0 0 4px 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--fg);
+  }
+  h1 .ver { color: var(--muted); font-weight: 400; }
+  .sub {
+    color: var(--muted);
+    margin-bottom: 16px;
+    font-size: 12px;
+  }
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  button {
+    background: var(--panel);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+    cursor: pointer;
+    font: inherit;
+  }
+  button.primary {
+    border-color: var(--accent);
+    background: #3a1a1a;
+  }
+  button:hover { background: #3a3a3a; }
+  button.primary:hover { background: #4a2020; }
+  .summary {
+    display: flex;
+    gap: 16px;
+    align-items: baseline;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background: var(--panel);
+    border-left: 3px solid var(--border);
+  }
+  .summary.all-pass { border-left-color: var(--pass); }
+  .summary.has-fail { border-left-color: var(--fail); }
+  .summary .count { font-size: 16px; font-weight: 600; }
+  .summary .pass-n { color: var(--pass); }
+  .summary .fail-n { color: var(--fail); }
+  .summary .pending { color: var(--muted); font-style: italic; }
+  .group {
+    margin-bottom: 12px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+  }
+  .group-header {
+    padding: 6px 10px;
+    background: #333;
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+  }
+  .group-header .stat { color: var(--muted); font-weight: 400; }
+  .group-header .stat.has-fail { color: var(--fail); }
+  .test {
+    padding: 4px 10px;
+    border-bottom: 1px solid #333;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .test:last-child { border-bottom: none; }
+  .test .mark { width: 14px; flex-shrink: 0; font-weight: 600; }
+  .test.pass .mark { color: var(--pass); }
+  .test.fail .mark { color: var(--fail); }
+  .test .name { flex: 1; }
+  .test .extra { color: var(--warn); font-size: 11px; margin-top: 2px; }
+  .console {
+    margin-top: 16px;
+    padding: 10px;
+    background: #111;
+    border: 1px solid var(--border);
+    color: #ccc;
+    font-size: 11px;
+    max-height: 200px;
+    overflow: auto;
+    white-space: pre-wrap;
+  }
+  .console:empty { display: none; }
+  .notice {
+    padding: 8px 12px;
+    background: #2a2418;
+    border-left: 3px solid var(--warn);
+    margin-bottom: 12px;
+    font-size: 12px;
+    color: #d0c8a8;
+  }
+  .notice strong { color: var(--warn); }
+</style>
+</head>
+<body>
+
+<h1>Slice 2 test runner <span class="ver">— gcc-subhex-paths.js v2.0.0</span></h1>
+<div class="sub">
+  Loads gcc-rng.js + gcc-subhex-data.js (v2.4.0) + gcc-subhex-paths.js (v2.0.0),
+  exercises schema v2→v3 migration, indexing, new tier/headwaters/mouth writers,
+  and the existing API surface for backward compatibility. Sandboxed
+  localStorage — does not touch your real GCC data.
+</div>
+
+<div class="notice">
+  <strong>Sandboxed.</strong> This page intercepts <code>localStorage</code> for
+  the duration of the run. Refresh to wipe.
+</div>
+
+<div id="install-error" class="notice" style="display:none; background:#3a1818; border-left-color:#b03030; color:#f0c0c0;"></div>
+
+<div class="toolbar">
+  <button class="primary" id="run-btn">▶ Run all tests</button>
+  <button id="clear-btn">Clear results</button>
+  <button id="dump-btn">Dump sandbox storage</button>
+</div>
+
+<div id="summary" class="summary">
+  <span class="count pending">No tests run yet.</span>
+</div>
+
+<div id="results"></div>
+
+<div class="console" id="console"></div>
+
+<!-- ── Sandbox localStorage before the modules load ─────────────────── -->
+<script>
+(function(){
+  const memory = new Map();
+  const sandbox = {
+    getItem: k => memory.has(k) ? memory.get(k) : null,
+    setItem: (k, v) => { memory.set(k, String(v)); },
+    removeItem: k => { memory.delete(k); },
+    clear: () => memory.clear(),
+    key: i => Array.from(memory.keys())[i] || null,
+    get length(){ return memory.size; },
+    __dump: () => Object.fromEntries(memory),
+    __seed: (entries) => { memory.clear(); for (const [k,v] of Object.entries(entries)) memory.set(k, v); },
+  };
+
+  let installed = false;
+  let installError = null;
+  try {
+    Object.defineProperty(window, 'localStorage', {
+      value: sandbox, writable: false, configurable: true,
+    });
+    installed = true;
+  } catch(e1){
+    installError = e1;
+    try {
+      const real = window.localStorage;
+      real.getItem    = sandbox.getItem;
+      real.setItem    = sandbox.setItem;
+      real.removeItem = sandbox.removeItem;
+      real.clear      = sandbox.clear;
+      real.key        = sandbox.key;
+      installed = true;
+    } catch(e2){ installError = e2; }
+  }
+  window.__sandboxStorage = sandbox;
+  window.__sandboxInstalled = installed;
+  window.__sandboxError = installError ? String(installError) : null;
+})();
+</script>
+
+<!-- Load modules. Order matters: rng → data → paths. -->
+<script src="gcc-rng.js"></script>
+<script src="gcc-subhex-data.js"></script>
+<script src="gcc-subhex-paths.js"></script>
+
+<!-- Test harness -->
+<script>
+(function(){
+  'use strict';
+
+  const D = window.GCCSubhexData;
+  const P = window.GCCSubhexPaths;
+  const resultsEl  = document.getElementById('results');
+  const summaryEl  = document.getElementById('summary');
+  const consoleEl  = document.getElementById('console');
+  const runBtn     = document.getElementById('run-btn');
+  const clearBtn   = document.getElementById('clear-btn');
+  const dumpBtn    = document.getElementById('dump-btn');
+
+  let groups = [];
+  let currentGroup = null;
+  let consoleLines = [];
+
+  function group(name){
+    currentGroup = { name, tests: [] };
+    groups.push(currentGroup);
+    log(`── ${name} ──`);
+  }
+  function assert(name, cond, extra){
+    const test = { name, pass: !!cond, extra: cond ? null : (extra || null) };
+    currentGroup.tests.push(test);
+    log(`  ${cond ? '✓' : '✗'} ${name}${test.extra ? ': ' + test.extra : ''}`);
+  }
+  function log(line){ consoleLines.push(line); }
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;',
+    }[c]));
+  }
+
+  function render(){
+    const allTests = groups.flatMap(g => g.tests);
+    const pass = allTests.filter(t => t.pass).length;
+    const fail = allTests.length - pass;
+    summaryEl.classList.toggle('all-pass', fail === 0 && pass > 0);
+    summaryEl.classList.toggle('has-fail', fail > 0);
+    summaryEl.innerHTML = pass === 0 && fail === 0
+      ? `<span class="count pending">No tests run yet.</span>`
+      : `
+        <span class="count pass-n">${pass} pass</span>
+        <span class="count fail-n">${fail} fail</span>
+        <span class="count">${groups.length} groups, ${allTests.length} tests</span>
+      `;
+    resultsEl.innerHTML = groups.map(g => {
+      const gFail = g.tests.filter(t => !t.pass).length;
+      const tests = g.tests.map(t => `
+        <div class="test ${t.pass ? 'pass' : 'fail'}">
+          <span class="mark">${t.pass ? '✓' : '✗'}</span>
+          <span class="name">${escapeHtml(t.name)}${
+            t.extra ? `<div class="extra">${escapeHtml(t.extra)}</div>` : ''
+          }</span>
+        </div>
+      `).join('');
+      return `
+        <div class="group">
+          <div class="group-header">
+            <span>${escapeHtml(g.name)}</span>
+            <span class="stat ${gFail ? 'has-fail' : ''}">${
+              gFail ? `${gFail} fail / ` : ''
+            }${g.tests.length} tests</span>
+          </div>
+          ${tests}
+        </div>
+      `;
+    }).join('');
+    consoleEl.textContent = consoleLines.join('\n');
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+  }
+
+  // Reset module state between runs by clearing every doc & lake +
+  // wiping sandbox storage + manually rebuilding indexes via a save.
+  function resetState(){
+    if (P){
+      try { P.listPaths().forEach(p => P.deletePath(p.id)); } catch(e){}
+      try { P.importPaths({}); } catch(e){}
+    }
+    if (D){
+      try { D.listLakes().forEach(l => D.deleteLake(l.id)); } catch(e){}
+      try { D.allAuthored().forEach(c => D.clearSubhex(c.Q, c.R)); } catch(e){}
+    }
+    window.__sandboxStorage.clear();
+    groups = [];
+    consoleLines = [];
+  }
+
+  // Note: the in-page test runner can't easily exercise the v2→v3
+  // migration *path* the way the Node tests do (the migration runs
+  // once at script-load time, and we can't reload modules without a
+  // page refresh). Instead, the migration tests here verify the
+  // resulting state of an actual already-migrated module. The full
+  // migration coverage lives in test-slice2.js (Node).
+
+  function runAll(){
+    resetState();
+
+    if (!P){
+      group('FATAL: GCCSubhexPaths not loaded');
+      assert('window.GCCSubhexPaths exposed', false,
+        'Check script tags above and gcc-subhex-paths.js exists.');
+      render();
+      return;
+    }
+
+    // 1. Constants & exports.
+    group('1. Constants & exports');
+    assert('GCCSubhexPaths exposed',         !!P);
+    assert('SCHEMA_VERSION = 3',             P.SCHEMA_VERSION === 3);
+    assert('PATH_KINDS = [river,road,trail]',
+      JSON.stringify(P.PATH_KINDS) === '["river","road","trail"]');
+    assert('RIVER_TIERS exposed',
+      JSON.stringify(P.RIVER_TIERS) === '["stream","river","great_river"]');
+    [
+      'createPath','getPath','listPaths','pathsInParent','renamePath','deletePath',
+      'appendCell','popCell','truncateBefore','pathsAtCell','isNeighbor',
+      'setPathTier','setPathHeadwaters','setPathMouth','reverseCells',
+      'parentHasPathAuthoring','parentHasSubhexPaths',
+      'pathsCrossingParentEdge','edgeKey',
+      'subhexBoundaryInfo','boundaryCellBetweenParents',
+      'exportPaths','importPaths',
+    ].forEach(fn => assert(`exports ${fn}`, typeof P[fn] === 'function'));
+
+    // 2. createPath emits v3 docs.
+    group('2. createPath emits v3 docs');
+    const r = P.createPath('river', 'Velverdyva');
+    assert('river created',           r && r.id === 'velverdyva');
+    assert('schemaVersion 3',         r.schemaVersion === 3);
+    assert('tier defaults to "river"', r.tier === 'river');
+    assert('headwaters=null',         r.headwaters === null);
+    assert('mouth=null',              r.mouth === null);
+
+    const road = P.createPath('road', 'Old Keep Road');
+    assert('road tier=null',          road.tier === null);
+    assert('road headwaters=null',    road.headwaters === null);
+    const trail = P.createPath('trail', 'Smuggler Trail');
+    assert('trail tier=null',         trail.tier === null);
+    assert('unknown kind rejected',   P.createPath('aqueduct', 'Bad') === null);
+
+    // 3. setPathTier
+    group('3. setPathTier');
+    assert('setPathTier stream',  P.setPathTier('velverdyva', 'stream') === true);
+    assert('tier reflected',      P.getPath('velverdyva').tier === 'stream');
+    assert('setPathTier null',    P.setPathTier('velverdyva', null) === true);
+    assert('null tier set',       P.getPath('velverdyva').tier === null);
+    assert('bad tier rejected',   P.setPathTier('velverdyva', 'tributary') === false);
+    assert('tier on road rejected',
+      P.setPathTier('old-keep-road', 'river') === false);
+    assert('unknown path rejected',
+      P.setPathTier('does-not-exist', 'river') === false);
+    P.setPathTier('velverdyva', 'river');
+
+    // 4. Linkage writers
+    group('4. setPathHeadwaters / setPathMouth');
+    assert('headwaters lakeId OK',
+      P.setPathHeadwaters('velverdyva', { lakeId: 'lake-quagflow' }) === true);
+    assert('mouth pathId OK',
+      P.setPathMouth('velverdyva', { pathId: 'parent-river' }) === true);
+    assert('headwaters reflected',
+      JSON.stringify(P.getPath('velverdyva').headwaters) === '{"lakeId":"lake-quagflow"}');
+    assert('mouth reflected',
+      JSON.stringify(P.getPath('velverdyva').mouth) === '{"pathId":"parent-river"}');
+    assert('bad shape rejected',
+      P.setPathHeadwaters('velverdyva', { foo: 'bar' }) === false);
+    assert('non-object rejected',
+      P.setPathHeadwaters('velverdyva', 'lake-quagflow') === false);
+    assert('whitespace lakeId rejected',
+      P.setPathHeadwaters('velverdyva', { lakeId: '  ' }) === false);
+    assert('null OK',
+      P.setPathHeadwaters('velverdyva', null) === true);
+    assert('null reflected',
+      P.getPath('velverdyva').headwaters === null);
+
+    // 5. reverseCells
+    group('5. reverseCells');
+    P.createPath('river', 'Rev');
+    P.appendCell('rev', 0, 0);
+    P.appendCell('rev', 1, 0);
+    P.appendCell('rev', 2, 0);
+    P.setPathHeadwaters('rev', { lakeId: 'src' });
+    P.setPathMouth('rev',      { lakeId: 'sink' });
+    P.reverseCells('rev');
+    const rev = P.getPath('rev');
+    assert('cells reversed',
+      JSON.stringify(rev.cells) === '[{"Q":2,"R":0},{"Q":1,"R":0},{"Q":0,"R":0}]');
+    assert('headwaters/mouth swapped',
+      rev.headwaters.lakeId === 'sink' && rev.mouth.lakeId === 'src');
+
+    // 6. Indexes
+    group('6. Indexes');
+    P.createPath('river', 'Selintan');
+    P.appendCell('selintan', 10, 0);
+    P.appendCell('selintan', 11, 0);
+    P.appendCell('selintan', 12, 0);
+    assert('pathsAtCell finds (10,0)',
+      P.pathsAtCell(10, 0).map(p => p.id).join(',') === 'selintan');
+    assert('pathsAtCell empty cell',
+      P.pathsAtCell(99, 99).length === 0);
+    const owner = D.ownerOf(10, 0);
+    assert('parentHasPathAuthoring true at owner',
+      P.parentHasPathAuthoring(owner.col, owner.row) === true);
+    assert('legacy alias parentHasSubhexPaths agrees',
+      P.parentHasSubhexPaths(owner.col, owner.row) === true);
+    assert('parentHasPathAuthoring false elsewhere',
+      P.parentHasPathAuthoring(owner.col + 5, owner.row + 5) === false);
+
+    // 7. Index updates on save
+    group('7. Indexes refresh after writes');
+    P.createPath('river', 'Ephem');
+    P.appendCell('ephem', 20, 0);
+    assert('cell present in index after appendCell',
+      P.pathsAtCell(20, 0).some(p => p.id === 'ephem'));
+    P.popCell('ephem');
+    assert('popped cell gone from index',
+      !P.pathsAtCell(20, 0).some(p => p.id === 'ephem'));
+    P.appendCell('ephem', 20, 0);
+    P.deletePath('ephem');
+    assert('deleted path gone from index',
+      P.pathsAtCell(20, 0).length === 0);
+
+    // 8. Edge index
+    group('8. Edge index + canonical key');
+    const k1 = P.edgeKey(70, 50, 71, 50);
+    const k2 = P.edgeKey(71, 50, 70, 50);
+    assert('edgeKey is canonical', k1 === k2);
+    P.createPath('river', 'Cross');
+    for (let q = 0; q <= 10; q++) P.appendCell('cross', q, 30);
+    const owners = new Set();
+    for (let q = 0; q <= 10; q++){
+      const o = D.ownerOf(q, 30);
+      if (o) owners.add(`${o.col}-${o.row}`);
+    }
+    assert('chain spans ≥2 parents', owners.size >= 2,
+      'spanned: ' + Array.from(owners).join(','));
+    let crossingsFound = 0;
+    for (const a of owners){
+      for (const b of owners){
+        if (a === b) continue;
+        const [ac,ar] = a.split('-').map(Number);
+        const [bc,br] = b.split('-').map(Number);
+        const list = P.pathsCrossingParentEdge(ac, ar, bc, br);
+        if (list.some(p => p.id === 'cross')) crossingsFound++;
+      }
+    }
+    assert('Cross crosses at least one parent edge', crossingsFound > 0);
+
+    // 9. Stability of existing API
+    group('9. Existing API still works');
+    P.createPath('river', 'Beta');
+    P.createPath('river', 'Alpha');
+    const names = P.listPaths().map(p => p.name);
+    assert('listPaths sorts by name (Alpha < Beta)',
+      names.indexOf('Alpha') < names.indexOf('Beta'));
+    P.appendCell('alpha', 50, 50);
+    assert('appendCell rejects non-adjacent', P.appendCell('alpha', 60, 60) === false);
+    assert('appendCell accepts adjacent',     P.appendCell('alpha', 51, 50) === true);
+    assert('appendCell rejects duplicate',    P.appendCell('alpha', 51, 50) === false);
+    P.appendCell('alpha', 52, 50);
+    assert('truncateBefore at (51,50)', P.truncateBefore('alpha', 51, 50) === true);
+    assert('cells truncated correctly',
+      JSON.stringify(P.getPath('alpha').cells) === '[{"Q":50,"R":50}]');
+    assert('renamePath',     P.renamePath('alpha', 'Alpha2') === true);
+    assert('rename reflects', P.getPath('alpha').name === 'Alpha2');
+
+    // 10. import/export round-trip
+    group('10. import/export round-trip');
+    P.setPathTier('velverdyva', 'great_river');
+    const exported = P.exportPaths();
+    P.deletePath('velverdyva');
+    assert('deleted', P.getPath('velverdyva') === null);
+    P.importPaths(exported);
+    assert('reimported', P.getPath('velverdyva') !== null);
+    assert('tier survived', P.getPath('velverdyva').tier === 'great_river');
+
+    // 11. Migration evidence (the actual migration ran on script load
+    // before this harness woke up; the only thing we can check at run
+    // time is that the v3 migration flag and the live PATHS state are
+    // both v3-shape).
+    group('11. Migration ran cleanly on load');
+    const hasV3Flag = window.__sandboxStorage.getItem('gcc-subhex-paths-migrated-v3') === '1';
+    // If sandbox was empty on load, the v3 migration block never wrote
+    // the flag — there was nothing to migrate. So this only asserts the
+    // flag is set IF the v3 backup got written.
+    const hasBackup = window.__sandboxStorage.getItem('gcc-subhex-paths-pre-v3-backup') != null;
+    if (hasBackup){
+      assert('v3 migration flag set when backup exists', hasV3Flag);
+    } else {
+      assert('no migration needed (empty initial state)',
+        !hasBackup,
+        'expected: backup absent because there was nothing to migrate');
+    }
+
+    render();
+  }
+
+  // Sandbox install errors / module-load errors → red banner.
+  if (window.__sandboxError){
+    const banner = document.getElementById('install-error');
+    banner.style.display = 'block';
+    banner.innerHTML = `<strong>Sandbox install failed:</strong> ${
+      escapeHtml(String(window.__sandboxError))
+    }<br>Tests may still run but writes will hit your real localStorage.`;
+  }
+  if (!window.GCCSubhexData || !window.GCCSubhexPaths){
+    const banner = document.getElementById('install-error');
+    banner.style.display = 'block';
+    banner.innerHTML = `<strong>Module load failed.</strong> ${
+      !window.GCCSubhexData ? 'gcc-subhex-data.js' : 'gcc-subhex-paths.js'
+    } did not load. Check the DevTools console for 404 errors.`;
+  }
+
+  runBtn.addEventListener('click', () => {
+    runBtn.disabled = true;
+    try { runAll(); }
+    catch(e){
+      group('FATAL: harness crashed');
+      assert(e.message, false, e.stack);
+      render();
+    }
+    finally { runBtn.disabled = false; }
+  });
+  clearBtn.addEventListener('click', () => {
+    groups = [];
+    consoleLines = [];
+    render();
+  });
+  dumpBtn.addEventListener('click', () => {
+    const dump = window.__sandboxStorage.__dump();
+    consoleLines.push('── Sandbox storage ──');
+    for (const [k, v] of Object.entries(dump)){
+      try {
+        consoleLines.push(`${k}: ${JSON.stringify(JSON.parse(v), null, 2)}`);
+      } catch(e){
+        consoleLines.push(`${k}: ${v}`);
+      }
+    }
+    render();
+  });
+
+  render();
+})();
+</script>
+
+</body>
+</html>

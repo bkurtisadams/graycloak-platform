@@ -1,0 +1,1428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Graycloak's Campaign Corner</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Alegreya:ital,wght@0,400;0,700;1,400&family=Alegreya+SC:wght@700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="gcc-header.css">
+<link rel="stylesheet" href="gcc-auth.css">
+<link rel="stylesheet" href="gcc-dialog.css">
+<style>
+/* ── Theme: Slate & Ice (dark) ── */
+[data-gcc-theme="dark"] {
+  --bg: #101418;
+  --bg2: #161a20;
+  --bg-card: #1a1e26;
+  --bg-card-hover: #20252e;
+  --bg-section: #141820;
+  --bg-expand: #161a22;
+  --brd: #252a34;
+  --brd-lt: #303848;
+  --tx: #c8ccd4;
+  --tx2: #7a8494;
+  --tx3: #4a5464;
+  --accent: #60a0d0;
+  --accent-lt: #78b8e8;
+  --accent-dim: #3a6a90;
+  --red: #d04848;
+  --red-lt: #e05858;
+  --green: #48a858;
+  --blue: #60a0d0;
+  --blue-lt: #78b8e8;
+  --amber: #d0a040;
+  --hdr-bg: linear-gradient(180deg, #161a22 0%, #0e1118 100%);
+  --hdr-brd: #303848;
+  --card-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  --dd-shadow: 0 8px 30px rgba(0,0,0,0.5);
+  --hover-bg: rgba(255,255,255,0.03);
+  --noise-opacity: 0.3;
+}
+
+/* ── Theme: Linen (light) ── */
+[data-gcc-theme="light"] {
+  --bg: #eef0f4;
+  --bg2: #e4e8ee;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f6f8fa;
+  --bg-section: #e8eaee;
+  --bg-expand: #f2f4f8;
+  --brd: #d0d4dc;
+  --brd-lt: #bcc2cc;
+  --tx: #181c24;
+  --tx2: #505868;
+  --tx3: #8890a0;
+  --accent: #30508a;
+  --accent-lt: #2a4878;
+  --accent-dim: #8890a0;
+  --red: #c03030;
+  --red-lt: #d03838;
+  --green: #287830;
+  --blue: #30508a;
+  --blue-lt: #2a4878;
+  --amber: #a07818;
+  --hdr-bg: linear-gradient(180deg, #e4e8ee 0%, #dce0e8 100%);
+  --hdr-brd: #c8ccd6;
+  --card-shadow: 0 1px 4px rgba(0,0,0,0.07);
+  --dd-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  --hover-bg: rgba(0,0,0,0.02);
+  --noise-opacity: 0.15;
+}
+
+:root {
+  --fd: 'Cinzel', serif;
+  --fb: 'Alegreya', serif;
+  --fsc: 'Alegreya SC', serif;
+  --fm: 'IBM Plex Mono', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
+html { min-height: 100%; background: var(--bg) }
+body { min-height: 100vh; background: var(--bg); color: var(--tx); font-family: var(--fb); font-size: 14px; display: flex; flex-direction: column }
+body::before { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0; background: url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.65' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E"); opacity: var(--noise-opacity) }
+
+
+/* ── Main ── */
+.main { flex: 1; padding: 16px 16px 40px; position: relative; z-index: 1 }
+.main-in { max-width: 960px; margin: 0 auto }
+
+/* ── Section ── */
+.section { margin-bottom: 20px }
+.section-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 8px; flex-wrap: wrap }
+.section-title { font-family: var(--fd); font-size: 12px; font-weight: 700; color: var(--tx2); letter-spacing: 2px }
+.btn-new { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; font-size: 11px; font-family: var(--fb); font-weight: 700; background: transparent; color: var(--accent); border: 1px solid var(--accent-dim); border-radius: 3px; cursor: pointer; transition: all 0.15s }
+.btn-new:hover { border-color: var(--accent); color: var(--accent-lt); background: var(--hover-bg) }
+.divider { display: flex; align-items: center; gap: 12px; margin: 20px 0 18px }
+.divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--brd) }
+.divider-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--brd-lt) }
+
+
+
+/* ── Filter Tabs ── */
+.filter-tabs { display: flex; gap: 2px; align-items: center }
+.filter-tab { padding: 3px 10px; font-size: 10px; font-family: var(--fb); font-weight: 700; background: transparent; border: 1px solid transparent; color: var(--tx3); border-radius: 3px; cursor: pointer; transition: all 0.12s }
+.filter-tab:hover { color: var(--tx2) }
+.filter-tab.active { color: var(--tx); border-color: var(--brd-lt); background: var(--hover-bg) }
+
+/* ── Campaign Cards ── */
+.campaign-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 8px }
+.campaign-card { background: var(--bg-card); border: 1px solid var(--brd); border-radius: 4px; overflow: hidden; transition: all 0.15s; position: relative; box-shadow: var(--card-shadow) }
+.campaign-card::before { content: ''; position: absolute; top: 0; left: 0; width: 3px; bottom: 0; background: var(--brd-lt); z-index: 1 }
+.campaign-card.status-active::before { background: var(--accent-dim) }
+
+.cc-card-body { display: flex }
+.cc-side-img { width: 110px; flex-shrink: 0; background: #2a2a2e; position: relative; overflow: hidden; cursor: pointer; min-height: 90px }
+.cc-side-img img { width: 100%; height: 100%; object-fit: contain; display: block }
+.cc-summary { padding: 8px 10px 8px 14px; cursor: pointer; transition: background 0.12s; flex: 1; min-width: 0 }
+.campaign-card.has-img .cc-summary { padding-left: 10px }
+.cc-summary:hover { background: var(--bg-card-hover) }
+.cc-top { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; min-width: 0 }
+.cc-name { font-family: var(--fd); font-size: 14px; font-weight: 700; color: var(--tx); letter-spacing: 1px; display: flex; align-items: center; gap: 5px; min-width: 0; flex: 1 }
+.cc-name-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.cc-star { color: var(--accent); font-size: 11px; flex-shrink: 0 }
+.cc-status { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; flex-shrink: 0 }
+.cc-status-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0 }
+.cc-status-dot.active { background: var(--green) }
+.cc-status-dot.hiatus { background: var(--amber) }
+.cc-status-dot.completed { background: var(--tx3) }
+.cc-status-dot.archived { background: var(--brd) }
+.cc-status-label { color: var(--tx3); white-space: nowrap }
+.cc-chevron { color: var(--tx3); font-size: 10px; transition: transform 0.2s; flex-shrink: 0 }
+.cc-chevron { display: none }
+
+.cc-info { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; flex-wrap: wrap }
+.cc-system-badge { display: inline-block; font-family: var(--fsc); font-size: 8px; font-weight: 700; padding: 1px 6px; border-radius: 2px; letter-spacing: 1px; white-space: nowrap; flex-shrink: 0 }
+.cc-thumb { width: 32px; height: 32px; border-radius: 3px; border: 1px solid var(--brd); object-fit: cover; flex-shrink: 0; background: var(--bg2); display: flex; align-items: center; justify-content: center; font-size: 14px }
+.cc-meta { font-size: 11px; color: var(--tx2); display: flex; gap: 6px; flex-wrap: wrap }
+.cc-meta span { white-space: nowrap }
+.cc-meta2 { font-size: 10px; color: var(--tx3); display: flex; gap: 6px; flex-wrap: wrap; margin-top: 1px }
+.cc-meta2 span { white-space: nowrap }
+.cc-next { color: var(--accent); font-weight: 700 }
+
+.cc-expand { border-top: 1px solid var(--brd); background: var(--bg-expand); padding: 6px 12px }
+.cc-bottom { display: flex; gap: 6px; align-items: center }
+
+
+.cc-details { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 24px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--brd) }
+.cc-detail-row { display: flex; gap: 6px; padding: 2px 0; font-size: 11px; align-items: baseline }
+.cc-detail-label { color: var(--tx3); min-width: 72px; flex-shrink: 0; font-family: var(--fsc); font-size: 9px; letter-spacing: 0.5px }
+.cc-detail-value { color: var(--tx2) }
+.cc-pitch { grid-column: 1 / -1; font-size: 12px; color: var(--tx2); font-style: italic; padding: 4px 0 4px; line-height: 1.35 }
+
+.cc-col-title { font-family: var(--fsc); font-size: 9px; color: var(--tx3); letter-spacing: 1.5px; margin-bottom: 6px }
+
+.cc-desc-section { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--brd) }
+.cc-desc-area { width: 100%; min-height: 48px; padding: 8px 10px; font-family: var(--fb); font-size: 12px; color: var(--tx2); background: var(--bg-card); border: 1px solid var(--brd); border-radius: 3px; resize: vertical; line-height: 1.4 }
+.cc-desc-area:focus { outline: none; border-color: var(--accent-dim) }
+.cc-desc-area::placeholder { color: var(--tx3) }
+
+.cc-char-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--brd) }
+.cc-char-card { background: var(--bg-card); border: 1px solid var(--brd); border-radius: 4px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; position: relative; box-shadow: var(--card-shadow); min-width: 0; overflow: hidden }
+.cc-char-card:hover { border-color: var(--brd-lt); background: rgba(96,160,208,0.08) }
+.cc-char-card-top { display: flex; align-items: flex-start; gap: 7px }
+.cc-char-info { flex: 1; min-width: 0 }
+.cc-char-name { font-weight: 700; font-size: 12px }
+.cc-char-link { text-decoration: none; color: var(--accent) }
+.cc-char-link:hover { color: var(--accent-lt); text-decoration: underline }
+.cc-char-player { font-size: 10px; color: var(--tx3); margin-left: 4px }
+.cc-char-sub { font-size: 10px; color: var(--tx3); font-family: var(--fm) }
+.cc-char-stats { font-family: var(--fm); font-size: 9px; color: var(--tx2); margin-top: 1px; display: flex; gap: 1px; flex-wrap: nowrap }
+.cc-char-stats span { margin-right: 4px; white-space: nowrap }
+.cc-char-stats .ab { color: var(--accent); font-weight: 700 }
+.cc-char-derived { font-size: 9px; font-weight: 700; color: var(--tx2); margin-top: 1px }
+.cc-char-derived span { margin-right: 6px; white-space: nowrap }
+.cc-char-pip { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; margin-top: 6px }
+.cc-char-portrait { width: 28px; height: 28px; border-radius: 3px; object-fit: contain; flex-shrink: 0; border: 1px solid var(--brd) }
+.cc-char-leave { background: none; border: 1px solid var(--brd); border-radius: 2px; color: var(--tx3); cursor: pointer; font-size: 9px; font-family: var(--fb); font-weight: 700; padding: 2px 8px; align-self: flex-end; transition: all 0.12s }
+.cc-char-leave:hover { color: var(--red); border-color: var(--red) }
+.cc-char-empty { font-size: 11px; color: var(--tx3); font-style: italic; grid-column: 1 / -1 }
+
+.cc-notes-section { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--brd) }
+.cc-notes-area { width: 100%; min-height: 48px; padding: 8px 10px; font-family: var(--fb); font-size: 12px; color: var(--tx2); background: var(--bg-card); border: 1px solid var(--brd); border-radius: 3px; resize: vertical; line-height: 1.4 }
+.cc-notes-area:focus { outline: none; border-color: var(--accent-dim) }
+.cc-notes-area::placeholder { color: var(--tx3) }
+
+.cc-sessions-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; font-size: 11px; font-family: var(--fb); font-weight: 700; color: var(--accent); background: transparent; border: 1px solid var(--accent-dim); border-radius: 3px; cursor: pointer; transition: all 0.15s; text-decoration: none; margin-bottom: 14px }
+.cc-sessions-btn:hover { border-color: var(--accent); color: var(--accent-lt); background: var(--hover-bg) }
+
+.cc-bottom { display: flex; gap: 6px; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--brd); align-items: center }
+.cc-btn { padding: 4px 12px; font-size: 10px; font-family: var(--fb); font-weight: 700; border-radius: 2px; cursor: pointer; transition: all 0.12s; border: 1px solid var(--brd); background: transparent; color: var(--tx2) }
+.cc-btn:hover { border-color: var(--tx3); color: var(--tx) }
+.cc-btn-danger { color: var(--red); border-color: rgba(192,48,48,0.2) }
+.cc-btn-danger:hover { color: var(--red-lt); border-color: var(--red) }
+
+
+
+/* ── Dice Roller FAB ── */
+.dice-fab { position: fixed; bottom: 20px; right: 20px; width: 48px; height: 48px; border-radius: 50%; background: var(--accent); color: var(--bg); border: none; font-size: 22px; cursor: pointer; box-shadow: 0 3px 12px rgba(0,0,0,0.3); z-index: 300; display: flex; align-items: center; justify-content: center; transition: transform 0.15s, box-shadow 0.15s }
+.dice-fab:hover { transform: scale(1.08); box-shadow: 0 4px 16px rgba(0,0,0,0.4) }
+
+.dice-tray { display: none; position: fixed; bottom: 80px; right: 20px; width: 260px; background: var(--bg-card); border: 1px solid var(--brd-lt); border-radius: 6px; box-shadow: var(--dd-shadow); z-index: 300; padding: 12px; overflow: hidden }
+.dice-tray.open { display: block }
+.dice-tray-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px }
+.dice-tray-title { font-family: var(--fd); font-size: 11px; font-weight: 700; color: var(--tx); letter-spacing: 1.5px }
+.dice-tray-clear { font-size: 10px; color: var(--tx3); cursor: pointer; font-family: var(--fb); font-weight: 700 }
+.dice-tray-clear:hover { color: var(--red) }
+
+.dice-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px }
+.dice-btn { flex: 0 0 calc(25% - 5px); padding: 8px 0; text-align: center; font-family: var(--fd); font-size: 12px; font-weight: 700; color: var(--tx2); background: var(--bg2); border: 1px solid var(--brd); border-radius: 4px; cursor: pointer; transition: all 0.12s; user-select: none }
+.dice-btn:hover { border-color: var(--accent-dim); color: var(--accent) }
+.dice-btn:active { transform: scale(0.95) }
+
+.dice-pool { min-height: 28px; padding: 6px 8px; background: var(--bg2); border: 1px solid var(--brd); border-radius: 3px; margin-bottom: 8px; font-family: var(--fm); font-size: 12px; color: var(--tx); display: flex; flex-wrap: wrap; gap: 4px; align-items: center }
+.dice-pool-empty { color: var(--tx3); font-style: italic; font-family: var(--fb); font-size: 11px }
+.dice-pool-chip { display: inline-flex; align-items: center; gap: 3px; background: var(--brd); padding: 2px 6px; border-radius: 2px; font-size: 11px }
+.dice-pool-chip-rm { cursor: pointer; color: var(--tx3); font-size: 9px }
+.dice-pool-chip-rm:hover { color: var(--red) }
+.dice-mod { display: flex; gap: 6px; margin-bottom: 8px; align-items: center }
+.dice-mod label { font-size: 10px; color: var(--tx3); font-family: var(--fsc); letter-spacing: 0.5px }
+.dice-mod input { width: 60px; font-family: var(--fm); font-size: 12px; color: var(--tx); background: var(--bg2); border: 1px solid var(--brd); border-radius: 3px; padding: 3px 6px; outline: none; text-align: center }
+.dice-mod input:focus { border-color: var(--accent-dim) }
+
+.dice-roll-btn { width: 100%; padding: 8px; font-family: var(--fd); font-size: 13px; font-weight: 700; letter-spacing: 1px; background: var(--accent); color: var(--bg); border: none; border-radius: 4px; cursor: pointer; transition: opacity 0.12s }
+.dice-roll-btn:hover { opacity: 0.9 }
+.dice-roll-btn:active { transform: scale(0.98) }
+
+.dice-result { margin-top: 10px; padding: 10px; background: var(--bg2); border: 1px solid var(--brd); border-radius: 4px; display: none }
+.dice-result.show { display: block }
+.dice-result-total { font-family: var(--fd); font-size: 28px; font-weight: 900; color: var(--accent); text-align: center; line-height: 1 }
+.dice-result-breakdown { font-family: var(--fm); font-size: 10px; color: var(--tx3); text-align: center; margin-top: 4px; word-break: break-all }
+.dice-log { margin-top: 8px; max-height: 100px; overflow-y: auto; scrollbar-width: thin }
+.dice-log-item { font-family: var(--fm); font-size: 10px; color: var(--tx3); padding: 2px 0; border-bottom: 1px solid var(--brd) }
+.dice-log-item:last-child { border-bottom: none }
+.dice-log-item .dl-total { color: var(--tx); font-weight: 700 }
+
+/* ── Character Edit Modal ── */
+.chars-picker-info { font-size: 11px; color: var(--tx3); margin-bottom: 10px }
+.chars-picker { display: flex; flex-direction: column; gap: 2px }
+.chars-picker-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--brd); border-radius: 4px; cursor: pointer; transition: all 0.12s; user-select: none }
+.chars-picker-item:hover { background: var(--hover-bg); border-color: var(--accent-dim) }
+.chars-picker-item.selected { background: var(--hover-bg); border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent) }
+.chars-picker-check { width: 16px; height: 16px; border: 2px solid var(--brd); border-radius: 3px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; color: transparent; transition: all 0.1s }
+.chars-picker-item.selected .chars-picker-check { background: var(--accent); border-color: var(--accent); color: #fff }
+.cp-portrait { width: 32px; height: 32px; border-radius: 50%; object-fit: contain; flex-shrink: 0; border: 1px solid var(--brd); background: var(--bg) }
+.cp-portrait-ph { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; border: 1px solid var(--brd); background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--tx3) }
+.cp-info { flex: 1; min-width: 0 }
+.cp-name { font-family: var(--fb); font-size: 12px; font-weight: 700; color: var(--tx) }
+.cp-sub { font-family: var(--fm); font-size: 10px; color: var(--tx3) }
+.cp-del-btn { background: none; border: 1px solid transparent; border-radius: 3px; cursor: pointer; font-size: 14px; padding: 2px 6px; flex-shrink: 0; opacity: 0.3; transition: opacity 0.12s, border-color 0.12s }
+.cp-del-btn:hover { opacity: 1; border-color: var(--red, #c0392b) }
+.cp-player { font-family: var(--fm); font-size: 10px; color: var(--tx3); font-style: italic }
+.chars-picker-empty { padding: 16px; font-size: 11px; color: var(--tx3); font-style: italic; text-align: center; border: 1px dashed var(--brd); border-radius: 4px }
+
+/* ── Portrait pip on campaign card char list ── */
+.cc-char-portrait { width: 20px; height: 20px; border-radius: 50%; object-fit: contain; flex-shrink: 0; border: 1px solid var(--brd) }
+.cc-char-link { text-decoration: none; color: var(--accent) }
+.cc-char-link:hover { color: var(--accent-lt); text-decoration: underline }
+
+/* ── Footer ── */
+.ftr { padding: 10px 16px; font-size: 10px; color: var(--tx3); border-top: 1px solid var(--brd); background: var(--bg-section); position: relative; z-index: 1 }
+.ftr-inner { max-width: 960px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px }
+
+/* ── Edit Campaign Modal — uses gcc-dialog.css classes ── */
+/* Form-specific overrides (fieldsets, image area, checkbox) that live only on this page */
+.gcc-dlg-fieldset { border: 1px solid var(--brd); border-radius: 3px; padding: 8px 10px 6px; margin-bottom: 10px }
+.gcc-dlg-legend { font-family: var(--fsc); font-size: 9px; color: var(--tx3); letter-spacing: 1px; padding: 0 5px }
+
+/* ── Responsive ── */
+@media (max-width: 700px) {
+  .campaign-grid { grid-template-columns: 1fr }
+  .main { padding: 10px 10px 30px }
+  .cc-grid { grid-template-columns: 1fr; gap: 12px }
+  .cc-char-grid { grid-template-columns: repeat(2, 1fr); }
+  .cc-details { grid-template-columns: 1fr }
+  .gcc-dlg-row { flex-direction: column; gap: 4px }
+  .gcc-dlg-field-sm, .gcc-dlg-field-xs { flex: 1 }
+  .dice-tray { right: 10px; bottom: 70px; width: 240px }
+  .dice-fab { bottom: 14px; right: 14px; width: 42px; height: 42px; font-size: 18px }
+  .chars-item { flex-wrap: wrap }
+}
+@media (max-width: 420px) {
+  .cc-char-grid { grid-template-columns: 1fr }
+}
+/* ── Invite Banner ── */
+.invite-banner { max-width: 960px; margin: 12px auto; padding: 16px 20px; background: var(--card-bg); border: 1px solid var(--brd); border-radius: 6px; text-align: center }
+.invite-banner-title { font-family: 'Cinzel', serif; font-size: 16px; font-weight: 700; color: var(--tx); letter-spacing: 1px; margin-bottom: 4px }
+.invite-banner-sub { font-family: 'Alegreya', serif; font-size: 13px; color: var(--tx2); margin-bottom: 12px }
+.invite-banner-camp { font-family: 'Alegreya', serif; font-size: 15px; font-weight: 700; color: var(--accent) }
+.invite-banner-btn { padding: 8px 24px; font-family: 'Cinzel', serif; font-size: 12px; font-weight: 700; letter-spacing: 1.5px; color: #fff; background: var(--accent); border: none; border-radius: 4px; cursor: pointer; transition: opacity 0.15s; margin: 0 6px }
+.invite-banner-btn:hover { opacity: 0.85 }
+.invite-banner-btn.secondary { background: transparent; color: var(--tx2); border: 1px solid var(--brd) }
+.invite-banner-btn.secondary:hover { border-color: var(--tx3) }
+.invite-banner-msg { font-family: 'Alegreya', serif; font-size: 12px; margin-top: 8px }
+.invite-banner-msg.error { color: #cc3333 }
+.invite-banner-msg.success { color: #2a8a3a }
+</style>
+</head>
+<body>
+
+<div id="gcc-bar" class="gcc-bar">
+  <div class="gcc-bar-in">
+    <a href="index.html" class="gcc-brand" title="Home">
+      <div class="gcc-title-wrap">
+        <div class="gcc-title">GRAYCLOAK'S</div>
+        <div class="gcc-subtitle">CAMPAIGN CORNER</div>
+      </div>
+    </a>
+    <div class="gcc-nav">
+      <div class="gcc-tools-wrap">
+        <button class="gcc-nav-btn" id="gcc-btn-tools">🎲 Tools ▾</button>
+        <div class="gcc-tools-dd" id="gcc-tools-dd"></div>
+      </div>
+      <span id="gcc-auth-slot"></span>
+      <button class="gcc-nav-btn" id="gcc-btn-theme" title="Toggle light/dark"><span id="gcc-theme-icon">◑</span></button>
+      <button class="gcc-nav-btn" id="btn-settings">⚙</button>
+      <button class="gcc-nav-btn" id="btn-about">?</button>
+    </div>
+  </div>
+</div>
+<div class="gcc-tools-overlay" id="gcc-tools-overlay"></div>
+
+<div id="invite-banner" style="display:none"></div>
+
+<div class="main">
+<div class="main-in">
+
+  <div class="section" id="sec-campaigns">
+    <div class="section-hdr">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div class="section-title">CAMPAIGNS</div>
+        <div class="filter-tabs" id="filter-tabs">
+          <button class="filter-tab active" data-filter="all">All</button>
+          <button class="filter-tab" data-filter="active">Active</button>
+          <button class="filter-tab" data-filter="hiatus">Hiatus</button>
+          <button class="filter-tab" data-filter="completed">Done</button>
+        </div>
+      </div>
+      <button class="btn-new" id="btn-new-campaign">+ New</button>
+    </div>
+    <div class="campaign-grid" id="campaign-grid"></div>
+  </div>
+
+
+</div>
+</div>
+
+<!-- Edit Campaign Modal -->
+<div class="gcc-dlg-overlay" id="edit-modal">
+  <div class="gcc-dlg">
+    <div class="gcc-dlg-header">
+      <div class="gcc-dlg-title">Edit campaign</div>
+      <button class="gcc-dlg-close" id="edit-modal-close">✕</button>
+    </div>
+    <div class="gcc-dlg-body">
+      <input type="hidden" id="ef-id">
+
+      <fieldset class="gcc-dlg-fieldset">
+        <legend class="gcc-dlg-legend">Identity</legend>
+        <div class="gcc-dlg-row">
+          <div class="gcc-dlg-field"><label class="gcc-dlg-label">Campaign name</label><input class="gcc-dlg-input" id="ef-name"></div>
+        </div>
+        <div class="gcc-dlg-row">
+          <div class="gcc-dlg-field"><label class="gcc-dlg-label">Game system</label><select class="gcc-dlg-select" id="ef-system"></select></div>
+          <div class="gcc-dlg-field-sm"><label class="gcc-dlg-label">Status</label><select class="gcc-dlg-select" id="ef-status">
+            <option value="active">Active</option><option value="hiatus">On Hiatus</option><option value="completed">Completed</option><option value="archived">Archived</option>
+          </select></div>
+        </div>
+        <div class="gcc-dlg-check"><input type="checkbox" id="ef-pinned"><label for="ef-pinned">★ Pin to top</label></div>
+      </fieldset>
+
+      <fieldset class="gcc-dlg-fieldset">
+        <legend class="gcc-dlg-legend">SETTING & TONE</legend>
+        <div class="gcc-dlg-row">
+          <div class="gcc-dlg-field"><label class="gcc-dlg-label">Campaign world</label><input class="gcc-dlg-input" id="ef-world" placeholder="e.g. Greyhawk, Earth-676"></div>
+          <div class="gcc-dlg-field"><label class="gcc-dlg-label">Genre / tone</label><input class="gcc-dlg-input" id="ef-genre" placeholder="e.g. Dungeon Crawl, Bronze Age Superhero"></div>
+        </div>
+        <div class="gcc-dlg-row">
+          <div class="gcc-dlg-field"><label class="gcc-dlg-label">Pitch</label><input class="gcc-dlg-input" id="ef-pitch" placeholder="One-line description"></div>
+        </div>
+        <div class="gcc-dlg-row">
+          <div class="gcc-dlg-field"><label class="gcc-dlg-label">Description</label><textarea class="gcc-dlg-ta" id="ef-description" rows="3" placeholder="Campaign premise, current arc, setting details..."></textarea></div>
+        </div>
+      </fieldset>
+
+      <fieldset class="gcc-dlg-fieldset">
+        <legend class="gcc-dlg-legend">People</legend>
+        <div class="gcc-dlg-row">
+          <div class="gcc-dlg-field"><label class="gcc-dlg-label">GM / DM / Judge name</label><input class="gcc-dlg-input" id="ef-gm"></div>
+          <div class="gcc-dlg-field-xs"><label class="gcc-dlg-label">Title</label><select class="gcc-dlg-select" id="ef-gmTitle">
+            <option value="GM">GM</option><option value="DM">DM</option><option value="Judge">Judge</option><option value="Referee">Referee</option><option value="Keeper">Keeper</option><option value="MC">MC</option>
+          </select></div>
+          <div class="gcc-dlg-field-xs"><label class="gcc-dlg-label">Players</label><input class="gcc-dlg-input" id="ef-players" type="number" min="0" max="20"></div>
+        </div>
+      </fieldset>
+
+      <fieldset class="gcc-dlg-fieldset">
+        <legend class="gcc-dlg-legend">SCHEDULE & PLATFORM</legend>
+        <div class="gcc-dlg-row">
+          <div class="gcc-dlg-field"><label class="gcc-dlg-label">Date started</label><input class="gcc-dlg-input" id="ef-startDate" type="date"></div>
+          <div class="gcc-dlg-field"><label class="gcc-dlg-label">Next session</label><input class="gcc-dlg-input" id="ef-nextSession" type="datetime-local"></div>
+        </div>
+        <div class="gcc-dlg-row">
+          <div class="gcc-dlg-field"><label class="gcc-dlg-label">Recurring schedule</label><input class="gcc-dlg-input" id="ef-schedule" placeholder="e.g. Bi-weekly Fri 7–10:30pm CT"></div>
+        </div>
+        <div class="gcc-dlg-row">
+          <div class="gcc-dlg-field-sm"><label class="gcc-dlg-label">Play mode</label><select class="gcc-dlg-select" id="ef-playMode">
+            <option value="online">Online</option><option value="in-person">In-Person</option><option value="hybrid">Hybrid</option>
+          </select></div>
+          <div class="gcc-dlg-field-sm"><label class="gcc-dlg-label">VTT platform</label><select class="gcc-dlg-select" id="ef-vttPlatform">
+            <option value="">None</option><option value="foundry">Foundry</option><option value="roll20">Roll20</option><option value="fg">Fantasy Grounds</option><option value="other">Other</option>
+          </select></div>
+        </div>
+        <div class="gcc-dlg-row">
+          <div class="gcc-dlg-field"><label class="gcc-dlg-label">VTT display name</label><input class="gcc-dlg-input" id="ef-vttLabel" placeholder="e.g. Foundry, Roll20"></div>
+          <div class="gcc-dlg-field"><label class="gcc-dlg-label">VTT URL</label><input class="gcc-dlg-input" id="ef-vttUrl" placeholder="https://..."></div>
+        </div>
+      </fieldset>
+
+      <fieldset class="gcc-dlg-fieldset">
+        <legend class="gcc-dlg-legend">Rules</legend>
+        <div class="gcc-dlg-row">
+          <div class="gcc-dlg-field"><label class="gcc-dlg-label">XP / advancement method</label><input class="gcc-dlg-input" id="ef-xpMethod" placeholder="e.g. Karma, Gold=XP, Milestone"></div>
+        </div>
+        <div class="gcc-dlg-row">
+          <div class="gcc-dlg-field"><label class="gcc-dlg-label">Rulebooks / sources</label><input class="gcc-dlg-input" id="ef-rulebooks" placeholder="e.g. PHB, DMG, UA, Dragon #68–120"></div>
+        </div>
+        <div class="gcc-dlg-row">
+          <div class="gcc-dlg-field"><label class="gcc-dlg-label">House rules</label><textarea class="gcc-dlg-ta" id="ef-houseRules" rows="2" placeholder="Freeform notes on house rules"></textarea></div>
+        </div>
+      </fieldset>
+
+      <fieldset class="gcc-dlg-fieldset">
+        <legend class="gcc-dlg-legend">Image</legend>
+        <div class="gcc-dlg-img-area">
+          <div id="ef-img-wrap"></div>
+          <div class="gcc-dlg-img-btns">
+            <button class="gcc-dlg-img-btn" id="ef-img-upload">Upload</button>
+            <button class="gcc-dlg-img-btn" id="ef-img-url">Paste URL</button>
+            <button class="gcc-dlg-img-btn danger" id="ef-img-remove" style="display:none">Remove</button>
+          </div>
+          <input type="file" id="ef-img-file" accept="image/*" style="display:none">
+        </div>
+      </fieldset>
+
+      <fieldset class="gcc-dlg-fieldset">
+        <legend class="gcc-dlg-legend">Notes</legend>
+        <div class="gcc-dlg-row">
+          <div class="gcc-dlg-field"><textarea class="gcc-dlg-ta" id="ef-notes" rows="3" placeholder="Campaign notes, links, reminders..."></textarea></div>
+        </div>
+      </fieldset>
+
+    </div>
+    <div class="gcc-dlg-footer">
+      <button class="gcc-dlg-btn" id="ef-cancel">Cancel</button>
+      <button class="gcc-dlg-btn primary" id="ef-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Character Edit Modal -->
+<div class="gcc-dlg-overlay" id="chars-modal">
+  <div class="gcc-dlg" style="max-width:480px">
+    <div class="gcc-dlg-header">
+      <div class="gcc-dlg-title" id="chars-modal-title">Edit team</div>
+      <button class="gcc-dlg-close" id="chars-modal-close">✕</button>
+    </div>
+    <div class="gcc-dlg-body">
+      <input type="hidden" id="cf-camp-id">
+      <div class="chars-picker-info" id="chars-picker-info"></div>
+      <div class="chars-picker" id="chars-picker"></div>
+    </div>
+    <div class="gcc-dlg-footer">
+      <button class="gcc-dlg-btn" id="cf-cancel">Cancel</button>
+      <button class="gcc-dlg-btn primary" id="cf-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dice Roller -->
+<button class="dice-fab" id="dice-fab" title="Dice Roller">🎲</button>
+<div class="dice-tray" id="dice-tray">
+  <div class="dice-tray-hdr">
+    <div class="dice-tray-title">DICE</div>
+    <span class="dice-tray-clear" id="dice-clear">Clear</span>
+  </div>
+  <div class="dice-buttons">
+    <button class="dice-btn" data-die="4">d4</button>
+    <button class="dice-btn" data-die="6">d6</button>
+    <button class="dice-btn" data-die="8">d8</button>
+    <button class="dice-btn" data-die="10">d10</button>
+    <button class="dice-btn" data-die="12">d12</button>
+    <button class="dice-btn" data-die="20">d20</button>
+    <button class="dice-btn" data-die="100">d100</button>
+  </div>
+  <div class="dice-pool" id="dice-pool"><span class="dice-pool-empty">Click dice to add</span></div>
+  <div class="dice-mod"><label>MOD</label><input type="number" id="dice-modifier" value="0"></div>
+  <button class="dice-roll-btn" id="dice-roll">ROLL</button>
+  <div class="dice-result" id="dice-result">
+    <div class="dice-result-total" id="dice-total"></div>
+    <div class="dice-result-breakdown" id="dice-breakdown"></div>
+  </div>
+  <div class="dice-log" id="dice-log"></div>
+</div>
+
+<!-- Session Modal -->
+<div class="gcc-dlg-overlay" id="session-modal">
+  <div class="gcc-dlg" style="max-width:480px">
+    <div class="gcc-dlg-header">
+      <div class="gcc-dlg-title" id="session-modal-title">New session</div>
+      <button class="gcc-dlg-close" id="session-modal-close">✕</button>
+    </div>
+    <div class="gcc-dlg-body">
+      <div class="gcc-dlg-row"><div class="gcc-dlg-field"><label class="gcc-dlg-label">Date</label><input class="gcc-dlg-input" id="sm-date" type="date"></div><div class="gcc-dlg-field-xs"><label class="gcc-dlg-label">XP / Karma</label><input class="gcc-dlg-input" id="sm-xp" type="number" placeholder="0"></div></div>
+      <div class="gcc-dlg-row"><div class="gcc-dlg-field"><label class="gcc-dlg-label">Title (optional)</label><input class="gcc-dlg-input" id="sm-title" placeholder="e.g. The Warehouse Ambush"></div></div>
+      <div class="gcc-dlg-row"><div class="gcc-dlg-field"><label class="gcc-dlg-label">Summary</label><textarea class="gcc-dlg-ta" id="sm-text" rows="3" placeholder="What happened this session..."></textarea></div></div>
+    </div>
+    <div class="gcc-dlg-footer">
+      <button class="gcc-dlg-btn" id="sm-cancel">Cancel</button>
+      <button class="gcc-dlg-btn primary" id="sm-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="ftr">
+  <div class="ftr-inner">
+    <span>Graycloak's Campaign Corner v1.7</span>
+    <span>Data stored locally in your browser</span>
+  </div>
+</div>
+
+<script src="gcc-dialog.js"></script>
+<script src="gcc-data.js"></script>
+<script src="gcc-images.js"></script>
+<script src="gcc-backup.js?v=2"></script>
+<script src="gcc-header.js"></script>
+<script src="gcc-firebase-config.js"></script>
+<script src="gcc-auth.js"></script>
+<script src="gcc-sync.js"></script>
+<script src="gcc-invite.js"></script>
+<script>
+// ── Init ──
+GCC.init();
+
+const ESC = s => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; };
+const SYSTEM_COLORS = {};
+const PIP_COLORS = ['#5090b0','#7a5a8a','#5a9a40','#d0a040','#c04040','#508a7a','#9a6a30','#6a6a9a'];
+GCC.SYSTEM_DEFS.forEach(s => { SYSTEM_COLORS[s.id] = s.color; });
+let currentFilter = 'all';
+
+function formatDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+function formatDateYear(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
+function formatDateTime(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' @ ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+function sysColorCSS(sysId) {
+  const c = SYSTEM_COLORS[sysId] || '#888';
+  return `background:${c}18;color:${c};border:1px solid ${c}30`;
+}
+function statusLabel(s) {
+  return { active: 'Active', hiatus: 'On Hiatus', completed: 'Completed', archived: 'Archived' }[s] || s;
+}
+
+// ── Character resolution (live data from saved chars) ──
+function _resolveChar(savedChar, systemId, storageKey) {
+  let name = '', sub = '', player = '', portrait = '', statsHtml = '';
+  if (systemId === 'faserip') {
+    const RANK_ABBR = { Feeble:'Fb', Poor:'Pr', Typical:'Ty', Good:'Gd', Excellent:'Ex', Remarkable:'Rm', Incredible:'In', Amazing:'Am', Monstrous:'Mn', Unearthly:'Un', 'Shift-X':'ShX', 'Shift-Y':'ShY', 'Shift-Z':'ShZ', 'Class 1000':'C1k', 'Class 3000':'C3k', 'Class 5000':'C5k', Beyond:'Bey' };
+    name = savedChar.heroName || savedChar.name || 'Unnamed';
+    player = savedChar.playerName || '';
+    portrait = savedChar.portraitData || '';
+    sub = savedChar.origin || '';
+    const ab = savedChar.abilities || {};
+    const abKeys = ['fighting','agility','strength','endurance','reason','intuition','psyche'];
+    const abSpan = k => { const a = ab[k]; if (!a) return ''; return `<span><span class="ab">${k.substring(0,1).toUpperCase()}</span>${a.value != null ? a.value : ''}</span>`; };
+    const allAb = abKeys.map(abSpan).filter(Boolean).join('');
+    if (allAb) statsHtml += `<div class="cc-char-stats">${allAb}</div>`;
+    const derived = [];
+    if (savedChar.health) derived.push('Health ' + savedChar.health);
+    if (savedChar.karma) derived.push('Karma ' + savedChar.karma);
+    if (savedChar.resourcesRank) derived.push('Res ' + (RANK_ABBR[savedChar.resourcesRank] || savedChar.resourcesRank));
+    if (savedChar.popularityHero != null) derived.push('Pop ' + savedChar.popularityHero);
+    if (derived.length) statsHtml += `<div class="cc-char-derived">${derived.map(d=>'<span>'+ESC(d)+'</span>').join('')}</div>`;
+  } else if (systemId === 'mp') {
+    name = savedChar.name || 'Unnamed';
+    player = savedChar.player || '';
+    portrait = savedChar._image || savedChar.portrait || '';
+    sub = savedChar.archetype || savedChar.className || savedChar.model || '';
+    let cp = 0;
+    if (savedChar.stats) { for (const s of Object.values(savedChar.stats)) cp += parseFloat(s.cp) || 0; }
+    if (savedChar.abilities) { for (const a of savedChar.abilities) cp += parseFloat(a.cp) || 0; }
+    if (cp) sub = cp + ' CPs' + (sub ? ' · ' + sub : '');
+    if (savedChar.stats) {
+      const statLine = ['st','en','ag','in','cl']
+        .map(k => { const v = savedChar.stats[k] ? (savedChar.stats[k].cp || '0') : '0'; return `<span>${k.toUpperCase()}\u2009${v}</span>`; });
+      statsHtml += `<div class="cc-char-stats">${statLine.join('')}</div>`;
+    }
+    const derived = [];
+    if (savedChar.power) derived.push('Power ' + savedChar.power);
+    if (savedChar.hitPts) derived.push('HP ' + savedChar.hitPts);
+    if (savedChar.initiative) derived.push('Init ' + savedChar.initiative);
+    if (derived.length) statsHtml += `<div class="cc-char-derived">${derived.map(d=>'<span>'+ESC(d)+'</span>').join('')}</div>`;
+  } else if (systemId === 'add1e') {
+    name = savedChar.characterName || savedChar.name || 'Unnamed';
+    player = savedChar.player || savedChar.playerName || '';
+    portrait = savedChar.portrait || '';
+    const cls = savedChar.characterClass || '';
+    const lvl = savedChar.level || '';
+    const race = savedChar.race || '';
+    sub = [race, cls && lvl ? cls + ' ' + lvl : cls].filter(Boolean).join(' · ');
+    const derived = [];
+    if (savedChar.ac !== undefined && savedChar.ac !== '') derived.push('AC\u2009' + savedChar.ac);
+    const hp = savedChar.hpCurrent || savedChar.hpMax;
+    if (hp) derived.push('HP\u2009' + hp + (savedChar.hpMax ? '/' + savedChar.hpMax : ''));
+    if (derived.length) statsHtml += `<div class="cc-char-derived">${derived.map(d=>'<span>'+ESC(d)+'</span>').join('')}</div>`;
+  } else {
+    name = savedChar.name || savedChar.heroName || 'Unnamed';
+    player = savedChar.player || savedChar.playerName || '';
+    sub = savedChar.sub || savedChar.class || '';
+  }
+  const charType = savedChar.characterType === 'player' ? 'pc' : (savedChar.characterType ? 'npc' : '');
+  return { name, player, sub, portrait, statsHtml, charType, _id: savedChar._id || '', storageKey: storageKey || savedChar.storageKey || savedChar.listKey || '' };
+}
+
+function _getSavedCharsForSystem(systemId) {
+  const sys = GCC.SYSTEM_DEFS.find(s => s.id === systemId);
+  if (!sys) return [];
+  const results = [];
+  sys.tools.forEach(t => {
+    if (!t.charList) return;
+    try {
+      const list = JSON.parse(localStorage.getItem(t.charList)) || [];
+      list.forEach(ch => {
+        results.push(_resolveChar(ch, systemId, t.charList));
+      });
+    } catch(e) {}
+  });
+  return results;
+}
+
+// ── Campaigns ──
+async function renderCampaigns() {
+  const all = GCC.loadCampaigns();
+  all.sort((a, b) => { if (a.pinned && !b.pinned) return -1; if (!a.pinned && b.pinned) return 1; return (b.lastPlayed||'').localeCompare(a.lastPlayed||''); });
+  const camps = currentFilter === 'all' ? all : all.filter(c => (c.status||'active') === currentFilter);
+  const grid = document.getElementById('campaign-grid');
+  if (!camps.length) { grid.innerHTML = '<div style="color:var(--tx3);font-size:12px;font-style:italic;padding:12px 0">No campaigns match this filter.</div>'; return; }
+
+  // Resolve campaign images from IndexedDB
+  const imgKeys = camps.map(c => c.campaignImage).filter(v => v && GCCImages.isKey(v));
+  const imgMap = await GCCImages.getBulk(imgKeys);
+
+  // Cross-device fallback: IndexedDB is per-device, so a key uploaded on
+  // desktop won't resolve on mobile. If pushSharedData has run for this
+  // campaign, the shared Firestore doc at campaigns/{id} holds a Firebase
+  // Storage download URL we can use instead. Cache the URL back into local
+  // gcc-campaigns so subsequent renders skip the Firestore round-trip.
+  const unresolved = camps.filter(c =>
+    c.campaignImage && GCCImages.isKey(c.campaignImage) && !imgMap[c.campaignImage]);
+  if (unresolved.length && typeof GCCInvite !== 'undefined' && GCCAuth?.getUser()) {
+    await Promise.all(unresolved.map(async c => {
+      try {
+        const shared = await GCCInvite.getSharedData(c.id);
+        const url = shared && shared.campaignImage;
+        if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+          imgMap[c.campaignImage] = url;
+          GCC.updateCampaign(c.id, { campaignImage: url });
+        }
+      } catch(e) { /* leave image empty; next render will retry */ }
+    }));
+  }
+
+  const resolveImg = v => { if (!v) return ''; if (GCCImages.isKey(v)) return imgMap[v] || ''; return v; };
+
+  grid.innerHTML = camps.map(c => {
+    const sys = GCC.SYSTEM_DEFS.find(s => s.id === c.system) || {};
+    const status = c.status || 'active';
+    const nextStr = formatDateTime(c.nextSession);
+    const gml = c.gmTitle || 'GM';
+    const pm = {online:'Online','in-person':'In-Person',hybrid:'Hybrid'}[c.playMode] || '';
+
+    const campImgSrc = resolveImg(c.campaignImage);
+    const thumbHtml = campImgSrc
+      ? `<div class="cc-thumb"><img src="${ESC(campImgSrc)}" style="width:100%;height:100%;object-fit:cover;border-radius:2px" alt=""></div>`
+      : (sys.icon ? `<div class="cc-thumb">${sys.icon}</div>` : '');
+
+    const hasImg = !!campImgSrc;
+    const sideImgHtml = hasImg
+      ? `<div class="cc-side-img"><img src="${ESC(campImgSrc)}" alt=""></div>`
+      : '';
+    const fallbackThumb = (!hasImg && sys.icon) ? `<div class="cc-thumb">${sys.icon}</div>` : '';
+
+    let _pcCount=0,_npcCount=0;
+    const charsHtml = (c.characters||[]).map((ch,i) => {
+      const col = PIP_COLORS[i % PIP_COLORS.length];
+      let resolved = ch;
+      const refKey = ch.storageKey || ch.listKey || resolved.storageKey || resolved.listKey || '';
+      if (refKey) {
+        try {
+          const saved = JSON.parse(localStorage.getItem(refKey)) || [];
+          let found = ch._id ? saved.find(s => s._id === ch._id) : null;
+          if (!found && ch.name) found = saved.find(s => (s.heroName || s.characterName || s.name) === ch.name);
+          if (found) {
+            if (ch._id && found._id && ch._id !== found._id) ch._id = found._id;
+            resolved = _resolveChar(found, c.system, refKey);
+          }
+        } catch(e) {}
+      }
+      if(resolved.charType==='pc')_pcCount++;else if(resolved.charType==='npc')_npcCount++;
+      const portraitHtml = resolved.portrait
+        ? `<img class="cc-char-portrait" src="${resolved.portrait}" alt="">`
+        : `<span class="cc-char-pip" style="background:${col}"></span>`;
+      let nameHtml;
+      const charSys = GCC.SYSTEM_DEFS.find(s => s.id === c.system);
+      const effectiveKey = resolved.storageKey || refKey;
+      const charTool = charSys?.tools.find(t => t.charList === effectiveKey && t.href)
+        || charSys?.tools.find(t => t.charList && t.href);
+      if(charTool && resolved.name){
+        const linkParam = (resolved._id || ch._id)
+          ? 'id=' + encodeURIComponent(resolved._id || ch._id)
+          : 'char=' + encodeURIComponent(resolved.name);
+        const href = charTool.href + (charTool.href.includes('?')?'&':'?') + linkParam;
+        const viewHref = href + '&mode=view';
+        nameHtml = `<a class="cc-char-name cc-char-link" href="${ESC(viewHref)}">${ESC(resolved.name)}</a>`;
+      } else {
+        nameHtml = `<span class="cc-char-name">${ESC(resolved.name)}</span>`;
+      }
+      const rmId = resolved._id || ch._id || '';
+      return `<div class="cc-char-card"><div class="cc-char-card-top">${portraitHtml}<div class="cc-char-info">${nameHtml}${resolved.player ? '<span class="cc-char-player">('+ESC(resolved.player)+')</span>' : ''}<div class="cc-char-sub">${ESC(resolved.sub||'')}</div>${resolved.statsHtml||''}</div></div><button class="cc-char-leave" data-rm-camp="${ESC(c.id)}" data-rm-char="${ESC(resolved.name)}" data-rm-id="${ESC(rmId)}">Leave</button></div>`;
+    }).join('');
+    const _playersStr=_pcCount||_npcCount?[_pcCount?_pcCount+' Player'+(_pcCount!==1?'s':''):'',_npcCount?_npcCount+' NPC'+(_npcCount!==1?'s':''):''].filter(Boolean).join(' · '):(c.players?c.players+' players':'');
+
+    const vttHtml = c.vttLabel ? `<div style="margin-bottom:10px"><a class="cc-sessions-btn" href="${ESC(c.vttUrl||'#')}" target="_blank" style="color:var(--blue);border-color:rgba(48,80,138,0.3)"><span style="font-size:11px">▶</span> ${ESC(c.vttLabel)} — ${ESC(c.name)}</a></div>` : '';
+
+    const dr = (l,v) => v ? `<div class="cc-detail-row"><span class="cc-detail-label">${l}</span><span class="cc-detail-value">${ESC(v)}</span></div>` : '';
+
+    return `<div class="campaign-card status-${status}${hasImg?' has-img':''}" data-camp-id="${ESC(c.id)}">
+      <div class="cc-card-body">
+      ${sideImgHtml}
+      <div class="cc-summary">
+        <div class="cc-top">
+          <div class="cc-name">${c.pinned?'<span class="cc-star">★</span>':''}<span class="cc-name-text">${ESC(c.name)}</span></div>
+          <div class="cc-status"><span class="cc-status-dot ${status}"></span><span class="cc-status-label">${statusLabel(status)}</span></div>
+          <span class="cc-chevron">▼</span>
+        </div>
+        <div class="cc-info">
+          <span class="cc-system-badge" style="${sysColorCSS(c.system)}">${ESC(sys.name||c.system)}</span>
+          ${fallbackThumb}
+          <div class="cc-meta">
+            ${c.gm?'<span>'+ESC(gml)+': '+ESC(c.gm)+'</span>':''}
+            ${c.world?'<span>'+ESC(c.world)+'</span>':''}
+            ${_playersStr?'<span>'+_playersStr+'</span>':''}
+            ${c.session?'<span>Session '+c.session+'</span>':''}
+          </div>
+        </div>
+        <div class="cc-meta2">
+          ${c.vttLabel?'<span>'+ESC(c.vttLabel)+'</span>':''}
+          ${c.schedule?'<span>'+ESC(c.schedule)+'</span>':''}
+          ${c.lastPlayed?'<span>Last: '+formatDate(c.lastPlayed)+'</span>':''}
+          ${nextStr?'<span class="cc-next">Next: '+ESC(nextStr)+'</span>':''}
+        </div>
+      </div>
+      </div>
+      <div class="cc-expand">
+        <div class="cc-bottom">
+          <button class="cc-btn" data-action="edit-camp" data-camp-id="${ESC(c.id)}">Edit</button>
+          <span style="flex:1"></span>
+          <button class="cc-btn cc-btn-danger" data-action="del-camp" data-camp-id="${ESC(c.id)}">Delete</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+}
+
+// ── Event handlers ──
+document.getElementById('btn-settings').addEventListener('click', () => { GCCBackup.showSettingsDialog(); });
+
+document.getElementById('filter-tabs').addEventListener('click', (e) => {
+  const tab = e.target.closest('.filter-tab');
+  if (!tab) return;
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  tab.classList.add('active');
+  currentFilter = tab.dataset.filter;
+  renderCampaigns();
+});
+
+// ── Edit Campaign Modal ──
+const editModal = document.getElementById('edit-modal');
+let editImageData = '';
+
+function populateSystemSelect() {
+  const sel = document.getElementById('ef-system');
+  sel.innerHTML = GCC.SYSTEM_DEFS.map(s => `<option value="${s.id}">${ESC(s.name)}</option>`).join('');
+}
+populateSystemSelect();
+
+async function openEditModal(campId) {
+  const camp = GCC.loadCampaigns().find(c => c.id === campId);
+  if (!camp) return;
+
+  document.getElementById('ef-id').value = camp.id;
+  document.getElementById('ef-name').value = camp.name || '';
+  document.getElementById('ef-system').value = camp.system || 'mp';
+  document.getElementById('ef-status').value = camp.status || 'active';
+  document.getElementById('ef-pinned').checked = !!camp.pinned;
+  document.getElementById('ef-world').value = camp.world || '';
+  document.getElementById('ef-genre').value = camp.genre || '';
+  document.getElementById('ef-pitch').value = camp.pitch || '';
+  document.getElementById('ef-description').value = camp.description || '';
+  document.getElementById('ef-gm').value = camp.gm || '';
+  document.getElementById('ef-gmTitle').value = camp.gmTitle || 'GM';
+  document.getElementById('ef-players').value = camp.players || 0;
+  document.getElementById('ef-startDate').value = (camp.startDate || camp.created || '').slice(0, 10);
+  document.getElementById('ef-nextSession').value = camp.nextSession || '';
+  document.getElementById('ef-schedule').value = camp.schedule || '';
+  document.getElementById('ef-playMode').value = camp.playMode || 'online';
+  document.getElementById('ef-vttPlatform').value = camp.vttPlatform || '';
+  document.getElementById('ef-vttLabel').value = camp.vttLabel || '';
+  document.getElementById('ef-vttUrl').value = camp.vttUrl || '';
+  document.getElementById('ef-xpMethod').value = camp.xpMethod || '';
+  document.getElementById('ef-rulebooks').value = camp.rulebooks || '';
+  document.getElementById('ef-houseRules').value = camp.houseRules || '';
+  document.getElementById('ef-notes').value = camp.notes || '';
+
+  // Resolve image from IndexedDB if it's a key
+  if (camp.campaignImage && GCCImages.isKey(camp.campaignImage)) {
+    editImageData = await GCCImages.get(camp.campaignImage) || '';
+  } else {
+    editImageData = camp.campaignImage || '';
+  }
+  renderImagePreview();
+
+  editModal.classList.add('open');
+}
+
+function closeEditModal() {
+  editModal.classList.remove('open');
+}
+
+function renderImagePreview() {
+  const wrap = document.getElementById('ef-img-wrap');
+  const rmBtn = document.getElementById('ef-img-remove');
+  if (editImageData) {
+    wrap.innerHTML = `<img class="gcc-dlg-img-preview" src="${ESC(editImageData)}" alt="">`;
+    rmBtn.style.display = '';
+  } else {
+    wrap.innerHTML = '<div class="gcc-dlg-img-ph">🖼</div>';
+    rmBtn.style.display = 'none';
+  }
+}
+
+function resizeImageToThumb(file, cb) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let w = img.width, h = img.height;
+      const maxDim = 1600;
+      if (w > maxDim || h > maxDim) { const r = Math.min(maxDim / w, maxDim / h); w = Math.round(w * r); h = Math.round(h * r); }
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      cb(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// Image upload
+document.getElementById('ef-img-upload').addEventListener('click', () => { document.getElementById('ef-img-file').click(); });
+document.getElementById('ef-img-file').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  resizeImageToThumb(file, (dataUrl) => { editImageData = dataUrl; renderImagePreview(); });
+  e.target.value = '';
+});
+document.getElementById('ef-img-url').addEventListener('click', () => {
+  const url = prompt('Image URL:');
+  if (url && url.trim()) { editImageData = url.trim(); renderImagePreview(); }
+});
+document.getElementById('ef-img-remove').addEventListener('click', () => { editImageData = ''; renderImagePreview(); });
+
+// Save
+document.getElementById('ef-save').addEventListener('click', async () => {
+  const id = document.getElementById('ef-id').value;
+  const updates = {
+    name: document.getElementById('ef-name').value.trim() || 'Untitled',
+    system: document.getElementById('ef-system').value,
+    status: document.getElementById('ef-status').value,
+    pinned: document.getElementById('ef-pinned').checked,
+    world: document.getElementById('ef-world').value.trim(),
+    genre: document.getElementById('ef-genre').value.trim(),
+    pitch: document.getElementById('ef-pitch').value.trim(),
+    description: document.getElementById('ef-description').value.trim(),
+    gm: document.getElementById('ef-gm').value.trim(),
+    gmTitle: document.getElementById('ef-gmTitle').value,
+    players: parseInt(document.getElementById('ef-players').value) || 0,
+    startDate: document.getElementById('ef-startDate').value || null,
+    nextSession: document.getElementById('ef-nextSession').value || null,
+    schedule: document.getElementById('ef-schedule').value.trim(),
+    playMode: document.getElementById('ef-playMode').value,
+    vttPlatform: document.getElementById('ef-vttPlatform').value,
+    vttLabel: document.getElementById('ef-vttLabel').value.trim(),
+    vttUrl: document.getElementById('ef-vttUrl').value.trim(),
+    xpMethod: document.getElementById('ef-xpMethod').value.trim(),
+    rulebooks: document.getElementById('ef-rulebooks').value.trim(),
+    houseRules: document.getElementById('ef-houseRules').value.trim(),
+    notes: document.getElementById('ef-notes').value.trim(),
+    campaignImage: editImageData,
+  };
+  // Store image in IndexedDB if it's a data URL
+  if (updates.campaignImage && GCCImages.isDataUrl(updates.campaignImage)) {
+    // Remove old image from IndexedDB
+    const oldCamp = GCC.getCampaign(id);
+    if (oldCamp && GCCImages.isKey(oldCamp.campaignImage)) await GCCImages.remove(oldCamp.campaignImage);
+    updates.campaignImage = await GCCImages.store(updates.campaignImage, 'img_banner');
+  } else if (!updates.campaignImage) {
+    // Removing image — clean up IndexedDB
+    const oldCamp = GCC.getCampaign(id);
+    if (oldCamp && GCCImages.isKey(oldCamp.campaignImage)) await GCCImages.remove(oldCamp.campaignImage);
+  }
+  GCC.updateCampaign(id, updates);
+  closeEditModal();
+  renderCampaigns();
+});
+
+// Cancel / close
+document.getElementById('ef-cancel').addEventListener('click', closeEditModal);
+document.getElementById('edit-modal-close').addEventListener('click', closeEditModal);
+editModal.addEventListener('click', (e) => { if (e.target === editModal) closeEditModal(); });
+
+// ── Wire edit button in campaign grid ──
+document.getElementById('campaign-grid').addEventListener('click', async (e) => {
+  const summary = e.target.closest('.cc-summary') || e.target.closest('.cc-side-img');
+  if (summary) {
+    const card = summary.closest('.campaign-card');
+    const campId = card.dataset.campId;
+    window.location.href = 'campaign-detail.html?id=' + encodeURIComponent(campId);
+    return;
+  }
+  const editBtn = e.target.closest('[data-action="edit-camp"]');
+  if (editBtn) { openEditModal(editBtn.dataset.campId); return; }
+  const charsBtn = e.target.closest('[data-action="edit-chars"]');
+  if (charsBtn) { openCharsModal(charsBtn.dataset.campId); return; }
+  const delBtn = e.target.closest('[data-action="del-camp"]');
+  if (delBtn) {
+    const id = delBtn.dataset.campId;
+    const camp = GCC.loadCampaigns().find(c => c.id === id);
+    if (!camp) return;
+    const ok = await GCCDialog.confirm('Delete campaign', 'Delete "'+camp.name+'"? This cannot be undone.', {okText:'Delete', danger:true});
+    if (!ok) return;
+    GCC.deleteCampaign(id);
+    renderCampaigns();
+    return;
+  }
+  const newSess = e.target.closest('.cc-log-new');
+  if (newSess) {
+    openSessionModal(newSess.dataset.campId);
+    return;
+  }
+  // Leave campaign (remove character)
+  const leaveBtn = e.target.closest('.cc-char-leave');
+  if (leaveBtn) {
+    e.stopPropagation();
+    const campId = leaveBtn.dataset.rmCamp;
+    const charName = leaveBtn.dataset.rmChar;
+    const rmId = leaveBtn.dataset.rmId;
+    if (!(await GCCDialog.confirm('Remove character', 'Remove "' + charName + '" from this campaign?', {okText:'Remove', danger:true}))) return;
+    const camp = GCC.getCampaign(campId);
+    if (!camp) return;
+    const chars = (camp.characters || []).filter(ch =>
+      rmId ? ch._id !== rmId : ch.name !== charName
+    );
+    GCC.updateCampaign(campId, { characters: chars, players: chars.length });
+    renderCampaigns();
+    return;
+  }
+});
+
+document.getElementById('btn-new-campaign').addEventListener('click', () => {
+  const name = prompt('Campaign name:');
+  if (!name || !name.trim()) return;
+  const sysIds = GCC.SYSTEM_DEFS.map(s => s.id);
+  const sysNames = GCC.SYSTEM_DEFS.map(s => s.name);
+  const sysIdx = prompt('Game system?\n'+sysNames.map((n,i)=>(i+1)+'. '+n).join('\n')+'\n\nEnter number:');
+  if (!sysIdx) return;
+  const idx = parseInt(sysIdx)-1;
+  if (idx < 0 || idx >= sysIds.length) { alert('Invalid selection.'); return; }
+  const gm = prompt('GM/DM/Judge name (optional):')||'';
+  const world = prompt('Campaign world/setting (optional):')||'';
+  const genre = prompt('Genre/tone (optional):')||'';
+  const camp = GCC.addCampaign({ name:name.trim(), system:sysIds[idx], gm:gm.trim(), world:world.trim(), genre:genre.trim() });
+  renderCampaigns();
+});
+
+// ── Character Edit Modal (picker-based) ──
+const charsModal = document.getElementById('chars-modal');
+let charsCampId = '';
+let charsCampSystem = 'mp';
+let charsSelected = new Set(); // set of character names currently in team
+
+function openCharsModal(campId) {
+  const camp = GCC.loadCampaigns().find(c => c.id === campId);
+  if (!camp) return;
+  charsCampId = campId;
+  charsCampSystem = camp.system || 'mp';
+  document.getElementById('cf-camp-id').value = campId;
+  document.getElementById('chars-modal-title').textContent = 'Edit ' + GCC.teamLabel(charsCampSystem);
+
+  // Build selected set from current campaign characters
+  // Resolve against saved chars to handle stale _ids from previous imports
+  charsSelected = new Set();
+  const _savedForSelect = _getSavedCharsForSystem(charsCampSystem);
+  (camp.characters || []).forEach(ch => {
+    // Try matching by _id first
+    let match = _savedForSelect.find(sc => sc._id && sc._id === ch._id);
+    // Fallback: match by name
+    if (!match && ch.name) match = _savedForSelect.find(sc => sc.name === ch.name);
+    // Use the saved char's _id if found, otherwise keep the ref's key for orphan display
+    charsSelected.add(match ? (match._id || match.name) : (ch._id || ch.name));
+  });
+
+  renderCharsPicker();
+  charsModal.classList.add('open');
+}
+
+function closeCharsModal() { charsModal.classList.remove('open'); }
+
+function renderCharsPicker() {
+  const picker = document.getElementById('chars-picker');
+  const info = document.getElementById('chars-picker-info');
+  const saved = _getSavedCharsForSystem(charsCampSystem);
+  const camp = GCC.getCampaign(charsCampId);
+  const teamRefs = camp?.characters || [];
+
+  // Build lookup of saved chars by _id and name
+  const savedById = {};
+  const savedByName = {};
+  saved.forEach(sc => {
+    if (sc._id) savedById[sc._id] = sc;
+    if (sc.name) savedByName[sc.name] = sc;
+  });
+
+  // Find orphans — team refs with no matching saved character
+  const orphans = teamRefs.filter(ref => {
+    if (ref._id && savedById[ref._id]) return false;
+    if (ref.name && savedByName[ref.name]) return false;
+    return true;
+  });
+
+  if (!saved.length && !orphans.length) {
+    info.textContent = 'No saved characters for this system. Create and save characters in the character sheet first.';
+    picker.innerHTML = '';
+    return;
+  }
+
+  info.textContent = 'Select characters to add to this campaign. Click to toggle.';
+  let html = '';
+
+  // Render orphaned team members first with remove button
+  if (orphans.length) {
+    html += '<div style="font-size:9px;color:var(--tx3);letter-spacing:1px;margin:6px 0 4px;font-family:var(--fsc)">UNRESOLVED (no saved data found)</div>';
+    orphans.forEach(ref => {
+      const refName = ref.name || 'Unknown';
+      html += `<div class="chars-picker-item orphan" data-orphan-id="${ESC(ref._id || '')}" data-orphan-name="${ESC(refName)}">
+        <div class="chars-picker-check" style="border-color:var(--red);color:var(--red)">✕</div>
+        <div class="cp-portrait-ph">?</div>
+        <div class="cp-info">
+          <div class="cp-name">${ESC(refName)}</div>
+          <div class="cp-sub" style="color:var(--red)">Click to remove from team</div>
+        </div>
+      </div>`;
+    });
+  }
+
+  // Render saved characters with toggle
+  html += saved.map((sc, i) => {
+    const key = sc._id || sc.name;
+    const sel = charsSelected.has(key);
+    const portraitHtml = sc.portrait
+      ? `<img class="cp-portrait" src="${sc.portrait}" alt="">`
+      : `<div class="cp-portrait-ph">?</div>`;
+    return `<div class="chars-picker-item${sel ? ' selected' : ''}" data-cp-idx="${i}">
+      <div class="chars-picker-check">${sel ? '✓' : ''}</div>
+      ${portraitHtml}
+      <div class="cp-info">
+        <div class="cp-name">${ESC(sc.name)}</div>
+        <div class="cp-sub">${ESC(sc.sub)}</div>
+        ${sc.player ? '<div class="cp-player">' + ESC(sc.player) + '</div>' : ''}
+      </div>
+      <button class="cp-del-btn" data-cp-del="${i}" title="Delete character permanently">🗑</button>
+    </div>`;
+  }).join('');
+
+  picker.innerHTML = html;
+
+  // Toggle selection on saved characters
+  picker.querySelectorAll('.chars-picker-item[data-cp-idx]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      if (e.target.closest('.cp-del-btn')) return;
+      const idx = parseInt(el.dataset.cpIdx);
+      const sc = saved[idx];
+      const key = sc._id || sc.name;
+      if (charsSelected.has(key)) {
+        charsSelected.delete(key);
+      } else {
+        charsSelected.add(key);
+      }
+      renderCharsPicker();
+    });
+  });
+
+  // Delete saved character permanently
+  picker.querySelectorAll('.cp-del-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const idx = parseInt(btn.dataset.cpDel);
+      const sc = saved[idx];
+      const ok = await GCCDialog.confirm('Delete character', 'Permanently delete "' + sc.name + '"? This cannot be undone.', {okText:'Delete', danger:true});
+      if (!ok) return;
+      const storageKey = sc.storageKey;
+      if (!storageKey) return;
+      try {
+        const list = JSON.parse(localStorage.getItem(storageKey)) || [];
+        const filtered = list.filter(c => sc._id ? c._id !== sc._id : (c.characterName || c.heroName || c.name) !== sc.name);
+        localStorage.setItem(storageKey, JSON.stringify(filtered));
+        if (typeof GCCSync !== 'undefined' && GCCSync.notifySync) GCCSync.notifySync(storageKey);
+      } catch(e) {}
+      charsSelected.delete(sc._id || sc.name);
+      renderCharsPicker();
+    });
+  });
+
+  // Remove orphan on click
+  picker.querySelectorAll('.chars-picker-item.orphan').forEach(el => {
+    el.addEventListener('click', () => {
+      const orphanId = el.dataset.orphanId;
+      const orphanName = el.dataset.orphanName;
+      const camp = GCC.getCampaign(charsCampId);
+      if (!camp) return;
+      const chars = (camp.characters || []).filter(ch =>
+        orphanId ? ch._id !== orphanId : ch.name !== orphanName
+      );
+      GCC.updateCampaign(charsCampId, { characters: chars, players: chars.length });
+      charsSelected.delete(orphanId || orphanName);
+      renderCharsPicker();
+    });
+  });
+}
+
+// Save — store references (name + storageKey + _id)
+document.getElementById('cf-save').addEventListener('click', () => {
+  const saved = _getSavedCharsForSystem(charsCampSystem);
+  const characters = saved
+    .filter(sc => charsSelected.has(sc._id) || charsSelected.has(sc.name))
+    .map(sc => ({ name: sc.name, storageKey: sc.storageKey, _id: sc._id || '' }));
+  GCC.updateCampaign(charsCampId, { characters, players: characters.length });
+  closeCharsModal();
+  renderCampaigns();
+});
+
+document.getElementById('cf-cancel').addEventListener('click', closeCharsModal);
+document.getElementById('chars-modal-close').addEventListener('click', closeCharsModal);
+charsModal.addEventListener('click', (e) => { if (e.target === charsModal) closeCharsModal(); });
+
+// ── Dice Roller ──
+const diceFab = document.getElementById('dice-fab');
+const diceTray = document.getElementById('dice-tray');
+let dicePool = [];
+let diceLog = [];
+
+diceFab.addEventListener('click', () => { diceTray.classList.toggle('open'); });
+
+// Add die to pool
+document.querySelector('.dice-buttons').addEventListener('click', (e) => {
+  const btn = e.target.closest('.dice-btn');
+  if (!btn) return;
+  const sides = parseInt(btn.dataset.die);
+  // Check if same die type exists, increment count
+  const existing = dicePool.find(d => d.sides === sides);
+  if (existing) { existing.count++; } else { dicePool.push({ sides, count: 1 }); }
+  renderDicePool();
+});
+
+function renderDicePool() {
+  const el = document.getElementById('dice-pool');
+  if (!dicePool.length) { el.innerHTML = '<span class="dice-pool-empty">Click dice to add</span>'; return; }
+  el.innerHTML = dicePool.map((d, i) =>
+    `<span class="dice-pool-chip">${d.count}d${d.sides}<span class="dice-pool-chip-rm" data-dp-rm="${i}">✕</span></span>`
+  ).join('');
+}
+
+// Remove from pool
+document.getElementById('dice-pool').addEventListener('click', (e) => {
+  const rm = e.target.closest('[data-dp-rm]');
+  if (!rm) return;
+  dicePool.splice(parseInt(rm.dataset.dpRm), 1);
+  renderDicePool();
+});
+
+// Clear
+document.getElementById('dice-clear').addEventListener('click', () => {
+  dicePool = [];
+  document.getElementById('dice-modifier').value = 0;
+  document.getElementById('dice-result').classList.remove('show');
+  renderDicePool();
+});
+
+// Roll
+document.getElementById('dice-roll').addEventListener('click', () => {
+  if (!dicePool.length) return;
+  const mod = parseInt(document.getElementById('dice-modifier').value) || 0;
+  let total = mod;
+  const allRolls = [];
+  const parts = [];
+
+  dicePool.forEach(d => {
+    const rolls = [];
+    for (let i = 0; i < d.count; i++) {
+      const r = Math.floor(Math.random() * d.sides) + 1;
+      rolls.push(r);
+      total += r;
+    }
+    allRolls.push({ die: 'd' + d.sides, rolls });
+    parts.push(d.count + 'd' + d.sides + ' [' + rolls.join(', ') + ']');
+  });
+
+  if (mod !== 0) parts.push((mod > 0 ? '+' : '') + mod);
+
+  // Show result
+  const resultEl = document.getElementById('dice-result');
+  resultEl.classList.add('show');
+  document.getElementById('dice-total').textContent = total;
+  document.getElementById('dice-breakdown').textContent = parts.join(' + ');
+
+  // Log
+  const expr = dicePool.map(d => d.count + 'd' + d.sides).join('+') + (mod ? (mod > 0 ? '+' : '') + mod : '');
+  diceLog.unshift({ expr, total, parts: parts.join(' + ') });
+  if (diceLog.length > 20) diceLog.length = 20;
+  renderDiceLog();
+});
+
+function renderDiceLog() {
+  const el = document.getElementById('dice-log');
+  el.innerHTML = diceLog.map(l =>
+    `<div class="dice-log-item"><span class="dl-total">${l.total}</span> ← ${ESC(l.expr)} (${ESC(l.parts)})</div>`
+  ).join('');
+}
+
+// Close dice tray when clicking outside
+document.addEventListener('click', (e) => {
+  if (!diceTray.contains(e.target) && e.target !== diceFab && !diceFab.contains(e.target)) {
+    diceTray.classList.remove('open');
+  }
+});
+
+// ── Session Modal ──
+const sesModal = document.getElementById('session-modal');
+let sesCampId = '';
+
+function openSessionModal(campId) {
+  sesCampId = campId;
+  document.getElementById('session-modal-title').textContent = 'New session';
+  document.getElementById('sm-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('sm-title').value = '';
+  document.getElementById('sm-text').value = '';
+  document.getElementById('sm-xp').value = '';
+  sesModal.classList.add('open');
+}
+function closeSessionModal() { sesModal.classList.remove('open'); sesCampId = ''; }
+
+document.getElementById('sm-save').addEventListener('click', () => {
+  if (!sesCampId) return;
+  const camps = GCC.loadCampaigns();
+  const camp = camps.find(c => c.id === sesCampId);
+  if (!camp) return;
+  if (!camp.sessions) camp.sessions = [];
+  camp.session = (camp.session||0) + 1;
+  camp.lastPlayed = document.getElementById('sm-date').value || new Date().toISOString().slice(0,10);
+  const title = document.getElementById('sm-title').value.trim();
+  const text = document.getElementById('sm-text').value.trim();
+  const xp = parseInt(document.getElementById('sm-xp').value) || 0;
+  camp.sessions.unshift({ date: camp.lastPlayed, title, text, xp });
+  GCC.saveCampaigns(camps);
+  closeSessionModal();
+  renderCampaigns();
+});
+document.getElementById('sm-cancel').addEventListener('click', closeSessionModal);
+document.getElementById('session-modal-close').addEventListener('click', closeSessionModal);
+sesModal.addEventListener('click', (e) => { if (e.target === sesModal) closeSessionModal(); });
+
+// ── Render ──
+renderCampaigns();
+
+// Auto-open chars modal if navigated from campaign-detail Edit Team
+(function(){const p=new URLSearchParams(window.location.search).get('editTeam');if(p){history.replaceState(null,'',window.location.pathname);openCharsModal(p)}})();
+
+// Re-render when cloud data arrives via sync
+window.addEventListener('gcc-sync-ready', () => {
+  renderCampaigns();
+});
+
+// ── Invite Join Flow ──
+(function() {
+  const inviteCode = GCCInvite.getInviteCodeFromUrl();
+  if (!inviteCode) return;
+
+  const banner = document.getElementById('invite-banner');
+  banner.style.display = 'block';
+  banner.innerHTML = '<div class="invite-banner"><div class="invite-banner-title">CAMPAIGN INVITE</div><div class="invite-banner-sub">Looking up invite...</div></div>';
+
+  async function processInvite() {
+    // Wait for Firebase SDK + Firestore to be ready
+    const waitForSdk = () => new Promise(resolve => {
+      if (typeof firebase !== 'undefined' && firebase.auth && firebase.firestore) {
+        resolve();
+      } else {
+        const check = setInterval(() => {
+          if (typeof firebase !== 'undefined' && firebase.auth && firebase.firestore) {
+            clearInterval(check);
+            resolve();
+          }
+        }, 200);
+        setTimeout(() => { clearInterval(check); resolve(); }, 5000);
+      }
+    });
+    await waitForSdk();
+
+    // Wait for auth state to actually resolve (persisted session restore)
+    const user = await new Promise(resolve => {
+      const unsub = firebase.auth().onAuthStateChanged(u => {
+        unsub();
+        resolve(u);
+      });
+      setTimeout(() => resolve(null), 5000);
+    });
+
+    if (!user) {
+      // Not signed in — show sign-in prompt first, lookup invite AFTER auth
+      banner.innerHTML =
+        '<div class="invite-banner">' +
+          '<div class="invite-banner-title">CAMPAIGN INVITE</div>' +
+          '<div class="invite-banner-sub">Sign in or register to join this campaign.</div>' +
+          '<div style="margin-top:12px"><button class="invite-banner-btn" id="invite-signin-btn">Sign In to Join</button>' +
+          '<button class="invite-banner-btn secondary" onclick="document.getElementById(\'invite-banner\').style.display=\'none\';history.replaceState(null,\'\',\'index.html\')">Dismiss</button></div>' +
+        '</div>';
+      document.getElementById('invite-signin-btn').addEventListener('click', () => {
+        GCCAuth.showModal('register');
+      });
+      GCCAuth.onAuthChange(async u => {
+        if (u && !banner._joined) {
+          banner._joined = true;
+          banner.innerHTML = '<div class="invite-banner"><div class="invite-banner-title">CAMPAIGN INVITE</div><div class="invite-banner-sub">Looking up invite...</div></div>';
+          const invite = await GCCInvite.lookupInvite(inviteCode);
+          if (!invite) {
+            banner.innerHTML = '<div class="invite-banner"><div class="invite-banner-title">INVALID INVITE</div><div class="invite-banner-sub">This invite code is invalid or has been revoked.</div><button class="invite-banner-btn secondary" onclick="document.getElementById(\'invite-banner\').style.display=\'none\';history.replaceState(null,\'\',\'index.html\')">Dismiss</button></div>';
+            return;
+          }
+          joinWithCode(invite);
+        }
+      });
+      return;
+    }
+
+    // Signed in — lookup invite directly
+    const invite = await GCCInvite.lookupInvite(inviteCode);
+    if (!invite) {
+      banner.innerHTML = '<div class="invite-banner"><div class="invite-banner-title">INVALID INVITE</div><div class="invite-banner-sub">This invite code is invalid or has been revoked.</div><button class="invite-banner-btn secondary" onclick="document.getElementById(\'invite-banner\').style.display=\'none\';history.replaceState(null,\'\',\'index.html\')">Dismiss</button></div>';
+      return;
+    }
+
+    joinWithCode(invite);
+  }
+
+  async function joinWithCode(invite) {
+    banner.innerHTML =
+      '<div class="invite-banner">' +
+        '<div class="invite-banner-title">CAMPAIGN INVITE</div>' +
+        '<div class="invite-banner-sub">You\'ve been invited to join:</div>' +
+        '<div class="invite-banner-camp">' + ESC(invite.campaignName) + '</div>' +
+        '<div style="margin-top:12px"><button class="invite-banner-btn" id="btn-join-campaign">Join Campaign</button>' +
+        '<button class="invite-banner-btn secondary" onclick="document.getElementById(\'invite-banner\').style.display=\'none\';history.replaceState(null,\'\',\'index.html\')">Dismiss</button></div>' +
+      '</div>';
+
+    document.getElementById('btn-join-campaign').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-join-campaign');
+      btn.disabled = true;
+      btn.textContent = 'JOINING...';
+      const result = await GCCInvite.joinCampaign(inviteCode);
+      if (result.ok) {
+        // Create local campaign stub if player doesn't already have one
+        if (!GCC.getCampaign(result.campaignId)) {
+          GCC.addCampaign({ id: result.campaignId, name: result.campaignName, system: result.system || 'mp', status: 'active' });
+        }
+        renderCampaigns();
+        banner.innerHTML =
+          '<div class="invite-banner">' +
+            '<div class="invite-banner-title">WELCOME!</div>' +
+            '<div class="invite-banner-sub">You\'ve joined <strong>' + ESC(result.campaignName) + '</strong></div>' +
+            '<div class="invite-banner-msg success">You\'re now part of this campaign.</div>' +
+            '<div style="margin-top:10px"><button class="invite-banner-btn" onclick="window.location.href=\'campaign-detail.html?id=' + encodeURIComponent(result.campaignId) + '\'">View Campaign</button> <button class="invite-banner-btn secondary" onclick="document.getElementById(\'invite-banner\').style.display=\'none\';history.replaceState(null,\'\',\'index.html\')">Dismiss</button></div>' +
+          '</div>';
+      } else {
+        banner.innerHTML =
+          '<div class="invite-banner">' +
+            '<div class="invite-banner-title">JOIN FAILED</div>' +
+            '<div class="invite-banner-msg error">' + ESC(result.reason || 'Unknown error') + '</div>' +
+            '<div style="margin-top:10px"><button class="invite-banner-btn secondary" onclick="document.getElementById(\'invite-banner\').style.display=\'none\';history.replaceState(null,\'\',\'index.html\')">Dismiss</button></div>' +
+          '</div>';
+      }
+    });
+  }
+
+  processInvite();
+})();
+</script>
+<script>(function(){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/eruda';document.body.appendChild(s);s.onload=function(){eruda.init()};})();</script>
+</body>
+</html>

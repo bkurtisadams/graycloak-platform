@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mighty Protectors — Character Sheet</title>
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Bitter:wght@400;700&family=Cinzel:wght@500;700&family=Alegreya:ital,wght@0,400;0,700;1,400&family=Alegreya+SC:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="gcc-header.css">
+<link rel="stylesheet" href="gcc-auth.css">
+<link rel="stylesheet" href="gcc-dialog.css">
+<style>
+:root {
+  --bg: #d6eaf8;
+  --bg2: #c4dff0;
+  --inp: #ffffff;
+  --brd: #1a2a3a;
+  --brd-lt: #999;
+  --tx: #1a2a3a;
+  --tx2: #3a5a70;
+  --label: #000;
+  --val: #b03000;
+  --accent: #c05a00;
+  --accent-lt: #d06a10;
+  --hdr-bg: #1a2a3a;
+  --fd: 'Bangers', cursive;
+  --fb: 'Bitter', serif;
+  --cell-h: 22px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0 }
+input[type=number] { -moz-appearance: textfield }
+
+/* Screen chrome */
+html { min-height: 100%; background: var(--bg) }
+body { min-height: 100vh; background: var(--bg); color: var(--tx); font-family: var(--fb); font-size: 11px; display: flex; flex-direction: column }
+.mp-hdr { background: var(--hdr-bg); border-bottom: 3px solid var(--accent); padding: 0 12px; flex-shrink: 0 }
+.mp-hdr-in { max-width: 780px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; min-height: 40px; gap: 8px; flex-wrap: wrap; padding: 4px 0 }
+.mp-logo-wrap { display: flex; align-items: center; gap: 8px }
+.mp-logo-title { font-family: var(--fd); font-size: 20px; color: #fff; letter-spacing: 1px; text-shadow: 2px 2px 0 var(--accent) }
+.mp-logo-sub { font-family: var(--fb); font-size: 9px; color: #8be9fd; letter-spacing: 1px }
+.mp-hdr-btns { display: flex; gap: 3px; align-items: center; flex-wrap: wrap }
+.hdr-btn { padding: 3px 7px; font-size: 9px; background: #2a3a4a; border: 1px solid #4a6a7a; color: #ccc; border-radius: 2px; cursor: pointer; font-family: var(--fb); font-weight: 700 }
+.hdr-btn:hover { border-color: var(--accent); background: #3a4a5a }
+.mp-ftr { font-size: 8px; color: var(--tx2); text-align: center; padding: 6px; background: var(--bg2); border-top: 1px solid #8ab4d0 }
+
+/* Sheet container */
+.sheet-wrap { flex: 1; overflow-y: auto; overflow-x: auto; padding: 10px; -webkit-overflow-scrolling: touch }
+.sheet { width: 100%; max-width: 750px; min-width: 375px; margin: 0 auto; background: #fff; border: 2px solid var(--brd); padding: 10px 14px 8px; font-family: var(--fb); font-size: 10px; color: #000 }
+
+/* Shared input styles */
+.si { border: none; border-bottom: 1.5px solid #000; background: transparent; font-family: var(--fb); font-size: 10px; color: #000; padding: 0 2px; height: var(--cell-h); outline: none }
+.si:focus { border-bottom-color: var(--accent) }
+.si-box { border: 1.5px solid #000; background: transparent; font-family: var(--fb); font-size: 11px; font-weight: 700; color: #000; padding: 0 2px; height: 24px; text-align: center; outline: none; width: 44px }
+.si-box:focus { border-color: var(--accent) }
+.lbl { font-weight: 700; font-size: 9px; white-space: nowrap }
+
+/* Logo row */
+.logo-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px }
+.logo-row .sheet-logo { font-family: var(--fd); font-size: 26px; letter-spacing: 2px }
+
+/* Bio + Portrait two-column layout */
+.bio-portrait { display: flex; gap: 12px; margin-bottom: 4px }
+.bio-col { flex: 1; min-width: 0 }
+.portrait-col { flex-shrink: 0; width: 200px; display: flex; flex-direction: column; align-items: center }
+.portrait-box {
+  width: 200px; height: 260px; border: 2px solid #000; border-radius: 3px;
+  overflow: hidden; position: relative; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  background: #f8f8f4;
+}
+.portrait-box img { width: 100%; height: 100%; object-fit: cover; display: block }
+.portrait-placeholder { color: #aaa; font-size: 10px; text-align: center }
+.portrait-placeholder svg { display: block; margin: 0 auto 4px; opacity: 0.25 }
+.portrait-del {
+  position: absolute; top: 4px; right: 4px; width: 20px; height: 20px;
+  border-radius: 3px; border: none; cursor: pointer; padding: 0;
+  background: rgba(0,0,0,0.5); color: rgba(255,255,255,0.7);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 0.12s;
+}
+.portrait-box:hover .portrait-del { opacity: 1 }
+.portrait-del:hover { background: rgba(0,0,0,0.8); color: #ff4040 }
+.portrait-del svg { width: 10px; height: 10px; fill: currentColor }
+@media print { .portrait-del { display: none !important } }
+
+/* Identity grid (inside bio-col) */
+.id-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; margin-bottom: 4px }
+.id-row { display: flex; align-items: baseline; gap: 3px }
+.id-row .lbl { min-width: 70px; text-align: right }
+.id-row .si { flex: 1 }
+.id-full { grid-column: 1 / -1 }
+
+/* Story box */
+.story-wrap { position: relative; margin: 4px 0 }
+.story-label { position: absolute; top: 4px; left: 5px; font-family: var(--fb); font-size: 9px; font-weight: 700; color: #000; pointer-events: none; letter-spacing: 0.5px; z-index: 1 }
+.story-box { border: 1.5px solid #000; min-height: 48px; padding: 3px 4px 3px 48px; font-family: var(--fb); font-size: 10px; resize: vertical; width: 100%; outline: none; background: transparent; margin: 0 }
+.story-box:focus { border-color: var(--accent) }
+
+/* Motivation / Origin / Legal (inside bio-col) */
+.mol-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; margin-top: 6px; margin-bottom: 2px }
+.mol-row { display: flex; align-items: baseline; gap: 3px }
+.mol-row .lbl { min-width: 85px; text-align: right }
+.mol-row .si { flex: 1 }
+
+/* CPs + ABILITIES header */
+.ab-header { display: flex; align-items: baseline; gap: 6px; margin-top: 6px; border-top: 1.5px solid #000; padding-top: 3px }
+.ab-header .ab-title { font-weight: 700; font-size: 13px; letter-spacing: 1px; flex: none }
+
+/* Abilities area - 3 columns: CPs | description | IPs */
+.ab-area { display: grid; grid-template-columns: 42px 1fr 36px; gap: 0; margin-top: 2px }
+.ab-cell { border-bottom: 1px solid #ccc; display: flex; align-items: center; min-height: 22px }
+.ab-cell-cp { justify-content: center }
+.ab-cell-cp input { width: 34px; text-align: center }
+.ab-cell-desc { padding: 0 4px }
+.ab-cell-desc input { flex: 1; width: 100% }
+.ab-cell-ip { justify-content: center }
+.ab-cell-ip input { width: 28px; text-align: center }
+.ab-cell input { border: none; background: transparent; font-family: var(--fb); font-size: 10px; height: 20px; outline: none }
+.ab-cell input:focus { border-bottom: 1px solid var(--accent) }
+
+/* Bottom: Stats left, Combat right */
+.bottom { display: grid; grid-template-columns: 230px 1fr; gap: 0 12px; margin-top: 4px; align-items: start }
+
+/* Stats block */
+.stats-hdr { display: grid; grid-template-columns: 42px 30px 36px 52px 40px; gap: 0; font-weight: 700; font-size: 8px; text-align: center; border-bottom: 1px solid #000; padding-bottom: 1px }
+.stat-row { display: grid; grid-template-columns: 42px 30px 36px 52px 40px; gap: 0; align-items: center; height: 26px; border-bottom: 1px solid #ddd }
+.stat-row .s-label { font-weight: 700; font-size: 13px; text-align: center }
+.stat-row input { width: 100%; text-align: center; border: none; border-bottom: 1px solid #bbb; background: transparent; font-family: var(--fb); font-size: 10px; height: 20px; outline: none }
+.stat-row input:focus { border-bottom-color: var(--accent) }
+
+/* Experience */
+.xp-block { margin-top: 6px }
+.xp-row { display: flex; align-items: center; gap: 4px; height: 20px }
+.v-box { width: 18px; height: 16px; border: 1.5px solid #000; display: inline-flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; flex-shrink: 0 }
+
+/* Combat block */
+.combat-block { display: flex; flex-direction: column; gap: 3px }
+.carry-row { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap }
+
+/* Attacks table */
+.atk-tbl { width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 2px }
+.atk-tbl th { font-weight: 700; font-size: 8px; text-align: center; padding: 1px 3px; border-bottom: 1.5px solid #000 }
+.atk-tbl th:first-child { text-align: left }
+.atk-tbl td { padding: 1px 3px; border-bottom: 1px solid #ddd; height: 22px }
+.atk-tbl td:first-child { text-align: left }
+.atk-tbl td:not(:first-child) { text-align: center }
+.atk-tbl input { width: 100%; border: none; background: transparent; font-family: var(--fb); font-size: 10px; text-align: inherit; height: 18px; outline: none }
+.atk-tbl input:focus { border-bottom: 1px solid var(--accent) }
+
+/* Defenses */
+.def-label-row { display: flex; gap: 4px; justify-content: center }
+.def-label-row span { font-size: 8px; font-weight: 700; width: 50px; text-align: center }
+.def-box-row { display: flex; gap: 4px; justify-content: center; margin-top: 2px }
+
+/* Protection */
+.prot-row { display: flex; align-items: center; gap: 0; margin-top: 4px }
+.prot-row .lbl { margin-right: 4px }
+.prot-cell { display: flex; flex-direction: column; align-items: center; flex: 1 }
+.prot-cell-label { font-size: 8px; font-weight: 700 }
+.prot-cell input { width: 90%; text-align: center }
+
+/* Derived stats bottom */
+.derived-bottom { margin-top: 6px; border-top: 1.5px solid #000; padding-top: 4px }
+.derived-row { display: flex; align-items: baseline; gap: 6px; margin-bottom: 3px; flex-wrap: wrap }
+
+/* CAPS row */
+.caps-row { display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap; margin-top: 2px; border-top: 1px solid #000; padding-top: 3px }
+
+/* Sheet footer */
+.sheet-ftr { font-size: 7px; text-align: center; margin-top: 6px; color: #666; border-top: 1px solid #ccc; padding-top: 3px }
+
+/* Dropdown select matching sheet style */
+.si-sel { border: none; border-bottom: 1.5px solid #000; background: transparent; font-family: var(--fb); font-size: 10px; color: #000; padding: 0 1px; height: var(--cell-h); outline: none; cursor: pointer; -webkit-appearance: none; appearance: none; border-radius: 0 }
+.si-sel:focus { border-bottom-color: var(--accent) }
+
+/* Roll button — polished dice icon */
+.btn-roll { background: linear-gradient(to bottom, #f8f8f8, #e8e8e8); border: 1px solid #999; border-radius: 3px; font-size: 10px; padding: 1px 5px 2px; cursor: pointer; color: #555; font-family: var(--fb); font-weight: 700; line-height: 1; vertical-align: middle; margin-left: 2px; transition: all 0.15s; box-shadow: 0 1px 1px rgba(0,0,0,0.1) }
+.btn-roll:hover { border-color: var(--accent); color: var(--accent); background: linear-gradient(to bottom, #fff, #f0e8e0); box-shadow: 0 1px 2px rgba(0,0,0,0.15) }
+.btn-roll:active { background: #e0d8d0; box-shadow: inset 0 1px 2px rgba(0,0,0,0.15) }
+.btn-roll svg { display: inline-block; vertical-align: -2px; width: 12px; height: 12px; fill: currentColor }
+@media print { .btn-roll { display: none !important } }
+
+/* Chargen toolbar */
+.cg-toolbar { display: flex; align-items: center; gap: 8px; padding: 5px 8px; background: #eef6fb; border: 1px solid #b0d0e8; border-radius: 3px; margin-bottom: 6px; flex-wrap: wrap }
+.cg-toolbar .lbl { font-size: 9px; color: #0a4a6a }
+.cg-toolbar select { font-family: var(--fb); font-size: 10px; padding: 2px 4px; border: 1px solid #8ab4d0; border-radius: 2px; background: #fff }
+.cg-toolbar select:focus { outline: none; border-color: var(--accent) }
+.btn-cg { padding: 3px 8px; font-size: 9px; font-family: var(--fb); font-weight: 700; background: #c04010; color: #fff; border: none; border-radius: 2px; cursor: pointer }
+.btn-cg:hover { background: #d85020 }
+
+/* CPs summary strip */
+.cp-strip { display: flex; align-items: center; gap: 10px; padding: 3px 8px; background: #f8f4e8; border: 1px solid #d0c090; border-radius: 3px; margin-bottom: 4px; flex-wrap: wrap; font-size: 9px }
+.cp-strip .cp-item { display: flex; align-items: baseline; gap: 2px }
+.cp-strip .cp-val { font-weight: 700; color: var(--val); font-size: 10px }
+.cp-strip .cp-lbl { font-weight: 700; color: #666 }
+.cp-strip .cp-sep { color: #ccc; margin: 0 2px }
+@media print { .cp-strip { display: none !important } }
+@media print { .cg-toolbar { display: none !important } }
+
+/* Computed/readonly field style */
+.si-calc { border: none; border-bottom: 1.5px solid #000; background: #f8f8f0; font-family: var(--fb); font-size: 10px; color: var(--val); font-weight: 700; padding: 0 2px; height: var(--cell-h); outline: none }
+.stat-row .si-calc { width: 100%; text-align: center; background: #f8f8f0 }
+
+/* Print — fit entire sheet on one Letter page */
+/* ── View Mode ── */
+body.view-mode .gcc-mp-btns .gcc-mp-btn:not(.gcc-mp-btn-view-edit){ display:none }
+body.view-mode .cg-toolbar{ display:none!important }
+body.view-mode .cp-strip{ display:none!important }
+body.view-mode .list-add,body.view-mode .item-del,body.view-mode .btn-roll,body.view-mode .portrait-del{ display:none!important }
+body.view-mode input,body.view-mode select,body.view-mode textarea{ pointer-events:none!important; user-select:text!important; -webkit-user-select:text!important; opacity:1!important }
+body.view-mode input:focus,body.view-mode select:focus,body.view-mode textarea:focus{ outline:none!important; border-color:inherit!important }
+.view-badge{display:none;font-family:var(--fb);font-size:9px;font-weight:700;letter-spacing:2px;color:#8be9fd;border:1px solid #8be9fd66;padding:2px 8px;border-radius:2px;margin-right:6px;pointer-events:none}
+body.view-mode .view-badge{display:inline-block}
+.gcc-mp-btn-view-edit{display:none}
+body.view-mode .gcc-mp-btn-view-edit{display:inline-block}
+
+@media print {
+  .mp-hdr, .mp-ftr, .gcc-mp-bar, .cg-toolbar { display: none !important }
+  a[href="index.html"] { display: none !important }
+  html, body { background: #fff !important; margin: 0; padding: 0; height: auto; min-height: 0 }
+  body { display: block }
+  .sheet-wrap { padding: 0; overflow: visible; flex: none }
+  .sheet { border: none; width: 100%; max-width: 7.5in; padding: 0.3in 0.4in; margin: 0 auto; box-shadow: none }
+  .si { border-bottom-color: #000 !important }
+  .si-box { border-color: #000 !important }
+  .story-box { border-color: #000 !important }
+  /* Prevent page breaks inside sections */
+  .bottom, .derived-bottom, .ab-area, .id-grid, .mol-grid, .bio-portrait { page-break-inside: avoid }
+  .portrait-box { border-color: #000 !important }
+  /* Size down slightly to guarantee single page */
+  @page { size: letter; margin: 0.25in }
+}
+
+@media (max-width: 600px) {
+  .sheet-wrap { padding: 4px }
+  .sheet { padding: 8px 6px 6px; border-width: 1px }
+
+  /* Bio + Portrait stack */
+  .bio-portrait { flex-direction: column }
+  .portrait-col { width: 100%; align-items: center }
+  .portrait-box { width: 160px; height: 200px }
+  .id-grid { grid-template-columns: 1fr }
+  .mol-grid { grid-template-columns: 1fr }
+
+  /* Bottom: stats/combat stack vertically */
+  .bottom { grid-template-columns: 1fr; gap: 8px 0 }
+
+  /* Abilities header wrap */
+  .ab-header { flex-wrap: wrap; gap: 4px }
+
+  /* Chargen toolbar wrap */
+  .cg-toolbar { flex-wrap: wrap; gap: 4px; padding: 4px 6px }
+  .cp-strip { flex-wrap: wrap; gap: 4px 8px; font-size: 8px; padding: 3px 6px }
+
+  /* Header compact */
+  .mp-logo-title { font-size: 16px }
+  .mp-logo-sub { font-size: 8px }
+  .hdr-btn { padding: 2px 5px; font-size: 8px }
+}
+
+/* Intermediate breakpoint for tablets */
+@media (max-width: 780px) and (min-width: 601px) {
+  .sheet { padding: 8px 10px 6px }
+  .bottom { grid-template-columns: 180px 1fr }
+}
+
+</style>
+</head>
+<body>
+
+<script src="gcc-dialog.js"></script>
+
+<!-- Screen header -->
+<div id="gcc-bar" class="gcc-bar">
+  <div class="gcc-bar-in">
+    <a href="index.html" class="gcc-brand" title="Back to Dashboard">
+      <div class="gcc-title-wrap">
+        <div class="gcc-title">GRAYCLOAK'S</div>
+        <div class="gcc-subtitle">CAMPAIGN CORNER</div>
+      </div>
+    </a>
+    <div class="gcc-nav">
+      <div class="gcc-tools-wrap">
+        <button class="gcc-nav-btn" id="gcc-btn-tools">🎲 Tools ▾</button>
+        <div class="gcc-tools-dd" id="gcc-tools-dd"></div>
+      </div>
+      <span id="gcc-auth-slot"></span>
+      <button class="gcc-nav-btn" id="gcc-btn-theme" title="Toggle light/dark"><span id="gcc-theme-icon">◑</span></button>
+    </div>
+  </div>
+</div>
+<div class="gcc-tools-overlay" id="gcc-tools-overlay"></div>
+
+<div class="gcc-mp-bar">
+  <div class="gcc-mp-bar-in">
+    <div class="gcc-mp-logo-wrap">
+      <img src="MP_logo_v3.png" alt="Mighty Protectors" class="gcc-mp-logo-img">
+      <span class="gcc-mp-logo-sub">CHARACTER BUILDER</span>
+    </div>
+    <div class="gcc-mp-btns">
+      <span class="view-badge">VIEW MODE</span>
+      <button class="gcc-mp-btn gcc-mp-btn-view-edit" id="btn-view-edit" title="Switch to Edit Mode">Edit</button>
+      <button class="gcc-mp-btn" id="btn-new">New</button>
+      <button class="gcc-mp-btn" id="btn-save">Save</button>
+      <button class="gcc-mp-btn" id="btn-load">Load</button>
+      <button class="gcc-mp-btn" id="btn-delete" title="Delete current character">Delete</button>
+      <button class="gcc-mp-btn" id="btn-campaign" title="Add to or change campaign">Campaign</button>
+      <button class="gcc-mp-btn" id="btn-export">Export JSON</button>
+      <button class="gcc-mp-btn" id="btn-import">Import JSON</button>
+      <button class="gcc-mp-btn" id="btn-r20-import" title="Paste JSON from Roll20 !mp export">Paste from Roll20</button>
+      <button class="gcc-mp-btn" id="btn-pdf">PDF</button>
+      <input type="file" id="inp-import" accept=".json" style="display:none">
+    </div>
+  </div>
+</div>
+
+<div class="sheet-wrap">
+<div class="sheet">
+
+  <!-- Chargen Toolbar (screen only) -->
+  <div class="cg-toolbar" id="cg-toolbar">
+    <span class="lbl">POWER LEVEL:</span>
+    <select id="cg-power-level">
+      <option value="normal">Normal</option>
+      <option value="low">Low</option>
+      <option value="standard" selected>Standard</option>
+      <option value="high">High</option>
+    </select>
+    <span class="lbl" style="margin-left:4px">CPs:</span>
+    <input type="number" id="cg-base-cps" style="width:48px; text-align:center; background:#0d0d1a; color:#f4d03f; border:1px solid #2a2040; padding:2px; font-weight:bold; font-size:11px; border-radius:3px" title="Base CP budget (editable)">
+    <button class="btn-cg" id="btn-roll-all" title="Random character skeleton"><svg viewBox="0 0 16 16" width="11" height="11" style="fill:#fff;vertical-align:-1px"><rect x="1" y="1" width="14" height="14" rx="2" fill="none" stroke="#fff" stroke-width="1.5"/><circle cx="4.5" cy="4.5" r="1.2"/><circle cx="11.5" cy="4.5" r="1.2"/><circle cx="4.5" cy="11.5" r="1.2"/><circle cx="11.5" cy="11.5" r="1.2"/><circle cx="8" cy="8" r="1.2"/></svg> Roll All</button>
+    <button class="btn-cg" id="btn-roll-bcs" title="Random BCs only" style="background:#2a5a7a"><svg viewBox="0 0 16 16" width="11" height="11" style="fill:#fff;vertical-align:-1px"><rect x="1" y="1" width="14" height="14" rx="2" fill="none" stroke="#fff" stroke-width="1.5"/><circle cx="4.5" cy="4.5" r="1.2"/><circle cx="11.5" cy="4.5" r="1.2"/><circle cx="4.5" cy="11.5" r="1.2"/><circle cx="11.5" cy="11.5" r="1.2"/><circle cx="8" cy="8" r="1.2"/></svg> BCs</button>
+    <button class="btn-cg" id="btn-roll-abilities" title="Random abilities" style="background:#2a5a7a"><svg viewBox="0 0 16 16" width="11" height="11" style="fill:#fff;vertical-align:-1px"><rect x="1" y="1" width="14" height="14" rx="2" fill="none" stroke="#fff" stroke-width="1.5"/><circle cx="4.5" cy="4.5" r="1.2"/><circle cx="11.5" cy="4.5" r="1.2"/><circle cx="4.5" cy="11.5" r="1.2"/><circle cx="11.5" cy="11.5" r="1.2"/><circle cx="8" cy="8" r="1.2"/></svg> Abilities</button>
+    <span style="flex:1"></span>
+    <span class="lbl" id="cg-cp-summary" style="font-size:10px; color:#b03000"></span>
+  </div>
+
+  <!-- CPs Summary Strip -->
+  <div class="cp-strip" id="cp-strip">
+    <div class="cp-item"><span class="cp-lbl">Base CPs:</span> <span class="cp-val" id="cp-base">—</span></div>
+    <span class="cp-sep">|</span>
+    <div class="cp-item" id="cp-xp-wrap" style="background:#e1f5ee;padding:1px 6px;border-radius:3px;border:1px solid #9fe1cb;display:none"><span class="cp-lbl" style="color:#0f6e56">XP Spent:</span> <span class="cp-val" style="color:#085041" id="cp-xp">0</span></div>
+    <span class="cp-sep" id="cp-xp-sep" style="display:none">|</span>
+    <div class="cp-item" id="cp-budget-wrap" style="background:#e6f1fb;padding:1px 6px;border-radius:3px;border:1px solid #b5d4f4;display:none"><span class="cp-lbl" style="color:#185fa5">Budget:</span> <span class="cp-val" style="color:#0c447c" id="cp-budget">0</span></div>
+    <span class="cp-sep" id="cp-budget-sep" style="display:none">|</span>
+    <div class="cp-item"><span class="cp-lbl">BC:</span> <span class="cp-val" id="cp-bc">0</span></div>
+    <span class="cp-sep">|</span>
+    <div class="cp-item"><span class="cp-lbl">Ability:</span> <span class="cp-val" id="cp-ab">0</span></div>
+    <span class="cp-sep">|</span>
+    <div class="cp-item"><span class="cp-lbl">Total Spent:</span> <span class="cp-val" id="cp-spent">0</span></div>
+    <span class="cp-sep">|</span>
+    <div class="cp-item"><span class="cp-lbl">Remaining:</span> <span class="cp-val" id="cp-remain">—</span></div>
+  </div>
+
+  <!-- Logo + Player -->
+  <div class="logo-row">
+    <span class="sheet-logo">MIGHTY PROTECTORS&reg;</span>
+    <div style="display:flex; align-items:baseline; gap:4px">
+      <span class="lbl">PLAYER:</span>
+      <input class="si" style="width:150px" data-field="player">
+    </div>
+  </div>
+
+  <!-- Bio + Portrait -->
+  <div class="bio-portrait">
+    <div class="bio-col">
+
+  <!-- Identity -->
+  <div class="id-grid">
+    <div class="id-row"><span class="lbl">NAME:</span><input class="si" data-field="name"></div>
+    <div class="id-row"><span class="lbl">TRUE I.D.:</span><input class="si" data-field="trueId"></div>
+    <div class="id-row"><span class="lbl">SIDE:</span>
+      <select class="si-sel" data-field="side" style="flex:1"><option value="">—</option><option value="Good">Good</option><option value="Evil">Evil</option><option value="Neutral">Neutral</option></select>
+    </div>
+    <div class="id-row"><span class="lbl">BIRTHPLACE:</span><input class="si" data-field="birthplace"><button class="btn-roll" id="btn-roll-birth" title="Roll birthplace"><svg viewBox="0 0 16 16" width="12" height="12"><rect x="1" y="1" width="14" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="4.5" cy="4.5" r="1.2"/><circle cx="11.5" cy="11.5" r="1.2"/><circle cx="8" cy="8" r="1.2"/></svg></button></div>
+    <div class="id-row"><span class="lbl">SPECIES:</span>
+      <select class="si-sel" data-field="species" id="sel-species" style="flex:1"><option value="">—</option></select>
+      <button class="btn-roll" id="btn-roll-species" title="Roll species"><svg viewBox="0 0 16 16" width="12" height="12"><rect x="1" y="1" width="14" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="4.5" cy="4.5" r="1.2"/><circle cx="11.5" cy="11.5" r="1.2"/><circle cx="8" cy="8" r="1.2"/></svg></button>
+    </div>
+    <div class="id-row"><span class="lbl">CULTURE:</span>
+      <select class="si-sel" data-field="culture" style="flex:1"><option value="">—</option></select>
+    </div>
+    <div class="id-row"><span class="lbl">AGE:</span><input class="si" style="width:60px" data-field="age"><button class="btn-roll" id="btn-roll-age" title="Roll age (2d10+10)"><svg viewBox="0 0 16 16" width="12" height="12"><rect x="1" y="1" width="14" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="4.5" cy="4.5" r="1.2"/><circle cx="11.5" cy="11.5" r="1.2"/><circle cx="8" cy="8" r="1.2"/></svg></button></div>
+    <div class="id-row"><span class="lbl">GENDER:</span><input class="si" data-field="gender"><button class="btn-roll" id="btn-roll-gender" title="Roll gender"><svg viewBox="0 0 16 16" width="12" height="12"><rect x="1" y="1" width="14" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="4.5" cy="4.5" r="1.2"/><circle cx="11.5" cy="11.5" r="1.2"/><circle cx="8" cy="8" r="1.2"/></svg></button></div>
+    <div class="id-row"><span class="lbl">WEIGHT:</span><input class="si" style="width:80px" data-field="weight"><span class="lbl" style="min-width:auto">lbs</span><button class="btn-roll" id="btn-roll-weight" title="Roll weight (5d6×10 male / 5d4×10 female)"><svg viewBox="0 0 16 16" width="12" height="12"><rect x="1" y="1" width="14" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="4.5" cy="4.5" r="1.2"/><circle cx="11.5" cy="11.5" r="1.2"/><circle cx="8" cy="8" r="1.2"/></svg></button></div>
+    <div class="id-row"><span class="lbl">MASS:</span><input class="si" style="width:50px" data-field="mass"></div>
+    <div class="id-row id-full"><span class="lbl">BACKGROUND:</span><input class="si" data-field="background"><button class="btn-roll" id="btn-roll-background" title="Roll background (3d100, pick 2)"><svg viewBox="0 0 16 16" width="12" height="12"><rect x="1" y="1" width="14" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="4.5" cy="4.5" r="1.2"/><circle cx="11.5" cy="11.5" r="1.2"/><circle cx="8" cy="8" r="1.2"/></svg></button></div>
+  </div>
+  <div class="story-wrap">
+    <span class="story-label">STORY:</span>
+    <textarea class="story-box" rows="3" data-field="story"></textarea>
+  </div>
+
+  <!-- Motivation / Origin / Legal -->
+  <div class="mol-grid">
+    <div class="mol-row"><span class="lbl">MOTIVATION:</span><input class="si" data-field="motivation"><button class="btn-roll" id="btn-roll-motivation" title="Roll motivation (2d100, pick 1)"><svg viewBox="0 0 16 16" width="12" height="12"><rect x="1" y="1" width="14" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="4.5" cy="4.5" r="1.2"/><circle cx="11.5" cy="11.5" r="1.2"/><circle cx="8" cy="8" r="1.2"/></svg></button></div>
+    <div class="mol-row"><span class="lbl">WEALTH:</span>
+      <select class="si-sel" data-field="wealth" id="sel-wealth" style="flex:1"></select>
+    </div>
+    <div class="mol-row"><span class="lbl">ORIGIN TYPE:</span>
+      <select class="si-sel" data-field="originType" id="sel-origin" style="flex:1"><option value="">—</option></select>
+      <button class="btn-roll" id="btn-roll-origin" title="Roll origin (2 choices)"><svg viewBox="0 0 16 16" width="12" height="12"><rect x="1" y="1" width="14" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="4.5" cy="4.5" r="1.2"/><circle cx="11.5" cy="11.5" r="1.2"/><circle cx="8" cy="8" r="1.2"/></svg></button>
+    </div>
+    <div class="mol-row"><span class="lbl">LUCK:</span><input class="si" style="width:50px" data-field="luck"></div>
+    <div class="mol-row" style="grid-column:1/-1"><span class="lbl">LEGAL STATUS:</span><input class="si" data-field="legalStatus"></div>
+  </div>
+
+    </div>
+
+    <!-- Portrait -->
+    <div class="portrait-col">
+      <div class="portrait-box" id="portrait-box" title="Click to upload portrait">
+        <div class="portrait-placeholder" id="portrait-placeholder">
+          <svg viewBox="0 0 48 48" width="48" height="48"><circle cx="24" cy="18" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 44c0-8.8 7.2-16 16-16s16 7.2 16 16" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+          Click to add portrait
+        </div>
+        <button class="portrait-del" id="portrait-del" title="Remove portrait"><svg viewBox="0 0 12 12"><line x1="2" y1="2" x2="10" y2="10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="10" y1="2" x2="2" y2="10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </div>
+      <input type="file" id="portrait-input" accept="image/*" style="display:none">
+    </div>
+  </div>
+
+  <!-- CPs: + ABILITIES + INVENTING + IPs: -->
+  <div class="ab-header">
+    <span class="lbl" style="min-width:36px; text-align:center">CPs:</span>
+    <span class="ab-title">ABILITIES</span>
+    <span style="flex:1"></span>
+    <span class="lbl" style="font-style:italic">INVENTING:</span>
+    <input class="si" style="width:30px; text-align:center" data-field="inventing">
+    <span class="lbl" style="font-style:italic; margin-left:8px">Unspent</span>
+    <input class="si" style="width:160px" data-field="unspent">
+    <span style="flex:1"></span>
+    <span class="lbl">IPs:</span>
+  </div>
+
+  <!-- Ability rows: CPs | description | IPs -->
+  <div class="ab-area" id="ab-area">
+    <!-- 12 blank rows matching the official sheet -->
+  </div>
+
+  <!-- Bottom: Stats (left) | Combat (right) -->
+  <div class="bottom">
+
+    <!-- LEFT: Basic Characteristics + Experience -->
+    <div>
+      <div class="stats-hdr"><span>CPs</span><span></span><span>Mod</span><span>SCORE</span><span>SAVE</span></div>
+      <div class="stat-row" data-stat="st"><div><input class="stat-cp" type="number"></div><div class="s-label">ST</div><div><input class="stat-mod" type="number"></div><div><input class="si-calc stat-score" readonly></div><div><input class="si-calc stat-save" readonly></div></div>
+      <div class="stat-row" data-stat="en"><div><input class="stat-cp" type="number"></div><div class="s-label">EN</div><div><input class="stat-mod" type="number"></div><div><input class="si-calc stat-score" readonly></div><div><input class="si-calc stat-save" readonly></div></div>
+      <div class="stat-row" data-stat="ag"><div><input class="stat-cp" type="number"></div><div class="s-label">AG</div><div><input class="stat-mod" type="number"></div><div><input class="si-calc stat-score" readonly></div><div><input class="si-calc stat-save" readonly></div></div>
+      <div class="stat-row" data-stat="in"><div><input class="stat-cp" type="number"></div><div class="s-label">IN</div><div><input class="stat-mod" type="number"></div><div><input class="si-calc stat-score" readonly></div><div><input class="si-calc stat-save" readonly></div></div>
+      <div class="stat-row" data-stat="cl"><div><input class="stat-cp" type="number"></div><div class="s-label">CL</div><div><input class="stat-mod" type="number"></div><div><input class="si-calc stat-score" readonly></div><div><input class="si-calc stat-save" readonly></div></div>
+
+      <div class="xp-block">
+        <div class="xp-row">
+          <span class="v-box">V</span>
+          <span style="flex:1"></span>
+          <span class="lbl">EXPERIENCE:</span>
+        </div>
+        <div class="xp-row">
+          <span class="v-box">V</span>
+          <span class="lbl" style="min-width:38px; text-align:right">BASE</span>
+          <input class="si" style="width:44px; text-align:center" data-field="xpBase">
+          <span class="lbl">EARNED</span>
+          <input class="si" style="width:44px; text-align:center" data-field="xpEarned">
+        </div>
+        <div class="xp-row">
+          <span class="v-box">V</span>
+          <span class="lbl" style="min-width:38px; text-align:right">SPENT</span>
+          <input class="si" style="width:44px; text-align:center" data-field="xpSpent">
+          <span class="lbl" style="min-width:auto">&lt;</span>
+        </div>
+        <div class="xp-row">
+          <span style="width:18px; flex-shrink:0"></span>
+          <span class="lbl" style="min-width:38px; text-align:right">TOTAL</span>
+          <input class="si" style="width:44px; text-align:center" data-field="xpTotal">
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Carrying, Attacks, Defenses, Protection -->
+    <div class="combat-block">
+
+      <div class="carry-row">
+      <span class="lbl">CARRYING CAPACITY:</span>
+        <input class="si-calc" style="width:70px" data-field="carry" readonly>
+        <span class="lbl" style="min-width:auto">lbs</span>
+        <span style="width:20px"></span>
+        <span class="lbl">BASE HTH DMG:</span>
+        <input class="si-calc" style="width:60px" data-field="baseDmg" readonly>
+      </div>
+
+      <!-- Attacks + Defenses side by side -->
+      <div class="atk-def-grid" style="display:grid; grid-template-columns:1fr auto; gap:0 8px; align-items:start">
+        <table class="atk-tbl">
+          <thead>
+            <tr><th style="text-align:left">ATTACKS:</th><th>To Hit</th><th>Damage</th><th>Dmg Type</th><th style="width:36px">KB</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><input></td><td><input></td><td><input></td><td><input></td><td><input></td></tr>
+            <tr><td><input></td><td><input></td><td><input></td><td><input></td><td><input></td></tr>
+            <tr><td><input></td><td><input></td><td><input></td><td><input></td><td><input></td></tr>
+          </tbody>
+        </table>
+
+        <div style="padding-top:0">
+          <div class="lbl" style="text-align:center; font-size:9px; margin-bottom:2px">DEFENSES:</div>
+          <div class="def-label-row">
+            <span>Physical</span>
+            <span>Mental</span>
+          </div>
+          <div class="def-box-row">
+            <input class="si-box" data-field="defPhysical" style="background:#f8f8f0;color:#b03000">
+            <input class="si-box" data-field="defMental" style="background:#f8f8f0;color:#b03000">
+          </div>
+        </div>
+      </div>
+
+      <!-- Protection -->
+      <div class="prot-row">
+        <span class="lbl" style="min-width:80px; text-align:right">PROTECTION:</span>
+        <div class="prot-cell"><span class="prot-cell-label">Kinetic</span><input class="si" style="width:48px; text-align:center" data-field="protKinetic"></div>
+        <div class="prot-cell"><span class="prot-cell-label">Energy</span><input class="si" style="width:48px; text-align:center" data-field="protEnergy"></div>
+        <div class="prot-cell"><span class="prot-cell-label">Bio</span><input class="si" style="width:48px; text-align:center" data-field="protBio"></div>
+        <div class="prot-cell"><span class="prot-cell-label">Entropy</span><input class="si" style="width:48px; text-align:center" data-field="protEntropy"></div>
+        <div class="prot-cell"><span class="prot-cell-label">Psychic</span><input class="si" style="width:48px; text-align:center" data-field="protPsychic"></div>
+        <div class="prot-cell"><span class="prot-cell-label">Other</span><input class="si" style="width:48px; text-align:center" data-field="protOther"></div>
+      </div>
+      <div class="prot-row">
+        <span class="lbl" style="min-width:80px; text-align:right"></span>
+        <div class="prot-cell"><input class="si" style="width:48px; text-align:center" data-field="protKinetic2"></div>
+        <div class="prot-cell"><input class="si" style="width:48px; text-align:center" data-field="protEnergy2"></div>
+        <div class="prot-cell"><input class="si" style="width:48px; text-align:center" data-field="protBio2"></div>
+        <div class="prot-cell"><input class="si" style="width:48px; text-align:center" data-field="protEntropy2"></div>
+        <div class="prot-cell"><input class="si" style="width:48px; text-align:center" data-field="protPsychic2"></div>
+        <div class="prot-cell"><input class="si" style="width:48px; text-align:center" data-field="protOther2"></div>
+      </div>
+      <div class="prot-row">
+        <span class="lbl" style="min-width:80px; text-align:right"></span>
+        <div class="prot-cell"><input class="si" style="width:48px; text-align:center" data-field="protKinetic3"></div>
+        <div class="prot-cell"><input class="si" style="width:48px; text-align:center" data-field="protEnergy3"></div>
+        <div class="prot-cell"><input class="si" style="width:48px; text-align:center" data-field="protBio3"></div>
+        <div class="prot-cell"><input class="si" style="width:48px; text-align:center" data-field="protEntropy3"></div>
+        <div class="prot-cell"><input class="si" style="width:48px; text-align:center" data-field="protPsychic3"></div>
+        <div class="prot-cell"><input class="si" style="width:48px; text-align:center" data-field="protOther3"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Derived stats - bottom of sheet -->
+  <div class="derived-bottom">
+    <div class="derived-row">
+      <span class="lbl">INITIATIVE:</span>
+      <input class="si-calc" style="width:50px" data-field="initiative" readonly>
+      <span style="flex:1"></span>
+      <span class="lbl">MOVE:</span>
+      <input class="si-calc" style="width:120px" data-field="move" readonly>
+    </div>
+    <div class="derived-row">
+      <span class="lbl">POWER (</span><input class="si" style="width:36px; text-align:center" data-field="powerSrc"><span class="lbl" style="margin-left:-2px">):</span>
+      <input class="si-calc" style="width:80px" data-field="power" readonly>
+    </div>
+    <div class="derived-row">
+      <span class="lbl">HIT PTS (</span><input class="si" style="width:36px; text-align:center" data-field="hitPtsSrc"><span class="lbl" style="margin-left:-2px">):</span>
+      <input class="si-calc" style="width:80px" data-field="hitPts" readonly>
+      <span style="flex:1"></span>
+      <span class="lbl">HEALING:</span>
+      <input class="si-calc" style="width:60px" data-field="healing" readonly>
+    </div>
+    <div class="caps-row">
+      <span class="lbl">CAPS:</span><input class="si-calc" style="width:28px; text-align:center" data-field="caps" readonly>
+      <span class="lbl">BCs:</span><input class="si-calc" style="width:28px; text-align:center" data-field="capBc" readonly>
+      <span class="lbl">Ability:</span><input class="si-calc" style="width:36px; text-align:center" data-field="capAbility" readonly>
+      <span class="lbl">DOT:</span><input class="si-calc" style="width:36px; text-align:center" data-field="capDmg" readonly>
+      <span class="lbl">GEAR:</span>
+      <span class="lbl">Break:</span><input class="si-calc" style="width:40px; text-align:center" data-field="gearBreak" readonly>
+      <span class="lbl">Take:</span><input class="si-calc" style="width:40px; text-align:center" data-field="gearTake" readonly>
+      <span class="lbl">Disarm:</span><input class="si-calc" style="width:40px; text-align:center" data-field="gearDisarm" readonly>
+      <span class="lbl">GBC:</span><input class="si-calc" style="width:28px; text-align:center" data-field="gbc" readonly>
+    </div>
+  </div>
+
+  <div class="sheet-ftr">
+    &copy; 2017 Monkey House Games. Permission granted to copy for private use. Mighty Protectors is a registered trademark of Monkey House Games.
+  </div>
+
+</div>
+</div>
+
+<script src="gcc-data.js"></script>
+<script src="gcc-header.js"></script>
+<script src="gcc-firebase-config.js"></script>
+<script src="gcc-auth.js"></script>
+<script src="gcc-sync.js"></script>
+<script src="mp-chargen.js"></script>
+<script>
+const STORE_KEY = 'mp-char-sheet';
+const AB_COUNT = 12;
+const ATK_COUNT = 3;
+const STATS = ['st','en','ag','in','cl'];
+
+// ── Populate Dropdowns ──
+(function() {
+  // Species
+  const selSp = document.getElementById('sel-species');
+  const speciesNames = [...new Set(MP.CG.SPECIES.map(s => s.label))];
+  speciesNames.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; selSp.appendChild(o); });
+
+  // Culture
+  const selCu = document.querySelector('[data-field="culture"]');
+  MP.CG.CULTURES.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; selCu.appendChild(o); });
+  selCu.value = 'Modern';
+
+  // Origin Type
+  const selOr = document.getElementById('sel-origin');
+  const originNames = [...new Set(MP.CG.ORIGIN_TYPES.map(o => o.label))];
+  originNames.forEach(o => { const opt = document.createElement('option'); opt.value = o; opt.textContent = o; selOr.appendChild(opt); });
+
+  // Wealth
+  const selW = document.getElementById('sel-wealth');
+  MP.CG.WEALTH.forEach(w => {
+    const o = document.createElement('option');
+    o.value = w.cp;
+    o.textContent = `(${w.cp} CPs) ${w.roll} — ${MP.CG.formatCurrency(w.income)}/yr`;
+    selW.appendChild(o);
+  });
+  selW.value = '0';
+})();
+
+// ── Build Ability Rows ──
+const abArea = document.getElementById('ab-area');
+for (let i = 0; i < AB_COUNT; i++) {
+  const cp = document.createElement('div');
+  cp.className = 'ab-cell ab-cell-cp';
+  cp.innerHTML = `<input data-ab="${i}" data-abf="cp">`;
+  const desc = document.createElement('div');
+  desc.className = 'ab-cell ab-cell-desc';
+  desc.innerHTML = `<input data-ab="${i}" data-abf="desc">`;
+  const ip = document.createElement('div');
+  ip.className = 'ab-cell ab-cell-ip';
+  ip.innerHTML = `<input data-ab="${i}" data-abf="ip">`;
+  abArea.appendChild(cp);
+  abArea.appendChild(desc);
+  abArea.appendChild(ip);
+}
+
+function addAbilityRow() {
+  const idx = document.querySelectorAll('[data-ab][data-abf="cp"]').length;
+  const cp = document.createElement('div');
+  cp.className = 'ab-cell ab-cell-cp';
+  cp.innerHTML = `<input data-ab="${idx}" data-abf="cp">`;
+  const desc = document.createElement('div');
+  desc.className = 'ab-cell ab-cell-desc';
+  desc.innerHTML = `<input data-ab="${idx}" data-abf="desc">`;
+  const ip = document.createElement('div');
+  ip.className = 'ab-cell ab-cell-ip';
+  ip.innerHTML = `<input data-ab="${idx}" data-abf="ip">`;
+  abArea.appendChild(cp);
+  abArea.appendChild(desc);
+  abArea.appendChild(ip);
+}
+
+// Tag attack rows
+document.querySelectorAll('.atk-tbl tbody tr').forEach((tr, i) => {
+  const fields = ['name','toHit','damage','dmgType','kb'];
+  tr.querySelectorAll('input').forEach((inp, j) => {
+    inp.setAttribute('data-atk', i);
+    inp.setAttribute('data-atkf', fields[j]);
+  });
+});
+
+// ── Auto-Compute Derived Stats ──
+function recalcDerived() {
+  const setField = (f, v) => { const el = document.querySelector(`[data-field="${f}"]`); if (el) el.value = v; };
+  const bcs = {};
+  document.querySelectorAll('.stat-row[data-stat]').forEach(row => {
+    const cpInput = row.querySelector('.stat-cp');
+    const modInput = row.querySelector('.stat-mod');
+    const scoreEl = row.querySelector('.stat-score');
+    const saveEl = row.querySelector('.stat-save');
+    const cpVal = parseInt(cpInput.value) || 0;
+    const modVal = parseInt(modInput.value) || 0;
+    // In MP, BC score = CPs spent + mod
+    const score = cpVal + modVal;
+    bcs[row.dataset.stat] = score;
+    scoreEl.value = score || '';
+    // Lookup save from BC table
+    const bcRow = MP.CG.lookupBC(score);
+    saveEl.value = score > 0 ? bcRow[MP.CG.BC_COL.SAVE] : '';
+  });
+
+  const st = bcs.st || 0, en = bcs.en || 0, ag = bcs.ag || 0, inVal = bcs.in || 0, cl = bcs.cl || 0;
+
+  // Always update CP strip
+  const bcTotal = st + en + ag + inVal + cl;
+  const pl = MP.CG.POWER_LEVELS.find(p => p.id === document.getElementById('cg-power-level').value);
+  const cpBox = document.getElementById('cg-base-cps');
+  const baseCPs = parseInt(cpBox.value) || (pl ? pl.totalCPs : 0);
+  let abCpTotal = 0;
+  const abRows = document.querySelectorAll('[data-ab][data-abf="cp"]');
+  abRows.forEach(cpEl => { abCpTotal += parseFloat(cpEl.value) || 0; });
+  const sumEl = document.getElementById('cg-cp-summary');
+  if (baseCPs > 0) {
+    const xpSpent = parseFloat(document.querySelector('[data-field="xpSpent"]')?.value) || 0;
+    const budget = baseCPs + xpSpent;
+    const totalSpent = bcTotal + abCpTotal;
+    const remain = budget - totalSpent;
+    const bcBudget = pl && pl.totalCPs === baseCPs ? pl.bcPoints : '—';
+    sumEl.textContent = `${totalSpent} / ${budget} CPs`;
+    document.getElementById('cp-base').textContent = baseCPs;
+    // Show XP Spent + Budget fields only when xpSpent > 0
+    const showXp = xpSpent > 0;
+    document.getElementById('cp-xp-wrap').style.display = showXp ? '' : 'none';
+    document.getElementById('cp-xp-sep').style.display = showXp ? '' : 'none';
+    document.getElementById('cp-budget-wrap').style.display = showXp ? '' : 'none';
+    document.getElementById('cp-budget-sep').style.display = showXp ? '' : 'none';
+    document.getElementById('cp-xp').textContent = '+' + xpSpent;
+    document.getElementById('cp-budget').textContent = budget;
+    document.getElementById('cp-bc').textContent = bcTotal + (bcBudget !== '—' ? ' / ' + bcBudget : '');
+    document.getElementById('cp-ab').textContent = abCpTotal;
+    document.getElementById('cp-spent').textContent = totalSpent;
+    document.getElementById('cp-remain').textContent = remain;
+    document.getElementById('cp-remain').style.color = remain < 0 ? '#c00' : '';
+
+    // Experience
+    const setField = (f, v) => { const el = document.querySelector(`[data-field="${f}"]`); if (el) el.value = v; };
+    setField('xpBase', baseCPs);
+    const xpTotal = baseCPs + xpSpent;
+    setField('xpTotal', xpTotal);
+
+    // Caps (based on total CPs spent on BCs + abilities, matching Roll20 total_eps)
+    const caps = MP.CG.calcCaps(totalSpent);
+    setField('caps', totalSpent);
+    setField('capBc', caps.bcCap);
+    setField('capAbility', caps.abilityCap);
+    setField('capDmg', caps.dotCap);
+    setField('gearBreak', caps.gearBreak);
+    setField('gearTake', caps.gearTake);
+    setField('gearDisarm', caps.gearDisarm);
+    setField('gbc', caps.gbc);
+  }
+
+  // Default luck
+  const luckEl = document.querySelector('[data-field="luck"]');
+  if (luckEl && !luckEl.value) luckEl.value = '10-';
+
+  if (st + en + ag + inVal + cl === 0) return; // no BCs entered — skip derived calcs
+
+  const d = MP.CG.calcDerived(st, en, ag, inVal, cl);
+
+  // Fill derived fields
+  setField('carry', d.carryCapacity.toLocaleString());
+  setField('baseDmg', d.baseHTH);
+  setField('initiative', d.initiative);
+  setField('move', d.move + '"');
+  setField('power', d.power);
+  setField('hitPts', d.hitPoints);
+  setField('healing', d.healingRate);
+  setField('defPhysical', d.physicalDef);
+  setField('defMental', d.mentalDef);
+  setField('inventing', d.inventingPts);
+
+  // Max power & hits go in the parenthesis fields
+  setField('powerSrc', d.power);
+  setField('hitPtsSrc', d.hitPoints);
+}
+
+// Recalc whenever a stat CP or ability CP changes
+document.querySelectorAll('.stat-cp').forEach(inp => {
+  inp.addEventListener('input', recalcDerived);
+});
+document.querySelectorAll('.stat-mod').forEach(inp => {
+  inp.addEventListener('input', recalcDerived);
+});
+// Also recalc on ability CP changes
+document.getElementById('ab-area').addEventListener('input', (e) => {
+  if (e.target.dataset.abf === 'cp') recalcDerived();
+});
+// Also recalc when power level changes — and sync CP box
+document.getElementById('cg-power-level').addEventListener('change', () => {
+  const pl = MP.CG.POWER_LEVELS.find(p => p.id === document.getElementById('cg-power-level').value);
+  if (pl) document.getElementById('cg-base-cps').value = pl.totalCPs;
+  recalcDerived();
+});
+
+// Recalc when CP box is manually edited
+document.getElementById('cg-base-cps').addEventListener('input', recalcDerived);
+
+// Recalc when XP earned/spent changes (affects caps)
+document.querySelector('[data-field="xpEarned"]').addEventListener('input', recalcDerived);
+document.querySelector('[data-field="xpSpent"]').addEventListener('input', recalcDerived);
+
+// Initial CP box from dropdown, then recalc
+(function() {
+  const pl = MP.CG.POWER_LEVELS.find(p => p.id === document.getElementById('cg-power-level').value);
+  if (pl) document.getElementById('cg-base-cps').value = pl.totalCPs;
+})();
+recalcDerived();
+
+// ── Roll Buttons ──
+document.getElementById('btn-roll-birth').addEventListener('click', () => {
+  const r = MP.CG.rollBirthplace();
+  let txt = r.place;
+  if (r.detail) txt += ' — ' + r.detail;
+  document.querySelector('[data-field="birthplace"]').value = txt;
+  saveToSlot();
+});
+
+document.getElementById('btn-roll-species').addEventListener('click', () => {
+  const r = MP.CG.rollSpecies();
+  document.getElementById('sel-species').value = r.entry.label;
+  saveToSlot();
+});
+
+document.getElementById('btn-roll-origin').addEventListener('click', async () => {
+  const r = MP.CG.rollOriginType();
+  const pick = await MPDialog.choose('Roll Origin Type', [
+    { label: r.choice1.entry.label, desc: 'Rolled ' + r.choice1.roll },
+    { label: r.choice2.entry.label, desc: 'Rolled ' + r.choice2.roll },
+  ], { intro: 'Rolled twice — pick one:' });
+  if (pick === null) return;
+  document.getElementById('sel-origin').value = pick === 0 ? r.choice1.entry.label : r.choice2.entry.label;
+  saveToSlot();
+});
+
+document.getElementById('btn-roll-bcs').addEventListener('click', () => {
+  const pl = document.getElementById('cg-power-level').value;
+  const bcs = MP.CG.rollBCs(pl);
+  if (!bcs) return;
+  STATS.forEach(s => {
+    const row = document.querySelector(`.stat-row[data-stat="${s}"]`);
+    row.querySelector('.stat-cp').value = bcs[s];
+  });
+  recalcDerived();
+  saveToSlot();
+});
+
+document.getElementById('btn-roll-abilities').addEventListener('click', () => {
+  const r = MP.CG.rollAbilities();
+  // Fill ability rows: 0-1 offensive, 2-3 defensive, 4-5 misc, 6-7 weaknesses
+  const abilities = [
+    ...r.offensive.map(a => a.entry.label),
+    ...r.defensive.map(a => a.entry.label),
+    ...r.misc.map(a => a.entry.label),
+  ];
+  const weaknesses = r.weaknesses.map(w => w.entry.label);
+
+  abilities.forEach((name, i) => {
+    const descEl = document.querySelector(`[data-ab="${i}"][data-abf="desc"]`);
+    if (descEl) descEl.value = name;
+  });
+  // Weaknesses in rows 6-7
+  weaknesses.forEach((name, i) => {
+    const descEl = document.querySelector(`[data-ab="${6+i}"][data-abf="desc"]`);
+    if (descEl) descEl.value = name;
+  });
+  saveToSlot();
+});
+
+// ── Age Roll ──
+document.getElementById('btn-roll-age').addEventListener('click', () => {
+  const age = MP.CG.rollAge();
+  document.querySelector('[data-field="age"]').value = age;
+  saveToSlot();
+});
+
+// ── Gender Roll ──
+document.getElementById('btn-roll-gender').addEventListener('click', () => {
+  const g = MP.CG.rollGender();
+  document.querySelector('[data-field="gender"]').value = g;
+  saveToSlot();
+});
+
+// ── Weight Roll ──
+document.getElementById('btn-roll-weight').addEventListener('click', () => {
+  const gender = document.querySelector('[data-field="gender"]').value || '';
+  const isFemale = /woman|female|girl/i.test(gender);
+  const w = MP.CG.rollWeight(isFemale);
+  document.querySelector('[data-field="weight"]').value = w;
+  // Auto-calc mass
+  const massRoll = MP.CG.calcMass(w);
+  document.querySelector('[data-field="mass"]').value = massRoll;
+  saveToSlot();
+});
+
+// ── Background Roll ──
+document.getElementById('btn-roll-background').addEventListener('click', async () => {
+  const rolls = MP.CG.rollBackground();
+  const picked = await MPDialog.pickMulti('Roll Background', [
+    { label: rolls[0] },
+    { label: rolls[1] },
+    { label: rolls[2] },
+  ], { intro: 'Rolled 3 backgrounds — pick 2.<br>Combine for a specialized career (+3 Task bonus), or keep 2 separate careers.', min: 2, max: 2, okText: 'Keep Selected' });
+  if (!picked) return;
+  const names = picked.map(i => rolls[i]);
+  document.querySelector('[data-field="background"]').value = names.join(', ');
+  saveToSlot();
+});
+
+// ── Motivation Roll ──
+document.getElementById('btn-roll-motivation').addEventListener('click', async () => {
+  const side = document.querySelector('[data-field="side"]').value || 'Good';
+  const isVillain = side === 'Evil';
+  const r = MP.CG.rollMotivation(isVillain);
+  const pick = await MPDialog.choose(isVillain ? 'Villain Motivation' : 'Hero Motivation', [
+    { label: r[0].label, desc: r[0].desc },
+    { label: r[1].label, desc: r[1].desc },
+  ], { intro: 'Rolled twice — pick one:' });
+  if (pick === null) return;
+  document.querySelector('[data-field="motivation"]').value = r[pick].label;
+  saveToSlot();
+});
+
+document.getElementById('btn-roll-all').addEventListener('click', async () => {
+  const ok = await MPDialog.confirm('Roll All', 'Generate a random character skeleton?<br>This will overwrite all current fields.', { okText: 'Roll', danger: true });
+  if (!ok) return;
+  const plVal = document.getElementById('cg-power-level').value;
+  clearAll();
+  document.getElementById('cg-power-level').value = plVal;
+  const plObj = MP.CG.POWER_LEVELS.find(p => p.id === plVal);
+  if (plObj) document.getElementById('cg-base-cps').value = plObj.totalCPs;
+  const pl = document.getElementById('cg-power-level').value;
+  const ch = MP.CG.rollCharacter(pl);
+
+  // Birthplace
+  let bp = ch.birthplace.place;
+  if (ch.birthplace.detail) bp += ' — ' + ch.birthplace.detail;
+  document.querySelector('[data-field="birthplace"]').value = bp;
+
+  // Species
+  document.getElementById('sel-species').value = ch.species;
+
+  // Origin — pick first choice by default
+  document.getElementById('sel-origin').value = ch.originChoice1;
+
+  // Side
+  document.querySelector('[data-field="side"]').value = 'Good';
+
+  // Culture — from birthplace roll, default Modern
+  document.querySelector('[data-field="culture"]').value = ch.birthplace.culture || 'Modern';
+
+  // Age, Gender, Weight
+  const age = MP.CG.rollAge();
+  document.querySelector('[data-field="age"]').value = age;
+  const gender = MP.CG.rollGender();
+  document.querySelector('[data-field="gender"]').value = gender;
+  const isFemale = /woman|female|girl/i.test(gender);
+  const weight = MP.CG.rollWeight(isFemale);
+  document.querySelector('[data-field="weight"]').value = weight;
+  document.querySelector('[data-field="mass"]').value = MP.CG.calcMass(weight);
+
+  // Background (pick first two of three)
+  const bgs = MP.CG.rollBackground();
+  document.querySelector('[data-field="background"]').value = bgs[0] + ', ' + bgs[1];
+
+  // Motivation
+  const mot = MP.CG.rollMotivation(false);
+  document.querySelector('[data-field="motivation"]').value = mot[0].label;
+
+  // BCs
+  STATS.forEach(s => {
+    const row = document.querySelector(`.stat-row[data-stat="${s}"]`);
+    row.querySelector('.stat-cp').value = ch.bcs[s];
+  });
+
+  // Random abilities
+  const r = MP.CG.rollAbilities();
+  const abilities = [
+    ...r.offensive.map(a => a.entry.label),
+    ...r.defensive.map(a => a.entry.label),
+    ...r.misc.map(a => a.entry.label),
+  ];
+  const weaknesses = r.weaknesses.map(w => w.entry.label);
+  abilities.forEach((name, i) => {
+    const el = document.querySelector(`[data-ab="${i}"][data-abf="desc"]`);
+    if (el) el.value = name;
+  });
+  weaknesses.forEach((name, i) => {
+    const el = document.querySelector(`[data-ab="${6+i}"][data-abf="desc"]`);
+    if (el) el.value = name;
+  });
+
+  recalcDerived();
+  saveToSlot();
+});
+
+// ── Gather Data ──
+function gatherData() {
+  const d = {};
+  document.querySelectorAll('[data-field]').forEach(el => {
+    d[el.dataset.field] = el.value;
+  });
+  d.powerLevel = document.getElementById('cg-power-level').value;
+  d.stats = {};
+  document.querySelectorAll('.stat-row[data-stat]').forEach(row => {
+    const cpInput = row.querySelector('.stat-cp');
+    const modInput = row.querySelector('.stat-mod');
+    const scoreEl = row.querySelector('.stat-score');
+    const saveEl = row.querySelector('.stat-save');
+    d.stats[row.dataset.stat] = { cp: cpInput.value, mod: modInput.value, score: scoreEl.value, save: saveEl.value };
+  });
+  d.abilities = [];
+  const abCount = document.querySelectorAll('[data-ab][data-abf="cp"]').length;
+  for (let i = 0; i < abCount; i++) {
+    const cp = document.querySelector(`[data-ab="${i}"][data-abf="cp"]`);
+    const desc = document.querySelector(`[data-ab="${i}"][data-abf="desc"]`);
+    const ip = document.querySelector(`[data-ab="${i}"][data-abf="ip"]`);
+    d.abilities.push({ cp: cp.value, desc: desc.value, ip: ip.value });
+  }
+  d.attacks = [];
+  for (let i = 0; i < ATK_COUNT; i++) {
+    const row = {};
+    document.querySelectorAll(`[data-atk="${i}"]`).forEach(inp => {
+      row[inp.dataset.atkf] = inp.value;
+    });
+    d.attacks.push(row);
+  }
+  // Preserve image, campaign, and entity ID from existing saved data
+  if (window._charMeta) {
+    if (window._charMeta._image) d._image = window._charMeta._image;
+    if (window._charMeta._campaign) d._campaign = window._charMeta._campaign;
+    if (window._charMeta._id) d._id = window._charMeta._id;
+  }
+  return d;
+}
+
+// ── Populate Data ──
+function populateData(d) {
+  if (!d) return;
+  document.querySelectorAll('[data-field]').forEach(el => {
+    if (d[el.dataset.field] != null) el.value = d[el.dataset.field];
+  });
+  if (d.powerLevel) document.getElementById('cg-power-level').value = d.powerLevel;
+  // Set CP box from power level; fall back to xpBase for imports without powerLevel
+  const cpBox = document.getElementById('cg-base-cps');
+  const pl = MP.CG.POWER_LEVELS.find(p => p.id === document.getElementById('cg-power-level').value);
+  if (pl) cpBox.value = pl.totalCPs;
+  if (!d.powerLevel && d.xpBase) cpBox.value = d.xpBase;
+  if (d.stats) {
+    document.querySelectorAll('.stat-row[data-stat]').forEach(row => {
+      const s = d.stats[row.dataset.stat];
+      if (!s) return;
+      row.querySelector('.stat-cp').value = s.cp || '';
+      row.querySelector('.stat-mod').value = s.mod || '';
+    });
+  }
+  if (d.abilities) {
+    // Add extra ability rows if import has more than current DOM rows
+    const currentRows = document.querySelectorAll('[data-ab][data-abf="cp"]').length;
+    for (let i = currentRows; i < d.abilities.length; i++) addAbilityRow();
+    d.abilities.forEach((ab, i) => {
+      const cp = document.querySelector(`[data-ab="${i}"][data-abf="cp"]`);
+      const desc = document.querySelector(`[data-ab="${i}"][data-abf="desc"]`);
+      const ip = document.querySelector(`[data-ab="${i}"][data-abf="ip"]`);
+      if (cp) cp.value = ab.cp || '';
+      if (desc) desc.value = ab.desc || '';
+      if (ip) ip.value = ab.ip || '';
+    });
+  }
+  if (d.attacks) {
+    d.attacks.forEach((atk, i) => {
+      Object.keys(atk).forEach(f => {
+        const inp = document.querySelector(`[data-atk="${i}"][data-atkf="${f}"]`);
+        if (inp) inp.value = atk[f] || '';
+      });
+    });
+  }
+  // Recalc derived after populating
+  recalcDerived();
+}
+
+// Clear all inputs
+function clearAll() {
+  document.querySelectorAll('input, textarea, select').forEach(el => {
+    if (el.type === 'file') return;
+    if (el.tagName === 'SELECT') { el.selectedIndex = 0; return; }
+    el.value = '';
+  });
+  // Trim extra ability rows back to default
+  const abCells = abArea.children;
+  while (abCells.length > AB_COUNT * 3) abArea.removeChild(abArea.lastChild);
+  // Reset CP box from dropdown default
+  const pl = MP.CG.POWER_LEVELS.find(p => p.id === document.getElementById('cg-power-level').value);
+  if (pl) document.getElementById('cg-base-cps').value = pl.totalCPs;
+  // Reset defaults
+  document.getElementById('sel-wealth').value = '0';
+  document.querySelector('[data-field="culture"]').value = 'Modern';
+}
+
+// ── Slot management ──
+const CHARS_LIST_KEY = GCC.KEYS.mpChars;
+function getEditIdx() {
+  const v = localStorage.getItem('mp-char-edit-idx');
+  return v != null ? parseInt(v) : -1;
+}
+function saveToSlot() {
+  const data = gatherData();
+  // Ensure stable entity ID
+  if (!data._id) {
+    // Check if we're editing an existing slot that has an _id
+    const list = JSON.parse(localStorage.getItem(CHARS_LIST_KEY)) || [];
+    const idx = getEditIdx();
+    if (idx >= 0 && idx < list.length && list[idx]._id) {
+      data._id = list[idx]._id;
+    } else {
+      data._id = (typeof GCC!=='undefined' && GCC.genId) ? GCC.genId('mp') : 'mp_'+Date.now();
+    }
+  }
+  data._saved = new Date().toISOString();
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(data)); } catch(e) {}
+  try {
+    const list = JSON.parse(localStorage.getItem(CHARS_LIST_KEY)) || [];
+    const idx = getEditIdx();
+    if (idx >= 0 && idx < list.length) {
+      list[idx] = data;
+    } else {
+      list.push(data);
+      localStorage.setItem('mp-char-edit-idx', list.length - 1);
+    }
+    localStorage.setItem(CHARS_LIST_KEY, JSON.stringify(list));
+    if(typeof GCCSync!=='undefined' && GCCSync.notifySync) GCCSync.notifySync(CHARS_LIST_KEY);
+  } catch(e) {}
+}
+
+// Auto-save on any input/select change
+document.addEventListener('input', () => { saveToSlot(); });
+document.addEventListener('change', () => { saveToSlot(); });
+
+// Save button
+document.getElementById('btn-save').addEventListener('click', () => {
+  try { saveToSlot(); MPDialog.alert('Saved', 'Character saved successfully.'); } catch(e) { MPDialog.alert('Error', 'Save failed: ' + e.message); }
+});
+
+// Load button — show character list picker
+document.getElementById('btn-load').addEventListener('click', async () => {
+  const list = JSON.parse(localStorage.getItem(CHARS_LIST_KEY)) || [];
+  const idx = await MPDialog.listChars('Load Character', list);
+  if (idx == null || idx < 0 || idx >= list.length) return;
+  clearAll();
+  const data = list[idx];
+  if (data._image) window._charMeta._image = data._image;
+  if (data._campaign) window._charMeta._campaign = data._campaign;
+  if (data._id) window._charMeta._id = data._id;
+  populateData(data);
+  showPortrait(data._image || null);
+  localStorage.setItem(STORE_KEY, JSON.stringify(data));
+  localStorage.setItem('mp-char-edit-idx', idx);
+});
+
+// Delete button — delete current character from list
+document.getElementById('btn-delete').addEventListener('click', async () => {
+  const idx = getEditIdx();
+  const list = JSON.parse(localStorage.getItem(CHARS_LIST_KEY)) || [];
+  if (idx < 0 || idx >= list.length) {
+    MPDialog.alert('No Character', 'No character is currently loaded to delete.');
+    return;
+  }
+  const name = list[idx].name || 'Unnamed';
+  const ok = await MPDialog.confirm('Delete Character', 'Permanently delete <b>' + name + '</b>?', { okText: 'Delete', danger: true });
+  if (!ok) return;
+  list.splice(idx, 1);
+  localStorage.setItem(CHARS_LIST_KEY, JSON.stringify(list));
+  if(typeof GCCSync!=='undefined' && GCCSync.notifySync) GCCSync.notifySync(CHARS_LIST_KEY);
+  clearAll();
+  recalcDerived();
+  localStorage.removeItem(STORE_KEY);
+  localStorage.setItem('mp-char-edit-idx', '-1');
+  window._charMeta = {};
+  showPortrait(null);
+  MPDialog.alert('Deleted', '<b>' + name + '</b> has been deleted.');
+});
+
+// New button
+document.getElementById('btn-new').addEventListener('click', async () => {
+  const ok = await MPDialog.confirm('New Character', 'Clear all fields and start a new character?', { okText: 'Clear', danger: true });
+  if (!ok) return;
+  clearAll();
+  recalcDerived();
+  window._charMeta = {};
+  showPortrait(null);
+  localStorage.removeItem(STORE_KEY);
+  localStorage.setItem('mp-char-edit-idx', '-1');
+});
+
+// Campaign — assign character to a campaign
+document.getElementById('btn-campaign').addEventListener('click', async () => {
+  const camps = (function(){try{return JSON.parse(localStorage.getItem(GCC.KEYS.campaigns))||[]}catch(e){return[]}})();
+  if (!camps.length) { await MPDialog.alert('No Campaigns', 'No campaigns found. Create one on the Campaigns page first.'); return; }
+  const current = window._charMeta._campaign || null;
+  const items = camps.map(c => ({
+    label: c.name,
+    desc: c.id === current ? '(current)' : '',
+  }));
+  if (current) items.push({ label: 'Remove from campaign', desc: 'Unlink this character' });
+  const pick = await MPDialog.choose('Assign to Campaign', items, { intro: 'Select a campaign for this character:' });
+  if (pick == null) return;
+  if (current && pick === items.length - 1) {
+    window._charMeta._campaign = null;
+    saveToSlot();
+    await MPDialog.alert('Removed', 'Character removed from campaign.');
+  } else {
+    window._charMeta._campaign = camps[pick].id;
+    saveToSlot();
+    await MPDialog.alert('Assigned', 'Character assigned to <b>' + camps[pick].name + '</b>.');
+  }
+});
+
+// Export JSON
+document.getElementById('btn-export').addEventListener('click', () => {
+  const d = gatherData();
+  const name = (d.name || 'character').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const blob = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// Import JSON
+document.getElementById('btn-import').addEventListener('click', () => {
+  document.getElementById('inp-import').click();
+});
+document.getElementById('inp-import').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      clearAll();
+      window._charMeta = {};
+      if (data._image) window._charMeta._image = data._image;
+      if (data._campaign) window._charMeta._campaign = data._campaign;
+      populateData(data);
+      showPortrait(data._image || null);
+      saveToSlot();
+      MPDialog.alert('Imported', 'Character imported: ' + file.name);
+    } catch(err) { MPDialog.alert('Error', 'Import failed: ' + err.message); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+// Paste from Roll20
+document.getElementById('btn-r20-import').addEventListener('click', async () => {
+  const raw = await MPDialog.prompt('Paste from Roll20', {
+    wide: true,
+    intro: 'In Roll20, run <b>!mp export</b> with a token selected.<br>Open the handout, select all the JSON text, and paste it below.',
+    placeholder: 'Paste JSON here...',
+    textClass: 'r20-paste',
+    hint: 'Tip: Ctrl+A in the handout to select all, then Ctrl+V here.',
+    hintClass: 'r20-hint',
+    okText: 'Import Character',
+  });
+  if (raw == null || !raw.trim()) return;
+  try {
+    // Strip <pre> tags and HTML entities from Roll20 handout copy
+    let json = raw.trim()
+      .replace(/<\/?pre[^>]*>/gi, '')
+      .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"').replace(/&nbsp;/g, ' ')
+      .trim();
+    const data = JSON.parse(json);
+    clearAll();
+    window._charMeta = {};
+    if (data._image) window._charMeta._image = data._image;
+    if (data._campaign) window._charMeta._campaign = data._campaign;
+    populateData(data);
+    showPortrait(data._image || null);
+    saveToSlot();
+    MPDialog.alert('Imported', 'Character imported from Roll20: <b>' + (data.name || 'Unknown') + '</b>');
+  } catch(err) { MPDialog.alert('Error', 'Import failed: ' + err.message); }
+});
+
+// PDF (print)
+document.getElementById('btn-pdf').addEventListener('click', () => window.print());
+
+// Meta storage for image/campaign (not in form fields)
+window._charMeta = {};
+
+// ── Portrait ──
+function resizePortrait(file, maxW, maxH) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const ratio = Math.min(maxW / img.width, maxH / img.height, 1);
+        const w = Math.round(img.width * ratio), h = Math.round(img.height * ratio);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+function showPortrait(dataUrl) {
+  const box = document.getElementById('portrait-box');
+  const ph = document.getElementById('portrait-placeholder');
+  if (dataUrl) {
+    let img = box.querySelector('img');
+    if (!img) { img = document.createElement('img'); box.insertBefore(img, box.firstChild); }
+    img.src = dataUrl;
+    ph.style.display = 'none';
+  } else {
+    const img = box.querySelector('img');
+    if (img) img.remove();
+    ph.style.display = '';
+  }
+}
+document.getElementById('portrait-box').addEventListener('click', (e) => {
+  if (e.target.closest('.portrait-del')) return;
+  document.getElementById('portrait-input').click();
+});
+document.getElementById('portrait-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const dataUrl = await resizePortrait(file, 400, 520);
+  window._charMeta._image = dataUrl;
+  showPortrait(dataUrl);
+  saveToSlot();
+  e.target.value = '';
+});
+document.getElementById('portrait-del').addEventListener('click', (e) => {
+  e.stopPropagation();
+  delete window._charMeta._image;
+  showPortrait(null);
+  saveToSlot();
+});
+
+// Auto-load on page open
+try {
+  const raw = localStorage.getItem(STORE_KEY);
+  if (raw) {
+    const d = JSON.parse(raw);
+    if (d._image) window._charMeta._image = d._image;
+    if (d._campaign) window._charMeta._campaign = d._campaign;
+    if (d._id) window._charMeta._id = d._id;
+    populateData(d);
+    showPortrait(d._image || null);
+  } else {
+    // New character — pick up campaign from dashboard
+    const camp = localStorage.getItem('mp-char-campaign');
+    if (camp) { window._charMeta._campaign = camp; localStorage.removeItem('mp-char-campaign'); }
+    // Pick up default side from campaign page
+    const defSide = localStorage.getItem('mp-char-default-side');
+    if (defSide) {
+      const sideEl = document.querySelector('[data-field="side"]');
+      if (sideEl) sideEl.value = defSide;
+      localStorage.removeItem('mp-char-default-side');
+    }
+  }
+} catch(e) {}
+
+// Default luck if empty after load
+(function() {
+  const luckEl = document.querySelector('[data-field="luck"]');
+  if (luckEl && !luckEl.value) luckEl.value = '10-';
+})();
+
+// Auto-open Roll20 paste dialog if ?r20=1
+if (new URLSearchParams(window.location.search).get('r20') === '1') {
+  setTimeout(() => document.getElementById('btn-r20-import').click(), 300);
+}
+
+// Deep-link: ?id=xxx or ?char=Name loads a specific character from the list
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const charId = params.get('id');
+  const charName = params.get('char');
+  if (!charId && !charName) return;
+  const list = JSON.parse(localStorage.getItem(CHARS_LIST_KEY)) || [];
+  const idx = charId
+    ? list.findIndex(c => c._id === charId)
+    : list.findIndex(c => (c.name || '') === charName);
+  if (idx < 0) return;
+  clearAll();
+  const data = list[idx];
+  if (data._image) window._charMeta._image = data._image;
+  if (data._campaign) window._charMeta._campaign = data._campaign;
+  if (data._id) window._charMeta._id = data._id;
+  populateData(data);
+  showPortrait(data._image || null);
+  localStorage.setItem(STORE_KEY, JSON.stringify(data));
+  localStorage.setItem('mp-char-edit-idx', idx);
+})();
+
+// View mode
+if(new URLSearchParams(window.location.search).get('mode')==='view'){
+  document.body.classList.add('view-mode');
+  document.title='Mighty Protectors — View Character';
+  document.getElementById('btn-view-edit').addEventListener('click',()=>{
+    const u=new URL(window.location); u.searchParams.delete('mode'); window.location=u;
+  });
+}
+</script>
+
+</body>
+</html>

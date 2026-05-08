@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FASERIP — Universal Table</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700;900&family=Barlow+Condensed:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Cinzel:wght@500;700&family=Alegreya:ital,wght@0,400;0,700;1,400&family=Alegreya+SC:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="gcc-header.css">
+<link rel="stylesheet" href="gcc-auth.css">
+<style>
+:root {
+  --white:#fff;--paper:#f5f5f0;
+  --green:#22bb22;--yellow:#f0d800;--red:#cc1111;
+  --dark:#111;--mid:#444;--soft:#666;--mute:#999;
+  --fd:'Oswald','Impact',sans-serif;
+  --fb:'Barlow Condensed','Arial Narrow',sans-serif;
+  --bg:#d6eaf8;--bg2:#c4dff0;
+  --accent:#c05a00;
+  --col-hdr:#e8e8e0;
+  --rcw:44px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{min-height:100%;background:var(--bg)}
+body{min-height:100vh;background:var(--bg);color:var(--dark);font-family:var(--fb);font-size:12px;display:flex;flex-direction:column}
+
+/* ── FASERIP Toolbar ── */
+.fas-hdr{background:var(--gcc-mp-bg);border-bottom:3px solid var(--gcc-mp-brd);padding:0 12px;flex-shrink:0}
+.fas-hdr-in{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;min-height:40px;gap:8px;flex-wrap:wrap;padding:4px 0}
+.fas-logo-wrap{display:flex;align-items:center;gap:8px}
+.fas-logo-title{font-family:var(--fd);font-size:22px;color:var(--gcc-mp-tx);letter-spacing:2px;text-shadow:1px 1px 0 rgba(0,0,0,.15)}
+.fas-logo-sub{font-family:var(--fb);font-size:9px;color:var(--gcc-mp-sub);letter-spacing:1px}
+.fas-hdr-btns{display:flex;gap:3px;align-items:center;flex-wrap:wrap}
+.hdr-btn{padding:3px 7px;font-size:9px;background:var(--gcc-mp-btn-bg);border:1px solid var(--gcc-mp-btn-brd);color:var(--gcc-mp-btn-tx);border-radius:2px;cursor:pointer;font-family:var(--fb);font-weight:700;text-decoration:none}
+.hdr-btn:hover{border-color:var(--gcc-mp-btn-hover-brd);background:var(--gcc-mp-btn-hover-bg)}
+
+/* ── Footer ── */
+.fas-ftr{font-size:8px;color:#3a5a70;text-align:center;padding:6px;background:var(--bg2);border-top:1px solid #8ab4d0;margin-top:auto}
+
+/* ── Main Content ── */
+.ut-wrap{flex:1;overflow:auto;padding:10px;-webkit-overflow-scrolling:touch}
+.ut-inner{margin:0 auto;width:fit-content}
+
+/* ══ Shared column sizing ══ */
+.ut-col-roll{width:48px;min-width:48px}
+.ut-col-rank{width:var(--rcw);min-width:var(--rcw);max-width:var(--rcw)}
+
+/* ══ ACTION TYPES TABLE ══ */
+table.action-tbl{border-collapse:collapse;font-family:var(--fb);font-size:10px;table-layout:fixed;margin-bottom:10px}
+.action-tbl th,.action-tbl td{border:1px solid #000;padding:1px 2px;text-align:center;vertical-align:middle;line-height:1.15;overflow:hidden}
+.action-tbl thead th{background:var(--col-hdr);font-family:var(--fd);font-weight:700}
+.action-tbl .at-abbr{font-size:14px;font-weight:900;font-family:var(--fd);line-height:1}
+.action-tbl .at-name{font-size:7px;font-weight:600;line-height:1.05}
+.action-tbl .at-ability{font-size:7px;color:var(--soft);font-style:italic}
+.action-tbl .row-w{background:var(--white)}
+.action-tbl .row-g{background:var(--green)}
+.action-tbl .row-y{background:var(--yellow)}
+.action-tbl .row-r{background:var(--red);color:#fff}
+.action-tbl .row-label{font-weight:900;font-family:var(--fd);font-size:10px;text-align:left;padding-left:4px}
+
+/* ══ RANK REFERENCE TABLE ══ */
+table.rank-tbl{border-collapse:collapse;font-family:var(--fb);font-size:10px;table-layout:fixed;margin-bottom:6px}
+.rank-tbl th,.rank-tbl td{border:1px solid #000;padding:1px 2px;text-align:center;vertical-align:middle;overflow:hidden}
+.rank-tbl thead th{background:var(--col-hdr);font-family:var(--fd);font-weight:700}
+.rank-tbl .rk-abbr{font-size:16px;font-weight:900;font-family:var(--fd);line-height:1}
+.rank-tbl .rk-name{font-size:7px;font-weight:600;line-height:1.05}
+.rank-tbl .rk-val{font-weight:700;font-size:10px}
+.rank-tbl .rk-range{font-size:8px;color:var(--mid)}
+
+/* ══ UNIVERSAL TABLE GRID ══ */
+table.ut-grid{border-collapse:collapse;font-family:var(--fd);font-size:10px;table-layout:fixed}
+.ut-grid th,.ut-grid td{border:1px solid #888;padding:0;text-align:center;vertical-align:middle;height:18px}
+.ut-grid .ut-roll{font-weight:700;font-size:10px;background:#e0eff8;color:#000;text-align:right;padding-right:5px;border-color:#789;font-family:var(--fb)}
+.ut-grid thead th{background:var(--col-hdr);font-family:var(--fd);font-weight:700;font-size:10px;height:20px;border-color:#000}
+.ut-grid .c-w{background:var(--white)}
+.ut-grid .c-g{background:var(--green)}
+.ut-grid .c-y{background:var(--yellow)}
+.ut-grid .c-r{background:var(--red)}
+
+/* ── Cell crosshair highlight ── */
+.ut-grid td.cell-hl{outline:2px solid #000;outline-offset:-1px;z-index:2;position:relative}
+.ut-grid td.col-hl{background-image:linear-gradient(rgba(0,0,0,.08),rgba(0,0,0,.08))}
+.ut-grid td.row-hl{background-image:linear-gradient(rgba(0,0,0,.08),rgba(0,0,0,.08))}
+.ut-grid .ut-roll.row-hl{background:#c0dae8}
+
+/* (dice result highlight is .dice-cell — see roller section) */
+
+/* ── Tooltip ── */
+.ut-tip{
+  position:fixed;pointer-events:none;z-index:500;
+  background:#1a1a2e;color:#fff;font-family:var(--fb);font-size:11px;font-weight:700;
+  padding:3px 8px;border-radius:3px;white-space:nowrap;
+  display:none;
+}
+
+/* ── Dice Roller (in rank table header) ── */
+.rank-tbl .ut-roll-btn{
+  background:var(--accent)!important;color:#fff!important;cursor:pointer;
+  font-family:var(--fd);font-size:9px;font-weight:900;letter-spacing:.5px;
+  border-color:var(--accent)!important;line-height:1.2;padding:2px 0;
+  user-select:none;
+}
+.rank-tbl .ut-roll-btn:hover{background:#d06a10!important}
+.rank-tbl .ut-roll-btn:active{background:#a04800!important}
+
+/* Selected column on rank table + grid */
+.rank-tbl th.col-sel{background:var(--accent)!important;color:#fff!important}
+.rank-tbl th.col-sel .rk-name{color:#fff!important}
+.rank-tbl th[data-col]:hover{background:#ddd8c8;cursor:pointer}
+.ut-grid td.col-sel-bg{outline:1px solid rgba(192,90,0,.25);outline-offset:-1px}
+
+/* Dice result cell highlight */
+.ut-grid td.dice-cell{outline:3px solid #000;outline-offset:-1px;z-index:3;position:relative}
+
+/* Result strip below grid */
+.dice-result-strip{display:flex;align-items:center;gap:8px;margin-top:4px;padding:3px 8px;min-height:22px;font-family:var(--fb);font-size:11px}
+.dice-result-strip .dr-num{font-family:var(--fd);font-size:16px;font-weight:900}
+.dice-result-strip .dr-arrow{color:#888}
+.dice-result-strip .dr-rank{font-weight:700;color:#444}
+.dice-result-strip .dr-eq{font-weight:700}
+.dice-result-strip .dr-swatch{display:inline-block;width:12px;height:12px;border-radius:2px;border:1px solid rgba(0,0,0,.3);vertical-align:middle}
+.dice-result-strip .dr-label{font-family:var(--fd);font-size:12px;font-weight:900}
+.dice-result-strip .dr-hint{color:#888;font-style:italic;font-size:10px}
+
+/* ── Action Rules Popup ── */
+.ar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:600;align-items:flex-start;justify-content:center;padding:40px 10px;overflow-y:auto}
+.ar-overlay.open{display:flex}
+.ar-popup{background:var(--paper);border:2px solid #000;border-radius:4px;max-width:520px;width:100%;padding:0;font-family:var(--fb);font-size:12px;color:#000;box-shadow:0 8px 30px rgba(0,0,0,.3)}
+.ar-hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:2px solid #000;background:var(--col-hdr)}
+.ar-title{font-family:var(--fd);font-size:16px;font-weight:900;letter-spacing:1px}
+.ar-ability{font-size:10px;color:var(--soft);font-style:italic;margin-left:8px}
+.ar-close{border:none;background:none;font-size:18px;cursor:pointer;color:#666;padding:0 4px;line-height:1}
+.ar-close:hover{color:#000}
+.ar-body{padding:10px 14px 14px}
+.ar-results{margin-bottom:10px}
+.ar-result{display:flex;gap:8px;padding:3px 0;border-bottom:1px dotted #ccc;align-items:baseline}
+.ar-result:last-child{border-bottom:none}
+.ar-dot{width:12px;height:12px;border-radius:2px;flex-shrink:0;border:1px solid rgba(0,0,0,.2);margin-top:2px}
+.ar-dot-w{background:#fff}.ar-dot-g{background:var(--green)}.ar-dot-y{background:var(--yellow)}.ar-dot-r{background:var(--red)}
+.ar-rlabel{font-family:var(--fd);font-size:11px;font-weight:700;min-width:55px}
+.ar-rdesc{font-size:11px;line-height:1.35;color:#333}
+.ar-notes{font-size:11px;line-height:1.4;color:#444;border-top:1px solid #ccc;padding-top:8px}
+.ar-notes p{margin:0 0 6px}
+.ar-notes p:last-child{margin-bottom:0}
+.action-tbl thead th{cursor:pointer}
+.action-tbl thead th:hover{background:#ddd8c8}
+.action-tbl thead th:first-child{cursor:default}
+.action-tbl thead th:first-child:hover{background:var(--col-hdr)}
+
+/* ── Print ── */
+@media print{
+  .gcc-bar,.fas-hdr,.fas-ftr,.gcc-tools-overlay,.ut-tip,.ar-overlay,.dice-result-strip{display:none!important}
+  .ut-wrap{padding:0}
+  html,body{background:#fff}
+}
+@media(max-width:600px){
+  .fas-logo-title{font-size:16px}
+}
+</style>
+</head>
+<body>
+
+<!-- GCC Site Bar -->
+<div id="gcc-bar" class="gcc-bar">
+  <div class="gcc-bar-in">
+    <a href="index.html" class="gcc-brand" title="Back to Dashboard">
+      <div class="gcc-title-wrap">
+        <div class="gcc-title">GRAYCLOAK'S</div>
+        <div class="gcc-subtitle">CAMPAIGN CORNER</div>
+      </div>
+    </a>
+    <div class="gcc-nav">
+      <div class="gcc-tools-wrap">
+        <button class="gcc-nav-btn" id="gcc-btn-tools">🎲 Tools ▾</button>
+        <div class="gcc-tools-dd" id="gcc-tools-dd"></div>
+      </div>
+      <span id="gcc-auth-slot"></span>
+      <button class="gcc-nav-btn" id="gcc-btn-theme" title="Toggle light/dark"><span id="gcc-theme-icon">◑</span></button>
+    </div>
+  </div>
+</div>
+<div class="gcc-tools-overlay" id="gcc-tools-overlay"></div>
+
+<!-- FASERIP Toolbar -->
+<div class="fas-hdr">
+  <div class="fas-hdr-in">
+    <div class="fas-logo-wrap">
+      <div>
+        <div class="fas-logo-title">FASERIP</div>
+        <div class="fas-logo-sub">UNIVERSAL TABLE</div>
+      </div>
+    </div>
+    <div class="fas-hdr-btns">
+      <a class="hdr-btn" href="faserip.html">Character Sheet</a>
+      <button class="hdr-btn" id="btn-print" title="Print Table">Print</button>
+    </div>
+  </div>
+</div>
+
+<div class="ut-wrap">
+<div class="ut-inner">
+
+<!-- All tables rendered by JS for consistent column sizing -->
+<div id="action-mount"></div>
+<div id="rank-mount"></div>
+
+<div id="grid-mount"></div>
+
+<!-- Dice result strip -->
+<div class="dice-result-strip" id="dice-strip">
+  <span class="dr-hint" id="dr-hint">Click a rank column header, then click ROLL to roll d100</span>
+</div>
+
+<!-- Tooltip -->
+<div class="ut-tip" id="ut-tip"></div>
+
+<!-- Action Rules Popup -->
+<div class="ar-overlay" id="ar-overlay">
+  <div class="ar-popup">
+    <div class="ar-hdr">
+      <span><span class="ar-title" id="ar-title"></span><span class="ar-ability" id="ar-ability"></span></span>
+      <button class="ar-close" id="ar-close">&times;</button>
+    </div>
+    <div class="ar-body">
+      <div class="ar-results" id="ar-results"></div>
+      <div class="ar-notes" id="ar-notes"></div>
+    </div>
+  </div>
+</div>
+
+</div>
+</div>
+
+<div class="fas-ftr">FASERIP Universal Table — Graycloak's Campaign Corner</div>
+
+<script src="gcc-data.js"></script>
+<script src="gcc-header.js"></script>
+<script src="gcc-firebase-config.js"></script>
+<script src="gcc-auth.js"></script>
+<script src="gcc-sync.js"></script>
+<script>
+// ══════════════════════════════════════════════════════════════
+// DATA
+// ══════════════════════════════════════════════════════════════
+
+const ACTIONS = [
+  {name:'Blunt\nAttacks',abbr:'BA',ability:'Fighting'},
+  {name:'Edged\nAttacks',abbr:'EA',ability:'Fighting'},
+  {name:'Shooting\nAttacks',abbr:'Sh',ability:'Agility'},
+  {name:'Throwing\nEdged',abbr:'TE',ability:'Agility'},
+  {name:'Throwing\nBlunt',abbr:'TB',ability:'Agility'},
+  {name:'Energy',abbr:'En',ability:'Agility'},
+  {name:'Force',abbr:'Fo',ability:'Agility'},
+  {name:'Grap-\npling',abbr:'Gp',ability:'Strength'},
+  {name:'Grab-\nbing',abbr:'Gb',ability:'Strength'},
+  {name:'Escap-\ning',abbr:'Es',ability:'Strength'},
+  {name:'Charg-\ning',abbr:'Ch',ability:'Endur-\nance'},
+  {name:'Dodging',abbr:'Do',ability:'Agility'},
+  {name:'Evad-\ning',abbr:'Ev',ability:'Fighting'},
+  {name:'Blocking',abbr:'Bl',ability:'Strength'},
+  {name:'Catching',abbr:'Ca',ability:'Agility'},
+  {name:'Stun?',abbr:'St',ability:'Endur-\nance'},
+  {name:'Slam?',abbr:'Sl',ability:'Endur-\nance'},
+  {name:'Kill?',abbr:'Ki',ability:'Endur-\nance'},
+];
+
+const RESULT_ROWS = [
+  {label:'White',cls:'row-w',data:['Miss','Miss','Miss','Miss','Miss','Miss','Miss','Miss','Miss','Miss','Miss','None','Autohit','-6 CS','Autohit','1-10','Gr. Slam','En. Loss']},
+  {label:'Green',cls:'row-g',data:['Hit','Hit','Hit','Hit','Hit','Hit','Hit','Miss','Take','Miss','Hit','-2 CS','Evasion','-4 CS','Miss','1','1 area','E/S']},
+  {label:'Yellow',cls:'row-y',data:['Slam','Stun','Bullseye','Stun','Hit','Bullseye','Bullseye','Partial','Grab','Escape','Slam','-4 CS','+1 CS','-2 CS','Damage','No','Stagger','No']},
+  {label:'Red',cls:'row-r',data:['Stun','Kill','Kill','Kill','Stun','Kill','Stun','Hold','Break','Reverse','Stun','-6 CS','+2 CS','+1 CS','Catch','No','No','No']},
+];
+
+const RANKS = [
+  {abbr:'0',name:'Shift',val:'0',range:'0'},
+  {abbr:'Fe',name:'Feeble',val:'2',range:'1-2'},
+  {abbr:'Pr',name:'Poor',val:'4',range:'3-4'},
+  {abbr:'Ty',name:'Typical',val:'6',range:'5-7'},
+  {abbr:'Gd',name:'Good',val:'10',range:'8-15'},
+  {abbr:'Ex',name:'Excellent',val:'20',range:'16-25'},
+  {abbr:'Rm',name:'Remarkable',val:'30',range:'26-36'},
+  {abbr:'In',name:'Incredible',val:'40',range:'37-45'},
+  {abbr:'Am',name:'Amazing',val:'50',range:'46-62'},
+  {abbr:'Mn',name:'Monstrous',val:'75',range:'63-87'},
+  {abbr:'Un',name:'Unearthly',val:'100',range:'88-125'},
+  {abbr:'X',name:'Shift X',val:'150',range:'126-175'},
+  {abbr:'Y',name:'Shift Y',val:'200',range:'176-350'},
+  {abbr:'Z',name:'Shift Z',val:'500',range:'351+'},
+  {abbr:'1000',name:'Class',val:'1000',range:''},
+  {abbr:'3000',name:'Class',val:'3000',range:''},
+  {abbr:'5000',name:'Class',val:'5000',range:''},
+  {abbr:'B',name:'Beyond',val:'\u221e',range:''},
+];
+
+const RANK_LABELS = RANKS.map(r => r.abbr);
+
+const ROLL_ROWS = [
+  '01','02-03','04-06','07-10','11-15','16-20','21-25','26-30',
+  '31-35','36-40','41-45','46-50','51-55','56-60','61-65','66-70',
+  '71-75','76-80','81-85','86-90','91-94','95-97','98-99','100'
+];
+
+const TABLE_DATA = [
+  ['w','w','w','w','w','w','w','w','w','w','w','w','w','w','w','w','w','w'],
+  ['w','w','w','w','w','w','w','w','w','w','w','w','w','w','g','g','g','g'],
+  ['w','w','w','w','w','w','w','w','w','w','w','w','w','g','g','g','g','g'],
+  ['w','w','w','w','w','w','w','w','w','w','w','w','g','g','g','g','g','g'],
+  ['w','w','w','w','w','w','w','w','w','w','w','g','g','g','g','g','g','g'],
+  ['w','w','w','w','w','w','w','w','w','w','g','g','g','g','g','g','g','g'],
+  ['w','w','w','w','w','w','w','w','w','g','g','g','g','g','g','g','g','y'],
+  ['w','w','w','w','w','w','w','w','g','g','g','g','g','g','g','g','y','y'],
+  ['w','w','w','w','w','w','w','g','g','g','g','g','g','g','g','y','y','y'],
+  ['w','w','w','w','w','w','g','g','g','g','g','g','g','y','y','y','y','y'],
+  ['w','w','w','w','w','g','g','g','g','g','g','y','y','y','y','y','y','y'],
+  ['w','w','w','w','g','g','g','g','g','g','y','y','y','y','y','y','y','y'],
+  ['w','w','w','g','g','g','g','g','g','y','y','y','y','y','y','y','y','y'],
+  ['w','w','g','g','g','g','g','g','y','y','y','y','y','y','y','y','y','y'],
+  ['w','g','g','g','g','g','g','y','y','y','y','y','y','y','y','y','y','r'],
+  ['g','g','g','g','g','g','y','y','y','y','y','y','y','y','y','y','r','r'],
+  ['g','g','g','g','g','y','y','y','y','y','y','y','y','y','y','r','r','r'],
+  ['g','g','g','g','y','y','y','y','y','y','y','y','y','r','r','r','r','r'],
+  ['g','g','g','y','y','y','y','y','y','y','y','r','r','r','r','r','r','r'],
+  ['g','g','y','y','y','y','y','y','y','r','r','r','r','r','r','r','r','r'],
+  ['g','y','y','y','y','y','y','r','r','r','r','r','r','r','r','r','r','r'],
+  ['y','y','y','y','y','r','r','r','r','r','r','r','r','r','r','r','r','r'],
+  ['y','y','y','r','r','r','r','r','r','r','r','r','r','r','r','r','r','r'],
+  ['r','r','r','r','r','r','r','r','r','r','r','r','r','r','r','r','r','r'],
+];
+
+const ROLL_RANGES = [
+  [1,1],[2,3],[4,6],[7,10],[11,15],[16,20],[21,25],[26,30],
+  [31,35],[36,40],[41,45],[46,50],[51,55],[56,60],[61,65],[66,70],
+  [71,75],[76,80],[81,85],[86,90],[91,94],[95,97],[98,99],[100,100]
+];
+
+const COLOR_NAMES = {w:'White',g:'Green',y:'Yellow',r:'Red'};
+
+// ══════════════════════════════════════════════════════════════
+// RENDER
+// ══════════════════════════════════════════════════════════════
+
+function makeCols() {
+  let c = '<colgroup><col class="ut-col-roll">';
+  for (let i = 0; i < 18; i++) c += '<col class="ut-col-rank">';
+  c += '</colgroup>';
+  return c;
+}
+
+function buildActionTable() {
+  const cols = makeCols();
+  let h = '<tr><th class="ut-col-roll"></th>';
+  ACTIONS.forEach(a => {
+    h += `<th class="ut-col-rank" data-action="${a.abbr}"><div class="at-name">${a.name.replace(/\n/g,'<br>')}</div><div class="at-abbr">${a.abbr}</div><div class="at-ability">${a.ability.replace(/\n/g,'<br>')}</div></th>`;
+  });
+  h += '</tr>';
+  let body = '';
+  RESULT_ROWS.forEach(r => {
+    body += `<tr class="${r.cls}"><td class="row-label">${r.label}</td>`;
+    r.data.forEach(d => { body += `<td>${d}</td>`; });
+    body += '</tr>';
+  });
+  document.getElementById('action-mount').innerHTML =
+    `<table class="action-tbl">${cols}<thead>${h}</thead><tbody>${body}</tbody></table>`;
+}
+
+function buildRankTable() {
+  const cols = makeCols();
+  let r1 = '<tr><th class="ut-col-roll ut-roll-btn" id="btn-roll">ROLL<br>d100</th>';
+  RANKS.forEach((r, i) => { r1 += `<th class="ut-col-rank" data-col="${i}" style="cursor:pointer"><div class="rk-abbr">${r.abbr}</div><div class="rk-name">${r.name}</div></th>`; });
+  r1 += '</tr>';
+  let r2 = '<tr><th></th>';
+  RANKS.forEach(r => { r2 += `<td class="rk-val">${r.val}</td>`; });
+  r2 += '</tr>';
+  let r3 = '<tr><th></th>';
+  RANKS.forEach(r => { r3 += `<td class="rk-range">${r.range}</td>`; });
+  r3 += '</tr>';
+  document.getElementById('rank-mount').innerHTML =
+    `<table class="rank-tbl">${cols}<thead>${r1}</thead><tbody>${r2}${r3}</tbody></table>`;
+}
+
+function buildGrid() {
+  const cols = makeCols();
+  let body = '';
+  ROLL_ROWS.forEach((roll, ri) => {
+    body += `<tr data-row="${ri}">`;
+    body += `<td class="ut-roll">${roll}</td>`;
+    TABLE_DATA[ri].forEach((c, ci) => {
+      body += `<td class="c-${c}" data-col="${ci}" data-row="${ri}"></td>`;
+    });
+    body += '</tr>';
+  });
+  document.getElementById('grid-mount').innerHTML =
+    `<table class="ut-grid" id="ut-grid">${cols}<tbody id="ut-body">${body}</tbody></table>`;
+}
+
+// ══════════════════════════════════════════════════════════════
+// CELL HOVER — crosshair + tooltip
+// ══════════════════════════════════════════════════════════════
+
+function wireCellHover() {
+  const grid = document.getElementById('ut-grid');
+  const tip = document.getElementById('ut-tip');
+  let curCell = null;
+
+  grid.addEventListener('mouseover', e => {
+    const td = e.target.closest('td[data-col][data-row]');
+    if (td === curCell) return;
+    clearHL();
+    curCell = td;
+    if (!td) { tip.style.display = 'none'; return; }
+
+    const col = parseInt(td.dataset.col);
+    const row = parseInt(td.dataset.row);
+    const color = TABLE_DATA[row][col];
+
+    td.classList.add('cell-hl');
+    grid.querySelectorAll(`td[data-col="${col}"]`).forEach(el => el.classList.add('col-hl'));
+    const tr = td.parentElement;
+    tr.querySelectorAll('td').forEach(el => el.classList.add('row-hl'));
+    td.classList.add('cell-hl');
+
+    tip.textContent = `${ROLL_ROWS[row]} / ${RANKS[col].name} (${RANKS[col].abbr}) \u2192 ${COLOR_NAMES[color]}`;
+    tip.style.display = 'block';
+  });
+
+  grid.addEventListener('mousemove', e => {
+    if (tip.style.display === 'block') {
+      tip.style.left = (e.clientX + 12) + 'px';
+      tip.style.top = (e.clientY - 28) + 'px';
+    }
+  });
+
+  grid.addEventListener('mouseleave', () => {
+    clearHL();
+    curCell = null;
+    tip.style.display = 'none';
+  });
+
+  function clearHL() {
+    grid.querySelectorAll('.cell-hl,.col-hl,.row-hl').forEach(el => {
+      el.classList.remove('cell-hl','col-hl','row-hl');
+    });
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// DICE ROLLER
+// ══════════════════════════════════════════════════════════════
+
+let selectedCol = -1;
+
+function wireColumnSelect() {
+  const rankTbl = document.querySelector('.rank-tbl thead');
+  rankTbl.addEventListener('click', e => {
+    const th = e.target.closest('th[data-col]');
+    if (!th) return;
+    const col = parseInt(th.dataset.col);
+    setSelectedCol(col);
+  });
+}
+
+function setSelectedCol(col) {
+  // Clear previous on rank table
+  document.querySelectorAll('.rank-tbl .col-sel').forEach(el => el.classList.remove('col-sel'));
+  // Clear previous on grid
+  const grid = document.getElementById('ut-grid');
+  grid.querySelectorAll('.col-sel-bg').forEach(el => el.classList.remove('col-sel-bg'));
+
+  selectedCol = col;
+  const th = document.querySelector(`.rank-tbl th[data-col="${col}"]`);
+  if (th) th.classList.add('col-sel');
+  grid.querySelectorAll(`td[data-col="${col}"]`).forEach(el => el.classList.add('col-sel-bg'));
+
+  // Clear previous result
+  grid.querySelectorAll('.dice-cell').forEach(el => el.classList.remove('dice-cell'));
+  document.getElementById('dice-strip').innerHTML =
+    '<span class="dr-rank">' + RANKS[col].name + ' (' + RANKS[col].abbr + ')</span>' +
+    ' <span class="dr-hint">selected \u2014 click ROLL</span>';
+}
+
+const COLOR_HEX = {w:'#ffffff',g:'#22bb22',y:'#f0d800',r:'#cc1111'};
+const COLOR_TX = {w:'#666',g:'#158015',y:'#998800',r:'#cc1111'};
+
+function wireDice() {
+  document.getElementById('btn-roll').addEventListener('click', () => {
+    if (selectedCol < 0) {
+      document.getElementById('dice-strip').innerHTML =
+        '<span class="dr-hint">\u2190 Click a rank column header first!</span>';
+      return;
+    }
+
+    const roll = Math.floor(Math.random() * 100) + 1;
+
+    let ri = -1;
+    for (let i = 0; i < ROLL_RANGES.length; i++) {
+      if (roll >= ROLL_RANGES[i][0] && roll <= ROLL_RANGES[i][1]) { ri = i; break; }
+    }
+    if (ri < 0) return;
+
+    const color = TABLE_DATA[ri][selectedCol];
+    const grid = document.getElementById('ut-grid');
+
+    grid.querySelectorAll('.dice-cell').forEach(el => el.classList.remove('dice-cell'));
+
+    const cell = grid.querySelector(`td[data-col="${selectedCol}"][data-row="${ri}"]`);
+    if (cell) {
+      cell.classList.add('dice-cell');
+      cell.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
+
+    document.getElementById('dice-strip').innerHTML =
+      '<span class="dr-num">' + roll + '</span>' +
+      '<span class="dr-arrow">\u2192</span>' +
+      '<span class="dr-rank">' + RANKS[selectedCol].name + ' (' + RANKS[selectedCol].abbr + ')</span>' +
+      '<span class="dr-eq">=</span>' +
+      '<span class="dr-swatch" style="background:' + COLOR_HEX[color] + '"></span>' +
+      '<span class="dr-label" style="color:' + COLOR_TX[color] + '">' + COLOR_NAMES[color] + '</span>';
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// ACTION RULES DATA
+// ══════════════════════════════════════════════════════════════
+
+const ACTION_RULES = {
+  BA: {
+    title:'Blunt Attacks', ability:'Fighting',
+    category:'Slugfest',
+    results:[
+      {color:'w',label:'Miss',desc:'No damage. The attack misses the target.'},
+      {color:'g',label:'Hit',desc:'Inflicts Strength rank number in damage. With a blunt weapon, inflicts up to its material strength; if material strength exceeds user\'s Strength, damage is the minimum value of the next rank.'},
+      {color:'y',label:'Slam',desc:'Inflicts Strength damage and may Slam the opponent (Endurance FEAT on Slam table).'},
+      {color:'r',label:'Stun',desc:'Inflicts Strength damage and may Stun the opponent (Endurance FEAT on Stun table).'},
+    ],
+    notes:'Bare hands, flat of blade, or blunt weapons. Requires adjacent combatants. Attacker may always pull the punch — inflict less damage or choose a lesser color result. Body Armor and force fields may reduce damage.'
+  },
+  EA: {
+    title:'Edged Attacks', ability:'Fighting',
+    category:'Slugfest',
+    results:[
+      {color:'w',label:'Miss',desc:'No damage.'},
+      {color:'g',label:'Hit',desc:'Inflicts damage as listed for the weapon or attack form.'},
+      {color:'y',label:'Stun',desc:'Inflicts weapon damage and may Stun the opponent.'},
+      {color:'r',label:'Kill',desc:'Inflicts weapon damage and may Kill the opponent (Endurance FEAT on Kill table). Attacker loses all Karma on a kill.'},
+    ],
+    notes:'Claws, teeth, knives, swords, hatchets. Always inflicts minimum listed weapon damage. Damage equals Strength or material strength of the weapon, whichever is less. Effect may not be reduced (red to yellow).'
+  },
+  Sh: {
+    title:'Shooting Attacks', ability:'Agility',
+    category:'Ranged',
+    results:[
+      {color:'w',label:'Miss',desc:'Misses intended target. Missile continues — Judge may roll to see if it hits another target in the same path.'},
+      {color:'g',label:'Hit',desc:'Inflicts damage according to the weapon. Some specialized weapons call for an Endurance FEAT instead.'},
+      {color:'y',label:'Bullseye',desc:'Damage as a Hit. Used for targeting a specific part (shooting hand, disarming). Should never be fatal. Required for targets less than 1 foot square.'},
+      {color:'r',label:'Kill',desc:'May kill the opponent (Endurance FEAT on Kill table). Attacker loses all Karma on a kill.'},
+    ],
+    notes:'Projectile weapons — handguns, rifles, etc. May never be reduced in effect or damage. Range modifiers: -1 CS per area beyond weapon range. Body Armor and force fields apply.'
+  },
+  TE: {
+    title:'Throwing Edged', ability:'Agility',
+    category:'Ranged',
+    results:[
+      {color:'w',label:'Miss',desc:'Misses intended target. Missile may hit another target in path.'},
+      {color:'g',label:'Hit',desc:'Inflicts damage as listed for the weapon.'},
+      {color:'y',label:'Stun',desc:'Inflicts weapon damage and may Stun the opponent for 1-10 rounds.'},
+      {color:'r',label:'Kill',desc:'May kill the opponent (Endurance FEAT on Kill table).'},
+    ],
+    notes:'Thrown sharp weapons — knives, shuriken. Effect may not be reduced (red to yellow), but player may choose to inflict less damage. Range based on Strength rank.'
+  },
+  TB: {
+    title:'Throwing Blunt', ability:'Agility',
+    category:'Ranged',
+    results:[
+      {color:'w',label:'Miss',desc:'Misses intended target.'},
+      {color:'g',label:'Hit',desc:'Inflicts damage equal to thrower\'s Strength or material strength of the item, whichever is less.'},
+      {color:'y',label:'Hit',desc:'Same as green Hit result. (Bullseye equivalent for targeting specific areas.)'},
+      {color:'r',label:'Stun',desc:'Inflicts damage and may Stun the opponent.'},
+    ],
+    notes:'Thrown blunt objects — rocks, buses, shields. Damage equals Strength or material strength, whichever is less. Can be reduced in both effect and damage. Range based on Strength rank.'
+  },
+  En: {
+    title:'Energy Attacks', ability:'Agility',
+    category:'Ranged',
+    results:[
+      {color:'w',label:'Miss',desc:'No damage.'},
+      {color:'g',label:'Hit',desc:'Inflicts damage up to the Power rank of the energy attack.'},
+      {color:'y',label:'Bullseye',desc:'Damage as Hit. Used for targeting specific areas.'},
+      {color:'r',label:'Kill',desc:'May kill the opponent (Endurance FEAT on Kill table). Attacker loses all Karma on a kill.'},
+    ],
+    notes:'Fire blasts, lightning bolts, radiation — energy with no physical component. All energy attacks have maximum damage. Player may reduce damage but not effect (red to yellow). Range = Power rank in areas; -1 CS per area beyond.'
+  },
+  Fo: {
+    title:'Force Attacks', ability:'Agility',
+    category:'Ranged',
+    results:[
+      {color:'w',label:'Miss',desc:'No damage.'},
+      {color:'g',label:'Hit',desc:'Inflicts damage up to the Power rank of the force attack.'},
+      {color:'y',label:'Bullseye',desc:'Damage as Hit. Used for targeting specific areas.'},
+      {color:'r',label:'Stun',desc:'Inflicts damage and may Stun the opponent.'},
+    ],
+    notes:'Physical manifestation of energy — repulsors, force fields, ice rams. May reduce damage but not effect. Blocked by Block defense (unlike Energy). Range = Power rank in areas.'
+  },
+  Gp: {
+    title:'Grappling', ability:'Strength',
+    category:'Wrestling',
+    results:[
+      {color:'w',label:'Miss',desc:'Failed to hold the opponent. Attacker may not make other attacks this round.'},
+      {color:'g',label:'Miss',desc:'Also a miss — grappling requires yellow or red to succeed.'},
+      {color:'y',label:'Partial',desc:'Grabbed an arm, leg, or other part. Target acts at -2 CS and cannot move if attacker\'s Strength \u2265 target\'s. No damage inflicted.'},
+      {color:'r',label:'Hold',desc:'Full hold — target fully restrained. Attacker may perform one other action and inflict up to Strength damage per round (subject to Body Armor).'},
+    ],
+    notes:'Requires adjacent combatants. Designed to restrain, not damage. Body Armor has no effect on the initial grapple attempt. Target remains held until released or escaped.'
+  },
+  Gb: {
+    title:'Grabbing', ability:'Strength',
+    category:'Wrestling',
+    results:[
+      {color:'w',label:'Miss',desc:'Item not taken. If in another\'s possession, it remains. If unowned, knocked loose up to 1 area away.'},
+      {color:'g',label:'Take',desc:'Attacker takes the item if Strength \u2265 target\'s (use material strength for attached items). Otherwise treated as a miss.'},
+      {color:'y',label:'Grab',desc:'Attacker takes possession of the item regardless of relative Strength.'},
+      {color:'r',label:'Break',desc:'Item taken. Second roll vs. material strength — color result means attacker can use it or move half speed. White result means item is damaged, broken, or goes off.'},
+    ],
+    notes:'Used to take a possession from an opponent — gun, bomb, etc. Normally does not inflict damage. Requires adjacent combatants or reach.'
+  },
+  Es: {
+    title:'Escaping', ability:'Strength',
+    category:'Wrestling',
+    results:[
+      {color:'w',label:'Miss',desc:'No escape. Character may take no other action and remains held.'},
+      {color:'g',label:'Miss',desc:'Also a miss — escaping requires yellow or red.'},
+      {color:'y',label:'Escape',desc:'Free of the hold. May move at half speed but may not perform other actions.'},
+      {color:'r',label:'Reverse',desc:'Free of the hold and may: move half distance, attempt to Grapple the former attacker, or perform any other action at -2 CS.'},
+    ],
+    notes:'Used only when in a hold (Partial or Full). Rolled on Strength. Success frees the character from the grapple.'
+  },
+  Ch: {
+    title:'Charging', ability:'Endurance',
+    category:'Charging',
+    results:[
+      {color:'w',label:'Miss',desc:'No damage. Character continues moving half speed past target. Direction change requires Agility FEAT. If path hits an obstacle, character attacks that obstacle instead.'},
+      {color:'g',label:'Hit',desc:'Inflicts Endurance or Body Armor rank in damage (whichever is higher), plus 2 points per area covered in the charge.'},
+      {color:'y',label:'Slam',desc:'Damage as Hit, and may Slam the opponent.'},
+      {color:'r',label:'Stun',desc:'Damage as Hit, and may Stun the opponent. Speed damage is fixed but base damage can be reduced. May choose a lesser effect.'},
+    ],
+    notes:'Must move at least 1 area. Full movement allowed (not halved). +1 CS per area moved, max +3 CS (cannot exceed Shift Z). If defender\'s Body Armor > damage, damage rebounds onto attacker. Attacker\'s own Body Armor then applies.'
+  },
+  Do: {
+    title:'Dodging', ability:'Agility',
+    category:'Defense',
+    results:[
+      {color:'w',label:'None',desc:'No dodge benefit. Attacks hit normally.'},
+      {color:'g',label:'-2 CS',desc:'All attacks against the character this round are at -2 CS.'},
+      {color:'y',label:'-4 CS',desc:'All attacks against the character this round are at -4 CS.'},
+      {color:'r',label:'-6 CS',desc:'All attacks against the character this round are at -6 CS.'},
+    ],
+    notes:'Declared at start of turn. Applies to attacks the character is aware of — cannot dodge blindside or surprise attacks. Character moves at half speed, may perform only one other action at -2 CS. Effective against Ranged and Charging attacks. No effect on Slugfest or Wrestling.'
+  },
+  Ev: {
+    title:'Evading', ability:'Fighting',
+    category:'Defense',
+    results:[
+      {color:'w',label:'Autohit',desc:'Character is automatically hit — opponent\'s attack is at least green even if white was rolled. Wrestling holds may still miss.'},
+      {color:'g',label:'Evasion',desc:'Successfully dodged the blow from that attacker. No damage taken.'},
+      {color:'y',label:'+1 CS',desc:'Evasion plus +1 CS bonus on the character\'s first attack against that opponent next round.'},
+      {color:'r',label:'+2 CS',desc:'Evasion plus +2 CS bonus on the character\'s first attack against that opponent next round.'},
+    ],
+    notes:'Effective only against adjacent attackers (Slugfest, Wrestling). Only one opponent may be evaded. Character makes no attacks that round. If both sides evade, no combat occurs. Bonus applies only to first attack next round against that specific opponent; cannot be saved.'
+  },
+  Bl: {
+    title:'Blocking', ability:'Strength',
+    category:'Defense',
+    results:[
+      {color:'w',label:'-6 CS',desc:'Strength counts as Body Armor at -6 CS from Strength rank.'},
+      {color:'g',label:'-4 CS',desc:'Strength counts as Body Armor at -4 CS from Strength rank.'},
+      {color:'y',label:'-2 CS',desc:'Strength counts as Body Armor at -2 CS from Strength rank.'},
+      {color:'r',label:'+1 CS',desc:'Strength counts as Body Armor at +1 CS from Strength rank.'},
+    ],
+    notes:'Uses Strength as Body Armor against physical attacks: Slugfest, Grappling, Edged/Blunt Throwing, and Force attacks. Does NOT work against Shooting, Energy, or Charging. Character may take no other action but may shield others behind them. Normal Body Armor (not Force Fields) still applies.'
+  },
+  Ca: {
+    title:'Catching', ability:'Agility',
+    category:'Defense',
+    results:[
+      {color:'w',label:'Autohit',desc:'Object hits the hero instead. Falling objects act as a charging attack at fall speed. Thrown/shot weapons auto-hit (white treated as green).'},
+      {color:'g',label:'Miss',desc:'Failed to catch the object. If directed at the hero as an attack, the attack proceeds at +1 CS to hit.'},
+      {color:'y',label:'Damage',desc:'Object caught but may be damaged — treat as a damage-inflicting attack on the caught object or character.'},
+      {color:'r',label:'Catch',desc:'Clean catch with no ill effects to the hero or the caught object/character.'},
+    ],
+    notes:'One item at a time. -3 CS for objects directed at the catcher specifically. Minimum Agility: Unearthly for bullets, Amazing for arrows, Remarkable for other projectiles, any for falling objects/characters.'
+  },
+  St: {
+    title:'Stun?', ability:'Endurance',
+    category:'Effect',
+    results:[
+      {color:'w',label:'1-10 rds',desc:'Knocked out for 1-10 rounds (roll d10). Character may take no actions during this time.'},
+      {color:'g',label:'1 round',desc:'Knocked down, no action next round. Character is conscious and may play possum.'},
+      {color:'y',label:'No effect',desc:'Character is not stunned. Damage still applies.'},
+      {color:'r',label:'No effect',desc:'Character is not stunned. Damage still applies.'},
+    ],
+    notes:'Target rolls Endurance FEAT. Stun is possible from Slugfest (Blunt), Throwing, Force, and Charging attacks. Attacker must inflict some damage for Stun to take effect — if Body Armor prevents all damage, Stun is negated.'
+  },
+  Sl: {
+    title:'Slam?', ability:'Endurance',
+    category:'Effect',
+    results:[
+      {color:'w',label:'Grand Slam',desc:'Knocked away at speed equal to attacker\'s Strength as ground movement. Direction chosen by attacker if damage was dealt, defender if not.'},
+      {color:'g',label:'1 area',desc:'Knocked 1 area away. Direction chosen by attacker if damage was dealt, defender if not. Slamming into a building = charging damage.'},
+      {color:'y',label:'Stagger',desc:'Knocked back a step — no longer adjacent to attacker. No additional damage unless situation demands it (cliff edge, etc.).'},
+      {color:'r',label:'No Slam',desc:'Not affected by the slam. Damage still applies as a normal hit.'},
+    ],
+    notes:'Target rolls Endurance FEAT. Possible from Blunt Attacks and Charging. A character slammed into a building takes damage as if charging that building. Attacker must inflict some damage for Slam to apply.'
+  },
+  Ki: {
+    title:'Kill?', ability:'Endurance',
+    category:'Effect',
+    results:[
+      {color:'w',label:'En. Loss',desc:'Endurance reduced by one rank. Character is dying and loses one Endurance rank per turn until treated.'},
+      {color:'g',label:'E/S',desc:'Endurance Loss only if the attack was Edged Slugfest or Shooting. Any other attack form = No Effect.'},
+      {color:'y',label:'No effect',desc:'Character takes damage but is not killed.'},
+      {color:'r',label:'No effect',desc:'Character takes damage but is not killed.'},
+    ],
+    notes:'Target rolls Endurance FEAT. Kill is possible from Energy attacks, Edged Slugfest, and Shooting. Also triggered when Health reaches 0. A hero who kills loses ALL Karma.'
+  },
+};
+
+// ══════════════════════════════════════════════════════════════
+// ACTION RULES POPUP
+// ══════════════════════════════════════════════════════════════
+
+function wireActionPopup() {
+  const overlay = document.getElementById('ar-overlay');
+  const closeBtn = document.getElementById('ar-close');
+
+  document.querySelector('.action-tbl thead').addEventListener('click', e => {
+    const th = e.target.closest('th[data-action]');
+    if (!th) return;
+    const key = th.dataset.action;
+    const rule = ACTION_RULES[key];
+    if (!rule) return;
+
+    document.getElementById('ar-title').textContent = rule.title + ' (' + key + ')';
+    document.getElementById('ar-ability').textContent = rule.ability + ' \u2014 ' + rule.category;
+
+    const colorMap = {w:'ar-dot-w',g:'ar-dot-g',y:'ar-dot-y',r:'ar-dot-r'};
+    const colorLabel = {w:'White',g:'Green',y:'Yellow',r:'Red'};
+    document.getElementById('ar-results').innerHTML = rule.results.map(r =>
+      '<div class="ar-result"><span class="ar-dot ' + colorMap[r.color] + '"></span><span class="ar-rlabel">' + colorLabel[r.color] + ': ' + r.label + '</span><span class="ar-rdesc">' + r.desc + '</span></div>'
+    ).join('');
+
+    document.getElementById('ar-notes').innerHTML = '<p>' + rule.notes + '</p>';
+    overlay.classList.add('open');
+  });
+
+  closeBtn.addEventListener('click', () => overlay.classList.remove('open'));
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') overlay.classList.remove('open'); });
+}
+
+// ══════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════
+
+document.addEventListener('DOMContentLoaded', () => {
+  buildActionTable();
+  buildRankTable();
+  buildGrid();
+  wireCellHover();
+  wireColumnSelect();
+  wireDice();
+  wireActionPopup();
+
+  document.getElementById('btn-print').addEventListener('click', () => window.print());
+});
+</script>
+</body>
+</html>

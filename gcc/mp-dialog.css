@@ -1,0 +1,42 @@
+/* mp-dialog.css — Shared modal dialog styles for GCC pages */
+.mp-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 9000; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.15s; pointer-events: none }
+.mp-modal-overlay.open { opacity: 1; pointer-events: auto }
+.mp-modal { background: #fff; border: 2px solid var(--brd, #1a2a3a); border-radius: 6px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); min-width: 320px; max-width: 480px; width: 90%; font-family: var(--fb, 'Bitter', serif); overflow: hidden; transform: translateY(8px) scale(0.97); transition: transform 0.15s }
+.mp-modal.wide { max-width: 600px }
+.mp-modal-overlay.open .mp-modal { transform: translateY(0) scale(1) }
+.mp-modal-header { background: var(--hdr-bg, #1a2a3a); color: #fff; padding: 8px 14px; font-family: var(--fd, 'Bangers', cursive); font-size: 16px; letter-spacing: 1px; display: flex; align-items: center; gap: 8px }
+.mp-modal-header svg { flex-shrink: 0 }
+.mp-modal-body { padding: 14px 16px; font-size: 11px; color: #1a2a3a; line-height: 1.5 }
+.mp-modal-body p { margin: 0 0 8px }
+.mp-modal-body .mp-choice { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; margin: 4px 0; border: 1.5px solid #d0d0d0; border-radius: 4px; cursor: pointer; transition: all 0.12s; background: #fafafa }
+.mp-modal-body .mp-choice:hover { border-color: var(--accent, #c05a00); background: #fff8f0 }
+.mp-modal-body .mp-choice .mp-choice-num { font-family: var(--fd, 'Bangers', cursive); font-size: 18px; color: var(--accent, #c05a00); min-width: 22px; text-align: center; line-height: 1.2 }
+.mp-modal-body .mp-choice .mp-choice-text { flex: 1 }
+.mp-modal-body .mp-choice .mp-choice-label { font-weight: 700; font-size: 11px }
+.mp-modal-body .mp-choice .mp-choice-desc { font-size: 10px; color: #666; margin-top: 2px }
+.mp-modal-body .mp-choice.selected { border-color: var(--accent, #c05a00); background: #fff3e8; box-shadow: 0 0 0 1px var(--accent, #c05a00) }
+.mp-modal-footer { padding: 8px 16px 12px; display: flex; justify-content: flex-end; gap: 6px; border-top: 1px solid #e0e0e0 }
+.mp-modal-btn { padding: 5px 16px; font-family: var(--fb, 'Bitter', serif); font-size: 10px; font-weight: 700; border: 1.5px solid #999; border-radius: 3px; cursor: pointer; transition: all 0.12s; background: #f0f0f0; color: #333 }
+.mp-modal-btn:hover { border-color: #666; background: #e8e8e8 }
+.mp-modal-btn.primary { background: var(--accent, #c05a00); color: #fff; border-color: var(--accent, #c05a00) }
+.mp-modal-btn.primary:hover { background: var(--accent-lt, #d06a10) }
+.mp-modal-btn.danger { background: #c04010; color: #fff; border-color: #a03000 }
+.mp-modal-btn.danger:hover { background: #d85020 }
+/* Textarea prompt */
+.mp-modal-body textarea.mp-dlg-textarea { width: 100%; height: 120px; font-family: var(--fm, monospace); font-size: 10px; border: 1.5px solid #c0c0c0; border-radius: 3px; padding: 6px 8px; resize: vertical; background: #f8f8f0; color: #1a2a3a }
+.mp-modal-body textarea.mp-dlg-textarea:focus { outline: none; border-color: var(--accent, #c05a00) }
+.mp-modal-body textarea.r20-paste { width: 100%; height: 180px; font-family: var(--fm, monospace); font-size: 10px; border: 1.5px solid #c0c0c0; border-radius: 3px; padding: 6px 8px; resize: vertical; background: #f8f8f0; color: #1a2a3a }
+.mp-modal-body textarea.r20-paste:focus { outline: none; border-color: var(--accent, #c05a00) }
+.mp-modal-body .r20-hint { font-size: 9px; color: #888; margin-top: 4px; line-height: 1.4 }
+/* List picker */
+.mp-modal-body .char-list { list-style: none; max-height: 300px; overflow-y: auto; scrollbar-width: thin }
+.mp-modal-body .char-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; margin: 2px 0; border: 1.5px solid #d8d8d8; border-radius: 4px; cursor: pointer; transition: all 0.12s; background: #fafafa }
+.mp-modal-body .char-item:hover { border-color: var(--accent, #c05a00); background: #fff8f0 }
+.mp-modal-body .char-item.active { border-color: var(--accent, #c05a00); background: #fff3e8; box-shadow: 0 0 0 1px var(--accent, #c05a00) }
+.mp-modal-body .char-item .ci-portrait { width: 36px; height: 36px; border-radius: 3px; object-fit: cover; background: #e8e8e8; flex-shrink: 0 }
+.mp-modal-body .char-item .ci-ph { width: 36px; height: 36px; border-radius: 3px; background: #e0e0e0; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #999; flex-shrink: 0 }
+.mp-modal-body .char-item .ci-info { flex: 1; min-width: 0 }
+.mp-modal-body .char-item .ci-name { font-weight: 700; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.mp-modal-body .char-item .ci-sub { font-size: 9px; color: #666 }
+.mp-modal-body .char-empty { font-size: 10px; color: #888; font-style: italic; padding: 12px 0; text-align: center }
+@media print { .mp-modal-overlay { display: none !important } }

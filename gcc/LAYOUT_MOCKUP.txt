@@ -1,0 +1,141 @@
+MIGHTY PROTECTORS™ VEHICLE BUILDER
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Name [___________________]  Model [_______________]  Operator [__________] │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  [25] Base CPs   Sys Spaces [64]  Profile [x8]  Weight [11.5K] lbs         │
+│                                                                             │
+│  Vehicle Mods:  Hi/Lo Tech [0]   Maneuver [0]   ☐ Won't Explode  ☐ Base   │
+│                                                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  ARMOR   Kinetic [3]  Energy [3]  Biochem [3]  Entropy [3]  Psychic [0]    │
+│                                                                             │
+│  Additional Protection    Kin  Eng  Bio  Ent  Psy  Oth  Notes              │
+│  [+Add]                                                        [Modify]    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  HITS [33] / [33]  ⚡Repair    POWER [69] / [69]   💥Explosion [6d8]       │
+│                                                      Area [9]"             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  VEHICLE SYSTEMS & MODIFIERS                                                │
+│                                                                             │
+│  Cost  Spaces  Profile  Hits     DMG   PTs  System Description, Arc & Face  │
+│  ────  ──────  ───────  ────     ───   ───  ──────────────────────────────  │
+│  [ 0]  [  1 ]  [ x1  ] [8] [8]  [  ]  [ 5] [test________________________] │
+│  [ 0]  [ 16 ]  [ x4  ] [25][25] [  ]  [25] [Flight: 32/512, 174 mph, PR=1] │
+│  [-5]  [  0 ]  [     ] [0] [0]  [  ]  [ 0] [Wings______________________]  │
+│  [ 0]  [  4 ]  [ x2  ] [16][16] [  ]  [15] [Gun________________________]  │
+│  [+Add]                                                        [Modify]    │
+│                                                                             │
+│  [20] TOTAL COST  Spaces Used [21]  Remaining [43]  Spare Parts [0]        │
+│                                                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ST: [30]  ⚡Base HTH: [2d8]    EN: [30]  ⚡EN Save: [14]                  │
+│                                                                             │
+│  AG: [ 9]  ⚡AG Save:  [10]     Handling: [0]                              │
+│                                                                             │
+│  IN: [ 0]  ⚡IN Save:  [ 6]     Turn Rate: [3]  ⚡Initiative: [d12]       │
+│                                                                             │
+│  CL: [ 9]  ⚡CL Save:  [10]                                               │
+│                                                                             │
+│  Defense: [0]    Carry: [7.7K lbs]          Mass: [d6+d8]  ⚡Mass          │
+│                                                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  NOTES                                                                      │
+│  [                                                                        ] │
+│  [  Vehicle modifiers, special features, travel abilities, appearance     ] │
+│  [                                                                        ] │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  FLOOR PLAN                                                                 │
+│                                                                             │
+│  ┌──────────────────┬────────────────────────────────────────────────────┐  │
+│  │  SYSTEM KEY      │                                                    │  │
+│  │                  │   Vehicle Floor Plan Canvas                        │  │
+│  │  ■ Control Seat  │                                                    │  │
+│  │    1 spc, 5 CPs  │   ┌──┬──┬──┬──┬──┬──┬──┬──┬──┬──┬──┬──┬──┬──┐    │  │
+│  │                  │   │CS│P1│P2│P3│P4│░░│░░│░░│░░│░░│░░│░░│░░│░░│    │  │
+│  │  ■ Passenger     │   ├──┤  │  │  │  │        FLIGHT          │░░│    │  │
+│  │    1 spc each    │   │SN│  │  │  │  │     (16 spaces)        │░░│    │  │
+│  │                  │   ├──┤  │  │  │  │                        │░░│    │  │
+│  │  ■ Flight        │   │CG│CG│CG│CG│  ├──┬──┬──┬──┬──┬──┬──┬──┤░░│    │  │
+│  │    16 spc, 25 CP │   │  cargo     │  │         GUN           │░░│    │  │
+│  │                  │   │  (6 spc)   │  │       (4 spaces)      │░░│    │  │
+│  │  ■ Sensor Suite  │   ├──┬──┬──┬──┬──┤  │                     │░░│    │  │
+│  │    1 spc, 5 CPs  │   │SN│SP│SP│SP│SP│  └──┴──┴──┴──┴──┴──┴──┘░░│    │  │
+│  │                  │   └──┴──┴──┴──┴──┴────────────────────────────┘    │  │
+│  │  ■ Gun           │                                                    │  │
+│  │    4 spc, 15 CPs │   Each cell = 1 system space (½" × ½")            │  │
+│  │                  │   4 spaces = 1 movement space (5')                 │  │
+│  │  ■ Cargo         │   Hull exterior = 8" thick                         │  │
+│  │    6 spc         │   Interior walls = 4" thick                        │  │
+│  │                  │                                                    │  │
+│  │  ■ Spare Parts   │   [Pan: right-drag]  [Zoom: scroll wheel]         │  │
+│  │    4 spc, 40 Hits│   [Select: S key]    [Place: click palette]       │  │
+│  │                  │   [Rotate: R key]    [Delete: Del key]             │  │
+│  │  ░ Unused space  │                                                    │  │
+│  │                  │                                                    │  │
+│  └──────────────────┴────────────────────────────────────────────────────┘  │
+│                                                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  EXPORT:  [💾 Save JSON]  [📂 Load JSON]  [📊 CSV]  [📄 Stat Card PNG]   │
+│           [🖼 Floor Plan PNG]                                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  Modifiers Reference                                                        │
+│  ┌─────────────┬──────────────────────────────────────────────────────────┐ │
+│  │ Integral    │ Hidden, can't be targeted. Half CPs.                    │ │
+│  │ Bulky       │ +4.3 Hits per application. +2.5 CP each.               │ │
+│  │ Delicate    │ -4.3 Hits per application. -2.5 CP each.               │ │
+│  │ Gear        │ Removable/breakable by passengers.                      │ │
+│  │ Indep.Power │ Own 10 Power, independent of central.                   │ │
+│  │ No Arc      │ Straight line only. -10 CP.                             │ │
+│  │ Wide 240°   │ 240° arc. +5 CP.                                       │ │
+│  │ Wide 360°   │ 360° arc. +10 CP.                                      │ │
+│  │ Open System │ Passable, 1/4 CPs. Free sub-vehicle at 1/4 size.       │ │
+│  │ Won't Expl. │ Indep. power won't explode. +5 CP.                     │ │
+│  └─────────────┴──────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│  Mighty Protectors™ & Villains & Vigilantes™ © Jeff Dee & Jack Herman      │
+│  Monkey House Games                                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+NOTES ON LAYOUT:
+================
+
+1. The top section (Name through Notes) mirrors the Roll20 vehicle sheet
+   field-for-field. If we copy the Roll20 sheet, we can reuse its CSS
+   with the floor plan appended below.
+
+2. The floor plan section is split:
+   - LEFT: System Key/Legend showing each placed system type with its
+     color swatch, space count, and CP value
+   - RIGHT: The canvas grid where systems are placed visually
+
+3. Each canvas cell = 1 system space. The grid auto-sizes based on
+   chassis selection. Unused spaces show as a subtle pattern (░).
+
+4. Systems placed on the canvas automatically populate the systems
+   table above. Editing a system in the table updates the canvas
+   and vice versa.
+
+5. The floor plan canvas supports:
+   - Click palette item → click canvas to place
+   - Drag to move placed systems
+   - R to rotate (for non-square systems)
+   - Right-drag to pan
+   - Scroll to zoom
+   - Click system in legend to highlight on canvas
+   - Wall/door drawing on cell edges (future)
+
+6. Export options at the bottom include saving the floor plan as a
+   separate PNG image.
+
+7. The Modifiers Reference table stays at the very bottom as a
+   quick lookup.
+
+8. For the standalone web version, all sections are on one scrollable
+   page. For Roll20 integration, the floor plan section would be
+   appended to the existing vehicle tab.

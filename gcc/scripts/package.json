@@ -1,0 +1,9 @@
+{
+  "name": "gcc-scripts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "One-shot migration and maintenance scripts for GCC Firestore.",
+  "dependencies": {
+    "firebase-admin": "^12.0.0"
+  }
+}

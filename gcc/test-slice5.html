@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Slice 5 — gcc-hex-edit.js v1.0.0 authoring gate</title>
+<style>
+  :root {
+    --bg: #1e1e1e;
+    --fg: #e8e6e3;
+    --muted: #888;
+    --pass: #5b7a3a;
+    --fail: #b03030;
+    --warn: #c0a070;
+    --accent: #8b0000;
+    --panel: #2a2a2a;
+    --border: #444;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 20px;
+    font: 13px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    background: var(--bg); color: var(--fg);
+  }
+  h1 { margin: 0 0 4px 0; font-size: 18px; font-weight: 600; }
+  h1 .ver { color: var(--muted); font-weight: 400; }
+  .sub { color: var(--muted); margin-bottom: 16px; font-size: 12px; }
+  .toolbar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  button {
+    background: var(--panel); color: var(--fg);
+    border: 1px solid var(--border);
+    padding: 6px 12px; cursor: pointer; font: inherit;
+  }
+  button.primary { border-color: var(--accent); background: #3a1a1a; }
+  button:hover { background: #3a3a3a; }
+  button.primary:hover { background: #4a2020; }
+  .summary {
+    display: flex; gap: 16px; align-items: baseline;
+    margin-bottom: 12px; padding: 8px 12px;
+    background: var(--panel); border-left: 3px solid var(--border);
+  }
+  .summary.all-pass { border-left-color: var(--pass); }
+  .summary.has-fail { border-left-color: var(--fail); }
+  .summary .count { font-size: 16px; font-weight: 600; }
+  .summary .pass-n { color: var(--pass); }
+  .summary .fail-n { color: var(--fail); }
+  .summary .pending { color: var(--muted); font-style: italic; }
+  .group { margin-bottom: 12px; border: 1px solid var(--border); background: var(--panel); }
+  .group-header {
+    padding: 6px 10px; background: #333; font-weight: 600;
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between;
+  }
+  .group-header .stat { color: var(--muted); font-weight: 400; }
+  .group-header .stat.has-fail { color: var(--fail); }
+  .test {
+    padding: 4px 10px; border-bottom: 1px solid #333;
+    display: flex; gap: 8px; align-items: flex-start;
+  }
+  .test:last-child { border-bottom: none; }
+  .test .mark { width: 14px; flex-shrink: 0; font-weight: 600; }
+  .test.pass .mark { color: var(--pass); }
+  .test.fail .mark { color: var(--fail); }
+  .test .name { flex: 1; }
+  .test .extra { color: var(--warn); font-size: 11px; margin-top: 2px; }
+  .console {
+    margin-top: 16px; padding: 10px; background: #111;
+    border: 1px solid var(--border); color: #ccc; font-size: 11px;
+    max-height: 200px; overflow: auto; white-space: pre-wrap;
+  }
+  .console:empty { display: none; }
+  .notice {
+    padding: 8px 12px; background: #2a2418;
+    border-left: 3px solid var(--warn); margin-bottom: 12px;
+    font-size: 12px; color: #d0c8a8;
+  }
+  .notice strong { color: var(--warn); }
+
+  /* Hide hex-edit panel CSS bleeds — we hide the actual panel below */
+  #hex-edit-panel { position: absolute; left: -9999px; top: -9999px; visibility: hidden; }
+</style>
+</head>
+<body>
+
+<h1>Slice 5 test runner <span class="ver">— gcc-hex-edit.js v1.0.0 (parent CRUD gate)</span></h1>
+<div class="sub">
+  Loads the hex-edit module against a stub DOM (toolbar button +
+  required globals). Tests the UI helpers, banner rendering, and
+  CRUD-throw-on-authored behavior. Sandboxed localStorage.
+</div>
+
+<div class="notice">
+  <strong>Sandboxed.</strong> Refresh the page to wipe.
+</div>
+
+<div id="install-error" class="notice" style="display:none; background:#3a1818; border-left-color:#b03030; color:#f0c0c0;"></div>
+
+<div class="toolbar">
+  <button class="primary" id="run-btn">▶ Run all tests</button>
+  <button id="clear-btn">Clear results</button>
+  <button id="dump-btn">Dump sandbox storage</button>
+</div>
+
+<div id="summary" class="summary">
+  <span class="count pending">No tests run yet.</span>
+</div>
+
+<div id="results"></div>
+
+<div class="console" id="console"></div>
+
+<!-- The hex-edit module looks for #btn-hex-edit on DOMContentLoaded and
+     wires a click handler. We give it a hidden button so it doesn't
+     log "toolbar button missing". -->
+<button id="btn-hex-edit" style="display:none">hex edit</button>
+
+<!-- Sandbox -->
+<script>
+(function(){
+  const memory = new Map();
+  const sandbox = {
+    getItem: k => memory.has(k) ? memory.get(k) : null,
+    setItem: (k, v) => { memory.set(k, String(v)); },
+    removeItem: k => { memory.delete(k); },
+    clear: () => memory.clear(),
+    key: i => Array.from(memory.keys())[i] || null,
+    get length(){ return memory.size; },
+    __dump: () => Object.fromEntries(memory),
+  };
+  let installed = false; let installError = null;
+  try {
+    Object.defineProperty(window, 'localStorage', {
+      value: sandbox, writable: false, configurable: true,
+    });
+    installed = true;
+  } catch(e1){
+    installError = e1;
+    try {
+      const real = window.localStorage;
+      real.getItem = sandbox.getItem; real.setItem = sandbox.setItem;
+      real.removeItem = sandbox.removeItem; real.clear = sandbox.clear;
+      real.key = sandbox.key;
+      installed = true;
+    } catch(e2){ installError = e2; }
+  }
+  // hex-edit looks for these globals; provide trivial stubs so the
+  // module loads cleanly. Tests only exercise the authoring-gate
+  // helpers, so the visual rendering stubs don't need to do anything
+  // real.
+  window.TERRAIN = {
+    plains: { difficulty: 'normal' },
+    forest: { difficulty: 'medium' },
+  };
+  window.hexIdStr = function(c, r){ return `${c},${r}`; };
+  window.darleneFromInternal = function(c, r){ return `${c},${r}`; };
+  window.darleneToInternal = function(id){ return null; };
+  window.mapToHex = function(){ return null; };
+  window.screenToMap = function(){ return null; };
+  window.hexCenter = function(){ return { x: 0, y: 0 }; };
+  window.mapToStage = function(p){ return p; };
+  window.showToast = function(msg){ window.__lastToast = msg; };
+  window.rebuildLandmarkOverlay = function(){};
+  window.rebuildPathOverlay = function(){};
+  window.rebuildGrid = function(){};
+  window.buildHexGrid = function(){};
+  window.makeDraggable = function(){
+    // hex-edit calls .restore() on the returned object after construction.
+    return { restore(){}, save(){}, place(){} };
+  };
+  // hex-edit's enter() bails early if GCCLandmarks isn't loaded
+  // ("gcc-landmarks.js not loaded" toast). Stub the surface it
+  // touches at panel-build / refresh time. Methods listed are
+  // every GCC{Landmarks,Regions,Terrain}.* call site in hex-edit
+  // (verified via grep). Empty data is fine — we only exercise
+  // the Paths tab.
+  window.GCCLandmarks = window.GCCLandmarks || {
+    allNames(){ return []; },
+    unplacedPending(){ return []; },
+    exportOverrides(){ return {}; },
+    exportMergedSource(){ return {}; },
+    getByName(){ return null; },
+    setOverride(){ return true; },
+    removeOverride(){ return true; },
+    clearOverrides(){},
+  };
+  window.GCCRegions = window.GCCRegions || {
+    all(){ return []; },
+    stats(){ return { count: 0, byCategory: {} }; },
+    getByName(){ return null; },
+    isBase(){ return false; },
+    exportOverrides(){ return { hexes: {}, regions: {} }; },
+    exportMergedSource(){ return {}; },
+    addRegion(){}, addHexes(){}, clearHexes(){},
+    setRegionMeta(){}, removeRegion(){},
+    bootstrapFromLandmarks(){},
+    getMembership(){ return null; },
+    getHexTagged(){ return null; },
+    fillFromPolygon(){},
+    erasePaintAt(){},
+    clearOverrides(){},
+    colorToRgbTriplet(){ return [0,0,0]; },
+  };
+  window.GCCTerrain = window.GCCTerrain || {
+    get(){ return null; },
+    set(){ return true; },
+    clear(){},
+    clearAll(){},
+    count(){ return 0; },
+    countByTerrain(){ return {}; },
+    exportOverrides(){ return {}; },
+    exportMergedSource(){ return {}; },
+    allOverridden(){ return []; },
+  };
+  // For the GCCSubhexView.open click-handler test, capture invocations.
+  window.__sandboxStorage = sandbox;
+  window.__sandboxInstalled = installed;
+  window.__sandboxError = installError ? String(installError) : null;
+})();
+</script>
+
+<!-- Modules. Order matches greyhawk-map.html: encounter-data → encounters
+     → paths → subhex-data → subhex-icons (skip — UI-only) → subhex-paths
+     → hex-edit. Skip the heavy gcc-encounter-data + gcc-encounters here —
+     hex-edit doesn't need them, and they're 700KB combined. -->
+<script src="gcc-rng.js"></script>
+<script src="gcc-paths.js"></script>
+<script src="gcc-subhex-data.js"></script>
+<script src="gcc-subhex-paths.js"></script>
+<script src="gcc-hex-edit.js"></script>
+
+<!-- Subhex-view stub: capture open() calls so banner clicks are testable. -->
+<script>
+window.GCCSubhexView = window.GCCSubhexView || {
+  open(col, row){ window.__lastSubhexOpen = { col, row }; },
+};
+</script>
+
+<script>
+(function(){
+  'use strict';
+
+  const G  = window.GCCPaths;
+  const SP = window.GCCSubhexPaths;
+  const SD = window.GCCSubhexData;
+  const HE = window.GCCHexEdit;
+  const resultsEl  = document.getElementById('results');
+  const summaryEl  = document.getElementById('summary');
+  const consoleEl  = document.getElementById('console');
+  const runBtn     = document.getElementById('run-btn');
+  const clearBtn   = document.getElementById('clear-btn');
+  const dumpBtn    = document.getElementById('dump-btn');
+
+  let groups = [];
+  let currentGroup = null;
+  let consoleLines = [];
+
+  function group(name){
+    currentGroup = { name, tests: [] };
+    groups.push(currentGroup);
+    log(`── ${name} ──`);
+  }
+  function assert(name, cond, extra){
+    const test = { name, pass: !!cond, extra: cond ? null : (extra || null) };
+    currentGroup.tests.push(test);
+    log(`  ${cond ? '✓' : '✗'} ${name}${test.extra ? ': ' + test.extra : ''}`);
+  }
+  function log(line){ consoleLines.push(line); }
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;',
+    }[c]));
+  }
+
+  function render(){
+    const allTests = groups.flatMap(g => g.tests);
+    const pass = allTests.filter(t => t.pass).length;
+    const fail = allTests.length - pass;
+    summaryEl.classList.toggle('all-pass', fail === 0 && pass > 0);
+    summaryEl.classList.toggle('has-fail', fail > 0);
+    summaryEl.innerHTML = pass === 0 && fail === 0
+      ? `<span class="count pending">No tests run yet.</span>`
+      : `<span class="count pass-n">${pass} pass</span>
+         <span class="count fail-n">${fail} fail</span>
+         <span class="count">${groups.length} groups, ${allTests.length} tests</span>`;
+    resultsEl.innerHTML = groups.map(g => {
+      const gFail = g.tests.filter(t => !t.pass).length;
+      const tests = g.tests.map(t => `
+        <div class="test ${t.pass ? 'pass' : 'fail'}">
+          <span class="mark">${t.pass ? '✓' : '✗'}</span>
+          <span class="name">${escapeHtml(t.name)}${
+            t.extra ? `<div class="extra">${escapeHtml(t.extra)}</div>` : ''
+          }</span>
+        </div>
+      `).join('');
+      return `
+        <div class="group">
+          <div class="group-header">
+            <span>${escapeHtml(g.name)}</span>
+            <span class="stat ${gFail ? 'has-fail' : ''}">${
+              gFail ? `${gFail} fail / ` : ''
+            }${g.tests.length} tests</span>
+          </div>
+          ${tests}
+        </div>
+      `;
+    }).join('');
+    consoleEl.textContent = consoleLines.join('\n');
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+  }
+
+  function resetState(){
+    if (SP){
+      try { SP.listPaths().forEach(p => SP.deletePath(p.id)); } catch(e){}
+      try { SP.importPaths({}); } catch(e){}
+    }
+    if (SD){
+      try { SD.listLakes().forEach(l => SD.deleteLake(l.id)); } catch(e){}
+      try { SD.allAuthored().forEach(c => SD.clearSubhex(c.Q, c.R)); } catch(e){}
+    }
+    if (G){
+      try { G.clearOverrides(); } catch(e){}
+    }
+    window.__sandboxStorage.clear();
+    if (G && typeof G.rebuild === 'function'){
+      try { G.rebuild(); } catch(e){}
+    }
+    // Close the hex editor if open.
+    if (HE && typeof HE.exit === 'function'){
+      try { HE.exit(); } catch(e){}
+    }
+    groups = [];
+    consoleLines = [];
+  }
+
+  function runAll(){
+    resetState();
+
+    if (!G || !SP || !SD || !HE){
+      group('FATAL: required modules not loaded');
+      assert('GCCPaths',       !!G);
+      assert('GCCSubhexPaths', !!SP);
+      assert('GCCSubhexData',  !!SD);
+      assert('GCCHexEdit',     !!HE);
+      render();
+      return;
+    }
+
+    // 1. Module surface
+    group('1. Module surface');
+    assert('GCCHexEdit exposes enter',   typeof HE.enter === 'function');
+    assert('GCCHexEdit exposes exit',    typeof HE.exit === 'function');
+    assert('GCCHexEdit exposes toggle',  typeof HE.toggle === 'function');
+    assert('GCCHexEdit exposes setActiveTab',
+      typeof HE.setActiveTab === 'function');
+
+    // 2. Open the editor and find the panel
+    group('2. Editor opens with banner DOM');
+    HE.enter();
+    const panel = document.getElementById('hex-edit-panel');
+    assert('panel exists',              !!panel);
+    if (!panel){
+      // Without a panel, every subsequent test is going to fault out.
+      // Bail with a clear group so the user can see what's missing.
+      group('FATAL: panel never built — check globals');
+      assert('GCCLandmarks stub present', !!window.GCCLandmarks);
+      assert('GCCRegions stub present',   !!window.GCCRegions);
+      assert('GCCTerrain stub present',   !!window.GCCTerrain);
+      assert('last toast (if any)',       !window.__lastToast,
+        window.__lastToast || 'no toast captured');
+      render();
+      return;
+    }
+    assert('river banner element exists',
+      !!panel?.querySelector('#he-pf-banner'));
+    assert('road banner element exists',
+      !!panel?.querySelector('#he-pf-road-banner'));
+    assert('crossing banner element exists',
+      !!panel?.querySelector('#he-pf-cross-banner'));
+    // No banners should be visible in idle state.
+    assert('river banner hidden initially',
+      panel?.querySelector('#he-pf-banner')?.style.display === 'none');
+
+    // 3. Save a parent-layer river that touches an unauthored parent
+    group('3. River CRUD when no subhex authoring');
+    G.saveRiver('TestRiver', 'river', 2,
+      [{col:50,row:50},{col:50,row:51},{col:50,row:52}]);
+    assert('river saved', G.getRiverInfo('TestRiver') !== null);
+    // Switch to Paths tab.
+    HE.setActiveTab('paths');
+    // External CRUD on GCCPaths doesn't trigger hex-edit's
+    // refreshPfSelect, so the select dropdown won't yet have the
+    // option for 'TestRiver'. Inject it manually so we can then
+    // dispatch a change event and exercise the gating logic.
+    const sel = panel.querySelector('#he-pf-select');
+    if (!Array.from(sel.options).some(o => o.value === 'TestRiver')){
+      const opt = document.createElement('option');
+      opt.value = 'TestRiver';
+      opt.textContent = 'TestRiver';
+      sel.appendChild(opt);
+    }
+    sel.value = 'TestRiver';
+    sel.dispatchEvent(new Event('change'));
+    // Edit Trace should be enabled.
+    assert('Edit Trace enabled (no authoring)',
+      panel.querySelector('#he-pf-edit').disabled === false);
+    assert('Delete enabled (no authoring)',
+      panel.querySelector('#he-pf-delete').disabled === false);
+    assert('Banner hidden (no authoring)',
+      panel.querySelector('#he-pf-banner').style.display === 'none');
+
+    // 4. Author a subhex path that subhex-authorizes (50, 50)
+    group('4. Banner appears when parent becomes authored');
+    const center = SD.parentCenterAxial(50, 50);
+    SP.createPath('river', 'SubRiver');
+    SP.appendCell('subriver', center.Q, center.R);
+    assert('parent (50,50) is now subhex-authored',
+      G.parentHasSubhexAuthoring(50, 50) === true);
+    // gcc-subhex-changed event fires. Banner should now be visible.
+    // The hex-edit module listens and refreshes — give it a microtask
+    // to settle.
+    return new Promise(resolve => {
+      setTimeout(() => {
+        assert('Edit Trace disabled (authored)',
+          panel.querySelector('#he-pf-edit').disabled === true);
+        assert('Delete disabled (authored)',
+          panel.querySelector('#he-pf-delete').disabled === true);
+        assert('Banner now visible',
+          panel.querySelector('#he-pf-banner').style.display !== 'none');
+        const bannerText = panel.querySelector('#he-pf-banner').textContent;
+        assert('Banner mentions subhex-authored',
+          /Subhex-authored/i.test(bannerText), bannerText);
+
+        // 5. Banner button opens subhex view
+        group('5. Banner button calls GCCSubhexView.open');
+        const btns = panel.querySelectorAll('#he-pf-banner .he-pf-banner-btn');
+        assert('banner has Open button(s)', btns.length > 0,
+          `found ${btns.length}`);
+        if (btns.length > 0){
+          window.__lastSubhexOpen = null;
+          btns[0].click();
+          assert('GCCSubhexView.open invoked',
+            window.__lastSubhexOpen !== null);
+          assert('open invoked with (50,50)',
+            window.__lastSubhexOpen
+              && window.__lastSubhexOpen.col === 50
+              && window.__lastSubhexOpen.row === 50);
+        }
+
+        // 6. Remove the subhex authoring → banner clears
+        group('6. Banner clears when authoring removed');
+        SP.deletePath('subriver');
+        setTimeout(() => {
+          assert('parent unauthored',
+            G.parentHasSubhexAuthoring(50, 50) === false);
+          assert('Edit Trace enabled again',
+            panel.querySelector('#he-pf-edit').disabled === false);
+          assert('Banner hidden again',
+            panel.querySelector('#he-pf-banner').style.display === 'none');
+
+          // 7. CSS / DOM check on banner content after teardown
+          group('7. Banner DOM integrity');
+          // Re-author so we can inspect the rendered HTML.
+          SP.createPath('road', 'TestRoad2');
+          SP.appendCell('testroad2', center.Q, center.R);
+          setTimeout(() => {
+            // Re-set the select value (pfSelected may have been
+            // cleared by the intervening refreshes) and dispatch
+            // change to trigger refresh.
+            const sel7 = panel.querySelector('#he-pf-select');
+            sel7.value = 'TestRiver';
+            sel7.dispatchEvent(new Event('change'));
+            const banner = panel.querySelector('#he-pf-banner');
+            const title  = banner.querySelector('.he-pf-banner-title');
+            const parents = banner.querySelector('.he-pf-banner-parents');
+            assert('banner has title', !!title && title.textContent.length > 0);
+            assert('banner has parents row', !!parents);
+            assert('parents row has at least one button',
+              parents && parents.querySelectorAll('button').length > 0);
+            SP.deletePath('testroad2');
+
+            // 8. Crossing banner gating
+            group('8. Crossing banner gating');
+            // Need a river first so saveCrossing has an edge to attach.
+            G.saveRiver('CrossRiver', 'river', 1,
+              [{col:60,row:60},{col:60,row:61}]);
+            G.saveCrossing(60, 60, 60, 61, 'bridge', 'TestBridge', '');
+            // Select crossings mode and pick the bridge.
+            const modeBtn = panel.querySelector('[data-pfmode="crossing"]');
+            modeBtn?.click();
+            const sel = panel.querySelector('#he-pf-cross-select');
+            // Find the crossing's key.
+            const crossings = G.allCrossings();
+            const bridge = crossings.find(c => c.name === 'TestBridge');
+            assert('bridge created', !!bridge);
+            if (bridge){
+              sel.value = bridge.key;
+              sel.dispatchEvent(new Event('change'));
+              assert('crossing edit enabled (no authoring)',
+                panel.querySelector('#he-pf-cross-edit').disabled === false);
+              // Author parent (60,60).
+              const c2 = SD.parentCenterAxial(60, 60);
+              SP.createPath('road', 'CrossingTrigger');
+              SP.appendCell('crossingtrigger', c2.Q, c2.R);
+              setTimeout(() => {
+                assert('crossing edit disabled (authored)',
+                  panel.querySelector('#he-pf-cross-edit').disabled === true);
+                assert('crossing banner visible',
+                  panel.querySelector('#he-pf-cross-banner').style.display !== 'none');
+                SP.deletePath('crossingtrigger');
+
+                // 9. Data-layer throws still active
+                group('9. Data-layer hard-gate still active');
+                SP.createPath('road', 'BlockTrigger');
+                SP.appendCell('blocktrigger', center.Q, center.R);
+                let threw = false;
+                try {
+                  G.saveRiver('NewBlocked', 'river', 1,
+                    [{col:50,row:50},{col:50,row:51}]);
+                } catch(e){ threw = true; }
+                assert('saveRiver still throws on authored', threw);
+                SP.deletePath('blocktrigger');
+
+                render();
+                resolve();
+              }, 20);
+            } else {
+              render();
+              resolve();
+            }
+          }, 20);
+        }, 20);
+      }, 20);
+    });
+  }
+
+  if (window.__sandboxError){
+    const banner = document.getElementById('install-error');
+    banner.style.display = 'block';
+    banner.innerHTML = `<strong>Sandbox install failed:</strong> ${
+      escapeHtml(String(window.__sandboxError))
+    }`;
+  }
+  if (!G || !SP || !SD || !HE){
+    const banner = document.getElementById('install-error');
+    banner.style.display = 'block';
+    banner.innerHTML = `<strong>Module load failed.</strong> Check DevTools console.`;
+  }
+
+  runBtn.addEventListener('click', async () => {
+    runBtn.disabled = true;
+    try { await runAll(); }
+    catch(e){
+      group('FATAL: harness crashed');
+      assert(e.message, false, e.stack);
+      render();
+    }
+    finally { runBtn.disabled = false; }
+  });
+  clearBtn.addEventListener('click', () => {
+    groups = []; consoleLines = []; render();
+  });
+  dumpBtn.addEventListener('click', () => {
+    const dump = window.__sandboxStorage.__dump();
+    consoleLines.push('── Sandbox storage ──');
+    for (const [k, v] of Object.entries(dump)){
+      try { consoleLines.push(`${k}: ${JSON.stringify(JSON.parse(v), null, 2)}`); }
+      catch(e){ consoleLines.push(`${k}: ${v}`); }
+    }
+    render();
+  });
+
+  render();
+})();
+</script>
+
+</body>
+</html>

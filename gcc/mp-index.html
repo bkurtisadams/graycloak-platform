@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mighty Protectors — Builder</title>
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Bitter:wght@400;700&family=Cinzel:wght@500;700&family=Alegreya:ital,wght@0,400;0,700;1,400&family=Alegreya+SC:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="gcc-header.css">
+<link rel="stylesheet" href="gcc-auth.css">
+<style>
+/* ── Palette from cover art + logo ── */
+:root {
+  --hdr-bg: #1a1430;
+  --hdr-border: #c04010;
+  --gold: #e8a820;
+  --gold-lt: #f0be40;
+  --red: #c04010;
+  --red-lt: #d85020;
+  --green: #5a9a18;
+  --green-lt: #6eb828;
+  --page-bg: #d6eaf8;
+  --page-bg2: #c4dff0;
+  --card-bg: #ffffff;
+  --card-brd: #8ab4d0;
+  --card-brd-empty: #b0c8d8;
+  --tx: #1a1a2a;
+  --tx2: #4a3a5a;
+  --tx3: #7a7a8a;
+  --danger: #d03030;
+  --cyan: #6ad8e8;
+  --dark-bar: linear-gradient(135deg, #1a1030 0%, #0d0818 100%);
+  --dark-bar-hover: linear-gradient(135deg, #241840 0%, #140e24 100%);
+  --fd: 'Bangers', cursive;
+  --fb: 'Bitter', serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
+html { min-height: 100%; background: var(--page-bg) }
+body {
+  min-height: 100vh; background: var(--page-bg);
+  color: var(--tx); font-family: var(--fb); font-size: 13px;
+  display: flex; flex-direction: column;
+}
+
+/* ── Header ── */
+.hdr {
+  background: var(--hdr-bg);
+  border-bottom: 3px solid var(--hdr-border);
+  padding: 0 16px;
+  flex-shrink: 0;
+}
+.hdr-in {
+  max-width: 920px; margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 52px; gap: 12px;
+}
+.hdr-logo { display: flex; align-items: center; gap: 10px }
+.hdr-logo img { height: 26px; display: block }
+.hdr-logo-sub {
+  font-family: var(--fb); font-size: 10px; color: var(--gold);
+  letter-spacing: 1.5px; font-weight: 700; opacity: 0.85;
+}
+.hdr-auth { display: flex; gap: 6px; align-items: center }
+.btn-auth {
+  padding: 5px 12px; font-size: 10px; font-family: var(--fb); font-weight: 700;
+  border-radius: 3px; cursor: pointer; border: none; letter-spacing: 0.5px;
+}
+.btn-login { background: transparent; border: 1.5px solid var(--gold); color: var(--gold) }
+.btn-login:hover { background: rgba(232,168,32,0.12) }
+.btn-register { background: var(--red); color: #fff }
+.btn-register:hover { background: var(--red-lt) }
+
+/* ── Logged-in user display (hidden by default) ── */
+.hdr-user { display: none; align-items: center; gap: 8px; color: #bbb; font-size: 11px }
+.hdr-user .user-name { color: var(--gold); font-weight: 700 }
+.btn-logout {
+  padding: 4px 10px; font-size: 9px; font-family: var(--fb); font-weight: 700;
+  background: #2a2040; border: 1px solid #4a3a60; color: #aaa;
+  border-radius: 2px; cursor: pointer;
+}
+.btn-logout:hover { border-color: var(--gold); color: var(--gold) }
+
+/* ── Main content ── */
+.main { flex: 1; padding: 16px 16px 40px }
+.main-in { max-width: 920px; margin: 0 auto }
+
+/* ── Tabs ── */
+.tabs { display: flex; gap: 4px; margin-bottom: 0 }
+.tab {
+  padding: 10px 24px; font-family: var(--fd); font-size: 17px; letter-spacing: 1px;
+  color: var(--tx2); background: var(--page-bg2);
+  border: 1.5px solid var(--card-brd); border-bottom: none;
+  border-radius: 6px 6px 0 0; cursor: pointer;
+  position: relative; top: 1px;
+  transition: background 0.15s, color 0.15s;
+  user-select: none;
+}
+.tab:hover { background: #daedf8; color: var(--tx) }
+.tab.active {
+  background: var(--card-bg); color: var(--hdr-bg);
+  border-color: var(--card-brd);
+  z-index: 1;
+}
+.tab-icon { margin-right: 4px; font-size: 14px }
+
+/* ── Panel ── */
+.panel {
+  background: var(--card-bg);
+  border: 1.5px solid var(--card-brd);
+  border-radius: 0 6px 6px 6px;
+  padding: 20px;
+  min-height: 340px;
+  position: relative;
+}
+.panel-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.panel-title {
+  font-family: var(--fd); font-size: 20px; letter-spacing: 1px; color: var(--hdr-bg);
+}
+.btn-new {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 6px 14px; font-size: 11px; font-family: var(--fb); font-weight: 700;
+  background: var(--red); color: #fff; border: none;
+  border-radius: 3px; cursor: pointer; letter-spacing: 0.3px;
+}
+.btn-new:hover { background: var(--red-lt) }
+.btn-new::before { content: '+'; font-size: 15px; font-weight: 700; line-height: 1 }
+
+/* ── Card grid ── */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+/* ── Slot card ── */
+.card {
+  border-radius: 5px; overflow: hidden;
+  display: flex; flex-direction: column;
+  transition: box-shadow 0.15s, transform 0.1s;
+  position: relative;
+  background: #fff;
+  border: 2px solid #222;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.13);
+}
+.card:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.2); transform: translateY(-2px) }
+
+/* ── Card content ── */
+.card-content {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 8px 10px 6px 8px; cursor: pointer;
+}
+
+/* ── Thumbnail with colored border ── */
+.card-thumb {
+  width: 56px; height: 56px; flex-shrink: 0;
+  border-radius: 4px; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  background: #f0f0ec;
+  border: 3px solid #999;
+}
+.card-thumb img { width: 100%; height: 100%; object-fit: cover; display: block }
+.card-thumb svg { opacity: 0.18; color: #555 }
+.card-thumb-del {
+  position: absolute; top: 0; right: 0;
+  width: 14px; height: 14px; border-radius: 2px;
+  border: none; cursor: pointer; padding: 0;
+  background: rgba(0,0,0,0.5); color: rgba(255,255,255,0.7);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 0.12s;
+}
+.card-thumb:hover .card-thumb-del { opacity: 1 }
+.card-thumb-del:hover { background: rgba(0,0,0,0.8); color: #ff4040 }
+.card-thumb-del svg { width: 8px; height: 8px; fill: currentColor }
+
+/* ── Card info ── */
+.card-info { flex: 1; min-width: 0 }
+.card-name-row { display: flex; align-items: baseline; gap: 6px }
+.card-name {
+  font-family: var(--fd); font-size: 20px; letter-spacing: 1px;
+  line-height: 1.15;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  -webkit-text-stroke: 0.7px rgba(0,0,0,0.2);
+}
+.card-side-badge {
+  font-family: var(--fb); font-size: 8px; font-weight: 700;
+  padding: 1px 5px; border-radius: 2px;
+  letter-spacing: 0.5px; text-transform: uppercase;
+  flex-shrink: 0; white-space: nowrap; color: #fff;
+}
+.card-sub { font-size: 10px; color: #444; margin-top: 2px; font-weight: 700 }
+.card-bcs { font-family: monospace; font-size: 9px; color: #555; margin-top: 4px; font-weight: 700 }
+.card-derived { font-size: 10px; font-weight: 700; color: #222; margin-top: 3px }
+.card-derived span { margin-right: 8px }
+.card-badges { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 4px }
+
+/* ── Campaign badge — yellow button ── */
+.card-campaign-badge {
+  display: inline-block;
+  padding: 2px 10px; border-radius: 3px;
+  font-size: 9px; font-weight: 700;
+  background: #FFD420; color: #3a2800;
+  border: 1.5px solid #C8A010;
+  letter-spacing: 0.2px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+/* ── Origin badge — gray pill ── */
+.card-origin-badge {
+  display: inline-block;
+  padding: 1px 7px; border-radius: 2px;
+  font-size: 8px; font-weight: 700;
+  background: #eee; color: #555;
+  border: 1px solid #ccc;
+}
+
+.card-click { cursor: pointer }
+
+/* ── Card actions ── */
+.card-actions { display: flex; border-top: 2px solid #222; background: #fafaf6 }
+.card-btn {
+  flex: 1; padding: 5px 0; font-size: 10px; font-family: var(--fb); font-weight: 700;
+  border: none; background: transparent; cursor: pointer; color: #444;
+  text-align: center; transition: all 0.12s; border-right: 1px solid #ddd;
+  letter-spacing: 0.3px;
+}
+.card-btn:last-child { border-right: none }
+.card-btn:hover { background: #eee }
+.card-btn-del { color: #cc2020 }
+.card-btn-del:hover { background: #ffe8e8 }
+
+/* ════════════════════════════════════════
+   V&V SIDE COLORS — name + thumb border + badge
+   ════════════════════════════════════════ */
+.side-good .card-name { color: #D06020; -webkit-text-stroke: 0.8px #803010; text-shadow: 1px 1px 0 rgba(128,48,16,0.2) }
+.side-good .card-thumb { border-color: #F07830 }
+.side-good .card-side-badge { background: #F07830 }
+
+.side-neutral .card-name { color: #2070C0; -webkit-text-stroke: 0.8px #0a3060; text-shadow: 1px 1px 0 rgba(10,48,96,0.2) }
+.side-neutral .card-thumb { border-color: #3080D0 }
+.side-neutral .card-side-badge { background: #3080D0 }
+
+.side-evil .card-name { color: #40901a; -webkit-text-stroke: 0.8px #1a4a00; text-shadow: 1px 1px 0 rgba(26,74,0,0.2) }
+.side-evil .card-thumb { border-color: #50B820 }
+.side-evil .card-side-badge { background: #50B820 }
+
+.side-none .card-name { color: #333; -webkit-text-stroke: 0.5px rgba(0,0,0,0.15) }
+.side-none .card-thumb { border-color: #999 }
+.side-none .card-side-badge { background: #888 }
+
+.side-vehicle .card-name { color: #2070C0; -webkit-text-stroke: 0.8px #0a3060; text-shadow: 1px 1px 0 rgba(10,48,96,0.2) }
+.side-vehicle .card-thumb { border-color: #3080D0 }
+
+/* ── Empty slot ── */
+.card-empty {
+  border: 2px dashed var(--card-brd-empty);
+  background: #f4f8fc;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center;
+  color: var(--tx3);
+  cursor: default;
+  min-height: 100px;
+  border-radius: 5px;
+  box-shadow: none;
+}
+.card-empty:hover { border-color: var(--card-brd); box-shadow: none; transform: none }
+.card-empty-icon { font-size: 24px; opacity: 0.3; margin-bottom: 4px }
+.card-empty-label { font-size: 11px; font-weight: 700 }
+.card-empty-num { font-size: 9px; color: var(--tx3); margin-top: 2px }
+
+/* ── Search / Sort bar ── */
+.filter-bar {
+  display: flex; gap: 8px; align-items: center;
+  margin-bottom: 12px;
+}
+.filter-bar input {
+  flex: 1; padding: 6px 10px; font-family: var(--fb); font-size: 11px;
+  border: 1.5px solid var(--card-brd); border-radius: 3px;
+  background: #fff; color: var(--tx); outline: none;
+}
+.filter-bar input:focus { border-color: var(--red) }
+.filter-bar input::placeholder { color: var(--tx3) }
+.filter-bar select {
+  padding: 6px 8px; font-family: var(--fb); font-size: 10px; font-weight: 700;
+  border: 1.5px solid var(--card-brd); border-radius: 3px;
+  background: #fff; color: var(--tx); outline: none; cursor: pointer;
+}
+.filter-bar select:focus { border-color: var(--red) }
+.filter-bar .lbl { font-size: 9px; font-weight: 700; color: var(--tx2); white-space: nowrap }
+
+/* ── Campaign bar ── */
+.campaign-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; margin-bottom: 14px;
+  background: #f8f6f0; border: 1.5px solid #d8d0c0;
+  border-radius: 4px;
+}
+.campaign-bar .lbl {
+  font-family: var(--fd); font-size: 14px; letter-spacing: 0.5px;
+  color: var(--hdr-bg); flex-shrink: 0;
+}
+.campaign-bar input {
+  flex: 1; border: none; border-bottom: 1.5px solid #c0b8a0;
+  background: transparent; font-family: var(--fb); font-size: 12px;
+  font-weight: 700; color: var(--hdr-bg); padding: 2px 4px;
+  outline: none;
+}
+.campaign-bar input:focus { border-bottom-color: var(--red) }
+.campaign-bar select {
+  flex: 1; border: 1px solid #c0b8a0; border-radius: 2px;
+  background: #fff; font-family: var(--fb); font-size: 11px;
+  font-weight: 700; color: var(--hdr-bg); padding: 3px 6px;
+  outline: none; cursor: pointer;
+}
+.campaign-bar select:focus { border-color: var(--red) }
+.btn-camp {
+  padding: 4px 10px; font-size: 9px; font-family: var(--fb); font-weight: 700;
+  border: 1.5px solid #c0b8a0; background: #fff; color: var(--tx2);
+  border-radius: 2px; cursor: pointer; transition: all 0.12s;
+}
+.btn-camp:hover { border-color: var(--red); color: var(--red) }
+
+/* ── Slot counter ── */
+.slot-info {
+  margin-top: 16px; padding-top: 12px;
+  border-top: 1px solid #dce8f0;
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 10px; color: var(--tx3);
+}
+.slot-count { font-weight: 700; color: var(--tx2) }
+.slot-upgrade {
+  font-size: 9px; color: var(--gold); font-weight: 700;
+  cursor: pointer; text-decoration: underline;
+  text-decoration-style: dotted;
+}
+.slot-upgrade:hover { color: var(--red) }
+
+/* ── Import bar ── */
+.import-bar {
+  margin-top: 14px; padding-top: 12px;
+  border-top: 1px solid #dce8f0;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 10px; color: var(--tx3);
+}
+.import-bar .lbl { font-weight: 700; color: var(--tx2) }
+.btn-import {
+  padding: 4px 10px; font-size: 9px; font-family: var(--fb); font-weight: 700;
+  background: var(--page-bg); border: 1px solid var(--card-brd);
+  border-radius: 2px; cursor: pointer; color: var(--tx2);
+}
+.btn-import:hover { border-color: var(--red); color: var(--red) }
+
+/* ── Footer ── */
+.ftr {
+  font-size: 9px; color: var(--tx3); text-align: center;
+  padding: 10px; background: var(--page-bg2);
+  border-top: 1px solid var(--card-brd);
+}
+
+/* ── Animations ── */
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(12px) }
+  to { opacity: 1; transform: translateY(0) }
+}
+.card { animation: fadeSlideUp 0.3s ease both }
+.card:nth-child(1) { animation-delay: 0s }
+.card:nth-child(2) { animation-delay: 0.05s }
+.card:nth-child(3) { animation-delay: 0.1s }
+.card:nth-child(4) { animation-delay: 0.15s }
+.card:nth-child(5) { animation-delay: 0.2s }
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .hdr-in { height: 44px }
+  .hdr-logo img { height: 20px }
+  .tabs { gap: 2px }
+  .tab { padding: 8px 14px; font-size: 14px }
+  .panel { padding: 14px }
+  .card-grid { grid-template-columns: 1fr; gap: 8px }
+  .campaign-bar { flex-wrap: wrap }
+  .campaign-bar select { min-width: 140px }
+  .filter-bar { flex-wrap: wrap }
+  .filter-bar input { min-width: 160px }
+}
+</style>
+</head>
+<body>
+
+<!-- GCC Site Bar -->
+<div id="gcc-bar" class="gcc-bar">
+  <div class="gcc-bar-in">
+    <a href="index.html" class="gcc-brand" title="Back to Dashboard">
+      <div class="gcc-title-wrap">
+        <div class="gcc-title">GRAYCLOAK'S</div>
+        <div class="gcc-subtitle">CAMPAIGN CORNER</div>
+      </div>
+    </a>
+    <div class="gcc-nav">
+      <div class="gcc-tools-wrap">
+        <button class="gcc-nav-btn" id="gcc-btn-tools">🎲 Tools ▾</button>
+        <div class="gcc-tools-dd" id="gcc-tools-dd"></div>
+      </div>
+      <span id="gcc-auth-slot"></span>
+      <button class="gcc-nav-btn" id="gcc-btn-theme" title="Toggle light/dark"><span id="gcc-theme-icon">◑</span></button>
+    </div>
+  </div>
+</div>
+<div class="gcc-tools-overlay" id="gcc-tools-overlay"></div>
+
+<!-- MP Page Header -->
+<div class="gcc-mp-bar">
+  <div class="gcc-mp-bar-in">
+    <div class="gcc-mp-logo-wrap">
+      <img src="MP_logo_v3.png" alt="Mighty Protectors" class="gcc-mp-logo-img">
+      <span class="gcc-mp-logo-sub">BUILDER</span>
+    </div>
+    <div style="display:flex;gap:4px;align-items:center">
+      <a href="index.html" class="gcc-mp-btn" style="text-decoration:none">Campaigns</a>
+    </div>
+    <!-- Guest: show auth buttons -->
+    <div class="hdr-auth" id="auth-guest">
+      <button class="btn-auth btn-login" id="btn-login">LOG IN</button>
+      <button class="btn-auth btn-register" id="btn-register">REGISTER</button>
+    </div>
+    <!-- Logged in: show user -->
+    <div class="hdr-user" id="auth-user">
+      <span class="user-name" id="user-name">KurtDM</span>
+      <button class="btn-logout" id="btn-logout">Log Out</button>
+    </div>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+<div class="main-in">
+
+  <!-- Campaign Bar -->
+  <div class="campaign-bar">
+    <span class="lbl">CAMPAIGN:</span>
+    <select id="sel-campaign"></select>
+    <button class="btn-camp" id="btn-rename-camp" title="Rename campaign">✎ Rename</button>
+    <button class="btn-camp" id="btn-new-camp" title="New campaign">+ New</button>
+    <button class="btn-camp" id="btn-del-camp" title="Delete campaign" style="color:var(--danger)">✕ Del</button>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" data-tab="chars"><span class="tab-icon">★</span>CHARACTERS</div>
+    <div class="tab" data-tab="vehicles"><span class="tab-icon">◆</span>VEHICLES</div>
+  </div>
+
+  <!-- Characters Panel -->
+  <div class="panel" id="panel-chars">
+    <div class="panel-hdr">
+      <span class="panel-title">MY CHARACTERS</span>
+      <button class="btn-new" id="btn-new-char">New Character</button>
+    </div>
+    <div class="filter-bar">
+      <input type="text" id="search-chars" placeholder="Search by name, species, or campaign...">
+      <span class="lbl">Sort:</span>
+      <select id="sort-chars">
+        <option value="name">Name</option>
+        <option value="newest">Newest</option>
+        <option value="cps">CPs ↓</option>
+      </select>
+    </div>
+    <div class="card-grid" id="grid-chars">
+      <!-- Populated by JS -->
+    </div>
+    <div class="slot-info">
+      <span><span class="slot-count" id="char-slot-count">2 of 5</span> character slots used</span>
+      <span class="slot-upgrade">Upgrade for more slots</span>
+    </div>
+    <div class="import-bar">
+      <span class="lbl">IMPORT:</span>
+      <button class="btn-import" id="btn-import-char-json">Import JSON</button>
+      <button class="btn-import" id="btn-import-char-fvtt">Import from Foundry VTT</button>
+    </div>
+  </div>
+
+  <!-- Vehicles Panel -->
+  <div class="panel" id="panel-vehicles" style="display:none">
+    <div class="panel-hdr">
+      <span class="panel-title">MY VEHICLES</span>
+      <button class="btn-new" id="btn-new-veh">New Vehicle</button>
+    </div>
+    <div class="filter-bar">
+      <input type="text" id="search-vehs" placeholder="Search by name or model...">
+      <span class="lbl">Sort:</span>
+      <select id="sort-vehs">
+        <option value="name">Name</option>
+        <option value="newest">Newest</option>
+        <option value="cps">CPs ↓</option>
+      </select>
+    </div>
+    <div class="card-grid" id="grid-vehicles">
+      <!-- Populated by JS -->
+    </div>
+    <div class="slot-info">
+      <span><span class="slot-count" id="veh-slot-count">1 of 3</span> vehicle slots used</span>
+      <span class="slot-upgrade">Upgrade for more slots</span>
+    </div>
+    <div class="import-bar">
+      <span class="lbl">IMPORT:</span>
+      <button class="btn-import" id="btn-import-veh-json">Import JSON</button>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- Footer -->
+<div class="ftr">
+  Mighty Protectors is a registered trademark of Monkey House Games.
+</div>
+
+<script src="gcc-data.js"></script>
+<script src="gcc-header.js"></script>
+<script src="gcc-firebase-config.js"></script>
+<script src="gcc-auth.js"></script>
+<script src="gcc-sync.js"></script>
+<script>
+// ── Storage keys ──
+const CHARS_KEY = GCC.KEYS.mpChars;
+const VEHS_KEY = GCC.KEYS.mpVehs;
+const AUTH_KEY = 'mp-auth';
+const CAMP_KEY = GCC.KEYS.campaigns;
+const CAMP_SEL_KEY = GCC.KEYS.mpCampSel;
+const CHAR_SLOTS = 5;
+const VEH_SLOTS = 3;
+
+// ── Storage helpers ──
+function loadList(key) {
+  try { return JSON.parse(localStorage.getItem(key)) || []; } catch(e) { return []; }
+}
+function saveList(key, list) {
+  try { localStorage.setItem(key, JSON.stringify(list)); } catch(e) {}
+}
+
+// Migrate: if old single-save keys exist, import them as slot 0
+function migrateOldData() {
+  const oldVeh = localStorage.getItem('mp-vehicle-autosave');
+  if (oldVeh && loadList(VEHS_KEY).length === 0) {
+    try { const d = JSON.parse(oldVeh); if (d && d.type === 'mp-vehicle') saveList(VEHS_KEY, [d]); } catch(e) {}
+  }
+  const oldChar = localStorage.getItem('mp-char-sheet');
+  if (oldChar && loadList(CHARS_KEY).length === 0) {
+    try { const d = JSON.parse(oldChar); if (d) saveList(CHARS_KEY, [d]); } catch(e) {}
+  }
+}
+migrateOldData();
+
+// ── Campaign management ──
+function loadCampaigns() {
+  try { return JSON.parse(localStorage.getItem(CAMP_KEY)) || []; } catch(e) { return []; }
+}
+function saveCampaigns(list) {
+  try { localStorage.setItem(CAMP_KEY, JSON.stringify(list)); } catch(e) {}
+}
+function getActiveCampaign() {
+  return localStorage.getItem(CAMP_SEL_KEY) || '';
+}
+function setActiveCampaign(id) {
+  localStorage.setItem(CAMP_SEL_KEY, id);
+}
+
+// Initialize campaigns
+(function() {
+  let camps = loadCampaigns();
+  if (camps.length === 0) {
+    camps = [{ id: 'default', name: 'Default Campaign' }];
+    saveCampaigns(camps);
+  }
+  if (!getActiveCampaign()) setActiveCampaign(camps[0].id);
+  populateCampaignSelect();
+})();
+
+function populateCampaignSelect() {
+  const sel = document.getElementById('sel-campaign');
+  const camps = loadCampaigns();
+  const active = getActiveCampaign();
+  sel.innerHTML = '';
+  camps.forEach(c => {
+    const o = document.createElement('option');
+    o.value = c.id;
+    o.textContent = c.name;
+    if (c.id === active) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
+document.getElementById('sel-campaign').addEventListener('change', (e) => {
+  setActiveCampaign(e.target.value);
+  renderAll();
+});
+
+document.getElementById('btn-new-camp').addEventListener('click', () => {
+  const name = prompt('Campaign name:');
+  if (!name || !name.trim()) return;
+  const camps = loadCampaigns();
+  const id = 'camp-' + Date.now();
+  camps.push({ id, name: name.trim() });
+  saveCampaigns(camps);
+  setActiveCampaign(id);
+  populateCampaignSelect();
+  renderAll();
+});
+
+document.getElementById('btn-rename-camp').addEventListener('click', () => {
+  const camps = loadCampaigns();
+  const active = getActiveCampaign();
+  const camp = camps.find(c => c.id === active);
+  if (!camp) return;
+  const name = prompt('Rename campaign:', camp.name);
+  if (!name || !name.trim()) return;
+  camp.name = name.trim();
+  saveCampaigns(camps);
+  populateCampaignSelect();
+});
+
+document.getElementById('btn-del-camp').addEventListener('click', () => {
+  const camps = loadCampaigns();
+  if (camps.length <= 1) { alert('Cannot delete the last campaign.'); return; }
+  const active = getActiveCampaign();
+  const camp = camps.find(c => c.id === active);
+  if (!camp) return;
+  if (!confirm(`Delete campaign "${camp.name}"? Characters and vehicles in it will remain but lose their campaign tag.`)) return;
+  const idx = camps.indexOf(camp);
+  camps.splice(idx, 1);
+  saveCampaigns(camps);
+  setActiveCampaign(camps[0].id);
+  populateCampaignSelect();
+  renderAll();
+});
+
+// ── Image helpers ──
+// Resize image to max 300px wide, return base64 data URL
+function resizeImage(file, maxW) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const ratio = Math.min(maxW / img.width, maxW / img.height, 1);
+        const w = Math.round(img.width * ratio);
+        const h = Math.round(img.height * ratio);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function triggerImageUpload(type, idx) {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*';
+  inp.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const dataUrl = await resizeImage(file, 150);
+    const listKey = type === 'char' ? CHARS_KEY : VEHS_KEY;
+    const list = loadList(listKey);
+    if (list[idx]) {
+      list[idx]._image = dataUrl;
+      saveList(listKey, list);
+      renderAll();
+    }
+  });
+  inp.click();
+}
+
+function deleteImage(type, idx) {
+  const listKey = type === 'char' ? CHARS_KEY : VEHS_KEY;
+  const list = loadList(listKey);
+  if (list[idx]) {
+    delete list[idx]._image;
+    saveList(listKey, list);
+    renderAll();
+  }
+}
+
+// ── Tab switching ──
+const tabs = document.querySelectorAll('.tab');
+const panels = { chars: document.getElementById('panel-chars'), vehicles: document.getElementById('panel-vehicles') };
+tabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    tabs.forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    Object.values(panels).forEach(p => p.style.display = 'none');
+    panels[tab.dataset.tab].style.display = '';
+  });
+});
+
+// ── Rendering ──
+function escH(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+const delXIcon = `<svg viewBox="0 0 10 10" width="10" height="10"><line x1="2" y1="2" x2="8" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="8" y1="2" x2="2" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+const thumbPlaceholder = `<svg class="card-thumb-placeholder" viewBox="0 0 24 24" width="24" height="24"><circle cx="12" cy="9" r="4" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4 22c0-4.4 3.6-8 8-8s8 3.6 8 8" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>`;
+const thumbPlaceholderVeh = `<svg class="card-thumb-placeholder" viewBox="0 0 24 24" width="24" height="24"><rect x="2" y="8" width="20" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="7" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="17" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`;
+
+function renderThumb(item, type, idx, placeholder) {
+  if (item._image) {
+    return `<div class="card-thumb" data-action="img-upload" data-type="${type}" data-idx="${idx}" title="Click to change image">
+      <img src="${item._image}" alt="">
+      <button class="card-thumb-del" data-action="img-del" data-type="${type}" data-idx="${idx}" title="Remove image">${delXIcon}</button>
+    </div>`;
+  }
+  return `<div class="card-thumb" data-action="img-upload" data-type="${type}" data-idx="${idx}" title="Click to add image">
+    ${placeholder}
+  </div>`;
+}
+
+function getCampaignName(item) {
+  const camps = loadCampaigns();
+  // Try item's assigned campaign first
+  if (item._campaign) {
+    const c = camps.find(x => x.id === item._campaign);
+    if (c) return c.name;
+  }
+  // Fall back to active campaign
+  const active = getActiveCampaign();
+  if (active) {
+    const c = camps.find(x => x.id === active);
+    if (c) return c.name;
+  }
+  return '';
+}
+
+function getSideClass(side) {
+  if (!side) return 'side-none';
+  const s = side.toLowerCase();
+  if (s === 'good') return 'side-good';
+  if (s === 'evil') return 'side-evil';
+  if (s === 'neutral') return 'side-neutral';
+  return 'side-none';
+}
+
+function getSideBadge(side) {
+  if (!side) return '';
+  return `<span class="card-side-badge">${escH(side.toUpperCase())}</span>`;
+}
+
+function renderCharCard(c, idx) {
+  const name = c.name || 'Unnamed';
+  const species = c.species || '';
+  const side = c.side || '';
+  const sideClass = getSideClass(side);
+  const origin = c.originType || '';
+  let totalCPs = 0;
+  if (c.stats) { for (const s of Object.values(c.stats)) totalCPs += parseFloat(s.cp) || 0; }
+  if (c.abilities) { for (const ab of c.abilities) totalCPs += parseFloat(ab.cp) || 0; }
+  const cpsStr = totalCPs ? totalCPs + ' CPs' : '';
+  let bcLine = '';
+  if (c.stats) {
+    const bcs = ['st','en','ag','in','cl'];
+    bcLine = bcs.map(k => {
+      const v = c.stats[k] ? (c.stats[k].cp || '0') : '0';
+      return k.toUpperCase() + '\u2009' + v;
+    }).join('  ');
+  }
+  const subParts = [cpsStr, species].filter(Boolean);
+  const campName = getCampaignName(c);
+  let derivedHtml = '';
+  const bits = [];
+  if (c.power) bits.push('<span>Power ' + escH(c.power) + '</span>');
+  if (c.hitPts) bits.push('<span>HP ' + escH(c.hitPts) + '</span>');
+  if (c.initiative) bits.push('<span>Init ' + escH(c.initiative) + '</span>');
+  if (bits.length) derivedHtml = bits.join('');
+  // Badges row
+  let badgesHtml = '';
+  const badges = [];
+  if (campName) badges.push(`<span class="card-campaign-badge">${escH(campName)}</span>`);
+  if (origin) badges.push(`<span class="card-origin-badge">${escH(origin)}</span>`);
+  if (badges.length) badgesHtml = `<div class="card-badges">${badges.join('')}</div>`;
+
+  return `<div class="card card-click ${sideClass}" data-type="char" data-idx="${idx}" data-cps="${totalCPs}" data-name="${escH(name).toLowerCase()}">
+    <div class="card-content" data-action="edit">
+      ${renderThumb(c, 'char', idx, thumbPlaceholder)}
+      <div class="card-info">
+        <div class="card-name-row">
+          <div class="card-name">${escH(name)}</div>
+          ${getSideBadge(side)}
+        </div>
+        <div class="card-sub">${escH(subParts.join(' · '))}</div>
+        ${bcLine ? `<div class="card-bcs">${escH(bcLine)}</div>` : ''}
+        ${derivedHtml ? `<div class="card-derived">${derivedHtml}</div>` : ''}
+        ${badgesHtml}
+      </div>
+    </div>
+    <div class="card-actions">
+      <button class="card-btn" data-action="edit">EDIT</button>
+      <button class="card-btn" data-action="copy">COPY</button>
+      <button class="card-btn" data-action="export">EXPORT</button>
+      <button class="card-btn card-btn-del" data-action="del">DELETE</button>
+    </div>
+  </div>`;
+}
+
+function renderVehCard(v, idx) {
+  const name = v.name || 'Unnamed';
+  const model = v.model || '';
+  let totalCost = (v.basicCost || 0) + (v.techMod || 0) + (v.maneuverMod || 0);
+  if (v.wontExplode) totalCost += 5;
+  if (v.isBase) totalCost -= 15;
+  if (v.systems) { for (const s of v.systems) totalCost += (s.extraCPs || 0); }
+  const cpsStr = totalCost ? totalCost + ' CPs' : '';
+  const spaces = v.spaces ? v.spaces + ' spc' : '';
+  const subParts = [cpsStr, spaces].filter(Boolean);
+  const campName = getCampaignName(v);
+  let derivedHtml = '';
+  const bits = [];
+  if (v.totalHits) bits.push('<span>Hits ' + escH(String(v.totalHits)) + '</span>');
+  if (v.totalPower) bits.push('<span>Power ' + escH(String(v.totalPower)) + '</span>');
+  if (bits.length) derivedHtml = bits.join('');
+  let badgesHtml = '';
+  const badges = [];
+  if (campName) badges.push(`<span class="card-campaign-badge">${escH(campName)}</span>`);
+  if (badges.length) badgesHtml = `<div class="card-badges">${badges.join('')}</div>`;
+
+  return `<div class="card card-click side-vehicle" data-type="veh" data-idx="${idx}" data-cps="${totalCost}" data-name="${escH(name).toLowerCase()}">
+    <div class="card-content" data-action="edit">
+      ${renderThumb(v, 'veh', idx, thumbPlaceholderVeh)}
+      <div class="card-info">
+        <div class="card-name-row">
+          <div class="card-name">${escH(name)}</div>
+        </div>
+        <div class="card-sub">${escH(subParts.join(' · '))}</div>
+        ${model ? `<div class="card-bcs">${escH(model)}</div>` : ''}
+        ${derivedHtml ? `<div class="card-derived">${derivedHtml}</div>` : ''}
+        ${badgesHtml}
+      </div>
+    </div>
+    <div class="card-actions">
+      <button class="card-btn" data-action="edit">EDIT</button>
+      <button class="card-btn" data-action="copy">COPY</button>
+      <button class="card-btn" data-action="export">EXPORT</button>
+      <button class="card-btn card-btn-del" data-action="del">DELETE</button>
+    </div>
+  </div>`;
+}
+
+function renderEmptySlot(n, total) {
+  return `<div class="card card-empty">
+    <div class="card-empty-icon">+</div>
+    <div class="card-empty-label">Empty Slot</div>
+    <div class="card-empty-num">${n} of ${total}</div>
+  </div>`;
+}
+
+function renderAll() {
+  const chars = loadList(CHARS_KEY);
+  const vehs = loadList(VEHS_KEY);
+
+  const charGrid = document.getElementById('grid-chars');
+  let html = chars.map((c, i) => renderCharCard(c, i)).join('');
+  for (let i = chars.length + 1; i <= CHAR_SLOTS; i++) html += renderEmptySlot(i, CHAR_SLOTS);
+  charGrid.innerHTML = html;
+  document.getElementById('char-slot-count').textContent = `${chars.length} of ${CHAR_SLOTS}`;
+
+  const vehGrid = document.getElementById('grid-vehicles');
+  html = vehs.map((v, i) => renderVehCard(v, i)).join('');
+  for (let i = vehs.length + 1; i <= VEH_SLOTS; i++) html += renderEmptySlot(i, VEH_SLOTS);
+  vehGrid.innerHTML = html;
+  document.getElementById('veh-slot-count').textContent = `${vehs.length} of ${VEH_SLOTS}`;
+
+  applyFilters();
+}
+
+// ── Search & Sort ──
+function applyFilters() {
+  // Characters
+  const charSearch = (document.getElementById('search-chars').value || '').toLowerCase();
+  const charSort = document.getElementById('sort-chars').value;
+  const charCards = [...document.querySelectorAll('#grid-chars .card[data-type]')];
+  charCards.forEach(c => { c.style.display = ''; });
+  if (charSearch) {
+    charCards.forEach(c => {
+      const text = c.textContent.toLowerCase();
+      c.style.display = text.includes(charSearch) ? '' : 'none';
+    });
+  }
+  // Sort by re-ordering DOM
+  const charGrid = document.getElementById('grid-chars');
+  const sortedChars = charCards.slice().sort((a, b) => {
+    if (charSort === 'name') return (a.dataset.name || '').localeCompare(b.dataset.name || '');
+    if (charSort === 'cps') return (parseFloat(b.dataset.cps) || 0) - (parseFloat(a.dataset.cps) || 0);
+    return 0; // newest = default order
+  });
+  sortedChars.forEach(c => charGrid.appendChild(c));
+  // Move empties to end
+  charGrid.querySelectorAll('.card-empty').forEach(e => charGrid.appendChild(e));
+
+  // Vehicles
+  const vehSearch = (document.getElementById('search-vehs').value || '').toLowerCase();
+  const vehSort = document.getElementById('sort-vehs').value;
+  const vehCards = [...document.querySelectorAll('#grid-vehicles .card[data-type]')];
+  vehCards.forEach(c => { c.style.display = ''; });
+  if (vehSearch) {
+    vehCards.forEach(c => {
+      const text = c.textContent.toLowerCase();
+      c.style.display = text.includes(vehSearch) ? '' : 'none';
+    });
+  }
+  const vehGrid = document.getElementById('grid-vehicles');
+  const sortedVehs = vehCards.slice().sort((a, b) => {
+    if (vehSort === 'name') return (a.dataset.name || '').localeCompare(b.dataset.name || '');
+    if (vehSort === 'cps') return (parseFloat(b.dataset.cps) || 0) - (parseFloat(a.dataset.cps) || 0);
+    return 0;
+  });
+  sortedVehs.forEach(c => vehGrid.appendChild(c));
+  vehGrid.querySelectorAll('.card-empty').forEach(e => vehGrid.appendChild(e));
+}
+
+document.getElementById('search-chars').addEventListener('input', applyFilters);
+document.getElementById('sort-chars').addEventListener('change', applyFilters);
+document.getElementById('search-vehs').addEventListener('input', applyFilters);
+document.getElementById('sort-vehs').addEventListener('change', applyFilters);
+
+renderAll();
+
+window.addEventListener('gcc-sync-ready', () => { renderAll(); });
+
+
+document.addEventListener('click', (e) => {
+  // Image actions
+  const imgBtn = e.target.closest('[data-action="img-upload"]');
+  if (imgBtn) {
+    e.stopPropagation();
+    triggerImageUpload(imgBtn.dataset.type, parseInt(imgBtn.dataset.idx));
+    return;
+  }
+  const imgDel = e.target.closest('[data-action="img-del"]');
+  if (imgDel) {
+    e.stopPropagation();
+    deleteImage(imgDel.dataset.type, parseInt(imgDel.dataset.idx));
+    return;
+  }
+
+  // Card button actions
+  const btn = e.target.closest('[data-action]');
+  if (btn) {
+    const card = btn.closest('.card');
+    if (!card || !card.dataset.type) return;
+    const type = card.dataset.type;
+    const idx = parseInt(card.dataset.idx);
+    const action = btn.dataset.action;
+    const listKey = type === 'char' ? CHARS_KEY : VEHS_KEY;
+
+    if (action === 'edit') {
+      if (type === 'char') {
+        const list = loadList(CHARS_KEY);
+        localStorage.setItem('mp-char-sheet', JSON.stringify(list[idx]));
+        localStorage.setItem('mp-char-edit-idx', idx);
+        window.location.href = 'character.html';
+      } else {
+        const list = loadList(VEHS_KEY);
+        localStorage.setItem('mp-vehicle-autosave', JSON.stringify(list[idx]));
+        localStorage.setItem('mp-veh-edit-idx', idx);
+        window.location.href = 'vehicle.html';
+      }
+      return;
+    }
+
+    if (action === 'copy') {
+      const list = loadList(listKey);
+      const maxSlots = type === 'char' ? CHAR_SLOTS : VEH_SLOTS;
+      if (list.length >= maxSlots) { alert('All slots are full.'); return; }
+      const clone = JSON.parse(JSON.stringify(list[idx]));
+      clone.name = (clone.name || 'Unnamed') + ' (Copy)';
+      list.push(clone);
+      saveList(listKey, list);
+      renderAll();
+      return;
+    }
+
+    if (action === 'export') {
+      const list = loadList(listKey);
+      const item = list[idx];
+      if (!item) return;
+      const name = (item.name || 'export').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const blob = new Blob([JSON.stringify(item, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name + '.json';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    if (action === 'del') {
+      const list = loadList(listKey);
+      const item = list[idx];
+      const label = item.name || 'this item';
+      if (!confirm(`Delete "${label}"? This cannot be undone.`)) return;
+      list.splice(idx, 1);
+      saveList(listKey, list);
+      renderAll();
+    }
+    return;
+  }
+
+  // Click on card body = open builder (same as edit)
+  const card = e.target.closest('.card-click');
+  if (!card || !card.dataset.type) return;
+  const type = card.dataset.type;
+  const idx = parseInt(card.dataset.idx);
+
+  if (type === 'char') {
+    const list = loadList(CHARS_KEY);
+    localStorage.setItem('mp-char-sheet', JSON.stringify(list[idx]));
+    localStorage.setItem('mp-char-edit-idx', idx);
+    window.location.href = 'character.html';
+  } else {
+    const list = loadList(VEHS_KEY);
+    localStorage.setItem('mp-vehicle-autosave', JSON.stringify(list[idx]));
+    localStorage.setItem('mp-veh-edit-idx', idx);
+    window.location.href = 'vehicle.html';
+  }
+});
+
+// ── New buttons ──
+document.getElementById('btn-new-char').addEventListener('click', () => {
+  const chars = loadList(CHARS_KEY);
+  if (chars.length >= CHAR_SLOTS) { alert(`All ${CHAR_SLOTS} character slots are full. Delete one to make room.`); return; }
+  localStorage.removeItem('mp-char-sheet');
+  localStorage.setItem('mp-char-edit-idx', '-1');
+  localStorage.setItem('mp-char-campaign', getActiveCampaign());
+  window.location.href = 'character.html';
+});
+document.getElementById('btn-new-veh').addEventListener('click', () => {
+  const vehs = loadList(VEHS_KEY);
+  if (vehs.length >= VEH_SLOTS) { alert(`All ${VEH_SLOTS} vehicle slots are full. Delete one to make room.`); return; }
+  localStorage.removeItem('mp-vehicle-autosave');
+  localStorage.setItem('mp-veh-edit-idx', '-1');
+  localStorage.setItem('mp-veh-campaign', getActiveCampaign());
+  window.location.href = 'vehicle.html';
+});
+
+// ── Import JSON buttons ──
+function setupImport(btnId, listKey, maxSlots, validator) {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = '.json'; inp.style.display = 'none';
+  document.body.appendChild(inp);
+  document.getElementById(btnId).addEventListener('click', () => {
+    const list = loadList(listKey);
+    if (list.length >= maxSlots) { alert('All slots are full.'); return; }
+    inp.click();
+  });
+  inp.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (validator && !validator(data)) { alert('Invalid file format.'); return; }
+        const list = loadList(listKey);
+        list.push(data);
+        saveList(listKey, list);
+        renderAll();
+        alert('Imported: ' + (data.name || file.name));
+      } catch(err) { alert('Import failed: ' + err.message); }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  });
+}
+setupImport('btn-import-char-json', CHARS_KEY, CHAR_SLOTS, null);
+setupImport('btn-import-veh-json', VEHS_KEY, VEH_SLOTS, (d) => d.type === 'mp-vehicle');
+
+// ── Auth (persistent via localStorage) ──
+function loadAuth() {
+  try { return JSON.parse(localStorage.getItem(AUTH_KEY)); } catch(e) { return null; }
+}
+function saveAuth(data) {
+  try {
+    if (data) localStorage.setItem(AUTH_KEY, JSON.stringify(data));
+    else localStorage.removeItem(AUTH_KEY);
+  } catch(e) {}
+}
+function setAuthUI(user) {
+  document.getElementById('auth-guest').style.display = user ? 'none' : 'flex';
+  document.getElementById('auth-user').style.display = user ? 'flex' : 'none';
+  if (user) document.getElementById('user-name').textContent = user.name || 'User';
+}
+const savedAuth = loadAuth();
+if (savedAuth) setAuthUI(savedAuth);
+
+document.getElementById('btn-login').addEventListener('click', () => {
+  const name = prompt('Enter username:');
+  if (!name) return;
+  const user = { name };
+  saveAuth(user);
+  setAuthUI(user);
+});
+document.getElementById('btn-register').addEventListener('click', () => {
+  const name = prompt('Choose a username:');
+  if (!name) return;
+  const user = { name };
+  saveAuth(user);
+  setAuthUI(user);
+});
+document.getElementById('btn-logout').addEventListener('click', () => {
+  saveAuth(null);
+  setAuthUI(null);
+});
+</script>
+
+</body>
+</html>

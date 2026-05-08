@@ -1,0 +1,62 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>GCC Subhex v0.4 Preview</title>
+<link rel="stylesheet" href="gcc-subhex.css">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  body { background: #2a2a28; padding: 32px; margin: 0; font-family: 'Cinzel', Georgia, serif; min-height: 100vh; color: #c8a96e; }
+  .caption { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.7; margin-bottom: 24px; }
+  .ctrl { background: #5a4a30; color: #f4e8c4; border: 1px solid #c8a96e; padding: 8px 16px; font-family: inherit; font-size: 12px; cursor: pointer; border-radius: 3px; margin-right: 8px; }
+  .ctrl:hover { background: #c8a96e; color: #1a1a1a; }
+  .info { font-size: 11px; opacity: 0.55; margin-top: 16px; }
+</style>
+</head>
+<body>
+<div class="caption">GCC subhex window v0.4 · live preview · 91-cell radius-5 hex-of-hexes</div>
+<button class="ctrl" id="open-h">Open: Hills parent (Cairn Hills)</button>
+<button class="ctrl" id="open-f">Open: Forest parent (Gnarley)</button>
+<button class="ctrl" id="open-m">Open: Mountains parent (Cairns)</button>
+<button class="ctrl" id="open-s">Open: Swamp parent (Hool Marsh)</button>
+<button class="ctrl" id="reset">Reset all overrides</button>
+<div class="info">Click a swatch in the palette to arm a terrain, then click or drag-paint cells. Click a cell with no swatch armed to select it. Brush mode: hold mouse and drag across cells.</div>
+
+<script>
+// Minimal stubs for what view.js expects
+window.TERRAIN = {
+  clear:            { rgb: '232,222,170', label: 'Clear' },
+  plains:           { rgb: '200,215,115', label: 'Plains' },
+  forest:           { rgb: '80,130,60',   label: 'Forest' },
+  hardwood:         { rgb: '125,170,85',  label: 'Hardwood' },
+  conifer:          { rgb: '90,130,80',   label: 'Conifer' },
+  jungle:           { rgb: '60,110,40',   label: 'Jungle' },
+  hills:            { rgb: '178,148,98',  label: 'Hills' },
+  forest_hills:     { rgb: '140,150,80',  label: 'Forest Hills' },
+  mountains:        { rgb: '135,115,95',  label: 'Mountains' },
+  desert:           { rgb: '230,200,140', label: 'Desert' },
+  barrens:          { rgb: '180,160,120', label: 'Barrens' },
+  swamp:            { rgb: '165,180,100', label: 'Swamp' },
+  water_fresh:      { rgb: '100,150,200', label: 'Fresh Water' },
+  water_inland_sea: { rgb: '80,130,180',  label: 'Inland Sea' },
+  water_coastal:    { rgb: '60,110,170',  label: 'Coastal' },
+  water_shallow:    { rgb: '90,140,190',  label: 'Shallow' },
+  water_deep:       { rgb: '40,90,150',   label: 'Deep' },
+};
+window.hexIdStr = (col, row) => `${col}-${row}`;
+window.getHexTerrain = (col, row) => window._previewTerrain || 'hills';
+</script>
+<script src="gcc-rng.js"></script>
+<script src="gcc-subhex-data.js"></script>
+<script src="gcc-subhex-icons.js"></script>
+<script src="gcc-subhex-paths.js"></script>
+<script src="gcc-subhex-view.js"></script>
+<script>
+document.getElementById('open-h').addEventListener('click', () => { window._previewTerrain = 'hills'; window.GCCSubhexView.open(86, 76); });
+document.getElementById('open-f').addEventListener('click', () => { window._previewTerrain = 'forest'; window.GCCSubhexView.open(75, 70); });
+document.getElementById('open-m').addEventListener('click', () => { window._previewTerrain = 'mountains'; window.GCCSubhexView.open(95, 60); });
+document.getElementById('open-s').addEventListener('click', () => { window._previewTerrain = 'swamp'; window.GCCSubhexView.open(70, 80); });
+document.getElementById('reset').addEventListener('click', () => {
+  localStorage.removeItem('gcc-subhex-overrides');
+  localStorage.removeItem('gcc-subhex-migrated-v4');
+  location.reload();
+});
+</script>
+</body></html>

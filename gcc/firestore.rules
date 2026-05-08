@@ -1,0 +1,74 @@
+// Firestore Security Rules for GCC v3
+// Go to Firebase Console → Firestore → Rules tab
+// Replace existing rules with everything below this comment header
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // User's private synced data
+    match /users/{userId}/data/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // User's private entity lists — owner has full access,
+    // other authenticated users can read individual items (for campaign character sharing)
+    match /users/{userId}/lists/{listKey} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      match /items/{itemId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // Invites: any authenticated user can read (to join), only owner can create
+    match /invites/{code} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null
+        && resource.data.ownerUid == request.auth.uid;
+    }
+
+    // Shared campaigns: owner can do anything, players can read
+    match /campaigns/{campaignId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null
+        && (resource.data.ownerUid == request.auth.uid
+            || !('ownerUid' in resource.data));
+
+      // Player roster: owner can manage all, players can add/read themselves
+      match /players/{playerId} {
+        allow read: if request.auth != null;
+        allow create, update: if request.auth != null
+          && (request.auth.uid == playerId
+              || get(/databases/$(database)/documents/campaigns/$(campaignId)).data.ownerUid == request.auth.uid);
+        allow delete: if request.auth != null
+          && get(/databases/$(database)/documents/campaigns/$(campaignId)).data.ownerUid == request.auth.uid;
+      }
+
+      // Dice rolls: any authenticated user can read and create, anyone can delete (clear log)
+      match /rolls/{rollId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null
+          && request.resource.data.uid == request.auth.uid;
+        allow delete: if request.auth != null;
+      }
+    }
+
+    // Subhexes: world-data layer for 6mi cells inscribed within parent
+    // hexes. Doc id "{parentDarleneId}__{q}_{r}" — see gcc-subhex-data.js.
+    // Phase A: read-auth, write-deny (admin-script seed only). Phase B
+    // opens write to the doc owner with content size guards.
+    match /subHexes/{docId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // Deny everything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

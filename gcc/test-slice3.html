@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Slice 3 — gcc-paths.js v0.9.0 facade test runner</title>
+<style>
+  :root {
+    --bg: #1e1e1e;
+    --fg: #e8e6e3;
+    --muted: #888;
+    --pass: #5b7a3a;
+    --fail: #b03030;
+    --warn: #c0a070;
+    --accent: #8b0000;
+    --panel: #2a2a2a;
+    --border: #444;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    font: 13px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    background: var(--bg);
+    color: var(--fg);
+  }
+  h1 { margin: 0 0 4px 0; font-size: 18px; font-weight: 600; }
+  h1 .ver { color: var(--muted); font-weight: 400; }
+  .sub { color: var(--muted); margin-bottom: 16px; font-size: 12px; }
+  .toolbar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  button {
+    background: var(--panel); color: var(--fg); border: 1px solid var(--border);
+    padding: 6px 12px; cursor: pointer; font: inherit;
+  }
+  button.primary { border-color: var(--accent); background: #3a1a1a; }
+  button:hover { background: #3a3a3a; }
+  button.primary:hover { background: #4a2020; }
+  .summary {
+    display: flex; gap: 16px; align-items: baseline;
+    margin-bottom: 12px; padding: 8px 12px;
+    background: var(--panel); border-left: 3px solid var(--border);
+  }
+  .summary.all-pass { border-left-color: var(--pass); }
+  .summary.has-fail { border-left-color: var(--fail); }
+  .summary .count { font-size: 16px; font-weight: 600; }
+  .summary .pass-n { color: var(--pass); }
+  .summary .fail-n { color: var(--fail); }
+  .summary .pending { color: var(--muted); font-style: italic; }
+  .group { margin-bottom: 12px; border: 1px solid var(--border); background: var(--panel); }
+  .group-header {
+    padding: 6px 10px; background: #333; font-weight: 600;
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between;
+  }
+  .group-header .stat { color: var(--muted); font-weight: 400; }
+  .group-header .stat.has-fail { color: var(--fail); }
+  .test {
+    padding: 4px 10px; border-bottom: 1px solid #333;
+    display: flex; gap: 8px; align-items: flex-start;
+  }
+  .test:last-child { border-bottom: none; }
+  .test .mark { width: 14px; flex-shrink: 0; font-weight: 600; }
+  .test.pass .mark { color: var(--pass); }
+  .test.fail .mark { color: var(--fail); }
+  .test .name { flex: 1; }
+  .test .extra { color: var(--warn); font-size: 11px; margin-top: 2px; }
+  .console {
+    margin-top: 16px; padding: 10px; background: #111;
+    border: 1px solid var(--border); color: #ccc; font-size: 11px;
+    max-height: 200px; overflow: auto; white-space: pre-wrap;
+  }
+  .console:empty { display: none; }
+  .notice {
+    padding: 8px 12px; background: #2a2418;
+    border-left: 3px solid var(--warn); margin-bottom: 12px;
+    font-size: 12px; color: #d0c8a8;
+  }
+  .notice strong { color: var(--warn); }
+</style>
+</head>
+<body>
+
+<h1>Slice 3 test runner <span class="ver">— gcc-paths.js v0.9.0 (per-parent fallback gate)</span></h1>
+<div class="sub">
+  Loads gcc-rng + gcc-paths (v0.9.0) + gcc-subhex-data (v2.4.0) + gcc-subhex-paths (v2.0.0)
+  in script-tag order, then exercises the per-parent gate behavior:
+  CRUD throws on authored parents, edgeRiverInfo / edgeRiverCost /
+  edgeRoadBonus / edgeCrossingInfo route to subhex when canonical and to
+  parent layer otherwise. Sandboxed localStorage.
+</div>
+
+<div class="notice">
+  <strong>Sandboxed.</strong> Refresh the page to wipe.
+</div>
+
+<div id="install-error" class="notice" style="display:none; background:#3a1818; border-left-color:#b03030; color:#f0c0c0;"></div>
+
+<div class="toolbar">
+  <button class="primary" id="run-btn">▶ Run all tests</button>
+  <button id="clear-btn">Clear results</button>
+  <button id="dump-btn">Dump sandbox storage</button>
+</div>
+
+<div id="summary" class="summary">
+  <span class="count pending">No tests run yet.</span>
+</div>
+
+<div id="results"></div>
+
+<div class="console" id="console"></div>
+
+<!-- Sandbox -->
+<script>
+(function(){
+  const memory = new Map();
+  const sandbox = {
+    getItem: k => memory.has(k) ? memory.get(k) : null,
+    setItem: (k, v) => { memory.set(k, String(v)); },
+    removeItem: k => { memory.delete(k); },
+    clear: () => memory.clear(),
+    key: i => Array.from(memory.keys())[i] || null,
+    get length(){ return memory.size; },
+    __dump: () => Object.fromEntries(memory),
+  };
+  let installed = false; let installError = null;
+  try {
+    Object.defineProperty(window, 'localStorage', {
+      value: sandbox, writable: false, configurable: true,
+    });
+    installed = true;
+  } catch(e1){
+    installError = e1;
+    try {
+      const real = window.localStorage;
+      real.getItem = sandbox.getItem; real.setItem = sandbox.setItem;
+      real.removeItem = sandbox.removeItem; real.clear = sandbox.clear;
+      real.key = sandbox.key;
+      installed = true;
+    } catch(e2){ installError = e2; }
+  }
+  // TERRAIN stub for edgeRoadBonus.
+  if (typeof window.TERRAIN === 'undefined'){
+    window.TERRAIN = {
+      plains: { difficulty: 'normal' },
+      forest: { difficulty: 'medium' },
+      mountains: { difficulty: 'hard' },
+    };
+  }
+  window.__sandboxStorage = sandbox;
+  window.__sandboxInstalled = installed;
+  window.__sandboxError = installError ? String(installError) : null;
+})();
+</script>
+
+<!-- Modules in script-tag load order (matches greyhawk-map.html). -->
+<script src="gcc-rng.js"></script>
+<script src="gcc-paths.js"></script>
+<script src="gcc-subhex-data.js"></script>
+<script src="gcc-subhex-paths.js"></script>
+
+<script>
+(function(){
+  'use strict';
+
+  const G  = window.GCCPaths;
+  const SP = window.GCCSubhexPaths;
+  const SD = window.GCCSubhexData;
+  const resultsEl  = document.getElementById('results');
+  const summaryEl  = document.getElementById('summary');
+  const consoleEl  = document.getElementById('console');
+  const runBtn     = document.getElementById('run-btn');
+  const clearBtn   = document.getElementById('clear-btn');
+  const dumpBtn    = document.getElementById('dump-btn');
+
+  let groups = [];
+  let currentGroup = null;
+  let consoleLines = [];
+
+  function group(name){
+    currentGroup = { name, tests: [] };
+    groups.push(currentGroup);
+    log(`── ${name} ──`);
+  }
+  function assert(name, cond, extra){
+    const test = { name, pass: !!cond, extra: cond ? null : (extra || null) };
+    currentGroup.tests.push(test);
+    log(`  ${cond ? '✓' : '✗'} ${name}${test.extra ? ': ' + test.extra : ''}`);
+  }
+  function log(line){ consoleLines.push(line); }
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;',
+    }[c]));
+  }
+
+  function render(){
+    const allTests = groups.flatMap(g => g.tests);
+    const pass = allTests.filter(t => t.pass).length;
+    const fail = allTests.length - pass;
+    summaryEl.classList.toggle('all-pass', fail === 0 && pass > 0);
+    summaryEl.classList.toggle('has-fail', fail > 0);
+    summaryEl.innerHTML = pass === 0 && fail === 0
+      ? `<span class="count pending">No tests run yet.</span>`
+      : `<span class="count pass-n">${pass} pass</span>
+         <span class="count fail-n">${fail} fail</span>
+         <span class="count">${groups.length} groups, ${allTests.length} tests</span>`;
+    resultsEl.innerHTML = groups.map(g => {
+      const gFail = g.tests.filter(t => !t.pass).length;
+      const tests = g.tests.map(t => `
+        <div class="test ${t.pass ? 'pass' : 'fail'}">
+          <span class="mark">${t.pass ? '✓' : '✗'}</span>
+          <span class="name">${escapeHtml(t.name)}${
+            t.extra ? `<div class="extra">${escapeHtml(t.extra)}</div>` : ''
+          }</span>
+        </div>
+      `).join('');
+      return `
+        <div class="group">
+          <div class="group-header">
+            <span>${escapeHtml(g.name)}</span>
+            <span class="stat ${gFail ? 'has-fail' : ''}">${
+              gFail ? `${gFail} fail / ` : ''
+            }${g.tests.length} tests</span>
+          </div>
+          ${tests}
+        </div>
+      `;
+    }).join('');
+    consoleEl.textContent = consoleLines.join('\n');
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+  }
+
+  function resetState(){
+    if (SP){
+      try { SP.listPaths().forEach(p => SP.deletePath(p.id)); } catch(e){}
+      try { SP.importPaths({}); } catch(e){}
+    }
+    if (SD){
+      try { SD.listLakes().forEach(l => SD.deleteLake(l.id)); } catch(e){}
+      try { SD.allAuthored().forEach(c => SD.clearSubhex(c.Q, c.R)); } catch(e){}
+    }
+    if (G){
+      try { G.clearOverrides(); } catch(e){}
+    }
+    window.__sandboxStorage.clear();
+    if (G && typeof G.rebuild === 'function'){
+      try { G.rebuild(); } catch(e){}
+    }
+    groups = [];
+    consoleLines = [];
+  }
+
+  function runAll(){
+    resetState();
+
+    if (!G || !SP || !SD){
+      group('FATAL: required modules not loaded');
+      assert('GCCPaths',        !!G);
+      assert('GCCSubhexPaths',  !!SP);
+      assert('GCCSubhexData',   !!SD);
+      render();
+      return;
+    }
+
+    // 1. Module surface.
+    group('1. Module surface');
+    assert('GCCPaths exposed',                 !!G);
+    assert('TIER_COST exposed',                !!G.TIER_COST);
+    assert('TIER_COST.river.encumbered = 0.5', G.TIER_COST.river.encumbered === 0.5);
+    assert('TIER_COST.great_river.light = 0.5', G.TIER_COST.great_river.light === 0.5);
+    assert('TIER_COST.stream.encumbered = 0',  G.TIER_COST.stream.encumbered === 0);
+    assert('parentHasSubhexAuthoring exported',
+      typeof G.parentHasSubhexAuthoring === 'function');
+
+    // 2. Empty state: gate false.
+    group('2. Gate false on empty state');
+    assert('parentHasSubhexAuthoring(70,50)=false',
+      G.parentHasSubhexAuthoring(70, 50) === false);
+
+    // 3. Gate flips true on subhex path.
+    group('3. Gate flips true on subhex path');
+    SP.createPath('river', 'TestRiver');
+    SP.appendCell('testriver', 0, 0);
+    const owner = SD.ownerOf(0, 0);
+    assert('owner of (0,0) resolves',         !!owner);
+    assert('parentHasSubhexAuthoring true at owner',
+      G.parentHasSubhexAuthoring(owner.col, owner.row) === true);
+    assert('neighbor parent unaffected',
+      G.parentHasSubhexAuthoring(owner.col + 5, owner.row + 5) === false);
+    SP.deletePath('testriver');
+
+    // 4. Gate flips true on lake.
+    group('4. Gate flips true on lake');
+    SD.createLake('Test Lake', 'lake', 'shallow');
+    SD.setSubhexOverride(0, 0, { terrain: 'water_fresh' });
+    SD.setCellLake(0, 0, 'test-lake', 'plains');
+    const owner2 = SD.ownerOf(0, 0);
+    assert('parentHasSubhexAuthoring true after lake',
+      G.parentHasSubhexAuthoring(owner2.col, owner2.row) === true);
+    SD.deleteLake('test-lake');
+    SD.setSubhexOverride(0, 0, { terrain: null });
+
+    // 5. CRUD throws on authored parents.
+    group('5. saveRiver throws on authored parent');
+    SP.createPath('river', 'AuthorTest');
+    SP.appendCell('authortest', 0, 0);
+    let threw = false, msg = '';
+    try {
+      G.saveRiver('Test', 'river', 1, [{col:70,row:50},{col:70,row:51}]);
+    } catch(e){ threw = true; msg = e.message; }
+    assert('saveRiver throws when chain includes authored parent', threw);
+    assert('error mentions subhex-authored', threw && /subhex-authored/.test(msg), msg);
+    let ok = false;
+    try {
+      G.saveRiver('Far', 'river', 1, [{col:1,row:1},{col:1,row:2}]);
+      ok = true;
+    } catch(e){ ok = false; }
+    assert('saveRiver succeeds on unauthored parents', ok);
+    SP.deletePath('authortest');
+    G.deleteRiver('Far');
+
+    // 6. saveCrossing/deleteCrossing throw.
+    group('6. saveCrossing / deleteCrossing throw on authored');
+    SP.createPath('road', 'BlockTest');
+    SP.appendCell('blocktest', 0, 0);
+    let t1 = false, t2 = false;
+    try { G.saveCrossing(70, 50, 70, 51, 'bridge', 'X', ''); }
+    catch(e){ t1 = true; }
+    try { G.deleteCrossing(70, 50, 70, 51); }
+    catch(e){ t2 = true; }
+    assert('saveCrossing throws on authored', t1);
+    assert('deleteCrossing throws on authored', t2);
+    let ok2 = false;
+    try { G.saveCrossing(1, 1, 1, 2, 'bridge', 'Far', ''); ok2 = true; }
+    catch(e){ ok2 = false; }
+    assert('saveCrossing succeeds on unauthored', ok2);
+    SP.deletePath('blocktest');
+    try { G.deleteCrossing(1, 1, 1, 2); } catch(e){}
+
+    // 7. edgeRiverInfo subhex-canonical.
+    group('7. edgeRiverInfo subhex-canonical');
+    SP.createPath('river', 'BoundaryRiver');
+    SP.setPathTier('boundaryriver', 'great_river');
+    for (let q = 4; q <= 7; q++) SP.appendCell('boundaryriver', q, 0);
+    const owners = new Map();
+    for (let q = 4; q <= 7; q++){
+      const o = SD.ownerOf(q, 0);
+      if (o) owners.set(`${o.col}-${o.row}`, o);
+    }
+    assert('river spans ≥2 parents', owners.size >= 2);
+    if (owners.size >= 2){
+      const [a, b] = Array.from(owners.values()).slice(0, 2);
+      const info = G.edgeRiverInfo(a.col, a.row, b.col, b.row);
+      assert('edgeRiverInfo finds river', !!info.river);
+      assert('source = subhex',           info.river && info.river.source === 'subhex');
+      assert('tier = great_river',        info.river && info.river.tier === 'great_river');
+      assert('legacy type = great_river', info.river && info.river.type === 'great_river');
+      assert('current = 3',               info.river && info.river.current === 3);
+    }
+    SP.deletePath('boundaryriver');
+
+    // 8. edgeRiverCost via TIER_COST.
+    group('8. edgeRiverCost uses TIER_COST');
+    SP.createPath('river', 'Streamy');
+    SP.setPathTier('streamy', 'stream');
+    for (let q = 4; q <= 6; q++) SP.appendCell('streamy', q, 10);
+    const o1 = new Map();
+    for (let q = 4; q <= 6; q++){
+      const o = SD.ownerOf(q, 10); if (o) o1.set(`${o.col}-${o.row}`, o);
+    }
+    if (o1.size >= 2){
+      const [a, b] = Array.from(o1.values()).slice(0, 2);
+      assert('stream encumbered = 0',
+        G.edgeRiverCost(a.col,a.row,b.col,b.row,'foot','encumbered') === 0);
+      assert('stream light = 0',
+        G.edgeRiverCost(a.col,a.row,b.col,b.row,'foot','light') === 0);
+    }
+    SP.createPath('river', 'Greaty');
+    SP.setPathTier('greaty', 'great_river');
+    for (let q = 4; q <= 6; q++) SP.appendCell('greaty', q, 20);
+    const o2 = new Map();
+    for (let q = 4; q <= 6; q++){
+      const o = SD.ownerOf(q, 20); if (o) o2.set(`${o.col}-${o.row}`, o);
+    }
+    if (o2.size >= 2){
+      const [a, b] = Array.from(o2.values()).slice(0, 2);
+      assert('great_river light = 0.5',
+        G.edgeRiverCost(a.col,a.row,b.col,b.row,'foot','light') === 0.5);
+      assert('great_river encumbered = 1.0',
+        G.edgeRiverCost(a.col,a.row,b.col,b.row,'foot','encumbered') === 1.0);
+      assert('flying = 0',
+        G.edgeRiverCost(a.col,a.row,b.col,b.row,'flying','encumbered') === 0);
+      assert('ship = 0',
+        G.edgeRiverCost(a.col,a.row,b.col,b.row,'ship','encumbered') === 0);
+    }
+    SP.deletePath('streamy');
+    SP.deletePath('greaty');
+
+    // 9. Parent-canonical fallback.
+    group('9. Parent-canonical fallback');
+    assert('base rivers exist',          G.allRiverNames().length > 0);
+    assert('arbitrary parent unauthored', G.parentHasSubhexAuthoring(50, 50) === false);
+
+    // 10. edgeCrossingInfo gating.
+    group('10. edgeCrossingInfo gating');
+    G.saveCrossing(2, 2, 2, 3, 'bridge', 'Old Bridge', 'stone');
+    const before = G.edgeCrossingInfo(2, 2, 2, 3);
+    assert('parent crossing visible when unauthored',
+      before && before.source === 'parent' && before.name === 'Old Bridge');
+    const center = SD.parentCenterAxial(2, 2);
+    SP.createPath('road', 'GateTrigger');
+    SP.appendCell('gatetrigger', center.Q, center.R);
+    assert('parent (2,2) is now subhex-authored',
+      G.parentHasSubhexAuthoring(2, 2) === true);
+    const after = G.edgeCrossingInfo(2, 2, 2, 3);
+    assert('parent crossing hidden once subhex-authored',
+      after === null,
+      after ? `still got: ${after.source}/${after.name}` : '');
+    SP.deletePath('gatetrigger');
+    try { G.deleteCrossing(2, 2, 2, 3); } catch(e){}
+
+    // 11. CRUD restored after authoring removed.
+    group('11. CRUD restores after authoring removed');
+    SP.createPath('river', 'Tempo');
+    SP.appendCell('tempo', 0, 0);
+    let blocked = false;
+    try { G.saveRiver('X', 'river', 1, [{col:70,row:50},{col:70,row:51}]); }
+    catch(e){ blocked = true; }
+    assert('save blocked when authored', blocked);
+    SP.deletePath('tempo');
+    assert('parent unauthored after delete',
+      G.parentHasSubhexAuthoring(70, 50) === false);
+    let okAfter = false;
+    try {
+      G.saveRiver('X', 'river', 1, [{col:70,row:50},{col:70,row:51}]);
+      okAfter = true;
+    } catch(e){ okAfter = false; }
+    assert('save unblocked after authoring removed', okAfter);
+    G.deleteRiver('X');
+
+    // 12. edgeBlocks legacy (always false land).
+    group('12. edgeBlocks compat');
+    assert('foot mode never blocks',  G.edgeBlocks(1,1,1,2,'foot') === false);
+    assert('flying never blocks',     G.edgeBlocks(1,1,1,2,'flying') === false);
+    assert('ship never blocks',       G.edgeBlocks(1,1,1,2,'ship') === false);
+
+    // 13. edgeRoadBonus per-parent gate.
+    group('13. edgeRoadBonus per-parent gate');
+    SP.createPath('road', 'TestRoad');
+    for (let q = 4; q <= 7; q++) SP.appendCell('testroad', q, 30);
+    const oR = new Map();
+    for (let q = 4; q <= 7; q++){
+      const o = SD.ownerOf(q, 30); if (o) oR.set(`${o.col}-${o.row}`, o);
+    }
+    if (oR.size >= 2){
+      const [a, b] = Array.from(oR.values()).slice(0, 2);
+      assert('road bonus = 1.5 on plains',
+        G.edgeRoadBonus(a.col, a.row, b.col, b.row, 'plains') === 1.5);
+      assert('road bonus = 1.2 on hard terrain',
+        G.edgeRoadBonus(a.col, a.row, b.col, b.row, 'mountains') === 1.2);
+    }
+    assert('no road → 1.0', G.edgeRoadBonus(99, 99, 99, 100, 'plains') === 1.0);
+    SP.deletePath('testroad');
+
+    render();
+  }
+
+  // Surface install / load errors.
+  if (window.__sandboxError){
+    const banner = document.getElementById('install-error');
+    banner.style.display = 'block';
+    banner.innerHTML = `<strong>Sandbox install failed:</strong> ${
+      escapeHtml(String(window.__sandboxError))
+    }`;
+  }
+  if (!G || !SP || !SD){
+    const banner = document.getElementById('install-error');
+    banner.style.display = 'block';
+    banner.innerHTML = `<strong>Module load failed.</strong> Check DevTools console.`;
+  }
+
+  runBtn.addEventListener('click', () => {
+    runBtn.disabled = true;
+    try { runAll(); }
+    catch(e){
+      group('FATAL: harness crashed');
+      assert(e.message, false, e.stack);
+      render();
+    }
+    finally { runBtn.disabled = false; }
+  });
+  clearBtn.addEventListener('click', () => {
+    groups = []; consoleLines = []; render();
+  });
+  dumpBtn.addEventListener('click', () => {
+    const dump = window.__sandboxStorage.__dump();
+    consoleLines.push('── Sandbox storage ──');
+    for (const [k, v] of Object.entries(dump)){
+      try { consoleLines.push(`${k}: ${JSON.stringify(JSON.parse(v), null, 2)}`); }
+      catch(e){ consoleLines.push(`${k}: ${v}`); }
+    }
+    render();
+  });
+
+  render();
+})();
+</script>
+
+</body>
+</html>

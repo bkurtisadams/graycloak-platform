@@ -1,0 +1,2575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AD&D 1st Edition — Character Record</title>
+<link href="https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&family=Oswald:wght@400;600;700&family=Bitter:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="gcc-header.css">
+<link rel="stylesheet" href="gcc-auth.css">
+<link rel="stylesheet" href="gcc-dialog.css">
+<style>
+:root {
+  --paper:#f0dca0;--paper-lt:#f8ecc0;--paper-dk:#e0c880;
+  --ink:#000;--ink-md:#333;--ink-lt:#666;
+  --accent:#8b0000;
+  --fh:'Oswald',sans-serif;
+  --fb:'Bitter',serif;
+  --fd:'UnifrakturCook',cursive;
+  --bg:#d6eaf8;--bg2:#c4dff0;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield}
+html{min-height:100%;background:var(--bg)}
+body{min-height:100vh;background:var(--bg);color:var(--ink);font-family:var(--fb);font-size:11px;display:flex;flex-direction:column}
+.adnd-hdr{background:var(--gcc-mp-bg,#1a2a3a);border-bottom:3px solid #d4a843;padding:0 12px;flex-shrink:0}
+.adnd-hdr-in{max-width:740px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;min-height:40px;gap:8px;flex-wrap:wrap;padding:4px 0}
+.adnd-logo-title{font-family:var(--fh);font-size:18px;color:#fff;letter-spacing:2px}
+.adnd-logo-sub{font-family:var(--fb);font-size:9px;color:#e8cc7a;letter-spacing:1px}
+.adnd-hdr-btns{display:flex;gap:3px;align-items:center;flex-wrap:wrap}
+.hdr-btn{padding:3px 7px;font-size:9px;background:#2a3a4a;border:1px solid #4a6a7a;color:#ccc;border-radius:2px;cursor:pointer;font-family:var(--fb);font-weight:700}
+.hdr-btn:hover{border-color:#d4a843;background:#3a4a5a}
+.adnd-ftr{font-size:8px;color:#3a5a70;text-align:center;padding:6px;background:var(--bg2);border-top:1px solid #8ab4d0}
+.sheet-wrap{flex:1;overflow-y:auto;overflow-x:auto;padding:10px}
+.sheet{width:100%;max-width:740px;min-width:360px;margin:0 auto;background:var(--paper);border:2px solid var(--ink);padding:10px 14px 8px;position:relative;overflow:hidden}
+.fi{border:none;border-bottom:1px solid var(--ink);background:transparent;font-family:var(--fb);font-size:11px;color:var(--ink);padding:0 2px;height:18px;outline:none;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.fi:focus{border-bottom-color:var(--accent)}
+.lb{font-family:var(--fh);font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap}
+.lb-sm{font-family:var(--fh);font-weight:700;font-size:8px;text-transform:uppercase;letter-spacing:.2px;white-space:nowrap}
+.sec{font-family:var(--fh);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;border-bottom:1.5px solid var(--ink);margin:6px 0 3px;padding-bottom:1px}
+.bx{border:1px solid var(--ink);background:transparent;font-family:var(--fb);font-size:11px;font-weight:700;text-align:center;outline:none;height:18px;width:28px;padding:0}
+.bx:focus{border-color:var(--accent)}
+.bx-lg{height:22px;width:34px;font-size:13px;border-width:2px}
+.row{display:flex;align-items:baseline;gap:4px;margin-bottom:3px;min-width:0}
+.pair{display:flex;gap:12px;margin-bottom:3px;min-width:0}
+.pair .row{flex:1;margin-bottom:0;min-width:0}
+.add-btn{font-family:var(--fb);font-size:9px;cursor:pointer;border:1px solid #999;background:var(--paper-dk);color:var(--ink-md);padding:1px 6px;height:18px;font-weight:700}
+.add-btn:hover{border-color:var(--accent);color:var(--accent)}
+.add-sm{border:none;background:none;color:var(--accent);font-weight:700;font-size:12px;cursor:pointer;line-height:1}
+.del-btn{border:none;background:none;color:var(--accent);font-size:9px;cursor:pointer;padding:0 2px}
+.top-ban{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--ink);padding-bottom:4px;margin-bottom:6px}
+.top-ban .left,.top-ban .right{width:190px}
+.top-ban .center{text-align:center;flex:1}
+.top-ban .right{text-align:right}
+.bio-grid{display:grid;grid-template-columns:1fr 1fr 1fr 150px;gap:2px 8px;margin-bottom:6px;align-items:start;overflow:hidden}
+.bio-grid .portrait-area{grid-column:4;grid-row:1/7;display:flex;flex-direction:column;align-items:center}
+.bio-field{display:flex;align-items:baseline;gap:3px;min-width:0;overflow:hidden}
+.bio-field .lb{flex-shrink:0}
+.bio-field .fi{flex:1;min-width:0}
+.bio-span2{grid-column:span 2}
+.bio-span3{grid-column:span 3}
+.sketch-box{width:140px;height:160px;border:2px solid var(--ink);background:var(--paper-lt);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;overflow:hidden}
+.sketch-box img{width:100%;height:100%;object-fit:contain}
+.sketch-box:hover .name-box-del{opacity:1}
+.name-box-del{position:absolute;top:2px;right:2px;width:14px;height:14px;border:none;cursor:pointer;background:rgba(0,0,0,.4);color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .12s}
+.prof-inline{margin:2px 0}
+.prof-row{display:inline-flex;align-items:center;gap:1px;margin-right:6px;margin-bottom:2px}
+.prof-row input{width:100px}
+.pg-tabs{display:flex;gap:0;margin-bottom:0}
+.pg-tab{font-family:var(--fh);font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:4px 12px;cursor:pointer;border:1px solid var(--ink);border-bottom:none;background:var(--paper-dk);color:var(--ink-md);margin-right:-1px}
+.pg-tab.active{background:var(--paper);color:var(--ink);border-bottom:1px solid var(--paper);position:relative;z-index:1}
+.pg-tab:hover:not(.active){background:var(--paper-lt)}
+.pg-page{display:none;border-top:1px solid var(--ink);padding-top:6px}.pg-page.active{display:block}
+.p1-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 14px}
+.p1-grid>div{min-width:0}
+.p1-grid .full{grid-column:1/-1;min-width:0}
+.ab-head{font-size:14px;font-family:var(--fh);font-weight:700;letter-spacing:1px;margin-bottom:2px}
+.ab-row{display:flex;align-items:stretch;gap:0;margin-bottom:0}
+.ab-score-box{width:26px;height:26px;border:1.5px solid var(--ink);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ab-score-box input{width:100%;height:100%;border:none;background:transparent;text-align:center;font-family:var(--fb);font-size:12px;font-weight:700;outline:none}
+.ab-letter{font-family:var(--fh);font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center;width:30px;flex-shrink:0}
+.ab-fields-strip{display:flex;border:1px solid var(--ink);flex:1;min-width:0}
+.ab-cell{display:flex;flex-direction:column;border-right:1px solid var(--ink);min-width:0;flex:1}
+.ab-cell:last-child{border-right:none}
+.ab-cell-label{font-family:var(--fh);font-size:7px;font-weight:700;text-transform:uppercase;padding:1px 2px;line-height:1.1;min-height:16px;display:flex;align-items:center}
+.ab-cell-val{flex:1;display:flex;align-items:center;justify-content:center}
+.ab-cell-val input{width:100%;height:100%;min-height:14px;border:none;background:transparent;text-align:center;font-family:var(--fb);font-size:10px;font-weight:700;outline:none}
+.ab-cell-val input:focus{background:var(--paper-lt)}
+.ab-name{font-family:var(--fh);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin:0 0 2px 56px}
+.saves-block{padding-top:4px}
+.saves-title{font-family:var(--fh);font-size:10px;font-weight:700;text-align:right;text-transform:uppercase;margin-bottom:2px}
+.save-line{display:flex;align-items:baseline;gap:4px;margin-bottom:2px;justify-content:flex-end}
+.save-line .lb{font-size:9px;text-align:right;flex:1}
+.save-line .fi{flex:0 0 28px;text-align:center;min-width:28px}
+.sa-title{font-family:var(--fh);font-size:9px;font-weight:700;text-transform:uppercase;text-align:center;letter-spacing:.5px}
+.sa-grid{border:1px solid var(--ink);margin-bottom:2px}
+.sa-hdr{display:grid;grid-template-columns:24px 1fr 24px 1fr;font-family:var(--fh);font-size:7px;font-weight:700;text-align:center;border-bottom:1px solid var(--ink);padding:2px 0;text-transform:uppercase}
+.sa-row{display:grid;grid-template-columns:24px 1fr 24px 1fr;border-bottom:1px solid #ccc}
+.sa-row:last-child{border-bottom:none}
+.sa-row input{border:none;background:transparent;font-family:var(--fb);font-size:10px;outline:none;padding:0 2px;height:16px}
+/* ── Combat: top 2-col grid ── */
+.combat-top{display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;margin-bottom:4px}
+.combat-top>div{min-width:0}
+/* Field cell: value on top, label below */
+.fc{display:flex;flex-direction:column;align-items:center;min-width:0;overflow:hidden}
+.fc .lb{margin-top:1px;text-align:center;line-height:1}
+.fc .fi{width:100%;flex:none}
+/* Horizontal field row */
+.fr{display:flex;gap:4px;align-items:flex-start;margin-bottom:3px;min-width:0}
+.fr>.fc{flex:1;min-width:0}
+/* Combat Adjustments box */
+.ca-sec{border:1px solid var(--ink);padding:4px 6px 2px}
+.ca-title{font-family:var(--fh);font-size:9px;font-weight:700;text-transform:uppercase;margin-bottom:2px}
+.ca-title span{font-weight:400}
+.ca-totals{display:flex;gap:8px;align-items:flex-start;margin-bottom:4px}
+.ca-totals .fc{flex:1}
+.ca-row{display:flex;gap:2px;align-items:baseline;margin-bottom:1px}
+.ca-pm{flex:0 0 24px;border:none;border-bottom:1px solid var(--ink);font-family:var(--fb);font-size:10px;font-weight:700;text-align:center;height:14px;background:transparent;outline:none;padding:0}
+.ca-pm:focus{border-bottom-color:var(--accent)}
+.ca-cond{flex:1;border:none;border-bottom:1px solid var(--ink);font-family:var(--fb);font-size:10px;height:14px;background:transparent;outline:none;padding:0 2px;min-width:0}
+.ca-cond:focus{border-bottom-color:var(--accent)}
+.ca-labels{display:flex;gap:2px}
+.ca-labels .lb{line-height:1}
+/* Combat: bottom 2-col grid */
+.combat-bot{display:grid;grid-template-columns:130px 1fr;gap:4px 8px;margin-top:2px}
+.combat-bot>div{min-width:0}
+/* Weaponless compact */
+.wlc-title{font-family:var(--fh);font-size:9px;font-weight:700;text-transform:uppercase;text-align:center;letter-spacing:.5px;border-bottom:1.5px solid var(--ink);padding-bottom:1px;margin-bottom:1px}
+.wlc-hdr{font-family:var(--fh);font-size:7px;font-weight:700;text-transform:uppercase;text-align:center;letter-spacing:.2px;margin-bottom:3px;color:var(--ink-md)}
+.wlc-row{margin-bottom:3px}
+.wlc-row-label{font-family:var(--fh);font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.wlc-row-fields{display:flex;gap:2px;align-items:baseline}
+.wlc-row-fields input{flex:1;border:none;border-bottom:1px solid var(--ink);background:transparent;font-family:var(--fb);font-size:9px;height:13px;min-width:0;outline:none;padding:0 1px}
+.wlc-row-fields input:focus{border-bottom-color:var(--accent)}
+.wlc-row-fields .sep{font-size:8px;color:var(--ink-lt);flex-shrink:0}
+.w-tbl td.w-ac{font-size:8px}
+.w-tbl td.w-dmg{font-size:8px}
+.combat-ban{font-family:var(--fh);font-size:14px;font-weight:700;text-align:center;letter-spacing:4px;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink);padding:3px 0;margin:6px 0;background:var(--paper-dk)}
+.ca-box{border:1px solid var(--ink);padding:4px 6px;margin-bottom:3px}
+.ca-box-title{font-family:var(--fh);font-size:9px;font-weight:700;text-transform:uppercase;margin-bottom:2px}
+.w-tbl,.wlc-tbl,.turn-tbl,.inv-tbl,.h-tbl{width:100%;border-collapse:collapse;margin-bottom:4px;table-layout:fixed}
+.w-tbl th,.wlc-tbl th,.turn-tbl th,.inv-tbl th,.h-tbl th{font-family:var(--fh);font-size:7px;font-weight:700;text-transform:uppercase;text-align:center;padding:2px;border:1px solid var(--ink);background:var(--paper-dk);white-space:nowrap}
+.w-tbl td,.wlc-tbl td,.turn-tbl td{border:1px solid var(--ink);padding:0}
+.w-tbl td input,.wlc-tbl td input,.turn-tbl td input{width:100%;height:18px;border:none;background:transparent;text-align:center;font-family:var(--fb);font-size:10px;outline:none;padding:0;overflow:hidden;text-overflow:ellipsis}
+.w-tbl td input.w-name,.wlc-tbl td:first-child input{text-align:left;padding-left:3px}
+.w-tbl td input:focus,.wlc-tbl td input:focus,.turn-tbl td input:focus{background:var(--paper-lt)}
+.w-tbl td.w-ac input{font-size:8px}
+.w-tbl td.w-dmg input{font-size:8px}
+.inv-scroll{max-height:200px;overflow-y:auto;border:1px solid var(--ink);margin-bottom:4px}
+.inv-scroll table{margin-bottom:0}
+.inv-scroll thead th{position:sticky;top:0;z-index:1}
+.inv-tbl td,.h-tbl td{border:1px solid var(--ink);padding:0}
+.inv-tbl td input,.h-tbl td input{width:100%;height:18px;border:none;background:transparent;font-family:var(--fb);font-size:10px;outline:none;padding:0 3px}
+.inv-tbl td input:focus,.h-tbl td input:focus{background:var(--paper-lt)}
+.inv-cont{font-weight:700;background:var(--paper-dk)!important}
+.inv-cont input{font-weight:700!important}
+.inv-toggle{border:none;background:none;font-size:9px;cursor:pointer;padding:0 2px;color:var(--ink-md);font-family:var(--fb);width:12px;flex-shrink:0}
+.inv-toggle:hover{color:var(--accent)}
+.inv-hidden{display:none}
+.inv-grip{cursor:grab;color:var(--ink-lt);font-size:10px;text-align:center;user-select:none;padding:0 1px;width:16px}
+.inv-grip:active{cursor:grabbing}
+tr.inv-drag-over-into{outline:2px solid var(--accent);outline-offset:-2px}
+tr.inv-drag-over-above td{border-top:2px solid var(--accent)!important}
+tr.inv-drag-over-below td{border-bottom:2px solid var(--accent)!important}
+tr.inv-dragging{opacity:.4}
+tr.inv-nocarry{opacity:.5}
+tr.inv-nocarry td input{color:var(--ink-lt)}
+.inv-carry{width:10px;height:10px;border:1.5px solid #999;border-radius:1px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:7px;color:transparent;background:var(--paper-lt);vertical-align:middle}
+.inv-carry.checked{background:#5b7a3a;border-color:#3a5a1a;color:#fff}
+.inv-carry:hover{border-color:var(--accent)}
+.sp-grid{border:1px solid var(--ink);margin-bottom:2px}
+.sp-hdr{display:grid;grid-template-columns:repeat(9,1fr);font-family:var(--fh);font-size:8px;font-weight:700;text-align:center;border-bottom:1px solid var(--ink)}
+.sp-hdr div{border-right:1px solid var(--ink);padding:2px}.sp-hdr div:last-child{border-right:none}
+.sp-cells{display:grid;grid-template-columns:repeat(9,1fr)}
+.sp-cells input{border:none;border-right:1px solid var(--ink);background:transparent;text-align:center;font-family:var(--fb);font-size:10px;height:18px;outline:none;min-width:0;-moz-appearance:textfield}
+.sp-cells input::-webkit-inner-spin-button,.sp-cells input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.sp-cells input:last-child{border-right:none}
+.spell-list{column-count:3;column-gap:10px}
+.sp-mem{min-width:22px;height:13px;border:1.5px solid #999;border-radius:1px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:var(--fh);font-size:8px;font-weight:700;color:transparent;background:var(--paper-lt);padding:0 2px;user-select:none}
+.sp-mem.mem-full{background:#5b7a3a;border-color:#3a5a1a;color:#fff}
+.sp-mem.mem-partial{background:#b8860b;border-color:#8b6508;color:#fff}
+.sp-mem.mem-spent{background:#8b0000;border-color:#5a0000;color:#fff}
+.sp-mem:hover{border-color:var(--accent)}
+.sp-name-mem{font-weight:700}
+.sp-name-spent{text-decoration:line-through;color:var(--ink-lt)}
+.sp-counter{display:grid;grid-template-columns:repeat(9,1fr);border:1px solid var(--ink);border-top:none;width:280px}
+.sp-cnt-cell{text-align:center;font-family:var(--fh);font-size:8px;font-weight:700;padding:1px 0;border-right:1px solid #ccc}
+.sp-cnt-cell:last-child{border-right:none}
+.sp-cnt-ok{color:#5b7a3a}
+.sp-cnt-partial{color:#b8860b}
+.sp-cnt-over{color:#8b0000}
+.sp-cnt-empty{color:#999}
+.cls-sec{display:none}.cls-sec.visible{display:block}
+.thief-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:2px 6px}
+.thief-grid .lb-sm{cursor:pointer}
+.thief-grid .lb-sm:hover{color:var(--accent)}
+.thief-callout{display:none;grid-column:1/-1;background:var(--paper-lt);border:1.5px solid var(--accent);border-left:4px solid var(--accent);padding:6px 8px;margin:2px 0 4px;font-family:var(--fb);font-size:9px;line-height:1.4;color:var(--ink-md);position:relative}
+.thief-callout.open{display:block}
+.thief-callout-title{font-family:var(--fh);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--accent);margin-bottom:2px}
+.thief-callout-close{position:absolute;top:3px;right:5px;border:none;background:none;font-size:11px;color:var(--ink-lt);cursor:pointer;padding:0 2px}
+.thief-callout-close:hover{color:var(--accent)}
+.thief-callout-breakdown{font-family:var(--fh);font-size:8px;color:var(--ink-lt);margin-top:4px;border-top:1px solid var(--paper-dk);padding-top:3px}
+.turn-tbl td input{font-size:9px}
+.turn-info{display:inline-block;position:relative;font-size:10px;color:var(--accent);cursor:help;margin-left:4px;vertical-align:middle}
+.turn-info .turn-tip{display:none;position:absolute;bottom:120%;left:50%;transform:translateX(-50%);width:220px;padding:6px 8px;background:var(--paper-dk);border:1px solid var(--ink);border-radius:4px;font-family:var(--fb);font-size:8px;font-weight:400;line-height:1.4;color:var(--ink);z-index:99;white-space:normal;box-shadow:1px 1px 3px rgba(0,0,0,.2)}
+.turn-info:hover .turn-tip{display:block}
+.wealth-grid{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:2px 6px;margin-bottom:4px;align-items:baseline}
+/* Encumbrance box */
+.enc-box{border:1.5px solid var(--ink);padding:6px 8px 4px;margin-bottom:4px;overflow:hidden}
+.enc-row1{display:flex;gap:4px;align-items:flex-end;margin-bottom:4px;flex-wrap:wrap}
+.enc-label{font-family:var(--fh);font-size:10px;font-weight:700;color:var(--ink);line-height:1.2;flex-shrink:0;align-self:center}
+.enc-fc{display:flex;flex-direction:column;align-items:center;min-width:0}
+.enc-fc .lb{margin-top:1px;text-align:center;line-height:1;white-space:nowrap}
+.enc-fc .fi{text-align:center;font-size:10px;height:15px}
+.enc-row1 .enc-fc .fi{overflow:hidden;text-overflow:ellipsis}
+.load-sep{color:var(--ink);font-size:11px;font-weight:700;align-self:center;flex-shrink:0}
+.coin-row{display:flex;gap:4px;align-items:flex-end;flex:0 0 auto}
+.coin-row .enc-fc .fi{width:44px}
+.gem-detail{flex:1;min-width:0;border:1px solid var(--ink);background:var(--paper-lt);font-family:var(--fb);font-size:10px;padding:2px 3px;resize:vertical;height:28px;outline:none;color:var(--ink)}
+.lang-area{width:100%;border:1px solid var(--ink);background:var(--paper-lt);font-family:var(--fb);font-size:7px;line-height:1.4;padding:2px 3px;resize:vertical;height:42px;outline:none;color:var(--ink)}
+.lang-area:focus{border-color:var(--accent)}
+.desc-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:2px 8px;margin-bottom:4px}
+.notes-area{width:100%;border:1px solid var(--ink);background:var(--paper-lt);font-family:var(--fb);font-size:10px;padding:4px;resize:vertical;min-height:48px;outline:none;color:var(--ink)}
+.notes-area:focus{border-color:var(--accent)}
+.xp-bonus-badge{display:none;font-family:var(--fh);font-size:7px;font-weight:700;color:#fff;background:#5b7a3a;border-radius:2px;padding:1px 3px;letter-spacing:.3px;white-space:nowrap;flex-shrink:0}
+.xp-bonus-badge.visible{display:inline}
+/* ── Spellbook Dialog ── */
+.sb-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;display:none;align-items:center;justify-content:center}
+.sb-overlay.open{display:flex}
+.sb-dlg{background:var(--paper);border:2px solid var(--ink);width:680px;max-width:96vw;max-height:88vh;display:flex;flex-direction:column;position:relative;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.sb-hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:2px solid var(--ink);background:var(--paper-dk)}
+.sb-hdr-title{font-family:var(--fh);font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:1px}
+.sb-hdr-sub{font-family:var(--fb);font-size:10px;color:var(--ink-md);margin-left:8px}
+.sb-close{border:none;background:none;font-size:18px;cursor:pointer;color:var(--ink-md);padding:0 4px;line-height:1}
+.sb-close:hover{color:var(--accent)}
+.sb-toolbar{display:flex;gap:6px;align-items:center;padding:6px 12px;border-bottom:1px solid #ccc;flex-wrap:wrap}
+.sb-filter{font-family:var(--fb);font-size:10px;padding:2px 6px;border:1px solid #999;background:var(--paper-lt);outline:none;height:22px;min-width:140px}
+.sb-filter:focus{border-color:var(--accent)}
+.sb-lvl-btn{font-family:var(--fh);font-size:9px;font-weight:700;padding:2px 6px;border:1px solid #999;background:var(--paper-lt);cursor:pointer;height:22px}
+.sb-lvl-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.sb-lvl-btn:hover:not(.active){border-color:var(--accent)}
+.sb-body{flex:1;overflow-y:auto;padding:8px 12px}
+.sb-level-group{margin-bottom:8px}
+.sb-level-hdr{font-family:var(--fh);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--accent);border-bottom:1px solid var(--accent);padding-bottom:1px;margin-bottom:4px;display:flex;align-items:baseline;gap:6px}
+.sb-level-count{font-family:var(--fb);font-size:9px;font-weight:400;color:var(--ink-lt)}
+.sb-spell-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px 12px}
+.sb-spell-row{display:flex;align-items:center;gap:4px;padding:1px 0;cursor:pointer}
+.sb-spell-row:hover{background:var(--paper-lt)}
+.sb-spell-cb{width:11px;height:11px;border:1.5px solid #999;border-radius:1px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8px;color:transparent;background:var(--paper-lt)}
+.sb-spell-cb.checked{background:#5b7a3a;border-color:#3a5a1a;color:#fff}
+.sb-spell-name{font-family:var(--fb);font-size:10px;cursor:pointer;user-select:none}
+.sb-spell-name.known{font-weight:700}
+.sb-spell-rev{font-size:8px;color:var(--ink-lt);font-style:italic;margin-left:1px}
+.sb-ftr{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;border-top:2px solid var(--ink);background:var(--paper-dk)}
+.sb-ftr-info{font-family:var(--fh);font-size:9px;color:var(--ink-md)}
+.sb-ftr-btns{display:flex;gap:4px}
+.sb-ftr-btn{font-family:var(--fb);font-size:10px;font-weight:700;padding:3px 12px;border:1px solid #999;background:var(--paper-lt);cursor:pointer}
+.sb-ftr-btn:hover{border-color:var(--accent)}
+.sb-ftr-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.sb-ftr-btn.primary:hover{background:#6a0000}
+/* ── Exchange Dialog ── */
+.ex-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;display:none;align-items:center;justify-content:center}
+.ex-overlay.open{display:flex}
+.ex-dlg{background:var(--paper);border:2px solid var(--ink);width:380px;max-width:94vw;position:relative;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.ex-hdr{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-bottom:2px solid var(--ink);background:var(--paper-dk)}
+.ex-hdr-title{font-family:var(--fh);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px}
+.ex-close{border:none;background:none;font-size:16px;cursor:pointer;color:var(--ink-md);padding:0 4px;line-height:1}
+.ex-close:hover{color:var(--accent)}
+.ex-tabs{display:flex;border-bottom:1px solid var(--ink)}
+.ex-tab{flex:1;font-family:var(--fh);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;text-align:center;padding:5px 0;cursor:pointer;background:var(--paper-dk);color:var(--ink-md);border-right:1px solid var(--ink)}
+.ex-tab:last-child{border-right:none}
+.ex-tab.active{background:var(--paper);color:var(--ink)}
+.ex-tab:hover:not(.active){background:var(--paper-lt)}
+.ex-body{padding:10px 12px}
+.ex-page{display:none}.ex-page.active{display:block}
+.ex-row{display:flex;gap:6px;align-items:baseline;margin-bottom:6px}
+.ex-lbl{font-family:var(--fh);font-size:9px;font-weight:700;text-transform:uppercase;flex-shrink:0;min-width:50px}
+.ex-input{border:1px solid var(--ink);background:var(--paper-lt);font-family:var(--fb);font-size:11px;padding:2px 4px;height:22px;outline:none;text-align:center}
+.ex-input:focus{border-color:var(--accent)}
+.ex-select{border:1px solid var(--ink);background:var(--paper-lt);font-family:var(--fb);font-size:11px;padding:1px 4px;height:22px;outline:none}
+.ex-result{border:1px solid var(--ink);background:var(--paper-lt);padding:6px 8px;margin-top:6px;font-family:var(--fb);font-size:10px;line-height:1.5}
+.ex-result-title{font-family:var(--fh);font-size:9px;font-weight:700;text-transform:uppercase;color:var(--accent);margin-bottom:2px}
+.ex-ftr{display:flex;justify-content:flex-end;gap:4px;padding:6px 10px;border-top:1px solid var(--ink);background:var(--paper-dk)}
+.ex-btn{font-family:var(--fb);font-size:10px;font-weight:700;padding:3px 12px;border:1px solid #999;background:var(--paper-lt);cursor:pointer}
+.ex-btn:hover{border-color:var(--accent)}
+.ex-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.ex-btn.primary:hover{background:#6a0000}
+.ex-avail{font-family:var(--fb);font-size:9px;color:var(--ink-lt);margin-left:4px}
+@media(max-width:500px){.sb-spell-grid{grid-template-columns:1fr 1fr}}
+@media print{
+  .gcc-bar,.adnd-hdr,.adnd-ftr,.name-box-del,.add-btn,.add-sm,.del-btn,.pg-tabs{display:none!important}
+  .sheet{border:none;max-width:100%}
+  .pg-page{display:block!important;page-break-before:always}
+  .pg-page:first-of-type{page-break-before:auto}
+  .cls-sec{display:block!important}
+}
+</style>
+<link rel="stylesheet" href="adnd-nwp.css">
+</head>
+<body>
+
+<div id="gcc-bar" class="gcc-bar"><div class="gcc-bar-in">
+  <a href="index.html" class="gcc-brand" title="Back to Dashboard"><div class="gcc-title-wrap"><div class="gcc-title">GRAYCLOAK'S</div><div class="gcc-subtitle">CAMPAIGN CORNER</div></div></a>
+  <div class="gcc-nav"><div class="gcc-tools-wrap"><button class="gcc-nav-btn" id="gcc-btn-tools">🎲 Tools ▾</button><div class="gcc-tools-dd" id="gcc-tools-dd"></div></div><span id="gcc-auth-slot"></span><button class="gcc-nav-btn" id="gcc-btn-theme" title="Toggle light/dark"><span id="gcc-theme-icon">◑</span></button></div>
+</div></div>
+<div class="gcc-tools-overlay" id="gcc-tools-overlay"></div>
+
+<div class="adnd-hdr"><div class="adnd-hdr-in">
+  <div><div class="adnd-logo-title">AD&D 1ST EDITION</div><div class="adnd-logo-sub">Character Record</div></div>
+  <div class="adnd-hdr-btns">
+    <button class="hdr-btn" id="btn-new">CLEAR</button>
+    <button class="hdr-btn" id="btn-save">SAVE</button>
+    <button class="hdr-btn" id="btn-load">LOAD</button>
+    <button class="hdr-btn" id="btn-delete">DELETE</button>
+    <button class="hdr-btn" id="btn-export">EXPORT</button>
+    <button class="hdr-btn" id="btn-import">IMPORT</button>
+    <button class="hdr-btn" id="btn-import-ars" style="border-color:#d4a843;color:#d4a843">IMPORT ARS</button>
+  </div>
+</div></div>
+
+<div class="sheet-wrap"><div class="sheet">
+
+<div class="top-ban">
+  <div class="left">
+    <div class="row"><span class="lb" style="font-size:8px">Player Name</span><input class="fi" data-field="playerName"></div>
+    <div class="row"><span class="lb" style="font-size:8px">Date Began</span><input class="fi" data-field="dateBegan"></div>
+  </div>
+  <div class="center">
+    <div style="font-family:var(--fd);font-size:28px;letter-spacing:3px;line-height:1">Advanced D&D<span style="font-family:var(--fh);font-size:8px;vertical-align:super;letter-spacing:0"> TM</span></div>
+    <div style="font-family:var(--fb);font-style:italic;font-size:13px;letter-spacing:1px">Player Character Record</div>
+  </div>
+  <div class="right">
+    <div class="row" style="justify-content:flex-end"><span class="lb" style="font-size:8px">Campaign</span><input class="fi" data-field="campaign" style="max-width:120px;text-align:right"></div>
+    <div class="row" style="justify-content:flex-end"><span class="lb" style="font-size:8px">DM</span><input class="fi" data-field="dm" style="max-width:120px;text-align:right"></div>
+  </div>
+</div>
+
+<div class="bio-grid">
+  <div class="portrait-area">
+    <div class="lb" style="font-size:8px;margin-bottom:2px">Character Sketch</div>
+    <input type="file" id="portrait-input" accept="image/*" hidden>
+    <div class="sketch-box" id="portrait-box" title="Click to upload sketch">
+      <span id="portrait-ph" style="color:var(--ink-lt);font-size:9px">Click to upload</span>
+      <button class="name-box-del" id="portrait-del">×</button>
+    </div>
+  </div>
+  <div class="bio-span3 bio-field"><span class="lb" style="font-size:9px">Character Name</span><input class="fi" data-field="characterName" style="font-size:13px;height:20px;font-weight:700"></div>
+  <div class="bio-field"><span class="lb">Class:</span><input class="fi" data-field="characterClass"></div>
+  <div class="bio-field"><span class="lb">Level:</span><input class="fi" data-field="level"></div>
+  <div class="bio-field"><span class="lb">Race:</span><input class="fi" data-field="race"></div>
+  <div class="bio-field"><span class="lb">Alignment:</span><input class="fi" data-field="alignment"></div>
+  <div class="bio-field"><span class="lb">Deity:</span><input class="fi" data-field="deity"></div>
+  <div class="bio-field"><span class="lb">Hearing:</span><input class="fi" data-field="hearing"></div>
+  <div class="bio-field"><span class="lb">Move Base:</span><input class="fi" data-field="moveBase"></div>
+  <div class="bio-field"><span class="lb">Move Adj.:</span><input class="fi" data-field="moveAdj" readonly></div>
+  <div class="bio-field"><span class="lb">Vision:</span><input class="fi" data-field="vision"></div>
+  <div class="bio-span3 bio-field"><span class="lb">Skills:</span><input class="fi" data-field="skills"></div>
+  <div class="bio-span3 bio-field"><span class="lb">Special Abilities:</span><input class="fi" data-field="specialAbilities"></div>
+</div>
+
+<div class="pg-tabs">
+  <div class="pg-tab active" data-page="page1">Page 1 — Stats & Combat</div>
+  <div class="pg-tab" data-page="page2">Page 2 — Inventory & Personal</div>
+  <div class="pg-tab" data-page="page3" style="display:none">Page 3 — NWP</div>
+</div>
+
+<div class="pg-page active" id="page1">
+<div class="p1-grid">
+
+  <div>
+    <div class="ab-head">ABILITIES:</div>
+    <div class="ab-row"><div class="ab-score-box"><input data-field="str"></div><div class="ab-letter">S</div><div class="ab-fields-strip"><div class="ab-cell"><div class="ab-cell-label" title="Exceptional Strength Percentile">%</div><div class="ab-cell-val"><input data-field="strPct"></div></div><div class="ab-cell"><div class="ab-cell-label" title="Hit Probability Adjustment">Hit Adj.</div><div class="ab-cell-val"><input data-field="strHitAdj"></div></div><div class="ab-cell"><div class="ab-cell-label" title="Damage Adjustment">Dam Adj.</div><div class="ab-cell-val"><input data-field="strDamAdj"></div></div><div class="ab-cell"><div class="ab-cell-label" title="Weight Allowance (in cn)">Wt. Allow.</div><div class="ab-cell-val"><input data-field="strWtAllow"></div></div><div class="ab-cell"><div class="ab-cell-label" title="Maximum Lift Over Head (lbs)">Lift</div><div class="ab-cell-val"><input data-field="strLift"></div></div><div class="ab-cell"><div class="ab-cell-label" title="Open Doors (locked in parentheses)">Open Doors</div><div class="ab-cell-val"><input data-field="strOpenDoors"></div></div><div class="ab-cell"><div class="ab-cell-label" title="Bend Bars / Lift Gates %">Bend Bars</div><div class="ab-cell-val"><input data-field="strBendBars"></div></div></div></div><div class="ab-name">Strength</div>
+    <div class="ab-row"><div class="ab-score-box"><input data-field="int"></div><div class="ab-letter">I</div><div class="ab-fields-strip"><div class="ab-cell"><div class="ab-cell-label" title="Number of Additional Languages">Add. Lang.</div><div class="ab-cell-val"><input data-field="intAddLang"></div></div><div class="ab-cell"><div class="ab-cell-label" title="Chance to Know Each Listed Spell">% Know</div><div class="ab-cell-val"><input data-field="intKnowSpell"></div></div><div class="ab-cell"><div class="ab-cell-label" title="Minimum Number of Spells per Level">Min. #</div><div class="ab-cell-val"><input data-field="intMinSpells"></div></div><div class="ab-cell"><div class="ab-cell-label" title="Maximum Number of Spells per Level">Max. #</div><div class="ab-cell-val"><input data-field="intMaxSpells"></div></div></div></div><div class="ab-name">Intelligence</div>
+    <div class="ab-row"><div class="ab-score-box"><input data-field="wis"></div><div class="ab-letter">W</div><div class="ab-fields-strip"><div class="ab-cell"><div class="ab-cell-label" title="Magical Attack Adjustment">Mag. Atk. Adj.</div><div class="ab-cell-val"><input data-field="wisMagAtkAdj"></div></div><div class="ab-cell"><div class="ab-cell-label" title="Bonus Cleric Spells by Level">Spell Bonus</div><div class="ab-cell-val"><input data-field="wisSpellBonus"></div></div><div class="ab-cell"><div class="ab-cell-label" title="Chance of Spell Failure">% Spell Fail</div><div class="ab-cell-val"><input data-field="wisSpellFail"></div></div></div></div><div class="ab-name">Wisdom</div>
+    <div class="ab-row"><div class="ab-score-box"><input data-field="dex"></div><div class="ab-letter">D</div><div class="ab-fields-strip"><div class="ab-cell"><div class="ab-cell-label" title="Reaction/Attacking Adjustment">React. Adj.</div><div class="ab-cell-val"><input data-field="dexReactAdj"></div></div><div class="ab-cell"><div class="ab-cell-label" title="Missile Attack Adjustment">Missile Adj.</div><div class="ab-cell-val"><input data-field="dexMissileAdj"></div></div><div class="ab-cell"><div class="ab-cell-label" title="Defensive Adjustment to AC">Defense Adj.</div><div class="ab-cell-val"><input data-field="dexDefAdj"></div></div></div></div><div class="ab-name">Dexterity</div>
+    <div class="ab-row"><div class="ab-score-box"><input data-field="con"></div><div class="ab-letter">C</div><div class="ab-fields-strip"><div class="ab-cell"><div class="ab-cell-label" title="Hit Point Adjustment per Hit Die">HP Adj.</div><div class="ab-cell-val"><input data-field="conHpAdj"></div></div><div class="ab-cell"><div class="ab-cell-label" title="System Shock Survival %">Sys. Shock</div><div class="ab-cell-val"><input data-field="conSysShock"></div></div><div class="ab-cell"><div class="ab-cell-label" title="Resurrection Survival %">Res. Surv.</div><div class="ab-cell-val"><input data-field="conResSurv"></div></div></div></div><div class="ab-name">Constitution</div>
+    <div class="ab-row"><div class="ab-score-box"><input data-field="cha"></div><div class="ab-letter">CH</div><div class="ab-fields-strip"><div class="ab-cell"><div class="ab-cell-label" title="Maximum Number of Henchmen">Max. Hench.</div><div class="ab-cell-val"><input data-field="chaMaxHench"></div></div><div class="ab-cell"><div class="ab-cell-label" title="Loyalty Base Adjustment">Loyalty</div><div class="ab-cell-val"><input data-field="chaLoyalty"></div></div><div class="ab-cell"><div class="ab-cell-label" title="Reaction Adjustment">React. Adj.</div><div class="ab-cell-val"><input data-field="chaReactAdj"></div></div></div></div><div class="ab-name">Charisma</div>
+  </div>
+
+  <div>
+    <div style="display:flex;gap:6px;overflow:hidden">
+      <div style="flex:1;min-width:0">
+        <div class="sa-title">Saving Throw Adjustments:</div>
+        <div class="sa-grid">
+          <div class="sa-hdr"><div>+/−</div><div>Condition</div><div>+/−</div><div>Condition</div></div>
+          <div class="sa-row"><input data-field="saveAdj1v"><input data-field="saveAdj1c"><input data-field="saveAdj2v"><input data-field="saveAdj2c"></div>
+          <div class="sa-row"><input data-field="saveAdj3v"><input data-field="saveAdj3c"><input data-field="saveAdj4v"><input data-field="saveAdj4c"></div>
+          <div class="sa-row"><input data-field="saveAdj5v"><input data-field="saveAdj5c"><input data-field="saveAdj6v"><input data-field="saveAdj6c"></div>
+        </div>
+        <div class="pair"><div class="row"><span class="lb">Resistances:</span><input class="fi" data-field="resistances"></div><div class="row"><span class="lb">Detection:</span><input class="fi" data-field="detection"></div></div>
+        <div style="margin-top:2px"><div class="lb" style="margin-bottom:1px">Languages:</div><textarea class="lang-area" data-field="languages"></textarea></div>
+      </div>
+      <div class="saves-block" style="min-width:110px">
+        <div class="saves-title">Saving<br>Throws:</div>
+        <div class="save-line"><span class="lb" style="text-align:right;line-height:1.1;white-space:normal;max-width:80px">Paralyzation/<br>Poison—</span><input class="fi" data-field="savePPD" style="flex:0 0 28px;text-align:center;min-width:28px"></div>
+        <div class="save-line"><span class="lb" style="text-align:right;line-height:1.1;white-space:normal;max-width:80px">Petrification/<br>Polymorph—</span><input class="fi" data-field="savePP" style="flex:0 0 28px;text-align:center;min-width:28px"></div>
+        <div class="save-line"><span class="lb" style="text-align:right;line-height:1.1;white-space:normal;max-width:80px">Rod, Staff<br>or Wand—</span><input class="fi" data-field="saveRSW" style="flex:0 0 28px;text-align:center;min-width:28px"></div>
+        <div class="save-line"><span class="lb" style="text-align:right;line-height:1.1;white-space:normal;max-width:80px">Breath<br>Weapon—</span><input class="fi" data-field="saveBW" style="flex:0 0 28px;text-align:center;min-width:28px"></div>
+        <div class="save-line"><span class="lb">Spells—</span><input class="fi" data-field="saveSpell" style="flex:0 0 28px;text-align:center;min-width:28px"></div>
+      </div>
+    </div>
+    <div style="margin-top:3px">
+      <div class="row"><span class="lb">Weapons of Proficiency:</span><span class="lb" style="margin-left:auto">Number</span><input class="fi" data-field="profNumber" style="flex:0 0 24px;text-align:center;min-width:24px"><span class="lb" style="margin-left:6px">Non-Prof. Penalty</span><input class="fi" data-field="nonProfPenalty" style="flex:0 0 24px;text-align:center;min-width:24px"></div>
+      <div class="prof-inline" id="prof-list"></div>
+      <button class="add-btn" id="add-prof">+ Prof</button>
+    </div>
+  </div>
+
+  <div class="full"><div class="combat-ban">*COMBAT*</div></div>
+
+  <!-- ═══ COMBAT TOP: AC left / Combat Adjustments right ═══ -->
+  <div class="full">
+  <div class="combat-top">
+    <div>
+      <!-- AC box + Armor Worn + AC Base -->
+      <div class="fr">
+        <div class="fc" style="flex:0 0 44px"><div class="bx bx-lg" style="width:44px"><input data-field="ac" style="border:none;background:transparent;font-family:var(--fb);font-size:16px;font-weight:700;text-align:center;width:100%;height:100%;outline:none;padding:0"></div><div class="lb">AC</div></div>
+        <div class="fc" style="flex:2"><input class="fi" data-field="armorWorn" style="border-bottom:1px solid var(--ink)"><div class="lb">Armor Worn</div></div>
+        <div class="fc" style="flex:0 0 36px"><input class="fi" data-field="acBase" style="text-align:center;border-bottom:1px solid var(--ink)"><div class="lb">AC Base</div></div>
+      </div>
+      <!-- Dex Adj / Mag Adj / Shield Adj / Shieldless AC / Rear AC -->
+      <div class="fr">
+        <div class="fc"><input class="fi" data-field="acDexAdj" style="text-align:center;border-bottom:1px solid var(--ink)"><div class="lb">Dex. Adj.</div></div>
+        <div class="fc"><input class="fi" data-field="acMagAdj" style="text-align:center;border-bottom:1px solid var(--ink)"><div class="lb">Magical Adj.</div></div>
+        <div class="fc"><input class="fi" data-field="acShieldAdj" style="text-align:center;border-bottom:1px solid var(--ink)"><div class="lb">Shield Adj.</div></div>
+        <div class="fc"><input class="fi" data-field="acShieldless" style="text-align:center;font-size:12px;border-bottom:1px solid var(--ink)"><div class="lb" style="font-size:9px;font-weight:700;color:var(--ink)">Shieldless AC</div></div>
+        <div class="fc"><input class="fi" data-field="acRear" style="text-align:center;border-bottom:1px solid var(--ink)"><div class="lb">Rear AC</div></div>
+      </div>
+      <!-- Surprise / Dex Adjust / Rear Attacks Adjust -->
+      <div class="fr">
+        <div class="fc" style="flex:0 0 40px"><input class="fi" data-field="surprise" style="text-align:center;border-bottom:1px solid var(--ink)"><div class="lb">Surprise</div></div>
+        <div class="fc" style="flex:1"><input class="fi" data-field="surpriseDexAdj" style="border-bottom:1px solid var(--ink)"><div class="lb">Surp. Dex. Adj.</div></div>
+        <div class="fc" style="flex:1"><input class="fi" data-field="rearAtkAdj" style="border-bottom:1px solid var(--ink)"><div class="lb">Rear Attacks Adjust.</div></div>
+      </div>
+      <!-- HP (merged) + Primary Hand + Off-Hand -->
+      <div class="fr" style="align-items:flex-end">
+        <div class="fc" style="flex:0 0 70px"><div class="bx bx-lg" style="width:70px;font-size:13px;gap:0"><input data-field="hpCurrent" type="number" style="border:none;background:transparent;font-family:var(--fb);font-size:13px;font-weight:700;text-align:right;width:28px;outline:none;padding:0;-moz-appearance:textfield"><span style="font-size:11px;color:var(--ink-lt)">/</span><input data-field="hpMax" type="number" style="border:none;background:transparent;font-family:var(--fb);font-size:13px;font-weight:700;text-align:left;width:28px;outline:none;padding:0;opacity:.6;-moz-appearance:textfield"></div><div class="lb">Hit Points</div></div>
+        <div class="fc" style="flex:1"><input class="fi" data-field="primaryWeapon" style="border-bottom:1px solid var(--ink)"><div class="lb">Primary Hand</div></div>
+        <div class="fc" style="flex:1"><input class="fi" data-field="secondaryWeapon" style="border-bottom:1px solid var(--ink)"><div class="lb">Off-Hand</div></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Combat Adjustments -->
+    <div>
+      <div class="ca-sec">
+        <div class="ca-title">Combat Adjustments: <span>Totals:</span></div>
+        <div class="ca-totals">
+          <div class="fc"><input class="fi" data-field="combatToHitAdj" style="text-align:center;font-size:12px;border-bottom:1px solid var(--ink)"><div class="lb">"To Hit" Adj.</div></div>
+          <div class="fc"><input class="fi" data-field="combatDamAdj" style="text-align:center;font-size:12px;border-bottom:1px solid var(--ink)"><div class="lb">Damage Adj.</div></div>
+        </div>
+        <div class="ca-row"><input class="ca-pm" data-field="caHit1"><input class="ca-cond" data-field="caCond1"><input class="ca-pm" data-field="caDam1"><input class="ca-cond" data-field="caDCond1"></div>
+        <div class="ca-row"><input class="ca-pm" data-field="caHit2"><input class="ca-cond" data-field="caCond2"><input class="ca-pm" data-field="caDam2"><input class="ca-cond" data-field="caDCond2"></div>
+        <div class="ca-row"><input class="ca-pm" data-field="caHit3"><input class="ca-cond" data-field="caCond3"><input class="ca-pm" data-field="caDam3"><input class="ca-cond" data-field="caDCond3"></div>
+        <div class="ca-row"><input class="ca-pm" data-field="caHit4"><input class="ca-cond" data-field="caCond4"><input class="ca-pm" data-field="caDam4"><input class="ca-cond" data-field="caDCond4"></div>
+        <div class="ca-labels">
+          <div class="lb" style="flex:0 0 24px;text-align:center">±</div>
+          <div class="lb" style="flex:1">Condition</div>
+          <div class="lb" style="flex:0 0 24px;text-align:center">±</div>
+          <div class="lb" style="flex:1">Condition</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <!-- ═══ COMBAT BOTTOM: Weaponless left / Weapon table right ═══ -->
+  <div class="full">
+  <div class="combat-bot">
+    <div>
+      <div style="margin-bottom:6px">
+        <input class="fi" data-field="numAttacks" style="width:50px;text-align:center;border-bottom:1px solid var(--ink)">
+        <div class="lb"># Attacks</div>
+      </div>
+      <div class="wlc-title">Weaponless Combat</div>
+      <div class="wlc-hdr">Attack / Damage / Defense</div>
+      <div class="wlc-row">
+        <div class="wlc-row-fields"><input data-field="pummelAtk"><input data-field="pummelDam"><input data-field="pummelDef"></div>
+        <div class="wlc-row-label">Pummeling</div>
+      </div>
+      <div class="wlc-row">
+        <div class="wlc-row-fields"><input data-field="grappleAtk"><input data-field="grappleDam"><input data-field="grappleDef"></div>
+        <div class="wlc-row-label">Grappling</div>
+      </div>
+      <div class="wlc-row">
+        <div class="wlc-row-fields"><input data-field="overbearAtk"><input data-field="overbearDam"><input data-field="overbearDef"></div>
+        <div class="wlc-row-label">Overbearing</div>
+      </div>
+    </div>
+
+    <div>
+      <table class="w-tbl"><thead>
+        <tr>
+          <th style="width:24%">Weapon</th>
+          <th style="width:5%">Mag.</th>
+          <th style="width:9%">Spc/<br>Rng</th>
+          <th style="width:5%">Spd</th>
+          <th style="width:4.5%">10</th><th style="width:4.5%">9</th><th style="width:4.5%">8</th><th style="width:4.5%">7</th><th style="width:4.5%">6</th><th style="width:4.5%">5</th><th style="width:4.5%">4</th><th style="width:4.5%">3</th><th style="width:4.5%">2</th>
+          <th style="width:13%">Dmg<br>S-M/L</th>
+          <th style="width:3%"><button class="add-sm" id="add-weapon" title="Add weapon">+</button></th>
+        </tr>
+      </thead><tbody id="weapon-list"></tbody></table>
+    </div>
+  </div>
+  </div>
+
+  <div class="full cls-sec" id="section-spells">
+    <div class="sec" style="margin-top:2px">Spells</div>
+    <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:4px">
+      <div style="flex:0 0 auto">
+        <div class="row"><span class="lb">Spells Known</span><input class="fi" data-field="spellsKnown" style="flex:0 0 30px;text-align:center"></div>
+        <div class="lb" style="margin-bottom:2px">Memorized per Level:</div>
+        <div class="sp-grid" style="width:280px">
+          <div class="sp-hdr"><div>1st</div><div>2nd</div><div>3rd</div><div>4th</div><div>5th</div><div>6th</div><div>7th</div><div>8th</div><div>9th</div></div>
+          <div class="sp-cells"><input data-field="spellSlot1" type="number"><input data-field="spellSlot2" type="number"><input data-field="spellSlot3" type="number"><input data-field="spellSlot4" type="number"><input data-field="spellSlot5" type="number"><input data-field="spellSlot6" type="number"><input data-field="spellSlot7" type="number"><input data-field="spellSlot8" type="number"><input data-field="spellSlot9" type="number"></div>
+        </div>
+        <div class="sp-counter" id="sp-counter"></div>
+        <div class="row" style="margin-top:4px"><span class="lb">Components:</span></div>
+        <div class="row"><input class="fi" data-field="magicComponents" style="width:260px"></div>
+        <div class="row"><input class="fi" data-field="magicComponents2" style="width:260px"></div>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div class="lb" style="margin-bottom:2px">Spell List: <button class="add-btn" id="add-spell">+ Spell</button> <button class="add-btn" id="btn-spellbook" style="border-color:var(--accent);color:var(--accent)">📖 Spellbook</button></div>
+        <div id="spell-list" class="spell-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="full cls-sec" id="section-turning">
+    <div class="sec" style="margin-top:2px">Turning Undead<span class="turn-info">ⓘ<span class="turn-tip"><b>#</b> = d20 roll needed to turn 1-12 undead<br><b>T</b> = automatic turn (no roll)<br><b>D</b> = automatically destroyed (1-12)<br><b>D*</b> = automatically destroyed (7-12)<br><b>--</b> = no effect possible<br>Paladins turn as cleric 2 levels lower.</span></span></div>
+    <table class="turn-tbl"><thead><tr><th>Skeleton</th><th>Zombie</th><th>Ghoul</th><th>Shadow</th><th>Wight</th><th>Ghast</th><th>Wraith</th><th>Mummy</th><th>Spectre</th><th>Vampire</th><th>Ghost</th><th>Lich</th><th>Special</th></tr></thead>
+    <tbody><tr><td><input data-field="turnSkeleton" readonly></td><td><input data-field="turnZombie" readonly></td><td><input data-field="turnGhoul" readonly></td><td><input data-field="turnShadow" readonly></td><td><input data-field="turnWight" readonly></td><td><input data-field="turnGhast" readonly></td><td><input data-field="turnWraith" readonly></td><td><input data-field="turnMummy" readonly></td><td><input data-field="turnSpectre" readonly></td><td><input data-field="turnVampire" readonly></td><td><input data-field="turnGhost" readonly></td><td><input data-field="turnLich" readonly></td><td><input data-field="turnSpecial" readonly></td></tr></tbody></table>
+  </div>
+
+  <div class="full cls-sec" id="section-thief">
+    <div class="sec" style="margin-top:2px">Thief Abilities</div>
+    <div class="thief-grid">
+      <div class="row"><span class="lb-sm" style="min-width:80px" data-skill="PP">Pick Pockets</span><input class="fi" data-field="thiefPP" style="flex:0 0 34px;text-align:center"></div>
+      <div class="row"><span class="lb-sm" style="min-width:80px" data-skill="OL">Open Locks</span><input class="fi" data-field="thiefOL" style="flex:0 0 34px;text-align:center"></div>
+      <div class="row"><span class="lb-sm" style="min-width:80px" data-skill="FRT">Find/Rem. Traps</span><input class="fi" data-field="thiefFRT" style="flex:0 0 34px;text-align:center"></div>
+      <div class="row"><span class="lb-sm" style="min-width:80px" data-skill="MS">Move Silently</span><input class="fi" data-field="thiefMS" style="flex:0 0 34px;text-align:center"></div>
+      <div class="row"><span class="lb-sm" style="min-width:80px" data-skill="HIS">Hide in Shadows</span><input class="fi" data-field="thiefHIS" style="flex:0 0 34px;text-align:center"></div>
+      <div class="row"><span class="lb-sm" style="min-width:80px" data-skill="HN">Hear Noise</span><input class="fi" data-field="thiefHN" style="flex:0 0 34px;text-align:center"></div>
+      <div class="row"><span class="lb-sm" style="min-width:80px" data-skill="CW">Climb Walls</span><input class="fi" data-field="thiefCW" style="flex:0 0 34px;text-align:center"></div>
+      <div class="row"><span class="lb-sm" style="min-width:80px" data-skill="RL">Read Languages</span><input class="fi" data-field="thiefRL" style="flex:0 0 34px;text-align:center"></div>
+      <div class="thief-callout" id="thief-callout"><div class="thief-callout-title" id="tc-title"></div><button class="thief-callout-close" id="tc-close">×</button><div id="tc-body"></div><div class="thief-callout-breakdown" id="tc-breakdown"></div></div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<div class="pg-page" id="page2">
+
+<div class="sec">Possessions</div>
+<div class="inv-scroll">
+<table class="inv-tbl"><thead><tr><th style="width:16px"></th><th style="width:26%">Item</th><th style="width:14%">Location</th><th style="width:7%">Qty</th><th style="width:9%" title="Weight in coin (10 cn = 1 lb)">Wt (cn)</th><th style="width:24%">Notes</th><th style="width:16px" title="Carried on person?">C</th><th style="width:16px"><button class="add-sm" id="add-item">+</button></th></tr></thead><tbody id="item-list"></tbody></table>
+</div>
+
+<div class="sec">Encumbrance & Wealth</div>
+<div class="enc-box">
+  <!-- ROW 1a: Encumbrance / Str Adj / Load vs Move -->
+  <div class="enc-row1">
+    <span class="enc-label">ENCUMBRANCE:</span>
+    <div class="enc-fc" style="flex:0 0 40px"><input class="fi" data-field="strAdj" style="text-align:center"><div class="lb">STR. ADJ.</div></div>
+    <span class="enc-label" style="margin-left:4px">LOAD VS.<br>MOVE RATE:</span>
+    <div class="enc-fc" style="flex:1 1 40px"><input class="fi" data-field="loadNormal" style="text-align:center;font-size:9px;width:100%" readonly><div class="lb">NORMAL = 1</div></div>
+    <span class="load-sep">–</span>
+    <div class="enc-fc" style="flex:1 1 40px"><input class="fi" data-field="loadHeavy" style="text-align:center;font-size:9px;width:100%" readonly><div class="lb">HEAVY = ¾</div></div>
+    <span class="load-sep">–</span>
+    <div class="enc-fc" style="flex:1 1 40px"><input class="fi" data-field="loadLoaded" style="text-align:center;font-size:9px;width:100%" readonly><div class="lb">LOADED = ½</div></div>
+    <span class="load-sep">–</span>
+    <div class="enc-fc" style="flex:1 1 40px"><input class="fi" data-field="loadMax" style="text-align:center;font-size:9px;width:100%" readonly><div class="lb">MAXIMUM = ¼</div></div>
+    <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+      <span class="enc-label" style="font-size:9px;white-space:nowrap">Total Wt.</span>
+      <div class="bx" style="width:50px;height:22px;font-size:13px" id="total-weight-box" title=""><input data-field="totalWeight" id="total-weight" readonly style="border:none;background:transparent;font-family:var(--fb);font-size:13px;font-weight:700;text-align:center;width:100%;outline:none;padding:0"></div>
+      <span class="lb" style="font-size:7px;align-self:center">cn</span>
+    </div>
+  </div>
+  <!-- ROW 2: Provisions + Water -->
+  <div style="display:flex;gap:6px;align-items:flex-start;margin-bottom:4px">
+    <div class="lb" style="font-size:8px;align-self:center;flex-shrink:0">Provisions:</div>
+    <div class="enc-fc"><input class="fi" data-field="provFoodSupply" style="width:36px;text-align:center"><div class="lb">Supply</div></div>
+    <div class="enc-fc"><input class="fi" data-field="provFoodUsed" style="width:36px;text-align:center"><div class="lb">Used</div></div>
+    <div class="lb" style="font-size:8px;align-self:center;flex-shrink:0;margin-left:4px">Water:</div>
+    <div class="enc-fc"><input class="fi" data-field="provWaterSupply" style="width:36px;text-align:center"><div class="lb">Supply</div></div>
+    <div class="enc-fc"><input class="fi" data-field="provWaterUsed" style="width:36px;text-align:center"><div class="lb">Used</div></div>
+  </div>
+  <!-- ROW 3: Gem & Jewelry Details (full width) -->
+  <div style="display:flex;gap:4px;align-items:flex-start;margin-bottom:4px">
+    <div class="lb" style="font-size:8px;flex-shrink:0;align-self:center">Gems & Jewelry:</div>
+    <textarea class="gem-detail" data-field="gemDetails" placeholder="e.g. 2x Diamond (5000gp ea.), Pearl necklace (2500gp)"></textarea>
+  </div>
+  <!-- ROW 4: Coins -->
+  <div style="display:flex;gap:4px;align-items:flex-end">
+    <div class="lb" style="font-size:8px;align-self:center;flex-shrink:0">Coins:</div>
+    <div class="coin-row">
+      <div class="enc-fc"><input class="fi" data-field="wealthCP" type="number"><div class="lb">CP</div></div>
+      <div class="enc-fc"><input class="fi" data-field="wealthSP" type="number"><div class="lb">SP</div></div>
+      <div class="enc-fc"><input class="fi" data-field="wealthEP" type="number"><div class="lb">EP</div></div>
+      <div class="enc-fc"><input class="fi" data-field="wealthGP" type="number"><div class="lb">GP</div></div>
+      <div class="enc-fc"><input class="fi" data-field="wealthPP" type="number"><div class="lb">PP</div></div>
+      <div class="enc-fc"><input class="fi" data-field="wealthGems" style="width:44px"><div class="lb">Gems</div></div>
+      <div class="enc-fc"><input class="fi" data-field="wealthJewelry" style="width:44px"><div class="lb">Jewelry</div></div>
+    </div>
+    <button class="add-btn" id="btn-exchange" style="align-self:center;margin-left:4px">Exchange</button>
+  </div>
+</div>
+
+<div class="sec">Experience</div>
+<div id="xp-row" style="display:flex;gap:6px;margin-bottom:4px;flex-wrap:wrap">
+  <div class="xp-slot" id="xp-slot-0" style="display:flex;align-items:baseline;gap:4px;flex:1;min-width:0"><span class="lb xp-cls-label" id="xp-cls-0">XP Total:</span><input class="fi" data-field="xpTotal" style="flex:0 0 70px;font-weight:700;text-align:center" type="number"><span class="xp-bonus-badge" id="xp-bonus-0"></span><span class="lb" style="margin-left:4px">Next:</span><input class="fi" data-field="xpNextLevel" style="flex:0 0 60px;text-align:center" type="number"></div>
+  <div class="xp-slot" id="xp-slot-1" style="display:none;align-items:baseline;gap:4px;flex:1;min-width:0"><span class="lb xp-cls-label" id="xp-cls-1">XP:</span><input class="fi" data-field="xpTotal2" style="flex:0 0 70px;font-weight:700;text-align:center" type="number"><span class="xp-bonus-badge" id="xp-bonus-1"></span><span class="lb" style="margin-left:4px">Next:</span><input class="fi" data-field="xpNextLevel2" style="flex:0 0 60px;text-align:center" type="number"></div>
+  <div class="xp-slot" id="xp-slot-2" style="display:none;align-items:baseline;gap:4px;flex:1;min-width:0"><span class="lb xp-cls-label" id="xp-cls-2">XP:</span><input class="fi" data-field="xpTotal3" style="flex:0 0 70px;font-weight:700;text-align:center" type="number"><span class="xp-bonus-badge" id="xp-bonus-2"></span><span class="lb" style="margin-left:4px">Next:</span><input class="fi" data-field="xpNextLevel3" style="flex:0 0 60px;text-align:center" type="number"></div>
+</div>
+
+<!-- ═══ DESCRIPTION ═══ -->
+<div class="sec">Description</div>
+<!-- Age row -->
+<div style="display:flex;align-items:center;gap:4px;margin:0 0 2px;min-width:0">
+  <span class="lb" style="font-size:9px;flex-shrink:0">Age—</span>
+  <div style="display:flex;align-items:center;justify-content:center;border:2px solid var(--ink);border-radius:4px;width:40px;height:24px;flex-shrink:0"><input data-field="age" style="border:none;background:transparent;font-family:var(--fb);font-size:13px;font-weight:700;text-align:center;width:100%;outline:none;padding:0"></div>
+  <div class="fc" style="flex:1;min-width:0"><input class="fi" data-field="apparentAge" style="text-align:center"><div class="lb">Apparent Age</div></div>
+  <div class="fc" style="flex:1;min-width:0"><input class="fi" data-field="unnaturalAging" style="text-align:center"><div class="lb">Unnatural Aging</div></div>
+  <span class="lb" style="font-size:9px;flex-shrink:0;margin-left:8px">Color of:</span>
+  <div class="fc" style="flex:0 0 80px;min-width:0"><input class="fi" data-field="hairColor"><div class="lb">Hair</div></div>
+  <div class="fc" style="flex:1;min-width:0"><input class="fi" data-field="eyeColor"><div class="lb">Eyes</div></div>
+</div>
+<!-- Sex + General Appearance -->
+<div class="fr">
+  <div class="fc" style="flex:0 0 50px"><input class="fi" data-field="sex" style="text-align:center"><div class="lb">Sex</div></div>
+  <span class="lb" style="font-size:9px;font-weight:700;color:var(--ink);align-self:flex-end;flex-shrink:0;margin-bottom:11px">General Appearance:</span>
+  <div class="fc" style="flex:1"><input class="fi" data-field="appearance"></div>
+</div>
+<!-- Weight + Distinguishing Marks -->
+<div class="fr">
+  <div class="fc" style="flex:0 0 64px"><input class="fi" data-field="weight" style="text-align:center"><div class="lb">Weight</div></div>
+  <span class="lb" style="font-size:9px;font-weight:700;color:var(--ink);align-self:flex-end;flex-shrink:0;margin-bottom:11px">Distinguishing Marks:</span>
+  <div class="fc" style="flex:1"><input class="fi" data-field="distinguishingMarks"></div>
+</div>
+<!-- Height + Mannerisms -->
+<div class="fr">
+  <div class="fc" style="flex:0 0 56px"><input class="fi" data-field="height" style="text-align:center"><div class="lb">Height</div></div>
+  <span class="lb" style="font-size:9px;font-weight:700;color:var(--ink);align-self:flex-end;flex-shrink:0;margin-bottom:11px">Mannerisms:</span>
+  <div class="fc" style="flex:1"><input class="fi" data-field="mannerisms"></div>
+</div>
+<!-- Social Class / Standing / Weaknesses -->
+<div class="fr">
+  <div class="fc" style="flex:1"><input class="fi" data-field="socialClass"><div class="lb">Social Class (if any)</div></div>
+  <div class="fc" style="flex:1"><input class="fi" data-field="standing"><div class="lb">Standing (if any)</div></div>
+  <div class="fc" style="flex:2"><input class="fi" data-field="weaknesses"><div class="lb">Weaknesses/Fear</div></div>
+</div>
+<!-- Hatreds/Foes + Desires/Loves -->
+<div class="fr">
+  <div class="fc" style="flex:3"><input class="fi" data-field="hatredsFoes"><div class="lb" style="align-self:flex-start">Hatreds/Foes</div></div>
+  <div class="fc" style="flex:2"><input class="fi" data-field="desiresLoves"><div class="lb" style="align-self:flex-start">Desires/Loves</div></div>
+</div>
+
+<!-- ═══ COMPATRIOTS ═══ -->
+<div class="sec" style="display:flex;align-items:baseline;gap:8px">
+  <span>Compatriots</span>
+  <span class="lb" style="font-size:8px;font-style:italic;font-weight:400;letter-spacing:0;text-transform:none">Followers/Hirelings—Associates/Relatives</span>
+  <button class="add-sm" id="add-assoc" title="Add" style="margin-left:auto">+</button>
+</div>
+<table class="h-tbl"><thead><tr><th style="width:3%">#</th><th style="width:17%">Name</th><th style="width:11%">Class</th><th style="width:6%">Level</th><th style="width:8%">Race</th><th style="width:16%">Notes</th><th style="width:3%">#</th><th style="width:17%">Name</th><th style="width:11%">Class</th><th style="width:6%">Level</th><th style="width:8%">Race</th><th style="width:16%">Notes</th></tr></thead><tbody id="assoc-list"></tbody></table>
+
+<!-- ═══ LOCALES FREQUENTED / RESIDENCE ═══ -->
+<div class="sec" style="display:flex;align-items:baseline;gap:8px">
+  <span>Locales Frequented / Residence</span>
+  <button class="add-sm" id="add-locale" title="Add" style="margin-left:auto">+</button>
+</div>
+<table class="inv-tbl"><thead><tr><th style="width:20%">Location</th><th style="width:20%">Time/Condition</th><th style="width:20%">Details</th><th style="width:20%">Location</th><th style="width:20%">Time/Condition</th><th style="width:20%">Details</th></tr></thead><tbody id="locale-list"></tbody></table>
+
+<div class="sec">Notes</div>
+<textarea class="notes-area" data-field="notes" rows="4"></textarea>
+
+</div>
+
+</div></div>
+<div class="adnd-ftr">Graycloak's Campaign Corner — AD&D 1st Edition Character Record</div>
+
+<!-- Spellbook Dialog -->
+<div class="sb-overlay" id="sb-overlay">
+<div class="sb-dlg">
+  <div class="sb-hdr">
+    <div><span class="sb-hdr-title">Spellbook</span><span class="sb-hdr-sub" id="sb-class-label"></span></div>
+    <button class="sb-close" id="sb-close">×</button>
+  </div>
+  <div class="sb-toolbar">
+    <input class="sb-filter" id="sb-filter" placeholder="Search spells…">
+    <div id="sb-lvl-btns" style="display:flex;gap:2px;flex-wrap:wrap"></div>
+  </div>
+  <div class="sb-body" id="sb-body"></div>
+  <div class="sb-ftr">
+    <span class="sb-ftr-info" id="sb-info"></span>
+    <div class="sb-ftr-btns">
+      <button class="sb-ftr-btn" id="sb-cancel">Cancel</button>
+      <button class="sb-ftr-btn primary" id="sb-apply">Apply</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- Exchange Dialog -->
+<div class="ex-overlay" id="ex-overlay">
+<div class="ex-dlg">
+  <div class="ex-hdr"><span class="ex-hdr-title">Exchange</span><button class="ex-close" id="ex-close">×</button></div>
+  <div class="ex-tabs">
+    <div class="ex-tab active" data-ex="change">Money Change</div>
+    <div class="ex-tab" data-ex="gems">Buy Gems</div>
+  </div>
+  <!-- Money Change -->
+  <div class="ex-page active" id="ex-change">
+    <div class="ex-body">
+      <div class="ex-row"><span class="ex-lbl">From:</span><input class="ex-input" id="exc-amount" type="number" min="1" style="width:80px" placeholder="—"><select class="ex-select" id="exc-from"><option value="" selected>—</option><option value="pp">PP</option><option value="gp">GP</option><option value="ep">EP</option><option value="sp">SP</option><option value="cp">CP</option></select><span class="ex-avail" id="exc-avail"></span></div>
+      <div class="ex-row"><span class="ex-lbl">To:</span><select class="ex-select" id="exc-to"><option value="" selected>—</option><option value="pp">PP</option><option value="gp">GP</option><option value="ep">EP</option><option value="sp">SP</option><option value="cp">CP</option></select></div>
+      <div class="ex-row"><span class="ex-lbl">Fee:</span><input class="ex-input" id="exc-fee" type="number" min="0" max="100" style="width:50px" value="3"><span style="font-size:10px">%</span></div>
+      <div class="ex-result" id="exc-result"></div>
+    </div>
+    <div class="ex-ftr"><button class="ex-btn" id="exc-cancel">Cancel</button><button class="ex-btn primary" id="exc-apply">Exchange</button></div>
+  </div>
+  <!-- Buy Gems -->
+  <div class="ex-page" id="ex-gems">
+    <div class="ex-body">
+      <div class="ex-row"><span class="ex-lbl">Spend:</span><input class="ex-input" id="exg-amount" type="number" min="1" style="width:80px" placeholder="—"><select class="ex-select" id="exg-coin"><option value="" selected>—</option><option value="pp">PP</option><option value="gp">GP</option><option value="ep">EP</option><option value="sp">SP</option><option value="cp">CP</option></select><span class="ex-avail" id="exg-avail"></span></div>
+      <div class="ex-row"><span class="ex-lbl">Fee:</span><input class="ex-input" id="exg-fee" type="number" min="0" max="100" style="width:50px" value="10"><span style="font-size:10px">%</span></div>
+      <div class="ex-result" id="exg-result"></div>
+    </div>
+    <div class="ex-ftr"><button class="ex-btn" id="exg-cancel">Cancel</button><button class="ex-btn primary" id="exg-apply">Buy Gems</button></div>
+  </div>
+</div>
+</div>
+
+<div class="pg-page" id="page3"></div>
+
+<script src="gcc-data.js"></script>
+<script src="gcc-header.js"></script>
+<script src="gcc-firebase-config.js"></script>
+<script src="gcc-auth.js"></script>
+<script src="gcc-sync.js"></script>
+<script src="gcc-dialog.js"></script>
+<script src="adnd-nwp-data.js"></script>
+<script src="adnd-nwp.js"></script>
+<script>
+const STORAGE_KEY=GCC.KEYS.add1eChars;
+const AUTOSAVE_KEY='gcc_add1e_autosave';
+let CHAR={};
+Object.defineProperty(window,'CHAR',{get:()=>CHAR,set:v=>{CHAR=v;}});
+
+const CLASS_SECTIONS={
+  'cleric':['section-turning','section-spells'],'druid':['section-spells'],
+  'paladin':['section-turning'],'ranger':['section-spells'],
+  'magic-user':['section-spells'],'magic user':['section-spells'],'mage':['section-spells'],
+  'illusionist':['section-spells'],
+  'thief':['section-thief'],'assassin':['section-thief'],
+  'monk':['section-thief'],'bard':['section-thief','section-spells'],
+};
+function _lookupSections(cls){
+  return CLASS_SECTIONS[cls.toLowerCase().trim()]||[];
+}
+function updateClassSections(){
+  const cls=(CHAR.characterClass||'').trim();
+  let show;
+  if(cls.includes('/')){
+    show=[];
+    cls.split('/').forEach(p=>{
+      _lookupSections(p).forEach(s=>{if(!show.includes(s))show.push(s);});
+    });
+  }else{
+    show=_lookupSections(cls);
+  }
+  document.querySelectorAll('.cls-sec').forEach(el=>el.classList.toggle('visible',show.includes(el.id)));
+  updateXPSlots();
+}
+
+function updateXPSlots(){
+  const cls=(CHAR.characterClass||'').trim();
+  const parts=cls.includes('/')?cls.split('/').map(s=>s.trim()).filter(Boolean):[];
+  const slot0=document.getElementById('xp-slot-0');
+  const slot1=document.getElementById('xp-slot-1');
+  const slot2=document.getElementById('xp-slot-2');
+  if(parts.length>=2){
+    document.getElementById('xp-cls-0').textContent=parts[0]+':';
+    document.getElementById('xp-cls-1').textContent=parts[1]+':';
+    slot1.style.display='flex';
+    if(parts.length>=3){
+      document.getElementById('xp-cls-2').textContent=parts[2]+':';
+      slot2.style.display='flex';
+    } else { slot2.style.display='none'; }
+  } else {
+    document.getElementById('xp-cls-0').textContent='XP Total:';
+    slot1.style.display='none';
+    slot2.style.display='none';
+  }
+  const bonusKeys=['xpBonus','xpBonus2','xpBonus3'];
+  for(let i=0;i<3;i++){
+    const badge=document.getElementById('xp-bonus-'+i);
+    const val=+(CHAR[bonusKeys[i]]||0);
+    if(val){badge.textContent='+'+val+'%';badge.classList.add('visible');}
+    else{badge.textContent='';badge.classList.remove('visible');}
+  }
+}
+
+document.querySelectorAll('.pg-tab').forEach(tab=>{
+  tab.addEventListener('click',()=>{
+    document.querySelectorAll('.pg-tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.pg-page').forEach(p=>p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.page).classList.add('active');
+  });
+});
+
+function autosave(){collectFields();try{localStorage.setItem(AUTOSAVE_KEY,JSON.stringify(CHAR));}catch(e){}}
+function loadAutosave(){try{return JSON.parse(localStorage.getItem(AUTOSAVE_KEY));}catch(e){return null;}}
+function collectFields(){document.querySelectorAll("[data-field]").forEach(el=>{const k=el.dataset.field;if(el.tagName==='TEXTAREA')CHAR[k]=el.value;else if(el.type==='number')CHAR[k]=el.value===''?'':Number(el.value);else CHAR[k]=el.value;});}
+function populateFields(){document.querySelectorAll("[data-field]").forEach(el=>{const v=CHAR[el.dataset.field];el.value=(v===undefined||v===null)?'':v;});}
+
+// ── PHB Weapon AC Adjustment Table ──
+// ac: [AC2,AC3,AC4,AC5,AC6,AC7,AC8,AC9,AC10], spd: speed factor
+const PHB_WEAPONS={
+'Axe, Battle':{spd:7,ac:[-3,-1,1,-1,0,0,1,1,2]},
+'Axe, Hand':{spd:4,ac:[-3,-2,-2,-1,0,0,1,1,1]},
+'Bardiche':{spd:9,ac:[-2,-1,0,0,1,1,2,2,3]},
+'Bec de Corbin':{spd:9,ac:[2,2,2,0,0,0,0,0,-1]},
+'Bill-Guisarme':{spd:10,ac:[0,0,0,0,0,0,1,0,0]},
+'Bo Stick':{spd:3,ac:[-9,-7,-5,-3,-1,0,1,0,3]},
+'Club':{spd:4,ac:[-5,-4,-3,-2,-1,-1,0,0,1]},
+'Dagger':{spd:2,ac:[-3,-3,-2,-2,0,0,1,1,3]},
+'Fauchard':{spd:8,ac:[-2,-2,-1,-1,0,0,0,-1,-1]},
+'Fauchard-Fork':{spd:8,ac:[-1,-1,-1,0,0,0,1,0,1]},
+"Flail, Footman's":{spd:7,ac:[2,2,1,2,1,1,1,1,-1]},
+"Flail, Horseman's":{spd:6,ac:[0,0,0,0,0,1,1,1,0]},
+'Fork, Military':{spd:7,ac:[-2,-2,1,0,0,1,1,0,1]},
+'Glaive':{spd:8,ac:[-1,-1,0,0,0,0,0,0,0]},
+'Glaive-Guisarme':{spd:9,ac:[-1,-1,0,0,0,0,0,0,0]},
+'Guisarme':{spd:8,ac:[-2,-2,-1,-1,0,0,0,-1,-1]},
+'Guisarme-Voulge':{spd:10,ac:[-1,-1,0,1,1,1,0,0,0]},
+'Halberd':{spd:9,ac:[1,1,1,2,2,2,1,1,0]},
+'Hammer, Lucern':{spd:9,ac:[1,1,2,2,2,1,1,0,0]},
+'Hammer':{spd:4,ac:[0,1,0,1,0,0,0,0,0]},
+'Jo Stick':{spd:2,ac:[-8,-6,-4,-2,-1,0,1,0,2]},
+'Lance, Heavy Horse':{spd:8,ac:[3,3,2,2,2,1,1,0,0]},
+'Lance, Light Horse':{spd:7,ac:[-2,-2,-1,0,0,0,0,0,0]},
+'Lance, Medium Horse':{spd:6,ac:[0,1,1,1,1,0,0,0,0]},
+"Mace, Footman's":{spd:7,ac:[1,1,0,0,0,0,0,1,-1]},
+"Mace, Horseman's":{spd:6,ac:[1,1,0,0,0,0,0,0,0]},
+'Morning Star':{spd:7,ac:[0,1,1,1,1,1,1,2,2]},
+'Partisan':{spd:9,ac:[0,0,0,0,0,0,0,0,0]},
+"Pick, Military, Footman's":{spd:7,ac:[2,2,1,1,0,-1,-1,-1,-2]},
+"Pick, Military, Horseman's":{spd:5,ac:[1,1,1,1,0,0,-1,-1,-1]},
+'Pike, Awl':{spd:13,ac:[-1,0,0,0,0,0,0,-1,-2]},
+'Ranseur':{spd:8,ac:[-2,-1,-1,0,0,0,0,0,1]},
+'Scimitar':{spd:4,ac:[-3,-2,-2,1,0,0,1,1,3]},
+'Spear':{spd:6,ac:[-2,-1,-1,-1,0,0,0,0,0]},
+'Spetum':{spd:8,ac:[-2,-1,0,0,0,0,0,1,2]},
+'Staff, Quarter':{spd:4,ac:[-7,-5,-3,-1,0,0,1,1,0]},
+'Sword, Bastard':{spd:6,ac:[0,0,1,1,1,1,1,1,0]},
+'Sword, Broad':{spd:5,ac:[-3,-2,-1,0,0,1,1,1,2]},
+'Sword, Long':{spd:5,ac:[-2,-1,0,0,0,0,0,1,2]},
+'Sword, Short':{spd:3,ac:[-3,-2,-1,0,0,0,1,0,2]},
+'Sword, Two-Handed':{spd:10,ac:[2,2,2,2,3,3,3,1,0]},
+'Trident':{spd:7,ac:[-3,-2,-1,-1,0,0,1,0,1]},
+'Voulge':{spd:10,ac:[-1,-1,0,1,1,1,0,0,0]},
+// Missiles (short range; -2 at medium, -5 at long)
+'Axe, Hand (thrown)':{spd:4,rof:1,range:[1,2,3],ac:[-4,-3,-2,-1,-1,0,0,0,1]},
+'Bow, Composite, Long':{rof:2,range:[6,12,21],ac:[-2,-1,0,0,1,2,2,3,3]},
+'Bow, Composite, Short':{rof:2,range:[5,10,18],ac:[-3,-3,-1,0,1,2,2,2,3]},
+'Bow, Long':{rof:2,range:[7,14,21],ac:[-1,0,0,1,2,3,3,3,3]},
+'Bow, Short':{rof:2,range:[5,10,15],ac:[-5,-4,-1,0,0,1,2,2,2]},
+'Club (thrown)':{spd:4,rof:1,range:[1,2,3],ac:[-7,-5,-3,-2,-1,-1,-1,0,0]},
+'Crossbow, Heavy':{rof:0.5,range:[8,16,24],ac:[-1,0,1,2,3,3,4,4,4]},
+'Crossbow, Light':{rof:1,range:[6,12,18],ac:[-2,-1,0,0,1,2,3,3,3]},
+'Dagger (thrown)':{spd:2,rof:2,range:[1,2,3],ac:[-5,-4,-3,-2,-1,-1,0,0,1]},
+'Dart':{rof:3,range:[1.5,3,4.5],ac:[-5,-4,-3,-2,-1,0,1,0,1]},
+'Hammer (thrown)':{spd:4,rof:1,range:[1,2,3],ac:[-2,-1,0,0,0,0,0,0,1]},
+'Javelin':{rof:1,range:[2,4,6],ac:[-5,-4,-3,-2,-1,0,1,0,1]},
+'Sling, Bullet':{rof:1,range:[5,10,20],ac:[-2,-2,-1,0,0,0,2,1,3]},
+'Sling, Stone':{rof:1,range:[4,8,16],ac:[-5,-4,-2,-1,0,0,2,1,3]},
+'Spear (thrown)':{spd:6,rof:1,range:[1,2,3],ac:[-3,-3,-2,-2,-1,0,0,0,0]}
+};
+
+// Alias map: common name variants → PHB canonical name
+const PHB_ALIASES={
+'battle axe':'Axe, Battle','hand axe':'Axe, Hand','throwing axe':'Axe, Hand (thrown)',
+'long sword':'Sword, Long','longsword':'Sword, Long',
+'short sword':'Sword, Short','shortsword':'Sword, Short',
+'broad sword':'Sword, Broad','broadsword':'Sword, Broad',
+'bastard sword':'Sword, Bastard',
+'two-handed sword':'Sword, Two-Handed','two handed sword':'Sword, Two-Handed',
+'footman\'s flail':'Flail, Footman\'s','horseman\'s flail':'Flail, Horseman\'s',
+'footman\'s mace':'Mace, Footman\'s','horseman\'s mace':'Mace, Horseman\'s',
+'footman\'s pick':'Pick, Military, Footman\'s','horseman\'s pick':'Pick, Military, Horseman\'s',
+'military pick':'Pick, Military, Footman\'s',
+'military fork':'Fork, Military',
+'morning star':'Morning Star','morningstar':'Morning Star',
+'heavy lance':'Lance, Heavy Horse','light lance':'Lance, Light Horse','medium lance':'Lance, Medium Horse',
+'lance':'Lance, Medium Horse',
+'heavy crossbow':'Crossbow, Heavy','light crossbow':'Crossbow, Light',
+'composite long bow':'Bow, Composite, Long','composite short bow':'Bow, Composite, Short',
+'long bow':'Bow, Long','longbow':'Bow, Long',
+'short bow':'Bow, Short','shortbow':'Bow, Short',
+'quarterstaff':'Staff, Quarter','quarter staff':'Staff, Quarter','staff':'Staff, Quarter',
+'awl pike':'Pike, Awl',
+'war hammer':'Hammer','warhammer':'Hammer',
+'sling':'Sling, Bullet',
+'bo stick':'Bo Stick','jo stick':'Jo Stick',
+'lucern hammer':'Hammer, Lucern',
+'bec-de-corbin':'Bec de Corbin','bec de corbin':'Bec de Corbin',
+'glaive guisarme':'Glaive-Guisarme','guisarme voulge':'Guisarme-Voulge',
+'fauchard fork':'Fauchard-Fork','bill guisarme':'Bill-Guisarme',
+// ARS weaponstyle values
+'sword, long':'Sword, Long','sword, short':'Sword, Short','sword, broad':'Sword, Broad',
+'sword, bastard':'Sword, Bastard','sword, two-handed':'Sword, Two-Handed',
+'bow, short':'Bow, Short','bow, long':'Bow, Long',
+'bow, composite, long':'Bow, Composite, Long','bow, composite, short':'Bow, Composite, Short',
+'crossbow, heavy':'Crossbow, Heavy','crossbow, light':'Crossbow, Light',
+'flail, footman\'s':'Flail, Footman\'s','flail, horseman\'s':'Flail, Horseman\'s',
+"mace, footman's":"Mace, Footman's","mace, horseman's":"Mace, Horseman's",
+'fist or open hand':'Club',
+'dagger-ranged':'Dagger (thrown)','dagger-melee':'Dagger',
+'axe, battle':'Axe, Battle','axe, hand':'Axe, Hand',
+'pick, military, footman\'s':'Pick, Military, Footman\'s',
+'pick, military, horseman\'s':'Pick, Military, Horseman\'s',
+'lance, heavy horse':'Lance, Heavy Horse','lance, light horse':'Lance, Light Horse',
+'lance, medium horse':'Lance, Medium Horse',
+'hammer, lucern':'Hammer, Lucern',
+'staff, quarter':'Staff, Quarter','morning star':'Morning Star',
+'pike, awl':'Pike, Awl'
+};
+
+// Look up PHB weapon data by name or weaponstyle (strips magic bonus suffixes like "+1", "+2")
+function phbLookup(name){
+  if(!name)return null;
+  const base=name.replace(/\s*\+\d+$/,'').trim();
+  if(PHB_WEAPONS[base])return PHB_WEAPONS[base];
+  const low=base.toLowerCase();
+  if(PHB_ALIASES[low]&&PHB_WEAPONS[PHB_ALIASES[low]])return PHB_WEAPONS[PHB_ALIASES[low]];
+  for(const k of Object.keys(PHB_WEAPONS)){
+    if(k.toLowerCase()===low)return PHB_WEAPONS[k];
+  }
+  return null;
+}
+
+// Fill AC adjustment columns + speed for a weapon object from PHB data
+// Uses weaponstyle (from ARS) as fallback lookup key
+function fillWeaponPHB(w){
+  let data=phbLookup(w.name);
+  if(!data&&w._weaponstyle)data=phbLookup(w._weaponstyle);
+  if(!data)return;
+  const acKeys=['ac2','ac3','ac4','ac5','ac6','ac7','ac8','ac9','ac10'];
+  data.ac.forEach((v,i)=>{if(!w[acKeys[i]])w[acKeys[i]]=v>0?'+'+v:String(v);});
+  if(!w.speed&&data.spd)w.speed=String(data.spd);
+  if(!w.range&&data.range)w.range=data.range.join('/');
+}
+
+function renderWeapons(){
+  const arr=CHAR.weapons||[];const tb=document.getElementById('weapon-list');tb.innerHTML='';
+  arr.forEach((w,i)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML='<td><input class="w-name" value="'+(w.name||'')+'" data-idx="'+i+'" data-lf="name"></td><td><input value="'+(w.magAdj||'')+'" data-idx="'+i+'" data-lf="magAdj"></td><td><input value="'+(w.range||'')+'" data-idx="'+i+'" data-lf="range"></td><td><input value="'+(w.speed||'')+'" data-idx="'+i+'" data-lf="speed"></td><td class="w-ac"><input value="'+(w.ac10||'')+'" data-idx="'+i+'" data-lf="ac10"></td><td class="w-ac"><input value="'+(w.ac9||'')+'" data-idx="'+i+'" data-lf="ac9"></td><td class="w-ac"><input value="'+(w.ac8||'')+'" data-idx="'+i+'" data-lf="ac8"></td><td class="w-ac"><input value="'+(w.ac7||'')+'" data-idx="'+i+'" data-lf="ac7"></td><td class="w-ac"><input value="'+(w.ac6||'')+'" data-idx="'+i+'" data-lf="ac6"></td><td class="w-ac"><input value="'+(w.ac5||'')+'" data-idx="'+i+'" data-lf="ac5"></td><td class="w-ac"><input value="'+(w.ac4||'')+'" data-idx="'+i+'" data-lf="ac4"></td><td class="w-ac"><input value="'+(w.ac3||'')+'" data-idx="'+i+'" data-lf="ac3"></td><td class="w-ac"><input value="'+(w.ac2||'')+'" data-idx="'+i+'" data-lf="ac2"></td><td class="w-dmg"><input value="'+(w.dmg||'')+'" data-idx="'+i+'" data-lf="dmg"></td><td style="text-align:center"><button class="del-btn" data-idx="'+i+'">×</button></td>';
+    tb.appendChild(tr);
+  });
+  tb.querySelectorAll('input').forEach(el=>{
+    el.addEventListener('change',e=>{
+      const idx=+e.target.dataset.idx,fld=e.target.dataset.lf;
+      arr[idx][fld]=e.target.value;
+      // Auto-fill PHB data when weapon name changes
+      if(fld==='name'){fillWeaponPHB(arr[idx]);renderWeapons();}
+      autosave();
+    });
+  });
+  tb.querySelectorAll('.del-btn').forEach(el=>el.addEventListener('click',e=>{arr.splice(+e.target.dataset.idx,1);renderWeapons();autosave();}));
+}
+document.getElementById('add-weapon').addEventListener('click',()=>{if(!CHAR.weapons)CHAR.weapons=[];CHAR.weapons.push({});renderWeapons();autosave();});
+
+function renderInlineList(arrKey,listId,addBtnId){
+  const arr=CHAR[arrKey]||[];const el=document.getElementById(listId);el.innerHTML='';
+  arr.forEach((v,i)=>{
+    const span=document.createElement('span');span.className='prof-row';
+    span.innerHTML='<input class="fi" value="'+(v||'')+'" data-idx="'+i+'" style="width:100px"><button class="del-btn" data-idx="'+i+'">×</button>';
+    el.appendChild(span);
+  });
+  el.querySelectorAll('input').forEach(inp=>inp.addEventListener('change',e=>{arr[+e.target.dataset.idx]=e.target.value;autosave();}));
+  el.querySelectorAll('.del-btn').forEach(btn=>btn.addEventListener('click',e=>{arr.splice(+e.target.dataset.idx,1);renderInlineList(arrKey,listId,addBtnId);autosave();}));
+  document.getElementById(addBtnId).onclick=()=>{if(!CHAR[arrKey])CHAR[arrKey]=[];CHAR[arrKey].push('');renderInlineList(arrKey,listId,addBtnId);autosave();};
+}
+
+function renderTableRows(arrKey,tbId,addBtnId,fields){
+  const arr=CHAR[arrKey]||[];const tb=document.getElementById(tbId);tb.innerHTML='';
+  arr.forEach((row,i)=>{
+    const tr=document.createElement('tr');let html='';
+    fields.forEach(f=>{const st=f.center?'text-align:center':'';html+='<td><input value="'+(row[f.key]||'')+'" data-idx="'+i+'" data-lf="'+f.key+'" style="'+st+'"></td>';});
+    html+='<td style="text-align:center"><button class="del-btn" data-idx="'+i+'">×</button></td>';
+    tr.innerHTML=html;tb.appendChild(tr);
+  });
+  tb.querySelectorAll('input').forEach(el=>el.addEventListener('change',e=>{arr[+e.target.dataset.idx][e.target.dataset.lf]=e.target.value;if(arrKey==='items')calcWeight();autosave();}));
+  tb.querySelectorAll('.del-btn').forEach(el=>el.addEventListener('click',e=>{arr.splice(+e.target.dataset.idx,1);renderTableRows(arrKey,tbId,addBtnId,fields);if(arrKey==='items')calcWeight();autosave();}));
+  document.getElementById(addBtnId).onclick=()=>{if(!CHAR[arrKey])CHAR[arrKey]=[];const o={};fields.forEach(f=>o[f.key]='');CHAR[arrKey].push(o);renderTableRows(arrKey,tbId,addBtnId,fields);autosave();};
+}
+
+function renderInventory(){
+  const arr=CHAR.items||[];
+  const tb=document.getElementById('item-list');
+  tb.innerHTML='';
+  // Hidden check: walk up to find any collapsed ancestor
+  function isRowHidden(idx){
+    const myDepth=+(arr[idx]._depth||0);
+    if(myDepth===0)return false;
+    let checkDepth=myDepth;
+    for(let j=idx-1;j>=0;j--){
+      const pd=+(arr[j]._depth||0);
+      if(pd<checkDepth){
+        if(arr[j]._container&&arr[j]._collapsed)return true;
+        checkDepth=pd;
+        if(pd===0)return false;
+      }
+    }
+    return false;
+  }
+  // Check if an item is effectively not carried (itself or any ancestor)
+  function isNotCarried(idx){
+    if(arr[idx]._nocarry)return true;
+    const myDepth=+(arr[idx]._depth||0);
+    if(myDepth===0)return false;
+    let checkDepth=myDepth;
+    for(let j=idx-1;j>=0;j--){
+      const pd=+(arr[j]._depth||0);
+      if(pd<checkDepth){
+        if(arr[j]._nocarry)return true;
+        checkDepth=pd;
+        if(pd===0)return false;
+      }
+    }
+    return false;
+  }
+  // Get the block of indices for a container (itself + all children)
+  function getBlock(idx){
+    const d=+(arr[idx]._depth||0);
+    let end=idx+1;
+    while(end<arr.length&&+(arr[end]._depth||0)>d)end++;
+    return{start:idx,end:end};
+  }
+  arr.forEach((row,i)=>{
+    const tr=document.createElement('tr');
+    const depth=+(row._depth||0);
+    const isCont=!!row._container;
+    const hidden=isRowHidden(i);
+    const nocarry=isNotCarried(i);
+    if(isCont)tr.classList.add('inv-cont');
+    if(hidden)tr.classList.add('inv-hidden');
+    if(nocarry)tr.classList.add('inv-nocarry');
+    tr.dataset.idx=i;
+    tr.draggable=false;
+    const indent=depth*12;
+    const toggleBtn=isCont?'<span class="inv-toggle" data-idx="'+i+'">'+(row._collapsed?'▶':'▼')+'</span>':'';
+    const carriedCk=row._nocarry?'':'checked';
+    let html='';
+    html+='<td class="inv-grip" draggable="true" data-idx="'+i+'" title="Drag to move">⠿</td>';
+    html+='<td><div style="display:flex;align-items:center;padding-left:'+indent+'px">'+toggleBtn+'<input value="'+(row.name||'')+'" data-idx="'+i+'" data-lf="name" style="flex:1;min-width:0'+(isCont?';font-weight:700':'')+'"></div></td>';
+    html+='<td><input value="'+(row.location||'')+'" data-idx="'+i+'" data-lf="location"></td>';
+    html+='<td><input value="'+(row.qty||'')+'" data-idx="'+i+'" data-lf="qty" style="text-align:center"></td>';
+    html+='<td><input value="'+(row.weight||'')+'" data-idx="'+i+'" data-lf="weight" style="text-align:center"></td>';
+    html+='<td><input value="'+(row.notes||'')+'" data-idx="'+i+'" data-lf="notes"></td>';
+    html+='<td style="text-align:center"><div class="inv-carry'+(row._nocarry?'':' checked')+'" data-carryidx="'+i+'" title="Carried on person">'+(row._nocarry?'':'✓')+'</div></td>';
+    html+='<td style="text-align:center"><button class="del-btn" data-idx="'+i+'">×</button></td>';
+    tr.innerHTML=html;
+    tb.appendChild(tr);
+  });
+  // ── Field editing ──
+  tb.querySelectorAll('input').forEach(el=>el.addEventListener('change',e=>{
+    arr[+e.target.dataset.idx][e.target.dataset.lf]=e.target.value;
+    calcWeight();autosave();
+  }));
+  // ── Carried toggle ──
+  tb.querySelectorAll('[data-carryidx]').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const idx=+el.dataset.carryidx;
+      arr[idx]._nocarry=!arr[idx]._nocarry;
+      renderInventory();calcWeight();autosave();
+    });
+  });
+  // ── Delete ──
+  tb.querySelectorAll('.del-btn').forEach(el=>el.addEventListener('click',e=>{
+    const idx=+e.target.dataset.idx;
+    if(arr[idx]&&arr[idx]._container){
+      const blk=getBlock(idx);
+      arr.splice(blk.start,blk.end-blk.start);
+    }else{arr.splice(idx,1);}
+    renderInventory();calcWeight();autosave();
+  }));
+  // ── Collapse toggles ──
+  tb.querySelectorAll('.inv-toggle').forEach(el=>el.addEventListener('click',()=>{
+    const idx=+el.dataset.idx;
+    arr[idx]._collapsed=!arr[idx]._collapsed;
+    renderInventory();
+  }));
+  // ── Drag and drop ──
+  let dragIdx=-1,dragBlock=null;
+  function clearDropIndicators(){
+    tb.querySelectorAll('.inv-drag-over-above,.inv-drag-over-below,.inv-drag-over-into').forEach(el=>{
+      el.classList.remove('inv-drag-over-above','inv-drag-over-below','inv-drag-over-into');
+    });
+  }
+  tb.querySelectorAll('.inv-grip').forEach(grip=>{
+    grip.addEventListener('dragstart',e=>{
+      dragIdx=+grip.dataset.idx;
+      dragBlock=arr[dragIdx]&&arr[dragIdx]._container?getBlock(dragIdx):{start:dragIdx,end:dragIdx+1};
+      const tr=grip.closest('tr');
+      if(tr)tr.classList.add('inv-dragging');
+      e.dataTransfer.effectAllowed='move';
+      e.dataTransfer.setData('text/plain',String(dragIdx));
+    });
+    grip.addEventListener('dragend',()=>{
+      clearDropIndicators();
+      tb.querySelectorAll('.inv-dragging').forEach(el=>el.classList.remove('inv-dragging'));
+      dragIdx=-1;dragBlock=null;
+    });
+  });
+  tb.querySelectorAll('tr').forEach(tr=>{
+    tr.addEventListener('dragover',e=>{
+      e.preventDefault();
+      e.dataTransfer.dropEffect='move';
+      clearDropIndicators();
+      const targetIdx=+tr.dataset.idx;
+      if(dragBlock&&targetIdx>=dragBlock.start&&targetIdx<dragBlock.end)return;
+      const rect=tr.getBoundingClientRect();
+      const y=e.clientY-rect.top;
+      const third=rect.height/3;
+      if(arr[targetIdx]&&arr[targetIdx]._container&&y>third&&y<third*2){
+        tr.classList.add('inv-drag-over-into');
+      }else if(y<rect.height/2){
+        tr.classList.add('inv-drag-over-above');
+      }else{
+        tr.classList.add('inv-drag-over-below');
+      }
+    });
+    tr.addEventListener('dragleave',()=>{
+      tr.classList.remove('inv-drag-over-above','inv-drag-over-below','inv-drag-over-into');
+    });
+    tr.addEventListener('drop',e=>{
+      e.preventDefault();
+      clearDropIndicators();
+      if(dragIdx<0||!dragBlock)return;
+      const targetIdx=+tr.dataset.idx;
+      if(targetIdx>=dragBlock.start&&targetIdx<dragBlock.end)return;
+      const rect=tr.getBoundingClientRect();
+      const y=e.clientY-rect.top;
+      const third=rect.height/3;
+      const isCont=arr[targetIdx]&&arr[targetIdx]._container;
+      let mode='below';
+      if(isCont&&y>third&&y<third*2)mode='into';
+      else if(y<rect.height/2)mode='above';
+      // Extract the dragged block
+      const moved=arr.splice(dragBlock.start,dragBlock.end-dragBlock.start);
+      // Recalculate target index after splice
+      let insertIdx=targetIdx;
+      if(dragBlock.start<targetIdx)insertIdx-=moved.length;
+      if(mode==='into'){
+        // Insert as first child of container
+        const containerDepth=+(arr[insertIdx]._depth||0);
+        moved.forEach(m=>{m._depth=(+(m._depth||0))-(+(moved[0]._depth||0))+containerDepth+1;});
+        arr.splice(insertIdx+1,0,...moved);
+      }else if(mode==='above'){
+        const targetDepth=+(arr[insertIdx]._depth||0);
+        const srcDepth=+(moved[0]._depth||0);
+        const depthDelta=targetDepth-srcDepth;
+        moved.forEach(m=>{m._depth=(+(m._depth||0))+depthDelta;});
+        arr.splice(insertIdx,0,...moved);
+      }else{
+        // below — insert after target and its children
+        let afterIdx=insertIdx+1;
+        if(arr[insertIdx]&&arr[insertIdx]._container){
+          const blk=getBlock(insertIdx);
+          afterIdx=blk.end;
+        }
+        const targetDepth=+(arr[insertIdx]._depth||0);
+        const srcDepth=+(moved[0]._depth||0);
+        const depthDelta=targetDepth-srcDepth;
+        moved.forEach(m=>{m._depth=(+(m._depth||0))+depthDelta;});
+        arr.splice(afterIdx,0,...moved);
+      }
+      renderInventory();calcWeight();autosave();
+    });
+  });
+  // ── Add item ──
+  document.getElementById('add-item').onclick=()=>{
+    if(!CHAR.items)CHAR.items=[];
+    CHAR.items.push({name:'',location:'',qty:'',weight:'',notes:'',_depth:0});
+    renderInventory();autosave();
+  };
+}
+
+function renderSpells(){
+  const arr=CHAR.spells||[];const el=document.getElementById('spell-list');el.innerHTML='';
+  arr.forEach((sp,i)=>{
+    const q=+(sp.qty||0),cs=+(sp.cast||0),mem=!!sp.memorized;
+    const remaining=Math.max(0,q-cs);
+    let boxCls='sp-mem',boxTxt='',nameCls='fi';
+    if(mem&&q>0){
+      if(cs>=q){boxCls+=' mem-spent';boxTxt='0/'+q;nameCls+=' sp-name-spent';}
+      else if(cs>0){boxCls+=' mem-partial';boxTxt=remaining+'/'+q;nameCls+=' sp-name-mem';}
+      else{boxCls+=' mem-full';boxTxt=q>1?String(q):'✓';nameCls+=' sp-name-mem';}
+    }else if(mem){boxCls+=' mem-full';boxTxt='✓';nameCls+=' sp-name-mem';}
+    const d=document.createElement('div');d.style.cssText='display:flex;gap:2px;align-items:center;margin-bottom:1px;break-inside:avoid';
+    d.innerHTML='<span style="font-family:var(--fh);font-size:8px;font-weight:700;width:14px;text-align:center;color:var(--accent)">'+(sp.level||'')+'</span><div class="'+boxCls+'" data-idx="'+i+'">'+boxTxt+'</div><input class="'+nameCls+'" value="'+(sp.name||'')+'" data-idx="'+i+'" data-lf="name" style="font-size:10px"><button class="del-btn" data-idx="'+i+'">×</button>';
+    el.appendChild(d);
+  });
+  el.querySelectorAll('input').forEach(inp=>inp.addEventListener('change',e=>{arr[+e.target.dataset.idx].name=e.target.value;autosave();}));
+  el.querySelectorAll('.del-btn').forEach(btn=>btn.addEventListener('click',e=>{arr.splice(+e.target.dataset.idx,1);renderSpells();autosave();}));
+  el.querySelectorAll('.sp-mem').forEach(box=>{
+    // Left click: cast one (increment cast count); if not memorized, toggle memorize on
+    box.addEventListener('click',e=>{
+      e.preventDefault();
+      const idx=+box.dataset.idx,sp=arr[idx];
+      if(!sp.memorized){sp.memorized=true;if(!sp.qty)sp.qty=1;sp.cast=0;}
+      else if(+(sp.qty||0)>0){
+        sp.cast=Math.min((+(sp.cast||0))+1,+(sp.qty||1));
+      }else{sp.memorized=!sp.memorized;}
+      renderSpells();autosave();
+    });
+    // Right click: context menu — reset cast, set qty, or un-memorize
+    box.addEventListener('contextmenu',e=>{
+      e.preventDefault();
+      const idx=+box.dataset.idx,sp=arr[idx];
+      if(!sp.memorized)return;
+      const q=+(sp.qty||0),cs=+(sp.cast||0);
+      if(cs>0){sp.cast=0;renderSpells();autosave();return;}
+      const nq=prompt('Memorized copies (0 to un-memorize):',String(q));
+      if(nq===null)return;
+      const n=parseInt(nq);
+      if(isNaN(n)||n<0)return;
+      if(n===0){sp.memorized=false;sp.qty=0;sp.cast=0;}
+      else{sp.qty=n;sp.cast=Math.min(+(sp.cast||0),n);}
+      renderSpells();autosave();
+    });
+  });
+  updateSpellCounter();
+}
+
+function updateSpellCounter(){
+  const arr=CHAR.spells||[];
+  const memByLvl={},remByLvl={};
+  arr.forEach(sp=>{
+    if(!sp.memorized)return;
+    const l=+(sp.level||0),q=+(sp.qty||1),cs=+(sp.cast||0);
+    memByLvl[l]=(memByLvl[l]||0)+q;
+    remByLvl[l]=(remByLvl[l]||0)+Math.max(0,q-cs);
+  });
+  const counter=document.getElementById('sp-counter');
+  let html='';
+  for(let i=1;i<=9;i++){
+    const slots=+(CHAR['spellSlot'+i]||0);
+    const mem=memByLvl[i]||0,rem=remByLvl[i]||0;
+    if(!slots&&!mem){html+='<div class="sp-cnt-cell sp-cnt-empty">&nbsp;</div>';}
+    else{
+      const cls=mem>slots?'sp-cnt-over':(rem<mem?'sp-cnt-partial':'sp-cnt-ok');
+      html+='<div class="sp-cnt-cell '+cls+'">'+rem+'/'+slots+'</div>';
+    }
+  }
+  counter.innerHTML=html;
+}
+document.getElementById('add-spell').addEventListener('click',()=>{
+  const lvl=prompt('Spell level (1-9)?','1');if(!lvl)return;
+  if(!CHAR.spells)CHAR.spells=[];CHAR.spells.push({level:lvl,name:'',memorized:false,qty:0,cast:0});renderSpells();autosave();
+});
+
+// ═══════════════════════════════════════════════════════
+// PHB Spellbook Dialog
+// ═══════════════════════════════════════════════════════
+const PHB_SPELLS={
+'magic-user':{
+1:['Affect Normal Fires','Burning Hands','Charm Person','Comprehend Languages','Dancing Lights','Detect Magic','Enlarge','Erase','Feather Fall','Find Familiar','Friends','Hold Portal','Identify','Jump','Light','Magic Missile','Mending','Message','Nystul\'s Magic Aura','Protection from Evil','Push','Read Magic','Shield','Shocking Grasp','Sleep','Spider Climb','Tenser\'s Floating Disc','Unseen Servant','Ventriloquism','Write'],
+2:['Audible Glamer','Bind','Continual Light','Darkness 15\' Radius','Detect Evil','Detect Invisibility','ESP','Fools\' Gold','Forget','Invisibility','Knock','Know Alignment','Leomund\'s Trap','Levitate','Locate Object','Magic Mouth','Mirror Image','Misdirection','Pyrotechnics','Ray of Enfeeblement','Rope Trick','Scare','Shatter','Stinking Cloud','Strength','Web','Wizard Lock'],
+3:['Blink','Clairaudience','Clairvoyance','Dispel Magic','Explosive Runes','Feign Death','Fireball','Flame Arrow','Fly','Gust of Wind','Haste','Hold Person','Infravision','Invisibility 10\' Radius','Item','Leomund\'s Tiny Hut','Lightning Bolt','Material','Monster Summoning I','Non-Detection','Phantom Steed','Protection from Evil 10\' Radius','Protection from Normal Missiles','Secret Page','Sepia Snake Sigil','Slow','Suggestion','Tongues','Water Breathing'],
+4:['Charm Monster','Confusion','Dig','Dimension Door','Enchanted Weapon','Evard\'s Black Tentacles','Extension I','Fear','Fire Charm','Fire Shield','Fire Trap','Fumble','Hallucinatory Terrain','Ice Storm','Leomund\'s Secure Shelter','Magic Mirror','Massmorph','Minor Globe of Invulnerability','Monster Summoning II','Otiluke\'s Resilient Sphere','Plant Growth','Polymorph Other','Polymorph Self','Rary\'s Mnemonic Enhancer','Remove Curse','Shout','Stoneskin','Wall of Fire','Wall of Ice','Wizard Eye'],
+5:['Advanced Illusion','Airy Water','Animal Growth','Animate Dead','Avoidance','Bigby\'s Interposing Hand','Cloudkill','Cone of Cold','Conjure Elemental','Contact Other Plane','Demiteleport','Distance Distortion','Dream','Extension II','Fabricate','Feeblemind','Hold Monster','Leomund\'s Lamentable Belaborment','Leomund\'s Secret Chest','Magic Jar','Major Creation','Minor Creation','Monster Summoning III','Mordenkainen\'s Faithful Hound','Passwall','Sending','Stone Shape','Telekinesis','Teleport','Transmute Rock to Mud','Wall of Force','Wall of Iron','Wall of Stone'],
+6:['Anti-Magic Shell','Bigby\'s Forceful Hand','Chain Lightning','Conjure Animals','Contingency','Control Weather','Death Spell','Disintegrate','Enchant an Item','Ensnarement','Extension III','Geas','Glassee','Globe of Invulnerability','Guards and Wards','Invisible Stalker','Legend Lore','Lower Water','Mass Suggestion','Mirage Arcane','Monster Summoning IV','Mordenkainen\'s Lucubration','Move Earth','Otiluke\'s Freezing Sphere','Part Water','Project Image','Reincarnation','Repulsion','Spiritwrack','Stone to Flesh','Tenser\'s Transformation','Transmute Water to Dust'],
+7:['Banishment','Bigby\'s Grasping Hand','Cacodemon','Charm Plants','Control Undead','Delayed Blast Fireball','Drawmij\'s Instant Summons','Duo-Dimension','Finger of Death','Limited Wish','Mass Invisibility','Monster Summoning V','Mordenkainen\'s Magnificent Mansion','Mordenkainen\'s Sword','Phase Door','Power Word Stun','Prismatic Spray','Reverse Gravity','Sequester','Simulacrum','Spell Turning','Statue','Teleport without Error','Torment','Vanish','Vision'],
+8:['Antipathy/Sympathy','Bigby\'s Clenched Fist','Binding','Clone','Demand','Glass Steel','Incendiary Cloud','Mass Charm','Maze','Mind Blank','Monster Summoning VI','Otiluke\'s Telekinetic Sphere','Otto\'s Irresistible Dance','Permanency','Polymorph Any Object','Power Word Blind','Prismatic Wall','Serten\'s Spell Immunity','Sink','Symbol','Trap the Soul'],
+9:['Astral Spell','Bigby\'s Crushing Hand','Energy Drain','Gate','Imprisonment','Meteor Swarm','Monster Summoning VII','Mordenkainen\'s Disjunction','Power Word Kill','Prismatic Sphere','Shape Change','Temporal Stasis','Time Stop','Wish']
+},
+'illusionist':{
+1:['Audible Glamer','Change Self','Color Spray','Dancing Lights','Darkness','Detect Illusion','Detect Invisibility','Gaze Reflection','Hypnotism','Light','Phantasmal Force','Wall of Fog'],
+2:['Blindness','Blur','Deafness','Detect Magic','Fog Cloud','Hypnotic Pattern','Improved Phantasmal Force','Invisibility','Magic Mouth','Mirror Image','Misdirection','Ventriloquism'],
+3:['Continual Darkness','Continual Light','Dispel Illusion','Fear','Hallucinatory Terrain','Illusionary Script','Invisibility 10\' Radius','Non-Detection','Paralyzation','Phantom Steed','Spectral Force','Suggestion'],
+4:['Confusion','Dispel Exhaustion','Emotion','Improved Invisibility','Massmorph','Minor Creation','Phantasmal Killer','Rainbow Pattern','Shadow Monsters','Vacancy'],
+5:['Advanced Illusion','Demi-Shadow Monsters','Dream','Major Creation','Maze','Projected Image','Shadow Door','Shadow Magic','Summon Shadow','Tempus Fugit'],
+6:['Conjure Animals','Demi-Shadow Magic','Mass Suggestion','Mirage Arcane','Mislead','Permanent Illusion','Phantasmagoria','Programmed Illusion','Shades','True Sight','Veil'],
+7:['Alter Reality','Astral Spell','Prismatic Spray','Prismatic Wall','Shadow Walk','Vision','Weird']
+},
+'cleric':{
+1:['Bless','Command','Create Water','Cure Light Wounds','Detect Evil','Detect Magic','Light','Protection from Evil','Purify Food & Drink','Remove Fear','Resist Cold','Sanctuary'],
+2:['Augury','Chant','Detect Charm','Find Traps','Hold Person','Know Alignment','Resist Fire','Silence 15\' Radius','Slow Poison','Snake Charm','Speak with Animals','Spiritual Hammer'],
+3:['Animate Dead','Continual Light','Create Food & Water','Cure Blindness','Cure Disease','Dispel Magic','Feign Death','Glyph of Warding','Locate Object','Prayer','Remove Curse','Speak with Dead'],
+4:['Atonement','Cure Serious Wounds','Detect Lie','Divination','Exorcise','Lower Water','Neutralize Poison','Protection from Evil 10\' Radius','Speak with Plants','Sticks to Snakes','Tongues'],
+5:['Commune','Cure Critical Wounds','Dispel Evil','Flame Strike','Insect Plague','Plane Shift','Quest','Raise Dead','True Seeing'],
+6:['Aerial Servant','Animate Object','Blade Barrier','Conjure Animals','Find the Path','Heal','Part Water','Speak with Monsters','Stone Tell','Word of Recall'],
+7:['Astral Spell','Control Weather','Earthquake','Gate','Holy Word','Regenerate','Restoration','Resurrection','Symbol','Wind Walk']
+},
+'druid':{
+1:['Animal Friendship','Detect Magic','Detect Snares & Pits','Entangle','Faerie Fire','Invisibility to Animals','Locate Animals','Pass without Trace','Predict Weather','Purify Water','Shillelagh','Speak with Animals'],
+2:['Barkskin','Charm Person or Mammal','Create Water','Cure Light Wounds','Feign Death','Fire Trap','Heat Metal','Locate Plants','Obscurement','Produce Flame','Trip','Warp Wood'],
+3:['Call Lightning','Cure Disease','Hold Animal','Neutralize Poison','Plant Growth','Protection from Fire','Pyrotechnics','Snare','Spike Growth','Stone Shape','Summon Insects','Tree','Water Breathing'],
+4:['Animal Summoning I','Call Woodland Beings','Control Temperature 10\' Radius','Cure Serious Wounds','Dispel Magic','Hallucinatory Forest','Hold Plant','Plant Door','Produce Fire','Protection from Lightning','Repel Insects','Speak with Plants'],
+5:['Animal Growth','Animal Summoning II','Anti-Plant Shell','Commune with Nature','Control Winds','Insect Plague','Pass Plant','Sticks to Snakes','Transmute Rock to Mud','Wall of Fire'],
+6:['Animal Summoning III','Anti-Animal Shell','Conjure Fire Elemental','Cure Critical Wounds','Feeblemind','Fire Seeds','Liveoak','Transport via Plants','Turn Wood','Wall of Thorns','Weather Summoning'],
+7:['Animate Rock','Chariot of Sustarre','Confusion','Conjure Earth Elemental','Control Weather','Creeping Doom','Finger of Death','Fire Storm','Reincarnate','Transmute Metal to Wood']
+},
+'ranger':{
+1:['Animal Friendship','Detect Magic','Entangle','Invisibility to Animals','Locate Animals','Pass without Trace','Predict Weather','Speak with Animals'],
+2:['Barkskin','Charm Person or Mammal','Cure Light Wounds','Heat Metal','Locate Plants','Speak with Animals','Trip','Warp Wood'],
+3:['Call Lightning','Cure Disease','Hold Animal','Neutralize Poison','Plant Growth','Protection from Fire','Snare','Tree']
+},
+'bard':{
+1:['Affect Normal Fires','Burning Hands','Charm Person','Comprehend Languages','Dancing Lights','Detect Magic','Enlarge','Erase','Feather Fall','Friends','Hold Portal','Identify','Jump','Light','Magic Missile','Mending','Message','Nystul\'s Magic Aura','Protection from Evil','Push','Read Magic','Shield','Shocking Grasp','Sleep','Spider Climb','Tenser\'s Floating Disc','Unseen Servant','Ventriloquism','Write'],
+2:['Audible Glamer','Bind','Continual Light','Darkness 15\' Radius','Detect Evil','Detect Invisibility','ESP','Fools\' Gold','Forget','Invisibility','Knock','Know Alignment','Leomund\'s Trap','Levitate','Locate Object','Magic Mouth','Mirror Image','Misdirection','Pyrotechnics','Ray of Enfeeblement','Rope Trick','Scare','Shatter','Stinking Cloud','Strength','Web','Wizard Lock'],
+3:['Blink','Clairaudience','Clairvoyance','Dispel Magic','Explosive Runes','Feign Death','Fireball','Flame Arrow','Fly','Gust of Wind','Haste','Hold Person','Infravision','Invisibility 10\' Radius','Item','Leomund\'s Tiny Hut','Lightning Bolt','Material','Monster Summoning I','Non-Detection','Phantom Steed','Protection from Evil 10\' Radius','Protection from Normal Missiles','Secret Page','Sepia Snake Sigil','Slow','Suggestion','Tongues','Water Breathing'],
+4:['Charm Monster','Confusion','Dig','Dimension Door','Enchanted Weapon','Evard\'s Black Tentacles','Extension I','Fear','Fire Charm','Fire Shield','Fire Trap','Fumble','Hallucinatory Terrain','Ice Storm','Leomund\'s Secure Shelter','Magic Mirror','Massmorph','Minor Globe of Invulnerability','Monster Summoning II','Otiluke\'s Resilient Sphere','Plant Growth','Polymorph Other','Polymorph Self','Rary\'s Mnemonic Enhancer','Remove Curse','Shout','Stoneskin','Wall of Fire','Wall of Ice','Wizard Eye'],
+5:['Advanced Illusion','Airy Water','Animal Growth','Animate Dead','Avoidance','Bigby\'s Interposing Hand','Cloudkill','Cone of Cold','Conjure Elemental','Contact Other Plane','Demiteleport','Distance Distortion','Dream','Extension II','Fabricate','Feeblemind','Hold Monster','Leomund\'s Lamentable Belaborment','Leomund\'s Secret Chest','Magic Jar','Major Creation','Minor Creation','Monster Summoning III','Mordenkainen\'s Faithful Hound','Passwall','Sending','Stone Shape','Telekinesis','Teleport','Transmute Rock to Mud','Wall of Force','Wall of Iron','Wall of Stone'],
+6:['Anti-Magic Shell','Bigby\'s Forceful Hand','Chain Lightning','Conjure Animals','Contingency','Control Weather','Death Spell','Disintegrate','Enchant an Item','Ensnarement','Extension III','Geas','Glassee','Globe of Invulnerability','Guards and Wards','Invisible Stalker','Legend Lore','Lower Water','Mass Suggestion','Mirage Arcane','Monster Summoning IV','Mordenkainen\'s Lucubration','Move Earth','Otiluke\'s Freezing Sphere','Part Water','Project Image','Reincarnation','Repulsion','Spiritwrack','Stone to Flesh','Tenser\'s Transformation','Transmute Water to Dust']
+}
+};
+
+// Determine which spell list(s) apply to the character
+function _sbGetCasterType(){
+  const raw=(CHAR.characterClass||'').trim();
+  const cls=raw.toLowerCase().replace(/[\s-]+/g,' ');
+  function matchPart(p){
+    p=p.replace(/[\s-]+/g,' ').trim();
+    if(p==='magic user'||p==='mage'||p==='mu'||p==='m u')return'magic-user';
+    if(p==='illusionist')return'illusionist';
+    if(p==='cleric')return'cleric';
+    if(p==='druid')return'druid';
+    if(p==='ranger')return'ranger';
+    if(p==='paladin')return'cleric';
+    if(p==='bard')return'bard';
+    return null;
+  }
+  if(raw.includes('/')) {
+    const parts=cls.split('/').map(s=>s.trim());
+    const types=[];
+    parts.forEach(p=>{const t=matchPart(p);if(t&&!types.includes(t))types.push(t);});
+    return types.length?types:null;
+  }
+  const t=matchPart(cls);
+  return t?[t]:null;
+}
+
+function _sbGetSpellPool(types){
+  const pool={};
+  types.forEach(t=>{
+    const src=PHB_SPELLS[t];if(!src)return;
+    Object.keys(src).forEach(lv=>{
+      const lvn=+lv;
+      if(!pool[lvn])pool[lvn]=[];
+      src[lv].forEach(name=>{if(!pool[lvn].includes(name))pool[lvn].push(name);});
+    });
+  });
+  Object.keys(pool).forEach(lv=>pool[lv].sort());
+  return pool;
+}
+
+(function(){
+  const overlay=document.getElementById('sb-overlay');
+  const body=document.getElementById('sb-body');
+  const filterInput=document.getElementById('sb-filter');
+  const lvlBtns=document.getElementById('sb-lvl-btns');
+  const info=document.getElementById('sb-info');
+  const classLabel=document.getElementById('sb-class-label');
+  let known={};  // {name→true}
+  let pool={};   // {level→[names]}
+  let filterLvl=0; // 0=all
+
+  function open(){
+    const types=_sbGetCasterType();
+    if(!types){MPDialog.alert('Spellbook','No caster class detected. Set a class (Magic-User, Cleric, Druid, Illusionist, Ranger, Paladin, Bard, or multi-class) first.');return;}
+    pool=_sbGetSpellPool(types);
+    classLabel.textContent='— '+types.map(t=>t.charAt(0).toUpperCase()+t.slice(1)).join(' / ');
+    known={};
+    (CHAR.spells||[]).forEach(sp=>{if(sp.name)known[sp.name]=true;});
+    filterLvl=0;filterInput.value='';
+    buildLevelBtns();
+    render();
+    overlay.classList.add('open');
+  }
+
+  function close(){overlay.classList.remove('open');}
+
+  function buildLevelBtns(){
+    const lvls=Object.keys(pool).map(Number).sort((a,b)=>a-b);
+    let h='<button class="sb-lvl-btn active" data-lv="0">All</button>';
+    lvls.forEach(lv=>{h+='<button class="sb-lvl-btn" data-lv="'+lv+'">'+lv+'</button>';});
+    lvlBtns.innerHTML=h;
+    lvlBtns.querySelectorAll('.sb-lvl-btn').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        filterLvl=+btn.dataset.lv;
+        lvlBtns.querySelectorAll('.sb-lvl-btn').forEach(b=>b.classList.toggle('active',+b.dataset.lv===filterLvl));
+        render();
+      });
+    });
+  }
+
+  function render(){
+    const q=filterInput.value.toLowerCase().trim();
+    const lvls=Object.keys(pool).map(Number).sort((a,b)=>a-b);
+    let totalKnown=0,totalAvail=0;
+    let html='';
+    lvls.forEach(lv=>{
+      if(filterLvl&&lv!==filterLvl)return;
+      const spells=pool[lv].filter(n=>!q||n.toLowerCase().includes(q));
+      if(!spells.length)return;
+      const knownAtLvl=spells.filter(n=>known[n]).length;
+      totalKnown+=knownAtLvl;totalAvail+=spells.length;
+      html+='<div class="sb-level-group"><div class="sb-level-hdr">Level '+lv+' <span class="sb-level-count">('+knownAtLvl+'/'+spells.length+' known)</span></div><div class="sb-spell-grid">';
+      spells.forEach(name=>{
+        const ck=known[name]?'checked':'';
+        const nk=known[name]?' known':'';
+        html+='<div class="sb-spell-row" data-spell="'+name.replace(/"/g,'&quot;')+'" data-lv="'+lv+'"><div class="sb-spell-cb '+ck+'">'+(known[name]?'✓':'')+'</div><span class="sb-spell-name'+nk+'">'+name+'</span></div>';
+      });
+      html+='</div></div>';
+    });
+    if(!html)html='<div style="text-align:center;color:var(--ink-lt);padding:20px;font-family:var(--fb);font-size:11px">No spells match your filter.</div>';
+    body.innerHTML=html;
+    info.textContent=totalKnown+' of '+totalAvail+' spells known';
+    body.querySelectorAll('.sb-spell-row').forEach(row=>{
+      row.addEventListener('click',()=>{
+        const name=row.dataset.spell;
+        const cb=row.querySelector('.sb-spell-cb');
+        const label=row.querySelector('.sb-spell-name');
+        if(known[name]){delete known[name];cb.classList.remove('checked');cb.textContent='';label.classList.remove('known');}
+        else{known[name]=true;cb.classList.add('checked');cb.textContent='✓';label.classList.add('known');}
+        updateInfo();
+      });
+    });
+  }
+
+  function updateInfo(){
+    let totalKnown=0,totalAvail=0;
+    Object.keys(pool).forEach(lv=>{
+      totalAvail+=pool[lv].length;
+      pool[lv].forEach(n=>{if(known[n])totalKnown++;});
+    });
+    info.textContent=totalKnown+' of '+totalAvail+' spells known';
+    body.querySelectorAll('.sb-level-hdr').forEach(hdr=>{
+      const group=hdr.parentElement;
+      const rows=group.querySelectorAll('.sb-spell-row');
+      let ct=0;rows.forEach(r=>{if(known[r.dataset.spell])ct++;});
+      const countEl=hdr.querySelector('.sb-level-count');
+      if(countEl)countEl.textContent='('+ct+'/'+rows.length+' known)';
+    });
+  }
+
+  function apply(){
+    if(!CHAR.spells)CHAR.spells=[];
+    const existing={};
+    CHAR.spells.forEach(sp=>{if(sp.name)existing[sp.name]=sp;});
+    // Remove spells no longer known (only if they came from the pool)
+    const poolNames={};
+    Object.values(pool).forEach(arr=>arr.forEach(n=>{poolNames[n]=true;}));
+    CHAR.spells=CHAR.spells.filter(sp=>{
+      if(!sp.name)return false;
+      if(poolNames[sp.name]&&!known[sp.name])return false;
+      return true;
+    });
+    // Add newly known spells not already present
+    const nowNames={};CHAR.spells.forEach(sp=>{if(sp.name)nowNames[sp.name]=true;});
+    Object.keys(pool).sort((a,b)=>+a-(+b)).forEach(lv=>{
+      pool[lv].forEach(name=>{
+        if(known[name]&&!nowNames[name]){
+          CHAR.spells.push({level:String(lv),name:name,memorized:false,qty:0,cast:0});
+        }
+      });
+    });
+    CHAR.spells.sort((a,b)=>(+a.level)-(+b.level)||a.name.localeCompare(b.name));
+    renderSpells();autosave();close();
+  }
+
+  filterInput.addEventListener('input',render);
+  document.getElementById('sb-close').addEventListener('click',close);
+  document.getElementById('sb-cancel').addEventListener('click',close);
+  document.getElementById('sb-apply').addEventListener('click',apply);
+  overlay.addEventListener('click',e=>{if(e.target===overlay)close();});
+  document.getElementById('btn-spellbook').addEventListener('click',open);
+})();
+
+// ═══════════════════════════════════════════════════════
+// Exchange Dialog (Money Change + Buy Gems)
+// ═══════════════════════════════════════════════════════
+(function(){
+  const overlay=document.getElementById('ex-overlay');
+  const COIN_FIELDS={cp:'wealthCP',sp:'wealthSP',ep:'wealthEP',gp:'wealthGP',pp:'wealthPP'};
+  const COIN_TO_GP={cp:1/200,sp:1/20,ep:0.5,gp:1,pp:5};
+  const GP_TO_COIN={cp:200,sp:20,ep:2,gp:1,pp:0.2};
+  const COIN_NAMES={cp:'CP',sp:'SP',ep:'EP',gp:'GP',pp:'PP'};
+  // DMG/PHB gem denominations (base values in gp)
+  const GEM_VALS=[5000,1000,500,100,50,10];
+
+  function coinAvail(type){return +(CHAR[COIN_FIELDS[type]]||0);}
+  function setCoin(type,val){CHAR[COIN_FIELDS[type]]=val;_setField(COIN_FIELDS[type],val);}
+
+  // ── Tabs ──
+  overlay.querySelectorAll('.ex-tab').forEach(tab=>{
+    tab.addEventListener('click',()=>{
+      overlay.querySelectorAll('.ex-tab').forEach(t=>t.classList.toggle('active',t===tab));
+      overlay.querySelectorAll('.ex-page').forEach(p=>p.classList.toggle('active',p.id==='ex-'+tab.dataset.ex));
+    });
+  });
+
+  function open(){
+    // Reset fields to clean state
+    excFrom.value='';excTo.value='';excAmt.value='';excFee.value='3';
+    excAvail.textContent='';excResult.innerHTML='';
+    exgCoin.value='';exgAmt.value='';exgFee.value='10';
+    exgAvail.textContent='';exgResult.innerHTML='';
+    overlay.classList.add('open');
+  }
+  function close(){overlay.classList.remove('open');}
+
+  // ── Money Change ──
+  const excAmt=document.getElementById('exc-amount');
+  const excFrom=document.getElementById('exc-from');
+  const excTo=document.getElementById('exc-to');
+  const excFee=document.getElementById('exc-fee');
+  const excResult=document.getElementById('exc-result');
+  const excAvail=document.getElementById('exc-avail');
+
+  // Break a GP value into mixed coin denominations, preferring the target coin first
+  // then cascading down to smaller denominations for the remainder
+  const COIN_ORDER=['pp','gp','ep','sp','cp'];
+  const cpPer={pp:1000,gp:200,ep:100,sp:10,cp:1};
+  function gpToMixedCoins(gpVal, preferCoin){
+    const result={pp:0,gp:0,ep:0,sp:0,cp:0};
+    let remainCp=Math.round(gpVal*200);
+    // Pay in preferred denomination, then only smaller denominations
+    const prefIdx=COIN_ORDER.indexOf(preferCoin);
+    const order=COIN_ORDER.slice(prefIdx>=0?prefIdx:0);
+    order.forEach(coin=>{
+      if(coin==='ep'&&preferCoin!=='ep')return;
+      if(remainCp>=cpPer[coin]){
+        const count=Math.floor(remainCp/cpPer[coin]);
+        result[coin]=count;
+        remainCp-=count*cpPer[coin];
+      }
+    });
+    return result;
+  }
+
+  function formatMixed(coins){
+    const parts=[];
+    COIN_ORDER.forEach(c=>{if(coins[c]>0)parts.push(coins[c]+' '+COIN_NAMES[c]);});
+    return parts.join(', ')||'0';
+  }
+
+  function updateChangePreview(){
+    const from=excFrom.value,to=excTo.value;
+    const amt=Math.max(0,+(excAmt.value||0));
+    const fee=Math.max(0,Math.min(100,+(excFee.value||0)));
+    if(!from){excAvail.textContent='';excResult.innerHTML='';return;}
+    const avail=coinAvail(from);
+    excAvail.textContent='(have '+avail+' '+COIN_NAMES[from]+')';
+    if(!to||from===to||amt<=0){excResult.innerHTML='';return;}
+    const gpVal=amt*COIN_TO_GP[from];
+    const afterFee=gpVal*(1-fee/100);
+    const feePaid=gpVal-afterFee;
+    const coins=gpToMixedCoins(afterFee,to);
+    const overBudget=amt>avail;
+    excResult.innerHTML='<div class="ex-result-title">Result</div>'+
+      '<div>'+amt+' '+COIN_NAMES[from]+' → <b>'+formatMixed(coins)+'</b></div>'+
+      '<div style="font-size:9px;color:var(--ink-lt)">Fee: '+fee+'% ('+feePaid.toFixed(2)+' gp)</div>'+
+      (overBudget?'<div style="color:var(--accent);font-weight:700;margin-top:2px">Insufficient funds!</div>':'');
+  }
+  // Auto-fill amount when From coin type changes
+  excFrom.addEventListener('change',()=>{
+    const from=excFrom.value;
+    if(from){excAmt.value=coinAvail(from);}else{excAmt.value='';}
+    updateChangePreview();
+  });
+  [excAmt,excFee].forEach(el=>el.addEventListener('input',updateChangePreview));
+  excTo.addEventListener('change',updateChangePreview);
+
+  document.getElementById('exc-apply').addEventListener('click',()=>{
+    const from=excFrom.value,to=excTo.value;
+    const amt=Math.max(0,+(excAmt.value||0));
+    const fee=Math.max(0,Math.min(100,+(excFee.value||0)));
+    if(!from||!to||from===to||amt<=0)return;
+    if(amt>coinAvail(from)){MPDialog.alert('Exchange','Insufficient '+COIN_NAMES[from]+'.');return;}
+    const gpVal=amt*COIN_TO_GP[from];
+    const afterFee=gpVal*(1-fee/100);
+    const coins=gpToMixedCoins(afterFee,to);
+    setCoin(from,coinAvail(from)-amt);
+    COIN_ORDER.forEach(c=>{if(coins[c]>0)setCoin(c,coinAvail(c)+coins[c]);});
+    calcWeight();autosave();close();
+  });
+  document.getElementById('exc-cancel').addEventListener('click',close);
+
+  // ── Buy Gems ──
+  const exgAmt=document.getElementById('exg-amount');
+  const exgCoin=document.getElementById('exg-coin');
+  const exgFee=document.getElementById('exg-fee');
+  const exgResult=document.getElementById('exg-result');
+  const exgAvail=document.getElementById('exg-avail');
+
+  function breakIntoGems(gpVal){
+    const gems=[];
+    let remaining=gpVal;
+    GEM_VALS.forEach(v=>{
+      if(remaining>=v){
+        const count=Math.floor(remaining/v);
+        gems.push({value:v,count:count});
+        remaining-=count*v;
+      }
+    });
+    return gems;
+  }
+
+  function updateGemPreview(){
+    const coin=exgCoin.value;
+    const amt=Math.max(0,+(exgAmt.value||0));
+    const fee=Math.max(0,Math.min(100,+(exgFee.value||0)));
+    if(!coin){exgAvail.textContent='';exgResult.innerHTML='';return;}
+    const avail=coinAvail(coin);
+    exgAvail.textContent='(have '+avail+' '+COIN_NAMES[coin]+')';
+    if(amt<=0){exgResult.innerHTML='';return;}
+    const gpSpend=amt*COIN_TO_GP[coin];
+    const feeCost=Math.floor(gpSpend*fee/100);
+    const netGP=gpSpend-feeCost;
+    const gems=breakIntoGems(netGP);
+    const overBudget=amt>avail;
+    let html='<div class="ex-result-title">Gems Received ('+netGP+' gp value)</div>';
+    if(gems.length){gems.forEach(g=>{html+='<div>'+g.count+'× '+g.value+' gp gem</div>';});}
+    else{html+='<div style="color:var(--ink-lt)">Amount too small for any gems.</div>';}
+    html+='<div style="font-size:9px;color:var(--ink-lt);margin-top:2px">Fee: '+fee+'% ('+feeCost+' gp)</div>';
+    if(overBudget)html+='<div style="color:var(--accent);font-weight:700;margin-top:2px">Insufficient funds!</div>';
+    exgResult.innerHTML=html;
+  }
+  // Auto-fill amount when coin type changes
+  exgCoin.addEventListener('change',()=>{
+    const coin=exgCoin.value;
+    if(coin){exgAmt.value=coinAvail(coin);}else{exgAmt.value='';}
+    updateGemPreview();
+  });
+  [exgAmt,exgFee].forEach(el=>el.addEventListener('input',updateGemPreview));
+
+  document.getElementById('exg-apply').addEventListener('click',()=>{
+    const coin=exgCoin.value;
+    const amt=Math.max(0,+(exgAmt.value||0));
+    const fee=Math.max(0,Math.min(100,+(exgFee.value||0)));
+    if(!coin||amt<=0)return;
+    if(amt>coinAvail(coin)){MPDialog.alert('Exchange','Insufficient '+COIN_NAMES[coin]+'.');return;}
+    const gpSpend=amt*COIN_TO_GP[coin];
+    const feeCost=Math.floor(gpSpend*fee/100);
+    const netGP=gpSpend-feeCost;
+    const gems=breakIntoGems(netGP);
+    if(!gems.length){MPDialog.alert('Exchange','Amount too small for any gems.');return;}
+    // Deduct coins
+    setCoin(coin,coinAvail(coin)-amt);
+    // Add gems to count and details
+    let totalNewGems=0;
+    const parts=[];
+    gems.forEach(g=>{totalNewGems+=g.count;parts.push(g.count+'x Gem ('+g.value+'gp)');});
+    CHAR.wealthGems=(+(CHAR.wealthGems||0))+totalNewGems;
+    _setField('wealthGems',CHAR.wealthGems);
+    // Append to gem details textarea
+    const detail=CHAR.gemDetails||'';
+    const newDetail=parts.join(', ');
+    CHAR.gemDetails=detail?(detail+', '+newDetail):newDetail;
+    _setField('gemDetails',CHAR.gemDetails);
+    calcWeight();autosave();close();
+  });
+  document.getElementById('exg-cancel').addEventListener('click',close);
+
+  // ── Open / Close ──
+  document.getElementById('ex-close').addEventListener('click',close);
+  overlay.addEventListener('click',e=>{if(e.target===overlay)close();});
+  document.getElementById('btn-exchange').addEventListener('click',open);
+})();
+
+function calcWeight(){
+  // 1e AD&D uses coins (cn) as weight unit: 10 cn = 1 lb
+  // Item weights are stored in cn; skip not-carried items
+  const items=CHAR.items||[];let itemCn=0;
+  function isEffectivelyNoCarry(idx){
+    if(items[idx]._nocarry)return true;
+    const myDepth=+(items[idx]._depth||0);
+    if(myDepth===0)return false;
+    let checkDepth=myDepth;
+    for(let j=idx-1;j>=0;j--){
+      const pd=+(items[j]._depth||0);
+      if(pd<checkDepth){
+        if(items[j]._nocarry)return true;
+        checkDepth=pd;
+        if(pd===0)return false;
+      }
+    }
+    return false;
+  }
+  items.forEach((it,i)=>{
+    if(isEffectivelyNoCarry(i))return;
+    itemCn+=((parseFloat(it.weight)||0))*(parseInt(it.qty)||1);
+  });
+  // Coin weight: each coin = 1 cn
+  const coinCn=(+(CHAR.wealthCP||0))+(+(CHAR.wealthSP||0))+(+(CHAR.wealthEP||0))+(+(CHAR.wealthGP||0))+(+(CHAR.wealthPP||0));
+  const totalCn=Math.round(itemCn+coinCn);
+  document.getElementById('total-weight').value=totalCn||'';
+  CHAR.totalWeight=totalCn;
+  // Tooltip: show lbs equivalent
+  const lbs=(totalCn/10);
+  const lbsStr=lbs%1===0?lbs.toFixed(0):lbs.toFixed(1);
+  document.getElementById('total-weight-box').title=totalCn+' cn = '+lbsStr+' lbs';
+  // PHB Encumbrance thresholds in cn (350/700/1050/1500 cn = 35/70/105/150 lbs)
+  // strAdj is the Weight Allowance from PHB Str Table II (e.g. +350, -150)
+  const strAdj=+(CHAR.strAdj||0);
+  const thresholds=[350+strAdj, 700+strAdj, 1050+strAdj, 1500+strAdj];
+  // Movement rates: base move in 1e scale (12", 9", 6", 3")
+  // ARS may store in feet (120=12"), normalize if ≥30
+  let base=+(String(CHAR.moveBase||'12').replace(/[^0-9]/g,''))||12;
+  if(base>=30)base=Math.round(base/10);
+  const rates=[base, Math.floor(base*3/4), Math.floor(base/2), Math.floor(base/4)];
+  // Fill the load fields
+  const lN=document.querySelector('[data-field="loadNormal"]');
+  const lH=document.querySelector('[data-field="loadHeavy"]');
+  const lL=document.querySelector('[data-field="loadLoaded"]');
+  const lM=document.querySelector('[data-field="loadMax"]');
+  if(lN)lN.value=thresholds[0]+' / '+rates[0]+'"';
+  if(lH)lH.value=thresholds[1]+' / '+rates[1]+'"';
+  if(lL)lL.value=thresholds[2]+' / '+rates[2]+'"';
+  if(lM)lM.value=thresholds[3]+' / '+rates[3]+'"';
+  CHAR.loadNormal=lN?lN.value:'';CHAR.loadHeavy=lH?lH.value:'';
+  CHAR.loadLoaded=lL?lL.value:'';CHAR.loadMax=lM?lM.value:'';
+  // Determine current bracket and effective move
+  let bracket='Normal',effMove=rates[0];
+  if(totalCn>thresholds[2]){bracket='Encumbered';effMove=rates[3];}
+  else if(totalCn>thresholds[1]){bracket='Very Heavy';effMove=rates[2];}
+  else if(totalCn>thresholds[0]){bracket='Heavy';effMove=rates[1];}
+  const moveAdj=document.querySelector('[data-field="moveAdj"]');
+  if(moveAdj){moveAdj.value=effMove+'" ('+bracket+')';CHAR.moveAdj=moveAdj.value;}
+}
+
+// Portrait (name box)
+const pBox=document.getElementById('portrait-box'),pInput=document.getElementById('portrait-input'),pDel=document.getElementById('portrait-del');
+pBox.addEventListener('click',e=>{if(e.target===pDel)return;pInput.click();});
+pInput.addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{const img=new Image();img.onload=()=>{const c=document.createElement('canvas');const mx=400;let w=img.width,h=img.height;if(w>mx||h>mx){const s=mx/Math.max(w,h);w*=s;h*=s;}c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);CHAR.portrait=c.toDataURL('image/png');showPortrait();autosave();};img.src=ev.target.result;};r.readAsDataURL(f);});
+pDel.addEventListener('click',e=>{e.stopPropagation();CHAR.portrait=null;showPortrait();autosave();});
+function showPortrait(){const ex=pBox.querySelector('img');if(ex)ex.remove();const ph=document.getElementById('portrait-ph');if(CHAR.portrait){const img=document.createElement('img');img.src=CHAR.portrait;img.style.cssText='width:100%;height:100%;object-fit:contain;position:absolute;top:0;left:0';pBox.prepend(img);if(ph)ph.style.display='none';}else{if(ph)ph.style.display='';}}
+
+// Save/Load
+function getAllChars(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY))||[];}catch(e){return[];}}
+function saveChar(){
+  collectFields();
+  if(!CHAR.characterName){MPDialog.alert('Save','Enter a character name first.');return;}
+  if(!CHAR._id)CHAR._id=GCC.genId?GCC.genId('add'):('add_'+Date.now());
+  CHAR._saved=Date.now();CHAR._system='add1e';
+  const chars=getAllChars();
+  const idx=chars.findIndex(c=>c._id===CHAR._id);
+  function doSave(){
+    if(idx>=0)chars[idx]=CHAR;else chars.push(CHAR);
+    try{localStorage.setItem(STORAGE_KEY,JSON.stringify(chars));autosave();
+    if(typeof GCCSync!=='undefined'&&GCCSync.notifySync)GCCSync.notifySync(STORAGE_KEY);
+    MPDialog.alert('Saved','"'+CHAR.characterName+'" saved.');}catch(e){MPDialog.alert('Error','Failed: '+e.message);}
+  }
+  if(idx>=0){
+    MPDialog.confirm('Overwrite','Overwrite existing save of "'+CHAR.characterName+'"?',{okText:'Overwrite',cancelText:'Cancel'}).then(ok=>{if(ok)doSave();});
+  }else{doSave();}
+}
+function loadChar(){
+  const chars=getAllChars();
+  if(!chars.length){MPDialog.alert('Load','No saved characters.');return;}
+  const rows=chars.map((c,i)=>{
+    const name=c.characterName||'Unnamed';
+    const cls=c.characterClass||'?';
+    const lvl=c.level||'?';
+    return'<div style="display:flex;align-items:center;gap:4px;padding:3px 0;border-bottom:1px solid #ddd"><button data-delidx="'+i+'" style="border:none;background:none;color:#8b0000;font-size:13px;cursor:pointer;padding:0 2px;flex-shrink:0" title="Delete this character">×</button><span data-loadidx="'+i+'" style="cursor:pointer;flex:1;font-size:12px" title="Click to load">'+name+' <span style="color:#666;font-size:10px">('+cls+' '+lvl+')</span></span></div>';
+  }).join('');
+  MPDialog.confirm('Load Character','<div style="max-height:300px;overflow-y:auto" id="dlg-charlist">'+rows+'</div>',{okText:'',cancelText:'Close'}).then(()=>{});
+  // Wire up after dialog renders
+  setTimeout(()=>{
+    const list=document.getElementById('dlg-charlist');if(!list)return;
+    list.querySelectorAll('[data-loadidx]').forEach(el=>{
+      el.addEventListener('click',()=>{
+        const idx=+el.dataset.loadidx;
+        const fresh=getAllChars();
+        if(fresh[idx]){CHAR=JSON.parse(JSON.stringify(fresh[idx]));populateAll();}
+        document.querySelector('.gcc-dlg-overlay')?.click();
+      });
+    });
+    list.querySelectorAll('[data-delidx]').forEach(el=>{
+      el.addEventListener('click',async e=>{
+        e.stopPropagation();
+        const idx=+el.dataset.delidx;
+        const fresh=getAllChars();
+        const name=fresh[idx]?fresh[idx].characterName||'Unnamed':'?';
+        if(!(await GCCDialog.confirm('Delete character','Delete "'+name+'"?',{okText:'Delete',danger:true})))return;
+        fresh.splice(idx,1);
+        localStorage.setItem(STORAGE_KEY,JSON.stringify(fresh));
+        if(typeof GCCSync!=='undefined'&&GCCSync.notifySync)GCCSync.notifySync(STORAGE_KEY);
+        // Refresh the list
+        const row=el.parentElement;if(row)row.remove();
+        // Re-index remaining items
+        list.querySelectorAll('[data-delidx]').forEach((d,i)=>d.dataset.delidx=i);
+        list.querySelectorAll('[data-loadidx]').forEach((d,i)=>d.dataset.loadidx=i);
+      });
+    });
+  },100);
+}
+function newChar(){MPDialog.confirm('New Character','Clear all fields?',{okText:'Clear',cancelText:'Cancel',danger:true}).then(ok=>{if(!ok)return;CHAR={};document.querySelectorAll('[data-field]').forEach(el=>{el.value='';});populateAll();autosave();});}
+function deleteChar(){if(!CHAR._id){MPDialog.alert('Delete','Not saved yet.');return;}MPDialog.confirm('Delete','"'+(CHAR.characterName||'Unnamed')+'"?',{okText:'Delete',cancelText:'Cancel',danger:true}).then(ok=>{if(!ok)return;const chars=getAllChars();const idx=chars.findIndex(c=>c._id===CHAR._id);if(idx>=0){chars.splice(idx,1);localStorage.setItem(STORAGE_KEY,JSON.stringify(chars));if(typeof GCCSync!=='undefined'&&GCCSync.notifySync)GCCSync.notifySync(STORAGE_KEY);}CHAR={};document.querySelectorAll('[data-field]').forEach(el=>{el.value='';});populateAll();autosave();});}
+function exportChar(){collectFields();const b=new Blob([JSON.stringify(CHAR,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(CHAR.characterName||'char').replace(/[^a-zA-Z0-9]/g,'_')+'.json';a.click();}
+function importChar(){const inp=document.createElement('input');inp.type='file';inp.accept='.json';inp.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{CHAR=JSON.parse(ev.target.result);populateAll();autosave();MPDialog.alert('Imported','"'+(CHAR.characterName||'Unnamed')+'" loaded.');}catch(err){MPDialog.alert('Error','Invalid JSON.');}};r.readAsText(f);};inp.click();}
+
+function importARS(){
+  const inp=document.createElement('input');inp.type='file';inp.accept='.json';
+  inp.onchange=e=>{
+    const f=e.target.files[0];if(!f)return;
+    const r=new FileReader();
+    r.onload=ev=>{
+      try{
+        const ars=JSON.parse(ev.target.result);
+        if(!ars.system||!ars.type){MPDialog.alert('Error','Not a valid ARS actor export.');return;}
+        CHAR=mapARS(ars);
+        populateAll();autosave();
+        MPDialog.alert('ARS Import','"'+(CHAR.characterName||'Unnamed')+'" imported from ARS/Foundry.');
+      }catch(err){MPDialog.alert('Error','Failed: '+err.message);}
+    };r.readAsText(f);
+  };inp.click();
+}
+
+function mapARS(ars){
+  const s=ars.system,d=s.details||{},a=s.abilities||{},sv=s.saves||{},at=s.attributes||{};
+  const items=ars.items||[];
+  const c={};
+  c.characterName=ars.name||'';
+  const raceItem=items.find(i=>i.type==='race');
+  c.race=raceItem?raceItem.name:'';
+  const classItems=items.filter(i=>i.type==='class');
+  if(classItems.length){
+    c.characterClass=classItems.map(ci=>ci.name||'').join('/');
+    // Get level from advancement array length on each class
+    c.level=classItems.map(ci=>{
+      const adv=(ci.system||{}).advancement||[];
+      return adv.length?adv[adv.length-1].level||adv.length:''
+    }).join('/');
+    // Override class name from system.classname if available
+    const cn=s.classname||'';
+    if(cn){c.characterClass=cn.replace(/\s*\d+/g,'').trim();const lvls=cn.match(/\d+/g);if(lvls)c.level=lvls.join('/');}
+  }
+  const alMap={lg:'Lawful Good',ln:'Lawful Neutral',le:'Lawful Evil',ng:'Neutral Good',n:'True Neutral',tn:'True Neutral',ne:'Neutral Evil',cg:'Chaotic Good',cn:'Chaotic Neutral',ce:'Chaotic Evil'};
+  c.alignment=alMap[(d.alignment||'').toLowerCase()]||d.alignment||'';
+  c.deity=d.deity||'';
+  // Abilities + PHB sub-fields
+  const strV=a.str?a.str.value:0,strP=a.str?a.str.percent||0:0;
+  c.str=strV||'';c.strPct=strP||'';
+  const sL=_strTbl(strV,strP);c.strHitAdj=sL[0];c.strDamAdj=sL[1];c.strOpenDoors=sL[2];c.strBendBars=sL[3];c.strWtAllow=sL[4];
+  const bw=parseFloat(d.weight)||0;c.strLift=_strLift(strV,strP,bw);
+  const intV=a.int?a.int.value:0;c.int=intV||'';
+  const iL=_intTbl(intV);c.intAddLang=iL[0];c.intKnowSpell=iL[1];c.intMinSpells=iL[2];c.intMaxSpells=iL[3];
+  const wisV=a.wis?a.wis.value:0;c.wis=wisV||'';
+  const wL=_wisTbl(wisV);c.wisMagAtkAdj=wL[0];c.wisSpellBonus=wL[1];c.wisSpellFail=wL[2];
+  const dexV=a.dex?a.dex.value:0;c.dex=dexV||'';
+  const dL=_dexTbl(dexV);c.dexReactAdj=dL[0];c.dexMissileAdj=dL[1];c.dexDefAdj=dL[2];
+  const conV=a.con?a.con.value:0;c.con=conV||'';
+  const cL=_conTbl(conV);c.conHpAdj=cL[0];c.conSysShock=cL[1];c.conResSurv=cL[2];
+  const chaV=a.cha?a.cha.value:0;c.cha=chaV||'';
+  const chL=_chaTbl(chaV);c.chaMaxHench=chL[0];c.chaLoyalty=chL[1];c.chaReactAdj=chL[2];
+  // Saves
+  c.savePPD=sv.paralyzation?sv.paralyzation.value:'';
+  c.savePP=sv.petrification?sv.petrification.value:'';
+  c.saveRSW=sv.rod?sv.rod.value:'';
+  c.saveBW=sv.breath?sv.breath.value:'';
+  c.saveSpell=sv.spell?sv.spell.value:'';
+  // HP, AC, Movement
+  c.hpMax=at.hp?at.hp.max:'';c.hpCurrent=at.hp?at.hp.value:'';
+  // AC — compute from equipped armor items
+  const armorItems=items.filter(i=>i.type==='armor'&&(i.system||{}).location&&(i.system||{}).location.state==='equipped');
+  let bestBaseAC=10,magAdj=0,shieldAdj=0;
+  const armorNames=[];
+  armorItems.forEach(ai=>{
+    const prot=(ai.system||{}).protection||{};
+    if(prot.type==='ring'){
+      // Ring of protection: modifier is AC bonus
+      magAdj-=(prot.modifier||0);
+    }else if(prot.type==='shield'){
+      shieldAdj-=(prot.ac||0)+(prot.modifier||0);
+    }else{
+      // Armor/bracers: ac field is the base AC it provides
+      const ac=prot.ac||10;
+      if(ac<bestBaseAC){bestBaseAC=ac;armorNames.length=0;armorNames.push(ai.name);}
+      else if(ac===bestBaseAC)armorNames.push(ai.name);
+      // Armor modifier (enchanted armor)
+      if(prot.modifier)magAdj-=prot.modifier;
+    }
+  });
+  c.acBase=bestBaseAC;
+  c.armorWorn=armorNames.join(', ')||'';
+  const dexACAdj=+(dL[2]||0); // dex defense adj (negative is better)
+  c.acDexAdj=dexACAdj||'';
+  c.acMagAdj=magAdj||'';
+  c.acShieldAdj=shieldAdj||'';
+  c.ac=bestBaseAC+dexACAdj+magAdj+shieldAdj;
+  c.acShieldless=bestBaseAC+dexACAdj+magAdj;
+  c.acRear=bestBaseAC+magAdj; // rear ignores dex and shield
+  // # Attacks — determined by PHB table in calcAttacksPerRound() at populateAll
+  const moveAb=items.find(i=>i.type==='ability'&&i.name.startsWith('Base Movement'));
+  let rawMove=moveAb?(moveAb.name.match(/\d+/)||[''])[0]:(at.movement&&at.movement.value?at.movement.value:'');
+  // ARS stores movement in feet (120=12"), convert to 1e scale
+  if(rawMove&&+rawMove>=30)rawMove=String(Math.round(+rawMove/10));
+  c.moveBase=rawMove?rawMove+'"':'';
+  c.xpTotal=d.xp||'';
+  c.xpBonus=(classItems[0]&&(classItems[0].system||{}).xpbonus)||'';
+  if(classItems.length>1){
+    const xpFields=['xpTotal','xpTotal2','xpTotal3'];
+    const bonusFields=['xpBonus','xpBonus2','xpBonus3'];
+    classItems.forEach((ci,i)=>{if(i<3){c[xpFields[i]]=(ci.system||{}).xp||'';c[bonusFields[i]]=(ci.system||{}).xpbonus||'';}});
+  }
+  c.age=d.age||'';
+  // Clean sex to single letter, strip units from height/weight
+  const rawSex=(d.sex||'').trim();
+  c.sex=rawSex?rawSex.substring(0,1).toUpperCase():'';
+  c.height=(d.height||'').replace(/\s*(inches|in|feet|ft)\s*/gi,'').trim();
+  c.weight=(d.weight||'').replace(/\s*pounds\s*/gi,' lbs').replace(/\s*#\s*/gi,' lbs').trim();
+  // Weapons
+  const skipW=['Brawl','Grapple','Overbear'];
+  const skipAttr=['ammunition','noDrop'];
+  const wSeen={};
+  c.weapons=[];
+  items.filter(i=>i.type==='weapon'&&!skipW.includes(i.name)).forEach(w=>{
+    const ws=w.system||{},atk=ws.attack||{},dmg=ws.damage||{},attrs=ws.attributes||{};
+    // Skip ammunition
+    if(skipAttr.includes(attrs.type))return;
+    // Deduplicate by name+attack.type (keep melee and thrown as separate entries)
+    const deKey=w.name+'|'+(atk.type||'');
+    if(wSeen[deKey])return;wSeen[deKey]=true;
+    // Magic bonus
+    const mag=atk.magicBonus||0;
+    // Damage: combine normal/large + magic bonus
+    let dmgStr='';
+    if(dmg.normal||dmg.large){
+      const n=dmg.normal||'',l=dmg.large||'';
+      const mb=dmg.magicBonus||0;
+      const nStr=mb?(n+'+'+mb):n;
+      const lStr=mb?(l+'+'+mb):l;
+      dmgStr=nStr+(lStr?'/'+lStr:'');
+    }
+    // Range: convert feet to segments (10'/segment) for short/medium/long
+    let rng='';
+    const r=atk.range||{};
+    if(r.short)rng=[r.short,r.medium,r.long].filter(Boolean).map(v=>Math.round(+v/10)||v).join('/');
+    // Speed
+    const spd=atk.speed||'';
+    // Build weapon object
+    const wObj={
+      name:w.name,
+      dmg:dmgStr,
+      speed:spd?String(spd):'',
+      magAdj:mag?('+'+mag):'',
+      range:rng,
+      _weaponstyle:(ws.weaponstyle||'').toLowerCase(),
+      ac10:'',ac9:'',ac8:'',ac7:'',ac6:'',ac5:'',ac4:'',ac3:'',ac2:''
+    };
+    fillWeaponPHB(wObj);
+    c.weapons.push(wObj);
+  });
+  // Inventory — build container tree from ARS itemList references
+  const skipT=['weapon','spell','race','class','skill','ability','proficiency','currency'];
+  const idMap={};items.forEach(i=>{idMap[i._id]=i;});
+  c.items=[];
+  // Track which item IDs are inside containers (to avoid duplicating them at top level)
+  const insideContainer=new Set();
+  function markContained(container){
+    const il=(container.system||{}).itemList||[];
+    il.forEach(ref=>{
+      insideContainer.add(ref.id);
+      const child=idMap[ref.id];
+      if(child&&child.type==='container')markContained(child);
+    });
+  }
+  items.filter(i=>i.type==='container').forEach(c2=>markContained(c2));
+  // Recursive tree walker
+  function addItems(itemOrRef, depth, parentState){
+    const item=typeof itemOrRef==='string'?idMap[itemOrRef]:itemOrRef;
+    if(!item)return;
+    if(skipT.includes(item.type))return;
+    const is=item.system||{};
+    const loc=is.location||{};
+    const state=loc.state||parentState||'';
+    if(item.type==='container'){
+      const nocarry=state==='nocarried';
+      c.items.push({name:item.name,location:state,qty:is.quantity||1,weight:is.weight?Math.round((+is.weight)*10):'',notes:'',_container:true,_depth:depth,_collapsed:false,_nocarry:nocarry});
+      const il=is.itemList||[];
+      il.forEach(ref=>{
+        const child=idMap[ref.id];
+        if(child)addItems(child,depth+1,state);
+        else c.items.push({name:ref.name||'?',location:state,qty:ref.quantity||1,weight:'',notes:'',_depth:depth+1});
+      });
+    }else{
+      const nocarry=state==='nocarried';
+      c.items.push({name:item.name,location:state,qty:is.quantity||1,weight:is.weight?Math.round((+is.weight)*10):'',notes:is.attributes&&is.attributes.magic?'magical':'',_depth:depth,_nocarry:nocarry});
+    }
+  }
+  // Add top-level containers first
+  items.filter(i=>i.type==='container'&&!insideContainer.has(i._id)).forEach(cont=>addItems(cont,0,''));
+  // Add loose items (not inside any container)
+  items.filter(i=>!skipT.includes(i.type)&&i.type!=='container'&&!insideContainer.has(i._id)).forEach(i=>addItems(i,0,''));
+  // Magic items
+  // Coins — type='currency', denomination from cost.currency
+  const coinMap={cp:'wealthCP',sp:'wealthSP',ep:'wealthEP',gp:'wealthGP',pp:'wealthPP'};
+  items.filter(i=>i.type==='currency').forEach(ci=>{
+    const is=ci.system||{};
+    const denom=(is.cost&&is.cost.currency)||'';
+    const field=coinMap[denom];
+    if(field)c[field]=(+(c[field]||0))+(+(is.quantity||0));
+  });
+  // Provisions — details.provisions has food/water item IDs
+  const prov=d.provisions||{};
+  if(prov.food){
+    const foodItem=items.find(i=>i._id===prov.food);
+    if(foodItem)c.provFoodSupply=(foodItem.system||{}).quantity||'';
+  }
+  if(prov.water){
+    const waterItem=items.find(i=>i._id===prov.water);
+    if(waterItem)c.provWaterSupply=(waterItem.system||{}).quantity||'';
+  }
+  // Gems & Jewelry — non-magical items with high value, gem/jewel name patterns
+  const gemPatterns=/gem|jewel|ruby|sapphire|diamond|emerald|pearl|opal|topaz|garnet|amethyst|amber|jade|coral|agate|turquoise|aquamarine|alexandrite|jacinth|spinel|tourmaline|zircon|azurite|quartz|obsidian|onyx|carnelian|citrine|jasper|moonstone|peridot|star rose/i;
+  const gems=items.filter(i=>{
+    if(i.type==='currency'||i.type==='spell'||i.type==='class'||i.type==='race')return false;
+    const is=i.system||{};
+    if(is.attributes&&is.attributes.magic)return false;
+    return gemPatterns.test(i.name);
+  });
+  if(gems.length){
+    c.wealthGems=gems.length;
+    c.gemDetails=gems.map(g=>{
+      const is=g.system||{};
+      const qty=is.quantity||1;
+      const val=is.cost&&is.cost.value?is.cost.value+'gp':'';
+      return(qty>1?qty+'x ':'')+g.name+(val?' ('+val+' ea.)':'');
+    }).join(', ');
+  }
+  // Spells — read from spell items (arcane spellbook) + memorization data with qty/cast
+  const si=s.spellInfo||{},slots=si.slots||{};
+  const mem=si.memorization||{};
+  const seen={};c.spells=[];
+  // 1) Spell items = full spellbook (MU, Illusionist) — known but not necessarily memorized
+  items.filter(i=>i.type==='spell').forEach(sp=>{
+    const key=sp.name+'|'+(sp.system?sp.system.level:'');
+    if(!seen[key]){seen[key]=true;c.spells.push({level:sp.system?String(sp.system.level):'',name:sp.name,memorized:false,qty:0,cast:0});}
+  });
+  // 2) Memorization data — count qty per spell and how many are cast
+  const memTally={};
+  ['arcane','divine'].forEach(stype=>{
+    const mSlots=mem[stype]||{};
+    Object.keys(mSlots).forEach(lvl=>{
+      const spells=mSlots[lvl];
+      if(!spells||typeof spells!=='object')return;
+      Object.values(spells).forEach(sp=>{
+        if(!sp||!sp.name)return;
+        const key=sp.name+'|'+(sp.level||lvl);
+        if(!memTally[key])memTally[key]={name:sp.name,level:String(sp.level||lvl),qty:0,cast:0};
+        memTally[key].qty++;
+        if(sp.cast)memTally[key].cast++;
+      });
+    });
+  });
+  // Apply tally to spells list
+  Object.keys(memTally).forEach(key=>{
+    const t=memTally[key];
+    const existing=c.spells.find(s=>s.name===t.name&&s.level===t.level);
+    if(existing){existing.memorized=true;existing.qty=t.qty;existing.cast=t.cast;}
+    else if(!seen[key]){seen[key]=true;c.spells.push({level:t.level,name:t.name,memorized:true,qty:t.qty,cast:t.cast});}
+  });
+  c.spells.sort((a,b)=>(+a.level)-(+b.level)||a.name.localeCompare(b.name));
+  // Spell slots
+  const arcS=(slots.arcane||{}).value||{},divS=(slots.divine||{}).value||{};
+  for(let i=1;i<=9;i++)c['spellSlot'+i]=(+(arcS[String(i)]||0)+ +(divS[String(i)]||0))||'';
+  // Apply Wisdom spell bonus for divine casters
+  const _impDivine=new Set(['cleric','druid','paladin','ranger']);
+  const _impCls=(c.characterClass||'').toLowerCase();
+  const _hasDivine=_impCls.includes('/')?_impCls.split('/').some(p=>_impDivine.has(p.trim())):_impDivine.has(_impCls.trim());
+  if(_hasDivine){
+    const wb={13:[1,0,0,0,0,0,0],14:[1,0,0,0,0,0,0],15:[1,1,0,0,0,0,0],16:[1,1,0,0,0,0,0],17:[1,1,1,0,0,0,0],18:[1,1,1,1,0,0,0],19:[2,1,1,1,0,0,0],20:[2,2,1,1,0,0,0],21:[2,2,2,1,1,0,0],22:[2,2,2,2,1,0,0],23:[2,2,2,2,2,0,0],24:[2,2,2,2,2,1,0],25:[2,2,2,2,2,1,1]};
+    const wBonus=wb[Math.min(wisV,25)];
+    if(wBonus){for(let i=1;i<=7;i++){if(wBonus[i-1]&&c['spellSlot'+i])c['spellSlot'+i]=+(c['spellSlot'+i])+wBonus[i-1];}}
+  }
+  c.spellsKnown=c.spells.length||'';
+  // Thief skills — extract target percentage from features
+  const tMap={'Pick Pockets':'thiefPP','Hide in Shadows':'thiefHIS','Open Locks':'thiefOL','Open Locks/Disarm Traps':'thiefOL','Hear Noise':'thiefHN','Find Traps':'thiefFRT','Find/Remove Traps':'thiefFRT','Climb Walls':'thiefCW','Move Silently':'thiefMS','Move Quietly':'thiefMS','Read Languages':'thiefRL'};
+  items.filter(i=>i.type==='skill').forEach(sk=>{
+    const feat=(sk.system||{}).features||{};
+    const grp=(sk.system||{}).groups||'';
+    const key=tMap[sk.name];
+    if(key){
+      const tgt=feat.target||'';
+      c[key]=tgt?(tgt+'%'):'—';
+    }
+  });
+  // Languages
+  const langs=items.filter(i=>i.type==='ability'&&i.name.startsWith('Language')).map(i=>i.name.replace('Language (','').replace(')',''));
+  if(langs.length)c.languages=langs.join(', ');
+  // Bio
+  if(d.biography&&d.biography.value)c.notes=d.biography.value.replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim().substring(0,2000);
+  c.patron=d.patron||'';
+  // Weapon Proficiencies — from proficiency items on the actor
+  const _profSkip=new Set(['Brawl (P)','Grapple (P)','Overbear (P)']);
+  const profItems=items.filter(i=>i.type==='proficiency'&&!_profSkip.has(i.name));
+  c.proficiencies=profItems.map(p=>p.name);
+  // Proficiency slots/penalty — read from class items, take best single class
+  let bestProfTotal=0,bestProfPenalty=-99;
+  classItems.forEach(ci=>{
+    const cp=(ci.system||{}).proficiencies||{};
+    const w=cp.weapon||{};
+    const start=+(w.starting||0),earn=+(w.earnLevel||0),penalty=+(cp.penalty||0);
+    const adv=(ci.system||{}).advancement||[];
+    const lvl=Math.max(1,adv.length);
+    const total=start+(earn>0?Math.floor((lvl-1)/earn):0);
+    if(total>bestProfTotal)bestProfTotal=total;
+    if(penalty>bestProfPenalty)bestProfPenalty=penalty;
+  });
+  if(bestProfTotal>0)c.profNumber=bestProfTotal;
+  if(bestProfPenalty>-99)c.nonProfPenalty=bestProfPenalty;
+  // Non-Weapon Proficiencies — skill items with a governing ability that aren't thief skills or racial/system skills
+  const _thiefNames=new Set(Object.keys(tMap));
+  const nwpItems=items.filter(i=>{if(i.type!=='skill'||_thiefNames.has(i.name))return false;const f=(i.system||{}).features||{};const ab=f.ability||'';return ab&&ab!=='none';});
+  if(nwpItems.length)c.skills=nwpItems.map(sk=>sk.name).join(', ');
+  // Special Abilities — PHB racial abilities
+  const race=(c.race||'').toLowerCase().trim().replace(/\s+/g,'-');
+  c.specialAbilities=_phbRacialAbilities(race);
+  // Vision — from race
+  const _infraRaces={'elf':'Infravision 60\'','dwarf':'Infravision 60\'','gnome':'Infravision 60\'','half-elf':'Infravision 60\'','half-orc':'Infravision 60\'','halfling':'Infravision 30\''};
+  c.vision=_infraRaces[race]||'Normal';
+  c._arsImport=true;c._arsActorId=ars._id||'';
+  return c;
+}
+
+function _phbRacialAbilities(race){
+  const r=race.toLowerCase().trim();
+  const abilities={
+    'dwarf':[
+      'Infravision 60\'',
+      'Detect grade/slope 1-5in6',
+      'Detect new construction 1-5in6',
+      'Detect sliding/shifting walls 1-4in6',
+      'Detect stonework traps 1-3in6',
+      'Determine depth underground 1-3in6',
+      '+1 save vs magic/poison per 3.5 Con',
+      'Gnoll/goblin/orc -4 to hit dwarf',
+      'Ogre/troll/giant -4 to hit dwarf',
+    ],
+    'elf':[
+      'Infravision 60\'',
+      '90% resist sleep/charm',
+      'Secret doors 1in6 (passing), 2in6 (searching)',
+      'Concealed doors 3in6',
+      '+4 to surprise when alone or w/ elves/halflings',
+    ],
+    'gnome':[
+      'Infravision 60\'',
+      'Detect grade/slope 1-5in6',
+      'Detect unsafe walls/ceiling/floor 1-7in10',
+      'Determine depth underground 1-4in6',
+      'Determine direction underground 1-3in6',
+      '+1 save vs magic per 3.5 Con',
+      'Kobold/goblin -4 to hit gnome',
+      'Gnoll/bugbear/ogre/troll/giant -4 to hit gnome',
+    ],
+    'half-elf':[
+      'Infravision 60\'',
+      '30% resist sleep/charm',
+      'Secret doors 1in6 (passing), 2in6 (searching)',
+      'Concealed doors 3in6',
+    ],
+    'halfling':[
+      'Infravision 30\'',
+      '+1 save vs magic/poison per 3.5 Con',
+      '+4 to surprise when alone or w/ elves/halflings',
+      'Hide outdoors 2in6 (4in6 w/ heavy cover)',
+    ],
+    'half-orc':[
+      'Infravision 60\'',
+    ],
+  };
+  return (abilities[r]||[]).join(', ');
+}
+// PHB Ability Tables extended to 19-25 per Deities & Demigods
+function _strTbl(v,p){
+  const t=[[0,0,'','',0],[-3,-1,'1','0%',-350],[-3,-1,'1','0%',-350],[-3,-1,'1','0%',-350],[-2,-1,'1','0%',-250],[-2,-1,'1','0%',-250],[-1,0,'1','0%',-150],[-1,0,'1','0%',-150],[0,0,'1-2','1%',0],[0,0,'1-2','1%',0],[0,0,'1-2','2%',0],[0,0,'1-2','2%',0],[0,0,'1-2','4%',+100],[0,0,'1-2','4%',+100],[0,0,'1-2','7%',+200],[0,0,'1-2','7%',+200],[0,+1,'1-3','10%',+350],[+1,+1,'1-3','13%',+500],[+1,+2,'1-3','16%',+750]];
+  if(v===18&&p){const n=+p;if(n>=100)return[+3,+6,'1-5(2)','40%',+3000];if(n>=91)return[+2,+5,'1-4(1)','35%',+2000];if(n>=76)return[+2,+4,'1-4','30%',+1500];if(n>=51)return[+2,+3,'1-4','25%',+1250];return[+1,+3,'1-3','20%',+1000];}
+  const dd={19:[+3,+7,'7in8(3)','50%',+4500],20:[+3,+8,'7in8(3)','60%',+5000],21:[+4,+9,'9in10(4)','70%',+6000],22:[+4,+10,'11in12(4)','80%',+7500],23:[+5,+11,'11in12(5)','90%',+9000],24:[+6,+12,'19in20(7in8)','100%',+12000],25:[+7,+14,'23in24(9in10)','100%',+15000]};
+  if(v>=19)return dd[Math.min(v,25)]||dd[25];
+  return t[v]||t[0];
+}
+function _strLift(v,p,bodyWt){
+  const base=Math.max(v*10, bodyWt||0);
+  if(v<18)return base;
+  if(v>18)return base;
+  if(!p)return base;
+  const n=+p;
+  let bonus=0;
+  if(n>=100){bonus=50+160+80;}
+  else if(n>=91){bonus=50+160+((n-90)*8);}
+  else if(n>=51){bonus=50+((n-50)*4);}
+  else{bonus=n;}
+  return base+bonus;
+}
+function _intTbl(v){
+  const t={3:[0,'35%',2,4],8:[1,'40%',3,5],9:[1,'45%',4,6],10:[2,'50%',5,7],12:[3,'55%',5,7],13:[3,'55%',6,9],14:[4,'60%',6,9],15:[4,'65%',7,11],16:[5,'70%',8,12],17:[6,'75%',9,14],18:[7,'85%',11,18],19:[8,'95%',14,'All'],20:[8,'96%',15,'All'],21:[9,'97%',16,'All'],22:[9,'98%',17,'All'],23:[10,'99%',18,'All'],24:[10,'100%',19,'All'],25:[11,'100%',20,'All']};
+  if(v<=7)return t[3];if(v===11)return t[10];return t[Math.min(v,25)]||t[10];
+}
+function _wisTbl(v){
+  const t={3:[-3,'—','—'],4:[-2,'—','—'],5:[-1,'—','—'],6:[-1,'—','—'],7:[-1,'—','—'],8:[0,'—','—'],9:[0,'0','20%'],10:[0,'0','15%'],11:[0,'0','10%'],12:[0,'0','5%'],13:[0,'1st','0%'],14:[0,'1st','0%'],15:[+1,'2nd','0%'],16:[+2,'2nd','0%'],17:[+3,'3rd','0%'],18:[+4,'4th','0%'],19:[+4,'4th,1st','0%'],20:[+4,'4th,2nd','0%'],21:[+4,'5th,3rd','0%'],22:[+4,'5th,4th','0%'],23:[+4,'5th,5th','0%'],24:[+4,'6th,6th','0%'],25:[+4,'6th,7th','0%']};
+  return t[Math.min(v,25)]||t[9];
+}
+function _dexTbl(v){
+  const t={3:[-3,-3,+4],4:[-2,-2,+3],5:[-1,-1,+2],6:[0,0,+1],7:[0,0,0],15:[0,0,-1],16:[+1,+1,-2],17:[+2,+2,-3],18:[+3,+3,-4],19:[+3,+3,-4],20:[+3,+3,-4],21:[+4,+4,-5],22:[+4,+4,-5],23:[+4,+4,-5],24:[+5,+5,-6],25:[+5,+5,-6]};
+  if(v>=7&&v<=14)return[0,0,0];return t[Math.min(v,25)]||[0,0,0];
+}
+function _conTbl(v){
+  const t={3:[-2,'35%','40%'],4:[-1,'40%','45%'],5:[-1,'45%','50%'],6:[-1,'50%','55%'],7:[0,'55%','60%'],8:[0,'60%','65%'],9:[0,'65%','70%'],10:[0,'70%','75%'],11:[0,'75%','80%'],12:[0,'80%','85%'],13:[0,'85%','90%'],14:[0,'88%','92%'],15:[+1,'91%','94%'],16:[+2,'95%','96%'],17:['+2(+3)','97%','98%'],18:['+2(+4)','99%','100%'],19:['+2(+5)','99%','100%'],20:['+2(+5)','99%','100%'],21:['+2(+6)','99%','100%'],22:['+2(+6)','99%','100%'],23:['+2(+6)','99%','100%'],24:['+2(+7)','99%','100%'],25:['+2(+7)','100%','100%']};
+  return t[Math.min(v,25)]||t[9];
+}
+function _chaTbl(v){
+  const t={3:[1,'-30%','-25%'],4:[1,'-25%','-20%'],5:[2,'-20%','-15%'],6:[2,'-15%','-10%'],7:[3,'-10%','-5%'],8:[3,'-5%','0'],9:[4,'0','0'],10:[4,'0','0'],11:[4,'0','0'],12:[5,'0','0'],13:[5,'0','+5%'],14:[6,'+5%','+10%'],15:[7,'+15%','+15%'],16:[8,'+20%','+25%'],17:[10,'+30%','+30%'],18:[15,'+40%','+35%'],19:[20,'+50%','+40%'],20:[25,'+60%','+45%'],21:[30,'+70%','+50%'],22:[35,'+80%','+55%'],23:[40,'+90%','+60%'],24:[45,'+100%','+65%'],25:[50,'+100%','+70%']};
+  return t[Math.min(v,25)]||t[9];
+}
+
+document.getElementById('btn-new').addEventListener('click',newChar);
+document.getElementById('btn-save').addEventListener('click',saveChar);
+document.getElementById('btn-load').addEventListener('click',loadChar);
+document.getElementById('btn-delete').addEventListener('click',deleteChar);
+document.getElementById('btn-export').addEventListener('click',exportChar);
+document.getElementById('btn-import').addEventListener('click',importChar);
+document.getElementById('btn-import-ars').addEventListener('click',importARS);
+
+// Class detection
+const classField=document.querySelector('[data-field="characterClass"]');
+classField.addEventListener('change',()=>{CHAR.characterClass=classField.value;updateClassSections();calcThiefSkills();calcProfSlots();calcTurnUndead();calcAttacksPerRound();autosave();});
+classField.addEventListener('input',()=>{CHAR.characterClass=classField.value;updateClassSections();calcThiefSkills();calcProfSlots();calcTurnUndead();calcAttacksPerRound();});
+
+// Wire all fields
+const _encFields=new Set(['wealthCP','wealthSP','wealthEP','wealthGP','wealthPP','strAdj','moveBase']);
+const _abilityFields=new Set(['str','strPct','weight','int','wis','dex','con','cha']);
+const _thiefFields=new Set(['dex','race','level']);
+const _spellSlotFields=new Set(['spellSlot1','spellSlot2','spellSlot3','spellSlot4','spellSlot5','spellSlot6','spellSlot7','spellSlot8','spellSlot9']);
+const _acFields=new Set(['acBase','acDexAdj','acMagAdj','acShieldAdj']);
+document.querySelectorAll('[data-field]').forEach(el=>{
+  const ev=el.tagName==='TEXTAREA'?'input':'change';
+  el.addEventListener(ev,()=>{CHAR[el.dataset.field]=el.value;if(_encFields.has(el.dataset.field))calcWeight();if(_abilityFields.has(el.dataset.field))calcAbilitySubs();if(_thiefFields.has(el.dataset.field))calcThiefSkills();if(_spellSlotFields.has(el.dataset.field))updateSpellCounter();if(el.dataset.field==='level'){calcProfSlots();calcTurnUndead();calcAttacksPerRound();}if(_acFields.has(el.dataset.field))calcAC();autosave();});
+});
+
+function _setField(f,v){CHAR[f]=v;const el=document.querySelector('[data-field="'+f+'"]');if(el)el.value=v;}
+
+function calcAC(){
+  const base=+(CHAR.acBase||10);
+  const dex=+(CHAR.acDexAdj||0);
+  const mag=+(CHAR.acMagAdj||0);
+  const shld=+(CHAR.acShieldAdj||0);
+  _setField('ac',base+dex+mag+shld);
+  _setField('acShieldless',base+dex+mag);
+  _setField('acRear',base+mag);
+}
+
+function calcAttacksPerRound(){
+  const rawCls=(CHAR.characterClass||'').toLowerCase().trim();
+  const rawLvl=(CHAR.level||'').trim();
+  if(!rawCls||!rawLvl)return;
+  const clsParts=rawCls.includes('/')?rawCls.split('/').map(s=>s.trim()):[rawCls];
+  const lvlParts=rawLvl.includes('/')?rawLvl.split('/').map(s=>s.trim()):[rawLvl];
+  // PHB thresholds: [3/2 at level, 2/1 at level]
+  const atkClasses={'fighter':[7,13],'paladin':[7,13],'ranger':[8,15]};
+  let best='';
+  clsParts.forEach((cls,i)=>{
+    const key=cls.replace(/[\s-]+/g,'-');
+    const thr=atkClasses[key];if(!thr)return;
+    const lv=Math.max(1,+(lvlParts[i]||lvlParts[0]||1));
+    let apr='1/1';
+    if(lv>=thr[1])apr='2/1';
+    else if(lv>=thr[0])apr='3/2';
+    if(!best||apr==='2/1'||(apr==='3/2'&&best==='1/1'))best=apr;
+  });
+  if(best)_setField('numAttacks',best);
+}
+
+function calcTurnUndead(){
+  const rawCls=(CHAR.characterClass||'').toLowerCase().trim();
+  const rawLvl=(CHAR.level||'').trim();
+  const clsParts=rawCls.includes('/')?rawCls.split('/').map(s=>s.trim()):[rawCls];
+  const lvlParts=rawLvl.includes('/')?rawLvl.split('/').map(s=>s.trim()):[rawLvl];
+  const turnKeys=['turnSkeleton','turnZombie','turnGhoul','turnShadow','turnWight','turnGhast','turnWraith','turnMummy','turnSpectre','turnVampire','turnGhost','turnLich','turnSpecial'];
+  let effLvl=0;
+  clsParts.forEach((cls,i)=>{
+    let lv=Math.max(1,+(lvlParts[i]||lvlParts[0]||1));
+    if(cls==='cleric')effLvl=Math.max(effLvl,lv);
+    else if(cls==='paladin')effLvl=Math.max(effLvl,Math.max(0,lv-2));
+  });
+  if(!effLvl){turnKeys.forEach(k=>_setField(k,''));return;}
+  // DMG Table III columns: levels 1-8, 9-13, 14+
+  // Rows: Skeleton,Zombie,Ghoul,Shadow,Wight,Ghast,Wraith,Mummy,Spectre,Vampire,Ghost,Lich,Special
+  // Values: 0=no effect, 1-20=number needed, 21=T, 22=D, 23=D*
+  const TBL=[
+    [10,7,4,21,21,22,22,23,23,23],
+    [13,10,7,21,21,22,22,22,23,23],
+    [16,13,10,4,21,21,22,22,22,23],
+    [19,16,13,7,4,21,21,22,22,23],
+    [20,19,16,10,7,4,21,21,22,22],
+    [0,20,19,13,10,7,4,21,21,22],
+    [0,0,20,16,13,10,7,4,21,22],
+    [0,0,0,20,16,13,10,7,4,21],
+    [0,0,0,0,20,16,13,10,7,21],
+    [0,0,0,0,0,20,16,13,10,4],
+    [0,0,0,0,0,0,20,16,13,7],
+    [0,0,0,0,0,0,0,19,16,10],
+    [0,0,0,0,0,0,0,20,19,13]
+  ];
+  var col=effLvl<=8?effLvl-1:effLvl<=13?8:9;
+  TBL.forEach((row,ri)=>{
+    var v=row[col];
+    var txt=v===0?'--':v===21?'T':v===22?'D':v===23?'D*':String(v);
+    _setField(turnKeys[ri],txt);
+  });
+}
+
+function calcProfSlots(){
+  // PHB Weapon Proficiency table (1e, no UA)
+  // {starting, earnLevel, penalty}
+  const PROF_TABLE={
+    'fighter':{starting:4,earn:3,penalty:-2},
+    'paladin':{starting:3,earn:3,penalty:-2},
+    'ranger':{starting:3,earn:3,penalty:-2},
+    'cleric':{starting:2,earn:4,penalty:-3},
+    'druid':{starting:2,earn:5,penalty:-4},
+    'magic-user':{starting:1,earn:5,penalty:-5},
+    'mage':{starting:1,earn:5,penalty:-5},
+    'illusionist':{starting:1,earn:5,penalty:-5},
+    'thief':{starting:2,earn:4,penalty:-3},
+    'assassin':{starting:3,earn:4,penalty:-2},
+    'monk':{starting:1,earn:2,penalty:-3},
+    'bard':{starting:2,earn:4,penalty:-3},
+  };
+  const rawCls=(CHAR.characterClass||'').trim();
+  const rawLvl=(CHAR.level||'').trim();
+  if(!rawCls||!rawLvl)return;
+  const clsParts=rawCls.includes('/')?rawCls.split('/').map(s=>s.trim()):[ rawCls];
+  const lvlParts=rawLvl.includes('/')?rawLvl.split('/').map(s=>s.trim()):[rawLvl];
+  let bestTotal=0,bestPenalty=-99;
+  clsParts.forEach((cls,i)=>{
+    const key=cls.toLowerCase().replace(/[\s-]+/g,'-');
+    const tbl=PROF_TABLE[key];if(!tbl)return;
+    const lvl=Math.max(1,+(lvlParts[i]||lvlParts[0]||1));
+    const total=tbl.starting+Math.floor((lvl-1)/tbl.earn);
+    if(total>bestTotal)bestTotal=total;
+    if(tbl.penalty>bestPenalty)bestPenalty=tbl.penalty;
+  });
+  if(bestTotal>0)_setField('profNumber',bestTotal);
+  if(bestPenalty>-99)_setField('nonProfPenalty',bestPenalty);
+}
+
+function calcAbilitySubs(){
+  // Strength
+  const sv=+(CHAR.str||0),sp=CHAR.strPct||0;
+  const sL=_strTbl(sv,sp);
+  _setField('strHitAdj',sL[0]);_setField('strDamAdj',sL[1]);_setField('strOpenDoors',sL[2]);_setField('strBendBars',sL[3]);_setField('strWtAllow',sL[4]);
+  const bw=parseFloat(CHAR.weight)||0;
+  _setField('strLift',_strLift(sv,sp,bw));
+  const wtA=sL[4]||0;const adjVal=wtA>0?'+'+wtA:wtA<0?String(wtA):'0';
+  CHAR.strAdj=adjVal;const saEl=document.querySelector('[data-field="strAdj"]');if(saEl)saEl.value=adjVal;
+  // Intelligence
+  const iv=+(CHAR.int||0);
+  const iL=_intTbl(iv);
+  _setField('intAddLang',iL[0]);_setField('intKnowSpell',iL[1]);_setField('intMinSpells',iL[2]);_setField('intMaxSpells',iL[3]);
+  // Wisdom
+  const wv=+(CHAR.wis||0);
+  const wL=_wisTbl(wv);
+  _setField('wisMagAtkAdj',wL[0]);_setField('wisSpellBonus',wL[1]);_setField('wisSpellFail',wL[2]);
+  calcWisSpellBonus(wv);
+  // Dexterity
+  const dv=+(CHAR.dex||0);
+  const dL=_dexTbl(dv);
+  _setField('dexReactAdj',dL[0]);_setField('dexMissileAdj',dL[1]);_setField('dexDefAdj',dL[2]);
+  // Constitution
+  const cv=+(CHAR.con||0);
+  const cL=_conTbl(cv);
+  _setField('conHpAdj',cL[0]);_setField('conSysShock',cL[1]);_setField('conResSurv',cL[2]);
+  // Charisma
+  const chv=+(CHAR.cha||0);
+  const chL=_chaTbl(chv);
+  _setField('chaMaxHench',chL[0]);_setField('chaLoyalty',chL[1]);_setField('chaReactAdj',chL[2]);
+  calcWeight();
+}
+
+// PHB Wisdom Spell Bonus — cumulative bonus spells per level for divine casters
+const _wisSpellBonus={
+  13:[1,0,0,0,0,0,0],14:[1,0,0,0,0,0,0],
+  15:[1,1,0,0,0,0,0],16:[1,1,0,0,0,0,0],
+  17:[1,1,1,0,0,0,0],18:[1,1,1,1,0,0,0],
+  19:[2,1,1,1,0,0,0],20:[2,2,1,1,0,0,0],
+  21:[2,2,2,1,1,0,0],22:[2,2,2,2,1,0,0],
+  23:[2,2,2,2,2,0,0],24:[2,2,2,2,2,1,0],
+  25:[2,2,2,2,2,1,1]
+};
+const _divineCasters=new Set(['cleric','druid','paladin','ranger']);
+function _isDivineCaster(){
+  const cls=(CHAR.characterClass||'').toLowerCase();
+  if(cls.includes('/'))return cls.split('/').some(c=>_divineCasters.has(c.trim()));
+  return _divineCasters.has(cls.trim());
+}
+function calcWisSpellBonus(wis){
+  const bonus=_wisSpellBonus[Math.min(wis,25)];
+  const isDivine=_isDivineCaster();
+  for(let i=1;i<=9;i++){
+    const el=document.querySelector('[data-field="spellSlot'+i+'"]');
+    if(!el)continue;
+    const b=(isDivine&&bonus&&i<=7)?bonus[i-1]:0;
+    if(b){
+      const total=+(CHAR['spellSlot'+i]||0);
+      el.title='Base '+(total-b)+' + Wis +'+b;
+    } else {
+      el.title='';
+    }
+  }
+}
+
+// PHB Thief base skills by level [PP,OL,FRT,MS,HIS,HN,CW,RL]
+const _thiefBase=[
+  null,
+  [30,25,20,15,10,10,85,0],
+  [35,29,25,21,15,10,86,0],
+  [40,33,30,27,20,15,87,0],
+  [45,37,35,33,25,15,88,20],
+  [50,42,40,40,31,20,90,25],
+  [55,47,45,47,37,20,92,30],
+  [60,52,50,55,43,25,94,35],
+  [65,57,55,62,49,25,96,40],
+  [70,62,60,70,56,30,98,45],
+  [80,67,65,78,63,30,99,50],
+  [90,72,70,86,70,35,99.1,55],
+  [100,77,75,94,77,35,99.2,60],
+  [105,82,80,99,85,40,99.3,65],
+  [110,87,85,99,93,40,99.4,70],
+  [115,92,90,99,99,50,99.5,75],
+  [125,97,95,99,99,50,99.6,80],
+  [125,99,99,99,99,55,99.7,80]
+];
+// PHB Dex Table II thief adjustments [PP,OL,FRT,MS,HIS] (9-18), DD&G 19-25
+const _thiefDex={
+  9:[-15,-10,-10,-20,-10],10:[-10,-5,-10,-15,-5],11:[-5,0,-5,-10,0],
+  12:[0,0,0,-5,0],13:[0,0,0,0,0],14:[0,0,0,0,0],
+  15:[0,0,0,0,0],16:[0,5,0,0,0],17:[5,10,0,5,5],18:[10,15,5,10,10],
+  19:[15,20,10,12,12],20:[20,25,15,15,15],21:[25,30,20,18,18],
+  22:[30,35,25,20,20],23:[35,40,30,23,23],24:[40,45,35,25,25],
+  25:[45,50,40,30,30]
+};
+// PHB Racial adjustments [PP,OL,FRT,MS,HIS,HN,CW,RL]
+const _thiefRace={
+  'dwarf':[0,10,15,0,0,0,-10,-5],
+  'elf':[5,-5,0,5,10,5,0,0],
+  'gnome':[0,5,10,5,5,10,-15,0],
+  'half-elf':[10,0,0,0,5,0,0,0],
+  'halfling':[5,5,5,10,15,5,-15,-5],
+  'half-orc':[-5,5,5,0,0,5,5,-10]
+};
+const _thiefSkillKeys=['thiefPP','thiefOL','thiefFRT','thiefMS','thiefHIS','thiefHN','thiefCW','thiefRL'];
+
+function calcThiefSkills(){
+  const cls=(CHAR.characterClass||'').toLowerCase();
+  const isThief=cls.includes('thief')||cls.includes('assassin')||cls.includes('monk')||cls.includes('bard')||cls.includes('/');
+  if(!isThief)return;
+  const lvl=Math.max(1,Math.min(17,+(CHAR.level||0)));
+  if(!lvl)return;
+  const base=_thiefBase[lvl]||_thiefBase[1];
+  const dv=+(CHAR.dex||0);
+  const dexAdj=_thiefDex[Math.max(9,Math.min(25,dv))]||[0,0,0,0,0];
+  const raceKey=(CHAR.race||'').toLowerCase().trim().replace(/\s+/g,'-');
+  const raceAdj=_thiefRace[raceKey]||[0,0,0,0,0,0,0,0];
+  _thiefSkillKeys.forEach((k,i)=>{
+    const b=base[i],r=raceAdj[i],d=i<5?dexAdj[i]:0;
+    let val=b+d+r;
+    if(i===5)val=Math.max(val,1);
+    const display=val%1!==0?val.toFixed(1)+'%':val+'%';
+    _setField(k,display);
+    _thiefBreakdown[k]={base:b,race:r,dex:d,total:val};
+  });
+}
+const _thiefBreakdown={};
+
+const _thiefSkillDesc={
+  PP:{name:'Picking Pockets',text:'Roll d% ≤ adjusted score to lift an item unnoticed. Failure: attempt fails. Rolling 21%+ above the target means the victim notices. Victim reduces chance by −5% per level above 3rd.'},
+  OL:{name:'Opening Locks',text:'One attempt per lock. Failure means the lock is beyond the thief\u2019s skill until gaining a new level. Success opens the lock.'},
+  FRT:{name:'Finding/Removing Traps',text:'Roll separately to find, then to remove. One try per thief per trap. Failure means the trap cannot be found or disarmed by that thief until a new level. Success deactivates the trap.'},
+  MS:{name:'Moving Silently',text:'Attempted each time the thief moves. Can approach creatures to increase surprise chances or set up a backstab. Failure means movement was not silent. Success means movement was silent.'},
+  HIS:{name:'Hiding in Shadows',text:'Cannot be attempted under direct observation. Success makes the thief virtually invisible until he or she moves. Detect invisibility or true seeing will reveal a hidden thief.'},
+  HN:{name:'Hearing Noise',text:'Listen intently through a portal. The thief and companions must be quiet. Requires 1 full minute (1 melee round). May be repeated. Sleeping creatures and undead make no discernible sound.'},
+  CW:{name:'Climbing Walls',text:'Check made at the midpoint of the climb. Failure means the thief has slipped and fallen, taking falling damage. A third d10 may be required in some cases.'},
+  RL:{name:'Reading Languages',text:'One attempt per language. Failure means the language is not understood and cannot be retried until gaining a new level. Available from 4th level.'}
+};
+const _thiefFieldToSkill={thiefPP:'PP',thiefOL:'OL',thiefFRT:'FRT',thiefMS:'MS',thiefHIS:'HIS',thiefHN:'HN',thiefCW:'CW',thiefRL:'RL'};
+
+(function(){
+  const callout=document.getElementById('thief-callout');
+  const tcTitle=document.getElementById('tc-title');
+  const tcBody=document.getElementById('tc-body');
+  const tcBreak=document.getElementById('tc-breakdown');
+  let openSkill=null;
+  function showCallout(sk,labelEl){
+    const desc=_thiefSkillDesc[sk];if(!desc)return;
+    const fieldKey=Object.keys(_thiefFieldToSkill).find(k=>_thiefFieldToSkill[k]===sk);
+    const bd=_thiefBreakdown[fieldKey];
+    tcTitle.textContent=desc.name;
+    tcBody.textContent=desc.text;
+    if(bd){
+      const parts=['Base '+bd.base];
+      if(bd.race)parts.push('Race '+(bd.race>0?'+':'')+bd.race);
+      if(bd.dex)parts.push('Dex '+(bd.dex>0?'+':'')+bd.dex);
+      parts.push('= '+bd.total+(bd.total%1!==0?'':'')+'%');
+      tcBreak.textContent=parts.join(' \u2022 ');
+      tcBreak.style.display='';
+    } else { tcBreak.style.display='none'; }
+    const row=labelEl.closest('.row');
+    if(row&&row.nextSibling)row.parentNode.insertBefore(callout,row.nextSibling);
+    callout.classList.add('open');
+    openSkill=sk;
+  }
+  function hideCallout(){callout.classList.remove('open');openSkill=null;}
+  document.querySelectorAll('.thief-grid [data-skill]').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const sk=el.dataset.skill;
+      if(openSkill===sk){hideCallout();return;}
+      showCallout(sk,el);
+    });
+  });
+  document.getElementById('tc-close').addEventListener('click',hideCallout);
+})();
+
+function populateAll(){
+  populateFields();updateClassSections();showPortrait();renderWeapons();calcAbilitySubs();calcThiefSkills();calcProfSlots();calcTurnUndead();calcAttacksPerRound();
+  renderInlineList('proficiencies','prof-list','add-prof');
+  renderInventory();
+  renderTableRows('associates','assoc-list','add-assoc',[{key:'num',center:true},{key:'name'},{key:'cls'},{key:'level',center:true},{key:'race'},{key:'notes'},{key:'num2',center:true},{key:'name2'},{key:'cls2'},{key:'level2',center:true},{key:'race2'},{key:'notes2'}]);
+  renderTableRows('locales','locale-list','add-locale',[{key:'location'},{key:'time'},{key:'details'},{key:'location2'},{key:'time2'},{key:'details2'}]);
+  renderSpells();calcWeight();
+  if(window.ADNDNWP)ADNDNWP.updateTabVisibility();
+}
+
+// Re-render NWP tab when fields that affect slot math change
+document.addEventListener('change',e=>{
+  if(!window.ADNDNWP)return;
+  const f=e.target&&e.target.dataset&&e.target.dataset.field;
+  if(f==='int'||f==='level'||f==='characterClass'||f==='languages'){
+    ADNDNWP.updateTabVisibility();
+  }
+});
+
+(function(){
+  function loadAndPopulate(){
+    const p=new URLSearchParams(window.location.search);const id=p.get('id');
+    if(id){
+      const ch=getAllChars().find(c=>c._id===id);
+      if(ch)CHAR=JSON.parse(JSON.stringify(ch));
+    } else {
+      const a=loadAutosave();
+      if(a)CHAR=a;
+    }
+    populateAll();
+  }
+  loadAndPopulate();
+  window.addEventListener('gcc-sync-ready',()=>{
+    // After cloud sync, reload from saved list if we have an _id,
+    // otherwise just re-populate from current CHAR (don't clobber it)
+    if(CHAR._id){
+      const fresh=getAllChars().find(c=>c._id===CHAR._id);
+      if(fresh)CHAR=JSON.parse(JSON.stringify(fresh));
+    }
+    populateAll();
+  });
+})();
+</script>
+</body>
+</html>

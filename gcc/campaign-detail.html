@@ -1,0 +1,2127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Campaign — Graycloak's Campaign Corner</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Alegreya:ital,wght@0,400;0,700;1,400&family=Alegreya+SC:wght@700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="gcc-header.css">
+<link rel="stylesheet" href="gcc-auth.css">
+<link rel="stylesheet" href="gcc-dialog.css">
+<style>
+[data-gcc-theme="dark"] {
+  --bg:#101418;--bg2:#161a20;--bg-card:#1a1e26;--bg-card-hover:#20252e;--bg-section:#141820;
+  --brd:#252a34;--brd-lt:#303848;--tx:#c8ccd4;--tx2:#7a8494;--tx3:#4a5464;
+  --accent:#60a0d0;--accent-lt:#78b8e8;--accent-dim:#3a6a90;
+  --red:#d04848;--red-lt:#e05858;--green:#48a858;--blue:#60a0d0;--amber:#d0a040;--purple:#7a5a8a;
+  --card-shadow:0 1px 3px rgba(0,0,0,0.2);--dd-shadow:0 8px 30px rgba(0,0,0,0.5);
+  --hover-bg:rgba(255,255,255,0.03);--noise-opacity:0.3;
+  --banner-overlay:linear-gradient(180deg,transparent 40%,rgba(16,20,24,0.95) 100%);
+}
+[data-gcc-theme="light"] {
+  --bg:#eef0f4;--bg2:#e4e8ee;--bg-card:#ffffff;--bg-card-hover:#f6f8fa;--bg-section:#e8eaee;
+  --brd:#d0d4dc;--brd-lt:#bcc2cc;--tx:#181c24;--tx2:#505868;--tx3:#8890a0;
+  --accent:#30508a;--accent-lt:#2a4878;--accent-dim:#8890a0;
+  --red:#c03030;--red-lt:#d03838;--green:#287830;--blue:#30508a;--amber:#a07818;--purple:#5a3a6a;
+  --card-shadow:0 1px 4px rgba(0,0,0,0.07);--dd-shadow:0 8px 24px rgba(0,0,0,0.12);
+  --hover-bg:rgba(0,0,0,0.02);--noise-opacity:0.15;
+  --banner-overlay:linear-gradient(180deg,transparent 40%,rgba(238,240,244,0.95) 100%);
+}
+:root{--fd:'Cinzel',serif;--fb:'Alegreya',serif;--fsc:'Alegreya SC',serif;--fm:'IBM Plex Mono',monospace;
+  --lore-npc:#7a5a8a;--lore-location:#5a9a40;--lore-faction:#5090b0;--lore-item:#d0a040;--lore-other:#7a8494}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{min-height:100%;background:var(--bg)}
+body{min-height:100vh;background:var(--bg);color:var(--tx);font-family:var(--fb);font-size:14px;display:flex;flex-direction:column}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.65' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");opacity:var(--noise-opacity)}
+
+.main{flex:1;padding:0 16px 40px;position:relative;z-index:1}
+.main-in{max-width:960px;margin:0 auto}
+.camp-banner{position:relative;width:100%;max-width:960px;margin:0 auto;min-height:100px;overflow:hidden;background:var(--bg2);display:flex;align-items:center;justify-content:flex-start}
+.camp-banner img{max-width:100%;max-height:200px;display:block;object-fit:contain}
+.camp-banner-empty{width:100%;height:100%;background:var(--bg2);display:flex;align-items:center;justify-content:center;color:var(--tx3);font-size:12px}
+.camp-banner::after{content:'';position:absolute;inset:0;background:var(--banner-overlay);pointer-events:none}
+.camp-banner-controls{position:absolute;top:6px;right:6px;display:flex;gap:4px;opacity:0;transition:opacity .15s;z-index:3}
+.camp-banner:hover .camp-banner-controls{opacity:1}
+.camp-banner-btn{padding:3px 10px;font-size:10px;font-family:var(--fb);font-weight:700;background:rgba(0,0,0,0.6);color:#ccc;border:1px solid rgba(255,255,255,0.15);border-radius:3px;cursor:pointer;backdrop-filter:blur(4px)}
+.camp-banner-btn:hover{color:#fff;border-color:rgba(255,255,255,0.3)}
+.camp-header{position:relative;z-index:2;margin-top:-50px;padding:0 16px}
+.camp-header-in{max-width:960px;margin:0 auto;display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.camp-title-area{flex:1;min-width:0}
+.camp-name{font-family:var(--fd);font-size:24px;font-weight:700;color:var(--tx);letter-spacing:2px;line-height:1.2}
+.camp-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}
+.camp-system-badge{display:inline-block;font-family:var(--fsc);font-size:9px;font-weight:700;padding:2px 8px;border-radius:2px;letter-spacing:1px;white-space:nowrap}
+.camp-status{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--tx2)}
+.camp-status-dot{width:7px;height:7px;border-radius:50%}
+.camp-status-dot.active{background:var(--green)}.camp-status-dot.hiatus{background:var(--amber)}
+.camp-status-dot.completed{background:var(--tx3)}.camp-status-dot.archived{background:var(--brd)}
+.camp-pitch{font-size:13px;color:var(--tx2);font-style:italic;margin-top:4px;line-height:1.3}
+.camp-header-btns{display:flex;gap:6px;align-items:center;flex-shrink:0;padding-bottom:4px}
+.camp-btn{padding:5px 14px;font-size:11px;font-family:var(--fb);font-weight:700;background:transparent;color:var(--tx2);border:1px solid var(--brd-lt);border-radius:3px;cursor:pointer;transition:all .15s;text-decoration:none}
+.camp-btn:hover{border-color:var(--accent-dim);color:var(--tx)}
+.camp-btn-vtt{color:var(--blue);border-color:rgba(96,160,208,0.3)}
+.camp-btn-vtt:hover{border-color:var(--blue);background:rgba(96,160,208,0.06)}
+
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--brd);margin:16px 0 0;padding:0;overflow-x:auto}
+.tab{padding:8px 18px;font-size:11px;font-family:var(--fsc);font-weight:700;letter-spacing:1px;color:var(--tx3);background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;transition:all .12s;white-space:nowrap}
+.tab:hover{color:var(--tx2)}.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-panel{display:none;padding:16px 0}.tab-panel.active{display:block}
+
+.details-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px 24px;margin-bottom:16px}
+.detail-row{display:flex;gap:8px;padding:4px 0;font-size:12px;align-items:baseline}
+.detail-label{color:var(--tx3);min-width:80px;flex-shrink:0;font-family:var(--fsc);font-size:9px;letter-spacing:.5px}
+.detail-value{color:var(--tx2)}.detail-full{grid-column:1/-1}
+
+.tools-row{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}
+.tool-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;font-size:11px;font-family:var(--fb);font-weight:700;color:var(--tx2);background:var(--bg-card);border:1px solid var(--brd);border-radius:3px;text-decoration:none;cursor:pointer;transition:all .12s}
+.tool-chip:hover{border-color:var(--accent-dim);color:var(--accent)}
+.tool-chip.disabled{color:var(--tx3);cursor:default}.tool-chip.disabled:hover{border-color:var(--brd);color:var(--tx3)}
+.tool-bullet{color:var(--accent-dim);font-size:6px}
+.rules-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;margin:8px 0 12px}
+.rule-row{display:flex;gap:8px;padding:8px 10px;background:var(--bg-card);border:1px solid var(--brd);border-radius:3px;cursor:pointer;align-items:flex-start;transition:border-color .12s}
+.rule-row:hover{border-color:var(--accent-dim)}
+.rule-row input[type=checkbox]{margin:2px 0 0;cursor:pointer;flex-shrink:0}
+.rule-info{flex:1;min-width:0}
+.rule-label{font-family:var(--fb);font-size:12px;font-weight:700;color:var(--tx1)}
+.rule-desc{font-size:10px;color:var(--tx3);margin-top:2px;line-height:1.3}
+.rules-list-ro{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 12px}
+.rule-chip-ro{font-family:var(--fb);font-size:10px;font-weight:700;color:var(--tx2);background:var(--bg-card);border:1px solid var(--brd);border-radius:3px;padding:4px 8px;letter-spacing:.5px}
+.sec-collapsible{margin:0}
+.sec-collapsible>summary{cursor:pointer;list-style:none;user-select:none}
+.sec-collapsible>summary::-webkit-details-marker{display:none}
+.sec-collapsible>summary:hover .sec-title{color:var(--tx2)}
+.sec-caret{display:inline-block;font-size:9px;color:var(--tx3);margin-right:6px;transition:transform .15s;transform:rotate(0deg)}
+.sec-collapsible[open]>summary .sec-caret{transform:rotate(90deg)}
+.sec-count{font-family:var(--fb);font-size:9px;font-weight:700;color:var(--tx3);margin-left:6px;letter-spacing:.5px}
+
+.entity-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px}
+.entity-card{background:var(--bg-card);border:1px solid var(--brd);border-radius:4px;display:flex;align-items:center;gap:10px;padding:10px 12px;transition:all .12s;box-shadow:var(--card-shadow);position:relative}
+.entity-card:hover{border-color:var(--brd-lt);background:var(--bg-card-hover)}
+.entity-portrait{width:40px;height:40px;border-radius:50%;object-fit:contain;flex-shrink:0;border:1px solid var(--brd);background:var(--bg2)}
+.entity-portrait-ph{width:40px;height:40px;border-radius:50%;flex-shrink:0;border:1px solid var(--brd);background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--tx3)}
+.entity-info{flex:1;min-width:0}
+.entity-name{font-family:var(--fd);font-size:13px;font-weight:700;color:var(--tx);letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.entity-name a{color:var(--accent);text-decoration:none}.entity-name a:hover{color:var(--accent-lt);text-decoration:underline}
+.entity-sub{font-size:11px;color:var(--tx2);font-family:var(--fm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.entity-player{font-size:10px;color:var(--tx3);font-style:italic}
+.entity-stats{font-family:var(--fm);font-size:9px;color:var(--tx2);margin-top:2px;display:flex;gap:2px;flex-wrap:nowrap}
+.entity-stats span{white-space:nowrap;margin-right:4px}.entity-stats .ab{color:var(--accent);font-weight:700}
+.entity-badge{font-size:8px;font-weight:700;letter-spacing:.5px;padding:1px 5px;border-radius:3px;margin-left:6px;vertical-align:middle}
+.entity-badge.pc{background:rgba(96,160,208,0.12);color:var(--accent)}.entity-badge.npc{background:rgba(122,90,138,0.12);color:#7a5a8a}
+.entity-badge.team{background:rgba(72,168,88,0.15);color:var(--green);font-size:8px;font-weight:700;letter-spacing:.5px;padding:1px 6px;border-radius:3px;margin-left:6px;vertical-align:middle}
+.party-section{margin-bottom:20px}
+.party-section-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px}
+.party-section-title{font-family:var(--fsc);font-size:9px;color:var(--tx3);letter-spacing:1.5px}
+.party-section-count{font-family:var(--fm);font-size:9px;color:var(--tx3)}
+.entity-card .entity-actions{position:absolute;top:6px;right:6px;display:flex;gap:4px;opacity:0;transition:opacity .1s}
+.entity-card:hover .entity-actions{opacity:1}
+.entity-derived{font-size:10px;font-weight:700;color:var(--tx2);margin-top:1px;display:flex;gap:2px;flex-wrap:wrap}
+.entity-derived span{white-space:nowrap;margin-right:6px}
+.entity-pip{position:absolute;top:0;left:0;bottom:0;width:3px;border-radius:4px 0 0 4px}
+.entity-empty{font-size:12px;color:var(--tx3);font-style:italic;padding:16px 0}
+
+/* Session cards */
+.session-toolbar{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.session-toolbar-left{display:flex;gap:6px;align-items:center}
+.session-toolbar-right{display:flex;gap:4px;flex-wrap:wrap}
+.filter-pill{padding:3px 10px;font-size:10px;font-family:var(--fb);font-weight:700;border:1px solid var(--brd);border-radius:2px;background:none;color:var(--tx3);cursor:pointer;transition:all .12s}
+.filter-pill:hover{color:var(--tx2);border-color:var(--brd-lt)}
+.filter-pill.active{color:var(--accent);border-color:var(--accent-dim);background:rgba(96,160,208,0.06)}
+.session-list{list-style:none}
+.session-card{background:var(--bg-card);border:1px solid var(--brd);border-radius:4px;margin-bottom:12px;overflow:hidden;box-shadow:var(--card-shadow)}
+.session-card.timeline-entry{opacity:.75}
+.session-card.dm-only{border-left:2px solid var(--amber)}
+.session-card-header{display:flex;align-items:center;padding:10px 14px 6px;gap:10px;border-bottom:1px solid var(--brd)}
+.session-num{font-family:var(--fd);font-size:15px;font-weight:700;color:var(--tx);flex:1;min-width:0;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.session-num-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.session-recap-link{color:inherit;text-decoration:none;transition:color .12s}
+.session-recap-link:hover{color:var(--accent);text-decoration:underline}
+.session-date-game{font-family:var(--fm);font-size:12px;color:var(--amber);white-space:nowrap}
+.session-date-real{font-family:var(--fm);font-size:12px;color:var(--tx3);white-space:nowrap;padding-right:10px;margin-right:4px;border-right:1px solid var(--brd)}
+.session-hdr-right{display:flex;align-items:center;flex-shrink:0}
+/* ── Recap layout: cover left + text right ── */
+.session-recap{display:flex;gap:14px;padding:12px 14px 8px;align-items:flex-start}
+.session-recap-img{flex:0 0 300px;max-width:300px}
+.session-recap-img img{width:100%;border-radius:3px;border:1px solid var(--brd);display:block}
+.session-recap-text{flex:1;min-width:0}
+.session-recap-noimg{padding:10px 14px 6px}
+/* ── Roster strip ── */
+.session-roster{display:flex;gap:4px;flex-wrap:wrap;padding:4px 14px 6px;border-top:1px solid var(--brd);background:var(--bg2)}
+.session-roster-label{font-family:var(--fsc);font-size:8px;color:var(--tx3);letter-spacing:1px;margin-right:4px;align-self:center}
+.session-roster-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;font-size:10px;border-radius:2px;border:1px solid var(--brd);color:var(--tx2);background:var(--bg-card)}
+.session-roster-chip img{width:18px;height:18px;border-radius:50%;object-fit:contain}
+.session-roster-chip .roster-ph{width:18px;height:18px;border-radius:50%;background:var(--bg-section);display:inline-flex;align-items:center;justify-content:center;font-size:8px;color:var(--tx3)}
+/* ── Sections area (below recap) ── */
+.session-sections{padding:6px 14px 6px;border-top:1px solid var(--brd)}
+.session-sec-block{margin-bottom:8px}
+.session-sec-block:last-child{margin-bottom:2px}
+/* Multi-image layouts */
+.session-sec-images{display:block;margin:5px 0 4px}
+.session-sec-img-wrap{display:inline-block;margin:0 0 6px 0}
+.session-sec-img-wrap.pos-right{float:right;margin:0 0 6px 10px}
+.session-sec-img-wrap.pos-left{float:left;margin:0 10px 6px 0}
+.session-sec-img-wrap.pos-center{float:none;display:block;margin:0 auto 6px;text-align:center}
+.session-sec-img-wrap.pos-inline{float:none;display:block;margin:0 0 6px}
+.session-sec-img{border-radius:3px;border:1px solid var(--brd);display:block;height:auto}
+.session-sec-img.sz-sm{max-width:100px}
+.session-sec-img.sz-md{max-width:200px}
+.session-sec-img.sz-lg{max-width:320px}
+.session-sec-img.sz-full{width:100%;max-height:400px;object-fit:contain}
+.sec-img-caption{display:block;font-size:10px;color:var(--tx3);font-style:italic;margin-top:2px;text-align:center;max-width:100%}
+.session-body{padding:10px 14px 6px}
+.session-text{font-size:12px;color:var(--tx2);line-height:1.5;white-space:pre-line}
+.session-section-title{font-size:11px;font-weight:700;color:var(--accent-dim);margin:0 0 3px;letter-spacing:.3px}
+.session-section-text{font-size:12px;color:var(--tx2);line-height:1.5;white-space:pre-line}
+.clearfix::after{content:'';display:table;clear:both}
+.session-footer{display:flex;gap:8px;align-items:center;padding:6px 14px 10px;flex-wrap:wrap;border-top:1px solid var(--brd)}
+.session-tag{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;font-size:10px;border-radius:2px;border:1px solid var(--brd-lt);color:var(--tx2);background:var(--bg2);cursor:default}
+.session-tag .tag-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.session-xp{font-family:var(--fm);font-size:10px;color:var(--accent);margin-left:auto}
+.session-vis{font-size:9px;color:var(--tx3);display:flex;align-items:center;gap:3px}
+.session-actions{display:flex;gap:6px;opacity:0;transition:opacity .1s}
+.session-card:hover .session-actions{opacity:1}
+@media(max-width:600px){.session-recap{flex-direction:column}.session-recap-img{flex:none;max-width:60%;margin:0 auto}.session-sec-img-wrap.pos-left,.session-sec-img-wrap.pos-right{float:none;margin:0 auto 6px;display:block;text-align:center}.session-sec-img.sz-lg,.session-sec-img.sz-md{max-width:100%}}
+.session-action-btn{background:none;border:none;color:var(--tx2);font-size:12px;cursor:pointer;padding:4px 8px;font-family:var(--fb);font-weight:700}
+.session-action-btn:hover{color:var(--tx)}.session-action-btn.danger{color:var(--red)}.session-action-btn.danger:hover{color:var(--red-lt)}
+.ses-drag-handle{cursor:grab;color:var(--tx3);font-size:12px;opacity:0;transition:opacity .15s;padding:0 4px 0 0;user-select:none;flex-shrink:0}
+.session-card:hover .ses-drag-handle{opacity:.4}
+.ses-drag-handle:hover{opacity:1!important;color:var(--tx2)}
+.session-card.drag-over{border-top:2px solid var(--accent);margin-top:-1px}
+.session-card.dragging{opacity:.35}
+
+/* Lore cards */
+.lore-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px}
+.lore-card{background:var(--bg-card);border:1px solid var(--brd);border-radius:4px;padding:10px 12px;position:relative;box-shadow:var(--card-shadow);transition:all .12s}
+.lore-card:hover{border-color:var(--brd-lt);background:var(--bg-card-hover)}
+.lore-card::before{content:'';position:absolute;top:0;left:0;bottom:0;width:3px;border-radius:4px 0 0 4px}
+.lore-card[data-lore-type="npc"]::before{background:var(--lore-npc)}
+.lore-card[data-lore-type="location"]::before{background:var(--lore-location)}
+.lore-card[data-lore-type="faction"]::before{background:var(--lore-faction)}
+.lore-card[data-lore-type="item"]::before{background:var(--lore-item)}
+.lore-card[data-lore-type="other"]::before{background:var(--lore-other)}
+.lore-type-label{font-family:var(--fsc);font-size:8px;color:var(--tx3);letter-spacing:1px;margin-bottom:2px}
+.lore-name{font-family:var(--fd);font-size:13px;font-weight:700;color:var(--tx);letter-spacing:.5px}
+.lore-desc{font-size:11px;color:var(--tx2);margin-top:2px;line-height:1.4}
+.lore-refs{font-family:var(--fm);font-size:9px;color:var(--tx3);margin-top:4px}
+.lore-actions{display:flex;gap:6px;position:absolute;top:8px;right:8px;opacity:0;transition:opacity .1s}
+.lore-card:hover .lore-actions{opacity:1}
+.lore-thumb{width:64px;height:64px;border-radius:3px;border:1px solid var(--brd);object-fit:contain;float:right;margin:0 0 4px 8px;background:transparent}
+
+.notes-area{width:100%;min-height:200px;font-family:var(--fb);font-size:13px;color:var(--tx);background:var(--bg-card);border:1px solid var(--brd);border-radius:4px;padding:12px 14px;outline:none;resize:vertical;line-height:1.5;transition:border-color .12s}
+.notes-area:focus{border-color:var(--accent-dim)}
+.notes-label{font-family:var(--fsc);font-size:9px;color:var(--tx3);letter-spacing:1.5px;margin-bottom:6px}
+.hq-img-wrap{position:relative;max-width:720px;border:1px solid var(--brd);border-radius:4px;overflow:hidden;background:var(--bg2)}
+.hq-img-wrap:hover .hq-img-controls{opacity:1}
+.hq-img{width:100%;max-height:400px;object-fit:contain;display:block}
+.hq-img-controls{position:absolute;top:6px;right:6px;display:flex;gap:4px;opacity:0;transition:opacity .15s}
+.hq-img-empty{max-width:720px;min-height:120px;border:2px dashed var(--brd);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--tx3);font-size:12px;cursor:pointer;transition:border-color .15s}
+.hq-img-empty:hover{border-color:var(--accent-dim);color:var(--tx2)}
+.hq-notes-view{font-family:var(--fb);font-size:13px;color:var(--tx);line-height:1.6;white-space:pre-wrap;background:var(--bg-card);border:1px solid var(--brd);border-radius:4px;padding:12px 14px;cursor:pointer;min-height:60px;transition:border-color .12s}
+.hq-notes-view:hover{border-color:var(--accent-dim)}
+.hq-notes-view:empty::before{content:'Click to add HQ details...';color:var(--tx3);font-style:italic}
+.hq-notes-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.hq-notes-toggle{font-family:var(--fb);font-size:10px;color:var(--accent);background:none;border:none;cursor:pointer;padding:0}
+.hq-notes-toggle:hover{color:var(--accent-lt);text-decoration:underline}
+.sec-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px}
+.sec-title{font-family:var(--fsc);font-size:10px;color:var(--tx3);letter-spacing:1.5px}
+.btn-add{display:inline-flex;align-items:center;gap:4px;padding:5px 14px;font-size:11px;font-family:var(--fb);font-weight:700;background:transparent;color:var(--accent);border:1px solid var(--accent-dim);border-radius:3px;cursor:pointer;transition:all .15s}
+.btn-add:hover{border-color:var(--accent);color:var(--accent-lt);background:var(--hover-bg)}
+
+.invite-section{margin-bottom:16px}
+.invite-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.invite-code{font-family:var(--fm);font-size:16px;font-weight:700;color:var(--accent);letter-spacing:3px;background:var(--bg-card);border:1px dashed var(--accent-dim);border-radius:4px;padding:6px 14px;user-select:all}
+.invite-url{font-family:var(--fm);font-size:10px;color:var(--tx2);word-break:break-all;background:var(--bg-card);border:1px solid var(--brd);border-radius:3px;padding:6px 10px;flex:1;min-width:200px}
+.invite-btn{padding:5px 12px;font-size:10px;font-family:var(--fb);font-weight:700;background:transparent;color:var(--accent);border:1px solid var(--accent-dim);border-radius:3px;cursor:pointer;transition:all .15s}
+.invite-btn:hover{border-color:var(--accent);color:var(--accent-lt);background:var(--hover-bg)}
+.invite-btn.danger{color:var(--red);border-color:rgba(208,72,72,0.3)}.invite-btn.danger:hover{border-color:var(--red);background:var(--hover-bg)}
+.invite-msg{font-family:var(--fb);font-size:11px;color:var(--green);margin-top:4px}
+.player-list{list-style:none;padding:0}
+.player-item{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border:1px solid var(--brd);border-radius:4px;margin-bottom:6px;background:var(--bg-card)}
+.player-info{display:flex;align-items:center;gap:10px}
+.player-avatar{width:28px;height:28px;border-radius:50%;background:var(--accent-dim);display:flex;align-items:center;justify-content:center;font-family:var(--fb);font-size:11px;font-weight:700;color:#fff;flex-shrink:0}
+.player-name{font-family:var(--fb);font-size:13px;font-weight:700;color:var(--tx)}
+.player-email{font-family:var(--fm);font-size:10px;color:var(--tx3)}
+.player-role{font-family:var(--fsc);font-size:9px;letter-spacing:1px;color:var(--accent);margin-left:6px}
+.player-remove{font-size:10px}
+
+.ftr{padding:10px 16px;font-size:10px;color:var(--tx3);border-top:1px solid var(--brd);background:var(--bg-section);position:relative;z-index:1}
+.ftr-inner{max-width:960px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px}
+.not-found{text-align:center;padding:60px 20px;color:var(--tx3)}
+.not-found-title{font-family:var(--fd);font-size:20px;color:var(--tx2);margin-bottom:8px}
+.not-found a{color:var(--accent);text-decoration:none}.not-found a:hover{text-decoration:underline}
+
+/* Modal form overrides — base styles from gcc-dialog.css */
+/* campaign-detail.html uses gcc-dlg-overlay.open as display:flex instead of opacity toggle */
+.gcc-dlg-overlay.cd-modal { display: none; opacity: 1; pointer-events: auto; padding: 30px 16px; }
+.gcc-dlg-overlay.cd-modal.open { display: flex; }
+.gcc-dlg-overlay.cd-modal .gcc-dlg { transform: none; }
+
+/* ── Dice Tray ── */
+.dice-tray{position:fixed;bottom:16px;right:16px;z-index:900;font-family:var(--fb)}
+.dice-toggle{width:44px;height:44px;border-radius:50%;background:var(--accent);color:#fff;border:none;font-size:20px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.3);transition:all .15s;display:flex;align-items:center;justify-content:center}
+.dice-toggle:hover{transform:scale(1.1);box-shadow:0 4px 16px rgba(0,0,0,0.4)}
+.dice-toggle.open{background:var(--accent-dim)}
+.dice-panel{display:none;position:absolute;bottom:54px;right:0;width:280px;background:var(--bg-card);border:1px solid var(--brd);border-radius:6px;box-shadow:var(--dd-shadow);overflow:hidden}
+.dice-panel.open{display:flex;flex-direction:column}
+.dice-panel-hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--brd);background:var(--bg2)}
+.dice-panel-title{font-family:var(--fsc);font-size:10px;letter-spacing:1.5px;color:var(--tx2)}
+.dice-panel-clear{font-size:9px;color:var(--tx3);background:none;border:none;cursor:pointer;font-family:var(--fb)}
+.dice-panel-clear:hover{color:var(--tx)}
+.dice-log{flex:1;max-height:200px;overflow-y:auto;padding:6px 10px;display:flex;flex-direction:column;gap:4px}
+.dice-log::-webkit-scrollbar{width:4px}.dice-log::-webkit-scrollbar-thumb{background:var(--brd);border-radius:2px}
+.dice-log-empty{font-size:11px;color:var(--tx3);font-style:italic;padding:12px 0;text-align:center}
+.dice-entry{font-size:11px;line-height:1.4;padding:3px 0;border-bottom:1px solid var(--brd);display:flex;flex-direction:column;gap:1px}
+.dice-entry:last-child{border-bottom:none}
+.dice-entry-top{display:flex;justify-content:space-between;align-items:baseline;gap:6px}
+.dice-who{font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}
+.dice-when{font-size:9px;color:var(--tx3);flex-shrink:0}
+.dice-result{font-family:var(--fm);color:var(--accent);font-weight:700;font-size:13px}
+.dice-detail{font-family:var(--fm);font-size:9px;color:var(--tx3)}
+.dice-controls{padding:8px 10px;border-top:1px solid var(--brd);background:var(--bg2)}
+.dice-row{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px}
+.dice-btn{padding:4px 0;font-size:11px;font-family:var(--fm);font-weight:700;background:var(--bg-card);color:var(--tx2);border:1px solid var(--brd);border-radius:3px;cursor:pointer;transition:all .1s;flex:1;min-width:34px;text-align:center}
+.dice-btn:hover{border-color:var(--accent-dim);color:var(--accent);background:var(--hover-bg)}
+.dice-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(96,160,208,0.08)}
+.dice-input-row{display:flex;gap:4px;align-items:center}
+.dice-qty{width:36px;padding:4px;font-size:11px;font-family:var(--fm);text-align:center;background:var(--bg-card);color:var(--tx);border:1px solid var(--brd);border-radius:3px;outline:none}
+.dice-qty:focus{border-color:var(--accent-dim)}
+.dice-mod{width:44px;padding:4px;font-size:11px;font-family:var(--fm);text-align:center;background:var(--bg-card);color:var(--tx);border:1px solid var(--brd);border-radius:3px;outline:none}
+.dice-mod:focus{border-color:var(--accent-dim)}
+.dice-roll-btn{flex:1;padding:5px 8px;font-size:11px;font-family:var(--fb);font-weight:700;background:var(--accent);color:#fff;border:none;border-radius:3px;cursor:pointer;transition:all .12s}
+.dice-roll-btn:hover{background:var(--accent-lt)}
+.dice-roll-btn:disabled{opacity:0.4;cursor:default}
+.dice-lbl{font-size:9px;color:var(--tx3);font-family:var(--fsc);letter-spacing:.5px}
+@media(max-width:500px){.dice-panel{width:calc(100vw - 32px);right:0}}
+
+@media(max-width:700px){
+  .camp-name{font-size:18px}.camp-banner{height:120px}.camp-header{margin-top:-40px}
+  .camp-header-in{flex-direction:column;align-items:flex-start}
+  .details-grid{grid-template-columns:1fr}.entity-grid{grid-template-columns:1fr}
+  .lore-grid{grid-template-columns:1fr}.tab{padding:6px 12px;font-size:10px}
+  .gcc-dlg-row{flex-direction:column;gap:0}
+}
+</style>
+</head>
+<body>
+<div id="gcc-bar" class="gcc-bar"><div class="gcc-bar-in">
+  <a href="index.html" class="gcc-brand" title="Back to Dashboard"><div class="gcc-title-wrap"><div class="gcc-title">GRAYCLOAK'S</div><div class="gcc-subtitle">CAMPAIGN CORNER</div></div></a>
+  <div class="gcc-nav"><div class="gcc-tools-wrap"><button class="gcc-nav-btn" id="gcc-btn-tools">🎲 Tools ▾</button><div class="gcc-tools-dd" id="gcc-tools-dd"></div></div><span id="gcc-auth-slot"></span><button class="gcc-nav-btn" id="gcc-btn-theme" title="Toggle light/dark"><span id="gcc-theme-icon">◑</span></button></div>
+</div></div>
+<div class="gcc-tools-overlay" id="gcc-tools-overlay"></div>
+<div id="page-content"></div>
+<div class="dice-tray" id="dice-tray">
+  <div class="dice-panel" id="dice-panel">
+    <div class="dice-panel-hdr"><span class="dice-panel-title">DICE ROLLER</span><button class="dice-panel-clear" id="dice-clear">Clear</button></div>
+    <div class="dice-log" id="dice-log"><div class="dice-log-empty">No rolls yet</div></div>
+    <div class="dice-controls">
+      <div class="dice-row" id="dice-btns">
+        <button class="dice-btn" data-die="4">d4</button>
+        <button class="dice-btn active" data-die="6">d6</button>
+        <button class="dice-btn" data-die="8">d8</button>
+        <button class="dice-btn" data-die="10">d10</button>
+        <button class="dice-btn" data-die="12">d12</button>
+        <button class="dice-btn" data-die="20">d20</button>
+        <button class="dice-btn" data-die="100">d100</button>
+      </div>
+      <div class="dice-input-row">
+        <input class="dice-qty" id="dice-qty" type="number" value="1" min="1" max="20">
+        <span class="dice-lbl">×</span>
+        <span class="dice-lbl" id="dice-die-label">d6</span>
+        <span class="dice-lbl">+</span>
+        <input class="dice-mod" id="dice-mod" type="number" value="0" placeholder="±">
+        <button class="dice-roll-btn" id="dice-roll">Roll</button>
+      </div>
+    </div>
+  </div>
+  <button class="dice-toggle" id="dice-toggle" title="Dice Roller">🎲</button>
+</div>
+
+<div class="ftr"><div class="ftr-inner"><span>Graycloak's Campaign Corner v1.9</span><span>Data stored locally in your browser</span></div></div>
+
+<div class="gcc-dlg-overlay cd-modal" id="session-modal"><div class="gcc-dlg">
+  <div class="gcc-dlg-header"><div class="gcc-dlg-title" id="session-modal-title">New session</div><button class="gcc-dlg-close" id="session-modal-close">✕</button></div>
+  <div class="gcc-dlg-body" id="session-modal-body"></div>
+  <div class="gcc-dlg-footer"><button class="gcc-dlg-btn" id="sm-cancel">Cancel</button><button class="gcc-dlg-btn primary" id="sm-save">Save</button></div>
+</div></div>
+
+<div class="gcc-dlg-overlay cd-modal" id="lore-modal"><div class="gcc-dlg">
+  <div class="gcc-dlg-header"><div class="gcc-dlg-title" id="lore-modal-title">New entry</div><button class="gcc-dlg-close" id="lore-modal-close">✕</button></div>
+  <div class="gcc-dlg-body" id="lore-modal-body"></div>
+  <div class="gcc-dlg-footer"><button class="gcc-dlg-btn" id="lm-cancel">Cancel</button><button class="gcc-dlg-btn primary" id="lm-save">Save</button></div>
+</div></div>
+
+<div class="gcc-dlg-overlay cd-modal" id="veh-modal"><div class="gcc-dlg">
+  <div class="gcc-dlg-header"><div class="gcc-dlg-title">Assign vehicles</div><button class="gcc-dlg-close" id="veh-modal-close">✕</button></div>
+  <div class="gcc-dlg-body" id="veh-modal-body"></div>
+  <div class="gcc-dlg-footer"><button class="gcc-dlg-btn" id="vm-cancel">Cancel</button><button class="gcc-dlg-btn primary" id="vm-save">Save</button></div>
+</div></div>
+
+<div class="gcc-dlg-overlay cd-modal" id="lore-import-modal"><div class="gcc-dlg">
+  <div class="gcc-dlg-header"><div class="gcc-dlg-title">Import wiki entries</div><button class="gcc-dlg-close" id="lim-close">✕</button></div>
+  <div class="gcc-dlg-body">
+    <label class="gcc-dlg-label">PASTE JSON OR UPLOAD A .JSON FILE</label>
+    <textarea class="gcc-dlg-ta" id="lim-json" rows="10" placeholder='[
+  { "type": "npc", "subtype": "Villain", "name": "Mister Fear", "desc": "Larry Cranston..." },
+  { "type": "location", "name": "Washington Square Park", "desc": "..." }
+]' style="min-height:140px;font-family:var(--font-mono);font-size:11px"></textarea>
+    <div style="margin-top:6px;display:flex;gap:8px;align-items:center">
+      <button class="gcc-dlg-img-btn" id="lim-file-btn">Upload .json</button>
+      <input type="file" id="lim-file" accept=".json,application/json" style="display:none">
+      <span class="gcc-dlg-label" style="margin:0;font-size:9px;color:var(--tx3)" id="lim-status"></span>
+    </div>
+    <div style="margin-top:8px">
+      <label class="gcc-dlg-label">VALID TYPES: npc, location, faction, item, other</label>
+      <label class="gcc-dlg-check" style="margin-top:4px"><input type="checkbox" id="lim-skip-dupes" checked> Skip entries whose name already exists</label>
+    </div>
+  </div>
+  <div class="gcc-dlg-footer"><button class="gcc-dlg-btn" id="lim-cancel">Cancel</button><button class="gcc-dlg-btn primary" id="lim-import">Import</button></div>
+</div></div>
+
+<div class="gcc-dlg-overlay cd-modal" id="ses-import-modal"><div class="gcc-dlg" style="max-width:640px">
+  <div class="gcc-dlg-header"><div class="gcc-dlg-title">Import sessions</div><button class="gcc-dlg-close" id="sim-close">✕</button></div>
+  <div class="gcc-dlg-body">
+    <label class="gcc-dlg-label">IMPORT HTML JOURNAL</label>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+      <button class="gcc-dlg-img-btn" id="sim-html-btn">Upload .html journal</button>
+      <input type="file" id="sim-html-file" accept=".html,.htm" style="display:none">
+      <span style="font-size:9px;color:var(--tx3)" id="sim-html-status"></span>
+    </div>
+    <div style="border-top:1px solid var(--brd);margin:8px 0 12px;position:relative"><span style="position:absolute;top:-8px;left:50%;transform:translateX(-50%);background:var(--bg-card);padding:0 8px;font-size:9px;color:var(--tx3);letter-spacing:1px">OR</span></div>
+    <label class="gcc-dlg-label">PASTE EPISODE TEXT</label>
+    <textarea class="gcc-dlg-ta" id="sim-text" rows="14" placeholder='Paste your recap document here. Expected format:
+
+Episode 1: "Title" (real world date: March 14, 2023)
+Needfest 1, 567 CY – Narrative text...
+End of episode 1. Total xp = 71.' style="min-height:200px;font-family:var(--fm,monospace);font-size:11px"></textarea>
+    <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <label class="gcc-dlg-check"><input type="checkbox" id="sim-days-as-sections" checked> Split days into sections</label>
+      <label class="gcc-dlg-check"><input type="checkbox" id="sim-skip-dupes" checked> Skip episodes that match existing titles</label>
+    </div>
+    <div style="margin-top:8px"><span class="gcc-dlg-label" style="margin:0;font-size:10px;color:var(--tx3)" id="sim-status"></span></div>
+    <div id="sim-preview" style="margin-top:10px;max-height:200px;overflow-y:auto;font-size:11px;color:var(--tx2);display:none"></div>
+  </div>
+  <div class="gcc-dlg-footer"><button class="gcc-dlg-btn" id="sim-cancel">Cancel</button><button class="gcc-dlg-btn" id="sim-preview-btn" style="border-color:var(--accent-dim);color:var(--accent)">Preview</button><button class="gcc-dlg-btn primary" id="sim-import">Import</button></div>
+</div></div>
+
+<script src="gcc-dialog.js"></script>
+<script src="gcc-data.js"></script>
+<script src="gcc-images.js"></script>
+<script src="gcc-backup.js?v=2"></script>
+<script src="gcc-header.js"></script>
+<script src="gcc-firebase-config.js"></script>
+<script src="gcc-auth.js"></script>
+<script src="gcc-sync.js"></script>
+<script src="gcc-storage.js"></script>
+<script src="gcc-invite.js"></script>
+<script>
+GCC.init();
+const ESC=s=>{const d=document.createElement('div');d.textContent=s||'';return d.innerHTML};
+const PIP_COLORS=['#5090b0','#7a5a8a','#5a9a40','#d0a040','#c04040','#508a7a','#9a6a30','#6a6a9a'];
+const SYSTEM_COLORS={};GCC.SYSTEM_DEFS.forEach(s=>{SYSTEM_COLORS[s.id]=s.color});
+const LORE_COLORS={npc:'var(--lore-npc)',location:'var(--lore-location)',faction:'var(--lore-faction)',item:'var(--lore-item)',other:'var(--lore-other)'};
+
+function parseLocalDate(iso){const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);return m?new Date(+m[1],+m[2]-1,+m[3]):new Date(iso)}
+function formatDate(iso){if(!iso)return'—';return parseLocalDate(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}
+function formatDateShort(iso){if(!iso)return'—';return parseLocalDate(iso).toLocaleDateString('en-US',{month:'short',day:'numeric'})}
+function formatDateTime(iso){if(!iso)return null;const d=new Date(iso);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' @ '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}
+function sysColorCSS(sysId){const c=SYSTEM_COLORS[sysId]||'#888';return`background:${c}18;color:${c};border:1px solid ${c}30`}
+function statusLabel(s){return{active:'Active',hiatus:'On Hiatus',completed:'Completed',archived:'Archived'}[s]||s}
+function countRealSessions(sessions){return sessions.filter(s=>s.type!=='timeline').length}
+
+function resolveChar(savedChar,systemId,storageKey){
+  let name='',sub='',player='',portrait='',statsHtml='';
+  if(systemId==='faserip'){
+    const RANK_ABBR={Feeble:'Fb',Poor:'Pr',Typical:'Ty',Good:'Gd',Excellent:'Ex',Remarkable:'Rm',Incredible:'In',Amazing:'Am',Monstrous:'Mn',Unearthly:'Un','Shift-X':'ShX','Shift-Y':'ShY','Shift-Z':'ShZ','Class 1000':'C1k','Class 3000':'C3k','Class 5000':'C5k',Beyond:'Bey'};
+    name=savedChar.heroName||savedChar.name||'Unnamed';player=savedChar.playerName||'';portrait=savedChar.portraitData||'';
+    const ab=savedChar.abilities||{};sub=savedChar.origin||'';
+    const abKeys=['fighting','agility','strength','endurance','reason','intuition','psyche'];
+    const abSpan=k=>{const a=ab[k];if(!a)return'';return`<span><span class="ab">${k.substring(0,1).toUpperCase()}</span>${a.value!=null?a.value:''}</span>`};
+    const allAb=abKeys.map(abSpan).filter(Boolean).join('');
+    if(allAb)statsHtml+=`<div class="entity-stats">${allAb}</div>`;
+    const derived=[];
+    if(savedChar.health)derived.push(`<span>Health ${savedChar.health}</span>`);
+    if(savedChar.karma)derived.push(`<span>Karma ${savedChar.karma}</span>`);
+    if(savedChar.resourcesRank)derived.push(`<span>Res ${ESC(RANK_ABBR[savedChar.resourcesRank]||savedChar.resourcesRank)}</span>`);
+    if(savedChar.popularityHero!=null)derived.push(`<span>Pop ${savedChar.popularityHero}</span>`);
+    if(derived.length)statsHtml+=`<div class="entity-derived">${derived.join('')}</div>`;
+  }else if(systemId==='mp'){
+    name=savedChar.name||'Unnamed';player=savedChar.player||'';portrait=savedChar._image||savedChar.portrait||'';
+    sub=savedChar.archetype||savedChar.className||savedChar.model||'';
+    let cp=0;if(savedChar.stats){for(const s of Object.values(savedChar.stats))cp+=parseFloat(s.cp)||0}
+    if(savedChar.abilities){for(const a of savedChar.abilities)cp+=parseFloat(a.cp)||0}
+    if(cp)sub=cp+' CPs'+(sub?' · '+sub:'');
+    if(savedChar.stats){const sl=['st','en','ag','in','cl'].map(k=>{const v=savedChar.stats[k]?(savedChar.stats[k].cp||'0'):'0';return`<span>${k.toUpperCase()}\u2009${v}</span>`});statsHtml+=`<div class="entity-stats">${sl.join('')}</div>`}
+    const derived=[];if(savedChar.power)derived.push(`<span>Power ${ESC(savedChar.power)}</span>`);if(savedChar.hitPts)derived.push(`<span>HP ${ESC(savedChar.hitPts)}</span>`);if(savedChar.initiative)derived.push(`<span>Init ${ESC(savedChar.initiative)}</span>`);
+    if(derived.length)statsHtml+=`<div class="entity-derived">${derived.join('')}</div>`;
+  }else if(systemId==='add1e'){
+    name=savedChar.characterName||savedChar.name||'Unnamed';player=savedChar.player||savedChar.playerName||'';portrait=savedChar.portrait||'';
+    const cls=savedChar.characterClass||'',lvl=savedChar.level||'',race=savedChar.race||'';
+    sub=[race,cls&&lvl?cls+' '+lvl:cls].filter(Boolean).join(' · ');
+    const sl=[];
+    if(savedChar.str)sl.push(`<span>S\u2009${ESC(String(savedChar.str))}${savedChar.strPct?'/'+ESC(String(savedChar.strPct)):''}</span>`);
+    if(savedChar.int)sl.push(`<span>I\u2009${ESC(String(savedChar.int))}</span>`);if(savedChar.wis)sl.push(`<span>W\u2009${ESC(String(savedChar.wis))}</span>`);
+    if(savedChar.dex)sl.push(`<span>D\u2009${ESC(String(savedChar.dex))}</span>`);if(savedChar.con)sl.push(`<span>C\u2009${ESC(String(savedChar.con))}</span>`);
+    if(savedChar.cha)sl.push(`<span>Ch\u2009${ESC(String(savedChar.cha))}</span>`);
+    if(sl.length)statsHtml+=`<div class="entity-stats">${sl.join('')}</div>`;
+    const derived=[];
+    if(savedChar.ac!==undefined&&savedChar.ac!=='')derived.push(`<span>AC\u2009${ESC(String(savedChar.ac))}</span>`);
+    const hp=savedChar.hpCurrent||savedChar.hpMax;if(hp)derived.push(`<span>HP\u2009${ESC(String(hp))}${savedChar.hpMax?'/'+ESC(String(savedChar.hpMax)):''}</span>`);
+    if(savedChar.xpTotal)derived.push(`<span>XP\u2009${ESC(String(savedChar.xpTotal))}</span>`);
+    if(derived.length)statsHtml+=`<div class="entity-derived">${derived.join('')}</div>`;
+  }
+  const charType=savedChar.characterType==='player'?'pc':(savedChar.characterType?'npc':'');
+  return{name,player,sub,portrait,statsHtml,charType,_id:savedChar._id||'',storageKey:storageKey||''};
+}
+
+const campId=new URLSearchParams(window.location.search).get('id');
+let currentTab='overview',sessionFilter='all',loreFilter='all';
+let _sesImageOrigKey=''; // track original IDB key for cover image to avoid orphaning
+let _isPlayerMode=false,_sharedCamp=null;
+function getCamp(){
+  if(_isPlayerMode&&_sharedCamp)return _sharedCamp;
+  return GCC.getCampaign(campId);
+}
+
+// ── Build session card ──
+function buildSessionCard(s,idx,total,camp,imgMap){
+  const sesLabel=GCC.sessionLabel(camp.system),xpLbl=GCC.xpLabel(camp.system);
+  const isTimeline=s.type==='timeline',isDmOnly=s.visible===false;
+  // Count real session number for this entry
+  let realNum=0;const sessions=camp.sessions||[];
+  for(let i=sessions.length-1;i>=0;i--){if(sessions[i].type!=='timeline')realNum++;if(i===idx)break;}
+
+  const titlePart=s.title?' — '+ESC(s.title):'';
+  const recapUrl=`recap.html?id=${encodeURIComponent(campId)}&idx=${idx}`;
+  const numLabel=isTimeline
+    ?`<span class="session-num"><span class="session-num-text" style="color:var(--tx3)">Timeline${titlePart}</span></span>`
+    :`<span class="session-num"><a class="session-num-text session-recap-link" href="${recapUrl}">${ESC(sesLabel)} #${realNum}${titlePart}</a></span>`;
+
+  let gameDateHtml=s.gameDate?`<span class="session-date-game">${ESC(s.gameDate)}</span>`:'';
+  let realDateHtml=s.date?`<span class="session-date-real">${formatDate(s.date)}</span>`:'';
+
+  // ── Recap layout: cover image left, summary text right ──
+  let recapHtml='';
+  const summaryHtml=s.text?`<div class="session-text">${ESC(s.text)}</div>`:'';
+  const coverSrc=resolveImg(s.image,imgMap);
+  if(coverSrc){
+    recapHtml=`<div class="session-recap"><div class="session-recap-img"><img src="${coverSrc}" alt=""></div><div class="session-recap-text">${summaryHtml}</div></div>`;
+  }else if(summaryHtml){
+    recapHtml=`<div class="session-recap-noimg">${summaryHtml}</div>`;
+  }
+
+  // ── Sections: title + multi-image + text ──
+  let sectionsHtml='';
+  if(s.sections&&s.sections.length){
+    sectionsHtml='<div class="session-sections">';
+    s.sections.forEach(sec=>{
+      sectionsHtml+='<div class="session-sec-block clearfix">';
+      if(sec.title)sectionsHtml+=`<div class="session-section-title">${ESC(sec.title)}</div>`;
+      const imgs=sec.images||[];
+      if(imgs.length){
+        sectionsHtml+='<div class="session-sec-images">';
+        imgs.forEach(img=>{
+          const src=resolveImg(img.src,imgMap);
+          if(src){
+            const pos=img.pos||'right';
+            sectionsHtml+=`<div class="session-sec-img-wrap pos-${pos}"><img class="session-sec-img sz-${img.size||'md'}" src="${src}" alt="">`;
+            if(img.caption)sectionsHtml+=`<span class="sec-img-caption">${ESC(img.caption)}</span>`;
+            sectionsHtml+='</div>';
+          }
+        });
+        sectionsHtml+='</div>';
+      }
+      if(sec.text)sectionsHtml+=`<div class="session-section-text">${ESC(sec.text)}</div>`;
+      sectionsHtml+='</div>';
+    });
+    sectionsHtml+='</div>';
+  }
+
+  // ── Character roster strip ──
+  let rosterHtml='';
+  if(s.roster&&s.roster.length){
+    const chars=camp.characters||[];
+    rosterHtml='<div class="session-roster"><span class="session-roster-label">ROSTER</span>';
+    s.roster.forEach(id=>{
+      const ch=chars.find(c=>(c._id||c.name)===id);
+      if(!ch)return;
+      let name=ch.heroName||ch.characterName||ch.name||'?',portrait=ch.portraitData||ch.portrait||ch._image||'';
+      const refKey=ch.storageKey||ch.listKey||(ch._ref?ch._ref.storageKey:'')||'';
+      if(refKey){try{const saved=JSON.parse(localStorage.getItem(refKey))||[];
+        let found=ch._id?saved.find(x=>x._id===ch._id):null;
+        if(!found&&ch.name)found=saved.find(x=>(x.heroName||x.characterName||x.name)===ch.name);
+        if(!found)found=saved.find(x=>(x.heroName||x.characterName||x.name||'')===id);
+        if(found){name=found.heroName||found.characterName||found.name||name;portrait=found.portraitData||found.portrait||found._image||portrait}}catch(e){}}
+      const ava=portrait?`<img src="${portrait}">`:`<span class="roster-ph">?</span>`;
+      rosterHtml+=`<span class="session-roster-chip">${ava} ${ESC(name)}</span>`;
+    });
+    rosterHtml+='</div>';
+  }
+
+  let tagsHtml='';
+  if(s.tags&&s.tags.length){s.tags.forEach(tag=>{
+    const color=LORE_COLORS[tag.type]||'var(--tx3)';
+    tagsHtml+=`<span class="session-tag"><span class="tag-dot" style="background:${color}"></span> ${ESC(tag.name)}</span>`;
+  })}
+
+  const xpHtml=s.xp?`<span class="session-xp">+${s.xp} ${ESC(xpLbl)}</span>`:'';
+  const visHtml=isDmOnly?`<span class="session-vis" style="color:var(--amber)">○ DM only</span>`:`<span class="session-vis">● Players can see</span>`;
+  const cardClass='session-card'+(isTimeline?' timeline-entry':'')+(isDmOnly?' dm-only':'');
+
+  return`<li class="${cardClass}" data-ses-idx="${idx}" draggable="true">
+    <div class="session-card-header"><span class="ses-drag-handle" title="Drag to reorder">⠿</span>${numLabel}${gameDateHtml}<div class="session-hdr-right">${realDateHtml}<div class="session-actions"><button class="session-action-btn" data-ses-edit="${idx}">Edit</button><button class="session-action-btn danger" data-ses-del="${idx}">Del</button></div>
+    </div></div>
+    ${recapHtml}
+    ${rosterHtml}
+    ${sectionsHtml}
+    <div class="session-footer">${tagsHtml}${xpHtml}${visHtml}</div>
+  </li>`;
+}
+
+function collectTagTypes(sessions){const t=new Set();(sessions||[]).forEach(s=>(s.tags||[]).forEach(tag=>t.add(tag.type)));return[...t]}
+function filterSessions(sessions,filter){if(filter==='all')return sessions;return sessions.filter(s=>(s.tags||[]).some(t=>t.type===filter))}
+
+// ── RENDER ──
+// ── Migrate inline data URLs to IndexedDB (one-time) ──
+async function migrateImagesToIDB(camp){
+  if(!camp)return false;
+  let changed=false;
+  // Banner
+  if(camp.campaignImage&&GCCImages.isDataUrl(camp.campaignImage)){
+    camp.campaignImage=await GCCImages.store(camp.campaignImage,'img_banner');
+    changed=true;console.log('[GCC] Migrated banner image to IDB:',camp.campaignImage);
+  }
+  // Sessions
+  for(const s of(camp.sessions||[])){
+    if(s.image&&GCCImages.isDataUrl(s.image)){
+      s.image=await GCCImages.store(s.image,'img_ses');
+      changed=true;console.log('[GCC] Migrated session cover to IDB:',s.image);
+    }
+    for(const sec of(s.sections||[])){
+      for(const img of(sec.images||[])){
+        if(img.src&&GCCImages.isDataUrl(img.src)){
+          img.src=await GCCImages.store(img.src,'img_sec');
+          changed=true;console.log('[GCC] Migrated section image to IDB:',img.src);
+        }
+      }
+    }
+  }
+  // HQ image
+  if(camp.hqImage&&GCCImages.isDataUrl(camp.hqImage)){
+    camp.hqImage=await GCCImages.store(camp.hqImage,'img_hq');
+    changed=true;console.log('[GCC] Migrated HQ image to IDB:',camp.hqImage);
+  }
+  // Lore images
+  for(const l of(camp.lore||[])){
+    if(l.image&&GCCImages.isDataUrl(l.image)){
+      l.image=await GCCImages.store(l.image,'img_lore');
+      changed=true;console.log('[GCC] Migrated lore image to IDB:',l.image);
+    }
+  }
+  if(changed)GCC.updateCampaign(camp.id,{campaignImage:camp.campaignImage,sessions:camp.sessions,hqImage:camp.hqImage,lore:camp.lore});
+  return changed;
+}
+
+function reconcileCharRefs(camp){
+  if(!camp||!camp.characters||!camp.characters.length)return false;
+  const sys=GCC.SYSTEM_DEFS.find(s=>s.id===camp.system);
+  if(!sys)return false;
+  let changed=false;
+  // Build old→new ID map from stale character refs
+  const idMap={};
+  camp.characters.forEach(ref=>{
+    const sk=ref.storageKey||ref.listKey||'';
+    if(!sk||!ref._id)return;
+    const list=GCC.load(sk);
+    if(!list)return;
+    if(list.find(x=>x._id===ref._id))return;
+    const nameKey=camp.system==='faserip'?'heroName':'characterName';
+    const match=list.find(x=>(x[nameKey]||x.name)===(ref.name||''));
+    if(match&&match._id){
+      console.log('[GCC] Reconcile stale ref:',ref.name,ref._id,'→',match._id);
+      idMap[ref._id]=match._id;
+      ref._id=match._id;
+      changed=true;
+    }
+  });
+  // Fix stale roster IDs in sessions
+  if(Object.keys(idMap).length&&camp.sessions){
+    camp.sessions.forEach(s=>{
+      if(!s.roster)return;
+      s.roster=s.roster.map(id=>idMap[id]||id);
+    });
+  }
+  if(changed)GCC.updateCampaign(camp.id,{characters:camp.characters,sessions:camp.sessions});
+  return changed;
+}
+
+// ── Clean orphaned IDB images not referenced by any campaign ──
+async function cleanOrphanImages(dryRun){
+  const allKeys=new Set();
+  const camps=GCC.load('gcc-campaigns')||[];
+  camps.forEach(c=>{
+    if(c.campaignImage&&GCCImages.isKey(c.campaignImage))allKeys.add(c.campaignImage);
+    if(c.hqImage&&GCCImages.isKey(c.hqImage))allKeys.add(c.hqImage);
+    (c.sessions||[]).forEach(s=>{
+      if(s.image&&GCCImages.isKey(s.image))allKeys.add(s.image);
+      (s.sections||[]).forEach(sec=>(sec.images||[]).forEach(img=>{if(img.src&&GCCImages.isKey(img.src))allKeys.add(img.src)}));
+    });
+    (c.lore||[]).forEach(l=>{if(l.image&&GCCImages.isKey(l.image))allKeys.add(l.image)});
+  });
+  const db=await GCCImages.open();
+  const tx=db.transaction('images','readonly');
+  const store=tx.objectStore('images');
+  const allIDB=await new Promise(r=>{const req=store.getAllKeys();req.onsuccess=()=>r(req.result);req.onerror=()=>r([])});
+  const orphans=allIDB.filter(k=>!allKeys.has(k));
+  console.log('[GCC] IDB keys:',allIDB.length,'referenced:',allKeys.size,'orphans:',orphans.length);
+  if(dryRun){console.log('[GCC] Dry run — orphan keys:',orphans);return orphans}
+  if(orphans.length)await GCCImages.removeBulk(orphans);
+  console.log('[GCC] Removed',orphans.length,'orphaned images');
+  return orphans;
+}
+
+// ── Collect all image keys from campaign for bulk loading ──
+function collectImageKeys(camp){
+  const keys=[];
+  if(camp.campaignImage&&GCCImages.isKey(camp.campaignImage))keys.push(camp.campaignImage);
+  if(camp.hqImage&&GCCImages.isKey(camp.hqImage))keys.push(camp.hqImage);
+  (camp.sessions||[]).forEach(s=>{
+    if(s.image&&GCCImages.isKey(s.image))keys.push(s.image);
+    (s.sections||[]).forEach(sec=>{(sec.images||[]).forEach(img=>{if(img.src&&GCCImages.isKey(img.src))keys.push(img.src)})});
+  });
+  (camp.lore||[]).forEach(l=>{if(l.image&&GCCImages.isKey(l.image))keys.push(l.image)});
+  return keys;
+}
+// ── Resolve an image value: if it's a key, look up in map; if data URL, use directly ──
+function resolveImg(val,imgMap){
+  if(!val)return'';
+  if(GCCImages.isKey(val))return imgMap[val]||'';
+  return val; // already a data URL or URL
+}
+
+async function render(){
+  const camp=getCamp(),page=document.getElementById('page-content');
+  if(!camp){page.innerHTML=`<div class="not-found"><div class="not-found-title">Campaign Not Found</div><div>This campaign doesn't exist or has been deleted.</div><div style="margin-top:12px"><a href="index.html">← Back to Dashboard</a></div></div>`;document.title='Not Found — GCC';return}
+  const pm_=_isPlayerMode;
+  if(!pm_){reconcileCharRefs(camp);await migrateImagesToIDB(camp)}
+  // Bulk load images from IndexedDB (GM mode); player mode uses Storage URLs directly
+  const imgKeys=pm_?[]:collectImageKeys(camp);
+  const imgMap=pm_?{}:await GCCImages.getBulk(imgKeys);
+
+  document.title=camp.name+' — GCC';
+  const sys=GCC.SYSTEM_DEFS.find(s=>s.id===camp.system)||{},tools=sys.tools||[],status=camp.status||'active',nextStr=formatDateTime(camp.nextSession),gml=camp.gmTitle||'GM';
+
+  const bannerSrc=pm_?(camp.campaignImage||''):resolveImg(camp.campaignImage,imgMap);
+  const bannerControls=pm_?'':`<div class="camp-banner-controls"><button class="camp-banner-btn" id="btn-banner-upload">Upload</button>${camp.campaignImage?'<button class="camp-banner-btn" id="btn-banner-remove">Remove</button>':''}</div><input type="file" id="banner-img-file" accept="image/*" style="display:none">`;
+  const bannerHtml=bannerSrc?`<div class="camp-banner"><img src="${ESC(bannerSrc)}" alt="">${bannerControls}</div>`:(pm_?'':`<div class="camp-banner"><div class="camp-banner-empty">${sys.icon||''} Click upload to add banner</div>${bannerControls}</div>`);
+  const vttBtn=camp.vttLabel?`<a class="camp-btn camp-btn-vtt" href="${ESC(camp.vttUrl||'#')}" target="_blank">▶ ${ESC(camp.vttLabel)}</a>`:'';
+  const pm={online:'Online','in-person':'In-Person',hybrid:'Hybrid'}[camp.playMode]||'';
+  const dr=(l,v)=>v?`<div class="detail-row"><span class="detail-label">${l}</span><span class="detail-value">${ESC(v)}</span></div>`:'';
+
+  const descHtml=pm_
+    ?(camp.description?`<div style="margin-bottom:14px"><div class="notes-label">DESCRIPTION</div><div class="notes-area" style="min-height:40px;white-space:pre-wrap">${ESC(camp.description)}</div></div>`:'')
+    :`<div style="margin-bottom:14px"><div class="notes-label">DESCRIPTION</div><textarea class="notes-area" id="camp-desc" style="min-height:60px" placeholder="Campaign premise, current arc, setting details...">${ESC(camp.description||'')}</textarea></div>`;
+
+  // Pre-resolve characters to count PCs vs NPCs
+  const chars=camp.characters||[];let pcCount=0,npcCount=0;
+  const resolvedChars=chars.map(ch=>{
+    let resolved=ch;const refKey=ch.storageKey||ch.listKey||(ch._ref?ch._ref.storageKey:'')||'';
+    if(pm_){
+      // Player mode: characters are snapshots from Firestore, resolve directly
+      resolved=resolveChar(ch,camp.system,refKey);
+    } else if(refKey){
+      try{const saved=JSON.parse(localStorage.getItem(refKey))||[];let found=ch._id?saved.find(s=>s._id===ch._id):null;if(!found&&ch.name)found=saved.find(s=>(s.heroName||s.name)===ch.name);if(found){if(ch._id&&found._id&&ch._id!==found._id)ch._id=found._id;resolved=resolveChar(found,camp.system,refKey)}}catch(e){}
+    }
+    if(resolved.charType==='pc')pcCount++;else if(resolved.charType==='npc')npcCount++;
+    return{ch,resolved,refKey};
+  });
+  const playersStr=pcCount||npcCount?[pcCount?pcCount+' Player'+(pcCount!==1?'s':''):'',npcCount?npcCount+' NPC'+(npcCount!==1?'s':''):''].filter(Boolean).join(' · '):(camp.players?camp.players+' players':'');
+
+  const ruleDefs=GCC.getRuleDefs(camp.system);
+  const ruleState=GCC.getCampaignRules(camp.id);
+  let rulesHtml='';
+  if(ruleDefs.length){
+    if(_isPlayerMode){
+      const enabled=ruleDefs.filter(d=>ruleState[d.id]);
+      if(enabled.length){
+        rulesHtml=`<details class="sec-collapsible"><summary class="sec-hdr"><div class="sec-title"><span class="sec-caret">▸</span>OPTIONAL RULES IN USE<span class="sec-count">(${enabled.length})</span></div></summary><div class="rules-list-ro">${enabled.map(d=>`<span class="rule-chip-ro" title="${ESC(d.desc)}">${ESC(d.label)}</span>`).join('')}</div></details>`;
+      }
+    } else {
+      const enabledCount=ruleDefs.filter(d=>ruleState[d.id]).length;
+      rulesHtml=`<details class="sec-collapsible"><summary class="sec-hdr"><div class="sec-title"><span class="sec-caret">▸</span>OPTIONAL RULES<span class="sec-count">(${enabledCount}/${ruleDefs.length})</span></div></summary><div class="rules-grid">${ruleDefs.map(d=>`<label class="rule-row" title="${ESC(d.desc)}"><input type="checkbox" data-rule-id="${ESC(d.id)}"${ruleState[d.id]?' checked':''}><div class="rule-info"><div class="rule-label">${ESC(d.label)}</div><div class="rule-desc">${ESC(d.desc)}</div></div></label>`).join('')}</div></details>`;
+    }
+  }
+
+  const overviewHtml=`${descHtml}<div class="details-grid">${dr('WORLD',camp.world)}${dr('GENRE',camp.genre)}${dr(gml.toUpperCase(),camp.gm)}${dr('PLAYERS',playersStr)}${dr('SCHEDULE',camp.schedule)}${dr('PLAY MODE',pm+(camp.vttLabel?' ('+camp.vttLabel+')':''))}${dr('XP METHOD',camp.xpMethod)}${dr('STARTED',camp.startDate?formatDate(camp.startDate):(camp.created?formatDate(camp.created):''))}${nextStr?`<div class="detail-row"><span class="detail-label">NEXT SESSION</span><span class="detail-value" style="color:var(--accent);font-weight:700">${ESC(nextStr)}</span></div>`:''}${dr('RULEBOOKS',camp.rulebooks)}${camp.houseRules?`<div class="detail-row detail-full"><span class="detail-label">HOUSE RULES</span><span class="detail-value">${ESC(camp.houseRules)}</span></div>`:''}</div>${rulesHtml}<div class="sec-hdr"><div class="sec-title">TOOLS</div></div><div class="tools-row">${tools.map(t=>{const cls=t.href?'tool-chip':'tool-chip disabled';return`<a class="${cls}"${t.href?' href="'+ESC(t.href)+'"':''}><span class="tool-bullet">◆</span> ${ESC(t.name)}</a>`}).join('')}</div>`;
+
+  // Party tab — helper to build a single entity card
+  function buildEntityCard(resolved,ch,refKey,idx,camp,opts){
+    opts=opts||{};
+    const col=PIP_COLORS[idx%PIP_COLORS.length];
+    const portraitHtml=resolved.portrait?`<img class="entity-portrait" src="${resolved.portrait}" alt="">`:`<div class="entity-portrait-ph">?</div>`;
+    let nameHtml;const charSys=GCC.SYSTEM_DEFS.find(s=>s.id===camp.system);const effectiveKey=resolved.storageKey||refKey;
+    const charTool=charSys?.tools.find(t=>t.charList===effectiveKey&&t.href)||charSys?.tools.find(t=>t.charList&&t.href);
+    if(!_isPlayerMode&&charTool&&resolved.name){const linkParam=(resolved._id||ch._id)?'id='+encodeURIComponent(resolved._id||ch._id):'char='+encodeURIComponent(resolved.name);const href=charTool.href+(charTool.href.includes('?')?'&':'?')+linkParam;nameHtml=`<a href="${ESC(href+'&mode=view')}">${ESC(resolved.name)}</a> <a href="${ESC(href)}" style="font-size:9px;color:var(--tx3);text-decoration:none" title="Edit">✎</a>`}else{nameHtml=ESC(resolved.name||ch.name||'Unnamed')}
+    const typeBadge=resolved.charType?`<span class="entity-badge ${resolved.charType}">${resolved.charType.toUpperCase()}</span>`:'';
+    const teamBadge=opts.teamBadge?`<span class="entity-badge team">${ESC(opts.teamBadge)}</span>`:'';
+    const actionsHtml=opts.actions||'';
+    return`<div class="entity-card"><div class="entity-pip" style="background:${col}"></div>${portraitHtml}<div class="entity-info"><div class="entity-name">${nameHtml}${typeBadge}${teamBadge}</div><div class="entity-sub">${ESC(resolved.sub||'')}</div>${resolved.statsHtml||''}${resolved.player?'<div class="entity-player">'+ESC(resolved.player)+'</div>':''}</div>${actionsHtml}</div>`;
+  }
+
+  // Party tab — split into Team / Player Characters / NPCs
+  const teamName=camp.teamName||GCC.teamLabel(camp.system);
+  const teamChars=[],npcChars=[];
+  resolvedChars.forEach(item=>{
+    if(item.ch.isTeam||item.resolved.charType==='pc')teamChars.push(item);
+    else npcChars.push(item);
+  });
+
+  let partyHtml=pm_?'':`<button class="btn-add" id="btn-edit-team">✎ Edit ${ESC(GCC.teamLabel(camp.system))}</button>`;
+
+  // Section 1: Team Roster (GM-assigned team members)
+  partyHtml+=`<div class="party-section"><div class="party-section-hdr"><div class="party-section-title">${ESC(teamName.toUpperCase())} ROSTER</div>`;
+  if(teamChars.length)partyHtml+=`<div class="party-section-count">${teamChars.length}</div>`;
+  partyHtml+=`</div>`;
+  if(!teamChars.length){partyHtml+=`<div class="entity-empty">No ${ESC(teamName.toLowerCase())} members yet.</div>`}
+  else{partyHtml+='<div class="entity-grid">';teamChars.forEach(({ch,resolved,refKey},i)=>{
+    partyHtml+=buildEntityCard(resolved,ch,refKey,i,camp,{teamBadge:teamName});
+  });partyHtml+='</div>'}
+  partyHtml+=`</div>`;
+
+  // Section 2: Player Characters (joined via invite)
+  partyHtml+=`<div class="party-section"><div class="party-section-hdr"><div class="party-section-title">PLAYER CHARACTERS</div></div>`;
+  partyHtml+=`<div id="player-chars-grid"><div class="entity-empty">Loading player characters...</div></div></div>`;
+
+  // Section 3: NPCs & Henchmen (GM-assigned, non-team)
+  if(!pm_||npcChars.length){
+    partyHtml+=`<div class="party-section"><div class="party-section-hdr"><div class="party-section-title">NPCs &amp; HENCHMEN</div>`;
+    if(npcChars.length)partyHtml+=`<div class="party-section-count">${npcChars.length}</div>`;
+    partyHtml+=`</div>`;
+    if(!npcChars.length){partyHtml+=`<div class="entity-empty">No NPCs or henchmen assigned.</div>`}
+    else{partyHtml+='<div class="entity-grid">';npcChars.forEach(({ch,resolved,refKey},i)=>{
+      partyHtml+=buildEntityCard(resolved,ch,refKey,i+teamChars.length,camp,{});
+    });partyHtml+='</div>'}
+    partyHtml+=`</div>`;
+  }
+
+  // Vehicles tab
+  let vehHtml='';const vehTool=sys.tools?.find(t=>t.charList===GCC.KEYS.mpVehs);let vehs=[];
+  if(vehTool){try{const allVehs=JSON.parse(localStorage.getItem(vehTool.charList))||[];vehs=allVehs.filter(v=>v._campaign===campId)}catch(e){}}
+  if(vehTool){vehHtml+=`<button class="btn-add" id="btn-assign-veh">+ Assign Vehicle</button>`}
+  if(!vehs.length){vehHtml+=`<div class="entity-empty">No vehicles assigned to this campaign.</div>`}
+  else{vehHtml+='<div class="entity-grid">';vehs.forEach((v,i)=>{
+    const col=PIP_COLORS[(i+3)%PIP_COLORS.length];const portrait=v.pictureData||v._image||'';
+    const portraitHtml=portrait?`<img class="entity-portrait" src="${portrait}" alt="" style="border-radius:4px">`:`<div class="entity-portrait-ph" style="border-radius:4px">🚗</div>`;
+    const sub=[v.model,v._totalCost!=null?v._totalCost+' CPs':''].filter(Boolean).join(' · ');
+    const editLink=vehTool.href?` <a href="${ESC(vehTool.href)}" style="font-size:9px;color:var(--tx3);text-decoration:none" title="Edit">✎</a>`:'';
+    const nameHtml=vehTool.href?`<a href="${ESC(vehTool.href)}?mode=view">${ESC(v.name||'Unnamed')}</a>${editLink}`:ESC(v.name||'Unnamed');
+    vehHtml+=`<div class="entity-card"><div class="entity-pip" style="background:${col}"></div>${portraitHtml}<div class="entity-info"><div class="entity-name">${nameHtml}</div><div class="entity-sub">${ESC(sub)}</div>${v.operator?'<div class="entity-player">'+ESC(v.operator)+'</div>':''}</div><button class="session-action-btn danger" data-unassign-veh="${ESC(v._id)}" title="Unassign" style="align-self:center;font-size:12px;padding:2px 6px">✕</button></div>`;
+  });vehHtml+='</div>'}
+
+  // Sessions tab
+  const allSessions=camp.sessions||[];
+  const sessions=pm_?allSessions.filter(s=>s.visible!==false):allSessions;
+  const filteredSessions=filterSessions(sessions,sessionFilter),realCount=countRealSessions(sessions),tagTypes=collectTagTypes(sessions);
+  let sessHtml=pm_
+    ?`<div class="session-toolbar"><div class="session-toolbar-right"><button class="filter-pill${sessionFilter==='all'?' active':''}" data-ses-filter="all">All</button>${tagTypes.map(t=>`<button class="filter-pill${sessionFilter===t?' active':''}" data-ses-filter="${ESC(t)}">${ESC(GCC.LORE_TYPE_LABELS[t]||t)}</button>`).join('')}</div></div>`
+    :`<div class="session-toolbar"><div class="session-toolbar-left"><button class="btn-add" id="btn-add-session">+ New ${ESC(GCC.sessionLabel(camp.system))}</button><button class="btn-add" id="btn-export-journal" style="background:none;border:1px solid var(--brd);color:var(--tx2)">Export Journal</button><button class="btn-add" id="btn-import-sessions" style="background:none;border:1px solid var(--brd);color:var(--tx2)">Import Text</button>${allSessions.length?'<button class="btn-add" id="btn-delete-all-sessions" style="background:none;border:1px solid rgba(192,48,48,0.3);color:var(--red)">Delete All</button>':''}</div><div class="session-toolbar-right"><button class="filter-pill${sessionFilter==='all'?' active':''}" data-ses-filter="all">All</button>${tagTypes.map(t=>`<button class="filter-pill${sessionFilter===t?' active':''}" data-ses-filter="${ESC(t)}">${ESC(GCC.LORE_TYPE_LABELS[t]||t)}</button>`).join('')}</div></div>`;
+  if(!filteredSessions.length){sessHtml+=`<div class="entity-empty">No sessions logged yet.</div>`}
+  else{sessHtml+='<ul class="session-list">';filteredSessions.forEach(s=>{const origIdx=allSessions.indexOf(s);sessHtml+=buildSessionCard(s,origIdx,realCount,camp,imgMap)});sessHtml+='</ul>'}
+
+  // Lore tab
+  const lore=camp.lore||[],filteredLore=loreFilter==='all'?lore:lore.filter(l=>l.type===loreFilter);
+  let loreHtml=pm_
+    ?`<div class="session-toolbar"><div class="session-toolbar-right"><button class="filter-pill${loreFilter==='all'?' active':''}" data-lore-filter="all">All</button>${GCC.LORE_TYPES.map(t=>{const count=lore.filter(l=>l.type===t).length;return count?`<button class="filter-pill${loreFilter===t?' active':''}" data-lore-filter="${t}">${ESC(GCC.LORE_TYPE_LABELS[t])} (${count})</button>`:''}).join('')}</div></div>`
+    :`<div class="session-toolbar"><div class="session-toolbar-left"><button class="btn-add" id="btn-add-lore">+ New Entry</button><button class="btn-add" id="btn-import-lore" style="background:none;border:1px solid var(--brd);color:var(--tx2)">Import JSON</button></div><div class="session-toolbar-right"><button class="filter-pill${loreFilter==='all'?' active':''}" data-lore-filter="all">All</button>${GCC.LORE_TYPES.map(t=>{const count=lore.filter(l=>l.type===t).length;return count?`<button class="filter-pill${loreFilter===t?' active':''}" data-lore-filter="${t}">${ESC(GCC.LORE_TYPE_LABELS[t])} (${count})</button>`:''}).join('')}</div></div>`;
+  if(!filteredLore.length){loreHtml+=`<div class="entity-empty">No wiki entries yet. Add NPCs, locations, factions, and items.</div>`}
+  else{loreHtml+='<div class="lore-grid">';filteredLore.forEach((l,i)=>{
+    const origIdx=lore.indexOf(l);
+    const typeLabel=(GCC.LORE_TYPE_LABELS[l.type]||l.type).toUpperCase()+(l.subtype?' — '+l.subtype.toUpperCase():'');
+    const sesLbl=GCC.sessionLabel(camp.system);let realNum=0;const mentions=[];
+    sessions.forEach(s=>{if(s.type!=='timeline')realNum++;if((s.tags||[]).some(t=>t.name===l.name))mentions.push(s.type==='timeline'?'Timeline':`${sesLbl} #${realNum}`)});
+    const refsText=mentions.join(', ');
+    const loreSrc=resolveImg(l.image,imgMap);
+    const loreImgHtml=loreSrc?`<img class="lore-thumb" src="${loreSrc}" alt="">`:'';
+    loreHtml+=`<div class="lore-card" data-lore-type="${ESC(l.type)}">${pm_?'':`<div class="lore-actions"><button class="session-action-btn" data-lore-edit="${origIdx}">Edit</button><button class="session-action-btn danger" data-lore-del="${origIdx}">Del</button></div>`}${loreImgHtml}<div class="lore-type-label">${ESC(typeLabel)}</div><div class="lore-name">${ESC(l.name)}</div>${l.desc?`<div class="lore-desc">${ESC(l.desc)}</div>`:''}${refsText?`<div class="lore-refs">${ESC(refsText)}</div>`:''}</div>`;
+  });loreHtml+='</div>'}
+
+  // Notes tab
+  const notesHtml=pm_
+    ?(camp.sharedNotes?`<div class="notes-label">SHARED NOTES</div><div class="notes-area" style="white-space:pre-wrap">${ESC(camp.sharedNotes)}</div>`:`<div class="entity-empty">No shared notes yet.</div>`)
+    :`<div class="notes-label">DM NOTES (private)</div><textarea class="notes-area" id="camp-notes" placeholder="Campaign notes, reminders, links...">${ESC(camp.notes||'')}</textarea><div style="margin-top:16px"><div class="notes-label">SHARED NOTES (visible to players)</div><textarea class="notes-area" id="camp-notes-shared" placeholder="Notes your players can see...">${ESC(camp.sharedNotes||'')}</textarea></div>`;
+
+  // HQ tab
+  const hqSrc=pm_?(camp.hqImage||''):resolveImg(camp.hqImage,imgMap);
+  const hqImgHtml=pm_
+    ?(hqSrc?`<div class="hq-img-wrap"><img class="hq-img" src="${ESC(hqSrc)}" alt="HQ Map"></div>`:'')
+    :(hqSrc?`<div class="hq-img-wrap"><img class="hq-img" src="${ESC(hqSrc)}" alt="HQ Map"><div class="hq-img-controls"><button class="camp-banner-btn" id="btn-hq-img-upload">Replace</button><button class="camp-banner-btn" id="btn-hq-img-remove">Remove</button></div></div>`:`<div class="hq-img-empty" id="btn-hq-img-upload-area"><span>Click or drag to add HQ image / map</span></div>`);
+  const hqHtml=pm_
+    ?`${hqImgHtml}${camp.hqNotes?`<div style="margin-top:14px"><div class="notes-label">HQ DETAILS</div><div class="notes-area" style="white-space:pre-wrap">${ESC(camp.hqNotes)}</div></div>`:''}`
+    :`${hqImgHtml}<input type="file" id="hq-img-file" accept="image/*" style="display:none"><div style="margin-top:14px"><div class="hq-notes-header"><span class="notes-label" style="margin:0">HQ DETAILS</span><button class="hq-notes-toggle" id="btn-hq-toggle">Edit</button></div><div class="hq-notes-view" id="hq-notes-view">${ESC(camp.hqNotes||'')}</div><textarea class="notes-area" id="camp-hq-notes" style="display:none" placeholder="Rooms, equipment, defenses, rent, packages...">${ESC(camp.hqNotes||'')}</textarea></div>`;
+
+  const charCount=chars.length?` (${chars.length})`:'',vehCount=vehs.length?` (${vehs.length})`:'',sesCount=sessions.length?` (${sessions.length})`:'',loreCount=lore.length?` (${lore.length})`:'';
+
+  const headerBtns=pm_
+    ?`${vttBtn}<a class="camp-btn" href="index.html">\u2190 Dashboard</a>`
+    :`${vttBtn}<a class="camp-btn" href="index.html">\u2190 Dashboard</a><button class="camp-btn" id="btn-edit-camp">Edit</button>`;
+  const tabsHtml=pm_
+    ?'<button class="tab'+(currentTab==='overview'?' active':'')+'" data-tab="overview">Overview</button>'+
+     '<button class="tab'+(currentTab==='party'?' active':'')+'" data-tab="party">PARTY'+charCount+'</button>'+
+     '<button class="tab'+(currentTab==='sessions'?' active':'')+'" data-tab="sessions">'+ESC(GCC.sessionLabel(camp.system).toUpperCase())+'S'+sesCount+'</button>'+
+     '<button class="tab'+(currentTab==='lore'?' active':'')+'" data-tab="lore">Wiki'+loreCount+'</button>'+
+     '<button class="tab'+(currentTab==='hq'?' active':'')+'" data-tab="hq">HQ</button>'+
+     '<button class="tab'+(currentTab==='players'?' active':'')+'" data-tab="players">Players</button>'+
+     '<button class="tab'+(currentTab==='notes'?' active':'')+'" data-tab="notes">Notes</button>'
+    :'<button class="tab'+(currentTab==='overview'?' active':'')+'" data-tab="overview">Overview</button>'+
+     '<button class="tab'+(currentTab==='party'?' active':'')+'" data-tab="party">PARTY'+charCount+'</button>'+
+     '<button class="tab'+(currentTab==='vehicles'?' active':'')+'" data-tab="vehicles">Vehicles'+vehCount+'</button>'+
+     '<button class="tab'+(currentTab==='sessions'?' active':'')+'" data-tab="sessions">'+ESC(GCC.sessionLabel(camp.system).toUpperCase())+'S'+sesCount+'</button>'+
+     '<button class="tab'+(currentTab==='lore'?' active':'')+'" data-tab="lore">Wiki'+loreCount+'</button>'+
+     '<button class="tab'+(currentTab==='hq'?' active':'')+'" data-tab="hq">HQ</button>'+
+     '<button class="tab'+(currentTab==='players'?' active':'')+'" data-tab="players">Invite Players</button>'+
+     '<button class="tab'+(currentTab==='notes'?' active':'')+'" data-tab="notes">Notes</button>';
+  const playersTabHtml=pm_?'<div class="sec-hdr"><div class="sec-title">MY CHARACTER</div></div><div id="my-char-slot"><div class="entity-empty">Loading...</div></div><div style="margin-top:20px"><div class="sec-hdr"><div class="sec-title">PLAYER ROSTER</div></div></div><div id="player-roster"><div class="entity-empty">Loading...</div></div>':'<div class="invite-section" id="invite-section"><div class="sec-hdr"><div class="sec-title">INVITE PLAYERS</div></div><div id="invite-area"><button class="invite-btn" id="btn-gen-invite">Generate Invite Link</button></div><div id="invite-msg"></div></div><div class="sec-hdr"><div class="sec-title">PLAYER ROSTER</div></div><div id="player-roster"><div class="entity-empty">Loading...</div></div>';
+
+  page.innerHTML=`${bannerHtml}<div class="camp-header"><div class="camp-header-in"><div class="camp-title-area"><div class="camp-name">${ESC(camp.name)}</div><div class="camp-meta"><span class="camp-system-badge" style="${sysColorCSS(camp.system)}">${ESC(sys.name||camp.system)}</span><span class="camp-status"><span class="camp-status-dot ${status}"></span> ${statusLabel(status)}</span></div>${camp.pitch?'<div class="camp-pitch">"'+ESC(camp.pitch)+'"</div>':''}</div><div class="camp-header-btns">${headerBtns}</div></div></div>
+  <div class="main"><div class="main-in">
+    <div class="tabs" id="tabs">${tabsHtml}</div>
+    <div class="tab-panel${currentTab==='overview'?' active':''}" data-panel="overview">${overviewHtml}</div>
+    <div class="tab-panel${currentTab==='party'?' active':''}" data-panel="party">${partyHtml}</div>
+    ${pm_?'':`<div class="tab-panel${currentTab==='vehicles'?' active':''}" data-panel="vehicles">${vehHtml}</div>`}
+    <div class="tab-panel${currentTab==='sessions'?' active':''}" data-panel="sessions">${sessHtml}</div>
+    <div class="tab-panel${currentTab==='lore'?' active':''}" data-panel="lore">${loreHtml}</div>
+    <div class="tab-panel${currentTab==='hq'?' active':''}" data-panel="hq">${hqHtml}</div>
+    <div class="tab-panel${currentTab==='players'?' active':''}" data-panel="players">${playersTabHtml}</div>
+    <div class="tab-panel${currentTab==='notes'?' active':''}" data-panel="notes">${notesHtml}</div>
+  </div></div>`;
+  wireEvents();
+  // GM mode: debounce push shared data to Firestore after edits (only after initPage confirms GM)
+  if(render._gmConfirmed){clearTimeout(render._pushTimer);render._pushTimer=setTimeout(()=>{const c=getCamp();if(c&&GCCAuth?.getUser())GCCInvite.pushSharedData(campId,c)},2000)}
+}
+
+function wireEvents(){
+  document.getElementById('tabs')?.addEventListener('click',e=>{const tab=e.target.closest('.tab');if(!tab)return;currentTab=tab.dataset.tab;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===currentTab));document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===currentTab))});
+  document.getElementById('camp-desc')?.addEventListener('input',e=>{GCC.updateCampaign(campId,{description:e.target.value})});
+  document.getElementById('camp-notes')?.addEventListener('input',e=>{GCC.updateCampaign(campId,{notes:e.target.value})});
+  document.getElementById('camp-notes-shared')?.addEventListener('input',e=>{GCC.updateCampaign(campId,{sharedNotes:e.target.value})});
+  document.querySelectorAll('[data-rule-id]').forEach(cb=>{cb.addEventListener('change',e=>{GCC.setCampaignRule(campId,e.target.dataset.ruleId,e.target.checked)})});
+  document.getElementById('btn-edit-camp')?.addEventListener('click',()=>{window.location.href='index.html'});
+  document.getElementById('btn-edit-team')?.addEventListener('click',()=>{window.location.href='index.html?editTeam='+encodeURIComponent(campId)});
+  // Banner image upload/remove
+  document.getElementById('btn-banner-upload')?.addEventListener('click',()=>document.getElementById('banner-img-file')?.click());
+  document.getElementById('banner-img-file')?.addEventListener('change',async e=>{
+    const file=e.target.files[0];if(!file)return;
+    const reader=new FileReader();reader.onload=async ev=>{
+      const compressed=await new Promise(resolve=>compressImageData(ev.target.result,800,resolve));
+      const key=await GCCImages.store(compressed,'img_banner');
+      // Remove old banner image from IndexedDB if it was a key
+      const camp=getCamp();
+      if(camp&&GCCImages.isKey(camp.campaignImage))await GCCImages.remove(camp.campaignImage);
+      GCC.updateCampaign(campId,{campaignImage:key});render();
+    };reader.readAsDataURL(file);
+  });
+  document.getElementById('btn-banner-remove')?.addEventListener('click',async()=>{
+    const ok=await GCCDialog.confirm('Remove image','Remove the banner image?',{okText:'Remove',danger:true});if(!ok)return;
+    const camp=getCamp();
+    if(camp&&GCCImages.isKey(camp.campaignImage))await GCCImages.remove(camp.campaignImage);
+    GCC.updateCampaign(campId,{campaignImage:''});render();
+  });
+  // HQ image upload/remove
+  const hqFileInput=document.getElementById('hq-img-file');
+  const triggerHqUpload=()=>hqFileInput?.click();
+  document.getElementById('btn-hq-img-upload')?.addEventListener('click',triggerHqUpload);
+  document.getElementById('btn-hq-img-upload-area')?.addEventListener('click',triggerHqUpload);
+  hqFileInput?.addEventListener('change',async e=>{
+    const file=e.target.files[0];if(!file)return;
+    const reader=new FileReader();reader.onload=async ev=>{
+      const compressed=await new Promise(resolve=>compressImageData(ev.target.result,800,resolve));
+      const key=await GCCImages.store(compressed,'img_hq');
+      const camp=getCamp();
+      if(camp&&camp.hqImage&&GCCImages.isKey(camp.hqImage))await GCCImages.remove(camp.hqImage);
+      GCC.updateCampaign(campId,{hqImage:key});render();
+    };reader.readAsDataURL(file);
+  });
+  document.getElementById('btn-hq-img-remove')?.addEventListener('click',async()=>{
+    const ok2=await GCCDialog.confirm('Remove image','Remove the HQ image?',{okText:'Remove',danger:true});if(!ok2)return;
+    const camp=getCamp();
+    if(camp&&GCCImages.isKey(camp.hqImage))await GCCImages.remove(camp.hqImage);
+    GCC.updateCampaign(campId,{hqImage:''});render();
+  });
+  document.getElementById('camp-hq-notes')?.addEventListener('input',e=>{GCC.updateCampaign(campId,{hqNotes:e.target.value})});
+  // HQ notes view/edit toggle
+  const hqView=document.getElementById('hq-notes-view'),hqEdit=document.getElementById('camp-hq-notes'),hqToggle=document.getElementById('btn-hq-toggle');
+  function hqShowEdit(){
+    if(!hqView||!hqEdit||!hqToggle)return;
+    hqView.style.display='none';hqEdit.style.display='';hqToggle.textContent='Done';hqEdit.focus();
+  }
+  function hqShowView(){
+    if(!hqView||!hqEdit||!hqToggle)return;
+    hqView.textContent=hqEdit.value;hqView.style.display='';hqEdit.style.display='none';hqToggle.textContent='Edit';
+  }
+  hqToggle?.addEventListener('click',()=>{hqEdit.style.display==='none'?hqShowEdit():hqShowView()});
+  hqView?.addEventListener('click',hqShowEdit);
+  document.getElementById('btn-add-session')?.addEventListener('click',()=>openSessionModal(-1,'session'));
+  document.getElementById('btn-export-journal')?.addEventListener('click',exportJournal);
+  document.getElementById('btn-import-sessions')?.addEventListener('click',openSesImportModal);
+  document.getElementById('btn-delete-all-sessions')?.addEventListener('click',async()=>{const camp=getCamp();if(!camp)return;const count=(camp.sessions||[]).length;const ok=await GCCDialog.confirm('Delete all sessions','Delete all '+count+' sessions? This cannot be undone.',{okText:'Delete All',danger:true});if(!ok)return;const deadKeys=[];(camp.sessions||[]).forEach(s=>{if(s.image&&GCCImages.isKey(s.image))deadKeys.push(s.image);(s.sections||[]).forEach(sec=>(sec.images||[]).forEach(img=>{if(img.src&&GCCImages.isKey(img.src))deadKeys.push(img.src)}))});if(deadKeys.length)GCCImages.removeBulk(deadKeys);GCC.updateCampaign(campId,{sessions:[],session:0});const updated=GCC.getCampaign(campId);if(GCCAuth?.getUser()){GCCInvite.pushSharedData(campId,updated);if(typeof GCCSync!=='undefined'&&GCCSync.notifySync)GCCSync.notifySync('gcc-campaigns')}render()});
+  document.querySelectorAll('[data-ses-filter]').forEach(btn=>{btn.addEventListener('click',()=>{sessionFilter=btn.dataset.sesFilter;render()})});
+  document.querySelectorAll('[data-lore-filter]').forEach(btn=>{btn.addEventListener('click',()=>{loreFilter=btn.dataset.loreFilter;render()})});
+  document.querySelectorAll('[data-ses-edit]').forEach(btn=>{btn.addEventListener('click',()=>openSessionModal(parseInt(btn.dataset.sesEdit)))});
+  document.querySelectorAll('[data-ses-del]').forEach(btn=>{btn.addEventListener('click',async()=>{const ok=await GCCDialog.confirm('Delete session','Delete this session entry?',{okText:'Delete',danger:true});if(!ok)return;const camp=getCamp();if(!camp)return;const sessions=camp.sessions||[];const s=sessions[parseInt(btn.dataset.sesDel)];if(s){const deadKeys=[];if(s.image&&GCCImages.isKey(s.image))deadKeys.push(s.image);(s.sections||[]).forEach(sec=>(sec.images||[]).forEach(img=>{if(img.src&&GCCImages.isKey(img.src))deadKeys.push(img.src)}));if(deadKeys.length)GCCImages.removeBulk(deadKeys)}sessions.splice(parseInt(btn.dataset.sesDel),1);GCC.updateCampaign(campId,{sessions,session:countRealSessions(sessions)});render()})});
+  // Drag-to-reorder sessions
+  let dragIdx=null;
+  document.querySelectorAll('.session-card[draggable]').forEach(card=>{
+    card.addEventListener('dragstart',e=>{
+      if(!e.target.closest('.ses-drag-handle')){e.preventDefault();return}
+      dragIdx=parseInt(card.dataset.sesIdx);card.classList.add('dragging');
+      e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',dragIdx);
+    });
+    card.addEventListener('dragend',()=>{dragIdx=null;card.classList.remove('dragging');
+      document.querySelectorAll('.session-card.drag-over').forEach(c=>c.classList.remove('drag-over'))});
+    card.addEventListener('dragover',e=>{if(dragIdx===null)return;e.preventDefault();e.dataTransfer.dropEffect='move';
+      document.querySelectorAll('.session-card.drag-over').forEach(c=>c.classList.remove('drag-over'));card.classList.add('drag-over')});
+    card.addEventListener('dragleave',()=>card.classList.remove('drag-over'));
+    card.addEventListener('drop',e=>{e.preventDefault();card.classList.remove('drag-over');
+      const dropIdx=parseInt(card.dataset.sesIdx);if(dragIdx===null||dragIdx===dropIdx)return;
+      const camp=getCamp();if(!camp)return;const sessions=camp.sessions||[];
+      const moved=sessions.splice(dragIdx,1)[0];sessions.splice(dropIdx,0,moved);
+      GCC.updateCampaign(campId,{sessions});render()});
+  });
+  document.getElementById('btn-add-lore')?.addEventListener('click',()=>openLoreModal(-1));
+  document.getElementById('btn-import-lore')?.addEventListener('click',openLoreImportModal);
+  document.querySelectorAll('[data-lore-edit]').forEach(btn=>{btn.addEventListener('click',()=>openLoreModal(parseInt(btn.dataset.loreEdit)))});
+  document.querySelectorAll('[data-lore-del]').forEach(btn=>{btn.addEventListener('click',async()=>{const ok=await GCCDialog.confirm('Delete entry','Delete this lore entry?',{okText:'Delete',danger:true});if(!ok)return;const camp=getCamp();if(!camp)return;const lore=camp.lore||[];lore.splice(parseInt(btn.dataset.loreDel),1);GCC.updateCampaign(campId,{lore});render()})});
+  // Vehicle assign/unassign
+  document.getElementById('btn-assign-veh')?.addEventListener('click',()=>openVehicleAssignModal());
+  document.querySelectorAll('[data-unassign-veh]').forEach(btn=>{btn.addEventListener('click',async()=>{
+    const ok3=await GCCDialog.confirm('Unassign vehicle','Unassign this vehicle from the campaign?',{okText:'Unassign',danger:true});if(!ok3)return;
+    const vehId=btn.dataset.unassignVeh;const vehKey=GCC.KEYS.mpVehs;
+    const list=JSON.parse(localStorage.getItem(vehKey))||[];
+    const veh=list.find(v=>v._id===vehId);
+    if(veh){veh._campaign='';localStorage.setItem(vehKey,JSON.stringify(list));render()}
+  })});
+
+  // Invite system
+  const btnGenInvite=document.getElementById('btn-gen-invite');
+  if(btnGenInvite){btnGenInvite.addEventListener('click',async()=>{
+    const camp=getCamp();if(!camp)return;
+    if(!GCCAuth.getUser()){document.getElementById('invite-msg').innerHTML='<span style="color:var(--red)">Sign in to generate invites.</span>';return}
+    btnGenInvite.disabled=true;btnGenInvite.textContent='Generating...';
+    const result=await GCCInvite.createInvite(campId,camp.name,camp.system);
+    if(result.ok){showInviteCode(result.code);loadPlayerRoster()}else{document.getElementById('invite-msg').innerHTML='<span style="color:var(--red)">Failed: '+ESC(result.reason||'unknown error')+'</span>'}
+    btnGenInvite.disabled=false;btnGenInvite.textContent='Generate Invite Link';
+  })}
+  loadExistingInvites();loadPlayerRoster();loadPlayerChars();if(_isPlayerMode){loadMyCharSlot()}
+}
+
+async function loadExistingInvites(){if(!GCCAuth.getUser())return;const invites=await GCCInvite.getInvitesForCampaign(campId);const active=invites.filter(i=>i.active);if(active.length>0)showInviteCode(active[0].code)}
+function showInviteCode(code){const area=document.getElementById('invite-area');if(!area)return;const url=GCCInvite.buildInviteUrl(code);area.innerHTML='<div class="invite-row"><span class="invite-code">'+ESC(code)+'</span><button class="invite-btn" id="btn-copy-invite">Copy Link</button><button class="invite-btn danger" id="btn-revoke-invite">Revoke</button></div><div class="invite-url" id="invite-url">'+ESC(url)+'</div>';
+  document.getElementById('btn-copy-invite').addEventListener('click',()=>{navigator.clipboard.writeText(url).then(()=>{document.getElementById('invite-msg').innerHTML='<span class="invite-msg">Link copied to clipboard!</span>';setTimeout(()=>{const m=document.getElementById('invite-msg');if(m)m.innerHTML=''},3000)})});
+  document.getElementById('btn-revoke-invite').addEventListener('click',async()=>{const okR=await GCCDialog.confirm('Revoke invite','Revoke this invite code?',{okText:'Revoke',danger:true});if(!okR)return;await GCCInvite.deactivateInvite(code);area.innerHTML='<button class="invite-btn" id="btn-gen-invite">Generate Invite Link</button>';document.getElementById('invite-msg').innerHTML='<span class="invite-msg">Invite revoked.</span>';const nb=document.getElementById('btn-gen-invite');if(nb){nb.addEventListener('click',async()=>{const camp=getCamp();if(!camp)return;if(!GCCAuth.getUser()){document.getElementById('invite-msg').innerHTML='<span style="color:var(--red)">Sign in to generate invites.</span>';return}nb.disabled=true;nb.textContent='Generating...';const r=await GCCInvite.createInvite(campId,camp.name,camp.system);if(r.ok){showInviteCode(r.code);loadPlayerRoster()}else{document.getElementById('invite-msg').innerHTML='<span style="color:var(--red)">Failed: '+ESC(r.reason||'unknown error')+'</span>'}nb.disabled=false;nb.textContent='Generate Invite Link'})}});
+}
+async function loadPlayerRoster(){
+  const roster=document.getElementById('player-roster');if(!roster)return;
+  if(!GCCAuth.getUser()){roster.innerHTML='<div class="entity-empty">Sign in to see the player roster.</div>';return}
+  const players=await GCCInvite.getPlayers(campId);
+  if(!players.length){roster.innerHTML='<div class="entity-empty">No players have joined yet.</div>';return}
+  const uid=GCCAuth.getUser().uid;const camp=getCamp();const sys=camp?camp.system:'';
+  const isGM=!_isPlayerMode;
+  let html='<ul class="player-list">';
+  for(const p of players){
+    const initials=(p.displayName||'?').split(/\s+/).map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    const roleLabel=p.role==='gm'?'GM':'PLAYER';
+    const removeBtn=(isGM&&p.uid!==uid&&p.role!=='gm')?' <button class="invite-btn danger player-remove" data-remove-uid="'+ESC(p.uid)+'">Remove</button>':'';
+    // Character assignment info
+    let charInfo='',assignBtn='';
+    if(p.charId){
+      const ch=await GCCInvite.getPlayerCharacterWithFallback(campId,p.uid,p.listKey,p.charId);
+      if(ch){
+        const name=ch.heroName||ch.characterName||ch.name||'Unnamed';
+        const cls=ch.characterClass?ch.characterClass+(ch.level?' '+ch.level:''):(ch.origin||ch.archetype||'');
+        const src=p.gmAssigned?'GM-assigned':'Self-assigned';
+        charInfo='<div class="player-email" style="color:var(--accent)">'+ESC(name)+(cls?' · '+ESC(cls):'')+'<span style="color:var(--tx3);margin-left:6px;font-size:9px">'+src+'</span></div>';
+      }
+      if(isGM&&p.role!=='gm'){
+        assignBtn=' <button class="invite-btn" data-gm-assign="'+ESC(p.uid)+'" style="font-size:9px">Change</button> <button class="invite-btn danger" data-gm-unassign="'+ESC(p.uid)+'" style="font-size:9px">Unassign</button>';
+      }
+    }else{
+      if(isGM&&p.role!=='gm'){
+        assignBtn=' <button class="invite-btn" data-gm-assign="'+ESC(p.uid)+'" style="font-size:9px">Assign Character</button>';
+      }
+    }
+    html+='<li class="player-item"><div class="player-info"><div class="player-avatar">'+ESC(initials)+'</div><div><div class="player-name">'+ESC(p.displayName||'Unknown')+'<span class="player-role">'+roleLabel+'</span></div><div class="player-email">'+ESC(p.email||'')+'</div>'+charInfo+'</div></div><div style="display:flex;gap:4px;align-items:center">'+assignBtn+removeBtn+'</div></li>';
+  }
+  html+='</ul>';roster.innerHTML=html;
+  // Wire remove buttons
+  roster.querySelectorAll('[data-remove-uid]').forEach(btn=>{btn.addEventListener('click',async()=>{const okP=await GCCDialog.confirm('Remove player','Remove this player?',{okText:'Remove',danger:true});if(!okP)return;await GCCInvite.removePlayer(campId,btn.dataset.removeUid);loadPlayerRoster();loadPlayerChars()})});
+  // Wire GM assign buttons
+  roster.querySelectorAll('[data-gm-assign]').forEach(btn=>{btn.addEventListener('click',()=>openGMAssignModal(btn.dataset.gmAssign))});
+  // Wire GM unassign buttons
+  roster.querySelectorAll('[data-gm-unassign]').forEach(btn=>{btn.addEventListener('click',async()=>{
+    const ok=await GCCDialog.confirm('Unassign character','Remove this character assignment?',{okText:'Unassign',danger:true});
+    if(!ok)return;
+    await GCCInvite.gmUnassignCharacter(campId,btn.dataset.gmUnassign);
+    loadPlayerRoster();loadPlayerChars();
+  })});
+}
+
+// ── GM assign character to player ──
+async function openGMAssignModal(playerUid){
+  const camp=getCamp();if(!camp)return;
+  const chars=camp.characters||[];
+  if(!chars.length){await GCCDialog.alert('No characters','No characters assigned to this campaign. Add characters via the Party tab first.');return}
+  // Resolve character names for the picker
+  const items=[];
+  for(const ch of chars){
+    const refKey=ch.storageKey||ch.listKey||'';
+    let saved=null;
+    if(refKey){try{const list=JSON.parse(localStorage.getItem(refKey))||[];saved=ch._id?list.find(s=>s._id===ch._id):null;if(!saved&&ch.name)saved=list.find(s=>(s.heroName||s.characterName||s.name)===ch.name)}catch(e){}}
+    if(saved){
+      const resolved=resolveChar(saved,camp.system,refKey);
+      const portrait=resolved.portrait||null;
+      items.push({name:resolved.name,sub:resolved.sub||'',image:portrait,_id:ch._id,_saved:saved,_refKey:refKey});
+    }else{
+      items.push({name:ch.name||'Unnamed',sub:'',image:null,_id:ch._id,_saved:null,_refKey:refKey});
+    }
+  }
+  const idx=await GCCDialog.listPick('Assign Character to Player',items,{emptyText:'No characters available.'});
+  if(idx===null||idx===undefined)return;
+  const picked=items[idx];if(!picked)return;
+  // Build snapshot from saved character data
+  let snapshot=null;
+  if(picked._saved){
+    snapshot=GCCInvite.buildCharSnapshot(picked._saved,camp.system);
+  }else{
+    snapshot={_id:picked._id||'',name:picked.name};
+  }
+  const r=await GCCInvite.gmAssignCharacter(campId,playerUid,picked._id,picked._refKey,snapshot);
+  if(r.ok){loadPlayerRoster();loadPlayerChars()}
+  else{alert('Failed: '+(r.reason||'unknown error'))}
+}
+
+// ── Player mode: "My Character" slot ──
+async function loadMyCharSlot(){
+  const slot=document.getElementById('my-char-slot');
+  if(!slot)return;
+  const user=GCCAuth?.getUser();
+  if(!user){slot.innerHTML='<div class="entity-empty">Sign in to assign a character.</div>';return}
+  const players=await GCCInvite.getPlayers(campId);
+  const me=players.find(p=>p.uid===user.uid);
+  if(!me){slot.innerHTML='<div class="entity-empty">You haven\'t joined this campaign yet.</div>';return}
+  const camp=getCamp();
+  const sys=camp?camp.system:'';
+  // Find the charList key for this system
+  const sysDef=(typeof GCC!=='undefined')?GCC.SYSTEM_DEFS.find(s=>s.id===sys):null;
+  const charTool=sysDef?.tools.find(t=>t.charList);
+  const listKey=charTool?charTool.charList:'';
+
+  if(me.charId){
+    // Already assigned — show the character
+    const ch=await GCCInvite.getPlayerCharacterWithFallback(campId,user.uid,me.listKey,me.charId);
+    const isGMAssigned=!!me.gmAssigned;
+    if(ch){
+      const resolved=resolveChar(ch,sys,me.listKey);
+      const portraitHtml=resolved.portrait?`<img class="entity-portrait" src="${resolved.portrait}" alt="">`:`<div class="entity-portrait-ph">?</div>`;
+      const editHref=(!isGMAssigned&&charTool)?charTool.href+'?id='+encodeURIComponent(me.charId):'';
+      const editLink=editHref?` <a href="${ESC(editHref)}" style="font-size:9px;color:var(--tx3);text-decoration:none" title="Edit">✎</a>`:'';
+      const srcLabel=isGMAssigned?'<div class="entity-player" style="color:var(--tx3);font-style:italic">Assigned by GM</div>':'';
+      const selfButtons=isGMAssigned?'':'<div style="margin-top:8px;display:flex;gap:6px"><button class="invite-btn" id="btn-change-char">Change Character</button><button class="invite-btn danger" id="btn-remove-char">Remove</button></div>';
+      slot.innerHTML=`<div class="entity-grid"><div class="entity-card"><div class="entity-pip" style="background:${PIP_COLORS[0]}"></div>${portraitHtml}<div class="entity-info"><div class="entity-name">${ESC(resolved.name)}${editLink}</div><div class="entity-sub">${ESC(resolved.sub||'')}</div>${resolved.statsHtml||''}${resolved.player?'<div class="entity-player">'+ESC(resolved.player)+'</div>':''}${srcLabel}</div></div></div>${selfButtons}`;
+    } else {
+      slot.innerHTML='<div class="entity-empty">Character not found (may have been deleted).</div>'+(isGMAssigned?'':'<button class="invite-btn danger" id="btn-remove-char" style="margin-top:6px">Remove Assignment</button>');
+    }
+    if(!isGMAssigned){
+      document.getElementById('btn-change-char')?.addEventListener('click',()=>openCharPickerModal(sys,listKey));
+      document.getElementById('btn-remove-char')?.addEventListener('click',async()=>{
+        const ok=await GCCDialog.confirm('Remove character','Remove your character from this campaign?',{okText:'Remove',danger:true});
+        if(!ok)return;
+        await GCCInvite.unassignCharacter(campId);
+        loadMyCharSlot();loadPlayerRoster();
+      });
+    }
+  } else {
+    // Not assigned — show picker button
+    slot.innerHTML=`<div class="entity-empty">You haven't assigned a character to this campaign yet.</div><button class="btn-add" id="btn-pick-char" style="margin-top:8px">Join with Character</button>`;
+    document.getElementById('btn-pick-char')?.addEventListener('click',()=>openCharPickerModal(sys,listKey));
+  }
+}
+
+// ── Load player-assigned characters for party tab (both modes) ──
+async function loadPlayerChars(){
+  const grid=document.getElementById('player-chars-grid');
+  if(!grid)return;
+  const camp=getCamp();
+  if(!camp){grid.innerHTML='';return}
+  const user=GCCAuth?.getUser();
+  if(!user){grid.innerHTML='<div class="entity-empty">Sign in to see player characters.</div>';return}
+  const players=await GCCInvite.getPlayers(campId);
+  const withChars=players.filter(p=>p.charId);
+  if(!withChars.length){grid.innerHTML='<div class="entity-empty">No players have assigned characters yet.</div>';return}
+  const pm_=_isPlayerMode;
+  const teamName=camp.teamName||GCC.teamLabel(camp.system);
+  const promoted=camp.promotedPlayers||{};
+
+  let cards=[];
+  for(let i=0;i<withChars.length;i++){
+    const p=withChars[i];
+    const ch=await GCCInvite.getPlayerCharacterWithFallback(campId,p.uid,p.listKey,p.charId);
+    if(!ch)continue;
+    const isPromoted=!!promoted[p.uid];
+    const resolved=resolveChar(ch,camp.system,p.listKey);
+    const col=PIP_COLORS[i%PIP_COLORS.length];
+    const portraitHtml=resolved.portrait?`<img class="entity-portrait" src="${resolved.portrait}" alt="">`:`<div class="entity-portrait-ph">?</div>`;
+    const nameHtml=ESC(resolved.name||'Unnamed');
+    const typeBadge=resolved.charType?`<span class="entity-badge ${resolved.charType}">${resolved.charType.toUpperCase()}</span>`:'';
+    const teamBadge=isPromoted?`<span class="entity-badge team">${ESC(teamName)}</span>`:'';
+    const playerLabel=p.displayName?`<div class="entity-player">${ESC(p.displayName)}</div>`:'';
+    // GM promote/demote action
+    let actionsHtml='';
+    if(!pm_){
+      if(isPromoted){
+        actionsHtml=`<div class="entity-actions"><button class="session-action-btn" data-demote-uid="${ESC(p.uid)}" title="Remove from ${ESC(teamName)}">★ Demote</button></div>`;
+      }else{
+        actionsHtml=`<div class="entity-actions"><button class="session-action-btn" data-promote-uid="${ESC(p.uid)}" title="Add to ${ESC(teamName)}">☆ Promote</button></div>`;
+      }
+    }
+    cards.push(`<div class="entity-card">${actionsHtml}<div class="entity-pip" style="background:${col}"></div>${portraitHtml}<div class="entity-info"><div class="entity-name">${nameHtml}${typeBadge}${teamBadge}</div><div class="entity-sub">${ESC(resolved.sub||'')}</div>${resolved.statsHtml||''}${playerLabel}</div></div>`);
+  }
+  if(!cards.length){grid.innerHTML='<div class="entity-empty">No players have assigned characters yet.</div>';return}
+  grid.innerHTML='<div class="entity-grid">'+cards.join('')+'</div>';
+  // Wire promote/demote buttons (GM only)
+  grid.querySelectorAll('[data-promote-uid]').forEach(btn=>{btn.addEventListener('click',async()=>{
+    const camp=getCamp();if(!camp)return;
+    if(!camp.promotedPlayers)camp.promotedPlayers={};
+    camp.promotedPlayers[btn.dataset.promoteUid]=true;
+    GCC.updateCampaign(campId,{promotedPlayers:camp.promotedPlayers});
+    render();
+  })});
+  grid.querySelectorAll('[data-demote-uid]').forEach(btn=>{btn.addEventListener('click',async()=>{
+    const camp=getCamp();if(!camp)return;
+    if(!camp.promotedPlayers)camp.promotedPlayers={};
+    delete camp.promotedPlayers[btn.dataset.demoteUid];
+    GCC.updateCampaign(campId,{promotedPlayers:camp.promotedPlayers});
+    render();
+  })});
+}
+
+async function openCharPickerModal(sys,listKey){
+  if(!listKey){alert('No character list found for this system.');return}
+  const list=JSON.parse(localStorage.getItem(listKey))||[];
+  if(!list.length){
+    await GCCDialog.alert('No characters','You don\'t have any characters yet. Create one first using the character sheet tool.');
+    return;
+  }
+  const items=list.map(ch=>{
+    const name=ch.heroName||ch.characterName||ch.name||'Unnamed';
+    const cls=ch.characterClass?ch.characterClass+(ch.level?' '+ch.level:''):(ch.origin||ch.archetype||'');
+    const portrait=ch.portraitData||ch.portrait||ch._image||'';
+    return{name,sub:cls,image:portrait||null,_id:ch._id};
+  });
+  const idx=await GCCDialog.listPick('Join with Character',items,{emptyText:'No characters found.'});
+  if(idx===null||idx===undefined)return;
+  const picked=list[idx];
+  if(!picked||!picked._id)return;
+  const r=await GCCInvite.assignCharacter(campId,picked._id,listKey);
+  if(r.ok){loadMyCharSlot();loadPlayerRoster()}
+  else{alert('Failed: '+(r.reason||'unknown error'))}
+}
+
+// ═══ EXPORT JOURNAL ═══
+async function exportJournal(){
+  const camp=getCamp();if(!camp)return;
+  const sessions=camp.sessions||[];if(!sessions.length){alert('No sessions to export.');return}
+  const includeDM=await GCCDialog.confirm('Export Journal','Include DM-only sessions?',{okText:'Include DM-only',cancelText:'Players-only'}).catch(()=>false);
+  const sesLbl=GCC.sessionLabel(camp.system),xpLbl=GCC.xpLabel(camp.system);
+  let realNum=0;
+
+  // Resolve all images from IndexedDB
+  const imgMap={};
+  for(const s of sessions){
+    if(s.image&&GCCImages.isKey(s.image)){const d=await GCCImages.get(s.image);if(d)imgMap[s.image]=d}
+    for(const sec of(s.sections||[])){for(const img of(sec.images||[])){
+      if(img.src&&GCCImages.isKey(img.src)){const d=await GCCImages.get(img.src);if(d)imgMap[img.src]=d}
+    }}
+  }
+  function rImg(key){return imgMap[key]||key||''}
+
+  // Build entries in reverse (oldest first)
+  let entriesHtml='';
+  for(let i=sessions.length-1;i>=0;i--){
+    const s=sessions[i];
+    const isTimeline=s.type==='timeline',isDmOnly=s.visible===false;
+    if(isDmOnly&&!includeDM)continue;
+    if(!isTimeline)realNum++;
+    const heading=isTimeline?('Timeline'+(s.title?' — '+s.title:'')):(sesLbl+' #'+realNum+(s.title?' — '+s.title:''));
+    const gameDateStr=s.gameDate?s.gameDate:'';
+    const playedStr=s.date?formatDate(s.date):'';
+    const coverSrc=rImg(s.image);
+
+    entriesHtml+=`<div class="j-entry${isDmOnly?' j-dm-only':''}">`;
+    entriesHtml+=`<h2 class="j-heading">${ESC(heading)}</h2>`;
+    entriesHtml+=`<div class="j-dates">`;
+    if(gameDateStr)entriesHtml+=`<span class="j-date-game">IN-GAME: ${ESC(gameDateStr)}</span>`;
+    if(playedStr)entriesHtml+=`<span class="j-date-played">PLAYED: ${ESC(playedStr)}</span>`;
+    if(isDmOnly)entriesHtml+=`<span class="j-dm-badge">DM ONLY</span>`;
+    entriesHtml+=`</div>`;
+    if(coverSrc)entriesHtml+=`<div class="j-cover"><img src="${coverSrc}" alt=""></div>`;
+    if(s.text)entriesHtml+=`<div class="j-summary">${ESC(s.text)}</div>`;
+    if(s.sections&&s.sections.length){
+      s.sections.forEach(sec=>{
+        entriesHtml+=`<div class="j-section clearfix">`;
+        if(sec.title)entriesHtml+=`<h3 class="j-sec-title">${ESC(sec.title)}</h3>`;
+        const imgs=sec.images||[];
+        imgs.forEach(img=>{
+          const src=rImg(img.src);if(!src)return;
+          const pos=img.pos||'right',sz=img.size||'md';
+          entriesHtml+=`<div class="j-img-wrap j-pos-${pos}"><img class="j-img j-sz-${sz}" src="${src}" alt="">`;
+          if(img.caption)entriesHtml+=`<span class="j-caption">${ESC(img.caption)}</span>`;
+          entriesHtml+=`</div>`;
+        });
+        if(sec.text)entriesHtml+=`<div class="j-sec-text">${ESC(sec.text)}</div>`;
+        entriesHtml+=`</div>`;
+      });
+    }
+    if(s.tags&&s.tags.length){
+      entriesHtml+=`<div class="j-tags">`;
+      s.tags.forEach(t=>entriesHtml+=`<span class="j-tag">${ESC(t.name)}</span>`);
+      entriesHtml+=`</div>`;
+    }
+    if(s.xp)entriesHtml+=`<div class="j-xp">+${s.xp} ${ESC(xpLbl)}</div>`;
+    entriesHtml+=`</div>`;
+  }
+
+  const campName=camp.name||'Campaign';
+  const sysName=(GCC.SYSTEM_DEFS.find(sd=>sd.id===camp.system)||{}).name||'';
+  const html=`<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${ESC(campName)} — Campaign Journal</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Georgia,'Times New Roman',serif;color:#222;background:#fff;max-width:800px;margin:0 auto;padding:40px 24px;line-height:1.7}
+h1{font-size:28px;margin:0 0 4px;letter-spacing:.5px}
+.j-subtitle{font-size:14px;color:#777;margin-bottom:32px;letter-spacing:1px}
+.j-entry{margin-bottom:40px;padding-bottom:32px;border-bottom:1px solid #ddd;page-break-inside:avoid}
+.j-entry:last-child{border-bottom:none}
+.j-heading{font-size:20px;margin:0 0 4px;color:#333;letter-spacing:.3px}
+.j-dates{display:flex;gap:16px;font-size:11px;letter-spacing:1px;color:#888;margin-bottom:12px;flex-wrap:wrap}
+.j-date-game{color:#a07020}
+.j-dm-badge{color:#c04030;font-weight:700}
+.j-cover{margin:12px 0;text-align:center}
+.j-cover img{max-width:60%;border-radius:4px;border:1px solid #ddd}
+.j-summary{font-size:15px;white-space:pre-line;margin-bottom:12px}
+.j-section{margin:10px 0}
+.j-sec-title{font-size:16px;color:#555;margin:0 0 4px;font-weight:600}
+.j-sec-text{font-size:15px;white-space:pre-line}
+.j-img-wrap{display:inline-block;margin:0 0 8px}
+.j-pos-right{float:right;margin:0 0 8px 14px}
+.j-pos-left{float:left;margin:0 14px 8px 0}
+.j-pos-center{float:none;display:block;margin:0 auto 8px;text-align:center}
+.j-pos-inline{float:none;display:block;margin:0 0 8px}
+.j-img{border-radius:3px;border:1px solid #ddd;display:block;height:auto}
+.j-sz-sm{max-width:100px}.j-sz-md{max-width:200px}.j-sz-lg{max-width:320px}.j-sz-full{width:100%;max-height:400px;object-fit:contain}
+.j-caption{display:block;font-size:11px;color:#888;font-style:italic;margin-top:2px;text-align:center}
+.j-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.j-tag{font-size:11px;padding:2px 8px;border:1px solid #ddd;border-radius:3px;color:#555}
+.j-xp{font-size:12px;color:#5090b0;margin-top:6px;font-weight:600}
+.j-dm-only{border-left:3px solid #c89030;padding-left:12px}
+.clearfix::after{content:'';display:table;clear:both}
+@media print{body{padding:20px}@page{margin:1in}.j-entry{page-break-inside:avoid}}
+</style></head><body>
+<h1>${ESC(campName)}</h1>
+<div class="j-subtitle">${ESC(sysName)}${camp.world?' — '+ESC(camp.world):''}${camp.gm?' — '+ESC(camp.gmTitle||'GM')+': '+ESC(camp.gm):''}</div>
+${entriesHtml}
+</body></html>`;
+
+  const blob=new Blob([html],{type:'text/html'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=(campName.replace(/[^a-zA-Z0-9_-]/g,'_'))+'_journal.html';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ═══ SESSION MODAL ═══
+const sesModal=document.getElementById('session-modal');
+let sesEditIdx=-1,sesImageData='',sesSections=[],sesTags=[],sesRoster=[];
+
+function buildSessionModalBody(camp,isTimeline){
+  const xpLbl=GCC.xpLabel(camp.system);
+  const imgPreview=sesImageData?`<img class="gcc-dlg-img-preview" src="${sesImageData}">`:'';
+  let sectionsHtml='';
+  if(!isTimeline){sectionsHtml=`<label class="gcc-dlg-label">SECTIONS (optional — for structured recaps)</label><div class="gcc-dlg-sections" id="sm-sections">${sesSections.map((sec,i)=>{
+    const imgs=sec.images||[];
+    const SIZES=['sm','md','lg','full'];const SIZE_LABELS={sm:'S',md:'M',lg:'L',full:'W'};
+    const POS_LABELS={left:'◀',right:'▶',center:'◆',inline:'▬'};
+    let imgTrayHtml='<div class="gcc-dlg-sec-img-tray">';
+    imgs.forEach((img,j)=>{
+      const posLbl=POS_LABELS[img.pos||'right']||'▶';
+      imgTrayHtml+=`<div class="gcc-dlg-sec-img-thumb"><img src="${img.src}"><button class="thumb-remove" data-sec-img-rm="${i}-${j}">✕</button><button class="thumb-size" data-sec-img-size="${i}-${j}" title="Cycle size: S/M/L/W">${SIZE_LABELS[img.size||'md']}</button><button class="thumb-pos" data-sec-img-pos="${i}-${j}" title="Cycle position: L/R/C/I">${posLbl}</button></div>`;
+      imgTrayHtml+=`<input class="gcc-dlg-input gcc-dlg-sec-caption" style="font-size:9px;margin:0 0 2px;padding:2px 4px" placeholder="Caption (optional)" value="${ESC(img.caption||'')}" data-sec-img-cap="${i}-${j}">`;
+    });
+    imgTrayHtml+=`<button class="gcc-dlg-img-btn" data-sec-img-add="${i}" style="font-size:9px;padding:2px 6px;align-self:center">+ Image</button><input type="file" data-sec-img-file="${i}" accept="image/*" style="display:none" multiple></div>`;
+    return`<div class="gcc-dlg-sec-item" data-sec-idx="${i}"><div style="flex:1"><input class="gcc-dlg-input" style="margin:0 0 4px" placeholder="Section title" value="${ESC(sec.title)}" data-sec-title="${i}"><textarea class="gcc-dlg-ta" style="margin:0;min-height:50px" placeholder="Section text..." data-sec-text="${i}">${ESC(sec.text)}</textarea>${imgTrayHtml}</div><button class="gcc-dlg-sec-remove" data-sec-remove="${i}">✕</button></div>`}).join('')}</div><button class="gcc-dlg-sec-add" id="sm-add-section">+ Add Section</button><div style="margin-bottom:10px"></div>`}
+  // Character participation checklist
+  const chars=camp.characters||[];
+  let charCheckHtml='';
+  if(chars.length&&!isTimeline){
+    charCheckHtml=`<label class="gcc-dlg-label">CHARACTERS IN THIS SESSION</label><div class="gcc-dlg-char-grid" id="sm-char-grid">`;
+    chars.forEach(ch=>{
+      let name=ch.name||'?',portrait='';
+      const refKey=ch.storageKey||ch.listKey||'';
+      if(refKey){try{const saved=JSON.parse(localStorage.getItem(refKey))||[];const found=ch._id?saved.find(x=>x._id===ch._id):null;if(found){name=found.heroName||found.characterName||found.name||name;portrait=found.portraitData||found.portrait||found._image||''}}catch(e){}}
+      const id=ch._id||ch.name;const checked=sesRoster.includes(id);
+      const ava=portrait?`<img src="${portrait}">`:`<span class="char-ph">?</span>`;
+      charCheckHtml+=`<label class="gcc-dlg-char-check${checked?' checked':''}" data-char-id="${ESC(id)}">${ava} ${ESC(name)}<input type="checkbox" data-roster-id="${ESC(id)}"${checked?' checked':''}></label>`;
+    });
+    charCheckHtml+='</div>';
+  }
+  const tagPills=sesTags.map((t,i)=>{const color=LORE_COLORS[t.type]||'var(--tx3)';return`<span class="gcc-dlg-tag"><span class="tag-dot" style="background:${color};width:5px;height:5px;border-radius:50%;display:inline-block"></span> ${ESC(t.name)}<span class="tag-x" data-tag-remove="${i}">✕</span></span>`}).join('');
+  // Position picker for new sessions
+  let positionHtml='';
+  if(sesEditIdx<0){
+    const camp2=getCamp();const existingSessions=(camp2?.sessions||[]);
+    const sesLbl2=GCC.sessionLabel(camp2?.system);
+    let posOpts=`<option value="0">Beginning (newest)</option>`;
+    let rNum=0;
+    for(let i=0;i<existingSessions.length;i++){
+      const es=existingSessions[i];if(es.type!=='timeline')rNum++;
+      const label=es.type==='timeline'?('Timeline'+(es.title?' — '+es.title:'')):(sesLbl2+' #'+rNum+(es.title?' — '+es.title:''));
+      posOpts+=`<option value="${i+1}">After ${ESC(label)}</option>`;
+    }
+    positionHtml=`<label class="gcc-dlg-label">POSITION</label><select class="gcc-dlg-input" id="sm-position">${posOpts}</select>`;
+  }
+  return`${positionHtml}<div class="gcc-dlg-row"><div><label class="gcc-dlg-label">SESSION DATE (real-world)</label><input class="gcc-dlg-input" id="sm-date" type="date"></div><div><label class="gcc-dlg-label">IN-GAME DATE (text)</label><input class="gcc-dlg-input" id="sm-gamedate" placeholder="e.g. Nov 13, 1976"></div></div><label class="gcc-dlg-label">TITLE</label><input class="gcc-dlg-input" id="sm-title" placeholder="e.g. ESU Break-In"><label class="gcc-dlg-label">SUMMARY</label><textarea class="gcc-dlg-ta" id="sm-text" rows="4" placeholder="${isTimeline?'Brief timeline note...':'What happened this session...'}" style="min-height:${isTimeline?'50':'80'}px"></textarea>${sectionsHtml}<label class="gcc-dlg-label">ARTWORK / IMAGE</label><div class="gcc-dlg-img-area" id="sm-img-area">${imgPreview}<div class="gcc-dlg-img-btns"><button class="gcc-dlg-img-btn" id="sm-img-upload">Upload</button><button class="gcc-dlg-img-btn" id="sm-img-paste">Paste</button>${sesImageData?'<button class="gcc-dlg-img-btn danger" id="sm-img-clear">Remove</button>':''}</div><input type="file" id="sm-img-file" accept="image/*" style="display:none"></div>${charCheckHtml}<label class="gcc-dlg-label">ENTITY TAGS</label><div class="gcc-dlg-tags" id="sm-tags-area">${tagPills}<input class="gcc-dlg-tag-input" id="sm-tag-input" placeholder="Type name, Enter to add..."></div><div class="gcc-dlg-row"><div><label class="gcc-dlg-label">${ESC(xpLbl.toUpperCase())} AWARDED</label><input class="gcc-dlg-input" id="sm-xp" type="number" placeholder="0"></div><div><label class="gcc-dlg-check"><input type="checkbox" id="sm-visible" checked> Visible to players</label></div></div>`;
+}
+
+function captureSessionFields(){return{date:document.getElementById('sm-date')?.value||'',gameDate:document.getElementById('sm-gamedate')?.value||'',title:document.getElementById('sm-title')?.value||'',text:document.getElementById('sm-text')?.value||'',xp:document.getElementById('sm-xp')?.value||'',visible:document.getElementById('sm-visible')?.checked!==false}}
+function restoreSessionFields(vals){if(!vals)return;const f=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v||''};f('sm-date',vals.date);f('sm-gamedate',vals.gameDate);f('sm-title',vals.title);f('sm-text',vals.text);f('sm-xp',vals.xp);const vis=document.getElementById('sm-visible');if(vis)vis.checked=vals.visible!==false}
+function captureSessionSections(){document.querySelectorAll('[data-sec-title]').forEach(el=>{const i=parseInt(el.dataset.secTitle);if(sesSections[i])sesSections[i].title=el.value});document.querySelectorAll('[data-sec-text]').forEach(el=>{const i=parseInt(el.dataset.secText);if(sesSections[i])sesSections[i].text=el.value});document.querySelectorAll('[data-sec-img-cap]').forEach(el=>{const[si,ii]=el.dataset.secImgCap.split('-').map(Number);if(sesSections[si]&&sesSections[si].images&&sesSections[si].images[ii])sesSections[si].images[ii].caption=el.value})}
+
+function refreshModalBody(camp,isTimeline){
+  const vals=captureSessionFields();captureSessionSections();
+  document.getElementById('session-modal-body').innerHTML=buildSessionModalBody(camp,isTimeline);
+  restoreSessionFields(vals);wireSessionModalEvents(camp,isTimeline);
+}
+
+async function openSessionModal(editIdx,typeOverride){
+  sesEditIdx=editIdx!=null?editIdx:-1;const camp=getCamp();if(!camp)return;
+  const isEdit=sesEditIdx>=0;let isTimeline=typeOverride==='timeline';
+  if(isEdit){const s=camp.sessions?.[sesEditIdx];if(s){
+    isTimeline=s.type==='timeline';
+    // Resolve cover image from IndexedDB if it's a key
+    _sesImageOrigKey=s.image&&GCCImages.isKey(s.image)?s.image:'';
+    sesImageData=s.image?(GCCImages.isKey(s.image)?await GCCImages.get(s.image):s.image):'';
+    // Resolve section images array
+    sesSections=[];for(const sec of(s.sections||[])){
+      const copy={...sec,images:[...(sec.images||[])].map(img=>({...img}))};
+      for(const img of copy.images){
+        if(img.src&&GCCImages.isKey(img.src)){img._origKey=img.src;img.src=await GCCImages.get(img.src)||''}
+      }
+      sesSections.push(copy);
+    }
+    sesTags=(s.tags||[]).map(t=>({...t}));sesRoster=[...(s.roster||[])]
+  }}
+  else{sesImageData='';sesSections=[];sesTags=[];sesRoster=[];_sesImageOrigKey=''}
+  const sesLbl=GCC.sessionLabel(camp.system);
+  document.getElementById('session-modal-title').textContent=isEdit?(isTimeline?'Edit timeline entry':'Edit '+sesLbl):(isTimeline?'New timeline entry':'New '+sesLbl);
+  document.getElementById('session-modal-body').innerHTML=buildSessionModalBody(camp,isTimeline);
+  if(isEdit){const s=camp.sessions[sesEditIdx];restoreSessionFields({date:s.date,gameDate:s.gameDate,title:s.title,text:s.text,xp:s.xp,visible:s.visible})}
+  else{document.getElementById('sm-date').value=new Date().toISOString().split('T')[0]}
+  // Store type for save
+  sesModal.dataset.entryType=isTimeline?'timeline':'session';
+  wireSessionModalEvents(camp,isTimeline);sesModal.classList.add('open');
+}
+
+function wireSessionModalEvents(camp,isTimeline){
+  document.getElementById('sm-img-upload')?.addEventListener('click',()=>document.getElementById('sm-img-file').click());
+  document.getElementById('sm-img-file')?.addEventListener('change',e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{sesImageData=ev.target.result;refreshModalBody(camp,isTimeline)};reader.readAsDataURL(file)});
+  document.getElementById('sm-img-paste')?.addEventListener('click',async()=>{try{const items=await navigator.clipboard.read();for(const item of items){const imgType=item.types.find(t=>t.startsWith('image/'));if(imgType){const blob=await item.getType(imgType);const reader=new FileReader();reader.onload=ev=>{sesImageData=ev.target.result;refreshModalBody(camp,isTimeline)};reader.readAsDataURL(blob);return}}}catch(e){console.warn('Clipboard paste failed:',e)}});
+  document.getElementById('sm-img-clear')?.addEventListener('click',()=>{sesImageData='';refreshModalBody(camp,isTimeline)});
+  if(!isTimeline){document.getElementById('sm-add-section')?.addEventListener('click',()=>{captureSessionSections();sesSections.push({title:'',text:'',images:[]});refreshModalBody(camp,isTimeline)});
+    document.querySelectorAll('[data-sec-remove]').forEach(btn=>{btn.addEventListener('click',()=>{captureSessionSections();sesSections.splice(parseInt(btn.dataset.secRemove),1);refreshModalBody(camp,isTimeline)})});
+    // Multi-image: add images to section
+    document.querySelectorAll('[data-sec-img-add]').forEach(btn=>{btn.addEventListener('click',()=>{const fi=document.querySelector(`[data-sec-img-file="${btn.dataset.secImgAdd}"]`);if(fi)fi.click()})});
+    document.querySelectorAll('[data-sec-img-file]').forEach(fi=>{fi.addEventListener('change',e=>{const files=Array.from(e.target.files);if(!files.length)return;const idx=parseInt(fi.dataset.secImgFile);captureSessionSections();let loaded=0;files.forEach(file=>{const reader=new FileReader();reader.onload=ev=>{if(sesSections[idx]){if(!sesSections[idx].images)sesSections[idx].images=[];sesSections[idx].images.push({src:ev.target.result,size:'md',pos:'right',caption:''})}loaded++;if(loaded===files.length)refreshModalBody(camp,isTimeline)};reader.readAsDataURL(file)})})});
+    // Multi-image: remove individual image
+    document.querySelectorAll('[data-sec-img-rm]').forEach(btn=>{btn.addEventListener('click',()=>{const[si,ii]=btn.dataset.secImgRm.split('-').map(Number);captureSessionSections();if(sesSections[si]&&sesSections[si].images)sesSections[si].images.splice(ii,1);refreshModalBody(camp,isTimeline)})});
+    // Multi-image: cycle size
+    document.querySelectorAll('[data-sec-img-size]').forEach(btn=>{btn.addEventListener('click',()=>{const[si,ii]=btn.dataset.secImgSize.split('-').map(Number);captureSessionSections();if(sesSections[si]&&sesSections[si].images&&sesSections[si].images[ii]){const SIZES=['sm','md','lg','full'];const cur=sesSections[si].images[ii].size||'md';sesSections[si].images[ii].size=SIZES[(SIZES.indexOf(cur)+1)%SIZES.length]}refreshModalBody(camp,isTimeline)})});
+    // Multi-image: cycle position
+    document.querySelectorAll('[data-sec-img-pos]').forEach(btn=>{btn.addEventListener('click',()=>{const[si,ii]=btn.dataset.secImgPos.split('-').map(Number);captureSessionSections();if(sesSections[si]&&sesSections[si].images&&sesSections[si].images[ii]){const POSITIONS=['right','left','center','inline'];const cur=sesSections[si].images[ii].pos||'right';sesSections[si].images[ii].pos=POSITIONS[(POSITIONS.indexOf(cur)+1)%POSITIONS.length]}refreshModalBody(camp,isTimeline)})});
+  }
+  document.querySelectorAll('[data-roster-id]').forEach(cb=>{cb.addEventListener('change',()=>{const id=cb.dataset.rosterId;if(cb.checked){if(!sesRoster.includes(id))sesRoster.push(id)}else{sesRoster=sesRoster.filter(r=>r!==id)}cb.closest('.gcc-dlg-char-check').classList.toggle('checked',cb.checked)})});
+  document.querySelectorAll('[data-tag-remove]').forEach(btn=>{btn.addEventListener('click',()=>{sesTags.splice(parseInt(btn.dataset.tagRemove),1);refreshModalBody(camp,isTimeline)})});
+  const tagInput=document.getElementById('sm-tag-input');
+  if(tagInput){tagInput.addEventListener('keydown',e=>{if(e.key==='Enter'&&tagInput.value.trim()){e.preventDefault();const name=tagInput.value.trim();const camp=getCamp();const loreMatch=(camp?.lore||[]).find(l=>l.name.toLowerCase()===name.toLowerCase());sesTags.push({name,type:loreMatch?loreMatch.type:'other'});tagInput.value='';refreshModalBody(camp,isTimeline);document.getElementById('sm-tag-input')?.focus()}});
+    document.getElementById('sm-tags-area')?.addEventListener('click',e=>{if(e.target===e.currentTarget)tagInput.focus()})}
+}
+
+function closeSessionModal(){sesModal.classList.remove('open');sesEditIdx=-1;delete sesModal.dataset.entryType}
+// Resize image data URL to fit localStorage safely (max ~800KB)
+function compressImageData(dataUrl,maxKB,cb){
+  if(!dataUrl||dataUrl.length<maxKB*1024){cb(dataUrl);return}
+  const img=new Image();img.onload=()=>{
+    const canvas=document.createElement('canvas');let w=img.width,h=img.height;
+    const maxDim=1600;if(w>maxDim||h>maxDim){const r=Math.min(maxDim/w,maxDim/h);w=Math.round(w*r);h=Math.round(h*r)}
+    canvas.width=w;canvas.height=h;const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,w,h);
+    // Detect alpha: sample corners + center edge pixels
+    const hasAlpha=(()=>{try{const spots=[[0,0],[w-1,0],[0,h-1],[w-1,h-1],[Math.floor(w/2),0],[0,Math.floor(h/2)]];for(const[x,y]of spots){if(ctx.getImageData(x,y,1,1).data[3]<250)return true}return false}catch(e){return false}})();
+    if(hasAlpha){
+      let result=canvas.toDataURL('image/png');
+      console.log('[GCC] Image compressed (PNG, alpha preserved):',Math.round(dataUrl.length/1024)+'KB →',Math.round(result.length/1024)+'KB');
+      cb(result);
+    }else{
+      let quality=0.85,result=canvas.toDataURL('image/jpeg',quality);
+      while(result.length>maxKB*1024&&quality>0.4){quality-=0.05;result=canvas.toDataURL('image/jpeg',quality)}
+      console.log('[GCC] Image compressed (JPEG):',Math.round(dataUrl.length/1024)+'KB →',Math.round(result.length/1024)+'KB','q='+quality.toFixed(2));
+      cb(result);
+    }
+  };img.onerror=()=>cb(dataUrl);img.src=dataUrl;
+}
+
+document.getElementById('sm-save').addEventListener('click',async()=>{
+  const camp=getCamp();if(!camp)return;const sessions=camp.sessions||[];captureSessionSections();
+  const rawImage=sesImageData||'';
+
+  // Store cover image in IndexedDB
+  let imageKey='';
+  if(rawImage){
+    if(_sesImageOrigKey&&!GCCImages.isDataUrl(rawImage)){
+      // Image wasn't changed (still the resolved data URL from the original key)
+      imageKey=_sesImageOrigKey;
+    }else if(_sesImageOrigKey){
+      // Image was replaced — update existing key, compress first
+      const compressed=await new Promise(resolve=>compressImageData(rawImage,800,resolve));
+      await GCCImages.put(_sesImageOrigKey,compressed);
+      imageKey=_sesImageOrigKey;
+      console.log('[GCC] Updated cover image:',imageKey,Math.round(compressed.length/1024)+'KB');
+    }else{
+      // New image — store with new key
+      const compressed=await new Promise(resolve=>compressImageData(rawImage,800,resolve));
+      imageKey=await GCCImages.store(compressed,'img_ses');
+      console.log('[GCC] Stored new cover image:',imageKey,Math.round(compressed.length/1024)+'KB');
+    }
+  }
+
+  // Store section images in IndexedDB
+  for(const sec of sesSections){
+    for(const img of(sec.images||[])){
+      if(img.src&&GCCImages.isDataUrl(img.src)){
+        if(img._origKey){
+          // Image was replaced — update existing key
+          const compressed=await new Promise(resolve=>compressImageData(img.src,400,resolve));
+          await GCCImages.put(img._origKey,compressed);
+          img.src=img._origKey;
+          console.log('[GCC] Updated section image:',img.src,Math.round(compressed.length/1024)+'KB');
+        }else{
+          // New image
+          const compressed=await new Promise(resolve=>compressImageData(img.src,400,resolve));
+          img.src=await GCCImages.store(compressed,'img_sec');
+          console.log('[GCC] Stored new section image:',img.src,Math.round(compressed.length/1024)+'KB');
+        }
+      }else if(img._origKey&&!GCCImages.isDataUrl(img.src)){
+        // Unchanged — restore original key
+        img.src=img._origKey;
+      }
+      delete img._origKey;
+    }
+  }
+
+  const entry={_id:(sesEditIdx>=0&&sessions[sesEditIdx])?sessions[sesEditIdx]._id:GCC.genId('ses'),
+    date:document.getElementById('sm-date').value||'',gameDate:document.getElementById('sm-gamedate').value.trim()||'',
+    title:document.getElementById('sm-title').value.trim()||'',text:document.getElementById('sm-text').value.trim()||'',
+    sections:sesSections.filter(s=>s.title||s.text||(s.images&&s.images.length)),image:imageKey,tags:sesTags,
+    roster:sesRoster.length?sesRoster:[],
+    xp:parseInt(document.getElementById('sm-xp').value)||0,visible:document.getElementById('sm-visible').checked,
+    type:sesModal.dataset.entryType||'session'};
+  if(sesEditIdx>=0&&sessions[sesEditIdx]){entry.type=sessions[sesEditIdx].type}
+  if(sesEditIdx>=0&&sesEditIdx<sessions.length){sessions[sesEditIdx]=entry}else{
+    const posEl=document.getElementById('sm-position');
+    const insertAt=posEl?parseInt(posEl.value):0;
+    sessions.splice(insertAt,0,entry);
+  }
+  console.log('[GCC] Saving session, entries:',sessions.length);
+  GCC.updateCampaign(campId,{sessions,session:countRealSessions(sessions)});closeSessionModal();render();
+});
+document.getElementById('sm-cancel').addEventListener('click',closeSessionModal);
+document.getElementById('session-modal-close').addEventListener('click',closeSessionModal);
+sesModal.addEventListener('click',e=>{if(e.target===sesModal)closeSessionModal()});
+
+// ═══ LORE MODAL ═══
+const loreModal=document.getElementById('lore-modal');let loreEditIdx=-1,loreImageData='';
+function captureLoreFields(){return{type:document.getElementById('lm-type')?.value||'npc',subtype:document.getElementById('lm-subtype')?.value||'',name:document.getElementById('lm-name')?.value||'',desc:document.getElementById('lm-desc')?.value||''}}
+function restoreLoreFields(v){if(!v)return;const f=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val||''};f('lm-subtype',v.subtype);f('lm-name',v.name);f('lm-desc',v.desc);const sel=document.getElementById('lm-type');if(sel)sel.value=v.type||'npc'}
+function buildLoreModalBody(l){
+  const typeOptions=GCC.LORE_TYPES.map(t=>`<option value="${t}"${l&&l.type===t?' selected':''}>${GCC.LORE_TYPE_LABELS[t]}</option>`).join('');
+  const imgPreview=loreImageData?`<img class="gcc-dlg-img-preview" src="${loreImageData}">`:'';
+  return`<div class="gcc-dlg-row"><div><label class="gcc-dlg-label">TYPE</label><select class="gcc-dlg-select" id="lm-type">${typeOptions}</select></div><div><label class="gcc-dlg-label">SUBTYPE (optional)</label><input class="gcc-dlg-input" id="lm-subtype" placeholder="e.g. Villain, HQ Room" value="${l?ESC(l.subtype||''):''}"></div></div><label class="gcc-dlg-label">NAME</label><input class="gcc-dlg-input" id="lm-name" placeholder="e.g. Whiplash, ESU Campus" value="${l?ESC(l.name):''}"><label class="gcc-dlg-label">DESCRIPTION</label><textarea class="gcc-dlg-ta" id="lm-desc" rows="3" placeholder="Brief description...">${l?ESC(l.desc||''):''}</textarea><label class="gcc-dlg-label">IMAGE</label><div class="gcc-dlg-img-area" id="lm-img-area">${imgPreview}<div class="gcc-dlg-img-btns"><button class="gcc-dlg-img-btn" id="lm-img-upload">Upload</button><button class="gcc-dlg-img-btn" id="lm-img-paste">Paste</button>${loreImageData?'<button class="gcc-dlg-img-btn danger" id="lm-img-clear">Remove</button>':''}</div><input type="file" id="lm-img-file" accept="image/*" style="display:none"></div>`;
+}
+function wireLoreModalEvents(){
+  document.getElementById('lm-img-upload')?.addEventListener('click',()=>document.getElementById('lm-img-file').click());
+  document.getElementById('lm-img-file')?.addEventListener('change',e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{loreImageData=ev.target.result;refreshLoreModalBody()};reader.readAsDataURL(file)});
+  document.getElementById('lm-img-paste')?.addEventListener('click',async()=>{try{const items=await navigator.clipboard.read();let found=false;for(const item of items){const imgType=item.types.find(t=>t.startsWith('image/'));if(imgType){const blob=await item.getType(imgType);const reader=new FileReader();reader.onload=ev=>{loreImageData=ev.target.result;refreshLoreModalBody()};reader.readAsDataURL(blob);found=true;break}}if(!found){const btn=document.getElementById('lm-img-paste');if(btn){btn.textContent='No image on clipboard';setTimeout(()=>{btn.textContent='Paste'},2000)}}}catch(e){console.warn('Clipboard paste failed:',e);const btn=document.getElementById('lm-img-paste');if(btn){btn.textContent='Paste blocked';setTimeout(()=>{btn.textContent='Paste'},2000)}}});
+  document.getElementById('lm-img-clear')?.addEventListener('click',()=>{loreImageData='';refreshLoreModalBody()});
+}
+function refreshLoreModalBody(){
+  const vals=captureLoreFields();
+  const camp=getCamp();const l=loreEditIdx>=0?(camp?.lore||[])[loreEditIdx]:null;
+  document.getElementById('lore-modal-body').innerHTML=buildLoreModalBody(l);
+  restoreLoreFields(vals);wireLoreModalEvents();
+}
+async function openLoreModal(editIdx){
+  loreEditIdx=editIdx!=null?editIdx:-1;const camp=getCamp();if(!camp)return;const isEdit=loreEditIdx>=0;
+  document.getElementById('lore-modal-title').textContent=isEdit?'Edit wiki entry':'New wiki entry';
+  const l=isEdit?(camp.lore||[])[loreEditIdx]:null;
+  if(isEdit&&l&&l.image){loreImageData=GCCImages.isKey(l.image)?await GCCImages.get(l.image):l.image}else{loreImageData=''}
+  document.getElementById('lore-modal-body').innerHTML=buildLoreModalBody(l);
+  wireLoreModalEvents();
+  loreModal.classList.add('open');
+}
+function closeLoreModal(){loreModal.classList.remove('open');loreEditIdx=-1;loreImageData=''}
+document.getElementById('lm-save').addEventListener('click',async()=>{const camp=getCamp();if(!camp)return;const lore=camp.lore||[];
+  let imageKey='';
+  if(loreImageData){
+    const compressed=await new Promise(resolve=>compressImageData(loreImageData,400,resolve));
+    imageKey=await GCCImages.store(compressed,'img_lore');
+  } else if(loreEditIdx>=0&&lore[loreEditIdx]&&lore[loreEditIdx].image){
+    // Image was removed — leave imageKey empty
+  }
+  const entry={_id:(loreEditIdx>=0&&lore[loreEditIdx])?lore[loreEditIdx]._id:GCC.genId('lore'),type:document.getElementById('lm-type').value,subtype:document.getElementById('lm-subtype').value.trim(),name:document.getElementById('lm-name').value.trim()||'Unnamed',desc:document.getElementById('lm-desc').value.trim(),image:imageKey};
+  if(loreEditIdx>=0&&loreEditIdx<lore.length){lore[loreEditIdx]=entry}else{lore.push(entry)}
+  GCC.updateCampaign(campId,{lore});closeLoreModal();render()});
+document.getElementById('lm-cancel').addEventListener('click',closeLoreModal);
+document.getElementById('lore-modal-close').addEventListener('click',closeLoreModal);
+loreModal.addEventListener('click',e=>{if(e.target===loreModal)closeLoreModal()});
+
+// ═══ LORE IMPORT MODAL ═══
+const loreImportModal=document.getElementById('lore-import-modal');
+function openLoreImportModal(){
+  document.getElementById('lim-json').value='';
+  document.getElementById('lim-status').textContent='';
+  document.getElementById('lim-skip-dupes').checked=true;
+  loreImportModal.classList.add('open');
+}
+function closeLoreImportModal(){loreImportModal.classList.remove('open')}
+document.getElementById('lim-close').addEventListener('click',closeLoreImportModal);
+document.getElementById('lim-cancel').addEventListener('click',closeLoreImportModal);
+loreImportModal.addEventListener('click',e=>{if(e.target===loreImportModal)closeLoreImportModal()});
+document.getElementById('lim-file-btn').addEventListener('click',()=>document.getElementById('lim-file').click());
+document.getElementById('lim-file').addEventListener('change',e=>{
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{document.getElementById('lim-json').value=ev.target.result;document.getElementById('lim-status').textContent=file.name+' loaded'};
+  reader.readAsText(file);
+});
+document.getElementById('lim-import').addEventListener('click',()=>{
+  const camp=getCamp();if(!camp)return;
+  const raw=document.getElementById('lim-json').value.trim();
+  if(!raw){document.getElementById('lim-status').textContent='Paste or upload JSON first.';return}
+  let arr;
+  try{arr=JSON.parse(raw)}catch(e){document.getElementById('lim-status').textContent='Invalid JSON: '+e.message;return}
+  if(!Array.isArray(arr)){document.getElementById('lim-status').textContent='JSON must be an array of objects.';return}
+  const validTypes=GCC.LORE_TYPES;
+  const lore=camp.lore||[];
+  const existingNames=new Set(lore.map(l=>l.name.toLowerCase()));
+  const skipDupes=document.getElementById('lim-skip-dupes').checked;
+  let added=0,skipped=0,invalid=0;
+  arr.forEach(item=>{
+    if(!item||typeof item!=='object'){invalid++;return}
+    const name=(item.name||'').trim();
+    if(!name){invalid++;return}
+    let type=(item.type||'other').toLowerCase().trim();
+    if(!validTypes.includes(type)){type='other'}
+    if(skipDupes&&existingNames.has(name.toLowerCase())){skipped++;return}
+    lore.push({
+      _id:GCC.genId('lore'),
+      type:type,
+      subtype:(item.subtype||'').trim(),
+      name:name,
+      desc:(item.desc||item.description||'').trim(),
+      image:''
+    });
+    existingNames.add(name.toLowerCase());
+    added++;
+  });
+  if(added>0){GCC.updateCampaign(campId,{lore})}
+  const parts=[];
+  if(added)parts.push(added+' imported');
+  if(skipped)parts.push(skipped+' duplicates skipped');
+  if(invalid)parts.push(invalid+' invalid entries');
+  document.getElementById('lim-status').textContent=parts.join(', ')+'.';
+  if(added>0){setTimeout(()=>{closeLoreImportModal();render()},1200)}
+});
+
+// ═══ SESSION TEXT IMPORT ═══
+const sesImportModal=document.getElementById('ses-import-modal');
+function openSesImportModal(){
+  document.getElementById('sim-text').value='';
+  document.getElementById('sim-status').textContent='';
+  document.getElementById('sim-html-status').textContent='';
+  document.getElementById('sim-preview').style.display='none';
+  document.getElementById('sim-preview').innerHTML='';
+  sesImportModal.classList.add('open');
+}
+function closeSesImportModal(){sesImportModal.classList.remove('open')}
+document.getElementById('sim-close').addEventListener('click',closeSesImportModal);
+document.getElementById('sim-cancel').addEventListener('click',closeSesImportModal);
+sesImportModal.addEventListener('click',e=>{if(e.target===sesImportModal)closeSesImportModal()});
+
+// ── HTML Journal Parser ──
+function parseHtmlJournal(html){
+  const parser=new DOMParser();
+  const doc=parser.parseFromString(html,'text/html');
+  const entries=doc.querySelectorAll('.j-entry');
+  if(!entries.length)return[];
+  const results=[];
+  entries.forEach(entry=>{
+    const heading=entry.querySelector('.j-heading')?.textContent?.trim()||'';
+    // Parse heading: "Session #N — Title" or "Timeline — Title"
+    let title='';const hm=heading.match(/(?:Session|Issue|Episode)\s*#?\d+\s*(?:—|–|-)\s*(.+)/i);
+    if(hm)title=hm[1].trim();
+    else{const tm=heading.match(/Timeline\s*(?:—|–|-)\s*(.+)/i);title=tm?tm[1].trim():heading}
+    const isTimeline=/^Timeline/i.test(heading);
+    // Dates
+    const gameDateEl=entry.querySelector('.j-date-game');
+    let gameDate='';if(gameDateEl){gameDate=gameDateEl.textContent.replace(/^IN-GAME:\s*/i,'').trim()}
+    const playedEl=entry.querySelector('.j-date-played');
+    let date='';if(playedEl){const raw=playedEl.textContent.replace(/^PLAYED:\s*/i,'').trim();try{const d=new Date(raw);if(!isNaN(d))date=d.toISOString().split('T')[0]}catch(e){}}
+    // DM only
+    const isDmOnly=entry.classList.contains('j-dm-only');
+    // Summary
+    const summary=entry.querySelector('.j-summary')?.textContent?.trim()||'';
+    // Cover image
+    const coverImg=entry.querySelector('.j-cover img');
+    const coverSrc=coverImg?coverImg.getAttribute('src'):'';
+    // Sections
+    const sections=[];
+    entry.querySelectorAll('.j-section').forEach(secEl=>{
+      const secTitle=secEl.querySelector('.j-sec-title')?.textContent?.trim()||'';
+      const secText=secEl.querySelector('.j-sec-text')?.textContent?.trim()||'';
+      const images=[];
+      secEl.querySelectorAll('.j-img-wrap').forEach(wrap=>{
+        const img=wrap.querySelector('.j-img');if(!img)return;
+        const src=img.getAttribute('src')||'';if(!src)return;
+        let pos='right',size='md';
+        if(wrap.classList.contains('j-pos-left'))pos='left';
+        else if(wrap.classList.contains('j-pos-center'))pos='center';
+        else if(wrap.classList.contains('j-pos-inline'))pos='inline';
+        if(img.classList.contains('j-sz-sm'))size='sm';
+        else if(img.classList.contains('j-sz-lg'))size='lg';
+        else if(img.classList.contains('j-sz-full'))size='full';
+        const caption=wrap.querySelector('.j-caption')?.textContent?.trim()||'';
+        images.push({src,size,pos,caption});
+      });
+      sections.push({title:secTitle,text:secText,images});
+    });
+    // Tags
+    const tags=[];
+    entry.querySelectorAll('.j-tag').forEach(tagEl=>{tags.push({name:tagEl.textContent.trim(),type:'other'})});
+    // XP
+    let xp=0;const xpEl=entry.querySelector('.j-xp');
+    if(xpEl){const xpM=xpEl.textContent.match(/\+?([\d,]+)/);if(xpM)xp=parseInt(xpM[1].replace(/,/g,''))||0}
+    results.push({title,date,gameDate,text:summary,image:coverSrc,sections,tags,xp,visible:!isDmOnly,type:isTimeline?'timeline':'session'});
+  });
+  return results;
+}
+
+async function importHtmlSessions(parsed){
+  const camp=getCamp();if(!camp)return 0;
+  const sessions=camp.sessions||[];
+  const existingTitles=new Set(sessions.map(s=>(s.title||'').toLowerCase()));
+  const skipDupes=document.getElementById('sim-skip-dupes').checked;
+  let added=0,skipped=0;
+  // Journal is oldest-first; sessions array is newest-first, so reverse
+  const reversed=[...parsed].reverse();
+  for(const ep of reversed){
+    if(skipDupes&&existingTitles.has(ep.title.toLowerCase())){skipped++;continue}
+    // Store cover image in IDB if it's a data URL
+    let imageKey='';
+    if(ep.image){
+      if(GCCImages.isDataUrl(ep.image)){
+        const compressed=await new Promise(r=>compressImageData(ep.image,800,r));
+        imageKey=await GCCImages.store(compressed,'img_ses');
+      }else{imageKey=ep.image}// already a URL
+    }
+    // Store section images in IDB if data URLs
+    for(const sec of ep.sections){
+      for(const img of(sec.images||[])){
+        if(img.src&&GCCImages.isDataUrl(img.src)){
+          const compressed=await new Promise(r=>compressImageData(img.src,400,r));
+          img.src=await GCCImages.store(compressed,'img_sec');
+        }
+      }
+    }
+    const entry={_id:GCC.genId('ses'),date:ep.date,gameDate:ep.gameDate,title:ep.title,text:ep.text,
+      sections:ep.sections,image:imageKey,tags:ep.tags,roster:[],xp:ep.xp,visible:ep.visible,type:ep.type};
+    sessions.push(entry);
+    existingTitles.add(ep.title.toLowerCase());
+    added++;
+  }
+  if(added>0)GCC.updateCampaign(campId,{sessions,session:countRealSessions(sessions)});
+  return{added,skipped};
+}
+
+// Wire HTML upload
+document.getElementById('sim-html-btn').addEventListener('click',()=>document.getElementById('sim-html-file').click());
+document.getElementById('sim-html-file').addEventListener('change',e=>{
+  const file=e.target.files[0];if(!file)return;
+  const status=document.getElementById('sim-html-status');
+  status.textContent='Reading...';
+  const reader=new FileReader();
+  reader.onload=async ev=>{
+    const parsed=parseHtmlJournal(ev.target.result);
+    if(!parsed.length){status.textContent='No journal entries found in file.';return}
+    // Show preview
+    const prev=document.getElementById('sim-preview');
+    prev.style.display='block';
+    const sesLbl=GCC.sessionLabel(getCamp()?.system||'add1e');
+    prev.innerHTML='<div style="font-family:var(--fsc);font-size:9px;color:var(--tx3);letter-spacing:1px;margin-bottom:6px">PREVIEW ('+parsed.length+' entries from HTML)</div>'+
+      parsed.map((e,i)=>'<div style="padding:3px 0;border-bottom:1px solid var(--brd)"><span style="color:var(--accent);font-weight:700">'+
+        ESC(e.type==='timeline'?'Timeline':sesLbl+' #'+(i+1))+'</span> — '+ESC(e.title)+
+        (e.gameDate?' <span style="color:var(--amber)">'+ESC(e.gameDate)+'</span>':'')+
+        (e.date?' <span style="color:var(--tx3)">'+ESC(e.date)+'</span>':'')+
+        ' <span style="color:var(--tx3)">('+e.sections.length+' sec'+(e.xp?', '+e.xp+' XP':'')+(e.image?', cover':'')+')</span>'+
+        (!e.visible?' <span style="color:var(--amber)">DM</span>':'')+
+        '</div>').join('');
+    status.textContent=parsed.length+' entries parsed. Click Import to add them.';
+    // Stash parsed data for import button
+    sesImportModal._htmlParsed=parsed;
+  };
+  reader.readAsText(file);
+});
+
+function parseEpisodeText(raw){
+  const episodes=[];
+  const epRe=/Episode\s+(\d+)\s*:\s*(?:["\u201c\u201d\u201e]\s*(.+?)\s*["\u201c\u201d\u201e]|([^(]*?))\s*\(real\s*world\s*date\s*:\s*(.+?)\)/gi;
+  const chunks=[];
+  let match;
+  const matches=[];
+  while((match=epRe.exec(raw))!==null)matches.push({idx:match.index,num:parseInt(match[1]),title:(match[2]||match[3]||'').trim(),realDate:(match[4]||'').trim()});
+  if(!matches.length)return[];
+  for(let i=0;i<matches.length;i++){
+    const start=matches[i].idx;
+    const end=i+1<matches.length?matches[i+1].idx:raw.length;
+    chunks.push({...matches[i],body:raw.substring(start,end)});
+  }
+  chunks.forEach(ch=>{
+    const lines=ch.body.split('\n').map(l=>l.trim()).filter(Boolean);
+    const headerLine=lines[0];
+    const bodyLines=lines.slice(1);
+    let xp=0;
+    const endMatch=bodyLines.findLast(l=>/end\s+of\s+episode/i.test(l));
+    if(endMatch){const xpM=endMatch.match(/(?:total\s+(?:earned\s+)?xp|total\s+xp\s+(?:earned\s+)?|xp)\s*=\s*([\d,]+)/i);if(xpM)xp=parseInt(xpM[1].replace(/,/g,''))||0}
+    const contentLines=bodyLines.filter(l=>!/^end\s+of\s+episode/i.test(l)&&!/^figure\s+\d+/i.test(l));
+    const dayRe=/^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+\d{1,2}(?:\s*(?:–|-|to)\s*(?:[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+)?\d{1,2})?\s*,\s*\d{2,4}\s*CY)\s*(?:–|--|—|-)\s*/;
+    const sections=[];
+    let summary='';
+    let currentDay=null;
+    let currentText=[];
+    contentLines.forEach(line=>{
+      const dm=line.match(dayRe);
+      if(dm){
+        if(currentDay){sections.push({title:currentDay,text:currentText.join('\n')})}
+        else if(currentText.length){summary=currentText.join('\n')}
+        currentDay=dm[1];
+        currentText=[line.substring(dm[0].length).trim()];
+      } else {
+        currentText.push(line);
+      }
+    });
+    if(currentDay){sections.push({title:currentDay,text:currentText.join('\n')})}
+    else if(currentText.length){summary+=((summary?'\n':'')+currentText.join('\n'))}
+    if(!summary&&sections.length){
+      summary=sections[0].text.length>200?sections[0].text.substring(0,200)+'...':sections[0].text;
+    }
+    let gameDate='';
+    if(sections.length){
+      const first=sections[0].title;
+      const last=sections[sections.length-1].title;
+      gameDate=first===last?first:first+' to '+last;
+    }
+    let isoDate='';
+    try{const d=new Date(ch.realDate);if(!isNaN(d))isoDate=d.toISOString().split('T')[0]}catch(e){}
+    episodes.push({num:ch.num,title:ch.title,date:isoDate,gameDate,summary,sections,xp});
+  });
+  episodes.sort((a,b)=>a.num-b.num);
+  return episodes;
+}
+
+document.getElementById('sim-preview-btn').addEventListener('click',()=>{
+  const raw=document.getElementById('sim-text').value.trim();
+  if(!raw){document.getElementById('sim-status').textContent='Paste episode text first.';return}
+  const episodes=parseEpisodeText(raw);
+  if(!episodes.length){document.getElementById('sim-status').textContent='No episodes found. Check the format.';return}
+  const prev=document.getElementById('sim-preview');
+  prev.style.display='block';
+  prev.innerHTML='<div style="font-family:var(--fsc);font-size:9px;color:var(--tx3);letter-spacing:1px;margin-bottom:6px">PREVIEW ('+episodes.length+' episodes)</div>'+
+    episodes.map(e=>'<div style="padding:3px 0;border-bottom:1px solid var(--brd)"><span style="color:var(--accent);font-weight:700">'+
+      ESC(GCC.sessionLabel(getCamp()?.system||'add1e'))+' #'+e.num+'</span> — '+ESC(e.title)+
+      (e.gameDate?' <span style="color:var(--amber)">'+ESC(e.gameDate)+'</span>':'')+
+      (e.date?' <span style="color:var(--tx3)">'+ESC(e.date)+'</span>':'')+
+      ' <span style="color:var(--tx3)">('+e.sections.length+' days'+(e.xp?', '+e.xp+' XP':'')+')</span></div>').join('');
+  document.getElementById('sim-status').textContent=episodes.length+' episodes parsed.';
+});
+
+document.getElementById('sim-import').addEventListener('click',async()=>{
+  // HTML journal path
+  if(sesImportModal._htmlParsed&&sesImportModal._htmlParsed.length){
+    const status=document.getElementById('sim-html-status');
+    status.textContent='Importing...';
+    const{added,skipped}=await importHtmlSessions(sesImportModal._htmlParsed);
+    const parts=[];
+    if(added)parts.push(added+' sessions imported');
+    if(skipped)parts.push(skipped+' duplicates skipped');
+    status.textContent=parts.join(', ')+'.';
+    delete sesImportModal._htmlParsed;
+    if(added>0){setTimeout(()=>{closeSesImportModal();render()},1200)}
+    return;
+  }
+  // Text path
+  const raw=document.getElementById('sim-text').value.trim();
+  if(!raw){document.getElementById('sim-status').textContent='Paste episode text first.';return}
+  const camp=getCamp();if(!camp)return;
+  const episodes=parseEpisodeText(raw);
+  if(!episodes.length){document.getElementById('sim-status').textContent='No episodes found.';return}
+  const sessions=camp.sessions||[];
+  const existingTitles=new Set(sessions.map(s=>(s.title||'').toLowerCase()));
+  const skipDupes=document.getElementById('sim-skip-dupes').checked;
+  const daysAsSections=document.getElementById('sim-days-as-sections').checked;
+  let added=0,skipped=0;
+  // Reverse: sessions array is newest-first, so highest episode number goes first
+  const sorted=[...episodes].reverse();
+  sorted.forEach(ep=>{
+    if(skipDupes&&existingTitles.has(ep.title.toLowerCase())){skipped++;return}
+    const entry={
+      _id:GCC.genId('ses'),
+      date:ep.date,
+      gameDate:ep.gameDate,
+      title:ep.title,
+      text:ep.summary,
+      sections:daysAsSections?ep.sections.map(s=>({title:s.title,text:s.text,images:[]})):[],
+      image:'',
+      tags:[],
+      roster:[],
+      xp:ep.xp,
+      visible:true,
+      type:'session'
+    };
+    sessions.push(entry);
+    existingTitles.add(ep.title.toLowerCase());
+    added++;
+  });
+  if(added>0){GCC.updateCampaign(campId,{sessions,session:countRealSessions(sessions)})}
+  const parts=[];
+  if(added)parts.push(added+' sessions imported');
+  if(skipped)parts.push(skipped+' duplicates skipped');
+  document.getElementById('sim-status').textContent=parts.join(', ')+'.';
+  if(added>0){setTimeout(()=>{closeSesImportModal();render()},1200)}
+});
+
+// ═══ VEHICLE ASSIGN MODAL ═══
+const vehModal=document.getElementById('veh-modal');
+function openVehicleAssignModal(){
+  const vehKey=GCC.KEYS.mpVehs;
+  const allVehs=JSON.parse(localStorage.getItem(vehKey))||[];
+  if(!allVehs.length){alert('No vehicles found. Create vehicles in the Vehicle Builder first.');return}
+  let html='<div style="margin-bottom:8px;font-size:12px;color:var(--tx2)">Select vehicles to assign to this campaign:</div>';
+  html+='<div style="display:flex;flex-direction:column;gap:6px">';
+  allVehs.forEach(v=>{
+    const assigned=v._campaign===campId;
+    const takenElsewhere=v._campaign&&v._campaign!==campId;
+    const portrait=v.pictureData||v._image||'';
+    const ava=portrait?`<img src="${portrait}" style="width:24px;height:24px;border-radius:3px;object-fit:contain;border:1px solid var(--brd)">`:`<span style="width:24px;height:24px;border-radius:3px;background:var(--bg-section);display:inline-flex;align-items:center;justify-content:center;font-size:12px;color:var(--tx3)">🚗</span>`;
+    const sub=[v.model,v._totalCost!=null?v._totalCost+' CPs':''].filter(Boolean).join(' · ');
+    const disabled=takenElsewhere?' disabled':'';
+    const note=takenElsewhere?' <span style="font-size:9px;color:var(--tx3)">(assigned elsewhere)</span>':'';
+    html+=`<label class="gcc-dlg-char-check${assigned?' checked':''}" style="padding:6px 10px;${takenElsewhere?'opacity:0.5':''}"><input type="checkbox" data-veh-assign="${ESC(v._id)}"${assigned?' checked':''}${disabled}> ${ava} <span style="margin-left:4px"><strong>${ESC(v.name||'Unnamed')}</strong>${sub?' <span style="font-size:10px;color:var(--tx3)">'+ESC(sub)+'</span>':''}${note}</span></label>`;
+  });
+  html+='</div>';
+  document.getElementById('veh-modal-body').innerHTML=html;
+  // Wire checkbox visual toggle
+  vehModal.querySelectorAll('[data-veh-assign]').forEach(cb=>{cb.addEventListener('change',()=>{cb.closest('.gcc-dlg-char-check').classList.toggle('checked',cb.checked)})});
+  vehModal.classList.add('open');
+}
+function closeVehModal(){vehModal.classList.remove('open')}
+document.getElementById('vm-save').addEventListener('click',()=>{
+  const vehKey=GCC.KEYS.mpVehs;
+  const list=JSON.parse(localStorage.getItem(vehKey))||[];
+  vehModal.querySelectorAll('[data-veh-assign]').forEach(cb=>{
+    const vehId=cb.dataset.vehAssign;
+    const veh=list.find(v=>v._id===vehId);
+    if(!veh)return;
+    if(cb.checked){veh._campaign=campId}
+    else if(veh._campaign===campId){veh._campaign=''}
+  });
+  localStorage.setItem(vehKey,JSON.stringify(list));
+  closeVehModal();render();
+});
+document.getElementById('vm-cancel').addEventListener('click',closeVehModal);
+document.getElementById('veh-modal-close').addEventListener('click',closeVehModal);
+vehModal.addEventListener('click',e=>{if(e.target===vehModal)closeVehModal()});
+
+// Detect player mode: if user is not the owner, fetch shared data from Firestore
+(async function initPage(){
+  // Try local render first (works for GM or offline)
+  const localCamp=GCC.getCampaign(campId);
+  if(localCamp){render()}
+  else{document.getElementById('page-content').innerHTML='<div class="not-found"><div class="not-found-title">Loading...</div></div>'}
+
+  // Wait for auth+firestore to be fully ready (Firestore SDK loads async in gcc-sync)
+  if(typeof GCCAuth==='undefined'||typeof GCCInvite==='undefined'){return}
+
+  // Wait for sync-ready (fires after auth + Firestore SDK loaded + initial sync)
+  // or fall back to just auth if sync never fires (e.g. not signed in)
+  const ready=await Promise.race([
+    new Promise(r=>{window.addEventListener('gcc-sync-ready',()=>r('sync'),{once:true})}),
+    new Promise(r=>{GCCAuth.onAuthChange(u=>{if(!u)r('noauth')})}),
+    new Promise(r=>{setTimeout(()=>r('timeout'),8000)})
+  ]);
+
+  if(ready==='noauth'||ready==='timeout'){return}
+  if(!GCCAuth.getUser()){return}
+
+  const owner=await GCCInvite.isOwner(campId);
+  if(!owner){
+    // Player mode: fetch shared campaign data from Firestore
+    console.log('[GCC] Player mode — fetching shared campaign data');
+    const shared=await GCCInvite.getSharedData(campId);
+    if(shared){
+      _isPlayerMode=true;
+      _sharedCamp=Object.assign({id:campId},shared);
+      render();
+    }
+  } else {
+    // GM mode: push current data to shared doc so players can see it
+    console.log('[GCC] GM mode — pushing shared campaign data');
+    render._gmConfirmed=true;
+    const camp=GCC.getCampaign(campId);
+    if(camp){GCCInvite.pushSharedData(campId,camp)}
+  }
+})();
+window.addEventListener('gcc-sync-ready',()=>{render()});
+
+// ═══ DICE TRAY ═══
+(function(){
+  const tray=document.getElementById('dice-tray');
+  const panel=document.getElementById('dice-panel');
+  const toggle=document.getElementById('dice-toggle');
+  const log=document.getElementById('dice-log');
+  const qtyInput=document.getElementById('dice-qty');
+  const modInput=document.getElementById('dice-mod');
+  const dieLabel=document.getElementById('dice-die-label');
+  const rollBtn=document.getElementById('dice-roll');
+  let selectedDie=6;
+  let _unsub=null;
+
+  // Toggle panel
+  toggle.addEventListener('click',()=>{
+    const open=panel.classList.toggle('open');
+    toggle.classList.toggle('open',open);
+  });
+
+  // Die selection
+  document.getElementById('dice-btns').addEventListener('click',e=>{
+    const btn=e.target.closest('[data-die]');
+    if(!btn)return;
+    selectedDie=parseInt(btn.dataset.die);
+    dieLabel.textContent='d'+selectedDie;
+    document.querySelectorAll('#dice-btns .dice-btn').forEach(b=>b.classList.toggle('active',b===btn));
+  });
+
+  // Roll dice
+  function rollDice(){
+    const user=typeof GCCAuth!=='undefined'?GCCAuth.getUser():null;
+    const qty=Math.max(1,Math.min(20,parseInt(qtyInput.value)||1));
+    const die=selectedDie;
+    const mod=parseInt(modInput.value)||0;
+    const rolls=[];
+    for(let i=0;i<qty;i++)rolls.push(Math.floor(Math.random()*die)+1);
+    const sum=rolls.reduce((a,b)=>a+b,0)+mod;
+    const expr=qty+'d'+die+(mod>0?'+'+mod:mod<0?String(mod):'');
+    const entry={
+      uid:user?user.uid:'local',
+      name:user?(user.displayName||user.email.split('@')[0]):'Local',
+      expr:expr,
+      rolls:rolls,
+      mod:mod,
+      total:sum,
+      ts:new Date().toISOString(),
+    };
+    // Write to Firestore if signed in, otherwise render locally
+    const db=(typeof firebase!=='undefined'&&firebase.firestore)?firebase.firestore():null;
+    if(db&&campId&&user){
+      db.collection('campaigns').doc(campId).collection('rolls').add(entry)
+        .catch(e=>console.warn('[Dice] write failed:',e));
+    } else {
+      // Local-only: prepend to log display directly
+      if(log.querySelector('.dice-log-empty'))log.innerHTML='';
+      log.insertBefore(renderEntry(entry),log.firstChild);
+    }
+  }
+
+  rollBtn.addEventListener('click',rollDice);
+  // Enter key in qty or mod input triggers roll
+  qtyInput.addEventListener('keydown',e=>{if(e.key==='Enter')rollDice()});
+  modInput.addEventListener('keydown',e=>{if(e.key==='Enter')rollDice()});
+
+  // Render a roll entry
+  function renderEntry(data){
+    const when=data.ts?new Date(data.ts):new Date();
+    const timeStr=when.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+    const detail=data.rolls?data.rolls.join(' + ')+(data.mod?(' '+((data.mod>0?'+':'')+data.mod)):''):'';
+    const div=document.createElement('div');
+    div.className='dice-entry';
+    div.innerHTML=`<div class="dice-entry-top"><span class="dice-who">${ESC(data.name||'?')}</span><span class="dice-when">${ESC(timeStr)}</span></div><div><span class="dice-result">${ESC(data.expr||'')}: ${data.total}</span></div>${detail?'<div class="dice-detail">['+ESC(detail)+']</div>':''}`;
+    return div;
+  }
+
+  // Clear log
+  document.getElementById('dice-clear').addEventListener('click',async()=>{
+    const user=typeof GCCAuth!=='undefined'?GCCAuth.getUser():null;
+    const db=(typeof firebase!=='undefined'&&firebase.firestore)?firebase.firestore():null;
+    if(db&&campId&&user){
+      const ok=typeof GCCDialog!=='undefined'?await GCCDialog.confirm('Clear rolls','Clear the dice log?',{okText:'Clear',danger:true}):confirm('Clear the dice log?');
+      if(!ok)return;
+      try{
+        const snap=await db.collection('campaigns').doc(campId).collection('rolls').get();
+        const batch=db.batch();
+        snap.forEach(doc=>batch.delete(doc.ref));
+        await batch.commit();
+      }catch(e){console.warn('[Dice] clear failed:',e)}
+    } else {
+      log.innerHTML='<div class="dice-log-empty">No rolls yet</div>';
+    }
+  });
+
+  // Start real-time listener
+  function startListener(){
+    const db=(typeof firebase!=='undefined'&&firebase.firestore)?firebase.firestore():null;
+    if(!db||!campId)return;
+    if(_unsub)_unsub();
+    _unsub=db.collection('campaigns').doc(campId).collection('rolls')
+      .orderBy('ts','desc').limit(50)
+      .onSnapshot(snap=>{
+        log.innerHTML='';
+        if(snap.empty){log.innerHTML='<div class="dice-log-empty">No rolls yet</div>';return}
+        snap.forEach(doc=>{log.appendChild(renderEntry(doc.data()))});
+        log.scrollTop=0;
+      },err=>{
+        console.warn('[Dice] listener error:',err);
+        log.innerHTML='<div class="dice-log-empty">Could not load rolls</div>';
+      });
+  }
+
+  // Show tray always; start Firestore listener when signed in
+  function initDice(){
+    if(campId)tray.style.display='';
+    const user=typeof GCCAuth!=='undefined'?GCCAuth.getUser():null;
+    if(user&&campId)startListener();
+  }
+  window.addEventListener('gcc-sync-ready',initDice);
+  // Also try on auth change for cases where sync-ready already fired
+  if(typeof GCCAuth!=='undefined'){
+    GCCAuth.onAuthChange(u=>{if(campId){tray.style.display='';if(u)startListener()}});
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Library — Graycloak's Campaign Corner</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Alegreya:ital,wght@0,400;0,700;1,400&family=Alegreya+SC:wght@700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="gcc-header.css">
+<link rel="stylesheet" href="gcc-auth.css">
+<link rel="stylesheet" href="gcc-dialog.css">
+<style>
+/* ── Theme: Dark ── */
+[data-gcc-theme="dark"] {
+  --bg: #101418;
+  --bg2: #161a20;
+  --bg-card: #1a1e26;
+  --bg-card-hover: #20252e;
+  --bg-section: #141820;
+  --brd: #252a34;
+  --brd-lt: #303848;
+  --tx: #c8ccd4;
+  --tx2: #7a8494;
+  --tx3: #4a5464;
+  --accent: #60a0d0;
+  --accent-lt: #78b8e8;
+  --accent-dim: #3a6a90;
+  --red: #d04848;
+  --green: #48a858;
+  --amber: #d0a040;
+  --card-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  --hover-bg: rgba(255,255,255,0.03);
+  --noise-opacity: 0.3;
+  --card-gradient: linear-gradient(180deg, transparent 30%, rgba(0,0,0,0.85) 100%);
+}
+/* ── Theme: Light ── */
+[data-gcc-theme="light"] {
+  --bg: #eef0f4;
+  --bg2: #e4e8ee;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f6f8fa;
+  --bg-section: #e8eaee;
+  --brd: #d0d4dc;
+  --brd-lt: #bcc2cc;
+  --tx: #181c24;
+  --tx2: #505868;
+  --tx3: #8890a0;
+  --accent: #30508a;
+  --accent-lt: #2a4878;
+  --accent-dim: #8890a0;
+  --red: #c03030;
+  --green: #287830;
+  --amber: #a07818;
+  --card-shadow: 0 1px 4px rgba(0,0,0,0.07);
+  --hover-bg: rgba(0,0,0,0.02);
+  --noise-opacity: 0.15;
+  --card-gradient: linear-gradient(180deg, transparent 30%, rgba(0,0,0,0.75) 100%);
+}
+
+:root {
+  --fd: 'Cinzel', serif;
+  --fb: 'Alegreya', serif;
+  --fsc: 'Alegreya SC', serif;
+  --fm: 'IBM Plex Mono', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
+html { min-height: 100%; background: var(--bg) }
+body { min-height: 100vh; background: var(--bg); color: var(--tx); font-family: var(--fb); font-size: 14px; display: flex; flex-direction: column }
+body::before { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0; background: url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.65' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E"); opacity: var(--noise-opacity) }
+
+/* ── Main ── */
+.main { flex: 1; padding: 16px 16px 40px; position: relative; z-index: 1 }
+.main-in { max-width: 960px; margin: 0 auto }
+
+/* ── Page Header ── */
+.page-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; gap: 8px; flex-wrap: wrap }
+.page-title { font-family: var(--fd); font-size: 20px; font-weight: 700; color: var(--tx); letter-spacing: 2px }
+.page-count { font-family: var(--fm); font-size: 12px; color: var(--tx3); margin-left: 8px }
+
+/* ── Filter Bar ── */
+.filter-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap }
+.filter-search { flex: 1; min-width: 200px; font-family: var(--fb); font-size: 13px; color: var(--tx); background: var(--bg-card); border: 1px solid var(--brd); border-radius: 4px; padding: 7px 12px; outline: none; transition: border-color 0.12s }
+.filter-search:focus { border-color: var(--accent-dim) }
+.filter-search::placeholder { color: var(--tx3) }
+.filter-select { font-family: var(--fb); font-size: 12px; color: var(--tx); background: var(--bg-card); border: 1px solid var(--brd); border-radius: 4px; padding: 6px 10px; outline: none; cursor: pointer; appearance: auto }
+.filter-tabs { display: flex; gap: 2px }
+.filter-tab { padding: 5px 12px; font-size: 11px; font-family: var(--fb); font-weight: 700; background: transparent; border: 1px solid transparent; color: var(--tx3); border-radius: 3px; cursor: pointer; transition: all 0.12s }
+.filter-tab:hover { color: var(--tx2) }
+.filter-tab.active { color: var(--tx); border-color: var(--brd-lt); background: var(--hover-bg) }
+
+/* ── Card Grid — 3 columns like DnD Beyond ── */
+.card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 720px }
+
+/* ── Entity Card — DnD Beyond style ── */
+.lib-card { background: var(--bg-card); border: 1px solid var(--brd); border-radius: 4px; overflow: hidden; display: flex; flex-direction: column; position: relative; transition: border-color 0.15s }
+.lib-card:hover { border-color: var(--brd-lt) }
+
+/* Banner area — dark gradient, holds portrait + name */
+.lib-card-banner { position: relative; height: 58px; overflow: hidden }
+[data-gcc-theme="dark"] .lib-card-banner { background: linear-gradient(135deg, #2a3648 0%, #1e2838 100%) }
+[data-gcc-theme="light"] .lib-card-banner { background: linear-gradient(135deg, #3a5068 0%, #2a3a50 100%) }
+.lib-card-banner::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 40%, rgba(0,0,0,0.6) 100%); pointer-events: none }
+
+/* Portrait — square with slight rounding */
+.lib-card-portrait { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border-radius: 3px; overflow: hidden; border: 2px solid var(--brd-lt); z-index: 2 }
+.lib-card-portrait img { width: 100%; height: 100%; object-fit: contain; display: block }
+.lib-card-portrait-empty { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 18px; color: var(--tx3); opacity: 0.4 }
+
+/* Name + sub overlaid on banner */
+.lib-card-text { position: absolute; left: 56px; right: 6px; bottom: 6px; z-index: 2 }
+.lib-card-name { font-family: var(--fd); font-size: 13px; font-weight: 700; color: #fff; letter-spacing: 0.5px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 4px rgba(0,0,0,0.7) }
+.lib-card-sub { font-size: 9px; color: rgba(255,255,255,0.6); font-family: var(--fm); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 3px rgba(0,0,0,0.7) }
+
+/* Campaign row */
+.lib-card-camp-row { display: flex; align-items: center; padding: 3px 8px; gap: 4px; font-size: 9px; border-top: 1px solid var(--brd) }
+[data-gcc-theme="dark"] .lib-card-camp-row { background: #1e2430 }
+[data-gcc-theme="light"] .lib-card-camp-row { background: #f4f5f7 }
+.lib-card-campaign { color: var(--tx2); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.lib-card-campaign a { color: var(--accent); text-decoration: none }
+.lib-card-campaign a:hover { text-decoration: underline }
+.lib-card-leave { color: var(--amber); font-size: 8px; font-weight: 700; letter-spacing: 0.3px; cursor: pointer; background: none; border: none; font-family: var(--fsc); white-space: nowrap }
+.lib-card-leave:hover { color: #e0b858 }
+.lib-card-no-camp { color: var(--tx3); font-style: italic }
+
+/* Action bar */
+.lib-card-actions { display: flex; border-top: 1px solid var(--brd); margin-top: auto }
+.lib-card-action { flex: 1; padding: 4px 0; font-size: 9px; font-weight: 700; letter-spacing: 0.5px; border: none; background: transparent; cursor: pointer; text-align: center; text-decoration: none; border-right: 1px solid var(--brd); color: var(--tx2); transition: color 0.12s }
+.lib-card-action:last-child { border-right: none }
+.lib-card-action:hover { color: var(--tx); background: var(--hover-bg) }
+.lib-card-action.danger { color: var(--red) }
+.lib-card-action.danger:hover { color: #e06060 }
+
+/* ── Empty State ── */
+.lib-empty { text-align: center; padding: 40px 20px; color: var(--tx3); font-style: italic; font-size: 13px }
+
+/* ── Footer ── */
+.ftr { padding: 10px 16px; font-size: 10px; color: var(--tx3); border-top: 1px solid var(--brd); background: var(--bg-section); position: relative; z-index: 1 }
+.ftr-inner { max-width: 960px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px }
+
+/* ── Responsive ── */
+@media (max-width: 800px) {
+  .card-grid { grid-template-columns: repeat(2, 1fr) }
+}
+@media (max-width: 700px) {
+  .page-title { font-size: 16px }
+  .filter-bar { flex-direction: column }
+  .filter-search { width: 100% }
+}
+@media (max-width: 500px) {
+  .card-grid { grid-template-columns: 1fr }
+}
+</style>
+</head>
+<body>
+
+<div id="gcc-bar" class="gcc-bar">
+  <div class="gcc-bar-in">
+    <a href="index.html" class="gcc-brand" title="Back to Dashboard">
+      <div class="gcc-title-wrap">
+        <div class="gcc-title">GRAYCLOAK'S</div>
+        <div class="gcc-subtitle">CAMPAIGN CORNER</div>
+      </div>
+    </a>
+    <div class="gcc-nav">
+      <div class="gcc-tools-wrap">
+        <button class="gcc-nav-btn" id="gcc-btn-tools">🎲 Tools ▾</button>
+        <div class="gcc-tools-dd" id="gcc-tools-dd"></div>
+      </div>
+      <span id="gcc-auth-slot"></span>
+      <button class="gcc-nav-btn" id="gcc-btn-theme" title="Toggle light/dark"><span id="gcc-theme-icon">◑</span></button>
+    </div>
+  </div>
+</div>
+<div class="gcc-tools-overlay" id="gcc-tools-overlay"></div>
+
+<div class="main">
+<div class="main-in">
+
+  <div class="page-hdr">
+    <div style="display:flex;align-items:baseline;gap:8px">
+      <div class="page-title">MY CHARACTERS</div>
+      <span class="page-count" id="char-count"></span>
+    </div>
+  </div>
+
+  <div class="filter-bar">
+    <input class="filter-search" id="search" type="text" placeholder="Search by name, system, or campaign...">
+    <div class="filter-tabs" id="type-tabs">
+      <button class="filter-tab active" data-type="all">All</button>
+      <button class="filter-tab" data-type="character">Characters</button>
+      <button class="filter-tab" data-type="vehicle">Vehicles</button>
+    </div>
+    <select class="filter-select" id="system-filter">
+      <option value="all">All Systems</option>
+    </select>
+    <select class="filter-select" id="sort-select">
+      <option value="recent">Recently Saved</option>
+      <option value="name">Name A–Z</option>
+      <option value="system">By System</option>
+    </select>
+  </div>
+
+  <div class="card-grid" id="card-grid"></div>
+
+</div>
+</div>
+
+<div class="ftr">
+  <div class="ftr-inner">
+    <span>Graycloak's Campaign Corner v1.7</span>
+    <span>Data stored locally in your browser</span>
+  </div>
+</div>
+
+<script src="gcc-dialog.js"></script>
+<script src="gcc-data.js"></script>
+<script src="gcc-header.js"></script>
+<script src="gcc-firebase-config.js"></script>
+<script src="gcc-auth.js"></script>
+<script src="gcc-sync.js"></script>
+<script>
+GCC.init();
+
+const ESC = s => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; };
+const SYSTEM_COLORS = {};
+GCC.SYSTEM_DEFS.forEach(s => { SYSTEM_COLORS[s.id] = s.color; });
+
+// Build campaign lookup — map campaign ID → campaign object
+function buildCampLookup() {
+  const camps = GCC.loadCampaigns();
+  const map = {};
+  camps.forEach(c => { map[c.id] = c; });
+  return map;
+}
+
+// Find which campaign a character belongs to
+function findCampaign(entity, campLookup) {
+  // Check _campaign field on the entity itself
+  if (entity._campaign && campLookup[entity._campaign]) return campLookup[entity._campaign];
+  // Check campaign character arrays for _id match
+  for (const camp of Object.values(campLookup)) {
+    if (!camp.characters) continue;
+    if (camp.characters.some(ch => ch._id && ch._id === entity._id)) return camp;
+    if (camp.characters.some(ch => ch.name && (ch.name === entity.name || ch.name === entity.heroName))) return camp;
+  }
+  return null;
+}
+
+// Resolve display data from a raw entity
+function resolveEntity(raw, systemId) {
+  const isVeh = raw.type === 'mp-vehicle' || raw._toolId === 'mp-veh';
+  let name, sub, portrait, origin = '';
+  if (isVeh) {
+    name = raw.name || 'Unnamed Vehicle';
+    portrait = raw.pictureData || raw._image || '';
+    const parts = ['Vehicle'];
+    const tc = raw._totalCost;
+    if (tc) parts.push(tc + ' CPs');
+    const hits = raw._hits; if (hits) parts.push('Hits:' + hits);
+    const pow = raw._power; if (pow) parts.push('Pow:' + pow);
+    const sp = raw._spaces; if (sp) parts.push('Spaces:' + sp);
+    sub = parts.join(' | ');
+  } else if (systemId === 'faserip') {
+    name = raw.heroName || raw.name || 'Unnamed';
+    portrait = raw.portraitData || '';
+    origin = raw.origin || '';
+    const ab = raw.abilities || {};
+    const h = (parseInt(ab.fighting?.value)||0) + (parseInt(ab.agility?.value)||0) + (parseInt(ab.strength?.value)||0) + (parseInt(ab.endurance?.value)||0);
+    const k = (parseInt(ab.reason?.value)||0) + (parseInt(ab.intuition?.value)||0) + (parseInt(ab.psyche?.value)||0);
+    const res = raw.resources?.rank || '';
+    const pop = raw.popularity?.rank || raw.popularity || '';
+    const parts = [origin];
+    if (h) parts.push('H:' + h);
+    if (k) parts.push('K:' + k);
+    if (res) parts.push('R:' + res.substring(0, 2));
+    if (pop) parts.push('P:' + (typeof pop === 'string' ? pop.substring(0, 2) : pop));
+    sub = parts.filter(Boolean).join(' | ');
+  } else if (systemId === 'mp') {
+    name = raw.name || 'Unnamed';
+    portrait = raw._image || raw.portrait || '';
+    let cp = 0;
+    if (raw.stats) { for (const s of Object.values(raw.stats)) cp += parseFloat(s.cp) || 0; }
+    if (raw.abilities) { for (const a of raw.abilities) cp += parseFloat(a.cp) || 0; }
+    const species = raw.species || '';
+    const parts = [species];
+    if (cp) parts.push(cp + ' CPs');
+    const pow = raw.power; if (pow) parts.push('Pow:' + pow);
+    const hp = raw.hitPoints || raw.hp; if (hp) parts.push('HP:' + hp);
+    const orig = raw.origin || raw.originType || '';
+    if (orig) parts.push('Origin: ' + orig);
+    sub = parts.filter(Boolean).join(' | ');
+  } else if (systemId === 'add1e') {
+    name = raw.characterName || raw.name || 'Unnamed';
+    portrait = raw.portrait || '';
+    const cls = raw.characterClass || '';
+    const lvl = raw.level || '';
+    const race = raw.race || '';
+    const parts = [];
+    if (race) parts.push(race);
+    if (cls && lvl) parts.push(cls + ' ' + lvl);
+    else if (cls) parts.push(cls);
+    const hp = raw.hpCurrent || raw.hpMax;
+    if (hp) parts.push('HP:' + hp + (raw.hpMax ? '/' + raw.hpMax : ''));
+    const ac = raw.ac;
+    if (ac !== undefined && ac !== '') parts.push('AC:' + ac);
+    sub = parts.filter(Boolean).join(' | ');
+  } else {
+    name = raw.name || raw.heroName || 'Unnamed';
+    portrait = raw._image || raw.portraitData || '';
+    sub = raw.sub || raw.class || '';
+  }
+  return { name, sub, portrait, isVeh };
+}
+
+// State
+let currentType = 'all';
+let currentSystem = 'all';
+let currentSort = 'recent';
+let currentSearch = '';
+
+// Populate system filter
+function populateSystemFilter() {
+  const sel = document.getElementById('system-filter');
+  sel.innerHTML = '<option value="all">All Systems</option>';
+  GCC.SYSTEM_DEFS.forEach(sys => {
+    // Only show systems that have saved entities
+    const chars = GCC.getCharactersForSystem(sys.id);
+    if (chars.length) {
+      sel.innerHTML += `<option value="${sys.id}">${ESC(sys.name)}</option>`;
+    }
+  });
+}
+
+function render() {
+  const campLookup = buildCampLookup();
+  let entities = GCC.getAllCharacters();
+
+  // Tag each entity
+  entities = entities.map(e => {
+    const isVeh = e.type === 'mp-vehicle' || e._toolId === 'mp-veh';
+    const resolved = resolveEntity(e, e._system);
+    const camp = findCampaign(e, campLookup);
+    return { raw: e, ...resolved, entityType: isVeh ? 'vehicle' : 'character', systemId: e._system, camp, _saved: e._saved || e._lastSaved || '' };
+  });
+
+  // Filter by type
+  if (currentType !== 'all') {
+    entities = entities.filter(e => e.entityType === currentType);
+  }
+
+  // Filter by system
+  if (currentSystem !== 'all') {
+    entities = entities.filter(e => e.systemId === currentSystem);
+  }
+
+  // Search
+  if (currentSearch) {
+    const q = currentSearch.toLowerCase();
+    entities = entities.filter(e => {
+      const haystack = [e.name, e.sub, e.systemId, e.camp?.name || ''].join(' ').toLowerCase();
+      return haystack.includes(q);
+    });
+  }
+
+  // Sort
+  if (currentSort === 'name') {
+    entities.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  } else if (currentSort === 'system') {
+    entities.sort((a, b) => (a.systemId || '').localeCompare(b.systemId || '') || (a.name || '').localeCompare(b.name || ''));
+  } else {
+    // recent — sort by _saved descending
+    entities.sort((a, b) => (Number(b._saved) || 0) - (Number(a._saved) || 0));
+  }
+
+  // Count
+  document.getElementById('char-count').textContent = entities.length + ' saved';
+
+  // Render
+  const grid = document.getElementById('card-grid');
+  if (!entities.length) {
+    grid.innerHTML = '<div class="lib-empty">No characters or vehicles found.</div>';
+    return;
+  }
+
+  grid.innerHTML = entities.map(e => {
+    const sys = GCC.SYSTEM_DEFS.find(s => s.id === e.systemId) || {};
+    const sysColor = SYSTEM_COLORS[e.systemId] || '#888';
+
+    // Portrait
+    let portraitHtml;
+    if (e.portrait) {
+      portraitHtml = `<img src="${ESC(e.portrait)}" alt="">`;
+    } else {
+      const icon = e.isVeh ? '🚗' : (sys.icon || '?');
+      portraitHtml = `<div class="lib-card-portrait-empty">${icon}</div>`;
+    }
+
+    // Campaign row
+    let campRowHtml;
+    if (e.camp) {
+      campRowHtml = `<span class="lib-card-campaign">Campaign: <a href="index.html">${ESC(e.camp.name)}</a></span>
+        <button class="lib-card-leave" data-leave-id="${ESC(e.raw._id || '')}" data-leave-camp="${ESC(e.camp.id || '')}">LEAVE CAMPAIGN</button>`;
+    } else {
+      campRowHtml = `<span class="lib-card-no-camp">No campaign</span>`;
+    }
+
+    // Build edit link
+    const tool = sys.tools?.find(t => t.charList === e.raw._listKey && t.href)
+      || sys.tools?.find(t => t.charList && t.href);
+    let editHref = '#';
+    let viewHref = '#';
+    if (tool) {
+      const linkParam = e.raw._id
+        ? 'id=' + encodeURIComponent(e.raw._id)
+        : (e.isVeh ? '' : 'char=' + encodeURIComponent(e.name));
+      editHref = tool.href + (linkParam ? (tool.href.includes('?') ? '&' : '?') + linkParam : '');
+      viewHref = editHref + (editHref.includes('?') ? '&' : '?') + 'mode=view';
+    }
+
+    return `<div class="lib-card">
+      <div class="lib-card-banner">
+        <div class="lib-card-portrait">${portraitHtml}</div>
+        <div class="lib-card-text">
+          <div class="lib-card-name">${ESC(e.name)}</div>
+          <div class="lib-card-sub">${ESC(e.sub)}</div>
+        </div>
+      </div>
+      <div class="lib-card-camp-row">
+        ${campRowHtml}
+      </div>
+      <div class="lib-card-actions">
+        <a class="lib-card-action" href="${ESC(viewHref)}">VIEW</a>
+        <a class="lib-card-action" href="${ESC(editHref)}">EDIT</a>
+        <button class="lib-card-action danger" data-del-id="${ESC(e.raw._id || '')}" data-del-key="${ESC(e.raw._listKey || '')}" data-del-name="${ESC(e.name)}">DELETE</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Events ──
+document.getElementById('type-tabs').addEventListener('click', e => {
+  const tab = e.target.closest('.filter-tab');
+  if (!tab) return;
+  currentType = tab.dataset.type;
+  document.querySelectorAll('#type-tabs .filter-tab').forEach(t => t.classList.toggle('active', t.dataset.type === currentType));
+  render();
+});
+
+document.getElementById('system-filter').addEventListener('change', e => {
+  currentSystem = e.target.value;
+  render();
+});
+
+document.getElementById('sort-select').addEventListener('change', e => {
+  currentSort = e.target.value;
+  render();
+});
+
+let _searchTimer;
+document.getElementById('search').addEventListener('input', e => {
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(() => {
+    currentSearch = e.target.value.trim();
+    render();
+  }, 150);
+});
+
+// Leave campaign handler
+document.getElementById('card-grid').addEventListener('click', e => {
+  const btn = e.target.closest('.lib-card-leave');
+  if (!btn) return;
+  const charId = btn.dataset.leaveId;
+  const campId = btn.dataset.leaveCamp;
+  if (!charId || !campId) return;
+  const camp = GCC.getCampaign(campId);
+  if (!camp) return;
+  const chars = (camp.characters || []).filter(ch => ch._id !== charId);
+  GCC.updateCampaign(campId, { characters: chars, players: chars.length });
+  render();
+});
+
+// Delete handler
+document.getElementById('card-grid').addEventListener('click', async e => {
+  const delBtn = e.target.closest('[data-del-id]');
+  if (!delBtn) return;
+  const id = delBtn.dataset.delId;
+  const key = delBtn.dataset.delKey;
+  const name = delBtn.dataset.delName;
+  if (!key) return;
+  if (!(await GCCDialog.confirm('Delete character', 'Delete "' + name + '"? This cannot be undone.', {okText:'Delete', danger:true}))) return;
+  try {
+    const list = JSON.parse(localStorage.getItem(key)) || [];
+    const idx = id ? list.findIndex(c => c._id === id) : -1;
+    if (idx >= 0) {
+      list.splice(idx, 1);
+      localStorage.setItem(key, JSON.stringify(list));
+      if(typeof GCCSync!=='undefined' && GCCSync.notifySync) GCCSync.notifySync(key);
+      render();
+    }
+  } catch(e) {}
+});
+
+// ── Init ──
+populateSystemFilter();
+render();
+
+window.addEventListener('gcc-sync-ready', () => { render(); });
+</script>
+</body>
+</html>

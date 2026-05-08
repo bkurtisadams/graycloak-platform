@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>adnd.graycloak.net — Week 1 Smoke Test</title>
+<link rel="stylesheet" href="adnd-style.css">
+</head>
+<body>
+
+<h1>adnd.graycloak.net</h1>
+<div class="subtitle">Week 1 smoke test — auth + Firestore pipe</div>
+
+<div id="status">Loading…</div>
+
+<button id="signin-btn" style="display:none;">Sign in with Google</button>
+<button id="signout-btn" style="display:none;">Sign Out</button>
+
+<div id="test-section" style="display:none;">
+  <strong>Firestore test:</strong>
+  <div>writes <code>users/{uid}/adnd_test/ping</code> then reads it back</div>
+  <button id="test-write-btn" style="margin-top:12px;">Run Test</button>
+  <pre id="test-output">(not yet run)</pre>
+</div>
+
+<script src="adnd-firebase-config.js"></script>
+<script src="adnd-auth.js"></script>
+<script src="adnd-test.js"></script>
+</body>
+</html>

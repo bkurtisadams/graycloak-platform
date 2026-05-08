@@ -1,0 +1,1271 @@
+/* gcc-subhex.css v1.14.0 — 2026-05-02
+   v1.14: fog brush hover override. Fogged cells need a visible hover
+   stroke (the default #1a1a1a hover would vanish against the dark
+   fog fill); use a gold stroke instead so the GM can see which cell
+   is under the cursor while painting fog.
+   v1.13: fog-of-war render integration. New .sxw-cell-group.fogged
+   rules darken the cell fill and hide terrain/feature icon layers
+   when the GM is in fog preview mode. Strokes pass through so the
+   selected/authored halos still register on fogged cells. See bottom
+   of file for the new rules.
+   v1.12: Slice 2 of the panel reorg. New .sxw-tools-row + .sxw-tool-
+   callout + .sxw-callout-pane / .sxw-callout-label / .sxw-callout-
+   pathrow for the unified tool dropdown idiom. Readability bumps:
+   body inputs to 13px, labels to 11px, stronger input backgrounds and
+   1.5px borders. Mode label gets .sxw-mode-armed (red-orange) when a
+   tool is active — matches the orange selected-hex stroke on the
+   main map. See bottom of file for the new rules.
+   v1.11: Controls panel reorg (subhex-view v2.8.0 slice 1). New
+   classes for the collapsible cell-details section: .sxw-detail-head,
+   .sxw-detail-label, .sxw-detail-summary, .sxw-summary-label,
+   .sxw-summary-sep. Native <details>-based "More fields" expander
+   styled via .sxw-more-fields. .sxw-detail.no-cell hides the
+   summary+body when nothing is selected. See bottom of file for the
+   new rules and the dark-mode TODO.
+   v1.10: add .sxw-landmark-halo for cells pinned to a parent
+   landmark. Gold disk drawn behind the feature glyph.
+   v1.9: add .sxw-armed-ghost / .sxw-armed-ghost-layer for the new
+   ghost marker that appears on this parent's boundary cell when an
+   armed path's last cell lives in a neighbor parent. Pulses gently
+   in the path-kind color. New @keyframes sxw-ghost-pulse handles
+   the opacity + drop-shadow animation. Dark mode covered.
+   v1.8: path controls move to their own labeled section block
+   (.sxw-path-section). Section header (.sxw-section-head) and
+   meta sub-label (.sxw-section-meta) styled to match other
+   labeled groups. Action buttons in a 4-col grid
+   (.sxw-path-actions). Help text gets a tinted callout with left
+   accent stripe instead of the previous dashed top border.
+   Placeholder text and select <option> text now have explicit
+   colors with full opacity so empty/disabled inputs don't read
+   as ghosted. New .sxw-tool-btn-armed variant (gold bg, dark
+   text, dark border) for the Done button.
+   v1.7: contrast bump on the controls window — labels, mode line,
+   and source line now use a darker brown (#3a2a18 / dark-mode
+   #f4e8c4) for better legibility on the parchment background.
+   Disabled inputs no longer fade to 0.55 opacity (which made
+   labels hard to read); they keep full text opacity and convey
+   disabled-ness via a darker tint. Add .sxw-tool-btn-danger
+   variant (red border/text) and .sxw-path-help line for inline
+   path-tool affordance hints.
+   v1.6.1: add .sxw-mode-flash class for transient mode-label
+   feedback (red, bold) when a click is received but nothing
+   happened (e.g. erasing a feature on a cell that has no feature).
+   v1.6 adds crossing badge + popup menu. Owned subhexes on 2+ paths
+   get a small × badge in their upper-right corner; clicking pops a
+   kind picker (Bridge / Ford / Ferry / Crossroads / Dismiss) styled
+   to match the parchment palette.
+   v1.5 adds .authored and .destination styles on parent-path markers.
+   Authored markers render as hollow circles with kind-colored borders
+   (river=blue ring, road=brown ring, track=tan ring). The destination
+   marker — the OTHER end of a segment the GM just started authoring —
+   pulses so they can see where to draw to.
+   v1.4 splits into two windows. The original #subhex-window keeps the
+   map + zoom; #subhex-controls-window holds the detail panel, palette
+   strip, and tools row. Each is independently draggable and resizable.
+   v1.3 adds .sxw-parent-path-marker — small colored dots on boundary
+   subhexes for 30-mile parent paths (river=blue, road=brown, track=tan).
+   Dots offset toward the parent edge they cross; hover for path name.
+   v1.2 adds fragment-cell styling (faded fill, dashed stroke, still
+   clickable) and the "Owned by …" hint badge in the detail panel.
+   Fragments are subhexes whose centers fall in neighbor parents but
+   whose hex polygons overlap this parent — they render with their
+   full hex shape extending past the parent boundary.
+   v1.1 adds independent zoom on the SVG via a scrollable wrap with
+   overlay zoom controls (+/-/⟲). Detail panel, palettes, and tools
+   row stay at fixed sizes — only the map zooms.
+*/
+
+/* ── Window shell ─────────────────────────────────────────────────────── */
+#subhex-window {
+  position:fixed;
+  width:540px;
+  height:auto;
+  min-width:380px;
+  min-height:320px;
+  max-width:96vw;
+  max-height:96vh;
+  background:#f4e8c4;
+  color:#1a1a1a;
+  border:2px solid #5a4a30;
+  border-radius:6px;
+  box-shadow:0 8px 28px rgba(0,0,0,0.45);
+  z-index:220;
+  display:none;
+  flex-direction:column;
+  font-family:'Cinzel', serif;
+  user-select:none;
+  resize:both;
+  overflow:hidden;
+}
+#subhex-window[style*="display: flex"],
+#subhex-window[style*="display:flex"] { display:flex; }
+body.theme-dark #subhex-window {
+  background:#2c2c2a;
+  color:#e8d8b0;
+  border-color:#7a6a40;
+}
+
+/* ── Controls window (separate, draggable, resizable) ─────────────────── */
+/* Detail panel + palettes + tools live here. Auto-opens beside the map
+   window when the map opens, auto-closes when the map closes. Persists
+   its own position/size in localStorage 'gcc-subhex-controls-pos'. */
+#subhex-controls-window {
+  position:fixed;
+  width:420px;
+  height:auto;
+  min-width:340px;
+  min-height:280px;
+  max-width:96vw;
+  max-height:96vh;
+  background:#f4e8c4;
+  color:#1a1a1a;
+  border:2px solid #5a4a30;
+  border-radius:6px;
+  box-shadow:0 8px 28px rgba(0,0,0,0.45);
+  z-index:221;
+  display:none;
+  flex-direction:column;
+  font-family:'Cinzel', serif;
+  user-select:none;
+  resize:both;
+  overflow:hidden;
+}
+#subhex-controls-window[style*="display: flex"],
+#subhex-controls-window[style*="display:flex"] { display:flex; }
+body.theme-dark #subhex-controls-window {
+  background:#2c2c2a;
+  color:#e8d8b0;
+  border-color:#7a6a40;
+}
+#subhex-controls-window::after {
+  content:"";
+  position:absolute;
+  right:2px;
+  bottom:2px;
+  width:14px;
+  height:14px;
+  pointer-events:none;
+  background:linear-gradient(135deg,
+    transparent 0%, transparent 40%,
+    #b09060 40%, #b09060 50%,
+    transparent 50%, transparent 65%,
+    #b09060 65%, #b09060 75%,
+    transparent 75%, transparent 90%,
+    #b09060 90%, #b09060 100%);
+  opacity:0.7;
+}
+#subhex-controls-window .sxw-ctrl-body {
+  flex:1 1 auto;
+  display:flex;
+  flex-direction:column;
+  overflow:auto;
+  min-height:0;
+}
+/* The detail panel was originally sized assuming the map's body width
+   (~540px). In the standalone controls window it has its own width and
+   should grow naturally — drop any width caps. */
+#subhex-controls-window .sxw-detail { flex:0 0 auto; }
+#subhex-controls-window .sxw-palette-strip { flex:0 0 auto; }
+#subhex-controls-window .sxw-tools { flex:0 0 auto; }
+
+/* ── Resize grip ──────────────────────────────────────────────────────── */
+/* The window itself has resize:both — browsers paint a native grip in the
+   bottom-right but it's subtle. We layer a small visual indicator on top
+   so the affordance is obvious. The window's resize is what actually
+   handles the drag; this is purely decoration. */
+#subhex-window::after {
+  content:"";
+  position:absolute;
+  right:2px;
+  bottom:2px;
+  width:14px;
+  height:14px;
+  pointer-events:none;
+  background:linear-gradient(135deg,
+    transparent 0%, transparent 40%,
+    #b09060 40%, #b09060 50%,
+    transparent 50%, transparent 65%,
+    #b09060 65%, #b09060 75%,
+    transparent 75%, transparent 90%,
+    #b09060 90%, #b09060 100%);
+  opacity:0.7;
+}
+body.theme-dark #subhex-window::after {
+  background:linear-gradient(135deg,
+    transparent 0%, transparent 40%,
+    #c8a96e 40%, #c8a96e 50%,
+    transparent 50%, transparent 65%,
+    #c8a96e 65%, #c8a96e 75%,
+    transparent 75%, transparent 90%,
+    #c8a96e 90%, #c8a96e 100%);
+}
+
+.sxw-header {
+  background:#5a4a30;
+  color:#f4e8c4;
+  padding:5px 10px;
+  font-size:12px;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  cursor:move;
+  border-radius:4px 4px 0 0;
+  flex-shrink:0;
+}
+.sxw-title { font-weight:600; flex-shrink:0; }
+.sxw-coord-bar {
+  flex:1;
+  font-size:11px;
+  font-weight:400;
+  text-transform:none;
+  letter-spacing:0;
+  color:#c8a96e;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.sxw-header-btns {
+  display:flex;
+  gap:4px;
+  flex-shrink:0;
+}
+.sxw-close,
+.sxw-reset-pos {
+  background:transparent;
+  color:#f4e8c4;
+  border:1px solid #c8a96e;
+  width:22px; height:22px;
+  font-size:11px; line-height:1;
+  border-radius:3px;
+  cursor:pointer;
+  padding:0;
+}
+.sxw-close:hover,
+.sxw-reset-pos:hover { background:#c8a96e; color:#1a1a1a; }
+
+.sxw-body {
+  padding:8px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+}
+
+/* ── SVG ──────────────────────────────────────────────────────────────── */
+/* The wrap is the scroll viewport — width fills the body, height grows
+   to fill remaining vertical space. SVG inside has explicit width
+   (in %) controlled by the zoom JS; aspect-ratio keeps height in sync.
+   Zoom 100% = SVG fills wrap horizontally (width:100%). Zoom 200% =
+   SVG is twice as wide → horizontal scrollbar appears. */
+.sxw-svg-wrap {
+  position:relative;
+  flex:1 1 auto;
+  min-height:0;
+  overflow:auto;
+  background:#e8d8b0;
+  border:1px solid #b09060;
+  border-radius:4px;
+}
+body.theme-dark .sxw-svg-wrap { background:#1a1a1a; border-color:#7a6a40; }
+#sxw-svg {
+  display:block;
+  width:100%;
+  aspect-ratio:610 / 530;
+  height:auto;
+}
+
+/* ── Zoom controls (overlay on top-right of svg wrap) ─────────────────── */
+.sxw-zoom-controls {
+  position:absolute;
+  top:6px;
+  right:6px;
+  display:flex;
+  gap:3px;
+  align-items:center;
+  background:rgba(244,232,196,0.92);
+  border:1px solid #5a4a30;
+  border-radius:3px;
+  padding:2px 4px;
+  font-size:11px;
+  z-index:5;
+  pointer-events:auto;
+}
+body.theme-dark .sxw-zoom-controls {
+  background:rgba(28,28,26,0.92);
+  border-color:#7a6a40;
+}
+.sxw-zoom-btn {
+  width:20px;
+  height:20px;
+  background:transparent;
+  border:1px solid #b09060;
+  border-radius:2px;
+  color:#5a4a30;
+  font-family:inherit;
+  font-size:13px;
+  line-height:1;
+  cursor:pointer;
+  padding:0;
+}
+.sxw-zoom-btn:hover { background:#c8a96e; color:#1a1a1a; }
+body.theme-dark .sxw-zoom-btn { color:#c8a96e; border-color:#7a6a40; }
+body.theme-dark .sxw-zoom-btn:hover { background:#c8a96e; color:#1a1a1a; }
+.sxw-zoom-pct {
+  font-family:'Cinzel', serif;
+  font-size:10px;
+  font-weight:500;
+  color:#5a4a30;
+  min-width:32px;
+  text-align:center;
+}
+body.theme-dark .sxw-zoom-pct { color:#c8a96e; }
+
+.sxw-parent-outline {
+  fill:none;
+  stroke:#5a4a30;
+  stroke-width:2.5;
+  stroke-opacity:0.55;
+  pointer-events:none;
+}
+body.theme-dark .sxw-parent-outline { stroke:#c8a96e; stroke-opacity:0.5; }
+
+.sxw-cell {
+  stroke:#3a3a3a;
+  stroke-width:0.5;
+  stroke-opacity:0.55;
+  cursor:pointer;
+  transition:stroke-width 0.08s, stroke-opacity 0.08s;
+}
+.sxw-cell:hover {
+  stroke:#1a1a1a;
+  stroke-width:2.5;
+  stroke-opacity:1;
+}
+.sxw-cell.authored { stroke:#8b0000; stroke-width:1.0; stroke-opacity:1; }
+.sxw-cell.selected {
+  stroke:#c8a96e;
+  stroke-width:4;
+  stroke-opacity:1;
+  filter:drop-shadow(0 0 3px #c8a96e);
+}
+/* Fragment cells: subhexes owned by a neighbor parent that visually
+   spill into this parent's silhouette. Render faded with a dashed
+   outline so they read as "not yours, but click-through." */
+.sxw-cell.fragment {
+  fill-opacity:0.55;
+  stroke:#5a4a30;
+  stroke-width:0.5;
+  stroke-opacity:0.7;
+  stroke-dasharray:2 2;
+}
+.sxw-cell.fragment:hover {
+  stroke:#1a1a1a;
+  stroke-width:2;
+  stroke-opacity:1;
+  stroke-dasharray:none;
+  fill-opacity:0.75;
+}
+.sxw-cell.fragment.authored {
+  stroke:#8b0000;
+  stroke-width:1.0;
+  stroke-opacity:1;
+  stroke-dasharray:2 2;
+}
+.sxw-cell.fragment.selected {
+  stroke:#c8a96e;
+  stroke-width:4;
+  stroke-opacity:1;
+  stroke-dasharray:none;
+  fill-opacity:0.85;
+  filter:drop-shadow(0 0 3px #c8a96e);
+}
+.sxw-fragment-layer { pointer-events:auto; }
+body.theme-dark .sxw-cell.fragment { stroke:#c8a96e; stroke-opacity:0.55; }
+body.theme-dark .sxw-cell.fragment:hover { stroke:#f4e8c4; }
+body.theme-dark .sxw-cell:hover { stroke:#f4e8c4; }
+.sxw-cell-group { cursor:pointer; }
+.sxw-icon { pointer-events:none; }
+.sxw-cell-label {
+  font-family:'Cinzel', serif;
+  font-size:13px;
+  font-weight:600;
+  fill:#1a1a1a;
+  pointer-events:none;
+}
+body.theme-dark .sxw-cell-label { fill:#f4e8c4; }
+
+/* ── Detail panel ─────────────────────────────────────────────────────── */
+.sxw-detail {
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  padding:6px 4px 0;
+  border-top:1px solid #b09060;
+}
+body.theme-dark .sxw-detail { border-top-color:#7a6a40; }
+.sxw-row { display:flex; align-items:center; gap:6px; }
+.sxw-row label {
+  flex:0 0 48px;
+  font-size:10px;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  color:#3a2a18;
+  font-weight:500;
+}
+body.theme-dark .sxw-row label { color:#e8d8b0; }
+.sxw-readonly {
+  font-size:13px;
+  padding:0;
+  color:#1a1a1a;
+}
+body.theme-dark .sxw-readonly { color:#e8d8b0; }
+.sxw-owner-hint {
+  font-size:11px;
+  font-style:italic;
+  color:#8b0000;
+  padding:1px 5px;
+  background:rgba(139, 0, 0, 0.08);
+  border:1px solid rgba(139, 0, 0, 0.25);
+  border-radius:3px;
+}
+body.theme-dark .sxw-owner-hint {
+  color:#f49090;
+  background:rgba(244, 144, 144, 0.10);
+  border-color:rgba(244, 144, 144, 0.40);
+}
+.sxw-sep { color:#7a5a30; font-size:11px; }
+body.theme-dark .sxw-sep { color:#a89060; }
+.sxw-row input[type=text],
+.sxw-row textarea,
+.sxw-row select {
+  flex:1;
+  background:#fbf2da;
+  border:1px solid #8b6a30;
+  border-radius:3px;
+  padding:2px 5px;
+  font-family:inherit;
+  font-size:12px;
+  color:#1a1a1a;
+  min-width:0;
+}
+body.theme-dark .sxw-row input[type=text],
+body.theme-dark .sxw-row textarea,
+body.theme-dark .sxw-row select {
+  background:#1a1a1a;
+  color:#f4e8c4;
+  border-color:#a89060;
+}
+/* Disabled state: keep text legible. Lower the background so the
+   disabled-ness is conveyed by tint, not by faded text. */
+.sxw-row input[type=text]:disabled,
+.sxw-row textarea:disabled,
+.sxw-row select:disabled {
+  opacity:1;
+  background:#e8d8b0;
+  color:#5a4a30;
+  cursor:not-allowed;
+  border-color:#b09060;
+}
+body.theme-dark .sxw-row input[type=text]:disabled,
+body.theme-dark .sxw-row textarea:disabled,
+body.theme-dark .sxw-row select:disabled {
+  background:#222220;
+  color:#a89060;
+  border-color:#5a4a30;
+}
+.sxw-row textarea { min-height:30px; resize:vertical; }
+.sxw-row-inline { align-items:center; }
+
+/* Placeholder text (empty inputs/textareas). Browser default fades to
+   ~50% opacity which makes the panel read as washed out even when the
+   field is enabled. Set explicit colors with strong contrast. */
+.sxw-row input[type=text]::placeholder,
+.sxw-row textarea::placeholder {
+  color:#7a5a30;
+  opacity:1;
+}
+body.theme-dark .sxw-row input[type=text]::placeholder,
+body.theme-dark .sxw-row textarea::placeholder {
+  color:#a89060;
+  opacity:1;
+}
+/* Disabled placeholder — slightly muted so the disabled state still
+   reads, but stays legible. */
+.sxw-row input[type=text]:disabled::placeholder,
+.sxw-row textarea:disabled::placeholder {
+  color:#8b6a30;
+  opacity:1;
+}
+body.theme-dark .sxw-row input[type=text]:disabled::placeholder,
+body.theme-dark .sxw-row textarea:disabled::placeholder {
+  color:#7a6a40;
+  opacity:1;
+}
+/* Select <option> inside the controls window. Browsers render
+   disabled-state option text very pale; force the same dark-text
+   treatment so "— none —" is readable. */
+.sxw-row select option,
+.sxw-region-armed option,
+.sxw-path-armed option {
+  color:#1a1a1a;
+  background:#fbf2da;
+}
+body.theme-dark .sxw-row select option,
+body.theme-dark .sxw-region-armed option,
+body.theme-dark .sxw-path-armed option {
+  color:#f4e8c4;
+  background:#1a1a1a;
+}
+/* Hosts row: kind narrow, name wider, libid narrow */
+.sxw-row-feature select { flex:0 0 88px; }
+.sxw-row-feature input[type=text]:nth-of-type(1) { flex:1.5; }
+.sxw-row-feature input[type=text]:nth-of-type(2) { flex:1; }
+/* Region row: picker narrow, name wider */
+.sxw-row-region select { flex:0 0 110px; }
+.sxw-row-paths .sxw-readonly {
+  flex:1;
+  font-size:12px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.sxw-source {
+  font-size:10px;
+  color:#3a2a18;
+  font-style:italic;
+  padding:1px 4px 0 54px;
+  opacity:0.85;
+}
+body.theme-dark .sxw-source { color:#e8d8b0; opacity:0.85; }
+
+/* ── Palette strip (terrain + features) ───────────────────────────────── */
+.sxw-palette-strip {
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  padding-top:6px;
+  border-top:1px solid #b09060;
+}
+body.theme-dark .sxw-palette-strip { border-top-color:#7a6a40; }
+
+.sxw-palette {
+  display:flex;
+  flex-wrap:wrap;
+  gap:3px;
+}
+.sxw-swatch {
+  width:18px;
+  height:18px;
+  border:1.5px solid #5a4a30;
+  border-radius:3px;
+  cursor:pointer;
+  padding:0;
+  outline:none;
+}
+.sxw-swatch:hover { border-color:#c8a96e; }
+.sxw-swatch.armed {
+  border-color:#8b0000;
+  box-shadow:0 0 0 2px #c8a96e;
+}
+.sxw-swatch-erase {
+  background:#fbf2da;
+  color:#5a4a30;
+  font-size:12px;
+  line-height:1;
+}
+body.theme-dark .sxw-swatch-erase { background:#2c2c2a; color:#c8a96e; }
+
+.sxw-feature-palette {
+  display:flex;
+  flex-wrap:wrap;
+  gap:3px;
+}
+.sxw-feature-btn {
+  width:24px;
+  height:24px;
+  background:#fbf2da;
+  border:1.5px solid #5a4a30;
+  border-radius:3px;
+  cursor:pointer;
+  padding:0;
+  outline:none;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+.sxw-feature-btn:hover { border-color:#c8a96e; }
+.sxw-feature-btn.armed {
+  border-color:#8b0000;
+  box-shadow:0 0 0 2px #c8a96e;
+}
+body.theme-dark .sxw-feature-btn { background:#2c2c2a; }
+.sxw-feature-btn-clear {
+  font-size:12px;
+  color:#5a4a30;
+  line-height:1;
+}
+body.theme-dark .sxw-feature-btn-clear { color:#c8a96e; }
+
+/* ── Region armed-picker (tools row) ──────────────────────────────────── */
+.sxw-region-armed {
+  background:#fbf2da;
+  color:#1a1a1a;
+  border:1px solid #b09060;
+  border-radius:3px;
+  padding:2px 5px;
+  font-family:inherit;
+  font-size:11px;
+  max-width:240px;
+}
+body.theme-dark .sxw-region-armed {
+  background:#1a1a1a;
+  color:#e8d8b0;
+  border-color:#7a6a40;
+}
+
+.sxw-tool-btn.armed {
+  background:#c8a96e;
+  color:#1a1a1a;
+  border-color:#5a4a30;
+  font-weight:500;
+}
+body.theme-dark .sxw-tool-btn.armed {
+  background:#c8a96e;
+  color:#1a1a1a;
+}
+
+/* ── Region label (SVG) ───────────────────────────────────────────────── */
+.sxw-region-label {
+  font-family:'Cinzel', serif;
+  font-style:italic;
+  font-weight:500;
+  font-size:15px;
+  fill:#2a1a05;
+  paint-order:stroke;
+  stroke:#f4e8c4;
+  stroke-width:3.5;
+  stroke-linejoin:round;
+  pointer-events:none;
+}
+body.theme-dark .sxw-region-label {
+  fill:#f4e8c4;
+  stroke:#1a0a00;
+  stroke-width:3.5;
+}
+
+/* ── Paths (SVG) ──────────────────────────────────────────────────────── */
+/* Each path renders as a polyline through cell centers via shared-edge
+   midpoints. Strokes vary by kind. The .armed class is added by the
+   view when a path is being extended — slightly thicker + brighter
+   so the GM can see what they're authoring. */
+.sxw-path { pointer-events:none; stroke-linecap:round; stroke-linejoin:round; }
+.sxw-path-river  { stroke:#3a6fa8; stroke-width:2.4; }
+.sxw-path-road   { stroke:#5a3a18; stroke-width:2.0; stroke-dasharray:5 3; }
+.sxw-path-trail  { stroke:#6a5028; stroke-width:1.4; stroke-dasharray:1.5 2.5; }
+.sxw-path.armed  { filter:drop-shadow(0 0 2.5px #c8a96e); }
+.sxw-path-river.armed  { stroke:#5090d0; stroke-width:3.0; }
+.sxw-path-road.armed   { stroke:#7a5028; stroke-width:2.6; }
+.sxw-path-trail.armed  { stroke:#8a6838; stroke-width:1.8; }
+.sxw-path-dot {
+  pointer-events:none;
+  filter:drop-shadow(0 0 2px #c8a96e);
+}
+.sxw-path-dot.sxw-path-river { fill:#3a6fa8; }
+.sxw-path-dot.sxw-path-road  { fill:#5a3a18; }
+.sxw-path-dot.sxw-path-trail { fill:#6a5028; }
+body.theme-dark .sxw-path-river  { stroke:#6098cc; }
+body.theme-dark .sxw-path-road   { stroke:#a08050; }
+body.theme-dark .sxw-path-trail  { stroke:#b09060; }
+
+/* ── Armed-path ghost markers ──────────────────────────────────────────── */
+/* When a path is armed but has no cells in the current parent (its
+   last-authored cell lives in a neighbor parent), a pulsing dot
+   appears on this parent's boundary subhex that's axially adjacent
+   to the path's last cell. Tells the GM "click here to extend the
+   path into this parent." Disappears once the path has cells in
+   this parent. Color matches the path's kind. */
+.sxw-armed-ghost-layer { pointer-events:none; }
+.sxw-armed-ghost {
+  stroke:#fff;
+  stroke-width:1.4;
+  animation:sxw-ghost-pulse 1.5s ease-in-out infinite;
+}
+.sxw-armed-ghost.sxw-path-river { fill:#3a6fa8; }
+.sxw-armed-ghost.sxw-path-road  { fill:#5a3a18; }
+.sxw-armed-ghost.sxw-path-trail { fill:#6a5028; }
+body.theme-dark .sxw-armed-ghost { stroke:#1a1a1a; }
+body.theme-dark .sxw-armed-ghost.sxw-path-river { fill:#6098cc; }
+body.theme-dark .sxw-armed-ghost.sxw-path-road  { fill:#a08050; }
+body.theme-dark .sxw-armed-ghost.sxw-path-trail { fill:#b09060; }
+@keyframes sxw-ghost-pulse {
+  0%, 100% { filter:drop-shadow(0 0 1px rgba(0,0,0,0.4)); opacity:0.55; }
+  50%      { filter:drop-shadow(0 0 5px currentColor); opacity:1; }
+}
+
+/* ── Parent-path markers (SVG, click-to-author) ───────────────────────── */
+/* Small colored dots placed on boundary subhexes where a 30-mile parent
+   path crosses into a neighbor parent. Click a marker to start
+   authoring the corresponding subhex path: the system pre-creates a
+   path of matching kind + name, anchors it at the boundary subhex,
+   and arms the Path tool so the next clicks extend it. The OTHER end
+   of the same parent segment gets the .destination class so the GM
+   can see where to draw to.
+
+   Marker states:
+     (default)     solid filled dot, white halo  — unauthored, click to start
+     .authored     hollow dot with same border    — already wired up
+     .destination  pulsing halo                   — currently being aimed at */
+.sxw-parent-path-marker {
+  pointer-events:auto;
+  cursor:pointer;
+}
+.sxw-parent-path-marker circle {
+  stroke:#fff;
+  stroke-width:1.2;
+  filter:drop-shadow(0 0 1.5px rgba(0,0,0,0.35));
+}
+.sxw-parent-path-marker:hover circle {
+  stroke-width:2;
+  filter:drop-shadow(0 0 3px rgba(0,0,0,0.55));
+}
+.sxw-parent-path-marker.authored circle {
+  fill-opacity:0;
+  stroke-width:2.0;
+}
+.sxw-ppm-river.authored circle  { stroke:#378ADD; }
+.sxw-ppm-road.authored circle   { stroke:#8b5a2b; }
+.sxw-ppm-track.authored circle  { stroke:#c8a06f; }
+.sxw-parent-path-marker.destination circle {
+  stroke-width:2.5;
+  animation:sxw-marker-pulse 1.2s ease-in-out infinite;
+}
+@keyframes sxw-marker-pulse {
+  0%, 100% { filter:drop-shadow(0 0 1.5px rgba(0,0,0,0.35)); }
+  50%      { filter:drop-shadow(0 0 6px #c8a96e); }
+}
+body.theme-dark .sxw-parent-path-marker circle {
+  stroke:#1a1a1a;
+  filter:drop-shadow(0 0 1.5px rgba(255,255,255,0.25));
+}
+
+/* ── Crossings (auto-detected path intersections) ────────────────────── */
+/* Owned subhexes on 2+ paths get a small × badge in the upper-right.
+   Clicking pops a kind picker (rendered inside the SVG via
+   foreignObject so it tracks the cell at any zoom). The badge has
+   pointer-events but doesn't intercept cell painting elsewhere. */
+.sxw-crossings-layer { pointer-events:none; }
+.sxw-crossing-badge {
+  pointer-events:auto;
+  cursor:pointer;
+}
+.sxw-crossing-badge-bg {
+  fill:#fbf2da;
+  stroke:#8b0000;
+  stroke-width:1.0;
+  filter:drop-shadow(0 0 1.5px rgba(0,0,0,0.4));
+}
+.sxw-crossing-badge-x {
+  stroke:#8b0000;
+  stroke-width:1.4;
+  stroke-linecap:round;
+}
+.sxw-crossing-badge:hover .sxw-crossing-badge-bg {
+  fill:#f4d8a0;
+  stroke-width:1.5;
+}
+body.theme-dark .sxw-crossing-badge-bg {
+  fill:#2c2c2a;
+  stroke:#e07070;
+}
+body.theme-dark .sxw-crossing-badge-x { stroke:#e07070; }
+
+/* Crossing popup menu — anchored to the SVG via foreignObject. */
+.sxw-crossing-menu { overflow:visible; pointer-events:auto; }
+.sxw-crossing-menu-body {
+  background:#fbf2da;
+  border:1.5px solid #8b0000;
+  border-radius:4px;
+  box-shadow:0 4px 14px rgba(0,0,0,0.35);
+  padding:6px 5px 5px;
+  font-family:'Cinzel', serif;
+  font-size:11px;
+  color:#1a1a1a;
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+.sxw-crossing-menu-hint {
+  font-size:9px;
+  font-weight:500;
+  color:#5a4a30;
+  padding:0 4px 3px;
+  border-bottom:1px dashed #c8a96e;
+  margin-bottom:2px;
+  text-align:center;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.sxw-crossing-menu-btn {
+  background:transparent;
+  border:1px solid #b09060;
+  border-radius:3px;
+  color:#1a1a1a;
+  font-family:inherit;
+  font-size:11px;
+  padding:4px 6px;
+  cursor:pointer;
+  text-align:left;
+}
+.sxw-crossing-menu-btn:hover {
+  background:#c8a96e;
+  border-color:#5a4a30;
+}
+.sxw-crossing-menu-btn-dismiss {
+  margin-top:4px;
+  border-top:1px solid #c8a96e;
+  border-radius:0 0 3px 3px;
+  font-size:10px;
+  color:#5a4a30;
+}
+.sxw-crossing-menu-btn-dismiss:hover {
+  background:#e8d8b0;
+  color:#1a1a1a;
+}
+body.theme-dark .sxw-crossing-menu-body {
+  background:#2c2c2a;
+  border-color:#e07070;
+  color:#e8d8b0;
+}
+body.theme-dark .sxw-crossing-menu-hint { color:#c8a96e; border-color:#7a6a40; }
+body.theme-dark .sxw-crossing-menu-btn { color:#e8d8b0; border-color:#7a6a40; }
+body.theme-dark .sxw-crossing-menu-btn:hover { background:#7a6a40; color:#1a1a1a; }
+body.theme-dark .sxw-crossing-menu-btn-dismiss { color:#a89880; border-top-color:#7a6a40; }
+body.theme-dark .sxw-crossing-menu-btn-dismiss:hover { background:#3a3a38; color:#e8d8b0; }
+
+/* ── Paths row (detail panel, read-only) ──────────────────────────────── */
+/* ── Path armed picker (tools row) ────────────────────────────────────── */
+.sxw-path-armed {
+  background:#fbf2da;
+  color:#1a1a1a;
+  border:1px solid #b09060;
+  border-radius:3px;
+  padding:2px 5px;
+  font-family:inherit;
+  font-size:11px;
+  max-width:240px;
+}
+body.theme-dark .sxw-path-armed {
+  background:#1a1a1a;
+  color:#e8d8b0;
+  border-color:#7a6a40;
+}
+
+/* ── Tools row ────────────────────────────────────────────────────────── */
+.sxw-tools {
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:5px;
+  font-size:10px;
+  padding-top:5px;
+  border-top:1px solid #b09060;
+  margin-top:4px;
+}
+body.theme-dark .sxw-tools { border-top-color:#7a6a40; }
+.sxw-tool-btn {
+  background:transparent;
+  color:#1a1a1a;
+  border:1px solid #8b6a30;
+  border-radius:3px;
+  padding:2px 6px;
+  font-family:inherit;
+  font-size:11px;
+  cursor:pointer;
+  font-weight:500;
+}
+.sxw-tool-btn:hover { background:#c8a96e; color:#1a1a1a; }
+.sxw-tool-btn:disabled { opacity:0.45; cursor:not-allowed; }
+body.theme-dark .sxw-tool-btn { color:#f4e8c4; border-color:#a89060; }
+body.theme-dark .sxw-tool-btn:hover { background:#c8a96e; color:#1a1a1a; }
+.sxw-tool-btn-danger {
+  border-color:#8b0000;
+  color:#8b0000;
+}
+.sxw-tool-btn-danger:hover {
+  background:#8b0000;
+  color:#f4e8c4;
+}
+body.theme-dark .sxw-tool-btn-danger {
+  border-color:#e07070;
+  color:#e07070;
+}
+body.theme-dark .sxw-tool-btn-danger:hover {
+  background:#e07070;
+  color:#1a1a1a;
+}
+.sxw-tool-btn-armed {
+  background:#c8a96e;
+  color:#1a1a1a;
+  border-color:#5a4a30;
+}
+.sxw-tool-btn-armed:hover {
+  background:#b09060;
+  color:#1a1a1a;
+}
+body.theme-dark .sxw-tool-btn-armed {
+  background:#c8a96e;
+  color:#1a1a1a;
+  border-color:#5a4a30;
+}
+
+/* ── Path section (controls window) ───────────────────────────────────── */
+/* Dedicated block for path picker + action buttons + help text.
+   Sits between the palette strip and the tools row. Hidden until the
+   GM clicks the Path… button or arms a path via a marker click. */
+.sxw-path-section {
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  padding:6px 0 4px;
+  border-top:1px solid #b09060;
+  margin-top:4px;
+}
+body.theme-dark .sxw-path-section { border-top-color:#7a6a40; }
+.sxw-section-head {
+  font-size:10px;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  color:#3a2a18;
+  font-weight:500;
+  padding-bottom:3px;
+  border-bottom:1px solid #c8a96e;
+}
+body.theme-dark .sxw-section-head { color:#f4e8c4; border-bottom-color:#7a6a40; }
+.sxw-section-meta {
+  text-transform:none;
+  letter-spacing:0;
+  font-weight:400;
+  font-size:11px;
+  color:#5a4a30;
+}
+body.theme-dark .sxw-section-meta { color:#c8a96e; }
+.sxw-path-armed-block {
+  width:100%;
+  max-width:none;
+  font-size:12px;
+  padding:3px 6px;
+}
+.sxw-path-actions {
+  display:grid;
+  grid-template-columns:repeat(4, 1fr);
+  gap:5px;
+}
+.sxw-path-actions .sxw-tool-btn {
+  width:100%;
+  padding:4px 6px;
+  font-size:11px;
+}
+.sxw-path-help {
+  font-size:11px;
+  color:#3a2a18;
+  font-style:italic;
+  padding:5px 8px;
+  background:rgba(200, 169, 110, 0.18);
+  border-left:3px solid #8b6a30;
+  border-radius:0 3px 3px 0;
+  line-height:1.4;
+}
+body.theme-dark .sxw-path-help {
+  color:#f4e8c4;
+  background:rgba(168, 144, 96, 0.18);
+  border-left-color:#a89060;
+}
+.sxw-mode {
+  color:#3a2a18;
+  font-style:italic;
+  margin-left:auto;
+  font-size:10px;
+  transition:color 0.15s, font-weight 0.15s;
+}
+body.theme-dark .sxw-mode { color:#f4e8c4; }
+.sxw-mode.sxw-mode-flash {
+  color:#8b0000;
+  font-weight:500;
+  font-style:normal;
+}
+body.theme-dark .sxw-mode.sxw-mode-flash { color:#e07070; }
+
+/* Landmark halo — drawn behind the feature glyph when a cell is
+   pinned to a parent landmark. Faint gold disk that fades, plus a
+   thin gold outline. Single visual cue that "this cell IS the
+   settlement" rather than a generic feature of the same kind. */
+.sxw-landmark-halo {
+  fill:rgba(212, 165, 70, 0.18);
+  stroke:#c8941a;
+  stroke-width:0.7;
+  stroke-opacity:0.85;
+  pointer-events:none;
+}
+body.theme-dark .sxw-landmark-halo {
+  fill:rgba(232, 200, 110, 0.22);
+  stroke:#e8c870;
+}
+
+/* ── v1.11.0 (Slice 1: panel reorg) ─────────────────────────────────
+   Tools/palette move to the top of the Controls panel. The .sxw-detail
+   block becomes a collapsible cell-details section below them, with a
+   header row, a one-line summary (terrain · lake · paths · region),
+   the always-visible body (Name / Notes / Region picker), and a
+   <details>-based "More fields" expander for Hosts / feature notes /
+   landmark pin. v2.9.0 will land the readable parchment palette pass
+   on top of these structural classes.
+
+   TODO: dark mode toggle. Foundation exists in this file (body.theme-dark
+   selectors throughout). Plan: add a toggle in the GCC settings dialog
+   that flips body.theme-dark on/off and persists via localStorage
+   (key gcc-settings.theme). All the dark-mode rules already exist;
+   only the toggle UI is missing. */
+
+.sxw-detail-head {
+  display:flex;
+  align-items:baseline;
+  gap:6px;
+  flex-wrap:wrap;
+  padding:4px 0 2px;
+  border-bottom:1px solid rgba(90,58,10,0.25);
+  margin-bottom:6px;
+}
+.sxw-detail-label {
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  font-size:10px;
+  color:#3a2a18;
+  font-weight:600;
+}
+body.theme-dark .sxw-detail-label { color:#f4e8c4; }
+body.theme-dark .sxw-detail-head { border-bottom-color:rgba(232,200,110,0.22); }
+
+.sxw-detail-summary {
+  display:flex;
+  align-items:baseline;
+  gap:6px;
+  flex-wrap:wrap;
+  margin-bottom:6px;
+  font-size:11px;
+}
+.sxw-summary-label {
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  font-size:10px;
+  color:#3a2a18;
+  margin-right:2px;
+}
+body.theme-dark .sxw-summary-label { color:#f4e8c4; }
+.sxw-summary-sep { color:#8a6a40; }
+body.theme-dark .sxw-summary-sep { color:#c8a878; }
+
+/* Hide the body and summary line entirely when no cell is selected.
+   Driven by JS toggling .sxw-detail.no-cell. */
+.sxw-detail.no-cell .sxw-detail-summary,
+.sxw-detail.no-cell .sxw-detail-body {
+  display:none;
+}
+
+/* Native <details> styling — keep the parchment idiom, no triangle. */
+.sxw-more-fields {
+  margin:6px 0 4px;
+  border-top:1px dashed rgba(90,58,10,0.25);
+  padding-top:6px;
+}
+body.theme-dark .sxw-more-fields { border-top-color:rgba(232,200,110,0.22); }
+.sxw-more-fields > summary {
+  cursor:pointer;
+  user-select:none;
+  font-size:10px;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  color:#3a2a18;
+  padding:2px 0;
+  list-style:none;
+}
+.sxw-more-fields > summary::-webkit-details-marker { display:none; }
+.sxw-more-fields > summary::before {
+  content:'▸';
+  display:inline-block;
+  margin-right:4px;
+  transition:transform 0.12s;
+}
+.sxw-more-fields[open] > summary::before { transform:rotate(90deg); }
+.sxw-more-fields > summary:hover { color:#5a3a0a; }
+body.theme-dark .sxw-more-fields > summary { color:#f4e8c4; }
+body.theme-dark .sxw-more-fields > summary:hover { color:#fff8d8; }
+
+/* ── v1.12.0 (Slice 2: button/dropdown ergonomics + readability) ───
+   The Region/Path/Lake tool buttons stay fixed in their row; clicking
+   one opens a tinted callout block immediately below holding that
+   tool's controls. Same idiom for all three tools. The callout uses
+   a soft gold tint to visually associate with the gold-armed button
+   above it.
+
+   Readability bumps: body text up to 13px, labels stay at 11px (was
+   9-10), inputs gain stronger backgrounds and 1.5px borders, the
+   mode label gets red-orange when armed to share visual language with
+   the orange selected-hex stroke. */
+
+.sxw-tools-row {
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:6px;
+  padding:8px 0 6px;
+  border-bottom:1px dashed rgba(90,58,10,0.25);
+  margin-bottom:6px;
+}
+body.theme-dark .sxw-tools-row { border-bottom-color:rgba(232,200,110,0.22); }
+
+.sxw-tool-callout {
+  background:rgba(200,148,26,0.10);
+  border:1px solid #c8941a;
+  border-radius:3px;
+  padding:6px 8px;
+  margin-bottom:8px;
+}
+body.theme-dark .sxw-tool-callout {
+  background:rgba(232,200,110,0.10);
+  border-color:#c8941a;
+}
+.sxw-callout-pane {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+#sxw-callout-path {
+  display:block;
+}
+.sxw-callout-pathrow {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-bottom:6px;
+}
+.sxw-callout-label {
+  font-size:10px;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  color:#5a3a0a;
+  font-weight:600;
+  flex:0 0 auto;
+}
+body.theme-dark .sxw-callout-label { color:#e8c870; }
+
+/* Inputs inside the callout: stronger contrast than detail-row inputs
+   because they're action-driving rather than field-edit. */
+.sxw-tool-callout select {
+  flex:1;
+  background:#fff;
+  border:1.5px solid #3d2807;
+  border-radius:3px;
+  padding:4px 6px;
+  font-family:inherit;
+  font-size:13px;
+  color:#1a0f03;
+  min-width:0;
+}
+body.theme-dark .sxw-tool-callout select {
+  background:#1f1611;
+  color:#f0e6d0;
+  border-color:#c8941a;
+}
+
+/* Mode label gets red-orange when something is armed. Matches the
+   orange selected-hex stroke on the main map so panel + map share a
+   single "active state" visual language. */
+.sxw-mode { color:#3a2a18; font-style:italic; margin-left:auto; font-size:11px; }
+body.theme-dark .sxw-mode { color:#f4e8c4; }
+.sxw-mode.sxw-mode-armed {
+  color:#b8500a;
+  font-style:normal;
+  font-weight:600;
+}
+body.theme-dark .sxw-mode.sxw-mode-armed { color:#ff9800; }
+
+/* Readability bumps. Labels move from 9-10px up to 11px, body inputs
+   to 13px. Input backgrounds get a stronger contrast against the
+   parchment panel so they read as "inputs" without squinting. */
+.sxw-row label {
+  font-size:11px;
+}
+.sxw-row input[type=text],
+.sxw-row textarea,
+.sxw-row select {
+  background:#fff;
+  border:1.5px solid #8b6a30;
+  font-size:13px;
+  padding:4px 6px;
+}
+body.theme-dark .sxw-row input[type=text],
+body.theme-dark .sxw-row textarea,
+body.theme-dark .sxw-row select {
+  background:#1a1208;
+}
+.sxw-row input[type=text]:disabled,
+.sxw-row textarea:disabled,
+.sxw-row select:disabled {
+  background:#f4e8c4;
+}
+
+/* Path actions inside the callout — slightly tighter spacing than
+   the freestanding tool button row so the action grid feels grouped. */
+.sxw-tool-callout .sxw-path-actions {
+  display:grid;
+  grid-template-columns:repeat(4, 1fr);
+  gap:4px;
+  margin-bottom:4px;
+}
+.sxw-tool-callout .sxw-path-action {
+  font-size:11px;
+  padding:4px 6px;
+  text-align:center;
+}
+.sxw-tool-callout .sxw-path-help {
+  font-size:11px;
+  color:#5a3a0a;
+  font-style:italic;
+  line-height:1.4;
+}
+body.theme-dark .sxw-tool-callout .sxw-path-help { color:#e8c870; }
+
+/* ── Fog of war (v1.13) ───────────────────────────────────────────────── */
+/* Applied to the cell <g> when GCCFog.shouldFogSubhex(Q,R) is true.
+   Terrain + feature icon layers hide; cell fill darkens. Strokes are
+   left alone so .selected and .authored halos remain visible — the GM
+   can still tell which fogged cell is selected. The fragment-cell case
+   is included; fogged fragments look the same as fogged owned cells. */
+.sxw-cell-group.fogged .sxw-cell {
+  fill:#1a1a1a !important;
+  fill-opacity:0.92;
+}
+.sxw-cell-group.fogged .sxw-cell.fragment {
+  fill-opacity:0.78;
+}
+.sxw-cell-group.fogged .sxw-terrain-layer,
+.sxw-cell-group.fogged .sxw-feature-layer {
+  display:none;
+}
+.sxw-cell-group.fogged .sxw-cell-label {
+  display:none;
+}
+body.theme-dark .sxw-cell-group.fogged .sxw-cell {
+  fill:#0a0a0a !important;
+}
+.sxw-cell-group.fogged .sxw-cell:hover {
+  stroke:#c8a96e;
+  stroke-width:2.5;
+  stroke-opacity:1;
+}
