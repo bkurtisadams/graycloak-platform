@@ -38,7 +38,7 @@
   .parent-hex { fill:transparent; stroke:var(--hex-stroke); stroke-width:.5; cursor:pointer; transition:fill .1s; }
   .parent-hex:hover { fill:var(--hex-hover); stroke:rgba(255,200,80,.6); stroke-width:.8; }
   .parent-hex.selected { fill:var(--hex-selected); stroke:#ff8844; stroke-width:1.4; }
-  .parent-label { font-family:'Cinzel',serif; font-size:2.4px; fill:rgba(0,0,0,.55); text-anchor:middle; dominant-baseline:middle; pointer-events:none; }
+  .parent-label { font-family:'Cinzel',serif; font-size:5px; fill:rgba(0,0,0,.6); text-anchor:middle; dominant-baseline:middle; pointer-events:none; }
 
   .hud { position:fixed; background:var(--panel-bg); border:1px solid var(--panel-border); border-radius:3px; color:var(--parchment-light); padding:10px 14px; font-size:12px; z-index:50; box-shadow:0 4px 16px rgba(0,0,0,.6); }
   #hud-cell      { top:calc(var(--topbar-h) + 12px); left:12px;   min-width:200px; }
@@ -71,7 +71,7 @@
 
 <div id="topbar">
   <h1>GAMMA WORLD — Campaign Map</h1>
-  <span class="ver">v0.1.0</span>
+  <span class="ver">v0.1.1</span>
   <span class="sep"></span>
   <button id="btn-reset">Fit View</button>
   <span class="spacer"></span>
@@ -80,7 +80,7 @@
 <div id="map-wrap">
   <div id="map-stage">
     <svg id="world" xmlns="http://www.w3.org/2000/svg">
-      <image href="gwmap.png" x="0" y="0" width="1600" height="997"/>
+      <image href="gwmap.png" x="0" y="0" width="3001" height="1863"/>
       <g id="parent-grid"></g>
       <g id="parent-labels"></g>
     </svg>
@@ -131,17 +131,20 @@
 'use strict';
 
 // ─── Geometry ────────────────────────────────────────────────────────────────
-// HEX_R = parent hex circumradius in SVG units. Neighbor distance = HEX_R*√3.
-// Subhex SUB_R = HEX_R / 10 (for v0.2.0 layer). PNG is 1600×997, rendered 1:1
-// in SVG units so HEX_R=10 gives ~108×59 parent hexes covering the map.
-const HEX_R      = 10;
+// HEX_R = parent hex circumradius in SVG units, calibrated to the 3e printed
+// map: ~16 px per hex, POINTY-TOP orientation (vertex up). Subhex SUB_R =
+// HEX_R / 10 (for v0.2.0 layer). PNG is 3001×1863, rendered 1:1 in SVG units
+// so each printed hex on the map aligns 1:1 with a code parent hex.
+// Printed scale: 44 km/hex (27.3 mi) per the legend; we rescale to 30 mi
+// for game purposes per Option B (clean 3-mile subhex math).
+const HEX_R      = 16;
 const SUB_R      = HEX_R / 10;
 const SQRT3      = Math.sqrt(3);
-const HEX_STEP_X = HEX_R * 1.5;
-const HEX_STEP_Y = HEX_R * SQRT3;
+const HEX_STEP_X = HEX_R * SQRT3;   // pointy-top: column horizontal step
+const HEX_STEP_Y = HEX_R * 1.5;     // pointy-top: row vertical step
 
-const WORLD_W = 1600;
-const WORLD_H = 997;
+const WORLD_W = 3001;
+const WORLD_H = 1863;
 
 const COLS = Math.ceil(WORLD_W / HEX_STEP_X) + 1;
 const ROWS = Math.ceil(WORLD_H / HEX_STEP_Y) + 1;
@@ -153,15 +156,17 @@ const ANCHOR_COL = Math.floor(COLS / 2);
 const ANCHOR_ROW = Math.floor(ROWS / 2);
 
 function colRowToCenter(col, row){
-  const x = col * HEX_STEP_X;
-  const y = row * HEX_STEP_Y + (col % 2 ? HEX_STEP_Y / 2 : 0);
+  // Pointy-top, odd-r offset: odd rows shift right by half a column step
+  const x = col * HEX_STEP_X + (row % 2 ? HEX_STEP_X / 2 : 0);
+  const y = row * HEX_STEP_Y;
   return { x, y };
 }
 
 function hexPolygonPoints(cx, cy, r){
+  // Pointy-top: vertices at -90°, -30°, 30°, 90°, 150°, 210°
   const pts = [];
   for (let i = 0; i < 6; i++){
-    const a = i * Math.PI / 3;
+    const a = -Math.PI/2 + i * Math.PI/3;
     pts.push((cx + r * Math.cos(a)).toFixed(2) + ',' + (cy + r * Math.sin(a)).toFixed(2));
   }
   return pts.join(' ');
