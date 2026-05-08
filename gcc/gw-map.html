@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gamma World — Campaign Map</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23120900'/%3E%3Cpolygon points='16,4 28,11 28,21 16,28 4,21 4,11' fill='none' stroke='%23ff8844' stroke-width='2.5'/%3E%3C/svg%3E">
+
+<script src="gw-encounter-data.js"></script>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
+  :root {
+    --parchment-light: #e8d5a3;
+    --hex-stroke: rgba(0,0,0,0.32);
+    --hex-hover: rgba(255,180,80,0.22);
+    --hex-selected: rgba(255,120,40,0.42);
+    --panel-bg: rgba(14,8,2,0.93);
+    --panel-border: #5a3a0a;
+    --gamma-orange: #ff8844;
+    --gamma-orange-light: #ffaa66;
+    --topbar-h: 46px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background:#0a0500; font-family:'Crimson Text',Georgia,serif; color:var(--parchment-light); overflow:hidden; height:100vh; width:100vw; user-select:none; }
+
+  #topbar { position:fixed; top:0; left:0; right:0; height:var(--topbar-h); background:linear-gradient(180deg,#100800,#1e1004); border-bottom:1px solid var(--panel-border); display:flex; align-items:center; padding:0 14px; gap:12px; z-index:100; }
+  #topbar h1 { font-family:'Cinzel',serif; font-size:15px; font-weight:600; letter-spacing:.12em; color:var(--gamma-orange-light); text-shadow:0 0 12px rgba(255,136,68,.4); }
+  #topbar .ver { font-size:11px; color:#c8a96e; }
+  .sep { width:1px; height:22px; background:var(--panel-border); }
+  .spacer { flex:1; }
+
+  #map-wrap { position:fixed; top:var(--topbar-h); left:0; right:0; bottom:0; overflow:hidden; cursor:grab; background:#050200; touch-action:none; }
+  #map-wrap.grabbing { cursor:grabbing; }
+  #map-stage { position:absolute; top:0; left:0; transform-origin:0 0; will-change:transform; }
+  #world { display:block; }
+
+  .parent-hex { fill:transparent; stroke:var(--hex-stroke); stroke-width:.5; cursor:pointer; transition:fill .1s; }
+  .parent-hex:hover { fill:var(--hex-hover); stroke:rgba(255,200,80,.6); stroke-width:.8; }
+  .parent-hex.selected { fill:var(--hex-selected); stroke:#ff8844; stroke-width:1.4; }
+  .parent-label { font-family:'Cinzel',serif; font-size:2.4px; fill:rgba(0,0,0,.55); text-anchor:middle; dominant-baseline:middle; pointer-events:none; }
+
+  .hud { position:fixed; background:var(--panel-bg); border:1px solid var(--panel-border); border-radius:3px; color:var(--parchment-light); padding:10px 14px; font-size:12px; z-index:50; box-shadow:0 4px 16px rgba(0,0,0,.6); }
+  #hud-cell      { top:calc(var(--topbar-h) + 12px); left:12px;   min-width:200px; }
+  #hud-layers    { top:calc(var(--topbar-h) + 12px); right:12px;  min-width:160px; }
+  #hud-encounter { bottom:12px; left:12px;  min-width:260px; max-width:320px; }
+  #hud-zoom      { bottom:12px; right:12px; min-width:140px; }
+
+  .hud h3 { font-family:'Cinzel',serif; font-size:11px; font-weight:600; letter-spacing:.1em; color:var(--gamma-orange-light); margin-bottom:6px; }
+  .hud-row { display:flex; justify-content:space-between; padding:2px 0; }
+  .hud-row label { color:#aaa899; }
+
+  .layer-toggle { display:flex; align-items:center; gap:6px; padding:3px 0; cursor:pointer; }
+  .layer-toggle input { cursor:pointer; }
+
+  button { background:none; border:1px solid var(--panel-border); color:var(--parchment-light); font-family:'Cinzel',serif; font-size:11px; letter-spacing:.04em; padding:5px 10px; cursor:pointer; border-radius:2px; transition:all .15s; }
+  button:hover { background:rgba(255,136,68,.18); border-color:var(--gamma-orange); color:var(--gamma-orange-light); }
+  button:active { transform:scale(.97); }
+  button.primary { background:rgba(255,136,68,.18); border-color:var(--gamma-orange); color:var(--gamma-orange-light); }
+  button.primary:hover { background:rgba(255,136,68,.32); }
+
+  select { background:#1a0e02; border:1px solid var(--panel-border); color:var(--parchment-light); font-family:'Crimson Text',serif; font-size:12px; padding:3px 6px; border-radius:2px; }
+
+  .enc-result { margin-top:10px; padding-top:8px; border-top:1px solid var(--panel-border); font-size:11px; line-height:1.6; }
+  .enc-result .creature { color:var(--gamma-orange-light); font-weight:600; font-size:13px; }
+  .enc-result .nope { color:#888; font-style:italic; }
+  .enc-result .meta { color:#aaa899; font-size:10px; }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <h1>GAMMA WORLD — Campaign Map</h1>
+  <span class="ver">v0.1.0</span>
+  <span class="sep"></span>
+  <button id="btn-reset">Fit View</button>
+  <span class="spacer"></span>
+</div>
+
+<div id="map-wrap">
+  <div id="map-stage">
+    <svg id="world" xmlns="http://www.w3.org/2000/svg">
+      <image href="gwmap.png" x="0" y="0" width="1600" height="997"/>
+      <g id="parent-grid"></g>
+      <g id="parent-labels"></g>
+    </svg>
+  </div>
+</div>
+
+<div id="hud-cell" class="hud">
+  <h3>Cell</h3>
+  <div class="hud-row"><label>Coords</label><span id="hc-coords">—</span></div>
+  <div class="hud-row"><label>Terrain</label><span id="hc-terrain">—</span></div>
+  <div class="hud-row"><label>Region</label><span id="hc-region">—</span></div>
+</div>
+
+<div id="hud-layers" class="hud">
+  <h3>Layers</h3>
+  <label class="layer-toggle"><input type="checkbox" id="lt-parent" checked>Parent grid</label>
+  <label class="layer-toggle"><input type="checkbox" id="lt-labels">Coords</label>
+</div>
+
+<div id="hud-encounter" class="hud">
+  <h3>Encounter</h3>
+  <div class="hud-row">
+    <label>Terrain</label>
+    <select id="enc-terrain">
+      <option value="clear">Clear</option>
+      <option value="mountains">Mountains</option>
+      <option value="forest">Forest</option>
+      <option value="desert">Desert</option>
+      <option value="water">Water</option>
+      <option value="ruins">Ruins</option>
+      <option value="radioactive">Radioactive</option>
+    </select>
+  </div>
+  <div style="margin-top:8px;display:flex;gap:6px;">
+    <button id="btn-roll-day" class="primary">Roll day</button>
+    <button id="btn-roll-watch">Roll watch</button>
+  </div>
+  <div id="enc-result" class="enc-result" style="display:none;"></div>
+</div>
+
+<div id="hud-zoom" class="hud">
+  <h3>View</h3>
+  <div class="hud-row"><label>Zoom</label><span id="hz-zoom">100%</span></div>
+  <div class="hud-row"><label>Scale</label><span>30 mi/parent</span></div>
+</div>
+
+<script>
+'use strict';
+
+// ─── Geometry ────────────────────────────────────────────────────────────────
+// HEX_R = parent hex circumradius in SVG units. Neighbor distance = HEX_R*√3.
+// Subhex SUB_R = HEX_R / 10 (for v0.2.0 layer). PNG is 1600×997, rendered 1:1
+// in SVG units so HEX_R=10 gives ~108×59 parent hexes covering the map.
+const HEX_R      = 10;
+const SUB_R      = HEX_R / 10;
+const SQRT3      = Math.sqrt(3);
+const HEX_STEP_X = HEX_R * 1.5;
+const HEX_STEP_Y = HEX_R * SQRT3;
+
+const WORLD_W = 1600;
+const WORLD_H = 997;
+
+const COLS = Math.ceil(WORLD_W / HEX_STEP_X) + 1;
+const ROWS = Math.ceil(WORLD_H / HEX_STEP_Y) + 1;
+
+// Anchor — fixed forever once chosen. Centers the (col,row) coord system at
+// roughly the middle of the GW PNG. Subhex layer (v0.2.0) will use this for
+// global Q,R math; changing it later requires rewriting every doc id.
+const ANCHOR_COL = Math.floor(COLS / 2);
+const ANCHOR_ROW = Math.floor(ROWS / 2);
+
+function colRowToCenter(col, row){
+  const x = col * HEX_STEP_X;
+  const y = row * HEX_STEP_Y + (col % 2 ? HEX_STEP_Y / 2 : 0);
+  return { x, y };
+}
+
+function hexPolygonPoints(cx, cy, r){
+  const pts = [];
+  for (let i = 0; i < 6; i++){
+    const a = i * Math.PI / 3;
+    pts.push((cx + r * Math.cos(a)).toFixed(2) + ',' + (cy + r * Math.sin(a)).toFixed(2));
+  }
+  return pts.join(' ');
+}
+
+// ─── Pan / zoom ──────────────────────────────────────────────────────────────
+const stage = document.getElementById('map-stage');
+const wrap  = document.getElementById('map-wrap');
+const view  = { x: 0, y: 0, scale: 1 };
+const MIN_SCALE = 0.3;
+const MAX_SCALE = 12;
+
+function applyTransform(){
+  stage.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
+  document.getElementById('hz-zoom').textContent = Math.round(view.scale * 100) + '%';
+}
+
+function fitToWindow(){
+  const rect = wrap.getBoundingClientRect();
+  const sx = rect.width / WORLD_W;
+  const sy = rect.height / WORLD_H;
+  view.scale = Math.min(sx, sy) * 0.95;
+  view.x = (rect.width  - WORLD_W * view.scale) / 2;
+  view.y = (rect.height - WORLD_H * view.scale) / 2;
+  applyTransform();
+}
+
+let drag = null;
+wrap.addEventListener('mousedown', e => {
+  if (e.button !== 0) return;
+  if (e.target.classList && e.target.classList.contains('parent-hex')) return;
+  drag = { startX: e.clientX, startY: e.clientY, viewX: view.x, viewY: view.y };
+  wrap.classList.add('grabbing');
+});
+window.addEventListener('mousemove', e => {
+  if (!drag) return;
+  view.x = drag.viewX + (e.clientX - drag.startX);
+  view.y = drag.viewY + (e.clientY - drag.startY);
+  applyTransform();
+});
+window.addEventListener('mouseup', () => {
+  drag = null;
+  wrap.classList.remove('grabbing');
+});
+
+wrap.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect = wrap.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const wx = (mx - view.x) / view.scale;
+  const wy = (my - view.y) / view.scale;
+  const factor = e.deltaY < 0 ? 1.15 : 1/1.15;
+  view.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, view.scale * factor));
+  view.x = mx - wx * view.scale;
+  view.y = my - wy * view.scale;
+  applyTransform();
+}, { passive: false });
+
+document.getElementById('btn-reset').onclick = fitToWindow;
+
+// ─── Parent grid ─────────────────────────────────────────────────────────────
+let selectedHex = null;
+
+function buildParentGrid(){
+  const gridG  = document.getElementById('parent-grid');
+  const labelG = document.getElementById('parent-labels');
+  for (let col = 0; col < COLS; col++){
+    for (let row = 0; row < ROWS; row++){
+      const { x, y } = colRowToCenter(col, row);
+      if (x < -HEX_R || x > WORLD_W + HEX_R || y < -HEX_R || y > WORLD_H + HEX_R) continue;
+      const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+      poly.setAttribute('points', hexPolygonPoints(x, y, HEX_R));
+      poly.setAttribute('class', 'parent-hex');
+      poly.dataset.col = col;
+      poly.dataset.row = row;
+      poly.addEventListener('click', () => onCellClick(col, row, poly));
+      gridG.appendChild(poly);
+      const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      lbl.setAttribute('x', x);
+      lbl.setAttribute('y', y);
+      lbl.setAttribute('class', 'parent-label');
+      lbl.textContent = col + ',' + row;
+      labelG.appendChild(lbl);
+    }
+  }
+  document.getElementById('parent-labels').style.display = 'none';
+}
+
+function onCellClick(col, row, polyEl){
+  if (selectedHex) selectedHex.classList.remove('selected');
+  polyEl.classList.add('selected');
+  selectedHex = polyEl;
+  document.getElementById('hc-coords').textContent  = col + ', ' + row;
+  document.getElementById('hc-terrain').textContent = '(use dropdown — auth in v0.2.0)';
+  document.getElementById('hc-region').textContent  = '—';
+}
+
+// ─── Layer toggles ───────────────────────────────────────────────────────────
+document.getElementById('lt-parent').onchange = e => {
+  document.getElementById('parent-grid').style.display = e.target.checked ? '' : 'none';
+};
+document.getElementById('lt-labels').onchange = e => {
+  document.getElementById('parent-labels').style.display = e.target.checked ? '' : 'none';
+};
+
+// ─── Encounter rolls ─────────────────────────────────────────────────────────
+function d(n){ return Math.floor(Math.random() * n) + 1; }
+
+function rollEncounter(terrainKey){
+  const D = window.GWEncounterData;
+  if (!D) return { error: 'gw-encounter-data.js not loaded' };
+  const tableKey = D.TERRAIN_TO_TABLE[terrainKey] || 'clear';
+  const table = D.ENCOUNTER_TABLES[tableKey];
+  const roll = d(D.TABLE_DIE_SIZE);
+  const row = table.find(r => roll >= r.min && roll <= r.max);
+  return { tableKey, roll, row };
+}
+
+function rollWithCheck(scaleLabel){
+  const t = document.getElementById('enc-terrain').value;
+  const check = d(6);
+  const el = document.getElementById('enc-result');
+  el.style.display = 'block';
+
+  if (check !== 6){
+    el.innerHTML =
+      `<div class="meta">${scaleLabel} check (1d6)</div>` +
+      `<div>Rolled <strong>${check}</strong> — no encounter.</div>`;
+    return;
+  }
+
+  const result = rollEncounter(t);
+  if (result.error){
+    el.innerHTML = `<span class="nope">${result.error}</span>`;
+    return;
+  }
+
+  const r = result.row;
+  let html =
+    `<div class="meta">${scaleLabel} check (1d6) → 6 ✶  Resolve on <em>${result.tableKey}</em> (1d20 → ${result.roll})</div>`;
+  if (r.creature === 'No Encounter'){
+    html += `<div class="nope">No encounter (high roll on short table)</div>`;
+  } else {
+    html += `<div class="creature">${r.creature}</div>`;
+    if (r.number) html += `<div>Number appearing: ${r.number}</div>`;
+    if (r.note)   html += `<div class="meta" style="font-style:italic;">${r.note}</div>`;
+  }
+  el.innerHTML = html;
+}
+
+document.getElementById('btn-roll-day').onclick   = () => rollWithCheck('Day');
+document.getElementById('btn-roll-watch').onclick = () => rollWithCheck('Watch');
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+buildParentGrid();
+fitToWindow();
+window.addEventListener('resize', fitToWindow);
+
+console.log('[gw-map] loaded', { COLS, ROWS, ANCHOR_COL, ANCHOR_ROW, HEX_R, parents: COLS*ROWS });
+</script>
+</body>
+</html>
