@@ -41,17 +41,18 @@ const GCC = (function() {
   // ── System Registry ──
   // Each system defines its id, display info, and tool definitions
   const SYSTEM_DEFS = [
-    {
-      id: 'mp',
-      name: 'Mighty Protectors',
-      icon: '🛡',
-      color: '#a03020',
-      tools: [
-        { id: 'mp-char', name: 'Character Builder', href: 'character.html', charList: 'mp-char-list' },
-        { id: 'mp-veh', name: 'Vehicle Builder', href: 'vehicle.html', charList: 'mp-veh-list' },
-        { id: 'mp-r20', name: 'Roll20 Import', href: 'character.html?r20=1' },
-      ]
-    },
+  {
+  id: 'mp',
+  name: 'Mighty Protectors',
+  icon: '🛡',
+  color: '#a03020',
+  tools: [
+    { id: 'mp-char', name: 'Character Builder', href: 'character.html', charList: 'mp-char-list' },
+    { id: 'mp-veh', name: 'Vehicle Builder', href: 'vehicle.html', charList: 'mp-veh-list' },
+    { id: 'mp-r20', name: 'Roll20 Import', href: 'character.html?r20=1' },
+    { id: 'mp-gw-map', name: 'Gamma World Map', href: 'gw-map.html' },   // ← add this line
+  ]
+},
     {
       id: 'faserip',
       name: 'FASERIP',
