@@ -7,6 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23120900'/%3E%3Cpolygon points='16,4 28,11 28,21 16,28 4,21 4,11' fill='none' stroke='%23ff8844' stroke-width='2.5'/%3E%3C/svg%3E">
 
 <script src="gw-encounter-data.js"></script>
+<script src="gw-terrain-data.js?v=1"></script>
 
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
@@ -35,9 +36,10 @@
   #map-stage { position:absolute; top:0; left:0; transform-origin:0 0; will-change:transform; }
   #world { display:block; }
 
-  .parent-hex { fill:transparent; stroke:var(--hex-stroke); stroke-width:.5; cursor:pointer; transition:fill .1s; }
-  .parent-hex:hover { fill:var(--hex-hover); stroke:rgba(255,200,80,.6); stroke-width:.8; }
-  .parent-hex.selected { fill:var(--hex-selected); stroke:#ff8844; stroke-width:1.4; }
+  .parent-hex { fill:transparent; stroke:var(--hex-stroke); stroke-width:.5; cursor:pointer; transition:fill .1s, fill-opacity .1s; fill-opacity:1; }
+  body.printed-map-shown .parent-hex { fill-opacity:.4; }
+  .parent-hex:hover { stroke:rgba(255,200,80,.9); stroke-width:1; }
+  .parent-hex.selected { stroke:#ff8844; stroke-width:1.8; }
   .parent-label { font-family:'Cinzel',serif; font-size:5px; fill:rgba(0,0,0,.6); text-anchor:middle; dominant-baseline:middle; pointer-events:none; }
 
   .hud { position:fixed; background:var(--panel-bg); border:1px solid var(--panel-border); border-radius:3px; color:var(--parchment-light); padding:10px 14px; font-size:12px; z-index:50; box-shadow:0 4px 16px rgba(0,0,0,.6); }
@@ -71,7 +73,7 @@
 
 <div id="topbar">
   <h1>GAMMA WORLD — Campaign Map</h1>
-  <span class="ver">v0.1.2</span>
+  <span class="ver">v0.3.0</span>
   <span class="sep"></span>
   <button id="btn-reset">Fit View</button>
   <span class="spacer"></span>
@@ -80,7 +82,7 @@
 <div id="map-wrap">
   <div id="map-stage">
     <svg id="world" xmlns="http://www.w3.org/2000/svg">
-      <image href="gwmap.png?v=2" x="0" y="0" width="3001" height="1863"/>
+      <image id="printed-map" href="gwmap.png?v=2" x="0" y="0" width="3001" height="1863" style="display:none;"/>
       <g id="parent-grid"></g>
       <g id="parent-labels"></g>
     </svg>
@@ -90,7 +92,21 @@
 <div id="hud-cell" class="hud">
   <h3>Cell</h3>
   <div class="hud-row"><label>Coords</label><span id="hc-coords">—</span></div>
-  <div class="hud-row"><label>Terrain</label><span id="hc-terrain">—</span></div>
+  <div class="hud-row"><label>Terrain</label>
+    <select id="hc-terrain-edit" disabled>
+      <option value="">—</option>
+      <option value="water">Water</option>
+      <option value="plains">Plains</option>
+      <option value="desert">Desert</option>
+      <option value="forest">Forest</option>
+      <option value="heavy-forest">Heavy forest</option>
+      <option value="mountains">Mountains</option>
+      <option value="snow-mountains">Snow-capped mountains</option>
+      <option value="deathlands">Deathlands</option>
+      <option value="ruins">Ruins</option>
+    </select>
+  </div>
+  <div class="hud-row"><label>Source</label><span id="hc-source">—</span></div>
   <div class="hud-row"><label>Region</label><span id="hc-region">—</span></div>
 </div>
 
@@ -98,25 +114,18 @@
   <h3>Layers</h3>
   <label class="layer-toggle"><input type="checkbox" id="lt-parent" checked>Parent grid</label>
   <label class="layer-toggle"><input type="checkbox" id="lt-labels">Coords</label>
+  <label class="layer-toggle"><input type="checkbox" id="lt-png">Show printed map</label>
 </div>
 
 <div id="hud-encounter" class="hud">
   <h3>Encounter</h3>
   <div class="hud-row">
     <label>Terrain</label>
-    <select id="enc-terrain">
-      <option value="clear">Clear</option>
-      <option value="mountains">Mountains</option>
-      <option value="forest">Forest</option>
-      <option value="desert">Desert</option>
-      <option value="water">Water</option>
-      <option value="ruins">Ruins</option>
-      <option value="radioactive">Radioactive</option>
-    </select>
+    <span id="enc-terrain-readout" style="color:var(--gamma-orange-light);">— click a hex —</span>
   </div>
   <div style="margin-top:8px;display:flex;gap:6px;">
-    <button id="btn-roll-day" class="primary">Roll day</button>
-    <button id="btn-roll-watch">Roll watch</button>
+    <button id="btn-roll-day" class="primary" disabled>Roll day</button>
+    <button id="btn-roll-watch" disabled>Roll watch</button>
   </div>
   <div id="enc-result" class="enc-result" style="display:none;"></div>
 </div>
@@ -129,6 +138,61 @@
 
 <script>
 'use strict';
+
+// ─── Terrain layer ───────────────────────────────────────────────────────────
+const TERRAIN_COLOR = {
+  water:            '#72a3c8',
+  plains:           '#e6b04e',
+  desert:           '#eaca44',
+  forest:           '#76b057',
+  'heavy-forest':   '#28644f',
+  mountains:        '#6e5046',
+  'snow-mountains': '#dcd7d7',
+  deathlands:       '#d291a0',
+  ruins:            '#a8576b',  // not auto-detected; manually assignable
+  unknown:          '#3c3c3c',
+};
+
+// Bridge classifier/edited labels → keys in gw-encounter-data.js TERRAIN_TO_TABLE.
+const TERRAIN_TO_ENCOUNTER_KEY = {
+  water:            'water',
+  plains:           'plains',
+  desert:           'desert',
+  forest:           'forest',
+  'heavy-forest':   'forest',
+  mountains:        'mountains',
+  'snow-mountains': 'mountains',
+  deathlands:       'radioactive',
+  ruins:            'ruins',
+};
+
+const AUTO_TERRAIN = new Map();
+for (const d of (window.GW_TERRAIN_DATA || [])){
+  AUTO_TERRAIN.set(d.col + ',' + d.row, d.terrain);
+}
+
+const OVERRIDES_KEY = 'gw-terrain-overrides';
+let overrides = {};
+try { overrides = JSON.parse(localStorage.getItem(OVERRIDES_KEY) || '{}'); } catch (e) { overrides = {}; }
+
+function getTerrain(col, row){
+  const k = col + ',' + row;
+  return overrides[k] || AUTO_TERRAIN.get(k) || 'unknown';
+}
+
+function isOverridden(col, row){
+  return Object.prototype.hasOwnProperty.call(overrides, col + ',' + row);
+}
+
+function setTerrainOverride(col, row, terrain){
+  const k = col + ',' + row;
+  if (!terrain || terrain === AUTO_TERRAIN.get(k)){
+    delete overrides[k];
+  } else {
+    overrides[k] = terrain;
+  }
+  localStorage.setItem(OVERRIDES_KEY, JSON.stringify(overrides));
+}
 
 // ─── Geometry ────────────────────────────────────────────────────────────────
 // HEX_R = parent hex circumradius in SVG units, calibrated to the 3e printed
@@ -241,8 +305,11 @@ function buildParentGrid(){
       const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
       poly.setAttribute('points', hexPolygonPoints(x, y, HEX_R));
       poly.setAttribute('class', 'parent-hex');
+      const terrain = getTerrain(col, row);
+      poly.style.fill = TERRAIN_COLOR[terrain] || TERRAIN_COLOR.unknown;
       poly.dataset.col = col;
       poly.dataset.row = row;
+      poly.dataset.terrain = terrain;
       poly.addEventListener('click', () => onCellClick(col, row, poly));
       gridG.appendChild(poly);
       const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -260,10 +327,32 @@ function onCellClick(col, row, polyEl){
   if (selectedHex) selectedHex.classList.remove('selected');
   polyEl.classList.add('selected');
   selectedHex = polyEl;
-  document.getElementById('hc-coords').textContent  = col + ', ' + row;
-  document.getElementById('hc-terrain').textContent = '(use dropdown — auth in v0.2.0)';
-  document.getElementById('hc-region').textContent  = '—';
+
+  const terrain = getTerrain(col, row);
+  document.getElementById('hc-coords').textContent = col + ', ' + row;
+  document.getElementById('hc-region').textContent = '—';
+  document.getElementById('hc-source').textContent = isOverridden(col, row) ? 'override' : 'auto';
+
+  const sel = document.getElementById('hc-terrain-edit');
+  sel.disabled = false;
+  sel.value = terrain;
+
+  document.getElementById('enc-terrain-readout').textContent = terrain;
+  document.getElementById('btn-roll-day').disabled = false;
+  document.getElementById('btn-roll-watch').disabled = false;
 }
+
+document.getElementById('hc-terrain-edit').addEventListener('change', e => {
+  if (!selectedHex) return;
+  const col = +selectedHex.dataset.col;
+  const row = +selectedHex.dataset.row;
+  const terrain = e.target.value || 'unknown';
+  setTerrainOverride(col, row, terrain);
+  selectedHex.style.fill = TERRAIN_COLOR[terrain] || TERRAIN_COLOR.unknown;
+  selectedHex.dataset.terrain = terrain;
+  document.getElementById('hc-source').textContent = isOverridden(col, row) ? 'override' : 'auto';
+  document.getElementById('enc-terrain-readout').textContent = terrain;
+});
 
 // ─── Layer toggles ───────────────────────────────────────────────────────────
 document.getElementById('lt-parent').onchange = e => {
@@ -272,6 +361,10 @@ document.getElementById('lt-parent').onchange = e => {
 document.getElementById('lt-labels').onchange = e => {
   document.getElementById('parent-labels').style.display = e.target.checked ? '' : 'none';
 };
+document.getElementById('lt-png').onchange = e => {
+  document.getElementById('printed-map').style.display = e.target.checked ? '' : 'none';
+  document.body.classList.toggle('printed-map-shown', e.target.checked);
+};
 
 // ─── Encounter rolls ─────────────────────────────────────────────────────────
 function d(n){ return Math.floor(Math.random() * n) + 1; }
@@ -279,7 +372,8 @@ function d(n){ return Math.floor(Math.random() * n) + 1; }
 function rollEncounter(terrainKey){
   const D = window.GWEncounterData;
   if (!D) return { error: 'gw-encounter-data.js not loaded' };
-  const tableKey = D.TERRAIN_TO_TABLE[terrainKey] || 'clear';
+  const mapped = TERRAIN_TO_ENCOUNTER_KEY[terrainKey] || terrainKey;
+  const tableKey = D.TERRAIN_TO_TABLE[mapped] || 'clear';
   const table = D.ENCOUNTER_TABLES[tableKey];
   const roll = d(D.TABLE_DIE_SIZE);
   const row = table.find(r => roll >= r.min && roll <= r.max);
@@ -287,14 +381,20 @@ function rollEncounter(terrainKey){
 }
 
 function rollWithCheck(scaleLabel){
-  const t = document.getElementById('enc-terrain').value;
+  if (!selectedHex){
+    const el = document.getElementById('enc-result');
+    el.style.display = 'block';
+    el.innerHTML = '<span class="nope">Click a hex first.</span>';
+    return;
+  }
+  const t = selectedHex.dataset.terrain;
   const check = d(6);
   const el = document.getElementById('enc-result');
   el.style.display = 'block';
 
   if (check !== 6){
     el.innerHTML =
-      `<div class="meta">${scaleLabel} check (1d6)</div>` +
+      `<div class="meta">${scaleLabel} check (1d6) on <em>${t}</em></div>` +
       `<div>Rolled <strong>${check}</strong> — no encounter.</div>`;
     return;
   }
