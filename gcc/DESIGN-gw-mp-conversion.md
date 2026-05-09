@@ -1,8 +1,12 @@
 # DESIGN: Gamma World 1e → Mighty Protectors Creature Conversion
 
-**Status:** v1.0
+**Status:** v1.1
 **Destination:** `gcc/DESIGN-gw-mp-conversion.md`
-**Last updated:** 2026-05-08
+**Last updated:** 2026-05-09
+
+**MP rule sources:**
+- Mighty Protectors core rulebook
+- "New Abilities for Mighty Protectors" supplement v1.7 (2021) — provides Bridge Travel, Change Environment, Inertia, Physical Ability J Swarm, Possession, Shape Travel, Stretching E Plasticity (update), Tunneling, Unprotection, plus Low Self-Control and Physical Disability sub-types
 
 ## Purpose
 
@@ -310,7 +314,7 @@ Default to **Mutated or Evolved** for all converted GW creatures. Skip the d100 
 | Shorter | Size Change: Smaller | 2.5-7.5 | Per height tier, see §4.2 |
 | Skin Structure Change (D) | Weakness: Vulnerability or Susceptibility | -5 to -10 | Per defect type |
 | Sonic Attack Ability | Sonic Abilities A (Sonic Blast) + Area | 10-15 | 3d6 area; ~10 CP base + Area |
-| Symbiotic Attachment | Mind Control (touch range, restricted) | 10-15 | Touch + 3 turns to control |
+| Symbiotic Attachment | Possession (touch, IN target only) — supplement; or Mind Control (touch, restricted) | 10-25 | Possession is cleaner when full host-control is the effect |
 | Taller | Size Change: Larger | 2.5-15 | Per height tier, see §4.1 |
 | Total Carapace | Armor (kinetic-weighted, full coverage) | 10-15 | AC 4 = ~9 Armor; -1/4 movement penalty |
 | Ultravision | Heightened Senses (Light, Ultraviolet, Full) | 10 | UV + radiation + magic-energy detection |
@@ -325,7 +329,7 @@ Default to **Mutated or Evolved** for all converted GW creatures. Skip the d100 
 | GW Mutation | MP Equivalent | CP | Notes |
 |---|---|---|---|
 | Absorption | Adaptation (one damage sub-type) | 5-10 | Cold/heat/light/paralysis/radiation/mental |
-| Anti-reflection (D) | Weakness: Vulnerability (own powers) | -5 to -10 | 25% chance attack reverses |
+| Anti-reflection (D) | Weakness: Low Self-Control: Anti-Reflection (formal, supplement) | -10 | 25% chance attack targets self or benefits target |
 | Complete Mental Block (D) | Weakness: Phobia (specific category) | -10 to -15 | Robotic/Tech/Plant/Animal |
 | Cryokinesis | Ice Abilities B (Ice Blast) | 12.5-15 | Up to 10d6 by concentration; high tier MP |
 | Death Field Generation | Death Touch + Area Effect (large) | 30-40 | 20m radius, all to 1 HP; very expensive |
@@ -402,7 +406,7 @@ Default to **Mutated or Evolved** for all converted GW creatures. Skip the d100 
 | Mobility | Speed (low tier) | 0-5 | Walk/slither/crawl |
 | New Plant Parts | Various, per part | 5-15 | Eyes/ears/arms/trunk/brain |
 | New Senses | Heightened Senses (default sense set) | 20 | All 5 normal human senses |
-| Parasitic Attachment | Mind Control (touch, 3 turns to establish) | 10-15 | Same as Symbiotic Attachment |
+| Parasitic Attachment | Possession (touch, IN target only) for control; Siphon (Hits) for feeding-only | 10-25 | Possession when controlling host (supplement); Siphon when just draining |
 | Physical Reflection (plant) | Reflection (one damage type) | 10-15 | Per type, see physical mut. |
 | Poison Throwing Thorns | Special Missile Weapon (sharp, ammo) + Poison/Venom A | 15-25 | 10m range; combined ability |
 | Poison Vines | Poison/Venom A (contact) | 5-15 | Intensity 3-18 |
@@ -445,7 +449,7 @@ GW physical and mental defects map to MP weaknesses:
 | Skin Structure Change | Vulnerability or Susceptibility | -5 to -10 |
 | Vision Defect | Diminished Senses (vision) | -2.5 to -5 |
 | Weight Decrease | Reduced Strength (Weak) | -5 to -10 |
-| Anti-reflection | Vulnerability (own powers, 25%) | -5 to -10 |
+| Anti-reflection | Low Self-Control: Anti-Reflection (supplement) | -10 |
 | Complete Mental Block | Phobia (specific category) | -10 to -15 |
 | Epilepsy | Physical Disability (Epileptic) | -15 |
 | Fear Impulse | Phobia | -5 to -15 |

@@ -224,14 +224,14 @@ Hits        7~      Power 41      Move 12 fly      Init d6+1
 HTH         d4+1    Inventing 4   Mass d4 (~150 lbs)   Profile x1.3
 ```
 
-**Abilities:** A/P Insect Standard (20 CP — Flight 12m, Natural Weaponry crushing mandibles +d8 sharp, Heightened Senses bone-detection), Size Change Larger 8' (5 CP), Heightened Cool ~+8 outside A/P (8 CP — for MS 18), Heightened Strength ~+4 (4 CP — for crushing power), Heightened Attack +2d6 (10 CP — 10d6 GW = high-tier MP bite), Adaptation Energy heat+cold (5 CP)
+**Abilities:** A/P Insect Standard (20 CP — Flight 12m, Natural Weaponry crushing mandibles +d8 sharp, Heightened Senses bone-detection), Size Change Larger 8' (5 CP), Heightened Cool ~+8 outside A/P (8 CP — for MS 18), Heightened Strength ~+4 (4 CP — for crushing power), Heightened Attack +2d6 (10 CP — 10d6 GW = high-tier MP bite), Unprotection -3 Kinetic associated with bite, Max -6 (10 CP — supplement ability, for "given time, crush even duralloy" — each bite reduces target armor), Adaptation Energy heat+cold (5 CP)
 **Weaknesses:**
 - Distinctive (giant flying insect) -5 CP (in A/P bundle)
 - Compulsion (gourmand for bones, distractible by fresh bones) -5 CP (in A/P bundle)
 - *No Lowered Intelligence weakness — MS 18 is brilliant*
-**CP estimate:** ~47
+**CP estimate:** ~57
 **Origin:** Mutated or Evolved
-**Tactics:** Smart — calculates approach, picks isolated targets. Crushing bite = priority threat. Will pause to pick bones from a kill (ambush window).
+**Tactics:** Smart — calculates approach, picks isolated targets. Crushing bite + Unprotection = each bite both deals damage AND reduces target's kinetic armor by 3 (max -6 stacked) — duralloy crushed in 2 bites. Pause to pick bones from a kill (ambush window).
 
 ---
 
@@ -590,12 +590,12 @@ Hits        10~     Power 46      Move 14 ground   Init d4
 HTH         d10+1   Inventing 2   Mass d10 (~2000 lbs)   Profile x2
 ```
 
-**Abilities:** A/P Fish Standard (20 CP — Natural Weaponry massive bite ~2d10 sharp, Heightened Senses 50m, Telekinesis A sand manipulation primary locomotion), Size Change Larger 12' (15 CP), Heightened Strength ~+4 (4 CP), Heightened Attack +2 hit (4 CP), Armor 8 = 5/1/0/2 (12.5 CP — hide)
+**Abilities:** A/P Fish Standard (20 CP — Natural Weaponry massive bite ~2d10 sharp, Heightened Senses 50m, Tunneling associated with bite for sand-burrow primary locomotion — Max SR 2 sand 5 CP + Max Speed 12 = 10 CP, total 15 CP within or supplementing A/P), Size Change Larger 12' (15 CP), Tunneling (sand burrow, Max SR 2, Max Speed 12, +2 dmg bonus on bite from CP overflow) (15 CP — supplement ability), Heightened Strength ~+4 (4 CP), Heightened Attack +2 hit (4 CP), Armor 8 = 5/1/0/2 (12.5 CP — hide)
 **Weaknesses (in A/P bundle):** Lowered Intelligence -5, Distinctive -5
 **Tactics:** Burrow → ambush → bite (9d6) → re-burrow → reposition 1-2 turns → attack from new angle.
-**CP estimate:** ~55
+**CP estimate:** ~70
 **Origin:** Mutated or Evolved
-**Note:** Underbudget for HD 17. Threat is bite damage + ambush mechanic, not durability.
+**Note:** Tunneling cleanly models sand-burrow locomotion (per New Abilities supplement). +2 bite damage bonus from Tunneling CP overflow stacks with massive bite.
 
 ---
 
