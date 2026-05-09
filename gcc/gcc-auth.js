@@ -375,11 +375,14 @@ function _isMobile() {
 
   function _setSubmitting(form, busy) {
     const btn = form.querySelector('.gcc-auth-submit');
-    if (btn) {
-      btn.disabled = busy;
-      btn.textContent = busy ? 'PLEASE WAIT…' : btn.dataset.origText || btn.textContent;
-      if (!busy && !btn.dataset.origText) return;
-      if (!btn.dataset.origText) btn.dataset.origText = btn.textContent.replace('PLEASE WAIT…', '');
+    if (!btn) return;
+    if (busy) {
+      if (!btn.dataset.origText) btn.dataset.origText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'PLEASE WAIT…';
+    } else {
+      btn.disabled = false;
+      btn.textContent = btn.dataset.origText || btn.textContent;
     }
   }
 
