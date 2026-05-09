@@ -1,4 +1,10 @@
-// gcc-subhex-data.js v2.8.1 — 2026-05-03
+// gcc-subhex-data.js v2.9.0 — 2026-05-09
+// v2.9.0: Additive helper cellsInAxialBbox(bbox) — enumerate {Q,R} of
+// every subhex whose center falls in a world-SVG axis-aligned bbox.
+// First Path B (DESIGN-subhex-fullview.md) prerequisite. Used by the
+// fullview viewport-cull path; no existing caller affected.
+//
+// v2.8.1 — 2026-05-03
 // v2.8.1: save() uses GCCSubhexStore.putBatch() to write all dirty
 // entries in a single IDB transaction, instead of one-transaction-
 // per-entry. Earlier observed: 50k cells took ~30 minutes via
@@ -288,6 +294,38 @@
     const qf = (2/3) * dx / SUB_R;
     const rf = (-dx/3 + SQRT3*dy/3) / SUB_R;
     return axialRound(qf, rf);
+  }
+
+  // Enumerate {Q,R} of every subhex whose center falls inside the
+  // given world-SVG axis-aligned bbox. Closed-form: derive Q from the
+  // x-bounds (Q steps every 1.5*SUB_R), then per Q derive the R range
+  // from the y-bounds (R steps every SQRT3*SUB_R, with a Q/2 phase
+  // offset). Center-in-bbox semantics; callers wanting hex-polygon-
+  // overlap should pre-expand bbox by ~SUB_R on each side. No clipping
+  // to ownerOf — a cell appears in the result whether or not any
+  // parent claims it.
+  function cellsInAxialBbox(bbox){
+    const out = [];
+    if (!bbox) return out;
+    const { minX, maxX, minY, maxY } = bbox;
+    if (!(minX < maxX) || !(minY < maxY)) return out;
+    const qStep = 1.5 * SUB_R;
+    const rStep = SQRT3 * SUB_R;
+    const qLo = Math.floor((minX - ANCHOR_SVG.x) / qStep);
+    const qHi = Math.ceil ((maxX - ANCHOR_SVG.x) / qStep);
+    for (let Q = qLo; Q <= qHi; Q++){
+      const phase = Q / 2;
+      const rLo = Math.floor((minY - ANCHOR_SVG.y) / rStep - phase);
+      const rHi = Math.ceil ((maxY - ANCHOR_SVG.y) / rStep - phase);
+      for (let R = rLo; R <= rHi; R++){
+        const cx = ANCHOR_SVG.x + qStep * Q;
+        const cy = ANCHOR_SVG.y + rStep * (R + phase);
+        if (cx >= minX && cx <= maxX && cy >= minY && cy <= maxY){
+          out.push({ Q, R });
+        }
+      }
+    }
+    return out;
   }
 
   // Owner of subhex (Q, R) — nearest parent center in SVG, tiebreak
@@ -1203,6 +1241,7 @@
     WATER_TERRAINS, LAKE_KINDS, LAKE_DEPTHS, LAKE_SCHEMA_VERSION,
     parentSvgCenter, parentCenterAxial, subhexSvgCenter,
     svgToAxial, ownerOf, ownedByParent, fragmentsForParent,
+    cellsInAxialBbox,
     NEIGHBOR_DELTAS,
     subhexId, parseSubhexId, regionDocId, parseRegionId,
     lakeDocId, parseLakeId,
