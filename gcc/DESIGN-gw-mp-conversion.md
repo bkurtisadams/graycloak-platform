@@ -37,7 +37,7 @@ GW Charisma's mechanical effect → MP Influence Tasks (3.1.1). The reaction-tab
 
 ## 2. HP and Hits Anchor
 
-**Average human anchor:** GW Con 10 = 35 HP avg = MP all-10s baseline = 4 Hits / 40 Power.
+**Average human anchor:** GW Con 10 = 35 HP avg ≈ MP Normal Power Level (50 BC points, 14/12/10/8/6 array per MP 2.1.7.1) ≈ 4 Hits / 40 Power. The all-10s simplification used in this doc has the same total BC points; archetype-specific arrays (warrior, scout, shaman) redistribute that pool per MP Construction Method 1. For NPC bands and converted creatures, use either the all-10s shortcut or full MP 2.1.7.1 generation depending on detail tier needed.
 
 GW HD does **not** carry over as MP Hits proportionally. GW HP is purely physical resilience (Con × d6); MP Hits is multi-factor survivability derived from ST + EN + AG + CL contributions per BC table. Trying to enforce HP-to-Hits proportionality re-imports GW combat attrition into MP and undermines the system swap.
 
