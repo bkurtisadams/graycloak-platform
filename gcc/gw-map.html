@@ -73,7 +73,7 @@
 
 <div id="topbar">
   <h1>GAMMA WORLD — Campaign Map</h1>
-  <span class="ver">v0.3.0</span>
+  <span class="ver">v0.2.0</span>
   <span class="sep"></span>
   <button id="btn-reset">Fit View</button>
   <span class="spacer"></span>
@@ -260,11 +260,22 @@ function fitToWindow(){
 
 let drag = null;
 wrap.addEventListener('mousedown', e => {
+  // Right-click: pan from anywhere, even over hexes
+  if (e.button === 2){
+    e.preventDefault();
+    drag = { startX: e.clientX, startY: e.clientY, viewX: view.x, viewY: view.y };
+    wrap.classList.add('grabbing');
+    return;
+  }
+  // Left-click: pan only when not over a hex (so hex clicks select)
   if (e.button !== 0) return;
   if (e.target.classList && e.target.classList.contains('parent-hex')) return;
   drag = { startX: e.clientX, startY: e.clientY, viewX: view.x, viewY: view.y };
   wrap.classList.add('grabbing');
 });
+
+// Suppress the browser context menu over the map so right-click pan works
+wrap.addEventListener('contextmenu', e => e.preventDefault());
 window.addEventListener('mousemove', e => {
   if (!drag) return;
   view.x = drag.viewX + (e.clientX - drag.startX);
@@ -293,7 +304,7 @@ wrap.addEventListener('wheel', e => {
 document.getElementById('btn-reset').onclick = fitToWindow;
 
 // ─── Parent grid ─────────────────────────────────────────────────────────────
-let selectedHex = null;
+let selectedHexes = new Set();
 
 function buildParentGrid(){
   const gridG  = document.getElementById('parent-grid');
@@ -310,7 +321,7 @@ function buildParentGrid(){
       poly.dataset.col = col;
       poly.dataset.row = row;
       poly.dataset.terrain = terrain;
-      poly.addEventListener('click', () => onCellClick(col, row, poly));
+      poly.addEventListener('click', e => onCellClick(col, row, poly, e));
       gridG.appendChild(poly);
       const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       lbl.setAttribute('x', x);
@@ -323,35 +334,104 @@ function buildParentGrid(){
   document.getElementById('parent-labels').style.display = 'none';
 }
 
-function onCellClick(col, row, polyEl){
-  if (selectedHex) selectedHex.classList.remove('selected');
-  polyEl.classList.add('selected');
-  selectedHex = polyEl;
+function onCellClick(col, row, polyEl, ev){
+  const shift = ev && ev.shiftKey;
 
-  const terrain = getTerrain(col, row);
-  document.getElementById('hc-coords').textContent = col + ', ' + row;
-  document.getElementById('hc-region').textContent = '—';
-  document.getElementById('hc-source').textContent = isOverridden(col, row) ? 'override' : 'auto';
+  if (!shift){
+    // Plain click resets selection to just this hex
+    selectedHexes.forEach(h => h.classList.remove('selected'));
+    selectedHexes.clear();
+    selectedHexes.add(polyEl);
+    polyEl.classList.add('selected');
+  } else {
+    // Shift+click toggles this hex in/out of the selection
+    if (selectedHexes.has(polyEl)){
+      selectedHexes.delete(polyEl);
+      polyEl.classList.remove('selected');
+    } else {
+      selectedHexes.add(polyEl);
+      polyEl.classList.add('selected');
+    }
+  }
 
-  const sel = document.getElementById('hc-terrain-edit');
+  refreshSelectionHud();
+}
+
+function clearSelection(){
+  selectedHexes.forEach(h => h.classList.remove('selected'));
+  selectedHexes.clear();
+  refreshSelectionHud();
+}
+
+function refreshSelectionHud(){
+  const n = selectedHexes.size;
+  const hcCoords  = document.getElementById('hc-coords');
+  const hcSource  = document.getElementById('hc-source');
+  const hcRegion  = document.getElementById('hc-region');
+  const sel       = document.getElementById('hc-terrain-edit');
+  const enc       = document.getElementById('enc-terrain-readout');
+  const btnDay    = document.getElementById('btn-roll-day');
+  const btnWatch  = document.getElementById('btn-roll-watch');
+
+  if (n === 0){
+    hcCoords.textContent = '—';
+    hcSource.textContent = '—';
+    hcRegion.textContent = '—';
+    sel.disabled = true;
+    sel.value = '';
+    enc.textContent = '— click a hex —';
+    btnDay.disabled = true;
+    btnWatch.disabled = true;
+    return;
+  }
+
+  // Gather terrains + sources across the selection
+  const terrains = new Set();
+  const sources  = new Set();
+  selectedHexes.forEach(h => {
+    const c = +h.dataset.col, r = +h.dataset.row;
+    terrains.add(getTerrain(c, r));
+    sources.add(isOverridden(c, r) ? 'override' : 'auto');
+  });
+
+  if (n === 1){
+    const h = [...selectedHexes][0];
+    hcCoords.textContent = h.dataset.col + ', ' + h.dataset.row;
+    sel.value = h.dataset.terrain;
+    hcSource.textContent = [...sources][0];
+    enc.textContent = h.dataset.terrain;
+    btnDay.disabled = false;
+    btnWatch.disabled = false;
+  } else {
+    hcCoords.textContent = n + ' hexes';
+    sel.value = terrains.size === 1 ? [...terrains][0] : '';
+    hcSource.textContent = sources.size === 1 ? [...sources][0] : 'mixed';
+    enc.textContent = terrains.size === 1 ? [...terrains][0] : '(mixed — pick one)';
+    // Encounter rolls require a single terrain; disable when the selection
+    // has multiple distinct terrains
+    const single = terrains.size === 1;
+    btnDay.disabled = !single;
+    btnWatch.disabled = !single;
+  }
   sel.disabled = false;
-  sel.value = terrain;
-
-  document.getElementById('enc-terrain-readout').textContent = terrain;
-  document.getElementById('btn-roll-day').disabled = false;
-  document.getElementById('btn-roll-watch').disabled = false;
+  hcRegion.textContent = '—';
 }
 
 document.getElementById('hc-terrain-edit').addEventListener('change', e => {
-  if (!selectedHex) return;
-  const col = +selectedHex.dataset.col;
-  const row = +selectedHex.dataset.row;
+  if (selectedHexes.size === 0) return;
   const terrain = e.target.value || 'unknown';
-  setTerrainOverride(col, row, terrain);
-  selectedHex.style.fill = TERRAIN_COLOR[terrain] || TERRAIN_COLOR.unknown;
-  selectedHex.dataset.terrain = terrain;
-  document.getElementById('hc-source').textContent = isOverridden(col, row) ? 'override' : 'auto';
-  document.getElementById('enc-terrain-readout').textContent = terrain;
+  selectedHexes.forEach(h => {
+    const col = +h.dataset.col, row = +h.dataset.row;
+    setTerrainOverride(col, row, terrain);
+    h.style.fill = TERRAIN_COLOR[terrain] || TERRAIN_COLOR.unknown;
+    h.dataset.terrain = terrain;
+  });
+  refreshSelectionHud();
+});
+
+// Esc clears selection
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape') clearSelection();
 });
 
 // ─── Layer toggles ───────────────────────────────────────────────────────────
@@ -381,13 +461,14 @@ function rollEncounter(terrainKey){
 }
 
 function rollWithCheck(scaleLabel){
-  if (!selectedHex){
+  if (selectedHexes.size === 0){
     const el = document.getElementById('enc-result');
     el.style.display = 'block';
     el.innerHTML = '<span class="nope">Click a hex first.</span>';
     return;
   }
-  const t = selectedHex.dataset.terrain;
+  // Use the first selected hex's terrain (button is disabled for mixed multi-select)
+  const t = [...selectedHexes][0].dataset.terrain;
   const check = d(6);
   const el = document.getElementById('enc-result');
   el.style.display = 'block';
