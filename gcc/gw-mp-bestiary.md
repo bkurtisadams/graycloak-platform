@@ -1,6 +1,6 @@
 # Gamma World 1e → Mighty Protectors Bestiary
 
-**Status:** v0.5 (41 of 55 statted)
+**Status:** v0.7 (46 of 50 statted; 1 deferred Robotic Unit, 3 remaining in Tier 5)
 **Destination:** `gcc/gw-mp-bestiary.md`
 **Last updated:** 2026-05-09
 **Conversion rules:** see `gcc/DESIGN-gw-mp-conversion.md`
@@ -24,12 +24,12 @@ Stat blocks for GW1e wilderness encounter table creatures, converted to MP. Enco
 - [x] **Arn**, **Herp**, **Hisser**, **Hoop**, **Pam (Parn)**, **Perth**, **Podog**, **Sep**, **Sleeth**, **Yexil**
 
 **Tier 4 — Regional (14 creatures, 14/14 done) ✓**
-- [x] **Ark**, **Blight**, **Cal Then**, **Centisteed**, **Crep Plant**, **Eat (Ert)**, **Horl Choo (Hori)**, **Kai Lin**, **Obb**, **Orlen**, **Serf**, **Soul Besh**, **Win Seen**, **Zeethh**
+- [x] **Ark**, **Blight**, **Cal Then**, **Centisteed**, **Crep Plant**, **Ert**, **Horl Choo (Hori)**, **Kai Lin**, **Obb**, **Orlen**, **Serf**, **Soul Besh**, **Win Seen**, **Zeethh**
 
-**Tier 5 — Single-table specialists (25 creatures, 12/25 done; Choo subsumed by Horl Choo)**
-- [x] **Barl Nep (Bari Nep)**, **Cren Tosh**, **Ert Telden**, **Fen**, **Fleshin**, **Herkel**, **Keeshin**, **Menarl**, **Narl Ep (Nari Ep)**, **Pineto (Pinelo)**, **Seroon Lou**, **Terl (Teri / Teal)**
-- *Radioactive (3):* Arn Blight, Serf Hisser, Sert
-- *Other (10):* Brutorz, Choo Kep, Erl, Gren, Hopper, Kep, Rakox, Telden + 2 TBD
+**Tier 5 — Single-table specialists (19 creatures, 17/19 done after consolidations: Choo→Horl Choo, Lou→Seroon Lou, Erl/Sert phantom, "Arn Blight"→Arn+Blight OCR-merge, "Serf Hisser"→Serf+Hisser OCR-merge — radioactive table entries all resolve to already-statted creatures)**
+- [x] **Barl Nep (Bari Nep)**, **Brutorz**, **Cren Tosh**, **Ert Telden**, **Fen**, **Fleshin**, **Gren (Grens)**, **Herkel**, **Hopper**, **Keeshin**, **Kep**, **Menarl**, **Narl Ep (Nari Ep)**, **Pineto (Pinelo)**, **Rakox**, **Seroon Lou**, **Terl (Teri / Teal)**
+- *Ruins (1):* Ber Lep
+- *Other (2):* Choo Kep, Telden
 
 ---
 
@@ -118,7 +118,7 @@ HTH         d6+1    Inventing 7   Mass d6+1 (~700 lbs)   Profile x1.5
 
 **GW source:** AC 9, HD 8, MV 3/16 (ground/fly), bite 2d6, carries ≤2kg in flight. 1.3m mutated flying insect, beast of burden.
 **Encounter tables:** clear, forest, mountains (Tier 3)
-**Number appearing:** 1d4
+**Number appearing:** 1d6
 **Build:** A/P Insect, Low power level
 
 ```
@@ -233,6 +233,32 @@ HTH         d6      Inventing 2   Mass d6 (~600 lbs)   Profile x1.5
 
 ---
 
+### Brutorz
+
+**GW source:** AC 7, HD 14, MV 18. 2m+ at shoulder, mutated horse ("neo-Percheron"), 1000kg bulk, agile despite size. MS 12, intelligent, partial to PSH. Precognition mutation. Combat: 2d6 kicks per forehoof, 3d6 bite. Treated with respect, serves as humanoid mount.
+**Encounter tables:** clear, mountains (Tier 5)
+**Number appearing:** 1 (2d6 in wild herds)
+**Build:** A/P Mammal, Standard power level
+
+```
+Base BCs:    ST 12  EN 10  AG 14  IN 8  CL 12
+Size mod:    +5 ST, +4 EN  (Size Change Larger 7.5 CP, 9' tier)
+Effective:   ST 17  EN 14  AG 14  IN 8  CL 12
+
+Hits        11~     Power 53      Move 15 + Speed = 18   Init d4+1
+HTH         d6+1    Inventing 4   Mass d8 (~2200 lbs)   Profile x1.5
+```
+
+**Abilities:** A/P Mammal Standard (20 CP — Speed, Heightened Agility, Natural Weaponry hooves+bite — kicks 2d6/forehoof + bite 3d6 modeled as +d6 blunt and +d8 sharp), Size Change Larger 9' (7.5 CP), Heightened Senses Time/Precognitive (15 CP — Precognition mutation), Heightened Strength ~+4 (4 CP), Speed +3 (2.5 CP — for MV 18), Armor 5 = 3/1/0/1 K/E/B/Ent (7.5 CP — partial muscled hide)
+**Weaknesses (in A/P bundle):** Distinctive (giant horse) -5
+*Skip Lowered Intelligence — MS 12 is normal*
+**Equipment:** saddle/harness for mount use
+**CP estimate:** ~56.5
+**Origin:** Mutated or Evolved
+**Reaction:** Default favorable to PSH (+2 reaction). Will serve as mount if treated with respect. Wild herds (2d6) more skittish; precognition gives them edge in detecting hostile intent.
+
+---
+
 ### Cal Then
 
 **GW source:** AC 9, HD 6, MV 4/12 (ground/fly). Intelligent (MS 18) flying insect, up to 2.5m. Huge mandibles 10d6 dmg, can crush duralloy given time. Gourmet for bones — rips flesh off living creatures to get to bones. Resistant to all heat and cold.
@@ -338,10 +364,10 @@ HTH         d4+1    Inventing 2   Mass d8 (~1500 lbs)
 
 ---
 
-### Eat (Ert)
+### Ert
 
 **GW source:** AC 9, HD 3, MV 8. 1m fish in swift mountain streams. Bite has chance to turn victim to granite-like rock — treat as intensity 12 poison attack, "D" result = stone.
-**Encounter tables:** water + 1 other (Tier 4 — listed as "Ert" in encounter data, OCR variant of "EAT")
+**Encounter tables:** water + 1 other (Tier 4)
 **Number appearing:** 1
 **Build:** A/P Fish, Low power level
 
@@ -433,6 +459,32 @@ HTH         d6      Inventing 2   Mass d6 (~400 lbs)   Profile x1.2
 
 ---
 
+### Gren (Grens)
+
+**GW source:** AC 4, HD 20, MV 12. PSH-looking but with deep green skin. Intelligent, secluded in deep forests. Cannot be seen or sensed by any creature until they reveal themselves. Refuse to use ancient tech or learn Ancient knowledge. 70% shun outsiders, 30% friendly to PSH if approached non-hostilely.
+**Encounter tables:** forest (Tier 5 — encounter data uses singular "Gren"; source heading uses plural "Grens")
+**Number appearing:** 1d6
+**Build:** Humanoid (intelligent — no A/P)
+
+```
+Base BCs:    ST 12  EN 14  AG 12  IN 14  CL 14
+Heightened EN +6 (6 CP)
+Effective:   ST 12  EN 20  AG 12  IN 14  CL 14
+
+Hits        12~     Power 58      Move 12      Init d4+1
+HTH         d4+1    Inventing 7   Mass d4 (~150 lbs)
+```
+
+**Abilities:** Heightened Endurance +6 (6 CP — for HD 20), Invisibility full-sensory (visible + IR + sonic + mental + olfactory), Restriction "deep forest only" (~25 CP — high-tier multi-sense Invisibility with terrain Restriction -5), Adaptation Mental sense-immunity (5 CP — backstop), Heightened Cool ~+4 (4 CP), Heightened Intelligence ~+4 (4 CP), Armor 9 = 5/2/0/2 K/E/B/Ent (15 CP — leather/hide armor)
+**Weaknesses:** Phobia (Ancient tech, refuses to use or learn) -5
+**Equipment:** Iron-age weapons only — bow (8 CP) + spear (15 CP) typical, never ancient tech
+**CP estimate:** ~54 + equipment
+**Origin:** Mutated or Evolved
+**Reaction:** Default unfriendly (70% shun); 30% chance peaceful engagement if approached non-hostilely. Won't trade or share Ancient lore.
+**Tactics:** Total stealth in deep forest until they choose to reveal. Surprise advantage automatic. Retreat to forest depths if injured. Outside their forest, Invisibility doesn't function — they're vulnerable PSH-equivalents.
+
+---
+
 ### Herkel
 
 **GW source:** AC 9, HD 4, MV 8. Small (.5m) viciously biting fish, piranha-grade. Bite 6d6/turn. Scales coated with intensity 18 contact poison. Eats anything fittable in jaws.
@@ -487,7 +539,7 @@ HTH         d8      Inventing 3   Mass d8 (~1000 lbs)   Profile x2
 
 **GW source:** AC 3, HD 18, MV 12. 3m half-man-half-snake, arid regions. Telepathic, MS 12. Mass mind, sonic attack ability, +1 random mental mutation per individual. Scaly skin laser+sonic resistant. Matriarchal (queen + 70 males). No spoken language — all telepathic. Use Ancient artifacts.
 **Encounter tables:** forest, mountains, water (Tier 3)
-**Number appearing:** 1d4
+**Number appearing:** 1d10
 **Build:** Humanoid (intelligent — no A/P)
 
 ```
@@ -531,6 +583,32 @@ HTH         d4+1    Inventing 5   Mass d4 (~150 lbs)   Profile x1.2
 **Origin:** Mutated or Evolved
 **MS variability:** Roll 3d6 per individual for MS → CL. Chief-tier hoops get full Heightened Cool ~+8.
 **Note:** Transmutation devastates metal-armored/-armed PCs. Rubber armor = AC 9, rubber pistol = jammed, etc.
+
+---
+
+### Hopper
+
+**GW source:** AC 9, HD 3, MV 12 (hop at 24). Giant hare-like mutant. 100kg burden mount; requires special saddle/harness. 75% chance new rider thrown for 1-6 dice damage on first ride. Stupid (hoops regard them as we do chimps). Chameleon powers. Unburdened: 12m leaps, 8m vertical clear.
+**Encounter tables:** clear or mountains (Tier 5)
+**Number appearing:** 1 (1d20 in wild)
+**Build:** A/P Mammal, Low power level
+
+```
+Base BCs:    ST 12  EN 3  AG 16  IN 2  CL 6
+Size mod:    +2 ST, +1 EN  (Size Change Larger 2.5 CP, 7' tier)
+Effective:   ST 14  EN 4  AG 16  IN 2  CL 6
+
+Hits        3~      Power 36      Move 11+Speed=17 normal / 24 hop   Init d3
+HTH         d4+1    Inventing 1   Mass d4 (~150 lbs)   Profile x1.2
+```
+
+**Abilities:** A/P Mammal Low (10 CP — Heightened Agility, Speed, Natural Weaponry kicks +d4 sharp), Size Change Larger 7' (2.5 CP), Speed +6 (5 CP — for MV 12 normal), Super Speed +1 turn with Restriction "leaping only" (10 CP — for MV 24 hop mode), Invisibility Visible Light Camouflage (10 CP — chameleon powers)
+**Weaknesses (in A/P bundle):** Lowered Intelligence -5, Distinctive (giant hare) -5
+**Mount mechanics:** Special saddle/harness required. New rider rolls d100; on 75-or-less, thrown for 1d6 dice (3-18) blunt damage. Each unfamiliar session: re-roll. Carries 100kg.
+**Equipment:** Special saddle (mount accessory)
+**CP estimate:** ~37.5
+**Origin:** Mutated or Evolved
+**Tactics:** Wild hoppers flee using Camouflage + leap-mode speed. Domesticated hoppers serve mounted PCs but require ridership skill check on first use. Ground combat is fragile (Hits 3) — leap to escape, not engage.
 
 ---
 
@@ -617,6 +695,33 @@ HTH         d3      Inventing 9   Mass d3 (~50 lbs)
 **Origin:** Mutated or Evolved
 **Tactics:** Solitary ambush from underwater dwelling. Opens with Mental Blast or Cryokinesis at range while flying. Force Field always-on. De-evolution as endgame against tough opponents. Will kill PCs who threaten artifact hoard.
 **Note:** Like Serf, this is a low-HP boss-tier creature with massively over-budget mental kit. GM may scale picks (3-4 mutations active per encounter) for non-elite Keeshin.
+
+---
+
+### Kep
+
+**GW source:** AC 2, HD 20, MV N/A. Carnivorous plant in sandy soil, grows underground. 30m diameter pressure-sensitive net of squeeze roots just below surface. Walking over → roots spring out, ensnare. Squeeze 5d6 constrictive dmg/turn. Damaged >half HP: releases captives, retreats underground. Prey ceases struggle: dissolving juices digest. After meal: 1 mobile seed scurries off to make new plant.
+**Encounter tables:** desert (Tier 5)
+**Number appearing:** 1
+**Build:** A/P Plant, High power level (HD 20 boss; trap-tier)
+
+```
+BCs:        ST 16  EN 16  AG 4  IN 4  CL 10
+Heightened EN +4 (4 CP)
+Effective:   ST 16  EN 20  AG 4  IN 4  CL 10
+
+Hits        10~     Power 44      Move 0 surface / Tunneling underground   Init d3
+HTH         d6+1    Inventing 2   Mass d10 (~3000 lbs root mass)
+```
+
+**Abilities:** A/P Plant High (30 CP — Stretching A 30m diameter root net, Natural Weaponry crushing roots, Heightened Endurance, Heightened Strength), Tunneling sand soil (Max SR 1, Max Speed 12, primary locomotion underground, supplement) ~12.5 CP, Grapnel (squeeze roots, 30m diameter trap zone, ensnare + 5d6 crush per turn) ~20 CP, Power Blast Bio dissolving juices post-capture digestion (10 CP), Heightened Endurance +4 (4 CP), Armor 16 = 10/2/0/4 K/E/B/Ent (30 CP — thick root mass)
+**Weaknesses (in A/P bundle):** Lowered Intelligence -5, Distinctive (when revealed) -5, Special Requirement (sandy soil only) -5
+**Trap mechanic:** 30m diameter pressure-sensitive zone. Walking creatures trigger roots-spring on next turn. AG save (severe DC) to dodge. Caught targets: 5d6/turn crush damage until released.
+**Retreat:** When >half HP damaged, releases all captives and Tunneling-retreats underground.
+**Reproduction:** After complete meal (digestion), produces 1 mobile seed. Seed Tunneling-surfaces, scurries up to 1km away, plants new colony.
+**CP estimate:** ~107.5
+**Origin:** Mutated or Evolved
+**Tactics:** Pure ambush. Detection nearly impossible without Heightened Senses or magical detection. PCs may spot disturbed soil pattern (very hard task) or trigger trap. Surrounding ground is always plant-free — could be a clue.
 
 ---
 
@@ -814,6 +919,33 @@ HTH         d4      Inventing 1   Mass d6 (~400 lbs)   Profile x1.3
 **CP estimate:** ~42.5
 **Origin:** Mutated or Evolved
 **Prized variant (1 in 100):** Add Heightened Defense Mental (5 CP) + Heightened Intelligence ~+3 (3 CP) + Telepathy master link (7.5 CP) = +15.5 CP. Rarely sold.
+
+---
+
+### Rakox
+
+**GW source:** AC 4/6, HD 20, MV 9. Slow but powerful mutated oxen. Partial carapace, frill of 8 forward-pointing horns. Gore: 1d6/horn, man-sized opponent gets struck by 1-3 horns per attack. Charge tendency when frightened (esp. wild). Charging rakox does double damage. Stupid, skittish. 1000kg cargo, beasts of burden. 1 / 5d6 in wild herds.
+**Encounter tables:** clear, mountains (Tier 5)
+**Number appearing:** 1 (5d6 in wild herds)
+**Build:** A/P Mammal, High power level (HD 20)
+
+```
+Base BCs:    ST 14  EN 12  AG 6  IN 3  CL 8
+Size mod:    +5 ST, +4 EN  (Size Change Larger 7.5 CP, 9' tier)
+Heightened EN +4 (4 CP)
+Effective:   ST 19  EN 20  AG 6  IN 3  CL 8
+
+Hits        12~     Power 48      Move 15 (running formula; GW MV 9 is plodding gait)   Init d3
+HTH         d8+1    Inventing 1   Mass d10 (~3000 lbs)   Profile x1.5
+```
+
+**Abilities:** A/P Mammal High (30 CP — Natural Weaponry 8 horns + bite, Heightened Strength, Heightened Endurance, Physical Ability B Extra Limbs/multi-horn 1-3 horns hit per gore), Size Change Larger 9' (7.5 CP), Heightened Endurance +4 (4 CP), Heightened Attack +1d6 with Restriction "charging only" (~5 CP — double damage on charge), Armor 9 = 6/2/0/1 K/E/B/Ent (15 CP — partial carapace; AC 4 from front [horns], AC 6 flanks)
+**Weaknesses (in A/P bundle):** Lowered Intelligence -5, Distinctive (8-horned ox) -5, Phobia / Compulsion (charges when frightened, especially wild) -5
+**Combat:** Each gore-attack: 1-3 horns connect (roll d6: 1-2 = 1 horn, 3-4 = 2 horns, 5-6 = 3 horns) for +1d6 sharp per horn. Charging rakox doubles total damage.
+**Equipment:** Yoke/draft harness for domesticated use
+**CP estimate:** ~60
+**Origin:** Mutated or Evolved
+**Tactics:** Skittish — easily startled. Wild herds will charge any perceived threat. Defenders need AG save (DC moderate) or take charge damage. Domesticated rakox are reliable beasts of burden but freeze or charge under combat stress (control roll required).
 
 ---
 
