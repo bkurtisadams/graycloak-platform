@@ -1,4 +1,22 @@
-// gcc-subhex-view.js v2.13.0 — 2026-05-06
+// gcc-subhex-view.js v3.0.0 — 2026-05-09
+// v3.0.0 — Path B subhex fullview, Slice 2 of the slice plan in
+// DESIGN-subhex-fullview.md §10. Coordinate refactor only;
+// no-visual-change plumbing. Cells now render at world SVG coords via
+// new cellWorldCenter(Q,R) (delegates to GCCSubhexData.subhexSvgCenter
+// and applies displayScale=13 to keep on-screen sizes identical to
+// v2.13). Parent-locked state (parentCol/Row/Id/Terrain/Q/R) is gone;
+// state.view = { cx, cy, zoom, w, h } stores the world-coord view
+// center, and centerParent() / cursorParent() derive owning-parent
+// data on demand via ownerOf. open(col,row) is preserved as a
+// navigation action — it now resolves to centerOnParent(col,row),
+// which sets state.view.cx/cy to the parent's world center and slides
+// the SVG viewBox over the world plane. The render path itself still
+// draws a single-parent silhouette (pinned to centerParent) and
+// iterates fragmentsForParent / ownedByParent for the centered parent
+// only — multi-parent tiling lands in v3.1.0 (Slice 3). state.zoom
+// migrated into state.view.zoom; the CSS-width zoom mechanism is
+// unchanged. cursor tracking added on cell mouseenter so cursorParent
+// is ready for later slices, but no Slice 2 caller uses it yet.
 // v2.11.0: fog paint brush (Slice 4 of fog rollout). New tool button
 // "Fog…" arms state.armed = { type:'fog' } and shows a help-text
 // callout. Click cells to reveal, shift+click to hide; drag to sweep.
@@ -240,6 +258,16 @@
   const VIEWBOX_H = 580;
   const SQRT3 = Math.sqrt(3);
 
+  // World coords come from GCCSubhexData.subhexSvgCenter (HEX_R=20 /
+  // SUB_R=2 native). The view renders at SUB_R=26, i.e. 13× the data
+  // scale. cellWorldCenter applies this factor so all downstream
+  // geometry (cell corners, polylines, marker offsets, viewBox slide)
+  // stays at the SUB_R=26 scale that v2.13's renderer expects. A
+  // proper SVG-transform-based displayScale lands later (Slice 5);
+  // for the Slice 2 plumbing refactor the multiply-on-output keeps
+  // the visual diff at zero.
+  const DISPLAY_SCALE = 13;
+
   const ZOOM_MIN = 0.5;
   const ZOOM_MAX = 4.0;
   const ZOOM_STEP = 1.15;
@@ -249,12 +277,14 @@
     win: null,
     ctrl: null,
     isOpen: false,
-    parentCol: null,
-    parentRow: null,
-    parentId: null,
-    parentTerrain: null,
-    parentQ: null,             // axial center subhex of this parent
-    parentR: null,
+    // World-coord viewport. cx/cy are at DISPLAY_SCALE×SUB_R_data
+    // (matches v2.13's SUB_R=26 world). w/h track window inner pixel
+    // dimensions; unused in Slice 2 but reserved for viewport-bbox
+    // enumeration starting Slice 3.
+    view: { cx: 0, cy: 0, zoom: ZOOM_DEFAULT, w: 0, h: 0 },
+    // Last cell hovered, for cursorParent() derivation. null until a
+    // mouseenter on any cell has fired; cleared on close.
+    cursor: null,              // null | { Q, R }
     selectedQ: null,           // global axial of selected cell
     selectedR: null,
     // armed controls what click/drag paints. null = select mode.
@@ -265,7 +295,6 @@
     ctrlDragOffset: { x: 0, y: 0 },
     brushing: false,
     brushedThisDrag: null,     // Set<string> of "Q_R" keys painted in current drag
-    zoom: ZOOM_DEFAULT,
     // When the GM clicks a parent-path marker to start authoring, we
     // remember which segment they're working on. The pair-end marker
     // gets the .destination class so the GM can see where to draw to.
@@ -335,7 +364,7 @@
       if (pos && Number.isFinite(pos.w) && pos.w >= 380){ w.style.width  = pos.w + 'px'; }
       if (pos && Number.isFinite(pos.h) && pos.h >= 320){ w.style.height = pos.h + 'px'; }
       if (pos && Number.isFinite(pos.zoom)){
-        state.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, pos.zoom));
+        state.view.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, pos.zoom));
       }
     } catch(e){
       w.style.right = '24px';
@@ -368,6 +397,8 @@
     let viewportT = null;
     window.addEventListener('resize', () => {
       if (!state.isOpen) return;
+      state.view.w = window.innerWidth;
+      state.view.h = window.innerHeight;
       if (viewportT) clearTimeout(viewportT);
       viewportT = setTimeout(() => {
         if (!state.win || !state.win.style.left || !state.win.style.top) return;
@@ -395,7 +426,7 @@
         y: Number.isFinite(prev.y) ? prev.y : rect.top,
         w: Math.round(rect.width),
         h: Math.round(rect.height),
-        zoom: state.zoom,
+        zoom: state.view.zoom,
       };
       const usingLeftTop = state.win.style.left && state.win.style.top
                            && state.win.style.right === 'auto';
@@ -413,7 +444,7 @@
     state.win.style.height = '';
     state.win.style.right = '24px';
     state.win.style.top   = '160px';
-    state.zoom = ZOOM_DEFAULT;
+    state.view.zoom = ZOOM_DEFAULT;
     applyZoom();
     if (state.ctrl){
       try { localStorage.removeItem('gcc-subhex-controls-pos'); } catch(e){}
@@ -728,7 +759,7 @@
   // ── Zoom ───────────────────────────────────────────────────────────────
   function setZoom(newZoom, anchor){
     const z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, newZoom));
-    if (z === state.zoom) return;
+    if (z === state.view.zoom) return;
     const wrap = state.win?.querySelector('#sxw-svg-wrap');
     const svg  = state.win?.querySelector('#sxw-svg');
     if (!wrap || !svg) return;
@@ -738,14 +769,14 @@
       const wrapRect = wrap.getBoundingClientRect();
       const localX = anchor.x - wrapRect.left + wrap.scrollLeft;
       const localY = anchor.y - wrapRect.top  + wrap.scrollTop;
-      const ratio = z / state.zoom;
+      const ratio = z / state.view.zoom;
       scrollAdjust = {
         sl: localX * ratio - (anchor.x - wrapRect.left),
         st: localY * ratio - (anchor.y - wrapRect.top),
       };
     }
 
-    state.zoom = z;
+    state.view.zoom = z;
     applyZoom();
     if (scrollAdjust){
       wrap.scrollLeft = Math.max(0, scrollAdjust.sl);
@@ -755,18 +786,18 @@
   }
 
   function zoomBy(factor){
-    setZoom(state.zoom * factor);
+    setZoom(state.view.zoom * factor);
   }
 
   function applyZoom(){
     const svg = state.win?.querySelector('#sxw-svg');
     const pct = state.win?.querySelector('#sxw-zoom-pct');
     if (svg){
-      svg.style.width = `${state.zoom * 100}%`;
+      svg.style.width = `${state.view.zoom * 100}%`;
       svg.style.height = 'auto';
     }
     if (pct){
-      pct.textContent = `${Math.round(state.zoom * 100)}%`;
+      pct.textContent = `${Math.round(state.view.zoom * 100)}%`;
     }
   }
 
@@ -774,7 +805,7 @@
     if (!ev.ctrlKey && !ev.metaKey) return;
     ev.preventDefault();
     const factor = ev.deltaY < 0 ? ZOOM_STEP : (1 / ZOOM_STEP);
-    setZoom(state.zoom * factor, { x: ev.clientX, y: ev.clientY });
+    setZoom(state.view.zoom * factor, { x: ev.clientX, y: ev.clientY });
   }
 
   function buildPalette(){
@@ -1017,27 +1048,25 @@
   function open(col, row){
     ensureWindow();
     state.isOpen = true;
-    state.parentCol = col;
-    state.parentRow = row;
-    state.parentId = (typeof hexIdStr === 'function') ? hexIdStr(col, row) : `${col}-${row}`;
-    state.parentTerrain = (typeof getHexTerrain === 'function') ? getHexTerrain(col, row) : null;
-    const center = window.GCCSubhexData.parentCenterAxial(col, row);
-    state.parentQ = center.Q;
-    state.parentR = center.R;
     state.selectedQ = null;
     state.selectedR = null;
     state.armed = null;
     state.markerHighlight = null;
+    state.cursor = null;
+    state.view.w = window.innerWidth;
+    state.view.h = window.innerHeight;
+    centerOnParent(col, row);
 
-    const lm = (typeof GCCLandmarks !== 'undefined') ? GCCLandmarks.getById(state.parentId) : null;
+    const parentId = (typeof hexIdStr === 'function') ? hexIdStr(col, row) : `${col}-${row}`;
+    const lm = (typeof GCCLandmarks !== 'undefined') ? GCCLandmarks.getById(parentId) : null;
     const t = state.win.querySelector('.sxw-title');
     t.textContent = lm ? lm.name : 'Subhexes';
     const cb = state.win.querySelector('#sxw-coord-bar');
-    if (cb) cb.textContent = state.parentId;
+    if (cb) cb.textContent = parentId;
     const ctrlTitle = state.ctrl?.querySelector('.sxw-title');
     if (ctrlTitle) ctrlTitle.textContent = lm ? lm.name : 'Controls';
     const ctrlCb = state.ctrl?.querySelector('#sxw-ctrl-coord-bar');
-    if (ctrlCb) ctrlCb.textContent = state.parentId;
+    if (ctrlCb) ctrlCb.textContent = parentId;
 
     state.win.style.display = 'flex';
     const cur = state.win.getBoundingClientRect();
@@ -1072,8 +1101,7 @@
     state.win.style.display = 'none';
     if (state.ctrl) state.ctrl.style.display = 'none';
     state.isOpen = false;
-    state.parentCol = state.parentRow = null;
-    state.parentQ = state.parentR = null;
+    state.cursor = null;
     state.selectedQ = state.selectedR = null;
     state.armed = null;
     state.markerHighlight = null;
@@ -1099,22 +1127,88 @@
   function isOpen(){ return state.isOpen; }
   function currentParent(){
     if (!state.isOpen) return null;
-    return { col: state.parentCol, row: state.parentRow };
+    return centerParent();
   }
 
-  // ── Geometry: axial (Q, R) → viewport (x, y) ──────────────────────────
-  // Map a global axial cell to viewport coords for the current parent
-  // window. The parent's center subhex sits at the viewBox center.
-  function cellViewport(Q, R){
-    const dq = Q - state.parentQ;
-    const dr = R - state.parentR;
-    return {
-      x: VIEWBOX_W / 2 + 1.5 * SUB_R * dq,
-      y: VIEWBOX_H / 2 + SQRT3 * SUB_R * (dr + dq / 2),
-    };
+  // ── Geometry: axial (Q, R) → world SVG (x, y) ──────────────────────────
+  // Map a global axial cell to world SVG coords. World coords are
+  // SUB_R=2 native (data layer) scaled up by DISPLAY_SCALE so the
+  // returned values match v2.13's SUB_R=26 viewport-coord convention
+  // and downstream geometry runs unchanged.
+  function cellWorldCenter(Q, R){
+    const D = window.GCCSubhexData;
+    if (!D || typeof D.subhexSvgCenter !== 'function'){
+      return { x: 0, y: 0 };
+    }
+    const c = D.subhexSvgCenter(Q, R);
+    return { x: c.x * DISPLAY_SCALE, y: c.y * DISPLAY_SCALE };
+  }
+
+  // Slide the SVG viewBox so the world point (state.view.cx, .cy) sits
+  // at the visible center, with the existing VIEWBOX_W × VIEWBOX_H
+  // extent. Called whenever centerOnParent changes the view center;
+  // zoom continues to be applied via CSS width on #sxw-svg.
+  function applyViewBox(){
+    const svg = state.win?.querySelector('#sxw-svg');
+    if (!svg) return;
+    const x = state.view.cx - VIEWBOX_W / 2;
+    const y = state.view.cy - VIEWBOX_H / 2;
+    svg.setAttribute('viewBox', `${x.toFixed(1)} ${y.toFixed(1)} ${VIEWBOX_W} ${VIEWBOX_H}`);
+  }
+
+  // Set the view to be centered on the given parent. Single-parent
+  // open(col,row) callers route here. Zoom is preserved.
+  function centerOnParent(col, row){
+    const D = window.GCCSubhexData;
+    if (!D || typeof D.parentSvgCenter !== 'function') return;
+    const c = D.parentSvgCenter(col, row);
+    state.view.cx = c.x * DISPLAY_SCALE;
+    state.view.cy = c.y * DISPLAY_SCALE;
+    applyViewBox();
+  }
+
+  // Return the parent that owns the cell at the current view center,
+  // or null when no view is established. Result is { col, row } |
+  // null. ownerOf is cached so this is cheap to call from renderers.
+  function centerParent(){
+    if (!state.isOpen) return null;
+    const D = window.GCCSubhexData;
+    if (!D || typeof D.svgToAxial !== 'function' || typeof D.ownerOf !== 'function'){
+      return null;
+    }
+    const dx = state.view.cx / DISPLAY_SCALE;
+    const dy = state.view.cy / DISPLAY_SCALE;
+    const cell = D.svgToAxial(dx, dy);
+    return D.ownerOf(cell.Q, cell.R);
+  }
+
+  // Return the parent under the cursor, or null if the cursor hasn't
+  // entered a cell yet. Slice 2 only updates state.cursor on cell
+  // mouseenter; later slices may add SVG-level mousemove tracking
+  // for hover-without-cell.
+  function cursorParent(){
+    if (!state.isOpen || !state.cursor) return null;
+    const D = window.GCCSubhexData;
+    if (!D || typeof D.ownerOf !== 'function') return null;
+    return D.ownerOf(state.cursor.Q, state.cursor.R);
+  }
+
+  // Convenience: terrain of the centered parent, used as the default
+  // parentTerrain for getSubhex / fragment-resolution paths in the
+  // single-parent renderer. Returns null when the view has no center.
+  function centerParentTerrain(){
+    const p = centerParent();
+    if (!p) return null;
+    return (typeof getHexTerrain === 'function') ? getHexTerrain(p.col, p.row) : null;
+  }
+
+  function centerParentId(){
+    const p = centerParent();
+    if (!p) return null;
+    return (typeof hexIdStr === 'function') ? hexIdStr(p.col, p.row) : `${p.col}-${p.row}`;
   }
   function cellCorners(Q, R){
-    const c = cellViewport(Q, R);
+    const c = cellWorldCenter(Q, R);
     const out = new Array(6);
     for (let i = 0; i < 6; i++){
       const a = (Math.PI / 180) * (60 * i);
@@ -1123,7 +1217,7 @@
     return out;
   }
   function parentCorners(){
-    const cx = VIEWBOX_W / 2, cy = VIEWBOX_H / 2;
+    const cx = state.view.cx, cy = state.view.cy;
     const out = new Array(6);
     for (let i = 0; i < 6; i++){
       const a = (Math.PI / 180) * (60 * i);
@@ -1140,10 +1234,11 @@
   // owning parent id for hint display.
   function buildCellGroup(Q, R, layer, fragmentInfo){
     const ns = 'http://www.w3.org/2000/svg';
+    const ptr = centerParentTerrain();
     const sub = window.GCCSubhexData.getSubhex(Q, R, fragmentInfo
-      ? (typeof getHexTerrain === 'function' ? getHexTerrain(fragmentInfo.ownerCol, fragmentInfo.ownerRow) : state.parentTerrain)
-      : state.parentTerrain);
-    const c = cellViewport(Q, R);
+      ? (typeof getHexTerrain === 'function' ? getHexTerrain(fragmentInfo.ownerCol, fragmentInfo.ownerRow) : ptr)
+      : ptr);
+    const c = cellWorldCenter(Q, R);
     const corners = cellCorners(Q, R);
     const pts = corners.map(([x,y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
 
@@ -1199,9 +1294,11 @@
   function rebuildSVG(){
     const svg = state.win.querySelector('#sxw-svg');
     if (!svg) return;
+    applyViewBox();
     svg.innerHTML = '';
     const ns = 'http://www.w3.org/2000/svg';
 
+    const cp = centerParent();
     const pCorners = parentCorners();
     const pPts = pCorners.map(([x,y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
 
@@ -1212,7 +1309,7 @@
     // so the GM can see exactly how they bridge into neighbor parents.
     const fragLayer = document.createElementNS(ns, 'g');
     fragLayer.setAttribute('class', 'sxw-fragment-layer');
-    const fragments = window.GCCSubhexData.fragmentsForParent(state.parentCol, state.parentRow);
+    const fragments = cp ? window.GCCSubhexData.fragmentsForParent(cp.col, cp.row) : [];
     for (const f of fragments){
       buildCellGroup(f.Q, f.R, fragLayer, { ownerCol: f.ownerCol, ownerRow: f.ownerRow });
     }
@@ -1221,7 +1318,7 @@
     // Owned cells (~100 per parent).
     const ownedLayer = document.createElementNS(ns, 'g');
     ownedLayer.setAttribute('class', 'sxw-owned-layer');
-    const owned = window.GCCSubhexData.ownedByParent(state.parentCol, state.parentRow);
+    const owned = cp ? window.GCCSubhexData.ownedByParent(cp.col, cp.row) : [];
     for (const { Q, R } of owned){
       buildCellGroup(Q, R, ownedLayer, null);
     }
@@ -1248,9 +1345,11 @@
   function renderParentPathMarkers(svg){
     if (!window.GCCPaths) return;
     svg.querySelectorAll('.sxw-parent-path-markers').forEach(n => n.remove());
-    const segments = window.GCCPaths.segmentsAt(state.parentCol, state.parentRow);
+    const cp = centerParent();
+    if (!cp) return;
+    const segments = window.GCCPaths.segmentsAt(cp.col, cp.row);
     if (!segments || !segments.length) return;
-    const owned = window.GCCSubhexData.ownedByParent(state.parentCol, state.parentRow);
+    const owned = window.GCCSubhexData.ownedByParent(cp.col, cp.row);
     if (!owned.length) return;
 
     const ns = 'http://www.w3.org/2000/svg';
@@ -1280,7 +1379,7 @@
   }
 
   function edgeMidpoint(edge){
-    const cx = VIEWBOX_W / 2, cy = VIEWBOX_H / 2;
+    const cx = state.view.cx, cy = state.view.cy;
     const a1 = (Math.PI / 180) * (60 * ((edge + 4) % 6));
     const a2 = (Math.PI / 180) * (60 * ((edge + 5) % 6));
     return {
@@ -1297,7 +1396,7 @@
     const mid = edgeMidpoint(edge);
     let best = null, bestD = Infinity;
     for (const cell of owned){
-      const v = cellViewport(cell.Q, cell.R);
+      const v = cellWorldCenter(cell.Q, cell.R);
       const dx = v.x - mid.x, dy = v.y - mid.y;
       const d2 = dx*dx + dy*dy;
       if (d2 < bestD){ bestD = d2; best = cell; }
@@ -1316,7 +1415,9 @@
     if (!window.GCCSubhexPaths || !seg.name) return null;
     if (!window.GCCSubhexData) return null;
     if (typeof window.GCCPaths?.neighborAcross !== 'function') return null;
-    const nbParent = window.GCCPaths.neighborAcross(state.parentCol, state.parentRow, edge);
+    const cp = centerParent();
+    if (!cp) return null;
+    const nbParent = window.GCCPaths.neighborAcross(cp.col, cp.row, edge);
     if (!nbParent) return null;
     const D = window.GCCSubhexData;
     const NEIGHBORS = D.NEIGHBOR_DELTAS || [[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]];
@@ -1350,7 +1451,7 @@
       const cellSet = new Set(p.cells.map(c => `${c.Q}_${c.R}`));
       for (const ec of edgeCells){
         if (!cellSet.has(`${ec.Q}_${ec.R}`)) continue;
-        const v = cellViewport(ec.Q, ec.R);
+        const v = cellWorldCenter(ec.Q, ec.R);
         const dx = v.x - mid.x, dy = v.y - mid.y;
         const d2 = dx*dx + dy*dy;
         if (d2 < bestD){ bestD = d2; bestCell = ec; }
@@ -1367,7 +1468,7 @@
     const best = authoredCell || boundaryCellForEdge(edge, owned);
     if (!best) return;
     const mid = edgeMidpoint(edge);
-    const cellPos = cellViewport(best.Q, best.R);
+    const cellPos = cellWorldCenter(best.Q, best.R);
     let dx = mid.x - cellPos.x, dy = mid.y - cellPos.y;
     const len = Math.sqrt(dx*dx + dy*dy);
     let mx = cellPos.x, my = cellPos.y;
@@ -1410,8 +1511,9 @@
   }
 
   function pathMarkerTooltip(seg, edge, authored){
-    const neighbor = (typeof window.GCCPaths.neighborAcross === 'function')
-      ? window.GCCPaths.neighborAcross(state.parentCol, state.parentRow, edge)
+    const cp = centerParent();
+    const neighbor = (cp && typeof window.GCCPaths.neighborAcross === 'function')
+      ? window.GCCPaths.neighborAcross(cp.col, cp.row, edge)
       : null;
     const neighborLabel = (neighbor && typeof hexIdStr === 'function')
       ? hexIdStr(neighbor.col, neighbor.row)
@@ -1532,7 +1634,10 @@
   // feature, or dismissed for this exact path-set, are excluded.
   function detectCrossings(){
     if (!window.GCCSubhexPaths) return [];
-    const paths = window.GCCSubhexPaths.pathsInParent(state.parentCol, state.parentRow);
+    const cp = centerParent();
+    if (!cp) return [];
+    const ptr = centerParentTerrain();
+    const paths = window.GCCSubhexPaths.pathsInParent(cp.col, cp.row);
     if (paths.length < 2) return [];
     // Bucket: cell key -> list of paths touching it
     const byCell = new Map();
@@ -1547,7 +1652,7 @@
         byCell.get(k).push(p);
       }
     }
-    const owned = window.GCCSubhexData.ownedByParent(state.parentCol, state.parentRow);
+    const owned = window.GCCSubhexData.ownedByParent(cp.col, cp.row);
     const ownedSet = new Set(owned.map(c => `${c.Q}_${c.R}`));
     const dismissed = loadDismissedCrossings();
     const out = [];
@@ -1562,7 +1667,7 @@
       const allWater = plist.every(p => p.kind === 'river' || p.kind === 'stream');
       if (allWater) continue;
       const [Q, R] = key.split('_').map(Number);
-      const sub = window.GCCSubhexData.getSubhex(Q, R, state.parentTerrain);
+      const sub = window.GCCSubhexData.getSubhex(Q, R, ptr);
       if (sub && sub.feature && sub.feature.kind) continue;
       const dKey = dismissKey(Q, R, plist.map(p => p.id));
       if (dismissed[dKey]) continue;
@@ -1579,7 +1684,7 @@
     const layer = document.createElementNS(ns, 'g');
     layer.setAttribute('class', 'sxw-crossings-layer');
     for (const x of crossings){
-      const c = cellViewport(x.Q, x.R);
+      const c = cellWorldCenter(x.Q, x.R);
       const bx = c.x + SUB_R * 0.55;
       const by = c.y - SUB_R * 0.55;
       const g = document.createElementNS(ns, 'g');
@@ -1675,15 +1780,20 @@
     if (!svg) return;
     svg.querySelectorAll('.sxw-crossing-menu').forEach(n => n.remove());
     const ns = 'http://www.w3.org/2000/svg';
-    const c = cellViewport(Q, R);
+    const c = cellWorldCenter(Q, R);
     const mx = c.x + SUB_R * 0.55;
     const my = c.y - SUB_R * 0.55;
     const fo = document.createElementNS(ns, 'foreignObject');
     fo.setAttribute('class', 'sxw-crossing-menu');
     const W = 160, H = 30 + 28 * (kinds.length + 1);
-    // Try to place to the right of the badge; flip left if close to viewBox edge.
-    const place = (mx + 8 + W < VIEWBOX_W) ? mx + 8 : mx - W - 8;
-    const placeY = (my + H < VIEWBOX_H) ? my : Math.max(8, VIEWBOX_H - H - 8);
+    // Clamp inside the slid viewBox: world bounds are
+    // [view.cx ± VIEWBOX_W/2, view.cy ± VIEWBOX_H/2]. Try right of
+    // the badge; flip left if close to the viewBox right edge.
+    const xMax = state.view.cx + VIEWBOX_W / 2;
+    const yMin = state.view.cy - VIEWBOX_H / 2;
+    const yMax = state.view.cy + VIEWBOX_H / 2;
+    const place = (mx + 8 + W < xMax) ? mx + 8 : mx - W - 8;
+    const placeY = (my + H < yMax) ? my : Math.max(yMin + 8, yMax - H - 8);
     fo.setAttribute('x', place.toFixed(1));
     fo.setAttribute('y', placeY.toFixed(1));
     fo.setAttribute('width', W);
@@ -1789,7 +1899,12 @@
   function renderPaths(svg){
     if (!window.GCCSubhexPaths) return;
     svg.querySelectorAll('.sxw-paths-layer').forEach(n => n.remove());
-    const paths = window.GCCSubhexPaths.pathsInParent(state.parentCol, state.parentRow);
+    const cp = centerParent();
+    if (!cp){
+      renderArmedPathGhost(svg);
+      return;
+    }
+    const paths = window.GCCSubhexPaths.pathsInParent(cp.col, cp.row);
     if (!paths.length){
       // No path cells in this parent — but if a path is armed and has
       // cells in a neighbor parent, render a ghost marker on this
@@ -1805,7 +1920,7 @@
       if (!p.cells || p.cells.length < 1) continue;
       const pts = pathPolylinePoints(p.cells);
       if (pts.length < 2){
-        const c = cellViewport(p.cells[0].Q, p.cells[0].R);
+        const c = cellWorldCenter(p.cells[0].Q, p.cells[0].R);
         const dot = document.createElementNS(ns, 'circle');
         dot.setAttribute('cx', c.x);
         dot.setAttribute('cy', c.y);
@@ -1844,6 +1959,8 @@
   function renderArmedPathGhost(svg){
     svg.querySelectorAll('.sxw-armed-ghost-layer').forEach(n => n.remove());
     if (!state.armed || state.armed.type !== 'path') return;
+    const cp = centerParent();
+    if (!cp) return;
     const armed = window.GCCSubhexPaths.getPath(state.armed.value);
     if (!armed || !armed.cells || armed.cells.length === 0) return;
     const last = armed.cells[armed.cells.length - 1];
@@ -1852,7 +1969,7 @@
     // path renderer already shows the live tip the GM can extend
     // from. Ghosts are specifically for "the path is somewhere
     // else, here's where to pick it up."
-    if (lastOwner && lastOwner.col === state.parentCol && lastOwner.row === state.parentRow){
+    if (lastOwner && lastOwner.col === cp.col && lastOwner.row === cp.row){
       return;
     }
     // Find a neighbor of the last cell that is owned by this parent.
@@ -1863,7 +1980,7 @@
     for (const [dq, dr] of NEIGHBORS){
       const cQ = last.Q + dq, cR = last.R + dr;
       const o = window.GCCSubhexData.ownerOf(cQ, cR);
-      if (o && o.col === state.parentCol && o.row === state.parentRow){
+      if (o && o.col === cp.col && o.row === cp.row){
         target = { Q: cQ, R: cR };
         break;
       }
@@ -1872,7 +1989,7 @@
     const ns = 'http://www.w3.org/2000/svg';
     const layer = document.createElementNS(ns, 'g');
     layer.setAttribute('class', 'sxw-armed-ghost-layer');
-    const c = cellViewport(target.Q, target.R);
+    const c = cellWorldCenter(target.Q, target.R);
     const dot = document.createElementNS(ns, 'circle');
     dot.setAttribute('cx', c.x);
     dot.setAttribute('cy', c.y);
@@ -1886,18 +2003,18 @@
   function pathPolylinePoints(cells){
     if (!cells || !cells.length) return [];
     if (cells.length === 1){
-      const c = cellViewport(cells[0].Q, cells[0].R);
+      const c = cellWorldCenter(cells[0].Q, cells[0].R);
       return [[c.x, c.y]];
     }
     const pts = [];
-    const first = cellViewport(cells[0].Q, cells[0].R);
+    const first = cellWorldCenter(cells[0].Q, cells[0].R);
     pts.push([first.x, first.y]);
     for (let i = 0; i < cells.length - 1; i++){
-      const a = cellViewport(cells[i].Q, cells[i].R);
-      const b = cellViewport(cells[i+1].Q, cells[i+1].R);
+      const a = cellWorldCenter(cells[i].Q, cells[i].R);
+      const b = cellWorldCenter(cells[i+1].Q, cells[i+1].R);
       pts.push([(a.x + b.x) / 2, (a.y + b.y) / 2]);
     }
-    const last = cellViewport(cells[cells.length-1].Q, cells[cells.length-1].R);
+    const last = cellWorldCenter(cells[cells.length-1].Q, cells[cells.length-1].R);
     pts.push([last.x, last.y]);
     return pts;
   }
@@ -1909,7 +2026,9 @@
   function renderRegionLabels(svg){
     if (!window.GCCSubhexData) return;
     svg.querySelectorAll('.sxw-region-label-layer').forEach(n => n.remove());
-    const regions = window.GCCSubhexData.regionsInParent(state.parentCol, state.parentRow);
+    const cp = centerParent();
+    if (!cp) return;
+    const regions = window.GCCSubhexData.regionsInParent(cp.col, cp.row);
     if (!regions.length) return;
     const ns = 'http://www.w3.org/2000/svg';
     const layer = document.createElementNS(ns, 'g');
@@ -1919,7 +2038,7 @@
       if (members.length < 3) continue;
       let sx = 0, sy = 0;
       for (const { Q, R } of members){
-        const c = cellViewport(Q, R);
+        const c = cellWorldCenter(Q, R);
         sx += c.x; sy += c.y;
       }
       const cx = sx / members.length;
@@ -1942,12 +2061,13 @@
   function applyCellPaint(Q, R){
     const group = document.getElementById(cellDomId(Q, R));
     if (!group) return;
+    const ptr = centerParentTerrain();
     const isFragment = group.dataset.fragment === '1';
     const fragTerrain = isFragment
       ? (typeof getHexTerrain === 'function'
           ? getHexTerrain(+group.dataset.ownerCol, +group.dataset.ownerRow)
-          : state.parentTerrain)
-      : state.parentTerrain;
+          : ptr)
+      : ptr;
     const sub = window.GCCSubhexData.getSubhex(Q, R, fragTerrain);
     const poly = group.querySelector('.sxw-cell');
     if (!poly) return;
@@ -1960,7 +2080,7 @@
     group.querySelectorAll('.sxw-terrain-layer, .sxw-feature-layer').forEach(n => n.remove());
     if (window.GCCSubhexIcons){
       const ns = 'http://www.w3.org/2000/svg';
-      const c = cellViewport(Q, R);
+      const c = cellWorldCenter(Q, R);
       const terrainG = document.createElementNS(ns, 'g');
       terrainG.setAttribute('class', 'sxw-terrain-layer');
       window.GCCSubhexIcons.append(terrainG, sub.terrain, c.x, c.y, SUB_R, Q, R);
@@ -1998,9 +2118,10 @@
     const g = ev.currentTarget;
     const parent = g.parentNode;
     if (parent && parent.lastChild !== g) parent.appendChild(g);
-    if (!state.brushing) return;
     const Q = +g.dataset.q;
     const R = +g.dataset.r;
+    state.cursor = { Q, R };
+    if (!state.brushing) return;
     paintCell(Q, R, g);
   }
 
@@ -2018,13 +2139,14 @@
   // — for fragments, that's the owner's terrain; for owned cells, our
   // own parent's terrain.
   function effectiveParentTerrainFor(group){
-    if (!group) return state.parentTerrain;
+    const ptr = centerParentTerrain();
+    if (!group) return ptr;
     if (group.dataset.fragment === '1'){
       return (typeof getHexTerrain === 'function')
         ? getHexTerrain(+group.dataset.ownerCol, +group.dataset.ownerRow)
-        : state.parentTerrain;
+        : ptr;
     }
-    return state.parentTerrain;
+    return ptr;
   }
 
   function paintCell(Q, R, group){
@@ -2132,12 +2254,13 @@
         // markers so the destination dot drops its highlight class
         // and both ends pick up the .authored class.
         if (state.markerHighlight){
-          const segments = window.GCCPaths?.segmentsAt(state.parentCol, state.parentRow) || [];
+          const cp = centerParent();
+          const segments = (cp && window.GCCPaths) ? (window.GCCPaths.segmentsAt(cp.col, cp.row) || []) : [];
           const seg = segments[state.markerHighlight.segIndex];
           if (seg){
             const otherEdge = (state.markerHighlight.edge === seg.entryEdge) ? seg.exitEdge : seg.entryEdge;
             if (typeof otherEdge === 'number' && otherEdge >= 0){
-              const owned = window.GCCSubhexData.ownedByParent(state.parentCol, state.parentRow);
+              const owned = cp ? window.GCCSubhexData.ownedByParent(cp.col, cp.row) : [];
               const destCell = boundaryCellForEdge(otherEdge, owned);
               if (destCell && destCell.Q === Q && destCell.R === R){
                 state.markerHighlight = null;
@@ -2197,7 +2320,7 @@
     if (owner && typeof getHexTerrain === 'function'){
       return getHexTerrain(owner.col, owner.row);
     }
-    return state.parentTerrain;
+    return centerParentTerrain();
   }
 
   function syncDetailPanel(){
@@ -2291,9 +2414,7 @@
     // neighbor parent shown in the current view), else fall back to
     // the active parent (most interior cells). Without this fallback
     // the picker came up empty for any non-fragment cell.
-    const cellOwner = owner || (state.parentCol != null && state.parentRow != null
-      ? { col: state.parentCol, row: state.parentRow }
-      : null);
+    const cellOwner = owner || centerParent() || null;
     if (lpick){
       rebuildLandmarkPickOptions(lpick, cellOwner, f && f.landmarkId);
       lpick.disabled = false;
@@ -2700,7 +2821,8 @@
       const prevHighlight = state.markerHighlight;
       state.armed = { type: 'path', value: val };
       if (prevHighlight){
-        const segments = window.GCCPaths?.segmentsAt(state.parentCol, state.parentRow) || [];
+        const cp = centerParent();
+        const segments = (cp && window.GCCPaths) ? (window.GCCPaths.segmentsAt(cp.col, cp.row) || []) : [];
         const seg = segments[prevHighlight.segIndex];
         const armedPath = window.GCCSubhexPaths.getPath(val);
         const matches = seg && armedPath && armedPath.kind === seg.kind && armedPath.name === seg.name;
@@ -2755,7 +2877,8 @@
           if (path.cells.length > 0 && window.GCCSubhexData){
             const last = path.cells[path.cells.length - 1];
             const owner = window.GCCSubhexData.ownerOf(last.Q, last.R);
-            if (owner && (owner.col !== state.parentCol || owner.row !== state.parentRow)){
+            const cp = centerParent();
+            if (owner && (!cp || owner.col !== cp.col || owner.row !== cp.row)){
               const lastId = (typeof hexIdStr === 'function')
                 ? hexIdStr(owner.col, owner.row)
                 : `${owner.col},${owner.row}`;
