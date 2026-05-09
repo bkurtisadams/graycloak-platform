@@ -6,6 +6,9 @@
 <title>Gamma World — Campaign Map</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23120900'/%3E%3Cpolygon points='16,4 28,11 28,21 16,28 4,21 4,11' fill='none' stroke='%23ff8844' stroke-width='2.5'/%3E%3C/svg%3E">
 
+<link rel="stylesheet" href="gcc-header.css">
+<link rel="stylesheet" href="gcc-auth.css">
+
 <script src="gw-encounter-data.js"></script>
 <script src="gw-terrain-data.js?v=1"></script>
 
@@ -21,17 +24,21 @@
     --gamma-orange: #ff8844;
     --gamma-orange-light: #ffaa66;
     --topbar-h: 46px;
+    --gcc-bar-h: 44px;
   }
+  /* Override gcc-header.css default (relative) to fix the bar at viewport top
+     since gw-map uses a fixed-positioning layout. */
+  .gcc-bar { position:fixed; top:0; left:0; right:0; z-index:200; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background:#0a0500; font-family:'Crimson Text',Georgia,serif; color:var(--parchment-light); overflow:hidden; height:100vh; width:100vw; user-select:none; }
 
-  #topbar { position:fixed; top:0; left:0; right:0; height:var(--topbar-h); background:linear-gradient(180deg,#100800,#1e1004); border-bottom:1px solid var(--panel-border); display:flex; align-items:center; padding:0 14px; gap:12px; z-index:100; }
+  #topbar { position:fixed; top:var(--gcc-bar-h); left:0; right:0; height:var(--topbar-h); background:linear-gradient(180deg,#100800,#1e1004); border-bottom:1px solid var(--panel-border); display:flex; align-items:center; padding:0 14px; gap:12px; z-index:100; }
   #topbar h1 { font-family:'Cinzel',serif; font-size:15px; font-weight:600; letter-spacing:.12em; color:var(--gamma-orange-light); text-shadow:0 0 12px rgba(255,136,68,.4); }
   #topbar .ver { font-size:11px; color:#c8a96e; }
   .sep { width:1px; height:22px; background:var(--panel-border); }
   .spacer { flex:1; }
 
-  #map-wrap { position:fixed; top:var(--topbar-h); left:0; right:0; bottom:0; overflow:hidden; cursor:grab; background:#050200; touch-action:none; }
+  #map-wrap { position:fixed; top:calc(var(--gcc-bar-h) + var(--topbar-h)); left:0; right:0; bottom:0; overflow:hidden; cursor:grab; background:#050200; touch-action:none; }
   #map-wrap.grabbing { cursor:grabbing; }
   #map-stage { position:absolute; top:0; left:0; transform-origin:0 0; will-change:transform; }
   #world { display:block; }
@@ -43,8 +50,8 @@
   .parent-label { font-family:'Cinzel',serif; font-size:5px; fill:rgba(0,0,0,.6); text-anchor:middle; dominant-baseline:middle; pointer-events:none; }
 
   .hud { position:fixed; background:var(--panel-bg); border:1px solid var(--panel-border); border-radius:3px; color:var(--parchment-light); padding:10px 14px; font-size:12px; z-index:50; box-shadow:0 4px 16px rgba(0,0,0,.6); }
-  #hud-cell      { top:calc(var(--topbar-h) + 12px); left:12px;   min-width:200px; }
-  #hud-layers    { top:calc(var(--topbar-h) + 12px); right:12px;  min-width:160px; }
+  #hud-cell      { top:calc(var(--gcc-bar-h) + var(--topbar-h) + 12px); left:12px;   min-width:200px; }
+  #hud-layers    { top:calc(var(--gcc-bar-h) + var(--topbar-h) + 12px); right:12px;  min-width:160px; }
   #hud-encounter { bottom:12px; left:12px;  min-width:260px; max-width:320px; }
   #hud-zoom      { bottom:12px; right:12px; min-width:140px; }
 
@@ -70,6 +77,26 @@
 </style>
 </head>
 <body>
+
+<div id="gcc-bar" class="gcc-bar">
+  <div class="gcc-bar-in">
+    <a href="index.html" class="gcc-brand" title="Back to Dashboard">
+      <div class="gcc-title-wrap">
+        <div class="gcc-title">GRAYCLOAK'S</div>
+        <div class="gcc-subtitle">CAMPAIGN CORNER</div>
+      </div>
+    </a>
+    <div class="gcc-nav">
+      <div class="gcc-tools-wrap">
+        <button class="gcc-nav-btn" id="gcc-btn-tools">🎲 Tools ▾</button>
+        <div class="gcc-tools-dd" id="gcc-tools-dd"></div>
+      </div>
+      <span id="gcc-auth-slot"></span>
+      <button class="gcc-nav-btn" id="gcc-btn-theme" title="Toggle light/dark"><span id="gcc-theme-icon">◑</span></button>
+    </div>
+  </div>
+</div>
+<div class="gcc-tools-overlay" id="gcc-tools-overlay"></div>
 
 <div id="topbar">
   <h1>GAMMA WORLD — Campaign Map</h1>
@@ -136,6 +163,10 @@
   <div class="hud-row"><label>Scale</label><span>30 mi/parent</span></div>
 </div>
 
+<script src="gcc-data.js"></script>
+<script src="gcc-header.js"></script>
+<script src="gcc-firebase-config.js"></script>
+<script src="gcc-auth.js"></script>
 <script>
 'use strict';
 
