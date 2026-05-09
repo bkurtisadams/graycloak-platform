@@ -1,6 +1,6 @@
 # Gamma World 1e → Mighty Protectors Bestiary
 
-**Status:** v0.4 (31 of 55 statted)
+**Status:** v0.5 (41 of 55 statted)
 **Destination:** `gcc/gw-mp-bestiary.md`
 **Last updated:** 2026-05-09
 **Conversion rules:** see `gcc/DESIGN-gw-mp-conversion.md`
@@ -26,9 +26,8 @@ Stat blocks for GW1e wilderness encounter table creatures, converted to MP. Enco
 **Tier 4 — Regional (14 creatures, 14/14 done) ✓**
 - [x] **Ark**, **Blight**, **Cal Then**, **Centisteed**, **Crep Plant**, **Eat (Ert)**, **Horl Choo (Hori)**, **Kai Lin**, **Obb**, **Orlen**, **Serf**, **Soul Besh**, **Win Seen**, **Zeethh**
 
-**Tier 5 — Single-table specialists (25 creatures, 2/25 done; Choo subsumed by Horl Choo)**
-- [x] **Pineto (Pinelo)**, **Seroon Lou** (consolidated from Seroon + Lou)
-- *Water (10):* Bari Nep, Cren Tosh, Ert Telden, Fen, Fleshin, Herkel, Keeshin, Menarl, Nari Ep, Teri
+**Tier 5 — Single-table specialists (25 creatures, 12/25 done; Choo subsumed by Horl Choo)**
+- [x] **Barl Nep (Bari Nep)**, **Cren Tosh**, **Ert Telden**, **Fen**, **Fleshin**, **Herkel**, **Keeshin**, **Menarl**, **Narl Ep (Nari Ep)**, **Pineto (Pinelo)**, **Seroon Lou**, **Terl (Teri / Teal)**
 - *Radioactive (3):* Arn Blight, Serf Hisser, Sert
 - *Other (10):* Brutorz, Choo Kep, Erl, Gren, Hopper, Kep, Rakox, Telden + 2 TBD
 
@@ -160,6 +159,32 @@ HTH         d6      Inventing 7   Mass d4 (~100 lbs)
 
 ---
 
+### Barl Nep (Bari Nep)
+
+**GW source:** AC 3, HD 20, MV 20. 1m totally black fish. If attacked: secretes radioactive oil intensity 18 covering 10m diameter area, lasts 10 min in calm water. Killed: extracts intensity 12 oil for 10-min slick.
+**Encounter tables:** water (Tier 5 — listed as "Bari Nep" in encounter data, OCR L→i)
+**Number appearing:** 1
+**Build:** A/P Fish, High power level (HD 20 boss)
+
+```
+Base BCs:    ST 10  EN 14  AG 14  IN 4  CL 10
+Size mod:    -1 ST  (Size Change Smaller 2.5 CP, 4.5' tier)
+Heightened EN +6 (6 CP)
+Effective:   ST 9   EN 20  AG 14  IN 4  CL 10
+
+Hits        11~     Power 47      Move 14 swim + Speed = 20   Init d4
+HTH         d4      Inventing 2   Mass d4 (~80 lbs)   Profile /1.5
+```
+
+**Abilities:** A/P Fish High (30 CP — Adaptation Aquatic, Heightened Senses, Speed swim, Natural Weaponry bite), Size Change Smaller 4.5' (2.5 CP), Heightened Endurance +6 (6 CP), Speed +6 swim (5 CP — for MV 20), Change Environment Damaging Hard Radiation 11" diameter (12.5 CP — supplement, defensive trigger when attacked, 10m oil slick area, 5 Devit Entropy/round in calm water for 10 min), Adaptation Energy radiation (5 CP), Armor 12 = 6/3/1/2 (20 CP)
+**Weaknesses (in A/P bundle):** Lowered Intelligence -5, Distinctive (totally black fish) -5
+**Resource:** If killed and harvested: yields intensity 12 oil for 10-min radioactive slick (lower intensity than living defense). Combat use: catapult-launched ammunition.
+**CP estimate:** ~83
+**Origin:** Mutated or Evolved
+**Tactics:** Defensive — secretes oil only when attacked. Field persists 10 min in calm water; deters pursuit.
+
+---
+
 ### Blaash
 
 **GW source:** AC 8, HD 15, MV 6/15 (ground/fly). ~1m mutated moth, 2m wingspan, fearless and carnivorous. Glows brightly when attacking; emits intensity 18 radiation in 5m radius continuous. Self+kin immune. Post-kill feeding phase.
@@ -176,10 +201,10 @@ Hits        9~      Power 42      Move 13 (flight)  Init d4+1
 HTH         d3      Inventing 2   Mass d3 (~50 lbs)   Profile /1.5
 ```
 
-**Abilities:** A/P Insect Standard (20 CP — Flight 15m, Heightened Senses, Natural Weaponry +d3 sharp), Size Change Smaller 4.5' (2.5 CP), Power Blast Energy Aura Continuous 5" diameter ~d6 Hits/turn (17.5 CP), Adaptation Energy/radiation complete (5 CP), Light Control C Glare (5 CP), Armor 3 = 1/2/0/0 (5 CP)
+**Abilities:** A/P Insect Standard (20 CP — Flight 15m, Heightened Senses, Natural Weaponry +d3 sharp), Size Change Smaller 4.5' (2.5 CP), Change Environment Damaging Hard Radiation 11" diameter (12.5 CP — 5 Devitalization Entropy/round, supplement), Adaptation Energy/radiation complete (5 CP), Light Control C Glare (5 CP), Armor 3 = 1/2/0/0 (5 CP)
 **Weaknesses (in A/P bundle):** Lowered Intelligence -5, Distinctive -5
-**Tactics:** Aura always-on while engaged. Post-kill feeding = ambush window. Fearless.
-**CP estimate:** ~55
+**Tactics:** Hard Radiation field always-on while engaged — anyone within 5m takes 5 Devit Entropy/round automatically (medical treatment may be required per supplement p. 119). Post-kill feeding = ambush window. Fearless.
+**CP estimate:** ~50
 **Origin:** Mutated or Evolved
 
 ---
@@ -263,6 +288,33 @@ HTH         d6+1    Inventing 1   Mass d8 (~1500 lbs)   Profile x1.3
 
 ---
 
+### Cren Tosh
+
+**GW source:** AC 3, HD 16, MV 12. 2m fish that can transform into any lizard (with Sleeth-like mutations) for up to 24 hours. In fish form, burrows wide tunnels into riverbanks for nesting. Eats only plants, collects shiny objects.
+**Encounter tables:** water (Tier 5 — source spelling "Crentosh" one-word, encounter "Cren Tosh" two-word, treat as same)
+**Number appearing:** 1
+**Build:** A/P Fish (primary form), Standard power level
+
+```
+Base BCs:    ST 12  EN 12  AG 12  IN 8  CL 12
+Size mod:    +2 ST, +1 EN  (Size Change Larger 2.5 CP, 7' tier)
+Heightened EN +3 (3 CP)
+Effective:   ST 14  EN 16  AG 12  IN 8  CL 12
+
+Hits        12~     Power 50      Move 14 swim   Init d4+1
+HTH         d6      Inventing 4   Mass d6 (~400 lbs)   Profile x1.2
+```
+
+**Abilities:** A/P Fish Standard (20 CP — Adaptation Aquatic, Heightened Senses, Natural Weaponry bite +d6 sharp), Size Change Larger 7' (2.5 CP), Heightened Endurance +3 (3 CP), Shape-Shifting Comprehensive (lizard category w/ Sleeth-tier mutations) ~25 CP — high-tier shift inheriting target abilities, Tunneling (Max SR 2 dirt, Max Speed 6, associated with bite for nesting tunnels) 12.5 CP (supplement), Armor 12 = 7/2/0/3 (20 CP)
+**Weaknesses (in A/P bundle):** Distinctive (large fish/lizard transformer) -5
+*Skip Lowered Intelligence — IN 8 with high adaptability is normal*
+**Lizard form note:** When shape-shifted, gains Sleeth abilities (see Sleeth entry: Telepathy, Precognition, Force Field Negation, illusion immunity, poison resistance 18). 24-hour duration. Reverts on injury below half Hits or voluntary.
+**CP estimate:** ~88 + Sleeth-form variable abilities
+**Origin:** Mutated or Evolved
+**Tactics:** Default fish-form ambush from bank tunnel. Shape-shift to Sleeth-form only when threatened or for negotiation. Greedy — interested in shiny PC tech.
+
+---
+
 ### Crep Plant
 
 **GW source:** AC 3, HD 15, MV 1. Two varieties: water (pink, submerged) and land (red, rainy areas). Mental mutations: Death Field Generation, Molecular Disruption, Life Leech (feeds via). Plant mutations: Mobility, 1d4 manipulation vines, Parasitic Attachment. Reproduction: leaf-attachments drain blood 10 HP/turn, drop after victim dies, burrow → new plant.
@@ -305,6 +357,105 @@ HTH         d2      Inventing 1   Mass d2 (~30 lbs)
 **Tactics:** Hides in current, ambushes wading targets. Single bite check vs. intensity 12; "D" save result = full petrification (per GW rules). Fragile — easy kill if spotted, but the threat is the bite-trigger.
 **CP estimate:** ~27.5
 **Origin:** Mutated or Evolved
+
+---
+
+### Ert Telden
+
+**GW source:** AC 6, HD 12, MV 9. 1m+ fish in backwaters/marshes/swamps. Self-destructive defense: when removed from water, turn 1 burns hot enough to deal 5d6 heat damage to all within 30m; turn 2 explodes for 10d6 to all in range. Sometimes captured by tribes for catapult-launched warfare.
+**Encounter tables:** water (Tier 5)
+**Number appearing:** 1d6
+**Build:** A/P Fish, Standard power level
+
+```
+Base BCs:    ST 8  EN 12  AG 12  IN 4  CL 8
+Size mod:    -1 ST  (Size Change Smaller 2.5 CP, 4.5' tier)
+Effective:   ST 7  EN 12  AG 12  IN 4  CL 8
+
+Hits        5~      Power 35      Move 9 swim    Init d3+1
+HTH         d3      Inventing 2   Mass d3 (~70 lbs)   Profile /1.5
+```
+
+**Abilities:** A/P Fish Standard (20 CP — Adaptation Aquatic, Heightened Senses, Natural Weaponry bite), Size Change Smaller 4.5' (2.5 CP), Power Blast Energy Heat Area Effect 30m radius / 60" diameter — escalating 2-stage (turn 1 ~2d6, turn 2 ~3d6 + Death Touch finisher), trigger-restricted to "when out of water" (~30 CP), Adaptation Energy heat (self-immune, 5 CP), Armor 6 = 3/2/0/1 (10 CP)
+**Weaknesses (in A/P bundle):** Lowered Intelligence -5, Distinctive (orange-glowing fish out of water) -5, Special Requirement (water-bound — dies if out >2 turns) -7.5
+**Tactics (as creature):** Stays in water. Defense is its own death — only triggered if removed.
+**Tactics (as weapon):** Tribes catapult Ert Telden over walls. Turn 1: 30m heat field 2d6 area dmg. Turn 2: explosion 3d6 + finisher. Then dead.
+**CP estimate:** ~62.5
+**Origin:** Mutated or Evolved
+
+---
+
+### Fen
+
+**GW source:** AC 7, HD 10, MV 12 water / 3 land / 8 fly. Intelligent man-sized fish, walks on 2 stubby fins. Lungs + gills (24h out of water OK). Translucent skin = invisible underwater. Use weapons; tail club 6d6. Resistant to radiation, poison resistance 18, reflect heat + light (laser) for 5 turns before taking damage. Shape-change to large bird and fly to escape.
+**Encounter tables:** water (Tier 5)
+**Number appearing:** 1d10
+**Build:** Humanoid (intelligent, weapons — no A/P)
+
+```
+BCs:        ST 12  EN 10  AG 14  IN 12  CL 12
+
+Hits        10~     Power 48      Move 12      Init d6
+HTH         d6      Inventing 6   Mass d4 (~150 lbs)
+```
+
+**Abilities:** Adaptation Aquatic (5 CP), Adaptation Energy radiation complete (5 CP), Adaptation Bio poison resistance 18 (5 CP), Reflection Energy (heat + light/laser, duration 5 rounds before taking damage) ~12.5 CP — limited duration variant, Invisibility Visible Light (Underwater-only restriction) 7.5 CP, Flight 8m (5 CP), Shape-Shifting (large bird, escape only, no abilities transfer) 10 CP, Natural Weaponry tail club +d10 blunt (10 CP — for 6d6 GW), Armor 5 = 2/2/0/1 (7.5 CP)
+**Weaknesses:** none baseline
+**Equipment:** Any weapon — Fens collect and use freely (15-25 CP iron-age to recovered tech).
+**CP estimate:** ~67.5 + equipment
+**Origin:** Mutated or Evolved
+**Tactics:** Underwater Invisibility for ambush. Reflection covers first 5 rounds of energy attacks. Shape-shift escape if losing. Smart, weapon-using — treat like primitive humanoid tribe with environmental advantages.
+
+---
+
+### Fleshin
+
+**GW source:** AC 8, HD 8, MV 9 water / 5 fly (glide). 2m fish in large lakes. Surface-skims, then launches and glides on broad pectoral fins for hours. Feeds on water birds + small animals; attacks humans when hungry. Dorsal fin: intensity 15 poison spines. If seriously threatened: shapechange to Sleeth with all that creature's powers.
+**Encounter tables:** water (Tier 5)
+**Number appearing:** 1
+**Build:** A/P Fish, Standard power level
+
+```
+Base BCs:    ST 12  EN 7  AG 12  IN 4  CL 8
+Size mod:    +2 ST, +1 EN  (Size Change Larger 2.5 CP, 7' tier)
+Effective:   ST 14  EN 8  AG 12  IN 4  CL 8
+
+Hits        7~      Power 38      Move 11 + 5 glide   Init d3+1
+HTH         d6      Inventing 2   Mass d6 (~400 lbs)   Profile x1.2
+```
+
+**Abilities:** A/P Fish Standard (20 CP — Adaptation Aquatic, Flight gliding, Natural Weaponry bite +d6 sharp), Size Change Larger 7' (2.5 CP), Poison/Venom A intensity 15 contact passive on dorsal (12.5 CP), Shape-Shifting (Sleeth with full ability transfer, escape/desperation only) 25 CP — high-tier specific-target shift, Armor 3 = 1/1/0/1 (5 CP)
+**Weaknesses (in A/P bundle):** Lowered Intelligence -5, Distinctive (giant flying fish) -5
+**Sleeth-form transformation:** When seriously threatened, GM runs Fleshin as full Sleeth stat block (Telepathy, Precognition, Force Field Negation, illusion immune, poison res 18, etc.). Reverts when safe.
+**CP estimate:** ~65
+**Origin:** Mutated or Evolved
+**Tactics:** Glide ambush of waterfowl and unwary swimmers. Dorsal poison defends melee approaches. Shape-shift to Sleeth as emergency exit — Sleeth's mental kit + peaceful-talker reputation lets it negotiate or escape from situations a Fleshin couldn't survive.
+
+---
+
+### Herkel
+
+**GW source:** AC 9, HD 4, MV 8. Small (.5m) viciously biting fish, piranha-grade. Bite 6d6/turn. Scales coated with intensity 18 contact poison. Eats anything fittable in jaws.
+**Encounter tables:** water (Tier 5)
+**Number appearing:** 1d10
+**Build:** A/P Fish, Low power level
+
+```
+Base BCs:    ST 6  EN 5  AG 14  IN 2  CL 6
+Size mod:    -1 ST, -1 EN  (Size Change Smaller 5 CP, 3' tier)
+Effective:   ST 5  EN 4  AG 14  IN 2  CL 6
+
+Hits        2~      Power 25      Move 8 swim    Init d3
+HTH         d3 + Heightened Attack = vicious  Inventing 1
+Mass        d2 (~10 lbs)   Profile /2
+```
+
+**Abilities:** A/P Fish Low (10 CP — Adaptation Aquatic, Natural Weaponry vicious bite +d8+1 sharp / 6d6 GW), Size Change Smaller 3' (5 CP), Heightened Attack +1d6 to damage (5 CP — frenzied bite), Poison/Venom A intensity 18 passive contact via scales (15 CP)
+**Weaknesses (in A/P bundle):** Lowered Intelligence -5, Distinctive -5, Compulsion (eats anything, frenzied feeders) -5
+**Tactics:** Swarm-attack target en masse (1d10 herkels). Each individual is fragile (Hits 2) but bite damage is high. Touching scales = poison contact. Even handling dead herkels triggers contact poison.
+**CP estimate:** ~30
+**Origin:** Mutated or Evolved
+**Note:** Like piranhas — individual fragility offset by group attacks and high per-bite damage. PCs must avoid water entry near a school.
 
 ---
 
@@ -429,6 +580,98 @@ HTH         d6      Inventing 2   Mass d6 (~600 lbs)   Profile x1.5
 
 ---
 
+### Keeshin
+
+**GW source:** AC 3, HD 7, MV Telekinetic Flight. Small white mutated amphibian in water. IN 18, MS 16. Mental mutations: Telekinetic Flight, Telekinesis, Telekinetic Arm, Force Field Generation, Life Leech, De-evolution, Mental Blast, Cryokinesis, Reflection. Uses any 2 per turn. Solitary, ruthless, greedy. Builds underwater stone dwellings telekinetically with air pockets, stockpiles Ancient devices.
+**Encounter tables:** water (Tier 5)
+**Number appearing:** 1
+**Build:** Humanoid (intelligent — no A/P)
+
+```
+BCs:        ST 8  EN 7  AG 16  IN 18  CL 16
+
+Hits        9~      Power 49      Move via Telekinetic Flight   Init d6+1
+HTH         d3      Inventing 9   Mass d3 (~50 lbs)
+```
+
+**Abilities (full kit):**
+- Heightened Intelligence ~+8 to IN (8 CP — for IN 18)
+- Heightened Cool ~+6 to CL (6 CP — for MS 16)
+- Telepathy (10 CP — implied by mental mutation kit, communicates over Ancient device transactions)
+- Flight (Telekinetic, moderate speed) (10 CP)
+- Telekinesis A (7.5 CP — also lifts/manipulates stone for dwelling-building)
+- Stretching Abilities A Telekinetic Arm (10 CP)
+- Force Field A Personal (17.5 CP)
+- Siphon Hits Life Leech (12.5 CP)
+- Transmutation Comprehensive De-evolution (25 CP)
+- Mental Ability A Mental Blast (17.5 CP)
+- Ice Abilities B Cryokinesis Blast (12.5 CP)
+- Reflection (one type, e.g., energy) (12.5 CP)
+- Adaptation Aquatic (5 CP — water-dwelling)
+- Armor 6 = 3/2/0/1 (10 CP)
+
+**Action restriction:** Per GW: "may utilize any 2 of these mutations per melee turn." MP equivalent: 2 attack-class abilities per turn cap (interpret as standing limitation; no additional CP modifier).
+**Weaknesses:** Compulsion (greedy, gathers Ancient devices) -5 CP
+**Equipment:** Stockpile of Ancient artifacts in dwelling. Encountered Keeshin carries 1d6 random artifacts (15-30 CP avg).
+**CP estimate:** ~165 base + equipment (boss-tier despite HD 7; mental mutation kit dominates)
+**Origin:** Mutated or Evolved
+**Tactics:** Solitary ambush from underwater dwelling. Opens with Mental Blast or Cryokinesis at range while flying. Force Field always-on. De-evolution as endgame against tough opponents. Will kill PCs who threaten artifact hoard.
+**Note:** Like Serf, this is a low-HP boss-tier creature with massively over-budget mental kit. GM may scale picks (3-4 mutations active per encounter) for non-elite Keeshin.
+
+---
+
+### Menarl
+
+**GW source:** AC 6, HD 7, MV 6. 10m intelligent water snake with 10 human-shaped manipulator arms. Heightened Strength 17, MS 12. Bird-loving — frenzied near birds. Friendly to humanoids, will use Ancient devices if shown how.
+**Encounter tables:** water (Tier 5)
+**Number appearing:** 1d4
+**Build:** Humanoid (intelligent, manipulative — no A/P)
+
+```
+Base BCs:    ST 12  EN 3  AG 12  IN 8  CL 12
+Size mod:    +5 ST, +4 EN  (Size Change Larger 7.5 CP, 9' tier)
+Effective:   ST 17  EN 7  AG 12  IN 8  CL 12
+
+Hits        7~      Power 44      Move 10 swim   Init d4+1
+HTH         d6+1    Inventing 4   Mass d8 (~1500 lbs elongated)   Profile x1.5
+```
+
+**Abilities:** Size Change Larger 9' (7.5 CP), Physical Ability B Extra Limbs (10 arms, 4 attack-pairs available per turn) ~17.5 CP, Adaptation Aquatic (5 CP), Natural Weaponry bite + arm-grip (7.5 CP), Armor 6 = 4/1/0/1 (10 CP)
+**Weaknesses:**
+- Compulsion (frenzy near birds — distractible, attacks birds in preference to other targets) -5
+- Distinctive (10-armed water snake) -5
+**Equipment:** Will use Ancient devices if shown how — variable per encounter (10-25 CP if armed)
+**CP estimate:** ~52.5 + equipment
+**Origin:** Mutated or Evolved
+**Reaction:** Default friendly to humanoids — barter possible. Frenzy-on-birds is the wild card; if a bird is present, reaction shifts to "consumed by hunting urge", may ignore conversation.
+
+---
+
+### Narl Ep (Nari Ep)
+
+**GW source:** AC 3, HD 20, MV N/A. Enormous white mutated tree, 50m+ tall, lives in water. Pale green leafy top + 5-30 squeeze vines projecting above surface. Spring: seed pods on vines. Pods cracked (sharp blow) → 2-12 seeds fly out + sonic blast 3d6 in 10m radius.
+**Encounter tables:** water (Tier 5 — listed as "Nari Ep" in encounter data, OCR L→i)
+**Number appearing:** 1
+**Build:** A/P Plant, High power level (HD 20 boss)
+
+```
+Base BCs:    ST 12  EN 8  AG 4  IN 3  CL 8
+Size mod:    +12 ST, +12 EN  (Size Change Larger 20 CP, 15' tier)
+Effective:   ST 24  EN 20  AG 4  IN 3  CL 8
+
+Hits        10~     Power 51      Move 0 (rooted)   Init d3
+HTH         d12+1   Inventing 1   Mass d12 (~5 tons rooted)   Profile x2.5
+```
+
+**Abilities:** A/P Plant High (30 CP — Stretching A 5-30 squeeze vines, Natural Weaponry vine grasp +d8+1 blunt, Heightened Endurance, Heightened Strength), Size Change Larger 15' (20 CP), Grapnel (squeeze vines, crushing) (15 CP), Special Missile Weapon — seed pods (sonic blast 3d6 + 2-12 seed projectiles, 10m radius, ammo limited to ripe pods in spring) (15 CP), Sonic Abilities A Sonic Blast Area Effect 10m (12.5 CP — pod-cracking trigger), Adaptation Aquatic (5 CP), Armor 12 = 6/2/1/3 (20 CP — bark + plant fiber)
+**Weaknesses (in A/P bundle):** Lowered Intelligence -5, Distinctive (50m white tree) -5, Special Requirement (immobile, rooted in water) -5
+**Tactics:** Passive defense via squeeze vines for anything within reach. Pods detonate if struck (sharp blow) — sonic blast + projectile seeds. Acts as terrain feature/encounter set-piece in lake/swamp environments.
+**CP estimate:** ~117.5
+**Origin:** Mutated or Evolved
+**Cross-reference:** Seroon Lou often hides among Narl Ep colonies — similar appearance, darker color. PCs encountering "a Narl Ep" should roll for hidden Seroon Lou (10-30% chance per individual plant).
+
+---
+
 ### Obb
 
 **GW source:** AC 10, HD 12, MV 1/15 (ground/fly). 1m mutated fungus resembling a bat. Nearly immobile on ground, hawk-swift in air. Single black eye delivers intensity 16 radiation blast. Two clawed appendages strike for 3d6 each. Devours half of body, plants spores in remains; 1d6 young obbs emerge in 1 day. Resistant to radiation, all laser, light, heat. Sometimes peacefully associates with intelligent beings — alien logic.
@@ -519,12 +762,12 @@ Hits        2~      Power 17      Move 0      Init d3
 HTH         d2      Inventing 1   Mass d3 (~50 lbs)
 ```
 
-**Abilities:** Power Blast Energy/radiation Area Effect 15m radius rolled 3d6 each turn (17.5 CP), Multi-Blast 1d4 simultaneous when damaged (5 CP), Light Control C Glare rainbow (5 CP), Armor 9 = 4/3/0/2 K/E/B/Ent (15 CP)
+**Abilities:** Change Environment Damaging Hard Radiation 33" diameter (25 CP — 5 Devitalization Entropy/round in 15m radius, supplement), Light Control C Glare rainbow (5 CP), Armor 9 = 4/3/0/2 K/E/B/Ent (15 CP)
 **Weaknesses:** Distinctive (stationary plant) -5, Low Self Control (reactive blasting only) -5
 **Resource:** 20g/flower healing powder (1 HP/g sun-dried 3 days; 0.5 HP/g artificial).
-**CP estimate:** ~42
+**CP estimate:** ~45
 **Origin:** Mutated or Evolved
-**Tactics:** Area-denial. PCs choose: engage at range, harvest at risk, or avoid. Damage triggers multi-blast.
+**Tactics:** Area-denial. PCs choose: engage at range, harvest at risk, or avoid. Damaged-state multi-blast: when Perth takes damage, next round's radiation field deals 1d4× damage (1d4 simultaneous color-blasts of varying intensity per source). Encounter mechanic, not separate ability.
 
 ---
 
@@ -704,6 +947,31 @@ HTH         d3      Inventing 2   Mass d3 (~50 lbs)   Profile /1.5
 **Resource:** Boiled exoskeleton = 150cc antidote intensity-18 poison (10cc human dose).
 **CP estimate:** ~55
 **Origin:** Mutated or Evolved
+
+---
+
+### Terl (Teri / Teal)
+
+**GW source:** AC 5, HD 9, MV Telekinetic Flight. 2m mutated barracuda covered in brightly colored feathers instead of scales. Mates/hatches in water, lives in trees. Breathes water and air. Telekinetic flight. Predator: uses cryogenesis + sonic attack simultaneously to kill prey. Bite 2d6 fallback. Feathers reflect heat + laser. Detects/avoids radiation.
+**Encounter tables:** water (Tier 5 — listed as "Teri" in encounter data; source spells "Terl"; an OCR variant "Teal" was in earlier batch — all same creature)
+**Number appearing:** 1d4
+**Build:** A/P Fish, Standard power level
+
+```
+Base BCs:    ST 10  EN 8  AG 14  IN 4  CL 10
+Size mod:    +2 ST, +1 EN  (Size Change Larger 2.5 CP, 7' tier)
+Effective:   ST 12  EN 9  AG 14  IN 4  CL 10
+
+Hits        6~      Power 39      Move via Telekinetic Flight   Init d4
+HTH         d4+1 (bite 2d6)   Inventing 2   Mass d4 (~80 lbs)   Profile x1.2
+```
+
+**Abilities:** A/P Fish Standard (20 CP — Adaptation Aquatic, Adaptation Aerial dual-breathing, Natural Weaponry bite +d6 sharp), Size Change Larger 7' (2.5 CP), Flight (Telekinetic, moderate speed) 10 CP, Ice Abilities B Ice Blast Cryogenesis (12.5 CP), Sonic Abilities A Sonic Blast (10 CP), Reflection Energy (heat + laser via feathers) (12.5 CP), Heightened Senses (radiation detection, 30m+ range) (7.5 CP), Armor 8 = 5/1/0/2 (12.5 CP — feather + scale)
+**Weaknesses (in A/P bundle):** Lowered Intelligence -5, Distinctive (feathered barracuda) -5
+**Tactics:** Aerial ambush from tree canopy. Opens with Cryokinesis + Sonic Blast simultaneously (2 attacks, GM may model as combined ability check or two separate). Bite as last-resort. Detects radiation passively, won't enter rad zones. Reflects heat/laser fully.
+**CP estimate:** ~85
+**Origin:** Mutated or Evolved
+**Note:** GW writeup appeared THREE times in source/source-OCR variants (Teri / Terl / Teal) — all reference one creature. Use this entry for any of those names.
 
 ---
 
