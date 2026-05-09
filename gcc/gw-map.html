@@ -100,7 +100,7 @@
 
 <div id="topbar">
   <h1>GAMMA WORLD — Campaign Map</h1>
-  <span class="ver">v0.2.0</span>
+  <span class="ver">v0.3.0</span>
   <span class="sep"></span>
   <button id="btn-reset">Fit View</button>
   <span class="spacer"></span>
@@ -228,7 +228,7 @@ function setTerrainOverride(col, row, terrain){
 // ─── Geometry ────────────────────────────────────────────────────────────────
 // HEX_R = parent hex circumradius in SVG units, calibrated to the 3e printed
 // map: ~16 px per hex, POINTY-TOP orientation (vertex up). Subhex SUB_R =
-// HEX_R / 10 (for v0.2.0 layer). PNG is 3001×1863, rendered 1:1 in SVG units
+// HEX_R / 10 (for v0.7.0 layer). PNG is 3001×1863, rendered 1:1 in SVG units
 // so each printed hex on the map aligns 1:1 with a code parent hex.
 // Printed scale: 44 km/hex (27.3 mi) per the legend; we rescale to 30 mi
 // for game purposes per Option B (clean 3-mile subhex math).
@@ -245,7 +245,7 @@ const COLS = Math.ceil(WORLD_W / HEX_STEP_X) + 1;
 const ROWS = Math.ceil(WORLD_H / HEX_STEP_Y) + 1;
 
 // Anchor — fixed forever once chosen. Centers the (col,row) coord system at
-// roughly the middle of the GW PNG. Subhex layer (v0.2.0) will use this for
+// roughly the middle of the GW PNG. Subhex layer (v0.7.0) will use this for
 // global Q,R math; changing it later requires rewriting every doc id.
 const ANCHOR_COL = Math.floor(COLS / 2);
 const ANCHOR_ROW = Math.floor(ROWS / 2);
