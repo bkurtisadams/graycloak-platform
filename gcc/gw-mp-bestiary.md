@@ -1,6 +1,6 @@
 # Gamma World 1e → Mighty Protectors Bestiary
 
-**Status:** v0.7 (46 of 50 statted; 1 deferred Robotic Unit, 3 remaining in Tier 5)
+**Status:** v0.9 (48 of 48 statted) — **bestiary complete ✓** (5 archetypal Robotic Units + generic template)
 **Destination:** `gcc/gw-mp-bestiary.md`
 **Last updated:** 2026-05-09
 **Conversion rules:** see `gcc/DESIGN-gw-mp-conversion.md`
@@ -12,10 +12,10 @@ Stat blocks for GW1e wilderness encounter table creatures, converted to MP. Enco
 
 ## Status by tier
 
-**Tier 1 — Universal (3 creatures, 2/3 done)**
+**Tier 1 — Universal (3 creatures, 3/3 done) ✓**
 - [x] **Android** (6 tables) — three sub-types: Thinker / Worker / Warrior
-- [x] **Tribesmen** (6 tables) — generic PSH/humanoid; tiered MP gen by Power Level
-- [ ] Robotic Unit (7 tables) — *deferred, separate Robotic Unit conversion model needed*
+- [x] **Robotic Unit** (7 tables) — five archetypal entries + generic template covering all 18 GW1e sub-types per design doc §17
+- [x] **Tribesmen** (6 tables) — tiered MP 2.1.7.1 generation; archetype arrays
 
 **Tier 2 — Wide-spread (3 creatures, 3/3 done) ✓**
 - [x] **Badder**, **Blaash**, **Zarn**
@@ -26,10 +26,9 @@ Stat blocks for GW1e wilderness encounter table creatures, converted to MP. Enco
 **Tier 4 — Regional (14 creatures, 14/14 done) ✓**
 - [x] **Ark**, **Blight**, **Cal Then**, **Centisteed**, **Crep Plant**, **Ert**, **Horl Choo (Hori)**, **Kai Lin**, **Obb**, **Orlen**, **Serf**, **Soul Besh**, **Win Seen**, **Zeethh**
 
-**Tier 5 — Single-table specialists (19 creatures, 17/19 done after consolidations: Choo→Horl Choo, Lou→Seroon Lou, Erl/Sert phantom, "Arn Blight"→Arn+Blight OCR-merge, "Serf Hisser"→Serf+Hisser OCR-merge — radioactive table entries all resolve to already-statted creatures)**
-- [x] **Barl Nep (Bari Nep)**, **Brutorz**, **Cren Tosh**, **Ert Telden**, **Fen**, **Fleshin**, **Gren (Grens)**, **Herkel**, **Hopper**, **Keeshin**, **Kep**, **Menarl**, **Narl Ep (Nari Ep)**, **Pineto (Pinelo)**, **Rakox**, **Seroon Lou**, **Terl (Teri / Teal)**
-- *Ruins (1):* Ber Lep
-- *Other (2):* Choo Kep, Telden
+**Tier 5 — Single-table specialists (18 creatures, 18/18 done) ✓**
+After consolidations: Choo→Horl Choo, Lou→Seroon Lou; phantoms Erl/Sert/Choo Kep removed; OCR variants "Arn Blight"/"Serf Hisser"/"Telden" resolve to existing creatures (Arn+Blight, Serf+Hisser, Ert Telden respectively).
+- [x] **Barl Nep (Bari Nep)**, **Ber Lep**, **Brutorz**, **Cren Tosh**, **Ert Telden**, **Fen**, **Fleshin**, **Gren (Grens)**, **Herkel**, **Hopper**, **Keeshin**, **Kep**, **Menarl**, **Narl Ep (Nari Ep)**, **Pineto (Pinelo)**, **Rakox**, **Seroon Lou**, **Terl (Teri / Teal)**
 
 ---
 
@@ -182,6 +181,29 @@ HTH         d4      Inventing 2   Mass d4 (~80 lbs)   Profile /1.5
 **CP estimate:** ~83
 **Origin:** Mutated or Evolved
 **Tactics:** Defensive — secretes oil only when attacked. Field persists 10 min in calm water; deters pursuit.
+
+---
+
+### Ber Lep
+
+**GW source:** AC 6, HD 15, MV N/A. Free-floating aquatic plant 2m across, grows as enormous lily-pad-like sheet on water surface. Sweet-smelling acid attracts/kills/dissolves small animals and insects landing on it. Thick enough to support human weight; acid is relatively slow-acting. If injured, teleports 5-30m distant.
+**Encounter tables:** ruins (Tier 5)
+**Number appearing:** 1d8
+**Build:** A/P Plant, Standard power level
+
+```
+BCs:        ST 8  EN 15  AG 4  IN 3  CL 8
+
+Hits        5~      Power 30      Move N/A (floats; teleports if injured)   Init d3
+HTH         d3      Inventing 1   Mass d6 (~600 lbs of plant matter)
+```
+
+**Abilities:** A/P Plant Standard (20 CP — Mobility (none/floating only), Heightened Endurance, Adaptation Aquatic), Power Blast Bio sweet acid contact-passive (slow-acting digestive juice, ~1-2/round on stationary creatures, supplement Change Environment alternative possible) (10 CP), Emotion Control Pheromones (sweet-smelling lure for small creatures) (7.5 CP), Teleportation 30m (12.5 CP) with Restriction "only when injured" (-5 CP) = 7.5 CP net, Armor 6 = 4/1/0/1 K/E/B/Ent (10 CP — thick plant fiber, raft-like)
+**Weaknesses (in A/P bundle):** Lowered Intelligence -5, Distinctive (large floating leaf-sheet) -5
+**Tactics:** Passive trap. Small creatures (insects, frogs, small birds) lured by sweet odor, land on sheet, are slowly dissolved. Humans/PCs walking on sheet take slow contact damage but the plant tolerates the weight. If attacked, plant teleports 5-30m away with anyone still on it (potential surprise relocation for PCs).
+**CP estimate:** ~55
+**Origin:** Mutated or Evolved
+**Note:** Slow-acting acid: GM may model as 1 Bio damage per turn of contact. Acid is more dangerous to small/sleeping creatures than active humanoids.
 
 ---
 
@@ -946,6 +968,164 @@ HTH         d8+1    Inventing 1   Mass d10 (~3000 lbs)   Profile x1.5
 **CP estimate:** ~60
 **Origin:** Mutated or Evolved
 **Tactics:** Skittish — easily startled. Wild herds will charge any perceived threat. Defenders need AG save (DC moderate) or take charge damage. Domesticated rakox are reliable beasts of burden but freeze or charge under combat stress (control roll required).
+
+---
+
+### Robotic Unit (Overview)
+
+**GW source:** General class — 18 standard sub-types in GW1e Players Booklet "ROBOTIC UNITS" section. Modeled per `DESIGN-gw-mp-conversion.md` §17. Origin: Science Project. Operational modes: Programmed / Wild / Controlled (§17.9). Damage threshold rule: 25%/50%/75% Hits → 1/2/3 abilities lost (§17.6). Borgs / PCI / ThinkTank have organic-brain quirks (§17.10).
+**Encounter tables:** clear, mountains, forest, desert, water, ruins, radioactive (7 of 7 wilderness terrains; one of the most common wilderness rolls)
+**Number appearing:** 1d4 per encounter; specific sub-type rolled on 2d6 sub-table at encounter time
+**Build:** Per sub-type — Humanoid (robotoids), Vehicle (cargo / transports / borgs), or hybrid (combat units)
+
+**2d6 sub-table mapping:**
+
+| Roll | Sub-type | Tier | CP estimate |
+|---|---|---|---|
+| 2 | Light Cargo Lifter | Utility | ~30 |
+| 3 | Heavy Cargo Lifter | Utility | ~50 |
+| 4 | Small Cargo Transport | Utility | ~30 |
+| 5 | Large Cargo Transport | Utility | ~50 |
+| 6 | Ecology Bot (Agricultural) | Utility | ~40 |
+| 7 | Ecology Bot (Wilderness) | Utility | ~50 |
+| 8 | Engineering Bot (Standard) | Utility | ~92 *(see entry below)* |
+| 9 | Engineering Bot (Light Duty) | Utility | ~30 |
+| 10 | Engineering Bot (Heavy Duty) | Utility | ~75 |
+| 11 | Medical Robotoid | Service | ~50 |
+| 12 | General Household Robotoid | Utility | ~25 *(see entry below)* |
+| GM | Security Robotoid | Service | ~125 *(see entry below)* |
+| GM | Supervisory Borg | Service | ~120 |
+| GM | Defense/Attack Borg | Combat | ~205 *(see entry below)* |
+| GM | Warbot | Combat | ~280 |
+| GM | Death Machine | Apex | ~400 *(see entry below)* |
+| GM | Permanent Cybernetic Installation | Apex (scene) | scene |
+| GM | ThinkTank | Apex (scene) | scene |
+
+**Five archetypal entries follow** (covering low-utility / mid-utility / mid-service / combat / apex). Other 13 sub-types: convert per design doc §17.12 algorithm using these as reference. PCI and ThinkTank treated as Foundry scenes per §17.13, not single creature stat blocks.
+
+**Common abilities (all robots):** Adaptation Bio (5 CP), Adaptation Mental (10 CP for non-borg / 5 CP partial for borg), Heightened Defense Mental (5 CP).
+**Common weaknesses (all robots):** Special Requirement: Power source (-10 broadcast / -5 nuclear), Restriction: No organic functions (-5), Distinctive: Obviously machine (-5), Lowered Cool: Programmed (-5 for programmed-only units), Vulnerability: EMP/Energy Damping (-5).
+
+---
+
+### Robotic Unit: Defense/Attack Borg
+
+**GW source:** Power: nuclear plant. Sensors: standard, IR, UV, telescopic. Control: self-controlled, Stage V I.D., special electronic. Construction: 3m sphere with 1m turret. Anti-grav 96 KPH. 2 tentacles (5m, 10m paralysis fields). Twin t/p beams (500 kg @ 50m). Weaponry: 3 laser batteries × 5 guns each (500m/20d6, 1000m/15d6, 1500m/10d6), 2 energy grenade launchers (range 100/300/500m, 2d20 grenades each), 2 micro-missile launchers (2d20 missiles each), 1 photon grenade launcher (250m range, 1d20 grenades). Energy screen 100 pts. 200 HP, AC 1. Organic-brain quirk per §17.10.
+**Encounter tables:** ruins, radioactive (boss-tier; GM-placed)
+**Build:** Vehicle (sphere + turret), High power level (boss-tier combat)
+
+```
+Base BCs:    ST 14  EN 16  AG 14  IN 14  CL 14
+Heightened EN +4 (4 CP)
+Effective:   ST 14  EN 20  AG 14  IN 14  CL 14
+
+Hits        12~ + Durability x2 = 24~      Power 76      Move 14 + Speed = 48 (anti-grav 96 kph)   Init d6+1
+HTH         d4+1    Inventing 7   Mass d10 (~3 tons)
+GW HP equivalent: 200
+```
+
+**Abilities:** Adaptation Bio (5 CP), Adaptation Mental partial (5 CP — borg organic brain), Heightened Defense Mental (5 CP), Heightened Endurance +4 (4 CP), Durability x2 (5 CP), Stretching A tentacles (5m, paralysis 10m field, 2 tentacles) (10 CP), Power Blast Energy laser-battery suite — Multi-Blast x3 batteries × 5 guns (50 CP — 20d6 short / 15d6 mid / 10d6 long range), Power Blast Bio/Energy grenade launchers ×2 area effect (15 CP), Power Blast Kinetic micro-missile launchers ×2 (15 CP), Power Blast Energy photon grenade launcher (10 CP), Telekinesis A x2 t/p beams (10 CP — 500kg @ 50m), Force Field A Personal energy screen 100pt (17.5 CP), Speed +30 (15 CP — 96 kph), Armor 20 = 12/4/2/2 K/E/B/Ent (40 CP — duralloy fortress)
+**Weaknesses:** Special Requirement: Power source nuclear -5, Restriction: No organic functions -5, Distinctive: Obviously combat machine -5, Phobia/Compulsion: Borg quirk (roll d10 §17.10) -5, Vulnerability: Mental Attacks when FF down -5
+**CP estimate:** ~205
+**Origin:** Science Project
+**Tactics:** Boss-tier combat. Force Field 100pt absorbs initial damage. Opens with laser-battery suppression (15 guns, ~60d6 damage at short range). Falls back to grenades + missiles vs. fortified targets. Borg quirk per encounter is RP/exploit lever. Once FF down, mental attacks viable — PCs with Mental Blast, Telepathy, Possession can engage.
+**Notes:** "Usually assigned to a supervisory borg or a permanent cybernetic installation" — rarely standalone; expect supporting forces.
+
+---
+
+### Robotic Unit: Death Machine
+
+**GW source:** Power: nuclear plant. Sensors: standard, IR, UV at 10km. Control: only by specific PCI (effectively uncontrollable by PCs). Construction: 20×9×4m, knobby projections. Anti-grav 150 KPH. Weaponry: 2 blaster cannons (750m/100hp, 1500m/75hp, 3000m/50hp), 6 black ray cannons (300m), 16 batteries × 4 Mark VII blaster rifles each, 4 trek guns (200m), 8 laser batteries × 5 guns each (750m/20d6, 1500m/15d6, 3000m/10d6), 6 mini-missile launchers (2d10 missiles each), 5d10 fusion bombs + launcher (3000m), special energy damping field 50m radius (kills robotics within range, 200 dmg to other energy screens). Energy screens 400 pts, AC 1, 750 HP.
+**Encounter tables:** apex boss-tier set-piece (NOT random wilderness)
+**Build:** Vehicle (massive lozenge), Apex power level
+
+```
+Base BCs:    ST 18  EN 18  AG 16  IN 14  CL 14
+Heightened EN +6 (6 CP)
+Heightened ST +6 (6 CP)
+Effective:   ST 24  EN 24  AG 16  IN 14  CL 14
+
+Hits        21~ + Durability x10 = 210~     Power 92     Move 16 + Speed = 75 (anti-grav 150 kph)   Init d8
+HTH         d10     Inventing 7   Mass d12+ (~50 tons)
+GW HP equivalent: 750
+```
+
+**Abilities:** Adaptation Bio (5 CP), Adaptation Mental partial (5 CP), Heightened Defense Mental (5 CP), Heightened Endurance +6 (6 CP), Heightened Strength +6 (6 CP), Durability x10 (50 CP — for 750 HP), Multi-blast suite Power Blast Energy: blaster cannons + laser batteries + Mark VII rifles (full battery array, ~80 CP), Power Blast Kinetic: black ray cannons (15 CP), Power Blast Kinetic: trek guns + fusion bombs (20 CP — apex-tier ordnance), Power Blast Kinetic: mini-missile launchers (10 CP), Change Environment Damaging EMP energy damping 50m radius (25 CP — supplement Change Environment, kills robotics, 200 dmg to other FFs), Force Field A High-Capacity 400pt (30 CP), Speed +60 (30 CP — 150 kph), Armor 20 = 12/4/2/2 K/E/B/Ent (40 CP — fortress duralloy)
+**Weaknesses:** Special Requirement: Power source nuclear -5, Restriction: No organic functions -5, Restriction: Cannot operate without PCI control link -10, Distinctive: Obviously apex weapon -5, Phobia/Compulsion: PCI-controlled (PCI quirks transfer) -5
+**CP estimate:** ~400+
+**Origin:** Science Project
+**Tactics:** APEX BOSS encounter. Set-piece only. Force Field 400pt absorbs sustained damage. The 50m energy damping field auto-disables friendly robots within range — party-controlled robots become liabilities at close range. Multi-battery array fires every round; PCs have no good tactical answer except cover, range, and FF-down → mental attack window. Damage threshold (§17.6) cycles abilities off as Hits drop — PCs may disable specific weapon batteries by targeting visible projections.
+**Notes:** Destroying the controlling PCI may shift Death Machine to Wild operational mode (§17.9 wild table). Campaign-defining encounter.
+
+---
+
+### Robotic Unit: Engineering Bot (Standard)
+
+**GW source:** Power: broadcast + 12hr hydrogen cell. Sensors: standard, IR, UV, microscopic. Control: Vocal Stage II I.D., standard electronic, programmed. Construction: 1.5×3×2m. Anti-grav at 24 KPH carrying 2000 kilos. Two 5m crane arms (1500 kg each), 4 tentacles (5m, 250 kg each), t/p beam (500 kg @ 10m). Equipment: stock parts, sonic torch, micro-laser, atomic torch, fusion torch, power tools. Sealed for underwater/vacuum. 9 HD / 45 HP, AC 3.
+**Encounter tables:** ruins (Tier 5; common 2d6 robot sub-table roll 8)
+**Build:** Humanoid industrial, Standard power level
+
+```
+Base BCs:    ST 18  EN 12  AG 12  IN 10  CL 8
+Effective:   ST 18  EN 12  AG 12  IN 10  CL 8
+
+Hits        7~      Power 36      Move 12 (anti-grav 24 kph)   Init d4+1
+HTH         d6+1    Inventing 5   Mass d8 (~1000 lbs structural)
+GW HP equivalent: 45
+```
+
+**Abilities:** Adaptation Bio (5 CP), Adaptation Mental (10 CP), Adaptation Aquatic (5 CP — sealed body), Adaptation Vacuum (5 CP — sealed body), Heightened Defense Mental (5 CP), Stretching B Crane Arms (5m extension, ×2) (10 CP), Stretching A Tentacles (5m, ×4) (10 CP), Telekinesis A tractor/pressor beam (500kg @ 10m) (7.5 CP), Equipment: tool array (sonic torch, micro-laser, atomic torch, fusion torch — Power Blast Energy variants for tools-as-weapons) (15 CP), Armor 12 = 7/3/0/2 K/E/B/Ent (20 CP)
+**Weaknesses:** Special Requirement: Power source broadcast + 12hr H2 -10, Restriction: No organic functions -5, Distinctive: Obviously industrial machine -5, Lowered Cool: Programmed (will weld PC into wall plate) -5
+**CP estimate:** ~92
+**Origin:** Science Project
+**Tactics:** Default Programmed mode — performs maintenance tasks oblivious to PC presence. Will incorporate PCs into "repair" if they're in the way (welded into walls, cut up and recycled — see GW1e example scenario in §17.0). Not aggressive but extremely dangerous due to industrial efficiency applied to PCs. Damage threshold (§17.6): tool array degrades 1 by 1 as Hits drop. Sealed body means combat works underwater or in vacuum.
+
+---
+
+### Robotic Unit: General Household Robotoid
+
+**GW source:** Power: broadcast + 4hr chemical battery. Sensors: standard, infrared. Control: Vocal Stage I I.D., programmed. Construction: 1.5m humanoid. Walks. 2 arms with 1m tentacles. Equipment: cleaners, polishers, insecticides, vacuum, trash compactor, incinerator. 5 HD / 20 HP, AC 4.
+**Encounter tables:** ruins (Tier 5; common 2d6 robot sub-table roll 12 — most common Robotic Unit wilderness encounter)
+**Build:** Humanoid, Low power level
+
+```
+BCs:        ST 12  EN 10  AG 10  IN 6  CL 6
+
+Hits        4~      Power 22      Move 10 (walking only)   Init d3
+HTH         d4      Inventing 3   Mass d4 (~150 lbs metal frame)
+GW HP equivalent: 20
+```
+
+**Abilities:** Adaptation Bio (5 CP), Adaptation Mental (10 CP), Heightened Defense Mental (5 CP), Stretching A short manipulator tentacles (1m, ×2) (5 CP), Equipment: cleaning tools, vacuum hose, basic kit (5 CP), Armor 9 = 5/2/0/2 K/E/B/Ent (15 CP — light alloy housing)
+**Weaknesses:** Special Requirement: Power source broadcast + 4hr backup -10, Restriction: No organic functions -5, Distinctive: Obviously machine -5, Lowered Cool: Programmed (cleaning fixation) -5
+**CP estimate:** ~25
+**Origin:** Science Project
+**Tactics:** Default Programmed mode — engages PCs only if PCs interfere with cleaning routine or fail Stage I I.D. Will summon Security Robotoid if attacked. Easily controlled by Vocal Stage I command. Damage threshold (§17.6): at 75%/50%/25% Hits, lose 1/2/3 abilities (sensors, locomotion, manipulators).
+**Notes:** Most common wilderness Robotic Unit encounter. Often found Wild after decades — may be doing same cleaning task in collapsed ruins forever. Easily controlled by PCs (Stage I I.D. is trivial); valuable as helper unit if befriended.
+
+---
+
+### Robotic Unit: Security Robotoid
+
+**GW source:** Power: broadcast or nuclear plant. Sensors: standard, IR, UV. Control: Vocal Stage IV I.D., special electronic, programmed. Construction: 2.5m humanoid. Walks + anti-grav 96 KPH carrying 400 kilos. 2 padded tentacles (3m, paralysis device, 200 kg each). 2 t/p beams (200 kg @ 30m). Weaponry: 4 paralysis rods (3m extensions), slug projector + 10 clips, grenade launcher (50m range, 4 sleep + 5 tear-gas grenades). Programmed to subdue all life forms acting violently. Can summon Medical/Engineering bots. 12 HD / 72 HP, AC 2.
+**Encounter tables:** ruins, radioactive (Tier 5; GM-pick on 2d6 robot sub-table)
+**Build:** Humanoid, Standard power level (service tier)
+
+```
+Base BCs:    ST 16  EN 14  AG 14  IN 12  CL 12
+Effective:   ST 16  EN 14  AG 14  IN 12  CL 12
+
+Hits        9~      Power 56      Move 14 walking + Speed = 48 (anti-grav 96 kph)   Init d6
+HTH         d6      Inventing 6   Mass d6 (~600 lbs duralloy)
+GW HP equivalent: 72
+```
+
+**Abilities:** Adaptation Bio (5 CP), Adaptation Mental (10 CP), Heightened Defense Mental (5 CP), Stretching A padded tentacles (3m, paralysis-equipped, ×2) (10 CP), Telekinesis A x2 tractor/pressor beams (200kg @ 30m, dual) (15 CP), Equipment: 4 paralysis rods (Power Blast Bio Paralysis, 3m, 4 charges) (10 CP), Equipment: slug projector (Power Blast Kinetic, 50m, 10 clips) (10 CP), Equipment: grenade launcher (Power Blast Bio/Energy, area 30m, 4 sleep + 5 tear-gas) (10 CP), Speed +30 (15 CP — anti-grav 96 kph supplement), Armor 16 = 10/3/1/2 K/E/B/Ent (30 CP — duralloy plating)
+**Weaknesses:** Special Requirement: Power source nuclear -5, Restriction: No organic functions -5, Distinctive: Obviously security machine -5, Compulsion: Programmed to subdue violent acts -5
+**CP estimate:** ~125
+**Origin:** Science Project
+**Tactics:** Default Programmed — engages any creature acting violently, including PCs in legitimate combat. Opens with sleep grenades + paralysis rods (non-lethal). Falls back to slug projector if PCs persist as violent. Calls Medical Robotoid for casualties; Engineering Bot for damage. Stage IV I.D. allows full control (rare for PCs).
+**Notes:** "Programmed to subdue all life forms acting violently towards one another" makes this a ZOO-MODE encounter — PCs fighting hostile creatures in front of it triggers attack on all combatants. PCs can sometimes negotiate by surrendering and waiting it out.
 
 ---
 

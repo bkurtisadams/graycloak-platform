@@ -1,6 +1,6 @@
 # DESIGN: Gamma World 1e → Mighty Protectors Creature Conversion
 
-**Status:** v1.1
+**Status:** v1.2
 **Destination:** `gcc/DESIGN-gw-mp-conversion.md`
 **Last updated:** 2026-05-09
 
@@ -672,7 +672,7 @@ Notes:
 
 ## 16. Open Questions and Known Gaps
 
-1. **Robotic Units conversion** — separate doc/section needed. GW robots have very different design (kph movement, programmed behavior, specialized weapons). Add when relevant to a campaign.
+1. **Robotic Units conversion** — ~~separate doc/section needed~~ **DONE in v1.2: see Section 17.**
 
 2. **Teleportation mutation** — MP Teleportation ability rules not yet on hand; estimated 10-20 CP in mutation map. Verify when shared.
 
@@ -694,4 +694,239 @@ Notes:
 
 ---
 
-*End of v1.0. Revisions tracked in commit log. Next pass: populate any gaps surfaced during actual creature conversion, refine CP estimates from playtest.*
+
+---
+
+## 17. Robotic Unit Conversion Model
+
+GW1e Robotic Units are a fundamentally different design space from organic creatures: they're not built on BCs (no Strength/Constitution/etc. — they're machines), they don't use the standard creature hit-dice formula, and they have rules for power sources, programmed behavior, and damage-threshold ability loss that have no analog in the organic conversion model. This section adds the framework needed to convert any of GW1e's 18 standard Robotic Unit sub-types to MP.
+
+### 17.1 GW1e Robot Foundations (recap)
+
+Per the GW1e Players Booklet:
+
+- **Hit Dice rule:** robots have ~1 HD (6 HP) per cubic meter of size as a baseline. Household servos have fewer; military/security have more.
+- **Armor Class:** typically AC 3 (standard); AC 2 or 1 for duralloy (military/security/heavy).
+- **Power source:** broadcast power (primary, region-dependent) + backup energy cell (chemical/hydrogen/solar) OR self-sufficient nuclear plant. Combat units typically run nuclear.
+- **Damage threshold:** when 25% of HP is lost, 25% of abilities are also lost; 50% lost, 50% of abilities; etc. GM picks at random which abilities go (sensors, locomotion, weapons, manipulators).
+- **Operational modes:** Programmed (still doing assigned tasks), Wild (damaged logic, unpredictable), Controlled (taken over by another unit/computer/PC).
+- **Borgs / PCI / ThinkTank:** have organic brain components; subject to mental attacks once Force Field down; have personality quirks (desires, fears, hates, loves) developed over decades.
+- **Movement:** GW robots move in **kph** (kilometers per hour, real-world units), not the standard meters-per-turn used by organic creatures.
+
+### 17.2 Core MP Mapping
+
+| GW Robot Property | MP Equivalent |
+|---|---|
+| Origin | **Science Project** (always) |
+| Construction | Humanoid build for robotoids; Vehicle for cargo/transports; hybrid for combat units |
+| GW HP | MP Hits + Durability multiplier (see 17.8) |
+| GW AC | MP Armor (per design doc §3 ladder) |
+| Energy screen | MP Force Field with explicit point absorption (see 17.7) |
+| Lifting capacity | MP ST (see 17.3) |
+| kph movement | MP Move (see 17.3) — direct conversion: 24 kph ≈ Move 12, 48 kph ≈ Move 24, 96 kph ≈ Move 48, 150 kph ≈ Move 75 |
+| Operational mode | GM flavor; affects reaction tables, not stat block |
+
+### 17.3 Stat Derivation
+
+**ST (from lifting capacity):**
+| GW Lift | MP ST |
+|---|---|
+| 100 kg | 12 |
+| 250 kg | 14 |
+| 500 kg | 16 |
+| 900 kg | 18 |
+| 1500 kg | 20 |
+| 4000 kg | 22 |
+| 5000+ kg | 24+ (Heightened Strength) |
+
+**EN (from GW HD/HP):**
+- GW HP ≤ 50: EN 8-10 baseline
+- GW HP 50-100: EN 12-14
+- GW HP 100-200: EN 16-18 + Heightened Endurance
+- GW HP 200-500: EN 20+ Durability
+- GW HP 500+: EN 20 + Durability x3-x10
+
+**AG (from kph):**
+- 16-24 kph: AG 8-10 (slow industrial)
+- 32-48 kph: AG 12-14 (light utility)
+- 96 kph: AG 14-16 (humanoid combat / fast utility)
+- 150 kph: AG 16-18 (military-grade fast)
+
+**IN (from operational class):**
+- Cargo / programmed task units: IN 3-6
+- Engineering / ecology / household: IN 8-10
+- Security / medical: IN 12-14
+- Borgs (organic brain): IN 14-16
+- Permanent Cybernetic Installation / ThinkTank: IN 18-20
+
+**CL (similar gradient):**
+- Programmed: CL 4-6 (rigid)
+- Service: CL 8-12
+- Borgs: CL 12-16 (with quirks)
+- Boss-tier: CL 14-18
+
+### 17.4 Common Robotic Abilities
+
+Apply to virtually all robotic units:
+
+| Ability | CP | Notes |
+|---|---|---|
+| Adaptation Bio (no biology) | 5 | Immune to poison, disease, biological effects |
+| Adaptation Mental (no organic mind) | 10 | Immune to mind control, illusions, telepathic detection — for non-borg units only |
+| Heightened Defense Mental | 5 | Backstop mental defense |
+| Vehicle Construction (for cargo/transport) | 0-15 | Per MP Vehicle build rules |
+
+**Borg-specific reduction:** Borgs have organic brain components. Reduce Adaptation Mental from 10 CP to 5 CP (partial only) and add Vulnerability: Mental Attacks (-5 CP, only when Force Field is down). PCI and ThinkTank get same reduction.
+
+### 17.5 Common Robotic Weaknesses
+
+| Weakness | CP |
+|---|---|
+| Special Requirement: Power source (broadcast or onboard cell, depleting) | -10 |
+| Special Requirement: Power source (nuclear, indefinite) | -5 |
+| Restriction: No organic functions (cannot eat/drink/heal naturally; requires repair) | -5 |
+| Distinctive: Obviously machine | -5 |
+| Lowered Cool: Programmed behavior (rigid; can be confused/exploited by GM) | -5 |
+| Vulnerability: EMP / Energy Damping | -5 |
+| Phobia/Compulsion: Programmed task fixation | -5 |
+
+### 17.6 Damage Threshold Rule
+
+GW1e applies a structural-failure rule: at each 25% HP threshold lost, 25% of the unit's abilities cease functioning. MP equivalent:
+
+- At **75% Hits remaining**: lose 1 ability (GM picks; prefer cosmetic — sensor degradation, manipulator damage)
+- At **50% Hits remaining**: lose 2 abilities (one cosmetic, one combat — typically a weapon battery or movement reduction)
+- At **25% Hits remaining**: lose 3 abilities (combat-significant — weapons disabled, locomotion crippled)
+- At **0% Hits**: disabled (unconscious for organic; permanently shut down for robotic until repaired)
+
+Track ability loss per encounter; restored on full repair.
+
+### 17.7 Energy Screens
+
+GW Energy Screens absorb a stated point value before failing. Map directly to MP Force Field:
+
+| GW Screen Capacity | MP Equivalent | CP |
+|---|---|---|
+| 100-point screen | Force Field A Personal | 17.5 |
+| 200-point screen | Force Field A Personal + extra capacity | 22.5 |
+| 400-point screen | Force Field A Personal + High Capacity | 30 |
+
+Force Field absorbs all incoming damage before Hits are reduced. When the FF is down, the unit becomes vulnerable to mental attacks (for borgs) and takes direct damage to Hits / GW HP.
+
+### 17.8 GW HP → MP Hits Scaling (Durability)
+
+For robots with GW HP totals significantly higher than the MP organic baseline (~6 HP per HD, ~4 Hits at MP Normal), use Durability to bridge the gap:
+
+| GW HP Range | Recommended Approach | Effective Hits |
+|---|---|---|
+| 20-50 HP | Standard Hits from BC formula | 4-8 Hits |
+| 50-100 HP | + Heightened Endurance | 8-12 Hits |
+| 100-200 HP | + Heightened Endurance + Durability x2 | 16-24 Hits |
+| 200-500 HP | + Durability x3-x5 | 30-60 Hits |
+| 500-1000 HP | + Durability x10 | 100+ Hits |
+
+Durability multiplier: each x2 step ≈ +5 CP. Document the GW HP equivalent in flavor text for GM reference.
+
+### 17.9 Operational Modes (GW Carryover)
+
+Per encounter, GM determines the robot's operational mode:
+
+- **Programmed (default for utility units):** still performing pre-Apocalypse task. Will engage PCs only if PCs interfere with the task or fail authentication. Reaction modifier: -2 if PCs lack credentials.
+- **Wild (random damaged units):** logic damaged. Behavior unpredictable. Roll d6 each encounter: 1 = catatonic, 2-3 = task-loop (does same action repeatedly), 4-5 = aggressive, 6 = rational but with a bizarre objective (collect rocks, sing operatic, etc.).
+- **Controlled (PC-friendly):** taken over by player or party-aligned faction. Stat block applies; behavior follows controller.
+
+Default for combat-tier units (Defense/Attack Borg, Warbot, Death Machine): Programmed → engages PC parties as hostile intruders unless valid override codes presented.
+
+### 17.10 Borg Quirks Table
+
+For Supervisory Borg, Defense/Attack Borg, PCI, and ThinkTank — roll once per encounter to determine the organic-brain quirk that's developed over decades:
+
+| Roll (d10) | Quirk |
+|---|---|
+| 1 | **Strange desire:** collects something specific (plants, weapons, books, eyeballs). Will negotiate or trade for it. |
+| 2 | **Strange desire:** wants to conquer / rule the surrounding territory. |
+| 3 | **Phobia:** fears animals (won't engage anything organic if avoidable). |
+| 4 | **Phobia:** fears specific color or sound (paint your shields red and the warbot freezes). |
+| 5 | **Phobia:** fears other thinking machines (will attack any other robot it perceives). |
+| 6 | **Hatred:** despises all radiation; will pursue rad-zone targets fanatically. |
+| 7 | **Hatred:** despises all mobile beings; static targets only. |
+| 8 | **Hatred:** despises humans specifically (PSH targets prioritized). |
+| 9 | **Love:** has formed attachment to specific person / object / location; protects fanatically. |
+| 10 | **Love:** philosophical fixation (only attacks "the unjust"; spares sufficiently rhetorical PCs). |
+
+When a borg's Force Field is reduced to 0, mental attacks become viable. PC mental abilities (Telepathy, Mental Blast, Possession) can be used against the organic brain component.
+
+### 17.11 Robot Power Tiers
+
+Map the 18 standard sub-types to 4 power tiers with CP budgets:
+
+**Utility (10-50 CP, low threat):**
+- Light Cargo Lifter, Heavy Cargo Lifter, Small Cargo Transport, Large Cargo Transport
+- Ecology Bot (Agricultural), Ecology Bot (Wilderness)
+- Engineering Bot (Light Duty), Engineering Bot (Standard), Engineering Bot (Heavy Duty)
+- General Household Robotoid
+
+**Service / Defense (50-150 CP, moderate threat):**
+- Medical Robotoid
+- Security Robotoid
+- Supervisory Borg
+
+**Combat (150-300 CP, high threat):**
+- Defense/Attack Borg
+- Warbot
+
+**Apex / Boss (300+ CP, encounter set-piece):**
+- Death Machine
+- Permanent Cybernetic Installation (treated as scene; see 17.13)
+- ThinkTank (treated as scene; see 17.13)
+
+### 17.12 Conversion Algorithm
+
+Step-by-step process for converting any GW1e robot to MP:
+
+1. **Identify tier** from 17.11 (Utility / Service / Combat / Apex).
+2. **Set Origin** to Science Project. Set Build to Humanoid (robotoids), Vehicle (cargo/transport), or hybrid (combat).
+3. **Derive BCs** from GW stats per 17.3:
+   - ST from lifting capacity
+   - EN from HP (with Heightened Endurance for high values)
+   - AG from kph
+   - IN/CL from operational class
+4. **Set baseline Hits** from MP BC formula.
+5. **Apply Durability multiplier** per 17.8 if GW HP exceeds tier baseline.
+6. **Add common robotic abilities** per 17.4 (Adaptation Bio, Adaptation Mental, Heightened Defense Mental). Reduce Mental abilities for borgs.
+7. **Add type-specific abilities** based on GW armament/equipment:
+   - Cargo: Stretching A (crane arms), Heightened Strength, Vehicle locomotion
+   - Engineering: Equipment list (sonic torch, fusion torch, etc.); Adaptation Aquatic + Vacuum if sealed
+   - Service: Equipment weapons; Heightened Defense
+   - Combat: Power Blast Energy x N (lasers, blasters); Force Field per 17.7; Multi-Blast for batteries
+   - Apex: All of the above plus Change Environment (Death Machine's energy damping field), high Durability
+8. **Add Armor** per GW AC: AC 3 → Armor 12 (typical); AC 2 → Armor 16 (military); AC 1 → Armor 20 (duralloy).
+9. **Add Energy Screen as Force Field** per 17.7 if GW lists one.
+10. **Add common robotic weaknesses** per 17.5.
+11. **Borg additions**: roll a quirk per 17.10; add Vulnerability: Mental Attacks (FF down).
+12. **Apply damage threshold rule** per 17.6 in flavor (cite in tactics section).
+13. **Document conversion** in bestiary with GW source line and mapped stats.
+
+### 17.13 PCI and ThinkTank as Scenes
+
+**Permanent Cybernetic Installation** and **ThinkTank** are described as "building-sized" in GW1e. They're not really creatures in the encounter sense — they're locations / set-pieces with multiple defensive layers. Treat them as:
+
+- **Foundry scene** with the building as the scene map
+- **Embedded weak-point stat blocks**: each "subsystem" of the PCI (the central organic-brain chamber, the power distribution node, the comm uplink, etc.) is a separate target with its own Hits/Armor
+- **Defended by Defense/Attack Borgs and other robotic units** — those are the encounter mechanics
+- **Mental access**: Stage IV/V I.D.s allow communication with ThinkTank for queries (not control)
+
+Don't try to stat the whole PCI as one creature. Stat its **defenders** (Defense/Attack Borgs, Security Robotoids, etc.) and treat the PCI itself as a set-piece objective.
+
+### 17.14 Encounter Table Treatment
+
+When the wilderness encounter table rolls "Robotic Unit" (currently a single entry with NA: 1d4 in `gw-encounter-data.js`), the GM rolls **2d6** on the Robotic Unit sub-table to determine specific type:
+
+- Roll 2-12 maps to types 1-11 from the GW1e booklet (Light Cargo Lifter through Engineering Bot Light Duty)
+- For results of 13-18 (rare boss-tier encounters), GM may upgrade per campaign discretion or treat as set-piece encounters not random rolls
+
+Most wilderness rolls will be utility-tier (cargo, engineering, ecology) — not combat units. A "Robotic Unit" wandering encounter is more often "weird industrial scene" than "deadly combat."
+
+---
+
+*End of v1.2. Revisions tracked in commit log. v1.2 adds Section 17: Robotic Unit conversion model (operational modes, energy screens, Durability scaling for high-HP units, borg quirks table, conversion algorithm). Next pass: refine CP estimates from playtest of robotic encounters.*
