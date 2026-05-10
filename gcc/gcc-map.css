@@ -1,4 +1,11 @@
-/* gcc-map.css v0.2.3 — 2026-05-10
+/* gcc-map.css v0.2.4 — 2026-05-10
+   v0.2.4: subhex palette readability overrides (Slice 5a followup).
+   gcc-subhex.css colors are calibrated for the legacy controls window
+   on a light parchment background; in the unified shell's dark Tools
+   section the dark text disappears. Scoped overrides target
+   #gcc-map-tools-body to swap text colors and bump armed-swatch halo
+   visibility without affecting the legacy floating window.
+
    v0.2.3: append subhex-renderer overrides for the unified shell.
    Scoped to #gcc-map-svg .sxw-parent-outline-overlay: bump
    stroke-width 1→2 and stroke-opacity 0.4→0.65 so the parent hex
@@ -485,4 +492,52 @@ body.gcc-paths-hidden  #gcc-map-parent-paths { display: none; }
 #gcc-map-svg .sxw-parent-outline-overlay {
   stroke-width: 2;
   stroke-opacity: 0.65;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   SUBHEX PALETTE OVERRIDES (Slice 5a followup)
+   gcc-subhex.css's tool-button, mode label, and help-text colors were
+   calibrated against the legacy controls window's light parchment
+   background (#1a1a1a / #3a2a18 dark text). The unified shell's Tools
+   section sits on the dark panel (rgba(14,8,2,0.93)), so those colors
+   disappear into the background. gcc-subhex.css does have body.theme-
+   dark fallbacks, but the unified shell uses [data-gcc-theme="dark"]
+   (different convention from gcc-header.css). Easiest fix: scope
+   overrides to #gcc-map-tools-body and pick colors that read against
+   the panel directly. Armed-swatch and armed-feature halos also get
+   bumped — the original #8b0000 dark-red border against a dark panel
+   reads as muddy brown.
+   ════════════════════════════════════════════════════════════════════ */
+#gcc-map-tools-body .sxw-tool-btn {
+  color: var(--gcc-map-panel-fg);
+  border-color: #a89060;
+}
+#gcc-map-tools-body .sxw-tool-btn:hover {
+  background: #c8a96e;
+  color: #1a1a1a;
+}
+#gcc-map-tools-body .sxw-tool-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+#gcc-map-tools-body .sxw-mode {
+  color: var(--gcc-map-section-h);
+}
+#gcc-map-tools-body .sxw-mode.sxw-mode-armed {
+  color: var(--gcc-map-gold-light);
+}
+#gcc-map-tools-body .sxw-mode.sxw-mode-flash {
+  color: #e07070;
+}
+#gcc-map-tools-body .sxw-path-help {
+  color: var(--gcc-map-panel-fg);
+  background: rgba(200, 169, 110, 0.18);
+}
+#gcc-map-tools-body .sxw-swatch.armed {
+  border-color: #ffeebb;
+  box-shadow: 0 0 0 2px #e8b840;
+}
+#gcc-map-tools-body .sxw-feature-btn.armed {
+  border-color: #ffeebb;
+  box-shadow: 0 0 0 2px #e8b840;
 }
