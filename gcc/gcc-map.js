@@ -1,4 +1,14 @@
-// gcc-map.js v0.2.0 — 2026-05-09
+// gcc-map.js v0.2.1 — 2026-05-10
+// v0.2.1 — Phase B Slice 4 — adds per-scale coordsScale. The parent
+// renderer's world coords (HEX_R=20) and the subhex renderer's world
+// coords (legacy display-scale, HEX_R*13=260) are not the same unit
+// system; coordsScale lets each scale declare its scaling factor
+// from the canonical parent-scale world coords. setScale converts
+// state.view.cx/cy when switching scales so a single geographic
+// point stays under the view center. centerOn multiplies (col,row)
+// and (Q,R) targets by the active scale's coordsScale. Default
+// coordsScale=1 (parent), subhex registers with coordsScale=13.
+//
 // v0.2.0 — Phase B Slice 3 prep. Full TERRAIN palette imported from
 // greyhawk-map.html (was: 8 placeholder entries). Window-scoped
 // back-compat globals hex-edit and other modules need: TERRAIN,
@@ -251,6 +261,17 @@
       catch(e){ console.error('[gcc-map] unmount error', e); }
     }
     state.activeScale = name;
+    // World-coord systems differ per scale: parent uses raw hex world
+    // units, subhex uses display-scaled px units (legacy v3.1.0
+    // compatibility, so gcc-subhex.css pixel sizes stay correct).
+    // Convert the persisted cx/cy when crossing scales so the same
+    // geographic point stays under the view center.
+    const prevScale = prev ? (prev.coordsScale || 1) : 1;
+    const nextScale = next.coordsScale || 1;
+    if (prevScale !== nextScale){
+      state.view.cx *= (nextScale / prevScale);
+      state.view.cy *= (nextScale / prevScale);
+    }
     state.view.zoom = state.view.perScaleZoom[name] != null
       ? state.view.perScaleZoom[name]
       : next.zoomDefault;
@@ -636,6 +657,7 @@
     else { _scaleOrder.push(spec.name); }
     const filled = Object.assign({
       label: spec.name, hexSize: 1, pxPerWorldUnit: 1,
+      coordsScale: 1,
       zoomMin: 0.1, zoomMax: 4, zoomDefault: 1.0,
       renderer: { mount(){}, render(){}, unmount(){} },
       tools: [],
@@ -658,15 +680,17 @@
   function centerOn(target, scaleName){
     if (scaleName) setScale(scaleName);
     if (!target) return;
+    const sc = activeScale();
+    const s = sc ? (sc.coordsScale || 1) : 1;
     if (typeof target.x === 'number' && typeof target.y === 'number'){
       state.view.cx = target.x; state.view.cy = target.y;
     } else if (typeof target.col === 'number' && typeof target.row === 'number'){
       const c = hexCenter(target.col, target.row);
-      state.view.cx = c.x; state.view.cy = c.y;
+      state.view.cx = c.x * s; state.view.cy = c.y * s;
     } else if (typeof target.Q === 'number' && typeof target.R === 'number'){
       if (window.GCCSubhexData && typeof window.GCCSubhexData.subhexSvgCenter === 'function'){
         const c = window.GCCSubhexData.subhexSvgCenter(target.Q, target.R);
-        state.view.cx = c.x; state.view.cy = c.y;
+        state.view.cx = c.x * s; state.view.cy = c.y * s;
       }
     }
     requestRender();
