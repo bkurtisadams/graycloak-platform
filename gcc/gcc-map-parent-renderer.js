@@ -1,4 +1,13 @@
-// gcc-map-parent-renderer.js v1.0.1 — 2026-05-09
+// gcc-map-parent-renderer.js v1.0.2 — 2026-05-09
+// v1.0.2: first-mount centering. The unified shell initializes
+//   state.view.cx/cy to (0, 0); the parent map's world coords occupy
+//   the positive quadrant from (0, 0) to (MAP_W, MAP_H), so the
+//   default view was looking at the empty area NW of (0, 0) — map
+//   off-screen, canvas appeared black. Fix: parent renderer's mount
+//   centers the viewport on (MAP_W/2, MAP_H/2) when the shell view
+//   is at origin (uninitialized). Slice 8 will restore the actual
+//   saved center from URL hash / localStorage.
+//
 // v1.0.1: layer-detachment race fix. ensureLayer was returning the
 //   stale element when an external caller (gcc-paths.js's
 //   gcc-subhex-changed listener calling window.rebuildPathOverlay()
@@ -659,6 +668,19 @@
   function mount(svg, ctx){
     _ctx = ctx;
     const ns = 'http://www.w3.org/2000/svg';
+
+    // First-mount centering: shell zero-inits state.view.cx/cy. Parent
+    // map world coords occupy the positive quadrant (0, 0) to (MAP_W,
+    // MAP_H), so the default view at (0, 0) is looking at the empty
+    // area NW of the Flanaess — map content off-screen. Center on the
+    // map middle when the shell view is at origin (uninitialized).
+    // Slice 8's URL hash / localStorage restore will replace this
+    // first-mount default with the saved center.
+    const view = window.GCCMap._state.view;
+    if (view.cx === 0 && view.cy === 0){
+      view.cx = ctx.MAP_W() / 2;
+      view.cy = ctx.MAP_H() / 2;
+    }
 
     _root = document.createElementNS(ns, 'g');
     _root.setAttribute('class', 'gcc-map-parent-root');
