@@ -1,4 +1,10 @@
-/* gcc-map.css v0.2.2 — 2026-05-10
+/* gcc-map.css v0.2.3 — 2026-05-10
+   v0.2.3: append subhex-renderer overrides for the unified shell.
+   Scoped to #gcc-map-svg .sxw-parent-outline-overlay: bump
+   stroke-width 1→2 and stroke-opacity 0.4→0.65 so the parent hex
+   outline reads against the larger unified-shell viewport. Legacy
+   floating window unaffected.
+
    v0.2.2: close the unclosed comment opened on line 1 of v0.2.1.
    Missing close-marker swallowed lines 1–44 as one comment, dropping
    the :root var block and the #gcc-map-shell rule. The "cascade
@@ -465,4 +471,18 @@ body.gcc-paths-hidden  #gcc-map-parent-paths { display: none; }
 #toast.show {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   SUBHEX RENDERER OVERRIDES (Slice 4 followup)
+   The base .sxw-parent-outline-overlay rule in gcc-subhex.css uses
+   stroke-width:1; stroke-opacity:0.4. That reads well in the legacy
+   floating window (small focused viewport, tight crop), but in the
+   unified shell the larger viewport makes the outline visually
+   recede. Boost it for the unified renderer only; scoped to
+   #gcc-map-svg so the legacy floating window remains untouched.
+   ════════════════════════════════════════════════════════════════════ */
+#gcc-map-svg .sxw-parent-outline-overlay {
+  stroke-width: 2;
+  stroke-opacity: 0.65;
 }

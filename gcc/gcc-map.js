@@ -1,4 +1,13 @@
-// gcc-map.js v0.2.1 — 2026-05-10
+// gcc-map.js v0.2.2 — 2026-05-10
+// v0.2.2 — Slice 4 followup. Pan gesture restored to legacy: right-
+// click-drag (button 2) joins space-drag, middle-click, and ctrl/cmd-
+// drag. state.pan grows a `moved` flag; mousemove sets it when the
+// drag exceeds 3px. New onContextMenu canvas listener suppresses the
+// browser context menu when state.pan.moved is true on right-button
+// release, so right-click-drag panning doesn't pop a context menu on
+// release. Clean right-clicks (no drag) propagate so the parent
+// renderer's "Open Subhex View" popup keeps working.
+//
 // v0.2.1 — Phase B Slice 4 — adds per-scale coordsScale. The parent
 // renderer's world coords (HEX_R=20) and the subhex renderer's world
 // coords (legacy display-scale, HEX_R*13=260) are not the same unit
@@ -81,7 +90,7 @@
     activeScale: null,
     view: { cx: 0, cy: 0, zoom: 1.0, perScaleZoom: {}, w: 0, h: 0 },
     selection: null,
-    pan: { dragging:false, startX:0, startY:0, startCx:0, startCy:0, button:null },
+    pan: { dragging:false, moved:false, startX:0, startY:0, startCx:0, startCy:0, button:null },
     spaceHeld: false,
     initted: false,
   };
@@ -368,12 +377,13 @@
     zoomBy(factor, { x: ev.clientX, y: ev.clientY });
   }
   function isPanGesture(ev){
-    return state.spaceHeld || ev.button === 1 || ev.ctrlKey || ev.metaKey;
+    return state.spaceHeld || ev.button === 1 || ev.button === 2 || ev.ctrlKey || ev.metaKey;
   }
   function onMouseDown(ev){
     if (!isPanGesture(ev)) return;
     ev.preventDefault();
     state.pan.dragging = true;
+    state.pan.moved = false;
     state.pan.startX = ev.clientX;
     state.pan.startY = ev.clientY;
     state.pan.startCx = state.view.cx;
@@ -389,6 +399,7 @@
     const f = sc.pxPerWorldUnit * state.view.zoom;
     const dx = ev.clientX - state.pan.startX;
     const dy = ev.clientY - state.pan.startY;
+    if (!state.pan.moved && Math.abs(dx) + Math.abs(dy) > 3) state.pan.moved = true;
     state.view.cx = state.pan.startCx - dx / f;
     state.view.cy = state.pan.startCy - dy / f;
     requestRender();
@@ -398,6 +409,16 @@
     dom.canvas.classList.remove('panning');
     window.removeEventListener('mousemove', onMouseMove);
     window.removeEventListener('mouseup', onMouseUp);
+  }
+  // Suppress the browser context menu when right-drag pan actually
+  // moved the view. Clean right-clicks (no drag) propagate so the
+  // parent renderer's "Open Subhex View" popup still works.
+  function onContextMenu(ev){
+    if (state.pan.moved){
+      ev.preventDefault();
+      ev.stopPropagation();
+      state.pan.moved = false;
+    }
   }
   function onCoordHover(ev){
     if (!dom.coords) return;
@@ -625,6 +646,7 @@
     dom.canvas.addEventListener('mousedown', onMouseDown);
     dom.canvas.addEventListener('mousemove', onCoordHover);
     dom.canvas.addEventListener('mouseleave', onCoordLeave);
+    dom.canvas.addEventListener('contextmenu', onContextMenu);
     if (dom.zoomIn)    dom.zoomIn.addEventListener('click', () => zoomBy(ZOOM_STEP));
     if (dom.zoomOut)   dom.zoomOut.addEventListener('click', () => zoomBy(1/ZOOM_STEP));
     if (dom.zoomReset) dom.zoomReset.addEventListener('click', resetZoom);
