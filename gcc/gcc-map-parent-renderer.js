@@ -1,5 +1,19 @@
-// gcc-map-parent-renderer.js v1.0.0 — 2026-05-09
-// Phase B Slice 3 — real parent-scale renderer extracted from
+// gcc-map-parent-renderer.js v1.0.1 — 2026-05-09
+// v1.0.1: layer-detachment race fix. ensureLayer was returning the
+//   stale element when an external caller (gcc-paths.js's
+//   gcc-subhex-changed listener calling window.rebuildPathOverlay()
+//   after the IDB hydration completes) had detached but not
+//   deleted it. Result: rivers/roads built into a detached <g>,
+//   never visible. Fix: ensureLayer detects parentNode mismatch and
+//   recreates fresh; existing layers get their children cleared in
+//   place. buildHexGrid pre-creates all layers in legacy z-order
+//   (cells / paths / labels / coordLabels / landmarks / journey /
+//   partyMarker) so the order matches greyhawk-map.html regardless
+//   of which rebuildXOverlay callsite fires when. Removed the now-
+//   redundant per-function removeChild logic.
+//
+// v1.0.0 — Phase B Slice 3.
+// Real parent-scale renderer extracted from
 // greyhawk-map.html inline JS. Lifts buildHexGrid, buildLandmarkOverlay,
 // buildPathOverlay, buildJourneyOverlay, buildCoordLabels,
 // updatePartyMarker, hex events, image transform application + history,
@@ -96,9 +110,18 @@
 
   // ── Layer construction ────────────────────────────────────────────────────
   function ensureLayer(name){
-    if (_layers[name]) return _layers[name];
+    let g = _layers[name];
+    if (g && g.parentNode === _root){
+      // Existing layer in good standing — clear children in place so
+      // the caller gets a fresh slate without a detach/reattach cycle.
+      while (g.firstChild) g.removeChild(g.firstChild);
+      return g;
+    }
+    // Layer doesn't exist OR was detached by an external rebuildXOverlay
+    // callsite that bypassed ensureLayer's reattach logic (the v1.0.0 bug).
+    // Either way, create fresh and attach to _root.
     const ns = 'http://www.w3.org/2000/svg';
-    const g = document.createElementNS(ns, 'g');
+    g = document.createElementNS(ns, 'g');
     g.setAttribute('class', `gcc-map-parent-${name}-layer`);
     g.id = `gcc-map-parent-${name}`;
     _layers[name] = g;
@@ -122,16 +145,19 @@
     const hexCornersDisplay = window.hexCornersDisplay;
     const hexIdStr = window.hexIdStr;
 
-    // Wipe existing content layers (image group stays — its transform
-    // persists across rebuilds)
-    for (const n of ['cells','paths','labels','coordLabels','landmarks','journey','edgeFlags','partyMarker']){
-      const old = _layers[n];
-      if (old && old.parentNode) old.parentNode.removeChild(old);
-      delete _layers[n];
-    }
-
-    const cellsG  = ensureLayer('cells');
-    const labelsG = ensureLayer('labels');
+    // Pre-create all content layers in z-order matching legacy
+    // greyhawk-map.html main map: cells (bottom), paths, labels,
+    // coordLabels, landmarks, journey, partyMarker (top). Image group
+    // sits below all of these (mounted in mount(), persists across
+    // rebuilds). ensureLayer clears children in place when the layer
+    // is in good standing, so the slate is fresh without re-ordering.
+    const cellsG       = ensureLayer('cells');
+    const pathsG       = ensureLayer('paths');
+    const labelsG      = ensureLayer('labels');
+    const coordLabelsG = ensureLayer('coordLabels');
+    const landmarksG   = ensureLayer('landmarks');
+    const journeyG     = ensureLayer('journey');
+    const partyG       = ensureLayer('partyMarker');
     const showLabels = !!(window.state && window.state.showLabels);
     labelsG.style.display = showLabels ? '' : 'none';
 
@@ -194,8 +220,6 @@
   // ── buildPathOverlay ──────────────────────────────────────────────────────
   function buildPathOverlay(){
     const ns = 'http://www.w3.org/2000/svg';
-    const old = _layers.paths;
-    if (old && old.parentNode) old.parentNode.removeChild(old);
     const g = ensureLayer('paths');
     g.style.pointerEvents = 'none';
     if (typeof window.GCCPaths === 'undefined') return g;
@@ -298,8 +322,6 @@
   // LABEL_OFFSET distance from each hex edge into the surrounding margin.
   function buildCoordLabels(){
     const ns = 'http://www.w3.org/2000/svg';
-    const old = _layers.coordLabels;
-    if (old && old.parentNode) old.parentNode.removeChild(old);
     const g = ensureLayer('coordLabels');
     g.style.pointerEvents = 'none';
     const hexCenter = window.hexCenter;
@@ -355,8 +377,6 @@
   // ── buildLandmarkOverlay ──────────────────────────────────────────────────
   function buildLandmarkOverlay(){
     const ns = 'http://www.w3.org/2000/svg';
-    const old = _layers.landmarks;
-    if (old && old.parentNode) old.parentNode.removeChild(old);
     const g = ensureLayer('landmarks');
     g.style.pointerEvents = 'none';
     if (typeof window.GCCLandmarks === 'undefined') return g;
@@ -449,8 +469,6 @@
   // ── buildJourneyOverlay ───────────────────────────────────────────────────
   function buildJourneyOverlay(){
     const ns = 'http://www.w3.org/2000/svg';
-    const old = _layers.journey;
-    if (old && old.parentNode) old.parentNode.removeChild(old);
     const g = ensureLayer('journey');
     g.style.pointerEvents = 'none';
     const j = window.state?.journey;
@@ -502,8 +520,6 @@
   // ── Party marker ──────────────────────────────────────────────────────────
   function buildPartyMarker(){
     const ns = 'http://www.w3.org/2000/svg';
-    const old = _layers.partyMarker;
-    if (old && old.parentNode) old.parentNode.removeChild(old);
     const markerG = ensureLayer('partyMarker');
     markerG.style.pointerEvents = 'none';
     const pulse = document.createElementNS(ns, 'circle');
