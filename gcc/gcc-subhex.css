@@ -1,4 +1,14 @@
-/* gcc-subhex.css v1.14.0 — 2026-05-02
+/* gcc-subhex.css v1.15.0 — 2026-05-09
+   v1.15: Slice 3 multi-parent fullview. New .sxw-parent-outline-overlay-
+   layer container + .sxw-parent-outline-overlay polygons (one per
+   parent intersecting viewport, faded gold stroke) and .sxw-parent-
+   outline-label text (small Cinzel pill at the top of each parent,
+   stroke-halo for readability against any terrain). New
+   .sxw-zoom-btn.armed style for the #sxw-show-parents toggle in the
+   zoom controls (gold fill, dark text — matches the .sxw-tool-btn-
+   armed treatment). Legacy .sxw-parent-outline / .sxw-cell.fragment /
+   .sxw-fragment-layer rules are now unused at runtime but left in
+   place for theme-style continuity; remove in a later cleanup slice.
    v1.14: fog brush hover override. Fogged cells need a visible hover
    stroke (the default #1a1a1a hover would vanish against the dark
    fog fill); use a gold stroke instead so the GM can see which cell
@@ -332,6 +342,46 @@ body.theme-dark .sxw-zoom-pct { color:#c8a96e; }
   pointer-events:none;
 }
 body.theme-dark .sxw-parent-outline { stroke:#c8a96e; stroke-opacity:0.5; }
+
+/* Slice 3 multi-parent overlay: one polygon per parent intersecting
+   the viewport, plus a small Cinzel label at the top of each parent.
+   Lighter than the legacy single-parent silhouette so a screen full
+   of overlapping outlines doesn't dominate the canvas. */
+.sxw-parent-outline-overlay-layer { pointer-events:none; }
+.sxw-parent-outline-overlay {
+  fill:none;
+  stroke:#8b6f3a;
+  stroke-width:1;
+  stroke-opacity:0.4;
+  pointer-events:none;
+}
+body.theme-dark .sxw-parent-outline-overlay { stroke:#c8a96e; stroke-opacity:0.35; }
+.sxw-parent-outline-label {
+  font-family:'Cinzel', serif;
+  font-size:10px;
+  font-weight:600;
+  fill:#5a4a30;
+  paint-order:stroke fill;
+  stroke:rgba(244,232,196,0.9);
+  stroke-width:3;
+  stroke-linejoin:round;
+  pointer-events:none;
+  user-select:none;
+}
+body.theme-dark .sxw-parent-outline-label {
+  fill:#c8a96e;
+  stroke:rgba(28,28,26,0.9);
+}
+.sxw-zoom-btn.armed {
+  background:#c8a96e;
+  color:#1a1a1a;
+  border-color:#5a4a30;
+}
+body.theme-dark .sxw-zoom-btn.armed {
+  background:#c8a96e;
+  color:#1a1a1a;
+  border-color:#7a6a40;
+}
 
 .sxw-cell {
   stroke:#3a3a3a;

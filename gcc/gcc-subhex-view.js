@@ -1,4 +1,38 @@
-// gcc-subhex-view.js v3.0.0 — 2026-05-09
+// gcc-subhex-view.js v3.1.0 — 2026-05-09
+// v3.1.0 — Path B subhex fullview, Slice 3. Multi-parent tiling
+// rendering. rebuildSVG no longer iterates fragmentsForParent /
+// ownedByParent for a single centered parent; instead it enumerates
+// every cell whose center falls in the viewport bbox via the new
+// visibleCells() helper (delegates to GCCSubhexData.cellsInAxialBbox)
+// and resolves each cell's terrain via ownerOf. The fragment concept
+// is retired from the render layer: buildCellGroup drops fragmentInfo,
+// every cell is just (Q, R) with owner-resolved terrain, and the
+// .sxw-cell-group-fragment / .fragment / dataset.fragment markers are
+// gone. The parent silhouette stops being a frame; behind a default-on
+// #sxw-show-parents toggle (in the zoom controls), every parent
+// intersecting the viewport gets a .sxw-parent-outline-overlay polygon
+// drawn over the cells, plus a parent-id label at zoom>=0.7. Path /
+// region / marker / crossing renderers all switched from per-parent
+// iteration to viewport-bbox enumeration: renderPaths and
+// renderCrossings collect via parentsInViewport()+pathsInParent and
+// dedup by id; renderRegionLabels iterates listRegions() and keeps
+// only labels whose centroid is in viewport; renderParentPathMarkers
+// iterates parentsInViewport() with parent context threaded through
+// placeMarker / boundaryCellForEdge / authoredBoundaryCellForSegment /
+// pathMarkerTooltip. state.markerHighlight gains { col, row } so the
+// destination-detection branch in paintCell knows which parent's
+// segment it was authoring against. selectedFragmentOwner /
+// selectedIsFragment retired in favor of selectedCellOwner (always
+// returns ownerOf(selectedQ, selectedR)); the "Owned by X" detail-row
+// shows whenever the selected cell's owner differs from centerParent.
+// renderArmedPathGhost generalized: ghost lights up on any visible
+// neighbor of the armed path's last cell when the last cell isn't in
+// viewport. Out of scope for Slice 3 (per slice plan): drag-pan
+// (Slice 4), tile cache (Slice 5), marker dedup across shared parent
+// edges (Slice 7), view persistence (Slice 8). Wheel zoom unchanged;
+// external callers still fire open(col, row).
+//
+// v3.0.0 — 2026-05-09
 // v3.0.0 — Path B subhex fullview, Slice 2 of the slice plan in
 // DESIGN-subhex-fullview.md §10. Coordinate refactor only;
 // no-visual-change plumbing. Cells now render at world SVG coords via
@@ -299,8 +333,12 @@
     // remember which segment they're working on. The pair-end marker
     // gets the .destination class so the GM can see where to draw to.
     // Cleared when the path tool is disarmed or a different segment
-    // is started.
-    markerHighlight: null,     // null | { segIndex, edge }
+    // is started. col/row identify which parent's segments[segIndex]
+    // the highlight refers to (Slice 3 — segments are per-parent).
+    markerHighlight: null,     // null | { col, row, segIndex, edge }
+    // Parent-outline overlay toggle (Q4 of DESIGN-subhex-fullview.md).
+    // Default on; persisted as gcc-subhex-show-parents in localStorage.
+    showParents: true,
     _flashTimer: null,         // mode-label flash dismiss timer id
   };
 
@@ -326,6 +364,7 @@
             <button class="sxw-zoom-btn" id="sxw-zoom-reset" title="Reset zoom (1:1)">⟲</button>
             <button class="sxw-zoom-btn" id="sxw-zoom-in" title="Zoom in">+</button>
             <span class="sxw-zoom-pct" id="sxw-zoom-pct">100%</span>
+            <button class="sxw-zoom-btn" id="sxw-show-parents" title="Show parent boundaries">⊞</button>
           </div>
         </div>
       </div>
@@ -343,6 +382,13 @@
     w.querySelector('#sxw-zoom-out').addEventListener('click', () => zoomBy(1 / ZOOM_STEP));
     w.querySelector('#sxw-zoom-reset').addEventListener('click', () => setZoom(ZOOM_DEFAULT));
     w.querySelector('#sxw-svg-wrap').addEventListener('wheel', onSvgWheel, { passive: false });
+    w.querySelector('#sxw-show-parents').addEventListener('click', onShowParentsToggle);
+    try {
+      const sp = localStorage.getItem('gcc-subhex-show-parents');
+      if (sp === '0') state.showParents = false;
+      else if (sp === '1') state.showParents = true;
+    } catch(e){}
+    syncShowParentsBtn();
 
     ensureControlsWindow();
     buildPalette();
@@ -808,6 +854,20 @@
     setZoom(state.view.zoom * factor, { x: ev.clientX, y: ev.clientY });
   }
 
+  function onShowParentsToggle(){
+    state.showParents = !state.showParents;
+    try { localStorage.setItem('gcc-subhex-show-parents', state.showParents ? '1' : '0'); } catch(e){}
+    syncShowParentsBtn();
+    if (state.isOpen) rebuildSVG();
+  }
+
+  function syncShowParentsBtn(){
+    const btn = state.win?.querySelector('#sxw-show-parents');
+    if (!btn) return;
+    btn.classList.toggle('armed', !!state.showParents);
+    btn.title = state.showParents ? 'Hide parent boundaries' : 'Show parent boundaries';
+  }
+
   function buildPalette(){
     const pal = findEl('sxw-palette');
     if (!pal || typeof TERRAIN === 'undefined') return;
@@ -1216,42 +1276,95 @@
     }
     return out;
   }
-  function parentCorners(){
-    const cx = state.view.cx, cy = state.view.cy;
+  function parentWorldCenter(col, row){
+    const D = window.GCCSubhexData;
+    if (!D || typeof D.parentSvgCenter !== 'function') return { x: 0, y: 0 };
+    const c = D.parentSvgCenter(col, row);
+    return { x: c.x * DISPLAY_SCALE, y: c.y * DISPLAY_SCALE };
+  }
+  function parentCornersAt(col, row){
+    const c = parentWorldCenter(col, row);
     const out = new Array(6);
     for (let i = 0; i < 6; i++){
       const a = (Math.PI / 180) * (60 * i);
-      out[i] = [cx + PARENT_R * Math.cos(a), cy + PARENT_R * Math.sin(a)];
+      out[i] = [c.x + PARENT_R * Math.cos(a), c.y + PARENT_R * Math.sin(a)];
+    }
+    return out;
+  }
+
+  // Viewport bbox in data-layer coords (HEX_R=20, SUB_R=2 native).
+  // state.view.cx/cy and VIEWBOX_W/H live in display-scaled coords
+  // (DISPLAY_SCALE × data); the data-layer helpers cellsInAxialBbox /
+  // parentSvgCenter operate in data coords, so we divide on the way
+  // out. Margin = HEX_R * 2 covers cells whose hex polygons straddle
+  // the viewport edge and parents whose silhouette overlaps without
+  // their center being inside (cheap; cellsInAxialBbox is O(W*H)).
+  function viewportBboxData(){
+    const HEX_R_DATA = PARENT_R / DISPLAY_SCALE;
+    const halfW = (VIEWBOX_W / 2) / DISPLAY_SCALE;
+    const halfH = (VIEWBOX_H / 2) / DISPLAY_SCALE;
+    const cx = state.view.cx / DISPLAY_SCALE;
+    const cy = state.view.cy / DISPLAY_SCALE;
+    const margin = HEX_R_DATA * 2;
+    return {
+      minX: cx - halfW - margin, maxX: cx + halfW + margin,
+      minY: cy - halfH - margin, maxY: cy + halfH + margin,
+    };
+  }
+  function visibleCells(){
+    const D = window.GCCSubhexData;
+    if (!D || typeof D.cellsInAxialBbox !== 'function') return [];
+    return D.cellsInAxialBbox(viewportBboxData());
+  }
+  function parentsInViewport(){
+    const D = window.GCCSubhexData;
+    if (!D || typeof D.parentSvgCenter !== 'function') return [];
+    const bbox = viewportBboxData();
+    const HEX_R_DATA = PARENT_R / DISPLAY_SCALE;
+    const colStep = 1.5 * HEX_R_DATA;
+    const rowStep = SQRT3 * HEX_R_DATA;
+    const colLo = Math.max(0, Math.floor((bbox.minX - HEX_R_DATA) / colStep) - 1);
+    const colHi = Math.ceil((bbox.maxX - HEX_R_DATA) / colStep) + 1;
+    const rowLo = Math.max(0, Math.floor((bbox.minY - HEX_R_DATA*SQRT3/2) / rowStep) - 1);
+    const rowHi = Math.ceil((bbox.maxY - HEX_R_DATA*SQRT3/2) / rowStep) + 1;
+    const out = [];
+    for (let col = colLo; col <= colHi; col++){
+      for (let row = rowLo; row <= rowHi; row++){
+        const c = D.parentSvgCenter(col, row);
+        if (c.x >= bbox.minX && c.x <= bbox.maxX && c.y >= bbox.minY && c.y <= bbox.maxY){
+          out.push({ col, row });
+        }
+      }
     }
     return out;
   }
 
   function cellDomId(Q, R){ return `sxw-cell-${Q}_${R}`; }
 
-  // Build a single cell <g> and append to layer. fragmentInfo, when
-  // provided, marks this as a fragment cell (owned by a different
-  // parent) — class .fragment is added and dataset.owner records the
-  // owning parent id for hint display.
-  function buildCellGroup(Q, R, layer, fragmentInfo){
+  // Build a single cell <g> and append to layer. Owner-resolved
+  // terrain: every cell renders at its world position with its true
+  // owner's terrain via ownerOf(Q, R). The legacy fragment concept
+  // (Slice 2 and earlier) is retired in Slice 3 — there is no parent-
+  // shaped silhouette to fragment across, so cells just paint their
+  // full hex shape with their owner's terrain. Returns null when the
+  // cell has no owner (off-grid edges of the world).
+  function buildCellGroup(Q, R, layer){
     const ns = 'http://www.w3.org/2000/svg';
-    const ptr = centerParentTerrain();
-    const sub = window.GCCSubhexData.getSubhex(Q, R, fragmentInfo
-      ? (typeof getHexTerrain === 'function' ? getHexTerrain(fragmentInfo.ownerCol, fragmentInfo.ownerRow) : ptr)
-      : ptr);
+    const D = window.GCCSubhexData;
+    const owner = D.ownerOf(Q, R);
+    if (!owner) return null;
+    const ownerTerrain = (typeof getHexTerrain === 'function')
+      ? getHexTerrain(owner.col, owner.row) : null;
+    const sub = D.getSubhex(Q, R, ownerTerrain);
     const c = cellWorldCenter(Q, R);
     const corners = cellCorners(Q, R);
     const pts = corners.map(([x,y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
 
     const group = document.createElementNS(ns, 'g');
-    group.setAttribute('class', 'sxw-cell-group' + (fragmentInfo ? ' sxw-cell-group-fragment' : ''));
+    group.setAttribute('class', 'sxw-cell-group');
     group.id = cellDomId(Q, R);
     group.dataset.q = Q;
     group.dataset.r = R;
-    if (fragmentInfo){
-      group.dataset.fragment = '1';
-      group.dataset.ownerCol = fragmentInfo.ownerCol;
-      group.dataset.ownerRow = fragmentInfo.ownerRow;
-    }
     if (window.GCCFog && window.GCCFog.shouldFogSubhex(Q, R)){
       group.classList.add('fogged');
     }
@@ -1259,7 +1372,6 @@
     const poly = document.createElementNS(ns, 'polygon');
     poly.setAttribute('points', pts);
     let cls = 'sxw-cell';
-    if (fragmentInfo) cls += ' fragment';
     if (sub.source === 'authored') cls += ' authored';
     if (Q === state.selectedQ && R === state.selectedR) cls += ' selected';
     poly.setAttribute('class', cls);
@@ -1289,6 +1401,7 @@
     group.addEventListener('mouseenter', onCellMouseEnter);
     group.addEventListener('click', onCellClick);
     layer.appendChild(group);
+    return group;
   }
 
   function rebuildSVG(){
@@ -1298,37 +1411,48 @@
     svg.innerHTML = '';
     const ns = 'http://www.w3.org/2000/svg';
 
-    const cp = centerParent();
-    const pCorners = parentCorners();
-    const pPts = pCorners.map(([x,y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
-
-    // Fragment layer: cells whose centers are in neighbor parents but
-    // whose hexes overlap this parent silhouette. Drawn first so owned
-    // cells paint over them at any seam. Not clipped — fragments
-    // render their full hex shape extending beyond the parent boundary
-    // so the GM can see exactly how they bridge into neighbor parents.
-    const fragLayer = document.createElementNS(ns, 'g');
-    fragLayer.setAttribute('class', 'sxw-fragment-layer');
-    const fragments = cp ? window.GCCSubhexData.fragmentsForParent(cp.col, cp.row) : [];
-    for (const f of fragments){
-      buildCellGroup(f.Q, f.R, fragLayer, { ownerCol: f.ownerCol, ownerRow: f.ownerRow });
+    // Cells layer: every cell whose center is in the viewport bbox
+    // (plus margin), with terrain resolved via ownerOf. Slice 3
+    // retires the per-parent fragment/owned split.
+    const cellsLayer = document.createElementNS(ns, 'g');
+    cellsLayer.setAttribute('class', 'sxw-cells-layer');
+    const cells = visibleCells();
+    for (const { Q, R } of cells){
+      buildCellGroup(Q, R, cellsLayer);
     }
-    svg.appendChild(fragLayer);
+    svg.appendChild(cellsLayer);
 
-    // Owned cells (~100 per parent).
-    const ownedLayer = document.createElementNS(ns, 'g');
-    ownedLayer.setAttribute('class', 'sxw-owned-layer');
-    const owned = cp ? window.GCCSubhexData.ownedByParent(cp.col, cp.row) : [];
-    for (const { Q, R } of owned){
-      buildCellGroup(Q, R, ownedLayer, null);
+    // Parent-outline overlay: every parent intersecting viewport gets
+    // a polygon; parent IDs label the centers at zoom>=0.7. Gated on
+    // the show-parents toggle (default on). Q4 of DESIGN-subhex-
+    // fullview.md.
+    if (state.showParents){
+      const overlay = document.createElementNS(ns, 'g');
+      overlay.setAttribute('class', 'sxw-parent-outline-overlay-layer');
+      overlay.setAttribute('pointer-events', 'none');
+      const parents = parentsInViewport();
+      const showLabels = state.view.zoom >= 0.7 && typeof hexIdStr === 'function';
+      for (const parent of parents){
+        const corners = parentCornersAt(parent.col, parent.row);
+        const pts = corners.map(([x,y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+        const poly = document.createElementNS(ns, 'polygon');
+        poly.setAttribute('points', pts);
+        poly.setAttribute('class', 'sxw-parent-outline-overlay');
+        overlay.appendChild(poly);
+        if (showLabels){
+          const c = parentWorldCenter(parent.col, parent.row);
+          const text = document.createElementNS(ns, 'text');
+          text.setAttribute('x', c.x.toFixed(1));
+          text.setAttribute('y', (c.y - PARENT_R * 0.78).toFixed(1));
+          text.setAttribute('class', 'sxw-parent-outline-label');
+          text.setAttribute('text-anchor', 'middle');
+          text.setAttribute('dominant-baseline', 'central');
+          text.textContent = hexIdStr(parent.col, parent.row);
+          overlay.appendChild(text);
+        }
+      }
+      svg.appendChild(overlay);
     }
-    svg.appendChild(ownedLayer);
-
-    // Parent hex outline, painted on top.
-    const pOutline = document.createElementNS(ns, 'polygon');
-    pOutline.setAttribute('points', pPts);
-    pOutline.setAttribute('class', 'sxw-parent-outline');
-    svg.appendChild(pOutline);
 
     renderPaths(svg);
     renderRegionLabels(svg);
@@ -1345,27 +1469,28 @@
   function renderParentPathMarkers(svg){
     if (!window.GCCPaths) return;
     svg.querySelectorAll('.sxw-parent-path-markers').forEach(n => n.remove());
-    const cp = centerParent();
-    if (!cp) return;
-    const segments = window.GCCPaths.segmentsAt(cp.col, cp.row);
-    if (!segments || !segments.length) return;
-    const owned = window.GCCSubhexData.ownedByParent(cp.col, cp.row);
-    if (!owned.length) return;
-
+    const parents = parentsInViewport();
+    if (!parents.length) return;
     const ns = 'http://www.w3.org/2000/svg';
     const layer = document.createElementNS(ns, 'g');
     layer.setAttribute('class', 'sxw-parent-path-markers');
-
-    for (let segIndex = 0; segIndex < segments.length; segIndex++){
-      const seg = segments[segIndex];
-      const color = pathMarkerColor(seg);
-      if (!color) continue;
-      // entryEdge and exitEdge each get their own marker (open ends are
-      // -1 — path source/mouth/terminus, no boundary crossing there).
-      for (const edgeKey of ['entryEdge', 'exitEdge']){
-        const edge = seg[edgeKey];
-        if (typeof edge !== 'number' || edge < 0 || edge > 5) continue;
-        placeMarker(layer, seg, edge, owned, color, segIndex);
+    // Slice 3 caveat: each parent contributes its own markers, so a
+    // shared edge between two visible parents draws two markers
+    // (one from each side). Marker dedup is Slice 7's job.
+    for (const parent of parents){
+      const segments = window.GCCPaths.segmentsAt(parent.col, parent.row);
+      if (!segments || !segments.length) continue;
+      const owned = window.GCCSubhexData.ownedByParent(parent.col, parent.row);
+      if (!owned.length) continue;
+      for (let segIndex = 0; segIndex < segments.length; segIndex++){
+        const seg = segments[segIndex];
+        const color = pathMarkerColor(seg);
+        if (!color) continue;
+        for (const edgeKey of ['entryEdge', 'exitEdge']){
+          const edge = seg[edgeKey];
+          if (typeof edge !== 'number' || edge < 0 || edge > 5) continue;
+          placeMarker(layer, parent, seg, edge, owned, color, segIndex);
+        }
       }
     }
     svg.appendChild(layer);
@@ -1378,13 +1503,13 @@
     return null;
   }
 
-  function edgeMidpoint(edge){
-    const cx = state.view.cx, cy = state.view.cy;
+  function edgeMidpointFor(col, row, edge){
+    const c = parentWorldCenter(col, row);
     const a1 = (Math.PI / 180) * (60 * ((edge + 4) % 6));
     const a2 = (Math.PI / 180) * (60 * ((edge + 5) % 6));
     return {
-      x: cx + PARENT_R * (Math.cos(a1) + Math.cos(a2)) / 2,
-      y: cy + PARENT_R * (Math.sin(a1) + Math.sin(a2)) / 2,
+      x: c.x + PARENT_R * (Math.cos(a1) + Math.cos(a2)) / 2,
+      y: c.y + PARENT_R * (Math.sin(a1) + Math.sin(a2)) / 2,
     };
   }
 
@@ -1392,8 +1517,8 @@
   // edge. The marker for that edge sits on this cell; the click-to-
   // author destination check uses it to detect when an authored path
   // has reached the boundary.
-  function boundaryCellForEdge(edge, owned){
-    const mid = edgeMidpoint(edge);
+  function boundaryCellForEdge(col, row, edge, owned){
+    const mid = edgeMidpointFor(col, row, edge);
     let best = null, bestD = Infinity;
     for (const cell of owned){
       const v = cellWorldCenter(cell.Q, cell.R);
@@ -1411,20 +1536,14 @@
   // meets the boundary, instead of on the geometric midpoint.
   // Returns null if no matching authored crossing exists; callers
   // fall back to boundaryCellForEdge(...).
-  function authoredBoundaryCellForSegment(seg, edge, owned){
+  function authoredBoundaryCellForSegment(parent, seg, edge, owned){
     if (!window.GCCSubhexPaths || !seg.name) return null;
     if (!window.GCCSubhexData) return null;
     if (typeof window.GCCPaths?.neighborAcross !== 'function') return null;
-    const cp = centerParent();
-    if (!cp) return null;
-    const nbParent = window.GCCPaths.neighborAcross(cp.col, cp.row, edge);
+    const nbParent = window.GCCPaths.neighborAcross(parent.col, parent.row, edge);
     if (!nbParent) return null;
     const D = window.GCCSubhexData;
     const NEIGHBORS = D.NEIGHBOR_DELTAS || [[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]];
-    // Candidate cells: owned cells of this parent that sit on the
-    // edge toward nbParent (i.e., have an axial neighbor owned by
-    // nbParent). Building this list lets us check each as a possible
-    // crossing cell.
     const edgeCells = [];
     for (const c of owned){
       for (const [dq, dr] of NEIGHBORS){
@@ -1436,14 +1555,9 @@
       }
     }
     if (!edgeCells.length) return null;
-    // Find a subhex path that matches the segment by kind+name and
-    // includes one of the edge cells. Pick that cell as the marker
-    // anchor. If multiple edge cells qualify (path zigzags along the
-    // boundary), prefer the one closest to the midpoint so the
-    // marker still feels "on the edge" rather than at a corner.
     const paths = window.GCCSubhexPaths.listPaths();
     let bestCell = null, bestD = Infinity;
-    const mid = edgeMidpoint(edge);
+    const mid = edgeMidpointFor(parent.col, parent.row, edge);
     for (const p of paths){
       if (p.kind !== seg.kind) continue;
       if (p.name !== seg.name) continue;
@@ -1460,14 +1574,11 @@
     return bestCell;
   }
 
-  function placeMarker(layer, seg, edge, owned, color, segIndex){
-    // Prefer the cell where an authored subhex path actually crosses
-    // this parent edge. Falls back to the geometric midpoint cell
-    // when nothing is authored yet.
-    const authoredCell = authoredBoundaryCellForSegment(seg, edge, owned);
-    const best = authoredCell || boundaryCellForEdge(edge, owned);
+  function placeMarker(layer, parent, seg, edge, owned, color, segIndex){
+    const authoredCell = authoredBoundaryCellForSegment(parent, seg, edge, owned);
+    const best = authoredCell || boundaryCellForEdge(parent.col, parent.row, edge, owned);
     if (!best) return;
-    const mid = edgeMidpoint(edge);
+    const mid = edgeMidpointFor(parent.col, parent.row, edge);
     const cellPos = cellWorldCenter(best.Q, best.R);
     let dx = mid.x - cellPos.x, dy = mid.y - cellPos.y;
     const len = Math.sqrt(dx*dx + dy*dy);
@@ -1483,12 +1594,16 @@
     const authoredId = findSubhexPathForSegment(seg, best.Q, best.R);
     let cls = `sxw-parent-path-marker sxw-ppm-${seg.kind}`;
     if (authoredId) cls += ' authored';
-    if (state.markerHighlight && state.markerHighlight.segIndex === segIndex
+    if (state.markerHighlight
+        && state.markerHighlight.col === parent.col
+        && state.markerHighlight.row === parent.row
+        && state.markerHighlight.segIndex === segIndex
         && state.markerHighlight.edge !== edge){
-      // The OTHER end of the segment we just started authoring.
       cls += ' destination';
     }
     g.setAttribute('class', cls);
+    g.dataset.parentCol = parent.col;
+    g.dataset.parentRow = parent.row;
     g.dataset.segIndex = segIndex;
     g.dataset.edge = edge;
     g.dataset.kind = seg.kind;
@@ -1504,16 +1619,15 @@
     circle.setAttribute('fill', color);
     g.appendChild(circle);
     const title = document.createElementNS(ns, 'title');
-    title.textContent = pathMarkerTooltip(seg, edge, !!authoredId);
+    title.textContent = pathMarkerTooltip(parent, seg, edge, !!authoredId);
     g.appendChild(title);
     g.addEventListener('click', onParentPathMarkerClick);
     layer.appendChild(g);
   }
 
-  function pathMarkerTooltip(seg, edge, authored){
-    const cp = centerParent();
-    const neighbor = (cp && typeof window.GCCPaths.neighborAcross === 'function')
-      ? window.GCCPaths.neighborAcross(cp.col, cp.row, edge)
+  function pathMarkerTooltip(parent, seg, edge, authored){
+    const neighbor = (typeof window.GCCPaths.neighborAcross === 'function')
+      ? window.GCCPaths.neighborAcross(parent.col, parent.row, edge)
       : null;
     const neighborLabel = (neighbor && typeof hexIdStr === 'function')
       ? hexIdStr(neighbor.col, neighbor.row)
@@ -1548,6 +1662,8 @@
   function onParentPathMarkerClick(ev){
     ev.stopPropagation();
     const g = ev.currentTarget;
+    const parentCol = +g.dataset.parentCol;
+    const parentRow = +g.dataset.parentRow;
     const segIndex = +g.dataset.segIndex;
     const edge     = +g.dataset.edge;
     const kind     = g.dataset.kind;
@@ -1583,7 +1699,7 @@
     }
 
     state.armed = { type: 'path', value: pathId };
-    state.markerHighlight = { segIndex, edge };
+    state.markerHighlight = { col: parentCol, row: parentRow, segIndex, edge };
     rebuildPathArmedPicker();
     showPathArmedPicker(true, pathId);
     showRegionArmedPicker(false);
@@ -1628,16 +1744,24 @@
     return `${Q}_${R}|${sorted.join('|')}`;
   }
 
-  // Build a list of crossing records for the active parent. Each:
+  // Build a list of crossing records visible in the viewport. Each:
   //   { Q, R, paths: [{id, kind, name}, ...] }
-  // Only owned cells are considered. Cells already authored with a
-  // feature, or dismissed for this exact path-set, are excluded.
+  // Cells already authored with a feature, or dismissed for this
+  // exact path-set, are excluded.
   function detectCrossings(){
     if (!window.GCCSubhexPaths) return [];
-    const cp = centerParent();
-    if (!cp) return [];
-    const ptr = centerParentTerrain();
-    const paths = window.GCCSubhexPaths.pathsInParent(cp.col, cp.row);
+    const parents = parentsInViewport();
+    if (!parents.length) return [];
+    // Collect every unique path touching any visible parent.
+    const seenIds = new Set();
+    const paths = [];
+    for (const parent of parents){
+      for (const p of window.GCCSubhexPaths.pathsInParent(parent.col, parent.row)){
+        if (seenIds.has(p.id)) continue;
+        seenIds.add(p.id);
+        paths.push(p);
+      }
+    }
     if (paths.length < 2) return [];
     // Bucket: cell key -> list of paths touching it
     const byCell = new Map();
@@ -1652,22 +1776,22 @@
         byCell.get(k).push(p);
       }
     }
-    const owned = window.GCCSubhexData.ownedByParent(cp.col, cp.row);
-    const ownedSet = new Set(owned.map(c => `${c.Q}_${c.R}`));
+    // Only consider cells visible in the viewport.
+    const visSet = new Set(visibleCells().map(c => `${c.Q}_${c.R}`));
     const dismissed = loadDismissedCrossings();
     const out = [];
     for (const [key, plist] of byCell){
       if (plist.length < 2) continue;
-      if (!ownedSet.has(key)) continue;
+      if (!visSet.has(key)) continue;
       // Skip pure water-meets-water confluences. A river joining
-      // another river isn't a "crossing" — it's geography. The ×
-      // badge concept is for two transportation modes intersecting
-      // (road×river = bridge, road×road = crossroads). When all
-      // paths at a cell are rivers/streams, suppress the badge.
+      // another river isn't a "crossing" — it's geography.
       const allWater = plist.every(p => p.kind === 'river' || p.kind === 'stream');
       if (allWater) continue;
       const [Q, R] = key.split('_').map(Number);
-      const sub = window.GCCSubhexData.getSubhex(Q, R, ptr);
+      const owner = window.GCCSubhexData.ownerOf(Q, R);
+      if (!owner) continue;
+      const ownerTerrain = (typeof getHexTerrain === 'function') ? getHexTerrain(owner.col, owner.row) : null;
+      const sub = window.GCCSubhexData.getSubhex(Q, R, ownerTerrain);
       if (sub && sub.feature && sub.feature.kind) continue;
       const dKey = dismissKey(Q, R, plist.map(p => p.id));
       if (dismissed[dKey]) continue;
@@ -1899,17 +2023,18 @@
   function renderPaths(svg){
     if (!window.GCCSubhexPaths) return;
     svg.querySelectorAll('.sxw-paths-layer').forEach(n => n.remove());
-    const cp = centerParent();
-    if (!cp){
-      renderArmedPathGhost(svg);
-      return;
+    const parents = parentsInViewport();
+    // Collect paths touching any visible parent, dedup by id.
+    const seenIds = new Set();
+    const paths = [];
+    for (const parent of parents){
+      for (const p of window.GCCSubhexPaths.pathsInParent(parent.col, parent.row)){
+        if (seenIds.has(p.id)) continue;
+        seenIds.add(p.id);
+        paths.push(p);
+      }
     }
-    const paths = window.GCCSubhexPaths.pathsInParent(cp.col, cp.row);
     if (!paths.length){
-      // No path cells in this parent — but if a path is armed and has
-      // cells in a neighbor parent, render a ghost marker on this
-      // parent's boundary cell so the GM can see where to click to
-      // continue.
       renderArmedPathGhost(svg);
       return;
     }
@@ -1941,46 +2066,28 @@
       layer.appendChild(poly);
     }
     svg.appendChild(layer);
-    // Always also evaluate ghost rendering — it handles the case where
-    // an armed path has cells in this parent AND neighbors. (When the
-    // path's last cell lies in a neighbor, we still want a ghost in
-    // this parent showing where to extend.)
     renderArmedPathGhost(svg);
   }
 
-  // When a path is armed but has no rendered glyphs in the current
-  // parent (or its last cell lies in a neighbor parent), draw a
-  // pulsing colored dot on this parent's boundary cell that is
-  // axially adjacent to the path's last-authored cell. Tells the GM
-  // "click here to continue the path into this parent" — mirrors
-  // the existing destination-marker treatment for parent-path
-  // click-to-author. No-op when no path is armed or the path has no
-  // cells anywhere.
+  // When a path is armed but its last cell isn't visible in the
+  // viewport, draw a pulsing colored dot on a visible neighbor of
+  // that last cell. Tells the GM "click here to continue the path."
+  // No-op when no path is armed, the path has no cells, or the last
+  // cell is already visible (the regular renderer shows the live
+  // tip in that case).
   function renderArmedPathGhost(svg){
     svg.querySelectorAll('.sxw-armed-ghost-layer').forEach(n => n.remove());
     if (!state.armed || state.armed.type !== 'path') return;
-    const cp = centerParent();
-    if (!cp) return;
     const armed = window.GCCSubhexPaths.getPath(state.armed.value);
     if (!armed || !armed.cells || armed.cells.length === 0) return;
     const last = armed.cells[armed.cells.length - 1];
-    const lastOwner = window.GCCSubhexData.ownerOf(last.Q, last.R);
-    // If the last cell is in this parent, no ghost — the regular
-    // path renderer already shows the live tip the GM can extend
-    // from. Ghosts are specifically for "the path is somewhere
-    // else, here's where to pick it up."
-    if (lastOwner && lastOwner.col === cp.col && lastOwner.row === cp.row){
-      return;
-    }
-    // Find a neighbor of the last cell that is owned by this parent.
-    // That cell is the GM's click target. Use the same axial neighbor
-    // offsets the data layer uses for adjacency.
+    const visSet = new Set(visibleCells().map(c => `${c.Q}_${c.R}`));
+    if (visSet.has(`${last.Q}_${last.R}`)) return;
     const NEIGHBORS = [[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]];
     let target = null;
     for (const [dq, dr] of NEIGHBORS){
       const cQ = last.Q + dq, cR = last.R + dr;
-      const o = window.GCCSubhexData.ownerOf(cQ, cR);
-      if (o && o.col === cp.col && o.row === cp.row){
+      if (visSet.has(`${cQ}_${cR}`)){
         target = { Q: cQ, R: cR };
         break;
       }
@@ -2019,20 +2126,23 @@
     return pts;
   }
 
-  // Drop a centered text label on each region with ≥3 members across
-  // the world AND ≥1 member in this parent. Centroid is the average
-  // of all member centers in viewport coords (so labels can sit near
-  // the parent boundary if a region is mostly in a neighbor).
+  // Drop a centered text label on each region with ≥3 members whose
+  // global centroid falls inside the viewport. Centroid computed in
+  // world SVG coords across all members of the region (so a region
+  // straddling parents still gets one label at its true center).
   function renderRegionLabels(svg){
     if (!window.GCCSubhexData) return;
     svg.querySelectorAll('.sxw-region-label-layer').forEach(n => n.remove());
-    const cp = centerParent();
-    if (!cp) return;
-    const regions = window.GCCSubhexData.regionsInParent(cp.col, cp.row);
+    const regions = window.GCCSubhexData.listRegions();
     if (!regions.length) return;
+    const minX = state.view.cx - VIEWBOX_W / 2;
+    const maxX = state.view.cx + VIEWBOX_W / 2;
+    const minY = state.view.cy - VIEWBOX_H / 2;
+    const maxY = state.view.cy + VIEWBOX_H / 2;
     const ns = 'http://www.w3.org/2000/svg';
     const layer = document.createElementNS(ns, 'g');
     layer.setAttribute('class', 'sxw-region-label-layer');
+    let any = false;
     for (const region of regions){
       const members = window.GCCSubhexData.regionMembers(region.id);
       if (members.length < 3) continue;
@@ -2043,6 +2153,7 @@
       }
       const cx = sx / members.length;
       const cy = sy / members.length;
+      if (cx < minX || cx > maxX || cy < minY || cy > maxY) continue;
       const text = document.createElementNS(ns, 'text');
       text.setAttribute('x', cx);
       text.setAttribute('y', cy);
@@ -2051,24 +2162,22 @@
       text.setAttribute('dominant-baseline', 'central');
       text.textContent = region.name;
       layer.appendChild(text);
+      any = true;
     }
-    svg.appendChild(layer);
+    if (any) svg.appendChild(layer);
   }
 
   // Repaint a single cell in place (terrain / feature / authored
-  // marker) without rebuilding the whole SVG. Works for both owned
-  // and fragment cells.
+  // marker) without rebuilding the whole SVG. Owner-resolved via
+  // ownerOf — works regardless of which parent holds the cell.
   function applyCellPaint(Q, R){
     const group = document.getElementById(cellDomId(Q, R));
     if (!group) return;
-    const ptr = centerParentTerrain();
-    const isFragment = group.dataset.fragment === '1';
-    const fragTerrain = isFragment
-      ? (typeof getHexTerrain === 'function'
-          ? getHexTerrain(+group.dataset.ownerCol, +group.dataset.ownerRow)
-          : ptr)
-      : ptr;
-    const sub = window.GCCSubhexData.getSubhex(Q, R, fragTerrain);
+    const D = window.GCCSubhexData;
+    const owner = D.ownerOf(Q, R);
+    const ownerTerrain = (owner && typeof getHexTerrain === 'function')
+      ? getHexTerrain(owner.col, owner.row) : null;
+    const sub = D.getSubhex(Q, R, ownerTerrain);
     const poly = group.querySelector('.sxw-cell');
     if (!poly) return;
     if (sub.terrain && TERRAIN[sub.terrain]?.rgb){
@@ -2135,18 +2244,18 @@
     window.removeEventListener('mouseup', onBrushEnd);
   }
 
-  // Resolve the parent terrain to use when reading/writing this cell
-  // — for fragments, that's the owner's terrain; for owned cells, our
-  // own parent's terrain.
+  // Resolve the parent terrain to use when reading/writing this cell.
+  // Slice 3: every cell has its own owner via ownerOf; the legacy
+  // fragment dataset (.fragment / .ownerCol / .ownerRow) is gone, and
+  // the owning parent's terrain is read directly off the cell's
+  // (Q, R) — no per-render parent context needed.
   function effectiveParentTerrainFor(group){
-    const ptr = centerParentTerrain();
-    if (!group) return ptr;
-    if (group.dataset.fragment === '1'){
-      return (typeof getHexTerrain === 'function')
-        ? getHexTerrain(+group.dataset.ownerCol, +group.dataset.ownerRow)
-        : ptr;
-    }
-    return ptr;
+    if (!group) return null;
+    const Q = +group.dataset.q, R = +group.dataset.r;
+    const owner = window.GCCSubhexData.ownerOf(Q, R);
+    if (!owner) return null;
+    return (typeof getHexTerrain === 'function')
+      ? getHexTerrain(owner.col, owner.row) : null;
   }
 
   function paintCell(Q, R, group){
@@ -2254,14 +2363,15 @@
         // markers so the destination dot drops its highlight class
         // and both ends pick up the .authored class.
         if (state.markerHighlight){
-          const cp = centerParent();
-          const segments = (cp && window.GCCPaths) ? (window.GCCPaths.segmentsAt(cp.col, cp.row) || []) : [];
-          const seg = segments[state.markerHighlight.segIndex];
+          const mh = state.markerHighlight;
+          const segments = window.GCCPaths
+            ? (window.GCCPaths.segmentsAt(mh.col, mh.row) || []) : [];
+          const seg = segments[mh.segIndex];
           if (seg){
-            const otherEdge = (state.markerHighlight.edge === seg.entryEdge) ? seg.exitEdge : seg.entryEdge;
+            const otherEdge = (mh.edge === seg.entryEdge) ? seg.exitEdge : seg.entryEdge;
             if (typeof otherEdge === 'number' && otherEdge >= 0){
-              const owned = cp ? window.GCCSubhexData.ownedByParent(cp.col, cp.row) : [];
-              const destCell = boundaryCellForEdge(otherEdge, owned);
+              const owned = window.GCCSubhexData.ownedByParent(mh.col, mh.row);
+              const destCell = boundaryCellForEdge(mh.col, mh.row, otherEdge, owned);
               if (destCell && destCell.Q === Q && destCell.R === R){
                 state.markerHighlight = null;
               }
@@ -2306,21 +2416,19 @@
     if (state.selectedQ === null) return null;
     return document.getElementById(cellDomId(state.selectedQ, state.selectedR));
   }
-  function selectedIsFragment(){
-    const g = selectedCellGroup();
-    return !!(g && g.dataset.fragment === '1');
-  }
-  function selectedFragmentOwner(){
-    const g = selectedCellGroup();
-    if (!g || g.dataset.fragment !== '1') return null;
-    return { col: +g.dataset.ownerCol, row: +g.dataset.ownerRow };
+  // Owner of the selected cell, via ownerOf. Replaces the legacy
+  // selectedFragmentOwner / selectedIsFragment helpers (Slice 3 has
+  // no fragment concept — every cell has an owner).
+  function selectedCellOwner(){
+    if (state.selectedQ === null) return null;
+    return window.GCCSubhexData.ownerOf(state.selectedQ, state.selectedR);
   }
   function selectedParentTerrain(){
-    const owner = selectedFragmentOwner();
+    const owner = selectedCellOwner();
     if (owner && typeof getHexTerrain === 'function'){
       return getHexTerrain(owner.col, owner.row);
     }
-    return centerParentTerrain();
+    return null;
   }
 
   function syncDetailPanel(){
@@ -2381,8 +2489,10 @@
     if (detailEl) detailEl.classList.remove('no-cell');
     coord.textContent = `Q${state.selectedQ}, R${state.selectedR}`;
     terr.textContent  = sub.terrain ? (TERRAIN[sub.terrain]?.label || sub.terrain) : '—';
-    const owner = selectedFragmentOwner();
-    if (owner){
+    const owner = selectedCellOwner();
+    const cp = centerParent();
+    const ownerDiffersFromCenter = !!(owner && (!cp || owner.col !== cp.col || owner.row !== cp.row));
+    if (ownerDiffersFromCenter){
       const ownerLabel = (typeof hexIdStr === 'function') ? hexIdStr(owner.col, owner.row) : `${owner.col},${owner.row}`;
       if (ownerEl){
         ownerEl.textContent = `Owned by ${ownerLabel}`;
@@ -2408,13 +2518,11 @@
     flib.disabled = !f;
     fnotes.value = f ? (f.notes || '') : '';
     fnotes.disabled = !f;
-    // Landmark pin: list the landmarks of the cell's parent so the GM
-    // can pin one to this cell. Owning-parent resolution: prefer
-    // selectedFragmentOwner() (when this cell is a fragment of a
-    // neighbor parent shown in the current view), else fall back to
-    // the active parent (most interior cells). Without this fallback
-    // the picker came up empty for any non-fragment cell.
-    const cellOwner = owner || centerParent() || null;
+    // Landmark pin: list the landmarks of the cell's true owner so
+    // the GM can pin one to this cell. Slice 3: every cell has its
+    // own owner via ownerOf — no fragment/centerParent fallback
+    // needed.
+    const cellOwner = owner || null;
     if (lpick){
       rebuildLandmarkPickOptions(lpick, cellOwner, f && f.landmarkId);
       lpick.disabled = false;
@@ -2821,8 +2929,8 @@
       const prevHighlight = state.markerHighlight;
       state.armed = { type: 'path', value: val };
       if (prevHighlight){
-        const cp = centerParent();
-        const segments = (cp && window.GCCPaths) ? (window.GCCPaths.segmentsAt(cp.col, cp.row) || []) : [];
+        const segments = window.GCCPaths
+          ? (window.GCCPaths.segmentsAt(prevHighlight.col, prevHighlight.row) || []) : [];
         const seg = segments[prevHighlight.segIndex];
         const armedPath = window.GCCSubhexPaths.getPath(val);
         const matches = seg && armedPath && armedPath.kind === seg.kind && armedPath.name === seg.name;
