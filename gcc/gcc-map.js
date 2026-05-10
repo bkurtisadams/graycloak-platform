@@ -1,67 +1,76 @@
-// gcc-map.js v0.1.0 — 2026-05-09
-// Unified map shell — Phase B Slice 2 of DESIGN-unified-map.md.
-// Hosts a fullscreen map with explicit named scales (parent/subhex/
-// future), pan + wheel-zoom plumbing, panel chrome, and a scale
-// registry. No content yet — parent and subhex renderers (Slices 3
-// and 4) populate the canvas. Back-compat shims keep window.state
-// (selectedCol/Row) + window.imgX + window.rebuildPathOverlay +
-// window.getHexTerrain / getRegion alive for modules not yet
-// migrated (gcc-edge-scanner, gcc-paths, gcc-hex-edit, etc.).
+// gcc-map.js v0.2.0 — 2026-05-09
+// v0.2.0 — Phase B Slice 3 prep. Full TERRAIN palette imported from
+// greyhawk-map.html (was: 8 placeholder entries). Window-scoped
+// back-compat globals hex-edit and other modules need: TERRAIN,
+// hexCenter, hexCorners, hexCornersDisplay, mapToHex, mapToStage,
+// stageToMap, screenToMap, hexIdStr, darleneColLabel, darleneDiagonal,
+// darleneToInternal, computeStageBounds, makeDraggable, showToast.
+// In the unified shell, mapToStage/stageToMap are the identity (no
+// label-pad offset; the SVG viewBox owns world coords directly), so
+// hex-edit's `mapToStage(hexCenter(...))` paths render correctly at
+// world-coord positions in the renderer's SVG.
 //
-// Public surface: window.GCCMap. See bottom of file for the full
-// export. Renderers register via GCCMap.registerScale({...}); the
-// shell handles mount/unmount on scale switch.
+// v0.1.0 — Slice 2 unified shell scaffold. See DESIGN-unified-map.md
+// revision 2 for the full design. Public surface: window.GCCMap.
 
 (function(){
   'use strict';
 
-  // ── Constants ─────────────────────────────────────────────────────────────
-  // World coords are the data layer's native units (HEX_R = 20 world units
-  // per parent hex, SUB_R = 2 per subhex). Per-scale pxPerWorldUnit gives
-  // each scale its own "comfortable zoom 1.0" density without retuning the
-  // shared coord space.
-  const HEX_R = 20;          // parent hex radius in world units
-  const SUB_R = 2;           // subhex radius in world units
+  // ── World-coord constants (shared with data layer) ────────────────────────
+  const HEX_R = 20;
+  const SUB_R = 2;
   const SQRT3 = Math.sqrt(3);
   const ZOOM_STEP = 1.25;
-  const PAN_NUDGE_PX = 80;   // arrow-key pan step at any scale
+  const PAN_NUDGE_PX = 80;
 
-  // TERRAIN palette (lifted from greyhawk-map.html line 1002, retained as
-  // shared constant — both renderers read it for fill colors). Only the
-  // palette; per-hex terrain assignment lives in GCCTerrain (gcc-terrain.js).
+  // Greyhawk grid dimensions. Other maps (Gamma World, future campaigns)
+  // override via GCCMap.setGridDimensions(cols, rows). MAP_W / MAP_H are
+  // derived for stage bounds + image dimensions.
+  let GRID_COLS = 146, GRID_ROWS = 97;
+  let MAP_W = Math.ceil((GRID_COLS - 1) * 1.5 * HEX_R + 2 * HEX_R);
+  let MAP_H = Math.ceil(GRID_ROWS * SQRT3 * HEX_R + SQRT3 * HEX_R / 2);
+
+  // Calibration — kept as a mutable object so the parent renderer's image-
+  // align tool (Slice 5) can adjust offsets if a different map is loaded.
+  // Default offsets place col=0,row=0 hex center at world (HEX_R, HEX_R*√3/2).
+  const cal = { hexSize: HEX_R, offsetX: HEX_R, offsetY: HEX_R * SQRT3 / 2 };
+
+  // ── TERRAIN palette ──────────────────────────────────────────────────────
+  // Full canon palette imported from greyhawk-map.html line 1002. Every
+  // entry has rgb (CSS rgb triple) + label (UI string) + difficulty (DMG
+  // OUTDOOR MOVEMENT category — null for water types where ship rates take
+  // over). Renderers compose `rgba(rgb, --hex-paint-alpha)` for cell fills;
+  // travel-time helpers read difficulty.
   const TERRAIN = {
-    plains:    { name:'Plains',    rgb:'122,158,90'  },
-    forest:    { name:'Forest',    rgb:'45,94,40'    },
-    hills:     { name:'Hills',     rgb:'139,110,69'  },
-    mountains: { name:'Mountains', rgb:'122,96,85'   },
-    water:     { name:'Water',     rgb:'74,127,160'  },
-    desert:    { name:'Desert',    rgb:'196,176,96'  },
-    swamp:     { name:'Swamp',     rgb:'61,107,80'   },
-    jungle:    { name:'Jungle',    rgb:'48,90,55'    },
+    clear:        { label:'Clear/Road',          difficulty:'normal',      rgb:'245, 232, 190' },
+    plains:       { label:'Plains',              difficulty:'normal',      rgb:'195, 215, 100' },
+    forest:       { label:'Forest',              difficulty:'rugged',      rgb:'70, 120, 55'   },
+    hardwood:     { label:'Hardwood Forest',     difficulty:'rugged',      rgb:'100, 150, 70'  },
+    conifer:      { label:'Conifer Forest',      difficulty:'rugged',      rgb:'50, 100, 55'   },
+    jungle:       { label:'Jungle',              difficulty:'very_rugged', rgb:'35, 75, 40'    },
+    hills:        { label:'Hills',               difficulty:'rugged',      rgb:'150, 120, 80'  },
+    forest_hills: { label:'Forested Hills',      difficulty:'very_rugged', rgb:'120, 130, 80'  },
+    mountains:    { label:'Mountains',           difficulty:'very_rugged', rgb:'110, 90, 75'   },
+    desert:       { label:'Desert',              difficulty:'normal',      rgb:'220, 150, 90'  },
+    barrens:      { label:'Barrens',             difficulty:'normal',      rgb:'175, 140, 95'  },
+    swamp:        { label:'Swamp/Marsh',         difficulty:'very_rugged', rgb:'90, 100, 65'   },
+    water:             { label:'Water (generic)',     difficulty:null, rgb:'55, 105, 155' },
+    water_fresh:       { label:'Fresh (river/lake)',  difficulty:null, rgb:'90, 165, 175' },
+    water_inland_sea:  { label:'Inland Sea',          difficulty:null, rgb:'70, 140, 175' },
+    water_coastal:     { label:'Coastal',             difficulty:null, rgb:'85, 130, 165' },
+    water_shallow:     { label:'Shallow Sea',         difficulty:null, rgb:'55, 110, 160' },
+    water_deep:        { label:'Deep Sea',            difficulty:null, rgb:'35, 75, 130'  },
   };
 
   // ── Scale registry ────────────────────────────────────────────────────────
-  // Renderers populate this via GCCMap.registerScale(spec). Order of
-  // registration is preserved (drives button order). Each spec:
-  //   {
-  //     name, label, hexSize, pxPerWorldUnit,
-  //     zoomMin, zoomMax, zoomDefault,
-  //     renderer: { mount(svg, ctx), render(), unmount() },
-  //     tools: [],   // optional, finalized in Slice 5
-  //   }
   const _scales = new Map();
   const _scaleOrder = [];
 
   // ── State ─────────────────────────────────────────────────────────────────
   const state = {
-    activeScale: null,                      // name string, set on init
-    view: {
-      cx: 0, cy: 0,                         // viewport center (world coords)
-      zoom: 1.0,                            // active scale's zoom
-      perScaleZoom: {},                     // last zoom per scale, restored on switch
-      w: 0, h: 0,                           // viewport pixel size
-    },
-    selection: null,                        // { kind: 'parent'|'subhex', col, row, Q?, R? }
+    activeScale: null,
+    view: { cx: 0, cy: 0, zoom: 1.0, perScaleZoom: {}, w: 0, h: 0 },
+    selection: null,
     pan: { dragging:false, startX:0, startY:0, startCx:0, startCy:0, button:null },
     spaceHeld: false,
     initted: false,
@@ -69,9 +78,7 @@
 
   // ── DOM cache ─────────────────────────────────────────────────────────────
   let dom = null;
-
   function $(id){ return document.getElementById(id); }
-
   function cacheDom(){
     dom = {
       shell:        $('gcc-map-shell'),
@@ -86,46 +93,110 @@
       canvas:       $('gcc-map-canvas'),
       svg:          $('gcc-map-svg'),
       coords:       $('gcc-map-coords'),
+      toast:        $('toast'),
     };
   }
 
-  // ── Geometry ──────────────────────────────────────────────────────────────
-  // hexIdStr: Darlene-style "K4-91" id for parent (col, row). Promoted from
-  // greyhawk-map.html inline scope to the shell so subhex-view, hex-edit,
-  // etc. can read it via window.hexIdStr regardless of which page hosts
-  // them. The Darlene encoding is unchanged from the legacy implementation.
-  function darleneColLabel(col, gridCols){
-    const idx = (gridCols - 1) - col;
+  // ── Geometry — shared with parent renderer + back-compat globals ──────────
+  function colStep(){ return cal.hexSize * 1.5; }
+  function rowStep(){ return cal.hexSize * SQRT3; }
+  function hexCenter(col, row){
+    return {
+      x: cal.offsetX + col * colStep(),
+      y: cal.offsetY + row * rowStep() + (col & 1 ? rowStep() * 0.5 : 0),
+    };
+  }
+  function hexCorners(cx, cy){
+    return Array.from({length:6}, (_, i) => {
+      const a = (Math.PI / 180) * (60 * i);
+      return [cx + cal.hexSize * Math.cos(a), cy + cal.hexSize * Math.sin(a)];
+    });
+  }
+  function hexCornersDisplay(col, row){
+    const c = hexCenter(col, row);
+    return hexCorners(c.x, c.y);
+  }
+  function mapToHex(mx, my){
+    const cs = colStep(), rs = rowStep();
+    let bestCol = 0, bestRow = 0, bestDist = Infinity;
+    const estCol = Math.round((mx - cal.offsetX) / cs);
+    const cMin = Math.max(0, estCol - 1);
+    const cMax = Math.min(GRID_COLS - 1, estCol + 1);
+    for (let c = cMin; c <= cMax; c++){
+      const estRow = Math.round((my - cal.offsetY - (c & 1 ? rs * 0.5 : 0)) / rs);
+      const rMin = Math.max(0, estRow - 1);
+      const rMax = Math.min(GRID_ROWS - 1, estRow + 1);
+      for (let r = rMin; r <= rMax; r++){
+        const { x, y } = hexCenter(c, r);
+        const d = (mx - x) * (mx - x) + (my - y) * (my - y);
+        if (d < bestDist){ bestDist = d; bestCol = c; bestRow = r; }
+      }
+    }
+    if (bestDist > cal.hexSize * cal.hexSize) return null;
+    return { col: bestCol, row: bestRow };
+  }
+  function darleneColLabel(col){
+    const idx = (GRID_COLS - 1) - col;
     const letter = String.fromCharCode(65 + (idx % 26));
     const rep = Math.floor(idx / 26) + 1;
     return rep === 1 ? letter : letter + rep;
   }
-  function darleneDiagonal(col, row, gridCols){
-    const k = (gridCols - 1) - col;
+  function darleneDiagonal(col, row){
+    const k = (GRID_COLS - 1) - col;
     const offset = k === 0 ? 0 : Math.floor(k / 2) + 1;
     return row + 1 + offset;
   }
-  // Default to Greyhawk grid dimensions when the page hasn't told us
-  // otherwise. Can be overridden via GCCMap.setGridDimensions(cols, rows).
-  let GRID_COLS = 146, GRID_ROWS = 97;
-  function hexIdStr(col, row){
-    return `${darleneColLabel(col, GRID_COLS)}-${darleneDiagonal(col, row, GRID_COLS)}`;
+  function darleneToInternal(label){
+    const m = String(label || '').trim().toUpperCase().match(/^([A-Z])(\d*)-(\d+)$/);
+    if (!m) return null;
+    const idx = (m[2] ? +m[2] - 1 : 0) * 26 + (m[1].charCodeAt(0) - 65);
+    const col = (GRID_COLS - 1) - idx;
+    const offset = idx === 0 ? 0 : Math.floor(idx / 2) + 1;
+    const row = +m[3] - 1 - offset;
+    if (col < 0 || col >= GRID_COLS || row < 0 || row >= GRID_ROWS) return null;
+    return { col, row };
   }
+  function hexIdStr(col, row){
+    return `${darleneColLabel(col)}-${darleneDiagonal(col, row)}`;
+  }
+  // computeStageBounds — back-compat shim. In the unified shell the SVG
+  // viewBox owns world coords directly, so stageBounds is just the world
+  // extent (no label-pad shift). Returns the same shape legacy code expects.
+  function computeStageBounds(){
+    const left = cal.offsetX - cal.hexSize - 4;
+    const top  = cal.offsetY - rowStep() * 0.5 - 4;
+    const lastCol = GRID_COLS - 1, lastRow = GRID_ROWS - 1;
+    const right = cal.offsetX + lastCol * colStep() + cal.hexSize + 4;
+    const bottom = cal.offsetY + lastRow * rowStep()
+                 + (lastCol & 1 ? rowStep() * 0.5 : 0) + rowStep() * 0.5 + 4;
+    const sb = {
+      minX: Math.min(0, left), minY: Math.min(0, top),
+      maxX: Math.max(MAP_W, right), maxY: Math.max(MAP_H, bottom),
+    };
+    sb.width  = Math.ceil(sb.maxX - sb.minX);
+    sb.height = Math.ceil(sb.maxY - sb.minY);
+    return sb;
+  }
+  // mapToStage / stageToMap — identity in the unified shell. Legacy main-map
+  // offset world coords by stageBounds.minX/Y so the SVG viewBox could start
+  // at (0,0) with label-pad on top. Unified shell uses SVG viewBox in world
+  // coords directly; no offset. Kept as functions so `mapToStage(hexCenter(...))`
+  // callsites in hex-edit still work.
+  function mapToStage(x, y){ return { x, y }; }
+  function stageToMap(x, y){ return { x, y }; }
 
   // ── Viewport ──────────────────────────────────────────────────────────────
   function activeScale(){
     return state.activeScale ? _scales.get(state.activeScale) : null;
   }
-
   function pxPerWorldUnit(){
     const sc = activeScale();
     return sc ? sc.pxPerWorldUnit * state.view.zoom : state.view.zoom;
   }
-
   function applyViewBox(){
     if (!dom || !dom.svg) return;
     const sc = activeScale();
-    if (!sc){ return; }
+    if (!sc) return;
     const f = sc.pxPerWorldUnit * state.view.zoom;
     const vbW = state.view.w / f;
     const vbH = state.view.h / f;
@@ -133,22 +204,18 @@
     const vbY = state.view.cy - vbH / 2;
     dom.svg.setAttribute('viewBox', `${vbX.toFixed(3)} ${vbY.toFixed(3)} ${vbW.toFixed(3)} ${vbH.toFixed(3)}`);
   }
-
   function syncViewportSize(){
     if (!dom || !dom.canvas) return;
     const r = dom.canvas.getBoundingClientRect();
     state.view.w = Math.max(1, r.width);
     state.view.h = Math.max(1, r.height);
   }
-
   function syncZoomDisplay(){
     if (!dom || !dom.zoomPct) return;
     const sc = activeScale();
     if (!sc){ dom.zoomPct.textContent = '—'; return; }
     dom.zoomPct.textContent = `${Math.round(state.view.zoom * 100 / sc.zoomDefault)}%`;
   }
-
-  // Convert client (mouse) coords to world coords. Used by wheel-zoom anchor.
   function clientToWorld(clientX, clientY){
     if (!dom || !dom.canvas) return null;
     const r = dom.canvas.getBoundingClientRect();
@@ -159,6 +226,14 @@
     const dy = (clientY - r.top)  - state.view.h / 2;
     return { x: state.view.cx + dx / f, y: state.view.cy + dy / f };
   }
+  // screenToMap — back-compat for hex-edit click handlers. Returns world
+  // coords (legacy "map" coords). When unified shell isn't initted, falls
+  // back to identity (caller's clientX/clientY treated as world coords —
+  // wrong but won't NaN).
+  function screenToMap(sx, sy){
+    const w = clientToWorld(sx, sy);
+    return w || { x: sx, y: sy };
+  }
 
   // ── Scale switch ──────────────────────────────────────────────────────────
   function setScale(name, opts){
@@ -168,43 +243,28 @@
     }
     if (state.activeScale === name) return true;
     opts = opts || {};
-    const prevName = state.activeScale;
-    const prev = prevName ? _scales.get(prevName) : null;
+    const prev = state.activeScale ? _scales.get(state.activeScale) : null;
     const next = _scales.get(name);
-
-    // Save outgoing scale's zoom
     if (prev){
       state.view.perScaleZoom[prev.name] = state.view.zoom;
-      try { prev.renderer && prev.renderer.unmount && prev.renderer.unmount(); } catch(e){ console.error('[gcc-map] unmount error', e); }
+      try { prev.renderer && prev.renderer.unmount && prev.renderer.unmount(); }
+      catch(e){ console.error('[gcc-map] unmount error', e); }
     }
-
-    // Restore incoming scale's zoom (or use default)
     state.activeScale = name;
     state.view.zoom = state.view.perScaleZoom[name] != null
       ? state.view.perScaleZoom[name]
       : next.zoomDefault;
-
-    // Selection clears on scale switch (see DESIGN-unified-map.md Q4)
     state.selection = null;
     syncSelectionPanel();
     syncScaleButtons();
-
-    // Mount the new renderer
-    try {
-      next.renderer && next.renderer.mount && next.renderer.mount(dom.svg, rendererCtx());
-    } catch(e){ console.error('[gcc-map] mount error', e); }
-
+    try { next.renderer && next.renderer.mount && next.renderer.mount(dom.svg, rendererCtx()); }
+    catch(e){ console.error('[gcc-map] mount error', e); }
     applyViewBox();
     syncZoomDisplay();
     requestRender();
     return true;
   }
 
-  // ── Renderer context ──────────────────────────────────────────────────────
-  // Passed to renderer.mount() and accessed via the shell's exported
-  // helpers. Renderers don't read state directly; they ask the ctx for
-  // viewport bbox, scale info, selection, etc. Keeps coupling shallow so
-  // Slice 4's renderer extraction can land cleanly.
   function rendererCtx(){
     return {
       svg: dom.svg,
@@ -216,15 +276,14 @@
         const halfW = state.view.w / 2 / f;
         const halfH = state.view.h / 2 / f;
         return {
-          minX: state.view.cx - halfW,
-          maxX: state.view.cx + halfW,
-          minY: state.view.cy - halfH,
-          maxY: state.view.cy + halfH,
+          minX: state.view.cx - halfW, maxX: state.view.cx + halfW,
+          minY: state.view.cy - halfH, maxY: state.view.cy + halfH,
         };
       },
       worldCenter: () => ({ x: state.view.cx, y: state.view.cy }),
       zoom: () => state.view.zoom,
       pxPerWorldUnit: () => pxPerWorldUnit(),
+      clientToWorld,
       selection: () => state.selection,
       setSelection: (sel) => {
         state.selection = sel;
@@ -232,8 +291,13 @@
         requestRender();
       },
       requestRender,
-      hexIdStr,
+      hexIdStr, hexCenter, hexCorners, hexCornersDisplay, mapToHex,
+      darleneColLabel, darleneDiagonal, darleneToInternal,
+      mapToStage, stageToMap,
       TERRAIN,
+      cal, MAP_W: () => MAP_W, MAP_H: () => MAP_H,
+      GRID_COLS: () => GRID_COLS, GRID_ROWS: () => GRID_ROWS,
+      HEX_R, SUB_R, SQRT3,
     };
   }
 
@@ -259,7 +323,6 @@
     const clamped = Math.max(sc.zoomMin, Math.min(sc.zoomMax, z));
     if (clamped === state.view.zoom) return;
     if (anchor){
-      // Keep the anchor world point fixed under the cursor.
       const before = clientToWorld(anchor.x, anchor.y);
       state.view.zoom = clamped;
       const after = clientToWorld(anchor.x, anchor.y);
@@ -279,25 +342,13 @@
   }
 
   function onWheel(ev){
-    if (!ev.ctrlKey && !ev.metaKey && !ev.altKey){
-      // Plain wheel = scroll, not zoom — only intercept with modifier
-      // OR when the cursor is inside the canvas (per current subhex-view
-      // convention). For the shell we intercept all wheel inside the
-      // canvas (no modifier needed) since the canvas isn't scrollable.
-      // Modifier-required is a future preference (DESIGN-unified-map.md
-      // Slice 9 polish).
-    }
     ev.preventDefault();
     const factor = ev.deltaY < 0 ? ZOOM_STEP : (1 / ZOOM_STEP);
     zoomBy(factor, { x: ev.clientX, y: ev.clientY });
   }
-
   function isPanGesture(ev){
-    // Space+drag, middle-click, OR ctrl/meta+drag = pan. Plain primary
-    // drag is reserved for future tools (paint, marquee select, etc.).
     return state.spaceHeld || ev.button === 1 || ev.ctrlKey || ev.metaKey;
   }
-
   function onMouseDown(ev){
     if (!isPanGesture(ev)) return;
     ev.preventDefault();
@@ -311,7 +362,6 @@
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
   }
-
   function onMouseMove(ev){
     if (!state.pan.dragging) return;
     const sc = activeScale(); if (!sc) return;
@@ -322,25 +372,24 @@
     state.view.cy = state.pan.startCy - dy / f;
     requestRender();
   }
-
   function onMouseUp(){
     state.pan.dragging = false;
     dom.canvas.classList.remove('panning');
     window.removeEventListener('mousemove', onMouseMove);
     window.removeEventListener('mouseup', onMouseUp);
   }
-
   function onCoordHover(ev){
     if (!dom.coords) return;
     const w = clientToWorld(ev.clientX, ev.clientY);
     if (w){
-      dom.coords.textContent = `world: ${w.x.toFixed(1)}, ${w.y.toFixed(1)}`;
+      const h = mapToHex(w.x, w.y);
+      if (h) dom.coords.textContent = hexIdStr(h.col, h.row);
+      else   dom.coords.textContent = `world: ${w.x.toFixed(1)}, ${w.y.toFixed(1)}`;
     }
   }
   function onCoordLeave(){
     if (dom.coords) dom.coords.textContent = '—';
   }
-
   function onKeyDown(ev){
     if (ev.target && /^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName)) return;
     if (ev.key === ' ' && !state.spaceHeld){
@@ -352,16 +401,11 @@
     if (ev.key === '+' || ev.key === '=') { zoomBy(ZOOM_STEP); ev.preventDefault(); return; }
     if (ev.key === '-' || ev.key === '_') { zoomBy(1/ZOOM_STEP); ev.preventDefault(); return; }
     if (ev.key === '0') { resetZoom(); ev.preventDefault(); return; }
-    // Numeric scale switches: 1 = first registered scale, 2 = second, etc.
     if (/^[1-9]$/.test(ev.key)){
       const idx = parseInt(ev.key, 10) - 1;
-      if (idx < _scaleOrder.length){
-        setScale(_scaleOrder[idx]);
-        ev.preventDefault();
-      }
+      if (idx < _scaleOrder.length){ setScale(_scaleOrder[idx]); ev.preventDefault(); }
       return;
     }
-    // Arrow keys pan
     const sc = activeScale();
     if (!sc) return;
     const stepWorld = PAN_NUDGE_PX / (sc.pxPerWorldUnit * state.view.zoom);
@@ -400,18 +444,19 @@
     }
   }
 
-  // ── Panel: selection ──────────────────────────────────────────────────────
   function syncSelectionPanel(){
     if (!dom.selectionBody) return;
     const sel = state.selection;
-    if (!sel){
-      dom.selectionBody.innerHTML = '<em>No selection</em>';
-      return;
-    }
+    if (!sel){ dom.selectionBody.innerHTML = '<em>No selection</em>'; return; }
     if (sel.kind === 'parent'){
       const id = (typeof sel.col === 'number' && typeof sel.row === 'number')
         ? hexIdStr(sel.col, sel.row) : `${sel.col},${sel.row}`;
-      dom.selectionBody.innerHTML = `<div class="gcc-map-selection-id">${id}</div>`;
+      const terrain = (typeof window.getHexTerrain === 'function')
+        ? window.getHexTerrain(sel.col, sel.row) : '—';
+      const region = (typeof window.getRegion === 'function')
+        ? window.getRegion(sel.col, sel.row) : '—';
+      const tLabel = TERRAIN[terrain]?.label || terrain;
+      dom.selectionBody.innerHTML = `<div class="gcc-map-selection-id">${id}</div><div class="gcc-map-selection-row"><span>Terrain:</span><span>${tLabel}</span></div><div class="gcc-map-selection-row"><span>Region:</span><span>${region}</span></div>`;
       return;
     }
     if (sel.kind === 'subhex'){
@@ -421,12 +466,81 @@
     dom.selectionBody.innerHTML = '<em>—</em>';
   }
 
+  // ── Toast (back-compat utility) ───────────────────────────────────────────
+  let _tt = null;
+  function showToast(msg){
+    const t = dom?.toast || document.getElementById('toast');
+    if (!t){ console.log('[toast]', msg); return; }
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(_tt);
+    _tt = setTimeout(() => t.classList.remove('show'), 3500);
+  }
+
+  // ── makeDraggable (back-compat utility — used by hex-edit, side panels) ──
+  function makeDraggable(target, handle, key){
+    const st = { active:false, sx:0, sy:0, startX:0, startY:0 };
+    const load = () => { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch(e){ return null; } };
+    const save = (x, y) => { try { localStorage.setItem(key, JSON.stringify({ x, y })); } catch(e){} };
+    const topOffset = () => ((document.getElementById('gcc-bar')?.offsetHeight || 44) + 4);
+    const clamp = (x, y) => {
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const w = target.offsetWidth || 240, h = target.offsetHeight || 120;
+      const top = topOffset();
+      return { x: Math.max(4, Math.min(vw - w - 4, x)), y: Math.max(top, Math.min(vh - h - 4, y)) };
+    };
+    const place = (x, y) => {
+      const c = clamp(x, y);
+      target.style.left = c.x + 'px'; target.style.top = c.y + 'px';
+      target.style.right = ''; target.style.bottom = ''; target.style.transform = '';
+    };
+    const placeCenter = () => {
+      const w = target.offsetWidth || 240, h = target.offsetHeight || 120;
+      const top = topOffset();
+      place((window.innerWidth - w) / 2, top + Math.max(0, (window.innerHeight - top - h) / 2));
+    };
+    const restore = () => {
+      const p = load();
+      if (p && typeof p.x === 'number'){ place(p.x, p.y); return true; }
+      return false;
+    };
+    const reset = () => { try { localStorage.removeItem(key); } catch(e){} };
+    const onDown = (cx, cy) => {
+      st.active = true; st.sx = cx; st.sy = cy;
+      const r = target.getBoundingClientRect();
+      st.startX = r.left; st.startY = r.top;
+      handle.classList.add('dragging');
+    };
+    const onMove = (cx, cy) => {
+      if (!st.active) return;
+      place(st.startX + (cx - st.sx), st.startY + (cy - st.sy));
+    };
+    const onUp = () => {
+      if (!st.active) return;
+      st.active = false;
+      handle.classList.remove('dragging');
+      const r = target.getBoundingClientRect();
+      save(r.left, r.top);
+    };
+    handle.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      if (e.target.closest('button')) return;
+      e.preventDefault();
+      onDown(e.clientX, e.clientY);
+    });
+    window.addEventListener('mousemove', e => onMove(e.clientX, e.clientY));
+    window.addEventListener('mouseup', onUp);
+    handle.addEventListener('dblclick', () => {
+      reset();
+      target.style.left = ''; target.style.top = '';
+      target.style.right = ''; target.style.bottom = ''; target.style.transform = '';
+      showToast('Position reset');
+    });
+    return { restore, place, placeCenter, reset };
+  }
+
   // ── Back-compat shims ─────────────────────────────────────────────────────
-  // Modules not yet migrated read these globals. Keep them alive until
-  // each module gets refactored (Slices 5–7). Listed here, not scattered.
   function installBackCompatShims(){
-    // window.state.selectedCol / selectedRow — read by gcc-edge-scanner
-    // (lines 600 + 909 of v0.6.0). Live getters, no in-shell state copy.
     if (typeof window.state !== 'object' || window.state === null){
       window.state = {};
     }
@@ -438,25 +552,39 @@
       configurable: true,
       get(){ return state.selection && state.selection.kind === 'parent' ? state.selection.row : null; },
     });
-
-    // window.imgX (image-align transform) — read by gcc-edge-scanner
-    // (line 163). Image-align is parent-renderer's concern (Slice 3); for
-    // now expose a default identity transform so edge-scanner's usage
-    // doesn't NaN out before image-align lands.
     if (!window.imgX){
       window.imgX = { tx:0, ty:0, sx:1, sy:1, rot:0 };
     }
-
-    // window.rebuildPathOverlay — called by gcc-paths.js on
-    // gcc-subhex-changed events (line ~1058 of gcc-paths.js v0.10.1).
-    // Slice 3's parent renderer installs the real implementation.
     if (typeof window.rebuildPathOverlay !== 'function'){
-      window.rebuildPathOverlay = function(){ /* no-op until Slice 3 */ };
+      window.rebuildPathOverlay = function(){ /* parent renderer installs the real impl on mount */ };
     }
-
-    // hexIdStr / getHexTerrain / getRegion — promoted from inline scope
-    // in greyhawk-map.html. Many modules expect these as globals.
-    window.hexIdStr = window.hexIdStr || hexIdStr;
+    // Geometry + grid globals — promoted from greyhawk-map.html inline scope.
+    window.HEX_R = HEX_R;
+    window.GRID_COLS = GRID_COLS;
+    window.GRID_ROWS = GRID_ROWS;
+    window.MAP_W = MAP_W;
+    window.MAP_H = MAP_H;
+    Object.defineProperty(window, 'stageBounds', {
+      configurable: true,
+      get(){ return computeStageBounds(); },
+    });
+    window.gridSize = () => ({ cols: GRID_COLS, rows: GRID_ROWS });
+    window.hexIdStr = hexIdStr;
+    window.hexCenter = hexCenter;
+    window.hexCenterDisplay = hexCenter;
+    window.hexCorners = hexCorners;
+    window.hexCornersDisplay = hexCornersDisplay;
+    window.mapToHex = mapToHex;
+    window.darleneColLabel = darleneColLabel;
+    window.darleneDiagonal = darleneDiagonal;
+    window.darleneToInternal = darleneToInternal;
+    window.mapToStage = mapToStage;
+    window.stageToMap = stageToMap;
+    window.screenToMap = screenToMap;
+    window.computeStageBounds = computeStageBounds;
+    window.makeDraggable = makeDraggable;
+    window.showToast = showToast;
+    window.TERRAIN = TERRAIN;
     window.getHexTerrain = window.getHexTerrain || function(col, row){
       if (typeof window.GCCTerrain !== 'undefined'){
         const t = window.GCCTerrain.get(col, row);
@@ -471,7 +599,6 @@
     };
   }
 
-  // ── Wireup ────────────────────────────────────────────────────────────────
   function wireEvents(){
     dom.canvas.addEventListener('wheel', onWheel, { passive: false });
     dom.canvas.addEventListener('mousedown', onMouseDown);
@@ -485,12 +612,11 @@
     window.addEventListener('resize', () => { syncViewportSize(); requestRender(); });
   }
 
-  // ── Init ──────────────────────────────────────────────────────────────────
   function init(){
     if (state.initted) return;
     cacheDom();
     if (!dom.shell || !dom.svg){
-      console.warn('[gcc-map] init aborted — shell DOM missing. Page must include #gcc-map-shell with #gcc-map-svg.');
+      console.warn('[gcc-map] init aborted — shell DOM missing.');
       return;
     }
     installBackCompatShims();
@@ -498,10 +624,6 @@
     buildScaleButtons();
     wireEvents();
     state.initted = true;
-
-    // Pick initial scale: first registered scale, unless caller already
-    // set state.activeScale via setScale(). Future Slice 8 reads URL
-    // hash here for #scale=NAME.
     if (!state.activeScale && _scaleOrder.length > 0){
       setScale(_scaleOrder[0]);
     }
@@ -509,98 +631,70 @@
 
   // ── Public API ────────────────────────────────────────────────────────────
   function registerScale(spec){
-    if (!spec || !spec.name){
-      console.error('[gcc-map] registerScale: spec.name is required');
-      return false;
-    }
-    if (_scales.has(spec.name)){
-      console.warn('[gcc-map] registerScale: replacing scale', spec.name);
-    } else {
-      _scaleOrder.push(spec.name);
-    }
+    if (!spec || !spec.name){ console.error('[gcc-map] registerScale: spec.name is required'); return false; }
+    if (_scales.has(spec.name)){ console.warn('[gcc-map] registerScale: replacing scale', spec.name); }
+    else { _scaleOrder.push(spec.name); }
     const filled = Object.assign({
-      label: spec.name,
-      hexSize: 1,
-      pxPerWorldUnit: 1,
-      zoomMin: 0.1,
-      zoomMax: 4,
-      zoomDefault: 1.0,
+      label: spec.name, hexSize: 1, pxPerWorldUnit: 1,
+      zoomMin: 0.1, zoomMax: 4, zoomDefault: 1.0,
       renderer: { mount(){}, render(){}, unmount(){} },
       tools: [],
     }, spec);
     _scales.set(spec.name, filled);
     if (state.initted){
       buildScaleButtons();
-      // If this is the first scale registered post-init, activate it.
       if (!state.activeScale) setScale(spec.name);
     }
     return true;
   }
-
   function setGridDimensions(cols, rows){
-    GRID_COLS = cols|0;
-    GRID_ROWS = rows|0;
+    GRID_COLS = cols | 0;
+    GRID_ROWS = rows | 0;
+    MAP_W = Math.ceil((GRID_COLS - 1) * 1.5 * HEX_R + 2 * HEX_R);
+    MAP_H = Math.ceil(GRID_ROWS * SQRT3 * HEX_R + SQRT3 * HEX_R / 2);
+    window.GRID_COLS = GRID_COLS; window.GRID_ROWS = GRID_ROWS;
+    window.MAP_W = MAP_W; window.MAP_H = MAP_H;
   }
-
   function centerOn(target, scaleName){
     if (scaleName) setScale(scaleName);
     if (!target) return;
     if (typeof target.x === 'number' && typeof target.y === 'number'){
-      state.view.cx = target.x;
-      state.view.cy = target.y;
+      state.view.cx = target.x; state.view.cy = target.y;
     } else if (typeof target.col === 'number' && typeof target.row === 'number'){
-      // Parent center via legacy hexCenter formula. Both renderers should
-      // produce world coords matching this convention.
-      state.view.cx = HEX_R + target.col * 1.5 * HEX_R;
-      state.view.cy = HEX_R * SQRT3/2 + target.row * SQRT3 * HEX_R + ((target.col & 1) ? HEX_R*SQRT3/2 : 0);
+      const c = hexCenter(target.col, target.row);
+      state.view.cx = c.x; state.view.cy = c.y;
     } else if (typeof target.Q === 'number' && typeof target.R === 'number'){
-      // Subhex center via gcc-subhex-data.subhexSvgCenter when available.
       if (window.GCCSubhexData && typeof window.GCCSubhexData.subhexSvgCenter === 'function'){
         const c = window.GCCSubhexData.subhexSvgCenter(target.Q, target.R);
-        state.view.cx = c.x;
-        state.view.cy = c.y;
+        state.view.cx = c.x; state.view.cy = c.y;
       }
     }
     requestRender();
   }
-
   function openParentSubhex(col, row){
     centerOn({ col, row }, 'subhex');
   }
 
-  // Auto-init on DOMContentLoaded so renderers can register before init
-  // fires. If renderers register after DOMContentLoaded (async load),
-  // registerScale handles the late-arrival case.
   if (document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', init);
   } else {
-    // Defer to next tick so renderers on the same script-load batch get
-    // a chance to register first.
     setTimeout(init, 0);
   }
 
   window.GCCMap = {
-    // Lifecycle
-    init,
-    registerScale,
-    setGridDimensions,
-    // Navigation
-    setScale,
-    centerOn,
-    openParentSubhex,
+    init, registerScale, setGridDimensions,
+    setScale, centerOn, openParentSubhex,
     activeScale: () => state.activeScale,
     currentSelection: () => state.selection,
     zoomTo: (z, anchor) => setZoom(z, anchor),
     zoomBy: (f, anchor) => zoomBy(f, anchor),
     resetZoom,
-    // Internal helpers (renderers may call these directly)
     requestRender,
-    hexIdStr,
-    TERRAIN,
-    HEX_R, SUB_R, SQRT3,
-    // Debug / introspection
-    _state: state,
-    _scales,
+    hexIdStr, hexCenter, hexCorners, mapToHex,
+    showToast, makeDraggable,
+    TERRAIN, HEX_R, SUB_R, SQRT3,
+    cal,
+    _state: state, _scales,
   };
 
 })();

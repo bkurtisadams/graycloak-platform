@@ -1,15 +1,10 @@
-/* gcc-map.css v0.1.0 — 2026-05-09
-   Unified map shell — Phase B Slice 2 of DESIGN-unified-map.md.
-   Fullscreen layout: GCC top bar (existing), shell row containing
-   the side panel (left) and canvas (right). Canvas hosts the SVG +
-   coord readout; renderers paint into the SVG. Theme palette mirrors
-   greyhawk-map.html (dark parchment, gold accents) so the shell
-   blends with the existing GCC pages while the renderers populate.
+/* gcc-map.css v0.2.0 — 2026-05-09
+   v0.2.0: Phase B Slice 3 — adds parent-renderer styles ported from
+   greyhawk-map.html inline <style>. Hex grid, paths, landmarks,
+   journey, party marker, coord labels, fog, hex context menu, toast.
+   Shell layout (top of file) unchanged from v0.1.0.
 
-   Subhex render styles (cells, parent overlay, paths, markers) live
-   in gcc-subhex.css and continue to apply when the subhex renderer
-   mounts. Parent render styles (hex grid, landmarks, paths, etc.)
-   live with the parent renderer and arrive in Slice 3. */
+   v0.1.0 — Slice 2 unified shell scaffold.
 
 :root {
   --gcc-map-bg:           #050200;
@@ -199,4 +194,266 @@
   dominant-baseline: central;
   user-select: none;
   pointer-events: none;
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Selection panel rows (parent scale shows terrain + region
+   alongside the hex ID).
+   ──────────────────────────────────────────────────────────────────── */
+.gcc-map-selection-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--gcc-map-panel-fg);
+  margin-top: 4px;
+}
+.gcc-map-selection-row > span:first-child {
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gcc-map-section-h);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   PARENT RENDERER STYLES
+   Ported from greyhawk-map.html inline <style>. Hex grid, paths,
+   landmarks, journey, party marker, coord labels, fog, hex context
+   menu, toast. CSS variables (--hex-paint-alpha, --hex-stroke, etc.)
+   defined here on :root so the parent renderer's polygons compose
+   their fills correctly. The legacy main-map page used the same
+   variables on its own :root; values match for visual parity.
+   ════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --hex-paint-alpha: 0.4;
+  --hex-stroke:    rgba(0,0,0,0.18);
+  --hex-hover:     rgba(255,220,100,0.22);
+  --hex-selected:  rgba(220,140,30,0.38);
+  --hex-explored:  rgba(255,255,200,0.12);
+  --parchment-light: #e8d5a3;
+  --panel-bg:      rgba(14,8,2,0.93);
+  --panel-border:  #5a3a0a;
+  --gold:          #c8941a;
+  --gold-light:    #e8b840;
+  --grid-opacity:  1;
+}
+
+/* ── Hex cells ──────────────────────────────────────────────────────── */
+#gcc-map-parent-cells { opacity: var(--grid-opacity, 1); }
+.hex-cell {
+  fill: rgba(var(--hex-paint-rgb, 0, 0, 0), var(--hex-paint-alpha, 0));
+  stroke: var(--hex-stroke);
+  stroke-width: 0.6;
+  cursor: pointer;
+  transition: fill 0.1s;
+}
+.hex-cell:hover {
+  fill: var(--hex-hover);
+  stroke: rgba(255,200,80,.5);
+  stroke-width: 1;
+}
+.hex-cell.explored { fill: var(--hex-explored); }
+.hex-cell.selected { stroke: #ff9800; stroke-width: 2.8; }
+.hex-cell.party-hex { stroke: #cc2200; stroke-width: 1.8; }
+.hex-cell.journey-hex { stroke: #dd3322; stroke-width: 1.4; }
+.hex-cell.journey-end { stroke: #ff4422; stroke-width: 2.4; }
+/* Parent fog (used for Gamma World and other maps with parentFog:true).
+   For Greyhawk fog config has parentFog:false so this rule never
+   matches there. */
+.hex-cell.fogged {
+  fill: rgba(20, 12, 4, 0.78);
+  stroke: rgba(60, 40, 16, 0.5);
+}
+
+#journey-route-line {
+  fill: none;
+  stroke: #dd3322;
+  stroke-width: 1.4;
+  stroke-dasharray: 5 3;
+  opacity: 0.9;
+  pointer-events: none;
+}
+.journey-end-ring { fill: none; stroke: #ff4422; stroke-width: 2.2; opacity: 0.95; }
+.journey-end-dot  { fill: #ff4422; opacity: 1; }
+
+/* ── Hex labels (toggleable IDs) ─────────────────────────────────────── */
+.hex-label {
+  font-family: 'Cinzel', serif;
+  font-size: 5px;
+  fill: rgba(0,0,0,.45);
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+}
+
+/* ── Coord labels (Darlene letters + diagonals on map edges) ─────────── */
+.coord-letter, .coord-number {
+  display: none;
+  font-family: 'Cinzel', serif;
+  font-weight: 600;
+  fill: #1a0f03;
+  stroke: none;
+  pointer-events: none;
+  letter-spacing: 0.03em;
+}
+.coord-letter { font-size: 16px; }
+.coord-number { font-size: 13px; font-style: italic; }
+body.coords-shown .coord-letter,
+body.coords-shown .coord-number { display: block; }
+
+/* ── Landmarks ──────────────────────────────────────────────────────── */
+.landmark-mark { filter: drop-shadow(0 0 2px rgba(0,0,0,.5)); }
+.landmark-override { filter: drop-shadow(0 0 3px rgba(68,255,187,.7)); }
+.landmark-label {
+  font-family: 'Cinzel', serif;
+  font-size: 4.5px;
+  font-weight: 600;
+  fill: #2a1a08;
+  stroke: #f4e4b8;
+  stroke-width: 0.3;
+  paint-order: stroke;
+  text-anchor: middle;
+  pointer-events: none;
+  letter-spacing: 0.05em;
+}
+.landmark-water {
+  font-size: 5.5px;
+  font-weight: 700;
+  fill: #7ab8d4;
+  stroke: #0a2030;
+  stroke-width: 0.25;
+  paint-order: stroke;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+  filter: drop-shadow(0 0 1px rgba(0,0,0,.5));
+}
+.landmark-port {
+  font-size: 6.5px;
+  fill: #1a2a3a;
+  stroke: #d4e8ff;
+  stroke-width: 0.35;
+  paint-order: stroke;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+  filter: drop-shadow(0 0 1.5px rgba(0,0,0,.6));
+}
+
+/* ── Party marker ───────────────────────────────────────────────────── */
+.party-pulse { animation: pulse 2.2s ease-in-out infinite; }
+@keyframes pulse {
+  0%, 100% { opacity: 0.5;  r: 7; }
+  50%      { opacity: 0.12; r: 12; }
+}
+
+/* ── Path overlay (rivers, roads, crossings) ────────────────────────── */
+.path-river {
+  fill: #4d8ab6;
+  stroke: #4d8ab6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.85;
+  pointer-events: none;
+}
+.path-road {
+  fill: none;
+  stroke: #8a5a2a;
+  stroke-width: 2.0;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.85;
+  pointer-events: none;
+}
+.path-track {
+  fill: none;
+  stroke: #6e4520;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 4 2.5;
+  opacity: 0.8;
+  pointer-events: none;
+}
+.path-cross-bridge     { fill: #3a2810; stroke: #1a0f04; stroke-width: 0.5; }
+.path-cross-footbridge { fill: #5a4020; stroke: #2a1808; stroke-width: 0.4; }
+.path-cross-ford       { fill: none; stroke: #9aaa5a; stroke-width: 1.4; stroke-linecap: round; stroke-dasharray: 1.5 1.5; }
+.path-cross-ferry      { fill: #f0d878; stroke: #3a2810; stroke-width: 0.8; }
+.path-cross-hover      { fill: rgba(255,238,187,.32); stroke: #ffeebb; stroke-width: 1.4; pointer-events: none; }
+
+/* Visibility toggles for the Hex Editor's Paths pane (Slice 5 wires
+   the controls; CSS lives here so the toggle state survives a
+   renderer rebuild). */
+body.gcc-rivers-hidden #gcc-map-parent-paths .path-river,
+body.gcc-rivers-hidden #gcc-map-parent-paths .path-cross { display: none; }
+body.gcc-roads-hidden  #gcc-map-parent-paths .path-road,
+body.gcc-roads-hidden  #gcc-map-parent-paths .path-track { display: none; }
+body.gcc-paths-hidden  #gcc-map-parent-paths { display: none; }
+
+/* ── Hex context menu (right-click on parent hex → Open Subhex View) ── */
+.hex-ctx-menu {
+  position: fixed;
+  background: #120900;
+  border: 1px solid var(--gold);
+  border-radius: 2px;
+  padding: 4px 0;
+  z-index: 300;
+  box-shadow: 0 6px 24px rgba(0,0,0,.85);
+  min-width: 180px;
+  font-family: 'Crimson Text', serif;
+}
+.hex-ctx-menu .hex-ctx-head {
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+  color: var(--gold-light);
+  letter-spacing: 0.08em;
+  padding: 5px 12px 6px;
+  border-bottom: 1px solid var(--panel-border);
+  margin-bottom: 3px;
+}
+.hex-ctx-menu .hex-ctx-item {
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--parchment-light);
+  cursor: pointer;
+  user-select: none;
+}
+.hex-ctx-menu .hex-ctx-item:hover {
+  background: rgba(200,148,26,.15);
+  color: var(--gold-light);
+}
+.hex-ctx-menu .hex-ctx-item.disabled {
+  color: #666;
+  cursor: default;
+}
+.hex-ctx-menu .hex-ctx-item.disabled:hover {
+  background: transparent;
+  color: #666;
+}
+
+/* ── Toast (transient status messages from showToast) ───────────────── */
+#toast {
+  position: fixed;
+  bottom: 56px;
+  left: 50%;
+  transform: translateX(-50%) translateY(16px);
+  background: var(--panel-bg);
+  border: 1px solid var(--gold);
+  color: var(--gold-light);
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  padding: 7px 16px;
+  border-radius: 2px;
+  z-index: 300;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.25s;
+  white-space: nowrap;
+}
+#toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }

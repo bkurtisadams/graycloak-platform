@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="gcc-subhex.css?v=17">
 <link rel="stylesheet" href="gcc-settings.css?v=1">
 <link rel="stylesheet" href="gcc-dialog.css">
-<link rel="stylesheet" href="gcc-map.css?v=1">
+<link rel="stylesheet" href="gcc-map.css?v=2">
 <style>
   /* Page-level reset — same convention as greyhawk-map.html. */
   @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
@@ -80,6 +80,9 @@
 
 </div>
 
+<!-- Transient status messages from showToast (parent renderer + tools). -->
+<div id="toast"></div>
+
 <!-- ─── Shared data layer + utilities (load order matters) ─── -->
 <!-- These are unchanged from greyhawk-map.html. The unified shell
      reuses the same modules; renderers (Slices 3 & 4) call into
@@ -103,8 +106,8 @@
 
 <!-- Unified shell + renderers. gcc-map.js must load before the
      renderers so they can register; init fires on DOMContentLoaded. -->
-<script src="gcc-map.js?v=1"></script>
-<script src="gcc-map-parent-renderer.js?v=1"></script>
+<script src="gcc-map.js?v=2"></script>
+<script src="gcc-map-parent-renderer.js?v=2"></script>
 <script src="gcc-map-subhex-renderer.js?v=1"></script>
 
 <!-- GCC platform chrome. Loaded last per existing convention. -->
