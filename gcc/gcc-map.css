@@ -1,4 +1,12 @@
-/* gcc-map.css v0.2.0 — 2026-05-09
+/* gcc-map.css v0.2.1 — 2026-05-09
+   v0.2.1: layout cascade-fight fix. Some rule in another loaded
+   stylesheet (gcc-header.css most likely) was overriding the shell's
+   position/display/flex-direction, collapsing the layout to a
+   block-flow column with the canvas at zero height. !important on
+   the shell + panel + canvas layout properties wins regardless of
+   what's overriding from elsewhere. Style content (colors, borders,
+   typography) stays without !important — only layout-critical bits.
+
    v0.2.0: Phase B Slice 3 — adds parent-renderer styles ported from
    greyhawk-map.html inline <style>. Hex grid, paths, landmarks,
    journey, party marker, coord labels, fog, hex context menu, toast.
@@ -20,13 +28,13 @@
 }
 
 #gcc-map-shell {
-  position: fixed;
-  top: var(--gcc-map-bar-h);
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  flex-direction: row;
+  position: fixed !important;
+  top: var(--gcc-map-bar-h) !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  display: flex !important;
+  flex-direction: row !important;
   background: var(--gcc-map-bg);
   font-family: 'Crimson Text', Georgia, serif;
   color: var(--gcc-map-panel-fg);
@@ -35,13 +43,13 @@
 
 /* ─── Side panel ────────────────────────────────────────────────────── */
 #gcc-map-panel {
-  width: var(--gcc-map-panel-w);
-  flex: 0 0 var(--gcc-map-panel-w);
+  width: var(--gcc-map-panel-w) !important;
+  flex: 0 0 var(--gcc-map-panel-w) !important;
   background: var(--gcc-map-panel-bg);
   border-right: 1px solid var(--gcc-map-panel-border);
   overflow-y: auto;
-  display: flex;
-  flex-direction: column;
+  display: flex !important;
+  flex-direction: column !important;
 }
 
 .gcc-map-section {
@@ -141,9 +149,9 @@
 
 /* ─── Canvas ────────────────────────────────────────────────────────── */
 #gcc-map-canvas {
-  flex: 1 1 auto;
-  position: relative;
-  overflow: hidden;
+  flex: 1 1 auto !important;
+  position: relative !important;
+  overflow: hidden !important;
   background: var(--gcc-map-canvas-bg);
   cursor: default;
   /* Disable native gestures so wheel/drag stay ours. */
