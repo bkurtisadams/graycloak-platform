@@ -1,0 +1,202 @@
+/* gcc-map.css v0.1.0 — 2026-05-09
+   Unified map shell — Phase B Slice 2 of DESIGN-unified-map.md.
+   Fullscreen layout: GCC top bar (existing), shell row containing
+   the side panel (left) and canvas (right). Canvas hosts the SVG +
+   coord readout; renderers paint into the SVG. Theme palette mirrors
+   greyhawk-map.html (dark parchment, gold accents) so the shell
+   blends with the existing GCC pages while the renderers populate.
+
+   Subhex render styles (cells, parent overlay, paths, markers) live
+   in gcc-subhex.css and continue to apply when the subhex renderer
+   mounts. Parent render styles (hex grid, landmarks, paths, etc.)
+   live with the parent renderer and arrive in Slice 3. */
+
+:root {
+  --gcc-map-bg:           #050200;
+  --gcc-map-canvas-bg:    #0a0500;
+  --gcc-map-panel-bg:     rgba(14,8,2,0.93);
+  --gcc-map-panel-border: #5a3a0a;
+  --gcc-map-panel-fg:     #e8d5a3;
+  --gcc-map-gold:         #c8941a;
+  --gcc-map-gold-light:   #e8b840;
+  --gcc-map-section-h:    #c8a96e;
+  --gcc-map-bar-h:        44px;
+  --gcc-map-panel-w:      300px;
+}
+
+#gcc-map-shell {
+  position: fixed;
+  top: var(--gcc-map-bar-h);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: row;
+  background: var(--gcc-map-bg);
+  font-family: 'Crimson Text', Georgia, serif;
+  color: var(--gcc-map-panel-fg);
+  user-select: none;
+}
+
+/* ─── Side panel ────────────────────────────────────────────────────── */
+#gcc-map-panel {
+  width: var(--gcc-map-panel-w);
+  flex: 0 0 var(--gcc-map-panel-w);
+  background: var(--gcc-map-panel-bg);
+  border-right: 1px solid var(--gcc-map-panel-border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.gcc-map-section {
+  border-bottom: 1px solid var(--gcc-map-panel-border);
+  padding: 10px 12px;
+}
+.gcc-map-section > header {
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--gcc-map-section-h);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+/* Scale buttons — tab-bar strip at the top of the View section. */
+#gcc-map-scale-buttons {
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.gcc-map-scale-btn {
+  flex: 1;
+  background: rgba(200,148,26,0.06);
+  border: 1px solid var(--gcc-map-panel-border);
+  color: var(--gcc-map-panel-fg);
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  padding: 6px 8px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.gcc-map-scale-btn:hover {
+  background: rgba(200,148,26,0.16);
+  border-color: var(--gcc-map-gold);
+  color: var(--gcc-map-gold-light);
+}
+.gcc-map-scale-btn.active {
+  background: rgba(200,148,26,0.32);
+  border-color: var(--gcc-map-gold);
+  color: var(--gcc-map-gold-light);
+}
+
+/* Zoom controls — small inline strip below scale buttons. */
+.gcc-map-zoom-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.gcc-map-zoom-btn {
+  width: 28px;
+  height: 24px;
+  background: rgba(200,148,26,0.06);
+  border: 1px solid var(--gcc-map-panel-border);
+  color: var(--gcc-map-panel-fg);
+  font-family: 'Cinzel', serif;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.gcc-map-zoom-btn:hover {
+  background: rgba(200,148,26,0.16);
+  border-color: var(--gcc-map-gold);
+  color: var(--gcc-map-gold-light);
+}
+#gcc-map-zoom-pct {
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  color: var(--gcc-map-section-h);
+  min-width: 44px;
+  text-align: center;
+}
+
+/* Selection / Tools section bodies */
+#gcc-map-selection-body,
+#gcc-map-tools-body {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--gcc-map-panel-fg);
+}
+#gcc-map-selection-body em,
+#gcc-map-tools-body em {
+  color: rgba(232,213,163,0.55);
+  font-style: italic;
+}
+.gcc-map-selection-id {
+  font-family: 'Cinzel', serif;
+  font-size: 14px;
+  color: var(--gcc-map-gold-light);
+  letter-spacing: 0.04em;
+}
+
+/* ─── Canvas ────────────────────────────────────────────────────────── */
+#gcc-map-canvas {
+  flex: 1 1 auto;
+  position: relative;
+  overflow: hidden;
+  background: var(--gcc-map-canvas-bg);
+  cursor: default;
+  /* Disable native gestures so wheel/drag stay ours. */
+  touch-action: none;
+}
+#gcc-map-canvas.space-held { cursor: grab; }
+#gcc-map-canvas.panning    { cursor: grabbing; }
+
+#gcc-map-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Coord readout — tiny chip in the bottom-left of the canvas. */
+#gcc-map-coords {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(14,8,2,0.85);
+  border: 1px solid var(--gcc-map-panel-border);
+  border-radius: 2px;
+  padding: 3px 8px;
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+  color: var(--gcc-map-section-h);
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* Scaffold-stub renderer placeholder text — Slices 3 & 4 replace. */
+.gcc-map-stub-label {
+  font-family: 'Cinzel', serif;
+  font-weight: 600;
+  fill: var(--gcc-map-section-h);
+  text-anchor: middle;
+  dominant-baseline: central;
+  user-select: none;
+  pointer-events: none;
+}
+.gcc-map-stub-sublabel {
+  font-family: 'Crimson Text', serif;
+  font-style: italic;
+  fill: rgba(200,169,110,0.55);
+  text-anchor: middle;
+  dominant-baseline: central;
+  user-select: none;
+  pointer-events: none;
+}
