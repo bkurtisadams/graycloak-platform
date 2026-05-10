@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="gcc-subhex.css?v=17">
 <link rel="stylesheet" href="gcc-settings.css?v=1">
 <link rel="stylesheet" href="gcc-dialog.css">
-<link rel="stylesheet" href="gcc-map.css?v=3">
+<link rel="stylesheet" href="gcc-map.css?v=4">
 <style>
   /* Page-level reset — same convention as greyhawk-map.html. */
   @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
@@ -45,13 +45,10 @@
 </div>
 <div class="gcc-tools-overlay" id="gcc-tools-overlay"></div>
 
-<!-- Unified shell. gcc-map.js owns this layout. Inline styles on the
-     shell + panel + canvas guarantee layout even when other loaded
-     stylesheets (gcc-header.css etc.) try to override the rules in
-     gcc-map.css. -->
-<div id="gcc-map-shell" style="position:fixed; top:44px; left:0; right:0; bottom:0; display:flex; flex-direction:row;">
+<!-- Unified shell. gcc-map.js owns this layout; rules in gcc-map.css. -->
+<div id="gcc-map-shell">
 
-  <aside id="gcc-map-panel" style="flex:0 0 300px; width:300px; height:100%; display:flex; flex-direction:column; overflow-y:auto;">
+  <aside id="gcc-map-panel">
 
     <section class="gcc-map-section">
       <header>View</header>
@@ -76,8 +73,8 @@
 
   </aside>
 
-  <main id="gcc-map-canvas" style="flex:1 1 auto; position:relative; overflow:hidden;">
-    <svg id="gcc-map-svg" preserveAspectRatio="xMidYMid meet" style="position:absolute; inset:0; width:100%; height:100%; display:block;"></svg>
+  <main id="gcc-map-canvas">
+    <svg id="gcc-map-svg" preserveAspectRatio="xMidYMid meet"></svg>
     <div id="gcc-map-coords">—</div>
   </main>
 

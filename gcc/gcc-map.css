@@ -1,18 +1,19 @@
-/* gcc-map.css v0.2.1 — 2026-05-09
-   v0.2.1: layout cascade-fight fix. Some rule in another loaded
-   stylesheet (gcc-header.css most likely) was overriding the shell's
-   position/display/flex-direction, collapsing the layout to a
-   block-flow column with the canvas at zero height. !important on
-   the shell + panel + canvas layout properties wins regardless of
-   what's overriding from elsewhere. Style content (colors, borders,
-   typography) stays without !important — only layout-critical bits.
+/* gcc-map.css v0.2.2 — 2026-05-10
+   v0.2.2: close the unclosed comment opened on line 1 of v0.2.1.
+   Missing close-marker swallowed lines 1–44 as one comment, dropping
+   the :root var block and the #gcc-map-shell rule. The "cascade
+   fight" in v0.2.1's note was a parse failure, not a specificity
+   issue — !important on layout rules wasn't winning anything because
+   the rules never parsed for the cascade to consider. Inline
+   style="..." attrs on shell elements in unified-map.html were
+   workarounds for the same missing rules; both removed in this
+   slice. Layout !important reverted; no fight to win.
 
-   v0.2.0: Phase B Slice 3 — adds parent-renderer styles ported from
+   v0.2.0: Phase B Slice 3 — parent-renderer styles ported from
    greyhawk-map.html inline <style>. Hex grid, paths, landmarks,
    journey, party marker, coord labels, fog, hex context menu, toast.
-   Shell layout (top of file) unchanged from v0.1.0.
 
-   v0.1.0 — Slice 2 unified shell scaffold.
+   v0.1.0 — Slice 2 unified shell scaffold. */
 
 :root {
   --gcc-map-bg:           #050200;
@@ -28,13 +29,13 @@
 }
 
 #gcc-map-shell {
-  position: fixed !important;
-  top: var(--gcc-map-bar-h) !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  display: flex !important;
-  flex-direction: row !important;
+  position: fixed;
+  top: var(--gcc-map-bar-h);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: row;
   background: var(--gcc-map-bg);
   font-family: 'Crimson Text', Georgia, serif;
   color: var(--gcc-map-panel-fg);
@@ -43,13 +44,13 @@
 
 /* ─── Side panel ────────────────────────────────────────────────────── */
 #gcc-map-panel {
-  width: var(--gcc-map-panel-w) !important;
-  flex: 0 0 var(--gcc-map-panel-w) !important;
+  width: var(--gcc-map-panel-w);
+  flex: 0 0 var(--gcc-map-panel-w);
   background: var(--gcc-map-panel-bg);
   border-right: 1px solid var(--gcc-map-panel-border);
   overflow-y: auto;
-  display: flex !important;
-  flex-direction: column !important;
+  display: flex;
+  flex-direction: column;
 }
 
 .gcc-map-section {
@@ -149,9 +150,9 @@
 
 /* ─── Canvas ────────────────────────────────────────────────────────── */
 #gcc-map-canvas {
-  flex: 1 1 auto !important;
-  position: relative !important;
-  overflow: hidden !important;
+  flex: 1 1 auto;
+  position: relative;
+  overflow: hidden;
   background: var(--gcc-map-canvas-bg);
   cursor: default;
   /* Disable native gestures so wheel/drag stay ours. */
