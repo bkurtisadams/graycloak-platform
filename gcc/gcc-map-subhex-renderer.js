@@ -1,6 +1,17 @@
-// gcc-map-subhex-renderer.js v1.0.0 — 2026-05-10
-// Phase B Slice 4 — subhex render core lifted from gcc-subhex-view.js
-// v3.1.0 per INVENTORY-unified-map.md §4.1.
+// gcc-map-subhex-renderer.js v1.1.0 — 2026-05-10
+// v1.1.0 — Slice 5a — restore brush handlers (onCellMouseDown,
+// onCellMouseEnter, onBrushEnd), effectiveParentTerrainFor, and
+// paintCell from gcc-subhex-view.js v3.1.0. paintCell trimmed to the
+// arming branches Slice 5a supports: terrain, erase (revert override),
+// feature, feature-erase, fog. region / region-erase / lake / lake-
+// erase / path branches stay deferred to Slice 5b alongside their
+// picker UIs. buildCellGroup binds mousedown + mouseenter listeners
+// on each cell so the brush works on click + drag. GCCMapSubhexRenderer
+// exports paintCell, effectiveParentTerrainFor, and getArmed for the
+// palette module.
+//
+// v1.0.0 — Phase B Slice 4 — subhex render core lifted from
+// gcc-subhex-view.js v3.1.0 per INVENTORY-unified-map.md §4.1.
 //
 // In scope (Slice 4):
 //   - Geometry: cellWorldCenter, cellCorners, cellDomId,
@@ -56,14 +67,18 @@
   const CROSSING_DISMISS_KEY = 'gcc-subhex-crossings-dismissed';
 
   // ── Module-private state ───────────────────────────────────────
-  // Slice 4 leaves armed / markerHighlight inert (no palette UI to
-  // arm them). Slice 5 wires the palette via window.GCCMap registered
-  // tools and this state becomes the bridge between palette and
-  // renderer. dismissedCrossings persists across reloads.
+  // armed / markerHighlight: palette-controlled, set externally via
+  // window.GCCMapSubhexRenderer.setArmed (Slice 5a) and Slice 5b's
+  // marker click handlers. dismissedCrossings persists across reloads.
+  // brushing / brushedThisDrag / fogBrushHide: brush state for cell
+  // paint, restored in Slice 5a from the legacy v3.1.0 brush flow.
   const rs = {
     armed: null,
     markerHighlight: null,
     dismissedCrossings: loadDismissedCrossings(),
+    brushing: false,
+    brushedThisDrag: null,
+    fogBrushHide: false,
   };
 
   // Cleared by unmount, set by mount.
@@ -228,6 +243,8 @@
       }
     }
 
+    group.addEventListener('mousedown', onCellMouseDown);
+    group.addEventListener('mouseenter', onCellMouseEnter);
     group.addEventListener('click', onCellClick);
     layer.appendChild(group);
     return group;
@@ -263,6 +280,104 @@
         group.appendChild(featG);
       }
     }
+  }
+
+  // ── Brush + paint (Slice 5a port from gcc-subhex-view.js v3.1.0) ──
+  // The cell mousedown / mouseenter / mouseup chain drives the brush.
+  // paintCell dispatches on rs.armed. Slice 5a covers terrain / erase /
+  // feature / feature-erase / fog. region / path / lake arming branches
+  // come back in Slice 5b alongside their picker UIs.
+  function onCellMouseDown(ev){
+    if (ev.button !== undefined && ev.button !== 0) return;
+    if (!rs.armed) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    const Q = +ev.currentTarget.dataset.q;
+    const R = +ev.currentTarget.dataset.r;
+    if (rs.armed.type !== 'path'){
+      rs.brushing = true;
+      rs.brushedThisDrag = new Set();
+    }
+    if (rs.armed.type === 'fog'){
+      rs.fogBrushHide = !!(ev.shiftKey || ev.altKey);
+    }
+    paintCell(Q, R, ev.currentTarget);
+    if (rs.brushing) window.addEventListener('mouseup', onBrushEnd);
+  }
+
+  function onCellMouseEnter(ev){
+    const g = ev.currentTarget;
+    // Raise on hover so the hover stroke isn't masked by adjacent cells.
+    const parent = g.parentNode;
+    if (parent && parent.lastChild !== g) parent.appendChild(g);
+    if (!rs.brushing) return;
+    const Q = +g.dataset.q;
+    const R = +g.dataset.r;
+    paintCell(Q, R, g);
+  }
+
+  function onBrushEnd(){
+    if (rs.armed?.type === 'fog' && window.GCCFog){
+      window.GCCFog.flush();
+    }
+    rs.brushing = false;
+    rs.brushedThisDrag = null;
+    rs.fogBrushHide = false;
+    window.removeEventListener('mouseup', onBrushEnd);
+  }
+
+  // Resolve the parent terrain to use when reading/writing this cell.
+  // Owner-resolved via ownerOf — works regardless of which parent holds
+  // the cell. Used by paintCell to give getSubhex the correct fallback
+  // terrain (cells with no override inherit from owner parent).
+  function effectiveParentTerrainFor(group){
+    if (!group) return null;
+    const Q = +group.dataset.q, R = +group.dataset.r;
+    const owner = D().ownerOf(Q, R);
+    if (!owner) return null;
+    return getTerrain(owner.col, owner.row);
+  }
+
+  function paintCell(Q, R, group){
+    const key = `${Q}_${R}`;
+    if (rs.brushedThisDrag && rs.brushedThisDrag.has(key)) return;
+    if (rs.brushedThisDrag) rs.brushedThisDrag.add(key);
+    const a = rs.armed;
+    if (!a) return;
+    const pTerrain = effectiveParentTerrainFor(group);
+    if (a.type === 'erase'){
+      D().setSubhexOverride(Q, R, { terrain: null });
+    } else if (a.type === 'terrain'){
+      D().setSubhexOverride(Q, R, { terrain: a.value });
+    } else if (a.type === 'feature'){
+      const existing = D().getSubhex(Q, R, pTerrain);
+      const prior = existing && existing.feature;
+      const next = (prior && prior.kind === a.value) ? prior : { kind: a.value };
+      D().setSubhexFeature(Q, R, next);
+    } else if (a.type === 'feature-erase'){
+      D().clearSubhexFeature(Q, R);
+      // Legacy flashed "No feature here" via the palette mode label
+      // when feature-erase hit a featureless cell. Slice 5a doesn't
+      // have the palette flash hook; Slice 5b will route this back
+      // through a dispatched event or shared API.
+    } else if (a.type === 'fog'){
+      // Defer save until onBrushEnd flushes; toggle the .fogged class
+      // directly so the sweep updates live without firing the global
+      // gcc-fog-changed listener for every painted cell.
+      const Fog = window.GCCFog;
+      if (!Fog) return;
+      if (rs.fogBrushHide){
+        Fog.hideSubhex(Q, R, { deferSave: true });
+      } else {
+        Fog.revealSubhex(Q, R, { deferSave: true });
+      }
+      if (group){
+        group.classList.toggle('fogged', !!Fog.shouldFogSubhex(Q, R));
+      }
+    }
+    // a.type === 'region' / 'region-erase' / 'lake' / 'lake-erase' / 'path'
+    // → deferred to Slice 5b alongside the picker UIs that arm them.
+    applyCellPaint(Q, R);
   }
 
   // ── Cell click → shell selection ───────────────────────────────
@@ -799,14 +914,17 @@
     tools: [],
   });
 
-  // ── Back-compat exports for future Slice 5 wiring ──────────────
-  // The palette UI (Slice 5) will need to set the armed/marker
-  // highlight state and trigger a re-render. Expose those slots
-  // now so Slice 5 is a plug-in.
+  // ── Back-compat exports for palette + future Slice 5b wiring ──
+  // setArmed/getArmed are the palette's bridge to the brush. The
+  // palette calls setArmed when the GM clicks a swatch/glyph; the
+  // brush handlers above read rs.armed on every mousedown/enter.
   window.GCCMapSubhexRenderer = {
     setArmed(armed){ rs.armed = armed; if (_ctx) _ctx.requestRender(); },
+    getArmed(){ return rs.armed; },
     setMarkerHighlight(h){ rs.markerHighlight = h; if (_ctx) _ctx.requestRender(); },
     applyCellPaint,
+    paintCell,
+    effectiveParentTerrainFor,
     selectedCellOwner,
     selectedParentTerrain,
   };

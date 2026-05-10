@@ -1,4 +1,14 @@
-// gcc-map.js v0.2.2 — 2026-05-10
+// gcc-map.js v0.2.3 — 2026-05-10
+// v0.2.3 — Slice 5a — tool registry. New registerTool(spec) collects
+// scale-scoped UI widgets that mount into the shell's Tools section
+// (#gcc-map-tools-body). Tools whose scale matches the active scale
+// (or 'any') mount on setScale; previous tools unmount on scale
+// switch. spec = { scale, name, label?, mount(slot, ctx), unmount() }.
+// Each mounted tool gets its own slot <div> appended to the Tools
+// body; tool.mount(slot, rendererCtx) is responsible for filling
+// the slot with its own DOM. Slice 5a's only registered tool is the
+// subhex palette (gcc-map-subhex-palette.js).
+//
 // v0.2.2 — Slice 4 followup. Pan gesture restored to legacy: right-
 // click-drag (button 2) joins space-drag, middle-click, and ctrl/cmd-
 // drag. state.pan grows a `moved` flag; mousemove sets it when the
@@ -84,6 +94,14 @@
   // ── Scale registry ────────────────────────────────────────────────────────
   const _scales = new Map();
   const _scaleOrder = [];
+
+  // ── Tool registry ─────────────────────────────────────────────────────────
+  // Tools are scale-scoped UI widgets that mount into the side panel's Tools
+  // section. registerTool(spec) collects them; setScale activates tools whose
+  // scale matches the new active scale (or 'any'). Mounted tools live in
+  // _activeTools until the next scale switch.
+  const _tools = [];
+  const _activeTools = [];
 
   // ── State ─────────────────────────────────────────────────────────────────
   const state = {
@@ -266,6 +284,7 @@
     const next = _scales.get(name);
     if (prev){
       state.view.perScaleZoom[prev.name] = state.view.zoom;
+      unmountAllTools();
       try { prev.renderer && prev.renderer.unmount && prev.renderer.unmount(); }
       catch(e){ console.error('[gcc-map] unmount error', e); }
     }
@@ -289,6 +308,7 @@
     syncScaleButtons();
     try { next.renderer && next.renderer.mount && next.renderer.mount(dom.svg, rendererCtx()); }
     catch(e){ console.error('[gcc-map] mount error', e); }
+    mountToolsForScale(name);
     applyViewBox();
     syncZoomDisplay();
     requestRender();
@@ -672,6 +692,43 @@
     }
   }
 
+  // ── Tool lifecycle ────────────────────────────────────────────────────────
+  // Mount one tool: create a slot div inside dom.toolsBody, call tool.mount
+  // with the slot + the renderer context. Failures are isolated — a broken
+  // tool doesn't block the others from mounting.
+  function mountTool(tool){
+    if (!dom.toolsBody) return;
+    // Strip the "(no tools registered yet)" placeholder on first real mount.
+    if (_activeTools.length === 0){
+      dom.toolsBody.innerHTML = '';
+    }
+    const slot = document.createElement('div');
+    slot.className = 'gcc-map-tool-slot';
+    slot.dataset.toolName = tool.name;
+    dom.toolsBody.appendChild(slot);
+    try { tool.mount(slot, rendererCtx()); }
+    catch(e){ console.error('[gcc-map] tool mount error', tool.name, e); }
+    _activeTools.push({ tool, slot });
+  }
+  function unmountAllTools(){
+    for (const { tool, slot } of _activeTools){
+      try { tool.unmount && tool.unmount(); }
+      catch(e){ console.error('[gcc-map] tool unmount error', tool.name, e); }
+      if (slot.parentNode) slot.parentNode.removeChild(slot);
+    }
+    _activeTools.length = 0;
+    if (dom.toolsBody && !dom.toolsBody.children.length){
+      dom.toolsBody.innerHTML = '<em>(no tools registered yet — Slice 5)</em>';
+    }
+  }
+  function mountToolsForScale(scaleName){
+    for (const tool of _tools){
+      if (tool.scale === scaleName || tool.scale === 'any'){
+        mountTool(tool);
+      }
+    }
+  }
+
   // ── Public API ────────────────────────────────────────────────────────────
   function registerScale(spec){
     if (!spec || !spec.name){ console.error('[gcc-map] registerScale: spec.name is required'); return false; }
@@ -698,6 +755,23 @@
     MAP_H = Math.ceil(GRID_ROWS * SQRT3 * HEX_R + SQRT3 * HEX_R / 2);
     window.GRID_COLS = GRID_COLS; window.GRID_ROWS = GRID_ROWS;
     window.MAP_W = MAP_W; window.MAP_H = MAP_H;
+  }
+  // Register a tool. spec = { scale, name, label?, mount(slot, ctx), unmount() }
+  // where scale = 'parent' | 'subhex' | 'any' (defaults to 'any').
+  // Tools mount when their scale matches the active scale (or 'any'); they
+  // unmount on every scale switch. Tools registered after init() with a
+  // matching scale mount immediately so console-registered tools work.
+  function registerTool(spec){
+    if (!spec || !spec.name || typeof spec.mount !== 'function'){
+      console.error('[gcc-map] registerTool: spec.name and spec.mount required');
+      return false;
+    }
+    const filled = Object.assign({ scale: 'any', label: spec.name, unmount(){} }, spec);
+    _tools.push(filled);
+    if (state.initted && (filled.scale === state.activeScale || filled.scale === 'any')){
+      mountTool(filled);
+    }
+    return true;
   }
   function centerOn(target, scaleName){
     if (scaleName) setScale(scaleName);
@@ -728,7 +802,7 @@
   }
 
   window.GCCMap = {
-    init, registerScale, setGridDimensions,
+    init, registerScale, registerTool, setGridDimensions,
     setScale, centerOn, openParentSubhex,
     activeScale: () => state.activeScale,
     currentSelection: () => state.selection,
