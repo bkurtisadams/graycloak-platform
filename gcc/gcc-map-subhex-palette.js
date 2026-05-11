@@ -973,8 +973,10 @@
   }
   function restoreCellState(Q, R, before){
     if (!D()) return;
-    const R_ = R();
-    const pTerrain = R_ ? R_.selectedParentTerrain() : null;
+    // NOTE: the R parameter shadows the module-level R() accessor.
+    // Read the renderer via window directly to avoid the collision.
+    const rend = window.GCCMapSubhexRenderer;
+    const pTerrain = rend ? rend.selectedParentTerrain() : null;
     const cur = D().getSubhex(Q, R, pTerrain);
     // Terrain delta.
     if ((cur.terrain || null) !== (before.terrain || null)){
@@ -1004,7 +1006,7 @@
         D().unsetCellLake(Q, R);
       }
     }
-    if (R_) R_.applyCellPaint(Q, R);
+    if (rend) rend.applyCellPaint(Q, R);
   }
   function syncUndoButton(){
     if (!_container) return;
