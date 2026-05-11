@@ -1,4 +1,8 @@
-// gcc-map-subhex-palette.js v1.1.0 — 2026-05-10
+// gcc-map-subhex-palette.js v1.2.0 — 2026-05-10
+// v1.2.0 — Slice 5b2 — openRiverEditDialog: tier picker + headwaters/
+// mouth linkage form. Replaces the flashMode stub on the Tier·Linkage
+// (sxw-path-edit) button. Crossing menu lives renderer-side (5b2
+// renderer changes ship in v1.3.0).
 // v1.1.0 — Slice 5b1 — full authoring UI:
 //   - Region / Path / Lake tool buttons + callout pickers
 //   - Path section with action grid (Undo / Rename / Tier·Linkage /
@@ -25,10 +29,6 @@
 //     (c) polling ctx.selection() each animation frame to catch shell
 //     selection changes (cell clicks). The poll is cheap (~one
 //     string-compare per frame, only while subhex scale is mounted).
-//
-// Deferred to Slice 5b2:
-//   - openRiverEditDialog (tier / headwaters / mouth linkage form)
-//   - Crossing menu (clicking a × badge opens a kind picker)
 
 (function(){
   'use strict';
@@ -498,13 +498,165 @@
     flashMode(`Reversed flow of ${path.name}`);
   }
   function onPathEditClick(){
-    // River-edit dialog is Slice 5b2. 5b1 surfaces a flash so the
-    // button is discoverable without being silently inert.
     const R_ = R(); const a = R_ ? R_.getArmed() : null;
     if (!a || a.type !== 'path' || !P()) return;
     const path = P().getPath(a.value);
     if (!path || path.kind !== 'river') return;
-    flashMode('Tier/Linkage editor — Slice 5b2');
+    openRiverEditDialog(path);
+  }
+
+  // River edit dialog. Three editable groups: tier, headwaters,
+  // mouth. Direction is read-only here — use the ↻ Reverse button on
+  // the action row to flip it. On Save, only changed fields fire
+  // their writers.
+  //
+  // Linkage shape per gcc-subhex-paths v3: { lakeId } | { pathId } | null.
+  // Slice 6b shows all lakes and all rivers (other than self) without
+  // adjacency filtering — a future slice will warn on non-adjacent
+  // picks.
+  function openRiverEditDialog(path){
+    const dlg = window.GCCDialog || window.MPDialog;
+    if (!dlg || typeof dlg.confirm !== 'function'){
+      if (typeof alert === 'function') alert('Dialog system not available');
+      return;
+    }
+    const lakes = D() ? D().listLakes() : [];
+    const allPaths = P() ? P().listPaths() : [];
+    const otherRivers = allPaths.filter(p => p.kind === 'river' && p.id !== path.id);
+    const lakeOpts = lakes.map(l =>
+      `<option value="${escapeHtml(l.id)}">${escapeHtml(l.name)} (${escapeHtml(l.kind)} · ${escapeHtml(l.depth)})</option>`
+    ).join('');
+    const riverOpts = otherRivers.map(r =>
+      `<option value="${escapeHtml(r.id)}">${escapeHtml(r.name)}${r.tier ? ' (' + escapeHtml(r.tier) + ')' : ''}</option>`
+    ).join('');
+    const tierVal = path.tier || '';
+    const tierOpt = (v, label) =>
+      `<option value="${v}"${tierVal === v ? ' selected' : ''}>${label}</option>`;
+    const linkKind = (lk) => {
+      if (!lk) return 'none';
+      if (lk.lakeId) return 'lake';
+      if (lk.pathId) return 'path';
+      return 'none';
+    };
+    const linkVal = (lk) => {
+      if (!lk) return '';
+      return lk.lakeId || lk.pathId || '';
+    };
+    const hKind = linkKind(path.headwaters);
+    const mKind = linkKind(path.mouth);
+    const hVal  = linkVal(path.headwaters);
+    const mVal  = linkVal(path.mouth);
+    const first = path.cells[0];
+    const last  = path.cells[path.cells.length - 1];
+    const dirReadout = (path.cells.length >= 2)
+      ? `headwaters cell (${first.Q},${first.R}) → mouth cell (${last.Q},${last.R})`
+      : (path.cells.length === 1 ? `single cell (${first.Q},${first.R})` : 'no cells authored');
+    const linkBlock = (id, kind, val, label) => ''
+      + `<fieldset style="border:1px solid #c0a070;background:#faf8f2;padding:6px 8px;margin:0 0 8px 0">`
+      +   `<legend style="font-size:11px;font-weight:700;color:#8b0000;padding:0 4px">${label}</legend>`
+      +   `<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">`
+      +     `<label style="font-size:11px;font-weight:700">Kind:</label>`
+      +     `<select id="sxw-river-${id}-kind" style="padding:3px">`
+      +       `<option value="none"${kind === 'none' ? ' selected' : ''}>— none (unset) —</option>`
+      +       `<option value="lake"${kind === 'lake' ? ' selected' : ''}>lake</option>`
+      +       `<option value="path"${kind === 'path' ? ' selected' : ''}>river (tributary)</option>`
+      +     `</select>`
+      +   `</div>`
+      +   `<div id="sxw-river-${id}-lake-row" style="display:${kind === 'lake' ? 'flex' : 'none'};gap:8px;align-items:center;margin-bottom:4px">`
+      +     `<label style="font-size:11px;font-weight:700;min-width:40px">Lake:</label>`
+      +     `<select id="sxw-river-${id}-lake" style="flex:1;padding:3px">`
+      +       `<option value="">— pick a lake —</option>` + lakeOpts
+      +     `</select>`
+      +   `</div>`
+      +   `<div id="sxw-river-${id}-path-row" style="display:${kind === 'path' ? 'flex' : 'none'};gap:8px;align-items:center;margin-bottom:4px">`
+      +     `<label style="font-size:11px;font-weight:700;min-width:40px">River:</label>`
+      +     `<select id="sxw-river-${id}-path" style="flex:1;padding:3px">`
+      +       `<option value="">— pick a river —</option>` + riverOpts
+      +     `</select>`
+      +   `</div>`
+      + `</fieldset>`;
+    const html = ''
+      + '<div class="sxw-river-form" style="text-align:left;">'
+      +   `<div style="font-size:11px;color:#666;margin-bottom:8px">Editing: <strong>${escapeHtml(path.name)}</strong></div>`
+      +   '<fieldset style="border:1px solid #c0a070;background:#faf8f2;padding:6px 8px;margin:0 0 8px 0">'
+      +     '<legend style="font-size:11px;font-weight:700;color:#8b0000;padding:0 4px">Tier</legend>'
+      +     '<select id="sxw-river-tier" style="width:100%;padding:4px">'
+      +       tierOpt('',            '— unset —')
+      +       tierOpt('stream',      'stream — small, fordable, low movement cost')
+      +       tierOpt('river',       'river — standard, requires bridge/ferry')
+      +       tierOpt('great_river', 'great river — major waterway, high movement cost')
+      +     '</select>'
+      +   '</fieldset>'
+      +   '<fieldset style="border:1px solid #c0a070;background:#faf8f2;padding:6px 8px;margin:0 0 8px 0">'
+      +     '<legend style="font-size:11px;font-weight:700;color:#8b0000;padding:0 4px">Direction</legend>'
+      +     `<div style="font-size:11px;color:#444">${escapeHtml(dirReadout)}</div>`
+      +     '<div style="font-size:10px;color:#888;margin-top:3px">Use the ↻ Reverse button on the action row to swap headwaters and mouth.</div>'
+      +   '</fieldset>'
+      +   linkBlock('headwaters', hKind, hVal, 'Headwaters (source)')
+      +   linkBlock('mouth',      mKind, mVal, 'Mouth (terminus)')
+      + '</div>';
+    function wireKindToggle(id, initialVal){
+      const kindEl  = document.getElementById('sxw-river-' + id + '-kind');
+      const lakeRow = document.getElementById('sxw-river-' + id + '-lake-row');
+      const pathRow = document.getElementById('sxw-river-' + id + '-path-row');
+      const lakeEl  = document.getElementById('sxw-river-' + id + '-lake');
+      const pathEl  = document.getElementById('sxw-river-' + id + '-path');
+      if (!kindEl) return;
+      if (initialVal){
+        if (kindEl.value === 'lake' && lakeEl) lakeEl.value = initialVal;
+        if (kindEl.value === 'path' && pathEl) pathEl.value = initialVal;
+      }
+      kindEl.addEventListener('change', () => {
+        const k = kindEl.value;
+        if (lakeRow) lakeRow.style.display = (k === 'lake') ? 'flex' : 'none';
+        if (pathRow) pathRow.style.display = (k === 'path') ? 'flex' : 'none';
+      });
+    }
+    dlg.confirm('Edit River', html, { okText: 'Save', cancelText: 'Cancel' }).then(ok => {
+      if (!ok) return;
+      const fresh = P() ? P().getPath(path.id) : null;
+      if (!fresh) return;
+      const tierEl = document.getElementById('sxw-river-tier');
+      const newTier = tierEl ? (tierEl.value || null) : (fresh.tier || null);
+      if ((fresh.tier || null) !== (newTier || null)){
+        P().setPathTier(fresh.id, newTier);
+      }
+      const readLink = (id) => {
+        const kEl = document.getElementById('sxw-river-' + id + '-kind');
+        const k = kEl ? kEl.value : 'none';
+        if (k === 'lake'){
+          const v = document.getElementById('sxw-river-' + id + '-lake');
+          const val = v ? v.value : '';
+          return val ? { lakeId: val } : null;
+        }
+        if (k === 'path'){
+          const v = document.getElementById('sxw-river-' + id + '-path');
+          const val = v ? v.value : '';
+          return val ? { pathId: val } : null;
+        }
+        return null;
+      };
+      const linkEq = (a, b) => {
+        const aId = a ? (a.lakeId || a.pathId || '') : '';
+        const bId = b ? (b.lakeId || b.pathId || '') : '';
+        return aId === bId;
+      };
+      const newH = readLink('headwaters');
+      const newM = readLink('mouth');
+      if (!linkEq(fresh.headwaters, newH)) P().setPathHeadwaters(fresh.id, newH);
+      if (!linkEq(fresh.mouth,      newM)) P().setPathMouth(fresh.id, newM);
+      if (_ctx) _ctx.requestRender();
+      syncModeLabel();
+      syncPathActionButtons();
+      flashMode(`Saved ${fresh.name}`);
+    });
+    // Wire kind→row visibility toggles after the dialog body is in
+    // the DOM. GCCDialog.confirm mounts synchronously; a microtask
+    // defer is sufficient.
+    Promise.resolve().then(() => {
+      wireKindToggle('headwaters', hVal);
+      wireKindToggle('mouth', mVal);
+    });
   }
   function onPathDeleteClick(){
     const R_ = R(); const a = R_ ? R_.getArmed() : null;

@@ -1,4 +1,9 @@
-// gcc-map-subhex-renderer.js v1.2.0 — 2026-05-10
+// gcc-map-subhex-renderer.js v1.3.0 — 2026-05-10
+// v1.3.0 — Slice 5b2 — crossing menu: clicking a × badge opens a
+// foreignObject popup with kind chips (Bridge / Ford / Ferry /
+// Crossroads / Landmark) + Dismiss. Picking writes a feature; Dismiss
+// records the suppression in localStorage. Menu mounts as a sibling
+// of the layered render tree so rebuildAllLayers doesn't wipe it.
 // v1.2.0 — Slice 5b1 — extend paintCell with region/region-erase/
 // lake/lake-erase/path branches; replace onParentPathMarkerClick
 // toast stub with a real arm-flow call into GCCMapSubhexPalette;
@@ -97,6 +102,10 @@
   function loadDismissedCrossings(){
     try { return JSON.parse(localStorage.getItem(CROSSING_DISMISS_KEY) || '{}'); }
     catch(e){ return {}; }
+  }
+  function saveDismissedCrossings(map){
+    try { localStorage.setItem(CROSSING_DISMISS_KEY, JSON.stringify(map)); }
+    catch(e){}
   }
 
   // ── Global accessors (cached refs to window globals) ───────────
@@ -907,12 +916,156 @@
       g.appendChild(x2);
       const tip = document.createElementNS(NS, 'title');
       const names = x.paths.map(pp => pp.name || `(${pp.kind})`).join(' × ');
-      tip.textContent = `Crossing: ${names} — edit in Slice 5`;
+      tip.textContent = `Crossing: ${names} — click to set bridge/ford/ferry/crossroads`;
       g.appendChild(tip);
-      // Slice 4: badge click inert. Slice 5 ports showCrossingMenu
-      // and applyCrossingFeature.
+      g.addEventListener('click', onCrossingBadgeClick);
       layer.appendChild(g);
     }
+  }
+
+  // ── Crossing menu (foreignObject popup) ────────────────────────
+  // Picking a kind writes the feature; Dismiss records suppression
+  // (per-path-set key) so the badge stops appearing for that exact
+  // path-mix. Suppression keys include sorted path-ids so swapping
+  // which paths cross at the cell un-suppresses.
+  function onCrossingBadgeClick(ev){
+    ev.stopPropagation();
+    const g = ev.currentTarget;
+    const Q = +g.dataset.q;
+    const R = +g.dataset.r;
+    const pathIds   = g.dataset.pathIds.split(',');
+    const pathKinds = g.dataset.pathKinds.split(',');
+    const pathNames = g.dataset.pathNames.split('||');
+    const kinds = suggestedCrossingKinds(pathKinds);
+    showCrossingMenu(Q, R, pathIds, pathKinds, pathNames, kinds);
+  }
+  function suggestedCrossingKinds(pathKinds){
+    const kinds = new Set(pathKinds);
+    const hasRiver = kinds.has('river');
+    const hasRoad  = kinds.has('road');
+    const hasTrack = kinds.has('track') || kinds.has('trail');
+    if (hasRiver && (hasRoad || hasTrack)) return ['bridge', 'ford', 'ferry'];
+    if (hasRoad && hasTrack) return ['crossroads'];
+    if (hasRoad && kinds.size === 1 && pathKinds.length >= 2) return ['crossroads'];
+    if (hasTrack && kinds.size === 1 && pathKinds.length >= 2) return ['crossroads'];
+    if (hasRiver && kinds.size === 1 && pathKinds.length >= 2){
+      // Two rivers meeting — defensive fallback; detectCrossings
+      // suppresses these so the click flow shouldn't reach here.
+      return ['landmark'];
+    }
+    return ['landmark'];
+  }
+  function showCrossingMenu(Q, R, pathIds, pathKinds, pathNames, kinds){
+    closeCrossingMenu();
+    if (!_root) return;
+    const c = cellWorldCenter(Q, R);
+    const mx = c.x + SUB_R * 0.55;
+    const my = c.y - SUB_R * 0.55;
+    const fo = document.createElementNS(NS, 'foreignObject');
+    fo.setAttribute('class', 'sxw-crossing-menu');
+    const W = 160, H = 30 + 28 * (kinds.length + 1);
+    // Clamp inside the current viewport so the menu never spills off-
+    // screen. _ctx.viewportBbox() gives display-scale world bounds.
+    const bb = _ctx.viewportBbox();
+    const place  = (mx + 8 + W < bb.maxX) ? mx + 8 : mx - W - 8;
+    const placeY = (my + H < bb.maxY) ? my : Math.max(bb.minY + 8, bb.maxY - H - 8);
+    fo.setAttribute('x', place.toFixed(1));
+    fo.setAttribute('y', placeY.toFixed(1));
+    fo.setAttribute('width', W);
+    fo.setAttribute('height', H);
+    const html = document.createElement('div');
+    html.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+    html.className = 'sxw-crossing-menu-body';
+    const hint = document.createElement('div');
+    hint.className = 'sxw-crossing-menu-hint';
+    hint.textContent = pathNames.filter(n => n).join(' × ') || 'Crossing';
+    html.appendChild(hint);
+    for (const kind of kinds){
+      const btn = document.createElement('button');
+      btn.className = 'sxw-crossing-menu-btn';
+      btn.textContent = kind.charAt(0).toUpperCase() + kind.slice(1);
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        applyCrossingFeature(Q, R, kind, pathKinds, pathNames);
+        closeCrossingMenu();
+      });
+      html.appendChild(btn);
+    }
+    const dismiss = document.createElement('button');
+    dismiss.className = 'sxw-crossing-menu-btn sxw-crossing-menu-btn-dismiss';
+    dismiss.textContent = 'Dismiss';
+    dismiss.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const dismissed = loadDismissedCrossings();
+      dismissed[dismissKey(Q, R, pathIds)] = 1;
+      saveDismissedCrossings(dismissed);
+      rs.dismissedCrossings = dismissed;
+      closeCrossingMenu();
+      if (_ctx) _ctx.requestRender();
+    });
+    html.appendChild(dismiss);
+    fo.appendChild(html);
+    // Append to _root as a sibling of the layered render tree so
+    // rebuildAllLayers (which only wipes layers[*].innerHTML) leaves
+    // the menu intact during pan/zoom redraws.
+    _root.appendChild(fo);
+    // Close on outside click — one-shot global capture listener.
+    setTimeout(() => {
+      const off = (e) => {
+        if (!fo.contains || (e.target && !fo.contains(e.target))){
+          closeCrossingMenu();
+          window.removeEventListener('mousedown', off, true);
+        }
+      };
+      window.addEventListener('mousedown', off, true);
+    }, 0);
+  }
+  function closeCrossingMenu(){
+    if (!_root) return;
+    _root.querySelectorAll('.sxw-crossing-menu').forEach(n => n.remove());
+  }
+  // Compose a default name for the crossing feature based on the
+  // paths it bridges. "Bridge over Selintan", "Ford on the Old Coast
+  // Road", "Crossroads of X and Y".
+  function crossingName(kind, pathKinds, pathNames){
+    const named = [];
+    for (let i = 0; i < pathKinds.length; i++){
+      if (pathNames[i]) named.push({ kind: pathKinds[i], name: pathNames[i] });
+    }
+    if (kind === 'bridge'){
+      const river = named.find(p => p.kind === 'river');
+      return river ? `Bridge over ${river.name}` : 'Bridge';
+    }
+    if (kind === 'ford'){
+      const river = named.find(p => p.kind === 'river');
+      return river ? `Ford on ${river.name}` : 'Ford';
+    }
+    if (kind === 'ferry'){
+      const river = named.find(p => p.kind === 'river');
+      return river ? `Ferry across ${river.name}` : 'Ferry';
+    }
+    if (kind === 'crossroads'){
+      if (named.length >= 2) return `Crossroads of ${named[0].name} and ${named[1].name}`;
+      return 'Crossroads';
+    }
+    if (kind === 'landmark' && named.length >= 2){
+      const allRivers = named.every(p => p.kind === 'river');
+      if (allRivers) return `Confluence of ${named[0].name} and ${named[1].name}`;
+    }
+    return kind.charAt(0).toUpperCase() + kind.slice(1);
+  }
+  function applyCrossingFeature(Q, R, kind, pathKinds, pathNames){
+    if (!D()) return;
+    const name = crossingName(kind, pathKinds, pathNames);
+    D().setSubhexFeature(Q, R, { kind, name });
+    applyCellPaint(Q, R);
+    if (window.GCCMapSubhexPalette){
+      const sel = _ctx ? _ctx.selection() : null;
+      if (sel && sel.kind === 'subhex' && sel.Q === Q && sel.R === R){
+        window.GCCMapSubhexPalette.syncDetail();
+      }
+    }
+    if (_ctx) _ctx.requestRender();
   }
 
   // ── Layer management + full rebuild ────────────────────────────
@@ -1010,6 +1163,7 @@
       window.removeEventListener('gcc-fog-changed', _onFogChanged);
       _onFogChanged = null;
     }
+    closeCrossingMenu();
     if (_root && _root.parentNode) _root.parentNode.removeChild(_root);
     _root = null;
     layers = null;
