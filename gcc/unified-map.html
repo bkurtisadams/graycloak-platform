@@ -18,6 +18,8 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100vh; width: 100vw; overflow: hidden; background: #050200; }
   body { font-family: 'Crimson Text', Georgia, serif; color: #e8d5a3; user-select: none; }
+  /* Parent map grid opacity — driven by GCCSettings display.gridOpacity. */
+  polygon.hex-cell { stroke-opacity: var(--grid-opacity, 1); }
 </style>
 </head>
 <body>
@@ -40,6 +42,7 @@
       <button class="gcc-nav-btn" id="gcc-btn-theme" title="Toggle light/dark">
         <span id="gcc-theme-icon">◑</span>
       </button>
+      <button class="gcc-nav-btn" id="gcc-btn-settings" title="Settings">⚙</button>
     </div>
   </div>
 </div>
@@ -108,12 +111,13 @@
      renderers so they can register; init fires on DOMContentLoaded. -->
 <script src="gcc-map.js?v=5"></script>
 <script src="gcc-map-parent-renderer.js?v=4"></script>
-<script src="gcc-map-subhex-renderer.js?v=7"></script>
+<script src="gcc-map-subhex-renderer.js?v=6"></script>
 <script src="gcc-map-subhex-palette.js?v=5"></script>
 
 <!-- GCC platform chrome. Loaded last per existing convention. -->
 <script src="gcc-data.js"></script>
 <script src="gcc-header.js"></script>
+<script src="gcc-settings.js?v=1"></script>
 <script src="gcc-firebase-config.js"></script>
 <script src="gcc-auth.js"></script>
 

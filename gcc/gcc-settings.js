@@ -1,4 +1,9 @@
-// gcc-settings.js v0.1.0 — 2026-04-29
+// gcc-settings.js v0.2.0 — 2026-05-11
+// v0.2.0: wireSettingsButton — auto-bind #gcc-btn-settings → openDialog
+// on init (same pattern as gcc-header.js wireTheme). Idempotent via
+// _gccSettingsWired flag; safe to call multiple times.
+//
+// v0.1.0 — 2026-04-29
 // Cross-cutting settings store. Schema-versioned JSON in
 // localStorage, key 'gcc-settings'. Live updates via onChange
 // subscribers — when a setting changes, callbacks fire so views
@@ -299,6 +304,14 @@
   function applyAll(){
     applyGridOpacity();
     applyHeaderButtonVisibility();
+    wireSettingsButton();
+  }
+
+  function wireSettingsButton(){
+    const btn = document.getElementById('gcc-btn-settings');
+    if (!btn || btn._gccSettingsWired) return;
+    btn._gccSettingsWired = true;
+    btn.addEventListener('click', openDialog);
   }
 
   // Hook live updates on init.
