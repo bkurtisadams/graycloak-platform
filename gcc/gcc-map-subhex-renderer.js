@@ -1,4 +1,10 @@
-// gcc-map-subhex-renderer.js v1.4.0 — 2026-05-10
+// gcc-map-subhex-renderer.js v1.4.1 — 2026-05-11
+// v1.4.1 — #15 instrumentation. renderParentPathMarkers and placeMarker
+// emit a [Paths] trace when window.GCC_DEBUG_PATHS is truthy: per-parent
+// segment count, per-seg skip reason (no color / invalid edge),
+// per-edge placeMarker entry, and best-cell resolution inside
+// placeMarker. Use to diagnose the missing road-marker bug at D4-86
+// (col 64, row 44). No behavior change with the flag unset.
 // v1.4.0 — Slice 5b followup — paint undo capture hooks. paintCell
 // snapshots the cell's pre-mutation state (terrain/feature/regionId/
 // lakeId) and forwards it to GCCMapSubhexPalette.captureBefore;
