@@ -1,19 +1,45 @@
-// Firestore Security Rules for GCC v3
+// Firestore Security Rules for GCC v4
 // Go to Firebase Console → Firestore → Rules tab
 // Replace existing rules with everything below this comment header
+//
+// v4 changes from v3:
+//   • Helpers: isGM() (via gms/{uid} docs), isCampaignOwner(cid)
+//   • NEW gms/{uid} — GM roster, admin-script-seeded
+//   • NEW regions/{regionId} — base terrain, read-only to clients
+//   • NEW landmarks/{hexId} — landmark seed, read-only to clients
+//   • NEW lakes/{lakeId} — GM-authored water bodies
+//   • NEW mapRegions/{slug} — GM-authored overlay regions (renamed
+//     from local region_<slug> to avoid collision with regions/flanaess)
+//   • NEW entities/{entityId} — animals/NPCs/mounts/hirelings
+//   • NEW settlements/{settlementId} — GM-authored settlements
+//   • CHANGED subHexes/{docId} — open writes to GMs (was write-deny)
+//
+// See graycloak-adnd-schema-design.md v3 §5 for design rationale.
 
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // User's private synced data
+    // ── Helpers ────────────────────────────────────────────────
+
+    function isGM() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/gms/$(request.auth.uid));
+    }
+
+    function isCampaignOwner(cid) {
+      return request.auth != null
+        && get(/databases/$(database)/documents/campaigns/$(cid)).data.ownerUid
+           == request.auth.uid;
+    }
+
+    // ── User-private synced data (unchanged from v3) ────────────
+
     match /users/{userId}/data/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // User's private entity lists — owner has full access,
-    // other authenticated users can read individual items (for campaign character sharing)
     match /users/{userId}/lists/{listKey} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
       match /items/{itemId} {
@@ -22,7 +48,8 @@ service cloud.firestore {
       }
     }
 
-    // Invites: any authenticated user can read (to join), only owner can create
+    // ── Invites (unchanged from v3) ────────────────────────────
+
     match /invites/{code} {
       allow read: if request.auth != null;
       allow create: if request.auth != null;
@@ -30,7 +57,8 @@ service cloud.firestore {
         && resource.data.ownerUid == request.auth.uid;
     }
 
-    // Shared campaigns: owner can do anything, players can read
+    // ── Campaigns (unchanged from v3) ──────────────────────────
+
     match /campaigns/{campaignId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null;
@@ -48,7 +76,7 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/campaigns/$(campaignId)).data.ownerUid == request.auth.uid;
       }
 
-      // Dice rolls: any authenticated user can read and create, anyone can delete (clear log)
+      // Dice rolls: any authed user can read and create, anyone can delete
       match /rolls/{rollId} {
         allow read: if request.auth != null;
         allow create: if request.auth != null
@@ -57,16 +85,92 @@ service cloud.firestore {
       }
     }
 
-    // Subhexes: world-data layer for 6mi cells inscribed within parent
-    // hexes. Doc id "{parentDarleneId}__{q}_{r}" — see gcc-subhex-data.js.
-    // Phase A: read-auth, write-deny (admin-script seed only). Phase B
-    // opens write to the doc owner with content size guards.
-    match /subHexes/{docId} {
+    // ── GM roster (NEW v4) ─────────────────────────────────────
+    // A doc at gms/{uid} marks that user as a cross-campaign GM.
+    // Seeded by admin script via service account. Readable by any
+    // authed user (being a GM is not secret); clients cannot self-
+    // promote.
+    match /gms/{uid} {
       allow read: if request.auth != null;
       allow write: if false;
     }
 
-    // Deny everything else
+    // ── Base world data (NEW v4) ───────────────────────────────
+    // Seeded by admin scripts (scripts/seed-region-flanaess.js,
+    // scripts/seed-landmarks.js). Read-only to all clients;
+    // writes go through service-account credentials.
+
+    match /regions/{regionId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    match /landmarks/{hexId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // ── Overlay world data (NEW v4) ────────────────────────────
+    // GM-authored via GCC's hex/subhex editors. Open writes to GMs
+    // (membership in gms/{uid}).
+
+    // CHANGED from v3: write was deny-all. Now GM-writable.
+    // Doc ID format: subhex_{Q}_{R} per gcc-subhex-data.js subhexId().
+    match /subHexes/{docId} {
+      allow read: if request.auth != null;
+      allow write: if isGM();
+    }
+
+    match /lakes/{lakeId} {
+      allow read: if request.auth != null;
+      allow write: if isGM();
+    }
+
+    // Renamed from local "region_<slug>" to disambiguate from the
+    // packed base-terrain regions/flanaess doc.
+    match /mapRegions/{slug} {
+      allow read: if request.auth != null;
+      allow write: if isGM();
+    }
+
+    match /settlements/{settlementId} {
+      allow read: if request.auth != null;
+      allow write: if isGM();
+    }
+
+    // ── Campaign-scoped entities (NEW v4) ──────────────────────
+    // Animals, NPCs, mounts, hirelings, henchmen. Write paths:
+    //   • The entity's owner user (resource.data.ownerUid)
+    //   • The campaign's GM (isCampaignOwner)
+    //   • Any cross-campaign GM (isGM)
+    // Reads are authed-anyone — entity locations are party-visible.
+    //
+    // Requires entities to carry both `ownerUid` (the user who
+    // controls writes) and `campaignId` (the campaign the entity
+    // belongs to). Documents missing either field will fail rule
+    // evaluation on update/delete, which is intentional — surfaces
+    // schema violations early.
+    match /entities/{entityId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && (request.resource.data.ownerUid == request.auth.uid
+            || isCampaignOwner(request.resource.data.campaignId)
+            || isGM());
+      allow update, delete: if request.auth != null
+        && (resource.data.ownerUid == request.auth.uid
+            || isCampaignOwner(resource.data.campaignId)
+            || isGM());
+    }
+
+    // ── World clock ────────────────────────────────────────────
+    // Per schema design decision #2: world clock is a field on
+    // campaigns/{cid}.currentDate, not a top-level collection.
+    // No rules needed here — covered by the campaigns/{cid} rule
+    // above. This comment is a placeholder so future readers don't
+    // assume the worldClock/ collection was missed.
+
+    // ── Deny everything else ───────────────────────────────────
+
     match /{document=**} {
       allow read, write: if false;
     }
