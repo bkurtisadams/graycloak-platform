@@ -750,6 +750,8 @@
   function placeMarker(layer, parent, seg, edge, owned, color, segIndex){
     const authoredCell = authoredBoundaryCellForSegment(parent, seg, edge, owned);
     const best = authoredCell || boundaryCellForEdge(parent.col, parent.row, edge, owned);
+    if (window.GCC_DEBUG_PATHS) console.log(`[Paths]     best=`,
+      best ? `(${best.Q},${best.R})${authoredCell?' (authored)':''}` : 'null — abort');
     if (!best) return;
     const mid = edgeMidpointFor(parent.col, parent.row, edge);
     const cellPos = cellWorldCenter(best.Q, best.R);
@@ -800,21 +802,33 @@
     if (!window.GCCPaths) return;
     const parents = parentsInViewport();
     if (!parents.length) return;
+    const DBG = window.GCC_DEBUG_PATHS;
+    if (DBG) console.log('[Paths] renderParentPathMarkers parents=', parents.length);
     // Slice 3 caveat (carries through): shared edges between two
     // visible parents draw two markers (one from each side). Marker
     // dedup is Slice 7's job.
     for (const parent of parents){
       const segments = window.GCCPaths.segmentsAt(parent.col, parent.row);
+      if (DBG) console.log(`[Paths] (${parent.col},${parent.row}) segs=`,
+        (segments||[]).map(s => `${s.kind}:${s.name||'(unnamed)'}@${s.entryEdge}/${s.exitEdge}`));
       if (!segments || !segments.length) continue;
       const owned = D().ownedByParent(parent.col, parent.row);
+      if (DBG) console.log(`[Paths] (${parent.col},${parent.row}) owned=`, owned.length);
       if (!owned.length) continue;
       for (let segIndex = 0; segIndex < segments.length; segIndex++){
         const seg = segments[segIndex];
         const color = pathMarkerColor(seg);
-        if (!color) continue;
+        if (!color){
+          if (DBG) console.log(`[Paths]   seg[${segIndex}] ${seg.kind}:${seg.name||'?'} → no color, skip`);
+          continue;
+        }
         for (const edgeKey of ['entryEdge', 'exitEdge']){
           const edge = seg[edgeKey];
-          if (typeof edge !== 'number' || edge < 0 || edge > 5) continue;
+          if (typeof edge !== 'number' || edge < 0 || edge > 5){
+            if (DBG) console.log(`[Paths]   seg[${segIndex}] ${seg.kind}:${seg.name||'?'} ${edgeKey}=${edge} → invalid, skip`);
+            continue;
+          }
+          if (DBG) console.log(`[Paths]   placeMarker (${parent.col},${parent.row}) seg[${segIndex}] ${seg.kind}:${seg.name||'?'} ${edgeKey}=${edge}`);
           placeMarker(layer, parent, seg, edge, owned, color, segIndex);
         }
       }
