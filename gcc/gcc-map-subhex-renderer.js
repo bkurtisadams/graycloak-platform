@@ -1,4 +1,11 @@
-// gcc-map-subhex-renderer.js v1.3.0 — 2026-05-10
+// gcc-map-subhex-renderer.js v1.4.0 — 2026-05-10
+// v1.4.0 — Slice 5b followup — paint undo capture hooks. paintCell
+// snapshots the cell's pre-mutation state (terrain/feature/regionId/
+// lakeId) and forwards it to GCCMapSubhexPalette.captureBefore;
+// onCellMouseDown calls beginStroke; onBrushEnd calls endStroke.
+// Path tool retains its own ↶ Undo (per-cell pop); fog retains its
+// own deferred-save model. Generic undo covers terrain/erase/
+// feature/feature-erase/region/region-erase/lake/lake-erase.
 // v1.3.0 — Slice 5b2 — crossing menu: clicking a × badge opens a
 // foreignObject popup with kind chips (Bridge / Ford / Ferry /
 // Crossroads / Landmark) + Dismiss. Picking writes a feature; Dismiss
@@ -315,6 +322,13 @@
     if (rs.armed.type === 'fog'){
       rs.fogBrushHide = !!(ev.shiftKey || ev.altKey);
     }
+    // Paint-undo: open a new stroke before any captureBefore call.
+    // Path/fog skip; their tools manage their own undo models.
+    if (rs.armed.type !== 'fog' && rs.armed.type !== 'path'
+        && window.GCCMapSubhexPalette
+        && typeof window.GCCMapSubhexPalette.beginStroke === 'function'){
+      window.GCCMapSubhexPalette.beginStroke();
+    }
     paintCell(Q, R, ev.currentTarget);
     if (rs.brushing) window.addEventListener('mouseup', onBrushEnd);
   }
@@ -333,6 +347,12 @@
   function onBrushEnd(){
     if (rs.armed?.type === 'fog' && window.GCCFog){
       window.GCCFog.flush();
+    }
+    // Paint-undo: commit the stroke (palette ignores if empty —
+    // fog/path branches skipped capture so their strokes are empty).
+    if (window.GCCMapSubhexPalette
+        && typeof window.GCCMapSubhexPalette.endStroke === 'function'){
+      window.GCCMapSubhexPalette.endStroke();
     }
     rs.brushing = false;
     rs.brushedThisDrag = null;
@@ -359,6 +379,22 @@
     const a = rs.armed;
     if (!a) return;
     const pTerrain = effectiveParentTerrainFor(group);
+    // Paint-undo capture (v1.4.0). Snapshot the cell's pre-mutation
+    // state before any branch writes. fog has its own deferred-save
+    // model; path has its own ↶ Undo (per-cell pop). Both are skipped.
+    // Cell is identified by (Q,R) only — _currentStroke dedups so
+    // repeated paints on the same cell within one stroke capture
+    // only the original pre-state.
+    if (a.type !== 'fog' && a.type !== 'path' && window.GCCMapSubhexPalette
+        && typeof window.GCCMapSubhexPalette.captureBefore === 'function'){
+      const sub = D().getSubhex(Q, R, pTerrain);
+      window.GCCMapSubhexPalette.captureBefore(Q, R, {
+        terrain:  sub.terrain  || null,
+        feature:  sub.feature ? JSON.parse(JSON.stringify(sub.feature)) : null,
+        regionId: sub.regionId || null,
+        lakeId:   sub.lakeId   || null,
+      });
+    }
     if (a.type === 'erase'){
       D().setSubhexOverride(Q, R, { terrain: null });
     } else if (a.type === 'terrain'){

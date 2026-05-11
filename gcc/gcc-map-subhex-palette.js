@@ -1,4 +1,11 @@
-// gcc-map-subhex-palette.js v1.2.0 — 2026-05-10
+// gcc-map-subhex-palette.js v1.3.0 — 2026-05-10
+// v1.3.0 — Slice 5b followup — generic paint undo. ↶ Undo button in
+// the tools-row next to Clear. Stack of up to 20 strokes; one stroke
+// = one mousedown→mouseup cycle (drag = N cells, click = 1 cell).
+// Captures pre-mutation terrain/feature/regionId/lakeId via
+// captureBefore (called from the renderer at the top of paintCell).
+// Path tool's own ↶ Undo and fog's deferred-save are unaffected —
+// neither participates in this stroke-based undo.
 // v1.2.0 — Slice 5b2 — openRiverEditDialog: tier picker + headwaters/
 // mouth linkage form. Replaces the flashMode stub on the Tier·Linkage
 // (sxw-path-edit) button. Crossing menu lives renderer-side (5b2
@@ -43,6 +50,13 @@
   let _flashTimer = null;
   let _selectionWatchId = null;
   let _lastSelKey = null;
+  // Paint-undo state: stack of strokes (each stroke = array of
+  // {key, Q, R, before}). _currentStroke is the open one being built
+  // during a brush. MAX_UNDO caps the stack; older strokes drop off
+  // the bottom. Cleared on unmount (scale switch resets the stack).
+  const MAX_UNDO = 20;
+  let _undoStack = [];
+  let _currentStroke = null;
 
   function R(){ return window.GCCMapSubhexRenderer; }
   function D(){ return window.GCCSubhexData; }
@@ -903,6 +917,106 @@
     syncDetailPanel();
   }
 
+  // ── Paint undo ─────────────────────────────────────────────────
+  // beginStroke / captureBefore / endStroke are called from the
+  // renderer (paintCell + brush handlers). The renderer guards the
+  // calls — path and fog branches don't participate.
+  //
+  // captureBefore is dedup'd per stroke: only the FIRST mutation of
+  // each cell within a stroke records its pre-state. Drag-paints that
+  // hit the same cell multiple times still produce one undo entry per
+  // cell (correctly restoring to the pre-stroke state, not the
+  // pre-last-paint state).
+  //
+  // Known limitation: a cell that was 'procedural' (no override)
+  // before painting will become 'authored' after undo, because the
+  // restore writes pre-state values as an override. Visually identical;
+  // the Source row in the detail panel just reads "Authored override"
+  // instead of "Procedural". Accept for v1; a future pass could detect
+  // procedural-match and emit clearSubhex on undo.
+  function beginStroke(){
+    _currentStroke = [];
+  }
+  function captureBefore(Q, R, before){
+    if (!_currentStroke){
+      // No open stroke (e.g. paintCell called outside a brush cycle —
+      // shouldn't happen but be defensive). Start one on the fly.
+      _currentStroke = [];
+    }
+    const key = `${Q}_${R}`;
+    if (_currentStroke.some(e => e.key === key)) return;
+    _currentStroke.push({ key, Q, R, before });
+  }
+  function endStroke(){
+    if (_currentStroke && _currentStroke.length){
+      _undoStack.push(_currentStroke);
+      if (_undoStack.length > MAX_UNDO) _undoStack.shift();
+      syncUndoButton();
+    }
+    _currentStroke = null;
+  }
+  function onUndoClick(){
+    const stroke = _undoStack.pop();
+    if (!stroke){
+      flashMode('Nothing to undo');
+      syncUndoButton();
+      return;
+    }
+    for (const e of stroke){
+      restoreCellState(e.Q, e.R, e.before);
+    }
+    if (_ctx) _ctx.requestRender();
+    syncDetailPanel();
+    syncUndoButton();
+    const n = stroke.length;
+    flashMode(`Undid ${n} cell${n === 1 ? '' : 's'}`);
+  }
+  function restoreCellState(Q, R, before){
+    if (!D()) return;
+    const R_ = R();
+    const pTerrain = R_ ? R_.selectedParentTerrain() : null;
+    const cur = D().getSubhex(Q, R, pTerrain);
+    // Terrain delta.
+    if ((cur.terrain || null) !== (before.terrain || null)){
+      D().setSubhexOverride(Q, R, { terrain: before.terrain || null });
+    }
+    // Feature delta.
+    const curHasFeat    = !!(cur.feature    && cur.feature.kind);
+    const beforeHasFeat = !!(before.feature && before.feature.kind);
+    if (beforeHasFeat){
+      D().setSubhexFeature(Q, R, before.feature);
+    } else if (curHasFeat){
+      D().clearSubhexFeature(Q, R);
+    }
+    // Region delta.
+    if ((cur.regionId || null) !== (before.regionId || null)){
+      if (before.regionId){
+        D().assignCellToRegion(Q, R, before.regionId, pTerrain);
+      } else {
+        D().unassignCellFromRegion(Q, R);
+      }
+    }
+    // Lake delta.
+    if ((cur.lakeId || null) !== (before.lakeId || null)){
+      if (before.lakeId){
+        D().setCellLake(Q, R, before.lakeId, pTerrain);
+      } else {
+        D().unsetCellLake(Q, R);
+      }
+    }
+    if (R_) R_.applyCellPaint(Q, R);
+  }
+  function syncUndoButton(){
+    if (!_container) return;
+    const btn = _container.querySelector('[data-action="undo"]');
+    if (!btn) return;
+    const n = _undoStack.length;
+    btn.disabled = n === 0;
+    btn.title = n === 0
+      ? 'Undo last paint stroke (nothing to undo)'
+      : `Undo last paint stroke (${n} stroke${n === 1 ? '' : 's'} on the stack)`;
+  }
+
   // ── Detail panel ───────────────────────────────────────────────
   function syncDetailPanel(){
     if (!_container) return;
@@ -1218,6 +1332,7 @@
         <button class="sxw-tool-btn" data-tool="lake">Lake…</button>
         <button class="sxw-tool-btn" data-tool="fog">Fog…</button>
         <button class="sxw-tool-btn" id="sxw-clear" data-action="clear" title="Erase override on the selected cell">Clear</button>
+        <button class="sxw-tool-btn" data-action="undo" title="Undo last paint stroke (nothing to undo)" disabled>↶ Undo</button>
         <button class="sxw-tool-btn" data-action="fog-preview" title="Preview as players see (fog of war)">👁 Preview</button>
         <span class="sxw-mode">Mode: Select</span>
       </div>
@@ -1338,6 +1453,7 @@
     container.querySelector('[data-tool="lake"]').addEventListener('click', onLakeToolClick);
     container.querySelector('[data-tool="fog"]').addEventListener('click', onFogToolClick);
     container.querySelector('[data-action="clear"]').addEventListener('click', onClearClick);
+    container.querySelector('[data-action="undo"]').addEventListener('click', onUndoClick);
     container.querySelector('[data-action="fog-preview"]').addEventListener('click', onFogPreviewClick);
     // Armed pickers
     findEl('sxw-region-armed').addEventListener('change', onRegionArmedChange);
@@ -1370,6 +1486,7 @@
     syncModeLabel();
     syncDetailPanel();
     syncPathActionButtons();
+    syncUndoButton();
     _lastSelKey = null;
     _selectionWatchId = requestAnimationFrame(watchSelectionTick);
   }
@@ -1387,6 +1504,8 @@
       cancelAnimationFrame(_selectionWatchId);
       _selectionWatchId = null;
     }
+    _undoStack = [];
+    _currentStroke = null;
     const R_ = R();
     if (R_) R_.setArmed(null);
     if (_container) _container.innerHTML = '';
@@ -1403,8 +1522,8 @@
   });
 
   // Exposed for the renderer (paintCell, onParentPathMarkerClick) to
-  // route flashes, picker rebuilds, and marker-driven arm flows back
-  // to the palette UI.
+  // route flashes, picker rebuilds, marker-driven arm flows, and
+  // paint-undo capture back to the palette UI.
   window.GCCMapSubhexPalette = {
     arm: armPalette,
     flash: flashMode,
@@ -1412,5 +1531,8 @@
     syncDetail: syncDetailPanel,
     rebuildPathPicker,
     armPathFromMarker,
+    beginStroke,
+    captureBefore,
+    endStroke,
   };
 })();
