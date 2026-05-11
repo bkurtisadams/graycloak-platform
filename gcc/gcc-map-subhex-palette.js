@@ -1,42 +1,34 @@
-// gcc-map-subhex-palette.js v1.0.0 — 2026-05-10
-// Phase B Slice 5a — subhex palette UI, lifted from gcc-subhex-view.js
-// v3.1.0's controls window. Registers as a subhex-scale tool via
-// GCCMap.registerTool; mounts into the shell's Tools section when
-// scale='subhex' is active.
-//
-// In scope (Slice 5a):
-//   - Terrain swatches (paint cells with a terrain rgb fill + glyph)
-//   - Erase swatch (revert override → cell inherits owner-parent terrain)
-//   - Feature glyphs (place a feature: castle, ruin, tower, etc.)
-//   - Feature-erase glyph (clear feature on click)
-//   - Fog tool (brush fog: click=reveal, shift-click=hide, drag=sweep)
-//   - Fog preview button (toggle GM-vs-player view via GCCFog.togglePreview)
-//   - Clear-override button (single-cell revert on the selected cell)
-//   - Mode label (live readout of current armed state)
-//
-// Deferred to Slice 5b:
-//   - Region tool + arm picker + region-erase
-//   - Path tool + arm picker + path action grid + river-edit dialog
-//   - Lake tool + arm picker + new-lake dialog
+// gcc-map-subhex-palette.js v1.1.0 — 2026-05-10
+// v1.1.0 — Slice 5b1 — full authoring UI:
+//   - Region / Path / Lake tool buttons + callout pickers
+//   - Path section with action grid (Undo / Rename / Tier·Linkage /
+//     Reverse / Delete / Done)  [Tier·Linkage = River edit dialog,
+//     stubbed in 5b1 — toast only; full dialog lands in Slice 5b2]
 //   - Detail panel (Name, Notes, Region, Hosts, Feature notes,
 //     Landmark pin, More fields, Source provenance)
-//   - flashMode wiring back from the renderer (currently no message
-//     when feature-erase hits a featureless cell — Slice 5b adds the
-//     event bus or shared API)
+//   - New-lake dialog (GCCDialog.confirm based)
+//   - Persistence on field blur (persistFields, persistFeature)
+//   - syncDetail / rebuildPathPicker / armPathFromMarker exports for
+//     the renderer to call after paintCell mutations
 //
-// Architecture: the palette and the subhex renderer collaborate via
-// window.GCCMapSubhexRenderer. The palette never touches GCCSubhexData
-// for paint — it sets renderer.armed; the renderer's brush handlers
-// (restored in renderer v1.1.0) dispatch on rs.armed when the GM
-// clicks/drags cells. Disarm-on-unmount keeps a primed brush from
-// surviving a scale switch.
+// Architecture (carried over from 5a + extended):
+//   - The palette and the subhex renderer collaborate via
+//     window.GCCMapSubhexRenderer and window.GCCMapSubhexPalette.
+//   - The palette owns all UI state (armed picker selection, callout
+//     visibility, detail-panel fields). The renderer owns brushing
+//     state (rs.armed, rs.brushing, rs.markerHighlight).
+//   - Shell selection (subhex Q/R) is the source of truth for which
+//     cell the detail panel reflects. ctx.selection() reads it; the
+//     palette listens for the shell's selection-changed lifecycle by
+//     (a) running syncDetailPanel on mount, (b) accepting
+//     syncDetail() calls from the renderer after paintCell, and
+//     (c) polling ctx.selection() each animation frame to catch shell
+//     selection changes (cell clicks). The poll is cheap (~one
+//     string-compare per frame, only while subhex scale is mounted).
 //
-// CSS reuse: gcc-subhex.css's .sxw-tool-btn, .sxw-mode, .sxw-palette,
-// .sxw-feature-btn, .sxw-swatch, .sxw-callout-pane etc. are all class-
-// scoped and apply naturally. The palette deliberately uses these
-// classes — and data-attribute selectors internally — to avoid ID
-// collisions with the legacy floating window (which isn't loaded in
-// unified-map.html but might be loaded in other future contexts).
+// Deferred to Slice 5b2:
+//   - openRiverEditDialog (tier / headwaters / mouth linkage form)
+//   - Crossing menu (clicking a × badge opens a kind picker)
 
 (function(){
   'use strict';
@@ -49,27 +41,45 @@
   let _ctx = null;
   let _onFogChanged = null;
   let _flashTimer = null;
+  let _selectionWatchId = null;
+  let _lastSelKey = null;
 
   function R(){ return window.GCCMapSubhexRenderer; }
+  function D(){ return window.GCCSubhexData; }
+  function P(){ return window.GCCSubhexPaths; }
+  function selSubhex(){
+    if (!_ctx) return null;
+    const sel = _ctx.selection();
+    return (sel && sel.kind === 'subhex') ? sel : null;
+  }
+  function findEl(id){ return _container ? _container.querySelector('#' + id) : null; }
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[ch]));
+  }
 
   // ── Arm key serialization (matches legacy gcc-subhex-view.js) ──
-  // Erase and feature-erase have no value, so their keys end with `:`.
-  // Fog is single-mode for now (Slice 5a); same convention.
   function armKey(a){
     if (!a) return null;
     if (a.type === 'erase') return 'erase:';
     if (a.type === 'feature-erase') return 'feature-erase:';
     if (a.type === 'fog') return 'fog:';
+    if (a.type === 'region-erase') return 'region-erase:';
+    if (a.type === 'lake-erase') return 'lake-erase:';
     return `${a.type}:${a.value}`;
   }
 
-  // Toggle-or-set arming: same swatch twice disarms. Same as legacy.
   function armPalette(next){
     const R_ = R();
     if (!R_) return;
     const cur = armKey(R_.getArmed());
     const nxt = armKey(next);
     R_.setArmed(cur === nxt ? null : next);
+    if (R_.getArmed()){
+      // Arming via the swatch/glyph strip closes any open callout. The
+      // tool buttons (Region/Path/Lake/Fog) drive their own callout
+      // visibility via their click handlers.
+      showCalloutPane(null);
+    }
     syncPaletteUI();
     syncModeLabel();
   }
@@ -81,14 +91,11 @@
     _container.querySelectorAll('.sxw-swatch, .sxw-feature-btn').forEach(b => {
       b.classList.toggle('armed', b.dataset.armKey === cur);
     });
-    // Tool buttons: Fog is the only one in 5a. 5b adds region/path/lake.
-    const fogBtn = _container.querySelector('[data-tool="fog"]');
-    if (fogBtn) fogBtn.classList.toggle('armed', cur === 'fog:');
-    // Tool-callout visibility — only the fog callout in 5a.
-    const callout = _container.querySelector('.sxw-tool-callout');
-    if (callout) callout.style.display = (cur === 'fog:') ? '' : 'none';
-    const fogPane = _container.querySelector('[data-callout="fog"]');
-    if (fogPane) fogPane.style.display = (cur === 'fog:') ? '' : 'none';
+    // Tool-button armed class is driven by showCalloutPane(name); the
+    // path-section header + action button visibility comes from
+    // syncPathActionButtons. Both are called from each handler that
+    // changes armed state, so syncPaletteUI itself only needs to
+    // toggle the swatch/glyph .armed flags.
   }
 
   function syncModeLabel(){
@@ -106,8 +113,23 @@
       el.textContent = 'Mode: Clear feature · click cells';
     } else if (a.type === 'feature'){
       el.textContent = `Mode: Place feature · ${a.value} · drag to brush`;
+    } else if (a.type === 'region'){
+      const region = D() ? D().getRegion(a.value) : null;
+      el.textContent = `Mode: Assign to region · ${region ? region.name : '(unknown)'} · drag to brush`;
+    } else if (a.type === 'region-erase'){
+      el.textContent = 'Mode: Remove from region · click cells';
+    } else if (a.type === 'lake'){
+      const lake = D() ? D().getLake(a.value) : null;
+      el.textContent = `Mode: Assign to lake · ${lake ? lake.name : '(unknown)'} · drag to brush`;
+    } else if (a.type === 'lake-erase'){
+      el.textContent = 'Mode: Remove from lake · click cells';
     } else if (a.type === 'fog'){
       el.textContent = 'Mode: Fog brush · click to reveal · shift+click to hide · drag to sweep';
+    } else if (a.type === 'path'){
+      const path = P() ? P().getPath(a.value) : null;
+      const pname = path ? path.name : '(unknown)';
+      const len = path ? path.cells.length : 0;
+      el.textContent = `Mode: Extend path · ${pname} · ${len} cell${len === 1 ? '' : 's'} · click neighbor to extend, click own cell to truncate`;
     } else {
       const lbl = (window.TERRAIN && window.TERRAIN[a.value])
         ? (window.TERRAIN[a.value].label || a.value) : a.value;
@@ -115,10 +137,6 @@
     }
   }
 
-  // flashMode: transient mode-label message; auto-restores after a
-  // short delay. Slice 5b wires the renderer side to dispatch flashes
-  // back into the palette (e.g. "No feature here" when feature-erase
-  // hits an empty cell). In 5a it's exposed but unused.
   function flashMode(msg){
     if (!_container) return;
     const el = _container.querySelector('.sxw-mode');
@@ -133,10 +151,26 @@
     }, 1600);
   }
 
-  // ── Strip builders ──────────────────────────────────────────────
+  // ── Callout pane visibility ────────────────────────────────────
+  function showCalloutPane(name){
+    if (!_container) return;
+    const cont = _container.querySelector('.sxw-tool-callout');
+    if (cont) cont.style.display = name ? '' : 'none';
+    const panes = ['region', 'path', 'lake', 'fog'];
+    for (const p of panes){
+      const el = _container.querySelector(`[data-callout="${p}"]`);
+      if (el) el.style.display = (p === name) ? '' : 'none';
+    }
+    const tools = ['region', 'path', 'lake', 'fog'];
+    for (const t of tools){
+      const btn = _container.querySelector(`[data-tool="${t}"]`);
+      if (btn) btn.classList.toggle('armed', t === name);
+    }
+  }
+
+  // ── Strip builders (terrain + feature) ─────────────────────────
   function buildTerrainStrip(host){
     if (typeof window.TERRAIN === 'undefined') return;
-    // Same order as legacy buildPalette (gcc-subhex-view.js).
     const order = [
       'clear','plains','forest','hardwood','conifer','jungle',
       'hills','forest_hills','mountains','desert','barrens','swamp',
@@ -188,28 +222,517 @@
     host.appendChild(clearBtn);
   }
 
-  // ── Button handlers ────────────────────────────────────────────
+  // ── Region tool ─────────────────────────────────────────────────
+  function onRegionToolClick(){
+    const R_ = R(); if (!R_) return;
+    const a = R_.getArmed();
+    if (a && (a.type === 'region' || a.type === 'region-erase')){
+      R_.setArmed(null);
+      showRegionArmedPicker(false);
+      syncPaletteUI();
+      syncModeLabel();
+      return;
+    }
+    rebuildRegionArmedPicker();
+    showRegionArmedPicker(true);
+  }
+  function showRegionArmedPicker(visible, presetValue){
+    const sel = findEl('sxw-region-armed');
+    if (!sel) return;
+    if (visible){
+      sel.style.display = '';
+      showCalloutPane('region');
+      if (presetValue !== undefined){ sel.value = presetValue; }
+      else if (!sel.value){
+        const regions = D() ? D().listRegions() : [];
+        if (regions.length){ sel.value = regions[0].id; }
+      }
+    } else {
+      sel.style.display = 'none';
+      showCalloutPane(null);
+    }
+  }
+  function rebuildRegionArmedPicker(){
+    const sel = findEl('sxw-region-armed');
+    if (!sel || !D()) return;
+    const prev = sel.value;
+    sel.innerHTML = '';
+    const noneOpt = document.createElement('option');
+    noneOpt.value = '';
+    noneOpt.textContent = '— pick a region to assign —';
+    sel.appendChild(noneOpt);
+    for (const r of D().listRegions()){
+      const opt = document.createElement('option');
+      opt.value = r.id;
+      opt.textContent = `${r.name} (${r.terrain})`;
+      sel.appendChild(opt);
+    }
+    const eraseOpt = document.createElement('option');
+    eraseOpt.value = '__erase__';
+    eraseOpt.textContent = '⌫ Remove from region (click cells)';
+    sel.appendChild(eraseOpt);
+    const newOpt = document.createElement('option');
+    newOpt.value = '__new__';
+    newOpt.textContent = '+ New region from selected cell\'s terrain…';
+    sel.appendChild(newOpt);
+    if (prev) sel.value = prev;
+  }
+  function onRegionArmedChange(ev){
+    const R_ = R(); if (!R_) return;
+    const val = ev.target.value;
+    const sel = selSubhex();
+    if (val === '__erase__'){
+      R_.setArmed({ type: 'region-erase' });
+    } else if (val === '__new__'){
+      if (!sel){
+        if (typeof alert === 'function') alert('Select a cell first to use its terrain for the new region.');
+        ev.target.value = '';
+        return;
+      }
+      const pTerrain = R_.selectedParentTerrain();
+      const sub = D().getSubhex(sel.Q, sel.R, pTerrain);
+      if (!sub || !sub.terrain){ ev.target.value = ''; return; }
+      const name = (typeof prompt === 'function') ? prompt('New region name:') : null;
+      if (!name){ ev.target.value = ''; return; }
+      const region = D().createRegion(name, sub.terrain);
+      if (region){
+        D().assignCellToRegion(sel.Q, sel.R, region.id, pTerrain);
+        R_.applyCellPaint(sel.Q, sel.R);
+        rebuildRegionArmedPicker();
+        ev.target.value = region.id;
+        R_.setArmed({ type: 'region', value: region.id });
+      } else {
+        ev.target.value = '';
+        return;
+      }
+    } else if (val){
+      R_.setArmed({ type: 'region', value: val });
+    } else {
+      R_.setArmed(null);
+    }
+    syncDetailPanel();
+    syncPaletteUI();
+    syncModeLabel();
+  }
+
+  // ── Path tool ──────────────────────────────────────────────────
+  function onPathToolClick(){
+    const R_ = R(); if (!R_) return;
+    const a = R_.getArmed();
+    if (a && a.type === 'path'){
+      R_.setArmed(null);
+      R_.setMarkerHighlight(null);
+      showPathArmedPicker(false);
+      syncPaletteUI();
+      syncModeLabel();
+      syncPathActionButtons();
+      return;
+    }
+    rebuildPathArmedPicker();
+    showPathArmedPicker(true);
+    syncPathActionButtons();
+  }
+  function showPathArmedPicker(visible, presetValue){
+    showCalloutPane(visible ? 'path' : null);
+    const sel = findEl('sxw-path-armed');
+    if (sel){
+      sel.style.display = visible ? '' : 'none';
+      if (visible && presetValue !== undefined){
+        sel.value = presetValue;
+      }
+    }
+    syncPathActionButtons();
+  }
+  function rebuildPathArmedPicker(){
+    const sel = findEl('sxw-path-armed');
+    if (!sel || !P()) return;
+    const prev = sel.value;
+    sel.innerHTML = '';
+    const noneOpt = document.createElement('option');
+    noneOpt.value = '';
+    noneOpt.textContent = '— pick a path to extend —';
+    sel.appendChild(noneOpt);
+    const paths = P().listPaths();
+    const KIND_LABEL = { river: 'Rivers', road: 'Roads', trail: 'Trails' };
+    for (const kind of P().PATH_KINDS){
+      const ofKind = paths.filter(p => p.kind === kind);
+      if (!ofKind.length) continue;
+      const grp = document.createElement('optgroup');
+      grp.label = KIND_LABEL[kind] || kind;
+      for (const p of ofKind){
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = `${p.name} (${p.cells.length} cells)`;
+        grp.appendChild(opt);
+      }
+      sel.appendChild(grp);
+    }
+    const createGrp = document.createElement('optgroup');
+    createGrp.label = '── Create new ──';
+    for (const kind of P().PATH_KINDS){
+      const opt = document.createElement('option');
+      opt.value = `__new__:${kind}`;
+      opt.textContent = `+ New ${kind}…`;
+      createGrp.appendChild(opt);
+    }
+    sel.appendChild(createGrp);
+    if (prev) sel.value = prev;
+  }
+  function onPathArmedChange(ev){
+    const R_ = R(); if (!R_) return;
+    const val = ev.target.value;
+    if (val.startsWith('__new__:')){
+      const kind = val.slice('__new__:'.length);
+      const name = (typeof prompt === 'function') ? prompt(`New ${kind} name:`) : null;
+      if (!name){ ev.target.value = ''; return; }
+      const existing = P().findByKindName(kind, name);
+      if (existing){
+        flashMode(`"${existing.name}" already exists — armed for extension instead of creating a new ${kind}`);
+        rebuildPathArmedPicker();
+        ev.target.value = existing.id;
+        R_.setArmed({ type: 'path', value: existing.id });
+        R_.setMarkerHighlight(null);
+      } else {
+        const path = P().createPath(kind, name);
+        if (!path){ ev.target.value = ''; return; }
+        rebuildPathArmedPicker();
+        ev.target.value = path.id;
+        R_.setArmed({ type: 'path', value: path.id });
+        R_.setMarkerHighlight(null);
+      }
+    } else if (val){
+      // Switched to a different path. The legacy attempted to preserve
+      // the marker highlight when the new path's kind+name matched the
+      // highlighted segment; in practice GMs always either follow the
+      // marker or pick a fresh path. Clear unconditionally.
+      R_.setArmed({ type: 'path', value: val });
+      R_.setMarkerHighlight(null);
+    } else {
+      R_.setArmed(null);
+      R_.setMarkerHighlight(null);
+    }
+    syncDetailPanel();
+    syncPaletteUI();
+    syncModeLabel();
+    syncPathActionButtons();
+  }
+  function syncPathActionButtons(){
+    const R_ = R(); const a = R_ ? R_.getArmed() : null;
+    const armed = !!(a && a.type === 'path');
+    const ids = ['sxw-path-undo', 'sxw-path-rename', 'sxw-path-delete', 'sxw-path-done'];
+    for (const id of ids){
+      const el = findEl(id);
+      if (el) el.style.display = armed ? '' : 'none';
+    }
+    let isRiver = false;
+    if (armed){
+      const path = P() && P().getPath(a.value);
+      isRiver = !!(path && path.kind === 'river');
+    }
+    for (const id of ['sxw-path-edit', 'sxw-path-reverse']){
+      const el = findEl(id);
+      if (el) el.style.display = (armed && isRiver) ? '' : 'none';
+    }
+    const help = findEl('sxw-path-help');
+    if (help) help.style.display = armed ? '' : 'none';
+    const head = findEl('sxw-path-section-head');
+    if (head){
+      if (armed){
+        const path = P() && P().getPath(a.value);
+        if (path){
+          const meta = `${path.kind} · ${path.cells.length} cell${path.cells.length === 1 ? '' : 's'}`;
+          head.innerHTML = `PATH · ${escapeHtml(path.name)} <span class="sxw-section-meta">(${meta})</span>`;
+          head.style.display = '';
+        } else {
+          head.textContent = 'PATH';
+          head.style.display = '';
+        }
+      } else {
+        head.textContent = 'PATH';
+        head.style.display = 'none';
+      }
+    }
+    const section = findEl('sxw-path-section');
+    if (section) section.style.display = armed ? '' : 'none';
+  }
+  function onPathUndoClick(){
+    const R_ = R(); const a = R_ ? R_.getArmed() : null;
+    if (!a || a.type !== 'path' || !P()) return;
+    const ok = P().popCell(a.value);
+    if (!ok){ flashMode('Path is empty — nothing to undo'); return; }
+    rebuildPathArmedPicker();
+    const sel = findEl('sxw-path-armed');
+    if (sel) sel.value = a.value;
+    if (_ctx) _ctx.requestRender();
+    syncModeLabel();
+    syncPathActionButtons();
+  }
+  function onPathRenameClick(){
+    const R_ = R(); const a = R_ ? R_.getArmed() : null;
+    if (!a || a.type !== 'path' || !P()) return;
+    const path = P().getPath(a.value);
+    if (!path) return;
+    const name = (typeof prompt === 'function') ? prompt('Rename path:', path.name) : null;
+    if (!name) return;
+    P().renamePath(a.value, name);
+    rebuildPathArmedPicker();
+    const sel = findEl('sxw-path-armed');
+    if (sel) sel.value = a.value;
+    if (_ctx) _ctx.requestRender();
+    syncModeLabel();
+    syncPathActionButtons();
+  }
+  function onPathReverseClick(){
+    const R_ = R(); const a = R_ ? R_.getArmed() : null;
+    if (!a || a.type !== 'path' || !P()) return;
+    const path = P().getPath(a.value);
+    if (!path || path.kind !== 'river') return;
+    const ok = (typeof confirm === 'function')
+      ? confirm(`Reverse flow direction of "${path.name}"? Headwaters and mouth will swap.`)
+      : true;
+    if (!ok) return;
+    P().reverseCells(a.value);
+    if (_ctx) _ctx.requestRender();
+    syncModeLabel();
+    syncPathActionButtons();
+    flashMode(`Reversed flow of ${path.name}`);
+  }
+  function onPathEditClick(){
+    // River-edit dialog is Slice 5b2. 5b1 surfaces a flash so the
+    // button is discoverable without being silently inert.
+    const R_ = R(); const a = R_ ? R_.getArmed() : null;
+    if (!a || a.type !== 'path' || !P()) return;
+    const path = P().getPath(a.value);
+    if (!path || path.kind !== 'river') return;
+    flashMode('Tier/Linkage editor — Slice 5b2');
+  }
+  function onPathDeleteClick(){
+    const R_ = R(); const a = R_ ? R_.getArmed() : null;
+    if (!a || a.type !== 'path' || !P()) return;
+    const path = P().getPath(a.value);
+    if (!path) return;
+    const ok = (typeof confirm === 'function')
+      ? confirm(`Delete path "${path.name}" (${path.kind})? This cannot be undone.`)
+      : true;
+    if (!ok) return;
+    P().deletePath(a.value);
+    R_.setArmed(null);
+    R_.setMarkerHighlight(null);
+    rebuildPathArmedPicker();
+    showPathArmedPicker(false);
+    const sel = findEl('sxw-path-armed');
+    if (sel) sel.value = '';
+    if (_ctx) _ctx.requestRender();
+    syncDetailPanel();
+    syncPaletteUI();
+    syncModeLabel();
+    syncPathActionButtons();
+  }
+  function onPathDoneClick(){
+    const R_ = R(); const a = R_ ? R_.getArmed() : null;
+    if (!a || a.type !== 'path') return;
+    R_.setArmed(null);
+    R_.setMarkerHighlight(null);
+    showPathArmedPicker(false);
+    const sel = findEl('sxw-path-armed');
+    if (sel) sel.value = '';
+    if (_ctx) _ctx.requestRender();
+    syncPaletteUI();
+    syncModeLabel();
+    syncPathActionButtons();
+  }
+
+  // Called by the renderer's onParentPathMarkerClick after it sets
+  // rs.armed + rs.markerHighlight. We align the palette UI (rebuild
+  // picker, show callout, sync labels). The renderer already
+  // triggered a render via _ctx.requestRender().
+  function armPathFromMarker(pathId){
+    rebuildPathArmedPicker();
+    showPathArmedPicker(true, pathId);
+    showRegionArmedPicker(false);
+    syncDetailPanel();
+    syncPaletteUI();
+    syncModeLabel();
+    syncPathActionButtons();
+  }
+
+  // Called by the renderer after paintCell append/truncate so the
+  // picker's cell-count label refreshes.
+  function rebuildPathPicker(armedValue){
+    rebuildPathArmedPicker();
+    const sel = findEl('sxw-path-armed');
+    if (sel && armedValue) sel.value = armedValue;
+    syncPathActionButtons();
+  }
+
+  // ── Lake tool ──────────────────────────────────────────────────
+  function onLakeToolClick(){
+    const R_ = R(); if (!R_) return;
+    const a = R_.getArmed();
+    if (a && (a.type === 'lake' || a.type === 'lake-erase')){
+      R_.setArmed(null);
+      showLakeArmedPicker(false);
+      syncPaletteUI();
+      syncModeLabel();
+      return;
+    }
+    rebuildLakeArmedPicker();
+    showLakeArmedPicker(true);
+  }
+  function showLakeArmedPicker(visible, presetValue){
+    const sel = findEl('sxw-lake-armed');
+    if (!sel) return;
+    if (visible){
+      sel.style.display = '';
+      showCalloutPane('lake');
+      if (presetValue !== undefined){ sel.value = presetValue; }
+      else if (!sel.value){
+        const lakes = D() ? D().listLakes() : [];
+        if (lakes.length){ sel.value = lakes[0].id; }
+      }
+    } else {
+      sel.style.display = 'none';
+      showCalloutPane(null);
+    }
+  }
+  function rebuildLakeArmedPicker(){
+    const sel = findEl('sxw-lake-armed');
+    if (!sel || !D()) return;
+    const prev = sel.value;
+    sel.innerHTML = '';
+    const noneOpt = document.createElement('option');
+    noneOpt.value = '';
+    noneOpt.textContent = '— pick a lake to assign —';
+    sel.appendChild(noneOpt);
+    for (const l of D().listLakes()){
+      const opt = document.createElement('option');
+      opt.value = l.id;
+      opt.textContent = `${l.name} (${l.kind} · ${l.depth})`;
+      sel.appendChild(opt);
+    }
+    const eraseOpt = document.createElement('option');
+    eraseOpt.value = '__erase__';
+    eraseOpt.textContent = '⌫ Remove from lake (click cells)';
+    sel.appendChild(eraseOpt);
+    const newOpt = document.createElement('option');
+    newOpt.value = '__new__';
+    newOpt.textContent = '+ New lake…';
+    sel.appendChild(newOpt);
+    if (prev) sel.value = prev;
+  }
+  function onLakeArmedChange(ev){
+    const R_ = R(); if (!R_) return;
+    const val = ev.target.value;
+    if (val === '__erase__'){
+      R_.setArmed({ type: 'lake-erase' });
+    } else if (val === '__new__'){
+      ev.target.value = '';
+      openNewLakeDialog();
+      return;
+    } else if (val){
+      R_.setArmed({ type: 'lake', value: val });
+    } else {
+      R_.setArmed(null);
+    }
+    syncDetailPanel();
+    syncPaletteUI();
+    syncModeLabel();
+  }
+  function openNewLakeDialog(){
+    const dlg = window.GCCDialog || window.MPDialog;
+    if (!dlg || typeof dlg.confirm !== 'function'){
+      if (typeof alert === 'function') alert('Dialog system not available');
+      return;
+    }
+    const regions = D() ? D().listRegions() : [];
+    const regOpts = ['<option value="">— none —</option>']
+      .concat(regions.map(r =>
+        `<option value="${escapeHtml(r.id)}">${escapeHtml(r.name)} (${escapeHtml(r.terrain)})</option>`
+      )).join('');
+    const html = ''
+      + '<div class="sxw-lake-form" style="text-align:left;">'
+      +   '<div style="margin-bottom:8px">'
+      +     '<label style="display:block;font-size:11px;font-weight:700;margin-bottom:2px">Name</label>'
+      +     '<input id="sxw-lake-form-name" type="text" style="width:100%;padding:4px" placeholder="Lake Quagflow">'
+      +   '</div>'
+      +   '<div style="margin-bottom:8px;display:flex;gap:8px">'
+      +     '<div style="flex:1">'
+      +       '<label style="display:block;font-size:11px;font-weight:700;margin-bottom:2px">Kind</label>'
+      +       '<select id="sxw-lake-form-kind" style="width:100%;padding:4px">'
+      +         '<option value="lake">lake</option>'
+      +         '<option value="sea">sea</option>'
+      +       '</select>'
+      +     '</div>'
+      +     '<div style="flex:1">'
+      +       '<label style="display:block;font-size:11px;font-weight:700;margin-bottom:2px">Depth</label>'
+      +       '<select id="sxw-lake-form-depth" style="width:100%;padding:4px">'
+      +         '<option value="shallow">shallow</option>'
+      +         '<option value="deep">deep</option>'
+      +       '</select>'
+      +     '</div>'
+      +   '</div>'
+      +   '<div style="margin-bottom:8px">'
+      +     '<label style="display:block;font-size:11px;font-weight:700;margin-bottom:2px">Region (optional)</label>'
+      +     '<select id="sxw-lake-form-region" style="width:100%;padding:4px">' + regOpts + '</select>'
+      +   '</div>'
+      +   '<div>'
+      +     '<label style="display:block;font-size:11px;font-weight:700;margin-bottom:2px">Notes</label>'
+      +     '<textarea id="sxw-lake-form-notes" style="width:100%;min-height:60px;padding:4px" placeholder="optional"></textarea>'
+      +   '</div>'
+      + '</div>';
+    dlg.confirm('New Lake', html, { okText: 'Create', cancelText: 'Cancel' }).then(ok => {
+      if (!ok) return;
+      const nameEl  = document.getElementById('sxw-lake-form-name');
+      const kindEl  = document.getElementById('sxw-lake-form-kind');
+      const depthEl = document.getElementById('sxw-lake-form-depth');
+      const regEl   = document.getElementById('sxw-lake-form-region');
+      const notesEl = document.getElementById('sxw-lake-form-notes');
+      const name  = (nameEl?.value || '').trim();
+      const kind  = kindEl?.value || 'lake';
+      const depth = depthEl?.value || 'shallow';
+      const regionId = regEl?.value || null;
+      const notes = notesEl?.value || '';
+      if (!name){
+        if (dlg.alert) dlg.alert('New Lake', 'Name is required.');
+        return;
+      }
+      const lake = D() ? D().createLake(name, kind, depth, regionId, notes) : null;
+      if (!lake){
+        if (dlg.alert) dlg.alert('New Lake', 'Could not create lake. Check name/kind/depth.');
+        return;
+      }
+      rebuildLakeArmedPicker();
+      const sel = findEl('sxw-lake-armed');
+      if (sel) sel.value = lake.id;
+      const R_ = R();
+      if (R_) R_.setArmed({ type: 'lake', value: lake.id });
+      syncDetailPanel();
+      syncPaletteUI();
+      syncModeLabel();
+    });
+  }
+
+  // ── Fog tool ───────────────────────────────────────────────────
   function onFogToolClick(){
-    armPalette({ type: 'fog' });
+    const R_ = R(); if (!R_) return;
+    const a = R_.getArmed();
+    if (a && a.type === 'fog'){
+      R_.setArmed(null);
+      showCalloutPane(null);
+      syncPaletteUI();
+      syncModeLabel();
+      return;
+    }
+    R_.setArmed({ type: 'fog' });
+    showCalloutPane('fog');
+    syncPaletteUI();
+    syncModeLabel();
   }
   function onFogPreviewClick(){
     if (window.GCCFog && typeof window.GCCFog.togglePreview === 'function'){
       window.GCCFog.togglePreview();
     }
   }
-  // Clear override: revert the selected cell back to seed terrain
-  // (inherits owner-parent terrain). Shell selection is the source
-  // of truth; no-op if nothing's selected or selection isn't a subhex.
-  function onClearClick(){
-    const sel = window.GCCMap && window.GCCMap.currentSelection
-      ? window.GCCMap.currentSelection() : null;
-    if (!sel || sel.kind !== 'subhex') return;
-    if (!window.GCCSubhexData) return;
-    window.GCCSubhexData.clearSubhex(sel.Q, sel.R);
-    const R_ = R();
-    if (R_ && typeof R_.applyCellPaint === 'function') R_.applyCellPaint(sel.Q, sel.R);
-  }
-
   function syncFogPreviewBtn(){
     if (!_container) return;
     const btn = _container.querySelector('[data-action="fog-preview"]');
@@ -218,21 +741,363 @@
     btn.classList.toggle('sxw-tool-btn-armed', on);
   }
 
+  // ── Clear (single-cell revert) ─────────────────────────────────
+  function onClearClick(){
+    const s = selSubhex();
+    if (!s || !D()) return;
+    D().clearSubhex(s.Q, s.R);
+    const R_ = R();
+    if (R_ && typeof R_.applyCellPaint === 'function') R_.applyCellPaint(s.Q, s.R);
+    syncDetailPanel();
+  }
+
+  // ── Detail panel ───────────────────────────────────────────────
+  function syncDetailPanel(){
+    if (!_container) return;
+    const coord  = findEl('sxw-coord');
+    const terr   = findEl('sxw-terrain');
+    const ownerSep = findEl('sxw-owner-sep');
+    const ownerEl  = findEl('sxw-owner');
+    const name   = findEl('sxw-name');
+    const notes  = findEl('sxw-notes');
+    const fkind  = findEl('sxw-feature-kind');
+    const fname  = findEl('sxw-feature-name');
+    const flib   = findEl('sxw-feature-libid');
+    const fnotes = findEl('sxw-feature-notes');
+    const lpick  = findEl('sxw-landmark-pick');
+    const linfoR = findEl('sxw-landmark-info-row');
+    const linfo  = findEl('sxw-landmark-info');
+    const rpick  = findEl('sxw-region-pick');
+    const rname  = findEl('sxw-region-name');
+    const plist  = findEl('sxw-paths-list');
+    const lakeInfo = findEl('sxw-lake-info');
+    const source = findEl('sxw-source');
+    const clearB = findEl('sxw-clear');
+    if (!coord || !terr || !name || !notes || !fkind || !fname || !flib || !fnotes
+        || !rpick || !rname || !source || !clearB) return;
+    const sel = selSubhex();
+    if (!sel){
+      coord.textContent = '— select a cell';
+      terr.textContent  = '—';
+      if (ownerSep) ownerSep.style.display = 'none';
+      if (ownerEl)  ownerEl.style.display  = 'none';
+      const detailEl = findEl('sxw-detail');
+      if (detailEl) detailEl.classList.add('no-cell');
+      name.value = '';   name.disabled  = true;
+      notes.value = '';  notes.disabled = true;
+      fkind.value = '';  fkind.disabled = true;
+      fname.value = '';  fname.disabled = true;
+      flib.value  = '';  flib.disabled  = true;
+      fnotes.value = ''; fnotes.disabled = true;
+      if (lpick){ lpick.value = ''; lpick.disabled = true; }
+      if (linfoR) linfoR.style.display = 'none';
+      rebuildRegionPickOptions(rpick, '', null);
+      rpick.disabled = true;
+      rname.value = '';  rname.disabled = true;
+      if (plist) plist.textContent = '—';
+      if (lakeInfo) lakeInfo.textContent = '—';
+      const lakeSep  = findEl('sxw-lake-sep');
+      const pathsSep = findEl('sxw-paths-sep');
+      if (lakeSep)  lakeSep.style.display  = 'none';
+      if (pathsSep) pathsSep.style.display = 'none';
+      source.textContent = '';
+      clearB.disabled    = true;
+      return;
+    }
+    const R_ = R();
+    const pTerrain = R_ ? R_.selectedParentTerrain() : null;
+    const sub = D().getSubhex(sel.Q, sel.R, pTerrain);
+    const detailEl = findEl('sxw-detail');
+    if (detailEl) detailEl.classList.remove('no-cell');
+    coord.textContent = `Q${sel.Q}, R${sel.R}`;
+    terr.textContent  = sub.terrain
+      ? ((window.TERRAIN && window.TERRAIN[sub.terrain] && window.TERRAIN[sub.terrain].label) || sub.terrain)
+      : '—';
+    const owner = R_ ? R_.selectedCellOwner() : null;
+    // Owner hint shows whenever owner data is available. In the
+    // unified shell there's no fixed center-parent the way the
+    // floating window had; the viewport pans freely. Always-on hint
+    // is slightly noisier than legacy but always informative.
+    if (owner && typeof window.hexIdStr === 'function'){
+      const ownerLabel = window.hexIdStr(owner.col, owner.row);
+      if (ownerEl){
+        ownerEl.textContent = `Owned by ${ownerLabel}`;
+        ownerEl.style.display = '';
+      }
+      if (ownerSep) ownerSep.style.display = '';
+    } else {
+      if (ownerEl)  ownerEl.style.display = 'none';
+      if (ownerSep) ownerSep.style.display = 'none';
+    }
+    name.value  = sub.name  || '';  name.disabled  = false;
+    notes.value = sub.notes || '';  notes.disabled = false;
+    const f = sub.feature || null;
+    const isPinned = !!(f && f.landmarkId);
+    fkind.value = f ? (f.kind || '') : '';
+    fkind.disabled = isPinned;
+    fname.value = f ? (f.name || '') : '';
+    fname.disabled = !f || isPinned;
+    flib.value  = f ? (f.libraryId || '') : '';
+    flib.disabled = !f;
+    fnotes.value = f ? (f.notes || '') : '';
+    fnotes.disabled = !f;
+    if (lpick){
+      rebuildLandmarkPickOptions(lpick, owner, f && f.landmarkId);
+      lpick.disabled = false;
+    }
+    if (linfoR && linfo){
+      if (isPinned && window.GCCLandmarks){
+        const lm = window.GCCLandmarks.getById(f.landmarkId);
+        if (lm){
+          const bits = [];
+          bits.push(`${lm.kind || 'landmark'}`);
+          if (lm.size) bits.push(lm.size);
+          if (lm.pop != null) bits.push(`pop ${lm.pop}`);
+          if (lm.rulerName){
+            const rt = lm.rulerTitle ? `${lm.rulerTitle} ` : '';
+            bits.push(`ruler: ${rt}${lm.rulerName}`);
+          } else if (lm.rulerTitle){
+            bits.push(`ruler: ${lm.rulerTitle}`);
+          }
+          linfo.textContent = `${lm.name} · ${bits.join(' · ')} (edit in parent: ${f.landmarkId})`;
+          linfoR.style.display = '';
+        } else {
+          linfo.textContent = `Pin → ${f.landmarkId} (landmark not found)`;
+          linfoR.style.display = '';
+        }
+      } else {
+        linfoR.style.display = 'none';
+      }
+    }
+    rebuildRegionPickOptions(rpick, sub.terrain, sub.regionId);
+    rpick.disabled = false;
+    const region = sub.regionId ? D().getRegion(sub.regionId) : null;
+    rname.value = region ? region.name : '';
+    rname.disabled = !region;
+    if (plist){
+      const cellPaths = P() ? P().pathsAtCell(sel.Q, sel.R) : [];
+      const hasPaths = cellPaths.length > 0;
+      plist.textContent = hasPaths
+        ? cellPaths.map(p => `${p.name} (${p.kind})`).join(', ')
+        : '—';
+      const pathsSep = findEl('sxw-paths-sep');
+      if (pathsSep) pathsSep.style.display = hasPaths ? '' : 'none';
+      plist.style.display = hasPaths ? '' : 'none';
+    }
+    if (lakeInfo){
+      const lake = sub.lakeId ? D().getLake(sub.lakeId) : null;
+      lakeInfo.textContent = lake
+        ? `in ${lake.name} (${lake.kind} · ${lake.depth})`
+        : '—';
+      const lakeSep = findEl('sxw-lake-sep');
+      if (lakeSep) lakeSep.style.display = lake ? '' : 'none';
+      lakeInfo.style.display = lake ? '' : 'none';
+    }
+    source.textContent = sub.source === 'authored' ? 'Authored override (localStorage)'
+      : sub.source === 'canonical' ? 'Canonical Greyhawk feature'
+      : 'Procedural — derived from world seed';
+    clearB.disabled = (sub.source !== 'authored');
+  }
+
+  function rebuildRegionPickOptions(sel, terrain, selectedRegionId){
+    if (!sel || !D()) return;
+    sel.innerHTML = '';
+    const noneOpt = document.createElement('option');
+    noneOpt.value = '';
+    noneOpt.textContent = '— none —';
+    sel.appendChild(noneOpt);
+    if (terrain){
+      const regions = D().listRegions().filter(r => r.terrain === terrain);
+      for (const r of regions){
+        const opt = document.createElement('option');
+        opt.value = r.id;
+        opt.textContent = r.name;
+        sel.appendChild(opt);
+      }
+      const newOpt = document.createElement('option');
+      newOpt.value = '__new__';
+      newOpt.textContent = `+ New ${terrain} region…`;
+      sel.appendChild(newOpt);
+    }
+    sel.value = selectedRegionId || '';
+  }
+  function rebuildLandmarkPickOptions(sel, owner, selectedLandmarkId){
+    if (!sel) return;
+    sel.innerHTML = '';
+    const noneOpt = document.createElement('option');
+    noneOpt.value = '';
+    noneOpt.textContent = '— none —';
+    sel.appendChild(noneOpt);
+    if (!owner || typeof window.GCCLandmarks === 'undefined'
+        || typeof window.hexIdStr !== 'function'){
+      sel.value = '';
+      return;
+    }
+    const parentId = window.hexIdStr(owner.col, owner.row);
+    const lm = window.GCCLandmarks.getById(parentId);
+    if (lm){
+      const opt = document.createElement('option');
+      opt.value = parentId;
+      opt.textContent = `${lm.name} (${lm.kind || 'landmark'})`;
+      sel.appendChild(opt);
+    }
+    sel.value = selectedLandmarkId || '';
+  }
+
+  function onRegionPickChange(ev){
+    const s = selSubhex(); if (!s || !D()) return;
+    const val = ev.target.value;
+    const R_ = R();
+    const pTerrain = R_ ? R_.selectedParentTerrain() : null;
+    if (val === '__new__'){
+      const sub = D().getSubhex(s.Q, s.R, pTerrain);
+      if (!sub || !sub.terrain){
+        ev.target.value = (sub && sub.regionId) || '';
+        return;
+      }
+      const name = (typeof prompt === 'function') ? prompt('New region name:') : null;
+      if (!name){ ev.target.value = sub.regionId || ''; return; }
+      const region = D().createRegion(name, sub.terrain);
+      if (region){
+        D().assignCellToRegion(s.Q, s.R, region.id, pTerrain);
+        if (R_) R_.setArmed({ type: 'region', value: region.id });
+        showRegionArmedPicker(true, region.id);
+        syncPaletteUI();
+        syncModeLabel();
+      }
+    } else if (val === ''){
+      D().unassignCellFromRegion(s.Q, s.R);
+    } else {
+      D().assignCellToRegion(s.Q, s.R, val, pTerrain);
+    }
+    if (R_) R_.applyCellPaint(s.Q, s.R);
+    if (_ctx) _ctx.requestRender();
+    syncDetailPanel();
+  }
+  function onRegionRename(ev){
+    const s = selSubhex(); if (!s || !D()) return;
+    const R_ = R();
+    const pTerrain = R_ ? R_.selectedParentTerrain() : null;
+    const sub = D().getSubhex(s.Q, s.R, pTerrain);
+    if (!sub || !sub.regionId) return;
+    const newName = ev.target.value.trim();
+    if (!newName) return;
+    D().renameRegion(sub.regionId, newName);
+    if (_ctx) _ctx.requestRender();
+    syncDetailPanel();
+    rebuildRegionArmedPicker();
+  }
+  function onLandmarkPickChange(ev){
+    const s = selSubhex(); if (!s || !D()) return;
+    const val = ev.target.value;
+    if (val){
+      D().pinLandmarkToCell(s.Q, s.R, val);
+    } else {
+      const sub = D().getSubhex(s.Q, s.R);
+      const prev = sub.feature && sub.feature.landmarkId;
+      if (prev) D().unpinLandmark(prev);
+    }
+    const R_ = R();
+    if (R_) R_.applyCellPaint(s.Q, s.R);
+    if (_ctx) _ctx.requestRender();
+    syncDetailPanel();
+  }
+  function persistFields(){
+    const s = selSubhex(); if (!s || !D()) return;
+    const nameEl  = findEl('sxw-name');
+    const notesEl = findEl('sxw-notes');
+    if (!nameEl || !notesEl) return;
+    D().setSubhexOverride(s.Q, s.R, { name: nameEl.value.trim(), notes: notesEl.value });
+    const R_ = R();
+    if (R_) R_.applyCellPaint(s.Q, s.R);
+    syncDetailPanel();
+  }
+  function persistFeature(){
+    const s = selSubhex(); if (!s || !D()) return;
+    const kindEl = findEl('sxw-feature-kind');
+    if (!kindEl) return;
+    const kind = kindEl.value;
+    if (!kind){
+      D().clearSubhexFeature(s.Q, s.R);
+    } else {
+      const fnameEl  = findEl('sxw-feature-name');
+      const flibEl   = findEl('sxw-feature-libid');
+      const fnotesEl = findEl('sxw-feature-notes');
+      const fname = fnameEl ? fnameEl.value.trim() : '';
+      const flib  = flibEl  ? flibEl.value.trim()  : '';
+      const fnotes = fnotesEl ? fnotesEl.value.trim() : '';
+      D().setSubhexFeature(s.Q, s.R, {
+        kind,
+        name: fname || undefined,
+        libraryId: flib || undefined,
+        notes: fnotes || undefined,
+      });
+    }
+    const R_ = R();
+    if (R_) R_.applyCellPaint(s.Q, s.R);
+    if (_ctx) _ctx.requestRender();
+    syncDetailPanel();
+  }
+
+  // ── Selection-change watcher ────────────────────────────────────
+  // The shell doesn't emit a selection-changed event. _ctx.selection()
+  // reflects live state. Poll on rAF so the detail panel refreshes
+  // when the user clicks another cell. Cheap (one obj-deref + string
+  // compare per frame, only while subhex scale is mounted).
+  function watchSelectionTick(){
+    if (!_container) return;
+    const s = selSubhex();
+    const key = s ? `${s.Q}_${s.R}` : '';
+    if (key !== _lastSelKey){
+      _lastSelKey = key;
+      syncDetailPanel();
+    }
+    _selectionWatchId = requestAnimationFrame(watchSelectionTick);
+  }
+
   // ── Tool lifecycle (called by GCCMap.setScale) ─────────────────
   function mount(container, ctx){
     _container = container;
     _ctx = ctx;
     container.innerHTML = `
       <div class="sxw-tools-row">
+        <button class="sxw-tool-btn" data-tool="region">Region…</button>
+        <button class="sxw-tool-btn" data-tool="path">Path…</button>
+        <button class="sxw-tool-btn" data-tool="lake">Lake…</button>
         <button class="sxw-tool-btn" data-tool="fog">Fog…</button>
-        <button class="sxw-tool-btn" data-action="clear" title="Erase override on the selected cell">Clear</button>
+        <button class="sxw-tool-btn" id="sxw-clear" data-action="clear" title="Erase override on the selected cell">Clear</button>
         <button class="sxw-tool-btn" data-action="fog-preview" title="Preview as players see (fog of war)">👁 Preview</button>
         <span class="sxw-mode">Mode: Select</span>
       </div>
       <div class="sxw-tool-callout" style="display:none;">
+        <div class="sxw-callout-pane" data-callout="region" style="display:none;">
+          <span class="sxw-callout-label">Region:</span>
+          <select class="sxw-region-armed" id="sxw-region-armed"></select>
+        </div>
+        <div class="sxw-callout-pane" data-callout="lake" style="display:none;">
+          <span class="sxw-callout-label">Lake:</span>
+          <select class="sxw-region-armed" id="sxw-lake-armed"></select>
+        </div>
         <div class="sxw-callout-pane" data-callout="fog" style="display:none;">
           <div class="sxw-path-help">
             Click to reveal · shift+click to hide · drag to sweep · click 👁 Preview to see fogged cells
+          </div>
+        </div>
+        <div class="sxw-callout-pane" data-callout="path" style="display:none;">
+          <div class="sxw-callout-pathrow">
+            <span class="sxw-callout-label">Path:</span>
+            <select class="sxw-path-armed" id="sxw-path-armed"></select>
+          </div>
+          <div class="sxw-path-actions">
+            <button class="sxw-tool-btn sxw-path-action" id="sxw-path-undo" title="Remove the last cell of the armed path">↶ Undo</button>
+            <button class="sxw-tool-btn sxw-path-action" id="sxw-path-rename" title="Rename the armed path">✎ Rename</button>
+            <button class="sxw-tool-btn sxw-path-action" id="sxw-path-edit" title="Edit tier and headwaters/mouth linkage (rivers only)">⚙ Tier/Linkage</button>
+            <button class="sxw-tool-btn sxw-path-action" id="sxw-path-reverse" title="Reverse flow direction — swaps headwaters and mouth (rivers only)">↻ Reverse</button>
+            <button class="sxw-tool-btn sxw-path-action sxw-tool-btn-danger" id="sxw-path-delete" title="Delete the armed path">⌫ Delete</button>
+            <button class="sxw-tool-btn sxw-path-action sxw-tool-btn-armed" id="sxw-path-done" title="Stop editing this path">✓ Done</button>
+          </div>
+          <div class="sxw-path-help" id="sxw-path-help">
+            Click a neighboring cell to extend · click an existing cell to remove it (and everything after)
           </div>
         </div>
       </div>
@@ -240,10 +1105,110 @@
         <div class="sxw-palette" data-strip="terrain"></div>
         <div class="sxw-feature-palette" data-strip="feature"></div>
       </div>
+      <div class="sxw-path-section" id="sxw-path-section" style="display:none;">
+        <div class="sxw-section-head" id="sxw-path-section-head" style="display:none;">PATH</div>
+      </div>
+      <div class="sxw-detail" id="sxw-detail">
+        <div class="sxw-detail-head" id="sxw-detail-head">
+          <span class="sxw-detail-label">Cell details</span>
+          <span class="sxw-sep" id="sxw-coord-sep">·</span>
+          <span class="sxw-readonly" id="sxw-coord">— select a cell</span>
+          <span class="sxw-sep" id="sxw-owner-sep" style="display:none;">·</span>
+          <span class="sxw-readonly sxw-owner-hint" id="sxw-owner" style="display:none;"></span>
+        </div>
+        <div class="sxw-detail-summary" id="sxw-detail-summary">
+          <span class="sxw-summary-label">Terrain</span>
+          <span class="sxw-readonly" id="sxw-terrain">—</span>
+          <span class="sxw-sep sxw-summary-sep" id="sxw-lake-sep" style="display:none;">·</span>
+          <span class="sxw-readonly" id="sxw-lake-info">—</span>
+          <span class="sxw-sep sxw-summary-sep" id="sxw-paths-sep" style="display:none;">·</span>
+          <span class="sxw-readonly" id="sxw-paths-list">—</span>
+        </div>
+        <div class="sxw-detail-body" id="sxw-detail-body">
+          <div class="sxw-row sxw-row-inline">
+            <label>Name</label>
+            <input type="text" id="sxw-name" placeholder="(unnamed)" disabled>
+          </div>
+          <div class="sxw-row sxw-row-inline">
+            <label>Notes</label>
+            <textarea id="sxw-notes" placeholder="GM notes" disabled></textarea>
+          </div>
+          <div class="sxw-row sxw-row-inline sxw-row-region">
+            <label>Region</label>
+            <select id="sxw-region-pick" disabled>
+              <option value="">— none —</option>
+            </select>
+            <input type="text" id="sxw-region-name" placeholder="Region name" disabled>
+          </div>
+          <div class="sxw-row sxw-row-inline sxw-row-landmark-info" id="sxw-landmark-info-row" style="display:none;">
+            <label>Landmark</label>
+            <span class="sxw-readonly" id="sxw-landmark-info">—</span>
+          </div>
+          <details class="sxw-more-fields" id="sxw-more-fields">
+            <summary>More fields</summary>
+            <div class="sxw-row sxw-row-inline sxw-row-feature">
+              <label>Hosts</label>
+              <select id="sxw-feature-kind" disabled>
+                <option value="">— none —</option>
+              </select>
+              <input type="text" id="sxw-feature-name" placeholder="Feature name" disabled>
+              <input type="text" id="sxw-feature-libid" placeholder="Library ID" disabled>
+            </div>
+            <div class="sxw-row sxw-row-inline sxw-row-feature-notes">
+              <label>Feature notes</label>
+              <textarea id="sxw-feature-notes" placeholder="Notes for this feature (toll, condition, lore…)" disabled></textarea>
+            </div>
+            <div class="sxw-row sxw-row-inline sxw-row-landmark">
+              <label>Landmark pin</label>
+              <select id="sxw-landmark-pick" disabled>
+                <option value="">— none —</option>
+              </select>
+            </div>
+          </details>
+          <div class="sxw-source" id="sxw-source"></div>
+        </div>
+      </div>
     `;
+    // Populate the detail-panel Hosts <select> with all feature kinds
+    // (separate from the feature-palette icon strip above).
+    const fkindSel = findEl('sxw-feature-kind');
+    if (fkindSel && window.GCCSubhexIcons){
+      for (const k of window.GCCSubhexIcons.FEATURE_KINDS){
+        const opt = document.createElement('option');
+        opt.value = k;
+        opt.textContent = k;
+        fkindSel.appendChild(opt);
+      }
+    }
+    // Tool buttons
+    container.querySelector('[data-tool="region"]').addEventListener('click', onRegionToolClick);
+    container.querySelector('[data-tool="path"]').addEventListener('click', onPathToolClick);
+    container.querySelector('[data-tool="lake"]').addEventListener('click', onLakeToolClick);
     container.querySelector('[data-tool="fog"]').addEventListener('click', onFogToolClick);
     container.querySelector('[data-action="clear"]').addEventListener('click', onClearClick);
     container.querySelector('[data-action="fog-preview"]').addEventListener('click', onFogPreviewClick);
+    // Armed pickers
+    findEl('sxw-region-armed').addEventListener('change', onRegionArmedChange);
+    findEl('sxw-path-armed').addEventListener('change', onPathArmedChange);
+    findEl('sxw-lake-armed').addEventListener('change', onLakeArmedChange);
+    // Path action buttons
+    findEl('sxw-path-undo').addEventListener('click', onPathUndoClick);
+    findEl('sxw-path-rename').addEventListener('click', onPathRenameClick);
+    findEl('sxw-path-edit').addEventListener('click', onPathEditClick);
+    findEl('sxw-path-reverse').addEventListener('click', onPathReverseClick);
+    findEl('sxw-path-delete').addEventListener('click', onPathDeleteClick);
+    findEl('sxw-path-done').addEventListener('click', onPathDoneClick);
+    // Detail-panel persistence
+    findEl('sxw-name').addEventListener('blur', persistFields);
+    findEl('sxw-notes').addEventListener('blur', persistFields);
+    findEl('sxw-feature-kind').addEventListener('change', persistFeature);
+    findEl('sxw-feature-name').addEventListener('blur', persistFeature);
+    findEl('sxw-feature-libid').addEventListener('blur', persistFeature);
+    findEl('sxw-feature-notes').addEventListener('blur', persistFeature);
+    findEl('sxw-landmark-pick').addEventListener('change', onLandmarkPickChange);
+    findEl('sxw-region-pick').addEventListener('change', onRegionPickChange);
+    findEl('sxw-region-name').addEventListener('blur', onRegionRename);
+    // Palette strips
     buildTerrainStrip(container.querySelector('[data-strip="terrain"]'));
     buildFeatureStrip(container.querySelector('[data-strip="feature"]'));
     _onFogChanged = () => { syncFogPreviewBtn(); };
@@ -251,6 +1216,10 @@
     syncFogPreviewBtn();
     syncPaletteUI();
     syncModeLabel();
+    syncDetailPanel();
+    syncPathActionButtons();
+    _lastSelKey = null;
+    _selectionWatchId = requestAnimationFrame(watchSelectionTick);
   }
 
   function unmount(){
@@ -262,7 +1231,10 @@
       clearTimeout(_flashTimer);
       _flashTimer = null;
     }
-    // Disarm: don't leave a brush primed for a different scale.
+    if (_selectionWatchId){
+      cancelAnimationFrame(_selectionWatchId);
+      _selectionWatchId = null;
+    }
     const R_ = R();
     if (R_) R_.setArmed(null);
     if (_container) _container.innerHTML = '';
@@ -278,12 +1250,15 @@
     unmount,
   });
 
-  // Exposed for Slice 5b to dispatch flashes back from the renderer
-  // (e.g. "No feature here" when feature-erase hits an empty cell)
-  // and to programmatically arm tools from marker clicks.
+  // Exposed for the renderer (paintCell, onParentPathMarkerClick) to
+  // route flashes, picker rebuilds, and marker-driven arm flows back
+  // to the palette UI.
   window.GCCMapSubhexPalette = {
     arm: armPalette,
     flash: flashMode,
     sync(){ syncPaletteUI(); syncModeLabel(); },
+    syncDetail: syncDetailPanel,
+    rebuildPathPicker,
+    armPathFromMarker,
   };
 })();

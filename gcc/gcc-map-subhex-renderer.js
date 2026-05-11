@@ -1,4 +1,9 @@
-// gcc-map-subhex-renderer.js v1.1.0 — 2026-05-10
+// gcc-map-subhex-renderer.js v1.2.0 — 2026-05-10
+// v1.2.0 — Slice 5b1 — extend paintCell with region/region-erase/
+// lake/lake-erase/path branches; replace onParentPathMarkerClick
+// toast stub with a real arm-flow call into GCCMapSubhexPalette;
+// notify palette after every paintCell so the detail panel refreshes
+// when the painted cell is the current shell selection.
 // v1.1.0 — Slice 5a — restore brush handlers (onCellMouseDown,
 // onCellMouseEnter, onBrushEnd), effectiveParentTerrainFor, and
 // paintCell from gcc-subhex-view.js v3.1.0. paintCell trimmed to the
@@ -355,11 +360,12 @@
       const next = (prior && prior.kind === a.value) ? prior : { kind: a.value };
       D().setSubhexFeature(Q, R, next);
     } else if (a.type === 'feature-erase'){
+      const existing = D().getSubhex(Q, R, pTerrain);
+      const hadFeature = existing && existing.feature && existing.feature.kind;
       D().clearSubhexFeature(Q, R);
-      // Legacy flashed "No feature here" via the palette mode label
-      // when feature-erase hit a featureless cell. Slice 5a doesn't
-      // have the palette flash hook; Slice 5b will route this back
-      // through a dispatched event or shared API.
+      if (!hadFeature && window.GCCMapSubhexPalette){
+        window.GCCMapSubhexPalette.flash('No feature here — paths use the Path tool');
+      }
     } else if (a.type === 'fog'){
       // Defer save until onBrushEnd flushes; toggle the .fogged class
       // directly so the sweep updates live without firing the global
@@ -374,10 +380,92 @@
       if (group){
         group.classList.toggle('fogged', !!Fog.shouldFogSubhex(Q, R));
       }
+    } else if (a.type === 'region'){
+      D().assignCellToRegion(Q, R, a.value, pTerrain);
+      _ctx.requestRender();
+    } else if (a.type === 'region-erase'){
+      D().unassignCellFromRegion(Q, R);
+      _ctx.requestRender();
+    } else if (a.type === 'lake'){
+      const ok = D().setCellLake(Q, R, a.value, pTerrain);
+      if (!ok && window.GCCMapSubhexPalette){
+        window.GCCMapSubhexPalette.flash('Cell terrain must be water to assign to a lake');
+      }
+    } else if (a.type === 'lake-erase'){
+      D().unsetCellLake(Q, R);
+    } else if (a.type === 'path'){
+      // Path tool doesn't drag-paint; click-only. brushing guard
+      // matches legacy gcc-subhex-view.js paintCell.
+      if (rs.brushing) return;
+      // Re-clicking an already-laid cell truncates from that cell
+      // onward. Otherwise append-if-adjacent.
+      const armedPath = P() && P().getPath(a.value);
+      const onArmed = armedPath && armedPath.cells.some(c => c.Q === Q && c.R === R);
+      if (onArmed){
+        P().truncateBefore(a.value, Q, R);
+        if (window.GCCMapSubhexPalette){
+          window.GCCMapSubhexPalette.rebuildPathPicker(a.value);
+        }
+        _ctx.requestRender();
+        applyCellPaint(Q, R);
+        notifyPaintedCell(Q, R);
+        return;
+      }
+      const ok = P().appendCell(a.value, Q, R);
+      if (!ok){
+        // appendCell rejects when the click isn't axially adjacent to
+        // the path's last cell. Surface a flash so the GM isn't left
+        // wondering why the click was silently ignored.
+        const ap = P().getPath(a.value);
+        if (window.GCCMapSubhexPalette){
+          if (ap && ap.cells.length){
+            const last = ap.cells[ap.cells.length - 1];
+            window.GCCMapSubhexPalette.flash(`Not adjacent to path's last cell (Q${last.Q}, R${last.R})`);
+          } else {
+            window.GCCMapSubhexPalette.flash('Could not extend path');
+          }
+        }
+        return;
+      }
+      // If authoring toward a parent-path-marker destination, check
+      // whether the newly-appended cell reached the marker's boundary
+      // subhex. If so, the segment is now end-to-end authored — clear
+      // the highlight so the destination dot drops its highlight class.
+      if (rs.markerHighlight){
+        const mh = rs.markerHighlight;
+        const segments = window.GCCPaths
+          ? (window.GCCPaths.segmentsAt(mh.col, mh.row) || []) : [];
+        const seg = segments[mh.segIndex];
+        if (seg){
+          const otherEdge = (mh.edge === seg.entryEdge) ? seg.exitEdge : seg.entryEdge;
+          if (typeof otherEdge === 'number' && otherEdge >= 0){
+            const owned = D().ownedByParent(mh.col, mh.row);
+            const destCell = boundaryCellForEdge(mh.col, mh.row, otherEdge, owned);
+            if (destCell && destCell.Q === Q && destCell.R === R){
+              rs.markerHighlight = null;
+            }
+          }
+        }
+      }
+      if (window.GCCMapSubhexPalette){
+        window.GCCMapSubhexPalette.rebuildPathPicker(a.value);
+      }
+      _ctx.requestRender();
     }
-    // a.type === 'region' / 'region-erase' / 'lake' / 'lake-erase' / 'path'
-    // → deferred to Slice 5b alongside the picker UIs that arm them.
     applyCellPaint(Q, R);
+    notifyPaintedCell(Q, R);
+  }
+
+  // Notify the palette that a cell was just painted so its detail
+  // panel refreshes if the painted cell is the current shell
+  // selection. Centralized at the bottom of paintCell so every branch
+  // gets the notification without duplicating per-branch syncs.
+  function notifyPaintedCell(Q, R){
+    if (!window.GCCMapSubhexPalette || !_ctx) return;
+    const sel = _ctx.selection();
+    if (sel && sel.kind === 'subhex' && sel.Q === Q && sel.R === R){
+      window.GCCMapSubhexPalette.syncDetail();
+    }
   }
 
   // ── Cell click → shell selection ───────────────────────────────
@@ -689,11 +777,46 @@
   }
   function onParentPathMarkerClick(ev){
     ev.stopPropagation();
-    // Slice 4: inert. Slice 5 ports openRiverEditDialog from
-    // gcc-subhex-view.js and wires this to it.
-    if (typeof window.GCCMap?.showToast === 'function'){
-      window.GCCMap.showToast('river editor — Slice 5');
+    const g = ev.currentTarget;
+    const parentCol = +g.dataset.parentCol;
+    const parentRow = +g.dataset.parentRow;
+    const segIndex  = +g.dataset.segIndex;
+    const edge      = +g.dataset.edge;
+    const kind      = g.dataset.kind;
+    const name      = g.dataset.name || '(unnamed)';
+    const Q         = +g.dataset.cellQ;
+    const R         = +g.dataset.cellR;
+    const authoredId = g.dataset.authoredPath;
+    if (!P() || !window.GCCMapSubhexPalette){
+      // Defensive: palette isn't loaded yet, or paths data missing.
+      return;
     }
+    let pathId;
+    if (authoredId){
+      // Visual-placement matched a path containing this exact
+      // boundary cell — arm that one. Fast path.
+      pathId = authoredId;
+    } else {
+      // Visual-placement missed (path doesn't yet contain this cell),
+      // but a path with the same kind+name may still exist elsewhere
+      // — typically authored from another parent and not yet extended
+      // into this one. Arm the existing one instead of duplicating.
+      const existing = P().findByKindName(kind, name);
+      if (existing){
+        pathId = existing.id;
+      } else {
+        // Truly new — create with kind+name from the marker; anchor
+        // first cell at the boundary subhex.
+        const newPath = P().createPath(kind, name);
+        if (!newPath) return;
+        P().appendCell(newPath.id, Q, R);
+        pathId = newPath.id;
+      }
+    }
+    rs.markerHighlight = { col: parentCol, row: parentRow, segIndex, edge };
+    rs.armed = { type: 'path', value: pathId };
+    window.GCCMapSubhexPalette.armPathFromMarker(pathId);
+    _ctx.requestRender();
   }
 
   // ── Crossings (visual + inert badge) ───────────────────────────
