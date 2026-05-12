@@ -1,4 +1,9 @@
-// gcc-subhex-store.js v0.2.0 — 2026-05-03
+// gcc-subhex-store.js v0.3.0 — 2026-05-12
+// v0.3.0 — dirty tracking for cloud publish. put/putBatch stamp
+//          _dirtyAt on each entry. markPublished(ids, ts) clears
+//          _dirtyAt and sets _publishedAt after successful cloud
+//          write. getDirty/getDirtyCount surface the dirty set.
+//          Fires 'gcc-subhex-dirty-changed' events on transitions.
 // v0.2.0 — putBatch(puts, deletes): write many entries in a single
 //          IDB transaction. Critical for scanner output — 50k
 //          one-at-a-time puts took ~30 minutes (one transaction
@@ -22,6 +27,10 @@
 //   flush()                → Promise<void>   resolves when all enqueued writes
 //                                            have hit disk (used by tests +
 //                                            scanner end-of-batch save)
+//   getDirty()             → Promise<Array<[id,entry]>> entries with _dirtyAt
+//   getDirtyCount()        → Promise<number> count of entries with _dirtyAt
+//   markPublished(ids, ts) → Promise<void>   batch-clear _dirtyAt, set
+//                                            _publishedAt on listed ids
 //
 // Storage layout:
 //   IDB database 'gcc-subhex'        — version 1
@@ -178,10 +187,12 @@
 
   // ── Public: write path (queued) ────────────────────────────────────
   function put(id, entry){
+    if (entry && typeof entry === 'object') entry._dirtyAt = Date.now();
     _writeQ = _writeQ.then(async () => {
       await ready();
       try {
         await _wrap(_txWrite().put(entry, id));
+        _emitDirtyChange();
       } catch(e){
         console.error('[SubhexStore] put failed for', id, e);
         _emitError(e);
@@ -217,9 +228,12 @@
           const store = tx.objectStore(STORE_NAME);
           // Take up to BATCH_CHUNK puts.
           const chunkEnd = Math.min(i + BATCH_CHUNK, putIds.length);
+          const dirtyAt = Date.now();
           for (; i < chunkEnd; i++){
             const id = putIds[i];
-            store.put(puts[id], id);
+            const entry = puts[id];
+            if (entry && typeof entry === 'object') entry._dirtyAt = dirtyAt;
+            store.put(entry, id);
           }
           // Apply all deletes in the first chunk (cheap, no need to
           // chunk unless tens of thousands).
@@ -234,6 +248,7 @@
           });
           if (i >= putIds.length && delIds.length === 0) break;
         }
+        _emitDirtyChange();
       } catch(e){
         console.error('[SubhexStore] putBatch failed:', e);
         _emitError(e);
@@ -266,6 +281,69 @@
     });
     return _writeQ;
   }
+  // ── Dirty tracking + publish bookkeeping ───────────────────────────
+  // put()/putBatch() stamp _dirtyAt on every entry. markPublished()
+  // clears _dirtyAt and sets _publishedAt after a successful cloud
+  // write. getDirty/getDirtyCount feed the Publish action UI.
+  async function getDirty(){
+    await ready();
+    const tx = _db.transaction(STORE_NAME, 'readonly');
+    const store = tx.objectStore(STORE_NAME);
+    const out = [];
+    return new Promise((resolve, reject) => {
+      const req = store.openCursor();
+      req.onsuccess = () => {
+        const cur = req.result;
+        if (cur){
+          const v = cur.value;
+          if (v && v._dirtyAt) out.push([cur.key, v]);
+          cur.continue();
+        } else {
+          resolve(out);
+        }
+      };
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async function getDirtyCount(){
+    const d = await getDirty();
+    return d.length;
+  }
+  function markPublished(ids, ts){
+    if (!Array.isArray(ids) || ids.length === 0) return Promise.resolve();
+    _writeQ = _writeQ.then(async () => {
+      await ready();
+      try {
+        let i = 0;
+        while (i < ids.length){
+          const chunkEnd = Math.min(i + BATCH_CHUNK, ids.length);
+          const tx = _db.transaction(STORE_NAME, 'readwrite');
+          const store = tx.objectStore(STORE_NAME);
+          for (; i < chunkEnd; i++){
+            const id = ids[i];
+            const getReq = store.get(id);
+            getReq.onsuccess = () => {
+              const v = getReq.result;
+              if (!v) return;
+              delete v._dirtyAt;
+              v._publishedAt = ts;
+              store.put(v, id);
+            };
+          }
+          await new Promise((resolve, reject) => {
+            tx.oncomplete = () => resolve();
+            tx.onerror    = () => reject(tx.error);
+            tx.onabort    = () => reject(tx.error || new Error('markPublished tx aborted'));
+          });
+        }
+        _emitDirtyChange();
+      } catch(e){
+        console.error('[SubhexStore] markPublished failed:', e);
+        _emitError(e);
+      }
+    });
+    return _writeQ;
+  }
   function flush(){ return _writeQ; }
 
   // ── Boot cache writeback (cap-aware) ───────────────────────────────
@@ -290,6 +368,10 @@
     }
   }
 
+  // ── Dirty change event ─────────────────────────────────────────────
+  function _emitDirtyChange(){
+    try { window.dispatchEvent(new CustomEvent('gcc-subhex-dirty-changed')); } catch(_){}
+  }
   // ── Errors ─────────────────────────────────────────────────────────
   function _emitError(e){
     try {
@@ -302,6 +384,7 @@
   window.GCCSubhexStore = {
     ready, bootSnapshot, loadAll,
     put, putBatch, remove, clear, flush,
+    getDirty, getDirtyCount, markPublished,
     writeBootCache,
     // Test hooks
     _DB_NAME: DB_NAME,

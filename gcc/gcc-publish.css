@@ -1,0 +1,107 @@
+/* gcc-publish.css v0.1.0 — 2026-05-12
+   ⬆ Publish nav button (with dirty-count badge) + publish progress modal.
+   Builds on .gcc-nav-btn from gcc-header.css. */
+
+.gcc-publish-btn { position: relative; }
+.gcc-publish-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: #8b0000;
+  color: #ffe;
+  font-family: 'Crimson Text', Georgia, serif;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+.gcc-publish-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.gcc-publish-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+}
+.gcc-publish-modal {
+  position: relative;
+  width: 420px;
+  max-width: 90vw;
+  background: #1a1208;
+  color: #e8d5a3;
+  border: 2px solid #c8941a;
+  border-radius: 6px;
+  padding: 20px;
+  font-family: 'Crimson Text', Georgia, serif;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+.gcc-publish-modal header {
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: #c8941a;
+  margin-bottom: 12px;
+  text-align: center;
+  letter-spacing: 0.5px;
+}
+.gcc-publish-status {
+  font-size: 14px;
+  margin-bottom: 10px;
+  text-align: center;
+}
+.gcc-publish-progress-track {
+  height: 12px;
+  background: #2a1f10;
+  border: 1px solid #5a4020;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.gcc-publish-progress-bar {
+  height: 100%;
+  background: linear-gradient(to right, #5b7a3a, #8bc34a);
+  transition: width 0.2s ease;
+}
+.gcc-publish-counts {
+  font-size: 12px;
+  color: #b5a070;
+  text-align: center;
+  margin-bottom: 12px;
+}
+.gcc-publish-failures {
+  font-size: 12px;
+  color: #d88;
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+  padding: 8px;
+  background: #2a1010;
+  border: 1px solid #5a2020;
+  border-radius: 4px;
+}
+.gcc-publish-failures summary { cursor: pointer; font-weight: 600; }
+.gcc-publish-failures ul { margin: 8px 0 0 18px; padding: 0; }
+.gcc-publish-modal footer { display: flex; justify-content: flex-end; }
+.gcc-publish-close {
+  padding: 6px 16px;
+  background: #2a1f10;
+  color: #e8d5a3;
+  border: 1px solid #c8941a;
+  border-radius: 4px;
+  font-family: 'Crimson Text', Georgia, serif;
+  font-size: 14px;
+  cursor: pointer;
+}
+.gcc-publish-close:disabled { opacity: 0.4; cursor: not-allowed; }
+.gcc-publish-close:not(:disabled):hover { background: #3a2f20; border-color: #ffd700; }
