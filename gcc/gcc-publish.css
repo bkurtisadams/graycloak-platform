@@ -1,4 +1,6 @@
-/* gcc-publish.css v0.1.0 — 2026-05-12
+/* gcc-publish.css v0.2.0 — 2026-05-12
+   v0.2.0 — gap between confirm/cancel buttons in two-button footer.
+   v0.1.0 — initial publish UI.
    ⬆ Publish nav button (with dirty-count badge) + publish progress modal.
    Builds on .gcc-nav-btn from gcc-header.css. */
 
@@ -92,7 +94,7 @@
 }
 .gcc-publish-failures summary { cursor: pointer; font-weight: 600; }
 .gcc-publish-failures ul { margin: 8px 0 0 18px; padding: 0; }
-.gcc-publish-modal footer { display: flex; justify-content: flex-end; }
+.gcc-publish-modal footer { display: flex; justify-content: flex-end; gap: 8px; }
 .gcc-publish-close {
   padding: 6px 16px;
   background: #2a1f10;

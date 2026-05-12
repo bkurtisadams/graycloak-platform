@@ -1,5 +1,8 @@
-// gcc-publish.js v0.1.0 — 2026-05-12
-// First Firestore write path for subhex data. GM-only.
+// gcc-publish.js v0.2.0 — 2026-05-12
+// v0.2.0 — confirmation dialog before publish ("Push N changes?"
+//          [Cancel] [Publish]). Prevents accidental ⬆ clicks
+//          from pushing local IDB state to cloud.
+// v0.1.0 — First Firestore write path for subhex data. GM-only.
 //
 // - Loads firebase-firestore-compat.js on demand (idempotent).
 // - Checks gms/{uid} to gate UI (matches firestore.rules v4 isGM()).
@@ -146,6 +149,30 @@
   function showButton(){ if (_btnEl) _btnEl.style.display = ''; refreshBadge(); }
   function hideButton(){ if (_btnEl) _btnEl.style.display = 'none'; }
 
+  function confirmPublishDialog(total){
+    return new Promise((resolve) => {
+      const dlg = document.createElement('div');
+      dlg.className = 'gcc-publish-dialog';
+      dlg.innerHTML = ''
+        + '<div class="gcc-publish-backdrop"></div>'
+        + '<div class="gcc-publish-modal">'
+        + '  <header>Confirm publish</header>'
+        + `  <div class="gcc-publish-status">Push <b>${total}</b> subhex change${total === 1 ? '' : 's'} to the cloud?</div>`
+        + '  <div class="gcc-publish-counts">Cloud state will be overwritten with your local IDB state. To unpublish a change, undo it locally and publish again.</div>'
+        + '  <footer>'
+        + '    <button class="gcc-publish-close gcc-publish-cancel">Cancel</button>'
+        + '    <button class="gcc-publish-close gcc-publish-confirm">Publish</button>'
+        + '  </footer>'
+        + '</div>';
+      document.body.appendChild(dlg);
+      const cancel = () => { dlg.remove(); resolve(false); };
+      const confirm = () => { dlg.remove(); resolve(true); };
+      dlg.querySelector('.gcc-publish-cancel').addEventListener('click', cancel);
+      dlg.querySelector('.gcc-publish-confirm').addEventListener('click', confirm);
+      dlg.querySelector('.gcc-publish-backdrop').addEventListener('click', cancel);
+    });
+  }
+
   function showProgressDialog(){
     const dlg = document.createElement('div');
     dlg.className = 'gcc-publish-dialog';
@@ -182,6 +209,9 @@
     if (_publishing) return;
     const total = await getDirtyCount();
     if (total === 0){ showToast('No changes to publish'); return; }
+
+    const proceed = await confirmPublishDialog(total);
+    if (!proceed) return;
 
     const dlg = showProgressDialog();
     const status   = dlg.querySelector('.gcc-publish-status');
