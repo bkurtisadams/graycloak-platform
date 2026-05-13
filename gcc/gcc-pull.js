@@ -1,4 +1,13 @@
-// gcc-pull.js v0.2.1 — 2026-05-13
+// gcc-pull.js v0.2.2 — 2026-05-13
+// v0.2.2 — Tooltip hover text on every verdict bit in the
+//          per-source summary lines + the force-overwrite checkbox.
+//          Native `title` attributes; dotted underline visual cue
+//          via gcc-pull.css. Term explanations:
+//            +N added    — cloud has these; your local does not.
+//            ~N updated  — cloud newer, local clean.
+//            !N forced   — local was dirty but force-overwrite chosen.
+//            N skipped   — local dirty edits preserved.
+//            no changes  — cloud and local in sync.
 // v0.2.1 — loadFirestoreSdk race fix. When publish.js loads the SDK
 //          first, pull.js's previous "script tag exists" check
 //          resolved before the script finished loading, causing
@@ -341,19 +350,43 @@
     setTimeout(() => t.classList.remove('show'), 2500);
   }
 
+  // Tooltip text for the verdict bits in the per-source summary.
+  // Surfaced via native `title` attributes; styled with a dotted
+  // underline cue in gcc-pull.css.
+  const TOOLTIP = {
+    added:    'Cloud has these; your local does not. Pull will create them locally.',
+    updated:  'Cloud has newer versions and your local has no unpublished edits. Pull will replace your local copy.',
+    forced:   'Local had unpublished edits, but force-overwrite was chosen. Cloud version overwrote local.',
+    skipped:  'You have unpublished edits on these. Pull leaves them alone so your local work is preserved.',
+    noChanges: 'Cloud and local match on this source. Pull is a no-op here.',
+    force:    'Replace your unpublished local edits with the cloud versions. Local changes will be lost.',
+  };
+
   // Per-source line for the confirm + result dialogs. `summary` is
-  // { add, update, noop, skip, conflict, total }.
+  // { add, update, noop, skip, conflict, total }. Each verdict bit
+  // gets a title-attribute tooltip explaining the term.
   function renderSummaryLine(label, summary){
+    const tip = (t) => escapeHtml(t);
     const bits = [];
-    if (summary.add)      bits.push(`+${summary.add} added`);
-    if (summary.update)   bits.push(`~${summary.update} updated`);
-    if (summary.conflict) bits.push(`!${summary.conflict} forced`);
-    if (summary.skip)     bits.push(`${summary.skip} skipped`);
-    const desc = bits.length ? bits.join(', ') : 'no changes';
+    if (summary.add){
+      bits.push(`<span title="${tip(TOOLTIP.added)}">+${summary.add} added</span>`);
+    }
+    if (summary.update){
+      bits.push(`<span title="${tip(TOOLTIP.updated)}">~${summary.update} updated</span>`);
+    }
+    if (summary.conflict){
+      bits.push(`<span title="${tip(TOOLTIP.forced)}">!${summary.conflict} forced</span>`);
+    }
+    if (summary.skip){
+      bits.push(`<span title="${tip(TOOLTIP.skipped)}">${summary.skip} skipped</span>`);
+    }
+    const desc = bits.length
+      ? bits.join(', ')
+      : `<span title="${tip(TOOLTIP.noChanges)}">no changes</span>`;
     return ''
       + '<div class="gcc-pull-source-row">'
       +   `<span class="gcc-pull-source-name">${escapeHtml(label)}:</span> `
-      +   `<span class="gcc-pull-source-desc">${escapeHtml(desc)}</span>`
+      +   `<span class="gcc-pull-source-desc">${desc}</span>`
       + '</div>';
   }
 
@@ -365,7 +398,7 @@
       const dlg = document.createElement('div');
       dlg.className = 'gcc-pull-dialog';
       const forceRow = totalSkipped > 0
-        ? '<label class="gcc-pull-force-row">'
+        ? `<label class="gcc-pull-force-row" title="${escapeHtml(TOOLTIP.force)}">`
         +   '<input type="checkbox" class="gcc-pull-force"> '
         +   `Force overwrite local changes (${totalSkipped} skipped)`
         + '</label>'
