@@ -1,4 +1,12 @@
-// gcc-subhex-paths.js v2.3.0 — 2026-05-12
+// gcc-subhex-paths.js v2.4.0 — 2026-05-13
+// v2.4.0: cloud→local pull receiver. applyPathsFromCloud(docs)
+//         replaces matching PATHS entries in place, persists to
+//         localStorage, rebuilds indexes, emits 'gcc-subhex-changed'
+//         (reason: 'cloud-pull') and the dirty-changed event. Does
+//         NOT stamp _dirtyAt — cloud docs carry _publishedAt and
+//         no _dirtyAt by construction (publish strips it). This is
+//         the path that dodges the publish→pull→republish loop.
+//         See DESIGN-cloud-pull.md Q5.
 // v2.3.0: head-end editing. Add prependCell(localId, Q, R) and
 //         truncateAfter(localId, Q, R) — mirrors of appendCell /
 //         truncateBefore acting on the head of the cells[] array.
@@ -171,6 +179,28 @@
     }
     try { localStorage.setItem(LS_KEY, JSON.stringify(PATHS)); } catch(e){}
     _emitDirtyChange();
+  }
+
+  // ── Cloud → local apply ──────────────────────────────────────────────
+  // Pull receiver. Replaces matching PATHS entries in place without
+  // stamping _dirtyAt. Cloud docs carry _publishedAt and no _dirtyAt
+  // by construction (publish strips it). Using the normal writers
+  // here (appendCell etc.) would re-stamp dirty and trigger an
+  // immediate republish loop. See DESIGN-cloud-pull.md Q5.
+  function applyPathsFromCloud(docs){
+    if (!docs || typeof docs !== 'object') return false;
+    const ids = Object.keys(docs);
+    if (ids.length === 0) return false;
+    for (const id of ids){
+      PATHS[id] = docs[id];
+    }
+    try { localStorage.setItem(LS_KEY, JSON.stringify(PATHS)); } catch(e){}
+    _rebuildPathIndexes();
+    try { window.dispatchEvent(new CustomEvent('gcc-subhex-changed', { detail: { reason: 'cloud-pull' } })); } catch(_){}
+    // Dirty count may have changed if we overwrote previously-dirty
+    // local paths (force-pull case). Fire so the badge refreshes.
+    _emitDirtyChange();
+    return true;
   }
 
   function pathDocId(localId){ return `path_${localId}`; }
@@ -838,5 +868,6 @@
     subhexBoundaryInfo, boundaryCellBetweenParents,
     exportPaths, importPaths,
     getDirty, getDirtyCount, markPublished,
+    applyPathsFromCloud,
   };
 })();

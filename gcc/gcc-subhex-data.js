@@ -1,4 +1,14 @@
-// gcc-subhex-data.js v2.10.0 — 2026-05-12
+// gcc-subhex-data.js v2.11.0 — 2026-05-13
+// v2.11.0: cloud→local pull receivers. applyOverridesFromCloud(docs)
+//          updates in-memory OVERRIDES, calls GCCSubhexStore.
+//          applyFromCloud for IDB persistence, rebuilds lake indexes,
+//          emits 'gcc-subhex-changed' (reason: 'cloud-pull').
+//          applyLakesFromCloud(docs) replaces matching LAKES entries
+//          in place, persists to localStorage, rebuilds indexes,
+//          emits both 'gcc-subhex-changed' and the dirty-changed
+//          event. Neither stamps _dirtyAt; this is the path that
+//          dodges the publish→pull→republish loop. See
+//          DESIGN-cloud-pull.md Q5.
 // v2.10.0: lakes — dirty tracking for cloud publish. createLake,
 //          renameLake, updateLake stamp `_dirtyAt`; importLakes
 //          stamps all docs. New exports: getDirtyLakes,
@@ -627,6 +637,47 @@
     try { localStorage.setItem(LS_LAKES_KEY, JSON.stringify(LAKES)); }
     catch(e){ _reportStorageError(LS_LAKES_KEY, e); }
     _emitLakeDirtyChange();
+  }
+
+  // ── Cloud → local apply ────────────────────────────────────────────
+  // Pull receivers for subhex cells and lakes. Both bypass dirty-
+  // stamping so pulled docs don't immediately re-publish. Cloud docs
+  // carry _publishedAt and no _dirtyAt by construction. See
+  // DESIGN-cloud-pull.md Q5.
+  //
+  // applyOverridesFromCloud uses GCCSubhexStore.applyFromCloud for
+  // IDB persistence (the canonical store) and also updates the in-
+  // memory OVERRIDES so renderers see the change without waiting
+  // for IDB rehydrate.
+  function applyOverridesFromCloud(docs){
+    if (!docs || typeof docs !== 'object') return Promise.resolve();
+    const ids = Object.keys(docs);
+    if (ids.length === 0) return Promise.resolve();
+    for (const id of ids){
+      OVERRIDES[id] = docs[id];
+    }
+    _rebuildLakeIndexes();
+    try { window.dispatchEvent(new CustomEvent('gcc-subhex-changed', { detail: { reason: 'cloud-pull' } })); } catch(_){}
+    if (window.GCCSubhexStore && typeof window.GCCSubhexStore.applyFromCloud === 'function'){
+      return window.GCCSubhexStore.applyFromCloud(docs);
+    }
+    return Promise.resolve();
+  }
+  function applyLakesFromCloud(docs){
+    if (!docs || typeof docs !== 'object') return false;
+    const ids = Object.keys(docs);
+    if (ids.length === 0) return false;
+    for (const id of ids){
+      LAKES[id] = docs[id];
+    }
+    try { localStorage.setItem(LS_LAKES_KEY, JSON.stringify(LAKES)); }
+    catch(e){ _reportStorageError(LS_LAKES_KEY, e); }
+    _rebuildLakeIndexes();
+    try { window.dispatchEvent(new CustomEvent('gcc-subhex-changed', { detail: { reason: 'cloud-pull' } })); } catch(_){}
+    // Dirty count may have changed if we overwrote previously-dirty
+    // local lakes (force-pull case). Fire so the badge refreshes.
+    _emitLakeDirtyChange();
+    return true;
   }
 
   function subhexId(Q, R){ return `subhex_${Q}_${R}`; }
@@ -1314,6 +1365,7 @@
     listLakes, lakesInParent, getLake, createLake, renameLake, updateLake, deleteLake,
     setCellLake, unsetCellLake, lakeMembers, gcLakeIfEmpty, parentHasLakeAuthoring,
     getDirtyLakes, getDirtyLakeCount, markLakesPublished,
+    applyOverridesFromCloud, applyLakesFromCloud,
     allAuthored, authoredCount,
     exportOverrides, importOverrides,
     exportRegions, importRegions,

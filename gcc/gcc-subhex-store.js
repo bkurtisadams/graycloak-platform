@@ -1,4 +1,9 @@
-// gcc-subhex-store.js v0.3.0 — 2026-05-12
+// gcc-subhex-store.js v0.4.0 — 2026-05-13
+// v0.4.0 — applyFromCloud(docs) — cloud→local pull receiver. Writes
+//          docs to IDB without stamping _dirtyAt, so pulled entries
+//          don't immediately republish themselves. Separate from
+//          put/putBatch (which stamp dirty by design for the local-
+//          edit path). See DESIGN-cloud-pull.md Q5.
 // v0.3.0 — dirty tracking for cloud publish. put/putBatch stamp
 //          _dirtyAt on each entry. markPublished(ids, ts) clears
 //          _dirtyAt and sets _publishedAt after successful cloud
@@ -268,6 +273,47 @@
     });
     return _writeQ;
   }
+  // ── Cloud → local apply ────────────────────────────────────────────
+  // applyFromCloud receives docs pulled from Firestore and writes
+  // them to IDB WITHOUT stamping _dirtyAt. Cloud docs carry
+  // _publishedAt and no _dirtyAt by construction (publish strips
+  // _dirtyAt before writing). Using put/putBatch here would re-stamp
+  // dirty and trigger an immediate republish loop. See
+  // DESIGN-cloud-pull.md Q5.
+  function applyFromCloud(docs){
+    if (!docs || typeof docs !== 'object') return Promise.resolve();
+    const ids = Object.keys(docs);
+    if (ids.length === 0) return Promise.resolve();
+    _writeQ = _writeQ.then(async () => {
+      await ready();
+      try {
+        let i = 0;
+        while (i < ids.length){
+          const tx = _db.transaction(STORE_NAME, 'readwrite');
+          const store = tx.objectStore(STORE_NAME);
+          const chunkEnd = Math.min(i + BATCH_CHUNK, ids.length);
+          for (; i < chunkEnd; i++){
+            const id = ids[i];
+            const entry = docs[id];
+            store.put(entry, id);
+          }
+          await new Promise((resolve, reject) => {
+            tx.oncomplete = () => resolve();
+            tx.onerror    = () => reject(tx.error);
+            tx.onabort    = () => reject(tx.error || new Error('applyFromCloud tx aborted'));
+          });
+        }
+        // Dirty count may have changed if we overwrote previously-
+        // dirty local entries (force-pull case). Fire so the badge
+        // refreshes.
+        _emitDirtyChange();
+      } catch(e){
+        console.error('[SubhexStore] applyFromCloud failed:', e);
+        _emitError(e);
+      }
+    });
+    return _writeQ;
+  }
   function clear(){
     _writeQ = _writeQ.then(async () => {
       await ready();
@@ -384,6 +430,7 @@
   window.GCCSubhexStore = {
     ready, bootSnapshot, loadAll,
     put, putBatch, remove, clear, flush,
+    applyFromCloud,
     getDirty, getDirtyCount, markPublished,
     writeBootCache,
     // Test hooks
