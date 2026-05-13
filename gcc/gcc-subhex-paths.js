@@ -191,8 +191,12 @@
     if (!docs || typeof docs !== 'object') return false;
     const ids = Object.keys(docs);
     if (ids.length === 0) return false;
+    // Cloud collection 'paths/' keys docs by slug ('selintan').
+    // Local PATHS storage keys by full doc id ('path_selintan').
+    // Translate at the boundary so callers can pass cloud-keyed docs
+    // directly. Matches the markPublished(ids, ts) convention.
     for (const id of ids){
-      PATHS[id] = docs[id];
+      PATHS[pathDocId(id)] = docs[id];
     }
     try { localStorage.setItem(LS_KEY, JSON.stringify(PATHS)); } catch(e){}
     _rebuildPathIndexes();
@@ -860,6 +864,7 @@
 
   window.GCCSubhexPaths = {
     PATH_KINDS, RIVER_TIERS, SCHEMA_VERSION,
+    pathDocId, parsePathDocId,
     listPaths, pathsInParent, getPath, findByKindName, createPath, renamePath, deletePath,
     appendCell, popCell, truncateBefore, prependCell, truncateAfter, pathsAtCell, isNeighbor,
     setPathTier, setPathHeadwaters, setPathMouth, reverseCells,

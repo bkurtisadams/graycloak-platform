@@ -667,8 +667,12 @@
     if (!docs || typeof docs !== 'object') return false;
     const ids = Object.keys(docs);
     if (ids.length === 0) return false;
+    // Cloud collection 'lakes/' keys docs by slug ('quagflow').
+    // Local LAKES storage keys by full doc id ('lake_quagflow').
+    // Translate at the boundary so callers can pass cloud-keyed docs
+    // directly. Matches the markLakesPublished(ids, ts) convention.
     for (const id of ids){
-      LAKES[id] = docs[id];
+      LAKES[lakeDocId(id)] = docs[id];
     }
     try { localStorage.setItem(LS_LAKES_KEY, JSON.stringify(LAKES)); }
     catch(e){ _reportStorageError(LS_LAKES_KEY, e); }
