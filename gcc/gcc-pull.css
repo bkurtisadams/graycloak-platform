@@ -1,4 +1,7 @@
-/* gcc-pull.css v0.1.0 — 2026-05-13
+/* gcc-pull.css v0.1.1 — 2026-05-13
+   v0.1.1 — tint pull button glyph green to distinguish from
+     publish's gold ⬆ at a glance. Matches the pull badge color
+     scheme already in place. Publish styling untouched.
    v0.1.0 — initial pull UI.
    ⬇ Pull nav button + pull confirm/progress modal.
    Builds on .gcc-nav-btn from gcc-header.css. Mirrors
@@ -6,7 +9,11 @@
    modules stay independent.
    See DESIGN-cloud-pull.md Q8. */
 
-.gcc-pull-btn { position: relative; }
+.gcc-pull-btn {
+  position: relative;
+  color: #8bc34a;
+}
+.gcc-pull-btn:hover { color: #aede6d; }
 .gcc-pull-btn:disabled { opacity: 0.5; cursor: wait; }
 
 /* Badge reserved for v0.2; no element rendered in v0.1.0. */
