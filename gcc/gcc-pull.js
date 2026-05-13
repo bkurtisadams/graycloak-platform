@@ -1,4 +1,10 @@
-// gcc-pull.js v0.2.0 — 2026-05-13
+// gcc-pull.js v0.2.1 — 2026-05-13
+// v0.2.1 — loadFirestoreSdk race fix. When publish.js loads the SDK
+//          first, pull.js's previous "script tag exists" check
+//          resolved before the script finished loading, causing
+//          `firebase.firestore is not a function`. Now polls for
+//          actual SDK readiness with a 10s timeout when a tag is
+//          already present.
 // v0.2.0 — UI: ⬇ button next to ⬆ publish (hidden until GM
 //          verified). Click runs previewPull, opens confirm dialog
 //          with per-source add/update/skip breakdown; force-overwrite
@@ -49,9 +55,35 @@
   let _pulling = false;
 
   // ── SDK & GM gating (mirrors gcc-publish.js) ───────────────────────
+  // loadFirestoreSdk has a subtle race with gcc-publish.js: both
+  // modules' onAuthChange callbacks fire on the same auth event,
+  // and both call loadFirestoreSdk. Whichever runs first inserts the
+  // <script> tag. The other previously did `document.querySelector(
+  // script[src=...])` and resolved immediately on tag presence —
+  // but the tag exists before the SDK has loaded. Result:
+  // `firebase.firestore is not a function`. Fix: when the tag is
+  // present but the SDK isn't ready, poll firebase.firestore until
+  // it's a function (or timeout at 10s).
   function loadFirestoreSdk(){
     return new Promise((resolve, reject) => {
-      if (document.querySelector(`script[src="${FB_FIRESTORE_URL}"]`)){ resolve(); return; }
+      if (window.firebase && typeof window.firebase.firestore === 'function'){
+        resolve(); return;
+      }
+      const existing = document.querySelector(`script[src="${FB_FIRESTORE_URL}"]`);
+      if (existing){
+        const t0 = Date.now();
+        const poll = () => {
+          if (window.firebase && typeof window.firebase.firestore === 'function'){
+            resolve();
+          } else if (Date.now() - t0 > 10000){
+            reject(new Error('firestore SDK load timeout (another module loaded the tag but SDK never became ready)'));
+          } else {
+            setTimeout(poll, 50);
+          }
+        };
+        poll();
+        return;
+      }
       const s = document.createElement('script');
       s.src = FB_FIRESTORE_URL;
       s.onload = resolve;
