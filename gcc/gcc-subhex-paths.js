@@ -1,4 +1,11 @@
-// gcc-subhex-paths.js v2.2.0 — 2026-05-12
+// gcc-subhex-paths.js v2.3.0 — 2026-05-12
+// v2.3.0: head-end editing. Add prependCell(localId, Q, R) and
+//         truncateAfter(localId, Q, R) — mirrors of appendCell /
+//         truncateBefore acting on the head of the cells[] array.
+//         Used by the Path tool's new "Extend from: head | tail"
+//         toggle (gcc-map-subhex-palette v1.4.0) so the GM can
+//         grow or trim either end without the Reverse round-trip.
+// v2.2.0 — 2026-05-12
 // v2.2.0: dirty tracking for cloud publish. Each writer stamps
 //         `_dirtyAt` on the affected path doc; `getDirty`,
 //         `getDirtyCount`, and `markPublished` surface the dirty
@@ -333,6 +340,43 @@
     const idx = p.cells.findIndex(c => c.Q === Q && c.R === R);
     if (idx < 0) return false;
     p.cells.splice(idx);
+    p.authoredAt = Date.now();
+    _markDirty(localId);
+    save();
+    return true;
+  }
+
+  // Prepend a cell to the head of a path. Mirror of appendCell on the
+  // opposite end. Validates adjacency to current first cell (or
+  // empty-path start). Used by the Path tool's "Extend from: head"
+  // mode so the GM can grow either end without round-tripping
+  // through Reverse.
+  function prependCell(localId, Q, R){
+    const p = getPath(localId);
+    if (!p) return false;
+    const first = p.cells.length ? p.cells[0] : null;
+    if (first){
+      if (first.Q === Q && first.R === R) return false;
+      if (!isNeighbor(first, { Q, R })) return false;
+    }
+    p.cells.unshift({ Q, R });
+    p.authoredAt = Date.now();
+    _markDirty(localId);
+    save();
+    return true;
+  }
+
+  // Truncate the path at the first cell matching (Q, R): keep all
+  // cells AFTER it, drop that cell and everything before. Mirror of
+  // truncateBefore for head-end editing — clicking an armed path's
+  // cell while in head mode means "I want the path to start AFTER
+  // here."
+  function truncateAfter(localId, Q, R){
+    const p = getPath(localId);
+    if (!p || !p.cells.length) return false;
+    const idx = p.cells.findIndex(c => c.Q === Q && c.R === R);
+    if (idx < 0) return false;
+    p.cells.splice(0, idx + 1);
     p.authoredAt = Date.now();
     _markDirty(localId);
     save();
@@ -787,7 +831,7 @@
   window.GCCSubhexPaths = {
     PATH_KINDS, RIVER_TIERS, SCHEMA_VERSION,
     listPaths, pathsInParent, getPath, findByKindName, createPath, renamePath, deletePath,
-    appendCell, popCell, truncateBefore, pathsAtCell, isNeighbor,
+    appendCell, popCell, truncateBefore, prependCell, truncateAfter, pathsAtCell, isNeighbor,
     setPathTier, setPathHeadwaters, setPathMouth, reverseCells,
     parentHasPathAuthoring, parentHasSubhexPaths,
     pathsCrossingParentEdge, edgeKey,

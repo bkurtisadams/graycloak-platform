@@ -1,4 +1,14 @@
-// gcc-map-subhex-renderer.js v1.4.1 — 2026-05-11
+// gcc-map-subhex-renderer.js v1.5.0 — 2026-05-12
+// v1.5.0 — Path-click handler reads a.extendEnd from the armed
+//          payload. 'head' routes to GCCSubhexPaths.prependCell /
+//          truncateAfter; 'tail' (default, back-compat) keeps the
+//          existing appendCell / truncateBefore. Marker-click arm
+//          site (line 882) stamps extendEnd via
+//          GCCMapSubhexPalette.getExtendEnd() so the toggle state
+//          survives even when arming happens from a marker click
+//          rather than the picker. Wired by palette v1.4.0; paths
+//          functions added in gcc-subhex-paths v2.3.0.
+// v1.4.1 — 2026-05-11
 // v1.4.1 — #15 instrumentation. renderParentPathMarkers and placeMarker
 // emit a [Paths] trace when window.GCC_DEBUG_PATHS is truthy: per-parent
 // segment count, per-seg skip reason (no color / invalid edge),
@@ -448,12 +458,20 @@
       // Path tool doesn't drag-paint; click-only. brushing guard
       // matches legacy gcc-subhex-view.js paintCell.
       if (rs.brushing) return;
+      // Which end of the path do clicks act on? Default 'tail' for
+      // back-compat with payloads that predate v1.4.0 of the
+      // palette. 'head' routes to prependCell / truncateAfter.
+      const extendEnd = a.extendEnd === 'head' ? 'head' : 'tail';
       // Re-clicking an already-laid cell truncates from that cell
-      // onward. Otherwise append-if-adjacent.
+      // onward (tail) or backward (head). Otherwise extend-if-adjacent.
       const armedPath = P() && P().getPath(a.value);
       const onArmed = armedPath && armedPath.cells.some(c => c.Q === Q && c.R === R);
       if (onArmed){
-        P().truncateBefore(a.value, Q, R);
+        if (extendEnd === 'head'){
+          P().truncateAfter(a.value, Q, R);
+        } else {
+          P().truncateBefore(a.value, Q, R);
+        }
         if (window.GCCMapSubhexPalette){
           window.GCCMapSubhexPalette.rebuildPathPicker(a.value);
         }
@@ -462,16 +480,20 @@
         notifyPaintedCell(Q, R);
         return;
       }
-      const ok = P().appendCell(a.value, Q, R);
+      const ok = extendEnd === 'head'
+        ? P().prependCell(a.value, Q, R)
+        : P().appendCell(a.value, Q, R);
       if (!ok){
-        // appendCell rejects when the click isn't axially adjacent to
-        // the path's last cell. Surface a flash so the GM isn't left
-        // wondering why the click was silently ignored.
+        // append/prependCell rejects when the click isn't axially
+        // adjacent to the path's last/first cell. Surface a flash so
+        // the GM isn't left wondering why the click was silently
+        // ignored.
         const ap = P().getPath(a.value);
         if (window.GCCMapSubhexPalette){
           if (ap && ap.cells.length){
-            const last = ap.cells[ap.cells.length - 1];
-            window.GCCMapSubhexPalette.flash(`Not adjacent to path's last cell (Q${last.Q}, R${last.R})`);
+            const target = extendEnd === 'head' ? ap.cells[0] : ap.cells[ap.cells.length - 1];
+            const label = extendEnd === 'head' ? 'first' : 'last';
+            window.GCCMapSubhexPalette.flash(`Not adjacent to path's ${label} cell (Q${target.Q}, R${target.R})`);
           } else {
             window.GCCMapSubhexPalette.flash('Could not extend path');
           }
@@ -879,7 +901,9 @@
       }
     }
     rs.markerHighlight = { col: parentCol, row: parentRow, segIndex, edge };
-    rs.armed = { type: 'path', value: pathId };
+    const extendEnd = window.GCCMapSubhexPalette && window.GCCMapSubhexPalette.getExtendEnd
+      ? window.GCCMapSubhexPalette.getExtendEnd() : 'tail';
+    rs.armed = { type: 'path', value: pathId, extendEnd };
     window.GCCMapSubhexPalette.armPathFromMarker(pathId);
     _ctx.requestRender();
   }

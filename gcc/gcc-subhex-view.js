@@ -1,4 +1,11 @@
-// gcc-subhex-view.js v3.1.0 — 2026-05-09
+// gcc-subhex-view.js v3.2.0 — 2026-05-12
+// v3.2.0 — Mirror unified renderer's path-click dispatch on
+//          a.extendEnd. Legacy floating window has no toggle UI
+//          yet, so the value defaults to 'tail' (existing behavior)
+//          unless callers explicitly set it on the armed payload.
+//          Uses GCCSubhexPaths.prependCell / truncateAfter (added
+//          in v2.3.0) when extendEnd === 'head'.
+// v3.1.0 — 2026-05-09
 // v3.1.0 — Path B subhex fullview, Slice 3. Multi-parent tiling
 // rendering. rebuildSVG no longer iterates fragmentsForParent /
 // ownedByParent for a single centered parent; instead it enumerates
@@ -2318,6 +2325,13 @@
       }
     } else if (a.type === 'path'){
       if (state.brushing) return;
+      // Which end of the path do clicks act on? Default 'tail' for
+      // back-compat with payloads that predate the head|tail toggle.
+      // The unified shell's palette (v1.4.0+) stamps a.extendEnd;
+      // the legacy floating window doesn't have the toggle UI yet,
+      // so the value is always 'tail' here unless callers explicitly
+      // set it.
+      const extendEnd = a.extendEnd === 'head' ? 'head' : 'tail';
       // If the clicked cell is already part of the armed path, treat
       // the click as "remove this cell and everything after it." This
       // is the natural inverse of append — re-clicking a cell you
@@ -2326,7 +2340,11 @@
       const armedPath = window.GCCSubhexPaths.getPath(a.value);
       const onArmed = armedPath && armedPath.cells.some(c => c.Q === Q && c.R === R);
       if (onArmed){
-        window.GCCSubhexPaths.truncateBefore(a.value, Q, R);
+        if (extendEnd === 'head'){
+          window.GCCSubhexPaths.truncateAfter(a.value, Q, R);
+        } else {
+          window.GCCSubhexPaths.truncateBefore(a.value, Q, R);
+        }
         const svg = state.win?.querySelector('#sxw-svg');
         if (svg){ renderPaths(svg); renderParentPathMarkers(svg); renderCrossings(svg); }
         rebuildPathArmedPicker();
@@ -2337,18 +2355,21 @@
         if (Q === state.selectedQ && R === state.selectedR) syncDetailPanel();
         return;
       }
-      const ok = window.GCCSubhexPaths.appendCell(a.value, Q, R);
+      const ok = extendEnd === 'head'
+        ? window.GCCSubhexPaths.prependCell(a.value, Q, R)
+        : window.GCCSubhexPaths.appendCell(a.value, Q, R);
       if (!ok){
-        // appendCell rejected. The two reasons it returns false at this
-        // point: (1) the click was on the last cell of the path — but
-        // we've already handled that via the truncate branch above, so
-        // we won't reach here for that case. (2) the click was on a
-        // cell that's not axially adjacent to the path's last cell.
-        // The latter is the silent-failure case we want to surface.
+        // append/prependCell rejected. The two reasons it returns
+        // false at this point: (1) the click was on the matched-end
+        // cell of the path — but we've already handled that via the
+        // truncate branch above. (2) the click was on a cell that's
+        // not axially adjacent to the path's matched-end cell. The
+        // latter is the silent-failure case we want to surface.
         const armedPath = window.GCCSubhexPaths.getPath(a.value);
         if (armedPath && armedPath.cells.length){
-          const last = armedPath.cells[armedPath.cells.length - 1];
-          flashMode(`Not adjacent to path's last cell (Q${last.Q}, R${last.R})`);
+          const target = extendEnd === 'head' ? armedPath.cells[0] : armedPath.cells[armedPath.cells.length - 1];
+          const label = extendEnd === 'head' ? 'first' : 'last';
+          flashMode(`Not adjacent to path's ${label} cell (Q${target.Q}, R${target.R})`);
         } else {
           flashMode('Could not extend path');
         }

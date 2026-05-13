@@ -1,4 +1,14 @@
-// gcc-map-subhex-palette.js v1.3.1 — 2026-05-12
+// gcc-map-subhex-palette.js v1.4.0 — 2026-05-12
+// v1.4.0 — Path tool "Extend from: head | tail" segmented toggle
+//          in the path callout pane. Selecting 'head' re-arms with
+//          extendEnd:'head' on the armed payload; the renderer
+//          (gcc-map-subhex-renderer v1.5.0) dispatches clicks to
+//          prependCell/truncateAfter instead of appendCell/
+//          truncateBefore. Mode label reflects current end. New
+//          getExtendEnd() export for the renderer's marker-click
+//          re-arm at line 882. Replaces the reverse-edit-reverse
+//          round-trip GMs were doing to author the head end.
+// v1.3.1 — 2026-05-12
 // v1.3.1 — syncDetailPanel sets sxw-source-{authored|canonical|
 //          procedural} state class on the .sxw-source element so
 //          gcc-map.css v0.2.5 can style the authored state with a
@@ -63,6 +73,12 @@
   const MAX_UNDO = 20;
   let _undoStack = [];
   let _currentStroke = null;
+  // Path-tool "Extend from" mode. 'tail' (default) = appendCell /
+  // truncateBefore behavior (legacy). 'head' = prependCell /
+  // truncateAfter — extend or trim the front of the path without
+  // a Reverse round-trip. Re-armed onto the path payload so the
+  // renderer's click handler can dispatch correctly.
+  let _extendEnd = 'tail';
 
   function R(){ return window.GCCMapSubhexRenderer; }
   function D(){ return window.GCCSubhexData; }
@@ -149,7 +165,8 @@
       const path = P() ? P().getPath(a.value) : null;
       const pname = path ? path.name : '(unknown)';
       const len = path ? path.cells.length : 0;
-      el.textContent = `Mode: Extend path · ${pname} · ${len} cell${len === 1 ? '' : 's'} · click neighbor to extend, click own cell to truncate`;
+      const end = a.extendEnd === 'head' ? 'head' : 'tail';
+      el.textContent = `Mode: Extend path · ${pname} · ${len} cell${len === 1 ? '' : 's'} · from ${end} · click neighbor to extend, click own cell to truncate`;
     } else {
       const lbl = (window.TERRAIN && window.TERRAIN[a.value])
         ? (window.TERRAIN[a.value].label || a.value) : a.value;
@@ -410,14 +427,14 @@
         flashMode(`"${existing.name}" already exists — armed for extension instead of creating a new ${kind}`);
         rebuildPathArmedPicker();
         ev.target.value = existing.id;
-        R_.setArmed({ type: 'path', value: existing.id });
+        R_.setArmed({ type: 'path', value: existing.id, extendEnd: _extendEnd });
         R_.setMarkerHighlight(null);
       } else {
         const path = P().createPath(kind, name);
         if (!path){ ev.target.value = ''; return; }
         rebuildPathArmedPicker();
         ev.target.value = path.id;
-        R_.setArmed({ type: 'path', value: path.id });
+        R_.setArmed({ type: 'path', value: path.id, extendEnd: _extendEnd });
         R_.setMarkerHighlight(null);
       }
     } else if (val){
@@ -425,7 +442,7 @@
       // the marker highlight when the new path's kind+name matched the
       // highlighted segment; in practice GMs always either follow the
       // marker or pick a fresh path. Clear unconditionally.
-      R_.setArmed({ type: 'path', value: val });
+      R_.setArmed({ type: 'path', value: val, extendEnd: _extendEnd });
       R_.setMarkerHighlight(null);
     } else {
       R_.setArmed(null);
@@ -516,6 +533,27 @@
     syncModeLabel();
     syncPathActionButtons();
     flashMode(`Reversed flow of ${path.name}`);
+  }
+  // Segmented toggle: which end of the path do click-extends and
+  // click-truncates act on? Defaults to 'tail' (legacy behavior).
+  // Updates _extendEnd, refreshes button .active state, and re-arms
+  // with the new end so the renderer's click handler dispatches to
+  // prependCell/truncateAfter or appendCell/truncateBefore.
+  function onExtendEndClick(ev){
+    const btn = ev.currentTarget;
+    const end = btn.dataset.end === 'head' ? 'head' : 'tail';
+    if (end === _extendEnd) return;
+    _extendEnd = end;
+    if (_container){
+      _container.querySelectorAll('.sxw-path-end-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.end === _extendEnd);
+      });
+    }
+    const R_ = R(); const a = R_ ? R_.getArmed() : null;
+    if (a && a.type === 'path' && R_){
+      R_.setArmed(Object.assign({}, a, { extendEnd: _extendEnd }));
+    }
+    syncModeLabel();
   }
   function onPathEditClick(){
     const R_ = R(); const a = R_ ? R_.getArmed() : null;
@@ -1366,6 +1404,11 @@
             <span class="sxw-callout-label">Path:</span>
             <select class="sxw-path-armed" id="sxw-path-armed"></select>
           </div>
+          <div class="sxw-path-end-row">
+            <span class="sxw-callout-label">Extend from:</span>
+            <button class="sxw-path-end-btn" data-end="head" title="Extend or trim the head (start) of the path">head</button>
+            <button class="sxw-path-end-btn active" data-end="tail" title="Extend or trim the tail (end) of the path">tail</button>
+          </div>
           <div class="sxw-path-actions">
             <button class="sxw-tool-btn sxw-path-action" id="sxw-path-undo" title="Remove the last cell of the armed path">↶ Undo</button>
             <button class="sxw-tool-btn sxw-path-action" id="sxw-path-rename" title="Rename the armed path">✎ Rename</button>
@@ -1477,6 +1520,10 @@
     findEl('sxw-path-reverse').addEventListener('click', onPathReverseClick);
     findEl('sxw-path-delete').addEventListener('click', onPathDeleteClick);
     findEl('sxw-path-done').addEventListener('click', onPathDoneClick);
+    // Extend-from toggle (segmented head|tail)
+    container.querySelectorAll('.sxw-path-end-btn').forEach(btn => {
+      btn.addEventListener('click', onExtendEndClick);
+    });
     // Detail-panel persistence
     findEl('sxw-name').addEventListener('blur', persistFields);
     findEl('sxw-notes').addEventListener('blur', persistFields);
@@ -1545,5 +1592,6 @@
     beginStroke,
     captureBefore,
     endStroke,
+    getExtendEnd(){ return _extendEnd; },
   };
 })();
