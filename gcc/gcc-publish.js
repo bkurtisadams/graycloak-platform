@@ -1,4 +1,13 @@
-// gcc-publish.js v0.3.0 — 2026-05-12
+// gcc-publish.js v0.4.0 — 2026-05-13
+// v0.4.0 — Confirm dialog enumerates dirty entries when each source
+//          has ≤ ENUMERATE_THRESHOLD (5) dirty items. Each source
+//          renders its entries via renderDirtyEntry — subhex shows
+//          parent Darlene label + (Q,R) + terrain/feature; lakes
+//          show name + kind + depth; paths show kind + name + cell
+//          count. Sources over the threshold fall back to count-only
+//          to keep the dialog scannable. renderDirtyEntry exported
+//          on window.GCCPublish for reuse by Option B (dirty
+//          inspector dialog).
 // v0.3.0 — Publish walks three sources: IDB subhex overrides
 //          (existing), in-memory lakes (gcc-subhex-data), and
 //          in-memory paths (gcc-subhex-paths). Each gets its own
@@ -204,12 +213,108 @@
   function showButton(){ if (_btnEl) _btnEl.style.display = ''; refreshBadge(); }
   function hideButton(){ if (_btnEl) _btnEl.style.display = 'none'; }
 
-  function confirmPublishDialog(counts){
+  // ─── Dirty-entry enumeration (for confirm dialog) ──────────────────
+  // Threshold beyond which we just show a count rather than listing
+  // every entry. Keeps the dialog scannable.
+  const ENUMERATE_THRESHOLD = 5;
+
+  // Fetch entries from sources whose count is at-or-under threshold.
+  // Sources over threshold get null (skip the read entirely for
+  // subhex since IDB cursor walk isn't free at 50k+ entries).
+  async function getDirtyDetails(counts){
+    const out = { subhex: null, lakes: null, paths: null };
+    if (counts.subhex > 0 && counts.subhex <= ENUMERATE_THRESHOLD){
+      if (window.GCCSubhexStore){
+        try { out.subhex = await window.GCCSubhexStore.getDirty(); }
+        catch(e){ console.warn('[Publish] getDirty(subhex) failed:', e); }
+      }
+    }
+    if (counts.lakes > 0 && counts.lakes <= ENUMERATE_THRESHOLD){
+      if (window.GCCSubhexData && window.GCCSubhexData.getDirtyLakes){
+        try { out.lakes = window.GCCSubhexData.getDirtyLakes(); }
+        catch(e){ console.warn('[Publish] getDirtyLakes failed:', e); }
+      }
+    }
+    if (counts.paths > 0 && counts.paths <= ENUMERATE_THRESHOLD){
+      if (window.GCCSubhexPaths && window.GCCSubhexPaths.getDirty){
+        try { out.paths = window.GCCSubhexPaths.getDirty(); }
+        catch(e){ console.warn('[Publish] getDirty(paths) failed:', e); }
+      }
+    }
+    return out;
+  }
+
+  // Human-readable line for a single dirty entry. Pure function;
+  // reusable by Option B (dirty inspector). idOrSlug is the IDB key
+  // for subhex ('subhex_Q_R') and the slug for lakes/paths.
+  function renderDirtyEntry(source, idOrSlug, entry){
+    if (!entry) return String(idOrSlug);
+    if (source === 'subhex'){
+      const m = /^subhex_(-?\d+)_(-?\d+)$/.exec(idOrSlug);
+      if (!m) return String(idOrSlug);
+      const Q = +m[1], R = +m[2];
+      let parentLabel = '?';
+      try {
+        if (window.GCCSubhexData && window.GCCSubhexData.ownerOf
+            && typeof window.hexIdStr === 'function'){
+          const owner = window.GCCSubhexData.ownerOf(Q, R);
+          if (owner) parentLabel = window.hexIdStr(owner.col, owner.row);
+        }
+      } catch(_){}
+      const bits = [];
+      if (entry.terrain)  bits.push(entry.terrain);
+      if (entry.feature)  bits.push('+ ' + entry.feature);
+      if (entry.regionId) bits.push('region:' + entry.regionId);
+      if (entry.lakeId)   bits.push('lake:' + entry.lakeId);
+      const content = bits.length ? bits.join(' ') : '(cleared)';
+      return `${parentLabel} (Q${Q},R${R}) — ${content}`;
+    }
+    if (source === 'lakes'){
+      const name = entry.name || idOrSlug;
+      const kind = entry.kind || 'lake';
+      const depth = entry.depth ? `, ${entry.depth}` : '';
+      const Label = kind === 'sea' ? 'Sea' : 'Lake';
+      return `${Label} "${name}" (${kind}${depth})`;
+    }
+    if (source === 'paths'){
+      const name = entry.name || idOrSlug;
+      const kind = entry.kind || 'path';
+      const cells = Array.isArray(entry.cells) ? entry.cells.length : 0;
+      const Label = kind.charAt(0).toUpperCase() + kind.slice(1);
+      const tier = entry.tier ? `${entry.tier}, ` : '';
+      return `${Label} "${name}" (${tier}${cells} cell${cells === 1 ? '' : 's'})`;
+    }
+    return String(idOrSlug);
+  }
+
+  // Render a single source's <div class="gcc-publish-source-group">
+  // block (label + bulleted entries). Returns '' if no entries.
+  function renderSourceGroup(label, source, entries){
+    if (!entries || entries.length === 0) return '';
+    const rows = entries.map(([idOrSlug, entry]) =>
+      `<div class="gcc-publish-source-entry">${escapeHtml(renderDirtyEntry(source, idOrSlug, entry))}</div>`
+    ).join('');
+    return ''
+      + '<div class="gcc-publish-source-group">'
+      +   `<div class="gcc-publish-source-label">${escapeHtml(label)}:</div>`
+      +   rows
+      + '</div>';
+  }
+
+  function confirmPublishDialog(counts, details){
     const parts = [];
     if (counts.subhex) parts.push(`${counts.subhex} subhex cell${counts.subhex === 1 ? '' : 's'}`);
     if (counts.lakes)  parts.push(`${counts.lakes} lake${counts.lakes === 1 ? '' : 's'}`);
     if (counts.paths)  parts.push(`${counts.paths} path${counts.paths === 1 ? '' : 's'}`);
     const breakdown = parts.join(', ');
+    const detailsHtml = details ? (''
+        + renderSourceGroup('Subhex', 'subhex', details.subhex)
+        + renderSourceGroup('Lakes',  'lakes',  details.lakes)
+        + renderSourceGroup('Paths',  'paths',  details.paths)
+      ) : '';
+    const detailsBlock = detailsHtml
+      ? `<div class="gcc-publish-details">${detailsHtml}</div>`
+      : '';
     return new Promise((resolve) => {
       const dlg = document.createElement('div');
       dlg.className = 'gcc-publish-dialog';
@@ -219,6 +324,7 @@
         + '  <header>Confirm publish</header>'
         + `  <div class="gcc-publish-status">Push <b>${counts.total}</b> change${counts.total === 1 ? '' : 's'} to the cloud?</div>`
         + (breakdown ? `  <div class="gcc-publish-counts">${breakdown}</div>` : '')
+        + detailsBlock
         + '  <div class="gcc-publish-counts">Cloud state will be overwritten with your local state. To unpublish a change, undo it locally and publish again.</div>'
         + '  <footer>'
         + '    <button class="gcc-publish-close gcc-publish-cancel">Cancel</button>'
@@ -272,7 +378,8 @@
     const total = dirtyCounts.total;
     if (total === 0){ showToast('No changes to publish'); return; }
 
-    const proceed = await confirmPublishDialog(dirtyCounts);
+    const dirtyDetails = await getDirtyDetails(dirtyCounts);
+    const proceed = await confirmPublishDialog(dirtyCounts, dirtyDetails);
     if (!proceed) return;
 
     const dlg = showProgressDialog();
@@ -348,5 +455,5 @@
     init();
   }
 
-  window.GCCPublish = { publish, getDirtyCount, getDirtyCounts, refreshBadge, isGM: () => _isGM };
-})();
+  window.GCCPublish = { publish, getDirtyCount, getDirtyCounts, refreshBadge, isGM: () => _isGM, renderDirtyEntry };
+})();
