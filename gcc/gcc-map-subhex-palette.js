@@ -1,4 +1,10 @@
-// gcc-map-subhex-palette.js v1.3.0 — 2026-05-10
+// gcc-map-subhex-palette.js v1.3.1 — 2026-05-12
+// v1.3.1 — syncDetailPanel sets sxw-source-{authored|canonical|
+//          procedural} state class on the .sxw-source element so
+//          gcc-map.css v0.2.5 can style the authored state with a
+//          bold red treatment while leaving the other states tan.
+//          Text content unchanged.
+// v1.3.0 — 2026-05-10
 // v1.3.0 — Slice 5b followup — generic paint undo. ↶ Undo button in
 // the tools-row next to Clear. Stack of up to 20 strokes; one stroke
 // = one mousedown→mouseup cycle (drag = N cells, click = 1 cell).
@@ -1164,6 +1170,9 @@
     source.textContent = sub.source === 'authored' ? 'Authored override (localStorage)'
       : sub.source === 'canonical' ? 'Canonical Greyhawk feature'
       : 'Procedural — derived from world seed';
+    source.classList.toggle('sxw-source-authored',   sub.source === 'authored');
+    source.classList.toggle('sxw-source-canonical',  sub.source === 'canonical');
+    source.classList.toggle('sxw-source-procedural', sub.source !== 'authored' && sub.source !== 'canonical');
     clearB.disabled = (sub.source !== 'authored');
   }
 

@@ -1,4 +1,17 @@
-/* gcc-map.css v0.2.4 — 2026-05-10
+/* gcc-map.css v0.2.5 — 2026-05-12
+   v0.2.5: side-panel legibility pass.
+   - --gcc-map-section-h bumped #c8a96e → #d4a234 so section headers
+     (View / Selection / Tools) and row labels (TERRAIN, REGION) read
+     against the dark panel.
+   - New scoped overrides in the #gcc-map-tools-body block:
+     .sxw-more-fields > summary, .sxw-owner-hint, .sxw-source. All
+     three lived under body.theme-dark fallbacks in gcc-subhex.css
+     that don't fire on the unified shell (which uses
+     [data-gcc-theme="dark"]). Owner-hint loses the dark-red
+     (#8b0000) and matches the More Fields tan; source row gets a
+     red+bold treatment ONLY when state is authored (new
+     .sxw-source-authored class set from the palette JS).
+
    v0.2.4: subhex palette readability overrides (Slice 5a followup).
    gcc-subhex.css colors are calibrated for the legacy controls window
    on a light parchment background; in the unified shell's dark Tools
@@ -36,7 +49,7 @@
   --gcc-map-panel-fg:     #e8d5a3;
   --gcc-map-gold:         #c8941a;
   --gcc-map-gold-light:   #e8b840;
-  --gcc-map-section-h:    #c8a96e;
+  --gcc-map-section-h:    #d4a234;
   --gcc-map-bar-h:        44px;
   --gcc-map-panel-w:      300px;
 }
@@ -540,4 +553,44 @@ body.gcc-paths-hidden  #gcc-map-parent-paths { display: none; }
 #gcc-map-tools-body .sxw-feature-btn.armed {
   border-color: #ffeebb;
   box-shadow: 0 0 0 2px #e8b840;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   DETAIL-PANEL LEGIBILITY OVERRIDES (v0.2.5)
+   The subhex palette's <details> "More fields" expander, the
+   "Owned by …" badge, and the source-state caption all carry
+   body.theme-dark variants in gcc-subhex.css that never fire on
+   the unified shell (different theme convention). Scoped overrides
+   bring readable colors to #gcc-map-tools-body without touching
+   the legacy floating window.
+
+   The source caption uses three state classes set from
+   gcc-map-subhex-palette.js syncDetailPanel():
+     .sxw-source-authored   → red+bold (alarming, intentional)
+     .sxw-source-canonical  → readable tan
+     .sxw-source-procedural → readable tan
+   ════════════════════════════════════════════════════════════════════ */
+#gcc-map-tools-body .sxw-more-fields {
+  border-top-color: rgba(232,200,110,0.22);
+}
+#gcc-map-tools-body .sxw-more-fields > summary {
+  color: #c8a96e;
+}
+#gcc-map-tools-body .sxw-more-fields > summary:hover {
+  color: var(--gcc-map-section-h);
+}
+#gcc-map-tools-body .sxw-owner-hint {
+  color: #c8a96e;
+  background: rgba(200,169,110,0.10);
+  border-color: rgba(200,169,110,0.35);
+}
+#gcc-map-tools-body .sxw-source {
+  color: #e8d8b0;
+  opacity: 0.85;
+}
+#gcc-map-tools-body .sxw-source.sxw-source-authored {
+  font-size: 13px;
+  font-weight: 500;
+  color: #e25555;
+  opacity: 1;
 }
