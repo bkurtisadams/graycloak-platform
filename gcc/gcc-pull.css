@@ -1,4 +1,9 @@
-/* gcc-pull.css v0.1.1 — 2026-05-13
+/* gcc-pull.css v0.1.2 — 2026-05-13
+   v0.1.2 — full filled green pill for the pull button (background +
+     border + cream icon). Previous v0.1.1 color-only tint was nearly
+     invisible against light theme bars and provided no visual anchor
+     when no badge was showing. Filled pill reads at a glance in any
+     theme and pairs naturally with the existing green badge.
    v0.1.1 — tint pull button glyph green to distinguish from
      publish's gold ⬆ at a glance. Matches the pull badge color
      scheme already in place. Publish styling untouched.
@@ -11,9 +16,15 @@
 
 .gcc-pull-btn {
   position: relative;
-  color: #8bc34a;
+  background: #5b7a3a;
+  color: #ffe;
+  border-color: #3e5a25;
 }
-.gcc-pull-btn:hover { color: #aede6d; }
+.gcc-pull-btn:hover {
+  background: #6e9344;
+  border-color: #8bc34a;
+  color: #ffe;
+}
 .gcc-pull-btn:disabled { opacity: 0.5; cursor: wait; }
 
 /* Badge reserved for v0.2; no element rendered in v0.1.0. */
