@@ -1,4 +1,13 @@
-// gcc-subhex-data.js v2.11.0 — 2026-05-13
+// gcc-subhex-data.js v2.12.0 — 2026-05-13
+// v2.12.0: restoreOverride(Q, R, rawEntry) for undo support.
+//          Writes the raw pre-stroke OVERRIDES entry back including
+//          its original _dirtyAt / _publishedAt, WITHOUT re-stamping
+//          dirty. Pairs with the palette's captureBefore which now
+//          snapshots peekOverride(Q, R). Uses
+//          GCCSubhexStore.applyFromCloud for IDB persistence (the
+//          no-dirty-stamp write path built for cloud→local pull).
+//          Fixes the "undo leaves cells dirty" bug noted in
+//          gcc-map-subhex-palette.js v1.3.0's Known Limitations.
 // v2.11.0: cloud→local pull receivers. applyOverridesFromCloud(docs)
 //          updates in-memory OVERRIDES, calls GCCSubhexStore.
 //          applyFromCloud for IDB persistence, rebuilds lake indexes,
@@ -681,6 +690,44 @@
     // Dirty count may have changed if we overwrote previously-dirty
     // local lakes (force-pull case). Fire so the badge refreshes.
     _emitLakeDirtyChange();
+    return true;
+  }
+
+  // ── Undo restore ───────────────────────────────────────────────────
+  // restoreOverride writes a raw pre-stroke OVERRIDES entry back to
+  // local state without re-stamping _dirtyAt. The palette captures
+  // peekOverride(Q, R) at stroke start; on undo, the captured raw
+  // entry comes back here. Three cases:
+  //   rawEntry === null/undefined  → cell was procedural before;
+  //                                   delete the override (clearSubhex).
+  //   rawEntry has _dirtyAt        → cell was authored-and-dirty
+  //                                   before; restore as dirty.
+  //   rawEntry has no _dirtyAt     → cell was authored-and-clean
+  //                                   (published) before; restore
+  //                                   without re-marking dirty.
+  // Uses GCCSubhexStore.applyFromCloud for IDB persistence — same
+  // no-dirty-stamp path built for cloud→local pull (Slice 1).
+  function restoreOverride(Q, R, rawEntry){
+    const id = subhexId(Q, R);
+    if (!rawEntry){
+      return clearSubhex(Q, R);
+    }
+    OVERRIDES[id] = rawEntry;
+    _dirty.delete(id);
+    _deleted.delete(id);
+    if (window.GCCSubhexStore && typeof window.GCCSubhexStore.applyFromCloud === 'function'){
+      window.GCCSubhexStore.applyFromCloud({ [id]: rawEntry });
+    } else {
+      // Fallback for environments without GCCSubhexStore — write the
+      // whole OVERRIDES set to localStorage. Shouldn't normally happen
+      // in unified-map since store loads before data.
+      try { localStorage.setItem(LS_KEY, JSON.stringify(OVERRIDES)); } catch(_){}
+    }
+    _rebuildLakeIndexes();
+    try { window.dispatchEvent(new CustomEvent('gcc-subhex-changed', { detail: { reason: 'undo-restore' } })); } catch(_){}
+    // The dirty count may have changed (entry was previously dirty,
+    // now isn't, or vice versa). Fire so the publish badge refreshes.
+    try { window.dispatchEvent(new CustomEvent('gcc-subhex-dirty-changed')); } catch(_){}
     return true;
   }
 
@@ -1370,6 +1417,7 @@
     setCellLake, unsetCellLake, lakeMembers, gcLakeIfEmpty, parentHasLakeAuthoring,
     getDirtyLakes, getDirtyLakeCount, markLakesPublished,
     applyOverridesFromCloud, applyLakesFromCloud,
+    restoreOverride,
     allAuthored, authoredCount,
     exportOverrides, importOverrides,
     exportRegions, importRegions,

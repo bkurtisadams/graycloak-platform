@@ -1,4 +1,14 @@
-// gcc-map-subhex-palette.js v1.4.0 — 2026-05-12
+// gcc-map-subhex-palette.js v1.4.1 — 2026-05-13
+// v1.4.1 — Undo no longer leaves cells dirty. captureBefore now also
+//          snapshots peekOverride(Q, R) as `raw`. onUndoClick calls
+//          GCCSubhexData.restoreOverride which writes the pre-stroke
+//          entry back via the no-dirty-stamp path, including the
+//          original _dirtyAt / _publishedAt. Three cases handled:
+//            raw === null  → cell was procedural; clearSubhex.
+//            raw has _dirtyAt → was authored-dirty; restore dirty.
+//            raw no _dirtyAt → was authored-clean (published);
+//                              restore clean, badge decrements.
+//          Removes the "Known limitation" called out in v1.3.0.
 // v1.4.0 — Path tool "Extend from: head | tail" segmented toggle
 //          in the path callout pane. Selecting 'head' re-arms with
 //          extendEnd:'head' on the armed payload; the renderer
@@ -972,12 +982,11 @@
   // cell (correctly restoring to the pre-stroke state, not the
   // pre-last-paint state).
   //
-  // Known limitation: a cell that was 'procedural' (no override)
-  // before painting will become 'authored' after undo, because the
-  // restore writes pre-state values as an override. Visually identical;
-  // the Source row in the detail panel just reads "Authored override"
-  // instead of "Procedural". Accept for v1; a future pass could detect
-  // procedural-match and emit clearSubhex on undo.
+  // v1.4.1 fix: also snapshot the raw OVERRIDES entry (peekOverride)
+  // at capture time. Undo uses this raw entry to restore the exact
+  // pre-stroke state including _dirtyAt / _publishedAt, so undoing
+  // a paint on a procedural cell brings the dirty count back to its
+  // pre-stroke value (no stray dirty entry left behind).
   function beginStroke(){
     _currentStroke = [];
   }
@@ -989,7 +998,13 @@
     }
     const key = `${Q}_${R}`;
     if (_currentStroke.some(e => e.key === key)) return;
-    _currentStroke.push({ key, Q, R, before });
+    // Snapshot the raw override entry (or null if procedural). Deep
+    // clone so subsequent in-place mutations of OVERRIDES don't leak
+    // back into the undo entry.
+    const D_ = D();
+    const rawLive = D_ && typeof D_.peekOverride === 'function' ? D_.peekOverride(Q, R) : null;
+    const raw = rawLive ? JSON.parse(JSON.stringify(rawLive)) : null;
+    _currentStroke.push({ key, Q, R, before, raw });
   }
   function endStroke(){
     if (_currentStroke && _currentStroke.length){
@@ -1007,7 +1022,7 @@
       return;
     }
     for (const e of stroke){
-      restoreCellState(e.Q, e.R, e.before);
+      restoreCellState(e.Q, e.R, e.raw);
     }
     if (_ctx) _ctx.requestRender();
     syncDetailPanel();
@@ -1015,42 +1030,19 @@
     const n = stroke.length;
     flashMode(`Undid ${n} cell${n === 1 ? '' : 's'}`);
   }
-  function restoreCellState(Q, R, before){
-    if (!D()) return;
-    // NOTE: the R parameter shadows the module-level R() accessor.
-    // Read the renderer via window directly to avoid the collision.
+  function restoreCellState(Q, R, raw){
+    const D_ = D();
+    if (!D_) return;
+    // Single-call restore via the data layer. Handles all three cases
+    // (procedural / authored-dirty / authored-clean) and bypasses
+    // dirty-stamping so undo doesn't leave a stray _dirtyAt behind.
+    // See gcc-subhex-data.js v2.12.0 restoreOverride.
+    if (typeof D_.restoreOverride === 'function'){
+      D_.restoreOverride(Q, R, raw);
+    }
+    // Re-render the cell to reflect the restored state.
     const rend = window.GCCMapSubhexRenderer;
-    const pTerrain = rend ? rend.selectedParentTerrain() : null;
-    const cur = D().getSubhex(Q, R, pTerrain);
-    // Terrain delta.
-    if ((cur.terrain || null) !== (before.terrain || null)){
-      D().setSubhexOverride(Q, R, { terrain: before.terrain || null });
-    }
-    // Feature delta.
-    const curHasFeat    = !!(cur.feature    && cur.feature.kind);
-    const beforeHasFeat = !!(before.feature && before.feature.kind);
-    if (beforeHasFeat){
-      D().setSubhexFeature(Q, R, before.feature);
-    } else if (curHasFeat){
-      D().clearSubhexFeature(Q, R);
-    }
-    // Region delta.
-    if ((cur.regionId || null) !== (before.regionId || null)){
-      if (before.regionId){
-        D().assignCellToRegion(Q, R, before.regionId, pTerrain);
-      } else {
-        D().unassignCellFromRegion(Q, R);
-      }
-    }
-    // Lake delta.
-    if ((cur.lakeId || null) !== (before.lakeId || null)){
-      if (before.lakeId){
-        D().setCellLake(Q, R, before.lakeId, pTerrain);
-      } else {
-        D().unsetCellLake(Q, R);
-      }
-    }
-    if (rend) rend.applyCellPaint(Q, R);
+    if (rend && typeof rend.applyCellPaint === 'function') rend.applyCellPaint(Q, R);
   }
   function syncUndoButton(){
     if (!_container) return;
