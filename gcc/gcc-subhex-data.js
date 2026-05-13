@@ -1,4 +1,13 @@
-// gcc-subhex-data.js v2.9.0 — 2026-05-09
+// gcc-subhex-data.js v2.10.0 — 2026-05-12
+// v2.10.0: lakes — dirty tracking for cloud publish. createLake,
+//          renameLake, updateLake stamp `_dirtyAt`; importLakes
+//          stamps all docs. New exports: getDirtyLakes,
+//          getDirtyLakeCount, markLakesPublished. saveLakes fires
+//          'gcc-subhex-dirty-changed' alongside the existing
+//          'gcc-subhex-changed' so the publish badge updates.
+//          Local deletes do NOT propagate to cloud yet — matches
+//          subhex-store behavior.
+// v2.9.0 — 2026-05-09
 // v2.9.0: Additive helper cellsInAxialBbox(bbox) — enumerate {Q,R} of
 // every subhex whose center falls in a world-SVG axis-aligned bbox.
 // First Path B (DESIGN-subhex-fullview.md) prerequisite. Used by the
@@ -571,6 +580,53 @@
     catch(e){ _reportStorageError(LS_LAKES_KEY, e); }
     _rebuildLakeIndexes();
     try { window.dispatchEvent(new CustomEvent('gcc-subhex-changed')); } catch(e){}
+    _emitLakeDirtyChange();
+  }
+
+  // ── Lake dirty tracking for cloud publish ────────────────────────────
+  // Mirrors gcc-subhex-store v0.3.0: writers stamp _dirtyAt,
+  // markLakesPublished clears it and sets _publishedAt after a
+  // successful cloud write. Local deletes don't propagate yet —
+  // tombstones are a follow-up. Fires 'gcc-subhex-dirty-changed' so
+  // gcc-publish.js refreshes its badge.
+  function _markLakeDirty(localId){
+    if (!localId) return;
+    const doc = LAKES[lakeDocId(localId)];
+    if (!doc) return;
+    doc._dirtyAt = Date.now();
+  }
+  function _markAllLakesDirty(){
+    const ts = Date.now();
+    for (const k of Object.keys(LAKES)){
+      if (LAKES[k]) LAKES[k]._dirtyAt = ts;
+    }
+  }
+  function _emitLakeDirtyChange(){
+    try { window.dispatchEvent(new CustomEvent('gcc-subhex-dirty-changed')); } catch(_){}
+  }
+  function getDirtyLakes(){
+    const out = [];
+    for (const k of Object.keys(LAKES)){
+      const v = LAKES[k];
+      if (v && v._dirtyAt){
+        const localId = parseLakeId(k);
+        if (localId) out.push([localId, v]);
+      }
+    }
+    return out;
+  }
+  function getDirtyLakeCount(){ return getDirtyLakes().length; }
+  function markLakesPublished(ids, ts){
+    if (!Array.isArray(ids) || ids.length === 0) return;
+    for (const id of ids){
+      const v = LAKES[lakeDocId(id)];
+      if (!v) continue;
+      delete v._dirtyAt;
+      v._publishedAt = ts;
+    }
+    try { localStorage.setItem(LS_LAKES_KEY, JSON.stringify(LAKES)); }
+    catch(e){ _reportStorageError(LS_LAKES_KEY, e); }
+    _emitLakeDirtyChange();
   }
 
   function subhexId(Q, R){ return `subhex_${Q}_${R}`; }
@@ -1021,6 +1077,7 @@
       authoredAt: Date.now(),
     };
     LAKES[lakeDocId(localId)] = lake;
+    _markLakeDirty(localId);
     saveLakes();
     return lake;
   }
@@ -1030,6 +1087,7 @@
     if (!lake || !newName) return false;
     lake.name = String(newName).trim() || lake.name;
     lake.authoredAt = Date.now();
+    _markLakeDirty(localId);
     saveLakes();
     return true;
   }
@@ -1053,6 +1111,7 @@
       lake.name = String(fields.name).trim() || lake.name;
     }
     lake.authoredAt = Date.now();
+    _markLakeDirty(localId);
     saveLakes();
     return true;
   }
@@ -1147,6 +1206,7 @@
   function importLakes(obj){
     if (!obj || typeof obj !== 'object') return false;
     LAKES = JSON.parse(JSON.stringify(obj));
+    _markAllLakesDirty();
     saveLakes();
     return true;
   }
@@ -1253,6 +1313,7 @@
     assignCellToRegion, unassignCellFromRegion, regionMembers, gcRegionIfEmpty,
     listLakes, lakesInParent, getLake, createLake, renameLake, updateLake, deleteLake,
     setCellLake, unsetCellLake, lakeMembers, gcLakeIfEmpty, parentHasLakeAuthoring,
+    getDirtyLakes, getDirtyLakeCount, markLakesPublished,
     allAuthored, authoredCount,
     exportOverrides, importOverrides,
     exportRegions, importRegions,

@@ -1,6 +1,10 @@
-// Firestore Security Rules for GCC v4
+// Firestore Security Rules for GCC v5
 // Go to Firebase Console → Firestore → Rules tab
 // Replace existing rules with everything below this comment header
+//
+// v5 changes from v4:
+//   • NEW paths/{pathId} — GM-authored rivers, roads, trails
+//     (mirrors lakes rule; matches gcc-subhex-paths localId scheme)
 //
 // v4 changes from v3:
 //   • Helpers: isGM() (via gms/{uid} docs), isCampaignOwner(cid)
@@ -122,6 +126,14 @@ service cloud.firestore {
     }
 
     match /lakes/{lakeId} {
+      allow read: if request.auth != null;
+      allow write: if isGM();
+    }
+
+    // Doc ID format: localId per gcc-subhex-paths pathDocId() strips
+    // the 'path_' prefix at publish time, so {pathId} is the localId
+    // (e.g. 'selintan', 'velverdyva').
+    match /paths/{pathId} {
       allow read: if request.auth != null;
       allow write: if isGM();
     }

@@ -1,4 +1,12 @@
-// gcc-subhex-paths.js v2.1.0 — 2026-05-06
+// gcc-subhex-paths.js v2.2.0 — 2026-05-12
+// v2.2.0: dirty tracking for cloud publish. Each writer stamps
+//         `_dirtyAt` on the affected path doc; `getDirty`,
+//         `getDirtyCount`, and `markPublished` surface the dirty
+//         set to gcc-publish.js. Fires 'gcc-subhex-dirty-changed'
+//         on transitions (same event the badge listens to). Local
+//         deletes do NOT propagate to cloud yet — matches existing
+//         subhex-store behavior; tombstones are a follow-up.
+// v2.1.0 — 2026-05-06
 // v2.0.0: schema v2 → v3. Rivers gain `tier` ('stream'|'river'|
 // 'great_river'). All paths gain `headwaters` and `mouth` linkage
 // fields, polymorphic { lakeId } | { pathId } | null. Defensive
@@ -111,6 +119,51 @@
     try { localStorage.setItem(LS_KEY, JSON.stringify(PATHS)); } catch(e){}
     _rebuildPathIndexes();
     try { window.dispatchEvent(new CustomEvent('gcc-subhex-changed')); } catch(e){}
+    _emitDirtyChange();
+  }
+
+  // ── Dirty tracking for cloud publish ─────────────────────────────────
+  // Mirrors the gcc-subhex-store v0.3.0 pattern: writers stamp _dirtyAt,
+  // markPublished() clears it and sets _publishedAt after a successful
+  // cloud write. Local deletes do NOT propagate to cloud — matches
+  // subhex-store behavior. Tombstone tracking is a follow-up.
+  function _markDirty(localId){
+    if (!localId) return;
+    const doc = PATHS[pathDocId(localId)];
+    if (!doc) return;
+    doc._dirtyAt = Date.now();
+  }
+  function _markAllDirty(){
+    const ts = Date.now();
+    for (const k of Object.keys(PATHS)){
+      if (PATHS[k]) PATHS[k]._dirtyAt = ts;
+    }
+  }
+  function _emitDirtyChange(){
+    try { window.dispatchEvent(new CustomEvent('gcc-subhex-dirty-changed')); } catch(_){}
+  }
+  function getDirty(){
+    const out = [];
+    for (const k of Object.keys(PATHS)){
+      const v = PATHS[k];
+      if (v && v._dirtyAt){
+        const localId = parsePathDocId(k);
+        if (localId) out.push([localId, v]);
+      }
+    }
+    return out;
+  }
+  function getDirtyCount(){ return getDirty().length; }
+  function markPublished(ids, ts){
+    if (!Array.isArray(ids) || ids.length === 0) return;
+    for (const id of ids){
+      const v = PATHS[pathDocId(id)];
+      if (!v) continue;
+      delete v._dirtyAt;
+      v._publishedAt = ts;
+    }
+    try { localStorage.setItem(LS_KEY, JSON.stringify(PATHS)); } catch(e){}
+    _emitDirtyChange();
   }
 
   function pathDocId(localId){ return `path_${localId}`; }
@@ -218,6 +271,7 @@
       authoredAt: Date.now(),
     };
     PATHS[pathDocId(localId)] = doc;
+    _markDirty(localId);
     save();
     return doc;
   }
@@ -227,6 +281,7 @@
     if (!p || !newName) return false;
     p.name = String(newName).trim() || p.name;
     p.authoredAt = Date.now();
+    _markDirty(localId);
     save();
     return true;
   }
@@ -251,6 +306,7 @@
     }
     p.cells.push({ Q, R });
     p.authoredAt = Date.now();
+    _markDirty(localId);
     save();
     return true;
   }
@@ -260,6 +316,7 @@
     if (!p || !p.cells.length) return false;
     p.cells.pop();
     p.authoredAt = Date.now();
+    _markDirty(localId);
     save();
     return true;
   }
@@ -277,6 +334,7 @@
     if (idx < 0) return false;
     p.cells.splice(idx);
     p.authoredAt = Date.now();
+    _markDirty(localId);
     save();
     return true;
   }
@@ -303,6 +361,7 @@
     if (tier !== null && !RIVER_TIERS_SET.has(tier)) return false;
     p.tier = tier;
     p.authoredAt = Date.now();
+    _markDirty(localId);
     save();
     return true;
   }
@@ -329,6 +388,7 @@
     if (norm === undefined) return false;
     p.headwaters = norm;
     p.authoredAt = Date.now();
+    _markDirty(localId);
     save();
     return true;
   }
@@ -340,6 +400,7 @@
     if (norm === undefined) return false;
     p.mouth = norm;
     p.authoredAt = Date.now();
+    _markDirty(localId);
     save();
     return true;
   }
@@ -357,6 +418,7 @@
     // cells[0] / cells[length-1].
     const h = p.headwaters; p.headwaters = p.mouth; p.mouth = h;
     p.authoredAt = Date.now();
+    _markDirty(localId);
     save();
     return true;
   }
@@ -604,6 +666,7 @@
   function importPaths(obj){
     if (!obj || typeof obj !== 'object') return false;
     PATHS = JSON.parse(JSON.stringify(obj));
+    _markAllDirty();
     save();
     return true;
   }
@@ -730,5 +793,6 @@
     pathsCrossingParentEdge, edgeKey,
     subhexBoundaryInfo, boundaryCellBetweenParents,
     exportPaths, importPaths,
+    getDirty, getDirtyCount, markPublished,
   };
 })();

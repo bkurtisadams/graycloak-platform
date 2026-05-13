@@ -1,4 +1,11 @@
-// gcc-publish.js v0.2.0 — 2026-05-12
+// gcc-publish.js v0.3.0 — 2026-05-12
+// v0.3.0 — Publish walks three sources: IDB subhex overrides
+//          (existing), in-memory lakes (gcc-subhex-data), and
+//          in-memory paths (gcc-subhex-paths). Each gets its own
+//          Firestore collection: subHexes/, lakes/, paths/. Badge
+//          count is the sum across all three. Confirm dialog
+//          shows a per-source breakdown. Local deletes don't
+//          propagate yet — matches store/data/paths behavior.
 // v0.2.0 — confirmation dialog before publish ("Push N changes?"
 //          [Cancel] [Publish]). Prevents accidental ⬆ clicks
 //          from pushing local IDB state to cloud.
@@ -6,16 +13,20 @@
 //
 // - Loads firebase-firestore-compat.js on demand (idempotent).
 // - Checks gms/{uid} to gate UI (matches firestore.rules v4 isGM()).
-// - Reads dirty entries from GCCSubhexStore, writes in 500-op batches
-//   to subHexes/{id}, then markPublished(ids, ts) clears _dirtyAt.
+// - Reads dirty entries from GCCSubhexStore/GCCSubhexData/GCCSubhexPaths,
+//   writes in 500-op batches per collection, then calls each source's
+//   markPublished to clear _dirtyAt.
 // - Injects ⬆ button into gcc-nav before #gcc-btn-settings, with a
 //   dirty-count badge; hidden until GM verified.
-// - Exposes window.GCCPublish = { publish, getDirtyCount, isGM, refreshBadge }.
+// - Exposes window.GCCPublish = { publish, getDirtyCount, getDirtyCounts,
+//   isGM, refreshBadge }.
 
 (function(){
   'use strict';
 
-  const COL = 'subHexes';
+  const COL_SUBHEX = 'subHexes';
+  const COL_LAKES  = 'lakes';
+  const COL_PATHS  = 'paths';
   const BATCH_SIZE = 500;
   const FB_VERSION = '10.12.2';
   const FB_FIRESTORE_URL = `https://www.gstatic.com/firebasejs/${FB_VERSION}/firebase-firestore-compat.js`;
@@ -56,54 +67,98 @@
     }
   }
 
-  async function getDirtyCount(){
-    if (!window.GCCSubhexStore) return 0;
+  async function getDirtyCounts(){
+    let subhex = 0, lakes = 0, paths = 0;
     try {
-      const dirty = await window.GCCSubhexStore.getDirty();
-      return dirty.length;
-    } catch(e){
-      console.warn('[Publish] getDirtyCount failed:', e);
-      return 0;
-    }
+      if (window.GCCSubhexStore && window.GCCSubhexStore.getDirtyCount){
+        subhex = await window.GCCSubhexStore.getDirtyCount();
+      }
+    } catch(e){ console.warn('[Publish] subhex getDirtyCount failed:', e); }
+    try {
+      if (window.GCCSubhexData && window.GCCSubhexData.getDirtyLakeCount){
+        lakes = window.GCCSubhexData.getDirtyLakeCount();
+      }
+    } catch(e){ console.warn('[Publish] lake getDirtyCount failed:', e); }
+    try {
+      if (window.GCCSubhexPaths && window.GCCSubhexPaths.getDirtyCount){
+        paths = window.GCCSubhexPaths.getDirtyCount();
+      }
+    } catch(e){ console.warn('[Publish] path getDirtyCount failed:', e); }
+    return { subhex, lakes, paths, total: subhex + lakes + paths };
+  }
+  async function getDirtyCount(){
+    const { total } = await getDirtyCounts();
+    return total;
   }
 
   async function publish(onProgress){
     if (_publishing) return { ok: false, reason: 'Publish already in progress' };
     if (!_isGM)      return { ok: false, reason: 'Not a GM' };
     if (!_uid || !_db) return { ok: false, reason: 'Not signed in' };
-    if (!window.GCCSubhexStore) return { ok: false, reason: 'Subhex store unavailable' };
 
     _publishing = true;
     try {
-      await window.GCCSubhexStore.flush();
-      const dirty = await window.GCCSubhexStore.getDirty();
-      const total = dirty.length;
+      // ── Collect dirty entries from all three sources ────────────────
+      let dirtySubhex = [], dirtyLakes = [], dirtyPaths = [];
+      if (window.GCCSubhexStore){
+        await window.GCCSubhexStore.flush();
+        dirtySubhex = await window.GCCSubhexStore.getDirty();
+      }
+      if (window.GCCSubhexData && window.GCCSubhexData.getDirtyLakes){
+        dirtyLakes = window.GCCSubhexData.getDirtyLakes();
+      }
+      if (window.GCCSubhexPaths && window.GCCSubhexPaths.getDirty){
+        dirtyPaths = window.GCCSubhexPaths.getDirty();
+      }
+
+      const total = dirtySubhex.length + dirtyLakes.length + dirtyPaths.length;
       if (total === 0) return { ok: true, total: 0, published: 0, failed: 0, failures: [] };
 
       let published = 0;
       const failures = [];
       const publishedTs = Date.now();
 
-      for (let i = 0; i < dirty.length; i += BATCH_SIZE){
-        const chunk = dirty.slice(i, i + BATCH_SIZE);
-        const batch = _db.batch();
-        for (const [id, entry] of chunk){
-          const out = Object.assign({}, entry);
-          delete out._dirtyAt;
-          out._publishedAt = publishedTs;
-          out.schemaVersion = out.schemaVersion || 1;
-          batch.set(_db.collection(COL).doc(id), out);
+      // ── Per-collection batch pusher ────────────────────────────────
+      // dirty: Array<[id, entry]>, collection: string,
+      // markPublishedFn: (ids, ts) => Promise|void
+      async function pushBatch(dirty, collection, markPublishedFn){
+        for (let i = 0; i < dirty.length; i += BATCH_SIZE){
+          const chunk = dirty.slice(i, i + BATCH_SIZE);
+          const batch = _db.batch();
+          for (const [id, entry] of chunk){
+            const out = Object.assign({}, entry);
+            delete out._dirtyAt;
+            out._publishedAt = publishedTs;
+            out.schemaVersion = out.schemaVersion || 1;
+            batch.set(_db.collection(collection).doc(id), out);
+          }
+          try {
+            await batch.commit();
+            const ids = chunk.map(([id]) => id);
+            const ret = markPublishedFn(ids, publishedTs);
+            if (ret && typeof ret.then === 'function') await ret;
+            published += chunk.length;
+          } catch(e){
+            console.warn(`[Publish] ${collection} batch commit failed:`, e);
+            chunk.forEach(([id]) => failures.push({ id, error: e.message || String(e) }));
+          }
+          if (onProgress) onProgress({ published, failed: failures.length, total });
         }
-        try {
-          await batch.commit();
-          await window.GCCSubhexStore.markPublished(chunk.map(([id]) => id), publishedTs);
-          published += chunk.length;
-        } catch(e){
-          console.warn('[Publish] batch commit failed:', e);
-          chunk.forEach(([id]) => failures.push({ id, error: e.message || String(e) }));
-        }
-        if (onProgress) onProgress({ published, failed: failures.length, total });
       }
+
+      if (dirtySubhex.length){
+        await pushBatch(dirtySubhex, COL_SUBHEX,
+          (ids, ts) => window.GCCSubhexStore.markPublished(ids, ts));
+      }
+      if (dirtyLakes.length){
+        await pushBatch(dirtyLakes, COL_LAKES,
+          (ids, ts) => window.GCCSubhexData.markLakesPublished(ids, ts));
+      }
+      if (dirtyPaths.length){
+        await pushBatch(dirtyPaths, COL_PATHS,
+          (ids, ts) => window.GCCSubhexPaths.markPublished(ids, ts));
+      }
+
       return { ok: true, total, published, failed: failures.length, failures };
     } finally {
       _publishing = false;
@@ -149,7 +204,12 @@
   function showButton(){ if (_btnEl) _btnEl.style.display = ''; refreshBadge(); }
   function hideButton(){ if (_btnEl) _btnEl.style.display = 'none'; }
 
-  function confirmPublishDialog(total){
+  function confirmPublishDialog(counts){
+    const parts = [];
+    if (counts.subhex) parts.push(`${counts.subhex} subhex cell${counts.subhex === 1 ? '' : 's'}`);
+    if (counts.lakes)  parts.push(`${counts.lakes} lake${counts.lakes === 1 ? '' : 's'}`);
+    if (counts.paths)  parts.push(`${counts.paths} path${counts.paths === 1 ? '' : 's'}`);
+    const breakdown = parts.join(', ');
     return new Promise((resolve) => {
       const dlg = document.createElement('div');
       dlg.className = 'gcc-publish-dialog';
@@ -157,8 +217,9 @@
         + '<div class="gcc-publish-backdrop"></div>'
         + '<div class="gcc-publish-modal">'
         + '  <header>Confirm publish</header>'
-        + `  <div class="gcc-publish-status">Push <b>${total}</b> subhex change${total === 1 ? '' : 's'} to the cloud?</div>`
-        + '  <div class="gcc-publish-counts">Cloud state will be overwritten with your local IDB state. To unpublish a change, undo it locally and publish again.</div>'
+        + `  <div class="gcc-publish-status">Push <b>${counts.total}</b> change${counts.total === 1 ? '' : 's'} to the cloud?</div>`
+        + (breakdown ? `  <div class="gcc-publish-counts">${breakdown}</div>` : '')
+        + '  <div class="gcc-publish-counts">Cloud state will be overwritten with your local state. To unpublish a change, undo it locally and publish again.</div>'
         + '  <footer>'
         + '    <button class="gcc-publish-close gcc-publish-cancel">Cancel</button>'
         + '    <button class="gcc-publish-close gcc-publish-confirm">Publish</button>'
@@ -207,10 +268,11 @@
 
   async function onPublishClick(){
     if (_publishing) return;
-    const total = await getDirtyCount();
+    const dirtyCounts = await getDirtyCounts();
+    const total = dirtyCounts.total;
     if (total === 0){ showToast('No changes to publish'); return; }
 
-    const proceed = await confirmPublishDialog(total);
+    const proceed = await confirmPublishDialog(dirtyCounts);
     if (!proceed) return;
 
     const dlg = showProgressDialog();
@@ -286,5 +348,5 @@
     init();
   }
 
-  window.GCCPublish = { publish, getDirtyCount, refreshBadge, isGM: () => _isGM };
+  window.GCCPublish = { publish, getDirtyCount, getDirtyCounts, refreshBadge, isGM: () => _isGM };
 })();
