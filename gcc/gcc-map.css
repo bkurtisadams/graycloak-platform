@@ -1,4 +1,15 @@
-/* gcc-map.css v0.2.5 — 2026-05-12
+/* gcc-map.css v0.2.6 — 2026-05-12
+   v0.2.6: legibility followup — extend the unified-shell override
+   block to cover detail-panel labels and values:
+     .sxw-detail border, .sxw-detail-head border
+     .sxw-detail-label, .sxw-summary-label   (CELL DETAILS, TERRAIN)
+     .sxw-summary-sep                        (· separators)
+     .sxw-row label                          (NAME / NOTES / REGION)
+     .sxw-readonly                           (Q-Q,R values; Hills; …)
+   All carry body.theme-dark fallbacks in gcc-subhex.css that the
+   unified shell never reaches; the new rules mirror those fallback
+   colors scoped to #gcc-map-tools-body.
+
    v0.2.5: side-panel legibility pass.
    - --gcc-map-section-h bumped #c8a96e → #d4a234 so section headers
      (View / Selection / Tools) and row labels (TERRAIN, REGION) read
@@ -593,4 +604,30 @@ body.gcc-paths-hidden  #gcc-map-parent-paths { display: none; }
   font-weight: 500;
   color: #e25555;
   opacity: 1;
+}
+
+/* Detail-panel labels and field values. All carry body.theme-dark
+   fallbacks in gcc-subhex.css that don't fire on the unified shell.
+   Colors here mirror those fallbacks so the parchment-on-dark
+   convention reads against #gcc-map-tools-body's dark background. */
+#gcc-map-tools-body .sxw-detail {
+  border-top-color: #7a6a40;
+}
+#gcc-map-tools-body .sxw-detail-head {
+  border-bottom-color: rgba(232,200,110,0.22);
+}
+#gcc-map-tools-body .sxw-detail-label {
+  color: #f4e8c4;
+}
+#gcc-map-tools-body .sxw-summary-label {
+  color: #f4e8c4;
+}
+#gcc-map-tools-body .sxw-summary-sep {
+  color: #c8a878;
+}
+#gcc-map-tools-body .sxw-row label {
+  color: #e8d8b0;
+}
+#gcc-map-tools-body .sxw-readonly {
+  color: #e8d8b0;
 }
