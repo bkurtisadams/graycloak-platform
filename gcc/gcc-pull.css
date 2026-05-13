@@ -1,0 +1,131 @@
+/* gcc-pull.css v0.1.0 — 2026-05-13
+   v0.1.0 — initial pull UI.
+   ⬇ Pull nav button + pull confirm/progress modal.
+   Builds on .gcc-nav-btn from gcc-header.css. Mirrors
+   gcc-publish.css styles with parallel selectors so the two
+   modules stay independent.
+   See DESIGN-cloud-pull.md Q8. */
+
+.gcc-pull-btn { position: relative; }
+.gcc-pull-btn:disabled { opacity: 0.5; cursor: wait; }
+
+/* Badge reserved for v0.2; no element rendered in v0.1.0. */
+.gcc-pull-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: #5b7a3a;
+  color: #ffe;
+  font-family: 'Crimson Text', Georgia, serif;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+.gcc-pull-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.gcc-pull-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+}
+.gcc-pull-modal {
+  position: relative;
+  width: 460px;
+  max-width: 90vw;
+  background: #1a1208;
+  color: #e8d5a3;
+  border: 2px solid #c8941a;
+  border-radius: 6px;
+  padding: 20px;
+  font-family: 'Crimson Text', Georgia, serif;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+.gcc-pull-modal header {
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: #c8941a;
+  margin-bottom: 12px;
+  text-align: center;
+  letter-spacing: 0.5px;
+}
+.gcc-pull-status {
+  font-size: 14px;
+  margin-bottom: 12px;
+  text-align: center;
+}
+.gcc-pull-sources {
+  font-size: 13px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: #221710;
+  border: 1px solid #5a4020;
+  border-radius: 4px;
+}
+.gcc-pull-source-row {
+  padding: 2px 0;
+}
+.gcc-pull-source-row + .gcc-pull-source-row {
+  border-top: 1px solid #2f2410;
+  margin-top: 4px;
+  padding-top: 6px;
+}
+.gcc-pull-source-name {
+  font-weight: 600;
+  color: #c8941a;
+  display: inline-block;
+  min-width: 60px;
+}
+.gcc-pull-source-desc {
+  color: #d8c5a3;
+}
+.gcc-pull-source-err {
+  color: #d88;
+}
+.gcc-pull-force-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #d8b070;
+  margin-bottom: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.gcc-pull-force-row input[type="checkbox"] {
+  cursor: pointer;
+  margin: 0;
+}
+.gcc-pull-note {
+  font-size: 11px;
+  color: #8a7050;
+  font-style: italic;
+  margin-bottom: 12px;
+  text-align: center;
+}
+.gcc-pull-modal footer { display: flex; justify-content: flex-end; gap: 8px; }
+.gcc-pull-close {
+  padding: 6px 16px;
+  background: #2a1f10;
+  color: #e8d5a3;
+  border: 1px solid #c8941a;
+  border-radius: 4px;
+  font-family: 'Crimson Text', Georgia, serif;
+  font-size: 14px;
+  cursor: pointer;
+}
+.gcc-pull-close:disabled { opacity: 0.4; cursor: not-allowed; }
+.gcc-pull-close:not(:disabled):hover { background: #3a2f20; border-color: #ffd700; }

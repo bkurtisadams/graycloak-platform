@@ -1,4 +1,11 @@
-// gcc-pull.js v0.1.0 — 2026-05-13
+// gcc-pull.js v0.2.0 — 2026-05-13
+// v0.2.0 — UI: ⬇ button next to ⬆ publish (hidden until GM
+//          verified). Click runs previewPull, opens confirm dialog
+//          with per-source add/update/skip breakdown; force-overwrite
+//          checkbox appears only when there are skips. Confirm runs
+//          pull({force}) and shows a result dialog. Mirrors the
+//          publish UI pattern. No badge in v0.1 — see
+//          DESIGN-cloud-pull.md Q8.
 // v0.1.0 — Cloud → local pull. Mirror of gcc-publish.js. Reads
 //          subHexes/, lakes/, paths/ collections from Firestore,
 //          computes per-doc verdicts (add/update/noop/skip/
@@ -255,18 +262,207 @@
     }
   }
 
+  // ─── UI ────────────────────────────────────────────────────────────
+  let _btnEl = null;
+
+  function makeButton(){
+    const btn = document.createElement('button');
+    btn.className = 'gcc-nav-btn gcc-pull-btn';
+    btn.id = 'gcc-btn-pull';
+    btn.title = 'Pull subhex data from cloud';
+    btn.style.display = 'none';
+    btn.textContent = '⬇';
+    return btn;
+  }
+  function wireButton(){
+    let btn = document.getElementById('gcc-btn-pull');
+    if (!btn){
+      // Insert right after ⬆ Publish if present; fall back to before
+      // settings (so we're still in the nav cluster).
+      const publish  = document.getElementById('gcc-btn-publish');
+      const settings = document.getElementById('gcc-btn-settings');
+      btn = makeButton();
+      if (publish && publish.parentNode){
+        publish.parentNode.insertBefore(btn, publish.nextSibling);
+      } else if (settings && settings.parentNode){
+        settings.parentNode.insertBefore(btn, settings);
+      } else {
+        return;  // no nav yet; wireButton will be re-tried by init
+      }
+    }
+    _btnEl = btn;
+    btn.addEventListener('click', onPullClick);
+  }
+  function showButton(){ if (_btnEl) _btnEl.style.display = ''; }
+  function hideButton(){ if (_btnEl) _btnEl.style.display = 'none'; }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;',
+    }[c]));
+  }
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    if (!t){ console.log('[Pull]', msg); return; }
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  // Per-source line for the confirm + result dialogs. `summary` is
+  // { add, update, noop, skip, conflict, total }.
+  function renderSummaryLine(label, summary){
+    const bits = [];
+    if (summary.add)      bits.push(`+${summary.add} added`);
+    if (summary.update)   bits.push(`~${summary.update} updated`);
+    if (summary.conflict) bits.push(`!${summary.conflict} forced`);
+    if (summary.skip)     bits.push(`${summary.skip} skipped`);
+    const desc = bits.length ? bits.join(', ') : 'no changes';
+    return ''
+      + '<div class="gcc-pull-source-row">'
+      +   `<span class="gcc-pull-source-name">${escapeHtml(label)}:</span> `
+      +   `<span class="gcc-pull-source-desc">${escapeHtml(desc)}</span>`
+      + '</div>';
+  }
+
+  // Confirm dialog. Returns { proceed: bool, force: bool }.
+  function confirmPullDialog(preview){
+    const totalChanges = preview.total;
+    const totalSkipped = preview.skipped;
+    return new Promise((resolve) => {
+      const dlg = document.createElement('div');
+      dlg.className = 'gcc-pull-dialog';
+      const forceRow = totalSkipped > 0
+        ? '<label class="gcc-pull-force-row">'
+        +   '<input type="checkbox" class="gcc-pull-force"> '
+        +   `Force overwrite local changes (${totalSkipped} skipped)`
+        + '</label>'
+        : '';
+      dlg.innerHTML = ''
+        + '<div class="gcc-pull-backdrop"></div>'
+        + '<div class="gcc-pull-modal">'
+        +   '<header>Pull from cloud</header>'
+        +   `<div class="gcc-pull-status">Pull <b>${totalChanges}</b> change${totalChanges === 1 ? '' : 's'} from the cloud?</div>`
+        +   '<div class="gcc-pull-sources">'
+        +     renderSummaryLine('Subhex', preview.subhex)
+        +     renderSummaryLine('Lakes',  preview.lakes)
+        +     renderSummaryLine('Paths',  preview.paths)
+        +   '</div>'
+        +   forceRow
+        +   '<div class="gcc-pull-note">Local-only docs are kept. Cloud deletes don\'t propagate yet (tombstones land in a follow-up).</div>'
+        +   '<footer>'
+        +     '<button class="gcc-pull-close gcc-pull-cancel">Cancel</button>'
+        +     '<button class="gcc-pull-close gcc-pull-confirm">Pull</button>'
+        +   '</footer>'
+        + '</div>';
+      document.body.appendChild(dlg);
+      const cancel = () => { dlg.remove(); resolve({ proceed: false, force: false }); };
+      const confirm = () => {
+        const cb = dlg.querySelector('.gcc-pull-force');
+        const force = !!(cb && cb.checked);
+        dlg.remove();
+        resolve({ proceed: true, force });
+      };
+      dlg.querySelector('.gcc-pull-cancel').addEventListener('click', cancel);
+      dlg.querySelector('.gcc-pull-confirm').addEventListener('click', confirm);
+      dlg.querySelector('.gcc-pull-backdrop').addEventListener('click', cancel);
+    });
+  }
+
+  function showProgressDialog(){
+    const dlg = document.createElement('div');
+    dlg.className = 'gcc-pull-dialog';
+    dlg.innerHTML = ''
+      + '<div class="gcc-pull-backdrop"></div>'
+      + '<div class="gcc-pull-modal">'
+      +   '<header>Pulling from cloud</header>'
+      +   '<div class="gcc-pull-status">Fetching…</div>'
+      +   '<div class="gcc-pull-sources"></div>'
+      +   '<footer><button class="gcc-pull-close" disabled>Close</button></footer>'
+      + '</div>';
+    document.body.appendChild(dlg);
+    return dlg;
+  }
+
+  // Map the per-source result into a summary-shaped object (or null
+  // if the source errored).
+  function summaryFromResult(srcResult){
+    if (!srcResult || !srcResult.ok) return null;
+    return srcResult.summary;
+  }
+  function errorFromResult(srcResult){
+    if (!srcResult || srcResult.ok) return null;
+    return srcResult.error || 'unknown error';
+  }
+
+  async function onPullClick(){
+    if (!_btnEl || _btnEl.disabled) return;
+    _btnEl.disabled = true;
+    try {
+      const preview = await previewPull({ force: false });
+      if (!preview.ok){
+        showToast('Pull preview failed: ' + (preview.reason || 'unknown'));
+        return;
+      }
+      if (preview.total === 0 && preview.skipped === 0){
+        showToast('No changes to pull');
+        return;
+      }
+      const { proceed, force } = await confirmPullDialog(preview);
+      if (!proceed) return;
+
+      const dlg = showProgressDialog();
+      const status   = dlg.querySelector('.gcc-pull-status');
+      const sources  = dlg.querySelector('.gcc-pull-sources');
+      const closeBtn = dlg.querySelector('.gcc-pull-close');
+
+      const result = await pull({ force });
+
+      // Render per-source results.
+      const lines = [];
+      const errors = [];
+      const renderOne = (label, srcResult) => {
+        const s = summaryFromResult(srcResult);
+        if (s){
+          lines.push(renderSummaryLine(label, s));
+        } else {
+          const err = errorFromResult(srcResult);
+          errors.push(`${label}: ${err}`);
+          lines.push(`<div class="gcc-pull-source-row">`
+            + `<span class="gcc-pull-source-name">${label}:</span> `
+            + `<span class="gcc-pull-source-err">${escapeHtml(err)}</span></div>`);
+        }
+      };
+      renderOne('Subhex', result.subhex);
+      renderOne('Lakes',  result.lakes);
+      renderOne('Paths',  result.paths);
+
+      status.textContent = errors.length
+        ? `Pull completed with ${errors.length} error${errors.length === 1 ? '' : 's'}`
+        : 'Pull complete';
+      sources.innerHTML = lines.join('');
+      closeBtn.disabled = false;
+      closeBtn.addEventListener('click', () => dlg.remove());
+    } finally {
+      if (_btnEl) _btnEl.disabled = false;
+    }
+  }
+
   // ── Auth lifecycle ─────────────────────────────────────────────────
   async function onAuthChange(user){
     if (user){
       _uid = user.uid;
       _isGM = await checkGM(_uid);
+      if (_isGM) showButton(); else hideButton();
     } else {
       _uid = null;
       _isGM = false;
+      hideButton();
     }
   }
 
   function init(){
+    wireButton();
     if (typeof GCCAuth !== 'undefined' && GCCAuth.onAuthChange){
       GCCAuth.onAuthChange(onAuthChange);
     } else {
