@@ -11,3 +11,9 @@ Thumbs.db
 .env.*.local
 .vscode/
 .idea/
+.firebase/
+firebase-debug.log
+service-account-key.json
+**/service-account-key*.json
+*.pem
+*-private-key.json
