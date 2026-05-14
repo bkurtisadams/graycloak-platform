@@ -1,0 +1,14 @@
+{
+  "id": "set_far_bank",
+  "name": "Far Bank",
+  "size": "hamlet",
+  "population": 165,
+  "alignment": "N",
+  "regionalHexId": "D4-86",
+  "subHexCoord": [64, 26],
+  "ruler": null,
+  "services": ["fish_market", "alehouse"],
+  "notes": "Shantytown of small, poorly-built buildings across the Selintan from Greyhawk City. Refugees displaced when the Pomarj's Orcish Empire marauded up the Wild Coast. Subsistence economy: river fishing and gathering from the woodlands west of the city.",
+  "parent": "set_greyhawk",
+  "schemaVersion": 1
+}
