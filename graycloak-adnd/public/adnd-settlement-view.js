@@ -1,4 +1,4 @@
-// adnd-settlement-view.js v1.0.0
+// adnd-settlement-view.js v1.1.0
 // Minimum settlement reader. URL: ?settlement=<id>. Fetches
 // settlements/{id} from Firestore on sign-in; renders into
 // #settlement-card.
@@ -22,6 +22,14 @@
     if (!card) return;
     const services = (d.services || [])
       .map(s => `<li>${s.replace(/_/g, ' ')}</li>`).join('');
+    const npcs = (d.notableNPCs || [])
+      .map(n => `
+        <li class="settlement-npc">
+          <div class="settlement-npc-name">${n.name || ''}</div>
+          <div class="settlement-npc-meta">${[n.role, n.alignment].filter(Boolean).join(' · ')}</div>
+          ${n.notes ? `<div class="settlement-npc-notes">${n.notes}</div>` : ''}
+        </li>
+      `).join('');
     const sub = d.subHexCoord ? `(Q${d.subHexCoord[0]}, R${d.subHexCoord[1]})` : '';
     card.innerHTML = `
       <div class="settlement-card">
@@ -36,6 +44,7 @@
           ${d.parent ? `· part of ${d.parent}` : ''}
         </div>
         ${services ? `<div class="settlement-services"><strong>Services:</strong><ul>${services}</ul></div>` : ''}
+        ${npcs ? `<div class="settlement-npcs"><strong>Notable NPCs:</strong><ul>${npcs}</ul></div>` : ''}
         ${d.notes ? `<div class="settlement-notes">${d.notes}</div>` : ''}
       </div>
     `;

@@ -1,0 +1,46 @@
+{
+  "id": "set_hommlet",
+  "name": "Hommlet",
+  "size": "village",
+  "population": 200,
+  "alignment": "LN",
+  "regionalHexId": "O4-96",
+  "subHexCoord": [0, 0],
+  "ruler": null,
+  "services": ["inn", "smithy", "temple", "trader", "alehouse"],
+  "notes": "Small village in the Kron Hills foothills, 30 miles southeast of Verbobonc on the road to Nulb. Nominally under the protection of the Viscount of Verbobonc. Site of the Temple of Elemental Evil's resurgence; an old moathouse to the east serves as the cult's local stronghold.",
+  "notableNPCs": [
+    {
+      "name": "Burne",
+      "role": "Co-ruler; magic-user (7th level)",
+      "alignment": "LN",
+      "notes": "Co-rules Hommlet with Rufus. Member of the Viscount's council. Building a new keep on the rise overlooking the village."
+    },
+    {
+      "name": "Rufus",
+      "role": "Co-ruler; fighter (6th level)",
+      "alignment": "LG",
+      "notes": "Co-rules Hommlet with Burne. Veteran fighter and Burne's longtime partner; oversees construction of the new keep."
+    },
+    {
+      "name": "Elmo",
+      "role": "Constable's assistant; ranger (4th level)",
+      "alignment": "NG",
+      "notes": "Plays the part of the village drunk as cover. Actually a Viscount's agent embedded to identify Temple cultists."
+    },
+    {
+      "name": "Y'dey",
+      "role": "High priestess, Church of St. Cuthbert; cleric (7th level)",
+      "alignment": "LG",
+      "notes": "Coordinates quietly with Burne and Rufus against the Temple's resurgence. The small church on the rise is hers."
+    },
+    {
+      "name": "Gundigoot",
+      "role": "Proprietor, Inn of the Welcome Wench",
+      "alignment": "N",
+      "notes": "Genial innkeeper. Hears most of what passes through Hommlet."
+    }
+  ],
+  "parent": null,
+  "schemaVersion": 1
+}
