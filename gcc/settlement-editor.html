@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settlement Editor — Graycloak's Campaign Corner</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Alegreya:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="gcc-header.css">
+<link rel="stylesheet" href="gcc-auth.css">
+<link rel="stylesheet" href="gcc-dialog.css">
+<style>
+[data-gcc-theme="dark"] {
+  --bg:#101418; --bg2:#161a20; --bg-card:#1a1e26; --bg-card-hover:#20252e;
+  --bg-section:#141820; --brd:#252a34; --brd-lt:#303848;
+  --tx:#c8ccd4; --tx2:#7a8494; --tx3:#4a5464;
+  --accent:#60a0d0; --accent-lt:#78b8e8; --accent-dim:#3a6a90;
+  --red:#d04848; --green:#48a858; --amber:#d0a040;
+  --chip-bg:#20252e; --chip-tx:#a8b0bc;
+}
+[data-gcc-theme="light"] {
+  --bg:#f4ecd8; --bg2:#ede0c0; --bg-card:#f8f1de; --bg-card-hover:#f0e4c8;
+  --bg-section:#e8d8aa; --brd:#cbb682; --brd-lt:#b8a060;
+  --tx:#1d1408; --tx2:#4a3818; --tx3:#6a5028;
+  --accent:#7a4818; --accent-lt:#8a5828; --accent-dim:#a07040;
+  --red:#8a1a1a; --green:#4a6818; --amber:#a07020;
+  --chip-bg:#ede0c0; --chip-tx:#4a3818;
+}
+html,body { margin:0; padding:0; background:var(--bg); color:var(--tx);
+  font-family:'Alegreya',Georgia,serif; min-height:100vh; font-size:15px; }
+
+.main { padding:24px 20px 80px; max-width:1100px; margin:0 auto; }
+.page-hdr { display:flex; align-items:baseline; justify-content:space-between;
+  margin:12px 0 18px; gap:12px; flex-wrap:wrap; }
+.page-title { font-family:'Cinzel',serif; font-weight:700; font-size:22px;
+  letter-spacing:1px; color:var(--tx); }
+.page-sub { color:var(--tx2); font-size:14px; }
+.page-sub code { font-family:'IBM Plex Mono',monospace; font-size:12px;
+  background:var(--bg-section); padding:1px 4px; border-radius:3px; }
+
+.draft-banner { background:var(--bg-card); border:1px solid var(--amber);
+  border-left:3px solid var(--amber); border-radius:5px;
+  padding:10px 14px; margin-bottom:14px; display:none;
+  align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.draft-banner.show { display:flex; }
+.draft-banner-msg { color:var(--tx); font-size:14px; }
+.draft-banner-msg b { color:var(--amber); }
+.draft-banner-actions { display:flex; gap:6px; }
+
+.toolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+  background:var(--bg-card); border:1px solid var(--brd);
+  padding:10px 12px; border-radius:6px; margin-bottom:16px; }
+.tb-btn { background:var(--bg-section); color:var(--tx);
+  border:1px solid var(--brd-lt); padding:6px 12px; border-radius:4px;
+  font-family:inherit; font-size:14px; cursor:pointer; }
+.tb-btn:hover { background:var(--bg-card-hover); border-color:var(--accent-dim); }
+.tb-btn.primary { background:var(--accent-dim); color:#fff; border-color:var(--accent); }
+.tb-btn.primary:hover { background:var(--accent); }
+.tb-btn.danger:hover { border-color:var(--red); color:var(--red); }
+.tb-status { color:var(--tx2); font-size:13px; margin-left:auto;
+  font-family:'IBM Plex Mono',monospace; }
+.tb-status.ok { color:var(--green); }
+.tb-status.err { color:var(--red); }
+
+.panels { display:grid; grid-template-columns:1fr; gap:14px; }
+.panel { background:var(--bg-card); border:1px solid var(--brd); border-radius:6px;
+  overflow:hidden; }
+.panel-hdr { background:var(--bg-section); padding:8px 14px;
+  border-bottom:1px solid var(--brd); display:flex; align-items:baseline;
+  justify-content:space-between; cursor:pointer; user-select:none; }
+.panel-title { font-family:'Cinzel',serif; font-size:13px; letter-spacing:1px;
+  font-weight:700; color:var(--tx); text-transform:uppercase; }
+.panel-hint { font-size:12px; color:var(--tx3); }
+.panel-body { padding:14px; }
+.panel-body.collapsed { display:none; }
+
+.row { display:grid; gap:12px; margin-bottom:10px; }
+.row:last-child { margin-bottom:0; }
+.row-2 { grid-template-columns:1fr 1fr; }
+.row-3 { grid-template-columns:2fr 1fr 1fr; }
+.row-id { grid-template-columns:1fr 2fr; }
+.field { display:flex; flex-direction:column; gap:4px; }
+.field-label { font-size:11px; letter-spacing:0.5px; color:var(--tx2);
+  text-transform:uppercase; font-weight:700; }
+.field-hint { font-size:11px; color:var(--tx3); }
+.field-hint code { font-family:'IBM Plex Mono',monospace; font-size:11px;
+  background:var(--bg-section); padding:1px 3px; border-radius:2px; }
+input[type=text], input[type=number], input[type=url], select, textarea {
+  background:var(--bg-section); color:var(--tx); border:1px solid var(--brd-lt);
+  padding:6px 8px; border-radius:4px; font-family:inherit; font-size:14px; }
+input:focus, select:focus, textarea:focus {
+  outline:none; border-color:var(--accent); }
+textarea { resize:vertical; min-height:80px; font-family:'Alegreya',Georgia,serif; }
+.mono { font-family:'IBM Plex Mono',monospace; font-size:13px; }
+.id-row { display:flex; gap:6px; align-items:stretch; }
+.id-row input { flex:1; }
+.id-lock-btn { padding:0 10px; background:var(--bg-section); color:var(--tx2);
+  border:1px solid var(--brd-lt); border-radius:4px; cursor:pointer; font-size:14px; }
+.id-lock-btn.locked { color:var(--accent); border-color:var(--accent-dim); }
+
+.svc-current { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;
+  min-height:30px; padding:6px; background:var(--bg-section);
+  border:1px dashed var(--brd-lt); border-radius:4px; }
+.svc-current:empty::before { content:"(no services yet)"; color:var(--tx3);
+  font-size:12px; padding:4px; }
+.svc-chip { display:inline-flex; align-items:center; gap:6px;
+  background:var(--chip-bg); color:var(--chip-tx);
+  border:1px solid var(--brd-lt); padding:3px 8px; border-radius:14px;
+  font-size:13px; font-family:'IBM Plex Mono',monospace; }
+.svc-chip-x { color:var(--tx3); cursor:pointer; font-size:14px; line-height:1; }
+.svc-chip-x:hover { color:var(--red); }
+.svc-presets-lbl { font-size:11px; color:var(--tx3); margin-bottom:4px;
+  text-transform:uppercase; letter-spacing:0.5px; }
+.svc-preset-list { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px; }
+.svc-preset { background:transparent; color:var(--tx2);
+  border:1px dashed var(--brd-lt); padding:2px 8px; border-radius:12px;
+  font-size:12px; font-family:'IBM Plex Mono',monospace; cursor:pointer; }
+.svc-preset:hover { color:var(--accent-lt); border-color:var(--accent-dim);
+  border-style:solid; }
+.svc-preset.added { opacity:0.4; cursor:default; pointer-events:none; }
+.svc-add { display:flex; gap:6px; }
+.svc-add input { flex:1; }
+.svc-add-btn { padding:6px 12px; background:var(--bg-section); color:var(--tx);
+  border:1px solid var(--brd-lt); border-radius:4px; cursor:pointer; font-size:13px; }
+.svc-add-btn:hover { border-color:var(--accent-dim); }
+
+.repeater-list { display:flex; flex-direction:column; gap:10px; margin-bottom:10px; }
+.repeater-card { background:var(--bg-section); border:1px solid var(--brd-lt);
+  border-radius:5px; padding:10px; position:relative; }
+.repeater-card-hdr { display:flex; align-items:baseline; justify-content:space-between;
+  margin-bottom:8px; }
+.repeater-card-label { font-size:11px; color:var(--tx3); letter-spacing:0.5px;
+  text-transform:uppercase; }
+.repeater-rm { background:transparent; color:var(--tx3); border:1px solid transparent;
+  padding:2px 8px; border-radius:3px; cursor:pointer; font-size:12px; }
+.repeater-rm:hover { color:var(--red); border-color:var(--red); }
+.repeater-add { background:var(--bg-section); color:var(--tx2);
+  border:1px dashed var(--brd-lt); padding:8px 14px; border-radius:4px;
+  cursor:pointer; font-size:13px; width:100%; }
+.repeater-add:hover { color:var(--accent-lt); border-color:var(--accent-dim);
+  border-style:solid; }
+
+.json-preview { font-family:'IBM Plex Mono',monospace; font-size:12px;
+  background:var(--bg2); color:var(--tx); border:1px solid var(--brd);
+  border-radius:4px; padding:12px; white-space:pre; overflow:auto;
+  max-height:500px; margin:0; }
+
+.ftr { color:var(--tx3); font-size:12px; text-align:center;
+  padding:30px 0 16px; }
+
+@media (max-width:700px) {
+  .row-2, .row-3, .row-id { grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+
+<div id="gcc-bar" class="gcc-bar">
+  <div class="gcc-bar-in">
+    <a href="index.html" class="gcc-brand" title="Back to Dashboard">
+      <div class="gcc-title-wrap">
+        <div class="gcc-title">GRAYCLOAK'S</div>
+        <div class="gcc-subtitle">CAMPAIGN CORNER</div>
+      </div>
+    </a>
+    <div class="gcc-nav">
+      <div class="gcc-tools-wrap">
+        <button class="gcc-nav-btn" id="gcc-btn-tools">🎲 Tools ▾</button>
+        <div class="gcc-tools-dd" id="gcc-tools-dd"></div>
+      </div>
+      <span id="gcc-auth-slot"></span>
+      <button class="gcc-nav-btn" id="gcc-btn-theme" title="Toggle light/dark"><span id="gcc-theme-icon">◑</span></button>
+    </div>
+  </div>
+</div>
+<div class="gcc-tools-overlay" id="gcc-tools-overlay"></div>
+
+<div class="main">
+
+  <div class="page-hdr">
+    <div>
+      <div class="page-title">SETTLEMENT EDITOR</div>
+      <div class="page-sub">Authoring tool for <code>graycloak-adnd/seed/{parentHexId}/settlements/{slug}.json</code></div>
+    </div>
+  </div>
+
+  <div class="draft-banner" id="draft-banner">
+    <div class="draft-banner-msg">
+      Unsaved draft from <b id="draft-when">(time)</b>: <b id="draft-name">(name)</b>
+    </div>
+    <div class="draft-banner-actions">
+      <button class="tb-btn primary" id="btn-draft-resume">Resume</button>
+      <button class="tb-btn danger" id="btn-draft-discard">Discard</button>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button class="tb-btn" id="btn-new">＋ New</button>
+    <button class="tb-btn" id="btn-load">📂 Load JSON…</button>
+    <input type="file" id="file-input" accept=".json,application/json" style="display:none">
+    <button class="tb-btn primary" id="btn-download">⬇ Download</button>
+    <button class="tb-btn" id="btn-copy">⎘ Copy JSON</button>
+    <button class="tb-btn danger" id="btn-clear">✕ Clear</button>
+    <span class="tb-status" id="tb-status">Ready</span>
+  </div>
+
+  <div class="panels">
+
+    <!-- Identity -->
+    <div class="panel">
+      <div class="panel-hdr" data-toggle="p-identity">
+        <div class="panel-title">Identity</div>
+        <div class="panel-hint">ID auto-derives from name until you manually edit it</div>
+      </div>
+      <div class="panel-body" id="p-identity">
+        <div class="row row-id">
+          <div class="field">
+            <label class="field-label">ID</label>
+            <div class="id-row">
+              <input type="text" id="f-id" class="mono" placeholder="set_far_bank">
+              <button class="id-lock-btn" id="f-id-lock" title="Lock to stop auto-derive on name change">🔓</button>
+            </div>
+            <div class="field-hint">Firestore doc id at <code>settlements/{id}</code></div>
+          </div>
+          <div class="field">
+            <label class="field-label">Name</label>
+            <input type="text" id="f-name" placeholder="Far Bank">
+          </div>
+        </div>
+        <div class="row row-3">
+          <div class="field">
+            <label class="field-label">Size</label>
+            <select id="f-size">
+              <option value="thorp">thorp</option>
+              <option value="hamlet">hamlet</option>
+              <option value="village" selected>village</option>
+              <option value="small_town">small_town</option>
+              <option value="large_town">large_town</option>
+              <option value="small_city">small_city</option>
+              <option value="large_city">large_city</option>
+              <option value="metropolis">metropolis</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label">Population</label>
+            <input type="number" id="f-pop" min="0" step="1">
+          </div>
+          <div class="field">
+            <label class="field-label">Alignment</label>
+            <select id="f-align">
+              <option value="LG">LG</option><option value="NG">NG</option><option value="CG">CG</option>
+              <option value="LN">LN</option><option value="N" selected>N</option><option value="CN">CN</option>
+              <option value="LE">LE</option><option value="NE">NE</option><option value="CE">CE</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Location -->
+    <div class="panel">
+      <div class="panel-hdr" data-toggle="p-location">
+        <div class="panel-title">Location</div>
+        <div class="panel-hint">Parent hex (Darlene 30-mile) + subhex (3-mile) coords</div>
+      </div>
+      <div class="panel-body" id="p-location">
+        <div class="row row-3">
+          <div class="field">
+            <label class="field-label">Regional Hex ID</label>
+            <input type="text" id="f-hex" class="mono" placeholder="D4-86">
+            <div class="field-hint">Darlene format, e.g. <code>D4-86</code></div>
+          </div>
+          <div class="field">
+            <label class="field-label">Subhex Q</label>
+            <input type="number" id="f-subq" step="1">
+          </div>
+          <div class="field">
+            <label class="field-label">Subhex R</label>
+            <input type="number" id="f-subr" step="1">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label class="field-label">Parent settlement (optional)</label>
+            <input type="text" id="f-parent" class="mono" placeholder="set_greyhawk">
+            <div class="field-hint">Settlement ID this one belongs to as a suburb (e.g. Far Bank → Greyhawk). Blank for standalone.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Realm & Faith -->
+    <div class="panel">
+      <div class="panel-hdr" data-toggle="p-realm">
+        <div class="panel-title">Realm &amp; Faith</div>
+        <div class="panel-hint">Greyhawk political and religious context</div>
+      </div>
+      <div class="panel-body" id="p-realm">
+        <div class="row row-3">
+          <div class="field">
+            <label class="field-label">Jurisdiction</label>
+            <input type="text" id="f-juris" placeholder="Viscounty of Verbobonc">
+            <div class="field-hint">Realm/state this falls under</div>
+          </div>
+          <div class="field">
+            <label class="field-label">Patron Deity</label>
+            <input type="text" id="f-deity" placeholder="St. Cuthbert">
+          </div>
+          <div class="field">
+            <label class="field-label">Founded</label>
+            <input type="text" id="f-founded" placeholder="245 CY or 'Ancient'">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Economy & Rulership -->
+    <div class="panel">
+      <div class="panel-hdr" data-toggle="p-econ">
+        <div class="panel-title">Economy &amp; Rulership</div>
+      </div>
+      <div class="panel-body" id="p-econ">
+        <div class="row row-2">
+          <div class="field">
+            <label class="field-label">Ruler (optional)</label>
+            <input type="text" id="f-ruler" placeholder="(leave blank for null)">
+            <div class="field-hint">Free-text name/title; full stats live on the NPC's character sheet</div>
+          </div>
+          <div class="field">
+            <label class="field-label">Market GP Limit (optional)</label>
+            <input type="number" id="f-mkt" min="0" step="100">
+            <div class="field-hint">DMG cap on single transactions; e.g. village 800, town 3000, city 15000</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Image -->
+    <div class="panel">
+      <div class="panel-hdr" data-toggle="p-image">
+        <div class="panel-title">Image</div>
+        <div class="panel-hint">Optional URL for the settlement card</div>
+      </div>
+      <div class="panel-body" id="p-image">
+        <div class="row">
+          <div class="field">
+            <label class="field-label">Image URL</label>
+            <input type="url" id="f-image" class="mono" placeholder="https://… or relative path">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Services -->
+    <div class="panel">
+      <div class="panel-hdr" data-toggle="p-services">
+        <div class="panel-title">Services</div>
+        <div class="panel-hint">Click presets to add; ✕ to remove; or type a custom slug</div>
+      </div>
+      <div class="panel-body" id="p-services">
+        <div class="svc-current" id="svc-current"></div>
+        <div class="svc-presets-lbl">Presets</div>
+        <div class="svc-preset-list" id="svc-presets"></div>
+        <div class="svc-add">
+          <input type="text" id="svc-input" class="mono" placeholder="custom_service_slug" autocomplete="off">
+          <button class="svc-add-btn" id="svc-add-btn">＋ Add</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notable NPCs -->
+    <div class="panel">
+      <div class="panel-hdr" data-toggle="p-npcs">
+        <div class="panel-title">Notable NPCs</div>
+        <div class="panel-hint">Link to AD&amp;D character records via Character ID</div>
+      </div>
+      <div class="panel-body" id="p-npcs">
+        <div class="repeater-list" id="npc-list"></div>
+        <button class="repeater-add" id="btn-add-npc">＋ Add notable NPC</button>
+      </div>
+    </div>
+
+    <!-- Nearby Locations -->
+    <div class="panel">
+      <div class="panel-hdr" data-toggle="p-nearby">
+        <div class="panel-title">Nearby Locations</div>
+        <div class="panel-hint">Adventure sites, ruins, landmarks not big enough to be their own settlement</div>
+      </div>
+      <div class="panel-body" id="p-nearby">
+        <div class="repeater-list" id="loc-list"></div>
+        <button class="repeater-add" id="btn-add-loc">＋ Add nearby location</button>
+      </div>
+    </div>
+
+    <!-- Notes -->
+    <div class="panel">
+      <div class="panel-hdr" data-toggle="p-notes">
+        <div class="panel-title">Notes</div>
+        <div class="panel-hint">Free-text description, history, current situation, hooks</div>
+      </div>
+      <div class="panel-body" id="p-notes">
+        <div class="row">
+          <div class="field">
+            <textarea id="f-notes" rows="6" placeholder="Small village in the Kron Hills foothills, 30 miles southeast of Verbobonc…"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- JSON Preview -->
+    <div class="panel">
+      <div class="panel-hdr" data-toggle="p-json">
+        <div class="panel-title">JSON Preview</div>
+        <div class="panel-hint">Live preview of what Download produces (click header to expand)</div>
+      </div>
+      <div class="panel-body collapsed" id="p-json">
+        <pre class="json-preview" id="json-preview"></pre>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="ftr">Settlement Editor v0.1.0 — Graycloak's Campaign Corner</div>
+
+</div>
+
+<script src="gcc-dialog.js"></script>
+<script src="gcc-data.js"></script>
+<script src="gcc-header.js"></script>
+<script src="gcc-firebase-config.js"></script>
+<script src="gcc-auth.js"></script>
+<script>
+(function(){
+  'use strict';
+
+  const DRAFT_KEY = 'gcc-settlement-editor-draft';
+  const SERVICE_PRESETS = [
+    'inn','smithy','temple','trader','alehouse','fish_market',
+    'stable','magic_shop','alchemist','scribe','bank','harbor'
+  ];
+
+  const $ = id => document.getElementById(id);
+  const ESC = s => { const d = document.createElement('div'); d.textContent = s||''; return d.innerHTML; };
+
+  function blankState() {
+    return {
+      id:'', name:'', size:'village', population:'', alignment:'N',
+      regionalHexId:'', subQ:'', subR:'',
+      ruler:'',
+      jurisdiction:'', patronDeity:'', founded:'',
+      marketGpLimit:'', image:'',
+      services:[],
+      animalMarkets:null,
+      notes:'',
+      notableNPCs:[],
+      nearbyLocations:[],
+      parent:'',
+      idLocked:false
+    };
+  }
+  let state = blankState();
+  let _saveTimer = null;
+
+  function deriveSlug(name) {
+    if (!name) return '';
+    const slug = name.toLowerCase().trim()
+      .replace(/[^a-z0-9_\s-]/g,'')
+      .replace(/[\s-]+/g,'_')
+      .replace(/^_+|_+$/g,'');
+    return slug ? 'set_' + slug : '';
+  }
+
+  function bindScalar(id, key, transform) {
+    const el = $(id);
+    if (!el) return;
+    el.addEventListener('input', () => {
+      state[key] = transform ? transform(el.value) : el.value;
+      onStateChange();
+    });
+  }
+  function intOrEmpty(v) { if (v === '' || v == null) return ''; const n = parseInt(v,10); return isNaN(n) ? '' : n; }
+
+  function renderInputs() {
+    $('f-id').value = state.id;
+    $('f-name').value = state.name;
+    $('f-size').value = state.size;
+    $('f-pop').value = state.population;
+    $('f-align').value = state.alignment;
+    $('f-hex').value = state.regionalHexId;
+    $('f-subq').value = state.subQ;
+    $('f-subr').value = state.subR;
+    $('f-parent').value = state.parent;
+    $('f-juris').value = state.jurisdiction;
+    $('f-deity').value = state.patronDeity;
+    $('f-founded').value = state.founded;
+    $('f-ruler').value = state.ruler;
+    $('f-mkt').value = state.marketGpLimit;
+    $('f-image').value = state.image;
+    $('f-notes').value = state.notes;
+    $('f-id-lock').classList.toggle('locked', state.idLocked);
+    $('f-id-lock').textContent = state.idLocked ? '🔒' : '🔓';
+    renderServices();
+    renderNpcs();
+    renderLocs();
+    renderJsonPreview();
+  }
+
+  function renderServices() {
+    const cur = $('svc-current');
+    cur.innerHTML = state.services.map((s,i) =>
+      `<span class="svc-chip">${ESC(s)}<span class="svc-chip-x" data-i="${i}">✕</span></span>`
+    ).join('');
+    cur.querySelectorAll('.svc-chip-x').forEach(x => {
+      x.addEventListener('click', () => {
+        state.services.splice(parseInt(x.dataset.i,10), 1);
+        onStateChange();
+        renderServices();
+      });
+    });
+    const pres = $('svc-presets');
+    pres.innerHTML = SERVICE_PRESETS.map(s => {
+      const added = state.services.includes(s);
+      return `<button class="svc-preset${added?' added':''}" data-svc="${ESC(s)}">${ESC(s)}</button>`;
+    }).join('');
+    pres.querySelectorAll('.svc-preset').forEach(btn => {
+      btn.addEventListener('click', () => addService(btn.dataset.svc));
+    });
+  }
+  function addService(slug) {
+    slug = (slug||'').trim();
+    if (!slug || state.services.includes(slug)) return;
+    state.services.push(slug);
+    onStateChange();
+    renderServices();
+  }
+
+  function blankNpc() { return { characterId:'', name:'', role:'', alignment:'N', notes:'' }; }
+  function renderNpcs() {
+    const list = $('npc-list');
+    list.innerHTML = state.notableNPCs.map((n,i) => `
+      <div class="repeater-card" data-i="${i}">
+        <div class="repeater-card-hdr">
+          <div class="repeater-card-label">NPC #${i+1}</div>
+          <button class="repeater-rm" data-rm="${i}">Remove</button>
+        </div>
+        <div class="row row-2">
+          <div class="field">
+            <label class="field-label">Character ID</label>
+            <input type="text" class="mono" data-npc="characterId" data-i="${i}" value="${ESC(n.characterId)}" placeholder="char_burne">
+            <div class="field-hint">Optional link to <code>characters/{id}</code></div>
+          </div>
+          <div class="field">
+            <label class="field-label">Name</label>
+            <input type="text" data-npc="name" data-i="${i}" value="${ESC(n.name)}" placeholder="Burne">
+          </div>
+        </div>
+        <div class="row row-2">
+          <div class="field">
+            <label class="field-label">Role</label>
+            <input type="text" data-npc="role" data-i="${i}" value="${ESC(n.role)}" placeholder="Co-ruler; magic-user (7th level)">
+          </div>
+          <div class="field">
+            <label class="field-label">Alignment</label>
+            <select data-npc="alignment" data-i="${i}">
+              ${['LG','NG','CG','LN','N','CN','LE','NE','CE'].map(a =>
+                `<option value="${a}"${a===n.alignment?' selected':''}>${a}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label class="field-label">Notes</label>
+            <textarea data-npc="notes" data-i="${i}" rows="2" placeholder="Co-rules Hommlet with Rufus. Building a new keep on the rise…">${ESC(n.notes)}</textarea>
+          </div>
+        </div>
+      </div>
+    `).join('');
+    list.querySelectorAll('[data-npc]').forEach(el => {
+      el.addEventListener('input', () => {
+        const i = parseInt(el.dataset.i,10);
+        state.notableNPCs[i][el.dataset.npc] = el.value;
+        onStateChange();
+      });
+    });
+    list.querySelectorAll('[data-rm]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.notableNPCs.splice(parseInt(btn.dataset.rm,10), 1);
+        renderNpcs();
+        onStateChange();
+      });
+    });
+  }
+
+  function blankLoc() { return { name:'', distance:'', direction:'', description:'' }; }
+  function renderLocs() {
+    const list = $('loc-list');
+    list.innerHTML = state.nearbyLocations.map((l,i) => `
+      <div class="repeater-card" data-i="${i}">
+        <div class="repeater-card-hdr">
+          <div class="repeater-card-label">Location #${i+1}</div>
+          <button class="repeater-rm" data-rm="${i}">Remove</button>
+        </div>
+        <div class="row row-3">
+          <div class="field">
+            <label class="field-label">Name</label>
+            <input type="text" data-loc="name" data-i="${i}" value="${ESC(l.name)}" placeholder="Moathouse">
+          </div>
+          <div class="field">
+            <label class="field-label">Distance</label>
+            <input type="text" data-loc="distance" data-i="${i}" value="${ESC(l.distance)}" placeholder="7 miles">
+          </div>
+          <div class="field">
+            <label class="field-label">Direction</label>
+            <input type="text" data-loc="direction" data-i="${i}" value="${ESC(l.direction)}" placeholder="E / SE / NNW">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label class="field-label">Description</label>
+            <textarea data-loc="description" data-i="${i}" rows="2" placeholder="Old ruined keep; cult of Elemental Evil holds the lower level…">${ESC(l.description)}</textarea>
+          </div>
+        </div>
+      </div>
+    `).join('');
+    list.querySelectorAll('[data-loc]').forEach(el => {
+      el.addEventListener('input', () => {
+        const i = parseInt(el.dataset.i,10);
+        state.nearbyLocations[i][el.dataset.loc] = el.value;
+        onStateChange();
+      });
+    });
+    list.querySelectorAll('[data-rm]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.nearbyLocations.splice(parseInt(btn.dataset.rm,10), 1);
+        renderLocs();
+        onStateChange();
+      });
+    });
+  }
+
+  function buildJson() {
+    const o = {};
+    o.id = state.id || '';
+    o.name = state.name || '';
+    o.size = state.size || 'village';
+    o.population = state.population === '' ? 0 : Number(state.population);
+    o.alignment = state.alignment || 'N';
+    o.regionalHexId = state.regionalHexId || '';
+    o.subHexCoord = [
+      state.subQ === '' ? 0 : Number(state.subQ),
+      state.subR === '' ? 0 : Number(state.subR)
+    ];
+    o.ruler = state.ruler ? state.ruler : null;
+    if (state.jurisdiction) o.jurisdiction = state.jurisdiction;
+    if (state.patronDeity)  o.patronDeity  = state.patronDeity;
+    if (state.founded)      o.founded      = state.founded;
+    if (state.marketGpLimit !== '' && state.marketGpLimit != null) {
+      o.marketGpLimit = Number(state.marketGpLimit);
+    }
+    if (state.image) o.image = state.image;
+    if (state.services.length) o.services = state.services.slice();
+    if (state.animalMarkets) o.animalMarkets = state.animalMarkets;
+    o.notes = state.notes || '';
+    if (state.notableNPCs.length) {
+      o.notableNPCs = state.notableNPCs.map(n => {
+        const e = {};
+        if (n.characterId) e.characterId = n.characterId;
+        e.name = n.name || '';
+        e.role = n.role || '';
+        e.alignment = n.alignment || '';
+        if (n.notes) e.notes = n.notes;
+        return e;
+      });
+    }
+    if (state.nearbyLocations.length) {
+      o.nearbyLocations = state.nearbyLocations.map(l => {
+        const e = { name: l.name || '' };
+        if (l.distance)    e.distance    = l.distance;
+        if (l.direction)   e.direction   = l.direction;
+        if (l.description) e.description = l.description;
+        return e;
+      });
+    }
+    o.parent = state.parent ? state.parent : null;
+    o.schemaVersion = 1;
+    return o;
+  }
+
+  function renderJsonPreview() {
+    const pre = $('json-preview');
+    if (!pre) return;
+    pre.textContent = JSON.stringify(buildJson(), null, 2);
+  }
+
+  function loadFrom(parsed) {
+    state = blankState();
+    state.id = parsed.id || '';
+    state.name = parsed.name || '';
+    state.size = parsed.size || 'village';
+    state.population = parsed.population != null ? parsed.population : '';
+    state.alignment = parsed.alignment || 'N';
+    state.regionalHexId = parsed.regionalHexId || '';
+    state.subQ = (parsed.subHexCoord && parsed.subHexCoord[0] != null) ? parsed.subHexCoord[0] : '';
+    state.subR = (parsed.subHexCoord && parsed.subHexCoord[1] != null) ? parsed.subHexCoord[1] : '';
+    state.ruler = parsed.ruler || '';
+    state.jurisdiction = parsed.jurisdiction || '';
+    state.patronDeity = parsed.patronDeity || '';
+    state.founded = parsed.founded || '';
+    state.marketGpLimit = parsed.marketGpLimit != null ? parsed.marketGpLimit : '';
+    state.image = parsed.image || '';
+    state.services = Array.isArray(parsed.services) ? parsed.services.slice() : [];
+    state.animalMarkets = parsed.animalMarkets || null;
+    state.notes = parsed.notes || '';
+    state.notableNPCs = Array.isArray(parsed.notableNPCs) ? parsed.notableNPCs.map(n => ({
+      characterId: n.characterId || '',
+      name:        n.name || '',
+      role:        n.role || '',
+      alignment:   n.alignment || 'N',
+      notes:       n.notes || ''
+    })) : [];
+    state.nearbyLocations = Array.isArray(parsed.nearbyLocations) ? parsed.nearbyLocations.map(l => ({
+      name:        l.name || '',
+      distance:    l.distance || '',
+      direction:   l.direction || '',
+      description: l.description || ''
+    })) : [];
+    state.parent = parsed.parent || '';
+    state.idLocked = !!state.id;
+    renderInputs();
+    onStateChange();
+  }
+
+  function onStateChange() {
+    renderJsonPreview();
+    clearTimeout(_saveTimer);
+    _saveTimer = setTimeout(() => {
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ state, savedAt: Date.now() }));
+        setStatus('Draft saved', 'ok');
+      } catch(e) { /* quota / private mode — ignore */ }
+    }, 300);
+  }
+
+  function setStatus(msg, kind) {
+    const el = $('tb-status');
+    el.textContent = msg;
+    el.className = 'tb-status' + (kind ? ' '+kind : '');
+    if (kind === 'ok') setTimeout(() => {
+      if (el.textContent === msg) { el.textContent='Ready'; el.className='tb-status'; }
+    }, 2000);
+  }
+
+  function checkDraft() {
+    let raw; try { raw = localStorage.getItem(DRAFT_KEY); } catch(e) { return; }
+    if (!raw) return;
+    let draft; try { draft = JSON.parse(raw); } catch(e) { return; }
+    if (!draft || !draft.state) return;
+    const s = draft.state;
+    const meaningful = s.name || s.id || s.notes ||
+      (s.notableNPCs && s.notableNPCs.length) ||
+      (s.services && s.services.length);
+    if (!meaningful) return;
+    const when = new Date(draft.savedAt || Date.now());
+    $('draft-when').textContent = when.toLocaleString();
+    $('draft-name').textContent = s.name || s.id || '(unnamed)';
+    const banner = $('draft-banner');
+    banner.classList.add('show');
+    $('btn-draft-resume').onclick = () => {
+      state = Object.assign(blankState(), s);
+      renderInputs();
+      banner.classList.remove('show');
+      setStatus('Draft restored', 'ok');
+    };
+    $('btn-draft-discard').onclick = () => {
+      try { localStorage.removeItem(DRAFT_KEY); } catch(e){}
+      banner.classList.remove('show');
+      setStatus('Draft discarded', 'ok');
+    };
+  }
+
+  function downloadJson() {
+    const obj = buildJson();
+    if (!obj.id) { setStatus('Cannot download — ID is empty', 'err'); return; }
+    const slug = obj.id.replace(/^set_/, '') || obj.id;
+    const fname = slug.replace(/_/g,'-') + '.json';
+    const blob = new Blob([JSON.stringify(obj, null, 2)], { type:'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = fname;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+    setStatus('Downloaded ' + fname, 'ok');
+  }
+
+  async function copyJson() {
+    const txt = JSON.stringify(buildJson(), null, 2);
+    try {
+      await navigator.clipboard.writeText(txt);
+      setStatus('Copied to clipboard', 'ok');
+    } catch(e) {
+      setStatus('Copy failed: ' + e.message, 'err');
+    }
+  }
+
+  function clearAll() {
+    if (!confirm('Clear all fields? Draft auto-save will be wiped too.')) return;
+    state = blankState();
+    try { localStorage.removeItem(DRAFT_KEY); } catch(e){}
+    renderInputs();
+    setStatus('Cleared', 'ok');
+  }
+
+  function newSettlement() {
+    if (state.name || state.id) {
+      if (!confirm('Start a new settlement? Current unsaved work will be lost (download first if you want to keep it).')) return;
+    }
+    state = blankState();
+    renderInputs();
+    setStatus('New settlement', 'ok');
+  }
+
+  function onFileChosen(file) {
+    if (!file) return;
+    const r = new FileReader();
+    r.onload = e => {
+      try {
+        const parsed = JSON.parse(e.target.result);
+        loadFrom(parsed);
+        setStatus('Loaded ' + file.name, 'ok');
+      } catch(err) {
+        setStatus('Parse failed: ' + err.message, 'err');
+      }
+    };
+    r.readAsText(file);
+  }
+
+  function wire() {
+    // Name → slug (also updates id input when not locked)
+    $('f-name').addEventListener('input', () => {
+      state.name = $('f-name').value;
+      if (!state.idLocked) {
+        state.id = deriveSlug(state.name);
+        $('f-id').value = state.id;
+      }
+      onStateChange();
+    });
+    // Manual id edit auto-locks
+    $('f-id').addEventListener('input', () => {
+      state.id = $('f-id').value;
+      state.idLocked = true;
+      $('f-id-lock').classList.add('locked');
+      $('f-id-lock').textContent = '🔒';
+      onStateChange();
+    });
+    $('f-id-lock').addEventListener('click', () => {
+      state.idLocked = !state.idLocked;
+      $('f-id-lock').classList.toggle('locked', state.idLocked);
+      $('f-id-lock').textContent = state.idLocked ? '🔒' : '🔓';
+      if (!state.idLocked) {
+        state.id = deriveSlug(state.name);
+        $('f-id').value = state.id;
+      }
+      onStateChange();
+    });
+
+    bindScalar('f-size', 'size');
+    bindScalar('f-pop', 'population', intOrEmpty);
+    bindScalar('f-align', 'alignment');
+    bindScalar('f-hex', 'regionalHexId');
+    bindScalar('f-subq', 'subQ', intOrEmpty);
+    bindScalar('f-subr', 'subR', intOrEmpty);
+    bindScalar('f-parent', 'parent');
+    bindScalar('f-juris', 'jurisdiction');
+    bindScalar('f-deity', 'patronDeity');
+    bindScalar('f-founded', 'founded');
+    bindScalar('f-ruler', 'ruler');
+    bindScalar('f-mkt', 'marketGpLimit', intOrEmpty);
+    bindScalar('f-image', 'image');
+    bindScalar('f-notes', 'notes');
+
+    $('svc-add-btn').addEventListener('click', () => {
+      const v = $('svc-input').value.trim().toLowerCase()
+        .replace(/[^a-z0-9_]/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,'');
+      if (v) { addService(v); $('svc-input').value = ''; }
+    });
+    $('svc-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); $('svc-add-btn').click(); }
+    });
+
+    $('btn-add-npc').addEventListener('click', () => {
+      state.notableNPCs.push(blankNpc());
+      renderNpcs();
+      onStateChange();
+    });
+    $('btn-add-loc').addEventListener('click', () => {
+      state.nearbyLocations.push(blankLoc());
+      renderLocs();
+      onStateChange();
+    });
+
+    $('btn-new').addEventListener('click', newSettlement);
+    $('btn-load').addEventListener('click', () => $('file-input').click());
+    $('file-input').addEventListener('change', e => onFileChosen(e.target.files[0]));
+    $('btn-download').addEventListener('click', downloadJson);
+    $('btn-copy').addEventListener('click', copyJson);
+    $('btn-clear').addEventListener('click', clearAll);
+
+    document.querySelectorAll('.panel-hdr[data-toggle]').forEach(hdr => {
+      hdr.addEventListener('click', () => {
+        const body = document.getElementById(hdr.dataset.toggle);
+        if (body) body.classList.toggle('collapsed');
+      });
+    });
+  }
+
+  function init() {
+    wire();
+    renderInputs();
+    checkDraft();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+})();
+</script>
+</body>
+</html>
