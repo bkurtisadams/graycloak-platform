@@ -535,7 +535,7 @@ body {
 </div>
 
 <script>
-const SIM_VERSION = 'v0.2.0';
+const SIM_VERSION = 'v0.2.1';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -640,7 +640,7 @@ const WEAPONS = {
 const SPELLS = {
   magic_missile: {
     id: 'magic_missile', name: 'Magic Missile', icon: '✦',
-    level: 1, range_squares: 22,
+    level: 1, range_squares: 22, casting_time: 1,
     cast(caster) {
       const missiles = Math.min(5, Math.floor((caster.level + 1) / 2));
       let total = 0;
@@ -900,6 +900,27 @@ function resolveSpell(state, casterId, targetId, spellId) {
     damage: dmg, missiles: result.missiles, each: result.each,
     killed: target.dead
   };
+}
+
+// DMG weapon-vs-spell timing: |speed factor − losing initiative die| vs casting time (segments).
+function spellRace(weaponSpeed, losingDie, castTime) {
+  const blowSeg = Math.abs((weaponSpeed || 5) - (losingDie || 0));
+  if (blowSeg < castTime) return 'blow_first';
+  if (blowSeg === castTime) return 'simultaneous';
+  return 'spell_first';
+}
+function consumeSpellCharge(caster, spellId) {
+  const ch = caster.spell_charges;
+  if (ch && ch[spellId] > 0) ch[spellId]--;
+}
+// A successful hit on a figure still casting this round spoils the spell.
+function noteSpellInterrupt(targetId, event) {
+  if (!event || (event.kind !== 'attack_hit' && event.kind !== 'attack_crit')) return;
+  const td = state.declarations[targetId];
+  if (td && td.kind === 'cast' && !td._resolved) {
+    const t = findCombatant(state, targetId);
+    if (t) t._spell_interrupted = true;
+  }
 }
 
 // 1e weapon length: when a combatant closes into a fresh melee, a defender wielding a
@@ -1413,7 +1434,7 @@ function beginRound() {
   state.segment = 0;
   state.sides_acted = [];
   state.initiative = null; // rolled only after both sides declare (RAW: orders stated at start of round)
-  state.combatants.forEach(c => { c.movement_used = 0; });
+  state.combatants.forEach(c => { c.movement_used = 0; c._spell_interrupted = false; });
   // Expire timed effects whose duration has elapsed (effects populated in later stages)
   state.effects = (state.effects || []).filter(e => e.expires_round == null || e.expires_round > state.round);
   enterDeclarePhase(); // both sides declare blind, before initiative
@@ -1461,6 +1482,8 @@ async function resolveSide(side) {
   for (const c of actors) {
     if (state.game_over) break;
     if (c.dead) continue;
+    const cdecl = state.declarations[c.id];
+    if (cdecl && cdecl._resolved) continue; // already struck pre-emptively (e.g., interrupting a spell)
     state.current_actor = c.id;
     state.selected_id = c.id;
     renderAll();
@@ -1627,6 +1650,7 @@ async function executeAttackDecl(c, decl) {
   if (event) {
     logAttackEvent(event);
     showAttackVfx(event);
+    noteSpellInterrupt(target.id, event);
   }
   await sleep(450);
 }
@@ -1680,6 +1704,7 @@ async function executeChargeDecl(c, decl) {
   if (event) {
     logAttackEvent(event);
     showAttackVfx(event);
+    noteSpellInterrupt(target.id, event);
   }
   await sleep(450);
 }
@@ -1687,13 +1712,55 @@ async function executeChargeDecl(c, decl) {
 async function executeCastDecl(c, decl) {
   const spell = SPELLS[decl.spell_id];
   if (!spell) return;
+  const aSide = c.side === 'A' ? 'a' : 'b';
+  const castTime = spell.casting_time || 1;
+
+  // Case B: the caster won initiative, but an already-engaged enemy with a fast enough weapon
+  // may strike before the cast completes (DMG: |speed factor − losing die| vs casting time).
+  if (!c._spell_interrupted && state.initiative && c.side === state.initiative.winner) {
+    const losingDie = c.side === 'A' ? state.initiative.B : state.initiative.A;
+    const interrupters = aliveCombatantsOnSide(state, c.side === 'A' ? 'B' : 'A').filter(e => {
+      const d = state.declarations[e.id];
+      if (!d || d.kind !== 'attack' || d._resolved || d.target_id !== c.id) return false;
+      const w = WEAPONS[d.weapon_id];
+      return w && w.melee && inMelee(e, c);
+    });
+    for (const e of interrupters) {
+      if (c._spell_interrupted || c.dead) break;
+      const d = state.declarations[e.id];
+      const race = spellRace((WEAPONS[d.weapon_id].speed) || 5, losingDie, castTime);
+      if (race === 'spell_first') continue; // too slow — swings normally in its own phase
+      d._resolved = true; // this blow lands now, not again later
+      state.current_actor = e.id;
+      faceToward(e, c.position);
+      renderAll();
+      await sleep(200);
+      const ev = resolveAttack(state, e.id, c.id, d.weapon_id);
+      if (ev) { logAttackEvent(ev); showAttackVfx(ev); }
+      state.current_actor = c.id;
+      if (race === 'blow_first' && ev && (ev.kind === 'attack_hit' || ev.kind === 'attack_crit')) {
+        c._spell_interrupted = true; // a hit before completion spoils the spell
+      }
+      // 'simultaneous': the blow lands but the spell still goes off
+    }
+  }
+
+  decl._resolved = true;
+  if (c.dead) return;
+  if (c._spell_interrupted) {
+    log(state, 'fail', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span>'s <span class="em">${spell.name}</span> is spoiled — struck mid-cast, spell lost.</span>`);
+    consumeSpellCharge(c, decl.spell_id);
+    await sleep(300);
+    return;
+  }
+
   const target = findCombatant(state, decl.target_id);
   if (!target || target.dead) {
-    log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${c.side === 'A' ? 'a' : 'b'}">${c.label}</span>'s spell target is already down.</span>`);
+    log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span>'s spell target is already down.</span>`);
     return;
   }
   if (dist10(c.position, target.position) > spell.range_squares) {
-    log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${c.side === 'A' ? 'a' : 'b'}">${c.label}</span>'s ${spell.name} is out of range.</span>`);
+    log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span>'s ${spell.name} is out of range.</span>`);
     return;
   }
   faceToward(c, target.position);
