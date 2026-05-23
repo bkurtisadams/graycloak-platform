@@ -535,7 +535,7 @@ body {
 </div>
 
 <script>
-const SIM_VERSION = 'v0.1.2';
+const SIM_VERSION = 'v0.2.0';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -1001,6 +1001,10 @@ function makeInitialState() {
     formation: { aggro: { rank: 0, file: 1 }, arlanni: { rank: 1, file: 1 }, abner: { rank: 2, file: 1 } },
     _form_held: null, // editor: currently picked-up member
     initiative: null,
+    segment: 0,            // current segment within the round (surprise / ties / spells / psionics)
+    elapsed_segments: 0,   // running combat-time accumulator (6s each) — feeds CTT later
+    effects: [],           // timed effects { kind, owner, expires_round, ... }; expired at round start
+    psionic: null,         // reserved stub for future psionic combat timing
     declarations: {}, // combatantId -> Declaration
     selected_id: null,
     current_actor: null, // only set during resolution
@@ -1395,34 +1399,43 @@ function beginEncounter() {
 function startSurpriseRound(side) {
   state.is_surprise_round = true;
   state.round = 0;
+  state.segment = 0;
+  state.initiative = null;
   state.acting_side = side;
   state.sides_acted = [];
   log(state, 'round', `<span class="ts">Surprise</span><span><span class="acting-banner-${side}">${sideName(side)}</span> catches the enemy flat-footed — <em>free action!</em></span>`);
-  enterDeclarePhase(side);
+  enterDeclarePhase({ surpriseSide: side });
 }
 
 function beginRound() {
   state.is_surprise_round = false;
   state.round++;
-  rollInitiative(state);
+  state.segment = 0;
   state.sides_acted = [];
-  state.acting_side = state.initiative.winner;
-  log(state, 'round', `<span class="ts">R${state.round}</span><span>Initiative — A:<span class="roll">${state.initiative.A}</span> B:<span class="roll">${state.initiative.B}</span> · <span class="acting-banner-${state.acting_side}"><em>${sideName(state.acting_side)} acts first</em></span></span>`);
-  enterDeclarePhase(state.acting_side);
+  state.initiative = null; // rolled only after both sides declare (RAW: orders stated at start of round)
+  state.combatants.forEach(c => { c.movement_used = 0; });
+  // Expire timed effects whose duration has elapsed (effects populated in later stages)
+  state.effects = (state.effects || []).filter(e => e.expires_round == null || e.expires_round > state.round);
+  enterDeclarePhase(); // both sides declare blind, before initiative
 }
 
-function enterDeclarePhase(side) {
+function enterDeclarePhase(opts) {
+  opts = opts || {};
   state.phase = 'declare';
-  state.acting_side = side;
   state.single_out_mode = false;
   state.picking = null;
-  // Default declarations: PCs hold, monsters get an AI suggestion (GM can override)
-  aliveCombatantsOnSide(state, side).forEach(c => {
-    if (!state.declarations[c.id]) {
-      state.declarations[c.id] = (c.side === 'A') ? { kind: 'hold' } : aiDeclare(c);
-    }
+  // Orders are declared blind, before initiative. Normal round = both sides; surprise = the surprising side only.
+  const sides = opts.surpriseSide ? [opts.surpriseSide] : ['A', 'B'];
+  sides.forEach(side => {
+    aliveCombatantsOnSide(state, side).forEach(c => {
+      if (!state.declarations[c.id]) {
+        state.declarations[c.id] = (c.side === 'A') ? { kind: 'hold' } : aiDeclare(c);
+      }
+    });
   });
-  const first = aliveCombatantsOnSide(state, side)[0];
+  // Player declares for side A in a normal round (monsters are AI'd blind); the surprising side in a surprise round.
+  state.acting_side = opts.surpriseSide || 'A';
+  const first = aliveCombatantsOnSide(state, state.acting_side)[0];
   state.selected_id = first ? first.id : null;
   renderAll();
 }
@@ -1436,11 +1449,11 @@ function declSpeed(c, decl) {
   return 0; // hold
 }
 
-async function resolveActingSide() {
+// Resolve one side's already-declared actions in weapon-speed order. Does not advance the round.
+async function resolveSide(side) {
+  state.acting_side = side;
   state.phase = 'resolve';
-  const side = state.acting_side;
   renderAll();
-  // Order by weapon speed factor (faster first)
   const actors = aliveCombatantsOnSide(state, side)
     .filter(c => state.declarations[c.id])
     .sort((a, b) => declSpeed(a, state.declarations[a.id]) - declSpeed(b, state.declarations[b.id]));
@@ -1459,29 +1472,34 @@ async function resolveActingSide() {
       break;
     }
   }
+}
 
-  // Clear this side's declarations and any dead combatant's
-  aliveCombatantsOnSide(state, side).forEach(c => { delete state.declarations[c.id]; });
-  state.combatants.forEach(c => { if (c.dead) delete state.declarations[c.id]; });
+function clearRoundDeclarations() {
+  state.combatants.forEach(c => { delete state.declarations[c.id]; });
+}
 
+// Normal round: declarations are locked, NOW roll initiative, then resolve winner then loser (DMG steps 4–5).
+async function resolveNormalRound() {
+  rollInitiative(state);
+  log(state, 'round', `<span class="ts">R${state.round}</span><span>Initiative — A:<span class="roll">${state.initiative.A}</span> B:<span class="roll">${state.initiative.B}</span> · <span class="acting-banner-${state.initiative.winner}"><em>${sideName(state.initiative.winner)} acts first</em></span></span>`);
+  const order = state.initiative.winner === 'A' ? ['A', 'B'] : ['B', 'A'];
+  for (const side of order) {
+    if (state.game_over) break;
+    await resolveSide(side);
+  }
+  clearRoundDeclarations();
+  state.elapsed_segments += 10; // one full round
   if (state.game_over) { renderAll(); showGameOver(); return; }
+  beginRound();
+}
 
-  if (state.is_surprise_round) {
-    // Free surprise round complete — begin first normal round
-    state.combatants.forEach(c => { c.movement_used = 0; });
-    beginRound();
-    return;
-  }
-
-  state.sides_acted.push(side);
-  if (state.sides_acted.length >= 2) {
-    state.combatants.forEach(c => { c.movement_used = 0; });
-    beginRound();
-  } else {
-    const other = side === 'A' ? 'B' : 'A';
-    state.combatants.forEach(c => { if (c.side === other) c.movement_used = 0; });
-    enterDeclarePhase(other);
-  }
+// Surprise: the surprising side acts once, no initiative. (Segment-accurate surprise lands in a later stage.)
+async function resolveSurpriseRound() {
+  await resolveSide(state.acting_side);
+  clearRoundDeclarations();
+  state.elapsed_segments += 1;
+  if (state.game_over) { renderAll(); showGameOver(); return; }
+  beginRound();
 }
 
 function aiDeclare(m) {
@@ -2306,9 +2324,13 @@ function renderRoundInfo() {
   const roundLabel = state.is_surprise_round ? 'Surprise' : `${state.round}`;
 
   if (phase === 'declare') {
-    const sideCls = state.acting_side === 'A' ? 'declare' : 'resolve';
-    phaseChip = `<div class="phase-chip ${sideCls}"><span class="glyph">⚐</span> ${sideName(state.acting_side)} declaring</div>`;
-    actionBtn = `<button class="btn-resolve" id="btn-resolve"${actingSideAllDeclared() ? '' : ' disabled'}>Resolve ${sideName(state.acting_side)} →</button>`;
+    if (state.is_surprise_round) {
+      phaseChip = `<div class="phase-chip declare"><span class="glyph">⚐</span> ${sideName(state.acting_side)} — surprise</div>`;
+      actionBtn = `<button class="btn-resolve" id="btn-resolve"${actingSideAllDeclared() ? '' : ' disabled'}>Resolve surprise →</button>`;
+    } else {
+      phaseChip = `<div class="phase-chip declare"><span class="glyph">⚐</span> Declare orders</div>`;
+      actionBtn = `<button class="btn-resolve" id="btn-resolve"${actingSideAllDeclared() ? '' : ' disabled'}>Roll initiative →</button>`;
+    }
   } else if (phase === 'resolve') {
     phaseChip = `<div class="phase-chip resolve"><span class="glyph">⚔</span> ${sideName(state.acting_side)} resolving</div>`;
   } else if (phase === 'setup') {
@@ -2322,7 +2344,7 @@ function renderRoundInfo() {
     <button class="btn-reset" onclick="App.resetCombat()">Reset</button>
   `;
   const rb = document.getElementById('btn-resolve');
-  if (rb) rb.addEventListener('click', () => App.resolveActingSide());
+  if (rb) rb.addEventListener('click', () => App.resolveRound());
 }
 
 function showFloatingText(x, y, text, kind) {
@@ -2630,10 +2652,11 @@ const App = {
     renderAll();
   },
 
-  async resolveActingSide() {
+  async resolveRound() {
     if (state.phase !== 'declare') return;
     if (!actingSideAllDeclared()) return;
-    await resolveActingSide();
+    if (state.is_surprise_round) await resolveSurpriseRound();
+    else await resolveNormalRound();
   }
 };
 
