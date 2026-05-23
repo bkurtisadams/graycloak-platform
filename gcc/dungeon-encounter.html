@@ -1157,8 +1157,15 @@ function loadCharacterFromObj(obj) {
   const i = state.combatants.findIndex(x => x.id === c.id);
   if (i >= 0) state.combatants.splice(i, 1);
   state.combatants.push(c);
-  const aRanks = state.combatants.filter(x => x.side === 'A' && state.formation[x.id]).map(x => state.formation[x.id].rank);
-  state.formation[c.id] = { rank: (aRanks.length ? Math.max.apply(null, aRanks) : -1) + 1, file: 1 };
+  // Drop the PC into the first empty slot of the marching-order grid so it's visible
+  const taken = new Set(state.combatants
+    .filter(x => x.side === 'A' && x.id !== c.id && state.formation[x.id])
+    .map(x => `${state.formation[x.id].rank},${state.formation[x.id].file}`));
+  let slot = null;
+  for (let rk = 0; rk < FORM_RANKS && !slot; rk++)
+    for (let fl = 0; fl < FORM_FILES && !slot; fl++)
+      if (!taken.has(`${rk},${fl}`)) slot = { rank: rk, file: fl };
+  state.formation[c.id] = slot || { rank: FORM_RANKS - 1, file: FORM_FILES - 1 };
   recomputeEngagements(state);
   return c;
 }
