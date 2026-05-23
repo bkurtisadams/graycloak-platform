@@ -41,6 +41,8 @@ body {
 .title .seal { font-size: 18px; color: var(--gold); filter: drop-shadow(0 0 4px rgba(201,168,90,0.3)); }
 .title h1 { font-family: 'IM Fell English', serif; font-size: 20px; font-weight: 400; color: var(--gold-bright); letter-spacing: 0.02em; }
 .title .subtitle { font-style: italic; color: var(--text-muted); font-size: 12px; }
+.version { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-muted);
+  border: 1px solid var(--border-strong); border-radius: 3px; padding: 1px 5px; align-self: center; }
 .round-info { display: flex; gap: 14px; align-items: center; }
 .round-counter { display: flex; align-items: baseline; gap: 6px; }
 .round-counter .label { font-family: 'IM Fell English', serif; font-style: italic; font-size: 10px;
@@ -441,6 +443,7 @@ body {
       <span class="seal">⚔</span>
       <h1>Combat — Encounter &amp; Sides</h1>
       <span class="subtitle">— 1e DMG sequence · surprise → distance → initiative → winners act → losers react</span>
+      <span class="version" id="sim-version"></span>
     </div>
     <div class="round-info" id="round-info"></div>
   </header>
@@ -532,6 +535,7 @@ body {
 </div>
 
 <script>
+const SIM_VERSION = 'v0.1.1';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -1899,6 +1903,12 @@ function renderMap() {
     });
   });
 
+  // Hovering a valid target token shows the to-hit preview (tokens sit above the target zone)
+  const pickAttacker = state.picking && state.picking.kind === 'target'
+    ? findCombatant(state, state.picking.forCombatantId) : null;
+  const pickTargetIds = pickAttacker
+    ? new Set(computeValidTargets(pickAttacker, state.picking).map(t => t.id)) : null;
+
   // Tokens
   state.combatants.forEach(c => {
     const n = c.size_cells || 1;
@@ -1911,6 +1921,10 @@ function renderMap() {
       transform: `translate(${x.toFixed(2)},${y.toFixed(2)})`,
       'data-token-id': c.id
     }, tokens);
+    if (pickTargetIds && pickTargetIds.has(c.id)) {
+      g.addEventListener('mouseenter', () => showHitPreview(pickAttacker, state.picking, c));
+      g.addEventListener('mouseleave', hideHitPreview);
+    }
     // Focus outline (square)
     if (c.id === state.current_actor && !c.dead) {
       const o = half + 3.5;
@@ -2721,6 +2735,12 @@ function applyView() {
   });
 })();
 
+(function () {
+  const v = document.getElementById('sim-version');
+  if (v) v.textContent = SIM_VERSION;
+  document.title = 'Combat Sim · ' + SIM_VERSION;
+  console.log('Dungeon combat sim ' + SIM_VERSION);
+})();
 App.init();
 </script>
 </body>
