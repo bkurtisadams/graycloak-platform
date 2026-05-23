@@ -535,7 +535,7 @@ body {
 </div>
 
 <script>
-const SIM_VERSION = 'v0.1.1';
+const SIM_VERSION = 'v0.1.2';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -1921,10 +1921,6 @@ function renderMap() {
       transform: `translate(${x.toFixed(2)},${y.toFixed(2)})`,
       'data-token-id': c.id
     }, tokens);
-    if (pickTargetIds && pickTargetIds.has(c.id)) {
-      g.addEventListener('mouseenter', () => showHitPreview(pickAttacker, state.picking, c));
-      g.addEventListener('mouseleave', hideHitPreview);
-    }
     // Focus outline (square)
     if (c.id === state.current_actor && !c.dead) {
       const o = half + 3.5;
@@ -1971,6 +1967,18 @@ function renderMap() {
         const txt2 = svgEl('text', { x: 0, y: -(half + 9), 'class': 'token-decl-mark' }, g);
         txt2.textContent = glyph;
       }
+    }
+    // Topmost transparent hit area for valid targets — reliably catches hover (preview) and click.
+    // SVG <g> doesn't fire mouseenter, and the body square sits beneath the letter/arrow.
+    if (pickTargetIds && pickTargetIds.has(c.id)) {
+      const fp = n * SIZE;
+      const hit = svgEl('rect', {
+        x: (-fp / 2).toFixed(2), y: (-fp / 2).toFixed(2), width: fp, height: fp,
+        fill: 'transparent', 'pointer-events': 'all', style: 'cursor:crosshair'
+      }, g);
+      hit.addEventListener('mouseenter', () => showHitPreview(pickAttacker, state.picking, c));
+      hit.addEventListener('mouseleave', hideHitPreview);
+      hit.addEventListener('click', () => App.completePickTarget(c.id));
     }
   });
 
