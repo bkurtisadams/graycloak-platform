@@ -1,4 +1,4 @@
-// gw-subhex-view.js v0.4.0 — 2026-05-24
+// gw-subhex-view.js v0.4.1 — 2026-05-24
 // Seamless (Path B) 3-mile subhex viewer for the Gamma World map:
 // drill-in + pan/zoom, terrain paint brush, and a freehand vector overlay
 // (rivers/roads/trails) + settlement icon markers.
@@ -268,14 +268,7 @@
     for (let i = 0; i < 6; i++){ const a = (Math.PI/180)*(60*i); s += (i?' ':'') + (cx+R*Math.cos(a)).toFixed(3) + ',' + (cy+R*Math.sin(a)).toFixed(3); }
     return s;
   }
-  function shadeHex(hex, f){
-    if (!f || f === 1 || hex.length !== 7) return hex;
-    const n = parseInt(hex.slice(1), 16);
-    const cl = v => Math.max(0, Math.min(255, Math.round(v * f)));
-    const r = cl((n >> 16) & 255), g = cl((n >> 8) & 255), b = cl(n & 255);
-    return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
-  }
-  function fillFor(d, sub){ return shadeHex((d.TERRAIN[sub.terrain] || d.TERRAIN.unknown).fill, sub.shade); }
+  function fillFor(d, sub){ return (d.TERRAIN[sub.terrain] || d.TERRAIN.unknown).fill; }
 
   function render(force){
     if (!state.open) return;
@@ -542,5 +535,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.4.0 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.4.1 loaded'); } catch(_){}
 })();
