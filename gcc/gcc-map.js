@@ -1,3 +1,10 @@
+// gcc-map.js v0.2.4 — 2026-05-24
+// v0.2.4 — onContextMenu suppresses the browser's native menu on the
+// canvas unconditionally (right-click is the pan gesture); it still
+// only stopPropagation's after a real drag-pan so a clean right-click
+// reaches the parent renderer's "Open Subhex View" popup. Adds the
+// 'mile' selection-panel branch (1-mile scale, Slice 1).
+//
 // gcc-map.js v0.2.3 — 2026-05-10
 // v0.2.3 — Slice 5a — tool registry. New registerTool(spec) collects
 // scale-scoped UI widgets that mount into the shell's Tools section
@@ -430,12 +437,15 @@
     window.removeEventListener('mousemove', onMouseMove);
     window.removeEventListener('mouseup', onMouseUp);
   }
-  // Suppress the browser context menu when right-drag pan actually
-  // moved the view. Clean right-clicks (no drag) propagate so the
-  // parent renderer's "Open Subhex View" popup still works.
+  // Right-click is our pan gesture (and, on a clean click, the parent
+  // renderer's "Open Subhex View" trigger), so the browser's native
+  // context menu is never wanted on the canvas — suppress it always.
+  // Only swallow the event (stopPropagation) when a right-drag actually
+  // moved the view, so a clean right-click still reaches the popup
+  // handler; a drag does not also fire it.
   function onContextMenu(ev){
+    ev.preventDefault();
     if (state.pan.moved){
-      ev.preventDefault();
       ev.stopPropagation();
       state.pan.moved = false;
     }
