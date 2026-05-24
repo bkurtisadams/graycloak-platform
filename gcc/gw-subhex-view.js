@@ -1,4 +1,4 @@
-// gw-subhex-view.js v0.6.0 — 2026-05-24
+// gw-subhex-view.js v0.7.0 — 2026-05-24
 // Seamless (Path B) 3-mile subhex viewer for the Gamma World map:
 // drill-in + pan/zoom, terrain paint brush, and a freehand vector overlay
 // (rivers/roads/trails) + settlement icon markers.
@@ -35,6 +35,7 @@
     brush: null,         // terrain stroke
     stroke: null,        // freehand vector capture { kind, pts:[], el }
     armed: null,
+    lineWidth: 3,
     undoStack: [],
     cellMap: new Map(),
     raf: 0,
@@ -130,6 +131,16 @@
       toolBtn('✎ Pen',   { type: 'draw', kind: 'pen' }),
     );
     pal.appendChild(lines);
+    const wRow = document.createElement('div');
+    wRow.style.cssText = 'display:flex; align-items:center; gap:6px; margin-top:6px;';
+    const wLbl = document.createElement('span'); wLbl.textContent = 'Width'; wLbl.style.cssText = 'font-size:11px; color:#c8a96e;';
+    const wInput = document.createElement('input');
+    wInput.type = 'range'; wInput.min = '1'; wInput.max = '8'; wInput.step = '0.5'; wInput.value = String(state.lineWidth);
+    wInput.style.cssText = 'flex:1; accent-color:#ff8844;'; wInput.title = 'Line width (thin minor / thick major)';
+    const wOut = document.createElement('span'); wOut.textContent = String(state.lineWidth); wOut.style.cssText = 'font-size:11px; color:#e8d5a3; min-width:16px; text-align:right;';
+    wInput.addEventListener('input', () => { state.lineWidth = +wInput.value; wOut.textContent = wInput.value; });
+    wRow.append(wLbl, wInput, wOut);
+    pal.appendChild(wRow);
 
     pal.appendChild(hd('Settlements'));
     const marks = document.createElement('div'); marks.className = 'gw-sx-tools';
@@ -448,7 +459,7 @@
     const w = clientToWorld(e);
     state.stroke = { kind: state.armed.kind, pts: [[w.x, w.y]] };
     state.el.svg.classList.add('painting');
-    const el = lineEl(state.stroke.kind, '', null);
+    const el = lineEl(state.stroke.kind, '', { width: state.lineWidth });
     el.id = 'gw-sx-preview';
     state.el.gAnnot.appendChild(el);
     state.stroke.el = el;
@@ -466,7 +477,7 @@
     const st = state.stroke; state.stroke = null;
     state.el.svg.classList.remove('painting');
     if (st && st.el && st.el.parentNode) st.el.parentNode.removeChild(st.el);
-    if (st && st.pts.length >= 2){ A().addStroke(st.kind, st.pts); renderAnnotations(); }
+    if (st && st.pts.length >= 2){ A().addStroke(st.kind, st.pts, { width: state.lineWidth }); renderAnnotations(); }
   }
 
   // ── markers + erase ────────────────────────────────────────────────────────
@@ -589,5 +600,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.6.0 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.7.0 loaded'); } catch(_){}
 })();

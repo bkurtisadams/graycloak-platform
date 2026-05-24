@@ -1,4 +1,4 @@
-// gw-subhex-data.js v0.1.0 — 2026-05-24
+// gw-subhex-data.js v0.2.0 — 2026-05-24
 // Gamma World 3-mile subhex data layer. LocalStorage-backed port of
 // gcc-subhex-data.js: keeps the flat-top odd-q axial/ownership engine,
 // the seeded procedural-terrain generator, and the per-cell override +
@@ -50,12 +50,12 @@
   // inherit rate; raise PARENT_BIAS for clumpier maps. Keyed on GW parent
   // terrain.
   const VARIATION = {
-    water:            { plains: 1 },                              // shoreline
-    plains:           { forest: 2, desert: 1 },
+    water:            { water: 1 },                              // open water stays water
+    plains:           { plains: 2, desert: 1 },                  // forest comes from clumps, not scatter
     desert:           { plains: 2, deathlands: 1 },
-    forest:           { 'heavy-forest': 2, plains: 2 },
+    forest:           { forest: 1, 'heavy-forest': 1 },          // denser-forest patches, no plains
     'heavy-forest':   { forest: 3 },
-    mountains:        { 'snow-mountains': 1, forest: 1, plains: 1 },
+    mountains:        { mountains: 1, 'snow-mountains': 1, forest: 1 },  // snow/wooded slopes, no plains
     'snow-mountains': { mountains: 3 },
     deathlands:       { desert: 2, ruins: 1 },
     ruins:            { deathlands: 2, plains: 1 },
@@ -283,8 +283,28 @@
   }
 
   // ── Procedural + reads ──────────────────────────────────────────────────────
+  // Forest in plains grows as organic clumps, not single-hex scatter: sparse
+  // seeds pull in nearby cells with falling probability over hex distance.
+  // Hex-distance based (no lattice) so clump edges stay ragged, not straight.
+  const FOREST_SEED_RATE = 0.016;          // forest seeds per plains cell
+  const CLUMP_JOIN = [1.0, 0.65];          // join probability by hex distance 0,1 (radius 1 = contiguous)
+  function _hk(key){ return window.GCCRng.cyrb53(WORLD_SEED + '|' + key, 0) / 4294967296; }
+  function _hexDist(dq, dr){ return (Math.abs(dq) + Math.abs(dq + dr) + Math.abs(dr)) / 2; }
+  function forestClump(Q, R){
+    for (let dq = -1; dq <= 1; dq++){
+      for (let dr = -1; dr <= 1; dr++){
+        const d = _hexDist(dq, dr);
+        if (d > 1) continue;
+        const sq = Q + dq, sr = R + dr;
+        if (_hk('fseed|' + sq + '|' + sr) < FOREST_SEED_RATE &&
+            _hk('fjoin|' + Q + '|' + R + '|' + sq + '|' + sr) < CLUMP_JOIN[d]) return true;
+      }
+    }
+    return false;
+  }
   function proceduralTerrain(parentTerrain, Q, R){
     if (!parentTerrain) return null;
+    if (parentTerrain === 'plains' && forestClump(Q, R)) return 'forest';
     const seed = window.GCCRng.seedFor(WORLD_SEED, 'subhex-terrain', Q, R);
     const rng = window.GCCRng.mulberry32(seed);
     if (window.GCCRng.chance(rng, PARENT_BIAS)) return parentTerrain;
@@ -407,5 +427,5 @@
     restoreOverride, clearSubhex, clearAll, flushOverrides, save,
   };
 
-  try { console.log('[gw-subhex-data] v0.1.0 loaded', { ANCHOR_COL, ANCHOR_ROW, HEX_R, SUB_R, seed: WORLD_SEED }); } catch(_){}
+  try { console.log('[gw-subhex-data] v0.2.0 loaded', { ANCHOR_COL, ANCHOR_ROW, HEX_R, SUB_R, seed: WORLD_SEED }); } catch(_){}
 })();
