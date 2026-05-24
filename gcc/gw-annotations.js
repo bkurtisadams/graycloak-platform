@@ -1,4 +1,4 @@
-// gw-annotations.js v0.1.0 — 2026-05-24
+// gw-annotations.js v0.2.0 — 2026-05-24
 // Freehand vector overlay for the Gamma World subhex map: smooth line
 // strokes (rivers/roads/trails/pen) and point markers (settlement icons),
 // stored in world-SVG coordinates so they pan/zoom with the subhex view.
@@ -54,8 +54,10 @@
     const s = { id: uid('s'), kind: k, pts: clean, bbox: bboxOf(clean) };
     if (opts && opts.color) s.color = opts.color;
     if (opts && opts.width) s.width = +opts.width;
+    if (opts && opts.gen) s.gen = true;
+    if (opts && opts.parent) s.parent = String(opts.parent);
     DB.strokes.push(s);
-    save(); emit('stroke-add');
+    if (!(opts && opts.deferSave)) { save(); emit('stroke-add'); }
     return s.id;
   }
   function updateStroke(id, fields){
@@ -89,8 +91,10 @@
     const k = MARKER_KINDS.includes(kind) ? kind : 'landmark';
     const m = { id: uid('m'), kind: k, x: +x, y: +y };
     if (opts && opts.name && String(opts.name).trim()) m.name = String(opts.name).trim();
+    if (opts && opts.gen) m.gen = true;
+    if (opts && opts.parent) m.parent = String(opts.parent);
     DB.markers.push(m);
-    save(); emit('marker-add');
+    if (!(opts && opts.deferSave)) { save(); emit('marker-add'); }
     return m.id;
   }
   function updateMarker(id, fields){
@@ -121,12 +125,22 @@
     try { localStorage.removeItem(LS_KEY); } catch(_){}
     emit('clear-all');
   }
+  // Remove procedurally generated items (optionally limited to one parent).
+  function clearGenerated(parentKey){
+    const keep = it => !(it.gen && (!parentKey || it.parent === parentKey));
+    const before = DB.strokes.length + DB.markers.length;
+    DB.strokes = DB.strokes.filter(keep);
+    DB.markers = DB.markers.filter(keep);
+    save(); emit('clear-generated');
+    return before - (DB.strokes.length + DB.markers.length);
+  }
+  function flush(){ save(); emit('flush'); }
 
   window.GWAnnotations = {
     STROKE_KINDS, MARKER_KINDS,
     addStroke, updateStroke, deleteStroke, listStrokes, strokesInBbox,
     addMarker, updateMarker, deleteMarker, listMarkers, markersInBbox,
-    clearAll, save,
+    clearAll, clearGenerated, flush, save,
   };
-  try { console.log('[gw-annotations] v0.1.0 loaded', { strokes: DB.strokes.length, markers: DB.markers.length }); } catch(_){}
+  try { console.log('[gw-annotations] v0.2.0 loaded', { strokes: DB.strokes.length, markers: DB.markers.length }); } catch(_){}
 })();

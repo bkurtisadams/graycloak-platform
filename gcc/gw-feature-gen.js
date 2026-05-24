@@ -1,0 +1,129 @@
+// gw-feature-gen.js v0.1.0 — 2026-05-24
+// Deterministic, seeded procedural features for the Gamma World subhex map.
+// For one 30-mile parent, places settlements and sites by subhex terrain,
+// spaces them out, links settlements with meandering ancient roads, and runs
+// trails to nearby ruins/lairs. Everything is written into GWAnnotations
+// tagged { gen:true, parent:"col,row" } so a re-run replaces only the
+// generated set for that parent and never touches hand-drawn/placed items.
+//
+// Depends on window.GWSubhexData, window.GCCRng, window.GWAnnotations.
+
+(function(){
+  'use strict';
+  const WORLD_SEED = 'gamma-terra-v1';
+
+  // Per-subhex-cell probability of seeding each feature, by that cell's terrain.
+  const FEATURE_RATES = {
+    plains:           { village: 0.045, town: 0.020, ruin: 0.015, lair: 0.005 },
+    forest:           { village: 0.020, town: 0.010, lair: 0.022, ruin: 0.012 },
+    'heavy-forest':   { village: 0.008, lair: 0.030, ruin: 0.010 },
+    mountains:        { lair: 0.030, ruin: 0.012, vault: 0.004 },
+    'snow-mountains': { lair: 0.015, ruin: 0.006 },
+    desert:           { ruin: 0.022, lair: 0.010, village: 0.006 },
+    deathlands:       { ruin: 0.050, lair: 0.022, vault: 0.010 },
+    ruins:            { ruin: 0.090, vault: 0.022, lair: 0.018 },
+    water:            {},
+  };
+  const ROLL_ORDER = ['village', 'town', 'ruin', 'lair', 'vault'];
+  const KIND_RADIUS = { town: 9, village: 8, ruin: 5, lair: 5, vault: 6 };  // min spacing (world units)
+  const MAX_ROAD   = 46;   // drop MST road edges longer than this (within-parent)
+  const TRAIL_RANGE = 26;  // a settlement trails to a site within this range
+
+  function chooseFeature(terr, rng){
+    const rates = FEATURE_RATES[terr];
+    if (!rates) return null;
+    let roll = rng();
+    for (const k of ROLL_ORDER){ const p = rates[k] || 0; if (roll < p) return k; roll -= p; }
+    return null;
+  }
+  function tooClose(x, y, kind, placed){
+    const r = KIND_RADIUS[kind] || 5;
+    for (const p of placed){
+      const md = Math.max(r, KIND_RADIUS[p.kind] || 5);
+      if (Math.hypot(x - p.x, y - p.y) < md) return true;
+    }
+    return false;
+  }
+  // Minimum spanning tree over settlement points (Prim's; tiny node counts).
+  function mst(nodes){
+    if (nodes.length < 2) return [];
+    const inTree = [0], rest = [], edges = [];
+    for (let i = 1; i < nodes.length; i++) rest.push(i);
+    while (rest.length){
+      let best = null;
+      for (const a of inTree) for (const b of rest){
+        const d = Math.hypot(nodes[a].x - nodes[b].x, nodes[a].y - nodes[b].y);
+        if (!best || d < best.d) best = { a, b, d };
+      }
+      edges.push(best); inTree.push(best.b); rest.splice(rest.indexOf(best.b), 1);
+    }
+    return edges;
+  }
+  // Endpoints + a jittered midpoint; renderer smooths it into a gentle meander.
+  function jitterPath(a, b, rng){
+    const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len, ny = dx / len;
+    const pts = [[a.x, a.y]];
+    const off = (rng() * 2 - 1) * len * 0.14;
+    pts.push([a.x + dx * 0.5 + nx * off, a.y + dy * 0.5 + ny * off]);
+    pts.push([b.x, b.y]);
+    return pts;
+  }
+
+  function generateForParent(col, row){
+    const D = window.GWSubhexData, R = window.GCCRng, A = window.GWAnnotations;
+    if (!D || !R || !A){ console.warn('[gw-feature-gen] deps missing'); return null; }
+    const pk = col + ',' + row;
+    A.clearGenerated(pk);
+    const cells = D.ownedByParent(col, row) || [];
+    if (!cells.length) return { markers: 0, strokes: 0, settlements: 0, sites: 0 };
+
+    const pt = D.parentTerrainOf(col, row);
+    const rng = R.mulberry32(R.seedFor(WORLD_SEED, 'features', col, row));
+
+    // deterministic shuffle so placement isn't biased to one corner
+    const order = cells.slice();
+    for (let i = order.length - 1; i > 0; i--){ const j = Math.floor(rng() * (i + 1)); const t = order[i]; order[i] = order[j]; order[j] = t; }
+
+    const placed = [];
+    for (const c of order){
+      const terr = D.getSubhex(c.Q, c.R, pt).terrain;
+      const kind = chooseFeature(terr, rng);
+      if (!kind) continue;
+      const ctr = D.subhexSvgCenter(c.Q, c.R);
+      if (tooClose(ctr.x, ctr.y, kind, placed)) continue;
+      placed.push({ Q: c.Q, R: c.R, x: ctr.x, y: ctr.y, kind });
+    }
+
+    let mc = 0, sc = 0;
+    for (const p of placed){ A.addMarker(p.kind, p.x, p.y, { gen: true, parent: pk, deferSave: true }); mc++; }
+
+    const settle = placed.filter(p => p.kind === 'town' || p.kind === 'village');
+    for (const e of mst(settle)){
+      if (e.d > MAX_ROAD) continue;
+      A.addStroke('road', jitterPath(settle[e.a], settle[e.b], rng), { gen: true, parent: pk, deferSave: true }); sc++;
+    }
+
+    const sites = placed.filter(p => p.kind === 'ruin' || p.kind === 'lair' || p.kind === 'vault');
+    const used = new Set();
+    for (const s of settle){
+      let best = null;
+      for (let i = 0; i < sites.length; i++){
+        if (used.has(i)) continue;
+        const d = Math.hypot(s.x - sites[i].x, s.y - sites[i].y);
+        if (d <= TRAIL_RANGE && (!best || d < best.d)) best = { i, d };
+      }
+      if (best){ used.add(best.i); A.addStroke('trail', jitterPath(s, sites[best.i], rng), { gen: true, parent: pk, deferSave: true }); sc++; }
+    }
+
+    A.flush();
+    return { markers: mc, strokes: sc, settlements: settle.length, sites: sites.length };
+  }
+  function clearForParent(col, row){
+    if (!window.GWAnnotations) return 0;
+    return window.GWAnnotations.clearGenerated(col + ',' + row);
+  }
+
+  window.GWFeatureGen = { generateForParent, clearForParent, FEATURE_RATES };
+  try { console.log('[gw-feature-gen] v0.1.0 loaded'); } catch(_){}
+})();

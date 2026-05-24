@@ -1,4 +1,4 @@
-// gw-subhex-view.js v0.4.1 — 2026-05-24
+// gw-subhex-view.js v0.5.0 — 2026-05-24
 // Seamless (Path B) 3-mile subhex viewer for the Gamma World map:
 // drill-in + pan/zoom, terrain paint brush, and a freehand vector overlay
 // (rivers/roads/trails) + settlement icon markers.
@@ -142,12 +142,46 @@
     pal.appendChild(marks);
 
     pal.appendChild(hd('Features'));
+    const genRow = document.createElement('div'); genRow.className = 'sx-row2';
+    const genB = mkBtn('✦ Generate', 'gw-sx-gen');
+    genB.addEventListener('click', generateFeatures);
+    const clrB = mkBtn('Clear gen', 'gw-sx-gen-clear');
+    clrB.addEventListener('click', clearGeneratedFeatures);
+    genRow.append(genB, clrB);
+    pal.appendChild(genRow);
     const fe = mkBtn('✦ Erase feature', 'gw-sx-annot-erase'); fe.dataset.arm = 'annot-erase';
     fe.style.width = '100%';
     fe.addEventListener('click', () => arm({ type: 'annot-erase' }));
     pal.appendChild(fe);
 
     return pal;
+  }
+
+  function centerParent(){
+    const d = D();
+    if (d && d.svgToAxial && d.ownerOf){
+      const c = d.svgToAxial(state.vb.x + state.vb.w / 2, state.vb.y + state.vb.h / 2);
+      const o = d.ownerOf(c.Q, c.R);
+      if (o) return o;
+    }
+    return state.curParent;
+  }
+  function generateFeatures(){
+    const p = centerParent();
+    if (!p || !window.GWFeatureGen){ return; }
+    const res = window.GWFeatureGen.generateForParent(p.col, p.row);
+    renderAnnotations();
+    if (res && state.el.mode){
+      state.el.mode.textContent = `Parent ${p.col},${p.row}: ${res.markers} sites, ${res.strokes} paths`;
+      setTimeout(syncMode, 2800);
+    }
+  }
+  function clearGeneratedFeatures(){
+    const p = centerParent();
+    if (!p || !window.GWFeatureGen){ return; }
+    const n = window.GWFeatureGen.clearForParent(p.col, p.row);
+    renderAnnotations();
+    if (state.el.mode){ state.el.mode.textContent = `Cleared ${n} generated`; setTimeout(syncMode, 2000); }
   }
 
   function ensureDom(){
@@ -354,6 +388,11 @@
       add('path', { d:`M ${x-w},${y+w} L ${x-w},${y-w} L ${x-w*0.1},${y-w}`, fill:'none', stroke:ruinInk, 'stroke-width':2 });
       add('path', { d:`M ${x+w},${y-w} L ${x+w},${y+w} L ${x+w*0.1},${y+w}`, fill:'none', stroke:ruinInk, 'stroke-width':2 });
       add('line', { x1:x-w*0.4, y1:y, x2:x+w*0.4, y2:y, stroke:ruinInk, 'stroke-width':2 });
+    } else if (kind === 'lair'){
+      add('path', { d:`M ${x},${y-r} L ${x+r*0.9},${y+r*0.7} L ${x-r*0.9},${y+r*0.7} Z`, fill:ruinInk, stroke:'none' });
+    } else if (kind === 'vault'){
+      add('path', { d:`M ${x},${y-r} L ${x+r},${y} L ${x},${y+r} L ${x-r},${y} Z`, fill:'none', stroke:'#3a4a52', 'stroke-width':2 });
+      add('circle', { cx:x, cy:y, r:r*0.28, fill:'#3a4a52' });
     } else if (kind === 'city'){
       add('circle', { cx:x, cy:y, r:r, fill:'none', stroke:ink, 'stroke-width':2 });
       add('circle', { cx:x, cy:y, r:r*0.5, fill:ink });
@@ -535,5 +574,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.4.1 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.5.0 loaded'); } catch(_){}
 })();
