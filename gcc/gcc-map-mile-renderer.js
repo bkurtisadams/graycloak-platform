@@ -1,4 +1,10 @@
-// gcc-map-mile-renderer.js v1.0.0 — 2026-05-24
+// gcc-map-mile-renderer.js v1.1.0 — 2026-05-24
+// v1.1.0 — Zoom-gated grid. Per-cell outlines are hidden below
+// GRID_ZOOM so the inherited terrain reads as merged regions instead
+// of a honeycomb mesh at wide zoom; outlines fade in when zoomed in
+// enough to pick individual mile hexes. Hover/selection outlines are
+// always drawn. No data or coord change.
+// v1.0.0 — 2026-05-24
 // Phase B Slice 1 (stronghold/freehold) — the 1-mile scale. Closes the
 // `local` scale DESIGN-unified-map.md reserved at 3:1 from the subhex
 // (MILE_R = SUB_R/3, 30:1 from the parent). Read-only: it draws the
@@ -37,10 +43,13 @@
   const CELL_R = 26;            // on-screen mile-hex radius (matches subhex cell)
   const PARENT_R = 780;         // = HEX_R(20) × DISPLAY_SCALE, for the parent overlay
   const SQRT3 = Math.sqrt(3);
+  const GRID_ZOOM = 0.9;        // below this, hide per-cell outlines — terrain reads
+                                // as merged regions, not a honeycomb mesh
 
   let _ctx = null;
   let _root = null;
   let layers = null;
+  let _showGrid = false;
 
   // ── Global accessors ───────────────────────────────────────────
   function D(){ return window.GCCSubhexData; }
@@ -169,7 +178,10 @@
 
     const poly = document.createElementNS(NS, 'polygon');
     poly.setAttribute('points', pts);
-    poly.setAttribute('class', isSelected ? 'gcc-mile-cell selected' : 'gcc-mile-cell');
+    let cls = 'gcc-mile-cell';
+    if (_showGrid) cls += ' gridded';
+    if (isSelected) cls += ' selected';
+    poly.setAttribute('class', cls);
     poly.setAttribute('fill', terrainRgb(inh.terrain));
     group.appendChild(poly);
 
@@ -198,6 +210,7 @@
       layers[key].innerHTML = '';
     }
 
+    _showGrid = _ctx.zoom() >= GRID_ZOOM;
     for (const { Q, R } of visibleCells()){
       buildCellGroup(Q, R, layers.cells);
     }

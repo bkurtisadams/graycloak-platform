@@ -676,22 +676,30 @@ body.gcc-paths-hidden  #gcc-map-parent-paths { display: none; }
 
 /* ── Mile scale (Slice 1) ──────────────────────────────────────────
    Read-only 1-mile grid. Cells inherit subhex terrain (fill set per
-   cell as an attribute); the grid line is hairline so the inherited
-   terrain reads as a continuous surface subdivided 9× from the subhex
-   scale. Vector-effect keeps the stroke crisp across zoom. */
+   cell as an attribute). Per-cell outlines are gated on zoom by the
+   renderer (.gridded) so at wide zoom adjacent same-terrain cells
+   merge into smooth regions rather than a honeycomb mesh; the grid
+   fades in when zoomed in enough to pick individual mile hexes.
+   Hover/selection outlines are always drawn. Vector-effect keeps
+   stroke widths crisp across zoom. */
 .gcc-mile-cell {
-  stroke: rgba(20, 12, 2, 0.5);
+  stroke: none;
+  cursor: pointer;
+}
+.gcc-mile-cell.gridded {
+  stroke: rgba(20, 12, 2, 0.45);
   stroke-width: 0.75;
   vector-effect: non-scaling-stroke;
-  cursor: pointer;
 }
 .gcc-mile-cell:hover {
   stroke: var(--gcc-map-gold-light);
   stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
 }
 .gcc-mile-cell.selected {
   stroke: var(--gcc-map-gold-light);
   stroke-width: 2;
+  vector-effect: non-scaling-stroke;
 }
 .gcc-mile-cell-group.fogged { opacity: 0.32; }
 .gcc-mile-parent-outline {
