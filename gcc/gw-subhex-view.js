@@ -1,4 +1,4 @@
-// gw-subhex-view.js v0.5.0 — 2026-05-24
+// gw-subhex-view.js v0.6.0 — 2026-05-24
 // Seamless (Path B) 3-mile subhex viewer for the Gamma World map:
 // drill-in + pan/zoom, terrain paint brush, and a freehand vector overlay
 // (rivers/roads/trails) + settlement icon markers.
@@ -192,8 +192,16 @@
     svg.id = 'gw-sx-svg'; svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
     const gCells = document.createElementNS(SVGNS, 'g');   gCells.id = 'gw-sx-cells';
     const gParents = document.createElementNS(SVGNS, 'g'); gParents.id = 'gw-sx-parents';
+    const basemap = document.createElementNS(SVGNS, 'image'); basemap.id = 'gw-sx-basemap';
+    basemap.setAttribute('href', 'gwmap.png?v=3');
+    basemap.setAttributeNS('http://www.w3.org/1999/xlink', 'href', 'gwmap.png?v=3');
+    basemap.setAttribute('x', '0'); basemap.setAttribute('y', '0');
+    basemap.setAttribute('width', '3001'); basemap.setAttribute('height', '1863');
+    basemap.setAttribute('preserveAspectRatio', 'none');
+    basemap.setAttribute('opacity', '0.6');
+    basemap.style.display = 'none'; basemap.style.pointerEvents = 'none';
     const gAnnot = document.createElementNS(SVGNS, 'g');   gAnnot.id = 'gw-sx-annot';
-    svg.append(gCells, gParents, gAnnot);
+    svg.append(gCells, gParents, basemap, gAnnot);
 
     const palette = buildPalette();
     const bar = document.createElement('div'); bar.id = 'gw-sx-bar';
@@ -202,8 +210,13 @@
     const spacer = document.createElement('span'); spacer.className = 'sx-spacer';
     const tog = document.createElement('label');
     tog.innerHTML = '<input type="checkbox" id="gw-sx-toggle-parents" checked> Parent outlines';
+    const mapTog = document.createElement('label');
+    mapTog.innerHTML = '<input type="checkbox" id="gw-sx-toggle-map"> Base map';
+    const mapOp = document.createElement('input');
+    mapOp.type = 'range'; mapOp.id = 'gw-sx-map-op'; mapOp.min = '15'; mapOp.max = '100'; mapOp.step = '5'; mapOp.value = '60';
+    mapOp.title = 'Base map opacity'; mapOp.style.cssText = 'width:80px; accent-color:#ff8844;';
     const fit = mkBtn('Fit parent', 'gw-sx-fit');
-    bar.append(back, title, spacer, tog, fit);
+    bar.append(back, title, spacer, tog, mapTog, mapOp, fit);
     const read = document.createElement('div'); read.id = 'gw-sx-read';
     read.innerHTML = '<span class="sx-t">Subhex</span><div id="gw-sx-read-body">— hover a cell —</div>';
 
@@ -211,7 +224,7 @@
     document.body.appendChild(overlay);
 
     Object.assign(state.el, {
-      overlay, svg, gCells, gParents, gAnnot, title, read,
+      overlay, svg, gCells, gParents, gAnnot, basemap, title, read,
       readBody: read.querySelector('#gw-sx-read-body'),
       mode: palette.querySelector('#gw-sx-mode'),
       undoBtn: palette.querySelector('#gw-sx-undo'),
@@ -220,6 +233,8 @@
     back.addEventListener('click', close);
     fit.addEventListener('click', () => { if (state.curParent) centerOnParent(state.curParent.col, state.curParent.row); });
     tog.querySelector('input').addEventListener('change', e => { state.showParents = e.target.checked; render(true); });
+    mapTog.querySelector('input').addEventListener('change', e => { basemap.style.display = e.target.checked ? '' : 'none'; });
+    mapOp.addEventListener('input', e => { basemap.setAttribute('opacity', (e.target.value / 100).toFixed(2)); });
     wireViewport(svg);
     bindCellHover(svg);
   }
@@ -574,5 +589,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.5.0 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.6.0 loaded'); } catch(_){}
 })();
