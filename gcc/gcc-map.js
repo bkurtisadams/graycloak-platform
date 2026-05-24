@@ -525,6 +525,17 @@
       dom.selectionBody.innerHTML = `<div class="gcc-map-selection-id">subhex (${sel.Q},${sel.R})</div>`;
       return;
     }
+    if (sel.kind === 'mile'){
+      let terr = '—', owner = '—';
+      const inh = (window.GCCMapMileRenderer && typeof window.GCCMapMileRenderer.inheritedFor === 'function')
+        ? window.GCCMapMileRenderer.inheritedFor(sel.Q, sel.R) : null;
+      if (inh){
+        terr = TERRAIN[inh.terrain]?.label || inh.terrain || '—';
+        if (inh.owner) owner = hexIdStr(inh.owner.col, inh.owner.row);
+      }
+      dom.selectionBody.innerHTML = `<div class="gcc-map-selection-id">1-mile (${sel.Q},${sel.R})</div><div class="gcc-map-selection-row"><span>Terrain:</span><span>${terr}</span></div><div class="gcc-map-selection-row"><span>In hex:</span><span>${owner}</span></div>`;
+      return;
+    }
     dom.selectionBody.innerHTML = '<em>—</em>';
   }
 

@@ -7,7 +7,7 @@
 // constants are fixed, so we cache it process-wide.
 
 import {
-  SUB_R, SQRT3,
+  HEX_R, SUB_R, SQRT3,
   ANCHOR_COL, ANCHOR_ROW,
 } from './constants.js';
 import {
@@ -45,8 +45,27 @@ export function ownerOf(Q: number, R: number): ParentCoord | null {
   const sx = ANCHOR_SVG.x + 1.5 * SUB_R * Q;
   const sy = ANCHOR_SVG.y + SQRT3 * SUB_R * (R + Q / 2);
 
-  const colEst = ANCHOR_COL + Math.round(Q / 10);
-  const rowEst = ANCHOR_ROW + Math.round((R + Q / 2) / 10);
+  const best = parentOwnerOfPoint(sx, sy);
+  if (best) _ownerCache.set(key, best);
+  return best;
+}
+
+/**
+ * Parent (Darlene odd-q offset col/row) whose center is nearest a
+ * world-SVG point. "Owns" = nearest parent center, with tiebreak
+ * (lower col, then lower row). Returns null when the nearest parent
+ * would have negative col or row (off-map).
+ *
+ * Factored out of ownerOf so finer global scales (subhex, mile) can
+ * resolve their owning parent from a cell center without going
+ * through the subhex axial path. Behaviour for subhex centers is
+ * identical to the original ownerOf search.
+ */
+export function parentOwnerOfPoint(x: number, y: number): ParentCoord | null {
+  // Estimate the offset coord by inverting parentSvgCenter, then
+  // search a ±2 window — wide enough for the odd-q parity wobble.
+  const colEst = Math.round((x - HEX_R) / (1.5 * HEX_R));
+  const rowEst = Math.round((y - HEX_R * SQRT3 / 2) / (SQRT3 * HEX_R));
 
   let best: ParentCoord | null = null;
   let bestD = Infinity;
@@ -57,8 +76,8 @@ export function ownerOf(Q: number, R: number): ParentCoord | null {
       const row = rowEst + dr;
       if (col < 0 || row < 0) continue;
       const c = parentSvgCenter(col, row);
-      const ddx = sx - c.x;
-      const ddy = sy - c.y;
+      const ddx = x - c.x;
+      const ddy = y - c.y;
       const d = ddx * ddx + ddy * ddy;
       if (d < bestD - 1e-9) {
         best = { col, row };
@@ -72,7 +91,6 @@ export function ownerOf(Q: number, R: number): ParentCoord | null {
     }
   }
 
-  if (best) _ownerCache.set(key, best);
   return best;
 }
 

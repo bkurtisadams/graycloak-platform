@@ -673,3 +673,39 @@ body.gcc-paths-hidden  #gcc-map-parent-paths { display: none; }
   border-color: var(--gcc-map-gold);
   color: var(--gcc-map-gold-light);
 }
+
+/* ── Mile scale (Slice 1) ──────────────────────────────────────────
+   Read-only 1-mile grid. Cells inherit subhex terrain (fill set per
+   cell as an attribute); the grid line is hairline so the inherited
+   terrain reads as a continuous surface subdivided 9× from the subhex
+   scale. Vector-effect keeps the stroke crisp across zoom. */
+.gcc-mile-cell {
+  stroke: rgba(20, 12, 2, 0.5);
+  stroke-width: 0.75;
+  vector-effect: non-scaling-stroke;
+  cursor: pointer;
+}
+.gcc-mile-cell:hover {
+  stroke: var(--gcc-map-gold-light);
+  stroke-width: 1.5;
+}
+.gcc-mile-cell.selected {
+  stroke: var(--gcc-map-gold-light);
+  stroke-width: 2;
+}
+.gcc-mile-cell-group.fogged { opacity: 0.32; }
+.gcc-mile-parent-outline {
+  fill: none;
+  stroke: var(--gcc-map-gold);
+  stroke-width: 2.5;
+  vector-effect: non-scaling-stroke;
+  stroke-opacity: 0.85;
+}
+.gcc-mile-parent-label {
+  fill: var(--gcc-map-gold-light);
+  font-family: 'Cinzel', serif;
+  font-size: 13px;
+  paint-order: stroke;
+  stroke: #120900;
+  stroke-width: 3px;
+}

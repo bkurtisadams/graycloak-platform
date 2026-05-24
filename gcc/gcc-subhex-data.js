@@ -324,6 +324,54 @@
     return axialRound(qf, rf);
   }
 
+  // ── Mile scale (1-mile hex) ──────────────────────────────────────
+  // 3:1 from the subhex: MILE_R = SUB_R/3, so three mile-hexes span a
+  // subhex face and nine tile a subhex (30:1 from the parent). Shares
+  // ANCHOR_SVG with the subhex grid — mile (0,0) sits at the same world
+  // point as subhex (0,0) and parent (ANCHOR_COL,ANCHOR_ROW). The mile
+  // axial lattice is an independent nearest-center partition; its cells
+  // do NOT strictly nest inside subhexes or parents (interior nests,
+  // boundary cells fragment). Inheritance reads the owning subhex of a
+  // mile center, never assumes containment. Spec + oracle live in
+  // @graycloak/map-engine scales.ts; this is the runtime copy.
+  const MILE_R = SUB_R / 3;
+  function mileSvgCenter(Q, R){
+    return {
+      x: ANCHOR_SVG.x + 1.5 * MILE_R * Q,
+      y: ANCHOR_SVG.y + SQRT3 * MILE_R * (R + Q/2),
+    };
+  }
+  function svgToMileAxial(x, y){
+    const dx = x - ANCHOR_SVG.x;
+    const dy = y - ANCHOR_SVG.y;
+    const qf = (2/3) * dx / MILE_R;
+    const rf = (-dx/3 + SQRT3*dy/3) / MILE_R;
+    return axialRound(qf, rf);
+  }
+  function mileCellsInAxialBbox(bbox){
+    const out = [];
+    if (!bbox) return out;
+    const { minX, maxX, minY, maxY } = bbox;
+    if (!(minX < maxX) || !(minY < maxY)) return out;
+    const qStep = 1.5 * MILE_R;
+    const rStep = SQRT3 * MILE_R;
+    const qLo = Math.floor((minX - ANCHOR_SVG.x) / qStep);
+    const qHi = Math.ceil ((maxX - ANCHOR_SVG.x) / qStep);
+    for (let Q = qLo; Q <= qHi; Q++){
+      const phase = Q / 2;
+      const rLo = Math.floor((minY - ANCHOR_SVG.y) / rStep - phase);
+      const rHi = Math.ceil ((maxY - ANCHOR_SVG.y) / rStep - phase);
+      for (let R = rLo; R <= rHi; R++){
+        const cx = ANCHOR_SVG.x + qStep * Q;
+        const cy = ANCHOR_SVG.y + rStep * (R + phase);
+        if (cx >= minX && cx <= maxX && cy >= minY && cy <= maxY){
+          out.push({ Q, R });
+        }
+      }
+    }
+    return out;
+  }
+
   // Enumerate {Q,R} of every subhex whose center falls inside the
   // given world-SVG axis-aligned bbox. Closed-form: derive Q from the
   // x-bounds (Q steps every 1.5*SUB_R), then per Q derive the R range
@@ -1404,6 +1452,7 @@
     parentSvgCenter, parentCenterAxial, subhexSvgCenter,
     svgToAxial, ownerOf, ownedByParent, fragmentsForParent,
     cellsInAxialBbox,
+    MILE_R, mileSvgCenter, svgToMileAxial, mileCellsInAxialBbox,
     NEIGHBOR_DELTAS,
     subhexId, parseSubhexId, regionDocId, parseRegionId,
     lakeDocId, parseLakeId,

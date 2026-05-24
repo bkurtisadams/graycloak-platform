@@ -1,4 +1,4 @@
-// @graycloak/map-engine v0.1.0
+// @graycloak/map-engine v0.2.0
 //
 // Pure-logic coordinate math and ownership resolution for the
 // Greyhawk Darlene grid + subhex axial system. Ported from
@@ -42,4 +42,79 @@ export {
   ownedByParent,
   cellsInAxialBbox,
   clearOwnerCache,
+  parentOwnerOfPoint,
 } from './ownership.js';
+
+export {
+  WORLD_UNITS_PER_MILE,
+  YARDS_PER_MILE,
+  FEET_PER_MILE,
+  MILE_R,
+  SCALES,
+  svgCenterAtRadius,
+  axialAtRadius,
+  mileSvgCenter,
+  svgToMileAxial,
+  mileToSubhex,
+  mileToParent,
+  mileCellsInParent,
+  axialRing,
+  axialDisk,
+  axialDistance,
+  siteGrid,
+  siteCellCenterFeet,
+  siteCellsPerMile,
+} from './scales.js';
+
+export type {
+  GlobalScale,
+  SiteGrid,
+  SiteGridKind,
+} from './scales.js';
+
+export {
+  FREEHOLD_GATE,
+  freeholdGate,
+  qualifiesForFreehold,
+  REVENUE_SP_PER_INHABITANT,
+  SP_PER_GP,
+  monthlyRevenue,
+  DEFAULT_WAGES,
+  defaultAttractedRoster,
+  rosterHeadcount,
+  monthlyUpkeepGp,
+  monthlyNetGp,
+  FREEHOLD_RADIUS_MIN_MILES,
+  FREEHOLD_RADIUS_MAX_MILES,
+  clampFreeholdRadius,
+  freeholdFootprintMiles,
+  isBorderCell,
+  CONSTRUCTION_INCURSION_PER_DAY,
+  CLEARED_BORDER_CHECKS_PER_DAY,
+  CLEARED_CENTRAL_CHECKS_PER_WEEK,
+  INHABITED_CHECKS_PER_WEEK_NO_ROAD,
+  INHABITED_CHECKS_PER_WEEK_WITH_ROAD,
+  SETTLED_THRESHOLD_MILES,
+  SETTLED_UNFAVORABLE_ALLOWED_PER_MONTH,
+  rollConstructionIncursion,
+  clearedCheckPlan,
+  isSettledByRadius,
+  nextTerritoryState,
+  alignmentDistance,
+  settlerAlignmentMatches,
+} from './freehold.js';
+
+export type {
+  AdndClass,
+  FreeholdGate,
+  FreeholdRevenue,
+  TroopType,
+  TroopWage,
+  TroopStack,
+  MenAtArmsRoster,
+  TerritoryState,
+  TerritorySignals,
+  ClearedCheckPlan,
+  Alignment,
+  Rng,
+} from './freehold.js';
