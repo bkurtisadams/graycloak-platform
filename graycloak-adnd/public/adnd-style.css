@@ -74,3 +74,35 @@ button:hover { background: #e4b027; }
 .settlement-npc-name { font-weight: bold; color: #5c2e0c; }
 .settlement-npc-meta { font-size: 12px; color: #666; font-style: italic; }
 .settlement-npc-notes { font-size: 13px; color: #444; margin-top: 2px; }
+/* ── Freehold card (Slice 2) ─────────────────────────────────────── */
+.freehold-card {
+  border: 1px solid #c0a070;
+  background: #faf8f2;
+  padding: 16px;
+  margin: 20px 0;
+  border-radius: 4px;
+}
+.freehold-card h2 { margin: 0 0 8px 0; color: #5c2e0c; }
+.freehold-meta { font-size: 13px; color: #666; margin-bottom: 6px; }
+.freehold-meta span { margin-right: 16px; }
+.freehold-location { font-size: 12px; color: #888; margin-bottom: 12px; }
+.freehold-section { margin-bottom: 12px; }
+.freehold-section strong { color: #5c2e0c; }
+.freehold-gate { font-size: 13px; margin-top: 2px; }
+.freehold-ok { color: #2e6b2e; }
+.freehold-warn { color: #9a4b13; }
+.freehold-roster { list-style: none; margin: 4px 0 0 0; padding: 0; }
+.freehold-roster li {
+  display: flex; justify-content: space-between;
+  max-width: 280px; padding: 1px 0; font-size: 13px; color: #444;
+}
+.freehold-troop { text-transform: capitalize; }
+.freehold-troop-n { color: #666; }
+.freehold-econ { font-size: 13px; color: #444; margin-top: 6px; }
+.freehold-notes {
+  font-style: italic;
+  border-left: 3px solid #c0a070;
+  padding-left: 12px;
+  color: #444;
+}
+.freehold-empty { padding: 16px; color: #888; font-style: italic; }

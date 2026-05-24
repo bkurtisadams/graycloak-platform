@@ -1,6 +1,17 @@
-// Firestore Security Rules for GCC v5
+// Firestore Security Rules for GCC v6
 // Go to Firebase Console → Firestore → Rules tab
 // Replace existing rules with everything below this comment header
+//
+// v6 changes from v5:
+//   • NEW freeholds/{freeholdId} — player-founded strongholds/freeholds
+//     (stronghold/freehold feature, Slice 2). Ownership model mirrors
+//     entities: write paths are the founder (founderUid), the campaign
+//     owner, or any GM. Reads are authed-anyone (a freehold's location
+//     and garrison are party-visible). The Lord-at-9 / name-level gate
+//     is enforced client-side by the engine (characters live as
+//     snapshots inside campaigns/{cid}.characters[], which rules can't
+//     index) and recorded on the doc for GM audit — matches the schema
+//     design's "stronghold builder = audit only".
 //
 // v5 changes from v4:
 //   • NEW paths/{pathId} — GM-authored rivers, roads, trails
@@ -170,6 +181,32 @@ service cloud.firestore {
             || isGM());
       allow update, delete: if request.auth != null
         && (resource.data.ownerUid == request.auth.uid
+            || isCampaignOwner(resource.data.campaignId)
+            || isGM());
+    }
+
+    // ── Freeholds (NEW v6) ─────────────────────────────────────
+    // Player-founded strongholds (stronghold/freehold feature). Like
+    // entities, each doc carries `founderUid` (the owning player) and
+    // `campaignId`. Write paths:
+    //   • The founder (founderUid == auth.uid)
+    //   • The campaign's GM (isCampaignOwner)
+    //   • Any cross-campaign GM (isGM)
+    // Reads are authed-anyone — a freehold's location and garrison are
+    // party-visible. The name-level gate (fighter→Lord@9, etc.) is NOT
+    // enforced here: characters are snapshots inside
+    // campaigns/{cid}.characters[], which rules cannot index, so the
+    // gate runs in the engine client-side and is recorded on the doc
+    // for GM audit. Docs missing founderUid/campaignId fail update/
+    // delete evaluation, surfacing schema violations early (as entities).
+    match /freeholds/{freeholdId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && (request.resource.data.founderUid == request.auth.uid
+            || isCampaignOwner(request.resource.data.campaignId)
+            || isGM());
+      allow update, delete: if request.auth != null
+        && (resource.data.founderUid == request.auth.uid
             || isCampaignOwner(resource.data.campaignId)
             || isGM());
     }

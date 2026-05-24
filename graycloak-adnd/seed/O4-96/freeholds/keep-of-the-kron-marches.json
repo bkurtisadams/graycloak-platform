@@ -1,0 +1,24 @@
+{
+  "id": "fh_kron_marches",
+  "schemaVersion": 1,
+  "founderUid": "SEED-REPLACE-WITH-PLAYER-UID",
+  "campaignId": "SEED-REPLACE-WITH-CAMPAIGN-ID",
+  "name": "Keep of the Kron Marches",
+  "founder": {
+    "characterName": "Sir Garmund the Bold",
+    "characterClass": "fighter",
+    "level": 9,
+    "alignment": "LG"
+  },
+  "regionalHexId": "O4-96",
+  "center": null,
+  "centerMile": null,
+  "radiusMiles": 25,
+  "state": "constructing",
+  "population": 140,
+  "roadThrough": true,
+  "menAtArms": null,
+  "notes": "A 9th-level fighter's freehold rising in the Kron Hills near Hommlet, on the Verbobonc-Nulb road. Castle under construction; men-at-arms mustering. Seed/demo doc - replace founderUid, campaignId, and founder with the real player and campaign before publishing.",
+  "createdAt": null,
+  "updatedAt": null
+}
