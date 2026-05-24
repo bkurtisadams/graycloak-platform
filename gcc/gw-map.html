@@ -100,7 +100,7 @@
 
 <div id="topbar">
   <h1>GAMMA WORLD — Campaign Map</h1>
-  <span class="ver">v0.3.0</span>
+  <span class="ver">v0.4.0</span>
   <span class="sep"></span>
   <button id="btn-reset">Fit View</button>
   <span class="spacer"></span>
@@ -226,17 +226,17 @@ function setTerrainOverride(col, row, terrain){
 }
 
 // ─── Geometry ────────────────────────────────────────────────────────────────
-// HEX_R = parent hex circumradius in SVG units, calibrated to the 3e printed
-// map: ~16 px per hex, POINTY-TOP orientation (vertex up). Subhex SUB_R =
-// HEX_R / 10 (for v0.7.0 layer). PNG is 3001×1863, rendered 1:1 in SVG units
-// so each printed hex on the map aligns 1:1 with a code parent hex.
-// Printed scale: 44 km/hex (27.3 mi) per the legend; we rescale to 30 mi
-// for game purposes per Option B (clean 3-mile subhex math).
-const HEX_R      = 16;
-const SUB_R      = HEX_R / 10;
+// FLAT-TOP odd-q parent grid at HEX_R=20, matching @graycloak/map-engine
+// (constants.ts / coords.ts parentSvgCenter) so the phase-2 subhex layer's
+// global axial math drops in unchanged. SUB_R = HEX_R/10 = 2 (10:1, 3-mile).
+// gwmap.png (3001×1863, 1:1 SVG units) is now a background reference only —
+// the flat-top grid no longer aligns to the printed pointy-top hexes
+// (re-orient accepted 2026-05-24). Each parent = 30 mi.
+const HEX_R      = 20;
+const SUB_R      = HEX_R / 10;       // = 2, matches map-engine SUB_R
 const SQRT3      = Math.sqrt(3);
-const HEX_STEP_X = HEX_R * SQRT3;   // pointy-top: column horizontal step
-const HEX_STEP_Y = HEX_R * 1.5;     // pointy-top: row vertical step
+const HEX_STEP_X = HEX_R * 1.5;      // flat-top: column horizontal step (30)
+const HEX_STEP_Y = HEX_R * SQRT3;    // flat-top: row vertical step (~34.64)
 
 const WORLD_W = 3001;
 const WORLD_H = 1863;
@@ -244,24 +244,25 @@ const WORLD_H = 1863;
 const COLS = Math.ceil(WORLD_W / HEX_STEP_X) + 1;
 const ROWS = Math.ceil(WORLD_H / HEX_STEP_Y) + 1;
 
-// Anchor — fixed forever once chosen. Centers the (col,row) coord system at
-// roughly the middle of the GW PNG. Subhex layer (v0.7.0) will use this for
-// global Q,R math; changing it later requires rewriting every doc id.
+// Anchor — becomes the subhex axial origin (Q=0,R=0) in the phase-2 data
+// layer. Roughly mid-map so authored Q,R stay small. Fixed once chosen:
+// changing it later rewrites every subhex doc id.
 const ANCHOR_COL = Math.floor(COLS / 2);
 const ANCHOR_ROW = Math.floor(ROWS / 2);
 
 function colRowToCenter(col, row){
-  // Pointy-top, odd-r offset: odd rows shift right by half a column step
-  const x = col * HEX_STEP_X + (row % 2 ? HEX_STEP_X / 2 : 0);
-  const y = row * HEX_STEP_Y;
+  // Flat-top, odd-q offset: odd columns shift down by half a row step.
+  // Mirrors map-engine parentSvgCenter(col,row) exactly.
+  const x = HEX_R + col * HEX_STEP_X;
+  const y = HEX_STEP_Y / 2 + row * HEX_STEP_Y + ((col & 1) ? HEX_STEP_Y / 2 : 0);
   return { x, y };
 }
 
 function hexPolygonPoints(cx, cy, r){
-  // Pointy-top: vertices at -90°, -30°, 30°, 90°, 150°, 210°
+  // Flat-top: vertices at 0°, 60°, 120°, 180°, 240°, 300°
   const pts = [];
   for (let i = 0; i < 6; i++){
-    const a = -Math.PI/2 + i * Math.PI/3;
+    const a = i * Math.PI/3;
     pts.push((cx + r * Math.cos(a)).toFixed(2) + ',' + (cy + r * Math.sin(a)).toFixed(2));
   }
   return pts.join(' ');
