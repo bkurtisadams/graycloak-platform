@@ -1,4 +1,4 @@
-// gw-subhex-view.js v0.7.0 — 2026-05-24
+// gw-subhex-view.js v0.8.0 — 2026-05-24
 // Seamless (Path B) 3-mile subhex viewer for the Gamma World map:
 // drill-in + pan/zoom, terrain paint brush, and a freehand vector overlay
 // (rivers/roads/trails) + settlement icon markers.
@@ -36,6 +36,9 @@
     stroke: null,        // freehand vector capture { kind, pts:[], el }
     armed: null,
     lineWidth: 3,
+    lineMode: 'points',  // 'points' (spline waypoints) | 'freehand'
+    snapHex: false,
+    editor: null,        // active path editor { kind, pts, width, editingId, origPts, dragIdx }
     undoStack: [],
     cellMap: new Map(),
     raf: 0,
@@ -138,9 +141,20 @@
     wInput.type = 'range'; wInput.min = '1'; wInput.max = '8'; wInput.step = '0.5'; wInput.value = String(state.lineWidth);
     wInput.style.cssText = 'flex:1; accent-color:#ff8844;'; wInput.title = 'Line width (thin minor / thick major)';
     const wOut = document.createElement('span'); wOut.textContent = String(state.lineWidth); wOut.style.cssText = 'font-size:11px; color:#e8d5a3; min-width:16px; text-align:right;';
-    wInput.addEventListener('input', () => { state.lineWidth = +wInput.value; wOut.textContent = wInput.value; });
+    wInput.addEventListener('input', () => { state.lineWidth = +wInput.value; wOut.textContent = wInput.value; if (state.editor){ state.editor.width = state.lineWidth; editorRender(); } });
     wRow.append(wLbl, wInput, wOut);
     pal.appendChild(wRow);
+    const optRow = document.createElement('div');
+    optRow.style.cssText = 'display:flex; flex-direction:column; gap:2px; margin-top:6px; font-size:11px; color:#c8a96e;';
+    optRow.innerHTML = '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" id="gw-sx-freehand"> Freehand draw</label>' +
+                       '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" id="gw-sx-snap"> Snap to hex</label>';
+    pal.appendChild(optRow);
+    optRow.querySelector('#gw-sx-freehand').addEventListener('change', e => { state.lineMode = e.target.checked ? 'freehand' : 'points'; if (state.editor) finishEditor(); syncMode(); });
+    optRow.querySelector('#gw-sx-snap').addEventListener('change', e => { state.snapHex = e.target.checked; });
+    const edRow = document.createElement('div'); edRow.className = 'sx-row2';
+    const finB = mkBtn('✓ Finish', 'gw-sx-fin'); finB.disabled = true; finB.addEventListener('click', finishEditor);
+    const canB = mkBtn('✕ Cancel', 'gw-sx-can'); canB.disabled = true; canB.addEventListener('click', cancelEditor);
+    edRow.append(finB, canB); pal.appendChild(edRow);
 
     pal.appendChild(hd('Settlements'));
     const marks = document.createElement('div'); marks.className = 'gw-sx-tools';
@@ -212,7 +226,8 @@
     basemap.setAttribute('opacity', '0.6');
     basemap.style.display = 'none'; basemap.style.pointerEvents = 'none';
     const gAnnot = document.createElementNS(SVGNS, 'g');   gAnnot.id = 'gw-sx-annot';
-    svg.append(gCells, gParents, basemap, gAnnot);
+    const gEditor = document.createElementNS(SVGNS, 'g');  gEditor.id = 'gw-sx-editor';
+    svg.append(gCells, gParents, basemap, gAnnot, gEditor);
 
     const palette = buildPalette();
     const bar = document.createElement('div'); bar.id = 'gw-sx-bar';
@@ -235,10 +250,12 @@
     document.body.appendChild(overlay);
 
     Object.assign(state.el, {
-      overlay, svg, gCells, gParents, gAnnot, basemap, title, read,
+      overlay, svg, gCells, gParents, gAnnot, gEditor, basemap, title, read,
       readBody: read.querySelector('#gw-sx-read-body'),
       mode: palette.querySelector('#gw-sx-mode'),
       undoBtn: palette.querySelector('#gw-sx-undo'),
+      finBtn: palette.querySelector('#gw-sx-fin'),
+      canBtn: palette.querySelector('#gw-sx-can'),
       palette,
     });
     back.addEventListener('click', close);
@@ -248,6 +265,7 @@
     mapOp.addEventListener('input', e => { basemap.setAttribute('opacity', (e.target.value / 100).toFixed(2)); });
     wireViewport(svg);
     bindCellHover(svg);
+    window.addEventListener('keydown', onEditorKey);
   }
 
   // ── viewBox + pan/zoom ─────────────────────────────────────────────────────
@@ -277,7 +295,15 @@
         if ((a.type === 'paint' || a.type === 'erase')){
           const cell = cellUnder(e);
           if (cell){ state.brush = { set: new Set(), undo: [] }; svg.classList.add('painting'); paintCell(+cell.dataset.q, +cell.dataset.r); return; }
-        } else if (a.type === 'draw'){ startStroke(e); return; }
+        } else if (a.type === 'draw'){
+          if (state.lineMode === 'freehand'){ startStroke(e); return; }
+          const hit = editorHitDot(e);
+          if (hit >= 0){ state.editor.dragIdx = hit; return; }
+          const w = clientToWorld(e);
+          state.drag = { sx: e.clientX, sy: e.clientY, vx: state.vb.x, vy: state.vb.y, moved: false, pointAdd: { x: w.x, y: w.y } };
+          svg.classList.add('grabbing');
+          return;
+        }
         else if (a.type === 'marker'){ placeMarker(e); return; }
         else if (a.type === 'annot-erase'){ eraseAnnotationAt(e); return; }
       }
@@ -287,6 +313,10 @@
     svg.addEventListener('contextmenu', e => e.preventDefault());
     window.addEventListener('mousemove', e => {
       if (state.stroke){ extendStroke(e); return; }
+      if (state.editor && state.editor.dragIdx != null){
+        const w = clientToWorld(e); const p = state.snapHex ? snapPt(w) : w;
+        state.editor.pts[state.editor.dragIdx] = [p.x, p.y]; editorRender(); return;
+      }
       if (state.brush){ const c = cellUnder(e); if (c) paintCell(+c.dataset.q, +c.dataset.r); return; }
       if (!state.drag) return;
       const r = state.el.svg.getBoundingClientRect();
@@ -296,6 +326,7 @@
       state.vb.x = state.drag.vx - dx; state.vb.y = state.drag.vy - dy; applyViewBox();
     });
     window.addEventListener('mouseup', () => {
+      if (state.editor && state.editor.dragIdx != null){ state.editor.dragIdx = null; return; }
       if (state.stroke){ commitStroke(); return; }
       if (state.brush){
         D().flushOverrides();
@@ -303,7 +334,8 @@
         state.brush = null; state.el.svg.classList.remove('painting'); syncUndoBtn(); return;
       }
       if (!state.drag) return;
-      const moved = state.drag.moved; state.drag = null; state.el.svg.classList.remove('grabbing');
+      const moved = state.drag.moved, pointAdd = state.drag.pointAdd; state.drag = null; state.el.svg.classList.remove('grabbing');
+      if (pointAdd && !moved){ editorAddPoint(pointAdd); return; }
       if (moved) render();
     });
     svg.addEventListener('wheel', e => {
@@ -452,6 +484,7 @@
       frag.appendChild(markerEl(m.kind, m.x, m.y, m.name, u));
     }
     state.el.gAnnot.replaceChildren(frag);
+    editorRender();
   }
 
   // ── freehand capture ───────────────────────────────────────────────────────
@@ -478,6 +511,84 @@
     state.el.svg.classList.remove('painting');
     if (st && st.el && st.el.parentNode) st.el.parentNode.removeChild(st.el);
     if (st && st.pts.length >= 2){ A().addStroke(st.kind, st.pts, { width: state.lineWidth }); renderAnnotations(); }
+  }
+
+  // ── spline waypoint editor (points mode) ────────────────────────────────────
+  function snapPt(w){ const d = D(); const a = d.svgToAxial(w.x, w.y); return d.subhexSvgCenter(a.Q, a.R); }
+  function editorHitDot(e){
+    if (!state.editor) return -1;
+    const w = clientToWorld(e), hitR = 7 * curU(), pts = state.editor.pts;
+    for (let i = 0; i < pts.length; i++){ if (Math.hypot(w.x - pts[i][0], w.y - pts[i][1]) < hitR) return i; }
+    return -1;
+  }
+  function nearestStrokeAt(w){
+    const thr = 6 * curU(); let best = null, bd = thr;
+    for (const s of A().listStrokes()){
+      for (let i = 0; i < s.pts.length - 1; i++){
+        const d = distToSeg(w.x, w.y, s.pts[i][0], s.pts[i][1], s.pts[i+1][0], s.pts[i+1][1]);
+        if (d <= bd){ bd = d; best = s; }
+      }
+    }
+    return best;
+  }
+  function editorAddPoint(p0){
+    if (!state.editor && (!state.armed || state.armed.type !== 'draw')) return;
+    const p = state.snapHex ? snapPt(p0) : p0;
+    if (!state.editor){
+      const s = nearestStrokeAt(p0);
+      if (s){ loadStrokeForEdit(s); return; }
+      state.editor = { kind: state.armed.kind, pts: [], width: state.lineWidth, editingId: null, origPts: null, dragIdx: null };
+    }
+    state.editor.pts.push([p.x, p.y]);
+    editorRender(); syncEditBtns(); syncMode();
+  }
+  function loadStrokeForEdit(s){
+    state.editor = {
+      kind: s.kind, pts: s.pts.map(p => [p[0], p[1]]),
+      width: s.width || (STROKE_STYLE[s.kind] || STROKE_STYLE.pen).width,
+      editingId: s.id, origPts: s.pts.map(p => [p[0], p[1]]), dragIdx: null,
+    };
+    A().deleteStroke(s.id);
+    renderAnnotations(); editorRender(); syncEditBtns(); syncMode();
+  }
+  function editorRemoveLast(){ if (state.editor && state.editor.pts.length){ state.editor.pts.pop(); editorRender(); syncEditBtns(); syncMode(); } }
+  function finishEditor(){
+    const ed = state.editor; if (!ed) return;
+    state.editor = null;
+    if (ed.pts.length >= 2) A().addStroke(ed.kind, ed.pts, { width: ed.width });
+    editorRender(); renderAnnotations(); syncEditBtns(); syncMode();
+  }
+  function cancelEditor(){
+    const ed = state.editor; if (!ed) return;
+    state.editor = null;
+    if (ed.editingId && ed.origPts && ed.origPts.length >= 2) A().addStroke(ed.kind, ed.origPts, { width: ed.width });
+    editorRender(); renderAnnotations(); syncEditBtns(); syncMode();
+  }
+  function editorRender(){
+    const g = state.el.gEditor; if (!g) return;
+    g.replaceChildren();
+    const ed = state.editor; if (!ed || !ed.pts.length) return;
+    const u = curU();
+    if (ed.pts.length >= 2) g.appendChild(lineEl(ed.kind, smoothPath(ed.pts), { width: ed.width }));
+    ed.pts.forEach((p, i) => {
+      const c = document.createElementNS(SVGNS, 'circle');
+      c.setAttribute('cx', p[0]); c.setAttribute('cy', p[1]); c.setAttribute('r', 4 * u);
+      c.setAttribute('fill', i === 0 ? '#ffe9c0' : '#ffffff');
+      c.setAttribute('stroke', '#5a3a0a'); c.setAttribute('stroke-width', 1.2);
+      c.setAttribute('vector-effect', 'non-scaling-stroke');
+      g.appendChild(c);
+    });
+  }
+  function syncEditBtns(){
+    if (state.el.finBtn) state.el.finBtn.disabled = !(state.editor && state.editor.pts.length >= 2);
+    if (state.el.canBtn) state.el.canBtn.disabled = !state.editor;
+  }
+  function onEditorKey(e){
+    if (!state.open || !state.editor) return;
+    const t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+    if (e.key === 'Enter'){ e.preventDefault(); finishEditor(); }
+    else if (e.key === 'Escape'){ e.preventDefault(); cancelEditor(); }
+    else if (e.key === 'Backspace'){ e.preventDefault(); editorRemoveLast(); }
   }
 
   // ── markers + erase ────────────────────────────────────────────────────────
@@ -547,6 +658,7 @@
     return null;
   }
   function arm(spec){
+    if (state.editor) finishEditor();
     const cur = armKey(state.armed), nxt = armKey(spec);
     state.armed = (cur === nxt) ? null : spec;
     syncPalette(); syncMode();
@@ -560,7 +672,11 @@
     if (!a) el.textContent = 'Mode: Select / pan';
     else if (a.type === 'erase') el.textContent = 'Erase terrain · drag to brush';
     else if (a.type === 'paint') el.textContent = `Paint: ${D().TERRAIN[a.terrain].label} · drag to brush`;
-    else if (a.type === 'draw') el.textContent = `Draw ${a.kind} · drag to trace`;
+    else if (a.type === 'draw'){
+      if (state.lineMode === 'freehand') el.textContent = `Draw ${a.kind} · drag to trace`;
+      else if (state.editor && state.editor.pts.length) el.textContent = `${a.kind}: click=add · drag dot=move · Enter=finish · Esc=cancel`;
+      else el.textContent = `Draw ${a.kind} · click to add points (or click a line to edit)`;
+    }
     else if (a.type === 'marker') el.textContent = `Place ${a.kind} · click (shift = name)`;
     else if (a.type === 'annot-erase') el.textContent = 'Erase feature · click a line/icon';
   }
@@ -595,10 +711,10 @@
     state.el.title.textContent = `Subhex · parent ${col},${row} · 3 mi/hex`;
     requestAnimationFrame(() => { state.rendered = null; centerOnParent(col, row); });
   }
-  function close(){ state.open = false; if (state.el.overlay) state.el.overlay.classList.remove('open'); }
+  function close(){ if (state.editor) finishEditor(); state.open = false; if (state.el.overlay) state.el.overlay.classList.remove('open'); }
   function isOpen(){ return state.open; }
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.7.0 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.8.0 loaded'); } catch(_){}
 })();
