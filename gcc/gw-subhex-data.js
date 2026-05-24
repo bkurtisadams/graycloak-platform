@@ -1,4 +1,4 @@
-// gw-subhex-data.js v0.2.0 — 2026-05-24
+// gw-subhex-data.js v0.3.0 — 2026-05-24
 // Gamma World 3-mile subhex data layer. LocalStorage-backed port of
 // gcc-subhex-data.js: keeps the flat-top odd-q axial/ownership engine,
 // the seeded procedural-terrain generator, and the per-cell override +
@@ -28,7 +28,9 @@
   const SCHEMA_VERSION = 1;
   const PARENT_BIAS = 0.75;         // legacy/reference inherit rate
   const NOISE_FREQ  = 0.16;         // variation-patch frequency (lower = bigger patches)
-  const VARY_THRESH = 0.66;         // cells with terrain-noise above this vary from parent
+  const VARY_THRESH = 0.82;         // only the highest-noise cells vary -> sparse pockets (~8%)
+  const SHADE_FREQ  = 0.50;         // shade-mottle frequency (per-cell terrain texture)
+  const SHADE_AMP   = 0.20;         // shade lightness swing (+/- 10%)
   const LS_KEY = 'gw-subhex-overrides';
   const LS_PARENT_KEY = 'gw-terrain-overrides';   // gw-map.html's parent overrides
 
@@ -54,15 +56,15 @@
   // inherit rate; raise PARENT_BIAS for clumpier maps. Keyed on GW parent
   // terrain.
   const VARIATION = {
-    water:            { plains: 1 },                                   // shoreline
-    plains:           { hills: 2, forest: 1, desert: 1 },
-    desert:           { plains: 2, hills: 1, deathlands: 1 },
-    forest:           { 'heavy-forest': 3, 'forest-hills': 2, plains: 1 },  // rare clearing
+    water:            { plains: 1 },                              // shoreline
+    plains:           { hills: 2, forest: 1 },
+    desert:           { plains: 2, hills: 1 },
+    forest:           { 'heavy-forest': 3, 'forest-hills': 1 },
     'heavy-forest':   { forest: 3, 'forest-hills': 1 },
-    mountains:        { 'forest-hills': 3, 'snow-mountains': 1, hills: 1 },  // wooded slopes / foothills
+    mountains:        { 'snow-mountains': 2, 'forest-hills': 1, hills: 1 },  // snow caps + wooded/foothill slopes
     'snow-mountains': { mountains: 3 },
-    deathlands:       { desert: 2, ruins: 1 },
-    ruins:            { deathlands: 2, hills: 1 },
+    deathlands:       { ruins: 1, desert: 1 },
+    ruins:            { deathlands: 2 },
     unknown:          { unknown: 1 },
   };
 
@@ -290,17 +292,21 @@
   // Smooth value-noise over the axial lattice so terrain variation forms
   // coherent patches (valleys, foothills, clearings) instead of single-cell
   // speckle. Deterministic from WORLD_SEED.
-  function _hash01(gx, gy){ return window.GCCRng.cyrb53(WORLD_SEED + '|tn|' + gx + '|' + gy, 0) / 4294967296; }
-  function valueNoise(Q, R, F){
+  function _hash01(salt, gx, gy){ return window.GCCRng.cyrb53(WORLD_SEED + '|' + salt + '|' + gx + '|' + gy, 0) / 4294967296; }
+  function valueNoise(Q, R, F, salt){
+    salt = salt || 'tn';
     const x = Q * F, y = R * F;
     const x0 = Math.floor(x), y0 = Math.floor(y);
     const fx = x - x0, fy = y - y0;
     const sx = fx*fx*(3 - 2*fx), sy = fy*fy*(3 - 2*fy);
-    const v00 = _hash01(x0, y0), v10 = _hash01(x0+1, y0);
-    const v01 = _hash01(x0, y0+1), v11 = _hash01(x0+1, y0+1);
+    const v00 = _hash01(salt, x0, y0), v10 = _hash01(salt, x0+1, y0);
+    const v01 = _hash01(salt, x0, y0+1), v11 = _hash01(salt, x0+1, y0+1);
     const a = v00 + (v10 - v00)*sx, b = v01 + (v11 - v01)*sx;
     return a + (b - a)*sy;
   }
+  // Per-cell brightness multiplier so a cell reads as textured parent terrain
+  // (mottled light/dark) rather than a flat color block. Coherent, deterministic.
+  function subhexShade(Q, R){ return 1 + (valueNoise(Q, R, SHADE_FREQ, 'shade') - 0.5) * SHADE_AMP; }
   function proceduralTerrain(parentTerrain, Q, R){
     if (!parentTerrain) return null;
     const table = VARIATION[parentTerrain] || { [parentTerrain]: 1 };
@@ -322,6 +328,7 @@
         notes:   ov.notes || '',
         feature: ov.feature || null,
         source:  'authored',
+        shade:   1,
         schemaVersion: ov.schemaVersion || SCHEMA_VERSION,
       };
     }
@@ -330,6 +337,7 @@
       terrain: proceduralTerrain(parentTerrain, Q, R),
       name: '', notes: '', feature: null,
       source: 'seed',
+      shade: subhexShade(Q, R),
       schemaVersion: SCHEMA_VERSION,
     };
   }
@@ -419,12 +427,12 @@
     // parent terrain
     setParentTerrainResolver, parentTerrainOf,
     // reads
-    proceduralTerrain, valueNoise, getSubhex, getSubhexAt, getCellFeature, peekOverride,
+    proceduralTerrain, valueNoise, subhexShade, getSubhex, getSubhexAt, getCellFeature, peekOverride,
     // writes
     setSubhexOverride, setSubhexTerrain, clearSubhexTerrain,
     setSubhexFeature, clearSubhexFeature,
     restoreOverride, clearSubhex, clearAll, flushOverrides, save,
   };
 
-  try { console.log('[gw-subhex-data] v0.2.0 loaded', { ANCHOR_COL, ANCHOR_ROW, HEX_R, SUB_R, seed: WORLD_SEED }); } catch(_){}
+  try { console.log('[gw-subhex-data] v0.3.0 loaded', { ANCHOR_COL, ANCHOR_ROW, HEX_R, SUB_R, seed: WORLD_SEED }); } catch(_){}
 })();
