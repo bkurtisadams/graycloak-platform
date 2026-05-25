@@ -1,4 +1,4 @@
-// gw-subhex-data.js v0.5.0 — 2026-05-25 (add hills, marsh, forested-hill, forested-mountains)
+// gw-subhex-data.js v0.6.0 — 2026-05-25 (add hills, marsh, forested-hill/mtn, coast; monastery + installation kinds)
 // Gamma World 3-mile subhex data layer. LocalStorage-backed port of
 // gcc-subhex-data.js: keeps the flat-top odd-q axial/ownership engine,
 // the seeded procedural-terrain generator, and the per-cell override +
@@ -33,6 +33,7 @@
   // GW terrain set (mirrors gw-map.html TERRAIN_COLOR keys).
   const TERRAIN = {
     water:            { label: 'Water',          fill: '#72a3c8' },
+    coast:            { label: 'Coast',          fill: '#9cb87a' },
     plains:           { label: 'Plains',         fill: '#e6b04e' },
     desert:           { label: 'Desert',         fill: '#eaca44' },
     hills:            { label: 'Hills',          fill: '#b58a52' },
@@ -54,6 +55,7 @@
   // terrain.
   const VARIATION = {
     water:            { water: 1 },                              // open water stays water
+    coast:            { coast: 2, water: 1, plains: 1 },         // shore: beaches, shallows, grassy flats
     plains:           { plains: 2, desert: 1 },                  // forest comes from clumps, not scatter
     desert:           { plains: 2, desert: 1 },
     hills:            { hills: 2, mountains: 1, plains: 1 },      // rolling hills, rocky knobs, open vales
@@ -73,8 +75,8 @@
   // one-liner here + a glyph in the icon layer.
   const FEATURE_KINDS = [
     'city', 'town', 'village', 'ruin',
-    'vault', 'lair', 'camp', 'shrine', 'landmark',
-    'robot-farm', 'fortification', 'spaceport',
+    'vault', 'lair', 'camp', 'shrine', 'monastery', 'landmark',
+    'robot-farm', 'fortification', 'spaceport', 'installation',
   ];
   const FEATURE_KINDS_SET = new Set(FEATURE_KINDS);
 
@@ -509,5 +511,5 @@
     restoreOverride, clearSubhex, clearAll, flushOverrides, save,
   };
 
-  try { console.log('[gw-subhex-data] v0.5.0 loaded', { ANCHOR_COL, ANCHOR_ROW, HEX_R, SUB_R, seed: WORLD_SEED }); } catch(_){}
+  try { console.log('[gw-subhex-data] v0.6.0 loaded', { ANCHOR_COL, ANCHOR_ROW, HEX_R, SUB_R, seed: WORLD_SEED }); } catch(_){}
 })();

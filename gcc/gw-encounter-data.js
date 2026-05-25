@@ -1,4 +1,4 @@
-// gw-encounter-data.js v0.3.0 — Gamma World 1e wilderness encounter tables.
+// gw-encounter-data.js v0.4.0 — Gamma World 1e wilderness encounter tables.
 // Source: GW 1e Players Booklet, ENCOUNTERS / ENCOUNTERS TABLE.
 // Schema mirrors gcc-encounter-data.js: { min, max, creature, number, note? }
 // Tables roll 1d20 (TABLE_DIE_SIZE), not 1d100 like the AD&D tables — a
@@ -285,6 +285,7 @@
     radioactive: 'radioactive',
     ruins:       'ruins',
     city:        'ruins',
+    coast:       'clear',
     water:       'water',
     sea:         'water',
     lake:        'water',

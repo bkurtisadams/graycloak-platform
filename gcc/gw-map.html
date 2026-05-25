@@ -10,12 +10,12 @@
 <link rel="stylesheet" href="gcc-auth.css">
 
 <script src="gw-authored.js?v=1"></script>
-<script src="gw-encounter-data.js?v=2"></script>
+<script src="gw-encounter-data.js?v=3"></script>
 <script src="gw-terrain-data.js?v=2"></script>
 <script src="gcc-rng.js"></script>
-<script src="gw-subhex-data.js?v=10"></script>
-<script src="gw-annotations.js?v=4"></script>
-<script src="gw-feature-gen.js?v=5"></script>
+<script src="gw-subhex-data.js?v=11"></script>
+<script src="gw-annotations.js?v=5"></script>
+<script src="gw-feature-gen.js?v=6"></script>
 <script src="gw-mp-bestiary.js?v=2"></script>
 <script src="gw-mp-export.js?v=2"></script>
 
@@ -111,7 +111,7 @@
 
 <div id="topbar">
   <h1>GAMMA WORLD — Campaign Map</h1>
-  <span class="ver">v0.43.0</span>
+  <span class="ver">v0.44.0</span>
   <span class="sep"></span>
   <button id="btn-reset">Fit View</button>
   <span class="spacer"></span>
@@ -141,6 +141,7 @@
     <select id="hc-terrain-edit" disabled>
       <option value="">—</option>
       <option value="water">Water</option>
+      <option value="coast">Coast</option>
       <option value="plains">Plains</option>
       <option value="desert">Desert</option>
       <option value="hills">Hills</option>
@@ -204,13 +205,14 @@
 <script src="gcc-header.js"></script>
 <script src="gcc-firebase-config.js"></script>
 <script src="gcc-auth.js"></script>
-<script src="gw-subhex-view.js?v=35"></script>
+<script src="gw-subhex-view.js?v=36"></script>
 <script>
 'use strict';
 
 // ─── Terrain layer ───────────────────────────────────────────────────────────
 const TERRAIN_COLOR = {
   water:            '#72a3c8',
+  coast:            '#9cb87a',
   plains:           '#e6b04e',
   desert:           '#eaca44',
   hills:            '#b58a52',
@@ -229,6 +231,7 @@ const TERRAIN_COLOR = {
 // Bridge classifier/edited labels → keys in gw-encounter-data.js TERRAIN_TO_TABLE.
 const TERRAIN_TO_ENCOUNTER_KEY = {
   water:            'water',
+  coast:            'coast',
   plains:           'plains',
   desert:           'desert',
   hills:            'hills',

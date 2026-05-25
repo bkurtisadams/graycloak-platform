@@ -1,4 +1,4 @@
-// gw-annotations.js v0.3.0 — 2026-05-24
+// gw-annotations.js v0.4.0 — 2026-05-25 (monastery + installation marker kinds)
 // Freehand vector overlay for the Gamma World subhex map: smooth line
 // strokes (rivers/roads/trails/pen) and point markers (settlement icons),
 // stored in world-SVG coordinates so they pan/zoom with the subhex view.
@@ -94,7 +94,7 @@
   }
 
   // ── markers ────────────────────────────────────────────────────────────────
-  const MARKER_KINDS = ['city', 'town', 'village', 'ruin', 'vault', 'lair', 'camp', 'shrine', 'landmark', 'robot-farm', 'fortification', 'spaceport'];
+  const MARKER_KINDS = ['city', 'town', 'village', 'ruin', 'vault', 'lair', 'camp', 'shrine', 'monastery', 'landmark', 'robot-farm', 'fortification', 'spaceport', 'installation'];
   function addMarker(kind, x, y, opts){
     const k = MARKER_KINDS.includes(kind) ? kind : 'landmark';
     const m = { id: uid('m'), kind: k, x: +x, y: +y };
@@ -150,5 +150,5 @@
     addMarker, updateMarker, deleteMarker, listMarkers, markersInBbox,
     clearAll, clearGenerated, flush, save,
   };
-  try { console.log('[gw-annotations] v0.3.0 loaded', { strokes: DB.strokes.length, markers: DB.markers.length }); } catch(_){}
+  try { console.log('[gw-annotations] v0.4.0 loaded', { strokes: DB.strokes.length, markers: DB.markers.length }); } catch(_){}
 })();

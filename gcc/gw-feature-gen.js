@@ -1,4 +1,4 @@
-// gw-feature-gen.js v0.4.0 — 2026-05-25
+// gw-feature-gen.js v0.5.0 — 2026-05-25
 // v0.4.0 — feature rates for the new terrains: hills (lairs/ruins + some
 //          settlement), marsh (sparse lairs/ruins), forested-hill, and
 //          forested-mountains.
@@ -34,6 +34,7 @@
     desert:           { ruin: 0.022, lair: 0.010, village: 0.006 },
     hills:            { lair: 0.026, ruin: 0.016, village: 0.014, town: 0.006, vault: 0.004 },
     marsh:            { lair: 0.020, ruin: 0.010, village: 0.004 },
+    coast:            { village: 0.030, town: 0.012, ruin: 0.012, lair: 0.005 },
     'forested-hill':  { lair: 0.026, ruin: 0.013, village: 0.012, town: 0.005 },
     'forested-mountains': { lair: 0.028, ruin: 0.010, vault: 0.006 },
     deathlands:       { ruin: 0.050, lair: 0.022, vault: 0.010 },
@@ -223,5 +224,5 @@
   }
 
   window.GWFeatureGen = { generateForParent, clearForParent, FEATURE_RATES };
-  try { console.log('[gw-feature-gen] v0.4.0 loaded'); } catch(_){}
+  try { console.log('[gw-feature-gen] v0.5.0 loaded'); } catch(_){}
 })();

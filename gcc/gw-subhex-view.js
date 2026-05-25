@@ -1,8 +1,11 @@
-// gw-subhex-view.js v0.33.0 — 2026-05-24
+// gw-subhex-view.js v0.34.0 — 2026-05-24
 // Seamless (Path B) 3-mile subhex viewer for the Gamma World map:
 // drill-in + pan/zoom, terrain paint brush, and a freehand vector overlay
 // (rivers/roads/trails) + settlement icon markers.
 //
+// v0.34.0 — Monastery + Installation markers (glyphs in markerEl, place buttons in
+//           Build ▸ Settlements, retypable via Edit) and a Coast terrain (normal
+//           travel tier). From the official subhex/overworld map keys.
 // v0.33.0 — terrain palette additions: hills + marsh (canon, from the map key)
 //           and forested-hill + forested-mountains (house). Travel tiers: hills
 //           and forested-hill rugged, marsh and forested-mountains very-rugged.
@@ -311,7 +314,7 @@
   const TERRAIN_TIER = {
     plains: 'normal', desert: 'normal', forest: 'rugged', 'heavy-forest': 'very_rugged',
     mountains: 'very_rugged', 'snow-mountains': 'very_rugged', ruins: 'rugged', water: 'very_rugged',
-    hills: 'rugged', marsh: 'very_rugged', 'forested-hill': 'rugged', 'forested-mountains': 'very_rugged',
+    hills: 'rugged', marsh: 'very_rugged', 'forested-hill': 'rugged', 'forested-mountains': 'very_rugged', coast: 'normal',
     unknown: 'normal', _default: 'normal',
   };
   const MILES_PER_DAY = { normal: 24, rugged: 16, very_rugged: 8 };
@@ -508,6 +511,8 @@
       toolBtn('◎ City',    { type: 'marker', kind: 'city' }),
       toolBtn('• Village', { type: 'marker', kind: 'village' }),
       toolBtn('⌐ Ruin',    { type: 'marker', kind: 'ruin' }),
+      toolBtn('✝ Monastery',  { type: 'marker', kind: 'monastery' }),
+      toolBtn('⌂ Installation', { type: 'marker', kind: 'installation' }),
     );
     pane.appendChild(marks);
 
@@ -1231,6 +1236,18 @@
       add('path', { d:`M ${x},${y-r} L ${x+r*0.34},${y+r*0.45} L ${x-r*0.34},${y+r*0.45} Z`, fill:'none', stroke:tech, 'stroke-width':2 });
       add('circle', { cx:x, cy:y-r*0.15, r:r*0.13, fill:tech });
       add('line', { x1:x-r*0.6, y1:y+r*0.7, x2:x+r*0.6, y2:y+r*0.7, stroke:tech, 'stroke-width':2 });
+    } else if (kind === 'monastery'){
+      const mon = '#5b5a8a';                                    // chapel: body, peaked roof, cross finial
+      add('rect', { x:x-r*0.5, y:y, width:r*1.0, height:r*0.72, fill:'none', stroke:mon, 'stroke-width':2 });
+      add('path', { d:`M ${x-r*0.66},${y} L ${x},${y-r*0.72} L ${x+r*0.66},${y} Z`, fill:'none', stroke:mon, 'stroke-width':2 });
+      add('line', { x1:x, y1:y-r*0.72, x2:x, y2:y-r*1.18, stroke:mon, 'stroke-width':2 });
+      add('line', { x1:x-r*0.22, y1:y-r*0.98, x2:x+r*0.22, y2:y-r*0.98, stroke:mon, 'stroke-width':2 });
+    } else if (kind === 'installation'){
+      const inst = '#2f7d8a';                                   // domed facility + antenna dish
+      add('line', { x1:x-r*0.8, y1:y+r*0.45, x2:x+r*0.8, y2:y+r*0.45, stroke:inst, 'stroke-width':2 });
+      add('path', { d:`M ${x-r*0.62},${y+r*0.45} A ${r*0.62},${r*0.62} 0 0 1 ${x+r*0.62},${y+r*0.45}`, fill:'none', stroke:inst, 'stroke-width':2 });
+      add('line', { x1:x+r*0.32, y1:y-r*0.02, x2:x+r*0.55, y2:y-r*0.9, stroke:inst, 'stroke-width':1.5 });
+      add('circle', { cx:x+r*0.55, cy:y-r*0.9, r:r*0.14, fill:inst });
     } else { // town (default)
       add('circle', { cx:x, cy:y, r:r*0.85, fill:'none', stroke:ink, 'stroke-width':2 });
       add('rect', { x:x-r*0.42, y:y-r*0.42, width:r*0.84, height:r*0.84, fill:ink });
@@ -1550,5 +1567,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.33.0 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.34.0 loaded'); } catch(_){}
 })();
