@@ -1,4 +1,4 @@
-// gw-subhex-view.js v0.11.0 — 2026-05-24
+// gw-subhex-view.js v0.12.0 — 2026-05-24
 // Seamless (Path B) 3-mile subhex viewer for the Gamma World map:
 // drill-in + pan/zoom, terrain paint brush, and a freehand vector overlay
 // (rivers/roads/trails) + settlement icon markers.
@@ -69,15 +69,20 @@
       .gw-sx-marker, .gw-sx-marker * { pointer-events:none; }
       #gw-sx-bar { position:absolute; top:10px; left:172px; right:10px; display:flex; align-items:center; gap:10px; z-index:6; pointer-events:none; }
       #gw-sx-bar > * { pointer-events:auto; }
-      #gw-sx-bar .sx-title { font-family:'Cinzel',serif; font-size:13px; letter-spacing:.08em; color:#ffaa66; text-shadow:0 0 10px rgba(255,136,68,.35); }
+      #gw-sx-bar .sx-title { font-family:'Cinzel',serif; font-size:13px; letter-spacing:.08em; color:#ffce9e; background:rgba(14,8,2,.9); border:1px solid #5a3a0a; padding:5px 10px; border-radius:2px; }
       #gw-sx-bar .sx-spacer { flex:1; }
-      #gw-sx-bar label { font-size:12px; color:#c8a96e; display:flex; align-items:center; gap:5px; cursor:pointer; }
+      #gw-sx-bar label { font-size:12px; color:#f0dcae; background:rgba(14,8,2,.9); border:1px solid #5a3a0a; padding:5px 9px; border-radius:2px; display:flex; align-items:center; gap:5px; cursor:pointer; }
       .gw-sx-btn { background:rgba(14,8,2,.93); border:1px solid #5a3a0a; color:#e8d5a3; font-family:'Cinzel',serif; font-size:11px; letter-spacing:.04em; padding:6px 11px; cursor:pointer; border-radius:2px; }
       .gw-sx-btn:hover { background:rgba(255,136,68,.18); border-color:#ff8844; color:#ffaa66; }
       .gw-sx-btn:disabled { opacity:.4; cursor:default; }
-      #gw-sx-palette { position:absolute; top:10px; left:10px; width:152px; max-height:calc(100% - 20px); overflow:auto; background:rgba(14,8,2,.95); border:1px solid #5a3a0a; border-radius:3px; padding:8px; z-index:6; font-family:'Crimson Text',serif; }
-      #gw-sx-palette .sx-mode { font-size:11px; color:#ffaa66; margin-bottom:7px; min-height:14px; line-height:1.3; }
-      #gw-sx-palette .sx-hd { font-family:'Cinzel',serif; font-size:10px; letter-spacing:.1em; color:#c8a96e; margin:9px 0 3px; border-top:1px solid #3a2606; padding-top:6px; }
+      #gw-sx-palette { position:absolute; top:10px; left:10px; width:152px; max-height:calc(100% - 20px); overflow-y:auto; overflow-x:hidden; background:rgba(14,8,2,.95); border:1px solid #5a3a0a; border-radius:3px; padding:8px; z-index:6; font-family:'Crimson Text',serif; }
+      #gw-sx-palette::-webkit-scrollbar { width:9px; }
+      #gw-sx-palette::-webkit-scrollbar-track { background:rgba(0,0,0,.25); }
+      #gw-sx-palette::-webkit-scrollbar-thumb { background:#5a3a0a; border-radius:5px; }
+      #gw-sx-palette .sx-grip { position:sticky; top:-8px; margin:-8px -8px 6px; padding:6px 8px; background:rgba(30,16,4,.98); border-bottom:1px solid #5a3a0a; font-family:'Cinzel',serif; font-size:10px; letter-spacing:.1em; color:#dcb87e; cursor:move; user-select:none; display:flex; align-items:center; gap:6px; z-index:2; }
+      #gw-sx-palette .sx-grip:hover { color:#ffaa66; }
+      #gw-sx-palette .sx-mode { font-size:11px; color:#ffce9e; margin-bottom:7px; min-height:14px; line-height:1.3; }
+      #gw-sx-palette .sx-hd { font-family:'Cinzel',serif; font-size:10px; letter-spacing:.1em; color:#e0c089; margin:9px 0 3px; border-top:1px solid #3a2606; padding-top:6px; }
       #gw-sx-palette .sx-hd:first-of-type { border-top:none; padding-top:0; }
       .gw-sx-sw { display:flex; align-items:center; gap:6px; width:100%; background:none; border:1px solid transparent; color:#e8d5a3; font-size:12px; padding:3px 4px; cursor:pointer; border-radius:2px; text-align:left; }
       .gw-sx-sw:hover { background:rgba(255,136,68,.15); }
@@ -89,7 +94,7 @@
       .gw-sx-tool.armed { border-color:#ff8844; background:rgba(255,136,68,.22); color:#ffaa66; }
       #gw-sx-palette .sx-row2 { display:flex; gap:6px; margin-top:7px; }
       #gw-sx-palette .sx-row2 .gw-sx-btn { flex:1; padding:5px 4px; }
-      #gw-sx-read { position:absolute; bottom:10px; left:10px; min-width:200px; background:rgba(14,8,2,.93); border:1px solid #5a3a0a; border-radius:3px; color:#e8d5a3; padding:8px 12px; font-size:12px; font-family:'Crimson Text',Georgia,serif; z-index:6; }
+      #gw-sx-read { position:absolute; bottom:10px; right:10px; min-width:200px; max-width:280px; background:rgba(14,8,2,.93); border:1px solid #5a3a0a; border-radius:3px; color:#e8d5a3; padding:8px 12px; font-size:12px; font-family:'Crimson Text',Georgia,serif; z-index:6; }
       #gw-sx-read .sx-t { color:#ffaa66; font-weight:600; }
     `;
     document.head.appendChild(s);
@@ -106,8 +111,34 @@
     return b;
   }
 
+  function makePaletteDraggable(pal, handle){
+    let drag = null;
+    const onMove = e => {
+      if (!drag) return;
+      const host = state.el.overlay.getBoundingClientRect();
+      let left = e.clientX - drag.dx - host.left;
+      let top  = e.clientY - drag.dy - host.top;
+      left = Math.max(0, Math.min(left, host.width - pal.offsetWidth));
+      top  = Math.max(0, Math.min(top, host.height - 44));
+      pal.style.left = left + 'px'; pal.style.top = top + 'px'; pal.style.right = 'auto';
+      pal.style.maxHeight = (host.height - top - 10) + 'px';
+    };
+    const onUp = () => { drag = null; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    handle.addEventListener('mousedown', e => {
+      e.preventDefault();
+      const r = pal.getBoundingClientRect();
+      drag = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  }
+
   function buildPalette(){
     const pal = document.createElement('div'); pal.id = 'gw-sx-palette';
+    const grip = document.createElement('div'); grip.className = 'sx-grip';
+    grip.innerHTML = '<span>⠿</span><span>Tools — drag</span>';
+    pal.appendChild(grip);
+    makePaletteDraggable(pal, grip);
     const mode = document.createElement('div'); mode.className = 'sx-mode'; mode.id = 'gw-sx-mode';
     mode.textContent = 'Mode: Select';
     pal.appendChild(mode);
@@ -150,7 +181,7 @@
     pal.appendChild(lines);
     const wRow = document.createElement('div');
     wRow.style.cssText = 'display:flex; align-items:center; gap:6px; margin-top:6px;';
-    const wLbl = document.createElement('span'); wLbl.textContent = 'Width'; wLbl.style.cssText = 'font-size:11px; color:#c8a96e;';
+    const wLbl = document.createElement('span'); wLbl.textContent = 'Width'; wLbl.style.cssText = "font-size:11px; color:#e0c089;";
     const wInput = document.createElement('input');
     wInput.type = 'range'; wInput.min = '1'; wInput.max = '8'; wInput.step = '0.5'; wInput.value = String(state.lineWidth);
     wInput.style.cssText = 'flex:1; accent-color:#ff8844;'; wInput.title = 'Line width (thin minor / thick major)';
@@ -159,7 +190,7 @@
     wRow.append(wLbl, wInput, wOut);
     pal.appendChild(wRow);
     const optRow = document.createElement('div');
-    optRow.style.cssText = 'display:flex; flex-direction:column; gap:2px; margin-top:6px; font-size:11px; color:#c8a96e;';
+    optRow.style.cssText = "display:flex; flex-direction:column; gap:2px; margin-top:6px; font-size:11px; color:#e0c089;";
     optRow.innerHTML = '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" id="gw-sx-freehand"> Freehand draw</label>' +
                        '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" id="gw-sx-snap"> Snap to hex</label>';
     pal.appendChild(optRow);
@@ -796,5 +827,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.11.0 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.12.0 loaded'); } catch(_){}
 })();
