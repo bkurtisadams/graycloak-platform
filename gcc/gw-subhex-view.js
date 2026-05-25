@@ -1,4 +1,4 @@
-// gw-subhex-view.js v0.8.0 — 2026-05-24
+// gw-subhex-view.js v0.9.0 — 2026-05-24
 // Seamless (Path B) 3-mile subhex viewer for the Gamma World map:
 // drill-in + pan/zoom, terrain paint brush, and a freehand vector overlay
 // (rivers/roads/trails) + settlement icon markers.
@@ -41,6 +41,7 @@
     editor: null,        // active path editor { kind, pts, width, editingId, origPts, dragIdx }
     undoStack: [],
     cellMap: new Map(),
+    hazMap: new Map(),
     raf: 0,
     curParent: null,
     el: {},
@@ -61,6 +62,7 @@
       .gw-sx-cell.authored { stroke:#ff8844; stroke-width:1.5; vector-effect:non-scaling-stroke; }
       .gw-sx-cell.hover { stroke:rgba(255,220,120,.95); stroke-width:2; vector-effect:non-scaling-stroke; }
       .gw-sx-parent { fill:none; stroke:rgba(255,200,120,.5); stroke-width:1.5; vector-effect:non-scaling-stroke; pointer-events:none; }
+      .gw-sx-rad { fill:url(#gw-sx-rad); stroke:rgba(195,240,55,.4); stroke-width:1; vector-effect:non-scaling-stroke; pointer-events:none; }
       .gw-sx-line { fill:none; vector-effect:non-scaling-stroke; stroke-linecap:round; stroke-linejoin:round; pointer-events:none; }
       .gw-sx-marker, .gw-sx-marker * { pointer-events:none; }
       #gw-sx-bar { position:absolute; top:10px; left:172px; right:10px; display:flex; align-items:center; gap:10px; z-index:6; pointer-events:none; }
@@ -124,6 +126,16 @@
     const undoB = mkBtn('↶ Undo', 'gw-sx-undo'); undoB.disabled = true;
     undoB.addEventListener('click', undo);
     trow.append(erase, undoB); pal.appendChild(trow);
+
+    pal.appendChild(hd('Hazards'));
+    const hrow = document.createElement('div'); hrow.className = 'sx-row2';
+    const radB = mkBtn('☢ Radiation', 'gw-sx-rad-btn'); radB.dataset.arm = 'hazard:radiation';
+    radB.title = 'Paint hard radiation onto any terrain';
+    radB.addEventListener('click', () => arm({ type: 'hazard', mode: 'radiation' }));
+    const radE = mkBtn('⌫ Clear rad', 'gw-sx-rad-erase'); radE.dataset.arm = 'hazard:off';
+    radE.title = 'Remove radiation (carves safe pockets out of irradiated regions)';
+    radE.addEventListener('click', () => arm({ type: 'hazard', mode: 'off' }));
+    hrow.append(radB, radE); pal.appendChild(hrow);
 
     pal.appendChild(hd('Lines'));
     const lines = document.createElement('div'); lines.className = 'gw-sx-tools';
@@ -216,6 +228,18 @@
     const svg = document.createElementNS(SVGNS, 'svg');
     svg.id = 'gw-sx-svg'; svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
     const gCells = document.createElementNS(SVGNS, 'g');   gCells.id = 'gw-sx-cells';
+    const gHaz = document.createElementNS(SVGNS, 'g');      gHaz.id = 'gw-sx-haz';
+    const defs = document.createElementNS(SVGNS, 'defs');
+    const pat = document.createElementNS(SVGNS, 'pattern');
+    pat.id = 'gw-sx-rad';
+    pat.setAttribute('width', '1.1'); pat.setAttribute('height', '1.1');
+    pat.setAttribute('patternUnits', 'userSpaceOnUse'); pat.setAttribute('patternTransform', 'rotate(45)');
+    const pr = document.createElementNS(SVGNS, 'rect');
+    pr.setAttribute('width', '1.1'); pr.setAttribute('height', '1.1'); pr.setAttribute('fill', 'rgba(150,210,40,0.16)');
+    const pl = document.createElementNS(SVGNS, 'line');
+    pl.setAttribute('x1', '0'); pl.setAttribute('y1', '0'); pl.setAttribute('x2', '0'); pl.setAttribute('y2', '1.1');
+    pl.setAttribute('stroke', 'rgba(195,240,55,0.6)'); pl.setAttribute('stroke-width', '0.3');
+    pat.append(pr, pl); defs.append(pat);
     const gParents = document.createElementNS(SVGNS, 'g'); gParents.id = 'gw-sx-parents';
     const basemap = document.createElementNS(SVGNS, 'image'); basemap.id = 'gw-sx-basemap';
     basemap.setAttribute('href', 'gwmap.png?v=3');
@@ -227,7 +251,7 @@
     basemap.style.display = 'none'; basemap.style.pointerEvents = 'none';
     const gAnnot = document.createElementNS(SVGNS, 'g');   gAnnot.id = 'gw-sx-annot';
     const gEditor = document.createElementNS(SVGNS, 'g');  gEditor.id = 'gw-sx-editor';
-    svg.append(gCells, gParents, basemap, gAnnot, gEditor);
+    svg.append(defs, gCells, gHaz, gParents, basemap, gAnnot, gEditor);
 
     const palette = buildPalette();
     const bar = document.createElement('div'); bar.id = 'gw-sx-bar';
@@ -250,7 +274,7 @@
     document.body.appendChild(overlay);
 
     Object.assign(state.el, {
-      overlay, svg, gCells, gParents, gAnnot, gEditor, basemap, title, read,
+      overlay, svg, gCells, gParents, gAnnot, gEditor, gHaz, basemap, title, read,
       readBody: read.querySelector('#gw-sx-read-body'),
       mode: palette.querySelector('#gw-sx-mode'),
       undoBtn: palette.querySelector('#gw-sx-undo'),
@@ -292,7 +316,7 @@
       e.preventDefault();
       const a = state.armed;
       if (e.button === 0 && a){
-        if ((a.type === 'paint' || a.type === 'erase')){
+        if ((a.type === 'paint' || a.type === 'erase' || a.type === 'hazard')){
           const cell = cellUnder(e);
           if (cell){ state.brush = { set: new Set(), undo: [] }; svg.classList.add('painting'); paintCell(+cell.dataset.q, +cell.dataset.r); return; }
         } else if (a.type === 'draw'){
@@ -373,13 +397,20 @@
     state.rendered = bbox;
 
     const cells = d.cellsInAxialBbox(bbox);
-    const ptCache = new Map(); const parentsSeen = new Map(); state.cellMap = new Map();
+    const ptCache = new Map(); const phCache = new Map(); const parentsSeen = new Map();
+    state.cellMap = new Map(); state.hazMap = new Map();
     const fragC = document.createDocumentFragment();
+    const fragH = document.createDocumentFragment();
     for (const { Q, R } of cells){
       const o = d.ownerOf(Q, R);
-      let pt = null;
-      if (o){ const pk = o.col + ',' + o.row; if (ptCache.has(pk)) pt = ptCache.get(pk); else { pt = d.parentTerrainOf(o.col, o.row); ptCache.set(pk, pt); } if (state.showParents && !parentsSeen.has(pk)) parentsSeen.set(pk, o); }
-      const sub = d.getSubhex(Q, R, pt);
+      let pt = null, ph = null;
+      if (o){
+        const pk = o.col + ',' + o.row;
+        if (ptCache.has(pk)){ pt = ptCache.get(pk); ph = phCache.get(pk); }
+        else { pt = d.parentTerrainOf(o.col, o.row); ph = d.parentHazardOf(o.col, o.row); ptCache.set(pk, pt); phCache.set(pk, ph); }
+        if (state.showParents && !parentsSeen.has(pk)) parentsSeen.set(pk, o);
+      }
+      const sub = d.getSubhex(Q, R, pt, ph);
       const c = d.subhexSvgCenter(Q, R);
       const poly = document.createElementNS(SVGNS, 'polygon');
       poly.setAttribute('points', cornersStr(c.x, c.y, d.SUB_R));
@@ -387,8 +418,15 @@
       poly.setAttribute('fill', fillFor(d, sub));
       poly.dataset.q = Q; poly.dataset.r = R;
       fragC.appendChild(poly); state.cellMap.set(Q + '_' + R, poly);
+      if (sub.hazard === 'radiation'){
+        const ov = document.createElementNS(SVGNS, 'polygon');
+        ov.setAttribute('points', cornersStr(c.x, c.y, d.SUB_R));
+        ov.setAttribute('class', 'gw-sx-rad');
+        fragH.appendChild(ov); state.hazMap.set(Q + '_' + R, ov);
+      }
     }
     state.el.gCells.replaceChildren(fragC);
+    state.el.gHaz.replaceChildren(fragH);
 
     const fragP = document.createDocumentFragment();
     if (state.showParents){
@@ -636,9 +674,33 @@
     const key = Q + '_' + R; if (state.brush.set.has(key)) return; state.brush.set.add(key);
     const d = D(); const before = d.peekOverride(Q, R);
     state.brush.undo.push({ Q, R, before: before ? JSON.parse(JSON.stringify(before)) : null });
-    if (state.armed.type === 'erase') d.clearSubhexTerrain(Q, R, { deferSave: true });
-    else d.setSubhexTerrain(Q, R, state.armed.terrain, { deferSave: true });
+    const a = state.armed;
+    if (a.type === 'hazard'){
+      if (a.mode === 'radiation') d.setSubhexHazard(Q, R, 'radiation', { deferSave: true });
+      else { const o = d.ownerOf(Q, R); const ph = o ? d.parentHazardOf(o.col, o.row) : null; d.setSubhexHazard(Q, R, ph === 'radiation' ? 'none' : 'inherit', { deferSave: true }); }
+      updateHazardCell(Q, R);
+      const poly = state.cellMap.get(key); if (poly) recolorCell(poly, Q, R);
+      return;
+    }
+    if (a.type === 'erase') d.clearSubhexTerrain(Q, R, { deferSave: true });
+    else d.setSubhexTerrain(Q, R, a.terrain, { deferSave: true });
     const poly = state.cellMap.get(key); if (poly) recolorCell(poly, Q, R);
+  }
+  function updateHazardCell(Q, R){
+    const d = D(); const key = Q + '_' + R;
+    const o = d.ownerOf(Q, R);
+    const pt = o ? d.parentTerrainOf(o.col, o.row) : null, ph = o ? d.parentHazardOf(o.col, o.row) : null;
+    const sub = d.getSubhex(Q, R, pt, ph);
+    const exists = state.hazMap.get(key);
+    if (sub.hazard === 'radiation'){
+      if (!exists){
+        const c = d.subhexSvgCenter(Q, R);
+        const ov = document.createElementNS(SVGNS, 'polygon');
+        ov.setAttribute('points', cornersStr(c.x, c.y, d.SUB_R));
+        ov.setAttribute('class', 'gw-sx-rad');
+        state.el.gHaz.appendChild(ov); state.hazMap.set(key, ov);
+      }
+    } else if (exists){ exists.remove(); state.hazMap.delete(key); }
   }
   function undo(){
     const stroke = state.undoStack.pop(); if (!stroke){ syncUndoBtn(); return; }
@@ -653,6 +715,7 @@
     if (a.type === 'erase') return 'erase';
     if (a.type === 'annot-erase') return 'annot-erase';
     if (a.type === 'paint') return 'paint:' + a.terrain;
+    if (a.type === 'hazard') return 'hazard:' + a.mode;
     if (a.type === 'draw') return 'draw:' + a.kind;
     if (a.type === 'marker') return 'marker:' + a.kind;
     return null;
@@ -672,6 +735,7 @@
     if (!a) el.textContent = 'Mode: Select / pan';
     else if (a.type === 'erase') el.textContent = 'Erase terrain · drag to brush';
     else if (a.type === 'paint') el.textContent = `Paint: ${D().TERRAIN[a.terrain].label} · drag to brush`;
+    else if (a.type === 'hazard') el.textContent = a.mode === 'radiation' ? 'Paint radiation · drag to brush' : 'Clear radiation · drag to brush';
     else if (a.type === 'draw'){
       if (state.lineMode === 'freehand') el.textContent = `Draw ${a.kind} · drag to trace`;
       else if (state.editor && state.editor.pts.length) el.textContent = `${a.kind}: click=add · drag dot=move · Enter=finish · Esc=cancel`;
@@ -695,11 +759,13 @@
     });
   }
   function showReadout(Q, R){
-    const d = D(); const o = d.ownerOf(Q, R); const pt = o ? d.parentTerrainOf(o.col, o.row) : null;
-    const sub = d.getSubhex(Q, R, pt);
+    const d = D(); const o = d.ownerOf(Q, R);
+    const pt = o ? d.parentTerrainOf(o.col, o.row) : null, ph = o ? d.parentHazardOf(o.col, o.row) : null;
+    const sub = d.getSubhex(Q, R, pt, ph);
     const tlabel = (d.TERRAIN[sub.terrain] || d.TERRAIN.unknown).label;
     const owner = o ? `parent ${o.col},${o.row}` : 'unowned';
-    state.el.readBody.innerHTML = `Q,R ${Q},${R} · ${owner}<br>${tlabel} <span style="color:#888">(${sub.source})</span>`;
+    const rad = sub.hazard === 'radiation' ? ' <span style="color:#c3f037">☢ radiation</span>' : '';
+    state.el.readBody.innerHTML = `Q,R ${Q},${R} · ${owner}<br>${tlabel} <span style="color:#888">(${sub.source})</span>${rad}`;
   }
 
   // ── public API ─────────────────────────────────────────────────────────────
@@ -716,5 +782,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.8.0 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.9.0 loaded'); } catch(_){}
 })();

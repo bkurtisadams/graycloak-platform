@@ -10,11 +10,11 @@
 <link rel="stylesheet" href="gcc-auth.css">
 
 <script src="gw-encounter-data.js"></script>
-<script src="gw-terrain-data.js?v=1"></script>
+<script src="gw-terrain-data.js?v=2"></script>
 <script src="gcc-rng.js"></script>
-<script src="gw-subhex-data.js?v=5"></script>
+<script src="gw-subhex-data.js?v=6"></script>
 <script src="gw-annotations.js?v=2"></script>
-<script src="gw-feature-gen.js?v=1"></script>
+<script src="gw-feature-gen.js?v=2"></script>
 
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
@@ -52,6 +52,7 @@
   .parent-hex:hover { stroke:rgba(255,200,80,.9); stroke-width:1; }
   .parent-hex.selected { stroke:#ff8844; stroke-width:1.8; }
   .parent-label { font-family:'Cinzel',serif; font-size:5px; fill:rgba(0,0,0,.6); text-anchor:middle; dominant-baseline:middle; pointer-events:none; }
+  .rad-overlay { fill:url(#rad-hatch); stroke:rgba(195,240,55,.4); stroke-width:1.5; pointer-events:none; }
 
   .hud { position:fixed; background:var(--panel-bg); border:1px solid var(--panel-border); border-radius:3px; color:var(--parchment-light); padding:10px 14px; font-size:12px; z-index:50; box-shadow:0 4px 16px rgba(0,0,0,.6); }
   #hud-cell      { top:calc(var(--gcc-bar-h) + var(--topbar-h) + 12px); left:12px;   min-width:200px; }
@@ -104,7 +105,7 @@
 
 <div id="topbar">
   <h1>GAMMA WORLD — Campaign Map</h1>
-  <span class="ver">v0.13.0</span>
+  <span class="ver">v0.14.0</span>
   <span class="sep"></span>
   <button id="btn-reset">Fit View</button>
   <span class="spacer"></span>
@@ -113,8 +114,15 @@
 <div id="map-wrap">
   <div id="map-stage">
     <svg id="world" xmlns="http://www.w3.org/2000/svg" width="3001" height="1863" viewBox="0 0 3001 1863">
+      <defs>
+        <pattern id="rad-hatch" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect width="10" height="10" fill="rgba(150,210,40,0.13)"/>
+          <line x1="0" y1="0" x2="0" y2="10" stroke="rgba(195,240,55,0.55)" stroke-width="2.5"/>
+        </pattern>
+      </defs>
       <image id="printed-map" href="gwmap.png?v=3" x="0" y="0" width="3001" height="1863" style="display:none;"/>
       <g id="parent-grid"></g>
+      <g id="parent-hazard"></g>
       <g id="parent-labels"></g>
     </svg>
   </div>
@@ -133,9 +141,13 @@
       <option value="heavy-forest">Heavy forest</option>
       <option value="mountains">Mountains</option>
       <option value="snow-mountains">Snow-capped mountains</option>
-      <option value="deathlands">Deathlands</option>
       <option value="ruins">Ruins</option>
     </select>
+  </div>
+  <div class="hud-row"><label>Radiation</label>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--gamma-orange-light);">
+      <input type="checkbox" id="hc-radiation" disabled> hard radiation (deathlands)
+    </label>
   </div>
   <div class="hud-row"><label>Source</label><span id="hc-source">—</span></div>
   <div class="hud-row"><label>Region</label><span id="hc-region">—</span></div>
@@ -148,6 +160,7 @@
   <h3>Layers</h3>
   <label class="layer-toggle"><input type="checkbox" id="lt-parent" checked>Parent grid</label>
   <label class="layer-toggle"><input type="checkbox" id="lt-labels">Coords</label>
+  <label class="layer-toggle"><input type="checkbox" id="lt-radiation" checked>Radiation</label>
   <label class="layer-toggle"><input type="checkbox" id="lt-png">Show printed map</label>
 </div>
 
@@ -174,7 +187,7 @@
 <script src="gcc-header.js"></script>
 <script src="gcc-firebase-config.js"></script>
 <script src="gcc-auth.js"></script>
-<script src="gw-subhex-view.js?v=9"></script>
+<script src="gw-subhex-view.js?v=10"></script>
 <script>
 'use strict';
 
@@ -232,6 +245,47 @@ function setTerrainOverride(col, row, terrain){
     overrides[k] = terrain;
   }
   localStorage.setItem(OVERRIDES_KEY, JSON.stringify(overrides));
+}
+
+// ─── Hazard overlay (radiation): independent of terrain ───────────────────────
+const AUTO_HAZARD = new Map();
+for (const d of (window.GW_TERRAIN_DATA || [])){ if (d.hazard) AUTO_HAZARD.set(d.col + ',' + d.row, d.hazard); }
+
+const HAZARD_KEY = 'gw-hazard-overrides';
+let hazardOverrides = {};
+try { hazardOverrides = JSON.parse(localStorage.getItem(HAZARD_KEY) || '{}'); } catch (e) { hazardOverrides = {}; }
+
+function getHazard(col, row){
+  const k = col + ',' + row;
+  if (Object.prototype.hasOwnProperty.call(hazardOverrides, k)) return hazardOverrides[k] || null;
+  return AUTO_HAZARD.get(k) || null;
+}
+window.getHazard = getHazard;   // consumed by gw-subhex-data for inherited hazard
+
+function setHazard(col, row, on){
+  const k = col + ',' + row;
+  const auto = AUTO_HAZARD.get(k) || null;
+  const val = on ? 'radiation' : null;
+  if (val === auto) delete hazardOverrides[k];        // back to auto default
+  else hazardOverrides[k] = val || '';                // '' = explicitly none
+  localStorage.setItem(HAZARD_KEY, JSON.stringify(hazardOverrides));
+}
+
+function renderHazards(){
+  const g = document.getElementById('parent-hazard');
+  if (!g) return;
+  g.replaceChildren();
+  const keys = new Set([...AUTO_HAZARD.keys(), ...Object.keys(hazardOverrides)]);
+  for (const k of keys){
+    const [col, row] = k.split(',').map(Number);
+    if (getHazard(col, row) !== 'radiation') continue;
+    const { x, y } = colRowToCenter(col, row);
+    if (x < -HEX_R || x > WORLD_W + HEX_R || y < -HEX_R || y > WORLD_H + HEX_R) continue;
+    const ov = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    ov.setAttribute('points', hexPolygonPoints(x, y, HEX_R));
+    ov.setAttribute('class', 'rad-overlay');
+    g.appendChild(ov);
+  }
 }
 
 // ─── Geometry ────────────────────────────────────────────────────────────────
@@ -373,6 +427,7 @@ function buildParentGrid(){
     }
   }
   document.getElementById('parent-labels').style.display = 'none';
+  renderHazards();
 }
 
 function onCellClick(col, row, polyEl, ev){
@@ -414,6 +469,7 @@ function refreshSelectionHud(){
   const btnDay    = document.getElementById('btn-roll-day');
   const btnWatch  = document.getElementById('btn-roll-watch');
   const btnExplore= document.getElementById('btn-explore-subhex');
+  const rad       = document.getElementById('hc-radiation');
 
   if (n === 0){
     hcCoords.textContent = '—';
@@ -421,6 +477,7 @@ function refreshSelectionHud(){
     hcRegion.textContent = '—';
     sel.disabled = true;
     sel.value = '';
+    rad.disabled = true; rad.checked = false; rad.indeterminate = false;
     enc.textContent = '— click a hex —';
     btnDay.disabled = true;
     btnWatch.disabled = true;
@@ -431,10 +488,12 @@ function refreshSelectionHud(){
   // Gather terrains + sources across the selection
   const terrains = new Set();
   const sources  = new Set();
+  let radCount = 0;
   selectedHexes.forEach(h => {
     const c = +h.dataset.col, r = +h.dataset.row;
     terrains.add(getTerrain(c, r));
     sources.add(isOverridden(c, r) ? 'override' : 'auto');
+    if (getHazard(c, r) === 'radiation') radCount++;
   });
 
   if (n === 1){
@@ -461,6 +520,9 @@ function refreshSelectionHud(){
     btnExplore.disabled = true;
   }
   sel.disabled = false;
+  rad.disabled = false;
+  rad.checked = radCount === n;
+  rad.indeterminate = radCount > 0 && radCount < n;
   hcRegion.textContent = '—';
 }
 
@@ -476,7 +538,13 @@ document.getElementById('hc-terrain-edit').addEventListener('change', e => {
   refreshSelectionHud();
 });
 
-// Esc clears selection
+document.getElementById('hc-radiation').addEventListener('change', e => {
+  if (selectedHexes.size === 0) return;
+  const on = e.target.checked;
+  selectedHexes.forEach(h => setHazard(+h.dataset.col, +h.dataset.row, on));
+  renderHazards();
+  refreshSelectionHud();
+});
 window.addEventListener('keydown', e => {
   if (e.key === 'Escape') clearSelection();
 });
@@ -488,6 +556,9 @@ document.getElementById('lt-parent').onchange = e => {
 document.getElementById('lt-labels').onchange = e => {
   document.getElementById('parent-labels').style.display = e.target.checked ? '' : 'none';
 };
+document.getElementById('lt-radiation').onchange = e => {
+  document.getElementById('parent-hazard').style.display = e.target.checked ? '' : 'none';
+};
 document.getElementById('lt-png').onchange = e => {
   document.getElementById('printed-map').style.display = e.target.checked ? '' : 'none';
   document.body.classList.toggle('printed-map-shown', e.target.checked);
@@ -496,10 +567,10 @@ document.getElementById('lt-png').onchange = e => {
 // ─── Encounter rolls ─────────────────────────────────────────────────────────
 function d(n){ return Math.floor(Math.random() * n) + 1; }
 
-function rollEncounter(terrainKey){
+function rollEncounter(terrainKey, hazard){
   const D = window.GWEncounterData;
   if (!D) return { error: 'gw-encounter-data.js not loaded' };
-  const mapped = TERRAIN_TO_ENCOUNTER_KEY[terrainKey] || terrainKey;
+  const mapped = hazard === 'radiation' ? 'radioactive' : (TERRAIN_TO_ENCOUNTER_KEY[terrainKey] || terrainKey);
   const tableKey = D.TERRAIN_TO_TABLE[mapped] || 'clear';
   const table = D.ENCOUNTER_TABLES[tableKey];
   const roll = d(D.TABLE_DIE_SIZE);
@@ -515,19 +586,22 @@ function rollWithCheck(scaleLabel){
     return;
   }
   // Use the first selected hex's terrain (button is disabled for mixed multi-select)
-  const t = [...selectedHexes][0].dataset.terrain;
+  const h0 = [...selectedHexes][0];
+  const t = h0.dataset.terrain;
+  const hz = getHazard(+h0.dataset.col, +h0.dataset.row);
+  const tLabel = hz === 'radiation' ? `${t} (irradiated)` : t;
   const check = d(6);
   const el = document.getElementById('enc-result');
   el.style.display = 'block';
 
   if (check !== 6){
     el.innerHTML =
-      `<div class="meta">${scaleLabel} check (1d6) on <em>${t}</em></div>` +
+      `<div class="meta">${scaleLabel} check (1d6) on <em>${tLabel}</em></div>` +
       `<div>Rolled <strong>${check}</strong> — no encounter.</div>`;
     return;
   }
 
-  const result = rollEncounter(t);
+  const result = rollEncounter(t, hz);
   if (result.error){
     el.innerHTML = `<span class="nope">${result.error}</span>`;
     return;

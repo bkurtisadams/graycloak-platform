@@ -1,4 +1,4 @@
-// gw-subhex-data.js v0.2.0 — 2026-05-24
+// gw-subhex-data.js v0.3.0 — 2026-05-24
 // Gamma World 3-mile subhex data layer. LocalStorage-backed port of
 // gcc-subhex-data.js: keeps the flat-top odd-q axial/ownership engine,
 // the seeded procedural-terrain generator, and the per-cell override +
@@ -39,7 +39,6 @@
     'heavy-forest':   { label: 'Heavy forest',   fill: '#28644f' },
     mountains:        { label: 'Mountains',      fill: '#6e5046' },
     'snow-mountains': { label: 'Snow mountains', fill: '#dcd7d7' },
-    deathlands:       { label: 'Deathlands',     fill: '#d291a0' },
     ruins:            { label: 'Ruins',          fill: '#a8576b' },
     unknown:          { label: 'Unknown',        fill: '#3c3c3c' },
   };
@@ -52,13 +51,12 @@
   const VARIATION = {
     water:            { water: 1 },                              // open water stays water
     plains:           { plains: 2, desert: 1 },                  // forest comes from clumps, not scatter
-    desert:           { plains: 2, deathlands: 1 },
+    desert:           { plains: 2, desert: 1 },
     forest:           { forest: 1, 'heavy-forest': 1 },          // denser-forest patches, no plains
     'heavy-forest':   { forest: 3 },
     mountains:        { mountains: 1, 'snow-mountains': 1, forest: 1 },  // snow/wooded slopes, no plains
     'snow-mountains': { mountains: 3 },
-    deathlands:       { desert: 2, ruins: 1 },
-    ruins:            { deathlands: 2, plains: 1 },
+    ruins:            { ruins: 2, plains: 1 },
     unknown:          { unknown: 1 },
   };
 
@@ -282,6 +280,26 @@
     return _parentOverrides()[k] || _autoMap().get(k) || 'unknown';
   }
 
+  let _parentHazardResolver = null;
+  function setParentHazardResolver(fn){ _parentHazardResolver = (typeof fn === 'function') ? fn : null; }
+  function parentHazardOf(col, row){
+    if (_parentHazardResolver) return _parentHazardResolver(col, row) || null;
+    if (typeof window !== 'undefined' && typeof window.getHazard === 'function'){
+      return window.getHazard(col, row) || null;
+    }
+    const k = col + ',' + row;
+    const d = _autoHazardMap().get(k);
+    return d || null;
+  }
+  let _AUTOHAZ = null;
+  function _autoHazardMap(){
+    if (_AUTOHAZ) return _AUTOHAZ;
+    _AUTOHAZ = new Map();
+    const data = (typeof window !== 'undefined' && window.GW_TERRAIN_DATA) || [];
+    for (const d of data){ if (d.hazard) _AUTOHAZ.set(d.col + ',' + d.row, d.hazard); }
+    return _AUTOHAZ;
+  }
+
   // ── Procedural + reads ──────────────────────────────────────────────────────
   // Forest in plains grows as organic clumps, not single-hex scatter: sparse
   // seeds pull in nearby cells with falling probability over hex distance.
@@ -312,13 +330,16 @@
     return window.GCCRng.pickWeighted(rng, table);
   }
 
-  function getSubhex(Q, R, parentTerrain){
+  function getSubhex(Q, R, parentTerrain, parentHazard){
     const id = subhexId(Q, R);
     const ov = OVERRIDES[id];
+    const ph = (parentHazard !== undefined) ? (parentHazard || null)
+             : (() => { const o = ownerOf(Q, R); return o ? parentHazardOf(o.col, o.row) : null; })();
     if (ov){
       return {
         id, Q, R,
         terrain: ov.terrain || proceduralTerrain(parentTerrain, Q, R),
+        hazard:  ('hazard' in ov) ? (ov.hazard || null) : ph,
         name:    ov.name || '',
         notes:   ov.notes || '',
         feature: ov.feature || null,
@@ -329,16 +350,18 @@
     return {
       id, Q, R,
       terrain: proceduralTerrain(parentTerrain, Q, R),
+      hazard: ph,
       name: '', notes: '', feature: null,
       source: 'seed',
       schemaVersion: SCHEMA_VERSION,
     };
   }
-  // Convenience: resolves owner + parent terrain internally.
+  // Convenience: resolves owner + parent terrain + hazard internally.
   function getSubhexAt(Q, R){
     const o = ownerOf(Q, R);
     const pt = o ? parentTerrainOf(o.col, o.row) : null;
-    return getSubhex(Q, R, pt);
+    const ph = o ? parentHazardOf(o.col, o.row) : null;
+    return getSubhex(Q, R, pt, ph);
   }
 
   function normalizeFeature(f){
@@ -361,6 +384,7 @@
     const cur = OVERRIDES[id] || {};
     const next = { ...cur };
     if ('terrain' in fields) next.terrain = fields.terrain || null;
+    if ('hazard'  in fields) next.hazard  = (fields.hazard === 'radiation') ? 'radiation' : '';  // '' = explicit none
     if ('name'    in fields) next.name    = fields.name || '';
     if ('notes'   in fields) next.notes   = fields.notes || '';
     if ('feature' in fields) next.feature = normalizeFeature(fields.feature);
@@ -369,7 +393,7 @@
     next.schemaVersion = SCHEMA_VERSION;
     next.authoredAt = Date.now();
 
-    const empty = !next.terrain && !next.name && !next.notes && !next.feature;
+    const empty = !next.terrain && !next.name && !next.notes && !next.feature && !('hazard' in next);
     if (empty) delete OVERRIDES[id];
     else       OVERRIDES[id] = next;
 
@@ -380,6 +404,22 @@
   function clearSubhexTerrain(Q, R, opts){ return setSubhexOverride(Q, R, { terrain: null }, opts); }
   function setSubhexFeature(Q, R, feature, opts){ return setSubhexOverride(Q, R, { feature }, opts); }
   function clearSubhexFeature(Q, R, opts){ return setSubhexOverride(Q, R, { feature: null }, opts); }
+  // hazard: 'radiation' adds, 'none' forces off (over an irradiated parent),
+  // 'inherit' removes the override so the parent's hazard shows through.
+  function setSubhexHazard(Q, R, mode, opts){
+    if (mode === 'inherit') return clearSubhexHazard(Q, R, opts);
+    return setSubhexOverride(Q, R, { hazard: mode === 'radiation' ? 'radiation' : '' }, opts);
+  }
+  function clearSubhexHazard(Q, R, opts){
+    const id = subhexId(Q, R);
+    const cur = OVERRIDES[id];
+    if (!cur || !('hazard' in cur)) return false;
+    const next = { ...cur }; delete next.hazard;
+    const empty = !next.terrain && !next.name && !next.notes && !next.feature;
+    if (empty) delete OVERRIDES[id]; else OVERRIDES[id] = next;
+    if (!opts || !opts.deferSave){ save(); _emit('edit'); }
+    return true;
+  }
 
   function peekOverride(Q, R){ return OVERRIDES[subhexId(Q, R)]; }
   function restoreOverride(Q, R, rawEntry){
@@ -417,15 +457,17 @@
     ownerOf, ownedByParent, fragmentsForParent, neighborsOf,
     // ids
     subhexId, parseSubhexId, axialKey,
-    // parent terrain
+    // parent terrain + hazard
     setParentTerrainResolver, parentTerrainOf,
+    setParentHazardResolver, parentHazardOf,
     // reads
     proceduralTerrain, getSubhex, getSubhexAt, getCellFeature, peekOverride,
     // writes
     setSubhexOverride, setSubhexTerrain, clearSubhexTerrain,
     setSubhexFeature, clearSubhexFeature,
+    setSubhexHazard, clearSubhexHazard,
     restoreOverride, clearSubhex, clearAll, flushOverrides, save,
   };
 
-  try { console.log('[gw-subhex-data] v0.2.0 loaded', { ANCHOR_COL, ANCHOR_ROW, HEX_R, SUB_R, seed: WORLD_SEED }); } catch(_){}
+  try { console.log('[gw-subhex-data] v0.3.0 loaded', { ANCHOR_COL, ANCHOR_ROW, HEX_R, SUB_R, seed: WORLD_SEED }); } catch(_){}
 })();
