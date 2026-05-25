@@ -721,6 +721,92 @@ const SPELLS = {
   }
 };
 
+// 1e saving-throw matrices. Columns: ppd, pp, rsw, bw, spell. Bands sorted by upTo (last = Infinity).
+const SAVE_MATRIX = {
+  cleric: [
+    { upTo: 3,  ppd:10, pp:13, rsw:14, bw:16, spell:15 },
+    { upTo: 6,  ppd: 9, pp:12, rsw:13, bw:15, spell:14 },
+    { upTo: 9,  ppd: 7, pp:10, rsw:11, bw:13, spell:12 },
+    { upTo:12,  ppd: 6, pp: 9, rsw:10, bw:12, spell:11 },
+    { upTo:15,  ppd: 5, pp: 8, rsw: 9, bw:11, spell:10 },
+    { upTo:18,  ppd: 4, pp: 7, rsw: 8, bw:10, spell: 9 },
+    { upTo:Infinity, ppd:2, pp:5, rsw:6, bw:8, spell:7 }
+  ],
+  fighter: [
+    { upTo: 0,  ppd:16, pp:17, rsw:18, bw:20, spell:19 },
+    { upTo: 2,  ppd:14, pp:15, rsw:16, bw:17, spell:17 },
+    { upTo: 4,  ppd:13, pp:14, rsw:15, bw:16, spell:16 },
+    { upTo: 6,  ppd:11, pp:12, rsw:13, bw:13, spell:14 },
+    { upTo: 8,  ppd:10, pp:11, rsw:12, bw:12, spell:13 },
+    { upTo:10,  ppd: 8, pp: 9, rsw:10, bw: 9, spell:11 },
+    { upTo:12,  ppd: 7, pp: 8, rsw: 9, bw: 8, spell:10 },
+    { upTo:14,  ppd: 5, pp: 6, rsw: 7, bw: 5, spell: 8 },
+    { upTo:16,  ppd: 4, pp: 5, rsw: 6, bw: 4, spell: 7 },
+    { upTo:Infinity, ppd:3, pp:4, rsw:5, bw:4, spell:6 }
+  ],
+  magic_user: [
+    { upTo: 5,  ppd:14, pp:13, rsw:11, bw:15, spell:12 },
+    { upTo:10,  ppd:13, pp:11, rsw: 9, bw:13, spell:10 },
+    { upTo:15,  ppd:11, pp: 9, rsw: 7, bw:11, spell: 8 },
+    { upTo:20,  ppd:10, pp: 7, rsw: 5, bw: 9, spell: 6 },
+    { upTo:Infinity, ppd:8, pp:5, rsw:3, bw:7, spell:4 }
+  ],
+  thief: [
+    { upTo: 4,  ppd:13, pp:12, rsw:14, bw:16, spell:15 },
+    { upTo: 8,  ppd:12, pp:11, rsw:12, bw:15, spell:13 },
+    { upTo:12,  ppd:11, pp:10, rsw:10, bw:14, spell:11 },
+    { upTo:16,  ppd:10, pp: 9, rsw: 8, bw:13, spell: 9 },
+    { upTo:20,  ppd: 9, pp: 8, rsw: 6, bw:12, spell: 7 },
+    { upTo:Infinity, ppd:8, pp:7, rsw:4, bw:11, spell:5 }
+  ]
+};
+const SAVE_CATEGORIES = ['ppd', 'pp', 'rsw', 'bw', 'spell'];
+
+// Parse a monster HD expression: "4+1" -> {dice:4, plus:1}; "1", "3+3", "1-1", "1/2" all handled.
+function parseHD(hd) {
+  if (typeof hd === 'number') return { dice: Math.max(0, Math.floor(hd)), plus: 0 };
+  const s = String(hd == null ? 1 : hd).trim();
+  if (/^\d+\s*\/\s*\d+$/.test(s)) return { dice: 0, plus: 0 }; // sub-1 HD
+  const m = s.match(/^(\d+)\s*([+-]\s*\d+)?$/);
+  if (!m) return { dice: 1, plus: 0 };
+  return { dice: +m[1], plus: m[2] ? +m[2].replace(/\s+/g, '') : 0 };
+}
+// DMG II.B: HD -> saving Experience Level. Each +1..+4 hp bonus bumps up one level.
+function hdToSaveLevel(hd) {
+  const { dice, plus } = parseHD(hd);
+  return plus > 0 ? dice + Math.ceil(plus / 4) : Math.max(0, dice);
+}
+function saveTargetFromMatrix(saveClass, level, category) {
+  const table = SAVE_MATRIX[saveClass] || SAVE_MATRIX.fighter;
+  const band = table.find(b => level <= b.upTo) || table[table.length - 1];
+  return band[category];
+}
+// Resolve the number a combatant must roll (meet-or-beat) to save against `category`.
+function saveTargetFor(c, category) {
+  // PCs carry per-character targets from the AD&D sheet (race/items/Dex already folded in).
+  if (c.kind === 'pc' && c.saves && Number.isFinite(c.saves[category]) && c.saves[category] > 0) {
+    return c.saves[category];
+  }
+  if (c.matrix_class === 'monster' || c.kind === 'monster') {
+    const classes = [].concat(c.save_as || 'fighter');       // II.C: default fighter; array = most favorable
+    const hd = c.hd != null ? c.hd : c.level;
+    const baseLevel = hdToSaveLevel(hd);
+    // II.D: non-intelligent creatures save at half HD (round up), except poison/death magic.
+    const level = (c.intelligent === false && category !== 'ppd')
+      ? Math.max(0, Math.ceil(parseHD(hd).dice / 2)) : baseLevel;
+    return Math.min(...classes.map(cl => saveTargetFromMatrix(cl, level, category)));
+  }
+  return saveTargetFromMatrix(c.matrix_class, c.level, category);
+}
+// Roll a save. PHB N.B.: a natural 1 always fails. `mod` is a bonus (+) / penalty (-) to the d20.
+function rollSave(c, category, mod) {
+  mod = mod || 0;
+  const roll = d20();
+  const target = saveTargetFor(c, category);
+  const nat1 = roll === 1;
+  return { roll, mod, target, success: !nat1 && (roll + mod) >= target, nat1, category };
+}
+
 // ============================================================
 //  ENGINE
 // ============================================================
@@ -991,10 +1077,18 @@ function resolveSpell(state, casterId, targetId, spellId, opts) {
   if (!charges[spellId] || charges[spellId] <= 0) return null;
   charges[spellId]--;
   const result = spell.cast(caster, target);
+  let damage = result.damage || 0;
+  let saveInfo = null;
+  // Spells may declare `save: { category, effect:'half'|'negate', mod? }`. Auto-hit spells (e.g. magic missile) skip it.
+  if (spell.save && !result.auto_hit) {
+    saveInfo = rollSave(target, spell.save.category, spell.save.mod || 0);
+    if (saveInfo.success) damage = spell.save.effect === 'half' ? Math.floor(damage / 2) : 0;
+  }
   const event = {
     kind: 'spell_resolved',
     actor: caster.id, target: target.id, spell_id: spell.id,
-    damage: result.damage || 0, missiles: result.missiles, each: result.each,
+    damage: damage, missiles: result.missiles, each: result.each,
+    save: saveInfo, save_effect: spell.save ? spell.save.effect : null,
     killed: false
   };
   return applyHitConsequences(state, caster, target, event, opts);
@@ -1338,7 +1432,7 @@ function makeInitialState() {
         move: 4 },
       { id: 'skeleton_1', side: 'B', kind: 'monster',
         template_id: 'skeleton', label: 'Skeleton', letter: 's',
-        matrix_class: 'monster', level: 1,
+        matrix_class: 'monster', level: 1, hd: '1', intelligent: false,
         position: { col: 9, row: 6 }, facing: 270,
         hp_max: 5, hp_current: 5, ac_base: 7, ac_current: 7, size: 'M',
         loadout: ['spear'], active_weapon: 'spear',
@@ -1346,7 +1440,7 @@ function makeInitialState() {
         move: 4, singles_out: false },
       { id: 'orc_1', side: 'B', kind: 'monster',
         template_id: 'orc', label: 'Orc', letter: 'o',
-        matrix_class: 'monster', level: 1,
+        matrix_class: 'monster', level: 1, hd: '1',
         position: { col: 10, row: 6 }, facing: 0,
         hp_max: 6, hp_current: 6, ac_base: 6, ac_current: 6, size: 'M',
         loadout: ['pike'], active_weapon: 'pike',
@@ -1354,7 +1448,7 @@ function makeInitialState() {
         move: 4, singles_out: true },
       { id: 'ogre_1', side: 'B', kind: 'monster',
         template_id: 'ogre', label: 'Ogre', letter: 'O',
-        matrix_class: 'monster', level: 4.5,
+        matrix_class: 'monster', level: 4.5, hd: '4+1',
         position: { col: 8, row: 3 }, facing: 225,
         hp_max: 18, hp_current: 18, ac_base: 5, ac_current: 5, size: 'L', size_cells: 2, size_token: 1.15,
         loadout: ['ogre_club'], active_weapon: 'ogre_club',
@@ -3113,10 +3207,19 @@ function logSpellEvent(ev) {
   const sp = SPELLS[ev.spell_id];
   const aSide = a.side === 'A' ? 'a' : 'b';
   const tSide = t.side === 'A' ? 'a' : 'b';
+  const missileStr = ev.missiles ? ` (${ev.missiles} missiles)` : '';
   const eachStr = ev.each ? ' [' + ev.each.join(', ') + ']' : '';
+  let saveStr = '';
+  if (ev.save) {
+    const modStr = ev.save.mod ? `${ev.save.mod > 0 ? '+' : ''}${ev.save.mod}` : '';
+    const verb = !ev.save.success ? 'fails save'
+      : (ev.save_effect === 'half' ? 'saves — half damage' : 'saves — resisted');
+    saveStr = ` <span class="em">— ${verb} (d20 ${ev.save.roll}${modStr} vs ${ev.save.target})</span>`;
+  }
+  const dmgStr = ev.damage > 0 ? ` takes <span class="em">${ev.damage} dmg</span>` : ` <span class="em">unharmed</span>`;
   const interruptNote = ev.spell_interrupted ? ` <span class="em">— spell interrupted!</span>` : '';
   const killNote = ev.killed ? ` <span class="em">— ${t.label} falls!</span>` : '';
-  log(state, 'spell', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${a.label}</span> casts <span class="em">${sp.name}</span> (${ev.missiles} missiles) → <span class="${tSide}">${t.label}</span> takes <span class="em">${ev.damage} dmg</span>${eachStr}${interruptNote}${killNote}</span>`);
+  log(state, 'spell', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${a.label}</span> casts <span class="em">${sp.name}</span>${missileStr} → <span class="${tSide}">${t.label}</span>${dmgStr}${eachStr}${saveStr}${interruptNote}${killNote}</span>`);
   if (ev.killed) log(state, 'death', `<span class="ts">R${state.round}</span><span class="body"><span class="${tSide}">${t.label}</span> is slain.</span>`);
 }
 
