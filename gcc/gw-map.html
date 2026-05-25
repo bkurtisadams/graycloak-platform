@@ -58,8 +58,10 @@
   #hud-cell      { top:calc(var(--gcc-bar-h) + var(--topbar-h) + 12px); left:12px;   min-width:200px; }
   #hud-layers    { top:calc(var(--gcc-bar-h) + var(--topbar-h) + 12px); right:12px;  min-width:160px; }
   #hud-encounter { bottom:12px; left:12px;  min-width:260px; max-width:320px; }
-  #hud-data      { bottom:12px; right:12px; min-width:200px; }
-  #hud-zoom      { bottom:12px; right:12px; min-width:140px; }
+  #hud-data      { min-width:200px; }
+  #hud-zoom      { min-width:140px; }
+  #hud-br        { position:fixed; bottom:12px; right:12px; display:flex; flex-direction:column; gap:8px; align-items:flex-end; z-index:50; }
+  #hud-br .hud   { position:static; }
 
   .hud h3 { font-family:'Cinzel',serif; font-size:11px; font-weight:600; letter-spacing:.1em; color:var(--gamma-orange-light); margin-bottom:6px; }
   .hud-row { display:flex; justify-content:space-between; padding:2px 0; }
@@ -106,7 +108,7 @@
 
 <div id="topbar">
   <h1>GAMMA WORLD — Campaign Map</h1>
-  <span class="ver">v0.17.2</span>
+  <span class="ver">v0.17.3</span>
   <span class="sep"></span>
   <button id="btn-reset">Fit View</button>
   <span class="spacer"></span>
@@ -165,12 +167,6 @@
   <label class="layer-toggle"><input type="checkbox" id="lt-png">Show printed map</label>
 </div>
 
-<div id="hud-data" class="hud">
-  <h3>Map data</h3>
-  <button id="btn-export-authored" style="width:100%;">⤓ Export authored data</button>
-  <div id="export-status" style="font-size:11px;color:var(--gamma-orange-light);margin-top:6px;min-height:14px;">Bakes your edits to <code>gw-authored.js</code></div>
-</div>
-
 <div id="hud-encounter" class="hud">
   <h3>Encounter</h3>
   <div class="hud-row">
@@ -184,10 +180,17 @@
   <div id="enc-result" class="enc-result" style="display:none;"></div>
 </div>
 
-<div id="hud-zoom" class="hud">
-  <h3>View</h3>
-  <div class="hud-row"><label>Zoom</label><span id="hz-zoom">100%</span></div>
-  <div class="hud-row"><label>Scale</label><span>30 mi/parent</span></div>
+<div id="hud-br">
+  <div id="hud-data" class="hud">
+    <h3>Map data</h3>
+    <button id="btn-export-authored" style="width:100%;">⤓ Export authored data</button>
+    <div id="export-status" style="font-size:11px;color:var(--gamma-orange-light);margin-top:6px;min-height:14px;">Bakes your edits to <code>gw-authored.js</code></div>
+  </div>
+  <div id="hud-zoom" class="hud">
+    <h3>View</h3>
+    <div class="hud-row"><label>Zoom</label><span id="hz-zoom">100%</span></div>
+    <div class="hud-row"><label>Scale</label><span>30 mi/parent</span></div>
+  </div>
 </div>
 
 <script src="gcc-data.js"></script>
