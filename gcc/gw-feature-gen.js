@@ -1,4 +1,9 @@
-// gw-feature-gen.js v0.2.0 — 2026-05-25
+// gw-feature-gen.js v0.3.0 — 2026-05-25
+// v0.3.0 — procedural auto-naming of generated sites. Each marker gets a
+//          Gamma-World-flavored name (corrupted Ancient cities for ruins,
+//          scavenger compounds for settlements, ominous lairs, tech
+//          designations for robot farms/forts/spaceports), seeded per
+//          location+kind so re-generating a parent is stable.
 // v0.2.0 — hazard-aware per-cell pass (radiation reads as deathlands) + a
 //          top-down rare pass for sited features: robot farms (anywhere),
 //          fortifications (uncommon), spaceports (irradiated parents only).
@@ -103,6 +108,57 @@
     if (cand.some(c => c.haz === 'radiation') && rng() < 0.20) tryPlace('spaceport', c => c.haz === 'radiation');
   }
 
+  // ── procedural site names ───────────────────────────────────────────────
+  // Deterministic per location+kind (own seed stream, independent of placement
+  // and road RNG), so re-generating a parent yields the same names and a given
+  // site keeps its name. Gamma-World-flavored: corrupted Ancient city names,
+  // scavenger compounds, ominous lairs, and tech designations for robot sites.
+  const NM = {
+    pre:  ['Dust','Ash','Rust','Salt','Cinder','Ember','Bone','Mud','Stone','Iron','Glass','Tar','Scrap','Husk','Grey','Pale','Bitter','Hollow','Thorn','Briar','Gloom','Murk','Cold','Drift','Crag','Sump','Slag','Char','Bramble','Flint'],
+    suf:  ['ford','well','haven','hold','reach','fall','bend','crossing','gate','mire','hollow','ridge','stead','watch','end','row','burg'],
+    city: ['Nuyok','Filade','Bostodge','Chigo','Ditroyt','Atlana','Memfis','Denva','Seatle','Portlan','Sanfran','Vegath','Dallax','Hewston','Pheonx','Baltmor','Klevlan','Pittsburk','Sin Loose','Noo Leans','Saint Loo'],
+    rAdj: ['Shattered','Sunken','Glassed','Silent','Forgotten','Toppled','Hollow','Bleached','Burnt','Drowned','Buried'],
+    lAdj: ['Gnawed','Blood','Howling','Scaled','Rotting','Sunken','Broken','Whispering','Festering','Ashen','Venom','Ironclaw','Razor'],
+    lDen: ['Warren','Den','Hollow','Pit','Burrow','Nest','Maw','Lair','Tangle','Hole'],
+    corp: ['Ankhar','Createk','Vortex','Apertia','Helix','Genus','Omnitech','Ryker','Delvan','Solcorp','Maxon','Cyberdyne'],
+    fNam: ['Cinder','Vance','Holt','Kael','Drummond','Stark','Reyes','Vorn','Hale','Marsh','Cray'],
+    fSuf: ['Bastion','Redoubt','Bunker','Bulwark','Keep','Hold'],
+    grk:  ['Alpha','Beta','Gamma','Delta','Theta','Sigma','Omega','Kappa','Lambda','Zeta'],
+  };
+  const NAME_AZ = 'ABCDEFGHJKLMNPRSTVWXZ';
+  function nameFor(kind, Q, R){
+    const G = window.GCCRng;
+    const rng = G.mulberry32(G.seedFor(WORLD_SEED, 'name', kind, Q, R));
+    const pick = a => a[Math.floor(rng() * a.length)];
+    const compound = () => pick(NM.pre) + pick(NM.suf);
+    const n99 = () => 1 + Math.floor(rng() * 99);
+    switch (kind){
+      case 'village':
+      case 'town': return compound();
+      case 'ruin': { const r = rng();
+        if (r < 0.5) return 'Ruins of ' + pick(NM.city);
+        if (r < 0.8) return 'Old ' + compound();
+        return 'The ' + pick(NM.rAdj) + ' Ruins'; }
+      case 'lair': return 'The ' + pick(NM.lAdj) + ' ' + pick(NM.lDen);
+      case 'vault':
+        return rng() < 0.5 ? 'Vault ' + NAME_AZ[Math.floor(rng()*NAME_AZ.length)] + '-' + n99()
+                           : pick(NM.corp) + ' ' + pick(['Vault','Cache','Bunker']);
+      case 'robot-farm': { const r = rng();
+        if (r < 0.4) return 'Mech-Land ' + n99();
+        if (r < 0.7) return 'Agri-Complex ' + pick(NM.grk);
+        return 'Sector ' + n99() + ' Farm'; }
+      case 'fortification': { const r = rng();
+        if (r < 0.45) return 'Fort ' + pick(NM.fNam);
+        if (r < 0.8) return compound() + ' ' + pick(NM.fSuf);
+        return 'Bastion ' + n99(); }
+      case 'spaceport': { const r = rng();
+        if (r < 0.4) return 'Port ' + pick(NM.corp);
+        if (r < 0.75) return compound() + ' Launch Complex';
+        return 'Launch Pad ' + n99(); }
+      default: return compound();
+    }
+  }
+
   function generateForParent(col, row){
     const D = window.GWSubhexData, R = window.GCCRng, A = window.GWAnnotations;
     if (!D || !R || !A){ console.warn('[gw-feature-gen] deps missing'); return null; }
@@ -131,7 +187,7 @@
     placeRareSites(D, R, cells, pt, placed, col, row);   // top-down: robot farms / forts / spaceports
 
     let mc = 0, sc = 0;
-    for (const p of placed){ A.addMarker(p.kind, p.x, p.y, { gen: true, parent: pk, deferSave: true }); mc++; }
+    for (const p of placed){ A.addMarker(p.kind, p.x, p.y, { gen: true, parent: pk, name: nameFor(p.kind, p.Q, p.R), deferSave: true }); mc++; }
 
     const settle = placed.filter(p => p.kind === 'town' || p.kind === 'village');
     for (const e of mst(settle)){
@@ -160,5 +216,5 @@
   }
 
   window.GWFeatureGen = { generateForParent, clearForParent, FEATURE_RATES };
-  try { console.log('[gw-feature-gen] v0.2.0 loaded'); } catch(_){}
+  try { console.log('[gw-feature-gen] v0.3.0 loaded'); } catch(_){}
 })();
