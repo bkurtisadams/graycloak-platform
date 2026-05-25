@@ -1,8 +1,12 @@
-// gw-subhex-view.js v0.25.0 — 2026-05-24
+// gw-subhex-view.js v0.26.0 — 2026-05-24
 // Seamless (Path B) 3-mile subhex viewer for the Gamma World map:
 // drill-in + pan/zoom, terrain paint brush, and a freehand vector overlay
 // (rivers/roads/trails) + settlement icon markers.
 //
+// v0.26.0 — fix subhex opacity see-through: basemap was stacked ABOVE gCells, so
+//           fading the subhex layer revealed only the page behind it while the
+//           parent map painted on top. Move basemap to the bottom of panG so the
+//           parent shows through the faded hexes as intended.
 // v0.25.0 — add a Subhex layer opacity slider (top bar, cyan) that fades the
 //           gCells terrain fills independently of the base-map opacity, so the
 //           parent map can stay opaque while you see through the subhexes. Persisted.
@@ -762,7 +766,9 @@
     const gFog = document.createElementNS(SVGNS, 'g');     gFog.id = 'gw-sx-fog';
     const gParty = document.createElementNS(SVGNS, 'g');   gParty.id = 'gw-sx-party';
     const panG = document.createElementNS(SVGNS, 'g');     panG.id = 'gw-sx-pan';
-    panG.append(gCells, gHaz, gPreview, gParents, basemap, gAnnot, gEditor, gFog, gSel, gParty, gHover);
+    // basemap first = bottom layer: the parent map sits UNDER the subhex terrain,
+    // so fading gCells (subhex opacity slider) reveals the parent through the hexes.
+    panG.append(basemap, gCells, gHaz, gPreview, gParents, gAnnot, gEditor, gFog, gSel, gParty, gHover);
     svg.append(defs, panG);
 
     const palette = buildPalette();
@@ -1363,5 +1369,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.25.0 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.26.0 loaded'); } catch(_){}
 })();
