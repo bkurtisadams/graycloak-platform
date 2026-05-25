@@ -1,8 +1,12 @@
-// gw-subhex-view.js v0.29.0 — 2026-05-24
+// gw-subhex-view.js v0.30.0 — 2026-05-24
 // Seamless (Path B) 3-mile subhex viewer for the Gamma World map:
 // drill-in + pan/zoom, terrain paint brush, and a freehand vector overlay
 // (rivers/roads/trails) + settlement icon markers.
 //
+// v0.30.0 — split the Tools palette into Build / Play tabs. Build = terrain,
+//           hazards, lines, settlements, features; Play = party, fog, time,
+//           encounters. Grip/zoom/mode stay pinned above both; active tab
+//           persists (gw-sx-tab). Sections remain individually collapsible.
 // v0.29.0 — drag perf: hide the full-res base map image during a pan (like gHaz/
 //           gAnnot already are), restoring it on mouseup. It was the heaviest child
 //           of the composited panG layer; at high zoom it became a world-sized GPU
@@ -152,6 +156,10 @@
       #gw-sx-palette .sx-grip { position:sticky; top:-8px; margin:-8px -8px 6px; padding:6px 8px; background:rgba(30,16,4,.98); border-bottom:1px solid #5a3a0a; font-family:'Cinzel',serif; font-size:10px; letter-spacing:.1em; color:#dcb87e; cursor:move; user-select:none; display:flex; align-items:center; gap:6px; z-index:2; }
       #gw-sx-palette .sx-grip:hover { color:#ffaa66; }
       #gw-sx-palette .sx-mode { font-size:11px; color:#ffce9e; margin-bottom:7px; min-height:14px; line-height:1.3; }
+      #gw-sx-palette .sx-tabs { display:flex; gap:5px; margin:2px 0 5px; }
+      #gw-sx-palette .sx-tab { flex:1; font-size:11px; padding:5px 4px; cursor:pointer; background:rgba(255,136,68,.07); color:#cbb088; border:1px solid #5a3a0a; border-radius:3px; font-family:'Cinzel',serif; letter-spacing:.04em; }
+      #gw-sx-palette .sx-tab:hover { color:#ffaa66; }
+      #gw-sx-palette .sx-tab.active { background:rgba(255,136,68,.26); color:#ffd9a8; border-color:#ff8844; }
       #gw-sx-palette .sx-hd { font-family:'Cinzel',serif; font-size:10px; letter-spacing:.1em; color:#e0c089; margin:9px 0 3px; border-top:1px solid #3a2606; padding-top:6px; cursor:pointer; user-select:none; }
       #gw-sx-palette .sx-hd:first-of-type { border-top:none; padding-top:0; }
       #gw-sx-palette .sx-hd:hover { color:#ffaa66; }
@@ -228,6 +236,9 @@
   const HEXOP_KEY = 'gw-sx-hex-op';
   function loadHexOp(){ try { const v = parseInt(localStorage.getItem(HEXOP_KEY), 10); return (v >= 0 && v <= 100) ? v : 100; } catch(_){ return 100; } }
   function saveHexOp(v){ try { localStorage.setItem(HEXOP_KEY, String(v)); } catch(_){} }
+  const TAB_KEY = 'gw-sx-tab';
+  function loadTab(){ try { return localStorage.getItem(TAB_KEY) === 'play' ? 'play' : 'build'; } catch(_){ return 'build'; } }
+  function saveTab(v){ try { localStorage.setItem(TAB_KEY, v); } catch(_){} }
 
   // ── party token + fog of war persistence ────────────────────────────────────
   // Global across parents — it's one continuous 3-mile grid, so a single party
@@ -374,7 +385,32 @@
     mode.textContent = 'Mode: Select';
     pal.appendChild(mode);
 
-    pal.appendChild(hd('Terrain'));
+    // ── Build / Play tab split ─────────────────────────────────────────────
+    // Build = map authoring (terrain, hazards, lines, settlements, features);
+    // Play = running a session (party, fog, time, encounters). Grip/zoom/mode
+    // stay pinned above both. Active tab persists.
+    const tabs = document.createElement('div'); tabs.className = 'sx-tabs';
+    const buildTabBtn = document.createElement('button'); buildTabBtn.className = 'sx-tab'; buildTabBtn.textContent = '🛠 Build';
+    buildTabBtn.title = 'Map authoring — terrain, hazards, lines, settlements, features';
+    const playTabBtn = document.createElement('button'); playTabBtn.className = 'sx-tab'; playTabBtn.textContent = '🎲 Play';
+    playTabBtn.title = 'Run a session — party, fog, time, encounters';
+    tabs.append(buildTabBtn, playTabBtn);
+    pal.appendChild(tabs);
+    const buildPanel = document.createElement('div'); buildPanel.className = 'sx-tabpanel';
+    const playPanel  = document.createElement('div'); playPanel.className  = 'sx-tabpanel';
+    let pane = buildPanel;
+    function setTab(which){
+      const play = which === 'play';
+      buildPanel.style.display = play ? 'none' : '';
+      playPanel.style.display  = play ? '' : 'none';
+      buildTabBtn.classList.toggle('active', !play);
+      playTabBtn.classList.toggle('active', play);
+      saveTab(play ? 'play' : 'build');
+    }
+    buildTabBtn.addEventListener('click', () => setTab('build'));
+    playTabBtn.addEventListener('click', () => setTab('play'));
+
+    pane.appendChild(hd('Terrain'));
     const T = D().TERRAIN;
     const terr = document.createElement('div'); terr.className = 'gw-sx-terr';
     for (const key of Object.keys(T)){
@@ -385,15 +421,15 @@
       sw.addEventListener('click', () => arm({ type: 'paint', terrain: key }));
       terr.appendChild(sw);
     }
-    pal.appendChild(terr);
+    pane.appendChild(terr);
     const trow = document.createElement('div'); trow.className = 'sx-row2';
     const erase = mkBtn('⌫ Erase', 'gw-sx-erase'); erase.dataset.arm = 'erase';
     erase.addEventListener('click', () => arm({ type: 'erase' }));
     const undoB = mkBtn('↶ Undo', 'gw-sx-undo'); undoB.disabled = true;
     undoB.addEventListener('click', undo);
-    trow.append(erase, undoB); pal.appendChild(trow);
+    trow.append(erase, undoB); pane.appendChild(trow);
 
-    pal.appendChild(hd('Hazards'));
+    pane.appendChild(hd('Hazards'));
     const hrow = document.createElement('div'); hrow.className = 'sx-row2';
     const radB = mkBtn('☢ Radiation', 'gw-sx-rad-btn'); radB.dataset.arm = 'hazard:radiation';
     radB.title = 'Paint hard radiation onto any terrain';
@@ -401,9 +437,9 @@
     const radE = mkBtn('⌫ Clear rad', 'gw-sx-rad-erase'); radE.dataset.arm = 'hazard:off';
     radE.title = 'Remove radiation (carves safe pockets out of irradiated regions)';
     radE.addEventListener('click', () => arm({ type: 'hazard', mode: 'off' }));
-    hrow.append(radB, radE); pal.appendChild(hrow);
+    hrow.append(radB, radE); pane.appendChild(hrow);
 
-    pal.appendChild(hd('Lines'));
+    pane.appendChild(hd('Lines'));
     const lines = document.createElement('div'); lines.className = 'gw-sx-tools';
     lines.append(
       toolBtn('～ River', { type: 'draw', kind: 'river' }),
@@ -411,7 +447,7 @@
       toolBtn('⋯ Trail', { type: 'draw', kind: 'trail' }),
       toolBtn('✎ Pen',   { type: 'draw', kind: 'pen' }),
     );
-    pal.appendChild(lines);
+    pane.appendChild(lines);
     const wRow = document.createElement('div');
     wRow.style.cssText = 'display:flex; align-items:center; gap:6px; margin-top:6px;';
     const wLbl = document.createElement('span'); wLbl.textContent = 'Width'; wLbl.style.cssText = "font-size:11px; color:#e0c089;";
@@ -421,20 +457,20 @@
     const wOut = document.createElement('span'); wOut.textContent = String(state.lineWidth); wOut.style.cssText = 'font-size:11px; color:#e8d5a3; min-width:16px; text-align:right;';
     wInput.addEventListener('input', () => { state.lineWidth = +wInput.value; wOut.textContent = wInput.value; if (state.editor){ state.editor.width = state.lineWidth; editorRender(); } });
     wRow.append(wLbl, wInput, wOut);
-    pal.appendChild(wRow);
+    pane.appendChild(wRow);
     const optRow = document.createElement('div');
     optRow.style.cssText = "display:flex; flex-direction:column; gap:2px; margin-top:6px; font-size:11px; color:#e0c089;";
     optRow.innerHTML = '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" id="gw-sx-freehand"> Freehand draw</label>' +
                        '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" id="gw-sx-snap"> Snap to hex</label>';
-    pal.appendChild(optRow);
+    pane.appendChild(optRow);
     optRow.querySelector('#gw-sx-freehand').addEventListener('change', e => { state.lineMode = e.target.checked ? 'freehand' : 'points'; if (state.editor) finishEditor(); syncMode(); });
     optRow.querySelector('#gw-sx-snap').addEventListener('change', e => { state.snapHex = e.target.checked; });
     const edRow = document.createElement('div'); edRow.className = 'sx-row2';
     const finB = mkBtn('✓ Finish', 'gw-sx-fin'); finB.disabled = true; finB.addEventListener('click', finishEditor);
     const canB = mkBtn('✕ Cancel', 'gw-sx-can'); canB.disabled = true; canB.addEventListener('click', cancelEditor);
-    edRow.append(finB, canB); pal.appendChild(edRow);
+    edRow.append(finB, canB); pane.appendChild(edRow);
 
-    pal.appendChild(hd('Settlements'));
+    pane.appendChild(hd('Settlements'));
     const marks = document.createElement('div'); marks.className = 'gw-sx-tools';
     marks.append(
       toolBtn('◉ Town',    { type: 'marker', kind: 'town' }),
@@ -442,75 +478,80 @@
       toolBtn('• Village', { type: 'marker', kind: 'village' }),
       toolBtn('⌐ Ruin',    { type: 'marker', kind: 'ruin' }),
     );
-    pal.appendChild(marks);
+    pane.appendChild(marks);
 
-    pal.appendChild(hd('Features'));
+    pane.appendChild(hd('Features'));
     const genRow = document.createElement('div'); genRow.className = 'sx-row2';
     const genB = mkBtn('✦ Generate', 'gw-sx-gen');
     genB.addEventListener('click', generateFeatures);
     const clrB = mkBtn('Clear gen', 'gw-sx-gen-clear');
     clrB.addEventListener('click', clearGeneratedFeatures);
     genRow.append(genB, clrB);
-    pal.appendChild(genRow);
+    pane.appendChild(genRow);
     const fe = mkBtn('✦ Erase feature', 'gw-sx-annot-erase'); fe.dataset.arm = 'annot-erase';
     fe.style.width = '100%';
     fe.addEventListener('click', () => arm({ type: 'annot-erase' }));
-    pal.appendChild(fe);
+    pane.appendChild(fe);
 
-    pal.appendChild(hd('Party'));
+    pane = playPanel;   // ── Play tab from here down ──
+    pane.appendChild(hd('Party'));
     const ppB = mkBtn('📍 Place party', 'gw-sx-party-place'); ppB.dataset.arm = 'party-place'; ppB.style.width = '100%';
     ppB.title = 'GM: drop/teleport the party on any subhex (reveals around it, no time cost)';
     ppB.addEventListener('click', () => arm({ type: 'party-place' }));
-    pal.appendChild(ppB);
+    pane.appendChild(ppB);
     const pmB = mkBtn('🧭 Move party', 'gw-sx-party-move'); pmB.dataset.arm = 'party-move'; pmB.style.width = '100%';
     pmB.title = 'Step the party one 3-mile hex toward the clicked cell';
     pmB.addEventListener('click', () => arm({ type: 'party-move' }));
-    pal.appendChild(pmB);
+    pane.appendChild(pmB);
     const puB = mkBtn('↶ Undo move', 'gw-sx-party-undo'); puB.style.width = '100%'; puB.disabled = true;
     puB.title = 'Undo the last party move/placement (position, fog, and clock)';
     puB.addEventListener('click', undoPartyMove);
-    pal.appendChild(puB);
+    pane.appendChild(puB);
     state.el.partyUndoBtn = puB;
     const fogRow = document.createElement('label');
     fogRow.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:11px;color:#d8c4a0;margin:4px 0 2px;cursor:pointer;';
     const fogCb = document.createElement('input'); fogCb.type = 'checkbox'; fogCb.id = 'gw-sx-fog-cb'; fogCb.checked = true;
     fogCb.addEventListener('change', () => { state.fogOn = fogCb.checked; saveFogVis(); renderFog(); });
     fogRow.append(fogCb, document.createTextNode(' Show fog'));
-    pal.appendChild(fogRow);
+    pane.appendChild(fogRow);
     state.el.fogCb = fogCb;
     const resetFog = mkBtn('⟲ Reset fog', 'gw-sx-fog-reset'); resetFog.style.width = '100%';
     resetFog.title = 'Re-hide every subhex (clears what the party has seen)';
     resetFog.addEventListener('click', () => { if (state.revealed) state.revealed.clear(); if (state.party) reveal(state.party.Q, state.party.R); saveRevealed(); renderFog(); });
-    pal.appendChild(resetFog);
+    pane.appendChild(resetFog);
 
-    pal.appendChild(hd('Time'));
+    pane.appendChild(hd('Time'));
     const clockBody = document.createElement('div'); clockBody.id = 'gw-sx-clock';
     clockBody.style.cssText = 'font-size:11px;line-height:1.45;color:#e8d6b0;margin:2px 0 5px;';
-    pal.appendChild(clockBody);
+    pane.appendChild(clockBody);
     state.el.clockBody = clockBody;
     const tRow = document.createElement('div'); tRow.style.cssText = 'display:flex;gap:4px;margin-bottom:3px;';
     const tTurn = mkBtn('+Turn', 'gw-sx-t-turn'); tTurn.style.flex = '1'; tTurn.title = 'Advance one 4-hour route-turn';
     tTurn.addEventListener('click', () => advanceMinutes(TURN_MIN));
     const tDay = mkBtn('+Day', 'gw-sx-t-day'); tDay.style.flex = '1'; tDay.title = 'Advance one full day';
     tDay.addEventListener('click', () => { advanceDay(state.clock); saveClock(); renderClock(); });
-    tRow.append(tTurn, tDay); pal.appendChild(tRow);
+    tRow.append(tTurn, tDay); pane.appendChild(tRow);
     const tRow2 = document.createElement('div'); tRow2.style.cssText = 'display:flex;gap:4px;';
     const tCamp = mkBtn('⛺ Camp', 'gw-sx-t-camp'); tCamp.style.flex = '1'; tCamp.title = 'Rest overnight — jump to next dawn';
     tCamp.addEventListener('click', makeCamp);
     const tSet = mkBtn('📅 Set', 'gw-sx-t-set'); tSet.style.flex = '1'; tSet.title = 'Set the campaign date';
     tSet.addEventListener('click', setDate);
-    tRow2.append(tCamp, tSet); pal.appendChild(tRow2);
+    tRow2.append(tCamp, tSet); pane.appendChild(tRow2);
     const travelMsg = document.createElement('div'); travelMsg.id = 'gw-sx-travel-msg';
     travelMsg.style.cssText = 'font-size:10px;font-style:italic;color:#c2a7b0;margin-top:3px;';
-    pal.appendChild(travelMsg);
+    pane.appendChild(travelMsg);
     state.el.travelMsg = travelMsg;
 
-    pal.appendChild(hd('Encounters'));
+    pane.appendChild(hd('Encounters'));
     const encB = mkBtn('🎲 Roll here', 'gw-sx-enc-roll'); encB.style.width = '100%';
     encB.title = 'Roll a wilderness encounter for the selected (or hovered) subhex';
     encB.addEventListener('click', rollEncounterHere);
-    pal.appendChild(encB);
+    pane.appendChild(encB);
     state.el.encBtn = encB;
+
+    pal.appendChild(buildPanel);
+    pal.appendChild(playPanel);
+    setTab(loadTab());
 
     makeCollapsible(pal);
     return pal;
@@ -1390,5 +1431,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.29.0 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.30.0 loaded'); } catch(_){}
 })();
