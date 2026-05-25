@@ -9,11 +9,12 @@
 <link rel="stylesheet" href="gcc-header.css">
 <link rel="stylesheet" href="gcc-auth.css">
 
+<script src="gw-authored.js?v=1"></script>
 <script src="gw-encounter-data.js"></script>
 <script src="gw-terrain-data.js?v=2"></script>
 <script src="gcc-rng.js"></script>
-<script src="gw-subhex-data.js?v=6"></script>
-<script src="gw-annotations.js?v=2"></script>
+<script src="gw-subhex-data.js?v=7"></script>
+<script src="gw-annotations.js?v=3"></script>
 <script src="gw-feature-gen.js?v=2"></script>
 
 <style>
@@ -108,7 +109,7 @@
 
 <div id="topbar">
   <h1>GAMMA WORLD — Campaign Map</h1>
-  <span class="ver">v0.17.3</span>
+  <span class="ver">v0.18.0</span>
   <span class="sep"></span>
   <button id="btn-reset">Fit View</button>
   <span class="spacer"></span>
@@ -237,19 +238,34 @@ const OVERRIDES_KEY = 'gw-terrain-overrides';
 let overrides = {};
 try { overrides = JSON.parse(localStorage.getItem(OVERRIDES_KEY) || '{}'); } catch (e) { overrides = {}; }
 
+// Committed layer: baked authoring from gw-authored.js (the canonical map).
+// Working localStorage overrides sit on top; an override matching its committed
+// value reads as committed (not an unsaved edit).
+const COMMITTED_TERRAIN = (window.GW_AUTHORED && window.GW_AUTHORED.stores && window.GW_AUTHORED.stores[OVERRIDES_KEY]) || {};
+
 function getTerrain(col, row){
   const k = col + ',' + row;
-  return overrides[k] || AUTO_TERRAIN.get(k) || 'unknown';
+  return overrides[k] || COMMITTED_TERRAIN[k] || AUTO_TERRAIN.get(k) || 'unknown';
 }
 window.getTerrain = getTerrain;   // consumed by gw-subhex-data parentTerrainOf
 
 function isOverridden(col, row){
   return Object.prototype.hasOwnProperty.call(overrides, col + ',' + row);
 }
+// 'override' = unsaved working edit · 'committed' = baked into gw-authored.js · 'auto' = seed
+function terrainSource(col, row){
+  const k = col + ',' + row;
+  if (Object.prototype.hasOwnProperty.call(overrides, k)){
+    return overrides[k] === COMMITTED_TERRAIN[k] ? 'committed' : 'override';
+  }
+  if (Object.prototype.hasOwnProperty.call(COMMITTED_TERRAIN, k)) return 'committed';
+  return 'auto';
+}
 
 function setTerrainOverride(col, row, terrain){
   const k = col + ',' + row;
-  if (!terrain || terrain === AUTO_TERRAIN.get(k)){
+  const base = COMMITTED_TERRAIN[k] || AUTO_TERRAIN.get(k);
+  if (!terrain || terrain === base){
     delete overrides[k];
   } else {
     overrides[k] = terrain;
@@ -264,19 +280,24 @@ for (const d of (window.GW_TERRAIN_DATA || [])){ if (d.hazard) AUTO_HAZARD.set(d
 const HAZARD_KEY = 'gw-hazard-overrides';
 let hazardOverrides = {};
 try { hazardOverrides = JSON.parse(localStorage.getItem(HAZARD_KEY) || '{}'); } catch (e) { hazardOverrides = {}; }
+const COMMITTED_HAZARD = (window.GW_AUTHORED && window.GW_AUTHORED.stores && window.GW_AUTHORED.stores[HAZARD_KEY]) || {};
 
+function hazardBase(k){
+  if (Object.prototype.hasOwnProperty.call(COMMITTED_HAZARD, k)) return COMMITTED_HAZARD[k] || null;
+  return AUTO_HAZARD.get(k) || null;
+}
 function getHazard(col, row){
   const k = col + ',' + row;
   if (Object.prototype.hasOwnProperty.call(hazardOverrides, k)) return hazardOverrides[k] || null;
-  return AUTO_HAZARD.get(k) || null;
+  return hazardBase(k);
 }
 window.getHazard = getHazard;   // consumed by gw-subhex-data for inherited hazard
 
 function setHazard(col, row, on){
   const k = col + ',' + row;
-  const auto = AUTO_HAZARD.get(k) || null;
+  const base = hazardBase(k);
   const val = on ? 'radiation' : null;
-  if (val === auto) delete hazardOverrides[k];        // back to auto default
+  if (val === base) delete hazardOverrides[k];        // matches committed/auto → not an edit
   else hazardOverrides[k] = val || '';                // '' = explicitly none
   localStorage.setItem(HAZARD_KEY, JSON.stringify(hazardOverrides));
 }
@@ -502,7 +523,7 @@ function refreshSelectionHud(){
   selectedHexes.forEach(h => {
     const c = +h.dataset.col, r = +h.dataset.row;
     terrains.add(getTerrain(c, r));
-    sources.add(isOverridden(c, r) ? 'override' : 'auto');
+    sources.add(terrainSource(c, r));
     if (getHazard(c, r) === 'radiation') radCount++;
   });
 
@@ -580,10 +601,17 @@ document.getElementById('lt-png').onchange = e => {
 // version-controllable home for hand-edits; localStorage stays the working layer.
 const AUTHORED_KEYS = ['gw-terrain-overrides', 'gw-hazard-overrides', 'gw-subhex-overrides', 'gw-annotations'];
 function exportAuthoredData(){
+  const committed = (window.GW_AUTHORED && window.GW_AUTHORED.stores) || {};
   const stores = {};
   for (const k of AUTHORED_KEYS){
-    let v = null; try { v = JSON.parse(localStorage.getItem(k) || 'null'); } catch (e){ v = null; }
-    stores[k] = v || {};
+    let working = null; try { working = JSON.parse(localStorage.getItem(k) || 'null'); } catch (e){ working = null; }
+    if (k === 'gw-annotations'){
+      // annotations aren't a keyed map; the working store is the live full set
+      stores[k] = working || committed[k] || {};
+    } else {
+      // fold working edits over the committed map so re-baking never drops baked cells
+      stores[k] = Object.assign({}, committed[k] || {}, working || {});
+    }
   }
   const count = o => (o && typeof o === 'object') ? (Array.isArray(o) ? o.length : Object.keys(o).length) : 0;
   const meta = {

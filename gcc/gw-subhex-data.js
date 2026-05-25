@@ -1,4 +1,4 @@
-// gw-subhex-data.js v0.3.0 — 2026-05-24
+// gw-subhex-data.js v0.4.0 — 2026-05-24
 // Gamma World 3-mile subhex data layer. LocalStorage-backed port of
 // gcc-subhex-data.js: keeps the flat-top odd-q axial/ownership engine,
 // the seeded procedural-terrain generator, and the per-cell override +
@@ -245,6 +245,24 @@
   try { const raw = localStorage.getItem(LS_KEY); if (raw) OVERRIDES = JSON.parse(raw) || {}; }
   catch(e){ OVERRIDES = {}; }
 
+  // Committed layer: hand-authoring baked into gw-authored.js (the canonical map).
+  // localStorage OVERRIDES is the *working* layer on top; a working entry that
+  // matches its committed counterpart is treated as committed (no "edited" flag).
+  let COMMITTED = {};
+  try { COMMITTED = (typeof window !== 'undefined' && window.GW_AUTHORED && window.GW_AUTHORED.stores && window.GW_AUTHORED.stores[LS_KEY]) || {}; }
+  catch(e){ COMMITTED = {}; }
+  function _authoringSig(o){
+    if (!o) return '';
+    return JSON.stringify([
+      o.terrain || null,
+      ('hazard' in o) ? (o.hazard || '') : null,
+      o.name || '',
+      o.notes || '',
+      o.feature ? JSON.stringify(o.feature) : null,
+    ]);
+  }
+  function _sameAuthoring(a, b){ return _authoringSig(a) === _authoringSig(b); }
+
   function save(){
     try { localStorage.setItem(LS_KEY, JSON.stringify(OVERRIDES)); }
     catch(e){ try { console.warn('[gw-subhex] save failed:', e && e.name); } catch(_){} }
@@ -332,19 +350,23 @@
 
   function getSubhex(Q, R, parentTerrain, parentHazard){
     const id = subhexId(Q, R);
-    const ov = OVERRIDES[id];
+    const ov = OVERRIDES[id];   // working (localStorage)
+    const cm = COMMITTED[id];   // committed (gw-authored.js)
     const ph = (parentHazard !== undefined) ? (parentHazard || null)
              : (() => { const o = ownerOf(Q, R); return o ? parentHazardOf(o.col, o.row) : null; })();
-    if (ov){
+    if (ov || cm){
+      const eff = (ov && cm) ? Object.assign({}, cm, ov) : (ov || cm);
+      // A working entry that matches its committed twin is already baked → committed.
+      const isWorking = !!ov && !(cm && _sameAuthoring(ov, cm));
       return {
         id, Q, R,
-        terrain: ov.terrain || proceduralTerrain(parentTerrain, Q, R),
-        hazard:  ('hazard' in ov) ? (ov.hazard || null) : ph,
-        name:    ov.name || '',
-        notes:   ov.notes || '',
-        feature: ov.feature || null,
-        source:  'authored',
-        schemaVersion: ov.schemaVersion || SCHEMA_VERSION,
+        terrain: eff.terrain || proceduralTerrain(parentTerrain, Q, R),
+        hazard:  ('hazard' in eff) ? (eff.hazard || null) : ph,
+        name:    eff.name || '',
+        notes:   eff.notes || '',
+        feature: eff.feature || null,
+        source:  isWorking ? 'authored' : 'committed',
+        schemaVersion: eff.schemaVersion || SCHEMA_VERSION,
       };
     }
     return {
@@ -469,5 +491,5 @@
     restoreOverride, clearSubhex, clearAll, flushOverrides, save,
   };
 
-  try { console.log('[gw-subhex-data] v0.3.0 loaded', { ANCHOR_COL, ANCHOR_ROW, HEX_R, SUB_R, seed: WORLD_SEED }); } catch(_){}
+  try { console.log('[gw-subhex-data] v0.4.0 loaded', { ANCHOR_COL, ANCHOR_ROW, HEX_R, SUB_R, seed: WORLD_SEED }); } catch(_){}
 })();

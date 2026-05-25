@@ -1,4 +1,4 @@
-// gw-annotations.js v0.2.0 — 2026-05-24
+// gw-annotations.js v0.3.0 — 2026-05-24
 // Freehand vector overlay for the Gamma World subhex map: smooth line
 // strokes (rivers/roads/trails/pen) and point markers (settlement icons),
 // stored in world-SVG coordinates so they pan/zoom with the subhex view.
@@ -14,13 +14,21 @@
   const SCHEMA = 1;
 
   let DB = { v: SCHEMA, strokes: [], markers: [] };
+  let _loaded = false;
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw){
       const p = JSON.parse(raw);
-      if (p && Array.isArray(p.strokes) && Array.isArray(p.markers)) DB = p;
+      if (p && Array.isArray(p.strokes) && Array.isArray(p.markers)){ DB = p; _loaded = true; }
     }
   } catch(e){ DB = { v: SCHEMA, strokes: [], markers: [] }; }
+  // First load with no working annotations: seed from the committed map (gw-authored.js).
+  if (!_loaded || (!DB.strokes.length && !DB.markers.length)){
+    try {
+      const c = (typeof window !== 'undefined' && window.GW_AUTHORED && window.GW_AUTHORED.stores && window.GW_AUTHORED.stores[LS_KEY]) || null;
+      if (c && Array.isArray(c.strokes) && Array.isArray(c.markers) && (c.strokes.length || c.markers.length)) DB = c;
+    } catch(e){}
+  }
 
   function save(){
     try { localStorage.setItem(LS_KEY, JSON.stringify(DB)); }
@@ -142,5 +150,5 @@
     addMarker, updateMarker, deleteMarker, listMarkers, markersInBbox,
     clearAll, clearGenerated, flush, save,
   };
-  try { console.log('[gw-annotations] v0.2.0 loaded', { strokes: DB.strokes.length, markers: DB.markers.length }); } catch(_){}
+  try { console.log('[gw-annotations] v0.3.0 loaded', { strokes: DB.strokes.length, markers: DB.markers.length }); } catch(_){}
 })();
