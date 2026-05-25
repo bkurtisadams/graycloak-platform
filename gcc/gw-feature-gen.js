@@ -1,3 +1,8 @@
+// gw-feature-gen.js v0.6.0 — 2026-05-25
+// v0.6.0 — name dedup: much larger word pools, extra name patterns (qualifier,
+//          possessive), and location-derived codes for the cryptic/tech kinds
+//          (Vault G-577, Mech-Land 633, Installation Kappa-218) so coded sites
+//          rarely collide. Settlements/ruins lean on the huge compound space.
 // gw-feature-gen.js v0.5.0 — 2026-05-25
 // v0.4.0 — feature rates for the new terrains: hills (lairs/ruins + some
 //          settlement), marsh (sparse lairs/ruins), forested-hill, and
@@ -122,16 +127,19 @@
   // site keeps its name. Gamma-World-flavored: corrupted Ancient city names,
   // scavenger compounds, ominous lairs, and tech designations for robot sites.
   const NM = {
-    pre:  ['Dust','Ash','Rust','Salt','Cinder','Ember','Bone','Mud','Stone','Iron','Glass','Tar','Scrap','Husk','Grey','Pale','Bitter','Hollow','Thorn','Briar','Gloom','Murk','Cold','Drift','Crag','Sump','Slag','Char','Bramble','Flint'],
-    suf:  ['ford','well','haven','hold','reach','fall','bend','crossing','gate','mire','hollow','ridge','stead','watch','end','row','burg'],
-    city: ['Nuyok','Filade','Bostodge','Chigo','Ditroyt','Atlana','Memfis','Denva','Seatle','Portlan','Sanfran','Vegath','Dallax','Hewston','Pheonx','Baltmor','Klevlan','Pittsburk','Sin Loose','Noo Leans','Saint Loo'],
-    rAdj: ['Shattered','Sunken','Glassed','Silent','Forgotten','Toppled','Hollow','Bleached','Burnt','Drowned','Buried'],
-    lAdj: ['Gnawed','Blood','Howling','Scaled','Rotting','Sunken','Broken','Whispering','Festering','Ashen','Venom','Ironclaw','Razor'],
-    lDen: ['Warren','Den','Hollow','Pit','Burrow','Nest','Maw','Lair','Tangle','Hole'],
-    corp: ['Ankhar','Createk','Vortex','Apertia','Helix','Genus','Omnitech','Ryker','Delvan','Solcorp','Maxon','Cyberdyne'],
-    fNam: ['Cinder','Vance','Holt','Kael','Drummond','Stark','Reyes','Vorn','Hale','Marsh','Cray'],
+    pre:  ['Dust','Ash','Rust','Salt','Cinder','Ember','Bone','Mud','Stone','Iron','Glass','Tar','Scrap','Husk','Grey','Pale','Bitter','Hollow','Thorn','Briar','Gloom','Murk','Cold','Drift','Crag','Sump','Slag','Char','Bramble','Flint','Reed','Fen','Moss','Pine','Oak','Elder','Hazel','Stag','Wolf','Raven','Fox','Bear','Hawk','Spire','Quarry','Soot','Smoke','Brine','Grist','Forge','Copper','Tin','Cobalt','Marrow','Sallow','Tallow','Wither','Lone','Weary'],
+    suf:  ['ford','well','haven','hold','reach','fall','bend','crossing','gate','mire','hollow','ridge','stead','watch','end','row','burg','market','mill','forge','bridge','dale','moor','shore','point','cliff','rest','gulch','spring','wash','flat','bluff','post','ton','vale'],
+    qual: ['New','Old','Upper','Lower','East','West','North','South','Far','Little','Great','Lost'],
+    person:['Kael','Vorn','Hale','Mara','Sef','Dorn','Bex','Tam','Rue','Goll','Vance','Yara','Cray','Soll','Nix','Wren','Juno','Hask','Orly','Pell','Sable','Tace','Vell','Quill'],
+    feat: ['Rest','Crossing','Landing','Camp','Hold','Wells','Reach','Ferry','Stand','Run','Folly','Refuge','Outpost','Watch','Claim','Roost','Bluff','Hollow','Bend','Spring'],
+    city: ['Nuyok','Filade','Bostodge','Chigo','Ditroyt','Atlana','Memfis','Denva','Seatle','Portlan','Sanfran','Vegath','Dallax','Hewston','Pheonx','Baltmor','Klevlan','Pittsburk','Sin Loose','Noo Leans','Saint Loo','Cleve','Tampah','Orlann','Tuscon','Albukirk','Witcha','Omahaw','Tolido','Akrun','Renoh','Fresna','Spokan','Boysee','Helna','Fargoh','Duluth','Topeeka','Lubbok','Amrillo','Cheyen','Yuman','Tempeh'],
+    rAdj: ['Shattered','Sunken','Glassed','Silent','Forgotten','Toppled','Hollow','Bleached','Burnt','Drowned','Buried','Cracked','Fallen','Ashen','Vine-choked','Rusted'],
+    lAdj: ['Gnawed','Blood','Howling','Scaled','Rotting','Sunken','Broken','Whispering','Festering','Ashen','Venom','Ironclaw','Razor','Snarling','Tainted','Mottled','Hungering','Skittering','Brackish','Glistening','Withered','Bloated','Shrieking','Clotted'],
+    lDen: ['Warren','Den','Hollow','Pit','Burrow','Nest','Maw','Lair','Tangle','Hole','Roost','Hive','Sink','Mound','Gorge','Thicket'],
+    corp: ['Ankhar','Createk','Vortex','Apertia','Helix','Genus','Omnitech','Ryker','Delvan','Solcorp','Maxon','Cyberdyne','Valtec','Nyx','Orbix','Hadron'],
+    fNam: ['Cinder','Vance','Holt','Kael','Drummond','Stark','Reyes','Vorn','Hale','Marsh','Cray','Sable','Orly','Pell'],
     fSuf: ['Bastion','Redoubt','Bunker','Bulwark','Keep','Hold'],
-    grk:  ['Alpha','Beta','Gamma','Delta','Theta','Sigma','Omega','Kappa','Lambda','Zeta'],
+    grk:  ['Alpha','Beta','Gamma','Delta','Theta','Sigma','Omega','Kappa','Lambda','Zeta','Epsilon','Phi'],
   };
   const NAME_AZ = 'ABCDEFGHJKLMNPRSTVWXZ';
   function nameFor(kind, Q, R){
@@ -139,30 +147,41 @@
     const rng = G.mulberry32(G.seedFor(WORLD_SEED, 'name', kind, Q, R));
     const pick = a => a[Math.floor(rng() * a.length)];
     const compound = () => pick(NM.pre) + pick(NM.suf);
-    const n99 = () => 1 + Math.floor(rng() * 99);
+    const settle = () => { const r = rng();
+      if (r < 0.18) return pick(NM.person) + "'s " + pick(NM.feat);   // possessive
+      if (r < 0.34) return pick(NM.qual) + ' ' + compound();           // qualified compound
+      return compound(); };
+    // coded designations: derive the number/letter from the site's own (Q,R),
+    // independent of the rng stream, so two coded sites rarely collide.
+    const num3 = () => ((((Q * 73856093) ^ (R * 19349663)) >>> 0) % 900) + 100;
+    const lett = () => NAME_AZ[(((Q * 40503) ^ (R * 12289)) >>> 0) % NAME_AZ.length];
     switch (kind){
       case 'village':
-      case 'town': return compound();
+      case 'town':
+      case 'city': return settle();
       case 'ruin': { const r = rng();
-        if (r < 0.5) return 'Ruins of ' + pick(NM.city);
-        if (r < 0.8) return 'Old ' + compound();
+        if (r < 0.34) return 'Ruins of ' + compound();                  // huge space
+        if (r < 0.52) return 'Ruins of ' + pick(NM.city);               // corrupted Ancient city (flavor)
+        if (r < 0.76) return pick(NM.qual) + ' ' + compound();          // "Lost Rustford"
         return 'The ' + pick(NM.rAdj) + ' Ruins'; }
-      case 'lair': return 'The ' + pick(NM.lAdj) + ' ' + pick(NM.lDen);
-      case 'vault':
-        return rng() < 0.5 ? 'Vault ' + NAME_AZ[Math.floor(rng()*NAME_AZ.length)] + '-' + n99()
-                           : pick(NM.corp) + ' ' + pick(['Vault','Cache','Bunker']);
-      case 'robot-farm': { const r = rng();
-        if (r < 0.4) return 'Mech-Land ' + n99();
-        if (r < 0.7) return 'Agri-Complex ' + pick(NM.grk);
-        return 'Sector ' + n99() + ' Farm'; }
+      case 'lair': { const r = rng();
+        if (r < 0.7) return 'The ' + pick(NM.lAdj) + ' ' + pick(NM.lDen);
+        return pick(NM.person) + "'s " + pick(NM.lDen); }                // "Goll's Warren"
+      case 'vault':         return 'Vault ' + lett() + '-' + num3();
+      case 'robot-farm':    return rng() < 0.5 ? 'Mech-Land ' + num3() : 'Agri-Complex ' + pick(NM.grk) + '-' + num3();
       case 'fortification': { const r = rng();
-        if (r < 0.45) return 'Fort ' + pick(NM.fNam);
-        if (r < 0.8) return compound() + ' ' + pick(NM.fSuf);
-        return 'Bastion ' + n99(); }
+        if (r < 0.25) return 'Fort ' + pick(NM.fNam);
+        if (r < 0.65) return compound() + ' ' + pick(NM.fSuf);
+        return 'Bastion ' + num3(); }
       case 'spaceport': { const r = rng();
-        if (r < 0.4) return 'Port ' + pick(NM.corp);
-        if (r < 0.75) return compound() + ' Launch Complex';
-        return 'Launch Pad ' + n99(); }
+        if (r < 0.3) return 'Port ' + pick(NM.corp);
+        if (r < 0.65) return compound() + ' Launch Complex';
+        return 'Launch Pad ' + num3(); }
+      case 'installation':  return 'Installation ' + pick(NM.grk) + '-' + num3();
+      case 'monastery': { const r = rng();
+        if (r < 0.4) return compound() + ' Monastery';
+        if (r < 0.7) return 'Monastery of ' + pick(NM.person);
+        return 'The ' + pick(NM.rAdj) + ' Cloister'; }
       default: return compound();
     }
   }
@@ -224,5 +243,5 @@
   }
 
   window.GWFeatureGen = { generateForParent, clearForParent, FEATURE_RATES };
-  try { console.log('[gw-feature-gen] v0.5.0 loaded'); } catch(_){}
+  try { console.log('[gw-feature-gen] v0.6.0 loaded'); } catch(_){}
 })();
