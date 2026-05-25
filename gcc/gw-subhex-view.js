@@ -1,8 +1,13 @@
-// gw-subhex-view.js v0.31.0 — 2026-05-24
+// gw-subhex-view.js v0.32.0 — 2026-05-24
 // Seamless (Path B) 3-mile subhex viewer for the Gamma World map:
 // drill-in + pan/zoom, terrain paint brush, and a freehand vector overlay
 // (rivers/roads/trails) + settlement icon markers.
 //
+// v0.32.0 — show the Generate target. Generate/Clear-gen already act on the parent
+//           under the view center, but it was invisible; now that parent gets a gold
+//           dashed highlight (gTarget layer) and a live "▸ target: parent X,Y" label
+//           under the Generate button, updating as you pan. Pan to any parent and
+//           Generate it without flipping back to the overworld.
 // v0.31.0 — Edit feature mode: an "✎ Edit" button (Build ▸ Features) arms a select
 //           tool. Click a placed marker to open an inline editor — rename, change
 //           type (any of the 12 kinds), or delete — and drag the icon on the map to
@@ -140,6 +145,7 @@
       .gw-sx-cellpath { stroke:rgba(0,0,0,.35); stroke-width:1; vector-effect:non-scaling-stroke; fill-opacity:var(--gw-cell-fill, 1); }
       .gw-sx-authpath { fill:none; stroke:#ff8844; stroke-width:1.5; vector-effect:non-scaling-stroke; pointer-events:none; }
       .gw-sx-marker-sel { fill:none; stroke:#66d9ff; stroke-width:1.5; stroke-dasharray:3 2.5; vector-effect:non-scaling-stroke; pointer-events:none; }
+      .gw-sx-parent-target { fill:rgba(255,196,90,.06); stroke:#ffc45a; stroke-width:2.5; stroke-dasharray:6 4; vector-effect:non-scaling-stroke; pointer-events:none; }
       .gw-sx-hover { fill:none; stroke:rgba(255,220,120,.95); stroke-width:2; vector-effect:non-scaling-stroke; pointer-events:none; }
       .gw-sx-sel { fill:rgba(110,210,255,.14); stroke:#66d9ff; stroke-width:2.5; vector-effect:non-scaling-stroke; pointer-events:none; }
       .gw-sx-fog { fill:rgba(8,10,16,.55); stroke:rgba(8,10,16,.55); stroke-width:1; vector-effect:non-scaling-stroke; pointer-events:none; }
@@ -502,11 +508,18 @@
     pane.appendChild(hd('Features'));
     const genRow = document.createElement('div'); genRow.className = 'sx-row2';
     const genB = mkBtn('✦ Generate', 'gw-sx-gen');
+    genB.title = 'Seed features for the highlighted parent (the one under your view center) — pan to retarget';
     genB.addEventListener('click', generateFeatures);
     const clrB = mkBtn('Clear gen', 'gw-sx-gen-clear');
+    clrB.title = 'Clear generated features from the highlighted parent';
     clrB.addEventListener('click', clearGeneratedFeatures);
     genRow.append(genB, clrB);
     pane.appendChild(genRow);
+    const genTgt = document.createElement('div'); genTgt.id = 'gw-sx-gen-target';
+    genTgt.style.cssText = 'font-size:10px;color:#cbb088;font-style:italic;margin:3px 0 1px;min-height:13px;';
+    genTgt.textContent = '▸ target follows view center';
+    pane.appendChild(genTgt);
+    state.el.genTarget = genTgt;
     const feRow = document.createElement('div'); feRow.className = 'sx-row2';
     const edit = mkBtn('✎ Edit', 'gw-sx-annot-edit'); edit.dataset.arm = 'annot-edit';
     edit.title = 'Select a placed feature to rename, change its type, drag to move, or delete';
@@ -842,10 +855,11 @@
     const gSel = document.createElementNS(SVGNS, 'g');     gSel.id = 'gw-sx-sel';
     const gFog = document.createElementNS(SVGNS, 'g');     gFog.id = 'gw-sx-fog';
     const gParty = document.createElementNS(SVGNS, 'g');   gParty.id = 'gw-sx-party';
+    const gTarget = document.createElementNS(SVGNS, 'g');  gTarget.id = 'gw-sx-target';
     const panG = document.createElementNS(SVGNS, 'g');     panG.id = 'gw-sx-pan';
     // basemap first = bottom layer: the parent map sits UNDER the subhex terrain,
     // so fading gCells (subhex opacity slider) reveals the parent through the hexes.
-    panG.append(basemap, gCells, gHaz, gPreview, gParents, gAnnot, gEditor, gFog, gSel, gParty, gHover);
+    panG.append(basemap, gCells, gHaz, gPreview, gParents, gTarget, gAnnot, gEditor, gFog, gSel, gParty, gHover);
     svg.append(defs, panG);
 
     const palette = buildPalette();
@@ -886,7 +900,7 @@
     document.body.appendChild(overlay);
 
     Object.assign(state.el, {
-      overlay, svg, gCells, gParents, gAnnot, gEditor, gHaz, panG, gPreview, gHover, gSel, gFog, gParty, basemap, title, read, enc,
+      overlay, svg, gCells, gParents, gAnnot, gEditor, gHaz, panG, gPreview, gHover, gSel, gFog, gParty, gTarget, basemap, title, read, enc,
       readBody: read.querySelector('#gw-sx-read-body'),
       mode: palette.querySelector('#gw-sx-mode'),
       undoBtn: palette.querySelector('#gw-sx-undo'),
@@ -1076,7 +1090,7 @@
     const bbox = { minX: state.vb.x - mx, maxX: state.vb.x + state.vb.w + mx, minY: state.vb.y - my, maxY: state.vb.y + state.vb.h + my };
     if (!force && state.rendered &&
         bbox.minX >= state.rendered.minX && bbox.maxX <= state.rendered.maxX &&
-        bbox.minY >= state.rendered.minY && bbox.maxY <= state.rendered.maxY){ renderAnnotations(); return; }
+        bbox.minY >= state.rendered.minY && bbox.maxY <= state.rendered.maxY){ renderAnnotations(); renderGenTarget(); return; }
     state.rendered = bbox;
 
     const cells = d.cellsInAxialBbox(bbox);
@@ -1127,6 +1141,21 @@
     renderAnnotations();
     renderFog();
     renderParty();
+    renderGenTarget();
+  }
+  // Highlight + label the parent that Generate/Clear-gen will act on (the parent
+  // under the view center). Lets you target any parent without leaving subhex mode.
+  function renderGenTarget(){
+    const g = state.el.gTarget; if (!g) return;
+    const p = centerParent();
+    if (state.el.genTarget) state.el.genTarget.textContent = p ? `▸ target: parent ${p.col},${p.row}` : '▸ no parent centered';
+    const d = D();
+    if (!p || !d){ g.replaceChildren(); return; }
+    const c = d.parentSvgCenter(p.col, p.row);
+    const poly = document.createElementNS(SVGNS, 'polygon');
+    poly.setAttribute('points', cornersStr(c.x, c.y, d.HEX_R));
+    poly.setAttribute('class', 'gw-sx-parent-target');
+    g.replaceChildren(poly);
   }
 
   // ── annotation overlay ─────────────────────────────────────────────────────
@@ -1515,5 +1544,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.31.0 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.32.0 loaded'); } catch(_){}
 })();
