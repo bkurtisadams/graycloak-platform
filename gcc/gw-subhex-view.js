@@ -1,8 +1,11 @@
-// gw-subhex-view.js v0.24.0 — 2026-05-24
+// gw-subhex-view.js v0.25.0 — 2026-05-24
 // Seamless (Path B) 3-mile subhex viewer for the Gamma World map:
 // drill-in + pan/zoom, terrain paint brush, and a freehand vector overlay
 // (rivers/roads/trails) + settlement icon markers.
 //
+// v0.25.0 — add a Subhex layer opacity slider (top bar, cyan) that fades the
+//           gCells terrain fills independently of the base-map opacity, so the
+//           parent map can stay opaque while you see through the subhexes. Persisted.
 // v0.24.0 — marker icons for the new seeded site kinds: robot-farm (Mech-Land),
 //           fortification, spaceport. (Generation lives in gw-feature-gen v0.2.0.)
 // v0.23.0 — dice-off: when the day's remaining travel time can't cover the next
@@ -203,6 +206,11 @@
   // SVG map, which has its own pan/zoom. Persisted; adjustable via the ± row,
   // Ctrl+wheel over a panel, or Ctrl +/-/0. Range 0.8–2.5.
   const ZOOM_KEY = 'gw-sx-ui-zoom', ZMIN = 0.8, ZMAX = 2.5, ZSTEP = 0.1;
+  // Subhex terrain-layer opacity — independent of the base-map (parent) opacity,
+  // so you can keep the parent crisp and fade the hex fills to see through them.
+  const HEXOP_KEY = 'gw-sx-hex-op';
+  function loadHexOp(){ try { const v = parseInt(localStorage.getItem(HEXOP_KEY), 10); return (v >= 20 && v <= 100) ? v : 100; } catch(_){ return 100; } }
+  function saveHexOp(v){ try { localStorage.setItem(HEXOP_KEY, String(v)); } catch(_){} }
 
   // ── party token + fog of war persistence ────────────────────────────────────
   // Global across parents — it's one continuous 3-mile grid, so a single party
@@ -769,8 +777,14 @@
     const mapOp = document.createElement('input');
     mapOp.type = 'range'; mapOp.id = 'gw-sx-map-op'; mapOp.min = '15'; mapOp.max = '100'; mapOp.step = '5'; mapOp.value = '60';
     mapOp.title = 'Base map opacity'; mapOp.style.cssText = 'width:80px; accent-color:#ff8844;';
+    const hexOp = document.createElement('input');
+    hexOp.type = 'range'; hexOp.id = 'gw-sx-hex-op'; hexOp.min = '20'; hexOp.max = '100'; hexOp.step = '5';
+    hexOp.value = String(loadHexOp());
+    hexOp.title = 'Subhex layer opacity — fade the hex fills to see the parent map through them';
+    hexOp.style.cssText = 'width:80px; accent-color:#66d9ff;';
+    gCells.style.opacity = (loadHexOp() / 100).toFixed(2);   // apply persisted on build
     const fit = mkBtn('Fit parent', 'gw-sx-fit');
-    bar.append(back, title, spacer, tog, mapTog, mapOp, fit);
+    bar.append(back, title, spacer, tog, mapTog, mapOp, hexOp, fit);
     const read = document.createElement('div'); read.id = 'gw-sx-read';
     read.innerHTML = '<span class="sx-t">Subhex</span><div id="gw-sx-read-body">— hover a cell —</div>';
     const enc = document.createElement('div'); enc.id = 'gw-sx-enc';
@@ -792,6 +806,7 @@
     tog.querySelector('input').addEventListener('change', e => { state.showParents = e.target.checked; render(true); });
     mapTog.querySelector('input').addEventListener('change', e => { basemap.style.display = e.target.checked ? '' : 'none'; });
     mapOp.addEventListener('input', e => { basemap.setAttribute('opacity', (e.target.value / 100).toFixed(2)); });
+    hexOp.addEventListener('input', e => { gCells.style.opacity = (e.target.value / 100).toFixed(2); saveHexOp(e.target.value); });
     wireViewport(svg);
     bindCellHover(svg);
     window.addEventListener('keydown', onEditorKey);
@@ -1348,5 +1363,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.24.0 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.25.0 loaded'); } catch(_){}
 })();
