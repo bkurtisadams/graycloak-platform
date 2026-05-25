@@ -105,7 +105,7 @@
 
 <div id="topbar">
   <h1>GAMMA WORLD — Campaign Map</h1>
-  <span class="ver">v0.16.0</span>
+  <span class="ver">v0.17.0</span>
   <span class="sep"></span>
   <button id="btn-reset">Fit View</button>
   <span class="spacer"></span>
@@ -162,6 +162,12 @@
   <label class="layer-toggle"><input type="checkbox" id="lt-labels">Coords</label>
   <label class="layer-toggle"><input type="checkbox" id="lt-radiation" checked>Radiation</label>
   <label class="layer-toggle"><input type="checkbox" id="lt-png">Show printed map</label>
+</div>
+
+<div id="hud-data" class="hud">
+  <h3>Map data</h3>
+  <button id="btn-export-authored" style="width:100%;">⤓ Export authored data</button>
+  <div id="export-status" style="font-size:11px;color:var(--gamma-orange-light);margin-top:6px;min-height:14px;">Bakes your edits to <code>gw-authored.js</code></div>
 </div>
 
 <div id="hud-encounter" class="hud">
@@ -563,6 +569,43 @@ document.getElementById('lt-png').onchange = e => {
   document.getElementById('printed-map').style.display = e.target.checked ? '' : 'none';
   document.body.classList.toggle('printed-map-shown', e.target.checked);
 };
+
+// ─── Export authored data ────────────────────────────────────────────────────
+// Read-only snapshot of every localStorage authoring store into a committed JS
+// file (window.GW_AUTHORED). Never mutates localStorage. This is the durable,
+// version-controllable home for hand-edits; localStorage stays the working layer.
+const AUTHORED_KEYS = ['gw-terrain-overrides', 'gw-hazard-overrides', 'gw-subhex-overrides', 'gw-annotations'];
+function exportAuthoredData(){
+  const stores = {};
+  for (const k of AUTHORED_KEYS){
+    let v = null; try { v = JSON.parse(localStorage.getItem(k) || 'null'); } catch (e){ v = null; }
+    stores[k] = v || {};
+  }
+  const count = o => (o && typeof o === 'object') ? (Array.isArray(o) ? o.length : Object.keys(o).length) : 0;
+  const meta = {
+    parentTerrain: count(stores['gw-terrain-overrides']),
+    parentRadiation: count(stores['gw-hazard-overrides']),
+    subhexCells: count(stores['gw-subhex-overrides']),
+  };
+  const at = new Date().toISOString();
+  const body =
+    '// gw-authored.js — committed map authoring, baked from localStorage.\n' +
+    '// Generated ' + at + '. Load in <head> before the app scripts; it is the\n' +
+    '// durable base layer beneath your localStorage working edits.\n' +
+    "'use strict';\n" +
+    'window.GW_AUTHORED = ' + JSON.stringify({ version: 1, bakedAt: at, stores }) + ';\n';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([body], { type: 'text/javascript' }));
+  a.download = 'gw-authored.js';
+  document.body.appendChild(a); a.click(); a.remove();
+  return meta;
+}
+window.exportAuthoredData = exportAuthoredData;
+document.getElementById('btn-export-authored').addEventListener('click', () => {
+  const m = exportAuthoredData();
+  const el = document.getElementById('export-status');
+  el.textContent = `Saved gw-authored.js · ${m.parentTerrain} parent · ${m.parentRadiation} rad · ${m.subhexCells} subhex cells`;
+});
 
 // ─── Encounter rolls ─────────────────────────────────────────────────────────
 function d(n){ return Math.floor(Math.random() * n) + 1; }
