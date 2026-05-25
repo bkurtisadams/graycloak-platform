@@ -1,8 +1,11 @@
-// gw-subhex-view.js v0.12.0 — 2026-05-24
+// gw-subhex-view.js v0.12.1 — 2026-05-24
 // Seamless (Path B) 3-mile subhex viewer for the Gamma World map:
 // drill-in + pan/zoom, terrain paint brush, and a freehand vector overlay
 // (rivers/roads/trails) + settlement icon markers.
 //
+// v0.12.1 — pan perf: cache svg rect at drag start (no per-move reflow),
+//           rAF-coalesce the pan transform, and drop the radiation pattern +
+//           annotation layers during a drag (restored on mouseup).
 // v0.3.0 — freehand vector overlay. Line tools (river solid blue, road
 //          dashed, trail dotted, pen) captured freehand and Catmull-Rom
 //          smoothed; settlement markers (town/city/village/ruin) placed
@@ -45,6 +48,7 @@
     previewMap: new Map(),
     hoverKey: null,
     raf: 0,
+    panRaf: 0,
     curParent: null,
     el: {},
   };
@@ -361,14 +365,14 @@
           const hit = editorHitDot(e);
           if (hit >= 0){ state.editor.dragIdx = hit; return; }
           const w = clientToWorld(e);
-          state.drag = { sx: e.clientX, sy: e.clientY, vx: state.vb.x, vy: state.vb.y, moved: false, pointAdd: { x: w.x, y: w.y } };
+          state.drag = { r: svg.getBoundingClientRect(), sx: e.clientX, sy: e.clientY, vx: state.vb.x, vy: state.vb.y, moved: false, pointAdd: { x: w.x, y: w.y } };
           svg.classList.add('grabbing');
           return;
         }
         else if (a.type === 'marker'){ placeMarker(e); return; }
         else if (a.type === 'annot-erase'){ eraseAnnotationAt(e); return; }
       }
-      state.drag = { sx: e.clientX, sy: e.clientY, vx: state.vb.x, vy: state.vb.y, moved: false };
+      state.drag = { r: svg.getBoundingClientRect(), sx: e.clientX, sy: e.clientY, vx: state.vb.x, vy: state.vb.y, moved: false };
       svg.classList.add('grabbing');
     });
     svg.addEventListener('contextmenu', e => e.preventDefault());
@@ -380,14 +384,17 @@
       }
       if (state.brush){ const c = cellAt(e); if (c) paintCell(c.Q, c.R); return; }
       if (!state.drag) return;
-      const r = state.el.svg.getBoundingClientRect();
+      const r = state.drag.r;
       const dx = (e.clientX - state.drag.sx) / r.width * state.vb.w;
       const dy = (e.clientY - state.drag.sy) / r.height * state.vb.h;
       if (!state.drag.moved && Math.abs(e.clientX - state.drag.sx) + Math.abs(e.clientY - state.drag.sy) > 3){
         state.drag.moved = true; state.el.panG.style.willChange = 'transform'; clearHover();
+        // the radiation <pattern> and marker text are the priciest to re-raster
+        // each frame; drop them during the drag and restore on mouseup.
+        state.el.gHaz.style.display = 'none'; state.el.gAnnot.style.display = 'none';
       }
       state.drag.dx = dx; state.drag.dy = dy;
-      state.el.panG.setAttribute('transform', `translate(${dx} ${dy})`);
+      schedulePan();
     });
     window.addEventListener('mouseup', () => {
       if (state.editor && state.editor.dragIdx != null){ state.editor.dragIdx = null; return; }
@@ -401,11 +408,13 @@
       }
       if (!state.drag) return;
       const dr = state.drag; state.drag = null; state.el.svg.classList.remove('grabbing');
+      if (state.panRaf){ cancelAnimationFrame(state.panRaf); state.panRaf = 0; }
       if (dr.pointAdd && !dr.moved){ editorAddPoint(dr.pointAdd); return; }
       if (dr.moved){
         state.vb.x = dr.vx - (dr.dx || 0); state.vb.y = dr.vy - (dr.dy || 0);
         state.el.panG.removeAttribute('transform'); state.el.panG.style.willChange = '';
         applyViewBox(); render();
+        state.el.gHaz.style.display = ''; state.el.gAnnot.style.display = '';
       }
     });
     svg.addEventListener('wheel', e => {
@@ -423,6 +432,14 @@
     }, { passive: false });
   }
   function scheduleRender(){ if (state.raf) return; state.raf = requestAnimationFrame(() => { state.raf = 0; render(); }); }
+  function schedulePan(){
+    if (state.panRaf || !state.drag) return;
+    state.panRaf = requestAnimationFrame(() => {
+      state.panRaf = 0;
+      if (!state.drag) return;
+      state.el.panG.setAttribute('transform', `translate(${state.drag.dx} ${state.drag.dy})`);
+    });
+  }
 
   // ── render: cells + parents ────────────────────────────────────────────────
   function cornersStr(cx, cy, R){
@@ -827,5 +844,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.12.0 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.12.1 loaded'); } catch(_){}
 })();

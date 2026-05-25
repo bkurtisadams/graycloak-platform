@@ -16,6 +16,8 @@
 <script src="gw-subhex-data.js?v=7"></script>
 <script src="gw-annotations.js?v=3"></script>
 <script src="gw-feature-gen.js?v=2"></script>
+<script src="gw-mp-bestiary.js?v=1"></script>
+<script src="gw-mp-export.js?v=1"></script>
 
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
@@ -109,7 +111,7 @@
 
 <div id="topbar">
   <h1>GAMMA WORLD — Campaign Map</h1>
-  <span class="ver">v0.18.0</span>
+  <span class="ver">v0.19.0</span>
   <span class="sep"></span>
   <button id="btn-reset">Fit View</button>
   <span class="spacer"></span>
@@ -198,7 +200,7 @@
 <script src="gcc-header.js"></script>
 <script src="gcc-firebase-config.js"></script>
 <script src="gcc-auth.js"></script>
-<script src="gw-subhex-view.js?v=13"></script>
+<script src="gw-subhex-view.js?v=14"></script>
 <script>
 'use strict';
 
@@ -642,10 +644,14 @@ document.getElementById('btn-export-authored').addEventListener('click', () => {
 // ─── Encounter rolls ─────────────────────────────────────────────────────────
 function d(n){ return Math.floor(Math.random() * n) + 1; }
 
-function rollEncounter(terrainKey, hazard){
+function rollEncounter(terrainKey, hazard, feature){
   const D = window.GWEncounterData;
   if (!D) return { error: 'gw-encounter-data.js not loaded' };
-  const mapped = hazard === 'radiation' ? 'radioactive' : (TERRAIN_TO_ENCOUNTER_KEY[terrainKey] || terrainKey);
+  // RAW priority: feature (ruin/spaceport) → radiation hazard → terrain.
+  let mapped;
+  if (feature && D.FEATURE_TO_TABLE[feature])      mapped = D.FEATURE_TO_TABLE[feature];
+  else if (hazard === 'radiation')                 mapped = 'radioactive';
+  else                                             mapped = TERRAIN_TO_ENCOUNTER_KEY[terrainKey] || terrainKey;
   const tableKey = D.TERRAIN_TO_TABLE[mapped] || 'clear';
   const table = D.ENCOUNTER_TABLES[tableKey];
   const roll = d(D.TABLE_DIE_SIZE);
@@ -685,14 +691,45 @@ function rollWithCheck(scaleLabel){
   const r = result.row;
   let html =
     `<div class="meta">${scaleLabel} check (1d6) → 6 ✶  Resolve on <em>${result.tableKey}</em> (1d20 → ${result.roll})</div>`;
+  let exportable = null;
   if (r.creature === 'No Encounter'){
     html += `<div class="nope">No encounter (high roll on short table)</div>`;
   } else {
     html += `<div class="creature">${r.creature}</div>`;
     if (r.number) html += `<div>Number appearing: ${r.number}</div>`;
     if (r.note)   html += `<div class="meta" style="font-style:italic;">${r.note}</div>`;
+    if (window.GWBestiary && window.GWBestiary[r.creature]) exportable = r.creature;
   }
   el.innerHTML = html;
+  if (exportable) attachExport(el, exportable);
+}
+
+// Append MP Builder export controls under a rolled creature (-> Roll20 via
+// `!mp import`). Multi-form creatures get a form picker.
+function attachExport(container, creatureName){
+  if (!window.GWMPExport) return;
+  const e = window.GWBestiary[creatureName];
+  const box = document.createElement('div');
+  box.style.cssText = 'margin-top:8px; padding-top:6px; border-top:1px dashed var(--panel-border);';
+  let formSel = null;
+  if (e.forms && e.forms.length > 1){
+    formSel = document.createElement('select');
+    formSel.style.cssText = 'width:100%; margin-bottom:5px; background:#0d0d1a; color:#eaeaea; border:1px solid var(--panel-border); font-size:11px; padding:2px;';
+    e.forms.forEach((f, i) => { const o = document.createElement('option'); o.value = i; o.textContent = f.form || ('Form ' + (i+1)); formSel.appendChild(o); });
+    box.appendChild(formSel);
+  }
+  const opts = () => ({ formIndex: formSel ? +formSel.value : 0 });
+  const row = document.createElement('div'); row.style.cssText = 'display:flex; gap:5px;';
+  const mk = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.style.cssText = 'flex:1; font-size:11px; padding:4px 5px; cursor:pointer; background:var(--panel-bg,#1a1a2e); color:var(--gamma-orange-light,#ffaa66); border:1px solid var(--panel-border,#5a3a0a); border-radius:2px;'; b.onclick = fn; return b; };
+  const copyBtn = mk('⧉ Copy MP JSON', () => { window.GWMPExport.copy(creatureName, opts()).then(() => { copyBtn.textContent = '✓ Copied'; setTimeout(() => copyBtn.textContent = '⧉ Copy MP JSON', 1500); }); });
+  const dlBtn = mk('⤓ Download', () => window.GWMPExport.download(creatureName, opts()));
+  row.append(copyBtn, dlBtn); box.appendChild(row);
+  const hint = document.createElement('div');
+  hint.style.cssText = 'margin-top:5px; font-size:10px; color:#aaa899;';
+  const setHint = () => { hint.innerHTML = 'Paste into a Roll20 handout, then <code>!mp import --name ' + window.GWMPExport.handoutName(creatureName, opts()) + '</code>'; };
+  setHint(); if (formSel) formSel.onchange = setHint;
+  box.appendChild(hint);
+  container.appendChild(box);
 }
 
 document.getElementById('btn-roll-day').onclick   = () => rollWithCheck('Day');

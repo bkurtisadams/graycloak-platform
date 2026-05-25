@@ -1,8 +1,8 @@
 # Gamma World 1e → Mighty Protectors Bestiary
 
-**Status:** v0.9 (48 of 48 statted) — **bestiary complete ✓** (5 archetypal Robotic Units + generic template)
+**Status:** v0.9.1 (48 of 48 statted) — **bestiary complete ✓** (5 archetypal Robotic Units + generic template). Encounter-tables lines reconciled against `gw-encounter-data.js` (source of truth).
 **Destination:** `gcc/gw-mp-bestiary.md`
-**Last updated:** 2026-05-09
+**Last updated:** 2026-05-24
 **Conversion rules:** see `gcc/DESIGN-gw-mp-conversion.md`
 **MP character generation reference:** MP 2.1.7.1
 
@@ -92,7 +92,7 @@ HTH         d8      Inventing 9   Mass d6 (~250 lbs)
 ### Ark
 
 **GW source:** AC 4, HD 8, MV 15, MS 10, Rad Res 10. 3m intelligent dog-man, mutations Telekinesis + Weather Manipulation + Life Leech, phobia of large winged creatures, wields wicker shield + large club. Considers human hands a delicacy.
-**Encounter tables:** forest, ruins (Tier 4)
+**Encounter tables:** forest, ruins (Tier 4, 2 tables)
 **Number appearing:** 1d4
 **Build:** Humanoid (anthropomorphic intelligent — no A/P)
 
@@ -116,7 +116,7 @@ HTH         d6+1    Inventing 7   Mass d6+1 (~700 lbs)   Profile x1.5
 ### Arn
 
 **GW source:** AC 9, HD 8, MV 3/16 (ground/fly), bite 2d6, carries ≤2kg in flight. 1.3m mutated flying insect, beast of burden.
-**Encounter tables:** clear, forest, mountains (Tier 3)
+**Encounter tables:** clear, mountains, forest (Tier 3, 3 tables)
 **Number appearing:** 1d6
 **Build:** A/P Insect, Low power level
 
@@ -139,7 +139,7 @@ HTH         d3      Inventing 2   Mass d2 (~40 lbs)   Profile /1.5
 ### Badder
 
 **GW source:** AC 4, HD 6, MV 12, Dex 18, MS 16, bite 1d6, mutation Empathy, hard of hearing, keen sense of smell. 1.5m intelligent mutated badger, medieval society. 10% chance of 1 random artifact weapon.
-**Encounter tables:** clear, forest, ruins, water (Tier 2)
+**Encounter tables:** clear, forest, water, ruins (Tier 2, 4 tables)
 **Number appearing:** 1d6
 **Build:** Humanoid ("Short" descriptor free at 1.5m)
 
@@ -161,7 +161,7 @@ HTH         d6      Inventing 7   Mass d4 (~100 lbs)
 ### Barl Nep (Bari Nep)
 
 **GW source:** AC 3, HD 20, MV 20. 1m totally black fish. If attacked: secretes radioactive oil intensity 18 covering 10m diameter area, lasts 10 min in calm water. Killed: extracts intensity 12 oil for 10-min slick.
-**Encounter tables:** water (Tier 5 — listed as "Bari Nep" in encounter data, OCR L→i)
+**Encounter tables:** water (Tier 5, 1 table)
 **Number appearing:** 1
 **Build:** A/P Fish, High power level (HD 20 boss)
 
@@ -187,7 +187,7 @@ HTH         d4      Inventing 2   Mass d4 (~80 lbs)   Profile /1.5
 ### Ber Lep
 
 **GW source:** AC 6, HD 15, MV N/A. Free-floating aquatic plant 2m across, grows as enormous lily-pad-like sheet on water surface. Sweet-smelling acid attracts/kills/dissolves small animals and insects landing on it. Thick enough to support human weight; acid is relatively slow-acting. If injured, teleports 5-30m distant.
-**Encounter tables:** ruins (Tier 5)
+**Encounter tables:** ruins (Tier 5, 1 table)
 **Number appearing:** 1d8
 **Build:** A/P Plant, Standard power level
 
@@ -210,7 +210,7 @@ HTH         d3      Inventing 1   Mass d6 (~600 lbs of plant matter)
 ### Blaash
 
 **GW source:** AC 8, HD 15, MV 6/15 (ground/fly). ~1m mutated moth, 2m wingspan, fearless and carnivorous. Glows brightly when attacking; emits intensity 18 radiation in 5m radius continuous. Self+kin immune. Post-kill feeding phase.
-**Encounter tables:** clear, mountains, forest, desert, radioactive (Tier 2, 4 tables)
+**Encounter tables:** clear, forest, desert, radioactive (Tier 2, 4 tables)
 **Number appearing:** 1d10
 **Build:** A/P Insect, Standard power level
 
@@ -234,7 +234,7 @@ HTH         d3      Inventing 2   Mass d3 (~50 lbs)   Profile /1.5
 ### Blight
 
 **GW source:** AC 9, HD 12, MV 2/10 (ground/fly). 3m carnivorous winged worm, up to 10m wingspan. Invisibility at will. First attack from invisibility: blinding flash 1d4 turns. Bite 3d6, preferred constriction 5d6/turn. Resistant to radiation, heat, sonic.
-**Encounter tables:** desert, water (Tier 4)
+**Encounter tables:** mountains, desert, radioactive (Tier 4, 3 tables)
 **Number appearing:** 1d4
 **Build:** A/P Reptile, Standard power level (snake-like worm)
 
@@ -258,7 +258,7 @@ HTH         d6      Inventing 2   Mass d6 (~600 lbs)   Profile x1.5
 ### Brutorz
 
 **GW source:** AC 7, HD 14, MV 18. 2m+ at shoulder, mutated horse ("neo-Percheron"), 1000kg bulk, agile despite size. MS 12, intelligent, partial to PSH. Precognition mutation. Combat: 2d6 kicks per forehoof, 3d6 bite. Treated with respect, serves as humanoid mount.
-**Encounter tables:** clear, mountains (Tier 5)
+**Encounter tables:** clear, mountains (Tier 5, 2 tables)
 **Number appearing:** 1 (2d6 in wild herds)
 **Build:** A/P Mammal, Standard power level
 
@@ -284,7 +284,7 @@ HTH         d6+1    Inventing 4   Mass d8 (~2200 lbs)   Profile x1.5
 ### Cal Then
 
 **GW source:** AC 9, HD 6, MV 4/12 (ground/fly). Intelligent (MS 18) flying insect, up to 2.5m. Huge mandibles 10d6 dmg, can crush duralloy given time. Gourmet for bones — rips flesh off living creatures to get to bones. Resistant to all heat and cold.
-**Encounter tables:** desert, ruins (Tier 4)
+**Encounter tables:** mountains, desert (Tier 4, 2 tables)
 **Number appearing:** 1
 **Build:** A/P Insect, Standard power level (high-MS variant — skip Lowered Int weakness)
 
@@ -311,7 +311,7 @@ HTH         d4+1    Inventing 4   Mass d4 (~150 lbs)   Profile x1.3
 ### Centisteed
 
 **GW source:** AC 9, HD 7, MV 30. Long-bodied mutated horse with 16 legs, almost insect-like. Carries 2 human-sized riders at full speed. Force Field Generation. Total mental immunity. Increased Metabolism (huge fodder requirement). Combat-unstable — one rider must dedicate to control.
-**Encounter tables:** desert, mountains (Tier 4)
+**Encounter tables:** clear, forest (Tier 4, 2 tables)
 **Number appearing:** 1
 **Build:** A/P Mammal, Standard power level
 
@@ -339,7 +339,7 @@ HTH         d6+1    Inventing 1   Mass d8 (~1500 lbs)   Profile x1.3
 ### Cren Tosh
 
 **GW source:** AC 3, HD 16, MV 12. 2m fish that can transform into any lizard (with Sleeth-like mutations) for up to 24 hours. In fish form, burrows wide tunnels into riverbanks for nesting. Eats only plants, collects shiny objects.
-**Encounter tables:** water (Tier 5 — source spelling "Crentosh" one-word, encounter "Cren Tosh" two-word, treat as same)
+**Encounter tables:** water (Tier 5, 1 table)
 **Number appearing:** 1
 **Build:** A/P Fish (primary form), Standard power level
 
@@ -366,7 +366,7 @@ HTH         d6      Inventing 4   Mass d6 (~400 lbs)   Profile x1.2
 ### Crep Plant
 
 **GW source:** AC 3, HD 15, MV 1. Two varieties: water (pink, submerged) and land (red, rainy areas). Mental mutations: Death Field Generation, Molecular Disruption, Life Leech (feeds via). Plant mutations: Mobility, 1d4 manipulation vines, Parasitic Attachment. Reproduction: leaf-attachments drain blood 10 HP/turn, drop after victim dies, burrow → new plant.
-**Encounter tables:** forest, water (Tier 4)
+**Encounter tables:** mountains, water (Tier 4, 2 tables)
 **Number appearing:** 1d10
 **Build:** A/P Plant, High power level (HD 15 boss)
 
@@ -389,7 +389,7 @@ HTH         d4+1    Inventing 2   Mass d8 (~1500 lbs)
 ### Ert
 
 **GW source:** AC 9, HD 3, MV 8. 1m fish in swift mountain streams. Bite has chance to turn victim to granite-like rock — treat as intensity 12 poison attack, "D" result = stone.
-**Encounter tables:** water + 1 other (Tier 4)
+**Encounter tables:** forest, water (Tier 4, 2 tables)
 **Number appearing:** 1
 **Build:** A/P Fish, Low power level
 
@@ -411,7 +411,7 @@ HTH         d2      Inventing 1   Mass d2 (~30 lbs)
 ### Ert Telden
 
 **GW source:** AC 6, HD 12, MV 9. 1m+ fish in backwaters/marshes/swamps. Self-destructive defense: when removed from water, turn 1 burns hot enough to deal 5d6 heat damage to all within 30m; turn 2 explodes for 10d6 to all in range. Sometimes captured by tribes for catapult-launched warfare.
-**Encounter tables:** water (Tier 5)
+**Encounter tables:** desert, water (Tier 5, 2 tables)
 **Number appearing:** 1d6
 **Build:** A/P Fish, Standard power level
 
@@ -436,7 +436,7 @@ HTH         d3      Inventing 2   Mass d3 (~70 lbs)   Profile /1.5
 ### Fen
 
 **GW source:** AC 7, HD 10, MV 12 water / 3 land / 8 fly. Intelligent man-sized fish, walks on 2 stubby fins. Lungs + gills (24h out of water OK). Translucent skin = invisible underwater. Use weapons; tail club 6d6. Resistant to radiation, poison resistance 18, reflect heat + light (laser) for 5 turns before taking damage. Shape-change to large bird and fly to escape.
-**Encounter tables:** water (Tier 5)
+**Encounter tables:** water (Tier 5, 1 table)
 **Number appearing:** 1d10
 **Build:** Humanoid (intelligent, weapons — no A/P)
 
@@ -459,7 +459,7 @@ HTH         d6      Inventing 6   Mass d4 (~150 lbs)
 ### Fleshin
 
 **GW source:** AC 8, HD 8, MV 9 water / 5 fly (glide). 2m fish in large lakes. Surface-skims, then launches and glides on broad pectoral fins for hours. Feeds on water birds + small animals; attacks humans when hungry. Dorsal fin: intensity 15 poison spines. If seriously threatened: shapechange to Sleeth with all that creature's powers.
-**Encounter tables:** water (Tier 5)
+**Encounter tables:** water (Tier 5, 1 table)
 **Number appearing:** 1
 **Build:** A/P Fish, Standard power level
 
@@ -484,7 +484,7 @@ HTH         d6      Inventing 2   Mass d6 (~400 lbs)   Profile x1.2
 ### Gren (Grens)
 
 **GW source:** AC 4, HD 20, MV 12. PSH-looking but with deep green skin. Intelligent, secluded in deep forests. Cannot be seen or sensed by any creature until they reveal themselves. Refuse to use ancient tech or learn Ancient knowledge. 70% shun outsiders, 30% friendly to PSH if approached non-hostilely.
-**Encounter tables:** forest (Tier 5 — encounter data uses singular "Gren"; source heading uses plural "Grens")
+**Encounter tables:** forest (Tier 5, 1 table)
 **Number appearing:** 1d6
 **Build:** Humanoid (intelligent — no A/P)
 
@@ -510,7 +510,7 @@ HTH         d4+1    Inventing 7   Mass d4 (~150 lbs)
 ### Herkel
 
 **GW source:** AC 9, HD 4, MV 8. Small (.5m) viciously biting fish, piranha-grade. Bite 6d6/turn. Scales coated with intensity 18 contact poison. Eats anything fittable in jaws.
-**Encounter tables:** water (Tier 5)
+**Encounter tables:** water (Tier 5, 1 table)
 **Number appearing:** 1d10
 **Build:** A/P Fish, Low power level
 
@@ -536,7 +536,7 @@ Mass        d2 (~10 lbs)   Profile /2
 ### Herp
 
 **GW source:** AC 3, HD 20, MV 10. 3.5m carnivorous mutated beetle, flightless. Wing case reflects sonic. Acid stream 30m, 15d6 dmg, eats through 1/2 cm duralloy in 3 turns. All-weather tracking.
-**Encounter tables:** clear, forest, mountains (Tier 3)
+**Encounter tables:** clear, mountains, forest (Tier 3, 3 tables)
 **Number appearing:** 1
 **Build:** A/P Insect, High power level (HD 20 boss)
 
@@ -560,7 +560,7 @@ HTH         d8      Inventing 3   Mass d8 (~1000 lbs)   Profile x2
 ### Hisser
 
 **GW source:** AC 3, HD 18, MV 12. 3m half-man-half-snake, arid regions. Telepathic, MS 12. Mass mind, sonic attack ability, +1 random mental mutation per individual. Scaly skin laser+sonic resistant. Matriarchal (queen + 70 males). No spoken language — all telepathic. Use Ancient artifacts.
-**Encounter tables:** forest, mountains, water (Tier 3)
+**Encounter tables:** mountains, forest, water, radioactive (Tier 3, 4 tables)
 **Number appearing:** 1d10
 **Build:** Humanoid (intelligent — no A/P)
 
@@ -585,7 +585,7 @@ HTH         d6+1    Inventing 7   Mass d6 (~400 lbs)   Profile x1.5
 ### Hoop
 
 **GW source:** AC 9, HD 15, MV 18. 2.6m mutated rabbitoid bipeds. Leap 8m vertical. Intelligent (MS 3-18), telepathic, mass mind. Special: transmute metal to rubber (touch, 1m radius). Manipulative forepaws. Use Ancient weapons.
-**Encounter tables:** clear, mountains, ruins (Tier 3)
+**Encounter tables:** clear, mountains, ruins (Tier 3, 3 tables)
 **Number appearing:** 1d6
 **Build:** Humanoid ("Tall" descriptor free at 2.6m)
 
@@ -611,7 +611,7 @@ HTH         d4+1    Inventing 5   Mass d4 (~150 lbs)   Profile x1.2
 ### Hopper
 
 **GW source:** AC 9, HD 3, MV 12 (hop at 24). Giant hare-like mutant. 100kg burden mount; requires special saddle/harness. 75% chance new rider thrown for 1-6 dice damage on first ride. Stupid (hoops regard them as we do chimps). Chameleon powers. Unburdened: 12m leaps, 8m vertical clear.
-**Encounter tables:** clear or mountains (Tier 5)
+**Encounter tables:** clear (Tier 5, 1 table)
 **Number appearing:** 1 (1d20 in wild)
 **Build:** A/P Mammal, Low power level
 
@@ -637,7 +637,7 @@ HTH         d4+1    Inventing 1   Mass d4 (~150 lbs)   Profile x1.2
 ### Horl Choo (Hori)
 
 **GW source:** AC 5, HD 18, MV 6. Black plant resembling a lumpy porcupine with 3m spear-like quill-stems. 5d6 (6-30) stems. Flings spears at any being within 90m: intensity 9 poison + 3d6 dmg. Spears attached by strong vines — retrieve missed shots, drag impaled prey back to base. Dissolving juices break down victim. Limited mobility (moves to better hunting grounds).
-**Encounter tables:** forest, mountains (Tier 4 — listed as "Hori" in encounter data, OCR truncation of "Horlchoo"; *also* listed separately as "Choo" in another table — same creature, recommend merging both encounter entries to "Horl Choo")
+**Encounter tables:** clear, mountains, forest, desert (Tier 4, 4 tables)
 **Number appearing:** 1
 **Build:** A/P Plant, Standard power level
 
@@ -659,7 +659,7 @@ HTH         d6+1    Inventing 2   Mass d8 (~1500 lbs)
 ### Kai Lin
 
 **GW source:** AC 6, HD 12, MV 10. 3-4m plant resembling a reptile. Runs on 2 stalks with thorny pads (clawed-foot resemblance), trails root-tail. Rad-resistant green bark scales. Scavenger but kills fresh prey. MS 5. Mutations: Electrical Generation, Attraction Odor, Radiated Eyes.
-**Encounter tables:** desert, radioactive (Tier 4)
+**Encounter tables:** forest, desert (Tier 4, 2 tables)
 **Number appearing:** 1d4
 **Build:** A/P Plant, Standard power level
 
@@ -683,7 +683,7 @@ HTH         d6      Inventing 2   Mass d6 (~600 lbs)   Profile x1.5
 ### Keeshin
 
 **GW source:** AC 3, HD 7, MV Telekinetic Flight. Small white mutated amphibian in water. IN 18, MS 16. Mental mutations: Telekinetic Flight, Telekinesis, Telekinetic Arm, Force Field Generation, Life Leech, De-evolution, Mental Blast, Cryokinesis, Reflection. Uses any 2 per turn. Solitary, ruthless, greedy. Builds underwater stone dwellings telekinetically with air pockets, stockpiles Ancient devices.
-**Encounter tables:** water (Tier 5)
+**Encounter tables:** water (Tier 5, 1 table)
 **Number appearing:** 1
 **Build:** Humanoid (intelligent — no A/P)
 
@@ -723,7 +723,7 @@ HTH         d3      Inventing 9   Mass d3 (~50 lbs)
 ### Kep
 
 **GW source:** AC 2, HD 20, MV N/A. Carnivorous plant in sandy soil, grows underground. 30m diameter pressure-sensitive net of squeeze roots just below surface. Walking over → roots spring out, ensnare. Squeeze 5d6 constrictive dmg/turn. Damaged >half HP: releases captives, retreats underground. Prey ceases struggle: dissolving juices digest. After meal: 1 mobile seed scurries off to make new plant.
-**Encounter tables:** desert (Tier 5)
+**Encounter tables:** desert (Tier 5, 1 table)
 **Number appearing:** 1
 **Build:** A/P Plant, High power level (HD 20 boss; trap-tier)
 
@@ -750,7 +750,7 @@ HTH         d6+1    Inventing 2   Mass d10 (~3000 lbs root mass)
 ### Menarl
 
 **GW source:** AC 6, HD 7, MV 6. 10m intelligent water snake with 10 human-shaped manipulator arms. Heightened Strength 17, MS 12. Bird-loving — frenzied near birds. Friendly to humanoids, will use Ancient devices if shown how.
-**Encounter tables:** water (Tier 5)
+**Encounter tables:** water (Tier 5, 1 table)
 **Number appearing:** 1d4
 **Build:** Humanoid (intelligent, manipulative — no A/P)
 
@@ -777,7 +777,7 @@ HTH         d6+1    Inventing 4   Mass d8 (~1500 lbs elongated)   Profile x1.5
 ### Narl Ep (Nari Ep)
 
 **GW source:** AC 3, HD 20, MV N/A. Enormous white mutated tree, 50m+ tall, lives in water. Pale green leafy top + 5-30 squeeze vines projecting above surface. Spring: seed pods on vines. Pods cracked (sharp blow) → 2-12 seeds fly out + sonic blast 3d6 in 10m radius.
-**Encounter tables:** water (Tier 5 — listed as "Nari Ep" in encounter data, OCR L→i)
+**Encounter tables:** water (Tier 5, 1 table)
 **Number appearing:** 1
 **Build:** A/P Plant, High power level (HD 20 boss)
 
@@ -802,7 +802,7 @@ HTH         d12+1   Inventing 1   Mass d12 (~5 tons rooted)   Profile x2.5
 ### Obb
 
 **GW source:** AC 10, HD 12, MV 1/15 (ground/fly). 1m mutated fungus resembling a bat. Nearly immobile on ground, hawk-swift in air. Single black eye delivers intensity 16 radiation blast. Two clawed appendages strike for 3d6 each. Devours half of body, plants spores in remains; 1d6 young obbs emerge in 1 day. Resistant to radiation, all laser, light, heat. Sometimes peacefully associates with intelligent beings — alien logic.
-**Encounter tables:** ruins, radioactive (Tier 4)
+**Encounter tables:** forest, desert (Tier 4, 2 tables)
 **Number appearing:** 1
 **Build:** A/P Plant (fungus), Standard power level — high-MS variant, skip Lowered Int
 
@@ -828,7 +828,7 @@ HTH         d4      Inventing 6   Mass d3 (~50 lbs)   Profile /1.5
 ### Orlen
 
 **GW source:** AC 7, HD 15, MV 15. Two-headed, 2.5m tall humanoid mutants with 4 arms, each arm pair under a separate brain. All telepathic, with telekinesis and willpower in both brains. 25% have 2 random mutations (one per side), typically poison claws (random intensity, 2 hands) + de-evolution (mental). Barter peacefully for tech; built four-arm-adapted versions.
-**Encounter tables:** ruins, water (Tier 4)
+**Encounter tables:** mountains, ruins (Tier 4, 2 tables)
 **Number appearing:** 1
 **Build:** Humanoid (intelligent, society — no A/P)
 
@@ -854,7 +854,7 @@ HTH         d6+1    Inventing 6   Mass d6 (~400 lbs)   Profile x1.3
 ### Pam (Parn)
 
 **GW source:** AC 6 (also -3 to opponent AC in close combat from antennae), HD 10 + antennae. MV 6/16. 3m beetle. 4d6 (4-24) 1.3m barbed spines on back, shoots 2/turn at 50m, 2d6 dmg. 4 sword-like antenna structures (3m), 3d6 dmg each in close. Each antenna AC 5, 18 HP. Ruthless carnivore, fights to death.
-**Encounter tables:** clear, mountains, desert, radioactive (Tier 3 — listed as "Pam" in encounter data, OCR drop of "Parn")
+**Encounter tables:** mountains, desert, radioactive (Tier 3, 3 tables)
 **Number appearing:** 1d4
 **Build:** A/P Insect, Standard power level
 
@@ -878,7 +878,7 @@ HTH         d6      Inventing 2   Mass d6 (~400 lbs)   Profile x1.5
 ### Perth
 
 **GW source:** AC 4, HD 8, MV N/A. 1m tall flower-bush. Disturbed → glows rainbow → emits 3d6 random-intensity radiation in 15m radius. Each round different intensity. Damaged → 1d4 simultaneous blasts. Petals dry to 1 HP/g healing powder (20g/flower, 3-day sun; half effective if artificial drying).
-**Encounter tables:** clear, desert, forest (Tier 3)
+**Encounter tables:** clear, forest, desert (Tier 3, 3 tables)
 **Number appearing:** 1d3
 **Build:** Plant (immobile)
 
@@ -901,7 +901,7 @@ HTH         d2      Inventing 1   Mass d3 (~50 lbs)
 ### Pineto (Pinelo)
 
 **GW source:** AC 4, HD 2, MV 18. Mutated horizontal-trunk plant beast, mobile branches. 800kg cargo as mount. Tail lashes 1d6. Sharp needles — riders take 1 dmg/turn without saddle. Goad-controlled.
-**Encounter tables:** forest (Tier 5 — "Pinelo" OCR variant)
+**Encounter tables:** forest (Tier 5, 1 table)
 **Number appearing:** 1d4 (1d8 wild packs)
 **Build:** A/P Plant, Low power level
 
@@ -923,7 +923,7 @@ HTH         d4      Inventing 1   Mass d6 (~400 lbs)
 ### Podog
 
 **GW source:** AC 5 (8 if ridden), HD 4, MV 15. Large mutated mongrels. Carnivorous pack hunters, simple commands. Bite 2d6. Totally poison-immune. 1 in 100 has Dual Brain + Telepathy with master. Bay-cry mimics prey/opponent for confusion + initiative bonus.
-**Encounter tables:** clear, mountains, desert (Tier 3)
+**Encounter tables:** clear, mountains, desert (Tier 3, 3 tables)
 **Number appearing:** 1d6 (2d6 wild packs)
 **Build:** A/P Mammal, Low power level
 
@@ -947,7 +947,7 @@ HTH         d4      Inventing 1   Mass d6 (~400 lbs)   Profile x1.3
 ### Rakox
 
 **GW source:** AC 4/6, HD 20, MV 9. Slow but powerful mutated oxen. Partial carapace, frill of 8 forward-pointing horns. Gore: 1d6/horn, man-sized opponent gets struck by 1-3 horns per attack. Charge tendency when frightened (esp. wild). Charging rakox does double damage. Stupid, skittish. 1000kg cargo, beasts of burden. 1 / 5d6 in wild herds.
-**Encounter tables:** clear, mountains (Tier 5)
+**Encounter tables:** clear (Tier 5, 1 table)
 **Number appearing:** 1 (5d6 in wild herds)
 **Build:** A/P Mammal, High power level (HD 20)
 
@@ -974,7 +974,7 @@ HTH         d8+1    Inventing 1   Mass d10 (~3000 lbs)   Profile x1.5
 ### Robotic Unit (Overview)
 
 **GW source:** General class — 18 standard sub-types in GW1e Players Booklet "ROBOTIC UNITS" section. Modeled per `DESIGN-gw-mp-conversion.md` §17. Origin: Science Project. Operational modes: Programmed / Wild / Controlled (§17.9). Damage threshold rule: 25%/50%/75% Hits → 1/2/3 abilities lost (§17.6). Borgs / PCI / ThinkTank have organic-brain quirks (§17.10).
-**Encounter tables:** clear, mountains, forest, desert, water, ruins, radioactive (7 of 7 wilderness terrains; one of the most common wilderness rolls)
+**Encounter tables:** clear, mountains, forest, desert, water, ruins, radioactive (7 tables)
 **Number appearing:** 1d4 per encounter; specific sub-type rolled on 2d6 sub-table at encounter time
 **Build:** Per sub-type — Humanoid (robotoids), Vehicle (cargo / transports / borgs), or hybrid (combat units)
 
@@ -1132,7 +1132,7 @@ GW HP equivalent: 72
 ### Sep
 
 **GW source:** AC 5, HD 17, MV 10. Mutated land-shark. Telekinetic sand-burrowing. Detects creatures up to 50m. Springs from ground, bites 9d6, burrows back, maneuvers 1-2 turns underground, attacks from new direction.
-**Encounter tables:** desert, forest, mountains (Tier 3)
+**Encounter tables:** mountains, forest, desert (Tier 3, 3 tables)
 **Number appearing:** 1d6
 **Build:** A/P Fish, Standard power level
 
@@ -1157,7 +1157,7 @@ HTH         d10+1   Inventing 2   Mass d10 (~2000 lbs)   Profile x2
 ### Serf
 
 **GW source:** AC 6, HD 10, MV 12. Mutated humanoid. Heightened Strength, partial carapace, poison claws (intensity 8). MS 15. Mental mutations: Light Wave Manipulation, Density Control (others), Life Leech, Death Field Generation, Mental Blast, Telepathy. Semi-nomadic military "brigades", uniforms. General has ancient weapon. 90% prefer mental attacks.
-**Encounter tables:** desert, forest (Tier 4)
+**Encounter tables:** forest, desert, radioactive (Tier 4, 3 tables)
 **Number appearing:** 1d4
 **Build:** Humanoid (intelligent — no A/P)
 
@@ -1192,7 +1192,7 @@ HTH         d6+1    Inventing 8   Mass d4 (~150 lbs)
 ### Seroon Lou
 
 **GW source:** AC 8, HD 8, MV 3. Carnivorous aquatic plant up to 30m, semi-intelligent. Stalk 3m above water, mobile roots walk bottom. Eye atop stalk + 11-20 manipulation vines. Wields rocks/clubs. Drags victims to bottom for assimilation. Hides among Narl Ep (similar appearance, darker color).
-**Encounter tables:** water (Tier 5 — encounter data lists "Seroon" in water and "Lou" in ruins; per source these are the same creature, recommend merging encounter entries)
+**Encounter tables:** water, ruins (Tier 5, 2 tables)
 **Number appearing:** 3d6 (per source; encounter data conflicts — see OCR notes)
 **Build:** A/P Plant, Standard power level
 
@@ -1214,7 +1214,7 @@ HTH         d6      Inventing 3   Mass d8 (~1500 lbs elongated)
 ### Sleeth
 
 **GW source:** AC 5, HD 18, MV 12. 3m mutated lizard. IN 17, MS 17. Mental mutations: Telepathy, Precognition, special Force Field Negation (any FF within 30m). Illusion-immune, poison resistance 18. 1 in 10 has additional rolled mutation. Peaceful, philosophical, communal. Use all weapons.
-**Encounter tables:** clear, desert, ruins (Tier 3)
+**Encounter tables:** clear, desert, ruins (Tier 3, 3 tables)
 **Number appearing:** 1d10
 **Build:** Humanoid (intelligent, peaceful — no A/P)
 
@@ -1240,7 +1240,7 @@ HTH         d6+1    Inventing 9   Mass d6 (~400 lbs)   Profile x1.5
 ### Soul Besh
 
 **GW source:** AC 8, HD 10, MV 9. Flightless mutated mosquito, 1.3m. Chameleon powers (concealment ambush). 2m coiled proboscis: pierces sleeping victim 1d6 + intensity 18 paralytic. Next turn: blood-drain 12 HP/turn. Antidote from boiled exoskeleton (150cc, 10cc dose).
-**Encounter tables:** desert, forest (Tier 4)
+**Encounter tables:** forest, desert (Tier 4, 2 tables)
 **Number appearing:** 1
 **Build:** A/P Insect, Standard power level
 
@@ -1265,7 +1265,7 @@ HTH         d3      Inventing 2   Mass d3 (~50 lbs)   Profile /1.5
 ### Terl (Teri / Teal)
 
 **GW source:** AC 5, HD 9, MV Telekinetic Flight. 2m mutated barracuda covered in brightly colored feathers instead of scales. Mates/hatches in water, lives in trees. Breathes water and air. Telekinetic flight. Predator: uses cryogenesis + sonic attack simultaneously to kill prey. Bite 2d6 fallback. Feathers reflect heat + laser. Detects/avoids radiation.
-**Encounter tables:** water (Tier 5 — listed as "Teri" in encounter data; source spells "Terl"; an OCR variant "Teal" was in earlier batch — all same creature)
+**Encounter tables:** water (Tier 5, 1 table)
 **Number appearing:** 1d4
 **Build:** A/P Fish, Standard power level
 
@@ -1350,7 +1350,7 @@ GW reaction-table results → MP CL-based Influence Task per `DESIGN-gw-mp-conve
 **GW source:** AC 9, HD 13, MV N/A. Creeping vine tangle, runners up to 20m diameter, all connected. Two varieties:
 - **Yellow-green aquatic:** Floats on lakes/ponds. Sonic attack + intensity 14 contact poison.
 - **Blue-green land:** Above + attraction odor (lures carnivores) + crude Magnetic Control (50kg ferrous within 50m, 25 turns; activates after damage taken).
-**Encounter tables:** forest, water (Tier 4)
+**Encounter tables:** forest, water (Tier 4, 2 tables)
 **Number appearing:** 2d4
 **Build:** A/P Plant, Low power level (immobile)
 
@@ -1378,7 +1378,7 @@ HTH         d6      Inventing 1   Mass d8 (~1500 lbs total tangle)
 ### Yexil
 
 **GW source:** AC 6, HD 10, MV 4/15 (ground/fly). 8m wingspan, 3m tall, indeterminate origin chimera. Slow-witted, friendly. 2 hairy legs, lion-head, large mandibles, hands at end of each wing. Bite 3d6, laser eyes 5d6 at 25m. Orange/black fur, cold-resistant. Gourmet for manufactured clothing — trades worthless tech (pistols/bombs/grenades) for snappy outfits.
-**Encounter tables:** clear, mountains, ruins (Tier 3)
+**Encounter tables:** clear, mountains, ruins (Tier 3, 3 tables)
 **Number appearing:** 1d4
 **Build:** Humanoid (intelligent enough to trade — no A/P) with chimeric features
 
@@ -1434,7 +1434,7 @@ HTH         d2      Inventing 3   Mass d2- (~10 oz)   Profile /6
 ### Zeethh
 
 **GW source:** AC 10, HD 1 each, MV None (teleporting seeds). 1d100 plants. 1.5m blade of mutated purple grass. Tassels grow continuously summer-long, hold 1d6 spiked seeds each. Each turn warm-blooded creatures within 20m: zeethhs teleport 1/4 of total seeds into them.
-**Encounter tables:** clear, radioactive (Tier 4)
+**Encounter tables:** clear, mountains (Tier 4, 2 tables)
 **Number appearing:** 1d100
 **Build:** A/P Plant, Low power level (swarm encounter — see swarm mechanic below)
 
