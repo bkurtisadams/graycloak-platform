@@ -1,4 +1,4 @@
-// gw-subhex-view.js v0.9.0 — 2026-05-24
+// gw-subhex-view.js v0.11.0 — 2026-05-24
 // Seamless (Path B) 3-mile subhex viewer for the Gamma World map:
 // drill-in + pan/zoom, terrain paint brush, and a freehand vector overlay
 // (rivers/roads/trails) + settlement icon markers.
@@ -42,6 +42,8 @@
     undoStack: [],
     cellMap: new Map(),
     hazMap: new Map(),
+    previewMap: new Map(),
+    hoverKey: null,
     raf: 0,
     curParent: null,
     el: {},
@@ -58,9 +60,9 @@
       #gw-sx-svg { position:absolute; inset:0; width:100%; height:100%; cursor:grab; touch-action:none; }
       #gw-sx-svg.grabbing { cursor:grabbing; }
       #gw-sx-svg.painting { cursor:crosshair; }
-      .gw-sx-cell { stroke:rgba(0,0,0,.35); stroke-width:1; vector-effect:non-scaling-stroke; }
-      .gw-sx-cell.authored { stroke:#ff8844; stroke-width:1.5; vector-effect:non-scaling-stroke; }
-      .gw-sx-cell.hover { stroke:rgba(255,220,120,.95); stroke-width:2; vector-effect:non-scaling-stroke; }
+      .gw-sx-cellpath { stroke:rgba(0,0,0,.35); stroke-width:1; vector-effect:non-scaling-stroke; }
+      .gw-sx-authpath { fill:none; stroke:#ff8844; stroke-width:1.5; vector-effect:non-scaling-stroke; pointer-events:none; }
+      .gw-sx-hover { fill:none; stroke:rgba(255,220,120,.95); stroke-width:2; vector-effect:non-scaling-stroke; pointer-events:none; }
       .gw-sx-parent { fill:none; stroke:rgba(255,200,120,.5); stroke-width:1.5; vector-effect:non-scaling-stroke; pointer-events:none; }
       .gw-sx-rad { fill:url(#gw-sx-rad); stroke:rgba(195,240,55,.4); stroke-width:1; vector-effect:non-scaling-stroke; pointer-events:none; }
       .gw-sx-line { fill:none; vector-effect:non-scaling-stroke; stroke-linecap:round; stroke-linejoin:round; pointer-events:none; }
@@ -251,7 +253,11 @@
     basemap.style.display = 'none'; basemap.style.pointerEvents = 'none';
     const gAnnot = document.createElementNS(SVGNS, 'g');   gAnnot.id = 'gw-sx-annot';
     const gEditor = document.createElementNS(SVGNS, 'g');  gEditor.id = 'gw-sx-editor';
-    svg.append(defs, gCells, gHaz, gParents, basemap, gAnnot, gEditor);
+    const gPreview = document.createElementNS(SVGNS, 'g'); gPreview.id = 'gw-sx-preview';
+    const gHover = document.createElementNS(SVGNS, 'g');   gHover.id = 'gw-sx-hover';
+    const panG = document.createElementNS(SVGNS, 'g');     panG.id = 'gw-sx-pan';
+    panG.append(gCells, gHaz, gPreview, gParents, basemap, gAnnot, gEditor, gHover);
+    svg.append(defs, panG);
 
     const palette = buildPalette();
     const bar = document.createElement('div'); bar.id = 'gw-sx-bar';
@@ -274,7 +280,7 @@
     document.body.appendChild(overlay);
 
     Object.assign(state.el, {
-      overlay, svg, gCells, gParents, gAnnot, gEditor, gHaz, basemap, title, read,
+      overlay, svg, gCells, gParents, gAnnot, gEditor, gHaz, panG, gPreview, gHover, basemap, title, read,
       readBody: read.querySelector('#gw-sx-read-body'),
       mode: palette.querySelector('#gw-sx-mode'),
       undoBtn: palette.querySelector('#gw-sx-undo'),
@@ -308,7 +314,7 @@
     return { x: state.vb.x + (ev.clientX - r.left) / r.width * state.vb.w,
              y: state.vb.y + (ev.clientY - r.top) / r.height * state.vb.h };
   }
-  function cellUnder(ev){ const el = document.elementFromPoint(ev.clientX, ev.clientY); return (el && el.classList && el.classList.contains('gw-sx-cell')) ? el : null; }
+  function cellAt(ev){ const w = clientToWorld(ev); const a = D().svgToAxial(w.x, w.y); return { Q: a.Q, R: a.R }; }
 
   function wireViewport(svg){
     svg.addEventListener('mousedown', e => {
@@ -317,8 +323,8 @@
       const a = state.armed;
       if (e.button === 0 && a){
         if ((a.type === 'paint' || a.type === 'erase' || a.type === 'hazard')){
-          const cell = cellUnder(e);
-          if (cell){ state.brush = { set: new Set(), undo: [] }; svg.classList.add('painting'); paintCell(+cell.dataset.q, +cell.dataset.r); return; }
+          const cell = cellAt(e);
+          if (cell){ state.brush = { set: new Set(), undo: [] }; svg.classList.add('painting'); paintCell(cell.Q, cell.R); return; }
         } else if (a.type === 'draw'){
           if (state.lineMode === 'freehand'){ startStroke(e); return; }
           const hit = editorHitDot(e);
@@ -341,13 +347,16 @@
         const w = clientToWorld(e); const p = state.snapHex ? snapPt(w) : w;
         state.editor.pts[state.editor.dragIdx] = [p.x, p.y]; editorRender(); return;
       }
-      if (state.brush){ const c = cellUnder(e); if (c) paintCell(+c.dataset.q, +c.dataset.r); return; }
+      if (state.brush){ const c = cellAt(e); if (c) paintCell(c.Q, c.R); return; }
       if (!state.drag) return;
       const r = state.el.svg.getBoundingClientRect();
       const dx = (e.clientX - state.drag.sx) / r.width * state.vb.w;
       const dy = (e.clientY - state.drag.sy) / r.height * state.vb.h;
-      if (Math.abs(e.clientX - state.drag.sx) + Math.abs(e.clientY - state.drag.sy) > 3) state.drag.moved = true;
-      state.vb.x = state.drag.vx - dx; state.vb.y = state.drag.vy - dy; applyViewBox();
+      if (!state.drag.moved && Math.abs(e.clientX - state.drag.sx) + Math.abs(e.clientY - state.drag.sy) > 3){
+        state.drag.moved = true; state.el.panG.style.willChange = 'transform'; clearHover();
+      }
+      state.drag.dx = dx; state.drag.dy = dy;
+      state.el.panG.setAttribute('transform', `translate(${dx} ${dy})`);
     });
     window.addEventListener('mouseup', () => {
       if (state.editor && state.editor.dragIdx != null){ state.editor.dragIdx = null; return; }
@@ -355,12 +364,18 @@
       if (state.brush){
         D().flushOverrides();
         if (state.brush.undo.length){ state.undoStack.push(state.brush.undo); if (state.undoStack.length > 30) state.undoStack.shift(); }
-        state.brush = null; state.el.svg.classList.remove('painting'); syncUndoBtn(); return;
+        state.brush = null; state.el.svg.classList.remove('painting');
+        state.el.gPreview.replaceChildren(); state.previewMap = new Map();
+        syncUndoBtn(); render(true); return;
       }
       if (!state.drag) return;
-      const moved = state.drag.moved, pointAdd = state.drag.pointAdd; state.drag = null; state.el.svg.classList.remove('grabbing');
-      if (pointAdd && !moved){ editorAddPoint(pointAdd); return; }
-      if (moved) render();
+      const dr = state.drag; state.drag = null; state.el.svg.classList.remove('grabbing');
+      if (dr.pointAdd && !dr.moved){ editorAddPoint(dr.pointAdd); return; }
+      if (dr.moved){
+        state.vb.x = dr.vx - (dr.dx || 0); state.vb.y = dr.vy - (dr.dy || 0);
+        state.el.panG.removeAttribute('transform'); state.el.panG.style.willChange = '';
+        applyViewBox(); render();
+      }
     });
     svg.addEventListener('wheel', e => {
       if (!state.open || state.stroke) return;
@@ -385,6 +400,11 @@
     return s;
   }
   function fillFor(d, sub){ return (d.TERRAIN[sub.terrain] || d.TERRAIN.unknown).fill; }
+  function hexPath(cx, cy, R){
+    let s = '';
+    for (let i = 0; i < 6; i++){ const a = (Math.PI/180)*(60*i); s += (i ? 'L' : 'M') + (cx+R*Math.cos(a)).toFixed(2) + ',' + (cy+R*Math.sin(a)).toFixed(2) + ' '; }
+    return s + 'Z ';
+  }
 
   function render(force){
     if (!state.open) return;
@@ -398,9 +418,8 @@
 
     const cells = d.cellsInAxialBbox(bbox);
     const ptCache = new Map(); const phCache = new Map(); const parentsSeen = new Map();
-    state.cellMap = new Map(); state.hazMap = new Map();
-    const fragC = document.createDocumentFragment();
-    const fragH = document.createDocumentFragment();
+    const byColor = new Map();   // fill color -> array of hex subpaths
+    const radD = [], authD = []; // radiation + authored-outline subpaths
     for (const { Q, R } of cells){
       const o = d.ownerOf(Q, R);
       let pt = null, ph = null;
@@ -412,21 +431,24 @@
       }
       const sub = d.getSubhex(Q, R, pt, ph);
       const c = d.subhexSvgCenter(Q, R);
-      const poly = document.createElementNS(SVGNS, 'polygon');
-      poly.setAttribute('points', cornersStr(c.x, c.y, d.SUB_R));
-      poly.setAttribute('class', 'gw-sx-cell' + (sub.source === 'authored' ? ' authored' : ''));
-      poly.setAttribute('fill', fillFor(d, sub));
-      poly.dataset.q = Q; poly.dataset.r = R;
-      fragC.appendChild(poly); state.cellMap.set(Q + '_' + R, poly);
-      if (sub.hazard === 'radiation'){
-        const ov = document.createElementNS(SVGNS, 'polygon');
-        ov.setAttribute('points', cornersStr(c.x, c.y, d.SUB_R));
-        ov.setAttribute('class', 'gw-sx-rad');
-        fragH.appendChild(ov); state.hazMap.set(Q + '_' + R, ov);
-      }
+      const sp = hexPath(c.x, c.y, d.SUB_R);
+      const color = fillFor(d, sub);
+      let arr = byColor.get(color); if (!arr){ arr = []; byColor.set(color, arr); }
+      arr.push(sp);
+      if (sub.hazard === 'radiation') radD.push(sp);
+      if (sub.source === 'authored') authD.push(sp);
     }
+    // one <path> per terrain color, plus authored-outline + radiation paths
+    const fragC = document.createDocumentFragment();
+    for (const [color, parts] of byColor){
+      const p = document.createElementNS(SVGNS, 'path');
+      p.setAttribute('d', parts.join('')); p.setAttribute('fill', color); p.setAttribute('class', 'gw-sx-cellpath');
+      fragC.appendChild(p);
+    }
+    if (authD.length){ const ap = document.createElementNS(SVGNS, 'path'); ap.setAttribute('d', authD.join('')); ap.setAttribute('class', 'gw-sx-authpath'); fragC.appendChild(ap); }
     state.el.gCells.replaceChildren(fragC);
-    state.el.gHaz.replaceChildren(fragH);
+    if (radD.length){ const rp = document.createElementNS(SVGNS, 'path'); rp.setAttribute('d', radD.join('')); rp.setAttribute('class', 'gw-sx-rad'); state.el.gHaz.replaceChildren(rp); }
+    else state.el.gHaz.replaceChildren();
 
     const fragP = document.createDocumentFragment();
     if (state.showParents){
@@ -662,13 +684,10 @@
     if (bestS){ A().deleteStroke(bestS.id); renderAnnotations(); }
   }
 
-  // ── terrain paint ──────────────────────────────────────────────────────────
-  function recolorCell(poly, Q, R){
-    const d = D(); const o = d.ownerOf(Q, R); const pt = o ? d.parentTerrainOf(o.col, o.row) : null;
-    const sub = d.getSubhex(Q, R, pt);
-    poly.setAttribute('fill', fillFor(d, sub));
-    poly.classList.toggle('authored', sub.source === 'authored');
-  }
+  // ── terrain + hazard paint ──────────────────────────────────────────────────
+  // Base map is merged paths (cheap to pan); during a brush stroke each painted
+  // cell is drawn into a small preview layer for instant feedback, then folded
+  // back into the merged paths by a single render(true) on mouseup.
   function paintCell(Q, R){
     if (!state.brush || !state.armed) return;
     const key = Q + '_' + R; if (state.brush.set.has(key)) return; state.brush.set.add(key);
@@ -678,29 +697,21 @@
     if (a.type === 'hazard'){
       if (a.mode === 'radiation') d.setSubhexHazard(Q, R, 'radiation', { deferSave: true });
       else { const o = d.ownerOf(Q, R); const ph = o ? d.parentHazardOf(o.col, o.row) : null; d.setSubhexHazard(Q, R, ph === 'radiation' ? 'none' : 'inherit', { deferSave: true }); }
-      updateHazardCell(Q, R);
-      const poly = state.cellMap.get(key); if (poly) recolorCell(poly, Q, R);
-      return;
-    }
-    if (a.type === 'erase') d.clearSubhexTerrain(Q, R, { deferSave: true });
+    } else if (a.type === 'erase'){ d.clearSubhexTerrain(Q, R, { deferSave: true }); }
     else d.setSubhexTerrain(Q, R, a.terrain, { deferSave: true });
-    const poly = state.cellMap.get(key); if (poly) recolorCell(poly, Q, R);
+    previewCell(Q, R);
   }
-  function updateHazardCell(Q, R){
+  function previewCell(Q, R){
     const d = D(); const key = Q + '_' + R;
-    const o = d.ownerOf(Q, R);
-    const pt = o ? d.parentTerrainOf(o.col, o.row) : null, ph = o ? d.parentHazardOf(o.col, o.row) : null;
-    const sub = d.getSubhex(Q, R, pt, ph);
-    const exists = state.hazMap.get(key);
-    if (sub.hazard === 'radiation'){
-      if (!exists){
-        const c = d.subhexSvgCenter(Q, R);
-        const ov = document.createElementNS(SVGNS, 'polygon');
-        ov.setAttribute('points', cornersStr(c.x, c.y, d.SUB_R));
-        ov.setAttribute('class', 'gw-sx-rad');
-        state.el.gHaz.appendChild(ov); state.hazMap.set(key, ov);
-      }
-    } else if (exists){ exists.remove(); state.hazMap.delete(key); }
+    const old = state.previewMap.get(key); if (old) old.forEach(el => el.remove());
+    const sub = d.getSubhexAt(Q, R);
+    const c = d.subhexSvgCenter(Q, R); const pts = cornersStr(c.x, c.y, d.SUB_R);
+    const els = [];
+    const mk = cls => { const p = document.createElementNS(SVGNS, 'polygon'); p.setAttribute('points', pts); p.setAttribute('class', cls); p.setAttribute('pointer-events', 'none'); state.el.gPreview.appendChild(p); els.push(p); return p; };
+    const fill = mk('gw-sx-cellpath'); fill.setAttribute('fill', fillFor(d, sub));
+    if (sub.hazard === 'radiation') mk('gw-sx-rad');
+    if (sub.source === 'authored') mk('gw-sx-authpath');
+    state.previewMap.set(key, els);
   }
   function undo(){
     const stroke = state.undoStack.pop(); if (!stroke){ syncUndoBtn(); return; }
@@ -746,16 +757,19 @@
   }
 
   // ── hover readout ──────────────────────────────────────────────────────────
-  let _hoverEl = null;
+  function clearHover(){ state.hoverKey = null; if (state.el.gHover) state.el.gHover.replaceChildren(); }
   function bindCellHover(svg){
     svg.addEventListener('mousemove', e => {
-      if (state.brush || state.stroke) return;
-      const t = e.target;
-      if (!t || !t.classList || !t.classList.contains('gw-sx-cell')){ if (_hoverEl){ _hoverEl.classList.remove('hover'); _hoverEl = null; } return; }
-      if (_hoverEl === t) return;
-      if (_hoverEl) _hoverEl.classList.remove('hover');
-      _hoverEl = t; t.classList.add('hover');
-      showReadout(+t.dataset.q, +t.dataset.r);
+      if (state.brush || state.stroke || state.drag){ return; }
+      const cell = cellAt(e); const key = cell.Q + '_' + cell.R;
+      if (state.hoverKey === key) return;
+      state.hoverKey = key;
+      const d = D(); const c = d.subhexSvgCenter(cell.Q, cell.R);
+      const p = document.createElementNS(SVGNS, 'polygon');
+      p.setAttribute('points', cornersStr(c.x, c.y, d.SUB_R));
+      p.setAttribute('class', 'gw-sx-hover');
+      state.el.gHover.replaceChildren(p);
+      showReadout(cell.Q, cell.R);
     });
   }
   function showReadout(Q, R){
@@ -782,5 +796,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.9.0 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.11.0 loaded'); } catch(_){}
 })();
