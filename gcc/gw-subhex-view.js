@@ -1,8 +1,13 @@
-// gw-subhex-view.js v0.28.0 — 2026-05-24
+// gw-subhex-view.js v0.29.0 — 2026-05-24
 // Seamless (Path B) 3-mile subhex viewer for the Gamma World map:
 // drill-in + pan/zoom, terrain paint brush, and a freehand vector overlay
 // (rivers/roads/trails) + settlement icon markers.
 //
+// v0.29.0 — drag perf: hide the full-res base map image during a pan (like gHaz/
+//           gAnnot already are), restoring it on mouseup. It was the heaviest child
+//           of the composited panG layer; at high zoom it became a world-sized GPU
+//           texture that degraded dragging until the view was rebuilt. No node leak
+//           was found — every render path replaceChildren's; this is paint cost.
 // v0.28.0 — experiment: pan via CSS translate3d on panG (style.transform) instead
 //           of the SVG transform attribute, to try GPU-composited dragging. Paired
 //           with the existing dynamic will-change toggle; cleared on mouseup. Easy
@@ -894,7 +899,14 @@
         state.drag.moved = true; state.el.panG.style.willChange = 'transform'; clearHover();
         // the radiation <pattern> and marker text are the priciest to re-raster
         // each frame; drop them during the drag and restore on mouseup.
+        // Drop the priciest layers during the drag and restore on mouseup: radiation
+        // <pattern>, marker text, and — by far the heaviest — the full-resolution base
+        // map image. Left in, it bloats panG's composited pan layer into a world-sized
+        // GPU texture (enormous at high zoom), which is what degrades the drag until
+        // the view is rebuilt.
         state.el.gHaz.style.display = 'none'; state.el.gAnnot.style.display = 'none';
+        state.basemapDisp = state.el.basemap.style.display;
+        state.el.basemap.style.display = 'none';
       }
       state.drag.dx = dx; state.drag.dy = dy;
       schedulePan();
@@ -918,6 +930,7 @@
         state.el.panG.style.transform = ''; state.el.panG.style.willChange = '';
         applyViewBox(); render();
         state.el.gHaz.style.display = ''; state.el.gAnnot.style.display = '';
+        state.el.basemap.style.display = state.basemapDisp || '';
       } else if (dr.selCell){
         selectCell(dr.selCell.Q, dr.selCell.R);
       }
@@ -1377,5 +1390,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.28.0 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.29.0 loaded'); } catch(_){}
 })();
