@@ -1,4 +1,4 @@
-// gw-mp-export.js v0.1.0 — export a GWBestiary creature as MP Builder JSON,
+// gw-mp-export.js v0.2.0 — export a GWBestiary creature as MP Builder JSON,
 // the exact shape consumed by mp_engine.js `!mp import --name <handout>`.
 //
 // Workflow: roll encounter -> GWMPExport.json(name) -> paste into a Roll20
@@ -47,6 +47,16 @@
       .map(seg => ({ desc: seg, cp: cpOf(seg), ip: '' }));
   }
 
+  // Weaknesses are negative-CP entries in the same abilities list (MP construction).
+  // CP is a trailing signed number, e.g. "Distinctive (two-headed) -5".
+  function weaknessRows(text){
+    if (!text) return [];
+    return splitTop(text).filter(Boolean).map(seg => {
+      const m = seg.match(/(-\d+(?:\.\d+)?)\s*$/);
+      return { desc: seg, cp: m ? m[1] : '', ip: '' };
+    });
+  }
+
   // build the MP Builder JSON object for one creature (+ optional form index)
   function build(name, opts){
     const bst = B(); if (!bst) throw new Error('GWBestiary not loaded');
@@ -74,13 +84,14 @@
     const bioParts = [];
     if (e.gwSource)  bioParts.push('GW source: ' + e.gwSource);
     if (e.abilities) bioParts.push('Abilities: ' + e.abilities);
+    if (e.weaknesses)bioParts.push('Weaknesses: ' + e.weaknesses);
     if (e.equipment) bioParts.push('Equipment: ' + e.equipment);
     if (e.cpEstimate)bioParts.push('CP estimate: ' + e.cpEstimate);
     bioParts.push(`Encounter: ${e.encounterName} (No. appearing ${e.numberAppearing}). HTH ${f.hth||'—'}, Init ${f.init||'—'}.`);
     data.story = bioParts.join('\n');
 
-    // abilities (descriptive rows; do not carry BC mods)
-    data.abilities = abilityRows(e.abilities);
+    // abilities (descriptive) + weaknesses (negative-CP) as repeating rows
+    data.abilities = abilityRows(e.abilities).concat(weaknessRows(e.weaknesses));
     while (data.abilities.length < 12) data.abilities.push({ cp: '', desc: '', ip: '' });
 
     // attacks: Base HTH is auto on the sheet from ST; provide one melee row
@@ -119,5 +130,5 @@
   }
 
   window.GWMPExport = { build, json, handoutName, copy, download };
-  try { console.log('[gw-mp-export] v0.1.0 loaded'); } catch(_){}
+  try { console.log('[gw-mp-export] v0.2.0 loaded'); } catch(_){}
 })();

@@ -1,4 +1,8 @@
-// gw-feature-gen.js v0.1.0 — 2026-05-24
+// gw-feature-gen.js v0.2.0 — 2026-05-25
+// v0.2.0 — hazard-aware per-cell pass (radiation reads as deathlands) + a
+//          top-down rare pass for sited features: robot farms (anywhere),
+//          fortifications (uncommon), spaceports (irradiated parents only).
+//          Settlements now also trail to robot farms and forts.
 // Deterministic, seeded procedural features for the Gamma World subhex map.
 // For one 30-mile parent, places settlements and sites by subhex terrain,
 // spaces them out, links settlements with meandering ancient roads, and runs
@@ -25,7 +29,7 @@
     water:            {},
   };
   const ROLL_ORDER = ['village', 'town', 'ruin', 'lair', 'vault'];
-  const KIND_RADIUS = { town: 9, village: 8, ruin: 5, lair: 5, vault: 6 };  // min spacing (world units)
+  const KIND_RADIUS = { town: 9, village: 8, ruin: 5, lair: 5, vault: 6, 'robot-farm': 12, fortification: 12, spaceport: 14 };  // min spacing (world units)
   const MAX_ROAD   = 46;   // drop MST road edges longer than this (within-parent)
   const TRAIL_RANGE = 26;  // a settlement trails to a site within this range
 
@@ -70,6 +74,35 @@
     return pts;
   }
 
+  // Top-down rare/sited features the per-cell pass can't express well: scarce and
+  // terrain/hazard-gated. Robot farms turn up anywhere; forts are uncommon;
+  // spaceports only in irradiated parents (RAW: "center of an extremely
+  // devastated area, saturated with hard radiation").
+  function placeRareSites(D, R, cells, pt, placed, col, row){
+    const rng = R.mulberry32(R.seedFor(WORLD_SEED, 'sites', col, row));
+    const cand = [];
+    for (const c of cells){
+      const sub = D.getSubhex(c.Q, c.R, pt);
+      if (sub.terrain === 'water') continue;
+      const ctr = D.subhexSvgCenter(c.Q, c.R);
+      cand.push({ Q: c.Q, R: c.R, x: ctr.x, y: ctr.y, terr: sub.terrain, haz: sub.hazard });
+    }
+    if (!cand.length) return;
+    for (let i = cand.length - 1; i > 0; i--){ const j = Math.floor(rng() * (i + 1)); const t = cand[i]; cand[i] = cand[j]; cand[j] = t; }
+    const tryPlace = (kind, ok) => {
+      for (const c of cand){
+        if (ok && !ok(c)) continue;
+        if (tooClose(c.x, c.y, kind, placed)) continue;
+        placed.push({ Q: c.Q, R: c.R, x: c.x, y: c.y, kind });
+        return true;
+      }
+      return false;
+    };
+    if (rng() < 0.40) tryPlace('robot-farm', null);
+    if (rng() < 0.25) tryPlace('fortification', null);
+    if (cand.some(c => c.haz === 'radiation') && rng() < 0.20) tryPlace('spaceport', c => c.haz === 'radiation');
+  }
+
   function generateForParent(col, row){
     const D = window.GWSubhexData, R = window.GCCRng, A = window.GWAnnotations;
     if (!D || !R || !A){ console.warn('[gw-feature-gen] deps missing'); return null; }
@@ -87,13 +120,15 @@
 
     const placed = [];
     for (const c of order){
-      const terr = D.getSubhex(c.Q, c.R, pt).terrain;
-      const kind = chooseFeature(terr, rng);
+      const sub = D.getSubhex(c.Q, c.R, pt);
+      const rateKey = (sub.hazard === 'radiation') ? 'deathlands' : sub.terrain;   // irradiated ground reads as deathlands
+      const kind = chooseFeature(rateKey, rng);
       if (!kind) continue;
       const ctr = D.subhexSvgCenter(c.Q, c.R);
       if (tooClose(ctr.x, ctr.y, kind, placed)) continue;
       placed.push({ Q: c.Q, R: c.R, x: ctr.x, y: ctr.y, kind });
     }
+    placeRareSites(D, R, cells, pt, placed, col, row);   // top-down: robot farms / forts / spaceports
 
     let mc = 0, sc = 0;
     for (const p of placed){ A.addMarker(p.kind, p.x, p.y, { gen: true, parent: pk, deferSave: true }); mc++; }
@@ -104,7 +139,7 @@
       A.addStroke('road', jitterPath(settle[e.a], settle[e.b], rng), { gen: true, parent: pk, deferSave: true }); sc++;
     }
 
-    const sites = placed.filter(p => p.kind === 'ruin' || p.kind === 'lair' || p.kind === 'vault');
+    const sites = placed.filter(p => p.kind === 'ruin' || p.kind === 'lair' || p.kind === 'vault' || p.kind === 'robot-farm' || p.kind === 'fortification');
     const used = new Set();
     for (const s of settle){
       let best = null;
@@ -125,5 +160,5 @@
   }
 
   window.GWFeatureGen = { generateForParent, clearForParent, FEATURE_RATES };
-  try { console.log('[gw-feature-gen] v0.1.0 loaded'); } catch(_){}
+  try { console.log('[gw-feature-gen] v0.2.0 loaded'); } catch(_){}
 })();

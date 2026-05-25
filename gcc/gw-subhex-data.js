@@ -1,4 +1,4 @@
-// gw-subhex-data.js v0.4.0 — 2026-05-24
+// gw-subhex-data.js v0.4.1 — 2026-05-24 (memoize proceduralTerrain)
 // Gamma World 3-mile subhex data layer. LocalStorage-backed port of
 // gcc-subhex-data.js: keeps the flat-top odd-q axial/ownership engine,
 // the seeded procedural-terrain generator, and the per-cell override +
@@ -66,6 +66,7 @@
   const FEATURE_KINDS = [
     'city', 'town', 'village', 'ruin',
     'vault', 'lair', 'camp', 'shrine', 'landmark',
+    'robot-farm', 'fortification', 'spaceport',
   ];
   const FEATURE_KINDS_SET = new Set(FEATURE_KINDS);
 
@@ -338,14 +339,23 @@
     }
     return false;
   }
+  const _terrainCache = new Map();   // `${parentTerrain}|${Q}|${R}` -> terrain
   function proceduralTerrain(parentTerrain, Q, R){
     if (!parentTerrain) return null;
-    if (parentTerrain === 'plains' && forestClump(Q, R)) return 'forest';
-    const seed = window.GCCRng.seedFor(WORLD_SEED, 'subhex-terrain', Q, R);
-    const rng = window.GCCRng.mulberry32(seed);
-    if (window.GCCRng.chance(rng, PARENT_BIAS)) return parentTerrain;
-    const table = VARIATION[parentTerrain] || { [parentTerrain]: 1 };
-    return window.GCCRng.pickWeighted(rng, table);
+    const ck = parentTerrain + '|' + Q + '|' + R;
+    const hit = _terrainCache.get(ck);
+    if (hit !== undefined) return hit;
+    let out;
+    if (parentTerrain === 'plains' && forestClump(Q, R)) out = 'forest';
+    else {
+      const seed = window.GCCRng.seedFor(WORLD_SEED, 'subhex-terrain', Q, R);
+      const rng = window.GCCRng.mulberry32(seed);
+      if (window.GCCRng.chance(rng, PARENT_BIAS)) out = parentTerrain;
+      else { const table = VARIATION[parentTerrain] || { [parentTerrain]: 1 }; out = window.GCCRng.pickWeighted(rng, table); }
+    }
+    if (_terrainCache.size > 250000) _terrainCache.clear();   // soft cap
+    _terrainCache.set(ck, out);
+    return out;
   }
 
   function getSubhex(Q, R, parentTerrain, parentHazard){
@@ -491,5 +501,5 @@
     restoreOverride, clearSubhex, clearAll, flushOverrides, save,
   };
 
-  try { console.log('[gw-subhex-data] v0.4.0 loaded', { ANCHOR_COL, ANCHOR_ROW, HEX_R, SUB_R, seed: WORLD_SEED }); } catch(_){}
+  try { console.log('[gw-subhex-data] v0.4.1 loaded', { ANCHOR_COL, ANCHOR_ROW, HEX_R, SUB_R, seed: WORLD_SEED }); } catch(_){}
 })();

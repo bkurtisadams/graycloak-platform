@@ -94,7 +94,7 @@
   }
 
   // ── markers ────────────────────────────────────────────────────────────────
-  const MARKER_KINDS = ['city', 'town', 'village', 'ruin', 'vault', 'lair', 'camp', 'shrine', 'landmark'];
+  const MARKER_KINDS = ['city', 'town', 'village', 'ruin', 'vault', 'lair', 'camp', 'shrine', 'landmark', 'robot-farm', 'fortification', 'spaceport'];
   function addMarker(kind, x, y, opts){
     const k = MARKER_KINDS.includes(kind) ? kind : 'landmark';
     const m = { id: uid('m'), kind: k, x: +x, y: +y };

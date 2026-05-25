@@ -1,8 +1,38 @@
-// gw-subhex-view.js v0.14.0 — 2026-05-24
+// gw-subhex-view.js v0.24.0 — 2026-05-24
 // Seamless (Path B) 3-mile subhex viewer for the Gamma World map:
 // drill-in + pan/zoom, terrain paint brush, and a freehand vector overlay
 // (rivers/roads/trails) + settlement icon markers.
 //
+// v0.24.0 — marker icons for the new seeded site kinds: robot-farm (Mech-Land),
+//           fortification, spaceport. (Generation lives in gw-feature-gen v0.2.0.)
+// v0.23.0 — dice-off: when the day's remaining travel time can't cover the next
+//           hex, roll d100 vs (time left ÷ hex cost). Make it → push on (spent);
+//           miss → camp where you are. Both undoable; result shown in Time section.
+// v0.22.0 — party-move undo: "↶ Undo move" reverts the last move/placement as a
+//           unit (position, fog reveal, clock + exertion, primed cell). 50-deep.
+// v0.21.0 — pace model: assume Light burden (MP has no encumbrance). Normal =
+//           2 mph = 8 mi/route-turn = 24 mi over a 3-turn travel day; rugged/
+//           very-rugged = 16/8 mi/day (DMG 3:2:1). Drops the Load selector.
+// v0.20.0 — switch travel pace to the AD&D DMG miles/day model (terrain tier ×
+//           party load), keeping GW's route-turn clock. Adds a Load selector and
+//           a current-pace readout. Mountains now ~½ a travel day/hex, not 19h.
+// v0.19.0 — recalibrate the clock to GW1e RAW: distance is km/turn by terrain
+//           (1 km/turn swamp/mountain … 8 km/turn clear), time tracked in
+//           minutes so a clear 3-mile hex ≈ 0.6 turn. Adds the rest rule —
+//           travel >4 of 6 turns without rest → half rate (Camp resets it).
+// v0.18.0 — hex-crawl slice 2: route-turn clock on a Gregorian 2471 calendar
+//           (6 four-hour turns/day). Moving the party advances the clock by
+//           the entered subhex's terrain cost (TURN_COST table). Time section:
+//           date readout + Turn/Day/Camp/Set-date controls. Persisted.
+// v0.17.0 — hex-crawl slice 1: party token + fog of war on the 3-mile grid.
+//           Party section (Place = GM teleport, Move = step toward click);
+//           entering a subhex reveals a 1-ring disk (9 mi) and primes the
+//           encounter roller. Fog veils unrevealed cells once a party exists.
+//           Time/encounter hooks stubbed in setPartyAt for later slices.
+// v0.16.0 — click a subhex in pan/select mode to select it (persistent cyan
+//           highlight); "Roll here" uses the selected cell.
+// v0.15.0 — palette: terrain swatches in a 2-column grid with larger
+//           click targets.
 // v0.14.0 — readability/UI pass: collapsible palette sections, draggable
 //           palette is now resizable, and a persisted UI-zoom (± row +
 //           Ctrl+wheel) scales the overlay panels (CSS zoom, Chrome).
@@ -53,6 +83,12 @@
     hazMap: new Map(),
     previewMap: new Map(),
     hoverKey: null,
+    selected: null,     // { Q, R } — persistent click selection for encounters
+    party: null,        // { Q, R } — party token position (global subhex axial)
+    partyUndo: [],      // snapshots for undoing party moves (position + fog + clock)
+    revealed: null,     // Set<"Q_R"> — fog: subhexes seen by the party (lazy-loaded)
+    fogOn: true,        // GM fog overlay visible (only veils when a party exists)
+    clock: null,        // { year, month, day, min, exert } — campaign date + route-turn (lazy-loaded)
     raf: 0,
     panRaf: 0,
     curParent: null,
@@ -73,6 +109,10 @@
       .gw-sx-cellpath { stroke:rgba(0,0,0,.35); stroke-width:1; vector-effect:non-scaling-stroke; }
       .gw-sx-authpath { fill:none; stroke:#ff8844; stroke-width:1.5; vector-effect:non-scaling-stroke; pointer-events:none; }
       .gw-sx-hover { fill:none; stroke:rgba(255,220,120,.95); stroke-width:2; vector-effect:non-scaling-stroke; pointer-events:none; }
+      .gw-sx-sel { fill:rgba(110,210,255,.14); stroke:#66d9ff; stroke-width:2.5; vector-effect:non-scaling-stroke; pointer-events:none; }
+      .gw-sx-fog { fill:rgba(8,10,16,.55); stroke:rgba(8,10,16,.55); stroke-width:1; vector-effect:non-scaling-stroke; pointer-events:none; }
+      .gw-sx-party { fill:rgba(255,82,82,.16); stroke:#ff5252; stroke-width:2.5; vector-effect:non-scaling-stroke; pointer-events:none; }
+      .gw-sx-party-dot { fill:#ff5252; stroke:#fff; stroke-width:1; vector-effect:non-scaling-stroke; pointer-events:none; }
       .gw-sx-parent { fill:none; stroke:rgba(255,200,120,.5); stroke-width:1.5; vector-effect:non-scaling-stroke; pointer-events:none; }
       .gw-sx-rad { fill:url(#gw-sx-rad); stroke:rgba(195,240,55,.4); stroke-width:1; vector-effect:non-scaling-stroke; pointer-events:none; }
       .gw-sx-line { fill:none; vector-effect:non-scaling-stroke; stroke-linecap:round; stroke-linejoin:round; pointer-events:none; }
@@ -100,10 +140,12 @@
       #gw-sx-zoom button { width:24px; height:22px; font-size:15px; line-height:1; cursor:pointer; background:rgba(0,0,0,.25); border:1px solid #5a3a0a; color:#e8d5a3; border-radius:2px; }
       #gw-sx-zoom button:hover { background:rgba(255,136,68,.18); color:#ffaa66; }
       #gw-sx-zoom .sx-zlabel { flex:1; text-align:center; font-size:11px; color:#ffce9e; }
-      .gw-sx-sw { display:flex; align-items:center; gap:6px; width:100%; background:none; border:1px solid transparent; color:#e8d5a3; font-size:12px; padding:3px 4px; cursor:pointer; border-radius:2px; text-align:left; }
+      .gw-sx-terr { display:grid; grid-template-columns:1fr 1fr; gap:4px; }
+      .gw-sx-sw { display:flex; align-items:center; gap:6px; width:100%; background:rgba(0,0,0,.18); border:1px solid #5a3a0a; color:#e8d5a3; font-size:12px; padding:5px 5px; cursor:pointer; border-radius:2px; text-align:left; overflow:hidden; }
+      .gw-sx-sw span:last-child { white-space:nowrap; text-overflow:ellipsis; overflow:hidden; }
       .gw-sx-sw:hover { background:rgba(255,136,68,.15); }
       .gw-sx-sw.armed { border-color:#ff8844; background:rgba(255,136,68,.22); }
-      .gw-sx-chip { width:15px; height:15px; border:1px solid rgba(0,0,0,.45); flex:none; border-radius:1px; }
+      .gw-sx-chip { width:17px; height:17px; border:1px solid rgba(0,0,0,.45); flex:none; border-radius:1px; }
       .gw-sx-tools { display:grid; grid-template-columns:1fr 1fr; gap:4px; }
       .gw-sx-tool { background:rgba(0,0,0,.25); border:1px solid #5a3a0a; color:#e8d5a3; font-family:'Crimson Text',serif; font-size:12px; padding:4px 3px; cursor:pointer; border-radius:2px; }
       .gw-sx-tool:hover { background:rgba(255,136,68,.15); }
@@ -161,6 +203,107 @@
   // SVG map, which has its own pan/zoom. Persisted; adjustable via the ± row,
   // Ctrl+wheel over a panel, or Ctrl +/-/0. Range 0.8–2.5.
   const ZOOM_KEY = 'gw-sx-ui-zoom', ZMIN = 0.8, ZMAX = 2.5, ZSTEP = 0.1;
+
+  // ── party token + fog of war persistence ────────────────────────────────────
+  // Global across parents — it's one continuous 3-mile grid, so a single party
+  // position and a single revealed-set, not per-parent.
+  const PARTY_KEY = 'gw-sx-party', FOG_KEY = 'gw-sx-revealed', FOGVIS_KEY = 'gw-sx-fog-on';
+  const SIGHT_RADIUS = 1;   // rings revealed on entering a subhex (1 = center + ring = 9 mi across)
+  function loadPartyState(){
+    if (state.revealed) return;                 // already loaded
+    state.revealed = new Set();
+    try { const a = JSON.parse(localStorage.getItem(FOG_KEY) || '[]'); if (Array.isArray(a)) a.forEach(k => state.revealed.add(k)); } catch(_){}
+    try { const p = JSON.parse(localStorage.getItem(PARTY_KEY) || 'null'); if (p && Number.isFinite(p.Q) && Number.isFinite(p.R)) state.party = p; } catch(_){}
+    try { state.fogOn = localStorage.getItem(FOGVIS_KEY) !== '0'; } catch(_){}
+    try { const c = JSON.parse(localStorage.getItem(CLOCK_KEY) || 'null');
+      if (c && Number.isFinite(c.year)){
+        if (!Number.isFinite(c.min)) c.min = Number.isFinite(c.turn) ? (c.turn - 1) * TURN_MIN : DAWN_MIN;  // migrate old {turn}
+        if (!Number.isFinite(c.exert)) c.exert = 0;
+        delete c.turn;
+        state.clock = c;
+      }
+    } catch(_){}
+    if (!state.clock) state.clock = defaultClock();
+  }
+  function saveParty(){ try { localStorage.setItem(PARTY_KEY, JSON.stringify(state.party)); } catch(_){} }
+  function saveRevealed(){ try { localStorage.setItem(FOG_KEY, JSON.stringify([...state.revealed])); } catch(_){} }
+  function saveFogVis(){ try { localStorage.setItem(FOGVIS_KEY, state.fogOn ? '1' : '0'); } catch(_){} }
+
+  // ── time: RAW route movement on a Gregorian 2471 calendar ────────────────────
+  // GW1e: one route move ≈ 4 hours, six route-turns per day. Distance is 1 km/turn
+  // over swamp/mountains up to 8 km/turn over clear terrain (rates already fold in
+  // careful searching). Time is tracked in minutes so a clear 3-mile hex costs ~0.6
+  // of a turn and a mountain hex costs several. km/turn values are tunable.
+  const CLOCK_KEY = 'gw-sx-clock';
+  const TURN_MIN = 240, DAY_MIN = 1440, DAWN_MIN = TURN_MIN;     // 4-hour route-turn; dawn = 04:00
+  const HEX_MILES = 3;                                           // a subhex is 3 miles across
+  const TRAVEL_TURNS_PER_DAY = 3;                                // ~12h travel; the rest is sleep/camp
+  const REST_DUE_MIN = TRAVEL_TURNS_PER_DAY * TURN_MIN;          // a full travel day before rest is due
+  // Light burden always (MP has no encumbrance). Normal terrain = 2 mph → 8 mi per
+  // 4-hour route-turn → 24 mi over a 3-turn travel day. Rugged / very-rugged scale
+  // down by the DMG Light-column 3:2:1 ratio (24 / 16 / 8 mi/day). Tunable.
+  const TERRAIN_TIER = {
+    plains: 'normal', desert: 'normal', forest: 'rugged', 'heavy-forest': 'very_rugged',
+    mountains: 'very_rugged', 'snow-mountains': 'very_rugged', ruins: 'rugged', water: 'very_rugged',
+    unknown: 'normal', _default: 'normal',
+  };
+  const MILES_PER_DAY = { normal: 24, rugged: 16, very_rugged: 8 };
+  const MONTHS = ['January','February','March','April','May','June',
+                  'July','August','September','October','November','December'];
+  const TURN_LABEL = { 1:'Deep night', 2:'Dawn', 3:'Morning', 4:'Midday', 5:'Evening', 6:'Night' };
+  function defaultClock(){ return { year: 2471, month: 4, day: 1, min: DAWN_MIN, exert: 0 }; }
+  function isLeap(y){ return (y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0); }
+  function daysInMonth(y, m){ return [31, isLeap(y)?29:28, 31,30,31,30,31,31,30,31,30,31][m-1]; }
+  function saveClock(){ try { localStorage.setItem(CLOCK_KEY, JSON.stringify(state.clock)); } catch(_){} }
+  function advanceDay(c){
+    c.day += 1;
+    if (c.day > daysInMonth(c.year, c.month)){ c.day = 1; c.month += 1; if (c.month > 12){ c.month = 1; c.year += 1; } }
+  }
+  function advanceMinutes(n){
+    const c = state.clock; c.min += n;
+    while (c.min >= DAY_MIN){ c.min -= DAY_MIN; advanceDay(c); }
+    saveClock(); renderClock();
+  }
+  function milesPerDayFor(sub){
+    const tier = TERRAIN_TIER[sub && sub.terrain] || TERRAIN_TIER._default;
+    return MILES_PER_DAY[tier] || MILES_PER_DAY.normal;
+  }
+  // minutes to enter a 3-mile subhex: spread the day's DMG miles over the travel-turns
+  function costMinutesFor(sub){ return Math.round(HEX_MILES * TRAVEL_TURNS_PER_DAY * TURN_MIN / milesPerDayFor(sub)); }
+  // advance the clock for entering a subhex; over-exertion halves the rate (RAW)
+  function travelInto(sub){
+    const c = state.clock;
+    let cost = costMinutesFor(sub);
+    if ((c.exert || 0) >= REST_DUE_MIN) cost *= 2;     // past 4 travel-turns without rest
+    c.exert = (c.exert || 0) + cost;
+    advanceMinutes(cost);                               // saves + renders
+  }
+  function makeCamp(){ const c = state.clock; if (c.min >= DAWN_MIN) advanceDay(c); c.min = DAWN_MIN; c.exert = 0; saveClock(); renderClock(); }
+  function setDate(){
+    const c = state.clock;
+    const v = prompt('Set campaign date (YYYY-MM-DD):',
+      `${c.year}-${String(c.month).padStart(2,'0')}-${String(c.day).padStart(2,'0')}`);
+    if (!v) return;
+    const m = v.match(/^(\d{1,5})-(\d{1,2})-(\d{1,2})$/); if (!m) return;
+    const year = +m[1], month = Math.min(12, Math.max(1, +m[2]));
+    const day = Math.min(daysInMonth(year, month), Math.max(1, +m[3]));
+    state.clock = { year, month, day, min: c.min, exert: c.exert || 0 }; saveClock(); renderClock();
+  }
+  function clockText(){
+    const c = state.clock; if (!c) return '';
+    const turn = Math.min(6, Math.floor(c.min / TURN_MIN) + 1);
+    const hh = String(Math.floor(c.min / 60)).padStart(2,'0'), mm = String(c.min % 60).padStart(2,'0');
+    let s = `${MONTHS[c.month-1]} ${c.day}, ${c.year} AD <span style="color:#9a8">· the Black Years</span>`
+          + `<br><span style="color:#cba">Route-turn ${turn}/6 — ${TURN_LABEL[turn]} · ${hh}:${mm}</span>`;
+    if ((c.exert || 0) >= REST_DUE_MIN) s += `<br><span style="color:#ff8a6a">⚠ Over-exerted — ½ travel rate until rest</span>`;
+    if (state.party && D()){
+      const sub = D().getSubhexAt(state.party.Q, state.party.R);
+      const tier = (TERRAIN_TIER[sub.terrain] || 'normal').replace('_', ' ');
+      s += `<br><span style="color:#8ab0a0">Pace ${milesPerDayFor(sub)} mi/day · ${tier}</span>`;
+    }
+    return s;
+  }
+  function renderClock(){ if (state.el.clockBody) state.el.clockBody.innerHTML = clockText(); }
   function loadZoom(){ const v = parseFloat(localStorage.getItem(ZOOM_KEY)); return (v >= ZMIN && v <= ZMAX) ? v : 1; }
   function applyZoom(z){
     state.uiZoom = z;
@@ -208,14 +351,16 @@
 
     pal.appendChild(hd('Terrain'));
     const T = D().TERRAIN;
+    const terr = document.createElement('div'); terr.className = 'gw-sx-terr';
     for (const key of Object.keys(T)){
       if (key === 'unknown') continue;
       const sw = document.createElement('button');
       sw.className = 'gw-sx-sw'; sw.dataset.arm = 'paint:' + key;
       sw.innerHTML = `<span class="gw-sx-chip" style="background:${T[key].fill}"></span><span>${T[key].label}</span>`;
       sw.addEventListener('click', () => arm({ type: 'paint', terrain: key }));
-      pal.appendChild(sw);
+      terr.appendChild(sw);
     }
+    pal.appendChild(terr);
     const trow = document.createElement('div'); trow.className = 'sx-row2';
     const erase = mkBtn('⌫ Erase', 'gw-sx-erase'); erase.dataset.arm = 'erase';
     erase.addEventListener('click', () => arm({ type: 'erase' }));
@@ -287,11 +432,60 @@
     fe.addEventListener('click', () => arm({ type: 'annot-erase' }));
     pal.appendChild(fe);
 
+    pal.appendChild(hd('Party'));
+    const ppB = mkBtn('📍 Place party', 'gw-sx-party-place'); ppB.dataset.arm = 'party-place'; ppB.style.width = '100%';
+    ppB.title = 'GM: drop/teleport the party on any subhex (reveals around it, no time cost)';
+    ppB.addEventListener('click', () => arm({ type: 'party-place' }));
+    pal.appendChild(ppB);
+    const pmB = mkBtn('🧭 Move party', 'gw-sx-party-move'); pmB.dataset.arm = 'party-move'; pmB.style.width = '100%';
+    pmB.title = 'Step the party one 3-mile hex toward the clicked cell';
+    pmB.addEventListener('click', () => arm({ type: 'party-move' }));
+    pal.appendChild(pmB);
+    const puB = mkBtn('↶ Undo move', 'gw-sx-party-undo'); puB.style.width = '100%'; puB.disabled = true;
+    puB.title = 'Undo the last party move/placement (position, fog, and clock)';
+    puB.addEventListener('click', undoPartyMove);
+    pal.appendChild(puB);
+    state.el.partyUndoBtn = puB;
+    const fogRow = document.createElement('label');
+    fogRow.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:11px;color:#d8c4a0;margin:4px 0 2px;cursor:pointer;';
+    const fogCb = document.createElement('input'); fogCb.type = 'checkbox'; fogCb.id = 'gw-sx-fog-cb'; fogCb.checked = true;
+    fogCb.addEventListener('change', () => { state.fogOn = fogCb.checked; saveFogVis(); renderFog(); });
+    fogRow.append(fogCb, document.createTextNode(' Show fog'));
+    pal.appendChild(fogRow);
+    state.el.fogCb = fogCb;
+    const resetFog = mkBtn('⟲ Reset fog', 'gw-sx-fog-reset'); resetFog.style.width = '100%';
+    resetFog.title = 'Re-hide every subhex (clears what the party has seen)';
+    resetFog.addEventListener('click', () => { if (state.revealed) state.revealed.clear(); if (state.party) reveal(state.party.Q, state.party.R); saveRevealed(); renderFog(); });
+    pal.appendChild(resetFog);
+
+    pal.appendChild(hd('Time'));
+    const clockBody = document.createElement('div'); clockBody.id = 'gw-sx-clock';
+    clockBody.style.cssText = 'font-size:11px;line-height:1.45;color:#e8d6b0;margin:2px 0 5px;';
+    pal.appendChild(clockBody);
+    state.el.clockBody = clockBody;
+    const tRow = document.createElement('div'); tRow.style.cssText = 'display:flex;gap:4px;margin-bottom:3px;';
+    const tTurn = mkBtn('+Turn', 'gw-sx-t-turn'); tTurn.style.flex = '1'; tTurn.title = 'Advance one 4-hour route-turn';
+    tTurn.addEventListener('click', () => advanceMinutes(TURN_MIN));
+    const tDay = mkBtn('+Day', 'gw-sx-t-day'); tDay.style.flex = '1'; tDay.title = 'Advance one full day';
+    tDay.addEventListener('click', () => { advanceDay(state.clock); saveClock(); renderClock(); });
+    tRow.append(tTurn, tDay); pal.appendChild(tRow);
+    const tRow2 = document.createElement('div'); tRow2.style.cssText = 'display:flex;gap:4px;';
+    const tCamp = mkBtn('⛺ Camp', 'gw-sx-t-camp'); tCamp.style.flex = '1'; tCamp.title = 'Rest overnight — jump to next dawn';
+    tCamp.addEventListener('click', makeCamp);
+    const tSet = mkBtn('📅 Set', 'gw-sx-t-set'); tSet.style.flex = '1'; tSet.title = 'Set the campaign date';
+    tSet.addEventListener('click', setDate);
+    tRow2.append(tCamp, tSet); pal.appendChild(tRow2);
+    const travelMsg = document.createElement('div'); travelMsg.id = 'gw-sx-travel-msg';
+    travelMsg.style.cssText = 'font-size:10px;font-style:italic;color:#c2a7b0;margin-top:3px;';
+    pal.appendChild(travelMsg);
+    state.el.travelMsg = travelMsg;
+
     pal.appendChild(hd('Encounters'));
     const encB = mkBtn('🎲 Roll here', 'gw-sx-enc-roll'); encB.style.width = '100%';
-    encB.title = 'Roll a wilderness encounter for the hovered (or view-center) subhex';
+    encB.title = 'Roll a wilderness encounter for the selected (or hovered) subhex';
     encB.addEventListener('click', rollEncounterHere);
     pal.appendChild(encB);
+    state.el.encBtn = encB;
 
     makeCollapsible(pal);
     return pal;
@@ -325,16 +519,18 @@
   }
 
   // ── encounters ─────────────────────────────────────────────────────────────
-  // Roll for the hovered subhex (falls back to the view-center cell), resolving
-  // on the cell's own terrain + hazard + feature via the shared GWEncounter
-  // resolver. RAW priority feature -> radiation -> terrain lives in rollEncounter.
+  // Roll for the selected subhex (or the hovered / view-center cell as a
+  // fallback), resolving on that cell's own terrain + hazard + feature via the
+  // shared GWEncounter resolver. RAW priority feature -> radiation -> terrain
+  // lives in rollEncounter.
   function rollEncounterHere(){
     const d = D();
     if (!window.GWEncounter || !window.GWEncounterData){
       showEncounter('<span class="enc-x" title="Close">✕</span><span class="enc-nope">Encounter tables not loaded.</span>'); return;
     }
     let Q, R;
-    if (state.hoverKey){ const p = state.hoverKey.split('_'); Q = +p[0]; R = +p[1]; }
+    if (state.selected){ Q = state.selected.Q; R = state.selected.R; }
+    else if (state.hoverKey){ const p = state.hoverKey.split('_'); Q = +p[0]; R = +p[1]; }
     else { const c = d.svgToAxial(state.vb.x + state.vb.w / 2, state.vb.y + state.vb.h / 2); Q = c.Q; R = c.R; }
     const sub = d.getSubhexAt(Q, R);
     const feat = d.getCellFeature(Q, R);
@@ -376,6 +572,152 @@
     const x = el.querySelector('.enc-x'); if (x) x.onclick = () => el.classList.remove('show');
   }
 
+  // ── cell selection (for encounters) ─────────────────────────────────────────
+  // Click a subhex in pan/select mode to mark it; it stays highlighted (cyan)
+  // until you pick another, so you can then hit "Roll" in the palette.
+  function selectCell(Q, R){
+    state.selected = { Q, R };
+    renderSelection();
+    if (state.el.encBtn) state.el.encBtn.textContent = `🎲 Roll: ${Q},${R}`;
+  }
+  function clearSelection(){
+    state.selected = null;
+    renderSelection();
+    if (state.el.encBtn) state.el.encBtn.textContent = '🎲 Roll here';
+  }
+  function renderSelection(){
+    const g = state.el.gSel; if (!g) return;
+    if (!state.selected){ g.replaceChildren(); return; }
+    const d = D(); const c = d.subhexSvgCenter(state.selected.Q, state.selected.R);
+    const p = document.createElementNS(SVGNS, 'polygon');
+    p.setAttribute('points', cornersStr(c.x, c.y, d.SUB_R));
+    p.setAttribute('class', 'gw-sx-sel');
+    g.replaceChildren(p);
+  }
+
+  // ── party token + fog of war (3-mile grid) ──────────────────────────────────
+  function hexDist(q1, r1, q2, r2){
+    return (Math.abs(q1 - q2) + Math.abs(q1 + r1 - q2 - r2) + Math.abs(r1 - r2)) / 2;
+  }
+  // reveal the subhex + a hex-disk of SIGHT_RADIUS around it (radius 1 = 9 mi across)
+  function reveal(Q, R){
+    if (!state.revealed) state.revealed = new Set();
+    const added = [];
+    for (let dq = -SIGHT_RADIUS; dq <= SIGHT_RADIUS; dq++){
+      for (let dr = -SIGHT_RADIUS; dr <= SIGHT_RADIUS; dr++){
+        if (hexDist(Q, R, Q + dq, R + dr) > SIGHT_RADIUS) continue;
+        const k = (Q + dq) + '_' + (R + dr);
+        if (!state.revealed.has(k)){ state.revealed.add(k); added.push(k); }
+      }
+    }
+    if (added.length){ saveRevealed(); renderFog(); }
+    return added;
+  }
+  function setPartyAt(Q, R, entered){
+    const snap = {                              // capture pre-move state for undo
+      party: state.party ? { Q: state.party.Q, R: state.party.R } : null,
+      clock: state.clock ? { ...state.clock } : null,
+      selected: state.selected ? { Q: state.selected.Q, R: state.selected.R } : null,
+      added: null,
+    };
+    state.party = { Q, R };
+    saveParty();
+    snap.added = reveal(Q, R);                  // fog keys this move revealed (to roll back)
+    renderParty();
+    if (entered){
+      selectCell(Q, R);                       // prime the encounter roller on the just-entered cell
+      travelInto(D().getSubhexAt(Q, R));       // RAW km/turn travel time (advances the clock)
+      // TODO(encounter slice): optional auto-roll via window.GWEncounter when toggled on.
+    }
+    pushPartyUndo(snap);
+  }
+  function pushPartyUndo(snap){
+    state.partyUndo.push(snap);
+    if (state.partyUndo.length > 50) state.partyUndo.shift();
+    syncPartyUndoBtn();
+  }
+  function undoPartyMove(){
+    const snap = state.partyUndo.pop(); if (!snap) return;
+    state.party = snap.party;
+    if (snap.clock) state.clock = snap.clock;
+    if (snap.added && state.revealed) snap.added.forEach(k => state.revealed.delete(k));
+    saveParty(); saveRevealed(); saveClock();
+    renderParty(); renderFog(); renderClock();
+    if (snap.selected) selectCell(snap.selected.Q, snap.selected.R); else clearSelection();
+    setTravelMsg('');
+    syncPartyUndoBtn();
+  }
+  function syncPartyUndoBtn(){ if (state.el.partyUndoBtn) state.el.partyUndoBtn.disabled = !state.partyUndo.length; }
+  function placeParty(Q, R){ setPartyAt(Q, R, false); }     // GM teleport: reveal only, no time/encounter
+  function movePartyToward(Q, R){
+    if (!state.party){ setPartyAt(Q, R, true); return; }     // first move drops the party (counts as entering)
+    const p = state.party;
+    if (p.Q === Q && p.R === R) return;
+    let best = null, bestD = Infinity;                       // single 3-mile step toward the click
+    for (const n of D().neighborsOf(p.Q, p.R)){
+      const dd = hexDist(n.Q, n.R, Q, R);
+      if (dd < bestD){ bestD = dd; best = n; }
+    }
+    if (!best) return;
+    // dice-off: if the day's remaining travel time can't cover the next hex, roll
+    // to see if the party squeezes it in (chance = time left ÷ hex cost) or camps short.
+    const baseCost = costMinutesFor(D().getSubhexAt(best.Q, best.R));
+    const remaining = REST_DUE_MIN - ((state.clock && state.clock.exert) || 0);
+    if (remaining > 0 && remaining < baseCost){
+      const pct = Math.max(1, Math.round(remaining / baseCost * 100));
+      const d100 = 1 + Math.floor(Math.random() * 100);
+      if (d100 <= pct){
+        setPartyAt(best.Q, best.R, true);
+        setTravelMsg(`✓ Pushed on — reached the hex (rolled ${d100} ≤ ${pct}%). Party is spent.`);
+      } else {
+        campWhereYouAre();
+        setTravelMsg(`✗ Fell short (rolled ${d100} > ${pct}%) — camped here for the night.`);
+      }
+      return;
+    }
+    setPartyAt(best.Q, best.R, true);
+    setTravelMsg('');
+  }
+  function campWhereYouAre(){                                 // fall-short camp; undoable as one action
+    const snap = {
+      party: state.party ? { Q: state.party.Q, R: state.party.R } : null,
+      clock: state.clock ? { ...state.clock } : null,
+      selected: state.selected ? { Q: state.selected.Q, R: state.selected.R } : null,
+      added: [],
+    };
+    makeCamp();
+    pushPartyUndo(snap);
+  }
+  function setTravelMsg(msg){ if (state.el.travelMsg) state.el.travelMsg.textContent = msg || ''; }
+  function renderParty(){
+    const g = state.el.gParty; if (!g) return;
+    if (!state.party){ g.replaceChildren(); return; }
+    const d = D(); const c = d.subhexSvgCenter(state.party.Q, state.party.R);
+    const ring = document.createElementNS(SVGNS, 'circle');
+    ring.setAttribute('cx', c.x); ring.setAttribute('cy', c.y); ring.setAttribute('r', (d.SUB_R * 0.42).toFixed(2));
+    ring.setAttribute('class', 'gw-sx-party');
+    const dot = document.createElementNS(SVGNS, 'circle');
+    dot.setAttribute('cx', c.x); dot.setAttribute('cy', c.y); dot.setAttribute('r', (d.SUB_R * 0.16).toFixed(2));
+    dot.setAttribute('class', 'gw-sx-party-dot');
+    g.replaceChildren(ring, dot);
+  }
+  // veil unrevealed cells in view as one batched path; only engages once a party exists
+  function renderFog(){
+    const g = state.el.gFog; if (!g) return;
+    g.replaceChildren();
+    if (!state.fogOn || !state.party || !state.revealed || !state.rendered) return;
+    const d = D(); let dStr = '';
+    for (const { Q, R } of d.cellsInAxialBbox(state.rendered)){
+      if (state.revealed.has(Q + '_' + R)) continue;
+      const c = d.subhexSvgCenter(Q, R);
+      dStr += hexPath(c.x, c.y, d.SUB_R);
+    }
+    if (!dStr) return;
+    const p = document.createElementNS(SVGNS, 'path');
+    p.setAttribute('d', dStr); p.setAttribute('class', 'gw-sx-fog');
+    g.appendChild(p);
+  }
+
   function ensureDom(){
     if (state.el.overlay) return;
     injectStyle();
@@ -408,8 +750,11 @@
     const gEditor = document.createElementNS(SVGNS, 'g');  gEditor.id = 'gw-sx-editor';
     const gPreview = document.createElementNS(SVGNS, 'g'); gPreview.id = 'gw-sx-preview';
     const gHover = document.createElementNS(SVGNS, 'g');   gHover.id = 'gw-sx-hover';
+    const gSel = document.createElementNS(SVGNS, 'g');     gSel.id = 'gw-sx-sel';
+    const gFog = document.createElementNS(SVGNS, 'g');     gFog.id = 'gw-sx-fog';
+    const gParty = document.createElementNS(SVGNS, 'g');   gParty.id = 'gw-sx-party';
     const panG = document.createElementNS(SVGNS, 'g');     panG.id = 'gw-sx-pan';
-    panG.append(gCells, gHaz, gPreview, gParents, basemap, gAnnot, gEditor, gHover);
+    panG.append(gCells, gHaz, gPreview, gParents, basemap, gAnnot, gEditor, gFog, gSel, gParty, gHover);
     svg.append(defs, panG);
 
     const palette = buildPalette();
@@ -434,7 +779,7 @@
     document.body.appendChild(overlay);
 
     Object.assign(state.el, {
-      overlay, svg, gCells, gParents, gAnnot, gEditor, gHaz, panG, gPreview, gHover, basemap, title, read, enc,
+      overlay, svg, gCells, gParents, gAnnot, gEditor, gHaz, panG, gPreview, gHover, gSel, gFog, gParty, basemap, title, read, enc,
       readBody: read.querySelector('#gw-sx-read-body'),
       mode: palette.querySelector('#gw-sx-mode'),
       undoBtn: palette.querySelector('#gw-sx-undo'),
@@ -498,8 +843,10 @@
         }
         else if (a.type === 'marker'){ placeMarker(e); return; }
         else if (a.type === 'annot-erase'){ eraseAnnotationAt(e); return; }
+        else if (a.type === 'party-place'){ const c = cellAt(e); if (c) placeParty(c.Q, c.R); return; }
+        else if (a.type === 'party-move'){ const c = cellAt(e); if (c) movePartyToward(c.Q, c.R); return; }
       }
-      state.drag = { r: svg.getBoundingClientRect(), sx: e.clientX, sy: e.clientY, vx: state.vb.x, vy: state.vb.y, moved: false };
+      state.drag = { r: svg.getBoundingClientRect(), sx: e.clientX, sy: e.clientY, vx: state.vb.x, vy: state.vb.y, moved: false, selCell: cellAt(e) };
       svg.classList.add('grabbing');
     });
     svg.addEventListener('contextmenu', e => e.preventDefault());
@@ -542,6 +889,8 @@
         state.el.panG.removeAttribute('transform'); state.el.panG.style.willChange = '';
         applyViewBox(); render();
         state.el.gHaz.style.display = ''; state.el.gAnnot.style.display = '';
+      } else if (dr.selCell){
+        selectCell(dr.selCell.Q, dr.selCell.R);
       }
     });
     svg.addEventListener('wheel', e => {
@@ -637,6 +986,8 @@
     }
     state.el.gParents.replaceChildren(fragP);
     renderAnnotations();
+    renderFog();
+    renderParty();
   }
 
   // ── annotation overlay ─────────────────────────────────────────────────────
@@ -690,6 +1041,22 @@
       add('circle', { cx:x, cy:y, r:r, fill:'none', stroke:ink, 'stroke-width':2 });
       add('circle', { cx:x, cy:y, r:r*0.5, fill:ink });
       add('rect', { x:x-r*0.28, y:y-r*0.28, width:r*0.56, height:r*0.56, fill:'#f3ead2' });
+    } else if (kind === 'robot-farm'){
+      const mech = '#3d6b57';                                   // Mech-Land: robot head + antenna
+      add('rect', { x:x-r*0.6, y:y-r*0.45, width:r*1.2, height:r*1.0, rx:r*0.2, fill:'none', stroke:mech, 'stroke-width':2 });
+      add('circle', { cx:x-r*0.25, cy:y, r:r*0.13, fill:mech });
+      add('circle', { cx:x+r*0.25, cy:y, r:r*0.13, fill:mech });
+      add('line', { x1:x, y1:y-r*0.45, x2:x, y2:y-r, stroke:mech, 'stroke-width':2 });
+      add('circle', { cx:x, cy:y-r, r:r*0.14, fill:mech });
+    } else if (kind === 'fortification'){
+      const steel = '#4a5560';                                  // bastion / shield
+      add('path', { d:`M ${x},${y-r} L ${x+r*0.8},${y-r*0.4} L ${x+r*0.8},${y+r*0.35} L ${x},${y+r} L ${x-r*0.8},${y+r*0.35} L ${x-r*0.8},${y-r*0.4} Z`, fill:'none', stroke:steel, 'stroke-width':2 });
+      add('line', { x1:x, y1:y-r*0.45, x2:x, y2:y+r*0.55, stroke:steel, 'stroke-width':2 });
+    } else if (kind === 'spaceport'){
+      const tech = '#6a4a7a';                                   // rocket on a pad
+      add('path', { d:`M ${x},${y-r} L ${x+r*0.34},${y+r*0.45} L ${x-r*0.34},${y+r*0.45} Z`, fill:'none', stroke:tech, 'stroke-width':2 });
+      add('circle', { cx:x, cy:y-r*0.15, r:r*0.13, fill:tech });
+      add('line', { x1:x-r*0.6, y1:y+r*0.7, x2:x+r*0.6, y2:y+r*0.7, stroke:tech, 'stroke-width':2 });
     } else { // town (default)
       add('circle', { cx:x, cy:y, r:r*0.85, fill:'none', stroke:ink, 'stroke-width':2 });
       add('rect', { x:x-r*0.42, y:y-r*0.42, width:r*0.84, height:r*0.84, fill:ink });
@@ -904,6 +1271,8 @@
     if (a.type === 'hazard') return 'hazard:' + a.mode;
     if (a.type === 'draw') return 'draw:' + a.kind;
     if (a.type === 'marker') return 'marker:' + a.kind;
+    if (a.type === 'party-place') return 'party-place';
+    if (a.type === 'party-move') return 'party-move';
     return null;
   }
   function arm(spec){
@@ -929,6 +1298,8 @@
     }
     else if (a.type === 'marker') el.textContent = `Place ${a.kind} · click (shift = name)`;
     else if (a.type === 'annot-erase') el.textContent = 'Erase feature · click a line/icon';
+    else if (a.type === 'party-place') el.textContent = 'Place party · click any hex (GM, no time)';
+    else if (a.type === 'party-move') el.textContent = 'Move party · click a hex to step toward it';
   }
 
   // ── hover readout ──────────────────────────────────────────────────────────
@@ -964,6 +1335,11 @@
     state.open = true; state.curParent = { col, row };
     state.el.overlay.classList.add('open');
     if (state.el.enc) state.el.enc.classList.remove('show');
+    clearSelection();
+    loadPartyState();
+    if (state.el.fogCb) state.el.fogCb.checked = state.fogOn;
+    renderClock();
+    syncPartyUndoBtn();
     state.el.title.textContent = `Subhex · parent ${col},${row} · 3 mi/hex`;
     requestAnimationFrame(() => { state.rendered = null; centerOnParent(col, row); });
   }
@@ -972,5 +1348,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.14.0 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.24.0 loaded'); } catch(_){}
 })();
