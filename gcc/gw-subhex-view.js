@@ -1,8 +1,12 @@
-// gw-subhex-view.js v0.27.0 — 2026-05-24
+// gw-subhex-view.js v0.28.0 — 2026-05-24
 // Seamless (Path B) 3-mile subhex viewer for the Gamma World map:
 // drill-in + pan/zoom, terrain paint brush, and a freehand vector overlay
 // (rivers/roads/trails) + settlement icon markers.
 //
+// v0.28.0 — experiment: pan via CSS translate3d on panG (style.transform) instead
+//           of the SVG transform attribute, to try GPU-composited dragging. Paired
+//           with the existing dynamic will-change toggle; cleared on mouseup. Easy
+//           revert if it drifts/blurs (swap back to setAttribute translate).
 // v0.27.0 — subhex opacity slider now drives terrain FILL opacity (fill-opacity
 //           via --gw-cell-fill) instead of group opacity, so the hex grid stroke
 //           stays crisp while the fills fade. Floor dropped to 0: take fills to 0
@@ -911,7 +915,7 @@
       if (dr.pointAdd && !dr.moved){ editorAddPoint(dr.pointAdd); return; }
       if (dr.moved){
         state.vb.x = dr.vx - (dr.dx || 0); state.vb.y = dr.vy - (dr.dy || 0);
-        state.el.panG.removeAttribute('transform'); state.el.panG.style.willChange = '';
+        state.el.panG.style.transform = ''; state.el.panG.style.willChange = '';
         applyViewBox(); render();
         state.el.gHaz.style.display = ''; state.el.gAnnot.style.display = '';
       } else if (dr.selCell){
@@ -938,7 +942,7 @@
     state.panRaf = requestAnimationFrame(() => {
       state.panRaf = 0;
       if (!state.drag) return;
-      state.el.panG.setAttribute('transform', `translate(${state.drag.dx} ${state.drag.dy})`);
+      state.el.panG.style.transform = `translate3d(${state.drag.dx}px, ${state.drag.dy}px, 0)`;
     });
   }
 
@@ -1373,5 +1377,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.27.0 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.28.0 loaded'); } catch(_){}
 })();
