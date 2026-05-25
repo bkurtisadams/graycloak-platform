@@ -1,8 +1,13 @@
-// gw-subhex-view.js v0.32.0 — 2026-05-24
+// gw-subhex-view.js v0.33.0 — 2026-05-24
 // Seamless (Path B) 3-mile subhex viewer for the Gamma World map:
 // drill-in + pan/zoom, terrain paint brush, and a freehand vector overlay
 // (rivers/roads/trails) + settlement icon markers.
 //
+// v0.33.0 — terrain palette additions: hills + marsh (canon, from the map key)
+//           and forested-hill + forested-mountains (house). Travel tiers: hills
+//           and forested-hill rugged, marsh and forested-mountains very-rugged.
+//           Paint swatches auto-list; fills/derivation in gw-subhex-data, gen
+//           rates in gw-feature-gen, encounter aliases in gw-encounter-data.
 // v0.32.0 — show the Generate target. Generate/Clear-gen already act on the parent
 //           under the view center, but it was invisible; now that parent gets a gold
 //           dashed highlight (gTarget layer) and a live "▸ target: parent X,Y" label
@@ -306,6 +311,7 @@
   const TERRAIN_TIER = {
     plains: 'normal', desert: 'normal', forest: 'rugged', 'heavy-forest': 'very_rugged',
     mountains: 'very_rugged', 'snow-mountains': 'very_rugged', ruins: 'rugged', water: 'very_rugged',
+    hills: 'rugged', marsh: 'very_rugged', 'forested-hill': 'rugged', 'forested-mountains': 'very_rugged',
     unknown: 'normal', _default: 'normal',
   };
   const MILES_PER_DAY = { normal: 24, rugged: 16, very_rugged: 8 };
@@ -1544,5 +1550,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.32.0 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.33.0 loaded'); } catch(_){}
 })();

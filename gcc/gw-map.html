@@ -10,12 +10,12 @@
 <link rel="stylesheet" href="gcc-auth.css">
 
 <script src="gw-authored.js?v=1"></script>
-<script src="gw-encounter-data.js"></script>
+<script src="gw-encounter-data.js?v=2"></script>
 <script src="gw-terrain-data.js?v=2"></script>
 <script src="gcc-rng.js"></script>
-<script src="gw-subhex-data.js?v=9"></script>
+<script src="gw-subhex-data.js?v=10"></script>
 <script src="gw-annotations.js?v=4"></script>
-<script src="gw-feature-gen.js?v=4"></script>
+<script src="gw-feature-gen.js?v=5"></script>
 <script src="gw-mp-bestiary.js?v=2"></script>
 <script src="gw-mp-export.js?v=2"></script>
 
@@ -111,7 +111,7 @@
 
 <div id="topbar">
   <h1>GAMMA WORLD — Campaign Map</h1>
-  <span class="ver">v0.42.0</span>
+  <span class="ver">v0.43.0</span>
   <span class="sep"></span>
   <button id="btn-reset">Fit View</button>
   <span class="spacer"></span>
@@ -143,6 +143,10 @@
       <option value="water">Water</option>
       <option value="plains">Plains</option>
       <option value="desert">Desert</option>
+      <option value="hills">Hills</option>
+      <option value="marsh">Marsh</option>
+      <option value="forested-hill">Forested hill</option>
+      <option value="forested-mountains">Forested mountains</option>
       <option value="forest">Forest</option>
       <option value="heavy-forest">Heavy forest</option>
       <option value="mountains">Mountains</option>
@@ -200,7 +204,7 @@
 <script src="gcc-header.js"></script>
 <script src="gcc-firebase-config.js"></script>
 <script src="gcc-auth.js"></script>
-<script src="gw-subhex-view.js?v=34"></script>
+<script src="gw-subhex-view.js?v=35"></script>
 <script>
 'use strict';
 
@@ -209,6 +213,10 @@ const TERRAIN_COLOR = {
   water:            '#72a3c8',
   plains:           '#e6b04e',
   desert:           '#eaca44',
+  hills:            '#b58a52',
+  marsh:            '#4e8b78',
+  'forested-hill':  '#7d8a46',
+  'forested-mountains': '#566b3e',
   forest:           '#76b057',
   'heavy-forest':   '#28644f',
   mountains:        '#6e5046',
@@ -223,6 +231,10 @@ const TERRAIN_TO_ENCOUNTER_KEY = {
   water:            'water',
   plains:           'plains',
   desert:           'desert',
+  hills:            'hills',
+  marsh:            'marsh',
+  'forested-hill':  'forested-hill',
+  'forested-mountains': 'forested-mountains',
   forest:           'forest',
   'heavy-forest':   'forest',
   mountains:        'mountains',

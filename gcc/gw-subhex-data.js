@@ -1,4 +1,4 @@
-// gw-subhex-data.js v0.4.1 — 2026-05-24 (memoize proceduralTerrain)
+// gw-subhex-data.js v0.5.0 — 2026-05-25 (add hills, marsh, forested-hill, forested-mountains)
 // Gamma World 3-mile subhex data layer. LocalStorage-backed port of
 // gcc-subhex-data.js: keeps the flat-top odd-q axial/ownership engine,
 // the seeded procedural-terrain generator, and the per-cell override +
@@ -35,8 +35,12 @@
     water:            { label: 'Water',          fill: '#72a3c8' },
     plains:           { label: 'Plains',         fill: '#e6b04e' },
     desert:           { label: 'Desert',         fill: '#eaca44' },
+    hills:            { label: 'Hills',          fill: '#b58a52' },
+    marsh:            { label: 'Marsh',          fill: '#4e8b78' },
     forest:           { label: 'Forest',         fill: '#76b057' },
     'heavy-forest':   { label: 'Heavy forest',   fill: '#28644f' },
+    'forested-hill':  { label: 'Forested hill',  fill: '#7d8a46' },
+    'forested-mountains': { label: 'Forested mtn', fill: '#566b3e' },
     mountains:        { label: 'Mountains',      fill: '#6e5046' },
     'snow-mountains': { label: 'Snow mountains', fill: '#dcd7d7' },
     ruins:            { label: 'Ruins',          fill: '#a8576b' },
@@ -52,8 +56,12 @@
     water:            { water: 1 },                              // open water stays water
     plains:           { plains: 2, desert: 1 },                  // forest comes from clumps, not scatter
     desert:           { plains: 2, desert: 1 },
+    hills:            { hills: 2, mountains: 1, plains: 1 },      // rolling hills, rocky knobs, open vales
+    marsh:            { marsh: 3, water: 1 },                     // wetland with open pools
     forest:           { forest: 1, 'heavy-forest': 1 },          // denser-forest patches, no plains
     'heavy-forest':   { forest: 3 },
+    'forested-hill':  { 'forested-hill': 2, forest: 1, hills: 1 },              // wooded slopes + clearings
+    'forested-mountains': { 'forested-mountains': 2, mountains: 1, forest: 1 }, // timbered peaks
     mountains:        { mountains: 1, 'snow-mountains': 1, forest: 1 },  // snow/wooded slopes, no plains
     'snow-mountains': { mountains: 3 },
     ruins:            { ruins: 2, plains: 1 },
@@ -501,5 +509,5 @@
     restoreOverride, clearSubhex, clearAll, flushOverrides, save,
   };
 
-  try { console.log('[gw-subhex-data] v0.4.1 loaded', { ANCHOR_COL, ANCHOR_ROW, HEX_R, SUB_R, seed: WORLD_SEED }); } catch(_){}
+  try { console.log('[gw-subhex-data] v0.5.0 loaded', { ANCHOR_COL, ANCHOR_ROW, HEX_R, SUB_R, seed: WORLD_SEED }); } catch(_){}
 })();
