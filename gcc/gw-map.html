@@ -111,7 +111,7 @@
 
 <div id="topbar">
   <h1>GAMMA WORLD — Campaign Map</h1>
-  <span class="ver">v0.32.0</span>
+  <span class="ver">v0.33.0</span>
   <span class="sep"></span>
   <button id="btn-reset">Fit View</button>
   <span class="spacer"></span>
@@ -308,7 +308,7 @@ function renderHazards(){
   const g = document.getElementById('parent-hazard');
   if (!g) return;
   g.replaceChildren();
-  const keys = new Set([...AUTO_HAZARD.keys(), ...Object.keys(hazardOverrides)]);
+  const keys = new Set([...AUTO_HAZARD.keys(), ...Object.keys(COMMITTED_HAZARD), ...Object.keys(hazardOverrides)]);
   for (const k of keys){
     const [col, row] = k.split(',').map(Number);
     if (getHazard(col, row) !== 'radiation') continue;
