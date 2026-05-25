@@ -700,6 +700,14 @@ const WEAPONS = {
     ranged: true, range_squares: { s: 4, m: 8, l: 16 }, speed: 6,
     damage: { sm: '1d4+1', l: '1d4+1' },
     vs_ac: { 2:-2, 3:-2, 4:-1, 5:0, 6:0, 7:0, 8:2, 9:1, 10:3 }
+  },
+  spider_bite: {
+    id: 'spider_bite', name: 'Bite', icon: '☠',
+    melee: true, speed: 5, length: 1,
+    damage: { sm: '2d4', l: '2d4' }, // MM giant-spider bite — set to your printing if it differs
+    // Injected venom: a landed hit forces a save vs poison (ppd). save_mod is the bonus/penalty
+    // the creature's poison grants the victim (0 = straight save); effect 'death' = save-or-die.
+    poison: { category: 'ppd', save_mod: 0, effect: 'death' }
   }
 };
 
@@ -1036,6 +1044,28 @@ function applyHitConsequences(state, attacker, target, event, opts) {
   return event;
 }
 
+// Injected poison rides on a weapon (a monster's natural attack or a coated blade). A landed
+// hit forces the victim to save vs poison (ppd). effect 'death' = save-or-die; 'damage' = take
+// poison.damage on a failure. Skipped if the blow already dropped the target.
+function applyPoison(state, attacker, target, weapon, event) {
+  const p = (weapon && weapon.poison) || (attacker && attacker.poison);
+  if (!p || !event) return;
+  if (event.kind !== 'attack_hit' && event.kind !== 'attack_crit') return;
+  if (!target || target.dead) return;
+  const sv = rollSave(target, p.category || 'ppd', p.save_mod || 0);
+  let poison_damage = 0;
+  if (!sv.success) {
+    if (p.effect === 'damage') {
+      poison_damage = rollDice(p.damage || '1d6');
+      target.hp_current = Math.max(0, target.hp_current - poison_damage);
+      if (target.hp_current === 0) event.killed = dropCombatant(state, target) || event.killed;
+    } else {
+      event.killed = dropCombatant(state, target) || event.killed;
+    }
+  }
+  event.poison = { save: sv, effect: p.effect || 'death', poison_damage };
+}
+
 function resolveAttack(state, attackerId, targetId, weaponId, opts) {
   opts = opts || {};
   const a = findCombatant(state, attackerId);
@@ -1064,7 +1094,9 @@ function resolveAttack(state, attackerId, targetId, weaponId, opts) {
     killed: false, range_band: proj.range_band,
     charge: !!opts.charge, set_spear: !!opts.setSpear, vs_charging: proj.mods.exposed > 0
   };
-  return applyHitConsequences(state, a, t, event, opts);
+  const out = applyHitConsequences(state, a, t, event, opts);
+  applyPoison(state, a, t, w, out);
+  return out;
 }
 
 function resolveSpell(state, casterId, targetId, spellId, opts) {
@@ -1453,7 +1485,15 @@ function makeInitialState() {
         hp_max: 18, hp_current: 18, ac_base: 5, ac_current: 5, size: 'L', size_cells: 2, size_token: 1.15,
         loadout: ['ogre_club'], active_weapon: 'ogre_club',
         attack_bonus: 0, damage_bonus: 0,
-        move: 3, singles_out: true }
+        move: 3, singles_out: true },
+      { id: 'spider_1', side: 'B', kind: 'monster',
+        template_id: 'giant_spider', label: 'Giant Spider', letter: 'X',
+        matrix_class: 'monster', level: 4.5, hd: '4+4', intelligent: false,
+        position: { col: 11, row: 2 }, facing: 225,
+        hp_max: 22, hp_current: 22, ac_base: 4, ac_current: 4, size: 'L', size_cells: 2, size_token: 1.15,
+        loadout: ['spider_bite'], active_weapon: 'spider_bite',
+        attack_bonus: 0, damage_bonus: 0,
+        move: 12, singles_out: true }
     ]
   };
   state.combatants.forEach(c => {
@@ -3196,7 +3236,16 @@ function logAttackEvent(ev) {
   } else {
     const cls = ev.kind === 'attack_crit' ? 'crit' : 'hit';
     const killNote = ev.killed ? ` <span class="em">— ${t.label} falls!</span>` : '';
-    log(state, cls, `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${a.label}</span> hits <span class="${tSide}">${t.label}</span>${rangeNote}${tagNote} · rolled <span class="roll ${ev.kind === 'attack_crit' ? 'crit' : 'good'}">${ev.roll}</span> vs <span class="roll">${ev.needed}</span> → <span class="em">${ev.damage} dmg</span>${damageAuditText(ev)}${killNote}${buildAuditNote(ev)}</span>`);
+    let poisonNote = '';
+    if (ev.poison) {
+      const sv = ev.poison.save, modStr = sv.mod ? `${sv.mod > 0 ? '+' : ''}${sv.mod}` : '';
+      poisonNote = sv.success
+        ? ` <span class="em">— poison resisted (save ${sv.roll}${modStr} vs ${sv.target})</span>`
+        : (ev.poison.effect === 'damage'
+            ? ` <span class="em">— venom: +${ev.poison.poison_damage} dmg (failed save ${sv.roll}${modStr} vs ${sv.target})</span>`
+            : ` <span class="em">— fails save vs poison (${sv.roll}${modStr} vs ${sv.target})</span>`);
+    }
+    log(state, cls, `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${a.label}</span> hits <span class="${tSide}">${t.label}</span>${rangeNote}${tagNote} · rolled <span class="roll ${ev.kind === 'attack_crit' ? 'crit' : 'good'}">${ev.roll}</span> vs <span class="roll">${ev.needed}</span> → <span class="em">${ev.damage} dmg</span>${damageAuditText(ev)}${poisonNote}${killNote}${buildAuditNote(ev)}</span>`);
     if (ev.killed) log(state, 'death', `<span class="ts">R${state.round}</span><span class="body"><span class="${tSide}">${t.label}</span> is slain.</span>`);
   }
 }
