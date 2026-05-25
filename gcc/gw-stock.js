@@ -1,4 +1,4 @@
-// gw-stock.js v0.1.0 — Gamma World 1e site stocking (deterministic dossiers).
+// gw-stock.js v0.2.0 — Gamma World 1e site stocking (deterministic dossiers).
 // Rolls who/what occupies a generated or placed site, grounded in GW1e: settlement
 // sizes + shaman rule, the 13 Cryptic Alliances, character types (PSH / humanoid /
 // mutated animal / mutated plant / android), Mech-Land and fortification contents,
@@ -69,6 +69,15 @@
       accepts:['android'], hostile:[], disp:'subversive, hidden among humans',
       terr:['ruins'], sizes:['town','city'], weight:1 },
   ];
+
+  // Map-overlay tints for the parent-hex territory layer (single source of truth).
+  const ALLIANCE_COLOR = {
+    brotherhood:'#4a90d9', seekers:'#7cb342', purists:'#e53935', entropy:'#263238',
+    iron:'#546e7a', zoo:'#fb8c00', healers:'#26a69a', restorationists:'#5e35b1',
+    voice:'#00bcd4', ranks:'#3949ab', archivists:'#fdd835', radioactivists:'#c0ca33',
+    created:'#ec407a',
+  };
+  for (const a of ALLIANCES) a.color = ALLIANCE_COLOR[a.key] || '#888888';
 
   const TITLES = {
     village: ['Shaman','Chief','Elder','Witch-doctor','Speaker','Boss','Headman'],
@@ -202,5 +211,5 @@
   }
 
   window.GWStock = { dossierFor, ALLIANCES };
-  try { console.log('[gw-stock] v0.1.0 loaded', { alliances: ALLIANCES.length }); } catch(_){}
+  try { console.log('[gw-stock] v0.2.0 loaded', { alliances: ALLIANCES.length }); } catch(_){}
 })();

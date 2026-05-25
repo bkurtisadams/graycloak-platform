@@ -16,6 +16,7 @@
 <script src="gw-subhex-data.js?v=11"></script>
 <script src="gw-annotations.js?v=5"></script>
 <script src="gw-feature-gen.js?v=7"></script>
+<script src="gw-stock.js?v=2"></script>
 <script src="gw-mp-bestiary.js?v=2"></script>
 <script src="gw-mp-export.js?v=2"></script>
 
@@ -111,7 +112,7 @@
 
 <div id="topbar">
   <h1>GAMMA WORLD — Campaign Map</h1>
-  <span class="ver">v0.45.0</span>
+  <span class="ver">v0.47.0</span>
   <span class="sep"></span>
   <button id="btn-reset">Fit View</button>
   <span class="spacer"></span>
@@ -128,6 +129,7 @@
       </defs>
       <image id="printed-map" href="gwmap.png?v=3" x="0" y="0" width="3001" height="1863" style="display:none;"/>
       <g id="parent-grid"></g>
+      <g id="parent-territory" style="pointer-events:none;"></g>
       <g id="parent-hazard"></g>
       <g id="parent-labels"></g>
     </svg>
@@ -160,6 +162,11 @@
       <input type="checkbox" id="hc-radiation" disabled> hard radiation (deathlands)
     </label>
   </div>
+  <div class="hud-row"><label>Alliance</label>
+    <select id="hc-alliance" disabled>
+      <option value="">— none —</option>
+    </select>
+  </div>
   <div class="hud-row"><label>Source</label><span id="hc-source">—</span></div>
   <div class="hud-row"><label>Region</label><span id="hc-region">—</span></div>
   <div class="hud-row" style="margin-top:8px;">
@@ -172,7 +179,9 @@
   <label class="layer-toggle"><input type="checkbox" id="lt-parent" checked>Parent grid</label>
   <label class="layer-toggle"><input type="checkbox" id="lt-labels">Coords</label>
   <label class="layer-toggle"><input type="checkbox" id="lt-radiation" checked>Radiation</label>
+  <label class="layer-toggle"><input type="checkbox" id="lt-territory" checked>Alliance territory</label>
   <label class="layer-toggle"><input type="checkbox" id="lt-png">Show printed map</label>
+  <div id="territory-legend" style="margin-top:8px;display:none;border-top:1px solid rgba(255,140,60,.25);padding-top:6px;"></div>
 </div>
 
 <div id="hud-encounter" class="hud">
@@ -205,7 +214,7 @@
 <script src="gcc-header.js"></script>
 <script src="gcc-firebase-config.js"></script>
 <script src="gcc-auth.js"></script>
-<script src="gw-subhex-view.js?v=36"></script>
+<script src="gw-subhex-view.js?v=37"></script>
 <script>
 'use strict';
 
@@ -335,6 +344,78 @@ function renderHazards(){
     g.appendChild(ov);
   }
 }
+
+// ─── Cryptic Alliance territory (parent-hex control overlay) ──────────────────
+const ALLIANCES   = (window.GWStock && window.GWStock.ALLIANCES) || [];
+const ALLIANCE_MAP = Object.fromEntries(ALLIANCES.map(a => [a.key, a]));
+
+const TERRITORY_KEY = 'gw-territory';
+let territoryOverrides = {};
+try { territoryOverrides = JSON.parse(localStorage.getItem(TERRITORY_KEY) || '{}'); } catch (e) { territoryOverrides = {}; }
+const COMMITTED_TERRITORY = (window.GW_AUTHORED && window.GW_AUTHORED.stores && window.GW_AUTHORED.stores[TERRITORY_KEY]) || {};
+
+function territoryBase(k){
+  if (Object.prototype.hasOwnProperty.call(COMMITTED_TERRITORY, k)) return COMMITTED_TERRITORY[k] || null;
+  return null;
+}
+function getTerritory(col, row){
+  const k = col + ',' + row;
+  if (Object.prototype.hasOwnProperty.call(territoryOverrides, k)) return territoryOverrides[k] || null;
+  return territoryBase(k);
+}
+window.getTerritory = getTerritory;   // consumed by the encounter roller (alliance bias)
+
+function setTerritory(col, row, key){
+  const k = col + ',' + row;
+  const base = territoryBase(k);
+  const val = key || null;
+  if (val === base) delete territoryOverrides[k];   // matches committed → not an edit
+  else territoryOverrides[k] = val || '';            // '' = explicitly cleared
+  localStorage.setItem(TERRITORY_KEY, JSON.stringify(territoryOverrides));
+}
+
+function renderTerritory(){
+  const g = document.getElementById('parent-territory');
+  if (!g) return;
+  g.replaceChildren();
+  const present = new Set();
+  const keys = new Set([...Object.keys(COMMITTED_TERRITORY), ...Object.keys(territoryOverrides)]);
+  for (const k of keys){
+    const [col, row] = k.split(',').map(Number);
+    const ally = getTerritory(col, row);
+    if (!ally) continue;
+    const { x, y } = colRowToCenter(col, row);
+    if (x < -HEX_R || x > WORLD_W + HEX_R || y < -HEX_R || y > WORLD_H + HEX_R) continue;
+    const a = ALLIANCE_MAP[ally];
+    const ov = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    ov.setAttribute('points', hexPolygonPoints(x, y, HEX_R));
+    ov.setAttribute('fill', (a && a.color) || '#888888');
+    ov.setAttribute('fill-opacity', '0.32');
+    ov.setAttribute('stroke', 'none');
+    g.appendChild(ov);
+    present.add(ally);
+  }
+  renderTerritoryLegend(present);
+}
+
+function renderTerritoryLegend(present){
+  const box = document.getElementById('territory-legend');
+  if (!box) return;
+  if (!present || !present.size){ box.innerHTML = ''; box.style.display = 'none'; return; }
+  box.innerHTML = ALLIANCES.filter(a => present.has(a.key)).map(a =>
+    '<div style="display:flex;align-items:center;gap:6px;font-size:11px;margin:2px 0;">' +
+    '<span style="width:12px;height:12px;border-radius:2px;flex:0 0 auto;background:' + a.color + ';"></span>' +
+    a.name + '</div>'
+  ).join('');
+  box.style.display = '';
+}
+
+(function initAllianceSelect(){
+  const sel = document.getElementById('hc-alliance');
+  if (!sel || !ALLIANCES.length) return;
+  sel.innerHTML = '<option value="">— none —</option>' +
+    ALLIANCES.map(a => '<option value="' + a.key + '">' + a.name + '</option>').join('');
+})();
 
 // ─── Geometry ────────────────────────────────────────────────────────────────
 // FLAT-TOP odd-q parent grid at HEX_R=20, matching @graycloak/map-engine
@@ -476,6 +557,7 @@ function buildParentGrid(){
   }
   document.getElementById('parent-labels').style.display = 'none';
   renderHazards();
+  renderTerritory();
 }
 
 function onCellClick(col, row, polyEl, ev){
@@ -518,6 +600,7 @@ function refreshSelectionHud(){
   const btnWatch  = document.getElementById('btn-roll-watch');
   const btnExplore= document.getElementById('btn-explore-subhex');
   const rad       = document.getElementById('hc-radiation');
+  const allySel   = document.getElementById('hc-alliance');
 
   if (n === 0){
     hcCoords.textContent = '—';
@@ -526,6 +609,7 @@ function refreshSelectionHud(){
     sel.disabled = true;
     sel.value = '';
     rad.disabled = true; rad.checked = false; rad.indeterminate = false;
+    allySel.disabled = true; allySel.value = '';
     enc.textContent = '— click a hex —';
     btnDay.disabled = true;
     btnWatch.disabled = true;
@@ -536,11 +620,13 @@ function refreshSelectionHud(){
   // Gather terrains + sources across the selection
   const terrains = new Set();
   const sources  = new Set();
+  const allies   = new Set();
   let radCount = 0;
   selectedHexes.forEach(h => {
     const c = +h.dataset.col, r = +h.dataset.row;
     terrains.add(getTerrain(c, r));
     sources.add(terrainSource(c, r));
+    allies.add(getTerritory(c, r) || '');
     if (getHazard(c, r) === 'radiation') radCount++;
   });
 
@@ -571,6 +657,8 @@ function refreshSelectionHud(){
   rad.disabled = false;
   rad.checked = radCount === n;
   rad.indeterminate = radCount > 0 && radCount < n;
+  allySel.disabled = false;
+  allySel.value = allies.size === 1 ? ([...allies][0] || '') : '';
   hcRegion.textContent = '—';
 }
 
@@ -593,6 +681,13 @@ document.getElementById('hc-radiation').addEventListener('change', e => {
   renderHazards();
   refreshSelectionHud();
 });
+document.getElementById('hc-alliance').addEventListener('change', e => {
+  if (selectedHexes.size === 0) return;
+  const key = e.target.value || '';
+  selectedHexes.forEach(h => setTerritory(+h.dataset.col, +h.dataset.row, key));
+  renderTerritory();
+  refreshSelectionHud();
+});
 window.addEventListener('keydown', e => {
   if (e.key === 'Escape') clearSelection();
 });
@@ -607,6 +702,9 @@ document.getElementById('lt-labels').onchange = e => {
 document.getElementById('lt-radiation').onchange = e => {
   document.getElementById('parent-hazard').style.display = e.target.checked ? '' : 'none';
 };
+document.getElementById('lt-territory').onchange = e => {
+  document.getElementById('parent-territory').style.display = e.target.checked ? '' : 'none';
+};
 document.getElementById('lt-png').onchange = e => {
   document.getElementById('printed-map').style.display = e.target.checked ? '' : 'none';
   document.body.classList.toggle('printed-map-shown', e.target.checked);
@@ -616,7 +714,7 @@ document.getElementById('lt-png').onchange = e => {
 // Read-only snapshot of every localStorage authoring store into a committed JS
 // file (window.GW_AUTHORED). Never mutates localStorage. This is the durable,
 // version-controllable home for hand-edits; localStorage stays the working layer.
-const AUTHORED_KEYS = ['gw-terrain-overrides', 'gw-hazard-overrides', 'gw-subhex-overrides', 'gw-annotations'];
+const AUTHORED_KEYS = ['gw-terrain-overrides', 'gw-hazard-overrides', 'gw-territory', 'gw-subhex-overrides', 'gw-annotations'];
 function exportAuthoredData(){
   const committed = (window.GW_AUTHORED && window.GW_AUTHORED.stores) || {};
   const stores = {};
@@ -634,6 +732,7 @@ function exportAuthoredData(){
   const meta = {
     parentTerrain: count(stores['gw-terrain-overrides']),
     parentRadiation: count(stores['gw-hazard-overrides']),
+    parentTerritory: count(stores['gw-territory']),
     subhexCells: count(stores['gw-subhex-overrides']),
   };
   const at = new Date().toISOString();
@@ -653,7 +752,7 @@ window.exportAuthoredData = exportAuthoredData;
 document.getElementById('btn-export-authored').addEventListener('click', () => {
   const m = exportAuthoredData();
   const el = document.getElementById('export-status');
-  el.textContent = `Saved gw-authored.js · ${m.parentTerrain} parent · ${m.parentRadiation} rad · ${m.subhexCells} subhex cells`;
+  el.textContent = `Saved gw-authored.js · ${m.parentTerrain} parent · ${m.parentRadiation} rad · ${m.parentTerritory} territory · ${m.subhexCells} subhex cells`;
 });
 
 // ─── Encounter rolls ─────────────────────────────────────────────────────────
