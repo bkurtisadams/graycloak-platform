@@ -1,8 +1,13 @@
-// gw-subhex-view.js v0.30.0 — 2026-05-24
+// gw-subhex-view.js v0.31.0 — 2026-05-24
 // Seamless (Path B) 3-mile subhex viewer for the Gamma World map:
 // drill-in + pan/zoom, terrain paint brush, and a freehand vector overlay
 // (rivers/roads/trails) + settlement icon markers.
 //
+// v0.31.0 — Edit feature mode: an "✎ Edit" button (Build ▸ Features) arms a select
+//           tool. Click a placed marker to open an inline editor — rename, change
+//           type (any of the 12 kinds), or delete — and drag the icon on the map to
+//           move it. Selected marker shows a cyan dashed ring. All persisted via the
+//           existing GWAnnotations updateMarker/deleteMarker.
 // v0.30.0 — split the Tools palette into Build / Play tabs. Build = terrain,
 //           hazards, lines, settlements, features; Play = party, fog, time,
 //           encounters. Grip/zoom/mode stay pinned above both; active tab
@@ -115,6 +120,8 @@
     clock: null,        // { year, month, day, min, exert } — campaign date + route-turn (lazy-loaded)
     raf: 0,
     panRaf: 0,
+    markerSel: null,   // id of the marker being edited (Edit feature mode)
+    markerDrag: null,  // { m, moved } while dragging a marker to move it
     curParent: null,
     el: {},
   };
@@ -132,6 +139,7 @@
       #gw-sx-svg.painting { cursor:crosshair; }
       .gw-sx-cellpath { stroke:rgba(0,0,0,.35); stroke-width:1; vector-effect:non-scaling-stroke; fill-opacity:var(--gw-cell-fill, 1); }
       .gw-sx-authpath { fill:none; stroke:#ff8844; stroke-width:1.5; vector-effect:non-scaling-stroke; pointer-events:none; }
+      .gw-sx-marker-sel { fill:none; stroke:#66d9ff; stroke-width:1.5; stroke-dasharray:3 2.5; vector-effect:non-scaling-stroke; pointer-events:none; }
       .gw-sx-hover { fill:none; stroke:rgba(255,220,120,.95); stroke-width:2; vector-effect:non-scaling-stroke; pointer-events:none; }
       .gw-sx-sel { fill:rgba(110,210,255,.14); stroke:#66d9ff; stroke-width:2.5; vector-effect:non-scaling-stroke; pointer-events:none; }
       .gw-sx-fog { fill:rgba(8,10,16,.55); stroke:rgba(8,10,16,.55); stroke-width:1; vector-effect:non-scaling-stroke; pointer-events:none; }
@@ -183,6 +191,17 @@
       #gw-sx-read { position:absolute; bottom:10px; right:10px; min-width:200px; max-width:280px; background:rgba(14,8,2,.93); border:1px solid #5a3a0a; border-radius:3px; color:#e8d5a3; padding:8px 12px; font-size:12px; font-family:'Crimson Text',Georgia,serif; z-index:6; }
       #gw-sx-read .sx-t { color:#ffaa66; font-weight:600; }
       #gw-sx-enc { position:absolute; top:54px; right:10px; width:244px; max-height:calc(100% - 130px); overflow-y:auto; background:rgba(14,8,2,.96); border:1px solid #5a3a0a; border-radius:3px; color:#e8d5a3; padding:9px 11px 10px; font-size:12px; font-family:'Crimson Text',Georgia,serif; z-index:7; display:none; }
+      #gw-sx-medit { position:absolute; left:50%; bottom:14px; transform:translateX(-50%); min-width:236px; display:none; background:rgba(14,8,2,.97); border:1px solid #5a3a0a; border-radius:4px; color:#e8d5a3; padding:9px 11px; font-family:'Crimson Text',Georgia,serif; z-index:8; box-shadow:0 4px 18px rgba(0,0,0,.55); }
+      #gw-sx-medit.show { display:block; }
+      #gw-sx-medit .sx-med-h { font-family:'Cinzel',serif; font-size:10px; letter-spacing:.1em; color:#ffce9e; margin-bottom:7px; }
+      #gw-sx-medit .sx-med-row { display:flex; align-items:center; gap:7px; margin-bottom:6px; }
+      #gw-sx-medit .sx-med-row span { font-size:11px; color:#cbb088; min-width:34px; }
+      #gw-sx-medit .sx-med-row input, #gw-sx-medit .sx-med-row select { flex:1; background:#1a1206; border:1px solid #5a3a0a; border-radius:2px; color:#f0e0c0; padding:3px 5px; font-size:12px; font-family:inherit; }
+      #gw-sx-medit .sx-med-btns { display:flex; gap:6px; margin-top:2px; }
+      #gw-sx-medit .sx-med-btns button { flex:1; cursor:pointer; background:rgba(255,136,68,.12); color:#ffce9e; border:1px solid #5a3a0a; border-radius:2px; padding:5px 4px; font-size:11px; font-family:'Crimson Text',serif; }
+      #gw-sx-medit .sx-med-btns button:hover { background:rgba(255,136,68,.24); border-color:#ff8844; }
+      #gw-sx-medit #gw-sx-med-del:hover { background:rgba(180,60,50,.3); border-color:#b44; color:#ffb0a8; }
+      #gw-sx-medit .sx-med-tip { font-size:10px; font-style:italic; color:#a98; margin-top:6px; }
       #gw-sx-enc.show { display:block; }
       #gw-sx-enc .enc-x { position:absolute; top:3px; right:7px; cursor:pointer; color:#a98; font-size:14px; line-height:1; }
       #gw-sx-enc .enc-x:hover { color:#ffaa66; }
@@ -488,10 +507,14 @@
     clrB.addEventListener('click', clearGeneratedFeatures);
     genRow.append(genB, clrB);
     pane.appendChild(genRow);
-    const fe = mkBtn('✦ Erase feature', 'gw-sx-annot-erase'); fe.dataset.arm = 'annot-erase';
-    fe.style.width = '100%';
+    const feRow = document.createElement('div'); feRow.className = 'sx-row2';
+    const edit = mkBtn('✎ Edit', 'gw-sx-annot-edit'); edit.dataset.arm = 'annot-edit';
+    edit.title = 'Select a placed feature to rename, change its type, drag to move, or delete';
+    edit.addEventListener('click', () => arm({ type: 'annot-edit' }));
+    const fe = mkBtn('⌫ Erase', 'gw-sx-annot-erase'); fe.dataset.arm = 'annot-erase';
+    fe.title = 'Delete a placed feature (click its icon)';
     fe.addEventListener('click', () => arm({ type: 'annot-erase' }));
-    pane.appendChild(fe);
+    feRow.append(edit, fe); pane.appendChild(feRow);
 
     pane = playPanel;   // ── Play tab from here down ──
     pane.appendChild(hd('Party'));
@@ -849,7 +872,17 @@
     read.innerHTML = '<span class="sx-t">Subhex</span><div id="gw-sx-read-body">— hover a cell —</div>';
     const enc = document.createElement('div'); enc.id = 'gw-sx-enc';
 
-    overlay.append(svg, palette, bar, read, enc);
+    // ── marker editor (Edit feature mode) ──
+    const med = document.createElement('div'); med.id = 'gw-sx-medit';
+    const kindOpts = A() ? A().MARKER_KINDS.map(k => `<option value="${k}">${k}</option>`).join('') : '';
+    med.innerHTML =
+      '<div class="sx-med-h">EDIT FEATURE</div>' +
+      '<div class="sx-med-row"><span>Name</span><input id="gw-sx-med-name" type="text" placeholder="(unnamed)"></div>' +
+      '<div class="sx-med-row"><span>Type</span><select id="gw-sx-med-kind">' + kindOpts + '</select></div>' +
+      '<div class="sx-med-btns"><button id="gw-sx-med-del">🗑 Delete</button><button id="gw-sx-med-done">✓ Done</button></div>' +
+      '<div class="sx-med-tip">Drag the icon on the map to move it.</div>';
+
+    overlay.append(svg, palette, bar, read, enc, med);
     document.body.appendChild(overlay);
 
     Object.assign(state.el, {
@@ -859,8 +892,15 @@
       undoBtn: palette.querySelector('#gw-sx-undo'),
       finBtn: palette.querySelector('#gw-sx-fin'),
       canBtn: palette.querySelector('#gw-sx-can'),
+      medit: med,
+      medName: med.querySelector('#gw-sx-med-name'),
+      medKind: med.querySelector('#gw-sx-med-kind'),
       palette,
     });
+    state.el.medName.addEventListener('input', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { name: state.el.medName.value }); renderAnnotations(); } });
+    state.el.medKind.addEventListener('change', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { kind: state.el.medKind.value }); renderAnnotations(); } });
+    med.querySelector('#gw-sx-med-del').addEventListener('click', () => { if (state.markerSel){ A().deleteMarker(state.markerSel); closeMarkerEditor(); renderAnnotations(); } });
+    med.querySelector('#gw-sx-med-done').addEventListener('click', closeMarkerEditor);
     back.addEventListener('click', close);
     fit.addEventListener('click', () => { if (state.curParent) centerOnParent(state.curParent.col, state.curParent.row); });
     tog.querySelector('input').addEventListener('change', e => { state.showParents = e.target.checked; render(true); });
@@ -918,6 +958,14 @@
         }
         else if (a.type === 'marker'){ placeMarker(e); return; }
         else if (a.type === 'annot-erase'){ eraseAnnotationAt(e); return; }
+        else if (a.type === 'annot-edit'){
+          const m = markerAt(e);
+          if (m){ selectMarker(m.id); state.markerDrag = { m, moved: false }; return; }
+          closeMarkerEditor();   // clicked empty space — deselect, but allow panning
+          state.drag = { r: svg.getBoundingClientRect(), sx: e.clientX, sy: e.clientY, vx: state.vb.x, vy: state.vb.y, moved: false };
+          svg.classList.add('grabbing');
+          return;
+        }
         else if (a.type === 'party-place'){ const c = cellAt(e); if (c) placeParty(c.Q, c.R); return; }
         else if (a.type === 'party-move'){ const c = cellAt(e); if (c) movePartyToward(c.Q, c.R); return; }
       }
@@ -926,6 +974,11 @@
     });
     svg.addEventListener('contextmenu', e => e.preventDefault());
     window.addEventListener('mousemove', e => {
+      if (state.markerDrag){
+        const w = clientToWorld(e);
+        state.markerDrag.m.x = w.x; state.markerDrag.m.y = w.y; state.markerDrag.moved = true;
+        renderAnnotations(); return;
+      }
       if (state.stroke){ extendStroke(e); return; }
       if (state.editor && state.editor.dragIdx != null){
         const w = clientToWorld(e); const p = state.snapHex ? snapPt(w) : w;
@@ -938,8 +991,6 @@
       const dy = (e.clientY - state.drag.sy) / r.height * state.vb.h;
       if (!state.drag.moved && Math.abs(e.clientX - state.drag.sx) + Math.abs(e.clientY - state.drag.sy) > 3){
         state.drag.moved = true; state.el.panG.style.willChange = 'transform'; clearHover();
-        // the radiation <pattern> and marker text are the priciest to re-raster
-        // each frame; drop them during the drag and restore on mouseup.
         // Drop the priciest layers during the drag and restore on mouseup: radiation
         // <pattern>, marker text, and — by far the heaviest — the full-resolution base
         // map image. Left in, it bloats panG's composited pan layer into a world-sized
@@ -953,6 +1004,11 @@
       schedulePan();
     });
     window.addEventListener('mouseup', () => {
+      if (state.markerDrag){
+        const md = state.markerDrag; state.markerDrag = null;
+        if (md.moved) A().updateMarker(md.m.id, { x: md.m.x, y: md.m.y });   // persist once
+        renderAnnotations(); return;
+      }
       if (state.editor && state.editor.dragIdx != null){ state.editor.dragIdx = null; return; }
       if (state.stroke){ commitStroke(); return; }
       if (state.brush){
@@ -1167,6 +1223,7 @@
     }
     for (const m of A().markersInBbox({ minX: bb.minX - 50*u, maxX: bb.maxX + 50*u, minY: bb.minY - 50*u, maxY: bb.maxY + 50*u })){
       frag.appendChild(markerEl(m.kind, m.x, m.y, m.name, u));
+      if (state.markerSel === m.id) frag.appendChild(markerSelRing(m.x, m.y, u));
     }
     state.el.gAnnot.replaceChildren(frag);
     editorRender();
@@ -1290,12 +1347,35 @@
     const cx = ax + t*dx, cy = ay + t*dy;
     return Math.hypot(px-cx, py-cy);
   }
+  function markerAt(e){
+    const w = clientToWorld(e), u = curU(), r = ICON_PX * u * 1.5;
+    let best = null, bd = r;
+    for (const m of A().listMarkers()){ const dd = Math.hypot(w.x - m.x, w.y - m.y); if (dd <= bd){ bd = dd; best = m; } }
+    return best;
+  }
+  function markerSelRing(x, y, u){
+    const c = document.createElementNS(SVGNS, 'circle');
+    c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', ICON_PX * u * 1.6);
+    c.setAttribute('class', 'gw-sx-marker-sel');
+    return c;
+  }
+  function selectMarker(id){
+    const m = A().listMarkers().find(x => x.id === id); if (!m) return;
+    state.markerSel = id;
+    state.el.medName.value = m.name || '';
+    state.el.medKind.value = m.kind;
+    state.el.medit.classList.add('show');
+    renderAnnotations();
+  }
+  function closeMarkerEditor(){
+    if (!state.markerSel && !(state.el.medit && state.el.medit.classList.contains('show'))) return;
+    state.markerSel = null;
+    if (state.el.medit) state.el.medit.classList.remove('show');
+    renderAnnotations();
+  }
   function eraseAnnotationAt(e){
     const w = clientToWorld(e), u = curU();
-    // markers first
-    const mr = ICON_PX * u * 1.5;
-    let bestM = null, bestMD = mr;
-    for (const m of A().listMarkers()){ const dd = Math.hypot(w.x-m.x, w.y-m.y); if (dd <= bestMD){ bestMD = dd; bestM = m; } }
+    const bestM = markerAt(e);                       // markers first
     if (bestM){ A().deleteMarker(bestM.id); renderAnnotations(); return; }
     // then strokes
     const thr = 6 * u;
@@ -1350,6 +1430,7 @@
     if (!a) return null;
     if (a.type === 'erase') return 'erase';
     if (a.type === 'annot-erase') return 'annot-erase';
+    if (a.type === 'annot-edit') return 'annot-edit';
     if (a.type === 'paint') return 'paint:' + a.terrain;
     if (a.type === 'hazard') return 'hazard:' + a.mode;
     if (a.type === 'draw') return 'draw:' + a.kind;
@@ -1360,6 +1441,7 @@
   }
   function arm(spec){
     if (state.editor) finishEditor();
+    closeMarkerEditor();
     const cur = armKey(state.armed), nxt = armKey(spec);
     state.armed = (cur === nxt) ? null : spec;
     syncPalette(); syncMode();
@@ -1381,6 +1463,7 @@
     }
     else if (a.type === 'marker') el.textContent = `Place ${a.kind} · click (shift = name)`;
     else if (a.type === 'annot-erase') el.textContent = 'Erase feature · click a line/icon';
+    else if (a.type === 'annot-edit') el.textContent = 'Edit feature · click an icon (then drag to move)';
     else if (a.type === 'party-place') el.textContent = 'Place party · click any hex (GM, no time)';
     else if (a.type === 'party-move') el.textContent = 'Move party · click a hex to step toward it';
   }
@@ -1389,7 +1472,7 @@
   function clearHover(){ state.hoverKey = null; if (state.el.gHover) state.el.gHover.replaceChildren(); }
   function bindCellHover(svg){
     svg.addEventListener('mousemove', e => {
-      if (state.brush || state.stroke || state.drag){ return; }
+      if (state.brush || state.stroke || state.drag || state.markerDrag){ return; }
       const cell = cellAt(e); const key = cell.Q + '_' + cell.R;
       if (state.hoverKey === key) return;
       state.hoverKey = key;
@@ -1419,6 +1502,7 @@
     state.el.overlay.classList.add('open');
     if (state.el.enc) state.el.enc.classList.remove('show');
     clearSelection();
+    closeMarkerEditor();
     loadPartyState();
     if (state.el.fogCb) state.el.fogCb.checked = state.fogOn;
     renderClock();
@@ -1431,5 +1515,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.30.0 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.31.0 loaded'); } catch(_){}
 })();
