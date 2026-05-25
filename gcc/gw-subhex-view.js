@@ -1,8 +1,12 @@
-// gw-subhex-view.js v0.34.0 — 2026-05-24
+// gw-subhex-view.js v0.35.0 — 2026-05-25
 // Seamless (Path B) 3-mile subhex viewer for the Gamma World map:
 // drill-in + pan/zoom, terrain paint brush, and a freehand vector overlay
 // (rivers/roads/trails) + settlement icon markers.
 //
+// v0.35.0 — Site dossiers: selecting a marker in Edit mode shows a GW1e stocking
+//           dossier below the controls (population, inhabitants, Cryptic Alliance,
+//           leader, disposition for settlements; canon contents for other sites).
+//           Deterministic per location+kind via window.GWStock.
 // v0.34.0 — Monastery + Installation markers (glyphs in markerEl, place buttons in
 //           Build ▸ Settlements, retypable via Edit) and a Coast terrain (normal
 //           travel tier). From the official subhex/overworld map keys.
@@ -216,6 +220,11 @@
       #gw-sx-medit .sx-med-btns button:hover { background:rgba(255,136,68,.24); border-color:#ff8844; }
       #gw-sx-medit #gw-sx-med-del:hover { background:rgba(180,60,50,.3); border-color:#b44; color:#ffb0a8; }
       #gw-sx-medit .sx-med-tip { font-size:10px; font-style:italic; color:#a98; margin-top:6px; }
+      #gw-sx-medit .sx-dos { display:none; margin-top:8px; padding-top:7px; border-top:1px solid #5a3a0a; max-height:230px; overflow-y:auto; max-width:300px; }
+      #gw-sx-medit .sx-dos-h { font-family:'Cinzel',serif; font-size:9px; letter-spacing:.13em; color:#ffce9e; margin-bottom:5px; opacity:.85; }
+      #gw-sx-medit .sx-dos-row { display:flex; gap:8px; align-items:baseline; margin-bottom:4px; font-size:11.5px; line-height:1.35; }
+      #gw-sx-medit .sx-dos-row span { flex:0 0 78px; color:#b59a72; font-size:10px; text-transform:uppercase; letter-spacing:.04em; padding-top:1px; }
+      #gw-sx-medit .sx-dos-row b { flex:1; color:#f0e0c0; font-weight:600; }
       #gw-sx-enc.show { display:block; }
       #gw-sx-enc .enc-x { position:absolute; top:3px; right:7px; cursor:pointer; color:#a98; font-size:14px; line-height:1; }
       #gw-sx-enc .enc-x:hover { color:#ffaa66; }
@@ -905,6 +914,7 @@
       '<div class="sx-med-row"><span>Name</span><input id="gw-sx-med-name" type="text" placeholder="(unnamed)"></div>' +
       '<div class="sx-med-row"><span>Type</span><select id="gw-sx-med-kind">' + kindOpts + '</select></div>' +
       '<div class="sx-med-btns"><button id="gw-sx-med-del">🗑 Delete</button><button id="gw-sx-med-done">✓ Done</button></div>' +
+      '<div id="gw-sx-med-dossier" class="sx-dos"></div>' +
       '<div class="sx-med-tip">Drag the icon on the map to move it.</div>';
 
     overlay.append(svg, palette, bar, read, enc, med);
@@ -920,10 +930,11 @@
       medit: med,
       medName: med.querySelector('#gw-sx-med-name'),
       medKind: med.querySelector('#gw-sx-med-kind'),
+      medDossier: med.querySelector('#gw-sx-med-dossier'),
       palette,
     });
-    state.el.medName.addEventListener('input', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { name: state.el.medName.value }); renderAnnotations(); } });
-    state.el.medKind.addEventListener('change', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { kind: state.el.medKind.value }); renderAnnotations(); } });
+    state.el.medName.addEventListener('input', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { name: state.el.medName.value }); renderAnnotations(); renderDossier(); } });
+    state.el.medKind.addEventListener('change', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { kind: state.el.medKind.value }); renderAnnotations(); renderDossier(); } });
     med.querySelector('#gw-sx-med-del').addEventListener('click', () => { if (state.markerSel){ A().deleteMarker(state.markerSel); closeMarkerEditor(); renderAnnotations(); } });
     med.querySelector('#gw-sx-med-done').addEventListener('click', closeMarkerEditor);
     back.addEventListener('click', close);
@@ -1417,7 +1428,23 @@
     state.el.medName.value = m.name || '';
     state.el.medKind.value = m.kind;
     state.el.medit.classList.add('show');
+    renderDossier();
     renderAnnotations();
+  }
+  function renderDossier(){
+    const box = state.el.medDossier; if (!box) return;
+    const id = state.markerSel;
+    const m = (id && A()) ? A().listMarkers().find(x => x.id === id) : null;
+    if (!m || !window.GWStock || !D()){ box.innerHTML = ''; box.style.display = 'none'; return; }
+    const a = D().svgToAxial(m.x, m.y);
+    let terrain = null, hazard = null;
+    try { const sub = D().getSubhexAt(a.Q, a.R); if (sub){ terrain = sub.terrain; hazard = sub.hazard; } } catch (_){}
+    const dos = window.GWStock.dossierFor(m.kind, a.Q, a.R, { terrain, hazard, name: m.name });
+    if (!dos || !dos.lines || !dos.lines.length){ box.innerHTML = ''; box.style.display = 'none'; return; }
+    const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+    box.innerHTML = '<div class="sx-dos-h">DOSSIER</div>' +
+      dos.lines.map(([k, v]) => '<div class="sx-dos-row"><span>' + esc(k) + '</span><b>' + esc(v) + '</b></div>').join('');
+    box.style.display = '';
   }
   function closeMarkerEditor(){
     if (!state.markerSel && !(state.el.medit && state.el.medit.classList.contains('show'))) return;
@@ -1567,5 +1594,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.34.0 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.35.0 loaded'); } catch(_){}
 })();
