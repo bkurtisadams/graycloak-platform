@@ -57,6 +57,7 @@
   .parent-hex.selected { stroke:#ff8844; stroke-width:1.8; }
   .parent-label { font-family:'Cinzel',serif; font-size:5px; fill:rgba(0,0,0,.6); text-anchor:middle; dominant-baseline:middle; pointer-events:none; }
   .rad-overlay { fill:url(#rad-hatch); stroke:rgba(195,240,55,.4); stroke-width:1.5; pointer-events:none; }
+  .gw-territory-hex { fill-opacity:.5; stroke-opacity:.9; stroke-width:1.6; stroke-linejoin:round; pointer-events:none; }
 
   .hud { position:fixed; background:var(--panel-bg); border:1px solid var(--panel-border); border-radius:3px; color:var(--parchment-light); padding:10px 14px; font-size:12px; z-index:50; box-shadow:0 4px 16px rgba(0,0,0,.6); }
   #hud-cell      { top:calc(var(--gcc-bar-h) + var(--topbar-h) + 12px); left:12px;   min-width:200px; }
@@ -112,7 +113,7 @@
 
 <div id="topbar">
   <h1>GAMMA WORLD — Campaign Map</h1>
-  <span class="ver">v0.47.0</span>
+  <span class="ver">v0.48.0</span>
   <span class="sep"></span>
   <button id="btn-reset">Fit View</button>
   <span class="spacer"></span>
@@ -387,11 +388,12 @@ function renderTerritory(){
     const { x, y } = colRowToCenter(col, row);
     if (x < -HEX_R || x > WORLD_W + HEX_R || y < -HEX_R || y > WORLD_H + HEX_R) continue;
     const a = ALLIANCE_MAP[ally];
+    const color = (a && a.color) || '#888888';
     const ov = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
     ov.setAttribute('points', hexPolygonPoints(x, y, HEX_R));
-    ov.setAttribute('fill', (a && a.color) || '#888888');
-    ov.setAttribute('fill-opacity', '0.32');
-    ov.setAttribute('stroke', 'none');
+    ov.setAttribute('class', 'gw-territory-hex');
+    ov.setAttribute('fill', color);
+    ov.setAttribute('stroke', color);
     g.appendChild(ov);
     present.add(ally);
   }
