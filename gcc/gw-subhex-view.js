@@ -1,8 +1,14 @@
-// gw-subhex-view.js v0.12.1 — 2026-05-24
+// gw-subhex-view.js v0.14.0 — 2026-05-24
 // Seamless (Path B) 3-mile subhex viewer for the Gamma World map:
 // drill-in + pan/zoom, terrain paint brush, and a freehand vector overlay
 // (rivers/roads/trails) + settlement icon markers.
 //
+// v0.14.0 — readability/UI pass: collapsible palette sections, draggable
+//           palette is now resizable, and a persisted UI-zoom (± row +
+//           Ctrl+wheel) scales the overlay panels (CSS zoom, Chrome).
+// v0.13.0 — per-subhex encounters: "Roll here" resolves the hovered/center
+//           cell's terrain + hazard + feature via the shared GWEncounter
+//           resolver, with MP Builder JSON export buttons on the result.
 // v0.12.1 — pan perf: cache svg rect at drag start (no per-move reflow),
 //           rAF-coalesce the pan transform, and drop the radiation pattern +
 //           annotation layers during a drag (restored on mouseup).
@@ -79,15 +85,21 @@
       .gw-sx-btn { background:rgba(14,8,2,.93); border:1px solid #5a3a0a; color:#e8d5a3; font-family:'Cinzel',serif; font-size:11px; letter-spacing:.04em; padding:6px 11px; cursor:pointer; border-radius:2px; }
       .gw-sx-btn:hover { background:rgba(255,136,68,.18); border-color:#ff8844; color:#ffaa66; }
       .gw-sx-btn:disabled { opacity:.4; cursor:default; }
-      #gw-sx-palette { position:absolute; top:10px; left:10px; width:152px; max-height:calc(100% - 20px); overflow-y:auto; overflow-x:hidden; background:rgba(14,8,2,.95); border:1px solid #5a3a0a; border-radius:3px; padding:8px; z-index:6; font-family:'Crimson Text',serif; }
+      #gw-sx-palette { position:absolute; top:10px; left:10px; width:168px; min-width:150px; min-height:120px; max-height:calc(100% - 20px); overflow-y:auto; overflow-x:hidden; resize:both; background:rgba(14,8,2,.95); border:1px solid #5a3a0a; border-radius:3px; padding:8px; z-index:6; font-family:'Crimson Text',serif; }
       #gw-sx-palette::-webkit-scrollbar { width:9px; }
       #gw-sx-palette::-webkit-scrollbar-track { background:rgba(0,0,0,.25); }
       #gw-sx-palette::-webkit-scrollbar-thumb { background:#5a3a0a; border-radius:5px; }
       #gw-sx-palette .sx-grip { position:sticky; top:-8px; margin:-8px -8px 6px; padding:6px 8px; background:rgba(30,16,4,.98); border-bottom:1px solid #5a3a0a; font-family:'Cinzel',serif; font-size:10px; letter-spacing:.1em; color:#dcb87e; cursor:move; user-select:none; display:flex; align-items:center; gap:6px; z-index:2; }
       #gw-sx-palette .sx-grip:hover { color:#ffaa66; }
       #gw-sx-palette .sx-mode { font-size:11px; color:#ffce9e; margin-bottom:7px; min-height:14px; line-height:1.3; }
-      #gw-sx-palette .sx-hd { font-family:'Cinzel',serif; font-size:10px; letter-spacing:.1em; color:#e0c089; margin:9px 0 3px; border-top:1px solid #3a2606; padding-top:6px; }
+      #gw-sx-palette .sx-hd { font-family:'Cinzel',serif; font-size:10px; letter-spacing:.1em; color:#e0c089; margin:9px 0 3px; border-top:1px solid #3a2606; padding-top:6px; cursor:pointer; user-select:none; }
       #gw-sx-palette .sx-hd:first-of-type { border-top:none; padding-top:0; }
+      #gw-sx-palette .sx-hd:hover { color:#ffaa66; }
+      #gw-sx-palette .sx-caret { display:inline-block; width:11px; color:#a98; }
+      #gw-sx-zoom { display:flex; align-items:center; gap:4px; margin-bottom:7px; }
+      #gw-sx-zoom button { width:24px; height:22px; font-size:15px; line-height:1; cursor:pointer; background:rgba(0,0,0,.25); border:1px solid #5a3a0a; color:#e8d5a3; border-radius:2px; }
+      #gw-sx-zoom button:hover { background:rgba(255,136,68,.18); color:#ffaa66; }
+      #gw-sx-zoom .sx-zlabel { flex:1; text-align:center; font-size:11px; color:#ffce9e; }
       .gw-sx-sw { display:flex; align-items:center; gap:6px; width:100%; background:none; border:1px solid transparent; color:#e8d5a3; font-size:12px; padding:3px 4px; cursor:pointer; border-radius:2px; text-align:left; }
       .gw-sx-sw:hover { background:rgba(255,136,68,.15); }
       .gw-sx-sw.armed { border-color:#ff8844; background:rgba(255,136,68,.22); }
@@ -100,6 +112,13 @@
       #gw-sx-palette .sx-row2 .gw-sx-btn { flex:1; padding:5px 4px; }
       #gw-sx-read { position:absolute; bottom:10px; right:10px; min-width:200px; max-width:280px; background:rgba(14,8,2,.93); border:1px solid #5a3a0a; border-radius:3px; color:#e8d5a3; padding:8px 12px; font-size:12px; font-family:'Crimson Text',Georgia,serif; z-index:6; }
       #gw-sx-read .sx-t { color:#ffaa66; font-weight:600; }
+      #gw-sx-enc { position:absolute; top:54px; right:10px; width:244px; max-height:calc(100% - 130px); overflow-y:auto; background:rgba(14,8,2,.96); border:1px solid #5a3a0a; border-radius:3px; color:#e8d5a3; padding:9px 11px 10px; font-size:12px; font-family:'Crimson Text',Georgia,serif; z-index:7; display:none; }
+      #gw-sx-enc.show { display:block; }
+      #gw-sx-enc .enc-x { position:absolute; top:3px; right:7px; cursor:pointer; color:#a98; font-size:14px; line-height:1; }
+      #gw-sx-enc .enc-x:hover { color:#ffaa66; }
+      #gw-sx-enc .enc-cr { color:#ffaa66; font-weight:600; font-size:14px; margin-top:2px; }
+      #gw-sx-enc .enc-meta { color:#aaa899; font-size:10px; line-height:1.4; }
+      #gw-sx-enc .enc-nope { color:#888; font-style:italic; }
     `;
     document.head.appendChild(s);
   }
@@ -137,12 +156,52 @@
     });
   }
 
+  // ── UI zoom (readability) ───────────────────────────────────────────────────
+  // CSS `zoom` (crisp in Chrome) applied to the overlay's HTML panels — not the
+  // SVG map, which has its own pan/zoom. Persisted; adjustable via the ± row,
+  // Ctrl+wheel over a panel, or Ctrl +/-/0. Range 0.8–2.5.
+  const ZOOM_KEY = 'gw-sx-ui-zoom', ZMIN = 0.8, ZMAX = 2.5, ZSTEP = 0.1;
+  function loadZoom(){ const v = parseFloat(localStorage.getItem(ZOOM_KEY)); return (v >= ZMIN && v <= ZMAX) ? v : 1; }
+  function applyZoom(z){
+    state.uiZoom = z;
+    try { localStorage.setItem(ZOOM_KEY, String(z)); } catch(_){}
+    ['palette', 'read', 'enc'].forEach(k => { const el = state.el[k]; if (el) el.style.zoom = z; });
+    const lbl = state.el.palette && state.el.palette.querySelector('.sx-zlabel');
+    if (lbl) lbl.textContent = Math.round(z * 100) + '%';
+  }
+  function bumpZoom(delta){ applyZoom(Math.max(ZMIN, Math.min(ZMAX, +(state.uiZoom || 1) + delta))); }
+  function buildZoomRow(){
+    const row = document.createElement('div'); row.id = 'gw-sx-zoom';
+    const minus = document.createElement('button'); minus.textContent = '\u2212'; minus.title = 'Smaller UI (Ctrl \u2212)';
+    const lbl = document.createElement('span'); lbl.className = 'sx-zlabel'; lbl.textContent = '100%';
+    lbl.title = 'UI size — click to reset; Ctrl+wheel over a panel to adjust';
+    const plus = document.createElement('button'); plus.textContent = '+'; plus.title = 'Larger UI (Ctrl +)';
+    minus.addEventListener('click', () => bumpZoom(-ZSTEP));
+    plus.addEventListener('click', () => bumpZoom(ZSTEP));
+    lbl.addEventListener('click', () => applyZoom(1));
+    row.append(minus, lbl, plus);
+    return row;
+  }
+  function makeCollapsible(pal){
+    pal.querySelectorAll('.sx-hd').forEach(h => {
+      const caret = document.createElement('span'); caret.className = 'sx-caret'; caret.textContent = '\u25be';
+      h.prepend(caret);
+      h.addEventListener('click', () => {
+        const collapsed = h.classList.toggle('collapsed');
+        caret.textContent = collapsed ? '\u25b8' : '\u25be';
+        let n = h.nextElementSibling;
+        while (n && !n.classList.contains('sx-hd')){ n.style.display = collapsed ? 'none' : ''; n = n.nextElementSibling; }
+      });
+    });
+  }
+
   function buildPalette(){
     const pal = document.createElement('div'); pal.id = 'gw-sx-palette';
     const grip = document.createElement('div'); grip.className = 'sx-grip';
     grip.innerHTML = '<span>⠿</span><span>Tools — drag</span>';
     pal.appendChild(grip);
     makePaletteDraggable(pal, grip);
+    pal.appendChild(buildZoomRow());
     const mode = document.createElement('div'); mode.className = 'sx-mode'; mode.id = 'gw-sx-mode';
     mode.textContent = 'Mode: Select';
     pal.appendChild(mode);
@@ -228,6 +287,13 @@
     fe.addEventListener('click', () => arm({ type: 'annot-erase' }));
     pal.appendChild(fe);
 
+    pal.appendChild(hd('Encounters'));
+    const encB = mkBtn('🎲 Roll here', 'gw-sx-enc-roll'); encB.style.width = '100%';
+    encB.title = 'Roll a wilderness encounter for the hovered (or view-center) subhex';
+    encB.addEventListener('click', rollEncounterHere);
+    pal.appendChild(encB);
+
+    makeCollapsible(pal);
     return pal;
   }
 
@@ -256,6 +322,58 @@
     const n = window.GWFeatureGen.clearForParent(p.col, p.row);
     renderAnnotations();
     if (state.el.mode){ state.el.mode.textContent = `Cleared ${n} generated`; setTimeout(syncMode, 2000); }
+  }
+
+  // ── encounters ─────────────────────────────────────────────────────────────
+  // Roll for the hovered subhex (falls back to the view-center cell), resolving
+  // on the cell's own terrain + hazard + feature via the shared GWEncounter
+  // resolver. RAW priority feature -> radiation -> terrain lives in rollEncounter.
+  function rollEncounterHere(){
+    const d = D();
+    if (!window.GWEncounter || !window.GWEncounterData){
+      showEncounter('<span class="enc-x" title="Close">✕</span><span class="enc-nope">Encounter tables not loaded.</span>'); return;
+    }
+    let Q, R;
+    if (state.hoverKey){ const p = state.hoverKey.split('_'); Q = +p[0]; R = +p[1]; }
+    else { const c = d.svgToAxial(state.vb.x + state.vb.w / 2, state.vb.y + state.vb.h / 2); Q = c.Q; R = c.R; }
+    const sub = d.getSubhexAt(Q, R);
+    const feat = d.getCellFeature(Q, R);
+    const featKind = feat && feat.kind ? feat.kind : null;
+    const tlabel = (d.TERRAIN[sub.terrain] || d.TERRAIN.unknown).label;
+    const check = 1 + Math.floor(Math.random() * 6);
+    const res = window.GWEncounter.roll(sub.terrain, sub.hazard, featKind);
+    renderEncounterPanel({ Q, R, sub, featKind, tlabel, check, res });
+  }
+  function renderEncounterPanel(o){
+    const rad = o.sub.hazard === 'radiation' ? ' <span style="color:#c3f037">☢</span>' : '';
+    const feat = o.featKind ? ` · ${o.featKind}` : '';
+    let html = '<span class="enc-x" title="Close">✕</span>';
+    html += `<div class="enc-meta">Subhex ${o.Q},${o.R} · ${o.tlabel}${rad}${feat}</div>`;
+    html += `<div class="enc-meta">Check 1d6 → <b>${o.check}</b>${o.check === 6 ? ' ✶' : ''}`;
+    if (o.res && o.res.tableKey) html += ` · <em>${o.res.tableKey}</em> 1d20 → ${o.res.roll}`;
+    html += '</div>';
+    let creature = null;
+    if (o.check !== 6){
+      html += '<div class="enc-nope">No encounter.</div>';
+    } else if (o.res.error){
+      html += `<div class="enc-nope">${o.res.error}</div>`;
+    } else {
+      const r = o.res.row;
+      if (r.creature === 'No Encounter') html += '<div class="enc-nope">No encounter (high roll).</div>';
+      else {
+        html += `<div class="enc-cr">${r.creature}</div>`;
+        if (r.number) html += `<div>No. appearing: ${r.number}</div>`;
+        if (r.note)   html += `<div class="enc-meta" style="font-style:italic;">${r.note}</div>`;
+        if (window.GWBestiary && window.GWBestiary[r.creature]) creature = r.creature;
+      }
+    }
+    showEncounter(html);
+    if (creature && window.GWEncounter.attachExport) window.GWEncounter.attachExport(state.el.enc, creature);
+  }
+  function showEncounter(html){
+    const el = state.el.enc; if (!el) return;
+    el.innerHTML = html; el.classList.add('show');
+    const x = el.querySelector('.enc-x'); if (x) x.onclick = () => el.classList.remove('show');
   }
 
   function ensureDom(){
@@ -310,12 +428,13 @@
     bar.append(back, title, spacer, tog, mapTog, mapOp, fit);
     const read = document.createElement('div'); read.id = 'gw-sx-read';
     read.innerHTML = '<span class="sx-t">Subhex</span><div id="gw-sx-read-body">— hover a cell —</div>';
+    const enc = document.createElement('div'); enc.id = 'gw-sx-enc';
 
-    overlay.append(svg, palette, bar, read);
+    overlay.append(svg, palette, bar, read, enc);
     document.body.appendChild(overlay);
 
     Object.assign(state.el, {
-      overlay, svg, gCells, gParents, gAnnot, gEditor, gHaz, panG, gPreview, gHover, basemap, title, read,
+      overlay, svg, gCells, gParents, gAnnot, gEditor, gHaz, panG, gPreview, gHover, basemap, title, read, enc,
       readBody: read.querySelector('#gw-sx-read-body'),
       mode: palette.querySelector('#gw-sx-mode'),
       undoBtn: palette.querySelector('#gw-sx-undo'),
@@ -331,6 +450,14 @@
     wireViewport(svg);
     bindCellHover(svg);
     window.addEventListener('keydown', onEditorKey);
+
+    // Ctrl+wheel over a panel adjusts UI zoom (plain wheel still scrolls it).
+    [palette, read, enc].forEach(el => el.addEventListener('wheel', e => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      bumpZoom(e.deltaY < 0 ? ZSTEP : -ZSTEP);
+    }, { passive: false }));
+    applyZoom(loadZoom());
   }
 
   // ── viewBox + pan/zoom ─────────────────────────────────────────────────────
@@ -836,6 +963,7 @@
     ensureDom();
     state.open = true; state.curParent = { col, row };
     state.el.overlay.classList.add('open');
+    if (state.el.enc) state.el.enc.classList.remove('show');
     state.el.title.textContent = `Subhex · parent ${col},${row} · 3 mi/hex`;
     requestAnimationFrame(() => { state.rendered = null; centerOnParent(col, row); });
   }
@@ -844,5 +972,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.12.1 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.14.0 loaded'); } catch(_){}
 })();

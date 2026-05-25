@@ -289,9 +289,14 @@
   };
 
   // Feature.kind → table key override. RAW priority order: ruin → radioactive
-  // → terrain. A subhex with terrain='desert' and feature.kind='ancient-city'
-  // resolves on the Ruins table, not Desert.
+  // → terrain. A subhex with terrain='desert' and feature.kind='ruin'
+  // resolves on the Ruins table, not Desert. Keys below are the live subhex
+  // FEATURE_KINDS (gw-subhex-data.js) plus legacy 'ancient-*' aliases.
   const FEATURE_TO_TABLE = {
+    // live subhex feature kinds
+    'ruin':               'ruins',
+    'vault':              'ruins',
+    // legacy aliases
     'ancient-building':   'ruins',
     'ancient-village':    'ruins',
     'ancient-town':       'ruins',
