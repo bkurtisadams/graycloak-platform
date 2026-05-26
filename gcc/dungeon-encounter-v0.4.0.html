@@ -259,6 +259,7 @@ body {
 .status-pill.ok { color: var(--moss); border-color: var(--moss); background: rgba(107,138,90,0.14); }
 .status-pill.wait { color: var(--gold-bright); border-color: var(--gold-deep); background: rgba(201,168,90,0.12); }
 .status-pill.dead { color: var(--text-muted); border-color: var(--border-strong); background: transparent; }
+.status-pill.carry { color: var(--steel-bright); border-color: var(--steel); background: rgba(107,138,168,0.14); }
 
 /* CHAT */
 .chat-list { overflow-y: auto; padding: 6px 12px; font-family: 'DM Mono', monospace;
@@ -329,8 +330,8 @@ body {
   color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; }
 
 /* DECLARATION HUD */
-.hotbar { position: fixed; left: 360px; bottom: 16px; width: min(820px, calc(100vw - 390px));
-  max-height: 88vh; min-width: 320px; min-height: 96px; resize: both; transform-origin: top left;
+.hotbar { position: fixed; left: 360px; bottom: 16px; width: min(640px, calc(100vw - 390px));
+  max-height: 88vh; min-width: 300px; min-height: 92px; resize: both; transform-origin: top left;
   display: flex; flex-direction: column; gap: 0;
   background: linear-gradient(180deg, #272018, #1d1812);
   border: 1px solid var(--border-strong); border-radius: 6px;
@@ -365,9 +366,15 @@ body {
 .chip .hpbar i.hp-low { background: var(--hp-low); }
 .hud-head .phase { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.16em;
   color: #1a140d; background: var(--gold); padding: 3px 8px; border-radius: 3px; text-transform: uppercase; font-weight: 700; }
+.hud-head .phase.declared { background: #7fae5f; }
+.hud-head .phase.standing { background: var(--steel); }
 .hud-collapse { background: #191410; border: 1px solid var(--border-strong); color: #cdbb9e; width: 22px; height: 22px;
   line-height: 1; cursor: pointer; border-radius: 3px; font-family: 'DM Mono', monospace; padding: 0; flex: none; }
 .hud-collapse:hover { color: var(--gold-bright); border-color: var(--gold); }
+.hud-density { background: #191410; border: 1px solid var(--border-strong); color: #cdbb9e; width: 22px; height: 22px;
+  line-height: 1; cursor: pointer; border-radius: 3px; font-family: 'DM Mono', monospace; font-size: 12px; padding: 0; flex: none; }
+.hud-density:hover { color: var(--gold-bright); border-color: var(--gold); }
+.hotbar.ultra .hud-density { color: var(--gold-bright); border-color: var(--gold-deep); }
 
 /* body */
 .hud-body { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 7px; overflow-y: auto; flex: 1; min-height: 0; }
@@ -422,6 +429,9 @@ body {
 .action-row .slot.hold { border-left-color: var(--text-muted); }  .action-row .slot.hold .icon { color: #cdbb9e; }
 .action-row .slot.suggest { border-left-color: var(--steel); }  .action-row .slot.suggest .icon { color: var(--steel-bright); }
 .action-row .slot.single-out { border-left-color: #c68040; }  .action-row .slot.single-out .icon { color: #e69c5a; }
+.action-row .slot.parry { border-left-color: var(--steel); }  .action-row .slot.parry .icon { color: var(--steel-bright); }
+.action-row .slot.fallback { border-left-color: var(--moss); }  .action-row .slot.fallback .icon { color: #8fce6a; }
+.action-row .slot.flee { border-left-color: #b06a4a; }  .action-row .slot.flee .icon { color: #d08a5a; }
 
 /* states */
 .slot.active { border-color: var(--gold-bright); background: #2c2418;
@@ -434,6 +444,28 @@ body {
 .ready-row .slot.declared::after { content: ''; }
 .slot.single-out.active .icon { color: #e69c5a; text-shadow: 0 0 8px rgba(230,156,90,0.55); }
 .slot.charge.active .icon { color: #e06868; text-shadow: 0 0 8px rgba(201,80,80,0.55); }
+
+/* ultra-compact density */
+.hotbar.ultra .hud-head { padding: 5px 9px; gap: 8px; }
+.hotbar.ultra .hud-head .sidepill { width: 19px; height: 19px; font-size: 11px; }
+.hotbar.ultra .hud-head .nm { font-size: 13px; }
+.hotbar.ultra .hud-head .cls { font-size: 8px; }
+.hotbar.ultra .chip { padding: 2px 6px; min-width: 34px; }
+.hotbar.ultra .chip .v { font-size: 11px; }
+.hotbar.ultra .chip.hp { min-width: 64px; }
+.hotbar.ultra .hud-head .phase { padding: 2px 6px; font-size: 8px; }
+.hotbar.ultra .hud-body { padding: 6px 8px 7px; gap: 5px; }
+.hotbar.ultra .hud-section { gap: 3px; }
+.hotbar.ultra .ready-row, .hotbar.ultra .action-row { gap: 4px; }
+.hotbar.ultra .hud-section-title { font-size: 7px; }
+.hotbar.ultra .ready-row .slot { padding: 6px 7px 5px; min-height: 29px; }
+.hotbar.ultra .ready-row .slot .icon { font-size: 15px; }
+.hotbar.ultra .ready-row .slot .label { font-size: 12px; }
+.hotbar.ultra .ready-row .slot .menu-dot { width: 15px; height: 15px; font-size: 10px; }
+.hotbar.ultra .action-row { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+.hotbar.ultra .action-row .slot { padding: 5px 7px; min-height: 27px; }
+.hotbar.ultra .action-row .slot .icon { font-size: 14px; }
+.hotbar.ultra .action-row .slot .label { font-size: 12px; }
 .hud-context-menu { position: fixed; display: none; min-width: 215px; max-width: 280px; z-index: 120;
   background: linear-gradient(180deg, var(--surface-2), var(--surface)); border: 1px solid var(--border-strong);
   border-radius: 4px; box-shadow: 0 12px 34px rgba(0,0,0,0.72); padding: 4px; }
@@ -628,6 +660,7 @@ body.light .round-head .rh-title { font-family: inherit; }
   <div class="float-head" id="tracker-drag-handle">
     <span class="ttl">⛬ Turn Order</span>
     <span class="meta" id="tracker-meta"></span>
+    <button class="float-collapse" id="tracker-peek" title="Reveal enemy orders (DM)">👁</button>
     <button class="float-collapse" id="tracker-collapse" title="Collapse">–</button>
   </div>
   <div class="tracker-list" id="tracker-list"></div>
@@ -1123,12 +1156,16 @@ function attackProjection(state, a, t, w, opts) {
     if (rb) { range = rb.mod; range_band = rb.band; }
   }
   const charge = opts.charge ? 2 : 0; // 1e: +2 to hit on a charge
-  const needed = Math.max(1, Math.min(20, calc.needed - range - charge));
+  const fleeBonus = opts.fleeing ? 4 : 0; // free attack on a fleeing foe — struck as if from the rear
+  // PHB parry: a parrying defender subtracts its own Strength "to hit" bonus from melee attackers.
+  const tdecl = state.declarations ? state.declarations[t.id] : null;
+  const parryPen = (tdecl && tdecl.kind === 'parry' && w.melee) ? Math.max(0, t.attack_bonus || 0) : 0;
+  const needed = Math.max(1, Math.min(20, calc.needed - range - charge - fleeBonus + parryPen));
   const dmgDice = (t.size === 'L') ? w.damage.l : w.damage.sm;
   const dmgBonus = ((a.magic_weapons && a.magic_weapons[w.id]) || w.magic_bonus || 0) + (a.damage_bonus || 0);
   return {
     needed, base: calc.base,
-    mods: { wpnVsAc: calc.wpnVsAc, magic: calc.magic, str: calc.str, range, charge, exposed },
+    mods: { wpnVsAc: calc.wpnVsAc, magic: calc.magic, str: calc.str, range, charge, exposed, fleeing: fleeBonus, parry: -parryPen },
     dmgDice, dmgBonus, range_band
   };
 }
@@ -1215,7 +1252,8 @@ function resolveAttack(state, attackerId, targetId, weaponId, opts) {
     damage: dmg, damage_die: dieDamage, damage_multiplier: damageMultiplier,
     damage_bonus: proj.dmgBonus,
     killed: false, range_band: proj.range_band,
-    charge: !!opts.charge, set_spear: !!opts.setSpear, vs_charging: proj.mods.exposed > 0
+    charge: !!opts.charge, set_spear: !!opts.setSpear, vs_charging: proj.mods.exposed > 0,
+    fleeing: !!opts.fleeing, parried: proj.mods.parry < 0
   };
   const out = applyHitConsequences(state, a, t, event, opts);
   applyPoison(state, a, t, w, out);
@@ -1624,7 +1662,9 @@ function makeInitialState() {
 }
 
 let state = makeInitialState();
-let hudUi = { collapsed: false, x: null, y: null, scale: 1 };
+let hudUi = { collapsed: false, x: null, y: null, scale: 1, ultra: false };
+// DM peek: when false (default), enemy orders stay hidden during the declare phase (1e blind declaration).
+let peekDecl = false;
 let chatCollapse = {}; // round number -> true(collapsed)/false(expanded); set on user toggle
 
 // ============================================================
@@ -1965,10 +2005,45 @@ function beginRound() {
   state.segment = 0;
   state.sides_acted = [];
   state.initiative = null; // rolled only after both sides declare (RAW: orders stated at start of round)
-  state.combatants.forEach(c => { c.movement_used = 0; c._spell_interrupted = false; });
+  state.combatants.forEach(c => { c.movement_used = 0; c._spell_interrupted = false; c._falling_back = false; c._fleeing = false; });
   // Expire timed effects whose duration has elapsed (effects populated in later stages)
   state.effects = (state.effects || []).filter(e => e.expires_round == null || e.expires_round > state.round);
   enterDeclarePhase(); // both sides declare blind, before initiative
+}
+
+// Sticky orders: rebuild a combatant's previous declaration as a standing order for the new
+// round, but only if it's still legal — weapon still in hand, spell still prepared, target still
+// alive. A dead melee target drops to null (engine re-picks from engaged), so a fighter keeps
+// hacking; a dead charge/cast target voids the order so the player re-declares.
+function reviveDeclaration(c, last) {
+  if (!c || c.dead || !last || !last.kind) return null;
+  if (last.kind === 'hold') return { kind: 'hold' };
+  if (last.kind === 'parry') return { kind: 'parry', weapon_id: last.weapon_id || c.active_weapon };
+  // fall_back / flee are situational; their old destination is stale, so they don't carry forward.
+  if (last.kind === 'move') return last.destination ? { kind: 'move', destination: { ...last.destination } } : null;
+  if (last.kind === 'set') {
+    const wid = last.weapon_id || c.active_weapon;
+    return (WEAPONS[wid] && canSetVsCharge(wid)) ? { kind: 'set', weapon_id: wid, target_id: null } : null;
+  }
+  if (last.kind === 'cast') {
+    if (!SPELLS[last.spell_id]) return null;
+    if (c.spell_charges && !(c.spell_charges[last.spell_id] > 0)) return null;
+    const t = last.target_id ? findCombatant(state, last.target_id) : null;
+    if (!t || t.dead) return null;
+    return { kind: 'cast', spell_id: last.spell_id, target_id: last.target_id };
+  }
+  if (last.kind === 'attack' || last.kind === 'charge') {
+    const w = WEAPONS[last.weapon_id];
+    if (!w || !(c.loadout || []).includes(last.weapon_id)) return null;
+    let tid = last.target_id;
+    if (tid) { const t = findCombatant(state, tid); if (!t || t.dead) tid = null; }
+    if (last.kind === 'charge') {
+      if (!tid || !chargeAllowed(c)) return null;
+      return { kind: 'charge', weapon_id: last.weapon_id, target_id: tid };
+    }
+    return { kind: 'attack', weapon_id: last.weapon_id, target_id: tid };
+  }
+  return null;
 }
 
 function enterDeclarePhase(opts) {
@@ -1980,10 +2055,12 @@ function enterDeclarePhase(opts) {
   const sides = opts.surpriseSide ? [opts.surpriseSide] : ['A', 'B'];
   sides.forEach(side => {
     aliveCombatantsOnSide(state, side).forEach(c => {
-      // Player-side orders are not pre-filled. An undeclared PC must be
-      // explicitly assigned an action; otherwise the old default Hold order
-      // could silently resolve even when an active weapon was selected.
-      if (!state.declarations[c.id] && c.side !== 'A') {
+      if (state.declarations[c.id]) return;
+      if (c.side === 'A') {
+        // Carry forward the player's last legal order as a standing order; they confirm or change it.
+        const revived = reviveDeclaration(c, c._last_decl);
+        if (revived) { revived._carried = true; state.declarations[c.id] = revived; }
+      } else {
         state.declarations[c.id] = aiDeclare(c);
       }
     });
@@ -2001,7 +2078,10 @@ function declSpeed(c, decl) {
   if (decl.kind === 'charge') return (WEAPONS[decl.weapon_id] && WEAPONS[decl.weapon_id].speed) || 5;
   if (decl.kind === 'cast') return ((SPELLS[decl.spell_id] && SPELLS[decl.spell_id].level) || 1) + 1;
   if (decl.kind === 'move') return 1;
+  if (decl.kind === 'fall_back') return 1;
+  if (decl.kind === 'flee') return 1;
   if (decl.kind === 'set') return 0;
+  if (decl.kind === 'parry') return 0;
   return 0; // hold
 }
 
@@ -2034,7 +2114,12 @@ async function resolveSide(side) {
 }
 
 function clearRoundDeclarations() {
-  state.combatants.forEach(c => { delete state.declarations[c.id]; });
+  state.combatants.forEach(c => {
+    const d = state.declarations[c.id];
+    // Remember what each figure did, sans transient flags, so it can become next round's standing order.
+    if (d) c._last_decl = { kind: d.kind, weapon_id: d.weapon_id, spell_id: d.spell_id, target_id: d.target_id, destination: d.destination };
+    delete state.declarations[c.id];
+  });
 }
 
 // Normal round: declarations are locked, NOW roll initiative, then resolve winner then loser (DMG steps 4–5).
@@ -2137,6 +2222,13 @@ function validateDeclarationAtExecution(c, decl) {
     return { ok: true };
   }
 
+  if (decl.kind === 'parry') return { ok: true };
+  if (decl.kind === 'fall_back') {
+    if (!decl.destination) return { ok: false, reason: 'no ground to give' };
+    return { ok: true };
+  }
+  if (decl.kind === 'flee') return { ok: true };
+
   return { ok: false, reason: 'unknown declaration' };
 }
 
@@ -2154,11 +2246,71 @@ async function executeDeclaration(c, decl) {
     case 'set': return executeSetDecl(c, decl);
     case 'cast': return executeCastDecl(c, decl);
     case 'move': return executeMoveDecl(c, decl);
+    case 'parry': return executeParryDecl(c, decl);
+    case 'fall_back': return executeFallBackDecl(c, decl);
+    case 'flee': return executeFleeDecl(c, decl);
     case 'hold':
       log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${c.side === 'A' ? 'a' : 'b'}">${c.label}</span> holds.</span>`);
       await sleep(150);
       return;
   }
+}
+
+async function executeParryDecl(c, decl) {
+  const aSide = c.side === 'A' ? 'a' : 'b';
+  const w = WEAPONS[decl.weapon_id || c.active_weapon];
+  const bonus = Math.max(0, c.attack_bonus || 0);
+  const note = bonus ? ` — melee attackers suffer −${bonus} to hit` : ' — but lacks the Strength to deflect much';
+  log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span> parries with ${w ? w.name : 'weapon'}, making no attack${note}.</span>`);
+  await sleep(150);
+}
+
+async function executeFallBackDecl(c, decl) {
+  if (!decl.destination) return;
+  const aSide = c.side === 'A' ? 'a' : 'b';
+  // Fighting withdrawal: at most half movement, no free attacks, facing kept toward the foe.
+  const budget = Math.max(1, Math.floor(((c.move || 4) * SUB - (c.movement_used || 0)) / 2));
+  const reachable = computeReachable(state, c.position, budget, c.id);
+  let target = reachable.get(`${decl.destination.col},${decl.destination.row}`)
+    || movePartialTowards(state, c.position, decl.destination, budget, c.id);
+  if (!target || target.distance === 0) {
+    log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span> holds the line — nowhere to give ground.</span>`);
+    await sleep(150);
+    return;
+  }
+  log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span> makes a fighting withdrawal — no opening given.</span>`);
+  c._falling_back = true;
+  await moveCombatantTo(c, target.col, target.row, target.distance);
+  c._falling_back = false;
+}
+
+async function executeFleeDecl(c, decl) {
+  const aSide = c.side === 'A' ? 'a' : 'b';
+  const enemies = aliveCombatantsOnSide(state, c.side === 'A' ? 'B' : 'A');
+  if (!enemies.length) {
+    log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span> has no one to flee from.</span>`);
+    await sleep(150);
+    return;
+  }
+  // Run for it: full movement to whichever reachable cell sits farthest from the nearest foe.
+  const budget = (c.move || 4) * SUB - (c.movement_used || 0);
+  const reachable = computeReachable(state, c.position, budget, c.id);
+  const distFrom = (col, row) => Math.min(...enemies.map(e => minCheb(cellsAt({ col, row }, sizeCells(c)), footprintCells(e))));
+  let best = null, bestScore = -Infinity;
+  for (const [, info] of reachable) {
+    if (info.distance === 0) continue;
+    const score = distFrom(info.col, info.row);
+    if (score > bestScore || (score === bestScore && best && info.distance > best.distance)) { bestScore = score; best = info; }
+  }
+  if (!best) {
+    log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span> is hemmed in — cannot flee!</span>`);
+    await sleep(150);
+    return;
+  }
+  log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span> turns to flee!</span>`);
+  c._fleeing = true;
+  await moveCombatantTo(c, best.col, best.row, best.distance);
+  c._fleeing = false;
 }
 
 async function executeAttackDecl(c, decl) {
@@ -2420,25 +2572,32 @@ async function moveCombatantTo(c, newCol, newRow, cost) {
     .map(id => findCombatant(state, id))
     .filter(e => e && !e.dead && !inMeleeAt(c, newPos, e));
 
-  // Resolve free attacks BEFORE move commits
-  for (const enemy of breakingFrom) {
-    const sideCls = c.side === 'A' ? 'a' : 'b';
-    const eSideCls = enemy.side === 'A' ? 'a' : 'b';
-    log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${sideCls}">${c.label}</span> breaks off from <span class="${eSideCls}">${enemy.label}</span> — free attack!</span>`);
-    const event = resolveAttack(state, enemy.id, c.id, enemy.active_weapon);
-    if (event) { logAttackEvent(event); showAttackVfx(event); }
-    if (c.dead) {
-      log(state, 'death', `<span class="ts">R${state.round}</span><span class="body"><span class="${sideCls}">${c.label}</span> falls before escaping engagement.</span>`);
-      recomputeEngagements(state);
-      renderAll();
-      await sleep(400);
-      return;
+  // A controlled fall-back draws no free attacks. Any other way of leaving melee — a normal
+  // move or a flee — gives each abandoned foe a free swing; a fleer is struck as if from the rear.
+  if (!c._falling_back) {
+    for (const enemy of breakingFrom) {
+      const sideCls = c.side === 'A' ? 'a' : 'b';
+      const eSideCls = enemy.side === 'A' ? 'a' : 'b';
+      const lead = c._fleeing
+        ? `<span class="${eSideCls}">${enemy.label}</span> strikes the fleeing <span class="${sideCls}">${c.label}</span> — free attack!`
+        : `<span class="${sideCls}">${c.label}</span> breaks off from <span class="${eSideCls}">${enemy.label}</span> — free attack!`;
+      log(state, 'system', `<span class="ts">R${state.round}</span><span class="body">${lead}</span>`);
+      const event = resolveAttack(state, enemy.id, c.id, enemy.active_weapon, c._fleeing ? { fleeing: true } : {});
+      if (event) { logAttackEvent(event); showAttackVfx(event); }
+      if (c.dead) {
+        log(state, 'death', `<span class="ts">R${state.round}</span><span class="body"><span class="${sideCls}">${c.label}</span> falls before escaping engagement.</span>`);
+        recomputeEngagements(state);
+        renderAll();
+        await sleep(400);
+        return;
+      }
+      await sleep(300);
     }
-    await sleep(300);
   }
 
   faceToward(c, newPos);
   c.position = newPos;
+  if (c._falling_back && breakingFrom.length) faceToward(c, breakingFrom[0].position); // withdraw still facing the foe
   c.movement_used = (c.movement_used || 0) + cost;
   recomputeEngagements(state);
 
@@ -2614,8 +2773,9 @@ function renderMap() {
   if (state.picking) {
     const c = findCombatant(state, state.picking.forCombatantId);
     if (state.picking.kind === 'move') {
-      // Show reachable cells within move (inches × SUB cells)
-      const budget = (c.move || 4) * SUB - (c.movement_used || 0);
+      // Show reachable cells within move (inches × SUB cells); a fall-back is limited to half rate.
+      let budget = (c.move || 4) * SUB - (c.movement_used || 0);
+      if (state.picking.fallBack) budget = Math.max(1, Math.floor(budget / 2));
       const reachable = computeReachable(state, c.position, budget, c.id);
       const moverN = sizeCells(c);
       // Ghost of the mover's full footprint at the hovered destination (large creatures only)
@@ -2767,7 +2927,8 @@ function renderMap() {
     let html, cls;
     if (state.picking.kind === 'move') {
       cls = 'pick-banner move';
-      html = `Pick destination for <em>${findCombatant(state, state.picking.forCombatantId).label}</em><span class="esc">Esc to cancel</span>`;
+      const verb = state.picking.fallBack ? 'Fall back' : 'Move';
+      html = `${verb}: pick a square for <em>${findCombatant(state, state.picking.forCombatantId).label}</em><span class="esc">Esc to cancel</span>`;
     } else {
       cls = 'pick-banner target';
       const what = state.picking.charge ? 'a charge' :
@@ -2818,6 +2979,9 @@ function declGlyph(decl) {
   if (decl.kind === 'set') return '⟑';
   if (decl.kind === 'cast') return '✦';
   if (decl.kind === 'move') return '→';
+  if (decl.kind === 'parry') return '⛨';
+  if (decl.kind === 'fall_back') return '↩';
+  if (decl.kind === 'flee') return '↜';
   if (decl.kind === 'hold') return '·';
   return '?';
 }
@@ -2853,6 +3017,9 @@ function declSummary(c, decl) {
   if (decl.kind === 'move') {
     return { text: `move to (${decl.destination.col},${decl.destination.row})` };
   }
+  if (decl.kind === 'parry') return { text: 'parry — no attack, foes at −Str to hit' };
+  if (decl.kind === 'fall_back') return { text: 'fighting withdrawal' };
+  if (decl.kind === 'flee') return { text: 'flee!' };
   return { text: 'unknown' };
 }
 
@@ -2862,6 +3029,9 @@ function declShort(c, decl) {
   if (decl.kind === 'hold') return 'Hold position';
   if (decl.kind === 'move') return 'Move';
   if (decl.kind === 'set') return 'Set vs charge';
+  if (decl.kind === 'parry') return 'Parry';
+  if (decl.kind === 'fall_back') return 'Fall back';
+  if (decl.kind === 'flee') return 'Flee';
   const t = decl.target_id ? findCombatant(state, decl.target_id) : null;
   if (decl.kind === 'attack') return t ? `Attack <span class="em">${t.label}</span>` : 'Attack';
   if (decl.kind === 'charge') return t ? `Charge <span class="em">${t.label}</span>` : 'Charge';
@@ -2898,12 +3068,17 @@ function renderTracker() {
       row.className = `combatant ${side}${isSelected ? ' selected' : ''}${isActing ? ' acting' : ''}${c.dead ? ' dead' : ''}`;
       const pct = c.hp_max > 0 ? (c.hp_current / c.hp_max) * 100 : 0;
       const hpClass = pct > 50 ? 'good' : (pct > 25 ? 'mid' : 'low');
+      const hideEnemy = state.phase === 'declare' && !peekDecl && side !== state.acting_side;
       let pill = '';
       if (c.dead) pill = `<span class="status-pill dead">Dead</span>`;
-      else if (roundActive) pill = decl ? `<span class="status-pill ok">Declared</span>` : `<span class="status-pill wait">Waiting</span>`;
-      const sub = (c.dead || roundActive)
-        ? `${classMicro(c)} <span class="sep">•</span> ${declShort(c, decl)}`
-        : classMicro(c);
+      else if (roundActive && !hideEnemy) pill = decl
+        ? (decl._carried ? `<span class="status-pill carry">Standing</span>` : `<span class="status-pill ok">Declared</span>`)
+        : `<span class="status-pill wait">Waiting</span>`;
+      const sub = hideEnemy
+        ? classMicro(c)
+        : ((c.dead || roundActive)
+            ? `${classMicro(c)} <span class="sep">•</span> ${declShort(c, decl)}`
+            : classMicro(c));
       row.innerHTML = `
         <div class="combatant-portrait">${c.letter}</div>
         <div class="combatant-body">
@@ -3037,11 +3212,15 @@ function slotNameLabel(slotName) {
 
 function describeDeclaration(decl) {
   if (!decl) return 'No declaration yet.';
-  if (decl.kind === 'attack') return `Attack with ${slotWeaponName(decl.weapon_id)}`;
-  if (decl.kind === 'charge') return `Charge with ${slotWeaponName(decl.weapon_id)}`;
-  if (decl.kind === 'set') return `Set vs Charge with ${slotWeaponName(decl.weapon_id)}`;
-  if (decl.kind === 'cast') return `Cast ${slotSpellName(decl.spell_id)}`;
+  const tgt = decl.target_id ? (findCombatant(state, decl.target_id) || {}).label : null;
+  if (decl.kind === 'attack') return tgt ? `Attack ${tgt} — ${slotWeaponName(decl.weapon_id)}` : `Attack with ${slotWeaponName(decl.weapon_id)}`;
+  if (decl.kind === 'charge') return tgt ? `Charge ${tgt} — ${slotWeaponName(decl.weapon_id)}` : `Charge with ${slotWeaponName(decl.weapon_id)}`;
+  if (decl.kind === 'set') return `Set vs Charge — ${slotWeaponName(decl.weapon_id)}`;
+  if (decl.kind === 'cast') return tgt ? `Cast ${slotSpellName(decl.spell_id)} → ${tgt}` : `Cast ${slotSpellName(decl.spell_id)}`;
   if (decl.kind === 'move') return 'Move';
+  if (decl.kind === 'parry') return 'Parry';
+  if (decl.kind === 'fall_back') return 'Fall Back';
+  if (decl.kind === 'flee') return 'Flee';
   if (decl.kind === 'hold') return 'Hold';
   return decl.kind || 'Unknown declaration';
 }
@@ -3128,8 +3307,10 @@ function bindHudChrome() {
   const hud = document.getElementById('hotbar');
   const handle = document.getElementById('hud-drag-handle');
   const collapse = document.getElementById('hud-collapse');
+  const density = document.getElementById('hud-density');
   if (!hud) return;
   hud.classList.toggle('collapsed', !!hudUi.collapsed);
+  hud.classList.toggle('ultra', !!hudUi.ultra);
   // Anchor by top/left (not bottom) so the native resize grip grows down-right intuitively.
   if (hudUi.x == null || hudUi.y == null) {
     const r = hud.getBoundingClientRect();
@@ -3161,9 +3342,21 @@ function bindHudChrome() {
       collapse.textContent = hudUi.collapsed ? '+' : '–';
     });
   }
+  if (density) {
+    density.textContent = hudUi.ultra ? '⊕' : '⊖';
+    density.title = hudUi.ultra ? 'Comfortable density' : 'Ultra-compact density';
+    density.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      hudUi.ultra = !hudUi.ultra;
+      hud.classList.toggle('ultra', hudUi.ultra);
+      density.textContent = hudUi.ultra ? '⊕' : '⊖';
+      density.title = hudUi.ultra ? 'Comfortable density' : 'Ultra-compact density';
+    });
+  }
   if (handle) {
     handle.addEventListener('mousedown', (e) => {
-      if (e.target === collapse) return;
+      if (e.target === collapse || e.target === density) return;
       const rect = hud.getBoundingClientRect();
       const ox = e.clientX - rect.left;
       const oy = e.clientY - rect.top;
@@ -3257,6 +3450,8 @@ function renderHotbar() {
 
   const slots = ensureHudSlots(c);
   const currentDecl = state.declarations[c.id];
+  const phaseCls = currentDecl ? (currentDecl._carried ? 'standing' : 'declared') : '';
+  const phaseTxt = currentDecl ? (currentDecl._carried ? 'Standing' : 'Declared') : 'Declare';
   const primary = slotEntryFor(c, 'primary');
   const secondary = slotEntryFor(c, 'secondary');
   const missile = slotEntryFor(c, 'missile');
@@ -3275,6 +3470,7 @@ function renderHotbar() {
   const canMissileAttack = !!missile && computeValidTargets(c, { weaponId: missile.id }).length > 0;
   const canCharge = !!primary && WEAPONS[primary.id]?.melee && computeValidTargets(c, { charge: true, weaponId: primary.id }).length > 0 && chargeAllowed(c);
   const canSet = !!primary && WEAPONS[primary.id]?.melee && canSetVsCharge(primary.id);
+  const canParry = !!primary && WEAPONS[primary.id]?.melee;
   const canCast = !!spell && computeValidTargets(c, { spellId: spell.id }).length > 0 && (c.spell_charges?.[spell.id] || 0) > 0;
   const enemiesAlive = aliveCombatantsOnSide(state, c.side === 'A' ? 'B' : 'A').length;
 
@@ -3283,13 +3479,16 @@ function renderHotbar() {
     { kind: 'attack-missile', icon: missile?.icon || '➳', label: 'Missile', detail: missile?.label || 'None', disabled: !canMissileAttack, cls: 'attack', key: '2', active: state.picking?.kind === 'target' && state.picking.weaponId === missile?.id, declared: currentDecl?.kind === 'attack' && currentDecl.weapon_id === missile?.id },
     { kind: 'charge', icon: '➤', label: 'Charge', detail: primary?.label || 'Primary', disabled: !canCharge, cls: 'charge', key: '3', active: state.picking?.kind === 'target' && state.picking.charge && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'charge' },
     { kind: 'set', icon: '⟑', label: 'Set vs Charge', detail: primary?.label || 'Primary', disabled: !canSet, cls: 'set', key: '4', declared: currentDecl?.kind === 'set' },
-    { kind: 'move', icon: '✜', label: 'Move', detail: 'Pick space', disabled: false, cls: 'move', key: '5', active: state.picking?.kind === 'move' && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'move' },
-    { kind: 'cast', icon: spell?.icon || '✦', label: 'Cast', detail: spell?.label || 'No spell', disabled: !canCast, cls: 'spell', key: '6', active: state.picking?.kind === 'target' && state.picking.spellId === spell?.id, declared: currentDecl?.kind === 'cast' && currentDecl.spell_id === spell?.id },
-    { kind: 'hold', icon: '·', label: 'Hold', detail: 'Explicit', disabled: false, cls: 'hold', key: '7', declared: currentDecl?.kind === 'hold' },
-    { kind: 'suggest', icon: '✧', label: 'Suggest', detail: 'Auto-fill', disabled: false, cls: 'suggest', key: '8' }
+    { kind: 'parry', icon: '⛨', label: 'Parry', detail: 'Defend, no attack', disabled: !canParry, cls: 'parry', key: '5', declared: currentDecl?.kind === 'parry' },
+    { kind: 'move', icon: '✜', label: 'Move', detail: 'Pick space', disabled: false, cls: 'move', key: '6', active: state.picking?.kind === 'move' && !state.picking.fallBack && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'move' },
+    { kind: 'fall-back', icon: '↩', label: 'Fall Back', detail: 'Withdraw, no free hit', disabled: false, cls: 'fallback', key: '7', active: state.picking?.kind === 'move' && state.picking.fallBack && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'fall_back' },
+    { kind: 'flee', icon: '↜', label: 'Flee', detail: 'Run; foes get a free hit', disabled: enemiesAlive === 0, cls: 'flee', key: '8', declared: currentDecl?.kind === 'flee' },
+    { kind: 'cast', icon: spell?.icon || '✦', label: 'Cast', detail: spell?.label || 'No spell', disabled: !canCast, cls: 'spell', key: '9', active: state.picking?.kind === 'target' && state.picking.spellId === spell?.id, declared: currentDecl?.kind === 'cast' && currentDecl.spell_id === spell?.id },
+    { kind: 'hold', icon: '·', label: 'Hold', detail: 'Await action', disabled: false, cls: 'hold', key: '', declared: currentDecl?.kind === 'hold' },
+    { kind: 'suggest', icon: '✧', label: 'Suggest', detail: 'Auto-fill', disabled: false, cls: 'suggest', key: '' }
   ];
   if (c.singles_out && enemiesAlive > 0) {
-    actionDefs.push({ kind: 'single-out', icon: '◎', label: 'Single Out', detail: 'Toggle target', disabled: false, cls: 'single-out', key: '9', active: state.single_out_mode });
+    actionDefs.push({ kind: 'single-out', icon: '◎', label: 'Single Out', detail: 'Toggle target', disabled: false, cls: 'single-out', key: '', active: state.single_out_mode });
   }
 
   const _r = c.hp_max ? c.hp_current / c.hp_max : 0;
@@ -3309,7 +3508,8 @@ function renderHotbar() {
         <span class="chip"><span class="v">${c.ac_current}</span><span class="k">AC</span></span>
         <span class="chip"><span class="v">${c.move}"</span><span class="k">MV</span></span>
       </span>
-      <span class="phase">Declare</span>
+      <span class="phase ${phaseCls}">${phaseTxt}</span>
+      <button class="hud-density" id="hud-density" title="Ultra-compact density">⊖</button>
       <button class="hud-collapse" id="hud-collapse" title="Collapse HUD">–</button>
     </div>
     <div class="hud-body">
@@ -3363,7 +3563,7 @@ function renderHotbar() {
     btn.innerHTML = `
       <span class="icon">${a.icon}</span>
       <span class="label" title="${a.detail || ''}">${a.label}</span>
-      <span class="key">${a.key || (i + 1)}</span>`;
+      <span class="key">${a.key || ''}</span>`;
     if (!a.disabled) {
       btn.addEventListener('click', () => {
         if (a.kind === 'attack-primary' && primary) App.declareAttack(c.id, primary.id);
@@ -3371,6 +3571,9 @@ function renderHotbar() {
         else if (a.kind === 'charge') App.beginCharge(c.id);
         else if (a.kind === 'set') App.declareSetSpear(c.id);
         else if (a.kind === 'move') App.beginMovePick(c.id);
+        else if (a.kind === 'parry') App.declareParry(c.id);
+        else if (a.kind === 'fall-back') App.beginFallBack(c.id);
+        else if (a.kind === 'flee') App.declareFlee(c.id);
         else if (a.kind === 'cast' && spell) App.beginSpellTarget(c.id, spell.id);
         else if (a.kind === 'hold') App.declareHold(c.id);
         else if (a.kind === 'suggest') App.suggestDeclaration(c.id);
@@ -3498,7 +3701,9 @@ function logAttackEvent(ev) {
   const setNote = ev.set_spear ? ` <span class="em">set vs charge x${ev.damage_multiplier || 2}</span>` : '';
   const exposedNote = ev.vs_charging ? ` <span class="em">caught mid-charge</span>` : '';
   const interruptNote = ev.spell_interrupted ? ` <span class="em">spell interrupted</span>` : '';
-  const tagNote = chargeNote + setNote + exposedNote + interruptNote;
+  const fleeNote = ev.fleeing ? ` <span class="em">rear, fleeing +4</span>` : '';
+  const parryNote = ev.parried ? ` <span class="em">parried</span>` : '';
+  const tagNote = chargeNote + setNote + exposedNote + interruptNote + fleeNote + parryNote;
   if (ev.kind === 'attack_miss') {
     log(state, 'fail', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${a.label}</span> swings ${w.name} at <span class="${tSide}">${t.label}</span>${rangeNote}${tagNote} · rolled <span class="roll bad">${ev.roll}</span> vs <span class="roll">${ev.needed}</span> — miss${buildAuditNote(ev)}</span>`);
   } else {
@@ -3751,6 +3956,11 @@ const App = {
     renderAll();
   },
 
+  beginFallBack(combatantId) {
+    state.picking = { kind: 'move', forCombatantId: combatantId, fallBack: true };
+    renderAll();
+  },
+
   completePickTarget(targetId) {
     if (!state.picking || state.picking.kind !== 'target') return;
     const c = findCombatant(state, state.picking.forCombatantId);
@@ -3775,7 +3985,8 @@ const App = {
 
   completePickMove(col, row) {
     if (!state.picking || state.picking.kind !== 'move') return;
-    setDeclaration(state.picking.forCombatantId, { kind: 'move', destination: { col, row } });
+    const kind = state.picking.fallBack ? 'fall_back' : 'move';
+    setDeclaration(state.picking.forCombatantId, { kind, destination: { col, row } });
     state.picking = null;
     renderAll();
   },
@@ -3796,6 +4007,22 @@ const App = {
 
   declareHold(combatantId) {
     setDeclaration(combatantId, { kind: 'hold' });
+    renderAll();
+  },
+
+  declareParry(combatantId) {
+    const c = findCombatant(state, combatantId);
+    if (!c) return;
+    setDeclaration(combatantId, { kind: 'parry', weapon_id: c.active_weapon });
+    state.picking = null;
+    state.single_out_mode = false;
+    renderAll();
+  },
+
+  declareFlee(combatantId) {
+    setDeclaration(combatantId, { kind: 'flee' });
+    state.picking = null;
+    state.single_out_mode = false;
     renderAll();
   },
 
@@ -3847,9 +4074,10 @@ document.addEventListener('keydown', (e) => {
   const win = document.getElementById('tracker-window');
   const handle = document.getElementById('tracker-drag-handle');
   const collapseBtn = document.getElementById('tracker-collapse');
+  const peekBtn = document.getElementById('tracker-peek');
   let dragging = false, ox = 0, oy = 0;
   handle.addEventListener('mousedown', (e) => {
-    if (e.target === collapseBtn) return;
+    if (e.target === collapseBtn || e.target === peekBtn) return;
     dragging = true;
     const rect = win.getBoundingClientRect();
     ox = e.clientX - rect.left;
@@ -3871,6 +4099,15 @@ document.addEventListener('keydown', (e) => {
     win.classList.toggle('collapsed');
     collapseBtn.textContent = win.classList.contains('collapsed') ? '+' : '–';
   });
+  if (peekBtn) {
+    peekBtn.style.opacity = peekDecl ? '1' : '0.45';
+    peekBtn.addEventListener('click', () => {
+      peekDecl = !peekDecl;
+      peekBtn.style.opacity = peekDecl ? '1' : '0.45';
+      peekBtn.title = peekDecl ? 'Hide enemy orders' : 'Reveal enemy orders (DM)';
+      renderAll();
+    });
+  }
   let scale = 1;
   win.addEventListener('wheel', (e) => {
     if (!(e.ctrlKey || e.metaKey)) return;
