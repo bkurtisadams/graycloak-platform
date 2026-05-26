@@ -6,7 +6,7 @@
 <title>AD&D 1e Combat — Encounter & Sides</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=IM+Fell+English:ital@0;1&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg: #14110e; --surface: #1d1916; --surface-2: #251f1a; --surface-3: #2d2620;
@@ -168,7 +168,8 @@ body {
 
 /* FLOATING TRACKER WINDOW */
 .float-window { position: fixed; top: 88px; left: 24px; width: 300px;
-  max-height: 64vh; background: var(--surface);
+  max-height: 88vh; min-width: 220px; min-height: 120px; resize: both; transform-origin: top left;
+  background: var(--surface);
   border: 1px solid var(--border-strong); border-radius: 3px;
   box-shadow: 0 10px 36px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(201,168,90,0.08);
   z-index: 50; display: flex; flex-direction: column; overflow: hidden; }
@@ -213,51 +214,51 @@ body {
 .tracker-side-label.A { color: var(--steel-bright); }
 .tracker-side-label.B { color: var(--crimson-bright); }
 
-.combatant { display: grid; grid-template-columns: 36px 1fr auto; gap: 8px;
-  align-items: center; padding: 6px 12px; cursor: pointer;
-  border-left: 2px solid transparent; transition: background 120ms; }
+.combatant { display: grid; grid-template-columns: 38px 1fr; gap: 10px;
+  align-items: center; padding: 8px 11px; cursor: pointer;
+  border-radius: 6px; margin: 0 6px 5px; border: 1px solid transparent;
+  transition: background 120ms, box-shadow 120ms; }
 .combatant:hover { background: var(--surface-2); }
-.combatant.selected { background: linear-gradient(90deg, rgba(201,168,90,0.14), transparent 80%);
-  border-left-color: var(--gold-bright); }
-.combatant.acting { background: linear-gradient(90deg, rgba(230,194,117,0.22), transparent 80%);
-  border-left-color: var(--gold-bright); }
-.combatant.dead { opacity: 0.35; }
-.combatant.dead .combatant-name::after { content: ' ☠'; color: var(--crimson); margin-left: 4px; }
-.combatant-portrait { width: 36px; height: 36px; border-radius: 50%;
-  border: 2px solid var(--party); background: rgba(74,120,152,0.18);
+.combatant.A.selected { background: rgba(74,120,152,0.18); border-color: var(--party);
+  box-shadow: inset 0 0 0 1px var(--party); }
+.combatant.B.selected { background: rgba(168,60,60,0.16); border-color: var(--enemy);
+  box-shadow: inset 0 0 0 1px var(--enemy); }
+.combatant.selected .combatant-name { font-weight: 600; }
+.combatant.acting { background: rgba(230,194,117,0.30); border-color: var(--gold-bright);
+  box-shadow: inset 0 0 0 1px var(--gold-bright), 0 0 10px rgba(230,194,117,0.4); }
+.combatant.acting .combatant-name { color: var(--gold-bright); font-weight: 600; }
+.combatant.dead { opacity: 0.5; }
+.combatant-portrait { width: 38px; height: 38px; border-radius: 50%;
+  background: var(--party); color: #fff;
   display: grid; place-items: center; font-family: 'IM Fell English', serif;
-  font-size: 16px; color: var(--text); position: relative; }
-.combatant.B .combatant-portrait { border-color: var(--enemy); background: rgba(168,60,60,0.18); }
-.combatant.selected .combatant-portrait, .combatant.acting .combatant-portrait {
-  box-shadow: 0 0 0 1px var(--gold-bright), 0 0 8px rgba(230,194,117,0.5); }
-.combatant-portrait .decl-badge { position: absolute; bottom: -3px; right: -3px;
-  width: 16px; height: 16px; background: var(--surface);
-  border: 1px solid var(--gold-deep); border-radius: 50%;
-  display: grid; place-items: center; font-size: 10px; color: var(--gold-bright);
-  font-family: 'IM Fell English', serif; }
-.combatant-portrait .decl-badge.empty { color: var(--text-muted); border-color: var(--border); }
+  font-size: 16px; font-weight: 500; position: relative; }
+.combatant.B .combatant-portrait { background: var(--enemy); }
+.combatant.dead .combatant-portrait { background: var(--text-muted); }
 .combatant-body { min-width: 0; }
-.combatant-name { font-size: 13px; color: var(--text); white-space: nowrap;
-  overflow: hidden; text-overflow: ellipsis; }
-.combatant-name .micro { font-family: 'DM Mono', monospace; font-size: 9px;
-  color: var(--text-muted); margin-left: 4px; }
-.combatant-decl-text { font-family: 'Crimson Text', serif; font-style: italic;
-  font-size: 11px; color: var(--text-dim); margin-top: 2px;
+.cb-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.combatant-name { font-size: 13px; color: var(--text); font-weight: 500;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.combatant-decl-text.empty { color: var(--text-muted); }
-.combatant-decl-text .em { color: var(--gold); font-style: normal; }
-.combatant-hpbar { margin-top: 3px; height: 4px; background: var(--ink);
-  border-radius: 1px; overflow: hidden; }
+.cb-sub { font-size: 11px; color: var(--text-dim); margin-top: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cb-sub .sep { color: var(--text-muted); margin: 0 5px; }
+.cb-sub .em { color: var(--gold); font-weight: 500; }
+.cb-hp { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
+.combatant-hpbar { flex: 1; height: 6px; background: var(--ink); border-radius: 2px; overflow: hidden; }
 .combatant-hpbar .fill { height: 100%; transition: width 280ms; }
 .combatant-hpbar .fill.good { background: var(--hp-good); }
 .combatant-hpbar .fill.mid { background: var(--hp-mid); }
 .combatant-hpbar .fill.low { background: var(--hp-low); }
-.combatant-right { text-align: right; font-family: 'DM Mono', monospace;
-  font-size: 10px; color: var(--text-dim); }
-.combatant-right .ac { color: var(--text-muted); }
-.combatant-right .hp { color: var(--text); }
-.combatant-right .hp.mid { color: var(--gold); }
-.combatant-right .hp.low { color: var(--crimson-bright); }
+.cb-hpnum { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-dim);
+  white-space: nowrap; min-width: 48px; text-align: right; }
+.cb-hpnum .hp { color: var(--text); font-weight: 500; }
+.cb-hpnum .hp.mid { color: var(--gold); }
+.cb-hpnum .hp.low { color: var(--crimson-bright); }
+.status-pill { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.05em;
+  text-transform: uppercase; border-radius: 10px; padding: 1px 8px; white-space: nowrap;
+  border: 1px solid; flex: 0 0 auto; }
+.status-pill.ok { color: var(--moss); border-color: var(--moss); background: rgba(107,138,90,0.14); }
+.status-pill.wait { color: var(--gold-bright); border-color: var(--gold-deep); background: rgba(201,168,90,0.12); }
+.status-pill.dead { color: var(--text-muted); border-color: var(--border-strong); background: transparent; }
 
 /* CHAT */
 .chat-list { overflow-y: auto; padding: 6px 12px; font-family: 'DM Mono', monospace;
@@ -328,76 +329,111 @@ body {
   color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; }
 
 /* DECLARATION HUD */
-.hotbar { position: fixed; left: 360px; bottom: 16px; width: min(860px, calc(100vw - 390px));
-  max-height: min(56vh, 390px); display: flex; flex-direction: column; gap: 8px;
-  padding: 0; background: linear-gradient(180deg, var(--surface-2), var(--surface));
-  border: 1px solid var(--border-strong); border-radius: 4px;
-  box-shadow: 0 14px 44px rgba(0,0,0,0.72), inset 0 0 0 1px rgba(201,168,90,0.08);
+.hotbar { position: fixed; left: 360px; bottom: 16px; width: min(820px, calc(100vw - 390px));
+  max-height: 88vh; min-width: 320px; min-height: 96px; resize: both; transform-origin: top left;
+  display: flex; flex-direction: column; gap: 0;
+  background: linear-gradient(180deg, #272018, #1d1812);
+  border: 1px solid var(--border-strong); border-radius: 6px;
+  box-shadow: 0 16px 46px rgba(0,0,0,0.75), inset 0 0 0 1px rgba(201,168,90,0.10);
   z-index: 64; overflow: hidden; }
 .hotbar.disabled { opacity: 0.62; }
 .hotbar.collapsed .hud-body { display: none; }
 .hotbar.collapsed { width: 360px; }
-.hud-head { display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; align-items: center;
-  padding: 7px 10px; background: linear-gradient(180deg, var(--surface-3), var(--surface-2));
-  border-bottom: 1px solid var(--border); cursor: move; user-select: none; }
-.hud-head .ttl { font-family: 'IM Fell English', serif; font-size: 12px; letter-spacing: 0.12em;
-  text-transform: uppercase; color: var(--gold); }
-.hud-head .actor { min-width: 0; font-size: 12px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hud-head .actor b { color: var(--gold-bright); font-weight: 400; }
-.hud-head .hint { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--text-muted); letter-spacing: 0.06em; }
-.hud-collapse { background: none; border: 1px solid var(--border-strong); color: var(--text-dim); width: 20px; height: 20px;
-  line-height: 1; cursor: pointer; border-radius: 2px; font-family: 'DM Mono', monospace; padding: 0; }
-.hud-collapse:hover { color: var(--gold); border-color: var(--gold-deep); }
-.hud-body { padding: 8px 10px 10px; display: grid; gap: 8px; overflow-y: auto; }
-.hud-section { display: grid; gap: 5px; }
-.hud-section-title { display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  font-family: 'DM Mono', monospace; font-size: 9px; color: var(--text-muted);
-  letter-spacing: 0.12em; text-transform: uppercase; }
-.hud-section-title .decl-text { color: var(--text-dim); letter-spacing: 0.03em; text-transform: none;
+
+/* header bar */
+.hud-head { display: flex; align-items: center; gap: 10px; padding: 7px 11px;
+  background: linear-gradient(180deg, var(--surface-3), var(--surface-2));
+  border-bottom: 1px solid var(--border-strong); cursor: move; user-select: none; }
+.hud-head .sidepill { width: 22px; height: 22px; border-radius: 50%; flex: none; color: #fff;
+  font-family: 'DM Mono', monospace; font-size: 12px; display: grid; place-items: center; background: var(--party); }
+.hud-head .sidepill.b { background: var(--enemy); }
+.hud-head .who { display: flex; flex-direction: column; line-height: 1.12; min-width: 0; }
+.hud-head .nm { font-family: 'IM Fell English', serif; font-size: 15px; color: #f0e6d2;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ready-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
-.action-row { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; }
+.hud-head .cls { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--text-dim); }
+.hud-head .spacer { flex: 1; }
+.hud-head .chips { display: flex; gap: 5px; align-items: center; }
+.chip { display: flex; flex-direction: column; align-items: center; gap: 1px; background: #191410;
+  border: 1px solid var(--border-strong); border-radius: 4px; padding: 3px 8px; min-width: 40px; }
+.chip .v { font-family: 'DM Mono', monospace; font-size: 13px; color: #f0e6d2; line-height: 1; }
+.chip .k { font-family: 'DM Mono', monospace; font-size: 8px; letter-spacing: 0.14em; color: var(--text-dim); }
+.chip.hp { min-width: 78px; }
+.chip .hpbar { width: 100%; height: 4px; background: #3a2222; border-radius: 2px; overflow: hidden; margin-top: 2px; }
+.chip .hpbar i { display: block; height: 100%; background: #7fae5f; }
+.chip .hpbar i.hp-mid { background: var(--hp-mid); }
+.chip .hpbar i.hp-low { background: var(--hp-low); }
+.hud-head .phase { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.16em;
+  color: #1a140d; background: var(--gold); padding: 3px 8px; border-radius: 3px; text-transform: uppercase; font-weight: 700; }
+.hud-collapse { background: #191410; border: 1px solid var(--border-strong); color: #cdbb9e; width: 22px; height: 22px;
+  line-height: 1; cursor: pointer; border-radius: 3px; font-family: 'DM Mono', monospace; padding: 0; flex: none; }
+.hud-collapse:hover { color: var(--gold-bright); border-color: var(--gold); }
+
+/* body */
+.hud-body { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 7px; overflow-y: auto; flex: 1; min-height: 0; }
+.hud-section { display: grid; gap: 4px; }
+.hud-section-title { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  font-family: 'DM Mono', monospace; font-size: 8px; color: var(--text-muted);
+  letter-spacing: 0.16em; text-transform: uppercase; }
+.hud-section-title .decl-text { color: var(--gold); letter-spacing: 0.02em; text-transform: none;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 10px; }
+.ready-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
+.action-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(116px, 1fr)); gap: 5px; }
+
+/* shared slot base */
 .slot { position: relative; background: var(--surface); border: 1px solid var(--border-strong);
-  border-radius: 3px; display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: auto auto;
-  column-gap: 6px; row-gap: 1px; align-items: center; padding: 5px 6px;
-  cursor: pointer; transition: all 120ms; min-width: 0; min-height: 44px; color: var(--text-dim); }
+  border-radius: 4px; cursor: pointer; transition: all 110ms; min-width: 0; color: var(--text-dim); }
 .slot:hover { border-color: var(--gold); background: var(--surface-2); transform: translateY(-1px); }
-.slot.active { background: linear-gradient(180deg, rgba(201,168,90,0.18), rgba(139,111,58,0.1));
-  border-color: var(--gold-bright); box-shadow: inset 0 0 12px rgba(230,194,117,0.15), 0 0 0 1px rgba(230,194,117,0.3); }
-.slot.declared { background: linear-gradient(180deg, rgba(107,138,90,0.18), rgba(75,100,60,0.1));
-  border-color: var(--moss); box-shadow: inset 0 0 12px rgba(107,138,90,0.15); }
-.slot.equipped { border-color: var(--gold-deep); box-shadow: inset 0 0 0 1px rgba(201,168,90,0.22); }
-.slot.disabled, .slot.empty { opacity: 0.36; cursor: not-allowed; }
+.slot.disabled, .slot.empty { opacity: 0.34; cursor: not-allowed; }
 .slot.disabled:hover, .slot.empty:hover { border-color: var(--border-strong); background: var(--surface); transform: none; }
-.slot.empty { background: transparent; border: 1px dashed var(--border); opacity: 0.45; }
-.slot.ready { min-height: 54px; }
-.slot.ready .role { grid-column: 1 / -1; font-family: 'DM Mono', monospace; font-size: 8px;
-  color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase; }
-.slot .icon { grid-row: 2; font-size: 20px; color: var(--gold); line-height: 1;
-  filter: drop-shadow(0 1px 0 rgba(0,0,0,0.6)); }
-.slot .label { grid-row: 2; font-family: 'IM Fell English', serif; font-size: 12px; color: var(--text-dim);
-  line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.slot .key { grid-row: 2; font-family: 'DM Mono', monospace; font-size: 9px; color: var(--text-muted); justify-self: end; }
-.slot .menu-dot { grid-row: 2; width: 18px; height: 18px; display: grid; place-items: center;
+
+/* ready (equipment) slots - compact single line */
+.ready-row .slot { display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: 6px;
+  padding: 8px 8px 6px; min-height: 34px; }
+.ready-row .slot .role { position: absolute; top: 0; left: 6px; transform: translateY(-50%);
+  font-family: 'DM Mono', monospace; font-size: 7px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-muted); background: var(--surface); padding: 0 3px; }
+.ready-row .slot.empty .role { background: var(--bg); }
+.ready-row .slot .icon { font-size: 17px; color: var(--gold-bright); line-height: 1; filter: drop-shadow(0 1px 0 rgba(0,0,0,0.6)); }
+.ready-row .slot .label { font-family: 'IM Fell English', serif; font-size: 13px; color: #f0e6d2;
+  line-height: 1.05; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ready-row .slot .menu-dot { width: 17px; height: 17px; display: grid; place-items: center;
   background: var(--surface-3); border: 1px solid var(--border); color: var(--text-muted); border-radius: 2px;
-  font-family: 'DM Mono', monospace; font-size: 12px; line-height: 1; cursor: pointer; justify-self: end; }
-.slot .menu-dot:hover { color: var(--gold-bright); border-color: var(--gold-deep); }
-.slot.active .icon, .slot.declared .icon, .slot.equipped .icon { color: var(--gold-bright); }
-.slot.active .label, .slot.declared .label, .slot.equipped .label { color: var(--text); }
-.slot.spell .icon { color: var(--steel-bright); }
-.slot.move .icon { color: var(--moss); }
-.slot.attack .icon { color: var(--gold-bright); }
-.slot.hold .icon { color: var(--text-dim); }
-.slot.single-out .icon { color: #c68040; }
+  font-family: 'DM Mono', monospace; font-size: 11px; line-height: 1; cursor: pointer; }
+.ready-row .slot .menu-dot:hover { color: var(--gold-bright); border-color: var(--gold-deep); }
+.ready-row .slot.empty .icon { color: #5a4f40; }
+.ready-row .slot.empty .label { color: var(--text-muted); font-style: italic; }
+.ready-row .slot.equipped { border-color: var(--gold-deep); box-shadow: inset 0 0 0 1px rgba(201,168,90,0.22); }
+.ready-row .slot .qty { position: absolute; bottom: 1px; right: 22px; font-family: 'DM Mono', monospace;
+  font-size: 9px; color: var(--text-dim); }
+
+/* action slots - compact, color-coded left edge */
+.action-row .slot { display: flex; align-items: center; gap: 7px; padding: 7px 9px 7px; border-left-width: 3px; min-height: 32px; }
+.action-row .slot .icon { font-size: 16px; line-height: 1; flex: none; color: var(--gold-bright); }
+.action-row .slot .label { font-family: 'IM Fell English', serif; font-size: 13px; color: #f0e6d2;
+  line-height: 1.05; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.action-row .slot .label small { display: none; }
+.action-row .slot .key { position: absolute; top: 3px; right: 5px; font-family: 'DM Mono', monospace; font-size: 8px; color: var(--text-muted); }
+.action-row .slot.attack { border-left-color: var(--gold-bright); }  .action-row .slot.attack .icon { color: var(--gold-bright); }
+.action-row .slot.charge { border-left-color: var(--crimson-bright); }  .action-row .slot.charge .icon { color: var(--crimson-bright); }
+.action-row .slot.set { border-left-color: var(--gold); }  .action-row .slot.set .icon { color: var(--gold-bright); }
+.action-row .slot.move { border-left-color: var(--moss); }  .action-row .slot.move .icon { color: #8fce6a; }
+.action-row .slot.spell { border-left-color: var(--steel); }  .action-row .slot.spell .icon { color: var(--steel-bright); }
+.action-row .slot.hold { border-left-color: var(--text-muted); }  .action-row .slot.hold .icon { color: #cdbb9e; }
+.action-row .slot.suggest { border-left-color: var(--steel); }  .action-row .slot.suggest .icon { color: var(--steel-bright); }
+.action-row .slot.single-out { border-left-color: #c68040; }  .action-row .slot.single-out .icon { color: #e69c5a; }
+
+/* states */
+.slot.active { border-color: var(--gold-bright); background: #2c2418;
+  box-shadow: inset 0 0 0 1px rgba(230,194,117,0.5), 0 0 10px rgba(230,194,117,0.25); }
+.slot.active .icon { color: var(--gold-bright); }
+.slot.declared { background: linear-gradient(180deg, #2f3d27, #26331f); border-color: #7fae5f; }
+.action-row .slot.declared { border-left-color: #8fce6a; }
+.slot.declared .label { color: #dff0d0; }
+.slot.declared::after { content: '\2713'; position: absolute; bottom: 2px; right: 6px; color: #8fce6a; font-size: 10px; }
+.ready-row .slot.declared::after { content: ''; }
 .slot.single-out.active .icon { color: #e69c5a; text-shadow: 0 0 8px rgba(230,156,90,0.55); }
-.slot.charge .icon { color: var(--crimson-bright); }
 .slot.charge.active .icon { color: #e06868; text-shadow: 0 0 8px rgba(201,80,80,0.55); }
-.slot.set .icon { color: var(--gold-bright); }
-.slot.set.declared .icon { text-shadow: 0 0 8px rgba(222,180,95,0.6); }
-.slot.suggest .icon { color: var(--steel-bright); }
-.slot.suggest:hover .icon { color: #a8c8e4; }
-.slot .qty { position: absolute; bottom: 2px; left: 3px; font-family: 'DM Mono', monospace;
-  font-size: 9px; color: var(--text-dim); background: var(--ink); padding: 0 3px; border-radius: 2px; }
 .hud-context-menu { position: fixed; display: none; min-width: 215px; max-width: 280px; z-index: 120;
   background: linear-gradient(180deg, var(--surface-2), var(--surface)); border: 1px solid var(--border-strong);
   border-radius: 4px; box-shadow: 0 12px 34px rgba(0,0,0,0.72); padding: 4px; }
@@ -481,6 +517,75 @@ body {
   background: linear-gradient(180deg, var(--gold-deep), #6b5429); border: 1px solid var(--gold-bright);
   color: var(--ink); padding: 10px 32px; cursor: pointer; letter-spacing: 0.05em; }
 .game-over button:hover { background: linear-gradient(180deg, var(--gold-bright), var(--gold)); }
+
+/* ROUND BLOCKS (chat grouping — collapsible, both themes) */
+.chat-list.blocked { gap: 8px; }
+.round-block { border: 1px solid var(--border); border-radius: 5px; overflow: hidden; background: var(--surface); }
+.round-head { display: flex; align-items: flex-start; gap: 9px; cursor: pointer; user-select: none;
+  background: var(--surface-3); border-bottom: 1px solid var(--border); padding: 6px 11px; }
+.round-block.collapsed .round-head { border-bottom: none; }
+.round-head:hover { background: var(--surface-2); }
+.round-head .chev { flex: 0 0 auto; color: var(--gold-deep); font-size: 10px; line-height: 1.4; }
+.round-head .chev::before { content: '▾'; }
+.round-block.collapsed .round-head .chev::before { content: '▸'; }
+.round-head .rh-title { font-family: 'IM Fell English', serif; font-size: 13px; letter-spacing: 0.05em; color: var(--gold-bright); line-height: 1.2; }
+.round-head .rh-sub { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+.round-block.collapsed .round-body { display: none; }
+.round-body { display: flex; flex-direction: column; padding: 2px 0; }
+.round-body .chat-msg { background: transparent; border-radius: 0; padding-left: 14px; }
+.round-body .chat-msg .ts { display: none; }
+.round-body .chat-msg + .chat-msg { border-top: 1px solid var(--border); }
+.round-body .chat-msg.round { display: none; }
+
+/* TRACKER DECLARED/WAITING STATUS (both themes) */
+.combatant.ready { border-left-color: var(--moss); }
+.combatant.wait { border-left-color: var(--gold-deep); }
+.decl-chip { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.05em;
+  text-transform: uppercase; border-radius: 8px; padding: 1px 7px; display: inline-flex;
+  align-items: center; gap: 3px; white-space: nowrap; margin-bottom: 3px; }
+.decl-chip.ok { color: var(--moss); border: 1px solid var(--moss); background: rgba(107,138,90,0.15); }
+.decl-chip.waiting { color: var(--gold-bright); border: 1px solid var(--gold-deep); background: rgba(201,168,90,0.12); }
+.tracker-side-label .count { color: var(--text-muted); font-family: 'DM Mono', monospace;
+  font-size: 9px; font-style: normal; letter-spacing: 0.04em; margin-left: 6px; }
+
+/* THEME TOGGLE */
+.theme-toggle { background: var(--surface-3); border: 1px solid var(--border-strong); color: var(--text-dim);
+  font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 4px 9px; border-radius: 3px; cursor: pointer; }
+.theme-toggle:hover { color: var(--gold-bright); border-color: var(--gold-deep); }
+
+/* LIGHT THEME */
+body.light {
+  --bg: #ddd2b8; --surface: #fdfbf5; --surface-2: #f3ecdb; --surface-3: #e9dfc6;
+  --border: #d6c9a8; --border-strong: #bbae86;
+  --text: #221a10; --text-dim: #463a25; --text-muted: #8a7a58;
+  --gold: #8a6914; --gold-bright: #6e5410; --gold-deep: #b9912f;
+  --crimson: #9a2222; --crimson-bright: #b23030;
+  --steel: #2c5b82; --steel-bright: #285a86; --moss: #3c6a28;
+  --ink: #ddd1b4; --party: #3a78a8; --enemy: #b34a4a;
+  --hp-good: #4e8a3a; --hp-mid: #b9912f; --hp-low: #b23030;
+  --terrain-wall: #c4b896; --terrain-floor: #efe7d2; --terrain-floor-2: #e9e0c8;
+}
+/* The battlemap stays dark in both themes — tokens/terrain are tuned for a dark canvas. */
+body.light .map {
+  --bg: #14110e; --surface: #1d1916; --surface-2: #251f1a; --surface-3: #2d2620;
+  --border: #3a322a; --border-strong: #4d4238;
+  --text: #e6d4b8; --text-dim: #9a8b78; --text-muted: #6b5f50;
+  --gold: #c9a85a; --gold-bright: #e6c275; --gold-deep: #8b6f3a;
+  --crimson: #a83c3c; --crimson-bright: #c95050;
+  --steel: #6b8aa8; --steel-bright: #88a8c4; --moss: #6b8a5a;
+  --ink: #0a0807; --party: #4a7898; --enemy: #a83c3c;
+  --hp-good: #6b8a5a; --hp-mid: #c9a85a; --hp-low: #a83c3c;
+  --terrain-wall: #1a1614; --terrain-floor: #2a221c; --terrain-floor-2: #2d251f;
+}
+/* Light-mode legibility: swap decorative serifs for a high-legibility sans across HUD + tracker. */
+body.light .hud-head .nm, body.light .hud-head .cls, body.light .slot .label, body.light .slot .role, body.light .hud-section-title,
+body.light .combatant-portrait, body.light .tracker-side-label, body.light .combatant-name,
+body.light .combatant-decl-text, body.light .ctx-title, body.light .ctx-item, body.light .mini-stats .who .nm,
+body.light .float-window, body.light .hotbar {
+  font-family: 'Atkinson Hyperlegible', system-ui, 'Segoe UI', Roboto, sans-serif; font-style: normal; }
+body.light .round-head { font-family: 'Atkinson Hyperlegible', system-ui, sans-serif; }
+body.light .round-head .rh-title { font-family: inherit; }
 </style>
 </head>
 <body>
@@ -492,7 +597,10 @@ body {
       <span class="subtitle">— 1e DMG sequence · surprise → distance → initiative → winners act → losers react</span>
       <span class="version" id="sim-version"></span>
     </div>
-    <div class="round-info" id="round-info"></div>
+    <div style="display:flex;align-items:center;gap:14px;">
+      <div class="round-info" id="round-info"></div>
+      <button class="theme-toggle" id="theme-toggle" title="Toggle light / dark mode">◐ Light</button>
+    </div>
   </header>
 
   <div class="workspace">
@@ -518,7 +626,7 @@ body {
 
 <div class="float-window" id="tracker-window">
   <div class="float-head" id="tracker-drag-handle">
-    <span class="ttl">⛬ Tracker</span>
+    <span class="ttl">⛬ Turn Order</span>
     <span class="meta" id="tracker-meta"></span>
     <button class="float-collapse" id="tracker-collapse" title="Collapse">–</button>
   </div>
@@ -701,6 +809,12 @@ const WEAPONS = {
     damage: { sm: '1d4+1', l: '1d4+1' },
     vs_ac: { 2:-2, 3:-2, 4:-1, 5:0, 6:0, 7:0, 8:2, 9:1, 10:3 }
   },
+  dart: {
+    id: 'dart', name: 'Dart', icon: '↣',
+    ranged: true, range_squares: { s: 1.5, m: 3, l: 4.5 }, speed: 2, rof: 3,
+    damage: { sm: '1d3', l: '1d2' }, // rof 3/round is RAW but not yet wired in the resolve loop
+    vs_ac: { 2:-3, 3:-3, 4:-2, 5:-2, 6:0, 7:0, 8:1, 9:1, 10:3 } // verify vs PHB
+  },
   spider_bite: {
     id: 'spider_bite', name: 'Bite', icon: '☠',
     melee: true, speed: 5, length: 1,
@@ -710,6 +824,14 @@ const WEAPONS = {
     poison: { category: 'ppd', save_mod: 0, effect: 'death' }
   }
 };
+
+// PHB "Space Required" (feet) — verify against your printing. Used only by the melee
+// churn for visual separation; spider_bite (natural) noses in adjacent.
+const WEAPON_SPACE = {
+  battle_axe: 4, hand_axe: 1, dagger: 1, short_sword: 1, long_sword: 3,
+  spear: 1, pike: 1, halberd: 5, club: 3, ogre_club: 8, sling: 1, dart: 1, spider_bite: 1
+};
+function weaponSpace(id) { return WEAPON_SPACE[id] != null ? WEAPON_SPACE[id] : 2; }
 
 const SPELLS = {
   magic_missile: {
@@ -890,7 +1012,8 @@ function footprintRect(col, row, n) {
 function tokenCenter(c) {
   const n = sizeCells(c);
   const cc = cellCenter(c.position.col, c.position.row);
-  return { x: cc.x + (n - 1) / 2 * SIZE, y: cc.y + (n - 1) / 2 * SIZE };
+  const sw = c._sw;
+  return { x: cc.x + (n - 1) / 2 * SIZE + (sw ? sw.x : 0), y: cc.y + (n - 1) / 2 * SIZE + (sw ? sw.y : 0) };
 }
 
 function findCombatant(state, id) { return state.combatants.find(c => c.id === id); }
@@ -1442,8 +1565,8 @@ function makeInitialState() {
       { id: 'aggro', side: 'A', kind: 'pc', label: 'Aggro the Axe', letter: 'A',
         matrix_class: 'fighter', level: 4,
         position: { col: 4, row: 4 }, facing: 90,
-        hp_max: 32, hp_current: 32, ac_base: 2, ac_current: 2, size: 'M',
-        loadout: ['spear', 'pike', 'battle_axe', 'hand_axe', 'dagger'], active_weapon: 'spear',
+        hp_max: 32, hp_current: 32, ac_base: 2, ac_current: 2, size: 'M', shield: true,
+        loadout: ['long_sword', 'battle_axe', 'hand_axe', 'dagger'], active_weapon: 'long_sword',
         attack_bonus: 1, damage_bonus: 1,
         magic_weapons: { battle_axe: 1 },
         move: 4 }, // move in inches (1" = 10 ft indoors, 10 yd outdoors)
@@ -1451,7 +1574,7 @@ function makeInitialState() {
         matrix_class: 'magic_user', level: 5,
         position: { col: 2, row: 4 }, facing: 90,
         hp_max: 14, hp_current: 14, ac_base: 9, ac_current: 9, size: 'M',
-        loadout: ['dagger'], active_weapon: 'dagger',
+        loadout: ['dart', 'dagger'], active_weapon: 'dart',
         spell_charges: { magic_missile: 2 },
         attack_bonus: 0, damage_bonus: 0,
         move: 4 },
@@ -1459,7 +1582,7 @@ function makeInitialState() {
         matrix_class: 'thief', level: 2,
         position: { col: 3, row: 5 }, facing: 45,
         hp_max: 8, hp_current: 8, ac_base: 7, ac_current: 7, size: 'M',
-        loadout: ['pike', 'spear', 'short_sword', 'sling', 'dagger'], active_weapon: 'pike',
+        loadout: ['short_sword', 'sling', 'dagger'], active_weapon: 'short_sword',
         attack_bonus: 0, damage_bonus: 0,
         move: 4 },
       { id: 'skeleton_1', side: 'B', kind: 'monster',
@@ -1485,15 +1608,7 @@ function makeInitialState() {
         hp_max: 18, hp_current: 18, ac_base: 5, ac_current: 5, size: 'L', size_cells: 2, size_token: 1.15,
         loadout: ['ogre_club'], active_weapon: 'ogre_club',
         attack_bonus: 0, damage_bonus: 0,
-        move: 3, singles_out: true },
-      { id: 'spider_1', side: 'B', kind: 'monster',
-        template_id: 'giant_spider', label: 'Giant Spider', letter: 'X',
-        matrix_class: 'monster', level: 4.5, hd: '4+4', intelligent: false,
-        position: { col: 11, row: 2 }, facing: 225,
-        hp_max: 22, hp_current: 22, ac_base: 4, ac_current: 4, size: 'L', size_cells: 2, size_token: 1.15,
-        loadout: ['spider_bite'], active_weapon: 'spider_bite',
-        attack_bonus: 0, damage_bonus: 0,
-        move: 12, singles_out: true }
+        move: 3, singles_out: true }
     ]
   };
   state.combatants.forEach(c => {
@@ -1509,7 +1624,8 @@ function makeInitialState() {
 }
 
 let state = makeInitialState();
-let hudUi = { collapsed: false, x: null, y: null };
+let hudUi = { collapsed: false, x: null, y: null, scale: 1 };
+let chatCollapse = {}; // round number -> true(collapsed)/false(expanded); set on user toggle
 
 // ============================================================
 //  AD&D SHEET BRIDGE — map an exported GCC character (CHAR JSON) to a combatant.
@@ -1894,6 +2010,7 @@ async function resolveSide(side) {
   state.acting_side = side;
   state.phase = 'resolve';
   renderAll();
+  startMeleeChurn();
   const actors = aliveCombatantsOnSide(state, side)
     .filter(c => state.declarations[c.id])
     .sort((a, b) => declSpeed(a, state.declarations[a.id]) - declSpeed(b, state.declarations[b.id]));
@@ -2128,6 +2245,7 @@ async function executeAttackDecl(c, decl) {
 
   // Resolve attack
   c._acted_round = state.round;
+  markStrike(c, target);
   const event = resolveAttack(state, c.id, target.id, decl.weapon_id);
   if (event) {
     logAttackEvent(event);
@@ -2185,6 +2303,7 @@ async function executeChargeDecl(c, decl) {
   renderAll();
   await sleep(80);
 
+  markStrike(c, target);
   const event = resolveAttack(state, c.id, target.id, decl.weapon_id, { charge: true });
   if (event) {
     logAttackEvent(event);
@@ -2330,12 +2449,15 @@ async function moveCombatantTo(c, newCol, newRow, cost) {
 
   const tokenG = document.querySelector(`g[data-token-id="${c.id}"]`);
   if (tokenG) {
+    if (c._sw) { c._sw.x = 0; c._sw.y = 0; c._sw.vx = 0; c._sw.vy = 0; }
+    c._moving = true;
     const off = (sizeCells(c) - 1) / 2 * SIZE; // footprint center offset from NW anchor
     const oldCenter = cellCenter(oldPos.col, oldPos.row);
     const newCenter = cellCenter(newCol, newRow);
     oldCenter.x += off; oldCenter.y += off; newCenter.x += off; newCenter.y += off;
     tokenG.setAttribute('transform', `translate(${oldCenter.x.toFixed(2)},${oldCenter.y.toFixed(2)})`);
     await animateTokenMove(tokenG, oldCenter.x, oldCenter.y, newCenter.x, newCenter.y, 280);
+    c._moving = false;
   }
 }
 
@@ -2353,6 +2475,80 @@ function animateTokenMove(tokenG, fromX, fromY, toX, toY, durationMs) {
     }
     requestAnimationFrame(step);
   });
+}
+
+// ---- Melee churn: render-only swirl over the authoritative grid ----
+// Offsets where engaged melee sprites are DRAWN (via tokenCenter); never touches
+// c.position, so reach/THAC0/saves resolve exactly as before. Runs during 'resolve',
+// eases to rest and freezes otherwise.
+const CHURN = { running: false };
+function markStrike(c, target) {
+  if (c && target) state._strike = { id: c.id, until: performance.now() + 240 };
+}
+function spaceCells(weaponId) { return weaponSpace(weaponId) * SUB / 10; } // ft -> figure-cells
+function churnAnchor(c) {
+  const cc = cellCenter(c.position.col, c.position.row), o = (sizeCells(c) - 1) / 2 * SIZE;
+  return { x: cc.x + o, y: cc.y + o };
+}
+function isMeleeNow(c) { const w = WEAPONS[c.active_weapon]; return !!(w && w.melee); }
+function primaryFoe(c) {
+  let best = null, bd = Infinity;
+  for (const id of (c.engaged_with || [])) {
+    const e = findCombatant(state, id);
+    if (!e || e.dead) continue;
+    const d = distanceSquares(c, e);
+    if (d < bd) { bd = d; best = e; }
+  }
+  return best;
+}
+function startMeleeChurn() {
+  if (CHURN.running) return;
+  CHURN.running = true;
+  requestAnimationFrame(churnFrame);
+}
+function churnFrame(now) {
+  const resolving = state && state.phase === 'resolve';
+  const maxOff = SIZE * 1.4;
+  const strike = (state._strike && now < state._strike.until) ? state._strike : null;
+  let anyOffset = false;
+  for (const c of state.combatants) {
+    if (!c.position || c.dead) { c._sw = null; continue; }
+    if (!c._sw) c._sw = { x: 0, y: 0, vx: 0, vy: 0, ph: Math.random() * 6.283 };
+    let dx = 0, dy = 0;
+    const engaged = resolving && isMeleeNow(c) && (c.engaged_with || []).length > 0 && !c._moving;
+    if (engaged) {
+      const o = primaryFoe(c);
+      if (o) {
+        const a = churnAnchor(c), b = churnAnchor(o);
+        let ax = a.x - b.x, ay = a.y - b.y, ad = Math.hypot(ax, ay) || 1; ax /= ad; ay /= ad;
+        const reach = weaponLength(c.active_weapon) || 2;
+        const along = Math.max(-0.4, Math.min(1.4, (reach - 2) * 0.35)) * SIZE; // long held back, short/natural noses in
+        dx += ax * along; dy += ay * along;
+        const ph = c._sw.ph + now * 0.0012; // idle churn
+        dx += Math.cos(ph) * SIZE * 0.16 - ay * Math.sin(ph * 1.3) * SIZE * 0.12;
+        dy += Math.sin(ph) * SIZE * 0.16 + ax * Math.sin(ph * 1.3) * SIZE * 0.12;
+        for (const o2 of state.combatants) { // separation by space required
+          if (o2 === c || !o2.position || o2.dead) continue;
+          const p2 = churnAnchor(o2);
+          let rx = a.x - p2.x, ry = a.y - p2.y, rd = Math.hypot(rx, ry);
+          const rad = (spaceCells(c.active_weapon) + spaceCells(o2.active_weapon)) * 0.5 * SIZE + SIZE * 0.6;
+          if (rd > 0.01 && rd < rad) { const push = (rad - rd) / rad; dx += rx / rd * push * SIZE * 0.7; dy += ry / rd * push * SIZE * 0.7; }
+        }
+        if (strike && strike.id === c.id) { dx -= ax * SIZE * 0.9; dy -= ay * SIZE * 0.9; } // dart in on the blow
+      }
+    }
+    const dm = Math.hypot(dx, dy); if (dm > maxOff) { dx = dx / dm * maxOff; dy = dy / dm * maxOff; }
+    c._sw.vx += (dx - c._sw.x) * 0.14; c._sw.vy += (dy - c._sw.y) * 0.14;
+    c._sw.vx *= 0.78; c._sw.vy *= 0.78;
+    c._sw.x += c._sw.vx; c._sw.y += c._sw.vy;
+    if (Math.abs(c._sw.x) > 0.3 || Math.abs(c._sw.y) > 0.3 || Math.abs(c._sw.vx) > 0.3 || Math.abs(c._sw.vy) > 0.3) anyOffset = true;
+    if (!c._moving) {
+      const g = document.querySelector(`g[data-token-id="${c.id}"]`);
+      if (g) { const t = tokenCenter(c); g.setAttribute('transform', `translate(${t.x.toFixed(2)},${t.y.toFixed(2)})`); }
+    }
+  }
+  if (resolving || anyOffset) requestAnimationFrame(churnFrame);
+  else CHURN.running = false;
 }
 
 // ============================================================
@@ -2660,45 +2856,63 @@ function declSummary(c, decl) {
   return { text: 'unknown' };
 }
 
+function declShort(c, decl) {
+  if (c.dead) return 'Dead';
+  if (!decl) return 'Choose action';
+  if (decl.kind === 'hold') return 'Hold position';
+  if (decl.kind === 'move') return 'Move';
+  if (decl.kind === 'set') return 'Set vs charge';
+  const t = decl.target_id ? findCombatant(state, decl.target_id) : null;
+  if (decl.kind === 'attack') return t ? `Attack <span class="em">${t.label}</span>` : 'Attack';
+  if (decl.kind === 'charge') return t ? `Charge <span class="em">${t.label}</span>` : 'Charge';
+  if (decl.kind === 'cast') { const sp = SPELLS[decl.spell_id]; return sp ? sp.name : 'Cast'; }
+  return 'Acting';
+}
+
 function renderTracker() {
   const el = document.getElementById('tracker-list');
   el.innerHTML = '';
   const meta = document.getElementById('tracker-meta');
-  const initStr = state.initiative ? `init A:${state.initiative.A} B:${state.initiative.B}` : '';
-  meta.textContent = initStr;
+  const phaseLabel = { declare: 'declare', resolve: 'resolve', round_init: 'init', setup: 'setup', game_over: 'over' }[state.phase] || state.phase;
+  meta.textContent = state.round > 0 ? `R${state.round} · ${phaseLabel}` : (state.phase === 'setup' ? 'setup' : '');
+  const roundActive = state.round > 0 && (state.phase === 'declare' || state.phase === 'resolve');
   const labels = { A: 'Party A — The Vigilants', B: 'Party B — Marauders' };
   for (const side of ['A', 'B']) {
     const list = state.combatants.filter(c => c.side === side);
     if (!list.length) continue;
+    const living = list.filter(c => !c.dead);
+    const declaredCount = living.filter(c => state.declarations[c.id]).length;
+    const declaringNow = state.phase === 'declare' && state.acting_side === side;
     const labelEl = document.createElement('div');
     labelEl.className = `tracker-side-label ${side}`;
-    const actingNote = (state.phase === 'declare' && state.acting_side === side) ? ' ◆ declaring'
+    const actingNote = declaringNow ? ' ◆ declaring'
       : (state.phase === 'resolve' && state.acting_side === side) ? ' ◆ acting' : '';
-    labelEl.textContent = labels[side] + actingNote;
+    const countNote = declaringNow ? `<span class="count">${declaredCount}/${living.length} declared</span>` : '';
+    labelEl.innerHTML = labels[side] + actingNote + countNote;
     el.appendChild(labelEl);
     list.forEach(c => {
       const isSelected = c.id === state.selected_id;
       const isActing = c.id === state.current_actor;
       const decl = state.declarations[c.id];
-      const summary = declSummary(c, decl);
-      const showDecl = !c.dead && state.phase === 'declare' && side === state.acting_side;
       const row = document.createElement('div');
       row.className = `combatant ${side}${isSelected ? ' selected' : ''}${isActing ? ' acting' : ''}${c.dead ? ' dead' : ''}`;
       const pct = c.hp_max > 0 ? (c.hp_current / c.hp_max) * 100 : 0;
       const hpClass = pct > 50 ? 'good' : (pct > 25 ? 'mid' : 'low');
-      const declBadge = showDecl
-        ? (decl ? `<div class="decl-badge">${declGlyph(decl)}</div>` : `<div class="decl-badge empty">·</div>`)
-        : '';
+      let pill = '';
+      if (c.dead) pill = `<span class="status-pill dead">Dead</span>`;
+      else if (roundActive) pill = decl ? `<span class="status-pill ok">Declared</span>` : `<span class="status-pill wait">Waiting</span>`;
+      const sub = (c.dead || roundActive)
+        ? `${classMicro(c)} <span class="sep">•</span> ${declShort(c, decl)}`
+        : classMicro(c);
       row.innerHTML = `
-        <div class="combatant-portrait">${c.letter}${declBadge}</div>
+        <div class="combatant-portrait">${c.letter}</div>
         <div class="combatant-body">
-          <div class="combatant-name">${c.label} <span class="micro">${classMicro(c)}</span></div>
-          <div class="combatant-decl-text${summary.empty ? ' empty' : ''}">${showDecl ? summary.text : ''}</div>
-          <div class="combatant-hpbar"><div class="fill ${hpClass}" style="width:${pct}%"></div></div>
-        </div>
-        <div class="combatant-right">
-          <div><span class="hp ${hpClass}">${c.hp_current}</span>/${c.hp_max}</div>
-          <div class="ac">AC ${c.ac_current}</div>
+          <div class="cb-top"><span class="combatant-name">${c.label}</span>${pill}</div>
+          <div class="cb-sub">${sub}</div>
+          <div class="cb-hp">
+            <div class="combatant-hpbar"><div class="fill ${hpClass}" style="width:${pct}%"></div></div>
+            <span class="cb-hpnum"><span class="hp ${hpClass}">${c.hp_current}</span>/${c.hp_max}</span>
+          </div>
         </div>`;
       row.addEventListener('click', () => App.handleTokenClick(c.id));
       el.appendChild(row);
@@ -2708,23 +2922,47 @@ function renderTracker() {
 
 function classMicro(c) {
   if (c.kind === 'pc') {
-    const m = { fighter: 'F', magic_user: 'MU', thief: 'T', cleric: 'C' };
-    return (m[c.matrix_class] || '?') + c.level;
+    const m = { fighter: 'Ftr', magic_user: 'MU', thief: 'Thf', cleric: 'Clr' };
+    return (m[c.matrix_class] || '?') + ' ' + c.level;
   }
-  return `HD ${c.level}`;
+  return 'HD ' + (c.hd != null ? c.hd : c.level);
 }
 
 function renderChat() {
   const el = document.getElementById('chat-list');
+  el.classList.add('blocked');
   const nearBottom = el.children.length === 0 || (el.scrollHeight - el.scrollTop - el.clientHeight) < 48;
   el.innerHTML = '';
-  // log is stored newest-first; render reversed so newest sits at the bottom
-  const entries = state.log.slice(0, 80).reverse();
-  for (const entry of entries) {
-    const m = document.createElement('div');
-    m.className = `chat-msg ${entry.kind}`;
-    m.innerHTML = entry.html;
-    el.appendChild(m);
+  // log is newest-first; render chronologically, grouped into collapsible round blocks.
+  const entries = state.log.slice(0, 200).reverse();
+  const groups = [];
+  let cur = null;
+  for (const e of entries) {
+    if (!cur || cur.round !== e.round) { cur = { round: e.round, items: [] }; groups.push(cur); }
+    cur.items.push(e);
+  }
+  const latest = groups.length ? groups[groups.length - 1].round : 0;
+  for (const g of groups) {
+    const collapsed = (g.round in chatCollapse) ? chatCollapse[g.round] : (g.round !== latest);
+    const block = document.createElement('div');
+    block.className = 'round-block' + (collapsed ? ' collapsed' : '');
+    const initEntry = g.items.find(it => it.kind === 'round');
+    const subtitle = initEntry ? initEntry.html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().replace(/^R\d+\s*/, '') : '';
+    const head = document.createElement('div');
+    head.className = 'round-head';
+    head.innerHTML = `<span class="chev"></span><div><div class="rh-title">${g.round > 0 ? 'Round ' + g.round : 'Opening'}</div>${subtitle ? `<div class="rh-sub">${subtitle}</div>` : ''}</div>`;
+    head.addEventListener('click', () => { chatCollapse[g.round] = block.classList.toggle('collapsed'); });
+    block.appendChild(head);
+    const body = document.createElement('div');
+    body.className = 'round-body';
+    for (const it of g.items) {
+      const m = document.createElement('div');
+      m.className = `chat-msg ${it.kind}`;
+      m.innerHTML = it.html;
+      body.appendChild(m);
+    }
+    block.appendChild(body);
+    el.appendChild(block);
   }
   if (nearBottom) el.scrollTop = el.scrollHeight;
 }
@@ -2892,10 +3130,26 @@ function bindHudChrome() {
   const collapse = document.getElementById('hud-collapse');
   if (!hud) return;
   hud.classList.toggle('collapsed', !!hudUi.collapsed);
-  if (hudUi.x != null) hud.style.left = hudUi.x + 'px';
-  if (hudUi.y != null) {
-    hud.style.top = hudUi.y + 'px';
-    hud.style.bottom = 'auto';
+  // Anchor by top/left (not bottom) so the native resize grip grows down-right intuitively.
+  if (hudUi.x == null || hudUi.y == null) {
+    const r = hud.getBoundingClientRect();
+    if (hudUi.x == null) hudUi.x = r.left;
+    if (hudUi.y == null) hudUi.y = r.top;
+  }
+  hud.style.left = hudUi.x + 'px';
+  hud.style.top = hudUi.y + 'px';
+  hud.style.bottom = 'auto';
+  hud.style.transform = `scale(${hudUi.scale || 1})`;
+  // Ctrl/Cmd + wheel zooms the whole HUD; plain wheel still scrolls its body. Bind once.
+  if (!hud._gcZoomBound) {
+    hud._gcZoomBound = true;
+    hud.addEventListener('wheel', (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      const next = (hudUi.scale || 1) - Math.sign(e.deltaY) * 0.1;
+      hudUi.scale = Math.round(Math.max(0.7, Math.min(1.8, next)) * 100) / 100;
+      hud.style.transform = `scale(${hudUi.scale})`;
+    }, { passive: false });
   }
   if (collapse) {
     collapse.textContent = hudUi.collapsed ? '+' : '–';
@@ -2987,14 +3241,15 @@ function renderHotbar() {
   if (!usable) {
     el.innerHTML = `
       <div class="hud-head" id="hud-drag-handle">
-        <span class="ttl">Declaration HUD</span>
-        <span class="actor">Select an acting combatant during declaration.</span>
-        <span class="hint">right-click slots or use ⋮ to configure</span>
+        <span class="who"><span class="nm" style="font-family:'Crimson Text',serif;font-size:13px;color:var(--text-dim);">Select an acting combatant to declare orders.</span></span>
+        <span class="spacer"></span>
         <button class="hud-collapse" id="hud-collapse" title="Collapse HUD">–</button>
       </div>
       <div class="hud-body">
-        <div class="hud-section-title">Ready Slots</div>
-        <div class="ready-row">${Array.from({ length: 5 }, () => '<button class="slot empty" type="button"></button>').join('')}</div>
+        <div class="hud-section">
+          <div class="hud-section-title"><span>Ready</span></div>
+          <div class="ready-row">${Array.from({ length: 5 }, () => '<button class="slot empty" type="button"></button>').join('')}</div>
+        </div>
       </div>`;
     bindHudChrome();
     return;
@@ -3009,11 +3264,11 @@ function renderHotbar() {
   const item = slotEntryFor(c, 'item');
 
   const readyDefs = [
-    { slot: 'primary', role: 'Primary Hand', entry: primary, fallback: 'Empty hand' },
-    { slot: 'secondary', role: 'Secondary Hand', entry: secondary, fallback: 'Shield / offhand' },
-    { slot: 'missile', role: 'Missile', entry: missile, fallback: 'No missile' },
-    { slot: 'spell', role: 'Readied Spell', entry: spell, fallback: 'No spell' },
-    { slot: 'item', role: 'Readied Item', entry: item, fallback: 'No item' }
+    { slot: 'primary', code: 'PRI', role: 'Primary Hand', entry: primary, fallback: 'Empty hand' },
+    { slot: 'secondary', code: 'SEC', role: 'Secondary Hand', entry: secondary, fallback: 'Shield / offhand' },
+    { slot: 'missile', code: 'MIS', role: 'Missile', entry: missile, fallback: 'No missile' },
+    { slot: 'spell', code: 'SPL', role: 'Readied Spell', entry: spell, fallback: 'No spell' },
+    { slot: 'item', code: 'ITM', role: 'Readied Item', entry: item, fallback: 'No item' }
   ];
 
   const canPrimaryAttack = !!primary && computeValidTargets(c, { weaponId: primary.id }).length > 0;
@@ -3037,20 +3292,33 @@ function renderHotbar() {
     actionDefs.push({ kind: 'single-out', icon: '◎', label: 'Single Out', detail: 'Toggle target', disabled: false, cls: 'single-out', key: '9', active: state.single_out_mode });
   }
 
+  const _r = c.hp_max ? c.hp_current / c.hp_max : 0;
+  const _hpcls = _r > 0.5 ? '' : (_r > 0.25 ? 'hp-mid' : 'hp-low');
+  const _hppct = Math.max(0, Math.min(100, Math.round(_r * 100)));
+  const _lvl = c.kind === 'pc'
+    ? `${String(c.matrix_class || '').replace(/^./, m => m.toUpperCase())} · ${c.level}`
+    : (c.hd ? `Monster · HD ${c.hd}` : 'Monster');
+
   el.innerHTML = `
     <div class="hud-head" id="hud-drag-handle">
-      <span class="ttl">Declaration HUD</span>
-      <span class="actor"><b>${c.label}</b> · HP ${c.hp_current}/${c.hp_max} · AC ${c.ac_current} · Move ${c.move}"</span>
-      <span class="hint">left-click slot = act · right-click/⋮ = configure</span>
+      <span class="sidepill ${c.side === 'A' ? 'a' : 'b'}">${c.letter || c.side}</span>
+      <span class="who"><span class="nm">${c.label}</span><span class="cls">${_lvl}</span></span>
+      <span class="spacer"></span>
+      <span class="chips">
+        <span class="chip hp"><span class="v">${c.hp_current}/${c.hp_max}</span><span class="k">HP</span><span class="hpbar"><i class="${_hpcls}" style="width:${_hppct}%"></i></span></span>
+        <span class="chip"><span class="v">${c.ac_current}</span><span class="k">AC</span></span>
+        <span class="chip"><span class="v">${c.move}"</span><span class="k">MV</span></span>
+      </span>
+      <span class="phase">Declare</span>
       <button class="hud-collapse" id="hud-collapse" title="Collapse HUD">–</button>
     </div>
     <div class="hud-body">
       <div class="hud-section">
-        <div class="hud-section-title"><span>Ready Slots</span><span class="decl-text">${describeDeclaration(currentDecl)}</span></div>
+        <div class="hud-section-title"><span>Ready</span><span class="decl-text">${describeDeclaration(currentDecl)}</span></div>
         <div class="ready-row" id="hud-ready-row"></div>
       </div>
       <div class="hud-section">
-        <div class="hud-section-title"><span>Core Declarations</span><span class="decl-text">Primary and missile slots stay set until changed.</span></div>
+        <div class="hud-section-title"><span>Declarations</span></div>
         <div class="action-row" id="hud-action-row"></div>
       </div>
     </div>`;
@@ -3062,11 +3330,11 @@ function renderHotbar() {
     const entry = def.entry;
     btn.className = 'slot ready' + (entry ? ' equipped' : ' empty');
     btn.innerHTML = `
-      <span class="role">${def.role}</span>
+      <span class="role" title="${def.role}">${def.code}</span>
       <span class="icon">${entry ? entry.icon : '□'}</span>
       <span class="label">${entry ? entry.label : def.fallback}</span>
-      <span class="menu-dot" title="Configure ${def.role}">⋮</span>
-      ${entry && entry.qty != null ? `<span class="qty">×${entry.qty}</span>` : ''}`;
+      ${entry && entry.qty != null ? `<span class="qty">×${entry.qty}</span>` : ''}
+      <span class="menu-dot" title="Configure ${def.role}">⋮</span>`;
     btn.addEventListener('click', (e) => {
       if (e.target.closest && e.target.closest('.menu-dot')) {
         e.stopPropagation();
@@ -3094,7 +3362,7 @@ function renderHotbar() {
     btn.className = cls.filter(Boolean).join(' ');
     btn.innerHTML = `
       <span class="icon">${a.icon}</span>
-      <span class="label" title="${a.detail || ''}">${a.label}<br><small>${a.detail || ''}</small></span>
+      <span class="label" title="${a.detail || ''}">${a.label}</span>
       <span class="key">${a.key || (i + 1)}</span>`;
     if (!a.disabled) {
       btn.addEventListener('click', () => {
@@ -3603,6 +3871,13 @@ document.addEventListener('keydown', (e) => {
     win.classList.toggle('collapsed');
     collapseBtn.textContent = win.classList.contains('collapsed') ? '+' : '–';
   });
+  let scale = 1;
+  win.addEventListener('wheel', (e) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    scale = Math.round(Math.max(0.7, Math.min(1.8, scale - Math.sign(e.deltaY) * 0.1)) * 100) / 100;
+    win.style.transform = `scale(${scale})`;
+  }, { passive: false });
 })();
 
 // ===== Map zoom & pan via SVG viewBox =====
@@ -3667,6 +3942,20 @@ function applyView() {
   if (v) v.textContent = SIM_VERSION;
   document.title = 'Combat Sim · ' + SIM_VERSION;
   console.log('Dungeon combat sim ' + SIM_VERSION);
+
+  const btn = document.getElementById('theme-toggle');
+  const applyTheme = (light) => {
+    document.body.classList.toggle('light', light);
+    if (btn) btn.textContent = light ? '◑ Dark' : '◐ Light';
+  };
+  let saved = false;
+  try { saved = localStorage.getItem('gc-combat-theme') === 'light'; } catch (e) {}
+  applyTheme(saved);
+  if (btn) btn.addEventListener('click', () => {
+    const light = !document.body.classList.contains('light');
+    applyTheme(light);
+    try { localStorage.setItem('gc-combat-theme', light ? 'light' : 'dark'); } catch (e) {}
+  });
 })();
 App.init();
 </script>
