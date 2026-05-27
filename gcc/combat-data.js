@@ -1,5 +1,7 @@
 // combat-data.js — AD&D 1e data harvested from AMMOG (Phase 1: equipment, class tables, bestiary)
-// AUTO-GENERATED 2026-05-27 — do not hand-edit; regenerate from the AMMOG source.
+// AUTO-GENERATED 2026-05-27 — base from AMMOG source.
+// HAND-EDITED 2026-05-27 (v0.8.4): PHB audit corrections + 9 weapons added + sling split. See DESIGN-ammog-harvest.md §v0.8.4.
+// Re-generating from AMMOG will overwrite these hand-edits.
 // Loaded via <script src="combat-data.js"></script> BEFORE dungeon-encounter's main <script>. Exposes global CDATA.
 // Weapon damage as 'NdD(+b)' dice strings; vs_ac keyed AC2..AC10; weights in lb (reconcile vs gp-weight at use).
 
@@ -1729,7 +1731,7 @@ const CDATA = {
       "melee": true,
       "speed": 6,
       "length": 2,
-      "weight": 3,
+      "weight": 3.5,
       "cost": 8,
       "space": 4,
       "damage": {
@@ -1798,7 +1800,7 @@ const CDATA = {
       "melee": true,
       "speed": 7,
       "length": 4,
-      "weight": 12,
+      "weight": 12.5,
       "cost": 10,
       "space": 5,
       "damage": {
@@ -1833,7 +1835,7 @@ const CDATA = {
       "melee": true,
       "speed": 3,
       "length": 2,
-      "weight": 5,
+      "weight": 3.5,
       "cost": 8,
       "space": 1,
       "damage": {
@@ -1869,7 +1871,7 @@ const CDATA = {
       "melee": true,
       "speed": 5,
       "length": 3.5,
-      "weight": 7,
+      "weight": 7.5,
       "cost": 10,
       "space": 4,
       "damage": {
@@ -1975,17 +1977,17 @@ const CDATA = {
       "melee": true,
       "speed": 7,
       "length": 4,
-      "weight": 7,
+      "weight": 7.5,
       "cost": 5,
       "space": 4,
       "damage": {
         "sm": "1d8",
-        "l": "1d8"
+        "l": "1d4"
       },
       "vs_ac": {
         "2": -3,
-        "3": -2,
-        "4": -1,
+        "3": -1,
+        "4": 1,
         "5": -1,
         "6": 0,
         "7": 0,
@@ -2146,7 +2148,7 @@ const CDATA = {
       "melee": true,
       "speed": 4,
       "length": 7,
-      "weight": 4,
+      "weight": 5,
       "cost": 1,
       "space": 3,
       "damage": {
@@ -2183,7 +2185,7 @@ const CDATA = {
       "melee": true,
       "speed": 3,
       "length": 5,
-      "weight": 1,
+      "weight": 1.5,
       "cost": 1,
       "space": 3,
       "damage": {
@@ -2284,7 +2286,7 @@ const CDATA = {
       "melee": true,
       "speed": 9,
       "length": 5,
-      "weight": 12,
+      "weight": 12.5,
       "cost": 7,
       "space": 5,
       "damage": {
@@ -2454,7 +2456,7 @@ const CDATA = {
       "melee": true,
       "speed": 7,
       "length": 7,
-      "weight": 7,
+      "weight": 7.5,
       "cost": 4,
       "space": 1,
       "damage": {
@@ -2488,7 +2490,7 @@ const CDATA = {
       "melee": true,
       "speed": 8,
       "length": 8,
-      "weight": 7,
+      "weight": 7.5,
       "cost": 6,
       "space": 1,
       "damage": {
@@ -2624,7 +2626,7 @@ const CDATA = {
       "melee": true,
       "speed": 9,
       "length": 5,
-      "weight": 17,
+      "weight": 17.5,
       "cost": 9,
       "space": 5,
       "damage": {
@@ -2862,7 +2864,7 @@ const CDATA = {
       "melee": true,
       "speed": 10,
       "length": 8,
-      "weight": 12,
+      "weight": 12.5,
       "cost": 2,
       "space": 2,
       "damage": {
@@ -2985,7 +2987,7 @@ const CDATA = {
         "m": 16,
         "l": 24
       },
-      "rof": 1,
+      "rof": 0.5,
       "classes": [
         "fighter",
         "ranger",
@@ -2994,9 +2996,9 @@ const CDATA = {
       "verb": "shoots",
       "two_handed": true
     },
-    "sling": {
-      "id": "sling",
-      "name": "Sling",
+    "sling_bullet": {
+      "id": "sling_bullet",
+      "name": "Sling (bullet)",
       "ranged": true,
       "speed": 7,
       "weight": 0,
@@ -3006,10 +3008,11 @@ const CDATA = {
         "l": "1d6+1"
       },
       "range_squares": {
-        "s": 4,
-        "m": 8,
-        "l": 16
+        "s": 5,
+        "m": 10,
+        "l": 20
       },
+      "vs_ac": { "2": -2, "3": -2, "4": -1, "5": 0, "6": 0, "7": 0, "8": 2, "9": 1, "10": 3 },
       "rof": 1,
       "classes": [
         "fighter",
@@ -3020,8 +3023,128 @@ const CDATA = {
         "druid",
         "monk"
       ],
-      "verb": "slings at",
+      "verb": "slings a bullet at",
       "two_handed": false
+    }
+      ,
+    "sling_stone": {
+      "id": "sling_stone",
+      "name": "Sling (stone)",
+      "ranged": true,
+      "speed": 7,
+      "weight": 0,
+      "cost": 1,
+      "damage": { "sm": "1d4", "l": "1d4" },
+      "range_squares": { "s": 4, "m": 8, "l": 16 },
+      "vs_ac": { "2": -5, "3": -4, "4": -2, "5": -1, "6": 0, "7": 0, "8": 2, "9": 1, "10": 3 },
+      "rof": 1,
+      "classes": ["fighter", "ranger", "paladin", "thief", "assassin", "druid", "monk"],
+      "verb": "slings a stone at",
+      "two_handed": false
+    },
+    "dart": {
+      "id": "dart",
+      "name": "Dart",
+      "ranged": true,
+      "speed": 2,
+      "weight": 0.5,
+      "cost": 0.5,
+      "damage": { "sm": "1d3", "l": "1d2" },
+      "range_squares": { "s": 1.5, "m": 3, "l": 4.5 },
+      "rof": 3,
+      "classes": ["fighter", "ranger", "paladin", "thief", "assassin", "magic_user", "illusionist", "druid", "monk"],
+      "verb": "hurls",
+      "two_handed": false
+    },
+    "javelin": {
+      "id": "javelin",
+      "name": "Javelin",
+      "ranged": true,
+      "speed": 4,
+      "weight": 2,
+      "cost": 0.5,
+      "damage": { "sm": "1d6", "l": "1d6" },
+      "range_squares": { "s": 2, "m": 4, "l": 6 },
+      "rof": 1,
+      "classes": ["fighter", "ranger", "paladin", "monk"],
+      "verb": "hurls",
+      "two_handed": false
+    },
+    "composite_long_bow": {
+      "id": "composite_long_bow",
+      "name": "Composite Long Bow",
+      "ranged": true,
+      "speed": 7,
+      "weight": 7.5,
+      "cost": 100,
+      "damage": { "sm": "1d6", "l": "1d6" },
+      "range_squares": { "s": 6, "m": 12, "l": 21 },
+      "rof": 2,
+      "classes": ["fighter", "ranger", "paladin"],
+      "verb": "shoots",
+      "two_handed": true
+    },
+    "composite_short_bow": {
+      "id": "composite_short_bow",
+      "name": "Composite Short Bow",
+      "ranged": true,
+      "speed": 6,
+      "weight": 5,
+      "cost": 75,
+      "damage": { "sm": "1d6", "l": "1d6" },
+      "range_squares": { "s": 5, "m": 10, "l": 18 },
+      "rof": 2,
+      "classes": ["fighter", "ranger", "paladin"],
+      "verb": "shoots",
+      "two_handed": true
+    },
+    "lance_light": {
+      "id": "lance_light",
+      "name": "Lance (light horse)",
+      "melee": true,
+      "speed": 7,
+      "length": 10,
+      "weight": 5,
+      "cost": 6,
+      "space": 1,
+      "damage": { "sm": "1d6", "l": "1d8" },
+      "vs_ac": { "2": -2, "3": -2, "4": -1, "5": 0, "6": 0, "7": 0, "8": 0, "9": 0, "10": 0 },
+      "classes": ["fighter", "ranger", "paladin"],
+      "verb": "lances",
+      "two_handed": false,
+      "mounted_only": true
+    },
+    "lance_medium": {
+      "id": "lance_medium",
+      "name": "Lance (medium horse)",
+      "melee": true,
+      "speed": 6,
+      "length": 12,
+      "weight": 10,
+      "cost": 10,
+      "space": 1,
+      "damage": { "sm": "1d6+1", "l": "2d6" },
+      "vs_ac": { "2": 0, "3": 1, "4": 1, "5": 1, "6": 1, "7": 0, "8": 0, "9": 0, "10": 0 },
+      "classes": ["fighter", "ranger", "paladin"],
+      "verb": "lances",
+      "two_handed": false,
+      "mounted_only": true
+    },
+    "lance_heavy": {
+      "id": "lance_heavy",
+      "name": "Lance (heavy horse)",
+      "melee": true,
+      "speed": 8,
+      "length": 14,
+      "weight": 15,
+      "cost": 15,
+      "space": 1,
+      "damage": { "sm": "3d3", "l": "3d6" },
+      "vs_ac": { "2": 3, "3": 3, "4": 2, "5": 2, "6": 2, "7": 1, "8": 1, "9": 0, "10": 0 },
+      "classes": ["fighter", "ranger", "paladin"],
+      "verb": "lances",
+      "two_handed": false,
+      "mounted_only": true
     }
   },
   "armor": {

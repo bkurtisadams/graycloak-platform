@@ -6,7 +6,71 @@
 
 ---
 
-## Status — v0.8.3 (2026-05-27)
+## Status — v0.8.4 (2026-05-27)
+
+**PHB weapon-data audit + catalog wiring shipped (pure data slice).** Two things landed at the
+data tier: the CDATA catalog now flows into the sim's runtime `WEAPONS` table at boot, and
+the catalog itself is brought into PHB conformance.
+
+The audit found the sim was using only **11 of 58** PHB weapons — `WEAPONS` carried 14
+entries (3 sim-specific extras: `ogre_club`, `spider_bite`, a non-PHB `pike`), while CDATA
+had 45 of the 58 PHB rows. A three-way diff (sim WEAPONS vs CDATA vs hand-encoded PHB
+ground truth) surfaced 21 weapons with at least one field discrepancy and three structural
+gaps. Fixes that landed:
+
+- **Tier A (CDATA data bugs, fixed in `combat-data.js`):** battle_axe damage vs L `1d8`→`1d4`
+  (axe is *meant* to be bad vs large creatures), battle_axe vs_ac AC3 `-2`→`-1` and AC4 `-1`→`+1`,
+  heavy_crossbow rof `1`→`½`, short_sword weight `5lb`→`3.5lb`, halberd weight `17lb`→`17.5lb`,
+  and lb-rounding for bardiche/bo_stick/broad_sword/glaive/horsemans_flail/military_fork/
+  morning_star/quarterstaff/voulge.
+- **Tier B (sim WEAPONS data was wrong; CDATA correct):** sim halberd had its vs_ac
+  essentially inverted from PHB (peaked at AC10/+2; PHB peaks at AC5–7/+2), sim mace had
+  wrong length and vs_ac, sim pike was length 6 (PHB awl pike is 18), sim dagger/hand_axe/
+  long_sword rounded fractional lengths. All auto-fixed when `wireCatalogFromCDATA()` runs
+  at boot — `cdataWeaponToSim` overwrites data fields with CDATA-correct values while
+  preserving sim's bespoke iconography and any vs_ac the sim had but CDATA lacks.
+- **Tier C (9 PHB weapons absent from CDATA, added):** `composite_long_bow`,
+  `composite_short_bow`, `dart`, `javelin`, `lance_light`/`lance_medium`/`lance_heavy`
+  (with `mounted_only: true` for the eventual charge bonus), `sling_bullet` and
+  `sling_stone` as separate ranged weapons — the old CDATA `sling` carried bullet damage
+  with stone range, which was wrong on either reading.
+- **Tier D-space (structural gap closed for melee):** every melee weapon now has the
+  PHB-stated `space` field on its WEAPONS entry, populated by the catalog wire from CDATA's
+  `space` column. Club takes the midpoint 2 ft (PHB "1′–3′"). Foundation for the
+  space-too-small adjacency warning in v0.8.5. `WEAPON_SPACE` also populated identically.
+
+The sim's stale `sling` WEAPONS entry was removed; Arlanni's and Aldric's seed loadouts and
+the `i_sling` item now reference `sling_bullet`. PHB short-range vs_ac was baked directly
+into CDATA's `sling_bullet` and `sling_stone` (the only ranged entries that had carried
+vs_ac in the old sim) so the split doesn't regress to all-zero values.
+
+**Deferred to later slices:**
+- **v0.8.5 — space-too-small warning** (uses the `space` field that v0.8.4 populated): chat
+  warning + configurable −2 to-hit penalty when a wielder is adjacent to a wall or
+  similarly cramped.
+- **v0.8.5 — ranged vs_ac in computeToHit**: CDATA's ranged weapons (bows, crossbows,
+  etc.) still have no `vs_ac` table; PHB gives a short-range adjustment with −2 medium /
+  −5 long. Material to-hit impact, so it earns its own focused slice with tests.
+- **v0.8.6+ — class proficiency system**: CDATA already carries `classes` arrays per
+  weapon; the runtime check (initial proficiency count + non-prof penalty + per-N-level
+  growth) is its own slice.
+
+**PHB rows with reconstructed ground truth (paste was visually mangled):** glaive,
+lance_light, lance_medium, horsemans_mace vs_ac rows; spear and trident length/speed
+(PHB ranges). Flagged `_uncertain` in the audit script — worth a sanity check against
+a clean PHB scan before any of these become load-bearing for downstream math.
+
+Verified headless: `node --check` clean on both files; full **40-assertion test suite**
+drives the real `App.init` under a stubbed DOM and asserts catalog growth (≥50 weapons),
+new weapon presence and PHB-correct damage/range/vs_ac, the 12 specific Tier-A/B value
+corrections at boot, preservation of sim icon and sim vs_ac where CDATA lacked them,
+`space` field surfaced for halberd/two_h_sword/club, sling split into bullet/stone with
+PHB damage/range/vs_ac, seed combatants resolve to `sling_bullet`, and the v0.8.3 GM
+panel paths still work (open / select / suggestAC / close).
+
+---
+
+
 
 **GM Panel slice 1 shipped: the shell + combatant editor + settings strip.** A slide-in panel
 (toggle `⚙ GM` in the topbar; `z-index` 95 so it works *over* the setup overlay — you can edit before
