@@ -4142,7 +4142,12 @@ function computeValidTargets(c, picking) {
       });
     } else if (w.ranged) {
       if ((c.engaged_with || []).length > 0) return [];
-      return enemies.filter(e => dist10(c.position, e.position) <= w.range_squares.l);
+      // Ammo-based ranged (sling/bow/crossbow): the range lives on the loaded ammo,
+      // not on the weapon itself. Resolve to the effective weapon first, and treat
+      // "no ammo loaded" as "no valid targets" so the HUD renders inert rather than crashing.
+      const effW = w.compatible_ammo ? resolveEffectiveRangedWeapon(c, w) : w;
+      if (effW._missing_ammo || !effW.range_squares) return [];
+      return enemies.filter(e => dist10(c.position, e.position) <= effW.range_squares.l);
     }
   } else if (picking.spellId) {
     const sp = SPELLS[picking.spellId];

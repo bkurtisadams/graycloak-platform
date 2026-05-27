@@ -89,13 +89,22 @@ Arlanni also carries `i_sling_stones` qty 20 as a backup); `ammo_loaded: { sling
 `'sling'`. Five new ammo bundle items added to `ITEMS`: `i_sling_bullets`,
 `i_sling_stones`, `i_arrows`, `i_bolts_light`, `i_bolts_heavy`.
 
-**Verification — 56 assertions pass:** HTML literal is PHB-clean *without the wire
+**Verification — 62 assertions pass:** HTML literal is PHB-clean *without the wire
 running* (proved by loading the WEAPONS literal in isolation); catalog wire correctly
 adds compatible_ammo and doesn't fabricate damage for sling; helper unit tests cover
 explicit-slot, switching, and inventory-fallback paths; effective-weapon merge produces
 correct damage/range/vs_ac for sling+bullet, sling+stone, and bow+arrow; magic +1
 bullets give -1 to `needed` and +1 to `dmgBonus`; ammo consumption decrements; no-ammo
-flags fall through to a 99/`'0'` projection; melee path unchanged.
+flags fall through to a 99/`'0'` projection; melee path unchanged; HUD-path
+`computeValidTargets` regression for sling-with-ammo, sling-no-ammo, and bow+arrows.
+
+**Post-ship HUD fix.** Initial v0.8.5 ship caused the HUD to blank out when selecting
+any PC with a sling in their loadout (Arlanni / Aldric). The crash was in
+`computeValidTargets`'s ranged branch — `w.range_squares.l` threw `TypeError: Cannot
+read properties of undefined` because the sling weapon delegates range to the loaded
+ammo. Same shape of fix as `executeAttackDecl`: resolve the effective ranged weapon
+first, and bail out to `[]` if no ammo is loaded so the missile slot renders inert
+rather than killing the whole HUD. Regression tests added.
 
 **Next:** v0.8.6 will fill PHB short-range vs_ac on every ranged weapon (currently most
 ranged CDATA weapons have empty vs_ac) and add a settings toggle for the medium (-2) /
