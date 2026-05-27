@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.8.6 -->
+<!-- dungeon-encounter — v0.8.7 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -817,7 +817,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.8.6';
+const SIM_VERSION = 'v0.8.7';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -1238,6 +1238,26 @@ function minCheb(cellsA, cellsB) {
 }
 // Reach is 1 and symmetric; the footprint is the only thing that extends a creature's reach.
 function inMelee(a, b) { return minCheb(footprintCells(a), footprintCells(b)) === 1; }
+// v0.8.7: Space-too-small check. The wielder can't swing freely when other combatants
+// crowd them in adjacent fine cells. Only kicks in for melee weapons whose `space` is
+// >= 4 ft (the PHB threshold roughly distinguishing wide-swing weapons like halberd,
+// mace, battle-axe from compact thrusting/light weapons like dagger, pike, short sword).
+// Excludes the swing target from "crowders" since you're swinging AT them, not past them.
+// Returns { constrained, crowders: [combatants] }. Caller decides what to do with it
+// based on state.space_check_mode (off/warn/penalty/prevent).
+function weaponSpaceConstrained(wielder, target, weapon) {
+  if (!weapon || !weapon.melee || (weapon.space || 0) < 4) return { constrained: false, crowders: [] };
+  if (!wielder || !state || !state.combatants) return { constrained: false, crowders: [] };
+  const targetId = target ? target.id : null;
+  const wf = footprintCells(wielder);
+  const crowders = [];
+  for (const c of state.combatants) {
+    if (!c || c.dead) continue;
+    if (c.id === wielder.id || c.id === targetId) continue;
+    if (minCheb(wf, footprintCells(c)) === 1) crowders.push(c);
+  }
+  return { constrained: crowders.length > 0, crowders };
+}
 // Geometric centre of a creature's footprint, in grid units.
 function footCenter(c) { const n = sizeCells(c); return { col: c.position.col + (n - 1) / 2, row: c.position.row + (n - 1) / 2 }; }
 // Which arc of the target the attacker strikes from, using the target's facing. Row increases
@@ -1504,14 +1524,22 @@ function attackProjection(state, a, t, w, opts) {
   // Position relative to the foe's facing: flank negates shield (≈+1), rear adds +2 (shield & Dex gone).
   let arc = 'front', arcBonus = 0;
   if (w.melee && !opts.fleeing) { arc = attackArc(a, t); arcBonus = arc === 'rear' ? 2 : arc === 'flank' ? 1 : 0; }
+  // v0.8.7: Space-too-small penalty (-2 to-hit) when state.space_check_mode === 'penalty'
+  // AND the wielder is crowded by a non-target combatant in adjacent fine cells.
+  // Stored as a signed to-hit mod so modAdjList renders "-2 space" naturally.
+  let spaceMod = 0;
+  if (w.melee && state.space_check_mode === 'penalty') {
+    const sc = weaponSpaceConstrained(a, t, w);
+    if (sc.constrained) spaceMod = -2;
+  }
   // Magic ammo's `attack_bonus` lowers `needed` (a +1 arrow makes a hit easier).
   const ammoAtk = effW.ammo_attack_bonus || 0;
-  const needed = noAmmo ? 99 : Math.max(1, Math.min(20, calc.needed - range - charge - fleeBonus - ammoAtk + parryPen + attackerHeld - targetHeld - targetDown - arcBonus - blessBonus + shieldPen));
+  const needed = noAmmo ? 99 : Math.max(1, Math.min(20, calc.needed - range - charge - fleeBonus - ammoAtk + parryPen + attackerHeld - targetHeld - targetDown - arcBonus - blessBonus + shieldPen - spaceMod));
   const dmgDice = noAmmo ? '0' : ((t.size === 'L') ? effW.damage.l : effW.damage.sm);
   const dmgBonus = noAmmo ? 0 : (((a.magic_weapons && a.magic_weapons[w.id]) || w.magic_bonus || 0) + (a.damage_bonus || 0) + (effW.ammo_damage_bonus || 0));
   return {
     needed, base: calc.base, arc,
-    mods: { wpnVsAc: calc.wpnVsAc, magic: calc.magic, str: calc.str, range, charge, exposed, fleeing: fleeBonus, parry: -parryPen, grappled: -attackerHeld, vsHeld: targetHeld, vsDown: targetDown, flank: arcBonus, bless: -blessBonus, shield: shieldPen },
+    mods: { wpnVsAc: calc.wpnVsAc, magic: calc.magic, str: calc.str, range, charge, exposed, fleeing: fleeBonus, parry: -parryPen, grappled: -attackerHeld, vsHeld: targetHeld, vsDown: targetDown, flank: arcBonus, bless: -blessBonus, shield: shieldPen, space: spaceMod },
     dmgDice, dmgBonus, range_band
   };
 }
@@ -1975,6 +2003,7 @@ function makeInitialState() {
     single_out_mode: false,
     weight_unit: 'gp',   // 'gp' (1e gp-weight) or 'lb'
     range_mod_enabled: true,  // v0.8.6: PHB medium (-2) / long (-5) range penalty toggle
+    space_check_mode: 'warn', // v0.8.7: 'off' | 'warn' | 'penalty' | 'prevent' — space-too-small check
     game_over: null,
     log: [],
     combatants: [
@@ -2059,6 +2088,7 @@ let hudUi = { collapsed: false, x: null, y: null, scale: 1, ultra: false };
 // DM peek: when false (default), enemy orders stay hidden during the declare phase (1e blind declaration).
 let peekDecl = false;
 let showReach = false;   // dotted weapon-reach rings (toggle with 'r')
+let showSpace = false;   // v0.8.7: dashed weapon-space rings (toggle with 's')
 let chatCollapse = {}; // round number -> true(collapsed)/false(expanded); set on user toggle
 
 // ============================================================
@@ -3460,6 +3490,22 @@ async function executeAttackDecl(c, decl) {
   // Resolve attack
   c._acted_round = state.round;
   markStrike(c, target);
+  // v0.8.7: Space-too-small check for melee swings. Mode 'warn' just logs; 'penalty'
+  // logs AND attackProjection adds -2 to-hit; 'prevent' blocks the attack entirely.
+  if (weapon.melee && state.space_check_mode && state.space_check_mode !== 'off') {
+    const sc = weaponSpaceConstrained(c, target, weapon);
+    if (sc.constrained) {
+      const aSide = c.side === 'A' ? 'a' : 'b';
+      const crowders = sc.crowders.map(x => x.label).join(', ');
+      if (state.space_check_mode === 'prevent') {
+        log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span> cannot swing ${weapon.name} freely — too cramped (${crowders} alongside).</span>`);
+        await sleep(150);
+        return;
+      }
+      const tag = state.space_check_mode === 'penalty' ? ' (−2 to-hit)' : '';
+      log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span> swings ${weapon.name} cramped by ${crowders}${tag}.</span>`);
+    }
+  }
   const event = resolveAttack(state, c.id, target.id, decl.weapon_id, { subdue: !!c._subdue });
   if (event) {
     // v0.8.5: ranged ammo decrement on every shot (thrown weapons skip — handled separately).
@@ -3876,6 +3922,33 @@ function describeArc(cx, cy, r, startAngle, endAngle) {
   return ['M', start.x.toFixed(2), start.y.toFixed(2), 'A', r, r, 0, largeArc, 0, end.x.toFixed(2), end.y.toFixed(2)].join(' ');
 }
 
+// v0.8.7: Two independent ring overlays on each combatant token. Both helpers are
+// no-ops when their weapon arg is missing or the relevant field isn't set.
+// Reach is the weapon's length (how far the strike lands). Space is the swing-arc
+// clearance the wielder needs to wield freely (PHB "space required" column).
+function renderReachRing(c, w, g, half) {
+  if (!w) return;
+  const lenFt = w.length || 2;
+  const rr = half + (lenFt / 10) * SQ;
+  svgEl('circle', {
+    cx: 0, cy: 0, r: rr.toFixed(1), fill: 'none',
+    stroke: c.side === 'A' ? 'var(--steel-bright)' : 'var(--crimson-bright)',
+    'stroke-width': 1, 'stroke-dasharray': '3 4', 'stroke-opacity': 0.55, 'pointer-events': 'none'
+  }, g);
+}
+
+function renderSpaceRing(c, w, g, half) {
+  if (!w || !w.melee) return;
+  const spaceFt = w.space || 0;
+  if (spaceFt < 1) return;
+  const sr = half + (spaceFt / 10) * SQ;
+  svgEl('circle', {
+    cx: 0, cy: 0, r: sr.toFixed(1), fill: 'none',
+    stroke: 'var(--gold)',
+    'stroke-width': 1, 'stroke-dasharray': '5 2', 'stroke-opacity': 0.55, 'pointer-events': 'none'
+  }, g);
+}
+
 function renderMap() {
   const svg = document.getElementById('map-svg');
   svg.innerHTML = '';
@@ -3997,16 +4070,13 @@ function renderMap() {
       transform: `translate(${x.toFixed(2)},${y.toFixed(2)})`,
       'data-token-id': c.id
     }, tokens);
-    // Weapon-reach ring (toggle with 'r'): radius scales with the active weapon's length.
-    if (showReach && !c.dead) {
+    // v0.8.7: Reach (toggle 'r') and space (toggle 's') visualizations.
+    // Two rings, distinct styles: reach is side-colored dotted (length-based);
+    // space is amber dashed (PHB space-required-based).
+    if (!c.dead) {
       const aw = WEAPONS[c.active_weapon];
-      const lenFt = aw ? (aw.length || 2) : 2;
-      const rr = half + (lenFt / 10) * SQ;
-      svgEl('circle', {
-        cx: 0, cy: 0, r: rr.toFixed(1), fill: 'none',
-        stroke: c.side === 'A' ? 'var(--steel-bright)' : 'var(--crimson-bright)',
-        'stroke-width': 1, 'stroke-dasharray': '3 4', 'stroke-opacity': 0.55, 'pointer-events': 'none'
-      }, g);
+      if (showReach) renderReachRing(c, aw, g, half);
+      if (showSpace) renderSpaceRing(c, aw, g, half);
     }
     // Focus outline (square)
     if (c.id === state.current_actor && !c.dead) {
@@ -4876,6 +4946,7 @@ function modAdjList(m) {
   const push = (v, label) => { if (v) out.push(`${v > 0 ? '+' : ''}${v} ${label}`); };
   push(m.magic, 'magic'); push(m.str, 'str'); push(m.wpnVsAc, 'vs AC');
   push(m.charge, 'charge'); push(m.range, 'range'); push(m.exposed, 'exposed');
+  push(m.space, 'space');
   return out;
 }
 
@@ -5077,7 +5148,8 @@ function renderGmSettings() {
     `<div class="gm-seg"><button class="${u === 'gp' ? 'on' : ''}" onclick="App.gmSetWeightUnit('gp')">gp-weight</button>` +
     `<button class="${u === 'lb' ? 'on' : ''}" onclick="App.gmSetWeightUnit('lb')">lb</button></div>` +
     `<div class="gm-seg"><button class="${peekDecl ? 'on' : ''}" onclick="App.gmTogglePeek()">Peek orders: ${peekDecl ? 'ON' : 'OFF'}</button></div>` +
-    `<div class="gm-seg"><button class="${state.range_mod_enabled !== false ? 'on' : ''}" onclick="App.gmToggleRangeMod()" title="PHB -2 medium / -5 long range to-hit penalty">Range mod: ${state.range_mod_enabled !== false ? 'PHB' : 'OFF'}</button></div>`;
+    `<div class="gm-seg"><button class="${state.range_mod_enabled !== false ? 'on' : ''}" onclick="App.gmToggleRangeMod()" title="PHB -2 medium / -5 long range to-hit penalty">Range mod: ${state.range_mod_enabled !== false ? 'PHB' : 'OFF'}</button></div>` +
+    `<div class="gm-seg"><button class="${(state.space_check_mode || 'warn') !== 'off' ? 'on' : ''}" onclick="App.gmCycleSpaceCheckMode()" title="Space-too-small (weapon.space ≥ 4 + crowded): cycles off → warn → penalty (-2) → prevent">Space: ${state.space_check_mode || 'warn'}</button></div>`;
 }
 function renderGmRoster() {
   const el = document.getElementById('gm-roster'); if (!el) return;
@@ -5152,6 +5224,13 @@ const App = {
   gmSetWeightUnit(u) { state.weight_unit = (u === 'lb') ? 'lb' : 'gp'; renderGmSettings(); renderAll(); },
   gmTogglePeek() { peekDecl = !peekDecl; renderGmSettings(); renderAll(); },
   gmToggleRangeMod() { state.range_mod_enabled = (state.range_mod_enabled === false); renderGmSettings(); renderAll(); },
+  gmCycleSpaceCheckMode() {
+    const order = ['off', 'warn', 'penalty', 'prevent'];
+    const cur = state.space_check_mode || 'warn';
+    const i = order.indexOf(cur);
+    state.space_check_mode = order[(i + 1) % order.length];
+    renderGmSettings(); renderAll();
+  },
   gmSuggestAC() {
     const c = gmUi.editId ? findCombatant(state, gmUi.editId) : null; if (!c) return;
     const ac = computeAC(c);
@@ -5508,6 +5587,9 @@ document.addEventListener('keydown', (e) => {
   }
   if ((e.key === 'r' || e.key === 'R') && !e.ctrlKey && !e.metaKey) {
     showReach = !showReach; renderAll(); return;
+  }
+  if ((e.key === 's' || e.key === 'S') && !e.ctrlKey && !e.metaKey) {
+    showSpace = !showSpace; renderAll(); return;
   }
   if (state.phase !== 'declare') return;
   const c = findCombatant(state, state.selected_id);

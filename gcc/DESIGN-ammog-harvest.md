@@ -6,6 +6,115 @@
 
 ---
 
+## Status — v0.8.7 (2026-05-27)
+
+**Space-too-small enforcement (warn-mode default) + dual reach/space visualization
+rings shipped.** Three coordinated pieces.
+
+**Geometric model — simple-adjacency, weapon.space ≥ 4 gate.** A melee swing is
+"constrained" when:
+
+- The weapon's `space` is ≥ 4 ft (PHB threshold between wide-arc weapons like halberd /
+  mace / battle-axe and compact thrusting/light ones like dagger / pike / short sword), AND
+- At least one non-target combatant (ally or enemy, alive) sits in a fine cell adjacent
+  to the wielder's footprint (`minCheb` distance = 1).
+
+The swing target is *excluded* from the crowders list — you're swinging *at* them, not
+past them. Walls don't exist in the sim yet, so the only crowders are other tokens. Once
+walls/corridors are added, a second check (`weapon.space >= corridor_width` ⇒ cramped)
+will layer on top using the same helper.
+
+**Mode state machine — `state.space_check_mode`:** `'off' | 'warn' | 'penalty' |
+'prevent'`. Default `'warn'` (log-only, no mechanical effect). The GM panel grew a fourth
+toggle that cycles `off → warn → penalty → prevent → off`. Behavior per mode:
+
+- **off** — no check, no log.
+- **warn** — log "X swings ${weapon} cramped by ${crowders}" before the strike. No to-hit
+  effect.
+- **penalty** — log same message with " (−2 to-hit)" suffix AND `attackProjection` adds
+  `-2` to needed via a new `mods.space` field. Hover preview reads "−2 space" naturally
+  via `modAdjList`.
+- **prevent** — log "cannot swing ${weapon} freely — too cramped" and `executeAttackDecl`
+  returns early; no resolveAttack call, no damage.
+
+The check is wired in two places: `attackProjection` (so penalty mode reflects in hover
+preview) and `executeAttackDecl` melee branch (so the log narrates and `prevent` blocks).
+Both reference `weaponSpaceConstrained(wielder, target, weapon)` — single source of truth.
+
+**Reach + space visualization rings.** The inline reach-ring code in `renderMap` is
+refactored into two co-located helpers above `renderMap`:
+
+- `renderReachRing(c, w, g, half)` — unchanged behavior: side-colored dotted ring (`3 4`
+  dasharray), radius = `(weapon.length / 10) × SQ`. Bound to **'r'**.
+- `renderSpaceRing(c, w, g, half)` — new: amber dashed ring (`5 2` dasharray), radius =
+  `(weapon.space / 10) × SQ`. Renders for any melee weapon with `space ≥ 1`. Bound to
+  **'s'**.
+
+Both rings render independently, so 'r' + 's' together shows both. The space ring is
+typically inside the reach ring (most weapons have space < length).
+
+**Verification — 32 assertions pass:** default `space_check_mode = 'warn'`; helpers
+exist as standalone functions; cycle handler walks `warn → penalty → prevent → off →
+warn`; the simple-adjacency check correctly identifies crowders (single ally, single
+enemy, both, dead-allies-excluded, distant-foe-excluded); below-threshold weapons
+(dagger space 1, long_sword space 3) never trigger; at-threshold mace (space 4) does;
+ranged weapons never trigger; mode='penalty' adds -2 to `needed` only when crowded;
+mode='warn' and mode='off' leave `mods.space = 0`; `modAdjList` renders "-2 space" line;
+`showSpace` global toggle reaches/persists; v0.8.5 sling+bullet damage and v0.8.6
+range-mod toggle still work.
+
+**Next (deferred, not in this slice):** corridor-width check when walls exist —
+`weapon.space ≥ corridor_width` ⇒ cramped, layered on top of the adjacency check.
+
+---
+
+
+
+**Ranged vs_ac fill + range-modifier setting shipped.** Two complementary pieces close
+the ranged-combat data gap.
+
+**PHB short-range vs_ac filled on 8 ranged CDATA weapons.** Source: PHB p.38, "Hurled
+Weapons and Missiles" table. The 8 weapons (`short_bow`, `long_bow`,
+`composite_long_bow`, `composite_short_bow`, `light_crossbow`, `heavy_crossbow`, `dart`,
+`javelin`) previously had empty `vs_ac` in CDATA — the catalog wire was falling back to
+preserving the sim's literal value (which was also empty for everything except dart).
+Now each carries a 9-entry vs_ac map (AC2..AC10). PHB quirks preserved exactly:
+`dart.vs_ac[9] = 0` while `vs_ac[8] = +1` (the dip at AC9 is in the printed table —
+preserved verbatim). Same dip on javelin. Heavy crossbow tops out at AC10 = +4. Sling
+keeps its by-ammo vs_ac on `CDATA.ammo_types.bullet`/`.stone` (already PHB-correct from
+v0.8.5).
+
+**Range-modifier game setting.** New `state.range_mod_enabled` defaults to `true` (PHB
+behavior). `rangeBand` now consults state: when enabled, returns the PHB `-2 medium / -5
+long` modifiers; when disabled, returns `mod: 0` while still computing the band label
+(short/medium/long) so the HUD's range readout stays informative. The band label is
+purely cosmetic when the penalty is off.
+
+GM Panel gained a third settings button next to "gp-weight / lb" and "Peek orders":
+**"Range mod: PHB / OFF"** with hover tooltip explaining the toggle. Handler is
+`App.gmToggleRangeMod()`.
+
+**Catalog wire interaction.** With CDATA now providing `vs_ac` for ranged weapons, the
+wire's "preserve sim's vs_ac when CDATA has none" fallback path no longer fires for
+these 8 weapons. The wire just copies the CDATA values through to the runtime WEAPONS
+table.
+
+**Verification — 49 assertions pass:** all 8 ranged weapons have 9-entry vs_ac in CDATA
+matching the PHB table exactly; vs_ac flows through the catalog wire to runtime
+WEAPONS; `state.range_mod_enabled` defaults to true; the GM toggle handler flips it
+correctly; `rangeBand` honors the toggle (PHB ON: -2 med / -5 long, OFF: 0 / 0); band
+labels persist regardless of toggle state; `attackProjection` propagates the change
+through to `needed` (a 2-point swing at medium, 5-point swing at long); ranged vs_ac is
+applied in computeToHit (long_bow vs AC2 gives wpnVsAc = -1 per the table); v0.8.5
+non-regression — sling+bullet still produces correct effective weapon.
+
+**Next:** v0.8.7 will be the space-too-small slice — three game modes (warn /
+warn+penalty / prevent) **plus** the paired space-visualization ring ('s' key, distinct
+style from 'r' reach ring). The enforcement check and the visual share `weapon.space`
+data and a `renderSpaceRing` helper. *(shipped — see v0.8.7 status above)*
+
+---
+
 ## Status — v0.8.5 (2026-05-27)
 
 **HTML weapons cleanup + ammo refactor shipped.** Two threads land at once: the sim's
@@ -109,7 +218,9 @@ rather than killing the whole HUD. Regression tests added.
 **Next:** v0.8.6 will fill PHB short-range vs_ac on every ranged weapon (currently most
 ranged CDATA weapons have empty vs_ac) and add a settings toggle for the medium (-2) /
 long (-5) range modifier. v0.8.7 will be space-too-small with three game modes
-(warn / warn+penalty / prevent).
+(warn / warn+penalty / prevent) **plus** a paired space-visualization ring (toggle
+key 's', distinct style from the existing 'r' reach ring) — the enforcement check and
+the visual share the same `weapon.space` data and helper function.
 
 ---
 
