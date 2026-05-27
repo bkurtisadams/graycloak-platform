@@ -2,7 +2,64 @@
 
 **Source:** `C:\ammog_2` (AMMOG, Node/SQLite/WebSocket 1e MUD, ~Feb–Mar 2026)
 **Target:** `dungeon-encounter` (single-file browser 1e tactical combat tool, GCC)
-**Audit date:** 2026-05-27 · sim at v0.7.1
+**Audit date:** 2026-05-27 · sim at v0.8.0
+
+---
+
+## Status — v0.8.2 (2026-05-27)
+
+**The AMMOG glue layer landed (sim-side), fully node-verified — no UI yet.** The "staged but not
+wired" data is now reachable by the coming GM Panel through a small adapter tier added to the main
+script:
+
+- `computeAC(c)` — 1e AC **suggestion** from worn armour + Dex Defensive Adjustment + shield
+  (returns `{shieldless, withShield}`). Written in-sim because **`calculateAC`/`dexAcBonus` were never
+  harvested into `combat-data.js`** — only the armour/shield *data* was (see corrected note below).
+  Deliberately a suggestion the editor offers, **never auto-applied on load**: seed ACs are
+  hand-authored and don't reduce to a clean armour+Dex+shield formula, so overwriting them would be a
+  silent regression.
+- `lbToGp` / `gpToLb` — weight reconciliation (CDATA is lb; sim ITEMS are gp-weight, 10 gp = 1 lb).
+- `cdataWeaponToSim(id)` / `cdataArmorToItem(id)` — reshape a CDATA catalog row into a registered sim
+  `WEAPONS` / `ITEMS` entry (gp-weight) so the panel can dole real gear into the existing encumbrance engine.
+- `spawnFromTemplate(templateId, side, pos)` — **natural-attack support.** Reshapes a CDATA monster
+  (inline `attacks`/`rangedAttacks`, `[n,d]` damage, lb stats) into a sim combatant: synthesises each
+  natural attack into a `WEAPONS` entry (`_registerNaturalAttack`), maps HD→`level`, sizes L→2 cells,
+  derives a turnable `undead_type`, and stamps the harvested `thac0` as a per-combatant override.
+  `thac0Of` now honours `c.thac0` when present (tiny additive change). Pure — returns the combatant,
+  does not touch state; the panel handles placement/render.
+
+Verified with a 36-assertion functional suite + a 5-assertion integration check, both run against the
+real `combat-data.js` and the real seed combatants (e.g. orc battle-axe → `1d8`, javelin ranged band,
+THAC0 19, needs 12+ vs AC7; owlbear claw/claw/beak with beak `2d6`; ogre `size_cells` 2 / THAC0 16;
+skeleton turnable via the CDATA matrix; carrion-crawler `[0,0]` special does not crash; Aggro's
+plate+Dex15 → AC2 matches the authored seed).
+
+**Next build — GM Panel UI** (now de-risked; build in focused slices on top of this glue):
+editor shell + GM Settings strip (gp/lb toggle) → gear doling + spell memorization (`CDATA.getSpellSlots`)
+→ monster spawning (`spawnFromTemplate`) + read-only inspect HUD + free setup token-drag.
+
+---
+
+## Status — v0.8.0 (2026-05-27)
+
+**Phase 0 + the data-import half of Phase 1 are done.** `combat-data.js` now exists (global `CDATA`,
+loaded via `<script src>` *before* the main inline script), holding the harvested AMMOG tier:
+turn-undead matrix, save tables, spell-slot / XP / attacks-per-round helpers, 45 weapons, 7 armor,
+2 shields, supplies / ammo / gems / jewelry, 34 monster templates, 15 loot tables. Regenerable from
+the AMMOG modules via `harvest.js`.
+
+**Wired live:** real Turn Undead — `CDATA.getTurnResult(level, type)` replaced the old HD-diff
+`turnUndeadResult`; skeleton tagged `undead_type`. **Staged but deliberately *not* wired yet:** the
+weapon catalog and the bestiary — making them useful needs the editor / spawn UI, so they land with
+the **GM Panel** (next build); the AC question is answered by the in-sim `computeAC` (above) — `equipment.calculateAC`/`dexAcBonus` were *not* in the harvest, only the armour/shield data.
+
+**Deployment reality (corrected):** graycloak.net (GCC) is **GitHub Pages** — the `gcc/` folder is the
+published root, and the push *is* the deploy (`.github/workflows/static.yml` + `gcc/CNAME`). The
+separate `graycloak-adnd/` is the **Firebase** project (future MMOG host). The harvested engine
+(`combat-data.js` + the layers to come) is the **shared core** for both: single-player on Pages now,
+multiplayer on the adnd client later. The MMOG sync fork — serverless (Firebase Hosting + Firestore)
+vs server-authoritative (the AMMOG Node/WebSocket model, already built once) — stays open; decision
+doc to be written when committed.
 
 ---
 
@@ -67,7 +124,7 @@ incremental data-first harvesting (Phase 1).
 | Status flags ad-hoc (`_asleep`, `_paralyzed_until`) | `conditions.js` full system + monster `resolveSpecialAttack` |
 | 3 monsters | `monsters.TEMPLATES` (full bestiary) |
 | 6 spells | `spells.js` (178) |
-| GM Panel: equip armor → AC? | `equipment.calculateAC` / `dexAcBonus` (yes, function exists) |
+| GM Panel: equip armor → AC? | in-sim `computeAC` (armour+Dex+shield) — note `calculateAC`/`dexAcBonus` were NOT harvested, only data |
 | GM Panel: caster memorization | `class-data.getSpellSlots` |
 | Parley / reaction / morale (deferred) | `chargen.getChaReactionAdj` + `follower.moraleCheck` |
 | No backstab | `thief-skills.backstabMultiplier` |
@@ -102,16 +159,17 @@ no shim — just reshape into the sim's `WEAPONS`/`ITEMS`/`SPELLS`/monster-templ
 ## Phased extraction plan
 
 ### Phase 0 — Prep
-- [ ] Create `combat-data.js` as the data destination (the `<script src>` split we already wanted).
-- [ ] Decide adapter approach (shim vs rewrite) — default: **shim** for logic, **reshape** for data.
-- [ ] Confirm gp vs lb default for weight (GM Settings).
+- [x] Create `combat-data.js` as the data destination (the `<script src>` split). **Done — v0.8.0.**
+- [x] Adapter approach decided — **reshape** for data (`harvest.js` transforms AMMOG shapes → sim shapes); **shim** remains the plan for logic (spells/conditions in later phases).
+- [ ] Confirm gp vs lb default for weight — gp for now; lb toggle deferred to the GM Settings strip (GM Panel build).
 
 ### Phase 1 — Data tier  *(biggest visible jump; dovetails with GM Panel; fully verifiable)*
-- [ ] Import `equipment.js` → replace sim `WEAPONS` + `ITEMS`; adopt `calculateAC`, `dexAcBonus`, `calculateWeight`, dual-wield/two-handed flags.
-- [ ] Import `class-data.js` → real save matrices, **`TURN_UNDEAD`** (replace HD-diff `turnUndeadResult`), `getAttacksPerRound`, `getSpellSlots`, XP table.
-- [ ] Import `monsters.TEMPLATES` + `LOOT_TABLES` → real bestiary (map combat fields; drop MUD-only fields: aggroRadius, leashRadius, respawnTicks, sprite, vision).
-- [ ] Reconcile weight units (lb ↔ gp-weight) against the encumbrance engine.
-- [ ] **GM Panel** then doles from the real catalog and spawns from the real bestiary.
+**Data harvested into `CDATA` (v0.8.0). The *live wiring* of catalog/bestiary moves into the GM Panel turn — they need the editor/spawn UI to be useful.**
+- [~] `equipment.js` → `CDATA.weapons`(45) / `armor`(7) / `shields`(2) reshaped (acAdj→`vs_ac`, dmg arrays→strings, weights/classes kept). **Staged; live `WEAPONS`/`ITEMS` swap + `calculateAC`/`dexAcBonus` adoption with the GM Panel.**
+- [x] `class-data.js` — **`TURN_UNDEAD` wired live** (`CDATA.getTurnResult` replaced HD-diff `turnUndeadResult`). Saves / `getAttacksPerRound` / `getSpellSlots` / XP harvested into `CDATA` (staged, not yet wired).
+- [~] `monsters.TEMPLATES`(34) + `LOOT_TABLES`(15) reshaped into `CDATA.monsters` / `CDATA.loot` (MUD-only fields dropped: aggroRadius, leashRadius, respawnTicks, sprite, vision). **Natural-attack support DONE (v0.8.2): `spawnFromTemplate` synthesises inline attacks into `WEAPONS`. Spawn function ready; UI doling/spawning lands with the GM Panel.**
+- [x] Reconcile weight units (lb ↔ gp-weight) — `lbToGp`/`gpToLb`; `cdataArmorToItem` reshapes to gp-weight at adoption time. **Done — v0.8.2.**
+- [ ] **GM Panel** then doles from the real catalog and spawns from the real bestiary.  ← **next build**
 
 ### Phase 2 — Status backbone
 - [ ] Adopt `conditions.js` (CONDITION_DEFS, applyCondition, tickConditions, canAct, isAutoHit, ignoresDex).
@@ -151,8 +209,8 @@ no shim — just reshape into the sim's `WEAPONS`/`ITEMS`/`SPELLS`/monster-templ
 ## Open decisions
 
 1. **Bundle vs inline** — `combat-data.js` (data only) now; full `adnd-engine.js` bundle later? (Note `file://` blocks ES-module imports; `<script src>` works on graycloak.net but not double-click-open. Single-file stays the default for the sim.)
-2. **Adapter** — shim sim-combatant-as-AMMOG-entity (less rewrite) vs rewrite logic against sim objects.
-3. **Weight unit** — gp-weight vs lb default (GM Settings toggle).
+2. **Adapter** — shim sim-combatant-as-AMMOG-entity (less rewrite) vs rewrite logic against sim objects. *(Data tier resolved: reshape via `harvest.js`. Logic tier — spells/conditions — still TBD; shim is the lean default.)*
+3. **Weight unit** — gp-weight vs lb default (GM Settings toggle). *(gp for now; toggle ships with the GM Panel.)*
 4. **Chargen scope** — lightweight stat editing in the GM Panel vs a full chargen page (Phase 6).
 5. **Keep the sim's value-adds** — bespoke weaponless trio (overbear/grapple/pummel), declaration/peek UI, the v2 HUD. These are NOT in AMMOG and should survive the harvest.
 
