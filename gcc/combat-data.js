@@ -1,6 +1,7 @@
 // combat-data.js — AD&D 1e data harvested from AMMOG (Phase 1: equipment, class tables, bestiary)
 // AUTO-GENERATED 2026-05-27 — base from AMMOG source.
 // HAND-EDITED 2026-05-27 (v0.8.4): PHB audit corrections + 9 weapons added + sling split.
+// HAND-EDITED 2026-05-27 (v0.8.6): PHB short-range vs_ac filled on 8 ranged weapons (bows/crossbows/dart/javelin).
 // HAND-EDITED 2026-05-27 (v0.8.5): sling-split reverted to ammo model; ammo_types added; ammo bundles for bullet/stone/arrow/quarrel_light/quarrel_heavy. See DESIGN-ammog-harvest.md §v0.8.4.
 // Re-generating from AMMOG will overwrite these hand-edits.
 // Loaded via <script src="combat-data.js"></script> BEFORE dungeon-encounter's main <script>. Exposes global CDATA.
@@ -2920,6 +2921,8 @@ const CDATA = {
       "verb": "shoots",
       "compatible_ammo": ["arrow"],
       "two_handed": true
+,
+      "vs_ac": { "2": -5, "3": -4, "4": -1, "5": 0, "6": 0, "7": 1, "8": 2, "9": 2, "10": 2 }
     },
     "long_bow": {
       "id": "long_bow",
@@ -2946,6 +2949,8 @@ const CDATA = {
       "verb": "shoots",
       "compatible_ammo": ["arrow"],
       "two_handed": true
+,
+      "vs_ac": { "2": -1, "3": 0, "4": 0, "5": 1, "6": 2, "7": 3, "8": 3, "9": 3, "10": 3 }
     },
     "light_crossbow": {
       "id": "light_crossbow",
@@ -2974,6 +2979,8 @@ const CDATA = {
       "verb": "shoots",
       "compatible_ammo": ["quarrel_light"],
       "two_handed": true
+,
+      "vs_ac": { "2": -2, "3": -1, "4": 0, "5": 0, "6": 1, "7": 2, "8": 3, "9": 3, "10": 3 }
     },
     "heavy_crossbow": {
       "id": "heavy_crossbow",
@@ -3000,6 +3007,8 @@ const CDATA = {
       "verb": "shoots",
       "compatible_ammo": ["quarrel_heavy"],
       "two_handed": true
+,
+      "vs_ac": { "2": -1, "3": 0, "4": 1, "5": 2, "6": 3, "7": 3, "8": 4, "9": 4, "10": 4 }
     },
     "dart": {
       "id": "dart",
@@ -3014,6 +3023,8 @@ const CDATA = {
       "classes": ["fighter", "ranger", "paladin", "thief", "assassin", "magic_user", "illusionist", "druid", "monk"],
       "verb": "hurls",
       "two_handed": false
+,
+      "vs_ac": { "2": -5, "3": -4, "4": -3, "5": -2, "6": -1, "7": 0, "8": 1, "9": 0, "10": 1 }
     },
     "javelin": {
       "id": "javelin",
@@ -3028,6 +3039,8 @@ const CDATA = {
       "classes": ["fighter", "ranger", "paladin", "monk"],
       "verb": "hurls",
       "two_handed": false
+,
+      "vs_ac": { "2": -5, "3": -4, "4": -3, "5": -2, "6": -1, "7": 0, "8": 1, "9": 0, "10": 1 }
     },
     "composite_long_bow": {
       "id": "composite_long_bow",
@@ -3043,6 +3056,8 @@ const CDATA = {
       "verb": "shoots",
       "compatible_ammo": ["arrow"],
       "two_handed": true
+,
+      "vs_ac": { "2": -2, "3": -1, "4": 0, "5": 0, "6": 1, "7": 2, "8": 2, "9": 3, "10": 3 }
     },
     "composite_short_bow": {
       "id": "composite_short_bow",
@@ -3058,6 +3073,8 @@ const CDATA = {
       "verb": "shoots",
       "compatible_ammo": ["arrow"],
       "two_handed": true
+,
+      "vs_ac": { "2": -3, "3": -3, "4": -1, "5": 0, "6": 1, "7": 2, "8": 2, "9": 2, "10": 3 }
     },
     "lance_light": {
       "id": "lance_light",

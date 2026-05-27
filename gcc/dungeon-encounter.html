@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.8.5 -->
+<!-- dungeon-encounter — v0.8.6 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -817,7 +817,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.8.5';
+const SIM_VERSION = 'v0.8.6';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -1301,9 +1301,12 @@ function sideAlive(state, side) { return aliveCombatantsOnSide(state, side).leng
 
 function rangeBand(weapon, distSquares) {
   if (!weapon.ranged || !weapon.range_squares) return null;
-  if (distSquares <= weapon.range_squares.s) return { band: 'short', mod: 0 };
-  if (distSquares <= weapon.range_squares.m) return { band: 'medium', mod: -2 };
-  if (distSquares <= weapon.range_squares.l) return { band: 'long', mod: -5 };
+  // v0.8.6: PHB -2 medium / -5 long is toggleable. Band label (short/medium/long) still
+  // computes so the HUD can show it — only the to-hit penalty zeroes out when disabled.
+  const enabled = !(typeof state !== 'undefined' && state && state.range_mod_enabled === false);
+  if (distSquares <= weapon.range_squares.s) return { band: 'short',  mod: 0 };
+  if (distSquares <= weapon.range_squares.m) return { band: 'medium', mod: enabled ? -2 : 0 };
+  if (distSquares <= weapon.range_squares.l) return { band: 'long',   mod: enabled ? -5 : 0 };
   return null;
 }
 
@@ -1971,6 +1974,7 @@ function makeInitialState() {
     picking: null, // { kind: 'target'|'move', forCombatantId, weaponId?, spellId? }
     single_out_mode: false,
     weight_unit: 'gp',   // 'gp' (1e gp-weight) or 'lb'
+    range_mod_enabled: true,  // v0.8.6: PHB medium (-2) / long (-5) range penalty toggle
     game_over: null,
     log: [],
     combatants: [
@@ -5072,7 +5076,8 @@ function renderGmSettings() {
   el.innerHTML =
     `<div class="gm-seg"><button class="${u === 'gp' ? 'on' : ''}" onclick="App.gmSetWeightUnit('gp')">gp-weight</button>` +
     `<button class="${u === 'lb' ? 'on' : ''}" onclick="App.gmSetWeightUnit('lb')">lb</button></div>` +
-    `<div class="gm-seg"><button class="${peekDecl ? 'on' : ''}" onclick="App.gmTogglePeek()">Peek orders: ${peekDecl ? 'ON' : 'OFF'}</button></div>`;
+    `<div class="gm-seg"><button class="${peekDecl ? 'on' : ''}" onclick="App.gmTogglePeek()">Peek orders: ${peekDecl ? 'ON' : 'OFF'}</button></div>` +
+    `<div class="gm-seg"><button class="${state.range_mod_enabled !== false ? 'on' : ''}" onclick="App.gmToggleRangeMod()" title="PHB -2 medium / -5 long range to-hit penalty">Range mod: ${state.range_mod_enabled !== false ? 'PHB' : 'OFF'}</button></div>`;
 }
 function renderGmRoster() {
   const el = document.getElementById('gm-roster'); if (!el) return;
@@ -5146,6 +5151,7 @@ const App = {
   gmSelect(id) { gmUi.editId = id; renderGmRoster(); renderGmEditor(); },
   gmSetWeightUnit(u) { state.weight_unit = (u === 'lb') ? 'lb' : 'gp'; renderGmSettings(); renderAll(); },
   gmTogglePeek() { peekDecl = !peekDecl; renderGmSettings(); renderAll(); },
+  gmToggleRangeMod() { state.range_mod_enabled = (state.range_mod_enabled === false); renderGmSettings(); renderAll(); },
   gmSuggestAC() {
     const c = gmUi.editId ? findCombatant(state, gmUi.editId) : null; if (!c) return;
     const ac = computeAC(c);
