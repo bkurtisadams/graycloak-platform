@@ -402,7 +402,7 @@ body {
   color: var(--text-muted); background: var(--surface); padding: 0 3px; }
 .ready-row .slot.empty .role { background: var(--bg); }
 .ready-row .slot .icon { font-size: 17px; color: var(--gold-bright); line-height: 1; filter: drop-shadow(0 1px 0 rgba(0,0,0,0.6)); }
-.ready-row .slot .label { font-family: 'IM Fell English', serif; font-size: 13px; color: #f0e6d2;
+.ready-row .slot .label { font-family: 'Crimson Text', serif; font-weight: 600; font-size: 13px; color: #f0e6d2; letter-spacing: 0.2px;
   line-height: 1.05; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .ready-row .slot .menu-dot { width: 17px; height: 17px; display: grid; place-items: center;
   background: var(--surface-3); border: 1px solid var(--border); color: var(--text-muted); border-radius: 2px;
@@ -417,7 +417,7 @@ body {
 /* action slots - compact, color-coded left edge */
 .action-row .slot { display: flex; align-items: center; gap: 7px; padding: 7px 9px 7px; border-left-width: 3px; min-height: 32px; }
 .action-row .slot .icon { font-size: 16px; line-height: 1; flex: none; color: var(--gold-bright); }
-.action-row .slot .label { font-family: 'IM Fell English', serif; font-size: 13px; color: #f0e6d2;
+.action-row .slot .label { font-family: 'Crimson Text', serif; font-weight: 600; font-size: 13px; color: #f0e6d2; letter-spacing: 0.2px;
   line-height: 1.05; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .action-row .slot .label small { display: none; }
 .action-row .slot .key { position: absolute; top: 3px; right: 5px; font-family: 'DM Mono', monospace; font-size: 8px; color: var(--text-muted); }
@@ -428,11 +428,13 @@ body {
 .action-row .slot.spell { border-left-color: var(--steel); }  .action-row .slot.spell .icon { color: var(--steel-bright); }
 .action-row .slot.hold { border-left-color: var(--text-muted); }  .action-row .slot.hold .icon { color: #cdbb9e; }
 .action-row .slot.suggest { border-left-color: var(--steel); }  .action-row .slot.suggest .icon { color: var(--steel-bright); }
+.action-row .slot.clear { border-left-color: var(--border-strong); }  .action-row .slot.clear .icon { color: var(--text-dim); }
 .action-row .slot.single-out { border-left-color: #c68040; }  .action-row .slot.single-out .icon { color: #e69c5a; }
 .action-row .slot.parry { border-left-color: var(--steel); }  .action-row .slot.parry .icon { color: var(--steel-bright); }
 .action-row .slot.fallback { border-left-color: var(--moss); }  .action-row .slot.fallback .icon { color: #8fce6a; }
 .action-row .slot.flee { border-left-color: #b06a4a; }  .action-row .slot.flee .icon { color: #d08a5a; }
 .action-row .slot.grapple { border-left-color: #8a6a4a; }  .action-row .slot.grapple .icon { color: #c0935a; }
+.action-row .slot.overbear { border-left-color: #9a5238; }  .action-row .slot.overbear .icon { color: #c97a4a; }
 
 /* states */
 .slot.active { border-color: var(--gold-bright); background: #2c2418;
@@ -1163,12 +1165,13 @@ function attackProjection(state, a, t, w, opts) {
   const parryPen = (tdecl && tdecl.kind === 'parry' && w.melee) ? Math.max(0, t.attack_bonus || 0) : 0;
   const attackerHeld = a._held_by ? 4 : 0;  // grappled attacker can barely swing
   const targetHeld = t._held_by ? 2 : 0;    // a pinned foe is easier to hit
-  const needed = Math.max(1, Math.min(20, calc.needed - range - charge - fleeBonus + parryPen + attackerHeld - targetHeld));
+  const targetDown = (t._prone || isStunned(t)) ? 4 : 0;  // prone/stunned — struck as from the rear
+  const needed = Math.max(1, Math.min(20, calc.needed - range - charge - fleeBonus + parryPen + attackerHeld - targetHeld - targetDown));
   const dmgDice = (t.size === 'L') ? w.damage.l : w.damage.sm;
   const dmgBonus = ((a.magic_weapons && a.magic_weapons[w.id]) || w.magic_bonus || 0) + (a.damage_bonus || 0);
   return {
     needed, base: calc.base,
-    mods: { wpnVsAc: calc.wpnVsAc, magic: calc.magic, str: calc.str, range, charge, exposed, fleeing: fleeBonus, parry: -parryPen, grappled: -attackerHeld, vsHeld: targetHeld },
+    mods: { wpnVsAc: calc.wpnVsAc, magic: calc.magic, str: calc.str, range, charge, exposed, fleeing: fleeBonus, parry: -parryPen, grappled: -attackerHeld, vsHeld: targetHeld, vsDown: targetDown },
     dmgDice, dmgBonus, range_band
   };
 }
@@ -1261,7 +1264,7 @@ function resolveAttack(state, attackerId, targetId, weaponId, opts) {
     killed: false, range_band: proj.range_band,
     charge: !!opts.charge, set_spear: !!opts.setSpear, vs_charging: proj.mods.exposed > 0,
     fleeing: !!opts.fleeing, parried: proj.mods.parry < 0,
-    held_self: !!a._held_by, vs_held: !!t._held_by
+    held_self: !!a._held_by, vs_held: !!t._held_by, vs_down: !!(t._prone || isStunned(t))
   };
   const out = applyHitConsequences(state, a, t, event, opts);
   applyPoison(state, a, t, w, out);
@@ -1611,7 +1614,7 @@ function makeInitialState() {
       { id: 'aggro', side: 'A', kind: 'pc', label: 'Aggro the Axe', letter: 'A',
         matrix_class: 'fighter', level: 4,
         position: { col: 4, row: 4 }, facing: 90,
-        hp_max: 32, hp_current: 32, ac_base: 2, ac_current: 2, size: 'M', shield: true,
+        hp_max: 32, hp_current: 32, ac_base: 2, ac_current: 2, size: 'M', shield: true, str: 17, dex: 15,
         loadout: ['long_sword', 'battle_axe', 'hand_axe', 'dagger'], active_weapon: 'long_sword',
         attack_bonus: 1, damage_bonus: 1,
         magic_weapons: { battle_axe: 1 },
@@ -1619,7 +1622,7 @@ function makeInitialState() {
       { id: 'abner', side: 'A', kind: 'pc', label: 'Abner', letter: 'M',
         matrix_class: 'magic_user', level: 5,
         position: { col: 2, row: 4 }, facing: 90,
-        hp_max: 14, hp_current: 14, ac_base: 9, ac_current: 9, size: 'M',
+        hp_max: 14, hp_current: 14, ac_base: 9, ac_current: 9, size: 'M', str: 10, dex: 16,
         loadout: ['dart', 'dagger'], active_weapon: 'dart',
         spell_charges: { magic_missile: 2 },
         attack_bonus: 0, damage_bonus: 0,
@@ -1627,7 +1630,7 @@ function makeInitialState() {
       { id: 'arlanni', side: 'A', kind: 'pc', label: 'Arlanni', letter: 'T',
         matrix_class: 'thief', level: 2,
         position: { col: 3, row: 5 }, facing: 45,
-        hp_max: 8, hp_current: 8, ac_base: 7, ac_current: 7, size: 'M',
+        hp_max: 8, hp_current: 8, ac_base: 7, ac_current: 7, size: 'M', str: 13, dex: 17,
         loadout: ['short_sword', 'sling', 'dagger'], active_weapon: 'short_sword',
         attack_bonus: 0, damage_bonus: 0,
         move: 4 },
@@ -1635,7 +1638,7 @@ function makeInitialState() {
         template_id: 'skeleton', label: 'Skeleton', letter: 's',
         matrix_class: 'monster', level: 1, hd: '1', intelligent: false,
         position: { col: 9, row: 6 }, facing: 270,
-        hp_max: 5, hp_current: 5, ac_base: 7, ac_current: 7, size: 'M',
+        hp_max: 5, hp_current: 5, ac_base: 7, ac_current: 7, size: 'M', str: 12, dex: 12,
         loadout: ['spear'], active_weapon: 'spear',
         attack_bonus: 0, damage_bonus: 0,
         move: 4, singles_out: false },
@@ -1643,7 +1646,7 @@ function makeInitialState() {
         template_id: 'orc', label: 'Orc', letter: 'o',
         matrix_class: 'monster', level: 1, hd: '1',
         position: { col: 10, row: 6 }, facing: 0,
-        hp_max: 6, hp_current: 6, ac_base: 6, ac_current: 6, size: 'M',
+        hp_max: 6, hp_current: 6, ac_base: 6, ac_current: 6, size: 'M', str: 13, dex: 11,
         loadout: ['pike'], active_weapon: 'pike',
         attack_bonus: 0, damage_bonus: 0,
         move: 4, singles_out: true },
@@ -1651,7 +1654,7 @@ function makeInitialState() {
         template_id: 'ogre', label: 'Ogre', letter: 'O',
         matrix_class: 'monster', level: 4.5, hd: '4+1',
         position: { col: 8, row: 3 }, facing: 225,
-        hp_max: 18, hp_current: 18, ac_base: 5, ac_current: 5, size: 'L', size_cells: 2, size_token: 1.15,
+        hp_max: 18, hp_current: 18, ac_base: 5, ac_current: 5, size: 'L', size_cells: 2, size_token: 1.15, str: 18, dex: 9,
         loadout: ['ogre_club'], active_weapon: 'ogre_club',
         attack_bonus: 0, damage_bonus: 0,
         move: 3, singles_out: true }
@@ -1773,6 +1776,7 @@ function mapCharToCombatant(char, side) {
     hp_max: _num(char.hpMax, 1), hp_current: _num(char.hpCurrent, _num(char.hpMax, 1)),
     ac_base: _num(char.acShieldless, _num(char.ac, 10)), ac_current: _num(char.ac, 10),
     size: 'M', size_cells: 1,
+    str: _num(char.str, _num(char.strength, 12)), dex: _num(char.dex, _num(char.dexterity, 12)),
     loadout: loadout.length ? loadout : ['dagger'],
     active_weapon: active,
     attack_bonus: _num(char.combatToHitAdj, _num(char.strHitAdj, 0)),
@@ -1830,11 +1834,12 @@ const LIGHT_SOURCES = {
 };
 
 function rollSurprise(mode) {
-  if (mode === 'neither') return { A: false, B: false };
-  if (mode === 'A') return { A: true, B: false };
-  if (mode === 'B') return { A: false, B: true };
-  if (mode === 'both') return { A: true, B: true };
-  return { A: d(6) <= 2, B: d(6) <= 2 }; // auto: surprised on 1-2
+  if (mode === 'neither') return { A: false, B: false, rollA: null, rollB: null };
+  if (mode === 'A') return { A: true, B: false, rollA: null, rollB: null };
+  if (mode === 'B') return { A: false, B: true, rollA: null, rollB: null };
+  if (mode === 'both') return { A: true, B: true, rollA: null, rollB: null };
+  const ra = d(6), rb = d(6);
+  return { A: ra <= 2, B: rb <= 2, rollA: ra, rollB: rb }; // auto: surprised on 1-2
 }
 
 function rollEncounterDistance(lightKey, areaKey, surprised) {
@@ -1983,6 +1988,12 @@ function renderFormationEditor() {
 
 // ---- Round flow ----
 function beginEncounter() {
+  // Report the surprise check in the log (dice shown when auto-rolled).
+  const s = state.surprise;
+  const face = (r, hit) => r == null
+    ? (hit ? 'surprised' : 'alert')
+    : `d6=${r} → ${hit ? 'surprised' : 'alert'}`;
+  log(state, 'round', `<span class="ts">Setup</span><span>Surprise check — <span class="acting-banner-A">${sideName('A')}</span> ${face(s.rollA, s.A)} · <span class="acting-banner-B">${sideName('B')}</span> ${face(s.rollB, s.B)}</span>`);
   // Surprise: if exactly one side surprised, the other gets a free action round (round 0)
   if (state.surprise.A && !state.surprise.B) {
     startSurpriseRound('B');
@@ -2014,6 +2025,14 @@ function beginRound() {
   state.sides_acted = [];
   state.initiative = null; // rolled only after both sides declare (RAW: orders stated at start of round)
   state.combatants.forEach(c => { c.movement_used = 0; c._spell_interrupted = false; c._falling_back = false; c._fleeing = false; });
+  // Incidental (non-lethal) damage from pummel/grapple/overbear restores at 1 hp/round.
+  state.combatants.forEach(c => {
+    if (!c.dead && c._temp_dmg > 0) {
+      c.hp_current = Math.min(c.hp_max, c.hp_current + 1);
+      c._temp_dmg -= 1;
+      if (c._unconscious && c.hp_current > 0) { c._unconscious = false; c._stunned_until = state.round; }
+    }
+  });
   // Expire timed effects whose duration has elapsed (effects populated in later stages)
   state.effects = (state.effects || []).filter(e => e.expires_round == null || e.expires_round > state.round);
   enterDeclarePhase(); // both sides declare blind, before initiative
@@ -2094,6 +2113,7 @@ function declSpeed(c, decl) {
   if (decl.kind === 'fall_back') return 1;
   if (decl.kind === 'flee') return 1;
   if (decl.kind === 'grapple') return 3;
+  if (decl.kind === 'overbear') return 2;
   if (decl.kind === 'set') return 0;
   if (decl.kind === 'parry') return 0;
   return 0; // hold
@@ -2247,11 +2267,63 @@ function validateDeclarationAtExecution(c, decl) {
     if (!target || target.dead) return { ok: false, reason: 'grapple target is already down' };
     return { ok: true };
   }
+  if (decl.kind === 'overbear') {
+    const target = findCombatant(state, decl.target_id);
+    if (!target || target.dead || target._unconscious) return { ok: false, reason: 'overbear target is already down' };
+    return { ok: true };
+  }
 
   return { ok: false, reason: 'unknown declaration' };
 }
 
-// Grapple strength: Strength to-hit bonus weighs double, plus level/HD, plus a big swing for size.
+// ── RAW weaponless-combat helpers (DMG p.72) ───────────────────────────────
+const _WEIGHT_BY_SIZE = { S: 60, M: 175, L: 500, H: 2000 };   // lb, approximate
+const _HEIGHT_BY_SIZE = { S: 48, M: 72, L: 120, H: 192 };     // inches, approximate
+function bodyWeight(c) { return _WEIGHT_BY_SIZE[c.size || 'M'] || 175; }
+function bodyHeight(c) { return _HEIGHT_BY_SIZE[c.size || 'M'] || 72; }
+function strOf(c) { return c.str != null ? c.str : 12; }
+function dexOf(c) { return c.dex != null ? c.dex : 12; }
+function isStunned(c) { return c._stunned_until != null && c._stunned_until >= state.round; }
+// Per-10%-differential modifier (attacker relative to defender), ± perTen points each step.
+function diffMod(aVal, dVal, perTen) {
+  if (!dVal) return 0;
+  return Math.trunc(((aVal - dVal) / dVal * 100) / 10) * perTen;
+}
+// Heavier armour gives the grappler/tackler more to grab and topple (DMG: +% by armour class).
+function defenderArmorBonus(c) {
+  const ac = c.ac_base != null ? c.ac_base : 10;
+  if (ac >= 9) return 0;    // unarmoured
+  if (ac >= 7) return 10;   // leather / padded
+  if (ac >= 5) return 20;   // chain / scale / ring
+  return 30;                // banded / plate / splint
+}
+// 1-based attack-matrix column for the universal variable (1 = lowest levels).
+const _COLUMN_ORDER = {
+  fighter: ['L0', 'L1_2', 'L3_4', 'L5_6', 'L7_8', 'L9_10'],
+  cleric: ['L1_3', 'L4_6', 'L7_9'],
+  magic_user: ['L1_5', 'L6_10', 'L11_15'],
+  thief: ['L1_4', 'L5_8', 'L9_12'],
+  monster: ['HD_lt1', 'HD_1m', 'HD_1', 'HD_1p', 'HD_2_3', 'HD_4_5', 'HD_6_7']
+};
+function attackColumn(c) {
+  const cls = c.matrix_class || 'fighter';
+  const arr = _COLUMN_ORDER[cls] || _COLUMN_ORDER.fighter;
+  const idx = arr.indexOf(pickTier(cls, c.level));
+  return (idx < 0 ? 0 : idx) + 1;
+}
+// Non-lethal damage: a fraction is "real" (stays), the balance is incidental and restored 1/round.
+function applyNonlethalDamage(target, dmg, actualFrac) {
+  const actual = Math.max(0, Math.round(dmg * actualFrac));
+  const incidental = Math.max(0, dmg - actual);
+  target.hp_current -= dmg;
+  target._temp_dmg = (target._temp_dmg || 0) + incidental;
+  if (target.hp_current <= 0) {
+    target.hp_current = 0;
+    target._unconscious = true;   // battered senseless, not slain
+  }
+}
+
+
 // A man-sized figure has little hope of holding an ogre.
 function grappleScore(c) {
   const lvl = c.kind === 'pc' ? (c.level || 1) : Math.max(1, parseHD(c.hd != null ? c.hd : c.level).dice);
@@ -2275,11 +2347,25 @@ async function executeDeclaration(c, decl) {
     await sleep(150);
     return;
   }
+  // Senseless or stunned figures forfeit the round.
+  if (c._unconscious) {
+    log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${c.side === 'A' ? 'a' : 'b'}">${c.label}</span> lies senseless.</span>`);
+    decl._resolved = true; await sleep(150); return;
+  }
+  if (isStunned(c)) {
+    log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${c.side === 'A' ? 'a' : 'b'}">${c.label}</span> is stunned and cannot act.</span>`);
+    decl._resolved = true; await sleep(150); return;
+  }
   // A captor that does anything but keep its grip lets go.
   if (c._holding && !(decl.kind === 'grapple' && decl.target_id === c._holding)) {
     const held = findCombatant(state, c._holding);
     if (held) held._held_by = null;
     c._holding = null;
+  }
+  // A prone figure that takes a move action spends it regaining its feet.
+  if (c._prone && ['move', 'flee', 'fall_back', 'charge'].includes(decl.kind)) {
+    c._prone = false;
+    log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${c.side === 'A' ? 'a' : 'b'}">${c.label}</span> scrambles back to its feet.</span>`);
   }
   // A held creature must wrench free before it can move, charge, or flee.
   if (c._held_by && ['move', 'flee', 'fall_back', 'charge'].includes(decl.kind)) {
@@ -2300,6 +2386,7 @@ async function executeDeclaration(c, decl) {
     case 'cast': return executeCastDecl(c, decl);
     case 'move': return executeMoveDecl(c, decl);
     case 'grapple': return executeGrappleDecl(c, decl);
+    case 'overbear': return executeOverbearDecl(c, decl);
     case 'parry': return executeParryDecl(c, decl);
     case 'fall_back': return executeFallBackDecl(c, decl);
     case 'flee': return executeFleeDecl(c, decl);
@@ -2417,6 +2504,95 @@ async function executeGrappleDecl(c, decl) {
   }
   renderAll();
   await sleep(400);
+}
+
+async function executeOverbearDecl(c, decl) {
+  const aSide = c.side === 'A' ? 'a' : 'b';
+  const ts = (x) => `<span class="ts">R${state.round}</span><span class="body">${x}</span>`;
+  const target = findCombatant(state, decl.target_id);
+  if (!target || target.dead || target._unconscious) {
+    log(state, 'system', ts(`<span class="${aSide}">${c.label}</span>'s overbear target is already down.`));
+    await sleep(150); return;
+  }
+  const tSide = target.side === 'A' ? 'a' : 'b';
+  const rushed = !inMelee(c, target);   // had to close → rushing/leaping (+15 on the success roll)
+  // Close to grappling range.
+  if (rushed) {
+    const budget = (c.move || 4) * SUB - (c.movement_used || 0);
+    const reach = findBestAdjacentSquare(state, c.position, target, budget, c.id);
+    if (!reach) {
+      const partial = movePartialTowards(state, c.position, target, budget, c.id);
+      if (partial && partial.distance > 0) await moveCombatantTo(c, partial.col, partial.row, partial.distance);
+      log(state, 'system', ts(`<span class="${aSide}">${c.label}</span> rushes <span class="${tSide}">${target.label}</span> but cannot close.`));
+      return;
+    }
+    await moveCombatantTo(c, reach.col, reach.row, reach.distance);
+    if (c.dead) return;
+  }
+  faceToward(c, target.position);
+  c._acted_round = state.round;
+  renderAll(); await sleep(80);
+
+  const attackerHasSurprise = state.is_surprise_round && state.acting_side === c.side;
+  // Fending strike: an armed, aware defender swings first; a hit drives the rusher off (no damage).
+  const tw = WEAPONS[target.active_weapon];
+  if (tw && tw.melee && !attackerHasSurprise && !isStunned(target) && !target._prone) {
+    const fproj = attackProjection(state, target, c, tw, {});
+    const fr = d20();
+    if (fr !== 1 && fr >= fproj.needed) {
+      log(state, 'system', ts(`<span class="${tSide}">${target.label}</span> fends off the rush with the ${tw.name} — <span class="${aSide}">${c.label}</span> is driven back, overbear fails. (no damage)`));
+      await sleep(420); return;
+    }
+    log(state, 'system', ts(`<span class="${tSide}">${target.label}</span>'s warding ${tw.name} swing goes wide; <span class="${aSide}">${c.label}</span> barrels in.`));
+  }
+
+  // ── To-hit chance (percentile): base = attacker AC ×10, + grapple-base modifiers, ± the variable.
+  const base = Math.max(0, Math.min(100, (c.ac_base != null ? c.ac_base : 10) * 10));
+  const aVar = attackColumn(c) + d(6);      // attacker's variable, spent on the to-hit
+  const dVar = attackColumn(target) + d(4); // defender's variable, spent reducing the to-hit
+  const fasterPen = (target.move > 12) ? -Math.floor((target.move - 12) / 3) * 10 : 0;
+  let chance = base + dexOf(c) + defenderArmorBonus(target) + (isStunned(target) ? 20 : 0) + fasterPen + aVar - dVar;
+  chance = Math.max(0, Math.min(100, chance));
+  const hitRoll = d(100);
+  if (hitRoll > chance) {
+    log(state, 'fail', ts(`<span class="${aSide}">${c.label}</span> tries to overbear <span class="${tSide}">${target.label}</span> but is shrugged off · rolled <span class="roll bad">${hitRoll}</span> vs <span class="roll">${chance}%</span>`));
+    renderAll(); await sleep(420); return;
+  }
+
+  // ── Success roll → OVERBEARING TABLE.
+  const strBonusDmg = Math.max(0, c.damage_bonus || 0);
+  const score = d(100)
+    + Math.max(0, strOf(c))                       // attacker Str, +1%/pt
+    + (rushed ? 15 : 0)                            // rushing/leaping
+    + (isStunned(target) ? 20 : 0)
+    + diffMod(bodyWeight(c), bodyWeight(target), 10)
+    + diffMod(bodyHeight(c), bodyHeight(target), 5)
+    - Math.max(0, strOf(target) - 14)              // opponent Str over 14, −1%/pt
+    - Math.max(0, dexOf(target) - 14) * 2          // opponent Dex over 14, −2%/pt
+    - (target._braced ? 10 : 0);
+
+  let result, dmg;
+  if (score < 21)        { result = 'bounces off — shrugged aside'; dmg = 0; }
+  else if (score <= 40)  { result = 'slips down and grabs a leg'; dmg = 0; }
+  else if (score <= 60)  { result = 'staggered — off balance'; dmg = 1 + strBonusDmg; }
+  else if (score <= 80)  { result = 'knocked to its knees'; dmg = 2 + strBonusDmg; }
+  else if (score <= 100) { result = 'knocked to hands and knees'; dmg = 3 + strBonusDmg; }
+  else                   { result = 'knocked flat and stunned'; dmg = 4 + strBonusDmg; }
+
+  if (score > 60) target._prone = true;            // to knees or worse → prone
+  if (score > 100) target._stunned_until = state.round + 1;
+  if (dmg > 0) applyNonlethalDamage(target, dmg, 0.5);  // overbear: 50% real
+
+  if (score > 60) {
+    const tc = tokenCenter(target);
+    showFloatingText(tc.x, tc.y - 18, score > 100 ? 'flattened!' : 'down!', 'crit');
+  }
+  log(state, dmg > 0 ? 'hit' : 'system', ts(
+    `<span class="${aSide}">${c.label}</span> overbears <span class="${tSide}">${target.label}</span>: ${result}` +
+    (dmg > 0 ? ` — <span class="dmg">${dmg}</span> dmg <span class="em">(half real)</span>` : '') +
+    ` · rolled <span class="roll">${score}</span>` +
+    (target._unconscious ? ` — <span class="em">senseless!</span>` : '')));
+  renderAll(); await sleep(460);
 }
 
 async function executeAttackDecl(c, decl) {
@@ -3016,6 +3192,11 @@ function renderMap() {
       const hm = svgEl('text', { x: half - 1, y: -(half - 2), 'class': 'token-decl-mark', style: 'fill:#c0935a' }, g);
       hm.textContent = '⊗';
     }
+    // Prone / senseless indicator
+    if ((c._prone || c._unconscious) && !c.dead) {
+      const pm = svgEl('text', { x: -(half - 1), y: (half + 2), 'class': 'token-decl-mark', style: 'fill:#c97a4a; text-anchor:start' }, g);
+      pm.textContent = c._unconscious ? '✖' : '⤋';
+    }
     // Topmost transparent hit area for valid targets — reliably catches hover (preview) and click.
     // SVG <g> doesn't fire mouseenter, and the body square sits beneath the letter/arrow.
     if (pickTargetIds && pickTargetIds.has(c.id)) {
@@ -3044,6 +3225,7 @@ function renderMap() {
       cls = 'pick-banner target';
       const what = state.picking.charge ? 'a charge' :
                   state.picking.grapple ? 'a grapple' :
+                  state.picking.overbear ? 'an overbear' :
                   state.picking.weaponId ? WEAPONS[state.picking.weaponId].name :
                   state.picking.spellId ? SPELLS[state.picking.spellId].name : 'attack';
       html = `Pick target for <em>${what}</em><span class="esc">Esc to cancel</span>`;
@@ -3063,7 +3245,7 @@ function computeValidTargets(c, picking) {
     return enemies.filter(e => !inMelee(c, e) &&
       findBestAdjacentSquare(state, c.position, e, budget, c.id) != null);
   }
-  if (picking.grapple) {
+  if (picking.grapple || picking.overbear) {
     const budget = (c.move || 4) * SUB;
     return enemies.filter(e => inMelee(c, e) || findBestAdjacentSquare(state, c.position, e, budget, c.id) != null);
   }
@@ -3097,6 +3279,7 @@ function declGlyph(decl) {
   if (decl.kind === 'move') return '→';
   if (decl.kind === 'parry') return '⛨';
   if (decl.kind === 'grapple') return '⊗';
+  if (decl.kind === 'overbear') return '⤋';
   if (decl.kind === 'fall_back') return '↩';
   if (decl.kind === 'flee') return '↜';
   if (decl.kind === 'hold') return '·';
@@ -3138,6 +3321,7 @@ function declSummary(c, decl) {
   if (decl.kind === 'fall_back') return { text: 'fighting withdrawal' };
   if (decl.kind === 'flee') return { text: 'flee!' };
   if (decl.kind === 'grapple') { const t = findCombatant(state, decl.target_id); return { text: `grapple ${t ? t.label : '?'}` }; }
+  if (decl.kind === 'overbear') { const t = findCombatant(state, decl.target_id); return { text: `overbear ${t ? t.label : '?'}` }; }
   return { text: 'unknown' };
 }
 
@@ -3152,6 +3336,8 @@ function declShort(c, decl) {
   if (decl.kind === 'flee') return 'Flee';
   const gt = decl.kind === 'grapple' && decl.target_id ? findCombatant(state, decl.target_id) : null;
   if (decl.kind === 'grapple') return gt ? `Grapple <span class="em">${gt.label}</span>` : 'Grapple';
+  const ot = decl.kind === 'overbear' && decl.target_id ? findCombatant(state, decl.target_id) : null;
+  if (decl.kind === 'overbear') return ot ? `Overbear <span class="em">${ot.label}</span>` : 'Overbear';
   const t = decl.target_id ? findCombatant(state, decl.target_id) : null;
   if (decl.kind === 'attack') return t ? `Attack <span class="em">${t.label}</span>` : 'Attack';
   if (decl.kind === 'charge') return t ? `Charge <span class="em">${t.label}</span>` : 'Charge';
@@ -3339,6 +3525,7 @@ function describeDeclaration(decl) {
   if (decl.kind === 'cast') return tgt ? `Cast ${slotSpellName(decl.spell_id)} → ${tgt}` : `Cast ${slotSpellName(decl.spell_id)}`;
   if (decl.kind === 'move') return 'Move';
   if (decl.kind === 'grapple') return tgt ? `Grapple ${tgt}` : 'Grapple';
+  if (decl.kind === 'overbear') return tgt ? `Overbear ${tgt}` : 'Overbear';
   if (decl.kind === 'parry') return 'Parry';
   if (decl.kind === 'fall_back') return 'Fall Back';
   if (decl.kind === 'flee') return 'Flee';
@@ -3593,6 +3780,7 @@ function renderHotbar() {
   const canSet = !!primary && WEAPONS[primary.id]?.melee && canSetVsCharge(primary.id);
   const canParry = !!primary && WEAPONS[primary.id]?.melee;
   const canGrapple = computeValidTargets(c, { grapple: true }).length > 0;
+  const canOverbear = computeValidTargets(c, { overbear: true }).length > 0;
   const canCast = !!spell && computeValidTargets(c, { spellId: spell.id }).length > 0 && (c.spell_charges?.[spell.id] || 0) > 0;
   const enemiesAlive = aliveCombatantsOnSide(state, c.side === 'A' ? 'B' : 'A').length;
 
@@ -3603,11 +3791,13 @@ function renderHotbar() {
     { kind: 'set', icon: '⟑', label: 'Set vs Charge', detail: primary?.label || 'Primary', disabled: !canSet, cls: 'set', key: '4', declared: currentDecl?.kind === 'set' },
     { kind: 'parry', icon: '⛨', label: 'Parry', detail: 'Defend, no attack', disabled: !canParry, cls: 'parry', key: '5', declared: currentDecl?.kind === 'parry' },
     { kind: 'grapple', icon: '⊗', label: 'Grapple', detail: 'Seize & hold', disabled: !canGrapple, cls: 'grapple', key: '', active: state.picking?.kind === 'target' && state.picking.grapple && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'grapple' },
+    { kind: 'overbear', icon: '⤋', label: 'Overbear', detail: 'Tackle prone', disabled: !canOverbear, cls: 'overbear', key: '', active: state.picking?.kind === 'target' && state.picking.overbear && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'overbear' },
     { kind: 'move', icon: '✜', label: 'Move', detail: 'Pick space', disabled: false, cls: 'move', key: '6', active: state.picking?.kind === 'move' && !state.picking.fallBack && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'move' },
     { kind: 'fall-back', icon: '↩', label: 'Fall Back', detail: 'Withdraw, no free hit', disabled: false, cls: 'fallback', key: '7', active: state.picking?.kind === 'move' && state.picking.fallBack && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'fall_back' },
     { kind: 'flee', icon: '↜', label: 'Flee', detail: 'Run; foes get a free hit', disabled: enemiesAlive === 0, cls: 'flee', key: '8', declared: currentDecl?.kind === 'flee' },
     { kind: 'cast', icon: spell?.icon || '✦', label: 'Cast', detail: spell?.label || 'No spell', disabled: !canCast, cls: 'spell', key: '9', active: state.picking?.kind === 'target' && state.picking.spellId === spell?.id, declared: currentDecl?.kind === 'cast' && currentDecl.spell_id === spell?.id },
     { kind: 'hold', icon: '·', label: 'Hold', detail: 'Await action', disabled: false, cls: 'hold', key: '', declared: currentDecl?.kind === 'hold' },
+    { kind: 'clear', icon: '↺', label: 'Clear', detail: 'Reset order', disabled: !currentDecl && !c._holding, cls: 'clear', key: '' },
     { kind: 'suggest', icon: '✧', label: 'Suggest', detail: 'Auto-fill', disabled: false, cls: 'suggest', key: '' }
   ];
   if (c.singles_out && enemiesAlive > 0) {
@@ -3696,10 +3886,12 @@ function renderHotbar() {
         else if (a.kind === 'move') App.beginMovePick(c.id);
         else if (a.kind === 'parry') App.declareParry(c.id);
         else if (a.kind === 'grapple') App.beginGrapple(c.id);
+        else if (a.kind === 'overbear') App.beginOverbear(c.id);
         else if (a.kind === 'fall-back') App.beginFallBack(c.id);
         else if (a.kind === 'flee') App.declareFlee(c.id);
         else if (a.kind === 'cast' && spell) App.beginSpellTarget(c.id, spell.id);
         else if (a.kind === 'hold') App.declareHold(c.id);
+        else if (a.kind === 'clear') App.clearDeclaration(c.id);
         else if (a.kind === 'suggest') App.suggestDeclaration(c.id);
         else if (a.kind === 'single-out') App.toggleSingleOut();
       });
@@ -3829,7 +4021,8 @@ function logAttackEvent(ev) {
   const parryNote = ev.parried ? ` <span class="em">parried</span>` : '';
   const heldSelfNote = ev.held_self ? ` <span class="em">grappled −4</span>` : '';
   const vsHeldNote = ev.vs_held ? ` <span class="em">vs held +2</span>` : '';
-  const tagNote = chargeNote + setNote + exposedNote + interruptNote + fleeNote + parryNote + heldSelfNote + vsHeldNote;
+  const vsDownNote = ev.vs_down ? ` <span class="em">vs prone +4</span>` : '';
+  const tagNote = chargeNote + setNote + exposedNote + interruptNote + fleeNote + parryNote + heldSelfNote + vsHeldNote + vsDownNote;
   if (ev.kind === 'attack_miss') {
     log(state, 'fail', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${a.label}</span> swings ${w.name} at <span class="${tSide}">${t.label}</span>${rangeNote}${tagNote} · rolled <span class="roll bad">${ev.roll}</span> vs <span class="roll">${ev.needed}</span> — miss${buildAuditNote(ev)}</span>`);
   } else {
@@ -4082,6 +4275,27 @@ const App = {
     renderAll();
   },
 
+  beginOverbear(combatantId) {
+    state.picking = { kind: 'target', forCombatantId: combatantId, overbear: true };
+    renderAll();
+  },
+
+  clearDeclaration(combatantId) {
+    const c = findCombatant(state, combatantId);
+    if (!c) return;
+    // Release any hold this figure is maintaining (otherwise the grip would persist with no order to run).
+    if (c._holding) {
+      const held = findCombatant(state, c._holding);
+      if (held) held._held_by = null;
+      c._holding = null;
+    }
+    if (state.declarations) delete state.declarations[combatantId];
+    if (c._last_decl) c._last_decl = null;       // forget the standing order too
+    if (state.picking && state.picking.forCombatantId === combatantId) state.picking = null;
+    state.single_out_mode = false;
+    renderAll();
+  },
+
   beginMovePick(combatantId) {
     state.picking = { kind: 'move', forCombatantId: combatantId };
     renderAll();
@@ -4102,6 +4316,8 @@ const App = {
       setDeclaration(c.id, { kind: 'charge', weapon_id: state.picking.weaponId, target_id: targetId });
     } else if (state.picking.grapple) {
       setDeclaration(c.id, { kind: 'grapple', target_id: targetId });
+    } else if (state.picking.overbear) {
+      setDeclaration(c.id, { kind: 'overbear', target_id: targetId });
     } else if (state.picking.weaponId) {
       const w = WEAPONS[state.picking.weaponId];
       const slots = ensureHudSlots(c);
