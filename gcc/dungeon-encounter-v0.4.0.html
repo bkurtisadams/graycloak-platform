@@ -435,6 +435,7 @@ body {
 .action-row .slot.flee { border-left-color: #b06a4a; }  .action-row .slot.flee .icon { color: #d08a5a; }
 .action-row .slot.grapple { border-left-color: #8a6a4a; }  .action-row .slot.grapple .icon { color: #c0935a; }
 .action-row .slot.overbear { border-left-color: #9a5238; }  .action-row .slot.overbear .icon { color: #c97a4a; }
+.action-row .slot.pummel { border-left-color: #b04a4a; }  .action-row .slot.pummel .icon { color: #cf6a6a; }
 
 /* states */
 .slot.active { border-color: var(--gold-bright); background: #2c2418;
@@ -1181,12 +1182,14 @@ function dropCombatant(state, target) {
   target.dead = true;
   state.combatants.forEach(c => {
     if (c.engaged_with) c.engaged_with = c.engaged_with.filter(id => id !== target.id);
-    if (c._held_by === target.id) c._held_by = null;  // its captor fell
-    if (c._holding === target.id) c._holding = null;   // its captive fell
+    if (c._held_by === target.id) { c._held_by = null; c._hold_tier = 0; c._grapple_foe = null; }  // its captor fell
+    if (c._holding === target.id) { c._holding = null; c._hold_tier = 0; c._grapple_foe = null; }   // its captive fell
   });
   target.engaged_with = [];
   target._held_by = null;
   target._holding = null;
+  target._hold_tier = 0;
+  target._grapple_foe = null;
   return true;
 }
 
@@ -2064,6 +2067,11 @@ function reviveDeclaration(c, last) {
     if (!t || t.dead) return null;
     return { kind: 'grapple', target_id: last.target_id };
   }
+  if (last.kind === 'pummel') {
+    const t = last.target_id ? findCombatant(state, last.target_id) : null;
+    if (!t || t.dead || t._unconscious) return null;
+    return { kind: 'pummel', target_id: last.target_id };
+  }
   if (last.kind === 'attack' || last.kind === 'charge') {
     const w = WEAPONS[last.weapon_id];
     if (!w || !(c.loadout || []).includes(last.weapon_id)) return null;
@@ -2113,6 +2121,7 @@ function declSpeed(c, decl) {
   if (decl.kind === 'fall_back') return 1;
   if (decl.kind === 'flee') return 1;
   if (decl.kind === 'grapple') return 3;
+  if (decl.kind === 'pummel') return 2;
   if (decl.kind === 'overbear') return 2;
   if (decl.kind === 'set') return 0;
   if (decl.kind === 'parry') return 0;
@@ -2272,6 +2281,11 @@ function validateDeclarationAtExecution(c, decl) {
     if (!target || target.dead || target._unconscious) return { ok: false, reason: 'overbear target is already down' };
     return { ok: true };
   }
+  if (decl.kind === 'pummel') {
+    const target = findCombatant(state, decl.target_id);
+    if (!target || target.dead || target._unconscious) return { ok: false, reason: 'pummel target is already down' };
+    return { ok: true };
+  }
 
   return { ok: false, reason: 'unknown declaration' };
 }
@@ -2324,6 +2338,75 @@ function applyNonlethalDamage(target, dmg, actualFrac) {
 }
 
 
+// ── Grapple / Pummel tables & modifiers (DMG p.72) ─────────────────────────
+// Shared base-to-hit for grapple & overbear: attacker AC ×10, +Dex, +defender armour, +stunned, −fast.
+function weaponlessBaseChance(c, target) {
+  const base = Math.max(0, Math.min(100, (c.ac_base != null ? c.ac_base : 10) * 10));
+  const fasterPen = (target.move > 12) ? -Math.floor((target.move - 12) / 3) * 10 : 0;
+  return base + dexOf(c) + defenderArmorBonus(target) + (isStunned(target) ? 20 : 0) + fasterPen;
+}
+// Damage by grapple-hold tier (1..7); a higher tier supersedes a lower one.
+const _GRAPPLE_DMG = { 1: 0, 2: 1, 3: 2, 4: 3, 5: 5, 6: 6, 7: 8 };
+const _GRAPPLE_NAME = { 1: 'waist clinch', 2: 'arm lock', 3: 'finger lock', 4: 'bear hug', 5: 'headlock', 6: 'strangle hold', 7: 'gouge' };
+function grappleTier(score) {
+  if (score < 21) return 1;
+  if (score <= 40) return 2;
+  if (score <= 55) return 3;
+  if (score <= 70) return 4;
+  if (score <= 85) return 5;
+  if (score <= 95) return 6;
+  return 7;
+}
+// Modifiers added to the d100 hold roll once a grapple connects.
+function grappleHoldMods(a, t) {
+  return dexOf(a) + strOf(a)
+    + (isStunned(t) ? 20 : 0)
+    + (t._unconscious ? 30 : 0)
+    + diffMod(bodyWeight(a), bodyWeight(t), 5)
+    + diffMod(bodyHeight(a), bodyHeight(t), 5) * (a._prone ? 0.5 : 1)
+    - Math.max(0, dexOf(t) - 14) * 2
+    - Math.max(0, strOf(t) - 12)
+    - ((t.ac_base != null && t.ac_base <= 4) ? 10 : 0)   // banded/plate
+    - (t.shield ? 10 : 0);
+}
+// PUMMELING TABLE → blow descriptor.
+function pummelBlow(score, strBonus) {
+  if (score < 1) return { name: 'wild swing misses', dmg: 0, again: false };
+  if (score <= 20) return { name: 'ineffective blow', dmg: 0, again: true };
+  if (score <= 40) return { name: 'glancing blow — off balance', dmg: 2 + strBonus, again: false };
+  if (score <= 60) return { name: 'glancing blow', dmg: 4 + strBonus, again: true };
+  if (score <= 80) return { name: 'solid punch — off balance', dmg: 6 + strBonus, again: false };
+  if (score <= 100) return { name: 'solid punch', dmg: 8 + strBonus, again: true };
+  return { name: 'crushing blow — stunned', dmg: 10 + strBonus, again: false, stun: true };
+}
+// Pummel base-to-hit: opponent AC ×10, +attacker Dex/Str-over-15/own-AC, +stunned, −fast.
+function pummelBaseChance(a, t) {
+  const ac = t.ac_base != null ? t.ac_base : 10;
+  const ownAc = a.ac_base != null ? a.ac_base : 10;
+  let base = Math.max(0, Math.min(100, ac * 10));
+  base += dexOf(a) + Math.max(0, strOf(a) - 15) + Math.max(0, 10 - ownAc) + (isStunned(t) ? 20 : 0);
+  if (t.move > 12) base -= 5;
+  return Math.max(0, Math.min(100, base));
+}
+// Pummel armour soak on the damage roll (leather −10 / chain −20 / plate −40).
+function pummelArmorPenalty(t) {
+  const ac = t.ac_base != null ? t.ac_base : 10;
+  if (ac >= 9) return 0;
+  if (ac >= 7) return 10;
+  if (ac >= 4) return 20;
+  return 40;
+}
+function pummelBlowMods(a, t) {
+  return Math.max(0, strOf(a) - 12)
+    + ((a.ac_base != null && a.ac_base <= 6) ? 5 : 0)   // mailed fist
+    + (isStunned(t) ? 20 : 0)
+    + (t._unconscious ? 30 : 0)
+    - Math.max(0, dexOf(t) - 14) * 2
+    - (t.shield ? 10 : 0)
+    - pummelArmorPenalty(t);
+}
+function clearGrapple(c) { if (c) { c._held_by = null; c._holding = null; c._hold_tier = 0; c._grapple_foe = null; } }
+
 // A man-sized figure has little hope of holding an ogre.
 function grappleScore(c) {
   const lvl = c.kind === 'pc' ? (c.level || 1) : Math.max(1, parseHD(c.hd != null ? c.hd : c.level).dice);
@@ -2333,9 +2416,9 @@ function grappleScore(c) {
 // Opposed wrench vs. the captor; success frees the captive and ends the hold.
 function attemptBreakFree(c) {
   const holder = findCombatant(state, c._held_by);
-  if (!holder || holder.dead) { c._held_by = null; return true; }
+  if (!holder || holder.dead) { clearGrapple(c); return true; }
   const win = (d20() + grappleScore(c)) >= (d20() + grappleScore(holder));
-  if (win) { c._held_by = null; holder._holding = null; }
+  if (win) { clearGrapple(c); clearGrapple(holder); }
   return win;
 }
 
@@ -2386,6 +2469,7 @@ async function executeDeclaration(c, decl) {
     case 'cast': return executeCastDecl(c, decl);
     case 'move': return executeMoveDecl(c, decl);
     case 'grapple': return executeGrappleDecl(c, decl);
+    case 'pummel': return executePummelDecl(c, decl);
     case 'overbear': return executeOverbearDecl(c, decl);
     case 'parry': return executeParryDecl(c, decl);
     case 'fall_back': return executeFallBackDecl(c, decl);
@@ -2456,21 +2540,13 @@ async function executeFleeDecl(c, decl) {
 
 async function executeGrappleDecl(c, decl) {
   const aSide = c.side === 'A' ? 'a' : 'b';
+  const ts = (x) => `<span class="ts">R${state.round}</span><span class="body">${x}</span>`;
   const target = findCombatant(state, decl.target_id);
   if (!target || target.dead) {
-    log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span>'s grapple target is already down.</span>`);
-    await sleep(150);
-    return;
+    log(state, 'system', ts(`<span class="${aSide}">${c.label}</span>'s grapple target is already down.`));
+    await sleep(150); return;
   }
   const tSide = target.side === 'A' ? 'a' : 'b';
-  // Already holding this one — maintain the grip.
-  if (c._holding === target.id && target._held_by === c.id) {
-    faceToward(c, target.position);
-    log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span> keeps <span class="${tSide}">${target.label}</span> held fast.</span>`);
-    renderAll();
-    await sleep(250);
-    return;
-  }
   // Close to grappling range if needed.
   if (!inMelee(c, target)) {
     const budget = (c.move || 4) * SUB - (c.movement_used || 0);
@@ -2478,7 +2554,7 @@ async function executeGrappleDecl(c, decl) {
     if (!reach) {
       const partial = movePartialTowards(state, c.position, target, budget, c.id);
       if (partial && partial.distance > 0) await moveCombatantTo(c, partial.col, partial.row, partial.distance);
-      log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span> lunges for <span class="${tSide}">${target.label}</span> but cannot close.</span>`);
+      log(state, 'system', ts(`<span class="${aSide}">${c.label}</span> lunges for <span class="${tSide}">${target.label}</span> but cannot close.`));
       return;
     }
     await moveCombatantTo(c, reach.col, reach.row, reach.distance);
@@ -2486,24 +2562,129 @@ async function executeGrappleDecl(c, decl) {
   }
   faceToward(c, target.position);
   c._acted_round = state.round;
-  renderAll();
-  await sleep(80);
-  // Seize: hit vs the body (armor ignored, AC 10) with Str to-hit, harder for a larger/stronger foe.
-  const strBonus = Math.max(0, c.attack_bonus || 0);
-  const diff = grappleScore(target) - grappleScore(c);
-  const needed = Math.max(2, Math.min(20, thac0Of(c) - 10 - strBonus + diff));
-  const roll = d20();
-  if (roll !== 1 && roll >= needed) {
-    c._holding = target.id;
-    target._held_by = c.id;
+  renderAll(); await sleep(80);
+
+  const attackerHasSurprise = state.is_surprise_round && state.acting_side === c.side;
+  // An existing hold goes first; only an unheld, armed, aware defender gets a fending swing.
+  const tw = WEAPONS[target.active_weapon];
+  if (tw && tw.melee && !attackerHasSurprise && !isStunned(target) && !target._prone && target._held_by !== c.id) {
+    const fproj = attackProjection(state, target, c, tw, {});
+    const fr = d20();
+    if (fr !== 1 && fr >= fproj.needed) {
+      log(state, 'system', ts(`<span class="${tSide}">${target.label}</span> fends off the grab with the ${tw.name} — <span class="${aSide}">${c.label}</span> driven back. (no damage)`));
+      await sleep(400); return;
+    }
+  }
+
+  // Base chance to grapple (attacker AC×10 + mods ± the universal variable).
+  const aVar = attackColumn(c) + d(6);
+  const dVar = attackColumn(target) + d(4);
+  const chance = Math.max(0, Math.min(100, weaponlessBaseChance(c, target) + aVar - dVar));
+  const hitRoll = d(100);
+  if (hitRoll > chance) {
+    log(state, 'fail', ts(`<span class="${aSide}">${c.label}</span> grasps at <span class="${tSide}">${target.label}</span> but gets no purchase · rolled <span class="roll bad">${hitRoll}</span> vs <span class="roll">${chance}%</span>`));
+    renderAll(); await sleep(400); return;
+  }
+
+  // Connected — roll the hold and see whose grip wins.
+  const strBonusDmg = Math.max(0, c.damage_bonus || 0);
+  const score = d(100) + Math.round(grappleHoldMods(c, target));
+  const newTier = grappleTier(score);
+  c._grapple_foe = target.id; target._grapple_foe = c.id;
+  const foeTier = (target._grapple_foe === c.id && target._holding === c.id) ? (target._hold_tier || 0) : 0;
+
+  if (newTier > foeTier) {
+    c._hold_tier = Math.max(c._hold_tier || 0, newTier);
+    c._holding = target.id; c._held_by = null;
+    target._held_by = c.id; target._holding = null;
+    const effTier = c._hold_tier;
+    const dmg = effTier >= 2 ? _GRAPPLE_DMG[effTier] + strBonusDmg : 0;
+    if (dmg > 0) applyNonlethalDamage(target, dmg, 0.25);
+    if (effTier === 7) target._stunned_until = state.round + 1;
     const tc = tokenCenter(target);
-    showFloatingText(tc.x, tc.y - 20, 'held!', 'crit');
-    log(state, 'hit', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span> grapples <span class="${tSide}">${target.label}</span> — seizes and holds fast! · rolled <span class="roll good">${roll}</span> vs <span class="roll">${needed}</span></span>`);
+    if (effTier >= 4) showFloatingText(tc.x, tc.y - 18, _GRAPPLE_NAME[effTier] + '!', 'crit');
+    log(state, dmg > 0 ? 'hit' : 'system', ts(
+      `<span class="${aSide}">${c.label}</span> works a <span class="em">${_GRAPPLE_NAME[effTier]}</span> on <span class="${tSide}">${target.label}</span>` +
+      (dmg > 0 ? ` — <span class="dmg">${dmg}</span> dmg <span class="em">(¼ real)</span>` : '') +
+      ` · rolled <span class="roll">${score}</span>` +
+      (target._unconscious ? ` — <span class="em">senseless!</span>` : '')));
   } else {
-    log(state, 'fail', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span> tries to grapple <span class="${tSide}">${target.label}</span> but loses the grip · rolled <span class="roll bad">${roll}</span> vs <span class="roll">${needed}</span></span>`);
+    // The defender's better hold prevails; this is only a struggling counter.
+    c._hold_tier = newTier;
+    target._holding = c.id; target._held_by = null;
+    c._held_by = target.id; c._holding = null;
+    const counter = Math.floor((_GRAPPLE_DMG[newTier] || 0) / 2);
+    if (counter > 0) applyNonlethalDamage(target, counter, 0.25);
+    log(state, 'system', ts(
+      `<span class="${tSide}">${target.label}</span> keeps the upper hold; <span class="${aSide}">${c.label}</span> manages only a counter` +
+      (counter > 0 ? ` for <span class="dmg">${counter}</span>` : '') + ` · rolled <span class="roll">${score}</span>`));
   }
   renderAll();
-  await sleep(400);
+  await sleep(420);
+}
+
+async function executePummelDecl(c, decl) {
+  const aSide = c.side === 'A' ? 'a' : 'b';
+  const ts = (x) => `<span class="ts">R${state.round}</span><span class="body">${x}</span>`;
+  const target = findCombatant(state, decl.target_id);
+  if (!target || target.dead || target._unconscious) {
+    log(state, 'system', ts(`<span class="${aSide}">${c.label}</span>'s quarry is already down.`));
+    await sleep(150); return;
+  }
+  const tSide = target.side === 'A' ? 'a' : 'b';
+  if (!inMelee(c, target)) {
+    const budget = (c.move || 4) * SUB - (c.movement_used || 0);
+    const reach = findBestAdjacentSquare(state, c.position, target, budget, c.id);
+    if (!reach) {
+      const partial = movePartialTowards(state, c.position, target, budget, c.id);
+      if (partial && partial.distance > 0) await moveCombatantTo(c, partial.col, partial.row, partial.distance);
+      log(state, 'system', ts(`<span class="${aSide}">${c.label}</span> closes on <span class="${tSide}">${target.label}</span> but cannot reach.`));
+      return;
+    }
+    await moveCombatantTo(c, reach.col, reach.row, reach.distance);
+    if (c.dead) return;
+  }
+  faceToward(c, target.position);
+  c._acted_round = state.round;
+  renderAll(); await sleep(80);
+
+  const attackerHasSurprise = state.is_surprise_round && state.acting_side === c.side;
+  const tw = WEAPONS[target.active_weapon];
+  if (tw && tw.melee && !attackerHasSurprise && !isStunned(target) && !target._prone) {
+    const fproj = attackProjection(state, target, c, tw, {});
+    const fr = d20();
+    if (fr !== 1 && fr >= fproj.needed) {
+      log(state, 'system', ts(`<span class="${tSide}">${target.label}</span> fends off the rush with the ${tw.name} — <span class="${aSide}">${c.label}</span> driven off. (no damage)`));
+      await sleep(400); return;
+    }
+  }
+
+  // A flurry: blows continue while the table says "strike again".
+  const strBonusDmg = Math.max(0, c.damage_bonus || 0);
+  const aVar = attackColumn(c) + d(6);
+  const dVar = attackColumn(target) + d(4);
+  let blows = 0, series = true, landed = 0;
+  while (series && blows < 4 && !target.dead && !target._unconscious) {
+    blows++;
+    const auto = (target._prone && !target.shield) || target._unconscious || isStunned(target);
+    const chance = Math.max(0, Math.min(100, pummelBaseChance(c, target) + aVar - dVar));
+    const hr = d(100);
+    if (!auto && hr > chance) {
+      log(state, 'system', ts(`<span class="${aSide}">${c.label}</span>'s blow ${blows} swings wide · ${hr} vs ${chance}%`));
+      break;
+    }
+    const blow = pummelBlow(d(100) + Math.round(pummelBlowMods(c, target)), strBonusDmg);
+    if (blow.dmg > 0) { applyNonlethalDamage(target, blow.dmg, 0.25); landed += blow.dmg; }
+    if (blow.stun) target._stunned_until = state.round + 1;
+    log(state, blow.dmg > 0 ? 'hit' : 'system', ts(
+      `<span class="${aSide}">${c.label}</span> — <span class="em">${blow.name}</span>` +
+      (blow.dmg > 0 ? ` on <span class="${tSide}">${target.label}</span>, <span class="dmg">${blow.dmg}</span> <span class="em">(¼ real)</span>` : '') +
+      (target._unconscious ? ` — <span class="em">battered senseless!</span>` : '')));
+    if (!blow.again) series = false;
+    renderAll();
+    await sleep(260);
+  }
+  if (landed === 0 && blows >= 1) await sleep(120);
 }
 
 async function executeOverbearDecl(c, decl) {
@@ -3226,6 +3407,7 @@ function renderMap() {
       const what = state.picking.charge ? 'a charge' :
                   state.picking.grapple ? 'a grapple' :
                   state.picking.overbear ? 'an overbear' :
+                  state.picking.pummel ? 'a pummeling' :
                   state.picking.weaponId ? WEAPONS[state.picking.weaponId].name :
                   state.picking.spellId ? SPELLS[state.picking.spellId].name : 'attack';
       html = `Pick target for <em>${what}</em><span class="esc">Esc to cancel</span>`;
@@ -3245,7 +3427,7 @@ function computeValidTargets(c, picking) {
     return enemies.filter(e => !inMelee(c, e) &&
       findBestAdjacentSquare(state, c.position, e, budget, c.id) != null);
   }
-  if (picking.grapple || picking.overbear) {
+  if (picking.grapple || picking.overbear || picking.pummel) {
     const budget = (c.move || 4) * SUB;
     return enemies.filter(e => inMelee(c, e) || findBestAdjacentSquare(state, c.position, e, budget, c.id) != null);
   }
@@ -3279,6 +3461,7 @@ function declGlyph(decl) {
   if (decl.kind === 'move') return '→';
   if (decl.kind === 'parry') return '⛨';
   if (decl.kind === 'grapple') return '⊗';
+  if (decl.kind === 'pummel') return '✸';
   if (decl.kind === 'overbear') return '⤋';
   if (decl.kind === 'fall_back') return '↩';
   if (decl.kind === 'flee') return '↜';
@@ -3322,6 +3505,7 @@ function declSummary(c, decl) {
   if (decl.kind === 'flee') return { text: 'flee!' };
   if (decl.kind === 'grapple') { const t = findCombatant(state, decl.target_id); return { text: `grapple ${t ? t.label : '?'}` }; }
   if (decl.kind === 'overbear') { const t = findCombatant(state, decl.target_id); return { text: `overbear ${t ? t.label : '?'}` }; }
+  if (decl.kind === 'pummel') { const t = findCombatant(state, decl.target_id); return { text: `pummel ${t ? t.label : '?'}` }; }
   return { text: 'unknown' };
 }
 
@@ -3338,6 +3522,8 @@ function declShort(c, decl) {
   if (decl.kind === 'grapple') return gt ? `Grapple <span class="em">${gt.label}</span>` : 'Grapple';
   const ot = decl.kind === 'overbear' && decl.target_id ? findCombatant(state, decl.target_id) : null;
   if (decl.kind === 'overbear') return ot ? `Overbear <span class="em">${ot.label}</span>` : 'Overbear';
+  const pt = decl.kind === 'pummel' && decl.target_id ? findCombatant(state, decl.target_id) : null;
+  if (decl.kind === 'pummel') return pt ? `Pummel <span class="em">${pt.label}</span>` : 'Pummel';
   const t = decl.target_id ? findCombatant(state, decl.target_id) : null;
   if (decl.kind === 'attack') return t ? `Attack <span class="em">${t.label}</span>` : 'Attack';
   if (decl.kind === 'charge') return t ? `Charge <span class="em">${t.label}</span>` : 'Charge';
@@ -3526,6 +3712,7 @@ function describeDeclaration(decl) {
   if (decl.kind === 'move') return 'Move';
   if (decl.kind === 'grapple') return tgt ? `Grapple ${tgt}` : 'Grapple';
   if (decl.kind === 'overbear') return tgt ? `Overbear ${tgt}` : 'Overbear';
+  if (decl.kind === 'pummel') return tgt ? `Pummel ${tgt}` : 'Pummel';
   if (decl.kind === 'parry') return 'Parry';
   if (decl.kind === 'fall_back') return 'Fall Back';
   if (decl.kind === 'flee') return 'Flee';
@@ -3781,6 +3968,7 @@ function renderHotbar() {
   const canParry = !!primary && WEAPONS[primary.id]?.melee;
   const canGrapple = computeValidTargets(c, { grapple: true }).length > 0;
   const canOverbear = computeValidTargets(c, { overbear: true }).length > 0;
+  const canPummel = computeValidTargets(c, { pummel: true }).length > 0;
   const canCast = !!spell && computeValidTargets(c, { spellId: spell.id }).length > 0 && (c.spell_charges?.[spell.id] || 0) > 0;
   const enemiesAlive = aliveCombatantsOnSide(state, c.side === 'A' ? 'B' : 'A').length;
 
@@ -3792,6 +3980,7 @@ function renderHotbar() {
     { kind: 'parry', icon: '⛨', label: 'Parry', detail: 'Defend, no attack', disabled: !canParry, cls: 'parry', key: '5', declared: currentDecl?.kind === 'parry' },
     { kind: 'grapple', icon: '⊗', label: 'Grapple', detail: 'Seize & hold', disabled: !canGrapple, cls: 'grapple', key: '', active: state.picking?.kind === 'target' && state.picking.grapple && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'grapple' },
     { kind: 'overbear', icon: '⤋', label: 'Overbear', detail: 'Tackle prone', disabled: !canOverbear, cls: 'overbear', key: '', active: state.picking?.kind === 'target' && state.picking.overbear && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'overbear' },
+    { kind: 'pummel', icon: '✸', label: 'Pummel', detail: 'Batter senseless', disabled: !canPummel, cls: 'pummel', key: '', active: state.picking?.kind === 'target' && state.picking.pummel && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'pummel' },
     { kind: 'move', icon: '✜', label: 'Move', detail: 'Pick space', disabled: false, cls: 'move', key: '6', active: state.picking?.kind === 'move' && !state.picking.fallBack && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'move' },
     { kind: 'fall-back', icon: '↩', label: 'Fall Back', detail: 'Withdraw, no free hit', disabled: false, cls: 'fallback', key: '7', active: state.picking?.kind === 'move' && state.picking.fallBack && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'fall_back' },
     { kind: 'flee', icon: '↜', label: 'Flee', detail: 'Run; foes get a free hit', disabled: enemiesAlive === 0, cls: 'flee', key: '8', declared: currentDecl?.kind === 'flee' },
@@ -3887,6 +4076,7 @@ function renderHotbar() {
         else if (a.kind === 'parry') App.declareParry(c.id);
         else if (a.kind === 'grapple') App.beginGrapple(c.id);
         else if (a.kind === 'overbear') App.beginOverbear(c.id);
+        else if (a.kind === 'pummel') App.beginPummel(c.id);
         else if (a.kind === 'fall-back') App.beginFallBack(c.id);
         else if (a.kind === 'flee') App.declareFlee(c.id);
         else if (a.kind === 'cast' && spell) App.beginSpellTarget(c.id, spell.id);
@@ -4280,6 +4470,11 @@ const App = {
     renderAll();
   },
 
+  beginPummel(combatantId) {
+    state.picking = { kind: 'target', forCombatantId: combatantId, pummel: true };
+    renderAll();
+  },
+
   clearDeclaration(combatantId) {
     const c = findCombatant(state, combatantId);
     if (!c) return;
@@ -4318,6 +4513,8 @@ const App = {
       setDeclaration(c.id, { kind: 'grapple', target_id: targetId });
     } else if (state.picking.overbear) {
       setDeclaration(c.id, { kind: 'overbear', target_id: targetId });
+    } else if (state.picking.pummel) {
+      setDeclaration(c.id, { kind: 'pummel', target_id: targetId });
     } else if (state.picking.weaponId) {
       const w = WEAPONS[state.picking.weaponId];
       const slots = ensureHudSlots(c);
