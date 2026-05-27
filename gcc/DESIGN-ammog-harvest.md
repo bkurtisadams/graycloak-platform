@@ -6,7 +6,105 @@
 
 ---
 
-## Status — v0.8.4 (2026-05-27)
+## Status — v0.8.5 (2026-05-27)
+
+**HTML weapons cleanup + ammo refactor shipped.** Two threads land at once: the sim's
+`WEAPONS` literal is now PHB-clean in the source (no longer relying on the catalog wire
+to fix values at runtime), and the sling-bullet/sling-stone split from v0.8.4 is
+collapsed back into a proper ammo model that bows and crossbows also use — opening the
+door to magic arrows/bolts without further refactor.
+
+**Sim WEAPONS literal cleanup.** Every melee entry got the `space` field per PHB and any
+prior wrong fields were corrected directly in `dungeon-encounter.html`:
+
+- `dagger.length` 1→1.25, `space:1`
+- `hand_axe.length` 2→1.5, `space:1`
+- `long_sword.length` 4→3.5, `space:3`
+- `short_sword space:1`, `battle_axe space:4`, `halberd space:5`
+- `mace.length` 4→2.5, `space:4`, vs_ac to PHB (AC2/+1, AC10/-1 etc., not the inverted sim values)
+- `pike` renamed "Awl Pike", length 6→18, vs_ac to PHB awl-pike
+- `spear` speed 6→7, length 4→9, vs_ac to PHB
+- `halberd.vs_ac` corrected (was inverted: peaked at high AC, PHB peaks at AC5-7)
+- `club space:2`, `ogre_club space:4` (sim extension)
+- `sling` restored as a single weapon entry (`ranged:true, speed:7, no damage/range/vs_ac`,
+  `compatible_ammo: ['bullet','stone']`)
+
+The four remaining "discrepancies" against my PHB ground-truth (club space and spear
+length/speed midpoints) are accepted as Kurt's-choice / encoding differences.
+
+**Ammo model.** New `CDATA.ammo_types` top-level key holds the mechanical profile of each
+ammo category:
+
+- `bullet`: 1d4+1/1d6+1, range 5/10/20, PHB short-range vs_ac
+- `stone`:  1d4/1d4,    range 4/8/16,  PHB short-range vs_ac
+- `arrow`:  1d6/1d6    (bows define their own range/vs_ac, ammo just sets damage)
+- `quarrel_light`:  1d4/1d4    (light crossbow defines range)
+- `quarrel_heavy`:  1d4+1/1d6+1 (heavy crossbow defines range)
+
+`CDATA.ammo` (inventory bundles): renamed `bolt` → `bolt_heavy` (ammoType `quarrel_heavy`),
+added `bolt_light` (ammoType `quarrel_light`) and `sling_stone` (ammoType `stone`). The
+`sling_bullet` bundle's `ammoType` changed from the (now-defunct) `"sling_bullet"` to `"bullet"`.
+
+`CDATA.weapons` revert: `sling_bullet`/`sling_stone` removed; `sling` restored as a single
+entry with `compatible_ammo: ["bullet","stone"]` and `default_ammo: "bullet"`. Ranged
+weapons gained `compatible_ammo` arrays: bows → `["arrow"]`, light crossbow →
+`["quarrel_light"]`, heavy crossbow → `["quarrel_heavy"]`.
+
+**Per-weapon ammo slots.** Combatant model gained `ammo_loaded: { weapon_id: item_id }` —
+keyed by weapon so a character with sling + bow keeps bullets loaded for the sling and
+arrows for the bow without cross-contamination, and magic-ammo workflows (regular + +1
+arrows for the same bow) map cleanly. When the slot is unset, the runtime falls back to
+the first compatible ammo bundle in inventory.
+
+**Runtime helpers (added just above `attackProjection`):**
+
+- `getAmmoBundleItem(c, itemId)` — tidy inventory→record lookup with qty/ammoType.
+- `getLoadedAmmoId(c, weapon)` — honors explicit slot, falls back to compatible inventory.
+- `resolveEffectiveRangedWeapon(c, weapon)` — merges weapon + loaded ammo; ammo's
+  damage/range/vs_ac override the weapon's; magic ammo `attack_bonus`/`damage_bonus` ride
+  along on `ammo_attack_bonus`/`ammo_damage_bonus`. Flags `_missing_ammo:true` when no
+  compatible ammo is present.
+- `consumeAmmo(c, weapon)` — decrements loaded ammo qty by 1; called after every shot.
+
+**Combat resolver wiring.** `attackProjection` builds the effective weapon for ranged
+attacks and passes it to `computeToHit` (so sling+stone uses stone's vs_ac) and
+`rangeBand` (so sling+stone uses 4/8/16 range). Magic ammo's `attack_bonus` reduces
+`needed`; `damage_bonus` adds to `dmgBonus`. When `_missing_ammo` is set, projection
+returns `needed:99, dmgDice:'0'` (signals "impossible") so the hover preview stays sane.
+
+`executeAttackDecl` ranged branch now: (1) resolves the effective weapon up front; (2)
+blocks with "has no ammunition for X" chat message if `_missing_ammo`; (3) range-checks
+against the *effective* range (sling+stone reaches further with bullets than stones); (4)
+calls `consumeAmmo` after `resolveAttack` returns. Thrown weapons (dagger, dart,
+javelin) skip the ammo path — they have no `compatible_ammo`.
+
+**Catalog wire update.** `cdataWeaponToSim` no longer fabricates `damage` /
+`range_squares` for weapons that don't declare them — sling's "no inherent stats" survive
+the wire. `compatible_ammo` / `default_ammo` pass through.
+
+**Seed loadouts.** Arlanni and Aldric switched from `'sling_bullet'` to `'sling'` in
+their loadouts; inventory adds the ammo bundles (`i_sling_bullets` qty 30 for both;
+Arlanni also carries `i_sling_stones` qty 20 as a backup); `ammo_loaded: { sling:
+'i_sling_bullets' }` set by default. `i_sling.weapon_id` updated `'sling_bullet'` →
+`'sling'`. Five new ammo bundle items added to `ITEMS`: `i_sling_bullets`,
+`i_sling_stones`, `i_arrows`, `i_bolts_light`, `i_bolts_heavy`.
+
+**Verification — 56 assertions pass:** HTML literal is PHB-clean *without the wire
+running* (proved by loading the WEAPONS literal in isolation); catalog wire correctly
+adds compatible_ammo and doesn't fabricate damage for sling; helper unit tests cover
+explicit-slot, switching, and inventory-fallback paths; effective-weapon merge produces
+correct damage/range/vs_ac for sling+bullet, sling+stone, and bow+arrow; magic +1
+bullets give -1 to `needed` and +1 to `dmgBonus`; ammo consumption decrements; no-ammo
+flags fall through to a 99/`'0'` projection; melee path unchanged.
+
+**Next:** v0.8.6 will fill PHB short-range vs_ac on every ranged weapon (currently most
+ranged CDATA weapons have empty vs_ac) and add a settings toggle for the medium (-2) /
+long (-5) range modifier. v0.8.7 will be space-too-small with three game modes
+(warn / warn+penalty / prevent).
+
+---
+
+
 
 **PHB weapon-data audit + catalog wiring shipped (pure data slice).** Two things landed at the
 data tier: the CDATA catalog now flows into the sim's runtime `WEAPONS` table at boot, and

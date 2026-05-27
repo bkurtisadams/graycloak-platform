@@ -1,6 +1,7 @@
 // combat-data.js — AD&D 1e data harvested from AMMOG (Phase 1: equipment, class tables, bestiary)
 // AUTO-GENERATED 2026-05-27 — base from AMMOG source.
-// HAND-EDITED 2026-05-27 (v0.8.4): PHB audit corrections + 9 weapons added + sling split. See DESIGN-ammog-harvest.md §v0.8.4.
+// HAND-EDITED 2026-05-27 (v0.8.4): PHB audit corrections + 9 weapons added + sling split.
+// HAND-EDITED 2026-05-27 (v0.8.5): sling-split reverted to ammo model; ammo_types added; ammo bundles for bullet/stone/arrow/quarrel_light/quarrel_heavy. See DESIGN-ammog-harvest.md §v0.8.4.
 // Re-generating from AMMOG will overwrite these hand-edits.
 // Loaded via <script src="combat-data.js"></script> BEFORE dungeon-encounter's main <script>. Exposes global CDATA.
 // Weapon damage as 'NdD(+b)' dice strings; vs_ac keyed AC2..AC10; weights in lb (reconcile vs gp-weight at use).
@@ -2917,6 +2918,7 @@ const CDATA = {
         "assassin"
       ],
       "verb": "shoots",
+      "compatible_ammo": ["arrow"],
       "two_handed": true
     },
     "long_bow": {
@@ -2942,6 +2944,7 @@ const CDATA = {
         "paladin"
       ],
       "verb": "shoots",
+      "compatible_ammo": ["arrow"],
       "two_handed": true
     },
     "light_crossbow": {
@@ -2969,6 +2972,7 @@ const CDATA = {
         "assassin"
       ],
       "verb": "shoots",
+      "compatible_ammo": ["quarrel_light"],
       "two_handed": true
     },
     "heavy_crossbow": {
@@ -2994,53 +2998,8 @@ const CDATA = {
         "paladin"
       ],
       "verb": "shoots",
+      "compatible_ammo": ["quarrel_heavy"],
       "two_handed": true
-    },
-    "sling_bullet": {
-      "id": "sling_bullet",
-      "name": "Sling (bullet)",
-      "ranged": true,
-      "speed": 7,
-      "weight": 0,
-      "cost": 1,
-      "damage": {
-        "sm": "1d4+1",
-        "l": "1d6+1"
-      },
-      "range_squares": {
-        "s": 5,
-        "m": 10,
-        "l": 20
-      },
-      "vs_ac": { "2": -2, "3": -2, "4": -1, "5": 0, "6": 0, "7": 0, "8": 2, "9": 1, "10": 3 },
-      "rof": 1,
-      "classes": [
-        "fighter",
-        "ranger",
-        "paladin",
-        "thief",
-        "assassin",
-        "druid",
-        "monk"
-      ],
-      "verb": "slings a bullet at",
-      "two_handed": false
-    }
-      ,
-    "sling_stone": {
-      "id": "sling_stone",
-      "name": "Sling (stone)",
-      "ranged": true,
-      "speed": 7,
-      "weight": 0,
-      "cost": 1,
-      "damage": { "sm": "1d4", "l": "1d4" },
-      "range_squares": { "s": 4, "m": 8, "l": 16 },
-      "vs_ac": { "2": -5, "3": -4, "4": -2, "5": -1, "6": 0, "7": 0, "8": 2, "9": 1, "10": 3 },
-      "rof": 1,
-      "classes": ["fighter", "ranger", "paladin", "thief", "assassin", "druid", "monk"],
-      "verb": "slings a stone at",
-      "two_handed": false
     },
     "dart": {
       "id": "dart",
@@ -3082,6 +3041,7 @@ const CDATA = {
       "rof": 2,
       "classes": ["fighter", "ranger", "paladin"],
       "verb": "shoots",
+      "compatible_ammo": ["arrow"],
       "two_handed": true
     },
     "composite_short_bow": {
@@ -3096,6 +3056,7 @@ const CDATA = {
       "rof": 2,
       "classes": ["fighter", "ranger", "paladin"],
       "verb": "shoots",
+      "compatible_ammo": ["arrow"],
       "two_handed": true
     },
     "lance_light": {
@@ -3145,6 +3106,20 @@ const CDATA = {
       "verb": "lances",
       "two_handed": false,
       "mounted_only": true
+    }
+      ,
+    "sling": {
+      "id": "sling",
+      "name": "Sling",
+      "ranged": true,
+      "speed": 7,
+      "weight": 0,
+      "cost": 1,
+      "compatible_ammo": ["bullet", "stone"],
+      "default_ammo": "bullet",
+      "classes": ["fighter", "ranger", "paladin", "thief", "assassin", "druid", "monk"],
+      "verb": "slings",
+      "two_handed": false
     }
   },
   "armor": {
@@ -3353,27 +3328,78 @@ const CDATA = {
       "weight": 1
     }
   },
+  "ammo_types": {
+    "bullet": {
+      "name": "Sling Bullet",
+      "damage": { "sm": "1d4+1", "l": "1d6+1" },
+      "range_squares": { "s": 5, "m": 10, "l": 20 },
+      "vs_ac": { "2": -2, "3": -2, "4": -1, "5": 0, "6": 0, "7": 0, "8": 2, "9": 1, "10": 3 },
+      "weight_each": 0.05,
+      "compatible_weapons": ["sling"]
+    },
+    "stone": {
+      "name": "Sling Stone",
+      "damage": { "sm": "1d4", "l": "1d4" },
+      "range_squares": { "s": 4, "m": 8, "l": 16 },
+      "vs_ac": { "2": -5, "3": -4, "4": -2, "5": -1, "6": 0, "7": 0, "8": 2, "9": 1, "10": 3 },
+      "weight_each": 0.05,
+      "compatible_weapons": ["sling"]
+    },
+    "arrow": {
+      "name": "Arrow",
+      "damage": { "sm": "1d6", "l": "1d6" },
+      "weight_each": 0.1,
+      "compatible_weapons": ["long_bow", "short_bow", "composite_long_bow", "composite_short_bow"]
+    },
+    "quarrel_light": {
+      "name": "Light Quarrel",
+      "damage": { "sm": "1d4", "l": "1d4" },
+      "weight_each": 0.1,
+      "compatible_weapons": ["light_crossbow"]
+    },
+    "quarrel_heavy": {
+      "name": "Heavy Quarrel",
+      "damage": { "sm": "1d4+1", "l": "1d6+1" },
+      "weight_each": 0.2,
+      "compatible_weapons": ["heavy_crossbow"]
+    }
+  },
+
   "ammo": {
     "arrow": {
       "name": "Arrows (20)",
       "cost": 2,
-      "weight": 3,
+      "weight": 2,
       "qty": 20,
       "ammoType": "arrow"
     },
-    "bolt": {
-      "name": "Bolts (30)",
+    "bolt_heavy": {
+      "name": "Heavy Quarrels (30)",
       "cost": 2,
       "weight": 3,
       "qty": 30,
-      "ammoType": "bolt"
+      "ammoType": "quarrel_heavy"
     },
     "sling_bullet": {
       "name": "Sling Bullets (10)",
       "cost": 1,
       "weight": 2,
       "qty": 10,
-      "ammoType": "sling_bullet"
+      "ammoType": "bullet"
+    }    ,
+    "bolt_light": {
+      "name": "Light Quarrels (30)",
+      "cost": 1,
+      "weight": 2,
+      "qty": 30,
+      "ammoType": "quarrel_light"
+    },
+    "sling_stone": {
+      "name": "Sling Stones (20)",
+      "cost": 0,
+      "weight": 1,
+      "qty": 20,
+      "ammoType": "stone"
     }
   },
   "gems": {

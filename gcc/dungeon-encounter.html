@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.8.4 -->
+<!-- dungeon-encounter — v0.8.5 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -817,7 +817,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.8.4';
+const SIM_VERSION = 'v0.8.5';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -871,63 +871,70 @@ function pickTier(kind, level) {
 const WEAPONS = {
   battle_axe: {
     id: 'battle_axe', name: 'Battle Axe', icon: '⚔',
-    melee: true, speed: 7, length: 4,
+    melee: true, speed: 7, length: 4, space: 4,
     damage: { sm: '1d8', l: '1d4' },
     vs_ac: { 2:-3, 3:-1, 4:1, 5:-1, 6:0, 7:0, 8:1, 9:1, 10:2 }
   },
   hand_axe: {
     id: 'hand_axe', name: 'Hand Axe', icon: '⟿',
-    melee: true, speed: 4, length: 2,
+    melee: true, speed: 4, length: 1.5, space: 1,
     damage: { sm: '1d6', l: '1d4' },
     vs_ac: { 2:-3, 3:-2, 4:-2, 5:-1, 6:0, 7:0, 8:1, 9:1, 10:1 }
   },
   dagger: {
     id: 'dagger', name: 'Dagger', icon: '†',
-    melee: true, speed: 2, length: 1,
+    melee: true, speed: 2, length: 1.25, space: 1,
     damage: { sm: '1d4', l: '1d3' },
     vs_ac: { 2:-3, 3:-3, 4:-2, 5:-2, 6:0, 7:0, 8:1, 9:1, 10:3 }
   },
   short_sword: {
     id: 'short_sword', name: 'Short Sword', icon: '⚔',
-    melee: true, speed: 3, length: 2,
+    melee: true, speed: 3, length: 2, space: 1,
     damage: { sm: '1d6', l: '1d8' },
     vs_ac: { 2:-3, 3:-2, 4:-1, 5:0, 6:0, 7:0, 8:1, 9:0, 10:2 }
   },
   long_sword: {
     id: 'long_sword', name: 'Long Sword', icon: '⚔',
-    melee: true, speed: 5, length: 4,
+    melee: true, speed: 5, length: 3.5, space: 3,
     damage: { sm: '1d8', l: '1d12' },
     vs_ac: { 2:-2, 3:-1, 4:0, 5:0, 6:0, 7:0, 8:0, 9:1, 10:2 }
   },
   spear: {
     id: 'spear', name: 'Spear', icon: '⟑',
-    melee: true, settable: true, speed: 6, length: 4,
+    melee: true, settable: true, speed: 7, length: 9, space: 1,
     damage: { sm: '1d6', l: '1d8' },
-    vs_ac: { 2:-2, 3:-1, 4:0, 5:0, 6:0, 7:0, 8:0, 9:1, 10:2 }
+    vs_ac: { 2:-2, 3:-1, 4:-1, 5:-1, 6:0, 7:0, 8:0, 9:0, 10:0 }
   },
   pike: {
-    id: 'pike', name: 'Pike', icon: '⟑',
-    melee: true, settable: true, speed: 13, length: 6,
+    id: 'pike', name: 'Awl Pike', icon: '⟑',
+    melee: true, settable: true, speed: 13, length: 18, space: 1,
     damage: { sm: '1d6', l: '1d12' },
-    vs_ac: { 2:-2, 3:-1, 4:0, 5:0, 6:0, 7:0, 8:0, 9:1, 10:2 }
+    vs_ac: { 2:-1, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:-1, 10:-2 }
   },
   halberd: {
     id: 'halberd', name: 'Halberd', icon: '⟑',
-    melee: true, settable: true, speed: 9, length: 5,
+    melee: true, settable: true, speed: 9, length: 5, space: 5,
     damage: { sm: '1d10', l: '2d6' },
-    vs_ac: { 2:-3, 3:-2, 4:-1, 5:0, 6:0, 7:0, 8:0, 9:1, 10:2 }
+    vs_ac: { 2:1, 3:1, 4:1, 5:2, 6:2, 7:2, 8:1, 9:1, 10:0 }
   },
   club: {
     id: 'club', name: 'Club', icon: '⚒',
-    melee: true, speed: 4, length: 3,
+    melee: true, speed: 4, length: 3, space: 2,
     damage: { sm: '1d6', l: '1d3' },
     vs_ac: { 2:-5, 3:-4, 4:-3, 5:-2, 6:-1, 7:-1, 8:0, 9:0, 10:1 }
   },
   ogre_club: {
     id: 'ogre_club', name: 'Huge Club', icon: '⚒',
-    melee: true, speed: 9, length: 6,
+    melee: true, speed: 9, length: 6, space: 4,
     damage: { sm: '1d10', l: '1d10' },
     vs_ac: { 2:-2, 3:-1, 4:0, 5:0, 6:0, 7:0, 8:0, 9:1, 10:2 }
+  },
+  sling: {
+    id: 'sling', name: 'Sling', icon: '➶',
+    ranged: true, speed: 7, two_handed: false,
+    // No inherent damage / range / vs_ac — these come from the loaded ammo (bullet or stone).
+    // The runtime merges weapon + ammo before resolving the shot.
+    compatible_ammo: ['bullet', 'stone']
   },
   dart: {
     id: 'dart', name: 'Dart', icon: '↣',
@@ -937,9 +944,9 @@ const WEAPONS = {
   },
   mace: {
     id: 'mace', name: 'Mace', icon: '⚒',
-    melee: true, speed: 7, length: 4,
+    melee: true, speed: 7, length: 2.5, space: 4,
     damage: { sm: '1d6+1', l: '1d6' },
-    vs_ac: { 2:-1, 3:-1, 4:0, 5:0, 6:0, 7:0, 8:1, 9:1, 10:1 }
+    vs_ac: { 2:1, 3:1, 4:0, 5:0, 6:0, 7:0, 8:0, 9:1, 10:-1 }
   },
   spider_bite: {
     id: 'spider_bite', name: 'Bite', icon: '☠',
@@ -982,8 +989,14 @@ const ITEMS = {
   i_halberd:     { id: 'i_halberd',     name: 'Halberd',     category: 'weapon', weight: 175, weapon_id: 'halberd' },
   i_mace:        { id: 'i_mace',        name: 'Mace',        category: 'weapon', weight: 100, weapon_id: 'mace' },
   i_club:        { id: 'i_club',        name: 'Club',        category: 'weapon', weight: 30,  weapon_id: 'club' },
-  i_sling:       { id: 'i_sling',       name: 'Sling',       category: 'weapon', weight: 5,   weapon_id: 'sling_bullet' },
+  i_sling:       { id: 'i_sling',       name: 'Sling',       category: 'weapon', weight: 5,   weapon_id: 'sling' },
   i_dart:        { id: 'i_dart',        name: 'Dart',        category: 'weapon', weight: 5,   weapon_id: 'dart' },
+  // Ammo (consumed per shot via combatant.ammo_loaded; qty is the remaining count).
+  i_sling_bullets: { id: 'i_sling_bullets', name: 'Sling Bullets', category: 'ammo', weight: 15, qty: 30, ammoType: 'bullet' },
+  i_sling_stones:  { id: 'i_sling_stones',  name: 'Sling Stones',  category: 'ammo', weight: 20, qty: 20, ammoType: 'stone'  },
+  i_arrows:        { id: 'i_arrows',        name: 'Arrows',        category: 'ammo', weight: 30, qty: 20, ammoType: 'arrow'  },
+  i_bolts_light:   { id: 'i_bolts_light',   name: 'Light Quarrels',category: 'ammo', weight: 15, qty: 30, ammoType: 'quarrel_light' },
+  i_bolts_heavy:   { id: 'i_bolts_heavy',   name: 'Heavy Quarrels',category: 'ammo', weight: 30, qty: 30, ammoType: 'quarrel_heavy' },
   // Gear & consumables
   backpack:     { id: 'backpack',     name: 'Backpack',          category: 'gear', weight: 20 },
   rations_wk:   { id: 'rations_wk',   name: 'Rations (1 week)',  category: 'gear', weight: 200 },
@@ -1376,14 +1389,103 @@ function movePartialTowards(state, fromPos, target, maxSteps, excludeId) {
   return best;
 }
 
+// ── Ammo (v0.8.5) ────────────────────────────────────────────────────────────
+// Ranged weapons whose damage/range/vs_ac come from loaded ammo (currently sling
+// fires bullets or stones; bows fire arrows; crossbows fire quarrels). Magic ammo
+// is just an inventory item with `attack_bonus`/`damage_bonus` ride-alongs.
+
+// Pull a ranged combatant's inventory ammo bundle into a tidy record. Returns
+// { id, qty, ammoType, attack_bonus, damage_bonus } or null.
+function getAmmoBundleItem(combatant, ammoItemId) {
+  if (!combatant || !combatant.inventory || !ammoItemId) return null;
+  const invEntry = combatant.inventory.find(e => e && e.id === ammoItemId);
+  if (!invEntry) return null;
+  const def = ITEMS[ammoItemId];
+  if (!def || def.category !== 'ammo') return null;
+  return {
+    id: ammoItemId,
+    qty: (invEntry.qty !== undefined) ? invEntry.qty : (def.qty || 0),
+    ammoType: def.ammoType,
+    attack_bonus: def.attack_bonus || 0,
+    damage_bonus: def.damage_bonus || 0
+  };
+}
+
+// Pick the ammo to fire from a given ranged weapon. Honors combatant.ammo_loaded
+// (per-weapon slot) when valid + non-empty; otherwise falls back to the first
+// compatible bundle in inventory. Returns the ammo item id, or null.
+function getLoadedAmmoId(combatant, weapon) {
+  if (!combatant || !weapon || !weapon.compatible_ammo) return null;
+  const loaded = combatant.ammo_loaded && combatant.ammo_loaded[weapon.id];
+  if (loaded) {
+    const b = getAmmoBundleItem(combatant, loaded);
+    if (b && b.qty > 0 && weapon.compatible_ammo.indexOf(b.ammoType) >= 0) return loaded;
+  }
+  for (const inv of (combatant.inventory || [])) {
+    if (!inv || !inv.id) continue;
+    const def = ITEMS[inv.id];
+    if (!def || def.category !== 'ammo') continue;
+    if (weapon.compatible_ammo.indexOf(def.ammoType) < 0) continue;
+    const qty = (inv.qty !== undefined) ? inv.qty : (def.qty || 0);
+    if (qty > 0) return inv.id;
+  }
+  return null;
+}
+
+// Merge weapon + loaded ammo into an "effective weapon" used for the attack
+// roll. The ammo type (from CDATA.ammo_types) overrides damage/range/vs_ac where
+// specified — required for the sling, optional for bows. Magic ammo's bonuses
+// ride along on `ammo_attack_bonus` / `ammo_damage_bonus`.
+function resolveEffectiveRangedWeapon(combatant, weapon) {
+  if (!weapon || !weapon.ranged) return weapon;
+  // Weapons that don't declare compatible_ammo (thrown daggers, javelins, darts)
+  // are self-contained — they ARE the projectile. Just return the weapon.
+  if (!weapon.compatible_ammo) return weapon;
+  const ammoId = getLoadedAmmoId(combatant, weapon);
+  if (!ammoId) return Object.assign({}, weapon, { _missing_ammo: true });
+  const bundle = getAmmoBundleItem(combatant, ammoId);
+  if (!bundle) return Object.assign({}, weapon, { _missing_ammo: true });
+  const aT = (typeof _CD !== 'undefined' && _CD && _CD.ammo_types) ? _CD.ammo_types[bundle.ammoType] : null;
+  const eff = Object.assign({}, weapon);
+  if (aT) {
+    if (aT.damage) eff.damage = aT.damage;
+    if (aT.range_squares) eff.range_squares = aT.range_squares;
+    if (aT.vs_ac) eff.vs_ac = aT.vs_ac;
+  }
+  eff.ammo_id = ammoId;
+  eff.ammo_type = bundle.ammoType;
+  eff.ammo_attack_bonus = bundle.attack_bonus;
+  eff.ammo_damage_bonus = bundle.damage_bonus;
+  return eff;
+}
+
+// Decrement the loaded ammo bundle's qty by 1. Called after every ranged shot.
+function consumeAmmo(combatant, weapon) {
+  if (!combatant || !weapon || !weapon.ranged || !weapon.compatible_ammo) return;
+  const ammoId = getLoadedAmmoId(combatant, weapon);
+  if (!ammoId) return;
+  const inv = (combatant.inventory || []).find(e => e && e.id === ammoId);
+  if (!inv) return;
+  const def = ITEMS[ammoId] || {};
+  if (inv.qty === undefined) inv.qty = def.qty || 0;
+  inv.qty = Math.max(0, inv.qty - 1);
+}
+
 // Shared to-hit/damage projection (no dice) so the hover preview and the resolver never disagree.
 function attackProjection(state, a, t, w, opts) {
   opts = opts || {};
+  // For ranged: merge weapon + loaded ammo. The effective weapon is what
+  // computeToHit / rangeBand operate on (so a sling firing stones uses stone's
+  // vs_ac and 4/8/16 range; a +1 arrow adds attack/damage bonuses).
+  const effW = w.ranged ? resolveEffectiveRangedWeapon(a, w) : w;
+  // If the shooter has no ammo loaded, projection returns "impossible" — the
+  // executor blocks the attack with a chat reason before this is rendered.
+  const noAmmo = !!effW._missing_ammo;
   const exposed = chargeAcPenalty(state, t); // charging target is exposed
-  const calc = computeToHit(a, t, w, exposed);
+  const calc = computeToHit(a, t, effW, exposed);
   let range = 0, range_band = null;
-  if (w.ranged) {
-    const rb = rangeBand(w, dist10(a.position, t.position));
+  if (w.ranged && effW.range_squares) {
+    const rb = rangeBand(effW, dist10(a.position, t.position));
     if (rb) { range = rb.mod; range_band = rb.band; }
   }
   const charge = opts.charge ? 2 : 0; // 1e: +2 to hit on a charge
@@ -1399,9 +1501,11 @@ function attackProjection(state, a, t, w, opts) {
   // Position relative to the foe's facing: flank negates shield (≈+1), rear adds +2 (shield & Dex gone).
   let arc = 'front', arcBonus = 0;
   if (w.melee && !opts.fleeing) { arc = attackArc(a, t); arcBonus = arc === 'rear' ? 2 : arc === 'flank' ? 1 : 0; }
-  const needed = Math.max(1, Math.min(20, calc.needed - range - charge - fleeBonus + parryPen + attackerHeld - targetHeld - targetDown - arcBonus - blessBonus + shieldPen));
-  const dmgDice = (t.size === 'L') ? w.damage.l : w.damage.sm;
-  const dmgBonus = ((a.magic_weapons && a.magic_weapons[w.id]) || w.magic_bonus || 0) + (a.damage_bonus || 0);
+  // Magic ammo's `attack_bonus` lowers `needed` (a +1 arrow makes a hit easier).
+  const ammoAtk = effW.ammo_attack_bonus || 0;
+  const needed = noAmmo ? 99 : Math.max(1, Math.min(20, calc.needed - range - charge - fleeBonus - ammoAtk + parryPen + attackerHeld - targetHeld - targetDown - arcBonus - blessBonus + shieldPen));
+  const dmgDice = noAmmo ? '0' : ((t.size === 'L') ? effW.damage.l : effW.damage.sm);
+  const dmgBonus = noAmmo ? 0 : (((a.magic_weapons && a.magic_weapons[w.id]) || w.magic_bonus || 0) + (a.damage_bonus || 0) + (effW.ammo_damage_bonus || 0));
   return {
     needed, base: calc.base, arc,
     mods: { wpnVsAc: calc.wpnVsAc, magic: calc.magic, str: calc.str, range, charge, exposed, fleeing: fleeBonus, parry: -parryPen, grappled: -attackerHeld, vsHeld: targetHeld, vsDown: targetDown, flank: arcBonus, bless: -blessBonus, shield: shieldPen },
@@ -1892,17 +1996,19 @@ function makeInitialState() {
         matrix_class: 'thief', level: 2,
         position: { col: 3, row: 5 }, facing: 45,
         hp_max: 8, hp_current: 8, ac_base: 7, ac_current: 7, size: 'M', str: 13, dex: 17,
-        loadout: ['short_sword', 'sling_bullet', 'dagger'], active_weapon: 'short_sword',
-        inventory: [{id:'leather'},{id:'i_short_sword'},{id:'i_sling'},{id:'i_dagger'},{id:'thieves_tools'},{id:'backpack'},{id:'rope'}],
+        loadout: ['short_sword', 'sling', 'dagger'], active_weapon: 'short_sword',
+        inventory: [{id:'leather'},{id:'i_short_sword'},{id:'i_sling'},{id:'i_dagger'},{id:'i_sling_bullets',qty:30},{id:'i_sling_stones',qty:20},{id:'thieves_tools'},{id:'backpack'},{id:'rope'}],
+        ammo_loaded: { sling: 'i_sling_bullets' },
         attack_bonus: 0, damage_bonus: 0,
         move: 4 },
       { id: 'aldric', side: 'A', kind: 'pc', label: 'Brother Aldric', letter: 'C',
         matrix_class: 'cleric', level: 4,
         position: { col: 2, row: 5 }, facing: 90,
         hp_max: 22, hp_current: 22, ac_base: 4, ac_current: 4, size: 'M', shield: true, str: 14, dex: 11,
-        loadout: ['mace', 'sling_bullet', 'dagger'], active_weapon: 'mace',
+        loadout: ['mace', 'sling', 'dagger'], active_weapon: 'mace',
         spell_charges: { bless: 1, cure_light_wounds: 2, hold_person: 1 },
-        inventory: [{id:'chain'},{id:'shield'},{id:'i_mace'},{id:'i_sling'},{id:'i_dagger'},{id:'holy_symbol'},{id:'backpack'},{id:'rations_wk'},{id:'waterskin'}],
+        inventory: [{id:'chain'},{id:'shield'},{id:'i_mace'},{id:'i_sling'},{id:'i_dagger'},{id:'i_sling_bullets',qty:30},{id:'holy_symbol'},{id:'backpack'},{id:'rations_wk'},{id:'waterskin'}],
+        ammo_loaded: { sling: 'i_sling_bullets' },
         attack_bonus: 0, damage_bonus: 0,
         move: 4 },
       { id: 'skeleton_1', side: 'B', kind: 'monster',
@@ -2119,13 +2225,20 @@ function gpToLb(gp) { return (gp || 0) / 10; }
 function cdataWeaponToSim(id) {
   const src = _CD && _CD.weapons ? _CD.weapons[id] : null;
   if (!src) return null;
-  const dmg = src.damage || {};
   const w = {
     id: src.id, name: src.name, icon: src.melee ? '\u2694' : '\u27B3',
-    speed: src.speed != null ? src.speed : 5,
-    damage: { sm: dmg.sm || '1d4', l: dmg.l || dmg.sm || '1d4' }, vs_ac: {}
+    speed: src.speed != null ? src.speed : 5
   };
-  for (let a = 2; a <= 10; a++) w.vs_ac[a] = (src.vs_ac && src.vs_ac[a] != null) ? src.vs_ac[a] : 0;
+  // Damage: only set if CDATA provides it. Sling and any other ammo-only weapon
+  // has no inherent damage — the runtime pulls it from loaded ammo.
+  if (src.damage) {
+    w.damage = { sm: src.damage.sm || '1d4', l: src.damage.l || src.damage.sm || '1d4' };
+  }
+  // vs_ac: same logic — empty in CDATA means "no opinion", let the existing entry win.
+  if (src.vs_ac && Object.keys(src.vs_ac).length > 0) {
+    w.vs_ac = {};
+    for (let a = 2; a <= 10; a++) w.vs_ac[a] = (src.vs_ac[a] != null) ? src.vs_ac[a] : 0;
+  }
   if (src.melee) {
     w.melee = true;
     w.length = src.length != null ? src.length : 3;
@@ -2133,19 +2246,23 @@ function cdataWeaponToSim(id) {
     if (src.settable) w.settable = true;
   } else {
     w.ranged = true; w.length = 0;
-    w.range_squares = src.range_squares ? src.range_squares : (src.range ? { s: src.range[0], m: src.range[1], l: src.range[2] } : { s: 5, m: 10, l: 15 });
+    // range_squares: only set if CDATA provides it. Sling delegates range to ammo.
+    if (src.range_squares) w.range_squares = src.range_squares;
+    else if (src.range) w.range_squares = { s: src.range[0], m: src.range[1], l: src.range[2] };
     if (src.rof != null) w.rof = src.rof;
   }
   if (src.two_handed) w.two_handed = true;
   if (src.verb) w.verb = src.verb;
   if (src.classes) w.classes = src.classes;
   if (src.mounted_only) w.mounted_only = true;
+  // Ammo coupling (v0.8.5): pass through compatible_ammo + default_ammo for ranged weapons.
+  if (src.compatible_ammo) w.compatible_ammo = src.compatible_ammo;
+  if (src.default_ammo) w.default_ammo = src.default_ammo;
   const existing = WEAPONS[id];
   WEAPONS[id] = Object.assign({}, existing || {}, w);
   if (existing && existing.icon) WEAPONS[id].icon = existing.icon; // preserve sim iconography
-  // Preserve sim's vs_ac when CDATA has none (CDATA ranged has no vs_ac yet — v0.8.5 closes that gap).
-  const cdataHadVsAc = src.vs_ac && Object.keys(src.vs_ac).length > 0;
-  if (!cdataHadVsAc && existing && existing.vs_ac) WEAPONS[id].vs_ac = existing.vs_ac;
+  // Preserve sim's vs_ac when CDATA has none (ranged weapons still need ranged vs_ac — v0.8.6).
+  if (!w.vs_ac && existing && existing.vs_ac) WEAPONS[id].vs_ac = existing.vs_ac;
   if (src.space != null) WEAPON_SPACE[id] = src.space;
   return id;
 }
@@ -3298,7 +3415,16 @@ async function executeAttackDecl(c, decl) {
       await sleep(150);
       return;
     }
-    if (dist10(c.position, target.position) > weapon.range_squares.l) {
+    // v0.8.5: ammo gate — sling/bow/crossbow needs compatible ammo loaded or available.
+    // Thrown weapons (dagger/javelin/dart) skip this since they ARE the projectile.
+    const effRanged = (weapon.compatible_ammo) ? resolveEffectiveRangedWeapon(c, weapon) : weapon;
+    if (effRanged._missing_ammo) {
+      log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${c.side === 'A' ? 'a' : 'b'}">${c.label}</span> has no ammunition for ${weapon.name}.</span>`);
+      await sleep(150);
+      return;
+    }
+    const reachR = (effRanged.range_squares && effRanged.range_squares.l) || (weapon.range_squares && weapon.range_squares.l) || 0;
+    if (dist10(c.position, target.position) > reachR) {
       log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${c.side === 'A' ? 'a' : 'b'}">${c.label}</span>'s ${weapon.name} cannot reach <span class="${target.side === 'A' ? 'a' : 'b'}">${target.label}</span>.</span>`);
       await sleep(150);
       return;
@@ -3332,6 +3458,8 @@ async function executeAttackDecl(c, decl) {
   markStrike(c, target);
   const event = resolveAttack(state, c.id, target.id, decl.weapon_id, { subdue: !!c._subdue });
   if (event) {
+    // v0.8.5: ranged ammo decrement on every shot (thrown weapons skip — handled separately).
+    if (weapon.ranged && weapon.compatible_ammo) consumeAmmo(c, weapon);
     logAttackEvent(event);
     showAttackVfx(event);
   }
