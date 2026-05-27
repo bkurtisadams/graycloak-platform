@@ -6,6 +6,35 @@
 
 ---
 
+## Status — v0.8.3 (2026-05-27)
+
+**GM Panel slice 1 shipped: the shell + combatant editor + settings strip.** A slide-in panel
+(toggle `⚙ GM` in the topbar; `z-index` 95 so it works *over* the setup overlay — you can edit before
+deploying), native to the tool's existing tome styling (no new design system imposed):
+
+- **Combatant editor** — pick any combatant from a side-grouped roster, edit name / side / class /
+  level-HD / HP cur·max / AC base·cur / Str / Dex / base move. **Apply** mutates the combatant, then
+  `recomputeMove` + `recomputeEngagements` + `renderAll`. HP clamps to max; HP≤0 flags dead; reviving
+  clears `_asleep`/`_unconscious`/`_paralyzed_until`.
+- **AC suggestion** — a **Suggest** button fills the AC fields from `computeAC` (armour+Dex+shield);
+  the GM can still override. Never auto-applied (consistent with the v0.8.2 decision).
+- **GM Settings strip** — gp/lb weight toggle (`state.weight_unit`) and a Peek-orders toggle.
+
+Render discipline: the panel rebuilds on open/select/apply only (never from `renderAll`, to avoid
+wiping input focus); `renderAll` refreshes the roster list alone while the panel is open.
+
+Verified headless: extract + `node --check` clean; a 23-assertion logic suite drives the **real**
+`App.gm*` methods against the **real** state model under a stubbed DOM (the full `renderAll` pipeline
+runs without error on apply) — covering field mutation, AC suggestion (Aggro plate+Dex15 → 2/1),
+HP clamp/dead/revive, side-regroup, and the weight toggle. Diff vs v0.8.2 is one changed line (the
+version) + additive blocks; all 13 `execute*` fns and the 7 v0.8.2 glue fns intact.
+
+**Deferred to the next slices (v0.8.4+):** gear doling from the CDATA catalog (`cdataArmorToItem`/
+`cdataWeaponToSim` + live encumbrance), spell memorization (`CDATA.getSpellSlots`), monster spawning
+(`spawnFromTemplate`) + read-only inspect HUD, and free token-drag during setup.
+
+---
+
 ## Status — v0.8.2 (2026-05-27)
 
 **The AMMOG glue layer landed (sim-side), fully node-verified — no UI yet.** The "staged but not
