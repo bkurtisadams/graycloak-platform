@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.8.7 -->
+<!-- dungeon-encounter — v0.9.0 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -817,7 +817,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.8.7';
+const SIM_VERSION = 'v0.9.0';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -1236,8 +1236,31 @@ function minCheb(cellsA, cellsB) {
   for (const a of cellsA) for (const b of cellsB) { const d = Math.max(Math.abs(a.col - b.col), Math.abs(a.row - b.row)); if (d < m) m = d; }
   return m;
 }
-// Reach is 1 and symmetric; the footprint is the only thing that extends a creature's reach.
-function inMelee(a, b) { return minCheb(footprintCells(a), footprintCells(b)) === 1; }
+// v0.8.8: Reach in fine cells (Chebyshev). Round-to-nearest with a 1-cell floor.
+// Examples: long_sword (3.5′) = round(1.4) = 1; halberd (5′) = 2; spear (9′) = 4;
+// awl pike (18′) = 7; battle_axe (4′) = 2; dagger/short_sword/club/mace = 1.
+// Natural attacks (claws/bite/spider_bite, all length<2.5′) clamp to 1 naturally.
+// Weaponless attacks (overbear/grapple/pummel) and ranged weapons return 1 — neither
+// has melee reach in the swing-arc sense.
+function meleeReach(combatant, weapon) {
+  if (!weapon || !weapon.melee) return 1;
+  if (weapon.id === 'overbear' || weapon.id === 'grapple' || weapon.id === 'pummel') return 1;
+  const lenFt = weapon.length;
+  if (!lenFt || lenFt < 1.25) return 1;
+  return Math.max(1, Math.round(lenFt / 2.5));
+}
+
+// v0.8.8: Engagement is reach-aware and SYMMETRIC — A and B are "in melee" when the
+// minimum-Chebyshev distance between their footprints is ≤ max(reachA, reachB). Asymmetry
+// in WHO can actually strike (a pike-wielder hits a swordsman from 5 cells, the swordsman
+// can't hit back from there) is handled in attack resolution — engagement just means
+// "in the same melee exchange." Pre-v0.8.8 this was strict `=== 1` (base-to-base).
+function inMelee(a, b) {
+  if (!a || !b) return false;
+  const ra = meleeReach(a, WEAPONS[a.active_weapon]);
+  const rb = meleeReach(b, WEAPONS[b.active_weapon]);
+  return minCheb(footprintCells(a), footprintCells(b)) <= Math.max(ra, rb);
+}
 // v0.8.7: Space-too-small check. The wielder can't swing freely when other combatants
 // crowd them in adjacent fine cells. Only kicks in for melee weapons whose `space` is
 // >= 4 ft (the PHB threshold roughly distinguishing wide-swing weapons like halberd,
@@ -1272,7 +1295,10 @@ function attackArc(a, t) {
   if (d >= 120) return 'rear';
   return 'flank';
 }
-// Everyone (alive) in melee contact with t, plus t — the "press" a stray missile can hit.
+// Everyone (alive) in physical base-to-base contact with t, plus t — the "press" a stray
+// missile can hit. NOTE: this stays at strict `=== 1` even in v0.8.8 where engagement is
+// reach-aware. The "press" is a physical pile of bodies; a pike-wielder 7 cells back is
+// engaged with the press but not part of the physical cluster a stray missile can strike.
 function meleeGroupAround(t) {
   const grp = [t];
   for (const c of state.combatants) {
@@ -1288,7 +1314,14 @@ function pickIntoMelee(group) {
   for (const c of group) { r -= sizeWeight(c); if (r <= 0) return c; }
   return group[group.length - 1];
 }
-function inMeleeAt(mover, anchor, other) { return minCheb(cellsAt(anchor, sizeCells(mover)), footprintCells(other)) === 1; }
+// v0.8.8: Reach-aware. "If `mover` were standing at `anchor`, would they be in melee with `other`?"
+// Uses symmetric max-reach the same way inMelee does. Used by movement validation.
+function inMeleeAt(mover, anchor, other) {
+  if (!mover || !other) return false;
+  const rm = meleeReach(mover, WEAPONS[mover.active_weapon]);
+  const ro = meleeReach(other, WEAPONS[other.active_weapon]);
+  return minCheb(cellsAt(anchor, sizeCells(mover)), footprintCells(other)) <= Math.max(rm, ro);
+}
 function moverSize(state, excludeId) { const m = findCombatant(state, excludeId); return m ? sizeCells(m) : 1; }
 function targetCells(target) { return (target && target.position) ? footprintCells(target) : [{ col: target.col, row: target.row }]; }
 function footprintFree(col, row, n, occupied) {
@@ -1385,12 +1418,17 @@ function computeReachable(state, fromPos, budget, excludeId) {
 }
 
 // Find a reachable anchor where the mover's footprint ends in melee (reach 1) with the target's footprint.
-function findBestAdjacentSquare(state, fromPos, target, maxSteps, excludeId) {
+// v0.8.8: Find the best reachable cell from which the mover can strike `target` with
+// `reach` (Chebyshev fine cells). Default reach=1 is the pre-v0.8.8 base-to-base behavior;
+// pass meleeReach(actor, weapon) for weapon-aware closing.
+function findBestReachSquare(state, fromPos, target, maxSteps, excludeId, reach) {
+  const r = reach != null ? reach : 1;
   const reachable = computeReachable(state, fromPos, maxSteps, excludeId);
   const n = moverSize(state, excludeId), tcells = targetCells(target);
   let best = null;
   for (const [, info] of reachable) {
-    if (minCheb(cellsAt(info, n), tcells) !== 1) continue;
+    const d = minCheb(cellsAt(info, n), tcells);
+    if (d < 1 || d > r) continue;  // d=0 means overlapping target — skip; d>reach is out of range
     if (!best || info.distance < best.distance) best = info;
   }
   return best;
@@ -2775,12 +2813,14 @@ function aiDeclare(m) {
   }
   enemies.sort((a, b) => distanceSquares(m.position, a.position) - distanceSquares(m.position, b.position));
   const nearest = enemies[0];
-  const reach = findBestAdjacentSquare(state, m.position, nearest, (m.move || 4) * SUB, m.id);
+  const mWeapon = WEAPONS[m.active_weapon];
+  const mReach = meleeReach(m, mWeapon);
+  const reach = findBestReachSquare(state, m.position, nearest, (m.move || 4) * SUB, m.id, mReach);
   if (reach) {
     return { kind: 'attack', weapon_id: m.active_weapon, target_id: nearest.id };
   }
   if (weapon && weapon.melee && chargeAllowed(m)) {
-    const chargeReach = findBestAdjacentSquare(state, m.position, nearest, (m.move || 4) * SUB * 2, m.id);
+    const chargeReach = findBestReachSquare(state, m.position, nearest, (m.move || 4) * SUB * 2, m.id, mReach);
     if (chargeReach) return { kind: 'charge', weapon_id: m.active_weapon, target_id: nearest.id };
   }
   const partial = movePartialTowards(state, m.position, nearest, (m.move || 4) * SUB, m.id);
@@ -3147,7 +3187,7 @@ async function executeGrappleDecl(c, decl) {
   // Close to grappling range if needed.
   if (!inMelee(c, target)) {
     const budget = (c.move || 4) * SUB - (c.movement_used || 0);
-    const reach = findBestAdjacentSquare(state, c.position, target, budget, c.id);
+    const reach = findBestReachSquare(state, c.position, target, budget, c.id);
     if (!reach) {
       const partial = movePartialTowards(state, c.position, target, budget, c.id);
       if (partial && partial.distance > 0) await moveCombatantTo(c, partial.col, partial.row, partial.distance);
@@ -3231,7 +3271,7 @@ async function executePummelDecl(c, decl) {
   const tSide = target.side === 'A' ? 'a' : 'b';
   if (!inMelee(c, target)) {
     const budget = (c.move || 4) * SUB - (c.movement_used || 0);
-    const reach = findBestAdjacentSquare(state, c.position, target, budget, c.id);
+    const reach = findBestReachSquare(state, c.position, target, budget, c.id);
     if (!reach) {
       const partial = movePartialTowards(state, c.position, target, budget, c.id);
       if (partial && partial.distance > 0) await moveCombatantTo(c, partial.col, partial.row, partial.distance);
@@ -3297,7 +3337,7 @@ async function executeOverbearDecl(c, decl) {
   // Close to grappling range.
   if (rushed) {
     const budget = (c.move || 4) * SUB - (c.movement_used || 0);
-    const reach = findBestAdjacentSquare(state, c.position, target, budget, c.id);
+    const reach = findBestReachSquare(state, c.position, target, budget, c.id);
     if (!reach) {
       const partial = movePartialTowards(state, c.position, target, budget, c.id);
       if (partial && partial.distance > 0) await moveCombatantTo(c, partial.col, partial.row, partial.distance);
@@ -3424,12 +3464,12 @@ async function executeAttackDecl(c, decl) {
     }
   }
 
-  // Melee: ensure adjacent. Move toward target if needed.
+  // Melee: ensure within weapon reach. Move toward target if needed.
   let didClose = false;
   if (weapon.melee && !inMelee(c, target)) {
     didClose = true;
     const budget = (c.move || 4) * SUB - (c.movement_used || 0);
-    const reach = findBestAdjacentSquare(state, c.position, target, budget, c.id);
+    const reach = findBestReachSquare(state, c.position, target, budget, c.id, meleeReach(c, weapon));
     if (!reach) {
       // Cannot reach this round — advance partial
       const partial = movePartialTowards(state, c.position, target, budget, c.id);
@@ -3542,7 +3582,7 @@ async function executeChargeDecl(c, decl) {
 
   if (!inMelee(c, target)) {
     const budget = (c.move || 4) * SUB * 2 - (c.movement_used || 0); // double rate
-    const reach = findBestAdjacentSquare(state, c.position, target, budget, c.id);
+    const reach = findBestReachSquare(state, c.position, target, budget, c.id, meleeReach(c, weapon));
     if (!reach) {
       const partial = movePartialTowards(state, c.position, target, budget, c.id);
       if (partial && partial.distance > 0) await moveCombatantTo(c, partial.col, partial.row, partial.distance);
@@ -4196,12 +4236,13 @@ function computeValidTargets(c, picking) {
     const w = WEAPONS[picking.weaponId];
     if (!w || !w.melee) return [];
     const budget = (c.move || 4) * SUB * 2;
+    const r = meleeReach(c, w);
     return enemies.filter(e => !inMelee(c, e) &&
-      findBestAdjacentSquare(state, c.position, e, budget, c.id) != null);
+      findBestReachSquare(state, c.position, e, budget, c.id, r) != null);
   }
   if (picking.grapple || picking.overbear || picking.pummel) {
     const budget = (c.move || 4) * SUB;
-    return enemies.filter(e => inMelee(c, e) || findBestAdjacentSquare(state, c.position, e, budget, c.id) != null);
+    return enemies.filter(e => inMelee(c, e) || findBestReachSquare(state, c.position, e, budget, c.id) != null);
   }
   if (picking.stepStrike) return enemies;
   if (picking.weaponId) {
@@ -4209,9 +4250,10 @@ function computeValidTargets(c, picking) {
     if (w.melee) {
       // For declarations, any enemy reachable this round (movement in fine cells) is valid
       const budget = (c.move || 4) * SUB;
+      const r = meleeReach(c, w);
       return enemies.filter(e => {
         if (inMelee(c, e)) return true;
-        const reach = findBestAdjacentSquare(state, c.position, e, budget, c.id);
+        const reach = findBestReachSquare(state, c.position, e, budget, c.id, r);
         return reach != null;
       });
     } else if (w.ranged) {
@@ -4855,6 +4897,7 @@ function renderHotbar() {
     if (a.declared) cls.push('declared');
     if (a.disabled) cls.push('disabled');
     btn.className = cls.filter(Boolean).join(' ');
+    if (a.key) btn.dataset.key = a.key;
     btn.innerHTML = `
       <span class="icon">${a.icon}</span>
       <span class="label" title="${a.detail || ''}">${a.label}</span>
@@ -5595,10 +5638,9 @@ document.addEventListener('keydown', (e) => {
   const c = findCombatant(state, state.selected_id);
   if (!c || c.side !== state.acting_side) return;
   const key = e.key;
-  const slotIndex = key === '0' ? 9 : (parseInt(key) - 1);
-  if (slotIndex >= 0 && slotIndex <= 9) {
-    const slots = document.querySelectorAll('#hotbar .slot');
-    if (slots[slotIndex]) slots[slotIndex].click();
+  if (/^[1-9]$/.test(key)) {
+    const btn = document.querySelector('#hud-action-row .slot[data-key="' + key + '"]');
+    if (btn && !btn.classList.contains('disabled')) btn.click();
   }
 });
 
