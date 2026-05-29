@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.4 -->
+<!-- dungeon-encounter — v0.9.6 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -819,7 +819,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.4';
+const SIM_VERSION = 'v0.9.6';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -1380,6 +1380,7 @@ function chargeAcPenalty(state, c) {
 }
 // 1e charge: only one charge may be made every 10 rounds.
 function chargeAllowed(c) {
+  if (c._enc && c._enc.moveIn <= 3) return false; // DMG: a creature reduced to "Encumbered" (≤3") cannot charge
   return c._last_charge_round == null || (state.round - c._last_charge_round) >= 10;
 }
 function weaponLength(weaponId) {
@@ -2096,7 +2097,7 @@ function makeInitialState() {
         attack_bonus: 1, damage_bonus: 1,
         magic_weapons: { battle_axe: 1 },
         inventory: [{id:'plate'},{id:'shield'},{id:'i_long_sword'},{id:'i_battle_axe'},{id:'i_hand_axe'},{id:'i_dagger'},{id:'backpack'},{id:'rations_wk'},{id:'waterskin'},{id:'rope'}],
-        move: 4 }, // move in inches (1" = 10 ft indoors, 10 yd outdoors)
+        move: 12 }, // move in inches (1" = 10 ft indoors, 10 yd outdoors)
       { id: 'abner', side: 'A', kind: 'pc', label: 'Abner', letter: 'M',
         matrix_class: 'magic_user', level: 5,
         position: { col: 2, row: 4 }, facing: 90,
@@ -2105,7 +2106,7 @@ function makeInitialState() {
         spell_charges: { magic_missile: 2, shield: 1, sleep: 1, shocking_grasp: 2 },
         inventory: [{id:'i_dagger'},{id:'i_dart',qty:3},{id:'spellbook'},{id:'backpack'},{id:'waterskin'}],
         attack_bonus: 0, damage_bonus: 0,
-        move: 4 },
+        move: 12 },
       { id: 'arlanni', side: 'A', kind: 'pc', label: 'Arlanni', letter: 'T',
         matrix_class: 'thief', level: 2,
         position: { col: 3, row: 5 }, facing: 45,
@@ -2114,7 +2115,7 @@ function makeInitialState() {
         inventory: [{id:'leather'},{id:'i_short_sword'},{id:'i_sling'},{id:'i_dagger'},{id:'i_sling_bullets',qty:30},{id:'i_sling_stones',qty:20},{id:'thieves_tools'},{id:'backpack'},{id:'rope'}],
         ammo_loaded: { sling: 'i_sling_bullets' },
         attack_bonus: 0, damage_bonus: 0,
-        move: 4 },
+        move: 12 },
       { id: 'aldric', side: 'A', kind: 'pc', label: 'Brother Aldric', letter: 'C',
         matrix_class: 'cleric', level: 4,
         position: { col: 2, row: 5 }, facing: 90,
@@ -2124,7 +2125,7 @@ function makeInitialState() {
         inventory: [{id:'chain'},{id:'shield'},{id:'i_mace'},{id:'i_sling'},{id:'i_dagger'},{id:'i_sling_bullets',qty:30},{id:'holy_symbol'},{id:'backpack'},{id:'rations_wk'},{id:'waterskin'}],
         ammo_loaded: { sling: 'i_sling_bullets' },
         attack_bonus: 0, damage_bonus: 0,
-        move: 4 },
+        move: 12 },
       { id: 'skeleton_1', side: 'B', kind: 'monster',
         template_id: 'skeleton', label: 'Skeleton', letter: 's',
         matrix_class: 'monster', level: 1, hd: '1', intelligent: false, undead: true, undead_type: 'Skeleton',
@@ -2132,7 +2133,7 @@ function makeInitialState() {
         hp_max: 5, hp_current: 5, ac_base: 7, ac_current: 7, size: 'M', str: 12, dex: 12,
         loadout: ['spear'], active_weapon: 'spear',
         attack_bonus: 0, damage_bonus: 0,
-        move: 4, singles_out: false },
+        move: 12, singles_out: false },
       { id: 'orc_1', side: 'B', kind: 'monster',
         template_id: 'orc', label: 'Orc', letter: 'o',
         matrix_class: 'monster', level: 1, hd: '1',
@@ -2140,7 +2141,7 @@ function makeInitialState() {
         hp_max: 6, hp_current: 6, ac_base: 6, ac_current: 6, size: 'M', str: 13, dex: 11,
         loadout: ['pike'], active_weapon: 'pike',
         attack_bonus: 0, damage_bonus: 0,
-        move: 4, singles_out: true },
+        move: 9, singles_out: true },
       { id: 'ogre_1', side: 'B', kind: 'monster',
         template_id: 'ogre', label: 'Ogre', letter: 'O',
         matrix_class: 'monster', level: 4.5, hd: '4+1',
@@ -2148,7 +2149,7 @@ function makeInitialState() {
         hp_max: 18, hp_current: 18, ac_base: 5, ac_current: 5, size: 'L', size_cells: 2, size_token: 1.15, str: 18, dex: 9,
         loadout: ['ogre_club'], active_weapon: 'ogre_club',
         attack_bonus: 0, damage_bonus: 0,
-        move: 3, singles_out: true }
+        move: 9, singles_out: true }
     ]
   };
   state.combatants.forEach(c => {
@@ -2432,7 +2433,7 @@ function spawnFromTemplate(templateId, side, pos) {
   const hdInfo = parseHD(hdNum);
   const level = hdInfo.dice + (hdInfo.plus > 0 ? 0.5 : 0); // "4+1" HD -> level 4.5, matching seed convention
   const sizeCells = t.size === 'L' ? 2 : t.size === 'H' ? 3 : 1;
-  const mv = Math.max(1, Math.round((t.moveRate != null ? t.moveRate : 12) / 3));
+  const mv = Math.max(1, Math.round(t.moveRate != null ? t.moveRate : 12)); // true 1e rate (1" = 10 ft indoors)
   const hp = Math.max(1, rollDice(Math.max(1, Math.round(hdNum)) + 'd8'));
   const baseCol = pos ? pos.col : Math.floor(COLS / SUB) - 2;
   const baseRow = pos ? pos.row : 3;
