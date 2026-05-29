@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.3 -->
+<!-- dungeon-encounter — v0.9.4 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -819,7 +819,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.3';
+const SIM_VERSION = 'v0.9.4';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -994,8 +994,8 @@ const ITEMS = {
   i_sling:       { id: 'i_sling',       name: 'Sling',       category: 'weapon', weight: 5,   weapon_id: 'sling' },
   i_dart:        { id: 'i_dart',        name: 'Dart',        category: 'weapon', weight: 5,   weapon_id: 'dart' },
   // Ammo (consumed per shot via combatant.ammo_loaded; qty is the remaining count).
-  i_sling_bullets: { id: 'i_sling_bullets', name: 'Sling Bullets', category: 'ammo', weight: 15, qty: 30, ammoType: 'bullet' },
-  i_sling_stones:  { id: 'i_sling_stones',  name: 'Sling Stones',  category: 'ammo', weight: 20, qty: 20, ammoType: 'stone'  },
+  i_sling_bullets: { id: 'i_sling_bullets', name: 'Sling Bullets', category: 'ammo', weight: 1, qty: 30, ammoType: 'bullet' },
+  i_sling_stones:  { id: 'i_sling_stones',  name: 'Sling Stones',  category: 'ammo', weight: 1, qty: 20, ammoType: 'stone'  },
   i_arrows:        { id: 'i_arrows',        name: 'Arrows',        category: 'ammo', weight: 30, qty: 20, ammoType: 'arrow'  },
   i_bolts_light:   { id: 'i_bolts_light',   name: 'Light Quarrels',category: 'ammo', weight: 15, qty: 30, ammoType: 'quarrel_light' },
   i_bolts_heavy:   { id: 'i_bolts_heavy',   name: 'Heavy Quarrels',category: 'ammo', weight: 30, qty: 30, ammoType: 'quarrel_heavy' },
@@ -1326,6 +1326,14 @@ function inMeleeAt(mover, anchor, other) {
 }
 function moverSize(state, excludeId) { const m = findCombatant(state, excludeId); return m ? sizeCells(m) : 1; }
 function targetCells(target) { return (target && target.position) ? footprintCells(target) : [{ col: target.col, row: target.row }]; }
+// Can `attacker` actually strike `target` from where it stands, using only its OWN weapon's reach?
+// inMelee is symmetric (engagement, uses max of both reaches); this is the asymmetric strike test —
+// a swordsman engaged by a pike is "in melee" but cannot land a blow from pike range.
+function withinStrikeReach(attacker, target, weapon) {
+  if (!attacker || !target) return false;
+  const r = meleeReach(attacker, weapon || WEAPONS[attacker.active_weapon]);
+  return minCheb(footprintCells(attacker), footprintCells(target)) <= r;
+}
 function footprintFree(col, row, n, occupied) {
   for (let dc = 0; dc < n; dc++) for (let dr = 0; dr < n; dr++) {
     const cc = col + dc, rr = row + dr;
@@ -3582,9 +3590,9 @@ async function executeAttackDecl(c, decl) {
     }
   }
 
-  // Melee: ensure within weapon reach. Move toward target if needed.
+  // Melee: ensure within the attacker's OWN weapon reach. Move toward target if needed.
   let didClose = false;
-  if (weapon.melee && !inMelee(c, target)) {
+  if (weapon.melee && !withinStrikeReach(c, target, weapon)) {
     didClose = true;
     const budget = (c.move || 4) * SUB - (c.movement_used || 0);
     const reach = findBestReachSquare(state, c.position, target, budget, c.id, meleeReach(c, weapon));
