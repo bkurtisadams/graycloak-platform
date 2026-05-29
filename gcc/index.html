@@ -1350,11 +1350,11 @@ window.addEventListener('gcc-sync-ready', () => {
         '<div class="invite-banner">' +
           '<div class="invite-banner-title">CAMPAIGN INVITE</div>' +
           '<div class="invite-banner-sub">Sign in or register to join this campaign.</div>' +
-          '<div style="margin-top:12px"><button class="invite-banner-btn" id="invite-signin-btn">Sign In to Join</button>' +
+          '<div style="margin-top:12px"><button class="invite-banner-btn" id="invite-signin-btn">Sign In / Register to Join</button>' +
           '<button class="invite-banner-btn secondary" onclick="document.getElementById(\'invite-banner\').style.display=\'none\';history.replaceState(null,\'\',\'index.html\')">Dismiss</button></div>' +
         '</div>';
       document.getElementById('invite-signin-btn').addEventListener('click', () => {
-        GCCAuth.showModal('register');
+        GCCAuth.showModal('signin');
       });
       GCCAuth.onAuthChange(async u => {
         if (u && !banner._joined) {
