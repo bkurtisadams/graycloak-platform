@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.8 -->
+<!-- dungeon-encounter — v0.9.9 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -831,7 +831,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.8';
+const SIM_VERSION = 'v0.9.9';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -2956,7 +2956,12 @@ function aiDeclare(m) {
   const enemies = aliveCombatantsOnSide(state, m.side === 'A' ? 'B' : 'A');
   if (enemies.length === 0) return { kind: 'hold' };
   if ((m.engaged_with || []).length > 0) {
-    return { kind: 'attack', weapon_id: m.active_weapon, target_id: null };
+    // DMG "Who Attacks Whom": intelligent creatures single out a foe; unintelligent ones strike randomly.
+    if (!m.singles_out) return { kind: 'attack', weapon_id: m.active_weapon, target_id: null };
+    const eng = (m.engaged_with || []).map(id => findCombatant(state, id)).filter(t => t && !t.dead);
+    if (eng.length === 0) return { kind: 'attack', weapon_id: m.active_weapon, target_id: null };
+    eng.sort((a, b) => distanceSquares(m.position, a.position) - distanceSquares(m.position, b.position));
+    return { kind: 'attack', weapon_id: m.active_weapon, target_id: eng[0].id };
   }
   enemies.sort((a, b) => distanceSquares(m.position, a.position) - distanceSquares(m.position, b.position));
   const nearest = enemies[0];
@@ -4997,9 +5002,6 @@ function renderHotbar() {
     const undeadNear = aliveCombatantsOnSide(state, c.side === 'A' ? 'B' : 'A').some(e => e.undead);
     actionDefs.push({ kind: 'turn', icon: '☼', label: 'Turn Undead', detail: 'Rebuke the dead', disabled: !undeadNear, cls: 'turn', key: '', declared: currentDecl?.kind === 'turn' });
   }
-  if (c.singles_out && enemiesAlive > 0) {
-    actionDefs.push({ kind: 'single-out', icon: '◎', label: 'Single Out', detail: 'Toggle target', disabled: false, cls: 'single-out', key: '', active: state.single_out_mode });
-  }
 
   const _r = c.hp_max ? c.hp_current / c.hp_max : 0;
   const _hpcls = _r > 0.5 ? '' : (_r > 0.25 ? 'hp-mid' : 'hp-low');
@@ -5096,7 +5098,6 @@ function renderHotbar() {
         else if (a.kind === 'hold') App.declareHold(c.id);
         else if (a.kind === 'clear') App.clearDeclaration(c.id);
         else if (a.kind === 'suggest') App.suggestDeclaration(c.id);
-        else if (a.kind === 'single-out') App.toggleSingleOut();
       });
     }
     actionRow.appendChild(btn);
@@ -5642,18 +5643,8 @@ const App = {
     const slots = ensureHudSlots(c);
     if (w.ranged) slots.missile = weaponId;
     else { slots.primary = weaponId; setActiveWeapon(c, weaponId); }
-    if (state.single_out_mode && c.singles_out && w.melee) {
-      state.picking = { kind: 'target', forCombatantId: combatantId, weaponId };
-      renderAll();
-      return;
-    }
-    if (w.ranged) {
-      state.picking = { kind: 'target', forCombatantId: combatantId, weaponId };
-      renderAll();
-      return;
-    }
-    setDeclaration(combatantId, { kind: 'attack', weapon_id: weaponId, target_id: null });
-    state.single_out_mode = false;
+    // An intelligent figure singles out its target by picking it — melee or ranged alike.
+    state.picking = { kind: 'target', forCombatantId: combatantId, weaponId };
     renderAll();
   },
 
@@ -5866,6 +5857,10 @@ document.addEventListener('keydown', (e) => {
   const c = findCombatant(state, state.selected_id);
   if (!c || c.side !== state.acting_side) return;
   const key = e.key;
+  if ((key === 't' || key === 'T') && !e.ctrlKey && !e.metaKey) {
+    if (WEAPONS[c.active_weapon]) App.declareAttack(c.id, c.active_weapon);
+    return;
+  }
   if (/^[1-9]$/.test(key)) {
     const btn = document.querySelector('#hud-action-row .slot[data-key="' + key + '"]');
     if (btn && !btn.classList.contains('disabled')) btn.click();
