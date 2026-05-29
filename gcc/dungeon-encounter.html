@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.6 -->
+<!-- dungeon-encounter — v0.9.8 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -94,6 +94,18 @@ body {
   stroke-width: 1.5; stroke-dasharray: 4 3; pointer-events: none; }
 .hex-cost { font-family: 'DM Mono', monospace; font-size: 11px;
   fill: rgba(170,210,140,0.65); text-anchor: middle; pointer-events: none; font-weight: 500; }
+.hex-move-tint { fill: rgba(120,170,210,0.10); stroke: rgba(120,170,210,0.30);
+  stroke-width: 0.8; pointer-events: none; }
+.drag-ruler { stroke-width: 2; stroke-dasharray: 5 3; pointer-events: none; fill: none; }
+.drag-ruler.ok { stroke: rgba(120,210,140,0.95); }
+.drag-ruler.clamp { stroke: rgba(232,190,90,0.95); }
+.drag-ghost { fill: rgba(120,170,210,0.20); stroke: rgba(150,200,235,0.95);
+  stroke-width: 1.5; stroke-dasharray: 4 3; pointer-events: none; }
+.drag-ruler-label { font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 600;
+  text-anchor: middle; pointer-events: none; paint-order: stroke;
+  stroke: rgba(8,7,6,0.92); stroke-width: 3px; }
+.drag-ruler-label.ok { fill: rgb(150,225,165); }
+.drag-ruler-label.clamp { fill: rgb(240,205,120); }
 .engagement-line { stroke: rgba(220,130,80,0.55); stroke-width: 1.5;
   stroke-dasharray: 5 3; pointer-events: none; }
 
@@ -819,7 +831,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.6';
+const SIM_VERSION = 'v0.9.8';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -1379,6 +1391,12 @@ function chargeAcPenalty(state, c) {
   return (c._charge_round === state.round && c.ac_current < 10) ? 1 : 0;
 }
 // 1e charge: only one charge may be made every 10 rounds.
+// Cells a figure may cover with one action this round. A surprise segment is 1/10 of a round
+// (6s of a 1-minute round), so movement in it is 1/10 of the round rate (e.g. 6" -> 6 ft/segment).
+function moveCells(c) {
+  const full = (c.move || 4) * SUB;
+  return state.is_surprise_round ? Math.max(1, Math.round(full / 10)) : full;
+}
 function chargeAllowed(c) {
   if (c._enc && c._enc.moveIn <= 3) return false; // DMG: a creature reduced to "Encumbered" (≤3") cannot charge
   return c._last_charge_round == null || (state.round - c._last_charge_round) >= 10;
@@ -2171,6 +2189,8 @@ let hudUi = { collapsed: false, x: null, y: null, scale: 1, ultra: false };
 let peekDecl = false;
 let showReach = false;   // dotted weapon-reach rings (toggle with 'r')
 let showSpace = false;   // v0.8.7: dashed weapon-space rings (toggle with 's')
+let showMove = false;    // faint reachable tint for the active figure (toggle with 'm')
+let dragMove = null;     // active token-drag session: { id, origin, reach, budget, ghostCell, exact }
 let chatCollapse = {}; // round number -> true(collapsed)/false(expanded); set on user toggle
 
 // ============================================================
@@ -2942,15 +2962,15 @@ function aiDeclare(m) {
   const nearest = enemies[0];
   const mWeapon = WEAPONS[m.active_weapon];
   const mReach = meleeReach(m, mWeapon);
-  const reach = findBestReachSquare(state, m.position, nearest, (m.move || 4) * SUB, m.id, mReach);
+  const reach = findBestReachSquare(state, m.position, nearest, moveCells(m), m.id, mReach);
   if (reach) {
     return { kind: 'attack', weapon_id: m.active_weapon, target_id: nearest.id };
   }
   if (weapon && weapon.melee && chargeAllowed(m)) {
-    const chargeReach = findBestReachSquare(state, m.position, nearest, (m.move || 4) * SUB * 2, m.id, mReach);
+    const chargeReach = findBestReachSquare(state, m.position, nearest, moveCells(m) * 2, m.id, mReach);
     if (chargeReach) return { kind: 'charge', weapon_id: m.active_weapon, target_id: nearest.id };
   }
-  const partial = movePartialTowards(state, m.position, nearest, (m.move || 4) * SUB, m.id);
+  const partial = movePartialTowards(state, m.position, nearest, moveCells(m), m.id);
   if (partial) {
     return { kind: 'move', destination: { col: partial.col, row: partial.row } };
   }
@@ -3258,7 +3278,7 @@ async function executeFallBackDecl(c, decl) {
   if (!decl.destination) return;
   const aSide = c.side === 'A' ? 'a' : 'b';
   // Fighting withdrawal: at most half movement, no free attacks, facing kept toward the foe.
-  const budget = Math.max(1, Math.floor(((c.move || 4) * SUB - (c.movement_used || 0)) / 2));
+  const budget = Math.max(1, Math.floor((moveCells(c) - (c.movement_used || 0)) / 2));
   const reachable = computeReachable(state, c.position, budget, c.id);
   let target = reachable.get(`${decl.destination.col},${decl.destination.row}`)
     || movePartialTowards(state, c.position, decl.destination, budget, c.id);
@@ -3282,7 +3302,7 @@ async function executeFleeDecl(c, decl) {
     return;
   }
   // Run for it: full movement to whichever reachable cell sits farthest from the nearest foe.
-  const budget = (c.move || 4) * SUB - (c.movement_used || 0);
+  const budget = moveCells(c) - (c.movement_used || 0);
   const reachable = computeReachable(state, c.position, budget, c.id);
   const distFrom = (col, row) => Math.min(...enemies.map(e => minCheb(cellsAt({ col, row }, sizeCells(c)), footprintCells(e))));
   let best = null, bestScore = -Infinity;
@@ -3313,7 +3333,7 @@ async function executeGrappleDecl(c, decl) {
   const tSide = target.side === 'A' ? 'a' : 'b';
   // Close to grappling range if needed.
   if (!inMelee(c, target)) {
-    const budget = (c.move || 4) * SUB - (c.movement_used || 0);
+    const budget = moveCells(c) - (c.movement_used || 0);
     const reach = findBestReachSquare(state, c.position, target, budget, c.id);
     if (!reach) {
       const partial = movePartialTowards(state, c.position, target, budget, c.id);
@@ -3397,7 +3417,7 @@ async function executePummelDecl(c, decl) {
   }
   const tSide = target.side === 'A' ? 'a' : 'b';
   if (!inMelee(c, target)) {
-    const budget = (c.move || 4) * SUB - (c.movement_used || 0);
+    const budget = moveCells(c) - (c.movement_used || 0);
     const reach = findBestReachSquare(state, c.position, target, budget, c.id);
     if (!reach) {
       const partial = movePartialTowards(state, c.position, target, budget, c.id);
@@ -3463,7 +3483,7 @@ async function executeOverbearDecl(c, decl) {
   const rushed = !inMelee(c, target);   // had to close → rushing/leaping (+15 on the success roll)
   // Close to grappling range.
   if (rushed) {
-    const budget = (c.move || 4) * SUB - (c.movement_used || 0);
+    const budget = moveCells(c) - (c.movement_used || 0);
     const reach = findBestReachSquare(state, c.position, target, budget, c.id);
     if (!reach) {
       const partial = movePartialTowards(state, c.position, target, budget, c.id);
@@ -3581,7 +3601,7 @@ async function executeAttackDecl(c, decl) {
 
   // Step & Strike: a deliberate reposition (≤12.5 ft) before the blow, to win flank/rear.
   if (decl.step_to && (c.position.col !== decl.step_to.col || c.position.row !== decl.step_to.row)) {
-    const budget = Math.min(5, (c.move || 4) * SUB - (c.movement_used || 0));
+    const budget = Math.min(5, moveCells(c) - (c.movement_used || 0));
     const reachable = computeReachable(state, c.position, budget, c.id);
     let info = null;
     for (const [, r] of reachable) { if (r.col === decl.step_to.col && r.row === decl.step_to.row) { info = r; break; } }
@@ -3595,7 +3615,7 @@ async function executeAttackDecl(c, decl) {
   let didClose = false;
   if (weapon.melee && !withinStrikeReach(c, target, weapon)) {
     didClose = true;
-    const budget = (c.move || 4) * SUB - (c.movement_used || 0);
+    const budget = moveCells(c) - (c.movement_used || 0);
     const reach = findBestReachSquare(state, c.position, target, budget, c.id, meleeReach(c, weapon));
     if (!reach) {
       // Cannot reach this round — advance partial
@@ -3708,7 +3728,7 @@ async function executeChargeDecl(c, decl) {
   log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span> charges <span class="${tSide}">${target.label}</span> with ${weapon.name}!</span>`);
 
   if (!inMelee(c, target)) {
-    const budget = (c.move || 4) * SUB * 2 - (c.movement_used || 0); // double rate
+    const budget = moveCells(c) * 2 - (c.movement_used || 0); // double rate
     const reach = findBestReachSquare(state, c.position, target, budget, c.id, meleeReach(c, weapon));
     if (!reach) {
       const partial = movePartialTowards(state, c.position, target, budget, c.id);
@@ -3894,7 +3914,7 @@ async function executeTurnDecl(c) {
 
 async function executeMoveDecl(c, decl) {
   if (!decl.destination) return;
-  const budget = (c.move || 4) * SUB - (c.movement_used || 0);
+  const budget = moveCells(c) - (c.movement_used || 0);
   const reachable = computeReachable(state, c.position, budget, c.id);
   const key = `${decl.destination.col},${decl.destination.row}`;
   let target = reachable.get(key);
@@ -4150,9 +4170,9 @@ function renderMap() {
   hideHitPreview();
   if (state.picking) {
     const c = findCombatant(state, state.picking.forCombatantId);
-    if (state.picking.kind === 'move') {
+    if (state.picking.kind === 'move' && !dragMove) {
       // Show reachable cells within move (inches × SUB cells); a fall-back is limited to half rate.
-      let budget = (c.move || 4) * SUB - (c.movement_used || 0);
+      let budget = moveCells(c) - (c.movement_used || 0);
       if (state.picking.fallBack) budget = Math.max(1, Math.floor(budget / 2));
       if (state.picking.stepStrike) budget = Math.min(budget, 5);
       const reachable = computeReachable(state, c.position, budget, c.id);
@@ -4199,6 +4219,33 @@ function renderMap() {
         rect.addEventListener('mouseenter', () => showHitPreview(c, state.picking, t));
         rect.addEventListener('mouseleave', hideHitPreview);
       });
+    }
+  }
+
+  // Movement reach tint ('m' glance, or auto during a token drag) + live drag ruler
+  {
+    const mover = dragMove ? findCombatant(state, dragMove.id)
+      : (showMove && state.phase === 'declare' && !state.picking ? findCombatant(state, state.selected_id) : null);
+    if (mover && !mover.dead) {
+      const budget = dragMove ? dragMove.budget : (moveCells(mover) - (mover.movement_used || 0));
+      const reach = dragMove ? dragMove.reach : computeReachable(state, mover.position, budget, mover.id);
+      for (const [, info] of reach) {
+        if (info.distance === 0) continue;
+        const tl = cellTopLeft(info.col, info.row);
+        svgEl('rect', { x: tl.x.toFixed(2), y: tl.y.toFixed(2),
+          width: SIZE, height: SIZE, 'class': 'hex-move-tint' }, overlay);
+      }
+      if (dragMove) {
+        const o = cellCenter(dragMove.origin.col, dragMove.origin.row);
+        const otl = cellTopLeft(dragMove.origin.col, dragMove.origin.row);
+        const mn = sizeCells(mover);
+        svgEl('line', { id: 'drag-ruler', x1: o.x.toFixed(2), y1: o.y.toFixed(2),
+          x2: o.x.toFixed(2), y2: o.y.toFixed(2), 'class': 'drag-ruler ok' }, overlay);
+        svgEl('rect', { id: 'drag-ghost', x: otl.x.toFixed(2), y: otl.y.toFixed(2),
+          width: mn * SIZE, height: mn * SIZE, 'class': 'drag-ghost' }, overlay);
+        svgEl('text', { id: 'drag-ruler-label', x: o.x.toFixed(2), y: (o.y - 8).toFixed(2),
+          'class': 'drag-ruler-label ok' }, overlay).textContent = '';
+      }
     }
   }
 
@@ -4362,13 +4409,13 @@ function computeValidTargets(c, picking) {
   if (picking.charge) {
     const w = WEAPONS[picking.weaponId];
     if (!w || !w.melee) return [];
-    const budget = (c.move || 4) * SUB * 2;
+    const budget = moveCells(c) * 2;
     const r = meleeReach(c, w);
     return enemies.filter(e => !inMelee(c, e) &&
       findBestReachSquare(state, c.position, e, budget, c.id, r) != null);
   }
   if (picking.grapple || picking.overbear || picking.pummel) {
-    const budget = (c.move || 4) * SUB;
+    const budget = moveCells(c);
     return enemies.filter(e => inMelee(c, e) || findBestReachSquare(state, c.position, e, budget, c.id) != null);
   }
   if (picking.stepStrike) return enemies;
@@ -4376,7 +4423,7 @@ function computeValidTargets(c, picking) {
     const w = WEAPONS[picking.weaponId];
     if (w.melee) {
       // For declarations, any enemy reachable this round (movement in fine cells) is valid
-      const budget = (c.move || 4) * SUB;
+      const budget = moveCells(c);
       const r = meleeReach(c, w);
       return enemies.filter(e => {
         if (inMelee(c, e)) return true;
@@ -5812,6 +5859,9 @@ document.addEventListener('keydown', (e) => {
   if ((e.key === 's' || e.key === 'S') && !e.ctrlKey && !e.metaKey) {
     showSpace = !showSpace; renderAll(); return;
   }
+  if ((e.key === 'm' || e.key === 'M') && !e.ctrlKey && !e.metaKey) {
+    showMove = !showMove; renderAll(); return;
+  }
   if (state.phase !== 'declare') return;
   const c = findCombatant(state, state.selected_id);
   if (!c || c.side !== state.acting_side) return;
@@ -5924,6 +5974,82 @@ function applyView() {
     if (e.target.closest && e.target.closest('[data-token-id]')) return;
     view = { ...VIEW_DEFAULT };
     applyView();
+  });
+})();
+
+// Drag-a-token-to-move: grab your figure during the declare phase, a ghost + ruler
+// follow the cursor (cost in inches/feet, green = within move, amber = clamped to farthest
+// legal cell). Drop commits the move. Click-to-pick (Move button) remains as a fallback.
+function svgPointFromClient(clientX, clientY) {
+  const svg = document.getElementById('map-svg');
+  const rect = svg.getBoundingClientRect();
+  return {
+    x: view.x + (clientX - rect.left) / rect.width * view.w,
+    y: view.y + (clientY - rect.top) / rect.height * view.h
+  };
+}
+function nearestReachable(reach, col, row) {
+  let best = null, bd = Infinity;
+  for (const [, info] of reach) {
+    if (info.distance === 0) continue;
+    const d = (info.col - col) ** 2 + (info.row - row) ** 2;
+    if (d < bd) { bd = d; best = info; }
+  }
+  return best;
+}
+(function setupTokenDrag() {
+  const mapEl = document.querySelector('.map');
+  mapEl.addEventListener('mousedown', (e) => {
+    if (state.phase !== 'declare') return;
+    const tokenG = e.target.closest && e.target.closest('[data-token-id]');
+    if (!tokenG) return;
+    const c = findCombatant(state, tokenG.getAttribute('data-token-id'));
+    if (!c || c.dead || c.side !== 'A') return;
+    e.preventDefault();
+    state.selected_id = c.id;
+    state.picking = { kind: 'move', forCombatantId: c.id };
+    const budget = moveCells(c) - (c.movement_used || 0);
+    const reach = computeReachable(state, c.position, budget, c.id);
+    dragMove = { id: c.id, origin: { col: c.position.col, row: c.position.row }, reach, budget, ghostCell: null, exact: true };
+    renderAll();
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!dragMove) return;
+    const p = svgPointFromClient(e.clientX, e.clientY);
+    let col = Math.max(0, Math.min(COLS * SUB - 1, Math.floor((p.x - OX) / SIZE)));
+    let row = Math.max(0, Math.min(ROWS * SUB - 1, Math.floor((p.y - OY) / SIZE)));
+    let info = dragMove.reach.get(`${col},${row}`);
+    const exact = !!info;
+    if (!info) info = nearestReachable(dragMove.reach, col, row);
+    if (!info) return;
+    dragMove.ghostCell = { col: info.col, row: info.row };
+    dragMove.exact = exact;
+    const ghost = document.getElementById('drag-ghost');
+    const ruler = document.getElementById('drag-ruler');
+    const label = document.getElementById('drag-ruler-label');
+    const tl = cellTopLeft(info.col, info.row);
+    const ctr = cellCenter(info.col, info.row);
+    const o = cellCenter(dragMove.origin.col, dragMove.origin.row);
+    const cls = exact ? 'ok' : 'clamp';
+    if (ghost) { ghost.setAttribute('x', tl.x.toFixed(2)); ghost.setAttribute('y', tl.y.toFixed(2)); }
+    if (ruler) { ruler.setAttribute('x2', ctr.x.toFixed(2)); ruler.setAttribute('y2', ctr.y.toFixed(2)); ruler.setAttribute('class', 'drag-ruler ' + cls); }
+    if (label) {
+      label.textContent = info.distance === 0 ? '' : `${cellsToInches(info.distance)}" / ${Math.round(info.distance * 2.5)} ft`;
+      label.setAttribute('x', ((o.x + ctr.x) / 2).toFixed(2));
+      label.setAttribute('y', ((o.y + ctr.y) / 2 - 6).toFixed(2));
+      label.setAttribute('class', 'drag-ruler-label ' + cls);
+    }
+  });
+  window.addEventListener('mouseup', () => {
+    if (!dragMove) return;
+    const gc = dragMove.ghostCell, origin = dragMove.origin;
+    dragMove = null;
+    if (gc && !(gc.col === origin.col && gc.row === origin.row)) {
+      App.completePickMove(gc.col, gc.row);
+    } else {
+      state.picking = null;
+      renderAll();
+    }
   });
 })();
 
