@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.9 -->
+<!-- dungeon-encounter — v0.9.11 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -94,10 +94,10 @@ body {
   stroke-width: 1.5; stroke-dasharray: 4 3; pointer-events: none; }
 .hex-cost { font-family: 'DM Mono', monospace; font-size: 11px;
   fill: rgba(170,210,140,0.65); text-anchor: middle; pointer-events: none; font-weight: 500; }
-.hex-move-tint { fill: rgba(120,170,210,0.10); stroke: rgba(120,170,210,0.30);
-  stroke-width: 0.8; pointer-events: none; }
 .drag-ruler { stroke-width: 2; stroke-dasharray: 5 3; pointer-events: none; fill: none; }
 .drag-ruler.ok { stroke: rgba(120,210,140,0.95); }
+.drag-ruler.charge { stroke: rgba(234,138,66,0.95); }
+.drag-ruler.over { stroke: rgba(150,150,162,0.8); stroke-dasharray: 2 3; }
 .drag-ruler.clamp { stroke: rgba(232,190,90,0.95); }
 .drag-ghost { fill: rgba(120,170,210,0.20); stroke: rgba(150,200,235,0.95);
   stroke-width: 1.5; stroke-dasharray: 4 3; pointer-events: none; }
@@ -105,6 +105,8 @@ body {
   text-anchor: middle; pointer-events: none; paint-order: stroke;
   stroke: rgba(8,7,6,0.92); stroke-width: 3px; }
 .drag-ruler-label.ok { fill: rgb(150,225,165); }
+.drag-ruler-label.charge { fill: rgb(244,170,108); }
+.drag-ruler-label.over { fill: rgb(184,184,196); }
 .drag-ruler-label.clamp { fill: rgb(240,205,120); }
 .engagement-line { stroke: rgba(220,130,80,0.55); stroke-width: 1.5;
   stroke-dasharray: 5 3; pointer-events: none; }
@@ -831,7 +833,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.9';
+const SIM_VERSION = 'v0.9.11';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -2189,7 +2191,6 @@ let hudUi = { collapsed: false, x: null, y: null, scale: 1, ultra: false };
 let peekDecl = false;
 let showReach = false;   // dotted weapon-reach rings (toggle with 'r')
 let showSpace = false;   // v0.8.7: dashed weapon-space rings (toggle with 's')
-let showMove = false;    // faint reachable tint for the active figure (toggle with 'm')
 let dragMove = null;     // active token-drag session: { id, origin, reach, budget, ghostCell, exact }
 let chatCollapse = {}; // round number -> true(collapsed)/false(expanded); set on user toggle
 
@@ -4227,30 +4228,19 @@ function renderMap() {
     }
   }
 
-  // Movement reach tint ('m' glance, or auto during a token drag) + live drag ruler
-  {
-    const mover = dragMove ? findCombatant(state, dragMove.id)
-      : (showMove && state.phase === 'declare' && !state.picking ? findCombatant(state, state.selected_id) : null);
+  // Live drag ruler + ghost while dragging a token to move (no cell wash — the ruler color is the range cue)
+  if (dragMove) {
+    const mover = findCombatant(state, dragMove.id);
     if (mover && !mover.dead) {
-      const budget = dragMove ? dragMove.budget : (moveCells(mover) - (mover.movement_used || 0));
-      const reach = dragMove ? dragMove.reach : computeReachable(state, mover.position, budget, mover.id);
-      for (const [, info] of reach) {
-        if (info.distance === 0) continue;
-        const tl = cellTopLeft(info.col, info.row);
-        svgEl('rect', { x: tl.x.toFixed(2), y: tl.y.toFixed(2),
-          width: SIZE, height: SIZE, 'class': 'hex-move-tint' }, overlay);
-      }
-      if (dragMove) {
-        const o = cellCenter(dragMove.origin.col, dragMove.origin.row);
-        const otl = cellTopLeft(dragMove.origin.col, dragMove.origin.row);
-        const mn = sizeCells(mover);
-        svgEl('line', { id: 'drag-ruler', x1: o.x.toFixed(2), y1: o.y.toFixed(2),
-          x2: o.x.toFixed(2), y2: o.y.toFixed(2), 'class': 'drag-ruler ok' }, overlay);
-        svgEl('rect', { id: 'drag-ghost', x: otl.x.toFixed(2), y: otl.y.toFixed(2),
-          width: mn * SIZE, height: mn * SIZE, 'class': 'drag-ghost' }, overlay);
-        svgEl('text', { id: 'drag-ruler-label', x: o.x.toFixed(2), y: (o.y - 8).toFixed(2),
-          'class': 'drag-ruler-label ok' }, overlay).textContent = '';
-      }
+      const o = cellCenter(dragMove.origin.col, dragMove.origin.row);
+      const otl = cellTopLeft(dragMove.origin.col, dragMove.origin.row);
+      const mn = sizeCells(mover);
+      svgEl('line', { id: 'drag-ruler', x1: o.x.toFixed(2), y1: o.y.toFixed(2),
+        x2: o.x.toFixed(2), y2: o.y.toFixed(2), 'class': 'drag-ruler ok' }, overlay);
+      svgEl('rect', { id: 'drag-ghost', x: otl.x.toFixed(2), y: otl.y.toFixed(2),
+        width: mn * SIZE, height: mn * SIZE, 'class': 'drag-ghost' }, overlay);
+      svgEl('text', { id: 'drag-ruler-label', x: o.x.toFixed(2), y: (o.y - 8).toFixed(2),
+        'class': 'drag-ruler-label ok' }, overlay).textContent = '';
     }
   }
 
@@ -5850,9 +5840,6 @@ document.addEventListener('keydown', (e) => {
   if ((e.key === 's' || e.key === 'S') && !e.ctrlKey && !e.metaKey) {
     showSpace = !showSpace; renderAll(); return;
   }
-  if ((e.key === 'm' || e.key === 'M') && !e.ctrlKey && !e.metaKey) {
-    showMove = !showMove; renderAll(); return;
-  }
   if (state.phase !== 'declare') return;
   const c = findCombatant(state, state.selected_id);
   if (!c || c.side !== state.acting_side) return;
@@ -6005,34 +5992,47 @@ function nearestReachable(reach, col, row) {
     state.picking = { kind: 'move', forCombatantId: c.id };
     const budget = moveCells(c) - (c.movement_used || 0);
     const reach = computeReachable(state, c.position, budget, c.id);
-    dragMove = { id: c.id, origin: { col: c.position.col, row: c.position.row }, reach, budget, ghostCell: null, exact: true };
+    const chargeReady = chargeAllowed(c);
+    const enc = !!(c._enc && c._enc.moveIn <= 3);
+    const cd = c._last_charge_round != null ? Math.max(0, 10 - (state.round - c._last_charge_round)) : 0;
+    const chargeBlock = enc ? 'charge: encumbered' : (cd > 0 ? `charge in ${cd} rds` : null);
+    dragMove = { id: c.id, origin: { col: c.position.col, row: c.position.row }, reach, budget,
+      chargeBudget: moveCells(c) * 2, chargeReady, chargeBlock, ghostCell: null };
     renderAll();
   });
   window.addEventListener('mousemove', (e) => {
     if (!dragMove) return;
     const p = svgPointFromClient(e.clientX, e.clientY);
-    let col = Math.max(0, Math.min(COLS * SUB - 1, Math.floor((p.x - OX) / SIZE)));
-    let row = Math.max(0, Math.min(ROWS * SUB - 1, Math.floor((p.y - OY) / SIZE)));
-    let info = dragMove.reach.get(`${col},${row}`);
-    const exact = !!info;
-    if (!info) info = nearestReachable(dragMove.reach, col, row);
+    const col = Math.max(0, Math.min(COLS * SUB - 1, Math.floor((p.x - OX) / SIZE)));
+    const row = Math.max(0, Math.min(ROWS * SUB - 1, Math.floor((p.y - OY) / SIZE)));
+    // Ghost = legal move landing (BFS-clamped to move budget); aim = straight-line distance to cursor.
+    let info = dragMove.reach.get(`${col},${row}`) || nearestReachable(dragMove.reach, col, row);
     if (!info) return;
     dragMove.ghostCell = { col: info.col, row: info.row };
-    dragMove.exact = exact;
+    const o = dragMove.origin;
+    const aim = Math.max(Math.abs(col - o.col), Math.abs(row - o.row));
+    let band;
+    if (aim <= dragMove.budget) band = 'ok';
+    else if (dragMove.chargeReady && aim <= dragMove.chargeBudget) band = 'charge';
+    else band = 'over';
     const ghost = document.getElementById('drag-ghost');
     const ruler = document.getElementById('drag-ruler');
     const label = document.getElementById('drag-ruler-label');
-    const tl = cellTopLeft(info.col, info.row);
-    const ctr = cellCenter(info.col, info.row);
-    const o = cellCenter(dragMove.origin.col, dragMove.origin.row);
-    const cls = exact ? 'ok' : 'clamp';
-    if (ghost) { ghost.setAttribute('x', tl.x.toFixed(2)); ghost.setAttribute('y', tl.y.toFixed(2)); }
-    if (ruler) { ruler.setAttribute('x2', ctr.x.toFixed(2)); ruler.setAttribute('y2', ctr.y.toFixed(2)); ruler.setAttribute('class', 'drag-ruler ' + cls); }
+    const gtl = cellTopLeft(info.col, info.row);
+    const oc = cellCenter(o.col, o.row);
+    const cc = cellCenter(col, row);
+    if (ghost) { ghost.setAttribute('x', gtl.x.toFixed(2)); ghost.setAttribute('y', gtl.y.toFixed(2)); }
+    if (ruler) { ruler.setAttribute('x2', cc.x.toFixed(2)); ruler.setAttribute('y2', cc.y.toFixed(2)); ruler.setAttribute('class', 'drag-ruler ' + band); }
     if (label) {
-      label.textContent = info.distance === 0 ? '' : `${cellsToInches(info.distance)}" / ${Math.round(info.distance * 2.5)} ft`;
-      label.setAttribute('x', ((o.x + ctr.x) / 2).toFixed(2));
-      label.setAttribute('y', ((o.y + ctr.y) / 2 - 6).toFixed(2));
-      label.setAttribute('class', 'drag-ruler-label ' + cls);
+      let txt = aim === 0 ? '' : `${cellsToInches(aim)}" / ${Math.round(aim * 2.5)} ft`;
+      if (aim > 0) {
+        if (band === 'charge') txt += ' · charge';
+        else if (band === 'over') txt += dragMove.chargeReady ? ' · beyond charge' : (dragMove.chargeBlock ? ' · ' + dragMove.chargeBlock : '');
+      }
+      label.textContent = txt;
+      label.setAttribute('x', ((oc.x + cc.x) / 2).toFixed(2));
+      label.setAttribute('y', ((oc.y + cc.y) / 2 - 6).toFixed(2));
+      label.setAttribute('class', 'drag-ruler-label ' + band);
     }
   });
   window.addEventListener('mouseup', () => {
