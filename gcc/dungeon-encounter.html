@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.0 -->
+<!-- dungeon-encounter — v0.9.3 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -686,6 +686,7 @@ body.light .round-head .rh-title { font-family: inherit; }
   background: linear-gradient(180deg, var(--gold-deep), #6b5429); border: 1px solid var(--gold-bright); color: var(--ink); }
 .gm-actions button:hover { background: linear-gradient(180deg, var(--gold-bright), var(--gold)); }
 .gm-empty { font-style: italic; color: var(--text-muted); font-size: 12px; padding: 6px 0; }
+.gm-gear-sec { margin-top: 14px; }
 </style>
 </head>
 <body>
@@ -809,6 +810,7 @@ body.light .round-head .rh-title { font-family: inherit; }
     <h2>Combat Ends</h2>
     <div class="outcome" id="go-outcome"></div>
     <div class="stats" id="go-stats"></div>
+    <button onclick="App.dismissGameOver()">Review Board</button>
     <button onclick="App.resetCombat()">Run Again</button>
   </div>
 </div>
@@ -817,7 +819,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.0';
+const SIM_VERSION = 'v0.9.3';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -1572,12 +1574,13 @@ function attackProjection(state, a, t, w, opts) {
   }
   // Magic ammo's `attack_bonus` lowers `needed` (a +1 arrow makes a hit easier).
   const ammoAtk = effW.ammo_attack_bonus || 0;
-  const needed = noAmmo ? 99 : Math.max(1, Math.min(20, calc.needed - range - charge - fleeBonus - ammoAtk + parryPen + attackerHeld - targetHeld - targetDown - arcBonus - blessBonus + shieldPen - spaceMod));
+  const dexMiss = w.ranged ? dexMissileAdj(dexOf(a)) : 0;
+  const needed = noAmmo ? 99 : Math.max(1, Math.min(20, calc.needed - range - charge - fleeBonus - ammoAtk + parryPen + attackerHeld - targetHeld - targetDown - arcBonus - blessBonus + shieldPen - spaceMod - dexMiss));
   const dmgDice = noAmmo ? '0' : ((t.size === 'L') ? effW.damage.l : effW.damage.sm);
   const dmgBonus = noAmmo ? 0 : (((a.magic_weapons && a.magic_weapons[w.id]) || w.magic_bonus || 0) + (a.damage_bonus || 0) + (effW.ammo_damage_bonus || 0));
   return {
     needed, base: calc.base, arc,
-    mods: { wpnVsAc: calc.wpnVsAc, magic: calc.magic, str: calc.str, range, charge, exposed, fleeing: fleeBonus, parry: -parryPen, grappled: -attackerHeld, vsHeld: targetHeld, vsDown: targetDown, flank: arcBonus, bless: -blessBonus, shield: shieldPen, space: spaceMod },
+    mods: { wpnVsAc: calc.wpnVsAc, magic: calc.magic, str: calc.str, range, charge, exposed, fleeing: fleeBonus, parry: -parryPen, grappled: -attackerHeld, vsHeld: targetHeld, vsDown: targetDown, flank: arcBonus, bless: -blessBonus, shield: shieldPen, space: spaceMod, dexMissile: dexMiss },
     dmgDice, dmgBonus, range_band
   };
 }
@@ -1648,6 +1651,38 @@ function applyPoison(state, attacker, target, weapon, event) {
     }
   }
   event.poison = { save: sv, effect: p.effect || 'death', poison_damage };
+}
+
+// 1e PHB Dexterity Missile Attack Adjustment: a to-hit modifier on missile fire and, per the
+// DMG, an adjustment to the individual's initiative die for missile discharge. + improves.
+function dexMissileAdj(dex) {
+  const x = dex == null ? 12 : dex;
+  if (x <= 3) return -3; if (x === 4) return -2; if (x === 5) return -1;
+  if (x <= 15) return 0; if (x === 16) return 1; if (x === 17) return 2;
+  return 3;
+}
+// RAW step 4/5 action sequence (A–H): order in which a side's declared actions resolve within
+// its initiative. Weapon speed plays NO part here — speed factor matters only on a tie.
+function actionTypeRank(c, decl) {
+  if (!decl) return 9;
+  switch (decl.kind) {
+    case 'flee': case 'fall_back': return 0;     // A: avoid engagement
+    case 'parry': return 1;
+    case 'hold': return 2;                        // C: await
+    case 'cast': case 'turn': return 3;           // D: spell / device / turn undead
+    case 'attack': return (WEAPONS[decl.weapon_id] && WEAPONS[decl.weapon_id].ranged) ? 3 : 6; // D missile / G melee
+    case 'charge': case 'move': return 4;         // E: close / charge
+    case 'set': return 5;                         // F: set vs charge
+    case 'grapple': case 'pummel': case 'overbear': return 7; // H: grapple / hold
+    default: return 6;                            // G: strike blows
+  }
+}
+// 1e weapon speed factor on a tie: the faster (lower SF) strikes first; a large gap grants extra
+// blows before the slower acts. gap = slowSF − fastSF. Returns the faster weapon's blow count.
+function speedMultipleAttacks(fastSF, slowSF) {
+  const gap = (slowSF || 0) - (fastSF || 0);
+  if (gap < Math.min(2 * (fastSF || 1), 5)) return 1;  // no extra blows
+  return gap >= 10 ? 3 : 2;                             // 2 before the slow blow; +1 (simultaneous) at ≥10
 }
 
 function resolveAttack(state, attackerId, targetId, weaponId, opts) {
@@ -1862,7 +1897,7 @@ function recomputeEngagements(state) {
 function rollInitiative(state) {
   const a = d(6);
   const b = d(6);
-  state.initiative = { A: a, B: b, winner: a > b ? 'A' : (b > a ? 'B' : 'A') };
+  state.initiative = { A: a, B: b, winner: a > b ? 'A' : (b > a ? 'B' : 'tie'), tie: a === b };
   return state.initiative;
 }
 
@@ -2751,7 +2786,7 @@ async function resolveSide(side) {
   startMeleeChurn();
   const actors = aliveCombatantsOnSide(state, side)
     .filter(c => state.declarations[c.id])
-    .sort((a, b) => declSpeed(a, state.declarations[a.id]) - declSpeed(b, state.declarations[b.id]));
+    .sort((a, b) => actionTypeRank(a, state.declarations[a.id]) - actionTypeRank(b, state.declarations[b.id]));
 
   for (const c of actors) {
     if (state.game_over) break;
@@ -2780,19 +2815,102 @@ function clearRoundDeclarations() {
   });
 }
 
-// Normal round: declarations are locked, NOW roll initiative, then resolve winner then loser (DMG steps 4–5).
+// Normal round: declarations locked, roll initiative. Tie → simultaneous (DMG: blows fall together,
+// weapon speed orders engaged melee). Otherwise winner side then loser (steps 4–5) — but a missile
+// firer whose Dex-adjusted initiative beats the other side looses first (pre-emption).
 async function resolveNormalRound() {
   rollInitiative(state);
-  log(state, 'round', `<span class="ts">R${state.round}</span><span>Initiative — A:<span class="roll">${state.initiative.A}</span> B:<span class="roll">${state.initiative.B}</span> · <span class="acting-banner-${state.initiative.winner}"><em>${sideName(state.initiative.winner)} acts first</em></span></span>`);
-  const order = state.initiative.winner === 'A' ? ['A', 'B'] : ['B', 'A'];
-  for (const side of order) {
-    if (state.game_over) break;
-    await resolveSide(side);
+  if (state.initiative.tie) {
+    log(state, 'round', `<span class="ts">R${state.round}</span><span>Initiative — A:<span class="roll">${state.initiative.A}</span> B:<span class="roll">${state.initiative.B}</span> · <em>tied — blows fall together</em></span>`);
+    await resolveSimultaneousRound();
+  } else {
+    const winner = state.initiative.winner, loser = winner === 'A' ? 'B' : 'A';
+    log(state, 'round', `<span class="ts">R${state.round}</span><span>Initiative — A:<span class="roll">${state.initiative.A}</span> B:<span class="roll">${state.initiative.B}</span> · <span class="acting-banner-${winner}"><em>${sideName(winner)} acts first</em></span></span>`);
+    await resolvePreemptiveMissiles(loser, winner);
+    if (!state.game_over) await resolveSide(winner);
+    if (!state.game_over) await resolveSide(loser);
   }
   clearRoundDeclarations();
   state.elapsed_segments += 10; // one full round
   if (state.game_over) { renderAll(); showGameOver(); return; }
   beginRound();
+}
+
+// 1e Dexterity missile timing: a missile firer on the losing side whose initiative die + Dex Missile
+// Adjustment exceeds the winning side's die looses its shot before the winners act.
+async function resolvePreemptiveMissiles(loserSide, winnerSide) {
+  const loserDie = state.initiative[loserSide], winnerDie = state.initiative[winnerSide];
+  const shooters = aliveCombatantsOnSide(state, loserSide).filter(c => {
+    const dec = state.declarations[c.id];
+    if (!dec || dec.kind !== 'attack' || dec._resolved) return false;
+    const w = WEAPONS[dec.weapon_id];
+    return w && w.ranged && (loserDie + dexMissileAdj(dexOf(c))) > winnerDie;
+  }).sort((a, b) => (loserDie + dexMissileAdj(dexOf(b))) - (loserDie + dexMissileAdj(dexOf(a))));
+  if (!shooters.length) return;
+  state.acting_side = loserSide;
+  state.phase = 'resolve';
+  for (const c of shooters) {
+    if (state.game_over || c.dead) continue;
+    const dec = state.declarations[c.id];
+    dec._resolved = true;
+    state.current_actor = c.id;
+    state.selected_id = c.id;
+    log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${c.side === 'A' ? 'a' : 'b'}">${c.label}</span> looses first — quick hands beat the foe's initiative.</span>`);
+    renderAll();
+    await sleep(220);
+    await executeDeclaration(c, dec);
+    state.current_actor = null;
+    if (!sideAlive(state, 'A') || !sideAlive(state, 'B')) { state.game_over = sideAlive(state, 'A') ? 'A' : 'B'; break; }
+  }
+}
+
+// Tied initiative (DMG "Simultaneous Initiative"): both sides resolve in one merged action-type pass;
+// among engaged melee weapons the lower speed factor strikes first, and a large factor gap grants the
+// faster weapon extra blows before the slower acts. Speed factor does not apply to a charge.
+async function resolveSimultaneousRound() {
+  state.phase = 'resolve';
+  startMeleeChurn();
+  const actors = state.combatants
+    .filter(c => !c.dead && state.declarations[c.id])
+    .sort((a, b) => {
+      const ra = actionTypeRank(a, state.declarations[a.id]), rb = actionTypeRank(b, state.declarations[b.id]);
+      if (ra !== rb) return ra - rb;
+      return declSpeed(a, state.declarations[a.id]) - declSpeed(b, state.declarations[b.id]); // engaged melee: lower SF first
+    });
+  for (const c of actors) {
+    if (state.game_over) break;
+    if (c.dead) continue;
+    const dec = state.declarations[c.id];
+    if (!dec || dec._resolved) continue;
+    state.acting_side = c.side;
+    state.current_actor = c.id;
+    state.selected_id = c.id;
+    renderAll();
+    await sleep(260);
+    // Speed-factor extra blows: a melee attacker meaningfully faster than the foe it targets (and the
+    // foe is also swinging a melee weapon) lands extra blows before that foe can answer.
+    let blows = 1;
+    const tid = dec.target_id;
+    if (dec.kind === 'attack' && tid && WEAPONS[dec.weapon_id] && WEAPONS[dec.weapon_id].melee) {
+      const t = findCombatant(state, tid), td = tid ? state.declarations[tid] : null;
+      if (t && !t.dead && td && td.kind === 'attack' && WEAPONS[td.weapon_id] && WEAPONS[td.weapon_id].melee) {
+        const mine = WEAPONS[dec.weapon_id].speed || 5, theirs = WEAPONS[td.weapon_id].speed || 5;
+        if (mine < theirs) blows = speedMultipleAttacks(mine, theirs);
+      }
+    }
+    await executeDeclaration(c, dec);
+    for (let i = 1; i < blows && !c.dead; i++) {
+      const tt = findCombatant(state, tid);
+      if (!tt || tt.dead) break;
+      faceToward(c, tt.position);
+      const ev = resolveAttack(state, c.id, tid, dec.weapon_id, {});
+      if (ev) { logAttackEvent(ev); showAttackVfx(ev); }
+      await sleep(240);
+      if (!sideAlive(state, 'A') || !sideAlive(state, 'B')) break;
+    }
+    state.current_actor = null;
+    if (!sideAlive(state, 'A') || !sideAlive(state, 'B')) { state.game_over = sideAlive(state, 'A') ? 'A' : 'B'; break; }
+  }
 }
 
 // Surprise: the surprising side acts once, no initiative. (Segment-accurate surprise lands in a later stage.)
@@ -3637,8 +3755,8 @@ async function executeCastDecl(c, decl) {
 
   // Case B: the caster won initiative, but an already-engaged enemy with a fast enough weapon
   // may strike before the cast completes (DMG: |speed factor − losing die| vs casting time).
-  if (!c._spell_interrupted && state.initiative && c.side === state.initiative.winner) {
-    const losingDie = c.side === 'A' ? state.initiative.B : state.initiative.A;
+  if (!c._spell_interrupted && state.initiative && (c.side === state.initiative.winner || state.initiative.tie)) {
+    const losingDie = state.initiative.tie ? 0 : (c.side === 'A' ? state.initiative.B : state.initiative.A);
     const interrupters = aliveCombatantsOnSide(state, c.side === 'A' ? 'B' : 'A').filter(e => {
       const d = state.declarations[e.id];
       if (!d || d.kind !== 'attack' || d._resolved || d.target_id !== c.id) return false;
@@ -5211,6 +5329,19 @@ function renderGmRoster() {
   });
   el.innerHTML = html || '<div class="gm-empty">No combatants.</div>';
 }
+// v0.9.1: GM gear catalogue → <optgroup> options; class-allowed first, the rest under Other (GM may override).
+function gmCatalogOpts(catalog, currentId, clsNorm, noneLabel) {
+  if (!catalog) return currentId ? `<option value="${currentId}" selected>${currentId}</option>` : '';
+  const allowed = [], other = [];
+  Object.keys(catalog).forEach(id => {
+    const ok = clsNorm && Array.isArray(catalog[id].classes) && catalog[id].classes.indexOf(clsNorm) >= 0;
+    (ok ? allowed : other).push(id);
+  });
+  const opt = id => `<option value="${id}"${id === currentId ? ' selected' : ''}>${_gmEsc(catalog[id].name || id)}</option>`;
+  const grp = (label, ids) => ids.length ? `<optgroup label="${label}">${ids.map(opt).join('')}</optgroup>` : '';
+  let html = noneLabel ? `<option value=""${!currentId ? ' selected' : ''}>${noneLabel}</option>` : '';
+  return html + grp('Class', allowed) + grp('Other', other);
+}
 function renderGmEditor() {
   const el = document.getElementById('gm-editor'); if (!el) return;
   const c = gmUi.editId ? findCombatant(state, gmUi.editId) : null;
@@ -5218,6 +5349,12 @@ function renderGmEditor() {
   const baseMove = c._base_move != null ? c._base_move : c.move;
   const clsOpts = GM_CLASS_OPTS.map(([v, l]) => `<option value="${v}"${c.matrix_class === v ? ' selected' : ''}>${l}</option>`).join('');
   const ac = computeAC(c);
+  const clsNorm = (c.matrix_class || '').replace(/_/g, '-');
+  const curArmor = (c.inventory || []).find(it => ITEMS[it.id] && ITEMS[it.id].category === 'armor');
+  const curShield = (c.inventory || []).find(it => ITEMS[it.id] && ITEMS[it.id].category === 'shield');
+  const wpnOpts = gmCatalogOpts(_CD && _CD.weapons, c.active_weapon, clsNorm, '');
+  const armOpts = gmCatalogOpts(_CD && _CD.armor, curArmor ? curArmor.id : '', clsNorm, 'No armour');
+  const shOpts = gmCatalogOpts(_CD && _CD.shields, curShield ? curShield.id : (c.shield ? String(c.shield) : ''), clsNorm, 'No shield');
   el.innerHTML =
     `<div class="gm-field"><label>Name</label><input id="gm-f-label" type="text" value="${_gmEsc(c.label)}"></div>` +
     `<div class="gm-field"><label>Side</label><select id="gm-f-side"><option value="A"${c.side === 'A' ? ' selected' : ''}>Party A</option><option value="B"${c.side === 'B' ? ' selected' : ''}>Party B</option></select></div>` +
@@ -5228,6 +5365,11 @@ function renderGmEditor() {
     `<div class="gm-ac-note">suggested: ${ac.shieldless} shieldless / ${ac.withShield} with shield</div>` +
     `<div class="gm-field"><label>Str / Dex</label><div class="pair"><input id="gm-f-str" type="number" value="${strOf(c)}"><input id="gm-f-dex" type="number" value="${dexOf(c)}"></div></div>` +
     `<div class="gm-field"><label>Move (base&nbsp;″)</label><input id="gm-f-move" type="number" value="${baseMove}"></div>` +
+    `<div class="gm-sec-ttl gm-gear-sec">Gear · doled from catalogue</div>` +
+    `<div class="gm-field"><label>Weapon</label><select id="gm-g-weapon" onchange="App.gmSetWeapon(this.value)">${wpnOpts}</select></div>` +
+    `<div class="gm-field"><label>Armour</label><select id="gm-g-armor" onchange="App.gmSetArmor(this.value)">${armOpts}</select></div>` +
+    `<div class="gm-field"><label>Shield</label><select id="gm-g-shield" onchange="App.gmSetShield(this.value)">${shOpts}</select></div>` +
+    `<div class="gm-ac-note">gear sets weight/encumbrance &amp; the AC suggestion above — AC itself stays manual (click Suggest).</div>` +
     `<div class="gm-actions"><button onclick="App.gmApply()">Apply Changes</button></div>`;
 }
 function renderGmPanel() { renderGmSettings(); renderGmRoster(); renderGmEditor(); }
@@ -5280,6 +5422,30 @@ const App = {
     const b = document.getElementById('gm-f-acbase'), cur = document.getElementById('gm-f-accur');
     if (b) b.value = ac.shieldless;
     if (cur) cur.value = ac.withShield;
+  },
+  gmSetWeapon(id) {
+    const c = gmUi.editId ? findCombatant(state, gmUi.editId) : null; if (!c || !id) return;
+    if (!WEAPONS[id]) cdataWeaponToSim(id);
+    c.loadout = Array.isArray(c.loadout) ? c.loadout : [];
+    if (!c.loadout.includes(id)) c.loadout.push(id);
+    c.active_weapon = id;
+    recomputeEngagements(state);
+    renderGmEditor(); renderAll();
+  },
+  gmSetArmor(id) {
+    const c = gmUi.editId ? findCombatant(state, gmUi.editId) : null; if (!c) return;
+    c.inventory = (c.inventory || []).filter(it => !(ITEMS[it.id] && ITEMS[it.id].category === 'armor'));
+    if (id) { cdataArmorToItem(id); if (ITEMS[id]) c.inventory.push({ id }); }
+    recomputeMove(c);
+    renderGmEditor(); renderAll();
+  },
+  gmSetShield(id) {
+    const c = gmUi.editId ? findCombatant(state, gmUi.editId) : null; if (!c) return;
+    c.inventory = (c.inventory || []).filter(it => !(ITEMS[it.id] && ITEMS[it.id].category === 'shield'));
+    if (id) { cdataArmorToItem(id); if (ITEMS[id]) c.inventory.push({ id }); c.shield = id; }
+    else c.shield = false;
+    recomputeMove(c);
+    renderGmEditor(); renderAll();
   },
   gmApply() {
     const c = gmUi.editId ? findCombatant(state, gmUi.editId) : null; if (!c) return;
@@ -5384,6 +5550,9 @@ const App = {
   resetCombat() {
     document.getElementById('game-over').style.display = 'none';
     this.init();
+  },
+  dismissGameOver() {
+    document.getElementById('game-over').style.display = 'none';
   },
 
   handleTokenClick(id) {
