@@ -44,17 +44,8 @@ const GCCInvite = (function() {
     const now = new Date().toISOString();
 
     try {
-      // Create invite document
-      await db.collection('invites').doc(code).set({
-        campaignId: campaignId,
-        ownerUid: uid,
-        campaignName: campaignName || 'Unnamed Campaign',
-        system: system || '',
-        created: now,
-        active: true,
-      });
-
-      // Ensure shared campaign document exists
+      // Ensure shared campaign doc exists BEFORE the invite — invite-create
+      // rules gate on campaign ownership.
       const campRef = db.collection('campaigns').doc(campaignId);
       const campSnap = await campRef.get();
       if (!campSnap.exists) {
@@ -65,6 +56,16 @@ const GCCInvite = (function() {
           created: now,
         });
       }
+
+      // Create invite document
+      await db.collection('invites').doc(code).set({
+        campaignId: campaignId,
+        ownerUid: uid,
+        campaignName: campaignName || 'Unnamed Campaign',
+        system: system || '',
+        created: now,
+        active: true,
+      });
 
       // Add owner as first player (GM)
       const user = getUserInfo();
@@ -141,12 +142,14 @@ const GCCInvite = (function() {
       const invite = await lookupInvite(code);
       if (!invite) return { ok: false, reason: 'Invalid or expired invite code' };
 
-      // Add player to campaign
+      // Add player to campaign. viaInvite satisfies the invite-gated
+      // player-create rule; owner self-join keeps GM role.
       const campRef = db.collection('campaigns').doc(invite.campaignId);
       await campRef.collection('players').doc(user.uid).set({
         displayName: user.displayName,
         email: user.email,
-        role: 'player',
+        role: invite.ownerUid === user.uid ? 'gm' : 'player',
+        viaInvite: invite.code,
         joined: new Date().toISOString(),
       }, { merge: true });
 
