@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.12 -->
+<!-- dungeon-encounter — v0.9.13 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -833,7 +833,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.12';
+const SIM_VERSION = 'v0.9.13';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -3710,6 +3710,18 @@ async function executeAttackDecl(c, decl) {
   if (didClose && !c.dead && inMelee(c, target)) {
     await resolveCloseReach(c, target, decl.weapon_id);
     if (c.dead) return;
+  }
+
+  // RAW: closing to engage consumes the round — no blow. Charge / Step & Strike are the
+  // deliberate move-and-strike paths; a plain Attack that had to close just closes.
+  if (didClose) {
+    const aSide = c.side === 'A' ? 'a' : 'b';
+    const tSide = target.side === 'A' ? 'a' : 'b';
+    log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span> closes on <span class="${tSide}">${target.label}</span> — the close takes the round; strikes next round.</span>`);
+    faceToward(c, target.position);
+    renderAll();
+    await sleep(150);
+    return;
   }
 
   // Update facing toward target
