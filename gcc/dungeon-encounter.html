@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.11 -->
+<!-- dungeon-encounter — v0.9.12 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -833,7 +833,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.11';
+const SIM_VERSION = 'v0.9.12';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -1714,6 +1714,43 @@ function speedMultipleAttacks(fastSF, slowSF) {
   return gap >= 10 ? 3 : 2;                             // 2 before the slow blow; +1 (simultaneous) at ≥10
 }
 
+// ---- Attacks per melee round (PHB) ----
+function isFighterType(c) { return c.matrix_class === 'fighter'; } // paladins/rangers use the fighter matrix
+function monsterHD(t) {
+  if (!t || t.hd == null) return null;
+  const s = String(t.hd);
+  if (s.includes('-')) return parseFloat(s) - 0.5; // "1-1" reads as under one hit die
+  return parseFloat(s);                            // "4+1" -> 4
+}
+// Class-derived rate: F/P 7-12 & R 8-14 -> 3/2, F/P 13+ & R 15+ -> 2 (rangers come in via imported numAttacks)
+function classAttacksRate(c) {
+  if (isFighterType(c)) {
+    const lv = c.level || 1;
+    if (lv >= 13) return '2';
+    if (lv >= 7) return '3/2';
+  }
+  return '1';
+}
+// Resolve "1" / "2" / "3/2" / "2/1" / number into a blow count for this round (3/2 -> 2 on odd rounds, 1 on even)
+function resolveAttackRate(rate, round) {
+  if (typeof rate === 'number') return Math.max(1, Math.floor(rate));
+  const m = String(rate).trim().match(/^(\d+)\s*\/\s*(\d+)$/);
+  if (m) {
+    const a = +m[1], b = +m[2];
+    if (b <= 1) return Math.max(1, a);
+    if (b === 2) return (round % 2 === 1) ? Math.ceil(a / 2) : Math.floor(a / 2);
+    return Math.max(1, Math.round(a / b));
+  }
+  const n = parseInt(String(rate), 10);
+  return isNaN(n) ? 1 : Math.max(1, n);
+}
+function attacksThisRound(c, target, weapon) {
+  if (!weapon || !weapon.melee) return 1; // a melee thrust/strike rule; ranged uses rate of fire (TODO)
+  const thd = monsterHD(target);
+  if (isFighterType(c) && thd != null && thd < 1) return Math.max(1, Math.floor(c.level || 1)); // one blow per level vs sub-1-HD foes
+  return resolveAttackRate(c.attacks_per_round || classAttacksRate(c), state.round);
+}
+
 function resolveAttack(state, attackerId, targetId, weaponId, opts) {
   opts = opts || {};
   const a = findCombatant(state, attackerId);
@@ -2298,7 +2335,7 @@ function mapCharToCombatant(char, side) {
     attack_bonus: _num(char.combatToHitAdj, _num(char.strHitAdj, 0)),
     damage_bonus: _num(char.combatDamAdj, _num(char.strDamAdj, 0)),
     magic_weapons, spell_charges,
-    move: Math.max(1, Math.round(rate / 3)), move_rate: rate,
+    move: Math.max(1, Math.round(rate)), move_rate: rate,
     singles_out: true, dead: false, engaged_with: [], movement_used: 0,
     saves: { ppd: _num(char.savePPD), pp: _num(char.savePP), rsw: _num(char.saveRSW), bw: _num(char.saveBW), spell: _num(char.saveSpell) },
     attacks_per_round: char.numAttacks || '1', _source: 'adnd-sheet'
@@ -3699,14 +3736,19 @@ async function executeAttackDecl(c, decl) {
       log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span> swings ${weapon.name} cramped by ${crowders}${tag}.</span>`);
     }
   }
-  const event = resolveAttack(state, c.id, target.id, decl.weapon_id, { subdue: !!c._subdue });
-  if (event) {
-    // v0.8.5: ranged ammo decrement on every shot (thrown weapons skip — handled separately).
-    if (weapon.ranged && weapon.compatible_ammo) consumeAmmo(c, weapon);
-    logAttackEvent(event);
-    showAttackVfx(event);
+  const blows = attacksThisRound(c, target, weapon);
+  for (let b = 0; b < blows; b++) {
+    if (c.dead || target.dead) break;
+    if (b > 0) { faceToward(c, target.position); renderAll(); await sleep(160); }
+    const event = resolveAttack(state, c.id, target.id, decl.weapon_id, { subdue: !!c._subdue });
+    if (event) {
+      // v0.8.5: ranged ammo decrement on every shot (thrown weapons skip — handled separately).
+      if (weapon.ranged && weapon.compatible_ammo) consumeAmmo(c, weapon);
+      logAttackEvent(event);
+      showAttackVfx(event);
+    }
+    await sleep(b < blows - 1 ? 300 : 450);
   }
-  await sleep(450);
 }
 
 async function executeChargeDecl(c, decl) {
