@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.14 -->
+<!-- dungeon-encounter — v0.9.15 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -460,15 +460,14 @@ body {
 .action-row .slot.subdue { border-left-color: #6b8aa8; }  .action-row .slot.subdue .icon { color: #88a8c4; }
 .action-row .slot.turn { border-left-color: var(--gold-deep); }  .action-row .slot.turn .icon { color: var(--gold-bright); }
 
-/* collapsible situational-action groups (Weaponless / Disengage) — expand in-flow, never clipped */
-.action-row .hud-group { display: flex; flex-direction: column; gap: 5px; align-self: start; }
+/* collapsible situational-action groups (Weaponless / Disengage) — members are normal
+   inline grid cells, hidden until the group is opened (so they stay horizontal & same-size) */
+.action-row .group-member.collapsed { display: none; }
 .action-row .hud-group-head { border-left-color: var(--border-strong); }
 .action-row .hud-group-head .icon { color: #cdbb9e; }
 .hud-group-head .caret { position: absolute; top: 3px; right: 5px; font-size: 9px; color: var(--text-muted);
   transition: transform 110ms; }
-.hud-group.open .hud-group-head .caret { transform: rotate(180deg); }
-.hud-group-body { display: none; flex-direction: column; gap: 5px; }
-.hud-group.open .hud-group-body { display: flex; }
+.hud-group-head.open .caret { transform: rotate(180deg); }
 .hud-group-head.declared { background: linear-gradient(180deg, #2f3d27, #26331f); border-color: #7fae5f; }
 
 /* states */
@@ -845,7 +844,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.14';
+const SIM_VERSION = 'v0.9.15';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -2253,6 +2252,7 @@ let peekDecl = false;
 let showReach = false;   // dotted weapon-reach rings (toggle with 'r')
 let showSpace = false;   // v0.8.7: dashed weapon-space rings (toggle with 's')
 let dragMove = null;     // active token-drag session: { id, origin, reach, budget, ghostCell, exact }
+let _hudOpenGroups = new Set(); // which situational HUD groups are expanded (persists across re-renders)
 let chatCollapse = {}; // round number -> true(collapsed)/false(expanded); set on user toggle
 
 // ============================================================
@@ -5187,7 +5187,7 @@ function renderHotbar() {
   }
 
   const HUD_GROUPS = [
-    { id: 'weaponless', icon: '✊', label: 'Weaponless' },
+    { id: 'weaponless', icon: '⊛', label: 'Weaponless' },
     { id: 'disengage', icon: '↩', label: 'Disengage' }
   ];
   for (const a of actionDefs) {
@@ -5196,20 +5196,27 @@ function renderHotbar() {
   for (const grp of HUD_GROUPS) {
     const members = actionDefs.filter(a => a.group === grp.id);
     if (!members.length) continue;
-    const hot = members.some(m => m.declared || m.active); // active pick or chosen order — open it
-    const wrap = document.createElement('div');
-    wrap.className = 'hud-group' + (hot ? ' open' : '');
+    const hot = members.some(m => m.declared || m.active); // active pick or chosen order — force open
+    const open = hot || _hudOpenGroups.has(grp.id);
     const head = document.createElement('button');
     head.type = 'button';
-    head.className = 'slot hud-group-head' + (hot ? ' declared' : '');
+    head.className = 'slot hud-group-head' + (hot ? ' declared' : '') + (open ? ' open' : '');
     head.innerHTML = `<span class="icon">${grp.icon}</span><span class="label">${grp.label}</span><span class="caret">▾</span>`;
-    head.addEventListener('click', (e) => { e.stopPropagation(); wrap.classList.toggle('open'); });
-    wrap.appendChild(head);
-    const body = document.createElement('div');
-    body.className = 'hud-group-body';
-    for (const m of members) body.appendChild(buildActionBtn(m));
-    wrap.appendChild(body);
-    actionRow.appendChild(wrap);
+    actionRow.appendChild(head);
+    const memberBtns = members.map(m => {
+      const b = buildActionBtn(m);
+      b.classList.add('group-member');
+      if (!open) b.classList.add('collapsed');
+      actionRow.appendChild(b);
+      return b;
+    });
+    head.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const nowOpen = !head.classList.contains('open');
+      head.classList.toggle('open', nowOpen);
+      if (nowOpen) _hudOpenGroups.add(grp.id); else _hudOpenGroups.delete(grp.id);
+      memberBtns.forEach(b => b.classList.toggle('collapsed', !nowOpen));
+    });
   }
   bindHudChrome();
 }
