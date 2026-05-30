@@ -114,7 +114,7 @@
 
 <div id="topbar">
   <h1>GAMMA WORLD — Campaign Map</h1>
-  <span class="ver">v0.49.0</span>
+  <span class="ver">v0.50.0</span>
   <span class="sep"></span>
   <button id="btn-reset">Fit View</button>
   <span class="spacer"></span>
@@ -221,6 +221,8 @@
 <script src="gcc-header.js"></script>
 <script src="gcc-firebase-config.js"></script>
 <script src="gcc-auth.js"></script>
+<script src="gcc-sync.js"></script>
+<script src="gcc-invite.js"></script>
 <script src="gw-subhex-view.js?v=38"></script>
 <script>
 'use strict';
@@ -893,6 +895,53 @@ fitToWindow();
 window.addEventListener('resize', fitToWindow);
 
 console.log('[gw-map] loaded', { COLS, ROWS, ANCHOR_COL, ANCHOR_ROW, HEX_R, parents: COLS*ROWS });
+
+// ─── Campaign context + GM/player mode (Phase 1) ──────────────────────────────
+// ?campaign=<cid> binds this map to a campaign: owner → 'gm', member → 'player',
+// no param → 'standalone' (local authoring tool, as before). Result lives on
+// window.GWCampaign and is announced via 'gw-campaign-ready' for later phases.
+// Phase 1 only resolves + shows a badge; it does not yet restrict anything.
+(function(){
+  const cid = new URLSearchParams(location.search).get('campaign');
+  function setMode(mode, name){
+    window.GWCampaign = { id: cid || null, mode, name: name || '' };
+    try { window.dispatchEvent(new CustomEvent('gw-campaign-ready', { detail: window.GWCampaign })); } catch(_){}
+    renderBadge();
+  }
+  function renderBadge(){
+    const c = window.GWCampaign || { mode: 'standalone' };
+    let el = document.getElementById('gw-campaign-badge');
+    if (c.mode === 'standalone'){ if (el) el.remove(); return; }
+    if (!el){
+      el = document.createElement('span');
+      el.id = 'gw-campaign-badge';
+      el.style.cssText = 'font-family:\'Cinzel\',serif;font-size:10px;letter-spacing:.08em;padding:3px 9px;border-radius:3px;border:1px solid var(--panel-border);';
+      const bar = document.getElementById('topbar');
+      bar.insertBefore(el, bar.querySelector('.spacer'));
+    }
+    if (c.mode === 'pending'){ el.style.color = '#c8a96e'; el.textContent = 'CHECKING…'; return; }
+    const gm = c.mode === 'gm';
+    el.style.color = gm ? '#ffce9e' : '#9ec8ff';
+    el.style.borderColor = gm ? '#5a3a0a' : '#2a4a6a';
+    el.textContent = (gm ? 'GM' : 'PLAYER') + (c.name ? ' · ' + c.name : '');
+  }
+  if (!cid){ setMode('standalone'); return; }
+  setMode('pending');
+  async function resolveMode(){
+    if (typeof GCCInvite === 'undefined' || typeof GCCAuth === 'undefined') return;
+    if (!GCCAuth.getUser()){ setMode('player'); return; }             // signed-out → restrictive default
+    if (typeof firebase === 'undefined' || !firebase.firestore) return;  // wait for firestore SDK
+    const owner = await GCCInvite.isOwner(cid);
+    let name = '';
+    try { const s = await GCCInvite.getSharedData(cid); if (s && s.name) name = s.name; } catch(_){}
+    setMode(owner ? 'gm' : 'player', name);
+  }
+  Promise.race([
+    new Promise(r => window.addEventListener('gcc-sync-ready', r, { once: true })),
+    new Promise(r => setTimeout(r, 8000)),
+  ]).then(resolveMode);
+  if (typeof GCCAuth !== 'undefined') GCCAuth.onAuthChange(() => resolveMode());
+})();
 </script>
 </body>
 </html>
