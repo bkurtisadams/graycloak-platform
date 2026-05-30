@@ -1,4 +1,6 @@
-// gw-map-sync.js v0.1.0 — 2026-05-29
+// gw-map-sync.js v0.1.1 — 2026-05-29
+// v0.1.1 — flatten stroke pts to a flat number array on publish (Firestore
+//          rejects nested arrays); player side rebuilds [[x,y],…] before render.
 // GW map publish (GM → players). Phase 2 of the player-view feature.
 // Reads the GM's local session state — party + fog + clock (localStorage) and
 // the non-hidden annotations (GWAnnotations.exportSafe()) — scopes features to
@@ -48,7 +50,16 @@
     const safe = (window.GWAnnotations && window.GWAnnotations.exportSafe)
       ? window.GWAnnotations.exportSafe() : { strokes: [], markers: [] };
     const markers = (safe.markers || []).filter(m => { const p = parentOfPoint(m.x, m.y); return p && explored.has(p); });
-    const strokes = (safe.strokes || []).filter(s => (s.pts || []).some(pt => { const p = parentOfPoint(pt[0], pt[1]); return p && explored.has(p); }));
+    const strokes = (safe.strokes || [])
+      .filter(s => (s.pts || []).some(pt => { const p = parentOfPoint(pt[0], pt[1]); return p && explored.has(p); }))
+      .map(s => {
+        const flat = []; for (const pt of (s.pts || [])) flat.push(pt[0], pt[1]);   // Firestore rejects nested arrays
+        const o = { id: s.id, kind: s.kind, pts: flat };
+        if (s.bbox) o.bbox = s.bbox;
+        if (s.color) o.color = s.color;
+        if (s.width != null) o.width = s.width;
+        return o;
+      });
     return {
       _updated: new Date().toISOString(),
       party: (party && Number.isFinite(party.Q) && Number.isFinite(party.R)) ? { Q: party.Q, R: party.R } : null,
