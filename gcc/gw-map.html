@@ -114,7 +114,7 @@
 
 <div id="topbar">
   <h1>GAMMA WORLD — Campaign Map</h1>
-  <span class="ver">v0.50.0</span>
+  <span class="ver">v0.51.0</span>
   <span class="sep"></span>
   <button id="btn-reset">Fit View</button>
   <span class="spacer"></span>
@@ -223,6 +223,7 @@
 <script src="gcc-auth.js"></script>
 <script src="gcc-sync.js"></script>
 <script src="gcc-invite.js"></script>
+<script src="gw-map-sync.js"></script>
 <script src="gw-subhex-view.js?v=38"></script>
 <script>
 'use strict';
@@ -941,6 +942,32 @@ console.log('[gw-map] loaded', { COLS, ROWS, ANCHOR_COL, ANCHOR_ROW, HEX_R, pare
     new Promise(r => setTimeout(r, 8000)),
   ]).then(resolveMode);
   if (typeof GCCAuth !== 'undefined') GCCAuth.onAuthChange(() => resolveMode());
+})();
+// ─── Publish to players (GM, Phase 2) ─────────────────────────────────────────
+// Shows a "Publish" button in the topbar only when bound to a campaign in GM
+// mode. Auto-publish (gw-map-sync) covers party moves; this is a manual push.
+(function(){
+  function sync(){
+    const c = window.GWCampaign || {};
+    let btn = document.getElementById('gw-publish-btn');
+    if (c.mode !== 'gm'){ if (btn) btn.remove(); return; }
+    if (btn) return;
+    btn = document.createElement('button');
+    btn.id = 'gw-publish-btn';
+    btn.textContent = '⤴ Publish to players';
+    btn.title = 'Push the current map, fog, and party position to your players';
+    const bar = document.getElementById('topbar');
+    bar.insertBefore(btn, bar.querySelector('.spacer'));
+    btn.addEventListener('click', async () => {
+      if (typeof GWMapSync === 'undefined'){ btn.textContent = 'Sync unavailable'; return; }
+      btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Publishing…';
+      const r = await GWMapSync.push((window.GWCampaign || {}).id);
+      btn.textContent = (r && r.ok) ? `✓ Published (${r.revealed} hexes)` : '✗ ' + ((r && r.reason) || 'failed');
+      setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2500);
+    });
+  }
+  window.addEventListener('gw-campaign-ready', sync);
+  sync();
 })();
 </script>
 </body>

@@ -98,6 +98,15 @@ service cloud.firestore {
           && request.resource.data.uid == request.auth.uid;
         allow delete: if request.auth != null;
       }
+
+      // GW map publish (player-safe map state, written by the GM client).
+      // Members + owner read; only the owner writes.
+      match /maps/{mapId} {
+        allow read: if request.auth != null
+          && (isCampaignOwner(campaignId)
+              || exists(/databases/$(database)/documents/campaigns/$(campaignId)/players/$(request.auth.uid)));
+        allow write: if request.auth != null && isCampaignOwner(campaignId);
+      }
     }
 
     // ── GM roster (NEW v4) ─────────────────────────────────────

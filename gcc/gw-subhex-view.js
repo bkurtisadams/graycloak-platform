@@ -1,4 +1,7 @@
-// gw-subhex-view.js v0.36.0 — 2026-05-29
+// gw-subhex-view.js v0.37.0 — 2026-05-29
+// v0.37.0 — emit 'gw-party-changed' on party/fog/clock save so a campaign-bound
+//           map auto-publishes to players (gw-map-sync).
+// v0.36.0 — 2026-05-29
 // v0.36.0 — marker editor "Hide from players" checkbox + dashed badge on hidden
 //           features (GM view). Data flag lives in gw-annotations (exportSafe).
 // v0.35.0 — 2026-05-25
@@ -306,8 +309,8 @@
     } catch(_){}
     if (!state.clock) state.clock = defaultClock();
   }
-  function saveParty(){ try { localStorage.setItem(PARTY_KEY, JSON.stringify(state.party)); } catch(_){} }
-  function saveRevealed(){ try { localStorage.setItem(FOG_KEY, JSON.stringify([...state.revealed])); } catch(_){} }
+  function saveParty(){ try { localStorage.setItem(PARTY_KEY, JSON.stringify(state.party)); } catch(_){} try { window.dispatchEvent(new CustomEvent('gw-party-changed')); } catch(_){} }
+  function saveRevealed(){ try { localStorage.setItem(FOG_KEY, JSON.stringify([...state.revealed])); } catch(_){} try { window.dispatchEvent(new CustomEvent('gw-party-changed')); } catch(_){} }
   function saveFogVis(){ try { localStorage.setItem(FOGVIS_KEY, state.fogOn ? '1' : '0'); } catch(_){} }
 
   // ── time: RAW route movement on a Gregorian 2471 calendar ────────────────────
@@ -336,7 +339,7 @@
   function defaultClock(){ return { year: 2471, month: 4, day: 1, min: DAWN_MIN, exert: 0 }; }
   function isLeap(y){ return (y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0); }
   function daysInMonth(y, m){ return [31, isLeap(y)?29:28, 31,30,31,30,31,31,30,31,30,31][m-1]; }
-  function saveClock(){ try { localStorage.setItem(CLOCK_KEY, JSON.stringify(state.clock)); } catch(_){} }
+  function saveClock(){ try { localStorage.setItem(CLOCK_KEY, JSON.stringify(state.clock)); } catch(_){} try { window.dispatchEvent(new CustomEvent('gw-party-changed')); } catch(_){} }
   function advanceDay(c){
     c.day += 1;
     if (c.day > daysInMonth(c.year, c.month)){ c.day = 1; c.month += 1; if (c.month > 12){ c.month = 1; c.year += 1; } }
