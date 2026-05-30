@@ -1,4 +1,7 @@
-// gw-subhex-view.js v0.35.0 — 2026-05-25
+// gw-subhex-view.js v0.36.0 — 2026-05-29
+// v0.36.0 — marker editor "Hide from players" checkbox + dashed badge on hidden
+//           features (GM view). Data flag lives in gw-annotations (exportSafe).
+// v0.35.0 — 2026-05-25
 // Seamless (Path B) 3-mile subhex viewer for the Gamma World map:
 // drill-in + pan/zoom, terrain paint brush, and a freehand vector overlay
 // (rivers/roads/trails) + settlement icon markers.
@@ -913,6 +916,7 @@
       '<div class="sx-med-h">EDIT FEATURE</div>' +
       '<div class="sx-med-row"><span>Name</span><input id="gw-sx-med-name" type="text" placeholder="(unnamed)"></div>' +
       '<div class="sx-med-row"><span>Type</span><select id="gw-sx-med-kind">' + kindOpts + '</select></div>' +
+      '<div class="sx-med-row"><span>Hidden</span><label style="flex:1;display:flex;align-items:center;gap:6px;font-size:11px;color:#cbb088;cursor:pointer"><input id="gw-sx-med-hidden" type="checkbox"> Hide from players</label></div>' +
       '<div class="sx-med-btns"><button id="gw-sx-med-del">🗑 Delete</button><button id="gw-sx-med-done">✓ Done</button></div>' +
       '<div id="gw-sx-med-dossier" class="sx-dos"></div>' +
       '<div class="sx-med-tip">Drag the icon on the map to move it.</div>';
@@ -931,10 +935,12 @@
       medName: med.querySelector('#gw-sx-med-name'),
       medKind: med.querySelector('#gw-sx-med-kind'),
       medDossier: med.querySelector('#gw-sx-med-dossier'),
+      medHidden: med.querySelector('#gw-sx-med-hidden'),
       palette,
     });
     state.el.medName.addEventListener('input', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { name: state.el.medName.value }); renderAnnotations(); renderDossier(); } });
     state.el.medKind.addEventListener('change', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { kind: state.el.medKind.value }); renderAnnotations(); renderDossier(); } });
+    state.el.medHidden.addEventListener('change', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { hidden: state.el.medHidden.checked }); renderAnnotations(); } });
     med.querySelector('#gw-sx-med-del').addEventListener('click', () => { if (state.markerSel){ A().deleteMarker(state.markerSel); closeMarkerEditor(); renderAnnotations(); } });
     med.querySelector('#gw-sx-med-done').addEventListener('click', closeMarkerEditor);
     back.addEventListener('click', close);
@@ -1204,7 +1210,7 @@
     if (st.dash) p.setAttribute('stroke-dasharray', st.dash);
     return p;
   }
-  function markerEl(kind, x, y, name, u){
+  function markerEl(kind, x, y, name, u, hidden){
     const r = ICON_PX * u;
     const g = document.createElementNS(SVGNS, 'g');
     g.setAttribute('class', 'gw-sx-marker');
@@ -1263,6 +1269,9 @@
       add('circle', { cx:x, cy:y, r:r*0.85, fill:'none', stroke:ink, 'stroke-width':2 });
       add('rect', { x:x-r*0.42, y:y-r*0.42, width:r*0.84, height:r*0.84, fill:ink });
     }
+    if (hidden){
+      add('circle', { cx:x, cy:y, r:r*1.55, fill:'none', stroke:'#ff5252', 'stroke-width':1.4, 'stroke-dasharray':`${r*0.5} ${r*0.34}` });
+    }
     if (name){
       const t = document.createElementNS(SVGNS, 'text');
       t.setAttribute('x', x); t.setAttribute('y', y + r*1.25 + 11*u);
@@ -1285,7 +1294,7 @@
       frag.appendChild(lineEl(s.kind, smoothPath(s.pts), { color: s.color, width: s.width }));
     }
     for (const m of A().markersInBbox({ minX: bb.minX - 50*u, maxX: bb.maxX + 50*u, minY: bb.minY - 50*u, maxY: bb.maxY + 50*u })){
-      frag.appendChild(markerEl(m.kind, m.x, m.y, m.name, u));
+      frag.appendChild(markerEl(m.kind, m.x, m.y, m.name, u, m.hidden));
       if (state.markerSel === m.id) frag.appendChild(markerSelRing(m.x, m.y, u));
     }
     state.el.gAnnot.replaceChildren(frag);
@@ -1427,6 +1436,7 @@
     state.markerSel = id;
     state.el.medName.value = m.name || '';
     state.el.medKind.value = m.kind;
+    state.el.medHidden.checked = !!m.hidden;
     state.el.medit.classList.add('show');
     renderDossier();
     renderAnnotations();

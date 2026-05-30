@@ -1,4 +1,7 @@
-// gw-annotations.js v0.4.0 — 2026-05-25 (monastery + installation marker kinds)
+// gw-annotations.js v0.5.0 — 2026-05-29
+// v0.5.0 — `hidden` flag on markers/strokes (GM-only features kept off the
+//          player publish) + exportSafe() returning the non-hidden set.
+// v0.4.0 — 2026-05-25 (monastery + installation marker kinds)
 // Freehand vector overlay for the Gamma World subhex map: smooth line
 // strokes (rivers/roads/trails/pen) and point markers (settlement icons),
 // stored in world-SVG coordinates so they pan/zoom with the subhex view.
@@ -64,6 +67,7 @@
     if (opts && opts.width) s.width = +opts.width;
     if (opts && opts.gen) s.gen = true;
     if (opts && opts.parent) s.parent = String(opts.parent);
+    if (opts && opts.hidden) s.hidden = true;
     DB.strokes.push(s);
     if (!(opts && opts.deferSave)) { save(); emit('stroke-add'); }
     return s.id;
@@ -77,6 +81,7 @@
     if ('kind' in fields && STROKE_KINDS.includes(fields.kind)) s.kind = fields.kind;
     if ('color' in fields) s.color = fields.color || undefined;
     if ('width' in fields) s.width = fields.width ? +fields.width : undefined;
+    if ('hidden' in fields){ if (fields.hidden) s.hidden = true; else delete s.hidden; }
     save(); emit('stroke-update');
     return true;
   }
@@ -101,6 +106,7 @@
     if (opts && opts.name && String(opts.name).trim()) m.name = String(opts.name).trim();
     if (opts && opts.gen) m.gen = true;
     if (opts && opts.parent) m.parent = String(opts.parent);
+    if (opts && opts.hidden) m.hidden = true;
     DB.markers.push(m);
     if (!(opts && opts.deferSave)) { save(); emit('marker-add'); }
     return m.id;
@@ -112,6 +118,7 @@
     if ('y' in fields) m.y = +fields.y;
     if ('kind' in fields && MARKER_KINDS.includes(fields.kind)) m.kind = fields.kind;
     if ('name' in fields){ const n = String(fields.name || '').trim(); if (n) m.name = n; else delete m.name; }
+    if ('hidden' in fields){ if (fields.hidden) m.hidden = true; else delete m.hidden; }
     save(); emit('marker-update');
     return true;
   }
@@ -144,11 +151,20 @@
   }
   function flush(){ save(); emit('flush'); }
 
+  // Player-safe view: everything not flagged hidden. Phase-2 publish uses this.
+  function exportSafe(){
+    return {
+      v: DB.v,
+      strokes: DB.strokes.filter(s => !s.hidden),
+      markers: DB.markers.filter(m => !m.hidden),
+    };
+  }
+
   window.GWAnnotations = {
     STROKE_KINDS, MARKER_KINDS,
     addStroke, updateStroke, deleteStroke, listStrokes, strokesInBbox,
     addMarker, updateMarker, deleteMarker, listMarkers, markersInBbox,
-    clearAll, clearGenerated, flush, save,
+    clearAll, clearGenerated, flush, save, exportSafe,
   };
   try { console.log('[gw-annotations] v0.4.0 loaded', { strokes: DB.strokes.length, markers: DB.markers.length }); } catch(_){}
 })();
