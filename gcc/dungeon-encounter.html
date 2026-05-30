@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.13 -->
+<!-- dungeon-encounter — v0.9.14 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -313,6 +313,7 @@ body {
 .hit-preview b { color: var(--text); font-weight: 600; }
 .hit-preview .need { color: var(--gold-bright); font-family: 'DM Mono', monospace; }
 .hit-preview .mods { color: var(--text-muted); font-size: 10px; }
+.hit-preview .warn { color: var(--crimson-bright); font-size: 10px; }
 .hit-preview .auto { color: var(--moss); }
 
 /* MINI STATS */
@@ -458,6 +459,17 @@ body {
 .action-row .slot.stepstrike { border-left-color: #7a9a5a; }  .action-row .slot.stepstrike .icon { color: #a8c878; }
 .action-row .slot.subdue { border-left-color: #6b8aa8; }  .action-row .slot.subdue .icon { color: #88a8c4; }
 .action-row .slot.turn { border-left-color: var(--gold-deep); }  .action-row .slot.turn .icon { color: var(--gold-bright); }
+
+/* collapsible situational-action groups (Weaponless / Disengage) — expand in-flow, never clipped */
+.action-row .hud-group { display: flex; flex-direction: column; gap: 5px; align-self: start; }
+.action-row .hud-group-head { border-left-color: var(--border-strong); }
+.action-row .hud-group-head .icon { color: #cdbb9e; }
+.hud-group-head .caret { position: absolute; top: 3px; right: 5px; font-size: 9px; color: var(--text-muted);
+  transition: transform 110ms; }
+.hud-group.open .hud-group-head .caret { transform: rotate(180deg); }
+.hud-group-body { display: none; flex-direction: column; gap: 5px; }
+.hud-group.open .hud-group-body { display: flex; }
+.hud-group-head.declared { background: linear-gradient(180deg, #2f3d27, #26331f); border-color: #7fae5f; }
 
 /* states */
 .slot.active { border-color: var(--gold-bright); background: #2c2418;
@@ -833,7 +845,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.13';
+const SIM_VERSION = 'v0.9.14';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -1406,6 +1418,18 @@ function chargeAllowed(c) {
 function weaponLength(weaponId) {
   const w = WEAPONS[weaponId];
   return (w && w.length) || 0;
+}
+// True when closing on `target` with `weaponId` would hand the defender the free
+// closing blow: attacker must close (not yet in strike reach) with a melee weapon,
+// and the defender wields a strictly longer melee weapon. Surprise negates it.
+function defenderHasClosingReach(attacker, target, weaponId) {
+  if (state.is_surprise_round) return false;
+  const w = WEAPONS[weaponId];
+  if (!w || !w.melee || !target || target.dead) return false;
+  if (withinStrikeReach(attacker, target, w)) return false;
+  const dw = WEAPONS[target.active_weapon];
+  if (!dw || !dw.melee) return false;
+  return weaponLength(target.active_weapon) > weaponLength(weaponId);
 }
 function isSettableWeaponName(name) {
   const n = String(name || '').toLowerCase();
@@ -4278,6 +4302,20 @@ function renderMap() {
         rect.addEventListener('click', () => App.completePickTarget(t.id));
         rect.addEventListener('mouseenter', () => showHitPreview(c, state.picking, t));
         rect.addEventListener('mouseleave', hideHitPreview);
+        // Closing threat: if this foe out-reaches the attacker, it strikes first as we close.
+        if (defenderHasClosingReach(c, t, state.picking.weaponId)) {
+          const tc2 = tokenCenter(t);
+          const tn = sizeCells(t);
+          const thalf = (SIZE * 0.41) * (tn > 1 ? tn : (t.size_token || 1));
+          const dw = WEAPONS[t.active_weapon];
+          const rr = thalf + ((dw.length || 2) / 10) * SQ;
+          svgEl('circle', {
+            cx: tc2.x.toFixed(2), cy: tc2.y.toFixed(2), r: rr.toFixed(1),
+            fill: 'none', stroke: 'var(--crimson-bright)', 'stroke-width': 1.5,
+            'stroke-dasharray': '4 3', 'stroke-opacity': 0.85,
+            'class': 'closing-threat-ring', 'pointer-events': 'none'
+          }, overlay);
+        }
       });
     }
   }
@@ -5029,13 +5067,13 @@ function renderHotbar() {
     { kind: 'charge', icon: '➤', label: 'Charge', detail: primary?.label || 'Primary', disabled: !canCharge, cls: 'charge', key: '3', active: state.picking?.kind === 'target' && state.picking.charge && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'charge' },
     { kind: 'set', icon: '⟑', label: 'Set vs Charge', detail: primary?.label || 'Primary', disabled: !canSet, cls: 'set', key: '4', declared: currentDecl?.kind === 'set' },
     { kind: 'parry', icon: '⛨', label: 'Parry', detail: 'Defend, no attack', disabled: !canParry, cls: 'parry', key: '5', declared: currentDecl?.kind === 'parry' },
-    { kind: 'grapple', icon: '⊗', label: 'Grapple', detail: 'Seize & hold', disabled: !canGrapple, cls: 'grapple', key: '', active: state.picking?.kind === 'target' && state.picking.grapple && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'grapple' },
-    { kind: 'overbear', icon: '⤋', label: 'Overbear', detail: 'Tackle prone', disabled: !canOverbear, cls: 'overbear', key: '', active: state.picking?.kind === 'target' && state.picking.overbear && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'overbear' },
-    { kind: 'pummel', icon: '✸', label: 'Pummel', detail: 'Batter senseless', disabled: !canPummel, cls: 'pummel', key: '', active: state.picking?.kind === 'target' && state.picking.pummel && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'pummel' },
+    { kind: 'grapple', group: 'weaponless', icon: '⊗', label: 'Grapple', detail: 'Seize & hold', disabled: !canGrapple, cls: 'grapple', key: '', active: state.picking?.kind === 'target' && state.picking.grapple && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'grapple' },
+    { kind: 'overbear', group: 'weaponless', icon: '⤋', label: 'Overbear', detail: 'Tackle prone', disabled: !canOverbear, cls: 'overbear', key: '', active: state.picking?.kind === 'target' && state.picking.overbear && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'overbear' },
+    { kind: 'pummel', group: 'weaponless', icon: '✸', label: 'Pummel', detail: 'Batter senseless', disabled: !canPummel, cls: 'pummel', key: '', active: state.picking?.kind === 'target' && state.picking.pummel && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'pummel' },
     { kind: 'move', icon: '✜', label: 'Move', detail: 'Pick space', disabled: false, cls: 'move', key: '6', active: state.picking?.kind === 'move' && !state.picking.fallBack && !state.picking.stepStrike && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'move' },
     { kind: 'step-strike', icon: '↬', label: 'Step & Strike', detail: 'Reposition ≤12.5 ft, then hit', disabled: !canStepStrike, cls: 'stepstrike', key: '', active: state.picking?.stepStrike && state.picking.forCombatantId === c.id, declared: !!(currentDecl?.kind === 'attack' && currentDecl.step_to) },
-    { kind: 'fall-back', icon: '↩', label: 'Fall Back', detail: 'Withdraw, no free hit', disabled: false, cls: 'fallback', key: '7', active: state.picking?.kind === 'move' && state.picking.fallBack && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'fall_back' },
-    { kind: 'flee', icon: '↜', label: 'Flee', detail: 'Run; foes get a free hit', disabled: enemiesAlive === 0, cls: 'flee', key: '8', declared: currentDecl?.kind === 'flee' },
+    { kind: 'fall-back', group: 'disengage', icon: '↩', label: 'Fall Back', detail: 'Withdraw, no free hit', disabled: false, cls: 'fallback', key: '7', active: state.picking?.kind === 'move' && state.picking.fallBack && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'fall_back' },
+    { kind: 'flee', group: 'disengage', icon: '↜', label: 'Flee', detail: 'Run; foes get a free hit', disabled: enemiesAlive === 0, cls: 'flee', key: '8', declared: currentDecl?.kind === 'flee' },
     { kind: 'cast', icon: spell?.icon || '✦', label: 'Cast', detail: spell?.label || 'No spell', disabled: !canCast, cls: 'spell', key: '9', active: state.picking?.kind === 'target' && state.picking.spellId === spell?.id, declared: currentDecl?.kind === 'cast' && currentDecl.spell_id === spell?.id },
     { kind: 'subdue', icon: '⊘', label: 'Subdue', detail: 'Strike to subdue (non-PCs)', disabled: false, cls: 'subdue', key: '', active: !!c._subdue },
     { kind: 'hold', icon: '·', label: 'Hold', detail: 'Await action', disabled: false, cls: 'hold', key: '', declared: currentDecl?.kind === 'hold' },
@@ -5109,7 +5147,8 @@ function renderHotbar() {
   }
 
   const actionRow = el.querySelector('#hud-action-row');
-  actionDefs.forEach((a, i) => {
+
+  function buildActionBtn(a) {
     const btn = document.createElement('button');
     btn.type = 'button';
     const cls = ['slot', a.cls || ''];
@@ -5144,8 +5183,34 @@ function renderHotbar() {
         else if (a.kind === 'suggest') App.suggestDeclaration(c.id);
       });
     }
-    actionRow.appendChild(btn);
-  });
+    return btn;
+  }
+
+  const HUD_GROUPS = [
+    { id: 'weaponless', icon: '✊', label: 'Weaponless' },
+    { id: 'disengage', icon: '↩', label: 'Disengage' }
+  ];
+  for (const a of actionDefs) {
+    if (!a.group) actionRow.appendChild(buildActionBtn(a));
+  }
+  for (const grp of HUD_GROUPS) {
+    const members = actionDefs.filter(a => a.group === grp.id);
+    if (!members.length) continue;
+    const hot = members.some(m => m.declared || m.active); // active pick or chosen order — open it
+    const wrap = document.createElement('div');
+    wrap.className = 'hud-group' + (hot ? ' open' : '');
+    const head = document.createElement('button');
+    head.type = 'button';
+    head.className = 'slot hud-group-head' + (hot ? ' declared' : '');
+    head.innerHTML = `<span class="icon">${grp.icon}</span><span class="label">${grp.label}</span><span class="caret">▾</span>`;
+    head.addEventListener('click', (e) => { e.stopPropagation(); wrap.classList.toggle('open'); });
+    wrap.appendChild(head);
+    const body = document.createElement('div');
+    body.className = 'hud-group-body';
+    for (const m of members) body.appendChild(buildActionBtn(m));
+    wrap.appendChild(body);
+    actionRow.appendChild(wrap);
+  }
   bindHudChrome();
 }
 
@@ -5223,9 +5288,13 @@ function buildHitPreview(attacker, picking, target) {
   const dmg = `${p.dmgDice}${p.dmgBonus ? '+' + p.dmgBonus : ''}`;
   const band = p.range_band ? ` · ${p.range_band}` : '';
   const mods = modAdjList(p.mods);
+  const closingWarn = defenderHasClosingReach(attacker, target, picking.weaponId)
+    ? `<br><span class="warn">⚠ ${target.label}'s ${WEAPONS[target.active_weapon].name} out-reaches you — strikes first as you close</span>`
+    : '';
   return `<b>${attacker.label}</b> → <b>${target.label}</b> · ${w.name}${band}<br>`
        + `needs <span class="need">${p.needed}+</span> vs AC ${target.ac_current} · dmg ${dmg}`
-       + (mods.length ? `<br><span class="mods">${mods.join(' · ')}</span>` : '');
+       + (mods.length ? `<br><span class="mods">${mods.join(' · ')}</span>` : '')
+       + closingWarn;
 }
 function showHitPreview(attacker, picking, target) {
   const el = document.getElementById('hit-preview');
