@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.17 -->
+<!-- dungeon-encounter — v0.9.18 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -217,6 +217,18 @@ body {
 .sheet-stat .v { font-family: 'DM Mono', monospace; font-size: 17px; font-weight: 600; color: var(--text); line-height: 1.25; }
 .sheet-stat .x { font-size: 9px; color: var(--text-dim); }
 .sheet-lbl { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; margin: 9px 0 5px; }
+/* six-ability row */
+.sheet-abil { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin-bottom: 8px; }
+.sheet-ab { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 5px 2px; text-align: center; }
+.sheet-ab .k { font-family: 'DM Mono', monospace; font-size: 8px; color: var(--text-muted); letter-spacing: 0.06em; text-transform: uppercase; }
+.sheet-ab .v { font-family: 'DM Mono', monospace; font-size: 16px; font-weight: 600; color: var(--text); line-height: 1.25; }
+/* saving-throw strip (one row, tap to roll) */
+.sheet-saves { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
+.sheet-sv { background: var(--surface-2); border: 1px solid var(--border); border-top-width: 2px; border-radius: 4px;
+  padding: 5px 2px 6px; text-align: center; cursor: pointer; }
+.sheet-sv:hover { border-color: var(--gold-bright); }
+.sheet-sv .k { display: block; font-family: 'DM Mono', monospace; font-size: 8px; color: var(--text-dim); letter-spacing: 0.04em; }
+.sheet-sv .v { display: block; font-family: 'DM Mono', monospace; font-size: 15px; font-weight: 600; color: var(--gold-bright); line-height: 1.3; }
 /* classic MM-style label : value rows */
 .sheet-stat-list { display: flex; flex-direction: column; }
 .sheet-sb { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 2px 2px;
@@ -226,18 +238,6 @@ body {
 .sheet-sb.nil .v { color: var(--text-muted); }
 .sheet-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px;
   border: 1px solid var(--border); border-left-width: 3px; border-radius: 4px; margin-bottom: 5px; background: var(--surface-2); }
-.sheet-row .nm { font-size: 13px; color: #f0e6d2; min-width: 0; }
-.sheet-row .nm small { display: block; font-family: 'DM Mono', monospace; font-size: 9px; color: var(--text-dim); }
-.sheet-tgt { font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 600; color: var(--gold-bright); }
-.sheet-mini { background: var(--surface-3); border: 1px solid var(--border-strong); color: var(--text-dim);
-  border-radius: 3px; padding: 3px 8px; font-family: 'DM Mono', monospace; font-size: 10px; cursor: pointer; }
-.sheet-mini:hover { border-color: var(--gold-deep); color: var(--gold-bright); }
-.sheet-mini:disabled { opacity: 0.4; cursor: not-allowed; }
-.sheet-mini:disabled:hover { border-color: var(--border-strong); color: var(--text-dim); }
-.sheet-badge { font-family: 'DM Mono', monospace; font-size: 8px; color: var(--ink); background: var(--moss);
-  border-radius: 3px; padding: 2px 5px; letter-spacing: 0.04em; }
-.sheet-q { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-dim); flex: none; }
-.sheet-empty { color: var(--text-muted); font-style: italic; font-size: 12px; padding: 8px 2px; }
 .sheet-row .nm { font-size: 13px; color: #f0e6d2; min-width: 0; }
 .sheet-row .nm small { display: block; font-family: 'DM Mono', monospace; font-size: 9px; color: var(--text-dim); }
 .sheet-tgt { font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 600; color: var(--gold-bright); }
@@ -894,7 +894,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.17';
+const SIM_VERSION = 'v0.9.18';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -5074,6 +5074,7 @@ function renderHotbar() {
     return;
   }
   const usable = !!(state.phase === 'declare' && c.side === state.acting_side && !state.game_over);
+  if (hudUi.tab === 'saves') hudUi.tab = 'actions'; // saves folded into stats (v0.9.18)
   const tab = hudUi.tab || 'actions';
 
   const slots = ensureHudSlots(c);
@@ -5137,11 +5138,13 @@ function renderHotbar() {
     ? `${String(c.matrix_class || '').replace(/^./, m => m.toUpperCase())} · ${c.level}`
     : (c.hd ? `Monster · HD ${c.hd}` : 'Monster');
 
-  const tabDefs = [['actions', 'Actions'], ['stats', 'Stats'], ['saves', 'Saves'], ['spells', 'Spells']];
+  const tabDefs = [['actions', 'Actions'], ['stats', 'Stats'], ['spells', 'Spells']];
   const tabStrip = tabDefs.map(([id, lbl]) => `<button class="hud-tab${tab === id ? ' on' : ''}" data-tab="${id}">${lbl}</button>`).join('');
 
   let bodyHtml;
-  if (tab === 'actions') {
+  if (tab === 'stats') bodyHtml = renderHudStats(c);
+  else if (tab === 'spells') bodyHtml = renderSheetSpells(c);
+  else {
     bodyHtml = usable
       ? `<div class="hud-section">
            <div class="hud-section-title"><span>Ready</span><span class="decl-text">${describeDeclaration(currentDecl)}</span></div>
@@ -5151,10 +5154,8 @@ function renderHotbar() {
            <div class="hud-section-title"><span>Declarations</span></div>
            <div class="action-row" id="hud-action-row"></div>
          </div>`
-      : `<div class="hud-note">${c.side === state.acting_side ? 'Combat is resolving — orders are locked this phase.' : `${sideName(state.acting_side)} is declaring. Switch to Stats, Saves, or Spells to inspect ${c.label}.`}</div>`;
-  } else if (tab === 'stats') bodyHtml = renderHudStats(c);
-  else if (tab === 'saves') bodyHtml = renderSheetSaves(c);
-  else bodyHtml = renderSheetSpells(c);
+      : `<div class="hud-note">${c.side === state.acting_side ? 'Combat is resolving — orders are locked this phase.' : `${sideName(state.acting_side)} is declaring. Switch to Stats or Spells to inspect ${c.label}.`}</div>`;
+  }
 
   el.innerHTML = `
     <div class="hud-head" id="hud-drag-handle">
@@ -5494,11 +5495,13 @@ function sheetSelectedCombatant() {
 }
 
 const SIZE_NAMES = { S: 'Small', M: 'Man-sized', L: 'Large' };
+const SHEET_SAVE_CODES = { ppd: 'PPD', pp: 'PP', rsw: 'RSW', bw: 'BW', spell: 'SPELL' };
 
-// Classic AD&D Monster-Manual-style label : value block. Reads optional descriptive
-// fields (alignment, intelligence, languages[], special_abilities[], immunities[],
-// special_attacks[], special_defenses[], magic_resistance) and shows Nil when absent,
-// exactly as a real MM entry does. Works for PC, NPC, and monster alike.
+// Classic AD&D Monster-Manual-style label : value block, with a six-ability row above
+// (when scores exist) and the five saving throws folded in as a tap-to-roll strip below.
+// Reads optional descriptive fields (alignment, intelligence, languages[], special_abilities[],
+// immunities[], special_attacks[], special_defenses[], magic_resistance) and shows Nil when
+// absent, exactly as a real MM entry does. Works for PC, NPC, and monster alike.
 function renderHudStats(c) {
   const enc = c._enc || encumbranceInfo(c);
   const aw = WEAPONS[c.active_weapon];
@@ -5507,9 +5510,10 @@ function renderHudStats(c) {
   const lvlLine = c.kind === 'pc'
     ? `${String(c.matrix_class || 'Adventurer').replace(/^./, m => m.toUpperCase())} ${c.level}`
     : (c.hd != null ? String(c.hd) : String(c.level));
-  const intel = c.intelligence != null ? c.intelligence
-    : (c.intelligent === false ? 'Animal' : (c.kind === 'pc' && c.int != null ? c.int : null));
   const abilities = [['Str', c.str], ['Dex', c.dex], ['Con', c.con], ['Int', c.int], ['Wis', c.wis], ['Cha', c.cha]].filter(([, v]) => v != null);
+  const hasAbilities = abilities.length > 0;
+  // MM "Intelligence" rating line only when there is no ability-score row to carry Int (i.e. monsters)
+  const intel = c.intelligence != null ? c.intelligence : (c.intelligent === false ? 'Animal' : null);
   const rows = [
     ['Armor Class', c.ac_current],
     ['Move', `${enc.moveIn}"${enc.short !== 'UNE' ? ` (${enc.short})` : ''}`],
@@ -5522,32 +5526,24 @@ function renderHudStats(c) {
     ['Special Defenses', list(c.special_defenses)],
     ['Magic Resistance', c.magic_resistance != null ? (typeof c.magic_resistance === 'number' ? `${c.magic_resistance}%` : c.magic_resistance) : null],
     ['Immunities', list(c.immunities)],
-    ['Intelligence', intel],
+    ...(hasAbilities ? [] : [['Intelligence', intel]]),
     ['Alignment', c.alignment || null],
     ['Languages', list(c.languages)],
     ['Special Abilities', list(c.special_abilities)],
     ['Size', SIZE_NAMES[c.size] || c.size || null]
   ];
   let html = '';
-  if (abilities.length) {
-    html += `<div class="sheet-grid">` + abilities.map(([k, v]) => `<div class="sheet-stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('') + `</div>`;
+  if (hasAbilities) {
+    html += `<div class="sheet-abil">` + abilities.map(([k, v]) => `<div class="sheet-ab"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('') + `</div>`;
   }
   html += `<div class="sheet-stat-list">` + rows.map(([k, v]) => {
     const nil = (v == null || v === '');
     return `<div class="sheet-sb${nil ? ' nil' : ''}"><span class="k">${k}</span><span class="v">${nil ? 'Nil' : v}</span></div>`;
   }).join('') + `</div>`;
+  html += `<div class="sheet-lbl">Saving Throws · tap to roll</div><div class="sheet-saves">`
+    + SAVE_CATEGORIES.map(cat => `<button class="sheet-sv" style="border-top-color:${SHEET_SAVE_COLORS[cat]}" onclick="App.sheetRollSave('${cat}')"><span class="k">${SHEET_SAVE_CODES[cat]}</span><span class="v">${saveTargetFor(c, cat)}</span></button>`).join('')
+    + `</div>`;
   return html;
-}
-
-function renderSheetSaves(c) {
-  return SAVE_CATEGORIES.map(cat => {
-    const tgt = saveTargetFor(c, cat);
-    return `<div class="sheet-row" style="border-left-color:${SHEET_SAVE_COLORS[cat]}">`
-      + `<span class="nm">${SHEET_SAVE_LABELS[cat]}<small>save vs ${cat}</small></span>`
-      + `<span style="display:flex;align-items:center;gap:8px;flex:none">`
-      + `<span class="sheet-tgt">${tgt}+</span>`
-      + `<button class="sheet-mini" onclick="App.sheetRollSave('${cat}')">Roll</button></span></div>`;
-  }).join('');
 }
 
 function renderSheetSpells(c) {
