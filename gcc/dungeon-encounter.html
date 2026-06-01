@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.18 -->
+<!-- dungeon-encounter — v0.9.19 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -894,7 +894,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.18';
+const SIM_VERSION = 'v0.9.19';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -5711,12 +5711,24 @@ function renderGmEditor() {
     `<div class="gm-ac-row"><label>AC base / cur</label><div class="pair"><input id="gm-f-acbase" type="number" value="${c.ac_base}"><input id="gm-f-accur" type="number" value="${c.ac_current}"></div><button class="gm-suggest" onclick="App.gmSuggestAC()" title="Fill from armour + Dex + shield — a suggestion; you can still override">Suggest</button></div>` +
     `<div class="gm-ac-note">suggested: ${ac.shieldless} shieldless / ${ac.withShield} with shield</div>` +
     `<div class="gm-field"><label>Str / Dex</label><div class="pair"><input id="gm-f-str" type="number" value="${strOf(c)}"><input id="gm-f-dex" type="number" value="${dexOf(c)}"></div></div>` +
+    `<div class="gm-field"><label>Con / Int</label><div class="pair"><input id="gm-f-con" type="number" value="${c.con != null ? c.con : ''}"><input id="gm-f-int" type="number" value="${c.int != null ? c.int : ''}"></div></div>` +
+    `<div class="gm-field"><label>Wis / Cha</label><div class="pair"><input id="gm-f-wis" type="number" value="${c.wis != null ? c.wis : ''}"><input id="gm-f-cha" type="number" value="${c.cha != null ? c.cha : ''}"></div></div>` +
     `<div class="gm-field"><label>Move (base&nbsp;″)</label><input id="gm-f-move" type="number" value="${baseMove}"></div>` +
     `<div class="gm-sec-ttl gm-gear-sec">Gear · doled from catalogue</div>` +
     `<div class="gm-field"><label>Weapon</label><select id="gm-g-weapon" onchange="App.gmSetWeapon(this.value)">${wpnOpts}</select></div>` +
     `<div class="gm-field"><label>Armour</label><select id="gm-g-armor" onchange="App.gmSetArmor(this.value)">${armOpts}</select></div>` +
     `<div class="gm-field"><label>Shield</label><select id="gm-g-shield" onchange="App.gmSetShield(this.value)">${shOpts}</select></div>` +
     `<div class="gm-ac-note">gear sets weight/encumbrance &amp; the AC suggestion above — AC itself stays manual (click Suggest).</div>` +
+    `<div class="gm-sec-ttl">Lore &amp; Defenses · shown on the Stats tab</div>` +
+    `<div class="gm-field"><label>Alignment</label><input id="gm-f-alignment" type="text" value="${_gmEsc(c.alignment || '')}" placeholder="e.g. Lawful Good"></div>` +
+    `<div class="gm-field"><label>Intelligence</label><input id="gm-f-intelligence" type="text" value="${_gmEsc(c.intelligence != null ? String(c.intelligence) : '')}" placeholder="rating word — monsters only"></div>` +
+    `<div class="gm-field"><label>Size</label><select id="gm-f-size"><option value="S"${c.size === 'S' ? ' selected' : ''}>Small</option><option value="M"${(c.size === 'M' || !c.size) ? ' selected' : ''}>Man-sized</option><option value="L"${c.size === 'L' ? ' selected' : ''}>Large</option></select></div>` +
+    `<div class="gm-field"><label>Magic Resistance</label><input id="gm-f-magic-resistance" type="text" value="${_gmEsc(c.magic_resistance != null ? String(c.magic_resistance) : '')}" placeholder="e.g. 20 or 20%"></div>` +
+    `<div class="gm-field"><label>Languages</label><input id="gm-f-languages" type="text" value="${_gmEsc((c.languages || []).join(', '))}" placeholder="comma-separated"></div>` +
+    `<div class="gm-field"><label>Special Attacks</label><input id="gm-f-special-attacks" type="text" value="${_gmEsc((c.special_attacks || []).join(', '))}" placeholder="comma-separated"></div>` +
+    `<div class="gm-field"><label>Special Defenses</label><input id="gm-f-special-defenses" type="text" value="${_gmEsc((c.special_defenses || []).join(', '))}" placeholder="comma-separated"></div>` +
+    `<div class="gm-field"><label>Immunities</label><input id="gm-f-immunities" type="text" value="${_gmEsc((c.immunities || []).join(', '))}" placeholder="comma-separated"></div>` +
+    `<div class="gm-field"><label>Special Abilities</label><input id="gm-f-special-abilities" type="text" value="${_gmEsc((c.special_abilities || []).join(', '))}" placeholder="comma-separated"></div>` +
     `<div class="gm-actions"><button onclick="App.gmApply()">Apply Changes</button></div>`;
 }
 function renderGmPanel() { renderGmSettings(); renderGmRoster(); renderGmEditor(); }
@@ -5798,6 +5810,9 @@ const App = {
     const c = gmUi.editId ? findCombatant(state, gmUi.editId) : null; if (!c) return;
     const val = id => { const e = document.getElementById(id); return e ? e.value : null; };
     const numv = (id, dflt) => { const v = parseFloat(val(id)); return Number.isFinite(v) ? v : dflt; };
+    const _gmText = id => { const e = document.getElementById(id); const s = e ? e.value.trim() : ''; return s || undefined; };
+    const _gmAbil = id => { const e = document.getElementById(id); if (!e) return undefined; const s = e.value.trim(); if (!s) return undefined; const n = parseInt(s, 10); return Number.isFinite(n) ? n : undefined; };
+    const _gmList = id => { const e = document.getElementById(id); const s = e ? e.value.trim() : ''; if (!s) return undefined; const a = s.split(',').map(x => x.trim()).filter(Boolean); return a.length ? a : undefined; };
     const label = (val('gm-f-label') || '').trim();
     if (label) { c.label = label; c.letter = (label.trim()[0] || '?').toUpperCase(); }
     c.side = val('gm-f-side') === 'B' ? 'B' : 'A';
@@ -5813,6 +5828,20 @@ const App = {
     c.ac_current = Math.round(numv('gm-f-accur', c.ac_current));
     c.str = Math.round(numv('gm-f-str', strOf(c)));
     c.dex = Math.round(numv('gm-f-dex', dexOf(c)));
+    c.con = _gmAbil('gm-f-con');
+    c.int = _gmAbil('gm-f-int');
+    c.wis = _gmAbil('gm-f-wis');
+    c.cha = _gmAbil('gm-f-cha');
+    c.alignment = _gmText('gm-f-alignment');
+    c.intelligence = _gmText('gm-f-intelligence');
+    c.languages = _gmList('gm-f-languages');
+    c.special_attacks = _gmList('gm-f-special-attacks');
+    c.special_defenses = _gmList('gm-f-special-defenses');
+    c.immunities = _gmList('gm-f-immunities');
+    c.special_abilities = _gmList('gm-f-special-abilities');
+    { const mr = (val('gm-f-magic-resistance') || '').trim();
+      c.magic_resistance = mr === '' ? undefined : (/^\d+%?$/.test(mr) ? parseFloat(mr) : mr); }
+    { const sz = val('gm-f-size'); if (sz === 'S' || sz === 'M' || sz === 'L') c.size = sz; }
     c._base_move = Math.max(1, Math.round(numv('gm-f-move', c._base_move != null ? c._base_move : c.move)));
     recomputeMove(c);
     recomputeEngagements(state);
