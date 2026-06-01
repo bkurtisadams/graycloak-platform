@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.21 -->
+<!-- dungeon-encounter — v0.9.22 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -269,6 +269,13 @@ body {
 .sheet-row.exp.open .sheet-det { display: block; }
 .sheet-mech { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--steel-bright); margin: 7px 0 4px; line-height: 1.5; }
 .sheet-flav { font-family: 'Crimson Text', serif; font-size: 12.5px; color: var(--text-dim); line-height: 1.4; }
+/* Class tab: ability-adjustment rows and feature bullets */
+.sheet-adj { display: flex; align-items: baseline; gap: 8px; padding: 3px 1px; border-bottom: 1px dotted var(--border); }
+.sheet-adj .s { font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 600; color: var(--text); flex: none; width: 48px; }
+.sheet-adj .d { font-size: 12px; color: var(--text-dim); line-height: 1.35; }
+.sheet-feat { font-family: 'Crimson Text', serif; font-size: 12.5px; color: var(--text-dim); padding: 3px 1px; line-height: 1.4; }
+.sheet-feat::before { content: '\25aa'; color: var(--moss); margin-right: 6px; }
+.sheet-empty.mt { margin-top: 10px; }
 .sheet-row.pack.magic .nm { color: var(--steel-bright); }
 .sheet-row.pack .nm small { display: inline; font-style: italic; color: var(--text-dim); font-family: 'Crimson Text', serif; font-size: 13px; }
 .sheet-qty { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-dim); flex: none; min-width: 26px; text-align: right; }
@@ -922,7 +929,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.21';
+const SIM_VERSION = 'v0.9.22';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -5150,6 +5157,7 @@ function renderHotbar() {
   }
   const usable = !!(state.phase === 'declare' && c.side === state.acting_side && !state.game_over);
   if (hudUi.tab === 'saves') hudUi.tab = 'actions'; // saves folded into stats (v0.9.18)
+  if (hudUi.tab === 'class' && c.kind !== 'pc') hudUi.tab = 'stats'; // class tab is PC-only
   const tab = hudUi.tab || 'actions';
 
   const slots = ensureHudSlots(c);
@@ -5213,11 +5221,14 @@ function renderHotbar() {
     ? `${String(c.matrix_class || '').replace(/^./, m => m.toUpperCase())} · ${c.level}`
     : (c.hd ? `Monster · HD ${c.hd}` : 'Monster');
 
-  const tabDefs = [['actions', 'Actions'], ['stats', 'Stats'], ['spells', 'Spells'], ['pack', 'Pack']];
+  const tabDefs = c.kind === 'pc'
+    ? [['actions', 'Actions'], ['stats', 'Stats'], ['class', 'Class'], ['spells', 'Spells'], ['pack', 'Pack']]
+    : [['actions', 'Actions'], ['stats', 'Stats'], ['spells', 'Spells'], ['pack', 'Pack']];
   const tabStrip = tabDefs.map(([id, lbl]) => `<button class="hud-tab${tab === id ? ' on' : ''}" data-tab="${id}">${lbl}</button>`).join('');
 
   let bodyHtml;
   if (tab === 'stats') bodyHtml = renderHudStats(c);
+  else if (tab === 'class') bodyHtml = renderHudClass(c);
   else if (tab === 'spells') bodyHtml = renderSheetSpells(c);
   else if (tab === 'pack') bodyHtml = renderSheetPack(c);
   else {
@@ -5578,6 +5589,110 @@ function sheetSelectedCombatant() {
 
 const SIZE_NAMES = { S: 'Small', M: 'Man-sized', L: 'Large' };
 const SHEET_SAVE_CODES = { ppd: 'PPD', pp: 'PP', rsw: 'RSW', bw: 'BW', spell: 'SPELL' };
+
+// ===== 1e ability-score adjustment tables (index by score 3..18) =====
+// Std PHB values; Wisdom (and cleric bonus-spell) data follows the pasted reference.
+const _SCORE = n => Math.max(3, Math.min(18, n | 0));
+const _sgn = n => (n > 0 ? '+' : '') + n;
+const STR_HIT = { 3:-3,4:-2,5:-2,6:-1,7:-1,8:0,9:0,10:0,11:0,12:0,13:0,14:0,15:0,16:0,17:1,18:1 };
+const STR_DMG = { 3:-1,4:-1,5:-1,6:0,7:0,8:0,9:0,10:0,11:0,12:0,13:0,14:0,15:0,16:1,17:1,18:2 };
+const DEX_REACT = { 3:-3,4:-2,5:-1,6:0,7:0,8:0,9:0,10:0,11:0,12:0,13:0,14:0,15:0,16:1,17:2,18:3 };
+const DEX_DEF = { 3:4,4:3,5:2,6:1,7:0,8:0,9:0,10:0,11:0,12:0,13:0,14:0,15:-1,16:-2,17:-3,18:-4 };
+const CON_HP = { 3:-2,4:-1,5:-1,6:-1,7:0,8:0,9:0,10:0,11:0,12:0,13:0,14:0,15:1,16:2,17:2,18:2 };
+const CON_HP_WAR = { 17:3,18:4 };
+const CON_SS = { 3:35,4:40,5:45,6:50,7:55,8:60,9:65,10:70,11:75,12:80,13:85,14:88,15:90,16:95,17:97,18:99 };
+const CON_RS = { 3:40,4:45,5:50,6:55,7:60,8:65,9:70,10:75,11:80,12:85,13:90,14:92,15:94,16:96,17:98,18:100 };
+const INT_LANG = { 3:0,4:0,5:0,6:0,7:0,8:1,9:1,10:2,11:2,12:3,13:3,14:4,15:4,16:5,17:6,18:7 };
+const INT_MAXSP = { 9:4,10:5,11:5,12:6,13:6,14:7,15:7,16:8,17:8,18:9 };
+const WIS_MAGIC = { 3:-3,4:-2,5:-1,6:-1,7:-1,8:0,9:0,10:0,11:0,12:0,13:0,14:0,15:1,16:2,17:3,18:4 };
+const WIS_FAIL = { 9:20,10:15,11:10,12:5,13:0,14:0,15:0,16:0,17:0,18:0 };
+const WIS_CLERIC_BONUS = { 13:'+1 L1',14:'+2 L1',15:'+2 L1, +1 L2',16:'+2 L1, +2 L2',17:'+2 L1, +2 L2, +1 L3',18:'+2 L1, +2 L2, +1 L3, +1 L4' };
+const CHA_HENCH = { 3:1,4:1,5:2,6:2,7:3,8:3,9:4,10:4,11:4,12:5,13:5,14:6,15:7,16:8,17:10,18:15 };
+const CHA_LOYAL = { 3:-30,4:-25,5:-20,6:-15,7:-10,8:-5,9:0,10:0,11:0,12:0,13:0,14:5,15:15,16:20,17:30,18:40 };
+const CHA_REACT = { 3:-25,4:-20,5:-15,6:-10,7:-5,8:0,9:0,10:0,11:0,12:0,13:5,14:10,15:15,16:25,17:30,18:35 };
+
+function abilStr(s) { s = _SCORE(s); return `to hit ${_sgn(STR_HIT[s])} · damage ${_sgn(STR_DMG[s])}`; }
+function abilDex(s) { s = _SCORE(s); return `defensive AC ${_sgn(DEX_DEF[s])} · missile/reaction ${_sgn(DEX_REACT[s])}`; }
+function abilCon(s, warrior) { s = _SCORE(s); const hp = (warrior && CON_HP_WAR[s] != null) ? CON_HP_WAR[s] : CON_HP[s]; return `hp ${_sgn(hp)}/die · system shock ${CON_SS[s]}% · resurrection ${CON_RS[s]}%`; }
+function abilInt(s, arcane) { s = _SCORE(s); let t = `additional languages ${INT_LANG[s]}`; if (arcane && INT_MAXSP[s]) t += ` · max spell lvl ${INT_MAXSP[s]}`; return t; }
+function abilWis(s, cleric) { s = _SCORE(s); let t = `magic save ${_sgn(WIS_MAGIC[s])}`; if (cleric) { if (WIS_CLERIC_BONUS[s]) t += ` · bonus spells ${WIS_CLERIC_BONUS[s]}`; if (WIS_FAIL[s]) t += ` · spell failure ${WIS_FAIL[s]}%`; } return t; }
+function abilCha(s) { s = _SCORE(s); return `max henchmen ${CHA_HENCH[s]} · loyalty ${_sgn(CHA_LOYAL[s])}% · reaction ${_sgn(CHA_REACT[s])}%`; }
+
+// ===== Per-class data (cleric complete; others carry the universal tables, advancement pending) =====
+const CLASS_DATA = {
+  cleric: {
+    hitDie: 'd8', hpAfter: 2, hpAfterLvl: 9,
+    profInit: 2, profPer: 4, profPenalty: -3,
+    armor: 'Any', shield: 'Any', weapons: 'Club, flail, hammer, mace, staff (blunt only)', spell: 'divine',
+    features: ['Turn Undead — affects undead with HD ≤ cleric level', 'Blunt weapons only — no edged or pointed', 'Divine spellcasting', 'Attracts followers at 8th level'],
+    xpBonus: '+10% experience when Wisdom is 16 or higher',
+    spellSlots: { 1:[1],2:[2],3:[2,1],4:[3,2],5:[3,3,1],6:[3,3,2],7:[3,3,2,1],8:[3,3,3,2],9:[4,4,3,2,1],10:[4,4,3,3,2],11:[5,4,4,3,2,1] },
+    xp: [
+      { lvl:1, min:0, title:'Acolyte' }, { lvl:2, min:1501, title:'Adept' }, { lvl:3, min:3001, title:'Priest' },
+      { lvl:4, min:6001, title:'Curate' }, { lvl:5, min:13001, title:'Canon' }, { lvl:6, min:27501, title:'' },
+      { lvl:7, min:55001, title:'Lama' }, { lvl:8, min:110001, title:'Patriarch' }, { lvl:9, min:225001, title:'High Priest' },
+      { lvl:10, min:450001, title:'High Priest (10th)' }, { lvl:11, min:675001, title:'High Priest (11th)' }
+    ],
+    xpPerAfter: 225000
+  },
+  fighter:    { hitDie:'d10', profInit:4, profPer:3, profPenalty:-2, armor:'Any', shield:'Any', weapons:'Any', spell:null, features:[] },
+  magic_user: { hitDie:'d4', profInit:1, profPer:6, profPenalty:-5, armor:'None', shield:'None', weapons:'Dagger, dart, staff', spell:'arcane', features:[] },
+  thief:      { hitDie:'d6', profInit:2, profPer:4, profPenalty:-3, armor:'Leather', shield:'None', weapons:'Club, dagger, dart, sling, sword (not bastard/two-handed)', spell:null, features:[] }
+};
+
+function renderHudClass(c) {
+  const isWar = ['fighter', 'paladin', 'ranger'].includes(c.matrix_class);
+  const isArc = ['magic_user', 'illusionist'].includes(c.matrix_class);
+  const lvl = c.level || 1;
+  let html = '';
+  const adj = [];
+  if (c.str != null) adj.push(['Str ' + c.str, abilStr(c.str)]);
+  if (c.dex != null) adj.push(['Dex ' + c.dex, abilDex(c.dex)]);
+  if (c.con != null) adj.push(['Con ' + c.con, abilCon(c.con, isWar)]);
+  if (c.int != null) adj.push(['Int ' + c.int, abilInt(c.int, isArc)]);
+  if (c.wis != null) adj.push(['Wis ' + c.wis, abilWis(c.wis, c.matrix_class === 'cleric')]);
+  if (c.cha != null) adj.push(['Cha ' + c.cha, abilCha(c.cha)]);
+  if (adj.length) {
+    html += `<div class="sheet-lbl">Ability Adjustments</div>`;
+    html += adj.map(([s, d]) => `<div class="sheet-adj"><span class="s">${s}</span><span class="d">${d}</span></div>`).join('');
+  } else {
+    html += `<div class="sheet-empty">No ability scores recorded — set them in the GM panel.</div>`;
+  }
+  const cd = CLASS_DATA[c.matrix_class];
+  if (!cd) return html + `<div class="sheet-empty mt">No class data for "${c.matrix_class}".</div>`;
+  if (cd.features && cd.features.length) {
+    html += `<div class="sheet-lbl mt">Class Features</div>`;
+    html += cd.features.map(f => `<div class="sheet-feat">${f}</div>`).join('');
+  }
+  if (cd.profInit != null) {
+    const slots = cd.profInit + Math.floor((lvl - 1) / cd.profPer);
+    html += `<div class="sheet-lbl mt">Weapon Proficiencies</div>`;
+    html += `<div class="sheet-sb"><span class="k">Slots (lvl ${lvl})</span><span class="v">${slots} · nonprof ${_sgn(cd.profPenalty)}</span></div>`;
+    if (cd.weapons) html += `<div class="sheet-feat">Permitted: ${cd.weapons}</div>`;
+    if (Array.isArray(c.proficiencies) && c.proficiencies.length) html += `<div class="sheet-feat">Chosen: ${c.proficiencies.join(', ')}</div>`;
+  }
+  if (cd.spellSlots && cd.spellSlots[lvl]) {
+    const sl = cd.spellSlots[lvl];
+    html += `<div class="sheet-lbl mt">Spells / Day (level ${lvl})</div>`;
+    html += `<div class="sheet-sb"><span class="k">Base</span><span class="v">${sl.map((n, i) => n ? `L${i + 1}:${n}` : '').filter(Boolean).join(' · ')}</span></div>`;
+    if (c.matrix_class === 'cleric' && c.wis != null && WIS_CLERIC_BONUS[_SCORE(c.wis)]) {
+      html += `<div class="sheet-sb"><span class="k">Wisdom bonus</span><span class="v">${WIS_CLERIC_BONUS[_SCORE(c.wis)]}</span></div>`;
+    }
+  }
+  if (cd.xp && cd.xp.length) {
+    const cur = cd.xp.find(e => e.lvl === lvl);
+    const nxt = cd.xp.find(e => e.lvl === lvl + 1);
+    html += `<div class="sheet-lbl mt">Advancement</div>`;
+    html += `<div class="sheet-sb"><span class="k">Level</span><span class="v">${lvl} (${cur && cur.title ? cur.title : '—'})</span></div>`;
+    html += `<div class="sheet-sb"><span class="k">Hit Die</span><span class="v">${cd.hitDie}${cd.hpAfter ? ` · +${cd.hpAfter} hp/lvl after ${cd.hpAfterLvl}th` : ''}</span></div>`;
+    if (nxt) html += `<div class="sheet-sb"><span class="k">Next (${nxt.lvl}${nxt.title ? ', ' + nxt.title : ''})</span><span class="v">${nxt.min.toLocaleString()} xp</span></div>`;
+    else if (cd.xpPerAfter) html += `<div class="sheet-sb"><span class="k">Per level beyond</span><span class="v">+${cd.xpPerAfter.toLocaleString()} xp</span></div>`;
+    if (cd.xpBonus) html += `<div class="sheet-feat">${cd.xpBonus}</div>`;
+  } else {
+    html += `<div class="sheet-empty mt">Advancement data for ${c.matrix_class} not entered yet.</div>`;
+  }
+  return html;
+}
 
 // Classic AD&D Monster-Manual-style label : value block, with a six-ability row above
 // (when scores exist) and the five saving throws folded in as a tap-to-roll strip below.
