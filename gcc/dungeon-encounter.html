@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.24 -->
+<!-- dungeon-encounter — v0.9.25 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -929,7 +929,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.24';
+const SIM_VERSION = 'v0.9.25';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -1332,7 +1332,7 @@ function saveTargetFor(c, category) {
       ? Math.max(0, Math.ceil(parseHD(hd).dice / 2)) : baseLevel;
     return Math.min(...classes.map(cl => saveTargetFromMatrix(cl, level, category)));
   }
-  return saveTargetFromMatrix(c.matrix_class, c.level, category);
+  return saveTargetFromMatrix(combatClass(c.matrix_class), c.level, category);
 }
 // Roll a save. PHB N.B.: a natural 1 always fails. `mod` is a bonus (+) / penalty (-) to the d20.
 function rollSave(c, category, mod) {
@@ -1359,7 +1359,13 @@ function rollDice(notation) {
   return Math.max(1, total);
 }
 
-function thac0Of(c) { return (c.thac0 != null) ? c.thac0 : THAC0[c.matrix_class][pickTier(c.matrix_class, c.level)]; }
+// Paladins & rangers fight/save as fighters; illusionists as magic-users.
+function combatClass(mc) {
+  if (mc === 'paladin' || mc === 'ranger') return 'fighter';
+  if (mc === 'illusionist') return 'magic_user';
+  return mc;
+}
+function thac0Of(c) { const mc = combatClass(c.matrix_class); return (c.thac0 != null) ? c.thac0 : THAC0[mc][pickTier(mc, c.level)]; }
 
 function computeToHit(attacker, target, weapon, acPenalty) {
   const acEff = Math.min(10, target.ac_current + (acPenalty || 0));
@@ -1870,7 +1876,7 @@ function speedMultipleAttacks(fastSF, slowSF) {
 }
 
 // ---- Attacks per melee round (PHB) ----
-function isFighterType(c) { return c.matrix_class === 'fighter'; } // paladins/rangers use the fighter matrix
+function isFighterType(c) { return ['fighter', 'paladin', 'ranger'].includes(c.matrix_class); }
 function monsterHD(t) {
   if (!t || t.hd == null) return null;
   const s = String(t.hd);
@@ -1879,8 +1885,9 @@ function monsterHD(t) {
 }
 // Class-derived rate: F/P 7-12 & R 8-14 -> 3/2, F/P 13+ & R 15+ -> 2 (rangers come in via imported numAttacks)
 function classAttacksRate(c) {
+  const lv = c.level || 1;
+  if (c.matrix_class === 'ranger') { if (lv >= 15) return '2'; if (lv >= 8) return '3/2'; return '1'; }
   if (isFighterType(c)) {
-    const lv = c.level || 1;
     if (lv >= 13) return '2';
     if (lv >= 7) return '3/2';
   }
@@ -5974,7 +5981,7 @@ function wireChatExportButton() {
 //  renderAll refreshes the roster list alone when the panel is open.
 // ============================================================
 let gmUi = { open: false, editId: null };
-const GM_CLASS_OPTS = [['fighter', 'Fighter'], ['cleric', 'Cleric'], ['magic_user', 'Magic-User'], ['thief', 'Thief'], ['monster', 'Monster']];
+const GM_CLASS_OPTS = [['fighter', 'Fighter'], ['paladin', 'Paladin'], ['ranger', 'Ranger'], ['cleric', 'Cleric'], ['magic_user', 'Magic-User'], ['illusionist', 'Illusionist'], ['thief', 'Thief'], ['monster', 'Monster']];
 function _gmEsc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch])); }
 function renderGmSettings() {
   const el = document.getElementById('gm-settings'); if (!el) return;
