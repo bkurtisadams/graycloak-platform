@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.23 -->
+<!-- dungeon-encounter — v0.9.24 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -929,7 +929,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.23';
+const SIM_VERSION = 'v0.9.24';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -5675,8 +5675,48 @@ const CLASS_DATA = {
     ],
     xpPerAfter: 325000
   },
-  magic_user: { hitDie:'d4', profInit:1, profPer:6, profPenalty:-5, armor:'None', shield:'None', weapons:'Dagger, dart, staff', spell:'arcane', features:[] },
-  thief:      { hitDie:'d6', profInit:2, profPer:4, profPenalty:-3, armor:'Leather', shield:'None', weapons:'Club, dagger, dart, sling, sword (not bastard/two-handed)', spell:null, features:[] }
+  magic_user: {
+    hitDie: 'd4', hpAfter: 1, hpAfterLvl: 11,
+    profInit: 1, profPer: 6, profPenalty: -5, armor: 'None', shield: 'None', weapons: 'Dagger, dart, staff', spell: 'arcane',
+    features: ['Arcane spellcasting from a spellbook', 'd4 hit die — fragile in melee', 'No armor; dagger, dart, or staff only', 'Scribe scrolls & craft items at 11th (Wizard)', 'May build a stronghold at 12th'],
+    xpBonus: '+10% experience when Intelligence is 16 or higher',
+    spellSlots: { 1:[1],2:[2],3:[2,1],4:[3,2],5:[4,2,1],6:[4,2,2],7:[4,3,2,1],8:[4,3,3,2],9:[4,3,3,2,1],10:[4,4,3,2,2],11:[4,4,4,3,3],12:[4,4,4,4,4,1] },
+    xp: [
+      { lvl:1, min:0, title:'Prestidigitator' }, { lvl:2, min:2501, title:'Evoker' }, { lvl:3, min:5001, title:'Conjurer' },
+      { lvl:4, min:10001, title:'Theurgist' }, { lvl:5, min:22501, title:'Thaumaturgist' }, { lvl:6, min:40001, title:'Magician' },
+      { lvl:7, min:60001, title:'Enchanter' }, { lvl:8, min:90001, title:'Warlock' }, { lvl:9, min:135001, title:'Sorcerer' },
+      { lvl:10, min:250001, title:'Necromancer' }, { lvl:11, min:375001, title:'Wizard' }, { lvl:12, min:750001, title:'Wizard (12th)' },
+      { lvl:13, min:1125001, title:'Wizard (13th)' }, { lvl:14, min:1500001, title:'Wizard (14th)' }, { lvl:15, min:1875001, title:'Wizard (15th)' },
+      { lvl:16, min:2250001, title:'Mage (16th)' }, { lvl:17, min:2625001, title:'Wizard (17th)' }, { lvl:18, min:3000001, title:'Arch-Mage (18th)' }
+    ],
+    xpPerAfter: 375000
+  },
+  thief: {
+    hitDie: 'd6', hpAfter: 2, hpAfterLvl: 10,
+    profInit: 2, profPer: 4, profPenalty: -3, armor: 'Leather', shield: 'None', weapons: 'Club, dagger, dart, sling, sword (not bastard/two-handed)', spell: null,
+    features: ['Backstab: ×2 dmg at 1–4, ×3 at 5–8, ×4 at 9–12, ×5 at 13–16; +4 to hit', 'Thief skills: pick pockets, open locks, find/remove traps, move silently, hide in shadows, hear noise, climb walls', 'Speaks Thieves\u2019 Cant', 'Read languages 20% at 4th, +5%/level (max 80%)', 'Use scrolls at 10th (25% misread)', 'Attracts a gang of thieves at 10th'],
+    xpBonus: '+10% experience when Dexterity is 16 or higher',
+    xp: [
+      { lvl:1, min:0, title:'Rogue (Apprentice)' }, { lvl:2, min:1251, title:'Footpad' }, { lvl:3, min:2501, title:'Cutpurse' },
+      { lvl:4, min:5001, title:'Robber' }, { lvl:5, min:10001, title:'Burglar' }, { lvl:6, min:20001, title:'Filcher' },
+      { lvl:7, min:42501, title:'Sharper' }, { lvl:8, min:70001, title:'Magsman' }, { lvl:9, min:110001, title:'Thief' },
+      { lvl:10, min:160001, title:'Master Thief' }, { lvl:11, min:220001, title:'Master Thief (11th)' }, { lvl:12, min:440001, title:'Master Thief (12th)' }
+    ],
+    xpPerAfter: 220000
+  },
+  illusionist: {
+    hitDie: 'd4', hpAfter: 1, hpAfterLvl: 10,
+    profInit: 1, profPer: 6, profPenalty: -5, armor: 'None', shield: 'None', weapons: 'Dagger, dart, staff', spell: 'arcane',
+    features: ['Illusion & phantasm specialist', 'No XP bonus for high ability scores', 'd4 hit die; no armor', 'Crafts illusion items at 10th'],
+    spellSlots: { 1:[1],2:[2],3:[2,1],4:[3,2],5:[4,2,1],6:[4,3,1],7:[4,3,2],8:[4,3,2,1],9:[5,3,3,2,1],10:[5,4,3,2,1],11:[5,4,3,3,2],12:[5,5,4,3,2,1] },
+    xp: [
+      { lvl:1, min:0, title:'Prestidigitator' }, { lvl:2, min:2251, title:'Minor Trickster' }, { lvl:3, min:4501, title:'Trickster' },
+      { lvl:4, min:9001, title:'Master Trickster' }, { lvl:5, min:18001, title:'Cabalist' }, { lvl:6, min:35001, title:'Visionist' },
+      { lvl:7, min:60001, title:'Phantasmist' }, { lvl:8, min:95001, title:'Apparitionist' }, { lvl:9, min:145001, title:'Spellbinder' },
+      { lvl:10, min:220001, title:'Illusionist' }, { lvl:11, min:440001, title:'Illusionist (11th)' }, { lvl:12, min:660001, title:'Illusionist (12th)' }
+    ],
+    xpPerAfter: 220000
+  }
 };
 
 function renderHudClass(c) {
