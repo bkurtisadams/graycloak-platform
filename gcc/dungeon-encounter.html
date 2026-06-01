@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.27 -->
+<!-- dungeon-encounter — v0.9.31 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -929,7 +929,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.27';
+const SIM_VERSION = 'v0.9.31';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -1051,7 +1051,7 @@ const WEAPONS = {
   dart: {
     id: 'dart', name: 'Dart', icon: '↣',
     ranged: true, range_squares: { s: 1.5, m: 3, l: 4.5 }, speed: 2, rof: 3,
-    damage: { sm: '1d3', l: '1d2' }, // rof 3/round is RAW but not yet wired in the resolve loop
+    damage: { sm: '1d3', l: '1d2' }, // 3 shots/round (rate of fire)
     vs_ac: { 2:-3, 3:-3, 4:-2, 5:-2, 6:0, 7:0, 8:1, 9:1, 10:3 } // verify vs PHB
   },
   mace: {
@@ -1735,6 +1735,22 @@ function consumeAmmo(combatant, weapon) {
   inv.qty = Math.max(0, inv.qty - 1);
 }
 
+// Weapon proficiency (1e): attacking with a weapon outside one's proficiencies incurs the
+// class nonproficiency penalty. Opt-in — only combatants with a `proficiencies` list are
+// checked; monsters use natural weapons and are never penalized.
+function isProficient(c, weapon) {
+  if (!c || c.kind === 'monster' || c.matrix_class === 'monster') return true;
+  if (!Array.isArray(c.proficiencies)) return true; // not tracked → no penalty
+  const id = weapon && (weapon.id || weapon.weapon_id);
+  return c.proficiencies.includes(id);
+}
+function nonProfPenalty(c, weapon) {
+  if (isProficient(c, weapon)) return 0;
+  const cd = CLASS_DATA[c.matrix_class];
+  const pen = (cd && cd.profPenalty != null) ? cd.profPenalty : -3;
+  return -pen; // positive amount added to `needed` (a -2 penalty raises the number needed by 2)
+}
+
 // Shared to-hit/damage projection (no dice) so the hover preview and the resolver never disagree.
 function attackProjection(state, a, t, w, opts) {
   opts = opts || {};
@@ -1776,12 +1792,13 @@ function attackProjection(state, a, t, w, opts) {
   // Magic ammo's `attack_bonus` lowers `needed` (a +1 arrow makes a hit easier).
   const ammoAtk = effW.ammo_attack_bonus || 0;
   const dexMiss = w.ranged ? dexMissileAdj(dexOf(a)) : 0;
-  const needed = noAmmo ? 99 : Math.max(1, Math.min(20, calc.needed - range - charge - fleeBonus - ammoAtk + parryPen + attackerHeld - targetHeld - targetDown - arcBonus - blessBonus + shieldPen - spaceMod - dexMiss));
+  const profPen = nonProfPenalty(a, w); // 0 if proficient/untracked; else +2..+5 to `needed`
+  const needed = noAmmo ? 99 : Math.max(1, Math.min(20, calc.needed - range - charge - fleeBonus - ammoAtk + parryPen + attackerHeld - targetHeld - targetDown - arcBonus - blessBonus + shieldPen - spaceMod - dexMiss + profPen));
   const dmgDice = noAmmo ? '0' : ((t.size === 'L') ? effW.damage.l : effW.damage.sm);
   const dmgBonus = noAmmo ? 0 : (((a.magic_weapons && a.magic_weapons[w.id]) || w.magic_bonus || 0) + (a.damage_bonus || 0) + (effW.ammo_damage_bonus || 0));
   return {
     needed, base: calc.base, arc,
-    mods: { wpnVsAc: calc.wpnVsAc, magic: calc.magic, str: calc.str, range, charge, exposed, fleeing: fleeBonus, parry: -parryPen, grappled: -attackerHeld, vsHeld: targetHeld, vsDown: targetDown, flank: arcBonus, bless: -blessBonus, shield: shieldPen, space: spaceMod, dexMissile: dexMiss },
+    mods: { wpnVsAc: calc.wpnVsAc, magic: calc.magic, str: calc.str, range, charge, exposed, fleeing: fleeBonus, parry: -parryPen, grappled: -attackerHeld, vsHeld: targetHeld, vsDown: targetDown, flank: arcBonus, bless: -blessBonus, shield: shieldPen, space: spaceMod, dexMissile: dexMiss, prof: -profPen },
     dmgDice, dmgBonus, range_band
   };
 }
@@ -1917,8 +1934,23 @@ function resolveAttackRate(rate, round) {
   const n = parseInt(String(rate), 10);
   return isNaN(n) ? 1 : Math.max(1, n);
 }
+// Missile rate of fire (shots this round). Integer rof fires that many; a .5 (e.g. 3/2)
+// adds a shot on alternate rounds; rof < 1 (e.g. heavy crossbow 1/2) fires once every Nth round.
+function rateOfFire(weapon, round) {
+  const rof = weapon.rof != null ? weapon.rof : 1;
+  if (rof >= 1) {
+    let n = Math.floor(rof);
+    if ((rof - n) >= 0.5 && (round % 2 === 0)) n += 1;
+    return Math.max(1, n);
+  }
+  const period = Math.max(2, Math.round(1 / rof));
+  return (round % period === 0) ? 1 : 0;
+}
+
 function attacksThisRound(c, target, weapon) {
-  if (!weapon || !weapon.melee) return 1; // a melee thrust/strike rule; ranged uses rate of fire (TODO)
+  if (!weapon) return 1;
+  if (weapon.ranged) return rateOfFire(weapon, state.round); // rate of fire: dart 3, sling 1, bow 2, heavy crossbow 1/2
+  if (!weapon.melee) return 1;
   const thd = monsterHD(target);
   if (isFighterType(c) && thd != null && thd < 1) return Math.max(1, Math.floor(c.level || 1)); // one blow per level vs sub-1-HD foes
   return resolveAttackRate(c.attacks_per_round || classAttacksRate(c), state.round);
@@ -2009,6 +2041,13 @@ function spellRace(weaponSpeed, losingDie, castTime) {
   if (blowSeg < castTime) return 'blow_first';
   if (blowSeg === castTime) return 'simultaneous';
   return 'spell_first';
+}
+
+// Surprise (DMG): only spells whose casting time fits the surprise segment(s) can be completed.
+// 1st-level magic-user/illusionist spells are 1 segment; longer spells can only be *begun*, not cast.
+function spellFitsSurprise(spell) {
+  if (!state.is_surprise_round) return true;
+  return ((spell.casting_time || 1) <= (state.surprise_segments || 1));
 }
 function consumeSpellCharge(caster, spellId) {
   const ch = caster.spell_charges;
@@ -2298,6 +2337,7 @@ function makeInitialState() {
     acting_side: null, // 'A' | 'B' — whose declare/resolve is active
     sides_acted: [], // sides that have acted this round
     is_surprise_round: false,
+    surprise_segments: 1,   // segments the surprising side gets; only spells with casting_time <= this can complete
     surprise: { A: false, B: false },
     encounter_distance: null, // squares
     // Marching order: PC id -> {rank, file}; rank 0 = front (toward travel/enemy)
@@ -2418,6 +2458,9 @@ function _num(v, dflt) {
   return m ? parseInt(m[0], 10) : d;
 }
 function _slug(s) { return String(s || '').toLowerCase().replace(/\+\s*\d+/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'weapon'; }
+// First present numeric ability score among the candidates, else undefined (so an absent
+// score stays blank on the sheet rather than showing a fabricated default).
+function _abil() { for (let i = 0; i < arguments.length; i++) { const v = arguments[i]; if (v != null && v !== '') { const n = parseInt(v, 10); if (Number.isFinite(n)) return n; } } return undefined; }
 function _dieBase(s) { return String(s || '').trim().replace(/\s*[+-]\s*\d+\s*$/, '') || '1d4'; } // strip baked-in magic: "1d8+3" -> "1d8"
 function _lenByName(name) {
   const n = String(name).toLowerCase();
@@ -2504,6 +2547,8 @@ function mapCharToCombatant(char, side) {
     ac_base: _num(char.acShieldless, _num(char.ac, 10)), ac_current: _num(char.ac, 10),
     size: 'M', size_cells: 1,
     str: _num(char.str, _num(char.strength, 12)), dex: _num(char.dex, _num(char.dexterity, 12)),
+    con: _abil(char.con, char.constitution), int: _abil(char.int, char.intelligence),
+    wis: _abil(char.wis, char.wisdom), cha: _abil(char.cha, char.charisma),
     loadout: loadout.length ? loadout : ['dagger'],
     active_weapon: active,
     attack_bonus: _num(char.combatToHitAdj, _num(char.strHitAdj, 0)),
@@ -2904,6 +2949,7 @@ function startSurpriseRound(side) {
   state.is_surprise_round = true;
   state.round = 0;
   state.segment = 0;
+  state.surprise_segments = 1; // one 6s segment of free action (multi-segment surprise is a later feature)
   state.initiative = null;
   state.acting_side = side;
   state.sides_acted = [];
@@ -3179,6 +3225,7 @@ function aiPickSpell(m) {
     const mode = sp.target_mode || 'enemy';
     const range = sp.range_squares != null ? sp.range_squares : 0;
     if (mode === 'self') continue; // don't proactively burn defensive self-buffs
+    if (!spellFitsSurprise(sp)) continue; // too slow to complete in a surprise segment
     if (mode === 'area_enemy') {
       const hits = foes.filter(e => !e.undead && inRange(e, range) && hdValue(e) <= 4);
       if (hits.length) cands.push({ id, target_id: m.id, score: 5 + hits.length });
@@ -3275,6 +3322,7 @@ function validateDeclarationAtExecution(c, decl) {
     if (!spell) return { ok: false, reason: 'spell is unavailable' };
     const charges = c.spell_charges ? c.spell_charges[decl.spell_id] : 0;
     if (charges !== undefined && charges <= 0) return { ok: false, reason: 'spell is no longer prepared' };
+    if (!spellFitsSurprise(spell)) return { ok: false, reason: 'spell is too slow to complete in the surprise segment' };
     const target = findCombatant(state, decl.target_id);
     if (!target || target.dead) return { ok: false, reason: 'spell target is already down' };
     return { ok: true };
@@ -3962,6 +4010,11 @@ async function executeAttackDecl(c, decl) {
     }
   }
   const blows = attacksThisRound(c, target, weapon);
+  if (weapon.ranged && blows === 0) {
+    log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${c.side === 'A' ? 'a' : 'b'}">${c.label}</span> is still reloading ${weapon.name} — no shot this round.</span>`);
+    await sleep(150);
+    return;
+  }
   for (let b = 0; b < blows; b++) {
     if (c.dead || target.dead) break;
     if (b > 0) { faceToward(c, target.position); renderAll(); await sleep(160); }
@@ -5490,7 +5543,7 @@ function modAdjList(m) {
   const push = (v, label) => { if (v) out.push(`${v > 0 ? '+' : ''}${v} ${label}`); };
   push(m.magic, 'magic'); push(m.str, 'str'); push(m.wpnVsAc, 'vs AC');
   push(m.charge, 'charge'); push(m.range, 'range'); push(m.exposed, 'exposed');
-  push(m.space, 'space');
+  push(m.space, 'space'); push(m.prof, 'unprof');
   return out;
 }
 
@@ -6448,6 +6501,13 @@ const App = {
 
   beginSpellTarget(combatantId, spellId) {
     const sp = SPELLS[spellId];
+    if (sp && !spellFitsSurprise(sp)) {
+      const c = findCombatant(state, combatantId);
+      log(state, 'system', `<span class="ts">Surprise</span><span class="body"><span class="${c && c.side === 'A' ? 'a' : 'b'}">${c ? c.label : 'The caster'}</span> cannot complete <span class="em">${sp.name}</span> in the surprise segment — only 1-segment spells go off.</span>`);
+      state.picking = null;
+      renderAll();
+      return;
+    }
     const mode = sp ? (sp.target_mode || 'enemy') : 'enemy';
     if (mode === 'self' || mode === 'area_ally' || mode === 'area_enemy') {
       // No target pick — cast on self / the area.
