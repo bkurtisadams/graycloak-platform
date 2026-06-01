@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.22 -->
+<!-- dungeon-encounter — v0.9.23 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -929,7 +929,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.22';
+const SIM_VERSION = 'v0.9.23';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -5629,13 +5629,52 @@ const CLASS_DATA = {
     spellSlots: { 1:[1],2:[2],3:[2,1],4:[3,2],5:[3,3,1],6:[3,3,2],7:[3,3,2,1],8:[3,3,3,2],9:[4,4,3,2,1],10:[4,4,3,3,2],11:[5,4,4,3,2,1] },
     xp: [
       { lvl:1, min:0, title:'Acolyte' }, { lvl:2, min:1501, title:'Adept' }, { lvl:3, min:3001, title:'Priest' },
-      { lvl:4, min:6001, title:'Curate' }, { lvl:5, min:13001, title:'Canon' }, { lvl:6, min:27501, title:'' },
+      { lvl:4, min:6001, title:'Curate' }, { lvl:5, min:13001, title:'' }, { lvl:6, min:27501, title:'Canon' },
       { lvl:7, min:55001, title:'Lama' }, { lvl:8, min:110001, title:'Patriarch' }, { lvl:9, min:225001, title:'High Priest' },
       { lvl:10, min:450001, title:'High Priest (10th)' }, { lvl:11, min:675001, title:'High Priest (11th)' }
     ],
     xpPerAfter: 225000
   },
-  fighter:    { hitDie:'d10', profInit:4, profPer:3, profPenalty:-2, armor:'Any', shield:'Any', weapons:'Any', spell:null, features:[] },
+  fighter: {
+    hitDie: 'd10', hpAfter: 3, hpAfterLvl: 9,
+    profInit: 4, profPer: 3, profPenalty: -2, armor: 'Any', shield: 'Any', weapons: 'Any', spell: null,
+    features: ['Best combat table & saving throws', 'Any weapon or armor', 'Multiple attacks: 3/2 at 7th, 2/1 at 13th', 'One attack per level vs sub-1-HD foes', 'Attracts men-at-arms at 9th (Lord)'],
+    xpBonus: '+10% experience when Strength is 16 or higher',
+    xp: [
+      { lvl:1, min:0, title:'Veteran' }, { lvl:2, min:2001, title:'Warrior' }, { lvl:3, min:4001, title:'Swordsman' },
+      { lvl:4, min:8001, title:'Hero' }, { lvl:5, min:18001, title:'Swashbuckler' }, { lvl:6, min:35001, title:'Myrmidon' },
+      { lvl:7, min:70001, title:'Champion' }, { lvl:8, min:125001, title:'Superhero' }, { lvl:9, min:250001, title:'Lord' },
+      { lvl:10, min:500001, title:'Lord (10th)' }, { lvl:11, min:750001, title:'Lord (11th)' }
+    ],
+    xpPerAfter: 250000
+  },
+  paladin: {
+    hitDie: 'd10', hpAfter: 3, hpAfterLvl: 9,
+    profInit: 3, profPer: 3, profPenalty: -2, armor: 'Any', shield: 'Any', weapons: 'Any', spell: 'divine',
+    features: ['Must remain Lawful Good', 'Detect evil 60′ at will', '+2 on all saving throws', 'Immune to disease', 'Lay on hands: 2 hp/level, once per day', 'Cure disease 1/week per 5 levels', 'Protection from evil 1″ aura', 'Turns undead as cleric (level −2) from 3rd', 'Calls warhorse at 4th', 'Cleric spells from 9th', 'Keeps at most 10 magic items; tithes 10%'],
+    xpBonus: '+10% experience when both Strength and Wisdom exceed 15',
+    spellSlots: { 9:[1],10:[2],11:[2,1],12:[2,2],13:[2,2,1],14:[3,2,1],15:[3,2,1,1],16:[3,3,1,1],17:[3,3,2,1],18:[3,3,3,1],19:[3,3,3,2],20:[3,3,3,3] },
+    xp: [
+      { lvl:1, min:0, title:'Gallant' }, { lvl:2, min:2751, title:'Keeper' }, { lvl:3, min:5501, title:'Protector' },
+      { lvl:4, min:12001, title:'Defender' }, { lvl:5, min:24001, title:'Warder' }, { lvl:6, min:45001, title:'Guardian' },
+      { lvl:7, min:95001, title:'Chevalier' }, { lvl:8, min:175001, title:'Justiciar' }, { lvl:9, min:350001, title:'Paladin' },
+      { lvl:10, min:700001, title:'Paladin (10th)' }, { lvl:11, min:1050001, title:'Paladin (11th)' }
+    ],
+    xpPerAfter: 350000
+  },
+  ranger: {
+    hitDie: 'd8', hpAfter: 2, hpAfterLvl: 10,
+    profInit: 3, profPer: 3, profPenalty: -2, armor: 'Any', shield: 'Any', weapons: 'Any', spell: 'druid+arcane',
+    features: ['Must remain Good', 'Begins with 2d8 hp; 11 HD maximum', '+1 damage/level vs giant-class humanoids', 'Surprises on 1–3 (d6); surprised only on 1', 'Tracking, indoors and out', 'Druid spells from 8th, Magic-User spells from 9th', 'Attracts 2–24 followers at 10th', 'No men-at-arms before 8th; max 3 rangers together'],
+    xpBonus: '+10% experience when Str, Int and Wis all exceed 15',
+    xp: [
+      { lvl:1, min:0, title:'Runner' }, { lvl:2, min:2251, title:'Strider' }, { lvl:3, min:4501, title:'Scout' },
+      { lvl:4, min:10001, title:'Courser' }, { lvl:5, min:20001, title:'Tracker' }, { lvl:6, min:40001, title:'Guide' },
+      { lvl:7, min:90001, title:'Pathfinder' }, { lvl:8, min:150001, title:'Ranger' }, { lvl:9, min:225001, title:'Ranger Knight' },
+      { lvl:10, min:325001, title:'Ranger Lord' }, { lvl:11, min:650001, title:'Ranger Lord (11th)' }, { lvl:12, min:975001, title:'Ranger Lord (12th)' }
+    ],
+    xpPerAfter: 325000
+  },
   magic_user: { hitDie:'d4', profInit:1, profPer:6, profPenalty:-5, armor:'None', shield:'None', weapons:'Dagger, dart, staff', spell:'arcane', features:[] },
   thief:      { hitDie:'d6', profInit:2, profPer:4, profPenalty:-3, armor:'Leather', shield:'None', weapons:'Club, dagger, dart, sling, sword (not bastard/two-handed)', spell:null, features:[] }
 };
