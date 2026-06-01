@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.31 -->
+<!-- dungeon-encounter — v0.9.32 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -929,7 +929,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.31';
+const SIM_VERSION = 'v0.9.32';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -1152,6 +1152,7 @@ function recomputeMove(c) {
   if (c._base_move == null) c._base_move = c.move;
   const e = encumbranceInfo(c);
   c._enc = e;
+  if (c._move_locked) return; // imported PCs keep the sheet's already-encumbered move
   c.move = Math.max(1, Math.round(c._base_move * e.factor));
 }
 function recomputeAllEncumbrance() { state.combatants.forEach(recomputeMove); }
@@ -1747,7 +1748,8 @@ function isProficient(c, weapon) {
 function nonProfPenalty(c, weapon) {
   if (isProficient(c, weapon)) return 0;
   const cd = CLASS_DATA[c.matrix_class];
-  const pen = (cd && cd.profPenalty != null) ? cd.profPenalty : -3;
+  const pen = (c.nonprof_penalty != null) ? c.nonprof_penalty
+            : ((cd && cd.profPenalty != null) ? cd.profPenalty : -3);
   return -pen; // positive amount added to `needed` (a -2 penalty raises the number needed by 2)
 }
 
@@ -2461,6 +2463,9 @@ function _slug(s) { return String(s || '').toLowerCase().replace(/\+\s*\d+/g, ''
 // First present numeric ability score among the candidates, else undefined (so an absent
 // score stays blank on the sheet rather than showing a fabricated default).
 function _abil() { for (let i = 0; i < arguments.length; i++) { const v = arguments[i]; if (v != null && v !== '') { const n = parseInt(v, 10); if (Number.isFinite(n)) return n; } } return undefined; }
+// Normalized token-set key: matches a proficiency name to a weapon name regardless of word
+// order, race prefix ("Elf: Short Bow" → "Short Bow"), commas, or magic suffix ("…, Long +2").
+function _profKey(s) { return String(s || '').toLowerCase().replace(/^[a-z]+:\s*/, '').replace(/\+\s*\d+/g, '').split(/[^a-z0-9]+/).filter(Boolean).sort().join(' '); }
 function _dieBase(s) { return String(s || '').trim().replace(/\s*[+-]\s*\d+\s*$/, '') || '1d4'; } // strip baked-in magic: "1d8+3" -> "1d8"
 function _lenByName(name) {
   const n = String(name).toLowerCase();
@@ -2518,11 +2523,12 @@ function _synthWeapon(row) {
 function mapCharToCombatant(char, side) {
   const cls = _bestMatrix(char.characterClass, char.level);
   const name = char.characterName || 'Unnamed';
-  const loadout = [], magic_weapons = {};
+  const loadout = [], magic_weapons = {}, weaponKeys = {};
   let activeMelee = null, activeAny = null;
   (char.weapons || []).forEach(row => {
     const r = _synthWeapon(row);
     if (!r) return;
+    weaponKeys[_profKey(row.name)] = r.id;
     if (loadout.indexOf(r.id) < 0) loadout.push(r.id);
     if (r.magic) magic_weapons[r.id] = Math.max(magic_weapons[r.id] || 0, r.magic);
     if (!activeAny) activeAny = r.id;
@@ -2536,7 +2542,26 @@ function mapCharToCombatant(char, side) {
     const sid = _slug(sp.name);
     if (SPELLS[sid]) spell_charges[sid] = (spell_charges[sid] || 0) + Math.max(0, _num(sp.qty, 0) - _num(sp.cast, 0));
   });
-  const rate = _num(char.moveAdj, 0) || _num(char.moveBase, 12); // prefer encumbrance-adjusted effective rate
+  // Weapon proficiencies → resolve each (race-prefixed, magic-suffixed) name to a carried
+  // weapon's id by normalized token set; otherwise keep a slug so the data round-trips.
+  const proficiencies = [];
+  (char.proficiencies || []).forEach(p => {
+    const key = _profKey(p);
+    if (!key) return;
+    const id = weaponKeys[key] || _slug(String(p).replace(/^[^:]+:\s*/, ''));
+    if (proficiencies.indexOf(id) < 0) proficiencies.push(id);
+  });
+  // Carried inventory only (skip mount/stored gear flagged _nocarry); weights are gp-weight.
+  const inventory = [];
+  (char.items || []).forEach(it => {
+    if (!it || !it.name || it._nocarry || it.location === 'nocarried') return;
+    inventory.push({ id: _slug(it.name), name: it.name, qty: _num(it.qty, 1) || 1, weight: _num(it.weight, 0) });
+  });
+  const coins = { pp: _num(char.wealthPP, 0), gp: _num(char.wealthGP, 0), ep: _num(char.wealthEP, 0), sp: _num(char.wealthSP, 0), cp: _num(char.wealthCP, 0) };
+  const _list = s => String(s || '').split(/[,;]/).map(x => x.trim()).filter(Boolean);
+  const thief_skills = {};
+  ['HN', 'CW', 'FRT', 'HIS', 'MS', 'OL', 'PP', 'RL'].forEach(k => { const v = char['thief' + k]; if (v != null && v !== '') thief_skills[k] = String(v); });
+  const rate = _num(char.moveAdj, 0) || _num(char.moveBase, 12); // sheet-authoritative encumbrance-adjusted rate
   return {
     id: char._id ? String(char._id) : _slug(name),
     side: side || 'A', kind: 'pc',
@@ -2555,6 +2580,13 @@ function mapCharToCombatant(char, side) {
     damage_bonus: _num(char.combatDamAdj, _num(char.strDamAdj, 0)),
     magic_weapons, spell_charges,
     move: Math.max(1, Math.round(rate)), move_rate: rate,
+    _base_move: _num(char.moveBase, Math.max(1, Math.round(rate))), _move_locked: true,
+    proficiencies, nonprof_penalty: _abil(char.nonProfPenalty),
+    inventory, coins, thief_skills,
+    alignment: char.alignment || undefined,
+    languages: _list(char.languages),
+    special_abilities: _list(char.specialAbilities),
+    race: char.race || undefined,
     singles_out: true, dead: false, engaged_with: [], movement_used: 0,
     saves: { ppd: _num(char.savePPD), pp: _num(char.savePP), rsw: _num(char.saveRSW), bw: _num(char.saveBW), spell: _num(char.saveSpell) },
     attacks_per_round: char.numAttacks || '1', _source: 'adnd-sheet'
