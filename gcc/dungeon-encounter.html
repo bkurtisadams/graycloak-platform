@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.26 -->
+<!-- dungeon-encounter — v0.9.27 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -929,7 +929,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.26';
+const SIM_VERSION = 'v0.9.27';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -3163,10 +3163,49 @@ async function resolveSurpriseRound() {
   beginRound();
 }
 
+// Pick the best spell play for an AI caster, or null to fall back to weapon tactics.
+// Mirrors the player declaration: self/area spells target the caster's own id (the
+// engine recomputes the affected area); single-target spells name a foe or ally.
+function aiPickSpell(m) {
+  if (!m.spell_charges) return null;
+  const ids = Object.keys(m.spell_charges).filter(id => m.spell_charges[id] > 0 && SPELLS[id]);
+  if (!ids.length) return null;
+  const foes = aliveCombatantsOnSide(state, m.side === 'A' ? 'B' : 'A');
+  const allies = aliveCombatantsOnSide(state, m.side);
+  const inRange = (e, range) => range <= 0 ? dist10(m.position, e.position) <= 1 : dist10(m.position, e.position) <= range;
+  const cands = [];
+  for (const id of ids) {
+    const sp = SPELLS[id];
+    const mode = sp.target_mode || 'enemy';
+    const range = sp.range_squares != null ? sp.range_squares : 0;
+    if (mode === 'self') continue; // don't proactively burn defensive self-buffs
+    if (mode === 'area_enemy') {
+      const hits = foes.filter(e => !e.undead && inRange(e, range) && hdValue(e) <= 4);
+      if (hits.length) cands.push({ id, target_id: m.id, score: 5 + hits.length });
+    } else if (mode === 'area_ally') {
+      const hits = allies.filter(e => inRange(e, range));
+      if (hits.length >= 2) cands.push({ id, target_id: m.id, score: 3 });
+    } else if (mode === 'ally') {
+      const hurt = allies.filter(e => inRange(e, range) && e.hp_current <= e.hp_max * 0.5)
+        .sort((a, b) => (a.hp_current / a.hp_max) - (b.hp_current / b.hp_max));
+      if (hurt[0]) cands.push({ id, target_id: hurt[0].id, score: 6 });
+    } else { // single-target offense
+      const tgt = foes.filter(e => inRange(e, range)).sort((a, b) => dist10(m.position, a.position) - dist10(m.position, b.position))[0];
+      if (tgt) cands.push({ id, target_id: tgt.id, score: 4 });
+    }
+  }
+  if (!cands.length) return null;
+  cands.sort((a, b) => b.score - a.score);
+  return { spell_id: cands[0].id, target_id: cands[0].target_id };
+}
+
 function aiDeclare(m) {
   const weapon = WEAPONS[m.active_weapon];
   const enemies = aliveCombatantsOnSide(state, m.side === 'A' ? 'B' : 'A');
   if (enemies.length === 0) return { kind: 'hold' };
+  // Casters: take the best spell play before considering weapons.
+  const spellPlay = aiPickSpell(m);
+  if (spellPlay) return { kind: 'cast', spell_id: spellPlay.spell_id, target_id: spellPlay.target_id };
   if ((m.engaged_with || []).length > 0) {
     // DMG "Who Attacks Whom": intelligent creatures single out a foe; unintelligent ones strike randomly.
     if (!m.singles_out) return { kind: 'attack', weapon_id: m.active_weapon, target_id: null };
