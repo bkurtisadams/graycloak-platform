@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.16 -->
+<!-- dungeon-encounter — v0.9.17 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -202,23 +202,42 @@ body {
 .float-window .tracker-list { overflow-y: auto; flex: 1; min-height: 0; padding: 4px 0; }
 .float-window.collapsed .tracker-list { display: none; }
 
-/* Character sheet float (tabbed: Stats / Saves / Spells / Pack) */
-#sheet-window { top: auto; bottom: 96px; left: 24px; width: 314px; max-height: 58vh; }
-.sheet-tabs { display: flex; background: var(--bg); border-bottom: 1px solid var(--border-strong); flex: 0 0 auto; }
-.sheet-tab { flex: 1; padding: 7px 4px; background: none; border: 0; border-bottom: 2px solid transparent;
-  color: var(--text-dim); font-family: 'Crimson Text', serif; font-size: 12px; cursor: pointer; letter-spacing: 0.02em; }
-.sheet-tab:hover { color: var(--gold-bright); }
-.sheet-tab.on { color: var(--gold-bright); border-bottom-color: var(--gold-bright); background: var(--surface); }
-.sheet-body { overflow-y: auto; flex: 1; min-height: 0; padding: 10px; }
-.float-window.collapsed .sheet-tabs, .float-window.collapsed .sheet-body { display: none; }
+/* Unified HUD info tabs (Actions / Stats / Saves / Spells) and shared sheet content */
+.hud-tabs { display: flex; gap: 3px; padding: 5px 10px 0; flex: 0 0 auto; }
+.hud-tab { flex: 0 0 auto; padding: 5px 12px; background: none; border: 0; border-bottom: 2px solid transparent;
+  color: var(--text-dim); font-family: 'IM Fell English', serif; font-size: 12px; letter-spacing: 0.06em;
+  text-transform: uppercase; cursor: pointer; }
+.hud-tab:hover { color: var(--gold-bright); }
+.hud-tab.on { color: var(--gold-bright); border-bottom-color: var(--gold-bright); }
+.hotbar.ultra .hud-tab { font-size: 10px; padding: 4px 9px; }
+.hud-note { color: var(--text-dim); font-style: italic; font-size: 12px; font-family: 'Crimson Text', serif; padding: 6px 2px; }
 .sheet-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .sheet-stat { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 6px; text-align: center; }
 .sheet-stat .k { font-family: 'DM Mono', monospace; font-size: 8px; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; }
 .sheet-stat .v { font-family: 'DM Mono', monospace; font-size: 17px; font-weight: 600; color: var(--text); line-height: 1.25; }
 .sheet-stat .x { font-size: 9px; color: var(--text-dim); }
 .sheet-lbl { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; margin: 9px 0 5px; }
+/* classic MM-style label : value rows */
+.sheet-stat-list { display: flex; flex-direction: column; }
+.sheet-sb { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 2px 2px;
+  border-bottom: 1px dotted var(--border); }
+.sheet-sb .k { font-family: 'IM Fell English', serif; font-size: 12px; color: var(--text-dim); letter-spacing: 0.02em; flex: 0 0 auto; }
+.sheet-sb .v { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text); text-align: right; }
+.sheet-sb.nil .v { color: var(--text-muted); }
 .sheet-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px;
   border: 1px solid var(--border); border-left-width: 3px; border-radius: 4px; margin-bottom: 5px; background: var(--surface-2); }
+.sheet-row .nm { font-size: 13px; color: #f0e6d2; min-width: 0; }
+.sheet-row .nm small { display: block; font-family: 'DM Mono', monospace; font-size: 9px; color: var(--text-dim); }
+.sheet-tgt { font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 600; color: var(--gold-bright); }
+.sheet-mini { background: var(--surface-3); border: 1px solid var(--border-strong); color: var(--text-dim);
+  border-radius: 3px; padding: 3px 8px; font-family: 'DM Mono', monospace; font-size: 10px; cursor: pointer; }
+.sheet-mini:hover { border-color: var(--gold-deep); color: var(--gold-bright); }
+.sheet-mini:disabled { opacity: 0.4; cursor: not-allowed; }
+.sheet-mini:disabled:hover { border-color: var(--border-strong); color: var(--text-dim); }
+.sheet-badge { font-family: 'DM Mono', monospace; font-size: 8px; color: var(--ink); background: var(--moss);
+  border-radius: 3px; padding: 2px 5px; letter-spacing: 0.04em; }
+.sheet-q { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-dim); flex: none; }
+.sheet-empty { color: var(--text-muted); font-style: italic; font-size: 12px; padding: 8px 2px; }
 .sheet-row .nm { font-size: 13px; color: #f0e6d2; min-width: 0; }
 .sheet-row .nm small { display: block; font-family: 'DM Mono', monospace; font-size: 9px; color: var(--text-dim); }
 .sheet-tgt { font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 600; color: var(--gold-bright); }
@@ -385,6 +404,7 @@ body {
   z-index: 64; overflow: hidden; }
 .hotbar.disabled { opacity: 0.62; }
 .hotbar.collapsed .hud-body { display: none; }
+.hotbar.collapsed .hud-tabs { display: none; }
 .hotbar.collapsed { width: 360px; }
 
 /* header bar */
@@ -791,16 +811,6 @@ body.light .round-head .rh-title { font-family: inherit; }
   <div class="tracker-list" id="tracker-list"></div>
 </div>
 
-<div class="float-window" id="sheet-window">
-  <div class="float-head" id="sheet-drag-handle">
-    <span class="ttl">⚜ Sheet</span>
-    <span class="meta" id="sheet-meta"></span>
-    <button class="float-collapse" id="sheet-collapse" title="Collapse">–</button>
-  </div>
-  <div class="sheet-tabs" id="sheet-tabs"></div>
-  <div class="sheet-body" id="sheet-body"></div>
-</div>
-
 <div id="setup-overlay" class="setup-overlay">
   <div class="setup-panel">
     <h2>Encounter Setup</h2>
@@ -884,7 +894,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.16';
+const SIM_VERSION = 'v0.9.17';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -2286,14 +2296,13 @@ function makeInitialState() {
 
 let state = makeInitialState();
 recomputeAllEncumbrance();
-let hudUi = { collapsed: false, x: null, y: null, scale: 1, ultra: false };
+let hudUi = { collapsed: false, x: null, y: null, scale: 1, ultra: false, tab: 'actions' };
 // DM peek: when false (default), enemy orders stay hidden during the declare phase (1e blind declaration).
 let peekDecl = false;
 let showReach = false;   // dotted weapon-reach rings (toggle with 'r')
 let showSpace = false;   // v0.8.7: dashed weapon-space rings (toggle with 's')
 let dragMove = null;     // active token-drag session: { id, origin, reach, budget, ghostCell, exact }
 let _hudOpenGroups = new Set(); // which situational HUD groups are expanded (persists across re-renders)
-let sheetUi = { collapsed: false, tab: 'stats' }; // Character sheet float state
 let chatCollapse = {}; // round number -> true(collapsed)/false(expanded); set on user toggle
 
 // ============================================================
@@ -5054,23 +5063,18 @@ function renderHotbar() {
   el.classList.toggle('disabled', state.phase !== 'declare' || state.game_over);
 
   const c = findCombatant(state, state.selected_id);
-  const usable = !!(c && !c.dead && state.phase === 'declare' && c.side === state.acting_side && !state.game_over);
-  if (!usable) {
+  if (!c || c.dead) {
     el.innerHTML = `
       <div class="hud-head" id="hud-drag-handle">
-        <span class="who"><span class="nm" style="font-family:'Crimson Text',serif;font-size:13px;color:var(--text-dim);">Select an acting combatant to declare orders.</span></span>
+        <span class="who"><span class="nm" style="font-family:'Crimson Text',serif;font-size:13px;color:var(--text-dim);">Select a combatant — click any token to inspect it.</span></span>
         <span class="spacer"></span>
         <button class="hud-collapse" id="hud-collapse" title="Collapse HUD">–</button>
-      </div>
-      <div class="hud-body">
-        <div class="hud-section">
-          <div class="hud-section-title"><span>Ready</span></div>
-          <div class="ready-row">${Array.from({ length: 5 }, () => '<button class="slot empty" type="button"></button>').join('')}</div>
-        </div>
       </div>`;
     bindHudChrome();
     return;
   }
+  const usable = !!(state.phase === 'declare' && c.side === state.acting_side && !state.game_over);
+  const tab = hudUi.tab || 'actions';
 
   const slots = ensureHudSlots(c);
   const currentDecl = state.declarations[c.id];
@@ -5133,6 +5137,25 @@ function renderHotbar() {
     ? `${String(c.matrix_class || '').replace(/^./, m => m.toUpperCase())} · ${c.level}`
     : (c.hd ? `Monster · HD ${c.hd}` : 'Monster');
 
+  const tabDefs = [['actions', 'Actions'], ['stats', 'Stats'], ['saves', 'Saves'], ['spells', 'Spells']];
+  const tabStrip = tabDefs.map(([id, lbl]) => `<button class="hud-tab${tab === id ? ' on' : ''}" data-tab="${id}">${lbl}</button>`).join('');
+
+  let bodyHtml;
+  if (tab === 'actions') {
+    bodyHtml = usable
+      ? `<div class="hud-section">
+           <div class="hud-section-title"><span>Ready</span><span class="decl-text">${describeDeclaration(currentDecl)}</span></div>
+           <div class="ready-row" id="hud-ready-row"></div>
+         </div>
+         <div class="hud-section">
+           <div class="hud-section-title"><span>Declarations</span></div>
+           <div class="action-row" id="hud-action-row"></div>
+         </div>`
+      : `<div class="hud-note">${c.side === state.acting_side ? 'Combat is resolving — orders are locked this phase.' : `${sideName(state.acting_side)} is declaring. Switch to Stats, Saves, or Spells to inspect ${c.label}.`}</div>`;
+  } else if (tab === 'stats') bodyHtml = renderHudStats(c);
+  else if (tab === 'saves') bodyHtml = renderSheetSaves(c);
+  else bodyHtml = renderSheetSpells(c);
+
   el.innerHTML = `
     <div class="hud-head" id="hud-drag-handle">
       <span class="sidepill ${c.side === 'A' ? 'a' : 'b'}">${c.letter || c.side}</span>
@@ -5144,23 +5167,16 @@ function renderHotbar() {
         <span class="chip"><span class="v">${(c._enc ? c._enc.moveIn : 12)}"</span><span class="k">MV</span></span>
         <span class="chip enc ${c._enc ? c._enc.tier : ''}"><span class="v">${fmtWeight(c._enc ? c._enc.weight : carriedWeight(c))}</span><span class="k">${c._enc ? c._enc.short : 'UNE'}</span></span>
       </span>
-      <span class="phase ${phaseCls}">${phaseTxt}</span>
+      ${usable ? `<span class="phase ${phaseCls}">${phaseTxt}</span>` : ''}
       <button class="hud-density" id="hud-density" title="Ultra-compact density">⊖</button>
       <button class="hud-collapse" id="hud-collapse" title="Collapse HUD">–</button>
     </div>
-    <div class="hud-body">
-      <div class="hud-section">
-        <div class="hud-section-title"><span>Ready</span><span class="decl-text">${describeDeclaration(currentDecl)}</span></div>
-        <div class="ready-row" id="hud-ready-row"></div>
-      </div>
-      <div class="hud-section">
-        <div class="hud-section-title"><span>Declarations</span></div>
-        <div class="action-row" id="hud-action-row"></div>
-      </div>
-    </div>`;
+    <div class="hud-tabs" id="hud-tabs">${tabStrip}</div>
+    <div class="hud-body">${bodyHtml}</div>`;
 
+  el.querySelectorAll('.hud-tab').forEach(b => b.addEventListener('click', () => { hudUi.tab = b.dataset.tab; renderHotbar(); }));
   const readyRow = el.querySelector('#hud-ready-row');
-  for (const def of readyDefs) {
+  if (readyRow) for (const def of readyDefs) {
     const btn = document.createElement('button');
     btn.type = 'button';
     const entry = def.entry;
@@ -5231,6 +5247,7 @@ function renderHotbar() {
     { id: 'weaponless', icon: '⊛', label: 'Weaponless' },
     { id: 'disengage', icon: '↩', label: 'Disengage' }
   ];
+  if (actionRow) {
   for (const a of actionDefs) {
     if (!a.group) actionRow.appendChild(buildActionBtn(a));
   }
@@ -5258,6 +5275,7 @@ function renderHotbar() {
       if (nowOpen) _hudOpenGroups.add(grp.id); else _hudOpenGroups.delete(grp.id);
       memberBtns.forEach(b => b.classList.toggle('collapsed', !nowOpen));
     });
+  }
   }
   bindHudChrome();
 }
@@ -5475,24 +5493,50 @@ function sheetSelectedCombatant() {
       || null;
 }
 
-function renderSheetStats(c) {
+const SIZE_NAMES = { S: 'Small', M: 'Man-sized', L: 'Large' };
+
+// Classic AD&D Monster-Manual-style label : value block. Reads optional descriptive
+// fields (alignment, intelligence, languages[], special_abilities[], immunities[],
+// special_attacks[], special_defenses[], magic_resistance) and shows Nil when absent,
+// exactly as a real MM entry does. Works for PC, NPC, and monster alike.
+function renderHudStats(c) {
   const enc = c._enc || encumbranceInfo(c);
   const aw = WEAPONS[c.active_weapon];
-  const abil = [['Str', c.str], ['Dex', c.dex], ['Con', c.con], ['Int', c.int], ['Wis', c.wis], ['Cha', c.cha]].filter(([, v]) => v != null);
-  const abilHtml = abil.length
-    ? `<div class="sheet-grid">` + abil.map(([k, v]) => `<div class="sheet-stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('') + `</div>`
-    : `<div class="sheet-empty">No ability scores on record.</div>`;
-  const combat = [
-    ['THAC0', thac0Of(c), ''],
-    ['AC', c.ac_current, ''],
-    ['Att/Rd', String(c.attacks_per_round || classAttacksRate(c)), ''],
-    ['Move', enc.moveIn + '"', enc.short],
-    [c.kind === 'pc' ? 'Level' : 'HD', c.kind === 'pc' ? c.level : (c.hd != null ? c.hd : c.level), ''],
-    ['Wpn Spd', aw && aw.speed != null ? aw.speed : '—', aw ? aw.name : '']
+  const list = (v) => Array.isArray(v) && v.length ? v.join(', ') : null;
+  const dmg = aw ? (aw.damage ? `${aw.damage.sm || aw.damage}${aw.damage.l ? ` / ${aw.damage.l} (L)` : ''}` : '—') : 'Nil';
+  const lvlLine = c.kind === 'pc'
+    ? `${String(c.matrix_class || 'Adventurer').replace(/^./, m => m.toUpperCase())} ${c.level}`
+    : (c.hd != null ? String(c.hd) : String(c.level));
+  const intel = c.intelligence != null ? c.intelligence
+    : (c.intelligent === false ? 'Animal' : (c.kind === 'pc' && c.int != null ? c.int : null));
+  const abilities = [['Str', c.str], ['Dex', c.dex], ['Con', c.con], ['Int', c.int], ['Wis', c.wis], ['Cha', c.cha]].filter(([, v]) => v != null);
+  const rows = [
+    ['Armor Class', c.ac_current],
+    ['Move', `${enc.moveIn}"${enc.short !== 'UNE' ? ` (${enc.short})` : ''}`],
+    [c.kind === 'pc' ? 'Class / Level' : 'Hit Dice', lvlLine],
+    ['Hit Points', `${c.hp_current} / ${c.hp_max}`],
+    ['THAC0', thac0Of(c)],
+    ['No. of Attacks', String(c.attacks_per_round || classAttacksRate(c))],
+    ['Damage/Attack', dmg],
+    ['Special Attacks', list(c.special_attacks)],
+    ['Special Defenses', list(c.special_defenses)],
+    ['Magic Resistance', c.magic_resistance != null ? (typeof c.magic_resistance === 'number' ? `${c.magic_resistance}%` : c.magic_resistance) : null],
+    ['Immunities', list(c.immunities)],
+    ['Intelligence', intel],
+    ['Alignment', c.alignment || null],
+    ['Languages', list(c.languages)],
+    ['Special Abilities', list(c.special_abilities)],
+    ['Size', SIZE_NAMES[c.size] || c.size || null]
   ];
-  return abilHtml + `<div class="sheet-lbl">Combat</div><div class="sheet-grid">`
-    + combat.map(([k, v, x]) => `<div class="sheet-stat"><div class="k">${k}</div><div class="v">${v}</div>${x ? `<div class="x">${x}</div>` : ''}</div>`).join('')
-    + `</div>`;
+  let html = '';
+  if (abilities.length) {
+    html += `<div class="sheet-grid">` + abilities.map(([k, v]) => `<div class="sheet-stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('') + `</div>`;
+  }
+  html += `<div class="sheet-stat-list">` + rows.map(([k, v]) => {
+    const nil = (v == null || v === '');
+    return `<div class="sheet-sb${nil ? ' nil' : ''}"><span class="k">${k}</span><span class="v">${nil ? 'Nil' : v}</span></div>`;
+  }).join('') + `</div>`;
+  return html;
 }
 
 function renderSheetSaves(c) {
@@ -5555,37 +5599,9 @@ function renderSheetPack(c) {
   return rows + `<div class="sheet-lbl">${fmtWeight(total)} carried · ${enc.tier}</div>`;
 }
 
-function renderSheet() {
-  const win = document.getElementById('sheet-window');
-  if (!win) return;
-  win.classList.toggle('collapsed', !!sheetUi.collapsed);
-  const cb = document.getElementById('sheet-collapse');
-  if (cb) cb.textContent = sheetUi.collapsed ? '+' : '–';
-  const meta = document.getElementById('sheet-meta');
-  const tabsEl = document.getElementById('sheet-tabs');
-  const body = document.getElementById('sheet-body');
-  const c = sheetSelectedCombatant();
-  if (!c) {
-    if (meta) meta.textContent = '';
-    if (tabsEl) tabsEl.style.display = 'none';
-    if (body) body.innerHTML = `<div class="sheet-empty">Select a combatant to view its sheet.</div>`;
-    return;
-  }
-  if (tabsEl) tabsEl.style.display = '';
-  if (meta) meta.textContent = `${c.label} · ${c.hp_current}/${c.hp_max} hp`;
-  const tab = sheetUi.tab || 'stats';
-  if (tabsEl) tabsEl.innerHTML = [['stats', 'Stats'], ['saves', 'Saves'], ['spells', 'Spells'], ['pack', 'Pack']]
-    .map(([id, lbl]) => `<button class="sheet-tab${tab === id ? ' on' : ''}" onclick="App.sheetTab('${id}')">${lbl}</button>`).join('');
-  if (body) body.innerHTML = tab === 'saves' ? renderSheetSaves(c)
-    : tab === 'spells' ? renderSheetSpells(c)
-    : tab === 'pack' ? renderSheetPack(c)
-    : renderSheetStats(c);
-}
-
 function renderAll() {
   renderMap();
   renderTracker();
-  renderSheet();
   renderChat();
   renderMiniStats();
   renderHotbar();
@@ -5891,20 +5907,16 @@ const App = {
   },
 
   handleTokenClick(id) {
-    if (state.phase !== 'declare') return;
     const c = findCombatant(state, id);
     if (!c || c.dead) return;
     if (state.picking) {
       if (state.picking.kind === 'target') this.completePickTarget(id);
       return;
     }
-    if (c.side !== state.acting_side) return; // only the acting side is selectable
-    state.selected_id = id;
+    state.selected_id = id; // select any token to inspect — declaration stays gated to the acting side in the HUD
     renderAll();
   },
 
-  sheetTab(tab) { sheetUi.tab = tab; renderSheet(); },
-  sheetToggleCollapse() { sheetUi.collapsed = !sheetUi.collapsed; renderSheet(); },
   sheetRollSave(category) {
     const c = sheetSelectedCombatant(); if (!c) return;
     const r = rollSave(c, category, 0);
@@ -6210,34 +6222,6 @@ document.addEventListener('keydown', (e) => {
     scale = Math.round(Math.max(0.7, Math.min(1.8, scale - Math.sign(e.deltaY) * 0.1)) * 100) / 100;
     win.style.transform = `scale(${scale})`;
   }, { passive: false });
-})();
-
-// ===== Floating character sheet window: drag + collapse =====
-(function setupFloatingSheet() {
-  const win = document.getElementById('sheet-window');
-  if (!win) return;
-  const handle = document.getElementById('sheet-drag-handle');
-  const collapseBtn = document.getElementById('sheet-collapse');
-  let dragging = false, ox = 0, oy = 0;
-  handle.addEventListener('mousedown', (e) => {
-    if (e.target === collapseBtn) return;
-    dragging = true;
-    const rect = win.getBoundingClientRect();
-    ox = e.clientX - rect.left;
-    oy = e.clientY - rect.top;
-    win.style.left = rect.left + 'px';
-    win.style.top = rect.top + 'px';
-    win.style.right = 'auto';
-    win.style.bottom = 'auto';
-    e.preventDefault();
-  });
-  window.addEventListener('mousemove', (e) => {
-    if (!dragging) return;
-    win.style.left = Math.max(0, Math.min(window.innerWidth - 60, e.clientX - ox)) + 'px';
-    win.style.top = Math.max(0, Math.min(window.innerHeight - 28, e.clientY - oy)) + 'px';
-  });
-  window.addEventListener('mouseup', () => { dragging = false; });
-  if (collapseBtn) collapseBtn.addEventListener('click', () => App.sheetToggleCollapse());
 })();
 
 // ===== Map zoom & pan via SVG viewBox =====
