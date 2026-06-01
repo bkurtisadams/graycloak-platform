@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.20 -->
+<!-- dungeon-encounter — v0.9.21 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -259,6 +259,16 @@ body {
 .sheet-coinwt { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--text-muted); text-align: right; }
 /* pack rows: name + quantity + weight columns; magic items render blue */
 .sheet-row.pack .nm { flex: 1; }
+/* expandable rows (spells & items): header toggles a detail panel */
+.sheet-row.exp { display: block; padding: 0; }
+.sheet-rt { display: flex; align-items: center; gap: 8px; padding: 6px 8px; cursor: pointer; }
+.sheet-rt .nm { flex: 1; }
+.sheet-chev { flex: none; color: var(--text-muted); font-size: 10px; transition: transform 0.12s; }
+.sheet-row.exp.open .sheet-chev { transform: rotate(90deg); }
+.sheet-det { display: none; padding: 0 8px 8px 23px; border-top: 1px dotted var(--border); }
+.sheet-row.exp.open .sheet-det { display: block; }
+.sheet-mech { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--steel-bright); margin: 7px 0 4px; line-height: 1.5; }
+.sheet-flav { font-family: 'Crimson Text', serif; font-size: 12.5px; color: var(--text-dim); line-height: 1.4; }
 .sheet-row.pack.magic .nm { color: var(--steel-bright); }
 .sheet-row.pack .nm small { display: inline; font-style: italic; color: var(--text-dim); font-family: 'Crimson Text', serif; font-size: 13px; }
 .sheet-qty { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-dim); flex: none; min-width: 26px; text-align: right; }
@@ -912,7 +922,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.20';
+const SIM_VERSION = 'v0.9.21';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -1197,6 +1207,48 @@ const SPELLS = {
     cast() { return { status: 'paralyze', duration: 4, statusText: 'held rigid' }; }
   }
 };
+
+// Optional flavor/effect text for the expandable spell rows (own wording, not PHB verbatim).
+const SPELL_INFO = {
+  magic_missile:    { effect: '1 missile per 2 levels (max 5) · 1d4+1 each · auto-hits', desc: 'Bolts of pure force that never miss; only a shield spell turns them aside.' },
+  shocking_grasp:   { effect: 'touch attack · 1d8 +1 per level · electrical', desc: 'The caster\u2019s hand crackles; the next creature touched takes the charge.' },
+  sleep:            { effect: '2d4 HD of \u22644 HD creatures, lowest first · no save', desc: 'Weaker foes drop into helpless slumber until shaken awake.' },
+  shield:           { effect: 'frontal AC bonus · blocks magic missile · ~5 rounds', desc: 'An invisible barrier wards the caster\u2019s front.' },
+  bless:            { effect: '+1 to hit to nearby allies · ~6 rounds', desc: 'A prayer that lifts the courage and aim of friends near the caster.' },
+  cure_light_wounds:{ effect: 'heals 1d8 · rouses the unconscious', desc: 'A touch knits flesh and steadies the failing.' },
+  hold_person:      { effect: 'holds the target rigid · ~4 rounds', desc: 'Up to four humanoids may be locked motionless; a failed save dooms them.' }
+};
+const SPELL_TARGET_LABEL = { enemy: 'single enemy', ally: 'single ally', self: 'self', area_enemy: 'area (enemies)', area_ally: 'area (allies)', area: 'area' };
+
+function spellMechLine(sp) {
+  const parts = [];
+  const rs = sp.range_squares;
+  parts.push('Range ' + (rs == null ? '\u2014' : rs === 0 ? 'self' : rs <= 1 ? 'touch' : cellsToInches(rs) + '\u2033'));
+  if (sp.casting_time != null) parts.push('CT ' + sp.casting_time);
+  const tl = SPELL_TARGET_LABEL[sp.target_mode] || sp.target_mode;
+  if (tl) parts.push(tl);
+  if (sp.save) parts.push('save ' + (sp.save.effect === 'negate' ? 'negates' : (sp.save.effect || 'allowed')));
+  const info = SPELL_INFO[sp.id];
+  if (info && info.effect) parts.push(info.effect);
+  return parts.join(' \u00b7 ');
+}
+
+function itemMechLine(it, item) {
+  const wid = it.weapon_id || (item && item.weapon_id);
+  const w = wid && WEAPONS[wid];
+  if (w) {
+    const bits = [];
+    if (w.damage) bits.push(`${w.damage.sm}${w.damage.l ? ' / ' + w.damage.l + ' (L)' : ''}`);
+    if (w.speed != null) bits.push('spd ' + w.speed);
+    if (w.length != null) bits.push('len ' + w.length + '\u2032');
+    if (w.ranged) bits.push('missile');
+    return bits.join(' \u00b7 ');
+  }
+  const cat = it.category || (item && item.category);
+  if (cat === 'armor') { const ac = item && item.ac; return ac != null ? `base AC ${ac} when worn` : ''; }
+  if (cat === 'shield') return 'improves AC vs frontal attacks';
+  return '';
+}
 
 // 1e saving-throw matrices. Columns: ppd, pp, rsw, bw, spell. Bands sorted by upTo (last = Infinity).
 const SAVE_MATRIX = {
@@ -5588,14 +5640,17 @@ function renderSheetSpells(c) {
     const sp = SPELLS[id];
     if (sp.level !== lastLvl) { lastLvl = sp.level; html += `<div class="sheet-lbl">Level ${sp.level}</div>`; }
     const readied = slots.spell === id;
-    const meta = `${sp.target_mode || 'enemy'} · ct ${sp.casting_time}${sp.save ? ' · save' : ''}`;
-    html += `<div class="sheet-row" style="border-left-color:${readied ? '#6b8a5a' : '#8b6f3a'}">`
-      + `<span class="nm">${sp.name}${readied ? ' <span class="sheet-badge">READIED</span>' : ''}<small>${meta}</small></span>`
-      + `<span style="display:flex;align-items:center;gap:8px;flex:none">`
-      + `<span class="sheet-q">×${charges[id]}</span>`
-      + (readied ? '' : `<button class="sheet-mini" onclick="App.sheetReadySpell('${id}')">Ready</button>`)
-      + `<button class="sheet-mini" ${canCast ? '' : 'disabled'} onclick="App.sheetCastSpell('${id}')">Cast</button>`
-      + `</span></div>`;
+    const info = SPELL_INFO[id] || {};
+    html += `<div class="sheet-row exp" style="border-left-color:${readied ? '#6b8a5a' : '#8b6f3a'}">`
+      + `<div class="sheet-rt" onclick="this.parentElement.classList.toggle('open')">`
+      + `<span class="sheet-chev">\u25b8</span>`
+      + `<span class="nm">${sp.name}${readied ? ' <span class="sheet-badge">READIED</span>' : ''}</span>`
+      + `<span class="sheet-q">\u00d7${charges[id]}</span>`
+      + (readied ? '' : `<button class="sheet-mini" onclick="event.stopPropagation();App.sheetReadySpell('${id}')">Ready</button>`)
+      + `<button class="sheet-mini" ${canCast ? '' : 'disabled'} onclick="event.stopPropagation();App.sheetCastSpell('${id}')">Cast</button>`
+      + `</div>`
+      + `<div class="sheet-det"><div class="sheet-mech">${spellMechLine(sp)}</div>${info.desc ? `<div class="sheet-flav">${info.desc}</div>` : ''}</div>`
+      + `</div>`;
   }
   return html;
 }
@@ -5646,10 +5701,25 @@ function renderSheetPack(c) {
       if (tag) nameHtml += ` <span class="sheet-badge"${muted ? ' style="background:var(--border-strong);color:var(--text-dim)"' : ''}>${tag}</span>`;
       const magicRow = (isMagic ? ' magic' : '');
       const edge = (isMagic ? '#88a8c4' : (tag && !muted) ? '#e6c275' : 'var(--border)');
+      // Detail: unidentified items mask everything; otherwise mechanical line + optional flavor
+      let detail = '';
+      if (isMagic && !identified) {
+        detail = `<div class="sheet-flav" style="font-style:italic;color:var(--text-muted)">Effects unknown until identified.</div>`;
+      } else {
+        const mech = itemMechLine(it, item);
+        const desc = it.desc || (item ? item.desc : null);
+        if (mech) detail += `<div class="sheet-mech">${mech}</div>`;
+        if (desc) detail += `<div class="sheet-flav">${desc}</div>`;
+      }
+      const cols = `<span class="sheet-qty">\u00d7${qty}</span><span class="sheet-wt">${wt ? fmtWeight(wt * qty) : '\u2014'}</span>`;
+      if (detail) {
+        return `<div class="sheet-row pack exp${magicRow}" style="border-left-color:${edge}">`
+          + `<div class="sheet-rt" onclick="this.parentElement.classList.toggle('open')">`
+          + `<span class="sheet-chev">\u25b8</span><span class="nm">${nameHtml}</span>${cols}</div>`
+          + `<div class="sheet-det">${detail}</div></div>`;
+      }
       return `<div class="sheet-row pack${magicRow}" style="border-left-color:${edge}">`
-        + `<span class="nm">${nameHtml}</span>`
-        + `<span class="sheet-qty">×${qty}</span>`
-        + `<span class="sheet-wt">${wt ? fmtWeight(wt * qty) : '—'}</span></div>`;
+        + `<span class="nm">${nameHtml}</span>${cols}</div>`;
     }).join('');
   }
 
