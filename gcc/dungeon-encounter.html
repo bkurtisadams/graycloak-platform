@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.25 -->
+<!-- dungeon-encounter — v0.9.26 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -929,7 +929,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.25';
+const SIM_VERSION = 'v0.9.26';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -1332,7 +1332,7 @@ function saveTargetFor(c, category) {
       ? Math.max(0, Math.ceil(parseHD(hd).dice / 2)) : baseLevel;
     return Math.min(...classes.map(cl => saveTargetFromMatrix(cl, level, category)));
   }
-  return saveTargetFromMatrix(combatClass(c.matrix_class), c.level, category);
+  return saveTargetFromMatrix(saveClassOf(c.matrix_class), c.level, category);
 }
 // Roll a save. PHB N.B.: a natural 1 always fails. `mod` is a bonus (+) / penalty (-) to the d20.
 function rollSave(c, category, mod) {
@@ -1359,10 +1359,21 @@ function rollDice(notation) {
   return Math.max(1, total);
 }
 
-// Paladins & rangers fight/save as fighters; illusionists as magic-users.
+// THAC0 class: paladins/rangers/bards fight as fighters, druids as clerics,
+// assassins/monks as thieves, illusionists as magic-users.
 function combatClass(mc) {
+  if (mc === 'paladin' || mc === 'ranger' || mc === 'bard') return 'fighter';
+  if (mc === 'illusionist') return 'magic_user';
+  if (mc === 'druid') return 'cleric';
+  if (mc === 'assassin' || mc === 'monk') return 'thief';
+  return mc;
+}
+// Save class: same, except bards save as druids (cleric matrix).
+function saveClassOf(mc) {
   if (mc === 'paladin' || mc === 'ranger') return 'fighter';
   if (mc === 'illusionist') return 'magic_user';
+  if (mc === 'druid' || mc === 'bard') return 'cleric';
+  if (mc === 'assassin' || mc === 'monk') return 'thief';
   return mc;
 }
 function thac0Of(c) { const mc = combatClass(c.matrix_class); return (c.thac0 != null) ? c.thac0 : THAC0[mc][pickTier(mc, c.level)]; }
@@ -5723,7 +5734,72 @@ const CLASS_DATA = {
       { lvl:10, min:220001, title:'Illusionist' }, { lvl:11, min:440001, title:'Illusionist (11th)' }, { lvl:12, min:660001, title:'Illusionist (12th)' }
     ],
     xpPerAfter: 220000
+  },
+  druid: {
+    hitDie: 'd8', levelLimit: 14,
+    profInit: 2, profPer: 5, profPenalty: -4, armor: 'Leather', shield: 'Wooden only', weapons: 'Club, dagger, dart, hammer, scimitar, sling, spear, staff', spell: 'divine',
+    features: ['Druidic divine spellcasting', 'Secret druidic language', 'Identify plants, animals & pure water (3rd)', 'Pass without trace through overgrowth (3rd)', 'Shapechange 3/day — reptile/bird/mammal (7th)', 'Level limit 14 — only one Great Druid'],
+    xpBonus: '+10% experience when Wisdom and Charisma are both 16 or higher',
+    spellSlots: { 1:[2],2:[2,1],3:[3,2,1],4:[4,2,2],5:[4,3,2],6:[4,3,2,1],7:[4,4,3,1],8:[4,4,3,2],9:[5,4,3,2,1],10:[5,4,3,3,2],11:[5,5,3,3,2,1],12:[5,5,4,4,3,2,1],13:[6,5,5,5,4,3,2],14:[6,6,6,6,5,4,3] },
+    xp: [
+      { lvl:1, min:0, title:'Aspirant' }, { lvl:2, min:2001, title:'Ovate' }, { lvl:3, min:4001, title:'Initiate of the 1st Circle' },
+      { lvl:4, min:7501, title:'Initiate of the 2nd Circle' }, { lvl:5, min:12501, title:'Initiate of the 3rd Circle' }, { lvl:6, min:20001, title:'Initiate of the 4th Circle' },
+      { lvl:7, min:35001, title:'Initiate of the 5th Circle' }, { lvl:8, min:60001, title:'Initiate of the 6th Circle' }, { lvl:9, min:90001, title:'Initiate of the 7th Circle' },
+      { lvl:10, min:125001, title:'Initiate of the 8th Circle' }, { lvl:11, min:200001, title:'Initiate of the 9th Circle' }, { lvl:12, min:300001, title:'Druid' },
+      { lvl:13, min:750001, title:'Archdruid' }, { lvl:14, min:1500001, title:'The Great Druid' }
+    ]
+  },
+  assassin: {
+    hitDie: 'd6', levelLimit: 15,
+    profInit: 3, profPer: 4, profPenalty: -2, armor: 'Leather', shield: 'Any', weapons: 'Any', spell: null,
+    features: ['Assassination — kill chance vs a surprised target (level vs victim)', 'Backstab (×2 to ×5 as a thief)', 'Use of poison', 'Disguise', 'Thieving skills', 'Speaks Thieves\u2019 Cant; learns alignment tongues with level'],
+    xp: [
+      { lvl:1, min:0, title:'Bravo (Apprentice)' }, { lvl:2, min:1501, title:'Rutterkin' }, { lvl:3, min:3001, title:'Waghalter' },
+      { lvl:4, min:6001, title:'Murderer' }, { lvl:5, min:12001, title:'Thug' }, { lvl:6, min:25001, title:'Killer' },
+      { lvl:7, min:50001, title:'Cutthroat' }, { lvl:8, min:100001, title:'Executioner' }, { lvl:9, min:200001, title:'Assassin' },
+      { lvl:10, min:300001, title:'Expert Assassin' }, { lvl:11, min:425001, title:'Senior Assassin' }, { lvl:12, min:575001, title:'Chief Assassin' },
+      { lvl:13, min:750001, title:'Prime Assassin' }, { lvl:14, min:1000001, title:'Guildmaster Assassin' }, { lvl:15, min:1500001, title:'Grandfather of Assassins' }
+    ]
+  },
+  monk: {
+    hitDie: 'd4', levelLimit: 17,
+    profInit: 1, profPer: 2, profPenalty: -3, armor: 'None', shield: 'None', weapons: 'Bo stick, club, crossbow, dagger, hand axe, javelin, jo stick, pole arm, spear, staff', spell: null,
+    features: ['Open-hand combat: own AC, damage & attack progression', 'Stun on a to-hit roll 5+ over the number needed; % chance to kill', '+½ hp/level weapon damage; no Str or Dex combat bonuses', 'Deflects non-magical missiles (save vs petrification)', 'Thief skills: open locks, find/remove traps, move silently, hide, hear, climb', 'Quivering Palm at 13th', 'Begins with 2d4 hp; 18 HD max', 'Lawful only; level limit 17 (Grand Master of Flowers)'],
+    xp: [
+      { lvl:1, min:0, title:'Novice' }, { lvl:2, min:2251, title:'Initiate' }, { lvl:3, min:4751, title:'Brother' },
+      { lvl:4, min:10001, title:'Disciple' }, { lvl:5, min:22501, title:'Immaculate' }, { lvl:6, min:47501, title:'Master' },
+      { lvl:7, min:98001, title:'Superior Master' }, { lvl:8, min:200001, title:'Master of Dragons' }, { lvl:9, min:350001, title:'Master of the North Wind' },
+      { lvl:10, min:500001, title:'Master of the West Wind' }, { lvl:11, min:700001, title:'Master of the South Wind' }, { lvl:12, min:950001, title:'Master of the East Wind' },
+      { lvl:13, min:1250001, title:'Master of Winter' }, { lvl:14, min:1750001, title:'Master of Autumn' }, { lvl:15, min:2250001, title:'Master of Summer' },
+      { lvl:16, min:2750001, title:'Master of Spring' }, { lvl:17, min:3250001, title:'Grand Master of Flowers' }
+    ]
+  },
+  bard: {
+    hitDie: 'd6', hpAfter: 1, hpAfterLvl: 11, levelLimit: 23,
+    profInit: 4, profPer: 3, profPenalty: -2, armor: 'Leather or magical chain', shield: 'None', weapons: 'Club, dagger, dart, javelin, sling, scimitar, spear, staff, sword', spell: 'divine',
+    features: ['Begins as fighter, then thief, then bard (druid spells)', 'Fights at the fighter level attained; functions as a thief', 'Charm creatures with music (save vs magic), then suggestion', 'Inspires allies: +1 to hit & +10% morale after 2 rounds', 'Negates harpy song & shrieker noise', 'Legend lore & item knowledge rise with level', 'Human or half-elf; must remain Neutral'],
+    spellSlots: { 1:[1],2:[2],3:[3],4:[3,1],5:[3,2],6:[3,3],7:[3,3,1],8:[3,3,2],9:[3,3,3],10:[3,3,3,1],11:[3,3,3,2],12:[3,3,3,3],13:[3,3,3,3,1],14:[3,3,3,3,2],15:[3,3,3,3,3],16:[4,3,3,3,3],17:[4,4,3,3,3],18:[4,4,4,3,3],19:[5,4,4,4,3],20:[5,4,4,4,4],21:[5,5,4,4,4],22:[5,5,5,4,4],23:[5,5,5,5,5] },
+    xp: [
+      { lvl:1, min:0, title:'Rhymer' }, { lvl:2, min:2001, title:'Lyrist' }, { lvl:3, min:4001, title:'Sonnateer' },
+      { lvl:4, min:8001, title:'Skald' }, { lvl:5, min:16001, title:'Racaraide' }, { lvl:6, min:25001, title:'Joungleur' },
+      { lvl:7, min:40001, title:'Troubador' }, { lvl:8, min:60001, title:'Minstrel' }, { lvl:9, min:85001, title:'Muse' },
+      { lvl:10, min:110001, title:'Lorist' }, { lvl:11, min:150001, title:'Bard' }, { lvl:12, min:200001, title:'Master Bard' },
+      { lvl:13, min:400001, title:'Master Bard (13th)' }, { lvl:14, min:600001, title:'Master Bard (14th)' }, { lvl:15, min:800001, title:'Master Bard (15th)' },
+      { lvl:16, min:1000001, title:'Master Bard (16th)' }, { lvl:17, min:1200001, title:'Master Bard (17th)' }, { lvl:18, min:1400001, title:'Master Bard (18th)' },
+      { lvl:19, min:1600001, title:'Master Bard (19th)' }, { lvl:20, min:1800001, title:'Master Bard (20th)' }, { lvl:21, min:2000001, title:'Master Bard (21st)' },
+      { lvl:22, min:2200001, title:'Master Bard (22nd)' }, { lvl:23, min:3000001, title:'Master Bard (23rd)' }
+    ]
   }
+};
+
+// Monk open-hand progression (MONKS TABLE II): effective AC, attacks/round, damage.
+const MONK_OH = {
+  1:{ac:10,at:'1',dmg:'1-3'},2:{ac:9,at:'1',dmg:'1-4'},3:{ac:8,at:'1',dmg:'1-6'},
+  4:{ac:7,at:'5/4',dmg:'1-6'},5:{ac:7,at:'5/4',dmg:'2-7'},6:{ac:6,at:'3/2',dmg:'2-8'},
+  7:{ac:5,at:'3/2',dmg:'3-9'},8:{ac:4,at:'3/2',dmg:'2-12'},9:{ac:3,at:'2',dmg:'3-12'},
+  10:{ac:3,at:'2',dmg:'3-13'},11:{ac:2,at:'5/2',dmg:'4-13'},12:{ac:1,at:'5/2',dmg:'4-16'},
+  13:{ac:0,at:'5/2',dmg:'5-17'},14:{ac:-1,at:'3',dmg:'5-20'},15:{ac:-1,at:'3',dmg:'6-24'},
+  16:{ac:-2,at:'4',dmg:'5-30'},17:{ac:-3,at:'4',dmg:'8-32'}
 };
 
 function renderHudClass(c) {
@@ -5749,6 +5825,13 @@ function renderHudClass(c) {
   if (cd.features && cd.features.length) {
     html += `<div class="sheet-lbl mt">Class Features</div>`;
     html += cd.features.map(f => `<div class="sheet-feat">${f}</div>`).join('');
+  }
+  if (c.matrix_class === 'monk' && MONK_OH[lvl]) {
+    const oh = MONK_OH[lvl];
+    html += `<div class="sheet-lbl mt">Open Hand (level ${lvl})</div>`;
+    html += `<div class="sheet-sb"><span class="k">Effective AC</span><span class="v">${oh.ac}</span></div>`;
+    html += `<div class="sheet-sb"><span class="k">Attacks / round</span><span class="v">${oh.at}</span></div>`;
+    html += `<div class="sheet-sb"><span class="k">Open-hand damage</span><span class="v">${oh.dmg}</span></div>`;
   }
   if (cd.profInit != null) {
     const slots = cd.profInit + Math.floor((lvl - 1) / cd.profPer);
@@ -5981,7 +6064,7 @@ function wireChatExportButton() {
 //  renderAll refreshes the roster list alone when the panel is open.
 // ============================================================
 let gmUi = { open: false, editId: null };
-const GM_CLASS_OPTS = [['fighter', 'Fighter'], ['paladin', 'Paladin'], ['ranger', 'Ranger'], ['cleric', 'Cleric'], ['magic_user', 'Magic-User'], ['illusionist', 'Illusionist'], ['thief', 'Thief'], ['monster', 'Monster']];
+const GM_CLASS_OPTS = [['fighter', 'Fighter'], ['paladin', 'Paladin'], ['ranger', 'Ranger'], ['cleric', 'Cleric'], ['druid', 'Druid'], ['magic_user', 'Magic-User'], ['illusionist', 'Illusionist'], ['thief', 'Thief'], ['assassin', 'Assassin'], ['monk', 'Monk'], ['bard', 'Bard'], ['monster', 'Monster']];
 function _gmEsc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch])); }
 function renderGmSettings() {
   const el = document.getElementById('gm-settings'); if (!el) return;
