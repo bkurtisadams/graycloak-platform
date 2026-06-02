@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.33 -->
+<!-- dungeon-encounter — v0.9.34 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -929,7 +929,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.33';
+const SIM_VERSION = 'v0.9.34';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -2943,6 +2943,8 @@ function placeParties(distSquares10) {
 //   result-out:  see buildEncounterResult().
 let _handoff = null;          // { onResolved, context } while a launched encounter is live
 let _handoffEmitted = false;  // guard: emit the result exactly once
+const HANDOFF_KEY = 'gcc-pending-encounter';   // GCC writes the payload here, the engine consumes it on boot
+const HANDOFF_RESULT_KEY = 'gcc-encounter-result'; // engine writes the outcome here for GCC to read back
 
 function _isCombatant(o) { return o && typeof o === 'object' && o.matrix_class && (o.hp_current != null || o.hp_max != null); }
 
@@ -3022,12 +3024,28 @@ function emitEncounterResult() {
   _handoffEmitted = true;
   const result = buildEncounterResult();
   try { if (_handoff.onResolved) _handoff.onResolved(result); } catch (e) {}
+  try { localStorage.setItem(HANDOFF_RESULT_KEY, JSON.stringify(result)); } catch (e) {}
   try { window.dispatchEvent(new CustomEvent('encounter:resolved', { detail: result })); } catch (e) {}
   try { if (window.parent && window.parent !== window) window.parent.postMessage({ type: 'encounter:resolved', result }, '*'); } catch (e) {}
 }
 
+// Same-origin handoff: GCC writes the payload to HANDOFF_KEY then opens this page; we
+// consume it once on boot and launch. No-op (returns false) for a normal standalone open.
+function _bootFromHandoff() {
+  let raw = null;
+  try { raw = localStorage.getItem(HANDOFF_KEY); } catch (e) {}
+  if (!raw) return false;
+  try { localStorage.removeItem(HANDOFF_KEY); } catch (e) {}        // consume once
+  let payload = null;
+  try { payload = JSON.parse(raw); } catch (e) { return false; }
+  if (!payload) return false;
+  try { localStorage.removeItem(HANDOFF_RESULT_KEY); } catch (e) {} // clear any stale result
+  initEncounter(payload);
+  return true;
+}
+
 // Public surface + iframe-embed driver (parent posts {type:'encounter:init', payload}).
-window.DungeonEncounter = { init: initEncounter, version: SIM_VERSION, buildResult: buildEncounterResult };
+window.DungeonEncounter = { init: initEncounter, version: SIM_VERSION, buildResult: buildEncounterResult, bootFromStorage: _bootFromHandoff };
 try {
   window.addEventListener('message', function (ev) {
     const d = ev && ev.data;
@@ -7073,6 +7091,7 @@ function nearestReachable(reach, col, row) {
   });
 })();
 App.init();
+_bootFromHandoff();
 </script>
 </body>
 </html>
