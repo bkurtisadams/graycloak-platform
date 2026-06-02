@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.34 -->
+<!-- dungeon-encounter — v0.9.35 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -929,7 +929,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.34';
+const SIM_VERSION = 'v0.9.35';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -2731,9 +2731,11 @@ function _undeadTypeFor(t) {
 let _spawnSeq = 0;
 // Build a sim combatant from a CDATA monster template. Pure: returns the combatant,
 // does not touch state. `pos` is in 10ft squares (centred into figure-cells). HP rolled by HD.
-function spawnFromTemplate(templateId, side, pos) {
-  const t = _CD && _CD.monsters ? _CD.monsters[templateId] : null;
+function spawnFromTemplate(template, side, pos) {
+  const t = (template && typeof template === 'object') ? template
+          : (_CD && _CD.monsters ? _CD.monsters[template] : null);
   if (!t) return null;
+  const templateId = t.id || (typeof template === 'string' ? template : _slug(t.name || 'monster'));
   const melee = (t.attacks || []).map(a => _registerNaturalAttack(templateId, a, false));
   const ranged = (t.rangedAttacks || []).map(a => _registerNaturalAttack(templateId, a, true));
   const loadout = melee.concat(ranged);
@@ -2947,16 +2949,19 @@ const HANDOFF_KEY = 'gcc-pending-encounter';   // GCC writes the payload here, t
 const HANDOFF_RESULT_KEY = 'gcc-encounter-result'; // engine writes the outcome here for GCC to read back
 
 function _isCombatant(o) { return o && typeof o === 'object' && o.matrix_class && (o.hp_current != null || o.hp_max != null); }
+function _isTemplate(o) { return o && typeof o === 'object' && o.matrix_class == null && o.hp_current == null && (o.hd != null || o.attacks != null); }
 
 function _normalizeMonsters(list) {
   const out = [];
   (list || []).forEach(entry => {
     if (typeof entry === 'string') { const c = spawnFromTemplate(entry, 'B'); if (c) out.push(c); return; }
     if (_isCombatant(entry)) { entry.side = 'B'; entry.kind = entry.kind || 'monster'; out.push(entry); return; }
-    if (entry && entry.template) {
+    if (entry && entry.template != null) { // template = CDATA id string OR an inline template object
       const n = Math.max(1, _num(entry.count, 1));
       for (let i = 0; i < n; i++) { const c = spawnFromTemplate(entry.template, 'B'); if (c) out.push(c); }
+      return;
     }
+    if (_isTemplate(entry)) { const c = spawnFromTemplate(entry, 'B'); if (c) out.push(c); }
   });
   return out;
 }
