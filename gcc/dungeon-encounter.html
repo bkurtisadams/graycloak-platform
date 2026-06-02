@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.32 -->
+<!-- dungeon-encounter — v0.9.33 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -929,7 +929,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.32';
+const SIM_VERSION = 'v0.9.33';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -2932,6 +2932,108 @@ function placeParties(distSquares10) {
   });
   recomputeEngagements(state);
 }
+
+// ── ENCOUNTER HANDOFF API ───────────────────────────────────────────────────
+// GCC opens this view with a party + rolled monsters + context; the fight runs;
+// the engine hands a structured outcome back for write-back to Firestore.
+//   party-in:    a raw GCC character export (mapped) OR a ready combatant.
+//   monsters-in: a CDATA template id string, {template,count}, OR a combatant.
+//   context:     { distance(10ft squares), surprise:'party'|'monsters'|'none',
+//                  surprise_segments, label, treasure(passthrough) }
+//   result-out:  see buildEncounterResult().
+let _handoff = null;          // { onResolved, context } while a launched encounter is live
+let _handoffEmitted = false;  // guard: emit the result exactly once
+
+function _isCombatant(o) { return o && typeof o === 'object' && o.matrix_class && (o.hp_current != null || o.hp_max != null); }
+
+function _normalizeMonsters(list) {
+  const out = [];
+  (list || []).forEach(entry => {
+    if (typeof entry === 'string') { const c = spawnFromTemplate(entry, 'B'); if (c) out.push(c); return; }
+    if (_isCombatant(entry)) { entry.side = 'B'; entry.kind = entry.kind || 'monster'; out.push(entry); return; }
+    if (entry && entry.template) {
+      const n = Math.max(1, _num(entry.count, 1));
+      for (let i = 0; i < n; i++) { const c = spawnFromTemplate(entry.template, 'B'); if (c) out.push(c); }
+    }
+  });
+  return out;
+}
+
+function initEncounter(payload) {
+  payload = payload || {};
+  const ctx = payload.context || {};
+  state.combatants.length = 0;
+  state.formation = {};
+  state.declarations = {};
+  state.effects.length = 0;
+  state.round = 0; state.segment = 0; state.elapsed_segments = 0;
+  state.phase = 'setup'; state.acting_side = null; state.sides_acted = [];
+  state.initiative = null; state.game_over = null; state.selected_id = null;
+  state.is_surprise_round = false;
+  _handoffEmitted = false;
+  _handoff = { onResolved: (typeof payload.onResolved === 'function' ? payload.onResolved : null), context: ctx };
+
+  const party = (payload.party || []).map(m => { const c = _isCombatant(m) ? m : mapCharToCombatant(m, 'A'); c.side = 'A'; c.kind = c.kind || 'pc'; return c; });
+  party.forEach((c, i) => { state.combatants.push(c); state.formation[c.id] = { rank: i, file: 1 }; });
+  _normalizeMonsters(payload.monsters).forEach(c => state.combatants.push(c));
+
+  const sp = ctx.surprise; // surprise[side]=true means that side is caught flat-footed
+  state.surprise = { A: sp === 'monsters', B: sp === 'party', rollA: null, rollB: null };
+  state.surprise_segments = Math.max(1, _num(ctx.surprise_segments, 1));
+
+  const dist = Math.max(1, _num(ctx.distance, 8));
+  state.encounter_distance = dist;
+  recomputeAllEncumbrance();
+  placeParties(dist);
+  renderAll();
+  beginEncounter();
+  return true;
+}
+
+function buildEncounterResult() {
+  const ctx = (_handoff && _handoff.context) || {};
+  const winner = state.game_over || null;
+  const partyAlive = sideAlive(state, 'A'), monstersAlive = sideAlive(state, 'B');
+  let outcome = 'aborted';
+  if (winner === 'A') outcome = 'party_victory';
+  else if (winner === 'B') outcome = 'party_defeat';
+  else if (!partyAlive && !monstersAlive) outcome = 'draw';
+  const slim = c => ({ id: c.id, label: c.label, side: c.side, hp_current: c.hp_current, hp_max: c.hp_max, dead: !!c.dead });
+  const defeated = state.combatants.filter(c => c.side === 'B' && c.dead)
+    .map(c => ({ id: c.id, template_id: c.template_id || null, label: c.label, xp: _num(c.xp, 0) }));
+  const loot_tables = [];
+  state.combatants.filter(c => c.side === 'B' && c.dead && c.loot_table)
+    .forEach(c => { if (loot_tables.indexOf(c.loot_table) < 0) loot_tables.push(c.loot_table); });
+  return {
+    outcome, winning_side: winner,
+    rounds: state.round, elapsed_segments: state.elapsed_segments,
+    party: state.combatants.filter(c => c.side === 'A').map(slim),
+    survivors: state.combatants.filter(c => !c.dead).map(slim),
+    casualties: state.combatants.filter(c => c.dead).map(c => ({ id: c.id, label: c.label, side: c.side })),
+    defeated_monsters: defeated,
+    xp_awarded: defeated.reduce((s, m) => s + m.xp, 0),
+    treasure: ctx.treasure || null, loot_tables,
+    label: ctx.label || null, version: SIM_VERSION
+  };
+}
+
+function emitEncounterResult() {
+  if (!_handoff || _handoffEmitted) return;
+  _handoffEmitted = true;
+  const result = buildEncounterResult();
+  try { if (_handoff.onResolved) _handoff.onResolved(result); } catch (e) {}
+  try { window.dispatchEvent(new CustomEvent('encounter:resolved', { detail: result })); } catch (e) {}
+  try { if (window.parent && window.parent !== window) window.parent.postMessage({ type: 'encounter:resolved', result }, '*'); } catch (e) {}
+}
+
+// Public surface + iframe-embed driver (parent posts {type:'encounter:init', payload}).
+window.DungeonEncounter = { init: initEncounter, version: SIM_VERSION, buildResult: buildEncounterResult };
+try {
+  window.addEventListener('message', function (ev) {
+    const d = ev && ev.data;
+    if (d && d.type === 'encounter:init') initEncounter(d.payload || {});
+  });
+} catch (e) {}
 
 function renderFormationEditor() {
   const grid = document.getElementById('formation-grid');
@@ -5715,9 +5817,11 @@ function showGameOver() {
   const winner = state.game_over;
   const aSide = winner === 'A';
   document.getElementById('go-outcome').className = 'outcome ' + (aSide ? 'victory' : 'defeat');
-  document.getElementById('go-outcome').textContent = aSide ? 'The Vigilants prevail.' : 'The Marauders prevail.';
+  document.getElementById('go-outcome').textContent = _handoff ? (aSide ? 'Victory!' : 'The party falls.')
+    : (aSide ? 'The Vigilants prevail.' : 'The Marauders prevail.');
   const survivors = aliveCombatantsOnSide(state, winner).map(c => `${c.label} (${c.hp_current}/${c.hp_max})`).join(' · ');
   document.getElementById('go-stats').innerHTML = `Round ${state.round} · survivors: <span class="v">${survivors}</span>`;
+  emitEncounterResult();
 }
 
 const SHEET_SAVE_LABELS = { ppd: 'Paralyze, Poison, Death', pp: 'Petrify, Polymorph', rsw: 'Rod, Staff, Wand', bw: 'Breath Weapon', spell: 'Spell' };
