@@ -70,9 +70,10 @@ const tests = `
   A(c.spell_charges.magic_missile === 4, 'magic missile 4 charges (got ' + c.spell_charges.magic_missile + ')');
   A(c.spell_charges.identify === undefined, 'unimplemented spells (Identify) not mapped');
 
-  // move: encumbered effective rate 3" carried; per-round budget = round(rate/3)
+  // move: 1e RAW — rate is in inches (1" = 10 ft indoors); sheet encumbers Val to 3".
+  // moveCells(c) = c.move * SUB derives the per-round fine-cell budget downstream.
   A(c.move_rate === 3, 'move_rate = encumbered 3" (got ' + c.move_rate + ')');
-  A(c.move === 1, 'per-round move = round(3/3) = 1');
+  A(c.move === 3, 'move = 3" RAW inches (moveCells applies xSUB) (got ' + c.move + ')');
 
   // saves carried for the future saves slice
   A(c.saves.spell === 10 && c.saves.rsw === 9 && c.saves.ppd === 11, 'saves carried (spell 10, rsw 9, ppd 11)');
