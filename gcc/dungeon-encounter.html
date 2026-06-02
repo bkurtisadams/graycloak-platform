@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.35 -->
+<!-- dungeon-encounter — v0.9.36 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -929,7 +929,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.35';
+const SIM_VERSION = 'v0.9.36';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -2745,7 +2745,10 @@ function spawnFromTemplate(template, side, pos) {
   const level = hdInfo.dice + (hdInfo.plus > 0 ? 0.5 : 0); // "4+1" HD -> level 4.5, matching seed convention
   const sizeCells = t.size === 'L' ? 2 : t.size === 'H' ? 3 : 1;
   const mv = Math.max(1, Math.round(t.moveRate != null ? t.moveRate : 12)); // true 1e rate (1" = 10 ft indoors)
-  const hp = Math.max(1, rollDice(Math.max(1, Math.round(hdNum)) + 'd8'));
+  let hp;
+  if (t.hp_formula) hp = Math.max(1, rollDice(t.hp_formula));                           // sub-HD human ("1d6 hp")
+  else if (t.hp_per_die != null) hp = Math.max(1, Math.round(hdNum) * t.hp_per_die);     // fixed hp/die (dragons by age)
+  else hp = Math.max(1, rollDice(Math.max(1, Math.round(hdNum)) + 'd8') + (t.hd_bonus || 0));
   const baseCol = pos ? pos.col : Math.floor(COLS / SUB) - 2;
   const baseRow = pos ? pos.row : 3;
   return {
@@ -2761,7 +2764,8 @@ function spawnFromTemplate(template, side, pos) {
     loadout, active_weapon: loadout[0], natural_attacks: loadout,
     attack_bonus: 0, damage_bonus: 0,
     move: mv, _base_move: mv,
-    xp: t.xp || 0, loot_table: t.lootTable || null,
+    xp: (t.xp_base != null || t.xp_per_hp != null) ? Math.max(0, _num(t.xp_base, 0) + _num(t.xp_per_hp, 0) * hp) : (t.xp || 0),
+    loot_table: t.lootTable || null, special_text: t.special_text || null,
     singles_out: true, dead: false, engaged_with: [], movement_used: 0
   };
 }
@@ -2948,6 +2952,68 @@ let _handoffEmitted = false;  // guard: emit the result exactly once
 const HANDOFF_KEY = 'gcc-pending-encounter';   // GCC writes the payload here, the engine consumes it on boot
 const HANDOFF_RESULT_KEY = 'gcc-encounter-result'; // engine writes the outcome here for GCC to read back
 
+// MM-entry -> CDATA-shaped template. The bundled Monster Manual (GCCEncounters.lookupMonster)
+// is messy: dual-cased keys, attacks as a count + slashed damage string, HD in several
+// notations, move in feet or inches, free-text specials. Normalize it here so spawnFromTemplate
+// can build the combatant. GCC just forwards lookupMonster() output as { mm, count }.
+function _mmGet(o) { for (let i = 1; i < arguments.length; i++) { const v = o[arguments[i]]; if (v != null && v !== '') return v; } return undefined; }
+function _mmSize(s) { const t = String(s || 'M').trim().toLowerCase(); if (t.indexOf('man') === 0) return 'M'; const c = t[0]; if (c === 's') return 'S'; if (c === 'l') return 'L'; if (c === 'h' || c === 'g') return 'H'; return 'M'; }
+function _mmInches(move) { const s = String(move || ''); const m = s.match(/(\d+)/); if (!m) return 12; let n = parseInt(m[1], 10); if (/ft|feet/i.test(s)) n = Math.round(n / 10); return Math.max(1, n); } // ground (first) value; ft->/10, inches as-is
+function _mmIntelligent(s) { const t = String(s || '').toLowerCase(); if (!t) return false; if (/non-?intelligent|animal|semi-?intelligent|^semi\b|^non\b/.test(t)) return false; return true; }
+function _mmHD(hd) {
+  const s = String(hd == null ? 1 : hd).trim();
+  let m = s.match(/^(\d+d\d+)\s*hp/i); if (m) return { dice: 1, bonus: 0, hpFormula: m[1] };   // sub-HD human "1d6 hp"
+  m = s.match(/^(\d+)\s*[-\u2013]\s*(\d+)$/); if (m) return { dice: parseInt(m[1], 10), bonus: 0 }; // range/"1-1"
+  m = s.match(/^(\d+)\s*([+\-])\s*(\d+)$/); if (m) return { dice: parseInt(m[1], 10), bonus: (m[2] === '+' ? 1 : -1) * parseInt(m[3], 10) };
+  m = s.match(/^(\d+)/); return { dice: m ? parseInt(m[1], 10) : 1, bonus: 0 };
+}
+function _mmDamageParts(dmg, count) {
+  const parts = String(dmg || '').split('/').map(s => s.trim());
+  const n = Math.max(count || 1, parts.length);
+  const parse = p => { let m = p.match(/(\d+)\s*d\s*(\d+)/i); if (m) return [+m[1], +m[2]]; m = p.match(/(\d+)\s*[-\u2013]\s*(\d+)/); if (m) return [1, +m[2]]; return null; };
+  const out = []; for (let i = 0; i < n; i++) { out.push(parse(parts[Math.min(i, parts.length - 1)]) || [1, 8]); } // "by weapon" -> long sword 1d8
+  return out;
+}
+function _mmAttacks(pairs) {
+  const n = pairs.length, eq = (a, b) => a[0] === b[0] && a[1] === b[1];
+  if (n === 1) return [{ name: 'attack', damage: pairs[0], verb: 'strikes' }];
+  let claws = 1; while (claws < n && eq(pairs[claws], pairs[0])) claws++;
+  const out = [];
+  if (claws >= 2) { for (let i = 0; i < claws; i++) out.push({ name: 'claw', damage: pairs[i], verb: 'rakes' }); for (let i = claws; i < n; i++) out.push({ name: i === claws ? 'bite' : 'attack', damage: pairs[i], verb: i === claws ? 'bites' : 'strikes' }); }
+  else { for (let i = 0; i < n; i++) out.push({ name: 'attack ' + (i + 1), damage: pairs[i], verb: 'strikes' }); }
+  return out;
+}
+function _mmXP(levelXP, dice) {
+  const s = String(levelXP || '').trim();
+  let m = s.match(/(\d+)\s*\/\s*(\d+)\s*\+\s*(\d+)\s*\/\s*hp/i); if (m) return { base: +m[2], perHp: +m[3] };
+  m = s.match(/(\d+)\s*\/\s*(\d+)/); if (m) return { base: +m[2], perHp: 0 };
+  const tbl = _CD && _CD.xp; if (tbl) { const v = tbl[String(Math.round(dice))] || tbl[Math.round(dice)]; if (v != null) return { base: (typeof v === 'object' ? (v.base || v.xp || 0) : v), perHp: (typeof v === 'object' ? (v.perHp || v.per || 0) : 0) }; }
+  return { base: 0, perHp: 0 };
+}
+function mmToTemplate(mm) {
+  if (!mm || typeof mm !== 'object') return null;
+  const name = _mmGet(mm, 'name') || 'Monster';
+  const acRaw = _mmGet(mm, 'armorClass', 'armor_class');
+  const ac = (typeof acRaw === 'number') ? acRaw : (/^-?\d/.test(String(acRaw == null ? '' : acRaw).trim()) ? parseInt(acRaw, 10) : 7); // "by armor" -> AC 7
+  const atkCount = _num(_mmGet(mm, 'attacks'), 1) || 1;
+  const attacks = _mmAttacks(_mmDamageParts(_mmGet(mm, 'damage'), atkCount));
+  let dice = 1, bonus = 0, perDieHp = null, hpFormula = null;
+  if (Array.isArray(mm.ageCategories) && mm.ageCategories.length) { const ages = mm.ageCategories; const age = ages.find(a => /adult/i.test(a.age)) || ages[Math.floor(ages.length / 2)]; dice = _num(age.hitDice, 1); perDieHp = (age.hpPerDie != null ? _num(age.hpPerDie, null) : null); }
+  else { const h = _mmHD(_mmGet(mm, 'hitDice', 'hit_dice')); dice = h.dice; bonus = h.bonus || 0; hpFormula = h.hpFormula || null; }
+  const xp = _mmXP(_mmGet(mm, 'levelXP', 'level_xp'), dice);
+  const special = _mmGet(mm, 'specialAttacks', 'special_attacks');
+  return {
+    id: _slug(name), name: name, size: _mmSize(_mmGet(mm, 'size')),
+    hd: dice, hd_bonus: bonus, hp_per_die: perDieHp, hp_formula: hpFormula,
+    ac: ac, moveRate: _mmInches(_mmGet(mm, 'move', 'movement')),
+    attacks: attacks, intelligence: _mmIntelligent(_mmGet(mm, 'intelligence')) ? 8 : 2,
+    xp_base: xp.base, xp_per_hp: xp.perHp, lootTable: null,
+    treasure_type: _mmGet(mm, 'TREASURE TYPE', 'treasureType') || null,
+    special_text: (special && !/^none$/i.test(String(special))) ? String(special) : null,
+    alignment: _mmGet(mm, 'alignment') || null
+  };
+}
+
 function _isCombatant(o) { return o && typeof o === 'object' && o.matrix_class && (o.hp_current != null || o.hp_max != null); }
 function _isTemplate(o) { return o && typeof o === 'object' && o.matrix_class == null && o.hp_current == null && (o.hd != null || o.attacks != null); }
 
@@ -2956,6 +3022,11 @@ function _normalizeMonsters(list) {
   (list || []).forEach(entry => {
     if (typeof entry === 'string') { const c = spawnFromTemplate(entry, 'B'); if (c) out.push(c); return; }
     if (_isCombatant(entry)) { entry.side = 'B'; entry.kind = entry.kind || 'monster'; out.push(entry); return; }
+    if (entry && entry.mm) { // raw MM entry from GCCEncounters.lookupMonster
+      const t = mmToTemplate(entry.mm);
+      if (t) { const n = Math.max(1, _num(entry.count, 1)); for (let i = 0; i < n; i++) { const c = spawnFromTemplate(t, 'B'); if (c) out.push(c); } }
+      return;
+    }
     if (entry && entry.template != null) { // template = CDATA id string OR an inline template object
       const n = Math.max(1, _num(entry.count, 1));
       for (let i = 0; i < n; i++) { const c = spawnFromTemplate(entry.template, 'B'); if (c) out.push(c); }
@@ -3050,7 +3121,7 @@ function _bootFromHandoff() {
 }
 
 // Public surface + iframe-embed driver (parent posts {type:'encounter:init', payload}).
-window.DungeonEncounter = { init: initEncounter, version: SIM_VERSION, buildResult: buildEncounterResult, bootFromStorage: _bootFromHandoff };
+window.DungeonEncounter = { init: initEncounter, version: SIM_VERSION, buildResult: buildEncounterResult, bootFromStorage: _bootFromHandoff, mmToTemplate: mmToTemplate };
 try {
   window.addEventListener('message', function (ev) {
     const d = ev && ev.data;
