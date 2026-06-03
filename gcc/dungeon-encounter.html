@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.36 -->
+<!-- dungeon-encounter — v0.9.38 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -929,7 +929,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.36';
+const SIM_VERSION = 'v0.9.38';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -2749,6 +2749,10 @@ function spawnFromTemplate(template, side, pos) {
   if (t.hp_formula) hp = Math.max(1, rollDice(t.hp_formula));                           // sub-HD human ("1d6 hp")
   else if (t.hp_per_die != null) hp = Math.max(1, Math.round(hdNum) * t.hp_per_die);     // fixed hp/die (dragons by age)
   else hp = Math.max(1, rollDice(Math.max(1, Math.round(hdNum)) + 'd8') + (t.hd_bonus || 0));
+  let xpVal;
+  if (t.xp_base != null || t.xp_per_hp != null) xpVal = Math.max(0, _num(t.xp_base, 0) + _num(t.xp_per_hp, 0) * hp);
+  else if (t.xp != null) xpVal = t.xp;
+  else { const b = _mmXPBand(hdNum); xpVal = b.bxpv + b.perHp * hp; } // template w/o xp -> DMG table by HD
   const baseCol = pos ? pos.col : Math.floor(COLS / SUB) - 2;
   const baseRow = pos ? pos.row : 3;
   return {
@@ -2764,7 +2768,7 @@ function spawnFromTemplate(template, side, pos) {
     loadout, active_weapon: loadout[0], natural_attacks: loadout,
     attack_bonus: 0, damage_bonus: 0,
     move: mv, _base_move: mv,
-    xp: (t.xp_base != null || t.xp_per_hp != null) ? Math.max(0, _num(t.xp_base, 0) + _num(t.xp_per_hp, 0) * hp) : (t.xp || 0),
+    xp: xpVal,
     loot_table: t.lootTable || null, special_text: t.special_text || null,
     singles_out: true, dead: false, engaged_with: [], movement_used: 0
   };
@@ -2983,12 +2987,24 @@ function _mmAttacks(pairs) {
   else { for (let i = 0; i < n; i++) out.push({ name: 'attack ' + (i + 1), damage: pairs[i], verb: 'strikes' }); }
   return out;
 }
-function _mmXP(levelXP, dice) {
+// 1e DMG "Experience Point Value of Monsters" — by HD band: [maxHD, BXPV, XP/HP, SAXPB, EAXPA].
+const _MON_XP = [
+  [1, 10, 1, 4, 35], [2, 20, 2, 8, 45], [3, 35, 3, 15, 55], [4, 60, 4, 25, 65],
+  [5, 90, 5, 40, 75], [6, 150, 6, 75, 125], [7, 225, 8, 125, 175], [8, 375, 10, 175, 275],
+  [9, 600, 12, 300, 400], [10, 900, 14, 450, 600], [12, 1300, 16, 700, 850], [14, 1800, 18, 950, 1200],
+  [16, 2400, 20, 1250, 1600], [18, 3000, 25, 1550, 2000], [20, 4000, 30, 2100, 2500], [Infinity, 5000, 35, 2600, 3000]
+];
+function _mmXPBand(hd) { const h = Math.max(1, Math.round(hd)); for (let i = 0; i < _MON_XP.length; i++) { if (h <= _MON_XP[i][0]) { const r = _MON_XP[i]; return { bxpv: r[1], perHp: r[2], saxpb: r[3], eaxpa: r[4] }; } } const r = _MON_XP[_MON_XP.length - 1]; return { bxpv: r[1], perHp: r[2], saxpb: r[3], eaxpa: r[4] }; }
+function _mmExceptional(text) { const t = String(text || '').toLowerCase(); if (/\b(may|leader|chance|possib)/.test(t)) return false; return /energy drain|level drain|paralys|poison|petrif|breath|swallow|spell|weakness|magic resist|gaze/.test(t); }
+function _mmXP(levelXP, dice, info) {
   const s = String(levelXP || '').trim();
-  let m = s.match(/(\d+)\s*\/\s*(\d+)\s*\+\s*(\d+)\s*\/\s*hp/i); if (m) return { base: +m[2], perHp: +m[3] };
-  m = s.match(/(\d+)\s*\/\s*(\d+)/); if (m) return { base: +m[2], perHp: 0 };
-  const tbl = _CD && _CD.xp; if (tbl) { const v = tbl[String(Math.round(dice))] || tbl[Math.round(dice)]; if (v != null) return { base: (typeof v === 'object' ? (v.base || v.xp || 0) : v), perHp: (typeof v === 'object' ? (v.perHp || v.per || 0) : 0) }; }
-  return { base: 0, perHp: 0 };
+  let m = s.match(/(\d+)\s*\/\s*([\d,]+)\s*\+\s*(\d+)\s*\/\s*hp/i); if (m) return { base: +m[2].replace(/,/g, ''), perHp: +m[3] }; // MM value (bonuses baked in)
+  m = s.match(/(\d+)\s*\/\s*([\d,]+)/); if (m) return { base: +m[2].replace(/,/g, ''), perHp: 0 };
+  const b = _mmXPBand(dice); // DMG-table fallback for "Varies"/missing XP (e.g. dragons)
+  let base = b.bxpv;
+  if (info && (info.ac <= 0 || info.attacks >= 4)) base += b.saxpb;  // structural special: AC<=0 or 4+ attacks/round
+  if (info && _mmExceptional(info.special)) base += b.eaxpa;          // always-on exceptional ability
+  return { base: base, perHp: b.perHp };
 }
 function mmToTemplate(mm) {
   if (!mm || typeof mm !== 'object') return null;
@@ -3000,8 +3016,8 @@ function mmToTemplate(mm) {
   let dice = 1, bonus = 0, perDieHp = null, hpFormula = null;
   if (Array.isArray(mm.ageCategories) && mm.ageCategories.length) { const ages = mm.ageCategories; const age = ages.find(a => /adult/i.test(a.age)) || ages[Math.floor(ages.length / 2)]; dice = _num(age.hitDice, 1); perDieHp = (age.hpPerDie != null ? _num(age.hpPerDie, null) : null); }
   else { const h = _mmHD(_mmGet(mm, 'hitDice', 'hit_dice')); dice = h.dice; bonus = h.bonus || 0; hpFormula = h.hpFormula || null; }
-  const xp = _mmXP(_mmGet(mm, 'levelXP', 'level_xp'), dice);
   const special = _mmGet(mm, 'specialAttacks', 'special_attacks');
+  const xp = _mmXP(_mmGet(mm, 'levelXP', 'level_xp'), dice, { ac: ac, attacks: atkCount, special: special });
   return {
     id: _slug(name), name: name, size: _mmSize(_mmGet(mm, 'size')),
     hd: dice, hd_bonus: bonus, hp_per_die: perDieHp, hp_formula: hpFormula,
@@ -5914,7 +5930,8 @@ function showGameOver() {
   document.getElementById('go-outcome').textContent = _handoff ? (aSide ? 'Victory!' : 'The party falls.')
     : (aSide ? 'The Vigilants prevail.' : 'The Marauders prevail.');
   const survivors = aliveCombatantsOnSide(state, winner).map(c => `${c.label} (${c.hp_current}/${c.hp_max})`).join(' · ');
-  document.getElementById('go-stats').innerHTML = `Round ${state.round} · survivors: <span class="v">${survivors}</span>`;
+  const xpEarned = state.combatants.filter(c => c.dead && c.side !== winner).reduce((s, c) => s + _num(c.xp, 0), 0);
+  document.getElementById('go-stats').innerHTML = `Round ${state.round} · survivors: <span class="v">${survivors}</span>` + (xpEarned > 0 ? ` · XP earned: <span class="v">${xpEarned}</span>` : '');
   emitEncounterResult();
 }
 
