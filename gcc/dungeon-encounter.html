@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.38 -->
+<!-- dungeon-encounter — v0.9.39 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -929,7 +929,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.38';
+const SIM_VERSION = 'v0.9.39';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -1795,11 +1795,25 @@ function attackProjection(state, a, t, w, opts) {
   const ammoAtk = effW.ammo_attack_bonus || 0;
   const dexMiss = w.ranged ? dexMissileAdj(dexOf(a)) : 0;
   const profPen = nonProfPenalty(a, w); // 0 if proficient/untracked; else +2..+5 to `needed`
-  const needed = noAmmo ? 99 : Math.max(1, Math.min(20, calc.needed - range - charge - fleeBonus - ammoAtk + parryPen + attackerHeld - targetHeld - targetDown - arcBonus - blessBonus + shieldPen - spaceMod - dexMiss + profPen));
+  let needed, suppress_nat20 = false;
+  const tableBase = calc.base; // THAC0 - AC: the table number before bonuses (uncapped)
+  if (noAmmo) {
+    needed = 99;
+  } else if (state.strict_20 && tableBase >= 21) {
+    // DMG repeating-20 (strict): table shows 20 across AC where base is 20..25, then base-5 beyond.
+    const innerRaw = calc.base - calc.wpnVsAc - calc.magic - calc.str;
+    const neededRaw = innerRaw - range - charge - fleeBonus - ammoAtk + parryPen + attackerHeld - targetHeld - targetDown - arcBonus - blessBonus + shieldPen - spaceMod - dexMiss + profPen;
+    const bonus = tableBase - neededRaw; // net to-hit bonus that helps reach the number
+    if (tableBase <= 25) needed = 20;            // repeated 20s: natural 20 only, bonuses can't help
+    else if (bonus >= tableBase - 25) needed = 20; // past plateau: nat 20 reaches it with enough bonus
+    else { needed = 99; suppress_nat20 = true; } // past plateau, bonus too small: even a natural 20 misses
+  } else {
+    needed = Math.max(1, Math.min(20, calc.needed - range - charge - fleeBonus - ammoAtk + parryPen + attackerHeld - targetHeld - targetDown - arcBonus - blessBonus + shieldPen - spaceMod - dexMiss + profPen));
+  }
   const dmgDice = noAmmo ? '0' : ((t.size === 'L') ? effW.damage.l : effW.damage.sm);
   const dmgBonus = noAmmo ? 0 : (((a.magic_weapons && a.magic_weapons[w.id]) || w.magic_bonus || 0) + (a.damage_bonus || 0) + (effW.ammo_damage_bonus || 0));
   return {
-    needed, base: calc.base, arc,
+    needed, base: calc.base, arc, suppress_nat20,
     mods: { wpnVsAc: calc.wpnVsAc, magic: calc.magic, str: calc.str, range, charge, exposed, fleeing: fleeBonus, parry: -parryPen, grappled: -attackerHeld, vsHeld: targetHeld, vsDown: targetDown, flank: arcBonus, bless: -blessBonus, shield: shieldPen, space: spaceMod, dexMissile: dexMiss, prof: -profPen },
     dmgDice, dmgBonus, range_band
   };
@@ -1970,7 +1984,7 @@ function resolveAttack(state, attackerId, targetId, weaponId, opts) {
   const natural20 = roll === 20;
   const natural1 = roll === 1;
   const helpless = isHelpless(t);
-  let hit = !natural1 && (natural20 || roll >= proj.needed);
+  let hit = !natural1 && ((natural20 && !proj.suppress_nat20) || roll >= proj.needed);
   if (helpless && !natural1) hit = true;   // asleep / held / senseless → automatic hit
   let dmg = 0, dieDamage = 0;
   const damageMultiplier = opts.damageMultiplier || (opts.setSpear ? 2 : 1);
@@ -2358,6 +2372,7 @@ function makeInitialState() {
     weight_unit: 'gp',   // 'gp' (1e gp-weight) or 'lb'
     range_mod_enabled: true,  // v0.8.6: PHB medium (-2) / long (-5) range penalty toggle
     space_check_mode: 'warn', // v0.8.7: 'off' | 'warn' | 'penalty' | 'prevent' — space-too-small check
+    strict_20: true, // DMG optional: repeated-20 band is natural-20-only; past-plateau needs nat 20 + enough bonus
     game_over: null,
     log: [],
     combatants: [
