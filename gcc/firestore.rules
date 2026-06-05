@@ -1,6 +1,14 @@
-// Firestore Security Rules for GCC v6
+// Firestore Security Rules for GCC v7
 // Go to Firebase Console → Firestore → Rules tab
 // Replace existing rules with everything below this comment header
+//
+// v7 changes from v6:
+//   • campaigns/{cid}/rolls now backs the unified table feed (dice + chat).
+//     create: still self-only (uid == auth.uid); chat text capped at 2000
+//     chars. delete: was authed-anyone → now author OR campaign owner OR
+//     GM, so players can remove their own messages and only the GM can
+//     moderate/clear others'. Roll docs (no `text`) are unaffected by the
+//     length guard.
 //
 // v6 changes from v5:
 //   • NEW freeholds/{freeholdId} — player-founded strongholds/freeholds
@@ -91,12 +99,22 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/campaigns/$(campaignId)).data.ownerUid == request.auth.uid;
       }
 
-      // Dice rolls: any authed user can read and create, anyone can delete
+      // Table feed: dice rolls + chat messages share this collection
+      // (doc.kind == 'roll' | 'chat'; legacy docs without kind are rolls).
+      // Read: any campaign member. Create: only as yourself; chat text is
+      // length-capped. Delete: the author, the campaign owner, or any GM
+      // (so a player can remove their own messages and the GM can moderate
+      // / clear the log, but players cannot delete each other's messages).
       match /rolls/{rollId} {
         allow read: if request.auth != null;
         allow create: if request.auth != null
-          && request.resource.data.uid == request.auth.uid;
-        allow delete: if request.auth != null;
+          && request.resource.data.uid == request.auth.uid
+          && (!('text' in request.resource.data)
+              || request.resource.data.text.size() <= 2000);
+        allow delete: if request.auth != null
+          && (resource.data.uid == request.auth.uid
+              || isCampaignOwner(campaignId)
+              || isGM());
       }
 
       // GW map publish (player-safe map state, written by the GM client).

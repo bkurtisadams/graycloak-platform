@@ -256,42 +256,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .gcc-dlg-overlay.cd-modal.open { display: flex; }
 .gcc-dlg-overlay.cd-modal .gcc-dlg { transform: none; }
 
-/* ── Dice Tray ── */
-.dice-tray{position:fixed;bottom:16px;right:16px;z-index:900;font-family:var(--fb)}
-.dice-toggle{width:44px;height:44px;border-radius:50%;background:var(--accent);color:#fff;border:none;font-size:20px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.3);transition:all .15s;display:flex;align-items:center;justify-content:center}
-.dice-toggle:hover{transform:scale(1.1);box-shadow:0 4px 16px rgba(0,0,0,0.4)}
-.dice-toggle.open{background:var(--accent-dim)}
-.dice-panel{display:none;position:absolute;bottom:54px;right:0;width:280px;background:var(--bg-card);border:1px solid var(--brd);border-radius:6px;box-shadow:var(--dd-shadow);overflow:hidden}
-.dice-panel.open{display:flex;flex-direction:column}
-.dice-panel-hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--brd);background:var(--bg2)}
-.dice-panel-title{font-family:var(--fsc);font-size:10px;letter-spacing:1.5px;color:var(--tx2)}
-.dice-panel-clear{font-size:9px;color:var(--tx3);background:none;border:none;cursor:pointer;font-family:var(--fb)}
-.dice-panel-clear:hover{color:var(--tx)}
-.dice-log{flex:1;max-height:200px;overflow-y:auto;padding:6px 10px;display:flex;flex-direction:column;gap:4px}
-.dice-log::-webkit-scrollbar{width:4px}.dice-log::-webkit-scrollbar-thumb{background:var(--brd);border-radius:2px}
-.dice-log-empty{font-size:11px;color:var(--tx3);font-style:italic;padding:12px 0;text-align:center}
-.dice-entry{font-size:11px;line-height:1.4;padding:3px 0;border-bottom:1px solid var(--brd);display:flex;flex-direction:column;gap:1px}
-.dice-entry:last-child{border-bottom:none}
-.dice-entry-top{display:flex;justify-content:space-between;align-items:baseline;gap:6px}
-.dice-who{font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}
-.dice-when{font-size:9px;color:var(--tx3);flex-shrink:0}
-.dice-result{font-family:var(--fm);color:var(--accent);font-weight:700;font-size:13px}
-.dice-detail{font-family:var(--fm);font-size:9px;color:var(--tx3)}
-.dice-controls{padding:8px 10px;border-top:1px solid var(--brd);background:var(--bg2)}
-.dice-row{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px}
-.dice-btn{padding:4px 0;font-size:11px;font-family:var(--fm);font-weight:700;background:var(--bg-card);color:var(--tx2);border:1px solid var(--brd);border-radius:3px;cursor:pointer;transition:all .1s;flex:1;min-width:34px;text-align:center}
-.dice-btn:hover{border-color:var(--accent-dim);color:var(--accent);background:var(--hover-bg)}
-.dice-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(96,160,208,0.08)}
-.dice-input-row{display:flex;gap:4px;align-items:center}
-.dice-qty{width:36px;padding:4px;font-size:11px;font-family:var(--fm);text-align:center;background:var(--bg-card);color:var(--tx);border:1px solid var(--brd);border-radius:3px;outline:none}
-.dice-qty:focus{border-color:var(--accent-dim)}
-.dice-mod{width:44px;padding:4px;font-size:11px;font-family:var(--fm);text-align:center;background:var(--bg-card);color:var(--tx);border:1px solid var(--brd);border-radius:3px;outline:none}
-.dice-mod:focus{border-color:var(--accent-dim)}
-.dice-roll-btn{flex:1;padding:5px 8px;font-size:11px;font-family:var(--fb);font-weight:700;background:var(--accent);color:#fff;border:none;border-radius:3px;cursor:pointer;transition:all .12s}
-.dice-roll-btn:hover{background:var(--accent-lt)}
-.dice-roll-btn:disabled{opacity:0.4;cursor:default}
-.dice-lbl{font-size:9px;color:var(--tx3);font-family:var(--fsc);letter-spacing:.5px}
-@media(max-width:500px){.dice-panel{width:calc(100vw - 32px);right:0}}
+/* ── Table feed (dice + chat) styles live in gcc-table-feed.js (injected) ── */
 
 @media(max-width:700px){
   .camp-name{font-size:18px}.camp-banner{height:120px}.camp-header{margin-top:-40px}
@@ -309,32 +274,6 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 </div></div>
 <div class="gcc-tools-overlay" id="gcc-tools-overlay"></div>
 <div id="page-content"></div>
-<div class="dice-tray" id="dice-tray">
-  <div class="dice-panel" id="dice-panel">
-    <div class="dice-panel-hdr"><span class="dice-panel-title">DICE ROLLER</span><button class="dice-panel-clear" id="dice-clear">Clear</button></div>
-    <div class="dice-log" id="dice-log"><div class="dice-log-empty">No rolls yet</div></div>
-    <div class="dice-controls">
-      <div class="dice-row" id="dice-btns">
-        <button class="dice-btn" data-die="4">d4</button>
-        <button class="dice-btn active" data-die="6">d6</button>
-        <button class="dice-btn" data-die="8">d8</button>
-        <button class="dice-btn" data-die="10">d10</button>
-        <button class="dice-btn" data-die="12">d12</button>
-        <button class="dice-btn" data-die="20">d20</button>
-        <button class="dice-btn" data-die="100">d100</button>
-      </div>
-      <div class="dice-input-row">
-        <input class="dice-qty" id="dice-qty" type="number" value="1" min="1" max="20">
-        <span class="dice-lbl">×</span>
-        <span class="dice-lbl" id="dice-die-label">d6</span>
-        <span class="dice-lbl">+</span>
-        <input class="dice-mod" id="dice-mod" type="number" value="0" placeholder="±">
-        <button class="dice-roll-btn" id="dice-roll">Roll</button>
-      </div>
-    </div>
-  </div>
-  <button class="dice-toggle" id="dice-toggle" title="Dice Roller">🎲</button>
-</div>
 
 <div class="ftr"><div class="ftr-inner"><span>Graycloak's Campaign Corner v1.9</span><span>Data stored locally in your browser</span></div></div>
 
@@ -413,6 +352,7 @@ End of episode 1. Total xp = 71.' style="min-height:200px;font-family:var(--fm,m
 <script src="gcc-sync.js"></script>
 <script src="gcc-storage.js"></script>
 <script src="gcc-invite.js"></script>
+<script src="gcc-table-feed.js"></script>
 <script>
 GCC.init();
 const ESC=s=>{const d=document.createElement('div');d.textContent=s||'';return d.innerHTML};
@@ -1999,129 +1939,8 @@ vehModal.addEventListener('click',e=>{if(e.target===vehModal)closeVehModal()});
 })();
 window.addEventListener('gcc-sync-ready',()=>{render()});
 
-// ═══ DICE TRAY ═══
-(function(){
-  const tray=document.getElementById('dice-tray');
-  const panel=document.getElementById('dice-panel');
-  const toggle=document.getElementById('dice-toggle');
-  const log=document.getElementById('dice-log');
-  const qtyInput=document.getElementById('dice-qty');
-  const modInput=document.getElementById('dice-mod');
-  const dieLabel=document.getElementById('dice-die-label');
-  const rollBtn=document.getElementById('dice-roll');
-  let selectedDie=6;
-  let _unsub=null;
-
-  // Toggle panel
-  toggle.addEventListener('click',()=>{
-    const open=panel.classList.toggle('open');
-    toggle.classList.toggle('open',open);
-  });
-
-  // Die selection
-  document.getElementById('dice-btns').addEventListener('click',e=>{
-    const btn=e.target.closest('[data-die]');
-    if(!btn)return;
-    selectedDie=parseInt(btn.dataset.die);
-    dieLabel.textContent='d'+selectedDie;
-    document.querySelectorAll('#dice-btns .dice-btn').forEach(b=>b.classList.toggle('active',b===btn));
-  });
-
-  // Roll dice
-  function rollDice(){
-    const user=typeof GCCAuth!=='undefined'?GCCAuth.getUser():null;
-    const qty=Math.max(1,Math.min(20,parseInt(qtyInput.value)||1));
-    const die=selectedDie;
-    const mod=parseInt(modInput.value)||0;
-    const rolls=[];
-    for(let i=0;i<qty;i++)rolls.push(Math.floor(Math.random()*die)+1);
-    const sum=rolls.reduce((a,b)=>a+b,0)+mod;
-    const expr=qty+'d'+die+(mod>0?'+'+mod:mod<0?String(mod):'');
-    const entry={
-      uid:user?user.uid:'local',
-      name:user?(user.displayName||user.email.split('@')[0]):'Local',
-      expr:expr,
-      rolls:rolls,
-      mod:mod,
-      total:sum,
-      ts:new Date().toISOString(),
-    };
-    // Write to Firestore if signed in, otherwise render locally
-    const db=(typeof firebase!=='undefined'&&firebase.firestore)?firebase.firestore():null;
-    if(db&&campId&&user){
-      db.collection('campaigns').doc(campId).collection('rolls').add(entry)
-        .catch(e=>console.warn('[Dice] write failed:',e));
-    } else {
-      // Local-only: prepend to log display directly
-      if(log.querySelector('.dice-log-empty'))log.innerHTML='';
-      log.insertBefore(renderEntry(entry),log.firstChild);
-    }
-  }
-
-  rollBtn.addEventListener('click',rollDice);
-  // Enter key in qty or mod input triggers roll
-  qtyInput.addEventListener('keydown',e=>{if(e.key==='Enter')rollDice()});
-  modInput.addEventListener('keydown',e=>{if(e.key==='Enter')rollDice()});
-
-  // Render a roll entry
-  function renderEntry(data){
-    const when=data.ts?new Date(data.ts):new Date();
-    const timeStr=when.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
-    const detail=data.rolls?data.rolls.join(' + ')+(data.mod?(' '+((data.mod>0?'+':'')+data.mod)):''):'';
-    const div=document.createElement('div');
-    div.className='dice-entry';
-    div.innerHTML=`<div class="dice-entry-top"><span class="dice-who">${ESC(data.name||'?')}</span><span class="dice-when">${ESC(timeStr)}</span></div><div><span class="dice-result">${ESC(data.expr||'')}: ${data.total}</span></div>${detail?'<div class="dice-detail">['+ESC(detail)+']</div>':''}`;
-    return div;
-  }
-
-  // Clear log
-  document.getElementById('dice-clear').addEventListener('click',async()=>{
-    const user=typeof GCCAuth!=='undefined'?GCCAuth.getUser():null;
-    const db=(typeof firebase!=='undefined'&&firebase.firestore)?firebase.firestore():null;
-    if(db&&campId&&user){
-      const ok=typeof GCCDialog!=='undefined'?await GCCDialog.confirm('Clear rolls','Clear the dice log?',{okText:'Clear',danger:true}):confirm('Clear the dice log?');
-      if(!ok)return;
-      try{
-        const snap=await db.collection('campaigns').doc(campId).collection('rolls').get();
-        const batch=db.batch();
-        snap.forEach(doc=>batch.delete(doc.ref));
-        await batch.commit();
-      }catch(e){console.warn('[Dice] clear failed:',e)}
-    } else {
-      log.innerHTML='<div class="dice-log-empty">No rolls yet</div>';
-    }
-  });
-
-  // Start real-time listener
-  function startListener(){
-    const db=(typeof firebase!=='undefined'&&firebase.firestore)?firebase.firestore():null;
-    if(!db||!campId)return;
-    if(_unsub)_unsub();
-    _unsub=db.collection('campaigns').doc(campId).collection('rolls')
-      .orderBy('ts','desc').limit(50)
-      .onSnapshot(snap=>{
-        log.innerHTML='';
-        if(snap.empty){log.innerHTML='<div class="dice-log-empty">No rolls yet</div>';return}
-        snap.forEach(doc=>{log.appendChild(renderEntry(doc.data()))});
-        log.scrollTop=0;
-      },err=>{
-        console.warn('[Dice] listener error:',err);
-        log.innerHTML='<div class="dice-log-empty">Could not load rolls</div>';
-      });
-  }
-
-  // Show tray always; start Firestore listener when signed in
-  function initDice(){
-    if(campId)tray.style.display='';
-    const user=typeof GCCAuth!=='undefined'?GCCAuth.getUser():null;
-    if(user&&campId)startListener();
-  }
-  window.addEventListener('gcc-sync-ready',initDice);
-  // Also try on auth change for cases where sync-ready already fired
-  if(typeof GCCAuth!=='undefined'){
-    GCCAuth.onAuthChange(u=>{if(campId){tray.style.display='';if(u)startListener()}});
-  }
-})();
-</script>
+// ═══ TABLE FEED (chat + dice) ═══
+// Tray UI, styles, and live Firestore feed are owned by gcc-table-feed.js.
+GCCTableFeed.init({ campId, isGM: () => !_isPlayerMode });</script>
 </body>
 </html>
