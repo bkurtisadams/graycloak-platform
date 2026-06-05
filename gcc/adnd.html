@@ -2606,24 +2606,40 @@ document.addEventListener('change',e=>{
 .cg-iv-ok{color:#2e6b2e;font-weight:700}
 .cg-iv-no{opacity:.4}
 .cg-foot{display:flex;justify-content:flex-end;gap:6px;padding:8px 12px;border-top:1px solid #2a2018}
+.cg-build-row{display:flex;align-items:center;gap:8px;padding:4px 12px}
+.cg-build-row label{font-size:10px;font-weight:700;width:42px}
+.cg-build-row select{flex:1;font-family:inherit;font-size:11px}
+.cg-build-stats{padding:8px 12px 4px;font-size:11px;line-height:1.8}
 </style>
 <div id="cg-roller" class="cg-overlay">
   <div class="cg-modal">
-    <div class="cg-head"><span>Roll Ability Scores</span><button id="cg-x" class="cg-close" title="Close">&times;</button></div>
-    <div class="cg-method-row">
-      <label>Method</label>
-      <select id="cg-method">
-        <option value="1">I - 4d6 drop lowest, arrange</option>
-        <option value="2">II - 3d6 x12, keep best 6, arrange</option>
-        <option value="3">III - best of six 3d6 per ability, in order</option>
-        <option value="4">IV - twelve characters, pick one</option>
-      </select>
-      <button id="cg-roll" class="cg-btn">Roll</button>
+    <div class="cg-head"><span id="cg-title">Roll Ability Scores</span><button id="cg-x" class="cg-close" title="Close">&times;</button></div>
+    <div id="cg-stats-stage">
+      <div class="cg-method-row">
+        <label>Method</label>
+        <select id="cg-method">
+          <option value="1">I - 4d6 drop lowest, arrange</option>
+          <option value="2">II - 3d6 x12, keep best 6, arrange</option>
+          <option value="3">III - best of six 3d6 per ability, in order</option>
+          <option value="4">IV - twelve characters, pick one</option>
+        </select>
+        <button id="cg-roll" class="cg-btn">Roll</button>
+      </div>
+      <div id="cg-viability" class="cg-viability"></div>
+      <div id="cg-result" class="cg-result"></div>
     </div>
-    <div id="cg-viability" class="cg-viability"></div>
-    <div id="cg-result" class="cg-result"></div>
+    <div id="cg-build-stage" style="display:none">
+      <div class="cg-build-stats" id="cg-build-stats"></div>
+      <div class="cg-build-row"><label>Race</label><select id="cg-race"></select></div>
+      <div class="cg-build-row"><label>Sex</label><select id="cg-sex"><option value="male">Male</option><option value="female">Female</option></select></div>
+      <div class="cg-build-row"><label>Class</label><select id="cg-class"></select></div>
+      <div id="cg-build-msg" class="cg-viability"></div>
+    </div>
     <div class="cg-foot">
-      <button id="cg-apply" class="cg-btn cg-primary" disabled>Apply to sheet</button>
+      <button id="cg-continue" class="cg-btn cg-primary" disabled>Race &amp; class &rarr;</button>
+      <button id="cg-apply" class="cg-btn">Stats only</button>
+      <button id="cg-back" class="cg-btn" style="display:none">&larr; Back</button>
+      <button id="cg-build-go" class="cg-btn cg-primary" style="display:none" disabled>Build character</button>
       <button id="cg-cancel" class="cg-btn">Close</button>
     </div>
   </div>
@@ -2638,14 +2654,88 @@ document.addEventListener('change',e=>{
   const resultEl=document.getElementById('cg-result');
   const viabilityEl=document.getElementById('cg-viability');
   const applyBtn=document.getElementById('cg-apply');
-  let pool=[], assignMode=false, assignment={};
+  const continueBtn=document.getElementById('cg-continue');
+  const backBtn=document.getElementById('cg-back');
+  const buildGo=document.getElementById('cg-build-go');
+  const raceSel=document.getElementById('cg-race');
+  const sexSel=document.getElementById('cg-sex');
+  const classSel=document.getElementById('cg-class');
+  const buildStatsEl=document.getElementById('cg-build-stats');
+  const buildMsg=document.getElementById('cg-build-msg');
+  const titleEl=document.getElementById('cg-title');
+  const WARRIORS=['fighter','paladin','ranger'];
+  let pool=[], assignMode=false, assignment={}, baseScores={};
 
-  function open(){ overlay.style.display='flex'; }
-  function close(){ overlay.style.display='none'; resultEl.innerHTML=''; viabilityEl.textContent=''; viabilityEl.className='cg-viability'; applyBtn.disabled=true; pool=[]; assignment={}; }
+  const title=s=>String(s).replace(/(^|[-\s])([a-z])/g,(m,p,c)=>p+c.toUpperCase());
+
+  function showStage(s){
+    const roll=s==='roll';
+    document.getElementById('cg-stats-stage').style.display=roll?'':'none';
+    document.getElementById('cg-build-stage').style.display=roll?'none':'';
+    titleEl.textContent=roll?'Roll Ability Scores':'Race & Class';
+    continueBtn.style.display=roll?'':'none';
+    applyBtn.style.display=roll?'':'none';
+    backBtn.style.display=roll?'none':'';
+    buildGo.style.display=roll?'none':'';
+  }
+  function open(){ showStage('roll'); overlay.style.display='flex'; }
+  function close(){ overlay.style.display='none'; resultEl.innerHTML=''; viabilityEl.textContent=''; viabilityEl.className='cg-viability'; applyBtn.disabled=true; continueBtn.disabled=true; pool=[]; assignment={}; baseScores={}; showStage('roll'); }
   document.getElementById('btn-roll-stats').addEventListener('click',open);
   document.getElementById('cg-x').addEventListener('click',close);
   document.getElementById('cg-cancel').addEventListener('click',close);
   overlay.addEventListener('click',e=>{ if(e.target===overlay) close(); });
+
+  function gatherScores(){ const s={}; if(assignMode) ABILS.forEach(ab=>s[ab]=pool[assignment[ab]]); else ABILS.forEach((ab,i)=>s[ab]=pool[i]); return s; }
+
+  function refreshClasses(){
+    const race=raceSel.value;
+    const adj=ADNDChargen.applyRacialAdj(baseScores, race);
+    const valid=ADNDChargen.getValidClasses(race, adj);
+    classSel.innerHTML=valid.map(c=>'<option value="'+c+'">'+title(c)+'</option>').join('');
+    buildMsg.className='cg-viability'+(valid.length?'':' cg-warn');
+    buildMsg.textContent=valid.length?'':('No class qualifies for these scores as '+title(race)+'.');
+    buildGo.disabled=!valid.length;
+  }
+
+  continueBtn.addEventListener('click',()=>{
+    baseScores=gatherScores();
+    raceSel.innerHTML=Object.keys(ADNDChargen.RACE_CLASSES).map(r=>'<option value="'+r+'">'+title(r)+'</option>').join('');
+    buildStatsEl.innerHTML='Base: '+ABILS.map(ab=>'<span class="cg-chip">'+ab.toUpperCase()+' '+baseScores[ab]+'</span>').join(' ');
+    refreshClasses();
+    showStage('build');
+  });
+  backBtn.addEventListener('click',()=>showStage('roll'));
+  raceSel.addEventListener('change',refreshClasses);
+
+  buildGo.addEventListener('click',()=>{
+    const race=raceSel.value, cls=classSel.value, sex=sexSel.value;
+    const res=ADNDChargen.validateAndBuild(race, cls, baseScores, sex);
+    if(!res.valid){ buildMsg.className='cg-viability cg-warn'; buildMsg.textContent=res.error||'Invalid combination.'; return; }
+    const fs=res.finalStats;
+    const set=(f,v)=>{ if(typeof _setField==='function') _setField(f,v); };
+    ABILS.forEach(ab=>set(ab, fs[ab]));
+    if(WARRIORS.indexOf(cls)>=0 && fs.str===18){ const pct=ADNDChargen.rollPercentileStr(cls,18); set('strPct', pct>0?pct:''); }
+    else set('strPct','');
+    if(typeof calcAbilitySubs==='function') calcAbilitySubs();
+    const hp=ADNDChargen.rollHp(cls, fs.con);
+    set('race', race);
+    set('characterClass', cls);
+    set('level', '1');
+    set('age', res.age);
+    set('sex', sex==='female'?'F':'M');
+    set('height', typeof ADNDChargen.formatHeight==='function'?ADNDChargen.formatHeight(res.height):res.height);
+    set('weight', res.weight);
+    set('hpMax', hp);
+    set('hpCurrent', hp);
+    set('wealthGP', ADNDChargen.rollStartingGold(cls));
+    if(typeof updateClassSections==='function') updateClassSections();
+    if(typeof calcThiefSkills==='function') calcThiefSkills();
+    if(typeof calcProfSlots==='function') calcProfSlots();
+    if(typeof calcTurnUndead==='function') calcTurnUndead();
+    if(typeof calcAttacksPerRound==='function') calcAttacksPerRound();
+    if(typeof autosave==='function') autosave();
+    close();
+  });
 
   function showViability(scores){
     const n=scores.filter(s=>s>=15).length;
@@ -2676,14 +2766,14 @@ document.addEventListener('change',e=>{
       sel.querySelectorAll('option').forEach(o=>{ if(o.value==='')return; const idx=+o.value; o.disabled=used.has(idx)&&idx!==cur; });
     });
     const complete=ABILS.every(ab=>assignment[ab]!==undefined)&&new Set(Object.values(assignment)).size===6;
-    applyBtn.disabled=!complete;
+    applyBtn.disabled=!complete; continueBtn.disabled=!complete;
   }
 
   function renderFixed(){
     let h='<div class="cg-assign-grid">';
     ABILS.forEach((ab,i)=>{ h+='<div class="cg-assign-row"><label>'+NAMES[ab]+'</label><span class="cg-fixed-val">'+pool[i]+'</span></div>'; });
     resultEl.innerHTML=h+'</div>';
-    applyBtn.disabled=false;
+    applyBtn.disabled=false; continueBtn.disabled=false;
   }
 
   function renderPickIV(sets){
@@ -2696,7 +2786,7 @@ document.addEventListener('change',e=>{
     });
     resultEl.innerHTML=h+'</div>';
     viabilityEl.className='cg-viability'; viabilityEl.textContent='Pick one of the twelve characters.';
-    applyBtn.disabled=true;
+    applyBtn.disabled=true; continueBtn.disabled=true;
     resultEl.querySelectorAll('.cg-iv-use').forEach(b=>b.addEventListener('click',()=>{
       pool=sets[+b.dataset.i].slice(); assignMode=false; showViability(pool); renderFixed();
     }));
