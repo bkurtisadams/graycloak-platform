@@ -2728,6 +2728,14 @@ document.addEventListener('change',e=>{
     set('hpMax', hp);
     set('hpCurrent', hp);
     set('wealthGP', ADNDChargen.rollStartingGold(cls));
+    if(typeof ADNDClassData!=='undefined'){
+      const sv=ADNDClassData.getSavingThrows(cls, 1);
+      ['savePPD','savePP','saveRSW','saveBW','saveSpell'].forEach((f,i)=>set(f, sv[i]));
+      const lang=ADNDClassData.getLanguages(race, cls, fs.int);
+      let lt=(lang.known||[]).join(', ');
+      if(lang.bonusSlots>0) lt+=' (+'+lang.bonusSlots+' bonus'+(lang.available&&lang.available.length?': '+lang.available.join(', '):'')+')';
+      set('languages', lt);
+    }
     if(typeof updateClassSections==='function') updateClassSections();
     if(typeof calcThiefSkills==='function') calcThiefSkills();
     if(typeof calcProfSlots==='function') calcProfSlots();
