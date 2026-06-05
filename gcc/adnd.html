@@ -2691,10 +2691,14 @@ document.addEventListener('change',e=>{
     const race=raceSel.value;
     const adj=ADNDChargen.applyRacialAdj(baseScores, race);
     const valid=ADNDChargen.getValidClasses(race, adj);
-    classSel.innerHTML=valid.map(c=>'<option value="'+c+'">'+title(c)+'</option>').join('');
-    buildMsg.className='cg-viability'+(valid.length?'':' cg-warn');
-    buildMsg.textContent=valid.length?'':('No class qualifies for these scores as '+title(race)+'.');
-    buildGo.disabled=!valid.length;
+    const multi=(ADNDChargen.getValidMulticlasses?ADNDChargen.getValidMulticlasses(race, adj):[])||[];
+    let html=valid.map(c=>'<option value="'+c+'">'+title(c)+'</option>').join('');
+    if(multi.length) html+='<optgroup label="Multi-class">'+multi.map(combo=>'<option value="mc:'+combo.join('/')+'">'+combo.map(title).join(' / ')+'</option>').join('')+'</optgroup>';
+    classSel.innerHTML=html;
+    const any=valid.length||multi.length;
+    buildMsg.className='cg-viability'+(any?'':' cg-warn');
+    buildMsg.textContent=any?'':('No class qualifies for these scores as '+title(race)+'.');
+    buildGo.disabled=!any;
   }
 
   continueBtn.addEventListener('click',()=>{
@@ -2708,32 +2712,38 @@ document.addEventListener('change',e=>{
   raceSel.addEventListener('change',refreshClasses);
 
   buildGo.addEventListener('click',()=>{
-    const race=raceSel.value, cls=classSel.value, sex=sexSel.value;
-    const res=ADNDChargen.validateAndBuild(race, cls, baseScores, sex);
+    const race=raceSel.value, sex=sexSel.value, val=classSel.value;
+    const isMulti=val.indexOf('mc:')===0;
+    const comps=isMulti?val.slice(3).split('/'):[val];
+    const primary=comps[0];
+    const res=ADNDChargen.validateAndBuild(race, primary, baseScores, sex);
     if(!res.valid){ buildMsg.className='cg-viability cg-warn'; buildMsg.textContent=res.error||'Invalid combination.'; return; }
     const fs=res.finalStats;
     const set=(f,v)=>{ if(typeof _setField==='function') _setField(f,v); };
     ABILS.forEach(ab=>set(ab, fs[ab]));
-    if(WARRIORS.indexOf(cls)>=0 && fs.str===18){ const pct=ADNDChargen.rollPercentileStr(cls,18); set('strPct', pct>0?pct:''); }
+    if(comps.some(c=>WARRIORS.indexOf(c)>=0) && fs.str===18){ const pct=ADNDChargen.rollPercentileStr('fighter',18); set('strPct', pct>0?pct:''); }
     else set('strPct','');
     if(typeof calcAbilitySubs==='function') calcAbilitySubs();
-    const hp=ADNDChargen.rollHp(cls, fs.con);
+    const hp=isMulti?ADNDChargen.rollMulticlassHp(comps, fs.con):ADNDChargen.rollHp(primary, fs.con);
     set('race', race);
-    set('characterClass', cls);
-    set('level', '1');
+    set('characterClass', comps.map(title).join('/'));
+    set('level', comps.map(()=>'1').join('/'));
     set('age', res.age);
     set('sex', sex==='female'?'F':'M');
     set('height', typeof ADNDChargen.formatHeight==='function'?ADNDChargen.formatHeight(res.height):res.height);
     set('weight', res.weight);
     set('hpMax', hp);
     set('hpCurrent', hp);
-    set('wealthGP', ADNDChargen.rollStartingGold(cls));
+    set('wealthGP', ADNDChargen.rollStartingGold(primary));
     if(typeof ADNDClassData!=='undefined'){
-      const sv=ADNDClassData.getSavingThrows(cls, 1);
-      ['savePPD','savePP','saveRSW','saveBW','saveSpell'].forEach((f,i)=>set(f, sv[i]));
-      const lang=ADNDClassData.getLanguages(race, cls, fs.int);
-      let lt=(lang.known||[]).join(', ');
-      if(lang.bonusSlots>0) lt+=' (+'+lang.bonusSlots+' bonus'+(lang.available&&lang.available.length?': '+lang.available.join(', '):'')+')';
+      const fields=['savePPD','savePP','saveRSW','saveBW','saveSpell'];
+      const best=[99,99,99,99,99];
+      comps.forEach(c=>{ const sv=ADNDClassData.getSavingThrows(c,1); sv.forEach((v,i)=>{ if(v<best[i]) best[i]=v; }); });
+      fields.forEach((f,i)=>set(f, best[i]));
+      const known=[]; let bonus=0; const avail=[];
+      comps.forEach(c=>{ const L=ADNDClassData.getLanguages(race,c,fs.int); (L.known||[]).forEach(k=>{ if(known.indexOf(k)<0) known.push(k); }); if(L.bonusSlots>bonus) bonus=L.bonusSlots; (L.available||[]).forEach(a=>{ if(avail.indexOf(a)<0) avail.push(a); }); });
+      let lt=known.join(', ');
+      if(bonus>0) lt+=' (+'+bonus+' bonus'+(avail.length?': '+avail.join(', '):'')+')';
       set('languages', lt);
     }
     if(typeof updateClassSections==='function') updateClassSections();
