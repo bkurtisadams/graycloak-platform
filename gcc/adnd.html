@@ -308,6 +308,7 @@ tr.inv-nocarry td input{color:var(--ink-lt)}
 <div class="adnd-hdr"><div class="adnd-hdr-in">
   <div><div class="adnd-logo-title">AD&D 1ST EDITION</div><div class="adnd-logo-sub">Character Record</div></div>
   <div class="adnd-hdr-btns">
+    <button class="hdr-btn" id="btn-roll-stats">ROLL</button>
     <button class="hdr-btn" id="btn-new">CLEAR</button>
     <button class="hdr-btn" id="btn-save">SAVE</button>
     <button class="hdr-btn" id="btn-load">LOAD</button>
@@ -740,6 +741,9 @@ tr.inv-nocarry td input{color:var(--ink-lt)}
 <script src="gcc-dialog.js"></script>
 <script src="adnd-nwp-data.js"></script>
 <script src="adnd-nwp.js"></script>
+<script src="adnd-chargen.js"></script>
+<script src="adnd-class-data.js"></script>
+<script src="adnd-equipment.js"></script>
 <script>
 const STORAGE_KEY=GCC.KEYS.add1eChars;
 const AUTOSAVE_KEY='gcc_add1e_autosave';
@@ -2568,6 +2572,152 @@ document.addEventListener('change',e=>{
       if(fresh)CHAR=JSON.parse(JSON.stringify(fresh));
     }
     populateAll();
+  });
+})();
+</script>
+<style id="cg-roller-css">
+.cg-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:9999}
+.cg-modal{background:#f4ecd6;color:#2a2018;border:2px solid #2a2018;border-radius:6px;width:340px;max-width:92vw;font-family:var(--fb,monospace);box-shadow:0 10px 40px rgba(0,0,0,.4)}
+.cg-head{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #2a2018;font-weight:700;font-size:13px}
+.cg-close{background:none;border:none;font-size:18px;cursor:pointer;color:#2a2018;line-height:1}
+.cg-method-row{display:flex;align-items:center;gap:6px;padding:10px 12px 6px}
+.cg-method-row label{font-size:10px;font-weight:700}
+.cg-method-row select{flex:1;font-family:inherit;font-size:11px}
+.cg-btn{font-family:inherit;font-size:11px;padding:3px 10px;border:1px solid #2a2018;background:#e8dcc0;cursor:pointer;border-radius:3px}
+.cg-btn:hover{background:#dccba0}
+.cg-btn:disabled{opacity:.4;cursor:default}
+.cg-primary{background:#7a2718;color:#f4ecd6;border-color:#5a1d12}
+.cg-primary:hover{background:#5a1d12}
+.cg-viability{padding:0 12px 6px;font-size:11px;font-weight:700;min-height:14px}
+.cg-viability.cg-ok{color:#2e6b2e}
+.cg-viability.cg-warn{color:#9a3b18}
+.cg-result{padding:0 12px 8px}
+.cg-pool{font-size:11px;margin-bottom:8px}
+.cg-chip{display:inline-block;background:#2a2018;color:#f4ecd6;border-radius:3px;padding:1px 6px;margin:0 2px;font-weight:700}
+.cg-assign-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px 12px}
+.cg-assign-row{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.cg-assign-row label{font-size:10px}
+.cg-assign{font-family:inherit;font-size:11px;width:54px}
+.cg-fixed-val{font-weight:700;font-size:14px;min-width:24px;text-align:center}
+.cg-iv-list{max-height:240px;overflow-y:auto}
+.cg-iv-row{display:flex;align-items:center;gap:6px;padding:2px 0;font-size:11px;border-bottom:1px solid #d8cba8}
+.cg-iv-scores{font-family:monospace;letter-spacing:1px}
+.cg-iv-total{margin-left:auto;opacity:.7}
+.cg-iv-ok{color:#2e6b2e;font-weight:700}
+.cg-iv-no{opacity:.4}
+.cg-foot{display:flex;justify-content:flex-end;gap:6px;padding:8px 12px;border-top:1px solid #2a2018}
+</style>
+<div id="cg-roller" class="cg-overlay">
+  <div class="cg-modal">
+    <div class="cg-head"><span>Roll Ability Scores</span><button id="cg-x" class="cg-close" title="Close">&times;</button></div>
+    <div class="cg-method-row">
+      <label>Method</label>
+      <select id="cg-method">
+        <option value="1">I - 4d6 drop lowest, arrange</option>
+        <option value="2">II - 3d6 x12, keep best 6, arrange</option>
+        <option value="3">III - best of six 3d6 per ability, in order</option>
+        <option value="4">IV - twelve characters, pick one</option>
+      </select>
+      <button id="cg-roll" class="cg-btn">Roll</button>
+    </div>
+    <div id="cg-viability" class="cg-viability"></div>
+    <div id="cg-result" class="cg-result"></div>
+    <div class="cg-foot">
+      <button id="cg-apply" class="cg-btn cg-primary" disabled>Apply to sheet</button>
+      <button id="cg-cancel" class="cg-btn">Close</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  if (typeof ADNDChargen === 'undefined') return;
+  const ABILS=['str','int','wis','dex','con','cha'];
+  const NAMES={str:'Strength',int:'Intelligence',wis:'Wisdom',dex:'Dexterity',con:'Constitution',cha:'Charisma'};
+  const overlay=document.getElementById('cg-roller');
+  const methodSel=document.getElementById('cg-method');
+  const resultEl=document.getElementById('cg-result');
+  const viabilityEl=document.getElementById('cg-viability');
+  const applyBtn=document.getElementById('cg-apply');
+  let pool=[], assignMode=false, assignment={};
+
+  function open(){ overlay.style.display='flex'; }
+  function close(){ overlay.style.display='none'; resultEl.innerHTML=''; viabilityEl.textContent=''; viabilityEl.className='cg-viability'; applyBtn.disabled=true; pool=[]; assignment={}; }
+  document.getElementById('btn-roll-stats').addEventListener('click',open);
+  document.getElementById('cg-x').addEventListener('click',close);
+  document.getElementById('cg-cancel').addEventListener('click',close);
+  overlay.addEventListener('click',e=>{ if(e.target===overlay) close(); });
+
+  function showViability(scores){
+    const n=scores.filter(s=>s>=15).length;
+    const ok=ADNDChargen.isViable(scores);
+    viabilityEl.className='cg-viability '+(ok?'cg-ok':'cg-warn');
+    viabilityEl.textContent=ok?('Viable - '+n+' score'+(n===1?'':'s')+' of 15+'):('Not viable - PHB wants two 15+ (has '+n+'). Roll again.');
+  }
+
+  function renderAssign(){
+    let h='<div class="cg-pool">Rolled: '+pool.map(v=>'<span class="cg-chip">'+v+'</span>').join('')+'</div><div class="cg-assign-grid">';
+    ABILS.forEach(ab=>{
+      h+='<div class="cg-assign-row"><label>'+NAMES[ab]+'</label><select class="cg-assign" data-ab="'+ab+'"><option value="">-</option>'+
+         pool.map((v,i)=>'<option value="'+i+'">'+v+'</option>').join('')+'</select></div>';
+    });
+    resultEl.innerHTML=h+'</div>';
+    resultEl.querySelectorAll('.cg-assign').forEach(sel=>sel.addEventListener('change',onAssignChange));
+    assignment={}; refreshAssignState();
+  }
+  function onAssignChange(){
+    assignment={};
+    resultEl.querySelectorAll('.cg-assign').forEach(sel=>{ if(sel.value!=='') assignment[sel.dataset.ab]=+sel.value; });
+    refreshAssignState();
+  }
+  function refreshAssignState(){
+    const used=new Set(Object.values(assignment));
+    resultEl.querySelectorAll('.cg-assign').forEach(sel=>{
+      const cur=sel.value===''?null:+sel.value;
+      sel.querySelectorAll('option').forEach(o=>{ if(o.value==='')return; const idx=+o.value; o.disabled=used.has(idx)&&idx!==cur; });
+    });
+    const complete=ABILS.every(ab=>assignment[ab]!==undefined)&&new Set(Object.values(assignment)).size===6;
+    applyBtn.disabled=!complete;
+  }
+
+  function renderFixed(){
+    let h='<div class="cg-assign-grid">';
+    ABILS.forEach((ab,i)=>{ h+='<div class="cg-assign-row"><label>'+NAMES[ab]+'</label><span class="cg-fixed-val">'+pool[i]+'</span></div>'; });
+    resultEl.innerHTML=h+'</div>';
+    applyBtn.disabled=false;
+  }
+
+  function renderPickIV(sets){
+    let h='<div class="cg-iv-list">';
+    sets.forEach((set,i)=>{
+      const total=set.reduce((a,b)=>a+b,0);
+      h+='<div class="cg-iv-row"><span class="cg-iv-scores">'+set.join(' ')+'</span><span class="cg-iv-total">S'+total+'</span>'+
+         (ADNDChargen.isViable(set)?'<span class="cg-iv-ok">viable</span>':'<span class="cg-iv-no">-</span>')+
+         '<button class="cg-btn cg-iv-use" data-i="'+i+'">Use</button></div>';
+    });
+    resultEl.innerHTML=h+'</div>';
+    viabilityEl.className='cg-viability'; viabilityEl.textContent='Pick one of the twelve characters.';
+    applyBtn.disabled=true;
+    resultEl.querySelectorAll('.cg-iv-use').forEach(b=>b.addEventListener('click',()=>{
+      pool=sets[+b.dataset.i].slice(); assignMode=false; showViability(pool); renderFixed();
+    }));
+  }
+
+  document.getElementById('cg-roll').addEventListener('click',()=>{
+    const m=methodSel.value;
+    if(m==='1'){ pool=ADNDChargen.rollMethodI()[0]; assignMode=true; showViability(pool); renderAssign(); }
+    else if(m==='2'){ pool=ADNDChargen.rollMethodII()[0]; assignMode=true; showViability(pool); renderAssign(); }
+    else if(m==='3'){ pool=ADNDChargen.rollMethodIII()[0]; assignMode=false; showViability(pool); renderFixed(); }
+    else { renderPickIV(ADNDChargen.rollMethodIV()); }
+  });
+
+  applyBtn.addEventListener('click',()=>{
+    const scores={};
+    if(assignMode) ABILS.forEach(ab=>scores[ab]=pool[assignment[ab]]);
+    else ABILS.forEach((ab,i)=>scores[ab]=pool[i]);
+    ABILS.forEach(ab=>{ if(typeof _setField==='function') _setField(ab,scores[ab]); });
+    if(typeof calcAbilitySubs==='function') calcAbilitySubs();
+    if(typeof autosave==='function') autosave();
+    close();
   });
 })();
 </script>
