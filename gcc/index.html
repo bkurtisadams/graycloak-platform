@@ -1360,25 +1360,42 @@ window.addEventListener('gcc-sync-ready', () => {
         if (u && !banner._joined) {
           banner._joined = true;
           banner.innerHTML = '<div class="invite-banner"><div class="invite-banner-title">CAMPAIGN INVITE</div><div class="invite-banner-sub">Looking up invite...</div></div>';
-          const invite = await GCCInvite.lookupInvite(inviteCode);
-          if (!invite) {
-            banner.innerHTML = '<div class="invite-banner"><div class="invite-banner-title">INVALID INVITE</div><div class="invite-banner-sub">This invite code is invalid or has been revoked.</div><button class="invite-banner-btn secondary" onclick="document.getElementById(\'invite-banner\').style.display=\'none\';history.replaceState(null,\'\',\'index.html\')">Dismiss</button></div>';
-            return;
-          }
-          joinWithCode(invite);
+          validateAndShow();
         }
       });
       return;
     }
 
-    // Signed in — lookup invite directly
-    const invite = await GCCInvite.lookupInvite(inviteCode);
-    if (!invite) {
-      banner.innerHTML = '<div class="invite-banner"><div class="invite-banner-title">INVALID INVITE</div><div class="invite-banner-sub">This invite code is invalid or has been revoked.</div><button class="invite-banner-btn secondary" onclick="document.getElementById(\'invite-banner\').style.display=\'none\';history.replaceState(null,\'\',\'index.html\')">Dismiss</button></div>';
-      return;
-    }
+    // Signed in — validate + join directly
+    validateAndShow();
+  }
 
-    joinWithCode(invite);
+  // Shared validation: distinguishes a bad/revoked code from a failed read
+  // (offline / blocked / slow mobile) and offers Retry instead of falsely
+  // reporting the invite as invalid.
+  async function validateAndShow() {
+    const r = await GCCInvite.lookupInviteResult(inviteCode);
+    if (r.status === 'ok') { joinWithCode(r.invite); return; }
+    if (r.status === 'error') { showConnError(); return; }
+    showInvalid();
+  }
+
+  function showInvalid() {
+    banner.innerHTML = '<div class="invite-banner"><div class="invite-banner-title">INVALID INVITE</div><div class="invite-banner-sub">This invite code is invalid or has been revoked.</div><button class="invite-banner-btn secondary" onclick="document.getElementById(\'invite-banner\').style.display=\'none\';history.replaceState(null,\'\',\'index.html\')">Dismiss</button></div>';
+  }
+
+  function showConnError() {
+    banner.innerHTML =
+      '<div class="invite-banner">' +
+        '<div class="invite-banner-title">CONNECTION PROBLEM</div>' +
+        '<div class="invite-banner-sub">Couldn\'t reach the server to check your invite. Check your connection (and disable any ad or tracking blockers for this site), then retry.</div>' +
+        '<div style="margin-top:12px"><button class="invite-banner-btn" id="invite-retry-btn">Retry</button> ' +
+        '<button class="invite-banner-btn secondary" onclick="document.getElementById(\'invite-banner\').style.display=\'none\';history.replaceState(null,\'\',\'index.html\')">Dismiss</button></div>' +
+      '</div>';
+    document.getElementById('invite-retry-btn').addEventListener('click', () => {
+      banner.innerHTML = '<div class="invite-banner"><div class="invite-banner-title">CAMPAIGN INVITE</div><div class="invite-banner-sub">Looking up invite...</div></div>';
+      validateAndShow();
+    });
   }
 
   async function joinWithCode(invite) {

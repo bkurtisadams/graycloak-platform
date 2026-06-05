@@ -117,19 +117,38 @@ const GCCInvite = (function() {
   // ── Join Campaign ──
   // ══════════════════════════════════════
 
-  async function lookupInvite(code) {
+  // Distinguishes a genuinely bad/revoked code from a failed read (offline,
+  // blocked by an extension, slow mobile connection). Returns:
+  //   { status:'ok', invite }   — found and active
+  //   { status:'notfound' }     — missing or inactive (truly invalid)
+  //   { status:'error', error } — read could not complete (network/permission)
+  // Transient errors get a short retry before giving up; permission-denied
+  // won't fix itself, so it bails immediately.
+  async function lookupInviteResult(code) {
     const db = getDb();
-    if (!db) return null;
-    try {
-      const snap = await db.collection('invites').doc(code.toUpperCase()).get();
-      if (!snap.exists) return null;
-      const data = snap.data();
-      if (!data.active) return null;
-      return { code: snap.id, ...data };
-    } catch(e) {
-      console.warn('[GCCInvite] lookupInvite failed:', e);
-      return null;
+    if (!db) return { status: 'error', error: new Error('Firestore not ready') };
+    const ref = db.collection('invites').doc(String(code || '').toUpperCase());
+    let lastErr = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const snap = await ref.get();
+        if (!snap.exists) return { status: 'notfound' };
+        const data = snap.data();
+        if (!data.active) return { status: 'notfound' };
+        return { status: 'ok', invite: { code: snap.id, ...data } };
+      } catch(e) {
+        lastErr = e;
+        console.warn('[GCCInvite] lookupInvite attempt ' + (attempt + 1) + ' failed:', e);
+        if (e && e.code === 'permission-denied') break;
+        await new Promise(r => setTimeout(r, 600 * (attempt + 1)));
+      }
     }
+    return { status: 'error', error: lastErr };
+  }
+
+  async function lookupInvite(code) {
+    const r = await lookupInviteResult(code);
+    return r.status === 'ok' ? r.invite : null;
   }
 
   async function joinCampaign(code) {
@@ -138,9 +157,13 @@ const GCCInvite = (function() {
     if (!db || !user) return { ok: false, reason: 'Not signed in' };
 
     try {
-      // Verify invite
-      const invite = await lookupInvite(code);
-      if (!invite) return { ok: false, reason: 'Invalid or expired invite code' };
+      // Verify invite — distinguish a bad/revoked code from a failed read
+      // (offline / blocked / slow mobile) so a network problem isn't
+      // mislabeled as an invalid invite.
+      const lr = await lookupInviteResult(code);
+      if (lr.status === 'error') return { ok: false, reason: 'Could not reach the server. Check your connection and try again.' };
+      if (lr.status !== 'ok') return { ok: false, reason: 'Invalid or expired invite code' };
+      const invite = lr.invite;
 
       // Add player to campaign. viaInvite satisfies the invite-gated
       // player-create rule; owner self-join keeps GM role.
@@ -664,6 +687,7 @@ const GCCInvite = (function() {
     deactivateInvite,
     getInvitesForCampaign,
     lookupInvite,
+    lookupInviteResult,
     joinCampaign,
     getPlayers,
     removePlayer,
