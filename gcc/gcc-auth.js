@@ -265,7 +265,10 @@ function _isMobile() {
         </div>
         <div class="gcc-auth-field">
           <label class="gcc-auth-label" for="gcc-si-pass">PASSWORD</label>
-          <input class="gcc-auth-input" id="gcc-si-pass" type="password" placeholder="••••••••" autocomplete="current-password" required>
+          <div class="gcc-auth-pass-wrap">
+            <input class="gcc-auth-input" id="gcc-si-pass" type="password" placeholder="••••••••" autocomplete="current-password" required>
+            <button type="button" class="gcc-auth-pass-toggle" data-pass-toggle="gcc-si-pass" aria-label="Show password">Show</button>
+          </div>
         </div>
         <button type="button" class="gcc-auth-forgot" id="gcc-auth-forgot">Forgot password?</button>
         <button type="submit" class="gcc-auth-submit">SIGN IN</button>
@@ -289,11 +292,17 @@ function _isMobile() {
         </div>
         <div class="gcc-auth-field">
           <label class="gcc-auth-label" for="gcc-reg-pass">PASSWORD</label>
-          <input class="gcc-auth-input" id="gcc-reg-pass" type="password" placeholder="At least 6 characters" autocomplete="new-password" required minlength="6">
+          <div class="gcc-auth-pass-wrap">
+            <input class="gcc-auth-input" id="gcc-reg-pass" type="password" placeholder="At least 6 characters" autocomplete="new-password" required minlength="6">
+            <button type="button" class="gcc-auth-pass-toggle" data-pass-toggle="gcc-reg-pass" aria-label="Show password">Show</button>
+          </div>
         </div>
         <div class="gcc-auth-field">
           <label class="gcc-auth-label" for="gcc-reg-pass2">CONFIRM PASSWORD</label>
-          <input class="gcc-auth-input" id="gcc-reg-pass2" type="password" placeholder="••••••••" autocomplete="new-password" required minlength="6">
+          <div class="gcc-auth-pass-wrap">
+            <input class="gcc-auth-input" id="gcc-reg-pass2" type="password" placeholder="••••••••" autocomplete="new-password" required minlength="6">
+            <button type="button" class="gcc-auth-pass-toggle" data-pass-toggle="gcc-reg-pass2" aria-label="Show password">Show</button>
+          </div>
         </div>
         <button type="submit" class="gcc-auth-submit">CREATE ACCOUNT</button>
         <div class="gcc-auth-divider">OR</div>
@@ -492,6 +501,18 @@ function _isMobile() {
       } catch(err) {
         _showMsg('signin', _friendlyError(err.code), 'error');
       }
+    });
+
+    // Show / hide password toggles
+    _modal.querySelectorAll('.gcc-auth-pass-toggle').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const input = _modal.querySelector('#' + btn.dataset.passToggle);
+        if (!input) return;
+        const reveal = input.type === 'password';
+        input.type = reveal ? 'text' : 'password';
+        btn.textContent = reveal ? 'Hide' : 'Show';
+        btn.setAttribute('aria-label', reveal ? 'Hide password' : 'Show password');
+      });
     });
   }
 

@@ -228,6 +228,27 @@
   opacity: 0.6;
 }
 
+.gcc-auth-pass-wrap {
+  position: relative;
+}
+.gcc-auth-pass-wrap .gcc-auth-input {
+  padding-right: 52px;
+}
+.gcc-auth-pass-toggle {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  font-family: 'Alegreya', serif;
+  font-size: 11px;
+  color: var(--gcc-bar-active);
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+.gcc-auth-pass-toggle:hover { text-decoration: underline; }
+
 /* ── Submit button ── */
 .gcc-auth-submit {
   width: 100%;
