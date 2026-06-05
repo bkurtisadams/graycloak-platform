@@ -309,6 +309,7 @@ tr.inv-nocarry td input{color:var(--ink-lt)}
   <div><div class="adnd-logo-title">AD&D 1ST EDITION</div><div class="adnd-logo-sub">Character Record</div></div>
   <div class="adnd-hdr-btns">
     <button class="hdr-btn" id="btn-roll-stats">ROLL</button>
+    <button class="hdr-btn" id="btn-shop">SHOP</button>
     <button class="hdr-btn" id="btn-new">CLEAR</button>
     <button class="hdr-btn" id="btn-save">SAVE</button>
     <button class="hdr-btn" id="btn-load">LOAD</button>
@@ -744,6 +745,7 @@ tr.inv-nocarry td input{color:var(--ink-lt)}
 <script src="adnd-chargen.js"></script>
 <script src="adnd-class-data.js"></script>
 <script src="adnd-equipment.js"></script>
+<script src="adnd-purse.js"></script>
 <script>
 const STORAGE_KEY=GCC.KEYS.add1eChars;
 const AUTOSAVE_KEY='gcc_add1e_autosave';
@@ -2827,6 +2829,139 @@ document.addEventListener('change',e=>{
     if(typeof autosave==='function') autosave();
     close();
   });
+})();
+</script>
+<style id="cg-shop-css">
+.shp-bar{display:flex;align-items:center;gap:8px;padding:8px 12px;flex-wrap:wrap}
+.shp-bar select{font-family:inherit;font-size:11px}
+.shp-wallet{font-size:11px;font-weight:700;margin-left:auto}
+.shp-list{max-height:340px;overflow-y:auto;padding:0 12px 4px}
+.shp-cat{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#7a2718;border-bottom:1px solid #d8cba8;margin:8px 0 3px;padding-bottom:2px}
+.shp-row{display:flex;align-items:center;gap:8px;padding:2px 0;font-size:11px}
+.shp-name{flex:1;min-width:0}
+.shp-cost{width:48px;text-align:right;opacity:.8}
+.shp-wt{width:42px;text-align:right;opacity:.55;font-size:10px}
+.shp-buy{padding:1px 8px}
+.shp-empty{padding:14px;text-align:center;font-size:11px;opacity:.6}
+</style>
+<div id="cg-shop" class="cg-overlay">
+  <div class="cg-modal" style="width:420px">
+    <div class="cg-head"><span>Equipment Shop</span><button id="shp-x" class="cg-close" title="Close">&times;</button></div>
+    <div class="shp-bar">
+      <select id="shp-type">
+        <option value="blacksmith">Blacksmith</option>
+        <option value="general">General Store</option>
+        <option value="temple">Temple</option>
+      </select>
+      <button id="shp-kit" class="cg-btn">Buy standard kit</button>
+      <span class="shp-wallet" id="shp-wallet"></span>
+    </div>
+    <div id="shp-msg" class="cg-viability"></div>
+    <div id="shp-list" class="shp-list"></div>
+    <div class="cg-foot"><button id="shp-done" class="cg-btn cg-primary">Done</button></div>
+  </div>
+</div>
+<script>
+(function(){
+  if (typeof ADNDEquipment==='undefined'||typeof ADNDPurse==='undefined') return;
+  const overlay=document.getElementById('cg-shop');
+  const typeSel=document.getElementById('shp-type');
+  const listEl=document.getElementById('shp-list');
+  const walletEl=document.getElementById('shp-wallet');
+  const msgEl=document.getElementById('shp-msg');
+  const COINF={cp:'wealthCP',sp:'wealthSP',ep:'wealthEP',gp:'wealthGP',pp:'wealthPP'};
+  const set=(f,v)=>{ if(typeof _setField==='function') _setField(f,v); };
+  let flashT;
+  function flash(t,kind){ msgEl.className='cg-viability '+(kind==='ok'?'cg-ok':'cg-warn'); msgEl.textContent=t; clearTimeout(flashT); flashT=setTimeout(()=>{msgEl.textContent='';},2600); }
+
+  function classes(){ return (CHAR.characterClass||'').toLowerCase().split('/').map(s=>s.trim()).filter(Boolean); }
+  function getPurse(){ const p={}; for(const k in COINF) p[k]=+(CHAR[COINF[k]]||0); return ADNDPurse.normalize(p); }
+  function writePurse(p){ for(const k in COINF) set(COINF[k], p[k]); }
+  function showWallet(){ const p=getPurse(); walletEl.textContent=ADNDPurse.format(p)+' ('+ADNDPurse.equivGP(p)+' gp)'; }
+  function catOf(it){ return it.category || (ADNDEquipment.getItemCategory?ADNDEquipment.getItemCategory(it.id):''); }
+  function usable(it){ const cs=classes(); if(!it.classes||!cs.length) return true; return it.classes.some(c=>cs.indexOf(c)>=0); }
+
+  function weaponRow(it){
+    const w={name:it.name};
+    if(it.acAdj){ const k=['ac2','ac3','ac4','ac5','ac6','ac7','ac8','ac9','ac10']; it.acAdj.forEach((v,i)=>{ w[k[i]]=v>0?'+'+v:String(v); }); }
+    if(it.speedFactor!=null) w.speed=String(it.speedFactor);
+    if(it.range) w.range=it.range.join('/');
+    if(it.damage) w.dmg=it.damage[0]+'d'+it.damage[1]+(it.damage[2]?'+'+it.damage[2]:'');
+    return w;
+  }
+  function route(it){
+    const cat=catOf(it);
+    if(cat==='weapon'||cat==='ranged'){ if(!CHAR.weapons)CHAR.weapons=[]; CHAR.weapons.push(weaponRow(it)); if(typeof renderWeapons==='function') renderWeapons(); }
+    else if(cat==='armor'){ set('acBase', it.ac); set('armorWorn', it.name); }
+    else if(cat==='shield'){ set('acShieldAdj', -(it.acBonus||1)); }
+    if(!CHAR.items)CHAR.items=[];
+    CHAR.items.push({ name:it.name, qty:(it.qty||1), weight:Math.round((it.weight||0)*10), location:'', notes:cat });
+    if(typeof calcAC==='function') calcAC();
+    if(typeof renderInventory==='function') renderInventory();
+    if(typeof calcWeight==='function') calcWeight();
+  }
+  function buy(it, quiet){
+    const cost=+(it.cost||0); const p=getPurse();
+    if(!ADNDPurse.canAffordGP(p,cost)){ if(!quiet) flash('Not enough coin for '+it.name+'.'); return false; }
+    writePurse(ADNDPurse.deductGP(p,cost).purse);
+    route(it);
+    if(typeof autosave==='function') autosave();
+    if(!quiet){ showWallet(); flash('Bought '+it.name+'.','ok'); }
+    return true;
+  }
+
+  function render(){
+    const L=ADNDEquipment.getShopListing(typeSel.value, classes()[0]||'fighter');
+    const items=(L.items||[]).filter(usable);
+    const cats=['armor','shield','weapon','ranged','ammo','supply'];
+    const labels={armor:'Armor',shield:'Shields',weapon:'Weapons',ranged:'Missile Weapons',ammo:'Ammunition',supply:'Supplies'};
+    let h='';
+    cats.forEach(c=>{
+      const inCat=items.filter(it=>catOf(it)===c);
+      if(!inCat.length) return;
+      h+='<div class="shp-cat">'+labels[c]+'</div>';
+      inCat.forEach(it=>{ const idx=items.indexOf(it); h+='<div class="shp-row"><span class="shp-name">'+it.name+'</span><span class="shp-cost">'+(it.cost||0)+' gp</span><span class="shp-wt">'+(it.weight||0)+' lb</span><button class="cg-btn shp-buy" data-idx="'+idx+'">Buy</button></div>'; });
+    });
+    listEl.innerHTML=h||'<div class="shp-empty">Nothing here for your class.</div>';
+    listEl.querySelectorAll('.shp-buy').forEach(b=>b.addEventListener('click',()=>buy(items[+b.dataset.idx])));
+    showWallet();
+  }
+
+  const KITS={
+    warrior:['chain_mail','large_shield','long_sword','dagger','backpack','rations','waterskin','torch','rope'],
+    cleric:['chain_mail','small_shield','mace','backpack','rations','waterskin','torch'],
+    rogue:['leather','short_sword','dagger','backpack','rations','waterskin','torch','rope'],
+    mage:['dagger','backpack','rations','waterskin','torch'],
+    monk:['dagger','backpack','rations','waterskin']
+  };
+  function kitFor(){
+    const cs=classes();
+    if(cs.some(c=>['fighter','paladin','ranger'].indexOf(c)>=0)) return KITS.warrior;
+    if(cs.some(c=>['cleric','druid'].indexOf(c)>=0)) return KITS.cleric;
+    if(cs.some(c=>['thief','assassin'].indexOf(c)>=0)) return KITS.rogue;
+    if(cs.indexOf('monk')>=0) return KITS.monk;
+    if(cs.some(c=>['magic-user','illusionist'].indexOf(c)>=0)) return KITS.mage;
+    return KITS.warrior;
+  }
+  function buyKit(){
+    let bought=0; const skipped=[];
+    kitFor().forEach(id=>{
+      const def=ADNDEquipment.getItemDef(id); if(!def) return;
+      const it=Object.assign({id:id}, def);
+      if(buy(it,true)) bought++; else skipped.push(def.name||id);
+    });
+    render();
+    flash('Kit: bought '+bought+(skipped.length?'; skipped (no coin): '+skipped.join(', '):'.'), skipped.length?'warn':'ok');
+  }
+
+  function open(){ overlay.style.display='flex'; render(); }
+  function close(){ overlay.style.display='none'; msgEl.textContent=''; }
+  document.getElementById('btn-shop').addEventListener('click',open);
+  document.getElementById('shp-x').addEventListener('click',close);
+  document.getElementById('shp-done').addEventListener('click',close);
+  overlay.addEventListener('click',e=>{ if(e.target===overlay) close(); });
+  typeSel.addEventListener('change',render);
+  document.getElementById('shp-kit').addEventListener('click',buyKit);
 })();
 </script>
 </body>
