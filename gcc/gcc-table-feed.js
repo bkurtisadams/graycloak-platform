@@ -21,7 +21,7 @@ const GCCTableFeed = (function(){
 
   let campId = null;
   let isGMFn = () => false;
-  let tray, panel, toggle, log, chatInput, qtyInput, modInput, dieLabel, badge;
+  let tray, panel, toggle, log, chatInput, qtyInput, modInput, bonusInput, dieLabel, badge;
   let selectedDie = 6;
   let _unsub = null;
   let _built = false;
@@ -60,7 +60,7 @@ const GCCTableFeed = (function(){
 .dice-toggle.open{background:var(--accent-dim)}
 .dice-unread{position:absolute;top:-2px;right:-2px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--red,#b03030);color:#fff;font-size:9px;font-weight:700;line-height:16px;text-align:center;font-family:var(--fb);display:none}
 .dice-unread.show{display:block}
-.dice-panel{display:none;position:absolute;bottom:54px;right:0;width:300px;background:var(--bg-card);border:1px solid var(--brd);border-radius:6px;box-shadow:var(--dd-shadow);overflow:hidden}
+.dice-panel{display:none;position:absolute;bottom:54px;right:0;width:300px;background:var(--bg-card);border:1px solid var(--brd);border-radius:6px;box-shadow:var(--dd-shadow);overflow:hidden;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
 .dice-panel.open{display:flex;flex-direction:column}
 .dice-panel-hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--brd);background:var(--bg2)}
 .dice-panel-title{font-family:var(--fsc);font-size:10px;letter-spacing:1.5px;color:var(--tx2)}
@@ -144,6 +144,11 @@ const GCCTableFeed = (function(){
         <input class="dice-mod" id="gcc-feed-mod" type="number" value="0" placeholder="±">
         <button class="dice-roll-btn" id="gcc-feed-roll">Roll</button>
       </div>
+      <div class="dice-input-row" style="margin-top:6px">
+        <span class="dice-lbl">FEAT&nbsp;bonus</span>
+        <input class="dice-mod" id="gcc-feed-bonus" type="number" value="0" placeholder="Karma">
+        <span class="dice-lbl" id="gcc-feed-bonus-hint">added to your next FEAT</span>
+      </div>
     </div>
   </div>
   <button class="dice-toggle" id="gcc-feed-toggle" title="Table log">🎲<span class="dice-unread" id="gcc-feed-unread"></span></button>`;
@@ -155,6 +160,7 @@ const GCCTableFeed = (function(){
     chatInput= tray.querySelector('#gcc-feed-chat');
     qtyInput = tray.querySelector('#gcc-feed-qty');
     modInput = tray.querySelector('#gcc-feed-mod');
+    bonusInput = tray.querySelector('#gcc-feed-bonus');
     dieLabel = tray.querySelector('#gcc-feed-die-label');
     badge    = tray.querySelector('#gcc-feed-unread');
 
@@ -228,6 +234,9 @@ const GCCTableFeed = (function(){
     });
   }
 
+  function getBonus(){ return bonusInput ? (parseInt(bonusInput.value)||0) : 0; }
+  function clearBonus(){ if(bonusInput) bonusInput.value = 0; }
+
   function postFeat(label, opts){
     opts = opts || {};
     if (!_built || !campId) return false;   // tray not active on this page
@@ -243,6 +252,7 @@ const GCCTableFeed = (function(){
       color: opts.color||'',
       ts: new Date().toISOString(),
     });
+    clearBonus();
     return true;
   }
 
@@ -388,5 +398,5 @@ const GCCTableFeed = (function(){
     refreshAuthState();
   }
 
-  return { init, postFeat };
+  return { init, postFeat, getBonus, clearBonus };
 })();

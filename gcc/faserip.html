@@ -616,6 +616,15 @@ body.view-mode .hdr-btn-edit-view{display:none}
 <script src="gcc-firebase-config.js"></script>
 <script src="gcc-auth.js"></script>
 <script src="gcc-sync.js"></script>
+<style>
+.dice-tray{
+  --bg-card:rgba(252,252,249,.93); --bg2:rgba(238,240,235,.96);
+  --brd:rgba(0,0,0,.18); --tx:#1a1a1a; --tx2:#555; --tx3:#888;
+  --fm:'Bitter',monospace; --fsc:'Oswald',sans-serif;
+  --accent-dim:#8b4500; --accent-lt:#d06a10;
+  --hover-bg:rgba(192,90,0,.08); --dd-shadow:0 8px 30px rgba(0,0,0,.28);
+}
+</style>
 <script src="gcc-invite.js"></script>
 <script src="gcc-table-feed.js"></script>
 <script>
@@ -823,7 +832,9 @@ function recalcSecondary(){
 }
 
 function rollFeat(rankName, label){
-  const roll = roll100();
+  const raw = roll100();
+  const fb = (typeof GCCTableFeed!=="undefined" && GCCTableFeed.getBonus) ? GCCTableFeed.getBonus() : 0;
+  const roll = Math.max(1, Math.min(100, raw + fb));
   const rankIdx = RANKS.findIndex(r=>r.name===rankName);
   // Universal Table thresholds (simplified for standalone)
   // White < Green < Yellow < Red
@@ -852,11 +863,14 @@ function rollFeat(rankName, label){
   if(roll >= t.r){ color="Red"; colorHex="#cc1111"; }
   else if(roll >= t.y){ color="Yellow"; colorHex="#e0c800"; }
   else if(roll >= t.g){ color="Green"; colorHex="#22bb22"; }
+  const lbl = fb ? (label+" +"+fb) : label;
+  const shown = fb ? (raw+"+"+fb+"="+roll) : roll;
   const posted = (typeof GCCTableFeed!=="undefined" && typeof GCCTableFeed.postFeat==="function")
-    ? GCCTableFeed.postFeat(label, { roll, target:rankName, band:color, color:colorHex })
+    ? GCCTableFeed.postFeat(lbl, { roll: shown, target:rankName, band:color, color:colorHex })
     : false;
   if(!posted){
-    const msg = `${label}: Roll ${roll} vs ${rankName} → <span style="color:${colorHex};font-weight:700">${color}</span>`;
+    const extra = fb ? ` (${raw}+${fb})` : "";
+    const msg = `${label}: Roll ${roll}${extra} vs ${rankName} → <span style="color:${colorHex};font-weight:700">${color}</span>`;
     MPDialog.alert('FEAT Result', msg);
   }
 }
@@ -2124,6 +2138,7 @@ function syncTableFeed(){
   const urlCamp=new URLSearchParams(window.location.search).get('camp');
   _feedCampId=(CHAR && CHAR._campaign) || urlCamp || null;
   if(!_feedCampId) return;
+  try{ localStorage.setItem('gcc-active-campaign', _feedCampId); }catch(e){}
   GCCTableFeed.init({ campId:_feedCampId, isGM: ()=>_amOwner });
   refreshFeedOwner();
 }

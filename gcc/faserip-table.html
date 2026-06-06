@@ -237,6 +237,17 @@ table.ut-grid{border-collapse:collapse;font-family:var(--fd);font-size:10px;tabl
 <script src="gcc-firebase-config.js"></script>
 <script src="gcc-auth.js"></script>
 <script src="gcc-sync.js"></script>
+<style>
+.dice-tray{
+  --bg-card:rgba(252,252,249,.93); --bg2:rgba(238,240,235,.96);
+  --brd:rgba(0,0,0,.18); --tx:#1a1a1a; --tx2:#555; --tx3:#888;
+  --fm:'Barlow Condensed',monospace; --fsc:'Oswald',sans-serif;
+  --accent-dim:#8b4500; --accent-lt:#d06a10;
+  --hover-bg:rgba(192,90,0,.08); --dd-shadow:0 8px 30px rgba(0,0,0,.28);
+}
+</style>
+<script src="gcc-invite.js"></script>
+<script src="gcc-table-feed.js"></script>
 <script>
 // ══════════════════════════════════════════════════════════════
 // DATA
@@ -488,7 +499,9 @@ function wireDice() {
       return;
     }
 
-    const roll = Math.floor(Math.random() * 100) + 1;
+    const raw = Math.floor(Math.random() * 100) + 1;
+    const bonus = (typeof GCCTableFeed!=="undefined" && GCCTableFeed.getBonus) ? GCCTableFeed.getBonus() : 0;
+    const roll = Math.max(1, Math.min(100, raw + bonus));
 
     let ri = -1;
     for (let i = 0; i < ROLL_RANGES.length; i++) {
@@ -507,13 +520,19 @@ function wireDice() {
       cell.scrollIntoView({behavior:'smooth', block:'nearest'});
     }
 
+    const rollTxt = bonus ? (raw + '+' + bonus + '=' + roll) : String(roll);
     document.getElementById('dice-strip').innerHTML =
-      '<span class="dr-num">' + roll + '</span>' +
+      '<span class="dr-num">' + rollTxt + '</span>' +
       '<span class="dr-arrow">\u2192</span>' +
       '<span class="dr-rank">' + RANKS[selectedCol].name + ' (' + RANKS[selectedCol].abbr + ')</span>' +
       '<span class="dr-eq">=</span>' +
       '<span class="dr-swatch" style="background:' + COLOR_HEX[color] + '"></span>' +
       '<span class="dr-label" style="color:' + COLOR_TX[color] + '">' + COLOR_NAMES[color] + '</span>';
+
+    if (typeof GCCTableFeed!=="undefined" && GCCTableFeed.postFeat) {
+      const rn = RANKS[selectedCol];
+      GCCTableFeed.postFeat(rn.name + ' FEAT', { roll: rollTxt, target: rn.name, band: COLOR_NAMES[color], color: COLOR_HEX[color] });
+    }
   });
 }
 
@@ -759,6 +778,21 @@ function wireActionPopup() {
 // INIT
 // ══════════════════════════════════════════════════════════════
 
+let _utCamp=null,_utOwner=false;
+function utRefreshOwner(){
+  if(!_utCamp || typeof GCCInvite==="undefined" || !GCCInvite.isOwner) return;
+  GCCInvite.isOwner(_utCamp).then(v=>{_utOwner=!!v;}).catch(()=>{_utOwner=false;});
+}
+function utInitFeed(){
+  if(typeof GCCTableFeed==="undefined" || !GCCTableFeed.init) return;
+  const p=new URLSearchParams(location.search).get('camp');
+  let ls=null; try{ls=localStorage.getItem('gcc-active-campaign');}catch(e){}
+  _utCamp=p||ls||null;
+  if(!_utCamp) return;
+  GCCTableFeed.init({ campId:_utCamp, isGM: ()=>_utOwner });
+  utRefreshOwner();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   buildActionTable();
   buildRankTable();
@@ -767,6 +801,9 @@ document.addEventListener('DOMContentLoaded', () => {
   wireColumnSelect();
   wireDice();
   wireActionPopup();
+  utInitFeed();
+  window.addEventListener('gcc-sync-ready', utRefreshOwner);
+  if(typeof GCCAuth!=="undefined" && GCCAuth.onAuthChange) GCCAuth.onAuthChange(()=>utRefreshOwner());
 
   document.getElementById('btn-print').addEventListener('click', () => window.print());
 });
