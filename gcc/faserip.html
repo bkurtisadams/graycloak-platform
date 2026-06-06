@@ -614,6 +614,7 @@ body.view-mode .hdr-btn-edit-view{display:none}
 <script src="gcc-firebase-config.js"></script>
 <script src="gcc-auth.js"></script>
 <script src="gcc-sync.js"></script>
+<script src="gcc-table-feed.js"></script>
 <script>
 // ══════════════════════════════════════════════════════════════
 // FASERIP CHARACTER SHEET — fas-app.js (inline)
@@ -839,8 +840,13 @@ function rollFeat(rankName, label){
   if(roll >= t.r){ color="Red"; colorHex="#cc1111"; }
   else if(roll >= t.y){ color="Yellow"; colorHex="#e0c800"; }
   else if(roll >= t.g){ color="Green"; colorHex="#22bb22"; }
-  const msg = `${label}: Roll ${roll} vs ${rankName} → <span style="color:${colorHex};font-weight:700">${color}</span>`;
-  MPDialog.alert('FEAT Result', msg);
+  const posted = (typeof GCCTableFeed!=="undefined" && typeof GCCTableFeed.postFeat==="function")
+    ? GCCTableFeed.postFeat(label, { roll, target:rankName, band:color, color:colorHex })
+    : false;
+  if(!posted){
+    const msg = `${label}: Roll ${roll} vs ${rankName} → <span style="color:${colorHex};font-weight:700">${color}</span>`;
+    MPDialog.alert('FEAT Result', msg);
+  }
 }
 
 // ── Movement calculation ──
@@ -943,7 +949,12 @@ function renderList(listId, items, type){
       const arr=t==="power"?CHAR.powers:t==="talent"?CHAR.talents:CHAR.contacts;
       const item=arr[idx];
       if(t==="power") rollFeat(item.rank||"Typical", item.name);
-      else if(t==="talent") rollFeat("Remarkable", item.name);
+      else if(t==="talent"){
+        const ab=(item.abilityModified||"").toLowerCase();
+        const ad=CHAR.abilities[ab];
+        if(ad) rollFeat(shiftRank(ad.rank||"Typical",1), item.name+" ("+ab.charAt(0).toUpperCase()+ab.slice(1)+" +1CS)");
+        else rollFeat(item.rankOverride||"Typical", item.name);
+      }
       else{ const popRank=getRankForValue(Math.abs(CHAR.popularityHero)); rollFeat(popRank, item.name); }
     });
   });
@@ -2091,6 +2102,11 @@ function importChar(file){
 // ══════════════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════════════
+function syncTableFeed(){
+  if(typeof GCCTableFeed==="undefined" || !GCCTableFeed.init) return;
+  if(CHAR && CHAR._campaign) GCCTableFeed.init({ campId: CHAR._campaign, isGM: ()=>false });
+}
+
 document.addEventListener("DOMContentLoaded",()=>{
   // Check for ?id= or ?char= param to load a specific saved character
   const urlParams = new URLSearchParams(window.location.search);
@@ -2109,6 +2125,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   renderAll();
   bindFields();
   bindAddButtons();
+  syncTableFeed();
 
   // Karma ledger toggle
   document.getElementById('karma-value').addEventListener('click',()=>{
@@ -2169,6 +2186,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     } else {
       CHAR._campaign = camps[pick].id;
       autosave(); saveChar();
+      syncTableFeed();
       await MPDialog.alert('Assigned', 'Character assigned to <b>' + camps[pick].name + '</b>.');
     }
   });

@@ -25,6 +25,7 @@ const GCCTableFeed = (function(){
   let selectedDie = 6;
   let _unsub = null;
   let _built = false;
+  let _wired = false;
   let _seen = 0;       // entries currently shown
   let _unread = 0;
 
@@ -41,6 +42,12 @@ const GCCTableFeed = (function(){
   }
   function gm(){
     try { return !!isGMFn(); } catch(_) { return false; }
+  }
+  function readableText(hex){
+    const h = String(hex||'').replace('#','');
+    if (h.length < 6) return '#000';
+    const r=parseInt(h.slice(0,2),16), g=parseInt(h.slice(2,4),16), b=parseInt(h.slice(4,6),16);
+    return (0.299*r + 0.587*g + 0.114*b) > 150 ? '#000' : '#fff';
   }
 
   // ── CSS (injected once; ports the original .dice-* styles verbatim) ──
@@ -93,6 +100,10 @@ const GCCTableFeed = (function(){
 .dice-roll-btn:hover{background:var(--accent-lt)}
 .dice-roll-btn:disabled{opacity:0.4;cursor:default}
 .dice-lbl{font-size:9px;color:var(--tx3);font-family:var(--fsc);letter-spacing:.5px}
+.dice-feat{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.dice-feat-label{flex:1;min-width:0;color:var(--tx);font-size:11px}
+.dice-feat-roll{font-family:var(--fm);font-weight:700;font-size:13px;color:var(--accent)}
+.dice-feat-band{font-family:var(--fb);font-weight:700;font-size:9px;letter-spacing:.5px;padding:1px 6px;border-radius:8px;text-transform:uppercase;flex-shrink:0}
 @media(max-width:500px){.dice-panel{width:calc(100vw - 32px);right:0}}`;
     const el = document.createElement('style');
     el.id = 'gcc-table-feed-css';
@@ -217,6 +228,24 @@ const GCCTableFeed = (function(){
     });
   }
 
+  function postFeat(label, opts){
+    opts = opts || {};
+    if (!_built || !campId) return false;   // tray not active on this page
+    const u = user();
+    pushEntry({
+      kind:'feat',
+      uid: u?u.uid:'local',
+      name: u?(u.displayName||u.email.split('@')[0]):'Local',
+      label: String(label||''),
+      roll: opts.roll,
+      target: opts.target||'',
+      band: opts.band||'',
+      color: opts.color||'',
+      ts: new Date().toISOString(),
+    });
+    return true;
+  }
+
   function sendChat(){
     const raw = (chatInput.value||'').trim();
     if(!raw) return;
@@ -250,6 +279,16 @@ const GCCTableFeed = (function(){
       div.innerHTML =
         `<div class="dice-entry-top"><span class="dice-who">${esc(data.name||'?')}</span><span class="dice-when">${esc(timeStr)}</span></div>`+
         `<div class="dice-text">${esc(data.text||'')}</div>`+delBtn;
+    } else if (data.kind === 'feat'){
+      const tgt = data.target ? ` vs ${esc(data.target)}` : '';
+      const color = String(data.color||'#999');
+      const band = data.band
+        ? `<span class="dice-feat-band" style="background:${esc(color)};color:${readableText(color)}">${esc(data.band)}</span>`
+        : '';
+      div.innerHTML =
+        `<div class="dice-entry-top"><span class="dice-who">${esc(data.name||'?')}</span><span class="dice-when">${esc(timeStr)}</span></div>`+
+        `<div class="dice-feat"><span class="dice-feat-label">${esc(data.label||'')}${tgt}</span>`+
+          `<span class="dice-feat-roll">${esc(data.roll)}</span>${band}</div>`+delBtn;
     } else {
       const detail = data.rolls ? data.rolls.join(' + ')+(data.mod?(' '+((data.mod>0?'+':'')+data.mod)):'') : '';
       div.innerHTML =
@@ -341,10 +380,13 @@ const GCCTableFeed = (function(){
     build();
     tray.style.display = '';
     // Wait for sync/auth to settle, then wire the live feed.
-    window.addEventListener('gcc-sync-ready', refreshAuthState);
-    if (typeof GCCAuth !== 'undefined') GCCAuth.onAuthChange(()=>refreshAuthState());
+    if (!_wired){
+      window.addEventListener('gcc-sync-ready', refreshAuthState);
+      if (typeof GCCAuth !== 'undefined') GCCAuth.onAuthChange(()=>refreshAuthState());
+      _wired = true;
+    }
     refreshAuthState();
   }
 
-  return { init };
+  return { init, postFeat };
 })();
