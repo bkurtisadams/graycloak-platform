@@ -70,6 +70,7 @@ const GCC = (function() {
       icon: '🗡',
       color: '#5a8a30',
       tools: [
+        { id: 'add1-play', name: 'Play / Character Select', href: 'play.html' },
         { id: 'add1-map', name: 'Campaign Map', href: 'greyhawk-map.html' },
         { id: 'add1-char', name: 'Character Sheet', href: 'adnd.html', charList: 'gcc-add1e-chars' },
         { id: 'add1-enc', name: 'Encounter Generator', href: null },

@@ -5218,5 +5218,41 @@ window.addEventListener('load',init);
 <!-- Page version stamp (bottom-right). Bump GCC_VERSION as you edit. -->
 <script>window.GCC_VERSION = 'greyhawk-map v1.0.0';</script>
 <script src="gcc-version-badge.js?v=1"></script>
+<style>
+#gcc-active-badge{position:fixed;left:12px;bottom:12px;z-index:250;display:none;align-items:center;gap:8px;background:var(--panel-bg,#0e0802);border:1px solid var(--gold,#c8941a);border-radius:4px;padding:6px 11px;font-family:'Cinzel',serif;font-size:11px;color:var(--gold-light,#e8b840);box-shadow:0 4px 16px rgba(0,0,0,.55)}
+#gcc-active-badge .gab-dot{color:var(--gold,#c8941a)}
+#gcc-active-badge .gab-name{font-weight:700}
+#gcc-active-badge .gab-sub{opacity:.7;font-family:'Alegreya',serif}
+#gcc-active-badge .gab-none{opacity:.7}
+#gcc-active-badge .gab-switch{color:var(--gold-light,#e8b840);text-decoration:underline;font-family:'Alegreya',serif;cursor:pointer;margin-left:2px}
+</style>
+<script>
+(function(){
+  function esc(s){var d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML;}
+  function readActive(){
+    var id=null; try{ id=localStorage.getItem('gcc-active-char'); }catch(e){}
+    var all=[];
+    try{ all=(window.GCC&&GCC.load)?(GCC.load(GCC.KEYS.add1eChars)||[]):(JSON.parse(localStorage.getItem('gcc-add1e-chars'))||[]); }catch(e){}
+    var pc=id?all.filter(function(c){return c._id===id;})[0]:null;
+    window.GCC_ACTIVE_PC=pc||null;
+    window.GCC_ACTIVE_PARTY=pc?[pc]:[];
+    return pc||null;
+  }
+  function badge(pc){
+    var el=document.getElementById('gcc-active-badge');
+    if(!el){ el=document.createElement('div'); el.id='gcc-active-badge'; document.body.appendChild(el); }
+    if(pc){
+      var sub=[pc.race,((pc.characterClass||'')+(pc.level?' '+pc.level:'')).trim()].filter(Boolean).join(' \u00b7 ');
+      el.innerHTML='<span class="gab-dot">\u25b6</span><span class="gab-name">'+esc(pc.characterName||'Adventurer')+'</span>'+(sub?'<span class="gab-sub">'+esc(sub)+'</span>':'')+'<a class="gab-switch" href="play.html">Switch</a>';
+    } else {
+      el.innerHTML='<span class="gab-none">No active character</span><a class="gab-switch" href="play.html">Choose</a>';
+    }
+    el.style.display='flex';
+  }
+  function go(){ badge(readActive()); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',go); else go();
+  window.addEventListener('gcc-sync-ready',go);
+})();
+</script>
 </body>
 </html>
