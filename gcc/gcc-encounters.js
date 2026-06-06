@@ -471,6 +471,22 @@
       // Singular fallback for 'Hobgoblins' → 'Hobgoblin'
       const singular = m.name.toLowerCase().replace(/s$/, '');
       if (!idx.has(singular)) idx.set(singular, m);
+      // Variant stat blocks (e.g. Cat → 'Lynx, Giant') carry their own
+      // combat fields but inherit shared traits from the parent. Index a
+      // merged parent+variant record keyed by the variant's type so tables
+      // that name the variant resolve to a full stat block instead of
+      // falling back to the parent's defaults (or null). A top-level name
+      // already in the index wins over a colliding variant key.
+      if (Array.isArray(m.variants)){
+        for (const v of m.variants){
+          if (!v || !v.type) continue;
+          const merged = Object.assign({}, m, v, { name: v.type, variants: undefined });
+          const vk = v.type.toLowerCase().trim();
+          if (vk && !idx.has(vk)) idx.set(vk, merged);
+          const vs = vk.replace(/s$/, '');
+          if (vs && !idx.has(vs)) idx.set(vs, merged);
+        }
+      }
     }
     return idx;
   }
@@ -510,6 +526,10 @@
     'men, tribesmen (hillmen)':  'men, tribesmen',
     'men, pirate (near water)':  'men, buccaneer',  // pirates = chaotic evil buccaneers per MM
     'men, pirate':               'men, buccaneer',
+    // Cat variants live in the 'Cat' entry's variants[]; the index now
+    // resolves 'Lynx, Giant' directly — this covers the reversed spelling
+    // ('Giant lynx') some tables use.
+    'giant lynx':                'lynx, giant',
   };
   function lookupMonster(name){
     if (!_mmIndex) _mmIndex = buildMMIndex();
