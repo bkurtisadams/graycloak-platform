@@ -127,7 +127,9 @@ body{min-height:100vh;background:var(--bg);color:var(--dark);font-family:var(--f
 .ab-table{border-collapse:collapse;width:100%}
 .ab-table th{font-family:var(--fd);font-size:9px;font-weight:700;letter-spacing:.5px;padding:2px 4px;text-align:center;border-bottom:1.5px solid #000}
 .ab-table td{padding:2px 4px;text-align:center;height:var(--cell-h);border-bottom:1px solid #ddd}
-.ab-table .ab-key{font-family:var(--fd);font-size:18px;font-weight:900;width:28px;background:#f4f4f0;cursor:default}
+.ab-table .ab-key{font-family:var(--fd);font-size:16px;font-weight:900;width:36px;background:#f4f4f0;padding:2px}
+.ab-key-in{display:flex;flex-direction:column;align-items:center;gap:2px}
+.ab-feat{font-size:7px!important;padding:0 3px!important;line-height:1.5!important}
 .ab-table input{width:100%;border:none;background:transparent;text-align:center;font-family:var(--fb);font-size:11px;font-weight:700;outline:none;padding:0}
 .ab-table input:focus{border-bottom:1px solid var(--accent)}
 .ab-table select{width:100%;border:none;background:transparent;font-family:var(--fb);font-size:10px;font-weight:700;outline:none;cursor:pointer;text-align:center;-webkit-appearance:none;appearance:none;padding:0 2px}
@@ -278,7 +280,7 @@ body{min-height:100vh;background:var(--bg);color:var(--dark);font-family:var(--f
 /* ── View Mode ── */
 body.view-mode .fas-hdr-btns .hdr-btn:not(.hdr-btn-view-edit){ display:none }
 body.view-mode .chargen-panel{ display:none!important }
-body.view-mode .list-add,body.view-mode .item-del,body.view-mode .item-info,body.view-mode .feat-btn,body.view-mode .bio-toggle{ display:none!important }
+body.view-mode .list-add,body.view-mode .item-del,body.view-mode .item-info,body.view-mode .bio-toggle{ display:none!important }
 body.view-mode input,body.view-mode select,body.view-mode textarea{ pointer-events:none!important; user-select:text!important; -webkit-user-select:text!important; opacity:1!important }
 body.view-mode .karma-toggle{ pointer-events:auto!important; cursor:pointer!important }
 body.view-mode input:focus,body.view-mode select:focus,body.view-mode textarea:focus{ outline:none!important; border-color:inherit!important }
@@ -773,7 +775,7 @@ function renderAbilities(){
     const a=CHAR.abilities[key];
     const tr=document.createElement("tr");
     tr.innerHTML=`
-      <td class="ab-key" title="${key}">${AB_LABELS[key]}</td>
+      <td class="ab-key" title="${key}"><div class="ab-key-in"><span>${AB_LABELS[key]}</span><button class="feat-btn ab-feat" data-ab="${key}" title="Roll ${key.charAt(0).toUpperCase()+key.slice(1)} FEAT">d100</button></div></td>
       <td><input type="number" value="${a.initialRoll}" data-ab="${key}" data-abf="initialRoll"></td>
       <td><input class="si-calc" type="text" value="${a.initialRank}" data-ab="${key}" data-abf="initialRank" style="font-size:9px" readonly></td>
       <td><select data-ab="${key}" data-abf="rank">${buildRankOptions(a.rank)}</select></td>
@@ -797,6 +799,15 @@ function renderAbilities(){
       }
       recalcSecondary();
       autosave();
+    });
+  });
+  tbody.querySelectorAll(".ab-feat").forEach(el=>{
+    el.addEventListener("click",e=>{
+      e.stopPropagation();
+      const key=e.currentTarget.dataset.ab;
+      const a=CHAR.abilities[key];
+      const full=key.charAt(0).toUpperCase()+key.slice(1);
+      rollFeat(a.rank||"Typical", full+" FEAT");
     });
   });
 }
@@ -2104,7 +2115,9 @@ function importChar(file){
 // ══════════════════════════════════════════════════════════════
 function syncTableFeed(){
   if(typeof GCCTableFeed==="undefined" || !GCCTableFeed.init) return;
-  if(CHAR && CHAR._campaign) GCCTableFeed.init({ campId: CHAR._campaign, isGM: ()=>false });
+  const urlCamp=new URLSearchParams(window.location.search).get('camp');
+  const campId=(CHAR && CHAR._campaign) || urlCamp || null;
+  if(campId) GCCTableFeed.init({ campId, isGM: ()=>false });
 }
 
 document.addEventListener("DOMContentLoaded",()=>{
