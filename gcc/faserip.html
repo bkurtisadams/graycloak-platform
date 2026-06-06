@@ -616,6 +616,7 @@ body.view-mode .hdr-btn-edit-view{display:none}
 <script src="gcc-firebase-config.js"></script>
 <script src="gcc-auth.js"></script>
 <script src="gcc-sync.js"></script>
+<script src="gcc-invite.js"></script>
 <script src="gcc-table-feed.js"></script>
 <script>
 // ══════════════════════════════════════════════════════════════
@@ -2113,11 +2114,18 @@ function importChar(file){
 // ══════════════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════════════
+let _feedCampId=null, _amOwner=false;
+function refreshFeedOwner(){
+  if(!_feedCampId || typeof GCCInvite==="undefined" || !GCCInvite.isOwner) return;
+  GCCInvite.isOwner(_feedCampId).then(v=>{ _amOwner=!!v; }).catch(()=>{ _amOwner=false; });
+}
 function syncTableFeed(){
   if(typeof GCCTableFeed==="undefined" || !GCCTableFeed.init) return;
   const urlCamp=new URLSearchParams(window.location.search).get('camp');
-  const campId=(CHAR && CHAR._campaign) || urlCamp || null;
-  if(campId) GCCTableFeed.init({ campId, isGM: ()=>false });
+  _feedCampId=(CHAR && CHAR._campaign) || urlCamp || null;
+  if(!_feedCampId) return;
+  GCCTableFeed.init({ campId:_feedCampId, isGM: ()=>_amOwner });
+  refreshFeedOwner();
 }
 
 document.addEventListener("DOMContentLoaded",()=>{
@@ -2139,6 +2147,8 @@ document.addEventListener("DOMContentLoaded",()=>{
   bindFields();
   bindAddButtons();
   syncTableFeed();
+  window.addEventListener('gcc-sync-ready', refreshFeedOwner);
+  if(typeof GCCAuth!=="undefined" && GCCAuth.onAuthChange) GCCAuth.onAuthChange(()=>refreshFeedOwner());
 
   // Karma ledger toggle
   document.getElementById('karma-value').addEventListener('click',()=>{
