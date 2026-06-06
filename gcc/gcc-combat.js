@@ -1,4 +1,4 @@
-// gcc-combat.js v0.1.0 - 2026-06-06
+// gcc-combat.js v0.2.0 - 2026-06-06
 // Bridges the GCC encounter panel (greyhawk-map.html) to the dungeon-encounter
 // tactical sim. Adds a Fight button to the encounter panel, stages the handoff
 // payload, and on return applies HP/XP back to the active character + logs it.
@@ -52,6 +52,23 @@
     };
   }
 
+// OSRIC: monster XP is divided among the party members who survive the fight
+  // (the dead don't advance). Remainder is handed to the first survivors so no
+  // XP is silently lost. Per-character credit goes through _awardXP.
+  function _survivorIds(res) {
+    return (res.party || [])
+      .filter(function (p) { return !p.dead && _num(p.hp_current, 0) > 0; })
+      .map(function (p) { return String(p.id); });
+  }
+
+  // Credit one character with an XP share. Single-class chars take it on
+  // xpTotal. TODO(multiclass): OSRIC splits a character's earned XP evenly
+  // across its classes - wire once the chargen multiclass schema is settled.
+  function _awardXP(char, amount) {
+    if (!char || amount <= 0) return;
+    char.xpTotal = _num(char.xpTotal, 0) + amount;
+  }
+
   // Pure: apply a sim result to a chars array. Returns { chars, log, summary }.
   function _applyResult(res, chars, activeId) {
     chars = chars || [];
@@ -62,8 +79,12 @@
       if (c && p.hp_current != null) c.hpCurrent = p.hp_current;
     });
     var xp = _num(res.xp_awarded, 0);
-    var active = activeId != null ? byId[String(activeId)] : null;
-    if (xp > 0 && active) active.xpTotal = _num(active.xpTotal, 0) + xp;
+    var survivors = _survivorIds(res).filter(function (id) { return byId[id]; });
+    if (xp > 0 && survivors.length) {
+      var share = Math.floor(xp / survivors.length);
+      var rem = xp - share * survivors.length;
+      survivors.forEach(function (id, i) { _awardXP(byId[id], share + (i < rem ? 1 : 0)); });
+    }
     var entry = {
       ts: Date.now(),
       label: res.label || (res.defeated_monsters && res.defeated_monsters[0] && res.defeated_monsters[0].label) || 'Encounter',

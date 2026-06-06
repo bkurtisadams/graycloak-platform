@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.39 -->
+<!-- dungeon-encounter — v0.9.40 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -920,6 +920,7 @@ body.light .round-head .rh-title { font-family: inherit; }
     <h2>Combat Ends</h2>
     <div class="outcome" id="go-outcome"></div>
     <div class="stats" id="go-stats"></div>
+    <button id="go-return" style="display:none" onclick="App.returnToMap()">Return to Map</button>
     <button onclick="App.dismissGameOver()">Review Board</button>
     <button onclick="App.resetCombat()">Run Again</button>
   </div>
@@ -929,7 +930,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.39';
+const SIM_VERSION = 'v0.9.40';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -5947,6 +5948,8 @@ function showGameOver() {
   const survivors = aliveCombatantsOnSide(state, winner).map(c => `${c.label} (${c.hp_current}/${c.hp_max})`).join(' · ');
   const xpEarned = state.combatants.filter(c => c.dead && c.side !== winner).reduce((s, c) => s + _num(c.xp, 0), 0);
   document.getElementById('go-stats').innerHTML = `Round ${state.round} · survivors: <span class="v">${survivors}</span>` + (xpEarned > 0 ? ` · XP earned: <span class="v">${xpEarned}</span>` : '');
+  const _ret = document.getElementById('go-return');
+  if (_ret) _ret.style.display = _handoff ? '' : 'none';
   emitEncounterResult();
 }
 
@@ -6705,6 +6708,10 @@ const App = {
   },
   dismissGameOver() {
     document.getElementById('game-over').style.display = 'none';
+  },
+  returnToMap() {
+    emitEncounterResult();            // idempotent (guarded by _handoffEmitted)
+    window.location.href = 'greyhawk-map.html';
   },
 
   handleTokenClick(id) {

@@ -4010,6 +4010,18 @@ function continueJourney(){
   renderJourneyLog();
   scheduleTick();
 }
+
+// Resume a journey that paused on an encounter once gcc-combat.js has applied
+// the fight result on return from the sim. Deferred a tick so the boot restore
+// has rehydrated state.journey first. Tied to the applied event (not a plain
+// reload) so accidental reloads still require a manual Continue.
+window.addEventListener('gcc-encounter-applied', function () {
+  setTimeout(function () {
+    const j = state.journey;
+    if (j && j.status === 'paused' && j.pauseReason === 'encounter') continueJourney();
+  }, 0);
+});
+
 function abortJourney(){
   const j = state.journey;
   if (!j) return;
