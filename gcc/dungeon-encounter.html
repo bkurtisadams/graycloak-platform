@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.42 -->
+<!-- dungeon-encounter — v0.9.43 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -930,7 +930,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.42';
+const SIM_VERSION = 'v0.9.43';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -2979,6 +2979,17 @@ let _handoff = null;          // { onResolved, context } while a launched encoun
 let _handoffEmitted = false;  // guard: emit the result exactly once
 const HANDOFF_KEY = 'gcc-pending-encounter';   // GCC writes the payload here, the engine consumes it on boot
 const HANDOFF_RESULT_KEY = 'gcc-encounter-result'; // engine writes the outcome here for GCC to read back
+let _returnTo = null;   // optional same-origin map page the launcher wants us to return to
+// Accept only a same-origin relative *.html path. Reject schemes (javascript:/data:/http:),
+// protocol-relative URLs, and parent traversal so a payload can't redirect us off-site.
+function _sanitizeReturnTo(u) {
+  if (typeof u !== 'string' || !u) return null;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(u)) return null;
+  if (/^\/\//.test(u)) return null;
+  if (u.indexOf('..') >= 0) return null;
+  if (!/\.html?(\?|#|$)/i.test(u)) return null;
+  return u;
+}
 
 // MM-entry -> CDATA-shaped template. The bundled Monster Manual (GCCEncounters.lookupMonster)
 // is messy: dual-cased keys, attacks as a count + slashed damage string, HD in several
@@ -3080,6 +3091,7 @@ function _normalizeMonsters(list) {
 function initEncounter(payload) {
   payload = payload || {};
   const ctx = payload.context || {};
+  _returnTo = _sanitizeReturnTo(ctx.returnUrl);   // null for standalone/world-map launches
   state.combatants.length = 0;
   state.formation = {};
   state.declarations = {};
@@ -6731,7 +6743,7 @@ const App = {
   },
   returnToMap() {
     emitEncounterResult();            // idempotent (guarded by _handoffEmitted)
-    window.location.href = 'greyhawk-map.html';
+    window.location.href = _returnTo || 'greyhawk-map.html';
   },
 
   handleTokenClick(id) {

@@ -77,7 +77,7 @@ body{height:100vh;overflow:hidden;display:flex;flex-direction:column;background:
       <img id="roof" src="maps/hommlet_roofs.webp" alt="Hommlet roofs">
       <svg id="grid" width="2600" height="2600"></svg>
     </div>
-    <div id="popup"><button class="close" id="p-close">&times;</button><h3 id="p-name"></h3><button id="p-go">Travel here</button></div>
+    <div id="popup"><button class="close" id="p-close">&times;</button><h3 id="p-name"></h3><button id="p-go">Travel here</button><button id="p-fight">&#9876; Fight here</button></div>
     <div id="toast"></div>
     <div class="hint" id="hint">Click a building to visit · click ground to walk · Roofs off to see floorplans · drag/wheel to navigate</div>
   </div>
@@ -102,6 +102,9 @@ body{height:100vh;overflow:hidden;display:flex;flex-direction:column;background:
 <script src="gcc-header.js"></script>
 <script src="gcc-firebase-config.js"></script>
 <script src="gcc-auth.js"></script>
+<script src="gcc-encounter-data.js?v=2"></script>
+<script src="gcc-encounters.js?v=8"></script>
+<script src="gcc-combat.js?v=2"></script>
 <script>
 var W=2600,H=2600,GC=100,RATE=120;
 var POIS=[
@@ -200,6 +203,22 @@ function renderHUD(c){var nm=fld(c,['characterName','name'],'New character'),cl=
 var CUR=null;function spk(c){return 'gcc-scenepos-'+SCENE+'-'+c._id;}
 function spawn(c,atHome){CUR=c;var pp=atHome?null:lj(spk(c));token.fx=pp?pp.fx:HOME.fx;token.fy=pp?pp.fy:HOME.fy;placeToken();renderHUD(c);}
 var _om=moveToken;moveToken=function(fx,fy){_om(fx,fy);if(CUR&&!CUR._demo){try{localStorage.setItem(spk(CUR),JSON.stringify({fx:token.fx,fy:token.fy}));}catch(e){}}};
+// --- Combat handoff: town trigger -> dungeon-encounter.html -> back to town ---
+window.GCC_RETURN_URL='hommlet.html';        // bring the sim back here, not the world map
+window.showToast=toast;                      // let gcc-combat.js surface its result summary
+function launchFight(pin){
+  if(!CUR||CUR._demo){toast('Choose a saved character to fight');return;}
+  if(typeof GCCCombat==='undefined'||typeof GCCEncounters==='undefined'){toast('Combat system not loaded');return;}
+  var foe=(pin&&pin.foe)||'Kobold';          // per-building foe comes later; generic first cut
+  var mm=GCCEncounters.lookupMonster(foe)||GCCEncounters.lookupMonster('Kobold');
+  if(!mm){toast('No foe data for '+foe);return;}
+  window.GCC_ACTIVE_PARTY=[CUR];
+  closePopup();
+  GCCCombat.fight({mmStats:mm,numberRolled:2+Math.floor(Math.random()*3),distance:{yards:4},label:(pin&&pin.name)||'Hommlet'});
+}
+var _pf=document.getElementById('p-fight');
+if(_pf)_pf.onclick=function(){if(openPin)launchFight(openPin);};
+window.addEventListener('gcc-encounter-applied',function(){var c=activeChar();if(c){CUR=c;renderHUD(c);}toast('Returned from combat');});
 document.getElementById('b-new').onclick=function(){window.location.href='adnd.html';};
 var init=activeChar();spawn(init||demoChar(),!init);
 })();

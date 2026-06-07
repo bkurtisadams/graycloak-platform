@@ -1,4 +1,4 @@
-// gcc-combat.js v0.2.0 - 2026-06-06
+// gcc-combat.js v0.2.1 - 2026-06-07
 // Bridges the GCC encounter panel (greyhawk-map.html) to the dungeon-encounter
 // tactical sim. Adds a Fight button to the encounter panel, stages the handoff
 // payload, and on return applies HP/XP back to the active character + logs it.
@@ -22,6 +22,16 @@
   function _save(key, val) { try { if (window.GCC && GCC.save) GCC.save(key, val); else localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
   function _num(v, d) { var n = parseInt(v, 10); return isNaN(n) ? (d || 0) : n; }
   function _toast(msg) { if (typeof window.showToast === 'function') window.showToast(msg); }
+
+  // Where the sim should return after this encounter. A launching page may set
+  // window.GCC_RETURN_URL to a relative *.html on this origin; otherwise we send
+  // the engine back to whatever page launched the fight. Falls back to the world map.
+  function _returnUrl() {
+    var u = window.GCC_RETURN_URL;
+    if (typeof u === 'string' && u) return u;
+    try { var p = (location.pathname || '').split('/').pop(); if (p && /\.html?$/i.test(p)) return p; } catch (e) {}
+    return 'greyhawk-map.html';
+  }
 
   // surprise.label -> sim side flag ('monsters' = party gets the drop, 'party' = caught out)
   function _surpriseSide(s) {
@@ -111,6 +121,7 @@
     if (!result || !result.mmStats) { _toast('No monster in this encounter to fight'); return false; }
     var payload = _buildPayload(result, party);
     if (!payload.monsters.length) { _toast('Nothing to fight here'); return false; }
+    payload.context.returnUrl = _returnUrl();
     _save(PENDING_KEY, payload);
     window.location.href = SIM_PAGE;
     return true;
