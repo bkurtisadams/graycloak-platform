@@ -1428,16 +1428,21 @@ function meleeReach(combatant, weapon) {
   return Math.max(1, Math.round(lenFt / 2.5));
 }
 
+// OSRIC 3.0 §1.6.10.5: every melee weapon reaches a flat 10ft = round(10/2.5) = SUB fine
+// cells. Weapon length only matters where it EXCEEDS this floor (reach weapons striking
+// through a friendly front rank) and for the charge defender-first test, which is separate.
+const FLAT_MELEE_REACH = Math.round(10 / 2.5);
+
 // v0.8.8: Engagement is reach-aware and SYMMETRIC — A and B are "in melee" when the
 // minimum-Chebyshev distance between their footprints is ≤ max(reachA, reachB). Asymmetry
 // in WHO can actually strike (a pike-wielder hits a swordsman from 5 cells, the swordsman
-// can't hit back from there) is handled in attack resolution — engagement just means
+// can't hit back from beyond his own flat 10ft floor) is handled in attack resolution — engagement just means
 // "in the same melee exchange." Pre-v0.8.8 this was strict `=== 1` (base-to-base).
 function inMelee(a, b) {
   if (!a || !b) return false;
   const ra = meleeReach(a, WEAPONS[a.active_weapon]);
   const rb = meleeReach(b, WEAPONS[b.active_weapon]);
-  return minCheb(footprintCells(a), footprintCells(b)) <= Math.max(ra, rb);
+  return minCheb(footprintCells(a), footprintCells(b)) <= Math.max(FLAT_MELEE_REACH, ra, rb);
 }
 // v0.8.7: Space-too-small check. The wielder can't swing freely when other combatants
 // crowd them in adjacent fine cells. Only kicks in for melee weapons whose `space` is
@@ -1498,17 +1503,17 @@ function inMeleeAt(mover, anchor, other) {
   if (!mover || !other) return false;
   const rm = meleeReach(mover, WEAPONS[mover.active_weapon]);
   const ro = meleeReach(other, WEAPONS[other.active_weapon]);
-  return minCheb(cellsAt(anchor, sizeCells(mover)), footprintCells(other)) <= Math.max(rm, ro);
+  return minCheb(cellsAt(anchor, sizeCells(mover)), footprintCells(other)) <= Math.max(FLAT_MELEE_REACH, rm, ro);
 }
 function moverSize(state, excludeId) { const m = findCombatant(state, excludeId); return m ? sizeCells(m) : 1; }
 function targetCells(target) { return (target && target.position) ? footprintCells(target) : [{ col: target.col, row: target.row }]; }
 // Can `attacker` actually strike `target` from where it stands, using only its OWN weapon's reach?
 // inMelee is symmetric (engagement, uses max of both reaches); this is the asymmetric strike test —
-// a swordsman engaged by a pike is "in melee" but cannot land a blow from pike range.
+// a swordsman engaged by a pike is "in melee" but cannot land a blow from beyond his own flat 10ft floor.
 function withinStrikeReach(attacker, target, weapon) {
   if (!attacker || !target) return false;
   const r = meleeReach(attacker, weapon || WEAPONS[attacker.active_weapon]);
-  return minCheb(footprintCells(attacker), footprintCells(target)) <= r;
+  return minCheb(footprintCells(attacker), footprintCells(target)) <= Math.max(FLAT_MELEE_REACH, r);
 }
 function footprintFree(col, row, n, occupied) {
   for (let dc = 0; dc < n; dc++) for (let dr = 0; dr < n; dr++) {
