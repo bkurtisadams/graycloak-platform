@@ -107,7 +107,7 @@ function fmtXP(c){
   if(!x)return '0';
   return x>=1000?((Math.round(x/100)/10)+'k'):String(x);
 }
-function play(id){ if(!id)return; try{localStorage.setItem(ACTIVE_KEY,id);}catch(e){} location.href='greyhawk-map.html'; }
+function play(id){ if(!id)return; try{localStorage.setItem(ACTIVE_KEY,id);}catch(e){} location.href='hommlet.html'; }
 
 function render(){
   const list=roster();

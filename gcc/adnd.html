@@ -1758,10 +1758,16 @@ function saveChar(){
   const chars=getAllChars();
   const idx=chars.findIndex(c=>c._id===CHAR._id);
   function doSave(){
+    const isNew=idx<0;
     if(idx>=0)chars[idx]=CHAR;else chars.push(CHAR);
     try{localStorage.setItem(STORAGE_KEY,JSON.stringify(chars));autosave();
     if(typeof GCCSync!=='undefined'&&GCCSync.notifySync)GCCSync.notifySync(STORAGE_KEY);
-    MPDialog.alert('Saved','"'+CHAR.characterName+'" saved.');}catch(e){MPDialog.alert('Error','Failed: '+e.message);}
+    if(isNew){
+      MPDialog.confirm('Saved','"'+CHAR.characterName+'" saved. Enter the world?',{okText:'Play',cancelText:'Keep editing'}).then(go=>{if(go)location.href='play.html';});
+    }else{
+      MPDialog.alert('Saved','"'+CHAR.characterName+'" saved.');
+    }
+    }catch(e){MPDialog.alert('Error','Failed: '+e.message);}
   }
   if(idx>=0){
     MPDialog.confirm('Overwrite','Overwrite existing save of "'+CHAR.characterName+'"?',{okText:'Overwrite',cancelText:'Cancel'}).then(ok=>{if(ok)doSave();});
