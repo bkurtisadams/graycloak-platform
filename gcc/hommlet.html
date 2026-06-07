@@ -218,6 +218,8 @@ function launchFight(pin){
 }
 var _pf=document.getElementById('p-fight');
 if(_pf)_pf.onclick=function(){if(openPin)launchFight(openPin);};
+var _cb=document.getElementById('b-combat');
+if(_cb){_cb.textContent='\u2694 Fight';_cb.title='Launch a tactical fight in the combat sim';_cb.onclick=function(){launchFight(null);};}
 window.addEventListener('gcc-encounter-applied',function(){var c=activeChar();if(c){CUR=c;renderHUD(c);}toast('Returned from combat');});
 document.getElementById('b-new').onclick=function(){window.location.href='adnd.html';};
 var init=activeChar();spawn(init||demoChar(),!init);
