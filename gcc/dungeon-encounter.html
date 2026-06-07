@@ -1515,6 +1515,13 @@ function withinStrikeReach(attacker, target, weapon) {
   const r = meleeReach(attacker, weapon || WEAPONS[attacker.active_weapon]);
   return minCheb(footprintCells(attacker), footprintCells(target)) <= Math.max(FLAT_MELEE_REACH, r);
 }
+// Close gate: the closer must START more than the flat 10-ft floor from the target — there is
+// nothing to close if already within reach. Ignores weapon length on purpose; a Close steps
+// inside a longer weapon's guard, so the test is against the flat floor, not the foe's reach.
+function startsOutsideCloseRange(c, target) {
+  if (!c || !target) return false;
+  return minCheb(footprintCells(c), footprintCells(target)) > FLAT_MELEE_REACH;
+}
 function footprintFree(col, row, n, occupied) {
   for (let dc = 0; dc < n; dc++) for (let dr = 0; dr < n; dr++) {
     const cc = col + dc, rr = row + dr;
@@ -1911,7 +1918,7 @@ function actionTypeRank(c, decl) {
     case 'hold': return 2;                        // C: await
     case 'cast': case 'turn': return 3;           // D: spell / device / turn undead
     case 'attack': return (WEAPONS[decl.weapon_id] && WEAPONS[decl.weapon_id].ranged) ? 3 : 6; // D missile / G melee
-    case 'charge': case 'move': return 4;         // E: close / charge
+    case 'charge': case 'move': case 'close': return 4;  // E: close / charge
     case 'set': return 5;                         // F: set vs charge
     case 'grapple': case 'pummel': case 'overbear': return 7; // H: grapple / hold
     default: return 6;                            // G: strike blows
@@ -3590,6 +3597,13 @@ function validateDeclarationAtExecution(c, decl) {
     return { ok: true };
   }
 
+  if (decl.kind === 'close') {
+    const target = findCombatant(state, decl.target_id);
+    if (!target || target.dead) return { ok: false, reason: 'the foe to close on is already down' };
+    if (!startsOutsideCloseRange(c, target)) return { ok: false, reason: 'already inside reach — nothing to close' };
+    return { ok: true };
+  }
+
   if (decl.kind === 'set') {
     const weaponId = decl.weapon_id || c.active_weapon;
     if (!WEAPONS[weaponId]) return { ok: false, reason: 'set weapon is unavailable' };
@@ -3813,12 +3827,12 @@ async function executeDeclaration(c, decl) {
     c._holding = null;
   }
   // A prone figure that takes a move action spends it regaining its feet.
-  if (c._prone && ['move', 'flee', 'fall_back', 'charge'].includes(decl.kind)) {
+  if (c._prone && ['move', 'flee', 'fall_back', 'charge', 'close'].includes(decl.kind)) {
     c._prone = false;
     log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${c.side === 'A' ? 'a' : 'b'}">${c.label}</span> scrambles back to its feet.</span>`);
   }
   // A held creature must wrench free before it can move, charge, or flee.
-  if (c._held_by && ['move', 'flee', 'fall_back', 'charge'].includes(decl.kind)) {
+  if (c._held_by && ['move', 'flee', 'fall_back', 'charge', 'close'].includes(decl.kind)) {
     const aSide = c.side === 'A' ? 'a' : 'b';
     if (attemptBreakFree(c)) {
       log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span> wrenches free of the hold!</span>`);
@@ -3832,6 +3846,7 @@ async function executeDeclaration(c, decl) {
   switch (decl.kind) {
     case 'attack': return executeAttackDecl(c, decl);
     case 'charge': return executeChargeDecl(c, decl);
+    case 'close': return executeCloseDecl(c, decl);
     case 'set': return executeSetDecl(c, decl);
     case 'cast': return executeCastDecl(c, decl);
     case 'turn': return executeTurnDecl(c);
@@ -4183,6 +4198,15 @@ async function executeAttackDecl(c, decl) {
     return;
   }
 
+  // A foe who closed inside our guard this round has bound our weapon — no blow lands on them.
+  if (target._closed_round === state.round && target._closed_with === c.id) {
+    const aSide = c.side === 'A' ? 'a' : 'b';
+    const tSide = target.side === 'A' ? 'a' : 'b';
+    log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${tSide}">${target.label}</span> has closed inside <span class="${aSide}">${c.label}</span>'s reach — no blow this round.</span>`);
+    await sleep(150);
+    return;
+  }
+
   // Step & Strike: a deliberate reposition (≤12.5 ft) before the blow, to win flank/rear.
   if (decl.step_to && (c.position.col !== decl.step_to.col || c.position.row !== decl.step_to.row)) {
     const budget = Math.min(5, moveCells(c) - (c.movement_used || 0));
@@ -4367,6 +4391,46 @@ async function executeChargeDecl(c, decl) {
   await sleep(450);
 
   if (await resolveSetSpearAfterCharge(c, target, decl.weapon_id)) return;
+}
+
+// OSRIC close: a cautious, full-move advance to get inside a foe's guard. No blow and no
+// charge bonus; crucially, no reach-defender first strike (resolveCloseReach is skipped),
+// since the closer is watching the longer weapon as they step in. Getting inside denies the
+// foe its own attack on the closer this round (enforced by the _closed guard in executeAttackDecl).
+async function executeCloseDecl(c, decl) {
+  const target = findCombatant(state, decl.target_id);
+  const aSide = c.side === 'A' ? 'a' : 'b';
+  if (!target || target.dead) {
+    log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span>'s foe is already down.</span>`);
+    await sleep(150);
+    return;
+  }
+  const tSide = target.side === 'A' ? 'a' : 'b';
+  c._acted_round = state.round;
+
+  if (startsOutsideCloseRange(c, target)) {
+    const budget = moveCells(c) - (c.movement_used || 0);   // full move, single rate (charge is double)
+    const reach = findBestReachSquare(state, c.position, target, budget, c.id, FLAT_MELEE_REACH);
+    if (!reach) {
+      const partial = movePartialTowards(state, c.position, target, budget, c.id);
+      if (partial && partial.distance > 0) await moveCombatantTo(c, partial.col, partial.row, partial.distance);
+      if (c.dead) return; // killed on a break-off swing while advancing
+      log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span> advances cautiously on <span class="${tSide}">${target.label}</span> but cannot close this round.</span>`);
+      faceToward(c, target.position);
+      renderAll();
+      await sleep(150);
+      return;
+    }
+    await moveCombatantTo(c, reach.col, reach.row, reach.distance);
+    if (c.dead) return; // killed on a break-off swing while closing
+  }
+
+  c._closed_round = state.round;
+  c._closed_with = target.id;
+  faceToward(c, target.position);
+  renderAll();
+  log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span> closes inside <span class="${tSide}">${target.label}</span>'s guard — no blow, but <span class="${tSide}">${target.label}</span> cannot bring its weapon to bear this round.</span>`);
+  await sleep(150);
 }
 
 async function executeSetDecl(c, decl) {
@@ -5015,6 +5079,7 @@ function renderMap() {
                   state.picking.grapple ? 'a grapple' :
                   state.picking.overbear ? 'an overbear' :
                   state.picking.pummel ? 'a pummeling' :
+                  state.picking.close ? 'a close' :
                   state.picking.weaponId ? WEAPONS[state.picking.weaponId].name :
                   state.picking.spellId ? SPELLS[state.picking.spellId].name : 'attack';
       html = `Pick target for <em>${what}</em><span class="esc">Esc to cancel</span>`;
@@ -5034,6 +5099,11 @@ function computeValidTargets(c, picking) {
     const r = meleeReach(c, w);
     return enemies.filter(e => !inMelee(c, e) &&
       findBestReachSquare(state, c.position, e, budget, c.id, r) != null);
+  }
+  if (picking.close) {
+    const budget = moveCells(c);
+    return enemies.filter(e => startsOutsideCloseRange(c, e) &&
+      findBestReachSquare(state, c.position, e, budget, c.id, FLAT_MELEE_REACH) != null);
   }
   if (picking.grapple || picking.overbear || picking.pummel) {
     const budget = moveCells(c);
@@ -5074,6 +5144,7 @@ function declGlyph(decl) {
   if (!decl) return '';
   if (decl.kind === 'attack') return '⚔';
   if (decl.kind === 'charge') return '➤';
+  if (decl.kind === 'close') return '⇲';
   if (decl.kind === 'set') return '⟑';
   if (decl.kind === 'cast') return '✦';
   if (decl.kind === 'move') return '→';
@@ -5099,6 +5170,10 @@ function declSummary(c, decl) {
     const w = WEAPONS[decl.weapon_id];
     const t = findCombatant(state, decl.target_id);
     return { text: `charge <span class="em">${t ? t.label : '?'}</span> with ${w.name} (+2 hit, exposed)` };
+  }
+  if (decl.kind === 'close') {
+    const t = findCombatant(state, decl.target_id);
+    return { text: `close inside <span class="em">${t ? t.label : '?'}</span>'s guard — no blow` };
   }
   if (decl.kind === 'attack') {
     const w = WEAPONS[decl.weapon_id];
@@ -5148,6 +5223,7 @@ function declShort(c, decl) {
   const t = decl.target_id ? findCombatant(state, decl.target_id) : null;
   if (decl.kind === 'attack') return t ? `Attack <span class="em">${t.label}</span>` : 'Attack';
   if (decl.kind === 'charge') return t ? `Charge <span class="em">${t.label}</span>` : 'Charge';
+  if (decl.kind === 'close') return t ? `Close <span class="em">${t.label}</span>` : 'Close';
   if (decl.kind === 'cast') { const sp = SPELLS[decl.spell_id]; return sp ? sp.name : 'Cast'; }
   return 'Acting';
 }
@@ -5328,6 +5404,7 @@ function describeDeclaration(decl) {
   const tgt = decl.target_id ? (findCombatant(state, decl.target_id) || {}).label : null;
   if (decl.kind === 'attack') return tgt ? `Attack ${tgt} — ${slotWeaponName(decl.weapon_id)}` : `Attack with ${slotWeaponName(decl.weapon_id)}`;
   if (decl.kind === 'charge') return tgt ? `Charge ${tgt} — ${slotWeaponName(decl.weapon_id)}` : `Charge with ${slotWeaponName(decl.weapon_id)}`;
+  if (decl.kind === 'close') return tgt ? `Close ${tgt}` : 'Close';
   if (decl.kind === 'set') return `Set vs Charge — ${slotWeaponName(decl.weapon_id)}`;
   if (decl.kind === 'cast') return tgt ? `Cast ${slotSpellName(decl.spell_id)} → ${tgt}` : `Cast ${slotSpellName(decl.spell_id)}`;
   if (decl.kind === 'move') return 'Move';
@@ -5583,6 +5660,7 @@ function renderHotbar() {
   const canPrimaryAttack = !!primary && computeValidTargets(c, { weaponId: primary.id }).length > 0;
   const canMissileAttack = !!missile && computeValidTargets(c, { weaponId: missile.id }).length > 0;
   const canCharge = !!primary && WEAPONS[primary.id]?.melee && computeValidTargets(c, { charge: true, weaponId: primary.id }).length > 0 && chargeAllowed(c);
+  const canClose = computeValidTargets(c, { close: true }).length > 0;
   const canSet = !!primary && WEAPONS[primary.id]?.melee && canSetVsCharge(primary.id);
   const canParry = !!primary && WEAPONS[primary.id]?.melee;
   const canGrapple = computeValidTargets(c, { grapple: true }).length > 0;
@@ -5596,6 +5674,7 @@ function renderHotbar() {
     { kind: 'attack-primary', icon: primary?.icon || '⚔', label: primary ? `Attack` : 'Attack', detail: primary?.label || 'Primary', disabled: !canPrimaryAttack, cls: 'attack', key: '1', active: state.picking?.kind === 'target' && state.picking.weaponId === primary?.id && !state.picking.charge, declared: currentDecl?.kind === 'attack' && currentDecl.weapon_id === primary?.id },
     { kind: 'attack-missile', icon: missile?.icon || '➳', label: 'Missile', detail: missile?.label || 'None', disabled: !canMissileAttack, cls: 'attack', key: '2', active: state.picking?.kind === 'target' && state.picking.weaponId === missile?.id, declared: currentDecl?.kind === 'attack' && currentDecl.weapon_id === missile?.id },
     { kind: 'charge', icon: '➤', label: 'Charge', detail: primary?.label || 'Primary', disabled: !canCharge, cls: 'charge', key: '3', active: state.picking?.kind === 'target' && state.picking.charge && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'charge' },
+    { kind: 'close', icon: '⇲', label: 'Close', detail: 'Step inside reach, no blow', disabled: !canClose, cls: 'move', key: '0', active: state.picking?.kind === 'target' && state.picking.close && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'close' },
     { kind: 'set', icon: '⟑', label: 'Set vs Charge', detail: primary?.label || 'Primary', disabled: !canSet, cls: 'set', key: '4', declared: currentDecl?.kind === 'set' },
     { kind: 'parry', icon: '⛨', label: 'Parry', detail: 'Defend, no attack', disabled: !canParry, cls: 'parry', key: '5', declared: currentDecl?.kind === 'parry' },
     { kind: 'grapple', group: 'weaponless', icon: '⊗', label: 'Grapple', detail: 'Seize & hold', disabled: !canGrapple, cls: 'grapple', key: '', active: state.picking?.kind === 'target' && state.picking.grapple && state.picking.forCombatantId === c.id, declared: currentDecl?.kind === 'grapple' },
@@ -5713,6 +5792,7 @@ function renderHotbar() {
         if (a.kind === 'attack-primary' && primary) App.declareAttack(c.id, primary.id);
         else if (a.kind === 'attack-missile' && missile) App.declareAttack(c.id, missile.id);
         else if (a.kind === 'charge') App.beginCharge(c.id);
+        else if (a.kind === 'close') App.beginClose(c.id);
         else if (a.kind === 'set') App.declareSetSpear(c.id);
         else if (a.kind === 'move') App.beginMovePick(c.id);
         else if (a.kind === 'step-strike') App.beginStepStrike(c.id);
@@ -6828,6 +6908,13 @@ const App = {
     renderAll();
   },
 
+  beginClose(combatantId) {
+    const c = findCombatant(state, combatantId);
+    if (!c) return;
+    state.picking = { kind: 'target', forCombatantId: combatantId, close: true };
+    renderAll();
+  },
+
   declareTurn(combatantId) {
     setDeclaration(combatantId, { kind: 'turn' });
     state.picking = null;
@@ -6897,6 +6984,8 @@ const App = {
       ensureHudSlots(c).primary = state.picking.weaponId;
       setActiveWeapon(c, state.picking.weaponId);
       setDeclaration(c.id, { kind: 'charge', weapon_id: state.picking.weaponId, target_id: targetId });
+    } else if (state.picking.close) {
+      setDeclaration(c.id, { kind: 'close', target_id: targetId });
     } else if (state.picking.stepStrike) {
       const wid = state.picking.weaponId || c.active_weapon;
       setActiveWeapon(c, wid);
@@ -7017,7 +7106,7 @@ document.addEventListener('keydown', (e) => {
     if (WEAPONS[c.active_weapon]) App.declareAttack(c.id, c.active_weapon);
     return;
   }
-  if (/^[1-9]$/.test(key)) {
+  if (/^[0-9]$/.test(key)) {
     const btn = document.querySelector('#hud-action-row .slot[data-key="' + key + '"]');
     if (btn && !btn.classList.contains('disabled')) btn.click();
   }
