@@ -72,6 +72,7 @@ const GCC = (function() {
       tools: [
         { id: 'add1-play', name: 'Play / Character Select', href: 'play.html' },
         { id: 'add1-map', name: 'Campaign Map', href: 'greyhawk-map.html' },
+        { id: 'add1-hommlet', name: 'Hommlet (home base)', href: 'hommlet.html' },
         { id: 'add1-char', name: 'Character Sheet', href: 'adnd.html', charList: 'gcc-add1e-chars' },
         { id: 'add1-enc', name: 'Encounter Generator', href: null },
         { id: 'add1-trs', name: 'Treasure Generator', href: null },

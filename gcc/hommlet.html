@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hommlet — Graycloak's Campaign Corner</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Alegreya:ital,wght@0,400;0,700;1,400&family=Alegreya+SC:wght@700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="gcc-header.css">
+<link rel="stylesheet" href="gcc-auth.css">
+<link rel="stylesheet" href="gcc-dialog.css">
+<style>
+[data-gcc-theme="dark"]{--bg:#101418;--bg2:#161a20;--brd:#252a34;--tx:#c8ccd4;--tx2:#7a8494;--accent:#60a0d0}
+[data-gcc-theme="light"]{--bg:#eef0f4;--bg2:#e4e8ee;--brd:#d0d4dc;--tx:#181c24;--tx2:#505868;--accent:#30508a}
+:root{--fd:'Cinzel',serif;--fb:'Alegreya',serif;--fsc:'Alegreya SC',serif;--fm:'IBM Plex Mono',monospace}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{min-height:100%;background:var(--bg)}
+*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
+body{font-family:'Crimson Text','Palatino Linotype',Georgia,serif;background:#15130f;color:#e8e0cf;overflow:hidden}
+#app{display:flex;flex-direction:column;height:100vh}
+header{display:flex;align-items:center;gap:11px;padding:9px 16px;background:#241f17;border-bottom:1px solid #4a3f2c;flex-wrap:wrap}
+header h1{font-family:'Cinzel',serif;font-weight:600;font-size:17px;color:#e9d9a8}
+header .sub{font-size:13px;color:#9a8c6e}.spacer{flex:1}
+button,select{font-family:'Cinzel',serif;font-size:12px;color:#e8e0cf;background:#34291b;border:1px solid #5a4a30;border-radius:5px;padding:6px 10px;cursor:pointer}
+button:hover{background:#42341f;border-color:#7a6238}button.on{background:#6a4a1e;border-color:#caa14e;color:#f3e4b5}
+#vp{position:relative;flex:1;overflow:hidden;background:#0c0b08;cursor:grab;touch-action:none}#vp.drag{cursor:grabbing}
+#world{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform}
+#world img{position:absolute;top:0;left:0;width:2600px;height:2600px;user-select:none;-webkit-user-drag:none}
+#roof{transition:opacity .5s ease}
+#grid{position:absolute;top:0;left:0;display:none;pointer-events:none}
+.pin{position:absolute;transform-origin:50% 50%;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;z-index:6}
+.pin .dot{width:15px;height:15px;border-radius:50%;border:2px solid #1c1710;box-shadow:0 0 0 1px rgba(255,255,255,.4)}
+.pin .lbl{font-family:'Cinzel',serif;font-size:11px;white-space:nowrap;color:#f0e6cf;background:rgba(20,16,10,.85);padding:1px 7px;border-radius:4px;border:1px solid #5a4a30}
+.tok{position:absolute;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-weight:600;transform:translate(-50%,-50%);box-shadow:0 0 0 2px rgba(0,0,0,.45);z-index:5;transition:left .5s cubic-bezier(.4,.05,.3,1),top .5s cubic-bezier(.4,.05,.3,1)}
+.tok.foe{z-index:4;transition:none}
+#popup{position:absolute;display:none;min-width:160px;background:#efe6cd;color:#2a2113;border:1px solid #6a4a1e;border-radius:7px;padding:10px 12px;z-index:20;box-shadow:0 6px 22px rgba(0,0,0,.5)}
+#popup h3{font-family:'Cinzel',serif;font-size:14px;margin-bottom:7px;color:#5a3b12}#popup button{color:#2a2113;background:#dcc999;border-color:#8a6a32}
+#popup .close{position:absolute;top:4px;right:8px;border:0;background:none;font-size:15px;color:#7a5a2a;padding:0}
+#hud{display:flex;align-items:center;gap:12px;padding:9px 16px;background:#241f17;border-top:1px solid #4a3f2c;flex-wrap:wrap}
+.av{width:38px;height:38px;border-radius:50%;background:#2e5a2e;border:2px solid #e9d9a8;display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-weight:600;color:#eafbe0}
+.hud-name{font-family:'Cinzel',serif;font-size:14px;color:#e9d9a8}.hud-meta{font-size:12.5px;color:#9a8c6e}
+.chip{font-size:12.5px;color:#cdbf9e;background:#1c1810;border:1px solid #4a3f2c;border-radius:5px;padding:4px 9px}.chip b{color:#e9d9a8;font-weight:500;font-family:'Cinzel',serif}
+.mode{margin-left:auto;font-family:'Cinzel',serif;font-size:12.5px;color:#caa14e;border:1px solid #6a4a1e;border-radius:5px;padding:4px 10px}.mode.combat{color:#e88;border-color:#a44}
+#toast{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);display:none;background:rgba(36,31,23,.95);border:1px solid #6a4a1e;color:#f0e6cf;font-size:13px;padding:8px 16px;border-radius:99px;z-index:30}
+.hint{position:absolute;left:14px;bottom:16px;font-size:12px;color:#8a7d62;background:rgba(20,18,12,.72);padding:5px 11px;border-radius:6px;z-index:10}
+#edit{position:fixed;top:54px;right:0;width:280px;max-height:calc(100vh - 110px);overflow:auto;display:none;background:#241f17;border:1px solid #5a4a30;border-right:0;border-radius:8px 0 0 8px;padding:13px;z-index:25}
+#edit h2{font-family:'Cinzel',serif;font-size:13px;color:#e9d9a8;margin-bottom:6px}#edit p{font-size:12px;color:#9a8c6e;line-height:1.5;margin-bottom:9px}
+#edit textarea{width:100%;height:132px;background:#15130f;color:#cfe0c0;border:1px solid #4a3f2c;border-radius:5px;font-family:ui-monospace,monospace;font-size:11.5px;padding:8px}
+#edit .last{font-family:ui-monospace,monospace;font-size:12px;color:#caa14e;margin:8px 0}
+label.ft{font-size:12px;color:#9a8c6e}
+/* integration: scene fills viewport below the GCC bar */
+body{height:100vh;overflow:hidden;display:flex;flex-direction:column;background:#15130f}
+#app{height:auto;flex:1;min-height:0}
+#edit{top:60px}
+</style>
+</head>
+<body>
+<div id="gcc-bar" class="gcc-bar"><div class="gcc-bar-in">
+  <a href="index.html" class="gcc-brand" title="Back to Dashboard"><div class="gcc-title-wrap"><div class="gcc-title">GRAYCLOAK'S</div><div class="gcc-subtitle">CAMPAIGN CORNER</div></div></a>
+  <div class="gcc-nav"><div class="gcc-tools-wrap"><button class="gcc-nav-btn" id="gcc-btn-tools">🎲 Tools ▾</button><div class="gcc-tools-dd" id="gcc-tools-dd"></div></div><span id="gcc-auth-slot"></span><button class="gcc-nav-btn" id="gcc-btn-theme" title="Toggle light/dark"><span id="gcc-theme-icon">◑</span></button></div>
+</div></div>
+<div class="gcc-tools-overlay" id="gcc-tools-overlay"></div>
+<div id="app">
+  <header>
+    <h1>Hommlet</h1><span class="sub">DungeonDraft · 100&times;100 grid</span>
+    <span class="spacer"></span>
+    <button id="b-new">+ New character</button>
+    <button id="b-roof" class="on">Roofs: on</button>
+    <button id="b-grid">Grid</button>
+    <button id="b-combat">Combat view</button>
+    <label class="ft">ft/sq <select id="ftsel"><option value="5">5</option><option value="10" selected>10</option></select></label>
+    <button id="b-fit">Reset</button>
+    <button id="b-edit">Edit pins</button>
+  </header>
+  <div id="vp">
+    <div id="world">
+      <img id="ground" src="maps/hommlet_ground.webp" alt="Hommlet floorplan">
+      <img id="roof" src="maps/hommlet_roofs.webp" alt="Hommlet roofs">
+      <svg id="grid" width="2600" height="2600"></svg>
+    </div>
+    <div id="popup"><button class="close" id="p-close">&times;</button><h3 id="p-name"></h3><button id="p-go">Travel here</button></div>
+    <div id="toast"></div>
+    <div class="hint" id="hint">Click a building to visit · click ground to walk · Roofs off to see floorplans · drag/wheel to navigate</div>
+  </div>
+  <footer id="hud">
+    <div class="av" id="av">V</div>
+    <div><div class="hud-name" id="cname">Val</div><div class="hud-meta" id="cmeta">Fighter · level 1</div></div>
+    <span class="chip">HP <b id="chp">8/8</b></span>
+    <span class="chip">AC <b id="cac">10</b></span>
+    <span class="chip">moved <b id="dist">0 ft</b></span>
+    <span class="chip">elapsed <b id="elapsed">0 turns</b> <span class="hud-meta">&rarr; CTT</span></span>
+    <span class="mode" id="modechip">Overview</span>
+  </footer>
+</div>
+<aside id="edit">
+  <h2>Edit pins</h2><p>Drag each pin onto its building, then copy the coordinates back to me. Click empty ground to read a spot.</p>
+  <div class="last" id="lastclick">last click: &mdash;</div>
+  <textarea id="pinjson" readonly></textarea>
+  <button id="b-copy" style="margin-top:8px;width:100%">Copy coordinates</button>
+</aside>
+<script src="gcc-dialog.js"></script>
+<script src="gcc-data.js?v=2"></script>
+<script src="gcc-header.js"></script>
+<script src="gcc-firebase-config.js"></script>
+<script src="gcc-auth.js"></script>
+<script>
+var W=2600,H=2600,GC=100,RATE=120;
+var POIS=[
+  {id:'wench', name:'Inn of the Welcome Wench', fx:0.346, fy:0.494, c:'#e0a83a'},
+  {id:'smith', name:'Blacksmith',               fx:0.514, fy:0.463, c:'#d8603a'},
+  {id:'druid', name:"Druid's dwelling",         fx:0.602, fy:0.662, c:'#5aa05a'},
+  {id:'trader',name:"Trader's establishment",   fx:0.386, fy:0.165, c:'#5a86c0'},
+  {id:'road',  name:'Road out (to the wild)',   fx:0.975, fy:0.504, c:'#9a8c6e'}
+];
+var token={fx:0.360,fy:0.530},mode='overview',editMode=false,roofsOn=true,gridOn=false,openPin=null,ftSq=10;
+var pan={x:0,y:0},zoom=1,totalFt=0;
+var vp=document.getElementById('vp'),world=document.getElementById('world'),grid=document.getElementById('grid'),roof=document.getElementById('roof');
+var sqPx=W/GC;
+function clampZoom(z){return Math.max(0.25,Math.min(7,z));}
+function apply(){world.style.transform='translate('+pan.x+'px,'+pan.y+'px) scale('+zoom+')';
+  document.querySelectorAll('.pin').forEach(function(p){p.style.transform='translate(-50%,-50%) scale('+(1/zoom)+')';});
+  if(openPin)positionPopup(openPin);}
+function fit(){var r=vp.getBoundingClientRect();zoom=clampZoom(Math.min(r.width/W,r.height/H)*0.98);pan.x=(r.width-W*zoom)/2;pan.y=(r.height-H*zoom)/2;apply();}
+function centerOn(fx,fy,z){var r=vp.getBoundingClientRect();zoom=clampZoom(z);pan.x=r.width/2-fx*W*zoom;pan.y=r.height/2-fy*H*zoom;apply();}
+function scrToFrac(cx,cy){var r=vp.getBoundingClientRect();return{fx:((cx-r.left-pan.x)/zoom)/W,fy:((cy-r.top-pan.y)/zoom)/H};}
+
+(function(){var parts='';for(var i=0;i<=GC;i++){var x=(i*sqPx).toFixed(1);parts+='<line x1="'+x+'" y1="0" x2="'+x+'" y2="'+H+'"/>';var y=(i*(H/GC)).toFixed(1);parts+='<line x1="0" y1="'+y+'" x2="'+W+'" y2="'+y+'"/>';}
+ grid.innerHTML='<g stroke="rgba(20,16,8,.42)" stroke-width="0.6" vector-effect="non-scaling-stroke">'+parts+'</g>';})();
+
+var tokEl=document.createElement('div');tokEl.className='tok';tokEl.textContent='V';
+var ts=Math.round(sqPx*0.82);tokEl.style.width=ts+'px';tokEl.style.height=ts+'px';tokEl.style.background='#3c7a3c';tokEl.style.border='2px solid #e9d9a8';tokEl.style.color='#0f2410';tokEl.style.fontSize=Math.round(ts*0.5)+'px';
+world.appendChild(tokEl);
+function placeToken(){tokEl.style.left=(token.fx*W)+'px';tokEl.style.top=(token.fy*H)+'px';}
+function moveToken(fx,fy){if(mode==='combat'){fx=(Math.floor(fx*GC)+0.5)/GC;fy=(Math.floor(fy*GC)+0.5)/GC;}
+  var dsq=Math.sqrt(Math.pow((fx-token.fx)*GC,2)+Math.pow((fy-token.fy)*GC,2));var ft=dsq*ftSq;
+  token.fx=fx;token.fy=fy;placeToken();totalFt+=ft;
+  document.getElementById('dist').textContent=Math.round(ft)+' ft';
+  document.getElementById('elapsed').textContent=(totalFt/RATE).toFixed(1)+' turns';}
+placeToken();
+
+var foes=[];
+function setRoofs(on){roofsOn=on;roof.style.opacity=on?'1':'0';var b=document.getElementById('b-roof');b.textContent='Roofs: '+(on?'on':'off');b.classList.toggle('on',on);}
+function setGrid(on){gridOn=on;grid.style.display=on?'block':'none';document.getElementById('b-grid').classList.toggle('on',on);}
+function setCombat(on){
+  mode=on?'combat':'overview';
+  document.getElementById('b-combat').classList.toggle('on',on);
+  document.getElementById('b-combat').textContent=on?'End combat':'Combat view';
+  var mc=document.getElementById('modechip');mc.textContent=on?'Combat · 10-ft squares · floorplan':'Overview';mc.classList.toggle('combat',on);
+  document.getElementById('hint').textContent=on?'Roofs off, floorplan revealed · click a square to move Val · same map, zoomed in':'Click a building to visit · click ground to walk · Roofs off to see floorplans · drag/wheel to navigate';
+  foes.forEach(function(f){f.remove();});foes=[];
+  if(on){setRoofs(false);setGrid(true);
+    token.fx=(Math.floor(token.fx*GC)+0.5)/GC;token.fy=(Math.floor(token.fy*GC)+0.5)/GC;placeToken();
+    [[3,-1],[4,2]].forEach(function(d){var f=document.createElement('div');f.className='tok foe';f.textContent='x';
+      f.style.width=ts+'px';f.style.height=ts+'px';f.style.background='#a83232';f.style.border='2px solid #1c1710';f.style.color='#ffe';f.style.fontSize=Math.round(ts*0.5)+'px';
+      f.style.left=((token.fx+d[0]/GC)*W)+'px';f.style.top=((token.fy+d[1]/GC)*H)+'px';world.appendChild(f);foes.push(f);});
+    centerOn(token.fx,token.fy,(vp.getBoundingClientRect().width)/(sqPx*14));
+    toast('Combat — roofs off, fight on the floorplan at 10-ft squares');
+  }else{setGrid(false);fit();}
+}
+document.getElementById('b-roof').onclick=function(){setRoofs(!roofsOn);};
+document.getElementById('b-grid').onclick=function(){setGrid(!gridOn);};
+document.getElementById('b-combat').onclick=function(){setCombat(mode!=='combat');};
+document.getElementById('b-fit').onclick=function(){setCombat(false);setRoofs(true);};
+document.getElementById('ftsel').onchange=function(){ftSq=parseInt(this.value,10);toast('Scale set to '+ftSq+' ft per square');};
+
+function makePins(){POIS.forEach(function(p){var el=document.createElement('div');el.className='pin';el.style.left=(p.fx*W)+'px';el.style.top=(p.fy*H)+'px';
+  el.innerHTML='<div class="lbl">'+p.name+'</div><div class="dot" style="background:'+p.c+'"></div>';
+  el.addEventListener('pointerdown',function(e){if(editMode)startPinDrag(e,p);});
+  el.addEventListener('click',function(e){e.stopPropagation();if(editMode||mode==='combat')return;openPopup(p);});
+  p._el=el;world.appendChild(el);});}
+function syncPins(){POIS.forEach(function(p){p._el.style.left=(p.fx*W)+'px';p._el.style.top=(p.fy*H)+'px';});}
+var popup=document.getElementById('popup');
+function positionPopup(p){popup.style.left=(pan.x+p.fx*W*zoom+14)+'px';popup.style.top=(pan.y+p.fy*H*zoom-10)+'px';}
+function openPopup(p){openPin=p;document.getElementById('p-name').textContent=p.name;popup.style.display='block';positionPopup(p);
+  document.getElementById('p-go').onclick=function(){moveToken(p.fx,p.fy);closePopup();toast('Val walks to '+p.name);};}
+function closePopup(){popup.style.display='none';openPin=null;}
+document.getElementById('p-close').onclick=closePopup;
+var toastEl=document.getElementById('toast'),tt;function toast(t){toastEl.textContent=t;toastEl.style.display='block';clearTimeout(tt);tt=setTimeout(function(){toastEl.style.display='none';},2400);}
+var down=null,moved=false,pinDrag=null;
+vp.addEventListener('pointerdown',function(e){if(pinDrag)return;down={x:e.clientX,y:e.clientY,px:pan.x,py:pan.y};moved=false;vp.classList.add('drag');closePopup();});
+window.addEventListener('pointermove',function(e){if(pinDrag){var f=scrToFrac(e.clientX,e.clientY);pinDrag.fx=Math.max(0,Math.min(1,f.fx));pinDrag.fy=Math.max(0,Math.min(1,f.fy));syncPins();refreshJSON();return;}
+  if(!down)return;var dx=e.clientX-down.x,dy=e.clientY-down.y;if(Math.abs(dx)+Math.abs(dy)>4)moved=true;pan.x=down.px+dx;pan.y=down.py+dy;apply();});
+window.addEventListener('pointerup',function(e){if(pinDrag){pinDrag=null;return;}vp.classList.remove('drag');
+  if(down&&!moved){var f=scrToFrac(e.clientX,e.clientY);if(editMode){document.getElementById('lastclick').textContent='last click: fx '+f.fx.toFixed(3)+', fy '+f.fy.toFixed(3);}else{moveToken(Math.max(0,Math.min(1,f.fx)),Math.max(0,Math.min(1,f.fy)));}}down=null;});
+function startPinDrag(e,p){e.stopPropagation();pinDrag=p;}
+vp.addEventListener('wheel',function(e){e.preventDefault();var r=vp.getBoundingClientRect(),cx=e.clientX-r.left,cy=e.clientY-r.top,wx=(cx-pan.x)/zoom,wy=(cy-pan.y)/zoom;zoom=clampZoom(zoom*(e.deltaY<0?1.12:0.89));pan.x=cx-wx*zoom;pan.y=cy-wy*zoom;apply();},{passive:false});
+var editBtn=document.getElementById('b-edit'),editPanel=document.getElementById('edit');
+editBtn.onclick=function(){editMode=!editMode;editBtn.classList.toggle('on',editMode);editPanel.style.display=editMode?'block':'none';if(editMode){closePopup();refreshJSON();}};
+function refreshJSON(){document.getElementById('pinjson').value='[\n'+POIS.map(function(p){return "  {id:'"+p.id+"', fx:"+p.fx.toFixed(3)+", fy:"+p.fy.toFixed(3)+"}";}).join(',\n')+'\n]';}
+document.getElementById('b-copy').onclick=function(){var t=document.getElementById('pinjson');t.select();document.execCommand('copy');toast('Coordinates copied');};
+makePins();window.addEventListener('resize',function(){if(mode!=='combat')fit();});
+document.getElementById('ground').addEventListener('load',fit);fit();
+;(function(){
+var ACTIVE_KEY='gcc-active-char',CHARS_KEY=(window.GCC&&GCC.KEYS&&GCC.KEYS.add1eChars)||'gcc-add1e-chars',SCENE='hommlet',HOME={fx:0.360,fy:0.530};
+function lj(k){try{return JSON.parse(localStorage.getItem(k));}catch(e){return null;}}
+function fld(c,ks,d){for(var i=0;i<ks.length;i++){if(c[ks[i]]!=null)return c[ks[i]];}return d;}
+function activeChar(){var id=null;try{id=localStorage.getItem(ACTIVE_KEY);}catch(e){}var r=lj(CHARS_KEY)||[];return (id?r.filter(function(x){return String(x._id)===String(id);})[0]:null)||null;}
+function demoChar(){var n=['Aldric','Mirna','Tomas','Sela','Dorn','Brae','Eda','Kale'];return {_id:'demo-'+Date.now(),characterName:n[Math.floor(Math.random()*n.length)],characterClass:'Fighter',level:1,hpCurrent:8,hpMax:8,ac:10,_demo:true};}
+function renderHUD(c){var nm=fld(c,['characterName','name'],'New character'),cl=fld(c,['characterClass','class'],'Fighter'),lv=fld(c,['level'],1),hc=fld(c,['hpCurrent'],fld(c,['hpMax'],8)),hm=fld(c,['hpMax'],hc),ac=fld(c,['ac','armorClass'],10),ini=String(nm).charAt(0).toUpperCase();
+ document.getElementById('av').textContent=ini;document.getElementById('cname').textContent=nm;document.getElementById('cmeta').textContent=cl+' \u00b7 level '+lv;document.getElementById('chp').textContent=hc+'/'+hm;document.getElementById('cac').textContent=ac;tokEl.textContent=ini;}
+var CUR=null;function spk(c){return 'gcc-scenepos-'+SCENE+'-'+c._id;}
+function spawn(c,atHome){CUR=c;var pp=atHome?null:lj(spk(c));token.fx=pp?pp.fx:HOME.fx;token.fy=pp?pp.fy:HOME.fy;placeToken();renderHUD(c);}
+var _om=moveToken;moveToken=function(fx,fy){_om(fx,fy);if(CUR&&!CUR._demo){try{localStorage.setItem(spk(CUR),JSON.stringify({fx:token.fx,fy:token.fy}));}catch(e){}}};
+document.getElementById('b-new').onclick=function(){window.location.href='adnd.html';};
+var init=activeChar();spawn(init||demoChar(),!init);
+})();
+</script>
+</body>
+</html>
