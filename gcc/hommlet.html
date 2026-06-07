@@ -217,7 +217,10 @@ function launchFight(pin){
   GCCCombat.fight({mmStats:mm,numberRolled:2+Math.floor(Math.random()*3),distance:{yards:4},label:(pin&&pin.name)||'Hommlet'});
 }
 var _pf=document.getElementById('p-fight');
-if(_pf)_pf.onclick=function(){if(openPin)launchFight(openPin);};
+if(_pf){
+  _pf.addEventListener('pointerdown',function(e){e.stopPropagation();});  // keep #vp from closing the popup (nulling openPin) before the click
+  _pf.onclick=function(e){e.stopPropagation();if(openPin)launchFight(openPin);};
+}
 var _cb=document.getElementById('b-combat');
 if(_cb){_cb.textContent='\u2694 Fight';_cb.title='Launch a tactical fight in the combat sim';_cb.onclick=function(){launchFight(null);};}
 window.addEventListener('gcc-encounter-applied',function(){var c=activeChar();if(c){CUR=c;renderHUD(c);}toast('Returned from combat');});
