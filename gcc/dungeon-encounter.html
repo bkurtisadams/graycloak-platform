@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.40 -->
+<!-- dungeon-encounter — v0.9.41 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -930,7 +930,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js"></script>
 <script>
-const SIM_VERSION = 'v0.9.40';
+const SIM_VERSION = 'v0.9.41';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -4525,6 +4525,16 @@ function faceToward(c, pos) {
   c.facing = ((Math.round(ang / 45) * 45) + 360) % 360;
 }
 
+// OSRIC 3.0 §1.6.10.5: an abandoned foe gets the free break-off swing only if "otherwise
+// able to attack" — a melee weapon in hand and no disabling condition. (Intervening-ally
+// blocking, the third RAW exception, is not yet modelled.)
+function canTakeBreakoffAttack(enemy) {
+  if (!enemy || enemy.dead) return false;
+  const w = WEAPONS[enemy.active_weapon];
+  if (!w || !w.melee) return false;
+  if (isStunned(enemy) || isHelpless(enemy) || enemy._prone || enemy._held_by) return false;
+  return true;
+}
 async function moveCombatantTo(c, newCol, newRow, cost) {
   const oldPos = { col: c.position.col, row: c.position.row };
   const newPos = { col: newCol, row: newRow };
@@ -4538,6 +4548,7 @@ async function moveCombatantTo(c, newCol, newRow, cost) {
   // move or a flee — gives each abandoned foe a free swing; a fleer is struck as if from the rear.
   if (!c._falling_back) {
     for (const enemy of breakingFrom) {
+      if (!canTakeBreakoffAttack(enemy)) continue;  // OSRIC 3.0 §1.6.10.5: only foes able to attack
       const sideCls = c.side === 'A' ? 'a' : 'b';
       const eSideCls = enemy.side === 'A' ? 'a' : 'b';
       const lead = c._fleeing
