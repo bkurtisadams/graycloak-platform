@@ -1,10 +1,12 @@
 # Gamma World 1e → Mighty Protectors Bestiary
 
-**Status:** v0.9.1 (48 of 48 statted) — **bestiary complete ✓** (5 archetypal Robotic Units + generic template). Encounter-tables lines reconciled against `gw-encounter-data.js` (source of truth).
+**Status:** v0.9.2 (48 of 48 statted) — **bestiary complete ✓** (5 archetypal Robotic Units + generic template). Encounter-tables lines reconciled against `gw-encounter-data.js` (source of truth).
 **Destination:** `gcc/gw-mp-bestiary.md`
-**Last updated:** 2026-05-24
+**Last updated:** 2026-06-17
 **Conversion rules:** see `gcc/DESIGN-gw-mp-conversion.md`
 **MP character generation reference:** MP 2.1.7.1
+
+**v0.9.2 — BC-derived stat correction pass (2026-06-17):** Hits, HTH Damage, and Initiative recomputed for all 54 forms directly from the MP 2.1.7.2 Basic Characteristic Table (using each block's Effective BCs). The prior estimate markers (`~`) on Hits are removed — values are now exact. 97 corrections across 50 entries; see `gw-mp-bestiary-CHANGELOG-v0.9.2.md`. Power, Move, Inventing, and Armor allocations were already correct and are unchanged. **Open design item:** the Defense/Attack Borg and Death Machine Durability totals (30 and 280) are now arithmetically consistent (base × multiplier) but remain below the GW source HP targets noted in their ability text (e.g. Death Machine "for 750 HP"); closing that gap is a balance lever (raise the Durability multiplier), left as a deliberate decision rather than auto-applied.
 
 Stat blocks for GW1e wilderness encounter table creatures, converted to MP. Encounter tables defined in `gw-encounter-data.js`; this file is the matching MP stat catalog. Ordered alphabetically.
 
@@ -53,8 +55,8 @@ After consolidations: Choo→Horl Choo, Lou→Seroon Lou; phantoms Erl/Sert/Choo
 ```
 BCs:        ST 10  EN 12  AG 10  IN 18  CL 18    (MS 18 + IN 18 fixed)
 
-Hits        7~      Power 50      Move 11      Init d6+1
-HTH         d3      Inventing 9   Mass d4 (~150 lbs)
+Hits        8       Power 50      Move 11      Init d8+1
+HTH         d4      Inventing 9   Mass d4 (~150 lbs)
 ```
 
 **Abilities:** Heightened Intelligence ~+8 (8 CP), Heightened Cool ~+8 (8 CP), Heightened Defense Mental (5 CP), Armor 6 = 4/1/0/1 K/E/B/Ent (10 CP)
@@ -66,8 +68,8 @@ HTH         d3      Inventing 9   Mass d4 (~150 lbs)
 ```
 BCs:        ST 18  EN 18  AG 10  IN 10  CL 10    (ST 18 + Con 18 fixed)
 
-Hits        10~     Power 56      Move 15      Init d4
-HTH         d8      Inventing 5   Mass d6 (~250 lbs)
+Hits        16      Power 56      Move 15      Init d4
+HTH         d8+1    Inventing 5   Mass d6 (~250 lbs)
 ```
 
 **Abilities:** Heightened Strength/Endurance ~+8 each (16 CP), Armor 8 = 6/1/0/1 (12.5 CP)
@@ -79,8 +81,8 @@ HTH         d8      Inventing 5   Mass d6 (~250 lbs)
 ```
 BCs:        ST 18  EN 18  AG 18  IN 18  CL 10    (all 18 except MS rolled)
 
-Hits        14~     Power 72      Move 18      Init d4
-HTH         d8      Inventing 9   Mass d6 (~250 lbs)
+Hits        20      Power 72      Move 18      Init d4
+HTH         d8+1    Inventing 9   Mass d6 (~250 lbs)
 ```
 
 **Abilities:** Heightened Strength/Endurance/Agility/Intelligence ~+8 each (32 CP), Armor 9 = 7/1/0/1 (15 CP)
@@ -171,7 +173,7 @@ Size mod:    -1 ST  (Size Change Smaller 2.5 CP, 4.5' tier)
 Heightened EN +6 (6 CP)
 Effective:   ST 9   EN 20  AG 14  IN 4  CL 10
 
-Hits        11~     Power 47      Move 14 swim + Speed = 20   Init d4
+Hits        12      Power 47      Move 14 swim + Speed = 20   Init d4
 HTH         d4      Inventing 2   Mass d4 (~80 lbs)   Profile /1.5
 ```
 
@@ -194,7 +196,7 @@ HTH         d4      Inventing 2   Mass d4 (~80 lbs)   Profile /1.5
 ```
 BCs:        ST 8  EN 15  AG 4  IN 3  CL 8
 
-Hits        5~      Power 30      Move N/A (floats; teleports if injured)   Init d3
+Hits        6       Power 30      Move N/A (floats; teleports if injured)   Init d3
 HTH         d3      Inventing 1   Mass d6 (~600 lbs of plant matter)
 ```
 
@@ -219,8 +221,8 @@ Base BCs:    ST 10  EN 15  AG 14  IN 4  CL 12
 Size mod:    -1 ST  (Size Change Smaller 2.5 CP, 4.5' tier)
 Effective:   ST 9   EN 15  AG 14  IN 4  CL 12
 
-Hits        9~      Power 42      Move 13 (flight)  Init d4+1
-HTH         d3      Inventing 2   Mass d3 (~50 lbs)   Profile /1.5
+Hits        11      Power 42      Move 13 (flight)  Init d6
+HTH         d4      Inventing 2   Mass d3 (~50 lbs)   Profile /1.5
 ```
 
 **Abilities:** A/P Insect Standard (20 CP — Flight 15m, Heightened Senses, Natural Weaponry +d3 sharp), Size Change Smaller 4.5' (2.5 CP), Change Environment Damaging Hard Radiation 11" diameter (12.5 CP — 5 Devitalization Entropy/round, supplement), Adaptation Energy/radiation complete (5 CP), Light Control C Glare (5 CP), Armor 3 = 1/2/0/0 (5 CP)
@@ -243,8 +245,8 @@ Base BCs:    ST 10  EN 8  AG 12  IN 4  CL 10
 Size mod:    +5 ST, +4 EN  (Size Change Larger 7.5 CP, 9' tier)
 Effective:   ST 15  EN 12  AG 12  IN 4  CL 10
 
-Hits        9~      Power 43      Move 13 ground / 10 fly   Init d4
-HTH         d6      Inventing 2   Mass d6 (~600 lbs)   Profile x1.5
+Hits        11      Power 43      Move 13 ground / 10 fly   Init d4
+HTH         d6+1    Inventing 2   Mass d6 (~600 lbs)   Profile x1.5
 ```
 
 **Abilities:** A/P Reptile Standard (20 CP — Flight 10m, Natural Weaponry bite +d8 sharp, Heightened Senses), Size Change Larger 9' (7.5 CP), Invisibility Visible Light (10 CP — at-will), Light Control B Flash (5 CP — first-strike blind 1d4 turns), Grapnel constriction 5d6/turn (15 CP), Adaptation Energy radiation+heat (5 CP), Adaptation Kinetic sonic (5 CP), Armor 0
@@ -267,7 +269,7 @@ Base BCs:    ST 12  EN 10  AG 14  IN 8  CL 12
 Size mod:    +5 ST, +4 EN  (Size Change Larger 7.5 CP, 9' tier)
 Effective:   ST 17  EN 14  AG 14  IN 8  CL 12
 
-Hits        11~     Power 53      Move 15 + Speed = 18   Init d4+1
+Hits        12      Power 53      Move 15 + Speed = 18   Init d6
 HTH         d6+1    Inventing 4   Mass d8 (~2200 lbs)   Profile x1.5
 ```
 
@@ -293,8 +295,8 @@ Base BCs:    ST 10  EN 3  AG 14  IN 8  CL 18
 Size mod:    +3 ST, +3 EN  (Size Change Larger 5 CP, 8' tier)
 Effective:   ST 13  EN 6  AG 14  IN 8  CL 18
 
-Hits        7~      Power 41      Move 12 fly      Init d6+1
-HTH         d4+1    Inventing 4   Mass d4 (~150 lbs)   Profile x1.3
+Hits        7       Power 41      Move 12 fly      Init d8+1
+HTH         d6      Inventing 4   Mass d4 (~150 lbs)   Profile x1.3
 ```
 
 **Abilities:** A/P Insect Standard (20 CP — Flight 12m, Natural Weaponry crushing mandibles +d8 sharp, Heightened Senses bone-detection), Size Change Larger 8' (5 CP), Heightened Cool ~+8 outside A/P (8 CP — for MS 18), Heightened Strength ~+4 (4 CP — for crushing power), Heightened Attack +2d6 (10 CP — 10d6 GW = high-tier MP bite), Unprotection -3 Kinetic associated with bite, Max -6 (10 CP — supplement ability, for "given time, crush even duralloy" — each bite reduces target armor), Adaptation Energy heat+cold (5 CP)
@@ -320,7 +322,7 @@ Base BCs:    ST 14  EN 4  AG 14  IN 3  CL 8
 Size mod:    +3 ST, +3 EN  (Size Change Larger 5 CP, 8' tier)
 Effective:   ST 17  EN 7  AG 14  IN 3  CL 8
 
-Hits        6~      Power 41      Move 30 (Super Speed + Speed)   Init d3
+Hits        7       Power 41      Move 30 (Super Speed + Speed)   Init d3
 HTH         d6+1    Inventing 1   Mass d8 (~1500 lbs)   Profile x1.3
 ```
 
@@ -349,7 +351,7 @@ Size mod:    +2 ST, +1 EN  (Size Change Larger 2.5 CP, 7' tier)
 Heightened EN +3 (3 CP)
 Effective:   ST 14  EN 16  AG 12  IN 8  CL 12
 
-Hits        12~     Power 50      Move 14 swim   Init d4+1
+Hits        13      Power 50      Move 14 swim   Init d6
 HTH         d6      Inventing 4   Mass d6 (~400 lbs)   Profile x1.2
 ```
 
@@ -373,8 +375,8 @@ HTH         d6      Inventing 4   Mass d6 (~400 lbs)   Profile x1.2
 ```
 BCs:        ST 12  EN 15  AG 5  IN 4  CL 10
 
-Hits        7~      Power 36      Move 1 (limited)   Init d3
-HTH         d4+1    Inventing 2   Mass d8 (~1500 lbs)
+Hits        9       Power 36      Move 1 (limited)   Init d4
+HTH         d6      Inventing 2   Mass d8 (~1500 lbs)
 ```
 
 **Abilities:** A/P Plant High (30 CP — Mobility, Stretching A 1d4 vines, Natural Weaponry vine grasp, Heightened Endurance), Power Blast Bio Area Effect Death Field 20m radius (25 CP — Death Field Generation), Disintegration A (15 CP — Molecular Disruption), Siphon Hits Parasitic Attachment 10 HP/turn sustained (15 CP — Life Leech feeding mechanism), Armor 12 = 8/2/0/2 K/E/B/Ent (20 CP)
@@ -396,8 +398,8 @@ HTH         d4+1    Inventing 2   Mass d8 (~1500 lbs)
 ```
 BCs:        ST 6  EN 3  AG 12  IN 3  CL 6
 
-Hits        1~      Power 24      Move 8 swim      Init d3
-HTH         d2      Inventing 1   Mass d2 (~30 lbs)
+Hits        1       Power 24      Move 8 swim      Init d3
+HTH         d3      Inventing 1   Mass d2 (~30 lbs)
 ```
 
 **Abilities:** A/P Fish Low (10 CP — Adaptation Aquatic, Natural Weaponry bite +d4 sharp), Transmutation A (organic→stone, contact via bite, intensity 12 save) (17.5 CP)
@@ -420,7 +422,7 @@ Base BCs:    ST 8  EN 12  AG 12  IN 4  CL 8
 Size mod:    -1 ST  (Size Change Smaller 2.5 CP, 4.5' tier)
 Effective:   ST 7  EN 12  AG 12  IN 4  CL 8
 
-Hits        5~      Power 35      Move 9 swim    Init d3+1
+Hits        6       Power 35      Move 9 swim    Init d3
 HTH         d3      Inventing 2   Mass d3 (~70 lbs)   Profile /1.5
 ```
 
@@ -443,7 +445,7 @@ HTH         d3      Inventing 2   Mass d3 (~70 lbs)   Profile /1.5
 ```
 BCs:        ST 12  EN 10  AG 14  IN 12  CL 12
 
-Hits        10~     Power 48      Move 12      Init d6
+Hits        8       Power 48      Move 12      Init d6
 HTH         d6      Inventing 6   Mass d4 (~150 lbs)
 ```
 
@@ -468,7 +470,7 @@ Base BCs:    ST 12  EN 7  AG 12  IN 4  CL 8
 Size mod:    +2 ST, +1 EN  (Size Change Larger 2.5 CP, 7' tier)
 Effective:   ST 14  EN 8  AG 12  IN 4  CL 8
 
-Hits        7~      Power 38      Move 11 + 5 glide   Init d3+1
+Hits        5       Power 38      Move 11 + 5 glide   Init d3
 HTH         d6      Inventing 2   Mass d6 (~400 lbs)   Profile x1.2
 ```
 
@@ -493,8 +495,8 @@ Base BCs:    ST 12  EN 14  AG 12  IN 14  CL 14
 Heightened EN +6 (6 CP)
 Effective:   ST 12  EN 20  AG 12  IN 14  CL 14
 
-Hits        12~     Power 58      Move 12      Init d4+1
-HTH         d4+1    Inventing 7   Mass d4 (~150 lbs)
+Hits        15      Power 58      Move 12      Init d6
+HTH         d6      Inventing 7   Mass d4 (~150 lbs)
 ```
 
 **Abilities:** Heightened Endurance +6 (6 CP — for HD 20), Invisibility full-sensory (visible + IR + sonic + mental + olfactory), Restriction "deep forest only" (~25 CP — high-tier multi-sense Invisibility with terrain Restriction -5), Adaptation Mental sense-immunity (5 CP — backstop), Heightened Cool ~+4 (4 CP), Heightened Intelligence ~+4 (4 CP), Armor 9 = 5/2/0/2 K/E/B/Ent (15 CP — leather/hide armor)
@@ -519,8 +521,8 @@ Base BCs:    ST 6  EN 5  AG 14  IN 2  CL 6
 Size mod:    -1 ST, -1 EN  (Size Change Smaller 5 CP, 3' tier)
 Effective:   ST 5  EN 4  AG 14  IN 2  CL 6
 
-Hits        2~      Power 25      Move 8 swim    Init d3
-HTH         d3 + Heightened Attack = vicious  Inventing 1
+Hits        1       Power 25      Move 8 swim    Init d3
+HTH         d2 + Heightened Attack = vicious  Inventing 1
 Mass        d2 (~10 lbs)   Profile /2
 ```
 
@@ -545,8 +547,8 @@ Base BCs:    ST 10  EN 10  AG 10  IN 5  CL 10
 Size mod:    +9 ST, +9 EN  (Size Change Larger 15 CP, 12' tier)
 Effective:   ST 19  EN 19  AG 10  IN 5  CL 10
 
-Hits        11~     Power 53      Move 16      Init d4
-HTH         d8      Inventing 3   Mass d8 (~1000 lbs)   Profile x2
+Hits        16      Power 53      Move 16      Init d4
+HTH         d8+1    Inventing 3   Mass d8 (~1000 lbs)   Profile x2
 ```
 
 **Abilities:** A/P Insect High (30 CP — Natural Weaponry mandibles, Heightened Senses all-weather tracking, Heightened Attack +1d6, Reflection Sonic), Size Change Larger 12' (15 CP), Power Blast Bio acid stream 30m ~3d8 sharp/bio (25 CP), Armor 12 = 8/2/0/2 (20 CP)
@@ -569,7 +571,7 @@ Base BCs:    ST 12  EN 14  AG 14  IN 12  CL 12
 Size mod:    +5 ST, +4 EN  (Size Change Larger 7.5 CP, 9' tier)
 Effective:   ST 17  EN 18  AG 14  IN 12  CL 12
 
-Hits        13~     Power 61      Move 16      Init d6
+Hits        17      Power 61      Move 16      Init d6
 HTH         d6+1    Inventing 7   Mass d6 (~400 lbs)   Profile x1.5
 ```
 
@@ -594,8 +596,8 @@ Base BCs:    ST 10  EN 14  AG 18  IN 10  CL 14
 Size mod:    +2 ST, +1 EN  (Size Change Larger 2.5 CP, 7' tier)
 Effective:   ST 12  EN 15  AG 18  IN 10  CL 14
 
-Hits        12~     Power 55      Move 15      Init d4+1
-HTH         d4+1    Inventing 5   Mass d4 (~150 lbs)   Profile x1.2
+Hits        16      Power 55      Move 15      Init d6
+HTH         d6      Inventing 5   Mass d4 (~150 lbs)   Profile x1.2
 ```
 
 **Abilities:** Size Change Larger 7' (2.5 CP), Heightened Agility ~+8 (8 CP — covers leap-8m), Telepathy (10 CP), Transmutation Metal→Rubber touch range 1m radius (17.5 CP)
@@ -620,8 +622,8 @@ Base BCs:    ST 12  EN 3  AG 16  IN 2  CL 6
 Size mod:    +2 ST, +1 EN  (Size Change Larger 2.5 CP, 7' tier)
 Effective:   ST 14  EN 4  AG 16  IN 2  CL 6
 
-Hits        3~      Power 36      Move 11+Speed=17 normal / 24 hop   Init d3
-HTH         d4+1    Inventing 1   Mass d4 (~150 lbs)   Profile x1.2
+Hits        4       Power 36      Move 11+Speed=17 normal / 24 hop   Init d3
+HTH         d6      Inventing 1   Mass d4 (~150 lbs)   Profile x1.2
 ```
 
 **Abilities:** A/P Mammal Low (10 CP — Heightened Agility, Speed, Natural Weaponry kicks +d4 sharp), Size Change Larger 7' (2.5 CP), Speed +6 (5 CP — for MV 12 normal), Super Speed +1 turn with Restriction "leaping only" (10 CP — for MV 24 hop mode), Invisibility Visible Light Camouflage (10 CP — chameleon powers)
@@ -644,8 +646,8 @@ HTH         d4+1    Inventing 1   Mass d4 (~150 lbs)   Profile x1.2
 ```
 BCs:        ST 14  EN 18  AG 8  IN 4  CL 10
 
-Hits        11~     Power 44      Move 6 (limited)   Init d4
-HTH         d6+1    Inventing 2   Mass d8 (~1500 lbs)
+Hits        12      Power 44      Move 6 (limited)   Init d4
+HTH         d6      Inventing 2   Mass d8 (~1500 lbs)
 ```
 
 **Abilities:** A/P Plant Standard (20 CP — Mobility limited, Stretching A retrieving vines, Natural Weaponry vines), Special Missile Weapon spear-stems 90m range 3d6 sharp + intensity 9 poison ammo 5d6 (20 CP — combined poison-tipped missile), Power Blast Bio dissolving juices for digestion (15 CP — also functions as area attack post-impale), Armor 8 = 5/1/0/2 (12.5 CP — woody bark)
@@ -668,8 +670,8 @@ Base BCs:    ST 10  EN 8  AG 10  IN 3  CL 5
 Size mod:    +5 ST, +4 EN  (Size Change Larger 7.5 CP, 9' tier)
 Effective:   ST 15  EN 12  AG 10  IN 3  CL 5
 
-Hits        7~      Power 40      Move 11      Init d3
-HTH         d6      Inventing 2   Mass d6 (~600 lbs)   Profile x1.5
+Hits        9       Power 40      Move 11      Init d2
+HTH         d6+1    Inventing 2   Mass d6 (~600 lbs)   Profile x1.5
 ```
 
 **Abilities:** A/P Plant Standard (20 CP — Mobility, Natural Weaponry thorny pad-claws +d4 sharp, Heightened Senses), Size Change Larger 9' (7.5 CP), Lightning Control A Electrical Bolt contact 4d6 (12.5 CP — Electrical Generation), Emotion Control Pheromones (Attraction Odor for prey lure) (7.5 CP), Power Blast Energy radiation eyes short range (12.5 CP — Radiated Eyes), Adaptation Energy radiation (5 CP — rad-resistant bark), Stretching A root-tail entwining for assimilating carrion (5 CP), Armor 6 = 3/2/0/1 K/E/B/Ent (10 CP)
@@ -690,7 +692,7 @@ HTH         d6      Inventing 2   Mass d6 (~600 lbs)   Profile x1.5
 ```
 BCs:        ST 8  EN 7  AG 16  IN 18  CL 16
 
-Hits        9~      Power 49      Move via Telekinetic Flight   Init d6+1
+Hits        4       Power 49      Move via Telekinetic Flight   Init d6+1
 HTH         d3      Inventing 9   Mass d3 (~50 lbs)
 ```
 
@@ -732,7 +734,7 @@ BCs:        ST 16  EN 16  AG 4  IN 4  CL 10
 Heightened EN +4 (4 CP)
 Effective:   ST 16  EN 20  AG 4  IN 4  CL 10
 
-Hits        10~     Power 44      Move 0 surface / Tunneling underground   Init d3
+Hits        13      Power 44      Move 0 surface / Tunneling underground   Init d4
 HTH         d6+1    Inventing 2   Mass d10 (~3000 lbs root mass)
 ```
 
@@ -759,7 +761,7 @@ Base BCs:    ST 12  EN 3  AG 12  IN 8  CL 12
 Size mod:    +5 ST, +4 EN  (Size Change Larger 7.5 CP, 9' tier)
 Effective:   ST 17  EN 7  AG 12  IN 8  CL 12
 
-Hits        7~      Power 44      Move 10 swim   Init d4+1
+Hits        8       Power 44      Move 10 swim   Init d6
 HTH         d6+1    Inventing 4   Mass d8 (~1500 lbs elongated)   Profile x1.5
 ```
 
@@ -786,8 +788,8 @@ Base BCs:    ST 12  EN 8  AG 4  IN 3  CL 8
 Size mod:    +12 ST, +12 EN  (Size Change Larger 20 CP, 15' tier)
 Effective:   ST 24  EN 20  AG 4  IN 3  CL 8
 
-Hits        10~     Power 51      Move 0 (rooted)   Init d3
-HTH         d12+1   Inventing 1   Mass d12 (~5 tons rooted)   Profile x2.5
+Hits        18      Power 51      Move 0 (rooted)   Init d3
+HTH         2d6     Inventing 1   Mass d12 (~5 tons rooted)   Profile x2.5
 ```
 
 **Abilities:** A/P Plant High (30 CP — Stretching A 5-30 squeeze vines, Natural Weaponry vine grasp +d8+1 blunt, Heightened Endurance, Heightened Strength), Size Change Larger 15' (20 CP), Grapnel (squeeze vines, crushing) (15 CP), Special Missile Weapon — seed pods (sonic blast 3d6 + 2-12 seed projectiles, 10m radius, ammo limited to ripe pods in spring) (15 CP), Sonic Abilities A Sonic Blast Area Effect 10m (12.5 CP — pod-cracking trigger), Adaptation Aquatic (5 CP), Armor 12 = 6/2/1/3 (20 CP — bark + plant fiber)
@@ -811,8 +813,8 @@ Base BCs:    ST 8  EN 12  AG 14  IN 12  CL 12
 Size mod:    -1 ST  (Size Change Smaller 2.5 CP, 4.5' tier)
 Effective:   ST 7  EN 12  AG 14  IN 12  CL 12
 
-Hits        8~      Power 45      Move 1 ground / 15 fly   Init d6
-HTH         d4      Inventing 6   Mass d3 (~50 lbs)   Profile /1.5
+Hits        7       Power 45      Move 1 ground / 15 fly   Init d6
+HTH         d3      Inventing 6   Mass d3 (~50 lbs)   Profile /1.5
 ```
 
 **Abilities:** A/P Plant Standard (20 CP — Flight 15m, Natural Weaponry clawed appendages +d6 sharp x2, Heightened Senses), Size Change Smaller 4.5' (2.5 CP), Power Blast Energy radiation eye intensity 16 25-30m ~2d6 (17.5 CP), Adaptation Energy (radiation + laser + heat, multi-type) (10 CP), Adaptation Light (light immunity) (5 CP)
@@ -837,7 +839,7 @@ Base BCs:    ST 12  EN 12  AG 14  IN 12  CL 14
 Size mod:    +3 ST, +3 EN  (Size Change Larger 5 CP, 8' tier)
 Effective:   ST 15  EN 15  AG 14  IN 12  CL 14
 
-Hits        12~     Power 56      Move 14      Init d4+1
+Hits        15      Power 56      Move 14      Init d6
 HTH         d6+1    Inventing 6   Mass d6 (~400 lbs)   Profile x1.3
 ```
 
@@ -863,8 +865,8 @@ Base BCs:    ST 10  EN 10  AG 10  IN 4  CL 10
 Size mod:    +5 ST, +4 EN  (Size Change Larger 7.5 CP, 9' tier)
 Effective:   ST 15  EN 14  AG 10  IN 4  CL 10
 
-Hits        9~      Power 43      Move 13 ground   Init d4
-HTH         d6      Inventing 2   Mass d6 (~400 lbs)   Profile x1.5
+Hits        10      Power 43      Move 13 ground   Init d4
+HTH         d6+1    Inventing 2   Mass d6 (~400 lbs)   Profile x1.5
 ```
 
 **Abilities:** A/P Insect Standard (20 CP — Natural Weaponry antennae +d8+1 sharp 4 limbs, Heightened Attack -3 to opponent AC = +3 hit close, Physical Ability B Extra Limbs antennae as separate strikers), Size Change Larger 9' (7.5 CP), Special Missile Weapon spines 50m range 2d6 sharp 2/turn ammo 4d6 quills (12.5 CP), Armor 6 = 4/1/0/1 (10 CP)
@@ -885,7 +887,7 @@ HTH         d6      Inventing 2   Mass d6 (~400 lbs)   Profile x1.5
 ```
 BCs:        ST 5  EN 8  AG 1  IN 3  CL 6
 
-Hits        2~      Power 17      Move 0      Init d3
+Hits        1       Power 17      Move 0      Init d3
 HTH         d2      Inventing 1   Mass d3 (~50 lbs)
 ```
 
@@ -908,8 +910,8 @@ HTH         d2      Inventing 1   Mass d3 (~50 lbs)
 ```
 BCs:        ST 14  EN 4  AG 18  IN 2  CL 6    (HD 2)
 
-Hits        4~      Power 38      Move 18 (with Speed)   Init d3
-HTH         d4      Inventing 1   Mass d6 (~400 lbs)
+Hits        6       Power 38      Move 18 (with Speed)   Init d3
+HTH         d6      Inventing 1   Mass d6 (~400 lbs)
 ```
 
 **Abilities:** A/P Plant Low (10 CP — Mobility, Heightened Senses), Heightened Strength ~+4 (4 CP — for 800kg cargo), Heightened Agility ~+4 (4 CP), Speed +6 (5 CP — for MV 18), Natural Weaponry tail lash + needle contact (5 CP), Armor 9 = 5/2/0/2 (15 CP — bark + needles)
@@ -932,8 +934,8 @@ Base BCs:    ST 12  EN 1  AG 14  IN 3  CL 8
 Size mod:    +3 ST, +3 EN  (Size Change Larger 5 CP, 8' tier)
 Effective:   ST 15  EN 4  AG 14  IN 3  CL 8
 
-Hits        4~      Power 36      Move 11+Speed=15   Init d3
-HTH         d4      Inventing 1   Mass d6 (~400 lbs)   Profile x1.3
+Hits        5       Power 36      Move 11+Speed=15   Init d3
+HTH         d6+1    Inventing 1   Mass d6 (~400 lbs)   Profile x1.3
 ```
 
 **Abilities:** A/P Mammal Low (10 CP — Heightened Senses smell, Natural Weaponry bite +d6 sharp), Adaptation Bio poison full immunity (5 CP), Size Change Larger 8' (5 CP), Speed +4 (5 CP), Reflection Sonic Sound Imitation +1 init (5 CP — bay/mimic cry), Armor 8 (when wild) = 5/1/0/2 (12.5 CP) / Armor 4 (when ridden, flanks exposed)
@@ -957,7 +959,7 @@ Size mod:    +5 ST, +4 EN  (Size Change Larger 7.5 CP, 9' tier)
 Heightened EN +4 (4 CP)
 Effective:   ST 19  EN 20  AG 6  IN 3  CL 8
 
-Hits        12~     Power 48      Move 15 (running formula; GW MV 9 is plodding gait)   Init d3
+Hits        15      Power 48      Move 15 (running formula; GW MV 9 is plodding gait)   Init d3
 HTH         d8+1    Inventing 1   Mass d10 (~3000 lbs)   Profile x1.5
 ```
 
@@ -1019,8 +1021,8 @@ Base BCs:    ST 14  EN 16  AG 14  IN 14  CL 14
 Heightened EN +4 (4 CP)
 Effective:   ST 14  EN 20  AG 14  IN 14  CL 14
 
-Hits        12~ + Durability x2 = 24~      Power 76      Move 14 + Speed = 48 (anti-grav 96 kph)   Init d6+1
-HTH         d4+1    Inventing 7   Mass d10 (~3 tons)
+Hits        15 + Durability x2 = 30        Power 76      Move 14 + Speed = 48 (anti-grav 96 kph)   Init d6
+HTH         d6      Inventing 7   Mass d10 (~3 tons)
 GW HP equivalent: 200
 ```
 
@@ -1045,8 +1047,8 @@ Heightened EN +6 (6 CP)
 Heightened ST +6 (6 CP)
 Effective:   ST 24  EN 24  AG 16  IN 14  CL 14
 
-Hits        21~ + Durability x10 = 210~     Power 92     Move 16 + Speed = 75 (anti-grav 150 kph)   Init d8
-HTH         d10     Inventing 7   Mass d12+ (~50 tons)
+Hits        28 + Durability x10 = 280       Power 92     Move 16 + Speed = 75 (anti-grav 150 kph)   Init d6
+HTH         2d6     Inventing 7   Mass d12+ (~50 tons)
 GW HP equivalent: 750
 ```
 
@@ -1069,8 +1071,8 @@ GW HP equivalent: 750
 Base BCs:    ST 18  EN 12  AG 12  IN 10  CL 8
 Effective:   ST 18  EN 12  AG 12  IN 10  CL 8
 
-Hits        7~      Power 36      Move 12 (anti-grav 24 kph)   Init d4+1
-HTH         d6+1    Inventing 5   Mass d8 (~1000 lbs structural)
+Hits        12      Power 36      Move 12 (anti-grav 24 kph)   Init d3
+HTH         d8+1    Inventing 5   Mass d8 (~1000 lbs structural)
 GW HP equivalent: 45
 ```
 
@@ -1091,8 +1093,8 @@ GW HP equivalent: 45
 ```
 BCs:        ST 12  EN 10  AG 10  IN 6  CL 6
 
-Hits        4~      Power 22      Move 10 (walking only)   Init d3
-HTH         d4      Inventing 3   Mass d4 (~150 lbs metal frame)
+Hits        6       Power 22      Move 10 (walking only)   Init d3
+HTH         d6      Inventing 3   Mass d4 (~150 lbs metal frame)
 GW HP equivalent: 20
 ```
 
@@ -1115,8 +1117,8 @@ GW HP equivalent: 20
 Base BCs:    ST 16  EN 14  AG 14  IN 12  CL 12
 Effective:   ST 16  EN 14  AG 14  IN 12  CL 12
 
-Hits        9~      Power 56      Move 14 walking + Speed = 48 (anti-grav 96 kph)   Init d6
-HTH         d6      Inventing 6   Mass d6 (~600 lbs duralloy)
+Hits        12      Power 56      Move 14 walking + Speed = 48 (anti-grav 96 kph)   Init d6
+HTH         d6+1    Inventing 6   Mass d6 (~600 lbs duralloy)
 GW HP equivalent: 72
 ```
 
@@ -1141,8 +1143,8 @@ Base BCs:    ST 10  EN 8  AG 6  IN 4  CL 10
 Size mod:    +9 ST, +9 EN  (Size Change Larger 15 CP, 12' tier)
 Effective:   ST 19  EN 17  AG 6  IN 4  CL 10
 
-Hits        10~     Power 46      Move 14 ground   Init d4
-HTH         d10+1   Inventing 2   Mass d10 (~2000 lbs)   Profile x2
+Hits        13      Power 46      Move 14 ground   Init d4
+HTH         d8+1    Inventing 2   Mass d10 (~2000 lbs)   Profile x2
 ```
 
 **Abilities:** A/P Fish Standard (20 CP — Natural Weaponry massive bite ~2d10 sharp, Heightened Senses 50m, Tunneling associated with bite for sand-burrow primary locomotion — Max SR 2 sand 5 CP + Max Speed 12 = 10 CP, total 15 CP within or supplementing A/P), Size Change Larger 12' (15 CP), Tunneling (sand burrow, Max SR 2, Max Speed 12, +2 dmg bonus on bite from CP overflow) (15 CP — supplement ability), Heightened Strength ~+4 (4 CP), Heightened Attack +2 hit (4 CP), Armor 8 = 5/1/0/2 (12.5 CP — hide)
@@ -1164,7 +1166,7 @@ HTH         d10+1   Inventing 2   Mass d10 (~2000 lbs)   Profile x2
 ```
 Base BCs:    ST 16  EN 10  AG 12  IN 14  CL 15
 
-Hits        11~     Power 52      Move 12      Init d6
+Hits        10      Power 52      Move 12      Init d6+1
 HTH         d6+1    Inventing 8   Mass d4 (~150 lbs)
 ```
 
@@ -1199,7 +1201,7 @@ HTH         d6+1    Inventing 8   Mass d4 (~150 lbs)
 ```
 BCs:        ST 12  EN 8  AG 8  IN 6  CL 8
 
-Hits        4~      Power 34      Move 3 ground / 9 vine reach   Init d3
+Hits        3       Power 34      Move 3 ground / 9 vine reach   Init d3
 HTH         d6      Inventing 3   Mass d8 (~1500 lbs elongated)
 ```
 
@@ -1223,7 +1225,7 @@ Base BCs:    ST 12  EN 14  AG 14  IN 17  CL 17
 Size mod:    +5 ST, +4 EN  (Size Change Larger 7.5 CP, 9' tier)
 Effective:   ST 17  EN 18  AG 14  IN 17  CL 17
 
-Hits        13~     Power 66      Move 16      Init d6+1
+Hits        17      Power 66      Move 16      Init d6+1
 HTH         d6+1    Inventing 9   Mass d6 (~400 lbs)   Profile x1.5
 ```
 
@@ -1249,7 +1251,7 @@ Base BCs:    ST 8  EN 10  AG 14  IN 4  CL 8
 Size mod:    -1 ST  (Size Change Smaller 2.5 CP, 4.5' tier)
 Effective:   ST 7  EN 10  AG 14  IN 4  CL 8
 
-Hits        4~      Power 35      Move 9      Init d3+1
+Hits        4       Power 35      Move 9      Init d3
 HTH         d3      Inventing 2   Mass d3 (~50 lbs)   Profile /1.5
 ```
 
@@ -1274,8 +1276,8 @@ Base BCs:    ST 10  EN 8  AG 14  IN 4  CL 10
 Size mod:    +2 ST, +1 EN  (Size Change Larger 2.5 CP, 7' tier)
 Effective:   ST 12  EN 9  AG 14  IN 4  CL 10
 
-Hits        6~      Power 39      Move via Telekinetic Flight   Init d4
-HTH         d4+1 (bite 2d6)   Inventing 2   Mass d4 (~80 lbs)   Profile x1.2
+Hits        7       Power 39      Move via Telekinetic Flight   Init d4
+HTH         d6   (bite 2d6)   Inventing 2   Mass d4 (~80 lbs)   Profile x1.2
 ```
 
 **Abilities:** A/P Fish Standard (20 CP — Adaptation Aquatic, Adaptation Aerial dual-breathing, Natural Weaponry bite +d6 sharp), Size Change Larger 7' (2.5 CP), Flight (Telekinetic, moderate speed) 10 CP, Ice Abilities B Ice Blast Cryogenesis (12.5 CP), Sonic Abilities A Sonic Blast (10 CP), Reflection Energy (heat + laser via feathers) (12.5 CP), Heightened Senses (radiation detection, 30m+ range) (7.5 CP), Armor 8 = 5/1/0/2 (12.5 CP — feather + scale)
@@ -1321,8 +1323,8 @@ Higher Power Levels shift array up — same archetype shape, more BC points.
 ```
 BCs:        ST 14  EN 12  AG 10  IN 6   CL 8
 
-Hits        4       Power 42      Move 12      Init d3+1
-HTH         d4+1    Inventing 3   Mass d4 (~150 lbs)
+Hits        8       Power 42      Move 12      Init d3
+HTH         d6      Inventing 3   Mass d4 (~150 lbs)
 ```
 
 **Abilities:** none baseline (PSH); +1 mutation from §10-12 if humanoid
@@ -1357,7 +1359,7 @@ GW reaction-table results → MP CL-based Influence Task per `DESIGN-gw-mp-conve
 ```
 BCs:        ST 14  EN 13  AG 4  IN 3  CL 8
 
-Hits        7~      Power 34      Move 0      Init d3
+Hits        6       Power 34      Move 0      Init d3
 HTH         d6      Inventing 1   Mass d8 (~1500 lbs total tangle)
 ```
 
@@ -1387,7 +1389,7 @@ Base BCs:    ST 11  EN 6  AG 12  IN 6  CL 10
 Size mod:    +5 ST, +4 EN  (Size Change Larger 7.5 CP, 9' tier)
 Effective:   ST 16  EN 10  AG 12  IN 6  CL 10
 
-Hits        9~      Power 44      Move 13      Init d4
+Hits        9       Power 44      Move 13      Init d4
 HTH         d6+1    Inventing 3   Mass d8 (~1500 lbs)   Profile x1.5
 ```
 
@@ -1413,8 +1415,8 @@ Base BCs:    ST 10  EN 4  AG 14  IN 5  CL 10
 Size mod:    -2 ST, -2 EN  (Size Change Smaller 10 CP, 1' tier)
 Effective:   ST 8   EN 2  AG 14  IN 5  CL 10
 
-Hits        2~      Power 29      Move N/A (teleport)   Init d4
-HTH         d2      Inventing 3   Mass d2- (~10 oz)   Profile /6
+Hits        1       Power 29      Move N/A (teleport)   Init d4
+HTH         d3      Inventing 3   Mass d2- (~10 oz)   Profile /6
 ```
 
 **Abilities:** A/P Insect Low (10 CP — Heightened Senses, Natural Weaponry bore-mandibles +d4 sharp post-paralysis only), Size Change Smaller 1' (10 CP), Teleportation 200m alt-turns (12.5 CP), Special Missile Weapon spit intensity 16 paralytic 5m persistent (17.5 CP), Armor 5 = 3/0/0/2 (7.5 CP)
@@ -1441,8 +1443,8 @@ HTH         d2      Inventing 3   Mass d2- (~10 oz)   Profile /6
 ```
 Per-plant BCs:  ST 4  EN 1  AG 1  IN 2  CL 12
 
-Hits        1       Power 8       Move 0      Init d6+1
-HTH         d2-     Inventing 1   Mass d2- (~5 lbs)
+Hits        1       Power 8       Move 0      Init d6
+HTH         d2      Inventing 1   Mass d2- (~5 lbs)
 ```
 
 **Per-plant abilities:** A/P Plant Low (10 CP — Mobility none, no useful direct attacks individually), Special Missile Weapon teleporting spiked seeds (covered in swarm mechanic, not per-plant)
