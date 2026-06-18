@@ -1,3 +1,8 @@
+// gw-subhex-view.js v0.38.0 — 2026-06-18
+// v0.38.0 — render perf: memoize each subhex's "M…Z" path string by Q,R (centers
+//           are deterministic so geometry is built once per cell ever, not once
+//           per render) and precompute the 6 corner offsets once per SUB_R so the
+//           hot loop drops its per-cell cos/sin. Used by render() and renderFog().
 // gw-subhex-view.js v0.37.0 — 2026-05-29
 // v0.37.0 — emit 'gw-party-changed' on party/fog/clock save so a campaign-bound
 //           map auto-publishes to players (gw-map-sync).
@@ -837,8 +842,7 @@
     const d = D(); let dStr = '';
     for (const { Q, R } of d.cellsInAxialBbox(state.rendered)){
       if (state.revealed.has(Q + '_' + R)) continue;
-      const c = d.subhexSvgCenter(Q, R);
-      dStr += hexPath(c.x, c.y, d.SUB_R);
+      dStr += subhexPath(Q, R);
     }
     if (!dStr) return;
     const p = document.createElementNS(SVGNS, 'path');
@@ -1108,10 +1112,29 @@
     return s;
   }
   function fillFor(d, sub){ return (d.TERRAIN[sub.terrain] || d.TERRAIN.unknown).fill; }
-  function hexPath(cx, cy, R){
+  // Per-subhex path memo: a cell's center is deterministic, so its "M…Z" subpath
+  // never changes. Corner offsets are identical for every subhex at a given SUB_R,
+  // so precompute them once (no trig per cell) and add to the center.
+  const _pathCache = new Map();
+  let _hexOff = null, _hexOffR = null;
+  function hexOffsets(rad){
+    if (_hexOff && _hexOffR === rad) return _hexOff;
+    _hexOff = [];
+    for (let i = 0; i < 6; i++){ const a = (Math.PI/180)*(60*i); _hexOff.push([rad*Math.cos(a), rad*Math.sin(a)]); }
+    _hexOffR = rad; _pathCache.clear();
+    return _hexOff;
+  }
+  function subhexPath(Q, R){
+    const key = Q + ',' + R;
+    const hit = _pathCache.get(key);
+    if (hit !== undefined) return hit;
+    const d = D(), c = d.subhexSvgCenter(Q, R), off = hexOffsets(d.SUB_R);
     let s = '';
-    for (let i = 0; i < 6; i++){ const a = (Math.PI/180)*(60*i); s += (i ? 'L' : 'M') + (cx+R*Math.cos(a)).toFixed(2) + ',' + (cy+R*Math.sin(a)).toFixed(2) + ' '; }
-    return s + 'Z ';
+    for (let i = 0; i < 6; i++){ s += (i ? 'L' : 'M') + (c.x + off[i][0]).toFixed(2) + ',' + (c.y + off[i][1]).toFixed(2) + ' '; }
+    s += 'Z ';
+    if (_pathCache.size > 300000) _pathCache.clear();   // soft cap, mirrors _terrainCache
+    _pathCache.set(key, s);
+    return s;
   }
 
   function render(force){
@@ -1138,8 +1161,7 @@
         if (state.showParents && !parentsSeen.has(pk)) parentsSeen.set(pk, o);
       }
       const sub = d.getSubhex(Q, R, pt, ph);
-      const c = d.subhexSvgCenter(Q, R);
-      const sp = hexPath(c.x, c.y, d.SUB_R);
+      const sp = subhexPath(Q, R);
       const color = fillFor(d, sub);
       let arr = byColor.get(color); if (!arr){ arr = []; byColor.set(color, arr); }
       arr.push(sp);
