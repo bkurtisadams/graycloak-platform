@@ -1630,15 +1630,16 @@ MP.TEMPLATES = [
 
 // ---- System Color Categories (for layout canvas) ----
 MP.SYS_COLORS = {
-  movement:   { color: "#d89040", label: "Movement",    keywords: ["flight","speed","tunneling","teleport","super speed","gliding","bridge travel"] },
-  weapon:     { color: "#c03838", label: "Weapon",       keywords: ["blast","attack","weapon","gun","cannon","missile","torpedo","laser","disintegrat","flame","ice abilit","lightning","sonic","chemical","death touch","natural weapon","grapnel","inertia","possession","unprotection","change environment"] },
+  movement:   { color: "#d89040", label: "Movement",    keywords: ["flight","speed","tunneling","teleport","super speed","gliding","bridge travel","dimensional travel","stretching","gravity"] },
+  weapon:     { color: "#c03838", label: "Weapon",       keywords: ["blast","attack","weapon","gun","cannon","missile","torpedo","laser","disintegrat","flame","ice abilit","lightning","sonic","chemical","death touch","natural weapon","grapnel","inertia","possession","unprotection","change environment","repulsion","devitaliz","vibration","poison","venom","arsenal"] },
   crew:       { color: "#5080a0", label: "Crew",         keywords: ["control seat","passenger","bunk","seat","pilot","co-pilot","driver","gunner","commander","loader","crew"] },
   sensor:     { color: "#7050a0", label: "Sensor",       keywords: ["sensor","radar","sonar","countermeasure","navigation","heightened sense"] },
   comms:      { color: "#60c0d0", label: "Comms",        keywords: ["communicat","comms","radio","beacon","signal"] },
-  brain:      { color: "#b060a0", label: "AI/Brain",     keywords: ["robot brain","automation","computer","ai "] },
-  defense:    { color: "#e0c020", label: "Defense",      keywords: ["armor","shield","force field","invulnerab","adaptation","reflection","durability"] },
-  lifesupport:{ color: "#60b060", label: "Life Support", keywords: ["life support","healing","regenerat","first aid"] },
+  brain:      { color: "#b060a0", label: "AI/Brain",     keywords: ["robot brain","automation","computer","ai ","cosmic","knowledge","inventing","heightened intelligence"] },
+  defense:    { color: "#e0c020", label: "Defense",      keywords: ["armor","shield","force field","invulnerab","adaptation","reflection","durability","density","invisib","absorption","non-corporeal","heightened defense","heightened endurance"] },
+  lifesupport:{ color: "#60b060", label: "Life Support", keywords: ["life support","healing","regenerat","first aid","revivif"] },
   cargo:      { color: "#b0b0b0", label: "Cargo",        keywords: ["cargo","trunk","storage","spare part","garage","hangar","trailer","ammo","bay"] },
+  control:    { color: "#6a50c0", label: "Control/Psi",  keywords: ["mind control","emotion control","paralys","negation","telepath","telekines","illusion","magnetism","light control","darkness","weakness detection","willpower","mental abilit","weather"] },
   misc:       { color: "#8a8070", label: "Misc",         keywords: ["headlight","light","ejection","wings","performance","chaff","flare"] },
 };
 
