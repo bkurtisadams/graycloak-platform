@@ -1,4 +1,5 @@
-// mp-app.js v4.13.1 — Fix Import JSON crash: capture file ref before input reset
+// mp-app.js v4.13.2 — Fix save overwriting other vehicles: upsert slot list by _id
+// (preserved across load via mp-vehicle v3.3.0) instead of the volatile edit-index
 
 const veh = new Vehicle();
 let editor = null;
@@ -1355,16 +1356,13 @@ function autoSave() {
   _saveTimer = setTimeout(() => {
     try {
       const data = veh.toJSON();
-      // Ensure stable entity ID
-      if (!data._id) {
-        const list = JSON.parse(localStorage.getItem(VEHS_LIST_KEY)) || [];
-        const idx = _getVehEditIdx();
-        if (idx >= 0 && idx < list.length && list[idx]._id) {
-          data._id = list[idx]._id;
-        } else {
-          data._id = (typeof GCC!=='undefined' && GCC.genId) ? GCC.genId('veh') : 'veh_'+Date.now();
-        }
+      const list = JSON.parse(localStorage.getItem(VEHS_LIST_KEY)) || [];
+      // Stable entity ID: keep the loaded vehicle's own id; mint one for a new vehicle.
+      if (!veh._id) {
+        veh._id = (typeof GCC!=='undefined' && GCC.genId) ? GCC.genId('veh')
+          : 'veh_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
       }
+      data._id = veh._id;
       // Add computed summary for campaign card display
       data._totalCost = veh.totalCost;
       data._hits = veh.hits;
@@ -1374,15 +1372,17 @@ function autoSave() {
       if (_vehCampaign) data._campaign = _vehCampaign;
       data._saved = new Date().toISOString();
       localStorage.setItem(LS_KEY, JSON.stringify(data));
-      // Sync to slot list for landing page
-      const list = JSON.parse(localStorage.getItem(VEHS_LIST_KEY)) || [];
-      const idx = _getVehEditIdx();
-      if (idx >= 0 && idx < list.length) {
-        list[idx] = data;
-      } else {
-        list.push(data);
-        localStorage.setItem('mp-veh-edit-idx', list.length - 1);
+      // Upsert into the slot list BY _id so a save can never overwrite a different
+      // vehicle. Fall back to adopting the currently-edited legacy slot (entries
+      // saved before _id existed) instead of pushing a duplicate.
+      let idx = list.findIndex(v => v && v._id === data._id);
+      if (idx < 0) {
+        const eidx = _getVehEditIdx();
+        if (eidx >= 0 && eidx < list.length && !list[eidx]._id) idx = eidx;
       }
+      if (idx >= 0) list[idx] = data;
+      else { list.push(data); idx = list.length - 1; }
+      localStorage.setItem('mp-veh-edit-idx', String(idx));
       localStorage.setItem(VEHS_LIST_KEY, JSON.stringify(list));
       if(typeof GCCSync!=='undefined' && GCCSync.notifySync) GCCSync.notifySync(VEHS_LIST_KEY);
     } catch (e) { /* quota exceeded or private browsing */ }

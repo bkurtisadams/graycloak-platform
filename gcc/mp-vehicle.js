@@ -1,7 +1,8 @@
-// mp-vehicle.js v3.2.0 — Walls data model, hull auto-trace, wall serialization
+// mp-vehicle.js v3.3.0 — Stable _id field (preserved across load) for slot-list identity
 
 class Vehicle {
   constructor() {
+    this._id = null; // stable entity id (assigned/preserved by the builder app)
     this.name = "";
     this.model = "";
     this.operator = "";
@@ -293,6 +294,7 @@ class Vehicle {
   }
 
   fromJSON(data) {
+    this._id = data._id || null;
     this.name = data.name || "";
     this.model = data.model || "";
     this.operator = data.operator || "";
