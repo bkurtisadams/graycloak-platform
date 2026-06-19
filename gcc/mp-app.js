@@ -1,5 +1,6 @@
-// mp-app.js v4.13.2 — Fix save overwriting other vehicles: upsert slot list by _id
-// (preserved across load via mp-vehicle v3.3.0) instead of the volatile edit-index
+// mp-app.js v4.13.3 — Load dialog: per-row Delete with inline "are you sure"; load resolves by _id
+// v4.13.2 — Fix save overwriting other vehicles: upsert slot list by _id (mp-vehicle v3.3.0)
+// v4.13.1 — Fix Import JSON crash: capture file ref before input reset
 
 const veh = new Vehicle();
 let editor = null;
@@ -1172,15 +1173,18 @@ document.getElementById("btn-save").addEventListener("click", () => {
 });
 
 document.getElementById("btn-load").addEventListener("click", async () => {
+  const result = await loadManageDialog();
+  if (!result) return;
   const list = JSON.parse(localStorage.getItem(VEHS_LIST_KEY)) || [];
-  const idx = await MPDialog.listVehs("Load Vehicle", list);
+  let idx = result._id ? list.findIndex(v => v && v._id === result._id) : -1;
+  if (idx < 0) idx = result.index; // legacy entries without _id (valid for current render)
   if (idx == null || idx < 0 || idx >= list.length) return;
   veh.fromJSON(list[idx]);
   syncFormFromVeh();
   updateAll();
   _vehCampaign = list[idx]._campaign || null;
   localStorage.setItem(LS_KEY, JSON.stringify(list[idx]));
-  localStorage.setItem('mp-veh-edit-idx', idx);
+  localStorage.setItem('mp-veh-edit-idx', String(idx));
   _fileHandle = null;
   document.title = (veh.name || "Vehicle") + " — MP Vehicle Builder";
 });
@@ -1387,6 +1391,115 @@ function autoSave() {
       if(typeof GCCSync!=='undefined' && GCCSync.notifySync) GCCSync.notifySync(VEHS_LIST_KEY);
     } catch (e) { /* quota exceeded or private browsing */ }
   }, 300);
+}
+
+function _vehListSummary(v) {
+  const bits = [];
+  if (v._totalCost != null) bits.push(v._totalCost + " CP");
+  if (v._hits != null) bits.push(v._hits + " Hits");
+  if (v._spaces != null) bits.push(v._spaces + " sp");
+  if (v._saved) { const d = new Date(v._saved); if (!isNaN(d.getTime())) bits.push(d.toLocaleString()); }
+  return bits.join(" · ");
+}
+
+// Self-contained Load dialog with per-row Delete (inline "are you sure"). Resolves
+// { _id, index } for the chosen vehicle, or null. Deletes persist immediately.
+function loadManageDialog() {
+  return new Promise((resolve) => {
+    const ov = document.createElement("div");
+    ov.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;";
+    const box = document.createElement("div");
+    box.style.cssText = "background:#1a1a1a;color:#eee;border:1px solid #444;border-radius:8px;width:min(540px,92vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.6);";
+    const header = document.createElement("div");
+    header.style.cssText = "padding:12px 16px;border-bottom:1px solid #333;font-weight:700;font-size:16px;color:#f0a050;";
+    header.textContent = "Load Vehicle";
+    const body = document.createElement("div");
+    body.style.cssText = "padding:6px;overflow:auto;flex:1;";
+    const footer = document.createElement("div");
+    footer.style.cssText = "padding:10px 16px;border-top:1px solid #333;text-align:right;";
+    const closeBtn = document.createElement("button");
+    closeBtn.textContent = "Close";
+    closeBtn.style.cssText = "background:#333;color:#eee;border:1px solid #555;border-radius:4px;padding:6px 14px;cursor:pointer;";
+    footer.appendChild(closeBtn);
+    box.appendChild(header); box.appendChild(body); box.appendChild(footer);
+    ov.appendChild(box);
+
+    function close(result) { if (ov.parentNode) document.body.removeChild(ov); resolve(result); }
+    closeBtn.addEventListener("click", () => close(null));
+    ov.addEventListener("click", (e) => { if (e.target === ov) close(null); });
+
+    function doDelete(v) {
+      const cur = JSON.parse(localStorage.getItem(VEHS_LIST_KEY)) || [];
+      let i = v._id ? cur.findIndex(x => x && x._id === v._id) : -1;
+      if (i < 0) i = cur.findIndex(x => x && !x._id && x.name === v.name && x._saved === v._saved);
+      if (i >= 0) {
+        cur.splice(i, 1);
+        localStorage.setItem(VEHS_LIST_KEY, JSON.stringify(cur));
+        if (typeof GCCSync !== "undefined" && GCCSync.notifySync) GCCSync.notifySync(VEHS_LIST_KEY);
+        const eidx = _getVehEditIdx();
+        if (eidx === i) localStorage.setItem("mp-veh-edit-idx", "-1");
+        else if (eidx > i) localStorage.setItem("mp-veh-edit-idx", String(eidx - 1));
+        if (veh._id && v._id && veh._id === v._id) veh._id = null; // deleted the loaded one
+      }
+      render();
+    }
+
+    function confirmRow(row, v) {
+      row.innerHTML = "";
+      row.style.background = "#2a1414";
+      const msg = document.createElement("div");
+      msg.style.cssText = "flex:1;font-size:13px;color:#f88;min-width:0;";
+      msg.innerHTML = "Delete <b>" + escAttr(v.name || "Unnamed") + "</b>? This cannot be undone.";
+      const yes = document.createElement("button");
+      yes.textContent = "Delete";
+      yes.style.cssText = "background:#a02020;color:#fff;border:none;border-radius:4px;padding:6px 12px;cursor:pointer;font-weight:600;";
+      yes.addEventListener("click", () => doDelete(v));
+      const no = document.createElement("button");
+      no.textContent = "Cancel";
+      no.style.cssText = "background:#333;color:#eee;border:1px solid #555;border-radius:4px;padding:6px 12px;cursor:pointer;";
+      no.addEventListener("click", render);
+      row.appendChild(msg); row.appendChild(yes); row.appendChild(no);
+    }
+
+    function render() {
+      const cur = JSON.parse(localStorage.getItem(VEHS_LIST_KEY)) || [];
+      body.innerHTML = "";
+      if (!cur.length) {
+        const empty = document.createElement("div");
+        empty.style.cssText = "padding:28px;text-align:center;color:#888;";
+        empty.textContent = "No saved vehicles.";
+        body.appendChild(empty);
+        return;
+      }
+      cur.forEach((v, i) => {
+        const row = document.createElement("div");
+        row.style.cssText = "display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid #2a2a2a;";
+        const info = document.createElement("div");
+        info.style.cssText = "flex:1;min-width:0;";
+        const nm = document.createElement("div");
+        nm.style.cssText = "font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
+        nm.textContent = v.name || "Unnamed";
+        const sub = document.createElement("div");
+        sub.style.cssText = "font-size:11px;color:#999;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
+        sub.textContent = _vehListSummary(v);
+        info.appendChild(nm); info.appendChild(sub);
+        const loadB = document.createElement("button");
+        loadB.textContent = "Load";
+        loadB.style.cssText = "background:#c05a00;color:#fff;border:none;border-radius:4px;padding:6px 14px;cursor:pointer;font-weight:600;";
+        loadB.addEventListener("click", () => close({ _id: v._id || null, index: i }));
+        const delB = document.createElement("button");
+        delB.title = "Delete this saved vehicle";
+        delB.textContent = "🗑";
+        delB.style.cssText = "background:#3a1a1a;color:#f88;border:1px solid #633;border-radius:4px;padding:6px 10px;cursor:pointer;";
+        delB.addEventListener("click", () => confirmRow(row, v));
+        row.appendChild(info); row.appendChild(loadB); row.appendChild(delB);
+        body.appendChild(row);
+      });
+    }
+
+    render();
+    document.body.appendChild(ov);
+  });
 }
 
 function autoLoad() {
