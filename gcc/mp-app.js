@@ -1,4 +1,4 @@
-// mp-app.js v4.13.0 — File System Access API (Save/Save As/Open), canvas lock
+// mp-app.js v4.13.1 — Fix Import JSON crash: capture file ref before input reset
 
 const veh = new Vehicle();
 let editor = null;
@@ -1251,6 +1251,7 @@ document.getElementById("btn-import").addEventListener("click", () => {
 // Fallback file input (Firefox/Safari)
 document.getElementById("inp-json").addEventListener("change", e => {
   if (!e.target.files.length) return;
+  const file = e.target.files[0];
   const reader = new FileReader();
   reader.onload = ev => {
     try {
@@ -1260,10 +1261,10 @@ document.getElementById("inp-json").addEventListener("change", e => {
       autoSave();
       _fileHandle = null;
       document.title = (veh.name || "Vehicle") + " — MP Vehicle Builder";
-      MPDialog.alert("Imported", "Vehicle imported: " + e.target.files[0].name);
+      MPDialog.alert("Imported", "Vehicle imported: " + file.name);
     } catch (err) { MPDialog.alert("Error", "Import failed: " + err.message); }
   };
-  reader.readAsText(e.target.files[0]);
+  reader.readAsText(file);
   e.target.value = "";
 });
 
