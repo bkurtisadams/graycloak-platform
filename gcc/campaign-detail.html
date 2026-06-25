@@ -253,9 +253,11 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 
 /* Modal form overrides — base styles from gcc-dialog.css */
 /* campaign-detail.html uses gcc-dlg-overlay.open as display:flex instead of opacity toggle */
-.gcc-dlg-overlay.cd-modal { display: none; opacity: 1; pointer-events: auto; padding: 30px 16px; }
+.gcc-dlg-overlay.cd-modal { display: none; opacity: 1; pointer-events: auto; padding: 30px 16px; align-items: flex-start; justify-content: center; overflow-y: auto; }
 .gcc-dlg-overlay.cd-modal.open { display: flex; }
-.gcc-dlg-overlay.cd-modal .gcc-dlg { transform: none; }
+.gcc-dlg-overlay.cd-modal .gcc-dlg { transform: none; max-height: calc(100vh - 60px); display: flex; flex-direction: column; }
+.gcc-dlg-overlay.cd-modal .gcc-dlg-body { overflow-y: auto; flex: 1 1 auto; min-height: 0; }
+.gcc-dlg-overlay.cd-modal .gcc-dlg-footer { flex: 0 0 auto; }
 
 /* ── Table feed (dice + chat) styles live in gcc-table-feed.js (injected) ── */
 

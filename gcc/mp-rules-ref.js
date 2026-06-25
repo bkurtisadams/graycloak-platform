@@ -2,7 +2,9 @@
  * NOT loaded by the engine. A durable reference, populated as rules are confirmed against
  * the core rulebook (section numbers noted). Mark each entry confirmed / inferred / TODO so
  * conversion code never silently relies on a guess.
- * Date: 2026-06-19 (added ChangeEnvironment, Energy, ExperienceLevels, Flame, Invulnerability, Regeneration, robot-weapon abilities, full BC table, more modifiers)
+ * Date: 2026-06-20 (confirmed HeightenedCharacteristic rate: +1 BC per 1 CP, Continual, from rulebook text;
+ *        verified Durability (1 Hit/CP) and Energy (+2 Power/CP) already present and correct)
+ * Prior: 2026-06-19 (added ChangeEnvironment, Energy, ExperienceLevels, Flame, Invulnerability, Regeneration, robot-weapon abilities, full BC table, more modifiers)
  */
 var MP_RULES = {
 
@@ -145,11 +147,13 @@ var MP_RULES = {
       notes: "only while conscious and mobile"
     },
 
-    // INFERRED from bestiary usage (Heightened Strength +8 = 8 CP). Confirm CP->BC rate.
+    // CONFIRMED (rulebook: Heightened Strength / Agility / Endurance / Intelligence / Cool).
+    // Each is its own Continual Ability with identical mechanics: +1 to that one BC per 1 CP.
     HeightenedCharacteristic: {
-      type: "inferred",
-      effect: "raises a BC; appears to be +1 BC per 1 CP (e.g. Heightened Strength)",
-      todo: "confirm exact rule text and rate"
+      type: "Continual", pr: 0,
+      effect: "+1 to one BC (ST/AG/EN/IN/CL) per 1 CP",
+      stats: ["Strength", "Agility", "Endurance", "Intelligence", "Cool"],
+      notes: "Subject to the BC Cap (caps.bc). On a Vehicle, AG/IN/CL are normally raised via Automation/Robot Brain/Performance (also +1 per CP); ST/EN come from the size tier."
     },
 
     // PARTIAL. Larger/Smaller tiers alter ST/EN, Profile, Weight.
