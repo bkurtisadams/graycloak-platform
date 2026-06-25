@@ -1,4 +1,5 @@
-// gcc-images.js v1.1.0 — 2026-04-24
+// gcc-images.js v1.1.1 — 2026-06-24
+// v1.1.1: open IDB without a fixed version to fix VersionError after store recovery bumped DB to v2
 // v1.1.0: add downscale() helper for capping data URL size before upload
 // IndexedDB image store for Graycloak's Campaign Corner// IndexedDB image store for Graycloak's Campaign Corner
 // Stores image data URLs in IndexedDB to avoid localStorage quota limits.
@@ -14,7 +15,10 @@ const GCCImages = (function() {
   function open() {
     if (_db) return Promise.resolve(_db);
     return new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      // Open WITHOUT a fixed version: the request adopts whatever version is on
+      // disk. Passing DB_VERSION (1) threw VersionError once the store-missing
+      // recovery below had bumped the DB to v2, permanently breaking every load.
+      const req = indexedDB.open(DB_NAME);
       req.onupgradeneeded = e => {
         const db = e.target.result;
         if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -35,6 +39,7 @@ const GCCImages = (function() {
           };
           req2.onsuccess = e2 => { _db = e2.target.result; resolve(_db); };
           req2.onerror = e2 => { console.warn('[GCCImages] DB upgrade failed:', e2); reject(e2); };
+          req2.onblocked = () => { console.warn('[GCCImages] DB upgrade blocked by another open tab'); reject(new Error('IndexedDB upgrade blocked')); };
           return;
         }
         _db = db;

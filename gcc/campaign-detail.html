@@ -1491,49 +1491,61 @@ document.getElementById('sm-save').addEventListener('click',async()=>{
   const camp=getCamp();if(!camp)return;const sessions=camp.sessions||[];captureSessionSections();
   const rawImage=sesImageData||'';
 
-  // Store cover image in IndexedDB
+  // Store cover image in IndexedDB — never let an image-store failure abort the save
   let imageKey='';
   if(rawImage){
-    if(_sesImageOrigKey&&!GCCImages.isDataUrl(rawImage)){
-      // Image wasn't changed (still the resolved data URL from the original key)
-      imageKey=_sesImageOrigKey;
-    }else if(_sesImageOrigKey){
-      // Image was replaced — update existing key, compress first
-      const compressed=await new Promise(resolve=>compressImageData(rawImage,800,resolve));
-      await GCCImages.put(_sesImageOrigKey,compressed);
-      imageKey=_sesImageOrigKey;
-      console.log('[GCC] Updated cover image:',imageKey,Math.round(compressed.length/1024)+'KB');
-    }else{
-      // New image — store with new key
-      const compressed=await new Promise(resolve=>compressImageData(rawImage,800,resolve));
-      imageKey=await GCCImages.store(compressed,'img_ses');
-      console.log('[GCC] Stored new cover image:',imageKey,Math.round(compressed.length/1024)+'KB');
+    try{
+      if(_sesImageOrigKey&&!GCCImages.isDataUrl(rawImage)){
+        // Image wasn't changed (still the resolved data URL from the original key)
+        imageKey=_sesImageOrigKey;
+      }else if(_sesImageOrigKey){
+        // Image was replaced — update existing key, compress first
+        const compressed=await new Promise(resolve=>compressImageData(rawImage,800,resolve));
+        await GCCImages.put(_sesImageOrigKey,compressed);
+        imageKey=_sesImageOrigKey;
+        console.log('[GCC] Updated cover image:',imageKey,Math.round(compressed.length/1024)+'KB');
+      }else{
+        // New image — store with new key
+        const compressed=await new Promise(resolve=>compressImageData(rawImage,800,resolve));
+        imageKey=await GCCImages.store(compressed,'img_ses');
+        console.log('[GCC] Stored new cover image:',imageKey,Math.round(compressed.length/1024)+'KB');
+      }
+    }catch(err){
+      console.warn('[GCC] Cover image storage failed — saving session without image change:',err);
+      imageKey=_sesImageOrigKey||''; // keep existing image on edit; drop on new
     }
   }
 
-  // Store section images in IndexedDB
+  // Store section images in IndexedDB — tolerate failures per image
   for(const sec of sesSections){
     for(const img of(sec.images||[])){
-      if(img.src&&GCCImages.isDataUrl(img.src)){
-        if(img._origKey){
-          // Image was replaced — update existing key
-          const compressed=await new Promise(resolve=>compressImageData(img.src,400,resolve));
-          await GCCImages.put(img._origKey,compressed);
+      try{
+        if(img.src&&GCCImages.isDataUrl(img.src)){
+          if(img._origKey){
+            // Image was replaced — update existing key
+            const compressed=await new Promise(resolve=>compressImageData(img.src,400,resolve));
+            await GCCImages.put(img._origKey,compressed);
+            img.src=img._origKey;
+            console.log('[GCC] Updated section image:',img.src,Math.round(compressed.length/1024)+'KB');
+          }else{
+            // New image
+            const compressed=await new Promise(resolve=>compressImageData(img.src,400,resolve));
+            img.src=await GCCImages.store(compressed,'img_sec');
+            console.log('[GCC] Stored new section image:',img.src,Math.round(compressed.length/1024)+'KB');
+          }
+        }else if(img._origKey&&!GCCImages.isDataUrl(img.src)){
+          // Unchanged — restore original key
           img.src=img._origKey;
-          console.log('[GCC] Updated section image:',img.src,Math.round(compressed.length/1024)+'KB');
-        }else{
-          // New image
-          const compressed=await new Promise(resolve=>compressImageData(img.src,400,resolve));
-          img.src=await GCCImages.store(compressed,'img_sec');
-          console.log('[GCC] Stored new section image:',img.src,Math.round(compressed.length/1024)+'KB');
         }
-      }else if(img._origKey&&!GCCImages.isDataUrl(img.src)){
-        // Unchanged — restore original key
-        img.src=img._origKey;
+      }catch(err){
+        console.warn('[GCC] Section image storage failed:',err);
+        img.src=img._origKey||''; // keep existing key on edit; drop unstorable new image
       }
       delete img._origKey;
     }
   }
+  // Drop any image that couldn't be persisted, so raw data URLs never bloat localStorage
+  for(const sec of sesSections){if(sec.images)sec.images=sec.images.filter(img=>img.src&&!GCCImages.isDataUrl(img.src))}
 
   const entry={_id:(sesEditIdx>=0&&sessions[sesEditIdx])?sessions[sesEditIdx]._id:GCC.genId('ses'),
     date:document.getElementById('sm-date').value||'',gameDate:document.getElementById('sm-gamedate').value.trim()||'',
