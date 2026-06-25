@@ -347,7 +347,7 @@ End of episode 1. Total xp = 71.' style="min-height:200px;font-family:var(--fm,m
 
 <script src="gcc-dialog.js"></script>
 <script src="gcc-data.js?v=2"></script>
-<script src="gcc-images.js"></script>
+<script src="gcc-images.js?v=1.1.1"></script>
 <script src="gcc-backup.js?v=2"></script>
 <script src="gcc-header.js"></script>
 <script src="gcc-firebase-config.js"></script>
@@ -1354,7 +1354,7 @@ let sesEditIdx=-1,sesImageData='',sesSections=[],sesTags=[],sesRoster=[];
 
 function buildSessionModalBody(camp,isTimeline){
   const xpLbl=GCC.xpLabel(camp.system);
-  const imgPreview=sesImageData?`<img class="gcc-dlg-img-preview" src="${sesImageData}">`:'';
+  const imgPreview=sesImageData?`<img class="gcc-dlg-img-preview" src="${sesImageData}">`:(sesImageData===null&&_sesImageOrigKey?`<div style="font-size:11px;color:var(--red);padding:6px 0">⚠ Saved cover image couldn't be loaded. Upload again to replace it; saving keeps the existing reference.</div>`:'');
   let sectionsHtml='';
   if(!isTimeline){sectionsHtml=`<label class="gcc-dlg-label">SECTIONS (optional — for structured recaps)</label><div class="gcc-dlg-sections" id="sm-sections">${sesSections.map((sec,i)=>{
     const imgs=sec.images||[];
@@ -1514,6 +1514,12 @@ document.getElementById('sm-save').addEventListener('click',async()=>{
       console.warn('[GCC] Cover image storage failed — saving session without image change:',err);
       imageKey=_sesImageOrigKey||''; // keep existing image on edit; drop on new
     }
+  }else if(sesImageData===null&&_sesImageOrigKey){
+    // Cover data could not be loaded (transient IDB miss), but a key exists.
+    // Preserve the reference rather than wiping it. Explicit removal via the
+    // Remove button sets sesImageData='' (empty string, not null), so that path
+    // still clears the cover as intended.
+    imageKey=_sesImageOrigKey;
   }
 
   // Store section images in IndexedDB — tolerate failures per image
