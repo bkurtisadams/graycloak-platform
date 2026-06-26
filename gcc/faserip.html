@@ -1841,25 +1841,46 @@ function loadAutosave(){
 function getSavedChars(){
   try{return JSON.parse(localStorage.getItem(STORAGE_KEY))||[];}catch(e){return[];}
 }
-function saveChar(){
+// Persist CHAR to the saved-character list + cloud, silently.
+// Returns {ok:true} or {ok:false, reason:'noname'|'quota'}.
+// Used by both the Save button and the import flow.
+function persistChar(){
   const chars=getSavedChars();
-  const name=CHAR.heroName||"";
-  if(!name.trim()){MPDialog.alert("Cannot Save","Hero Name is empty.");return;}
+  const name=(CHAR.heroName||"").trim();
+  if(!name) return {ok:false, reason:'noname'};
+  // Match the existing list slot by _id, then fall back to hero name.
+  let idx = CHAR._id ? chars.findIndex(c=>c._id && c._id===CHAR._id) : -1;
+  if(idx<0){
+    const byName=chars.findIndex(c=>c.heroName===CHAR.heroName);
+    if(byName>=0){
+      idx=byName;
+      // Inherit the existing _id so a re-import updates the character in
+      // place on every device instead of creating a duplicate after the
+      // cloud union-merge (which keys on _id).
+      if(!CHAR._id && chars[byName]._id) CHAR._id=chars[byName]._id;
+    }
+  }
   if(!CHAR._id) CHAR._id = (typeof GCC!=='undefined' && GCC.genId) ? GCC.genId('fas') : 'fas_'+Date.now();
-  const existing=chars.findIndex(c=>c._id && c._id===CHAR._id);
-  const fallback=existing<0 ? chars.findIndex(c=>c.heroName===name) : -1;
   const entry={...CHAR, _saved:new Date().toISOString()};
-  const idx = existing>=0 ? existing : fallback;
   if(idx>=0) chars[idx]=entry; else chars.push(entry);
   try{
     localStorage.setItem(STORAGE_KEY,JSON.stringify(chars));
   }catch(e){
-    MPDialog.alert("Save Failed","Browser storage is full.<br>Try removing unused characters or clearing portrait data.");
-    return;
+    return {ok:false, reason:'quota'};
   }
   if(typeof GCCSync!=='undefined' && GCCSync.notifySync) GCCSync.notifySync(STORAGE_KEY);
   autosave();
-  MPDialog.alert("Saved","Character saved: <b>"+name+"</b>");
+  return {ok:true};
+}
+
+function saveChar(){
+  const r=persistChar();
+  if(!r.ok){
+    if(r.reason==='noname') MPDialog.alert("Cannot Save","Hero Name is empty.");
+    else MPDialog.alert("Save Failed","Browser storage is full.<br>Try removing unused characters or clearing portrait data.");
+    return;
+  }
+  MPDialog.alert("Saved","Character saved: <b>"+(CHAR.heroName||"")+"</b>");
 }
 
 async function showLoadModal(){
@@ -2146,14 +2167,19 @@ function importChar(file){
         }
         renderAll();
         autosave();
+        const saveResult=persistChar();   // persist to list + cloud so it survives reload and syncs across devices
         const itemCount=(data.items||[]).length;
         const portraitNote = CHAR.portraitData ? '<br>Portrait imported.' :
           (CHAR.foundryImg ? '<br>Portrait path found (not embedded) — click portrait to set manually.' : '');
+        const savedNote = saveResult.ok ? '<br><b>Saved to your characters.</b>' :
+          (saveResult.reason==='noname'
+            ? '<br><b>Not saved</b> — hero name is empty; add a name and click Save.'
+            : '<br><b>Not saved</b> — browser storage is full; free space and click Save.');
         MPDialog.alert('Imported', 'Imported Foundry actor: <b>'+data.name+'</b><br>'+CHAR.powers.length+' powers, '+CHAR.talents.length+' talents, '+CHAR.contacts.length+' contacts' +
           (CHAR.equipment&&CHAR.equipment.length?', '+CHAR.equipment.length+' equipment':'') +
           (CHAR.stunts&&CHAR.stunts.length?', '+CHAR.stunts.length+' stunts':'') +
           (CHAR.headquarters&&CHAR.headquarters.length?', '+CHAR.headquarters.length+' HQ':'') +
-          (CHAR.vehicles&&CHAR.vehicles.length?', '+CHAR.vehicles.length+' vehicles':'') + portraitNote);
+          (CHAR.vehicles&&CHAR.vehicles.length?', '+CHAR.vehicles.length+' vehicles':'') + portraitNote + savedNote);
       } else {
         CHAR={...newChar(),...data};
         // Compress portrait from native GCC import too
@@ -2162,6 +2188,7 @@ function importChar(file){
         }
         renderAll();
         autosave();
+        persistChar();   // persist native import to list + cloud as well
       }
     }catch(err){MPDialog.alert("Import Error","Invalid JSON file: "+err.message);}
   };
