@@ -2205,7 +2205,20 @@ document.addEventListener("DOMContentLoaded",()=>{
   bindFields();
   bindAddButtons();
   syncTableFeed();
-  window.addEventListener('gcc-sync-ready', refreshFeedOwner);
+  // After cloud sync (v2.2.0 merge) lands, reload the open character from the
+  // freshly-merged saved list — but only if the synced copy is newer, so we
+  // never clobber unsaved in-progress edits with an equal/older version.
+  window.addEventListener('gcc-sync-ready', ()=>{
+    if(CHAR._id){
+      const fresh=getSavedChars().find(c=>c._id===CHAR._id);
+      if(fresh){
+        const ft=Date.parse(fresh._saved||0)||0;
+        const ct=Date.parse(CHAR._saved||0)||0;
+        if(ft>ct){ CHAR={...newChar(), ...fresh}; renderAll(); }
+      }
+    }
+    refreshFeedOwner();
+  });
   if(typeof GCCAuth!=="undefined" && GCCAuth.onAuthChange) GCCAuth.onAuthChange(()=>refreshFeedOwner());
 
   // Karma ledger toggle
