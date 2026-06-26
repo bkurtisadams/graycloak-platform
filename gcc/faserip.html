@@ -209,6 +209,9 @@ body{min-height:100vh;background:var(--bg);color:var(--dark);font-family:var(--f
 .karma-ledger-hdr{display:flex;justify-content:space-between;align-items:center;padding:4px 8px;border-bottom:1px solid #ccc;background:#f0ede4}
 .karma-ledger-hdr span{font-family:var(--fd);font-size:9px;font-weight:700;letter-spacing:.5px}
 .karma-ledger-summary{display:flex;gap:12px;font-family:var(--fm);font-size:9px;color:#666}
+.karma-sort-btn{font-family:var(--fd);font-size:8px;font-weight:700;letter-spacing:.5px;border:1px solid #000;background:#fff;cursor:pointer;padding:2px 6px;border-radius:2px;white-space:nowrap}
+.karma-sort-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+@media print{.karma-sort-btn{display:none!important}}
 .karma-ledger table{width:100%;border-collapse:collapse;font-size:9px;font-family:var(--fb)}
 .karma-ledger th{font-family:var(--fd);font-size:8px;font-weight:700;letter-spacing:.5px;text-align:left;padding:3px 6px;border-bottom:1.5px solid #000;background:#f0ede4;position:sticky;top:0}
 .karma-ledger td{padding:2px 6px;border-bottom:1px dotted #ccc}
@@ -513,6 +516,7 @@ body.view-mode .hdr-btn-edit-view{display:none}
         <div class="karma-ledger-hdr">
           <span>Karma History</span>
           <div class="karma-ledger-summary" id="karma-ledger-summary"></div>
+          <button type="button" class="karma-sort-btn" id="karma-sort-btn" title="Reverse display order">&#x21C5; Newest first</button>
         </div>
         <table>
           <thead><tr><th>Date</th><th>Game Date</th><th>Amount</th><th>Type</th><th>Description</th></tr></thead>
@@ -822,13 +826,26 @@ function renderAbilities(){
   });
 }
 
+// Base Karma = R + I + P (this is karmaMax, the "RIP" number)
+function karmaRIP(){
+  const a=CHAR.abilities;
+  return (a.reason.value||0)+(a.intuition.value||0)+(a.psyche.value||0);
+}
+// Net karma from history = total earned (positive) − total spent (abs of negative)
+function karmaNet(){
+  let net=0;
+  (CHAR.karmaHistory||[]).forEach(e=>{ net+=parseInt(e.amount)||0; });
+  return net;
+}
 function recalcSecondary(){
   const a=CHAR.abilities;
   const h=a.fighting.value+a.agility.value+a.strength.value+a.endurance.value;
-  const k=a.reason.value+a.intuition.value+a.psyche.value;
+  const rip=karmaRIP();
+  // Current Karma = R+I+P base + (total earned − total spent) from karma history
+  const k=rip+karmaNet();
   document.querySelector('[data-field="health"]').value=h;
   document.querySelector('[data-field="karma"]').value=k;
-  CHAR.health=h; CHAR.karma=k;
+  CHAR.health=h; CHAR.karma=k; CHAR.karmaMax=rip;
 }
 
 function rollFeat(rankName, label){
@@ -1174,24 +1191,43 @@ function renderAll(){
   renderKarmaLedger();
 }
 
+let _karmaNewestFirst=true;  // default display: newest → oldest
+
+function sortedKarmaHistory(){
+  const hist=(CHAR.karmaHistory||[]).slice();
+  // Chronological (oldest → newest) by realDate, matching the Foundry karma sheet
+  hist.sort((a,b)=>{
+    const da=new Date(a.realDate||0).getTime();
+    const db=new Date(b.realDate||0).getTime();
+    if(isNaN(da)||isNaN(db)) return 0;   // unparseable dates keep import order
+    return da-db;
+  });
+  if(_karmaNewestFirst) hist.reverse();
+  return hist;
+}
+
 function renderKarmaLedger(){
   const hist=CHAR.karmaHistory||[];
   const body=document.getElementById('karma-ledger-body');
   const summary=document.getElementById('karma-ledger-summary');
+  const sortBtn=document.getElementById('karma-sort-btn');
+  if(sortBtn) sortBtn.textContent=_karmaNewestFirst?'\u21C5 Newest first':'\u21C5 Oldest first';
   if(!hist.length){
     body.innerHTML='<tr><td colspan="5" class="kl-empty">No karma history. Import from Foundry to populate.</td></tr>';
     summary.textContent='';
     return;
   }
   let earned=0,spent=0;
-  hist.forEach(e=>{if(e.amount>0)earned+=e.amount;else spent+=Math.abs(e.amount);});
-  summary.innerHTML='<span>Earned\u2009'+earned+'</span><span>Spent\u2009'+spent+'</span>';
-  body.innerHTML=hist.map(e=>{
-    const cls=e.amount<0?'kl-neg':'kl-pos';
-    const sign=e.amount>0?'+':'';
+  hist.forEach(e=>{const amt=parseInt(e.amount)||0; if(amt>0)earned+=amt; else spent+=Math.abs(amt);});
+  const current=karmaRIP()+earned-spent;
+  summary.innerHTML='<span>Current\u2009'+current+'</span><span>Earned\u2009'+earned+'</span><span>Spent\u2009'+spent+'</span>';
+  body.innerHTML=sortedKarmaHistory().map(e=>{
+    const amt=parseInt(e.amount)||0;
+    const cls=amt<0?'kl-neg':'kl-pos';
+    const sign=amt>0?'+':'';
     const rd=e.realDate||'\u2014';
     const gd=e.gameDate||'\u2014';
-    return '<tr><td>'+rd+'</td><td>'+gd+'</td><td class="'+cls+'">'+sign+e.amount+'</td><td>'+(e.type||'')+'</td><td>'+(e.description||'')+'</td></tr>';
+    return '<tr><td>'+rd+'</td><td>'+gd+'</td><td class="'+cls+'">'+sign+amt+'</td><td>'+(e.type||'')+'</td><td>'+(e.description||'')+'</td></tr>';
   }).join('');
 }
 
@@ -2055,15 +2091,22 @@ function importFoundryActor(data){
     }
   }
 
-  // Portrait — check for embedded base64 data first, then token texture, then file path
+  // Portrait — embedded base64 → absolute http(s) URL → relative Foundry path
   const imgSrc = data.img || '';
   const tokenSrc = (data.prototypeToken?.texture?.src) || '';
-  if(imgSrc.startsWith('data:image/')){
-    char._rawPortrait = imgSrc;
-  } else if(tokenSrc.startsWith('data:image/')){
+  const usable = s => s && !s.includes('mystery-man');
+  const isData = s => /^data:image\//i.test(s);
+  const isUrl  = s => /^https?:\/\//i.test(s);
+  if(isData(imgSrc)){
+    char._rawPortrait = imgSrc;            // base64 → compress on import
+  } else if(isData(tokenSrc)){
     char._rawPortrait = tokenSrc;
-  } else if(imgSrc && !imgSrc.includes('mystery-man')){
-    char.foundryImg = imgSrc;
+  } else if(isUrl(imgSrc) && usable(imgSrc)){
+    char.portraitData = imgSrc;            // remote URL → display directly
+  } else if(isUrl(tokenSrc) && usable(tokenSrc)){
+    char.portraitData = tokenSrc;
+  } else if(usable(imgSrc)){
+    char.foundryImg = imgSrc;              // relative path → set manually
   }
 
   return char;
@@ -2171,6 +2214,12 @@ document.addEventListener("DOMContentLoaded",()=>{
   });
   document.getElementById('karma-info-btn').addEventListener('click',()=>{
     document.getElementById('karma-ledger').classList.toggle('open');
+  });
+  const ksBtn=document.getElementById('karma-sort-btn');
+  if(ksBtn) ksBtn.addEventListener('click',e=>{
+    e.stopPropagation();
+    _karmaNewestFirst=!_karmaNewestFirst;
+    renderKarmaLedger();
   });
 
   // Header buttons
