@@ -1,4 +1,8 @@
-// gcc-sync.js v2.1.0 — 2026-04-08
+// gcc-sync.js v2.2.0 — 2026-06-26
+// v2.2.0: Fix multi-device data loss — sign-in now MERGES local+cloud per character
+//         (union by _id, newest _saved wins) instead of upload-all-then-pull-only-empty,
+//         which let a stale device clobber the cloud and never pull newer data.
+//         Timestamps normalized across ISO-string and epoch-number formats.
 // v2.1.0: Fix sync race condition — save queue prevents pull from stomping in-flight saves;
 //         notifySync() bridge for pages that write localStorage directly.
 // Firestore sync layer for Graycloak's Campaign Corner
@@ -433,6 +437,111 @@ const GCCSync = (function() {
   }
 
   // ══════════════════════════════════════
+  // ── Timestamp-aware merge (v2.2.0) ──
+  // ══════════════════════════════════════
+
+  // Normalize a save timestamp to epoch ms. Handles ISO strings (faserip,
+  // mp-char) and epoch numbers (add1e). Missing/unparseable → 0 (treated oldest).
+  function tsOf(item) {
+    if (!item) return 0;
+    const v = item._saved != null ? item._saved
+            : item._updated != null ? item._updated
+            : item._modified;
+    if (v == null) return 0;
+    if (typeof v === 'number') return v;
+    const t = Date.parse(v);
+    return isNaN(t) ? 0 : t;
+  }
+
+  // Cheap signature for change detection: id + timestamp per item, order-independent.
+  function listSig(items) {
+    if (!Array.isArray(items)) return '';
+    return items.map(it => (it && it._id || '?') + ':' + tsOf(it)).sort().join('|');
+  }
+
+  // Union two item lists by _id. On conflict, keep the newer timestamp;
+  // ties prefer `localItems` (the device the user is actively on). Items
+  // present on only one side are always kept — nothing is ever deleted here.
+  function mergeItemLists(localItems, cloudItems) {
+    const byId = {};
+    const order = [];
+    function consider(item) {
+      if (!item || typeof item !== 'object') return;
+      if (!item._id) {
+        item._id = (typeof GCC !== 'undefined' && GCC.genId)
+          ? GCC.genId('mrg')
+          : ('mrg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7));
+      }
+      const id = item._id;
+      if (!(id in byId)) { byId[id] = item; order.push(id); return; }
+      if (tsOf(item) > tsOf(byId[id])) byId[id] = item;  // strictly newer wins; tie keeps first (local)
+    }
+    (Array.isArray(localItems) ? localItems : []).forEach(consider);
+    (Array.isArray(cloudItems) ? cloudItems : []).forEach(consider);
+    return order.map(id => byId[id]);
+  }
+
+  // Reconcile one entity list: merge local+cloud, then write back only where changed.
+  async function reconcileList(key) {
+    let localItems = [];
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) { const p = JSON.parse(raw); if (Array.isArray(p)) localItems = p; }
+    } catch(e) { console.warn('[GCCSync] local parse failed for', key, e); }
+
+    let cloudItems = await cloudLoadList(key);
+    if (!Array.isArray(cloudItems)) cloudItems = [];
+    // Restore any portraits the cloud stripped (sentinel) from local copies first,
+    // so a cloud-wins item still carries its full-res portrait when we have it.
+    mergeLocalPortraits(key, cloudItems);
+
+    const merged = mergeItemLists(localItems, cloudItems);
+    const mergedSig = listSig(merged);
+
+    if (mergedSig !== listSig(localItems)) {
+      try { localStorage.setItem(key, JSON.stringify(merged)); }
+      catch(e) { console.warn('[GCCSync] local write failed for', key, e); }
+    }
+    if (mergedSig !== listSig(cloudItems)) {
+      await cloudSaveList(key, merged);  // union → orphan cleanup deletes nothing legitimate
+    }
+    console.log('[GCCSync] reconciled', key, '→', merged.length, 'items',
+      '(local', localItems.length, '+ cloud', cloudItems.length, ')');
+  }
+
+  // Reconcile one simple key: preserve prior behavior — fill empty local from
+  // cloud, otherwise push non-empty local up. (No per-item structure to merge.)
+  async function reconcileSimple(key) {
+    let localEmpty = true;
+    const raw = localStorage.getItem(key);
+    if (raw !== null) {
+      try { localEmpty = isEmpty(JSON.parse(raw)); } catch(e) { localEmpty = true; }
+    }
+    if (localEmpty) {
+      const val = await cloudLoad(key);
+      if (val !== undefined && !isEmpty(val)) {
+        try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) {}
+      }
+    } else {
+      try { await cloudSave(key, JSON.parse(raw)); } catch(e) {}
+    }
+  }
+
+  // Reconcile every synced key. Replaces the old uploadLocalData()+pullCloudData()
+  // pair that could let a stale device clobber the cloud and never pull updates.
+  async function reconcileAll() {
+    for (const key of ALL_SYNC_KEYS) {
+      try {
+        if (isListKey(key)) await reconcileList(key);
+        else await reconcileSimple(key);
+      } catch(e) {
+        console.warn('[GCCSync] reconcile failed for', key, e);
+      }
+    }
+    try { localStorage.setItem('gcc-sync-uploaded-' + _uid, String(SYNC_FORMAT_VERSION)); } catch(e) {}
+  }
+
+  // ══════════════════════════════════════
   // ── Auth state handler ──
   // ══════════════════════════════════════
 
@@ -441,9 +550,8 @@ const GCCSync = (function() {
       _uid = user.uid;
       await initFirestore();
       patchGCC();
-      await uploadLocalData();
-      await flushPendingSaves();
-      await pullCloudData();
+      await flushPendingSaves();   // let any in-flight saves land before we read cloud
+      await reconcileAll();        // v2.2.0: per-item merge (was uploadLocalData + pullCloudData)
       _ready = true;
       _readyCallbacks.forEach(fn => { try { fn(); } catch(e) {} });
       _readyCallbacks = [];
