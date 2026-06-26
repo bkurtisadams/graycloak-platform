@@ -1884,15 +1884,28 @@ function saveChar(){
 }
 
 async function showLoadModal(){
-  const chars=getSavedChars();
-  const items=chars.map(c=>({
+  const items=getSavedChars().map(c=>({
+    _id:c._id,
     name:c.heroName||'Unnamed',
     sub:[c.origin,c._saved?new Date(c._saved).toLocaleDateString():''].filter(Boolean).join(' — '),
     image:c.portraitData||null,
   }));
-  const idx=await MPDialog.listPick('Load Character',items,{emptyText:'No saved characters.'});
-  if(idx==null||idx<0||idx>=chars.length) return;
-  CHAR={...newChar(),...chars[idx]};
+  const idx=await MPDialog.listPick('Load Character',items,{
+    emptyText:'No saved characters.',
+    onDelete: async (item)=>{
+      const list=getSavedChars().filter(c=> item._id ? c._id!==item._id : c.heroName!==item.name);
+      try{ localStorage.setItem(STORAGE_KEY,JSON.stringify(list)); }catch(e){ return false; }
+      if(typeof GCCSync!=='undefined' && GCCSync.notifySync) GCCSync.notifySync(STORAGE_KEY);
+      return true;
+    }
+  });
+  if(idx==null||idx<0||idx>=items.length) return;
+  // listPick keeps `items` in sync with any deletions, so idx maps to it;
+  // re-resolve the full character from the saved list by stable _id.
+  const pick=items[idx];
+  const fresh=getSavedChars().find(c=> pick._id ? c._id===pick._id : c.heroName===pick.name);
+  if(!fresh) return;
+  CHAR={...newChar(),...fresh};
   renderAll();
   autosave();
 }

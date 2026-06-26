@@ -40,3 +40,14 @@
 .mp-modal-body .char-item .ci-sub { font-size: 9px; color: #666 }
 .mp-modal-body .char-empty { font-size: 10px; color: #888; font-style: italic; padding: 12px 0; text-align: center }
 @media print { .mp-modal-overlay { display: none !important } }
+
+/* Optional per-row delete button in listPick (used by faserip Load dialog) */
+.mp-modal-body .char-item .ci-del-btn { flex-shrink: 0; background: none; border: none; cursor: pointer; font-size: 14px; line-height: 1; padding: 4px 6px; border-radius: 4px; opacity: 0.55; transition: all 0.12s }
+.mp-modal-body .char-item .ci-del-btn:hover { opacity: 1; background: rgba(192,48,48,0.12) }
+.mp-modal-body .char-item .ci-del-confirm { flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px }
+.mp-modal-body .char-item .ci-del-q { font-size: 9px; color: var(--red, #c03030); font-weight: 700 }
+.mp-modal-body .char-item .ci-del-yes,
+.mp-modal-body .char-item .ci-del-no { background: none; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-size: 11px; line-height: 1; padding: 2px 6px }
+.mp-modal-body .char-item .ci-del-yes { color: var(--red, #c03030); border-color: rgba(192,48,48,0.4) }
+.mp-modal-body .char-item .ci-del-yes:hover { background: rgba(192,48,48,0.12) }
+.mp-modal-body .char-item .ci-del-no:hover { background: #f0f0f0 }

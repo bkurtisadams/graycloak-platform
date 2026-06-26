@@ -705,7 +705,7 @@ async function render(){
     const charTool=charSys?.tools.find(t=>t.charList===effectiveKey&&t.href)||charSys?.tools.find(t=>t.charList&&t.href);
     if(!_isPlayerMode&&charTool&&resolved.name){const linkParam=(resolved._id||ch._id)?'id='+encodeURIComponent(resolved._id||ch._id):'char='+encodeURIComponent(resolved.name);const href=charTool.href+(charTool.href.includes('?')?'&':'?')+linkParam;nameHtml=`<a href="${ESC(href+'&mode=view')}">${ESC(resolved.name)}</a> <a href="${ESC(href)}" style="font-size:9px;color:var(--tx3);text-decoration:none" title="Edit">✎</a>`}else{nameHtml=ESC(resolved.name||ch.name||'Unnamed')}
     const typeBadge=resolved.charType?`<span class="entity-badge ${resolved.charType}">${resolved.charType.toUpperCase()}</span>`:'';
-    const henchBadge=ch.henchman?`<span class="entity-badge hench">HENCHMAN</span>`:'';
+    const henchBadge=(camp.system==='add1e'&&ch.henchman)?`<span class="entity-badge hench">HENCHMAN</span>`:'';
     const teamBadge=opts.teamBadge?`<span class="entity-badge team">${ESC(opts.teamBadge)}</span>`:'';
     const actionsHtml=opts.actions||(opts.manage?charManageActions(ch):'');
     return`<div class="entity-card" data-entity-name="${ESC((resolved.name||ch.name||'').trim().toLowerCase())}"><div class="entity-pip" style="background:${col}"></div>${portraitHtml}<div class="entity-info"><div class="entity-name">${nameHtml}${typeBadge}${henchBadge}${teamBadge}</div><div class="entity-sub">${ESC(resolved.sub||'')}</div>${resolved.statsHtml||''}${resolved.player?'<div class="entity-player">'+ESC(resolved.player)+'</div>':''}</div>${actionsHtml}</div>`;
@@ -716,10 +716,11 @@ async function render(){
     if(pm_)return '';
     const key=ESC(ch._id||ch.name||'');
     const inParty=!!ch.isTeam,isH=!!ch.henchman;
-    return `<div class="entity-actions">`+
-      `<button class="session-action-btn" data-char-team="${key}" title="${inParty?'Remove from':'Add to'} party roster">${inParty?'★ Party':'☆ Party'}</button>`+
-      `<button class="session-action-btn" data-char-hench="${key}" title="${isH?'Unmark henchman':'Mark as henchman'}">${isH?'⚔ Hench':'⚔ +Hench'}</button>`+
-      `</div>`;
+    let btns=`<button class="session-action-btn" data-char-team="${key}" title="${inParty?'Remove from':'Add to'} party roster">${inParty?'★ Party':'☆ Party'}</button>`;
+    if(camp.system==='add1e')
+      btns+=`<button class="session-action-btn" data-char-hench="${key}" title="${isH?'Unmark henchman':'Mark as henchman'}">${isH?'⚔ Hench':'⚔ +Hench'}</button>`;
+    btns+=`<button class="session-action-btn danger" data-char-del="${key}" title="Remove from campaign">✕ Remove</button>`;
+    return `<div class="entity-actions">`+btns+`</div>`;
   }
 
   // Party tab — split into Team / Player Characters / NPCs
@@ -737,7 +738,7 @@ async function render(){
   partyHtml+=`<div class="party-section"><div class="party-section-hdr"><div class="party-section-title">${ESC(teamName.toUpperCase())} ROSTER</div><div class="party-section-count" id="team-roster-count">${teamChars.length||''}</div></div>`;
   partyHtml+=`<div class="entity-grid" id="team-roster-grid"${teamChars.length?'':' style="display:none"'}>`;
   teamChars.forEach(({ch,resolved,refKey},i)=>{
-    partyHtml+=buildEntityCard(resolved,ch,refKey,i,camp,{teamBadge:teamName,manage:resolved.charType==='npc'});
+    partyHtml+=buildEntityCard(resolved,ch,refKey,i,camp,{teamBadge:teamName,manage:true});
   });
   partyHtml+=`</div>`;
   partyHtml+=`<div class="entity-empty" id="team-roster-empty"${teamChars.length?' style="display:none"':''}>No ${ESC(teamName.toLowerCase())} members yet. Add an NPC below, or promote a player character.</div>`;
@@ -749,13 +750,13 @@ async function render(){
 
   // Section 3: NPCs & Henchmen (GM-assigned, non-team)
   if(!pm_||npcChars.length){
-    partyHtml+=`<div class="party-section"><div class="party-section-hdr"><div class="party-section-title">NPCs &amp; HENCHMEN</div><div class="party-section-count" id="npc-count">${npcChars.length||''}</div></div>`;
+    partyHtml+=`<div class="party-section"><div class="party-section-hdr"><div class="party-section-title">${camp.system==='add1e'?'NPCs &amp; HENCHMEN':'NPCS'}</div><div class="party-section-count" id="npc-count">${npcChars.length||''}</div></div>`;
     partyHtml+=`<div class="entity-grid" id="npc-grid"${npcChars.length?'':' style="display:none"'}>`;
     npcChars.forEach(({ch,resolved,refKey},i)=>{
       partyHtml+=buildEntityCard(resolved,ch,refKey,i+teamChars.length,camp,{manage:true});
     });
     partyHtml+=`</div>`;
-    partyHtml+=`<div class="entity-empty" id="npc-empty"${npcChars.length?' style="display:none"':''}>No NPCs or henchmen assigned.</div>`;
+    partyHtml+=`<div class="entity-empty" id="npc-empty"${npcChars.length?' style="display:none"':''}>${camp.system==='add1e'?'No NPCs or henchmen assigned.':'No NPCs assigned.'}</div>`;
     partyHtml+=`</div>`;
   }
 
@@ -864,6 +865,7 @@ function wireEvents(){
   document.getElementById('btn-edit-team')?.addEventListener('click',()=>{window.location.href='index.html?editTeam='+encodeURIComponent(campId)});
   document.querySelectorAll('[data-char-team]').forEach(btn=>btn.addEventListener('click',()=>toggleCharFlag(btn.dataset.charTeam,'isTeam')));
   document.querySelectorAll('[data-char-hench]').forEach(btn=>btn.addEventListener('click',()=>toggleCharFlag(btn.dataset.charHench,'henchman')));
+  document.querySelectorAll('[data-char-del]').forEach(btn=>btn.addEventListener('click',()=>deleteCharFromCampaign(btn.dataset.charDel)));
   // Banner image upload/remove
   document.getElementById('btn-banner-upload')?.addEventListener('click',()=>document.getElementById('banner-img-file')?.click());
   document.getElementById('banner-img-file')?.addEventListener('change',async e=>{
@@ -1208,6 +1210,18 @@ function toggleCharFlag(key,flag){
   const entry=camp.characters.find(c=>(c._id&&c._id===key)||c.name===key);
   if(!entry)return;
   entry[flag]=!entry[flag];
+  GCC.updateCampaign(campId,{characters:camp.characters});
+  render();
+}
+
+async function deleteCharFromCampaign(key){
+  const camp=getCamp();if(!camp||!camp.characters)return;
+  const entry=camp.characters.find(c=>(c._id&&c._id===key)||c.name===key);
+  if(!entry)return;
+  const nm=entry.name||'this character';
+  const ok=await GCCDialog.confirm('Remove from campaign','Remove "'+nm+'" from this campaign?<br>(The saved character itself is not deleted.)',{okText:'Remove',danger:true});
+  if(!ok)return;
+  camp.characters=camp.characters.filter(c=>c!==entry);
   GCC.updateCampaign(campId,{characters:camp.characters});
   render();
 }

@@ -1160,9 +1160,19 @@ function renderCharsPicker() {
 // Save — store references (name + storageKey + _id)
 document.getElementById('cf-save').addEventListener('click', () => {
   const saved = _getSavedCharsForSystem(charsCampSystem);
+  // Preserve per-entry flags (isTeam party-promotion, henchman) across edits —
+  // rebuilding bare refs here was wiping ☆ Party promotions every save.
+  const prior = (GCC.getCampaign(charsCampId)?.characters) || [];
+  const findPrior = sc => prior.find(c => (c._id && sc._id && c._id === sc._id) || (c.name && c.name === sc.name)) || {};
   const characters = saved
     .filter(sc => charsSelected.has(sc._id) || charsSelected.has(sc.name))
-    .map(sc => ({ name: sc.name, storageKey: sc.storageKey, _id: sc._id || '' }));
+    .map(sc => {
+      const p = findPrior(sc);
+      const entry = { name: sc.name, storageKey: sc.storageKey, _id: sc._id || '' };
+      if (p.isTeam) entry.isTeam = true;
+      if (p.henchman) entry.henchman = true;
+      return entry;
+    });
   GCC.updateCampaign(charsCampId, { characters, players: characters.length });
   closeCharsModal();
   renderCampaigns();
