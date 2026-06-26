@@ -114,8 +114,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .party-section-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px}
 .party-section-title{font-family:var(--fsc);font-size:9px;color:var(--tx3);letter-spacing:1.5px}
 .party-section-count{font-family:var(--fm);font-size:9px;color:var(--tx3)}
-.entity-card .entity-actions{position:absolute;top:6px;right:6px;display:flex;gap:4px;opacity:0;transition:opacity .1s}
-.entity-card:hover .entity-actions{opacity:1}
+.entity-card .entity-actions{display:flex;flex-direction:column;gap:4px;flex-shrink:0;align-self:center;margin-left:8px}
 .entity-derived{font-size:10px;font-weight:700;color:var(--tx2);margin-top:1px;display:flex;gap:2px;flex-wrap:wrap}
 .entity-derived span{white-space:nowrap;margin-right:6px}
 .entity-pip{position:absolute;top:0;left:0;bottom:0;width:3px;border-radius:4px 0 0 4px}
@@ -1153,11 +1152,13 @@ async function loadPlayerChars(){
     const playerLabel=p.displayName?`<div class="entity-player">${ESC(p.displayName)}</div>`:'';
     if(isPromoted){
       const teamBadge=`<span class="entity-badge team">${ESC(teamName)}</span>`;
-      const actionsHtml=pm_?'':`<div class="entity-actions"><button class="session-action-btn" data-demote-uid="${ESC(p.uid)}" title="Remove from ${ESC(teamName)}">★ Remove</button></div>`;
-      teamCards.push(`<div class="entity-card" data-entity-name="${ESC(nm)}">${actionsHtml}<div class="entity-pip" style="background:${col}"></div>${portraitHtml}<div class="entity-info"><div class="entity-name">${nameHtml}${typeBadge}${teamBadge}</div><div class="entity-sub">${ESC(resolved.sub||'')}</div>${resolved.statsHtml||''}${playerLabel}</div></div>`);
+      const actionsHtml=pm_?'':`<div class="entity-actions"><button class="session-action-btn danger" data-demote-uid="${ESC(p.uid)}" title="Remove from ${ESC(teamName)}">★ Remove</button></div>`;
+      teamCards.push(`<div class="entity-card" data-entity-name="${ESC(nm)}"><div class="entity-pip" style="background:${col}"></div>${portraitHtml}<div class="entity-info"><div class="entity-name">${nameHtml}${typeBadge}${teamBadge}</div><div class="entity-sub">${ESC(resolved.sub||'')}</div>${resolved.statsHtml||''}${playerLabel}</div>${actionsHtml}</div>`);
     }else{
-      const actionsHtml=pm_?'':`<div class="entity-actions"><button class="session-action-btn" data-promote-uid="${ESC(p.uid)}" title="Add to ${ESC(teamName)}">☆ Promote</button></div>`;
-      cards.push(`<div class="entity-card" data-entity-name="${ESC(nm)}">${actionsHtml}<div class="entity-pip" style="background:${col}"></div>${portraitHtml}<div class="entity-info"><div class="entity-name">${nameHtml}${typeBadge}</div><div class="entity-sub">${ESC(resolved.sub||'')}</div>${resolved.statsHtml||''}${playerLabel}</div></div>`);
+      const dupExists=(camp.characters||[]).some(c=>(c.name||'').trim().toLowerCase()===nm);
+      const dupBtn=dupExists?`<button class="session-action-btn danger" data-remove-dup="${ESC(nm)}" title="Remove duplicate campaign entry">✕ Remove</button>`:'';
+      const actionsHtml=pm_?'':`<div class="entity-actions"><button class="session-action-btn" data-promote-uid="${ESC(p.uid)}" title="Add to ${ESC(teamName)}">☆ Promote</button>${dupBtn}</div>`;
+      cards.push(`<div class="entity-card" data-entity-name="${ESC(nm)}"><div class="entity-pip" style="background:${col}"></div>${portraitHtml}<div class="entity-info"><div class="entity-name">${nameHtml}${typeBadge}</div><div class="entity-sub">${ESC(resolved.sub||'')}</div>${resolved.statsHtml||''}${playerLabel}</div>${actionsHtml}</div>`);
     }
   }
 
@@ -1203,6 +1204,7 @@ async function loadPlayerChars(){
     GCC.updateCampaign(campId,{promotedPlayers:camp.promotedPlayers});
     render();
   }));
+  grid.querySelectorAll('[data-remove-dup]').forEach(btn=>btn.addEventListener('click',()=>deleteCharFromCampaignByName(btn.dataset.removeDup)));
 }
 
 function toggleCharFlag(key,flag){
@@ -1220,6 +1222,18 @@ async function deleteCharFromCampaign(key){
   if(!entry)return;
   const nm=entry.name||'this character';
   const ok=await GCCDialog.confirm('Remove from campaign','Remove "'+nm+'" from this campaign?<br>(The saved character itself is not deleted.)',{okText:'Remove',danger:true});
+  if(!ok)return;
+  camp.characters=camp.characters.filter(c=>c!==entry);
+  GCC.updateCampaign(campId,{characters:camp.characters});
+  render();
+}
+
+async function deleteCharFromCampaignByName(name){
+  const camp=getCamp();if(!camp||!camp.characters)return;
+  const target=(name||'').trim().toLowerCase();
+  const entry=camp.characters.find(c=>(c.name||'').trim().toLowerCase()===target);
+  if(!entry)return;
+  const ok=await GCCDialog.confirm('Remove duplicate','Remove the campaign roster entry for "'+(entry.name||'this character')+'"?<br>(The player\'s own character is not affected.)',{okText:'Remove',danger:true});
   if(!ok)return;
   camp.characters=camp.characters.filter(c=>c!==entry);
   GCC.updateCampaign(campId,{characters:camp.characters});
