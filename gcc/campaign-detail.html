@@ -1140,7 +1140,7 @@ async function loadPlayerChars(){
     const nameHtml=pcNameHtml(resolved,p.listKey,p.charId);
     const reserveBadge=reserve?`<span class="entity-badge reserve">RESERVE</span>`:'';
     const playerLabel=p.displayName?`<div class="entity-player">${ESC(p.displayName)}</div>`:'';
-    const actionsHtml=pm_?'':`<div class="entity-actions"><button class="session-action-btn" data-player-reserve="${ESC(p.uid)}" title="${reserve?'Set active':'Set reserve'}">${reserve?'\u25CF Active':'\u25CC Reserve'}</button><button class="session-action-btn danger" data-dup-del="${ESC((resolved.name||'').trim())}" title="Remove duplicate roster entry">\u2715 Remove dup</button></div>`;
+    const actionsHtml=pm_?'':`<div class="entity-actions"><button class="session-action-btn" data-player-reserve="${ESC(p.uid)}" title="${reserve?'Set active':'Set reserve'}">${reserve?'\u25CF Active':'\u25CC Reserve'}</button></div>`;
     cards.push(`<div class="entity-card" data-entity-name="${ESC(nm)}" data-char-id="${ESC(ch._id||p.charId||'')}" data-sort="${rosterSort('pc',reserve)}"><div class="entity-pip" style="background:${col}"></div>${portraitHtml}<div class="entity-info"><div class="entity-name">${nameHtml}<span class="entity-badge pc">PC</span>${reserveBadge}</div><div class="entity-sub">${ESC(resolved.sub||'')}</div>${resolved.statsHtml||''}${playerLabel}</div>${actionsHtml}</div>`);
   }
 
@@ -1165,7 +1165,6 @@ async function loadPlayerChars(){
 
   // Wire reserve toggles on player cards
   grid.querySelectorAll('[data-player-reserve]').forEach(btn=>btn.addEventListener('click',()=>togglePlayerReserve(btn.dataset.playerReserve)));
-  grid.querySelectorAll('[data-dup-del]').forEach(btn=>btn.addEventListener('click',()=>deleteCharFromCampaignByName(btn.dataset.dupDel)));
 }
 function toggleCharFlag(key,flag){
   const camp=getCamp();if(!camp||!camp.characters)return;
