@@ -17,7 +17,15 @@ const GCC = (function() {
     try { return JSON.parse(localStorage.getItem(key)); } catch(e) { return null; }
   }
   function save(key, val) {
-    try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) { console.warn('[GCC] save failed for', key, e); }
+    try {
+      localStorage.setItem(key, JSON.stringify(val));
+      // gcc-sync patches GCC.save, but the campaign helpers call this
+      // closure-scoped save() directly. Notify the sync bridge here so
+      // campaign/session edits do not remain browser-local.
+      if (typeof GCCSync !== 'undefined' && GCCSync.notifySync) {
+        GCCSync.notifySync(key);
+      }
+    } catch(e) { console.warn('[GCC] save failed for', key, e); }
   }
 
   // ── Keys ──
@@ -242,6 +250,7 @@ const GCC = (function() {
       lore: data.lore || [],
       rules: data.rules || {},
       created: data.created || new Date().toISOString(),
+      updated: data.updated || data._updated || new Date().toISOString(),
     };
     list.push(camp);
     saveCampaigns(list);
@@ -252,6 +261,7 @@ const GCC = (function() {
     const camp = list.find(c => c.id === id);
     if (!camp) return null;
     Object.assign(camp, updates);
+    camp.updated = new Date().toISOString();
     saveCampaigns(list);
     return camp;
   }

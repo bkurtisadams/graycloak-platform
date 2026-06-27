@@ -446,7 +446,9 @@ const GCCSync = (function() {
     if (!item) return 0;
     const v = item._saved != null ? item._saved
             : item._updated != null ? item._updated
-            : item._modified;
+            : item.updated != null ? item.updated
+            : item._modified != null ? item._modified
+            : item.created;
     if (v == null) return 0;
     if (typeof v === 'number') return v;
     const t = Date.parse(v);
@@ -509,6 +511,109 @@ const GCCSync = (function() {
       '(local', localItems.length, '+ cloud', cloudItems.length, ')');
   }
 
+
+
+  function cloneJson(val) {
+    try { return JSON.parse(JSON.stringify(val)); } catch(e) { return val; }
+  }
+
+  function dataSig(val) {
+    try { return JSON.stringify(val || null); } catch(e) { return ''; }
+  }
+
+  function childKey(item, prefix, idx) {
+    if (!item || typeof item !== 'object') return prefix + '_idx_' + idx;
+    return item._id || item.id ||
+      ((item.title || item.name) ? (prefix + '_name_' + (item.title || item.name) + '_' + (item.date || item.gameDate || item.type || '')) : (prefix + '_idx_' + idx));
+  }
+
+  // Merge embedded campaign child lists such as sessions/issues, lore, and roster refs.
+  // Cloud wins legacy ties so an old browser does not overwrite a newer shared campaign;
+  // timestamped local edits still win normally.
+  function mergeEmbeddedList(localItems, cloudItems, prefix, preferLocalOrder) {
+    localItems = Array.isArray(localItems) ? localItems : [];
+    cloudItems = Array.isArray(cloudItems) ? cloudItems : [];
+    const byKey = {};
+    function consider(item, key) {
+      if (!item || typeof item !== 'object') return;
+      const existing = byKey[key];
+      if (!existing) { byKey[key] = cloneJson(item); return; }
+      const itemTs = tsOf(item), existingTs = tsOf(existing);
+      if (itemTs > existingTs) byKey[key] = cloneJson(item);
+    }
+    cloudItems.forEach((item, idx) => consider(item, childKey(item, prefix, idx)));
+    localItems.forEach((item, idx) => consider(item, childKey(item, prefix, idx)));
+
+    const orderedKeys = [];
+    const addOrder = (items) => items.forEach((item, idx) => {
+      const key = childKey(item, prefix, idx);
+      if (orderedKeys.indexOf(key) === -1) orderedKeys.push(key);
+    });
+    if (preferLocalOrder) { addOrder(localItems); addOrder(cloudItems); }
+    else { addOrder(cloudItems); addOrder(localItems); }
+    return orderedKeys.map(k => byKey[k]).filter(Boolean);
+  }
+
+  function campaignIdOf(camp, idx) {
+    return camp && (camp.id || camp._id || ('campaign_idx_' + idx));
+  }
+
+  function mergeCampaignObject(localCamp, cloudCamp) {
+    if (!localCamp) return cloneJson(cloudCamp);
+    if (!cloudCamp) return cloneJson(localCamp);
+    const localTs = tsOf(localCamp), cloudTs = tsOf(cloudCamp);
+    const localIsNewer = localTs > cloudTs;
+    const base = localIsNewer ? localCamp : cloudCamp;
+    const other = localIsNewer ? cloudCamp : localCamp;
+    const merged = Object.assign({}, cloneJson(other), cloneJson(base));
+    merged.sessions = mergeEmbeddedList(localCamp.sessions, cloudCamp.sessions, 'ses', localIsNewer);
+    merged.lore = mergeEmbeddedList(localCamp.lore, cloudCamp.lore, 'lore', localIsNewer);
+    merged.characters = mergeEmbeddedList(localCamp.characters, cloudCamp.characters, 'charref', localIsNewer);
+    const maxTs = Math.max(localTs, cloudTs);
+    if (maxTs) merged.updated = new Date(maxTs).toISOString();
+    return merged;
+  }
+
+  // Campaigns are stored as one simple key, but they contain the Issues/Sessions
+  // journal. Treat them like mergeable entities instead of blindly pushing any
+  // non-empty localStorage blob over the cloud copy.
+  async function reconcileCampaigns() {
+    const key = 'gcc-campaigns';
+    let localItems = [];
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) localItems = parsed; }
+    } catch(e) { console.warn('[GCCSync] local campaigns parse failed', e); }
+
+    let cloudItems = await cloudLoadSimple(key);
+    if (!Array.isArray(cloudItems)) cloudItems = [];
+
+    const byId = {};
+    const order = [];
+    cloudItems.forEach((camp, idx) => {
+      const id = campaignIdOf(camp, idx);
+      byId[id] = cloneJson(camp);
+      order.push(id);
+    });
+    localItems.forEach((camp, idx) => {
+      const id = campaignIdOf(camp, idx);
+      if (byId[id]) byId[id] = mergeCampaignObject(camp, byId[id]);
+      else { byId[id] = cloneJson(camp); order.push(id); }
+    });
+
+    const merged = order.map(id => byId[id]).filter(Boolean);
+    const mergedSig = dataSig(merged);
+    if (mergedSig !== dataSig(localItems)) {
+      try { localStorage.setItem(key, JSON.stringify(merged)); }
+      catch(e) { console.warn('[GCCSync] local campaigns write failed', e); }
+    }
+    if (mergedSig !== dataSig(cloudItems)) {
+      await cloudSaveSimple(key, merged);
+    }
+    console.log('[GCCSync] reconciled campaigns →', merged.length,
+      '(local', localItems.length, '+ cloud', cloudItems.length, ')');
+  }
+
   // Reconcile one simple key: preserve prior behavior — fill empty local from
   // cloud, otherwise push non-empty local up. (No per-item structure to merge.)
   async function reconcileSimple(key) {
@@ -532,7 +637,8 @@ const GCCSync = (function() {
   async function reconcileAll() {
     for (const key of ALL_SYNC_KEYS) {
       try {
-        if (isListKey(key)) await reconcileList(key);
+        if (key === 'gcc-campaigns') await reconcileCampaigns();
+        else if (isListKey(key)) await reconcileList(key);
         else await reconcileSimple(key);
       } catch(e) {
         console.warn('[GCCSync] reconcile failed for', key, e);

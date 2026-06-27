@@ -1565,7 +1565,7 @@ document.getElementById('sm-save').addEventListener('click',async()=>{
     sections:sesSections.filter(s=>s.title||s.text||(s.images&&s.images.length)),image:imageKey,tags:sesTags,
     roster:sesRoster.length?sesRoster:[],
     xp:parseInt(document.getElementById('sm-xp').value)||0,visible:document.getElementById('sm-visible').checked,
-    type:sesModal.dataset.entryType||'session'};
+    type:sesModal.dataset.entryType||'session',_updated:new Date().toISOString()};
   if(sesEditIdx>=0&&sessions[sesEditIdx]){entry.type=sessions[sesEditIdx].type}
   if(sesEditIdx>=0&&sesEditIdx<sessions.length){sessions[sesEditIdx]=entry}else{
     const posEl=document.getElementById('sm-position');
@@ -1784,7 +1784,7 @@ async function importHtmlSessions(parsed){
       }
     }
     const entry={_id:GCC.genId('ses'),date:ep.date,gameDate:ep.gameDate,title:ep.title,text:ep.text,
-      sections:ep.sections,image:imageKey,tags:ep.tags,roster:[],xp:ep.xp,visible:ep.visible,type:ep.type};
+      sections:ep.sections,image:imageKey,tags:ep.tags,roster:[],xp:ep.xp,visible:ep.visible,type:ep.type,_updated:new Date().toISOString()};
     sessions.push(entry);
     existingTitles.add(ep.title.toLowerCase());
     added++;
@@ -1935,7 +1935,8 @@ document.getElementById('sim-import').addEventListener('click',async()=>{
       roster:[],
       xp:ep.xp,
       visible:true,
-      type:'session'
+      type:'session',
+      _updated:new Date().toISOString()
     };
     sessions.push(entry);
     existingTitles.add(ep.title.toLowerCase());
