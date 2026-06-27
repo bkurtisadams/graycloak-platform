@@ -154,6 +154,7 @@ body{min-height:100vh;background:var(--bg);color:var(--dark);font-family:var(--f
 .list-add:hover{text-decoration:underline}
 .item-list{list-style:none}
 .item-row{display:grid;align-items:center;gap:3px;padding:1px 0;border-bottom:1px dotted #ccc}
+.item-row>*{min-width:0}  /* Firefox: grid items default to min-width:auto and won't shrink the rank <select> below its widest option ("Unearthly"/"Class 1000"), blowing out the track. Chrome shrinks it; this makes both match. */
 .item-row.power-row{grid-template-columns:auto 80px 40px 1fr auto auto}
 .item-name-cell{display:flex;align-items:center;gap:2px;min-width:0}
 .item-name-cell .si{flex:1;min-width:0;width:100%}
