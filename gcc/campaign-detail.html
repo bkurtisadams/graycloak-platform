@@ -371,6 +371,8 @@ function sysColorCSS(sysId){const c=SYSTEM_COLORS[sysId]||'#888';return`backgrou
 function statusLabel(s){return{active:'Active',hiatus:'On Hiatus',completed:'Completed',archived:'Archived'}[s]||s}
 function countRealSessions(sessions){return sessions.filter(s=>s.type!=='timeline').length}
 
+function rosterSort(role,reserve){return role==='npc'?2:(reserve?1:0);}
+
 function resolveChar(savedChar,systemId,storageKey){
   let name='',sub='',player='',portrait='',statsHtml='';
   if(systemId==='faserip'){
@@ -737,8 +739,6 @@ async function render(){
     if(item.ch.role==='pc'||item.ch.role==='npc')return item.ch.role;
     return (item.ch.isTeam||item.resolved.charType==='pc')?'pc':'npc';  // legacy fallback
   }
-  function rosterSort(role,reserve){return role==='npc'?2:(reserve?1:0);}
-
   let partyHtml=pm_?'':`<button class="btn-add" id="btn-edit-team">\u270E Edit Roster</button>`;
   partyHtml+=`<div class="party-section"><div class="party-section-hdr"><div class="party-section-title">ROSTER</div><div class="party-section-count" id="roster-count">${resolvedChars.length||''}</div></div>`;
   partyHtml+=`<div class="entity-grid" id="roster-grid">`;
