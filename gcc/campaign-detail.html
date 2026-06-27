@@ -104,7 +104,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .entity-name a{color:var(--accent);text-decoration:none}.entity-name a:hover{color:var(--accent-lt);text-decoration:underline}
 .entity-sub{font-size:11px;color:var(--tx2);font-family:var(--fm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .entity-player{font-size:10px;color:var(--tx3);font-style:italic}
-.entity-stats{font-family:var(--fm);font-size:9px;color:var(--tx2);margin-top:2px;display:flex;gap:2px;flex-wrap:nowrap}
+.entity-stats{font-family:var(--fm);font-size:9px;color:var(--tx2);margin-top:2px;display:flex;gap:2px 6px;flex-wrap:wrap}
 .entity-stats span{white-space:nowrap;margin-right:4px}.entity-stats .ab{color:var(--accent);font-weight:700}
 .entity-badge{font-size:8px;font-weight:700;letter-spacing:.5px;padding:1px 5px;border-radius:3px;margin-left:6px;vertical-align:middle}
 .entity-badge.pc{background:rgba(96,160,208,0.12);color:var(--accent)}.entity-badge.npc{background:rgba(122,90,138,0.12);color:#7a5a8a}
@@ -115,7 +115,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .party-section-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px}
 .party-section-title{font-family:var(--fsc);font-size:9px;color:var(--tx3);letter-spacing:1.5px}
 .party-section-count{font-family:var(--fm);font-size:9px;color:var(--tx3)}
-.entity-card .entity-actions{display:flex;flex-direction:column;gap:4px;flex-shrink:0;align-self:center;margin-left:8px}
+.entity-card .entity-actions{display:flex;flex-direction:column;gap:4px;flex-shrink:0;align-self:flex-start;margin-left:8px;white-space:nowrap}
 .entity-derived{font-size:10px;font-weight:700;color:var(--tx2);margin-top:1px;display:flex;gap:2px;flex-wrap:wrap}
 .entity-derived span{white-space:nowrap;margin-right:6px}
 .entity-pip{position:absolute;top:0;left:0;bottom:0;width:3px;border-radius:4px 0 0 4px}
@@ -1140,7 +1140,7 @@ async function loadPlayerChars(){
     const nameHtml=pcNameHtml(resolved,p.listKey,p.charId);
     const reserveBadge=reserve?`<span class="entity-badge reserve">RESERVE</span>`:'';
     const playerLabel=p.displayName?`<div class="entity-player">${ESC(p.displayName)}</div>`:'';
-    const actionsHtml=pm_?'':`<div class="entity-actions"><button class="session-action-btn" data-player-reserve="${ESC(p.uid)}" title="${reserve?'Set active':'Set reserve'}">${reserve?'\u25CF Active':'\u25CC Reserve'}</button></div>`;
+    const actionsHtml=pm_?'':`<div class="entity-actions"><button class="session-action-btn" data-player-reserve="${ESC(p.uid)}" title="${reserve?'Set active':'Set reserve'}">${reserve?'\u25CF Active':'\u25CC Reserve'}</button><button class="session-action-btn danger" data-dup-del="${ESC((resolved.name||'').trim())}" title="Remove duplicate roster entry">\u2715 Remove dup</button></div>`;
     cards.push(`<div class="entity-card" data-entity-name="${ESC(nm)}" data-char-id="${ESC(ch._id||p.charId||'')}" data-sort="${rosterSort('pc',reserve)}"><div class="entity-pip" style="background:${col}"></div>${portraitHtml}<div class="entity-info"><div class="entity-name">${nameHtml}<span class="entity-badge pc">PC</span>${reserveBadge}</div><div class="entity-sub">${ESC(resolved.sub||'')}</div>${resolved.statsHtml||''}${playerLabel}</div>${actionsHtml}</div>`);
   }
 
@@ -1165,6 +1165,7 @@ async function loadPlayerChars(){
 
   // Wire reserve toggles on player cards
   grid.querySelectorAll('[data-player-reserve]').forEach(btn=>btn.addEventListener('click',()=>togglePlayerReserve(btn.dataset.playerReserve)));
+  grid.querySelectorAll('[data-dup-del]').forEach(btn=>btn.addEventListener('click',()=>deleteCharFromCampaignByName(btn.dataset.dupDel)));
 }
 function toggleCharFlag(key,flag){
   const camp=getCamp();if(!camp||!camp.characters)return;
