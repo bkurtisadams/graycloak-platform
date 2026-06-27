@@ -286,18 +286,18 @@ body{min-height:100vh;background:var(--bg);color:var(--dark);font-family:var(--f
 /* ── View Mode ── */
 body.view-mode .fas-hdr-btns .hdr-btn:not(.hdr-btn-view-edit){ display:none }
 body.view-mode .chargen-panel{ display:none!important }
-body.view-mode .list-add,body.view-mode .item-del,body.view-mode .item-info,body.view-mode .bio-toggle,body.view-mode .feat-btn{ display:none!important }
+body.view-mode .list-add,body.view-mode .item-del,body.view-mode .item-info,body.view-mode .bio-toggle{ display:none!important }
 body.view-mode input,body.view-mode select,body.view-mode textarea{ pointer-events:none!important; user-select:text!important; -webkit-user-select:text!important; opacity:1!important }
 body.view-mode .karma-toggle{ pointer-events:auto!important; cursor:pointer!important }
 body.view-mode input:focus,body.view-mode select:focus,body.view-mode textarea:focus{ outline:none!important; border-color:inherit!important }
 .view-badge{display:none;font-family:var(--fd);font-size:9px;letter-spacing:2px;color:#5ac8e8;border:1px solid #5ac8e866;padding:2px 8px;border-radius:2px;margin-right:6px;pointer-events:none}
 body.view-mode .view-badge{display:inline-block}
 body.view-mode .sheet-wrap{overflow-x:hidden;overflow-y:visible;flex:none}
-body.view-mode .power-row{grid-template-columns:80px 40px 1fr}
-body.view-mode .equip-row{grid-template-columns:60px 40px 1fr}
-body.view-mode .stunt-row{grid-template-columns:60px 40px 1fr 36px}
-body.view-mode .talent-row{grid-template-columns:1fr}
-body.view-mode .contact-row{grid-template-columns:1fr}
+body.view-mode .power-row{grid-template-columns:auto 80px 40px 1fr}
+body.view-mode .equip-row{grid-template-columns:auto 60px 40px 1fr}
+body.view-mode .stunt-row{grid-template-columns:auto 60px 40px 1fr 36px}
+body.view-mode .talent-row{grid-template-columns:auto 1fr}
+body.view-mode .contact-row{grid-template-columns:auto 1fr}
 body.view-mode .item-name-cell .si{width:100%}
 body.view-mode .equip-row>input.si:last-of-type{width:100%}
 .hdr-btn-view-edit{display:none}
