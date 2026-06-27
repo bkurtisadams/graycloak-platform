@@ -143,6 +143,8 @@ body{min-height:100vh;background:var(--bg);color:var(--dark);font-family:var(--f
 .sec-table input,.sec-table select{width:100%;border:none;background:transparent;text-align:center;font-family:var(--fb);font-size:12px;font-weight:700;outline:none;padding:0}
 .sec-table input:focus,.sec-table select:focus{border-bottom:1px solid var(--accent)}
 .sec-formula{font-size:8px;color:var(--soft);font-weight:400}
+.sec-feat{font-size:7px!important;padding:1px 4px!important;line-height:1.3!important;margin-top:2px;font-weight:700}
+.pop-feat-row{display:inline-flex;gap:3px;justify-content:center;margin-top:2px}
 
 /* ── Special Abilities ── */
 .special-section{margin-top:8px}
@@ -487,8 +489,8 @@ body.view-mode .hdr-btn-edit-view{display:none}
         <thead><tr>
           <th>Health<br><span class="sec-formula">F+A+S+E</span></th>
           <th>Karma <span class="karma-info-btn" id="karma-info-btn" title="View karma history">&#x24D8;</span><br><span class="sec-formula">R+I+P</span></th>
-          <th>Resources</th>
-          <th>Popularity</th>
+          <th>Resources<br><button class="feat-btn sec-feat" id="res-feat" title="Roll Resources FEAT">d100</button></th>
+          <th>Popularity<br><span class="pop-feat-row"><button class="feat-btn sec-feat" id="pop-hero-feat" title="Roll Popularity FEAT &#8212; Hero ID">Hero</button><button class="feat-btn sec-feat" id="pop-secret-feat" title="Roll Popularity FEAT &#8212; Secret ID">Secret</button></span></th>
         </tr></thead>
         <tbody><tr>
           <td><input class="si-calc" data-field="health" type="number" style="width:60px" readonly></td>
@@ -1251,6 +1253,23 @@ function bindFields(){
     CHAR.resourcesValue=getRankValue(e.target.value);
     document.querySelector('[data-field="resourcesValue"]').value=CHAR.resourcesValue;
     autosave();
+  });
+  // Resources FEAT — rolls against the current Resources rank
+  const resFeat=document.getElementById("res-feat");
+  if(resFeat) resFeat.addEventListener("click",e=>{
+    e.stopPropagation();
+    rollFeat(CHAR.resourcesRank||"Typical","Resources FEAT");
+  });
+  // Popularity FEAT — value\u2192rank (same as Contact popularity rolls), per identity
+  const popHeroFeat=document.getElementById("pop-hero-feat");
+  if(popHeroFeat) popHeroFeat.addEventListener("click",e=>{
+    e.stopPropagation();
+    rollFeat(getRankForValue(Math.abs(parseInt(CHAR.popularityHero)||0)),"Popularity FEAT (Hero ID)");
+  });
+  const popSecretFeat=document.getElementById("pop-secret-feat");
+  if(popSecretFeat) popSecretFeat.addEventListener("click",e=>{
+    e.stopPropagation();
+    rollFeat(getRankForValue(Math.abs(parseInt(CHAR.popularitySecret)||0)),"Popularity FEAT (Secret ID)");
   });
 }
 
