@@ -109,6 +109,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .entity-badge{font-size:8px;font-weight:700;letter-spacing:.5px;padding:1px 5px;border-radius:3px;margin-left:6px;vertical-align:middle}
 .entity-badge.pc{background:rgba(96,160,208,0.12);color:var(--accent)}.entity-badge.npc{background:rgba(122,90,138,0.12);color:#7a5a8a}
 .entity-badge.team{background:rgba(72,168,88,0.15);color:var(--green);font-size:8px;font-weight:700;letter-spacing:.5px;padding:1px 6px;border-radius:3px;margin-left:6px;vertical-align:middle}
+.entity-badge.reserve{background:rgba(208,160,64,0.16);color:#b07a20;font-size:8px;font-weight:700;letter-spacing:.5px;padding:1px 6px;border-radius:3px;margin-left:6px;vertical-align:middle}
 .entity-badge.hench{background:rgba(208,128,64,0.18);color:#b5701f}
 .party-section{margin-bottom:20px}
 .party-section-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px}
@@ -703,61 +704,52 @@ async function render(){
     let nameHtml;const charSys=GCC.SYSTEM_DEFS.find(s=>s.id===camp.system);const effectiveKey=resolved.storageKey||refKey;
     const charTool=charSys?.tools.find(t=>t.charList===effectiveKey&&t.href)||charSys?.tools.find(t=>t.charList&&t.href);
     if(!_isPlayerMode&&charTool&&resolved.name){const linkParam=(resolved._id||ch._id)?'id='+encodeURIComponent(resolved._id||ch._id):'char='+encodeURIComponent(resolved.name);const href=charTool.href+(charTool.href.includes('?')?'&':'?')+linkParam;nameHtml=`<a href="${ESC(href+'&mode=view')}">${ESC(resolved.name)}</a> <a href="${ESC(href)}" style="font-size:9px;color:var(--tx3);text-decoration:none" title="Edit">✎</a>`}else{nameHtml=ESC(resolved.name||ch.name||'Unnamed')}
-    const typeBadge=resolved.charType?`<span class="entity-badge ${resolved.charType}">${resolved.charType.toUpperCase()}</span>`:'';
+    const role=opts.role||resolved.charType||'';
+    const roleBadge=role?`<span class="entity-badge ${role}">${role.toUpperCase()}</span>`:'';
+    const reserveBadge=opts.reserve?`<span class="entity-badge reserve">RESERVE</span>`:'';
     const henchBadge=(camp.system==='add1e'&&ch.henchman)?`<span class="entity-badge hench">HENCHMAN</span>`:'';
-    const teamBadge=opts.teamBadge?`<span class="entity-badge team">${ESC(opts.teamBadge)}</span>`:'';
-    const actionsHtml=opts.actions||(opts.manage?charManageActions(ch):'');
-    return`<div class="entity-card" data-entity-name="${ESC((resolved.name||ch.name||'').trim().toLowerCase())}"><div class="entity-pip" style="background:${col}"></div>${portraitHtml}<div class="entity-info"><div class="entity-name">${nameHtml}${typeBadge}${henchBadge}${teamBadge}</div><div class="entity-sub">${ESC(resolved.sub||'')}</div>${resolved.statsHtml||''}${resolved.player?'<div class="entity-player">'+ESC(resolved.player)+'</div>':''}</div>${actionsHtml}</div>`;
+    const actionsHtml=opts.actions||(opts.manage?charManageActions(ch,role,!!opts.reserve):'');
+    const sortAttr=opts.sort!=null?` data-sort="${opts.sort}"`:'';
+    return`<div class="entity-card" data-entity-name="${ESC((resolved.name||ch.name||'').trim().toLowerCase())}" data-char-id="${ESC(ch._id||'')}"${sortAttr}><div class="entity-pip" style="background:${col}"></div>${portraitHtml}<div class="entity-info"><div class="entity-name">${nameHtml}${roleBadge}${reserveBadge}${henchBadge}</div><div class="entity-sub">${ESC(resolved.sub||'')}</div>${resolved.statsHtml||''}${resolved.player?'<div class="entity-player">'+ESC(resolved.player)+'</div>':''}</div>${actionsHtml}</div>`;
   }
 
-  // Party tab — GM toggles for an NPC entry: party-roster membership + henchman label
-  function charManageActions(ch){
+  // Party tab — GM controls: set role (PC/NPC), reserve flag (PCs only), remove
+  function charManageActions(ch,role,reserve){
     if(pm_)return '';
     const key=ESC(ch._id||ch.name||'');
-    const inParty=!!ch.isTeam,isH=!!ch.henchman;
-    let btns=`<button class="session-action-btn" data-char-team="${key}" title="${inParty?'Remove from':'Add to'} party roster">${inParty?'★ Party':'☆ Party'}</button>`;
+    let btns=role==='pc'
+      ? `<button class="session-action-btn" data-char-role="${key}" data-role="npc" title="Change to NPC">→ NPC</button>`
+      : `<button class="session-action-btn" data-char-role="${key}" data-role="pc" title="Change to PC">→ PC</button>`;
+    if(role==='pc')
+      btns+=`<button class="session-action-btn" data-char-reserve="${key}" title="${reserve?'Set active':'Set reserve'}">${reserve?'\u25CF Active':'\u25CC Reserve'}</button>`;
     if(camp.system==='add1e')
-      btns+=`<button class="session-action-btn" data-char-hench="${key}" title="${isH?'Unmark henchman':'Mark as henchman'}">${isH?'⚔ Hench':'⚔ +Hench'}</button>`;
-    btns+=`<button class="session-action-btn danger" data-char-del="${key}" title="Remove from campaign">✕ Remove</button>`;
+      btns+=`<button class="session-action-btn" data-char-hench="${key}" title="${ch.henchman?'Unmark henchman':'Mark as henchman'}">${ch.henchman?'\u2694 Hench':'\u2694 +Hench'}</button>`;
+    btns+=`<button class="session-action-btn danger" data-char-del="${key}" title="Remove from campaign">\u2715 Remove</button>`;
     return `<div class="entity-actions">`+btns+`</div>`;
   }
 
-  // Party tab — split into Team / Player Characters / NPCs
+  // Party tab — ONE unified roster, role-tagged (PC / NPC) with a reserve flag.
+  // Sort: active PCs (0) -> reserve PCs (1) -> NPCs (2). Player-assigned
+  // characters are appended as PCs by loadPlayerChars, which also dedupes any
+  // GM roster entry that points at the same character (keyed on id, then name).
   const teamName=camp.teamName||GCC.teamLabel(camp.system);
-  const teamChars=[],npcChars=[];
-  resolvedChars.forEach(item=>{
-    if(item.ch.isTeam||item.resolved.charType==='pc')teamChars.push(item);
-    else npcChars.push(item);
-  });
-
-  let partyHtml=pm_?'':`<button class="btn-add" id="btn-edit-team">✎ Edit ${ESC(GCC.teamLabel(camp.system))}</button>`;
-
-  // Section 1: Team Roster — GM team members + promoted player characters
-  // (promoted players are injected by loadPlayerChars after its async load)
-  partyHtml+=`<div class="party-section"><div class="party-section-hdr"><div class="party-section-title">${ESC(teamName.toUpperCase())} ROSTER</div><div class="party-section-count" id="team-roster-count">${teamChars.length||''}</div></div>`;
-  partyHtml+=`<div class="entity-grid" id="team-roster-grid"${teamChars.length?'':' style="display:none"'}>`;
-  teamChars.forEach(({ch,resolved,refKey},i)=>{
-    partyHtml+=buildEntityCard(resolved,ch,refKey,i,camp,{teamBadge:teamName,manage:true});
-  });
-  partyHtml+=`</div>`;
-  partyHtml+=`<div class="entity-empty" id="team-roster-empty"${teamChars.length?' style="display:none"':''}>No ${ESC(teamName.toLowerCase())} members yet. Add an NPC below, or promote a player character.</div>`;
-  partyHtml+=`</div>`;
-
-  // Section 2: Player Characters (joined via invite)
-  partyHtml+=`<div class="party-section"><div class="party-section-hdr"><div class="party-section-title">PLAYER CHARACTERS</div></div>`;
-  partyHtml+=`<div id="player-chars-grid"><div class="entity-empty">Loading player characters...</div></div></div>`;
-
-  // Section 3: NPCs & Henchmen (GM-assigned, non-team)
-  if(!pm_||npcChars.length){
-    partyHtml+=`<div class="party-section"><div class="party-section-hdr"><div class="party-section-title">${camp.system==='add1e'?'NPCs &amp; HENCHMEN':'NPCS'}</div><div class="party-section-count" id="npc-count">${npcChars.length||''}</div></div>`;
-    partyHtml+=`<div class="entity-grid" id="npc-grid"${npcChars.length?'':' style="display:none"'}>`;
-    npcChars.forEach(({ch,resolved,refKey},i)=>{
-      partyHtml+=buildEntityCard(resolved,ch,refKey,i+teamChars.length,camp,{manage:true});
-    });
-    partyHtml+=`</div>`;
-    partyHtml+=`<div class="entity-empty" id="npc-empty"${npcChars.length?' style="display:none"':''}>${camp.system==='add1e'?'No NPCs or henchmen assigned.':'No NPCs assigned.'}</div>`;
-    partyHtml+=`</div>`;
+  function entryRole(item){
+    if(item.ch.role==='pc'||item.ch.role==='npc')return item.ch.role;
+    return (item.ch.isTeam||item.resolved.charType==='pc')?'pc':'npc';  // legacy fallback
   }
+  function rosterSort(role,reserve){return role==='npc'?2:(reserve?1:0);}
+
+  let partyHtml=pm_?'':`<button class="btn-add" id="btn-edit-team">\u270E Edit Roster</button>`;
+  partyHtml+=`<div class="party-section"><div class="party-section-hdr"><div class="party-section-title">ROSTER</div><div class="party-section-count" id="roster-count">${resolvedChars.length||''}</div></div>`;
+  partyHtml+=`<div class="entity-grid" id="roster-grid">`;
+  resolvedChars.forEach(({ch,resolved,refKey},i)=>{
+    const role=entryRole({ch,resolved});
+    const reserve=role==='pc'&&!!ch.reserve;
+    partyHtml+=buildEntityCard(resolved,ch,refKey,i,camp,{role,reserve,manage:true,sort:rosterSort(role,reserve)});
+  });
+  partyHtml+=`</div>`;
+  partyHtml+=`<div class="entity-empty" id="roster-empty"${resolvedChars.length?' style="display:none"':''}>No characters yet. Add PCs or NPCs via Edit Roster, or invite players to join.</div>`;
+  partyHtml+=`</div>`;
 
   // Vehicles tab
   let vehHtml='';const vehTool=sys.tools?.find(t=>t.charList===GCC.KEYS.mpVehs);let vehs=[];
@@ -862,7 +854,8 @@ function wireEvents(){
   document.querySelectorAll('[data-rule-id]').forEach(cb=>{cb.addEventListener('change',e=>{GCC.setCampaignRule(campId,e.target.dataset.ruleId,e.target.checked)})});
   document.getElementById('btn-edit-camp')?.addEventListener('click',()=>{window.location.href='index.html'});
   document.getElementById('btn-edit-team')?.addEventListener('click',()=>{window.location.href='index.html?editTeam='+encodeURIComponent(campId)});
-  document.querySelectorAll('[data-char-team]').forEach(btn=>btn.addEventListener('click',()=>toggleCharFlag(btn.dataset.charTeam,'isTeam')));
+  document.querySelectorAll('[data-char-role]').forEach(btn=>btn.addEventListener('click',()=>setCharRole(btn.dataset.charRole,btn.dataset.role)));
+  document.querySelectorAll('[data-char-reserve]').forEach(btn=>btn.addEventListener('click',()=>toggleCharFlag(btn.dataset.charReserve,'reserve')));
   document.querySelectorAll('[data-char-hench]').forEach(btn=>btn.addEventListener('click',()=>toggleCharFlag(btn.dataset.charHench,'henchman')));
   document.querySelectorAll('[data-char-del]').forEach(btn=>btn.addEventListener('click',()=>deleteCharFromCampaign(btn.dataset.charDel)));
   // Banner image upload/remove
@@ -1106,24 +1099,16 @@ async function loadMyCharSlot(){
 
 // ── Load player-assigned characters for party tab (both modes) ──
 async function loadPlayerChars(){
-  const grid=document.getElementById('player-chars-grid');
+  const grid=document.getElementById('roster-grid');
   if(!grid)return;
-  const camp=getCamp();
-  if(!camp){grid.innerHTML='';return}
+  const camp=getCamp();if(!camp)return;
   const user=GCCAuth?.getUser();
-  if(!user){grid.innerHTML='<div class="entity-empty">Sign in to see player characters.</div>';return}
-  const players=await GCCInvite.getPlayers(campId);
-  const withChars=players.filter(p=>p.charId);
-  if(!withChars.length){grid.innerHTML='<div class="entity-empty">No players have assigned characters yet.</div>';return}
   const pm_=_isPlayerMode;
-  const teamName=camp.teamName||GCC.teamLabel(camp.system);
-  const promoted=camp.promotedPlayers||{};
+  const players=user?await GCCInvite.getPlayers(campId):[];
+  const withChars=players.filter(p=>p.charId);
+  const reserveMap=camp.playerReserve||{};
 
-  let cards=[];      // unpromoted → Player Characters section
-  let teamCards=[];  // promoted → injected into the Team Roster
-  const playerNames=new Set();
-
-  // Build a sheet link for a player character (same scheme as buildEntityCard)
+  // Sheet link for a player character (same scheme as buildEntityCard)
   function pcNameHtml(resolved,listKey,charId){
     if(pm_)return ESC(resolved.name||'Unnamed');
     const charSys=GCC.SYSTEM_DEFS.find(s=>s.id===camp.system);
@@ -1133,86 +1118,79 @@ async function loadPlayerChars(){
       const idv=resolved._id||charId;
       const linkParam=idv?'id='+encodeURIComponent(idv):'char='+encodeURIComponent(resolved.name);
       const href=charTool.href+(charTool.href.includes('?')?'&':'?')+linkParam;
-      return `<a href="${ESC(href+'&mode=view')}">${ESC(resolved.name)}</a> <a href="${ESC(href)}" style="font-size:9px;color:var(--tx3);text-decoration:none" title="Edit">✎</a>`;
+      return `<a href="${ESC(href+'&mode=view')}">${ESC(resolved.name)}</a> <a href="${ESC(href)}" style="font-size:9px;color:var(--tx3);text-decoration:none" title="Edit">\u270E</a>`;
     }
     return ESC(resolved.name||'Unnamed');
   }
 
+  const playerKeys=new Set();   // 'id:'+charId / 'id:'+_id / 'nm:'+name  -> dedup keys
+  const cards=[];
   for(let i=0;i<withChars.length;i++){
     const p=withChars[i];
     const ch=await GCCInvite.getPlayerCharacterWithFallback(campId,p.uid,p.listKey,p.charId);
     if(!ch)continue;
-    const isPromoted=!!promoted[p.uid];
     const resolved=resolveChar(ch,camp.system,p.listKey);
-    const nm=(resolved.name||'').trim().toLowerCase();if(nm)playerNames.add(nm);
+    const nm=(resolved.name||'').trim().toLowerCase();
+    if(p.charId)playerKeys.add('id:'+p.charId);
+    if(ch._id)playerKeys.add('id:'+ch._id);
+    if(nm)playerKeys.add('nm:'+nm);
+    const reserve=!!reserveMap[p.uid];
     const col=PIP_COLORS[i%PIP_COLORS.length];
     const portraitHtml=resolved.portrait?`<img class="entity-portrait" src="${resolved.portrait}" alt="">`:`<div class="entity-portrait-ph">?</div>`;
     const nameHtml=pcNameHtml(resolved,p.listKey,p.charId);
-    const typeBadge=resolved.charType?`<span class="entity-badge ${resolved.charType}">${resolved.charType.toUpperCase()}</span>`:'';
+    const reserveBadge=reserve?`<span class="entity-badge reserve">RESERVE</span>`:'';
     const playerLabel=p.displayName?`<div class="entity-player">${ESC(p.displayName)}</div>`:'';
-    if(isPromoted){
-      const teamBadge=`<span class="entity-badge team">${ESC(teamName)}</span>`;
-      const actionsHtml=pm_?'':`<div class="entity-actions"><button class="session-action-btn danger" data-demote-uid="${ESC(p.uid)}" title="Remove from ${ESC(teamName)}">★ Remove</button></div>`;
-      teamCards.push(`<div class="entity-card" data-entity-name="${ESC(nm)}"><div class="entity-pip" style="background:${col}"></div>${portraitHtml}<div class="entity-info"><div class="entity-name">${nameHtml}${typeBadge}${teamBadge}</div><div class="entity-sub">${ESC(resolved.sub||'')}</div>${resolved.statsHtml||''}${playerLabel}</div>${actionsHtml}</div>`);
-    }else{
-      const dupExists=(camp.characters||[]).some(c=>(c.name||'').trim().toLowerCase()===nm);
-      const dupBtn=dupExists?`<button class="session-action-btn danger" data-remove-dup="${ESC(nm)}" title="Remove duplicate campaign entry">✕ Remove</button>`:'';
-      const actionsHtml=pm_?'':`<div class="entity-actions"><button class="session-action-btn" data-promote-uid="${ESC(p.uid)}" title="Add to ${ESC(teamName)}">☆ Promote</button>${dupBtn}</div>`;
-      cards.push(`<div class="entity-card" data-entity-name="${ESC(nm)}"><div class="entity-pip" style="background:${col}"></div>${portraitHtml}<div class="entity-info"><div class="entity-name">${nameHtml}${typeBadge}</div><div class="entity-sub">${ESC(resolved.sub||'')}</div>${resolved.statsHtml||''}${playerLabel}</div>${actionsHtml}</div>`);
-    }
+    const actionsHtml=pm_?'':`<div class="entity-actions"><button class="session-action-btn" data-player-reserve="${ESC(p.uid)}" title="${reserve?'Set active':'Set reserve'}">${reserve?'\u25CF Active':'\u25CC Reserve'}</button></div>`;
+    cards.push(`<div class="entity-card" data-entity-name="${ESC(nm)}" data-char-id="${ESC(ch._id||p.charId||'')}" data-sort="${rosterSort('pc',reserve)}"><div class="entity-pip" style="background:${col}"></div>${portraitHtml}<div class="entity-info"><div class="entity-name">${nameHtml}<span class="entity-badge pc">PC</span>${reserveBadge}</div><div class="entity-sub">${ESC(resolved.sub||'')}</div>${resolved.statsHtml||''}${playerLabel}</div>${actionsHtml}</div>`);
   }
 
-  const teamGrid=document.getElementById('team-roster-grid');
-  const npcGrid=document.getElementById('npc-grid');
+  // Dedup: drop any GM roster card that points at a character a player owns
+  grid.querySelectorAll('.entity-card').forEach(card=>{
+    const id=card.getAttribute('data-char-id')||'';
+    const cnm=card.getAttribute('data-entity-name')||'';
+    if((id&&playerKeys.has('id:'+id))||(cnm&&playerKeys.has('nm:'+cnm)))card.remove();
+  });
 
-  // De-dup: a player-assigned character may also exist as a campaign-character
-  // entry (NPC). Drop the campaign-character copy so it isn't shown twice.
-  [teamGrid,npcGrid].forEach(g=>{if(!g)return;g.querySelectorAll('.entity-card[data-entity-name]').forEach(card=>{
-    if(playerNames.has(card.dataset.entityName))card.remove();
-  })});
+  // Append player PC cards, then sort the whole roster
+  if(cards.length)grid.insertAdjacentHTML('beforeend',cards.join(''));
+  Array.from(grid.querySelectorAll('.entity-card'))
+    .sort((a,b)=>(parseInt(a.dataset.sort||'9')-parseInt(b.dataset.sort||'9')))
+    .forEach(c=>grid.appendChild(c));
 
-  // Inject promoted player characters into the Team Roster (Section 1)
-  if(teamGrid&&teamCards.length)teamGrid.insertAdjacentHTML('beforeend',teamCards.join(''));
+  // Recount + empty state
+  const n=grid.querySelectorAll('.entity-card').length;
+  const cnt=document.getElementById('roster-count');if(cnt)cnt.textContent=n||'';
+  const empty=document.getElementById('roster-empty');
+  if(empty){if(n){grid.style.display='';empty.style.display='none'}else{grid.style.display='none';empty.style.display=''}}
 
-  // Player Characters section: characters not yet promoted into the party
-  if(!cards.length){grid.innerHTML=`<div class="entity-empty">${teamCards.length?'All assigned player characters are in the party.':'No players have assigned characters yet.'}</div>`}
-  else{grid.innerHTML='<div class="entity-grid">'+cards.join('')+'</div>'}
-
-  // Recompute counts + empty states from the DOM (after de-dup + injection)
-  function recount(gridId,countId,emptyId){
-    const g=document.getElementById(gridId);if(!g)return;
-    const n=g.querySelectorAll('.entity-card').length;
-    const c=document.getElementById(countId);if(c)c.textContent=n||'';
-    const e=document.getElementById(emptyId);
-    if(n){g.style.display='';if(e)e.style.display='none'}else{g.style.display='none';if(e)e.style.display=''}
-  }
-  recount('team-roster-grid','team-roster-count','team-roster-empty');
-  recount('npc-grid','npc-count','npc-empty');
-
-  // Wire promote (player grid) + demote (team grid)
-  if(teamGrid)teamGrid.querySelectorAll('[data-demote-uid]').forEach(btn=>btn.addEventListener('click',async()=>{
-    const camp=getCamp();if(!camp)return;
-    if(!camp.promotedPlayers)camp.promotedPlayers={};
-    delete camp.promotedPlayers[btn.dataset.demoteUid];
-    GCC.updateCampaign(campId,{promotedPlayers:camp.promotedPlayers});
-    render();
-  }));
-  grid.querySelectorAll('[data-promote-uid]').forEach(btn=>btn.addEventListener('click',async()=>{
-    const camp=getCamp();if(!camp)return;
-    if(!camp.promotedPlayers)camp.promotedPlayers={};
-    camp.promotedPlayers[btn.dataset.promoteUid]=true;
-    GCC.updateCampaign(campId,{promotedPlayers:camp.promotedPlayers});
-    render();
-  }));
-  grid.querySelectorAll('[data-remove-dup]').forEach(btn=>btn.addEventListener('click',()=>deleteCharFromCampaignByName(btn.dataset.removeDup)));
+  // Wire reserve toggles on player cards
+  grid.querySelectorAll('[data-player-reserve]').forEach(btn=>btn.addEventListener('click',()=>togglePlayerReserve(btn.dataset.playerReserve)));
 }
-
 function toggleCharFlag(key,flag){
   const camp=getCamp();if(!camp||!camp.characters)return;
   const entry=camp.characters.find(c=>(c._id&&c._id===key)||c.name===key);
   if(!entry)return;
   entry[flag]=!entry[flag];
   GCC.updateCampaign(campId,{characters:camp.characters});
+  render();
+}
+
+function setCharRole(key,role){
+  const camp=getCamp();if(!camp||!camp.characters)return;
+  const entry=camp.characters.find(c=>(c._id&&c._id===key)||c.name===key);
+  if(!entry)return;
+  entry.role=(role==='pc')?'pc':'npc';
+  if(entry.role==='npc')delete entry.reserve;  // reserve only applies to PCs
+  delete entry.isTeam;                          // superseded by role
+  GCC.updateCampaign(campId,{characters:camp.characters});
+  render();
+}
+
+function togglePlayerReserve(uid){
+  const camp=getCamp();if(!camp)return;
+  if(!camp.playerReserve)camp.playerReserve={};
+  if(camp.playerReserve[uid])delete camp.playerReserve[uid];else camp.playerReserve[uid]=true;
+  GCC.updateCampaign(campId,{playerReserve:camp.playerReserve});
   render();
 }
 

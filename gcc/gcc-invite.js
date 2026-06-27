@@ -224,7 +224,7 @@ const GCCInvite = (function() {
     'pitch', 'description', 'schedule', 'playMode', 'vttLabel', 'vttUrl',
     'nextSession', 'startDate', 'xpMethod', 'rulebooks', 'houseRules',
     'sharedNotes', 'sessions', 'lore', 'campaignImage', 'hqImage', 'hqNotes',
-    'characters', 'promotedPlayers', 'teamName',
+    'characters', 'promotedPlayers', 'playerReserve', 'teamName',
   ];
 
   // Helper: resolve IDB image key to data URL

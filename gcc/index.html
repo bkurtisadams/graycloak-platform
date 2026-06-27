@@ -1169,6 +1169,8 @@ document.getElementById('cf-save').addEventListener('click', () => {
     .map(sc => {
       const p = findPrior(sc);
       const entry = { name: sc.name, storageKey: sc.storageKey, _id: sc._id || '' };
+      if (p.role) entry.role = p.role;
+      if (p.reserve) entry.reserve = true;
       if (p.isTeam) entry.isTeam = true;
       if (p.henchman) entry.henchman = true;
       return entry;
