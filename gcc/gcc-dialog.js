@@ -175,39 +175,72 @@
     opts = opts || {};
     dlg.classList.toggle('wide', true);
     titleEl.innerHTML = (opts.icon || icons.info) + title;
-    if (!items.length) {
-      body.innerHTML = '<div class="gcc-dlg-empty">' + (opts.emptyText || 'No items found.') + '</div>';
+
+    // Re-renderable body so an optional per-row delete (opts.onDelete) can
+    // remove an item and refresh the list in place without closing the picker.
+    function renderList() {
       footer.innerHTML = '';
-      const btn = document.createElement('button');
-      btn.className = 'gcc-dlg-btn primary';
-      btn.textContent = 'OK';
-      btn.onclick = () => close(null);
-      footer.appendChild(btn);
-      open();
-      btn.focus();
-      return new Promise(r => { _resolve = r; });
+      if (!items.length) {
+        body.innerHTML = '<div class="gcc-dlg-empty">' + (opts.emptyText || 'No items found.') + '</div>';
+        const ok = document.createElement('button');
+        ok.className = 'gcc-dlg-btn primary';
+        ok.textContent = 'OK';
+        ok.onclick = () => close(null);
+        footer.appendChild(ok);
+        ok.focus();
+        return;
+      }
+      let html = '<ul class="gcc-dlg-list">';
+      items.forEach((it, i) => {
+        const portrait = it.image
+          ? '<img class="ci-portrait" src="' + it.image + '">'
+          : '<div class="ci-ph">' + (it.icon || '?') + '</div>';
+        const delBtn = opts.onDelete
+          ? '<button class="ci-del-btn" data-ci-del="' + i + '" title="Delete">\u{1F5D1}</button>'
+          : '';
+        html += '<li class="gcc-dlg-item" data-ci="' + i + '">' + portrait +
+          '<div class="ci-info"><div class="ci-name">' + (it.name || 'Unnamed') + '</div>' +
+          (it.sub ? '<div class="ci-sub">' + it.sub + '</div>' : '') +
+          '</div>' + delBtn + '</li>';
+      });
+      html += '</ul>';
+      body.innerHTML = html;
+      const btnCancel = document.createElement('button');
+      btnCancel.className = 'gcc-dlg-btn';
+      btnCancel.textContent = 'Cancel';
+      btnCancel.onclick = () => close(null);
+      footer.appendChild(btnCancel);
+      body.querySelectorAll('.gcc-dlg-item').forEach(el => {
+        el.addEventListener('click', () => close(parseInt(el.dataset.ci)));
+      });
+      if (opts.onDelete) {
+        body.querySelectorAll('.ci-del-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const i = parseInt(btn.dataset.ciDel);
+            // Inline confirm — a nested modal would clobber this picker (shared dlg/resolver)
+            const wrap = document.createElement('span');
+            wrap.className = 'ci-del-confirm';
+            wrap.innerHTML = '<span class="ci-del-q">Delete?</span>' +
+              '<button class="ci-del-yes" title="Confirm delete">\u2713</button>' +
+              '<button class="ci-del-no" title="Cancel">\u2715</button>';
+            btn.replaceWith(wrap);
+            wrap.querySelector('.ci-del-yes').addEventListener('click', async (ev) => {
+              ev.stopPropagation();
+              const removed = await opts.onDelete(items[i], i);
+              if (removed) items.splice(i, 1);  // keep caller's array (passed by reference) in sync
+              renderList();
+            });
+            wrap.querySelector('.ci-del-no').addEventListener('click', (ev) => {
+              ev.stopPropagation();
+              renderList();
+            });
+          });
+        });
+      }
     }
-    let html = '<ul class="gcc-dlg-list">';
-    items.forEach((it, i) => {
-      const portrait = it.image
-        ? '<img class="ci-portrait" src="' + it.image + '">'
-        : '<div class="ci-ph">' + (it.icon || '?') + '</div>';
-      html += '<li class="gcc-dlg-item" data-ci="' + i + '">' + portrait +
-        '<div class="ci-info"><div class="ci-name">' + (it.name || 'Unnamed') + '</div>' +
-        (it.sub ? '<div class="ci-sub">' + it.sub + '</div>' : '') +
-        '</div></li>';
-    });
-    html += '</ul>';
-    body.innerHTML = html;
-    footer.innerHTML = '';
-    const btnCancel = document.createElement('button');
-    btnCancel.className = 'gcc-dlg-btn';
-    btnCancel.textContent = 'Cancel';
-    btnCancel.onclick = () => close(null);
-    footer.appendChild(btnCancel);
-    body.querySelectorAll('.gcc-dlg-item').forEach(el => {
-      el.addEventListener('click', () => close(parseInt(el.dataset.ci)));
-    });
+
+    renderList();
     open();
     return new Promise(r => { _resolve = r; });
   }

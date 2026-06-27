@@ -165,6 +165,16 @@
 .gcc-dlg-item .ci-info { flex: 1; min-width: 0; }
 .gcc-dlg-item .ci-name { font-weight: 700; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gcc-dlg-item .ci-sub { font-size: 9px; color: var(--tx3, #666); }
+/* Optional per-row delete (opts.onDelete) with inline confirm */
+.gcc-dlg-item .ci-del-btn { flex-shrink: 0; background: none; border: none; cursor: pointer; font-size: 14px; line-height: 1; padding: 4px 6px; border-radius: 4px; opacity: 0.55; transition: all 0.12s; }
+.gcc-dlg-item .ci-del-btn:hover { opacity: 1; background: rgba(192,48,48,0.12); }
+.gcc-dlg-item .ci-del-confirm { flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px; }
+.gcc-dlg-item .ci-del-q { font-size: 9px; color: var(--red, #c03030); font-weight: 700; }
+.gcc-dlg-item .ci-del-yes,
+.gcc-dlg-item .ci-del-no { background: none; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-size: 11px; line-height: 1; padding: 2px 6px; }
+.gcc-dlg-item .ci-del-yes { color: var(--red, #c03030); border-color: rgba(192,48,48,0.4); }
+.gcc-dlg-item .ci-del-yes:hover { background: rgba(192,48,48,0.12); }
+.gcc-dlg-item .ci-del-no:hover { background: #f0f0f0; }
 .gcc-dlg-empty { font-size: 10px; color: var(--tx3, #888); font-style: italic; padding: 10px 0; text-align: center; }
 
 /* ── Form modals (fieldsets, rows, inputs) ── */
