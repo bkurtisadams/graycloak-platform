@@ -183,7 +183,7 @@ button, input, select, textarea { font-family:inherit; }
         <span class="gw-badge">☢ Split workspace</span>
       </div>
       <div class="gw-card-b grid-4">
-        <div class="field"><label for="char-name">Name</label><input id="char-name" placeholder="Unnamed mutant"></div>
+        <div class="field"><label for="char-name">Name</label><div style="display:flex;gap:6px"><input id="char-name" placeholder="Unnamed mutant" style="flex:1"><button class="btn small" id="roll-name-btn" type="button" title="Roll a Gamma World name">🎲</button></div></div>
         <div class="field"><label for="player-name">Player</label><input id="player-name" placeholder="Player name"></div>
         <div class="field"><label for="campaign-select">Campaign</label><select id="campaign-select"><option value="">No campaign link</option></select></div>
         <div class="field"><label for="power-level">MP Power Level</label><select id="power-level"></select></div>
@@ -208,7 +208,7 @@ button, input, select, textarea { font-family:inherit; }
         <div class="gw-card-b">
           <button class="btn primary" id="roll-all-btn" style="width:100%;justify-content:center;font-size:14px;padding:10px">☢ Roll complete GW mutant</button>
           <div class="grid-3" style="margin-top:10px">
-            <div class="field"><label for="creation-mode">Creation Mode</label><select id="creation-mode"><option value="guided">Guided conversion</option><option value="random">Random GW mutation picks</option><option value="manual">Manual conversion</option><option value="import">Import or convert old character</option></select></div>
+            <div class="field"><label for="creation-mode">Creation Mode</label><select id="creation-mode"><option value="mp">MP-structured (GW flavor)</option><option value="raw1e">RAW 1e tables</option><option value="manual">Manual pick</option><option value="import">Import / convert old</option></select></div>
             <div class="field"><label for="gen-stat-method">Stat method</label><select id="gen-stat-method"><option value="4d6">4d6 drop lowest</option><option value="3d6">3d6 straight</option></select></div>
             <div class="field"><label for="gen-defects">Defects (pick mode)</label><input id="gen-defects" type="number" min="0" max="6" value="2"></div>
           </div>
@@ -224,8 +224,17 @@ button, input, select, textarea { font-family:inherit; }
             <div class="field"><label for="ap-type">Animal/Plant Package</label><select id="ap-type"></select></div>
           </div>
           <div class="grid-2" style="margin-top:10px">
-            <div class="field"><label for="gw-culture">Culture / Tribe</label><input id="gw-culture" placeholder="Primitive, cryptic alliance, ruin clan..."></div>
+            <div class="field"><label for="gw-culture">Culture / Faction</label><input id="gw-culture" placeholder="Primitive, cryptic alliance, ruin clan..."></div>
             <div class="field"><label for="gw-origin">Origin Hook</label><input id="gw-origin" placeholder="Radiation, Ancient lab, plague, breeding stock..."></div>
+          </div>
+          <div class="grid-3" style="margin-top:10px">
+            <div class="field"><label for="gw-gender">Gender</label><input id="gw-gender" placeholder="—"></div>
+            <div class="field"><label for="gw-age">Age</label><input id="gw-age" placeholder="—"></div>
+            <div class="field"><label for="gw-weight">Weight (lbs)</label><input id="gw-weight" placeholder="—"></div>
+          </div>
+          <div class="grid-2" style="margin-top:10px">
+            <div class="field"><label for="gw-background">Background</label><input id="gw-background" placeholder="Scavenger, tribal hunter, ruin-delver..."></div>
+            <div class="field"><label for="gw-motivation">Motivation</label><input id="gw-motivation" placeholder="Survive and rebuild, reclaim knowledge..."></div>
           </div>
           <div class="field" style="margin-top:10px"><label for="gw-summary">Character Notes</label><textarea id="gw-summary" placeholder="Old character notes, tribe, weird habits, referee rulings, equipment seed, or campaign hooks."></textarea></div>
           <div class="pill-row" id="type-pills"></div>
@@ -324,6 +333,7 @@ button, input, select, textarea { font-family:inherit; }
 <script src="mp-chargen.js"></script>
 <script src="gw-character-data.js"></script>
 <script src="gw-roll-tables.js"></script>
+<script src="gw-flavor-tables.js"></script>
 <script>
 (function(){
   'use strict';
@@ -554,11 +564,6 @@ button, input, select, textarea { font-family:inherit; }
     return { mut:byId(row.id), roll, extra:false };
   }
   function byId(id){ return (DATA.mutations || []).find(m => m.id === id); }
-  function defectPool(keys){
-    const out = [];
-    keys.forEach(k => (TABLES[k] || []).forEach(r => { if (r.id && r.defect) out.push(r.id); }));
-    return out;
-  }
   function pushMut(m, log){
     if (!m) return;
     state.mutations.push({ ...m, instanceId:'mut_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7) });
@@ -578,25 +583,70 @@ button, input, select, textarea { font-family:inherit; }
       const ap = (DATA.animalPlantTypes || []).find(a => a.id === target);
       apLabel = ap ? ap.label : target;
     }
-    // Refresh culture/origin only when blank or still a leftover type default — never clobber custom text.
-    const defCultures = new Set(TYPES.map(t => t.culture).filter(Boolean));
-    const defOrigins = new Set(TYPES.map(t => t.origin).filter(Boolean));
-    const cul = $('#gw-culture'), ori = $('#gw-origin');
-    if (cul && (!cul.value.trim() || defCultures.has(cul.value.trim()))) cul.value = type.culture || '';
-    if (ori && (!ori.value.trim() || defOrigins.has(ori.value.trim()))) ori.value = type.origin || '';
     return apLabel;
+  }
+  function rollBio(type){
+    const F = window.GWFlavor;
+    if (!F) return;
+    const set = (id, val) => { const el = $(id); if (el != null && val != null) el.value = val; };
+    set('#gw-culture', F.pick(F.cultures));
+    set('#gw-background', F.pick(F.backgrounds));
+    set('#gw-motivation', F.pick(F.motivations));
+    set('#gw-origin', F.pick(F.origins));
+    // Gender (genre-neutral simple identity; MP gender has no stat effect)
+    const gender = ['Male', 'Female', 'Nonbinary'][Math.floor(Math.random() * 3)];
+    set('#gw-gender', gender);
+    set('#gw-age', String(rollDie(10) + rollDie(10) + 10)); // MP 2d10+10
+    // Weight: MP 5d6 (male) / 5d4 (female) x10 lbs; nonbinary uses 5d6
+    const wd = gender === 'Female' ? 4 : 6;
+    let w = 0; for (let i = 0; i < 5; i++) w += rollDie(wd);
+    set('#gw-weight', String(w * 10));
+    state.wealth = String(rollDie(4)); // MP d4 wealth
+    state.birthplace = F.pick(F.birthplaces) || 'Gamma Terra';
+    addLog(`Bio: ${gender}, age ${$('#gw-age').value}, ${$('#gw-weight').value} lbs, ${$('#gw-culture').value}, ${$('#gw-background').value}, ${$('#gw-motivation').value}, origin ${$('#gw-origin').value}.`);
+  }
+  // Mutation pool for an MP role, scoped to the character's GW categories.
+  function rolePool(type, role){
+    const cats = type.id === 'plant' ? ['plant', 'defect'] : ['physical', 'mental', 'defect'];
+    return (DATA.mutations || []).filter(m => cats.includes(m.category) && mpRole(m) === role);
+  }
+  function drawDistinct(pool, n){
+    const copy = [...pool], out = [];
+    for (let i = 0; i < n && copy.length; i++) out.push(copy.splice(Math.floor(Math.random() * copy.length), 1)[0]);
+    return out;
+  }
+  function drawAbilities(type){
+    const want = clamp(toNum($('#gen-defects').value), 0, 6);
+    [['offense', 'Offensive', 2], ['defense', 'Defensive', 2], ['misc', 'Misc', 2]].forEach(([role, label, n]) => {
+      drawDistinct(rolePool(type, role), n).forEach(m => pushMut(m, `${label}: ${m.name} → ${mpAbilityName(m)} (${m.cp} CP)`));
+    });
+    drawDistinct(rolePool(type, 'weakness'), want).forEach(m => pushMut(m, `Weakness: ${m.name} → ${mpAbilityName(m)} (${m.cp} CP)`));
+  }
+  function rawRoll(type){
+    const animalCol = type.id === 'animal';
+    if (type.id === 'plant'){
+      const n = rollDie(4);
+      addLog(`RAW 1e: plant table, rolled ${n}.`);
+      for (let i = 0; i < n; i++){
+        const res = rollOneFromTable('plant', false, {}, 0);
+        if (res){ pushMut(res.mut, `Plant ${res.roll}: ${res.mut.name}`); if (res.extra){ const ex = rollOneFromTable('plant', false, {}, 0); if (ex) pushMut(ex.mut, `Plant extra: ${ex.mut.name}`); } }
+      }
+      return;
+    }
+    const nP = rollDie(4), nM = rollDie(4);
+    addLog(`RAW 1e: physical ${nP}, mental ${nM} (defects land organically).`);
+    for (let i = 0; i < nP; i++){ const res = rollOneFromTable('physical', animalCol, {}, 0); if (res) pushMut(res.mut, `Physical ${res.roll}: ${res.mut.name}`); }
+    for (let i = 0; i < nM; i++){ const res = rollOneFromTable('mental', animalCol, {}, 0); if (res) pushMut(res.mut, `Mental ${res.roll}: ${res.mut.name}`); }
   }
   function generateCharacter(){
     const method = $('#gen-stat-method').value || '4d6';
-    const mode = $('#creation-mode').value || 'guided';
+    const mode = $('#creation-mode').value || 'mp';
     const type = TYPES.find(t => t.id === $('#gw-type').value) || TYPES[0];
     const isPSH = type.id === 'psh';
-    const isPlant = type.id === 'plant';
-    const animalCol = type.id === 'animal';
-    // 0) Refresh the Gamma World Source concept (A/P base stock, culture, origin)
+    // Species / A/P base stock
     const apLabel = refreshSourceConcept(type);
     if (apLabel && apLabel !== 'None' && (type.id === 'animal' || type.id === 'plant')) addLog(`A/P base stock: ${apLabel}`);
-    // 1) Stats
+    // Stats (4d6 drop-low default; PSH gets +3 CHA capped 18)
     const rolls = [];
     STATS.forEach(s => {
       let v = rollStat(method);
@@ -607,55 +657,26 @@ button, input, select, textarea { font-family:inherit; }
     state.mpManual = false;
     syncMPFieldsFromGW();
     addLog(`Rolled ${method} stats (${type.label}): ${rolls.join(', ')}`);
-    // 2) Mutations (manual/import modes only roll stats + counts, leave list to user)
-    if (isPSH){ state.mutations = []; addLog('Pure Strain Human: no mutations.'); renderAll(); return; }
-    if (mode === 'manual' || mode === 'import'){
-      const nP = rollDie(4), nM = rollDie(4);
-      addLog(isPlant ? `Plant mutation count: ${rollDie(4)} (pick from browser).`
-                     : `Mutation counts rolled — physical ${nP}, mental ${nM}. Pick from the browser below.`);
-      renderAll();
-      return;
-    }
+    // Bio (MP narrative slots, GW flavor)
+    rollBio(type);
+    // Mutations
     state.mutations = [];
-    const random = mode === 'random';
-    if (isPlant){
-      const n = rollDie(4);
-      addLog(`Plant mutations: rolled ${n} on plant table.`);
-      for (let i = 0; i < n; i++){
-        const res = rollOneFromTable('plant', false, { goodOnly:!random }, 0);
-        if (res){ pushMut(res.mut, `Plant ${res.roll}: ${res.mut.name}`); if (res.extra){ const ex = rollOneFromTable('plant', false, { goodOnly:!random }, 0); if (ex) pushMut(ex.mut, `Plant extra: ${ex.mut.name}`); } }
-      }
-      if (!random) assignDefects(['plant']);
-    } else {
-      const nP = rollDie(4), nM = rollDie(4);
-      addLog(`Mutation counts — physical ${nP}, mental ${nM}.`);
-      for (let i = 0; i < nP; i++){ const res = rollOneFromTable('physical', animalCol, { goodOnly:!random }, 0); if (res) pushMut(res.mut, `Physical ${res.roll}: ${res.mut.name}`); }
-      for (let i = 0; i < nM; i++){ const res = rollOneFromTable('mental', animalCol, { goodOnly:!random }, 0); if (res) pushMut(res.mut, `Mental ${res.roll}: ${res.mut.name}`); }
-      if (!random) assignDefects(['physical','mental']);
+    if (isPSH){ addLog('Pure Strain Human: no mutations.'); renderAll(); return; }
+    if (mode === 'mp'){ drawAbilities(type); }
+    else if (mode === 'raw1e'){ rawRoll(type); }
+    else { // manual / import
+      if (type.id === 'plant') addLog(`Plant mutation count: ${rollDie(4)} (pick from browser).`);
+      else addLog(`Mutation counts — physical ${rollDie(4)}, mental ${rollDie(4)} (pick from browser).`);
     }
     renderAll();
   }
-  function assignDefects(keys){
-    const want = clamp(toNum($('#gen-defects').value), 0, 6);
-    if (!want) return;
-    const have = new Set(state.mutations.map(m => m.id));
-    let pool = defectPool(keys).filter(id => !have.has(id));
-    let added = 0;
-    for (let i = 0; i < want && pool.length; i++){
-      const idx = Math.floor(Math.random() * pool.length);
-      const id = pool.splice(idx, 1)[0];
-      const m = byId(id);
-      if (m){ pushMut(m, `Defect: ${m.name} → ${mpAbilityName(m)} (${m.cp} CP)`); added++; }
-    }
-    if (added) addLog(`Assigned ${added} defect${added === 1 ? '' : 's'} (MP-style weaknesses).`);
-  }
   function updateGenNote(){
-    const mode = $('#creation-mode').value || 'guided';
-    const note = mode === 'random'
-      ? 'Random mode: each slot rolled on the full d100 table; defects occur organically when a (D) result comes up (GW method 1).'
-      : (mode === 'manual' || mode === 'import')
-        ? 'Manual mode: roll-up sets stats and mutation counts only — pick the actual mutations from the browser below.'
-        : 'Guided mode: rolls good mutations to the GW count, then adds the set number of random defects (GW method 2, MP-style weaknesses).';
+    const mode = $('#creation-mode').value || 'mp';
+    const note = mode === 'mp'
+      ? 'MP-structured: species, culture, gender, stats, weight, background, motivation, origin, then 2 offensive / 2 defensive / 2 misc abilities and the set number of weaknesses, drawn from GW mutations by MP role.'
+      : mode === 'raw1e'
+        ? 'RAW 1e tables: roll 1d4 physical + 1d4 mental on the d100 charts; defects land organically. Ported into MP for you and the GM to sort.'
+        : 'Manual / Import: roll-up sets bio, stats, and mutation counts only — pick the actual mutations from the browser below.';
     const el = $('#gen-note'); if (el) el.textContent = note;
   }
 
@@ -836,14 +857,18 @@ button, input, select, textarea { font-family:inherit; }
       player:($('#player-name').value || '').trim(),
       trueId:'',
       side:'Good',
-      birthplace:'Gamma Terra',
+      birthplace:state.birthplace || 'Gamma Terra',
       species:type.species,
+      gender:($('#gw-gender').value || '').trim(),
+      age:($('#gw-age').value || '').trim(),
+      weight:($('#gw-weight').value || '').trim(),
+      mass:'',
       culture:($('#gw-culture').value || type.culture || 'Primitive').trim(),
       originType:($('#gw-origin').value || type.origin || 'Mutated or Evolved').trim(),
-      background:'Gamma World survivor',
-      motivation:'Survive and rebuild',
+      background:($('#gw-background').value || 'Gamma World survivor').trim(),
+      motivation:($('#gw-motivation').value || 'Survive and rebuild').trim(),
       legalStatus:'Wasteland wanderer',
-      wealth:'0',
+      wealth:state.wealth || '0',
       luck:'10-',
       powerLevel:pl.id,
       xpBase:String(pl.totalCPs),
@@ -872,6 +897,8 @@ button, input, select, textarea { font-family:inherit; }
       name:$('#char-name').value, player:$('#player-name').value, campaign:$('#campaign-select').value,
       type:$('#gw-type').value, powerLevel:$('#power-level').value, creationMode:$('#creation-mode').value,
       ap:$('#ap-type').value, culture:$('#gw-culture').value, origin:$('#gw-origin').value, summary:$('#gw-summary').value,
+      gender:$('#gw-gender').value, age:$('#gw-age').value, weight:$('#gw-weight').value, background:$('#gw-background').value, motivation:$('#gw-motivation').value,
+      wealth:state.wealth || '', birthplace:state.birthplace || '',
       search:$('#mut-search').value, category:$('#mut-category').value, role:$('#mp-role-filter').value,
       statMethod:$('#gen-stat-method').value, defects:$('#gen-defects').value,
       stats:readGWStats(), mpStats:readMPStats(), mpManual:state.mpManual, mutations:state.mutations, rollLog:state.rollLog, exportId:window.__gwCurrentExportId || null
@@ -887,11 +914,18 @@ button, input, select, textarea { font-family:inherit; }
       $('#campaign-select').value = d.campaign || '';
       $('#gw-type').value = d.type || 'humanoid';
       $('#power-level').value = d.powerLevel || 'low';
-      $('#creation-mode').value = d.creationMode || 'guided';
+      $('#creation-mode').value = d.creationMode || 'mp';
       $('#ap-type').value = d.ap || 'none';
       $('#gw-culture').value = d.culture || '';
       $('#gw-origin').value = d.origin || '';
       $('#gw-summary').value = d.summary || '';
+      $('#gw-gender').value = d.gender || '';
+      $('#gw-age').value = d.age || '';
+      $('#gw-weight').value = d.weight || '';
+      $('#gw-background').value = d.background || '';
+      $('#gw-motivation').value = d.motivation || '';
+      state.wealth = d.wealth || '';
+      state.birthplace = d.birthplace || '';
       $('#mut-search').value = d.search || '';
       $('#mut-category').value = d.category || 'all';
       $('#mp-role-filter').value = d.role || 'all';
@@ -935,6 +969,14 @@ button, input, select, textarea { font-family:inherit; }
     const campSel = $('#campaign-select');
     let camps = [];
     try { camps = JSON.parse(localStorage.getItem((GCC && GCC.KEYS && GCC.KEYS.campaigns) || 'gcc-campaigns') || '[]'); } catch(e) {}
+    // Ensure the default "Gamma World 2519" campaign exists (idempotent by name)
+    let defCampId = '';
+    const DEF_CAMP = 'Gamma World 2519';
+    const existingDef = camps.find(c => (c.name || '').trim().toLowerCase() === DEF_CAMP.toLowerCase());
+    if (existingDef) defCampId = existingDef.id || existingDef._id || '';
+    else if (typeof GCC !== 'undefined' && GCC.addCampaign) {
+      try { const created = GCC.addCampaign({ name:DEF_CAMP, system:'mp', genre:'Post-apocalyptic', world:'Gamma Terra' }); defCampId = created.id; camps.push(created); } catch(e) {}
+    }
     const active = (() => { try { return localStorage.getItem('gcc-active-campaign') || ''; } catch(e) { return ''; } })();
     camps.forEach(c => {
       const o = document.createElement('option');
@@ -942,6 +984,7 @@ button, input, select, textarea { font-family:inherit; }
       o.textContent = c.name || 'Unnamed Campaign';
       campSel.appendChild(o);
     });
+    if (defCampId) campSel.value = defCampId;
     if (active && camps.some(c => (c.id || c._id) === active)) campSel.value = active;
     const grid = $('#stat-grid');
     STATS.forEach(s => {
@@ -1011,6 +1054,12 @@ button, input, select, textarea { font-family:inherit; }
       renderAll();
     });
     $('#roll-all-btn').addEventListener('click', generateCharacter);
+    $('#roll-name-btn').addEventListener('click', () => {
+      if (!window.GWFlavor) return;
+      $('#char-name').value = GWFlavor.rollName();
+      addLog('Rolled name: ' + $('#char-name').value);
+      renderAll();
+    });
     $('#roll-mut-btn').addEventListener('click', () => {
       const cat = $('#mut-category').value === 'all' ? null : $('#mut-category').value;
       const m = rollMutation(cat);
@@ -1044,6 +1093,15 @@ button, input, select, textarea { font-family:inherit; }
     $('#open-mp-generator-btn').addEventListener('click', () => { window.location.href = 'character.html'; });
   }
 
+  function applyDefaults(){
+    if (typeof GCCAuth !== 'undefined' && GCCAuth.onAuthChange){
+      GCCAuth.onAuthChange(u => {
+        const pf = $('#player-name');
+        if (u && pf && !pf.value.trim()){ pf.value = (u.displayName || u.email || '').trim(); saveDraft(); }
+      });
+    }
+  }
+
   function init(){
     populateControls();
     const hadDraft = loadDraft();
@@ -1053,6 +1111,7 @@ button, input, select, textarea { font-family:inherit; }
       syncMPFieldsFromGW();
       addLog('Started new draft. Use “Roll complete GW mutant” for a full GW 1e roll-up.');
     }
+    applyDefaults();
     wire();
     renderAll();
   }
