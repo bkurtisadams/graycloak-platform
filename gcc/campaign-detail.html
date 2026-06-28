@@ -55,6 +55,9 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .camp-status-dot{width:7px;height:7px;border-radius:50%}
 .camp-status-dot.active{background:var(--green)}.camp-status-dot.hiatus{background:var(--amber)}
 .camp-status-dot.completed{background:var(--tx3)}.camp-status-dot.archived{background:var(--brd)}
+.camp-acct{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--tx2)}
+.camp-acct .acct-dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0}
+.camp-acct.warn{color:var(--amber)}.camp-acct.warn .acct-dot{background:var(--amber)}
 .camp-pitch{font-size:13px;color:var(--tx2);font-style:italic;margin-top:4px;line-height:1.3}
 .camp-header-btns{display:flex;gap:6px;align-items:center;flex-shrink:0;padding-bottom:4px}
 .camp-btn{padding:5px 14px;font-size:11px;font-family:var(--fb);font-weight:700;background:transparent;color:var(--tx2);border:1px solid var(--brd-lt);border-radius:3px;cursor:pointer;transition:all .15s;text-decoration:none}
@@ -705,6 +708,11 @@ function resolveImg(val,imgMap){
   return val; // already a data URL or URL
 }
 
+function acctChipHtml(){
+  const u=(typeof GCCAuth!=='undefined'&&GCCAuth.getUser)?GCCAuth.getUser():null;
+  if(u&&u.email)return `<span class="camp-acct" id="camp-acct" title="Signed-in account — campaign data syncs to this account"><span class="acct-dot"></span> ${ESC(u.email)}</span>`;
+  return `<span class="camp-acct warn" id="camp-acct" title="Not signed in — changes stay on this device only and will not sync"><span class="acct-dot"></span> Not signed in</span>`;
+}
 async function render(){
   const camp=getCamp(),page=document.getElementById('page-content');
   if(!camp){page.innerHTML=`<div class="not-found"><div class="not-found-title">Campaign Not Found</div><div>This campaign doesn't exist or has been deleted.</div><div style="margin-top:12px"><a href="index.html">← Back to Dashboard</a></div></div>`;document.title='Not Found — GCC';return}
@@ -896,7 +904,7 @@ async function render(){
      '<button class="tab'+(currentTab==='notes'?' active':'')+'" data-tab="notes">Notes</button>';
   const playersTabHtml=pm_?'<div class="sec-hdr"><div class="sec-title">MY CHARACTER</div></div><div id="my-char-slot"><div class="entity-empty">Loading...</div></div><div style="margin-top:20px"><div class="sec-hdr"><div class="sec-title">PLAYER ROSTER</div></div></div><div id="player-roster"><div class="entity-empty">Loading...</div></div>':'<div class="invite-section" id="invite-section"><div class="sec-hdr"><div class="sec-title">INVITE PLAYERS</div></div><div id="invite-area"><button class="invite-btn" id="btn-gen-invite">Generate Invite Link</button></div><div id="invite-msg"></div></div><div class="sec-hdr"><div class="sec-title">PLAYER ROSTER</div></div><div id="player-roster"><div class="entity-empty">Loading...</div></div>';
 
-  page.innerHTML=`${bannerHtml}<div class="camp-header"><div class="camp-header-in"><div class="camp-title-area"><div class="camp-name">${ESC(camp.name)}</div><div class="camp-meta"><span class="camp-system-badge" style="${sysColorCSS(camp.system)}">${ESC(sys.name||camp.system)}</span><span class="camp-status"><span class="camp-status-dot ${status}"></span> ${statusLabel(status)}</span></div>${camp.pitch?'<div class="camp-pitch">"'+ESC(camp.pitch)+'"</div>':''}</div><div class="camp-header-btns">${headerBtns}</div></div></div>
+  page.innerHTML=`${bannerHtml}<div class="camp-header"><div class="camp-header-in"><div class="camp-title-area"><div class="camp-name">${ESC(camp.name)}</div><div class="camp-meta"><span class="camp-system-badge" style="${sysColorCSS(camp.system)}">${ESC(sys.name||camp.system)}</span><span class="camp-status"><span class="camp-status-dot ${status}"></span> ${statusLabel(status)}</span>${acctChipHtml()}</div>${camp.pitch?'<div class="camp-pitch">"'+ESC(camp.pitch)+'"</div>':''}</div><div class="camp-header-btns">${headerBtns}</div></div></div>
   <div class="main"><div class="main-in">
     <div class="tabs" id="tabs">${tabsHtml}</div>
     <div class="tab-panel${currentTab==='overview'?' active':''}" data-panel="overview">${overviewHtml}</div>
@@ -2108,6 +2116,8 @@ vehModal.addEventListener('click',e=>{if(e.target===vehModal)closeVehModal()});
   }
 })();
 window.addEventListener('gcc-sync-ready',()=>{render()});
+// Keep the signed-in account chip current if auth resolves/changes after first render
+if(typeof GCCAuth!=='undefined'&&GCCAuth.onAuthChange){GCCAuth.onAuthChange(()=>{const el=document.getElementById('camp-acct');if(el)el.outerHTML=acctChipHtml()});}
 
 // ═══ TABLE FEED (chat + dice) ═══
 // Tray UI, styles, and live Firestore feed are owned by gcc-table-feed.js.
