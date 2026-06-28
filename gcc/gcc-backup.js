@@ -24,6 +24,7 @@ const GCCBackup = (function() {
     'mp-veh-list',
     'mp-campaigns',
     'mp-campaign-sel',
+    'gw-character-starter-draft',
     'gcc-faserip-chars',
     'gcc-add1e-chars',
     'gcc-subhex-overrides',

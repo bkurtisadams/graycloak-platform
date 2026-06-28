@@ -56,9 +56,10 @@ const GCC = (function() {
   color: '#a03020',
   tools: [
     { id: 'mp-char', name: 'Character Builder', href: 'character.html', charList: 'mp-char-list' },
+    { id: 'mp-gw-char', name: 'Gamma World Starter', href: 'gw-character.html', charList: 'mp-char-list' },
     { id: 'mp-veh', name: 'Vehicle Builder', href: 'vehicle.html', charList: 'mp-veh-list' },
     { id: 'mp-r20', name: 'Roll20 Import', href: 'character.html?r20=1' },
-    { id: 'mp-gw-map', name: 'Gamma World Map', href: 'gw-map.html' },   // ← add this line
+    { id: 'mp-gw-map', name: 'Gamma World Map', href: 'gw-map.html' },
   ]
 },
     {
