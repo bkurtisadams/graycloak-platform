@@ -2505,12 +2505,12 @@ function syncTableFeed(){
   _feedCampId=(CHAR && CHAR._campaign) || urlCamp || activeCamp || null;
   if(_feedCampId){
     try{ localStorage.setItem('gcc-active-campaign', _feedCampId); }catch(e){}
-    GCCTableFeed.init({ campId:_feedCampId, isGM: ()=>_amOwner });
+    GCCTableFeed.init({ campId:_feedCampId, isGM: ()=>_amOwner, getCharName: ()=>CHAR&&CHAR.heroName });
     refreshFeedOwner();
   } else {
     // Keep the shared dice roller available even when the sheet is opened
     // outside a campaign context; rolls and FEATs stay local to this page.
-    GCCTableFeed.init({ localOnly:true, isGM:false });
+    GCCTableFeed.init({ localOnly:true, isGM:false, getCharName: ()=>CHAR&&CHAR.heroName });
   }
 }
 
