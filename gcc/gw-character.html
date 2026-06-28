@@ -207,7 +207,8 @@ button, input, select, textarea { font-family:inherit; }
         <div class="gw-card-h"><div><h2 class="section-title" style="color:#ffd77a">GW 1e Generator</h2><span class="gw-kicker">Roll a complete Gamma Terra mutant, then tune the MP build</span></div><span class="gw-badge">☢ Roll-up</span></div>
         <div class="gw-card-b">
           <button class="btn primary" id="roll-all-btn" style="width:100%;justify-content:center;font-size:14px;padding:10px">☢ Roll complete GW mutant</button>
-          <div class="grid-2" style="margin-top:10px">
+          <div class="grid-3" style="margin-top:10px">
+            <div class="field"><label for="creation-mode">Creation Mode</label><select id="creation-mode"><option value="guided">Guided conversion</option><option value="random">Random GW mutation picks</option><option value="manual">Manual conversion</option><option value="import">Import or convert old character</option></select></div>
             <div class="field"><label for="gen-stat-method">Stat method</label><select id="gen-stat-method"><option value="4d6">4d6 drop lowest</option><option value="3d6">3d6 straight</option></select></div>
             <div class="field"><label for="gen-defects">Defects (pick mode)</label><input id="gen-defects" type="number" min="0" max="6" value="2"></div>
           </div>
@@ -218,9 +219,8 @@ button, input, select, textarea { font-family:inherit; }
       <div class="gw-card">
         <div class="gw-card-h"><div><h2 class="section-title" style="color:#ffd77a">Gamma World Source</h2><span class="gw-kicker">The wasteland-side concept, type, and notes</span></div><span class="gw-badge">Left panel</span></div>
         <div class="gw-card-b">
-          <div class="grid-3">
+          <div class="grid-2">
             <div class="field"><label for="gw-type">Gamma World Type</label><select id="gw-type"></select></div>
-            <div class="field"><label for="creation-mode">Creation Mode</label><select id="creation-mode"><option value="guided">Guided conversion</option><option value="random">Random GW mutation picks</option><option value="manual">Manual conversion</option><option value="import">Import or convert old character</option></select></div>
             <div class="field"><label for="ap-type">Animal/Plant Package</label><select id="ap-type"></select></div>
           </div>
           <div class="grid-2" style="margin-top:10px">
@@ -564,6 +564,28 @@ button, input, select, textarea { font-family:inherit; }
     state.mutations.push({ ...m, instanceId:'mut_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7) });
     if (log) addLog(log);
   }
+  function refreshSourceConcept(type){
+    const apSel = $('#ap-type');
+    let apLabel = '';
+    if (apSel){
+      let target = 'none';
+      if (type.id === 'plant') target = 'plant';
+      else if (type.id === 'animal'){
+        const pool = (DATA.animalPlantTypes || []).filter(a => a.id !== 'none' && a.id !== 'plant');
+        target = pool.length ? pool[Math.floor(Math.random() * pool.length)].id : 'mammal';
+      }
+      apSel.value = target;
+      const ap = (DATA.animalPlantTypes || []).find(a => a.id === target);
+      apLabel = ap ? ap.label : target;
+    }
+    // Refresh culture/origin only when blank or still a leftover type default — never clobber custom text.
+    const defCultures = new Set(TYPES.map(t => t.culture).filter(Boolean));
+    const defOrigins = new Set(TYPES.map(t => t.origin).filter(Boolean));
+    const cul = $('#gw-culture'), ori = $('#gw-origin');
+    if (cul && (!cul.value.trim() || defCultures.has(cul.value.trim()))) cul.value = type.culture || '';
+    if (ori && (!ori.value.trim() || defOrigins.has(ori.value.trim()))) ori.value = type.origin || '';
+    return apLabel;
+  }
   function generateCharacter(){
     const method = $('#gen-stat-method').value || '4d6';
     const mode = $('#creation-mode').value || 'guided';
@@ -571,6 +593,9 @@ button, input, select, textarea { font-family:inherit; }
     const isPSH = type.id === 'psh';
     const isPlant = type.id === 'plant';
     const animalCol = type.id === 'animal';
+    // 0) Refresh the Gamma World Source concept (A/P base stock, culture, origin)
+    const apLabel = refreshSourceConcept(type);
+    if (apLabel && apLabel !== 'None' && (type.id === 'animal' || type.id === 'plant')) addLog(`A/P base stock: ${apLabel}`);
     // 1) Stats
     const rolls = [];
     STATS.forEach(s => {
