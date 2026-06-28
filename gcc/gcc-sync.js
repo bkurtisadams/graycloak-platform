@@ -521,37 +521,83 @@ const GCCSync = (function() {
     try { return JSON.stringify(val || null); } catch(e) { return ''; }
   }
 
-  function childKey(item, prefix, idx) {
-    if (!item || typeof item !== 'object') return prefix + '_idx_' + idx;
-    return item._id || item.id ||
-      ((item.title || item.name) ? (prefix + '_name_' + (item.title || item.name) + '_' + (item.date || item.gameDate || item.type || '')) : (prefix + '_idx_' + idx));
+  function normEmbeddedKeyText(v) {
+    return String(v || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  }
+
+  function sessionContentKey(item, prefix) {
+    const title = normEmbeddedKeyText(item.title);
+    const date = normEmbeddedKeyText(item.date);
+    const gameDate = normEmbeddedKeyText(item.gameDate);
+    const text = normEmbeddedKeyText(item.text);
+    if (!title && !date && !gameDate && !text) return '';
+    const sections = (item.sections || []).map(sec =>
+      [normEmbeddedKeyText(sec.title), normEmbeddedKeyText(sec.text)].join('~')
+    ).join('||');
+    const tags = (item.tags || []).map(t =>
+      normEmbeddedKeyText(t.type) + ':' + normEmbeddedKeyText(t.name)
+    ).sort().join(',');
+    return prefix + '_sig_' + [normEmbeddedKeyText(item.type || 'session'), title, date, gameDate, text, String(item.xp || 0), sections, tags].join('|');
+  }
+
+  function childKeys(item, prefix, idx) {
+    if (!item || typeof item !== 'object') return [prefix + '_idx_' + idx];
+    const keys = [];
+    if (item._id) keys.push(prefix + '_id_' + item._id);
+    if (item.id) keys.push(prefix + '_id_' + item.id);
+    if (prefix === 'ses') {
+      const sig = sessionContentKey(item, prefix);
+      if (sig) keys.push(sig);
+    } else if (prefix === 'charref') {
+      const storage = item.storageKey || item.listKey || (item._ref && item._ref.storageKey) || '';
+      const nm = normEmbeddedKeyText(item.name || item.heroName || item.characterName);
+      if (item._id) keys.push(prefix + '_ref_' + storage + '_' + item._id);
+      if (nm) keys.push(prefix + '_name_' + storage + '_' + nm);
+    } else if (item.title || item.name) {
+      keys.push(prefix + '_name_' + normEmbeddedKeyText(item.title || item.name) + '_' + normEmbeddedKeyText(item.date || item.gameDate || item.type || ''));
+    }
+    if (!keys.length) keys.push(prefix + '_idx_' + idx);
+    return keys;
   }
 
   // Merge embedded campaign child lists such as sessions/issues, lore, and roster refs.
-  // Cloud wins legacy ties so an old browser does not overwrite a newer shared campaign;
-  // timestamped local edits still win normally.
+  // Items may arrive from older devices with different generated ids for the same
+  // legacy entry, so each child gets id and content/name aliases instead of a single key.
   function mergeEmbeddedList(localItems, cloudItems, prefix, preferLocalOrder) {
     localItems = Array.isArray(localItems) ? localItems : [];
     cloudItems = Array.isArray(cloudItems) ? cloudItems : [];
-    const byKey = {};
-    function consider(item, key) {
-      if (!item || typeof item !== 'object') return;
-      const existing = byKey[key];
-      if (!existing) { byKey[key] = cloneJson(item); return; }
-      const itemTs = tsOf(item), existingTs = tsOf(existing);
-      if (itemTs > existingTs) byKey[key] = cloneJson(item);
+    const byPrimary = {};
+    const aliasToPrimary = {};
+    const order = [];
+    function linkedPrimary(keys) {
+      for (const k of keys) if (aliasToPrimary[k]) return aliasToPrimary[k];
+      return '';
     }
-    cloudItems.forEach((item, idx) => consider(item, childKey(item, prefix, idx)));
-    localItems.forEach((item, idx) => consider(item, childKey(item, prefix, idx)));
+    function linkAliases(primary, keys) {
+      keys.forEach(k => { aliasToPrimary[k] = primary; });
+    }
+    function consider(item, idx) {
+      if (!item || typeof item !== 'object') return;
+      const keys = childKeys(item, prefix, idx);
+      const primary = linkedPrimary(keys) || keys[0];
+      const existing = byPrimary[primary];
+      if (!existing) { byPrimary[primary] = cloneJson(item); order.push(primary); }
+      else if (tsOf(item) > tsOf(existing)) byPrimary[primary] = cloneJson(item);
+      linkAliases(primary, keys);
+    }
+    cloudItems.forEach((item, idx) => consider(item, idx));
+    localItems.forEach((item, idx) => consider(item, idx));
 
     const orderedKeys = [];
     const addOrder = (items) => items.forEach((item, idx) => {
-      const key = childKey(item, prefix, idx);
-      if (orderedKeys.indexOf(key) === -1) orderedKeys.push(key);
+      const keys = childKeys(item, prefix, idx);
+      const primary = linkedPrimary(keys) || keys[0];
+      if (orderedKeys.indexOf(primary) === -1 && byPrimary[primary]) orderedKeys.push(primary);
     });
     if (preferLocalOrder) { addOrder(localItems); addOrder(cloudItems); }
     else { addOrder(cloudItems); addOrder(localItems); }
-    return orderedKeys.map(k => byKey[k]).filter(Boolean);
+    order.forEach(k => { if (orderedKeys.indexOf(k) === -1 && byPrimary[k]) orderedKeys.push(k); });
+    return orderedKeys.map(k => byPrimary[k]).filter(Boolean);
   }
 
   function campaignIdOf(camp, idx) {

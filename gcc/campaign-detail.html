@@ -427,6 +427,68 @@ function getCamp(){
   return GCC.getCampaign(campId);
 }
 
+function normDedupeText(v){return String(v||'').trim().toLowerCase().replace(/\s+/g,' ')}
+function charRefDedupeKey(ch){
+  if(!ch||typeof ch!=='object')return'';
+  const sk=ch.storageKey||ch.listKey||(ch._ref?ch._ref.storageKey:'')||'';
+  if(ch._id)return'id:'+sk+':'+ch._id;
+  const nm=normDedupeText(ch.name||ch.heroName||ch.characterName);
+  return nm?'nm:'+sk+':'+nm:'';
+}
+function sessionContentDedupeKey(s){
+  if(!s||typeof s!=='object')return'';
+  const title=normDedupeText(s.title),date=normDedupeText(s.date),gameDate=normDedupeText(s.gameDate),text=normDedupeText(s.text);
+  if(!title&&!date&&!gameDate&&!text)return'';
+  const sections=(s.sections||[]).map(sec=>{
+    const imgs=(sec.images||[]).map(img=>[normDedupeText(img.caption),normDedupeText(img.size),normDedupeText(img.pos)].join('^')).join('~');
+    return[normDedupeText(sec.title),normDedupeText(sec.text),imgs].join('~');
+  }).join('||');
+  const tags=(s.tags||[]).map(t=>normDedupeText(t.type)+':'+normDedupeText(t.name)).sort().join(',');
+  return['sig',normDedupeText(s.type||'session'),title,date,gameDate,text,String(s.xp||0),String(s.visible!==false),sections,tags].join('|');
+}
+function mergeCharRefs(a,b){
+  const out=Object.assign({},b||{},a||{});
+  if(!out._id&&b&&b._id)out._id=b._id;
+  if(!out.storageKey&&b&&b.storageKey)out.storageKey=b.storageKey;
+  if(!out.listKey&&b&&b.listKey)out.listKey=b.listKey;
+  if(!out.name&&b&&b.name)out.name=b.name;
+  if((a&&a.role)||(b&&b.role))out.role=(a&&a.role)||(b&&b.role);
+  if((a&&a.reserve)||(b&&b.reserve))out.reserve=true;
+  if((a&&a.henchman)||(b&&b.henchman))out.henchman=true;
+  if((a&&a.isTeam)||(b&&b.isTeam))out.isTeam=true;
+  return out;
+}
+function dedupeByKeys(list,keyFns,mergeFn){
+  const out=[],seen=new Map();let changed=false;
+  (Array.isArray(list)?list:[]).forEach((item,idx)=>{
+    const keys=keyFns.map(fn=>fn(item,idx)).filter(Boolean);
+    let hit=-1;
+    for(const k of keys){if(seen.has(k)){hit=seen.get(k);break}}
+    if(hit>=0){out[hit]=mergeFn?mergeFn(out[hit],item):out[hit];changed=true;keys.forEach(k=>seen.set(k,hit));return}
+    const outIdx=out.length;out.push(item);keys.forEach(k=>seen.set(k,outIdx));
+  });
+  return{list:out,changed};
+}
+function dedupeCampaignData(camp){
+  if(!camp)return false;
+  let changed=false;
+  if(Array.isArray(camp.characters)){
+    const res=dedupeByKeys(camp.characters,[charRefDedupeKey],mergeCharRefs);
+    if(res.changed){camp.characters=res.list;changed=true}
+  }
+  if(Array.isArray(camp.sessions)){
+    const res=dedupeByKeys(camp.sessions,[s=>s&&s._id?'id:'+s._id:'',sessionContentDedupeKey]);
+    if(res.changed){camp.sessions=res.list;camp.session=countRealSessions(camp.sessions);changed=true}
+    camp.sessions.forEach(s=>{
+      if(!Array.isArray(s.roster)||!s.roster.length)return;
+      const oldLen=s.roster.length;
+      s.roster=[...new Set(s.roster.filter(Boolean))];
+      if(s.roster.length!==oldLen)changed=true;
+    });
+  }
+  return changed;
+}
+
 // ── Build session card ──
 function buildSessionCard(s,idx,total,camp,imgMap){
   const sesLabel=GCC.sessionLabel(camp.system),xpLbl=GCC.xpLabel(camp.system);
@@ -647,7 +709,12 @@ async function render(){
   const camp=getCamp(),page=document.getElementById('page-content');
   if(!camp){page.innerHTML=`<div class="not-found"><div class="not-found-title">Campaign Not Found</div><div>This campaign doesn't exist or has been deleted.</div><div style="margin-top:12px"><a href="index.html">← Back to Dashboard</a></div></div>`;document.title='Not Found — GCC';return}
   const pm_=_isPlayerMode;
-  if(!pm_){reconcileCharRefs(camp);await migrateImagesToIDB(camp)}
+  const cleaned=dedupeCampaignData(camp);
+  if(!pm_){
+    const refsChanged=reconcileCharRefs(camp);
+    await migrateImagesToIDB(camp);
+    if(cleaned||refsChanged)GCC.updateCampaign(camp.id,{characters:camp.characters||[],sessions:camp.sessions||[],session:countRealSessions(camp.sessions||[])});
+  }
   // Bulk load images from IndexedDB (GM mode); player mode uses Storage URLs directly
   const imgKeys=pm_?[]:collectImageKeys(camp);
   const imgMap=pm_?{}:await GCCImages.getBulk(imgKeys);
@@ -1098,13 +1165,17 @@ async function loadMyCharSlot(){
 }
 
 // ── Load player-assigned characters for party tab (both modes) ──
+let _playerCharsLoadSeq=0;
 async function loadPlayerChars(){
+  const seq=++_playerCharsLoadSeq;
   const grid=document.getElementById('roster-grid');
   if(!grid)return;
   const camp=getCamp();if(!camp)return;
   const user=GCCAuth?.getUser();
   const pm_=_isPlayerMode;
   const players=user?await GCCInvite.getPlayers(campId):[];
+  if(seq!==_playerCharsLoadSeq||!grid.isConnected)return;
+  grid.querySelectorAll('[data-player-card="1"]').forEach(card=>card.remove());
   const withChars=players.filter(p=>p.charId);
   const reserveMap=camp.playerReserve||{};
 
@@ -1124,24 +1195,29 @@ async function loadPlayerChars(){
   }
 
   const playerKeys=new Set();   // 'id:'+charId / 'id:'+_id / 'nm:'+name  -> dedup keys
+  const emittedPlayerKeys=new Set();
   const cards=[];
   for(let i=0;i<withChars.length;i++){
     const p=withChars[i];
     const ch=await GCCInvite.getPlayerCharacterWithFallback(campId,p.uid,p.listKey,p.charId);
+    if(seq!==_playerCharsLoadSeq||!grid.isConnected)return;
     if(!ch)continue;
     const resolved=resolveChar(ch,camp.system,p.listKey);
     const nm=(resolved.name||'').trim().toLowerCase();
+    const playerCardKey=ch._id||p.charId||((p.listKey?`${p.listKey}:`:':')+nm);
+    if(playerCardKey&&emittedPlayerKeys.has(playerCardKey))continue;
+    if(playerCardKey)emittedPlayerKeys.add(playerCardKey);
     if(p.charId)playerKeys.add('id:'+p.charId);
     if(ch._id)playerKeys.add('id:'+ch._id);
     if(nm)playerKeys.add('nm:'+nm);
     const reserve=!!reserveMap[p.uid];
-    const col=PIP_COLORS[i%PIP_COLORS.length];
+    const col=PIP_COLORS[cards.length%PIP_COLORS.length];
     const portraitHtml=resolved.portrait?`<img class="entity-portrait" src="${resolved.portrait}" alt="">`:`<div class="entity-portrait-ph">?</div>`;
     const nameHtml=pcNameHtml(resolved,p.listKey,p.charId);
     const reserveBadge=reserve?`<span class="entity-badge reserve">RESERVE</span>`:'';
     const playerLabel=p.displayName?`<div class="entity-player">${ESC(p.displayName)}</div>`:'';
     const actionsHtml=pm_?'':`<div class="entity-actions"><button class="session-action-btn" data-player-reserve="${ESC(p.uid)}" title="${reserve?'Set active':'Set reserve'}">${reserve?'\u25CF Active':'\u25CC Reserve'}</button></div>`;
-    cards.push(`<div class="entity-card" data-entity-name="${ESC(nm)}" data-char-id="${ESC(ch._id||p.charId||'')}" data-sort="${rosterSort('pc',reserve)}"><div class="entity-pip" style="background:${col}"></div>${portraitHtml}<div class="entity-info"><div class="entity-name">${nameHtml}<span class="entity-badge pc">PC</span>${reserveBadge}</div><div class="entity-sub">${ESC(resolved.sub||'')}</div>${resolved.statsHtml||''}${playerLabel}</div>${actionsHtml}</div>`);
+    cards.push(`<div class="entity-card" data-player-card="1" data-player-uid="${ESC(p.uid||'')}" data-entity-name="${ESC(nm)}" data-char-id="${ESC(ch._id||p.charId||'')}" data-sort="${rosterSort('pc',reserve)}"><div class="entity-pip" style="background:${col}"></div>${portraitHtml}<div class="entity-info"><div class="entity-name">${nameHtml}<span class="entity-badge pc">PC</span>${reserveBadge}</div><div class="entity-sub">${ESC(resolved.sub||'')}</div>${resolved.statsHtml||''}${playerLabel}</div>${actionsHtml}</div>`);
   }
 
   // Dedup: drop any GM roster card that points at a character a player owns
