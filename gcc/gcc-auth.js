@@ -143,11 +143,11 @@ function _isMobile() {
     }
 
     if (_user) {
-      const name = ESC(_user.displayName || _user.email.split('@')[0]);
+      const name = ESC(_user.email || _user.displayName || 'Account');
       const initials = ESC(_getInitials(_user));
       slot.innerHTML =
         `<div class="gcc-auth-wrap">` +
-          `<button class="gcc-auth-chip" id="gcc-auth-chip">` +
+          `<button class="gcc-auth-chip" id="gcc-auth-chip" title="Signed in as ${ESC(_user.email)}">` +
             `<span class="gcc-auth-avatar">${initials}</span>` +
             `<span class="gcc-auth-name">${name}</span>` +
           `</button>` +
