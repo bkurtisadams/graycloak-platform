@@ -24,6 +24,7 @@ const GCCTableFeed = (function(){
   let isGMFn = () => false;
   let tray, panel, toggle, log, chatInput, qtyInput, modInput, bonusInput, dieLabel, badge;
   let selectedDie = 6;
+  let charNameFn = null;
   let _unsub = null;
   let _built = false;
   let _wired = false;
@@ -63,7 +64,7 @@ const GCCTableFeed = (function(){
 .dice-unread.show{display:block}
 .dice-panel{display:none;position:absolute;bottom:54px;right:0;width:300px;background:var(--bg-card);border:1px solid var(--brd);border-radius:6px;box-shadow:var(--dd-shadow);overflow:hidden;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
 .dice-panel.open{display:flex;flex-direction:column}
-.dice-panel-hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--brd);background:var(--bg2)}
+.dice-panel-hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--brd);background:var(--bg2);cursor:move;user-select:none;-webkit-user-select:none;touch-action:none}
 .dice-panel-title{font-family:var(--fsc);font-size:10px;letter-spacing:1.5px;color:var(--tx2)}
 .dice-panel-clear{font-size:9px;color:var(--tx3);background:none;border:none;cursor:pointer;font-family:var(--fb)}
 .dice-panel-clear:hover{color:var(--tx)}
@@ -74,6 +75,7 @@ const GCCTableFeed = (function(){
 .dice-entry:last-child{border-bottom:none}
 .dice-entry-top{display:flex;justify-content:space-between;align-items:baseline;gap:6px}
 .dice-who{font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
+.dice-char{flex:1;min-width:0;font-weight:400;color:var(--tx2);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dice-when{font-size:9px;color:var(--tx3);flex-shrink:0}
 .dice-result{font-family:var(--fm);color:var(--accent);font-weight:700;font-size:13px}
 .dice-detail{font-family:var(--fm);font-size:9px;color:var(--tx3)}
@@ -170,8 +172,12 @@ const GCCTableFeed = (function(){
     toggle.addEventListener('click',()=>{
       const open = panel.classList.toggle('open');
       toggle.classList.toggle('open',open);
-      if (open){ _unread = 0; renderBadge(); chatInput.focus(); }
+      if (open){ _unread = 0; renderBadge(); chatInput.focus(); clampIntoView(); }
     });
+
+    restorePos();
+    makeDraggable(panel.querySelector('.dice-panel-hdr'));
+    window.addEventListener('resize', clampIntoView);
 
     tray.querySelector('#gcc-feed-dice-btns').addEventListener('click',e=>{
       const btn = e.target.closest('[data-die]');
@@ -195,6 +201,62 @@ const GCCTableFeed = (function(){
     });
 
     _built = true;
+  }
+
+  // ── Draggable panel (header is the handle; position persisted) ──
+  const POS_KEY = 'gcc-feed-pos';
+  function clampIntoView(){
+    if(!panel || panel.style.position!=='fixed') return;
+    const w = panel.offsetWidth, h = panel.offsetHeight;
+    if(!w || !h) return;
+    let l = parseFloat(panel.style.left)||0, t = parseFloat(panel.style.top)||0;
+    l = Math.max(4, Math.min(window.innerWidth  - w - 4, l));
+    t = Math.max(4, Math.min(window.innerHeight - h - 4, t));
+    panel.style.left = l+'px';
+    panel.style.top  = t+'px';
+  }
+  function floatAt(left, top){
+    panel.style.position = 'fixed';
+    panel.style.right  = 'auto';
+    panel.style.bottom = 'auto';
+    panel.style.left = left+'px';
+    panel.style.top  = top+'px';
+  }
+  function restorePos(){
+    let p = null;
+    try { p = JSON.parse(localStorage.getItem(POS_KEY)); } catch(_){}
+    if(p && typeof p.left==='number' && typeof p.top==='number') floatAt(p.left, p.top);
+  }
+  function makeDraggable(handle){
+    if(!handle) return;
+    let sx=0, sy=0, sl=0, st=0, dragging=false;
+    handle.addEventListener('pointerdown', e=>{
+      if(e.target.closest('#gcc-feed-clear')) return;   // let Clear button click through
+      dragging = true;
+      const r = panel.getBoundingClientRect();
+      floatAt(r.left, r.top);
+      sx=e.clientX; sy=e.clientY; sl=r.left; st=r.top;
+      try { handle.setPointerCapture(e.pointerId); } catch(_){}
+      e.preventDefault();
+    });
+    handle.addEventListener('pointermove', e=>{
+      if(!dragging) return;
+      floatAt(sl + (e.clientX-sx), st + (e.clientY-sy));
+      clampIntoView();
+    });
+    const end = ()=>{
+      if(!dragging) return;
+      dragging = false;
+      try { localStorage.setItem(POS_KEY, JSON.stringify({ left: parseFloat(panel.style.left)||0, top: parseFloat(panel.style.top)||0 })); } catch(_){}
+    };
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', end);
+  }
+
+  // ── Current character name (supplied by host page via init getCharName) ──
+  function charName(){
+    try { const v = charNameFn ? charNameFn() : ''; return (v==null?'':String(v)).trim(); }
+    catch(_){ return ''; }
   }
 
   // ── Slash command parse: "/r 2d6+1" / "/roll d20" → {qty,die,mod} or null ──
@@ -228,13 +290,15 @@ const GCCTableFeed = (function(){
     for (let i=0;i<qty;i++) rolls.push(Math.floor(Math.random()*die)+1);
     const sum = rolls.reduce((a,b)=>a+b,0) + mod;
     const expr = qty+'d'+die+(mod>0?'+'+mod:mod<0?String(mod):'');
-    pushEntry({
+    const entry = {
       kind:'roll',
       uid: u?u.uid:'local',
       name: u?(u.displayName||u.email.split('@')[0]):'Local',
       expr, rolls, mod, total:sum,
       ts: new Date().toISOString(),
-    });
+    };
+    if (die===100){ const cn = charName(); if (cn) entry.char = cn; }
+    pushEntry(entry);
   }
 
   function getBonus(){ return bonusInput ? (parseInt(bonusInput.value)||0) : 0; }
@@ -244,10 +308,12 @@ const GCCTableFeed = (function(){
     opts = opts || {};
     if (!_built || (!campId && !localOnly)) return false;   // tray not active on this page
     const u = user();
+    const cn = charName();
     pushEntry({
       kind:'feat',
       uid: u?u.uid:'local',
       name: u?(u.displayName||u.email.split('@')[0]):'Local',
+      char: cn || '',
       label: String(label||''),
       roll: opts.roll,
       target: opts.target||'',
@@ -287,6 +353,10 @@ const GCCTableFeed = (function(){
     return data.uid === u.uid || gm();
   }
 
+  function whoLine(data, timeStr){
+    const ch = data.char ? `<span class="dice-char">(${esc(data.char)})</span>` : '';
+    return `<div class="dice-entry-top"><span class="dice-who">${esc(data.name||'?')}</span>${ch}<span class="dice-when">${esc(timeStr)}</span></div>`;
+  }
   function renderEntry(data, docId){
     const when = data.ts ? new Date(data.ts) : new Date();
     const timeStr = when.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
@@ -310,13 +380,13 @@ const GCCTableFeed = (function(){
       if(outcome) details.push('<span class="dice-feat-outcome">'+esc(outcome)+'</span>');
       const detailLine = details.length ? `<div class="dice-feat-detail">${details.join(' · ')}</div>` : '';
       div.innerHTML =
-        `<div class="dice-entry-top"><span class="dice-who">${esc(data.name||'?')}</span><span class="dice-when">${esc(timeStr)}</span></div>`+
+        whoLine(data, timeStr)+
         `<div class="dice-feat"><span class="dice-feat-label">${esc(data.label||'')}${tgt}</span>`+
           `<span class="dice-feat-roll">${esc(data.roll)}</span>${band}</div>`+detailLine+delBtn;
     } else {
       const detail = data.rolls ? data.rolls.join(' + ')+(data.mod?(' '+((data.mod>0?'+':'')+data.mod)):'') : '';
       div.innerHTML =
-        `<div class="dice-entry-top"><span class="dice-who">${esc(data.name||'?')}</span><span class="dice-when">${esc(timeStr)}</span></div>`+
+        whoLine(data, timeStr)+
         `<div><span class="dice-result">${esc(data.expr||'')}: ${esc(data.total)}</span></div>`+
         (detail?`<div class="dice-detail">[${esc(detail)}]</div>`:'')+delBtn;
     }
@@ -407,6 +477,8 @@ const GCCTableFeed = (function(){
     localOnly = !!opts.localOnly && !campId;
     if (typeof opts.isGM === 'function') isGMFn = opts.isGM;
     else if (typeof opts.isGM === 'boolean') isGMFn = () => opts.isGM;
+    if (typeof opts.getCharName === 'function') charNameFn = opts.getCharName;
+    else if (typeof opts.charName === 'string') charNameFn = () => opts.charName;
     if (!campId && !localOnly) return;
     build();
     tray.style.display = '';
