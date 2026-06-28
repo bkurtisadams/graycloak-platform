@@ -204,6 +204,18 @@ button, input, select, textarea { font-family:inherit; }
   <section class="gw-split">
     <div class="gw-side">
       <div class="gw-card">
+        <div class="gw-card-h"><div><h2 class="section-title" style="color:#ffd77a">GW 1e Generator</h2><span class="gw-kicker">Roll a complete Gamma Terra mutant, then tune the MP build</span></div><span class="gw-badge">☢ Roll-up</span></div>
+        <div class="gw-card-b">
+          <button class="btn primary" id="roll-all-btn" style="width:100%;justify-content:center;font-size:14px;padding:10px">☢ Roll complete GW mutant</button>
+          <div class="grid-2" style="margin-top:10px">
+            <div class="field"><label for="gen-stat-method">Stat method</label><select id="gen-stat-method"><option value="4d6">4d6 drop lowest</option><option value="3d6">3d6 straight</option></select></div>
+            <div class="field"><label for="gen-defects">Defects (pick mode)</label><input id="gen-defects" type="number" min="0" max="6" value="2"></div>
+          </div>
+          <p class="help" id="gen-note"></p>
+        </div>
+      </div>
+
+      <div class="gw-card">
         <div class="gw-card-h"><div><h2 class="section-title" style="color:#ffd77a">Gamma World Source</h2><span class="gw-kicker">The wasteland-side concept, type, and notes</span></div><span class="gw-badge">Left panel</span></div>
         <div class="gw-card-b">
           <div class="grid-3">
@@ -311,6 +323,7 @@ button, input, select, textarea { font-family:inherit; }
 <script src="gcc-sync.js"></script>
 <script src="mp-chargen.js"></script>
 <script src="gw-character-data.js"></script>
+<script src="gw-roll-tables.js"></script>
 <script>
 (function(){
   'use strict';
@@ -502,6 +515,123 @@ button, input, select, textarea { font-family:inherit; }
     if (!pool.length) pool = DATA.mutations || [];
     if (!pool.length) return null;
     return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  // ── GW 1e roll-up engine ──
+  const TABLES = window.GWRollTables || { physical:[], mental:[], plant:[] };
+  function rollStat(method){
+    if (method === '3d6') return roll3d6();
+    const d = [rollDie(6), rollDie(6), rollDie(6), rollDie(6)].sort((a,b) => a - b);
+    return d[1] + d[2] + d[3]; // 4d6 drop lowest
+  }
+  function tableRowFor(roll, table, animal){
+    return table.find(r => animal ? (roll >= r.loA && roll <= r.hiA) : (roll >= r.lo && roll <= r.hi));
+  }
+  function pickRandom(arr){ return arr.length ? arr[Math.floor(Math.random() * arr.length)] : null; }
+  // Resolve one d100 roll to a vault mutation. Returns { mut, extra } or null.
+  function rollOneFromTable(tableKey, animal, opts, depth){
+    const table = TABLES[tableKey] || [];
+    if (!table.length || depth > 6) return null;
+    const roll = rollDie(100);
+    const row = tableRowFor(roll, table, animal);
+    if (!row) return null;
+    if (row.special === '__GOOD__'){
+      const good = table.filter(r => r.id && !r.defect);
+      const r = pickRandom(good);
+      return r ? { mut:byId(r.id), roll, extra:false } : null;
+    }
+    if (row.special === '__PICK__'){
+      const pool = table.filter(r => r.id && (opts && opts.allowDefects ? true : !r.defect));
+      const r = pickRandom(pool);
+      return r ? { mut:byId(r.id), roll, extra:false } : null;
+    }
+    if (row.special === '__EXTRA__'){
+      const again = rollOneFromTable(tableKey, animal, opts, depth + 1);
+      if (again) again.extra = true;
+      return again;
+    }
+    if (opts && opts.goodOnly && row.defect) return rollOneFromTable(tableKey, animal, opts, depth + 1);
+    return { mut:byId(row.id), roll, extra:false };
+  }
+  function byId(id){ return (DATA.mutations || []).find(m => m.id === id); }
+  function defectPool(keys){
+    const out = [];
+    keys.forEach(k => (TABLES[k] || []).forEach(r => { if (r.id && r.defect) out.push(r.id); }));
+    return out;
+  }
+  function pushMut(m, log){
+    if (!m) return;
+    state.mutations.push({ ...m, instanceId:'mut_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7) });
+    if (log) addLog(log);
+  }
+  function generateCharacter(){
+    const method = $('#gen-stat-method').value || '4d6';
+    const mode = $('#creation-mode').value || 'guided';
+    const type = TYPES.find(t => t.id === $('#gw-type').value) || TYPES[0];
+    const isPSH = type.id === 'psh';
+    const isPlant = type.id === 'plant';
+    const animalCol = type.id === 'animal';
+    // 1) Stats
+    const rolls = [];
+    STATS.forEach(s => {
+      let v = rollStat(method);
+      if (isPSH && s.key === 'cha') v = Math.min(18, v + 3);
+      $(`#gw-${s.key}`).value = v;
+      rolls.push(`${s.short} ${v}`);
+    });
+    state.mpManual = false;
+    syncMPFieldsFromGW();
+    addLog(`Rolled ${method} stats (${type.label}): ${rolls.join(', ')}`);
+    // 2) Mutations (manual/import modes only roll stats + counts, leave list to user)
+    if (isPSH){ state.mutations = []; addLog('Pure Strain Human: no mutations.'); renderAll(); return; }
+    if (mode === 'manual' || mode === 'import'){
+      const nP = rollDie(4), nM = rollDie(4);
+      addLog(isPlant ? `Plant mutation count: ${rollDie(4)} (pick from browser).`
+                     : `Mutation counts rolled — physical ${nP}, mental ${nM}. Pick from the browser below.`);
+      renderAll();
+      return;
+    }
+    state.mutations = [];
+    const random = mode === 'random';
+    if (isPlant){
+      const n = rollDie(4);
+      addLog(`Plant mutations: rolled ${n} on plant table.`);
+      for (let i = 0; i < n; i++){
+        const res = rollOneFromTable('plant', false, { goodOnly:!random }, 0);
+        if (res){ pushMut(res.mut, `Plant ${res.roll}: ${res.mut.name}`); if (res.extra){ const ex = rollOneFromTable('plant', false, { goodOnly:!random }, 0); if (ex) pushMut(ex.mut, `Plant extra: ${ex.mut.name}`); } }
+      }
+      if (!random) assignDefects(['plant']);
+    } else {
+      const nP = rollDie(4), nM = rollDie(4);
+      addLog(`Mutation counts — physical ${nP}, mental ${nM}.`);
+      for (let i = 0; i < nP; i++){ const res = rollOneFromTable('physical', animalCol, { goodOnly:!random }, 0); if (res) pushMut(res.mut, `Physical ${res.roll}: ${res.mut.name}`); }
+      for (let i = 0; i < nM; i++){ const res = rollOneFromTable('mental', animalCol, { goodOnly:!random }, 0); if (res) pushMut(res.mut, `Mental ${res.roll}: ${res.mut.name}`); }
+      if (!random) assignDefects(['physical','mental']);
+    }
+    renderAll();
+  }
+  function assignDefects(keys){
+    const want = clamp(toNum($('#gen-defects').value), 0, 6);
+    if (!want) return;
+    const have = new Set(state.mutations.map(m => m.id));
+    let pool = defectPool(keys).filter(id => !have.has(id));
+    let added = 0;
+    for (let i = 0; i < want && pool.length; i++){
+      const idx = Math.floor(Math.random() * pool.length);
+      const id = pool.splice(idx, 1)[0];
+      const m = byId(id);
+      if (m){ pushMut(m, `Defect: ${m.name} → ${mpAbilityName(m)} (${m.cp} CP)`); added++; }
+    }
+    if (added) addLog(`Assigned ${added} defect${added === 1 ? '' : 's'} (MP-style weaknesses).`);
+  }
+  function updateGenNote(){
+    const mode = $('#creation-mode').value || 'guided';
+    const note = mode === 'random'
+      ? 'Random mode: each slot rolled on the full d100 table; defects occur organically when a (D) result comes up (GW method 1).'
+      : (mode === 'manual' || mode === 'import')
+        ? 'Manual mode: roll-up sets stats and mutation counts only — pick the actual mutations from the browser below.'
+        : 'Guided mode: rolls good mutations to the GW count, then adds the set number of random defects (GW method 2, MP-style weaknesses).';
+    const el = $('#gen-note'); if (el) el.textContent = note;
   }
 
   function addLog(line){
@@ -718,6 +848,7 @@ button, input, select, textarea { font-family:inherit; }
       type:$('#gw-type').value, powerLevel:$('#power-level').value, creationMode:$('#creation-mode').value,
       ap:$('#ap-type').value, culture:$('#gw-culture').value, origin:$('#gw-origin').value, summary:$('#gw-summary').value,
       search:$('#mut-search').value, category:$('#mut-category').value, role:$('#mp-role-filter').value,
+      statMethod:$('#gen-stat-method').value, defects:$('#gen-defects').value,
       stats:readGWStats(), mpStats:readMPStats(), mpManual:state.mpManual, mutations:state.mutations, rollLog:state.rollLog, exportId:window.__gwCurrentExportId || null
     };
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch(e) {}
@@ -739,6 +870,8 @@ button, input, select, textarea { font-family:inherit; }
       $('#mut-search').value = d.search || '';
       $('#mut-category').value = d.category || 'all';
       $('#mp-role-filter').value = d.role || 'all';
+      if (d.statMethod) $('#gen-stat-method').value = d.statMethod;
+      if (d.defects != null) $('#gen-defects').value = d.defects;
       STATS.forEach(s => { const el = $(`#gw-${s.key}`); if (el) el.value = d.stats && d.stats[s.key] != null ? d.stats[s.key] : 10; });
       state.mpManual = !!d.mpManual;
       if (d.mpStats) BC_KEYS.forEach(b => { const el = $(`#mp-${b.key}`); if (el) el.value = d.mpStats[b.key] != null ? d.mpStats[b.key] : 10; });
@@ -752,6 +885,7 @@ button, input, select, textarea { font-family:inherit; }
 
   function renderAll(){
     updateStatMirrors();
+    updateGenNote();
     renderTypePills();
     renderMutationList();
     renderLog();
@@ -842,12 +976,16 @@ button, input, select, textarea { font-family:inherit; }
     });
     $('#recalc-bc-btn').addEventListener('click', () => { syncMPFieldsFromGW(); addLog('Recalculated MP BCs from GW stats'); renderAll(); });
     $('#roll-stats-btn').addEventListener('click', () => {
+      const method = $('#gen-stat-method').value || '4d6';
+      const isPSH = $('#gw-type').value === 'psh';
       const rolls = [];
-      STATS.forEach(s => { const r = roll3d6(); $(`#gw-${s.key}`).value = r; rolls.push(`${s.short} ${r}`); });
+      STATS.forEach(s => { let r = rollStat(method); if (isPSH && s.key === 'cha') r = Math.min(18, r + 3); $(`#gw-${s.key}`).value = r; rolls.push(`${s.short} ${r}`); });
+      state.mpManual = false;
       syncMPFieldsFromGW();
-      addLog('Rolled GW stats: ' + rolls.join(', '));
+      addLog(`Rolled ${method} GW stats: ` + rolls.join(', '));
       renderAll();
     });
+    $('#roll-all-btn').addEventListener('click', generateCharacter);
     $('#roll-mut-btn').addEventListener('click', () => {
       const cat = $('#mut-category').value === 'all' ? null : $('#mut-category').value;
       const m = rollMutation(cat);
@@ -885,10 +1023,10 @@ button, input, select, textarea { font-family:inherit; }
     populateControls();
     const hadDraft = loadDraft();
     if (!hadDraft) {
-      STATS.forEach(s => { $(`#gw-${s.key}`).value = roll3d6(); });
+      STATS.forEach(s => { $(`#gw-${s.key}`).value = rollStat('4d6'); });
       handleSourceTypeChange();
       syncMPFieldsFromGW();
-      addLog('Started new Gamma World conversion draft');
+      addLog('Started new draft. Use “Roll complete GW mutant” for a full GW 1e roll-up.');
     }
     wire();
     renderAll();
