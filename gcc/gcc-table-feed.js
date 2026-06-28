@@ -105,6 +105,8 @@ const GCCTableFeed = (function(){
 .dice-feat-label{flex:1;min-width:0;color:var(--tx);font-size:11px}
 .dice-feat-roll{font-family:var(--fm);font-weight:700;font-size:13px;color:var(--accent)}
 .dice-feat-band{font-family:var(--fb);font-weight:700;font-size:9px;letter-spacing:.5px;padding:1px 6px;border-radius:8px;text-transform:uppercase;flex-shrink:0}
+.dice-feat-detail{font-family:var(--fm);font-size:9px;color:var(--tx3);line-height:1.25}
+.dice-feat-outcome{font-family:var(--fb);font-weight:700}
 @media(max-width:500px){.dice-panel{width:calc(100vw - 32px);right:0}}`;
     const el = document.createElement('style');
     el.id = 'gcc-table-feed-css';
@@ -251,6 +253,11 @@ const GCCTableFeed = (function(){
       target: opts.target||'',
       band: opts.band||'',
       color: opts.color||'',
+      intensity: opts.intensity||'',
+      required: opts.required||'',
+      success: typeof opts.success === 'boolean' ? opts.success : null,
+      outcome: opts.outcome||'',
+      note: opts.note||'',
       ts: new Date().toISOString(),
     });
     clearBonus();
@@ -296,10 +303,16 @@ const GCCTableFeed = (function(){
       const band = data.band
         ? `<span class="dice-feat-band" style="background:${esc(color)};color:${readableText(color)}">${esc(data.band)}</span>`
         : '';
+      const details = [];
+      if(data.intensity) details.push('Intensity '+esc(data.intensity));
+      if(data.required) details.push('Need '+esc(data.required));
+      const outcome = data.outcome || (data.success === true ? 'Success' : data.success === false ? 'Failure' : '');
+      if(outcome) details.push('<span class="dice-feat-outcome">'+esc(outcome)+'</span>');
+      const detailLine = details.length ? `<div class="dice-feat-detail">${details.join(' · ')}</div>` : '';
       div.innerHTML =
         `<div class="dice-entry-top"><span class="dice-who">${esc(data.name||'?')}</span><span class="dice-when">${esc(timeStr)}</span></div>`+
         `<div class="dice-feat"><span class="dice-feat-label">${esc(data.label||'')}${tgt}</span>`+
-          `<span class="dice-feat-roll">${esc(data.roll)}</span>${band}</div>`+delBtn;
+          `<span class="dice-feat-roll">${esc(data.roll)}</span>${band}</div>`+detailLine+delBtn;
     } else {
       const detail = data.rolls ? data.rolls.join(' + ')+(data.mod?(' '+((data.mod>0?'+':'')+data.mod)):'') : '';
       div.innerHTML =

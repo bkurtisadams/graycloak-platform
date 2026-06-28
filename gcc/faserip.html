@@ -193,6 +193,28 @@ body{min-height:100vh;background:var(--bg);color:var(--dark);font-family:var(--f
 .feat-btn:hover{background:#ffd700;border-color:#c8960c;color:#000}
 .feat-btn:active{background:#c8960c;color:#fff}
 
+/* FASERIP FEAT dialog */
+.feat-roll-overlay{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:1300;display:flex;align-items:center;justify-content:center;padding:16px}
+.feat-roll-dialog{width:min(430px,100%);background:#fff;border:2px solid #000;box-shadow:0 12px 36px rgba(0,0,0,.38);font-family:var(--fb);color:#000}
+.feat-roll-head{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#1a2a3a;color:#fff;border-bottom:2px solid #000;padding:8px 10px}
+.feat-roll-title{font-family:var(--fd);font-size:16px;letter-spacing:1px;font-weight:900;text-transform:uppercase;line-height:1}
+.feat-roll-close{border:0;background:transparent;color:#fff;font-size:20px;line-height:1;cursor:pointer;padding:0 2px;opacity:.8}
+.feat-roll-close:hover{opacity:1;color:#ffd700}
+.feat-roll-body{padding:10px;display:grid;gap:8px;background:#f8f8f0}
+.feat-roll-line{display:grid;grid-template-columns:112px 1fr;gap:8px;align-items:center}
+.feat-roll-line label{font-family:var(--fd);font-size:11px;font-weight:700;letter-spacing:.5px;color:#333;text-align:right}
+.feat-roll-value,.feat-roll-body input,.feat-roll-body select{width:100%;border:1.5px solid #000;background:#fff;font-family:var(--fb);font-size:12px;padding:5px 6px;min-height:28px}
+.feat-roll-value{font-weight:700;background:#fffde8;display:flex;align-items:center}
+.feat-roll-body input:focus,.feat-roll-body select:focus{outline:2px solid rgba(192,90,0,.28);border-color:var(--accent)}
+.feat-roll-required{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.feat-req-badge{font-family:var(--fd);font-size:10px;font-weight:900;letter-spacing:.7px;padding:2px 8px;border:1px solid #000;border-radius:999px;background:#ddd;color:#000;text-transform:uppercase}
+.feat-req-green{background:#22bb22;color:#001b00}.feat-req-yellow{background:#f0d800;color:#221b00}.feat-req-red{background:#cc1111;color:#fff}.feat-req-white{background:#fff;color:#000}.feat-req-impossible{background:#111;color:#fff}
+.feat-roll-help{font-size:10px;color:#444;line-height:1.35;border-top:1px dotted #bbb;padding-top:7px}
+.feat-roll-error{font-size:10px;color:#8b0000;font-weight:700;min-height:13px}
+.feat-roll-foot{display:flex;justify-content:flex-end;gap:6px;padding:8px 10px;background:#e8e8de;border-top:1px solid #000}
+.feat-roll-btn{font-family:var(--fb);font-weight:700;font-size:11px;border:1px solid #555;border-radius:3px;background:#fff;padding:5px 10px;cursor:pointer}
+.feat-roll-btn:hover{border-color:#000;background:#fffde8}.feat-roll-btn.primary{background:var(--accent);border-color:#7a3600;color:#fff}.feat-roll-btn.primary:hover{background:#d06a10}
+
 /* ── Bottom Section: Talents / Karma / Contacts ── */
 .bottom-grid{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;margin-top:8px}
 .karma-wrap{display:flex;gap:6px;align-items:stretch}
@@ -778,6 +800,163 @@ async function promptCSModifier(label,rankName){
   return cs;
 }
 
+function escHTML(s){
+  return String(s==null?"":s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+function rankIndex(name){
+  return RANKS.findIndex(r=>r.name===name);
+}
+function colorLevel(color){
+  return {White:0,Green:1,Yellow:2,Red:3}[color] || 0;
+}
+function requiredBadgeClass(req){
+  const text=String(req||"").toLowerCase();
+  if(text.includes("impossible")) return "feat-req-impossible";
+  if(text.includes("red")) return "feat-req-red";
+  if(text.includes("yellow")) return "feat-req-yellow";
+  if(text.includes("green")) return "feat-req-green";
+  return "feat-req-white";
+}
+function getFeatRequirement(effectiveRank,intensityRank,opts){
+  opts=opts||{};
+  const eff=rankIndex(effectiveRank);
+  const inten=intensityRank ? rankIndex(intensityRank) : -1;
+  const notes=[];
+  if(!intensityRank || inten<0 || eff<0){
+    return {
+      required:"Green+",
+      requiredLevel:1,
+      requiredLabel:"Green+",
+      intensity:"",
+      auto:false,
+      impossible:false,
+      note:"No intensity set: any colored Universal Table result succeeds; White fails unless a special rule says otherwise."
+    };
+  }
+  const delta=eff-inten;
+  let required="Green", requiredLevel=1;
+  if(delta===0){ required="Yellow"; requiredLevel=2; }
+  else if(delta<0){ required="Red"; requiredLevel=3; }
+  if(delta>3){
+    notes.push("Automatic FEAT candidate: intensity is more than three ranks below the effective rank. The Judge may waive the roll.");
+  }
+  let impossible=false;
+  if(inten-eff>1){
+    if(opts.resourceLimit){
+      impossible=true;
+      required="Impossible";
+      requiredLevel=99;
+      notes.push("Resource FEAT limit: an intensity more than one rank above Resources is not available by normal purchase.");
+    } else {
+      notes.push("Optional impossible FEAT candidate: intensity is more than one rank above the effective rank.");
+    }
+  }
+  if(!notes.length){
+    notes.push("Compare effective rank to intensity: higher needs Green, equal needs Yellow, lower needs Red.");
+  }
+  return {
+    required,
+    requiredLevel,
+    requiredLabel:required==="Green"?"Green+":required==="Yellow"?"Yellow+":required,
+    intensity:intensityRank,
+    auto:delta>3,
+    impossible,
+    note:notes.join(" ")
+  };
+}
+function describeShift(baseRank,cs,shifted){
+  const csText=formatCS(cs);
+  if(!cs) return baseRank;
+  return baseRank+" "+csText+" → "+shifted.rank+(shifted.blocked?" (Class rank not shifted)":shifted.capped?" (capped)":"");
+}
+async function promptFeatRollOptions(label,rankName,opts){
+  opts=opts||{};
+  if(typeof document==="undefined" || !document.body){
+    return {cs:0,intensity:"",requirement:getFeatRequirement(rankName,"",opts)};
+  }
+  return new Promise(resolve=>{
+    const overlay=document.createElement("div");
+    overlay.className="feat-roll-overlay";
+    overlay.innerHTML=`
+      <div class="feat-roll-dialog" role="dialog" aria-modal="true" aria-labelledby="feat-roll-title">
+        <div class="feat-roll-head">
+          <div class="feat-roll-title" id="feat-roll-title">FEAT Roll</div>
+          <button class="feat-roll-close" type="button" title="Cancel">&times;</button>
+        </div>
+        <div class="feat-roll-body">
+          <div class="feat-roll-line"><label>Check</label><div class="feat-roll-value" id="feat-label"></div></div>
+          <div class="feat-roll-line"><label>Base Rank</label><div class="feat-roll-value" id="feat-base"></div></div>
+          <div class="feat-roll-line"><label for="feat-cs">CS Modifier</label><input id="feat-cs" type="text" value="0" placeholder="+1, -2, or 0"></div>
+          <div class="feat-roll-line"><label>Effective Rank</label><div class="feat-roll-value" id="feat-effective"></div></div>
+          <div class="feat-roll-line"><label for="feat-intensity">Intensity</label><select id="feat-intensity"><option value="">None / unstated</option>${RANKS.map(r=>`<option value="${escHTML(r.name)}">${escHTML(r.name)}</option>`).join("")}</select></div>
+          <div class="feat-roll-line"><label>Required</label><div class="feat-roll-required"><span id="feat-required" class="feat-req-badge feat-req-green">Green+</span></div></div>
+          <div class="feat-roll-help" id="feat-help"></div>
+          <div class="feat-roll-error" id="feat-error"></div>
+        </div>
+        <div class="feat-roll-foot">
+          <button class="feat-roll-btn" type="button" id="feat-cancel">Cancel</button>
+          <button class="feat-roll-btn primary" type="button" id="feat-roll">Roll d100</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const $=sel=>overlay.querySelector(sel);
+    const csInput=$("#feat-cs");
+    const intensitySel=$("#feat-intensity");
+    const effectiveEl=$("#feat-effective");
+    const requiredEl=$("#feat-required");
+    const helpEl=$("#feat-help");
+    const errEl=$("#feat-error");
+    $("#feat-label").textContent=label||"FEAT";
+    $("#feat-base").textContent=rankName||"Typical";
+
+    function close(val){
+      document.removeEventListener("keydown",onKey);
+      overlay.remove();
+      resolve(val);
+    }
+    function readState(){
+      const cs=parseCSModifier(csInput.value);
+      if(cs===null){
+        errEl.textContent="Use a whole number such as +1, -2, 0, or +1CS.";
+        return null;
+      }
+      errEl.textContent="";
+      const shifted=applyColumnShift(rankName,cs);
+      const req=getFeatRequirement(shifted.rank,intensitySel.value,opts);
+      return {cs,shifted,requirement:req,intensity:intensitySel.value};
+    }
+    function refresh(){
+      const state=readState();
+      if(!state) return;
+      effectiveEl.textContent=describeShift(rankName,state.cs,state.shifted);
+      requiredEl.textContent=state.requirement.requiredLabel;
+      requiredEl.className="feat-req-badge "+requiredBadgeClass(state.requirement.required);
+      const shiftNote=state.shifted.blocked ? " Class 1000+ ranks do not shift unless a specific rule allows it." : state.shifted.capped ? " Shift capped at Shift-0/Shift-Z." : "";
+      helpEl.textContent=state.requirement.note+shiftNote;
+    }
+    function onKey(e){
+      if(e.key==="Escape") close(null);
+      if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); submit(); }
+    }
+    function submit(){
+      const state=readState();
+      if(!state) return;
+      close(state);
+    }
+    csInput.addEventListener("input",refresh);
+    intensitySel.addEventListener("change",refresh);
+    $("#feat-roll").addEventListener("click",submit);
+    $("#feat-cancel").addEventListener("click",()=>close(null));
+    $(".feat-roll-close").addEventListener("click",()=>close(null));
+    overlay.addEventListener("click",e=>{ if(e.target===overlay) close(null); });
+    document.addEventListener("keydown",onKey);
+    refresh();
+    setTimeout(()=>{ csInput.focus(); csInput.select(); },0);
+  });
+}
+
 // ══════════════════════════════════════════════════════════════
 // CHARACTER STATE
 // ══════════════════════════════════════════════════════════════
@@ -889,17 +1068,7 @@ function recalcSecondary(){
   CHAR.health=h; CHAR.karma=k; CHAR.karmaMax=rip;
 }
 
-async function rollFeat(rankName, label){
-  rankName = rankName || "Typical";
-  label = label || "FEAT";
-  const cs = await promptCSModifier(label, rankName);
-  if(cs===null) return;
-
-  const shifted = applyColumnShift(rankName, cs);
-  const featRank = shifted.rank || rankName;
-  const raw = roll100();
-  const fb = (typeof GCCTableFeed!=="undefined" && GCCTableFeed.getBonus) ? GCCTableFeed.getBonus() : 0;
-  const roll = Math.max(1, Math.min(100, raw + fb));
+function getUniversalTableBand(roll, featRank){
   const rankIdx = RANKS.findIndex(r=>r.name===featRank);
   // Universal Table thresholds: White < Green < Yellow < Red
   const thresholds = [
@@ -927,20 +1096,60 @@ async function rollFeat(rankName, label){
   if(roll >= t.r){ color="Red"; colorHex="#cc1111"; }
   else if(roll >= t.y){ color="Yellow"; colorHex="#e0c800"; }
   else if(roll >= t.g){ color="Green"; colorHex="#22bb22"; }
+  return {color,colorHex,thresholds:t};
+}
+function formatFeatOutcome(success,requirement){
+  if(requirement && requirement.impossible) return "Impossible";
+  return success ? "Success" : "Failure";
+}
+
+async function rollFeat(rankName, label, opts){
+  opts = opts || {};
+  rankName = rankName || "Typical";
+  label = label || "FEAT";
+  const state = await promptFeatRollOptions(label, rankName, opts);
+  if(state===null) return;
+
+  const cs = state.cs || 0;
+  const shifted = state.shifted || applyColumnShift(rankName, cs);
+  const featRank = shifted.rank || rankName;
+  const requirement = state.requirement || getFeatRequirement(featRank, state.intensity || "", opts);
+  const raw = roll100();
+  const fb = (typeof GCCTableFeed!=="undefined" && GCCTableFeed.getBonus) ? GCCTableFeed.getBonus() : 0;
+  const roll = Math.max(1, Math.min(100, raw + fb));
+  const band = getUniversalTableBand(roll, featRank);
+  const success = !requirement.impossible && colorLevel(band.color) >= requirement.requiredLevel;
+  const outcome = formatFeatOutcome(success, requirement);
 
   const csText = cs ? formatCS(cs) : "";
-  const rankNote = cs ? (rankName+" "+csText+" → "+featRank) : featRank;
   const capNote = shifted.blocked ? "; Class ranks do not shift" : shifted.capped ? "; capped by Shift-0/Shift-Z" : "";
+  const rankNote = cs ? (rankName+" "+csText+" → "+featRank) : featRank;
+  const reqText = requirement.requiredLabel || requirement.required || "Green+";
   const lbl = (cs ? label+" ("+csText+")" : label) + (fb ? " +"+fb : "");
   const shown = fb ? (raw+(fb>0?"+":"")+fb+"="+roll) : roll;
   const posted = (typeof GCCTableFeed!=="undefined" && typeof GCCTableFeed.postFeat==="function")
-    ? GCCTableFeed.postFeat(lbl, { roll: shown, target:rankNote, band:color, color:colorHex })
+    ? GCCTableFeed.postFeat(lbl, {
+        roll: shown,
+        target:rankNote,
+        band:band.color,
+        color:band.colorHex,
+        intensity: requirement.intensity || "",
+        required: reqText,
+        success,
+        outcome,
+        note: requirement.note || ""
+      })
     : false;
   if(!posted){
     const extra = fb ? ` (${raw}${fb>0?"+":""}${fb})` : "";
-    const msg = `${label}: Roll ${roll}${extra} vs ${featRank}` +
-      (cs ? ` <span style="color:#666">(${rankName} ${csText}${capNote})</span>` : "") +
-      ` → <span style="color:${colorHex};font-weight:700">${color}</span>`;
+    const intensityLine = requirement.intensity ? `<br>Intensity: <b>${escHTML(requirement.intensity)}</b>` : "";
+    const msg = `${escHTML(label)}: Roll <b>${escHTML(roll)}</b>${extra} vs <b>${escHTML(featRank)}</b>` +
+      (cs ? ` <span style="color:#666">(${escHTML(rankName)} ${escHTML(csText)}${escHTML(capNote)})</span>` : "") +
+      intensityLine +
+      `<br>Result: <span style="color:${band.colorHex};font-weight:700">${band.color}</span>`+
+      `<br>Required: <b>${escHTML(reqText)}</b>`+
+      `<br>Outcome: <b>${escHTML(outcome)}</b>`+
+      (requirement.note ? `<br><span style="color:#666">${escHTML(requirement.note)}</span>` : "");
     MPDialog.alert('FEAT Result', msg);
   }
 }
@@ -1308,7 +1517,7 @@ function bindFields(){
   const resFeat=document.getElementById("res-feat");
   if(resFeat) resFeat.addEventListener("click",e=>{
     e.stopPropagation();
-    rollFeat(CHAR.resourcesRank||"Typical","Resources FEAT");
+    rollFeat(CHAR.resourcesRank||"Typical","Resources FEAT",{resourceLimit:true});
   });
   // Popularity FEAT — value\u2192rank (same as Contact popularity rolls), per identity
   const popHeroFeat=document.getElementById("pop-hero-feat");
