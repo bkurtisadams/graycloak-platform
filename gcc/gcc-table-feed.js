@@ -1,4 +1,4 @@
-// gcc-table-feed.js v0.1.0 — 2026-06-04
+// gcc-table-feed.js v0.1.1 — 2026-06-27
 // Shared per-campaign table log: chat + dice rolls in one chronological feed.
 // Extracted from campaign-detail.html's inline dice tray and generalized so any
 // campaign-context page (hub, character sheet, maps) can include it with one tag.
@@ -20,6 +20,7 @@ const GCCTableFeed = (function(){
   const FEED_LIMIT = 80;
 
   let campId = null;
+  let localOnly = false;
   let isGMFn = () => false;
   let tray, panel, toggle, log, chatInput, qtyInput, modInput, bonusInput, dieLabel, badge;
   let selectedDie = 6;
@@ -239,7 +240,7 @@ const GCCTableFeed = (function(){
 
   function postFeat(label, opts){
     opts = opts || {};
-    if (!_built || !campId) return false;   // tray not active on this page
+    if (!_built || (!campId && !localOnly)) return false;   // tray not active on this page
     const u = user();
     pushEntry({
       kind:'feat',
@@ -262,12 +263,12 @@ const GCCTableFeed = (function(){
     const cmd = parseRollCmd(raw);
     if(cmd){ chatInput.value=''; rollDice(cmd.die, cmd.qty, cmd.mod); return; }
     const u = user();
-    if(!u){ return; } // chat requires sign-in (input is disabled, guard anyway)
+    if(!u && !localOnly){ return; } // campaign chat requires sign-in; local tray can keep local notes
     chatInput.value='';
     pushEntry({
       kind:'chat',
-      uid: u.uid,
-      name: u.displayName || u.email.split('@')[0],
+      uid: u?u.uid:'local',
+      name: u?(u.displayName || u.email.split('@')[0]):'Local',
       text: raw.slice(0, MAX_TEXT),
       ts: new Date().toISOString(),
     });
@@ -346,7 +347,7 @@ const GCCTableFeed = (function(){
 
   function startListener(){
     const conn = db();
-    if(!conn || !campId) return;
+    if(localOnly || !conn || !campId) return;
     if(_unsub) _unsub();
     _seen = 0;
     _unsub = conn.collection('campaigns').doc(campId).collection('rolls')
@@ -370,6 +371,12 @@ const GCCTableFeed = (function(){
 
   function refreshAuthState(){
     const u = user();
+    if (localOnly){
+      chatInput.disabled = false;
+      chatInput.placeholder = 'Local message  ( /r 2d6+1 )';
+      if(_unsub){ _unsub(); _unsub=null; }
+      return;
+    }
     if (u){
       chatInput.disabled = false;
       chatInput.placeholder = 'Message  ( /r 2d6+1 )';
@@ -384,9 +391,10 @@ const GCCTableFeed = (function(){
   function init(opts){
     opts = opts || {};
     campId = opts.campId || null;
+    localOnly = !!opts.localOnly && !campId;
     if (typeof opts.isGM === 'function') isGMFn = opts.isGM;
     else if (typeof opts.isGM === 'boolean') isGMFn = () => opts.isGM;
-    if (!campId) return;            // tray is campaign-scoped only
+    if (!campId && !localOnly) return;
     build();
     tray.style.display = '';
     // Wait for sync/auth to settle, then wire the live feed.

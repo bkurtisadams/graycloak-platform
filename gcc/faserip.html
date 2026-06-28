@@ -740,6 +740,44 @@ function shiftRank(name,shifts){
   return RANKS[Math.max(0,Math.min(RANKS.length-1,i+shifts))].name;
 }
 
+const SHIFT_Z_INDEX = RANKS.findIndex(r=>r.name==="Shift-Z");
+function formatCS(cs){
+  cs=parseInt(cs)||0;
+  return cs>0 ? "+"+cs+"CS" : cs<0 ? cs+"CS" : "0CS";
+}
+function parseCSModifier(raw){
+  raw=String(raw==null?"":raw).trim();
+  if(!raw) return 0;
+  const m=/^([+-]?\d+)\s*(?:cs)?$/i.exec(raw);
+  if(!m) return null;
+  return parseInt(m[1],10)||0;
+}
+function applyColumnShift(rankName,cs){
+  const i=RANKS.findIndex(r=>r.name===rankName);
+  if(i===-1) return {rank:rankName, blocked:false, capped:false};
+  // Advanced Set FEAT shifts stop at Shift 0 / Shift Z; Class columns are not
+  // shifted except by specific rule text. Keep those cosmic columns anchored.
+  if(i>SHIFT_Z_INDEX) return {rank:rankName, blocked:cs!==0, capped:false};
+  const next=Math.max(0,Math.min(SHIFT_Z_INDEX,i+(parseInt(cs)||0)));
+  return {rank:RANKS[next].name, blocked:false, capped:next!==i+(parseInt(cs)||0)};
+}
+async function promptCSModifier(label,rankName){
+  if(typeof MPDialog==="undefined" || !MPDialog.prompt) return 0;
+  const raw=await MPDialog.prompt("Column Shift Modifier",{
+    intro:"Enter the situational column shift for <b>"+(label||"FEAT")+"</b> using <b>+1</b>, <b>-2</b>, or <b>0</b>.",
+    placeholder:"0",
+    hint:"Base rank: "+rankName+". Shifts cannot go below Shift-0 or above Shift-Z; Class ranks do not shift unless a specific rule says so.",
+    okText:"Roll"
+  });
+  if(raw===null) return null;
+  const cs=parseCSModifier(raw);
+  if(cs===null){
+    await MPDialog.alert("Invalid Column Shift","Use a whole number such as <b>+1</b>, <b>-2</b>, or <b>0</b>.");
+    return promptCSModifier(label,rankName);
+  }
+  return cs;
+}
+
 // ══════════════════════════════════════════════════════════════
 // CHARACTER STATE
 // ══════════════════════════════════════════════════════════════
@@ -851,13 +889,19 @@ function recalcSecondary(){
   CHAR.health=h; CHAR.karma=k; CHAR.karmaMax=rip;
 }
 
-function rollFeat(rankName, label){
+async function rollFeat(rankName, label){
+  rankName = rankName || "Typical";
+  label = label || "FEAT";
+  const cs = await promptCSModifier(label, rankName);
+  if(cs===null) return;
+
+  const shifted = applyColumnShift(rankName, cs);
+  const featRank = shifted.rank || rankName;
   const raw = roll100();
   const fb = (typeof GCCTableFeed!=="undefined" && GCCTableFeed.getBonus) ? GCCTableFeed.getBonus() : 0;
   const roll = Math.max(1, Math.min(100, raw + fb));
-  const rankIdx = RANKS.findIndex(r=>r.name===rankName);
-  // Universal Table thresholds (simplified for standalone)
-  // White < Green < Yellow < Red
+  const rankIdx = RANKS.findIndex(r=>r.name===featRank);
+  // Universal Table thresholds: White < Green < Yellow < Red
   const thresholds = [
     {rank:"Shift-0",  g:66,y:95,r:100},
     {rank:"Feeble",   g:61,y:91,r:100},
@@ -878,19 +922,25 @@ function rollFeat(rankName, label){
     {rank:"Class 5000",g:2, y:4, r:6},
     {rank:"Beyond",   g:2, y:4, r:6}
   ];
-  const t = thresholds[Math.min(rankIdx, thresholds.length-1)] || thresholds[3];
+  const t = thresholds[Math.max(0, Math.min(rankIdx, thresholds.length-1))] || thresholds[3];
   let color="White", colorHex="#ccc";
   if(roll >= t.r){ color="Red"; colorHex="#cc1111"; }
   else if(roll >= t.y){ color="Yellow"; colorHex="#e0c800"; }
   else if(roll >= t.g){ color="Green"; colorHex="#22bb22"; }
-  const lbl = fb ? (label+" +"+fb) : label;
-  const shown = fb ? (raw+"+"+fb+"="+roll) : roll;
+
+  const csText = cs ? formatCS(cs) : "";
+  const rankNote = cs ? (rankName+" "+csText+" → "+featRank) : featRank;
+  const capNote = shifted.blocked ? "; Class ranks do not shift" : shifted.capped ? "; capped by Shift-0/Shift-Z" : "";
+  const lbl = (cs ? label+" ("+csText+")" : label) + (fb ? " +"+fb : "");
+  const shown = fb ? (raw+(fb>0?"+":"")+fb+"="+roll) : roll;
   const posted = (typeof GCCTableFeed!=="undefined" && typeof GCCTableFeed.postFeat==="function")
-    ? GCCTableFeed.postFeat(lbl, { roll: shown, target:rankName, band:color, color:colorHex })
+    ? GCCTableFeed.postFeat(lbl, { roll: shown, target:rankNote, band:color, color:colorHex })
     : false;
   if(!posted){
-    const extra = fb ? ` (${raw}+${fb})` : "";
-    const msg = `${label}: Roll ${roll}${extra} vs ${rankName} → <span style="color:${colorHex};font-weight:700">${color}</span>`;
+    const extra = fb ? ` (${raw}${fb>0?"+":""}${fb})` : "";
+    const msg = `${label}: Roll ${roll}${extra} vs ${featRank}` +
+      (cs ? ` <span style="color:#666">(${rankName} ${csText}${capNote})</span>` : "") +
+      ` → <span style="color:${colorHex};font-weight:700">${color}</span>`;
     MPDialog.alert('FEAT Result', msg);
   }
 }
@@ -2239,11 +2289,18 @@ function refreshFeedOwner(){
 function syncTableFeed(){
   if(typeof GCCTableFeed==="undefined" || !GCCTableFeed.init) return;
   const urlCamp=new URLSearchParams(window.location.search).get('camp');
-  _feedCampId=(CHAR && CHAR._campaign) || urlCamp || null;
-  if(!_feedCampId) return;
-  try{ localStorage.setItem('gcc-active-campaign', _feedCampId); }catch(e){}
-  GCCTableFeed.init({ campId:_feedCampId, isGM: ()=>_amOwner });
-  refreshFeedOwner();
+  let activeCamp=null;
+  try{ activeCamp=localStorage.getItem('gcc-active-campaign'); }catch(e){}
+  _feedCampId=(CHAR && CHAR._campaign) || urlCamp || activeCamp || null;
+  if(_feedCampId){
+    try{ localStorage.setItem('gcc-active-campaign', _feedCampId); }catch(e){}
+    GCCTableFeed.init({ campId:_feedCampId, isGM: ()=>_amOwner });
+    refreshFeedOwner();
+  } else {
+    // Keep the shared dice roller available even when the sheet is opened
+    // outside a campaign context; rolls and FEATs stay local to this page.
+    GCCTableFeed.init({ localOnly:true, isGM:false });
+  }
 }
 
 document.addEventListener("DOMContentLoaded",()=>{
