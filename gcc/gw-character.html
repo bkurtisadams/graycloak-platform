@@ -10,97 +10,138 @@
 <link rel="stylesheet" href="gcc-dialog.css">
 <style>
 :root {
-  --gw-bg: #1f2216;
-  --gw-bg2: #2c321e;
-  --gw-panel: #f5ecd1;
-  --gw-panel2: #ead9a8;
-  --gw-ink: #17190f;
-  --gw-muted: #5f6544;
-  --gw-line: #5d4c25;
-  --gw-orange: #c55d1a;
-  --gw-orange2: #ff8a2b;
-  --gw-green: #476b2d;
-  --gw-green2: #7aa34b;
-  --gw-red: #9a2f26;
-  --gw-blue: #2b5c6b;
-  --gw-shadow: rgba(0,0,0,.28);
-  --font-display: 'Bangers', cursive;
-  --font-body: 'Bitter', Georgia, serif;
+  --gw-bg:#1f2216;
+  --gw-bg2:#2c321e;
+  --gw-panel:#f5ecd1;
+  --gw-panel2:#ead9a8;
+  --gw-cream:#fff8df;
+  --gw-ink:#17190f;
+  --gw-muted:#5f6544;
+  --gw-line:#5d4c25;
+  --gw-orange:#c55d1a;
+  --gw-orange2:#ff8a2b;
+  --gw-green:#476b2d;
+  --gw-green2:#7aa34b;
+  --gw-red:#9a2f26;
+  --gw-blue:#2b5c6b;
+  --gw-shadow:rgba(0,0,0,.28);
+  --font-display:'Bangers', cursive;
+  --font-body:'Bitter', Georgia, serif;
 }
-*, *::before, *::after { box-sizing: border-box; }
-html { min-height:100%; background: radial-gradient(circle at 50% 0%, #354226 0, #1f2216 42%, #12140d 100%); }
-body { min-height:100vh; margin:0; color:var(--gw-ink); font-family:var(--font-body); font-size:13px; background: transparent; }
-button, input, select, textarea { font-family: inherit; }
-.gw-wrap { max-width:1180px; margin:0 auto; padding:18px 14px 36px; }
-.gw-hero { display:grid; grid-template-columns:1.2fr .8fr; gap:14px; align-items:stretch; margin-bottom:14px; }
-.gw-card { background:linear-gradient(180deg, var(--gw-panel) 0%, #efe0b7 100%); border:2px solid var(--gw-line); border-radius:8px; box-shadow:0 5px 18px var(--gw-shadow); overflow:hidden; }
+*, *::before, *::after { box-sizing:border-box; }
+html { min-height:100%; background:radial-gradient(circle at 50% -10%, #46562f 0, #202716 43%, #11140d 100%); }
+body { min-height:100vh; margin:0; color:var(--gw-ink); font-family:var(--font-body); font-size:13px; background:transparent; }
+button, input, select, textarea { font-family:inherit; }
+.gw-wrap { max-width:1500px; margin:0 auto; padding:16px 14px 36px; }
+.gw-hero { display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:14px; align-items:stretch; margin-bottom:14px; }
+.gw-card { background:linear-gradient(180deg, var(--gw-panel) 0%, #efe0b7 100%); border:2px solid var(--gw-line); border-radius:9px; box-shadow:0 5px 18px var(--gw-shadow); overflow:hidden; }
 .gw-card-h { background:linear-gradient(90deg, #1b1e13, #354226); color:#ffe9ad; padding:10px 12px; border-bottom:2px solid var(--gw-orange); display:flex; justify-content:space-between; gap:10px; align-items:center; }
-.gw-title { margin:0; font-family:var(--font-display); font-size:28px; letter-spacing:1px; color:#ffd77a; text-shadow:2px 2px 0 #612b0d; }
-.gw-sub { margin:4px 0 0; color:#e0c78d; font-size:12px; line-height:1.45; max-width:760px; }
-.gw-badge { display:inline-flex; align-items:center; gap:5px; border:1px solid rgba(255,214,122,.55); background:rgba(0,0,0,.22); color:#ffd77a; padding:4px 8px; border-radius:999px; font-size:11px; white-space:nowrap; }
 .gw-card-b { padding:12px; }
-.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-.grid-3 { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; }
+.gw-title { margin:0; font-family:var(--font-display); font-size:30px; letter-spacing:1px; color:#ffd77a; text-shadow:2px 2px 0 #612b0d; }
+.gw-sub { margin:4px 0 0; color:#e0c78d; font-size:12px; line-height:1.45; max-width:850px; }
+.section-title { font-family:var(--font-display); font-size:22px; letter-spacing:.7px; color:#1f2d16; margin:0; }
+.gw-kicker { color:#d9c28a; font-size:11px; line-height:1.35; }
+.gw-badge { display:inline-flex; align-items:center; gap:5px; border:1px solid rgba(255,214,122,.55); background:rgba(0,0,0,.22); color:#ffd77a; padding:4px 8px; border-radius:999px; font-size:11px; white-space:nowrap; font-weight:700; }
+.grid-2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.grid-3 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.grid-4 { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
 .field { display:flex; flex-direction:column; gap:4px; min-width:0; }
 .field label { font-weight:700; font-size:11px; color:#2d321d; text-transform:uppercase; letter-spacing:.04em; }
-.field input, .field select, .field textarea { width:100%; border:1.5px solid #6b5a2e; background:#fff8df; color:#17190f; border-radius:4px; padding:7px 8px; font-size:13px; min-height:34px; }
+.field input, .field select, .field textarea, .browser-tools input, .browser-tools select { width:100%; border:1.5px solid #6b5a2e; background:var(--gw-cream); color:#17190f; border-radius:4px; padding:7px 8px; font-size:13px; min-height:34px; }
 .field textarea { min-height:86px; resize:vertical; line-height:1.35; }
-.field input:focus, .field select:focus, .field textarea:focus { outline:2px solid rgba(255,138,43,.35); border-color:var(--gw-orange); }
+.field input:focus, .field select:focus, .field textarea:focus, .browser-tools input:focus, .browser-tools select:focus { outline:2px solid rgba(255,138,43,.35); border-color:var(--gw-orange); }
 .help { color:var(--gw-muted); font-size:11px; line-height:1.35; margin-top:2px; }
 .gw-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; }
 .btn { cursor:pointer; border:1.5px solid #5d4c25; background:#374126; color:#ffe9ad; border-radius:4px; padding:7px 11px; font-weight:700; font-size:12px; box-shadow:0 2px 0 rgba(0,0,0,.25); }
 .btn:hover { background:#45542e; border-color:#ff8a2b; color:#fff6c7; }
 .btn.primary { background:#9f3d14; border-color:#5d260f; color:#fff2cf; }
 .btn.primary:hover { background:#c55d1a; }
+.btn.blue { background:#2b5c6b; border-color:#183943; color:#eaffff; }
+.btn.blue:hover { background:#347283; }
 .btn.ghost { background:#fff8df; color:#25301b; box-shadow:none; }
 .btn.danger { background:#832a20; color:#ffe0d8; }
 .btn.small { padding:4px 7px; font-size:11px; }
 .btn:disabled { opacity:.45; cursor:not-allowed; }
-.gw-main { display:grid; grid-template-columns:320px 1fr 330px; gap:14px; align-items:start; }
-.section-title { font-family:var(--font-display); font-size:22px; letter-spacing:.7px; color:#1f2d16; margin:0; }
-.stat-grid { display:grid; grid-template-columns:1fr 72px 72px; gap:6px; align-items:end; }
-.stat-head { font-weight:700; color:#5f6544; font-size:10px; text-transform:uppercase; letter-spacing:.05em; padding:0 2px 2px; }
-.stat-name { font-weight:700; color:#222; padding-top:8px; }
-.stat-grid input { text-align:center; padding:6px 5px; min-height:30px; }
-.stat-note { grid-column:1/-1; border-top:1px dashed #b69451; margin-top:5px; padding-top:7px; color:#5f6544; font-size:11px; }
+.gw-split { display:grid; grid-template-columns:minmax(390px,.9fr) minmax(560px,1.1fr); gap:14px; align-items:start; }
+.gw-side { display:flex; flex-direction:column; gap:14px; min-width:0; }
+.workflow-box { display:grid; gap:8px; }
+.workflow-box .btn { width:100%; justify-content:center; }
 .pill-row { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
 .pill { display:inline-flex; align-items:center; gap:4px; border:1px solid #867044; border-radius:999px; background:#fff8df; padding:4px 7px; font-size:11px; color:#30341e; }
+.pill.good { border-color:#5f7d3f; background:#eef8dc; color:#2c4a1b; }
 .pill.warn { border-color:#b36b1b; background:#fff0cb; color:#6f330d; }
 .pill.bad { border-color:#9a2f26; background:#ffe1d9; color:#742018; }
-.mutation-browser { display:grid; grid-template-rows:auto auto 1fr; gap:8px; min-height:570px; }
-.browser-tools { display:grid; grid-template-columns:1fr 150px 112px; gap:8px; }
-.mut-list { border:1.5px solid #6b5a2e; border-radius:5px; background:#fff8df; overflow:auto; max-height:500px; }
+.stat-grid { display:grid; grid-template-columns:1.1fr 72px 72px; gap:6px; align-items:center; }
+.stat-head { font-weight:700; color:#5f6544; font-size:10px; text-transform:uppercase; letter-spacing:.05em; padding:0 2px 2px; }
+.stat-name { font-weight:700; color:#222; }
+.stat-grid input { text-align:center; padding:6px 5px; min-height:30px; }
+.stat-note { border-top:1px dashed #b69451; margin-top:8px; padding-top:8px; color:#5f6544; font-size:11px; line-height:1.35; }
+.browser-tools { display:grid; grid-template-columns:minmax(160px,1fr) 140px 138px; gap:8px; margin-bottom:8px; }
+.mp-tabs { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 8px; }
+.mp-tab { border:1px solid #8b7545; background:#fff8df; color:#353b24; border-radius:999px; padding:5px 8px; font-size:11px; font-weight:700; cursor:pointer; }
+.mp-tab:hover, .mp-tab.active { background:#ffe0a6; border-color:#bd5418; color:#71310d; }
+.mut-list { border:1.5px solid #6b5a2e; border-radius:5px; background:#fff8df; overflow:auto; max-height:520px; }
 .mut-row { padding:9px 10px; border-bottom:1px solid #ddc990; cursor:pointer; display:grid; grid-template-columns:1fr auto; gap:8px; }
 .mut-row:hover { background:#fff0c4; }
 .mut-row.selected { background:#ffe0a6; box-shadow:inset 4px 0 0 #c55d1a; }
 .mut-row .name { font-weight:700; color:#17190f; }
 .mut-row .meta { color:#606844; font-size:11px; line-height:1.35; margin-top:2px; }
 .cp { font-weight:700; color:#733411; font-size:12px; white-space:nowrap; }
-.selected-list { display:flex; flex-direction:column; gap:8px; }
-.sel-card { border:1.5px solid #765f30; background:#fff8df; border-radius:6px; padding:9px; }
-.sel-top { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
-.sel-name { font-weight:700; color:#192011; }
-.sel-mp { margin-top:4px; color:#353b24; line-height:1.35; font-size:12px; }
-.sel-notes { margin-top:4px; color:#6b714a; line-height:1.35; font-size:11px; }
-.review-box { display:grid; gap:8px; }
-.kpi { display:grid; grid-template-columns:1fr auto; gap:8px; border:1px solid #c4a15e; border-radius:5px; padding:8px; background:#fff8df; }
-.kpi strong { color:#1f2d16; }
-.kpi span { color:#743b12; font-weight:700; }
-.warn-list { display:flex; flex-direction:column; gap:6px; }
-.warn-item { border:1px solid #b77b35; background:#fff0cf; color:#5f330d; border-radius:5px; padding:7px 8px; font-size:12px; line-height:1.35; }
-.warn-item.bad { border-color:#9a2f26; background:#ffe2d8; color:#6f2117; }
+.mut-footer { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between; margin-top:8px; }
+.roll-log { background:#171b11; color:#e9ddb0; border:1.5px solid #59643a; border-radius:6px; padding:9px; font-family:ui-monospace, SFMono-Regular, Consolas, monospace; font-size:11px; line-height:1.45; max-height:160px; overflow:auto; white-space:pre-wrap; }
+.mp-sheet { background:linear-gradient(180deg,#f8f0d5 0,#efdfb6 100%); }
+.mp-top { display:grid; grid-template-columns:1fr auto; gap:10px; align-items:start; }
+.mp-name { font-family:var(--font-display); font-size:32px; letter-spacing:.06em; color:#233217; margin:0; }
+.mp-meta { display:flex; flex-wrap:wrap; gap:6px; margin-top:4px; }
+.mp-badge { background:#25301d; color:#ffe6ad; border-radius:4px; padding:4px 6px; font-size:11px; font-weight:700; }
+.sheet-box { border:1.5px solid #6b5a2f; background:#fff8dd; border-radius:6px; padding:9px; }
+.sheet-title { font-family:var(--font-display); font-size:20px; letter-spacing:.05em; color:#26351d; margin:0 0 8px; }
+.bc-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; }
+.bc-card { border:1px solid #b9934d; background:#fff0c7; border-radius:6px; padding:8px; text-align:center; min-width:0; }
+.bc-card.over { border-color:#9a2f26; background:#ffe1d9; }
+.bc-card .label { font-weight:700; font-size:12px; }
+.bc-card .score { font-family:var(--font-display); font-size:28px; color:#71310d; line-height:1; }
+.bc-card .save { font-size:11px; color:#596044; line-height:1.25; }
+.derived { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+.derived div { border:1px solid #d0b16a; background:#fff8dd; border-radius:5px; padding:7px; min-width:0; }
+.derived strong { display:block; font-size:10px; text-transform:uppercase; color:#5d6344; }
+.derived span { font-weight:700; color:#26351d; }
+.ability-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.ability-card { border:1.5px solid #755f31; background:#fff8df; border-radius:6px; padding:9px 9px 9px 14px; position:relative; overflow:hidden; }
+.ability-card::before { content:""; position:absolute; top:0; left:0; bottom:0; width:5px; background:#6f8f42; }
+.ability-card.offense::before { background:#b64222; }
+.ability-card.defense::before { background:#2f6671; }
+.ability-card.misc::before { background:#6f8f42; }
+.ability-card.weakness::before { background:#8e2d28; }
+.ability-card.review::after { content:"GM"; position:absolute; right:-20px; top:8px; transform:rotate(35deg); width:72px; text-align:center; background:#bd7c20; color:#fff3ca; font-size:10px; font-weight:700; }
+.ability-card.over { border-color:#9a2f26; background:#ffece6; }
+.ability-head { display:flex; justify-content:space-between; gap:8px; align-items:flex-start; }
+.ability-name { font-weight:700; color:#17190f; padding-right:22px; }
+.ability-kind { font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:#646b48; font-weight:700; }
+.ability-notes { font-size:11px; color:#5b6141; line-height:1.35; margin-top:5px; }
+.tag-row { display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; }
+.tag { border:1px solid #c9a865; background:#fff0c6; border-radius:999px; font-size:10px; padding:3px 6px; color:#5c3711; }
+.tag.red { background:#ffe1da; border-color:#b75d49; color:#702018; }
+.review-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+.kpi { border:1.5px solid #c3a15f; background:#fff8dd; border-radius:6px; padding:8px; }
+.kpi strong { display:block; font-size:10px; text-transform:uppercase; color:#5d6344; }
+.kpi span { font-family:var(--font-display); font-size:25px; color:#71310d; }
+.warning { border:1.5px solid #b77132; background:#fff0ca; color:#66370e; border-radius:6px; padding:8px; font-size:12px; line-height:1.35; }
+.warning.bad { border-color:#9b2f26; background:#ffe1d8; color:#682017; }
+.warning.good { border-color:#5f7d3f; background:#eef8dc; color:#2c4a1b; }
 .empty { color:#6a6f4d; font-style:italic; font-size:12px; padding:8px; }
-.preview-json { width:100%; min-height:150px; font-family:ui-monospace, SFMono-Regular, Consolas, monospace; font-size:11px; background:#191d13; color:#e8e2bd; border-color:#4b532c; }
+.preview-json { width:100%; min-height:130px; font-family:ui-monospace, SFMono-Regular, Consolas, monospace; font-size:11px; background:#191d13; color:#e8e2bd; border-color:#4b532c; }
 .footer-note { margin-top:14px; color:#dbc58a; font-size:11px; line-height:1.4; text-align:center; }
-.gw-card.is-compact .gw-card-b { padding:10px; }
-@media (max-width:1080px){ .gw-main { grid-template-columns:1fr 1fr; } .gw-main > .gw-card:last-child { grid-column:1/-1; } .gw-hero { grid-template-columns:1fr; } }
-@media (max-width:760px){ .gw-main, .grid-2, .grid-3 { grid-template-columns:1fr; } .browser-tools { grid-template-columns:1fr; } .stat-grid { grid-template-columns:1fr 80px 80px; } }
+@media (max-width:1180px){ .gw-hero, .gw-split { grid-template-columns:1fr; } }
+@media (max-width:820px){ .grid-2, .grid-3, .grid-4, .ability-grid, .review-grid, .derived { grid-template-columns:1fr; } .browser-tools { grid-template-columns:1fr; } .bc-grid { grid-template-columns:1fr 1fr; } .stat-grid { grid-template-columns:1fr 80px 80px; } }
+@media (max-width:520px){ .bc-grid { grid-template-columns:1fr; } .mp-top { grid-template-columns:1fr; } }
 [data-gcc-theme="dark"] body .gw-card { background:linear-gradient(180deg, #1c2117 0%, #232817 100%); color:#ead9a8; }
 [data-gcc-theme="dark"] .gw-card-b { color:#ead9a8; }
-[data-gcc-theme="dark"] .section-title, [data-gcc-theme="dark"] .stat-name, [data-gcc-theme="dark"] .field label, [data-gcc-theme="dark"] .sel-name, [data-gcc-theme="dark"] .kpi strong { color:#ffe9ad; }
-[data-gcc-theme="dark"] .field input, [data-gcc-theme="dark"] .field select, [data-gcc-theme="dark"] .field textarea, [data-gcc-theme="dark"] .mut-list, [data-gcc-theme="dark"] .mut-row, [data-gcc-theme="dark"] .sel-card, [data-gcc-theme="dark"] .kpi, [data-gcc-theme="dark"] .pill { background:#14180f; color:#efe2b6; border-color:#756034; }
-[data-gcc-theme="dark"] .mut-row:hover, [data-gcc-theme="dark"] .mut-row.selected { background:#2b2714; }
-[data-gcc-theme="dark"] .help, [data-gcc-theme="dark"] .mut-row .meta, [data-gcc-theme="dark"] .sel-notes, [data-gcc-theme="dark"] .empty { color:#c6b780; }
+[data-gcc-theme="dark"] .section-title, [data-gcc-theme="dark"] .stat-name, [data-gcc-theme="dark"] .field label, [data-gcc-theme="dark"] .sheet-title, [data-gcc-theme="dark"] .ability-name, [data-gcc-theme="dark"] .kpi strong { color:#ffe9ad; }
+[data-gcc-theme="dark"] .field input, [data-gcc-theme="dark"] .field select, [data-gcc-theme="dark"] .field textarea, [data-gcc-theme="dark"] .browser-tools input, [data-gcc-theme="dark"] .browser-tools select, [data-gcc-theme="dark"] .mut-list, [data-gcc-theme="dark"] .mut-row, [data-gcc-theme="dark"] .sheet-box, [data-gcc-theme="dark"] .ability-card, [data-gcc-theme="dark"] .kpi, [data-gcc-theme="dark"] .pill, [data-gcc-theme="dark"] .mp-tab { background:#14180f; color:#efe2b6; border-color:#756034; }
+[data-gcc-theme="dark"] .mp-sheet, [data-gcc-theme="dark"] .bc-card, [data-gcc-theme="dark"] .derived div { background:#191d13; color:#efe2b6; border-color:#756034; }
+[data-gcc-theme="dark"] .mut-row:hover, [data-gcc-theme="dark"] .mut-row.selected, [data-gcc-theme="dark"] .mp-tab.active { background:#2b2714; }
+[data-gcc-theme="dark"] .help, [data-gcc-theme="dark"] .mut-row .meta, [data-gcc-theme="dark"] .ability-notes, [data-gcc-theme="dark"] .empty { color:#c6b780; }
 </style>
 </head>
 <body>
@@ -130,73 +171,127 @@ button, input, select, textarea { font-family: inherit; }
     <div class="gw-card">
       <div class="gw-card-h">
         <div>
-          <h1 class="gw-title">Gamma World Character Starter</h1>
-          <p class="gw-sub">Build a new Gamma Terra survivor, translate GW1e mutations into Mighty Protectors abilities, then save the result into the existing MP character builder.</p>
+          <h1 class="gw-title">Gamma World → Mighty Protectors Starter</h1>
+          <p class="gw-sub">Translate Gamma Terra origins, stats, mutations, and defects into a live Mighty Protectors build preview. Full MP random generation stays in the existing character builder.</p>
         </div>
-        <span class="gw-badge">☢ MP export</span>
+        <span class="gw-badge">☢ Split workspace</span>
       </div>
-      <div class="gw-card-b grid-3">
+      <div class="gw-card-b grid-4">
         <div class="field"><label for="char-name">Name</label><input id="char-name" placeholder="Unnamed mutant"></div>
         <div class="field"><label for="player-name">Player</label><input id="player-name" placeholder="Player name"></div>
         <div class="field"><label for="campaign-select">Campaign</label><select id="campaign-select"><option value="">No campaign link</option></select></div>
-        <div class="field"><label for="gw-type">Gamma World Type</label><select id="gw-type"></select></div>
         <div class="field"><label for="power-level">MP Power Level</label><select id="power-level"></select></div>
-        <div class="field"><label for="creation-mode">Creation Mode</label><select id="creation-mode"><option value="guided">Guided balanced build</option><option value="random">Random conversion picks</option><option value="manual">Manual conversion</option><option value="import">Import or convert old character</option></select></div>
       </div>
     </div>
-    <div class="gw-card is-compact">
-      <div class="gw-card-h"><h2 class="section-title" style="color:#ffd77a">Export Target</h2><span class="gw-badge">v0.1</span></div>
-      <div class="gw-card-b">
-        <div class="field"><label for="gw-summary">Character Notes</label><textarea id="gw-summary" placeholder="Origin, tribe, odd habits, old character notes, or referee rulings."></textarea></div>
-        <div class="gw-actions">
-          <button class="btn primary" id="save-open-btn">Save and open MP builder</button>
-          <button class="btn ghost" id="copy-json-btn">Copy MP JSON</button>
-          <button class="btn ghost" id="reset-btn">Reset draft</button>
-        </div>
-        <p class="help">This starter does not replace the MP sheet. It prepares the first pass and leaves final tuning to the builder.</p>
+    <div class="gw-card">
+      <div class="gw-card-h"><h2 class="section-title" style="color:#ffd77a">Workflow</h2><span class="gw-badge">No duplicate generator</span></div>
+      <div class="gw-card-b workflow-box">
+        <button class="btn blue" id="open-mp-generator-btn">Open existing MP random generator</button>
+        <button class="btn primary" id="save-open-btn">Save and open MP builder</button>
+        <button class="btn ghost" id="copy-json-btn">Copy MP JSON</button>
+        <button class="btn ghost" id="reset-btn">Reset draft</button>
+        <p class="help">This page prepares a first-pass conversion. Final CP tuning, modifiers, attacks, and sheet polish still happen in <code>character.html</code>.</p>
       </div>
     </div>
   </section>
 
-  <section class="gw-main">
-    <div class="gw-card">
-      <div class="gw-card-h"><h2 class="section-title" style="color:#ffd77a">1. GW Stats</h2><button class="btn small" id="roll-stats-btn">Roll 3d6</button></div>
-      <div class="gw-card-b">
-        <div class="stat-grid" id="stat-grid">
-          <div class="stat-head">GW Stat</div><div class="stat-head">GW</div><div class="stat-head">MP</div>
+  <section class="gw-split">
+    <div class="gw-side">
+      <div class="gw-card">
+        <div class="gw-card-h"><div><h2 class="section-title" style="color:#ffd77a">Gamma World Source</h2><span class="gw-kicker">The wasteland-side concept, type, and notes</span></div><span class="gw-badge">Left panel</span></div>
+        <div class="gw-card-b">
+          <div class="grid-3">
+            <div class="field"><label for="gw-type">Gamma World Type</label><select id="gw-type"></select></div>
+            <div class="field"><label for="creation-mode">Creation Mode</label><select id="creation-mode"><option value="guided">Guided conversion</option><option value="random">Random GW mutation picks</option><option value="manual">Manual conversion</option><option value="import">Import or convert old character</option></select></div>
+            <div class="field"><label for="ap-type">Animal/Plant Package</label><select id="ap-type"></select></div>
+          </div>
+          <div class="grid-2" style="margin-top:10px">
+            <div class="field"><label for="gw-culture">Culture / Tribe</label><input id="gw-culture" placeholder="Primitive, cryptic alliance, ruin clan..."></div>
+            <div class="field"><label for="gw-origin">Origin Hook</label><input id="gw-origin" placeholder="Radiation, Ancient lab, plague, breeding stock..."></div>
+          </div>
+          <div class="field" style="margin-top:10px"><label for="gw-summary">Character Notes</label><textarea id="gw-summary" placeholder="Old character notes, tribe, weird habits, referee rulings, equipment seed, or campaign hooks."></textarea></div>
+          <div class="pill-row" id="type-pills"></div>
         </div>
-        <div class="stat-note" id="stat-note"></div>
-        <div class="field" style="margin-top:10px"><label for="ap-type">Animal/Plant Package</label><select id="ap-type"></select><p class="help">Use this when the mutant behaves as an animal or plant rather than a tool-using humanoid.</p></div>
-        <div class="pill-row" id="type-pills"></div>
+      </div>
+
+      <div class="gw-card">
+        <div class="gw-card-h"><h2 class="section-title" style="color:#ffd77a">GW Stats → MP BCs</h2><div class="gw-actions" style="margin-top:0"><button class="btn small" id="roll-stats-btn">Roll GW stats</button><button class="btn small ghost" id="recalc-bc-btn">Recalculate MP BCs</button></div></div>
+        <div class="gw-card-b">
+          <div class="stat-grid" id="stat-grid">
+            <div class="stat-head">Gamma World stat</div><div class="stat-head">GW</div><div class="stat-head">MP</div>
+          </div>
+          <div class="stat-note" id="stat-note"></div>
+        </div>
+      </div>
+
+      <div class="gw-card">
+        <div class="gw-card-h"><h2 class="section-title" style="color:#ffd77a">GW Powers & Defects</h2><span class="gw-badge" id="mut-count">0 selected</span></div>
+        <div class="gw-card-b">
+          <div class="browser-tools">
+            <input id="mut-search" placeholder="Search mutation, MP ability, notes">
+            <select id="mut-category"><option value="all">All GW sources</option><option value="physical">Physical</option><option value="mental">Mental</option><option value="plant">Plant</option><option value="defect">Defects</option></select>
+            <select id="mp-role-filter"><option value="all">All MP roles</option><option value="offense">Offense</option><option value="defense">Defense</option><option value="misc">Misc / Utility</option><option value="weakness">Weakness</option><option value="review">GM Review</option></select>
+          </div>
+          <div class="mp-tabs" id="mp-role-tabs"></div>
+          <div class="mut-list" id="mut-list"></div>
+          <div class="mut-footer">
+            <div class="gw-actions" style="margin-top:0">
+              <button class="btn primary" id="add-mut-btn">Add selected</button>
+              <button class="btn" id="roll-mut-btn">Roll mutation</button>
+              <button class="btn ghost" id="add-defect-btn">Roll defect</button>
+            </div>
+            <button class="btn small danger" id="clear-muts-btn">Clear selected powers</button>
+          </div>
+          <p class="help">The browser is organized by MP role so a GW mutation immediately looks like an MP build element instead of a stray radioactive index card.</p>
+        </div>
+      </div>
+
+      <div class="gw-card">
+        <div class="gw-card-h"><h2 class="section-title" style="color:#ffd77a">Roll Log</h2><button class="btn small ghost" id="clear-log-btn">Clear log</button></div>
+        <div class="gw-card-b"><div class="roll-log" id="roll-log"></div></div>
       </div>
     </div>
 
-    <div class="gw-card">
-      <div class="gw-card-h"><h2 class="section-title" style="color:#ffd77a">2. Mutations</h2><span class="gw-badge" id="mut-count">0 selected</span></div>
-      <div class="gw-card-b mutation-browser">
-        <div class="browser-tools">
-          <input id="mut-search" placeholder="Search mutations, MP abilities, notes">
-          <select id="mut-category"><option value="all">All mutation maps</option><option value="physical">Physical</option><option value="mental">Mental</option><option value="plant">Plant</option><option value="defect">Defects</option></select>
-          <button class="btn" id="roll-mut-btn">Roll pick</button>
-        </div>
-        <div class="gw-actions" style="margin-top:0">
-          <button class="btn primary" id="add-mut-btn">Add selected</button>
-          <button class="btn ghost" id="add-defect-btn">Roll defect</button>
-          <span class="help" id="browser-help">Random picks use the conversion list, not exact GW1e odds.</span>
-        </div>
-        <div class="mut-list" id="mut-list"></div>
-      </div>
-    </div>
+    <div class="gw-side">
+      <div class="gw-card mp-sheet">
+        <div class="gw-card-h"><div><h2 class="section-title" style="color:#ffd77a">Mighty Protectors Build Preview</h2><span class="gw-kicker">Live right-panel sheet generated from the Gamma World side</span></div><span class="gw-badge">Right panel</span></div>
+        <div class="gw-card-b gw-side">
+          <div class="sheet-box">
+            <div class="mp-top">
+              <div>
+                <h2 class="mp-name" id="mp-preview-name">Unnamed Mutant</h2>
+                <div class="mp-meta" id="mp-preview-meta"></div>
+              </div>
+              <button class="btn primary" id="save-open-btn-2">Export</button>
+            </div>
+          </div>
 
-    <div class="gw-card">
-      <div class="gw-card-h"><h2 class="section-title" style="color:#ffd77a">3. Review</h2><button class="btn small danger" id="clear-muts-btn">Clear mutations</button></div>
-      <div class="gw-card-b review-box">
-        <div class="selected-list" id="selected-list"></div>
-        <div class="kpi"><strong>BC total</strong><span id="bc-total">0</span></div>
-        <div class="kpi"><strong>Ability / weakness CP</strong><span id="ability-total">0</span></div>
-        <div class="kpi"><strong>Net CP estimate</strong><span id="net-total">0</span></div>
-        <div class="warn-list" id="warn-list"></div>
-        <div class="field"><label for="json-preview">MP Builder JSON Preview</label><textarea id="json-preview" class="preview-json" readonly></textarea></div>
+          <div class="sheet-box">
+            <h3 class="sheet-title">Basic Characteristics</h3>
+            <div class="bc-grid" id="bc-grid"></div>
+          </div>
+
+          <div class="sheet-box">
+            <h3 class="sheet-title">Derived Stats</h3>
+            <div class="derived" id="derived-grid"></div>
+          </div>
+
+          <div class="sheet-box">
+            <h3 class="sheet-title">Converted Abilities</h3>
+            <div class="ability-grid" id="ability-grid"></div>
+          </div>
+
+          <div class="sheet-box">
+            <h3 class="sheet-title">CP / Cap Review</h3>
+            <div class="review-grid" id="review-grid"></div>
+            <div class="gw-side" id="warn-list" style="gap:8px;margin-top:8px"></div>
+          </div>
+
+          <div class="sheet-box">
+            <h3 class="sheet-title">MP Builder JSON Preview</h3>
+            <textarea id="json-preview" class="preview-json" readonly></textarea>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -225,13 +320,22 @@ button, input, select, textarea { font-family: inherit; }
     { key:'ms', mp:'cl', label:'Mental Strength', short:'MS', help:'Feeds MP CL' },
     { key:'cha', mp:'cl', label:'Charisma', short:'CHA', help:'Feeds MP CL' },
   ];
+  const BC_KEYS = [
+    { key:'st', label:'ST' }, { key:'en', label:'EN' }, { key:'ag', label:'AG' }, { key:'in', label:'IN' }, { key:'cl', label:'CL' }
+  ];
   const TYPES = [
-    { id:'psh', label:'Pure Strain Human', species:'Human', ap:'none', notes:'No mutations by default. Strong candidate for better social footing and tech access.' },
-    { id:'humanoid', label:'Humanoid mutant', species:'Humanoid Mutant', ap:'none', notes:'Tool-using mutant. Uses mutations without an A/P package by default.' },
-    { id:'animal', label:'Mutated animal', species:'Mutated Animal', ap:'mammal', notes:'Pick an A/P package only when animal behavior matters mechanically.' },
-    { id:'plant', label:'Mutated plant', species:'Mutated Plant', ap:'plant', notes:'Uses plant mutations and Plant/Fungus package by default.' },
+    { id:'psh', label:'Pure Strain Human', species:'Human', ap:'none', culture:'Primitive', origin:'Gamma Terra survivor', notes:'No mutations by default. Strong candidate for better social footing and tech access.' },
+    { id:'humanoid', label:'Humanoid mutant', species:'Humanoid Mutant', ap:'none', culture:'Primitive', origin:'Mutated or Evolved', notes:'Tool-using mutant. Uses mutations without an A/P package by default.' },
+    { id:'animal', label:'Mutated animal', species:'Mutated Animal', ap:'mammal', culture:'Primitive', origin:'Mutated or Evolved', notes:'Pick an A/P package when animal behavior matters mechanically.' },
+    { id:'plant', label:'Mutated plant', species:'Mutated Plant', ap:'plant', culture:'Primitive', origin:'Mutated or Evolved', notes:'Uses plant mutations and Plant/Fungus package by default.' },
+  ];
+  const ROLE_LABELS = { offense:'Offensive Ability', defense:'Defensive Ability', misc:'Miscellaneous Ability', weakness:'Weakness', review:'GM Review' };
+  const ROLE_TABS = [
+    ['all','All'], ['offense','Offense'], ['defense','Defense'], ['misc','Misc / Utility'], ['weakness','Weakness'], ['review','GM Review']
   ];
   const HIGH = new Set((DATA.highImpactNames || []).map(s => String(s).toLowerCase()));
+  const state = { selectedId:null, mutations:[], rollLog:[], mpManual:false };
+
   const $ = sel => document.querySelector(sel);
   const $$ = sel => Array.from(document.querySelectorAll(sel));
   const esc = s => { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; };
@@ -239,8 +343,6 @@ button, input, select, textarea { font-family: inherit; }
   const rollDie = sides => Math.floor(Math.random() * sides) + 1;
   const roll3d6 = () => rollDie(6) + rollDie(6) + rollDie(6);
   const toNum = v => { const n = Number(String(v || '').trim()); return Number.isFinite(n) ? n : 0; };
-
-  const state = { selectedId: null, mutations: [] };
 
   function parseCPRange(cpText){
     const raw = String(cpText || '').trim();
@@ -253,8 +355,7 @@ button, input, select, textarea { font-family: inherit; }
     if (raw.includes('+') && vals.length === 1) max = vals[0] + 10;
     const low = Math.min(min, max);
     const high = Math.max(min, max);
-    const mid = (low + high) / 2;
-    return { raw, min: low, max: high, mid, variable: /variable|various|tbd|per /i.test(raw) };
+    return { raw, min:low, max:high, mid:(low + high) / 2, variable:/variable|various|tbd|per /i.test(raw) };
   }
 
   function fmt(n){
@@ -270,10 +371,14 @@ button, input, select, textarea { font-family: inherit; }
       { id:'high', label:'High', bcPoints:80, totalCPs:200, coreAbilityCPs:30 },
     ];
   }
-
   function selectedPowerLevel(){
     const id = $('#power-level').value || 'low';
     return mpPowerLevels().find(p => p.id === id) || mpPowerLevels()[1] || mpPowerLevels()[0];
+  }
+  function caps(){
+    const pl = selectedPowerLevel();
+    if (window.MP && MP.CG && MP.CG.calcCaps) return MP.CG.calcCaps(Number(pl.totalCPs || 0));
+    return { bcCap:Math.floor(pl.totalCPs / 5) + 10, abilityCap:Math.floor(pl.totalCPs / 5), damageCap:Math.floor(pl.totalCPs / 12.5) + 3 };
   }
 
   function readGWStats(){
@@ -281,13 +386,16 @@ button, input, select, textarea { font-family: inherit; }
     STATS.forEach(s => vals[s.key] = clamp(toNum($(`#gw-${s.key}`).value), 0, 99));
     return vals;
   }
-
+  function readMPStats(){
+    const vals = {};
+    BC_KEYS.forEach(b => vals[b.key] = clamp(toNum($(`#mp-${b.key}`).value), 0, 99));
+    return vals;
+  }
   function currentAP(){
     const id = $('#ap-type').value || 'none';
     return (DATA.animalPlantTypes || []).find(a => a.id === id) || (DATA.animalPlantTypes || [])[0] || { id:'none', label:'None', mods:{st:0,en:0,ag:0}, cp:0, desc:'' };
   }
-
-  function effectiveStats(){
+  function convertedStatsFromGW(){
     const gw = readGWStats();
     const ap = currentAP();
     const mods = ap.mods || {};
@@ -299,45 +407,73 @@ button, input, select, textarea { font-family: inherit; }
       cl: clamp(Math.max(gw.ms, gw.cha), 0, 99),
     };
   }
-
-  function setEffectiveFields(){
-    const eff = effectiveStats();
-    STATS.forEach(s => {
-      const el = $(`#mp-${s.key}`);
-      if (!el) return;
-      if (s.mp === 'cl') el.value = eff.cl;
-      else el.value = eff[s.mp];
-    });
-    $('#stat-note').textContent = 'MP CL uses the higher of Mental Strength or Charisma. Animal/Plant packages apply their listed ST, EN, and AG modifiers.';
+  function syncMPFieldsFromGW(){
+    const eff = convertedStatsFromGW();
+    BC_KEYS.forEach(b => { const el = $(`#mp-${b.key}`); if (el) el.value = eff[b.key]; });
+    const mirror = $('#mp-cl-alt');
+    if (mirror) mirror.value = eff.cl;
+    state.mpManual = false;
+  }
+  function updateStatMirrors(){
+    const mirror = $('#mp-cl-alt');
+    if (mirror) mirror.value = readMPStats().cl;
   }
 
   function isDefect(m){ return m.category === 'defect' || /\(D\)/i.test(m.name) || /^Weakness:/i.test(m.mp); }
   function isHighImpact(m){
     const nm = String(m.name || '').replace(/\s*\(D\)\s*$/i,'').toLowerCase();
-    return HIGH.has(nm) || /no clean|rare|high tier|large|comprehensive|complete|weather|time|death|teleport|reflection|disintegration/i.test((m.notes || '') + ' ' + (m.mp || ''));
+    return HIGH.has(nm) || /no clean|rare|high tier|large|comprehensive|complete|weather|time|death|teleport|reflection|disintegration|molecular|de-evolution|plane|planar/i.test((m.notes || '') + ' ' + (m.mp || ''));
   }
-
+  function mpAbilityName(m){
+    let mp = String(m.mp || '').trim();
+    mp = mp.replace(/^Weakness:\s*/i, '');
+    mp = mp.replace(/\s*\([^)]*\)/g, '').trim();
+    mp = mp.replace(/\s*\+.*$/,'').trim();
+    return mp || 'MP Ability';
+  }
+  function mpRole(m){
+    if (isDefect(m)) return 'weakness';
+    const text = `${m.name || ''} ${m.mp || ''} ${m.notes || ''}`.toLowerCase();
+    if (/armor|force field|durability|invulnerability|life support|regeneration|shield|density change|non-corporeal|reflection|adaptation|invisibility|absorption|resist|defense|defence/.test(text)) return 'defense';
+    if (/death|devitalization|disintegration|blast|poison|venom|paralysis|flame|heat|lightning|electrical|sonic|natural weapon|weaponry|repulsion|siphon|attack|damage|weakness detection|explosive|stun/.test(text)) return 'offense';
+    return 'misc';
+  }
+  function sourceLabel(m){ return m.categoryLabel || ({physical:'Physical Mutation', mental:'Mental Mutation', plant:'Plant Mutation', defect:'Defect'}[m.category] || 'GW Mutation'); }
   function mutationCP(m){ return parseCPRange(m.cp).mid || 0; }
 
   function filterMutations(){
     const q = ($('#mut-search').value || '').trim().toLowerCase();
     const cat = $('#mut-category').value || 'all';
+    const role = $('#mp-role-filter').value || 'all';
     let list = DATA.mutations || [];
     if (cat !== 'all') list = list.filter(m => m.category === cat);
-    if (q) list = list.filter(m => [m.name, m.mp, m.notes, m.categoryLabel].join(' ').toLowerCase().includes(q));
+    if (role === 'review') list = list.filter(isHighImpact);
+    else if (role !== 'all') list = list.filter(m => mpRole(m) === role);
+    if (q) list = list.filter(m => [m.name, m.mp, m.notes, m.categoryLabel, ROLE_LABELS[mpRole(m)]].join(' ').toLowerCase().includes(q));
     return list;
   }
-
+  function renderRoleTabs(){
+    const current = $('#mp-role-filter').value || 'all';
+    $('#mp-role-tabs').innerHTML = ROLE_TABS.map(([id,label]) => `<button class="mp-tab ${id === current ? 'active' : ''}" data-role="${esc(id)}">${esc(label)}</button>`).join('');
+    $('#mp-role-tabs').querySelectorAll('[data-role]').forEach(btn => btn.addEventListener('click', () => {
+      $('#mp-role-filter').value = btn.dataset.role;
+      renderMutationList();
+      renderRoleTabs();
+      saveDraft();
+    }));
+  }
   function renderMutationList(){
+    renderRoleTabs();
     const list = filterMutations();
     const box = $('#mut-list');
     if (!list.length) { box.innerHTML = '<div class="empty">No matching mutations in the conversion vault.</div>'; return; }
     box.innerHTML = list.map(m => {
-      const flags = [];
+      const role = mpRole(m);
+      const flags = [`<span class="pill">${esc(ROLE_LABELS[role])}</span>`];
       if (isDefect(m)) flags.push('<span class="pill bad">defect</span>');
       if (isHighImpact(m)) flags.push('<span class="pill warn">GM review</span>');
       return `<div class="mut-row ${m.id === state.selectedId ? 'selected' : ''}" data-id="${esc(m.id)}">
-        <div><div class="name">${esc(m.name)}</div><div class="meta">${esc(m.categoryLabel)} • ${esc(m.mp)}</div>${flags.length ? '<div class="pill-row">' + flags.join('') + '</div>' : ''}</div>
+        <div><div class="name">${esc(m.name)}</div><div class="meta">${esc(sourceLabel(m))} → ${esc(mpAbilityName(m))}</div><div class="pill-row">${flags.join('')}</div></div>
         <div class="cp">${esc(m.cp)}</div>
       </div>`;
     }).join('');
@@ -346,80 +482,162 @@ button, input, select, textarea { font-family: inherit; }
       renderMutationList();
     }));
   }
-
   function findMutation(id){ return (DATA.mutations || []).find(m => m.id === id); }
-
-  function addMutation(m){
+  function addMutation(m, reason){
     if (!m) return;
-    const copy = { ...m, instanceId: 'mut_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7) };
+    const copy = { ...m, instanceId:'mut_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7) };
     state.mutations.push(copy);
+    if (reason) addLog(`${reason}: ${m.name} → ${mpAbilityName(m)} (${m.cp} CP)`);
     renderAll();
   }
-
   function rollMutation(category){
-    const pool = (DATA.mutations || []).filter(m => category ? m.category === category : ($('#gw-type').value === 'plant' ? m.category === 'plant' : m.category !== 'plant'));
+    const gwType = $('#gw-type').value;
+    let pool = (DATA.mutations || []).filter(m => category ? m.category === category : (gwType === 'plant' ? m.category === 'plant' : m.category !== 'plant'));
+    if (!pool.length) pool = DATA.mutations || [];
     if (!pool.length) return null;
     return pool[Math.floor(Math.random() * pool.length)];
   }
 
-  function renderSelected(){
-    const box = $('#selected-list');
-    $('#mut-count').textContent = state.mutations.length + ' selected';
-    if (!state.mutations.length) { box.innerHTML = '<div class="empty">No mutations yet. Roll from the conversion list or add one manually.</div>'; return; }
-    box.innerHTML = state.mutations.map(m => {
-      const pr = parseCPRange(m.cp);
-      const flag = isHighImpact(m) ? '<span class="pill warn">GM review</span>' : '';
-      const defect = isDefect(m) ? '<span class="pill bad">defect</span>' : '';
-      return `<div class="sel-card" data-iid="${esc(m.instanceId)}">
-        <div class="sel-top"><div><div class="sel-name">${esc(m.name)} <span class="cp">${esc(m.cp)}</span></div><div class="pill-row">${defect}${flag}</div></div><button class="btn small danger" data-remove="${esc(m.instanceId)}">Remove</button></div>
-        <div class="sel-mp">${esc(m.mp)}</div>
-        <div class="sel-notes">${esc(m.notes || '')}${pr.variable ? ' Estimated CP needs referee tuning.' : ''}</div>
-      </div>`;
-    }).join('');
-    box.querySelectorAll('[data-remove]').forEach(btn => btn.addEventListener('click', () => {
-      state.mutations = state.mutations.filter(m => m.instanceId !== btn.dataset.remove);
-      renderAll();
-    }));
+  function addLog(line){
+    if (!line) return;
+    const stamp = new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+    state.rollLog.unshift(`[${stamp}] ${line}`);
+    state.rollLog = state.rollLog.slice(0, 40);
+  }
+  function renderLog(){
+    $('#roll-log').textContent = state.rollLog.length ? state.rollLog.join('\n') : 'No rolls yet. The wasteland dice are still sleeping in their lead-lined tin.';
   }
 
   function renderTypePills(){
     const type = TYPES.find(t => t.id === $('#gw-type').value) || TYPES[0];
     const ap = currentAP();
-    const pills = [`<span class="pill">${esc(type.label)}</span>`];
+    const pl = selectedPowerLevel();
+    const pills = [`<span class="pill good">${esc(type.label)}</span>`, `<span class="pill">${esc(pl.label)} ${fmt(pl.totalCPs)} CP</span>`];
     if (ap && ap.id !== 'none') pills.push(`<span class="pill warn">${esc(ap.label)} A/P ${fmt(ap.cp)} CP</span>`);
+    if (state.mpManual) pills.push('<span class="pill warn">MP BCs manually adjusted</span>');
     pills.push(`<span class="pill">${esc(type.notes)}</span>`);
     $('#type-pills').innerHTML = pills.join('');
+    $('#stat-note').textContent = 'MP CL uses the higher of Mental Strength or Charisma. Animal/Plant packages apply their listed ST, EN, and AG modifiers. Edit the MP column for referee overrides.';
   }
 
   function totals(){
-    const eff = effectiveStats();
+    const eff = readMPStats();
     const bc = eff.st + eff.en + eff.ag + eff.in + eff.cl;
-    const mutCP = state.mutations.reduce((sum,m) => sum + mutationCP(m), 0);
     const ap = currentAP();
     const apCP = Number(ap.cp || 0);
-    const total = bc + mutCP + apCP;
-    return { bc, mutCP, apCP, total, eff };
+    let abilityCP = apCP;
+    let weaknessCP = 0;
+    state.mutations.forEach(m => {
+      const cp = mutationCP(m);
+      if (cp < 0 || isDefect(m)) weaknessCP += cp;
+      else abilityCP += cp;
+    });
+    const net = bc + abilityCP + weaknessCP;
+    return { bc, abilityCP, weaknessCP, apCP, net, eff };
   }
-
+  function derived(){
+    const e = readMPStats();
+    if (window.MP && MP.CG && MP.CG.calcDerived) return MP.CG.calcDerived(e.st, e.en, e.ag, e.in, e.cl);
+    return { power:e.st + e.en + e.ag + e.in, move:Math.round((e.st + e.en + e.ag) / 3), physicalDef:0, mentalDef:0, inventingPts:Math.ceil(e.in / 2), hitPoints:1, healingRate:1, baseHTH:'', saveEN:'', saveAG:'', saveIN:'', saveCL:'', initiative:'' };
+  }
   function warnings(){
     const pl = selectedPowerLevel();
+    const c = caps();
     const t = totals();
     const out = [];
     if (t.bc > pl.bcPoints) out.push({ bad:true, text:`BC total ${fmt(t.bc)} exceeds ${pl.label} BC budget ${fmt(pl.bcPoints)}.` });
-    if (t.total > pl.totalCPs) out.push({ bad:true, text:`Net CP estimate ${fmt(t.total)} exceeds ${pl.label} budget ${fmt(pl.totalCPs)}.` });
-    if (t.mutCP + t.apCP > (pl.totalCPs - pl.bcPoints)) out.push({ text:`Mutation package uses ${fmt(t.mutCP + t.apCP)} CP against an expected ability/weakness room of ${fmt(pl.totalCPs - pl.bcPoints)}.` });
-    state.mutations.filter(isHighImpact).forEach(m => out.push({ text:`${m.name} should get GM approval before play.` }));
-    state.mutations.filter(m => parseCPRange(m.cp).variable).forEach(m => out.push({ text:`${m.name} has variable CP. The exported value is only a starter estimate.` }));
-    if (!out.length) out.push({ text:'No balance warnings. The wasteland is suspiciously calm.' });
+    if (t.net > pl.totalCPs) out.push({ bad:true, text:`Net CP estimate ${fmt(t.net)} exceeds ${pl.label} budget ${fmt(pl.totalCPs)}.` });
+    BC_KEYS.forEach(b => { if (t.eff[b.key] > c.bcCap) out.push({ bad:true, text:`${b.label} ${fmt(t.eff[b.key])} exceeds ${pl.label} BC cap ${fmt(c.bcCap)}.` }); });
+    state.mutations.forEach(m => {
+      const cp = mutationCP(m);
+      if (cp > c.abilityCap) out.push({ bad:true, text:`${m.name} estimates ${fmt(cp)} CP, above ${pl.label} ability cap ${fmt(c.abilityCap)}.` });
+      if (isHighImpact(m)) out.push({ text:`${m.name} should get GM approval before play.` });
+      if (parseCPRange(m.cp).variable) out.push({ text:`${m.name} has variable CP. The exported value is only a starter estimate.` });
+    });
+    if (t.weaknessCP < -20) out.push({ text:`Weakness total ${fmt(t.weaknessCP)} is beyond the usual -20 CP starting limit. GM can allow species or mutation exceptions, but flag it.` });
+    if (t.abilityCP > (pl.totalCPs - pl.bcPoints)) out.push({ text:`Converted abilities use ${fmt(t.abilityCP)} CP against an expected ability room of ${fmt(pl.totalCPs - pl.bcPoints)}.` });
+    if (!out.length) out.push({ good:true, text:'No balance warnings. The wasteland is suspiciously calm.' });
     return out;
   }
 
+  function renderPreviewHeader(){
+    const type = TYPES.find(t => t.id === $('#gw-type').value) || TYPES[0];
+    const pl = selectedPowerLevel();
+    $('#mp-preview-name').textContent = ($('#char-name').value || '').trim() || 'Unnamed Mutant';
+    $('#mp-preview-meta').innerHTML = [pl.label, type.species, $('#gw-culture').value || 'Gamma Terra', $('#gw-origin').value || 'Mutated or Evolved'].map(x => `<span class="mp-badge">${esc(x)}</span>`).join('');
+  }
+  function renderBCGrid(){
+    const e = readMPStats();
+    const d = derived();
+    const c = caps();
+    const data = [
+      { key:'st', label:'ST', sub:`${d.baseHTH || 'HTH'} HTH` },
+      { key:'en', label:'EN', sub:`${d.saveEN || ''} save` },
+      { key:'ag', label:'AG', sub:`${d.saveAG || ''} save` },
+      { key:'in', label:'IN', sub:`${d.saveIN || ''} save` },
+      { key:'cl', label:'CL', sub:`${d.saveCL || ''} save` },
+    ];
+    $('#bc-grid').innerHTML = data.map(b => `<div class="bc-card ${e[b.key] > c.bcCap ? 'over' : ''}"><div class="label">${esc(b.label)}</div><div class="score">${fmt(e[b.key])}</div><div class="save">${esc(b.sub)}<br>cap ${fmt(c.bcCap)}</div></div>`).join('');
+  }
+  function renderDerivedGrid(){
+    const d = derived();
+    const cells = [
+      ['Power', d.power], ['Hits', fmt(d.hitPoints)], ['Move', d.move], ['Initiative', d.initiative],
+      ['Phys. Defense', d.physicalDef], ['Mental Defense', d.mentalDef], ['Inventing', d.inventingPts], ['Healing', fmt(d.healingRate)]
+    ];
+    $('#derived-grid').innerHTML = cells.map(([k,v]) => `<div><strong>${esc(k)}</strong><span>${esc(v)}</span></div>`).join('');
+  }
+  function abilityCard(m, idx){
+    const role = mpRole(m);
+    const cp = mutationCP(m);
+    const c = caps();
+    const high = isHighImpact(m);
+    const over = cp > c.abilityCap;
+    const pr = parseCPRange(m.cp);
+    const tags = [sourceLabel(m), ROLE_LABELS[role]];
+    if (high) tags.push('GM review');
+    if (pr.variable) tags.push('Variable CP');
+    return `<div class="ability-card ${role} ${high ? 'review' : ''} ${over ? 'over' : ''}" data-iid="${esc(m.instanceId)}">
+      <div class="ability-head"><div><div class="ability-kind">${esc(ROLE_LABELS[role])}</div><div class="ability-name">${esc(mpAbilityName(m))}</div></div><div class="cp">${fmt(cp)} CP</div></div>
+      <div class="ability-notes"><strong>GW:</strong> ${esc(m.name)}. ${esc(m.notes || 'Tune exact MP effect, modifier value, and attack entry in the MP builder.')}</div>
+      <div class="tag-row">${tags.map(t => `<span class="tag ${t === 'GM review' ? 'red' : ''}">${esc(t)}</span>`).join('')}<button class="btn small danger" data-remove="${esc(m.instanceId)}" style="margin-left:auto">Remove</button></div>
+    </div>`;
+  }
+  function renderAbilities(){
+    const ap = currentAP();
+    const cards = [];
+    if (ap && ap.id !== 'none') cards.push(`<div class="ability-card misc">
+      <div class="ability-head"><div><div class="ability-kind">Species / A/P Package</div><div class="ability-name">${esc(ap.label)}</div></div><div class="cp">${fmt(ap.cp || 0)} CP</div></div>
+      <div class="ability-notes">${esc(ap.desc || 'Pick matching Animal/Plant abilities and weaknesses as appropriate.')}</div>
+      <div class="tag-row"><span class="tag">Gamma World type</span><span class="tag">MP package</span></div>
+    </div>`);
+    state.mutations.forEach((m, idx) => cards.push(abilityCard(m, idx)));
+    if (!cards.length) cards.push('<div class="empty">No converted abilities yet. Add GW powers on the left and they will appear here as MP build cards.</div>');
+    $('#ability-grid').innerHTML = cards.join('');
+    $('#ability-grid').querySelectorAll('[data-remove]').forEach(btn => btn.addEventListener('click', () => {
+      const found = state.mutations.find(m => m.instanceId === btn.dataset.remove);
+      state.mutations = state.mutations.filter(m => m.instanceId !== btn.dataset.remove);
+      if (found) addLog(`Removed ${found.name}`);
+      renderAll();
+    }));
+    $('#mut-count').textContent = state.mutations.length + ' selected';
+  }
   function renderReview(){
+    const pl = selectedPowerLevel();
+    const c = caps();
     const t = totals();
-    $('#bc-total').textContent = `${fmt(t.bc)} / ${fmt(selectedPowerLevel().bcPoints)}`;
-    $('#ability-total').textContent = `${fmt(t.mutCP + t.apCP)}`;
-    $('#net-total').textContent = `${fmt(t.total)} / ${fmt(selectedPowerLevel().totalCPs)}`;
-    $('#warn-list').innerHTML = warnings().map(w => `<div class="warn-item ${w.bad ? 'bad' : ''}">${esc(w.text)}</div>`).join('');
+    const cells = [
+      ['BC Points', `${fmt(t.bc)} / ${fmt(pl.bcPoints)}`],
+      ['Ability CP', `${fmt(t.abilityCP)}`],
+      ['Weakness CP', `${fmt(t.weaknessCP)}`],
+      ['Net CP', `${fmt(t.net)} / ${fmt(pl.totalCPs)}`],
+      ['BC Cap', fmt(c.bcCap)],
+      ['Ability Cap', fmt(c.abilityCap)],
+      ['Damage Cap', fmt(c.damageCap)],
+      ['Core CP', fmt(pl.coreAbilityCPs || 0)],
+    ];
+    $('#review-grid').innerHTML = cells.map(([k,v]) => `<div class="kpi"><strong>${esc(k)}</strong><span>${esc(v)}</span></div>`).join('');
+    $('#warn-list').innerHTML = warnings().map(w => `<div class="warning ${w.bad ? 'bad' : ''} ${w.good ? 'good' : ''}">${esc(w.text)}</div>`).join('');
     $('#json-preview').value = JSON.stringify(buildMPCharacter(), null, 2);
   }
 
@@ -427,65 +645,61 @@ button, input, select, textarea { font-family: inherit; }
     const rows = [];
     const ap = currentAP();
     if (ap && ap.id !== 'none') rows.push({ cp:String(ap.cp || 0), desc:`A/P ${ap.label} Standard package (${ap.desc || 'pick 3 matching abilities and 2 weaknesses'})`, ip:'' });
-    state.mutations.forEach(m => {
-      const cp = mutationCP(m);
-      rows.push({ cp: fmt(cp), desc: `${m.mp} [GW: ${m.name}]`, ip: '' });
-    });
+    state.mutations.forEach(m => rows.push({ cp:fmt(mutationCP(m)), desc:`${mpAbilityName(m)} [${ROLE_LABELS[mpRole(m)]}; GW: ${m.name}]`, ip:'' }));
     while (rows.length < 12) rows.push({ cp:'', desc:'', ip:'' });
     return rows;
   }
-
   function storyText(){
     const base = ($('#gw-summary').value || '').trim();
     const ap = currentAP();
     const lines = [];
     if (base) lines.push(base);
-    lines.push('Gamma World starter conversion. Source: DESIGN-gw-mp-conversion.md.');
+    lines.push('Gamma World starter conversion. Source: DESIGN-gw-mp-conversion.md. Final tuning should be reviewed in the MP builder.');
     lines.push('GW stats: ' + STATS.map(s => `${s.short} ${$(`#gw-${s.key}`).value || 0}`).join(', ') + '.');
     if (ap && ap.id !== 'none') lines.push(`Animal/Plant package: ${ap.label}. Mods ST ${ap.mods.st || 0}, EN ${ap.mods.en || 0}, AG ${ap.mods.ag || 0}.`);
-    if (state.mutations.length) lines.push('Mutations: ' + state.mutations.map(m => `${m.name} → ${m.mp} (${m.cp} CP)`).join('; '));
+    if (state.mutations.length) lines.push('Mutations: ' + state.mutations.map(m => `${m.name} → ${mpAbilityName(m)} (${m.cp} CP)`).join('; '));
+    if (state.rollLog.length) lines.push('\nRoll log:\n' + state.rollLog.join('\n'));
     return lines.join('\n');
   }
-
   function buildMPCharacter(){
     const type = TYPES.find(t => t.id === $('#gw-type').value) || TYPES[0];
     const pl = selectedPowerLevel();
-    const eff = effectiveStats();
+    const eff = readMPStats();
     const name = ($('#char-name').value || '').trim() || 'Unnamed Gamma World Character';
     const id = window.__gwCurrentExportId || ((typeof GCC !== 'undefined' && GCC.genId) ? GCC.genId('mp') : 'mp_' + Date.now());
     const data = {
-      _id: id,
-      _gwStarter: true,
-      _gwStarterVersion: DATA.version || '0.1.0',
-      name: name,
-      player: ($('#player-name').value || '').trim(),
-      trueId: '',
-      side: 'Good',
-      birthplace: 'Gamma Terra',
-      species: type.species,
-      culture: 'Primitive',
-      originType: 'Mutated or Evolved',
-      background: 'Gamma World survivor',
-      motivation: 'Survive and rebuild',
-      legalStatus: 'Wasteland wanderer',
-      wealth: '0',
-      luck: '10-',
-      powerLevel: pl.id,
-      xpBase: String(pl.totalCPs),
-      stats: {
-        st: { cp:String(eff.st), mod:'', score:String(eff.st), save:'' },
-        en: { cp:String(eff.en), mod:'', score:String(eff.en), save:'' },
-        ag: { cp:String(eff.ag), mod:'', score:String(eff.ag), save:'' },
-        in: { cp:String(eff.in), mod:'', score:String(eff.in), save:'' },
-        cl: { cp:String(eff.cl), mod:'', score:String(eff.cl), save:'' },
+      _id:id,
+      _gwStarter:true,
+      _gwStarterVersion:DATA.version || '0.1.0',
+      name:name,
+      player:($('#player-name').value || '').trim(),
+      trueId:'',
+      side:'Good',
+      birthplace:'Gamma Terra',
+      species:type.species,
+      culture:($('#gw-culture').value || type.culture || 'Primitive').trim(),
+      originType:($('#gw-origin').value || type.origin || 'Mutated or Evolved').trim(),
+      background:'Gamma World survivor',
+      motivation:'Survive and rebuild',
+      legalStatus:'Wasteland wanderer',
+      wealth:'0',
+      luck:'10-',
+      powerLevel:pl.id,
+      xpBase:String(pl.totalCPs),
+      stats:{
+        st:{ cp:String(eff.st), mod:'', score:String(eff.st), save:'' },
+        en:{ cp:String(eff.en), mod:'', score:String(eff.en), save:'' },
+        ag:{ cp:String(eff.ag), mod:'', score:String(eff.ag), save:'' },
+        in:{ cp:String(eff.in), mod:'', score:String(eff.in), save:'' },
+        cl:{ cp:String(eff.cl), mod:'', score:String(eff.cl), save:'' },
       },
-      abilities: abilityRows(),
-      attacks: [
+      abilities:abilityRows(),
+      attacks:[
         { name:'Strike (HTH)', toHit:'', damage:'', dmgType:'Kinetic', kb:'' },
         { name:'', toHit:'', damage:'', dmgType:'', kb:'' },
         { name:'', toHit:'', damage:'', dmgType:'', kb:'' },
       ],
-      story: storyText(),
+      story:storyText(),
     };
     const camp = $('#campaign-select').value || '';
     if (camp) data._campaign = camp;
@@ -494,14 +708,14 @@ button, input, select, textarea { font-family: inherit; }
 
   function saveDraft(){
     const draft = {
-      name: $('#char-name').value, player: $('#player-name').value, campaign: $('#campaign-select').value,
-      type: $('#gw-type').value, powerLevel: $('#power-level').value, creationMode: $('#creation-mode').value,
-      ap: $('#ap-type').value, summary: $('#gw-summary').value, search: $('#mut-search').value,
-      category: $('#mut-category').value, stats: readGWStats(), mutations: state.mutations
+      name:$('#char-name').value, player:$('#player-name').value, campaign:$('#campaign-select').value,
+      type:$('#gw-type').value, powerLevel:$('#power-level').value, creationMode:$('#creation-mode').value,
+      ap:$('#ap-type').value, culture:$('#gw-culture').value, origin:$('#gw-origin').value, summary:$('#gw-summary').value,
+      search:$('#mut-search').value, category:$('#mut-category').value, role:$('#mp-role-filter').value,
+      stats:readGWStats(), mpStats:readMPStats(), mpManual:state.mpManual, mutations:state.mutations, rollLog:state.rollLog
     };
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch(e) {}
   }
-
   function loadDraft(){
     try {
       const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
@@ -513,20 +727,31 @@ button, input, select, textarea { font-family: inherit; }
       $('#power-level').value = d.powerLevel || 'low';
       $('#creation-mode').value = d.creationMode || 'guided';
       $('#ap-type').value = d.ap || 'none';
+      $('#gw-culture').value = d.culture || '';
+      $('#gw-origin').value = d.origin || '';
       $('#gw-summary').value = d.summary || '';
       $('#mut-search').value = d.search || '';
       $('#mut-category').value = d.category || 'all';
-      STATS.forEach(s => { $(`#gw-${s.key}`).value = d.stats && d.stats[s.key] != null ? d.stats[s.key] : 10; });
+      $('#mp-role-filter').value = d.role || 'all';
+      STATS.forEach(s => { const el = $(`#gw-${s.key}`); if (el) el.value = d.stats && d.stats[s.key] != null ? d.stats[s.key] : 10; });
+      state.mpManual = !!d.mpManual;
+      if (d.mpStats) BC_KEYS.forEach(b => { const el = $(`#mp-${b.key}`); if (el) el.value = d.mpStats[b.key] != null ? d.mpStats[b.key] : 10; });
+      else syncMPFieldsFromGW();
       state.mutations = Array.isArray(d.mutations) ? d.mutations : [];
+      state.rollLog = Array.isArray(d.rollLog) ? d.rollLog : [];
       return true;
     } catch(e) { return false; }
   }
 
   function renderAll(){
-    setEffectiveFields();
+    updateStatMirrors();
     renderTypePills();
     renderMutationList();
-    renderSelected();
+    renderLog();
+    renderPreviewHeader();
+    renderBCGrid();
+    renderDerivedGrid();
+    renderAbilities();
     renderReview();
     saveDraft();
   }
@@ -535,15 +760,12 @@ button, input, select, textarea { font-family: inherit; }
     const typeSel = $('#gw-type');
     typeSel.innerHTML = TYPES.map(t => `<option value="${esc(t.id)}">${esc(t.label)}</option>`).join('');
     typeSel.value = 'humanoid';
-
     const pls = mpPowerLevels();
     $('#power-level').innerHTML = pls.map(p => `<option value="${esc(p.id)}">${esc(p.label)} (${fmt(p.totalCPs)} CP)</option>`).join('');
     $('#power-level').value = 'low';
-
     const apSel = $('#ap-type');
     apSel.innerHTML = (DATA.animalPlantTypes || []).map(a => `<option value="${esc(a.id)}">${esc(a.label)}${a.id !== 'none' ? `, ${fmt(a.cp)} CP` : ''}</option>`).join('');
     apSel.value = 'none';
-
     const campSel = $('#campaign-select');
     let camps = [];
     try { camps = JSON.parse(localStorage.getItem((GCC && GCC.KEYS && GCC.KEYS.campaigns) || 'gcc-campaigns') || '[]'); } catch(e) {}
@@ -555,28 +777,64 @@ button, input, select, textarea { font-family: inherit; }
       campSel.appendChild(o);
     });
     if (active && camps.some(c => (c.id || c._id) === active)) campSel.value = active;
-
     const grid = $('#stat-grid');
     STATS.forEach(s => {
-      grid.insertAdjacentHTML('beforeend', `<div class="stat-name"><span title="${esc(s.help)}">${esc(s.short)}</span></div><input id="gw-${esc(s.key)}" type="number" min="0" max="99" value="10"><input id="mp-${esc(s.key)}" readonly>`);
+      const mpId = s.key === 'cha' ? 'mp-cl-alt' : (s.mp === 'cl' ? 'mp-cl' : `mp-${s.mp}`);
+      const readonly = s.key === 'cha' ? ' readonly title="MP CL uses the higher of MS or CHA; edit CL on the Mental Strength row."' : '';
+      const existing = grid.querySelector(`#gw-${s.key}`);
+      if (existing) return;
+      grid.insertAdjacentHTML('beforeend', `<div class="stat-name"><span title="${esc(s.help)}">${esc(s.label)}</span></div><input id="gw-${esc(s.key)}" type="number" min="0" max="99" value="10"><input id="${esc(mpId)}" type="number" min="0" max="99" value="10"${readonly}>`);
     });
   }
 
+  function handleSourceTypeChange(){
+    const t = TYPES.find(x => x.id === $('#gw-type').value);
+    if (t) {
+      $('#ap-type').value = t.ap;
+      if (!$('#gw-culture').value) $('#gw-culture').value = t.culture || '';
+      if (!$('#gw-origin').value) $('#gw-origin').value = t.origin || '';
+    }
+    if ($('#gw-type').value === 'plant' && $('#mut-category').value === 'all') $('#mut-category').value = 'plant';
+    syncMPFieldsFromGW();
+    addLog(`GW type set to ${t ? t.label : $('#gw-type').value}`);
+  }
+  function saveOpen(){
+    window.__gwCurrentExportId = (typeof GCC !== 'undefined' && GCC.genId) ? GCC.genId('mp') : 'mp_' + Date.now();
+    const data = buildMPCharacter();
+    data._saved = new Date().toISOString();
+    let list = [];
+    try { list = JSON.parse(localStorage.getItem(MP_LIST_KEY) || '[]'); } catch(e) {}
+    list.push(data);
+    try {
+      localStorage.setItem(MP_LIST_KEY, JSON.stringify(list));
+      localStorage.setItem('mp-char-edit-idx', String(list.length - 1));
+      localStorage.setItem('mp-char-sheet', JSON.stringify(data));
+      if (typeof GCCSync !== 'undefined' && GCCSync.notifySync) GCCSync.notifySync(MP_LIST_KEY);
+    } catch(e) {
+      alert('Save failed: ' + e.message);
+      return;
+    }
+    window.location.href = 'character.html?id=' + encodeURIComponent(data._id);
+  }
   function wire(){
     document.addEventListener('input', e => {
-      if (e.target.closest('.gw-wrap')) renderAll();
+      if (!e.target.closest('.gw-wrap')) return;
+      if (/^mp-(?!cl-alt)/.test(e.target.id)) state.mpManual = true;
+      if (/^gw-(ps|con|dex|int|ms|cha)$/.test(e.target.id) && !state.mpManual) syncMPFieldsFromGW();
+      renderAll();
     });
     document.addEventListener('change', e => {
       if (!e.target.closest('.gw-wrap')) return;
-      if (e.target.id === 'gw-type') {
-        const t = TYPES.find(x => x.id === e.target.value);
-        if (t) $('#ap-type').value = t.ap;
-        if (e.target.value === 'plant' && $('#mut-category').value === 'all') $('#mut-category').value = 'plant';
-      }
+      if (e.target.id === 'gw-type') handleSourceTypeChange();
+      else if ((e.target.id === 'ap-type' || /^gw-(ps|con|dex|int|ms|cha)$/.test(e.target.id)) && !state.mpManual) syncMPFieldsFromGW();
       renderAll();
     });
+    $('#recalc-bc-btn').addEventListener('click', () => { syncMPFieldsFromGW(); addLog('Recalculated MP BCs from GW stats'); renderAll(); });
     $('#roll-stats-btn').addEventListener('click', () => {
-      STATS.forEach(s => { $(`#gw-${s.key}`).value = roll3d6(); });
+      const rolls = [];
+      STATS.forEach(s => { const r = roll3d6(); $(`#gw-${s.key}`).value = r; rolls.push(`${s.short} ${r}`); });
+      syncMPFieldsFromGW();
+      addLog('Rolled GW stats: ' + rolls.join(', '));
       renderAll();
     });
     $('#roll-mut-btn').addEventListener('click', () => {
@@ -584,16 +842,18 @@ button, input, select, textarea { font-family: inherit; }
       const m = rollMutation(cat);
       if (!m) return;
       state.selectedId = m.id;
-      addMutation(m);
+      addMutation(m, 'Rolled mutation');
     });
-    $('#add-defect-btn').addEventListener('click', () => addMutation(rollMutation('defect')));
-    $('#add-mut-btn').addEventListener('click', () => addMutation(findMutation(state.selectedId)));
+    $('#add-defect-btn').addEventListener('click', () => addMutation(rollMutation('defect'), 'Rolled defect'));
+    $('#add-mut-btn').addEventListener('click', () => addMutation(findMutation(state.selectedId), 'Added mutation'));
     $('#clear-muts-btn').addEventListener('click', async () => {
-      const ok = window.MPDialog && MPDialog.confirm ? await MPDialog.confirm('Clear Mutations', 'Remove all selected mutations from this draft?', { okText:'Clear', danger:true }) : confirm('Clear all selected mutations?');
+      const ok = window.MPDialog && MPDialog.confirm ? await MPDialog.confirm('Clear Powers', 'Remove all selected powers and defects from this draft?', { okText:'Clear', danger:true }) : confirm('Clear all selected powers?');
       if (!ok) return;
       state.mutations = [];
+      addLog('Cleared selected powers');
       renderAll();
     });
+    $('#clear-log-btn').addEventListener('click', () => { state.rollLog = []; renderAll(); });
     $('#copy-json-btn').addEventListener('click', async () => {
       const txt = JSON.stringify(buildMPCharacter(), null, 2);
       try { await navigator.clipboard.writeText(txt); if (window.MPDialog) await MPDialog.alert('Copied', 'MP Builder JSON copied to clipboard.'); }
@@ -605,31 +865,19 @@ button, input, select, textarea { font-family: inherit; }
       try { localStorage.removeItem(DRAFT_KEY); } catch(e) {}
       window.location.reload();
     });
-    $('#save-open-btn').addEventListener('click', () => {
-      window.__gwCurrentExportId = (typeof GCC !== 'undefined' && GCC.genId) ? GCC.genId('mp') : 'mp_' + Date.now();
-      const data = buildMPCharacter();
-      data._saved = new Date().toISOString();
-      let list = [];
-      try { list = JSON.parse(localStorage.getItem(MP_LIST_KEY) || '[]'); } catch(e) {}
-      list.push(data);
-      try {
-        localStorage.setItem(MP_LIST_KEY, JSON.stringify(list));
-        localStorage.setItem('mp-char-edit-idx', String(list.length - 1));
-        localStorage.setItem('mp-char-sheet', JSON.stringify(data));
-        if (typeof GCCSync !== 'undefined' && GCCSync.notifySync) GCCSync.notifySync(MP_LIST_KEY);
-      } catch(e) {
-        alert('Save failed: ' + e.message);
-        return;
-      }
-      const url = 'character.html?id=' + encodeURIComponent(data._id);
-      window.location.href = url;
-    });
+    $('#save-open-btn').addEventListener('click', saveOpen);
+    $('#save-open-btn-2').addEventListener('click', saveOpen);
+    $('#open-mp-generator-btn').addEventListener('click', () => { window.location.href = 'character.html'; });
   }
 
   function init(){
     populateControls();
-    if (!loadDraft()) {
+    const hadDraft = loadDraft();
+    if (!hadDraft) {
       STATS.forEach(s => { $(`#gw-${s.key}`).value = roll3d6(); });
+      handleSourceTypeChange();
+      syncMPFieldsFromGW();
+      addLog('Started new Gamma World conversion draft');
     }
     wire();
     renderAll();
