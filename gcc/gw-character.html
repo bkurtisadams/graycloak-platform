@@ -177,26 +177,25 @@ button, input, select, textarea { font-family:inherit; }
     <div class="gw-card">
       <div class="gw-card-h">
         <div>
-          <h1 class="gw-title">Gamma World → Mighty Protectors Starter</h1>
-          <p class="gw-sub">Translate Gamma Terra origins, stats, mutations, and defects into a live Mighty Protectors build preview. Full MP random generation stays in the existing character builder.</p>
+          <h1 class="gw-title">Gamma World → Mighty Protectors Generator</h1>
+          <p class="gw-sub">Roll a Gamma Terra character straight into a Mighty Protectors build using your 1e→MP conversion charts: species, 5 basic characteristics, mutations, and emergent weaknesses, balanced to 100 CP.</p>
         </div>
-        <span class="gw-badge">☢ Split workspace</span>
+        <span class="gw-badge">☢ 100 CP build</span>
       </div>
-      <div class="gw-card-b grid-4">
+      <div class="gw-card-b grid-3">
         <div class="field"><label for="char-name">Name</label><div style="display:flex;gap:6px"><input id="char-name" placeholder="Unnamed mutant" style="flex:1"><button class="btn small" id="roll-name-btn" type="button" title="Roll a Gamma World name">🎲</button></div></div>
         <div class="field"><label for="player-name">Player</label><input id="player-name" placeholder="Player name"></div>
         <div class="field"><label for="campaign-select">Campaign</label><select id="campaign-select"><option value="">No campaign link</option></select></div>
-        <div class="field"><label for="power-level">MP Power Level</label><select id="power-level"></select></div>
       </div>
     </div>
     <div class="gw-card">
-      <div class="gw-card-h"><h2 class="section-title" style="color:#ffd77a">Workflow</h2><span class="gw-badge">No duplicate generator</span></div>
+      <div class="gw-card-h"><h2 class="section-title" style="color:#ffd77a">Workflow</h2><span class="gw-badge">Exports to MP builder</span></div>
       <div class="gw-card-b workflow-box">
         <button class="btn blue" id="open-mp-generator-btn">Open existing MP random generator</button>
         <button class="btn primary" id="save-open-btn">Save and open MP builder</button>
         <button class="btn ghost" id="copy-json-btn">Copy MP JSON</button>
         <button class="btn ghost" id="reset-btn">Reset draft</button>
-        <p class="help">This page prepares a first-pass conversion. Final CP tuning, modifiers, attacks, and sheet polish still happen in <code>character.html</code>.</p>
+        <p class="help">Roll a complete character here, then do final CP tuning, attacks, and sheet polish in <code>character.html</code>.</p>
       </div>
     </div>
   </section>
@@ -204,72 +203,42 @@ button, input, select, textarea { font-family:inherit; }
   <section class="gw-split">
     <div class="gw-side">
       <div class="gw-card">
-        <div class="gw-card-h"><div><h2 class="section-title" style="color:#ffd77a">GW 1e Generator</h2><span class="gw-kicker">Roll a complete Gamma Terra mutant, then tune the MP build</span></div><span class="gw-badge">☢ Roll-up</span></div>
+        <div class="gw-card-h"><div><h2 class="section-title" style="color:#ffd77a">GW 1e Generator</h2><span class="gw-kicker">Roll a complete Gamma Terra character per your conversion charts</span></div><span class="gw-badge">☢ Roll-up</span></div>
         <div class="gw-card-b">
-          <button class="btn primary" id="roll-all-btn" style="width:100%;justify-content:center;font-size:14px;padding:10px">☢ Roll complete GW mutant</button>
-          <div class="grid-3" style="margin-top:10px">
-            <div class="field"><label for="creation-mode">Creation Mode</label><select id="creation-mode"><option value="mp">MP-structured (GW flavor)</option><option value="raw1e">RAW 1e tables</option><option value="manual">Manual pick</option><option value="import">Import / convert old</option></select></div>
-            <div class="field"><label for="gen-stat-method">Stat method</label><select id="gen-stat-method"><option value="4d6">4d6 drop lowest</option><option value="3d6">3d6 straight</option></select></div>
-            <div class="field"><label for="gen-defects">Defects (pick mode)</label><input id="gen-defects" type="number" min="0" max="6" value="2"></div>
+          <button class="btn primary" id="roll-all-btn" style="width:100%;justify-content:center;font-size:14px;padding:10px">☢ Roll complete character</button>
+          <div class="grid-2" style="margin-top:10px">
+            <div class="field"><label for="species-select">Species</label><select id="species-select"><option value="roll">Roll on d100</option></select></div>
+            <div class="field"><label for="roll-bc-btn-wrap">Basic Characteristics</label><button class="btn small" id="roll-bc-btn" type="button" style="width:100%;justify-content:center">Roll 5 BCs (4d6 drop low)</button></div>
           </div>
           <p class="help" id="gen-note"></p>
         </div>
       </div>
 
       <div class="gw-card">
-        <div class="gw-card-h"><div><h2 class="section-title" style="color:#ffd77a">Gamma World Source</h2><span class="gw-kicker">The wasteland-side concept, type, and notes</span></div><span class="gw-badge">Left panel</span></div>
+        <div class="gw-card-h"><h2 class="section-title" style="color:#ffd77a">Basic Characteristics</h2><span class="gw-badge" id="bc-total-badge">60 / 60 CP</span></div>
         <div class="gw-card-b">
-          <div class="grid-2">
-            <div class="field"><label for="gw-type">Gamma World Type</label><select id="gw-type"></select></div>
-            <div class="field"><label for="ap-type">Animal/Plant Package</label><select id="ap-type"></select></div>
-          </div>
-          <div class="grid-2" style="margin-top:10px">
-            <div class="field"><label for="gw-culture">Culture / Faction</label><input id="gw-culture" placeholder="Primitive, cryptic alliance, ruin clan..."></div>
-            <div class="field"><label for="gw-origin">Origin Hook</label><input id="gw-origin" placeholder="Radiation, Ancient lab, plague, breeding stock..."></div>
-          </div>
-          <div class="grid-3" style="margin-top:10px">
+          <div class="bc-roll-grid" id="bc-roll-grid"></div>
+          <p class="help" id="bc-note">Each BC is 4d6 keep-highest-3 and equals its own CP cost. Target is 60 CP across the five; the difference is balanced against mutations, Power, or Hit Points.</p>
+        </div>
+      </div>
+
+      <div class="gw-card">
+        <div class="gw-card-h"><div><h2 class="section-title" style="color:#ffd77a">Character Bio</h2><span class="gw-kicker">Wasteland flavor for the MP narrative fields</span></div></div>
+        <div class="gw-card-b">
+          <div class="grid-3">
             <div class="field"><label for="gw-gender">Gender</label><input id="gw-gender" placeholder="—"></div>
             <div class="field"><label for="gw-age">Age</label><input id="gw-age" placeholder="—"></div>
             <div class="field"><label for="gw-weight">Weight (lbs)</label><input id="gw-weight" placeholder="—"></div>
           </div>
           <div class="grid-2" style="margin-top:10px">
+            <div class="field"><label for="gw-culture">Culture / Faction</label><input id="gw-culture" placeholder="Primitive, cryptic alliance, ruin clan..."></div>
+            <div class="field"><label for="gw-origin">Origin Hook</label><input id="gw-origin" placeholder="Radiation, Ancient lab, breeding stock..."></div>
+          </div>
+          <div class="grid-2" style="margin-top:10px">
             <div class="field"><label for="gw-background">Background</label><input id="gw-background" placeholder="Scavenger, tribal hunter, ruin-delver..."></div>
             <div class="field"><label for="gw-motivation">Motivation</label><input id="gw-motivation" placeholder="Survive and rebuild, reclaim knowledge..."></div>
           </div>
-          <div class="field" style="margin-top:10px"><label for="gw-summary">Character Notes</label><textarea id="gw-summary" placeholder="Old character notes, tribe, weird habits, referee rulings, equipment seed, or campaign hooks."></textarea></div>
-          <div class="pill-row" id="type-pills"></div>
-        </div>
-      </div>
-
-      <div class="gw-card">
-        <div class="gw-card-h"><h2 class="section-title" style="color:#ffd77a">GW Stats → MP BCs</h2><div class="gw-actions" style="margin-top:0"><button class="btn small" id="roll-stats-btn">Roll GW stats</button><button class="btn small ghost" id="recalc-bc-btn">Recalculate MP BCs</button></div></div>
-        <div class="gw-card-b">
-          <div class="stat-grid" id="stat-grid">
-            <div class="stat-head">Gamma World stat</div><div class="stat-head">GW</div><div class="stat-head">MP</div>
-          </div>
-          <div class="stat-note" id="stat-note"></div>
-        </div>
-      </div>
-
-      <div class="gw-card">
-        <div class="gw-card-h"><h2 class="section-title" style="color:#ffd77a">GW Powers & Defects</h2><span class="gw-badge" id="mut-count">0 selected</span></div>
-        <div class="gw-card-b">
-          <div class="browser-tools">
-            <input id="mut-search" placeholder="Search mutation, MP ability, notes">
-            <select id="mut-category"><option value="all">All GW sources</option><option value="physical">Physical</option><option value="mental">Mental</option><option value="plant">Plant</option><option value="defect">Defects</option></select>
-            <select id="mp-role-filter"><option value="all">All MP roles</option><option value="offense">Offense</option><option value="defense">Defense</option><option value="misc">Misc / Utility</option><option value="weakness">Weakness</option><option value="review">GM Review</option></select>
-          </div>
-          <div class="mp-tabs" id="mp-role-tabs"></div>
-          <div class="mut-list" id="mut-list"></div>
-          <div class="mut-footer">
-            <div class="gw-actions" style="margin-top:0">
-              <button class="btn primary" id="add-mut-btn">Add selected</button>
-              <button class="btn" id="roll-mut-btn">Roll mutation</button>
-              <button class="btn ghost" id="add-defect-btn">Roll defect</button>
-            </div>
-            <button class="btn small danger" id="clear-muts-btn">Clear selected powers</button>
-          </div>
-          <p class="help">The browser is organized by MP role so a GW mutation immediately looks like an MP build element instead of a stray radioactive index card.</p>
+          <div class="field" style="margin-top:10px"><label for="gw-summary">Character Notes</label><textarea id="gw-summary" placeholder="Tribe, weird habits, referee rulings, equipment seed, or campaign hooks."></textarea></div>
         </div>
       </div>
 
@@ -281,7 +250,7 @@ button, input, select, textarea { font-family:inherit; }
 
     <div class="gw-side">
       <div class="gw-card mp-sheet">
-        <div class="gw-card-h"><div><h2 class="section-title" style="color:#ffd77a">Mighty Protectors Build Preview</h2><span class="gw-kicker">Live right-panel sheet generated from the Gamma World side</span></div><span class="gw-badge">Right panel</span></div>
+        <div class="gw-card-h"><div><h2 class="section-title" style="color:#ffd77a">Mighty Protectors Build</h2><span class="gw-kicker">Live build from your GW 1e conversion charts</span></div><span class="gw-badge">Right panel</span></div>
         <div class="gw-card-b gw-side">
           <div class="sheet-box">
             <div class="mp-top">
@@ -299,19 +268,14 @@ button, input, select, textarea { font-family:inherit; }
           </div>
 
           <div class="sheet-box">
-            <h3 class="sheet-title">Derived Stats</h3>
-            <div class="derived" id="derived-grid"></div>
-          </div>
-
-          <div class="sheet-box">
-            <h3 class="sheet-title">Converted Abilities</h3>
-            <div class="ability-grid" id="ability-grid"></div>
-          </div>
-
-          <div class="sheet-box">
-            <h3 class="sheet-title">CP / Cap Review</h3>
-            <div class="review-grid" id="review-grid"></div>
+            <h3 class="sheet-title">CP Budget</h3>
+            <div class="review-grid" id="budget-grid"></div>
             <div class="gw-side" id="warn-list" style="gap:8px;margin-top:8px"></div>
+          </div>
+
+          <div class="sheet-box">
+            <h3 class="sheet-title">Abilities &amp; Weaknesses</h3>
+            <div class="ability-grid" id="ability-grid"></div>
           </div>
 
           <div class="sheet-box">
@@ -322,7 +286,7 @@ button, input, select, textarea { font-family:inherit; }
       </div>
     </div>
   </section>
-  <p class="footer-note">Translation data is drawn from DESIGN-gw-mp-conversion.md. Robotic units remain out of scope for this starter.</p>
+  <p class="footer-note">Conversion data: your GWMP_Conversion_Charts (gw-data-v2.js). Equipment used to build Tech Constructs.</p>
 </main>
 
 <script src="gcc-data.js"></script>
@@ -331,793 +295,302 @@ button, input, select, textarea { font-family:inherit; }
 <script src="gcc-auth.js"></script>
 <script src="gcc-sync.js"></script>
 <script src="mp-chargen.js"></script>
-<script src="gw-character-data.js"></script>
-<script src="gw-roll-tables.js"></script>
+<script src="gw-data-v2.js"></script>
 <script src="gw-flavor-tables.js"></script>
 <script>
 (function(){
   'use strict';
-
-  const DATA = window.GWMPCharacterData || { mutations: [], animalPlantTypes: [], highImpactNames: [] };
-  const DRAFT_KEY = 'gw-character-starter-draft';
+  const $ = s => document.querySelector(s);
+  const D = window.GWData2 || { species:[], mutationCount:{physical:[],mental:[]}, pshAbilities:[], mutations:{physical:[],mental:[],plant:[]}, equipment:[] };
+  const F = window.GWFlavor;
   const MP_LIST_KEY = 'mp-char-list';
-  const STATS = [
-    { key:'ps', mp:'st', label:'Physical Strength', short:'PS', help:'Maps to MP ST' },
-    { key:'con', mp:'en', label:'Constitution / HD', short:'CON', help:'Maps to MP EN' },
-    { key:'dex', mp:'ag', label:'Dexterity', short:'DEX', help:'Maps to MP AG' },
-    { key:'int', mp:'in', label:'Intelligence', short:'INT', help:'Maps to MP IN' },
-    { key:'ms', mp:'cl', label:'Mental Strength', short:'MS', help:'Feeds MP CL' },
-    { key:'cha', mp:'cl', label:'Charisma', short:'CHA', help:'Feeds MP CL' },
-  ];
-  const BC_KEYS = [
-    { key:'st', label:'ST' }, { key:'en', label:'EN' }, { key:'ag', label:'AG' }, { key:'in', label:'IN' }, { key:'cl', label:'CL' }
-  ];
-  const TYPES = [
-    { id:'psh', label:'Pure Strain Human', species:'Human', ap:'none', culture:'Primitive', origin:'Gamma Terra survivor', notes:'No mutations by default. Strong candidate for better social footing and tech access.' },
-    { id:'humanoid', label:'Humanoid mutant', species:'Humanoid Mutant', ap:'none', culture:'Primitive', origin:'Mutated or Evolved', notes:'Tool-using mutant. Uses mutations without an A/P package by default.' },
-    { id:'animal', label:'Mutated animal', species:'Mutated Animal', ap:'mammal', culture:'Primitive', origin:'Mutated or Evolved', notes:'Pick an A/P package when animal behavior matters mechanically.' },
-    { id:'plant', label:'Mutated plant', species:'Mutated Plant', ap:'plant', culture:'Primitive', origin:'Mutated or Evolved', notes:'Uses plant mutations and Plant/Fungus package by default.' },
-  ];
-  const ROLE_LABELS = { offense:'Offensive Ability', defense:'Defensive Ability', misc:'Miscellaneous Ability', weakness:'Weakness', review:'GM Review' };
-  const ROLE_TABS = [
-    ['all','All'], ['offense','Offense'], ['defense','Defense'], ['misc','Misc / Utility'], ['weakness','Weakness'], ['review','GM Review']
-  ];
-  const HIGH = new Set((DATA.highImpactNames || []).map(s => String(s).toLowerCase()));
-  const state = { selectedId:null, mutations:[], rollLog:[], mpManual:false };
+  const DRAFT_KEY = 'gw-character-starter-draft';
+  const BC_TARGET = 60, TOTAL_TARGET = 100, WEAK_CAP = -20;
+  const BCS = [['st','ST'],['en','EN'],['ag','AG'],['in','IN'],['cl','CL']];
+  const SRC_LABEL = { physical:'Physical Mutation', mental:'Mental Mutation', plant:'Plant Mutation', psh:'PSH Ability', equipment:'Artifact / Cybernetic' };
 
-  const $ = sel => document.querySelector(sel);
-  const $$ = sel => Array.from(document.querySelectorAll(sel));
-  const esc = s => { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; };
-  const clamp = (n,min,max) => Math.max(min, Math.min(max, n));
-  const rollDie = sides => Math.floor(Math.random() * sides) + 1;
-  const roll3d6 = () => rollDie(6) + rollDie(6) + rollDie(6);
-  const toNum = v => { const n = Number(String(v || '').trim()); return Number.isFinite(n) ? n : 0; };
+  let state = { species:'', bc:{st:10,en:10,ag:10,in:10,cl:10}, abilities:[], rollLog:[], wealth:'', birthplace:'', exportId:null };
 
-  function parseCPRange(cpText){
-    const raw = String(cpText || '').trim();
-    if (!raw || /^variable/i.test(raw)) return { raw, min:0, max:0, mid:0, variable:true };
-    const normalized = raw.replace(/(\d(?:\.\d+)?)\s*-\s*(\d)/g, '$1 to $2');
-    const nums = normalized.match(/-?\d+(?:\.\d+)?/g);
-    if (!nums) return { raw, min:0, max:0, mid:0, variable:true };
-    const vals = nums.map(Number);
-    let min = vals[0], max = vals.length > 1 ? vals[1] : vals[0];
-    if (raw.includes('+') && vals.length === 1) max = vals[0] + 10;
-    const low = Math.min(min, max);
-    const high = Math.max(min, max);
-    return { raw, min:low, max:high, mid:(low + high) / 2, variable:/variable|various|tbd|per /i.test(raw) };
-  }
+  // ── dice & parsing ──
+  function die(n){ return Math.floor(Math.random()*n)+1; }
+  function roll4d6dl(){ const a=[die(6),die(6),die(6),die(6)].sort((x,y)=>x-y); return a[1]+a[2]+a[3]; }
+  function cpnum(s){ s=String(s==null?'':s).trim(); if(s===''||s==='*')return null; const n=parseFloat(s); return isNaN(n)?null:n; }
+  function fmt(n){ return (Math.round(n*10)/10).toString(); }
+  function esc(s){ const d=document.createElement('div'); d.textContent=s==null?'':s; return d.innerHTML; }
+  function mpLead(text){ const t=String(text||'').split(/[:(]/)[0].trim(); return t.length>2?t:''; }
+  function slotsFor(cpNum){ return (cpNum!=null && cpNum>=20)?2:1; }
 
-  function fmt(n){
-    const x = Math.round((Number(n) || 0) * 10) / 10;
-    return Number.isInteger(x) ? String(x) : x.toFixed(1);
-  }
+  // ── log ──
+  function log(line){ if(!line) return; const t=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); state.rollLog.unshift(`[${t}] ${line}`); state.rollLog=state.rollLog.slice(0,40); }
 
-  function mpPowerLevels(){
-    return (window.MP && MP.CG && MP.CG.POWER_LEVELS) ? MP.CG.POWER_LEVELS : [
-      { id:'normal', label:'Normal', bcPoints:50, totalCPs:50, coreAbilityCPs:0 },
-      { id:'low', label:'Low', bcPoints:60, totalCPs:100, coreAbilityCPs:10 },
-      { id:'standard', label:'Standard', bcPoints:70, totalCPs:150, coreAbilityCPs:20 },
-      { id:'high', label:'High', bcPoints:80, totalCPs:200, coreAbilityCPs:30 },
-    ];
-  }
-  function selectedPowerLevel(){
-    const id = $('#power-level').value || 'low';
-    return mpPowerLevels().find(p => p.id === id) || mpPowerLevels()[1] || mpPowerLevels()[0];
-  }
-  function caps(){
-    const pl = selectedPowerLevel();
-    if (window.MP && MP.CG && MP.CG.calcCaps) return MP.CG.calcCaps(Number(pl.totalCPs || 0));
-    return { bcCap:Math.floor(pl.totalCPs / 5) + 10, abilityCap:Math.floor(pl.totalCPs / 5), damageCap:Math.floor(pl.totalCPs / 12.5) + 3 };
-  }
+  // ── data lookups ──
+  function rollSpecies(){ const r=die(100); const s=(D.species||[]).find(x=>r>=x.lo&&r<=x.hi); return s?s.name:'Humanoid (Mutant)'; }
+  function rollChart(cat){ const r=die(100); const m=(D.mutations[cat]||[]).find(x=>x.lo!=null && r>=x.lo && r<=x.hi); return m?{m,roll:r}:null; }
+  function isWeakEntry(m, cp){ return cp==='*' || (cpnum(cp)!=null && cpnum(cp)<0); }
+  function flatEquipment(){ const out=[]; (D.equipment||[]).forEach(g=>(g.items||[]).forEach(it=>{ if(it.lo!=null) out.push(it); })); return out; }
 
-  function readGWStats(){
-    const vals = {};
-    STATS.forEach(s => vals[s.key] = clamp(toNum($(`#gw-${s.key}`).value), 0, 99));
-    return vals;
+  function resolveEntry(m, cat){
+    let name=m.name, cp=m.cp, ability=m.ability, picks=m.picks||[];
+    if (picks.length){ const p=picks[die(picks.length)-1]; name=`${m.name} — ${p.name}`; cp=p.cp; ability=p.ability; }
+    const cn=cpnum(cp);
+    return { gw:name, mp:mpLead(ability)||name, cp:String(cp), cpNum:cn==null?0:cn, ability:ability||'', source:cat, weakness:isWeakEntry(m,cp), slots:slotsFor(cn) };
   }
-  function readMPStats(){
-    const vals = {};
-    BC_KEYS.forEach(b => vals[b.key] = clamp(toNum($(`#mp-${b.key}`).value), 0, 99));
-    return vals;
-  }
-  function currentAP(){
-    const id = $('#ap-type').value || 'none';
-    return (DATA.animalPlantTypes || []).find(a => a.id === id) || (DATA.animalPlantTypes || [])[0] || { id:'none', label:'None', mods:{st:0,en:0,ag:0}, cp:0, desc:'' };
-  }
-  function convertedStatsFromGW(){
-    const gw = readGWStats();
-    const ap = currentAP();
-    const mods = ap.mods || {};
-    return {
-      st: clamp(gw.ps + (mods.st || 0), 0, 99),
-      en: clamp(gw.con + (mods.en || 0), 0, 99),
-      ag: clamp(gw.dex + (mods.ag || 0), 0, 99),
-      in: clamp(gw.int, 0, 99),
-      cl: clamp(Math.max(gw.ms, gw.cha), 0, 99),
-    };
-  }
-  function syncMPFieldsFromGW(){
-    const eff = convertedStatsFromGW();
-    BC_KEYS.forEach(b => { const el = $(`#mp-${b.key}`); if (el) el.value = eff[b.key]; });
-    const mirror = $('#mp-cl-alt');
-    if (mirror) mirror.value = eff.cl;
-    state.mpManual = false;
-  }
-  function updateStatMirrors(){
-    const mirror = $('#mp-cl-alt');
-    if (mirror) mirror.value = readMPStats().cl;
-  }
+  function pushAbility(a){ if(!a) return; state.abilities.push(a); }
 
-  function isDefect(m){ return m.category === 'defect' || /\(D\)/i.test(m.name) || /^Weakness:/i.test(m.mp); }
-  function isHighImpact(m){
-    const nm = String(m.name || '').replace(/\s*\(D\)\s*$/i,'').toLowerCase();
-    return HIGH.has(nm) || /no clean|rare|high tier|large|comprehensive|complete|weather|time|death|teleport|reflection|disintegration|molecular|de-evolution|plane|planar/i.test((m.notes || '') + ' ' + (m.mp || ''));
-  }
-  function mpAbilityName(m){
-    let mp = String(m.mp || '').trim();
-    mp = mp.replace(/^Weakness:\s*/i, '');
-    mp = mp.replace(/\s*\([^)]*\)/g, '').trim();
-    mp = mp.replace(/\s*\+.*$/,'').trim();
-    return mp || 'MP Ability';
-  }
-  function mpRole(m){
-    if (isDefect(m)) return 'weakness';
-    const text = `${m.name || ''} ${m.mp || ''} ${m.notes || ''}`.toLowerCase();
-    if (/armor|force field|durability|invulnerability|life support|regeneration|shield|density change|non-corporeal|reflection|adaptation|invisibility|absorption|resist|defense|defence/.test(text)) return 'defense';
-    if (/death|devitalization|disintegration|blast|poison|venom|paralysis|flame|heat|lightning|electrical|sonic|natural weapon|weaponry|repulsion|siphon|attack|damage|weakness detection|explosive|stun/.test(text)) return 'offense';
-    return 'misc';
-  }
-  function sourceLabel(m){ return m.categoryLabel || ({physical:'Physical Mutation', mental:'Mental Mutation', plant:'Plant Mutation', defect:'Defect'}[m.category] || 'GW Mutation'); }
-  function mutationCP(m){ return parseCPRange(m.cp).mid || 0; }
+  // ── budgets ──
+  function bcTotal(){ return BCS.reduce((s,[k])=>s+(parseInt($('#bc-'+k).value,10)||0),0); }
+  function mutationCP(){ return state.abilities.filter(a=>!a.weakness).reduce((s,a)=>s+(a.cpNum||0),0); }
+  function weaknessCP(){ return state.abilities.filter(a=>a.weakness).reduce((s,a)=>s+(a.cpNum||0),0); }
+  function netCP(){ return bcTotal()+mutationCP()+weaknessCP(); }
 
-  function filterMutations(){
-    const q = ($('#mut-search').value || '').trim().toLowerCase();
-    const cat = $('#mut-category').value || 'all';
-    const role = $('#mp-role-filter').value || 'all';
-    let list = DATA.mutations || [];
-    if (cat !== 'all') list = list.filter(m => m.category === cat);
-    if (role === 'review') list = list.filter(isHighImpact);
-    else if (role !== 'all') list = list.filter(m => mpRole(m) === role);
-    if (q) list = list.filter(m => [m.name, m.mp, m.notes, m.categoryLabel, ROLE_LABELS[mpRole(m)]].join(' ').toLowerCase().includes(q));
-    return list;
-  }
-  function renderRoleTabs(){
-    const current = $('#mp-role-filter').value || 'all';
-    $('#mp-role-tabs').innerHTML = ROLE_TABS.map(([id,label]) => `<button class="mp-tab ${id === current ? 'active' : ''}" data-role="${esc(id)}">${esc(label)}</button>`).join('');
-    $('#mp-role-tabs').querySelectorAll('[data-role]').forEach(btn => btn.addEventListener('click', () => {
-      $('#mp-role-filter').value = btn.dataset.role;
-      renderMutationList();
-      renderRoleTabs();
-      saveDraft();
-    }));
-  }
-  function renderMutationList(){
-    renderRoleTabs();
-    const list = filterMutations();
-    const box = $('#mut-list');
-    if (!list.length) { box.innerHTML = '<div class="empty">No matching mutations in the conversion vault.</div>'; return; }
-    box.innerHTML = list.map(m => {
-      const role = mpRole(m);
-      const flags = [`<span class="pill">${esc(ROLE_LABELS[role])}</span>`];
-      if (isDefect(m)) flags.push('<span class="pill bad">defect</span>');
-      if (isHighImpact(m)) flags.push('<span class="pill warn">GM review</span>');
-      return `<div class="mut-row ${m.id === state.selectedId ? 'selected' : ''}" data-id="${esc(m.id)}">
-        <div><div class="name">${esc(m.name)}</div><div class="meta">${esc(sourceLabel(m))} → ${esc(mpAbilityName(m))}</div><div class="pill-row">${flags.join('')}</div></div>
-        <div class="cp">${esc(m.cp)}</div>
-      </div>`;
-    }).join('');
-    box.querySelectorAll('.mut-row').forEach(row => row.addEventListener('click', () => {
-      state.selectedId = row.dataset.id;
-      renderMutationList();
-    }));
-  }
-  function findMutation(id){ return (DATA.mutations || []).find(m => m.id === id); }
-  function addMutation(m, reason){
-    if (!m) return;
-    const copy = { ...m, instanceId:'mut_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7) };
-    state.mutations.push(copy);
-    if (reason) addLog(`${reason}: ${m.name} → ${mpAbilityName(m)} (${m.cp} CP)`);
-    renderAll();
-  }
-  function rollMutation(category){
-    const gwType = $('#gw-type').value;
-    let pool = (DATA.mutations || []).filter(m => category ? m.category === category : (gwType === 'plant' ? m.category === 'plant' : m.category !== 'plant'));
-    if (!pool.length) pool = DATA.mutations || [];
-    if (!pool.length) return null;
-    return pool[Math.floor(Math.random() * pool.length)];
-  }
-
-  // ── GW 1e roll-up engine ──
-  const TABLES = window.GWRollTables || { physical:[], mental:[], plant:[] };
-  function rollStat(method){
-    if (method === '3d6') return roll3d6();
-    const d = [rollDie(6), rollDie(6), rollDie(6), rollDie(6)].sort((a,b) => a - b);
-    return d[1] + d[2] + d[3]; // 4d6 drop lowest
-  }
-  function tableRowFor(roll, table, animal){
-    return table.find(r => animal ? (roll >= r.loA && roll <= r.hiA) : (roll >= r.lo && roll <= r.hi));
-  }
-  function pickRandom(arr){ return arr.length ? arr[Math.floor(Math.random() * arr.length)] : null; }
-  // Resolve one d100 roll to a vault mutation. Returns { mut, extra } or null.
-  function rollOneFromTable(tableKey, animal, opts, depth){
-    const table = TABLES[tableKey] || [];
-    if (!table.length || depth > 6) return null;
-    const roll = rollDie(100);
-    const row = tableRowFor(roll, table, animal);
-    if (!row) return null;
-    if (row.special === '__GOOD__'){
-      const good = table.filter(r => r.id && !r.defect);
-      const r = pickRandom(good);
-      return r ? { mut:byId(r.id), roll, extra:false } : null;
-    }
-    if (row.special === '__PICK__'){
-      const pool = table.filter(r => r.id && (opts && opts.allowDefects ? true : !r.defect));
-      const r = pickRandom(pool);
-      return r ? { mut:byId(r.id), roll, extra:false } : null;
-    }
-    if (row.special === '__EXTRA__'){
-      const again = rollOneFromTable(tableKey, animal, opts, depth + 1);
-      if (again) again.extra = true;
-      return again;
-    }
-    if (opts && opts.goodOnly && row.defect) return rollOneFromTable(tableKey, animal, opts, depth + 1);
-    return { mut:byId(row.id), roll, extra:false };
-  }
-  function byId(id){ return (DATA.mutations || []).find(m => m.id === id); }
-  function pushMut(m, log){
-    if (!m) return;
-    state.mutations.push({ ...m, instanceId:'mut_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7) });
-    if (log) addLog(log);
-  }
-  function refreshSourceConcept(type){
-    const apSel = $('#ap-type');
-    let apLabel = '';
-    if (apSel){
-      let target = 'none';
-      if (type.id === 'plant') target = 'plant';
-      else if (type.id === 'animal'){
-        const pool = (DATA.animalPlantTypes || []).filter(a => a.id !== 'none' && a.id !== 'plant');
-        target = pool.length ? pool[Math.floor(Math.random() * pool.length)].id : 'mammal';
+  // ── generation ──
+  function rollMutations(cat, slotTarget){
+    let used=0, guard=0;
+    while (used<slotTarget && guard++<300){
+      const hit=rollChart(cat); if(!hit) break;
+      const e=resolveEntry(hit.m, cat);
+      if (e.weakness){
+        if (weaknessCP() > WEAK_CAP && !state.abilities.some(a=>a.gw===e.gw)){ pushAbility(e); log(`${cat} ${hit.roll}: ${e.gw} (weakness ${e.cp})`); }
+        continue; // weaknesses don't consume mutation slots
       }
-      apSel.value = target;
-      const ap = (DATA.animalPlantTypes || []).find(a => a.id === target);
-      apLabel = ap ? ap.label : target;
+      if (state.abilities.some(a=>a.gw===e.gw)) continue; // reroll duplicates
+      pushAbility(e); used += e.slots;
+      log(`${cat} ${hit.roll}: ${e.gw} → ${e.mp} (${e.cp} CP${e.slots>1?', 2 slots':''})`);
     }
-    return apLabel;
   }
-  function rollBio(type){
-    const F = window.GWFlavor;
+  function rollEquipment(cpTarget){
+    const list=flatEquipment(); let cp=0, guard=0;
+    while (cp<cpTarget && guard++<100){
+      const r=die(100); const it=list.find(x=>r>=x.lo&&r<=x.hi); if(!it) continue;
+      if (state.abilities.some(a=>a.gw===it.name)) continue;
+      const cn=cpnum(it.cp); const e={ gw:it.name, mp:mpLead(it.ability)||it.name, cp:String(it.cp), cpNum:cn==null?0:cn, ability:it.ability||'', source:'equipment', weakness:false, slots:1 };
+      pushAbility(e); cp+=(cn||0); log(`Artifact ${r}: ${it.name} (${it.cp} CP)`);
+    }
+  }
+  function rollBC(){
+    BCS.forEach(([k])=>{ state.bc[k]=roll4d6dl(); const el=$('#bc-'+k); if(el) el.value=state.bc[k]; });
+    log(`BCs (4d6 drop low): ${BCS.map(([k,l])=>l+' '+state.bc[k]).join(', ')} = ${bcTotal()} CP`);
+  }
+  function rollBio(){
     if (!F) return;
-    const set = (id, val) => { const el = $(id); if (el != null && val != null) el.value = val; };
-    set('#gw-culture', F.pick(F.cultures));
-    set('#gw-background', F.pick(F.backgrounds));
-    set('#gw-motivation', F.pick(F.motivations));
-    set('#gw-origin', F.pick(F.origins));
-    // Gender (genre-neutral simple identity; MP gender has no stat effect)
-    const gender = ['Male', 'Female', 'Nonbinary'][Math.floor(Math.random() * 3)];
-    set('#gw-gender', gender);
-    set('#gw-age', String(rollDie(10) + rollDie(10) + 10)); // MP 2d10+10
-    // Weight: MP 5d6 (male) / 5d4 (female) x10 lbs; nonbinary uses 5d6
-    const wd = gender === 'Female' ? 4 : 6;
-    let w = 0; for (let i = 0; i < 5; i++) w += rollDie(wd);
-    set('#gw-weight', String(w * 10));
-    state.wealth = String(rollDie(4)); // MP d4 wealth
-    state.birthplace = F.pick(F.birthplaces) || 'Gamma Terra';
-    addLog(`Bio: ${gender}, age ${$('#gw-age').value}, ${$('#gw-weight').value} lbs, ${$('#gw-culture').value}, ${$('#gw-background').value}, ${$('#gw-motivation').value}, origin ${$('#gw-origin').value}.`);
-  }
-  // Mutation pool for an MP role, scoped to the character's GW categories.
-  function rolePool(type, role){
-    const cats = type.id === 'plant' ? ['plant', 'defect'] : ['physical', 'mental', 'defect'];
-    return (DATA.mutations || []).filter(m => cats.includes(m.category) && mpRole(m) === role);
-  }
-  function drawDistinct(pool, n){
-    const copy = [...pool], out = [];
-    for (let i = 0; i < n && copy.length; i++) out.push(copy.splice(Math.floor(Math.random() * copy.length), 1)[0]);
-    return out;
-  }
-  function drawAbilities(type){
-    const want = clamp(toNum($('#gen-defects').value), 0, 6);
-    [['offense', 'Offensive', 2], ['defense', 'Defensive', 2], ['misc', 'Misc', 2]].forEach(([role, label, n]) => {
-      drawDistinct(rolePool(type, role), n).forEach(m => pushMut(m, `${label}: ${m.name} → ${mpAbilityName(m)} (${m.cp} CP)`));
-    });
-    drawDistinct(rolePool(type, 'weakness'), want).forEach(m => pushMut(m, `Weakness: ${m.name} → ${mpAbilityName(m)} (${m.cp} CP)`));
-  }
-  function rawRoll(type){
-    const animalCol = type.id === 'animal';
-    if (type.id === 'plant'){
-      const n = rollDie(4);
-      addLog(`RAW 1e: plant table, rolled ${n}.`);
-      for (let i = 0; i < n; i++){
-        const res = rollOneFromTable('plant', false, {}, 0);
-        if (res){ pushMut(res.mut, `Plant ${res.roll}: ${res.mut.name}`); if (res.extra){ const ex = rollOneFromTable('plant', false, {}, 0); if (ex) pushMut(ex.mut, `Plant extra: ${ex.mut.name}`); } }
-      }
-      return;
-    }
-    const nP = rollDie(4), nM = rollDie(4);
-    addLog(`RAW 1e: physical ${nP}, mental ${nM} (defects land organically).`);
-    for (let i = 0; i < nP; i++){ const res = rollOneFromTable('physical', animalCol, {}, 0); if (res) pushMut(res.mut, `Physical ${res.roll}: ${res.mut.name}`); }
-    for (let i = 0; i < nM; i++){ const res = rollOneFromTable('mental', animalCol, {}, 0); if (res) pushMut(res.mut, `Mental ${res.roll}: ${res.mut.name}`); }
+    const set=(id,v)=>{ const el=$(id); if(el&&v!=null) el.value=v; };
+    set('#gw-culture', F.pick(F.cultures)); set('#gw-background', F.pick(F.backgrounds));
+    set('#gw-motivation', F.pick(F.motivations)); set('#gw-origin', F.pick(F.origins));
+    const gender=['Male','Female','Nonbinary'][die(3)-1]; set('#gw-gender', gender);
+    set('#gw-age', String(die(10)+die(10)+10));
+    const wd=gender==='Female'?4:6; let w=0; for(let i=0;i<5;i++) w+=die(wd); set('#gw-weight', String(w*10));
+    state.wealth=String(die(4)); state.birthplace=F.pick(F.birthplaces)||'Gamma Terra';
   }
   function generateCharacter(){
-    const method = $('#gen-stat-method').value || '4d6';
-    const mode = $('#creation-mode').value || 'mp';
-    const type = TYPES.find(t => t.id === $('#gw-type').value) || TYPES[0];
-    const isPSH = type.id === 'psh';
-    // Species / A/P base stock
-    const apLabel = refreshSourceConcept(type);
-    if (apLabel && apLabel !== 'None' && (type.id === 'animal' || type.id === 'plant')) addLog(`A/P base stock: ${apLabel}`);
-    // Stats (4d6 drop-low default; PSH gets +3 CHA capped 18)
-    const rolls = [];
-    STATS.forEach(s => {
-      let v = rollStat(method);
-      if (isPSH && s.key === 'cha') v = Math.min(18, v + 3);
-      $(`#gw-${s.key}`).value = v;
-      rolls.push(`${s.short} ${v}`);
-    });
-    state.mpManual = false;
-    syncMPFieldsFromGW();
-    addLog(`Rolled ${method} stats (${type.label}): ${rolls.join(', ')}`);
-    // Bio (MP narrative slots, GW flavor)
-    rollBio(type);
-    // Mutations
-    state.mutations = [];
-    if (isPSH){ addLog('Pure Strain Human: no mutations.'); renderAll(); return; }
-    if (mode === 'mp'){ drawAbilities(type); }
-    else if (mode === 'raw1e'){ rawRoll(type); }
-    else { // manual / import
-      if (type.id === 'plant') addLog(`Plant mutation count: ${rollDie(4)} (pick from browser).`);
-      else addLog(`Mutation counts — physical ${rollDie(4)}, mental ${rollDie(4)} (pick from browser).`);
+    state.abilities=[];
+    const sel=$('#species-select').value;
+    const species=(sel==='roll')?rollSpecies():sel;
+    state.species=species;
+    log(`Species: ${species}${sel==='roll'?' (rolled d100)':''}`);
+    rollBC();
+    rollBio();
+    if (species==='Pure Strain Human'){
+      (D.pshAbilities||[]).forEach(a=>{ const cn=cpnum(a.cp); pushAbility({ gw:a.text, mp:a.text, cp:String(a.cp), cpNum:cn==null?0:cn, ability:a.text, source:'psh', weakness:cn!=null&&cn<0, slots:1 }); });
+      log('Pure Strain Human: PSH abilities applied, no mutations.');
+    } else if (species==='Tech Construct'){
+      rollEquipment(60); log('Tech Construct: built from equipment / cybernetics.');
+    } else if (species==='Mutated Plant'){
+      log('Mutated Plant: 6 rolls on the plant chart.'); rollMutations('plant', 6);
+    } else { // Humanoid / Mutated Animal
+      const r=die(6); const p=D.mutationCount.physical[r-1]||0, m=D.mutationCount.mental[r-1]||0;
+      log(`Mutation split d6=${r}: ${p} physical, ${m} mental`);
+      rollMutations('physical', p); rollMutations('mental', m);
     }
     renderAll();
   }
-  function updateGenNote(){
-    const mode = $('#creation-mode').value || 'mp';
-    const note = mode === 'mp'
-      ? 'MP-structured: species, culture, gender, stats, weight, background, motivation, origin, then 2 offensive / 2 defensive / 2 misc abilities and the set number of weaknesses, drawn from GW mutations by MP role.'
-      : mode === 'raw1e'
-        ? 'RAW 1e tables: roll 1d4 physical + 1d4 mental on the d100 charts; defects land organically. Ported into MP for you and the GM to sort.'
-        : 'Manual / Import: roll-up sets bio, stats, and mutation counts only — pick the actual mutations from the browser below.';
-    const el = $('#gen-note'); if (el) el.textContent = note;
-  }
 
-  function addLog(line){
-    if (!line) return;
-    const stamp = new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
-    state.rollLog.unshift(`[${stamp}] ${line}`);
-    state.rollLog = state.rollLog.slice(0, 40);
+  // ── render ──
+  function renderBCInputs(){
+    const g=$('#bc-roll-grid'); if(!g) return;
+    g.style.display='grid'; g.style.gridTemplateColumns='repeat(5,1fr)'; g.style.gap='8px';
+    g.innerHTML=BCS.map(([k,l])=>`<div class="field" style="text-align:center"><label for="bc-${k}" style="text-align:center">${l}</label><input id="bc-${k}" type="number" min="0" max="40" value="${state.bc[k]}" style="text-align:center"></div>`).join('');
+    BCS.forEach(([k])=>$('#bc-'+k).addEventListener('input', ()=>{ state.bc[k]=parseInt($('#bc-'+k).value,10)||0; renderAll(); }));
   }
-  function renderLog(){
-    $('#roll-log').textContent = state.rollLog.length ? state.rollLog.join('\n') : 'No rolls yet. The wasteland dice are still sleeping in their lead-lined tin.';
+  function renderBCSheet(){
+    $('#bc-grid').innerHTML=BCS.map(([k,l])=>`<div class="kpi"><strong>${l}</strong><span>${state.bc[k]} <span style="opacity:.6">(${state.bc[k]} CP)</span></span></div>`).join('');
+    const tot=bcTotal();
+    const badge=$('#bc-total-badge'); if(badge){ badge.textContent=`${tot} / ${BC_TARGET} CP`; badge.style.color=tot===BC_TARGET?'var(--green,#5b7a3a)':'#c55d1a'; }
   }
-
-  function renderTypePills(){
-    const type = TYPES.find(t => t.id === $('#gw-type').value) || TYPES[0];
-    const ap = currentAP();
-    const pl = selectedPowerLevel();
-    const pills = [`<span class="pill good">${esc(type.label)}</span>`, `<span class="pill">${esc(pl.label)} ${fmt(pl.totalCPs)} CP</span>`];
-    if (ap && ap.id !== 'none') pills.push(`<span class="pill warn">${esc(ap.label)} A/P ${fmt(ap.cp)} CP</span>`);
-    if (state.mpManual) pills.push('<span class="pill warn">MP BCs manually adjusted</span>');
-    pills.push(`<span class="pill">${esc(type.notes)}</span>`);
-    $('#type-pills').innerHTML = pills.join('');
-    $('#stat-note').textContent = 'MP CL uses the higher of Mental Strength or Charisma. Animal/Plant packages apply their listed ST, EN, and AG modifiers. Edit the MP column for referee overrides.';
-  }
-
-  function totals(){
-    const eff = readMPStats();
-    const bc = eff.st + eff.en + eff.ag + eff.in + eff.cl;
-    const ap = currentAP();
-    const apCP = Number(ap.cp || 0);
-    let abilityCP = apCP;
-    let weaknessCP = 0;
-    state.mutations.forEach(m => {
-      const cp = mutationCP(m);
-      if (cp < 0 || isDefect(m)) weaknessCP += cp;
-      else abilityCP += cp;
-    });
-    const net = bc + abilityCP + weaknessCP;
-    return { bc, abilityCP, weaknessCP, apCP, net, eff };
-  }
-  function derived(){
-    const e = readMPStats();
-    if (window.MP && MP.CG && MP.CG.calcDerived) return MP.CG.calcDerived(e.st, e.en, e.ag, e.in, e.cl);
-    return { power:e.st + e.en + e.ag + e.in, move:Math.round((e.st + e.en + e.ag) / 3), physicalDef:0, mentalDef:0, inventingPts:Math.ceil(e.in / 2), hitPoints:1, healingRate:1, baseHTH:'', saveEN:'', saveAG:'', saveIN:'', saveCL:'', initiative:'' };
-  }
-  function warnings(){
-    const pl = selectedPowerLevel();
-    const c = caps();
-    const t = totals();
-    const out = [];
-    if (t.bc > pl.bcPoints) out.push({ bad:true, text:`BC total ${fmt(t.bc)} exceeds ${pl.label} BC budget ${fmt(pl.bcPoints)}.` });
-    if (t.net > pl.totalCPs) out.push({ bad:true, text:`Net CP estimate ${fmt(t.net)} exceeds ${pl.label} budget ${fmt(pl.totalCPs)}.` });
-    BC_KEYS.forEach(b => { if (t.eff[b.key] > c.bcCap) out.push({ bad:true, text:`${b.label} ${fmt(t.eff[b.key])} exceeds ${pl.label} BC cap ${fmt(c.bcCap)}.` }); });
-    state.mutations.forEach(m => {
-      const cp = mutationCP(m);
-      if (cp > c.abilityCap) out.push({ bad:true, text:`${m.name} estimates ${fmt(cp)} CP, above ${pl.label} ability cap ${fmt(c.abilityCap)}.` });
-      if (isHighImpact(m)) out.push({ text:`${m.name} should get GM approval before play.` });
-      if (parseCPRange(m.cp).variable) out.push({ text:`${m.name} has variable CP. The exported value is only a starter estimate.` });
-    });
-    if (t.weaknessCP < -20) out.push({ text:`Weakness total ${fmt(t.weaknessCP)} is beyond the usual -20 CP starting limit. GM can allow species or mutation exceptions, but flag it.` });
-    if (t.abilityCP > (pl.totalCPs - pl.bcPoints)) out.push({ text:`Converted abilities use ${fmt(t.abilityCP)} CP against an expected ability room of ${fmt(pl.totalCPs - pl.bcPoints)}.` });
-    if (!out.length) out.push({ good:true, text:'No balance warnings. The wasteland is suspiciously calm.' });
-    return out;
-  }
-
-  function renderPreviewHeader(){
-    const type = TYPES.find(t => t.id === $('#gw-type').value) || TYPES[0];
-    const pl = selectedPowerLevel();
-    $('#mp-preview-name').textContent = ($('#char-name').value || '').trim() || 'Unnamed Mutant';
-    $('#mp-preview-meta').innerHTML = [pl.label, type.species, $('#gw-culture').value || 'Gamma Terra', $('#gw-origin').value || 'Mutated or Evolved'].map(x => `<span class="mp-badge">${esc(x)}</span>`).join('');
-  }
-  function renderBCGrid(){
-    const e = readMPStats();
-    const d = derived();
-    const c = caps();
-    const data = [
-      { key:'st', label:'ST', sub:`${d.baseHTH || 'HTH'} HTH` },
-      { key:'en', label:'EN', sub:`${d.saveEN || ''} save` },
-      { key:'ag', label:'AG', sub:`${d.saveAG || ''} save` },
-      { key:'in', label:'IN', sub:`${d.saveIN || ''} save` },
-      { key:'cl', label:'CL', sub:`${d.saveCL || ''} save` },
+  function renderBudget(){
+    const bc=bcTotal(), mut=mutationCP(), weak=weaknessCP(), net=netCP();
+    const cells=[
+      ['BC Points', `${bc} / ${BC_TARGET}`],
+      ['Mutation CP', `${fmt(mut)} / 60`],
+      ['Weakness CP', `${fmt(weak)} / ${WEAK_CAP}`],
+      ['Net Total', `${fmt(net)} / ${TOTAL_TARGET}`],
+      ['Abilities', String(state.abilities.filter(a=>!a.weakness).length)],
+      ['Weaknesses', String(state.abilities.filter(a=>a.weakness).length)],
     ];
-    $('#bc-grid').innerHTML = data.map(b => `<div class="bc-card ${e[b.key] > c.bcCap ? 'over' : ''}"><div class="label">${esc(b.label)}</div><div class="score">${fmt(e[b.key])}</div><div class="save">${esc(b.sub)}<br>cap ${fmt(c.bcCap)}</div></div>`).join('');
-  }
-  function renderDerivedGrid(){
-    const d = derived();
-    const cells = [
-      ['Power', d.power], ['Hits', fmt(d.hitPoints)], ['Move', d.move], ['Initiative', d.initiative],
-      ['Phys. Defense', d.physicalDef], ['Mental Defense', d.mentalDef], ['Inventing', d.inventingPts], ['Healing', fmt(d.healingRate)]
-    ];
-    $('#derived-grid').innerHTML = cells.map(([k,v]) => `<div><strong>${esc(k)}</strong><span>${esc(v)}</span></div>`).join('');
-  }
-  function abilityCard(m, idx){
-    const role = mpRole(m);
-    const cp = mutationCP(m);
-    const c = caps();
-    const high = isHighImpact(m);
-    const over = cp > c.abilityCap;
-    const pr = parseCPRange(m.cp);
-    const tags = [sourceLabel(m), ROLE_LABELS[role]];
-    if (high) tags.push('GM review');
-    if (pr.variable) tags.push('Variable CP');
-    return `<div class="ability-card ${role} ${high ? 'review' : ''} ${over ? 'over' : ''}" data-iid="${esc(m.instanceId)}">
-      <div class="ability-head"><div><div class="ability-kind">${esc(ROLE_LABELS[role])}</div><div class="ability-name">${esc(mpAbilityName(m))}</div></div><div class="cp">${fmt(cp)} CP</div></div>
-      <div class="ability-notes"><strong>GW:</strong> ${esc(m.name)}. ${esc(m.notes || 'Tune exact MP effect, modifier value, and attack entry in the MP builder.')}</div>
-      <div class="tag-row">${tags.map(t => `<span class="tag ${t === 'GM review' ? 'red' : ''}">${esc(t)}</span>`).join('')}<button class="btn small danger" data-remove="${esc(m.instanceId)}" style="margin-left:auto">Remove</button></div>
-    </div>`;
+    $('#budget-grid').innerHTML=cells.map(([k,v])=>`<div class="kpi"><strong>${esc(k)}</strong><span>${esc(v)}</span></div>`).join('');
+    const warns=[];
+    if (bc!==BC_TARGET) warns.push(`BC total is ${bc}; spend or recover ${Math.abs(bc-BC_TARGET)} CP ${bc>BC_TARGET?'off mutations/Power/HP':'on extra Power, HP, or mutations'}.`);
+    if (weak<WEAK_CAP) warns.push(`Weaknesses total ${fmt(weak)} CP, beyond the ${WEAK_CAP} cap — drop one.`);
+    if (net!==TOTAL_TARGET) warns.push(`Net build is ${fmt(net)} CP; adjust to balance at ${TOTAL_TARGET}.`);
+    $('#warn-list').innerHTML=warns.length?warns.map(w=>`<div class="warn-item" style="font-size:11px;color:#c55d1a">⚠ ${esc(w)}</div>`).join(''):'<div style="font-size:11px;color:var(--green,#5b7a3a)">✓ Balanced at 100 CP.</div>';
   }
   function renderAbilities(){
-    const ap = currentAP();
-    const cards = [];
-    if (ap && ap.id !== 'none') cards.push(`<div class="ability-card misc">
-      <div class="ability-head"><div><div class="ability-kind">Species / A/P Package</div><div class="ability-name">${esc(ap.label)}</div></div><div class="cp">${fmt(ap.cp || 0)} CP</div></div>
-      <div class="ability-notes">${esc(ap.desc || 'Pick matching Animal/Plant abilities and weaknesses as appropriate.')}</div>
-      <div class="tag-row"><span class="tag">Gamma World type</span><span class="tag">MP package</span></div>
+    const cards=state.abilities.map((a,idx)=>`<div class="ability-card ${a.weakness?'review':''}">
+      <div class="ability-head"><div><div class="ability-kind">${esc(SRC_LABEL[a.source]||a.source)}</div><div class="ability-name">${esc(a.gw)}</div></div><div class="cp">${esc(a.cp)} CP</div></div>
+      <div class="ability-notes"><strong>${esc(a.mp)}.</strong> ${esc(a.ability)}</div>
+      <div class="tag-row"><span class="tag ${a.weakness?'red':''}">${a.weakness?'Weakness':'Ability'}</span>${a.slots>1?'<span class="tag">2 slots</span>':''}<button class="btn small danger" data-remove="${idx}" style="margin-left:auto">Remove</button></div>
     </div>`);
-    state.mutations.forEach((m, idx) => cards.push(abilityCard(m, idx)));
-    if (!cards.length) cards.push('<div class="empty">No converted abilities yet. Add GW powers on the left and they will appear here as MP build cards.</div>');
-    $('#ability-grid').innerHTML = cards.join('');
-    $('#ability-grid').querySelectorAll('[data-remove]').forEach(btn => btn.addEventListener('click', () => {
-      const found = state.mutations.find(m => m.instanceId === btn.dataset.remove);
-      state.mutations = state.mutations.filter(m => m.instanceId !== btn.dataset.remove);
-      if (found) addLog(`Removed ${found.name}`);
-      renderAll();
-    }));
-    $('#mut-count').textContent = state.mutations.length + ' selected';
+    if(!cards.length) cards.push('<div class="empty">No abilities yet. Roll a complete character on the left.</div>');
+    $('#ability-grid').innerHTML=cards.join('');
+    $('#ability-grid').querySelectorAll('[data-remove]').forEach(b=>b.addEventListener('click',()=>{ const i=+b.dataset.remove; const r=state.abilities[i]; state.abilities.splice(i,1); if(r) log(`Removed ${r.gw}`); renderAll(); }));
   }
-  function renderReview(){
-    const pl = selectedPowerLevel();
-    const c = caps();
-    const t = totals();
-    const cells = [
-      ['BC Points', `${fmt(t.bc)} / ${fmt(pl.bcPoints)}`],
-      ['Ability CP', `${fmt(t.abilityCP)}`],
-      ['Weakness CP', `${fmt(t.weaknessCP)}`],
-      ['Net CP', `${fmt(t.net)} / ${fmt(pl.totalCPs)}`],
-      ['BC Cap', fmt(c.bcCap)],
-      ['Ability Cap', fmt(c.abilityCap)],
-      ['Damage Cap', fmt(c.damageCap)],
-      ['Core CP', fmt(pl.coreAbilityCPs || 0)],
-    ];
-    $('#review-grid').innerHTML = cells.map(([k,v]) => `<div class="kpi"><strong>${esc(k)}</strong><span>${esc(v)}</span></div>`).join('');
-    $('#warn-list').innerHTML = warnings().map(w => `<div class="warning ${w.bad ? 'bad' : ''} ${w.good ? 'good' : ''}">${esc(w.text)}</div>`).join('');
-    $('#json-preview').value = JSON.stringify(buildMPCharacter(), null, 2);
+  function renderPreview(){
+    $('#mp-preview-name').textContent=($('#char-name').value||'').trim()||'Unnamed Mutant';
+    const bits=[state.species||'—']; const c=($('#gw-culture').value||'').trim(); if(c) bits.push(c);
+    $('#mp-preview-meta').textContent=bits.join(' · ');
+    try { $('#json-preview').value=JSON.stringify(buildMPCharacter(), null, 2); } catch(e){ $('#json-preview').value='// '+e.message; }
   }
+  function updateGenNote(){
+    const el=$('#gen-note'); if(!el) return;
+    el.textContent='Rolls species (or use the override), five BCs at 4d6-drop-low, bio, then mutations: Humanoid/Animal roll a d6 split (6 total), Plant rolls 6 on the plant chart, PSH gets PSH abilities, Tech Construct is built from artifacts. 20-CP mutations use two slots; weaknesses emerge from the charts.';
+  }
+  function renderLog(){ $('#roll-log').textContent=state.rollLog.length?state.rollLog.join('\n'):'No rolls yet.'; }
+  function renderAll(){ updateGenNote(); renderBCSheet(); renderBudget(); renderAbilities(); renderPreview(); renderLog(); saveDraft(); }
 
+  // ── MP export ──
   function abilityRows(){
-    const rows = [];
-    const ap = currentAP();
-    if (ap && ap.id !== 'none') rows.push({ cp:String(ap.cp || 0), desc:`A/P ${ap.label} Standard package (${ap.desc || 'pick 3 matching abilities and 2 weaknesses'})`, ip:'' });
-    state.mutations.forEach(m => rows.push({ cp:fmt(mutationCP(m)), desc:`${mpAbilityName(m)} [${ROLE_LABELS[mpRole(m)]}; GW: ${m.name}]`, ip:'' }));
-    while (rows.length < 12) rows.push({ cp:'', desc:'', ip:'' });
+    const rows=state.abilities.map(a=>({ cp:a.cpNum?fmt(a.cpNum):a.cp, desc:`${a.mp} [${SRC_LABEL[a.source]||a.source}${a.weakness?'; weakness':''}; GW: ${a.gw}] — ${a.ability}`.slice(0,300), ip:'' }));
+    while(rows.length<12) rows.push({cp:'',desc:'',ip:''});
     return rows;
   }
   function storyText(){
-    const base = ($('#gw-summary').value || '').trim();
-    const ap = currentAP();
-    const lines = [];
-    if (base) lines.push(base);
-    lines.push('Gamma World starter conversion. Source: DESIGN-gw-mp-conversion.md. Final tuning should be reviewed in the MP builder.');
-    lines.push('GW stats: ' + STATS.map(s => `${s.short} ${$(`#gw-${s.key}`).value || 0}`).join(', ') + '.');
-    if (ap && ap.id !== 'none') lines.push(`Animal/Plant package: ${ap.label}. Mods ST ${ap.mods.st || 0}, EN ${ap.mods.en || 0}, AG ${ap.mods.ag || 0}.`);
-    if (state.mutations.length) lines.push('Mutations: ' + state.mutations.map(m => `${m.name} → ${mpAbilityName(m)} (${m.cp} CP)`).join('; '));
-    if (state.rollLog.length) lines.push('\nRoll log:\n' + state.rollLog.join('\n'));
+    const base=($('#gw-summary').value||'').trim(); const lines=[];
+    if(base) lines.push(base);
+    lines.push(`Gamma World 1e → MP build (gw-data-v2). Species: ${state.species}.`);
+    lines.push('BCs: '+BCS.map(([k,l])=>`${l} ${state.bc[k]}`).join(', ')+`  (= ${bcTotal()} CP).`);
+    const muts=state.abilities.filter(a=>!a.weakness), weaks=state.abilities.filter(a=>a.weakness);
+    if(muts.length) lines.push('Abilities: '+muts.map(a=>`${a.gw} → ${a.mp} (${a.cp})`).join('; ')+'.');
+    if(weaks.length) lines.push('Weaknesses: '+weaks.map(a=>`${a.gw} (${a.cp})`).join('; ')+'.');
+    if(state.rollLog.length) lines.push('\nRoll log:\n'+state.rollLog.join('\n'));
     return lines.join('\n');
   }
   function buildMPCharacter(){
-    const type = TYPES.find(t => t.id === $('#gw-type').value) || TYPES[0];
-    const pl = selectedPowerLevel();
-    const eff = readMPStats();
-    const name = ($('#char-name').value || '').trim() || 'Unnamed Gamma World Character';
-    const id = window.__gwCurrentExportId || ((typeof GCC !== 'undefined' && GCC.genId) ? GCC.genId('mp') : 'mp_' + Date.now());
-    const data = {
-      _id:id,
-      _gwStarter:true,
-      _gwStarterVersion:DATA.version || '0.1.0',
-      name:name,
-      player:($('#player-name').value || '').trim(),
-      trueId:'',
-      side:'Good',
-      birthplace:state.birthplace || 'Gamma Terra',
-      species:type.species,
-      gender:($('#gw-gender').value || '').trim(),
-      age:($('#gw-age').value || '').trim(),
-      weight:($('#gw-weight').value || '').trim(),
-      mass:'',
-      culture:($('#gw-culture').value || type.culture || 'Primitive').trim(),
-      originType:($('#gw-origin').value || type.origin || 'Mutated or Evolved').trim(),
-      background:($('#gw-background').value || 'Gamma World survivor').trim(),
-      motivation:($('#gw-motivation').value || 'Survive and rebuild').trim(),
-      legalStatus:'Wasteland wanderer',
-      wealth:state.wealth || '0',
-      luck:'10-',
-      powerLevel:pl.id,
-      xpBase:String(pl.totalCPs),
+    const name=($('#char-name').value||'').trim()||'Unnamed Gamma World Character';
+    const id=window.__gwCurrentExportId || ((typeof GCC!=='undefined'&&GCC.genId)?GCC.genId('mp'):'mp_'+Date.now());
+    const bc=state.bc;
+    const data={
+      _id:id, _gwStarter:true, _gwStarterVersion:D.version||'2.0.0',
+      name:name, player:($('#player-name').value||'').trim(), trueId:'', side:'Good',
+      birthplace:state.birthplace||'Gamma Terra', species:state.species||'Humanoid (Mutant)',
+      gender:($('#gw-gender').value||'').trim(), age:($('#gw-age').value||'').trim(),
+      weight:($('#gw-weight').value||'').trim(), mass:'',
+      culture:($('#gw-culture').value||'Primitive').trim(), originType:($('#gw-origin').value||'').trim(),
+      background:($('#gw-background').value||'').trim(), motivation:($('#gw-motivation').value||'').trim(),
+      legalStatus:'Wasteland wanderer', wealth:state.wealth||'0', luck:'10-',
+      powerLevel:'standard', xpBase:String(TOTAL_TARGET),
       stats:{
-        st:{ cp:String(eff.st), mod:'', score:String(eff.st), save:'' },
-        en:{ cp:String(eff.en), mod:'', score:String(eff.en), save:'' },
-        ag:{ cp:String(eff.ag), mod:'', score:String(eff.ag), save:'' },
-        in:{ cp:String(eff.in), mod:'', score:String(eff.in), save:'' },
-        cl:{ cp:String(eff.cl), mod:'', score:String(eff.cl), save:'' },
+        st:{cp:String(bc.st),mod:'',score:String(bc.st),save:''},
+        en:{cp:String(bc.en),mod:'',score:String(bc.en),save:''},
+        ag:{cp:String(bc.ag),mod:'',score:String(bc.ag),save:''},
+        in:{cp:String(bc.in),mod:'',score:String(bc.in),save:''},
+        cl:{cp:String(bc.cl),mod:'',score:String(bc.cl),save:''},
       },
       abilities:abilityRows(),
-      attacks:[
-        { name:'Strike (HTH)', toHit:'', damage:'', dmgType:'Kinetic', kb:'' },
-        { name:'', toHit:'', damage:'', dmgType:'', kb:'' },
-        { name:'', toHit:'', damage:'', dmgType:'', kb:'' },
-      ],
+      attacks:[{name:'Strike (HTH)',toHit:'',damage:'',dmgType:'Kinetic',kb:''},{name:'',toHit:'',damage:'',dmgType:'',kb:''},{name:'',toHit:'',damage:'',dmgType:'',kb:''}],
       story:storyText(),
     };
-    const camp = $('#campaign-select').value || '';
-    if (camp) data._campaign = camp;
+    const camp=$('#campaign-select').value||''; if(camp) data._campaign=camp;
     return data;
   }
 
+  // ── draft ──
   function saveDraft(){
-    const draft = {
-      name:$('#char-name').value, player:$('#player-name').value, campaign:$('#campaign-select').value,
-      type:$('#gw-type').value, powerLevel:$('#power-level').value, creationMode:$('#creation-mode').value,
-      ap:$('#ap-type').value, culture:$('#gw-culture').value, origin:$('#gw-origin').value, summary:$('#gw-summary').value,
-      gender:$('#gw-gender').value, age:$('#gw-age').value, weight:$('#gw-weight').value, background:$('#gw-background').value, motivation:$('#gw-motivation').value,
-      wealth:state.wealth || '', birthplace:state.birthplace || '',
-      search:$('#mut-search').value, category:$('#mut-category').value, role:$('#mp-role-filter').value,
-      statMethod:$('#gen-stat-method').value, defects:$('#gen-defects').value,
-      stats:readGWStats(), mpStats:readMPStats(), mpManual:state.mpManual, mutations:state.mutations, rollLog:state.rollLog, exportId:window.__gwCurrentExportId || null
-    };
-    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch(e) {}
+    const d={ name:$('#char-name').value, player:$('#player-name').value, campaign:$('#campaign-select').value,
+      species:$('#species-select').value, resolvedSpecies:state.species, bc:state.bc,
+      gender:$('#gw-gender').value, age:$('#gw-age').value, weight:$('#gw-weight').value,
+      culture:$('#gw-culture').value, origin:$('#gw-origin').value, background:$('#gw-background').value,
+      motivation:$('#gw-motivation').value, summary:$('#gw-summary').value,
+      wealth:state.wealth, birthplace:state.birthplace, abilities:state.abilities, rollLog:state.rollLog,
+      exportId:window.__gwCurrentExportId||null };
+    try{ localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); }catch(e){}
   }
   function loadDraft(){
-    try {
-      const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
-      if (!d) return false;
-      $('#char-name').value = d.name || '';
-      $('#player-name').value = d.player || '';
-      $('#campaign-select').value = d.campaign || '';
-      $('#gw-type').value = d.type || 'humanoid';
-      $('#power-level').value = d.powerLevel || 'low';
-      $('#creation-mode').value = d.creationMode || 'mp';
-      $('#ap-type').value = d.ap || 'none';
-      $('#gw-culture').value = d.culture || '';
-      $('#gw-origin').value = d.origin || '';
-      $('#gw-summary').value = d.summary || '';
-      $('#gw-gender').value = d.gender || '';
-      $('#gw-age').value = d.age || '';
-      $('#gw-weight').value = d.weight || '';
-      $('#gw-background').value = d.background || '';
-      $('#gw-motivation').value = d.motivation || '';
-      state.wealth = d.wealth || '';
-      state.birthplace = d.birthplace || '';
-      $('#mut-search').value = d.search || '';
-      $('#mut-category').value = d.category || 'all';
-      $('#mp-role-filter').value = d.role || 'all';
-      if (d.statMethod) $('#gen-stat-method').value = d.statMethod;
-      if (d.defects != null) $('#gen-defects').value = d.defects;
-      STATS.forEach(s => { const el = $(`#gw-${s.key}`); if (el) el.value = d.stats && d.stats[s.key] != null ? d.stats[s.key] : 10; });
-      state.mpManual = !!d.mpManual;
-      if (d.mpStats) BC_KEYS.forEach(b => { const el = $(`#mp-${b.key}`); if (el) el.value = d.mpStats[b.key] != null ? d.mpStats[b.key] : 10; });
-      else syncMPFieldsFromGW();
-      state.mutations = Array.isArray(d.mutations) ? d.mutations : [];
-      state.rollLog = Array.isArray(d.rollLog) ? d.rollLog : [];
-      if (d.exportId) window.__gwCurrentExportId = d.exportId;
+    try{
+      const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null'); if(!d) return false;
+      $('#char-name').value=d.name||''; $('#player-name').value=d.player||''; $('#campaign-select').value=d.campaign||'';
+      if(d.species) $('#species-select').value=d.species; state.species=d.resolvedSpecies||'';
+      if(d.bc) state.bc=Object.assign({st:10,en:10,ag:10,in:10,cl:10}, d.bc);
+      BCS.forEach(([k])=>{ const el=$('#bc-'+k); if(el) el.value=state.bc[k]; });
+      $('#gw-gender').value=d.gender||''; $('#gw-age').value=d.age||''; $('#gw-weight').value=d.weight||'';
+      $('#gw-culture').value=d.culture||''; $('#gw-origin').value=d.origin||''; $('#gw-background').value=d.background||'';
+      $('#gw-motivation').value=d.motivation||''; $('#gw-summary').value=d.summary||'';
+      state.wealth=d.wealth||''; state.birthplace=d.birthplace||'';
+      state.abilities=Array.isArray(d.abilities)?d.abilities:[]; state.rollLog=Array.isArray(d.rollLog)?d.rollLog:[];
+      if(d.exportId) window.__gwCurrentExportId=d.exportId;
       return true;
-    } catch(e) { return false; }
+    }catch(e){ return false; }
   }
 
-  function renderAll(){
-    updateStatMirrors();
-    updateGenNote();
-    renderTypePills();
-    renderMutationList();
-    renderLog();
-    renderPreviewHeader();
-    renderBCGrid();
-    renderDerivedGrid();
-    renderAbilities();
-    renderReview();
-    saveDraft();
-  }
-
-  function populateControls(){
-    const typeSel = $('#gw-type');
-    typeSel.innerHTML = TYPES.map(t => `<option value="${esc(t.id)}">${esc(t.label)}</option>`).join('');
-    typeSel.value = 'humanoid';
-    const pls = mpPowerLevels();
-    $('#power-level').innerHTML = pls.map(p => `<option value="${esc(p.id)}">${esc(p.label)} (${fmt(p.totalCPs)} CP)</option>`).join('');
-    $('#power-level').value = 'low';
-    const apSel = $('#ap-type');
-    apSel.innerHTML = (DATA.animalPlantTypes || []).map(a => `<option value="${esc(a.id)}">${esc(a.label)}${a.id !== 'none' ? `, ${fmt(a.cp)} CP` : ''}</option>`).join('');
-    apSel.value = 'none';
-    const campSel = $('#campaign-select');
-    let camps = [];
-    try { camps = JSON.parse(localStorage.getItem((GCC && GCC.KEYS && GCC.KEYS.campaigns) || 'gcc-campaigns') || '[]'); } catch(e) {}
-    // Ensure the default "Gamma World 2519" campaign exists (idempotent by name)
-    let defCampId = '';
-    const DEF_CAMP = 'Gamma World 2519';
-    const existingDef = camps.find(c => (c.name || '').trim().toLowerCase() === DEF_CAMP.toLowerCase());
-    if (existingDef) defCampId = existingDef.id || existingDef._id || '';
-    else if (typeof GCC !== 'undefined' && GCC.addCampaign) {
-      try { const created = GCC.addCampaign({ name:DEF_CAMP, system:'mp', genre:'Post-apocalyptic', world:'Gamma Terra' }); defCampId = created.id; camps.push(created); } catch(e) {}
-    }
-    const active = (() => { try { return localStorage.getItem('gcc-active-campaign') || ''; } catch(e) { return ''; } })();
-    camps.forEach(c => {
-      const o = document.createElement('option');
-      o.value = c.id || c._id || '';
-      o.textContent = c.name || 'Unnamed Campaign';
-      campSel.appendChild(o);
-    });
-    if (defCampId) campSel.value = defCampId;
-    if (active && camps.some(c => (c.id || c._id) === active)) campSel.value = active;
-    const grid = $('#stat-grid');
-    STATS.forEach(s => {
-      const mpId = s.key === 'cha' ? 'mp-cl-alt' : (s.mp === 'cl' ? 'mp-cl' : `mp-${s.mp}`);
-      const readonly = s.key === 'cha' ? ' readonly title="MP CL uses the higher of MS or CHA; edit CL on the Mental Strength row."' : '';
-      const existing = grid.querySelector(`#gw-${s.key}`);
-      if (existing) return;
-      grid.insertAdjacentHTML('beforeend', `<div class="stat-name"><span title="${esc(s.help)}">${esc(s.label)}</span></div><input id="gw-${esc(s.key)}" type="number" min="0" max="99" value="10"><input id="${esc(mpId)}" type="number" min="0" max="99" value="10"${readonly}>`);
-    });
-  }
-
-  function handleSourceTypeChange(){
-    const t = TYPES.find(x => x.id === $('#gw-type').value);
-    if (t) {
-      $('#ap-type').value = t.ap;
-      if (!$('#gw-culture').value) $('#gw-culture').value = t.culture || '';
-      if (!$('#gw-origin').value) $('#gw-origin').value = t.origin || '';
-    }
-    if ($('#gw-type').value === 'plant' && $('#mut-category').value === 'all') $('#mut-category').value = 'plant';
-    syncMPFieldsFromGW();
-    addLog(`GW type set to ${t ? t.label : $('#gw-type').value}`);
-  }
+  // ── MP list export / navigation ──
   function saveOpen(){
-    if (!window.__gwCurrentExportId) {
-      window.__gwCurrentExportId = (typeof GCC !== 'undefined' && GCC.genId) ? GCC.genId('mp') : 'mp_' + Date.now();
-    }
-    const data = buildMPCharacter();
-    data._saved = new Date().toISOString();
-    let list = [];
-    try { list = JSON.parse(localStorage.getItem(MP_LIST_KEY) || '[]'); } catch(e) {}
-    let idx = list.findIndex(c => c && c._id === data._id);
-    if (idx >= 0) list[idx] = data;
-    else { list.push(data); idx = list.length - 1; }
-    try {
+    if(!window.__gwCurrentExportId) window.__gwCurrentExportId=(typeof GCC!=='undefined'&&GCC.genId)?GCC.genId('mp'):'mp_'+Date.now();
+    const data=buildMPCharacter(); data._saved=new Date().toISOString();
+    let list=[]; try{ list=JSON.parse(localStorage.getItem(MP_LIST_KEY)||'[]'); }catch(e){}
+    let idx=list.findIndex(c=>c&&c._id===data._id);
+    if(idx>=0) list[idx]=data; else { list.push(data); idx=list.length-1; }
+    try{
       localStorage.setItem(MP_LIST_KEY, JSON.stringify(list));
       localStorage.setItem('mp-char-edit-idx', String(idx));
       localStorage.setItem('mp-char-sheet', JSON.stringify(data));
-      if (typeof GCCSync !== 'undefined' && GCCSync.notifySync) GCCSync.notifySync(MP_LIST_KEY);
-    } catch(e) {
-      alert('Save failed: ' + e.message);
-      return;
-    }
-    window.location.href = 'character.html?id=' + encodeURIComponent(data._id);
-  }
-  function wire(){
-    document.addEventListener('input', e => {
-      if (!e.target.closest('.gw-wrap')) return;
-      if (/^mp-(?!cl-alt)/.test(e.target.id)) state.mpManual = true;
-      if (/^gw-(ps|con|dex|int|ms|cha)$/.test(e.target.id) && !state.mpManual) syncMPFieldsFromGW();
-      renderAll();
-    });
-    document.addEventListener('change', e => {
-      if (!e.target.closest('.gw-wrap')) return;
-      if (e.target.id === 'gw-type') handleSourceTypeChange();
-      else if ((e.target.id === 'ap-type' || /^gw-(ps|con|dex|int|ms|cha)$/.test(e.target.id)) && !state.mpManual) syncMPFieldsFromGW();
-      renderAll();
-    });
-    $('#recalc-bc-btn').addEventListener('click', () => { syncMPFieldsFromGW(); addLog('Recalculated MP BCs from GW stats'); renderAll(); });
-    $('#roll-stats-btn').addEventListener('click', () => {
-      const method = $('#gen-stat-method').value || '4d6';
-      const isPSH = $('#gw-type').value === 'psh';
-      const rolls = [];
-      STATS.forEach(s => { let r = rollStat(method); if (isPSH && s.key === 'cha') r = Math.min(18, r + 3); $(`#gw-${s.key}`).value = r; rolls.push(`${s.short} ${r}`); });
-      state.mpManual = false;
-      syncMPFieldsFromGW();
-      addLog(`Rolled ${method} GW stats: ` + rolls.join(', '));
-      renderAll();
-    });
-    $('#roll-all-btn').addEventListener('click', generateCharacter);
-    $('#roll-name-btn').addEventListener('click', () => {
-      if (!window.GWFlavor) return;
-      $('#char-name').value = GWFlavor.rollName();
-      addLog('Rolled name: ' + $('#char-name').value);
-      renderAll();
-    });
-    $('#roll-mut-btn').addEventListener('click', () => {
-      const cat = $('#mut-category').value === 'all' ? null : $('#mut-category').value;
-      const m = rollMutation(cat);
-      if (!m) return;
-      state.selectedId = m.id;
-      addMutation(m, 'Rolled mutation');
-    });
-    $('#add-defect-btn').addEventListener('click', () => addMutation(rollMutation('defect'), 'Rolled defect'));
-    $('#add-mut-btn').addEventListener('click', () => addMutation(findMutation(state.selectedId), 'Added mutation'));
-    $('#clear-muts-btn').addEventListener('click', async () => {
-      const ok = window.MPDialog && MPDialog.confirm ? await MPDialog.confirm('Clear Powers', 'Remove all selected powers and defects from this draft?', { okText:'Clear', danger:true }) : confirm('Clear all selected powers?');
-      if (!ok) return;
-      state.mutations = [];
-      addLog('Cleared selected powers');
-      renderAll();
-    });
-    $('#clear-log-btn').addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); state.rollLog = []; renderAll(); });
-    $('#copy-json-btn').addEventListener('click', async () => {
-      const txt = JSON.stringify(buildMPCharacter(), null, 2);
-      try { await navigator.clipboard.writeText(txt); if (window.MPDialog) await MPDialog.alert('Copied', 'MP Builder JSON copied to clipboard.'); }
-      catch(e) { $('#json-preview').focus(); $('#json-preview').select(); document.execCommand('copy'); }
-    });
-    $('#reset-btn').addEventListener('click', async () => {
-      const ok = window.MPDialog && MPDialog.confirm ? await MPDialog.confirm('Reset Draft', 'Clear this Gamma World starter draft?', { okText:'Reset', danger:true }) : confirm('Reset draft?');
-      if (!ok) return;
-      try { localStorage.removeItem(DRAFT_KEY); } catch(e) {}
-      window.location.reload();
-    });
-    $('#save-open-btn').addEventListener('click', saveOpen);
-    $('#save-open-btn-2').addEventListener('click', saveOpen);
-    $('#open-mp-generator-btn').addEventListener('click', () => { window.location.href = 'character.html'; });
+      if(typeof GCCSync!=='undefined'&&GCCSync.notifySync) GCCSync.notifySync(MP_LIST_KEY);
+    }catch(e){ alert('Save failed: '+e.message); return; }
+    window.location.href='character.html?id='+encodeURIComponent(data._id);
   }
 
+  // ── controls / defaults ──
+  function populateControls(){
+    renderBCInputs();
+    const sp=$('#species-select');
+    (D.species||[]).forEach(s=>{ const o=document.createElement('option'); o.value=s.name; o.textContent=`${s.name} (${s.lo}-${s.hi})`; sp.appendChild(o); });
+    const campSel=$('#campaign-select');
+    let camps=[]; try{ camps=JSON.parse(localStorage.getItem((typeof GCC!=='undefined'&&GCC.KEYS&&GCC.KEYS.campaigns)||'gcc-campaigns')||'[]'); }catch(e){}
+    let defId=''; const DEF='Gamma World 2519';
+    const ex=camps.find(c=>(c.name||'').trim().toLowerCase()===DEF.toLowerCase());
+    if(ex) defId=ex.id||ex._id||'';
+    else if(typeof GCC!=='undefined'&&GCC.addCampaign){ try{ const cr=GCC.addCampaign({name:DEF,system:'mp',genre:'Post-apocalyptic',world:'Gamma Terra'}); defId=cr.id; camps.push(cr); }catch(e){} }
+    const active=(()=>{ try{ return localStorage.getItem('gcc-active-campaign')||''; }catch(e){ return ''; } })();
+    camps.forEach(c=>{ const o=document.createElement('option'); o.value=c.id||c._id||''; o.textContent=c.name||'Unnamed Campaign'; campSel.appendChild(o); });
+    if(defId) campSel.value=defId;
+    if(active&&camps.some(c=>(c.id||c._id)===active)) campSel.value=active;
+  }
   function applyDefaults(){
-    if (typeof GCCAuth !== 'undefined' && GCCAuth.onAuthChange){
-      GCCAuth.onAuthChange(u => {
-        const pf = $('#player-name');
-        if (u && pf && !pf.value.trim()){ pf.value = (u.displayName || u.email || '').trim(); saveDraft(); }
-      });
+    if(typeof GCCAuth!=='undefined'&&GCCAuth.onAuthChange){
+      GCCAuth.onAuthChange(u=>{ const pf=$('#player-name'); if(u&&pf&&!pf.value.trim()){ pf.value=(u.displayName||u.email||'').trim(); saveDraft(); } });
     }
+  }
+
+  function wire(){
+    $('#roll-all-btn').addEventListener('click', generateCharacter);
+    $('#roll-bc-btn').addEventListener('click', ()=>{ rollBC(); renderAll(); });
+    $('#roll-name-btn').addEventListener('click', ()=>{ if(window.GWFlavor){ $('#char-name').value=GWFlavor.rollName(); log('Rolled name: '+$('#char-name').value); renderAll(); } });
+    document.addEventListener('input', e=>{ if(e.target.closest('.gw-wrap') && /^(char-name|player-name|gw-|campaign-select)/.test(e.target.id||'')) renderAll(); });
+    $('#species-select').addEventListener('change', renderAll);
+    $('#save-open-btn').addEventListener('click', saveOpen);
+    $('#save-open-btn-2').addEventListener('click', saveOpen);
+    $('#copy-json-btn').addEventListener('click', ()=>{ try{ navigator.clipboard.writeText(JSON.stringify(buildMPCharacter(),null,2)); }catch(e){} });
+    $('#reset-btn').addEventListener('click', ()=>{ try{ localStorage.removeItem(DRAFT_KEY); }catch(e){} window.__gwCurrentExportId=null; window.location.reload(); });
+    $('#open-mp-generator-btn').addEventListener('click', ()=>{ window.location.href='character.html'; });
+    $('#clear-log-btn').addEventListener('click', e=>{ e.preventDefault(); e.stopPropagation(); state.rollLog=[]; renderAll(); });
   }
 
   function init(){
     populateControls();
-    const hadDraft = loadDraft();
-    if (!hadDraft) {
-      STATS.forEach(s => { $(`#gw-${s.key}`).value = rollStat('4d6'); });
-      handleSourceTypeChange();
-      syncMPFieldsFromGW();
-      addLog('Started new draft. Use “Roll complete GW mutant” for a full GW 1e roll-up.');
-    }
+    const had=loadDraft();
+    if(!had){ rollBC(); log('New draft. Press “Roll complete character” for a full GW 1e roll-up.'); }
     applyDefaults();
     wire();
     renderAll();
   }
-
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-  else init();
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
 </script>
 </body>
