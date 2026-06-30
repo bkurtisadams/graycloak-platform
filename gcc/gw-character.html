@@ -130,14 +130,15 @@
       <div class="wl-group">IDENTITY</div>
       <div class="wl-step" data-step="name"><span class="wl-num">1</span><div class="wl-row"><label>Name</label><input id="f-name" placeholder="Unnamed"><div class="wl-tools"><button class="wl-roll" data-roll="name">🎲</button><button class="wl-lock" data-lock="name">🔓</button></div></div></div>
       <div class="wl-step" data-step="player"><span class="wl-num">2</span><div class="wl-row"><label>Player</label><input id="f-player" placeholder="Player name"><div class="wl-tools"></div></div></div>
-      <div class="wl-step" data-step="side"><span class="wl-num">3</span><div class="wl-row"><label>Faction <span style="color:var(--wl-soft)">(Side)</span></label><div style="display:flex;gap:6px;align-items:center"><input id="f-faction" placeholder="Independent" style="flex:1"><span class="wl-side" id="f-side"></span></div><div class="wl-tools"><button class="wl-roll" data-roll="pob">Roll d%</button><button class="wl-lock" data-lock="side">🔓</button></div></div></div>
-      <div class="wl-step" data-step="home"><span class="wl-num">4</span><div class="wl-row"><label>Home Settlement</label><input id="f-home"><div class="wl-tools"><button class="wl-roll" data-roll="home">Roll d%</button><button class="wl-lock" data-lock="home">🔓</button></div></div></div>
-      <div class="wl-step" data-step="homeland"><span class="wl-num">5</span><div class="wl-row"><label>Homeland Type</label><input id="f-homeland"><div class="wl-tools"><button class="wl-roll" data-roll="homeland">Roll d20</button><button class="wl-lock" data-lock="homeland">🔓</button></div></div></div>
-      <div class="wl-step" data-step="species"><span class="wl-num">6</span><div class="wl-row"><label>Species</label><select id="f-species"></select><div class="wl-tools"><button class="wl-roll" data-roll="pob">Place of Birth</button><button class="wl-lock" data-lock="species">🔓</button></div></div></div>
-      <div class="wl-step" data-step="culture"><span class="wl-num">7</span><div class="wl-row"><label>Culture</label><input id="f-culture"><div class="wl-tools"><button class="wl-roll" data-roll="pob">Roll d%</button><button class="wl-lock" data-lock="culture">🔓</button></div></div></div>
+      <div class="wl-step" data-step="species"><span class="wl-num">3</span><div class="wl-row"><label>Species</label><select id="f-species"></select><div class="wl-tools"><button class="wl-roll" data-roll="species">Roll d%</button><button class="wl-lock" data-lock="species">🔓</button></div></div></div>
+      <div class="wl-step" data-step="faction"><span class="wl-num">4</span><div class="wl-row"><label>Faction</label><select id="f-faction"></select><div class="wl-tools"><button class="wl-roll" data-roll="faction">Roll d%</button><button class="wl-lock" data-lock="faction">🔓</button></div></div></div>
+      <div class="wl-step" data-step="side"><span class="wl-num">5</span><div class="wl-row"><label>Side</label><select id="f-side"></select><div class="wl-tools"><button class="wl-roll" data-roll="side">Roll</button><button class="wl-lock" data-lock="side">🔓</button></div></div></div>
+      <div class="wl-step" data-step="culture"><span class="wl-num">6</span><div class="wl-row"><label>Culture</label><select id="f-culture"></select><div class="wl-tools"><button class="wl-roll" data-roll="culture">Roll d%</button><button class="wl-lock" data-lock="culture">🔓</button></div></div></div>
+      <div class="wl-step" data-step="home"><span class="wl-num">7</span><div class="wl-row"><label>Home Settlement</label><select id="f-home"></select><div class="wl-tools"><button class="wl-roll" data-roll="home">Roll d%</button><button class="wl-lock" data-lock="home">🔓</button></div></div></div>
+      <div class="wl-step" data-step="homeland"><span class="wl-num">8</span><div class="wl-row"><label>Homeland Type</label><select id="f-homeland"></select><div class="wl-tools"><button class="wl-roll" data-roll="homeland">Roll d20</button><button class="wl-lock" data-lock="homeland">🔓</button></div></div></div>
 
       <div class="wl-group">CHARACTERISTICS</div>
-      <div class="wl-step" data-step="bc"><span class="wl-num">8</span><div style="width:100%">
+      <div class="wl-step" data-step="bc"><span class="wl-num">9</span><div style="width:100%">
         <div style="display:flex;gap:14px;font-size:11px;margin-bottom:3px;flex-wrap:wrap">
           <label><input type="radio" name="bcmode" value="raw" checked style="width:auto"> RAW 1e (4d6 drop lowest)</label>
           <label><input type="radio" name="bcmode" value="mp" style="width:auto"> MP rules (scales to Power Level)</label>
@@ -145,16 +146,16 @@
         <div class="wl-bc" id="bc-grid"></div>
         <div style="display:flex;gap:6px;margin-top:5px;align-items:center"><button class="wl-roll" data-roll="bc">Roll BCs</button><button class="wl-lock" data-lock="bc">🔓</button><span class="wl-mini" id="bc-note"></span></div>
       </div></div>
-      <div class="wl-step" data-step="bio"><span class="wl-num">9</span><div class="wl-row" style="grid-template-columns:108px 1fr auto;gap:6px">
+      <div class="wl-step" data-step="bio"><span class="wl-num">10</span><div class="wl-row" style="grid-template-columns:108px 1fr auto;gap:6px">
         <label>Weight / Age / Gender</label><div style="display:flex;gap:5px"><input id="f-weight" placeholder="lbs"><input id="f-age" placeholder="age"><input id="f-gender" placeholder="gender"></div><div class="wl-tools"><button class="wl-roll" data-roll="bio">Roll</button><button class="wl-lock" data-lock="bio">🔓</button></div></div></div>
 
       <div class="wl-group">STORY</div>
-      <div class="wl-step" data-step="backgrounds"><span class="wl-num">10</span><div class="wl-row"><label>Backgrounds <span style="color:var(--wl-soft)">(3→2)</span></label><input id="f-backgrounds" readonly><div class="wl-tools"><button class="wl-roll" data-roll="bg">Roll 3</button><button class="wl-lock" data-lock="backgrounds">🔓</button></div></div></div>
-      <div class="wl-step" data-step="motivation"><span class="wl-num">11</span><div class="wl-row"><label>Motivation</label><input id="f-motivation"><div class="wl-tools"><button class="wl-roll" data-roll="mot">Roll</button><button class="wl-lock" data-lock="motivation">🔓</button></div></div></div>
-      <div class="wl-step" data-step="origin"><span class="wl-num">12</span><div class="wl-row"><label>Origin Type</label><input id="f-origin"><div class="wl-tools"><button class="wl-roll" data-roll="ori">Roll</button><button class="wl-lock" data-lock="origin">🔓</button></div></div></div>
+      <div class="wl-step" data-step="backgrounds"><span class="wl-num">11</span><div class="wl-row"><label>Backgrounds <span style="color:var(--wl-soft)">(3→2)</span></label><input id="f-backgrounds" readonly><div class="wl-tools"><button class="wl-roll" data-roll="bg">Roll 3</button><button class="wl-lock" data-lock="backgrounds">🔓</button></div></div></div>
+      <div class="wl-step" data-step="motivation"><span class="wl-num">12</span><div class="wl-row"><label>Motivation</label><input id="f-motivation"><div class="wl-tools"><button class="wl-roll" data-roll="mot">Roll</button><button class="wl-lock" data-lock="motivation">🔓</button></div></div></div>
+      <div class="wl-step" data-step="origin"><span class="wl-num">13</span><div class="wl-row"><label>Origin Type</label><input id="f-origin"><div class="wl-tools"><button class="wl-roll" data-roll="ori">Roll</button><button class="wl-lock" data-lock="origin">🔓</button></div></div></div>
 
       <div class="wl-group">ABILITIES &amp; WEAKNESSES</div>
-      <div class="wl-step" data-step="abilities"><span class="wl-num">13</span><div style="width:100%">
+      <div class="wl-step" data-step="abilities"><span class="wl-num">14</span><div style="width:100%">
         <div class="wl-tabs">
           <button class="wl-tab off active" data-role="offense">Offensive (2)</button>
           <button class="wl-tab def" data-role="defense">Defensive (2)</button>
@@ -171,7 +172,7 @@
       </div></div>
 
       <div class="wl-group">WEAPONS &amp; GEAR</div>
-      <div class="wl-step" data-step="weapons"><span class="wl-num">14</span><div style="width:100%">
+      <div class="wl-step" data-step="weapons"><span class="wl-num">15</span><div style="width:100%">
         <div style="font-size:11px;color:var(--wl-soft);margin-bottom:4px">A weapon is a Special Weapon ability — picks land in the ability blocks. Any species may take one (unless PSH-only).</div>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
           <select id="f-weapon" style="flex:1"></select>
@@ -242,18 +243,13 @@
 
   function rollNonAllianceSpecies(){const r=die(100);const s=(D.species||[]).find(x=>r>=x.lo&&x.hi>=r);return s?s.name:'Humanoid (Mutant)';}
   function resolveSpeciesToken(tok){if(tok==='roll')return rollNonAllianceSpecies();const p=(CA&&CA.speciesPools)||{};if(p[tok])return p[tok][die(p[tok].length)-1];return SPECIES_MAP[tok]||tok;}
-  function rollPlaceOfBirth(){
-    const r=die(100);const pob=(WH.placeOfBirth||[]).find(x=>r>=x.lo&&x.hi>=r)||{key:'nonAlliance',name:'Non-Alliance Native'};
-    let sp,cu,sd,fac,al='';
-    if(pob.key==='alliance'){const a=die(100);const obj=(CA.alliances||[]).find(x=>a>=x.lo&&x.hi>=a)||CA.alliances[0];al=obj.name;fac=obj.name;sp=resolveSpeciesToken(obj.species);cu=obj.culture;sd=obj.side;}
-    else if(pob.key==='anachronist'){const s=die(100);fac='Anachronist';sp=s<=80?'Pure Strain Human':'Tech Construct';cu='High Tech';sd='Neutral';}
-    else{const c=die(100);fac='Independent';sp=rollNonAllianceSpecies();cu=c<=33?'Primitive':(c<=66?'Mixed':'High Tech');sd='Neutral';}
-    if(!L('side')){state.side=sd;state.faction=fac;state.alliance=al;}
-    if(!L('species'))state.species=sp;
-    if(!L('culture'))state.culture=cu;
-    state.placeOfBirth=pob.name;
-    log(`Place of Birth ${r}: ${pob.name}${al?' → '+al:''} → ${sp}, ${cu}, ${sd}`);
-  }
+  const SIDES=['Good','Neutral','Evil'];
+  const CULTURES=['Primitive','Mixed','High Tech'];
+  function factionOptions(){return ['Independent'].concat((CA&&CA.alliances||[]).map(a=>a.name));}
+  function rollSpecies(){if(L('species'))return;state.species=rollNonAllianceSpecies();state.abilities=state.abilities.filter(a=>a.source==='special-weapon');log(`Species: ${state.species}`);}
+  function rollFaction(){if(L('faction'))return;const opts=factionOptions();state.faction=(die(10)<=3)?'Independent':opts[die(opts.length-1)];log(`Faction: ${state.faction}`);}
+  function rollSide(){if(L('side'))return;state.side=SIDES[die(3)-1];log(`Side: ${state.side}`);}
+  function rollCulture(){if(L('culture'))return;const c=die(100);state.culture=c<=33?'Primitive':(c<=66?'Mixed':'High Tech');log(`Culture: ${state.culture}`);}
   function rollHome(){if(L('home'))return;const r=die(100);const e=(WH.homeSettlement||[]).find(x=>r>=x.lo&&x.hi>=r);state.home=e?e.name:'';log(`Home Settlement ${r}: ${state.home}`);}
   function rollHomeland(){if(L('homeland'))return;const r=die(20);const e=(WH.homelandType||[]).find(x=>x.d20===r);state.homeland=e?e.name:'';log(`Homeland ${r}: ${state.homeland}`);}
   function rollBC(){if(L('bc'))return;BCS.forEach(([k])=>state.bc[k]=r4());log(`BCs 4d6-drop-low: ${BCS.map(([k,l])=>l+' '+state.bc[k]).join(', ')} = ${bcTotal()}`);}
@@ -275,10 +271,10 @@
     return rows;
   }
   function entryFromRow(row,role){
-    if(row.kind==='commando'){const cp=role==='weakness'?-10:10;return{role,gw:row.name,mp:row.name,cp:String(cp),cpNum:cp,ability:'(mundane '+role+' ability — assign MP build in builder)',source:'commando',weakness:role==='weakness'};}
+    if(row.kind==='commando'){const cp=role==='weakness'?-10:10;return{role,base:row.name,gw:row.name,mp:row.name,cp:String(cp),cpNum:cp,ability:'(mundane '+role+' ability — assign MP build in builder)',source:'commando',weakness:role==='weakness'};}
     let m=row.it.m,name=m.name,cp=m.cp,ability=m.ability;
     if(m.picks&&m.picks.length){const p=m.picks[die(m.picks.length)-1];name=m.name+' — '+p.name;cp=p.cp;ability=p.ability;}
-    const cn=cpn(cp);return{role,gw:name,mp:mpLead(ability)||name,cp:String(cp),cpNum:cn==null?0:cn,ability:ability||'',source:row.it.cat,weakness:(role==='weakness')};
+    const cn=cpn(cp);return{role,base:row.name,gw:name,mp:mpLead(ability)||name,cp:String(cp),cpNum:cn==null?0:cn,ability:ability||'',source:row.it.cat,weakness:(role==='weakness')};
   }
   function rollRole(role,n){
     n=n||2;const rows=poolTable(role);state.abilities=state.abilities.filter(a=>a.role!==role||a.source==='special-weapon');
@@ -302,7 +298,7 @@
   }
   function addWeapon(w){if(!w||L('weapons'))return;if(state.abilities.some(a=>a.gw===w.name))return;state.abilities.push({role:'offense',gw:w.name,mp:'Special Weapon',cp:String(w.cp),cpNum:cpn(w.cp)||0,ability:w.ability,source:'special-weapon',weakness:false});log(`Weapon: ${w.name} (${w.cp} CP)`);}
 
-  function generateAll(){rollName();rollPlaceOfBirth();rollHome();rollHomeland();rollBC();rollBio();rollBackgrounds();if(!L('motivation')&&F)state.motivation=F.pick(F.motivations);if(!L('origin')&&F)state.origin=F.pick(F.origins);rollAbilities();renderAll();}
+  function generateAll(){rollName();rollSpecies();rollFaction();rollSide();rollCulture();rollHome();rollHomeland();rollBC();rollBio();rollBackgrounds();if(!L('motivation')&&F)state.motivation=F.pick(F.motivations);if(!L('origin')&&F)state.origin=F.pick(F.origins);rollAbilities();renderAll();}
 
   function bcTotal(){return BCS.reduce((s,[k])=>s+(state.bc[k]||0),0);}
   function abilityCP(){return state.abilities.filter(a=>!a.weakness).reduce((s,a)=>s+(a.cpNum||0),0);}
@@ -314,14 +310,22 @@
     $('#bc-grid').innerHTML=BCS.map(([k,l])=>`<div class="c"><label>${l}</label><input id="bc-${k}" type="number" min="0" max="40" value="${state.bc[k]}"></div>`).join('')+`<div class="c"><label>Total</label><div id="bc-total" style="font-weight:600;padding:5px 0">${bcTotal()}</div></div>`;
     BCS.forEach(([k])=>$('#bc-'+k).addEventListener('input',()=>{state.bc[k]=parseInt($('#bc-'+k).value,10)||0;renderAll();}));
   }
+  function togglePick(row,role){
+    if(!row||L('abilities'))return;
+    const ex=state.abilities.find(a=>a.role===role&&a.source!=='special-weapon'&&a.base===row.name);
+    if(ex){state.abilities=state.abilities.filter(a=>a!==ex);log(`Removed ${row.name}`);}
+    else{const cur=state.abilities.filter(a=>a.role===role&&a.source!=='special-weapon');if(cur.length>=2)state.abilities=state.abilities.filter(a=>a!==cur[0]);state.abilities.push(entryFromRow(row,role));log(`Picked ${row.name}`);}
+    renderAll();
+  }
   function renderRoleTab(){
     const role=state.activeRole,rows=poolTable(role);
-    const sel=state.abilities.filter(a=>a.role===role&&a.source!=='special-weapon').map(a=>a.gw);
-    $('#role-table').innerHTML=`<div class="h"><span>d100</span><span>Ability</span><span>CP</span></div>`+rows.map(r=>{const mp=r.kind==='mutant'?(mpLead(r.it.m.ability)||r.name):r.name;const on=sel.includes(r.name);return `<div class="wl-tr ${on?'sel':''}"><span>${r.lo}-${r.hi}</span><span>${esc(mp)}<span style="color:var(--wl-soft)"> · ${esc(r.name)}</span></span><span>${esc(String(r.cp))}</span></div>`;}).join('');
+    const sel=state.abilities.filter(a=>a.role===role&&a.source!=='special-weapon').map(a=>a.base||a.gw);
+    $('#role-table').innerHTML=`<div class="h"><span>d100</span><span>Ability</span><span>CP</span></div>`+rows.map((r,i)=>{const mp=r.kind==='mutant'?(mpLead(r.it.m.ability)||r.name):r.name;const on=sel.includes(r.name);return `<div class="wl-tr ${on?'sel':''}" data-pick="${i}"><span>${r.lo}-${r.hi}</span><span>${esc(mp)}<span style="color:var(--wl-soft)"> · ${esc(r.name)}</span></span><span>${esc(String(r.cp))}</span></div>`;}).join('');
+    $$('#role-table [data-pick]').forEach(el=>el.addEventListener('click',()=>togglePick(rows[+el.dataset.pick],role)));
     const picks=state.abilities.filter(a=>a.role===role&&a.source!=='special-weapon');
-    $('#role-picks').innerHTML=picks.length?picks.map(p=>`<div class="wl-pick"><div class="mp">${esc(p.mp)} <span style="float:right">${esc(p.cp)} CP</span></div><div class="ab">${esc(p.gw)}</div></div>`).join(''):'<div class="wl-pick" style="color:var(--wl-soft)">No picks yet — roll this category.</div>';
+    $('#role-picks').innerHTML=picks.length?picks.map(p=>`<div class="wl-pick"><div class="mp">${esc(p.mp)} <span style="float:right">${esc(p.cp)} CP</span></div><div class="ab">${esc(p.gw)}</div></div>`).join(''):'<div class="wl-pick" style="color:var(--wl-soft)">Click rows to pick, or roll the category.</div>';
     const sp=state.species;
-    $('#ability-note').textContent=sp==='Tech Construct'?'Tech Construct builds from artifacts (Misc), not the 2/2/2/2 tables.':(sp==='Pure Strain Human'?'PSH draws mundane abilities from the commando tables.':'Drawn from your GW→MP abilities, sorted by role.');
+    $('#ability-note').textContent=sp==='Tech Construct'?'Tech Construct builds from artifacts (Misc) and gear — no mutation table.':(sp==='Pure Strain Human'?'PSH (human, no mutations): pick from the commando abilities + gear.':'Pick rows or roll. Drawn from your GW→MP abilities by role.');
   }
   function renderGear(){
     const gear=state.abilities.filter(a=>a.source==='special-weapon');
@@ -329,8 +333,8 @@
     $$('#gear-list [data-rmweap]').forEach(b=>b.addEventListener('click',()=>{if(L('weapons'))return;state.abilities.splice(+b.dataset.rmweap,1);renderAll();}));
   }
   function renderFields(){
-    $('#f-faction').value=state.faction||'';
-    const sd=$('#f-side');if(sd){sd.textContent=state.side?('▸ '+state.side):'';sd.style.color=state.side==='Good'?'var(--wl-green)':(state.side==='Evil'?'var(--wl-red)':'var(--wl-soft)');}
+    $('#f-faction').value=state.faction||'Independent';
+    const sd=$('#f-side');if(sd)sd.value=state.side||'Neutral';
     $('#f-home').value=state.home||'';$('#f-homeland').value=state.homeland||'';
     if($('#f-species').value!==state.species)$('#f-species').value=state.species;
     $('#f-culture').value=state.culture||'';
@@ -363,7 +367,7 @@
 
   function abilityRows(){const rows=state.abilities.map(a=>({cp:a.cpNum?fmt(a.cpNum):a.cp,desc:`${a.mp} [${a.role}${a.weakness?'; weakness':''}; GW: ${a.gw}] — ${a.ability}`.slice(0,300),ip:''}));while(rows.length<12)rows.push({cp:'',desc:'',ip:''});return rows;}
   function storyText(){
-    const lines=[`Gamma World 1e → MP build. Place of Birth: ${state.placeOfBirth}${state.alliance?' ('+state.alliance+')':''}.`,`Species ${state.species}, ${state.culture}, Side ${state.side}. Home: ${[state.home,state.homeland].filter(Boolean).join(' — ')}.`,`BCs: ${BCS.map(([k,l])=>l+' '+state.bc[k]).join(', ')} = ${bcTotal()} CP.`];
+    const lines=[`Gamma World 1e → MP build. Faction: ${state.faction||'Independent'}, Side ${state.side||'Neutral'}.`,`Species ${state.species}, ${state.culture}. Home: ${[state.home,state.homeland].filter(Boolean).join(' — ')||'—'}.`,`BCs: ${BCS.map(([k,l])=>l+' '+state.bc[k]).join(', ')} = ${bcTotal()} CP.`];
     const m=state.abilities.filter(a=>!a.weakness),w=state.abilities.filter(a=>a.weakness);
     if(m.length)lines.push('Abilities: '+m.map(a=>`${a.mp} (${a.role}, ${a.cp})`).join('; ')+'.');
     if(w.length)lines.push('Weaknesses: '+w.map(a=>`${a.gw} (${a.cp})`).join('; ')+'.');
@@ -401,6 +405,12 @@
   function populate(){
     const pl=$('#power-level');POWER_LEVELS.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v+' CP'+(v===100?' (GW Standard)':'');pl.appendChild(o);});pl.value=state.powerLevel;
     const sp=$('#f-species');(D.species||[]).forEach(s=>{const o=document.createElement('option');o.value=s.name;o.textContent=s.name;sp.appendChild(o);});sp.value=state.species;
+    const fillSel=(id,opts,val)=>{const el=$('#'+id);if(!el)return;el.innerHTML=opts.map(o=>`<option value="${o}">${o}</option>`).join('');if(val)el.value=val;};
+    fillSel('f-faction',factionOptions(),state.faction||'Independent');
+    fillSel('f-side',SIDES,state.side||'Neutral');
+    fillSel('f-culture',CULTURES,state.culture);
+    fillSel('f-home',['',...(WH.homeSettlement||[]).map(e=>e.name)],state.home);
+    fillSel('f-homeland',['',...(WH.homelandType||[]).map(e=>e.name)],state.homeland);
     const wl=$('#f-weapon');weaponList().forEach(w=>{const o=document.createElement('option');o.value=w.name;o.textContent=`${w.name} (${w.cp} CP)`;wl.appendChild(o);});
     renderBCInputs();
     try{let camps=JSON.parse(localStorage.getItem((typeof GCC!=='undefined'&&GCC.KEYS&&GCC.KEYS.campaigns)||'gcc-campaigns')||'[]');const DEF='Gamma World 2519';let ex=camps.find(c=>(c.name||'').trim().toLowerCase()===DEF.toLowerCase());if(!ex&&typeof GCC!=='undefined'&&GCC.addCampaign){ex=GCC.addCampaign({name:DEF,system:'mp',genre:'Post-apocalyptic',world:'Gamma Terra'});}window.__gwCampaign=ex?(ex.id||ex._id||''):'';}catch(e){}
@@ -415,13 +425,15 @@
     $('#power-level').addEventListener('change',e=>{state.powerLevel=parseInt(e.target.value,10)||100;renderAll();});
     $$('input[name=bcmode]').forEach(r=>r.addEventListener('change',e=>{state.bcMode=e.target.value;renderAll();}));
     $('#f-species').addEventListener('change',e=>{state.species=e.target.value;state.abilities=state.abilities.filter(a=>a.source==='special-weapon');renderAll();});
-    ['f-name','f-player','f-faction','f-culture','f-home','f-homeland','f-weight','f-age','f-gender','f-motivation','f-origin'].forEach(id=>{const el=$('#'+id);if(el)el.addEventListener('input',()=>{if(id==='f-faction')state.faction=el.value;if(id==='f-culture')state.culture=el.value;if(id==='f-home')state.home=el.value;if(id==='f-homeland')state.homeland=el.value;if(id==='f-motivation')state.motivation=el.value;if(id==='f-origin')state.origin=el.value;if(id==='f-age')state.age=el.value;if(id==='f-gender')state.gender=el.value;if(id==='f-weight')state.weight=el.value;renderSheet();saveDraft();});});
+    [['f-faction','faction'],['f-side','side'],['f-culture','culture'],['f-home','home'],['f-homeland','homeland']].forEach(([id,key])=>{const el=$('#'+id);if(el)el.addEventListener('change',()=>{state[key]=el.value;renderAll();saveDraft();});});
+    ['f-name','f-player','f-weight','f-age','f-gender','f-motivation','f-origin'].forEach(id=>{const el=$('#'+id);if(el)el.addEventListener('input',()=>{if(id==='f-motivation')state.motivation=el.value;if(id==='f-origin')state.origin=el.value;if(id==='f-age')state.age=el.value;if(id==='f-gender')state.gender=el.value;if(id==='f-weight')state.weight=el.value;renderSheet();saveDraft();});});
     $$('.wl-tab').forEach(t=>t.addEventListener('click',()=>{state.activeRole=t.dataset.role;$$('.wl-tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');renderRoleTab();}));
     document.addEventListener('click',e=>{
       const lk=e.target.closest('[data-lock]');if(lk){state.locks[lk.dataset.lock]=!state.locks[lk.dataset.lock];renderLocks();saveDraft();return;}
       const b=e.target.closest('[data-roll]');if(!b)return;const k=b.dataset.roll;
       if(k==='name')rollName();
-      else if(k==='home')rollHome();else if(k==='homeland')rollHomeland();else if(k==='pob')rollPlaceOfBirth();
+      else if(k==='home')rollHome();else if(k==='homeland')rollHomeland();
+      else if(k==='species')rollSpecies();else if(k==='faction')rollFaction();else if(k==='side')rollSide();else if(k==='culture')rollCulture();
       else if(k==='bc')rollBC();else if(k==='bio')rollBio();else if(k==='bg')rollBackgrounds();
       else if(k==='mot'){if(!L('motivation')&&F)state.motivation=F.pick(F.motivations);}else if(k==='ori'){if(!L('origin')&&F)state.origin=F.pick(F.origins);}
       else if(k==='role'){if(!L('abilities'))rollRole(state.activeRole,2);}
