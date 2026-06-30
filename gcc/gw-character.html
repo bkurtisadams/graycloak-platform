@@ -298,7 +298,13 @@
     order.forEach(k=>state.bc[k]=got[k]||0);
     log(`MP BCs (${tier.name}): ${BCS.map(([k,l])=>l+' '+state.bc[k]).join(', ')} = ${bcTotal()}`);
   }
-  function rollBio(){state.gender=['Male','Female','Nonbinary'][die(3)-1];state.age=die(10)+die(10)+10;const wd=state.gender==='Female'?4:6;let w=0;for(let i=0;i<5;i++)w+=die(wd);state.weight=w*10;log(`Bio: ${state.gender}, age ${state.age}, ${state.weight} lbs`);}
+  function rollGenderVal(){state.gender=['Male','Female','Nonbinary'][die(3)-1];}
+  function rollAgeVal(){state.age=die(10)+die(10)+10;}
+  function rollWeightVal(){const wd=state.gender==='Female'?4:6;let w=0;for(let i=0;i<5;i++)w+=die(wd);state.weight=w*10;}
+  function rollGender(){rollGenderVal();log(`Gender: ${state.gender}`);}
+  function rollAge(){rollAgeVal();log(`Age: ${state.age}`);}
+  function rollWeight(){rollWeightVal();log(`Weight: ${state.weight} lbs`);}
+  function rollBio(){rollGenderVal();rollAgeVal();rollWeightVal();log(`Bio: ${state.gender}, age ${state.age}, ${state.weight} lbs`);}
   function rollOneBg(){const r=die(100);const c=BACKGROUNDS.find(x=>r>=x.lo&&x.hi>=r)||BACKGROUNDS[0];return `${c.name} (${c.ex[die(c.ex.length)-1]})`;}
   function bgCat(s){return String(s||'').split(' (')[0];}
   function rollBackgrounds(){const b=[];let g=0;while(b.length<2&&g++<25){const x=rollOneBg();if(!b.some(y=>bgCat(y)===bgCat(x)))b.push(x);}state.backgrounds=b;log('Backgrounds: '+b.join('; '));}
@@ -522,8 +528,9 @@
       `<div style="margin-top:8px"><button class="gw-roll-btn sm" style="width:auto;display:inline-block;padding:6px 16px" data-act="roll">🎲 Roll BCs</button></div>`+nav(7,'Next: Bio →');
   }
   function stepBio(){
-    const f=`<div style="display:flex;gap:8px;max-width:420px"><div style="flex:1"><label style="font-size:11px;color:var(--wl-soft)">Weight (lb)</label><input data-bio="weight" value="${esc(String(state.weight||''))}"></div><div style="flex:1"><label style="font-size:11px;color:var(--wl-soft)">Age</label><input data-bio="age" value="${esc(String(state.age||''))}"></div><div style="flex:1"><label style="font-size:11px;color:var(--wl-soft)">Gender</label><input data-bio="gender" value="${esc(state.gender||'')}"></div></div>`;
-    return head(8,'Bio','Physical descriptors. Roll for random, or type your own.')+`<div class="gw-content vertical"><div style="width:100%">${f}<div style="margin-top:10px"><button class="gw-roll-btn sm" style="width:auto;display:inline-block;padding:6px 16px" data-act="roll">🎲 Roll Bio</button></div></div></div>`+nav(8,'Next: Backgrounds →');
+    const fld=(label,key,act)=>`<div style="flex:1"><label style="font-size:11px;color:var(--wl-soft)">${label}</label><input data-bio="${key}" value="${esc(String(state[key]||''))}"><button class="gw-roll-btn sm" style="width:100%;margin-top:5px;padding:5px;font-size:11px" data-act="${act}">🎲 Roll</button></div>`;
+    const f=`<div style="display:flex;gap:8px;max-width:460px">${fld('Weight (lb)','weight','roll-weight')}${fld('Age','age','roll-age')}${fld('Gender','gender','roll-gender')}</div>`;
+    return head(8,'Bio','Physical descriptors. Roll each independently, or type your own.')+`<div class="gw-content vertical"><div style="width:100%">${f}<div style="margin-top:10px"><button class="gw-roll-btn sm" style="width:auto;display:inline-block;padding:6px 16px" data-act="roll">🎲 Roll All</button></div></div></div>`+nav(8,'Next: Backgrounds →');
   }
   function stepBackgrounds(){
     const table=`<table class="gw-rt"><caption>Backgrounds (d100, pick or roll two)</caption><tbody>`+
@@ -663,6 +670,9 @@
       case 'transfer':transfer();return;
       case 'copyjson':exportJSON();return;
       case 'roll':{const k=curKey();if(rollByKey[k])rollByKey[k]();saveDraft();render();return;}
+      case 'roll-weight':rollWeight();saveDraft();render();return;
+      case 'roll-age':rollAge();saveDraft();render();return;
+      case 'roll-gender':rollGender();saveDraft();render();return;
       case 'roll-all':rollAbilities();saveDraft();render();return;
       case 'roll-cat':rollRole(state.activeRole,2);saveDraft();render();return;
       case 'clear-ab':state.abilities=state.abilities.filter(a=>a.source==='special-weapon');log('Cleared abilities.');saveDraft();render();return;
