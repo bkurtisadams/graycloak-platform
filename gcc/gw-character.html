@@ -130,7 +130,7 @@
       <div class="wl-group">IDENTITY</div>
       <div class="wl-step" data-step="name"><span class="wl-num">1</span><div class="wl-row"><label>Name</label><input id="f-name" placeholder="Unnamed"><div class="wl-tools"><button class="wl-roll" data-roll="name">🎲</button><button class="wl-lock" data-lock="name">🔓</button></div></div></div>
       <div class="wl-step" data-step="player"><span class="wl-num">2</span><div class="wl-row"><label>Player</label><input id="f-player" placeholder="Player name"><div class="wl-tools"></div></div></div>
-      <div class="wl-step" data-step="side"><span class="wl-num">3</span><div class="wl-row"><label>Faction <span style="color:var(--wl-soft)">(Side)</span></label><input id="f-faction" placeholder="Independent"><div class="wl-tools"><button class="wl-roll" data-roll="pob">Roll d%</button><button class="wl-lock" data-lock="side">🔓</button></div></div></div>
+      <div class="wl-step" data-step="side"><span class="wl-num">3</span><div class="wl-row"><label>Faction <span style="color:var(--wl-soft)">(Side)</span></label><div style="display:flex;gap:6px;align-items:center"><input id="f-faction" placeholder="Independent" style="flex:1"><span class="wl-side" id="f-side"></span></div><div class="wl-tools"><button class="wl-roll" data-roll="pob">Roll d%</button><button class="wl-lock" data-lock="side">🔓</button></div></div></div>
       <div class="wl-step" data-step="home"><span class="wl-num">4</span><div class="wl-row"><label>Home Settlement</label><input id="f-home"><div class="wl-tools"><button class="wl-roll" data-roll="home">Roll d%</button><button class="wl-lock" data-lock="home">🔓</button></div></div></div>
       <div class="wl-step" data-step="homeland"><span class="wl-num">5</span><div class="wl-row"><label>Homeland Type</label><input id="f-homeland"><div class="wl-tools"><button class="wl-roll" data-roll="homeland">Roll d20</button><button class="wl-lock" data-lock="homeland">🔓</button></div></div></div>
       <div class="wl-step" data-step="species"><span class="wl-num">6</span><div class="wl-row"><label>Species</label><select id="f-species"></select><div class="wl-tools"><button class="wl-roll" data-roll="pob">Place of Birth</button><button class="wl-lock" data-lock="species">🔓</button></div></div></div>
@@ -330,7 +330,7 @@
   }
   function renderFields(){
     $('#f-faction').value=state.faction||'';
-    $('#f-side').textContent=state.side?('▸ '+state.side):'';$('#f-side').style.color=state.side==='Good'?'var(--wl-green)':(state.side==='Evil'?'var(--wl-red)':'var(--wl-soft)');
+    const sd=$('#f-side');if(sd){sd.textContent=state.side?('▸ '+state.side):'';sd.style.color=state.side==='Good'?'var(--wl-green)':(state.side==='Evil'?'var(--wl-red)':'var(--wl-soft)');}
     $('#f-home').value=state.home||'';$('#f-homeland').value=state.homeland||'';
     if($('#f-species').value!==state.species)$('#f-species').value=state.species;
     $('#f-culture').value=state.culture||'';
