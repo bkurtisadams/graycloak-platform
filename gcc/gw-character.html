@@ -134,7 +134,7 @@
       <div class="wl-step" data-step="faction"><span class="wl-num">4</span><div class="wl-row"><label>Faction</label><select id="f-faction"></select><div class="wl-tools"><button class="wl-roll" data-roll="faction">Roll d%</button><button class="wl-lock" data-lock="faction">🔓</button></div></div></div>
       <div class="wl-step" data-step="side"><span class="wl-num">5</span><div class="wl-row"><label>Side</label><select id="f-side"></select><div class="wl-tools"><button class="wl-roll" data-roll="side">Roll</button><button class="wl-lock" data-lock="side">🔓</button></div></div></div>
       <div class="wl-step" data-step="culture"><span class="wl-num">6</span><div class="wl-row"><label>Culture</label><select id="f-culture"></select><div class="wl-tools"><button class="wl-roll" data-roll="culture">Roll d%</button><button class="wl-lock" data-lock="culture">🔓</button></div></div></div>
-      <div class="wl-step" data-step="home"><span class="wl-num">7</span><div class="wl-row"><label>Home Settlement</label><select id="f-home"></select><div class="wl-tools"><button class="wl-roll" data-roll="home">Roll d%</button><button class="wl-lock" data-lock="home">🔓</button></div></div></div>
+      <div class="wl-step" data-step="home"><span class="wl-num">7</span><div class="wl-row"><label>Birthplace</label><select id="f-home"></select><div class="wl-tools"><button class="wl-roll" data-roll="home">Roll d%</button><button class="wl-lock" data-lock="home">🔓</button></div></div></div>
       <div class="wl-step" data-step="homeland"><span class="wl-num">8</span><div class="wl-row"><label>Homeland Type</label><select id="f-homeland"></select><div class="wl-tools"><button class="wl-roll" data-roll="homeland">Roll d20</button><button class="wl-lock" data-lock="homeland">🔓</button></div></div></div>
 
       <div class="wl-group">CHARACTERISTICS</div>
@@ -270,14 +270,30 @@
   function rollNonAllianceSpecies(){const r=die(100);const s=(D.species||[]).find(x=>r>=x.lo&&x.hi>=r);return s?s.name:'Humanoid (Mutant)';}
   function resolveSpeciesToken(tok){if(tok==='roll')return rollNonAllianceSpecies();const p=(CA&&CA.speciesPools)||{};if(p[tok])return p[tok][die(p[tok].length)-1];return SPECIES_MAP[tok]||tok;}
   const SIDES=['Good','Neutral','Evil'];
-  const CULTURES=['Primitive','Mixed','High Tech'];
+  const CULTURES=['Primitive','Modern','High Tech'];
+  const BIRTHPLACES=[
+    {lo:1,hi:3,name:'Far-Go'},{lo:4,hi:6,name:'Pitz Burke'},{lo:7,hi:9,name:'Albuq Starport'},
+    {lo:10,hi:12,name:'Defiance'},{lo:13,hi:15,name:'Moonsee'},{lo:16,hi:18,name:'Findlay'},
+    {lo:19,hi:21,name:'Fortain'},{lo:22,hi:24,name:'Jospeen'},{lo:25,hi:27,name:'Green Village'},
+    {lo:28,hi:30,name:'Chi-Gor'},{lo:31,hi:33,name:'New Bosston'},{lo:34,hi:36,name:'Phila Delph'},
+    {lo:37,hi:39,name:'St. Loowis'},{lo:40,hi:42,name:'Cinci'},{lo:43,hi:45,name:'Kan City'},
+    {lo:46,hi:48,name:'Milwauk'},{lo:49,hi:51,name:'Twin Settlements'},{lo:52,hi:54,name:'Salt Ruins'},
+    {lo:55,hi:57,name:'El Paso del Sol'},{lo:58,hi:60,name:'Atlan Ruins'},{lo:61,hi:63,name:'Ancient Ruined City'},
+    {lo:64,hi:66,name:'Farming Enclave'},{lo:67,hi:69,name:'Frontier Village'},{lo:70,hi:72,name:'Hidden Valley Settlement'},
+    {lo:73,hi:75,name:'Cryptic Alliance Community'},{lo:76,hi:78,name:'Military Bunker Complex'},{lo:79,hi:81,name:'Ancient Research Facility'},
+    {lo:82,hi:84,name:'Underground Shelter'},{lo:85,hi:87,name:'Robot-Controlled Town'},{lo:88,hi:90,name:'Nomad Caravan'},
+    {lo:91,hi:93,name:'Mutant Animal Territory'},{lo:94,hi:95,name:'Mutant Plant Colony'},{lo:96,hi:97,name:'Radioactive Badlands'},
+    {lo:98,hi:99,name:'Ancient Orbital Crash Site'},{lo:100,hi:100,name:'Referee Chooses or Invents'}
+  ];
+  const BIRTHPLACE_EXTRAS=['Rustwater Landing','Glowmoor','The Sundered Span','Meck Town','Sentinel Rock','Duralloy Deep','Threshold Gate','Cinder Flats'];
+  const HOMELANDS=['Agricultural village','Trading town','Ruined metropolis','Underground shelter','Ancient military base','Research laboratory','Robot enclave','Cryptic Alliance stronghold','Mutant tribe','PSH settlement','Mutant animal kingdom','Mutant plant forest','Religious community','Nomad caravan','Mining colony','River settlement','Coastal village','Mountain fortress','Ancient orbital facility',"Referee's choice"];
   function factionOptions(){return ['Independent'].concat((CA&&CA.alliances||[]).map(a=>a.name));}
   function rollSpecies(){if(L('species'))return;state.species=rollNonAllianceSpecies();state.abilities=state.abilities.filter(a=>a.source==='special-weapon');log(`Species: ${state.species}`);}
   function rollFaction(){if(L('faction'))return;const opts=factionOptions();state.faction=(die(10)<=3)?'Independent':opts[die(opts.length-1)];log(`Faction: ${state.faction}`);}
   function rollSide(){if(L('side'))return;state.side=SIDES[die(3)-1];log(`Side: ${state.side}`);}
-  function rollCulture(){if(L('culture'))return;const c=die(100);state.culture=c<=33?'Primitive':(c<=66?'Mixed':'High Tech');log(`Culture: ${state.culture}`);}
-  function rollHome(){if(L('home'))return;const r=die(100);const e=(WH.homeSettlement||[]).find(x=>r>=x.lo&&x.hi>=r);state.home=e?e.name:'';log(`Home Settlement ${r}: ${state.home}`);}
-  function rollHomeland(){if(L('homeland'))return;const r=die(20);const e=(WH.homelandType||[]).find(x=>x.d20===r);state.homeland=e?e.name:'';log(`Homeland ${r}: ${state.homeland}`);}
+  function rollCulture(){if(L('culture'))return;const c=die(100);state.culture=c<=33?'Primitive':(c<=66?'Modern':'High Tech');log(`Culture: ${state.culture}`);}
+  function rollHome(){if(L('home'))return;const r=die(100);const e=BIRTHPLACES.find(x=>r>=x.lo&&x.hi>=r);state.home=e?e.name:'';log(`Birthplace ${r}: ${state.home}`);}
+  function rollHomeland(){if(L('homeland'))return;const r=die(20);state.homeland=HOMELANDS[r-1]||'';log(`Homeland ${r}: ${state.homeland}`);}
   function rollBC(){
     if(L('bc'))return;
     const tier=tierOf(state.powerLevel),order=['st','en','ag','in','cl'],got={};
@@ -390,7 +406,7 @@
   }
   function renderSheet(){
     const birth=[state.home,state.homeland].filter(Boolean).join(' — ');
-    $('#sheet-id').innerHTML=[['Species',state.species],['Home Settlement',birth||'—'],['Culture',state.culture||'—'],['Side',state.side||'—'],['Faction',state.faction||'—'],['Age / Gender',[state.age,state.gender].filter(Boolean).join(', ')||'—'],['Power Level',state.powerLevel+' ('+tierOf(state.powerLevel).total+' CP)']].map(([k,v])=>`<span class="k">${esc(k)}</span><span>${esc(v)}</span>`).join('');
+    $('#sheet-id').innerHTML=[['Species',state.species],['Birthplace',birth||'—'],['Culture',state.culture||'—'],['Side',state.side||'—'],['Faction',state.faction||'—'],['Age / Gender',[state.age,state.gender].filter(Boolean).join(', ')||'—'],['Power Level',state.powerLevel+' ('+tierOf(state.powerLevel).total+' CP)']].map(([k,v])=>`<span class="k">${esc(k)}</span><span>${esc(v)}</span>`).join('');
     $('#sheet-bc').innerHTML=BCS.map(([k,l])=>`<div class="cell"><div class="l" style="color:var(--wl-soft)">${l}</div><div class="v">${state.bc[k]}</div></div>`).join('')+`<div class="cell"><div class="l" style="color:var(--wl-soft)">BC Total</div><div class="v">${bcTotal()}</div></div>`;
     $('#sheet-cv').innerHTML=[['BC Total',bcTotal()],['Abilities',fmt(abilityCP())+' CP'],['Weaknesses',fmt(weaknessCP())+' CP'],['Ability Budget',tierOf(state.powerLevel).abil+' CP'],['Power Level',state.powerLevel]].map(([l,v])=>`<div class="cell"><div class="l" style="color:var(--wl-soft)">${esc(l)}</div><div class="v">${esc(v)}</div></div>`).join('')+`<div class="cell hl"><div class="l">Unspent CP</div><div class="v">${fmt(unspent())}</div></div>`;
     const byRole=r=>state.abilities.filter(a=>a.role===r&&!a.weakness);
@@ -417,7 +433,7 @@
     const name=($('#f-name').value||'').trim()||'Unnamed Gamma World Character';
     const id=window.__gwExportId||((typeof GCC!=='undefined'&&GCC.genId)?GCC.genId('mp'):'mp_'+Date.now());
     const bc=state.bc;
-    const data={_id:id,_gwStarter:true,_gwStarterVersion:D.version||'2.0.0',name,player:($('#f-player').value||'').trim(),trueId:'',side:state.side||'Neutral',birthplace:[state.home,state.homeland].filter(Boolean).join(' — ')||'Gamma Terra',species:state.species,gender:state.gender||'',age:String(state.age||''),weight:String(state.weight||''),mass:'',culture:state.culture||'Mixed',originType:($('#f-origin').value||'').trim(),background:(state.backgrounds||[]).join(', '),motivation:($('#f-motivation').value||'').trim(),legalStatus:state.faction||'Independent',wealth:'0',luck:'10-',powerLevel:String(tierOf(state.powerLevel).total),xpBase:String(tierOf(state.powerLevel).total),
+    const data={_id:id,_gwStarter:true,_gwStarterVersion:D.version||'2.0.0',name,player:($('#f-player').value||'').trim(),trueId:'',side:state.side||'Neutral',birthplace:[state.home,state.homeland].filter(Boolean).join(' — ')||'Gamma Terra',species:state.species,gender:state.gender||'',age:String(state.age||''),weight:String(state.weight||''),mass:'',culture:state.culture||'Modern',originType:($('#f-origin').value||'').trim(),background:(state.backgrounds||[]).join(', '),motivation:($('#f-motivation').value||'').trim(),legalStatus:state.faction||'Independent',wealth:'0',luck:'10-',powerLevel:String(tierOf(state.powerLevel).total),xpBase:String(tierOf(state.powerLevel).total),
       stats:{st:{cp:String(bc.st),mod:'',score:String(bc.st),save:''},en:{cp:String(bc.en),mod:'',score:String(bc.en),save:''},ag:{cp:String(bc.ag),mod:'',score:String(bc.ag),save:''},in:{cp:String(bc.in),mod:'',score:String(bc.in),save:''},cl:{cp:String(bc.cl),mod:'',score:String(bc.cl),save:''}},
       abilities:abilityRows(),attacks:[{name:'Strike (HTH)',toHit:'',damage:'',dmgType:'Kinetic',kb:''},{name:'',toHit:'',damage:'',dmgType:'',kb:''},{name:'',toHit:'',damage:'',dmgType:'',kb:''}],story:storyText()};
     if(window.__gwCampaign)data._campaign=window.__gwCampaign;
@@ -449,8 +465,8 @@
     fillSel('f-faction',factionOptions(),state.faction||'Independent');
     fillSel('f-side',SIDES,state.side||'Neutral');
     fillSel('f-culture',CULTURES,state.culture);
-    fillSel('f-home',['',...(WH.homeSettlement||[]).map(e=>e.name)],state.home);
-    fillSel('f-homeland',['',...(WH.homelandType||[]).map(e=>e.name)],state.homeland);
+    fillSel('f-home',['',...BIRTHPLACES.map(e=>e.name),...BIRTHPLACE_EXTRAS],state.home);
+    fillSel('f-homeland',['',...HOMELANDS],state.homeland);
     const wl=$('#f-weapon');weaponList().forEach(w=>{const o=document.createElement('option');o.value=w.name;o.textContent=`${w.name} (${w.cp} CP)`;wl.appendChild(o);});
     renderBCInputs();
     try{let camps=JSON.parse(localStorage.getItem((typeof GCC!=='undefined'&&GCC.KEYS&&GCC.KEYS.campaigns)||'gcc-campaigns')||'[]');const DEF='Gamma World 2519';let ex=camps.find(c=>(c.name||'').trim().toLowerCase()===DEF.toLowerCase());if(!ex&&typeof GCC!=='undefined'&&GCC.addCampaign){ex=GCC.addCampaign({name:DEF,system:'mp',genre:'Post-apocalyptic',world:'Gamma Terra'});}window.__gwCampaign=ex?(ex.id||ex._id||''):'';}catch(e){}
