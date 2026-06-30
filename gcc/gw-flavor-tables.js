@@ -1,4 +1,4 @@
-// gw-flavor-tables.js v0.1.0 — Gamma World 1e flavor for the MP-structured roller
+// gw-flavor-tables.js v0.1.1 — Gamma World 1e flavor for the MP-structured roller
 // EDITABLE STARTER CONTENT. None of this is GW 1e RAW (the system is rules-light
 // on backstory); these are house tables that fill MP's narrative slots with a
 // Gamma World feel. Trim, expand, or replace freely. Cryptic Alliance names below
@@ -28,14 +28,46 @@
     'Hot-zone prospector', 'Village smith', 'Border raider', 'Wandering storyteller',
     'Relic-hunter', 'Marsh-farmer',
   ];
-  const motivations = [
-    'Survive and rebuild', 'Reclaim lost knowledge', 'Protect the tribe',
-    'Hunt the Ancients\u2019 tech', 'Avenge a destroyed home', 'Unite the wasteland',
-    'Hoard artifacts', 'Explore beyond the known lands', 'Cleanse the impure',
-    'Free the enslaved', 'Master a strange mutation', 'Find others of my kind',
-    'Settle a blood-debt', 'Map the Death Lands', 'Serve a Cryptic Alliance',
-    'Escape a prophecy', 'Tame the Glow', 'Build a safe haven',
+  // Motivations follow MP's two tables (Superhero / Supervillain), reflavored
+  // for the wasteland. Publicity Seeker is dropped (no mass media out here);
+  // Rebuild (hero) and Zealotry (villain) are GW-native additions.
+  const heroMotivations = [
+    'Penance \u2014 atone for a wrong you once did your tribe or kind',
+    'Vengeance \u2014 make those who destroyed your home or people pay',
+    'Utopian \u2014 live up to a creed or Cryptic Alliance ideal, and lead by example',
+    'Thrill Seeker \u2014 chase the rush of wasteland danger',
+    'Duty Bound \u2014 carry on a tradition or guard a settlement that depends on you',
+    'Need To Know \u2014 uncover the secrets of the Ancients, relics, and mutations',
+    'For Hire \u2014 sell your skills to those who can pay, but never to the cruel',
+    'Self-Defense \u2014 strike first at the warlords and machines hunting you',
+    'Glory Hound \u2014 earn the awe and gratitude of the wasteland\u2019s peoples',
+    'Carnage \u2014 you love to wreck things \u2014 better the Death Machines and raiders than anyone',
+    'Justice \u2014 see raiders, slavers, and tyrants answer for their crimes',
+    'Rebuild \u2014 drag civilization back from the ashes and make it last',
   ];
+  const villainMotivations = [
+    'Insanity \u2014 a radiation-twisted mind bent on something extreme and irrational',
+    'Vengeance \u2014 pay back those you blame, or take it out on the world',
+    'Dystopian \u2014 impose an oppressive new order on the wasteland',
+    'Thrill Seeker \u2014 live for the thrill of bold and terrible deeds',
+    'Anarchist \u2014 tear down every authority that dares to rebuild',
+    'Prejudice \u2014 hate and hunt a kind not your own \u2014 mutant, pure-strain, or beast',
+    'Mercenary / Servitor \u2014 perform any cruelty for the right price or master',
+    'Greedy / Egotist \u2014 seize artifacts, power, and a destiny you believe you are owed',
+    'Belligerent / Carnage \u2014 destroy the old, the famous, and the venerated for the joy of it',
+    'Survival \u2014 driven by needs and hungers you cannot control',
+    'Dupe \u2014 serve a Cryptic Alliance or ancient machine, unaware you fight for evil',
+    'Conquest \u2014 dominate the wasteland; no domain ever feels like enough',
+    'Twisted Honor \u2014 commit atrocities in service of a warped creed or code',
+    'Opportunist \u2014 break any law of the new world when you can get away with it',
+    'Zealotry \u2014 serve the Glow or a machine-god and remake all in its image',
+  ];
+  const motivations = heroMotivations.concat(villainMotivations);
+  function motivationsBySide(side){
+    if(side==='Good')return heroMotivations.slice();
+    if(side==='Evil')return villainMotivations.slice();
+    return heroMotivations.concat(villainMotivations);
+  }
   const origins = [
     'Spontaneous mutation', 'Inherited mutant line', 'Radiation exposure',
     'Ancient-lab escapee', 'Selective breeding stock', 'Born in a hot-zone',
@@ -69,8 +101,8 @@
   }
 
   window.GWFlavor = {
-    version: '0.1.0',
-    cultures, backgrounds, motivations, origins, birthplaces,
+    version: '0.1.1',
+    cultures, backgrounds, motivations, heroMotivations, villainMotivations, motivationsBySide, origins, birthplaces,
     names: { givens, bynames },
     pick, rollName,
   };

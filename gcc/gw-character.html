@@ -309,7 +309,7 @@
   function bgCat(s){return String(s||'').split(' (')[0];}
   function rollBackgrounds(){const b=[];let g=0;while(b.length<2&&g++<25){const x=rollOneBg();if(!b.some(y=>bgCat(y)===bgCat(x)))b.push(x);}state.backgrounds=b;log('Backgrounds: '+b.join('; '));}
   function addBackground(cat){if(!cat)return;const c=BACKGROUNDS.find(x=>x.name===cat);if(!c)return;const ent=`${c.name} (${c.ex[die(c.ex.length)-1]})`;const b=(state.backgrounds||[]).filter(y=>bgCat(y)!==cat);b.push(ent);while(b.length>2)b.shift();state.backgrounds=b;}
-  function rollMotivation(){if(F)state.motivation=F.pick(F.motivations);log('Motivation: '+state.motivation);}
+  function rollMotivation(){if(F)state.motivation=F.pick(F.motivationsBySide?F.motivationsBySide(state.side):F.motivations);log('Motivation: '+state.motivation);}
   function rollOrigin(){if(F)state.origin=F.pick(F.origins);log('Origin: '+state.origin);}
 
   /* ── ability engine (pure state) ────────────────────────────── */
@@ -540,10 +540,10 @@
       `<div class="gw-content"><div class="gw-table-side">${table}</div>${rollBox('Roll or Pick','','','Roll 2')}</div><div style="margin-top:8px">${chips}</div>`+nav(9,'Next: Motivation →');
   }
   function stepMotivation(){
-    const opts=(F&&F.motivations||[]);
+    const opts=(F&&(F.motivationsBySide?F.motivationsBySide(state.side):F.motivations))||[];
     const pick=`<select class="gw-pick" data-pick="motivation"><option value="">— pick —</option>`+opts.map(n=>`<option value="${esc(n)}" ${state.motivation===n?'selected':''}>${esc(n)}</option>`).join('')+`</select>`;
     const f=`<input data-text="motivation" placeholder="Motivation" value="${esc(state.motivation||'')}" style="max-width:420px">`;
-    return head(10,'Motivation','What drives the character. Roll, pick from the list, or write your own.')+
+    return head(10,'Motivation','What drives the character. The list is tuned to the chosen Side — heroic for Good, villainous for Evil, both for Neutral. Roll, pick, or write your own.')+
       `<div class="gw-content"><div class="gw-table-side">${f}</div>${rollBox('Roll or Pick','',pick,'Roll')}</div>`+nav(10,'Next: Origin →');
   }
   function stepOrigin(){
