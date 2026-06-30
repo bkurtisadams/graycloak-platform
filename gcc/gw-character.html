@@ -456,7 +456,7 @@
     const name=($('#f-name').value||'').trim()||'Unnamed Gamma World Character';
     const id=window.__gwExportId||((typeof GCC!=='undefined'&&GCC.genId)?GCC.genId('mp'):'mp_'+Date.now());
     const bc=state.bc;
-    const data={_id:id,_gwStarter:true,_gwStarterVersion:D.version||'2.0.0',name,player:($('#f-player').value||'').trim(),trueId:'',side:state.side||'Neutral',birthplace:[state.home,state.homeland].filter(Boolean).join(' — ')||'Gamma Terra',species:state.species,gender:state.gender||'',age:String(state.age||''),weight:String(state.weight||''),mass:'',culture:state.culture||'Modern',originType:($('#f-origin').value||'').trim(),background:(state.backgrounds||[]).join(', '),motivation:($('#f-motivation').value||'').trim(),legalStatus:state.faction||'Independent',wealth:'0',luck:'10-',powerLevel:String(tierOf(state.powerLevel).total),xpBase:String(tierOf(state.powerLevel).total),
+    const data={_id:id,_gwStarter:true,_gwStarterVersion:D.version||'2.0.0',name,player:($('#f-player').value||'').trim(),trueId:'',side:state.side||'Neutral',birthplace:[state.home,state.homeland].filter(Boolean).join(' — ')||'Gamma World',species:state.species,gender:state.gender||'',age:String(state.age||''),weight:String(state.weight||''),mass:'',culture:state.culture||'Modern',originType:($('#f-origin').value||'').trim(),background:(state.backgrounds||[]).join(', '),motivation:($('#f-motivation').value||'').trim(),legalStatus:state.faction||'Independent',wealth:'0',luck:'10-',powerLevel:String(tierOf(state.powerLevel).total),xpBase:String(tierOf(state.powerLevel).total),
       stats:{st:{cp:String(bc.st),mod:'',score:String(bc.st),save:''},en:{cp:String(bc.en),mod:'',score:String(bc.en),save:''},ag:{cp:String(bc.ag),mod:'',score:String(bc.ag),save:''},in:{cp:String(bc.in),mod:'',score:String(bc.in),save:''},cl:{cp:String(bc.cl),mod:'',score:String(bc.cl),save:''}},
       abilities:abilityRows(),attacks:[{name:'Strike (HTH)',toHit:'',damage:'',dmgType:'Kinetic',kb:''},{name:'',toHit:'',damage:'',dmgType:'',kb:''},{name:'',toHit:'',damage:'',dmgType:'',kb:''}],story:storyText()};
     if(window.__gwCampaign)data._campaign=window.__gwCampaign;
@@ -493,7 +493,7 @@
     fillSel('f-bg-add',['+ add background…',...BACKGROUNDS.map(b=>b.name)],'');
     const wl=$('#f-weapon');weaponList().forEach(w=>{const o=document.createElement('option');o.value=w.name;o.textContent=`${w.name} (${w.cp} CP)`;wl.appendChild(o);});
     renderBCInputs();
-    try{let camps=JSON.parse(localStorage.getItem((typeof GCC!=='undefined'&&GCC.KEYS&&GCC.KEYS.campaigns)||'gcc-campaigns')||'[]');const DEF='Gamma World 2519';let ex=camps.find(c=>(c.name||'').trim().toLowerCase()===DEF.toLowerCase());if(!ex&&typeof GCC!=='undefined'&&GCC.addCampaign){ex=GCC.addCampaign({name:DEF,system:'mp',genre:'Post-apocalyptic',world:'Gamma Terra'});}window.__gwCampaign=ex?(ex.id||ex._id||''):'';}catch(e){}
+    try{let camps=JSON.parse(localStorage.getItem((typeof GCC!=='undefined'&&GCC.KEYS&&GCC.KEYS.campaigns)||'gcc-campaigns')||'[]');const DEF='Gamma World 2519';let ex=camps.find(c=>(c.name||'').trim().toLowerCase()===DEF.toLowerCase());if(!ex&&typeof GCC!=='undefined'&&GCC.addCampaign){ex=GCC.addCampaign({name:DEF,system:'mp',genre:'Post-apocalyptic',world:'Gamma World'});}window.__gwCampaign=ex?(ex.id||ex._id||''):'';}catch(e){}
   }
   function applyDefaults(){if(typeof GCCAuth!=='undefined'&&GCCAuth.onAuthChange)GCCAuth.onAuthChange(u=>{const pf=$('#f-player');if(u&&pf&&!pf.value.trim()){pf.value=(u.displayName||u.email||'').trim();saveDraft();}});}
 

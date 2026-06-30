@@ -1,7 +1,7 @@
 // gw-flavor-tables.js v0.1.0 — Gamma World 1e flavor for the MP-structured roller
 // EDITABLE STARTER CONTENT. None of this is GW 1e RAW (the system is rules-light
 // on backstory); these are house tables that fill MP's narrative slots with a
-// Gamma Terra feel. Trim, expand, or replace freely. Cryptic Alliance names below
+// Gamma World feel. Trim, expand, or replace freely. Cryptic Alliance names below
 // are the well-known ones — verify against your 1e book and cut any that are off.
 (function(){
   const cultures = [
@@ -43,7 +43,7 @@
     'Crossbred experiment', 'Survived a Death-Machine attack', 'Hatched near a reactor',
   ];
   const birthplaces = [
-    'Gamma Terra', 'The Death Lands', 'A ruined arcology', 'The Glowing Marsh',
+    'The Glowing Wastes', 'The Death Lands', 'A ruined arcology', 'The Glowing Marsh',
     'A nomad caravan', 'The Iron Wastes', 'A buried vault', 'The Cryptic spires',
     'A radiation barrens', 'The Pure enclave',
   ];
