@@ -20,74 +20,128 @@
   .wl-titlebar{background:var(--wl-band);border:2px solid var(--wl-band-2);border-radius:11px;padding:7px 16px;text-align:center;}
   .wl-title-sub{font-family:'Oswald';font-style:italic;font-weight:600;letter-spacing:2px;color:#eadfb0;font-size:14px;}
   .wl-title{font-family:'Bangers','Impact',sans-serif;letter-spacing:3px;color:var(--wl-orange-2);font-size:42px;line-height:1.05;text-shadow:2px 2px 0 #7a3209;}
-  .wl-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0;padding:9px 12px;background:var(--wl-panel);border:2px solid var(--wl-line);border-radius:9px;}
-  .wl-actions label{color:var(--wl-soft);font-size:12px;}
-  .wl-actions .wl-spacer{flex:1}
-  .wl-total{color:var(--wl-orange);font-size:14px;}
-  .wl-btn{font-family:'Oswald';font-weight:500;border-radius:6px;padding:8px 13px;font-size:13px;cursor:pointer;border:1px solid #00000022;color:#fff;}
-  .wl-btn.big{font-size:14px;padding:9px 15px;}
+  select,input,textarea{font-family:'Oswald';font-size:13px;background:var(--wl-input);border:1px solid var(--wl-line);border-radius:4px;padding:5px 7px;color:var(--wl-ink);width:100%;}
+  .wl-btn{font-family:'Oswald';font-weight:600;border-radius:6px;padding:8px 13px;font-size:13px;cursor:pointer;border:1px solid #00000022;color:#fff;}
   .wl-btn.orange{background:var(--wl-orange);border-color:#8a3d10;color:#fff3e0;}
   .wl-btn.green{background:var(--wl-green);border-color:#27521e;color:#eafce9;}
   .wl-btn.ghost{background:var(--wl-input);border-color:var(--wl-line);color:#4a3f1d;}
-  select,input,textarea{font-family:'Oswald';font-size:13px;background:var(--wl-input);border:1px solid var(--wl-line);border-radius:4px;padding:5px 7px;color:var(--wl-ink);width:100%;}
-  .wl-split{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,1fr);gap:12px;align-items:start;}
-  @media(max-width:720px){.wl-split{grid-template-columns:1fr}}
-  .wl-panel{background:var(--wl-panel);border:2px solid var(--wl-line);border-radius:11px;padding:10px;}
-  .wl-lead{font-size:12px;color:var(--wl-soft);text-align:center;margin:2px 0 9px;}
-  .wl-group{background:var(--wl-band);color:#ffe9ad;font-weight:600;letter-spacing:1px;font-size:12px;padding:4px 10px;border-radius:5px;margin:9px 0 6px;}
-  .wl-group:first-of-type{margin-top:2px}
-  .wl-step{display:grid;grid-template-columns:24px 1fr;gap:7px;align-items:start;margin-bottom:5px;padding:2px;border-radius:5px;}
-  .wl-step.locked{background:#eef3df;}
-  .wl-num{background:var(--wl-band-2);color:#ffd77a;font-size:12px;font-weight:600;border-radius:4px;text-align:center;padding:5px 0;}
-  .wl-row{display:grid;grid-template-columns:108px 1fr auto;gap:6px;align-items:center;}
-  .wl-row > label{font-size:12px;font-weight:500;}
-  .wl-tools{display:flex;gap:4px;}
-  .wl-roll{background:var(--wl-input);border:1px solid var(--wl-line);border-radius:4px;padding:5px 8px;font-size:11px;cursor:pointer;white-space:nowrap;color:#4a3f1d;}
-  .wl-lock{background:var(--wl-input);border:1px solid var(--wl-line);border-radius:4px;padding:5px 7px;font-size:12px;cursor:pointer;line-height:1;}
-  .wl-lock.on{background:#cfe3b6;border-color:var(--wl-green);}
-  .wl-side{font-weight:600;font-size:12px;}
-  .wl-bc{display:grid;grid-template-columns:repeat(5,1fr) auto;gap:5px;align-items:end;margin-top:5px;}
-  .wl-bc .c{text-align:center}.wl-bc .c label{display:block;font-size:11px;color:var(--wl-soft)}
-  .wl-bc input{text-align:center;padding:4px 2px}
-  .wl-tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px}
-  .wl-tab{flex:1;text-align:center;border:1px solid var(--wl-line);border-radius:5px;padding:5px;font-size:11px;font-weight:500;cursor:pointer;background:var(--wl-input);}
-  .wl-tab.off.active{background:#f3d2c2;border-color:var(--wl-orange);color:#71310d}
-  .wl-tab.def.active{background:#cfe0e6;border-color:var(--wl-blue);color:#163a44}
-  .wl-tab.mis.active{background:#efe3c0;border-color:var(--wl-amber);color:#5d4710}
-  .wl-tab.wk.active{background:#f0d3d3;border-color:var(--wl-red);color:#6e1f1f}
-  .wl-able{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,0.85fr);gap:8px;}
-  .wl-tablebox{border:1px solid var(--wl-line);border-radius:5px;background:var(--wl-input);max-height:180px;overflow:auto;}
-  .wl-tablebox .h{position:sticky;top:0;background:var(--wl-band-2);color:#ffd77a;font-size:10px;display:grid;grid-template-columns:44px 1fr 30px;padding:3px 6px;}
-  .wl-tr{display:grid;grid-template-columns:44px 1fr 30px;font-size:11px;padding:3px 6px;border-bottom:1px solid #ece0bc;cursor:pointer;}
-  .wl-tr.sel{background:#ffe6bf;box-shadow:inset 4px 0 0 var(--wl-orange);}
-  .wl-picks{display:flex;flex-direction:column;gap:5px;}
-  .wl-pick{border:1px solid var(--wl-line);border-radius:5px;background:var(--wl-input);padding:5px 7px;font-size:11px;}
-  .wl-pick .mp{font-weight:600}.wl-pick .ab{color:var(--wl-soft);font-size:10px}
-  .wl-mini{font-size:10px;color:var(--wl-soft);margin-top:5px}
-  details.wl-log{margin-top:8px;border:1px solid var(--wl-line);border-radius:6px;background:var(--wl-panel-2);}
-  details.wl-log summary{cursor:pointer;font-size:12px;font-weight:500;padding:6px 9px;color:#4a3f1d;}
-  .wl-logbox{font-family:ui-monospace,monospace;font-size:10px;white-space:pre-wrap;max-height:150px;overflow:auto;padding:7px 9px;color:#4a3f1d;}
-  .wl-sheet .sb{background:var(--wl-band);color:#ffe9ad;font-weight:600;letter-spacing:1px;font-size:12px;padding:4px 10px;border-radius:5px;margin:9px 0 6px;}
-  .wl-sheet .sb:first-of-type{margin-top:2px}
-  .wl-kv{display:grid;grid-template-columns:auto 1fr;gap:3px 9px;font-size:12px;}
-  .wl-kv .k{color:var(--wl-soft)}
-  .wl-cv{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;text-align:center;font-size:11px;}
-  .wl-cv .cell{background:var(--wl-input);border:1px solid var(--wl-line);border-radius:4px;padding:4px}
-  .wl-cv .cell .v{font-weight:600;font-size:14px}
-  .wl-cv .cell.hl{background:#fff2cf;border-color:var(--wl-orange);}
-  .wl-cv .cell.hl .v,.wl-cv .cell.hl .l{color:var(--wl-orange)}
-  .wl-abblocks{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-  .wl-abb{border:1px solid #e3d4a8;border-radius:0 5px 5px 0;padding:5px 7px;font-size:11px;background:var(--wl-input)}
-  .wl-abb.off{border-left:4px solid var(--wl-orange)} .wl-abb.off .t{color:#9f3d14}
-  .wl-abb.def{border-left:4px solid var(--wl-blue)} .wl-abb.def .t{color:#163a44}
-  .wl-abb.mis{border-left:4px solid var(--wl-amber)} .wl-abb.mis .t{color:#5d4710}
-  .wl-abb.wk{border-left:4px solid var(--wl-red)} .wl-abb.wk .t{color:#a32d2d}
-  .wl-abb .t{font-weight:600;margin-bottom:2px}
-  .wl-gear{margin-top:6px;border-top:1px dashed #cbbd8a;padding-top:5px;font-size:11px;color:var(--wl-soft)}
-  .wl-prot{display:grid;grid-template-columns:repeat(6,1fr);gap:3px;text-align:center;font-size:10px;color:var(--wl-soft)}
-  .wl-prot .p{background:var(--wl-input);border:1px solid var(--wl-line);border-radius:4px;padding:4px 0}
-  textarea.wl-json{font-family:ui-monospace,monospace;font-size:10px;min-height:92px;background:#20241a;color:#e8e2bd;border-color:#4b532c}
+  .wl-btn.red{background:var(--wl-red);border-color:#7d2222;color:#ffeaea;}
+  .wl-btn:disabled{opacity:.5;cursor:not-allowed}
+
+  /* ── Wizard shell ───────────────────────────────────────────── */
+  .gw-stage{margin-top:11px;background:var(--wl-panel);border:2px solid var(--wl-line);border-radius:11px;overflow:hidden;}
+  .gw-body{display:flex;align-items:stretch;min-height:520px;}
+
+  /* Chronicle (left) */
+  .gw-chronicle{width:232px;flex-shrink:0;background:var(--wl-panel-2);border-right:2px solid var(--wl-line);padding:9px;overflow-y:auto;}
+  .gw-chronicle.complete{background:#e6f0db;}
+  .gw-chron-title{font-weight:600;color:var(--wl-orange);text-transform:uppercase;font-size:11px;letter-spacing:1px;border-bottom:1px solid var(--wl-orange);padding-bottom:4px;margin-bottom:8px;}
+  .gw-chron-title.complete{color:var(--wl-green);border-color:var(--wl-green);}
+  .gw-tally{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:9px;}
+  .gw-tally .t{background:var(--wl-input);border:1px solid var(--wl-line);border-radius:4px;padding:3px 2px;text-align:center;}
+  .gw-tally .t .l{font-size:9px;color:var(--wl-soft);text-transform:uppercase;letter-spacing:.5px}
+  .gw-tally .t .v{font-size:14px;font-weight:600}
+  .gw-tally .t.hl{background:#fff2cf;border-color:var(--wl-orange)} .gw-tally .t.hl .v{color:var(--wl-orange)}
+  .gw-track{background:var(--wl-input);border:2px solid var(--wl-band);border-radius:5px;margin-bottom:9px;overflow:hidden;}
+  .gw-track-h{background:var(--wl-band);color:#ffe9ad;padding:4px 8px;font-weight:600;text-align:center;font-size:11px;letter-spacing:1px;text-transform:uppercase;}
+  .gw-track-b{padding:5px 7px;font-size:11px}
+  .gw-track-item{display:flex;gap:5px;align-items:flex-start;padding:2px 0;border-bottom:1px dotted #e3d9b8}
+  .gw-track-item:last-child{border-bottom:none}
+  .gw-track-item.done{color:var(--wl-green)} .gw-track-item.active{color:var(--wl-blue);font-weight:600;background:#eaf2f4;margin:0 -7px;padding:3px 7px}
+  .gw-track-item.pending{color:#a99e78}
+  .gw-cstep{background:var(--wl-input);border:1px solid var(--wl-line);border-radius:4px;padding:5px 7px;margin-bottom:5px;font-size:11px;cursor:pointer;}
+  .gw-cstep.active{border-color:var(--wl-orange);border-width:2px;background:#fff8ef;padding:4px 6px}
+  .gw-cstep.completed{background:#edf3e1;border-color:#7e9a55}
+  .gw-cstep .h{font-weight:600;color:#3c3825;font-size:11px;margin-bottom:1px}
+  .gw-cstep .r{color:#5c5436;font-size:10.5px;line-height:1.3}
+  .gw-cstep .r strong{color:var(--wl-orange)}
+
+  /* Main panel */
+  .gw-main{flex:1;min-width:0;padding:12px 14px;overflow-y:auto;}
+  .gw-step-head{display:flex;align-items:center;gap:9px;margin-bottom:7px;padding-bottom:5px;border-bottom:2px solid var(--wl-orange);}
+  .gw-step-num{background:var(--wl-orange);color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;flex-shrink:0;}
+  .gw-step-title{font-size:15px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#3c3825;}
+  .gw-step-desc{color:var(--wl-soft);font-size:12px;margin:0 0 10px;}
+  .gw-content{display:flex;gap:12px;align-items:flex-start;}
+  .gw-content.vertical{flex-direction:column}
+  .gw-table-side{flex:1;min-width:0;}
+  .gw-controls{width:172px;flex-shrink:0;background:var(--wl-input);border:1px solid var(--wl-line);border-radius:6px;padding:9px;}
+  .gw-controls-title{font-weight:600;text-transform:uppercase;font-size:10px;color:var(--wl-soft);letter-spacing:1px;text-align:center;margin-bottom:7px;}
+  .gw-roll-btn{display:block;width:100%;background:var(--wl-orange);color:#fff3e0;border:2px solid #8a3d10;padding:7px;font-size:12px;font-weight:600;cursor:pointer;border-radius:5px;margin-bottom:6px;text-transform:uppercase;}
+  .gw-roll-btn:hover{background:var(--wl-orange-2)}
+  .gw-roll-btn.sm{font-size:11px;padding:5px;text-transform:none}
+  .gw-roll-res{text-align:center;font-size:18px;font-weight:600;color:var(--wl-orange);margin:5px 0;min-height:20px;}
+  .gw-or{text-align:center;color:#a99e78;font-style:italic;margin:5px 0;font-size:11px;}
+  .gw-pick{width:100%;padding:5px;font-size:12px;}
+  .gw-hint{font-size:11px;color:var(--wl-soft);margin-top:8px;line-height:1.4}
+  .gw-roll-rest{display:block;width:100%;margin-top:8px;background:var(--wl-input);border:1px dashed var(--wl-orange);color:#8a3d10;border-radius:5px;padding:6px;font-size:11px;font-weight:600;cursor:pointer;}
+  .gw-roll-rest:hover{background:#fff2e3}
+
+  /* Rules table (roll-or-pick rows) */
+  .gw-rt{width:100%;border-collapse:collapse;font-size:12px;background:var(--wl-input);border:1px solid var(--wl-line);}
+  .gw-rt caption{background:var(--wl-band-2);color:#ffd77a;padding:3px 7px;font-weight:600;text-align:left;text-transform:uppercase;letter-spacing:1px;font-size:11px;}
+  .gw-rt th{background:var(--wl-band);color:#ffe9ad;padding:3px 6px;text-align:left;font-size:11px;}
+  .gw-rt td{padding:3px 6px;border-bottom:1px solid #ece0bc;}
+  .gw-rt tbody tr{cursor:pointer}
+  .gw-rt tbody tr:hover{background:#ffe8d0}
+  .gw-rt tbody tr.sel{background:#ffe6bf;font-weight:600}
+  .gw-rt tbody tr.sel td:first-child::before{content:"▶ ";color:var(--wl-orange)}
+  .gw-rt .cp{text-align:right;color:var(--wl-soft);width:54px}
+  .gw-rt .rng{width:62px;color:var(--wl-soft)}
+  .gw-scroll{max-height:300px;overflow:auto;border:1px solid var(--wl-line);border-radius:5px}
+
+  /* Abilities step */
+  .gw-tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:7px}
+  .gw-tab{flex:1;text-align:center;border:1px solid var(--wl-line);border-radius:5px;padding:5px;font-size:11px;font-weight:600;cursor:pointer;background:var(--wl-input);}
+  .gw-tab.off.active{background:#f3d2c2;border-color:var(--wl-orange);color:#71310d}
+  .gw-tab.def.active{background:#cfe0e6;border-color:var(--wl-blue);color:#163a44}
+  .gw-tab.mis.active{background:#efe3c0;border-color:var(--wl-amber);color:#5d4710}
+  .gw-tab.wk.active{background:#f0d3d3;border-color:var(--wl-red);color:#6e1f1f}
+  .gw-picks{display:flex;flex-direction:column;gap:5px;margin-top:7px}
+  .gw-pickrow{border:1px solid var(--wl-line);border-radius:5px;background:var(--wl-input);padding:5px 7px;font-size:11px;}
+  .gw-pickrow .mp{font-weight:600}.gw-pickrow .ab{color:var(--wl-soft);font-size:10px}
+  .gw-chip{display:inline-flex;align-items:center;gap:5px;background:#eef3df;border:1px solid #8aa15a;color:#41541f;border-radius:999px;padding:3px 9px;font-size:11px;margin:0 5px 5px 0}
+  .gw-chip .x{cursor:pointer;color:#9f3d14}
+
+  /* Review sheet */
+  .gw-sheet .sb{background:var(--wl-band);color:#ffe9ad;font-weight:600;letter-spacing:1px;font-size:12px;padding:4px 10px;border-radius:5px;margin:9px 0 6px;}
+  .gw-sheet .sb:first-child{margin-top:0}
+  .gw-kv{display:grid;grid-template-columns:auto 1fr;gap:3px 9px;font-size:12px;}
+  .gw-kv .k{color:var(--wl-soft)}
+  .gw-cv{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;text-align:center;font-size:11px;}
+  .gw-cv .cell{background:var(--wl-input);border:1px solid var(--wl-line);border-radius:4px;padding:4px}
+  .gw-cv .cell .v{font-weight:600;font-size:14px}
+  .gw-cv .cell.hl{background:#fff2cf;border-color:var(--wl-orange);} .gw-cv .cell.hl .v,.gw-cv .cell.hl .l{color:var(--wl-orange)}
+  .gw-abblocks{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .gw-abb{border:1px solid #e3d4a8;border-radius:0 5px 5px 0;padding:5px 7px;font-size:11px;background:var(--wl-input)}
+  .gw-abb.off{border-left:4px solid var(--wl-orange)} .gw-abb.off .t{color:#9f3d14}
+  .gw-abb.def{border-left:4px solid var(--wl-blue)} .gw-abb.def .t{color:#163a44}
+  .gw-abb.mis{border-left:4px solid var(--wl-amber)} .gw-abb.mis .t{color:#5d4710}
+  .gw-abb.wk{border-left:4px solid var(--wl-red)} .gw-abb.wk .t{color:#a32d2d}
+  .gw-abb .t{font-weight:600;margin-bottom:2px}
+  textarea.gw-json{font-family:ui-monospace,monospace;font-size:10px;min-height:92px;background:#20241a;color:#e8e2bd;border-color:#4b532c}
+
+  /* Nav */
+  .gw-nav{display:flex;justify-content:space-between;gap:8px;margin-top:12px;padding-top:9px;border-top:2px solid var(--wl-line);}
+  .gw-bc{display:grid;grid-template-columns:repeat(5,1fr) auto;gap:5px;align-items:end;}
+  .gw-bc .c{text-align:center}.gw-bc .c label{display:block;font-size:11px;color:var(--wl-soft)}
+  .gw-bc input{text-align:center;padding:4px 2px}
+
+  /* Intro */
+  .gw-intro{text-align:center;padding:26px 18px;}
+  .gw-intro h3{color:var(--wl-orange);margin:0 0 6px;font-size:18px;text-transform:uppercase;letter-spacing:1px}
+  .gw-intro p{color:var(--wl-soft);margin:6px 0;font-size:13px}
+  .gw-intro-id{display:flex;gap:10px;justify-content:center;max-width:480px;margin:14px auto;flex-wrap:wrap}
+  .gw-intro-id > div{flex:1;min-width:170px;text-align:left}
+  .gw-intro-id label{font-size:11px;color:var(--wl-soft);display:block;margin-bottom:2px}
+  .gw-intro-btns{display:flex;justify-content:center;gap:12px;margin:18px 0 6px;flex-wrap:wrap}
+  .gw-intro-btns button{padding:10px 18px;font-size:14px}
+  .gw-summary{text-align:center;padding:10px;background:#e6f0db;border:1px solid #7e9a55;border-radius:6px;margin-bottom:11px;}
+  .gw-summary h3{color:#2c5424;margin:0 0 4px;font-size:16px}
+  .gw-summary p{color:var(--wl-soft);margin:0;font-size:12px}
+  .gw-summary-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
   .wl-foot{color:var(--wl-soft);font-size:11px;text-align:center;margin:10px 0 2px}
+  @media(max-width:760px){.gw-body{flex-direction:column}.gw-chronicle{width:auto;border-right:none;border-bottom:2px solid var(--wl-line)}.gw-content{flex-direction:column}.gw-controls{width:100%}}
 </style>
 </head>
 <body>
@@ -111,94 +165,8 @@
     <div class="wl-title-sub">GAMMA WORLD / MIGHTY PROTECTORS</div>
     <div class="wl-title">CHARACTER GENERATOR</div>
   </div>
-
-  <div class="wl-actions">
-    <button class="wl-btn orange big" id="roll-all-btn">☢ Roll Complete Character</button>
-    <button class="wl-btn green" id="transfer-btn">Transfer to MP Builder</button>
-    <button class="wl-btn ghost" id="copy-json-btn">Export JSON</button>
-    <button class="wl-btn ghost" id="reset-btn">Reset</button>
-    <span class="wl-spacer"></span>
-    <label for="power-level">Power Level</label>
-    <select id="power-level" style="width:210px"></select>
-    <span class="wl-total">Total CP: <strong id="total-cp">100</strong></span>
-  </div>
-
-  <div class="wl-split">
-    <div class="wl-panel">
-      <div class="wl-lead">Roll a step, then lock 🔒 it to keep it while you roll the rest. Locked steps survive Roll Complete Character.</div>
-
-      <div class="wl-group">IDENTITY</div>
-      <div class="wl-step" data-step="name"><span class="wl-num">1</span><div class="wl-row"><label>Name</label><input id="f-name" placeholder="Unnamed"><div class="wl-tools"><button class="wl-roll" data-roll="name">🎲</button><button class="wl-lock" data-lock="name">🔓</button></div></div></div>
-      <div class="wl-step" data-step="player"><span class="wl-num">2</span><div class="wl-row"><label>Player</label><input id="f-player" placeholder="Player name"><div class="wl-tools"></div></div></div>
-      <div class="wl-step" data-step="species"><span class="wl-num">3</span><div class="wl-row"><label>Species</label><select id="f-species"></select><div class="wl-tools"><button class="wl-roll" data-roll="species">Roll d%</button><button class="wl-lock" data-lock="species">🔓</button></div></div></div>
-      <div class="wl-step" data-step="faction"><span class="wl-num">4</span><div class="wl-row"><label>Faction</label><select id="f-faction"></select><div class="wl-tools"><button class="wl-roll" data-roll="faction">Roll d%</button><button class="wl-lock" data-lock="faction">🔓</button></div></div></div>
-      <div class="wl-step" data-step="side"><span class="wl-num">5</span><div class="wl-row"><label>Side</label><select id="f-side"></select><div class="wl-tools"><button class="wl-roll" data-roll="side">Roll</button><button class="wl-lock" data-lock="side">🔓</button></div></div></div>
-      <div class="wl-step" data-step="culture"><span class="wl-num">6</span><div class="wl-row"><label>Culture</label><select id="f-culture"></select><div class="wl-tools"><button class="wl-roll" data-roll="culture">Roll d%</button><button class="wl-lock" data-lock="culture">🔓</button></div></div></div>
-      <div class="wl-step" data-step="home"><span class="wl-num">7</span><div class="wl-row"><label>Birthplace</label><select id="f-home"></select><div class="wl-tools"><button class="wl-roll" data-roll="home">Roll d%</button><button class="wl-lock" data-lock="home">🔓</button></div></div></div>
-      <div class="wl-step" data-step="homeland"><span class="wl-num">8</span><div class="wl-row"><label>Homeland Type</label><select id="f-homeland"></select><div class="wl-tools"><button class="wl-roll" data-roll="homeland">Roll d20</button><button class="wl-lock" data-lock="homeland">🔓</button></div></div></div>
-
-      <div class="wl-group">CHARACTERISTICS</div>
-      <div class="wl-step" data-step="bc"><span class="wl-num">9</span><div style="width:100%">
-        <div class="wl-bc" id="bc-grid"></div>
-        <div style="display:flex;gap:6px;margin-top:5px;align-items:center"><button class="wl-roll" data-roll="bc">Roll BCs</button><button class="wl-lock" data-lock="bc">🔓</button><span class="wl-mini" id="bc-note"></span></div>
-      </div></div>
-      <div class="wl-step" data-step="bio"><span class="wl-num">10</span><div class="wl-row" style="grid-template-columns:108px 1fr auto;gap:6px">
-        <label>Weight / Age / Gender</label><div style="display:flex;gap:5px"><input id="f-weight" placeholder="lbs"><input id="f-age" placeholder="age"><input id="f-gender" placeholder="gender"></div><div class="wl-tools"><button class="wl-roll" data-roll="bio">Roll</button><button class="wl-lock" data-lock="bio">🔓</button></div></div></div>
-
-      <div class="wl-group">STORY</div>
-      <div class="wl-step" data-step="backgrounds"><span class="wl-num">11</span><div class="wl-row"><label>Backgrounds <span style="color:var(--wl-soft)">(2)</span></label><div style="display:flex;gap:5px"><select id="f-bg-add" style="flex:0 0 130px"></select><input id="f-backgrounds" style="flex:1"></div><div class="wl-tools"><button class="wl-roll" data-roll="bg">Roll 2</button><button class="wl-lock" data-lock="backgrounds">🔓</button></div></div></div>
-      <div class="wl-step" data-step="motivation"><span class="wl-num">12</span><div class="wl-row"><label>Motivation</label><input id="f-motivation"><div class="wl-tools"><button class="wl-roll" data-roll="mot">Roll</button><button class="wl-lock" data-lock="motivation">🔓</button></div></div></div>
-      <div class="wl-step" data-step="origin"><span class="wl-num">13</span><div class="wl-row"><label>Origin Type</label><input id="f-origin"><div class="wl-tools"><button class="wl-roll" data-roll="ori">Roll</button><button class="wl-lock" data-lock="origin">🔓</button></div></div></div>
-
-      <div class="wl-group">ABILITIES &amp; WEAKNESSES</div>
-      <div class="wl-step" data-step="abilities"><span class="wl-num">14</span><div style="width:100%">
-        <div class="wl-tabs">
-          <button class="wl-tab off active" data-role="offense">Offensive (2)</button>
-          <button class="wl-tab def" data-role="defense">Defensive (2)</button>
-          <button class="wl-tab mis" data-role="misc">Misc (2)</button>
-          <button class="wl-tab wk" data-role="weakness">Weaknesses (2)</button>
-        </div>
-        <div class="wl-able">
-          <div class="wl-tablebox" id="role-table"></div>
-          <div><div class="wl-picks" id="role-picks"></div>
-            <div style="display:flex;gap:5px;margin-top:5px"><button class="wl-roll" data-roll="role" style="flex:1">Roll category</button><button class="wl-lock" data-lock="abilities">🔓</button></div>
-          </div>
-        </div>
-        <div class="wl-mini" id="ability-note"></div>
-      </div></div>
-
-      <div class="wl-group">WEAPONS &amp; GEAR</div>
-      <div class="wl-step" data-step="weapons"><span class="wl-num">15</span><div style="width:100%">
-        <div style="font-size:11px;color:var(--wl-soft);margin-bottom:4px">A weapon is a Special Weapon ability — picks land in the ability blocks. Any species may take one (unless PSH-only).</div>
-        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-          <select id="f-weapon" style="flex:1"></select>
-          <button class="wl-roll" data-roll="addweapon">Add</button>
-          <button class="wl-roll" data-roll="rollweapon">Roll 2, keep 1</button>
-          <button class="wl-lock" data-lock="weapons">🔓</button>
-        </div>
-        <div id="gear-list" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px"></div>
-      </div></div>
-
-      <details class="wl-log"><summary>Roll Log</summary><div class="wl-logbox" id="roll-log"></div></details>
-    </div>
-
-    <div class="wl-panel wl-sheet">
-      <div class="sb" style="display:flex;justify-content:space-between"><span>MIGHTY PROTECTORS SHEET <span style="font-weight:400;color:#d8c795">(simplified)</span></span><button class="wl-roll" data-roll="clear" style="padding:2px 8px">Clear</button></div>
-      <div class="wl-kv" id="sheet-id"></div>
-      <div class="sb">BASIC CHARACTERISTICS</div>
-      <div class="wl-cv" id="sheet-bc"></div>
-      <div class="sb">COMBAT VALUES</div>
-      <div class="wl-cv" id="sheet-cv"></div>
-      <div class="sb">ABILITIES</div>
-      <div class="wl-abblocks" id="sheet-ab"></div>
-      <div class="wl-gear" id="sheet-gear"></div>
-      <div class="sb">PROTECTION (Total)</div>
-      <div class="wl-prot" id="sheet-prot"></div>
-      <div class="sb">MP BUILDER JSON</div>
-      <textarea class="wl-json" id="json-preview" readonly></textarea>
-    </div>
-  </div>
-  <div class="wl-foot">Data: gw-data-v2 · gw-warheroes · gw-cryptic-alliances · gw-mp-roles · gw-flavor-tables</div>
+  <div class="gw-stage"><div class="gw-body" id="gw-body"></div></div>
+  <div class="wl-foot">Data: gw-data-v2 · gw-warheroes · gw-cryptic-alliances · gw-mp-roles · gw-flavor-tables · gw-mp-bestiary</div>
 </main>
 
 <script src="gcc-data.js"></script>
@@ -215,7 +183,7 @@
 <script>
 (function(){
   'use strict';
-  const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
+  const $=s=>document.querySelector(s), $$=(s,r)=>Array.from((r||document).querySelectorAll(s));
   const D=window.GWData2, WH=window.GWWarHeroes, CA=window.GWCrypticAlliances, ROLES=window.GWMPRoles, F=window.GWFlavor;
   const MP_LIST_KEY='mp-char-list', DRAFT_KEY='gw-character-starter-draft';
   const BCS=[['st','ST'],['en','EN'],['ag','AG'],['in','IN'],['cl','CL']];
@@ -231,6 +199,7 @@
   const PLAYABLE_CREATURES=['Android','Ark','Badder','Fen','Gren','Hisser','Hoop','Menarl','Orlen','Sleeth'];
   const BEST=()=>window.GWBestiary||{};
   const isCreature=sp=>PLAYABLE_CREATURES.indexOf(sp)>=0&&!!BEST()[sp];
+
   function classifyRole(name){
     const s=String(name).toLowerCase();
     if(/heightened (strength|attack)|natural weaponry|disintegrat|death (touch|field)|mental blast|energy|blast|siphon|life lea|transmut|attack|claw|bite|spine|sonic attack/.test(s))return 'offense';
@@ -252,23 +221,21 @@
     return pools;
   }
 
-  let state={ powerLevel:'Low', activeRole:'offense',
-    placeOfBirth:'', species:'Humanoid (Mutant)', culture:'', side:'', faction:'', alliance:'',
+  let state={ step:0, powerLevel:'Low', activeRole:'offense',
+    name:'', player:'', species:'Humanoid (Mutant)', culture:'', side:'', faction:'', alliance:'',
     home:'', homeland:'', bc:{st:10,en:10,ag:10,in:10,cl:10}, gender:'', age:'', weight:'',
     backgrounds:[], motivation:'', origin:'',
-    abilities:[], rollLog:[], locks:{}, exportId:null };
-  const L=k=>!!state.locks[k];
+    abilities:[], rollLog:[], exportId:null };
 
+  /* ── dice & helpers ─────────────────────────────────────────── */
   const die=n=>Math.floor(Math.random()*n)+1;
-  const r4=()=>{const a=[die(6),die(6),die(6),die(6)].sort((x,y)=>x-y);return a[1]+a[2]+a[3];};
   const cpn=s=>{s=String(s==null?'':s).trim();if(s===''||s==='*')return null;const n=parseFloat(s);return isNaN(n)?null:n;};
   const fmt=n=>(Math.round(n*10)/10).toString();
   const esc=s=>{const d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML;};
   const mpLead=t=>{const x=String(t||'').split(/[:(]/)[0].trim();return x.length>2?x:'';};
   function log(l){if(!l)return;const t=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});state.rollLog.unshift(`[${t}] ${l}`);state.rollLog=state.rollLog.slice(0,50);}
 
-  function rollNonAllianceSpecies(){const r=die(100);const s=(D.species||[]).find(x=>r>=x.lo&&x.hi>=r);return s?s.name:'Humanoid (Mutant)';}
-  function resolveSpeciesToken(tok){if(tok==='roll')return rollNonAllianceSpecies();const p=(CA&&CA.speciesPools)||{};if(p[tok])return p[tok][die(p[tok].length)-1];return SPECIES_MAP[tok]||tok;}
+  /* ── source tables ──────────────────────────────────────────── */
   const SIDES=['Good','Neutral','Evil'];
   const CULTURES=['Primitive','Modern','High Tech'];
   const BIRTHPLACES=[
@@ -308,29 +275,43 @@
     {lo:99,hi:100,name:'Caretaking/Community',ex:['Caretaker','Camp-cook','Refugee-shepherd','Well-keeper']}
   ];
   function factionOptions(){return ['Independent'].concat((CA&&CA.alliances||[]).map(a=>a.name));}
-  function rollSpecies(){if(L('species'))return;state.species=rollNonAllianceSpecies();state.abilities=state.abilities.filter(a=>a.source==='special-weapon');log(`Species: ${state.species}`);}
-  function rollFaction(){if(L('faction'))return;const opts=factionOptions();state.faction=(die(10)<=3)?'Independent':opts[die(opts.length-1)];log(`Faction: ${state.faction}`);}
-  function rollSide(){if(L('side'))return;state.side=SIDES[die(3)-1];log(`Side: ${state.side}`);}
-  function rollCulture(){if(L('culture'))return;const c=die(100);state.culture=c<=33?'Primitive':(c<=66?'Modern':'High Tech');log(`Culture: ${state.culture}`);}
-  function rollHome(){if(L('home'))return;const r=die(100);const e=BIRTHPLACES.find(x=>r>=x.lo&&x.hi>=r);state.home=e?e.name:'';log(`Birthplace ${r}: ${state.home}`);}
-  function rollHomeland(){if(L('homeland'))return;const r=die(20);state.homeland=HOMELANDS[r-1]||'';log(`Homeland ${r}: ${state.homeland}`);}
+  function allianceByName(n){return (CA&&CA.alliances||[]).find(a=>a.name===n)||null;}
+  function speciesOptions(){
+    const base=(D.species||[]).map(s=>s.name);
+    const crit=PLAYABLE_CREATURES.filter(n=>BEST()[n]);
+    return {base,crit};
+  }
+  function rollNonAllianceSpecies(){const r=die(100);const s=(D.species||[]).find(x=>r>=x.lo&&x.hi>=r);return s?s.name:'Humanoid (Mutant)';}
+
+  /* ── per-step rolls (pure state) ────────────────────────────── */
+  function rollName(){if(!F||!F.rollName)return;state.name=F.rollName();log('Name: '+state.name);}
+  function setSpecies(sp){state.species=sp;state.abilities=state.abilities.filter(a=>a.source==='special-weapon');if(isCreature(sp))rollAbilities();}
+  function rollSpecies(){setSpecies(rollNonAllianceSpecies());log('Species: '+state.species);}
+  function rollFaction(){const opts=factionOptions();state.faction=(die(10)<=3)?'Independent':opts[die(opts.length-1)];const a=allianceByName(state.faction);if(a&&a.side)state.side=a.side;log('Faction: '+state.faction);}
+  function rollSide(){state.side=SIDES[die(3)-1];log('Side: '+state.side);}
+  function rollCulture(){const c=die(100);state.culture=c<=33?'Primitive':(c<=66?'Modern':'High Tech');log('Culture: '+state.culture);}
+  function rollHome(){const r=die(100);const e=BIRTHPLACES.find(x=>r>=x.lo&&x.hi>=r);state.home=e?e.name:'';log(`Birthplace ${r}: ${state.home}`);}
+  function rollHomeland(){const r=die(20);state.homeland=HOMELANDS[r-1]||'';log(`Homeland ${r}: ${state.homeland}`);}
   function rollBC(){
-    if(L('bc'))return;
     const tier=tierOf(state.powerLevel),order=['st','en','ag','in','cl'],got={};
-    tier.scores.forEach(score=>{
-      let idx=Math.floor((die(10)-1)/2),g=0;
-      while(got[order[idx]]!==undefined&&g++<5)idx=(idx+1)%5;
-      got[order[idx]]=score;
-    });
+    tier.scores.forEach(score=>{let idx=Math.floor((die(10)-1)/2),g=0;while(got[order[idx]]!==undefined&&g++<5)idx=(idx+1)%5;got[order[idx]]=score;});
     order.forEach(k=>state.bc[k]=got[k]||0);
     log(`MP BCs (${tier.name}): ${BCS.map(([k,l])=>l+' '+state.bc[k]).join(', ')} = ${bcTotal()}`);
   }
-  function rollBio(){if(L('bio'))return;state.gender=['Male','Female','Nonbinary'][die(3)-1];state.age=die(10)+die(10)+10;const wd=state.gender==='Female'?4:6;let w=0;for(let i=0;i<5;i++)w+=die(wd);state.weight=w*10;log(`Bio: ${state.gender}, age ${state.age}, ${state.weight} lbs`);}
+  function rollBio(){state.gender=['Male','Female','Nonbinary'][die(3)-1];state.age=die(10)+die(10)+10;const wd=state.gender==='Female'?4:6;let w=0;for(let i=0;i<5;i++)w+=die(wd);state.weight=w*10;log(`Bio: ${state.gender}, age ${state.age}, ${state.weight} lbs`);}
   function rollOneBg(){const r=die(100);const c=BACKGROUNDS.find(x=>r>=x.lo&&x.hi>=r)||BACKGROUNDS[0];return `${c.name} (${c.ex[die(c.ex.length)-1]})`;}
   function bgCat(s){return String(s||'').split(' (')[0];}
-  function rollBackgrounds(){if(L('backgrounds'))return;const b=[];let g=0;while(b.length<2&&g++<25){const x=rollOneBg();if(!b.some(y=>bgCat(y)===bgCat(x)))b.push(x);}state.backgrounds=b;log('Backgrounds: '+b.join('; '));}
-  function addBackground(cat){if(L('backgrounds')||!cat)return;const c=BACKGROUNDS.find(x=>x.name===cat);if(!c)return;const ent=`${c.name} (${c.ex[die(c.ex.length)-1]})`;const b=(state.backgrounds||[]).filter(y=>bgCat(y)!==cat);b.push(ent);while(b.length>2)b.shift();state.backgrounds=b;}
-  function rollName(){if(L('name')||!F||!F.rollName)return;$('#f-name').value=F.rollName();log('Name: '+$('#f-name').value);}
+  function rollBackgrounds(){const b=[];let g=0;while(b.length<2&&g++<25){const x=rollOneBg();if(!b.some(y=>bgCat(y)===bgCat(x)))b.push(x);}state.backgrounds=b;log('Backgrounds: '+b.join('; '));}
+  function addBackground(cat){if(!cat)return;const c=BACKGROUNDS.find(x=>x.name===cat);if(!c)return;const ent=`${c.name} (${c.ex[die(c.ex.length)-1]})`;const b=(state.backgrounds||[]).filter(y=>bgCat(y)!==cat);b.push(ent);while(b.length>2)b.shift();state.backgrounds=b;}
+  function rollMotivation(){if(F)state.motivation=F.pick(F.motivations);log('Motivation: '+state.motivation);}
+  function rollOrigin(){if(F)state.origin=F.pick(F.origins);log('Origin: '+state.origin);}
+
+  /* ── ability engine (pure state) ────────────────────────────── */
+  function bcTotal(){return BCS.reduce((s,[k])=>s+(state.bc[k]||0),0);}
+  function abilityCP(){return state.abilities.filter(a=>!a.weakness).reduce((s,a)=>s+(a.cpNum||0),0);}
+  function weaknessCP(){return state.abilities.filter(a=>a.weakness).reduce((s,a)=>s+(a.cpNum||0),0);}
+  function netCP(){return bcTotal()+abilityCP()+weaknessCP();}
+  function unspent(){return tierOf(state.powerLevel).total-netCP();}
 
   function buildPools(){
     const sp=state.species,pools={offense:[],defense:[],misc:[],weakness:[]};
@@ -359,13 +340,18 @@
     const got=[];let g=0;while(got.length<n&&g++<200&&rows.length){const row=rows[die(rows.length)-1];if(got.some(x=>x.gw===row.name))continue;got.push(entryFromRow(row,role));}
     got.forEach(a=>state.abilities.push(a));
   }
+  function togglePick(row,role){
+    const ex=state.abilities.find(a=>a.role===role&&a.source!=='special-weapon'&&a.base===row.name);
+    if(ex){state.abilities=state.abilities.filter(a=>a!==ex);log(`Removed ${row.name}`);}
+    else{const cur=state.abilities.filter(a=>a.role===role&&a.source!=='special-weapon');if(cur.length>=2)state.abilities=state.abilities.filter(a=>a!==cur[0]);state.abilities.push(entryFromRow(row,role));log(`Picked ${row.name}`);}
+  }
   function fillEquipment(target){
     const list=[];(D.equipment||[]).forEach(g=>(g.items||[]).forEach(it=>{if(it.lo!=null)list.push(it);}));
     let cp=0,g=0;state.abilities=state.abilities.filter(a=>a.source==='special-weapon');
     while(cp<target&&g++<60){const r=die(100);const it=list.find(x=>r>=x.lo&&x.hi>=r);if(!it)continue;if(state.abilities.some(a=>a.gw===it.name))continue;const cn=cpn(it.cp);state.abilities.push({role:'misc',gw:it.name,mp:mpLead(it.ability)||it.name,cp:String(it.cp),cpNum:cn==null?0:cn,ability:it.ability||'',source:'equipment',weakness:false});cp+=(cn||0);}
     log(`Tech Construct: ${state.abilities.filter(a=>a.source==='equipment').length} artifacts (~${cp} CP).`);
   }
-  function rollAbilities(){if(L('abilities'))return;const built=buildPools();if(built.kind==='tech'){fillEquipment(60);return;}state.abilities=state.abilities.filter(a=>a.source==='special-weapon');if(built.kind==='creature'){ROLE_KEYS.forEach(role=>rollRole(role,0));log(`Applied ${state.species} package.`);return;}ROLE_KEYS.forEach(role=>rollRole(role,2));if(built.kind==='commando')log('PSH: mundane abilities from commando tables.');}
+  function rollAbilities(){const built=buildPools();if(built.kind==='tech'){fillEquipment(60);return;}state.abilities=state.abilities.filter(a=>a.source==='special-weapon');if(built.kind==='creature'){ROLE_KEYS.forEach(role=>rollRole(role,0));log(`Applied ${state.species} package.`);return;}ROLE_KEYS.forEach(role=>rollRole(role,2));if(built.kind==='commando')log('PSH: mundane abilities from commando tables.');}
 
   function weaponList(){
     const out=[];const w=(WH.standardWeapons)||{melee:[],missile:[]};
@@ -374,78 +360,14 @@
     (D.equipment||[]).forEach(g=>{if(/pistol|rifle|energy weapon/i.test(g.name))(g.items||[]).forEach(it=>out.push({name:it.name,cp:cpn(it.cp)||0,ability:it.ability||''}));});
     return out;
   }
-  function addWeapon(w){if(!w||L('weapons'))return;if(state.abilities.some(a=>a.gw===w.name))return;state.abilities.push({role:'offense',gw:w.name,mp:'Special Weapon',cp:String(w.cp),cpNum:cpn(w.cp)||0,ability:w.ability,source:'special-weapon',weakness:false});log(`Weapon: ${w.name} (${w.cp} CP)`);}
+  function addWeapon(w){if(!w)return;if(state.abilities.some(a=>a.gw===w.name))return;state.abilities.push({role:'offense',gw:w.name,mp:'Special Weapon',cp:String(w.cp),cpNum:cpn(w.cp)||0,ability:w.ability,source:'special-weapon',weakness:false});log(`Weapon: ${w.name} (${w.cp} CP)`);}
 
-  function generateAll(){rollName();rollSpecies();rollFaction();rollSide();rollCulture();rollHome();rollHomeland();rollBC();rollBio();rollBackgrounds();if(!L('motivation')&&F)state.motivation=F.pick(F.motivations);if(!L('origin')&&F)state.origin=F.pick(F.origins);rollAbilities();renderAll();}
+  function generateAll(){rollName();rollSpecies();rollFaction();rollSide();rollCulture();rollHome();rollHomeland();rollBC();rollBio();rollBackgrounds();rollMotivation();rollOrigin();rollAbilities();}
 
-  function bcTotal(){return BCS.reduce((s,[k])=>s+(state.bc[k]||0),0);}
-  function abilityCP(){return state.abilities.filter(a=>!a.weakness).reduce((s,a)=>s+(a.cpNum||0),0);}
-  function weaknessCP(){return state.abilities.filter(a=>a.weakness).reduce((s,a)=>s+(a.cpNum||0),0);}
-  function netCP(){return bcTotal()+abilityCP()+weaknessCP();}
-  function unspent(){return tierOf(state.powerLevel).total-netCP();}
-
-  function renderBCInputs(){
-    $('#bc-grid').innerHTML=BCS.map(([k,l])=>`<div class="c"><label>${l}</label><input id="bc-${k}" type="number" min="0" max="40" value="${state.bc[k]}"></div>`).join('')+`<div class="c"><label>Total</label><div id="bc-total" style="font-weight:600;padding:5px 0">${bcTotal()}</div></div>`;
-    BCS.forEach(([k])=>$('#bc-'+k).addEventListener('input',()=>{state.bc[k]=parseInt($('#bc-'+k).value,10)||0;renderAll();}));
-  }
-  function togglePick(row,role){
-    if(!row||L('abilities'))return;
-    const ex=state.abilities.find(a=>a.role===role&&a.source!=='special-weapon'&&a.base===row.name);
-    if(ex){state.abilities=state.abilities.filter(a=>a!==ex);log(`Removed ${row.name}`);}
-    else{const cur=state.abilities.filter(a=>a.role===role&&a.source!=='special-weapon');if(cur.length>=2)state.abilities=state.abilities.filter(a=>a!==cur[0]);state.abilities.push(entryFromRow(row,role));log(`Picked ${row.name}`);}
-    renderAll();
-  }
-  function renderRoleTab(){
-    const role=state.activeRole,rows=poolTable(role);
-    const sel=state.abilities.filter(a=>a.role===role&&a.source!=='special-weapon').map(a=>a.base||a.gw);
-    $('#role-table').innerHTML=`<div class="h"><span>d100</span><span>Ability</span><span>CP</span></div>`+rows.map((r,i)=>{const mp=r.kind==='mutant'?(mpLead(r.it.m.ability)||r.name):r.name;const on=sel.includes(r.name);return `<div class="wl-tr ${on?'sel':''}" data-pick="${i}"><span>${r.lo}-${r.hi}</span><span>${esc(mp)}<span style="color:var(--wl-soft)"> · ${esc(r.name)}</span></span><span>${esc(String(r.cp))}</span></div>`;}).join('');
-    $$('#role-table [data-pick]').forEach(el=>el.addEventListener('click',()=>togglePick(rows[+el.dataset.pick],role)));
-    const picks=state.abilities.filter(a=>a.role===role&&a.source!=='special-weapon');
-    $('#role-picks').innerHTML=picks.length?picks.map(p=>`<div class="wl-pick"><div class="mp">${esc(p.mp)} <span style="float:right">${esc(p.cp)} CP</span></div><div class="ab">${esc(p.gw)}</div></div>`).join(''):'<div class="wl-pick" style="color:var(--wl-soft)">Click rows to pick, or roll the category.</div>';
-    const sp=state.species;
-    $('#ability-note').textContent=isCreature(sp)?`Playing a ${sp}: its converted MP package, classified by role. Click any pick to drop it; BCs still roll on the Random Method.`:(sp==='Tech Construct'?'Tech Construct builds from artifacts (Misc) and gear — no mutation table.':(sp==='Pure Strain Human'?'PSH (human, no mutations): pick from the commando abilities + gear.':'Pick rows or roll. Drawn from your GW→MP abilities by role.'));
-  }
-  function renderGear(){
-    const gear=state.abilities.filter(a=>a.source==='special-weapon');
-    $('#gear-list').innerHTML=gear.map(g=>`<span style="background:#eef3df;border:1px solid #8aa15a;color:#41541f;border-radius:999px;padding:3px 9px;font-size:11px">${esc(g.gw)} (${esc(g.cp)})<span data-rmweap="${state.abilities.indexOf(g)}" style="cursor:pointer;margin-left:5px;color:#9f3d14">✕</span></span>`).join('');
-    $$('#gear-list [data-rmweap]').forEach(b=>b.addEventListener('click',()=>{if(L('weapons'))return;state.abilities.splice(+b.dataset.rmweap,1);renderAll();}));
-  }
-  function renderFields(){
-    $('#f-faction').value=state.faction||'Independent';
-    const sd=$('#f-side');if(sd)sd.value=state.side||'Neutral';
-    $('#f-home').value=state.home||'';$('#f-homeland').value=state.homeland||'';
-    if($('#f-species').value!==state.species)$('#f-species').value=state.species;
-    $('#f-culture').value=state.culture||'';
-    $('#f-weight').value=state.weight||'';$('#f-age').value=state.age||'';$('#f-gender').value=state.gender||'';
-    $('#f-backgrounds').value=(state.backgrounds||[]).join(', ');$('#f-motivation').value=state.motivation||'';$('#f-origin').value=state.origin||'';
-    BCS.forEach(([k])=>{const el=$('#bc-'+k);if(el)el.value=state.bc[k];});
-    const bt=$('#bc-total');if(bt)bt.textContent=bcTotal();
-    $('#bc-note').textContent=`${state.powerLevel} power level · BC set ${tierOf(state.powerLevel).scores.join('/')} = ${bcTotal()}`;
-    $('#total-cp').textContent=tierOf(state.powerLevel).total;
-  }
-  function renderLocks(){
-    $$('[data-lock]').forEach(b=>{const k=b.dataset.lock,on=L(k);b.textContent=on?'🔒':'🔓';b.classList.toggle('on',on);});
-    $$('.wl-step').forEach(s=>{const st=s.dataset.step;s.classList.toggle('locked',st&&L(st==='abilities'?'abilities':st));});
-  }
-  function renderSheet(){
-    const birth=[state.home,state.homeland].filter(Boolean).join(' — ');
-    $('#sheet-id').innerHTML=[['Species',state.species],['Birthplace',birth||'—'],['Culture',state.culture||'—'],['Side',state.side||'—'],['Faction',state.faction||'—'],['Age / Gender',[state.age,state.gender].filter(Boolean).join(', ')||'—'],['Power Level',state.powerLevel+' ('+tierOf(state.powerLevel).total+' CP)']].map(([k,v])=>`<span class="k">${esc(k)}</span><span>${esc(v)}</span>`).join('');
-    $('#sheet-bc').innerHTML=BCS.map(([k,l])=>`<div class="cell"><div class="l" style="color:var(--wl-soft)">${l}</div><div class="v">${state.bc[k]}</div></div>`).join('')+`<div class="cell"><div class="l" style="color:var(--wl-soft)">BC Total</div><div class="v">${bcTotal()}</div></div>`;
-    $('#sheet-cv').innerHTML=[['BC Total',bcTotal()],['Abilities',fmt(abilityCP())+' CP'],['Weaknesses',fmt(weaknessCP())+' CP'],['Ability Budget',tierOf(state.powerLevel).abil+' CP'],['Power Level',state.powerLevel]].map(([l,v])=>`<div class="cell"><div class="l" style="color:var(--wl-soft)">${esc(l)}</div><div class="v">${esc(v)}</div></div>`).join('')+`<div class="cell hl"><div class="l">Unspent CP</div><div class="v">${fmt(unspent())}</div></div>`;
-    const byRole=r=>state.abilities.filter(a=>a.role===r&&!a.weakness);
-    const cls={offense:'off',defense:'def',misc:'mis'},lbl={offense:'Offensive',defense:'Defensive',misc:'Misc'};
-    $('#sheet-ab').innerHTML=['offense','defense','misc'].map(r=>{const items=byRole(r);return `<div class="wl-abb ${cls[r]}"><div class="t">${lbl[r]}</div>${items.length?items.map(a=>`${esc(a.mp)} <span style="color:var(--wl-soft)">(${esc(a.cp)})</span>`).join('<br>'):'—'}</div>`;}).join('')+(()=>{const w=state.abilities.filter(a=>a.weakness);return `<div class="wl-abb wk"><div class="t">Weaknesses</div>${w.length?w.map(a=>`${esc(a.gw)} <span style="color:var(--wl-soft)">(${esc(a.cp)})</span>`).join('<br>'):'—'}</div>`;})();
-    const gear=state.abilities.filter(a=>a.source==='special-weapon');
-    $('#sheet-gear').innerHTML=gear.length?`<strong>Gear (Special Weapons):</strong> ${gear.map(g=>esc(g.gw)).join(', ')}`:'';
-    $('#sheet-prot').innerHTML=['Kin','Ene','Bio','Ent','Psy','Oth'].map(p=>`<div class="p">${p}<br>—</div>`).join('');
-    try{$('#json-preview').value=JSON.stringify(buildMP(),null,2);}catch(e){$('#json-preview').value='// '+e.message;}
-  }
-  function renderLog(){$('#roll-log').textContent=state.rollLog.length?state.rollLog.join('\n'):'No rolls yet.';}
-  function renderAll(){renderFields();renderLocks();renderRoleTab();renderGear();renderSheet();renderLog();saveDraft();}
-
+  /* ── MP export contract (unchanged) ─────────────────────────── */
   function abilityRows(){const rows=state.abilities.map(a=>({cp:a.cpNum?fmt(a.cpNum):a.cp,desc:`${a.mp} [${a.role}${a.weakness?'; weakness':''}; GW: ${a.gw}] — ${a.ability}`.slice(0,300),ip:''}));while(rows.length<12)rows.push({cp:'',desc:'',ip:''});return rows;}
   function storyText(){
-    const lines=[`Gamma World 1e → MP build. Faction: ${state.faction||'Independent'}, Side ${state.side||'Neutral'}.`,`Species ${state.species}, ${state.culture}. Home: ${[state.home,state.homeland].filter(Boolean).join(' — ')||'—'}.`,`BCs: ${BCS.map(([k,l])=>l+' '+state.bc[k]).join(', ')} = ${bcTotal()} CP.`];
+    const lines=[`Gamma World 1e → MP build. Faction: ${state.faction||'Independent'}, Side ${state.side||'Neutral'}.`,`Species ${state.species}, ${state.culture||'Modern'}. Home: ${[state.home,state.homeland].filter(Boolean).join(' — ')||'—'}.`,`BCs: ${BCS.map(([k,l])=>l+' '+state.bc[k]).join(', ')} = ${bcTotal()} CP.`];
     const m=state.abilities.filter(a=>!a.weakness),w=state.abilities.filter(a=>a.weakness);
     if(m.length)lines.push('Abilities: '+m.map(a=>`${a.mp} (${a.role}, ${a.cp})`).join('; ')+'.');
     if(w.length)lines.push('Weaknesses: '+w.map(a=>`${a.gw} (${a.cp})`).join('; ')+'.');
@@ -453,10 +375,10 @@
     return lines.join('\n');
   }
   function buildMP(){
-    const name=($('#f-name').value||'').trim()||'Unnamed Gamma World Character';
+    const name=(state.name||'').trim()||'Unnamed Gamma World Character';
     const id=window.__gwExportId||((typeof GCC!=='undefined'&&GCC.genId)?GCC.genId('mp'):'mp_'+Date.now());
     const bc=state.bc;
-    const data={_id:id,_gwStarter:true,_gwStarterVersion:D.version||'2.0.0',name,player:($('#f-player').value||'').trim(),trueId:'',side:state.side||'Neutral',birthplace:[state.home,state.homeland].filter(Boolean).join(' — ')||'Gamma World',species:state.species,gender:state.gender||'',age:String(state.age||''),weight:String(state.weight||''),mass:'',culture:state.culture||'Modern',originType:($('#f-origin').value||'').trim(),background:(state.backgrounds||[]).join(', '),motivation:($('#f-motivation').value||'').trim(),legalStatus:state.faction||'Independent',wealth:'0',luck:'10-',powerLevel:String(tierOf(state.powerLevel).total),xpBase:String(tierOf(state.powerLevel).total),
+    const data={_id:id,_gwStarter:true,_gwStarterVersion:D.version||'2.0.0',name,player:(state.player||'').trim(),trueId:'',side:state.side||'Neutral',birthplace:[state.home,state.homeland].filter(Boolean).join(' — ')||'Gamma World',species:state.species,gender:state.gender||'',age:String(state.age||''),weight:String(state.weight||''),mass:'',culture:state.culture||'Modern',originType:(state.origin||'').trim(),background:(state.backgrounds||[]).join(', '),motivation:(state.motivation||'').trim(),legalStatus:state.faction||'Independent',wealth:'0',luck:'10-',powerLevel:String(tierOf(state.powerLevel).total),xpBase:String(tierOf(state.powerLevel).total),
       stats:{st:{cp:String(bc.st),mod:'',score:String(bc.st),save:''},en:{cp:String(bc.en),mod:'',score:String(bc.en),save:''},ag:{cp:String(bc.ag),mod:'',score:String(bc.ag),save:''},in:{cp:String(bc.in),mod:'',score:String(bc.in),save:''},cl:{cp:String(bc.cl),mod:'',score:String(bc.cl),save:''}},
       abilities:abilityRows(),attacks:[{name:'Strike (HTH)',toHit:'',damage:'',dmgType:'Kinetic',kb:''},{name:'',toHit:'',damage:'',dmgType:'',kb:''},{name:'',toHit:'',damage:'',dmgType:'',kb:''}],story:storyText()};
     if(window.__gwCampaign)data._campaign=window.__gwCampaign;
@@ -475,57 +397,284 @@
       window.location.href='character.html?id='+encodeURIComponent(data._id);
     }catch(e){alert('Transfer failed: '+e.message);}
   }
-  function exportJSON(){try{navigator.clipboard.writeText(JSON.stringify(buildMP(),null,2));log('Copied MP JSON to clipboard.');renderLog();}catch(e){alert('Copy failed: '+e.message);}}
+  function exportJSON(){try{navigator.clipboard.writeText(JSON.stringify(buildMP(),null,2));log('Copied MP JSON to clipboard.');render();}catch(e){alert('Copy failed: '+e.message);}}
 
-  function saveDraft(){try{localStorage.setItem(DRAFT_KEY,JSON.stringify({v:3,name:$('#f-name').value,player:$('#f-player').value,state:{...state,exportId:window.__gwExportId||null}}));}catch(e){}}
-  function loadDraft(){try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');if(!d||d.v!==3)return false;Object.assign(state,d.state||{});state.locks=state.locks||{};if(d.name)$('#f-name').value=d.name;if(d.player)$('#f-player').value=d.player;if(d.state&&d.state.exportId)window.__gwExportId=d.state.exportId;return true;}catch(e){return false;}}
+  /* ── draft persistence ──────────────────────────────────────── */
+  function saveDraft(){try{localStorage.setItem(DRAFT_KEY,JSON.stringify({v:4,state:{...state,exportId:window.__gwExportId||null}}));}catch(e){}}
+  function loadDraft(){try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');if(!d||d.v!==4)return false;Object.assign(state,d.state||{});if(d.state&&d.state.exportId)window.__gwExportId=d.state.exportId;return true;}catch(e){return false;}}
+  function startOver(){try{localStorage.removeItem(DRAFT_KEY);}catch(e){}window.__gwExportId=null;state={ step:0, powerLevel:'Low', activeRole:'offense', name:'', player:'', species:'Humanoid (Mutant)', culture:'', side:'', faction:'', alliance:'', home:'', homeland:'', bc:{st:10,en:10,ag:10,in:10,cl:10}, gender:'', age:'', weight:'', backgrounds:[], motivation:'', origin:'', abilities:[], rollLog:[], exportId:null };applyAuthDefault();render();}
 
-  function populate(){
-    const pl=$('#power-level');BC_TIERS.forEach(t=>{const o=document.createElement('option');o.value=t.name;o.textContent=`${t.name} (BC ${t.scores.reduce((a,b)=>a+b,0)}, ${t.total} CP)`;pl.appendChild(o);});pl.value=state.powerLevel;
-    const sp=$('#f-species');(D.species||[]).forEach(s=>{const o=document.createElement('option');o.value=s.name;o.textContent=s.name;sp.appendChild(o);});
-    const og=document.createElement('optgroup');og.label='Playable Creatures';PLAYABLE_CREATURES.forEach(n=>{if(!BEST()[n])return;const c=BEST()[n];const o=document.createElement('option');o.value=n;o.textContent=`${n} (${c.cpEstimate||'creature'})`;og.appendChild(o);});if(og.children.length)sp.appendChild(og);sp.value=state.species;
-    const fillSel=(id,opts,val)=>{const el=$('#'+id);if(!el)return;el.innerHTML=opts.map(o=>`<option value="${o}">${o}</option>`).join('');if(val)el.value=val;};
-    fillSel('f-faction',factionOptions(),state.faction||'Independent');
-    fillSel('f-side',SIDES,state.side||'Neutral');
-    fillSel('f-culture',CULTURES,state.culture);
-    fillSel('f-home',['',...BIRTHPLACES.map(e=>e.name),...BIRTHPLACE_EXTRAS],state.home);
-    fillSel('f-homeland',['',...HOMELANDS],state.homeland);
-    fillSel('f-bg-add',['+ add background…',...BACKGROUNDS.map(b=>b.name)],'');
-    const wl=$('#f-weapon');weaponList().forEach(w=>{const o=document.createElement('option');o.value=w.name;o.textContent=`${w.name} (${w.cp} CP)`;wl.appendChild(o);});
-    renderBCInputs();
-    try{let camps=JSON.parse(localStorage.getItem((typeof GCC!=='undefined'&&GCC.KEYS&&GCC.KEYS.campaigns)||'gcc-campaigns')||'[]');const DEF='Gamma World 2519';let ex=camps.find(c=>(c.name||'').trim().toLowerCase()===DEF.toLowerCase());if(!ex&&typeof GCC!=='undefined'&&GCC.addCampaign){ex=GCC.addCampaign({name:DEF,system:'mp',genre:'Post-apocalyptic',world:'Gamma World'});}window.__gwCampaign=ex?(ex.id||ex._id||''):'';}catch(e){}
+  /* ── step model ─────────────────────────────────────────────── */
+  const STEPS=[
+    {n:1,key:'species',name:'Species'},{n:2,key:'faction',name:'Faction'},{n:3,key:'side',name:'Side'},
+    {n:4,key:'culture',name:'Culture'},{n:5,key:'home',name:'Birthplace'},{n:6,key:'homeland',name:'Homeland'},
+    {n:7,key:'bc',name:'Characteristics'},{n:8,key:'bio',name:'Bio'},{n:9,key:'backgrounds',name:'Backgrounds'},
+    {n:10,key:'motivation',name:'Motivation'},{n:11,key:'origin',name:'Origin'},{n:12,key:'abilities',name:'Abilities'},
+    {n:13,key:'weapons',name:'Weapons & Gear'},{n:14,key:'review',name:'Review'}
+  ];
+  const LAST_DATA=13;
+  const rollByKey={species:rollSpecies,faction:rollFaction,side:rollSide,culture:rollCulture,home:rollHome,homeland:rollHomeland,bc:rollBC,bio:rollBio,backgrounds:rollBackgrounds,motivation:rollMotivation,origin:rollOrigin,abilities:rollAbilities,weapons:()=>{const Lw=weaponList();addWeapon(Lw[die(Lw.length)-1]);}};
+  function go(n){state.step=n;saveDraft();render();window.scrollTo({top:0,behavior:'smooth'});}
+  function rollRemaining(fromN){for(let i=fromN;i<LAST_DATA;i++){const k=STEPS[i].key;if(rollByKey[k])rollByKey[k]();}go(14);}
+
+  /* ── species branch tracker (origin-tracker analog) ─────────── */
+  function branchInfo(){
+    const sp=state.species;
+    if(isCreature(sp))return{cls:'',label:sp+' (creature)',items:[{step:1,t:'Fixed converted package'},{step:12,t:'Abilities: '+sp+' package applied'},{step:13,t:'Gear: optional special weapon'}]};
+    if(sp==='Pure Strain Human')return{cls:'',label:'Pure Strain Human',items:[{step:1,t:'No mutations'},{step:12,t:'Abilities: commando tables (2/2/2/2)'},{step:13,t:'Gear: standard weapons'}]};
+    if(sp==='Tech Construct')return{cls:'',label:'Tech Construct',items:[{step:1,t:'No mutation charts'},{step:12,t:'Abilities: artifacts (~60 CP)'},{step:13,t:'Gear: tech weapons'}]};
+    if(sp==='Mutated Plant')return{cls:'',label:'Mutated Plant',items:[{step:1,t:'Plant mutation chart'},{step:12,t:'Abilities: 2/2/2/2 from plant chart'},{step:13,t:'Gear: optional special weapon'}]};
+    return{cls:'',label:sp,items:[{step:1,t:'Physical + mental charts'},{step:12,t:'Abilities: 2/2/2/2 from mutation charts'},{step:13,t:'Gear: optional special weapon'}]};
   }
-  function applyDefaults(){if(typeof GCCAuth!=='undefined'&&GCCAuth.onAuthChange)GCCAuth.onAuthChange(u=>{const pf=$('#f-player');if(u&&pf&&!pf.value.trim()){pf.value=(u.displayName||u.email||'').trim();saveDraft();}});}
 
-  function wire(){
-    $('#roll-all-btn').addEventListener('click',generateAll);
-    $('#transfer-btn').addEventListener('click',transfer);
-    $('#copy-json-btn').addEventListener('click',exportJSON);
-    $('#reset-btn').addEventListener('click',()=>{try{localStorage.removeItem(DRAFT_KEY);}catch(e){}window.__gwExportId=null;window.location.reload();});
-    $('#power-level').addEventListener('change',e=>{state.powerLevel=e.target.value;rollBC();renderAll();});
-    $('#f-species').addEventListener('change',e=>{state.species=e.target.value;state.abilities=state.abilities.filter(a=>a.source==='special-weapon');if(isCreature(state.species)&&!L('abilities'))rollAbilities();renderAll();});
-    [['f-faction','faction'],['f-side','side'],['f-culture','culture'],['f-home','home'],['f-homeland','homeland']].forEach(([id,key])=>{const el=$('#'+id);if(el)el.addEventListener('change',()=>{state[key]=el.value;renderAll();saveDraft();});});
-    {const ba=$('#f-bg-add');if(ba)ba.addEventListener('change',()=>{if(ba.selectedIndex>0){addBackground(ba.value);ba.selectedIndex=0;renderAll();saveDraft();}});}
-    {const fb=$('#f-backgrounds');if(fb)fb.addEventListener('input',()=>{state.backgrounds=fb.value.split(',').map(s=>s.trim()).filter(Boolean).slice(0,2);renderSheet();saveDraft();});}
-    ['f-name','f-player','f-weight','f-age','f-gender','f-motivation','f-origin'].forEach(id=>{const el=$('#'+id);if(el)el.addEventListener('input',()=>{if(id==='f-motivation')state.motivation=el.value;if(id==='f-origin')state.origin=el.value;if(id==='f-age')state.age=el.value;if(id==='f-gender')state.gender=el.value;if(id==='f-weight')state.weight=el.value;renderSheet();saveDraft();});});
-    $$('.wl-tab').forEach(t=>t.addEventListener('click',()=>{state.activeRole=t.dataset.role;$$('.wl-tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');renderRoleTab();}));
-    document.addEventListener('click',e=>{
-      const lk=e.target.closest('[data-lock]');if(lk){state.locks[lk.dataset.lock]=!state.locks[lk.dataset.lock];renderLocks();saveDraft();return;}
-      const b=e.target.closest('[data-roll]');if(!b)return;const k=b.dataset.roll;
-      if(k==='name')rollName();
-      else if(k==='home')rollHome();else if(k==='homeland')rollHomeland();
-      else if(k==='species')rollSpecies();else if(k==='faction')rollFaction();else if(k==='side')rollSide();else if(k==='culture')rollCulture();
-      else if(k==='bc')rollBC();else if(k==='bio')rollBio();else if(k==='bg')rollBackgrounds();
-      else if(k==='mot'){if(!L('motivation')&&F)state.motivation=F.pick(F.motivations);}else if(k==='ori'){if(!L('origin')&&F)state.origin=F.pick(F.origins);}
-      else if(k==='role'){if(!L('abilities'))rollRole(state.activeRole,2);}
-      else if(k==='addweapon')addWeapon(weaponList().find(w=>w.name===$('#f-weapon').value));
-      else if(k==='rollweapon'){if(!L('weapons')){const Lw=weaponList();addWeapon(Lw[die(Lw.length)-1]);}}
-      else if(k==='clear'){state.abilities=[];log('Cleared abilities & gear.');}
-      else return;
-      renderAll();
+  /* ── chronicle ──────────────────────────────────────────────── */
+  function chronResult(key){
+    switch(key){
+      case 'species':return state.species?`<strong>${esc(state.species)}</strong>${isCreature(state.species)?' (creature)':''}`:'—';
+      case 'faction':return state.faction?`<strong>${esc(state.faction)}</strong>`:'—';
+      case 'side':return state.side?`<strong>${esc(state.side)}</strong>`:'—';
+      case 'culture':return state.culture?`<strong>${esc(state.culture)}</strong>`:'—';
+      case 'home':return state.home?esc(state.home):'—';
+      case 'homeland':return state.homeland?esc(state.homeland):'—';
+      case 'bc':return BCS.map(([k,l])=>`${l} <strong>${state.bc[k]}</strong>`).join(' ')+`<br>= ${bcTotal()} CP`;
+      case 'bio':return (state.gender||state.age||state.weight)?`${esc(state.gender||'—')}, age ${esc(String(state.age||'—'))}, ${esc(String(state.weight||'—'))} lb`:'—';
+      case 'backgrounds':return (state.backgrounds||[]).length?state.backgrounds.map(b=>'• '+esc(b)).join('<br>'):'—';
+      case 'motivation':return state.motivation?esc(state.motivation):'—';
+      case 'origin':return state.origin?esc(state.origin):'—';
+      case 'abilities':{const m=state.abilities.filter(a=>!a.weakness&&a.source!=='special-weapon'),w=state.abilities.filter(a=>a.weakness);return m.length||w.length?`${m.length} abilities, ${w.length} weak.<br><em>${fmt(abilityCP())} / ${fmt(weaknessCP())} CP</em>`:'—';}
+      case 'weapons':{const g=state.abilities.filter(a=>a.source==='special-weapon');return g.length?g.map(x=>'• '+esc(x.gw)).join('<br>'):'—';}
+      case 'review':return state.step===14?'Ready to transfer':'—';
+    }
+    return '—';
+  }
+  function renderChronicle(){
+    const complete=state.step===14;
+    const tally=`<div class="gw-tally">
+      <div class="t"><div class="l">Total</div><div class="v">${tierOf(state.powerLevel).total}</div></div>
+      <div class="t"><div class="l">Spent</div><div class="v">${fmt(netCP())}</div></div>
+      <div class="t hl"><div class="l">Unspent</div><div class="v">${fmt(unspent())}</div></div></div>`;
+    const b=branchInfo();
+    const track=`<div class="gw-track"><div class="gw-track-h">${esc(b.label)}${complete?' ✓':''}</div><div class="gw-track-b">`+
+      b.items.map(it=>{const done=state.step>it.step,act=state.step===it.step;const cls=done?'done':(act?'active':'pending');const ck=done?'✓':'○';return `<div class="gw-track-item ${cls}"><span>${ck}</span><span>${esc(it.t)}</span></div>`;}).join('')+`</div></div>`;
+    const steps=STEPS.map(s=>{const act=s.n===state.step,done=s.n<state.step;let cls='gw-cstep';if(act)cls+=' active';if(done)cls+=' completed';return `<div class="${cls}" data-goto="${s.n}"><div class="h">${s.n}. ${esc(s.name)}</div><div class="r">${chronResult(s.key)}</div></div>`;}).join('');
+    return `<div class="gw-chronicle ${complete?'complete':''}"><div class="gw-chron-title ${complete?'complete':''}">${complete?'✓ Build Complete':'Generation Chronicle'}</div>${tally}${track}${steps}</div>`;
+  }
+
+  /* ── main panel: step renderers ─────────────────────────────── */
+  function head(n,title,desc){return `<div class="gw-step-head"><div class="gw-step-num">${n}</div><div class="gw-step-title">${esc(title)}</div></div>${desc?`<p class="gw-step-desc">${desc}</p>`:''}`;}
+  function nav(n,nextLabel,opts){opts=opts||{};const prev=n===1?`<button class="wl-btn ghost" data-act="startover">← Start Over</button>`:`<button class="wl-btn ghost" data-act="prev">← Back</button>`;const rest=opts.noRest?'':`<button class="wl-btn ghost" data-act="rollrest" title="Roll every remaining step and jump to Review">🎲 Roll the rest →</button>`;const next=opts.noNext?'':`<button class="wl-btn green" data-act="next">${esc(nextLabel||'Next →')}</button>`;return `<div class="gw-nav"><div>${prev}</div><div style="display:flex;gap:8px">${rest}${next}</div></div>`;}
+  function rollBox(title,resultHtml,pickHtml,rollLabel){return `<div class="gw-controls"><div class="gw-controls-title">${title||'Roll or Pick'}</div><button class="gw-roll-btn" data-act="roll">🎲 ${esc(rollLabel||'Roll')}</button><div class="gw-roll-res">${resultHtml||''}</div><div class="gw-or">— or —</div>${pickHtml||''}</div>`;}
+  function tableRows(rows,selName){return `<div class="gw-scroll"><table class="gw-rt">${rows}</table></div>`;}
+
+  function stepSpecies(){
+    const o=speciesOptions();
+    const opts=`<optgroup label="Standard Species">`+o.base.map(n=>`<option value="${esc(n)}" ${state.species===n?'selected':''}>${esc(n)}</option>`).join('')+`</optgroup>`+
+      (o.crit.length?`<optgroup label="Playable Creatures">`+o.crit.map(n=>`<option value="${esc(n)}" ${state.species===n?'selected':''}>${esc(n)} (${esc(BEST()[n].cpEstimate||'creature')})</option>`).join('')+`</optgroup>`:'');
+    const table=`<table class="gw-rt"><caption>Species (d100)</caption><tbody>`+
+      (D.species||[]).map(s=>`<tr data-spk="${esc(s.name)}" class="${state.species===s.name?'sel':''}"><td class="rng">${s.lo}-${s.hi}</td><td>${esc(s.name)}</td></tr>`).join('')+`</tbody></table>`;
+    const ctrl=rollBox('Roll or Pick','',`<select class="gw-pick" data-pick="species">${opts}</select>`,'Roll d%');
+    const hint=`<div class="gw-hint">${isCreature(state.species)?'Creature: its converted MP package applies at the Abilities step.':state.species==='Pure Strain Human'?'PSH: no mutations — commando abilities + standard weapons.':state.species==='Tech Construct'?'Tech Construct: artifacts instead of mutations.':'Mutant: draws 2/2/2/2 from the mutation charts.'}</div>`;
+    return head(1,'Species','Standard d100 table, or one of the ten playable creatures. This choice drives your Abilities branch.')+
+      `<div class="gw-content"><div class="gw-table-side">${table}</div>${ctrl}</div>${hint}`+nav(1,'Next: Faction →');
+  }
+  function stepFaction(){
+    const opts=factionOptions();
+    const table=`<table class="gw-rt"><caption>Cryptic Alliances</caption><thead><tr><th>Faction</th><th>Side</th><th>Note</th></tr></thead><tbody>`+
+      `<tr data-fck="Independent" class="${state.faction==='Independent'?'sel':''}"><td>Independent</td><td>—</td><td>No alliance ties.</td></tr>`+
+      (CA&&CA.alliances||[]).map(a=>`<tr data-fck="${esc(a.name)}" class="${state.faction===a.name?'sel':''}"><td>${esc(a.name)}</td><td>${esc(a.side||'—')}</td><td>${esc(a.note||'')}</td></tr>`).join('')+`</tbody></table>`;
+    const pick=`<select class="gw-pick" data-pick="faction">`+opts.map(n=>`<option value="${esc(n)}" ${state.faction===n?'selected':''}>${esc(n)}</option>`).join('')+`</select>`;
+    return head(2,'Faction','Cryptic Alliance membership (or Independent). Picking an alliance sets a suggested Side.')+
+      `<div class="gw-content"><div class="gw-table-side">${table}</div>${rollBox('Roll or Pick','',pick,'Roll d%')}</div>`+nav(2,'Next: Side →');
+  }
+  function stepSide(){
+    const pick=`<select class="gw-pick" data-pick="side">`+['',...SIDES].map(n=>`<option value="${esc(n)}" ${state.side===n?'selected':''}>${n||'— pick —'}</option>`).join('')+`</select>`;
+    const a=allianceByName(state.faction);
+    const hint=a&&a.side?`<div class="gw-hint">${esc(state.faction)} leans <strong>${esc(a.side)}</strong>.</div>`:'';
+    const table=`<table class="gw-rt"><caption>Side</caption><tbody>`+SIDES.map(s=>`<tr data-sdk="${s}" class="${state.side===s?'sel':''}"><td>${s}</td></tr>`).join('')+`</tbody></table>`;
+    return head(3,'Side','Moral alignment for the build.')+`<div class="gw-content"><div class="gw-table-side">${table}${hint}</div>${rollBox('Roll or Pick','',pick,'Roll')}</div>`+nav(3,'Next: Culture →');
+  }
+  function stepCulture(){
+    const table=`<table class="gw-rt"><caption>Culture (d100)</caption><tbody>`+
+      [['01-33','Primitive'],['34-66','Modern'],['67-00','High Tech']].map(([r,n])=>`<tr data-clk="${n}" class="${state.culture===n?'sel':''}"><td class="rng">${r}</td><td>${n}</td></tr>`).join('')+`</tbody></table>`;
+    const pick=`<select class="gw-pick" data-pick="culture">`+['',...CULTURES].map(n=>`<option value="${esc(n)}" ${state.culture===n?'selected':''}>${n||'— pick —'}</option>`).join('')+`</select>`;
+    return head(4,'Culture','Technological backdrop you were raised in.')+`<div class="gw-content"><div class="gw-table-side">${table}</div>${rollBox('Roll or Pick','',pick,'Roll d%')}</div>`+nav(4,'Next: Birthplace →');
+  }
+  function stepHome(){
+    const table=`<table class="gw-rt"><caption>Birthplace (d100)</caption><tbody>`+
+      BIRTHPLACES.map(e=>`<tr data-hmk="${esc(e.name)}" class="${state.home===e.name?'sel':''}"><td class="rng">${e.lo}-${e.hi}</td><td>${esc(e.name)}</td></tr>`).join('')+`</tbody></table>`;
+    const pick=`<select class="gw-pick" data-pick="home"><option value="">— pick —</option>`+
+      BIRTHPLACES.map(e=>`<option value="${esc(e.name)}" ${state.home===e.name?'selected':''}>${esc(e.name)}</option>`).join('')+
+      `<optgroup label="House">`+BIRTHPLACE_EXTRAS.map(n=>`<option value="${esc(n)}" ${state.home===n?'selected':''}>${esc(n)}</option>`).join('')+`</optgroup></select>`;
+    return head(5,'Birthplace','Where the character was born.')+`<div class="gw-content"><div class="gw-table-side">${table}</div>${rollBox('Roll or Pick','',pick,'Roll d%')}</div>`+nav(5,'Next: Homeland →');
+  }
+  function stepHomeland(){
+    const table=`<table class="gw-rt"><caption>Homeland Type (d20)</caption><tbody>`+
+      HOMELANDS.map((n,i)=>`<tr data-hlk="${esc(n)}" class="${state.homeland===n?'sel':''}"><td class="rng">${i+1}</td><td>${esc(n)}</td></tr>`).join('')+`</tbody></table>`;
+    const pick=`<select class="gw-pick" data-pick="homeland"><option value="">— pick —</option>`+HOMELANDS.map(n=>`<option value="${esc(n)}" ${state.homeland===n?'selected':''}>${esc(n)}</option>`).join('')+`</select>`;
+    return head(6,'Homeland Type','The kind of community that shaped them.')+`<div class="gw-content"><div class="gw-table-side">${table}</div>${rollBox('Roll or Pick','',pick,'Roll d20')}</div>`+nav(6,'Next: Characteristics →');
+  }
+  function stepBC(){
+    const plSel=`<select data-pl style="margin-bottom:8px">`+BC_TIERS.map(t=>`<option value="${t.name}" ${state.powerLevel===t.name?'selected':''}>${t.name} (BC ${t.scores.reduce((a,b)=>a+b,0)}, ${t.total} CP)</option>`).join('')+`</select>`;
+    const grid=`<div class="gw-bc">`+BCS.map(([k,l])=>`<div class="c"><label>${l}</label><input type="number" min="0" max="40" data-bc="${k}" value="${state.bc[k]}"></div>`).join('')+`<div class="c"><label>Total</label><div style="font-weight:600;padding:5px 0">${bcTotal()}</div></div></div>`;
+    const note=`<div class="gw-hint">MP Random Method: each of the five tier scores [${tierOf(state.powerLevel).scores.join('/')}] is dealt to a stat by a d10 column draw. Edit any cell by hand.</div>`;
+    return head(7,'Basic Characteristics','Choose a power level, then roll the five BCs by the MP Random Method.')+
+      `<div class="gw-content vertical"><div style="width:100%">${plSel}${grid}${note}</div></div>`+
+      `<div style="margin-top:8px"><button class="gw-roll-btn sm" style="width:auto;display:inline-block;padding:6px 16px" data-act="roll">🎲 Roll BCs</button></div>`+nav(7,'Next: Bio →');
+  }
+  function stepBio(){
+    const f=`<div style="display:flex;gap:8px;max-width:420px"><div style="flex:1"><label style="font-size:11px;color:var(--wl-soft)">Weight (lb)</label><input data-bio="weight" value="${esc(String(state.weight||''))}"></div><div style="flex:1"><label style="font-size:11px;color:var(--wl-soft)">Age</label><input data-bio="age" value="${esc(String(state.age||''))}"></div><div style="flex:1"><label style="font-size:11px;color:var(--wl-soft)">Gender</label><input data-bio="gender" value="${esc(state.gender||'')}"></div></div>`;
+    return head(8,'Bio','Physical descriptors. Roll for random, or type your own.')+`<div class="gw-content vertical"><div style="width:100%">${f}<div style="margin-top:10px"><button class="gw-roll-btn sm" style="width:auto;display:inline-block;padding:6px 16px" data-act="roll">🎲 Roll Bio</button></div></div></div>`+nav(8,'Next: Backgrounds →');
+  }
+  function stepBackgrounds(){
+    const table=`<table class="gw-rt"><caption>Backgrounds (d100, pick or roll two)</caption><tbody>`+
+      BACKGROUNDS.map(b=>{const on=(state.backgrounds||[]).some(x=>bgCat(x)===b.name);return `<tr data-bgk="${esc(b.name)}" class="${on?'sel':''}"><td class="rng">${b.lo}-${b.hi}</td><td>${esc(b.name)}</td></tr>`;}).join('')+`</tbody></table>`;
+    const chips=(state.backgrounds||[]).map((bgv,i)=>`<span class="gw-chip">${esc(bgv)}<span class="x" data-rmbg="${i}">✕</span></span>`).join('')||'<span class="gw-hint">None yet — roll two or click rows (max 2).</span>';
+    return head(9,'Backgrounds','Two life-paths. Click a row to add/replace; rolling picks two distinct categories.')+
+      `<div class="gw-content"><div class="gw-table-side">${table}</div>${rollBox('Roll or Pick','','','Roll 2')}</div><div style="margin-top:8px">${chips}</div>`+nav(9,'Next: Motivation →');
+  }
+  function stepMotivation(){
+    const opts=(F&&F.motivations||[]);
+    const pick=`<select class="gw-pick" data-pick="motivation"><option value="">— pick —</option>`+opts.map(n=>`<option value="${esc(n)}" ${state.motivation===n?'selected':''}>${esc(n)}</option>`).join('')+`</select>`;
+    const f=`<input data-text="motivation" placeholder="Motivation" value="${esc(state.motivation||'')}" style="max-width:420px">`;
+    return head(10,'Motivation','What drives the character. Roll, pick from the list, or write your own.')+
+      `<div class="gw-content"><div class="gw-table-side">${f}</div>${rollBox('Roll or Pick','',pick,'Roll')}</div>`+nav(10,'Next: Origin →');
+  }
+  function stepOrigin(){
+    const opts=(F&&F.origins||[]);
+    const pick=`<select class="gw-pick" data-pick="origin"><option value="">— pick —</option>`+opts.map(n=>`<option value="${esc(n)}" ${state.origin===n?'selected':''}>${esc(n)}</option>`).join('')+`</select>`;
+    const f=`<input data-text="origin" placeholder="Origin" value="${esc(state.origin||'')}" style="max-width:420px">`;
+    return head(11,'Origin','How the mutation/build came to be. Roll, pick, or write your own.')+
+      `<div class="gw-content"><div class="gw-table-side">${f}</div>${rollBox('Roll or Pick','',pick,'Roll')}</div>`+nav(11,'Next: Abilities →');
+  }
+  function stepAbilities(){
+    const built=buildPools(),sp=state.species;
+    const tabs=`<div class="gw-tabs">`+[['offense','off','Offensive'],['defense','def','Defensive'],['misc','mis','Misc'],['weakness','wk','Weaknesses']].map(([role,c,lbl])=>`<button class="gw-tab ${c} ${state.activeRole===role?'active':''}" data-role="${role}">${lbl}</button>`).join('')+`</div>`;
+    const role=state.activeRole,rows=poolTable(role);
+    const sel=state.abilities.filter(a=>a.role===role&&a.source!=='special-weapon').map(a=>a.base);
+    const table=`<div class="gw-scroll"><table class="gw-rt"><thead><tr><th class="rng">d100</th><th>Ability</th><th class="cp">CP</th></tr></thead><tbody>`+
+      rows.map((r,i)=>{const mp=r.kind==='mutant'?(mpLead(r.it.m.ability)||r.name):r.name;const on=sel.includes(r.name);return `<tr data-pick-row="${i}" class="${on?'sel':''}"><td class="rng">${r.lo}-${r.hi}</td><td>${esc(mp)}<span style="color:var(--wl-soft)"> · ${esc(r.name)}</span></td><td class="cp">${esc(String(r.cp))}</td></tr>`;}).join('')+`</tbody></table></div>`;
+    const picks=state.abilities.filter(a=>a.role===role&&a.source!=='special-weapon');
+    const pickList=`<div class="gw-picks">`+(picks.length?picks.map(p=>`<div class="gw-pickrow"><div class="mp">${esc(p.mp)} <span style="float:right">${esc(p.cp)} CP</span></div><div class="ab">${esc(p.gw)}</div></div>`).join(''):'<div class="gw-pickrow" style="color:var(--wl-soft)">Click rows to pick, or roll the category.</div>')+`</div>`;
+    const ctrl=`<div class="gw-controls"><div class="gw-controls-title">Abilities</div>`+
+      `<button class="gw-roll-btn" data-act="roll-all">🎲 Roll all (2/2/2/2)</button>`+
+      (built.kind==='creature'||built.kind==='tech'?'':`<button class="gw-roll-btn sm" data-act="roll-cat">Roll this category</button>`)+
+      `<button class="gw-roll-rest" data-act="clear-ab">Clear abilities</button>`+
+      `<div class="gw-hint">${isCreature(sp)?`Playing a ${esc(sp)}: its converted MP package, classified by role. Click a pick to drop it.`:(sp==='Tech Construct'?'Tech Construct builds from artifacts — Roll all to fill ~60 CP of gear.':(sp==='Pure Strain Human'?'PSH: pick from the commando abilities by role.':'Drawn from your GW→MP mutation charts by role.'))}</div></div>`;
+    return head(12,'Abilities & Weaknesses','Roll 2/2/2/2 across the four roles, or click rows to hand-pick. Creature species apply their fixed package.')+
+      tabs+`<div class="gw-content"><div class="gw-table-side">${table}</div>${ctrl}</div>${pickList}`+nav(12,'Next: Weapons →');
+  }
+  function stepWeapons(){
+    const wl=weaponList();
+    const pick=`<select class="gw-pick" data-weapon>`+wl.map(w=>`<option value="${esc(w.name)}">${esc(w.name)} (${w.cp} CP)</option>`).join('')+`</select>`;
+    const gear=state.abilities.filter(a=>a.source==='special-weapon');
+    const chips=gear.map((g,i)=>`<span class="gw-chip">${esc(g.gw)} (${esc(g.cp)})<span class="x" data-rmweap="${state.abilities.indexOf(g)}">✕</span></span>`).join('')||'<span class="gw-hint">No weapons added.</span>';
+    const ctrl=`<div class="gw-controls"><div class="gw-controls-title">Add Weapon</div>${pick}<button class="gw-roll-btn sm" style="margin-top:6px" data-act="addweapon">Add selected</button><button class="gw-roll-btn" data-act="rollweapon">🎲 Roll a weapon</button><div class="gw-hint">A weapon is a Special Weapon ability — its CP counts against the build.</div></div>`;
+    return head(13,'Weapons & Gear','Optional special weapons. Any species may take them.')+
+      `<div class="gw-content"><div class="gw-table-side">${chips}</div>${ctrl}</div>`+nav(13,'Review →',{noRest:true});
+  }
+  function stepReview(){
+    const birth=[state.home,state.homeland].filter(Boolean).join(' — ');
+    const idkv=[['Name',state.name||'Unnamed'],['Player',state.player||'—'],['Species',state.species],['Birthplace',birth||'—'],['Culture',state.culture||'—'],['Side',state.side||'—'],['Faction',state.faction||'—'],['Age / Gender',[state.age,state.gender].filter(Boolean).join(', ')||'—'],['Motivation',state.motivation||'—'],['Origin',state.origin||'—'],['Power Level',state.powerLevel+' ('+tierOf(state.powerLevel).total+' CP)']].map(([k,v])=>`<span class="k">${esc(k)}</span><span>${esc(v)}</span>`).join('');
+    const bc=BCS.map(([k,l])=>`<div class="cell"><div class="l" style="color:var(--wl-soft)">${l}</div><div class="v">${state.bc[k]}</div></div>`).join('')+`<div class="cell"><div class="l" style="color:var(--wl-soft)">BC Total</div><div class="v">${bcTotal()}</div></div>`;
+    const cv=[['BC Total',bcTotal()],['Abilities',fmt(abilityCP())+' CP'],['Weaknesses',fmt(weaknessCP())+' CP'],['Ability Budget',tierOf(state.powerLevel).abil+' CP'],['Power Level',state.powerLevel]].map(([l,v])=>`<div class="cell"><div class="l" style="color:var(--wl-soft)">${esc(l)}</div><div class="v">${esc(String(v))}</div></div>`).join('')+`<div class="cell hl"><div class="l">Unspent CP</div><div class="v">${fmt(unspent())}</div></div>`;
+    const byRole=r=>state.abilities.filter(a=>a.role===r&&!a.weakness);
+    const cls={offense:'off',defense:'def',misc:'mis'},lbl={offense:'Offensive',defense:'Defensive',misc:'Misc'};
+    const ab=['offense','defense','misc'].map(r=>{const items=byRole(r);return `<div class="gw-abb ${cls[r]}"><div class="t">${lbl[r]}</div>${items.length?items.map(a=>`${esc(a.mp)} <span style="color:var(--wl-soft)">(${esc(a.cp)})</span>`).join('<br>'):'—'}</div>`;}).join('')+(()=>{const w=state.abilities.filter(a=>a.weakness);return `<div class="gw-abb wk"><div class="t">Weaknesses</div>${w.length?w.map(a=>`${esc(a.gw)} <span style="color:var(--wl-soft)">(${esc(a.cp)})</span>`).join('<br>'):'—'}</div>`;})();
+    const gear=state.abilities.filter(a=>a.source==='special-weapon');
+    const gearHtml=gear.length?`<div class="gw-hint" style="margin:6px 0"><strong>Gear (Special Weapons):</strong> ${gear.map(g=>esc(g.gw)).join(', ')}</div>`:'';
+    let json='';try{json=JSON.stringify(buildMP(),null,2);}catch(e){json='// '+e.message;}
+    const idEdit=`<div style="display:flex;gap:8px;max-width:480px;margin-bottom:8px"><div style="flex:1"><label style="font-size:11px;color:var(--wl-soft)">Name</label><input data-text="name" value="${esc(state.name||'')}"></div><div style="flex:1"><label style="font-size:11px;color:var(--wl-soft)">Player</label><input data-text="player" value="${esc(state.player||'')}"></div></div>`;
+    return `<div class="gw-step-head"><div class="gw-step-num">✓</div><div class="gw-step-title">Review</div></div>`+
+      `<div class="gw-summary"><h3>Build Complete</h3><p>Review below, then transfer to the MP Builder.</p></div>`+
+      `<div class="gw-summary-actions"><button class="wl-btn green" data-act="transfer">Transfer to MP Builder →</button><button class="wl-btn ghost" data-act="copyjson">Export JSON</button><button class="wl-btn ghost" data-act="startover">Start Over</button><button class="wl-btn red" data-act="discard">Discard</button></div>`+
+      idEdit+
+      `<div class="gw-sheet"><div class="sb">IDENTITY</div><div class="gw-kv">${idkv}</div>`+
+      `<div class="sb">BASIC CHARACTERISTICS</div><div class="gw-cv">${bc}</div>`+
+      `<div class="sb">COMBAT VALUES</div><div class="gw-cv">${cv}</div>`+
+      `<div class="sb">ABILITIES</div><div class="gw-abblocks">${ab}</div>${gearHtml}`+
+      `<div class="sb">MP BUILDER JSON</div><textarea class="gw-json" readonly>${esc(json)}</textarea></div>`+
+      `<div class="gw-nav"><div><button class="wl-btn ghost" data-act="prev">← Back</button></div><div></div></div>`;
+  }
+  const stepRender={1:stepSpecies,2:stepFaction,3:stepSide,4:stepCulture,5:stepHome,6:stepHomeland,7:stepBC,8:stepBio,9:stepBackgrounds,10:stepMotivation,11:stepOrigin,12:stepAbilities,13:stepWeapons,14:stepReview};
+
+  function renderIntro(){
+    const resume=(state.name||state.species!=='Humanoid (Mutant)'||state.abilities.length)?`<p class="gw-hint" style="text-align:center">A saved draft is loaded — Step-by-Step resumes where you left off.</p>`:'';
+    return `<div class="gw-intro" style="width:100%">
+      <h3>Wasteland Character Generator</h3>
+      <p>Build a Gamma World 1e character and convert it to a Mighty Protectors sheet.</p>
+      <div class="gw-intro-id">
+        <div><label>Character Name</label><input data-text="name" value="${esc(state.name||'')}" placeholder="Unnamed"></div>
+        <div><label>Player</label><input data-text="player" value="${esc(state.player||'')}" placeholder="Player name"></div>
+      </div>
+      <div class="gw-intro-btns">
+        <button class="wl-btn ghost" data-act="start">👣 Step-by-Step</button>
+        <button class="wl-btn orange" data-act="quick">🎲 Quick Random</button>
+      </div>
+      <p class="gw-hint">Quick Random rolls everything and jumps to Review.</p>${resume}
+    </div>`;
+  }
+
+  /* ── render ─────────────────────────────────────────────────── */
+  function render(){
+    const body=$('#gw-body');
+    if(state.step===0){body.innerHTML=renderIntro();return;}
+    body.innerHTML=`<div id="gw-chronicle-mount" style="display:flex;flex-shrink:0">${renderChronicle()}</div><div class="gw-main" id="gw-main">${(stepRender[state.step]||stepReview)()}</div>`;
+  }
+  function renderChronicleOnly(){const m=$('#gw-chronicle-mount');if(m)m.innerHTML=renderChronicle();}
+
+  /* ── events ─────────────────────────────────────────────────── */
+  function curKey(){const s=STEPS.find(s=>s.n===state.step);return s?s.key:null;}
+  function bindHandlers(){
+    const body=$('#gw-body');
+    body.addEventListener('click',e=>{
+      const goEl=e.target.closest('[data-goto]');if(goEl){const n=+goEl.dataset.goto;if(n<=Math.max(state.step,1))go(n);return;}
+      const a=e.target.closest('[data-act]');if(a){onAct(a.dataset.act);return;}
+      const sp=e.target.closest('[data-spk]');if(sp){setSpecies(sp.dataset.spk);log('Species: '+state.species);saveDraft();render();return;}
+      const fk=e.target.closest('[data-fck]');if(fk){state.faction=fk.dataset.fck;const al=allianceByName(state.faction);if(al&&al.side)state.side=al.side;saveDraft();render();return;}
+      const sd=e.target.closest('[data-sdk]');if(sd){state.side=sd.dataset.sdk;saveDraft();render();return;}
+      const cl=e.target.closest('[data-clk]');if(cl){state.culture=cl.dataset.clk;saveDraft();render();return;}
+      const hm=e.target.closest('[data-hmk]');if(hm){state.home=hm.dataset.hmk;saveDraft();render();return;}
+      const hl=e.target.closest('[data-hlk]');if(hl){state.homeland=hl.dataset.hlk;saveDraft();render();return;}
+      const bg=e.target.closest('[data-bgk]');if(bg){addBackground(bg.dataset.bgk);saveDraft();render();return;}
+      const rmbg=e.target.closest('[data-rmbg]');if(rmbg){state.backgrounds.splice(+rmbg.dataset.rmbg,1);saveDraft();render();return;}
+      const pr=e.target.closest('[data-pick-row]');if(pr){togglePick(poolTable(state.activeRole)[+pr.dataset.pickRow],state.activeRole);saveDraft();render();return;}
+      const rmw=e.target.closest('[data-rmweap]');if(rmw){state.abilities.splice(+rmw.dataset.rmweap,1);saveDraft();render();return;}
+      const tab=e.target.closest('[data-role]');if(tab){state.activeRole=tab.dataset.role;render();return;}
+    });
+    body.addEventListener('change',e=>{
+      const pl=e.target.closest('[data-pl]');if(pl){state.powerLevel=pl.value;rollBC();saveDraft();render();return;}
+      const pk=e.target.closest('[data-pick]');if(pk){const key=pk.dataset.pick,v=pk.value;if(key==='species'){setSpecies(v);}else{state[key]=v;if(key==='faction'){const al=allianceByName(v);if(al&&al.side)state.side=al.side;}}saveDraft();render();return;}
+      const bc=e.target.closest('[data-bc]');if(bc){state.bc[bc.dataset.bc]=parseInt(bc.value,10)||0;saveDraft();renderChronicleOnly();const t=$('#gw-main .gw-bc .c:last-child div');if(t)t.textContent=bcTotal();return;}
+    });
+    body.addEventListener('input',e=>{
+      const tx=e.target.closest('[data-text]');if(tx){state[tx.dataset.text]=tx.value;saveDraft();renderChronicleOnly();return;}
+      const bio=e.target.closest('[data-bio]');if(bio){state[bio.dataset.bio]=bio.value;saveDraft();renderChronicleOnly();return;}
     });
   }
-  function init(){populate();const had=loadDraft();if(!had){rollBC();log('New draft. Roll a step and lock it, or press Roll Complete Character.');}else if($('#f-species'))$('#f-species').value=state.species;applyDefaults();wire();renderAll();}
+  function onAct(act){
+    switch(act){
+      case 'start':go(1);return;
+      case 'quick':generateAll();go(14);return;
+      case 'prev':go(Math.max(1,state.step-1));return;
+      case 'next':go(Math.min(14,state.step+1));return;
+      case 'startover':if(confirm('Discard this draft and start over?'))startOver();return;
+      case 'discard':if(confirm('Discard this character?'))startOver();return;
+      case 'rollrest':rollRemaining(state.step);return;
+      case 'transfer':transfer();return;
+      case 'copyjson':exportJSON();return;
+      case 'roll':{const k=curKey();if(rollByKey[k])rollByKey[k]();saveDraft();render();return;}
+      case 'roll-all':rollAbilities();saveDraft();render();return;
+      case 'roll-cat':rollRole(state.activeRole,2);saveDraft();render();return;
+      case 'clear-ab':state.abilities=state.abilities.filter(a=>a.source==='special-weapon');log('Cleared abilities.');saveDraft();render();return;
+      case 'addweapon':{const sel=$('#gw-main [data-weapon]');if(sel)addWeapon(weaponList().find(w=>w.name===sel.value));saveDraft();render();return;}
+      case 'rollweapon':{const Lw=weaponList();addWeapon(Lw[die(Lw.length)-1]);saveDraft();render();return;}
+    }
+  }
+
+  function applyAuthDefault(){if(typeof GCCAuth!=='undefined'&&GCCAuth.onAuthChange)GCCAuth.onAuthChange(u=>{if(u&&!(state.player||'').trim()){state.player=(u.displayName||u.email||'').trim();saveDraft();if(state.step===0||state.step===14)render();}});}
+  function ensureCampaign(){try{let camps=JSON.parse(localStorage.getItem((typeof GCC!=='undefined'&&GCC.KEYS&&GCC.KEYS.campaigns)||'gcc-campaigns')||'[]');const DEF='Gamma World 2519';let ex=camps.find(c=>(c.name||'').trim().toLowerCase()===DEF.toLowerCase());if(!ex&&typeof GCC!=='undefined'&&GCC.addCampaign){ex=GCC.addCampaign({name:DEF,system:'mp',genre:'Post-apocalyptic',world:'Gamma World'});}window.__gwCampaign=ex?(ex.id||ex._id||''):'';}catch(e){}}
+
+  function init(){ensureCampaign();loadDraft();applyAuthDefault();bindHandlers();render();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
 </script>
