@@ -224,6 +224,7 @@
   let state={ step:0, powerLevel:'Low', activeRole:'offense',
     name:'', player:'', species:'Humanoid (Mutant)', culture:'', side:'', faction:'', alliance:'',
     home:'', homeland:'', bc:{st:10,en:10,ag:10,in:10,cl:10}, gender:'', age:'', weight:'',
+    genderIdentity:'', genderExpression:'', biologicalSex:'', sexualAttraction:'', ageMethod:'standard',
     backgrounds:[], motivation:'', origin:'',
     abilities:[], rollLog:[], exportId:null };
 
@@ -298,13 +299,33 @@
     order.forEach(k=>state.bc[k]=got[k]||0);
     log(`MP BCs (${tier.name}): ${BCS.map(([k,l])=>l+' '+state.bc[k]).join(', ')} = ${bcTotal()}`);
   }
-  function rollGenderVal(){state.gender=['Male','Female','Nonbinary'][die(3)-1];}
-  function rollAgeVal(){state.age=die(10)+die(10)+10;}
-  function rollWeightVal(){const wd=state.gender==='Female'?4:6;let w=0;for(let i=0;i<5;i++)w+=die(wd);state.weight=w*10;}
-  function rollGender(){rollGenderVal();log(`Gender: ${state.gender}`);}
-  function rollAge(){rollAgeVal();log(`Age: ${state.age}`);}
+  // Gender — MP RAW: four independent d100 tables (identity, expression, biological sex, attraction)
+  const G_IDENTITY=['Woman','Man','Nonbinary'];
+  const G_EXPRESSION=['Same as identity','Different from identity','Androgynous','Gender Neutral'];
+  const G_SEX=['Cisgender','Transgender','Intersex'];
+  const G_ATTRACTION=['Straight','Gay/Lesbian','Bisexual/Pansexual','Asexual'];
+  const AGE_METHODS=[['standard','Standard (2d10+10)'],['experienced','Experienced (2d10+20)'],['modern','Modern population (2d12)']];
+  function rollGenderIdentityVal(){const r=die(100);state.genderIdentity=r<=48?'Woman':r<=96?'Man':'Nonbinary';}
+  function rollGenderExpressionVal(){const r=die(100);state.genderExpression=r<=87?'Same as identity':r<=93?'Different from identity':r<=97?'Androgynous':'Gender Neutral';}
+  function rollBiologicalSexVal(){const r=die(100);state.biologicalSex=r<=95?'Cisgender':r<=99?'Transgender':'Intersex';}
+  function rollSexualAttractionVal(){const r=die(100);state.sexualAttraction=r<=90?'Straight':r<=94?'Gay/Lesbian':r<=99?'Bisexual/Pansexual':'Asexual';}
+  function syncGender(){state.gender=state.genderIdentity||'';}
+  function genderLine(){return [state.genderIdentity,state.genderExpression,state.biologicalSex,state.sexualAttraction].filter(Boolean).join(' \u00b7 ');}
+  function rollGenderVals(){rollGenderIdentityVal();rollGenderExpressionVal();rollBiologicalSexVal();rollSexualAttractionVal();syncGender();}
+  function rollGenderIdentity(){rollGenderIdentityVal();syncGender();log('Gender identity: '+state.genderIdentity);}
+  function rollGenderExpression(){rollGenderExpressionVal();log('Gender expression: '+state.genderExpression);}
+  function rollBiologicalSex(){rollBiologicalSexVal();log('Biological sex: '+state.biologicalSex);}
+  function rollSexualAttraction(){rollSexualAttractionVal();log('Sexual attraction: '+state.sexualAttraction);}
+  function rollGender(){rollGenderVals();log('Gender: '+genderLine());}
+  // Age — MP RAW: 2d10+10 (experienced +10 more), or the modern-population 2d12 formula
+  function ageStandard(){return die(10)+die(10)+10;}
+  function ageExperienced(){return die(10)+die(10)+20;}
+  function ageModern(){const a=die(12),b=die(12);let mult=3;if(a===1)mult--;if(b===1)mult--;if(a===12)mult++;if(b===12)mult++;return (a+b)*mult;}
+  function rollAgeVal(){const m=state.ageMethod||'standard';state.age=m==='modern'?ageModern():m==='experienced'?ageExperienced():ageStandard();}
+  function rollWeightVal(){const wd=state.genderIdentity==='Woman'?4:6;let w=0;for(let i=0;i<5;i++)w+=die(wd);state.weight=w*10;}
+  function rollAge(){rollAgeVal();log('Age: '+state.age+' ('+(state.ageMethod||'standard')+')');}
   function rollWeight(){rollWeightVal();log(`Weight: ${state.weight} lbs`);}
-  function rollBio(){rollGenderVal();rollAgeVal();rollWeightVal();log(`Bio: ${state.gender}, age ${state.age}, ${state.weight} lbs`);}
+  function rollBio(){rollGenderVals();rollAgeVal();rollWeightVal();log(`Bio: ${genderLine()}; age ${state.age}; ${state.weight} lbs`);}
   function rollOneBg(){const r=die(100);const c=BACKGROUNDS.find(x=>r>=x.lo&&x.hi>=r)||BACKGROUNDS[0];return `${c.name} (${c.ex[die(c.ex.length)-1]})`;}
   function bgCat(s){return String(s||'').split(' (')[0];}
   function rollBackgrounds(){const b=[];let g=0;while(b.length<2&&g++<25){const x=rollOneBg();if(!b.some(y=>bgCat(y)===bgCat(x)))b.push(x);}state.backgrounds=b;log('Backgrounds: '+b.join('; '));}
@@ -374,6 +395,7 @@
   function abilityRows(){const rows=state.abilities.map(a=>({cp:a.cpNum?fmt(a.cpNum):a.cp,desc:`${a.mp} [${a.role}${a.weakness?'; weakness':''}; GW: ${a.gw}] — ${a.ability}`.slice(0,300),ip:''}));while(rows.length<12)rows.push({cp:'',desc:'',ip:''});return rows;}
   function storyText(){
     const lines=[`Gamma World 1e → MP build. Faction: ${state.faction||'Independent'}, Side ${state.side||'Neutral'}.`,`Species ${state.species}, ${state.culture||'Modern'}. Home: ${[state.home,state.homeland].filter(Boolean).join(' — ')||'—'}.`,`BCs: ${BCS.map(([k,l])=>l+' '+state.bc[k]).join(', ')} = ${bcTotal()} CP.`];
+    if(state.age||genderLine())lines.push(`Age ${state.age||'—'}. Gender: ${genderLine()||'—'}.`);
     const m=state.abilities.filter(a=>!a.weakness),w=state.abilities.filter(a=>a.weakness);
     if(m.length)lines.push('Abilities: '+m.map(a=>`${a.mp} (${a.role}, ${a.cp})`).join('; ')+'.');
     if(w.length)lines.push('Weaknesses: '+w.map(a=>`${a.gw} (${a.cp})`).join('; ')+'.');
@@ -408,7 +430,7 @@
   /* ── draft persistence ──────────────────────────────────────── */
   function saveDraft(){try{localStorage.setItem(DRAFT_KEY,JSON.stringify({v:4,state:{...state,exportId:window.__gwExportId||null}}));}catch(e){}}
   function loadDraft(){try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');if(!d||d.v!==4)return false;Object.assign(state,d.state||{});if(d.state&&d.state.exportId)window.__gwExportId=d.state.exportId;return true;}catch(e){return false;}}
-  function startOver(){try{localStorage.removeItem(DRAFT_KEY);}catch(e){}window.__gwExportId=null;state={ step:0, powerLevel:'Low', activeRole:'offense', name:'', player:'', species:'Humanoid (Mutant)', culture:'', side:'', faction:'', alliance:'', home:'', homeland:'', bc:{st:10,en:10,ag:10,in:10,cl:10}, gender:'', age:'', weight:'', backgrounds:[], motivation:'', origin:'', abilities:[], rollLog:[], exportId:null };applyAuthDefault();render();}
+  function startOver(){try{localStorage.removeItem(DRAFT_KEY);}catch(e){}window.__gwExportId=null;state={ step:0, powerLevel:'Low', activeRole:'offense', name:'', player:'', species:'Humanoid (Mutant)', culture:'', side:'', faction:'', alliance:'', home:'', homeland:'', bc:{st:10,en:10,ag:10,in:10,cl:10}, gender:'', age:'', weight:'', genderIdentity:'', genderExpression:'', biologicalSex:'', sexualAttraction:'', ageMethod:'standard', backgrounds:[], motivation:'', origin:'', abilities:[], rollLog:[], exportId:null };applyAuthDefault();render();}
 
   /* ── step model ─────────────────────────────────────────────── */
   const STEPS=[
@@ -443,7 +465,7 @@
       case 'home':return state.home?esc(state.home):'—';
       case 'homeland':return state.homeland?esc(state.homeland):'—';
       case 'bc':return BCS.map(([k,l])=>`${l} <strong>${state.bc[k]}</strong>`).join(' ')+`<br>= ${bcTotal()} CP`;
-      case 'bio':return (state.gender||state.age||state.weight)?`${esc(state.gender||'—')}, age ${esc(String(state.age||'—'))}, ${esc(String(state.weight||'—'))} lb`:'—';
+      case 'bio':return (state.genderIdentity||state.age||state.weight)?`${esc(state.genderIdentity||'—')}, age ${esc(String(state.age||'—'))}, ${esc(String(state.weight||'—'))} lb`:'—';
       case 'backgrounds':return (state.backgrounds||[]).length?state.backgrounds.map(b=>'• '+esc(b)).join('<br>'):'—';
       case 'motivation':return state.motivation?esc(state.motivation):'—';
       case 'origin':return state.origin?esc(state.origin):'—';
@@ -528,9 +550,22 @@
       `<div style="margin-top:8px"><button class="gw-roll-btn sm" style="width:auto;display:inline-block;padding:6px 16px" data-act="roll">🎲 Roll BCs</button></div>`+nav(7,'Next: Bio →');
   }
   function stepBio(){
-    const fld=(label,key,act)=>`<div style="flex:1"><label style="font-size:11px;color:var(--wl-soft)">${label}</label><input data-bio="${key}" value="${esc(String(state[key]||''))}"><button class="gw-roll-btn sm" style="width:100%;margin-top:5px;padding:5px;font-size:11px" data-act="${act}">🎲 Roll</button></div>`;
-    const f=`<div style="display:flex;gap:8px;max-width:460px">${fld('Weight (lb)','weight','roll-weight')}${fld('Age','age','roll-age')}${fld('Gender','gender','roll-gender')}</div>`;
-    return head(8,'Bio','Physical descriptors. Roll each independently, or type your own.')+`<div class="gw-content vertical"><div style="width:100%">${f}<div style="margin-top:10px"><button class="gw-roll-btn sm" style="width:auto;display:inline-block;padding:6px 16px" data-act="roll">🎲 Roll All</button></div></div></div>`+nav(8,'Next: Backgrounds →');
+    const lab=t=>`<label style="font-size:11px;color:var(--wl-soft);display:block">${t}</label>`;
+    const rb=(act,txt)=>`<button class="gw-roll-btn sm" style="width:100%;margin-top:5px;padding:5px;font-size:11px" data-act="${act}">🎲 ${txt||'Roll'}</button>`;
+    const numFld=(label,key,act)=>`<div style="flex:1">${lab(label)}<input data-bio="${key}" value="${esc(String(state[key]||''))}">${rb(act)}</div>`;
+    const ageMethod=`<select class="gw-pick" data-pick="ageMethod" style="width:100%;margin-top:3px">`+AGE_METHODS.map(([v,t])=>`<option value="${v}" ${(state.ageMethod||'standard')===v?'selected':''}>${esc(t)}</option>`).join('')+`</select>`;
+    const ageFld=`<div style="flex:1">${lab('Age')}<input data-bio="age" value="${esc(String(state.age||''))}">${ageMethod}${rb('roll-age')}</div>`;
+    const body=`<div style="display:flex;gap:8px;max-width:460px">${numFld('Weight (lb)','weight','roll-weight')}${ageFld}</div>`;
+    const sel=(label,key,opts,act)=>`<div style="flex:1;min-width:180px">${lab(label)}<select class="gw-pick" data-pick="${key}"><option value="">— roll or pick —</option>`+opts.map(o=>`<option value="${esc(o)}" ${state[key]===o?'selected':''}>${esc(o)}</option>`).join('')+`</select>${rb(act)}</div>`;
+    const gender=`<div class="gw-controls-title" style="text-align:left;margin:14px 0 6px">Gender (MP — four tables)</div>`+
+      `<div style="display:flex;flex-wrap:wrap;gap:8px;max-width:520px">`+
+        sel('Gender identity','genderIdentity',G_IDENTITY,'roll-gid')+
+        sel('Gender expression','genderExpression',G_EXPRESSION,'roll-gexp')+
+        sel('Biological sex','biologicalSex',G_SEX,'roll-gsex')+
+        sel('Sexual attraction','sexualAttraction',G_ATTRACTION,'roll-gattr')+
+      `</div><div style="margin-top:8px"><button class="gw-roll-btn sm" style="width:auto;display:inline-block;padding:6px 16px" data-act="roll-gender">🎲 Roll Gender (all four)</button></div>`;
+    return head(8,'Bio','Physical descriptors. Roll each field, or set them by hand — gender follows MP\u2019s four d100 tables.')+
+      `<div class="gw-content vertical"><div style="width:100%">${body}${gender}<div style="margin-top:14px;border-top:1px solid var(--wl-line);padding-top:10px"><button class="gw-roll-btn sm" style="width:auto;display:inline-block;padding:6px 16px" data-act="roll">🎲 Roll All</button></div></div></div>`+nav(8,'Next: Backgrounds →');
   }
   function stepBackgrounds(){
     const table=`<table class="gw-rt"><caption>Backgrounds (d100, pick or roll two)</caption><tbody>`+
@@ -581,7 +616,7 @@
   }
   function stepReview(){
     const birth=[state.home,state.homeland].filter(Boolean).join(' — ');
-    const idkv=[['Name',state.name||'Unnamed'],['Player',state.player||'—'],['Species',state.species],['Birthplace',birth||'—'],['Culture',state.culture||'—'],['Side',state.side||'—'],['Faction',state.faction||'—'],['Age / Gender',[state.age,state.gender].filter(Boolean).join(', ')||'—'],['Motivation',state.motivation||'—'],['Origin',state.origin||'—'],['Power Level',state.powerLevel+' ('+tierOf(state.powerLevel).total+' CP)']].map(([k,v])=>`<span class="k">${esc(k)}</span><span>${esc(v)}</span>`).join('');
+    const idkv=[['Name',state.name||'Unnamed'],['Player',state.player||'—'],['Species',state.species],['Birthplace',birth||'—'],['Culture',state.culture||'—'],['Side',state.side||'—'],['Faction',state.faction||'—'],['Age',state.age?String(state.age):'—'],['Gender',genderLine()||'—'],['Motivation',state.motivation||'—'],['Origin',state.origin||'—'],['Power Level',state.powerLevel+' ('+tierOf(state.powerLevel).total+' CP)']].map(([k,v])=>`<span class="k">${esc(k)}</span><span>${esc(v)}</span>`).join('');
     const bc=BCS.map(([k,l])=>`<div class="cell"><div class="l" style="color:var(--wl-soft)">${l}</div><div class="v">${state.bc[k]}</div></div>`).join('')+`<div class="cell"><div class="l" style="color:var(--wl-soft)">BC Total</div><div class="v">${bcTotal()}</div></div>`;
     const cv=[['BC Total',bcTotal()],['Abilities',fmt(abilityCP())+' CP'],['Weaknesses',fmt(weaknessCP())+' CP'],['Ability Budget',tierOf(state.powerLevel).abil+' CP'],['Power Level',state.powerLevel]].map(([l,v])=>`<div class="cell"><div class="l" style="color:var(--wl-soft)">${esc(l)}</div><div class="v">${esc(String(v))}</div></div>`).join('')+`<div class="cell hl"><div class="l">Unspent CP</div><div class="v">${fmt(unspent())}</div></div>`;
     const byRole=r=>state.abilities.filter(a=>a.role===r&&!a.weakness);
@@ -650,7 +685,7 @@
     });
     body.addEventListener('change',e=>{
       const pl=e.target.closest('[data-pl]');if(pl){state.powerLevel=pl.value;rollBC();saveDraft();render();return;}
-      const pk=e.target.closest('[data-pick]');if(pk){const key=pk.dataset.pick,v=pk.value;if(key==='species'){setSpecies(v);}else{state[key]=v;if(key==='faction'){const al=allianceByName(v);if(al&&al.side)state.side=al.side;}}saveDraft();render();return;}
+      const pk=e.target.closest('[data-pick]');if(pk){const key=pk.dataset.pick,v=pk.value;if(key==='species'){setSpecies(v);}else{state[key]=v;if(key==='faction'){const al=allianceByName(v);if(al&&al.side)state.side=al.side;}if(key==='genderIdentity'){state.gender=v;}}saveDraft();render();return;}
       const bc=e.target.closest('[data-bc]');if(bc){state.bc[bc.dataset.bc]=parseInt(bc.value,10)||0;saveDraft();renderChronicleOnly();const t=$('#gw-main .gw-bc .c:last-child div');if(t)t.textContent=bcTotal();return;}
     });
     body.addEventListener('input',e=>{
@@ -673,6 +708,10 @@
       case 'roll-weight':rollWeight();saveDraft();render();return;
       case 'roll-age':rollAge();saveDraft();render();return;
       case 'roll-gender':rollGender();saveDraft();render();return;
+      case 'roll-gid':rollGenderIdentity();saveDraft();render();return;
+      case 'roll-gexp':rollGenderExpression();saveDraft();render();return;
+      case 'roll-gsex':rollBiologicalSex();saveDraft();render();return;
+      case 'roll-gattr':rollSexualAttraction();saveDraft();render();return;
       case 'roll-all':rollAbilities();saveDraft();render();return;
       case 'roll-cat':rollRole(state.activeRole,2);saveDraft();render();return;
       case 'clear-ab':state.abilities=state.abilities.filter(a=>a.source==='special-weapon');log('Cleared abilities.');saveDraft();render();return;
