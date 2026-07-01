@@ -658,8 +658,10 @@ const GCCSync = (function() {
   function isDeletedChild(item, prefix, deletedMap) {
     if (!deletedMap) return false;
     const itemTime = tsOf(item);
-    return childKeys(item, prefix, -1).some(k => deletedMap[k] && itemTime <= deletedMap[k]);
-  }
+    const keys = childKeys(item, prefix, -1);
+    if (keys.some(k => k.indexOf(prefix + '_id_') === 0 && deletedMap[k])) return true;
+    return keys.some(k => deletedMap[k] && itemTime <= deletedMap[k]);
+}
 
   // Merge embedded campaign child lists such as sessions/issues, lore, and roster refs.
   // Items may arrive from older devices with different generated ids for the same
