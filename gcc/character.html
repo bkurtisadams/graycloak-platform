@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- character.html v0.1.0 — BC strip counts only the CP column (not modified scores); import preserves custom/Gamma World species and resolves powerLevel by id, label, or CP total -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -673,6 +674,7 @@ document.querySelectorAll('.atk-tbl tbody tr').forEach((tr, i) => {
 function recalcDerived() {
   const setField = (f, v) => { const el = document.querySelector(`[data-field="${f}"]`); if (el) el.value = v; };
   const bcs = {};
+  let bcCpTotal = 0;
   document.querySelectorAll('.stat-row[data-stat]').forEach(row => {
     const cpInput = row.querySelector('.stat-cp');
     const modInput = row.querySelector('.stat-mod');
@@ -683,6 +685,7 @@ function recalcDerived() {
     // In MP, BC score = CPs spent + mod
     const score = cpVal + modVal;
     bcs[row.dataset.stat] = score;
+    bcCpTotal += cpVal;
     scoreEl.value = score || '';
     // Lookup save from BC table
     const bcRow = MP.CG.lookupBC(score);
@@ -691,8 +694,7 @@ function recalcDerived() {
 
   const st = bcs.st || 0, en = bcs.en || 0, ag = bcs.ag || 0, inVal = bcs.in || 0, cl = bcs.cl || 0;
 
-  // Always update CP strip
-  const bcTotal = st + en + ag + inVal + cl;
+  // Always update CP strip (BC cost = leftmost CP column only, never the modified score)
   const pl = MP.CG.POWER_LEVELS.find(p => p.id === document.getElementById('cg-power-level').value);
   const cpBox = document.getElementById('cg-base-cps');
   const baseCPs = parseInt(cpBox.value) || (pl ? pl.totalCPs : 0);
@@ -703,7 +705,7 @@ function recalcDerived() {
   if (baseCPs > 0) {
     const xpSpent = parseFloat(document.querySelector('[data-field="xpSpent"]')?.value) || 0;
     const budget = baseCPs + xpSpent;
-    const totalSpent = bcTotal + abCpTotal;
+    const totalSpent = bcCpTotal + abCpTotal;
     const remain = budget - totalSpent;
     const bcBudget = pl && pl.totalCPs === baseCPs ? pl.bcPoints : '—';
     sumEl.textContent = `${totalSpent} / ${budget} CPs`;
@@ -716,7 +718,7 @@ function recalcDerived() {
     document.getElementById('cp-budget-sep').style.display = showXp ? '' : 'none';
     document.getElementById('cp-xp').textContent = '+' + xpSpent;
     document.getElementById('cp-budget').textContent = budget;
-    document.getElementById('cp-bc').textContent = bcTotal + (bcBudget !== '—' ? ' / ' + bcBudget : '');
+    document.getElementById('cp-bc').textContent = bcCpTotal + (bcBudget !== '—' ? ' / ' + bcBudget : '');
     document.getElementById('cp-ab').textContent = abCpTotal;
     document.getElementById('cp-spent').textContent = totalSpent;
     document.getElementById('cp-remain').textContent = remain;
@@ -1030,12 +1032,25 @@ function populateData(d) {
   document.querySelectorAll('[data-field]').forEach(el => {
     if (d[el.dataset.field] != null) el.value = d[el.dataset.field];
   });
-  if (d.powerLevel) document.getElementById('cg-power-level').value = d.powerLevel;
-  // Set CP box from power level; fall back to xpBase for imports without powerLevel
+  // Species: preserve an imported name even if it isn't a preset option (e.g. Gamma World species)
+  const spSel = document.getElementById('sel-species');
+  if (d.species && spSel && spSel.value !== d.species) {
+    const o = document.createElement('option'); o.value = d.species; o.textContent = d.species;
+    spSel.appendChild(o); spSel.value = d.species;
+  }
+  // Power level: accept an id ('low'), a label ('Low'), or a numeric CP total ('100')
+  let plId = '';
+  if (d.powerLevel != null && d.powerLevel !== '') {
+    const want = String(d.powerLevel).toLowerCase();
+    const m = MP.CG.POWER_LEVELS.find(p => p.id === want || p.label.toLowerCase() === want || String(p.totalCPs) === String(d.powerLevel));
+    if (m) plId = m.id;
+  }
+  if (plId) document.getElementById('cg-power-level').value = plId;
+  // Set CP box from power level; fall back to xpBase when the power level can't be resolved
   const cpBox = document.getElementById('cg-base-cps');
   const pl = MP.CG.POWER_LEVELS.find(p => p.id === document.getElementById('cg-power-level').value);
   if (pl) cpBox.value = pl.totalCPs;
-  if (!d.powerLevel && d.xpBase) cpBox.value = d.xpBase;
+  if (!plId && d.xpBase) cpBox.value = d.xpBase;
   if (d.stats) {
     document.querySelectorAll('.stat-row[data-stat]').forEach(row => {
       const s = d.stats[row.dataset.stat];
