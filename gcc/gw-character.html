@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.1 — MP transfer: send powerLevel as its id ('low') so MP Builder maps Power Level and base CPs correctly -->
 <!-- gw-character.html v0.2.0 — split the single Abilities step into per-role steps: Offensive(12) Defensive(13) Miscellaneous(14) Weaknesses(15); Weapons & Gear(16); Review(17) -->
 <html lang="en">
 <head>
@@ -6,9 +7,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>GW → MP Character Generator</title>
 <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Oswald:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="gcc-header.css">
-<link rel="stylesheet" href="gcc-auth.css">
-<link rel="stylesheet" href="gcc-dialog.css">
+<link rel="stylesheet" href="gcc-header.css?v=c5edf4e5">
+<link rel="stylesheet" href="gcc-auth.css?v=03238a9b">
+<link rel="stylesheet" href="gcc-dialog.css?v=bd2368c3">
 <style>
   :root{
     --wl-page:#e7e3cd; --wl-panel:#faf6ea; --wl-panel-2:#f2ecd6; --wl-band:#43562b; --wl-band-2:#33401f;
@@ -146,7 +147,7 @@
 </style>
 </head>
 <body>
-<script src="gcc-dialog.js"></script>
+<script src="gcc-dialog.js?v=d89481ae"></script>
 <div id="gcc-bar" class="gcc-bar">
   <div class="gcc-bar-in">
     <a href="index.html" class="gcc-brand" title="Back to Dashboard">
@@ -170,17 +171,17 @@
   <div class="wl-foot">Data: gw-data-v2 · gw-warheroes · gw-cryptic-alliances · gw-mp-roles · gw-flavor-tables · gw-mp-bestiary</div>
 </main>
 
-<script src="gcc-data.js"></script>
-<script src="gcc-header.js"></script>
-<script src="gcc-firebase-config.js"></script>
-<script src="gcc-auth.js"></script>
-<script src="gcc-sync.js"></script>
-<script src="gw-data-v2.js"></script>
-<script src="gw-warheroes.js"></script>
-<script src="gw-cryptic-alliances.js"></script>
-<script src="gw-mp-roles.js"></script>
-<script src="gw-flavor-tables.js"></script>
-<script src="gw-mp-bestiary.js"></script>
+<script src="gcc-data.js?v=26696c69"></script>
+<script src="gcc-header.js?v=e1ca49dc"></script>
+<script src="gcc-firebase-config.js?v=ed16c91d"></script>
+<script src="gcc-auth.js?v=dc620d93"></script>
+<script src="gcc-sync.js?v=a644ba64"></script>
+<script src="gw-data-v2.js?v=441c2427"></script>
+<script src="gw-warheroes.js?v=8f967e11"></script>
+<script src="gw-cryptic-alliances.js?v=8b224fb5"></script>
+<script src="gw-mp-roles.js?v=c3f3d5e5"></script>
+<script src="gw-flavor-tables.js?v=02032176"></script>
+<script src="gw-mp-bestiary.js?v=2f52209d"></script>
 <script>
 (function(){
   'use strict';
@@ -407,7 +408,7 @@
     const name=(state.name||'').trim()||'Unnamed Gamma World Character';
     const id=window.__gwExportId||((typeof GCC!=='undefined'&&GCC.genId)?GCC.genId('mp'):'mp_'+Date.now());
     const bc=state.bc;
-    const data={_id:id,_gwStarter:true,_gwStarterVersion:D.version||'2.0.0',name,player:(state.player||'').trim(),trueId:'',side:state.side||'Neutral',birthplace:[state.home,state.homeland].filter(Boolean).join(' — ')||'Gamma World',species:state.species,gender:state.gender||'',age:String(state.age||''),weight:String(state.weight||''),mass:'',culture:state.culture||'Modern',originType:(state.origin||'').trim(),background:(state.backgrounds||[]).join(', '),motivation:(state.motivation||'').trim(),legalStatus:state.faction||'Independent',wealth:'0',luck:'10-',powerLevel:String(tierOf(state.powerLevel).total),xpBase:String(tierOf(state.powerLevel).total),
+    const data={_id:id,_gwStarter:true,_gwStarterVersion:D.version||'2.0.0',name,player:(state.player||'').trim(),trueId:'',side:state.side||'Neutral',birthplace:[state.home,state.homeland].filter(Boolean).join(' — ')||'Gamma World',species:state.species,gender:state.gender||'',age:String(state.age||''),weight:String(state.weight||''),mass:'',culture:state.culture||'Modern',originType:(state.origin||'').trim(),background:(state.backgrounds||[]).join(', '),motivation:(state.motivation||'').trim(),legalStatus:state.faction||'Independent',wealth:'0',luck:'10-',powerLevel:state.powerLevel.toLowerCase(),xpBase:String(tierOf(state.powerLevel).total),
       stats:{st:{cp:String(bc.st),mod:'',score:String(bc.st),save:''},en:{cp:String(bc.en),mod:'',score:String(bc.en),save:''},ag:{cp:String(bc.ag),mod:'',score:String(bc.ag),save:''},in:{cp:String(bc.in),mod:'',score:String(bc.in),save:''},cl:{cp:String(bc.cl),mod:'',score:String(bc.cl),save:''}},
       abilities:abilityRows(),attacks:[{name:'Strike (HTH)',toHit:'',damage:'',dmgType:'Kinetic',kb:''},{name:'',toHit:'',damage:'',dmgType:'',kb:''},{name:'',toHit:'',damage:'',dmgType:'',kb:''}],story:storyText()};
     if(window.__gwCampaign)data._campaign=window.__gwCampaign;
