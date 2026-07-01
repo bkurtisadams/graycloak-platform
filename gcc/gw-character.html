@@ -1,13 +1,14 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.0 — split the single Abilities step into per-role steps: Offensive(12) Defensive(13) Miscellaneous(14) Weaknesses(15); Weapons & Gear(16); Review(17) -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>GW → MP Character Generator</title>
 <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Oswald:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="gcc-header.css?v=c5edf4e5">
-<link rel="stylesheet" href="gcc-auth.css?v=03238a9b">
-<link rel="stylesheet" href="gcc-dialog.css?v=bd2368c3">
+<link rel="stylesheet" href="gcc-header.css">
+<link rel="stylesheet" href="gcc-auth.css">
+<link rel="stylesheet" href="gcc-dialog.css">
 <style>
   :root{
     --wl-page:#e7e3cd; --wl-panel:#faf6ea; --wl-panel-2:#f2ecd6; --wl-band:#43562b; --wl-band-2:#33401f;
@@ -145,7 +146,7 @@
 </style>
 </head>
 <body>
-<script src="gcc-dialog.js?v=d89481ae"></script>
+<script src="gcc-dialog.js"></script>
 <div id="gcc-bar" class="gcc-bar">
   <div class="gcc-bar-in">
     <a href="index.html" class="gcc-brand" title="Back to Dashboard">
@@ -169,17 +170,17 @@
   <div class="wl-foot">Data: gw-data-v2 · gw-warheroes · gw-cryptic-alliances · gw-mp-roles · gw-flavor-tables · gw-mp-bestiary</div>
 </main>
 
-<script src="gcc-data.js?v=26696c69"></script>
-<script src="gcc-header.js?v=e1ca49dc"></script>
-<script src="gcc-firebase-config.js?v=ed16c91d"></script>
-<script src="gcc-auth.js?v=dc620d93"></script>
-<script src="gcc-sync.js?v=a644ba64"></script>
-<script src="gw-data-v2.js?v=441c2427"></script>
-<script src="gw-warheroes.js?v=8f967e11"></script>
-<script src="gw-cryptic-alliances.js?v=8b224fb5"></script>
-<script src="gw-mp-roles.js?v=c3f3d5e5"></script>
-<script src="gw-flavor-tables.js?v=02032176"></script>
-<script src="gw-mp-bestiary.js?v=2f52209d"></script>
+<script src="gcc-data.js"></script>
+<script src="gcc-header.js"></script>
+<script src="gcc-firebase-config.js"></script>
+<script src="gcc-auth.js"></script>
+<script src="gcc-sync.js"></script>
+<script src="gw-data-v2.js"></script>
+<script src="gw-warheroes.js"></script>
+<script src="gw-cryptic-alliances.js"></script>
+<script src="gw-mp-roles.js"></script>
+<script src="gw-flavor-tables.js"></script>
+<script src="gw-mp-bestiary.js"></script>
 <script>
 (function(){
   'use strict';
@@ -437,22 +438,23 @@
     {n:1,key:'species',name:'Species'},{n:2,key:'faction',name:'Faction'},{n:3,key:'side',name:'Side'},
     {n:4,key:'culture',name:'Culture'},{n:5,key:'home',name:'Birthplace'},{n:6,key:'homeland',name:'Homeland'},
     {n:7,key:'bc',name:'Characteristics'},{n:8,key:'bio',name:'Bio'},{n:9,key:'backgrounds',name:'Backgrounds'},
-    {n:10,key:'motivation',name:'Motivation'},{n:11,key:'origin',name:'Origin'},{n:12,key:'abilities',name:'Abilities'},
-    {n:13,key:'weapons',name:'Weapons & Gear'},{n:14,key:'review',name:'Review'}
+    {n:10,key:'motivation',name:'Motivation'},{n:11,key:'origin',name:'Origin'},{n:12,key:'offense',name:'Offensive'},
+    {n:13,key:'defense',name:'Defensive'},{n:14,key:'misc',name:'Miscellaneous'},{n:15,key:'weakness',name:'Weaknesses'},
+    {n:16,key:'weapons',name:'Weapons & Gear'},{n:17,key:'review',name:'Review'}
   ];
-  const LAST_DATA=13;
-  const rollByKey={species:rollSpecies,faction:rollFaction,side:rollSide,culture:rollCulture,home:rollHome,homeland:rollHomeland,bc:rollBC,bio:rollBio,backgrounds:rollBackgrounds,motivation:rollMotivation,origin:rollOrigin,abilities:rollAbilities,weapons:()=>{const Lw=weaponList();addWeapon(Lw[die(Lw.length)-1]);}};
+  const LAST_DATA=16;
+  const rollByKey={species:rollSpecies,faction:rollFaction,side:rollSide,culture:rollCulture,home:rollHome,homeland:rollHomeland,bc:rollBC,bio:rollBio,backgrounds:rollBackgrounds,motivation:rollMotivation,origin:rollOrigin,offense:rollAbilities,defense:()=>{},misc:()=>{},weakness:()=>{},weapons:()=>{const Lw=weaponList();addWeapon(Lw[die(Lw.length)-1]);}};
   function go(n){state.step=n;saveDraft();render();window.scrollTo({top:0,behavior:'smooth'});}
-  function rollRemaining(fromN){for(let i=fromN;i<LAST_DATA;i++){const k=STEPS[i].key;if(rollByKey[k])rollByKey[k]();}go(14);}
+  function rollRemaining(fromN){for(let i=fromN;i<LAST_DATA;i++){const k=STEPS[i].key;if(rollByKey[k])rollByKey[k]();}go(17);}
 
   /* ── species branch tracker (origin-tracker analog) ─────────── */
   function branchInfo(){
     const sp=state.species;
-    if(isCreature(sp))return{cls:'',label:sp+' (creature)',items:[{step:1,t:'Fixed converted package'},{step:12,t:'Abilities: '+sp+' package applied'},{step:13,t:'Gear: optional special weapon'}]};
-    if(sp==='Pure Strain Human')return{cls:'',label:'Pure Strain Human',items:[{step:1,t:'No mutations'},{step:12,t:'Abilities: commando tables (2/2/2/2)'},{step:13,t:'Gear: standard weapons'}]};
-    if(sp==='Tech Construct')return{cls:'',label:'Tech Construct',items:[{step:1,t:'No mutation charts'},{step:12,t:'Abilities: artifacts (~60 CP)'},{step:13,t:'Gear: tech weapons'}]};
-    if(sp==='Mutated Plant')return{cls:'',label:'Mutated Plant',items:[{step:1,t:'Plant mutation chart'},{step:12,t:'Abilities: 2/2/2/2 from plant chart'},{step:13,t:'Gear: optional special weapon'}]};
-    return{cls:'',label:sp,items:[{step:1,t:'Physical + mental charts'},{step:12,t:'Abilities: 2/2/2/2 from mutation charts'},{step:13,t:'Gear: optional special weapon'}]};
+    if(isCreature(sp))return{cls:'',label:sp+' (creature)',items:[{step:1,t:'Fixed converted package'},{step:12,t:'Abilities: '+sp+' package applied'},{step:16,t:'Gear: optional special weapon'}]};
+    if(sp==='Pure Strain Human')return{cls:'',label:'Pure Strain Human',items:[{step:1,t:'No mutations'},{step:12,t:'Abilities: commando tables (2/2/2/2)'},{step:16,t:'Gear: standard weapons'}]};
+    if(sp==='Tech Construct')return{cls:'',label:'Tech Construct',items:[{step:1,t:'No mutation charts'},{step:12,t:'Abilities: artifacts (~60 CP)'},{step:16,t:'Gear: tech weapons'}]};
+    if(sp==='Mutated Plant')return{cls:'',label:'Mutated Plant',items:[{step:1,t:'Plant mutation chart'},{step:12,t:'Abilities: 2/2/2/2 from plant chart'},{step:16,t:'Gear: optional special weapon'}]};
+    return{cls:'',label:sp,items:[{step:1,t:'Physical + mental charts'},{step:12,t:'Abilities: 2/2/2/2 from mutation charts'},{step:16,t:'Gear: optional special weapon'}]};
   }
 
   /* ── chronicle ──────────────────────────────────────────────── */
@@ -469,14 +471,17 @@
       case 'backgrounds':return (state.backgrounds||[]).length?state.backgrounds.map(b=>'• '+esc(b)).join('<br>'):'—';
       case 'motivation':return state.motivation?esc(state.motivation):'—';
       case 'origin':return state.origin?esc(state.origin):'—';
-      case 'abilities':{const m=state.abilities.filter(a=>!a.weakness&&a.source!=='special-weapon'),w=state.abilities.filter(a=>a.weakness);return m.length||w.length?`${m.length} abilities, ${w.length} weak.<br><em>${fmt(abilityCP())} / ${fmt(weaknessCP())} CP</em>`:'—';}
+      case 'offense':{const n=state.abilities.filter(a=>a.role==='offense'&&a.source!=='special-weapon');return n.length?n.map(a=>'• '+esc(a.mp||a.gw)).join('<br>'):'—';}
+      case 'defense':{const n=state.abilities.filter(a=>a.role==='defense'&&a.source!=='special-weapon');return n.length?n.map(a=>'• '+esc(a.mp||a.gw)).join('<br>'):'—';}
+      case 'misc':{const n=state.abilities.filter(a=>a.role==='misc'&&a.source!=='special-weapon');return n.length?n.map(a=>'• '+esc(a.mp||a.gw)).join('<br>'):'—';}
+      case 'weakness':{const n=state.abilities.filter(a=>a.weakness);return n.length?n.map(a=>'• '+esc(a.mp||a.gw)).join('<br>'):'—';}
       case 'weapons':{const g=state.abilities.filter(a=>a.source==='special-weapon');return g.length?g.map(x=>'• '+esc(x.gw)).join('<br>'):'—';}
-      case 'review':return state.step===14?'Ready to transfer':'—';
+      case 'review':return state.step===17?'Ready to transfer':'—';
     }
     return '—';
   }
   function renderChronicle(){
-    const complete=state.step===14;
+    const complete=state.step===17;
     const tally=`<div class="gw-tally">
       <div class="t"><div class="l">Total</div><div class="v">${tierOf(state.powerLevel).total}</div></div>
       <div class="t"><div class="l">Spent</div><div class="v">${fmt(netCP())}</div></div>
@@ -586,24 +591,31 @@
     const pick=`<select class="gw-pick" data-pick="origin"><option value="">— pick —</option>`+opts.map(n=>`<option value="${esc(n)}" ${state.origin===n?'selected':''}>${esc(n)}</option>`).join('')+`</select>`;
     const f=`<input data-text="origin" placeholder="Origin" value="${esc(state.origin||'')}" style="max-width:420px">`;
     return head(11,'Origin','How the mutation/build came to be. Roll, pick, or write your own.')+
-      `<div class="gw-content"><div class="gw-table-side">${f}</div>${rollBox('Roll or Pick','',pick,'Roll')}</div>`+nav(11,'Next: Abilities →');
+      `<div class="gw-content"><div class="gw-table-side">${f}</div>${rollBox('Roll or Pick','',pick,'Roll')}</div>`+nav(11,'Next: Offensive →');
   }
-  function stepAbilities(){
-    const built=buildPools(),sp=state.species;
-    const tabs=`<div class="gw-tabs">`+[['offense','off','Offensive'],['defense','def','Defensive'],['misc','mis','Misc'],['weakness','wk','Weaknesses']].map(([role,c,lbl])=>`<button class="gw-tab ${c} ${state.activeRole===role?'active':''}" data-role="${role}">${lbl}</button>`).join('')+`</div>`;
-    const role=state.activeRole,rows=poolTable(role);
+  const ROLE_META={
+    offense:{n:12,label:'Offensive',next:'Next: Defensive →',pill:['#f3d2c2','#71310d'],desc:'Pick 2 offensive abilities, or roll the table.'},
+    defense:{n:13,label:'Defensive',next:'Next: Miscellaneous →',pill:['#cfe0e6','#163a44'],desc:'Pick 2 defensive abilities, or roll the table.'},
+    misc:{n:14,label:'Miscellaneous',next:'Next: Weaknesses →',pill:['#efe3c0','#5d4710'],desc:'Pick 2 miscellaneous abilities, or roll the table.'},
+    weakness:{n:15,label:'Weaknesses',next:'Next: Weapons →',pill:['#f0d3d3','#6e1f1f'],desc:'Pick 2 weaknesses, or roll the table.'}
+  };
+  function stepRole(role){
+    state.activeRole=role;
+    const built=buildPools(),sp=state.species,meta=ROLE_META[role],rows=poolTable(role);
     const sel=state.abilities.filter(a=>a.role===role&&a.source!=='special-weapon').map(a=>a.base);
     const table=`<div class="gw-scroll"><table class="gw-rt"><thead><tr><th class="rng">d100</th><th>Ability</th><th class="cp">CP</th></tr></thead><tbody>`+
       rows.map((r,i)=>{const mp=r.kind==='mutant'?(mpLead(r.it.m.ability)||r.name):r.name;const on=sel.includes(r.name);return `<tr data-pick-row="${i}" class="${on?'sel':''}"><td class="rng">${r.lo}-${r.hi}</td><td>${esc(mp)}<span style="color:var(--wl-soft)"> · ${esc(r.name)}</span></td><td class="cp">${esc(String(r.cp))}</td></tr>`;}).join('')+`</tbody></table></div>`;
     const picks=state.abilities.filter(a=>a.role===role&&a.source!=='special-weapon');
     const pickList=`<div class="gw-picks">`+(picks.length?picks.map(p=>`<div class="gw-pickrow"><div class="mp">${esc(p.mp)} <span style="float:right">${esc(p.cp)} CP</span></div><div class="ab">${esc(p.gw)}</div></div>`).join(''):'<div class="gw-pickrow" style="color:var(--wl-soft)">Click rows to pick, or roll the category.</div>')+`</div>`;
-    const ctrl=`<div class="gw-controls"><div class="gw-controls-title">Abilities</div>`+
-      `<button class="gw-roll-btn" data-act="roll-all">🎲 Roll all (2/2/2/2)</button>`+
-      (built.kind==='creature'||built.kind==='tech'?'':`<button class="gw-roll-btn sm" data-act="roll-cat">Roll this category</button>`)+
-      `<button class="gw-roll-rest" data-act="clear-ab">Clear abilities</button>`+
-      `<div class="gw-hint">${isCreature(sp)?`Playing a ${esc(sp)}: its converted MP package, classified by role. Click a pick to drop it.`:(sp==='Tech Construct'?'Tech Construct builds from artifacts — Roll all to fill ~60 CP of gear.':(sp==='Pure Strain Human'?'PSH: pick from the commando abilities by role.':'Drawn from your GW→MP mutation charts by role.'))}</div></div>`;
-    return head(12,'Abilities & Weaknesses','Roll 2/2/2/2 across the four roles, or click rows to hand-pick. Creature species apply their fixed package.')+
-      tabs+`<div class="gw-content"><div class="gw-table-side">${table}</div>${ctrl}</div>${pickList}`+nav(12,'Next: Weapons →');
+    const budget=`<div style="background:${meta.pill[0]};color:${meta.pill[1]};display:inline-block;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;margin-bottom:7px">${picks.length} / 2 picked</div>`;
+    const canCat=!(built.kind==='creature'||built.kind==='tech');
+    const ctrl=`<div class="gw-controls"><div class="gw-controls-title">${meta.label}</div>`+budget+
+      (canCat?`<button class="gw-roll-btn" data-act="roll-cat">🎲 Roll this category</button>`:'')+
+      `<button class="gw-roll-btn sm" data-act="roll-all">Roll all (2/2/2/2)</button>`+
+      `<button class="gw-roll-rest" data-act="clear-role">Clear this category</button>`+
+      `<div class="gw-hint">${isCreature(sp)?`Playing a ${esc(sp)}: its converted MP package for this role. Click a pick to drop it.`:(sp==='Tech Construct'?'Tech Construct builds from artifacts — Roll all fills ~60 CP of gear (listed under Miscellaneous).':(sp==='Pure Strain Human'?'PSH: pick from the commando abilities for this role.':'Drawn from your GW→MP mutation charts for this role.'))}</div></div>`;
+    return head(meta.n,meta.label+(role==='weakness'?'':' Abilities'),meta.desc)+
+      `<div class="gw-content"><div class="gw-table-side">${table}</div>${ctrl}</div>${pickList}`+nav(meta.n,meta.next);
   }
   function stepWeapons(){
     const wl=weaponList();
@@ -611,8 +623,8 @@
     const gear=state.abilities.filter(a=>a.source==='special-weapon');
     const chips=gear.map((g,i)=>`<span class="gw-chip">${esc(g.gw)} (${esc(g.cp)})<span class="x" data-rmweap="${state.abilities.indexOf(g)}">✕</span></span>`).join('')||'<span class="gw-hint">No weapons added.</span>';
     const ctrl=`<div class="gw-controls"><div class="gw-controls-title">Add Weapon</div>${pick}<button class="gw-roll-btn sm" style="margin-top:6px" data-act="addweapon">Add selected</button><button class="gw-roll-btn" data-act="rollweapon">🎲 Roll a weapon</button><div class="gw-hint">A weapon is a Special Weapon ability — its CP counts against the build.</div></div>`;
-    return head(13,'Weapons & Gear','Optional special weapons. Any species may take them.')+
-      `<div class="gw-content"><div class="gw-table-side">${chips}</div>${ctrl}</div>`+nav(13,'Review →',{noRest:true});
+    return head(16,'Weapons & Gear','Optional special weapons. Any species may take them.')+
+      `<div class="gw-content"><div class="gw-table-side">${chips}</div>${ctrl}</div>`+nav(16,'Review →',{noRest:true});
   }
   function stepReview(){
     const birth=[state.home,state.homeland].filter(Boolean).join(' — ');
@@ -637,7 +649,7 @@
       `<div class="sb">MP BUILDER JSON</div><textarea class="gw-json" readonly>${esc(json)}</textarea></div>`+
       `<div class="gw-nav"><div><button class="wl-btn ghost" data-act="prev">← Back</button></div><div></div></div>`;
   }
-  const stepRender={1:stepSpecies,2:stepFaction,3:stepSide,4:stepCulture,5:stepHome,6:stepHomeland,7:stepBC,8:stepBio,9:stepBackgrounds,10:stepMotivation,11:stepOrigin,12:stepAbilities,13:stepWeapons,14:stepReview};
+  const stepRender={1:stepSpecies,2:stepFaction,3:stepSide,4:stepCulture,5:stepHome,6:stepHomeland,7:stepBC,8:stepBio,9:stepBackgrounds,10:stepMotivation,11:stepOrigin,12:()=>stepRole('offense'),13:()=>stepRole('defense'),14:()=>stepRole('misc'),15:()=>stepRole('weakness'),16:stepWeapons,17:stepReview};
 
   function renderIntro(){
     const resume=(state.name||state.species!=='Humanoid (Mutant)'||state.abilities.length)?`<p class="gw-hint" style="text-align:center">A saved draft is loaded — Step-by-Step resumes where you left off.</p>`:'';
@@ -696,9 +708,9 @@
   function onAct(act){
     switch(act){
       case 'start':go(1);return;
-      case 'quick':generateAll();go(14);return;
+      case 'quick':generateAll();go(17);return;
       case 'prev':go(Math.max(1,state.step-1));return;
-      case 'next':go(Math.min(14,state.step+1));return;
+      case 'next':go(Math.min(17,state.step+1));return;
       case 'startover':if(confirm('Discard this draft and start over?'))startOver();return;
       case 'discard':if(confirm('Discard this character?'))startOver();return;
       case 'rollrest':rollRemaining(state.step);return;
@@ -715,12 +727,13 @@
       case 'roll-all':rollAbilities();saveDraft();render();return;
       case 'roll-cat':rollRole(state.activeRole,2);saveDraft();render();return;
       case 'clear-ab':state.abilities=state.abilities.filter(a=>a.source==='special-weapon');log('Cleared abilities.');saveDraft();render();return;
+      case 'clear-role':state.abilities=state.abilities.filter(a=>!(a.role===state.activeRole&&a.source!=='special-weapon'));log('Cleared '+state.activeRole+' abilities.');saveDraft();render();return;
       case 'addweapon':{const sel=$('#gw-main [data-weapon]');if(sel)addWeapon(weaponList().find(w=>w.name===sel.value));saveDraft();render();return;}
       case 'rollweapon':{const Lw=weaponList();addWeapon(Lw[die(Lw.length)-1]);saveDraft();render();return;}
     }
   }
 
-  function applyAuthDefault(){if(typeof GCCAuth!=='undefined'&&GCCAuth.onAuthChange)GCCAuth.onAuthChange(u=>{if(u&&!(state.player||'').trim()){state.player=(u.displayName||u.email||'').trim();saveDraft();if(state.step===0||state.step===14)render();}});}
+  function applyAuthDefault(){if(typeof GCCAuth!=='undefined'&&GCCAuth.onAuthChange)GCCAuth.onAuthChange(u=>{if(u&&!(state.player||'').trim()){state.player=(u.displayName||u.email||'').trim();saveDraft();if(state.step===0||state.step===17)render();}});}
   function ensureCampaign(){try{let camps=JSON.parse(localStorage.getItem((typeof GCC!=='undefined'&&GCC.KEYS&&GCC.KEYS.campaigns)||'gcc-campaigns')||'[]');const DEF='Gamma World 2519';let ex=camps.find(c=>(c.name||'').trim().toLowerCase()===DEF.toLowerCase());if(!ex&&typeof GCC!=='undefined'&&GCC.addCampaign){ex=GCC.addCampaign({name:DEF,system:'mp',genre:'Post-apocalyptic',world:'Gamma World'});}window.__gwCampaign=ex?(ex.id||ex._id||''):'';}catch(e){}}
 
   function init(){ensureCampaign();loadDraft();applyAuthDefault();bindHandlers();render();}
