@@ -1,4 +1,6 @@
-// gcc-sync.js v2.2.0 — 2026-06-26
+// gcc-sync.js v2.3.0 — 2026-07-01
+// v2.3.0: Normalize embedded campaign session ids, honor session tombstones,
+//         and keep Issue counts from being inflated by timeline entries.
 // v2.2.0: Fix multi-device data loss — sign-in now MERGES local+cloud per character
 //         (union by _id, newest _saved wins) instead of upload-all-then-pull-only-empty,
 //         which let a stale device clobber the cloud and never pull newer data.
@@ -448,6 +450,7 @@ const GCCSync = (function() {
             : item._updated != null ? item._updated
             : item.updated != null ? item.updated
             : item._modified != null ? item._modified
+            : item.deletedAt != null ? item.deletedAt
             : item.created;
     if (v == null) return 0;
     if (typeof v === 'number') return v;
@@ -525,19 +528,68 @@ const GCCSync = (function() {
     return String(v || '').trim().toLowerCase().replace(/\s+/g, ' ');
   }
 
-  function sessionContentKey(item, prefix) {
+  function stableHash(str) {
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0).toString(36);
+  }
+
+  function rawSessionContentKey(item) {
     const title = normEmbeddedKeyText(item.title);
     const date = normEmbeddedKeyText(item.date);
     const gameDate = normEmbeddedKeyText(item.gameDate);
     const text = normEmbeddedKeyText(item.text);
     if (!title && !date && !gameDate && !text) return '';
-    const sections = (item.sections || []).map(sec =>
-      [normEmbeddedKeyText(sec.title), normEmbeddedKeyText(sec.text)].join('~')
-    ).join('||');
+    const sections = (item.sections || []).map(sec => {
+      const imgs = (sec.images || []).map(img => [
+        normEmbeddedKeyText(img.caption),
+        normEmbeddedKeyText(img.size),
+        normEmbeddedKeyText(img.pos),
+      ].join('^')).join('~');
+      return [normEmbeddedKeyText(sec.title), normEmbeddedKeyText(sec.text), imgs].join('~');
+    }).join('||');
     const tags = (item.tags || []).map(t =>
       normEmbeddedKeyText(t.type) + ':' + normEmbeddedKeyText(t.name)
     ).sort().join(',');
-    return prefix + '_sig_' + [normEmbeddedKeyText(item.type || 'session'), title, date, gameDate, text, String(item.xp || 0), sections, tags].join('|');
+    return ['sig', normEmbeddedKeyText(item.type || 'session'), title, date, gameDate, text,
+      String(item.xp || 0), String(item.visible !== false), sections, tags].join('|');
+  }
+
+  function sessionContentKey(item, prefix) {
+    const raw = rawSessionContentKey(item);
+    return raw ? prefix + '_' + raw : '';
+  }
+
+  function normalizeEmbeddedChildren(camp) {
+    if (!camp || typeof camp !== 'object') return camp;
+    if (Array.isArray(camp.sessions)) {
+      const seen = {};
+      camp.sessions.forEach(item => {
+        if (!item || typeof item !== 'object') return;
+        if (!item._id) {
+          const raw = rawSessionContentKey(item);
+          item._id = raw ? ('ses_' + stableHash(raw))
+            : ((typeof GCC !== 'undefined' && GCC.genId) ? GCC.genId('ses') : 'ses_' + Date.now());
+        } else if (seen[item._id]) {
+          item._id = (typeof GCC !== 'undefined' && GCC.genId) ? GCC.genId('ses') : ('ses_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7));
+        }
+        seen[item._id] = true;
+        if (!item._created) item._created = item._updated || camp.updated || camp.created || new Date().toISOString();
+        if (!item._updated) item._updated = item._created;
+        if (item.gameDate === undefined) item.gameDate = '';
+        if (item.image === undefined) item.image = '';
+        if (item.sections === undefined) item.sections = [];
+        if (item.tags === undefined) item.tags = [];
+        if (item.visible === undefined) item.visible = true;
+        if (item.type === undefined) item.type = 'session';
+      });
+    }
+    if (Array.isArray(camp.sessions)) camp.session = camp.sessions.filter(s => s.type !== 'timeline').length;
+    if (!Array.isArray(camp.deletedSessions)) camp.deletedSessions = [];
+    return camp;
   }
 
   function childKeys(item, prefix, idx) {
@@ -560,10 +612,59 @@ const GCCSync = (function() {
     return keys;
   }
 
+  function tombstoneKeys(tomb, prefix) {
+    if (!tomb || typeof tomb !== 'object') return [];
+    const keys = [];
+    if (tomb._id) keys.push(prefix + '_id_' + tomb._id);
+    if (tomb.id) keys.push(prefix + '_id_' + tomb.id);
+    if (tomb.sig) keys.push(prefix + '_' + tomb.sig);
+    return keys;
+  }
+
+  function mergeTombstones(localTombs, cloudTombs, prefix) {
+    const byKey = {};
+    const out = [];
+    function add(tomb) {
+      const keys = tombstoneKeys(tomb, prefix);
+      if (!keys.length) return;
+      const existingKey = keys.find(k => byKey[k]);
+      if (existingKey) {
+        const existing = byKey[existingKey];
+        if (tsOf(tomb) > tsOf(existing)) {
+          Object.assign(existing, cloneJson(tomb));
+          keys.forEach(k => { byKey[k] = existing; });
+        }
+        return;
+      }
+      const copy = cloneJson(tomb);
+      out.push(copy);
+      keys.forEach(k => { byKey[k] = copy; });
+    }
+    (Array.isArray(cloudTombs) ? cloudTombs : []).forEach(add);
+    (Array.isArray(localTombs) ? localTombs : []).forEach(add);
+    out.sort((a, b) => tsOf(b) - tsOf(a));
+    return out.slice(0, 250);
+  }
+
+  function tombstoneTimeMap(tombs, prefix) {
+    const map = {};
+    (Array.isArray(tombs) ? tombs : []).forEach(tomb => {
+      const t = tsOf(tomb);
+      tombstoneKeys(tomb, prefix).forEach(k => { if (!map[k] || t > map[k]) map[k] = t; });
+    });
+    return map;
+  }
+
+  function isDeletedChild(item, prefix, deletedMap) {
+    if (!deletedMap) return false;
+    const itemTime = tsOf(item);
+    return childKeys(item, prefix, -1).some(k => deletedMap[k] && itemTime <= deletedMap[k]);
+  }
+
   // Merge embedded campaign child lists such as sessions/issues, lore, and roster refs.
   // Items may arrive from older devices with different generated ids for the same
   // legacy entry, so each child gets id and content/name aliases instead of a single key.
-  function mergeEmbeddedList(localItems, cloudItems, prefix, preferLocalOrder) {
+  function mergeEmbeddedList(localItems, cloudItems, prefix, preferLocalOrder, deletedMap) {
     localItems = Array.isArray(localItems) ? localItems : [];
     cloudItems = Array.isArray(cloudItems) ? cloudItems : [];
     const byPrimary = {};
@@ -578,6 +679,7 @@ const GCCSync = (function() {
     }
     function consider(item, idx) {
       if (!item || typeof item !== 'object') return;
+      if (isDeletedChild(item, prefix, deletedMap)) return;
       const keys = childKeys(item, prefix, idx);
       const primary = linkedPrimary(keys) || keys[0];
       const existing = byPrimary[primary];
@@ -590,6 +692,7 @@ const GCCSync = (function() {
 
     const orderedKeys = [];
     const addOrder = (items) => items.forEach((item, idx) => {
+      if (isDeletedChild(item, prefix, deletedMap)) return;
       const keys = childKeys(item, prefix, idx);
       const primary = linkedPrimary(keys) || keys[0];
       if (orderedKeys.indexOf(primary) === -1 && byPrimary[primary]) orderedKeys.push(primary);
@@ -605,16 +708,21 @@ const GCCSync = (function() {
   }
 
   function mergeCampaignObject(localCamp, cloudCamp) {
-    if (!localCamp) return cloneJson(cloudCamp);
-    if (!cloudCamp) return cloneJson(localCamp);
+    if (!localCamp) return normalizeEmbeddedChildren(cloneJson(cloudCamp));
+    if (!cloudCamp) return normalizeEmbeddedChildren(cloneJson(localCamp));
+    localCamp = normalizeEmbeddedChildren(cloneJson(localCamp));
+    cloudCamp = normalizeEmbeddedChildren(cloneJson(cloudCamp));
     const localTs = tsOf(localCamp), cloudTs = tsOf(cloudCamp);
     const localIsNewer = localTs > cloudTs;
     const base = localIsNewer ? localCamp : cloudCamp;
     const other = localIsNewer ? cloudCamp : localCamp;
     const merged = Object.assign({}, cloneJson(other), cloneJson(base));
-    merged.sessions = mergeEmbeddedList(localCamp.sessions, cloudCamp.sessions, 'ses', localIsNewer);
+    merged.deletedSessions = mergeTombstones(localCamp.deletedSessions, cloudCamp.deletedSessions, 'ses');
+    const deletedSessions = tombstoneTimeMap(merged.deletedSessions, 'ses');
+    merged.sessions = mergeEmbeddedList(localCamp.sessions, cloudCamp.sessions, 'ses', localIsNewer, deletedSessions);
     merged.lore = mergeEmbeddedList(localCamp.lore, cloudCamp.lore, 'lore', localIsNewer);
     merged.characters = mergeEmbeddedList(localCamp.characters, cloudCamp.characters, 'charref', localIsNewer);
+    merged.session = Array.isArray(merged.sessions) ? merged.sessions.filter(s => s.type !== 'timeline').length : 0;
     const maxTs = Math.max(localTs, cloudTs);
     if (maxTs) merged.updated = new Date(maxTs).toISOString();
     return merged;

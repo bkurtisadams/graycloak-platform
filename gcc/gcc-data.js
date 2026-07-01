@@ -141,6 +141,56 @@ const GCC = (function() {
   function getRuleDefs(systemId) { return RULE_DEFS[systemId] || []; }
 
   // ── Schema Migration ──
+  function normSessionText(v) {
+    return String(v || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  }
+  function sessionStableKey(s) {
+    if (!s || typeof s !== 'object') return '';
+    const title = normSessionText(s.title), date = normSessionText(s.date);
+    const gameDate = normSessionText(s.gameDate), text = normSessionText(s.text);
+    if (!title && !date && !gameDate && !text) return '';
+    const sections = (s.sections || []).map(sec => [
+      normSessionText(sec.title),
+      normSessionText(sec.text),
+      (sec.images || []).map(img => [normSessionText(img.caption), normSessionText(img.size), normSessionText(img.pos)].join('^')).join('~')
+    ].join('~')).join('||');
+    const tags = (s.tags || []).map(t => normSessionText(t.type) + ':' + normSessionText(t.name)).sort().join(',');
+    return [normSessionText(s.type || 'session'), title, date, gameDate, text, String(s.xp || 0), String(s.visible !== false), sections, tags].join('|');
+  }
+  function stableHash(str) {
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0).toString(36);
+  }
+  function normalizeSessions(sessions, campStamp) {
+    if (!Array.isArray(sessions)) return false;
+    const seen = new Set();
+    let changed = false;
+    sessions.forEach(s => {
+      if (!s || typeof s !== 'object') return;
+      if (!s._id) {
+        const key = sessionStableKey(s);
+        s._id = key ? ('ses_' + stableHash(key)) : genId('ses');
+        changed = true;
+      } else if (seen.has(s._id)) {
+        s._id = genId('ses');
+        changed = true;
+      }
+      seen.add(s._id);
+      if (!s._created) { s._created = s._updated || campStamp || new Date().toISOString(); changed = true; }
+      if (!s._updated) { s._updated = s._created; changed = true; }
+      if (s.gameDate === undefined) { s.gameDate = ''; changed = true; }
+      if (s.image === undefined) { s.image = ''; changed = true; }
+      if (s.sections === undefined) { s.sections = []; changed = true; }
+      if (s.tags === undefined) { s.tags = []; changed = true; }
+      if (s.visible === undefined) { s.visible = true; changed = true; }
+      if (s.type === undefined) { s.type = 'session'; changed = true; }
+    });
+    return changed;
+  }
   function migrateEntity(entity) {
     if (!entity) return entity;
     if (!entity.schemaVersion) entity.schemaVersion = 0;
@@ -158,17 +208,7 @@ const GCC = (function() {
     }
     if (entity.schemaVersion < 2) {
       // v1→v2: enrich sessions with new fields, add lore array
-      if (entity.sessions) {
-        entity.sessions.forEach(s => {
-          if (!s._id) s._id = genId('ses');
-          if (s.gameDate === undefined) s.gameDate = '';
-          if (s.image === undefined) s.image = '';
-          if (s.sections === undefined) s.sections = [];
-          if (s.tags === undefined) s.tags = [];
-          if (s.visible === undefined) s.visible = true;
-          if (s.type === undefined) s.type = 'session'; // 'session' or 'timeline'
-        });
-      }
+      if (entity.sessions) normalizeSessions(entity.sessions, entity.updated || entity.created);
       if (!entity.lore) entity.lore = [];
       entity.schemaVersion = 2;
     }
@@ -193,6 +233,14 @@ const GCC = (function() {
       }
       entity.schemaVersion = 3;
     }
+    if (entity.schemaVersion < 4) {
+      if (entity.sessions && normalizeSessions(entity.sessions, entity.updated || entity.created)) {
+        // normalized below by save path
+      }
+      if (!Array.isArray(entity.deletedSessions)) entity.deletedSessions = [];
+      entity.session = Array.isArray(entity.sessions) ? entity.sessions.filter(s => s.type !== 'timeline').length : (entity.session || 0);
+      entity.schemaVersion = 4;
+    }
     return entity;
   }
 
@@ -201,7 +249,7 @@ const GCC = (function() {
     const list = load(KEYS.campaigns) || [];
     let dirty = false;
     list.forEach((c, i) => {
-      if (!c.schemaVersion || c.schemaVersion < 3) {
+      if (!c.schemaVersion || c.schemaVersion < 4) {
         list[i] = migrateEntity(c);
         dirty = true;
       }
@@ -219,7 +267,7 @@ const GCC = (function() {
     const list = loadCampaigns();
     const camp = {
       id: data.id || ('camp-' + Date.now()),
-      schemaVersion: 1,
+      schemaVersion: 4,
       name: data.name || 'Untitled',
       system: data.system || 'mp',
       gm: data.gm || '',
@@ -248,11 +296,14 @@ const GCC = (function() {
       notes: data.notes || '',
       characters: data.characters || [],
       sessions: data.sessions || [],
+      deletedSessions: data.deletedSessions || [],
       lore: data.lore || [],
       rules: data.rules || {},
       created: data.created || new Date().toISOString(),
       updated: data.updated || data._updated || new Date().toISOString(),
     };
+    normalizeSessions(camp.sessions, camp.updated || camp.created);
+    camp.session = camp.sessions.filter(s => s.type !== 'timeline').length;
     list.push(camp);
     saveCampaigns(list);
     return camp;
@@ -262,6 +313,7 @@ const GCC = (function() {
     const camp = list.find(c => c.id === id);
     if (!camp) return null;
     Object.assign(camp, updates);
+    if (camp.sessions) normalizeSessions(camp.sessions, camp.updated || camp.created);
     camp.updated = new Date().toISOString();
     saveCampaigns(list);
     return camp;

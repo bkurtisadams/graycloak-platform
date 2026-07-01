@@ -449,6 +449,39 @@ function sessionContentDedupeKey(s){
   const tags=(s.tags||[]).map(t=>normDedupeText(t.type)+':'+normDedupeText(t.name)).sort().join(',');
   return['sig',normDedupeText(s.type||'session'),title,date,gameDate,text,String(s.xp||0),String(s.visible!==false),sections,tags].join('|');
 }
+function ensureSessionEntryIds(sessions){
+  const seen=new Set();let changed=false;
+  (Array.isArray(sessions)?sessions:[]).forEach(s=>{
+    if(!s||typeof s!=='object')return;
+    if(!s._id){s._id=GCC.genId('ses');changed=true}
+    else if(seen.has(s._id)){s._id=GCC.genId('ses');changed=true}
+    seen.add(s._id);
+    if(!s._created){s._created=s._updated||new Date().toISOString();changed=true}
+    if(!s._updated){s._updated=s._created;changed=true}
+  });
+  return changed;
+}
+function appendSessionTombstones(camp,removed){
+  if(!camp||!Array.isArray(removed)||!removed.length)return false;
+  const now=new Date().toISOString();
+  const tombs=Array.isArray(camp.deletedSessions)?camp.deletedSessions:[];
+  const seen=new Set(tombs.map(t=>(t._id?'id:'+t._id:'')+'|'+(t.sig||'')));
+  let changed=false;
+  removed.forEach(s=>{
+    if(!s||typeof s!=='object')return;
+    const sig=sessionContentDedupeKey(s);
+    if(!s._id&&!sig)return;
+    const key=(s._id?'id:'+s._id:'')+'|'+sig;
+    if(seen.has(key))return;
+    tombs.push({_id:s._id||'',sig,deletedAt:now});
+    seen.add(key);changed=true;
+  });
+  if(changed){
+    tombs.sort((a,b)=>String(b.deletedAt||'').localeCompare(String(a.deletedAt||'')));
+    camp.deletedSessions=tombs.slice(0,250);
+  }
+  return changed;
+}
 function mergeCharRefs(a,b){
   const out=Object.assign({},b||{},a||{});
   if(!out._id&&b&&b._id)out._id=b._id;
@@ -480,6 +513,7 @@ function dedupeCampaignData(camp){
     if(res.changed){camp.characters=res.list;changed=true}
   }
   if(Array.isArray(camp.sessions)){
+    if(ensureSessionEntryIds(camp.sessions))changed=true;
     const res=dedupeByKeys(camp.sessions,[s=>s&&s._id?'id:'+s._id:'',sessionContentDedupeKey]);
     if(res.changed){camp.sessions=res.list;camp.session=countRealSessions(camp.sessions);changed=true}
     camp.sessions.forEach(s=>{
@@ -881,7 +915,7 @@ async function render(){
     ?`${hqImgHtml}${camp.hqNotes?`<div style="margin-top:14px"><div class="notes-label">HQ DETAILS</div><div class="notes-area" style="white-space:pre-wrap">${ESC(camp.hqNotes)}</div></div>`:''}`
     :`${hqImgHtml}<input type="file" id="hq-img-file" accept="image/*" style="display:none"><div style="margin-top:14px"><div class="hq-notes-header"><span class="notes-label" style="margin:0">HQ DETAILS</span><button class="hq-notes-toggle" id="btn-hq-toggle">Edit</button></div><div class="hq-notes-view" id="hq-notes-view">${ESC(camp.hqNotes||'')}</div><textarea class="notes-area" id="camp-hq-notes" style="display:none" placeholder="Rooms, equipment, defenses, rent, packages...">${ESC(camp.hqNotes||'')}</textarea></div>`;
 
-  const charCount=chars.length?` (${chars.length})`:'',vehCount=vehs.length?` (${vehs.length})`:'',sesCount=sessions.length?` (${sessions.length})`:'',loreCount=lore.length?` (${lore.length})`:'';
+  const charCount=chars.length?` (${chars.length})`:'',vehCount=vehs.length?` (${vehs.length})`:'',sesCount=realCount?` (${realCount})`:'',loreCount=lore.length?` (${lore.length})`:'';
 
   const headerBtns=pm_
     ?`${vttBtn}<a class="camp-btn" href="index.html">\u2190 Dashboard</a>`
@@ -989,11 +1023,11 @@ function wireEvents(){
   document.getElementById('btn-add-session')?.addEventListener('click',()=>openSessionModal(-1,'session'));
   document.getElementById('btn-export-journal')?.addEventListener('click',exportJournal);
   document.getElementById('btn-import-sessions')?.addEventListener('click',openSesImportModal);
-  document.getElementById('btn-delete-all-sessions')?.addEventListener('click',async()=>{const camp=getCamp();if(!camp)return;const count=(camp.sessions||[]).length;const ok=await GCCDialog.confirm('Delete all sessions','Delete all '+count+' sessions? This cannot be undone.',{okText:'Delete All',danger:true});if(!ok)return;const deadKeys=[];(camp.sessions||[]).forEach(s=>{if(s.image&&GCCImages.isKey(s.image))deadKeys.push(s.image);(s.sections||[]).forEach(sec=>(sec.images||[]).forEach(img=>{if(img.src&&GCCImages.isKey(img.src))deadKeys.push(img.src)}))});if(deadKeys.length)GCCImages.removeBulk(deadKeys);GCC.updateCampaign(campId,{sessions:[],session:0});const updated=GCC.getCampaign(campId);if(GCCAuth?.getUser()){GCCInvite.pushSharedData(campId,updated);if(typeof GCCSync!=='undefined'&&GCCSync.notifySync)GCCSync.notifySync('gcc-campaigns')}render()});
+  document.getElementById('btn-delete-all-sessions')?.addEventListener('click',async()=>{const camp=getCamp();if(!camp)return;const count=(camp.sessions||[]).length;const ok=await GCCDialog.confirm('Delete all sessions','Delete all '+count+' session/timeline entries? This cannot be undone.',{okText:'Delete All',danger:true});if(!ok)return;const deadKeys=[];(camp.sessions||[]).forEach(s=>{if(s.image&&GCCImages.isKey(s.image))deadKeys.push(s.image);(s.sections||[]).forEach(sec=>(sec.images||[]).forEach(img=>{if(img.src&&GCCImages.isKey(img.src))deadKeys.push(img.src)}))});if(deadKeys.length)GCCImages.removeBulk(deadKeys);appendSessionTombstones(camp,camp.sessions||[]);GCC.updateCampaign(campId,{sessions:[],session:0,deletedSessions:camp.deletedSessions||[]});const updated=GCC.getCampaign(campId);if(GCCAuth?.getUser()){GCCInvite.pushSharedData(campId,updated);if(typeof GCCSync!=='undefined'&&GCCSync.notifySync)GCCSync.notifySync('gcc-campaigns')}render()});
   document.querySelectorAll('[data-ses-filter]').forEach(btn=>{btn.addEventListener('click',()=>{sessionFilter=btn.dataset.sesFilter;render()})});
   document.querySelectorAll('[data-lore-filter]').forEach(btn=>{btn.addEventListener('click',()=>{loreFilter=btn.dataset.loreFilter;render()})});
   document.querySelectorAll('[data-ses-edit]').forEach(btn=>{btn.addEventListener('click',()=>openSessionModal(parseInt(btn.dataset.sesEdit)))});
-  document.querySelectorAll('[data-ses-del]').forEach(btn=>{btn.addEventListener('click',async()=>{const ok=await GCCDialog.confirm('Delete session','Delete this session entry?',{okText:'Delete',danger:true});if(!ok)return;const camp=getCamp();if(!camp)return;const sessions=camp.sessions||[];const s=sessions[parseInt(btn.dataset.sesDel)];if(s){const deadKeys=[];if(s.image&&GCCImages.isKey(s.image))deadKeys.push(s.image);(s.sections||[]).forEach(sec=>(sec.images||[]).forEach(img=>{if(img.src&&GCCImages.isKey(img.src))deadKeys.push(img.src)}));if(deadKeys.length)GCCImages.removeBulk(deadKeys)}sessions.splice(parseInt(btn.dataset.sesDel),1);GCC.updateCampaign(campId,{sessions,session:countRealSessions(sessions)});render()})});
+  document.querySelectorAll('[data-ses-del]').forEach(btn=>{btn.addEventListener('click',async()=>{const ok=await GCCDialog.confirm('Delete session','Delete this session entry?',{okText:'Delete',danger:true});if(!ok)return;const camp=getCamp();if(!camp)return;const sessions=camp.sessions||[];const s=sessions[parseInt(btn.dataset.sesDel)];if(s){const deadKeys=[];if(s.image&&GCCImages.isKey(s.image))deadKeys.push(s.image);(s.sections||[]).forEach(sec=>(sec.images||[]).forEach(img=>{if(img.src&&GCCImages.isKey(img.src))deadKeys.push(img.src)}));if(deadKeys.length)GCCImages.removeBulk(deadKeys);appendSessionTombstones(camp,[s])}sessions.splice(parseInt(btn.dataset.sesDel),1);GCC.updateCampaign(campId,{sessions,session:countRealSessions(sessions),deletedSessions:camp.deletedSessions||[]});render()})});
   // Drag-to-reorder sessions
   let dragIdx=null;
   document.querySelectorAll('.session-card[draggable]').forEach(card=>{
@@ -1643,7 +1677,9 @@ document.getElementById('sm-save').addEventListener('click',async()=>{
   // Drop any image that couldn't be persisted, so raw data URLs never bloat localStorage
   for(const sec of sesSections){if(sec.images)sec.images=sec.images.filter(img=>img.src&&!GCCImages.isDataUrl(img.src))}
 
-  const entry={_id:(sesEditIdx>=0&&sessions[sesEditIdx])?sessions[sesEditIdx]._id:GCC.genId('ses'),
+  const prevEntry=(sesEditIdx>=0&&sessions[sesEditIdx])?sessions[sesEditIdx]:null;
+  const entry={_id:prevEntry&&prevEntry._id?prevEntry._id:GCC.genId('ses'),
+    _created:prevEntry&&prevEntry._created?prevEntry._created:new Date().toISOString(),
     date:document.getElementById('sm-date').value||'',gameDate:document.getElementById('sm-gamedate').value.trim()||'',
     title:document.getElementById('sm-title').value.trim()||'',text:document.getElementById('sm-text').value.trim()||'',
     sections:sesSections.filter(s=>s.title||s.text||(s.images&&s.images.length)),image:imageKey,tags:sesTags,

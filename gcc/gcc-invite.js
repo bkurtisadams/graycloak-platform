@@ -223,7 +223,7 @@ const GCCInvite = (function() {
     'name', 'system', 'status', 'gm', 'gmTitle', 'world', 'genre',
     'pitch', 'description', 'schedule', 'playMode', 'vttLabel', 'vttUrl',
     'nextSession', 'startDate', 'xpMethod', 'rulebooks', 'houseRules',
-    'sharedNotes', 'sessions', 'lore', 'campaignImage', 'hqImage', 'hqNotes',
+    'sharedNotes', 'sessions', 'deletedSessions', 'lore', 'campaignImage', 'hqImage', 'hqNotes',
     'characters', 'promotedPlayers', 'playerReserve', 'teamName',
   ];
 
