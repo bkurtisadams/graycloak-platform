@@ -6,14 +6,14 @@
 <title>World of Greyhawk — Unified Map (Slice 2)</title>
 <!-- Inline-SVG favicon, mirrors greyhawk-map.html. -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23120900'/%3E%3Cpolygon points='16,4 28,11 28,21 16,28 4,21 4,11' fill='none' stroke='%23c8941a' stroke-width='2.5'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="gcc-header.css">
-<link rel="stylesheet" href="gcc-auth.css">
-<link rel="stylesheet" href="gcc-subhex.css?v=17">
-<link rel="stylesheet" href="gcc-settings.css?v=1">
-<link rel="stylesheet" href="gcc-publish.css?v=3">
-<link rel="stylesheet" href="gcc-pull.css?v=4">
-<link rel="stylesheet" href="gcc-dialog.css">
-<link rel="stylesheet" href="gcc-map.css?v=11">
+<link rel="stylesheet" href="gcc-header.css?v=c5edf4e5">
+<link rel="stylesheet" href="gcc-auth.css?v=03238a9b">
+<link rel="stylesheet" href="gcc-subhex.css?v=3e5946a4">
+<link rel="stylesheet" href="gcc-settings.css?v=6d7c5758">
+<link rel="stylesheet" href="gcc-publish.css?v=4f6c1daf">
+<link rel="stylesheet" href="gcc-pull.css?v=0b2c90ed">
+<link rel="stylesheet" href="gcc-dialog.css?v=bd2368c3">
+<link rel="stylesheet" href="gcc-map.css?v=d40af595">
 <style>
   /* Page-level reset — same convention as greyhawk-map.html. */
   @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
@@ -93,42 +93,42 @@
      reuses the same modules; renderers (Slices 3 & 4) call into
      them. Versions match those committed via cache-bust in
      greyhawk-map.html as of Slice 2. -->
-<script src="gcc-regions.js?v=16"></script>
-<script src="gcc-encounter-data.js?v=2"></script>
-<script src="gcc-encounters.js?v=7"></script>
-<script src="gcc-encounter-panel.js?v=9"></script>
-<script src="gcc-landmarks.js?v=9"></script>
-<script src="gcc-terrain.js?v=3"></script>
-<script src="gcc-paths.js?v=10"></script>
-<script src="gcc-rng.js?v=1"></script>
-<script src="gcc-subhex-store.js?v=4"></script>
-<script src="gcc-subhex-data.js?v=31"></script>
-<script src="gcc-fog.js?v=2"></script>
-<script src="gcc-lost.js?v=1"></script>
-<script src="gcc-subhex-icons.js?v=8"></script>
-<script src="gcc-subhex-paths.js?v=15"></script>
-<script src="gcc-dialog.js"></script>
+<script src="gcc-regions.js?v=b7acdbbf"></script>
+<script src="gcc-encounter-data.js?v=f727bdda"></script>
+<script src="gcc-encounters.js?v=6e797639"></script>
+<script src="gcc-encounter-panel.js?v=fa317397"></script>
+<script src="gcc-landmarks.js?v=eae3e326"></script>
+<script src="gcc-terrain.js?v=12899173"></script>
+<script src="gcc-paths.js?v=7e486c1a"></script>
+<script src="gcc-rng.js?v=725fb699"></script>
+<script src="gcc-subhex-store.js?v=5fbc5d5e"></script>
+<script src="gcc-subhex-data.js?v=c8e9f149"></script>
+<script src="gcc-fog.js?v=177caee7"></script>
+<script src="gcc-lost.js?v=71656a2f"></script>
+<script src="gcc-subhex-icons.js?v=a8a47c2a"></script>
+<script src="gcc-subhex-paths.js?v=6926cf58"></script>
+<script src="gcc-dialog.js?v=d89481ae"></script>
 
 <!-- Unified shell + renderers. gcc-map.js must load before the
      renderers so they can register; init fires on DOMContentLoaded. -->
-<script src="gcc-map.js?v=7"></script>
-<script src="gcc-map-parent-renderer.js?v=4"></script>
-<script src="gcc-map-subhex-renderer.js?v=7"></script>
-<script src="gcc-map-mile-renderer.js?v=2"></script>
-<script src="gcc-map-subhex-palette.js?v=8"></script>
+<script src="gcc-map.js?v=a0669416"></script>
+<script src="gcc-map-parent-renderer.js?v=cb269b79"></script>
+<script src="gcc-map-subhex-renderer.js?v=c2b970a9"></script>
+<script src="gcc-map-mile-renderer.js?v=06ef3d77"></script>
+<script src="gcc-map-subhex-palette.js?v=c835a4c3"></script>
 
 <!-- GCC platform chrome. Loaded last per existing convention. -->
-<script src="gcc-data.js"></script>
-<script src="gcc-header.js"></script>
-<script src="gcc-settings.js?v=1"></script>
-<script src="gcc-firebase-config.js"></script>
-<script src="gcc-auth.js"></script>
-<script src="gcc-publish.js?v=4"></script>
-<script src="gcc-pull.js?v=3"></script>
+<script src="gcc-data.js?v=26696c69"></script>
+<script src="gcc-header.js?v=e1ca49dc"></script>
+<script src="gcc-settings.js?v=f2fde918"></script>
+<script src="gcc-firebase-config.js?v=ed16c91d"></script>
+<script src="gcc-auth.js?v=dc620d93"></script>
+<script src="gcc-publish.js?v=c1d6dfd4"></script>
+<script src="gcc-pull.js?v=95a56e55"></script>
 
 <!-- Page version stamp (bottom-right). Bump GCC_VERSION as you edit. -->
 <script>window.GCC_VERSION = 'unified-map v0.1.0';</script>
-<script src="gcc-version-badge.js?v=1"></script>
+<script src="gcc-version-badge.js?v=681c7e07"></script>
 
 </body>
 </html>

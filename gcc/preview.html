@@ -1,6 +1,6 @@
 <!doctype html>
 <html><head><meta charset="utf-8"><title>GCC Subhex v0.4 Preview</title>
-<link rel="stylesheet" href="gcc-subhex.css">
+<link rel="stylesheet" href="gcc-subhex.css?v=3e5946a4">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   body { background: #2a2a28; padding: 32px; margin: 0; font-family: 'Cinzel', Georgia, serif; min-height: 100vh; color: #c8a96e; }
@@ -43,11 +43,11 @@ window.TERRAIN = {
 window.hexIdStr = (col, row) => `${col}-${row}`;
 window.getHexTerrain = (col, row) => window._previewTerrain || 'hills';
 </script>
-<script src="gcc-rng.js"></script>
-<script src="gcc-subhex-data.js"></script>
-<script src="gcc-subhex-icons.js"></script>
-<script src="gcc-subhex-paths.js"></script>
-<script src="gcc-subhex-view.js"></script>
+<script src="gcc-rng.js?v=725fb699"></script>
+<script src="gcc-subhex-data.js?v=c8e9f149"></script>
+<script src="gcc-subhex-icons.js?v=a8a47c2a"></script>
+<script src="gcc-subhex-paths.js?v=6926cf58"></script>
+<script src="gcc-subhex-view.js?v=6eb4cfac"></script>
 <script>
 document.getElementById('open-h').addEventListener('click', () => { window._previewTerrain = 'hills'; window.GCCSubhexView.open(86, 76); });
 document.getElementById('open-f').addEventListener('click', () => { window._previewTerrain = 'forest'; window.GCCSubhexView.open(75, 70); });

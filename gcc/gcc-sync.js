@@ -1,4 +1,9 @@
-// gcc-sync.js v2.3.0 — 2026-07-01
+// gcc-sync.js v2.3.2 — 2026-07-01
+// v2.3.2: Match session tombstones by id OR content signature with no timestamp
+//         gate, so churned ids and normalization-inflated _updated can no longer
+//         resurrect deleted entries on merge.
+// v2.3.1: Make id-keyed session tombstones authoritative so legacy entries whose
+//         _updated is inflated by normalization can no longer resurrect on merge.
 // v2.3.0: Normalize embedded campaign session ids, honor session tombstones,
 //         and keep Issue counts from being inflated by timeline entries.
 // v2.2.0: Fix multi-device data loss — sign-in now MERGES local+cloud per character
@@ -657,8 +662,14 @@ const GCCSync = (function() {
 
   function isDeletedChild(item, prefix, deletedMap) {
     if (!deletedMap) return false;
+    // A tombstone match on id OR content signature is authoritative. The prior
+    // timestamp gate resurrected entries whose _updated was inflated by
+    // normalization (legacy items inherit camp.updated) and whose churned _id no
+    // longer matched the tombstone; the deterministic content sig always does.
+    // Tradeoff: re-authoring byte-identical content of a deleted entry keeps it
+    // deleted until its tombstone is cleared.
     return childKeys(item, prefix, -1).some(k => deletedMap[k] !== undefined);
-}
+  }
 
   // Merge embedded campaign child lists such as sessions/issues, lore, and roster refs.
   // Items may arrive from older devices with different generated ids for the same
