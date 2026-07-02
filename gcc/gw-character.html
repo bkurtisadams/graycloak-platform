@@ -198,7 +198,7 @@
   'use strict';
   const $=s=>document.querySelector(s), $$=(s,r)=>Array.from((r||document).querySelectorAll(s));
   const D=window.GWData2, WH=window.GWWarHeroes, CA=window.GWCrypticAlliances, ROLES=window.GWMPRoles, F=window.GWFlavor;
-  const MP_LIST_KEY='mp-char-list', DRAFT_KEY='gw-character-starter-draft';
+  const MP_LIST_KEY=(typeof GCC!=='undefined'&&GCC.KEYS&&GCC.KEYS.mpChars)||'mp-char-list', DRAFT_KEY='gw-character-starter-draft';
   const BCS=[['st','ST'],['en','EN'],['ag','AG'],['in','IN'],['cl','CL']];
   const ROLE_KEYS=['offense','defense','misc','weakness'];
   const BC_TIERS=[
@@ -260,7 +260,7 @@
   const die=n=>Math.floor(Math.random()*n)+1;
   const cpn=s=>{s=String(s==null?'':s).trim();if(s===''||s==='*')return null;const n=parseFloat(s);return isNaN(n)?null:n;};
   const fmt=n=>(Math.round(n*10)/10).toString();
-  const esc=s=>{const d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML;};
+  const esc=s=>{const d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML.replace(/"/g,'&quot;');};
   const mpLead=t=>{const x=String(t||'').split(/[:(]/)[0].trim();return x.length>2?x:'';};
   function log(l){if(!l)return;const t=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});state.rollLog.unshift(`[${t}] ${l}`);state.rollLog=state.rollLog.slice(0,50);}
 
@@ -453,7 +453,7 @@
     if(sp==='Tech Construct'){
       (D.equipment||[]).forEach(g=>{
         const gn=String(g.name||'');
-        const role=/pistol|rifle|energy weapon|grenade/i.test(gn)?'offense':(/armor/i.test(gn)?'defense':'misc');
+        const role=/pistol|rifle|energy weapon|grenade|bomb|missile/i.test(gn)?'offense':(/armor/i.test(gn)?'defense':'misc');
         (g.items||[]).forEach(it=>{if(gearAllowed(it,sp))pools[role].push({gear:1,it});});
       });
       TECH_WEAKNESSES.forEach(w=>pools.weakness.push({tech:1,w}));
@@ -483,7 +483,7 @@
   function rollRole(role,n){
     n=n||2;const built=buildPools(),rows=poolTable(role);state.abilities=state.abilities.filter(a=>a.role!==role||a.source==='special-weapon');
     if(built.kind==='creature'){rows.forEach(row=>state.abilities.push(entryFromRow(row,role)));return;}
-    const got=[];let g=0;while(got.length<n&&g++<200&&rows.length){const row=rows[die(rows.length)-1];if(got.some(x=>x.gw===row.name))continue;got.push(entryFromRow(row,role));}
+    const got=[];let g=0;while(got.length<n&&g++<200&&rows.length){const row=rows[die(rows.length)-1];if(got.some(x=>x.base===row.name))continue;got.push(entryFromRow(row,role));}
     got.forEach(a=>state.abilities.push(a));
   }
   function togglePick(row,role){
@@ -555,9 +555,9 @@
     {n:16,key:'weapons',name:'Weapons & Gear'},{n:17,key:'review',name:'Review'}
   ];
   const LAST_DATA=16;
-  const rollByKey={species:rollSpecies,faction:rollFaction,side:rollSide,culture:rollCulture,home:rollHome,homeland:rollHomeland,bc:rollBC,bio:rollBio,backgrounds:rollBackgrounds,motivation:rollMotivation,origin:rollOrigin,offense:rollAbilities,defense:()=>{},misc:()=>{},weakness:()=>{},weapons:()=>{const Lw=weaponList();addWeapon(Lw[die(Lw.length)-1]);}};
+  const rollByKey={species:rollSpecies,faction:rollFaction,side:rollSide,culture:rollCulture,home:rollHome,homeland:rollHomeland,bc:rollBC,bio:rollBio,backgrounds:rollBackgrounds,motivation:rollMotivation,origin:rollOrigin,offense:rollAbilities,defense:()=>{},misc:()=>{},weakness:()=>{},weapons:()=>{}};
   function go(n){state.step=n;saveDraft();render();window.scrollTo({top:0,behavior:'smooth'});}
-  function rollRemaining(fromN){for(let i=fromN;i<LAST_DATA;i++){const k=STEPS[i].key;if(rollByKey[k])rollByKey[k]();}go(17);}
+  function rollRemaining(fromN){for(let i=fromN-1;i<LAST_DATA;i++){const k=STEPS[i].key;if(rollByKey[k])rollByKey[k]();}go(17);}
 
   /* ── species branch tracker (origin-tracker analog) ─────────── */
   function branchInfo(){
