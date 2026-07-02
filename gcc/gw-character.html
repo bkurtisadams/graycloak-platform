@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.6 — Tech Construct rolls 2/2/2/2: offense/defense/misc pools built from artifact groups (weapons/armor/devices), built-in robotic weakness table; Ancient ID locks parsed from ability text gate gear by species everywhere; Friends of Entropy closed to machines -->
 <!-- gw-character.html v0.2.5 — species-keyed GW origins: mystical branches dropped (no magic in GW1e), MP roll-twice-pick-either implemented, type-prefixed entries preserve MP originType on export, F.originsBySpecies override hook -->
 <!-- gw-character.html v0.2.4 — nav buttons move to top of step column; chronicle steps jump freely in any order with content-based done marks; Ranks of the Fit & The Created closed to PSH -->
 <!-- gw-character.html v0.2.3 — faction species eligibility: ineligible Cryptic Alliances greyed/locked, excluded from roll & pick; faction resets to Independent on species switch; data-overridable via alliance.eligible/excluded -->
@@ -310,7 +311,8 @@
     {re:/iron society/i,ok:sp=>sp!=='Pure Strain Human'&&sp!=='Tech Construct'&&sp!=='Android'},
     {re:/zoopremisist/i,ok:sp=>sp==='Mutated Animal'||(isCreature(sp)&&sp!=='Android')},
     {re:/ranks of the fit/i,ok:sp=>sp!=='Pure Strain Human'},
-    {re:/\bcreated\b/i,ok:sp=>sp!=='Pure Strain Human'}
+    {re:/\bcreated\b/i,ok:sp=>sp!=='Pure Strain Human'},
+    {re:/friends of entropy/i,ok:sp=>sp!=='Tech Construct'&&sp!=='Android'}
   ];
   function factionEligible(a,sp){
     if(!a)return true;sp=sp||state.species;
@@ -427,23 +429,53 @@
   function netCP(){return bcTotal()+abilityCP()+weaknessCP();}
   function unspent(){return tierOf(state.powerLevel).total-netCP();}
 
+  // Ancient ID locks, parsed from the conversion's own restriction text ("PSH only", "Android or PSH only", etc.)
+  function gearAllowed(it,sp){
+    sp=sp||state.species;const t=String(it.ability||'');
+    const mach=sp==='Pure Strain Human'||sp==='Android'||sp==='Tech Construct';
+    if(/androids?\s*or\s*psh/i.test(t))return mach;
+    if(/\bpsh\s*only\b|only\s*(usable\s*)?by\s*psh\b|usable\s*only\s*by\s*psh\b/i.test(t))return sp==='Pure Strain Human';
+    return true;
+  }
+  // Built-in robotic weaknesses (flat -10 placeholder pricing, matching the commando pool convention)
+  const TECH_WEAKNESSES=[
+    {name:'Ion/ECM Vulnerability',ability:'Vulnerability: +2 damage from ion, ECM, and electromagnetic attacks'},
+    {name:'Power Dependency',ability:'Special Requirement: must recharge at a power source; Discomfort penalties when depleted'},
+    {name:'Programmed Restraint',ability:'Compulsion: a hard-coded directive the character cannot disobey (GM-set)'},
+    {name:'No Self-Repair',ability:'Does not heal naturally; Hits restored only via Repair rolls and spare parts'},
+    {name:'Obeys the Ancients',ability:'Robot Recognition: must obey verified PSH voice commands unless a save is made'},
+    {name:'Conspicuous Machine',ability:'Cannot pass as a living being; reaction penalties with machine-hating groups'}
+  ];
   function buildPools(){
     const sp=state.species,pools={offense:[],defense:[],misc:[],weakness:[]};
     if(isCreature(sp))return{kind:'creature',pools:creaturePackage(sp)||pools};
     if(sp==='Pure Strain Human'){const c=WH.commando;(c.offensive||[]).forEach(e=>pools.offense.push({commando:1,name:e.name}));(c.defensive||[]).forEach(e=>pools.defense.push({commando:1,name:e.name}));(c.misc||[]).forEach(e=>pools.misc.push({commando:1,name:e.name}));(c.weaknesses||[]).forEach(e=>pools.weakness.push({commando:1,name:e.name}));return{kind:'commando',pools};}
-    if(sp==='Tech Construct')return{kind:'tech',pools};
+    if(sp==='Tech Construct'){
+      (D.equipment||[]).forEach(g=>{
+        const gn=String(g.name||'');
+        const role=/pistol|rifle|energy weapon|grenade/i.test(gn)?'offense':(/armor/i.test(gn)?'defense':'misc');
+        (g.items||[]).forEach(it=>{if(gearAllowed(it,sp))pools[role].push({gear:1,it});});
+      });
+      TECH_WEAKNESSES.forEach(w=>pools.weakness.push({tech:1,w}));
+      return{kind:'tech',pools};
+    }
     const cats=sp==='Mutated Plant'?['plant']:['physical','mental'];
     cats.forEach(cat=>(D.mutations[cat]||[]).forEach(m=>{const r=(ROLES[cat]||{})[m.name];if(r&&pools[r])pools[r].push({cat,m});}));
     return{kind:'mutant',pools};
   }
   function poolTable(role){
     const built=buildPools();const pool=built.pools[role]||[];const n=pool.length||1;const w=100/n;const rows=[];
-    pool.forEach((it,i)=>{const lo=Math.floor(i*w)+1,hi=(i===n-1)?100:Math.floor((i+1)*w);let name,cp;if(it.commando){name=it.name;cp=role==='weakness'?'-10':'10';}else if(it.pkg){name=it.pkg.name;cp=it.pkg.cp;}else{name=it.m.name;cp=it.m.cp;}rows.push({lo,hi,name,cp,it,kind:built.kind});});
+    pool.forEach((it,i)=>{const lo=Math.floor(i*w)+1,hi=(i===n-1)?100:Math.floor((i+1)*w);let name,cp;if(it.commando){name=it.name;cp=role==='weakness'?'-10':'10';}else if(it.gear){name=it.it.name;cp=String(it.it.cp);}else if(it.tech){name=it.w.name;cp='-10';}else if(it.pkg){name=it.pkg.name;cp=it.pkg.cp;}else{name=it.m.name;cp=it.m.cp;}rows.push({lo,hi,name,cp,it,kind:built.kind});});
     return rows;
   }
   function entryFromRow(row,role){
     if(row.kind==='creature'){const p=row.it.pkg;return{role,base:p.name,gw:p.name,mp:p.name,cp:String(p.cpNum),cpNum:p.cpNum,ability:p.ability,source:'creature',weakness:role==='weakness'};}
     if(row.kind==='commando'){const cp=role==='weakness'?-10:10;return{role,base:row.name,gw:row.name,mp:row.name,cp:String(cp),cpNum:cp,ability:'(mundane '+role+' ability — assign MP build in builder)',source:'commando',weakness:role==='weakness'};}
+    if(row.kind==='tech'){
+      if(row.it.tech)return{role,base:row.name,gw:row.name,mp:row.name,cp:'-10',cpNum:-10,ability:row.it.w.ability,source:'tech-weakness',weakness:true};
+      const it=row.it.it,cn=cpn(it.cp);
+      return{role,base:row.name,gw:it.name,mp:mpLead(it.ability)||it.name,cp:String(it.cp),cpNum:cn==null?0:cn,ability:(it.ability||'')+' [integral system — read Gear modifier as Body Part]',source:'tech-gear',weakness:false};
+    }
     let m=row.it.m,name=m.name,cp=m.cp,ability=m.ability;
     if(m.picks&&m.picks.length){const p=m.picks[die(m.picks.length)-1];name=m.name+' — '+p.name;cp=p.cp;ability=p.ability;}
     const cn=cpn(cp);return{role,base:row.name,gw:name,mp:mpLead(ability)||name,cp:String(cp),cpNum:cn==null?0:cn,ability:ability||'',source:row.it.cat,weakness:(role==='weakness')};
@@ -459,19 +491,13 @@
     if(ex){state.abilities=state.abilities.filter(a=>a!==ex);log(`Removed ${row.name}`);}
     else{const cur=state.abilities.filter(a=>a.role===role&&a.source!=='special-weapon');if(cur.length>=2)state.abilities=state.abilities.filter(a=>a!==cur[0]);state.abilities.push(entryFromRow(row,role));log(`Picked ${row.name}`);}
   }
-  function fillEquipment(target){
-    const list=[];(D.equipment||[]).forEach(g=>(g.items||[]).forEach(it=>{if(it.lo!=null)list.push(it);}));
-    let cp=0,g=0;state.abilities=state.abilities.filter(a=>a.source==='special-weapon');
-    while(cp<target&&g++<60){const r=die(100);const it=list.find(x=>r>=x.lo&&x.hi>=r);if(!it)continue;if(state.abilities.some(a=>a.gw===it.name))continue;const cn=cpn(it.cp);state.abilities.push({role:'misc',gw:it.name,mp:mpLead(it.ability)||it.name,cp:String(it.cp),cpNum:cn==null?0:cn,ability:it.ability||'',source:'equipment',weakness:false});cp+=(cn||0);}
-    log(`Tech Construct: ${state.abilities.filter(a=>a.source==='equipment').length} artifacts (~${cp} CP).`);
-  }
-  function rollAbilities(){const built=buildPools();if(built.kind==='tech'){fillEquipment(60);return;}state.abilities=state.abilities.filter(a=>a.source==='special-weapon');if(built.kind==='creature'){ROLE_KEYS.forEach(role=>rollRole(role,0));log(`Applied ${state.species} package.`);return;}ROLE_KEYS.forEach(role=>rollRole(role,2));if(built.kind==='commando')log('PSH: mundane abilities from commando tables.');}
+  function rollAbilities(){const built=buildPools();state.abilities=state.abilities.filter(a=>a.source==='special-weapon');if(built.kind==='creature'){ROLE_KEYS.forEach(role=>rollRole(role,0));log(`Applied ${state.species} package.`);return;}ROLE_KEYS.forEach(role=>rollRole(role,2));if(built.kind==='commando')log('PSH: mundane abilities from commando tables.');if(built.kind==='tech')log('Tech Construct: integral systems rolled from the artifact tables.');}
 
   function weaponList(){
     const out=[];const w=(WH.standardWeapons)||{melee:[],missile:[]};
     (w.melee||[]).forEach(x=>out.push({name:x.name,cp:x.cp,ability:`Special Weapon (melee): ${x.damage}, hit ${x.hit}, rng ${x.range}${x.notes?', '+x.notes:''}`}));
     (w.missile||[]).forEach(x=>out.push({name:x.name,cp:x.cp,ability:`Special Weapon (missile): ${x.damage}, hit ${x.hit}, rng ${x.range}${x.notes?', '+x.notes:''}`}));
-    (D.equipment||[]).forEach(g=>{if(/pistol|rifle|energy weapon/i.test(g.name))(g.items||[]).forEach(it=>out.push({name:it.name,cp:cpn(it.cp)||0,ability:it.ability||''}));});
+    (D.equipment||[]).forEach(g=>{if(/pistol|rifle|energy weapon/i.test(g.name))(g.items||[]).forEach(it=>{if(gearAllowed(it))out.push({name:it.name,cp:cpn(it.cp)||0,ability:it.ability||''});});});
     return out;
   }
   function addWeapon(w){if(!w)return;if(state.abilities.some(a=>a.gw===w.name))return;state.abilities.push({role:'offense',gw:w.name,mp:'Special Weapon',cp:String(w.cp),cpNum:cpn(w.cp)||0,ability:w.ability,source:'special-weapon',weakness:false});log(`Weapon: ${w.name} (${w.cp} CP)`);}
@@ -538,7 +564,7 @@
     const sp=state.species;
     if(isCreature(sp))return{cls:'',label:sp+' (creature)',items:[{step:1,t:'Fixed converted package'},{step:12,t:'Abilities: '+sp+' package applied'},{step:16,t:'Gear: optional special weapon'}]};
     if(sp==='Pure Strain Human')return{cls:'',label:'Pure Strain Human',items:[{step:1,t:'No mutations'},{step:12,t:'Abilities: commando tables (2/2/2/2)'},{step:16,t:'Gear: standard weapons'}]};
-    if(sp==='Tech Construct')return{cls:'',label:'Tech Construct',items:[{step:1,t:'No mutation charts'},{step:12,t:'Abilities: artifacts (~60 CP)'},{step:16,t:'Gear: tech weapons'}]};
+    if(sp==='Tech Construct')return{cls:'',label:'Tech Construct',items:[{step:1,t:'No mutation charts'},{step:12,t:'Abilities: integral systems 2/2/2/2 from artifact tables'},{step:16,t:'Gear: tech weapons (ID locks apply)'}]};
     if(sp==='Mutated Plant')return{cls:'',label:'Mutated Plant',items:[{step:1,t:'Plant mutation chart'},{step:12,t:'Abilities: 2/2/2/2 from plant chart'},{step:16,t:'Gear: optional special weapon'}]};
     return{cls:'',label:sp,items:[{step:1,t:'Physical + mental charts'},{step:12,t:'Abilities: 2/2/2/2 from mutation charts'},{step:16,t:'Gear: optional special weapon'}]};
   }
@@ -592,7 +618,7 @@
     const table=`<table class="gw-rt"><caption>Species (d100)</caption><tbody>`+
       (D.species||[]).map(s=>`<tr data-spk="${esc(s.name)}" class="${state.species===s.name?'sel':''}"><td class="rng">${s.lo}-${s.hi}</td><td>${esc(s.name)}</td></tr>`).join('')+`</tbody></table>`;
     const ctrl=rollBox('Roll or Pick','',`<select class="gw-pick" data-pick="species">${opts}</select>`,'Roll d%');
-    const hint=`<div class="gw-hint">${isCreature(state.species)?'Creature: its converted MP package applies at the Abilities step.':state.species==='Pure Strain Human'?'PSH: no mutations — commando abilities + standard weapons.':state.species==='Tech Construct'?'Tech Construct: artifacts instead of mutations.':'Mutant: draws 2/2/2/2 from the mutation charts.'}</div>`;
+    const hint=`<div class="gw-hint">${isCreature(state.species)?'Creature: its converted MP package applies at the Abilities step.':state.species==='Pure Strain Human'?'PSH: no mutations — commando abilities + standard weapons.':state.species==='Tech Construct'?'Tech Construct: integral artifact systems in place of mutations — weapons are Offensive, armor Defensive, devices Misc.':'Mutant: draws 2/2/2/2 from the mutation charts.'}</div>`;
     return head(1,'Species','Standard d100 table, or one of the ten playable creatures. This choice drives your Abilities branch.')+
       `<div class="gw-content"><div class="gw-table-side">${table}</div>${ctrl}</div>${hint}`+nav(1,'Next: Faction →');
   }
@@ -696,12 +722,12 @@
     const picks=state.abilities.filter(a=>a.role===role&&a.source!=='special-weapon');
     const pickList=`<div class="gw-picks">`+(picks.length?picks.map(p=>`<div class="gw-pickrow"><div class="mp">${esc(p.mp)} <span style="float:right">${esc(p.cp)} CP</span></div><div class="ab">${esc(p.gw)}</div></div>`).join(''):'<div class="gw-pickrow" style="color:var(--wl-soft)">Click rows to pick, or roll the category.</div>')+`</div>`;
     const budget=`<div style="background:${meta.pill[0]};color:${meta.pill[1]};display:inline-block;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;margin-bottom:7px">${picks.length} / 2 picked</div>`;
-    const canCat=!(built.kind==='creature'||built.kind==='tech');
+    const canCat=built.kind!=='creature';
     const ctrl=`<div class="gw-controls"><div class="gw-controls-title">${meta.label}</div>`+budget+
       (canCat?`<button class="gw-roll-btn" data-act="roll-cat">🎲 Roll this category</button>`:'')+
       `<button class="gw-roll-btn sm" data-act="roll-all">Roll all (2/2/2/2)</button>`+
       `<button class="gw-roll-rest" data-act="clear-role">Clear this category</button>`+
-      `<div class="gw-hint">${isCreature(sp)?`Playing a ${esc(sp)}: its converted MP package for this role. Click a pick to drop it.`:(sp==='Tech Construct'?'Tech Construct builds from artifacts — Roll all fills ~60 CP of gear (listed under Miscellaneous).':(sp==='Pure Strain Human'?'PSH: pick from the commando abilities for this role.':'Drawn from your GW→MP mutation charts for this role.'))}</div></div>`;
+      `<div class="gw-hint">${isCreature(sp)?`Playing a ${esc(sp)}: its converted MP package for this role. Click a pick to drop it.`:(sp==='Tech Construct'?'Tech Construct: integral systems from the artifact tables — read Gear modifiers as Body Part. Weaknesses are robotic (placeholder -10 pricing).':(sp==='Pure Strain Human'?'PSH: pick from the commando abilities for this role.':'Drawn from your GW→MP mutation charts for this role.'))}</div></div>`;
     return head(meta.n,meta.label+(role==='weakness'?'':' Abilities'),meta.desc)+
       `<div class="gw-content"><div class="gw-table-side">${table}</div>${ctrl}</div>${pickList}`+nav(meta.n,meta.next);
   }
@@ -711,7 +737,7 @@
     const gear=state.abilities.filter(a=>a.source==='special-weapon');
     const chips=gear.map((g,i)=>`<span class="gw-chip">${esc(g.gw)} (${esc(g.cp)})<span class="x" data-rmweap="${state.abilities.indexOf(g)}">✕</span></span>`).join('')||'<span class="gw-hint">No weapons added.</span>';
     const ctrl=`<div class="gw-controls"><div class="gw-controls-title">Add Weapon</div>${pick}<button class="gw-roll-btn sm" style="margin-top:6px" data-act="addweapon">Add selected</button><button class="gw-roll-btn" data-act="rollweapon">🎲 Roll a weapon</button><div class="gw-hint">A weapon is a Special Weapon ability — its CP counts against the build.</div></div>`;
-    return head(16,'Weapons & Gear','Optional special weapons. Any species may take them.')+
+    return head(16,'Weapons & Gear','Optional special weapons. Ancient ID locks apply — items keyed to PSH (or androids) are hidden for other species.')+
       `<div class="gw-content"><div class="gw-table-side">${chips}</div>${ctrl}</div>`+nav(16,'Review →',{noRest:true});
   }
   function stepReview(){
