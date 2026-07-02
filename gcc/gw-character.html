@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.5 — species-keyed GW origins: mystical branches dropped (no magic in GW1e), MP roll-twice-pick-either implemented, type-prefixed entries preserve MP originType on export, F.originsBySpecies override hook -->
 <!-- gw-character.html v0.2.4 — nav buttons move to top of step column; chronicle steps jump freely in any order with content-based done marks; Ranks of the Fit & The Created closed to PSH -->
 <!-- gw-character.html v0.2.3 — faction species eligibility: ineligible Cryptic Alliances greyed/locked, excluded from roll & pick; faction resets to Independent on species switch; data-overridable via alliance.eligible/excluded -->
 <!-- gw-character.html v0.2.2 — PSH BC caps: ST<=18, EN/AG/IN/CL<=24 enforced on roll, manual edit, and species switch; step-7 inputs show per-stat max -->
@@ -251,7 +252,7 @@
     name:'', player:'', species:'Humanoid (Mutant)', culture:'', side:'', faction:'', alliance:'',
     home:'', homeland:'', bc:{st:10,en:10,ag:10,in:10,cl:10}, gender:'', age:'', weight:'',
     genderIdentity:'', genderExpression:'', biologicalSex:'', sexualAttraction:'', ageMethod:'standard',
-    backgrounds:[], motivation:'', origin:'',
+    backgrounds:[], motivation:'', origin:'', originChoices:[],
     abilities:[], rollLog:[], exportId:null };
 
   /* ── dice & helpers ─────────────────────────────────────────── */
@@ -331,7 +332,7 @@
 
   /* ── per-step rolls (pure state) ────────────────────────────── */
   function rollName(){if(!F||!F.rollName)return;state.name=F.rollName();log('Name: '+state.name);}
-  function setSpecies(sp){state.species=sp;state.abilities=state.abilities.filter(a=>a.source==='special-weapon');if(sp==='Pure Strain Human'&&enforceBCCaps())log('PSH caps applied: ST\u226418, EN/AG/IN/CL\u226424.');revalidateFaction();if(isCreature(sp))rollAbilities();}
+  function setSpecies(sp){state.species=sp;state.abilities=state.abilities.filter(a=>a.source==='special-weapon');if(sp==='Pure Strain Human'&&enforceBCCaps())log('PSH caps applied: ST\u226418, EN/AG/IN/CL\u226424.');revalidateFaction();revalidateOrigin();if(isCreature(sp))rollAbilities();}
   function rollSpecies(){setSpecies(rollNonAllianceSpecies());log('Species: '+state.species);}
   function rollFaction(){const opts=factionOptions();state.faction=(die(10)<=3||opts.length<2)?'Independent':opts[die(opts.length-1)];const a=allianceByName(state.faction);if(a&&a.side)state.side=a.side;log('Faction: '+state.faction);}
   function rollSide(){state.side=SIDES[die(3)-1];log('Side: '+state.side);}
@@ -377,7 +378,47 @@
   function rollBackgrounds(){const b=[];let g=0;while(b.length<2&&g++<25){const x=rollOneBg();if(!b.some(y=>bgCat(y)===bgCat(x)))b.push(x);}state.backgrounds=b;log('Backgrounds: '+b.join('; '));}
   function addBackground(cat){if(!cat)return;const c=BACKGROUNDS.find(x=>x.name===cat);if(!c)return;const ent=`${c.name} (${c.ex[die(c.ex.length)-1]})`;const b=(state.backgrounds||[]).filter(y=>bgCat(y)!==cat);b.push(ent);while(b.length>2)b.shift();state.backgrounds=b;}
   function rollMotivation(){if(F)state.motivation=F.pick(F.motivationsBySide?F.motivationsBySide(state.side):F.motivations);log('Motivation: '+state.motivation);}
-  function rollOrigin(){if(F)state.origin=F.pick(F.origins);log('Origin: '+state.origin);}
+  // GW-native origins: species fixes the MP Origin Type family; no mystical branches (GW1e has no magic).
+  // Override per-species via F.originsBySpecies(species) in gw-flavor-tables.js when desired.
+  const GW_ORIGINS={
+    psh:[
+      'Physical Training — drilled from childhood in an enclave militia',
+      'Physical Training — apprenticed to a veteran wasteland scout',
+      'Physical Training — hardened by the proving trials of a warrior lodge',
+      'Science Project — raised on Ancient regimens in a sealed vault community',
+      'Science Project — schooled and equipped by a Restorationist academy',
+      'Science Accident — stumbled into an intact Ancient armory as a youth',
+      'Science Accident — sole survivor of an automated military installation'
+    ],
+    mutant:[
+      'Mutated or Evolved — bloodline altered in the Shadow Years',
+      'Mutated or Evolved — born under the glow of a rad-zone',
+      'Mutated or Evolved — heir to a long line of stable mutants',
+      'Science Accident — childhood exposure to a leaking Ancient site',
+      'Science Accident — caught in a radstorm that rewrote living tissue',
+      'Science Accident — drank from a spring beneath a buried reactor',
+      'Science Project — decanted from an Ancient gene-vat',
+      'Science Project — product of a forgotten uplift program'
+    ],
+    plant:[
+      'Mutated or Evolved — seeded in irradiated soil generations ago',
+      'Mutated or Evolved — offshoot of a vast awakened grove',
+      'Science Accident — roots grew into a ruptured chemical sump',
+      'Science Accident — pollinated during a radstorm bloom',
+      'Science Project — engineered flora from an Ancient agri-dome',
+      'Science Project — escaped cultivar of a military bio-program'
+    ],
+    tech:[
+      'Science Project — built and programmed by the Ancients',
+      'Science Project — assembled by a still-running autofactory',
+      'Science Accident — awakened when restraining code corrupted',
+      'Science Accident — self-repaired from salvage into something new'
+    ]
+  };
+  function originBranch(sp){sp=sp||state.species;if(sp==='Pure Strain Human')return 'psh';if(sp==='Tech Construct'||sp==='Android')return 'tech';if(sp==='Mutated Plant')return 'plant';return 'mutant';}
+  function originsFor(){if(F&&F.originsBySpecies)return F.originsBySpecies(state.species)||GW_ORIGINS[originBranch()];return GW_ORIGINS[originBranch()];}
+  function rollOrigin(){const list=originsFor();if(!list||!list.length)return;const a=die(list.length)-1;let b=a,g=0;while(b===a&&g++<20&&list.length>1)b=die(list.length)-1;state.originChoices=b===a?[list[a]]:[list[a],list[b]];state.origin=list[a];log('Origin — rolled two, pick either: '+state.originChoices.join(' | '));}
+  function revalidateOrigin(){const cur=state.origin;if(!cur)return;if((originsFor()||[]).indexOf(cur)>=0)return;const builtin=Object.keys(GW_ORIGINS).some(k=>GW_ORIGINS[k].indexOf(cur)>=0);if(builtin){state.origin='';state.originChoices=[];log('Origin cleared: previous origin does not fit '+state.species+'.');}}
 
   /* ── ability engine (pure state) ────────────────────────────── */
   function bcTotal(){return BCS.reduce((s,[k])=>s+(state.bc[k]||0),0);}
@@ -476,7 +517,7 @@
   /* ── draft persistence ──────────────────────────────────────── */
   function saveDraft(){try{localStorage.setItem(DRAFT_KEY,JSON.stringify({v:4,state:{...state,exportId:window.__gwExportId||null}}));}catch(e){}}
   function loadDraft(){try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');if(!d||d.v!==4)return false;Object.assign(state,d.state||{});if(d.state&&d.state.exportId)window.__gwExportId=d.state.exportId;return true;}catch(e){return false;}}
-  function startOver(){try{localStorage.removeItem(DRAFT_KEY);}catch(e){}window.__gwExportId=null;state={ step:0, powerLevel:'Low', activeRole:'offense', name:'', player:'', species:'Humanoid (Mutant)', culture:'', side:'', faction:'', alliance:'', home:'', homeland:'', bc:{st:10,en:10,ag:10,in:10,cl:10}, gender:'', age:'', weight:'', genderIdentity:'', genderExpression:'', biologicalSex:'', sexualAttraction:'', ageMethod:'standard', backgrounds:[], motivation:'', origin:'', abilities:[], rollLog:[], exportId:null };applyAuthDefault();render();}
+  function startOver(){try{localStorage.removeItem(DRAFT_KEY);}catch(e){}window.__gwExportId=null;state={ step:0, powerLevel:'Low', activeRole:'offense', name:'', player:'', species:'Humanoid (Mutant)', culture:'', side:'', faction:'', alliance:'', home:'', homeland:'', bc:{st:10,en:10,ag:10,in:10,cl:10}, gender:'', age:'', weight:'', genderIdentity:'', genderExpression:'', biologicalSex:'', sexualAttraction:'', ageMethod:'standard', backgrounds:[], motivation:'', origin:'', originChoices:[], abilities:[], rollLog:[], exportId:null };applyAuthDefault();render();}
 
   /* ── step model ─────────────────────────────────────────────── */
   const STEPS=[
@@ -633,11 +674,12 @@
       `<div class="gw-content"><div class="gw-table-side">${f}</div>${rollBox('Roll or Pick','',pick,'Roll')}</div>`+nav(10,'Next: Origin →');
   }
   function stepOrigin(){
-    const opts=(F&&F.origins||[]);
+    const opts=originsFor()||[];
     const pick=`<select class="gw-pick" data-pick="origin"><option value="">— pick —</option>`+opts.map(n=>`<option value="${esc(n)}" ${state.origin===n?'selected':''}>${esc(n)}</option>`).join('')+`</select>`;
     const f=`<input data-text="origin" placeholder="Origin" value="${esc(state.origin||'')}" style="max-width:420px">`;
-    return head(11,'Origin','How the mutation/build came to be. Roll, pick, or write your own.')+
-      `<div class="gw-content"><div class="gw-table-side">${f}</div>${rollBox('Roll or Pick','',pick,'Roll')}</div>`+nav(11,'Next: Offensive →');
+    const chips=(state.originChoices&&state.originChoices.length>1)?`<div style="display:flex;flex-direction:column;gap:5px">`+state.originChoices.map((c,i)=>`<button class="wl-btn ${state.origin===c?'green':'ghost'}" data-oc="${i}" style="text-align:left;font-size:12px;white-space:normal">${esc(c)}</button>`).join('')+`</div>`:'';
+    return head(11,'Origin',`How a ${esc(state.species)} came to be what they are. MP RAW: roll twice, keep whichever fits best — the table is keyed to your species, and GW has no mystical origins. Roll, pick, or write your own.`)+
+      `<div class="gw-content"><div class="gw-table-side">${f}</div>${rollBox('Roll Twice, Pick Either',chips,pick,'Roll Twice')}</div>`+nav(11,'Next: Offensive →');
   }
   const ROLE_META={
     offense:{n:12,label:'Offensive',next:'Next: Defensive →',pill:['#f3d2c2','#71310d'],desc:'Pick 2 offensive abilities, or roll the table.'},
@@ -731,6 +773,7 @@
       const a=e.target.closest('[data-act]');if(a){onAct(a.dataset.act);return;}
       const sp=e.target.closest('[data-spk]');if(sp){setSpecies(sp.dataset.spk);log('Species: '+state.species);saveDraft();render();return;}
       const fk=e.target.closest('[data-fck]');if(fk){state.faction=fk.dataset.fck;const al=allianceByName(state.faction);if(al&&al.side)state.side=al.side;saveDraft();render();return;}
+      const oc=e.target.closest('[data-oc]');if(oc){const v=(state.originChoices||[])[+oc.dataset.oc];if(v){state.origin=v;log('Origin: '+v);}saveDraft();render();return;}
       const sd=e.target.closest('[data-sdk]');if(sd){state.side=sd.dataset.sdk;saveDraft();render();return;}
       const cl=e.target.closest('[data-clk]');if(cl){state.culture=cl.dataset.clk;saveDraft();render();return;}
       const hm=e.target.closest('[data-hmk]');if(hm){state.home=hm.dataset.hmk;saveDraft();render();return;}
