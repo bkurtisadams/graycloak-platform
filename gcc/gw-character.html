@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.2 — PSH BC caps: ST<=18, EN/AG/IN/CL<=24 enforced on roll, manual edit, and species switch; step-7 inputs show per-stat max -->
 <!-- gw-character.html v0.2.1 — MP transfer: send powerLevel as its id ('low') so MP Builder maps Power Level and base CPs correctly -->
 <!-- gw-character.html v0.2.0 — split the single Abilities step into per-role steps: Offensive(12) Defensive(13) Miscellaneous(14) Weaknesses(15); Weapons & Gear(16); Review(17) -->
 <html lang="en">
@@ -197,6 +198,21 @@
     {name:'High',     scores:[20,18,16,14,12], total:200, abil:120}
   ];
   const tierOf=n=>BC_TIERS.find(t=>t.name===n)||BC_TIERS[1];
+  const PSH_CAPS={st:18,en:24,ag:24,in:24,cl:24};
+  function bcCap(k){return state.species==='Pure Strain Human'?PSH_CAPS[k]:40;}
+  function enforceBCCaps(){
+    if(state.species!=='Pure Strain Human')return false;
+    let changed=false;
+    if(state.bc.st>PSH_CAPS.st){
+      const others=['en','ag','in','cl'];
+      let lo=others[0];others.forEach(k=>{if(state.bc[k]<state.bc[lo])lo=k;});
+      if(state.bc[lo]<=PSH_CAPS.st){const t=state.bc.st;state.bc.st=state.bc[lo];state.bc[lo]=Math.min(t,PSH_CAPS[lo]);}
+      else state.bc.st=PSH_CAPS.st;
+      changed=true;
+    }
+    ['en','ag','in','cl'].forEach(k=>{if(state.bc[k]>PSH_CAPS[k]){state.bc[k]=PSH_CAPS[k];changed=true;}});
+    return changed;
+  }
   const SPECIES_MAP={psh:'Pure Strain Human',humanoid:'Humanoid (Mutant)',animal:'Mutated Animal',plant:'Mutated Plant',tech:'Tech Construct'};
   const PLAYABLE_CREATURES=['Android','Ark','Badder','Fen','Gren','Hisser','Hoop','Menarl','Orlen','Sleeth'];
   const BEST=()=>window.GWBestiary||{};
@@ -288,7 +304,7 @@
 
   /* ── per-step rolls (pure state) ────────────────────────────── */
   function rollName(){if(!F||!F.rollName)return;state.name=F.rollName();log('Name: '+state.name);}
-  function setSpecies(sp){state.species=sp;state.abilities=state.abilities.filter(a=>a.source==='special-weapon');if(isCreature(sp))rollAbilities();}
+  function setSpecies(sp){state.species=sp;state.abilities=state.abilities.filter(a=>a.source==='special-weapon');if(sp==='Pure Strain Human'&&enforceBCCaps())log('PSH caps applied: ST\u226418, EN/AG/IN/CL\u226424.');if(isCreature(sp))rollAbilities();}
   function rollSpecies(){setSpecies(rollNonAllianceSpecies());log('Species: '+state.species);}
   function rollFaction(){const opts=factionOptions();state.faction=(die(10)<=3)?'Independent':opts[die(opts.length-1)];const a=allianceByName(state.faction);if(a&&a.side)state.side=a.side;log('Faction: '+state.faction);}
   function rollSide(){state.side=SIDES[die(3)-1];log('Side: '+state.side);}
@@ -299,6 +315,7 @@
     const tier=tierOf(state.powerLevel),order=['st','en','ag','in','cl'],got={};
     tier.scores.forEach(score=>{let idx=Math.floor((die(10)-1)/2),g=0;while(got[order[idx]]!==undefined&&g++<5)idx=(idx+1)%5;got[order[idx]]=score;});
     order.forEach(k=>state.bc[k]=got[k]||0);
+    if(enforceBCCaps())log('PSH caps applied: ST\u226418, EN/AG/IN/CL\u226424.');
     log(`MP BCs (${tier.name}): ${BCS.map(([k,l])=>l+' '+state.bc[k]).join(', ')} = ${bcTotal()}`);
   }
   // Gender — MP RAW: four independent d100 tables (identity, expression, biological sex, attraction)
@@ -549,7 +566,8 @@
   }
   function stepBC(){
     const plSel=`<select data-pl style="margin-bottom:8px">`+BC_TIERS.map(t=>`<option value="${t.name}" ${state.powerLevel===t.name?'selected':''}>${t.name} (BC ${t.scores.reduce((a,b)=>a+b,0)}, ${t.total} CP)</option>`).join('')+`</select>`;
-    const grid=`<div class="gw-bc">`+BCS.map(([k,l])=>`<div class="c"><label>${l}</label><input type="number" min="0" max="40" data-bc="${k}" value="${state.bc[k]}"></div>`).join('')+`<div class="c"><label>Total</label><div style="font-weight:600;padding:5px 0">${bcTotal()}</div></div></div>`;
+    const psh=state.species==='Pure Strain Human';
+    const grid=`<div class="gw-bc">`+BCS.map(([k,l])=>`<div class="c"><label>${l}${psh?` <span style="color:var(--wl-soft);font-weight:400">(max ${bcCap(k)})</span>`:''}</label><input type="number" min="0" max="${bcCap(k)}" data-bc="${k}" value="${state.bc[k]}"></div>`).join('')+`<div class="c"><label>Total</label><div style="font-weight:600;padding:5px 0">${bcTotal()}</div></div></div>`;
     const note=`<div class="gw-hint">MP Random Method: each of the five tier scores [${tierOf(state.powerLevel).scores.join('/')}] is dealt to a stat by a d10 column draw. Edit any cell by hand.</div>`;
     return head(7,'Basic Characteristics','Choose a power level, then roll the five BCs by the MP Random Method.')+
       `<div class="gw-content vertical"><div style="width:100%">${plSel}${grid}${note}</div></div>`+
@@ -699,7 +717,7 @@
     body.addEventListener('change',e=>{
       const pl=e.target.closest('[data-pl]');if(pl){state.powerLevel=pl.value;rollBC();saveDraft();render();return;}
       const pk=e.target.closest('[data-pick]');if(pk){const key=pk.dataset.pick,v=pk.value;if(key==='species'){setSpecies(v);}else{state[key]=v;if(key==='faction'){const al=allianceByName(v);if(al&&al.side)state.side=al.side;}if(key==='genderIdentity'){state.gender=v;}}saveDraft();render();return;}
-      const bc=e.target.closest('[data-bc]');if(bc){state.bc[bc.dataset.bc]=parseInt(bc.value,10)||0;saveDraft();renderChronicleOnly();const t=$('#gw-main .gw-bc .c:last-child div');if(t)t.textContent=bcTotal();return;}
+      const bc=e.target.closest('[data-bc]');if(bc){const k=bc.dataset.bc,cap=bcCap(k);let v=parseInt(bc.value,10)||0;if(v>cap){v=cap;bc.value=v;}state.bc[k]=v;saveDraft();renderChronicleOnly();const t=$('#gw-main .gw-bc .c:last-child div');if(t)t.textContent=bcTotal();return;}
     });
     body.addEventListener('input',e=>{
       const tx=e.target.closest('[data-text]');if(tx){state[tx.dataset.text]=tx.value;saveDraft();renderChronicleOnly();return;}
