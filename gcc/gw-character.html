@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.4 — nav buttons move to top of step column; chronicle steps jump freely in any order with content-based done marks; Ranks of the Fit & The Created closed to PSH -->
 <!-- gw-character.html v0.2.3 — faction species eligibility: ineligible Cryptic Alliances greyed/locked, excluded from roll & pick; faction resets to Independent on species switch; data-overridable via alliance.eligible/excluded -->
 <!-- gw-character.html v0.2.2 — PSH BC caps: ST<=18, EN/AG/IN/CL<=24 enforced on roll, manual edit, and species switch; step-7 inputs show per-stat max -->
 <!-- gw-character.html v0.2.1 — MP transfer: send powerLevel as its id ('low') so MP Builder maps Power Level and base CPs correctly -->
@@ -129,6 +130,10 @@
 
   /* Nav */
   .gw-nav{display:flex;justify-content:space-between;gap:8px;margin-top:12px;padding-top:9px;border-top:2px solid var(--wl-line);}
+  .gw-main{display:flex;flex-direction:column;align-items:stretch;}
+  .gw-main>*{flex-shrink:0}
+  .gw-step-head{order:-3}
+  .gw-main .gw-nav{order:-2;margin-top:0;margin-bottom:12px;padding-top:0;padding-bottom:9px;border-top:none;border-bottom:2px solid var(--wl-line);}
   .gw-bc{display:grid;grid-template-columns:repeat(5,1fr) auto;gap:5px;align-items:end;}
   .gw-bc .c{text-align:center}.gw-bc .c label{display:block;font-size:11px;color:var(--wl-soft)}
   .gw-bc input{text-align:center;padding:4px 2px}
@@ -302,7 +307,9 @@
   const FACTION_SPECIES_RULES=[
     {re:/genetic purity/i,ok:sp=>sp==='Pure Strain Human'},
     {re:/iron society/i,ok:sp=>sp!=='Pure Strain Human'&&sp!=='Tech Construct'&&sp!=='Android'},
-    {re:/zoopremisist/i,ok:sp=>sp==='Mutated Animal'||(isCreature(sp)&&sp!=='Android')}
+    {re:/zoopremisist/i,ok:sp=>sp==='Mutated Animal'||(isCreature(sp)&&sp!=='Android')},
+    {re:/ranks of the fit/i,ok:sp=>sp!=='Pure Strain Human'},
+    {re:/\bcreated\b/i,ok:sp=>sp!=='Pure Strain Human'}
   ];
   function factionEligible(a,sp){
     if(!a)return true;sp=sp||state.species;
@@ -527,7 +534,7 @@
     const b=branchInfo();
     const track=`<div class="gw-track"><div class="gw-track-h">${esc(b.label)}${complete?' ✓':''}</div><div class="gw-track-b">`+
       b.items.map(it=>{const done=state.step>it.step,act=state.step===it.step;const cls=done?'done':(act?'active':'pending');const ck=done?'✓':'○';return `<div class="gw-track-item ${cls}"><span>${ck}</span><span>${esc(it.t)}</span></div>`;}).join('')+`</div></div>`;
-    const steps=STEPS.map(s=>{const act=s.n===state.step,done=s.n<state.step;let cls='gw-cstep';if(act)cls+=' active';if(done)cls+=' completed';return `<div class="${cls}" data-goto="${s.n}"><div class="h">${s.n}. ${esc(s.name)}</div><div class="r">${chronResult(s.key)}</div></div>`;}).join('');
+    const steps=STEPS.map(s=>{const act=s.n===state.step,res=chronResult(s.key),done=!act&&res!=='—';let cls='gw-cstep';if(act)cls+=' active';if(done)cls+=' completed';return `<div class="${cls}" data-goto="${s.n}"><div class="h">${s.n}. ${esc(s.name)}</div><div class="r">${res}</div></div>`;}).join('');
     return `<div class="gw-chronicle ${complete?'complete':''}"><div class="gw-chron-title ${complete?'complete':''}">${complete?'✓ Build Complete':'Generation Chronicle'}</div>${tally}${track}${steps}</div>`;
   }
 
@@ -720,7 +727,7 @@
   function bindHandlers(){
     const body=$('#gw-body');
     body.addEventListener('click',e=>{
-      const goEl=e.target.closest('[data-goto]');if(goEl){const n=+goEl.dataset.goto;if(n<=Math.max(state.step,1))go(n);return;}
+      const goEl=e.target.closest('[data-goto]');if(goEl){go(+goEl.dataset.goto);return;}
       const a=e.target.closest('[data-act]');if(a){onAct(a.dataset.act);return;}
       const sp=e.target.closest('[data-spk]');if(sp){setSpecies(sp.dataset.spk);log('Species: '+state.species);saveDraft();render();return;}
       const fk=e.target.closest('[data-fck]');if(fk){state.faction=fk.dataset.fck;const al=allianceByName(state.faction);if(al&&al.side)state.side=al.side;saveDraft();render();return;}
