@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.8 — backgrounds roll-3-keep-2 per MP 2.1.10; Core Ability structure: 4 of 6 abilities marked Core, 2 non-Core funded by 2 Weaknesses per MP 2.1.16, with Review warnings for unmarked cores, missing weaknesses, and CP shortfall -->
 <!-- gw-character.html v0.2.6 — Tech Construct rolls 2/2/2/2: offense/defense/misc pools built from artifact groups (weapons/armor/devices), built-in robotic weakness table; Ancient ID locks parsed from ability text gate gear by species everywhere; Friends of Entropy closed to machines -->
 <!-- gw-character.html v0.2.5 — species-keyed GW origins: mystical branches dropped (no magic in GW1e), MP roll-twice-pick-either implemented, type-prefixed entries preserve MP originType on export, F.originsBySpecies override hook -->
 <!-- gw-character.html v0.2.4 — nav buttons move to top of step column; chronicle steps jump freely in any order with content-based done marks; Ranks of the Fit & The Created closed to PSH -->
@@ -253,7 +254,7 @@
     name:'', player:'', species:'Humanoid (Mutant)', culture:'', side:'', faction:'', alliance:'',
     home:'', homeland:'', bc:{st:10,en:10,ag:10,in:10,cl:10}, gender:'', age:'', weight:'',
     genderIdentity:'', genderExpression:'', biologicalSex:'', sexualAttraction:'', ageMethod:'standard',
-    backgrounds:[], motivation:'', origin:'', originChoices:[],
+    backgrounds:[], backgroundChoices:[], motivation:'', origin:'', originChoices:[],
     abilities:[], rollLog:[], exportId:null };
 
   /* ── dice & helpers ─────────────────────────────────────────── */
@@ -377,7 +378,8 @@
   function rollBio(){rollGenderVals();rollAgeVal();rollWeightVal();log(`Bio: ${genderLine()}; age ${state.age}; ${state.weight} lbs`);}
   function rollOneBg(){const r=die(100);const c=BACKGROUNDS.find(x=>r>=x.lo&&x.hi>=r)||BACKGROUNDS[0];return `${c.name} (${c.ex[die(c.ex.length)-1]})`;}
   function bgCat(s){return String(s||'').split(' (')[0];}
-  function rollBackgrounds(){const b=[];let g=0;while(b.length<2&&g++<25){const x=rollOneBg();if(!b.some(y=>bgCat(y)===bgCat(x)))b.push(x);}state.backgrounds=b;log('Backgrounds: '+b.join('; '));}
+  function rollBackgrounds(){const c=[];let g=0;while(c.length<3&&g++<40){const x=rollOneBg();if(!c.some(y=>bgCat(y)===bgCat(x)))c.push(x);}state.backgroundChoices=c;state.backgrounds=c.slice(0,2);log('Backgrounds — rolled three, keep two: '+c.join('; '));}
+  function toggleBgChoice(i){const v=(state.backgroundChoices||[])[i];if(!v)return;if((state.backgrounds||[]).indexOf(v)>=0){state.backgrounds=state.backgrounds.filter(x=>x!==v);}else{state.backgrounds.push(v);while(state.backgrounds.length>2)state.backgrounds.shift();}log('Backgrounds kept: '+(state.backgrounds.join('; ')||'—'));}
   function addBackground(cat){if(!cat)return;const c=BACKGROUNDS.find(x=>x.name===cat);if(!c)return;const ent=`${c.name} (${c.ex[die(c.ex.length)-1]})`;const b=(state.backgrounds||[]).filter(y=>bgCat(y)!==cat);b.push(ent);while(b.length>2)b.shift();state.backgrounds=b;}
   function rollMotivation(){if(F)state.motivation=F.pick(F.motivationsBySide?F.motivationsBySide(state.side):F.motivations);log('Motivation: '+state.motivation);}
   // GW-native origins: species fixes the MP Origin Type family; no mystical branches (GW1e has no magic).
@@ -424,6 +426,11 @@
 
   /* ── ability engine (pure state) ────────────────────────────── */
   function bcTotal(){return BCS.reduce((s,[k])=>s+(state.bc[k]||0),0);}
+  function coreAbilities(){return state.abilities.filter(a=>!a.weakness&&a.source!=='special-weapon');}
+  function coreCount(){return coreAbilities().filter(a=>a.core===true).length;}
+  function normalizeCore(){let n=coreCount();state.abilities.forEach(a=>{if(a.weakness||a.source==='special-weapon'){a.core=false;return;}if(a.core===undefined){a.core=n<4;if(a.core)n++;}});}
+  function toggleCore(i){const a=state.abilities[i];if(!a||a.weakness||a.source==='special-weapon')return;if(a.core){a.core=false;}else{if(coreCount()>=4){log('Core limit is 4 — demote another ability first.');return;}a.core=true;}log((a.core?'Core: ':'Non-core: ')+(a.mp||a.gw));}
+  function buildWarnings(){const abs=coreAbilities(),w=[];const want=Math.min(4,abs.length);if(abs.length&&coreCount()!==want)w.push(`Mark ${want} abilities as Core (currently ${coreCount()}).`);const nc=abs.filter(a=>!a.core),wk=state.abilities.filter(a=>a.weakness);if(nc.length&&wk.length<2)w.push(`${nc.length} non-Core abilit${nc.length===1?'y':'ies'} unfunded — take 2 Weaknesses to keep them (MP 2.1.16.3).`);const ncCost=nc.reduce((s,a)=>s+(a.cpNum||0),0),fund=-wk.reduce((s,a)=>s+(a.cpNum||0),0);if(nc.length&&wk.length>=2&&fund<ncCost)w.push(`Non-Core abilities cost ${fmt(ncCost)} CP but Weaknesses only free up ${fmt(fund)} CP.`);return w;}
   function abilityCP(){return state.abilities.filter(a=>!a.weakness).reduce((s,a)=>s+(a.cpNum||0),0);}
   function weaknessCP(){return state.abilities.filter(a=>a.weakness).reduce((s,a)=>s+(a.cpNum||0),0);}
   function netCP(){return bcTotal()+abilityCP()+weaknessCP();}
@@ -482,14 +489,14 @@
   }
   function rollRole(role,n){
     n=n||2;const built=buildPools(),rows=poolTable(role);state.abilities=state.abilities.filter(a=>a.role!==role||a.source==='special-weapon');
-    if(built.kind==='creature'){rows.forEach(row=>state.abilities.push(entryFromRow(row,role)));return;}
+    if(built.kind==='creature'){rows.forEach(row=>state.abilities.push(entryFromRow(row,role)));normalizeCore();return;}
     const got=[];let g=0;while(got.length<n&&g++<200&&rows.length){const row=rows[die(rows.length)-1];if(got.some(x=>x.base===row.name))continue;got.push(entryFromRow(row,role));}
-    got.forEach(a=>state.abilities.push(a));
+    got.forEach(a=>state.abilities.push(a));normalizeCore();
   }
   function togglePick(row,role){
     const ex=state.abilities.find(a=>a.role===role&&a.source!=='special-weapon'&&a.base===row.name);
     if(ex){state.abilities=state.abilities.filter(a=>a!==ex);log(`Removed ${row.name}`);}
-    else{const cur=state.abilities.filter(a=>a.role===role&&a.source!=='special-weapon');if(cur.length>=2)state.abilities=state.abilities.filter(a=>a!==cur[0]);state.abilities.push(entryFromRow(row,role));log(`Picked ${row.name}`);}
+    else{const cur=state.abilities.filter(a=>a.role===role&&a.source!=='special-weapon');if(cur.length>=2)state.abilities=state.abilities.filter(a=>a!==cur[0]);state.abilities.push(entryFromRow(row,role));normalizeCore();log(`Picked ${row.name}`);}
   }
   function rollAbilities(){const built=buildPools();state.abilities=state.abilities.filter(a=>a.source==='special-weapon');if(built.kind==='creature'){ROLE_KEYS.forEach(role=>rollRole(role,0));log(`Applied ${state.species} package.`);return;}ROLE_KEYS.forEach(role=>rollRole(role,2));if(built.kind==='commando')log('PSH: mundane abilities from commando tables.');if(built.kind==='tech')log('Tech Construct: integral systems rolled from the artifact tables.');}
 
@@ -505,7 +512,7 @@
   function generateAll(){rollName();rollSpecies();rollFaction();rollSide();rollCulture();rollHome();rollHomeland();rollBC();rollBio();rollBackgrounds();rollMotivation();rollOrigin();rollAbilities();}
 
   /* ── MP export contract (unchanged) ─────────────────────────── */
-  function abilityRows(){const rows=state.abilities.map(a=>({cp:a.cpNum?fmt(a.cpNum):a.cp,desc:`${a.mp} [${a.role}${a.weakness?'; weakness':''}; GW: ${a.gw}] — ${a.ability}`.slice(0,300),ip:''}));while(rows.length<12)rows.push({cp:'',desc:'',ip:''});return rows;}
+  function abilityRows(){const rows=state.abilities.map(a=>({cp:a.cpNum?fmt(a.cpNum):a.cp,desc:`${a.mp} [${a.role}${a.weakness?'; weakness':(a.source==='special-weapon'?'':(a.core?'; core':'; non-core'))}; GW: ${a.gw}] — ${a.ability}`.slice(0,300),ip:''}));while(rows.length<12)rows.push({cp:'',desc:'',ip:''});return rows;}
   function storyText(){
     const lines=[`Gamma World 1e → MP build. Faction: ${state.faction||'Independent'}, Side ${state.side||'Neutral'}.`,`Species ${state.species}, ${state.culture||'Modern'}. Home: ${[state.home,state.homeland].filter(Boolean).join(' — ')||'—'}.`,`BCs: ${BCS.map(([k,l])=>l+' '+state.bc[k]).join(', ')} = ${bcTotal()} CP.`];
     if(state.age||genderLine())lines.push(`Age ${state.age||'—'}. Gender: ${genderLine()||'—'}.`);
@@ -542,7 +549,7 @@
 
   /* ── draft persistence ──────────────────────────────────────── */
   function saveDraft(){try{localStorage.setItem(DRAFT_KEY,JSON.stringify({v:4,state:{...state,exportId:window.__gwExportId||null}}));}catch(e){}}
-  function loadDraft(){try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');if(!d||d.v!==4)return false;Object.assign(state,d.state||{});if(d.state&&d.state.exportId)window.__gwExportId=d.state.exportId;return true;}catch(e){return false;}}
+  function loadDraft(){try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');if(!d||d.v!==4)return false;Object.assign(state,d.state||{});normalizeCore();if(d.state&&d.state.exportId)window.__gwExportId=d.state.exportId;return true;}catch(e){return false;}}
   function startOver(){try{localStorage.removeItem(DRAFT_KEY);}catch(e){}window.__gwExportId=null;state={ step:0, powerLevel:'Low', activeRole:'offense', name:'', player:'', species:'Humanoid (Mutant)', culture:'', side:'', faction:'', alliance:'', home:'', homeland:'', bc:{st:10,en:10,ag:10,in:10,cl:10}, gender:'', age:'', weight:'', genderIdentity:'', genderExpression:'', biologicalSex:'', sexualAttraction:'', ageMethod:'standard', backgrounds:[], motivation:'', origin:'', originChoices:[], abilities:[], rollLog:[], exportId:null };applyAuthDefault();render();}
 
   /* ── step model ─────────────────────────────────────────────── */
@@ -686,11 +693,13 @@
       `<div class="gw-content vertical"><div style="width:100%">${body}${gender}<div style="margin-top:14px;border-top:1px solid var(--wl-line);padding-top:10px"><button class="gw-roll-btn sm" style="width:auto;display:inline-block;padding:6px 16px" data-act="roll">🎲 Roll All</button></div></div></div>`+nav(8,'Next: Backgrounds →');
   }
   function stepBackgrounds(){
-    const table=`<table class="gw-rt"><caption>Backgrounds (d100, pick or roll two)</caption><tbody>`+
+    const table=`<table class="gw-rt"><caption>Backgrounds (d100 — roll three, keep two)</caption><tbody>`+
       BACKGROUNDS.map(b=>{const on=(state.backgrounds||[]).some(x=>bgCat(x)===b.name);return `<tr data-bgk="${esc(b.name)}" class="${on?'sel':''}"><td class="rng">${b.lo}-${b.hi}</td><td>${esc(b.name)}</td></tr>`;}).join('')+`</tbody></table>`;
-    const chips=(state.backgrounds||[]).map((bgv,i)=>`<span class="gw-chip">${esc(bgv)}<span class="x" data-rmbg="${i}">✕</span></span>`).join('')||'<span class="gw-hint">None yet — roll two or click rows (max 2).</span>';
-    return head(9,'Backgrounds','Two life-paths. Click a row to add/replace; rolling picks two distinct categories.')+
-      `<div class="gw-content"><div class="gw-table-side">${table}</div>${rollBox('Roll or Pick','','','Roll 2')}</div><div style="margin-top:8px">${chips}</div>`+nav(9,'Next: Motivation →');
+    const ch=state.backgroundChoices||[];
+    const choices=ch.length?`<div class="gw-hint" style="margin-top:8px"><strong>Rolled three — click to keep two:</strong></div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">`+ch.map((c,i)=>`<button class="wl-btn ${(state.backgrounds||[]).indexOf(c)>=0?'green':'ghost'}" data-bgc="${i}" style="font-size:11px;padding:5px 10px">${esc(c)}</button>`).join('')+`</div>`:'';
+    const chips=(state.backgrounds||[]).map((bgv,i)=>`<span class="gw-chip">${esc(bgv)}<span class="x" data-rmbg="${i}">✕</span></span>`).join('')||'<span class="gw-hint">None yet — roll three and keep two, or click table rows (max 2).</span>';
+    return head(9,'Backgrounds','MP RAW 2.1.10: roll three, keep two. Rolling keeps the first two automatically — click the rolled results to swap, or pick rows by hand.')+
+      `<div class="gw-content"><div class="gw-table-side">${table}</div>${rollBox('Roll or Pick','','','Roll 3, Keep 2')}</div><div style="margin-top:8px">${choices}</div><div style="margin-top:8px">${chips}</div>`+nav(9,'Next: Motivation →');
   }
   function stepMotivation(){
     const opts=(F&&(F.motivationsBySide?F.motivationsBySide(state.side):F.motivations))||[];
@@ -720,8 +729,8 @@
     const table=`<div class="gw-scroll"><table class="gw-rt"><thead><tr><th class="rng">d100</th><th>Ability</th><th class="cp">CP</th></tr></thead><tbody>`+
       rows.map((r,i)=>{const mp=r.kind==='mutant'?(mpLead(r.it.m.ability)||r.name):r.name;const on=sel.includes(r.name);return `<tr data-pick-row="${i}" class="${on?'sel':''}"><td class="rng">${r.lo}-${r.hi}</td><td>${esc(mp)}<span style="color:var(--wl-soft)"> · ${esc(r.name)}</span></td><td class="cp">${esc(String(r.cp))}</td></tr>`;}).join('')+`</tbody></table></div>`;
     const picks=state.abilities.filter(a=>a.role===role&&a.source!=='special-weapon');
-    const pickList=`<div class="gw-picks">`+(picks.length?picks.map(p=>`<div class="gw-pickrow"><div class="mp">${esc(p.mp)} <span style="float:right">${esc(p.cp)} CP</span></div><div class="ab">${esc(p.gw)}</div></div>`).join(''):'<div class="gw-pickrow" style="color:var(--wl-soft)">Click rows to pick, or roll the category.</div>')+`</div>`;
-    const budget=`<div style="background:${meta.pill[0]};color:${meta.pill[1]};display:inline-block;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;margin-bottom:7px">${picks.length} / 2 picked</div>`;
+    const pickList=`<div class="gw-picks">`+(picks.length?picks.map(p=>{const i=state.abilities.indexOf(p);const badge=role==='weakness'?'':`<button data-corei="${i}" title="Toggle Core (4 max — non-Core abilities are funded by Weaknesses)" style="font-size:10px;border-radius:10px;padding:1px 8px;cursor:pointer;border:1px solid ${p.core?'#27521e':'var(--wl-line)'};background:${p.core?'var(--wl-green)':'var(--wl-input)'};color:${p.core?'#eafce9':'var(--wl-soft)'}">${p.core?'\u2605 Core':'non-core'}</button>`;return `<div class="gw-pickrow"><div class="mp" style="display:flex;gap:8px;align-items:center"><span style="flex:1">${esc(p.mp)}</span>${badge}<span>${esc(p.cp)} CP</span></div><div class="ab">${esc(p.gw)}</div></div>`;}).join(''):'<div class="gw-pickrow" style="color:var(--wl-soft)">Click rows to pick, or roll the category.</div>')+`</div>`;
+    const budget=`<div style="background:${meta.pill[0]};color:${meta.pill[1]};display:inline-block;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;margin-bottom:7px">${picks.length} / 2 picked</div>`+(role==='weakness'?'':`<div style="background:#eef3df;color:#41541f;display:inline-block;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;margin:0 0 7px 5px">${coreCount()} / 4 core</div>`);
     const canCat=built.kind!=='creature';
     const ctrl=`<div class="gw-controls"><div class="gw-controls-title">${meta.label}</div>`+budget+
       (canCat?`<button class="gw-roll-btn" data-act="roll-cat">🎲 Roll this category</button>`:'')+
@@ -742,18 +751,20 @@
   }
   function stepReview(){
     const birth=[state.home,state.homeland].filter(Boolean).join(' — ');
+    const warns=buildWarnings();
+    const warnHtml=warns.length?`<div style="background:#fdf0d5;border:1px solid var(--wl-amber);color:#5d4710;border-radius:6px;padding:7px 10px;margin-bottom:10px;font-size:12px">${warns.map(x=>'⚠ '+esc(x)).join('<br>')}</div>`:'';
     const idkv=[['Name',state.name||'Unnamed'],['Player',state.player||'—'],['Species',state.species],['Birthplace',birth||'—'],['Culture',state.culture||'—'],['Side',state.side||'—'],['Faction',state.faction||'—'],['Age',state.age?String(state.age):'—'],['Gender',genderLine()||'—'],['Motivation',state.motivation||'—'],['Origin',state.origin||'—'],['Power Level',state.powerLevel+' ('+tierOf(state.powerLevel).total+' CP)']].map(([k,v])=>`<span class="k">${esc(k)}</span><span>${esc(v)}</span>`).join('');
     const bc=BCS.map(([k,l])=>`<div class="cell"><div class="l" style="color:var(--wl-soft)">${l}</div><div class="v">${state.bc[k]}</div></div>`).join('')+`<div class="cell"><div class="l" style="color:var(--wl-soft)">BC Total</div><div class="v">${bcTotal()}</div></div>`;
     const cv=[['BC Total',bcTotal()],['Abilities',fmt(abilityCP())+' CP'],['Weaknesses',fmt(weaknessCP())+' CP'],['Ability Budget',tierOf(state.powerLevel).abil+' CP'],['Power Level',state.powerLevel]].map(([l,v])=>`<div class="cell"><div class="l" style="color:var(--wl-soft)">${esc(l)}</div><div class="v">${esc(String(v))}</div></div>`).join('')+`<div class="cell hl"><div class="l">Unspent CP</div><div class="v">${fmt(unspent())}</div></div>`;
     const byRole=r=>state.abilities.filter(a=>a.role===r&&!a.weakness);
     const cls={offense:'off',defense:'def',misc:'mis'},lbl={offense:'Offensive',defense:'Defensive',misc:'Misc'};
-    const ab=['offense','defense','misc'].map(r=>{const items=byRole(r);return `<div class="gw-abb ${cls[r]}"><div class="t">${lbl[r]}</div>${items.length?items.map(a=>`${esc(a.mp)} <span style="color:var(--wl-soft)">(${esc(a.cp)})</span>`).join('<br>'):'—'}</div>`;}).join('')+(()=>{const w=state.abilities.filter(a=>a.weakness);return `<div class="gw-abb wk"><div class="t">Weaknesses</div>${w.length?w.map(a=>`${esc(a.gw)} <span style="color:var(--wl-soft)">(${esc(a.cp)})</span>`).join('<br>'):'—'}</div>`;})();
+    const ab=['offense','defense','misc'].map(r=>{const items=byRole(r);return `<div class="gw-abb ${cls[r]}"><div class="t">${lbl[r]}</div>${items.length?items.map(a=>`${a.core?'\u2605 ':''}${esc(a.mp)} <span style="color:var(--wl-soft)">(${esc(a.cp)})</span>`).join('<br>'):'—'}</div>`;}).join('')+(()=>{const w=state.abilities.filter(a=>a.weakness);return `<div class="gw-abb wk"><div class="t">Weaknesses</div>${w.length?w.map(a=>`${esc(a.gw)} <span style="color:var(--wl-soft)">(${esc(a.cp)})</span>`).join('<br>'):'—'}</div>`;})();
     const gear=state.abilities.filter(a=>a.source==='special-weapon');
     const gearHtml=gear.length?`<div class="gw-hint" style="margin:6px 0"><strong>Gear (Special Weapons):</strong> ${gear.map(g=>esc(g.gw)).join(', ')}</div>`:'';
     let json='';try{json=JSON.stringify(buildMP(),null,2);}catch(e){json='// '+e.message;}
     const idEdit=`<div style="display:flex;gap:8px;max-width:480px;margin-bottom:8px"><div style="flex:1"><label style="font-size:11px;color:var(--wl-soft)">Name</label><input data-text="name" value="${esc(state.name||'')}"></div><div style="flex:1"><label style="font-size:11px;color:var(--wl-soft)">Player</label><input data-text="player" value="${esc(state.player||'')}"></div></div>`;
     return `<div class="gw-step-head"><div class="gw-step-num">✓</div><div class="gw-step-title">Review</div></div>`+
-      `<div class="gw-summary"><h3>Build Complete</h3><p>Review below, then transfer to the MP Builder.</p></div>`+
+      `<div class="gw-summary"><h3>Build Complete</h3><p>Review below, then transfer to the MP Builder.</p></div>`+warnHtml+
       `<div class="gw-summary-actions"><button class="wl-btn green" data-act="transfer">Transfer to MP Builder →</button><button class="wl-btn ghost" data-act="copyjson">Export JSON</button><button class="wl-btn ghost" data-act="startover">Start Over</button><button class="wl-btn red" data-act="discard">Discard</button></div>`+
       idEdit+
       `<div class="gw-sheet"><div class="sb">IDENTITY</div><div class="gw-kv">${idkv}</div>`+
@@ -806,6 +817,8 @@
       const hl=e.target.closest('[data-hlk]');if(hl){state.homeland=hl.dataset.hlk;saveDraft();render();return;}
       const bg=e.target.closest('[data-bgk]');if(bg){addBackground(bg.dataset.bgk);saveDraft();render();return;}
       const rmbg=e.target.closest('[data-rmbg]');if(rmbg){state.backgrounds.splice(+rmbg.dataset.rmbg,1);saveDraft();render();return;}
+      const bgc=e.target.closest('[data-bgc]');if(bgc){toggleBgChoice(+bgc.dataset.bgc);saveDraft();render();return;}
+      const co=e.target.closest('[data-corei]');if(co){toggleCore(+co.dataset.corei);saveDraft();render();return;}
       const pr=e.target.closest('[data-pick-row]');if(pr){togglePick(poolTable(state.activeRole)[+pr.dataset.pickRow],state.activeRole);saveDraft();render();return;}
       const rmw=e.target.closest('[data-rmweap]');if(rmw){state.abilities.splice(+rmw.dataset.rmweap,1);saveDraft();render();return;}
       const tab=e.target.closest('[data-role]');if(tab){state.activeRole=tab.dataset.role;render();return;}
