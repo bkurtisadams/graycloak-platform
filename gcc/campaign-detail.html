@@ -453,8 +453,8 @@ function ensureSessionEntryIds(sessions){
   const seen=new Set();let changed=false;
   (Array.isArray(sessions)?sessions:[]).forEach(s=>{
     if(!s||typeof s!=='object')return;
-    if(!s._id){s._id=GCC.genId('ses');changed=true}
-    else if(seen.has(s._id)){s._id=GCC.genId('ses');changed=true}
+    if(!s._id){s._id=GCC.sessionStableId(s);changed=true}
+    if(seen.has(s._id))changed=true; // duplicate id: leave intact, dedupeCampaignData collapses newest-wins
     seen.add(s._id);
     if(!s._created){s._created=s._updated||new Date().toISOString();changed=true}
     if(!s._updated){s._updated=s._created;changed=true}
@@ -514,7 +514,8 @@ function dedupeCampaignData(camp){
   }
   if(Array.isArray(camp.sessions)){
     if(ensureSessionEntryIds(camp.sessions))changed=true;
-    const res=dedupeByKeys(camp.sessions,[s=>s&&s._id?'id:'+s._id:'',sessionContentDedupeKey]);
+    const newerSes=(a,b)=>{const ta=Date.parse(a&&(a._updated||a._created)||'')||0,tb=Date.parse(b&&(b._updated||b._created)||'')||0;return tb>ta?b:a};
+    const res=dedupeByKeys(camp.sessions,[s=>s&&s._id?'id:'+s._id:'',sessionContentDedupeKey],newerSes);
     if(res.changed){camp.sessions=res.list;camp.session=countRealSessions(camp.sessions);changed=true}
     camp.sessions.forEach(s=>{
       if(!Array.isArray(s.roster)||!s.roster.length)return;
@@ -1879,13 +1880,13 @@ function parseHtmlJournal(html){
 async function importHtmlSessions(parsed){
   const camp=getCamp();if(!camp)return 0;
   const sessions=camp.sessions||[];
-  const existingTitles=new Set(sessions.map(s=>(s.title||'').toLowerCase()));
+  const existingTitles=new Set(sessions.map(s=>normDedupeText(s.title)));
   const skipDupes=document.getElementById('sim-skip-dupes').checked;
   let added=0,skipped=0;
   // Journal is oldest-first; sessions array is newest-first, so reverse
   const reversed=[...parsed].reverse();
   for(const ep of reversed){
-    if(skipDupes&&existingTitles.has(ep.title.toLowerCase())){skipped++;continue}
+    if(skipDupes&&existingTitles.has(normDedupeText(ep.title))){skipped++;continue}
     // Store cover image in IDB if it's a data URL
     let imageKey='';
     if(ep.image){
@@ -1903,10 +1904,12 @@ async function importHtmlSessions(parsed){
         }
       }
     }
-    const entry={_id:GCC.genId('ses'),date:ep.date,gameDate:ep.gameDate,title:ep.title,text:ep.text,
-      sections:ep.sections,image:imageKey,tags:ep.tags,roster:[],xp:ep.xp,visible:ep.visible,type:ep.type,_updated:new Date().toISOString()};
+    const now=new Date().toISOString();
+    const entry={date:ep.date,gameDate:ep.gameDate,title:ep.title,text:ep.text,
+      sections:ep.sections,image:imageKey,tags:ep.tags,roster:[],xp:ep.xp,visible:ep.visible,type:ep.type,_created:now,_updated:now};
+    entry._id=GCC.sessionStableId(entry);
     sessions.push(entry);
-    existingTitles.add(ep.title.toLowerCase());
+    existingTitles.add(normDedupeText(ep.title));
     added++;
   }
   if(added>0)GCC.updateCampaign(campId,{sessions,session:countRealSessions(sessions)});
@@ -2035,16 +2038,15 @@ document.getElementById('sim-import').addEventListener('click',async()=>{
   const episodes=parseEpisodeText(raw);
   if(!episodes.length){document.getElementById('sim-status').textContent='No episodes found.';return}
   const sessions=camp.sessions||[];
-  const existingTitles=new Set(sessions.map(s=>(s.title||'').toLowerCase()));
+  const existingTitles=new Set(sessions.map(s=>normDedupeText(s.title)));
   const skipDupes=document.getElementById('sim-skip-dupes').checked;
   const daysAsSections=document.getElementById('sim-days-as-sections').checked;
   let added=0,skipped=0;
   // Reverse: sessions array is newest-first, so highest episode number goes first
   const sorted=[...episodes].reverse();
   sorted.forEach(ep=>{
-    if(skipDupes&&existingTitles.has(ep.title.toLowerCase())){skipped++;return}
+    if(skipDupes&&existingTitles.has(normDedupeText(ep.title))){skipped++;return}
     const entry={
-      _id:GCC.genId('ses'),
       date:ep.date,
       gameDate:ep.gameDate,
       title:ep.title,
@@ -2056,10 +2058,12 @@ document.getElementById('sim-import').addEventListener('click',async()=>{
       xp:ep.xp,
       visible:true,
       type:'session',
+      _created:new Date().toISOString(),
       _updated:new Date().toISOString()
     };
+    entry._id=GCC.sessionStableId(entry);
     sessions.push(entry);
-    existingTitles.add(ep.title.toLowerCase());
+    existingTitles.add(normDedupeText(ep.title));
     added++;
   });
   if(added>0){GCC.updateCampaign(campId,{sessions,session:countRealSessions(sessions)})}

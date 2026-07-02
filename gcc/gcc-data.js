@@ -1,4 +1,7 @@
-// gcc-data.js v1.2.0 — 2026-04-10
+// gcc-data.js v1.4.0 — 2026-07-01
+// v1.4.0: 'sig'-prefixed sessionStableKey (matches gcc-sync ids), export
+//         sessionStableId, collapse duplicate session _ids newest-wins
+//         instead of re-IDing them (re-IDing hid sync echoes from dedupe)
 // v1.3.0: Schema v4 — per-image pos/caption, remove section.layout
 // v1.1.0: Add lore array, enriched session schema (v2 migration),
 //         system-aware labels (sessionLabel, xpLabel, LORE_TYPES)
@@ -155,7 +158,11 @@ const GCC = (function() {
       (sec.images || []).map(img => [normSessionText(img.caption), normSessionText(img.size), normSessionText(img.pos)].join('^')).join('~')
     ].join('~')).join('||');
     const tags = (s.tags || []).map(t => normSessionText(t.type) + ':' + normSessionText(t.name)).sort().join(',');
-    return [normSessionText(s.type || 'session'), title, date, gameDate, text, String(s.xp || 0), String(s.visible !== false), sections, tags].join('|');
+    return ['sig', normSessionText(s.type || 'session'), title, date, gameDate, text, String(s.xp || 0), String(s.visible !== false), sections, tags].join('|');
+  }
+  function sessionStableId(s) {
+    const key = sessionStableKey(s);
+    return key ? ('ses_' + stableHash(key)) : genId('ses');
   }
   function stableHash(str) {
     let h = 2166136261;
@@ -167,7 +174,7 @@ const GCC = (function() {
   }
   function normalizeSessions(sessions, campStamp) {
     if (!Array.isArray(sessions)) return false;
-    const seen = new Set();
+    const byId = new Map();
     let changed = false;
     sessions.forEach(s => {
       if (!s || typeof s !== 'object') return;
@@ -175,11 +182,7 @@ const GCC = (function() {
         const key = sessionStableKey(s);
         s._id = key ? ('ses_' + stableHash(key)) : genId('ses');
         changed = true;
-      } else if (seen.has(s._id)) {
-        s._id = genId('ses');
-        changed = true;
       }
-      seen.add(s._id);
       if (!s._created) { s._created = s._updated || campStamp || new Date().toISOString(); changed = true; }
       if (!s._updated) { s._updated = s._created; changed = true; }
       if (s.gameDate === undefined) { s.gameDate = ''; changed = true; }
@@ -188,7 +191,21 @@ const GCC = (function() {
       if (s.tags === undefined) { s.tags = []; changed = true; }
       if (s.visible === undefined) { s.visible = true; changed = true; }
       if (s.type === undefined) { s.type = 'session'; changed = true; }
+      const prev = byId.get(s._id);
+      if (!prev) { byId.set(s._id, s); return; }
+      // Same _id = same entry echoed by sync; keep the newer copy
+      const tPrev = Date.parse(prev._updated || prev._created || '') || 0;
+      const tCur = Date.parse(s._updated || s._created || '') || 0;
+      if (tCur > tPrev) byId.set(s._id, s);
+      changed = true;
     });
+    if (byId.size !== sessions.filter(s => s && typeof s === 'object').length) {
+      const keep = new Set(byId.values());
+      for (let i = sessions.length - 1; i >= 0; i--) {
+        const s = sessions[i];
+        if (s && typeof s === 'object' && !keep.has(s)) sessions.splice(i, 1);
+      }
+    }
     return changed;
   }
   function migrateEntity(entity) {
@@ -537,6 +554,7 @@ const GCC = (function() {
     sessionLabel,
     xpLabel,
     getRuleDefs,
+    sessionStableId,
     init,
     // Campaigns
     loadCampaigns,

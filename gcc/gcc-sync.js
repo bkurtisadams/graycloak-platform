@@ -1,4 +1,6 @@
-// gcc-sync.js v2.3.2 — 2026-07-01
+// gcc-sync.js v2.3.3 — 2026-07-01
+// v2.3.3: Stop re-IDing duplicate session _ids in normalizeEmbeddedChildren;
+//         same-id copies now collapse newest-wins in mergeEmbeddedList.
 // v2.3.2: Match session tombstones by id OR content signature with no timestamp
 //         gate, so churned ids and normalization-inflated _updated can no longer
 //         resurrect deleted entries on merge.
@@ -578,9 +580,9 @@ const GCCSync = (function() {
           const raw = rawSessionContentKey(item);
           item._id = raw ? ('ses_' + stableHash(raw))
             : ((typeof GCC !== 'undefined' && GCC.genId) ? GCC.genId('ses') : 'ses_' + Date.now());
-        } else if (seen[item._id]) {
-          item._id = (typeof GCC !== 'undefined' && GCC.genId) ? GCC.genId('ses') : ('ses_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7));
         }
+        // Duplicate _id = same entry echoed by sync; leave intact so
+        // mergeEmbeddedList collapses it newest-wins instead of forking ids.
         seen[item._id] = true;
         if (!item._created) item._created = item._updated || camp.updated || camp.created || new Date().toISOString();
         if (!item._updated) item._updated = item._created;
