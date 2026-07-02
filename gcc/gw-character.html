@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.3 — faction species eligibility: ineligible Cryptic Alliances greyed/locked, excluded from roll & pick; faction resets to Independent on species switch; data-overridable via alliance.eligible/excluded -->
 <!-- gw-character.html v0.2.2 — PSH BC caps: ST<=18, EN/AG/IN/CL<=24 enforced on roll, manual edit, and species switch; step-7 inputs show per-stat max -->
 <!-- gw-character.html v0.2.1 — MP transfer: send powerLevel as its id ('low') so MP Builder maps Power Level and base CPs correctly -->
 <!-- gw-character.html v0.2.0 — split the single Abilities step into per-role steps: Offensive(12) Defensive(13) Miscellaneous(14) Weaknesses(15); Weapons & Gear(16); Review(17) -->
@@ -89,6 +90,8 @@
   .gw-rt tbody tr:hover{background:#ffe8d0}
   .gw-rt tbody tr.sel{background:#ffe6bf;font-weight:600}
   .gw-rt tbody tr.sel td:first-child::before{content:"▶ ";color:var(--wl-orange)}
+  .gw-rt tbody tr.inel{cursor:not-allowed;opacity:.45;font-style:italic}
+  .gw-rt tbody tr.inel:hover{background:var(--wl-input)}
   .gw-rt .cp{text-align:right;color:var(--wl-soft);width:54px}
   .gw-rt .rng{width:62px;color:var(--wl-soft)}
   .gw-scroll{max-height:300px;overflow:auto;border:1px solid var(--wl-line);border-radius:5px}
@@ -293,8 +296,25 @@
     {lo:97,hi:98,name:'Lore-Song/Performance',ex:['Wandering storyteller','Musician','Carver','Town-crier']},
     {lo:99,hi:100,name:'Caretaking/Community',ex:['Caretaker','Camp-cook','Refugee-shepherd','Well-keeper']}
   ];
-  function factionOptions(){return ['Independent'].concat((CA&&CA.alliances||[]).map(a=>a.name));}
+  function factionOptions(){return ['Independent'].concat((CA&&CA.alliances||[]).filter(a=>factionEligible(a)).map(a=>a.name));}
   function allianceByName(n){return (CA&&CA.alliances||[]).find(a=>a.name===n)||null;}
+  // Fallback = GW1e RAW; override per-alliance with eligible:[species] or excluded:[species] arrays in gw-cryptic-alliances.js
+  const FACTION_SPECIES_RULES=[
+    {re:/genetic purity/i,ok:sp=>sp==='Pure Strain Human'},
+    {re:/iron society/i,ok:sp=>sp!=='Pure Strain Human'&&sp!=='Tech Construct'&&sp!=='Android'},
+    {re:/zoopremisist/i,ok:sp=>sp==='Mutated Animal'||(isCreature(sp)&&sp!=='Android')}
+  ];
+  function factionEligible(a,sp){
+    if(!a)return true;sp=sp||state.species;
+    if(Array.isArray(a.eligible))return a.eligible.indexOf(sp)>=0;
+    if(Array.isArray(a.excluded))return a.excluded.indexOf(sp)<0;
+    const rule=FACTION_SPECIES_RULES.find(r=>r.re.test(a.name||''));
+    return rule?rule.ok(sp):true;
+  }
+  function revalidateFaction(){
+    const a=allianceByName(state.faction);
+    if(a&&!factionEligible(a)){log(`Faction reset: ${state.faction} does not accept ${state.species}.`);state.faction='Independent';}
+  }
   function speciesOptions(){
     const base=(D.species||[]).map(s=>s.name);
     const crit=PLAYABLE_CREATURES.filter(n=>BEST()[n]);
@@ -304,9 +324,9 @@
 
   /* ── per-step rolls (pure state) ────────────────────────────── */
   function rollName(){if(!F||!F.rollName)return;state.name=F.rollName();log('Name: '+state.name);}
-  function setSpecies(sp){state.species=sp;state.abilities=state.abilities.filter(a=>a.source==='special-weapon');if(sp==='Pure Strain Human'&&enforceBCCaps())log('PSH caps applied: ST\u226418, EN/AG/IN/CL\u226424.');if(isCreature(sp))rollAbilities();}
+  function setSpecies(sp){state.species=sp;state.abilities=state.abilities.filter(a=>a.source==='special-weapon');if(sp==='Pure Strain Human'&&enforceBCCaps())log('PSH caps applied: ST\u226418, EN/AG/IN/CL\u226424.');revalidateFaction();if(isCreature(sp))rollAbilities();}
   function rollSpecies(){setSpecies(rollNonAllianceSpecies());log('Species: '+state.species);}
-  function rollFaction(){const opts=factionOptions();state.faction=(die(10)<=3)?'Independent':opts[die(opts.length-1)];const a=allianceByName(state.faction);if(a&&a.side)state.side=a.side;log('Faction: '+state.faction);}
+  function rollFaction(){const opts=factionOptions();state.faction=(die(10)<=3||opts.length<2)?'Independent':opts[die(opts.length-1)];const a=allianceByName(state.faction);if(a&&a.side)state.side=a.side;log('Faction: '+state.faction);}
   function rollSide(){state.side=SIDES[die(3)-1];log('Side: '+state.side);}
   function rollCulture(){const c=die(100);state.culture=c<=33?'Primitive':(c<=66?'Modern':'High Tech');log('Culture: '+state.culture);}
   function rollHome(){const r=die(100);const e=BIRTHPLACES.find(x=>r>=x.lo&&x.hi>=r);state.home=e?e.name:'';log(`Birthplace ${r}: ${state.home}`);}
@@ -532,7 +552,7 @@
     const opts=factionOptions();
     const table=`<table class="gw-rt"><caption>Cryptic Alliances</caption><thead><tr><th>Faction</th><th>Side</th><th>Note</th></tr></thead><tbody>`+
       `<tr data-fck="Independent" class="${state.faction==='Independent'?'sel':''}"><td>Independent</td><td>—</td><td>No alliance ties.</td></tr>`+
-      (CA&&CA.alliances||[]).map(a=>`<tr data-fck="${esc(a.name)}" class="${state.faction===a.name?'sel':''}"><td>${esc(a.name)}</td><td>${esc(a.side||'—')}</td><td>${esc(a.note||'')}</td></tr>`).join('')+`</tbody></table>`;
+      (CA&&CA.alliances||[]).map(a=>{const el=factionEligible(a);return el?`<tr data-fck="${esc(a.name)}" class="${state.faction===a.name?'sel':''}"><td>${esc(a.name)}</td><td>${esc(a.side||'—')}</td><td>${esc(a.note||'')}</td></tr>`:`<tr class="inel" title="Not open to ${esc(state.species)}"><td>🔒 ${esc(a.name)}</td><td>${esc(a.side||'—')}</td><td>Not open to ${esc(state.species)}.</td></tr>`;}).join('')+`</tbody></table>`;
     const pick=`<select class="gw-pick" data-pick="faction">`+opts.map(n=>`<option value="${esc(n)}" ${state.faction===n?'selected':''}>${esc(n)}</option>`).join('')+`</select>`;
     return head(2,'Faction','Cryptic Alliance membership (or Independent). Picking an alliance sets a suggested Side.')+
       `<div class="gw-content"><div class="gw-table-side">${table}</div>${rollBox('Roll or Pick','',pick,'Roll d%')}</div>`+nav(2,'Next: Side →');
