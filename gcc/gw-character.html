@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.20 — Ability Draft weakness controls: weaknesses can be kept/dropped and pinned to specific non-Core funding targets; draft ability table is taller for easier review. -->
 <!-- gw-character.html v0.2.19 — Adds a dedicated Ability Draft step where rolled Offensive/Defensive/Misc candidates are designated Core or non-Core; Weakness CP funding for non-Core abilities is shown before Review; Weapons and Review move down one step. -->
 <!-- gw-character.html v0.2.18 — MP Core/non-Core accounting: only four rolled abilities receive Core Ability CPs; Weakness CP slots fund optional non-Core abilities one-for-one; unfunded non-Core picks are shown as discarded and omitted from export -->
 <!-- gw-character.html v0.2.17 — GM power level selector promoted to the intro/chronicle: Quick Random can now generate Normal/Low/Standard/High NPCs; cap/tally display shows Ability/BC/Damage caps; changing Power Level rerolls BCs and revalidates cap locks without changing mutation data -->
@@ -111,6 +112,8 @@
   .gw-rt .cp{text-align:right;color:var(--wl-soft);width:54px}
   .gw-rt .rng{width:62px;color:var(--wl-soft)}
   .gw-scroll{max-height:300px;overflow:auto;border:1px solid var(--wl-line);border-radius:5px}
+  .gw-scroll.draft-abilities{max-height:390px}
+  .gw-scroll.draft-weaknesses{max-height:230px}
 
   /* Abilities step */
   .gw-tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:7px}
@@ -459,23 +462,37 @@
 
   /* ── ability engine (pure state) ────────────────────────────── */
   function bcTotal(){return BCS.reduce((s,[k])=>s+(state.bc[k]||0),0);}
-  function coreAbilities(){return state.abilities.filter(a=>!a.weakness&&!isFixed(a));}
+  function abilityUid(a){if(!a)return '';if(!a.uid)a.uid='ab_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);return a.uid;}
+  function ensureAbilityUids(){state.abilities.forEach(a=>abilityUid(a));}
+  function coreAbilities(){ensureAbilityUids();return state.abilities.filter(a=>!a.weakness&&!isFixed(a));}
   function coreCount(){return coreAbilities().filter(a=>a.core===true).length;}
   function nonCoreAbilities(){return coreAbilities().filter(a=>a.core!==true);}
-  function normalizeCore(){let n=coreCount();state.abilities.forEach(a=>{if(a.weakness||isFixed(a)){a.core=false;return;}if(a.core===undefined){a.core=n<4;if(a.core)n++;}});}
+  function weaknessKept(a){return !!(a&&a.weakness&&(isFixed(a)||a.keep!==false));}
+  function draftWeaknesses(){ensureAbilityUids();return state.abilities.filter(a=>a.weakness&&!isFixed(a));}
+  function activeWeaknesses(){return state.abilities.filter(a=>a.weakness&&weaknessKept(a));}
+  function normalizeCore(){let n=coreCount();state.abilities.forEach(a=>{abilityUid(a);if(a.weakness||isFixed(a)){a.core=false;return;}if(a.core===undefined){a.core=n<4;if(a.core)n++;}});}
   function tierCaps(){return capsForTier(tierOf(state.powerLevel));}
   function coreCp(){return coreCpForTier(tierOf(state.powerLevel));}
+  function weaknessFundingEntries(){return state.abilities.filter(a=>a.weakness&&weaknessKept(a)&&!isFixed(a)&&!isExemptWk(a)).map(a=>({ability:a,cp:Math.max(0,-(a.cpNum||0))})).filter(x=>x.cp>0);}
+  function fundingAssignments(){
+    ensureAbilityUids();
+    const non=nonCoreAbilities(),slots=weaknessFundingEntries(),used=new Set(),out=[];
+    slots.forEach(slot=>{const val=slot.ability.fundUid;if(!val||val==='__auto'||val==='__none')return;const target=non.find(a=>abilityUid(a)===val);if(target&&!used.has(abilityUid(target))){used.add(abilityUid(target));out.push({...slot,target,pinned:true});}});
+    slots.forEach(slot=>{if(out.some(x=>x.ability===slot.ability))return;if(slot.ability.fundUid==='__none'){out.push({...slot,target:null,pinned:false,held:true});return;}const target=non.find(a=>!used.has(abilityUid(a)));if(target){used.add(abilityUid(target));out.push({...slot,target,pinned:false});}else out.push({...slot,target:null,pinned:false});});
+    return out;
+  }
   function weaknessFundingSlots(){return weaknessFundingEntries().map(x=>x.cp);}
-  function weaknessFundingEntries(){return state.abilities.filter(a=>a.weakness&&!isFixed(a)&&!isExemptWk(a)).map(a=>({ability:a,cp:Math.max(0,-(a.cpNum||0))})).filter(x=>x.cp>0);}
   function nonCoreIndex(a){return nonCoreAbilities().indexOf(a);}
-  function assignedNonCoreCP(a){const i=nonCoreIndex(a),slot=weaknessFundingSlots()[i]||0;return Math.min(slot,tierCaps().ability);}
+  function fundingForWeakness(w){return fundingAssignments().find(x=>x.ability===w)||null;}
+  function assignedNonCoreCP(a){const uid=abilityUid(a),hit=fundingAssignments().find(x=>x.target&&abilityUid(x.target)===uid);return hit?Math.min(hit.cp,tierCaps().ability):0;}
   function isDiscardedNonCore(a){return !!(a&&!a.weakness&&!isFixed(a)&&a.core!==true&&assignedNonCoreCP(a)<=0);}
-  function exportedAbilities(){return state.abilities.filter(a=>!isDiscardedNonCore(a));}
-  function assignedAbilityCP(a){if(!a)return 0;if(a.weakness)return a.cpNum||0;if(isFixed(a))return a.cpNum||0;return a.core?coreCp():assignedNonCoreCP(a);}
+  function exportedAbilities(){return state.abilities.filter(a=>!isDiscardedNonCore(a)&&(!a.weakness||weaknessKept(a)));}
+  function assignedAbilityCP(a){if(!a)return 0;if(a.weakness)return weaknessKept(a)?(a.cpNum||0):0;if(isFixed(a))return a.cpNum||0;return a.core?coreCp():assignedNonCoreCP(a);}
   function templateCP(a){return (a&&a.cpNum)||0;}
   function abilityCPLabel(a){
     const v=assignedAbilityCP(a),t=templateCP(a);
     if(!a)return '0 CP';
+    if(a.weakness&&!weaknessKept(a))return `0 CP (dropped)`;
     if(a.weakness||isFixed(a))return `${fmt(v)} CP`;
     if(a.core)return v===t?`${fmt(v)} CP`:`${fmt(v)} CP (template ${fmt(t)} CP)`;
     if(v>0)return `${fmt(v)} CP (funded)`;
@@ -506,10 +523,10 @@
     const ci=capIssues();ci.hard.forEach(x=>w.push(x));ci.soft.forEach(x=>w.push(x));return w;
   }
   function abilityCP(){return state.abilities.filter(a=>!a.weakness).reduce((s,a)=>s+assignedAbilityCP(a),0);}
-  function weaknessCP(){return state.abilities.filter(a=>a.weakness).reduce((s,a)=>s+(a.cpNum||0),0);}
+  function weaknessCP(){return activeWeaknesses().reduce((s,a)=>s+(a.cpNum||0),0);}
   const MPWK=()=>(window.GWMPWeaknesses&&window.GWMPWeaknesses.list)||[];
   function isExemptWk(a){return !!a.exempt;}
-  function weaknessCPCounted(){return state.abilities.filter(a=>a.weakness&&!isFixed(a)&&!isExemptWk(a)).reduce((s,a)=>s+(a.cpNum||0),0);}
+  function weaknessCPCounted(){return activeWeaknesses().filter(a=>!isFixed(a)&&!isExemptWk(a)).reduce((s,a)=>s+(a.cpNum||0),0);}
   const WK_BUDGET=-20;
   function netCP(){return bcTotal()+abilityCP()+weaknessCP();}
   function unspent(){return tierOf(state.powerLevel).total-netCP();}
@@ -621,7 +638,7 @@
   function storyText(){
     const lines=[`Gamma World 1e → MP build. Faction: ${state.faction||'Independent'}, Side ${state.side||'Neutral'}.`,`Species ${state.species}, ${state.culture||'Modern'}. Home: ${[state.home,state.homeland].filter(Boolean).join(' — ')||'—'}.`,`BCs: ${BCS.map(([k,l])=>l+' '+state.bc[k]).join(', ')} = ${bcTotal()} CP.`];
     if(state.age||genderLine())lines.push(`Age ${state.age||'—'}. Gender: ${genderLine()||'—'}.`);
-    const m=exportedAbilities().filter(a=>!a.weakness),w=state.abilities.filter(a=>a.weakness);
+    const m=exportedAbilities().filter(a=>!a.weakness),w=exportedAbilities().filter(a=>a.weakness);
     if(m.length)lines.push('Abilities: '+m.map(a=>`${a.mp} (${a.role}, ${abilityCPLabel(a)})`).join('; ')+'.');
     if(w.length)lines.push('Weaknesses: '+w.map(a=>`${a.gw} (${abilityCPLabel(a)})`).join('; ')+'.');
     if(state.rollLog.length)lines.push('\nRoll log:\n'+state.rollLog.join('\n'));
@@ -700,7 +717,7 @@
       case 'offense':{const n=state.abilities.filter(a=>a.role==='offense'&&!isFixed(a));return n.length?n.map(a=>'• '+esc(a.mp||a.gw)).join('<br>'):'—';}
       case 'defense':{const n=state.abilities.filter(a=>a.role==='defense'&&!isFixed(a));return n.length?n.map(a=>'• '+esc(a.mp||a.gw)).join('<br>'):'—';}
       case 'misc':{const n=state.abilities.filter(a=>a.role==='misc'&&!isFixed(a));return n.length?n.map(a=>'• '+esc(a.mp||a.gw)).join('<br>'):'—';}
-      case 'weakness':{const n=state.abilities.filter(a=>a.weakness&&!isFixed(a));return n.length?n.map(a=>'• '+esc(a.mp||a.gw)+' ('+fmt(a.cpNum)+')').join('<br>')+`<br><strong>${fmt(weaknessCPCounted())} / ${WK_BUDGET} CP</strong>`:'—';}
+      case 'weakness':{const n=draftWeaknesses();return n.length?n.map(a=>'• '+(weaknessKept(a)?'':'⊘ ')+esc(a.mp||a.gw)+' ('+esc(abilityCPLabel(a))+')').join('<br>')+`<br><strong>${fmt(weaknessCPCounted())} / ${WK_BUDGET} CP kept</strong>`:'—';}
       case 'draft':{const abs=coreAbilities(),nc=nonCoreAbilities(),funded=nc.filter(a=>assignedNonCoreCP(a)>0).length;return abs.length?`<strong>${coreCount()} / ${Math.min(4,abs.length)}</strong> Core<br>${funded} funded non-Core · ${nc.length-funded} discarded`:'—';}
       case 'weapons':{const g=state.abilities.filter(a=>a.source==='special-weapon');return g.length?g.map(x=>'• '+esc(x.gw)).join('<br>'):'—';}
       case 'review':return state.step===18?'Ready to transfer':'—';
@@ -848,7 +865,7 @@
       rows.map((r,i)=>{const mp=r.kind==='mutant'?(mpLead(r.it.m.ability)||r.name):r.name;const on=sel.includes(r.name);const over=role!=='weakness'&&overCapCp(parseFloat(String(r.cp)));return `<tr data-pick-row="${i}" class="${on?'sel':''}${over?' inel':''}"${over?` title="Over the ${tierCaps().ability} CP Ability Cap at ${esc(state.powerLevel)} (MP 2.1.16.5)"`:''}><td class="rng">${r.lo}-${r.hi}</td><td>${over?'🔒 ':''}${esc(mp)}<span style="color:var(--wl-soft)"> · ${esc(r.name)}</span></td><td class="cp">${esc(String(r.cp))}</td></tr>`;}).join('')+`</tbody></table></div>`;
     const picks=state.abilities.filter(a=>a.role===role&&!isFixed(a));
     const pickList=`<div class="gw-picks">`+(picks.length?picks.map(p=>{const discard=isDiscardedNonCore(p);const status=role==='weakness'?esc(abilityCPLabel(p)):(p.core?'★ Core':(discard?'discarded':'non-Core candidate'));return `<div class="gw-pickrow"${discard?' style="opacity:.72"':''}><div class="mp" style="display:flex;gap:8px;align-items:center"><span style="flex:1">${esc(p.mp)}</span><span style="color:${discard?'#8a1f1f':'var(--wl-soft)'}">${status}</span><span>${esc(abilityCPLabel(p))}</span></div><div class="ab">${esc(p.gw)}</div></div>`;}).join(''):'<div class="gw-pickrow" style="color:var(--wl-soft)">Click rows to pick, or roll the category.</div>')+`</div>`;
-    const budget=(role==='weakness'?`<div style="background:${meta.pill[0]};color:${meta.pill[1]};display:inline-block;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;margin-bottom:7px">${fmt(weaknessCPCounted())} / ${WK_BUDGET} CP${state.abilities.some(a=>a.weakness&&a.exempt)?' (+ exempt)':''}</div>`:`<div style="background:${meta.pill[0]};color:${meta.pill[1]};display:inline-block;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;margin-bottom:7px">${picks.length} / 2 picked</div>`)+(role==='weakness'?'':`<div style="background:#eef3df;color:#41541f;display:inline-block;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;margin:0 0 7px 5px">${coreCount()} / 4 core</div><div style="background:#f4ecd8;color:#64450d;display:inline-block;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;margin:0 0 7px 5px" title="Each non-Core ability uses one Weakness CP slot, in non-Core order.">Non-core funding ${fmt(nonCoreAbilities().reduce((s,a)=>s+assignedNonCoreCP(a),0))} / ${fmt(weaknessFundingSlots().reduce((s,n)=>s+n,0))} CP</div>`)+`<div style="background:${unspent()<0?'#f8dede':'#e8eef7'};color:${unspent()<0?'#8a1f1f':'#274b6e'};display:inline-block;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;margin:0 0 7px 5px" title="BC ${bcTotal()} + Abilities ${fmt(abilityCP())} + Weaknesses ${fmt(weaknessCP())}">${fmt(netCP())} / ${tierOf(state.powerLevel).total} CP${unspent()<0?' — over!':''}</div>`;
+    const budget=(role==='weakness'?`<div style="background:${meta.pill[0]};color:${meta.pill[1]};display:inline-block;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;margin-bottom:7px">${fmt(weaknessCPCounted())} / ${WK_BUDGET} CP${state.abilities.some(a=>a.weakness&&a.exempt)?' (+ exempt)':''}</div>`:`<div style="background:${meta.pill[0]};color:${meta.pill[1]};display:inline-block;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;margin-bottom:7px">${picks.length} / 2 picked</div>`)+(role==='weakness'?'':`<div style="background:#eef3df;color:#41541f;display:inline-block;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;margin:0 0 7px 5px">${coreCount()} / 4 core</div><div style="background:#f4ecd8;color:#64450d;display:inline-block;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;margin:0 0 7px 5px" title="Weakness CP can auto-fund or be pinned to non-Core abilities on the Ability Draft step.">Non-core funding ${fmt(nonCoreAbilities().reduce((s,a)=>s+assignedNonCoreCP(a),0))} / ${fmt(weaknessFundingSlots().reduce((s,n)=>s+n,0))} CP</div>`)+`<div style="background:${unspent()<0?'#f8dede':'#e8eef7'};color:${unspent()<0?'#8a1f1f':'#274b6e'};display:inline-block;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;margin:0 0 7px 5px" title="BC ${bcTotal()} + Abilities ${fmt(abilityCP())} + Weaknesses ${fmt(weaknessCP())}">${fmt(netCP())} / ${tierOf(state.powerLevel).total} CP${unspent()<0?' — over!':''}</div>`;
     const canCat=built.kind!=='creature'&&!(built.kind==='wastelander'&&role!=='weakness');
     const ctrl=`<div class="gw-controls"><div class="gw-controls-title">${meta.label}</div>`+budget+
       (canCat?`<button class="gw-roll-btn" data-act="roll-cat">🎲 Roll this category</button>`:'')+
@@ -860,29 +877,34 @@
   }
   function roleLabel(r){return r==='offense'?'Offensive':(r==='defense'?'Defensive':(r==='misc'?'Miscellaneous':r));}
   function stepDraft(){
-    const abs=coreAbilities(),weak=state.abilities.filter(a=>a.weakness&&!isFixed(a)),slots=weaknessFundingEntries(),warns=buildWarnings();
+    const abs=coreAbilities(),weak=draftWeaknesses(),slots=weaknessFundingEntries(),assignments=fundingAssignments(),warns=buildWarnings();
     const coreTarget=Math.min(4,abs.length),fundedTotal=nonCoreAbilities().reduce((s,a)=>s+assignedNonCoreCP(a),0),slotTotal=slots.reduce((s,x)=>s+x.cp,0);
     const warnHtml=warns.length?`<div style="background:#fdf0d5;border:1px solid var(--wl-amber);color:#5d4710;border-radius:6px;padding:7px 10px;margin-bottom:10px;font-size:12px">${warns.map(x=>'⚠ '+esc(x)).join('<br>')}</div>`:'';
     const budget=`<div class="gw-cv" style="margin-bottom:10px">
       <div class="cell"><div class="l" style="color:var(--wl-soft)">Core picks</div><div class="v">${coreCount()} / ${coreTarget}</div></div>
       <div class="cell"><div class="l" style="color:var(--wl-soft)">Core CP</div><div class="v">${fmt(coreCp())} each</div></div>
       <div class="cell"><div class="l" style="color:var(--wl-soft)">Weakness funding</div><div class="v">${fmt(fundedTotal)} / ${fmt(slotTotal)}</div></div>
+      <div class="cell"><div class="l" style="color:var(--wl-soft)">Kept Weaknesses</div><div class="v">${fmt(weaknessCPCounted())} / ${WK_BUDGET}</div></div>
       <div class="cell"><div class="l" style="color:var(--wl-soft)">Net CP</div><div class="v">${fmt(netCP())} / ${tierOf(state.powerLevel).total}</div></div>
     </div>`;
-    const rows=abs.length?abs.map((a,idx)=>{const i=state.abilities.indexOf(a),nc=nonCoreIndex(a),fund=assignedNonCoreCP(a),discard=isDiscardedNonCore(a);
+    const rows=abs.length?abs.map((a,idx)=>{const i=state.abilities.indexOf(a),nc=nonCoreIndex(a),fund=assignedNonCoreCP(a),discard=isDiscardedNonCore(a),ass=assignments.find(x=>x.target===a);
       const source=`<span style="display:inline-block;font-size:10px;text-transform:uppercase;letter-spacing:.7px;border-radius:10px;padding:1px 7px;background:${a.role==='offense'?'#f3d2c2':(a.role==='defense'?'#cfe0e6':'#efe3c0')};color:${a.role==='offense'?'#71310d':(a.role==='defense'?'#163a44':'#5d4710')}">${esc(roleLabel(a.role))}</span>`;
       const designation=a.core?`<button data-corei="${i}" class="wl-btn green" style="font-size:10px;padding:3px 8px">★ Core</button>`:`<button data-corei="${i}" class="wl-btn ghost" style="font-size:10px;padding:3px 8px">Non-Core</button>`;
-      const funding=a.core?`Power Level grant: ${fmt(coreCp())} CP`:fund>0?`Weakness slot ${nc+1}: ${fmt(fund)} CP`:'Unfunded: discarded';
-      return `<tr${discard?' style="opacity:.72"':''}><td>${source}</td><td><strong>${esc(a.mp)}</strong><div style="color:var(--wl-soft);font-size:11px">${esc(a.gw)}</div></td><td class="cp">${fmt(templateCP(a))}</td><td>${designation}</td><td class="cp">${esc(abilityCPLabel(a))}</td><td style="color:${discard?'#8a1f1f':'var(--wl-soft)'}">${esc(funding)}</td></tr>`;
+      const funding=a.core?`Power Level grant: ${fmt(coreCp())} CP`:fund>0?`${ass&&ass.pinned?'📌 ':'Auto '}funded by ${ass?esc(ass.ability.gw||ass.ability.mp):'Weakness'}: ${fmt(fund)} CP`:'Unfunded: discarded';
+      return `<tr${discard?' style="opacity:.72"':''}><td>${source}</td><td><strong>${esc(a.mp)}</strong><div style="color:var(--wl-soft);font-size:11px">${esc(a.gw)}</div></td><td class="cp">${fmt(templateCP(a))}</td><td>${designation}</td><td class="cp">${esc(abilityCPLabel(a))}</td><td style="color:${discard?'#8a1f1f':'var(--wl-soft)'}">${funding}</td></tr>`;
     }).join(''):`<tr><td colspan="6" style="color:var(--wl-soft);padding:14px">No ability candidates yet. Roll or pick Offensive, Defensive, and Miscellaneous abilities first.</td></tr>`;
-    const abilityTable=`<div class="gw-scroll"><table class="gw-rt"><caption>Ability Draft — choose four Core abilities</caption><thead><tr><th>Source</th><th>Ability</th><th class="cp">Template CP</th><th>Designation</th><th class="cp">Assigned CP</th><th>Funding</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-    const weakRows=weak.length?weak.map((w,idx)=>{const slotIndex=slots.findIndex(x=>x.ability===w),target=slotIndex>=0?nonCoreAbilities()[slotIndex]:null,slot=slotIndex>=0?slots[slotIndex].cp:Math.max(0,-(w.cpNum||0));
-      const targetText=w.exempt?'Exempt from -20 creation limit':(target?`Funds ${target.mp} up to ${fmt(slot)} CP`:'No non-Core target yet');
-      return `<tr><td><strong>${esc(w.gw||w.mp)}</strong><div style="color:var(--wl-soft);font-size:11px">${esc(w.ability||'')}</div></td><td class="cp">${fmt(w.cpNum||0)}</td><td style="color:var(--wl-soft)">${esc(targetText)}</td></tr>`;
-    }).join(''):`<tr><td colspan="3" style="color:var(--wl-soft);padding:12px">No weaknesses selected. Non-Core abilities will be discarded unless weaknesses provide CP funding.</td></tr>`;
-    const weakTable=`<div class="gw-scroll" style="margin-top:10px"><table class="gw-rt"><caption>Weakness Funding</caption><thead><tr><th>Weakness</th><th class="cp">CP</th><th>Assigned Funding</th></tr></thead><tbody>${weakRows}</tbody></table></div>`;
-    const controls=`<div class="gw-controls" style="margin-top:10px"><div class="gw-controls-title">Draft Controls</div><button class="gw-roll-btn sm" style="width:auto;display:inline-block;padding:6px 14px" data-act="auto-core">Auto Core first four</button><div class="gw-hint">Pick exactly four Core abilities. Any remaining ability is non-Core and is only kept if a Weakness CP slot funds it; otherwise it is discarded from Review, export, and transfer.</div></div>`;
-    return head(16,'Ability Draft','Designate four Core abilities and review how Weakness CP funds any non-Core candidates.')+warnHtml+budget+abilityTable+weakTable+controls+nav(16,'Next: Weapons →',{noRest:true});
+    const abilityTable=`<div class="gw-scroll draft-abilities"><table class="gw-rt"><caption>Ability Draft — choose four Core abilities</caption><thead><tr><th>Source</th><th>Ability</th><th class="cp">Template CP</th><th>Designation</th><th class="cp">Assigned CP</th><th>Funding</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    const nonCoreOptions=w=>nonCoreAbilities().map(a=>{const uid=abilityUid(a);return `<option value="${esc(uid)}" ${w.fundUid===uid?'selected':''}>${esc(a.mp||a.gw)} (${esc(roleLabel(a.role))})</option>`;}).join('');
+    const weakRows=weak.length?weak.map((w,idx)=>{const wi=state.abilities.indexOf(w),kept=weaknessKept(w),ass=fundingForWeakness(w),target=ass&&ass.target,cp=ass?ass.cp:Math.max(0,-(w.cpNum||0));
+      const status=kept?`<button data-wkkeep="${wi}" class="wl-btn green" style="font-size:10px;padding:3px 8px">Kept</button>`:`<button data-wkkeep="${wi}" class="wl-btn ghost" style="font-size:10px;padding:3px 8px">Dropped</button>`;
+      const val=w.fundUid||'__auto';
+      const sel=`<select data-wkfund="${wi}" ${kept?'':'disabled'} style="font-size:11px;padding:3px 5px;min-width:190px"><option value="__auto" ${val==='__auto'||!w.fundUid?'selected':''}>Auto fund next non-Core</option><option value="__none" ${val==='__none'?'selected':''}>No funding target</option>${nonCoreOptions(w)}</select>`;
+      const selected=target?`<div style="color:var(--wl-soft);font-size:11px;margin-top:3px">${ass.pinned?'📌 Pinned':'Auto'}: funds ${esc(target.mp)} up to ${fmt(cp)} CP</div>`:(kept?(w.exempt?'Exempt from -20 creation limit':'No non-Core target assigned'):'Dropped: no CP and no funding');
+      return `<tr${kept?'':' style="opacity:.65"'}><td><strong>${esc(w.gw||w.mp)}</strong><div style="color:var(--wl-soft);font-size:11px">${esc(w.ability||'')}</div></td><td class="cp">${kept?fmt(w.cpNum||0):'0'}<div style="color:var(--wl-soft);font-size:10px">${kept?'of '+fmt(w.cpNum||0):'dropped'}</div></td><td>${status}</td><td>${sel}${selected}</td></tr>`;
+    }).join(''):`<tr><td colspan="4" style="color:var(--wl-soft);padding:12px">No weaknesses selected. Non-Core abilities will be discarded unless weaknesses provide CP funding.</td></tr>`;
+    const weakTable=`<div class="gw-scroll draft-weaknesses" style="margin-top:10px"><table class="gw-rt"><caption>Weakness Funding — keep, drop, or pin to non-Core abilities</caption><thead><tr><th>Weakness</th><th class="cp">CP</th><th>Status</th><th>Funding Target</th></tr></thead><tbody>${weakRows}</tbody></table></div>`;
+    const controls=`<div class="gw-controls" style="margin-top:10px"><div class="gw-controls-title">Draft Controls</div><button class="gw-roll-btn sm" style="width:auto;display:inline-block;padding:6px 14px" data-act="auto-core">Auto Core first four</button><div class="gw-hint">Pick exactly four Core abilities. Keep a weakness to use its CP. Pin a kept weakness to a specific non-Core ability, leave it on Auto to fund the next non-Core ability, or drop it so it provides no CP and is omitted from Review, export, and transfer.</div></div>`;
+    return head(16,'Ability Draft','Designate four Core abilities, keep or drop weaknesses, and pin Weakness CP to non-Core candidates.')+warnHtml+budget+abilityTable+weakTable+controls+nav(16,'Next: Weapons →',{noRest:true});
   }
   function stepWeapons(){
     const groups=gearList();
@@ -909,7 +931,7 @@
     const cv=[['BC Total',bcTotal()+' / '+tierOf(state.powerLevel).bcPoints],['Abilities',fmt(abilityCP())+' CP'],['Weaknesses',fmt(weaknessCP())+' CP'],['Core Ability CP',coreCp()+' each'],['Ability Cap',tierCaps().ability+' CP'],['BC Cap',tierCaps().bc],['Damage Cap','≈ '+fmt(tierCaps().damage)],['Power Level',state.powerLevel]].map(([l,v])=>`<div class="cell"><div class="l" style="color:var(--wl-soft)">${esc(l)}</div><div class="v">${esc(String(v))}</div></div>`).join('')+`<div class="cell hl"${unspent()<0?' style="background:#f8dede;border-color:#a33"':''}><div class="l"${unspent()<0?' style="color:#8a1f1f"':''}>Unspent CP</div><div class="v"${unspent()<0?' style="color:#8a1f1f"':''}>${fmt(unspent())}</div></div>`;
     const byRole=r=>state.abilities.filter(a=>a.role===r&&!a.weakness);
     const cls={offense:'off',defense:'def',misc:'mis'},lbl={offense:'Offensive',defense:'Defensive',misc:'Misc'};
-    const ab=['offense','defense','misc'].map(r=>{const items=byRole(r);return `<div class="gw-abb ${cls[r]}"><div class="t">${lbl[r]}</div>${items.length?items.map(a=>`${a.core?'★ ':isDiscardedNonCore(a)?'⊘ ':''}${esc(a.mp)} <span style="color:var(--wl-soft)">(${esc(abilityCPLabel(a))})</span>`).join('<br>'):'—'}</div>`;}).join('')+(()=>{const w=state.abilities.filter(a=>a.weakness);return `<div class="gw-abb wk"><div class="t">Weaknesses</div>${w.length?w.map(a=>`${esc(a.gw)} <span style="color:var(--wl-soft)">(${esc(abilityCPLabel(a))})</span>`).join('<br>'):'—'}</div>`;})();
+    const ab=['offense','defense','misc'].map(r=>{const items=byRole(r);return `<div class="gw-abb ${cls[r]}"><div class="t">${lbl[r]}</div>${items.length?items.map(a=>`${a.core?'★ ':isDiscardedNonCore(a)?'⊘ ':''}${esc(a.mp)} <span style="color:var(--wl-soft)">(${esc(abilityCPLabel(a))})</span>`).join('<br>'):'—'}</div>`;}).join('')+(()=>{const w=exportedAbilities().filter(a=>a.weakness);return `<div class="gw-abb wk"><div class="t">Weaknesses</div>${w.length?w.map(a=>`${esc(a.gw)} <span style="color:var(--wl-soft)">(${esc(abilityCPLabel(a))})</span>`).join('<br>'):'—'}</div>`;})();
     const gear=state.abilities.filter(a=>a.source==='special-weapon');
     const gearHtml=gear.length?`<div class="gw-hint" style="margin:6px 0"><strong>Gear (Special Weapons):</strong> ${gear.map(g=>esc(g.gw)).join(', ')}</div>`:'';
     let json='';try{json=JSON.stringify(buildMP(),null,2);}catch(e){json='// '+e.message;}
@@ -975,6 +997,7 @@
       const bg=e.target.closest('[data-bgk]');if(bg){addBackground(bg.dataset.bgk);saveDraft();render();return;}
       const rmbg=e.target.closest('[data-rmbg]');if(rmbg){state.backgrounds.splice(+rmbg.dataset.rmbg,1);saveDraft();render();return;}
       const bgc=e.target.closest('[data-bgc]');if(bgc){toggleBgChoice(+bgc.dataset.bgc);saveDraft();render();return;}
+      const wkKeep=e.target.closest('[data-wkkeep]');if(wkKeep){const w=state.abilities[+wkKeep.dataset.wkkeep];if(w&&w.weakness&&!isFixed(w)){w.keep=w.keep===false;log((w.keep===false?'Dropped weakness: ':'Kept weakness: ')+(w.gw||w.mp));}saveDraft();render();return;}
       const co=e.target.closest('[data-corei]');if(co){toggleCore(+co.dataset.corei);saveDraft();render();return;}
       const pr=e.target.closest('[data-pick-row]');if(pr){togglePick(poolTable(state.activeRole)[+pr.dataset.pickRow],state.activeRole);saveDraft();render();return;}
       const rmw=e.target.closest('[data-rmweap]');if(rmw){state.abilities.splice(+rmw.dataset.rmweap,1);saveDraft();render();return;}
@@ -982,6 +1005,7 @@
     });
     body.addEventListener('change',e=>{
       const pl=e.target.closest('[data-pl]');if(pl){setPowerLevel(pl.value);saveDraft();render();return;}
+      const wkFund=e.target.closest('[data-wkfund]');if(wkFund){const w=state.abilities[+wkFund.dataset.wkfund],v=wkFund.value;if(w&&w.weakness&&!isFixed(w)){w.fundUid=v;if(v&&v!=='__auto'&&v!=='__none'){state.abilities.forEach(o=>{if(o!==w&&o.weakness&&o.fundUid===v)o.fundUid='__auto';});log((w.gw||w.mp)+' pinned to fund '+((state.abilities.find(a=>a.uid===v)||{}).mp||'non-Core ability'));}else log((w.gw||w.mp)+' funding set to '+(v==='__none'?'none':'auto'));}saveDraft();render();return;}
       const pk=e.target.closest('[data-pick]');if(pk){const key=pk.dataset.pick,v=pk.value;if(key==='species'){setSpecies(v);}else{state[key]=v;if(key==='faction'){const al=allianceByName(v);if(al&&al.side)state.side=al.side;}if(key==='genderIdentity'){state.gender=v;}}saveDraft();render();return;}
       const bc=e.target.closest('[data-bc]');if(bc){const k=bc.dataset.bc,cap=bcCap(k);let v=parseInt(bc.value,10)||0;if(v>cap){v=cap;bc.value=v;}state.bc[k]=v;saveDraft();renderChronicleOnly();const t=$('#gw-main .gw-bc .c:last-child div');if(t)t.textContent=bcTotal();return;}
     });
