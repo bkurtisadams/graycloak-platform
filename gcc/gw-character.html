@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.19 — Adds a dedicated Ability Draft step where rolled Offensive/Defensive/Misc candidates are designated Core or non-Core; Weakness CP funding for non-Core abilities is shown before Review; Weapons and Review move down one step. -->
 <!-- gw-character.html v0.2.18 — MP Core/non-Core accounting: only four rolled abilities receive Core Ability CPs; Weakness CP slots fund optional non-Core abilities one-for-one; unfunded non-Core picks are shown as discarded and omitted from export -->
 <!-- gw-character.html v0.2.17 — GM power level selector promoted to the intro/chronicle: Quick Random can now generate Normal/Low/Standard/High NPCs; cap/tally display shows Ability/BC/Damage caps; changing Power Level rerolls BCs and revalidates cap locks without changing mutation data -->
 <!-- gw-character.html v0.2.16 — MP 2.3 rulebook weaknesses: new gw-mp-weaknesses.js data file (pick-only section under the GW defect chart, all species incl. creatures and Wastelander PSH); weakness slot changed from 2-count to -20 CP budget (any mix that sums to -20; rolls fill to budget; over-budget picks refused); Animal/Plant-style entries flagged exempt:true don't count toward the -20 limit; weakness pill/chronicle show CP totals -->
@@ -464,7 +465,8 @@
   function normalizeCore(){let n=coreCount();state.abilities.forEach(a=>{if(a.weakness||isFixed(a)){a.core=false;return;}if(a.core===undefined){a.core=n<4;if(a.core)n++;}});}
   function tierCaps(){return capsForTier(tierOf(state.powerLevel));}
   function coreCp(){return coreCpForTier(tierOf(state.powerLevel));}
-  function weaknessFundingSlots(){return state.abilities.filter(a=>a.weakness&&!isFixed(a)&&!isExemptWk(a)).map(a=>Math.max(0,-(a.cpNum||0))).filter(cp=>cp>0);}
+  function weaknessFundingSlots(){return weaknessFundingEntries().map(x=>x.cp);}
+  function weaknessFundingEntries(){return state.abilities.filter(a=>a.weakness&&!isFixed(a)&&!isExemptWk(a)).map(a=>({ability:a,cp:Math.max(0,-(a.cpNum||0))})).filter(x=>x.cp>0);}
   function nonCoreIndex(a){return nonCoreAbilities().indexOf(a);}
   function assignedNonCoreCP(a){const i=nonCoreIndex(a),slot=weaknessFundingSlots()[i]||0;return Math.min(slot,tierCaps().ability);}
   function isDiscardedNonCore(a){return !!(a&&!a.weakness&&!isFixed(a)&&a.core!==true&&assignedNonCoreCP(a)<=0);}
@@ -491,11 +493,12 @@
     BCS.forEach(([k,l])=>{if((state.bc[k]||0)>c.bc)hard.push(`${l} ${state.bc[k]} exceeds the BC Cap of ${c.bc} at ${state.powerLevel}.`);});
     return{hard,soft};}
   function toggleCore(i){const a=state.abilities[i];if(!a||a.weakness||isFixed(a))return;if(a.core){a.core=false;}else{if(coreCount()>=4){log('Core limit is 4 — demote another ability first.');return;}a.core=true;}log((a.core?'Core: ':'Non-core: ')+(a.mp||a.gw));}
+  function autoCoreFirstFour(){const abs=coreAbilities();abs.forEach((a,i)=>{a.core=i<Math.min(4,abs.length);});log('Assigned the first '+Math.min(4,abs.length)+' ability candidate'+(Math.min(4,abs.length)===1?'':'s')+' as Core.');}
   function buildWarnings(){
     const abs=coreAbilities(),w=[];
     if(unspent()<0)w.push(`Build overspends by ${fmt(-unspent())} CP — total budget is ${tierOf(state.powerLevel).total} CP at ${state.powerLevel}. Drop paid non-Core abilities, add Weaknesses, or lower BCs (MP 2.1.16).`);
     const want=Math.min(4,abs.length);
-    if(abs.length&&coreCount()!==want)w.push(`Mark ${want} abilities as Core (currently ${coreCount()}).`);
+    if(abs.length&&coreCount()!==want)w.push(`Use the Ability Draft step to mark ${want} abilities as Core (currently ${coreCount()}).`);
     const nc=nonCoreAbilities(),slots=weaknessFundingSlots();
     const discarded=nc.filter(a=>assignedNonCoreCP(a)<=0);
     if(discarded.length)w.push(`${discarded.length} non-Core abilit${discarded.length===1?'y is':'ies are'} unfunded and will be discarded unless a Weakness CP slot is assigned (MP 2.1.16.3).`);
@@ -652,7 +655,7 @@
 
   /* ── draft persistence ──────────────────────────────────────── */
   function saveDraft(){try{localStorage.setItem(DRAFT_KEY,JSON.stringify({v:4,state:{...state,exportId:window.__gwExportId||null}}));}catch(e){}}
-  function loadDraft(){try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');if(!d||d.v!==4)return false;Object.assign(state,d.state||{});if(!state.pshPath)state.pshPath='wastelander';if(state.species==='Pure Strain Human'&&state.pshPath!=='commando'&&state.step>=12&&state.step<=14)state.step=15;normalizeCore();if(d.state&&d.state.exportId)window.__gwExportId=d.state.exportId;return true;}catch(e){return false;}}
+  function loadDraft(){try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');if(!d||d.v!==4)return false;Object.assign(state,d.state||{});if(!state.pshPath)state.pshPath='wastelander';if(state.species==='Pure Strain Human'&&state.pshPath!=='commando'&&(state.step>=12&&state.step<=14||state.step===16))state.step=15;normalizeCore();if(d.state&&d.state.exportId)window.__gwExportId=d.state.exportId;return true;}catch(e){return false;}}
   function startOver(){try{localStorage.removeItem(DRAFT_KEY);}catch(e){}window.__gwExportId=null;state={ step:0, powerLevel:'Low', activeRole:'offense', pshPath:'wastelander', name:'', player:'', species:'Humanoid (Mutant)', culture:'', side:'', faction:'', alliance:'', home:'', homeland:'', bc:{st:10,en:10,ag:10,in:10,cl:10}, gender:'', age:'', weight:'', genderIdentity:'', genderExpression:'', biologicalSex:'', sexualAttraction:'', ageMethod:'standard', backgrounds:[], backgroundChoices:[], motivation:'', origin:'', originChoices:[], abilities:[], rollLog:[], exportId:null };applyAuthDefault();render();}
 
   /* ── step model ─────────────────────────────────────────────── */
@@ -662,22 +665,22 @@
     {n:7,key:'bc',name:'Characteristics'},{n:8,key:'bio',name:'Bio'},{n:9,key:'backgrounds',name:'Backgrounds'},
     {n:10,key:'motivation',name:'Motivation'},{n:11,key:'origin',name:'Origin'},{n:12,key:'offense',name:'Offensive'},
     {n:13,key:'defense',name:'Defensive'},{n:14,key:'misc',name:'Miscellaneous'},{n:15,key:'weakness',name:'Weaknesses'},
-    {n:16,key:'weapons',name:'Weapons & Gear'},{n:17,key:'review',name:'Review'}
+    {n:16,key:'draft',name:'Ability Draft'},{n:17,key:'weapons',name:'Weapons & Gear'},{n:18,key:'review',name:'Review'}
   ];
-  const LAST_DATA=16;
-  const rollByKey={species:rollSpecies,faction:rollFaction,side:rollSide,culture:rollCulture,home:rollHome,homeland:rollHomeland,bc:rollBC,bio:rollBio,backgrounds:rollBackgrounds,motivation:rollMotivation,origin:rollOrigin,offense:rollAbilities,defense:()=>{},misc:()=>{},weakness:()=>{},weapons:()=>{}};
-  function skipStep(n){return state.species==='Pure Strain Human'&&state.pshPath!=='commando'&&n>=12&&n<=14;}
-  function go(n){const dir=n>=state.step?1:-1;while(skipStep(n))n+=dir;n=Math.min(17,Math.max(1,n));state.step=n;saveDraft();render();window.scrollTo({top:0,behavior:'smooth'});}
-  function rollRemaining(fromN){for(let i=fromN-1;i<LAST_DATA;i++){const k=STEPS[i].key;if(rollByKey[k])rollByKey[k]();}go(17);}
+  const LAST_DATA=17;
+  const rollByKey={species:rollSpecies,faction:rollFaction,side:rollSide,culture:rollCulture,home:rollHome,homeland:rollHomeland,bc:rollBC,bio:rollBio,backgrounds:rollBackgrounds,motivation:rollMotivation,origin:rollOrigin,offense:rollAbilities,defense:()=>{},misc:()=>{},weakness:()=>{},draft:()=>{},weapons:()=>{}};
+  function skipStep(n){return state.species==='Pure Strain Human'&&state.pshPath!=='commando'&&(n>=12&&n<=14||n===16);}
+  function go(n){const dir=n>=state.step?1:-1;while(skipStep(n))n+=dir;n=Math.min(18,Math.max(1,n));state.step=n;saveDraft();render();window.scrollTo({top:0,behavior:'smooth'});}
+  function rollRemaining(fromN){for(let i=fromN-1;i<LAST_DATA;i++){const k=STEPS[i].key;if(rollByKey[k])rollByKey[k]();}go(18);}
 
   /* ── species branch tracker (origin-tracker analog) ─────────── */
   function branchInfo(){
     const sp=state.species;
-    if(isCreature(sp))return{cls:'',label:sp+' (creature)',items:[{step:1,t:'Fixed converted package'},{step:12,t:'Abilities: '+sp+' package applied'},{step:16,t:'Gear: optional special weapon'}]};
-    if(sp==='Pure Strain Human'){const cmd=state.pshPath==='commando';return{cls:'',label:'PSH — '+(cmd?'Commando':'Wastelander'),items:[{step:1,t:cmd?'Training: Nat. Weaponry +5 / Subject to Orders -5':'Package: DNA-lock access, +3 CL, stat caps'},{step:12,t:cmd?'Abilities: War Heroes tables (2/2/2 + weaknesses)':'No ability rolls — weaknesses only'},{step:16,t:'Gear: full Ancient artifact list'}]};}
-    if(sp==='Tech Construct')return{cls:'',label:'Tech Construct',items:[{step:1,t:'No mutation charts'},{step:12,t:'Abilities: integral systems 2/2/2/2 from artifact tables'},{step:16,t:'Gear: tech weapons (ID locks apply)'}]};
-    if(sp==='Mutated Plant')return{cls:'',label:'Mutated Plant',items:[{step:1,t:'Plant mutation chart'},{step:12,t:'Abilities: 2/2/2/2 from plant chart'},{step:16,t:'Gear: optional special weapon'}]};
-    return{cls:'',label:sp,items:[{step:1,t:'Physical + mental charts'},{step:12,t:'Abilities: 2/2/2/2 from mutation charts'},{step:16,t:'Gear: optional special weapon'}]};
+    if(isCreature(sp))return{cls:'',label:sp+' (creature)',items:[{step:1,t:'Fixed converted package'},{step:12,t:'Abilities: '+sp+' package applied'},{step:16,t:'Ability Draft: package review'},{step:17,t:'Gear: optional special weapon'}]};
+    if(sp==='Pure Strain Human'){const cmd=state.pshPath==='commando';return{cls:'',label:'PSH — '+(cmd?'Commando':'Wastelander'),items:[{step:1,t:cmd?'Training: Nat. Weaponry +5 / Subject to Orders -5':'Package: DNA-lock access, +3 CL, stat caps'},{step:12,t:cmd?'Abilities: War Heroes tables (2/2/2 + weaknesses)':'No ability rolls — weaknesses only'},{step:16,t:cmd?'Ability Draft: choose Core picks':'Ability Draft skipped'},{step:17,t:'Gear: full Ancient artifact list'}]};}
+    if(sp==='Tech Construct')return{cls:'',label:'Tech Construct',items:[{step:1,t:'No mutation charts'},{step:12,t:'Abilities: integral systems 2/2/2/2 from artifact tables'},{step:16,t:'Ability Draft: choose Core systems'},{step:17,t:'Gear: tech weapons (ID locks apply)'}]};
+    if(sp==='Mutated Plant')return{cls:'',label:'Mutated Plant',items:[{step:1,t:'Plant mutation chart'},{step:12,t:'Abilities: 2/2/2/2 from plant chart'},{step:16,t:'Ability Draft: choose Core mutations'},{step:17,t:'Gear: optional special weapon'}]};
+    return{cls:'',label:sp,items:[{step:1,t:'Physical + mental charts'},{step:12,t:'Abilities: 2/2/2/2 from mutation charts'},{step:16,t:'Ability Draft: choose Core mutations'},{step:17,t:'Gear: optional special weapon'}]};
   }
 
   /* ── chronicle ──────────────────────────────────────────────── */
@@ -698,13 +701,14 @@
       case 'defense':{const n=state.abilities.filter(a=>a.role==='defense'&&!isFixed(a));return n.length?n.map(a=>'• '+esc(a.mp||a.gw)).join('<br>'):'—';}
       case 'misc':{const n=state.abilities.filter(a=>a.role==='misc'&&!isFixed(a));return n.length?n.map(a=>'• '+esc(a.mp||a.gw)).join('<br>'):'—';}
       case 'weakness':{const n=state.abilities.filter(a=>a.weakness&&!isFixed(a));return n.length?n.map(a=>'• '+esc(a.mp||a.gw)+' ('+fmt(a.cpNum)+')').join('<br>')+`<br><strong>${fmt(weaknessCPCounted())} / ${WK_BUDGET} CP</strong>`:'—';}
+      case 'draft':{const abs=coreAbilities(),nc=nonCoreAbilities(),funded=nc.filter(a=>assignedNonCoreCP(a)>0).length;return abs.length?`<strong>${coreCount()} / ${Math.min(4,abs.length)}</strong> Core<br>${funded} funded non-Core · ${nc.length-funded} discarded`:'—';}
       case 'weapons':{const g=state.abilities.filter(a=>a.source==='special-weapon');return g.length?g.map(x=>'• '+esc(x.gw)).join('<br>'):'—';}
-      case 'review':return state.step===17?'Ready to transfer':'—';
+      case 'review':return state.step===18?'Ready to transfer':'—';
     }
     return '—';
   }
   function renderChronicle(){
-    const complete=state.step===17,c=tierCaps();
+    const complete=state.step===18,c=tierCaps();
     const tally=`<div class="gw-tally">
       <div class="t"><div class="l">Total</div><div class="v">${tierOf(state.powerLevel).total}</div></div>
       <div class="t"><div class="l">Spent</div><div class="v">${fmt(netCP())}</div></div>
@@ -719,7 +723,7 @@
   }
 
   /* ── main panel: step renderers ─────────────────────────────── */
-  function head(n,title,desc){const hnav=`<div style="margin-left:auto;display:flex;gap:6px;align-items:center"><button class="wl-btn ghost" data-act="startover" style="font-size:11px;padding:4px 10px">↺ Start Over</button>${n>1?`<button class="wl-btn ghost" data-act="prev" style="font-size:11px;padding:4px 10px">← Back</button>`:''}${n<17?`<button class="wl-btn green" data-act="next" style="font-size:11px;padding:4px 10px">Next →</button>`:''}</div>`;return `<div class="gw-step-head"><div class="gw-step-num">${n}</div><div class="gw-step-title">${esc(title)}</div>${hnav}</div>${desc?`<p class="gw-step-desc">${desc}</p>`:''}`;}
+  function head(n,title,desc){const hnav=`<div style="margin-left:auto;display:flex;gap:6px;align-items:center"><button class="wl-btn ghost" data-act="startover" style="font-size:11px;padding:4px 10px">↺ Start Over</button>${n>1?`<button class="wl-btn ghost" data-act="prev" style="font-size:11px;padding:4px 10px">← Back</button>`:''}${n<18?`<button class="wl-btn green" data-act="next" style="font-size:11px;padding:4px 10px">Next →</button>`:''}</div>`;return `<div class="gw-step-head"><div class="gw-step-num">${n}</div><div class="gw-step-title">${esc(title)}</div>${hnav}</div>${desc?`<p class="gw-step-desc">${desc}</p>`:''}`;}
   function nav(n,nextLabel,opts){opts=opts||{};const prev=n===1?`<button class="wl-btn ghost" data-act="startover">← Start Over</button>`:`<button class="wl-btn ghost" data-act="prev">← Back</button>`;const rest=opts.noRest?'':`<button class="wl-btn ghost" data-act="rollrest" title="Roll every remaining step and jump to Review">🎲 Roll the rest →</button>`;const next=opts.noNext?'':`<button class="wl-btn green" data-act="next">${esc(nextLabel||'Next →')}</button>`;return `<div class="gw-nav"><div>${prev}</div><div style="display:flex;gap:8px">${rest}${next}</div></div>`;}
   function rollBox(title,resultHtml,pickHtml,rollLabel){return `<div class="gw-controls"><div class="gw-controls-title">${title||'Roll or Pick'}</div><button class="gw-roll-btn" data-act="roll">🎲 ${esc(rollLabel||'Roll')}</button><div class="gw-roll-res">${resultHtml||''}</div><div class="gw-or">— or —</div>${pickHtml||''}</div>`;}
   function tableRows(rows,selName){return `<div class="gw-scroll"><table class="gw-rt">${rows}</table></div>`;}
@@ -828,7 +832,7 @@
     offense:{n:12,label:'Offensive',next:'Next: Defensive →',pill:['#f3d2c2','#71310d'],desc:'Pick 2 offensive abilities, or roll the table.'},
     defense:{n:13,label:'Defensive',next:'Next: Miscellaneous →',pill:['#cfe0e6','#163a44'],desc:'Pick 2 defensive abilities, or roll the table.'},
     misc:{n:14,label:'Miscellaneous',next:'Next: Weaknesses →',pill:['#efe3c0','#5d4710'],desc:'Pick 2 miscellaneous abilities, or roll the table.'},
-    weakness:{n:15,label:'Weaknesses',next:'Next: Weapons →',pill:['#f0d3d3','#6e1f1f'],desc:'Take up to -20 CP of weaknesses in any mix — their CPs fund your non-Core abilities (MP 2.1.16.3). Animal/Plant-type weaknesses are exempt from the -20 limit.'}
+    weakness:{n:15,label:'Weaknesses',next:'Next: Ability Draft →',pill:['#f0d3d3','#6e1f1f'],desc:'Take up to -20 CP of weaknesses in any mix — their CPs fund your non-Core abilities (MP 2.1.16.3). Animal/Plant-type weaknesses are exempt from the -20 limit.'}
   };
   function stepRole(role){
     state.activeRole=role;
@@ -843,16 +847,42 @@
     const table=`<div class="gw-scroll"><table class="gw-rt"><thead><tr><th class="rng">d100</th><th>Ability</th><th class="cp">Template CP</th></tr></thead><tbody>`+
       rows.map((r,i)=>{const mp=r.kind==='mutant'?(mpLead(r.it.m.ability)||r.name):r.name;const on=sel.includes(r.name);const over=role!=='weakness'&&overCapCp(parseFloat(String(r.cp)));return `<tr data-pick-row="${i}" class="${on?'sel':''}${over?' inel':''}"${over?` title="Over the ${tierCaps().ability} CP Ability Cap at ${esc(state.powerLevel)} (MP 2.1.16.5)"`:''}><td class="rng">${r.lo}-${r.hi}</td><td>${over?'🔒 ':''}${esc(mp)}<span style="color:var(--wl-soft)"> · ${esc(r.name)}</span></td><td class="cp">${esc(String(r.cp))}</td></tr>`;}).join('')+`</tbody></table></div>`;
     const picks=state.abilities.filter(a=>a.role===role&&!isFixed(a));
-    const pickList=`<div class="gw-picks">`+(picks.length?picks.map(p=>{const i=state.abilities.indexOf(p),discard=isDiscardedNonCore(p);const badge=role==='weakness'?'':`<button data-corei="${i}" title="Toggle Core (4 max — non-Core abilities are funded by Weaknesses)" style="font-size:10px;border-radius:10px;padding:1px 8px;cursor:pointer;border:1px solid ${p.core?'#27521e':'var(--wl-line)'};background:${p.core?'var(--wl-green)':(discard?'#f3e8e8':'var(--wl-input)')};color:${p.core?'#eafce9':(discard?'#8a1f1f':'var(--wl-soft)')}">${p.core?'★ Core':(discard?'discarded':'non-core')}</button>`;return `<div class="gw-pickrow"${discard?' style="opacity:.72"':''}><div class="mp" style="display:flex;gap:8px;align-items:center"><span style="flex:1">${esc(p.mp)}</span>${badge}<span>${esc(abilityCPLabel(p))}</span></div><div class="ab">${esc(p.gw)}</div></div>`;}).join(''):'<div class="gw-pickrow" style="color:var(--wl-soft)">Click rows to pick, or roll the category.</div>')+`</div>`;
+    const pickList=`<div class="gw-picks">`+(picks.length?picks.map(p=>{const discard=isDiscardedNonCore(p);const status=role==='weakness'?esc(abilityCPLabel(p)):(p.core?'★ Core':(discard?'discarded':'non-Core candidate'));return `<div class="gw-pickrow"${discard?' style="opacity:.72"':''}><div class="mp" style="display:flex;gap:8px;align-items:center"><span style="flex:1">${esc(p.mp)}</span><span style="color:${discard?'#8a1f1f':'var(--wl-soft)'}">${status}</span><span>${esc(abilityCPLabel(p))}</span></div><div class="ab">${esc(p.gw)}</div></div>`;}).join(''):'<div class="gw-pickrow" style="color:var(--wl-soft)">Click rows to pick, or roll the category.</div>')+`</div>`;
     const budget=(role==='weakness'?`<div style="background:${meta.pill[0]};color:${meta.pill[1]};display:inline-block;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;margin-bottom:7px">${fmt(weaknessCPCounted())} / ${WK_BUDGET} CP${state.abilities.some(a=>a.weakness&&a.exempt)?' (+ exempt)':''}</div>`:`<div style="background:${meta.pill[0]};color:${meta.pill[1]};display:inline-block;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;margin-bottom:7px">${picks.length} / 2 picked</div>`)+(role==='weakness'?'':`<div style="background:#eef3df;color:#41541f;display:inline-block;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;margin:0 0 7px 5px">${coreCount()} / 4 core</div><div style="background:#f4ecd8;color:#64450d;display:inline-block;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;margin:0 0 7px 5px" title="Each non-Core ability uses one Weakness CP slot, in non-Core order.">Non-core funding ${fmt(nonCoreAbilities().reduce((s,a)=>s+assignedNonCoreCP(a),0))} / ${fmt(weaknessFundingSlots().reduce((s,n)=>s+n,0))} CP</div>`)+`<div style="background:${unspent()<0?'#f8dede':'#e8eef7'};color:${unspent()<0?'#8a1f1f':'#274b6e'};display:inline-block;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;margin:0 0 7px 5px" title="BC ${bcTotal()} + Abilities ${fmt(abilityCP())} + Weaknesses ${fmt(weaknessCP())}">${fmt(netCP())} / ${tierOf(state.powerLevel).total} CP${unspent()<0?' — over!':''}</div>`;
     const canCat=built.kind!=='creature'&&!(built.kind==='wastelander'&&role!=='weakness');
     const ctrl=`<div class="gw-controls"><div class="gw-controls-title">${meta.label}</div>`+budget+
       (canCat?`<button class="gw-roll-btn" data-act="roll-cat">🎲 Roll this category</button>`:'')+
       (built.kind==='wastelander'?'':`<button class="gw-roll-btn sm" data-act="roll-all">Roll all (2/2/2/2)</button>`)+
       `<button class="gw-roll-rest" data-act="clear-role">Clear this category</button>`+
-      `<div class="gw-hint">${isCreature(sp)?`Playing a ${esc(sp)}: its converted MP package for this role. Click a pick to drop it.`:(sp==='Tech Construct'?'Tech Construct: integral systems from the artifact tables (read Gear modifiers as Body Part) plus designed-in abilities from the conversion charts. Weaknesses are robotic (placeholder -10 pricing).':(sp==='Pure Strain Human'?(state.pshPath==='commando'?('Commando PSH: mundane picks from the War Heroes tables — base '+((WH.commando||{}).coreCp||5)+' CP, may grow to '+((WH.commando||{}).maxPerAbility||20)+' CP in the builder.'):'Wastelander PSH: no ability rolls — spend CP on Ancient gear at step 16. Weaknesses are still available here for extra CP.'):'Drawn from your GW→MP mutation charts for this role. Mark four rolled abilities as Core; any other picked abilities are only kept if a Weakness CP slot funds them.'))}</div></div>`;
+      `<div class="gw-hint">${isCreature(sp)?`Playing a ${esc(sp)}: its converted MP package for this role. Click a pick to drop it.`:(sp==='Tech Construct'?'Tech Construct: integral systems from the artifact tables (read Gear modifiers as Body Part) plus designed-in abilities from the conversion charts. Weaknesses are robotic (placeholder -10 pricing).':(sp==='Pure Strain Human'?(state.pshPath==='commando'?('Commando PSH: mundane picks from the War Heroes tables — base '+((WH.commando||{}).coreCp||5)+' CP, may grow to '+((WH.commando||{}).maxPerAbility||20)+' CP in the builder.'):'Wastelander PSH: no ability rolls — spend CP on Ancient gear at step 17. Weaknesses are still available here for extra CP.'):'Drawn from your GW→MP mutation charts for this role. Core/non-Core designation happens on the Ability Draft step after weaknesses are selected.'))}</div></div>`;
     return head(meta.n,meta.label+(role==='weakness'?'':' Abilities'),meta.desc)+
       `<div class="gw-content"><div class="gw-table-side">${table}${mpTable}</div>${ctrl}</div>${pickList}`+nav(meta.n,meta.next);
+  }
+  function roleLabel(r){return r==='offense'?'Offensive':(r==='defense'?'Defensive':(r==='misc'?'Miscellaneous':r));}
+  function stepDraft(){
+    const abs=coreAbilities(),weak=state.abilities.filter(a=>a.weakness&&!isFixed(a)),slots=weaknessFundingEntries(),warns=buildWarnings();
+    const coreTarget=Math.min(4,abs.length),fundedTotal=nonCoreAbilities().reduce((s,a)=>s+assignedNonCoreCP(a),0),slotTotal=slots.reduce((s,x)=>s+x.cp,0);
+    const warnHtml=warns.length?`<div style="background:#fdf0d5;border:1px solid var(--wl-amber);color:#5d4710;border-radius:6px;padding:7px 10px;margin-bottom:10px;font-size:12px">${warns.map(x=>'⚠ '+esc(x)).join('<br>')}</div>`:'';
+    const budget=`<div class="gw-cv" style="margin-bottom:10px">
+      <div class="cell"><div class="l" style="color:var(--wl-soft)">Core picks</div><div class="v">${coreCount()} / ${coreTarget}</div></div>
+      <div class="cell"><div class="l" style="color:var(--wl-soft)">Core CP</div><div class="v">${fmt(coreCp())} each</div></div>
+      <div class="cell"><div class="l" style="color:var(--wl-soft)">Weakness funding</div><div class="v">${fmt(fundedTotal)} / ${fmt(slotTotal)}</div></div>
+      <div class="cell"><div class="l" style="color:var(--wl-soft)">Net CP</div><div class="v">${fmt(netCP())} / ${tierOf(state.powerLevel).total}</div></div>
+    </div>`;
+    const rows=abs.length?abs.map((a,idx)=>{const i=state.abilities.indexOf(a),nc=nonCoreIndex(a),fund=assignedNonCoreCP(a),discard=isDiscardedNonCore(a);
+      const source=`<span style="display:inline-block;font-size:10px;text-transform:uppercase;letter-spacing:.7px;border-radius:10px;padding:1px 7px;background:${a.role==='offense'?'#f3d2c2':(a.role==='defense'?'#cfe0e6':'#efe3c0')};color:${a.role==='offense'?'#71310d':(a.role==='defense'?'#163a44':'#5d4710')}">${esc(roleLabel(a.role))}</span>`;
+      const designation=a.core?`<button data-corei="${i}" class="wl-btn green" style="font-size:10px;padding:3px 8px">★ Core</button>`:`<button data-corei="${i}" class="wl-btn ghost" style="font-size:10px;padding:3px 8px">Non-Core</button>`;
+      const funding=a.core?`Power Level grant: ${fmt(coreCp())} CP`:fund>0?`Weakness slot ${nc+1}: ${fmt(fund)} CP`:'Unfunded: discarded';
+      return `<tr${discard?' style="opacity:.72"':''}><td>${source}</td><td><strong>${esc(a.mp)}</strong><div style="color:var(--wl-soft);font-size:11px">${esc(a.gw)}</div></td><td class="cp">${fmt(templateCP(a))}</td><td>${designation}</td><td class="cp">${esc(abilityCPLabel(a))}</td><td style="color:${discard?'#8a1f1f':'var(--wl-soft)'}">${esc(funding)}</td></tr>`;
+    }).join(''):`<tr><td colspan="6" style="color:var(--wl-soft);padding:14px">No ability candidates yet. Roll or pick Offensive, Defensive, and Miscellaneous abilities first.</td></tr>`;
+    const abilityTable=`<div class="gw-scroll"><table class="gw-rt"><caption>Ability Draft — choose four Core abilities</caption><thead><tr><th>Source</th><th>Ability</th><th class="cp">Template CP</th><th>Designation</th><th class="cp">Assigned CP</th><th>Funding</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    const weakRows=weak.length?weak.map((w,idx)=>{const slotIndex=slots.findIndex(x=>x.ability===w),target=slotIndex>=0?nonCoreAbilities()[slotIndex]:null,slot=slotIndex>=0?slots[slotIndex].cp:Math.max(0,-(w.cpNum||0));
+      const targetText=w.exempt?'Exempt from -20 creation limit':(target?`Funds ${target.mp} up to ${fmt(slot)} CP`:'No non-Core target yet');
+      return `<tr><td><strong>${esc(w.gw||w.mp)}</strong><div style="color:var(--wl-soft);font-size:11px">${esc(w.ability||'')}</div></td><td class="cp">${fmt(w.cpNum||0)}</td><td style="color:var(--wl-soft)">${esc(targetText)}</td></tr>`;
+    }).join(''):`<tr><td colspan="3" style="color:var(--wl-soft);padding:12px">No weaknesses selected. Non-Core abilities will be discarded unless weaknesses provide CP funding.</td></tr>`;
+    const weakTable=`<div class="gw-scroll" style="margin-top:10px"><table class="gw-rt"><caption>Weakness Funding</caption><thead><tr><th>Weakness</th><th class="cp">CP</th><th>Assigned Funding</th></tr></thead><tbody>${weakRows}</tbody></table></div>`;
+    const controls=`<div class="gw-controls" style="margin-top:10px"><div class="gw-controls-title">Draft Controls</div><button class="gw-roll-btn sm" style="width:auto;display:inline-block;padding:6px 14px" data-act="auto-core">Auto Core first four</button><div class="gw-hint">Pick exactly four Core abilities. Any remaining ability is non-Core and is only kept if a Weakness CP slot funds it; otherwise it is discarded from Review, export, and transfer.</div></div>`;
+    return head(16,'Ability Draft','Designate four Core abilities and review how Weakness CP funds any non-Core candidates.')+warnHtml+budget+abilityTable+weakTable+controls+nav(16,'Next: Weapons →',{noRest:true});
   }
   function stepWeapons(){
     const groups=gearList();
@@ -867,8 +897,8 @@
     const detail=`<div class="gw-controls" style="margin-top:8px"><div class="gw-controls-title">Item Detail</div>${foc?`<div style="font-weight:600;font-size:12px">${esc(foc.name)} <span style="float:right">${esc(String(foc.cp))} CP</span></div><div style="font-size:10px;color:var(--wl-soft);text-transform:uppercase;letter-spacing:1px;margin:2px 0 4px">${esc(foc.role||'')}</div>${overCapCp(cpn(String(foc.cp))||+foc.cp)?`<div style="color:#a33;font-size:10px;font-weight:600;margin-bottom:4px">🔒 Over the ${tierCaps().ability} CP Ability Cap at ${esc(state.powerLevel)} — GM may waive (MP 2.1.16.5)</div>`:''}<div class="gw-hint" style="margin:0">${esc(foc.ability||'—')}</div>`:'<div class="gw-hint" style="margin:0">Click an item (or roll) to see its MP writeup — damage, hit, range, charges.</div>'}</div>`;
     const ownedCards=gear.length?`<div class="gw-picks">`+gear.map(g=>`<div class="gw-pickrow"><div class="mp" style="display:flex;gap:8px;align-items:center"><span style="flex:1">${esc(g.gw)}</span><span>${esc(g.cp)} CP</span><span data-rmweap="${state.abilities.indexOf(g)}" style="cursor:pointer;color:var(--wl-red,#a33)" title="Remove">✕</span></div><div class="ab">${esc(g.ability||'')}</div></div>`).join('')+`</div>`:'<div style="margin-top:8px"><span class="gw-hint">No gear added.</span></div>';
     const ctrl=`<div class="gw-controls"><div class="gw-controls-title">Gear</div><button class="gw-roll-btn" data-act="rollweapon">🎲 Roll random gear</button><button class="gw-roll-rest" data-act="clear-gear">Clear all gear</button><div class="gw-hint">Weapons, armor, devices, and drugs are Gear-modified abilities — CP counts against the build. PSH see the full Ancient list; ID-locked items are hidden from other species.</div></div>`;
-    return head(16,'Weapons & Gear','Standard weapons and the full Ancient artifact tables — armor, grenades, devices, and drugs included. Ancient ID locks apply.')+
-      `<div class="gw-content"><div class="gw-table-side">${table}</div><div class="gw-ctrlcol">${ctrl}${detail}</div></div>${ownedCards}`+nav(16,'Review →',{noRest:true});
+    return head(17,'Weapons & Gear','Standard weapons and the full Ancient artifact tables — armor, grenades, devices, and drugs included. Ancient ID locks apply.')+
+      `<div class="gw-content"><div class="gw-table-side">${table}</div><div class="gw-ctrlcol">${ctrl}${detail}</div></div>${ownedCards}`+nav(17,'Review →',{noRest:true});
   }
   function stepReview(){
     const birth=[state.home,state.homeland].filter(Boolean).join(' — ');
@@ -895,7 +925,7 @@
       `<div class="sb">MP BUILDER JSON</div><textarea class="gw-json" readonly>${esc(json)}</textarea></div>`+
       `<div class="gw-nav"><div><button class="wl-btn ghost" data-act="prev">← Back</button></div><div></div></div>`;
   }
-  const stepRender={1:stepSpecies,2:stepFaction,3:stepSide,4:stepCulture,5:stepHome,6:stepHomeland,7:stepBC,8:stepBio,9:stepBackgrounds,10:stepMotivation,11:stepOrigin,12:()=>stepRole('offense'),13:()=>stepRole('defense'),14:()=>stepRole('misc'),15:()=>stepRole('weakness'),16:stepWeapons,17:stepReview};
+  const stepRender={1:stepSpecies,2:stepFaction,3:stepSide,4:stepCulture,5:stepHome,6:stepHomeland,7:stepBC,8:stepBio,9:stepBackgrounds,10:stepMotivation,11:stepOrigin,12:()=>stepRole('offense'),13:()=>stepRole('defense'),14:()=>stepRole('misc'),15:()=>stepRole('weakness'),16:stepDraft,17:stepWeapons,18:stepReview};
 
   function renderIntro(){
     const resume=(state.name||state.species!=='Humanoid (Mutant)'||state.abilities.length)?`<p class="gw-hint" style="text-align:center">A saved draft is loaded — Step-by-Step resumes where you left off.</p>`:'';
@@ -963,14 +993,15 @@
   function onAct(act){
     switch(act){
       case 'start':go(1);return;
-      case 'quick':generateAll();go(17);return;
+      case 'quick':generateAll();go(18);return;
       case 'prev':go(Math.max(1,state.step-1));return;
-      case 'next':go(Math.min(17,state.step+1));return;
+      case 'next':go(Math.min(18,state.step+1));return;
       case 'startover':if(confirm('Discard this draft and start over?'))startOver();return;
       case 'discard':if(confirm('Discard this character?'))startOver();return;
       case 'rollrest':rollRemaining(state.step);return;
       case 'transfer':transfer();return;
       case 'copyjson':exportJSON();return;
+      case 'auto-core':autoCoreFirstFour();saveDraft();render();return;
       case 'roll':{const k=curKey();if(rollByKey[k])rollByKey[k]();saveDraft();render();return;}
       case 'roll-weight':rollWeight();saveDraft();render();return;
       case 'roll-age':rollAge();saveDraft();render();return;
@@ -988,7 +1019,7 @@
     }
   }
 
-  function applyAuthDefault(){if(typeof GCCAuth!=='undefined'&&GCCAuth.onAuthChange)GCCAuth.onAuthChange(u=>{if(u&&!(state.player||'').trim()){state.player=(u.displayName||u.email||'').trim();saveDraft();if(state.step===0||state.step===17)render();}});}
+  function applyAuthDefault(){if(typeof GCCAuth!=='undefined'&&GCCAuth.onAuthChange)GCCAuth.onAuthChange(u=>{if(u&&!(state.player||'').trim()){state.player=(u.displayName||u.email||'').trim();saveDraft();if(state.step===0||state.step===18)render();}});}
   function ensureCampaign(){try{let camps=JSON.parse(localStorage.getItem((typeof GCC!=='undefined'&&GCC.KEYS&&GCC.KEYS.campaigns)||'gcc-campaigns')||'[]');const DEF='Gamma World 2519';let ex=camps.find(c=>(c.name||'').trim().toLowerCase()===DEF.toLowerCase());if(!ex&&typeof GCC!=='undefined'&&GCC.addCampaign){ex=GCC.addCampaign({name:DEF,system:'mp',genre:'Post-apocalyptic',world:'Gamma World'});}window.__gwCampaign=ex?(ex.id||ex._id||''):'';}catch(e){}}
 
   function init(){ensureCampaign();loadDraft();applyAuthDefault();bindHandlers();render();}
