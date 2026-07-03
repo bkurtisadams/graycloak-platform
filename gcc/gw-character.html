@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.13 — MP 2.1.16.5 cap enforcement: tierCaps (Ability=CP/5, BC=CP/5+10, Damage=CP/12.5+3); over-cap gear/mutations locked in tables and excluded from random rolls (hard, final CP); base-cost-over-cap and avg-damage-over-cap surfaced as Review warnings (GM may waive); Item Detail shows cap lock; poolTable commando pricing display synced to WH constants -->
 <!-- gw-character.html v0.2.12 — Gear step item writeups: detail card under the roll controls shows the last clicked/rolled item's MP build (damage, hit, range, charges); owned gear rendered as pick-row cards with full stats instead of bare chips -->
 <!-- gw-character.html v0.2.11 — Gear step shows the full grouped gear table on the left (click rows to add/remove, like Abilities) with roll/clear controls on the right; header nav on every step (Start Over + Back + Next beside the step title) -->
 <!-- gw-character.html v0.2.10 — Wastelander PSH skips steps 12-14 (offense/defense/misc): go() redirects past skipped steps in the direction of travel, chronicle shows them as 'skipped', roll-all hidden on the Wastelander weakness step, draft step snapped forward on load -->
@@ -444,8 +445,20 @@
   function coreAbilities(){return state.abilities.filter(a=>!a.weakness&&!isFixed(a));}
   function coreCount(){return coreAbilities().filter(a=>a.core===true).length;}
   function normalizeCore(){let n=coreCount();state.abilities.forEach(a=>{if(a.weakness||isFixed(a)){a.core=false;return;}if(a.core===undefined){a.core=n<4;if(a.core)n++;}});}
+  function tierCaps(){const t=tierOf(state.powerLevel).total;return{bc:Math.floor(t/5)+10,ability:Math.floor(t/5),damage:Math.floor(t/12.5)+3};}
+  function avgDice(s){let m,tot=0,f=false;const re=/(\d*)d(\d+)([+-]\d+)?/g;s=String(s||'');while(m=re.exec(s)){f=true;tot+=(+(m[1]||1))*((+m[2])+1)/2+(+(m[3]||0));}return f?tot:null;}
+  function hthAvg(st){const T=[[2,.5],[5,1.5],[8,2],[11,2.5],[14,3.5],[17,4.5],[20,5.5],[23,6.5],[26,7],[29,8],[32,9],[35,10],[38,11],[41,12],[44,13],[47,13.5],[50,14.5]];for(const[hi,a]of T)if(st<=hi)return a;return 16.5;}
+  function entryDmgAvg(a){const s=String(a.ability||'');const v=avgDice(s);if(v==null)return null;const hth=/:\s*\+\s*\d*d\d/.test(s)?hthAvg(state.bc.st||10):0;return v+hth;}
+  function overCapCp(cp){return (cp||0)>tierCaps().ability;}
+  function capIssues(){const c=tierCaps(),hard=[],soft=[];
+    state.abilities.forEach(a=>{if(a.weakness)return;const nm=a.gw||a.mp;
+      if(overCapCp(a.cpNum)){hard.push(`${nm} (${fmt(a.cpNum)} CP) exceeds the ${c.ability} CP Ability Cap at ${state.powerLevel}.`);}
+      else{let m,mx=0;const re=/\((\d+(?:\.\d+)?)\)/g,s=String(a.ability||'');while(m=re.exec(s))mx=Math.max(mx,parseFloat(m[1]));if(mx>c.ability)soft.push(`${nm}: base cost (${mx}) exceeds the ${c.ability} CP cap even though its final cost fits — MP 2.1.16.5 forbids this; GM may waive.`);}
+      const dv=entryDmgAvg(a);if(dv!=null&&dv>c.damage)soft.push(`${nm}: avg damage ≈${dv} exceeds the Damage Cap of ${c.damage} (heuristic — GM may waive).`);});
+    BCS.forEach(([k,l])=>{if((state.bc[k]||0)>c.bc)hard.push(`${l} ${state.bc[k]} exceeds the BC Cap of ${c.bc} at ${state.powerLevel}.`);});
+    return{hard,soft};}
   function toggleCore(i){const a=state.abilities[i];if(!a||a.weakness||isFixed(a))return;if(a.core){a.core=false;}else{if(coreCount()>=4){log('Core limit is 4 — demote another ability first.');return;}a.core=true;}log((a.core?'Core: ':'Non-core: ')+(a.mp||a.gw));}
-  function buildWarnings(){const abs=coreAbilities(),w=[];const want=Math.min(4,abs.length);if(abs.length&&coreCount()!==want)w.push(`Mark ${want} abilities as Core (currently ${coreCount()}).`);const nc=abs.filter(a=>!a.core),wk=state.abilities.filter(a=>a.weakness&&!isFixed(a));if(nc.length&&wk.length<2)w.push(`${nc.length} non-Core abilit${nc.length===1?'y':'ies'} unfunded — take 2 Weaknesses to keep them (MP 2.1.16.3).`);const ncCost=nc.reduce((s,a)=>s+(a.cpNum||0),0),fund=-wk.reduce((s,a)=>s+(a.cpNum||0),0);if(nc.length&&wk.length>=2&&fund<ncCost)w.push(`Non-Core abilities cost ${fmt(ncCost)} CP but Weaknesses only free up ${fmt(fund)} CP.`);return w;}
+  function buildWarnings(){const abs=coreAbilities(),w=[];const want=Math.min(4,abs.length);if(abs.length&&coreCount()!==want)w.push(`Mark ${want} abilities as Core (currently ${coreCount()}).`);const nc=abs.filter(a=>!a.core),wk=state.abilities.filter(a=>a.weakness&&!isFixed(a));if(nc.length&&wk.length<2)w.push(`${nc.length} non-Core abilit${nc.length===1?'y':'ies'} unfunded — take 2 Weaknesses to keep them (MP 2.1.16.3).`);const ncCost=nc.reduce((s,a)=>s+(a.cpNum||0),0),fund=-wk.reduce((s,a)=>s+(a.cpNum||0),0);if(nc.length&&wk.length>=2&&fund<ncCost)w.push(`Non-Core abilities cost ${fmt(ncCost)} CP but Weaknesses only free up ${fmt(fund)} CP.`);const ci=capIssues();ci.hard.forEach(x=>w.push(x));ci.soft.forEach(x=>w.push(x));return w;}
   function abilityCP(){return state.abilities.filter(a=>!a.weakness).reduce((s,a)=>s+(a.cpNum||0),0);}
   function weaknessCP(){return state.abilities.filter(a=>a.weakness).reduce((s,a)=>s+(a.cpNum||0),0);}
   function netCP(){return bcTotal()+abilityCP()+weaknessCP();}
@@ -487,7 +500,7 @@
   }
   function poolTable(role){
     const built=buildPools();const pool=built.pools[role]||[];const n=pool.length||1;const w=100/n;const rows=[];
-    pool.forEach((it,i)=>{const lo=Math.floor(i*w)+1,hi=(i===n-1)?100:Math.floor((i+1)*w);let name,cp;if(it.commando){name=it.name;cp=role==='weakness'?'-10':'10';}else if(it.gear){name=it.it.name;cp=String(it.it.cp);}else if(it.tech){name=it.w.name;cp='-10';}else if(it.pkg){name=it.pkg.name;cp=it.pkg.cp;}else{name=it.m.name;cp=it.m.cp;}rows.push({lo,hi,name,cp,it,kind:built.kind});});
+    pool.forEach((it,i)=>{const lo=Math.floor(i*w)+1,hi=(i===n-1)?100:Math.floor((i+1)*w);let name,cp;if(it.commando){const cc=WH.commando||{};name=it.name;cp=role==='weakness'?String(-((cc.bonusFromWeaknesses||20)/2)):String(cc.coreCp||5);}else if(it.gear){name=it.it.name;cp=String(it.it.cp);}else if(it.tech){name=it.w.name;cp='-10';}else if(it.pkg){name=it.pkg.name;cp=it.pkg.cp;}else{name=it.m.name;cp=it.m.cp;}rows.push({lo,hi,name,cp,it,kind:built.kind});});
     return rows;
   }
   function entryFromRow(row,role){
@@ -505,13 +518,13 @@
   function rollRole(role,n){
     n=n||2;const built=buildPools(),rows=poolTable(role);state.abilities=state.abilities.filter(a=>a.role!==role||isFixed(a));
     if(built.kind==='creature'){rows.forEach(row=>state.abilities.push(entryFromRow(row,role)));normalizeCore();return;}
-    const got=[];let g=0;while(got.length<n&&g++<200&&rows.length){const row=rows[die(rows.length)-1];if(got.some(x=>x.base===row.name))continue;got.push(entryFromRow(row,role));}
+    const got=[];let g=0;while(got.length<n&&g++<200&&rows.length){const row=rows[die(rows.length)-1];if(got.some(x=>x.base===row.name))continue;const en=entryFromRow(row,role);if(!en)continue;if(!en.weakness&&overCapCp(en.cpNum))continue;got.push(en);}
     got.forEach(a=>state.abilities.push(a));normalizeCore();
   }
   function togglePick(row,role){
     const ex=state.abilities.find(a=>a.role===role&&!isFixed(a)&&a.base===row.name);
     if(ex){state.abilities=state.abilities.filter(a=>a!==ex);log(`Removed ${row.name}`);}
-    else{const cur=state.abilities.filter(a=>a.role===role&&!isFixed(a));if(cur.length>=2)state.abilities=state.abilities.filter(a=>a!==cur[0]);state.abilities.push(entryFromRow(row,role));normalizeCore();log(`Picked ${row.name}`);}
+    else{const e2=entryFromRow(row,role);if(!e2)return;if(!e2.weakness&&overCapCp(e2.cpNum)){log(`${row.name}: over the ${tierCaps().ability} CP Ability Cap at ${state.powerLevel} — GM may waive (MP 2.1.16.5).`);return;}const cur=state.abilities.filter(a=>a.role===role&&!isFixed(a));if(cur.length>=2)state.abilities=state.abilities.filter(a=>a!==cur[0]);state.abilities.push(e2);normalizeCore();log(`Picked ${row.name}`);}
   }
   function rollAbilities(){const built=buildPools();state.abilities=state.abilities.filter(a=>isFixed(a));if(built.kind==='creature'){ROLE_KEYS.forEach(role=>rollRole(role,0));log(`Applied ${state.species} package.`);return;}ROLE_KEYS.forEach(role=>rollRole(role,2));if(built.kind==='commando')log('Commando PSH: mundane abilities from the War Heroes tables.');if(built.kind==='wastelander')log('Wastelander PSH: weaknesses only — spend CP on Ancient gear at step 16.');if(built.kind==='tech')log('Tech Construct: integral systems rolled from the artifact tables.');}
 
@@ -751,7 +764,7 @@
     const built=buildPools(),sp=state.species,meta=ROLE_META[role],rows=poolTable(role);
     const sel=state.abilities.filter(a=>a.role===role&&!isFixed(a)).map(a=>a.base);
     const table=`<div class="gw-scroll"><table class="gw-rt"><thead><tr><th class="rng">d100</th><th>Ability</th><th class="cp">CP</th></tr></thead><tbody>`+
-      rows.map((r,i)=>{const mp=r.kind==='mutant'?(mpLead(r.it.m.ability)||r.name):r.name;const on=sel.includes(r.name);return `<tr data-pick-row="${i}" class="${on?'sel':''}"><td class="rng">${r.lo}-${r.hi}</td><td>${esc(mp)}<span style="color:var(--wl-soft)"> · ${esc(r.name)}</span></td><td class="cp">${esc(String(r.cp))}</td></tr>`;}).join('')+`</tbody></table></div>`;
+      rows.map((r,i)=>{const mp=r.kind==='mutant'?(mpLead(r.it.m.ability)||r.name):r.name;const on=sel.includes(r.name);const over=role!=='weakness'&&overCapCp(parseFloat(String(r.cp)));return `<tr data-pick-row="${i}" class="${on?'sel':''}${over?' inel':''}"${over?` title="Over the ${tierCaps().ability} CP Ability Cap at ${esc(state.powerLevel)} (MP 2.1.16.5)"`:''}><td class="rng">${r.lo}-${r.hi}</td><td>${over?'🔒 ':''}${esc(mp)}<span style="color:var(--wl-soft)"> · ${esc(r.name)}</span></td><td class="cp">${esc(String(r.cp))}</td></tr>`;}).join('')+`</tbody></table></div>`;
     const picks=state.abilities.filter(a=>a.role===role&&!isFixed(a));
     const pickList=`<div class="gw-picks">`+(picks.length?picks.map(p=>{const i=state.abilities.indexOf(p);const badge=role==='weakness'?'':`<button data-corei="${i}" title="Toggle Core (4 max — non-Core abilities are funded by Weaknesses)" style="font-size:10px;border-radius:10px;padding:1px 8px;cursor:pointer;border:1px solid ${p.core?'#27521e':'var(--wl-line)'};background:${p.core?'var(--wl-green)':'var(--wl-input)'};color:${p.core?'#eafce9':'var(--wl-soft)'}">${p.core?'★ Core':'non-core'}</button>`;return `<div class="gw-pickrow"><div class="mp" style="display:flex;gap:8px;align-items:center"><span style="flex:1">${esc(p.mp)}</span>${badge}<span>${esc(p.cp)} CP</span></div><div class="ab">${esc(p.gw)}</div></div>`;}).join(''):'<div class="gw-pickrow" style="color:var(--wl-soft)">Click rows to pick, or roll the category.</div>')+`</div>`;
     const budget=`<div style="background:${meta.pill[0]};color:${meta.pill[1]};display:inline-block;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;margin-bottom:7px">${picks.length} / 2 picked</div>`+(role==='weakness'?'':`<div style="background:#eef3df;color:#41541f;display:inline-block;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;margin:0 0 7px 5px">${coreCount()} / 4 core</div>`);
@@ -769,12 +782,12 @@
     const owned=state.abilities.filter(a=>a.source==='special-weapon').map(a=>a.gw);
     const table=`<table class="gw-rt"><caption>Weapons & Gear — click a row to add or remove</caption><tbody>`+
       groups.map(g=>`<tr style="cursor:default;background:var(--wl-band);color:#ffe9ad"><td colspan="2" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px">${esc(g.label)}</td></tr>`+
-        g.items.map(w=>`<tr data-gearname="${esc(w.name)}" class="${owned.indexOf(w.name)>=0?'sel':''}"><td class="rng">${w.cp} CP</td><td>${esc(w.name)}</td></tr>`).join('')).join('')+`</tbody></table>`;
+        g.items.map(w=>{const over=overCapCp(cpn(String(w.cp))||+w.cp);return `<tr data-gearname="${esc(w.name)}" class="${owned.indexOf(w.name)>=0?'sel':''}${over?' inel':''}"${over?` title="Over the ${tierCaps().ability} CP Ability Cap at ${esc(state.powerLevel)} (MP 2.1.16.5)"`:''}><td class="rng">${w.cp} CP</td><td>${over?'🔒 ':''}${esc(w.name)}</td></tr>`;}).join('')).join('')+`</tbody></table>`;
     const gear=state.abilities.filter(a=>a.source==='special-weapon');
     const flat=flatGear();
     const own=gear.find(a=>a.gw===gearFocus);
     const foc=gearFocus?(flat.find(x=>x.name===gearFocus)||(own?{name:own.gw,cp:own.cp,role:own.role,ability:own.ability}:null)):null;
-    const detail=`<div class="gw-controls" style="margin-top:8px"><div class="gw-controls-title">Item Detail</div>${foc?`<div style="font-weight:600;font-size:12px">${esc(foc.name)} <span style="float:right">${esc(String(foc.cp))} CP</span></div><div style="font-size:10px;color:var(--wl-soft);text-transform:uppercase;letter-spacing:1px;margin:2px 0 4px">${esc(foc.role||'')}</div><div class="gw-hint" style="margin:0">${esc(foc.ability||'—')}</div>`:'<div class="gw-hint" style="margin:0">Click an item (or roll) to see its MP writeup — damage, hit, range, charges.</div>'}</div>`;
+    const detail=`<div class="gw-controls" style="margin-top:8px"><div class="gw-controls-title">Item Detail</div>${foc?`<div style="font-weight:600;font-size:12px">${esc(foc.name)} <span style="float:right">${esc(String(foc.cp))} CP</span></div><div style="font-size:10px;color:var(--wl-soft);text-transform:uppercase;letter-spacing:1px;margin:2px 0 4px">${esc(foc.role||'')}</div>${overCapCp(cpn(String(foc.cp))||+foc.cp)?`<div style="color:#a33;font-size:10px;font-weight:600;margin-bottom:4px">🔒 Over the ${tierCaps().ability} CP Ability Cap at ${esc(state.powerLevel)} — GM may waive (MP 2.1.16.5)</div>`:''}<div class="gw-hint" style="margin:0">${esc(foc.ability||'—')}</div>`:'<div class="gw-hint" style="margin:0">Click an item (or roll) to see its MP writeup — damage, hit, range, charges.</div>'}</div>`;
     const ownedCards=gear.length?`<div class="gw-picks">`+gear.map(g=>`<div class="gw-pickrow"><div class="mp" style="display:flex;gap:8px;align-items:center"><span style="flex:1">${esc(g.gw)}</span><span>${esc(g.cp)} CP</span><span data-rmweap="${state.abilities.indexOf(g)}" style="cursor:pointer;color:var(--wl-red,#a33)" title="Remove">✕</span></div><div class="ab">${esc(g.ability||'')}</div></div>`).join('')+`</div>`:'<div style="margin-top:8px"><span class="gw-hint">No gear added.</span></div>';
     const ctrl=`<div class="gw-controls"><div class="gw-controls-title">Gear</div><button class="gw-roll-btn" data-act="rollweapon">🎲 Roll random gear</button><button class="gw-roll-rest" data-act="clear-gear">Clear all gear</button><div class="gw-hint">Weapons, armor, devices, and drugs are Gear-modified abilities — CP counts against the build. PSH see the full Ancient list; ID-locked items are hidden from other species.</div></div>`;
     return head(16,'Weapons & Gear','Standard weapons and the full Ancient artifact tables — armor, grenades, devices, and drugs included. Ancient ID locks apply.')+
@@ -840,7 +853,7 @@
       const goEl=e.target.closest('[data-goto]');if(goEl){go(+goEl.dataset.goto);return;}
       const a=e.target.closest('[data-act]');if(a){onAct(a.dataset.act);return;}
       const sp=e.target.closest('[data-spk]');if(sp){setSpecies(sp.dataset.spk);log('Species: '+state.species);saveDraft();render();return;}
-      const gr=e.target.closest('[data-gearname]');if(gr){const nm=gr.dataset.gearname;gearFocus=nm;const ex=state.abilities.find(a=>a.source==='special-weapon'&&a.gw===nm);if(ex){state.abilities=state.abilities.filter(a=>a!==ex);log('Removed gear: '+nm);}else{addGear(flatGear().find(x=>x.name===nm));}saveDraft();render();return;}
+      const gr=e.target.closest('[data-gearname]');if(gr){const nm=gr.dataset.gearname;gearFocus=nm;const ex=state.abilities.find(a=>a.source==='special-weapon'&&a.gw===nm);if(ex){state.abilities=state.abilities.filter(a=>a!==ex);log('Removed gear: '+nm);}else{const it=flatGear().find(x=>x.name===nm);if(it&&overCapCp(cpn(String(it.cp))||+it.cp)){log(nm+': over the '+tierCaps().ability+' CP Ability Cap at '+state.powerLevel+' — GM may waive (MP 2.1.16.5).');}else{addGear(it);}}saveDraft();render();return;}
       const pp=e.target.closest('[data-pshpath]');if(pp){state.pshPath=pp.dataset.pshpath;state.abilities=state.abilities.filter(a=>a.source==='special-weapon');applyPshPackage();log('PSH path: '+(state.pshPath==='commando'?'Commando':'Wastelander'));saveDraft();render();return;}
       const fk=e.target.closest('[data-fck]');if(fk){state.faction=fk.dataset.fck;const al=allianceByName(state.faction);if(al&&al.side)state.side=al.side;saveDraft();render();return;}
       const oc=e.target.closest('[data-oc]');if(oc){const v=(state.originChoices||[])[+oc.dataset.oc];if(v){state.origin=v;log('Origin: '+v);}saveDraft();render();return;}
@@ -889,7 +902,7 @@
       case 'roll-cat':rollRole(state.activeRole,2);saveDraft();render();return;
       case 'clear-ab':state.abilities=state.abilities.filter(a=>isFixed(a));log('Cleared abilities.');saveDraft();render();return;
       case 'clear-role':state.abilities=state.abilities.filter(a=>!(a.role===state.activeRole&&!isFixed(a)));log('Cleared '+state.activeRole+' abilities.');saveDraft();render();return;
-      case 'rollweapon':{const Lw=flatGear();const it=Lw[die(Lw.length)-1];if(it)gearFocus=it.name;addGear(it);saveDraft();render();return;}
+      case 'rollweapon':{const Lw=flatGear().filter(x=>!overCapCp(cpn(String(x.cp))||+x.cp));const it=Lw[die(Lw.length)-1];if(it)gearFocus=it.name;addGear(it);saveDraft();render();return;}
       case 'clear-gear':state.abilities=state.abilities.filter(a=>a.source!=='special-weapon');log('Cleared gear.');saveDraft();render();return;
     }
   }
