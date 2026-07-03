@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.21 — Improves step header navigation labels, removes duplicate lower nav rows, brightens table header labels, and adds Ability Draft detail panel. -->
 <!-- gw-character.html v0.2.20 — Ability Draft weakness controls: weaknesses can be kept/dropped and pinned to specific non-Core funding targets; draft ability table is taller for easier review. -->
 <!-- gw-character.html v0.2.19 — Adds a dedicated Ability Draft step where rolled Offensive/Defensive/Misc candidates are designated Core or non-Core; Weakness CP funding for non-Core abilities is shown before Review; Weapons and Review move down one step. -->
 <!-- gw-character.html v0.2.18 — MP Core/non-Core accounting: only four rolled abilities receive Core Ability CPs; Weakness CP slots fund optional non-Core abilities one-for-one; unfunded non-Core picks are shown as discarded and omitted from export -->
@@ -111,8 +112,10 @@
   .gw-rt tbody tr.inel:hover{background:var(--wl-input)}
   .gw-rt .cp{text-align:right;color:var(--wl-soft);width:54px}
   .gw-rt .rng{width:62px;color:var(--wl-soft)}
+  .gw-rt th.cp,.gw-rt th.rng{color:#ffd77a}
+  .gw-rt tbody tr.focus{background:#fff2cf;outline:2px solid var(--wl-orange);outline-offset:-2px}
   .gw-scroll{max-height:300px;overflow:auto;border:1px solid var(--wl-line);border-radius:5px}
-  .gw-scroll.draft-abilities{max-height:390px}
+  .gw-scroll.draft-abilities{max-height:500px}
   .gw-scroll.draft-weaknesses{max-height:230px}
 
   /* Abilities step */
@@ -284,7 +287,7 @@
   const esc=s=>{const d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML.replace(/"/g,'&quot;');};
   const mpLead=t=>{const x=String(t||'').split(/[:(]/)[0].trim();return x.length>2?x:'';};
   const isFixed=a=>a.source==='special-weapon'||a.source==='psh-package';
-  let gearFocus=null;
+  let gearFocus=null, draftFocus=null;
   function log(l){if(!l)return;const t=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});state.rollLog.unshift(`[${t}] ${l}`);state.rollLog=state.rollLog.slice(0,50);}
 
   /* ── source tables ──────────────────────────────────────────── */
@@ -740,8 +743,12 @@
   }
 
   /* ── main panel: step renderers ─────────────────────────────── */
-  function head(n,title,desc){const hnav=`<div style="margin-left:auto;display:flex;gap:6px;align-items:center"><button class="wl-btn ghost" data-act="startover" style="font-size:11px;padding:4px 10px">↺ Start Over</button>${n>1?`<button class="wl-btn ghost" data-act="prev" style="font-size:11px;padding:4px 10px">← Back</button>`:''}${n<18?`<button class="wl-btn green" data-act="next" style="font-size:11px;padding:4px 10px">Next →</button>`:''}</div>`;return `<div class="gw-step-head"><div class="gw-step-num">${n}</div><div class="gw-step-title">${esc(title)}</div>${hnav}</div>${desc?`<p class="gw-step-desc">${desc}</p>`:''}`;}
-  function nav(n,nextLabel,opts){opts=opts||{};const prev=n===1?`<button class="wl-btn ghost" data-act="startover">← Start Over</button>`:`<button class="wl-btn ghost" data-act="prev">← Back</button>`;const rest=opts.noRest?'':`<button class="wl-btn ghost" data-act="rollrest" title="Roll every remaining step and jump to Review">🎲 Roll the rest →</button>`;const next=opts.noNext?'':`<button class="wl-btn green" data-act="next">${esc(nextLabel||'Next →')}</button>`;return `<div class="gw-nav"><div>${prev}</div><div style="display:flex;gap:8px">${rest}${next}</div></div>`;}
+  function nextStepLabel(n){
+    const labels={1:'Next: Faction →',2:'Next: Side →',3:'Next: Culture →',4:'Next: Birthplace →',5:'Next: Homeland →',6:'Next: Characteristics →',7:'Next: Bio →',8:'Next: Backgrounds →',9:'Next: Motivation →',10:'Next: Origin →',11:'Next: Offensive →',12:'Next: Defensive →',13:'Next: Miscellaneous →',14:'Next: Weaknesses →',15:'Next: Ability Draft →',16:'Next: Weapons →',17:'Next: Review →'};
+    return labels[n]||'Next →';
+  }
+  function head(n,title,desc){const hnav=`<div style="margin-left:auto;display:flex;gap:6px;align-items:center"><button class="wl-btn ghost" data-act="startover" style="font-size:11px;padding:4px 10px">↺ Start Over</button>${n>1?`<button class="wl-btn ghost" data-act="prev" style="font-size:11px;padding:4px 10px">← Back</button>`:''}${n<18?`<button class="wl-btn green" data-act="next" style="font-size:11px;padding:4px 10px">${esc(nextStepLabel(n))}</button>`:''}</div>`;return `<div class="gw-step-head"><div class="gw-step-num">${n}</div><div class="gw-step-title">${esc(title)}</div>${hnav}</div>${desc?`<p class="gw-step-desc">${desc}</p>`:''}`;}
+  function nav(n,nextLabel,opts){return '';}
   function rollBox(title,resultHtml,pickHtml,rollLabel){return `<div class="gw-controls"><div class="gw-controls-title">${title||'Roll or Pick'}</div><button class="gw-roll-btn" data-act="roll">🎲 ${esc(rollLabel||'Roll')}</button><div class="gw-roll-res">${resultHtml||''}</div><div class="gw-or">— or —</div>${pickHtml||''}</div>`;}
   function tableRows(rows,selName){return `<div class="gw-scroll"><table class="gw-rt">${rows}</table></div>`;}
 
@@ -878,7 +885,7 @@
   function roleLabel(r){return r==='offense'?'Offensive':(r==='defense'?'Defensive':(r==='misc'?'Miscellaneous':r));}
   function stepDraft(){
     const abs=coreAbilities(),weak=draftWeaknesses(),slots=weaknessFundingEntries(),assignments=fundingAssignments(),warns=buildWarnings();
-    const coreTarget=Math.min(4,abs.length),fundedTotal=nonCoreAbilities().reduce((s,a)=>s+assignedNonCoreCP(a),0),slotTotal=slots.reduce((s,x)=>s+x.cp,0);
+    const coreTarget=Math.min(4,abs.length),fundedTotal=nonCoreAbilities().reduce((sum,a)=>sum+assignedNonCoreCP(a),0),slotTotal=slots.reduce((sum,x)=>sum+x.cp,0);
     const warnHtml=warns.length?`<div style="background:#fdf0d5;border:1px solid var(--wl-amber);color:#5d4710;border-radius:6px;padding:7px 10px;margin-bottom:10px;font-size:12px">${warns.map(x=>'⚠ '+esc(x)).join('<br>')}</div>`:'';
     const budget=`<div class="gw-cv" style="margin-bottom:10px">
       <div class="cell"><div class="l" style="color:var(--wl-soft)">Core picks</div><div class="v">${coreCount()} / ${coreTarget}</div></div>
@@ -887,13 +894,19 @@
       <div class="cell"><div class="l" style="color:var(--wl-soft)">Kept Weaknesses</div><div class="v">${fmt(weaknessCPCounted())} / ${WK_BUDGET}</div></div>
       <div class="cell"><div class="l" style="color:var(--wl-soft)">Net CP</div><div class="v">${fmt(netCP())} / ${tierOf(state.powerLevel).total}</div></div>
     </div>`;
-    const rows=abs.length?abs.map((a,idx)=>{const i=state.abilities.indexOf(a),nc=nonCoreIndex(a),fund=assignedNonCoreCP(a),discard=isDiscardedNonCore(a),ass=assignments.find(x=>x.target===a);
+    if(!draftFocus&&abs.length)draftFocus=abilityUid(abs[0]);
+    const focused=abs.find(a=>abilityUid(a)===draftFocus)||abs[0]||null;
+    const rows=abs.length?abs.map((a,idx)=>{const i=state.abilities.indexOf(a),fund=assignedNonCoreCP(a),discard=isDiscardedNonCore(a),ass=assignments.find(x=>x.target===a),uid=abilityUid(a);
       const source=`<span style="display:inline-block;font-size:10px;text-transform:uppercase;letter-spacing:.7px;border-radius:10px;padding:1px 7px;background:${a.role==='offense'?'#f3d2c2':(a.role==='defense'?'#cfe0e6':'#efe3c0')};color:${a.role==='offense'?'#71310d':(a.role==='defense'?'#163a44':'#5d4710')}">${esc(roleLabel(a.role))}</span>`;
       const designation=a.core?`<button data-corei="${i}" class="wl-btn green" style="font-size:10px;padding:3px 8px">★ Core</button>`:`<button data-corei="${i}" class="wl-btn ghost" style="font-size:10px;padding:3px 8px">Non-Core</button>`;
       const funding=a.core?`Power Level grant: ${fmt(coreCp())} CP`:fund>0?`${ass&&ass.pinned?'📌 ':'Auto '}funded by ${ass?esc(ass.ability.gw||ass.ability.mp):'Weakness'}: ${fmt(fund)} CP`:'Unfunded: discarded';
-      return `<tr${discard?' style="opacity:.72"':''}><td>${source}</td><td><strong>${esc(a.mp)}</strong><div style="color:var(--wl-soft);font-size:11px">${esc(a.gw)}</div></td><td class="cp">${fmt(templateCP(a))}</td><td>${designation}</td><td class="cp">${esc(abilityCPLabel(a))}</td><td style="color:${discard?'#8a1f1f':'var(--wl-soft)'}">${funding}</td></tr>`;
+      return `<tr data-draftuid="${esc(uid)}" class="${focused===a?'focus':''}"${discard?' style="opacity:.72"':''}><td>${source}</td><td><strong>${esc(a.mp)}</strong><div style="color:var(--wl-soft);font-size:11px">${esc(a.gw)}</div></td><td class="cp">${fmt(templateCP(a))}</td><td>${designation}</td><td class="cp">${esc(abilityCPLabel(a))}</td><td style="color:${discard?'#8a1f1f':'var(--wl-soft)'}">${funding}</td></tr>`;
     }).join(''):`<tr><td colspan="6" style="color:var(--wl-soft);padding:14px">No ability candidates yet. Roll or pick Offensive, Defensive, and Miscellaneous abilities first.</td></tr>`;
     const abilityTable=`<div class="gw-scroll draft-abilities"><table class="gw-rt"><caption>Ability Draft — choose four Core abilities</caption><thead><tr><th>Source</th><th>Ability</th><th class="cp">Template CP</th><th>Designation</th><th class="cp">Assigned CP</th><th>Funding</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    const focusedFund=focused?assignedNonCoreCP(focused):0;
+    const focusedAssignment=focused?assignments.find(x=>x.target===focused):null;
+    const focusedFunding=focused?(focused.core?`Power Level Core grant: ${fmt(coreCp())} CP`:(focusedFund>0?`${focusedAssignment&&focusedAssignment.pinned?'Pinned':'Auto'} weakness funding: ${fmt(focusedFund)} CP`:'Unfunded non-Core ability: discarded')):'Click an ability candidate to see its MP writeup.';
+    const detail=`<div class="gw-controls" style="margin-top:8px"><div class="gw-controls-title">Ability Detail</div>${focused?`<div style="font-weight:600;font-size:12px">${esc(focused.mp)} <span style="float:right">${esc(abilityCPLabel(focused))}</span></div><div style="font-size:10px;color:var(--wl-soft);text-transform:uppercase;letter-spacing:1px;margin:2px 0 4px">${esc(roleLabel(focused.role))} · ${focused.core?'Core':'Non-Core'} · Template ${fmt(templateCP(focused))} CP</div>${overCapCp(templateCP(focused))?`<div style="color:#a33;font-size:10px;font-weight:600;margin-bottom:4px">🔒 Over the ${tierCaps().ability} CP Ability Cap at ${esc(state.powerLevel)} — GM may waive (MP 2.1.16.5)</div>`:''}<div class="gw-hint" style="margin:0 0 6px">${esc(focused.ability||focused.gw||'—')}</div><div class="gw-hint" style="margin:0"><strong>Funding:</strong> ${esc(focusedFunding)}</div>`:'<div class="gw-hint" style="margin:0">Click an ability candidate to see its MP writeup.</div>'}</div>`;
     const nonCoreOptions=w=>nonCoreAbilities().map(a=>{const uid=abilityUid(a);return `<option value="${esc(uid)}" ${w.fundUid===uid?'selected':''}>${esc(a.mp||a.gw)} (${esc(roleLabel(a.role))})</option>`;}).join('');
     const weakRows=weak.length?weak.map((w,idx)=>{const wi=state.abilities.indexOf(w),kept=weaknessKept(w),ass=fundingForWeakness(w),target=ass&&ass.target,cp=ass?ass.cp:Math.max(0,-(w.cpNum||0));
       const status=kept?`<button data-wkkeep="${wi}" class="wl-btn green" style="font-size:10px;padding:3px 8px">Kept</button>`:`<button data-wkkeep="${wi}" class="wl-btn ghost" style="font-size:10px;padding:3px 8px">Dropped</button>`;
@@ -903,8 +916,8 @@
       return `<tr${kept?'':' style="opacity:.65"'}><td><strong>${esc(w.gw||w.mp)}</strong><div style="color:var(--wl-soft);font-size:11px">${esc(w.ability||'')}</div></td><td class="cp">${kept?fmt(w.cpNum||0):'0'}<div style="color:var(--wl-soft);font-size:10px">${kept?'of '+fmt(w.cpNum||0):'dropped'}</div></td><td>${status}</td><td>${sel}${selected}</td></tr>`;
     }).join(''):`<tr><td colspan="4" style="color:var(--wl-soft);padding:12px">No weaknesses selected. Non-Core abilities will be discarded unless weaknesses provide CP funding.</td></tr>`;
     const weakTable=`<div class="gw-scroll draft-weaknesses" style="margin-top:10px"><table class="gw-rt"><caption>Weakness Funding — keep, drop, or pin to non-Core abilities</caption><thead><tr><th>Weakness</th><th class="cp">CP</th><th>Status</th><th>Funding Target</th></tr></thead><tbody>${weakRows}</tbody></table></div>`;
-    const controls=`<div class="gw-controls" style="margin-top:10px"><div class="gw-controls-title">Draft Controls</div><button class="gw-roll-btn sm" style="width:auto;display:inline-block;padding:6px 14px" data-act="auto-core">Auto Core first four</button><div class="gw-hint">Pick exactly four Core abilities. Keep a weakness to use its CP. Pin a kept weakness to a specific non-Core ability, leave it on Auto to fund the next non-Core ability, or drop it so it provides no CP and is omitted from Review, export, and transfer.</div></div>`;
-    return head(16,'Ability Draft','Designate four Core abilities, keep or drop weaknesses, and pin Weakness CP to non-Core candidates.')+warnHtml+budget+abilityTable+weakTable+controls+nav(16,'Next: Weapons →',{noRest:true});
+    const controls=`<div class="gw-controls"><div class="gw-controls-title">Draft Controls</div><button class="gw-roll-btn sm" style="width:auto;display:inline-block;padding:6px 14px" data-act="auto-core">Auto Core first four</button><div class="gw-hint">Pick exactly four Core abilities. Keep a weakness to use its CP. Pin a kept weakness to a specific non-Core ability, leave it on Auto to fund the next non-Core ability, or drop it so it provides no CP and is omitted from Review, export, and transfer.</div></div>`;
+    return head(16,'Ability Draft','Designate four Core abilities, keep or drop weaknesses, and pin Weakness CP to non-Core candidates.')+warnHtml+budget+`<div class="gw-content"><div class="gw-table-side">${abilityTable}</div><div class="gw-ctrlcol">${controls}${detail}</div></div>`+weakTable+nav(16,'Next: Weapons →',{noRest:true});
   }
   function stepWeapons(){
     const groups=gearList();
@@ -944,8 +957,7 @@
       `<div class="sb">BASIC CHARACTERISTICS</div><div class="gw-cv">${bc}</div>`+
       `<div class="sb">COMBAT VALUES</div><div class="gw-cv">${cv}</div>`+
       `<div class="sb">ABILITIES</div><div class="gw-abblocks">${ab}</div>${gearHtml}`+
-      `<div class="sb">MP BUILDER JSON</div><textarea class="gw-json" readonly>${esc(json)}</textarea></div>`+
-      `<div class="gw-nav"><div><button class="wl-btn ghost" data-act="prev">← Back</button></div><div></div></div>`;
+      `<div class="sb">MP BUILDER JSON</div><textarea class="gw-json" readonly>${esc(json)}</textarea></div>`;
   }
   const stepRender={1:stepSpecies,2:stepFaction,3:stepSide,4:stepCulture,5:stepHome,6:stepHomeland,7:stepBC,8:stepBio,9:stepBackgrounds,10:stepMotivation,11:stepOrigin,12:()=>stepRole('offense'),13:()=>stepRole('defense'),14:()=>stepRole('misc'),15:()=>stepRole('weakness'),16:stepDraft,17:stepWeapons,18:stepReview};
 
@@ -999,6 +1011,7 @@
       const bgc=e.target.closest('[data-bgc]');if(bgc){toggleBgChoice(+bgc.dataset.bgc);saveDraft();render();return;}
       const wkKeep=e.target.closest('[data-wkkeep]');if(wkKeep){const w=state.abilities[+wkKeep.dataset.wkkeep];if(w&&w.weakness&&!isFixed(w)){w.keep=w.keep===false;log((w.keep===false?'Dropped weakness: ':'Kept weakness: ')+(w.gw||w.mp));}saveDraft();render();return;}
       const co=e.target.closest('[data-corei]');if(co){toggleCore(+co.dataset.corei);saveDraft();render();return;}
+      const dr=e.target.closest('[data-draftuid]');if(dr){draftFocus=dr.dataset.draftuid;render();return;}
       const pr=e.target.closest('[data-pick-row]');if(pr){togglePick(poolTable(state.activeRole)[+pr.dataset.pickRow],state.activeRole);saveDraft();render();return;}
       const rmw=e.target.closest('[data-rmweap]');if(rmw){state.abilities.splice(+rmw.dataset.rmweap,1);saveDraft();render();return;}
       const tab=e.target.closest('[data-role]');if(tab){state.activeRole=tab.dataset.role;render();return;}
