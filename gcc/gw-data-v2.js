@@ -1,8 +1,9 @@
+// gw-data-v2.js v2.0.1 — Low Power cap audit: downshifts over-cap mutation builds where reasonable and flags Low-only GM approval mutations.
 // gw-data-v2.js v2.0.0 — authoritative GW 1e -> MP conversion (from your CSV)
 // species (d100), number-of-mutations (d6), PSH abilities, mutation charts
 // (physical/mental/plant with exact CPs + ability builds + sub-picks), equipment.
 (function(){ window.GWData2 = {
- "version": "2.0.0",
+ "version": "2.0.1",
  "species": [
   {
    "lo": 1,
@@ -148,9 +149,9 @@
      },
      {
       "name": "Irritating Gas",
-      "cp": "10",
-      "cpNum": 10.0,
-      "ability": "Devitalization Ray: 2d12 damage (5), No Range (-12.5), Immunity (+2.5), 11\" Vaporous Area Effect: lasts 6 Rounds (+15), PR=3"
+      "cp": "5",
+      "cpNum": 5.0,
+      "ability": "Devitalization Ray: 2d10 damage (0), No Range (-12.5), Immunity (+2.5), 11\" Vaporous Area Effect: lasts 6 Rounds (+15), PR=3"
      },
      {
       "name": "Paralysis Gas",
@@ -446,9 +447,9 @@
     "lo": 75,
     "hi": 76,
     "name": "Radiated Eyes",
-    "cp": "20",
-    "cpNum": 20.0,
-    "ability": "Power Blast: d10+d12 (22.5), No KB (-5), Other Damage Type: Other (+10), Time Requirement: every 3 Rounds (-7.5)",
+    "cp": "17.5",
+    "cpNum": 17.5,
+    "ability": "Power Blast: 2d10 (20), No KB (-5), Other Damage Type: Other (+10), Time Requirement: every 3 Rounds (-7.5)",
     "picks": []
    },
    {
@@ -500,9 +501,9 @@
     "lo": 86,
     "hi": 86,
     "name": "Symbiotic Attachment",
-    "cp": "10",
-    "cpNum": 10.0,
-    "ability": "Mind Control: IN save @ -9 (27.5), Touch Range (-12.5), PR=8, Time Requirement: 3 Rounds (-5)",
+    "cp": "7.5",
+    "cpNum": 7.5,
+    "ability": "Mind Control: IN save @ -6 (20), Touch Range (-12.5), Silent mental contact (+5), PR=8, Time Requirement: 3 Rounds (-5)",
     "picks": []
    },
    {
@@ -603,8 +604,10 @@
     "name": "Death Field Generation",
     "cp": "20",
     "cpNum": 20.0,
-    "ability": "Death Touch: 2d6 Entropy (25), Area Effect: 9” (+7.5), PR=12, Duration: 20 minutes between uses (-12.5)",
-    "picks": []
+    "ability": "Death Touch: 2d6 Entropy (25), Area Effect: 9” (+7.5), PR=12, Duration: 20 minutes between uses (-12.5) [Low Power: GM approval; base Death Touch cost exceeds the 20 CP Ability Cap.]",
+    "picks": [],
+    "lowPowerGmOnly": true,
+    "capNote": "Base Death Touch cost is 25 CP before modifiers, above the 20 CP Ability Cap for Low Power."
    },
    {
     "lo": 9,
@@ -763,9 +766,9 @@
     "lo": 55,
     "hi": 55,
     "name": "Mass Mind",
-    "cp": "10",
-    "cpNum": 10.0,
-    "ability": "Siphon: +2d10 Super Abilities (25), Reversible Only (+0) and Misc.: only with Mental Mutations & requires another individual w/the same ability (-15)",
+    "cp": "5",
+    "cpNum": 5.0,
+    "ability": "Siphon: +2d8 Super Abilities (20), Reversible Only (+0) and Misc.: only with Mental Mutations & requires another individual w/the same ability (-15)",
     "picks": []
    },
    {
@@ -796,9 +799,9 @@
     "picks": [
      {
       "name": "Physical State",
-      "cp": "",
-      "cpNum": null,
-      "ability": "Willpower B) Pain Resistance (10) / Regeneration: 1 / 3 hours (0) / Ht. ST: +30 (30), 1 Charge (-22.5), Duration: 5 min (-5) / Ht. AG: +30 (30), 1 Charge (-22.5), Duration: 5 min (-5) / Super Speed: +1 Turn (10), 1 Chrg (-17.5), 5 min (+10)"
+      "cp": "10",
+      "cpNum": 10.0,
+      "ability": "Willpower B) Pain Resistance (10) / Regeneration: 1 / 3 hours (0) / Ht. ST: +20 (20), 1 Charge (-17.5), Duration: 5 min (-5) / Ht. AG: +20 (20), 1 Charge (-17.5), Duration: 5 min (-5) / Super Speed: +1 Turn (10), 1 Charge (-17.5), 5 min (+10)"
      }
     ]
    },
@@ -826,7 +829,7 @@
     "name": "Molecular Disruption",
     "cp": "10",
     "cpNum": 10.0,
-    "ability": "Disintegration: 2d8+d10 (30), ST range, PR=32 (-20)",
+    "ability": "Disintegration: 2d10 (20), ST range, PR=8 (-10)",
     "picks": []
    },
    {
@@ -851,9 +854,9 @@
     "lo": 70,
     "hi": 70,
     "name": "Planar Travel",
-    "cp": "15",
-    "cpNum": 15.0,
-    "ability": "Alternate Dimensional Travel (40), Gateway option, Duration: once every 3.5 days (-25)",
+    "cp": "10",
+    "cpNum": 10.0,
+    "ability": "Dimensional Travel A) Single Dimension Travel to one GM-approved plane (10), Gateway option, PR=4",
     "picks": []
    },
    {
@@ -889,7 +892,7 @@
     "name": "Psychometry",
     "cp": "10",
     "cpNum": 10.0,
-    "ability": "Heightened Senses: Retrocognitive Sight+Hearing (30), Total Concentration (-10), Time Requirement: 1 Phase (-5), PR=2 (-5)",
+    "ability": "Heightened Senses: Retrocognitive Time sense, Basic (5), Retrocognitive (+15), Total Concentration (-10), PR=0",
     "picks": []
    },
    {
@@ -914,18 +917,18 @@
     "lo": 80,
     "hi": 80,
     "name": "Reflection",
-    "cp": "20",
-    "cpNum": 20.0,
-    "ability": "Reflection: Kinetic, Energy, Bio (30), 28 pt limit (+15), PR=8 (-15), Total Concentration per Use (-10)",
+    "cp": "10",
+    "cpNum": 10.0,
+    "ability": "Reflection: Kinetic and Energy Damage Types (20), 28 pt. limit (+15), PR=8 (-15), Total Concentration per Use (-10)",
     "picks": []
    },
    {
     "lo": 81,
     "hi": 81,
     "name": "Repulsion Field",
-    "cp": "20",
-    "cpNum": 20.0,
-    "ability": "Force Field: 8/8/7/7 (27.5), Area Effect: 3\" (+5), EN/4\" Range (+5), Total Concentration (-10), Not on Self (-5), PR=12 (-2.5)",
+    "cp": "12.5",
+    "cpNum": 12.5,
+    "ability": "Force Field: 6/6/6/6 (20), Area Effect: 3\" (+5), EN/4\" Range (+5), Total Concentration (-10), Not on Self (-5), PR=12 (-2.5)",
     "picks": []
    },
    {
@@ -959,9 +962,9 @@
     "lo": 87,
     "hi": 87,
     "name": "Telekinetic Arm",
-    "cp": "20",
-    "cpNum": 20.0,
-    "ability": "Armor: 13 points: 7/0/3/3 (22.5), Partial Coverage / Heavy (-5), Backlash (-7.5) / Telekinesis: 480 lbs / d8+1 damage (10), AG\" Range, PR=1",
+    "cp": "17.5",
+    "cpNum": 17.5,
+    "ability": "Armor: 12 points: 6/0/3/3 (20), Partial Coverage / Heavy (-5), Backlash (-7.5) / Telekinesis: 480 lbs / d8+1 damage (10), AG\" Range, PR=1",
     "picks": []
    },
    {
@@ -986,9 +989,9 @@
     "lo": 91,
     "hi": 91,
     "name": "Teleportation",
-    "cp": "10",
-    "cpNum": 10.0,
-    "ability": "Teleportation: 1.5 miles (25), Self Only (-2.5), Duration: once every hour (-15), PR=1",
+    "cp": "17.5",
+    "cpNum": 17.5,
+    "ability": "Teleportation: 50\" (20), Self Only (-2.5), PR=1",
     "picks": []
    },
    {
@@ -1006,8 +1009,10 @@
     "name": "Time Field Manipulation",
     "cp": "20",
     "cpNum": 20.0,
-    "ability": "Dimensional Travel C) Time (30), PR=32 (-10)",
-    "picks": []
+    "ability": "Dimensional Travel C) Time (30), PR=32 (-10) [Low Power: GM approval; base Time Travel cost exceeds the 20 CP Ability Cap.]",
+    "picks": [],
+    "lowPowerGmOnly": true,
+    "capNote": "Base Time Travel cost is 30 CP before modifiers, above the 20 CP Ability Cap for Low Power."
    },
    {
     "lo": 94,
@@ -1015,7 +1020,7 @@
     "name": "Total Healing",
     "cp": "10",
     "cpNum": 10.0,
-    "ability": "Healing: 10 Hits in 1 Round (40), Multi-Ability (-10), Self Only (-5), 1 Charge (-20) / Negation: Bio damage Type, 1.5 Weeks, +7 save (32.5), Multi-Ability (-10), 1 Charge (-20) / Negation: Radiation Dmg Type, 1.5 Weeks, +7 save (32.5), Multi-Ability (-10), 1 Charge (-20)",
+    "ability": "Healing: 2 Hits in 1 Round (20), Self Only (-5), Total Concentration (-5) / OR Negation: Bio or Radiation Damage Type, 1 Hour, +4 save (20), Self Only (-5), Total Concentration (-5); choose one mode when finalized.",
     "picks": []
    },
    {
@@ -1089,7 +1094,7 @@
     "name": "Berries",
     "cp": "10",
     "cpNum": 10.0,
-    "ability": "1. Purple - Healing: 10 Hits (40), Ingested (-10), 1 Charge (-20) / 2. Green - Ht. Defense: Mental Defense +2 (5), Usable by Others (+5), 1 one-hour Charge (0) / 3. Turquoise - Poison/Venom: 8 Bio/Rnd (30), EN save @-11 (+7.5), Ingested (-10), 1 Charge (-17.5) / 4. Orange - Power Blast: 2d8+d10 Radiation (30), Other (+10), Ingested (-10), 1 Charge (-20) / 5. Orange/Yellow - Invulnerability: Radiation (5), Usable on Others: PR=24 (+5), PR=0 (+22.5), 1 one-hour Charge (-22.5) / 6. Red/Orange - Negation: +3 save bonus vs. Poison/Venom (15), Ingested (-10), Usable by Others: PR=24 (+5), PR=0 (+20), 1 one-hour Chrg (-20)",
+    "ability": "1. Purple - Healing: 2 Hits (20), Ingested (-10) / 2. Green - Ht. Defense: Mental Defense +2 (5), Usable by Others (+5) / 3. Turquoise - Poison/Venom: 4 Bio/Rnd (10), EN save @-8 (0), Ingested (-10) / 4. Orange - Power Blast: 2d10 Radiation (20), Other (+10), Ingested (-10), 1 Charge (-10) / 5. Orange/Yellow - Invulnerability: Radiation (5), Usable on Others (+5), PR=0 (+10) / 6. Red/Orange - Negation: Poison/Venom, 1 Hour +4 save (20), Ingested (-10)",
     "picks": []
    },
    {
@@ -1258,9 +1263,9 @@
     "lo": 58,
     "hi": 58,
     "name": "Parasitic Attachment",
-    "cp": "10",
-    "cpNum": 10.0,
-    "ability": "Mind Control: IN save @-7 (22.5), Touch Range (-12.5), PR=8",
+    "cp": "7.5",
+    "cpNum": 7.5,
+    "ability": "Mind Control: IN save @ -6 (20), Touch Range (-12.5), PR=8",
     "picks": []
    },
    {
