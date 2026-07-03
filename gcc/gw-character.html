@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.12 — Gear step item writeups: detail card under the roll controls shows the last clicked/rolled item's MP build (damage, hit, range, charges); owned gear rendered as pick-row cards with full stats instead of bare chips -->
 <!-- gw-character.html v0.2.11 — Gear step shows the full grouped gear table on the left (click rows to add/remove, like Abilities) with roll/clear controls on the right; header nav on every step (Start Over + Back + Next beside the step title) -->
 <!-- gw-character.html v0.2.10 — Wastelander PSH skips steps 12-14 (offense/defense/misc): go() redirects past skipped steps in the direction of travel, chronicle shows them as 'skipped', roll-all hidden on the Wastelander weakness step, draft step snapped forward on load -->
 <!-- gw-character.html v0.2.9 — PSH overhaul: species package auto-applied (DNA-lock access +5, stat caps -5, Heightened Cool +3 from GW +3 Charisma); Wastelander/Commando path toggle — Commando prices picks from WH.commando (coreCp/maxPerAbility/bonusFromWeaknesses) and auto-adds the training package, Wastelander skips ability rolls; step 16 opens the full artifact list (armor/devices/drugs/grenades) gated by Ancient ID locks -->
@@ -76,6 +77,8 @@
   .gw-content.vertical{flex-direction:column}
   .gw-table-side{flex:1;min-width:0;}
   .gw-controls{width:172px;flex-shrink:0;background:var(--wl-input);border:1px solid var(--wl-line);border-radius:6px;padding:9px;}
+  .gw-ctrlcol{width:172px;flex-shrink:0}
+  .gw-ctrlcol .gw-controls{width:100%}
   .gw-controls-title{font-weight:600;text-transform:uppercase;font-size:10px;color:var(--wl-soft);letter-spacing:1px;text-align:center;margin-bottom:7px;}
   .gw-roll-btn{display:block;width:100%;background:var(--wl-orange);color:#fff3e0;border:2px solid #8a3d10;padding:7px;font-size:12px;font-weight:600;cursor:pointer;border-radius:5px;margin-bottom:6px;text-transform:uppercase;}
   .gw-roll-btn:hover{background:var(--wl-orange-2)}
@@ -157,7 +160,7 @@
   .gw-summary p{color:var(--wl-soft);margin:0;font-size:12px}
   .gw-summary-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
   .wl-foot{color:var(--wl-soft);font-size:11px;text-align:center;margin:10px 0 2px}
-  @media(max-width:760px){.gw-body{flex-direction:column}.gw-chronicle{width:auto;border-right:none;border-bottom:2px solid var(--wl-line)}.gw-content{flex-direction:column}.gw-controls{width:100%}}
+  @media(max-width:760px){.gw-body{flex-direction:column}.gw-chronicle{width:auto;border-right:none;border-bottom:2px solid var(--wl-line)}.gw-content{flex-direction:column}.gw-controls{width:100%}.gw-ctrlcol{width:100%}}
 </style>
 </head>
 <body>
@@ -266,6 +269,7 @@
   const esc=s=>{const d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML.replace(/"/g,'&quot;');};
   const mpLead=t=>{const x=String(t||'').split(/[:(]/)[0].trim();return x.length>2?x:'';};
   const isFixed=a=>a.source==='special-weapon'||a.source==='psh-package';
+  let gearFocus=null;
   function log(l){if(!l)return;const t=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});state.rollLog.unshift(`[${t}] ${l}`);state.rollLog=state.rollLog.slice(0,50);}
 
   /* ── source tables ──────────────────────────────────────────── */
@@ -767,10 +771,14 @@
       groups.map(g=>`<tr style="cursor:default;background:var(--wl-band);color:#ffe9ad"><td colspan="2" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px">${esc(g.label)}</td></tr>`+
         g.items.map(w=>`<tr data-gearname="${esc(w.name)}" class="${owned.indexOf(w.name)>=0?'sel':''}"><td class="rng">${w.cp} CP</td><td>${esc(w.name)}</td></tr>`).join('')).join('')+`</tbody></table>`;
     const gear=state.abilities.filter(a=>a.source==='special-weapon');
-    const chips=gear.map(g=>`<span class="gw-chip">${esc(g.gw)} (${esc(g.cp)})<span class="x" data-rmweap="${state.abilities.indexOf(g)}">✕</span></span>`).join('')||'<span class="gw-hint">No gear added.</span>';
+    const flat=flatGear();
+    const own=gear.find(a=>a.gw===gearFocus);
+    const foc=gearFocus?(flat.find(x=>x.name===gearFocus)||(own?{name:own.gw,cp:own.cp,role:own.role,ability:own.ability}:null)):null;
+    const detail=`<div class="gw-controls" style="margin-top:8px"><div class="gw-controls-title">Item Detail</div>${foc?`<div style="font-weight:600;font-size:12px">${esc(foc.name)} <span style="float:right">${esc(String(foc.cp))} CP</span></div><div style="font-size:10px;color:var(--wl-soft);text-transform:uppercase;letter-spacing:1px;margin:2px 0 4px">${esc(foc.role||'')}</div><div class="gw-hint" style="margin:0">${esc(foc.ability||'—')}</div>`:'<div class="gw-hint" style="margin:0">Click an item (or roll) to see its MP writeup — damage, hit, range, charges.</div>'}</div>`;
+    const ownedCards=gear.length?`<div class="gw-picks">`+gear.map(g=>`<div class="gw-pickrow"><div class="mp" style="display:flex;gap:8px;align-items:center"><span style="flex:1">${esc(g.gw)}</span><span>${esc(g.cp)} CP</span><span data-rmweap="${state.abilities.indexOf(g)}" style="cursor:pointer;color:var(--wl-red,#a33)" title="Remove">✕</span></div><div class="ab">${esc(g.ability||'')}</div></div>`).join('')+`</div>`:'<div style="margin-top:8px"><span class="gw-hint">No gear added.</span></div>';
     const ctrl=`<div class="gw-controls"><div class="gw-controls-title">Gear</div><button class="gw-roll-btn" data-act="rollweapon">🎲 Roll random gear</button><button class="gw-roll-rest" data-act="clear-gear">Clear all gear</button><div class="gw-hint">Weapons, armor, devices, and drugs are Gear-modified abilities — CP counts against the build. PSH see the full Ancient list; ID-locked items are hidden from other species.</div></div>`;
     return head(16,'Weapons & Gear','Standard weapons and the full Ancient artifact tables — armor, grenades, devices, and drugs included. Ancient ID locks apply.')+
-      `<div class="gw-content"><div class="gw-table-side">${table}</div>${ctrl}</div><div style="margin-top:8px">${chips}</div>`+nav(16,'Review →',{noRest:true});
+      `<div class="gw-content"><div class="gw-table-side">${table}</div><div class="gw-ctrlcol">${ctrl}${detail}</div></div>${ownedCards}`+nav(16,'Review →',{noRest:true});
   }
   function stepReview(){
     const birth=[state.home,state.homeland].filter(Boolean).join(' — ');
@@ -832,7 +840,7 @@
       const goEl=e.target.closest('[data-goto]');if(goEl){go(+goEl.dataset.goto);return;}
       const a=e.target.closest('[data-act]');if(a){onAct(a.dataset.act);return;}
       const sp=e.target.closest('[data-spk]');if(sp){setSpecies(sp.dataset.spk);log('Species: '+state.species);saveDraft();render();return;}
-      const gr=e.target.closest('[data-gearname]');if(gr){const nm=gr.dataset.gearname;const ex=state.abilities.find(a=>a.source==='special-weapon'&&a.gw===nm);if(ex){state.abilities=state.abilities.filter(a=>a!==ex);log('Removed gear: '+nm);}else{addGear(flatGear().find(x=>x.name===nm));}saveDraft();render();return;}
+      const gr=e.target.closest('[data-gearname]');if(gr){const nm=gr.dataset.gearname;gearFocus=nm;const ex=state.abilities.find(a=>a.source==='special-weapon'&&a.gw===nm);if(ex){state.abilities=state.abilities.filter(a=>a!==ex);log('Removed gear: '+nm);}else{addGear(flatGear().find(x=>x.name===nm));}saveDraft();render();return;}
       const pp=e.target.closest('[data-pshpath]');if(pp){state.pshPath=pp.dataset.pshpath;state.abilities=state.abilities.filter(a=>a.source==='special-weapon');applyPshPackage();log('PSH path: '+(state.pshPath==='commando'?'Commando':'Wastelander'));saveDraft();render();return;}
       const fk=e.target.closest('[data-fck]');if(fk){state.faction=fk.dataset.fck;const al=allianceByName(state.faction);if(al&&al.side)state.side=al.side;saveDraft();render();return;}
       const oc=e.target.closest('[data-oc]');if(oc){const v=(state.originChoices||[])[+oc.dataset.oc];if(v){state.origin=v;log('Origin: '+v);}saveDraft();render();return;}
@@ -881,7 +889,7 @@
       case 'roll-cat':rollRole(state.activeRole,2);saveDraft();render();return;
       case 'clear-ab':state.abilities=state.abilities.filter(a=>isFixed(a));log('Cleared abilities.');saveDraft();render();return;
       case 'clear-role':state.abilities=state.abilities.filter(a=>!(a.role===state.activeRole&&!isFixed(a)));log('Cleared '+state.activeRole+' abilities.');saveDraft();render();return;
-      case 'rollweapon':{const Lw=flatGear();addGear(Lw[die(Lw.length)-1]);saveDraft();render();return;}
+      case 'rollweapon':{const Lw=flatGear();const it=Lw[die(Lw.length)-1];if(it)gearFocus=it.name;addGear(it);saveDraft();render();return;}
       case 'clear-gear':state.abilities=state.abilities.filter(a=>a.source!=='special-weapon');log('Cleared gear.');saveDraft();render();return;
     }
   }
