@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- gw-character.html v0.2.8 — backgrounds roll-3-keep-2 per MP 2.1.10; Core Ability structure: 4 of 6 abilities marked Core, 2 non-Core funded by 2 Weaknesses per MP 2.1.16, with Review warnings for unmarked cores, missing weaknesses, and CP shortfall -->
+<!-- gw-character.html v0.2.9 — PSH overhaul: species package auto-applied (DNA-lock access +5, stat caps -5, Heightened Cool +3 from GW +3 Charisma); Wastelander/Commando path toggle — Commando prices picks from WH.commando (coreCp/maxPerAbility/bonusFromWeaknesses) and auto-adds the training package, Wastelander skips ability rolls; step 16 opens the full artifact list (armor/devices/drugs/grenades) gated by Ancient ID locks -->
 <!-- gw-character.html v0.2.6 — Tech Construct rolls 2/2/2/2: offense/defense/misc pools built from artifact groups (weapons/armor/devices), built-in robotic weakness table; Ancient ID locks parsed from ability text gate gear by species everywhere; Friends of Entropy closed to machines -->
 <!-- gw-character.html v0.2.5 — species-keyed GW origins: mystical branches dropped (no magic in GW1e), MP roll-twice-pick-either implemented, type-prefixed entries preserve MP originType on export, F.originsBySpecies override hook -->
 <!-- gw-character.html v0.2.4 — nav buttons move to top of step column; chronicle steps jump freely in any order with content-based done marks; Ranks of the Fit & The Created closed to PSH -->
@@ -250,7 +250,7 @@
     return pools;
   }
 
-  let state={ step:0, powerLevel:'Low', activeRole:'offense',
+  let state={ step:0, powerLevel:'Low', activeRole:'offense', pshPath:'wastelander',
     name:'', player:'', species:'Humanoid (Mutant)', culture:'', side:'', faction:'', alliance:'',
     home:'', homeland:'', bc:{st:10,en:10,ag:10,in:10,cl:10}, gender:'', age:'', weight:'',
     genderIdentity:'', genderExpression:'', biologicalSex:'', sexualAttraction:'', ageMethod:'standard',
@@ -263,6 +263,7 @@
   const fmt=n=>(Math.round(n*10)/10).toString();
   const esc=s=>{const d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML.replace(/"/g,'&quot;');};
   const mpLead=t=>{const x=String(t||'').split(/[:(]/)[0].trim();return x.length>2?x:'';};
+  const isFixed=a=>a.source==='special-weapon'||a.source==='psh-package';
   function log(l){if(!l)return;const t=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});state.rollLog.unshift(`[${t}] ${l}`);state.rollLog=state.rollLog.slice(0,50);}
 
   /* ── source tables ──────────────────────────────────────────── */
@@ -335,7 +336,15 @@
 
   /* ── per-step rolls (pure state) ────────────────────────────── */
   function rollName(){if(!F||!F.rollName)return;state.name=F.rollName();log('Name: '+state.name);}
-  function setSpecies(sp){state.species=sp;state.abilities=state.abilities.filter(a=>a.source==='special-weapon');if(sp==='Pure Strain Human'&&enforceBCCaps())log('PSH caps applied: ST\u226418, EN/AG/IN/CL\u226424.');revalidateFaction();revalidateOrigin();if(isCreature(sp))rollAbilities();}
+  function setSpecies(sp){state.species=sp;state.abilities=state.abilities.filter(a=>a.source==='special-weapon');if(sp==='Pure Strain Human'&&enforceBCCaps())log('PSH caps applied: ST\u226418, EN/AG/IN/CL\u226424.');revalidateFaction();revalidateOrigin();applyPshPackage();if(isCreature(sp))rollAbilities();}
+  function applyPshPackage(){
+    state.abilities=state.abilities.filter(a=>a.source!=='psh-package');
+    if(state.species!=='Pure Strain Human')return;
+    const rows=(D.pshAbilities||[]).map(p=>{const cn=cpn(p.cp)||0;const nm=String(p.text||'').split(':')[0].trim()||'PSH Trait';return{role:cn<0?'weakness':'misc',base:nm,gw:nm,mp:nm,cp:String(p.cp),cpNum:cn,ability:p.text||'',source:'psh-package',weakness:cn<0,core:false};});
+    rows.push({role:'misc',base:'Heightened Cool',gw:'Heightened Cool +3',mp:'Heightened Cool',cp:'3',cpNum:3,ability:'Heightened Cool: +3 CL (GW PSH +3 Charisma)',source:'psh-package',weakness:false,core:false});
+    if(state.pshPath==='commando'&&WH&&WH.commando&&WH.commando.training){const t=WH.commando.training;rows.push({role:'offense',base:t.ability,gw:t.ability+' (training)',mp:t.ability,cp:String(t.cp),cpNum:t.cp,ability:t.ability+' +'+t.cp+': commando training package',source:'psh-package',weakness:false,core:false});rows.push({role:'weakness',base:t.weakness,gw:t.weakness,mp:t.weakness,cp:String(t.weaknessCp),cpNum:t.weaknessCp,ability:t.weakness+' (commando training — Agent/Pupil, MP 2.3)',source:'psh-package',weakness:true,core:false});}
+    rows.forEach(r=>state.abilities.push(r));
+  }
   function rollSpecies(){setSpecies(rollNonAllianceSpecies());log('Species: '+state.species);}
   function rollFaction(){const opts=factionOptions();state.faction=(die(10)<=3||opts.length<2)?'Independent':opts[die(opts.length-1)];const a=allianceByName(state.faction);if(a&&a.side)state.side=a.side;log('Faction: '+state.faction);}
   function rollSide(){state.side=SIDES[die(3)-1];log('Side: '+state.side);}
@@ -426,11 +435,11 @@
 
   /* ── ability engine (pure state) ────────────────────────────── */
   function bcTotal(){return BCS.reduce((s,[k])=>s+(state.bc[k]||0),0);}
-  function coreAbilities(){return state.abilities.filter(a=>!a.weakness&&a.source!=='special-weapon');}
+  function coreAbilities(){return state.abilities.filter(a=>!a.weakness&&!isFixed(a));}
   function coreCount(){return coreAbilities().filter(a=>a.core===true).length;}
-  function normalizeCore(){let n=coreCount();state.abilities.forEach(a=>{if(a.weakness||a.source==='special-weapon'){a.core=false;return;}if(a.core===undefined){a.core=n<4;if(a.core)n++;}});}
-  function toggleCore(i){const a=state.abilities[i];if(!a||a.weakness||a.source==='special-weapon')return;if(a.core){a.core=false;}else{if(coreCount()>=4){log('Core limit is 4 — demote another ability first.');return;}a.core=true;}log((a.core?'Core: ':'Non-core: ')+(a.mp||a.gw));}
-  function buildWarnings(){const abs=coreAbilities(),w=[];const want=Math.min(4,abs.length);if(abs.length&&coreCount()!==want)w.push(`Mark ${want} abilities as Core (currently ${coreCount()}).`);const nc=abs.filter(a=>!a.core),wk=state.abilities.filter(a=>a.weakness);if(nc.length&&wk.length<2)w.push(`${nc.length} non-Core abilit${nc.length===1?'y':'ies'} unfunded — take 2 Weaknesses to keep them (MP 2.1.16.3).`);const ncCost=nc.reduce((s,a)=>s+(a.cpNum||0),0),fund=-wk.reduce((s,a)=>s+(a.cpNum||0),0);if(nc.length&&wk.length>=2&&fund<ncCost)w.push(`Non-Core abilities cost ${fmt(ncCost)} CP but Weaknesses only free up ${fmt(fund)} CP.`);return w;}
+  function normalizeCore(){let n=coreCount();state.abilities.forEach(a=>{if(a.weakness||isFixed(a)){a.core=false;return;}if(a.core===undefined){a.core=n<4;if(a.core)n++;}});}
+  function toggleCore(i){const a=state.abilities[i];if(!a||a.weakness||isFixed(a))return;if(a.core){a.core=false;}else{if(coreCount()>=4){log('Core limit is 4 — demote another ability first.');return;}a.core=true;}log((a.core?'Core: ':'Non-core: ')+(a.mp||a.gw));}
+  function buildWarnings(){const abs=coreAbilities(),w=[];const want=Math.min(4,abs.length);if(abs.length&&coreCount()!==want)w.push(`Mark ${want} abilities as Core (currently ${coreCount()}).`);const nc=abs.filter(a=>!a.core),wk=state.abilities.filter(a=>a.weakness&&!isFixed(a));if(nc.length&&wk.length<2)w.push(`${nc.length} non-Core abilit${nc.length===1?'y':'ies'} unfunded — take 2 Weaknesses to keep them (MP 2.1.16.3).`);const ncCost=nc.reduce((s,a)=>s+(a.cpNum||0),0),fund=-wk.reduce((s,a)=>s+(a.cpNum||0),0);if(nc.length&&wk.length>=2&&fund<ncCost)w.push(`Non-Core abilities cost ${fmt(ncCost)} CP but Weaknesses only free up ${fmt(fund)} CP.`);return w;}
   function abilityCP(){return state.abilities.filter(a=>!a.weakness).reduce((s,a)=>s+(a.cpNum||0),0);}
   function weaknessCP(){return state.abilities.filter(a=>a.weakness).reduce((s,a)=>s+(a.cpNum||0),0);}
   function netCP(){return bcTotal()+abilityCP()+weaknessCP();}
@@ -456,7 +465,7 @@
   function buildPools(){
     const sp=state.species,pools={offense:[],defense:[],misc:[],weakness:[]};
     if(isCreature(sp))return{kind:'creature',pools:creaturePackage(sp)||pools};
-    if(sp==='Pure Strain Human'){const c=WH.commando;(c.offensive||[]).forEach(e=>pools.offense.push({commando:1,name:e.name}));(c.defensive||[]).forEach(e=>pools.defense.push({commando:1,name:e.name}));(c.misc||[]).forEach(e=>pools.misc.push({commando:1,name:e.name}));(c.weaknesses||[]).forEach(e=>pools.weakness.push({commando:1,name:e.name}));return{kind:'commando',pools};}
+    if(sp==='Pure Strain Human'){const c=WH.commando;const cmd=state.pshPath==='commando';if(cmd){(c.offensive||[]).forEach(e=>pools.offense.push({commando:1,name:e.name}));(c.defensive||[]).forEach(e=>pools.defense.push({commando:1,name:e.name}));(c.misc||[]).forEach(e=>pools.misc.push({commando:1,name:e.name}));}(c.weaknesses||[]).forEach(e=>pools.weakness.push({commando:1,name:e.name}));return{kind:cmd?'commando':'wastelander',pools};}
     if(sp==='Tech Construct'){
       (D.equipment||[]).forEach(g=>{
         const gn=String(g.name||'');
@@ -477,7 +486,7 @@
   }
   function entryFromRow(row,role){
     if(row.kind==='creature'){const p=row.it.pkg;return{role,base:p.name,gw:p.name,mp:p.name,cp:String(p.cpNum),cpNum:p.cpNum,ability:p.ability,source:'creature',weakness:role==='weakness'};}
-    if(row.kind==='commando'){const cp=role==='weakness'?-10:10;return{role,base:row.name,gw:row.name,mp:row.name,cp:String(cp),cpNum:cp,ability:'(mundane '+role+' ability — assign MP build in builder)',source:'commando',weakness:role==='weakness'};}
+    if(row.kind==='commando'||row.kind==='wastelander'){const c=WH.commando||{};const cp=role==='weakness'?-((c.bonusFromWeaknesses||20)/2):(c.coreCp||5);return{role,base:row.name,gw:row.name,mp:row.name,cp:String(cp),cpNum:cp,ability:'(mundane '+role+' ability — base '+cp+' CP, may grow to '+(c.maxPerAbility||20)+' CP in the builder)',source:'commando',weakness:role==='weakness'};}
     if(row.kind==='tech'){
       if(row.it.tech)return{role,base:row.name,gw:row.name,mp:row.name,cp:'-10',cpNum:-10,ability:row.it.w.ability,source:'tech-weakness',weakness:true};
       const it=row.it.it,cn=cpn(it.cp);
@@ -488,31 +497,38 @@
     const cn=cpn(cp);return{role,base:row.name,gw:name,mp:mpLead(ability)||name,cp:String(cp),cpNum:cn==null?0:cn,ability:ability||'',source:row.it.cat,weakness:(role==='weakness')};
   }
   function rollRole(role,n){
-    n=n||2;const built=buildPools(),rows=poolTable(role);state.abilities=state.abilities.filter(a=>a.role!==role||a.source==='special-weapon');
+    n=n||2;const built=buildPools(),rows=poolTable(role);state.abilities=state.abilities.filter(a=>a.role!==role||isFixed(a));
     if(built.kind==='creature'){rows.forEach(row=>state.abilities.push(entryFromRow(row,role)));normalizeCore();return;}
     const got=[];let g=0;while(got.length<n&&g++<200&&rows.length){const row=rows[die(rows.length)-1];if(got.some(x=>x.base===row.name))continue;got.push(entryFromRow(row,role));}
     got.forEach(a=>state.abilities.push(a));normalizeCore();
   }
   function togglePick(row,role){
-    const ex=state.abilities.find(a=>a.role===role&&a.source!=='special-weapon'&&a.base===row.name);
+    const ex=state.abilities.find(a=>a.role===role&&!isFixed(a)&&a.base===row.name);
     if(ex){state.abilities=state.abilities.filter(a=>a!==ex);log(`Removed ${row.name}`);}
-    else{const cur=state.abilities.filter(a=>a.role===role&&a.source!=='special-weapon');if(cur.length>=2)state.abilities=state.abilities.filter(a=>a!==cur[0]);state.abilities.push(entryFromRow(row,role));normalizeCore();log(`Picked ${row.name}`);}
+    else{const cur=state.abilities.filter(a=>a.role===role&&!isFixed(a));if(cur.length>=2)state.abilities=state.abilities.filter(a=>a!==cur[0]);state.abilities.push(entryFromRow(row,role));normalizeCore();log(`Picked ${row.name}`);}
   }
-  function rollAbilities(){const built=buildPools();state.abilities=state.abilities.filter(a=>a.source==='special-weapon');if(built.kind==='creature'){ROLE_KEYS.forEach(role=>rollRole(role,0));log(`Applied ${state.species} package.`);return;}ROLE_KEYS.forEach(role=>rollRole(role,2));if(built.kind==='commando')log('PSH: mundane abilities from commando tables.');if(built.kind==='tech')log('Tech Construct: integral systems rolled from the artifact tables.');}
+  function rollAbilities(){const built=buildPools();state.abilities=state.abilities.filter(a=>isFixed(a));if(built.kind==='creature'){ROLE_KEYS.forEach(role=>rollRole(role,0));log(`Applied ${state.species} package.`);return;}ROLE_KEYS.forEach(role=>rollRole(role,2));if(built.kind==='commando')log('Commando PSH: mundane abilities from the War Heroes tables.');if(built.kind==='wastelander')log('Wastelander PSH: weaknesses only — spend CP on Ancient gear at step 16.');if(built.kind==='tech')log('Tech Construct: integral systems rolled from the artifact tables.');}
 
-  function weaponList(){
-    const out=[];const w=(WH.standardWeapons)||{melee:[],missile:[]};
-    (w.melee||[]).forEach(x=>out.push({name:x.name,cp:x.cp,ability:`Special Weapon (melee): ${x.damage}, hit ${x.hit}, rng ${x.range}${x.notes?', '+x.notes:''}`}));
-    (w.missile||[]).forEach(x=>out.push({name:x.name,cp:x.cp,ability:`Special Weapon (missile): ${x.damage}, hit ${x.hit}, rng ${x.range}${x.notes?', '+x.notes:''}`}));
-    (D.equipment||[]).forEach(g=>{if(/pistol|rifle|energy weapon/i.test(g.name))(g.items||[]).forEach(it=>{if(gearAllowed(it))out.push({name:it.name,cp:cpn(it.cp)||0,ability:it.ability||''});});});
-    return out;
+  function gearList(){
+    const groups=[];const w=(WH.standardWeapons)||{melee:[],missile:[]};
+    const mk=(x,kind)=>({name:x.name,cp:x.cp,role:'offense',ability:`Special Weapon (${kind}): ${x.damage}, hit ${x.hit}, rng ${x.range}${x.notes?', '+x.notes:''}`});
+    groups.push({label:'Standard Melee',items:(w.melee||[]).map(x=>mk(x,'melee'))});
+    groups.push({label:'Standard Missile',items:(w.missile||[]).map(x=>mk(x,'missile'))});
+    (D.equipment||[]).forEach(g=>{
+      const gn=String(g.name||'');
+      const role=/armor/i.test(gn)?'defense':(/pistol|rifle|energy weapon|grenade/i.test(gn)?'offense':'misc');
+      const items=(g.items||[]).filter(it=>gearAllowed(it)).map(it=>({name:it.name,cp:cpn(it.cp)||0,role,ability:it.ability||''}));
+      if(items.length)groups.push({label:gn,items});
+    });
+    return groups;
   }
-  function addWeapon(w){if(!w)return;if(state.abilities.some(a=>a.gw===w.name))return;state.abilities.push({role:'offense',gw:w.name,mp:'Special Weapon',cp:String(w.cp),cpNum:cpn(w.cp)||0,ability:w.ability,source:'special-weapon',weakness:false});log(`Weapon: ${w.name} (${w.cp} CP)`);}
+  function flatGear(){return gearList().reduce((o,g)=>o.concat(g.items),[]);}
+  function addGear(w){if(!w)return;if(state.abilities.some(a=>a.gw===w.name&&a.source==='special-weapon'))return;state.abilities.push({role:w.role||'offense',gw:w.name,mp:mpLead(w.ability)||w.name,cp:String(w.cp),cpNum:cpn(w.cp)||0,ability:w.ability,source:'special-weapon',weakness:false,core:false});log(`Gear: ${w.name} (${w.cp} CP)`);}
 
   function generateAll(){rollName();rollSpecies();rollFaction();rollSide();rollCulture();rollHome();rollHomeland();rollBC();rollBio();rollBackgrounds();rollMotivation();rollOrigin();rollAbilities();}
 
   /* ── MP export contract (unchanged) ─────────────────────────── */
-  function abilityRows(){const rows=state.abilities.map(a=>({cp:a.cpNum?fmt(a.cpNum):a.cp,desc:`${a.mp} [${a.role}${a.weakness?'; weakness':(a.source==='special-weapon'?'':(a.core?'; core':'; non-core'))}; GW: ${a.gw}] — ${a.ability}`.slice(0,300),ip:''}));while(rows.length<12)rows.push({cp:'',desc:'',ip:''});return rows;}
+  function abilityRows(){const rows=state.abilities.map(a=>({cp:a.cpNum?fmt(a.cpNum):a.cp,desc:`${a.mp} [${a.role}${a.weakness?'; weakness':(isFixed(a)?'':(a.core?'; core':'; non-core'))}; GW: ${a.gw}] — ${a.ability}`.slice(0,300),ip:''}));while(rows.length<12)rows.push({cp:'',desc:'',ip:''});return rows;}
   function storyText(){
     const lines=[`Gamma World 1e → MP build. Faction: ${state.faction||'Independent'}, Side ${state.side||'Neutral'}.`,`Species ${state.species}, ${state.culture||'Modern'}. Home: ${[state.home,state.homeland].filter(Boolean).join(' — ')||'—'}.`,`BCs: ${BCS.map(([k,l])=>l+' '+state.bc[k]).join(', ')} = ${bcTotal()} CP.`];
     if(state.age||genderLine())lines.push(`Age ${state.age||'—'}. Gender: ${genderLine()||'—'}.`);
@@ -549,8 +565,8 @@
 
   /* ── draft persistence ──────────────────────────────────────── */
   function saveDraft(){try{localStorage.setItem(DRAFT_KEY,JSON.stringify({v:4,state:{...state,exportId:window.__gwExportId||null}}));}catch(e){}}
-  function loadDraft(){try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');if(!d||d.v!==4)return false;Object.assign(state,d.state||{});normalizeCore();if(d.state&&d.state.exportId)window.__gwExportId=d.state.exportId;return true;}catch(e){return false;}}
-  function startOver(){try{localStorage.removeItem(DRAFT_KEY);}catch(e){}window.__gwExportId=null;state={ step:0, powerLevel:'Low', activeRole:'offense', name:'', player:'', species:'Humanoid (Mutant)', culture:'', side:'', faction:'', alliance:'', home:'', homeland:'', bc:{st:10,en:10,ag:10,in:10,cl:10}, gender:'', age:'', weight:'', genderIdentity:'', genderExpression:'', biologicalSex:'', sexualAttraction:'', ageMethod:'standard', backgrounds:[], motivation:'', origin:'', originChoices:[], abilities:[], rollLog:[], exportId:null };applyAuthDefault();render();}
+  function loadDraft(){try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');if(!d||d.v!==4)return false;Object.assign(state,d.state||{});if(!state.pshPath)state.pshPath='wastelander';normalizeCore();if(d.state&&d.state.exportId)window.__gwExportId=d.state.exportId;return true;}catch(e){return false;}}
+  function startOver(){try{localStorage.removeItem(DRAFT_KEY);}catch(e){}window.__gwExportId=null;state={ step:0, powerLevel:'Low', activeRole:'offense', pshPath:'wastelander', name:'', player:'', species:'Humanoid (Mutant)', culture:'', side:'', faction:'', alliance:'', home:'', homeland:'', bc:{st:10,en:10,ag:10,in:10,cl:10}, gender:'', age:'', weight:'', genderIdentity:'', genderExpression:'', biologicalSex:'', sexualAttraction:'', ageMethod:'standard', backgrounds:[], backgroundChoices:[], motivation:'', origin:'', originChoices:[], abilities:[], rollLog:[], exportId:null };applyAuthDefault();render();}
 
   /* ── step model ─────────────────────────────────────────────── */
   const STEPS=[
@@ -570,7 +586,7 @@
   function branchInfo(){
     const sp=state.species;
     if(isCreature(sp))return{cls:'',label:sp+' (creature)',items:[{step:1,t:'Fixed converted package'},{step:12,t:'Abilities: '+sp+' package applied'},{step:16,t:'Gear: optional special weapon'}]};
-    if(sp==='Pure Strain Human')return{cls:'',label:'Pure Strain Human',items:[{step:1,t:'No mutations'},{step:12,t:'Abilities: commando tables (2/2/2/2)'},{step:16,t:'Gear: standard weapons'}]};
+    if(sp==='Pure Strain Human'){const cmd=state.pshPath==='commando';return{cls:'',label:'PSH — '+(cmd?'Commando':'Wastelander'),items:[{step:1,t:cmd?'Training: Nat. Weaponry +5 / Subject to Orders -5':'Package: DNA-lock access, +3 CL, stat caps'},{step:12,t:cmd?'Abilities: War Heroes tables (2/2/2 + weaknesses)':'No ability rolls — weaknesses only'},{step:16,t:'Gear: full Ancient artifact list'}]};}
     if(sp==='Tech Construct')return{cls:'',label:'Tech Construct',items:[{step:1,t:'No mutation charts'},{step:12,t:'Abilities: integral systems 2/2/2/2 from artifact tables'},{step:16,t:'Gear: tech weapons (ID locks apply)'}]};
     if(sp==='Mutated Plant')return{cls:'',label:'Mutated Plant',items:[{step:1,t:'Plant mutation chart'},{step:12,t:'Abilities: 2/2/2/2 from plant chart'},{step:16,t:'Gear: optional special weapon'}]};
     return{cls:'',label:sp,items:[{step:1,t:'Physical + mental charts'},{step:12,t:'Abilities: 2/2/2/2 from mutation charts'},{step:16,t:'Gear: optional special weapon'}]};
@@ -590,10 +606,10 @@
       case 'backgrounds':return (state.backgrounds||[]).length?state.backgrounds.map(b=>'• '+esc(b)).join('<br>'):'—';
       case 'motivation':return state.motivation?esc(state.motivation):'—';
       case 'origin':return state.origin?esc(state.origin):'—';
-      case 'offense':{const n=state.abilities.filter(a=>a.role==='offense'&&a.source!=='special-weapon');return n.length?n.map(a=>'• '+esc(a.mp||a.gw)).join('<br>'):'—';}
-      case 'defense':{const n=state.abilities.filter(a=>a.role==='defense'&&a.source!=='special-weapon');return n.length?n.map(a=>'• '+esc(a.mp||a.gw)).join('<br>'):'—';}
-      case 'misc':{const n=state.abilities.filter(a=>a.role==='misc'&&a.source!=='special-weapon');return n.length?n.map(a=>'• '+esc(a.mp||a.gw)).join('<br>'):'—';}
-      case 'weakness':{const n=state.abilities.filter(a=>a.weakness);return n.length?n.map(a=>'• '+esc(a.mp||a.gw)).join('<br>'):'—';}
+      case 'offense':{const n=state.abilities.filter(a=>a.role==='offense'&&!isFixed(a));return n.length?n.map(a=>'• '+esc(a.mp||a.gw)).join('<br>'):'—';}
+      case 'defense':{const n=state.abilities.filter(a=>a.role==='defense'&&!isFixed(a));return n.length?n.map(a=>'• '+esc(a.mp||a.gw)).join('<br>'):'—';}
+      case 'misc':{const n=state.abilities.filter(a=>a.role==='misc'&&!isFixed(a));return n.length?n.map(a=>'• '+esc(a.mp||a.gw)).join('<br>'):'—';}
+      case 'weakness':{const n=state.abilities.filter(a=>a.weakness&&!isFixed(a));return n.length?n.map(a=>'• '+esc(a.mp||a.gw)).join('<br>'):'—';}
       case 'weapons':{const g=state.abilities.filter(a=>a.source==='special-weapon');return g.length?g.map(x=>'• '+esc(x.gw)).join('<br>'):'—';}
       case 'review':return state.step===17?'Ready to transfer':'—';
     }
@@ -625,9 +641,10 @@
     const table=`<table class="gw-rt"><caption>Species (d100)</caption><tbody>`+
       (D.species||[]).map(s=>`<tr data-spk="${esc(s.name)}" class="${state.species===s.name?'sel':''}"><td class="rng">${s.lo}-${s.hi}</td><td>${esc(s.name)}</td></tr>`).join('')+`</tbody></table>`;
     const ctrl=rollBox('Roll or Pick','',`<select class="gw-pick" data-pick="species">${opts}</select>`,'Roll d%');
-    const hint=`<div class="gw-hint">${isCreature(state.species)?'Creature: its converted MP package applies at the Abilities step.':state.species==='Pure Strain Human'?'PSH: no mutations — commando abilities + standard weapons.':state.species==='Tech Construct'?'Tech Construct: integral artifact systems in place of mutations — weapons are Offensive, armor Defensive, devices Misc.':'Mutant: draws 2/2/2/2 from the mutation charts.'}</div>`;
+    const hint=`<div class="gw-hint">${isCreature(state.species)?'Creature: its converted MP package applies at the Abilities step.':state.species==='Pure Strain Human'?'PSH: no mutations — choose Wastelander (gear-focused) or Commando (WH tables) below.':state.species==='Tech Construct'?'Tech Construct: integral artifact systems in place of mutations — weapons are Offensive, armor Defensive, devices Misc.':'Mutant: draws 2/2/2/2 from the mutation charts.'}</div>`;
+    const pshToggle=state.species==='Pure Strain Human'?`<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="gw-hint" style="margin:0"><strong>PSH path:</strong></span><button class="wl-btn ${state.pshPath!=='commando'?'green':'ghost'}" data-pshpath="wastelander" style="font-size:11px;padding:5px 12px">Wastelander (gear-focused)</button><button class="wl-btn ${state.pshPath==='commando'?'green':'ghost'}" data-pshpath="commando" style="font-size:11px;padding:5px 12px">Commando (WH tables + training)</button></div>`:'';
     return head(1,'Species','Standard d100 table, or one of the ten playable creatures. This choice drives your Abilities branch.')+
-      `<div class="gw-content"><div class="gw-table-side">${table}</div>${ctrl}</div>${hint}`+nav(1,'Next: Faction →');
+      `<div class="gw-content"><div class="gw-table-side">${table}</div>${ctrl}</div>${hint}${pshToggle}`+nav(1,'Next: Faction →');
   }
   function stepFaction(){
     const opts=factionOptions();
@@ -720,33 +737,33 @@
     offense:{n:12,label:'Offensive',next:'Next: Defensive →',pill:['#f3d2c2','#71310d'],desc:'Pick 2 offensive abilities, or roll the table.'},
     defense:{n:13,label:'Defensive',next:'Next: Miscellaneous →',pill:['#cfe0e6','#163a44'],desc:'Pick 2 defensive abilities, or roll the table.'},
     misc:{n:14,label:'Miscellaneous',next:'Next: Weaknesses →',pill:['#efe3c0','#5d4710'],desc:'Pick 2 miscellaneous abilities, or roll the table.'},
-    weakness:{n:15,label:'Weaknesses',next:'Next: Weapons →',pill:['#f0d3d3','#6e1f1f'],desc:'Pick 2 weaknesses, or roll the table.'}
+    weakness:{n:15,label:'Weaknesses',next:'Next: Weapons →',pill:['#f0d3d3','#6e1f1f'],desc:'Pick 2 weaknesses — their CPs fund your two non-Core abilities (MP 2.1.16.3).'}
   };
   function stepRole(role){
     state.activeRole=role;
     const built=buildPools(),sp=state.species,meta=ROLE_META[role],rows=poolTable(role);
-    const sel=state.abilities.filter(a=>a.role===role&&a.source!=='special-weapon').map(a=>a.base);
+    const sel=state.abilities.filter(a=>a.role===role&&!isFixed(a)).map(a=>a.base);
     const table=`<div class="gw-scroll"><table class="gw-rt"><thead><tr><th class="rng">d100</th><th>Ability</th><th class="cp">CP</th></tr></thead><tbody>`+
       rows.map((r,i)=>{const mp=r.kind==='mutant'?(mpLead(r.it.m.ability)||r.name):r.name;const on=sel.includes(r.name);return `<tr data-pick-row="${i}" class="${on?'sel':''}"><td class="rng">${r.lo}-${r.hi}</td><td>${esc(mp)}<span style="color:var(--wl-soft)"> · ${esc(r.name)}</span></td><td class="cp">${esc(String(r.cp))}</td></tr>`;}).join('')+`</tbody></table></div>`;
-    const picks=state.abilities.filter(a=>a.role===role&&a.source!=='special-weapon');
-    const pickList=`<div class="gw-picks">`+(picks.length?picks.map(p=>{const i=state.abilities.indexOf(p);const badge=role==='weakness'?'':`<button data-corei="${i}" title="Toggle Core (4 max — non-Core abilities are funded by Weaknesses)" style="font-size:10px;border-radius:10px;padding:1px 8px;cursor:pointer;border:1px solid ${p.core?'#27521e':'var(--wl-line)'};background:${p.core?'var(--wl-green)':'var(--wl-input)'};color:${p.core?'#eafce9':'var(--wl-soft)'}">${p.core?'\u2605 Core':'non-core'}</button>`;return `<div class="gw-pickrow"><div class="mp" style="display:flex;gap:8px;align-items:center"><span style="flex:1">${esc(p.mp)}</span>${badge}<span>${esc(p.cp)} CP</span></div><div class="ab">${esc(p.gw)}</div></div>`;}).join(''):'<div class="gw-pickrow" style="color:var(--wl-soft)">Click rows to pick, or roll the category.</div>')+`</div>`;
+    const picks=state.abilities.filter(a=>a.role===role&&!isFixed(a));
+    const pickList=`<div class="gw-picks">`+(picks.length?picks.map(p=>{const i=state.abilities.indexOf(p);const badge=role==='weakness'?'':`<button data-corei="${i}" title="Toggle Core (4 max — non-Core abilities are funded by Weaknesses)" style="font-size:10px;border-radius:10px;padding:1px 8px;cursor:pointer;border:1px solid ${p.core?'#27521e':'var(--wl-line)'};background:${p.core?'var(--wl-green)':'var(--wl-input)'};color:${p.core?'#eafce9':'var(--wl-soft)'}">${p.core?'★ Core':'non-core'}</button>`;return `<div class="gw-pickrow"><div class="mp" style="display:flex;gap:8px;align-items:center"><span style="flex:1">${esc(p.mp)}</span>${badge}<span>${esc(p.cp)} CP</span></div><div class="ab">${esc(p.gw)}</div></div>`;}).join(''):'<div class="gw-pickrow" style="color:var(--wl-soft)">Click rows to pick, or roll the category.</div>')+`</div>`;
     const budget=`<div style="background:${meta.pill[0]};color:${meta.pill[1]};display:inline-block;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;margin-bottom:7px">${picks.length} / 2 picked</div>`+(role==='weakness'?'':`<div style="background:#eef3df;color:#41541f;display:inline-block;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;margin:0 0 7px 5px">${coreCount()} / 4 core</div>`);
-    const canCat=built.kind!=='creature';
+    const canCat=built.kind!=='creature'&&!(built.kind==='wastelander'&&role!=='weakness');
     const ctrl=`<div class="gw-controls"><div class="gw-controls-title">${meta.label}</div>`+budget+
       (canCat?`<button class="gw-roll-btn" data-act="roll-cat">🎲 Roll this category</button>`:'')+
       `<button class="gw-roll-btn sm" data-act="roll-all">Roll all (2/2/2/2)</button>`+
       `<button class="gw-roll-rest" data-act="clear-role">Clear this category</button>`+
-      `<div class="gw-hint">${isCreature(sp)?`Playing a ${esc(sp)}: its converted MP package for this role. Click a pick to drop it.`:(sp==='Tech Construct'?'Tech Construct: integral systems from the artifact tables — read Gear modifiers as Body Part. Weaknesses are robotic (placeholder -10 pricing).':(sp==='Pure Strain Human'?'PSH: pick from the commando abilities for this role.':'Drawn from your GW→MP mutation charts for this role.'))}</div></div>`;
+      `<div class="gw-hint">${isCreature(sp)?`Playing a ${esc(sp)}: its converted MP package for this role. Click a pick to drop it.`:(sp==='Tech Construct'?'Tech Construct: integral systems from the artifact tables — read Gear modifiers as Body Part. Weaknesses are robotic (placeholder -10 pricing).':(sp==='Pure Strain Human'?(state.pshPath==='commando'?('Commando PSH: mundane picks from the War Heroes tables — base '+((WH.commando||{}).coreCp||5)+' CP, may grow to '+((WH.commando||{}).maxPerAbility||20)+' CP in the builder.'):'Wastelander PSH: no ability rolls — spend CP on Ancient gear at step 16. Weaknesses are still available here for extra CP.'):'Drawn from your GW→MP mutation charts for this role.'))}</div></div>`;
     return head(meta.n,meta.label+(role==='weakness'?'':' Abilities'),meta.desc)+
       `<div class="gw-content"><div class="gw-table-side">${table}</div>${ctrl}</div>${pickList}`+nav(meta.n,meta.next);
   }
   function stepWeapons(){
-    const wl=weaponList();
-    const pick=`<select class="gw-pick" data-weapon>`+wl.map(w=>`<option value="${esc(w.name)}">${esc(w.name)} (${w.cp} CP)</option>`).join('')+`</select>`;
+    const groups=gearList();
+    const pick=`<select class="gw-pick" data-weapon>`+groups.map(g=>`<optgroup label="${esc(g.label)}">`+g.items.map(w=>`<option value="${esc(w.name)}">${esc(w.name)} (${w.cp} CP)</option>`).join('')+`</optgroup>`).join('')+`</select>`;
     const gear=state.abilities.filter(a=>a.source==='special-weapon');
     const chips=gear.map((g,i)=>`<span class="gw-chip">${esc(g.gw)} (${esc(g.cp)})<span class="x" data-rmweap="${state.abilities.indexOf(g)}">✕</span></span>`).join('')||'<span class="gw-hint">No weapons added.</span>';
-    const ctrl=`<div class="gw-controls"><div class="gw-controls-title">Add Weapon</div>${pick}<button class="gw-roll-btn sm" style="margin-top:6px" data-act="addweapon">Add selected</button><button class="gw-roll-btn" data-act="rollweapon">🎲 Roll a weapon</button><div class="gw-hint">A weapon is a Special Weapon ability — its CP counts against the build.</div></div>`;
-    return head(16,'Weapons & Gear','Optional special weapons. Ancient ID locks apply — items keyed to PSH (or androids) are hidden for other species.')+
+    const ctrl=`<div class="gw-controls"><div class="gw-controls-title">Add Gear</div>${pick}<button class="gw-roll-btn sm" style="margin-top:6px" data-act="addweapon">Add selected</button><button class="gw-roll-btn" data-act="rollweapon">🎲 Roll random gear</button><div class="gw-hint">Weapons, armor, devices, and drugs are Gear-modified abilities — CP counts against the build. PSH see the full Ancient list; ID-locked items are hidden from other species.</div></div>`;
+    return head(16,'Weapons & Gear','Standard weapons and the full Ancient artifact tables — armor, grenades, devices, and drugs included. Ancient ID locks apply.')+
       `<div class="gw-content"><div class="gw-table-side">${chips}</div>${ctrl}</div>`+nav(16,'Review →',{noRest:true});
   }
   function stepReview(){
@@ -758,7 +775,7 @@
     const cv=[['BC Total',bcTotal()],['Abilities',fmt(abilityCP())+' CP'],['Weaknesses',fmt(weaknessCP())+' CP'],['Ability Budget',tierOf(state.powerLevel).abil+' CP'],['Power Level',state.powerLevel]].map(([l,v])=>`<div class="cell"><div class="l" style="color:var(--wl-soft)">${esc(l)}</div><div class="v">${esc(String(v))}</div></div>`).join('')+`<div class="cell hl"><div class="l">Unspent CP</div><div class="v">${fmt(unspent())}</div></div>`;
     const byRole=r=>state.abilities.filter(a=>a.role===r&&!a.weakness);
     const cls={offense:'off',defense:'def',misc:'mis'},lbl={offense:'Offensive',defense:'Defensive',misc:'Misc'};
-    const ab=['offense','defense','misc'].map(r=>{const items=byRole(r);return `<div class="gw-abb ${cls[r]}"><div class="t">${lbl[r]}</div>${items.length?items.map(a=>`${a.core?'\u2605 ':''}${esc(a.mp)} <span style="color:var(--wl-soft)">(${esc(a.cp)})</span>`).join('<br>'):'—'}</div>`;}).join('')+(()=>{const w=state.abilities.filter(a=>a.weakness);return `<div class="gw-abb wk"><div class="t">Weaknesses</div>${w.length?w.map(a=>`${esc(a.gw)} <span style="color:var(--wl-soft)">(${esc(a.cp)})</span>`).join('<br>'):'—'}</div>`;})();
+    const ab=['offense','defense','misc'].map(r=>{const items=byRole(r);return `<div class="gw-abb ${cls[r]}"><div class="t">${lbl[r]}</div>${items.length?items.map(a=>`${a.core?'★ ':''}${esc(a.mp)} <span style="color:var(--wl-soft)">(${esc(a.cp)})</span>`).join('<br>'):'—'}</div>`;}).join('')+(()=>{const w=state.abilities.filter(a=>a.weakness);return `<div class="gw-abb wk"><div class="t">Weaknesses</div>${w.length?w.map(a=>`${esc(a.gw)} <span style="color:var(--wl-soft)">(${esc(a.cp)})</span>`).join('<br>'):'—'}</div>`;})();
     const gear=state.abilities.filter(a=>a.source==='special-weapon');
     const gearHtml=gear.length?`<div class="gw-hint" style="margin:6px 0"><strong>Gear (Special Weapons):</strong> ${gear.map(g=>esc(g.gw)).join(', ')}</div>`:'';
     let json='';try{json=JSON.stringify(buildMP(),null,2);}catch(e){json='// '+e.message;}
@@ -809,6 +826,7 @@
       const goEl=e.target.closest('[data-goto]');if(goEl){go(+goEl.dataset.goto);return;}
       const a=e.target.closest('[data-act]');if(a){onAct(a.dataset.act);return;}
       const sp=e.target.closest('[data-spk]');if(sp){setSpecies(sp.dataset.spk);log('Species: '+state.species);saveDraft();render();return;}
+      const pp=e.target.closest('[data-pshpath]');if(pp){state.pshPath=pp.dataset.pshpath;state.abilities=state.abilities.filter(a=>a.source==='special-weapon');applyPshPackage();log('PSH path: '+(state.pshPath==='commando'?'Commando':'Wastelander'));saveDraft();render();return;}
       const fk=e.target.closest('[data-fck]');if(fk){state.faction=fk.dataset.fck;const al=allianceByName(state.faction);if(al&&al.side)state.side=al.side;saveDraft();render();return;}
       const oc=e.target.closest('[data-oc]');if(oc){const v=(state.originChoices||[])[+oc.dataset.oc];if(v){state.origin=v;log('Origin: '+v);}saveDraft();render();return;}
       const sd=e.target.closest('[data-sdk]');if(sd){state.side=sd.dataset.sdk;saveDraft();render();return;}
@@ -854,10 +872,10 @@
       case 'roll-gattr':rollSexualAttraction();saveDraft();render();return;
       case 'roll-all':rollAbilities();saveDraft();render();return;
       case 'roll-cat':rollRole(state.activeRole,2);saveDraft();render();return;
-      case 'clear-ab':state.abilities=state.abilities.filter(a=>a.source==='special-weapon');log('Cleared abilities.');saveDraft();render();return;
-      case 'clear-role':state.abilities=state.abilities.filter(a=>!(a.role===state.activeRole&&a.source!=='special-weapon'));log('Cleared '+state.activeRole+' abilities.');saveDraft();render();return;
-      case 'addweapon':{const sel=$('#gw-main [data-weapon]');if(sel)addWeapon(weaponList().find(w=>w.name===sel.value));saveDraft();render();return;}
-      case 'rollweapon':{const Lw=weaponList();addWeapon(Lw[die(Lw.length)-1]);saveDraft();render();return;}
+      case 'clear-ab':state.abilities=state.abilities.filter(a=>isFixed(a));log('Cleared abilities.');saveDraft();render();return;
+      case 'clear-role':state.abilities=state.abilities.filter(a=>!(a.role===state.activeRole&&!isFixed(a)));log('Cleared '+state.activeRole+' abilities.');saveDraft();render();return;
+      case 'addweapon':{const sel=$('#gw-main [data-weapon]');if(sel)addGear(flatGear().find(w=>w.name===sel.value));saveDraft();render();return;}
+      case 'rollweapon':{const Lw=flatGear();addGear(Lw[die(Lw.length)-1]);saveDraft();render();return;}
     }
   }
 
