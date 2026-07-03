@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- character.html v0.1.1 — Preserves GW transfer build-note metadata while keeping concise imported ability labels visible on the sheet. -->
 <!-- character.html v0.1.0 — BC strip counts only the CP column (not modified scores); import preserves custom/Gamma World species and resolves powerLevel by id, label, or CP total -->
 <html lang="en">
 <head>
@@ -1022,6 +1023,9 @@ function gatherData() {
     if (window._charMeta._image) d._image = window._charMeta._image;
     if (window._charMeta._campaign) d._campaign = window._charMeta._campaign;
     if (window._charMeta._id) d._id = window._charMeta._id;
+    if (window._charMeta._gwStarter) d._gwStarter = window._charMeta._gwStarter;
+    if (window._charMeta._gwStarterVersion) d._gwStarterVersion = window._charMeta._gwStarterVersion;
+    if (window._charMeta.gwBuildNotes) d.gwBuildNotes = window._charMeta.gwBuildNotes;
   }
   return d;
 }
@@ -1029,6 +1033,10 @@ function gatherData() {
 // ── Populate Data ──
 function populateData(d) {
   if (!d) return;
+  window._charMeta = window._charMeta || {};
+  if (d._gwStarter) window._charMeta._gwStarter = d._gwStarter;
+  if (d._gwStarterVersion) window._charMeta._gwStarterVersion = d._gwStarterVersion;
+  if (d.gwBuildNotes) window._charMeta.gwBuildNotes = d.gwBuildNotes;
   document.querySelectorAll('[data-field]').forEach(el => {
     if (d[el.dataset.field] != null) el.value = d[el.dataset.field];
   });

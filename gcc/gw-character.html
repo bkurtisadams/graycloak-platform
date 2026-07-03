@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.24 — MP transfer now exports concise sheet labels, de-dupes exact ability echoes, and moves full GW→MP build text into Story/build notes. -->
 <!-- gw-character.html v0.2.23 — Birthplace table is now city/ruin focused; non-city settlement origins moved into Homeland Type. -->
 <!-- gw-character.html v0.2.22 — Low Power mutation cap audit support: reads lowPowerGmOnly/capNote flags, marks those rows as GM approval at Normal/Low, excludes them from random rolls, and surfaces review/detail warnings. -->
 <!-- gw-character.html v0.2.21 — Improves step header navigation labels, removes duplicate lower nav rows, brightens table header labels, and adds Ability Draft detail panel. -->
@@ -640,21 +641,114 @@
 
   function generateAll(){rollName();rollSpecies();rollFaction();rollSide();rollCulture();rollHome();rollHomeland();rollBC();rollBio();rollBackgrounds();rollMotivation();rollOrigin();rollAbilities();}
 
-  /* ── MP export contract (unchanged) ─────────────────────────── */
-  function abilityRows(){
-    const rows=exportedAbilities().map(a=>{
-      const note=(!a.weakness&&!isFixed(a)&&a.core&&assignedAbilityCP(a)!==templateCP(a))?`; template ${fmt(templateCP(a))} CP`:'';
-      const nc=(!a.weakness&&!isFixed(a)&&!a.core)?`; non-core funded by Weakness slot ${nonCoreIndex(a)+1}`:'';
-      return{cp:fmt(assignedAbilityCP(a)),desc:`${a.mp} [${a.role}${a.weakness?'; weakness':(isFixed(a)?'':(a.core?'; core '+fmt(coreCp())+' CP'+note:nc))}; GW: ${a.gw}] — ${a.ability}`.slice(0,300),ip:''};
+  /* ── MP export contract ────────────────────────────────────── */
+  function exportedAbilityEntries(){
+    const seen=new Set(),out=[];
+    exportedAbilities().forEach(a=>{
+      const key=[a.role,fmt(assignedAbilityCP(a)),a.mp||'',a.gw||'',a.ability||'',a.source||''].join('|').replace(/\s+/g,' ').trim().toLowerCase();
+      if(seen.has(key))return;
+      seen.add(key);out.push(a);
     });
+    return out;
+  }
+  function cleanSheetText(s){return String(s||'').replace(/[“”]/g,'"').replace(/[’]/g,"'").replace(/\s+/g,' ').trim();}
+  function abbrBuild(s){
+    return cleanSheetText(s)
+      .replace(/Area Effect/gi,'AE')
+      .replace(/Vaporous AE/gi,'Vap AE')
+      .replace(/Range/gi,'Rng')
+      .replace(/Duration/gi,'Dur')
+      .replace(/Charges/gi,'Chg')
+      .replace(/Charge\b/gi,'Chg')
+      .replace(/Power Requirement/gi,'PR')
+      .replace(/Immunity/gi,'Imm')
+      .replace(/No Range/gi,'NoRng')
+      .replace(/Touch Range/gi,'Tch')
+      .replace(/Total Concentration/gi,'Concentration')
+      .replace(/Physical Defense/gi,'Phys Def')
+      .replace(/Mental Defense/gi,'Mental Def')
+      .replace(/Heightened/gi,'Ht.')
+      .replace(/Invulnerability/gi,'Invuln.')
+      .replace(/Regeneration/gi,'Regen.')
+      .replace(/Vulnerability/gi,'Vuln.')
+      .replace(/Weakness:/gi,'')
+      .replace(/\s*\/\s*/g,' / ');
+  }
+  function shortMpName(a){
+    let name=cleanSheetText(a.mp||a.gw||'Ability');
+    const abilitySuite=name.match(/^[A-Za-z ]+ Abilities\s+[A-Z]\)\s*(.+)$/i);
+    if(abilitySuite)name=abilitySuite[1];
+    name=name
+      .replace(/^Mental Ability\s+[A-Z]\)\s*/i,'')
+      .replace(/^Physical Ability\s+[A-Z]\)\s*/i,'Physical Ability: ')
+      .replace(/\bGeneration\b/gi,'Gen')
+      .replace(/\bManipulation\b/gi,'Manip')
+      .replace(/\s+/g,' ')
+      .trim();
+    return name||cleanSheetText(a.gw||'Ability');
+  }
+  function shortWeaknessName(a){
+    const g=cleanSheetText(a.gw||'Weakness'),b=cleanSheetText(a.ability||'');
+    const vuln=b.match(/Vulnerability[^;+]*;?\s*\+?([\d.]+)\s+([A-Za-z]+)\s+damage/i);
+    if(vuln)return `Vulnerability: ${vuln[2]} +${vuln[1]}`;
+    if(/bleed/i.test(b)&&/hit point/i.test(b))return `${g}: bleed 1 HP/min`;
+    const dim=b.match(/Diminished Senses?:?\s*([^;.]+)/i);
+    if(dim)return `Diminished Sense: ${dim[1].trim()}`;
+    const weak=b.match(/Weakness:\s*([^;.]+)/i);
+    if(weak)return `${weak[1].trim()}`;
+    return g;
+  }
+  function buildHint(a){
+    const b=cleanSheetText(a.ability||''),h=[];
+    if(!b)return '';
+    if(/^Heightened\s+(Strength|Endurance|Agility|Intelligence|Cool)\s*\+?\s*(\d+)/i.test(b)){
+      const m=b.match(/^Heightened\s+(Strength|Endurance|Agility|Intelligence|Cool)\s*\+?\s*(\d+)/i);
+      const map={Strength:'ST',Endurance:'EN',Agility:'AG',Intelligence:'IN',Cool:'CL'};
+      h.push(`${map[m[1]]||m[1]} +${m[2]}`);
+    }
+    const armor=b.match(/Armor:\s*([^,;/]+)/i);if(armor)h.push(abbrBuild(armor[1]).replace(/^Armor\s*/i,'Armor '));
+    const dice=b.match(/(?:^|[:\s])((?:\d*d\d+(?:[+-]\d+)?)(?:\+\d*d\d+(?:[+-]\d+)?)*)\b/i);if(dice&&!h.some(x=>x.includes(dice[1])))h.push(dice[1]);
+    const save=b.match(/\b(ST|EN|AG|IN|CL)\s+save\s*@\s*([+-]\s*\d+)/i);if(save)h.push(`${save[1].toUpperCase()} ${save[2].replace(/\s+/g,'')}`);
+    const ae=b.match(/(\d+)\s*["”]\s*(?:Vaporous\s+|Perimeter\s+)?Area Effect/i);if(ae)h.push(`${ae[1]}" AE`);
+    const chg=b.match(/(\d+)\s+(?:Charges|Chrgs|Charge|Chrg)/i);if(chg)h.push(`${chg[1]} Chg`);
+    return h.slice(0,3).join(', ');
+  }
+  function sheetTag(a){
+    const parts=[];
+    if(a.weakness)parts.push('Weakness');
+    else if(isFixed(a))parts.push(a.source==='special-weapon'?'Gear':'Fixed');
+    else if(a.core)parts.push('Core');
+    else parts.push(`WF${nonCoreIndex(a)+1}`);
+    if(a.gw)parts.push(`GW ${a.gw}`);
+    return `[${parts.join('; ')}]`;
+  }
+  function sheetAbilityDesc(a){
+    let label=a.weakness?shortWeaknessName(a):shortMpName(a);
+    const hint=a.weakness?'':buildHint(a);
+    if(hint&&label.toLowerCase().indexOf(hint.toLowerCase())<0)label+=` ${hint}`;
+    const out=`${abbrBuild(label)} ${sheetTag(a)}`.replace(/\s+/g,' ').trim();
+    return out.length>160?out.slice(0,157).trim()+'...':out;
+  }
+  function buildNoteLine(a){
+    const status=a.weakness?'weakness':(isFixed(a)?(a.source==='special-weapon'?'gear':'fixed'):(a.core?'core':`weakness-funded slot ${nonCoreIndex(a)+1}`));
+    const assigned=fmt(assignedAbilityCP(a)),tmpl=fmt(templateCP(a));
+    const cost=(!a.weakness&&!isFixed(a)&&assigned!==tmpl)?`${assigned} CP, template ${tmpl} CP`:`${assigned} CP`;
+    return `• ${shortMpName(a)} [GW: ${a.gw||'—'}; ${status}; ${cost}]: ${abbrBuild(a.ability||'')}`;
+  }
+  function gwBuildNotes(){return exportedAbilityEntries().map(buildNoteLine);}
+  function abilityRows(){
+    const rows=exportedAbilityEntries().map(a=>({cp:fmt(assignedAbilityCP(a)),desc:sheetAbilityDesc(a),ip:''}));
     while(rows.length<12)rows.push({cp:'',desc:'',ip:''});return rows;
   }
   function storyText(){
+    const entries=exportedAbilityEntries();
     const lines=[`Gamma World 1e → MP build. Faction: ${state.faction||'Independent'}, Side ${state.side||'Neutral'}.`,`Species ${state.species}, ${state.culture||'Modern'}. Home: ${[state.home,state.homeland].filter(Boolean).join(' — ')||'—'}.`,`BCs: ${BCS.map(([k,l])=>l+' '+state.bc[k]).join(', ')} = ${bcTotal()} CP.`];
     if(state.age||genderLine())lines.push(`Age ${state.age||'—'}. Gender: ${genderLine()||'—'}.`);
-    const m=exportedAbilities().filter(a=>!a.weakness),w=exportedAbilities().filter(a=>a.weakness);
-    if(m.length)lines.push('Abilities: '+m.map(a=>`${a.mp} (${a.role}, ${abilityCPLabel(a)})`).join('; ')+'.');
-    if(w.length)lines.push('Weaknesses: '+w.map(a=>`${a.gw} (${abilityCPLabel(a)})`).join('; ')+'.');
+    const m=entries.filter(a=>!a.weakness),w=entries.filter(a=>a.weakness);
+    if(m.length)lines.push('Abilities: '+m.map(a=>`${shortMpName(a)} (${a.role}, ${abilityCPLabel(a)})`).join('; ')+'.');
+    if(w.length)lines.push('Weaknesses: '+w.map(a=>`${shortWeaknessName(a)} (${abilityCPLabel(a)})`).join('; ')+'.');
+    const notes=gwBuildNotes();
+    if(notes.length)lines.push('\nGW → MP Build Notes:\n'+notes.join('\n'));
     if(state.rollLog.length)lines.push('\nRoll log:\n'+state.rollLog.join('\n'));
     return lines.join('\n');
   }
@@ -664,7 +758,7 @@
     const bc=state.bc;
     const data={_id:id,_gwStarter:true,_gwStarterVersion:D.version||'2.0.0',name,player:(state.player||'').trim(),trueId:'',side:state.side||'Neutral',birthplace:[state.home,state.homeland].filter(Boolean).join(' — ')||'Gamma World',species:state.species,gender:state.gender||'',age:String(state.age||''),weight:String(state.weight||''),mass:'',culture:state.culture||'Modern',originType:(state.origin||'').trim(),background:(state.backgrounds||[]).join(', '),motivation:(state.motivation||'').trim(),legalStatus:state.faction||'Independent',wealth:'0',luck:'10-',powerLevel:state.powerLevel.toLowerCase(),xpBase:String(tierOf(state.powerLevel).total),
       stats:{st:{cp:String(bc.st),mod:'',score:String(bc.st),save:''},en:{cp:String(bc.en),mod:'',score:String(bc.en),save:''},ag:{cp:String(bc.ag),mod:'',score:String(bc.ag),save:''},in:{cp:String(bc.in),mod:'',score:String(bc.in),save:''},cl:{cp:String(bc.cl),mod:'',score:String(bc.cl),save:''}},
-      abilities:abilityRows(),attacks:[{name:'Strike (HTH)',toHit:'',damage:'',dmgType:'Kinetic',kb:''},{name:'',toHit:'',damage:'',dmgType:'',kb:''},{name:'',toHit:'',damage:'',dmgType:'',kb:''}],story:storyText()};
+      abilities:abilityRows(),attacks:[{name:'Strike (HTH)',toHit:'',damage:'',dmgType:'Kinetic',kb:''},{name:'',toHit:'',damage:'',dmgType:'',kb:''},{name:'',toHit:'',damage:'',dmgType:'',kb:''}],story:storyText(),gwBuildNotes:gwBuildNotes()};
     if(window.__gwCampaign)data._campaign=window.__gwCampaign;
     return data;
   }
