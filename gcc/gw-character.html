@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.14 — Creature packages with empty role pools now explain themselves (Android offense = equipment, shown from the bestiary entry); Tech Constructs draw from the physical/mental conversion charts as designed-in systems alongside integral equipment; Ancient age method (2d10+10 apparent + years since the 2322 holocaust, campaign year 2451) for androids, robots, and vault-dweller PSH -->
 <!-- gw-character.html v0.2.13 — MP 2.1.16.5 cap enforcement: tierCaps (Ability=CP/5, BC=CP/5+10, Damage=CP/12.5+3); over-cap gear/mutations locked in tables and excluded from random rolls (hard, final CP); base-cost-over-cap and avg-damage-over-cap surfaced as Review warnings (GM may waive); Item Detail shows cap lock; poolTable commando pricing display synced to WH constants -->
 <!-- gw-character.html v0.2.12 — Gear step item writeups: detail card under the roll controls shows the last clicked/rolled item's MP build (damage, hit, range, charges); owned gear rendered as pick-row cards with full stats instead of bare chips -->
 <!-- gw-character.html v0.2.11 — Gear step shows the full grouped gear table on the left (click rows to add/remove, like Abilities) with roll/clear controls on the right; header nav on every step (Start Over + Back + Next beside the step title) -->
@@ -370,7 +371,8 @@
   const G_EXPRESSION=['Same as identity','Different from identity','Androgynous','Gender Neutral'];
   const G_SEX=['Cisgender','Transgender','Intersex'];
   const G_ATTRACTION=['Straight','Gay/Lesbian','Bisexual/Pansexual','Asexual'];
-  const AGE_METHODS=[['standard','Standard (2d10+10)'],['experienced','Experienced (2d10+20)'],['modern','Modern population (2d12)']];
+  const GW_APOCALYPSE_YEAR=2322, GW_CAMPAIGN_YEAR=2451;
+  const AGE_METHODS=[['standard','Standard (2d10+10)'],['experienced','Experienced (2d10+20)'],['modern','Modern population (2d12)'],['ancient','Pre-Apocalypse / Ancient (2d10+10 + '+(GW_CAMPAIGN_YEAR-GW_APOCALYPSE_YEAR)+' yrs)']];
   function rollGenderIdentityVal(){const r=die(100);state.genderIdentity=r<=48?'Woman':r<=96?'Man':'Nonbinary';}
   function rollGenderExpressionVal(){const r=die(100);state.genderExpression=r<=87?'Same as identity':r<=93?'Different from identity':r<=97?'Androgynous':'Gender Neutral';}
   function rollBiologicalSexVal(){const r=die(100);state.biologicalSex=r<=95?'Cisgender':r<=99?'Transgender':'Intersex';}
@@ -387,7 +389,8 @@
   function ageStandard(){return die(10)+die(10)+10;}
   function ageExperienced(){return die(10)+die(10)+20;}
   function ageModern(){const a=die(12),b=die(12);let mult=3;if(a===1)mult--;if(b===1)mult--;if(a===12)mult++;if(b===12)mult++;return (a+b)*mult;}
-  function rollAgeVal(){const m=state.ageMethod||'standard';state.age=m==='modern'?ageModern():m==='experienced'?ageExperienced():ageStandard();}
+  function ageAncient(){const app=die(10)+die(10)+10;const chron=app+(GW_CAMPAIGN_YEAR-GW_APOCALYPSE_YEAR);return chron+' (apparent '+app+' — pre-'+GW_APOCALYPSE_YEAR+')';}
+  function rollAgeVal(){const m=state.ageMethod||'standard';state.age=m==='modern'?ageModern():m==='experienced'?ageExperienced():m==='ancient'?ageAncient():ageStandard();}
   function rollWeightVal(){const wd=state.genderIdentity==='Woman'?4:6;let w=0;for(let i=0;i<5;i++)w+=die(wd);state.weight=w*10;}
   function rollAge(){rollAgeVal();log('Age: '+state.age+' ('+(state.ageMethod||'standard')+')');}
   function rollWeight(){rollWeightVal();log(`Weight: ${state.weight} lbs`);}
@@ -491,6 +494,7 @@
         const role=/pistol|rifle|energy weapon|grenade|bomb|missile/i.test(gn)?'offense':(/armor/i.test(gn)?'defense':'misc');
         (g.items||[]).forEach(it=>{if(gearAllowed(it,sp))pools[role].push({gear:1,it});});
       });
+      ['physical','mental'].forEach(cat=>(D.mutations[cat]||[]).forEach(m=>{const r=(ROLES[cat]||{})[m.name];if(r&&r!=='weakness'&&pools[r])pools[r].push({cat,m});}));
       TECH_WEAKNESSES.forEach(w=>pools.weakness.push({tech:1,w}));
       return{kind:'tech',pools};
     }
@@ -506,13 +510,14 @@
   function entryFromRow(row,role){
     if(row.kind==='creature'){const p=row.it.pkg;return{role,base:p.name,gw:p.name,mp:p.name,cp:String(p.cpNum),cpNum:p.cpNum,ability:p.ability,source:'creature',weakness:role==='weakness'};}
     if(row.kind==='commando'||row.kind==='wastelander'){const c=WH.commando||{};const cp=role==='weakness'?-((c.bonusFromWeaknesses||20)/2):(c.coreCp||5);return{role,base:row.name,gw:row.name,mp:row.name,cp:String(cp),cpNum:cp,ability:'(mundane '+role+' ability — base '+cp+' CP, may grow to '+(c.maxPerAbility||20)+' CP in the builder)',source:'commando',weakness:role==='weakness'};}
-    if(row.kind==='tech'){
+    if(row.kind==='tech'&&!row.it.m){
       if(row.it.tech)return{role,base:row.name,gw:row.name,mp:row.name,cp:'-10',cpNum:-10,ability:row.it.w.ability,source:'tech-weakness',weakness:true};
       const it=row.it.it,cn=cpn(it.cp);
       return{role,base:row.name,gw:it.name,mp:mpLead(it.ability)||it.name,cp:String(it.cp),cpNum:cn==null?0:cn,ability:(it.ability||'')+' [integral system — read Gear modifier as Body Part]',source:'tech-gear',weakness:false};
     }
     let m=row.it.m,name=m.name,cp=m.cp,ability=m.ability;
     if(m.picks&&m.picks.length){const p=m.picks[die(m.picks.length)-1];name=m.name+' — '+p.name;cp=p.cp;ability=p.ability;}
+    if(row.kind==='tech')ability=(ability||'')+' [designed-in system]';
     const cn=cpn(cp);return{role,base:row.name,gw:name,mp:mpLead(ability)||name,cp:String(cp),cpNum:cn==null?0:cn,ability:ability||'',source:row.it.cat,weakness:(role==='weakness')};
   }
   function rollRole(role,n){
@@ -763,6 +768,7 @@
     state.activeRole=role;
     const built=buildPools(),sp=state.species,meta=ROLE_META[role],rows=poolTable(role);
     const sel=state.abilities.filter(a=>a.role===role&&!isFixed(a)).map(a=>a.base);
+    if(built.kind==='creature'&&!rows.length){const cEq=(BEST()[sp]||{}).equipment;const emptyMsg=`<div class="gw-hint" style="padding:14px;border:1px dashed var(--wl-line);border-radius:6px;background:var(--wl-input)">The converted <strong>${esc(sp)}</strong> package has no ${esc(meta.label)} entries — this is normal for creature packages.${cEq?` Its combat capability comes from equipment: <strong>${esc(cEq)}</strong> — add it at the Weapons & Gear step.`:''}</div>`;return head(meta.n,meta.label+(role==='weakness'?'':' Abilities'),meta.desc)+`<div class="gw-content"><div class="gw-table-side">${emptyMsg}</div></div>`+nav(meta.n,meta.next);}
     const table=`<div class="gw-scroll"><table class="gw-rt"><thead><tr><th class="rng">d100</th><th>Ability</th><th class="cp">CP</th></tr></thead><tbody>`+
       rows.map((r,i)=>{const mp=r.kind==='mutant'?(mpLead(r.it.m.ability)||r.name):r.name;const on=sel.includes(r.name);const over=role!=='weakness'&&overCapCp(parseFloat(String(r.cp)));return `<tr data-pick-row="${i}" class="${on?'sel':''}${over?' inel':''}"${over?` title="Over the ${tierCaps().ability} CP Ability Cap at ${esc(state.powerLevel)} (MP 2.1.16.5)"`:''}><td class="rng">${r.lo}-${r.hi}</td><td>${over?'🔒 ':''}${esc(mp)}<span style="color:var(--wl-soft)"> · ${esc(r.name)}</span></td><td class="cp">${esc(String(r.cp))}</td></tr>`;}).join('')+`</tbody></table></div>`;
     const picks=state.abilities.filter(a=>a.role===role&&!isFixed(a));
@@ -773,7 +779,7 @@
       (canCat?`<button class="gw-roll-btn" data-act="roll-cat">🎲 Roll this category</button>`:'')+
       (built.kind==='wastelander'?'':`<button class="gw-roll-btn sm" data-act="roll-all">Roll all (2/2/2/2)</button>`)+
       `<button class="gw-roll-rest" data-act="clear-role">Clear this category</button>`+
-      `<div class="gw-hint">${isCreature(sp)?`Playing a ${esc(sp)}: its converted MP package for this role. Click a pick to drop it.`:(sp==='Tech Construct'?'Tech Construct: integral systems from the artifact tables — read Gear modifiers as Body Part. Weaknesses are robotic (placeholder -10 pricing).':(sp==='Pure Strain Human'?(state.pshPath==='commando'?('Commando PSH: mundane picks from the War Heroes tables — base '+((WH.commando||{}).coreCp||5)+' CP, may grow to '+((WH.commando||{}).maxPerAbility||20)+' CP in the builder.'):'Wastelander PSH: no ability rolls — spend CP on Ancient gear at step 16. Weaknesses are still available here for extra CP.'):'Drawn from your GW→MP mutation charts for this role.'))}</div></div>`;
+      `<div class="gw-hint">${isCreature(sp)?`Playing a ${esc(sp)}: its converted MP package for this role. Click a pick to drop it.`:(sp==='Tech Construct'?'Tech Construct: integral systems from the artifact tables (read Gear modifiers as Body Part) plus designed-in abilities from the conversion charts. Weaknesses are robotic (placeholder -10 pricing).':(sp==='Pure Strain Human'?(state.pshPath==='commando'?('Commando PSH: mundane picks from the War Heroes tables — base '+((WH.commando||{}).coreCp||5)+' CP, may grow to '+((WH.commando||{}).maxPerAbility||20)+' CP in the builder.'):'Wastelander PSH: no ability rolls — spend CP on Ancient gear at step 16. Weaknesses are still available here for extra CP.'):'Drawn from your GW→MP mutation charts for this role.'))}</div></div>`;
     return head(meta.n,meta.label+(role==='weakness'?'':' Abilities'),meta.desc)+
       `<div class="gw-content"><div class="gw-table-side">${table}</div>${ctrl}</div>${pickList}`+nav(meta.n,meta.next);
   }
