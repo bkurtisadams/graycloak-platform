@@ -1,4 +1,6 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.11 — Gear step shows the full grouped gear table on the left (click rows to add/remove, like Abilities) with roll/clear controls on the right; header nav on every step (Start Over + Back + Next beside the step title) -->
+<!-- gw-character.html v0.2.10 — Wastelander PSH skips steps 12-14 (offense/defense/misc): go() redirects past skipped steps in the direction of travel, chronicle shows them as 'skipped', roll-all hidden on the Wastelander weakness step, draft step snapped forward on load -->
 <!-- gw-character.html v0.2.9 — PSH overhaul: species package auto-applied (DNA-lock access +5, stat caps -5, Heightened Cool +3 from GW +3 Charisma); Wastelander/Commando path toggle — Commando prices picks from WH.commando (coreCp/maxPerAbility/bonusFromWeaknesses) and auto-adds the training package, Wastelander skips ability rolls; step 16 opens the full artifact list (armor/devices/drugs/grenades) gated by Ancient ID locks -->
 <!-- gw-character.html v0.2.6 — Tech Construct rolls 2/2/2/2: offense/defense/misc pools built from artifact groups (weapons/armor/devices), built-in robotic weakness table; Ancient ID locks parsed from ability text gate gear by species everywhere; Friends of Entropy closed to machines -->
 <!-- gw-character.html v0.2.5 — species-keyed GW origins: mystical branches dropped (no magic in GW1e), MP roll-twice-pick-either implemented, type-prefixed entries preserve MP originType on export, F.originsBySpecies override hook -->
@@ -565,7 +567,7 @@
 
   /* ── draft persistence ──────────────────────────────────────── */
   function saveDraft(){try{localStorage.setItem(DRAFT_KEY,JSON.stringify({v:4,state:{...state,exportId:window.__gwExportId||null}}));}catch(e){}}
-  function loadDraft(){try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');if(!d||d.v!==4)return false;Object.assign(state,d.state||{});if(!state.pshPath)state.pshPath='wastelander';normalizeCore();if(d.state&&d.state.exportId)window.__gwExportId=d.state.exportId;return true;}catch(e){return false;}}
+  function loadDraft(){try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');if(!d||d.v!==4)return false;Object.assign(state,d.state||{});if(!state.pshPath)state.pshPath='wastelander';if(state.species==='Pure Strain Human'&&state.pshPath!=='commando'&&state.step>=12&&state.step<=14)state.step=15;normalizeCore();if(d.state&&d.state.exportId)window.__gwExportId=d.state.exportId;return true;}catch(e){return false;}}
   function startOver(){try{localStorage.removeItem(DRAFT_KEY);}catch(e){}window.__gwExportId=null;state={ step:0, powerLevel:'Low', activeRole:'offense', pshPath:'wastelander', name:'', player:'', species:'Humanoid (Mutant)', culture:'', side:'', faction:'', alliance:'', home:'', homeland:'', bc:{st:10,en:10,ag:10,in:10,cl:10}, gender:'', age:'', weight:'', genderIdentity:'', genderExpression:'', biologicalSex:'', sexualAttraction:'', ageMethod:'standard', backgrounds:[], backgroundChoices:[], motivation:'', origin:'', originChoices:[], abilities:[], rollLog:[], exportId:null };applyAuthDefault();render();}
 
   /* ── step model ─────────────────────────────────────────────── */
@@ -579,7 +581,8 @@
   ];
   const LAST_DATA=16;
   const rollByKey={species:rollSpecies,faction:rollFaction,side:rollSide,culture:rollCulture,home:rollHome,homeland:rollHomeland,bc:rollBC,bio:rollBio,backgrounds:rollBackgrounds,motivation:rollMotivation,origin:rollOrigin,offense:rollAbilities,defense:()=>{},misc:()=>{},weakness:()=>{},weapons:()=>{}};
-  function go(n){state.step=n;saveDraft();render();window.scrollTo({top:0,behavior:'smooth'});}
+  function skipStep(n){return state.species==='Pure Strain Human'&&state.pshPath!=='commando'&&n>=12&&n<=14;}
+  function go(n){const dir=n>=state.step?1:-1;while(skipStep(n))n+=dir;n=Math.min(17,Math.max(1,n));state.step=n;saveDraft();render();window.scrollTo({top:0,behavior:'smooth'});}
   function rollRemaining(fromN){for(let i=fromN-1;i<LAST_DATA;i++){const k=STEPS[i].key;if(rollByKey[k])rollByKey[k]();}go(17);}
 
   /* ── species branch tracker (origin-tracker analog) ─────────── */
@@ -624,12 +627,12 @@
     const b=branchInfo();
     const track=`<div class="gw-track"><div class="gw-track-h">${esc(b.label)}${complete?' ✓':''}</div><div class="gw-track-b">`+
       b.items.map(it=>{const done=state.step>it.step,act=state.step===it.step;const cls=done?'done':(act?'active':'pending');const ck=done?'✓':'○';return `<div class="gw-track-item ${cls}"><span>${ck}</span><span>${esc(it.t)}</span></div>`;}).join('')+`</div></div>`;
-    const steps=STEPS.map(s=>{const act=s.n===state.step,res=chronResult(s.key),done=!act&&res!=='—';let cls='gw-cstep';if(act)cls+=' active';if(done)cls+=' completed';return `<div class="${cls}" data-goto="${s.n}"><div class="h">${s.n}. ${esc(s.name)}</div><div class="r">${res}</div></div>`;}).join('');
+    const steps=STEPS.map(s=>{const skip=skipStep(s.n);const act=s.n===state.step,res=skip?'skipped (Wastelander)':chronResult(s.key),done=!act&&!skip&&res!=='—';let cls='gw-cstep';if(act)cls+=' active';if(done)cls+=' completed';return `<div class="${cls}" data-goto="${s.n}"${skip?' style="opacity:.45"':''}><div class="h">${s.n}. ${esc(s.name)}</div><div class="r">${res}</div></div>`;}).join('');
     return `<div class="gw-chronicle ${complete?'complete':''}"><div class="gw-chron-title ${complete?'complete':''}">${complete?'✓ Build Complete':'Generation Chronicle'}</div>${tally}${track}${steps}</div>`;
   }
 
   /* ── main panel: step renderers ─────────────────────────────── */
-  function head(n,title,desc){return `<div class="gw-step-head"><div class="gw-step-num">${n}</div><div class="gw-step-title">${esc(title)}</div></div>${desc?`<p class="gw-step-desc">${desc}</p>`:''}`;}
+  function head(n,title,desc){const hnav=`<div style="margin-left:auto;display:flex;gap:6px;align-items:center"><button class="wl-btn ghost" data-act="startover" style="font-size:11px;padding:4px 10px">↺ Start Over</button>${n>1?`<button class="wl-btn ghost" data-act="prev" style="font-size:11px;padding:4px 10px">← Back</button>`:''}${n<17?`<button class="wl-btn green" data-act="next" style="font-size:11px;padding:4px 10px">Next →</button>`:''}</div>`;return `<div class="gw-step-head"><div class="gw-step-num">${n}</div><div class="gw-step-title">${esc(title)}</div>${hnav}</div>${desc?`<p class="gw-step-desc">${desc}</p>`:''}`;}
   function nav(n,nextLabel,opts){opts=opts||{};const prev=n===1?`<button class="wl-btn ghost" data-act="startover">← Start Over</button>`:`<button class="wl-btn ghost" data-act="prev">← Back</button>`;const rest=opts.noRest?'':`<button class="wl-btn ghost" data-act="rollrest" title="Roll every remaining step and jump to Review">🎲 Roll the rest →</button>`;const next=opts.noNext?'':`<button class="wl-btn green" data-act="next">${esc(nextLabel||'Next →')}</button>`;return `<div class="gw-nav"><div>${prev}</div><div style="display:flex;gap:8px">${rest}${next}</div></div>`;}
   function rollBox(title,resultHtml,pickHtml,rollLabel){return `<div class="gw-controls"><div class="gw-controls-title">${title||'Roll or Pick'}</div><button class="gw-roll-btn" data-act="roll">🎲 ${esc(rollLabel||'Roll')}</button><div class="gw-roll-res">${resultHtml||''}</div><div class="gw-or">— or —</div>${pickHtml||''}</div>`;}
   function tableRows(rows,selName){return `<div class="gw-scroll"><table class="gw-rt">${rows}</table></div>`;}
@@ -751,7 +754,7 @@
     const canCat=built.kind!=='creature'&&!(built.kind==='wastelander'&&role!=='weakness');
     const ctrl=`<div class="gw-controls"><div class="gw-controls-title">${meta.label}</div>`+budget+
       (canCat?`<button class="gw-roll-btn" data-act="roll-cat">🎲 Roll this category</button>`:'')+
-      `<button class="gw-roll-btn sm" data-act="roll-all">Roll all (2/2/2/2)</button>`+
+      (built.kind==='wastelander'?'':`<button class="gw-roll-btn sm" data-act="roll-all">Roll all (2/2/2/2)</button>`)+
       `<button class="gw-roll-rest" data-act="clear-role">Clear this category</button>`+
       `<div class="gw-hint">${isCreature(sp)?`Playing a ${esc(sp)}: its converted MP package for this role. Click a pick to drop it.`:(sp==='Tech Construct'?'Tech Construct: integral systems from the artifact tables — read Gear modifiers as Body Part. Weaknesses are robotic (placeholder -10 pricing).':(sp==='Pure Strain Human'?(state.pshPath==='commando'?('Commando PSH: mundane picks from the War Heroes tables — base '+((WH.commando||{}).coreCp||5)+' CP, may grow to '+((WH.commando||{}).maxPerAbility||20)+' CP in the builder.'):'Wastelander PSH: no ability rolls — spend CP on Ancient gear at step 16. Weaknesses are still available here for extra CP.'):'Drawn from your GW→MP mutation charts for this role.'))}</div></div>`;
     return head(meta.n,meta.label+(role==='weakness'?'':' Abilities'),meta.desc)+
@@ -759,12 +762,15 @@
   }
   function stepWeapons(){
     const groups=gearList();
-    const pick=`<select class="gw-pick" data-weapon>`+groups.map(g=>`<optgroup label="${esc(g.label)}">`+g.items.map(w=>`<option value="${esc(w.name)}">${esc(w.name)} (${w.cp} CP)</option>`).join('')+`</optgroup>`).join('')+`</select>`;
+    const owned=state.abilities.filter(a=>a.source==='special-weapon').map(a=>a.gw);
+    const table=`<table class="gw-rt"><caption>Weapons & Gear — click a row to add or remove</caption><tbody>`+
+      groups.map(g=>`<tr style="cursor:default;background:var(--wl-band);color:#ffe9ad"><td colspan="2" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px">${esc(g.label)}</td></tr>`+
+        g.items.map(w=>`<tr data-gearname="${esc(w.name)}" class="${owned.indexOf(w.name)>=0?'sel':''}"><td class="rng">${w.cp} CP</td><td>${esc(w.name)}</td></tr>`).join('')).join('')+`</tbody></table>`;
     const gear=state.abilities.filter(a=>a.source==='special-weapon');
-    const chips=gear.map((g,i)=>`<span class="gw-chip">${esc(g.gw)} (${esc(g.cp)})<span class="x" data-rmweap="${state.abilities.indexOf(g)}">✕</span></span>`).join('')||'<span class="gw-hint">No weapons added.</span>';
-    const ctrl=`<div class="gw-controls"><div class="gw-controls-title">Add Gear</div>${pick}<button class="gw-roll-btn sm" style="margin-top:6px" data-act="addweapon">Add selected</button><button class="gw-roll-btn" data-act="rollweapon">🎲 Roll random gear</button><div class="gw-hint">Weapons, armor, devices, and drugs are Gear-modified abilities — CP counts against the build. PSH see the full Ancient list; ID-locked items are hidden from other species.</div></div>`;
+    const chips=gear.map(g=>`<span class="gw-chip">${esc(g.gw)} (${esc(g.cp)})<span class="x" data-rmweap="${state.abilities.indexOf(g)}">✕</span></span>`).join('')||'<span class="gw-hint">No gear added.</span>';
+    const ctrl=`<div class="gw-controls"><div class="gw-controls-title">Gear</div><button class="gw-roll-btn" data-act="rollweapon">🎲 Roll random gear</button><button class="gw-roll-rest" data-act="clear-gear">Clear all gear</button><div class="gw-hint">Weapons, armor, devices, and drugs are Gear-modified abilities — CP counts against the build. PSH see the full Ancient list; ID-locked items are hidden from other species.</div></div>`;
     return head(16,'Weapons & Gear','Standard weapons and the full Ancient artifact tables — armor, grenades, devices, and drugs included. Ancient ID locks apply.')+
-      `<div class="gw-content"><div class="gw-table-side">${chips}</div>${ctrl}</div>`+nav(16,'Review →',{noRest:true});
+      `<div class="gw-content"><div class="gw-table-side">${table}</div>${ctrl}</div><div style="margin-top:8px">${chips}</div>`+nav(16,'Review →',{noRest:true});
   }
   function stepReview(){
     const birth=[state.home,state.homeland].filter(Boolean).join(' — ');
@@ -780,7 +786,7 @@
     const gearHtml=gear.length?`<div class="gw-hint" style="margin:6px 0"><strong>Gear (Special Weapons):</strong> ${gear.map(g=>esc(g.gw)).join(', ')}</div>`:'';
     let json='';try{json=JSON.stringify(buildMP(),null,2);}catch(e){json='// '+e.message;}
     const idEdit=`<div style="display:flex;gap:8px;max-width:480px;margin-bottom:8px"><div style="flex:1"><label style="font-size:11px;color:var(--wl-soft)">Name</label><input data-text="name" value="${esc(state.name||'')}"></div><div style="flex:1"><label style="font-size:11px;color:var(--wl-soft)">Player</label><input data-text="player" value="${esc(state.player||'')}"></div></div>`;
-    return `<div class="gw-step-head"><div class="gw-step-num">✓</div><div class="gw-step-title">Review</div></div>`+
+    return `<div class="gw-step-head"><div class="gw-step-num">✓</div><div class="gw-step-title">Review</div><div style="margin-left:auto;display:flex;gap:6px;align-items:center"><button class="wl-btn ghost" data-act="startover" style="font-size:11px;padding:4px 10px">↺ Start Over</button><button class="wl-btn ghost" data-act="prev" style="font-size:11px;padding:4px 10px">← Back</button></div></div>`+
       `<div class="gw-summary"><h3>Build Complete</h3><p>Review below, then transfer to the MP Builder.</p></div>`+warnHtml+
       `<div class="gw-summary-actions"><button class="wl-btn green" data-act="transfer">Transfer to MP Builder →</button><button class="wl-btn ghost" data-act="copyjson">Export JSON</button><button class="wl-btn ghost" data-act="startover">Start Over</button><button class="wl-btn red" data-act="discard">Discard</button></div>`+
       idEdit+
@@ -826,6 +832,7 @@
       const goEl=e.target.closest('[data-goto]');if(goEl){go(+goEl.dataset.goto);return;}
       const a=e.target.closest('[data-act]');if(a){onAct(a.dataset.act);return;}
       const sp=e.target.closest('[data-spk]');if(sp){setSpecies(sp.dataset.spk);log('Species: '+state.species);saveDraft();render();return;}
+      const gr=e.target.closest('[data-gearname]');if(gr){const nm=gr.dataset.gearname;const ex=state.abilities.find(a=>a.source==='special-weapon'&&a.gw===nm);if(ex){state.abilities=state.abilities.filter(a=>a!==ex);log('Removed gear: '+nm);}else{addGear(flatGear().find(x=>x.name===nm));}saveDraft();render();return;}
       const pp=e.target.closest('[data-pshpath]');if(pp){state.pshPath=pp.dataset.pshpath;state.abilities=state.abilities.filter(a=>a.source==='special-weapon');applyPshPackage();log('PSH path: '+(state.pshPath==='commando'?'Commando':'Wastelander'));saveDraft();render();return;}
       const fk=e.target.closest('[data-fck]');if(fk){state.faction=fk.dataset.fck;const al=allianceByName(state.faction);if(al&&al.side)state.side=al.side;saveDraft();render();return;}
       const oc=e.target.closest('[data-oc]');if(oc){const v=(state.originChoices||[])[+oc.dataset.oc];if(v){state.origin=v;log('Origin: '+v);}saveDraft();render();return;}
@@ -874,8 +881,8 @@
       case 'roll-cat':rollRole(state.activeRole,2);saveDraft();render();return;
       case 'clear-ab':state.abilities=state.abilities.filter(a=>isFixed(a));log('Cleared abilities.');saveDraft();render();return;
       case 'clear-role':state.abilities=state.abilities.filter(a=>!(a.role===state.activeRole&&!isFixed(a)));log('Cleared '+state.activeRole+' abilities.');saveDraft();render();return;
-      case 'addweapon':{const sel=$('#gw-main [data-weapon]');if(sel)addGear(flatGear().find(w=>w.name===sel.value));saveDraft();render();return;}
       case 'rollweapon':{const Lw=flatGear();addGear(Lw[die(Lw.length)-1]);saveDraft();render();return;}
+      case 'clear-gear':state.abilities=state.abilities.filter(a=>a.source!=='special-weapon');log('Cleared gear.');saveDraft();render();return;
     }
   }
 
