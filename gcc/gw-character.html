@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.34 — Animal/Plant BC modifiers are no longer applied to Basic Characteristics and no longer displayed on Step 7; the Animal/Plant package still records the MP 2.2 BC mod note for manual handling after transfer, matching other stat-modifying abilities. -->
 <!-- gw-character.html v0.2.33 — Step 7 BC display now shows Mutated Animal/Plant species modifiers inline beside ST/EN/AG and in a persistent breakdown panel, including zero-mod stats; stale Animal/Plant drafts with no rolled type now get a visible repair prompt instead of silently hiding the modifier area. -->
 <!-- gw-character.html v0.2.32 — Animal/Plant Abilities is now one Miscellaneous MP ability: single draftable misc candidate (Core-designatable, appears in Ability Draft) holding species-ability subs in apSubs; counts toward the two Miscellaneous picks (rollRole quota reduced, togglePick never evicts it, roll-all/clear preserve it); species Weaknesses moved to fixed source ap-weakness; panel typography matched to wizard scale (12px) and panel shown only on Species/Miscellaneous/Weakness steps; container exports as multi-row sheet entry via existing ' / ' splitting; loadDraft migrates pre-v0.2.32 per-role package entries. -->
 <!-- gw-character.html v0.2.31 — MP Wealth wired: export wealth field is the Wealth roll (d4 base per MP 2.1.12, mapped from any Wealth ability CPs via the 8.4.2 tier table, was hardcoded '0'); Seekers membership auto-adds a fixed 5 CP Wealth d6+1 ability (GW1e: members "usually very rich"), applied/removed on any faction change via new setFaction (roll, table click, dropdown, species revalidation); faction-package joins fixed sources. gw-cryptic-alliances.js audit: no eligible/excluded overrides present, v0.2.30 fallback rules are the live eligibility logic; alliance species/speciesPools fields are unused by the wizard. -->
@@ -384,7 +385,7 @@
 
   /* ── per-step rolls (pure state) ────────────────────────────── */
   function rollName(){if(!F||!F.rollName)return;state.name=F.rollName();log('Name: '+state.name);}
-  function setSpecies(sp){if(state.apType){applyApBcMods(state.apType,'');state.apType='';}state.species=sp;state.abilities=state.abilities.filter(a=>a.source==='special-weapon');if(sp==='Pure Strain Human'&&enforceBCCaps())log('PSH caps applied: ST\u226418, EN/AG/IN/CL\u226424.');revalidateFaction();revalidateOrigin();applyPshPackage();applyFactionPackage();if(isAnimalPlant(sp))rollApPackage();if(isCreature(sp))rollAbilities();}
+  function setSpecies(sp){if(state.apType)state.apType='';state.species=sp;state.abilities=state.abilities.filter(a=>a.source==='special-weapon');if(sp==='Pure Strain Human'&&enforceBCCaps())log('PSH caps applied: ST\u226418, EN/AG/IN/CL\u226424.');revalidateFaction();revalidateOrigin();applyPshPackage();applyFactionPackage();if(isAnimalPlant(sp))rollApPackage();if(isCreature(sp))rollAbilities();}
   function applyPshPackage(){
     state.abilities=state.abilities.filter(a=>a.source!=='psh-package');
     if(state.species!=='Pure Strain Human')return;
@@ -398,7 +399,7 @@
   const APD=()=>window.GWMPAnimal||null;
   function isAnimalPlant(sp){sp=sp||state.species;return sp==='Mutated Animal'||sp==='Mutated Plant';}
   function apModsOf(t){const d=APD();const e=d&&t?d.types.find(x=>x.name===t):null;return e?{st:e.st||0,en:e.en||0,ag:e.ag||0}:{st:0,en:0,ag:0};}
-  function applyApBcMods(oldT,newT){const o=apModsOf(oldT),n=apModsOf(newT);['st','en','ag'].forEach(k=>{state.bc[k]=(state.bc[k]||0)-o[k]+n[k];});}
+  // Animal/Plant BC modifiers are recorded in the package text only; like other stat-modifying Abilities, they do not alter generated BC scores here.
   function apRollCount(){const d=APD();return ((d&&d.rolls)||{Normal:1,Low:2,Standard:3,High:4})[state.powerLevel]||2;}
   function apSgn(n){return n>0?'+'+n:(n<0?String(n):'—');}
   function apContainer(){return state.abilities.find(a=>a.source==='ap-package');}
@@ -434,7 +435,7 @@
     const got=[];for(let i=0;i<2;i++){const nm=rollApWeakness(got);if(nm)got.push(nm);}
     got.forEach(nm=>state.abilities.push(apWkEntry(nm,-5)));
   }
-  function setApType(t){const old=state.apType||'';if(t===old)return;applyApBcMods(old,t);state.apType=t;const m=apModsOf(t);log('Animal/Plant type: '+t+' (BC mods ST '+apSgn(m.st)+', EN '+apSgn(m.en)+', AG '+apSgn(m.ag)+').');}
+  function setApType(t){const old=state.apType||'';if(t===old)return;state.apType=t;const m=apModsOf(t);log('Animal/Plant type: '+t+' (BC mods ST '+apSgn(m.st)+', EN '+apSgn(m.en)+', AG '+apSgn(m.ag)+'; note for manual handling after transfer).');}
   function rollApPackage(){
     const d=APD();if(!d||!isAnimalPlant())return;
     state.abilities=state.abilities.filter(a=>a.source!=='ap-package'&&a.source!=='ap-weakness');
@@ -488,7 +489,6 @@
     const tier=tierOf(state.powerLevel),order=['st','en','ag','in','cl'],got={};
     tier.scores.forEach(score=>{let idx=Math.floor((die(10)-1)/2),g=0;while(got[order[idx]]!==undefined&&g++<5)idx=(idx+1)%5;got[order[idx]]=score;});
     order.forEach(k=>state.bc[k]=got[k]||0);
-    if(state.apType){applyApBcMods('',state.apType);log('Animal/Plant BC mods reapplied ('+state.apType+').');}
     if(enforceBCCaps())log('PSH caps applied: ST\u226418, EN/AG/IN/CL\u226424.');
     log(`MP BCs (${tier.name}): ${BCS.map(([k,l])=>l+' '+state.bc[k]).join(', ')} = ${bcTotal()}`);
   }
@@ -1069,16 +1069,9 @@
   function stepBC(){
     const c=tierCaps();
     const plSel=`<div style="max-width:360px;margin-bottom:8px"><label style="font-size:11px;color:var(--wl-soft);display:block;margin-bottom:3px">Power Level / NPC Budget</label>${powerSelect('width:100%')}<div class="gw-hint" style="margin:4px 0 0;font-size:10px">Core ${coreCp()} CP each · BC pool ${tierOf(state.powerLevel).bcPoints} · Caps: Ability ${c.ability} CP · BC ${c.bc} · avg damage ${fmt(c.damage)}</div></div>`;
-    const psh=state.species==='Pure Strain Human',apActive=isAnimalPlant()&&!!state.apType,apMods=apActive?apModsOf(state.apType):{st:0,en:0,ag:0};
-    const modTxt=n=>n>0?'+'+n:(n<0?String(n):'+0');
-    const inlineMod=k=>apActive&&Object.prototype.hasOwnProperty.call(apMods,k)?` <span title="${esc(state.apType)} species modifier" style="color:${apMods[k]<0?'var(--wl-red)':(apMods[k]>0?'var(--wl-green)':'var(--wl-soft)')};font-weight:600">${modTxt(apMods[k])}</span>`:'';
-    const grid=`<div class="gw-bc">`+BCS.map(([k,l])=>`<div class="c"><label>${l}${inlineMod(k)}${psh?` <span style="color:var(--wl-soft);font-weight:400">(max ${bcCap(k)})</span>`:''}</label><input type="number" min="0" max="${bcCap(k)}" data-bc="${k}" value="${state.bc[k]}"></div>`).join('')+`<div class="c"><label>Total</label><div style="font-weight:600;padding:5px 0">${bcTotal()}</div></div></div>`;
-    let mods='';
-    if(apActive){const cells=[['st','ST'],['en','EN'],['ag','AG']].map(([k,l])=>`<span>${l} <span style="color:var(--wl-soft)">${(state.bc[k]||0)-(apMods[k]||0)}</span> <span style="color:${apMods[k]<0?'var(--wl-red)':(apMods[k]>0?'var(--wl-green)':'var(--wl-soft)')}">${modTxt(apMods[k]||0)}</span> &rarr; <strong>${state.bc[k]||0}</strong></span>`);
-      mods=`<div style="background:var(--wl-panel-2);border:1px solid var(--wl-line);border-left:3px solid var(--wl-orange);border-radius:0 5px 5px 0;padding:8px 11px;margin:12px 0"><div style="font-size:11px;font-weight:600;color:var(--wl-orange);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${esc(state.species)} &mdash; ${esc(state.apType)} · species BC mods</div><div style="font-size:12px;display:flex;flex-wrap:wrap;gap:4px 14px">${cells.join('')}</div><div class="gw-hint" style="margin-top:5px">Base spread dealt first, then the species mods applied. The input value is the final, already-modified BC.</div></div>`;
-    }else if(isAnimalPlant()){
-      mods=`<div style="background:#fff2cf;border:1px solid var(--wl-orange);border-left:3px solid var(--wl-orange);border-radius:0 5px 5px 0;padding:8px 11px;margin:12px 0"><div style="font-size:11px;font-weight:600;color:var(--wl-orange);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Animal/Plant species package missing</div><div class="gw-hint" style="margin:0">This character should have an Animal/Plant type before BC modifiers can be shown. Go back to Step 1 or use the button below to roll the species package.</div><button class="gw-roll-btn sm" data-act="ap-reroll" style="width:auto;display:inline-block;padding:6px 14px;margin-top:7px">Roll species package</button></div>`;
-    }
+    const psh=state.species==='Pure Strain Human';
+    const grid=`<div class="gw-bc">`+BCS.map(([k,l])=>`<div class="c"><label>${l}${psh?` <span style="color:var(--wl-soft);font-weight:400">(max ${bcCap(k)})</span>`:''}</label><input type="number" min="0" max="${bcCap(k)}" data-bc="${k}" value="${state.bc[k]}"></div>`).join('')+`<div class="c"><label>Total</label><div style="font-weight:600;padding:5px 0">${bcTotal()}</div></div></div>`;
+    const mods='';
     const note=`<div class="gw-hint">MP Random Method: each of the five ${state.powerLevel} scores [${tierOf(state.powerLevel).scores.join('/')}] is dealt to a stat by a d10 column draw. ${state.powerLevel} starts with ${coreCp()} CP per Core Ability, ${tierOf(state.powerLevel).bcPoints} BC points, and ${tierOf(state.powerLevel).total} total CP. Edit any cell by hand. Changing Power Level rerolls the BC spread but leaves existing ability choices alone so the GM can see any cap warnings.</div>`;
     return head(7,'Basic Characteristics','Choose a Power Level/NPC budget, then roll the five BCs by the MP Random Method.')+
       `<div class="gw-content vertical"><div style="width:100%">${plSel}${grid}${mods}${note}</div></div>`+
@@ -1302,7 +1295,7 @@
       const apt=e.target.closest('[data-aptype]');if(apt){setApType(apt.value);apRerollAbilities();saveDraft();render();return;}
       const wkFund=e.target.closest('[data-wkfund]');if(wkFund){const w=state.abilities[+wkFund.dataset.wkfund],v=wkFund.value;if(w&&w.weakness&&!isFixed(w)){w.fundUid=v;if(v&&v!=='__auto'&&v!=='__none'){log((w.gw||w.mp)+' pinned to fund '+((state.abilities.find(a=>a.uid===v)||{}).mp||'non-Core ability'));}else log((w.gw||w.mp)+' funding set to '+(v==='__none'?'none':'auto'));}saveDraft();render();return;}
       const pk=e.target.closest('[data-pick]');if(pk){const key=pk.dataset.pick,v=pk.value;if(key==='species'){setSpecies(v);}else if(key==='faction'){setFaction(v);}else{state[key]=v;if(key==='genderIdentity'){state.gender=v;}}saveDraft();render();return;}
-      const bc=e.target.closest('[data-bc]');if(bc){const k=bc.dataset.bc,cap=bcCap(k);let v=parseInt(bc.value,10)||0;if(v>cap){v=cap;bc.value=v;}state.bc[k]=v;saveDraft();render();return;}
+      const bc=e.target.closest('[data-bc]');if(bc){const k=bc.dataset.bc,cap=bcCap(k);let v=parseInt(bc.value,10)||0;if(v>cap){v=cap;bc.value=v;}state.bc[k]=v;saveDraft();renderChronicleOnly();const t=$('#gw-main .gw-bc .c:last-child div');if(t)t.textContent=bcTotal();return;}
     });
     body.addEventListener('input',e=>{
       const tx=e.target.closest('[data-text]');if(tx){state[tx.dataset.text]=tx.value;saveDraft();renderChronicleOnly();return;}
