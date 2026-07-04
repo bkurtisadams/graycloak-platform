@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.30 — Cryptic Alliance eligibility audit vs GW1e RAW: Iron Society restricted to human-mutant stock (Humanoid/Orlen/Gren); Seekers rule added (PSH/Humanoid/Gren — members appear completely human); Zoopremisists exclude humanoid-stock creatures (Orlen/Gren); The Created restricted to Android/Tech Construct (RAW: androids only); Ranks of the Fit reopened to PSH per RAW ("All forms of life may join"), machines excluded; Archivists and Healers close to machines; Review warns when a Zoopremisist member lacks Telepathy. Per-alliance eligible/excluded arrays in gw-cryptic-alliances.js still override these fallbacks. -->
 <!-- gw-character.html v0.2.29 — Animal/Plant package panel now also renders on the Offensive/Defensive/Misc/Weakness ability steps; empty package (resumed drafts saved before v0.2.28) shows a prominent 'Roll species package' button that rolls type + abilities + weaknesses; reroll/extra/swap controls hidden until rolled. -->
 <!-- gw-character.html v0.2.28 — MP 2.2 Animal/Plant species package for Mutated Animal/Plant: new gw-mp-animal.js data file (12 types, 2d6 tables, BC mods, swap options, species weakness table); type d12 roll/pick (plants locked to Plant/Fungus); PL-scaled species Ability rolls (Normal 1 extrapolated / Low 2 / Standard 3 / High 4) at 10 CP each with duplicate stacking under the Ability cap; extra roll (+10) and fewer roll (-10) controls; one type-Ability swap in place of a random roll; two -5 species Weaknesses (exempt from the -20 limit) with drop-one-to--10 and drop-both-costs-an-Ability rules; BC mods reapply on rollBC and revert on species/type change; species field and story carry the type. -->
 <!-- gw-character.html v0.2.27 — Sub-ability rows split only on paren-terminated ' / ' separators (fixes Armor "Partial Coverage / Light" false split); rows longer than 120 chars comma-wrap onto CP-less continuation rows. -->
@@ -347,13 +348,18 @@
   function factionOptions(){return ['Independent'].concat((CA&&CA.alliances||[]).filter(a=>factionEligible(a)).map(a=>a.name));}
   function allianceByName(n){return (CA&&CA.alliances||[]).find(a=>a.name===n)||null;}
   // Fallback = GW1e RAW; override per-alliance with eligible:[species] or excluded:[species] arrays in gw-cryptic-alliances.js
+  const MACHINE_SPECIES=['Tech Construct','Android'];
+  const HUMAN_MUTANT_SPECIES=['Humanoid (Mutant)','Orlen','Gren']; // GW1e: Orlens and Grens are mutated human stock
   const FACTION_SPECIES_RULES=[
     {re:/genetic purity/i,ok:sp=>sp==='Pure Strain Human'},
-    {re:/iron society/i,ok:sp=>sp!=='Pure Strain Human'&&sp!=='Tech Construct'&&sp!=='Android'},
-    {re:/zoopremisist/i,ok:sp=>sp==='Mutated Animal'||(isCreature(sp)&&sp!=='Android')},
-    {re:/ranks of the fit/i,ok:sp=>sp!=='Pure Strain Human'},
-    {re:/\bcreated\b/i,ok:sp=>sp!=='Pure Strain Human'},
-    {re:/friends of entropy/i,ok:sp=>sp!=='Tech Construct'&&sp!=='Android'}
+    {re:/iron society/i,ok:sp=>HUMAN_MUTANT_SPECIES.indexOf(sp)>=0}, // "a group of human mutants"
+    {re:/seeker/i,ok:sp=>sp==='Pure Strain Human'||sp==='Humanoid (Mutant)'||sp==='Gren'}, // "all appear completely human"
+    {re:/zoopremisist/i,ok:sp=>sp==='Mutated Animal'||(isCreature(sp)&&MACHINE_SPECIES.indexOf(sp)<0&&HUMAN_MUTANT_SPECIES.indexOf(sp)<0)}, // "non-humanoid thinking mutant animals"
+    {re:/ranks of the fit/i,ok:sp=>MACHINE_SPECIES.indexOf(sp)<0}, // "All forms of life may join" — PSH included per RAW
+    {re:/\bcreated\b/i,ok:sp=>sp==='Android'||sp==='Tech Construct'}, // "open only to androids"
+    {re:/archivist/i,ok:sp=>MACHINE_SPECIES.indexOf(sp)<0}, // robots get deactivated and worshipped, not enrolled
+    {re:/healer/i,ok:sp=>MACHINE_SPECIES.indexOf(sp)<0}, // "membership is both human and mutated"
+    {re:/friends of entropy/i,ok:sp=>MACHINE_SPECIES.indexOf(sp)<0}
   ];
   function factionEligible(a,sp){
     if(!a)return true;sp=sp||state.species;
@@ -610,6 +616,7 @@
   function autoCoreFirstFour(){const abs=coreAbilities();abs.forEach((a,i)=>{a.core=i<Math.min(4,abs.length);});log('Assigned the first '+Math.min(4,abs.length)+' ability candidate'+(Math.min(4,abs.length)===1?'':'s')+' as Core.');}
   function buildWarnings(){
     const abs=coreAbilities(),w=[];
+    if(/zoopremisist/i.test(state.faction||'')&&!state.abilities.some(a=>/telepat/i.test((a.gw||'')+' '+(a.mp||'')+' '+(a.ability||''))))w.push('Zoopremisist agents are all telepathic (GW1e Cryptic Alliances) — this build has no Telepathy; GM may require it for agent status.');
     if(unspent()<0)w.push(`Build overspends by ${fmt(-unspent())} CP — total budget is ${tierOf(state.powerLevel).total} CP at ${state.powerLevel}. Drop paid non-Core abilities, add Weaknesses, or lower BCs (MP 2.1.16).`);
     const want=Math.min(4,abs.length);
     if(abs.length&&coreCount()!==want)w.push(`Use the Ability Draft step to mark ${want} abilities as Core (currently ${coreCount()}).`);
