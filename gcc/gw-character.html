@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.29 — Animal/Plant package panel now also renders on the Offensive/Defensive/Misc/Weakness ability steps; empty package (resumed drafts saved before v0.2.28) shows a prominent 'Roll species package' button that rolls type + abilities + weaknesses; reroll/extra/swap controls hidden until rolled. -->
 <!-- gw-character.html v0.2.28 — MP 2.2 Animal/Plant species package for Mutated Animal/Plant: new gw-mp-animal.js data file (12 types, 2d6 tables, BC mods, swap options, species weakness table); type d12 roll/pick (plants locked to Plant/Fungus); PL-scaled species Ability rolls (Normal 1 extrapolated / Low 2 / Standard 3 / High 4) at 10 CP each with duplicate stacking under the Ability cap; extra roll (+10) and fewer roll (-10) controls; one type-Ability swap in place of a random roll; two -5 species Weaknesses (exempt from the -20 limit) with drop-one-to--10 and drop-both-costs-an-Ability rules; BC mods reapply on rollBC and revert on species/type change; species field and story carry the type. -->
 <!-- gw-character.html v0.2.27 — Sub-ability rows split only on paren-terminated ' / ' separators (fixes Armor "Partial Coverage / Light" false split); rows longer than 120 chars comma-wrap onto CP-less continuation rows. -->
 <!-- gw-character.html v0.2.26 — Sheet rows now carry the full abbreviated MP build (power + modifiers with CP parentheticals); multi-part ' / ' abilities split across rows with CP on the first row only; provenance tag and 160-char truncation removed; abbrBuild reordered (Touch/No Range now fire), unspaced slashes (Armor 3/2/2/2) preserved, new abbreviations (UBO/UOO, Comp, Kin, Rad, dmg, Vap/Perim AE). -->
@@ -948,10 +949,12 @@
       `<select class="gw-pick" data-aptype style="width:auto;display:inline-block">${d.types.slice(1).map(x=>`<option value="${esc(x.name)}" ${state.apType===x.name?'selected':''}>${esc(x.name)}</option>`).join('')}</select> <button class="wl-btn ghost" data-act="ap-type-roll" style="font-size:11px;padding:4px 10px">Roll d12</button>`;
     const mods=t?`<span class="gw-hint" style="margin:0">BC mods: ST ${apSgn(t.st)} · EN ${apSgn(t.en)} · AG ${apSgn(t.ag)}</span>`:'';
     const abl=apEntries().filter(a=>!a.weakness),wks=apEntries().filter(a=>a.weakness);
+    const empty=!abl.length&&!wks.length;
     const btn=(dact,uid,txt,title)=>`<button class="wl-btn ghost" data-${dact}="${uid}" title="${title}" style="font-size:10px;padding:2px 7px;margin-left:5px">${txt}</button>`;
-    const ablRows=abl.length?abl.map(a=>`<div style="margin:2px 0">${esc(a.mp||a.base)} <span style="color:var(--wl-soft)">(${a.cpNum} CP${a.apExtra?', extra roll':''})</span>${btn('aprr',abilityUid(a),'↻','Reroll this species Ability')}${btn('aprm',abilityUid(a),'✕','Remove (fewer roll: -10 CP — MP 2.2)')}</div>`).join(''):'<div style="color:var(--wl-soft)">—</div>';
-    const wkRows=wks.length?wks.map(a=>`<div style="margin:2px 0">${esc(a.base)} <span style="color:var(--wl-soft)">(${a.cpNum} CP, exempt)</span>${btn('apwrr',abilityUid(a),'↻','Reroll this species Weakness')}${btn('apwrm',abilityUid(a),'✕','Drop: other Weakness goes to -10; dropping both costs one species Ability (MP 2.2)')}</div>`).join(''):'<div style="color:var(--wl-soft)">—</div>';
-    const swap=t&&t.swap?`<button class="wl-btn ghost" data-act="ap-swap" style="font-size:11px;padding:4px 10px" title="MP 2.2: in place of one random roll">Use type Ability: ${esc(mpLead(t.swap)||t.swap)}</button>`:'';
+    const ablRows=abl.length?abl.map(a=>`<div style="margin:2px 0">${esc(a.mp||a.base)} <span style="color:var(--wl-soft)">(${a.cpNum} CP${a.apExtra?', extra roll':''})</span>${btn('aprr',abilityUid(a),'↻','Reroll this species Ability')}${btn('aprm',abilityUid(a),'✕','Remove (fewer roll: -10 CP — MP 2.2)')}</div>`).join(''):'<div style="color:var(--wl-soft)">— not rolled yet —</div>';
+    const wkRows=wks.length?wks.map(a=>`<div style="margin:2px 0">${esc(a.base)} <span style="color:var(--wl-soft)">(${a.cpNum} CP, exempt)</span>${btn('apwrr',abilityUid(a),'↻','Reroll this species Weakness')}${btn('apwrm',abilityUid(a),'✕','Drop: other Weakness goes to -10; dropping both costs one species Ability (MP 2.2)')}</div>`).join(''):'<div style="color:var(--wl-soft)">— not rolled yet —</div>';
+    const swap=t&&t.swap&&!empty?`<button class="wl-btn ghost" data-act="ap-swap" style="font-size:11px;padding:4px 10px" title="MP 2.2: in place of one random roll">Use type Ability: ${esc(mpLead(t.swap)||t.swap)}</button>`:'';
+    const extra=empty?'':`<button class="wl-btn ghost" data-act="ap-extra" style="font-size:11px;padding:4px 10px" title="MP 2.2: extra species Ability at (+10) CP">+ Extra Ability (+10 CP)</button>`;
     return `<div style="margin-top:10px;border:1px solid var(--wl-line);border-radius:8px;padding:10px">
       <div style="font-weight:600;margin-bottom:5px">Animal/Plant species package (MP 2.2)</div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px"><span class="gw-hint" style="margin:0"><strong>Type:</strong></span>${typeSel}${mods}</div>
@@ -959,7 +962,7 @@
         <div><div style="font-size:11px;color:var(--wl-soft);margin-bottom:2px">Species Abilities (${apRollCount()} rolls at ${state.powerLevel}${state.powerLevel==='Normal'?' — extrapolated, MP table starts at Low':''}, 10 CP each, 2d6)</div>${ablRows}</div>
         <div><div style="font-size:11px;color:var(--wl-soft);margin-bottom:2px">Species Weaknesses (two at -5, exempt from -20 limit)</div>${wkRows}</div>
       </div>
-      <div style="margin-top:7px;display:flex;gap:8px;flex-wrap:wrap"><button class="wl-btn ghost" data-act="ap-reroll" style="font-size:11px;padding:4px 10px">Reroll package</button><button class="wl-btn ghost" data-act="ap-extra" style="font-size:11px;padding:4px 10px" title="MP 2.2: extra species Ability at (+10) CP">+ Extra Ability (+10 CP)</button>${swap}</div>
+      <div style="margin-top:7px;display:flex;gap:8px;flex-wrap:wrap"><button class="${empty?'gw-roll-btn sm':'wl-btn ghost'}" data-act="ap-reroll" style="${empty?'width:auto;display:inline-block;padding:6px 14px':'font-size:11px;padding:4px 10px'}">${empty?'Roll species package':'Reroll package'}</button>${extra}${swap}</div>
     </div>`;
   }
   function stepSpecies(){
@@ -1091,7 +1094,7 @@
       `<button class="gw-roll-rest" data-act="clear-role">Clear this category</button>`+
       `<div class="gw-hint">${isCreature(sp)?`Playing a ${esc(sp)}: its converted MP package for this role. Click a pick to drop it.`:(sp==='Tech Construct'?'Tech Construct: integral systems from the artifact tables (read Gear modifiers as Body Part) plus designed-in abilities from the conversion charts. Weaknesses are robotic (placeholder -10 pricing).':(sp==='Pure Strain Human'?(state.pshPath==='commando'?('Commando PSH: mundane picks from the War Heroes tables — base '+((WH.commando||{}).coreCp||5)+' CP, may grow to '+((WH.commando||{}).maxPerAbility||20)+' CP in the builder.'):'Wastelander PSH: no ability rolls — spend CP on Ancient gear at step 17. Weaknesses are still available here for extra CP.'):'Drawn from your GW→MP mutation charts for this role. Core/non-Core designation happens on the Ability Draft step after weaknesses are selected.'))}</div></div>`;
     return head(meta.n,meta.label+(role==='weakness'?'':' Abilities'),meta.desc)+
-      `<div class="gw-content"><div class="gw-table-side">${table}${mpTable}</div>${ctrl}</div>${pickList}`+nav(meta.n,meta.next);
+      `<div class="gw-content"><div class="gw-table-side">${table}${mpTable}</div>${ctrl}</div>${pickList}${apPanel()}`+nav(meta.n,meta.next);
   }
   function roleLabel(r){return r==='offense'?'Offensive':(r==='defense'?'Defensive':(r==='misc'?'Miscellaneous':r));}
   function stepDraft(){
@@ -1259,7 +1262,7 @@
       case 'copyjson':exportJSON();return;
       case 'auto-core':autoCoreFirstFour();saveDraft();render();return;
       case 'ap-type-roll':{const d=APD();if(d){setApType(d.types[die(11)].name);apRerollAbilities();}saveDraft();render();return;}
-      case 'ap-reroll':apRerollAbilities();rollApWeaknesses();saveDraft();render();return;
+      case 'ap-reroll':if(!state.apType||!apEntries().length)rollApPackage();else{apRerollAbilities();rollApWeaknesses();}saveDraft();render();return;
       case 'ap-extra':rollApAbility(true);normalizeCore();saveDraft();render();return;
       case 'ap-swap':apSwap();saveDraft();render();return;
       case 'roll':{const k=curKey();if(rollByKey[k])rollByKey[k]();saveDraft();render();return;}
