@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.27 — Sub-ability rows split only on paren-terminated ' / ' separators (fixes Armor "Partial Coverage / Light" false split); rows longer than 120 chars comma-wrap onto CP-less continuation rows. -->
 <!-- gw-character.html v0.2.26 — Sheet rows now carry the full abbreviated MP build (power + modifiers with CP parentheticals); multi-part ' / ' abilities split across rows with CP on the first row only; provenance tag and 160-char truncation removed; abbrBuild reordered (Touch/No Range now fire), unspaced slashes (Armor 3/2/2/2) preserved, new abbreviations (UBO/UOO, Comp, Kin, Rad, dmg, Vap/Perim AE). -->
 <!-- gw-character.html v0.2.25 — Weakness funding now pools multiple kept weaknesses into the same non-Core ability until its CP target is funded. -->
 <!-- gw-character.html v0.2.24 — MP transfer now exports concise sheet labels, de-dupes exact ability echoes, and moves full GW→MP build text into Story/build notes. -->
@@ -731,13 +732,25 @@
     if(weak)return `${weak[1].trim()}`;
     return g;
   }
+  function wrapSheetPart(p,max){
+    const out=[];
+    while(p.length>max){
+      let cut=p.lastIndexOf(', ',max);
+      if(cut<40)cut=p.indexOf(', ',max);
+      if(cut<0)break;
+      out.push(p.slice(0,cut+1));
+      p=p.slice(cut+2);
+    }
+    out.push(p);
+    return out;
+  }
   function abilitySheetParts(a){
     const body=cleanSheetText(a.ability||'').replace(/^Weakness[;:]\s*/i,'');
     if(!body)return [abbrBuild(cleanSheetText(a.mp||a.gw||'Ability'))];
-    const parts=body.split(/\s+\/\s+/).map(abbrBuild);
+    const parts=body.split(/(?<=\))\s+\/\s+/).map(abbrBuild);
     const name=abbrBuild(a.mp||a.gw||''),short=abbrBuild(shortMpName(a)),f=parts[0].toLowerCase();
     if(name&&!f.startsWith(name.toLowerCase())&&!(short&&f.startsWith(short.toLowerCase())))parts[0]=(short||name)+': '+parts[0];
-    return parts;
+    return parts.reduce((o,p)=>o.concat(wrapSheetPart(p,120)),[]);
   }
   function buildNoteLine(a){
     const status=a.weakness?'weakness':(isFixed(a)?(a.source==='special-weapon'?'gear':'fixed'):(a.core?'core':`weakness-funded slot ${nonCoreIndex(a)+1}`));
