@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.32 — Animal/Plant Abilities is now one Miscellaneous MP ability: single draftable misc candidate (Core-designatable, appears in Ability Draft) holding species-ability subs in apSubs; counts toward the two Miscellaneous picks (rollRole quota reduced, togglePick never evicts it, roll-all/clear preserve it); species Weaknesses moved to fixed source ap-weakness; panel typography matched to wizard scale (12px) and panel shown only on Species/Miscellaneous/Weakness steps; container exports as multi-row sheet entry via existing ' / ' splitting; loadDraft migrates pre-v0.2.32 per-role package entries. -->
 <!-- gw-character.html v0.2.31 — MP Wealth wired: export wealth field is the Wealth roll (d4 base per MP 2.1.12, mapped from any Wealth ability CPs via the 8.4.2 tier table, was hardcoded '0'); Seekers membership auto-adds a fixed 5 CP Wealth d6+1 ability (GW1e: members "usually very rich"), applied/removed on any faction change via new setFaction (roll, table click, dropdown, species revalidation); faction-package joins fixed sources. gw-cryptic-alliances.js audit: no eligible/excluded overrides present, v0.2.30 fallback rules are the live eligibility logic; alliance species/speciesPools fields are unused by the wizard. -->
 <!-- gw-character.html v0.2.30 — Cryptic Alliance eligibility audit vs GW1e RAW: Iron Society restricted to human-mutant stock (Humanoid/Orlen/Gren); Seekers rule added (PSH/Humanoid/Gren — members appear completely human); Zoopremisists exclude humanoid-stock creatures (Orlen/Gren); The Created restricted to Android/Tech Construct (RAW: androids only); Ranks of the Fit reopened to PSH per RAW ("All forms of life may join"), machines excluded; Archivists and Healers close to machines; Review warns when a Zoopremisist member lacks Telepathy. Per-alliance eligible/excluded arrays in gw-cryptic-alliances.js still override these fallbacks. -->
 <!-- gw-character.html v0.2.29 — Animal/Plant package panel now also renders on the Offensive/Defensive/Misc/Weakness ability steps; empty package (resumed drafts saved before v0.2.28) shows a prominent 'Roll species package' button that rolls type + abilities + weaknesses; reroll/extra/swap controls hidden until rolled. -->
@@ -297,7 +298,7 @@
   const fmt=n=>(Math.round(n*10)/10).toString();
   const esc=s=>{const d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML.replace(/"/g,'&quot;');};
   const mpLead=t=>{const x=String(t||'').split(/[:(]/)[0].trim();return x.length>2?x:'';};
-  const isFixed=a=>a.source==='special-weapon'||a.source==='psh-package'||a.source==='ap-package'||a.source==='faction-package';
+  const isFixed=a=>a.source==='special-weapon'||a.source==='psh-package'||a.source==='ap-weakness'||a.source==='faction-package';
   let gearFocus=null, draftFocus=null;
   function log(l){if(!l)return;const t=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});state.rollLog.unshift(`[${t}] ${l}`);state.rollLog=state.rollLog.slice(0,50);}
 
@@ -392,58 +393,83 @@
     rows.forEach(r=>state.abilities.push(r));
   }
   function rollSpecies(){setSpecies(rollNonAllianceSpecies());log('Species: '+state.species);}
-  /* ── MP 2.2 Animal/Plant species package ────────────────────── */
+  /* ── MP 2.2 Animal/Plant species package — one Miscellaneous MP ability ─ */
   const APD=()=>window.GWMPAnimal||null;
   function isAnimalPlant(sp){sp=sp||state.species;return sp==='Mutated Animal'||sp==='Mutated Plant';}
   function apModsOf(t){const d=APD();const e=d&&t?d.types.find(x=>x.name===t):null;return e?{st:e.st||0,en:e.en||0,ag:e.ag||0}:{st:0,en:0,ag:0};}
   function applyApBcMods(oldT,newT){const o=apModsOf(oldT),n=apModsOf(newT);['st','en','ag'].forEach(k=>{state.bc[k]=(state.bc[k]||0)-o[k]+n[k];});}
   function apRollCount(){const d=APD();return ((d&&d.rolls)||{Normal:1,Low:2,Standard:3,High:4})[state.powerLevel]||2;}
-  function apAbilityRole(n){if(/Natural Weaponry|Poison\/Venom|Grapnel|Summoning/i.test(n))return 'offense';if(/Armor|Regeneration|Adaptation|Heightened Endurance/i.test(n))return 'defense';return 'misc';}
-  function apEntries(){return state.abilities.filter(a=>a.source==='ap-package');}
-  function apAbilityText(text,cp,extra){return text+(/\(/.test(text)?'':' ('+cp+')')+' — '+cp+' CP species Ability'+(extra?', extra roll (+10)':'')+' (MP 2.2 Animal/Plant: '+(state.apType||'')+')';}
-  function apAbilityEntry(text,extra){const nm=mpLead(text)||text;return{role:apAbilityRole(text),base:text,gw:nm+' (species)',mp:nm,cp:'10',cpNum:10,apExtra:!!extra,ability:apAbilityText(text,10,extra),source:'ap-package',weakness:false,core:false};}
-  function rollApAbility(extra){
-    const d=APD(),t=d&&d.types.find(x=>x.name===state.apType);if(!t)return;
-    for(let g=0;g<40;g++){
-      const r=die(6)+die(6),text=t.table[r-2];
-      const ex=state.abilities.find(a=>a.source==='ap-package'&&!a.weakness&&a.base===text);
-      if(ex){if(ex.cpNum+10<=tierCaps().ability){ex.cpNum+=10;ex.cp=String(ex.cpNum);ex.ability=apAbilityText(ex.base,ex.cpNum,ex.apExtra);log(`Species Ability ${r}: ${mpLead(text)||text} again — stacked to ${ex.cpNum} CP.`);return;}continue;}
-      state.abilities.push(apAbilityEntry(text,extra));log(`Species Ability ${r}: ${mpLead(text)||text} (10 CP${extra?', extra roll +10':''}).`);return;
-    }
-    log('Species Ability roll: no legal result under the '+tierCaps().ability+' CP Ability cap.');
+  function apSgn(n){return n>0?'+'+n:(n<0?String(n):'—');}
+  function apContainer(){return state.abilities.find(a=>a.source==='ap-package');}
+  function apWeaknesses(){return state.abilities.filter(a=>a.source==='ap-weakness');}
+  function apSubLabel(s){return s.text+(/\(/.test(s.text)?'':' ('+s.cp+(s.extra?', extra roll':'')+')');}
+  function rebuildApContainer(){
+    let c=apContainer();
+    const subs=(c&&c.apSubs)||[];
+    if(!subs.length){if(c)state.abilities=state.abilities.filter(a=>a!==c);return;}
+    const m=apModsOf(state.apType),total=subs.reduce((s,x)=>s+x.cp,0);
+    if(!c){c={role:'misc',source:'ap-package',weakness:false,core:undefined,apSubs:subs};state.abilities.push(c);}
+    c.base='Animal/Plant Abilities';c.mp='Animal/Plant Abilities';c.gw='Animal/Plant Abilities — '+(state.apType||'?');
+    c.cpNum=total;c.cp=String(total);
+    c.ability='Animal/Plant Abilities: '+(state.apType||'?')+', BC mods ST '+apSgn(m.st)+', EN '+apSgn(m.en)+', AG '+apSgn(m.ag)+' — MP 2.2 (0) / '+subs.map(apSubLabel).join(' / ');
   }
-  function apWkEntry(nm,cp){return{role:'weakness',base:nm,gw:nm+' (species)',mp:nm,cp:String(cp),cpNum:cp,ability:nm+': take ('+cp+') CPs of this Weakness — specifics with GM (MP 2.2 Animal/Plant species Weakness; raises the -20 creation limit)',source:'ap-package',weakness:true,exempt:true,core:false};}
-  function rollApWeakness(avoid){const d=APD();if(!d)return null;for(let g=0;g<40;g++){const r=die(6)+die(6),nm=d.weaknesses[r-2];if(avoid.indexOf(nm)>=0)continue;log(`Species Weakness ${r}: ${nm} (-5 CP).`);return nm;}return null;}
+  function rollApSub(extra){
+    const d=APD(),t=d&&d.types.find(x=>x.name===state.apType);if(!t)return;
+    let c=apContainer();
+    if(!c){c={role:'misc',source:'ap-package',weakness:false,core:undefined,apSubs:[]};state.abilities.push(c);}
+    if(!c.apSubs)c.apSubs=[];
+    const r=die(6)+die(6),text=t.table[r-2];
+    const ex=c.apSubs.find(s=>s.text===text);
+    if(ex){ex.cp+=10;log('Species Ability '+r+': '+(mpLead(text)||text)+' again — stacked to '+ex.cp+' CP.');}
+    else{c.apSubs.push({text,cp:10,extra:!!extra});log('Species Ability '+r+': '+(mpLead(text)||text)+' (10 CP'+(extra?', extra roll +10':'')+').');}
+    rebuildApContainer();
+    const cc=apContainer();
+    if(cc&&cc.cpNum>tierCaps().ability)log('Animal/Plant Abilities now totals '+cc.cpNum+' CP — over the '+tierCaps().ability+' CP Ability cap at '+state.powerLevel+'; GM may waive (MP 2.1.16.5).');
+  }
+  function apWkEntry(nm,cp){return{role:'weakness',base:nm,gw:nm+' (species)',mp:nm,cp:String(cp),cpNum:cp,ability:nm+': take ('+cp+') CPs of this Weakness — specifics with GM (MP 2.2 Animal/Plant species Weakness; raises the -20 creation limit)',source:'ap-weakness',weakness:true,exempt:true,core:false};}
+  function rollApWeakness(avoid){const d=APD();if(!d)return null;for(let g=0;g<40;g++){const r=die(6)+die(6),nm=d.weaknesses[r-2];if(avoid.indexOf(nm)>=0)continue;log('Species Weakness '+r+': '+nm+' (-5 CP).');return nm;}return null;}
   function rollApWeaknesses(){
-    state.abilities=state.abilities.filter(a=>!(a.source==='ap-package'&&a.weakness));
+    state.abilities=state.abilities.filter(a=>a.source!=='ap-weakness');
     const got=[];for(let i=0;i<2;i++){const nm=rollApWeakness(got);if(nm)got.push(nm);}
     got.forEach(nm=>state.abilities.push(apWkEntry(nm,-5)));
   }
-  function apSgn(n){return n>0?'+'+n:(n<0?String(n):'—');}
   function setApType(t){const old=state.apType||'';if(t===old)return;applyApBcMods(old,t);state.apType=t;const m=apModsOf(t);log('Animal/Plant type: '+t+' (BC mods ST '+apSgn(m.st)+', EN '+apSgn(m.en)+', AG '+apSgn(m.ag)+').');}
   function rollApPackage(){
     const d=APD();if(!d||!isAnimalPlant())return;
-    state.abilities=state.abilities.filter(a=>a.source!=='ap-package');
+    state.abilities=state.abilities.filter(a=>a.source!=='ap-package'&&a.source!=='ap-weakness');
     setApType(state.species==='Mutated Plant'?'Plant/Fungus':d.types[die(11)].name);
-    for(let i=0;i<apRollCount();i++)rollApAbility(false);
+    for(let i=0;i<apRollCount();i++)rollApSub(false);
     rollApWeaknesses();normalizeCore();
   }
-  function apRerollAbilities(){state.abilities=state.abilities.filter(a=>!(a.source==='ap-package'&&!a.weakness));for(let i=0;i<apRollCount();i++)rollApAbility(false);normalizeCore();}
+  function apRerollAbilities(){const c=apContainer();if(c)c.apSubs=[];rebuildApContainer();for(let i=0;i<apRollCount();i++)rollApSub(false);normalizeCore();}
   function apSwap(){
     const d=APD(),t=d&&d.types.find(x=>x.name===state.apType);if(!t||!t.swap)return;
-    if(state.abilities.some(a=>a.source==='ap-package'&&!a.weakness&&a.base===t.swap)){log('Type Ability already in the package.');return;}
-    const rolled=apEntries().filter(a=>!a.weakness);
-    if(rolled.length){const last=rolled[rolled.length-1];state.abilities=state.abilities.filter(a=>a!==last);log('Swapped out '+(last.mp||last.base)+' for the type Ability (MP 2.2: in place of one random roll).');}
-    state.abilities.push(apAbilityEntry(t.swap,false));normalizeCore();
+    const c=apContainer();if(!c||!c.apSubs||!c.apSubs.length)return;
+    if(c.apSubs.some(s=>s.text===t.swap)){log('Type Ability already in the package.');return;}
+    const last=c.apSubs[c.apSubs.length-1];
+    log('Swapped out '+(mpLead(last.text)||last.text)+' for the type Ability (MP 2.2: in place of one random roll).');
+    c.apSubs[c.apSubs.length-1]={text:t.swap,cp:10,extra:last.extra};
+    rebuildApContainer();
   }
+  function apRemoveSub(i){const c=apContainer();if(!c||!c.apSubs||!c.apSubs[i])return;const s=c.apSubs.splice(i,1)[0];log('Removed species Ability '+(mpLead(s.text)||s.text)+' (fewer roll: -10 CP — MP 2.2).');rebuildApContainer();}
+  function apRerollSub(i){const c=apContainer();if(!c||!c.apSubs||!c.apSubs[i])return;const ex=c.apSubs[i].extra;c.apSubs.splice(i,1);rebuildApContainer();rollApSub(ex);}
   function apRemoveWeakness(uid){
-    const wks=apEntries().filter(a=>a.weakness),w=wks.find(a=>a.uid===uid);if(!w)return;
+    const wks=apWeaknesses(),w=wks.find(a=>a.uid===uid);if(!w)return;
     state.abilities=state.abilities.filter(a=>a!==w);
-    const rest=apEntries().filter(a=>a.weakness);
+    const rest=apWeaknesses();
     if(rest.length){const o=rest[0];o.cpNum=-10;o.cp='-10';o.ability=o.ability.replace(/\(-5\)/,'(-10)');log('Dropped '+w.base+' — '+o.base+' increased to -10 CP (MP 2.2).');}
-    else{const abl=apEntries().filter(a=>!a.weakness);if(abl.length){const last=abl[abl.length-1];state.abilities=state.abilities.filter(a=>a!==last);log('Dropped both species Weaknesses at the cost of one species Ability: '+(last.mp||last.base)+' removed (MP 2.2).');}else log('Dropped '+w.base+'.');}
+    else{const c=apContainer();if(c&&c.apSubs&&c.apSubs.length){const last=c.apSubs.pop();log('Dropped both species Weaknesses at the cost of one species Ability: '+(mpLead(last.text)||last.text)+' removed (MP 2.2).');rebuildApContainer();}else log('Dropped '+w.base+'.');}
   }
-  
+  function migrateApEntries(){
+    const olds=state.abilities.filter(a=>a.source==='ap-package'&&(!a.apSubs||a.role!=='misc'));
+    if(!olds.length)return;
+    const subs=[],wks=[];
+    olds.forEach(a=>{if(a.weakness)wks.push(a);else subs.push({text:a.base,cp:a.cpNum||10,extra:!!a.apExtra});});
+    state.abilities=state.abilities.filter(a=>olds.indexOf(a)<0);
+    wks.forEach(w=>{w.source='ap-weakness';state.abilities.push(w);});
+    if(subs.length){state.abilities.push({role:'misc',source:'ap-package',weakness:false,core:undefined,apSubs:subs});rebuildApContainer();}
+    log('Migrated Animal/Plant package to a single Miscellaneous ability (v0.2.32).');
+  }
   function applyFactionPackage(){
     state.abilities=state.abilities.filter(a=>a.source!=='faction-package');
     if(/seeker/i.test(state.faction||'')){
@@ -707,7 +733,8 @@
     return{role,base:row.name,gw:name,mp:mpLead(ability)||name,cp:String(cp),cpNum:cn==null?0:cn,ability:ability||'',source:row.it.cat,weakness:(role==='weakness'),lowPowerGmOnly:!!m.lowPowerGmOnly,capNote:m.capNote||''};
   }
   function rollRole(role,n){
-    n=n||2;const built=buildPools(),rows=poolTable(role);state.abilities=state.abilities.filter(a=>a.role!==role||isFixed(a));
+    n=n||2;const built=buildPools(),rows=poolTable(role);state.abilities=state.abilities.filter(a=>a.role!==role||isFixed(a)||a.source==='ap-package');
+    n=Math.max(0,n-state.abilities.filter(a=>a.role===role&&a.source==='ap-package').length);
     if(built.kind==='creature'){rows.forEach(row=>state.abilities.push(entryFromRow(row,role)));normalizeCore();return;}
     if(role==='weakness'){const got=[];let g=0,sum=0;while(sum>WK_BUDGET&&g++<60&&rows.length){const row=rows[die(rows.length)-1];if(got.some(x=>x.base===row.name))continue;const en=entryFromRow(row,role);if(!en)continue;if(!en.exempt&&sum+en.cpNum<WK_BUDGET)continue;got.push(en);if(!en.exempt)sum+=en.cpNum;}got.forEach(a=>state.abilities.push(a));normalizeCore();return;}
     const got=[];let g=0;while(got.length<n&&g++<200&&rows.length){const row=rows[die(rows.length)-1];if(got.some(x=>x.base===row.name))continue;const en=entryFromRow(row,role);if(!en)continue;if(!en.weakness&&overCapCp(en.cpNum))continue;if(!en.weakness&&lowPowerGmOnly(en))continue;got.push(en);}
@@ -718,9 +745,9 @@
     if(ex){state.abilities=state.abilities.filter(a=>a!==ex);log(`Removed ${row.name}`);}
     else{const e2=entryFromRow(row,role);if(!e2)return;if(!e2.weakness&&overCapCp(e2.cpNum)){log(`${row.name}: over the ${tierCaps().ability} CP Ability Cap at ${state.powerLevel} — GM may waive (MP 2.1.16.5).`);return;}if(!e2.weakness&&lowPowerGmOnly(e2)){log(`${row.name}: ${lowPowerGmNote(e2)} GM may waive.`);return;}
     if(e2.weakness){if(!e2.exempt&&weaknessCPCounted()+e2.cpNum<WK_BUDGET){log(`${row.name} would exceed the ${WK_BUDGET} CP weakness limit at character creation (MP 2.1.16.3).`);return;}state.abilities.push(e2);log(`Picked ${row.name} (${fmt(e2.cpNum)} CP)`);return;}
-    const cur=state.abilities.filter(a=>a.role===role&&!isFixed(a));if(cur.length>=2)state.abilities=state.abilities.filter(a=>a!==cur[0]);state.abilities.push(e2);normalizeCore();log(`Picked ${row.name}`);}
+    const cur=state.abilities.filter(a=>a.role===role&&!isFixed(a));if(cur.length>=2){const evict=cur.find(a=>a.source!=='ap-package')||cur[0];state.abilities=state.abilities.filter(a=>a!==evict);}state.abilities.push(e2);normalizeCore();log(`Picked ${row.name}`);}
   }
-  function rollAbilities(){const built=buildPools();state.abilities=state.abilities.filter(a=>isFixed(a));if(built.kind==='creature'){ROLE_KEYS.forEach(role=>rollRole(role,0));log(`Applied ${state.species} package.`);return;}ROLE_KEYS.forEach(role=>rollRole(role,2));if(built.kind==='commando')log('Commando PSH: mundane abilities from the War Heroes tables.');if(built.kind==='wastelander')log('Wastelander PSH: weaknesses only — spend CP on Ancient gear at step 16.');if(built.kind==='tech')log('Tech Construct: integral systems rolled from the artifact tables.');}
+  function rollAbilities(){const built=buildPools();state.abilities=state.abilities.filter(a=>isFixed(a)||a.source==='ap-package');if(built.kind==='creature'){ROLE_KEYS.forEach(role=>rollRole(role,0));log(`Applied ${state.species} package.`);return;}ROLE_KEYS.forEach(role=>rollRole(role,2));if(built.kind==='commando')log('Commando PSH: mundane abilities from the War Heroes tables.');if(built.kind==='wastelander')log('Wastelander PSH: weaknesses only — spend CP on Ancient gear at step 16.');if(built.kind==='tech')log('Tech Construct: integral systems rolled from the artifact tables.');}
 
   function gearList(){
     const groups=[];const w=(WH.standardWeapons)||{melee:[],missile:[]};
@@ -884,7 +911,7 @@
 
   /* ── draft persistence ──────────────────────────────────────── */
   function saveDraft(){try{localStorage.setItem(DRAFT_KEY,JSON.stringify({v:4,state:{...state,exportId:window.__gwExportId||null}}));}catch(e){}}
-  function loadDraft(){try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');if(!d||d.v!==4)return false;Object.assign(state,d.state||{});if(!state.pshPath)state.pshPath='wastelander';if(state.apType===undefined)state.apType='';if(state.species==='Pure Strain Human'&&state.pshPath!=='commando'&&(state.step>=12&&state.step<=14||state.step===16))state.step=15;normalizeCore();if(d.state&&d.state.exportId)window.__gwExportId=d.state.exportId;return true;}catch(e){return false;}}
+  function loadDraft(){try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');if(!d||d.v!==4)return false;Object.assign(state,d.state||{});if(!state.pshPath)state.pshPath='wastelander';if(state.apType===undefined)state.apType='';migrateApEntries();if(state.species==='Pure Strain Human'&&state.pshPath!=='commando'&&(state.step>=12&&state.step<=14||state.step===16))state.step=15;normalizeCore();if(d.state&&d.state.exportId)window.__gwExportId=d.state.exportId;return true;}catch(e){return false;}}
   function startOver(){try{localStorage.removeItem(DRAFT_KEY);}catch(e){}window.__gwExportId=null;state={ step:0, powerLevel:'Low', activeRole:'offense', pshPath:'wastelander', name:'', player:'', species:'Humanoid (Mutant)', culture:'', side:'', faction:'', alliance:'', home:'', homeland:'', bc:{st:10,en:10,ag:10,in:10,cl:10}, gender:'', age:'', weight:'', genderIdentity:'', genderExpression:'', biologicalSex:'', sexualAttraction:'', ageMethod:'standard', apType:'', backgrounds:[], backgroundChoices:[], motivation:'', origin:'', originChoices:[], abilities:[], rollLog:[], exportId:null };applyAuthDefault();render();}
 
   /* ── step model ─────────────────────────────────────────────── */
@@ -968,23 +995,25 @@
     const isPlant=state.species==='Mutated Plant';
     const t=d.types.find(x=>x.name===state.apType);
     const typeSel=isPlant?`<strong>Plant/Fungus</strong>`:
-      `<select class="gw-pick" data-aptype style="width:auto;display:inline-block">${d.types.slice(1).map(x=>`<option value="${esc(x.name)}" ${state.apType===x.name?'selected':''}>${esc(x.name)}</option>`).join('')}</select> <button class="wl-btn ghost" data-act="ap-type-roll" style="font-size:11px;padding:4px 10px">Roll d12</button>`;
-    const mods=t?`<span class="gw-hint" style="margin:0">BC mods: ST ${apSgn(t.st)} · EN ${apSgn(t.en)} · AG ${apSgn(t.ag)}</span>`:'';
-    const abl=apEntries().filter(a=>!a.weakness),wks=apEntries().filter(a=>a.weakness);
-    const empty=!abl.length&&!wks.length;
-    const btn=(dact,uid,txt,title)=>`<button class="wl-btn ghost" data-${dact}="${uid}" title="${title}" style="font-size:10px;padding:2px 7px;margin-left:5px">${txt}</button>`;
-    const ablRows=abl.length?abl.map(a=>`<div style="margin:2px 0">${esc(a.mp||a.base)} <span style="color:var(--wl-soft)">(${a.cpNum} CP${a.apExtra?', extra roll':''})</span>${btn('aprr',abilityUid(a),'↻','Reroll this species Ability')}${btn('aprm',abilityUid(a),'✕','Remove (fewer roll: -10 CP — MP 2.2)')}</div>`).join(''):'<div style="color:var(--wl-soft)">— not rolled yet —</div>';
+      `<select class="gw-pick" data-aptype style="width:auto;display:inline-block;font-size:12px;padding:3px 6px">${d.types.slice(1).map(x=>`<option value="${esc(x.name)}" ${state.apType===x.name?'selected':''}>${esc(x.name)}</option>`).join('')}</select> <button class="wl-btn ghost" data-act="ap-type-roll" style="font-size:11px;padding:3px 9px">Roll d12</button>`;
+    const mods=t?`<span style="color:var(--wl-soft)">BC mods: ST ${apSgn(t.st)} · EN ${apSgn(t.en)} · AG ${apSgn(t.ag)}</span>`:'';
+    const c=apContainer(),subs=(c&&c.apSubs)||[],wks=apWeaknesses();
+    const empty=!subs.length&&!wks.length;
+    const btn=(dact,key,txt,title)=>`<button class="wl-btn ghost" data-${dact}="${key}" title="${title}" style="font-size:10px;padding:1px 6px;margin-left:4px">${txt}</button>`;
+    const ablRows=subs.length?subs.map((s,i)=>`<div style="margin:2px 0">${esc(mpLead(s.text)||s.text)} <span style="color:var(--wl-soft)">(${s.cp} CP${s.extra?', extra roll':''})</span>${btn('aprr',i,'↻','Reroll this species Ability')}${btn('aprm',i,'✕','Remove (fewer roll: -10 CP — MP 2.2)')}</div>`).join(''):'<div style="color:var(--wl-soft)">— not rolled yet —</div>';
     const wkRows=wks.length?wks.map(a=>`<div style="margin:2px 0">${esc(a.base)} <span style="color:var(--wl-soft)">(${a.cpNum} CP, exempt)</span>${btn('apwrr',abilityUid(a),'↻','Reroll this species Weakness')}${btn('apwrm',abilityUid(a),'✕','Drop: other Weakness goes to -10; dropping both costs one species Ability (MP 2.2)')}</div>`).join(''):'<div style="color:var(--wl-soft)">— not rolled yet —</div>';
-    const swap=t&&t.swap&&!empty?`<button class="wl-btn ghost" data-act="ap-swap" style="font-size:11px;padding:4px 10px" title="MP 2.2: in place of one random roll">Use type Ability: ${esc(mpLead(t.swap)||t.swap)}</button>`:'';
-    const extra=empty?'':`<button class="wl-btn ghost" data-act="ap-extra" style="font-size:11px;padding:4px 10px" title="MP 2.2: extra species Ability at (+10) CP">+ Extra Ability (+10 CP)</button>`;
-    return `<div style="margin-top:10px;border:1px solid var(--wl-line);border-radius:8px;padding:10px">
-      <div style="font-weight:600;margin-bottom:5px">Animal/Plant species package (MP 2.2)</div>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px"><span class="gw-hint" style="margin:0"><strong>Type:</strong></span>${typeSel}${mods}</div>
-      <div style="display:flex;gap:18px;flex-wrap:wrap">
-        <div><div style="font-size:11px;color:var(--wl-soft);margin-bottom:2px">Species Abilities (${apRollCount()} rolls at ${state.powerLevel}${state.powerLevel==='Normal'?' — extrapolated, MP table starts at Low':''}, 10 CP each, 2d6)</div>${ablRows}</div>
-        <div><div style="font-size:11px;color:var(--wl-soft);margin-bottom:2px">Species Weaknesses (two at -5, exempt from -20 limit)</div>${wkRows}</div>
+    const swap=t&&t.swap&&!empty?`<button class="wl-btn ghost" data-act="ap-swap" style="font-size:11px;padding:3px 9px" title="MP 2.2: in place of one random roll">Use type Ability: ${esc(mpLead(t.swap)||t.swap)}</button>`:'';
+    const extra=empty?'':`<button class="wl-btn ghost" data-act="ap-extra" style="font-size:11px;padding:3px 9px" title="MP 2.2: extra species Ability at (+10) CP">+ Extra Ability (+10 CP)</button>`;
+    const total=subs.reduce((s,x)=>s+x.cp,0);
+    return `<div style="margin-top:10px;border:1px solid var(--wl-line);border-radius:8px;padding:9px 10px;font-size:12px">
+      <div class="gw-controls-title" style="margin-bottom:5px">Animal/Plant Abilities — one Miscellaneous MP ability (MP 2.2)${total?` · ${total} CP`:''}</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px;font-size:12px"><strong>Type:</strong>${typeSel}${mods}</div>
+      <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:12px">
+        <div><div style="font-size:10px;color:var(--wl-soft);margin-bottom:2px">Species Abilities (${apRollCount()} rolls at ${state.powerLevel}${state.powerLevel==='Normal'?' — extrapolated, MP table starts at Low':''}, 10 CP each, 2d6)</div>${ablRows}</div>
+        <div><div style="font-size:10px;color:var(--wl-soft);margin-bottom:2px">Species Weaknesses (two at -5, exempt from -20 limit)</div>${wkRows}</div>
       </div>
-      <div style="margin-top:7px;display:flex;gap:8px;flex-wrap:wrap"><button class="${empty?'gw-roll-btn sm':'wl-btn ghost'}" data-act="ap-reroll" style="${empty?'width:auto;display:inline-block;padding:6px 14px':'font-size:11px;padding:4px 10px'}">${empty?'Roll species package':'Reroll package'}</button>${extra}${swap}</div>
+      <div style="margin-top:7px;display:flex;gap:8px;flex-wrap:wrap"><button class="${empty?'gw-roll-btn sm':'wl-btn ghost'}" data-act="ap-reroll" style="${empty?'width:auto;display:inline-block;padding:6px 14px':'font-size:11px;padding:3px 9px'}">${empty?'Roll species package':'Reroll package'}</button>${extra}${swap}</div>
+      <div class="gw-hint" style="margin:6px 0 0;font-size:10px">Counts as one of the two Miscellaneous abilities and appears in the Ability Draft as a single candidate.</div>
     </div>`;
   }
   function stepSpecies(){
@@ -1116,7 +1145,7 @@
       `<button class="gw-roll-rest" data-act="clear-role">Clear this category</button>`+
       `<div class="gw-hint">${isCreature(sp)?`Playing a ${esc(sp)}: its converted MP package for this role. Click a pick to drop it.`:(sp==='Tech Construct'?'Tech Construct: integral systems from the artifact tables (read Gear modifiers as Body Part) plus designed-in abilities from the conversion charts. Weaknesses are robotic (placeholder -10 pricing).':(sp==='Pure Strain Human'?(state.pshPath==='commando'?('Commando PSH: mundane picks from the War Heroes tables — base '+((WH.commando||{}).coreCp||5)+' CP, may grow to '+((WH.commando||{}).maxPerAbility||20)+' CP in the builder.'):'Wastelander PSH: no ability rolls — spend CP on Ancient gear at step 17. Weaknesses are still available here for extra CP.'):'Drawn from your GW→MP mutation charts for this role. Core/non-Core designation happens on the Ability Draft step after weaknesses are selected.'))}</div></div>`;
     return head(meta.n,meta.label+(role==='weakness'?'':' Abilities'),meta.desc)+
-      `<div class="gw-content"><div class="gw-table-side">${table}${mpTable}</div>${ctrl}</div>${pickList}${apPanel()}`+nav(meta.n,meta.next);
+      `<div class="gw-content"><div class="gw-table-side">${table}${mpTable}</div>${ctrl}</div>${pickList}${role==='misc'||role==='weakness'?apPanel():''}`+nav(meta.n,meta.next);
   }
   function roleLabel(r){return r==='offense'?'Offensive':(r==='defense'?'Defensive':(r==='misc'?'Miscellaneous':r));}
   function stepDraft(){
@@ -1239,9 +1268,9 @@
       const mw=e.target.closest('[data-mpwk]');if(mw){const wk=MPWK().find(x=>x.name===mw.dataset.mpwk);if(wk){const ex=state.abilities.find(a=>a.source==='mp-weakness'&&a.base===wk.name);if(ex){state.abilities=state.abilities.filter(a=>a!==ex);log('Removed '+wk.name);}else{const e2=mpwkEntry(wk);if(!e2.exempt&&weaknessCPCounted()+e2.cpNum<WK_BUDGET){log(wk.name+' would exceed the '+WK_BUDGET+' CP weakness limit at character creation (MP 2.1.16.3).');}else{state.abilities.push(e2);log('Picked '+e2.gw+' ('+fmt(e2.cpNum)+' CP)');}}}saveDraft();render();return;}
       const gr=e.target.closest('[data-gearname]');if(gr){const nm=gr.dataset.gearname;gearFocus=nm;const ex=state.abilities.find(a=>a.source==='special-weapon'&&a.gw===nm);if(ex){state.abilities=state.abilities.filter(a=>a!==ex);log('Removed gear: '+nm);}else{const it=flatGear().find(x=>x.name===nm);if(it&&overCapCp(cpn(String(it.cp))||+it.cp)){log(nm+': over the '+tierCaps().ability+' CP Ability Cap at '+state.powerLevel+' — GM may waive (MP 2.1.16.5).');}else{addGear(it);}}saveDraft();render();return;}
       const pp=e.target.closest('[data-pshpath]');if(pp){state.pshPath=pp.dataset.pshpath;state.abilities=state.abilities.filter(a=>a.source==='special-weapon');applyPshPackage();log('PSH path: '+(state.pshPath==='commando'?'Commando':'Wastelander'));saveDraft();render();return;}
-      const arr=e.target.closest('[data-aprr]');if(arr){const a=state.abilities.find(x=>x.uid===arr.dataset.aprr);if(a){state.abilities=state.abilities.filter(x=>x!==a);rollApAbility(a.apExtra);normalizeCore();}saveDraft();render();return;}
-      const arm=e.target.closest('[data-aprm]');if(arm){const a=state.abilities.find(x=>x.uid===arm.dataset.aprm);if(a){state.abilities=state.abilities.filter(x=>x!==a);log('Removed species Ability '+(a.mp||a.base)+' (fewer roll: -10 CP — MP 2.2).');}saveDraft();render();return;}
-      const awr=e.target.closest('[data-apwrr]');if(awr){const a=state.abilities.find(x=>x.uid===awr.dataset.apwrr);if(a){const other=apEntries().filter(x=>x.weakness&&x!==a).map(x=>x.base);state.abilities=state.abilities.filter(x=>x!==a);const nm=rollApWeakness(other);if(nm)state.abilities.push(apWkEntry(nm,a.cpNum));}saveDraft();render();return;}
+      const arr=e.target.closest('[data-aprr]');if(arr){apRerollSub(+arr.dataset.aprr);normalizeCore();saveDraft();render();return;}
+      const arm=e.target.closest('[data-aprm]');if(arm){apRemoveSub(+arm.dataset.aprm);normalizeCore();saveDraft();render();return;}
+      const awr=e.target.closest('[data-apwrr]');if(awr){const a=apWeaknesses().find(x=>x.uid===awr.dataset.apwrr);if(a){const other=apWeaknesses().filter(x=>x!==a).map(x=>x.base);state.abilities=state.abilities.filter(x=>x!==a);const nm=rollApWeakness(other);if(nm)state.abilities.push(apWkEntry(nm,a.cpNum));}saveDraft();render();return;}
       const awm=e.target.closest('[data-apwrm]');if(awm){apRemoveWeakness(awm.dataset.apwrm);saveDraft();render();return;}
       const fk=e.target.closest('[data-fck]');if(fk){setFaction(fk.dataset.fck);saveDraft();render();return;}
       const oc=e.target.closest('[data-oc]');if(oc){const v=(state.originChoices||[])[+oc.dataset.oc];if(v){state.origin=v;log('Origin: '+v);}saveDraft();render();return;}
@@ -1284,8 +1313,8 @@
       case 'copyjson':exportJSON();return;
       case 'auto-core':autoCoreFirstFour();saveDraft();render();return;
       case 'ap-type-roll':{const d=APD();if(d){setApType(d.types[die(11)].name);apRerollAbilities();}saveDraft();render();return;}
-      case 'ap-reroll':if(!state.apType||!apEntries().length)rollApPackage();else{apRerollAbilities();rollApWeaknesses();}saveDraft();render();return;
-      case 'ap-extra':rollApAbility(true);normalizeCore();saveDraft();render();return;
+      case 'ap-reroll':if(!state.apType||(!apContainer()&&!apWeaknesses().length))rollApPackage();else{apRerollAbilities();rollApWeaknesses();}saveDraft();render();return;
+      case 'ap-extra':rollApSub(true);normalizeCore();saveDraft();render();return;
       case 'ap-swap':apSwap();saveDraft();render();return;
       case 'roll':{const k=curKey();if(rollByKey[k])rollByKey[k]();saveDraft();render();return;}
       case 'roll-weight':rollWeight();saveDraft();render();return;
@@ -1298,7 +1327,7 @@
       case 'roll-all':rollAbilities();saveDraft();render();return;
       case 'roll-cat':rollRole(state.activeRole,2);saveDraft();render();return;
       case 'clear-ab':state.abilities=state.abilities.filter(a=>isFixed(a));log('Cleared abilities.');saveDraft();render();return;
-      case 'clear-role':state.abilities=state.abilities.filter(a=>!(a.role===state.activeRole&&!isFixed(a)));log('Cleared '+state.activeRole+' abilities.');saveDraft();render();return;
+      case 'clear-role':state.abilities=state.abilities.filter(a=>!(a.role===state.activeRole&&!isFixed(a)&&a.source!=='ap-package'));log('Cleared '+state.activeRole+' abilities.');saveDraft();render();return;
       case 'rollweapon':{const Lw=flatGear().filter(x=>!overCapCp(cpn(String(x.cp))||+x.cp));const it=Lw[die(Lw.length)-1];if(it)gearFocus=it.name;addGear(it);saveDraft();render();return;}
       case 'clear-gear':state.abilities=state.abilities.filter(a=>a.source!=='special-weapon');log('Cleared gear.');saveDraft();render();return;
     }
