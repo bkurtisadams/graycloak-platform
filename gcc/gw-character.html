@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.26 — Sheet rows now carry the full abbreviated MP build (power + modifiers with CP parentheticals); multi-part ' / ' abilities split across rows with CP on the first row only; provenance tag and 160-char truncation removed; abbrBuild reordered (Touch/No Range now fire), unspaced slashes (Armor 3/2/2/2) preserved, new abbreviations (UBO/UOO, Comp, Kin, Rad, dmg, Vap/Perim AE). -->
 <!-- gw-character.html v0.2.25 — Weakness funding now pools multiple kept weaknesses into the same non-Core ability until its CP target is funded. -->
 <!-- gw-character.html v0.2.24 — MP transfer now exports concise sheet labels, de-dupes exact ability echoes, and moves full GW→MP build text into Story/build notes. -->
 <!-- gw-character.html v0.2.23 — Birthplace table is now city/ruin focused; non-city settlement origins moved into Homeland Type. -->
@@ -679,16 +680,20 @@
   function cleanSheetText(s){return String(s||'').replace(/[“”]/g,'"').replace(/[’]/g,"'").replace(/\s+/g,' ').trim();}
   function abbrBuild(s){
     return cleanSheetText(s)
+      .replace(/Vaporous Area Effect/gi,'Vap AE')
+      .replace(/Perimeter Area Effect/gi,'Perim AE')
       .replace(/Area Effect/gi,'AE')
-      .replace(/Vaporous AE/gi,'Vap AE')
+      .replace(/No Range/gi,'NoRng')
+      .replace(/Touch Range/gi,'Tch')
       .replace(/Range/gi,'Rng')
       .replace(/Duration/gi,'Dur')
       .replace(/Charges/gi,'Chg')
       .replace(/Charge\b/gi,'Chg')
       .replace(/Power Requirement/gi,'PR')
+      .replace(/Usable by Others/gi,'UBO')
+      .replace(/Usable on Others/gi,'UOO')
+      .replace(/Components:/gi,'Comp:')
       .replace(/Immunity/gi,'Imm')
-      .replace(/No Range/gi,'NoRng')
-      .replace(/Touch Range/gi,'Tch')
       .replace(/Total Concentration/gi,'Concentration')
       .replace(/Physical Defense/gi,'Phys Def')
       .replace(/Mental Defense/gi,'Mental Def')
@@ -696,8 +701,11 @@
       .replace(/Invulnerability/gi,'Invuln.')
       .replace(/Regeneration/gi,'Regen.')
       .replace(/Vulnerability/gi,'Vuln.')
-      .replace(/Weakness:/gi,'')
-      .replace(/\s*\/\s*/g,' / ');
+      .replace(/Kinetic/gi,'Kin')
+      .replace(/Radiation/gi,'Rad')
+      .replace(/\bdamage\b/gi,'dmg')
+      .replace(/Weakness[;:]\s*/gi,'')
+      .replace(/\s+\/\s+/g,' / ');
   }
   function shortMpName(a){
     let name=cleanSheetText(a.mp||a.gw||'Ability');
@@ -723,36 +731,13 @@
     if(weak)return `${weak[1].trim()}`;
     return g;
   }
-  function buildHint(a){
-    const b=cleanSheetText(a.ability||''),h=[];
-    if(!b)return '';
-    if(/^Heightened\s+(Strength|Endurance|Agility|Intelligence|Cool)\s*\+?\s*(\d+)/i.test(b)){
-      const m=b.match(/^Heightened\s+(Strength|Endurance|Agility|Intelligence|Cool)\s*\+?\s*(\d+)/i);
-      const map={Strength:'ST',Endurance:'EN',Agility:'AG',Intelligence:'IN',Cool:'CL'};
-      h.push(`${map[m[1]]||m[1]} +${m[2]}`);
-    }
-    const armor=b.match(/Armor:\s*([^,;/]+)/i);if(armor)h.push(abbrBuild(armor[1]).replace(/^Armor\s*/i,'Armor '));
-    const dice=b.match(/(?:^|[:\s])((?:\d*d\d+(?:[+-]\d+)?)(?:\+\d*d\d+(?:[+-]\d+)?)*)\b/i);if(dice&&!h.some(x=>x.includes(dice[1])))h.push(dice[1]);
-    const save=b.match(/\b(ST|EN|AG|IN|CL)\s+save\s*@\s*([+-]\s*\d+)/i);if(save)h.push(`${save[1].toUpperCase()} ${save[2].replace(/\s+/g,'')}`);
-    const ae=b.match(/(\d+)\s*["”]\s*(?:Vaporous\s+|Perimeter\s+)?Area Effect/i);if(ae)h.push(`${ae[1]}" AE`);
-    const chg=b.match(/(\d+)\s+(?:Charges|Chrgs|Charge|Chrg)/i);if(chg)h.push(`${chg[1]} Chg`);
-    return h.slice(0,3).join(', ');
-  }
-  function sheetTag(a){
-    const parts=[];
-    if(a.weakness)parts.push('Weakness');
-    else if(isFixed(a))parts.push(a.source==='special-weapon'?'Gear':'Fixed');
-    else if(a.core)parts.push('Core');
-    else parts.push(`WF${nonCoreIndex(a)+1}`);
-    if(a.gw)parts.push(`GW ${a.gw}`);
-    return `[${parts.join('; ')}]`;
-  }
-  function sheetAbilityDesc(a){
-    let label=a.weakness?shortWeaknessName(a):shortMpName(a);
-    const hint=a.weakness?'':buildHint(a);
-    if(hint&&label.toLowerCase().indexOf(hint.toLowerCase())<0)label+=` ${hint}`;
-    const out=`${abbrBuild(label)} ${sheetTag(a)}`.replace(/\s+/g,' ').trim();
-    return out.length>160?out.slice(0,157).trim()+'...':out;
+  function abilitySheetParts(a){
+    const body=cleanSheetText(a.ability||'').replace(/^Weakness[;:]\s*/i,'');
+    if(!body)return [abbrBuild(cleanSheetText(a.mp||a.gw||'Ability'))];
+    const parts=body.split(/\s+\/\s+/).map(abbrBuild);
+    const name=abbrBuild(a.mp||a.gw||''),short=abbrBuild(shortMpName(a)),f=parts[0].toLowerCase();
+    if(name&&!f.startsWith(name.toLowerCase())&&!(short&&f.startsWith(short.toLowerCase())))parts[0]=(short||name)+': '+parts[0];
+    return parts;
   }
   function buildNoteLine(a){
     const status=a.weakness?'weakness':(isFixed(a)?(a.source==='special-weapon'?'gear':'fixed'):(a.core?'core':`weakness-funded slot ${nonCoreIndex(a)+1}`));
@@ -762,7 +747,10 @@
   }
   function gwBuildNotes(){return exportedAbilityEntries().map(buildNoteLine);}
   function abilityRows(){
-    const rows=exportedAbilityEntries().map(a=>({cp:fmt(assignedAbilityCP(a)),desc:sheetAbilityDesc(a),ip:''}));
+    const rows=[];
+    exportedAbilityEntries().forEach(a=>{
+      abilitySheetParts(a).forEach((d,i)=>rows.push({cp:i===0?fmt(assignedAbilityCP(a)):'',desc:d,ip:''}));
+    });
     while(rows.length<12)rows.push({cp:'',desc:'',ip:''});return rows;
   }
   function storyText(){
