@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.31 — MP Wealth wired: export wealth field is the Wealth roll (d4 base per MP 2.1.12, mapped from any Wealth ability CPs via the 8.4.2 tier table, was hardcoded '0'); Seekers membership auto-adds a fixed 5 CP Wealth d6+1 ability (GW1e: members "usually very rich"), applied/removed on any faction change via new setFaction (roll, table click, dropdown, species revalidation); faction-package joins fixed sources. gw-cryptic-alliances.js audit: no eligible/excluded overrides present, v0.2.30 fallback rules are the live eligibility logic; alliance species/speciesPools fields are unused by the wizard. -->
 <!-- gw-character.html v0.2.30 — Cryptic Alliance eligibility audit vs GW1e RAW: Iron Society restricted to human-mutant stock (Humanoid/Orlen/Gren); Seekers rule added (PSH/Humanoid/Gren — members appear completely human); Zoopremisists exclude humanoid-stock creatures (Orlen/Gren); The Created restricted to Android/Tech Construct (RAW: androids only); Ranks of the Fit reopened to PSH per RAW ("All forms of life may join"), machines excluded; Archivists and Healers close to machines; Review warns when a Zoopremisist member lacks Telepathy. Per-alliance eligible/excluded arrays in gw-cryptic-alliances.js still override these fallbacks. -->
 <!-- gw-character.html v0.2.29 — Animal/Plant package panel now also renders on the Offensive/Defensive/Misc/Weakness ability steps; empty package (resumed drafts saved before v0.2.28) shows a prominent 'Roll species package' button that rolls type + abilities + weaknesses; reroll/extra/swap controls hidden until rolled. -->
 <!-- gw-character.html v0.2.28 — MP 2.2 Animal/Plant species package for Mutated Animal/Plant: new gw-mp-animal.js data file (12 types, 2d6 tables, BC mods, swap options, species weakness table); type d12 roll/pick (plants locked to Plant/Fungus); PL-scaled species Ability rolls (Normal 1 extrapolated / Low 2 / Standard 3 / High 4) at 10 CP each with duplicate stacking under the Ability cap; extra roll (+10) and fewer roll (-10) controls; one type-Ability swap in place of a random roll; two -5 species Weaknesses (exempt from the -20 limit) with drop-one-to--10 and drop-both-costs-an-Ability rules; BC mods reapply on rollBC and revert on species/type change; species field and story carry the type. -->
@@ -296,7 +297,7 @@
   const fmt=n=>(Math.round(n*10)/10).toString();
   const esc=s=>{const d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML.replace(/"/g,'&quot;');};
   const mpLead=t=>{const x=String(t||'').split(/[:(]/)[0].trim();return x.length>2?x:'';};
-  const isFixed=a=>a.source==='special-weapon'||a.source==='psh-package'||a.source==='ap-package';
+  const isFixed=a=>a.source==='special-weapon'||a.source==='psh-package'||a.source==='ap-package'||a.source==='faction-package';
   let gearFocus=null, draftFocus=null;
   function log(l){if(!l)return;const t=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});state.rollLog.unshift(`[${t}] ${l}`);state.rollLog=state.rollLog.slice(0,50);}
 
@@ -381,7 +382,7 @@
 
   /* ── per-step rolls (pure state) ────────────────────────────── */
   function rollName(){if(!F||!F.rollName)return;state.name=F.rollName();log('Name: '+state.name);}
-  function setSpecies(sp){if(state.apType){applyApBcMods(state.apType,'');state.apType='';}state.species=sp;state.abilities=state.abilities.filter(a=>a.source==='special-weapon');if(sp==='Pure Strain Human'&&enforceBCCaps())log('PSH caps applied: ST\u226418, EN/AG/IN/CL\u226424.');revalidateFaction();revalidateOrigin();applyPshPackage();if(isAnimalPlant(sp))rollApPackage();if(isCreature(sp))rollAbilities();}
+  function setSpecies(sp){if(state.apType){applyApBcMods(state.apType,'');state.apType='';}state.species=sp;state.abilities=state.abilities.filter(a=>a.source==='special-weapon');if(sp==='Pure Strain Human'&&enforceBCCaps())log('PSH caps applied: ST\u226418, EN/AG/IN/CL\u226424.');revalidateFaction();revalidateOrigin();applyPshPackage();applyFactionPackage();if(isAnimalPlant(sp))rollApPackage();if(isCreature(sp))rollAbilities();}
   function applyPshPackage(){
     state.abilities=state.abilities.filter(a=>a.source!=='psh-package');
     if(state.species!=='Pure Strain Human')return;
@@ -443,7 +444,15 @@
     else{const abl=apEntries().filter(a=>!a.weakness);if(abl.length){const last=abl[abl.length-1];state.abilities=state.abilities.filter(a=>a!==last);log('Dropped both species Weaknesses at the cost of one species Ability: '+(last.mp||last.base)+' removed (MP 2.2).');}else log('Dropped '+w.base+'.');}
   }
   
-  function rollFaction(){const opts=factionOptions();state.faction=(die(10)<=3||opts.length<2)?'Independent':opts[die(opts.length-1)];const a=allianceByName(state.faction);if(a&&a.side)state.side=a.side;log('Faction: '+state.faction);}
+  function applyFactionPackage(){
+    state.abilities=state.abilities.filter(a=>a.source!=='faction-package');
+    if(/seeker/i.test(state.faction||'')){
+      state.abilities.push({role:'misc',base:'Wealth',gw:'Wealth (Seekers)',mp:'Wealth',cp:'5',cpNum:5,ability:'Wealth: d6+1 roll, ~$160,000 equivalent annual income in local exchange (5) — Seekers membership: "usually very rich" (GW1e Cryptic Alliances; MP 8.4.2)',source:'faction-package',weakness:false,core:false});
+      log('Seekers membership: Wealth d6+1 added (5 CP — GW1e: members are usually very rich).');
+    }
+  }
+  function setFaction(v){state.faction=v;const a=allianceByName(v);if(a&&a.side)state.side=a.side;applyFactionPackage();}
+  function rollFaction(){const opts=factionOptions();setFaction((die(10)<=3||opts.length<2)?'Independent':opts[die(opts.length-1)]);log('Faction: '+state.faction);}
   function rollSide(){state.side=SIDES[die(3)-1];log('Side: '+state.side);}
   function rollCulture(){const c=die(100);state.culture=c<=33?'Primitive':(c<=66?'Modern':'High Tech');log('Culture: '+state.culture);}
   function rollHome(){const r=die(100);const e=BIRTHPLACES.find(x=>r>=x.lo&&x.hi>=r);state.home=e?e.name:'';log(`Birthplace ${r}: ${state.home}`);}
@@ -841,11 +850,17 @@
     if(state.rollLog.length)lines.push('\nRoll log:\n'+state.rollLog.join('\n'));
     return lines.join('\n');
   }
+  /* ── MP 2.1.12 / 8.4.2 Wealth ───────────────────────────────── */
+  const WEALTH_TIERS=[[0,'d4'],[2.5,'d6'],[5,'d6+1'],[7.5,'d8+1'],[10,'d10+1'],[12.5,'2d6'],[15,'d6+d8'],[17.5,'2d8'],[20,'d8+d10'],[22.5,'2d10'],[25,'d10+d12'],[27.5,'2d12'],[30,'3d8'],[32.5,'2d8+d10'],[35,'d8+2d10'],[37.5,'3d10'],[40,'2d10+d12'],[42.5,'d10+2d12'],[45,'3d12'],[47.5,'3d12+1'],[50,'3d12+2']];
+  function exportWealthRoll(){
+    const cp=exportedAbilities().filter(a=>!a.weakness&&/^wealth\b/i.test(a.mp||a.gw||'')).reduce((s,a)=>s+(a.cpNum||0),0);
+    let roll='d4';WEALTH_TIERS.forEach(([c,r])=>{if(cp>=c)roll=r;});return roll;
+  }
   function buildMP(){
     const name=(state.name||'').trim()||'Unnamed Gamma World Character';
     const id=window.__gwExportId||((typeof GCC!=='undefined'&&GCC.genId)?GCC.genId('mp'):'mp_'+Date.now());
     const bc=state.bc;
-    const data={_id:id,_gwStarter:true,_gwStarterVersion:D.version||'2.0.0',name,player:(state.player||'').trim(),trueId:'',side:state.side||'Neutral',birthplace:[state.home,state.homeland].filter(Boolean).join(' — ')||'Gamma World',species:state.species+(state.apType?' ('+state.apType+')':''),gender:state.gender||'',age:String(state.age||''),weight:String(state.weight||''),mass:'',culture:state.culture||'Modern',originType:(state.origin||'').trim(),background:(state.backgrounds||[]).join(', '),motivation:(state.motivation||'').trim(),legalStatus:state.faction||'Independent',wealth:'0',luck:'10-',powerLevel:state.powerLevel.toLowerCase(),xpBase:String(tierOf(state.powerLevel).total),
+    const data={_id:id,_gwStarter:true,_gwStarterVersion:D.version||'2.0.0',name,player:(state.player||'').trim(),trueId:'',side:state.side||'Neutral',birthplace:[state.home,state.homeland].filter(Boolean).join(' — ')||'Gamma World',species:state.species+(state.apType?' ('+state.apType+')':''),gender:state.gender||'',age:String(state.age||''),weight:String(state.weight||''),mass:'',culture:state.culture||'Modern',originType:(state.origin||'').trim(),background:(state.backgrounds||[]).join(', '),motivation:(state.motivation||'').trim(),legalStatus:state.faction||'Independent',wealth:exportWealthRoll(),luck:'10-',powerLevel:state.powerLevel.toLowerCase(),xpBase:String(tierOf(state.powerLevel).total),
       stats:{st:{cp:String(bc.st),mod:'',score:String(bc.st),save:''},en:{cp:String(bc.en),mod:'',score:String(bc.en),save:''},ag:{cp:String(bc.ag),mod:'',score:String(bc.ag),save:''},in:{cp:String(bc.in),mod:'',score:String(bc.in),save:''},cl:{cp:String(bc.cl),mod:'',score:String(bc.cl),save:''}},
       abilities:abilityRows(),attacks:[{name:'Strike (HTH)',toHit:'',damage:'',dmgType:'Kinetic',kb:''},{name:'',toHit:'',damage:'',dmgType:'',kb:''},{name:'',toHit:'',damage:'',dmgType:'',kb:''}],story:storyText(),gwBuildNotes:gwBuildNotes()};
     if(window.__gwCampaign)data._campaign=window.__gwCampaign;
@@ -1228,7 +1243,7 @@
       const arm=e.target.closest('[data-aprm]');if(arm){const a=state.abilities.find(x=>x.uid===arm.dataset.aprm);if(a){state.abilities=state.abilities.filter(x=>x!==a);log('Removed species Ability '+(a.mp||a.base)+' (fewer roll: -10 CP — MP 2.2).');}saveDraft();render();return;}
       const awr=e.target.closest('[data-apwrr]');if(awr){const a=state.abilities.find(x=>x.uid===awr.dataset.apwrr);if(a){const other=apEntries().filter(x=>x.weakness&&x!==a).map(x=>x.base);state.abilities=state.abilities.filter(x=>x!==a);const nm=rollApWeakness(other);if(nm)state.abilities.push(apWkEntry(nm,a.cpNum));}saveDraft();render();return;}
       const awm=e.target.closest('[data-apwrm]');if(awm){apRemoveWeakness(awm.dataset.apwrm);saveDraft();render();return;}
-      const fk=e.target.closest('[data-fck]');if(fk){state.faction=fk.dataset.fck;const al=allianceByName(state.faction);if(al&&al.side)state.side=al.side;saveDraft();render();return;}
+      const fk=e.target.closest('[data-fck]');if(fk){setFaction(fk.dataset.fck);saveDraft();render();return;}
       const oc=e.target.closest('[data-oc]');if(oc){const v=(state.originChoices||[])[+oc.dataset.oc];if(v){state.origin=v;log('Origin: '+v);}saveDraft();render();return;}
       const sd=e.target.closest('[data-sdk]');if(sd){state.side=sd.dataset.sdk;saveDraft();render();return;}
       const cl=e.target.closest('[data-clk]');if(cl){state.culture=cl.dataset.clk;saveDraft();render();return;}
@@ -1248,7 +1263,7 @@
       const pl=e.target.closest('[data-pl]');if(pl){setPowerLevel(pl.value);saveDraft();render();return;}
       const apt=e.target.closest('[data-aptype]');if(apt){setApType(apt.value);apRerollAbilities();saveDraft();render();return;}
       const wkFund=e.target.closest('[data-wkfund]');if(wkFund){const w=state.abilities[+wkFund.dataset.wkfund],v=wkFund.value;if(w&&w.weakness&&!isFixed(w)){w.fundUid=v;if(v&&v!=='__auto'&&v!=='__none'){log((w.gw||w.mp)+' pinned to fund '+((state.abilities.find(a=>a.uid===v)||{}).mp||'non-Core ability'));}else log((w.gw||w.mp)+' funding set to '+(v==='__none'?'none':'auto'));}saveDraft();render();return;}
-      const pk=e.target.closest('[data-pick]');if(pk){const key=pk.dataset.pick,v=pk.value;if(key==='species'){setSpecies(v);}else{state[key]=v;if(key==='faction'){const al=allianceByName(v);if(al&&al.side)state.side=al.side;}if(key==='genderIdentity'){state.gender=v;}}saveDraft();render();return;}
+      const pk=e.target.closest('[data-pick]');if(pk){const key=pk.dataset.pick,v=pk.value;if(key==='species'){setSpecies(v);}else if(key==='faction'){setFaction(v);}else{state[key]=v;if(key==='genderIdentity'){state.gender=v;}}saveDraft();render();return;}
       const bc=e.target.closest('[data-bc]');if(bc){const k=bc.dataset.bc,cap=bcCap(k);let v=parseInt(bc.value,10)||0;if(v>cap){v=cap;bc.value=v;}state.bc[k]=v;saveDraft();renderChronicleOnly();const t=$('#gw-main .gw-bc .c:last-child div');if(t)t.textContent=bcTotal();return;}
     });
     body.addEventListener('input',e=>{
