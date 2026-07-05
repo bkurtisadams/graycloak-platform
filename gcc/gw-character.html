@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <!-- gw-character.html v0.2.36 — Ability Origin now uses separate PSH, humanoid mutant, mutated animal, mutated plant, and tech origin pools; Mutated Animals no longer share the generic mutant list, PSH/plant origins are more Gamma World-flavored, and Step 11 is labeled Ability Origin to distinguish it from Birthplace/Homeland. -->
+<!-- gw-character.html v0.2.38 — Weakness modes reduced to Manual/Full (dropped "Curated"): Full random-rolls only mechanical MP weaknesses, story-type MP weaknesses (Nemesis/Public Identity/Dependent/Dark Past) stay pick-only. Weakness setting promoted to the intro screen beside Power Level ("Gamma World only" / "GW + MP weaknesses") and now honored by Quick Random — the weakness roll draws from GW defects plus the mode's MP pool. Legacy "curated" drafts migrate to Full. -->
 <!-- gw-character.html v0.2.37 — Step 15 now shows a single scrollable weakness table: MP Rulebook weakness variants are appended to the GW-defect table under a divider row (no second table). GW defects keep data-pick-row; MP variants use data-mpwk-pick; first column relabeled Roll for the weakness step. -->
 <!-- gw-character.html v0.2.36 — Step 15 MP weaknesses are now user-selectable like abilities: each weakness is flattened into its individual buildable variants, each a pickable row shown with its concrete negative CP (no slash lists, no "tier" labels). Clicking a variant builds that exact weakness; re-click removes; clicking another variant of the same weakness swaps it. mpwkEntry(wk,pick) builds a chosen variant (random only when rolled) and tags the built variant on the entry (pick) for selection state. Removed the randomizing "Add MP weakness" dropdown/add-mpwk action. Requires gw-mp-weaknesses.js v1.0.2 (blanked stat-tier pick names). -->
 <!-- gw-character.html v0.2.35 — Step 15 Weaknesses now keeps the Step 12–14 table/control layout while separating default Gamma World defect rolls from optional MP 2.3 weaknesses; added MP weakness modes (Manual, Curated, Full), a dropdown add control, Distinctive / Cannot Pass manual-only handling, and a compact weakness-funding preview. -->
@@ -699,9 +700,10 @@
   const MP_WK_STORY_RE=/distinctive|public identity|nemesis|personal problem|dependent|dark past|secret|reputation/i;
   function mpWeakCategory(wk){const n=String((wk&&wk.name)||'');if(MP_WK_STORY_RE.test(n))return 'story';if(MP_WK_CURATED_RE.test(n))return 'curated';return 'full';}
   function mpWeakDisplayName(wk){const n=String((wk&&wk.name)||'MP Weakness');return /^distinctive$/i.test(n)?'Distinctive / Cannot Pass':n;}
-  function mpWeakTag(wk){const c=mpWeakCategory(wk);return c==='curated'?'curated':(c==='story'?'manual':'full');}
-  function mpWeakModeLabel(){const m=state.weaknessMode||'manual';return m==='full'?'Full MP':(m==='curated'?'Curated':'Manual');}
-  function mpWeakRollPool(){const m=state.weaknessMode||'manual';if(m==='manual')return[];return MPWK().filter(w=>m==='full'||mpWeakCategory(w)==='curated');}
+  function mpWeakTag(wk){return mpWeakCategory(wk)==='story'?'story':'MP';}
+  function mpWeakModeLabel(){return (state.weaknessMode==='full')?'Full':'Manual';}
+  function mpWeakRollPool(){return (state.weaknessMode==='full')?MPWK().filter(w=>mpWeakCategory(w)!=='story'):[];}
+  function weaknessSelect(style){style=style||'';return `<select class="gw-pick" data-weakmode${style?` style="${style}"`:''}><option value="manual" ${(state.weaknessMode||'manual')!=='full'?'selected':''}>Gamma World only</option><option value="full" ${state.weaknessMode==='full'?'selected':''}>GW + MP weaknesses</option></select>`;}
   function mpWeakCpLabel(k){if(k.picks&&k.picks.length)return k.picks.map(p=>fmt(-Math.abs(p.cpNum!=null?p.cpNum:cpn(p.cp)||5))).join('/');return fmt(-Math.abs(k.cpNum!=null?k.cpNum:cpn(k.cp)||5));}
   function addWeaknessEntry(e2,label){
     if(!e2)return false;
@@ -797,7 +799,7 @@
     n=n||2;const built=buildPools(),rows=poolTable(role);state.abilities=state.abilities.filter(a=>a.role!==role||isFixed(a)||a.source==='ap-package');
     n=Math.max(0,n-state.abilities.filter(a=>a.role===role&&a.source==='ap-package').length);
     if(built.kind==='creature'){rows.forEach(row=>state.abilities.push(entryFromRow(row,role)));normalizeCore();return;}
-    if(role==='weakness'){const got=[];let g=0,sum=0;while(sum>WK_BUDGET&&g++<60&&rows.length){const row=rows[die(rows.length)-1];if(got.some(x=>x.base===row.name))continue;const en=entryFromRow(row,role);if(!en)continue;if(!en.exempt&&sum+en.cpNum<WK_BUDGET)continue;got.push(en);if(!en.exempt)sum+=en.cpNum;}got.forEach(a=>state.abilities.push(a));normalizeCore();return;}
+    if(role==='weakness'){const pool=rows.map(r=>({kind:'gw',row:r})).concat(mpWeakRollPool().map(wk=>({kind:'mp',wk})));const got=[];let g=0,sum=0;while(sum>WK_BUDGET&&g++<80&&pool.length){const p=pool[die(pool.length)-1];const en=p.kind==='mp'?mpwkEntry(p.wk):entryFromRow(p.row,role);if(!en)continue;if(got.some(x=>x.base===en.base&&x.source===en.source))continue;if(!en.exempt&&sum+en.cpNum<WK_BUDGET)continue;got.push(en);if(!en.exempt)sum+=en.cpNum;}got.forEach(a=>state.abilities.push(a));normalizeCore();return;}
     const got=[];let g=0;while(got.length<n&&g++<200&&rows.length){const row=rows[die(rows.length)-1];if(got.some(x=>x.base===row.name))continue;const en=entryFromRow(row,role);if(!en)continue;if(!en.weakness&&overCapCp(en.cpNum))continue;if(!en.weakness&&lowPowerGmOnly(en))continue;got.push(en);}
     got.forEach(a=>state.abilities.push(a));normalizeCore();
   }
@@ -972,7 +974,7 @@
 
   /* ── draft persistence ──────────────────────────────────────── */
   function saveDraft(){try{localStorage.setItem(DRAFT_KEY,JSON.stringify({v:4,state:{...state,exportId:window.__gwExportId||null}}));}catch(e){}}
-  function loadDraft(){try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');if(!d||d.v!==4)return false;Object.assign(state,d.state||{});if(!state.pshPath)state.pshPath='wastelander';if(!state.weaknessMode)state.weaknessMode='manual';if(state.apType===undefined)state.apType='';migrateApEntries();if(state.species==='Pure Strain Human'&&state.pshPath!=='commando'&&(state.step>=12&&state.step<=14||state.step===16))state.step=15;normalizeCore();if(d.state&&d.state.exportId)window.__gwExportId=d.state.exportId;return true;}catch(e){return false;}}
+  function loadDraft(){try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');if(!d||d.v!==4)return false;Object.assign(state,d.state||{});if(!state.pshPath)state.pshPath='wastelander';if(!state.weaknessMode)state.weaknessMode='manual';if(state.weaknessMode==='curated')state.weaknessMode='full';if(state.apType===undefined)state.apType='';migrateApEntries();if(state.species==='Pure Strain Human'&&state.pshPath!=='commando'&&(state.step>=12&&state.step<=14||state.step===16))state.step=15;normalizeCore();if(d.state&&d.state.exportId)window.__gwExportId=d.state.exportId;return true;}catch(e){return false;}}
   function startOver(){try{localStorage.removeItem(DRAFT_KEY);}catch(e){}window.__gwExportId=null;state={ step:0, powerLevel:'Low', activeRole:'offense', weaknessMode:'manual', pshPath:'wastelander', name:'', player:'', species:'Humanoid (Mutant)', culture:'', side:'', faction:'', alliance:'', home:'', homeland:'', bc:{st:10,en:10,ag:10,in:10,cl:10}, gender:'', age:'', weight:'', genderIdentity:'', genderExpression:'', biologicalSex:'', sexualAttraction:'', ageMethod:'standard', apType:'', backgrounds:[], backgroundChoices:[], motivation:'', origin:'', originChoices:[], abilities:[], rollLog:[], exportId:null };applyAuthDefault();render();}
 
   /* ── step model ─────────────────────────────────────────────── */
@@ -1192,7 +1194,7 @@
     let mpRows='';
     if(role==='weakness'&&MPWK().length){
       const ownedMp={};state.abilities.filter(a=>a.source==='mp-weakness').forEach(a=>{ownedMp[a.base]=a.pick;});const mode=state.weaknessMode||'manual';
-      mpRows=`<tr><td colspan="3" style="background:var(--wl-input);border-top:2px solid var(--wl-line);font-weight:700;font-size:11px;color:var(--wl-soft);padding:6px 8px">MP Rulebook Weaknesses — pick a built weakness, shown with its CP (random pool: ${esc(mpWeakModeLabel())})</td></tr>`+MPWK().map(k=>{const cat=mpWeakCategory(k),tag=mpWeakTag(k),random=(mode==='full'||(mode==='curated'&&cat==='curated'));return mpWeakVariants(k).map(p=>{const key=mpWeakVariantKey(p),cn=mpWeakVariantCp(p),on=ownedMp[k.name]===key;const vlabel=p.name?` <span style="color:var(--wl-soft)">— ${esc(p.name)}</span>`:'';return `<tr data-mpwk-pick="${esc(k.name)}::${esc(key)}" class="${on?'sel':''}" title="${cat==='story'?'Story/GM pick. ':''}${random?'In this mode’s random pool.':'Pick only — not random-rolled in this mode.'}"><td class="rng">${cat==='story'?'Story':(random?'Roll/Pick':'Pick')}</td><td>${esc(mpWeakDisplayName(k))}${vlabel}<span class="gw-tag ${cat==='story'?'story':'mp'}">${esc(tag)}</span>${k.exempt?' <span class="gw-tag ex">exempt</span>':''}</td><td class="cp">${fmt(cn)}${k.exempt?' †':''}</td></tr>`;}).join('');}).join('');
+      mpRows=`<tr><td colspan="3" style="background:var(--wl-input);border-top:2px solid var(--wl-line);font-weight:700;font-size:11px;color:var(--wl-soft);padding:6px 8px">MP Rulebook Weaknesses — pick a built weakness, shown with its CP (random pool: ${esc(mpWeakModeLabel())})</td></tr>`+MPWK().map(k=>{const cat=mpWeakCategory(k),tag=mpWeakTag(k),random=(mode==='full'&&cat!=='story');return mpWeakVariants(k).map(p=>{const key=mpWeakVariantKey(p),cn=mpWeakVariantCp(p),on=ownedMp[k.name]===key;const vlabel=p.name?` <span style="color:var(--wl-soft)">— ${esc(p.name)}</span>`:'';return `<tr data-mpwk-pick="${esc(k.name)}::${esc(key)}" class="${on?'sel':''}" title="${cat==='story'?'Story/GM pick. ':''}${random?'In this mode’s random pool.':'Pick only — not random-rolled in this mode.'}"><td class="rng">${cat==='story'?'Story':(random?'Roll/Pick':'Pick')}</td><td>${esc(mpWeakDisplayName(k))}${vlabel}<span class="gw-tag ${cat==='story'?'story':'mp'}">${esc(tag)}</span>${k.exempt?' <span class="gw-tag ex">exempt</span>':''}</td><td class="cp">${fmt(cn)}${k.exempt?' †':''}</td></tr>`;}).join('');}).join('');
     }
     if(built.kind==='creature'&&!rows.length&&!(role==='weakness'&&MPWK().length)){const cEq=(BEST()[sp]||{}).equipment;const emptyMsg=`<div class="gw-hint" style="padding:14px;border:1px dashed var(--wl-line);border-radius:6px;background:var(--wl-input)">The converted <strong>${esc(sp)}</strong> package has no ${esc(meta.label)} entries — this is normal for creature packages.${cEq?` Its combat capability comes from equipment: <strong>${esc(cEq)}</strong> — add it at the Weapons & Gear step.`:''}</div>`;return head(meta.n,meta.label+(role==='weakness'?'':' Abilities'),meta.desc)+`<div class="gw-content"><div class="gw-table-side">${emptyMsg}</div></div>`+nav(meta.n,meta.next);}
     const table=`<div class="gw-scroll"><table class="gw-rt"><caption>${role==='weakness'?'Weaknesses — Gamma World defects (roll or pick), then MP Rulebook weaknesses':'Roll-or-pick table'}</caption><thead><tr><th class="rng">${role==='weakness'?'Roll':'d100'}</th><th>${role==='weakness'?'Weakness':'Ability'}</th><th class="cp">Template CP</th></tr></thead><tbody>`+
@@ -1208,8 +1210,7 @@
         <button class="gw-roll-btn sm" data-act="roll-wk-budget">Roll to Budget</button>
         <div class="gw-hint" style="margin:6px 0 5px">MP Weakness random-roll pool</div>
         <div class="gw-mode-row">
-          <button data-weak-mode="manual" class="${(state.weaknessMode||'manual')==='manual'?'active':''}">Manual</button>
-          <button data-weak-mode="curated" class="${state.weaknessMode==='curated'?'active':''}">Curated</button>
+          <button data-weak-mode="manual" class="${(state.weaknessMode||'manual')!=='full'?'active':''}">Manual</button>
           <button data-weak-mode="full" class="${state.weaknessMode==='full'?'active':''}">Full</button>
         </div>
         <button class="gw-roll-rest" data-act="clear-role">Clear this category</button>
@@ -1312,6 +1313,7 @@
     const resume=(state.name||state.species!=='Humanoid (Mutant)'||state.abilities.length)?`<p class="gw-hint" style="text-align:center">A saved draft is loaded — Step-by-Step resumes where you left off.</p>`:'';
     const c=tierCaps();
     const power=`<div class="gw-controls" style="max-width:440px;margin:14px auto 10px;text-align:left"><div class="gw-controls-title" style="text-align:left">GM Power Level / NPC Budget</div>${powerSelect('width:100%;margin-top:4px')}<div class="gw-hint" style="margin:6px 0 0">Default is Low / 100 CP. Pick Normal for lesser NPCs, or Standard/High for bigger wasteland problems. Core ${coreCp()} CP each · BC pool ${tierOf(state.powerLevel).bcPoints} · Caps: Ability ${c.ability} CP · BC ${c.bc} · avg damage ${fmt(c.damage)}.</div></div>`;
+    const weak=`<div class="gw-controls" style="max-width:440px;margin:0 auto 10px;text-align:left"><div class="gw-controls-title" style="text-align:left">Weaknesses</div>${weaknessSelect('width:100%;margin-top:4px')}<div class="gw-hint" style="margin:6px 0 0">Gamma World only rolls GW defects; MP weaknesses stay pick-only on the Weakness step. GW + MP mixes the compatible MP weaknesses into the random pool as well. Story-type MP weaknesses (Nemesis, Public Identity, Dependent, Dark Past) are always pick-only either way.</div></div>`;
     return `<div class="gw-intro" style="width:100%">
       <h3>Wasteland Character Generator</h3>
       <p>Build a Gamma World 1e character and convert it to a Mighty Protectors sheet.</p>
@@ -1320,11 +1322,12 @@
         <div><label>Player</label><input data-text="player" value="${esc(state.player||'')}" placeholder="Player name"></div>
       </div>
       ${power}
+      ${weak}
       <div class="gw-intro-btns">
         <button class="wl-btn ghost" data-act="start">👣 Step-by-Step</button>
         <button class="wl-btn orange" data-act="quick">🎲 Quick Random</button>
       </div>
-      <p class="gw-hint">Quick Random uses the selected Power Level, rolls everything, and jumps to Review.</p>${resume}
+      <p class="gw-hint">Quick Random uses the selected Power Level and weakness setting, rolls everything, and jumps to Review.</p>${resume}
     </div>`;
   }
 
@@ -1370,6 +1373,7 @@
     });
     body.addEventListener('change',e=>{
       const pl=e.target.closest('[data-pl]');if(pl){setPowerLevel(pl.value);saveDraft();render();return;}
+      const wkm=e.target.closest('[data-weakmode]');if(wkm){state.weaknessMode=wkm.value==='full'?'full':'manual';log('Weakness setting: '+(state.weaknessMode==='full'?'GW + MP weaknesses':'Gamma World only'));saveDraft();render();return;}
       const apt=e.target.closest('[data-aptype]');if(apt){setApType(apt.value);apRerollAbilities();saveDraft();render();return;}
       const wkFund=e.target.closest('[data-wkfund]');if(wkFund){const w=state.abilities[+wkFund.dataset.wkfund],v=wkFund.value;if(w&&w.weakness&&!isFixed(w)){w.fundUid=v;if(v&&v!=='__auto'&&v!=='__none'){log((w.gw||w.mp)+' pinned to fund '+((state.abilities.find(a=>a.uid===v)||{}).mp||'non-Core ability'));}else log((w.gw||w.mp)+' funding set to '+(v==='__none'?'none':'auto'));}saveDraft();render();return;}
       const pk=e.target.closest('[data-pick]');if(pk){const key=pk.dataset.pick,v=pk.value;if(key==='species'){setSpecies(v);}else if(key==='faction'){setFaction(v);}else{state[key]=v;if(key==='genderIdentity'){state.gender=v;}}saveDraft();render();return;}
