@@ -1,10 +1,12 @@
-// gw-mp-weaknesses.js v1.0.0 — MP 2.3 Weaknesses for gw-character.html
+// gw-mp-weaknesses.js v1.0.2 — MP 2.3 Weaknesses for gw-character.html
+// v1.0.2: blanked stat-reduction tier pick names (Lowered INT, Reduced STR/AG/EN/CL);
+//         a built entry now reads by name + its concrete CP, no meaningless tier label.
 // Source: Mighty Protectors section 2.3 (values and tiers as printed).
 // Schema: {name, cp, cpNum, ability} or {name, ability, picks:[{name,cp,cpNum,ability}]}
 // NOTE: no entry here carries exempt:true — the -20-limit exemption applies only to
 // weaknesses granted via the Animal/Plant Ability (2.2), set at grant time.
 (function(){ window.GWMPWeaknesses = {
-  version: "1.0.0",
+  version: "1.0.2",
   list: [
     { name:"Diminished Senses", ability:"A default sense is limited (MP 2.3)", picks:[
       {name:"Blind",cp:"-15",cpNum:-15,ability:"No sight in the visible spectrum"},
@@ -34,10 +36,10 @@
       {name:"Fumble-Prone (-2 threshold)",cp:"-10",cpNum:-10,ability:"Fumble threshold worsens by 2 (e.g. 18-20)"}
     ]},
     { name:"Lowered Intelligence", ability:"IN below normal, possibly with a related BC; roll d10 for term: 1-2 Dumb (IN only), 3-4 Deficient (IN+ST), 5-6 Impaired (IN+EN), 7-8 Bumbling (IN+AG), 9-10 Dense (IN+CL); re-roll if it conflicts with a Heightened BC; no BC below 0 (MP 2.3)", picks:[
-      {name:"(-5) tier",cp:"-5",cpNum:-5,ability:"-5 IN, or -3 IN with -2 in the paired BC"},
-      {name:"(-10) tier",cp:"-10",cpNum:-10,ability:"-10 IN, or -6 IN with -4 in the paired BC"},
-      {name:"(-15) tier",cp:"-15",cpNum:-15,ability:"-9 IN with -6 in the paired BC, or -15 IN"},
-      {name:"(-20) tier",cp:"-20",cpNum:-20,ability:"-12 IN with -8 in the paired BC, or -20 IN"},
+      {name:"",cp:"-5",cpNum:-5,ability:"-5 IN, or -3 IN with -2 in the paired BC"},
+      {name:"",cp:"-10",cpNum:-10,ability:"-10 IN, or -6 IN with -4 in the paired BC"},
+      {name:"",cp:"-15",cpNum:-15,ability:"-9 IN with -6 in the paired BC, or -15 IN"},
+      {name:"",cp:"-20",cpNum:-20,ability:"-12 IN with -8 in the paired BC, or -20 IN"},
       {name:"Non-Sentient",cp:"-10",cpNum:-10,ability:"Cannot speak or operate machinery; IN used only for perception and animal cunning"}
     ]},
     { name:"Nemesis", ability:"A personal enemy who wishes the character ill; killing it spawns a replacement or an equal-CP weakness (MP 2.3)", picks:[
@@ -97,28 +99,28 @@
       {name:"Very common trigger",cp:"-15",cpNum:-15,ability:"Almost every episode"}
     ]},
     { name:"Reduced Agility", ability:"AG below normal, possibly with a related BC; d10 term: 1-2 Clumsy (AG only), 3-4 Gawky (AG+ST), 5-6 Shaky (AG+EN), 7-8 Inept (AG+IN), 9-10 Sluggish (AG+CL); no BC below 0 (MP 2.3)", picks:[
-      {name:"(-5) tier",cp:"-5",cpNum:-5,ability:"-5 AG, or -3 AG with -2 in the paired BC"},
-      {name:"(-10) tier",cp:"-10",cpNum:-10,ability:"-6 AG with -4 paired, or -10 AG"},
-      {name:"(-15) tier",cp:"-15",cpNum:-15,ability:"-9 AG with -6 paired, or -15 AG"},
-      {name:"(-20) tier",cp:"-20",cpNum:-20,ability:"-12 AG with -8 paired, or -20 AG"}
+      {name:"",cp:"-5",cpNum:-5,ability:"-5 AG, or -3 AG with -2 in the paired BC"},
+      {name:"",cp:"-10",cpNum:-10,ability:"-6 AG with -4 paired, or -10 AG"},
+      {name:"",cp:"-15",cpNum:-15,ability:"-9 AG with -6 paired, or -15 AG"},
+      {name:"",cp:"-20",cpNum:-20,ability:"-12 AG with -8 paired, or -20 AG"}
     ]},
     { name:"Reduced Cool", ability:"CL below normal, possibly with a related BC; d10 term: 1-2 Unpleasant (CL only), 3-4 Sniveling (CL+ST), 5-6 Disgusting (CL+EN), 7-8 Oafish (CL+AG), 9-10 Inane (CL+IN); no BC below 0 (MP 2.3)", picks:[
-      {name:"(-5) tier",cp:"-5",cpNum:-5,ability:"-5 CL, or -3 CL with -2 in the paired BC"},
-      {name:"(-10) tier",cp:"-10",cpNum:-10,ability:"-6 CL with -4 paired, or -10 CL"},
-      {name:"(-15) tier",cp:"-15",cpNum:-15,ability:"-9 CL with -6 paired, or -15 CL"},
-      {name:"(-20) tier",cp:"-20",cpNum:-20,ability:"-12 CL with -8 paired, or -20 CL"}
+      {name:"",cp:"-5",cpNum:-5,ability:"-5 CL, or -3 CL with -2 in the paired BC"},
+      {name:"",cp:"-10",cpNum:-10,ability:"-6 CL with -4 paired, or -10 CL"},
+      {name:"",cp:"-15",cpNum:-15,ability:"-9 CL with -6 paired, or -15 CL"},
+      {name:"",cp:"-20",cpNum:-20,ability:"-12 CL with -8 paired, or -20 CL"}
     ]},
     { name:"Reduced Endurance", ability:"EN below normal, possibly with a related BC; d10 term: 1-2 Unhealthy (EN only), 3-4 Emaciated (EN+ST), 5-6 Decrepit (EN+IN), 7-8 Lethargic (EN+AG), 9-10 Sickly (EN+CL); no BC below 0 (MP 2.3)", picks:[
-      {name:"(-5) tier",cp:"-5",cpNum:-5,ability:"-5 EN, or -3 EN with -2 in the paired BC"},
-      {name:"(-10) tier",cp:"-10",cpNum:-10,ability:"-6 EN with -4 paired, or -10 EN"},
-      {name:"(-15) tier",cp:"-15",cpNum:-15,ability:"-9 EN with -6 paired, or -15 EN"},
-      {name:"(-20) tier",cp:"-20",cpNum:-20,ability:"-12 EN with -8 paired, or -20 EN"}
+      {name:"",cp:"-5",cpNum:-5,ability:"-5 EN, or -3 EN with -2 in the paired BC"},
+      {name:"",cp:"-10",cpNum:-10,ability:"-6 EN with -4 paired, or -10 EN"},
+      {name:"",cp:"-15",cpNum:-15,ability:"-9 EN with -6 paired, or -15 EN"},
+      {name:"",cp:"-20",cpNum:-20,ability:"-12 EN with -8 paired, or -20 EN"}
     ]},
     { name:"Reduced Strength", ability:"ST below normal, possibly with a related BC; d10 term: 1-2 Weak (ST only), 3-4 Scrawny (ST+IN), 5-6 Rickety (ST+EN), 7-8 Wastrel (ST+AG), 9-10 Weasely (ST+CL); no BC below 0 (MP 2.3)", picks:[
-      {name:"(-5) tier",cp:"-5",cpNum:-5,ability:"-5 ST, or -3 ST with -2 in the paired BC"},
-      {name:"(-10) tier",cp:"-10",cpNum:-10,ability:"-6 ST with -4 paired, or -10 ST"},
-      {name:"(-15) tier",cp:"-15",cpNum:-15,ability:"-9 ST with -6 paired, or -15 ST"},
-      {name:"(-20) tier",cp:"-20",cpNum:-20,ability:"-12 ST with -8 paired, or -20 ST"}
+      {name:"",cp:"-5",cpNum:-5,ability:"-5 ST, or -3 ST with -2 in the paired BC"},
+      {name:"",cp:"-10",cpNum:-10,ability:"-6 ST with -4 paired, or -10 ST"},
+      {name:"",cp:"-15",cpNum:-15,ability:"-9 ST with -6 paired, or -15 ST"},
+      {name:"",cp:"-20",cpNum:-20,ability:"-12 ST with -8 paired, or -20 ST"}
     ]},
     { name:"Special Requirement", ability:"Needs something not normally necessary for survival: diet, atmosphere, energy, medication, life support; consequence when unmet: Discomfort (-3 saves/to-hit, +0), Fatigue (no Hit/Power/Charge recovery, +0), Harm (1 dmg/round, +0; -5 per +1 dmg), Asphyxiation (-5 additional) (MP 2.3)", picks:[
       {name:"Common, ~weekly",cp:"-5",cpNum:-5,ability:"Rarity -2.5 + frequency -2.5"},
