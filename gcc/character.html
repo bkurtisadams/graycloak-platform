@@ -306,6 +306,7 @@ body.view-mode .gcc-mp-btn-view-edit{display:inline-block}
       <button class="gcc-mp-btn" id="btn-new">New</button>
       <button class="gcc-mp-btn" id="btn-save">Save</button>
       <button class="gcc-mp-btn" id="btn-load">Load</button>
+      <button class="gcc-mp-btn" id="btn-manage" title="Delete saved characters from the list">Manage</button>
       <button class="gcc-mp-btn" id="btn-delete" title="Delete current character">Delete</button>
       <button class="gcc-mp-btn" id="btn-campaign" title="Add to or change campaign">Campaign</button>
       <button class="gcc-mp-btn" id="btn-export">Export JSON</button>
@@ -1116,6 +1117,9 @@ function getEditIdx() {
   const v = localStorage.getItem('mp-char-edit-idx');
   return v != null ? parseInt(v) : -1;
 }
+function campaignName(id) {
+  try { const camps = JSON.parse(localStorage.getItem(GCC.KEYS.campaigns)) || []; const c = camps.find(x => x.id === id); return c ? c.name : ''; } catch(e) { return ''; }
+}
 function saveToSlot() {
   const data = gatherData();
   // Ensure stable entity ID
@@ -1191,6 +1195,39 @@ document.getElementById('btn-delete').addEventListener('click', async () => {
   window._charMeta = {};
   showPortrait(null);
   MPDialog.alert('Deleted', '<b>' + name + '</b> has been deleted.');
+});
+
+// Manage button — delete any saved character straight from the list (loops for bulk cleanup)
+document.getElementById('btn-manage').addEventListener('click', async () => {
+  while (true) {
+    const list = JSON.parse(localStorage.getItem(CHARS_LIST_KEY)) || [];
+    if (!list.length) { await MPDialog.alert('No Saved Characters', 'There are no saved characters to manage.'); return; }
+    const curIdx = getEditIdx();
+    const items = list.map((c, i) => ({
+      label: (c.name || 'Unnamed') + (i === curIdx ? '  (loaded)' : ''),
+      desc: [c._campaign ? campaignName(c._campaign) : '', c._saved ? 'saved ' + new Date(c._saved).toLocaleDateString() : ''].filter(Boolean).join(' \u00b7 ')
+    }));
+    const pick = await MPDialog.choose('Manage Saved Characters', items, { intro: 'Select a character to delete. This cannot be undone.' });
+    if (pick == null || pick < 0 || pick >= list.length) return;
+    const name = list[pick].name || 'Unnamed';
+    const ok = await MPDialog.confirm('Delete Character', 'Permanently delete <b>' + name + '</b>?', { okText: 'Delete', danger: true });
+    if (!ok) continue;
+    list.splice(pick, 1);
+    localStorage.setItem(CHARS_LIST_KEY, JSON.stringify(list));
+    if (typeof GCCSync !== 'undefined' && GCCSync.notifySync) GCCSync.notifySync(CHARS_LIST_KEY);
+    // Keep the "currently loaded" pointer consistent after removal
+    const editIdx = getEditIdx();
+    if (pick === editIdx) {
+      clearAll();
+      recalcDerived();
+      window._charMeta = {};
+      showPortrait(null);
+      localStorage.removeItem(STORE_KEY);
+      localStorage.setItem('mp-char-edit-idx', '-1');
+    } else if (pick < editIdx) {
+      localStorage.setItem('mp-char-edit-idx', String(editIdx - 1));
+    }
+  }
 });
 
 // New button
