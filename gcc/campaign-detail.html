@@ -922,7 +922,7 @@ async function render(){
   const gmOnlyPill=gmOnlyCount?`<button class="filter-pill${loreFilter==='gmonly'?' active':''}" data-lore-filter="gmonly" style="color:var(--red);border-color:rgba(208,72,72,0.4)">🔒 GM Only (${gmOnlyCount})</button>`:'';
   let loreHtml=pm_
     ?`<div class="session-toolbar"><div class="session-toolbar-right"><button class="filter-pill${loreFilter==='all'?' active':''}" data-lore-filter="all">All</button>${loreTypePills}</div></div>`
-    :`<div class="session-toolbar"><div class="session-toolbar-left"><button class="btn-add" id="btn-add-lore">+ New Entry</button><button class="btn-add" id="btn-import-lore" style="background:none;border:1px solid var(--brd);color:var(--tx2)">Import JSON</button></div><div class="session-toolbar-right"><button class="filter-pill${loreFilter==='all'?' active':''}" data-lore-filter="all">All</button>${loreTypePills}${gmOnlyPill}</div></div>`;
+    :`<div class="session-toolbar"><div class="session-toolbar-left"><button class="btn-add" id="btn-add-lore">+ New Entry</button><button class="btn-add" id="btn-import-lore" style="background:none;border:1px solid var(--brd);color:var(--tx2)">Import JSON</button>${lore.length?`<button class="btn-add" id="btn-export-lore" style="background:none;border:1px solid var(--brd);color:var(--tx2)">Export JSON</button>`:''}</div><div class="session-toolbar-right"><button class="filter-pill${loreFilter==='all'?' active':''}" data-lore-filter="all">All</button>${loreTypePills}${gmOnlyPill}</div></div>`;
   if(!filteredLore.length){loreHtml+=`<div class="entity-empty">No wiki entries yet. Add NPCs, locations, factions, and items.</div>`}
   else{loreHtml+='<div class="lore-grid">';filteredLore.forEach((l,i)=>{
     const origIdx=lore.indexOf(l);
@@ -1085,6 +1085,7 @@ function wireEvents(){
   });
   document.getElementById('btn-add-lore')?.addEventListener('click',()=>openLoreModal(-1));
   document.getElementById('btn-import-lore')?.addEventListener('click',openLoreImportModal);
+  document.getElementById('btn-export-lore')?.addEventListener('click',exportLore);
   document.querySelectorAll('[data-lore-edit]').forEach(btn=>{btn.addEventListener('click',()=>openLoreModal(parseInt(btn.dataset.loreEdit)))});
   document.querySelectorAll('[data-lore-del]').forEach(btn=>{btn.addEventListener('click',async()=>{const ok=await GCCDialog.confirm('Delete entry','Delete this lore entry?',{okText:'Delete',danger:true});if(!ok)return;const camp=getCamp();if(!camp)return;const lore=camp.lore||[];lore.splice(parseInt(btn.dataset.loreDel),1);GCC.updateCampaign(campId,{lore});render()})});
   // Vehicle assign/unassign
@@ -1780,6 +1781,33 @@ document.getElementById('lm-save').addEventListener('click',async()=>{const camp
 document.getElementById('lm-cancel').addEventListener('click',closeLoreModal);
 document.getElementById('lore-modal-close').addEventListener('click',closeLoreModal);
 loreModal.addEventListener('click',e=>{if(e.target===loreModal)closeLoreModal()});
+
+// ═══ LORE EXPORT ═══
+// GM-only. Exports the full wiki (including gmNotes and gmOnly) in the same
+// shape the importer reads, so it round-trips for backup or bulk editing.
+// Images are stored separately as IDB keys and are not portable, so they're omitted.
+function exportLore(){
+  const camp=getCamp();if(!camp)return;
+  const lore=camp.lore||[];
+  if(!lore.length){GCCDialog.alert('Nothing to export','This campaign has no wiki entries yet.');return}
+  const out=lore.map(l=>{
+    const e={type:l.type||'other',name:l.name||'Unnamed'};
+    if(l.subtype)e.subtype=l.subtype;
+    if(l.desc)e.desc=l.desc;
+    if(l.gmNotes)e.gmNotes=l.gmNotes;
+    if(l.gmOnly)e.gmOnly=true;
+    return e;
+  });
+  const json=JSON.stringify(out,null,2);
+  const slug=(camp.name||'campaign').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'campaign';
+  const date=new Date().toISOString().slice(0,10);
+  const blob=new Blob([json],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`${slug}-wiki-${date}.json`;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
 
 // ═══ LORE IMPORT MODAL ═══
 const loreImportModal=document.getElementById('lore-import-modal');
