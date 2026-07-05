@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.36 — Ability Origin now uses separate PSH, humanoid mutant, mutated animal, mutated plant, and tech origin pools; Mutated Animals no longer share the generic mutant list, PSH/plant origins are more Gamma World-flavored, and Step 11 is labeled Ability Origin to distinguish it from Birthplace/Homeland. -->
 <!-- gw-character.html v0.2.35 — Step 15 Weaknesses now keeps the Step 12–14 table/control layout while separating default Gamma World defect rolls from optional MP 2.3 weaknesses; added MP weakness modes (Manual, Curated, Full), a dropdown add control, Distinctive / Cannot Pass manual-only handling, and a compact weakness-funding preview. -->
 <!-- gw-character.html v0.2.34 — Animal/Plant BC modifiers are no longer applied to Basic Characteristics and no longer displayed on Step 7; the Animal/Plant package still records the MP 2.2 BC mod note for manual handling after transfer, matching other stat-modifying abilities. -->
 <!-- gw-character.html v0.2.33 — Step 7 BC display now shows Mutated Animal/Plant species modifiers inline beside ST/EN/AG and in a persistent breakdown panel, including zero-mod stats; stale Animal/Plant drafts with no rolled type now get a visible repair prompt instead of silently hiding the modifier area. -->
@@ -323,12 +324,12 @@
     {lo:19,hi:20,name:'Chi-Gor'},{lo:21,hi:22,name:'New Bosston'},{lo:23,hi:24,name:'Phila Delph'},
     {lo:25,hi:26,name:'St. Loowis'},{lo:27,hi:28,name:'Cinci'},{lo:29,hi:30,name:'Kan City'},
     {lo:31,hi:32,name:'Milwauk'},{lo:33,hi:34,name:'Twin Settlements'},{lo:35,hi:36,name:'Salt Ruins'},
-    {lo:37,hi:38,name:'Paso del Sol'},{lo:39,hi:40,name:'Atlan Ruins'},{lo:41,hi:42,name:'Noo Yark'},
+    {lo:37,hi:38,name:'Pass del Sol'},{lo:39,hi:40,name:'Atlan Ruins'},{lo:41,hi:42,name:'Noo Yark'},
     {lo:43,hi:44,name:'DeeCee Ruins'},{lo:45,hi:46,name:'Balti-Mor'},{lo:47,hi:48,name:'Dee-Troit'},
     {lo:49,hi:50,name:'Cleve-Land'},{lo:51,hi:52,name:"C'Lum Bus"},{lo:53,hi:54,name:'Indy Polis'},
     {lo:55,hi:56,name:'Looey-Vil'},{lo:57,hi:58,name:'Nash-Vil'},{lo:59,hi:60,name:'Memfizz'},
-    {lo:61,hi:62,name:"Naw-Lens"},{lo:63,hi:64,name:'Hooston'},{lo:65,hi:66,name:'Dall-As'},
-    {lo:67,hi:68,name:'Fort Wurth'},{lo:69,hi:70,name:'San Antone'},{lo:71,hi:72,name:'Aus-10'},
+    {lo:61,hi:62,name:"N'Orlanz"},{lo:63,hi:64,name:'Hewston'},{lo:65,hi:66,name:'Dall-As'},
+    {lo:67,hi:68,name:'Fort Wurth'},{lo:69,hi:70,name:'San Antone'},{lo:71,hi:72,name:'Aus-Tin'},
     {lo:73,hi:74,name:'Fee-Nix'},{lo:75,hi:76,name:'Two-Sun'},{lo:77,hi:78,name:'Den-Varr'},
     {lo:79,hi:80,name:'Lost Vegas'},{lo:81,hi:82,name:'Loss Angeleez'},{lo:83,hi:84,name:'San Dee-Go'},
     {lo:85,hi:86,name:'San Fran'},{lo:87,hi:88,name:'Port-Land'},{lo:89,hi:90,name:'Sea-Atoll'},
@@ -540,47 +541,60 @@
   function toggleBgChoice(i){const v=(state.backgroundChoices||[])[i];if(!v)return;if((state.backgrounds||[]).indexOf(v)>=0){state.backgrounds=state.backgrounds.filter(x=>x!==v);}else{state.backgrounds.push(v);while(state.backgrounds.length>2)state.backgrounds.shift();}log('Backgrounds kept: '+(state.backgrounds.join('; ')||'—'));}
   function addBackground(cat){if(!cat)return;const c=BACKGROUNDS.find(x=>x.name===cat);if(!c)return;const ent=`${c.name} (${c.ex[die(c.ex.length)-1]})`;const b=(state.backgrounds||[]).filter(y=>bgCat(y)!==cat);b.push(ent);while(b.length>2)b.shift();state.backgrounds=b;}
   function rollMotivation(){if(F)state.motivation=F.pick(F.motivationsBySide?F.motivationsBySide(state.side):F.motivations);log('Motivation: '+state.motivation);}
-  // GW-native origins: species fixes the MP Origin Type family; no mystical branches (GW1e has no magic).
+  // GW-native ability origins: species fixes the MP Origin Type family; no mystical branches (GW1e has no magic).
   // Override per-species via F.originsBySpecies(species) in gw-flavor-tables.js when desired.
   const GW_ORIGINS={
     psh:[
-      'Physical Training — drilled from childhood in an enclave militia',
-      'Physical Training — apprenticed to a veteran wasteland scout',
-      'Physical Training — hardened by the proving trials of a warrior lodge',
-      'Science Project — raised on Ancient regimens in a sealed vault community',
-      'Science Project — schooled and equipped by a Restorationist academy',
-      'Science Accident — stumbled into an intact Ancient armory as a youth',
-      'Science Accident — sole survivor of an automated military installation'
+      'Physical Training — drilled by a Pure Strain enclave defense force',
+      'Physical Training — apprenticed to a veteran ruin-scout',
+      'Physical Training — hardened by survival trials beyond the settlement walls',
+      'Science Project — raised under Ancient regimens in a sealed vault community',
+      'Science Project — educated by a Restorationist academy to recover Ancient knowledge',
+      'Science Accident — found and mastered equipment inside an intact Ancient installation',
+      'Science Accident — sole survivor of an automated military installation awakening'
     ],
     mutant:[
-      'Mutated or Evolved — bloodline altered in the Shadow Years',
+      'Mutated or Evolved — human stock altered in the Shadow Years',
       'Mutated or Evolved — born under the glow of a rad-zone',
-      'Mutated or Evolved — heir to a long line of stable mutants',
+      'Mutated or Evolved — heir to a long line of stable humanoid mutants',
       'Science Accident — childhood exposure to a leaking Ancient site',
       'Science Accident — caught in a radstorm that rewrote living tissue',
       'Science Accident — drank from a spring beneath a buried reactor',
       'Science Project — decanted from an Ancient gene-vat',
-      'Science Project — product of a forgotten uplift program'
+      'Science Project — product of a forgotten human enhancement program'
+    ],
+    animal:[
+      'Mutated or Evolved — animal stock altered across generations of wasteland radiation',
+      'Mutated or Evolved — born into a stable breeding colony of uplifted animals',
+      'Mutated or Evolved — descended from wild stock changed during the Shadow Years',
+      'Science Accident — transformed by leakage from an Ancient biolab or zoo preserve',
+      'Science Accident — changed by runoff from a ruined military test range',
+      'Science Accident — awakened after exposure to experimental veterinary nanotech',
+      'Science Project — escaped subject from an Ancient uplift program',
+      'Science Project — engineered guardian or scout animal from a sealed installation'
     ],
     plant:[
       'Mutated or Evolved — seeded in irradiated soil generations ago',
-      'Mutated or Evolved — offshoot of a vast awakened grove',
-      'Science Accident — roots grew into a ruptured chemical sump',
-      'Science Accident — pollinated during a radstorm bloom',
+      'Mutated or Evolved — cutting from a vast awakened grove or sentient forest colony',
+      'Mutated or Evolved — wild vegetation that developed mind and mobility after the Shadow Years',
+      'Science Accident — roots grew into a ruptured chemical sump beneath an Ancient ruin',
+      'Science Accident — pollinated during a radstorm bloom near a buried reactor',
+      'Science Accident — fertilized by runoff from an abandoned biolab',
       'Science Project — engineered flora from an Ancient agri-dome',
-      'Science Project — escaped cultivar of a military bio-program'
+      'Science Project — escaped self-defending crop or military bio-program cultivar'
     ],
     tech:[
       'Science Project — built and programmed by the Ancients',
       'Science Project — assembled by a still-running autofactory',
+      'Science Project — reprogrammed by a Cryptic Alliance or isolated machine cult',
       'Science Accident — awakened when restraining code corrupted',
       'Science Accident — self-repaired from salvage into something new'
     ]
   };
-  function originBranch(sp){sp=sp||state.species;if(sp==='Pure Strain Human')return 'psh';if(sp==='Tech Construct'||sp==='Android')return 'tech';if(sp==='Mutated Plant')return 'plant';return 'mutant';}
+  function originBranch(sp){sp=sp||state.species;if(sp==='Pure Strain Human')return 'psh';if(sp==='Tech Construct'||sp==='Android')return 'tech';if(sp==='Mutated Plant')return 'plant';if(sp==='Mutated Animal')return 'animal';return 'mutant';}
   function originsFor(){if(F&&F.originsBySpecies)return F.originsBySpecies(state.species)||GW_ORIGINS[originBranch()];return GW_ORIGINS[originBranch()];}
-  function rollOrigin(){const list=originsFor();if(!list||!list.length)return;const a=die(list.length)-1;let b=a,g=0;while(b===a&&g++<20&&list.length>1)b=die(list.length)-1;state.originChoices=b===a?[list[a]]:[list[a],list[b]];state.origin=list[a];log('Origin — rolled two, pick either: '+state.originChoices.join(' | '));}
-  function revalidateOrigin(){const cur=state.origin;if(!cur)return;if((originsFor()||[]).indexOf(cur)>=0)return;const builtin=Object.keys(GW_ORIGINS).some(k=>GW_ORIGINS[k].indexOf(cur)>=0);if(builtin){state.origin='';state.originChoices=[];log('Origin cleared: previous origin does not fit '+state.species+'.');}}
+  function rollOrigin(){const list=originsFor();if(!list||!list.length)return;const a=die(list.length)-1;let b=a,g=0;while(b===a&&g++<20&&list.length>1)b=die(list.length)-1;state.originChoices=b===a?[list[a]]:[list[a],list[b]];state.origin=list[a];log('Ability Origin — rolled two, pick either: '+state.originChoices.join(' | '));}
+  function revalidateOrigin(){const cur=state.origin;if(!cur)return;if((originsFor()||[]).indexOf(cur)>=0)return;const builtin=Object.keys(GW_ORIGINS).some(k=>GW_ORIGINS[k].indexOf(cur)>=0);if(builtin){state.origin='';state.originChoices=[];log('Ability Origin cleared: previous origin does not fit '+state.species+'.');}}
 
   /* ── ability engine (pure state) ────────────────────────────── */
   function bcTotal(){return BCS.reduce((s,[k])=>s+(state.bc[k]||0),0);}
@@ -960,7 +974,7 @@
     {n:1,key:'species',name:'Species'},{n:2,key:'faction',name:'Faction'},{n:3,key:'side',name:'Side'},
     {n:4,key:'culture',name:'Culture'},{n:5,key:'home',name:'Birthplace'},{n:6,key:'homeland',name:'Homeland'},
     {n:7,key:'bc',name:'Characteristics'},{n:8,key:'bio',name:'Bio'},{n:9,key:'backgrounds',name:'Backgrounds'},
-    {n:10,key:'motivation',name:'Motivation'},{n:11,key:'origin',name:'Origin'},{n:12,key:'offense',name:'Offensive'},
+    {n:10,key:'motivation',name:'Motivation'},{n:11,key:'origin',name:'Ability Origin'},{n:12,key:'offense',name:'Offensive'},
     {n:13,key:'defense',name:'Defensive'},{n:14,key:'misc',name:'Miscellaneous'},{n:15,key:'weakness',name:'Weaknesses'},
     {n:16,key:'draft',name:'Ability Draft'},{n:17,key:'weapons',name:'Weapons & Gear'},{n:18,key:'review',name:'Review'}
   ];
@@ -1154,9 +1168,9 @@
   function stepOrigin(){
     const opts=originsFor()||[];
     const pick=`<select class="gw-pick" data-pick="origin"><option value="">— pick —</option>`+opts.map(n=>`<option value="${esc(n)}" ${state.origin===n?'selected':''}>${esc(n)}</option>`).join('')+`</select>`;
-    const f=`<input data-text="origin" placeholder="Origin" value="${esc(state.origin||'')}" style="max-width:420px">`;
+    const f=`<input data-text="origin" placeholder="Ability Origin" value="${esc(state.origin||'')}" style="max-width:420px">`;
     const chips=(state.originChoices&&state.originChoices.length>1)?`<div style="display:flex;flex-direction:column;gap:5px">`+state.originChoices.map((c,i)=>`<button class="wl-btn ${state.origin===c?'green':'ghost'}" data-oc="${i}" style="text-align:left;font-size:12px;white-space:normal">${esc(c)}</button>`).join('')+`</div>`:'';
-    return head(11,'Origin',`How a ${esc(state.species)} came to be what they are. MP RAW: roll twice, keep whichever fits best — the table is keyed to your species, and GW has no mystical origins. Roll, pick, or write your own.`)+
+    return head(11,'Ability Origin',`How a ${esc(state.species)} came to have their abilities. MP RAW: roll twice, keep whichever fits best — the table is keyed to your species, and GW has no mystical origins. Birthplace and Homeland are handled separately. Roll, pick, or write your own.`)+
       `<div class="gw-content"><div class="gw-table-side">${f}</div>${rollBox('Roll Twice, Pick Either',chips,pick,'Roll Twice')}</div>`+nav(11,'Next: Offensive →');
   }
   const ROLE_META={
@@ -1269,7 +1283,7 @@
     const birth=[state.home,state.homeland].filter(Boolean).join(' — ');
     const warns=buildWarnings();
     const warnHtml=warns.length?`<div style="background:#fdf0d5;border:1px solid var(--wl-amber);color:#5d4710;border-radius:6px;padding:7px 10px;margin-bottom:10px;font-size:12px">${warns.map(x=>'⚠ '+esc(x)).join('<br>')}</div>`:'';
-    const idkv=[['Name',state.name||'Unnamed'],['Player',state.player||'—'],['Species',state.species],['Birthplace',birth||'—'],['Culture',state.culture||'—'],['Side',state.side||'—'],['Faction',state.faction||'—'],['Age',state.age?String(state.age):'—'],['Gender',genderLine()||'—'],['Motivation',state.motivation||'—'],['Origin',state.origin||'—'],['Power Level',state.powerLevel+' ('+tierOf(state.powerLevel).total+' CP)']].map(([k,v])=>`<span class="k">${esc(k)}</span><span>${esc(v)}</span>`).join('');
+    const idkv=[['Name',state.name||'Unnamed'],['Player',state.player||'—'],['Species',state.species],['Birthplace',birth||'—'],['Culture',state.culture||'—'],['Side',state.side||'—'],['Faction',state.faction||'—'],['Age',state.age?String(state.age):'—'],['Gender',genderLine()||'—'],['Motivation',state.motivation||'—'],['Ability Origin',state.origin||'—'],['Power Level',state.powerLevel+' ('+tierOf(state.powerLevel).total+' CP)']].map(([k,v])=>`<span class="k">${esc(k)}</span><span>${esc(v)}</span>`).join('');
     const bc=BCS.map(([k,l])=>`<div class="cell"><div class="l" style="color:var(--wl-soft)">${l}</div><div class="v">${state.bc[k]}</div></div>`).join('')+`<div class="cell"><div class="l" style="color:var(--wl-soft)">BC Total</div><div class="v">${bcTotal()}</div></div>`;
     const cv=[['BC Total',bcTotal()+' / '+tierOf(state.powerLevel).bcPoints],['Abilities',fmt(abilityCP())+' CP'],['Weaknesses',fmt(weaknessCP())+' CP'],['Core Ability CP',coreCp()+' each'],['Ability Cap',tierCaps().ability+' CP'],['BC Cap',tierCaps().bc],['Damage Cap','≈ '+fmt(tierCaps().damage)],['Power Level',state.powerLevel]].map(([l,v])=>`<div class="cell"><div class="l" style="color:var(--wl-soft)">${esc(l)}</div><div class="v">${esc(String(v))}</div></div>`).join('')+`<div class="cell hl"${unspent()<0?' style="background:#f8dede;border-color:#a33"':''}><div class="l"${unspent()<0?' style="color:#8a1f1f"':''}>Unspent CP</div><div class="v"${unspent()<0?' style="color:#8a1f1f"':''}>${fmt(unspent())}</div></div>`;
     const byRole=r=>state.abilities.filter(a=>a.role===r&&!a.weakness);
@@ -1336,7 +1350,7 @@
       const awr=e.target.closest('[data-apwrr]');if(awr){const a=apWeaknesses().find(x=>x.uid===awr.dataset.apwrr);if(a){const other=apWeaknesses().filter(x=>x!==a).map(x=>x.base);state.abilities=state.abilities.filter(x=>x!==a);const nm=rollApWeakness(other);if(nm)state.abilities.push(apWkEntry(nm,a.cpNum));}saveDraft();render();return;}
       const awm=e.target.closest('[data-apwrm]');if(awm){apRemoveWeakness(awm.dataset.apwrm);saveDraft();render();return;}
       const fk=e.target.closest('[data-fck]');if(fk){setFaction(fk.dataset.fck);saveDraft();render();return;}
-      const oc=e.target.closest('[data-oc]');if(oc){const v=(state.originChoices||[])[+oc.dataset.oc];if(v){state.origin=v;log('Origin: '+v);}saveDraft();render();return;}
+      const oc=e.target.closest('[data-oc]');if(oc){const v=(state.originChoices||[])[+oc.dataset.oc];if(v){state.origin=v;log('Ability Origin: '+v);}saveDraft();render();return;}
       const sd=e.target.closest('[data-sdk]');if(sd){state.side=sd.dataset.sdk;saveDraft();render();return;}
       const cl=e.target.closest('[data-clk]');if(cl){state.culture=cl.dataset.clk;saveDraft();render();return;}
       const hm=e.target.closest('[data-hmk]');if(hm){state.home=hm.dataset.hmk;saveDraft();render();return;}
