@@ -1,4 +1,4 @@
-// gcc-finance.js v0.1.0 — Campaign finance and AD&D venture ledger
+// gcc-finance.js v0.1.1 — Campaign finance and AD&D venture ledger
 // Drop-in browser module for Graycloak's Campaign Corner.
 //
 // Goals for this first slice:
@@ -10,7 +10,7 @@
 (function(){
   if (typeof window === 'undefined') return;
 
-  const VERSION = '0.1.0';
+  const VERSION = '0.1.1';
   const STORAGE_KEY = 'gcc.finance.v1';
   const $ = (sel, root=document) => root.querySelector(sel);
   const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
@@ -252,7 +252,8 @@
     style.id = 'gcc-finance-style';
     style.textContent = `
       .gcc-finance-btn{ margin-left:.35rem; }
-      .gcc-finance-panel{ position:fixed; right:18px; top:76px; width:min(980px, calc(100vw - 36px)); max-height:calc(100vh - 110px); overflow:auto; z-index:10000; background:#14110d; color:#f4ead4; border:1px solid #8b6f3f; box-shadow:0 18px 50px rgba(0,0,0,.55); border-radius:10px; font:14px/1.35 system-ui,Segoe UI,Roboto,sans-serif; }
+      #btn-finance.active{ background:rgba(200,148,26,.22); border-color:var(--gold,#c8941a); color:var(--gold-light,#e8b840); }
+      .gcc-finance-panel{ position:fixed; right:18px; top:calc(var(--gcc-bar-h,44px) + 56px); width:min(980px, calc(100vw - 36px)); max-height:calc(100vh - var(--gcc-bar-h,44px) - 70px); overflow:auto; z-index:10000; background:#14110d; color:#f4ead4; border:1px solid #8b6f3f; box-shadow:0 18px 50px rgba(0,0,0,.55); border-radius:10px; font:14px/1.35 system-ui,Segoe UI,Roboto,sans-serif; }
       .gcc-finance-head{ display:flex; gap:12px; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid #6f5730; background:linear-gradient(#2a2115,#1b150e); position:sticky; top:0; z-index:2; }
       .gcc-finance-head h2{ margin:0; font-size:18px; letter-spacing:.02em; }
       .gcc-finance-close{ background:#3a2a18; color:#f4ead4; border:1px solid #8b6f3f; border-radius:7px; padding:4px 9px; cursor:pointer; }
@@ -280,22 +281,36 @@
     document.head.appendChild(style);
   }
 
+  function setButtonActive(active){
+    const btn = $('#btn-finance');
+    if (btn) btn.classList.toggle('active', !!active);
+  }
+
   function ensureButton(){
-    if ($('#btn-finance')) return;
-    const voyageBtn = $('#btn-voyage');
-    const btn = document.createElement('button');
-    btn.id = 'btn-finance';
-    btn.className = 'gcc-finance-btn';
+    let btn = $('#btn-finance');
+    if (!btn){
+      const voyageBtn = $('#btn-voyage');
+      btn = document.createElement('button');
+      btn.id = 'btn-finance';
+      if (voyageBtn && voyageBtn.parentNode) voyageBtn.insertAdjacentElement('afterend', btn);
+      else document.body.appendChild(btn);
+    }
+    btn.classList.add('tb-btn', 'gcc-finance-btn');
     btn.type = 'button';
-    btn.title = 'Campaign Finance';
+    btn.dataset.hideable = 'true';
+    btn.dataset.label = 'Campaign Finance';
+    btn.title = 'Open Campaign Finance (characters, ventures, assets, ledgers)';
     btn.textContent = '💰 Finance';
-    btn.addEventListener('click', togglePanel);
-    if (voyageBtn && voyageBtn.parentNode) voyageBtn.insertAdjacentElement('afterend', btn);
-    else document.body.appendChild(btn);
+    btn.onclick = togglePanel;
+  }
+
+  function closePanel(){
+    if (ui.panel){ ui.panel.remove(); ui.panel = null; }
+    setButtonActive(false);
   }
 
   function togglePanel(){
-    if (ui.panel){ ui.panel.remove(); ui.panel = null; return; }
+    if (ui.panel){ closePanel(); return; }
     openPanel();
   }
 
@@ -306,6 +321,7 @@
     ui.panel.className = 'gcc-finance-panel';
     ui.panel.innerHTML = shellHtml();
     document.body.appendChild(ui.panel);
+    setButtonActive(true);
     bindPanel();
     render();
   }
@@ -333,7 +349,7 @@
   function bindPanel(){
     ui.panel.addEventListener('click', ev => {
       const close = ev.target.closest('[data-finance-close]');
-      if (close){ togglePanel(); return; }
+      if (close){ closePanel(); return; }
       const tab = ev.target.closest('[data-finance-tab]');
       if (tab){ ui.activeTab = tab.dataset.financeTab; render(); return; }
       const action = ev.target.closest('[data-finance-action]');

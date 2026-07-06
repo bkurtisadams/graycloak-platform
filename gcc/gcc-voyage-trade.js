@@ -1,14 +1,13 @@
-// gcc-voyage-trade.js v0.1.0 — Merchant venture layer for the GCC Voyage Simulator
+// gcc-voyage-trade.js v0.1.1 — Merchant venture layer for the GCC Voyage Simulator
 // Adds persistent ship ventures, cargo buying/selling, expenses, and ledgers.
 // Designed as a separate module so the current gcc-voyage.js can keep working unchanged.
-// Requires: gcc-auth.js and gcc-firebase-config.js for shared cloud ventures.
+// LocalStorage-only prototype. Do not enable Firestore until the finance schema is finalized.
 // Optional: GCC.showToast, makeDraggable.
 
 (function(){
   if (typeof window === 'undefined') return;
 
-  const FB_VERSION = '10.12.2';
-  const FIRESTORE_URL = `https://www.gstatic.com/firebasejs/${FB_VERSION}/firebase-firestore-compat.js`;
+  const VERSION = '0.1.1';
   const LOCAL_KEY = 'gcc-voyage-ventures-v1';
 
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({
@@ -17,7 +16,7 @@
   const gp = n => `${Math.round(Number(n || 0)).toLocaleString()} gp`;
   const nowIso = () => new Date().toISOString();
   const id = p => `${p}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`;
-  const user = () => (typeof GCCAuth !== 'undefined' && GCCAuth.getUser) ? GCCAuth.getUser() : null;
+  const user = () => null;
   const campaignId = () => new URLSearchParams(location.search).get('id') || 'default';
   const toast = msg => {
     if (typeof showToast === 'function') showToast(msg);
@@ -58,38 +57,7 @@
     'Gradsul': { buy:{salt_fish:0.80,wine:0.95,spices:0.85}, sell:{grain:1.30,wool:1.25,timber:1.20,iron_tools:1.20,arms:1.15}, tax:0.06 }
   };
 
-  const state = { panel:null, activeTab:'ventures', ventures:[], selectedId:null, db:null, cloudReady:false, unsub:null };
-
-  function loadScript(url){
-    return new Promise((resolve, reject) => {
-      if (document.querySelector(`script[src="${url}"]`)) return resolve();
-      const s = document.createElement('script');
-      s.src = url;
-      s.onload = resolve;
-      s.onerror = () => reject(new Error('Failed to load ' + url));
-      document.head.appendChild(s);
-    });
-  }
-
-  async function initCloud(){
-    if (state.db) return state.db;
-    if (!user()) return null;
-    try {
-      await loadScript(FIRESTORE_URL);
-      state.db = firebase.firestore();
-      state.cloudReady = true;
-      return state.db;
-    } catch(e) {
-      console.warn('[VoyageTrade] Firestore unavailable; using local storage only.', e);
-      state.cloudReady = false;
-      return null;
-    }
-  }
-
-  function venturesCollection(){
-    if (!state.db) return null;
-    return state.db.collection('campaigns').doc(campaignId()).collection('ventures');
-  }
+  const state = { panel:null, activeTab:'ventures', ventures:[], selectedId:null };
 
   function saveLocal(){
     localStorage.setItem(LOCAL_KEY, JSON.stringify(state.ventures));
@@ -109,13 +77,6 @@
     if (idx >= 0) state.ventures[idx] = v; else state.ventures.unshift(v);
     saveLocal();
     render();
-    const col = venturesCollection();
-    if (col && user()) {
-      await col.doc(v.id).set(v, { merge:false }).catch(e => {
-        console.warn('[VoyageTrade] cloud save failed', e);
-        toast('Saved locally, but cloud save failed. Check Firestore rules.');
-      });
-    }
   }
 
   function canEdit(v){
@@ -372,62 +333,60 @@
     const s = document.createElement('style');
     s.id = 'vt-styles';
     s.textContent = `
-      .vt-launch{margin-left:4px}.vt-panel{position:fixed;z-index:9999;left:72px;top:86px;width:min(860px,calc(100vw - 32px));max-height:82vh;background:#17120c;color:#ead9b4;border:1px solid #7d5b2d;box-shadow:0 18px 50px #000b;border-radius:12px;overflow:hidden;font:14px system-ui,Segoe UI,sans-serif}.vt-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#2b1a0c;border-bottom:1px solid #7d5b2d;cursor:move}.vt-close{background:#3a2412;color:#f5d99a;border:1px solid #8b6430;border-radius:6px}.vt-tabs{display:flex;gap:6px;padding:8px;background:#20160d;border-bottom:1px solid #58401f}.vt-tab{background:#302111;color:#d9bd82;border:1px solid #6d5129;border-radius:8px;padding:6px 10px}.vt-tab.active{background:#74521f;color:#fff0bc}.vt-body{padding:12px;overflow:auto;max-height:calc(82vh - 92px)}.vt-row{display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin:8px 0}.vt-card{background:#21170e;border:1px solid #5b4425;border-radius:10px;padding:10px}.vt-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px} .vt-panel label{display:flex;flex-direction:column;gap:3px;color:#cda866;font-size:12px;text-transform:uppercase;letter-spacing:.04em}.vt-panel input,.vt-panel select,.vt-panel textarea{background:#0f0b07;color:#f2e2bd;border:1px solid #6a4d26;border-radius:6px;padding:6px}.vt-panel textarea{min-height:72px}.vt-actions{margin-top:10px;display:flex;gap:8px}.vt-panel button{background:#563715;color:#ffe3a1;border:1px solid #9b7231;border-radius:7px;padding:6px 10px}.vt-summary{margin-bottom:10px;padding:8px;background:#24190e;border:1px solid #58401f;border-radius:8px}.vt-panel table{width:100%;border-collapse:collapse;margin:6px 0 12px}.vt-panel th,.vt-panel td{border-bottom:1px solid #43311b;padding:6px;text-align:left}.vt-panel th{color:#d6a84f}.vt-empty{padding:16px;color:#c9a76d}.neg{color:#ff9d7a}.pos{color:#9ce28a}`;
+      .vt-launch{margin-left:4px}#btn-trade.active{background:rgba(200,148,26,.22);border-color:var(--gold,#c8941a);color:var(--gold-light,#e8b840)}.vt-panel{position:fixed;z-index:9999;left:72px;top:calc(var(--gcc-bar-h,44px) + 56px);width:min(860px,calc(100vw - 32px));max-height:calc(100vh - var(--gcc-bar-h,44px) - 70px);background:#17120c;color:#ead9b4;border:1px solid #7d5b2d;box-shadow:0 18px 50px #000b;border-radius:12px;overflow:hidden;font:14px system-ui,Segoe UI,sans-serif}.vt-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#2b1a0c;border-bottom:1px solid #7d5b2d;cursor:move}.vt-close{background:#3a2412;color:#f5d99a;border:1px solid #8b6430;border-radius:6px}.vt-tabs{display:flex;gap:6px;padding:8px;background:#20160d;border-bottom:1px solid #58401f}.vt-tab{background:#302111;color:#d9bd82;border:1px solid #6d5129;border-radius:8px;padding:6px 10px}.vt-tab.active{background:#74521f;color:#fff0bc}.vt-body{padding:12px;overflow:auto;max-height:calc(82vh - 92px)}.vt-row{display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin:8px 0}.vt-card{background:#21170e;border:1px solid #5b4425;border-radius:10px;padding:10px}.vt-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px} .vt-panel label{display:flex;flex-direction:column;gap:3px;color:#cda866;font-size:12px;text-transform:uppercase;letter-spacing:.04em}.vt-panel input,.vt-panel select,.vt-panel textarea{background:#0f0b07;color:#f2e2bd;border:1px solid #6a4d26;border-radius:6px;padding:6px}.vt-panel textarea{min-height:72px}.vt-actions{margin-top:10px;display:flex;gap:8px}.vt-panel button{background:#563715;color:#ffe3a1;border:1px solid #9b7231;border-radius:7px;padding:6px 10px}.vt-summary{margin-bottom:10px;padding:8px;background:#24190e;border:1px solid #58401f;border-radius:8px}.vt-panel table{width:100%;border-collapse:collapse;margin:6px 0 12px}.vt-panel th,.vt-panel td{border-bottom:1px solid #43311b;padding:6px;text-align:left}.vt-panel th{color:#d6a84f}.vt-empty{padding:16px;color:#c9a76d}.neg{color:#ff9d7a}.pos{color:#9ce28a}`;
     document.head.appendChild(s);
   }
 
   function openPanel(){
     addStyles();
-    if (state.panel) { state.panel.style.display = 'block'; render(); return; }
+    if (state.panel) { state.panel.style.display = 'block'; setButtonActive(true); render(); return; }
     const wrap = document.createElement('div');
     wrap.innerHTML = panelHTML();
     state.panel = wrap.firstElementChild;
     document.body.appendChild(state.panel);
-    state.panel.querySelector('.vt-close').addEventListener('click', () => state.panel.style.display = 'none');
+    state.panel.querySelector('.vt-close').addEventListener('click', closePanel);
     state.panel.querySelectorAll('.vt-tab').forEach(t => t.addEventListener('click', () => { state.activeTab = t.dataset.tab; render(); }));
     if (typeof makeDraggable === 'function') makeDraggable(state.panel, state.panel.querySelector('.vt-hdr'), 'gcc-voyage-trade-pos')?.restore?.();
+    setButtonActive(true);
     render();
   }
 
-  async function subscribeCloud(){
-    await initCloud();
-    const col = venturesCollection();
-    if (!col) return;
-    if (state.unsub) state.unsub();
-    state.unsub = col.orderBy('updatedAt', 'desc').onSnapshot(snap => {
-      state.ventures = snap.docs.map(d => d.data());
-      if (!state.selectedId && state.ventures[0]) state.selectedId = state.ventures[0].id;
-      saveLocal();
-      render();
-    }, err => {
-      console.warn('[VoyageTrade] cloud subscription failed', err);
-      toast('Trade cloud sync blocked. Apply the Firestore rules patch for shared ventures.');
-    });
+  function setButtonActive(active){
+    const btn = document.getElementById('btn-trade');
+    if (btn) btn.classList.toggle('active', !!active);
+  }
+
+  function closePanel(){
+    if (state.panel) state.panel.style.display = 'none';
+    setButtonActive(false);
   }
 
   function installButton(){
-    if (document.getElementById('btn-trade') || document.querySelector('.vt-launch')) return;
-    const voyageBtn = document.getElementById('btn-voyage') || [...document.querySelectorAll('button')].find(b => /Voyage/i.test(b.textContent));
-    const btn = document.createElement('button');
+    let btn = document.getElementById('btn-trade') || document.querySelector('.vt-launch');
+    if (!btn){
+      const financeBtn = document.getElementById('btn-finance');
+      const voyageBtn = document.getElementById('btn-voyage') || [...document.querySelectorAll('button')].find(b => /Voyage/i.test(b.textContent));
+      btn = document.createElement('button');
+      btn.id = 'btn-trade';
+      if (financeBtn && financeBtn.parentNode) financeBtn.insertAdjacentElement('afterend', btn);
+      else if (voyageBtn && voyageBtn.parentNode) voyageBtn.insertAdjacentElement('afterend', btn);
+      else document.body.appendChild(btn);
+    }
     btn.id = 'btn-trade';
-    btn.className = 'vt-launch';
+    btn.classList.add('tb-btn', 'vt-launch');
     btn.type = 'button';
-    btn.textContent = '💰 Trade';
-    btn.title = 'Merchant Ventures';
-    btn.addEventListener('click', openPanel);
-    if (voyageBtn && voyageBtn.parentNode) voyageBtn.parentNode.insertBefore(btn, voyageBtn.nextSibling);
-    else document.body.appendChild(btn);
+    btn.dataset.hideable = 'true';
+    btn.dataset.label = 'Merchant Trade';
+    btn.textContent = '📦 Trade';
+    btn.title = 'Open Merchant Trade (ship ventures, cargo, port markets)';
+    btn.onclick = openPanel;
   }
 
   async function init(){
     loadLocal();
     if (state.ventures[0]) state.selectedId = state.ventures[0].id;
     installButton();
-    if (typeof GCCAuth !== 'undefined' && GCCAuth.onAuthChange) {
-      GCCAuth.onAuthChange(() => subscribeCloud());
-    } else {
-      subscribeCloud();
-    }
+    console.log(`[trade] gcc-voyage-trade.js v${VERSION} loaded (localStorage only)`);
   }
 
   window.GCCVoyageTrade = { open:openPanel, newVenture:blankVenture, goods:GOODS, shipTypes:SHIP_TYPES, markets:PORT_MARKETS };
