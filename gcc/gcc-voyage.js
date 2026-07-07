@@ -1,4 +1,7 @@
-// gcc-voyage.js v0.3.1 — 2026-07-06
+// gcc-voyage.js v0.4.0 — 2026-07-07
+// v0.4.0: consume GCCWeather for AD&D / World of Greyhawk daily voyage
+//   weather: Greyhawk months, wind force, precipitation, fog, gale/storm
+//   hazards, navigation penalties, and log details.
 // v0.3.1: demote missing optional ports to diagnostics and add
 //   a high-contrast route halo so planned voyages remain visible over water.
 // v0.3.0: river current direction modifier per DMG p.49.
@@ -49,7 +52,7 @@
 (function(){
   if (typeof window === 'undefined') return;
   const LOG = (...a) => console.log('[voyage]', ...a);
-  LOG('gcc-voyage.js v0.3.1 loaded');
+  LOG('gcc-voyage.js v0.4.0 loaded');
 
   // ── DATA ──────────────────────────────────────────────────────────────────
   // Ship templates: dailySail in miles-per-10-hour-sailing-day, hull in HP.
@@ -68,12 +71,14 @@
     { id:'outrigger',     name:'Outrigger',             dailySail:24, hull:6  },
   ];
 
-  const MONTHS = [
-    "Needfest","Fireseek","Readying","Coldeven",
-    "Planting","Flocktime","Wealsun","Richfest",
-    "Reaping","Goodmonth","Harvester","Brewfest",
-    "Patchwall","Ready'reat","Sunsebb"
-  ];
+  const MONTHS = (window.GCCWeather && Array.isArray(window.GCCWeather.MONTHS))
+    ? window.GCCWeather.MONTHS
+    : [
+      "Needfest","Fireseek","Readying","Coldeven","Growfest",
+      "Planting","Flocktime","Wealsun","Richfest",
+      "Reaping","Goodmonth","Harvester","Brewfest",
+      "Patchwall","Ready'reat","Sunsebb"
+    ];
 
   const CREW_QUALITY_MOD = { green:-2, average:0, experienced:1, veteran:2 };
 
@@ -231,32 +236,45 @@
 
   function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-  // ── SIMULATION ENGINE (ported from voyage-map.html, same math) ───────────
-  function generateWeather(){
-    const windSpeed = rollDN(2,10)+5;
-    const dirs = ['N','NE','E','SE','S','SW','W','NW'];
+  // ── SIMULATION ENGINE ───────────────────────────────────────────────────
+  function generateWeather(ctx){
+    if (window.GCCWeather && typeof window.GCCWeather.generateDailyWeather === 'function'){
+      return window.GCCWeather.generateDailyWeather(ctx || {});
+    }
+    // Fallback only if gcc-weather.js is missing. Keeps gale/storm reachable.
+    const windSpeed = rollDN(3,20);
+    const dirs = ['North','South','East','West','Northwest','Northeast','Southwest','Southeast'];
     const dir = dirs[rollD(8)-1];
-    const skyRoll = rollD(10);
-    const sky = skyRoll<=2 ? 'overcast' : skyRoll<=4 ? 'partly cloudy'
-              : skyRoll<=6 ? 'clear'    : skyRoll<=8 ? 'clear'
-              : skyRoll===9 ? 'fog' : 'heavy fog';
-    const pr = rollD(20);
-    let precip = 'none';
-    if (pr<=3) precip='rainstorm-light';
-    else if (pr<=5) precip='rainstorm-heavy';
-    else if (pr===6) precip='hailstorm';
-    else if (pr>=18) precip='drizzle';
-    if (windSpeed>=50) precip='gale';
-    if (windSpeed>=75) precip='hurricane';
+    const skyRoll = rollD(100);
+    const sky = skyRoll<=20 ? 'Clear' : skyRoll<=50 ? 'Partly Cloudy' : 'Cloudy';
+    const force = windSpeed <= 1 ? 'Calm' : windSpeed <= 7 ? 'Light Wind' : windSpeed <= 18 ? 'Moderate Wind'
+      : windSpeed <= 31 ? 'Strong Wind' : windSpeed <= 54 ? 'Gale' : windSpeed <= 72 ? 'Storm' : 'Hurricane';
+    const precip = windSpeed>=55 ? 'Rain Storm' : windSpeed>=32 ? 'Gale' : rollD(100)<=40 ? 'Rain' : 'None';
     return {
-      wind:{ speed:windSpeed, direction:dir },
+      source:'fallback',
+      wind:{ speed:windSpeed, direction:dir, force, forceKey:force.toLowerCase().split(' ')[0] },
       sky,
-      precipitation:{ type:precip, duration:precip!=='none' ? rollD(6)+2 : 0 },
-      temperature:{ high:65+rollD(20)-10, low:45+rollD(10) }
+      precipitation:{ key:precip.toLowerCase().replace(/\s+/g,'-'), type:precip, duration:precip!=='None' ? rollD(12) : 0, durationUnit:'hours' },
+      temperature:{ high:65+rollD(20)-10, low:45+rollD(10), current:55 },
+      voyageEffects:{ movementMultiplier: windSpeed<=1 ? 0 : windSpeed<=7 ? 0.75 : windSpeed>=55 ? 0.5 : windSpeed>=32 ? 0.75 : 1, navigationPenalty: windSpeed>=55 ? 4 : windSpeed>=32 ? 2 : 0, hazardLevel: windSpeed>=73 ? 'hurricane' : windSpeed>=55 ? 'storm' : windSpeed>=32 ? 'gale' : null, speedNote:'' }
     };
   }
   function calculateSailingSpeed(baseSpeed, weather){
-    const w = weather.wind.speed;
+    const w = Number(weather?.wind?.speed || 0);
+    const fx = weather?.voyageEffects;
+    if (fx && Number.isFinite(fx.movementMultiplier)){
+      const mult = fx.movementMultiplier;
+      const bonus = Number(fx.bonusMiles || 0);
+      const speed = Math.max(0, Math.round((baseSpeed * mult) + bonus));
+      const force = weather.wind?.force || 'Wind';
+      const bits = [`${force} (${w} mph).`];
+      if (mult === 0) bits.push('No planned-course progress.');
+      else if (mult !== 1) bits.push(`${Math.round(mult * 100)}% planned-course progress.`);
+      else bits.push('Normal planned-course progress.');
+      if (fx.speedNote) bits.push(fx.speedNote);
+      return { speed, note:bits.join(' '), becalmed:mult === 0 };
+    }
+
     let speed = baseSpeed, note = '';
     if (w<5) return { speed:0, note:'Becalmed — wind too light.', becalmed:true };
     if (w<20){
@@ -270,7 +288,7 @@
       speed += bonus;
       note = `Strong winds (${w} mph). +${bonus} mi/day.`;
     }
-    const wet = ['drizzle','rainstorm-light','rainstorm-heavy','hailstorm'];
+    const wet = ['drizzle','rainstorm-light','rainstorm-heavy','hailstorm','Rain','Rain Storm'];
     if (wet.includes(weather.precipitation.type)){
       const pct = Math.floor(Math.random()*6)+5;
       const bonus = Math.floor(speed*pct/100);
@@ -301,25 +319,32 @@
     return { name:enc, hostile, distance:(rollD(6)*10)+'yds' };
   }
   function rollNavigationCheck(navSkill, crewMod, weather, waterType){
-    if (waterType !== 'openWater') return null;
+    const mustCheck = waterType === 'openWater' || Number(weather?.voyageEffects?.navigationPenalty || 0) > 0;
+    if (!mustCheck) return null;
     const roll = rollD(20);
-    const hazardMod = weather.wind.speed>=50 ? 5 : weather.wind.speed>=30 ? 2 : 0;
+    const hazardMod = Number(weather?.voyageEffects?.navigationPenalty || 0)
+      || (weather.wind.speed>=50 ? 5 : weather.wind.speed>=30 ? 2 : 0);
     const target = navSkill + crewMod - hazardMod;
     if (roll <= target) return null;
     const lostPct = Math.min(50, (roll-target)*5);
-    return { failed:true, roll, target, lostPct };
+    return { failed:true, roll, target, lostPct, hazardMod };
   }
   function assessWeatherHazard(weather){
-    const w = weather.wind.speed, p = weather.precipitation.type;
-    if (p==='hurricane' || w>=75) return { type:'Critical', mod:10, desc:'Hurricane' };
-    if (p==='gale'      || w>=50) return { type:'Major',    mod:5,  desc:'Gale Force Winds' };
-    if (w>=35)                    return { type:'Minor',    mod:2,  desc:'Thunderstorm' };
-    if (weather.sky.includes('fog'))
-      return { type:'Minor', mod:3, desc: weather.sky.includes('heavy') ? 'Heavy Fog' : 'Fog' };
+    const w = Number(weather?.wind?.speed || 0);
+    const p = weather?.precipitation?.key || weather?.precipitation?.type || '';
+    const hz = weather?.voyageEffects?.hazardLevel;
+    if (hz === 'hurricane' || p === 'hurricane' || w>=73) return { type:'Critical', mod:10, desc:'Hurricane Force Weather' };
+    if (hz === 'storm' || p === 'waterspout' || p === 'squall' || w>=55) return { type:'Major', mod:6, desc:p === 'waterspout' ? 'Waterspout / Tornado' : 'Storm' };
+    if (hz === 'gale' || p === 'gale' || w>=32) return { type:'Major', mod:4, desc:'Gale Force Winds' };
+    const sky = String(weather?.sky || '').toLowerCase();
+    if (sky.includes('fog') || p === 'fog' || p === 'heavy-fog')
+      return { type:'Minor', mod:p === 'heavy-fog' ? 4 : 3, desc:p === 'heavy-fog' ? 'Heavy Fog' : 'Fog' };
     return null;
   }
   function calendarAdvance(cal, days=1){
-    const DPM = { Needfest:7, Richfest:7, Brewfest:7 };
+    const DPM = (window.GCCWeather && window.GCCWeather.MONTH_LENGTHS)
+      ? window.GCCWeather.MONTH_LENGTHS
+      : { Needfest:7, Growfest:7, Richfest:7, Brewfest:7 };
     let { day, month, year } = cal;
     for (let i=0;i<days;i++){
       const dpm = DPM[MONTHS[month]] || 28;
@@ -399,9 +424,24 @@
     v.calendar = calendarAdvance(v.calendar, 1);
     const dateStr = formatDate(v.calendar);
     const waterType = currentLegWaterType();
-    const weather = generateWeather();
+    const weather = generateWeather({
+      day: v.calendar.day,
+      month: v.calendar.month,
+      monthName: MONTHS[v.calendar.month],
+      year: v.calendar.year,
+      waterType,
+      shipId: v.shipId,
+      shipType: v.shipType,
+      captain: v.captain,
+    });
     const speedInfo = calculateSailingSpeed(v.dailySail, weather);
     const events = [];
+    if (weather.source === 'GCCWeather'){
+      events.push({ type:'weather', text: window.GCCWeather.describeWeather(weather) });
+      if (weather.voyageEffects?.stormDriftMiles){
+        events.push({ type:'navigation', text:`Storm drift risk: ship may be blown ${weather.voyageEffects.stormDriftMiles} miles off course unless the captain keeps control.` });
+      }
+    }
     let milesThisDay = 0;
 
     if (speedInfo.becalmed){
@@ -422,7 +462,9 @@
         if (pilot > target){
           const dmg = hz.type==='Critical' ? rollDN(1,6)+4 : hz.type==='Major' ? rollDN(1,4)+2 : rollDN(1,3)+1;
           v.hullCurrent -= dmg;
-          events.push({ type:'damage', text:`${hz.desc}! Piloting failed (${pilot} > ${target}). Hull −${dmg} HP. (${v.hullCurrent}/${v.hullMax} remaining)` });
+          events.push({ type:'damage', text:`${hz.desc}! Ship Sailing failed (${pilot} > ${target}). Hull −${dmg} HP. (${v.hullCurrent}/${v.hullMax} remaining)` });
+        } else {
+          events.push({ type:'weather', text:`${hz.desc}: captain holds course (${pilot} ≤ ${target}).` });
         }
       }
       // Encounter
@@ -886,6 +928,7 @@
 
     state.voyage = {
       captain: p.querySelector('#ve-capt').value || 'Captain',
+      shipId,
       shipType: shipTpl.name,
       hullMax, hullCurrent: hullMax,
       dailySail,
@@ -990,7 +1033,7 @@
       const evt = e.events.map(x => `<div class="ve-log-evt ${esc(x.type)}">${esc(x.text)}</div>`).join('');
       return `<div class="ve-log-day">
         <div class="ve-log-hdr">Day ${e.day} · ${esc(e.date)}</div>
-        <div class="ve-log-sub">Wind ${e.weather.wind.speed} mph ${esc(e.weather.wind.direction)} · ${esc(e.weather.sky)} · ${esc(e.weather.precipitation.type)}</div>
+        <div class="ve-log-sub">${esc(e.weather.wind.force || 'Wind')} ${e.weather.wind.speed} mph ${esc(e.weather.wind.direction)} · ${esc(e.weather.sky)} · ${esc(e.weather.precipitation.type)}</div>
         <div class="ve-log-sub">Sailed ${e.miles} mi (total ${e.distTotal})</div>
         ${evt}
       </div>`;
