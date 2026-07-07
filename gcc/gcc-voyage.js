@@ -1,4 +1,6 @@
-// gcc-voyage.js v0.3.0 — 2026-05-02
+// gcc-voyage.js v0.3.1 — 2026-07-06
+// v0.3.1: demote missing optional ports to diagnostics and add
+//   a high-contrast route halo so planned voyages remain visible over water.
 // v0.3.0: river current direction modifier per DMG p.49.
 // On river legs (leg.waterType === 'river'), each day's navMiles is
 // adjusted by C×8 in the direction of travel:
@@ -47,7 +49,7 @@
 (function(){
   if (typeof window === 'undefined') return;
   const LOG = (...a) => console.log('[voyage]', ...a);
-  LOG('gcc-voyage.js v0.2.0 loaded');
+  LOG('gcc-voyage.js v0.3.1 loaded');
 
   // ── DATA ──────────────────────────────────────────────────────────────────
   // Ship templates: dailySail in miles-per-10-hour-sailing-day, hull in HP.
@@ -579,17 +581,32 @@
       #voyage-panel .ve-log-evt.damage { color:#ff7755; }
       #voyage-panel .ve-log-evt.port   { color:#55cc88; }
       #voyage-panel .ve-warn { color:#ff9944; font-size:10px; font-style:italic; margin-top:4px; }
+      #voyage-panel .ve-diagnostic {
+        margin-top:8px; padding:6px 8px; border:1px solid rgba(200,148,26,.22);
+        border-radius:8px; background:rgba(18,12,3,.38); color:#c8a96e; font-size:10px;
+      }
+      #voyage-panel .ve-diagnostic summary {
+        cursor:pointer; color:#d9b76f; font-family:'Cinzel',serif; letter-spacing:.04em;
+      }
+      #voyage-panel .ve-diagnostic div { margin-top:5px; line-height:1.35; font-style:italic; }
 
       /* Toolbar button */
       #btn-voyage.active { background:rgba(100,180,220,.22); color:#aaddff; border-color:#4488aa; }
 
       /* Map overlays */
       #voyage-overlay { pointer-events:none; }
+      #voyage-overlay .voyage-route-halo,
+      #voyage-overlay .voyage-route-fallback-halo {
+        fill:none; stroke:#f8f1d2; stroke-width:4.2; stroke-linecap:round;
+        stroke-linejoin:round; stroke-dasharray:7,5; opacity:.82;
+      }
       #voyage-overlay .voyage-route {
-        fill:none; stroke:#4488cc; stroke-width:1.4; stroke-dasharray:3,2; opacity:.75;
+        fill:none; stroke:#164f9a; stroke-width:2.15; stroke-linecap:round;
+        stroke-linejoin:round; stroke-dasharray:7,5; opacity:.96;
       }
       #voyage-overlay .voyage-route-fallback {
-        fill:none; stroke:#cc3322; stroke-width:1.4; stroke-dasharray:5,3; opacity:.7;
+        fill:none; stroke:#cc3322; stroke-width:2; stroke-linecap:round;
+        stroke-linejoin:round; stroke-dasharray:6,4; opacity:.9;
       }
       #voyage-overlay .voyage-trail {
         fill:none; stroke:#88ccee; stroke-width:1; opacity:.55;
@@ -715,7 +732,11 @@
         <button class="ve-btn primary" id="ve-start">Start Voyage</button>
       </div>
 
-      ${missingPorts.length ? `<div class="ve-warn">Not yet placed as landmarks: ${missingPorts.map(esc).join(', ')}. Add via 🧰 Hex → Landmarks to enable them as ports.</div>` : ''}
+      ${missingPorts.length ? `
+        <details class="ve-diagnostic">
+          <summary>Port setup diagnostics: ${missingPorts.length} optional port${missingPorts.length === 1 ? '' : 's'} not placed</summary>
+          <div>Optional voyage ports not yet placed as landmarks: ${missingPorts.map(esc).join(', ')}. They are ignored until added via 🧰 Hex → Landmarks.</div>
+        </details>` : ''}
 
       <div class="ve-status" id="ve-status">Build a route, then Start Voyage.</div>
     `;
@@ -1013,7 +1034,7 @@
   function renderRouteOverlay(){
     const g = ensureOverlay();
     if (!g) return;
-    g.querySelectorAll('.voyage-route, .voyage-route-fallback, .voyage-port').forEach(el => el.remove());
+    g.querySelectorAll('.voyage-route, .voyage-route-halo, .voyage-route-fallback, .voyage-route-fallback-halo, .voyage-port').forEach(el => el.remove());
     const legs = state.voyage ? state.voyage.legs : state.routeLegs;
     if (!legs.length){ if (!state.voyage) clearVoyageOverlays(); return; }
     const ns = 'http://www.w3.org/2000/svg';
@@ -1047,10 +1068,15 @@
         pts = [`${fs.x.toFixed(1)},${fs.y.toFixed(1)}`, `${ts.x.toFixed(1)},${ts.y.toFixed(1)}`];
         cls = 'voyage-route-fallback';
       }
+      const halo = document.createElementNS(ns, 'polyline');
+      halo.setAttribute('class', cls === 'voyage-route' ? 'voyage-route-halo' : 'voyage-route-fallback-halo');
+      halo.setAttribute('points', pts.join(' '));
+      g.insertBefore(halo, g.firstChild);
+
       const poly = document.createElementNS(ns, 'polyline');
       poly.setAttribute('class', cls);
       poly.setAttribute('points', pts.join(' '));
-      g.insertBefore(poly, g.firstChild);
+      g.insertBefore(poly, halo.nextSibling);
     });
   }
 
