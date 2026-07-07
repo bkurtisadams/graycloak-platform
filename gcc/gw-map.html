@@ -14,8 +14,9 @@
 <script src="gw-terrain-data.js?v=22c5288c"></script>
 <script src="gcc-rng.js?v=725fb699"></script>
 <script src="gw-subhex-data.js?v=2aa6b1b9"></script>
-<script src="gw-annotations.js?v=1e7a4b6c"></script>
-<script src="gw-feature-gen.js?v=80348352"></script>
+<script src="gw-annotations.js?v=a7d3e11b"></script>
+<script src="gw-feature-gen.js?v=68e2f49c"></script>
+<script src="gw-subhex-atlas.js?v=4e139c92"></script>
 <script src="gw-stock.js?v=70096b9e"></script>
 <script src="gw-mp-bestiary.js?v=2f52209d"></script>
 <script src="gw-mp-export.js?v=11e02ff3"></script>
@@ -114,7 +115,7 @@
 
 <div id="topbar">
   <h1>GAMMA WORLD — Campaign Map</h1>
-  <span class="ver">v0.53.0</span>
+  <span class="ver">v0.54.0</span>
   <span class="sep"></span>
   <button id="btn-reset">Fit View</button>
   <span class="spacer"></span>
@@ -208,7 +209,9 @@
   <div id="hud-data" class="hud">
     <h3>Map data</h3>
     <button id="btn-export-authored" style="width:100%;">⤓ Export authored data</button>
+    <button id="btn-atlas-summary" style="width:100%;margin-top:6px;">▦ Atlas summary</button>
     <div id="export-status" style="font-size:11px;color:var(--gamma-orange-light);margin-top:6px;min-height:14px;">Bakes your edits to <code>gw-authored.js</code></div>
+    <div id="atlas-status" style="font-size:11px;color:#c8a96e;margin-top:6px;min-height:14px;">Atlas facade ready for whole-world subhex generation.</div>
   </div>
   <div id="hud-zoom" class="hud">
     <h3>View</h3>
@@ -297,6 +300,7 @@ function terrainSource(col, row){
   if (Object.prototype.hasOwnProperty.call(COMMITTED_TERRAIN, k)) return 'committed';
   return 'auto';
 }
+window.getTerrainSource = terrainSource;   // consumed by gw-subhex-atlas source audit
 
 function setTerrainOverride(col, row, terrain){
   const k = col + ',' + row;
@@ -328,6 +332,16 @@ function getHazard(col, row){
   return hazardBase(k);
 }
 window.getHazard = getHazard;   // consumed by gw-subhex-data for inherited hazard
+function hazardSource(col, row){
+  const k = col + ',' + row;
+  if (Object.prototype.hasOwnProperty.call(hazardOverrides, k)){
+    return hazardOverrides[k] === hazardBase(k) ? 'committed' : 'override';
+  }
+  if (Object.prototype.hasOwnProperty.call(COMMITTED_HAZARD, k)) return 'committed';
+  if (AUTO_HAZARD.has(k)) return 'auto';
+  return 'none';
+}
+window.getHazardSource = hazardSource;   // consumed by gw-subhex-atlas source audit
 
 function setHazard(col, row, on){
   const k = col + ',' + row;
@@ -374,6 +388,15 @@ function getTerritory(col, row){
   return territoryBase(k);
 }
 window.getTerritory = getTerritory;   // consumed by the encounter roller (alliance bias)
+function territorySource(col, row){
+  const k = col + ',' + row;
+  if (Object.prototype.hasOwnProperty.call(territoryOverrides, k)){
+    return territoryOverrides[k] === territoryBase(k) ? 'committed' : 'override';
+  }
+  if (Object.prototype.hasOwnProperty.call(COMMITTED_TERRITORY, k)) return 'committed';
+  return 'none';
+}
+window.getTerritorySource = territorySource;   // consumed by gw-subhex-atlas source audit
 
 function setTerritory(col, row, key){
   const k = col + ',' + row;
@@ -459,6 +482,10 @@ const ROWS = Math.ceil(WORLD_H / HEX_STEP_Y) + 1;
 // changing it later rewrites every subhex doc id.
 const ANCHOR_COL = Math.floor(COLS / 2);
 const ANCHOR_ROW = Math.floor(ROWS / 2);
+
+if (window.GWSubhexAtlas){
+  window.GWSubhexAtlas.configure({ worldW: WORLD_W, worldH: WORLD_H, cols: COLS, rows: ROWS });
+}
 
 function colRowToCenter(col, row){
   // Flat-top, odd-q offset: odd columns shift down by half a row step.
@@ -800,6 +827,19 @@ document.getElementById('btn-export-authored').addEventListener('click', () => {
   const el = document.getElementById('export-status');
   el.textContent = `Saved gw-authored.js · ${m.parentTerrain} parent · ${m.parentRadiation} rad · ${m.parentTerritory} territory · ${m.subhexCells} subhex cells`;
 });
+
+const atlasSummaryBtn = document.getElementById('btn-atlas-summary');
+if (atlasSummaryBtn){
+  atlasSummaryBtn.addEventListener('click', () => {
+    const el = document.getElementById('atlas-status');
+    if (!window.GWSubhexAtlas){ if (el) el.textContent = 'Atlas module not loaded.'; return; }
+    const s = window.GWSubhexAtlas.summarize({ recountSubhexes: false });
+    if (el){
+      el.textContent = `Atlas · ${s.parentCount} parent hexes · ${s.bounds.parentMiles} mi parents · ${s.bounds.subhexMiles} mi generated subhexes · tiles remain render artifacts`;
+    }
+    try { console.log('[gw-map] atlas summary', s); } catch(_){}
+  });
+}
 
 // ─── Encounter rolls ─────────────────────────────────────────────────────────
 function d(n){ return Math.floor(Math.random() * n) + 1; }

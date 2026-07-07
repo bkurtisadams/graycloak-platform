@@ -1,4 +1,7 @@
-// gw-feature-gen.js v0.6.0 — 2026-05-25
+// gw-feature-gen.js v0.7.0 — 2026-07-07
+// v0.7.0 — add side-effect-free planForParent() so the full-world
+//          subhex atlas/tile renderer can read deterministic generated
+//          markers and paths without writing to the annotation store.
 // v0.6.0 — name dedup: much larger word pools, extra name patterns (qualifier,
 //          possessive), and location-derived codes for the cryptic/tech kinds
 //          (Vault G-577, Mech-Land 633, Installation Kappa-218) so coded sites
@@ -186,13 +189,14 @@
     }
   }
 
-  function generateForParent(col, row){
-    const D = window.GWSubhexData, R = window.GCCRng, A = window.GWAnnotations;
-    if (!D || !R || !A){ console.warn('[gw-feature-gen] deps missing'); return null; }
+  function planForParent(col, row){
+    const D = window.GWSubhexData, R = window.GCCRng;
+    if (!D || !R){ console.warn('[gw-feature-gen] deps missing'); return null; }
     const pk = col + ',' + row;
-    A.clearGenerated(pk);
     const cells = D.ownedByParent(col, row) || [];
-    if (!cells.length) return { markers: 0, strokes: 0, settlements: 0, sites: 0 };
+    if (!cells.length){
+      return { parent: pk, col, row, parentTerrain: D.parentTerrainOf(col, row), markers: [], strokes: [], stats: { markers: 0, strokes: 0, settlements: 0, sites: 0 } };
+    }
 
     const pt = D.parentTerrainOf(col, row);
     const rng = R.mulberry32(R.seedFor(WORLD_SEED, 'features', col, row));
@@ -213,13 +217,17 @@
     }
     placeRareSites(D, R, cells, pt, placed, col, row);   // top-down: robot farms / forts / spaceports
 
-    let mc = 0, sc = 0;
-    for (const p of placed){ A.addMarker(p.kind, p.x, p.y, { gen: true, parent: pk, name: nameFor(p.kind, p.Q, p.R), deferSave: true }); mc++; }
+    const markers = placed.map(p => ({
+      kind: p.kind, x: p.x, y: p.y,
+      gen: true, parent: pk, name: nameFor(p.kind, p.Q, p.R),
+      Q: p.Q, R: p.R,
+    }));
+    const strokes = [];
 
     const settle = placed.filter(p => p.kind === 'town' || p.kind === 'village');
     for (const e of mst(settle)){
       if (e.d > MAX_ROAD) continue;
-      A.addStroke('road', jitterPath(settle[e.a], settle[e.b], rng), { gen: true, parent: pk, deferSave: true }); sc++;
+      strokes.push({ kind: 'road', pts: jitterPath(settle[e.a], settle[e.b], rng), gen: true, parent: pk });
     }
 
     const sites = placed.filter(p => p.kind === 'ruin' || p.kind === 'lair' || p.kind === 'vault' || p.kind === 'robot-farm' || p.kind === 'fortification');
@@ -231,17 +239,35 @@
         const d = Math.hypot(s.x - sites[i].x, s.y - sites[i].y);
         if (d <= TRAIL_RANGE && (!best || d < best.d)) best = { i, d };
       }
-      if (best){ used.add(best.i); A.addStroke('trail', jitterPath(s, sites[best.i], rng), { gen: true, parent: pk, deferSave: true }); sc++; }
+      if (best){ used.add(best.i); strokes.push({ kind: 'trail', pts: jitterPath(s, sites[best.i], rng), gen: true, parent: pk }); }
     }
 
+    return {
+      parent: pk, col, row,
+      parentTerrain: pt,
+      markers,
+      strokes,
+      stats: { markers: markers.length, strokes: strokes.length, settlements: settle.length, sites: sites.length },
+    };
+  }
+
+  function generateForParent(col, row){
+    const A = window.GWAnnotations;
+    if (!A){ console.warn('[gw-feature-gen] deps missing'); return null; }
+    const pk = col + ',' + row;
+    const plan = planForParent(col, row);
+    if (!plan) return null;
+    A.clearGenerated(pk);
+    for (const m of plan.markers){ A.addMarker(m.kind, m.x, m.y, { gen: true, parent: pk, name: m.name, deferSave: true }); }
+    for (const s of plan.strokes){ A.addStroke(s.kind, s.pts, { gen: true, parent: pk, deferSave: true }); }
     A.flush();
-    return { markers: mc, strokes: sc, settlements: settle.length, sites: sites.length };
+    return plan.stats;
   }
   function clearForParent(col, row){
     if (!window.GWAnnotations) return 0;
     return window.GWAnnotations.clearGenerated(col + ',' + row);
   }
 
-  window.GWFeatureGen = { generateForParent, clearForParent, FEATURE_RATES };
-  try { console.log('[gw-feature-gen] v0.6.0 loaded'); } catch(_){}
+  window.GWFeatureGen = { planForParent, generateForParent, clearForParent, FEATURE_RATES };
+  try { console.log('[gw-feature-gen] v0.7.0 loaded'); } catch(_){}
 })();
