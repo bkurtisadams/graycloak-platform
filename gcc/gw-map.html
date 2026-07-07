@@ -114,7 +114,7 @@
 
 <div id="topbar">
   <h1>GAMMA WORLD — Campaign Map</h1>
-  <span class="ver">v0.51.0</span>
+  <span class="ver">v0.52.0</span>
   <span class="sep"></span>
   <button id="btn-reset">Fit View</button>
   <span class="spacer"></span>
@@ -224,7 +224,7 @@
 <script src="gcc-sync.js?v=42e069bc"></script>
 <script src="gcc-invite.js?v=83e3f477"></script>
 <script src="gw-map-sync.js?v=25928c00"></script>
-<script src="gw-subhex-view.js?v=dea46061"></script>
+<script src="gw-subhex-view.js?v=e31fe0ef"></script>
 <script>
 'use strict';
 
@@ -484,10 +484,22 @@ const wrap  = document.getElementById('map-wrap');
 const view  = { x: 0, y: 0, scale: 1 };
 const MIN_SCALE = 0.3;
 const MAX_SCALE = 12;
+let transformRaf = 0;
+
+function paintTransform(){
+  transformRaf = 0;
+  stage.style.transform = `translate3d(${view.x}px, ${view.y}px, 0) scale(${view.scale})`;
+  document.getElementById('hz-zoom').textContent = Math.round(view.scale * 100) + '%';
+}
 
 function applyTransform(){
-  stage.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
-  document.getElementById('hz-zoom').textContent = Math.round(view.scale * 100) + '%';
+  if (transformRaf) return;
+  transformRaf = requestAnimationFrame(paintTransform);
+}
+
+function applyTransformNow(){
+  if (transformRaf){ cancelAnimationFrame(transformRaf); transformRaf = 0; }
+  paintTransform();
 }
 
 function fitToWindow(){
@@ -497,7 +509,7 @@ function fitToWindow(){
   view.scale = Math.min(sx, sy) * 0.95;
   view.x = (rect.width  - WORLD_W * view.scale) / 2;
   view.y = (rect.height - WORLD_H * view.scale) / 2;
-  applyTransform();
+  applyTransformNow();
 }
 
 let drag = null;
@@ -525,8 +537,10 @@ window.addEventListener('mousemove', e => {
   applyTransform();
 });
 window.addEventListener('mouseup', () => {
+  if (!drag) return;
   drag = null;
   wrap.classList.remove('grabbing');
+  applyTransformNow();
 });
 
 wrap.addEventListener('wheel', e => {

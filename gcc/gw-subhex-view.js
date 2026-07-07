@@ -1,3 +1,8 @@
+// gw-subhex-view.js v0.39.0 — 2026-07-07
+// v0.39.0 — drag perf: keep a lightweight fast annotation layer visible while
+//           panning. The full marker/label layer, radiation hatch, and optional
+//           base-map image still drop during drag, but roads/rivers/trails and
+//           point-of-interest dots remain visible so navigation does not go blind.
 // gw-subhex-view.js v0.38.0 — 2026-06-18
 // v0.38.0 — render perf: memoize each subhex's "M…Z" path string by Q,R (centers
 //           are deterministic so geometry is built once per cell ever, not once
@@ -178,6 +183,8 @@
       .gw-sx-rad { fill:url(#gw-sx-rad); stroke:rgba(195,240,55,.4); stroke-width:1; vector-effect:non-scaling-stroke; pointer-events:none; }
       .gw-sx-line { fill:none; vector-effect:non-scaling-stroke; stroke-linecap:round; stroke-linejoin:round; pointer-events:none; }
       .gw-sx-marker, .gw-sx-marker * { pointer-events:none; }
+      .gw-sx-fast-marker { fill:rgba(243,234,210,.82); stroke:rgba(90,42,29,.7); stroke-width:1.2; vector-effect:non-scaling-stroke; pointer-events:none; }
+      .gw-sx-fast-marker.hidden { fill:rgba(243,234,210,.55); stroke:#ff5252; stroke-dasharray:3 2; }
       #gw-sx-bar { position:absolute; top:10px; left:172px; right:10px; display:flex; align-items:center; gap:10px; z-index:6; pointer-events:none; }
       #gw-sx-bar > * { pointer-events:auto; }
       #gw-sx-bar .sx-title { font-family:'Cinzel',serif; font-size:13px; letter-spacing:.08em; color:#ffce9e; background:rgba(14,8,2,.9); border:1px solid #5a3a0a; padding:5px 10px; border-radius:2px; }
@@ -878,6 +885,8 @@
     basemap.setAttribute('preserveAspectRatio', 'none');
     basemap.setAttribute('opacity', '0.6');
     basemap.style.display = 'none'; basemap.style.pointerEvents = 'none';
+    const gAnnotFast = document.createElementNS(SVGNS, 'g'); gAnnotFast.id = 'gw-sx-annot-fast';
+    gAnnotFast.style.display = 'none';
     const gAnnot = document.createElementNS(SVGNS, 'g');   gAnnot.id = 'gw-sx-annot';
     const gEditor = document.createElementNS(SVGNS, 'g');  gEditor.id = 'gw-sx-editor';
     const gPreview = document.createElementNS(SVGNS, 'g'); gPreview.id = 'gw-sx-preview';
@@ -889,7 +898,7 @@
     const panG = document.createElementNS(SVGNS, 'g');     panG.id = 'gw-sx-pan';
     // basemap first = bottom layer: the parent map sits UNDER the subhex terrain,
     // so fading gCells (subhex opacity slider) reveals the parent through the hexes.
-    panG.append(basemap, gCells, gHaz, gPreview, gParents, gTarget, gAnnot, gEditor, gFog, gSel, gParty, gHover);
+    panG.append(basemap, gCells, gHaz, gPreview, gParents, gTarget, gAnnotFast, gAnnot, gEditor, gFog, gSel, gParty, gHover);
     svg.append(defs, panG);
 
     const palette = buildPalette();
@@ -932,7 +941,7 @@
     document.body.appendChild(overlay);
 
     Object.assign(state.el, {
-      overlay, svg, gCells, gParents, gAnnot, gEditor, gHaz, panG, gPreview, gHover, gSel, gFog, gParty, gTarget, basemap, title, read, enc,
+      overlay, svg, gCells, gParents, gAnnotFast, gAnnot, gEditor, gHaz, panG, gPreview, gHover, gSel, gFog, gParty, gTarget, basemap, title, read, enc,
       readBody: read.querySelector('#gw-sx-read-body'),
       mode: palette.querySelector('#gw-sx-mode'),
       undoBtn: palette.querySelector('#gw-sx-undo'),
@@ -1040,12 +1049,12 @@
       const dy = (e.clientY - state.drag.sy) / r.height * state.vb.h;
       if (!state.drag.moved && Math.abs(e.clientX - state.drag.sx) + Math.abs(e.clientY - state.drag.sy) > 3){
         state.drag.moved = true; state.el.panG.style.willChange = 'transform'; clearHover();
-        // Drop the priciest layers during the drag and restore on mouseup: radiation
-        // <pattern>, marker text, and — by far the heaviest — the full-resolution base
-        // map image. Left in, it bloats panG's composited pan layer into a world-sized
-        // GPU texture (enormous at high zoom), which is what degrades the drag until
-        // the view is rebuilt.
+        // Drop only the priciest layers during the drag and restore on mouseup.
+        // The lightweight fast annotation layer stays visible so roads, rivers,
+        // trails, and point-of-interest dots remain useful while panning.
         state.el.gHaz.style.display = 'none'; state.el.gAnnot.style.display = 'none';
+        state.fastAnnotDisp = state.el.gAnnotFast.style.display;
+        state.el.gAnnotFast.style.display = '';
         state.basemapDisp = state.el.basemap.style.display;
         state.el.basemap.style.display = 'none';
       }
@@ -1076,6 +1085,7 @@
         state.el.panG.style.transform = ''; state.el.panG.style.willChange = '';
         applyViewBox(); render();
         state.el.gHaz.style.display = ''; state.el.gAnnot.style.display = '';
+        state.el.gAnnotFast.style.display = state.fastAnnotDisp == null ? 'none' : state.fastAnnotDisp;
         state.el.basemap.style.display = state.basemapDisp || '';
       } else if (dr.selCell){
         selectCell(dr.selCell.Q, dr.selCell.R);
@@ -1310,19 +1320,31 @@
     }
     return g;
   }
+  function markerFastEl(m, u){
+    const c = document.createElementNS(SVGNS, 'circle');
+    c.setAttribute('cx', m.x); c.setAttribute('cy', m.y); c.setAttribute('r', Math.max(2.2 * u, ICON_PX * 0.34 * u));
+    c.setAttribute('class', 'gw-sx-fast-marker' + (m.hidden ? ' hidden' : ''));
+    return c;
+  }
   function renderAnnotations(){
-    if (!A() || !state.el.gAnnot) return;
+    if (!A() || !state.el.gAnnot || !state.el.gAnnotFast) return;
     const u = curU();
     const bb = state.rendered || { minX: state.vb.x, maxX: state.vb.x+state.vb.w, minY: state.vb.y, maxY: state.vb.y+state.vb.h };
+    const markerBb = { minX: bb.minX - 50*u, maxX: bb.maxX + 50*u, minY: bb.minY - 50*u, maxY: bb.maxY + 50*u };
     const frag = document.createDocumentFragment();
+    const fastFrag = document.createDocumentFragment();
     for (const s of A().strokesInBbox(bb, ICON_PX*u)){
-      frag.appendChild(lineEl(s.kind, smoothPath(s.pts), { color: s.color, width: s.width }));
+      const path = smoothPath(s.pts);
+      frag.appendChild(lineEl(s.kind, path, { color: s.color, width: s.width }));
+      fastFrag.appendChild(lineEl(s.kind, path, { color: s.color, width: Math.max(1.4 * u, (s.width || (STROKE_STYLE[s.kind] || STROKE_STYLE.pen).width) * 0.85) }));
     }
-    for (const m of A().markersInBbox({ minX: bb.minX - 50*u, maxX: bb.maxX + 50*u, minY: bb.minY - 50*u, maxY: bb.maxY + 50*u })){
+    for (const m of A().markersInBbox(markerBb)){
       frag.appendChild(markerEl(m.kind, m.x, m.y, m.name, u, m.hidden));
+      fastFrag.appendChild(markerFastEl(m, u));
       if (state.markerSel === m.id) frag.appendChild(markerSelRing(m.x, m.y, u));
     }
     state.el.gAnnot.replaceChildren(frag);
+    state.el.gAnnotFast.replaceChildren(fastFrag);
     editorRender();
   }
 
