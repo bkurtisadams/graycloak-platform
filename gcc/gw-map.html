@@ -14,9 +14,10 @@
 <script src="gw-terrain-data.js?v=22c5288c"></script>
 <script src="gcc-rng.js?v=725fb699"></script>
 <script src="gw-subhex-data.js?v=2aa6b1b9"></script>
-<script src="gw-annotations.js?v=a7d3e11b"></script>
-<script src="gw-feature-gen.js?v=68e2f49c"></script>
-<script src="gw-subhex-atlas.js?v=4e139c92"></script>
+<script src="gw-annotations.js?v=44ee919d"></script>
+<script src="gw-feature-gen.js?v=d1a5a4be"></script>
+<script src="gw-subhex-atlas.js?v=d53fd629"></script>
+<script src="gw-subhex-tile-renderer.js?v=ddf91030"></script>
 <script src="gw-stock.js?v=70096b9e"></script>
 <script src="gw-mp-bestiary.js?v=2f52209d"></script>
 <script src="gw-mp-export.js?v=11e02ff3"></script>
@@ -115,7 +116,7 @@
 
 <div id="topbar">
   <h1>GAMMA WORLD — Campaign Map</h1>
-  <span class="ver">v0.54.0</span>
+  <span class="ver">v0.55.0</span>
   <span class="sep"></span>
   <button id="btn-reset">Fit View</button>
   <span class="spacer"></span>
@@ -210,8 +211,10 @@
     <h3>Map data</h3>
     <button id="btn-export-authored" style="width:100%;">⤓ Export authored data</button>
     <button id="btn-atlas-summary" style="width:100%;margin-top:6px;">▦ Atlas summary</button>
+    <button id="btn-render-tile-preview" style="width:100%;margin-top:6px;">▧ Render selected tile</button>
     <div id="export-status" style="font-size:11px;color:var(--gamma-orange-light);margin-top:6px;min-height:14px;">Bakes your edits to <code>gw-authored.js</code></div>
     <div id="atlas-status" style="font-size:11px;color:#c8a96e;margin-top:6px;min-height:14px;">Atlas facade ready for whole-world subhex generation.</div>
+    <div id="tile-status" style="font-size:11px;color:#c8a96e;margin-top:6px;min-height:14px;">Tile renderer preview is opt-in and does not replace the viewer.</div>
   </div>
   <div id="hud-zoom" class="hud">
     <h3>View</h3>
@@ -227,7 +230,7 @@
 <script src="gcc-sync.js?v=42e069bc"></script>
 <script src="gcc-invite.js?v=83e3f477"></script>
 <script src="gw-map-sync.js?v=25928c00"></script>
-<script src="gw-subhex-view.js?v=9c4b7f21"></script>
+<script src="gw-subhex-view.js?v=790cb225"></script>
 <script>
 'use strict';
 
@@ -838,6 +841,44 @@ if (atlasSummaryBtn){
       el.textContent = `Atlas · ${s.parentCount} parent hexes · ${s.bounds.parentMiles} mi parents · ${s.bounds.subhexMiles} mi generated subhexes · tiles remain render artifacts`;
     }
     try { console.log('[gw-map] atlas summary', s); } catch(_){}
+  });
+}
+
+function firstSelectedParent(){
+  const h = selectedHexes && selectedHexes.size ? [...selectedHexes][0] : null;
+  if (!h) return null;
+  return { col: +h.dataset.col, row: +h.dataset.row, terrain: h.dataset.terrain || getTerrain(+h.dataset.col, +h.dataset.row) };
+}
+
+const tilePreviewBtn = document.getElementById('btn-render-tile-preview');
+if (tilePreviewBtn){
+  tilePreviewBtn.addEventListener('click', () => {
+    const status = document.getElementById('tile-status');
+    const p = firstSelectedParent();
+    if (!p){ if (status) status.textContent = 'Click a parent hex first, then render its tile preview.'; return; }
+    if (!window.GWSubhexTileRenderer){ if (status) status.textContent = 'Tile renderer module not loaded.'; return; }
+    try {
+      tilePreviewBtn.disabled = true;
+      const result = window.GWSubhexTileRenderer.renderParent(p.col, p.row, {
+        size: 1024,
+        showGrid: true,
+        showRadiation: true,
+        showMarkers: true,
+        showLabels: true,
+        showAncientRoads: true,
+        showHidden: true,
+      });
+      window.GWSubhexTileRenderer.showPreview(result);
+      if (status){
+        status.textContent = `Rendered parent ${p.col},${p.row} · ${result.stats.cells} cells · ${result.stats.markers} AOI · ${result.stats.strokes} paths`;
+      }
+      try { console.log('[gw-map] tile preview', result); } catch(_){}
+    } catch (err){
+      if (status) status.textContent = 'Tile preview failed: ' + (err && err.message ? err.message : err);
+      try { console.error('[gw-map] tile preview failed', err); } catch(_){}
+    } finally {
+      tilePreviewBtn.disabled = false;
+    }
   });
 }
 
