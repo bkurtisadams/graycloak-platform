@@ -1,4 +1,7 @@
-// gcc-settings.js v0.2.0 — 2026-05-11
+// gcc-settings.js v0.2.1 — 2026-07-06
+// v0.2.1: header visibility only applies to currently hideable buttons; pinned buttons
+// such as Voyage are always shown even if an old localStorage setting says otherwise.
+//
 // v0.2.0: wireSettingsButton — auto-bind #gcc-btn-settings → openDialog
 // on init (same pattern as gcc-header.js wireTheme). Idempotent via
 // _gccSettingsWired flag; safe to call multiple times.
@@ -297,6 +300,15 @@
     for (const [id, visible] of Object.entries(map)){
       const el = document.getElementById(id);
       if (!el) continue;
+
+      // Only the buttons currently marked hideable may be hidden.
+      // This prevents stale localStorage from hiding pinned/essential
+      // controls after a toolbar layout change.
+      if (el.dataset.hideable !== 'true'){
+        el.style.display = '';
+        continue;
+      }
+
       el.style.display = visible ? '' : 'none';
     }
   }

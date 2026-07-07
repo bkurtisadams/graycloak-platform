@@ -537,6 +537,10 @@
   <button class="tb-btn" id="btn-reset">Reset</button>
   <span id="zoom-display">50%</span>
   <div class="sep"></div>
+  <button class="tb-btn" id="btn-voyage" data-pinned="true" data-label="Voyage Simulator" title="Open the Voyage Simulator (plan sea/river routes, simulate days at sea)">⚓ Voyage</button>
+  <button class="tb-btn" id="btn-finance" data-hideable="true" data-label="Campaign Finance" title="Open Campaign Finance (characters, ventures, assets, ledgers)">💰 Finance</button>
+  <button class="tb-btn" id="btn-trade" data-hideable="true" data-label="Merchant Trade" title="Open Merchant Trade (ship ventures, cargo, port markets)">📦 Trade</button>
+  <div class="sep"></div>
   <button class="tb-btn" id="btn-move-mode" data-hideable="true" data-label="Move mode">☩ Move</button>
   <button class="tb-btn" id="btn-hex-labels" data-hideable="true" data-label="Hex IDs">IDs</button>
   <button class="tb-btn" id="btn-coord-labels" data-hideable="true" data-label="Darlene coords" title="Show Darlene column/diagonal labels along map edges">⌨ Coords</button>
@@ -545,9 +549,6 @@
   <button class="tb-btn" id="btn-hex-edit" data-hideable="true" data-label="Hex Editor" title="Open the Hex Editor (Landmarks / Paint / Outline / Draw)">🧰 Hex</button>
   <button class="tb-btn" id="btn-edges" data-hideable="true" data-label="Edges" title="Flag transitional parent hexes for fine-grained classifier scans (coast/forest/river/jungle)">🪡 Edges</button>
   <button class="tb-btn" id="btn-coast-scan" data-hideable="true" data-label="Coast scanner" title="Scan the Darlene image for water in the selected parent hex and write subhex overrides">🌊 Coast</button>
-  <button class="tb-btn" id="btn-voyage" data-hideable="true" data-label="Voyage Simulator" title="Open the Voyage Simulator (plan sea/river routes, simulate days at sea)">⚓ Voyage</button>
-  <button class="tb-btn" id="btn-finance" data-hideable="true" data-label="Campaign Finance" title="Open Campaign Finance (characters, ventures, assets, ledgers)">💰 Finance</button>
-  <button class="tb-btn" id="btn-trade" data-hideable="true" data-label="Merchant Trade" title="Open Merchant Trade (ship ventures, cargo, port markets)">📦 Trade</button>
   <div class="spacer"></div>
   <div id="mode-label">OVERWORLD · 30 MI/HEX</div>
   <div class="sep"></div>
@@ -876,7 +877,7 @@
 <script src="gcc-edge-scanner.js?v=b0943bb3"></script>
 <script src="gcc-edge-flags.js?v=1ad72b5f"></script>
 <script src="gcc-edges.js?v=dcbccffb"></script>
-<script src="gcc-settings.js?v=f2fde918"></script>
+<script src="gcc-settings.js?v=0.2.1"></script>
 <script src="gcc-finance.js?v=0.3.0"></script>
 <script src="gcc-voyage-trade.js?v=0.1.1"></script>
 <script src="gcc-voyage-finance.js?v=0.1.0"></script>
@@ -5234,7 +5235,7 @@ window.addEventListener('load',init);
 <script src="gcc-auth.js?v=dc620d93"></script>
 
 <!-- Page version stamp (bottom-right). Bump GCC_VERSION as you edit. -->
-<script>window.GCC_VERSION = 'greyhawk-map v1.0.3';</script>
+<script>window.GCC_VERSION = 'greyhawk-map v1.0.4';</script>
 <script src="gcc-version-badge.js?v=681c7e07"></script>
 <style>
 #gcc-active-badge{position:fixed;left:12px;bottom:12px;z-index:250;display:none;align-items:center;gap:8px;background:var(--panel-bg,#0e0802);border:1px solid var(--gold,#c8941a);border-radius:4px;padding:6px 11px;font-family:'Cinzel',serif;font-size:11px;color:var(--gold-light,#e8b840);box-shadow:0 4px 16px rgba(0,0,0,.55)}
