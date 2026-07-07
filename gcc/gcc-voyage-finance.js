@@ -1,11 +1,11 @@
-// gcc-voyage-finance.js v0.2.0 — Local voyage settlement and finance bridge
+// gcc-voyage-finance.js v0.2.1 — Local voyage settlement and finance bridge
 // Adds explicit voyage ledger posting controls to the GCC Voyage Simulator.
 // LocalStorage-only. No Firestore sync or schema writes.
 
 (function(){
   if (typeof window === 'undefined') return;
 
-  const VERSION = '0.2.0';
+  const VERSION = '0.2.1';
   const STORAGE_KEY = 'gcc.voyage.finance.v1';
   const MONTHS = ['Needfest','Fireseek','Readying','Coldeven','Planting','Flocktime','Wealsun','Richfest','Reaping','Goodmonth','Harvester','Brewfest','Patchwall','Readyreat','Sunsebb'];
   const $ = (sel, root=document) => root.querySelector(sel);
@@ -142,9 +142,10 @@
 
   function currentPort(){
     const v = activeVoyage();
+    if (v?.location) return v.location.port || v.location.label || '';
     if (v?.legs?.length){
       if (v.finished || v.currentLegIdx >= v.legs.length) return v.legs[v.legs.length - 1]?.to || '';
-      if (v.currentLegIdx > 0 && v.milesOnLeg === 0) return v.legs[v.currentLegIdx - 1]?.to || '';
+      if (v.currentLegIdx > 0 && Number(v.milesOnLeg || 0) === 0) return v.legs[v.currentLegIdx - 1]?.to || '';
       return v.legs[v.currentLegIdx]?.from || v.legs[0]?.from || '';
     }
     return selectedAsset()?.location || selectedVenture()?.currentPort || '';
@@ -522,6 +523,7 @@
         assetId: link.assetId || '',
         shipId: link.assetId || '',
         port: port || '',
+        location: v?.location ? clone(v.location) : null,
         day: v?.dayNumber || 0,
         route: routeLabel(),
         origin: v?.legs?.[0]?.from || '',

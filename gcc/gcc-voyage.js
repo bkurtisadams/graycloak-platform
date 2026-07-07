@@ -1,4 +1,6 @@
-// gcc-voyage.js v0.5.0 — 2026-07-07
+// gcc-voyage.js v0.6.0 — 2026-07-07
+// v0.6.0: persist active voyage state, add canonical voyage location,
+//   and improve itinerary planning with route helper text + auto-plan.
 // v0.5.0: add voyage settlement/pending finance actions for explicit
 //   repair and arrival accounting via gcc-voyage-finance.js.
 // v0.4.0: consume GCCWeather for AD&D / World of Greyhawk daily voyage
@@ -54,7 +56,7 @@
 (function(){
   if (typeof window === 'undefined') return;
   const LOG = (...a) => console.log('[voyage]', ...a);
-  LOG('gcc-voyage.js v0.5.0 loaded');
+  LOG('gcc-voyage.js v0.6.0 loaded');
 
   // ── DATA ──────────────────────────────────────────────────────────────────
   // Ship templates: dailySail in miles-per-10-hour-sailing-day, hull in HP.
@@ -150,6 +152,7 @@
   const uid = (prefix='id') => `${prefix}_${Math.random().toString(36).slice(2,8)}_${Date.now().toString(36)}`;
 
   const REPAIR_GP_PER_HULL = 50;
+  const VOYAGE_STORAGE_KEY = 'gcc.voyage.state.v1';
 
 
   function portHex(name){
@@ -362,7 +365,140 @@
   }
   function formatDate(cal){ return `${cal.day} ${MONTHS[cal.month]} ${cal.year} CY`; }
 
+  function saveVoyageState(){
+    try {
+      const payload = {
+        version: 1,
+        savedAt: new Date().toISOString(),
+        routeLegs: state.routeLegs || [],
+        voyage: state.voyage || null,
+      };
+      localStorage.setItem(VOYAGE_STORAGE_KEY, JSON.stringify(payload));
+    } catch (err){ LOG('could not save voyage state', err); }
+  }
+
+  function loadVoyageState(){
+    try {
+      const raw = localStorage.getItem(VOYAGE_STORAGE_KEY);
+      if (!raw) return false;
+      const payload = JSON.parse(raw);
+      if (Array.isArray(payload?.routeLegs)) state.routeLegs = payload.routeLegs;
+      if (payload?.voyage && Array.isArray(payload.voyage.legs)){
+        state.voyage = payload.voyage;
+        normalizeVoyageState(state.voyage);
+      }
+      return true;
+    } catch (err){ LOG('could not load voyage state', err); return false; }
+  }
+
+  function clearSavedVoyageState(){
+    try { localStorage.removeItem(VOYAGE_STORAGE_KEY); } catch (err){ /* ignore */ }
+  }
+
+  function dateObjToText(cal){ return cal ? formatDate(cal) : ''; }
+
+  function cloneHex(h){
+    return h ? { col:Number(h.col || 0), row:Number(h.row || 0) } : null;
+  }
+
+  function currentLeg(v=state.voyage){
+    return v?.legs?.[v.currentLegIdx] || null;
+  }
+
+  function currentLegProgress(v=state.voyage){
+    const leg = currentLeg(v);
+    if (!leg) return { leg:null, pct:0, milesOnLeg:0, milesRemainingOnLeg:0 };
+    const milesOnLeg = Math.max(0, Math.min(Number(v.milesOnLeg || 0), Number(leg.distance || 0)));
+    const dist = Math.max(1, Number(leg.distance || 0));
+    return {
+      leg,
+      pct: Math.max(0, Math.min(1, milesOnLeg / dist)),
+      milesOnLeg: Math.round(milesOnLeg),
+      milesRemainingOnLeg: Math.max(0, Math.round(Number(leg.distance || 0) - milesOnLeg)),
+    };
+  }
+
+  function buildVoyageLocation(v=state.voyage){
+    if (!v?.legs?.length) return null;
+    const pos = cloneHex(shipHexPosition());
+    const base = {
+      date: dateObjToText(v.calendar),
+      voyageDay: Number(v.dayNumber || 0),
+      currentLegIdx: Number(v.currentLegIdx || 0),
+      currentHex: pos,
+      route: voyageRouteLabel(v),
+    };
+    if (v.shipSank){
+      const p = currentLegProgress(v);
+      return { ...base, mode:'sunk', label:`Sunk: ${p.leg ? `${p.leg.from} → ${p.leg.to}` : voyageRouteLabel(v)}`, lastPort:p.leg?.from || '', nextPort:p.leg?.to || '', port:'', milesOnLeg:p.milesOnLeg, milesRemainingOnLeg:p.milesRemainingOnLeg };
+    }
+    if (v.finished || v.currentLegIdx >= v.legs.length){
+      const dest = v.legs[v.legs.length - 1]?.to || '';
+      return { ...base, mode:'arrived', label:dest ? `Arrived: ${dest}` : 'Arrived', port:dest, lastPort:dest, nextPort:'', milesOnLeg:0, milesRemainingOnLeg:0 };
+    }
+    const p = currentLegProgress(v);
+    const leg = p.leg || v.legs[0];
+    if (v.dayNumber === 0 && v.currentLegIdx === 0 && Number(v.milesOnLeg || 0) === 0){
+      return { ...base, mode:'in_port', label:leg.from || 'In port', port:leg.from || '', lastPort:leg.from || '', nextPort:leg.to || '', milesOnLeg:0, milesRemainingOnLeg:Number(leg.distance || 0) };
+    }
+    const exactPort = (Number(v.milesOnLeg || 0) === 0 && v.currentLegIdx > 0) ? v.legs[v.currentLegIdx - 1]?.to : '';
+    if (exactPort && !v._forceUnderwayLocation){
+      return { ...base, mode:'in_port', label:exactPort, port:exactPort, lastPort:exactPort, nextPort:leg.to || '', milesOnLeg:0, milesRemainingOnLeg:Number(leg.distance || 0) };
+    }
+    const water = leg.waterType ? ` · ${leg.waterType}` : '';
+    return {
+      ...base,
+      mode:'underway',
+      label:`Underway: ${leg.from} → ${leg.to}`,
+      port:'',
+      lastPort:leg.from || '',
+      nextPort:leg.to || '',
+      milesOnLeg:p.milesOnLeg,
+      milesRemainingOnLeg:p.milesRemainingOnLeg,
+      progressPct: Math.round(p.pct * 100),
+      waterType: leg.waterType || '',
+      note:`${p.milesOnLeg}/${leg.distance || 0} mi${water}`,
+    };
+  }
+
+  function updateVoyageLocation(reason='location'){
+    if (!state.voyage) return null;
+    normalizeVoyageState(state.voyage, false);
+    state.voyage.location = buildVoyageLocation(state.voyage);
+    state.voyage.currentDate = dateObjToText(state.voyage.calendar);
+    state.voyage.updatedAt = new Date().toISOString();
+    if (state.voyage.finished && !state.voyage.arrivalDate) state.voyage.arrivalDate = state.voyage.currentDate;
+    return state.voyage.location;
+  }
+
+  function normalizeVoyageState(v=state.voyage, updateLocation=true){
+    if (!v) return null;
+    v.legs = Array.isArray(v.legs) ? v.legs : [];
+    v.log = Array.isArray(v.log) ? v.log : [];
+    v.hexTrail = Array.isArray(v.hexTrail) ? v.hexTrail : [];
+    v.calendar = v.calendar || { day:1, month:0, year:576 };
+    v.startCalendar = v.startCalendar || { ...v.calendar };
+    v.startDate = v.startDate || dateObjToText(v.startCalendar);
+    v.currentDate = dateObjToText(v.calendar);
+    v.hullDamageTaken = Number(v.hullDamageTaken || 0);
+    ensureSettlement(v);
+    if (updateLocation) updateVoyageLocation('normalize');
+    return v;
+  }
+
+  function voyageCurrentLocation(v=state.voyage){
+    if (!v) return null;
+    return v.location || buildVoyageLocation(v);
+  }
+
+  function voyageCurrentLocationLabel(v=state.voyage){
+    const loc = voyageCurrentLocation(v);
+    return loc?.label || voyageCurrentPort(v) || '';
+  }
+
   function emitVoyageChanged(reason='changed'){
+    if (state.voyage) updateVoyageLocation(reason);
+    saveVoyageState();
     try {
       document.dispatchEvent(new CustomEvent('gcc:voyage:changed', { detail:{ reason, voyage:state.voyage } }));
     } catch (err){ /* CustomEvent unavailable in very old browsers */ }
@@ -380,8 +516,11 @@
 
   function voyageCurrentPort(v=state.voyage){
     if (!v?.legs?.length) return '';
+    const loc = v.location || buildVoyageLocation(v);
+    if (loc?.port) return loc.port;
+    if (loc?.mode === 'underway') return loc.label || '';
     if (v.finished || v.currentLegIdx >= v.legs.length) return v.legs[v.legs.length - 1]?.to || '';
-    if (v.currentLegIdx > 0 && v.milesOnLeg === 0) return v.legs[v.currentLegIdx - 1]?.to || '';
+    if (v.currentLegIdx > 0 && Number(v.milesOnLeg || 0) === 0) return v.legs[v.currentLegIdx - 1]?.to || '';
     const leg = v.legs[v.currentLegIdx] || v.legs[0];
     return leg?.from || '';
   }
@@ -409,7 +548,8 @@
       createdAt: new Date().toISOString(),
       day: data.day || v.dayNumber || 0,
       date: data.date || (v.calendar ? formatDate(v.calendar) : ''),
-      port: data.port || voyageCurrentPort(v),
+      port: data.port || voyageCurrentLocationLabel(v),
+      location: data.location || voyageCurrentLocationLabel(v),
       route: data.route || voyageRouteLabel(v),
       category,
       direction: data.direction || (['cargo_sale','charter','voyage_profit','trade_profit'].includes(category) ? 'income' : 'expense'),
@@ -418,7 +558,7 @@
       eventType: data.eventType || category,
       hullDamage,
       restoreHullAllowed: !!(data.restoreHullAllowed ?? (category === 'repair' && hullDamage > 0)),
-      meta: data.meta && typeof data.meta === 'object' ? data.meta : {}
+      meta: Object.assign({ location: voyageCurrentLocation(v) }, data.meta && typeof data.meta === 'object' ? data.meta : {})
     };
     s.pending.unshift(action);
     emitVoyageChanged('pending-finance-added');
@@ -475,7 +615,11 @@
       route: voyageRouteLabel(v),
       origin: v.legs?.[0]?.from || '',
       destination: v.legs?.[v.legs.length - 1]?.to || '',
-      currentPort: voyageCurrentPort(v),
+      currentPort: voyageCurrentLocationLabel(v),
+      currentLocation: voyageCurrentLocation(v),
+      startDate: v.startDate || '',
+      currentDate: v.currentDate || dateObjToText(v.calendar),
+      arrivalDate: v.arrivalDate || '',
       days: v.dayNumber || 0,
       distanceCovered: v.distanceCovered || 0,
       totalDistance: v.totalDistance || 0,
@@ -560,7 +704,10 @@
     if (!v || v.finished || v.shipSank) return null;
     v.dayNumber++;
     v.calendar = calendarAdvance(v.calendar, 1);
-    const dateStr = formatDate(v.calendar);
+    v.currentDate = formatDate(v.calendar);
+    const dateStr = v.currentDate;
+    v._forceUnderwayLocation = true;
+    updateVoyageLocation('day-start');
     const waterType = currentLegWaterType();
     const weather = generateWeather({
       day: v.calendar.day,
@@ -611,7 +758,7 @@
             memo:`Repair ${dmg} hull HP after ${hz.desc} on ${dateStr}.`,
             day:v.dayNumber,
             date:dateStr,
-            port:voyageCurrentPort(v),
+            port:voyageCurrentLocationLabel(v),
             meta:{ weatherHazard:hz.desc, windForce:weather.wind?.force || '', windSpeed:weather.wind?.speed || 0, waterType }
           }, v);
           events.push({ type:'damage', text:`${hz.desc}! Ship Sailing failed (${pilot} > ${target}). Hull −${dmg} HP. (${v.hullCurrent}/${v.hullMax} remaining). Pending repair estimate: ${repairGp} gp.` });
@@ -636,7 +783,7 @@
             memo:`Repair ${hullDmg} hull HP after ${enc.name} on ${dateStr}.`,
             day:v.dayNumber,
             date:dateStr,
-            port:voyageCurrentPort(v),
+            port:voyageCurrentLocationLabel(v),
             meta:{ encounter:enc.name, encounterDistance:enc.distance, waterType }
           }, v);
           if (crewLoss>0) events.push({ type:'crew', text:`${enc.name} at ${enc.distance}! ${crewLoss} crew lost.` });
@@ -671,10 +818,14 @@
           v.milesOnLeg = overflow;
           if (v.currentLegIdx < v.legs.length){
             ensureSettlement(v).notes.push({ day:v.dayNumber, date:dateStr, type:'arrival', text:`Arrived at ${leg.to}.` });
+            v._forceUnderwayLocation = false;
+            updateVoyageLocation('port-arrival');
             events.push({ type:'port', text:`Arrived at ${leg.to}. Port settlement options are available in Voyage Ledger.` });
           } else {
             v.finished = true;
+            v._forceUnderwayLocation = false;
             const dest = v.legs[v.legs.length-1].to;
+            v.arrivalDate = dateStr;
             const s = ensureSettlement(v);
             s.notes.push({ day:v.dayNumber, date:dateStr, type:'arrival', text:`Voyage complete at ${dest}. Review settlement before ending the voyage.` });
             events.push({ type:'port', text:`Arrived at ${dest}. Voyage complete! Review Voyage Settlement for repair, port, and resupply posting.` });
@@ -686,14 +837,16 @@
       if (v.hullCurrent <= 0){
         v.shipSank = true;
         v.finished = true;
+        v._forceUnderwayLocation = false;
         events.push({ type:'damage', text:'☠ Ship sank!' });
       }
     }
 
+    updateVoyageLocation('day-end');
     const pos = shipHexPosition();
     if (pos) v.hexTrail.push(pos);
     const entry = { day:v.dayNumber, date:dateStr, weather, speedInfo, miles:milesThisDay,
-                    distTotal:v.distanceCovered, events, hexPos:pos };
+                    distTotal:v.distanceCovered, events, hexPos:pos, location: voyageCurrentLocation(v) };
     v.log.push(entry);
     emitVoyageChanged('day-advanced');
     return entry;
@@ -765,6 +918,20 @@
         background:rgba(0,0,0,.3); border-left:2px solid #5a3a0a; font-family:Georgia,serif;
         line-height:1.4;
       }
+      #voyage-panel .ve-help {
+        font-size:10px; color:#c8a96e; padding:7px 8px; margin:4px 0 8px;
+        background:rgba(200,148,26,.07); border:1px solid rgba(200,148,26,.18);
+        border-radius:6px; font-family:Georgia,serif; line-height:1.35;
+      }
+      #voyage-panel .ve-advanced-route {
+        margin-top:8px; padding:6px 8px; border:1px solid rgba(200,148,26,.18);
+        border-radius:6px; background:rgba(0,0,0,.18); color:#c8a96e; font-size:10px;
+      }
+      #voyage-panel .ve-advanced-route summary { cursor:pointer; color:#d9b76f; }
+      #voyage-panel .ve-route-summary {
+        padding:5px 6px; margin-bottom:4px; color:#e8b840; background:rgba(200,148,26,.08);
+        border-bottom:1px solid rgba(200,148,26,.18); font-size:10px;
+      }
       #voyage-panel .ve-legs {
         margin:6px 0; font-size:11px; font-family:Georgia,serif;
         max-height:140px; overflow-y:auto;
@@ -774,7 +941,8 @@
         padding:4px 6px; border-bottom:1px solid rgba(200,148,26,.12); gap:6px;
       }
       #voyage-panel .ve-leg:last-child { border-bottom:0; }
-      #voyage-panel .ve-leg-text { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      #voyage-panel .ve-leg-text { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+      #voyage-panel .ve-leg-text small { color:#c8a96e; font-size:10px; }
       #voyage-panel .ve-leg-x {
         background:none; border:none; color:#aa4422; cursor:pointer; font-size:14px;
         padding:0 3px; line-height:1;
@@ -929,15 +1097,25 @@
         </div>
       </div>
 
-      <label class="ve-lbl">Route — From</label>
-      <select class="ve-select" id="ve-from">${portOpts}</select>
-      <label class="ve-lbl">Route — To</label>
-      <select class="ve-select" id="ve-to"></select>
-      <label class="ve-lbl">Water Type</label>
-      <select class="ve-select" id="ve-water">${waterOpts}</select>
-      <button class="ve-btn" id="ve-addleg">+ Add Leg</button>
+      <label class="ve-lbl">Itinerary Planner</label>
+      <div class="ve-help">Choose a start port and final destination, then use <b>Plan Route</b> for the shortest known port chain. Use <b>Add Stop to Itinerary</b> only when you want to force a manual stopover.</div>
 
-      <label class="ve-lbl">Planned Route</label>
+      <label class="ve-lbl">Start / Current Port</label>
+      <select class="ve-select" id="ve-from">${portOpts}</select>
+      <label class="ve-lbl">Final Destination</label>
+      <select class="ve-select" id="ve-final">${portOpts}</select>
+      <button class="ve-btn primary" id="ve-planroute">Plan Route</button>
+
+      <details class="ve-advanced-route">
+        <summary>Manual stopover / advanced leg tools</summary>
+        <label class="ve-lbl">Next Stop</label>
+        <select class="ve-select" id="ve-to"></select>
+        <label class="ve-lbl">Water Type for Next Segment</label>
+        <select class="ve-select" id="ve-water">${waterOpts}</select>
+        <button class="ve-btn" id="ve-addleg">Add Stop to Itinerary</button>
+      </details>
+
+      <label class="ve-lbl">Planned Itinerary</label>
       <div class="ve-legs" id="ve-legs"></div>
       <div class="ve-row">
         <button class="ve-btn danger" id="ve-clearroute">Clear</button>
@@ -950,7 +1128,7 @@
           <div>Optional voyage ports not yet placed as landmarks: ${missingPorts.map(esc).join(', ')}. They are ignored until added via 🧰 Hex → Landmarks.</div>
         </details>` : ''}
 
-      <div class="ve-status" id="ve-status">Build a route, then Start Voyage.</div>
+      <div class="ve-status" id="ve-status">Plan an itinerary, then Start Voyage. Active voyages and planned routes now persist after refresh.</div>
     `;
   }
 
@@ -987,13 +1165,16 @@
       if ([...toSel.options].some(o => o.value === prev)) toSel.value = prev;
       // Default water type to the 'from' port's default
       if (port?.defaultWater) waterSel.value = port.defaultWater;
+      setFinalDestinationOptions();
     };
     fromSel.onchange = refreshDest;
     refreshDest();
 
     p.querySelector('#ve-addleg').onclick = addLeg;
+    p.querySelector('#ve-planroute').onclick = planRoute;
     p.querySelector('#ve-clearroute').onclick = clearRoute;
     p.querySelector('#ve-start').onclick = startVoyage;
+    speedInp.oninput = renderLegsUI;
 
     renderLegsUI();
   }
@@ -1011,20 +1192,97 @@
     if (tab==='voyage') renderVoyagePane();
   }
 
+  // ── ROUTE PLANNING HELPERS ─────────────────────────────────────────────────
+  function waterTypeLabel(id){ return WATER_TYPES.find(w => w.id === id)?.label || id || 'Water'; }
+
+  function estimateDaysForDistance(distance){
+    const speed = Math.max(1, Number(state.panelEl?.querySelector('#ve-speed')?.value || state.voyage?.dailySail || 36));
+    return Math.max(1, Math.ceil(Number(distance || 0) / speed));
+  }
+
+  function routeTotals(legs=state.routeLegs){
+    const miles = legs.reduce((sum,l) => sum + Number(l.distance || 0), 0);
+    return { miles, days: estimateDaysForDistance(miles) };
+  }
+
+  function pathStatus(leg){
+    if (leg.path && leg.path.length > 1) return `${leg.path.length} water hexes`;
+    return 'straight fallback';
+  }
+
+  function availablePortNames(){ return Object.keys(PORTS).filter(portAvailable); }
+
+  function shortestPortPath(from, to){
+    if (!from || !to || from === to) return null;
+    const allowed = new Set(availablePortNames());
+    if (!allowed.has(from) || !allowed.has(to)) return null;
+    const dist = new Map([[from, 0]]);
+    const prev = new Map();
+    const q = new Set([from]);
+    while (q.size){
+      let cur = null, best = Infinity;
+      for (const n of q){ const d = dist.get(n) ?? Infinity; if (d < best){ best=d; cur=n; } }
+      q.delete(cur);
+      if (cur === to) break;
+      const con = PORTS[cur]?.connections || {};
+      for (const [next, miles] of Object.entries(con)){
+        if (!allowed.has(next)) continue;
+        const nd = best + Number(miles || 0);
+        if (nd < (dist.get(next) ?? Infinity)){
+          dist.set(next, nd); prev.set(next, cur); q.add(next);
+        }
+      }
+    }
+    if (!dist.has(to)) return null;
+    const path = [to];
+    while (path[0] !== from){
+      const p = prev.get(path[0]);
+      if (!p) return null;
+      path.unshift(p);
+    }
+    return path;
+  }
+
+  function makeLeg(from, to, waterType){
+    const dist = PORTS[from]?.connections?.[to];
+    if (!dist) return null;
+    const fromHex = portHex(from), toHex = portHex(to);
+    const path = (fromHex && toHex) ? findWaterPath(fromHex, toHex) : null;
+    return { from, to, waterType: waterType || PORTS[from]?.defaultWater || 'coastal', distance:dist, path };
+  }
+
+  function setFinalDestinationOptions(){
+    const p = state.panelEl;
+    const fromSel = p?.querySelector('#ve-from');
+    const finalSel = p?.querySelector('#ve-final');
+    if (!fromSel || !finalSel) return;
+    const prev = finalSel.value;
+    const from = fromSel.value;
+    const opts = availablePortNames().filter(n => n !== from);
+    finalSel.innerHTML = opts.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+    if ([...finalSel.options].some(o => o.value === prev)) finalSel.value = prev;
+  }
+
   // ── UI: ROUTE LIST ────────────────────────────────────────────────────────
   function renderLegsUI(){
     const list = state.panelEl.querySelector('#ve-legs');
     if (!list) return;
     if (!state.routeLegs.length){
-      list.innerHTML = '<div style="color:#8b6e45;font-style:italic;font-size:11px;padding:6px">No legs yet.</div>';
+      list.innerHTML = '<div style="color:#8b6e45;font-style:italic;font-size:11px;padding:6px">No itinerary yet. Choose a start and final destination, then click Plan Route.</div>';
       return;
     }
-    list.innerHTML = state.routeLegs.map((leg,i) =>
-      `<div class="ve-leg">
-        <span class="ve-leg-text">${i+1}. ${esc(leg.from)} → ${esc(leg.to)} (${leg.distance} mi · ${esc(leg.waterType)})</span>
-        <button class="ve-leg-x" data-i="${i}" title="Remove leg">✕</button>
-      </div>`
-    ).join('');
+    const totals = routeTotals();
+    const items = state.routeLegs.map((leg,i) => {
+      const warn = leg.path && leg.path.length > 1 ? '' : ' · ⚠ no water path';
+      return `<div class="ve-leg">
+        <span class="ve-leg-text"><b>${i+1}.</b> ${esc(leg.from)} → ${esc(leg.to)}<br><small>${leg.distance} mi · ${esc(waterTypeLabel(leg.waterType))} · ${esc(pathStatus(leg))}${warn}</small></span>
+        <button class="ve-leg-x" data-i="${i}" title="Remove segment">✕</button>
+      </div>`;
+    }).join('');
+    list.innerHTML = `
+      <div class="ve-route-summary">${state.routeLegs.length} segment${state.routeLegs.length===1?'':'s'} · ${totals.miles} mi · estimated ${totals.days} sailing day${totals.days===1?'':'s'}</div>
+      ${items}
+    `;
     list.querySelectorAll('.ve-leg-x').forEach(b =>
       b.onclick = () => removeLeg(parseInt(b.dataset.i,10)));
   }
@@ -1035,6 +1293,31 @@
   }
 
   // ── ACTIONS: ROUTE ────────────────────────────────────────────────────────
+  function planRoute(){
+    const p = state.panelEl;
+    const from = p.querySelector('#ve-from').value;
+    const final = p.querySelector('#ve-final').value;
+    if (!from || !final || from === final){ setStatus('Pick a different start port and final destination.', 'warn'); return; }
+    const names = shortestPortPath(from, final);
+    if (!names || names.length < 2){ setStatus(`No known port route from ${from} to ${final}. Try manual stopovers.`, 'warn'); return; }
+    const legs = [];
+    for (let i=0; i<names.length-1; i++){
+      const leg = makeLeg(names[i], names[i+1]);
+      if (!leg){ setStatus(`Missing route distance for ${names[i]} → ${names[i+1]}.`, 'err'); return; }
+      legs.push(leg);
+    }
+    state.routeLegs = legs;
+    const last = names[names.length - 1];
+    p.querySelector('#ve-from').value = last;
+    p.querySelector('#ve-from').dispatchEvent(new Event('change'));
+    renderLegsUI();
+    renderRouteOverlay();
+    emitVoyageChanged('route-planned');
+    const totals = routeTotals(legs);
+    const fallbackCount = legs.filter(l => !l.path || l.path.length < 2).length;
+    setStatus(`Planned ${names.join(' → ')} (${totals.miles} mi, about ${totals.days} sailing day${totals.days===1?'':'s'}).${fallbackCount ? ` ⚠ ${fallbackCount} segment${fallbackCount===1?'':'s'} need painted water paths.` : ''}`, fallbackCount ? 'warn' : '');
+  }
+
   function addLeg(){
     const p = state.panelEl;
     const from = p.querySelector('#ve-from').value;
@@ -1046,18 +1329,19 @@
     if (!dist){ setStatus('No direct route between those ports.', 'warn'); return; }
     // Pathfind a water route through painted water hexes. Success → ship
     // follows the path; failure → dashed red fallback line + warning toast.
-    const fromHex = portHex(from), toHex = portHex(to);
-    const path = (fromHex && toHex) ? findWaterPath(fromHex, toHex) : null;
-    state.routeLegs.push({ from, to, waterType, distance:dist, path });
+    const leg = makeLeg(from, to, waterType);
+    const path = leg?.path || null;
+    state.routeLegs.push(leg || { from, to, waterType, distance:dist, path:null });
     // Auto-chain: next leg starts from the port we just arrived at
     p.querySelector('#ve-from').value = to;
     p.querySelector('#ve-from').dispatchEvent(new Event('change'));
     renderLegsUI();
     renderRouteOverlay();
+    emitVoyageChanged('route-leg-added');
     if (path){
-      setStatus(`Added ${from} → ${to} (${dist} mi, ${path.length} hex route).`);
+      setStatus(`Added stop: ${from} → ${to} (${dist} mi, ${path.length} hex route).`);
     } else {
-      setStatus(`Added ${from} → ${to} (${dist} mi). ⚠ No water path — paint hexes via 🧰 Hex → Paint.`, 'warn');
+      setStatus(`Added stop: ${from} → ${to} (${dist} mi). ⚠ No water path — paint hexes via 🧰 Hex → Paint.`, 'warn');
     }
   }
 
@@ -1065,6 +1349,7 @@
     state.routeLegs.splice(i,1);
     renderLegsUI();
     renderRouteOverlay();
+    emitVoyageChanged('route-leg-removed');
   }
 
   function clearRoute(){
@@ -1072,11 +1357,12 @@
     renderLegsUI();
     renderRouteOverlay();
     setStatus('Route cleared.');
+    emitVoyageChanged('route-cleared');
   }
 
   // ── ACTIONS: VOYAGE ──────────────────────────────────────────────────────
   function startVoyage(){
-    if (!state.routeLegs.length){ setStatus('Add at least one leg first.', 'warn'); return; }
+    if (!state.routeLegs.length){ setStatus('Plan an itinerary or add at least one stop first.', 'warn'); return; }
     const p = state.panelEl;
     const shipId = p.querySelector('#ve-ship').value;
     const shipTpl = SHIP_TEMPLATES.find(s => s.id===shipId) || SHIP_TEMPLATES[0];
@@ -1096,6 +1382,7 @@
     });
     const legs = state.routeLegs.map(l => { cum += l.distance; return { ...l, cumDist:cum }; });
 
+    const startCalendar = { day:sd, month:sm, year:sy };
     state.voyage = {
       captain: p.querySelector('#ve-capt').value || 'Captain',
       shipId,
@@ -1105,7 +1392,13 @@
       crewQuality: crew,
       crewMod: CREW_QUALITY_MOD[crew] ?? 0,
       navSkill,
-      calendar: { day:sd, month:sm, year:sy },
+      calendar: { ...startCalendar },
+      startCalendar,
+      startDate: formatDate(startCalendar),
+      currentDate: formatDate(startCalendar),
+      arrivalDate: '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       legs,
       totalDistance: cum,
       distanceCovered: 0,
@@ -1119,10 +1412,12 @@
       hullDamageTaken: 0,
       settlement: { pending:[], posted:[], notes:[], repairGpPerHull:REPAIR_GP_PER_HULL },
     };
+    updateVoyageLocation('voyage-started');
     setStatus(`Voyage started — ${state.voyage.shipType} sailing ${legs[0].from} → ${legs[legs.length-1].to}.`);
     setActiveTab('voyage');
     renderShip();
     renderRouteOverlay();
+    emitVoyageChanged('voyage-started');
   }
 
   function advanceDay(){
@@ -1146,8 +1441,9 @@
 
   function endVoyage(){
     if (!state.voyage) return;
-    if (!window.confirm('End current voyage? All progress will be lost.')) return;
+    if (!window.confirm('End current voyage? The active voyage state will be cleared, but the planned itinerary remains.')) return;
     state.voyage = null;
+    saveVoyageState();
     clearVoyageOverlays();
     renderRouteOverlay();
     renderVoyagePane();
@@ -1163,9 +1459,11 @@
       body.innerHTML = '<div class="ve-status">No active voyage. Build a route on the Setup tab.</div>';
       return;
     }
+    updateVoyageLocation('render');
     const leg = v.legs[v.currentLegIdx];
+    const loc = voyageCurrentLocation(v);
     const legTxt = leg
-      ? `${esc(leg.from)} → ${esc(leg.to)} (${v.milesOnLeg}/${leg.distance} mi · ${esc(leg.waterType)})`
+      ? `${esc(leg.from)} → ${esc(leg.to)} (${Math.round(v.milesOnLeg)}/${leg.distance} mi · ${esc(waterTypeLabel(leg.waterType))})`
       : 'At destination';
     const hullPct = Math.round((v.hullCurrent/v.hullMax)*100);
     const hullCol = hullPct<25 ? '#ff5544' : hullPct<50 ? '#ff9944' : '#77cc88';
@@ -1177,8 +1475,12 @@
       <div style="font-family:Georgia,serif;font-size:11px;color:#c8a96e;margin-bottom:8px">
         Captain ${esc(v.captain)} · ${esc(v.shipType)}
       </div>
+      <label class="ve-lbl">Current Location</label>
+      <div style="font-size:12px;font-family:Georgia,serif;color:#f4e4b8">${esc(loc?.label || '—')}${loc?.note ? ` <span style="color:#c8a96e">(${esc(loc.note)})</span>` : ''}</div>
       <label class="ve-lbl">Current Leg</label>
       <div style="font-size:12px;font-family:Georgia,serif;color:#f4e4b8">${legTxt}</div>
+      <label class="ve-lbl">Dates</label>
+      <div style="font-size:11px;font-family:Georgia,serif;color:#c8a96e">Started ${esc(v.startDate || '')} · Current ${esc(v.currentDate || formatDate(v.calendar))}${v.arrivalDate ? ` · Arrived ${esc(v.arrivalDate)}` : ''}</div>
       <label class="ve-lbl">Progress</label>
       <div style="font-size:12px;font-family:Georgia,serif">${v.distanceCovered} / ${v.totalDistance} mi  <span style="color:#c8a96e">(${v.totalDistance>0 ? Math.round(v.distanceCovered/v.totalDistance*100) : 0}%)</span></div>
       <label class="ve-lbl">Hull</label>
@@ -1207,7 +1509,7 @@
       return `<div class="ve-log-day">
         <div class="ve-log-hdr">Day ${e.day} · ${esc(e.date)}</div>
         <div class="ve-log-sub">${esc(e.weather.wind.force || 'Wind')} ${e.weather.wind.speed} mph ${esc(e.weather.wind.direction)} · ${esc(e.weather.sky)} · ${esc(e.weather.precipitation.type)}</div>
-        <div class="ve-log-sub">Sailed ${e.miles} mi (total ${e.distTotal})</div>
+        <div class="ve-log-sub">Sailed ${e.miles} mi (total ${e.distTotal}) · ${esc(e.location?.label || '')}</div>
         ${evt}
       </div>`;
     }).join('');
@@ -1319,13 +1621,15 @@
     if (state.active) return;
     state.active = true;
     ensureStyles();
+    if (!state._loaded){ loadVoyageState(); state._loaded = true; }
     if (!state.panelEl) buildPanel();
     else {
       state.panelEl.style.display = 'flex';
       if (state.veDrag) state.veDrag.restore();
     }
     renderRouteOverlay();
-    if (state.voyage){ renderShip(); renderTrailOverlay(); }
+    if (state.panelEl){ renderLegsUI(); renderVoyagePane(); }
+    if (state.voyage){ updateVoyageLocation('enter'); renderShip(); renderTrailOverlay(); }
     document.addEventListener('keydown', onKey, true);
     const btn = document.getElementById('btn-voyage');
     if (btn) btn.classList.add('active');
@@ -1365,6 +1669,11 @@
     dismissPendingFinanceAction,
     estimateRepairCost: hp => estimateRepairCost(hp),
     currentPort: () => voyageCurrentPort(),
+    currentLocation: () => voyageCurrentLocation(),
+    currentLocationLabel: () => voyageCurrentLocationLabel(),
+    saveState: saveVoyageState,
+    loadState: loadVoyageState,
+    clearSavedState: clearSavedVoyageState,
     routeLabel: () => voyageRouteLabel()
   };
 })();
