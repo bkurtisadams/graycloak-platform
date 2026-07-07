@@ -1,5 +1,7 @@
 <!DOCTYPE html>
 <!-- gw-character.html v0.2.36 — Ability Origin now uses separate PSH, humanoid mutant, mutated animal, mutated plant, and tech origin pools; Mutated Animals no longer share the generic mutant list, PSH/plant origins are more Gamma World-flavored, and Step 11 is labeled Ability Origin to distinguish it from Birthplace/Homeland. -->
+<!-- gw-character.html v0.2.42 — PSH path promoted to the intro screen beside Power Level and Weaknesses: new "PSH Path (Quick Random)" selector (Random 25% Commando / Wastelander / Commando, state.pshQuickPath, default random). generateAll resolves state.pshPath from it before rolling species, so Quick Random no longer silently inherits whatever path the last manual build used. Species-step toggle still governs manual builds. Draft migration defaults missing pshQuickPath to random. -->
+<!-- gw-character.html v0.2.41 — Quick Random now finishes the build: new rollGearToBudget() runs at the end of generateAll(), guaranteeing one offense item then one defense item, then filling remaining CP with random affordable gear (dedup'd, cap-checked, gearAllowed-filtered via flatGear). Fixes Wastelander PSH quick builds landing at Review with ~half the budget unspent and no offense/defense. buildWarnings now flags 5+ CP unspent on the Draft/Review steps and points to the Gear step. -->
 <!-- gw-character.html v0.2.40 — Fix duplicate abilities from Quick Random where distinct GW mutations convert to the same MP ability name (e.g. two plant mutations -> Power Blast, several vision mutations -> Heightened Senses). rollRole now dedups the draw by both base AND MP display name (mp) against existing and in-batch abilities, for offense/defense/misc and weaknesses. Note: this means Quick Random won't produce two same-named abilities in a role (e.g. two Heightened Senses) — add extra senses manually if wanted. -->
 <!-- gw-character.html v0.2.39 — Fix duplicate weaknesses from Quick Random (Full mode): the weakness roll and addWeaknessEntry now dedup by base across ALL sources, so a rolled/picked MP weakness can't collide with an existing species (ap-weakness) or commando weakness of the same name (e.g. Physical Disability, Psychosis, Uneducated). -->
 <!-- gw-character.html v0.2.38 — Weakness modes reduced to Manual/Full (dropped "Curated"): Full random-rolls only mechanical MP weaknesses, story-type MP weaknesses (Nemesis/Public Identity/Dependent/Dark Past) stay pick-only. Weakness setting promoted to the intro screen beside Power Level ("Gamma World only" / "GW + MP weaknesses") and now honored by Quick Random — the weakness roll draws from GW defects plus the mode's MP pool. Legacy "curated" drafts migrate to Full. -->
@@ -302,7 +304,7 @@
     return pools;
   }
 
-  let state={ step:0, powerLevel:'Low', activeRole:'offense', weaknessMode:'manual', pshPath:'wastelander',
+  let state={ step:0, powerLevel:'Low', activeRole:'offense', weaknessMode:'manual', pshPath:'wastelander', pshQuickPath:'random',
     name:'', player:'', species:'Humanoid (Mutant)', culture:'', side:'', faction:'', alliance:'',
     home:'', homeland:'', bc:{st:10,en:10,ag:10,in:10,cl:10}, gender:'', age:'', weight:'',
     genderIdentity:'', genderExpression:'', biologicalSex:'', sexualAttraction:'', ageMethod:'standard', apType:'',
@@ -682,6 +684,7 @@
     const abs=coreAbilities(),w=[];
     if(/zoopremisist/i.test(state.faction||'')&&!state.abilities.some(a=>/telepat/i.test((a.gw||'')+' '+(a.mp||'')+' '+(a.ability||''))))w.push('Zoopremisist agents are all telepathic (GW1e Cryptic Alliances) — this build has no Telepathy; GM may require it for agent status.');
     if(unspent()<0)w.push(`Build overspends by ${fmt(-unspent())} CP — total budget is ${tierOf(state.powerLevel).total} CP at ${state.powerLevel}. Drop paid non-Core abilities, add Weaknesses, or lower BCs (MP 2.1.16).`);
+    if(unspent()>=5)w.push(`${fmt(unspent())} CP unspent — spend it on gear (step 17) or raise BCs before transferring.`);
     if(weaknessCP()<-30)w.push(`Total kept Weaknesses are ${fmt(weaknessCP())} CP including exempt/package entries; review with the GM if the wasteland is paying too many CP coupons.`);
     const want=Math.min(4,abs.length);
     if(abs.length&&coreCount()!==want)w.push(`Use the Ability Draft step to mark ${want} abilities as Core (currently ${coreCount()}).`);
@@ -705,6 +708,8 @@
   function mpWeakTag(wk){return mpWeakCategory(wk)==='story'?'story':'MP';}
   function mpWeakModeLabel(){return (state.weaknessMode==='full')?'Full':'Manual';}
   function mpWeakRollPool(){return (state.weaknessMode==='full')?MPWK().filter(w=>mpWeakCategory(w)!=='story'):[];}
+  const PSH_QUICK_OPTS=[['random','Random (25% Commando)'],['wastelander','Wastelander (gear-focused)'],['commando','Commando (WH tables + training)']];
+  function pshQuickSelect(style){style=style||'';return `<select class="gw-pick" data-pshquick${style?` style="${style}"`:''}>`+PSH_QUICK_OPTS.map(([v,l])=>`<option value="${v}" ${(state.pshQuickPath||'random')===v?'selected':''}>${l}</option>`).join('')+`</select>`;}
   function weaknessSelect(style){style=style||'';return `<select class="gw-pick" data-weakmode${style?` style="${style}"`:''}><option value="manual" ${(state.weaknessMode||'manual')!=='full'?'selected':''}>Gamma World only</option><option value="full" ${state.weaknessMode==='full'?'selected':''}>GW + MP weaknesses</option></select>`;}
   function mpWeakCpLabel(k){if(k.picks&&k.picks.length)return k.picks.map(p=>fmt(-Math.abs(p.cpNum!=null?p.cpNum:cpn(p.cp)||5))).join('/');return fmt(-Math.abs(k.cpNum!=null?k.cpNum:cpn(k.cp)||5));}
   function addWeaknessEntry(e2,label){
@@ -830,7 +835,17 @@
   function flatGear(){return gearList().reduce((o,g)=>o.concat(g.items),[]);}
   function addGear(w){if(!w)return;if(state.abilities.some(a=>a.gw===w.name&&a.source==='special-weapon'))return;state.abilities.push({role:w.role||'offense',gw:w.name,mp:mpLead(w.ability)||w.name,cp:String(w.cp),cpNum:cpn(w.cp)||0,ability:w.ability,source:'special-weapon',weakness:false,core:false});log(`Gear: ${w.name} (${w.cp} CP)`);}
 
-  function generateAll(){rollName();rollSpecies();rollFaction();rollSide();rollCulture();rollHome();rollHomeland();rollBC();rollBio();rollBackgrounds();rollMotivation();rollOrigin();rollAbilities();}
+  function rollGearToBudget(){
+    const fits=x=>{const c=cpn(String(x.cp))||+x.cp||0;return c>0&&c<=unspent()&&!overCapCp(c)&&!state.abilities.some(a=>a.gw===x.name&&a.source==='special-weapon');};
+    const pick=f=>{const p=flatGear().filter(x=>fits(x)&&(!f||f(x)));if(!p.length)return false;addGear(p[die(p.length)-1]);return true;};
+    const before=unspent();
+    pick(x=>x.role==='offense');
+    pick(x=>x.role==='defense');
+    let g=0;while(g++<40&&pick());
+    if(before!==unspent())log(`Gear roll spent ${fmt(before-unspent())} CP (${fmt(unspent())} CP left).`);
+  }
+
+  function generateAll(){state.abilities=state.abilities.filter(a=>a.source!=='special-weapon');const pq=state.pshQuickPath||'random';state.pshPath=pq==='random'?(die(100)<=25?'commando':'wastelander'):pq;rollName();rollSpecies();rollFaction();rollSide();rollCulture();rollHome();rollHomeland();rollBC();rollBio();rollBackgrounds();rollMotivation();rollOrigin();rollAbilities();rollGearToBudget();}
 
   /* ── MP export contract ────────────────────────────────────── */
   function exportedAbilityEntries(){
@@ -976,8 +991,8 @@
 
   /* ── draft persistence ──────────────────────────────────────── */
   function saveDraft(){try{localStorage.setItem(DRAFT_KEY,JSON.stringify({v:4,state:{...state,exportId:window.__gwExportId||null}}));}catch(e){}}
-  function loadDraft(){try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');if(!d||d.v!==4)return false;Object.assign(state,d.state||{});if(!state.pshPath)state.pshPath='wastelander';if(!state.weaknessMode)state.weaknessMode='manual';if(state.weaknessMode==='curated')state.weaknessMode='full';if(state.apType===undefined)state.apType='';migrateApEntries();if(state.species==='Pure Strain Human'&&state.pshPath!=='commando'&&(state.step>=12&&state.step<=14||state.step===16))state.step=15;normalizeCore();if(d.state&&d.state.exportId)window.__gwExportId=d.state.exportId;return true;}catch(e){return false;}}
-  function startOver(){try{localStorage.removeItem(DRAFT_KEY);}catch(e){}window.__gwExportId=null;state={ step:0, powerLevel:'Low', activeRole:'offense', weaknessMode:'manual', pshPath:'wastelander', name:'', player:'', species:'Humanoid (Mutant)', culture:'', side:'', faction:'', alliance:'', home:'', homeland:'', bc:{st:10,en:10,ag:10,in:10,cl:10}, gender:'', age:'', weight:'', genderIdentity:'', genderExpression:'', biologicalSex:'', sexualAttraction:'', ageMethod:'standard', apType:'', backgrounds:[], backgroundChoices:[], motivation:'', origin:'', originChoices:[], abilities:[], rollLog:[], exportId:null };applyAuthDefault();render();}
+  function loadDraft(){try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');if(!d||d.v!==4)return false;Object.assign(state,d.state||{});if(!state.pshPath)state.pshPath='wastelander';if(!state.pshQuickPath)state.pshQuickPath='random';if(!state.weaknessMode)state.weaknessMode='manual';if(state.weaknessMode==='curated')state.weaknessMode='full';if(state.apType===undefined)state.apType='';migrateApEntries();if(state.species==='Pure Strain Human'&&state.pshPath!=='commando'&&(state.step>=12&&state.step<=14||state.step===16))state.step=15;normalizeCore();if(d.state&&d.state.exportId)window.__gwExportId=d.state.exportId;return true;}catch(e){return false;}}
+  function startOver(){try{localStorage.removeItem(DRAFT_KEY);}catch(e){}window.__gwExportId=null;state={ step:0, powerLevel:'Low', activeRole:'offense', weaknessMode:'manual', pshPath:'wastelander', pshQuickPath:'random', name:'', player:'', species:'Humanoid (Mutant)', culture:'', side:'', faction:'', alliance:'', home:'', homeland:'', bc:{st:10,en:10,ag:10,in:10,cl:10}, gender:'', age:'', weight:'', genderIdentity:'', genderExpression:'', biologicalSex:'', sexualAttraction:'', ageMethod:'standard', apType:'', backgrounds:[], backgroundChoices:[], motivation:'', origin:'', originChoices:[], abilities:[], rollLog:[], exportId:null };applyAuthDefault();render();}
 
   /* ── step model ─────────────────────────────────────────────── */
   const STEPS=[
@@ -1315,6 +1330,7 @@
     const resume=(state.name||state.species!=='Humanoid (Mutant)'||state.abilities.length)?`<p class="gw-hint" style="text-align:center">A saved draft is loaded — Step-by-Step resumes where you left off.</p>`:'';
     const c=tierCaps();
     const power=`<div class="gw-controls" style="max-width:440px;margin:14px auto 10px;text-align:left"><div class="gw-controls-title" style="text-align:left">GM Power Level / NPC Budget</div>${powerSelect('width:100%;margin-top:4px')}<div class="gw-hint" style="margin:6px 0 0">Default is Low / 100 CP. Pick Normal for lesser NPCs, or Standard/High for bigger wasteland problems. Core ${coreCp()} CP each · BC pool ${tierOf(state.powerLevel).bcPoints} · Caps: Ability ${c.ability} CP · BC ${c.bc} · avg damage ${fmt(c.damage)}.</div></div>`;
+    const pshq=`<div class="gw-controls" style="max-width:440px;margin:0 auto 10px;text-align:left"><div class="gw-controls-title" style="text-align:left">PSH Path (Quick Random)</div>${pshQuickSelect('width:100%;margin-top:4px')}<div class="gw-hint" style="margin:6px 0 0">Used when Quick Random rolls a Pure Strain Human: Wastelanders skip mutations and spend on Ancient gear, Commandos draw mundane abilities from the War Heroes tables. Random makes Commandos rare (25%). The species-step toggle still governs Step-by-Step builds.</div></div>`;
     const weak=`<div class="gw-controls" style="max-width:440px;margin:0 auto 10px;text-align:left"><div class="gw-controls-title" style="text-align:left">Weaknesses</div>${weaknessSelect('width:100%;margin-top:4px')}<div class="gw-hint" style="margin:6px 0 0">Gamma World only rolls GW defects; MP weaknesses stay pick-only on the Weakness step. GW + MP mixes the compatible MP weaknesses into the random pool as well. Story-type MP weaknesses (Nemesis, Public Identity, Dependent, Dark Past) are always pick-only either way.</div></div>`;
     return `<div class="gw-intro" style="width:100%">
       <h3>Wasteland Character Generator</h3>
@@ -1325,11 +1341,12 @@
       </div>
       ${power}
       ${weak}
+      ${pshq}
       <div class="gw-intro-btns">
         <button class="wl-btn ghost" data-act="start">👣 Step-by-Step</button>
         <button class="wl-btn orange" data-act="quick">🎲 Quick Random</button>
       </div>
-      <p class="gw-hint">Quick Random uses the selected Power Level and weakness setting, rolls everything, and jumps to Review.</p>${resume}
+      <p class="gw-hint">Quick Random uses the selected Power Level, weakness setting, and PSH path, rolls everything including gear to budget, and jumps to Review.</p>${resume}
     </div>`;
   }
 
@@ -1376,6 +1393,7 @@
     body.addEventListener('change',e=>{
       const pl=e.target.closest('[data-pl]');if(pl){setPowerLevel(pl.value);saveDraft();render();return;}
       const wkm=e.target.closest('[data-weakmode]');if(wkm){state.weaknessMode=wkm.value==='full'?'full':'manual';log('Weakness setting: '+(state.weaknessMode==='full'?'GW + MP weaknesses':'Gamma World only'));saveDraft();render();return;}
+      const pq=e.target.closest('[data-pshquick]');if(pq){state.pshQuickPath=PSH_QUICK_OPTS.some(([v])=>v===pq.value)?pq.value:'random';log('PSH quick path: '+state.pshQuickPath);saveDraft();render();return;}
       const apt=e.target.closest('[data-aptype]');if(apt){setApType(apt.value);apRerollAbilities();saveDraft();render();return;}
       const wkFund=e.target.closest('[data-wkfund]');if(wkFund){const w=state.abilities[+wkFund.dataset.wkfund],v=wkFund.value;if(w&&w.weakness&&!isFixed(w)){w.fundUid=v;if(v&&v!=='__auto'&&v!=='__none'){log((w.gw||w.mp)+' pinned to fund '+((state.abilities.find(a=>a.uid===v)||{}).mp||'non-Core ability'));}else log((w.gw||w.mp)+' funding set to '+(v==='__none'?'none':'auto'));}saveDraft();render();return;}
       const pk=e.target.closest('[data-pick]');if(pk){const key=pk.dataset.pick,v=pk.value;if(key==='species'){setSpecies(v);}else if(key==='faction'){setFaction(v);}else{state[key]=v;if(key==='genderIdentity'){state.gender=v;}}saveDraft();render();return;}
