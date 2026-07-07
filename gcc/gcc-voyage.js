@@ -1,4 +1,6 @@
-// gcc-voyage.js v0.4.0 — 2026-07-07
+// gcc-voyage.js v0.5.0 — 2026-07-07
+// v0.5.0: add voyage settlement/pending finance actions for explicit
+//   repair and arrival accounting via gcc-voyage-finance.js.
 // v0.4.0: consume GCCWeather for AD&D / World of Greyhawk daily voyage
 //   weather: Greyhawk months, wind force, precipitation, fog, gale/storm
 //   hazards, navigation penalties, and log details.
@@ -52,7 +54,7 @@
 (function(){
   if (typeof window === 'undefined') return;
   const LOG = (...a) => console.log('[voyage]', ...a);
-  LOG('gcc-voyage.js v0.4.0 loaded');
+  LOG('gcc-voyage.js v0.5.0 loaded');
 
   // ── DATA ──────────────────────────────────────────────────────────────────
   // Ship templates: dailySail in miles-per-10-hour-sailing-day, hull in HP.
@@ -145,6 +147,10 @@
   // ── SMALL HELPERS ─────────────────────────────────────────────────────────
   const rollD  = s => Math.floor(Math.random()*s)+1;
   const rollDN = (n,s) => { let t=0; for(let i=0;i<n;i++) t+=rollD(s); return t; };
+  const uid = (prefix='id') => `${prefix}_${Math.random().toString(36).slice(2,8)}_${Date.now().toString(36)}`;
+
+  const REPAIR_GP_PER_HULL = 50;
+
 
   function portHex(name){
     if (typeof GCCLandmarks === 'undefined' || typeof darleneToInternal !== 'function') return null;
@@ -356,6 +362,138 @@
   }
   function formatDate(cal){ return `${cal.day} ${MONTHS[cal.month]} ${cal.year} CY`; }
 
+  function emitVoyageChanged(reason='changed'){
+    try {
+      document.dispatchEvent(new CustomEvent('gcc:voyage:changed', { detail:{ reason, voyage:state.voyage } }));
+    } catch (err){ /* CustomEvent unavailable in very old browsers */ }
+  }
+
+  function ensureSettlement(v=state.voyage){
+    if (!v) return null;
+    v.settlement = v.settlement || {};
+    v.settlement.pending = Array.isArray(v.settlement.pending) ? v.settlement.pending : [];
+    v.settlement.posted = Array.isArray(v.settlement.posted) ? v.settlement.posted : [];
+    v.settlement.notes = Array.isArray(v.settlement.notes) ? v.settlement.notes : [];
+    v.settlement.repairGpPerHull = Number(v.settlement.repairGpPerHull || REPAIR_GP_PER_HULL);
+    return v.settlement;
+  }
+
+  function voyageCurrentPort(v=state.voyage){
+    if (!v?.legs?.length) return '';
+    if (v.finished || v.currentLegIdx >= v.legs.length) return v.legs[v.legs.length - 1]?.to || '';
+    if (v.currentLegIdx > 0 && v.milesOnLeg === 0) return v.legs[v.currentLegIdx - 1]?.to || '';
+    const leg = v.legs[v.currentLegIdx] || v.legs[0];
+    return leg?.from || '';
+  }
+
+  function voyageRouteLabel(v=state.voyage){
+    if (!v?.legs?.length) return '';
+    const start = v.legs[0]?.from || '';
+    const end = v.legs[v.legs.length - 1]?.to || '';
+    return start && end ? `${start} → ${end}` : '';
+  }
+
+  function estimateRepairCost(hullDamage=0, v=state.voyage){
+    const rate = Number(ensureSettlement(v)?.repairGpPerHull || REPAIR_GP_PER_HULL);
+    return Math.max(0, Math.round(Number(hullDamage || 0) * rate));
+  }
+
+  function addPendingFinanceAction(data={}, v=state.voyage){
+    const s = ensureSettlement(v);
+    if (!s) return null;
+    const category = data.category || 'repair';
+    const hullDamage = Number(data.hullDamage || 0);
+    const action = {
+      id: data.id || uid('vfp'),
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      day: data.day || v.dayNumber || 0,
+      date: data.date || (v.calendar ? formatDate(v.calendar) : ''),
+      port: data.port || voyageCurrentPort(v),
+      route: data.route || voyageRouteLabel(v),
+      category,
+      direction: data.direction || (['cargo_sale','charter','voyage_profit','trade_profit'].includes(category) ? 'income' : 'expense'),
+      amountGp: Number(data.amountGp ?? (category === 'repair' ? estimateRepairCost(hullDamage, v) : 0)),
+      memo: data.memo || 'Voyage settlement item.',
+      eventType: data.eventType || category,
+      hullDamage,
+      restoreHullAllowed: !!(data.restoreHullAllowed ?? (category === 'repair' && hullDamage > 0)),
+      meta: data.meta && typeof data.meta === 'object' ? data.meta : {}
+    };
+    s.pending.unshift(action);
+    emitVoyageChanged('pending-finance-added');
+    return action;
+  }
+
+  function markPendingFinancePosted(id, txnId='', opts={}){
+    const v = state.voyage;
+    const s = ensureSettlement(v);
+    if (!s) return null;
+    const action = s.pending.find(a => a.id === id);
+    if (!action) return null;
+    action.status = 'posted';
+    action.postedAt = new Date().toISOString();
+    action.transactionId = txnId || action.transactionId || '';
+    if (opts.repairHull && action.restoreHullAllowed && action.hullDamage > 0 && v){
+      const before = Number(v.hullCurrent || 0);
+      v.hullCurrent = Math.min(Number(v.hullMax || before), before + Number(action.hullDamage || 0));
+      action.repairApplied = true;
+      action.repairedHp = v.hullCurrent - before;
+    }
+    s.posted.unshift({ ...action });
+    emitVoyageChanged('pending-finance-posted');
+    renderVoyagePane();
+    return action;
+  }
+
+  function dismissPendingFinanceAction(id){
+    const s = ensureSettlement(state.voyage);
+    if (!s) return false;
+    const action = s.pending.find(a => a.id === id);
+    if (!action) return false;
+    action.status = 'dismissed';
+    action.dismissedAt = new Date().toISOString();
+    emitVoyageChanged('pending-finance-dismissed');
+    renderVoyagePane();
+    return true;
+  }
+
+  function getVoyageSummary(v=state.voyage){
+    if (!v) return null;
+    const s = ensureSettlement(v);
+    const pending = s.pending.filter(a => a.status === 'pending');
+    const posted = s.pending.filter(a => a.status === 'posted');
+    const currentHullLoss = Math.max(0, Number(v.hullMax || 0) - Number(v.hullCurrent || 0));
+    const totalHullDamage = Number(v.hullDamageTaken || 0);
+    const pendingRepairGp = pending
+      .filter(a => a.category === 'repair')
+      .reduce((sum,a) => sum + Math.max(0, Number(a.amountGp || 0)), 0);
+    const weatherDelayDays = (v.log || []).filter(e => e?.speedInfo?.becalmed || Number(e?.speedInfo?.speed || e?.miles || 0) === 0).length;
+    const stormDays = (v.log || []).filter(e => ['gale','storm','hurricane'].includes(String(e?.weather?.voyageEffects?.hazardLevel || '').toLowerCase())).length;
+    return {
+      voyageId: v.finance?.voyageId || '',
+      route: voyageRouteLabel(v),
+      origin: v.legs?.[0]?.from || '',
+      destination: v.legs?.[v.legs.length - 1]?.to || '',
+      currentPort: voyageCurrentPort(v),
+      days: v.dayNumber || 0,
+      distanceCovered: v.distanceCovered || 0,
+      totalDistance: v.totalDistance || 0,
+      finished: !!v.finished,
+      shipSank: !!v.shipSank,
+      hullCurrent: v.hullCurrent || 0,
+      hullMax: v.hullMax || 0,
+      currentHullLoss,
+      totalHullDamage,
+      pendingRepairGp,
+      pendingCount: pending.length,
+      postedCount: posted.length,
+      weatherDelayDays,
+      stormDays,
+      repairGpPerHull: s.repairGpPerHull
+    };
+  }
+
   function currentLegWaterType(){
     if (!state.voyage) return 'coastal';
     const leg = state.voyage.legs[state.voyage.currentLegIdx];
@@ -462,7 +600,21 @@
         if (pilot > target){
           const dmg = hz.type==='Critical' ? rollDN(1,6)+4 : hz.type==='Major' ? rollDN(1,4)+2 : rollDN(1,3)+1;
           v.hullCurrent -= dmg;
-          events.push({ type:'damage', text:`${hz.desc}! Ship Sailing failed (${pilot} > ${target}). Hull −${dmg} HP. (${v.hullCurrent}/${v.hullMax} remaining)` });
+          v.hullDamageTaken = Number(v.hullDamageTaken || 0) + dmg;
+          const repairGp = estimateRepairCost(dmg, v);
+          addPendingFinanceAction({
+            category:'repair',
+            direction:'expense',
+            amountGp:repairGp,
+            hullDamage:dmg,
+            eventType:'weather_damage',
+            memo:`Repair ${dmg} hull HP after ${hz.desc} on ${dateStr}.`,
+            day:v.dayNumber,
+            date:dateStr,
+            port:voyageCurrentPort(v),
+            meta:{ weatherHazard:hz.desc, windForce:weather.wind?.force || '', windSpeed:weather.wind?.speed || 0, waterType }
+          }, v);
+          events.push({ type:'damage', text:`${hz.desc}! Ship Sailing failed (${pilot} > ${target}). Hull −${dmg} HP. (${v.hullCurrent}/${v.hullMax} remaining). Pending repair estimate: ${repairGp} gp.` });
         } else {
           events.push({ type:'weather', text:`${hz.desc}: captain holds course (${pilot} ≤ ${target}).` });
         }
@@ -473,8 +625,22 @@
         if (enc.hostile){
           const crewLoss = rollD(3)-1, hullDmg = rollD(4);
           v.hullCurrent -= hullDmg;
+          v.hullDamageTaken = Number(v.hullDamageTaken || 0) + hullDmg;
+          const repairGp = estimateRepairCost(hullDmg, v);
+          addPendingFinanceAction({
+            category:'repair',
+            direction:'expense',
+            amountGp:repairGp,
+            hullDamage:hullDmg,
+            eventType:'encounter_damage',
+            memo:`Repair ${hullDmg} hull HP after ${enc.name} on ${dateStr}.`,
+            day:v.dayNumber,
+            date:dateStr,
+            port:voyageCurrentPort(v),
+            meta:{ encounter:enc.name, encounterDistance:enc.distance, waterType }
+          }, v);
           if (crewLoss>0) events.push({ type:'crew', text:`${enc.name} at ${enc.distance}! ${crewLoss} crew lost.` });
-          events.push({ type:'encounter', text:`${enc.name} — hull −${hullDmg} HP.` });
+          events.push({ type:'encounter', text:`${enc.name} — hull −${hullDmg} HP. Pending repair estimate: ${repairGp} gp.` });
         } else {
           events.push({ type:'encounter', text:`${enc.name} at ${enc.distance}.` });
         }
@@ -504,11 +670,14 @@
           v.currentLegIdx++;
           v.milesOnLeg = overflow;
           if (v.currentLegIdx < v.legs.length){
-            events.push({ type:'port', text:`Arrived at ${leg.to}.` });
+            ensureSettlement(v).notes.push({ day:v.dayNumber, date:dateStr, type:'arrival', text:`Arrived at ${leg.to}.` });
+            events.push({ type:'port', text:`Arrived at ${leg.to}. Port settlement options are available in Voyage Ledger.` });
           } else {
             v.finished = true;
             const dest = v.legs[v.legs.length-1].to;
-            events.push({ type:'port', text:`Arrived at ${dest}. Voyage complete!` });
+            const s = ensureSettlement(v);
+            s.notes.push({ day:v.dayNumber, date:dateStr, type:'arrival', text:`Voyage complete at ${dest}. Review settlement before ending the voyage.` });
+            events.push({ type:'port', text:`Arrived at ${dest}. Voyage complete! Review Voyage Settlement for repair, port, and resupply posting.` });
             break;
           }
         } else break;
@@ -526,6 +695,7 @@
     const entry = { day:v.dayNumber, date:dateStr, weather, speedInfo, miles:milesThisDay,
                     distTotal:v.distanceCovered, events, hexPos:pos };
     v.log.push(entry);
+    emitVoyageChanged('day-advanced');
     return entry;
   }
 
@@ -946,6 +1116,8 @@
       shipSank: false,
       log: [],
       hexTrail: [],
+      hullDamageTaken: 0,
+      settlement: { pending:[], posted:[], notes:[], repairGpPerHull:REPAIR_GP_PER_HULL },
     };
     setStatus(`Voyage started — ${state.voyage.shipType} sailing ${legs[0].from} → ${legs[legs.length-1].to}.`);
     setActiveTab('voyage');
@@ -1011,6 +1183,7 @@
       <div style="font-size:12px;font-family:Georgia,serif">${v.distanceCovered} / ${v.totalDistance} mi  <span style="color:#c8a96e">(${v.totalDistance>0 ? Math.round(v.distanceCovered/v.totalDistance*100) : 0}%)</span></div>
       <label class="ve-lbl">Hull</label>
       <div style="font-size:12px;font-family:Georgia,serif;color:${hullCol}">${v.hullCurrent} / ${v.hullMax} HP (${hullPct}%)</div>
+      ${(() => { const sum = getVoyageSummary(v); return sum?.pendingCount ? `<div class="ve-status" style="margin-top:8px">Settlement: ${sum.pendingCount} pending finance item${sum.pendingCount===1?'':'s'} · repairs ${sum.pendingRepairGp} gp</div>` : ''; })()}
       <div class="ve-row" style="margin-top:10px">
         <button class="ve-btn primary" id="ve-advance" ${v.finished?'disabled':''}>Advance 1 Day</button>
         <button class="ve-btn" id="ve-advance7" ${v.finished?'disabled':''}>+7 Days</button>
@@ -1183,5 +1356,15 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire);
   else wire();
 
-  window.GCCVoyage = { enter, exit, toggle, state };
+  window.GCCVoyage = {
+    enter, exit, toggle, state,
+    getSummary: () => getVoyageSummary(),
+    getPendingFinanceActions: () => (ensureSettlement(state.voyage)?.pending || []).map(a => ({ ...a })),
+    addPendingFinanceAction: data => addPendingFinanceAction(data),
+    markPendingFinancePosted,
+    dismissPendingFinanceAction,
+    estimateRepairCost: hp => estimateRepairCost(hp),
+    currentPort: () => voyageCurrentPort(),
+    routeLabel: () => voyageRouteLabel()
+  };
 })();
