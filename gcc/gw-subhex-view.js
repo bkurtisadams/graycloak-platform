@@ -1,3 +1,7 @@
+// gw-subhex-view.js v0.40.0 — 2026-07-07
+// v0.40.0 — Ancient roads v1: first-class ancient-road stroke type, top-bar
+//           Ancient roads toggle, Build ▸ Lines tool button, broken-highway
+//           styling, condition metadata, and fast-pan rendering support.
 // gw-subhex-view.js v0.39.0 — 2026-07-07
 // v0.39.0 — drag perf: keep a lightweight fast annotation layer visible while
 //           panning. The full marker/label layer, radiation hatch, and optional
@@ -122,7 +126,16 @@
     river: { color: '#2f6fa8', width: 3,   dash: null },
     road:  { color: '#8a5a2b', width: 2.5, dash: '7 5' },
     trail: { color: '#6b4a2a', width: 2.5, dash: '0.5 7' },
+    'ancient-road': { color: '#5f5145', width: 3.25, dash: '12 7 2 7' },
     pen:   { color: '#e8d5a3', width: 2,   dash: null },
+  };
+  const ANCIENT_ROAD_STYLE = {
+    usable:       { color:'#726556', dash:'18 5', opacity:0.96 },
+    broken:       { color:'#635548', dash:'12 7 2 7', opacity:0.92 },
+    buried:       { color:'#786b58', dash:'3 7', opacity:0.58 },
+    'bridge-out': { color:'#7a5542', dash:'10 5 1 5 1 5', opacity:0.96 },
+    blocked:      { color:'#87483e', dash:'2 5', opacity:0.86 },
+    lost:         { color:'#766a59', dash:'1 9', opacity:0.42 },
   };
   const ICON_PX = 9;          // marker glyph radius in screen px
   const SAMPLE_PX = 4;        // freehand point spacing in screen px
@@ -139,6 +152,8 @@
     lineWidth: 3,
     lineMode: 'points',  // 'points' (spline waypoints) | 'freehand'
     snapHex: false,
+    ancientRoadCondition: 'broken',
+    showAncientRoads: true,
     editor: null,        // active path editor { kind, pts, width, editingId, origPts, dragIdx }
     undoStack: [],
     cellMap: new Map(),
@@ -296,6 +311,9 @@
   const HEXOP_KEY = 'gw-sx-hex-op';
   function loadHexOp(){ try { const v = parseInt(localStorage.getItem(HEXOP_KEY), 10); return (v >= 0 && v <= 100) ? v : 100; } catch(_){ return 100; } }
   function saveHexOp(v){ try { localStorage.setItem(HEXOP_KEY, String(v)); } catch(_){} }
+  const ANCIENT_ROADS_KEY = 'gw-sx-ancient-roads-on';
+  function loadAncientRoadsVis(){ try { return localStorage.getItem(ANCIENT_ROADS_KEY) !== '0'; } catch(_){ return true; } }
+  function saveAncientRoadsVis(v){ try { localStorage.setItem(ANCIENT_ROADS_KEY, v ? '1' : '0'); } catch(_){} }
   const TAB_KEY = 'gw-sx-tab';
   function loadTab(){ try { return localStorage.getItem(TAB_KEY) === 'play' ? 'play' : 'build'; } catch(_){ return 'build'; } }
   function saveTab(v){ try { localStorage.setItem(TAB_KEY, v); } catch(_){} }
@@ -506,9 +524,24 @@
       toolBtn('～ River', { type: 'draw', kind: 'river' }),
       toolBtn('╌ Road',  { type: 'draw', kind: 'road' }),
       toolBtn('⋯ Trail', { type: 'draw', kind: 'trail' }),
+      toolBtn('▥ Ancient', { type: 'draw', kind: 'ancient-road' }),
       toolBtn('✎ Pen',   { type: 'draw', kind: 'pen' }),
     );
     pane.appendChild(lines);
+    const arRow = document.createElement('div');
+    arRow.style.cssText = 'display:flex; align-items:center; gap:6px; margin-top:6px;';
+    const arLbl = document.createElement('span'); arLbl.textContent = 'Ancient'; arLbl.style.cssText = "font-size:11px; color:#e0c089;";
+    const arSel = document.createElement('select');
+    arSel.id = 'gw-sx-ancient-condition';
+    arSel.title = 'Condition saved on new ancient-road strokes for later travel and bridge-out rules';
+    arSel.style.cssText = 'flex:1; min-width:0; background:rgba(0,0,0,.24); border:1px solid #5a3a0a; color:#e8d5a3; font-family:inherit; font-size:11px; padding:3px;';
+    const arConditions = (A() && A().ANCIENT_ROAD_CONDITIONS) || ['usable','broken','buried','bridge-out','blocked','lost'];
+    for (const c of arConditions){ const opt = document.createElement('option'); opt.value = c; opt.textContent = c; arSel.appendChild(opt); }
+    arSel.value = state.ancientRoadCondition;
+    arSel.addEventListener('change', () => { state.ancientRoadCondition = arSel.value || 'broken'; if (state.editor && state.editor.kind === 'ancient-road') state.editor.condition = state.ancientRoadCondition; syncMode(); });
+    state.el.ancientConditionSel = arSel;
+    arRow.append(arLbl, arSel);
+    pane.appendChild(arRow);
     const wRow = document.createElement('div');
     wRow.style.cssText = 'display:flex; align-items:center; gap:6px; margin-top:6px;';
     const wLbl = document.createElement('span'); wLbl.textContent = 'Width'; wLbl.style.cssText = "font-size:11px; color:#e0c089;";
@@ -908,6 +941,9 @@
     const spacer = document.createElement('span'); spacer.className = 'sx-spacer';
     const tog = document.createElement('label');
     tog.innerHTML = '<input type="checkbox" id="gw-sx-toggle-parents" checked> Parent outlines';
+    const arTog = document.createElement('label');
+    state.showAncientRoads = loadAncientRoadsVis();
+    arTog.innerHTML = `<input type="checkbox" id="gw-sx-toggle-ancient" ${state.showAncientRoads ? 'checked' : ''}> Ancient roads`;
     const mapTog = document.createElement('label');
     mapTog.innerHTML = '<input type="checkbox" id="gw-sx-toggle-map"> Base map';
     const mapOp = document.createElement('input');
@@ -920,7 +956,7 @@
     hexOp.style.cssText = 'width:80px; accent-color:#66d9ff;';
     gCells.style.setProperty('--gw-cell-fill', (loadHexOp() / 100).toFixed(2));   // apply persisted terrain-fill opacity
     const fit = mkBtn('Fit parent', 'gw-sx-fit');
-    bar.append(back, title, spacer, tog, mapTog, mapOp, hexOp, fit);
+    bar.append(back, title, spacer, tog, arTog, mapTog, mapOp, hexOp, fit);
     const read = document.createElement('div'); read.id = 'gw-sx-read';
     read.innerHTML = '<span class="sx-t">Subhex</span><div id="gw-sx-read-body">— hover a cell —</div>';
     const enc = document.createElement('div'); enc.id = 'gw-sx-enc';
@@ -962,6 +998,7 @@
     back.addEventListener('click', close);
     fit.addEventListener('click', () => { if (state.curParent) centerOnParent(state.curParent.col, state.curParent.row); });
     tog.querySelector('input').addEventListener('change', e => { state.showParents = e.target.checked; render(true); });
+    arTog.querySelector('input').addEventListener('change', e => { state.showAncientRoads = e.target.checked; saveAncientRoadsVis(state.showAncientRoads); renderAnnotations(); });
     mapTog.querySelector('input').addEventListener('change', e => { basemap.style.display = e.target.checked ? '' : 'none'; });
     mapOp.addEventListener('input', e => { basemap.setAttribute('opacity', (e.target.value / 100).toFixed(2)); });
     hexOp.addEventListener('input', e => { gCells.style.setProperty('--gw-cell-fill', (e.target.value / 100).toFixed(2)); saveHexOp(e.target.value); });
@@ -1235,15 +1272,36 @@
     }
     return d;
   }
-  function lineEl(kind, dStr, custom){
-    const st = STROKE_STYLE[kind] || STROKE_STYLE.pen;
+  function pathLine(dStr, color, width, dash, opacity){
     const p = document.createElementNS(SVGNS, 'path');
     p.setAttribute('d', dStr);
     p.setAttribute('class', 'gw-sx-line');
-    p.setAttribute('stroke', (custom && custom.color) || st.color);
-    p.setAttribute('stroke-width', (custom && custom.width) || st.width);
-    if (st.dash) p.setAttribute('stroke-dasharray', st.dash);
+    p.setAttribute('stroke', color);
+    p.setAttribute('stroke-width', width);
+    if (dash) p.setAttribute('stroke-dasharray', dash);
+    if (opacity != null) p.setAttribute('opacity', opacity);
     return p;
+  }
+  function lineEl(kind, dStr, custom){
+    const st = STROKE_STYLE[kind] || STROKE_STYLE.pen;
+    const width = (custom && custom.width) || st.width;
+    if (kind === 'ancient-road'){
+      const cond = (custom && custom.condition) || 'broken';
+      const ast = ANCIENT_ROAD_STYLE[cond] || ANCIENT_ROAD_STYLE.broken;
+      const g = document.createElementNS(SVGNS, 'g');
+      g.setAttribute('class', 'gw-sx-ancient-road');
+      g.setAttribute('data-condition', cond);
+      const base = pathLine(dStr, 'rgba(34,25,18,.78)', Math.max(1, width + 1.6), null, Math.min(0.52, ast.opacity));
+      const top = pathLine(dStr, (custom && custom.color) || ast.color || st.color, width, ast.dash || st.dash, ast.opacity);
+      g.append(base, top);
+      return g;
+    }
+    return pathLine(dStr, (custom && custom.color) || st.color, width, st.dash, null);
+  }
+  function setLineD(el, dStr){
+    if (!el) return;
+    if (el.tagName && el.tagName.toLowerCase() === 'path') el.setAttribute('d', dStr);
+    else el.querySelectorAll && el.querySelectorAll('path').forEach(p => p.setAttribute('d', dStr));
   }
   function markerEl(kind, x, y, name, u, hidden){
     const r = ICON_PX * u;
@@ -1334,9 +1392,10 @@
     const frag = document.createDocumentFragment();
     const fastFrag = document.createDocumentFragment();
     for (const s of A().strokesInBbox(bb, ICON_PX*u)){
+      if (s.kind === 'ancient-road' && !state.showAncientRoads) continue;
       const path = smoothPath(s.pts);
-      frag.appendChild(lineEl(s.kind, path, { color: s.color, width: s.width }));
-      fastFrag.appendChild(lineEl(s.kind, path, { color: s.color, width: Math.max(1.4 * u, (s.width || (STROKE_STYLE[s.kind] || STROKE_STYLE.pen).width) * 0.85) }));
+      frag.appendChild(lineEl(s.kind, path, { color: s.color, width: s.width, condition: s.condition }));
+      fastFrag.appendChild(lineEl(s.kind, path, { color: s.color, condition: s.condition, width: Math.max(1.4 * u, (s.width || (STROKE_STYLE[s.kind] || STROKE_STYLE.pen).width) * 0.85) }));
     }
     for (const m of A().markersInBbox(markerBb)){
       frag.appendChild(markerEl(m.kind, m.x, m.y, m.name, u, m.hidden));
@@ -1349,11 +1408,21 @@
   }
 
   // ── freehand capture ───────────────────────────────────────────────────────
+  function strokePersistOpts(kind, width, src){
+    const opts = { width };
+    if (kind === 'ancient-road'){
+      opts.condition = (src && src.condition) || state.ancientRoadCondition || 'broken';
+      if (src && src.roadName) opts.roadName = src.roadName;
+      if (src && src.ancientName) opts.ancientName = src.ancientName;
+      if (src && src.source) opts.source = src.source;
+    }
+    return opts;
+  }
   function startStroke(e){
     const w = clientToWorld(e);
-    state.stroke = { kind: state.armed.kind, pts: [[w.x, w.y]] };
+    state.stroke = { kind: state.armed.kind, pts: [[w.x, w.y]], condition: state.armed.kind === 'ancient-road' ? state.ancientRoadCondition : undefined };
     state.el.svg.classList.add('painting');
-    const el = lineEl(state.stroke.kind, '', { width: state.lineWidth });
+    const el = lineEl(state.stroke.kind, '', { width: state.lineWidth, condition: state.stroke.condition });
     el.id = 'gw-sx-preview';
     state.el.gAnnot.appendChild(el);
     state.stroke.el = el;
@@ -1365,13 +1434,13 @@
     const minW = SAMPLE_PX * curU();
     if (Math.hypot(w.x - last[0], w.y - last[1]) < minW) return;
     pts.push([w.x, w.y]);
-    state.stroke.el.setAttribute('d', smoothPath(pts));
+    setLineD(state.stroke.el, smoothPath(pts));
   }
   function commitStroke(){
     const st = state.stroke; state.stroke = null;
     state.el.svg.classList.remove('painting');
     if (st && st.el && st.el.parentNode) st.el.parentNode.removeChild(st.el);
-    if (st && st.pts.length >= 2){ A().addStroke(st.kind, st.pts, { width: state.lineWidth }); renderAnnotations(); }
+    if (st && st.pts.length >= 2){ A().addStroke(st.kind, st.pts, strokePersistOpts(st.kind, state.lineWidth, st)); renderAnnotations(); }
   }
 
   // ── spline waypoint editor (points mode) ────────────────────────────────────
@@ -1386,6 +1455,7 @@
     const thr = 6 * curU(); let best = null, bd = thr;
     for (const s of A().listStrokes()){
       for (let i = 0; i < s.pts.length - 1; i++){
+        if (s.kind === 'ancient-road' && !state.showAncientRoads) continue;
         const d = distToSeg(w.x, w.y, s.pts[i][0], s.pts[i][1], s.pts[i+1][0], s.pts[i+1][1]);
         if (d <= bd){ bd = d; best = s; }
       }
@@ -1398,7 +1468,7 @@
     if (!state.editor){
       const s = nearestStrokeAt(p0);
       if (s){ loadStrokeForEdit(s); return; }
-      state.editor = { kind: state.armed.kind, pts: [], width: state.lineWidth, editingId: null, origPts: null, dragIdx: null };
+      state.editor = { kind: state.armed.kind, pts: [], width: state.lineWidth, condition: state.armed.kind === 'ancient-road' ? state.ancientRoadCondition : undefined, editingId: null, origPts: null, dragIdx: null };
     }
     state.editor.pts.push([p.x, p.y]);
     editorRender(); syncEditBtns(); syncMode();
@@ -1407,8 +1477,13 @@
     state.editor = {
       kind: s.kind, pts: s.pts.map(p => [p[0], p[1]]),
       width: s.width || (STROKE_STYLE[s.kind] || STROKE_STYLE.pen).width,
+      condition: s.condition, roadName: s.roadName, ancientName: s.ancientName, source: s.source,
       editingId: s.id, origPts: s.pts.map(p => [p[0], p[1]]), dragIdx: null,
     };
+    if (s.kind === 'ancient-road'){
+      state.ancientRoadCondition = s.condition || 'broken';
+      if (state.el.ancientConditionSel) state.el.ancientConditionSel.value = state.ancientRoadCondition;
+    }
     A().deleteStroke(s.id);
     renderAnnotations(); editorRender(); syncEditBtns(); syncMode();
   }
@@ -1416,13 +1491,13 @@
   function finishEditor(){
     const ed = state.editor; if (!ed) return;
     state.editor = null;
-    if (ed.pts.length >= 2) A().addStroke(ed.kind, ed.pts, { width: ed.width });
+    if (ed.pts.length >= 2) A().addStroke(ed.kind, ed.pts, strokePersistOpts(ed.kind, ed.width, ed));
     editorRender(); renderAnnotations(); syncEditBtns(); syncMode();
   }
   function cancelEditor(){
     const ed = state.editor; if (!ed) return;
     state.editor = null;
-    if (ed.editingId && ed.origPts && ed.origPts.length >= 2) A().addStroke(ed.kind, ed.origPts, { width: ed.width });
+    if (ed.editingId && ed.origPts && ed.origPts.length >= 2) A().addStroke(ed.kind, ed.origPts, strokePersistOpts(ed.kind, ed.width, ed));
     editorRender(); renderAnnotations(); syncEditBtns(); syncMode();
   }
   function editorRender(){
@@ -1430,7 +1505,7 @@
     g.replaceChildren();
     const ed = state.editor; if (!ed || !ed.pts.length) return;
     const u = curU();
-    if (ed.pts.length >= 2) g.appendChild(lineEl(ed.kind, smoothPath(ed.pts), { width: ed.width }));
+    if (ed.pts.length >= 2) g.appendChild(lineEl(ed.kind, smoothPath(ed.pts), { width: ed.width, condition: ed.condition }));
     ed.pts.forEach((p, i) => {
       const c = document.createElementNS(SVGNS, 'circle');
       c.setAttribute('cx', p[0]); c.setAttribute('cy', p[1]); c.setAttribute('r', 4 * u);
@@ -1518,6 +1593,7 @@
     let bestS = null, bestSD = thr;
     for (const s of A().listStrokes()){
       for (let i = 0; i < s.pts.length-1; i++){
+        if (s.kind === 'ancient-road' && !state.showAncientRoads) continue;
         const d = distToSeg(w.x, w.y, s.pts[i][0], s.pts[i][1], s.pts[i+1][0], s.pts[i+1][1]);
         if (d <= bestSD){ bestSD = d; bestS = s; }
       }
@@ -1593,9 +1669,10 @@
     else if (a.type === 'paint') el.textContent = `Paint: ${D().TERRAIN[a.terrain].label} · drag to brush`;
     else if (a.type === 'hazard') el.textContent = a.mode === 'radiation' ? 'Paint radiation · drag to brush' : 'Clear radiation · drag to brush';
     else if (a.type === 'draw'){
-      if (state.lineMode === 'freehand') el.textContent = `Draw ${a.kind} · drag to trace`;
-      else if (state.editor && state.editor.pts.length) el.textContent = `${a.kind}: click=add · drag dot=move · Enter=finish · Esc=cancel`;
-      else el.textContent = `Draw ${a.kind} · click to add points (or click a line to edit)`;
+      const name = a.kind === 'ancient-road' ? `ancient road (${state.ancientRoadCondition || 'broken'})` : a.kind;
+      if (state.lineMode === 'freehand') el.textContent = `Draw ${name} · drag to trace`;
+      else if (state.editor && state.editor.pts.length) el.textContent = `${name}: click=add · drag dot=move · Enter=finish · Esc=cancel`;
+      else el.textContent = `Draw ${name} · click to add points (or click a line to edit)`;
     }
     else if (a.type === 'marker') el.textContent = `Place ${a.kind} · click (shift = name)`;
     else if (a.type === 'annot-erase') el.textContent = 'Erase feature · click a line/icon';

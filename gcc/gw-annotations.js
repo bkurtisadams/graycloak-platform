@@ -1,9 +1,12 @@
-// gw-annotations.js v0.5.0 — 2026-05-29
+// gw-annotations.js v0.6.0 — 2026-07-07
+// v0.6.0 — Add ancient-road strokes with condition/source metadata for
+//          broken highway corridors. Conditions are stored now for later
+//          travel rules and bridge-out editing.
 // v0.5.0 — `hidden` flag on markers/strokes (GM-only features kept off the
 //          player publish) + exportSafe() returning the non-hidden set.
 // v0.4.0 — 2026-05-25 (monastery + installation marker kinds)
 // Freehand vector overlay for the Gamma World subhex map: smooth line
-// strokes (rivers/roads/trails/pen) and point markers (settlement icons),
+// strokes (rivers/roads/trails/ancient-road/pen) and point markers (settlement icons),
 // stored in world-SVG coordinates so they pan/zoom with the subhex view.
 // Grid-independent — strokes ignore hex boundaries entirely.
 //
@@ -57,7 +60,9 @@
   }
 
   // ── strokes ────────────────────────────────────────────────────────────────
-  const STROKE_KINDS = ['river', 'road', 'trail', 'pen'];
+  const STROKE_KINDS = ['river', 'road', 'trail', 'ancient-road', 'pen'];
+  const ANCIENT_ROAD_CONDITIONS = ['usable', 'broken', 'buried', 'bridge-out', 'blocked', 'lost'];
+  function cleanAncientCondition(v){ return ANCIENT_ROAD_CONDITIONS.includes(v) ? v : 'broken'; }
   function addStroke(kind, pts, opts){
     if (!Array.isArray(pts) || pts.length < 2) return null;
     const k = STROKE_KINDS.includes(kind) ? kind : 'pen';
@@ -68,6 +73,12 @@
     if (opts && opts.gen) s.gen = true;
     if (opts && opts.parent) s.parent = String(opts.parent);
     if (opts && opts.hidden) s.hidden = true;
+    if (k === 'ancient-road'){
+      s.condition = cleanAncientCondition(opts && opts.condition);
+      if (opts && opts.roadName) s.roadName = String(opts.roadName).trim();
+      if (opts && opts.ancientName) s.ancientName = String(opts.ancientName).trim();
+      if (opts && opts.source) s.source = String(opts.source).trim();
+    }
     DB.strokes.push(s);
     if (!(opts && opts.deferSave)) { save(); emit('stroke-add'); }
     return s.id;
@@ -82,6 +93,13 @@
     if ('color' in fields) s.color = fields.color || undefined;
     if ('width' in fields) s.width = fields.width ? +fields.width : undefined;
     if ('hidden' in fields){ if (fields.hidden) s.hidden = true; else delete s.hidden; }
+    if (s.kind === 'ancient-road' || fields.kind === 'ancient-road'){
+      if ('condition' in fields) s.condition = cleanAncientCondition(fields.condition);
+      if ('roadName' in fields){ const n = String(fields.roadName || '').trim(); if (n) s.roadName = n; else delete s.roadName; }
+      if ('ancientName' in fields){ const n = String(fields.ancientName || '').trim(); if (n) s.ancientName = n; else delete s.ancientName; }
+      if ('source' in fields){ const n = String(fields.source || '').trim(); if (n) s.source = n; else delete s.source; }
+      if (!s.condition) s.condition = 'broken';
+    }
     save(); emit('stroke-update');
     return true;
   }
@@ -161,10 +179,10 @@
   }
 
   window.GWAnnotations = {
-    STROKE_KINDS, MARKER_KINDS,
+    STROKE_KINDS, ANCIENT_ROAD_CONDITIONS, MARKER_KINDS,
     addStroke, updateStroke, deleteStroke, listStrokes, strokesInBbox,
     addMarker, updateMarker, deleteMarker, listMarkers, markersInBbox,
     clearAll, clearGenerated, flush, save, exportSafe,
   };
-  try { console.log('[gw-annotations] v0.4.0 loaded', { strokes: DB.strokes.length, markers: DB.markers.length }); } catch(_){}
+  try { console.log('[gw-annotations] v0.6.0 loaded', { strokes: DB.strokes.length, markers: DB.markers.length }); } catch(_){}
 })();
