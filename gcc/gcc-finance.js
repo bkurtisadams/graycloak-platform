@@ -1,4 +1,4 @@
-// gcc-finance.js v0.2.0 — Campaign finance and AD&D venture ledger
+// gcc-finance.js v0.3.0 — Campaign finance and AD&D venture ledger
 // Drop-in browser module for Graycloak's Campaign Corner.
 //
 // Slice 2 goals:
@@ -6,11 +6,12 @@
 // - Keep data localStorage-only until the campaign economy model is finalized.
 // - Track income, expenses, transfers, and running balances.
 // - Expose a small API seam for voyage/trade integration later.
+// - Slice 3: accept voyage metadata on ledger entries for the voyage-finance bridge.
 
 (function(){
   if (typeof window === 'undefined') return;
 
-  const VERSION = '0.2.0';
+  const VERSION = '0.3.0';
   const STORAGE_KEY = 'gcc.finance.v1';
   const SCHEMA_VERSION = 2;
   const $ = (sel, root=document) => root.querySelector(sel);
@@ -73,7 +74,8 @@
         category:'capital',
         memo:'Initial trading capital from Val and Kris.',
         source:'manual',
-        links:[{ type:'character', id:'char_val' }, { type:'character', id:'char_kris' }, { type:'asset', id:'asset_surprise' }]
+        links:[{ type:'character', id:'char_val' }, { type:'character', id:'char_kris' }, { type:'asset', id:'asset_surprise' }],
+        meta:{ source:'seed' }
       }
     ]
   };
@@ -145,6 +147,7 @@
       t.memo = t.memo || '';
       t.source = t.source || 'manual';
       t.links = Array.isArray(t.links) ? t.links : [];
+      t.meta = (t.meta && typeof t.meta === 'object' && !Array.isArray(t.meta)) ? t.meta : {};
     });
 
     s.version = SCHEMA_VERSION;
@@ -233,7 +236,8 @@
       category: txn.category || 'misc',
       memo: txn.memo || '',
       source: txn.source || 'manual',
-      links: Array.isArray(txn.links) ? txn.links : []
+      links: Array.isArray(txn.links) ? txn.links : [],
+      meta: (txn.meta && typeof txn.meta === 'object' && !Array.isArray(txn.meta)) ? clone(txn.meta) : {}
     };
 
     adjustAccountBalance(entry.accountType, entry.accountId, entry.amountGp);
@@ -245,7 +249,7 @@
     return clone(entry);
   }
 
-  function transferGp({ fromType, fromId, toType, toId, amountGp, memo, category='transfer', source='manual', gameDate='' }){
+  function transferGp({ fromType, fromId, toType, toId, amountGp, memo, category='transfer', source='manual', gameDate='', meta=null }){
     const amount = Math.abs(Number(amountGp || 0));
     if (!amount) throw new Error('Transfer amount must be greater than zero.');
     if (!getAccount(fromType, fromId)) throw new Error('Transfer source account not found.');
@@ -253,7 +257,7 @@
     if (fromType === toType && fromId === toId) throw new Error('Choose two different accounts for a transfer.');
 
     const batchId = uid('batch');
-    const shared = { memo: memo || 'Transfer', category, source, gameDate: gameDate || currentGameDate() };
+    const shared = { memo: memo || 'Transfer', category, source, gameDate: gameDate || currentGameDate(), meta: meta && typeof meta === 'object' ? meta : {} };
     const out = addTransaction({
       accountType:fromType,
       accountId:fromId,
@@ -347,9 +351,10 @@
     if (voyageId) links.push({ type:'voyage', id:voyageId });
 
     const memoTail = cargoMemo ? ' ' + cargoMemo : '';
-    if (expensesGp) addTransaction({ accountType:'venture', accountId:ventureId, amountGp:-Math.abs(expensesGp), category:'voyage_expense', memo:'Voyage expenses.' + memoTail, source:'voyage', links }, { silent:true });
-    if (repairsGp) addTransaction({ accountType:'venture', accountId:ventureId, amountGp:-Math.abs(repairsGp), category:'repair', memo:'Ship repairs after voyage.' + memoTail, source:'voyage', links }, { silent:true });
-    if (profitGp) addTransaction({ accountType:'venture', accountId:ventureId, amountGp:Number(profitGp), category:'trade_profit', memo:'Trade result.' + memoTail, source:'voyage', links }, { silent:true });
+    const meta = { source:'voyage', voyageId: voyageId || '', ventureId, assetId: assetId || '', port: port || '' };
+    if (expensesGp) addTransaction({ accountType:'venture', accountId:ventureId, amountGp:-Math.abs(expensesGp), category:'voyage_expense', memo:'Voyage expenses.' + memoTail, source:'voyage', links, meta }, { silent:true });
+    if (repairsGp) addTransaction({ accountType:'venture', accountId:ventureId, amountGp:-Math.abs(repairsGp), category:'repair', memo:'Ship repairs after voyage.' + memoTail, source:'voyage', links, meta }, { silent:true });
+    if (profitGp) addTransaction({ accountType:'venture', accountId:ventureId, amountGp:Number(profitGp), category:'trade_profit', memo:'Trade result.' + memoTail, source:'voyage', links, meta }, { silent:true });
 
     v.currentPort = port || v.currentPort;
     const a = assetId ? findAsset(assetId) : null;
@@ -889,6 +894,9 @@
     findVenture:(id)=>clone(findVenture(id)),
     findAsset:(id)=>clone(findAsset(id)),
     transactionsFor:(type,id)=>clone(transactionsFor(type,id)),
+    currentGameDate,
+    accountBalance,
+    accountLabel,
     openPanel
   };
 
