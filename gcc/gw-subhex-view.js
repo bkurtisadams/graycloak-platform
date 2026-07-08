@@ -1,4 +1,7 @@
-// gw-subhex-view.js v0.42.0 — 2026-07-07
+// gw-subhex-view.js v0.43.0 — 2026-07-07
+// v0.43.0 — multi-parent raster panning: raster mode now renders a cached
+//           neighborhood of parent tiles around the view center so panning can
+//           cross 30-mile parent boundaries while live overlays stay active.
 // v0.42.0 — raster alignment: map rendered tile images back through the
 //           renderer's pixel-to-world bounds, clamp hover/selection/edit clicks
 //           to the current parent while single-tile raster mode is active, and
@@ -165,9 +168,11 @@
     ancientRoadCondition: 'broken',
     showAncientRoads: true,
     rasterBase: false,
-    rasterKey: null,
+    rasterKey: null,          // rendered neighborhood key
     rasterBusy: false,
     rasterDirty: false,
+    rasterTiles: new Map(),   // tileKey -> { url, bounds, stats, col, row }
+    rasterParentKeys: new Set(),
     editor: null,        // active path editor { kind, pts, width, editingId, origPts, dragIdx }
     undoStack: [],
     cellMap: new Map(),
@@ -198,6 +203,7 @@
       #gw-sx-overlay.open { display:block; }
       #gw-sx-svg { position:absolute; inset:0; width:100%; height:100%; cursor:grab; touch-action:none; }
       #gw-sx-raster-base { pointer-events:none; image-rendering:auto; }
+      #gw-sx-raster-base image { pointer-events:none; image-rendering:auto; }
       #gw-sx-svg.grabbing { cursor:grabbing; }
       #gw-sx-svg.painting { cursor:crosshair; }
       .gw-sx-cellpath { stroke:rgba(0,0,0,.35); stroke-width:1; vector-effect:non-scaling-stroke; fill-opacity:var(--gw-cell-fill, 1); }
@@ -692,8 +698,8 @@
     return state.curParent;
   }
   function targetParent(){
-    // Raster mode is currently a single-parent tile. Keep Generate/Clear target
-    // anchored to that tile until the future neighbor-tile viewer exists.
+    // In raster mode the tile neighborhood follows the view center, so generated
+    // feature actions target the same parent the raster layer is centered on.
     return state.rasterBase ? rasterParent() : centerParent();
   }
   function generateFeatures(){
@@ -736,7 +742,7 @@
       else { const c = d.svgToAxial(state.vb.x + state.vb.w / 2, state.vb.y + state.vb.h / 2); Q = c.Q; R = c.R; }
     }
     if (state.rasterBase && !cellInActiveRasterParent(Q, R)){
-      showEncounter('<span class="enc-x" title="Close">✕</span><span class="enc-nope">Pick a subhex inside the current raster tile first.</span>'); return;
+      showEncounter('<span class="enc-x" title="Close">✕</span><span class="enc-nope">Pick a subhex inside the rendered raster neighborhood first.</span>'); return;
     }
     const sub = d.getSubhexAt(Q, R);
     const feat = d.getCellFeature(Q, R);
@@ -938,7 +944,7 @@
     const overlay = document.createElement('div'); overlay.id = 'gw-sx-overlay';
     const svg = document.createElementNS(SVGNS, 'svg');
     svg.id = 'gw-sx-svg'; svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-    const rasterBase = document.createElementNS(SVGNS, 'image'); rasterBase.id = 'gw-sx-raster-base';
+    const rasterBase = document.createElementNS(SVGNS, 'g'); rasterBase.id = 'gw-sx-raster-base';
     rasterBase.style.display = 'none'; rasterBase.style.pointerEvents = 'none';
     const gCells = document.createElementNS(SVGNS, 'g');   gCells.id = 'gw-sx-cells';
     const gHaz = document.createElementNS(SVGNS, 'g');      gHaz.id = 'gw-sx-haz';
@@ -990,7 +996,7 @@
     arTog.innerHTML = `<input type="checkbox" id="gw-sx-toggle-ancient" ${state.showAncientRoads ? 'checked' : ''}> Ancient roads`;
     const rasterTog = document.createElement('label');
     state.rasterBase = loadRasterBaseVis();
-    rasterTog.title = 'Use a generated raster tile as the base layer for this parent hex. Turn off for full live SVG authoring.';
+    rasterTog.title = 'Use generated raster tiles as the base layer around the view center. Turn off for full live SVG authoring.';
     rasterTog.innerHTML = `<input type="checkbox" id="gw-sx-toggle-raster" ${state.rasterBase ? 'checked' : ''}> Raster tile`;
     const mapTog = document.createElement('label');
     mapTog.innerHTML = '<input type="checkbox" id="gw-sx-toggle-map"> Base map';
@@ -1066,20 +1072,52 @@
   }
 
   function rasterParent(){
-    return state.curParent || centerParent();
+    return centerParent() || state.curParent;
   }
   function rasterTileKey(p){
     return p ? `${p.col},${p.row}|ancient:${state.showAncientRoads ? 1 : 0}` : '';
   }
+  function rasterLayerKey(parents){
+    return (parents || []).map(rasterTileKey).join(';');
+  }
+  function rasterNeighborParents(center){
+    const out = [];
+    const atlas = window.GWSubhexAtlas;
+    if (!center) return out;
+    for (let dc = -1; dc <= 1; dc++){
+      for (let dr = -1; dr <= 1; dr++){
+        const p = { col: +center.col + dc, row: +center.row + dr };
+        if (atlas && typeof atlas.hasParent === 'function' && !atlas.hasParent(p.col, p.row)) continue;
+        out.push(p);
+      }
+    }
+    out.sort((a, b) => (a.col - b.col) || (a.row - b.row));
+    return out;
+  }
+  function trimRasterTileCache(max){
+    max = max || 36;
+    while (state.rasterTiles.size > max){
+      const first = state.rasterTiles.keys().next().value;
+      if (first == null) break;
+      state.rasterTiles.delete(first);
+    }
+  }
+  function rasterCoverageHasParent(p){
+    if (!p) return false;
+    const k = `${p.col},${p.row}`;
+    if (state.rasterParentKeys && state.rasterParentKeys.has(k)) return true;
+    const rp = rasterParent();
+    return !!rp && sameParent(p, rp);
+  }
   function applyRasterModeVisibility(){
     if (!state.el.rasterBase) return;
     const on = !!state.rasterBase;
-    state.el.rasterBase.style.display = on && state.el.rasterBase.getAttribute('href') ? '' : 'none';
+    state.el.rasterBase.style.display = on && state.el.rasterBase.childNodes.length ? '' : 'none';
     if (state.el.basemap){
       const baseChecked = !!(document.getElementById('gw-sx-toggle-map') || {}).checked;
       state.el.basemap.style.display = (!on && baseChecked) ? '' : 'none';
     }
-    // In raster mode, the generated tile is the expensive visual base. Keep the
+    // In raster mode, the generated tiles are the expensive visual base. Keep the
     // lightweight interactive layers alive, but hide the live terrain/path stacks.
     [state.el.gCells, state.el.gHaz, state.el.gParents, state.el.gAnnot].forEach(el => { if (el) el.style.display = on ? 'none' : ''; });
     // The fast layer is a drag-only live-mode layer. Raster mode does not need it,
@@ -1087,57 +1125,92 @@
     if (state.el.gAnnotFast) state.el.gAnnotFast.style.display = 'none';
   }
   function markRasterDirty(){ state.rasterDirty = true; }
+  function renderRasterTile(p, force){
+    const key = rasterTileKey(p);
+    if (!force && !state.rasterDirty && state.rasterTiles.has(key)) return state.rasterTiles.get(key);
+    const result = window.GWSubhexTileRenderer.renderParent(p.col, p.row, {
+      size: 1024,
+      marginPx: 0,
+      paddingWorld: 1.0,
+      showStamp: false,
+      showGrid: true,
+      showRadiation: true,
+      showMarkers: true,
+      showLabels: true,
+      showAncientRoads: state.showAncientRoads,
+      showHidden: true,
+      maxLabels: 18,
+    });
+    const b = result.displayBounds || result.imageWorldBounds || result.bounds;
+    const rec = {
+      col: p.col, row: p.row, key,
+      bounds: { minX:+b.minX, minY:+b.minY, maxX:+b.maxX, maxY:+b.maxY },
+      stats: result.stats || {},
+      url: result.canvas.toDataURL('image/webp', 0.9),
+    };
+    state.rasterTiles.set(key, rec);
+    trimRasterTileCache();
+    return rec;
+  }
+  function imageForRasterTile(rec){
+    const b = rec.bounds;
+    const img = document.createElementNS(SVGNS, 'image');
+    img.setAttribute('x', b.minX);
+    img.setAttribute('y', b.minY);
+    img.setAttribute('width', b.maxX - b.minX);
+    img.setAttribute('height', b.maxY - b.minY);
+    img.setAttribute('preserveAspectRatio', 'none');
+    img.setAttribute('data-parent', `${rec.col},${rec.row}`);
+    img.setAttribute('href', rec.url);
+    img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', rec.url);
+    return img;
+  }
   function updateRasterBase(force){
     if (!state.el.rasterBase) return null;
     if (!state.rasterBase){
       state.rasterKey = null;
+      state.rasterParentKeys.clear();
       state.el.rasterBase.style.display = 'none';
       return null;
     }
-    const p = rasterParent();
-    const key = rasterTileKey(p);
-    if (!p || !window.GWSubhexTileRenderer || !key){
+    const center = rasterParent();
+    const parents = rasterNeighborParents(center);
+    const key = rasterLayerKey(parents);
+    if (!center || !parents.length || !window.GWSubhexTileRenderer || !key){
+      state.rasterParentKeys.clear();
+      state.el.rasterBase.replaceChildren();
       state.el.rasterBase.style.display = 'none';
       return null;
     }
-    if (!force && !state.rasterDirty && state.rasterKey === key && state.el.rasterBase.getAttribute('href')){
+    if (!force && !state.rasterDirty && state.rasterKey === key && state.el.rasterBase.childNodes.length){
       applyRasterModeVisibility();
       return null;
     }
     if (state.rasterBusy) return null;
     state.rasterBusy = true;
     try {
-      const result = window.GWSubhexTileRenderer.renderParent(p.col, p.row, {
-        size: 1024,
-        marginPx: 0,
-        paddingWorld: 1.0,
-        showStamp: false,
-        showGrid: true,
-        showRadiation: true,
-        showMarkers: true,
-        showLabels: true,
-        showAncientRoads: state.showAncientRoads,
-        showHidden: true,
-        maxLabels: 18,
-      });
-      const b = result.displayBounds || result.imageWorldBounds || result.bounds;
-      state.el.rasterBase.setAttribute('x', b.minX);
-      state.el.rasterBase.setAttribute('y', b.minY);
-      state.el.rasterBase.setAttribute('width', b.maxX - b.minX);
-      state.el.rasterBase.setAttribute('height', b.maxY - b.minY);
-      state.el.rasterBase.setAttribute('preserveAspectRatio', 'none');
-      const url = result.canvas.toDataURL('image/webp', 0.9);
-      state.el.rasterBase.setAttribute('href', url);
-      state.el.rasterBase.setAttributeNS('http://www.w3.org/1999/xlink', 'href', url);
+      const frag = document.createDocumentFragment();
+      const nextKeys = new Set();
+      let totalCells = 0;
+      for (const p of parents){
+        const rec = renderRasterTile(p, force);
+        frag.appendChild(imageForRasterTile(rec));
+        nextKeys.add(`${p.col},${p.row}`);
+        totalCells += +(rec.stats && rec.stats.cells || 0);
+      }
+      state.el.rasterBase.replaceChildren(frag);
+      state.rasterParentKeys = nextKeys;
       state.rasterKey = key;
       state.rasterDirty = false;
-      if (state.el.mode) state.el.mode.textContent = `Raster tile: parent ${p.col},${p.row} · ${result.stats.cells} cells`;
+      if (state.el.mode) state.el.mode.textContent = `Raster tiles: ${parents.length} parents around ${center.col},${center.row} · ${totalCells} cells`;
       applyRasterModeVisibility();
-      return result;
+      return { center, parents, cells: totalCells };
     } catch (err){
       state.rasterKey = null;
+      state.rasterParentKeys.clear();
       state.rasterBase = false;
       saveRasterBaseVis(false);
+      state.el.rasterBase.replaceChildren();
       state.el.rasterBase.style.display = 'none';
       if (state.el.mode) state.el.mode.textContent = 'Raster tile failed: ' + (err && err.message ? err.message : err);
       try { console.error('[gw-subhex-view] raster tile failed', err); } catch(_){}
@@ -1168,9 +1241,8 @@
   function activeRasterParent(){ return state.rasterBase ? rasterParent() : null; }
   function cellOwner(Q, R){ const d = D(); return d && d.ownerOf ? d.ownerOf(Q, R) : null; }
   function cellInActiveRasterParent(Q, R){
-    const p = activeRasterParent();
-    if (!p) return true;
-    return sameParent(cellOwner(Q, R), p);
+    if (!state.rasterBase) return true;
+    return rasterCoverageHasParent(cellOwner(Q, R));
   }
   function worldPointInActiveRasterParent(w){
     if (!state.rasterBase) return true;
@@ -1347,7 +1419,12 @@
     const bbox = { minX: state.vb.x - mx, maxX: state.vb.x + state.vb.w + mx, minY: state.vb.y - my, maxY: state.vb.y + state.vb.h + my };
     if (!force && state.rendered &&
         bbox.minX >= state.rendered.minX && bbox.maxX <= state.rendered.maxX &&
-        bbox.minY >= state.rendered.minY && bbox.maxY <= state.rendered.maxY){ renderAnnotations(); renderGenTarget(); return; }
+        bbox.minY >= state.rendered.minY && bbox.maxY <= state.rendered.maxY){
+      if (state.rasterBase) updateRasterBase(false);
+      applyRasterModeVisibility();
+      renderAnnotations(); renderFog(); renderParty(); renderGenTarget();
+      return;
+    }
     state.rendered = bbox;
 
     const cells = d.cellsInAxialBbox(bbox);
@@ -1408,7 +1485,7 @@
     const p = targetParent();
     if (state.el.genTarget){
       state.el.genTarget.textContent = p
-        ? (state.rasterBase ? `▸ raster target: parent ${p.col},${p.row}` : `▸ target: parent ${p.col},${p.row}`)
+        ? (state.rasterBase ? `▸ raster center: parent ${p.col},${p.row}` : `▸ target: parent ${p.col},${p.row}`)
         : '▸ no parent centered';
     }
     const d = D();
@@ -1864,7 +1941,7 @@
       const cell = cellAt(e);
       if (!cell){
         if (state.hoverKey !== null){ clearHover(); }
-        if (state.rasterBase && state.el.readBody) state.el.readBody.innerHTML = '— outside current raster tile —';
+        if (state.rasterBase && state.el.readBody) state.el.readBody.innerHTML = '— outside raster tile neighborhood —';
         return;
       }
       const key = cell.Q + '_' + cell.R;
