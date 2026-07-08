@@ -1,4 +1,7 @@
-// gw-subhex-view.js v0.43.3 — 2026-07-07
+// gw-subhex-view.js v0.43.4 — 2026-07-07
+// v0.43.4 — raster zoom perf: wheel zoom now only updates the SVG viewBox
+//           during active wheel input and defers raster tile coverage/fog rebuilds
+//           until zoom settles, avoiding per-tick tile churn and sticky zoom.
 // v0.43.3 — raster zoom perf: keep wheel zoom on the raster/overlay path,
 //           skip hidden live-cell rebuilds, and avoid center-only tile churn.
 // v0.43.2 — raster seam fix: request transparent tile gutters, render a
@@ -159,6 +162,7 @@
   const SAMPLE_PX = 4;        // freehand point spacing in screen px
   const RASTER_VIEW_PAD_PARENTS = 1.25; // keep offscreen neighbor tiles ready while panning
   const RASTER_MAX_VISIBLE_TILES = 72;  // safety cap for very zoomed-out raster views
+  const RASTER_ZOOM_IDLE_MS = 160;  // delay heavyweight raster refresh until wheel input settles
 
   const state = {
     open: false,
@@ -195,6 +199,9 @@
     clock: null,        // { year, month, day, min, exert } — campaign date + route-turn (lazy-loaded)
     raf: 0,
     panRaf: 0,
+    viewRaf: 0,
+    rasterIdleTimer: 0,
+    rasterZooming: false,
     markerSel: null,   // id of the marker being edited (Edit feature mode)
     markerDrag: null,  // { m, moved } while dragging a marker to move it
     curParent: null,
@@ -1307,24 +1314,56 @@
       inner.minY >= outer.minY && inner.maxY <= outer.maxY);
   }
 
-  function renderRasterViewport(force){
-    if (!state.open) return;
-    const bbox = renderBounds();
-    if (force || !bboxInside(bbox, state.rendered)) state.rendered = bbox;
+  function renderRasterOverlays(opts){
+    opts = opts || {};
     const center = rasterParent();
-    if (state.rasterDirty) updateRasterBase(true);
-    else updateRasterBase(false);
     updateRasterModeText(center);
     applyRasterModeVisibility();
-    renderFog();
+    if (opts.fog !== false) renderFog();
     renderParty();
     renderSelection();
     renderGenTarget();
     editorRender();
   }
 
+  function renderRasterViewport(force){
+    if (!state.open) return;
+    const bbox = renderBounds();
+    if (force || !bboxInside(bbox, state.rendered)) state.rendered = bbox;
+    if (!state.rasterZooming){
+      if (state.rasterDirty) updateRasterBase(true);
+      else updateRasterBase(false);
+      renderRasterOverlays({ fog: true });
+    } else {
+      // During active wheel zoom, do not rebuild tile coverage or fog. The SVG
+      // viewBox scales existing raster images and overlays cheaply; heavyweight
+      // work is deferred until the wheel has been quiet for a moment.
+      renderRasterOverlays({ fog: false });
+    }
+  }
+
+  function scheduleRasterIdleRefresh(){
+    if (!state.rasterBase) return;
+    state.rasterZooming = true;
+    if (state.rasterIdleTimer) clearTimeout(state.rasterIdleTimer);
+    state.rasterIdleTimer = setTimeout(() => {
+      state.rasterIdleTimer = 0;
+      state.rasterZooming = false;
+      if (!state.open || !state.rasterBase) return;
+      state.rendered = null;
+      render(true);
+    }, RASTER_ZOOM_IDLE_MS);
+  }
+
   // ── viewBox + pan/zoom ─────────────────────────────────────────────────────
   function applyViewBox(){ const { x, y, w, h } = state.vb; state.el.svg.setAttribute('viewBox', `${x} ${y} ${w} ${h}`); }
+  function scheduleViewBox(){
+    if (state.viewRaf) return;
+    state.viewRaf = requestAnimationFrame(() => {
+      state.viewRaf = 0;
+      applyViewBox();
+    });
+  }
   function pxW(){ const r = state.el.svg.getBoundingClientRect(); return r.width || 1; }
   function curU(){ return state.vb.w / pxW(); }       // world units per screen px
   function syncAspect(){ const r = state.el.svg.getBoundingClientRect(); if (r.width > 0 && r.height > 0) state.vb.h = state.vb.w * (r.height / r.width); }
@@ -1469,7 +1508,13 @@
       state.vb.w = nw; state.vb.h *= k;
       state.vb.x = wpt.x - (wpt.x - state.vb.x) * k;
       state.vb.y = wpt.y - (wpt.y - state.vb.y) * k;
-      applyViewBox(); scheduleRender();
+      if (state.rasterBase){
+        scheduleViewBox();
+        scheduleRasterIdleRefresh();
+      } else {
+        applyViewBox();
+        scheduleRender();
+      }
     }, { passive: false });
   }
   function scheduleRender(){ if (state.raf) return; state.raf = requestAnimationFrame(() => { state.raf = 0; render(); }); }
@@ -2080,10 +2125,17 @@
     state.el.title.textContent = `Subhex · parent ${col},${row} · 3 mi/hex`;
     requestAnimationFrame(() => { state.rendered = null; centerOnParent(col, row); });
   }
-  function close(){ if (state.editor) finishEditor(); state.open = false; if (state.el.overlay) state.el.overlay.classList.remove('open'); }
+  function close(){
+    if (state.editor) finishEditor();
+    if (state.rasterIdleTimer){ clearTimeout(state.rasterIdleTimer); state.rasterIdleTimer = 0; }
+    if (state.viewRaf){ cancelAnimationFrame(state.viewRaf); state.viewRaf = 0; }
+    state.rasterZooming = false;
+    state.open = false;
+    if (state.el.overlay) state.el.overlay.classList.remove('open');
+  }
   function isOpen(){ return state.open; }
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.42.0 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.43.4 loaded'); } catch(_){}
 })();
