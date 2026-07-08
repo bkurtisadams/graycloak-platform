@@ -1,3 +1,8 @@
+// gw-subhex-view.js v0.41.0 — 2026-07-07
+// v0.41.0 — raster-backed subhex preview mode: an opt-in Raster tile toggle
+//           renders the current 30-mile parent hex with GWSubhexTileRenderer and
+//           uses it as the base layer while keeping hover, selection, fog, party,
+//           target, and editor overlays live.
 // gw-subhex-view.js v0.40.0 — 2026-07-07
 // v0.40.0 — Ancient roads v1: first-class ancient-road stroke type, top-bar
 //           Ancient roads toggle, Build ▸ Lines tool button, broken-highway
@@ -154,6 +159,10 @@
     snapHex: false,
     ancientRoadCondition: 'broken',
     showAncientRoads: true,
+    rasterBase: false,
+    rasterKey: null,
+    rasterBusy: false,
+    rasterDirty: false,
     editor: null,        // active path editor { kind, pts, width, editingId, origPts, dragIdx }
     undoStack: [],
     cellMap: new Map(),
@@ -183,6 +192,7 @@
       #gw-sx-overlay { position:fixed; top:calc(var(--gcc-bar-h,44px) + var(--topbar-h,46px)); left:0; right:0; bottom:0; z-index:80; background:#050200; display:none; }
       #gw-sx-overlay.open { display:block; }
       #gw-sx-svg { position:absolute; inset:0; width:100%; height:100%; cursor:grab; touch-action:none; }
+      #gw-sx-raster-base { pointer-events:none; image-rendering:auto; }
       #gw-sx-svg.grabbing { cursor:grabbing; }
       #gw-sx-svg.painting { cursor:crosshair; }
       .gw-sx-cellpath { stroke:rgba(0,0,0,.35); stroke-width:1; vector-effect:non-scaling-stroke; fill-opacity:var(--gw-cell-fill, 1); }
@@ -314,6 +324,9 @@
   const ANCIENT_ROADS_KEY = 'gw-sx-ancient-roads-on';
   function loadAncientRoadsVis(){ try { return localStorage.getItem(ANCIENT_ROADS_KEY) !== '0'; } catch(_){ return true; } }
   function saveAncientRoadsVis(v){ try { localStorage.setItem(ANCIENT_ROADS_KEY, v ? '1' : '0'); } catch(_){} }
+  const RASTER_BASE_KEY = 'gw-sx-raster-base-on';
+  function loadRasterBaseVis(){ try { return localStorage.getItem(RASTER_BASE_KEY) === '1'; } catch(_){ return false; } }
+  function saveRasterBaseVis(v){ try { localStorage.setItem(RASTER_BASE_KEY, v ? '1' : '0'); } catch(_){} }
   const TAB_KEY = 'gw-sx-tab';
   function loadTab(){ try { return localStorage.getItem(TAB_KEY) === 'play' ? 'play' : 'build'; } catch(_){ return 'build'; } }
   function saveTab(v){ try { localStorage.setItem(TAB_KEY, v); } catch(_){} }
@@ -678,6 +691,7 @@
     if (!p || !window.GWFeatureGen){ return; }
     const res = window.GWFeatureGen.generateForParent(p.col, p.row);
     renderAnnotations();
+    if (state.rasterBase) updateRasterBase(true);
     if (res && state.el.mode){
       state.el.mode.textContent = `Parent ${p.col},${p.row}: ${res.markers} sites, ${res.strokes} paths`;
       setTimeout(syncMode, 2800);
@@ -688,6 +702,7 @@
     if (!p || !window.GWFeatureGen){ return; }
     const n = window.GWFeatureGen.clearForParent(p.col, p.row);
     renderAnnotations();
+    if (state.rasterBase) updateRasterBase(true);
     if (state.el.mode){ state.el.mode.textContent = `Cleared ${n} generated`; setTimeout(syncMode, 2000); }
   }
 
@@ -896,6 +911,8 @@
     const overlay = document.createElement('div'); overlay.id = 'gw-sx-overlay';
     const svg = document.createElementNS(SVGNS, 'svg');
     svg.id = 'gw-sx-svg'; svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    const rasterBase = document.createElementNS(SVGNS, 'image'); rasterBase.id = 'gw-sx-raster-base';
+    rasterBase.style.display = 'none'; rasterBase.style.pointerEvents = 'none';
     const gCells = document.createElementNS(SVGNS, 'g');   gCells.id = 'gw-sx-cells';
     const gHaz = document.createElementNS(SVGNS, 'g');      gHaz.id = 'gw-sx-haz';
     const defs = document.createElementNS(SVGNS, 'defs');
@@ -931,7 +948,7 @@
     const panG = document.createElementNS(SVGNS, 'g');     panG.id = 'gw-sx-pan';
     // basemap first = bottom layer: the parent map sits UNDER the subhex terrain,
     // so fading gCells (subhex opacity slider) reveals the parent through the hexes.
-    panG.append(basemap, gCells, gHaz, gPreview, gParents, gTarget, gAnnotFast, gAnnot, gEditor, gFog, gSel, gParty, gHover);
+    panG.append(rasterBase, basemap, gCells, gHaz, gPreview, gParents, gTarget, gAnnotFast, gAnnot, gEditor, gFog, gSel, gParty, gHover);
     svg.append(defs, panG);
 
     const palette = buildPalette();
@@ -944,6 +961,10 @@
     const arTog = document.createElement('label');
     state.showAncientRoads = loadAncientRoadsVis();
     arTog.innerHTML = `<input type="checkbox" id="gw-sx-toggle-ancient" ${state.showAncientRoads ? 'checked' : ''}> Ancient roads`;
+    const rasterTog = document.createElement('label');
+    state.rasterBase = loadRasterBaseVis();
+    rasterTog.title = 'Use a generated raster tile as the base layer for this parent hex. Turn off for full live SVG authoring.';
+    rasterTog.innerHTML = `<input type="checkbox" id="gw-sx-toggle-raster" ${state.rasterBase ? 'checked' : ''}> Raster tile`;
     const mapTog = document.createElement('label');
     mapTog.innerHTML = '<input type="checkbox" id="gw-sx-toggle-map"> Base map';
     const mapOp = document.createElement('input');
@@ -956,7 +977,7 @@
     hexOp.style.cssText = 'width:80px; accent-color:#66d9ff;';
     gCells.style.setProperty('--gw-cell-fill', (loadHexOp() / 100).toFixed(2));   // apply persisted terrain-fill opacity
     const fit = mkBtn('Fit parent', 'gw-sx-fit');
-    bar.append(back, title, spacer, tog, arTog, mapTog, mapOp, hexOp, fit);
+    bar.append(back, title, spacer, tog, arTog, rasterTog, mapTog, mapOp, hexOp, fit);
     const read = document.createElement('div'); read.id = 'gw-sx-read';
     read.innerHTML = '<span class="sx-t">Subhex</span><div id="gw-sx-read-body">— hover a cell —</div>';
     const enc = document.createElement('div'); enc.id = 'gw-sx-enc';
@@ -977,7 +998,7 @@
     document.body.appendChild(overlay);
 
     Object.assign(state.el, {
-      overlay, svg, gCells, gParents, gAnnotFast, gAnnot, gEditor, gHaz, panG, gPreview, gHover, gSel, gFog, gParty, gTarget, basemap, title, read, enc,
+      overlay, svg, rasterBase, gCells, gParents, gAnnotFast, gAnnot, gEditor, gHaz, panG, gPreview, gHover, gSel, gFog, gParty, gTarget, basemap, title, read, enc,
       readBody: read.querySelector('#gw-sx-read-body'),
       mode: palette.querySelector('#gw-sx-mode'),
       undoBtn: palette.querySelector('#gw-sx-undo'),
@@ -990,16 +1011,17 @@
       medHidden: med.querySelector('#gw-sx-med-hidden'),
       palette,
     });
-    state.el.medName.addEventListener('input', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { name: state.el.medName.value }); renderAnnotations(); renderDossier(); } });
-    state.el.medKind.addEventListener('change', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { kind: state.el.medKind.value }); renderAnnotations(); renderDossier(); } });
-    state.el.medHidden.addEventListener('change', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { hidden: state.el.medHidden.checked }); renderAnnotations(); } });
-    med.querySelector('#gw-sx-med-del').addEventListener('click', () => { if (state.markerSel){ A().deleteMarker(state.markerSel); closeMarkerEditor(); renderAnnotations(); } });
+    state.el.medName.addEventListener('input', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { name: state.el.medName.value }); markRasterDirty(); renderAnnotations(); renderDossier(); } });
+    state.el.medKind.addEventListener('change', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { kind: state.el.medKind.value }); markRasterDirty(); renderAnnotations(); renderDossier(); } });
+    state.el.medHidden.addEventListener('change', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { hidden: state.el.medHidden.checked }); markRasterDirty(); renderAnnotations(); } });
+    med.querySelector('#gw-sx-med-del').addEventListener('click', () => { if (state.markerSel){ A().deleteMarker(state.markerSel); markRasterDirty(); closeMarkerEditor(); renderAnnotations(); } });
     med.querySelector('#gw-sx-med-done').addEventListener('click', closeMarkerEditor);
     back.addEventListener('click', close);
     fit.addEventListener('click', () => { if (state.curParent) centerOnParent(state.curParent.col, state.curParent.row); });
     tog.querySelector('input').addEventListener('change', e => { state.showParents = e.target.checked; render(true); });
-    arTog.querySelector('input').addEventListener('change', e => { state.showAncientRoads = e.target.checked; saveAncientRoadsVis(state.showAncientRoads); renderAnnotations(); });
-    mapTog.querySelector('input').addEventListener('change', e => { basemap.style.display = e.target.checked ? '' : 'none'; });
+    arTog.querySelector('input').addEventListener('change', e => { state.showAncientRoads = e.target.checked; saveAncientRoadsVis(state.showAncientRoads); renderAnnotations(); if (state.rasterBase) updateRasterBase(true); });
+    rasterTog.querySelector('input').addEventListener('change', e => { state.rasterBase = !!e.target.checked; saveRasterBaseVis(state.rasterBase); updateRasterBase(true); applyRasterModeVisibility(); syncMode(); });
+    mapTog.querySelector('input').addEventListener('change', e => { basemap.style.display = e.target.checked && !state.rasterBase ? '' : 'none'; });
     mapOp.addEventListener('input', e => { basemap.setAttribute('opacity', (e.target.value / 100).toFixed(2)); });
     hexOp.addEventListener('input', e => { gCells.style.setProperty('--gw-cell-fill', (e.target.value / 100).toFixed(2)); saveHexOp(e.target.value); });
     wireViewport(svg);
@@ -1013,6 +1035,90 @@
       bumpZoom(e.deltaY < 0 ? ZSTEP : -ZSTEP);
     }, { passive: false }));
     applyZoom(loadZoom());
+    applyRasterModeVisibility();
+  }
+
+  function rasterParent(){
+    return state.curParent || centerParent();
+  }
+  function rasterTileKey(p){
+    return p ? `${p.col},${p.row}|ancient:${state.showAncientRoads ? 1 : 0}` : '';
+  }
+  function applyRasterModeVisibility(){
+    if (!state.el.rasterBase) return;
+    const on = !!state.rasterBase;
+    state.el.rasterBase.style.display = on && state.el.rasterBase.getAttribute('href') ? '' : 'none';
+    if (state.el.basemap){
+      const baseChecked = !!(document.getElementById('gw-sx-toggle-map') || {}).checked;
+      state.el.basemap.style.display = (!on && baseChecked) ? '' : 'none';
+    }
+    // In raster mode, the generated tile is the expensive visual base. Keep the
+    // lightweight interactive layers alive, but hide the live terrain/path stacks.
+    [state.el.gCells, state.el.gHaz, state.el.gParents, state.el.gAnnot].forEach(el => { if (el) el.style.display = on ? 'none' : ''; });
+    // The fast layer is a drag-only live-mode layer. Raster mode does not need it,
+    // and live mode should keep it hidden except during an active pan.
+    if (state.el.gAnnotFast) state.el.gAnnotFast.style.display = 'none';
+  }
+  function markRasterDirty(){ state.rasterDirty = true; }
+  function updateRasterBase(force){
+    if (!state.el.rasterBase) return null;
+    if (!state.rasterBase){
+      state.rasterKey = null;
+      state.el.rasterBase.style.display = 'none';
+      return null;
+    }
+    const p = rasterParent();
+    const key = rasterTileKey(p);
+    if (!p || !window.GWSubhexTileRenderer || !key){
+      state.el.rasterBase.style.display = 'none';
+      return null;
+    }
+    if (!force && !state.rasterDirty && state.rasterKey === key && state.el.rasterBase.getAttribute('href')){
+      applyRasterModeVisibility();
+      return null;
+    }
+    if (state.rasterBusy) return null;
+    state.rasterBusy = true;
+    try {
+      const result = window.GWSubhexTileRenderer.renderParent(p.col, p.row, {
+        size: 1024,
+        marginPx: 0,
+        paddingWorld: 1.0,
+        showStamp: false,
+        showGrid: true,
+        showRadiation: true,
+        showMarkers: true,
+        showLabels: true,
+        showAncientRoads: state.showAncientRoads,
+        showHidden: true,
+        maxLabels: 18,
+      });
+      const b = result.bounds;
+      state.el.rasterBase.setAttribute('x', b.minX);
+      state.el.rasterBase.setAttribute('y', b.minY);
+      state.el.rasterBase.setAttribute('width', b.maxX - b.minX);
+      state.el.rasterBase.setAttribute('height', b.maxY - b.minY);
+      state.el.rasterBase.setAttribute('preserveAspectRatio', 'none');
+      const url = result.canvas.toDataURL('image/webp', 0.9);
+      state.el.rasterBase.setAttribute('href', url);
+      state.el.rasterBase.setAttributeNS('http://www.w3.org/1999/xlink', 'href', url);
+      state.rasterKey = key;
+      state.rasterDirty = false;
+      if (state.el.mode) state.el.mode.textContent = `Raster tile: parent ${p.col},${p.row} · ${result.stats.cells} cells`;
+      applyRasterModeVisibility();
+      return result;
+    } catch (err){
+      state.rasterKey = null;
+      state.rasterBase = false;
+      saveRasterBaseVis(false);
+      state.el.rasterBase.style.display = 'none';
+      if (state.el.mode) state.el.mode.textContent = 'Raster tile failed: ' + (err && err.message ? err.message : err);
+      try { console.error('[gw-subhex-view] raster tile failed', err); } catch(_){}
+      applyRasterModeVisibility();
+      return null;
+    } finally {
+      state.rasterBusy = false;
+    }
   }
 
   // ── viewBox + pan/zoom ─────────────────────────────────────────────────────
@@ -1091,7 +1197,7 @@
         // trails, and point-of-interest dots remain useful while panning.
         state.el.gHaz.style.display = 'none'; state.el.gAnnot.style.display = 'none';
         state.fastAnnotDisp = state.el.gAnnotFast.style.display;
-        state.el.gAnnotFast.style.display = '';
+        state.el.gAnnotFast.style.display = state.rasterBase ? 'none' : '';
         state.basemapDisp = state.el.basemap.style.display;
         state.el.basemap.style.display = 'none';
       }
@@ -1101,7 +1207,7 @@
     window.addEventListener('mouseup', () => {
       if (state.markerDrag){
         const md = state.markerDrag; state.markerDrag = null;
-        if (md.moved) A().updateMarker(md.m.id, { x: md.m.x, y: md.m.y });   // persist once
+        if (md.moved){ A().updateMarker(md.m.id, { x: md.m.x, y: md.m.y }); markRasterDirty(); }   // persist once
         renderAnnotations(); return;
       }
       if (state.editor && state.editor.dragIdx != null){ state.editor.dragIdx = null; return; }
@@ -1111,7 +1217,7 @@
         if (state.brush.undo.length){ state.undoStack.push(state.brush.undo); if (state.undoStack.length > 30) state.undoStack.shift(); }
         state.brush = null; state.el.svg.classList.remove('painting');
         state.el.gPreview.replaceChildren(); state.previewMap = new Map();
-        syncUndoBtn(); render(true); return;
+        markRasterDirty(); syncUndoBtn(); render(true); return;
       }
       if (!state.drag) return;
       const dr = state.drag; state.drag = null; state.el.svg.classList.remove('grabbing');
@@ -1124,6 +1230,7 @@
         state.el.gHaz.style.display = ''; state.el.gAnnot.style.display = '';
         state.el.gAnnotFast.style.display = state.fastAnnotDisp == null ? 'none' : state.fastAnnotDisp;
         state.el.basemap.style.display = state.basemapDisp || '';
+        applyRasterModeVisibility();
       } else if (dr.selCell){
         selectCell(dr.selCell.Q, dr.selCell.R);
       }
@@ -1238,6 +1345,8 @@
       }
     }
     state.el.gParents.replaceChildren(fragP);
+    if (state.rasterBase) updateRasterBase(false);
+    applyRasterModeVisibility();
     renderAnnotations();
     renderFog();
     renderParty();
@@ -1386,6 +1495,7 @@
   }
   function renderAnnotations(){
     if (!A() || !state.el.gAnnot || !state.el.gAnnotFast) return;
+    if (state.rasterBase && state.rasterDirty) updateRasterBase(true);
     const u = curU();
     const bb = state.rendered || { minX: state.vb.x, maxX: state.vb.x+state.vb.w, minY: state.vb.y, maxY: state.vb.y+state.vb.h };
     const markerBb = { minX: bb.minX - 50*u, maxX: bb.maxX + 50*u, minY: bb.minY - 50*u, maxY: bb.maxY + 50*u };
@@ -1404,6 +1514,7 @@
     }
     state.el.gAnnot.replaceChildren(frag);
     state.el.gAnnotFast.replaceChildren(fastFrag);
+    applyRasterModeVisibility();
     editorRender();
   }
 
@@ -1440,7 +1551,7 @@
     const st = state.stroke; state.stroke = null;
     state.el.svg.classList.remove('painting');
     if (st && st.el && st.el.parentNode) st.el.parentNode.removeChild(st.el);
-    if (st && st.pts.length >= 2){ A().addStroke(st.kind, st.pts, strokePersistOpts(st.kind, state.lineWidth, st)); renderAnnotations(); }
+    if (st && st.pts.length >= 2){ A().addStroke(st.kind, st.pts, strokePersistOpts(st.kind, state.lineWidth, st)); markRasterDirty(); renderAnnotations(); }
   }
 
   // ── spline waypoint editor (points mode) ────────────────────────────────────
@@ -1485,19 +1596,19 @@
       if (state.el.ancientConditionSel) state.el.ancientConditionSel.value = state.ancientRoadCondition;
     }
     A().deleteStroke(s.id);
-    renderAnnotations(); editorRender(); syncEditBtns(); syncMode();
+    markRasterDirty(); renderAnnotations(); editorRender(); syncEditBtns(); syncMode();
   }
   function editorRemoveLast(){ if (state.editor && state.editor.pts.length){ state.editor.pts.pop(); editorRender(); syncEditBtns(); syncMode(); } }
   function finishEditor(){
     const ed = state.editor; if (!ed) return;
     state.editor = null;
-    if (ed.pts.length >= 2) A().addStroke(ed.kind, ed.pts, strokePersistOpts(ed.kind, ed.width, ed));
+    if (ed.pts.length >= 2){ A().addStroke(ed.kind, ed.pts, strokePersistOpts(ed.kind, ed.width, ed)); markRasterDirty(); }
     editorRender(); renderAnnotations(); syncEditBtns(); syncMode();
   }
   function cancelEditor(){
     const ed = state.editor; if (!ed) return;
     state.editor = null;
-    if (ed.editingId && ed.origPts && ed.origPts.length >= 2) A().addStroke(ed.kind, ed.origPts, strokePersistOpts(ed.kind, ed.width, ed));
+    if (ed.editingId && ed.origPts && ed.origPts.length >= 2){ A().addStroke(ed.kind, ed.origPts, strokePersistOpts(ed.kind, ed.width, ed)); markRasterDirty(); }
     editorRender(); renderAnnotations(); syncEditBtns(); syncMode();
   }
   function editorRender(){
@@ -1533,7 +1644,7 @@
     let name = '';
     if (e.shiftKey){ try { name = window.prompt('Settlement name (optional):', '') || ''; } catch(_){} }
     A().addMarker(state.armed.kind, w.x, w.y, name ? { name } : null);
-    renderAnnotations();
+    markRasterDirty(); renderAnnotations();
   }
   function distToSeg(px, py, ax, ay, bx, by){
     const dx = bx-ax, dy = by-ay; const l2 = dx*dx + dy*dy;
@@ -1587,7 +1698,7 @@
   function eraseAnnotationAt(e){
     const w = clientToWorld(e), u = curU();
     const bestM = markerAt(e);                       // markers first
-    if (bestM){ A().deleteMarker(bestM.id); renderAnnotations(); return; }
+    if (bestM){ A().deleteMarker(bestM.id); markRasterDirty(); renderAnnotations(); return; }
     // then strokes
     const thr = 6 * u;
     let bestS = null, bestSD = thr;
@@ -1598,7 +1709,7 @@
         if (d <= bestSD){ bestSD = d; bestS = s; }
       }
     }
-    if (bestS){ A().deleteStroke(bestS.id); renderAnnotations(); }
+    if (bestS){ A().deleteStroke(bestS.id); markRasterDirty(); renderAnnotations(); }
   }
 
   // ── terrain + hazard paint ──────────────────────────────────────────────────
@@ -1633,7 +1744,7 @@
   function undo(){
     const stroke = state.undoStack.pop(); if (!stroke){ syncUndoBtn(); return; }
     const d = D(); for (const { Q, R, before } of stroke) d.restoreOverride(Q, R, before);
-    syncUndoBtn(); render(true);
+    markRasterDirty(); syncUndoBtn(); render(true);
   }
   function syncUndoBtn(){ if (state.el.undoBtn) state.el.undoBtn.disabled = state.undoStack.length === 0; }
 
