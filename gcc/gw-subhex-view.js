@@ -1,4 +1,13 @@
-// gw-subhex-view.js v0.44.0 — 2026-07-08
+// gw-subhex-view.js v0.45.0 — 2026-07-08
+// v0.45.0 — viewer polish slice: persisted viewport (center + zoom restored on
+//           reopen; explicit parent clicks still recenter at your zoom), public
+//           centerOn/zoomTo navigation API, raster diagnostics readout (cache
+//           size, hits/regens, evictions, pending encodes, live blob URLs) with
+//           a Rebuild-tiles button, transient status line so raster stats and
+//           generation results stop fighting the armed-mode text, hidden:0/1
+//           raster tile-key dimension (player-safe tiles later are a context
+//           flip, not a cache retrofit), Esc disarms the active tool, Ctrl+Z
+//           undoes terrain, and palette position + section collapse persist.
 // v0.44.0 — raster perf + slider fix: per-parent dirty tracking (edits evict
 //           only touched tiles instead of regenerating every visible tile),
 //           async toBlob/object-URL tile encoding off the sync path (no more
@@ -206,6 +215,10 @@
     rasterImageEls: new Map(), // tileKey -> reusable SVG <image> node
     rasterParentKeys: new Set(),
     rasterStats: null,      // last raster layer totals for diagnostics
+    rasterPerf: { hits: 0, regens: 0, evictions: 0, flushes: 0, encoding: 0, blobUrls: 0 },
+    rasterShowHidden: true,   // GM view bakes hidden features; player-safe tiles flip this
+    statusTimer: 0,
+    viewSaveTimer: 0,
     editor: null,        // active path editor { kind, pts, width, editingId, origPts, dragIdx }
     undoStack: [],
     cellMap: new Map(),
@@ -271,7 +284,13 @@
       #gw-sx-palette::-webkit-scrollbar-thumb { background:#5a3a0a; border-radius:5px; }
       #gw-sx-palette .sx-grip { position:sticky; top:-8px; margin:-8px -8px 6px; padding:6px 8px; background:rgba(30,16,4,.98); border-bottom:1px solid #5a3a0a; font-family:'Cinzel',serif; font-size:10px; letter-spacing:.1em; color:#dcb87e; cursor:move; user-select:none; display:flex; align-items:center; gap:6px; z-index:2; }
       #gw-sx-palette .sx-grip:hover { color:#ffaa66; }
-      #gw-sx-palette .sx-mode { font-size:11px; color:#ffce9e; margin-bottom:7px; min-height:14px; line-height:1.3; }
+      #gw-sx-palette .sx-mode { font-size:11px; color:#ffce9e; margin-bottom:2px; min-height:14px; line-height:1.3; }
+      #gw-sx-palette .sx-status { font-size:10px; font-style:italic; color:#a9c49a; margin-bottom:5px; min-height:12px; line-height:1.3; }
+      #gw-sx-palette .sx-rdiag { display:none; align-items:center; gap:5px; font-size:10px; color:#cbb088; margin-bottom:6px; line-height:1.35; }
+      #gw-sx-palette .sx-rdiag.on { display:flex; }
+      #gw-sx-palette .sx-rdiag span { flex:1; }
+      #gw-sx-palette .sx-rdiag button { flex:none; width:22px; height:20px; font-size:12px; line-height:1; cursor:pointer; background:rgba(0,0,0,.25); border:1px solid #5a3a0a; color:#e8d5a3; border-radius:2px; }
+      #gw-sx-palette .sx-rdiag button:hover { background:rgba(255,136,68,.18); color:#ffaa66; }
       #gw-sx-palette .sx-tabs { display:flex; gap:5px; margin:2px 0 5px; }
       #gw-sx-palette .sx-tab { flex:1; font-size:11px; padding:5px 4px; cursor:pointer; background:rgba(255,136,68,.07); color:#cbb088; border:1px solid #5a3a0a; border-radius:3px; font-family:'Cinzel',serif; letter-spacing:.04em; }
       #gw-sx-palette .sx-tab:hover { color:#ffaa66; }
@@ -348,14 +367,29 @@
       pal.style.left = left + 'px'; pal.style.top = top + 'px'; pal.style.right = 'auto';
       pal.style.maxHeight = (host.height - top - 10) + 'px';
     };
-    const onUp = () => { drag = null; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-    handle.addEventListener('mousedown', e => {
+    const onUp = e => {
+      if (!drag) return;
+      drag = null;
+      try { handle.releasePointerCapture(e.pointerId); } catch(_){}
+      savePalPos({ left: parseFloat(pal.style.left) || 0, top: parseFloat(pal.style.top) || 0 });
+    };
+    handle.addEventListener('pointerdown', e => {
       e.preventDefault();
       const r = pal.getBoundingClientRect();
       drag = { dx: e.clientX - r.left, dy: e.clientY - r.top };
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
+      try { handle.setPointerCapture(e.pointerId); } catch(_){}
     });
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', onUp);
+    handle.addEventListener('pointercancel', onUp);
+  }
+  function applyPalPos(pal){
+    const p = loadPalPos(); if (!p) return;
+    const host = state.el.overlay.getBoundingClientRect();
+    const left = Math.max(0, Math.min(+p.left, Math.max(0, host.width - 60)));
+    const top  = Math.max(0, Math.min(+p.top, Math.max(0, host.height - 44)));
+    pal.style.left = left + 'px'; pal.style.top = top + 'px'; pal.style.right = 'auto';
+    if (host.height) pal.style.maxHeight = (host.height - top - 10) + 'px';
   }
 
   // ── UI zoom (readability) ───────────────────────────────────────────────────
@@ -377,6 +411,28 @@
   const TAB_KEY = 'gw-sx-tab';
   function loadTab(){ try { return localStorage.getItem(TAB_KEY) === 'play' ? 'play' : 'build'; } catch(_){ return 'build'; } }
   function saveTab(v){ try { localStorage.setItem(TAB_KEY, v); } catch(_){} }
+  const PALPOS_KEY = 'gw-sx-palpos';
+  function loadPalPos(){ try { const p = JSON.parse(localStorage.getItem(PALPOS_KEY) || 'null'); return (p && Number.isFinite(+p.left) && Number.isFinite(+p.top)) ? p : null; } catch(_){ return null; } }
+  function savePalPos(p){ try { localStorage.setItem(PALPOS_KEY, JSON.stringify(p)); } catch(_){} }
+  const COLLAPSED_KEY = 'gw-sx-collapsed';
+  function loadCollapsed(){ try { const a = JSON.parse(localStorage.getItem(COLLAPSED_KEY) || '[]'); return new Set(Array.isArray(a) ? a : []); } catch(_){ return new Set(); } }
+  function saveCollapsed(set){ try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...set])); } catch(_){} }
+  // Persisted viewport: reopening the same parent resumes exactly where you
+  // were; opening a different parent recenters there at your accustomed zoom.
+  const VIEW_KEY = 'gw-sx-view';
+  function loadView(){
+    try {
+      const v = JSON.parse(localStorage.getItem(VIEW_KEY) || 'null');
+      return (v && Number.isFinite(+v.x) && Number.isFinite(+v.y) && +v.w > 0) ? { x: +v.x, y: +v.y, w: +v.w } : null;
+    } catch(_){ return null; }
+  }
+  function saveViewSoon(){
+    if (state.viewSaveTimer) clearTimeout(state.viewSaveTimer);
+    state.viewSaveTimer = setTimeout(() => {
+      state.viewSaveTimer = 0;
+      try { localStorage.setItem(VIEW_KEY, JSON.stringify({ x: state.vb.x, y: state.vb.y, w: state.vb.w })); } catch(_){}
+    }, 400);
+  }
 
   // ── party token + fog of war persistence ────────────────────────────────────
   // Global across parents — it's one continuous 3-mile grid, so a single party
@@ -506,14 +562,23 @@
     return row;
   }
   function makeCollapsible(pal){
+    const collapsed = loadCollapsed();
     pal.querySelectorAll('.sx-hd').forEach(h => {
-      const caret = document.createElement('span'); caret.className = 'sx-caret'; caret.textContent = '\u25be';
+      const name = h.textContent;
+      const caret = document.createElement('span'); caret.className = 'sx-caret';
       h.prepend(caret);
-      h.addEventListener('click', () => {
-        const collapsed = h.classList.toggle('collapsed');
-        caret.textContent = collapsed ? '\u25b8' : '\u25be';
+      const apply = isCollapsed => {
+        caret.textContent = isCollapsed ? '\u25b8' : '\u25be';
+        h.classList.toggle('collapsed', isCollapsed);
         let n = h.nextElementSibling;
-        while (n && !n.classList.contains('sx-hd')){ n.style.display = collapsed ? 'none' : ''; n = n.nextElementSibling; }
+        while (n && !n.classList.contains('sx-hd')){ n.style.display = isCollapsed ? 'none' : ''; n = n.nextElementSibling; }
+      };
+      apply(collapsed.has(name));
+      h.addEventListener('click', () => {
+        const isCollapsed = !h.classList.contains('collapsed');
+        apply(isCollapsed);
+        if (isCollapsed) collapsed.add(name); else collapsed.delete(name);
+        saveCollapsed(collapsed);
       });
     });
   }
@@ -528,6 +593,18 @@
     const mode = document.createElement('div'); mode.className = 'sx-mode'; mode.id = 'gw-sx-mode';
     mode.textContent = 'Mode: Select';
     pal.appendChild(mode);
+    const status = document.createElement('div'); status.className = 'sx-status'; status.id = 'gw-sx-status';
+    pal.appendChild(status);
+    const rdiag = document.createElement('div'); rdiag.className = 'sx-rdiag'; rdiag.id = 'gw-sx-rdiag';
+    const rdiagTxt = document.createElement('span');
+    const rebuild = document.createElement('button'); rebuild.id = 'gw-sx-raster-rebuild'; rebuild.textContent = '⟲';
+    rebuild.title = 'Rebuild raster tiles — evict the whole tile cache and regenerate the visible neighborhood';
+    rebuild.addEventListener('click', rebuildRasterTiles);
+    rdiag.append(rdiagTxt, rebuild);
+    pal.appendChild(rdiag);
+    state.el.status = status;
+    state.el.rdiag = rdiag;
+    state.el.rdiagTxt = rdiagTxt;
 
     // ── Build / Play tab split ─────────────────────────────────────────────
     // Build = map authoring (terrain, hazards, lines, settlements, features);
@@ -750,10 +827,7 @@
     markRasterDirtyParent(p);
     renderAnnotations();
     if (state.rasterBase) updateRasterBase(false);
-    if (res && state.el.mode){
-      state.el.mode.textContent = `Parent ${p.col},${p.row}: ${res.markers} sites, ${res.strokes} paths`;
-      setTimeout(syncMode, 2800);
-    }
+    if (res) setStatus(`Parent ${p.col},${p.row}: ${res.markers} sites, ${res.strokes} paths`);
   }
   function clearGeneratedFeatures(){
     const p = targetParent();
@@ -762,7 +836,7 @@
     markRasterDirtyParent(p);
     renderAnnotations();
     if (state.rasterBase) updateRasterBase(false);
-    if (state.el.mode){ state.el.mode.textContent = `Cleared ${n} generated`; setTimeout(syncMode, 2000); }
+    setStatus(`Cleared ${n} generated`, 2000);
   }
 
   // ── encounters ─────────────────────────────────────────────────────────────
@@ -1109,6 +1183,7 @@
 
     overlay.append(svg, palette, bar, read, enc, med);
     document.body.appendChild(overlay);
+    applyPalPos(palette);
 
     Object.assign(state.el, {
       overlay, svg, rasterBase, gCells, gParents, gAnnotFast, gAnnot, gEditor, gHaz, panG, gPreview, gHover, gSel, gFog, gParty, gTarget, basemap, title, read, enc,
@@ -1139,6 +1214,7 @@
       state.rendered = null;
       if (!state.rasterBase) state.rasterKey = null;
       render(true);
+      updateRasterDiag();
       syncMode();
     });
     mapTog.querySelector('input').addEventListener('change', e => { basemap.style.display = e.target.checked ? '' : 'none'; });
@@ -1174,7 +1250,7 @@
     const u = curU();
     const px = (2 * ((d && d.HEX_R) || 20)) / Math.max(u, 0.0001);
     const size = px >= 360 ? 1024 : px >= 220 ? 768 : px >= 120 ? 512 : 384;
-    return { size, labels: u <= FEATURE_LABEL_MAX_U };
+    return { size, labels: u <= FEATURE_LABEL_MAX_U, hidden: state.rasterShowHidden !== false };
   }
   function rasterVisibleParentCols(){
     const d = D();
@@ -1200,7 +1276,7 @@
     return Math.max(RASTER_MAX_VISIBLE_TILES, rasterMaxVisibleTiles() * 3);
   }
   function rasterTileKey(p, ctx){
-    return p ? `${p.col},${p.row}|ancient:${state.showAncientRoads ? 1 : 0}|labels:${ctx.labels ? 1 : 0}|size:${ctx.size}` : '';
+    return p ? `${p.col},${p.row}|ancient:${state.showAncientRoads ? 1 : 0}|labels:${ctx.labels ? 1 : 0}|hidden:${ctx.hidden ? 1 : 0}|size:${ctx.size}` : '';
   }
   function rasterLayerKey(parents, ctx){
     // Tile coverage, not view center, determines whether the raster image layer
@@ -1271,9 +1347,11 @@
   }
   function evictRasterTile(key){
     const rec = state.rasterTiles.get(key);
-    if (rec && rec.blob && rec.url){ try { URL.revokeObjectURL(rec.url); } catch(_){} }
+    if (!rec) return;
+    if (rec.blob && rec.url){ try { URL.revokeObjectURL(rec.url); } catch(_){} state.rasterPerf.blobUrls--; }
     state.rasterTiles.delete(key);
     state.rasterImageEls.delete(key);
+    state.rasterPerf.evictions++;
   }
   function trimRasterTileCache(max){
     max = max || 36;
@@ -1348,6 +1426,7 @@
   function flushRasterDirty(){
     const dirty = state.rasterDirtyParents;
     if (!dirty.size) return false;
+    state.rasterPerf.flushes++;
     const all = dirty.has('*');
     for (const k of [...state.rasterTiles.keys()]){
       if (all || dirty.has(k.slice(0, k.indexOf('|')))) evictRasterTile(k);
@@ -1360,9 +1439,11 @@
     if (!force && state.rasterTiles.has(key)){
       const hit = state.rasterTiles.get(key);
       state.rasterTiles.delete(key); state.rasterTiles.set(key, hit);   // LRU touch
+      state.rasterPerf.hits++;
       return hit;
     }
     if (state.rasterTiles.has(key)) evictRasterTile(key);
+    state.rasterPerf.regens++;
     const result = window.GWSubhexTileRenderer.renderParent(p.col, p.row, {
       size: ctx.size,
       marginPx: 0,
@@ -1374,7 +1455,7 @@
       showLabels: ctx.labels,
       showAncientRoads: state.showAncientRoads,
       transparentBackground: true,
-      showHidden: true,
+      showHidden: ctx.hidden,
       maxLabels: 18,
     });
     const b = result.displayBounds || result.imageWorldBounds || result.bounds;
@@ -1391,15 +1472,18 @@
     // attached to the (reused) <image> node when it lands.
     const canvas = result.canvas;
     if (typeof canvas.toBlob === 'function'){
+      state.rasterPerf.encoding++;
       canvas.toBlob(blob => {
+        state.rasterPerf.encoding--;
         if (state.rasterTiles.get(key) !== rec) return;   // evicted/replaced meanwhile
-        if (blob){ rec.url = URL.createObjectURL(blob); rec.blob = true; }
+        if (blob){ rec.url = URL.createObjectURL(blob); rec.blob = true; state.rasterPerf.blobUrls++; }
         else rec.url = canvas.toDataURL('image/webp', 0.9);
         const img = state.rasterImageEls.get(key);
         if (img){
           img.setAttribute('href', rec.url);
           img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', rec.url);
         }
+        updateRasterDiag();
       }, 'image/webp', 0.9);
     } else {
       rec.url = canvas.toDataURL('image/webp', 0.9);
@@ -1467,7 +1551,7 @@
       state.rasterParentKeys = nextKeys;
       state.rasterKey = key;
       state.rasterStats = { parents: parents.length, cells: totalCells, fragments: totalFragments, size: ctx.size };
-      updateRasterModeText(center);
+      updateRasterDiag();
       applyRasterModeVisibility();
       return { center, parents, cells: totalCells };
     } catch (err){
@@ -1478,7 +1562,8 @@
       saveRasterBaseVis(false);
       state.el.rasterBase.replaceChildren();
       state.el.rasterBase.style.display = 'none';
-      if (state.el.mode) state.el.mode.textContent = 'Raster tile failed: ' + (err && err.message ? err.message : err);
+      setStatus('Raster tile failed: ' + (err && err.message ? err.message : err), 6000);
+      updateRasterDiag();
       try { console.error('[gw-subhex-view] raster tile failed', err); } catch(_){}
       applyRasterModeVisibility();
       return null;
@@ -1487,10 +1572,42 @@
     }
   }
 
-  function updateRasterModeText(center){
-    if (!center || !state.el.mode || !state.rasterBase || !state.rasterStats) return;
-    const st = state.rasterStats;
-    state.el.mode.textContent = `Raster tiles: ${st.parents} visible parents around ${center.col},${center.row} · ${st.size}px tiles · ${st.cells} cells${st.fragments ? ` + ${st.fragments} seams` : ''}`;
+  // Transient status line: raster stats, generation results, and errors get
+  // their own channel with a single timer instead of hijacking the armed-mode
+  // text through racing setTimeout(syncMode) restores.
+  function setStatus(msg, ms){
+    if (!state.el.status) return;
+    if (state.statusTimer){ clearTimeout(state.statusTimer); state.statusTimer = 0; }
+    state.el.status.textContent = msg || '';
+    if (msg && ms !== 0){
+      state.statusTimer = setTimeout(() => { state.statusTimer = 0; if (state.el.status) state.el.status.textContent = ''; }, ms || 2800);
+    }
+  }
+  function updateRasterDiag(){
+    if (!state.el.rdiag) return;
+    const on = !!state.rasterBase;
+    state.el.rdiag.classList.toggle('on', on);
+    if (!on || !state.el.rdiagTxt) return;
+    const st = state.rasterStats, pf = state.rasterPerf;
+    const head = st ? `${st.parents}p·${st.size}px` : '—';
+    const enc = pf.encoding ? ` · enc ${pf.encoding}` : '';
+    state.el.rdiagTxt.textContent =
+      `Raster ${head} · cache ${state.rasterTiles.size} · hit ${pf.hits}/gen ${pf.regens} · ev ${pf.evictions}/fl ${pf.flushes} · ${pf.blobUrls} blobs${enc}`;
+    state.el.rdiagTxt.title = st
+      ? `Raster layer: ${st.parents} visible parents · ${st.size}px tiles · ${st.cells} cells${st.fragments ? ` + ${st.fragments} seams` : ''}\ncache hits ${pf.hits} · regenerated ${pf.regens} · evicted ${pf.evictions} · dirty flushes ${pf.flushes}\n${pf.blobUrls} live blob URLs · ${pf.encoding} encodes pending`
+      : '';
+  }
+  function rebuildRasterTiles(){
+    markRasterDirty();
+    if (state.rasterBase && state.open){
+      updateRasterBase(false);
+      renderRasterOverlays({ fog: true });
+      setStatus('Raster tiles rebuilt');
+    } else {
+      flushRasterDirty();
+      setStatus('Raster tile cache cleared');
+    }
+    updateRasterDiag();
   }
 
   function renderBounds(){
@@ -1506,8 +1623,7 @@
 
   function renderRasterOverlays(opts){
     opts = opts || {};
-    const center = rasterParent();
-    updateRasterModeText(center);
+    updateRasterDiag();
     applyRasterModeVisibility();
     if (opts.fog !== false) renderFog();
     renderParty();
@@ -1548,7 +1664,7 @@
   }
 
   // ── viewBox + pan/zoom ─────────────────────────────────────────────────────
-  function applyViewBox(){ const { x, y, w, h } = state.vb; state.el.svg.setAttribute('viewBox', `${x} ${y} ${w} ${h}`); }
+  function applyViewBox(){ const { x, y, w, h } = state.vb; state.el.svg.setAttribute('viewBox', `${x} ${y} ${w} ${h}`); saveViewSoon(); }
   function scheduleViewBox(){
     if (state.viewRaf) return;
     state.viewRaf = requestAnimationFrame(() => {
@@ -1560,10 +1676,34 @@
   function curU(){ return state.vb.w / pxW(); }       // world units per screen px
   function shouldShowFeatureLabels(){ return curU() <= FEATURE_LABEL_MAX_U; }
   function syncAspect(){ const r = state.el.svg.getBoundingClientRect(); if (r.width > 0 && r.height > 0) state.vb.h = state.vb.w * (r.height / r.width); }
-  function centerOnParent(col, row){
+  function centerOnParent(col, row, w){
     const c = D().parentSvgCenter(col, row);
-    state.vb.w = 3 * 1.5 * D().HEX_R; syncAspect();
+    state.vb.w = (+w > 0) ? +w : 3 * 1.5 * D().HEX_R; syncAspect();
     state.vb.x = c.x - state.vb.w / 2; state.vb.y = c.y - state.vb.h / 2;
+    applyViewBox(); render(true);
+  }
+  // Zoom clamps shared by wheel zoom and the public zoomTo.
+  function viewWidthClamp(w){
+    const minW = 1.5 * D().HEX_R * 0.6, maxW = 1.5 * D().HEX_R * 24;
+    return Math.max(minW, Math.min(maxW, +w));
+  }
+  // Public navigation: center the viewport on a subhex (keeping zoom, or at an
+  // explicit width) / set zoom about the view center. u = world units per
+  // screen px, matching curU().
+  function centerOn(Q, R, opts){
+    if (!state.open || !D()) return;
+    const c = D().subhexSvgCenter(+Q, +R);
+    if (opts && +opts.w > 0){ state.vb.w = viewWidthClamp(+opts.w); syncAspect(); }
+    state.vb.x = c.x - state.vb.w / 2; state.vb.y = c.y - state.vb.h / 2;
+    state.rendered = null;
+    applyViewBox(); render(true);
+  }
+  function zoomTo(u){
+    if (!state.open || !(+u > 0)) return;
+    const cx = state.vb.x + state.vb.w / 2, cy = state.vb.y + state.vb.h / 2;
+    state.vb.w = viewWidthClamp(+u * pxW()); syncAspect();
+    state.vb.x = cx - state.vb.w / 2; state.vb.y = cy - state.vb.h / 2;
+    state.rendered = null;
     applyViewBox(); render(true);
   }
   function clientToWorld(ev){
@@ -1705,8 +1845,7 @@
       e.preventDefault();
       const wpt = clientToWorld(e);
       const factor = e.deltaY < 0 ? 1/1.2 : 1.2;
-      const minW = 1.5 * D().HEX_R * 0.6, maxW = 1.5 * D().HEX_R * 24;
-      let nw = Math.max(minW, Math.min(maxW, state.vb.w * factor));
+      let nw = viewWidthClamp(state.vb.w * factor);
       const k = nw / state.vb.w;
       state.vb.w = nw; state.vb.h *= k;
       state.vb.x = wpt.x - (wpt.x - state.vb.x) * k;
@@ -2116,11 +2255,24 @@
     if (state.el.canBtn) state.el.canBtn.disabled = !state.editor;
   }
   function onEditorKey(e){
-    if (!state.open || !state.editor) return;
+    if (!state.open) return;
     const t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
-    if (e.key === 'Enter'){ e.preventDefault(); finishEditor(); }
-    else if (e.key === 'Escape'){ e.preventDefault(); cancelEditor(); }
-    else if (e.key === 'Backspace'){ e.preventDefault(); editorRemoveLast(); }
+    if (state.editor){
+      if (e.key === 'Enter'){ e.preventDefault(); finishEditor(); }
+      else if (e.key === 'Escape'){ e.preventDefault(); cancelEditor(); }
+      else if (e.key === 'Backspace'){ e.preventDefault(); editorRemoveLast(); }
+      return;
+    }
+    if (e.key === 'Escape'){
+      // No active spline editor: Esc backs out of whatever is engaged —
+      // marker editor first, then the armed tool.
+      if (state.markerSel || (state.el.medit && state.el.medit.classList.contains('show'))){ e.preventDefault(); closeMarkerEditor(); return; }
+      if (state.armed){ e.preventDefault(); state.armed = null; syncPalette(); syncMode(); }
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z')){
+      if (state.undoStack.length){ e.preventDefault(); undo(); }
+    }
   }
 
   // ── markers + erase ────────────────────────────────────────────────────────
@@ -2327,10 +2479,28 @@
     renderClock();
     syncPartyUndoBtn();
     state.el.title.textContent = `Subhex · parent ${col},${row} · 3 mi/hex`;
-    requestAnimationFrame(() => { state.rendered = null; centerOnParent(col, row); });
+    requestAnimationFrame(() => {
+      state.rendered = null;
+      const v = loadView();
+      if (v){
+        state.vb.x = v.x; state.vb.y = v.y; state.vb.w = v.w; syncAspect();
+        const c = centerParent();
+        if (c && sameParent(c, { col, row })){
+          // Reopening the parent you were in: resume the exact viewport.
+          applyViewBox(); render(true);
+          return;
+        }
+        // Different parent: center there, but keep your accustomed zoom.
+        centerOnParent(col, row, v.w);
+        return;
+      }
+      centerOnParent(col, row);
+    });
   }
   function close(){
     if (state.editor) finishEditor();
+    if (state.viewSaveTimer){ clearTimeout(state.viewSaveTimer); state.viewSaveTimer = 0;
+      try { localStorage.setItem(VIEW_KEY, JSON.stringify({ x: state.vb.x, y: state.vb.y, w: state.vb.w })); } catch(_){} }
     if (state.rasterIdleTimer){ clearTimeout(state.rasterIdleTimer); state.rasterIdleTimer = 0; }
     if (state.viewRaf){ cancelAnimationFrame(state.viewRaf); state.viewRaf = 0; }
     state.rasterZooming = false;
@@ -2340,6 +2510,6 @@
   function isOpen(){ return state.open; }
   function currentParent(){ return state.curParent || null; }
 
-  window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.44.0 loaded'); } catch(_){}
+  window.GWSubhexView = { open, close, isOpen, currentParent, render, centerOn, zoomTo, rebuildRasterTiles };
+  try { console.log('[gw-subhex-view] v0.45.0 loaded'); } catch(_){}
 })();
