@@ -1,4 +1,7 @@
-// gw-subhex-view.js v0.46.0 — 2026-07-08
+// gw-subhex-view.js v0.46.1 — 2026-07-08
+// v0.46.1 — fix open crash when a saved palette position exists: applyPalPos
+//           ran before state.el.overlay was assigned. It now takes the host
+//           element directly and guards against a missing host.
 // v0.46.0 — live marker overlay: markers + labels move out of raster tiles
 //           into a live SVG layer (gMarkers) drawn over both base modes, so
 //           labels render at constant screen size at every zoom (tiles pinned
@@ -390,9 +393,10 @@
     handle.addEventListener('pointerup', onUp);
     handle.addEventListener('pointercancel', onUp);
   }
-  function applyPalPos(pal){
+  function applyPalPos(pal, hostEl){
     const p = loadPalPos(); if (!p) return;
-    const host = state.el.overlay.getBoundingClientRect();
+    hostEl = hostEl || state.el.overlay; if (!hostEl) return;
+    const host = hostEl.getBoundingClientRect();
     const left = Math.max(0, Math.min(+p.left, Math.max(0, host.width - 60)));
     const top  = Math.max(0, Math.min(+p.top, Math.max(0, host.height - 44)));
     pal.style.left = left + 'px'; pal.style.top = top + 'px'; pal.style.right = 'auto';
@@ -1191,7 +1195,7 @@
 
     overlay.append(svg, palette, bar, read, enc, med);
     document.body.appendChild(overlay);
-    applyPalPos(palette);
+    applyPalPos(palette, overlay);
 
     Object.assign(state.el, {
       overlay, svg, rasterBase, gCells, gParents, gAnnotFast, gAnnot, gMarkers, gEditor, gHaz, panG, gPreview, gHover, gSel, gFog, gParty, gTarget, basemap, title, read, enc,
@@ -2503,5 +2507,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render, centerOn, zoomTo, rebuildRasterTiles };
-  try { console.log('[gw-subhex-view] v0.46.0 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.46.1 loaded'); } catch(_){}
 })();
