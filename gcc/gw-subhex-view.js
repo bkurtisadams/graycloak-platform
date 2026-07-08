@@ -1,4 +1,6 @@
-// gw-subhex-view.js v0.43.0 — 2026-07-07
+// gw-subhex-view.js v0.43.1 — 2026-07-07
+// v0.43.1 — render raster parent tiles with transparent backgrounds so adjacent
+//           parent images do not paint opaque gutters over each other.
 // v0.43.0 — multi-parent raster panning: raster mode now renders a cached
 //           neighborhood of parent tiles around the view center so panning can
 //           cross 30-mile parent boundaries while live overlays stay active.
@@ -1133,6 +1135,7 @@
       marginPx: 0,
       paddingWorld: 1.0,
       showStamp: false,
+      transparentBackground: true,
       showGrid: true,
       showRadiation: true,
       showMarkers: true,

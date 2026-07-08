@@ -1,5 +1,7 @@
-// gw-subhex-tile-renderer.js v0.1.2 — 2026-07-07
+// gw-subhex-tile-renderer.js v0.1.3 — 2026-07-07
 // Raster preview renderer for the deterministic Gamma World subhex atlas.
+// v0.1.3 — support transparent tile backgrounds so multi-parent raster tiles
+//          can overlap without opaque canvas gutters masking neighboring hexes.
 // v0.1.2 — return pixel-to-world display bounds so SVG overlays align with
 //          the aspect-preserved canvas projection used by raster tiles.
 //
@@ -13,7 +15,7 @@
 (function(){
   'use strict';
 
-  const RENDERER_VERSION = '0.1.2';
+  const RENDERER_VERSION = '0.1.3';
   const DEFAULT_SIZE = 1024;
   const DEFAULT_PADDING_WORLD = 1.2;
   const SQRT3 = Math.sqrt(3);
@@ -158,15 +160,19 @@
   }
 
   function clearCanvas(ctx, canvas, opts){
+    const transparent = !!(opts && opts.transparentBackground);
     const bg = (opts && opts.background) || '#130b04';
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    // subtle parchment-noise bands without random pixels, so the same tile is stable
-    ctx.globalAlpha = 0.025;
-    ctx.fillStyle = '#f0d090';
-    for (let y = 0; y < canvas.height; y += 37) ctx.fillRect(0, y, canvas.width, 1);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!transparent){
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // subtle parchment-noise bands without random pixels, so the same tile is stable
+      ctx.globalAlpha = 0.025;
+      ctx.fillStyle = '#f0d090';
+      for (let y = 0; y < canvas.height; y += 37) ctx.fillRect(0, y, canvas.width, 1);
+    }
     ctx.restore();
   }
 
