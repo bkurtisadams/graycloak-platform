@@ -1,4 +1,7 @@
-// gw-subhex-view.js v0.43.5 — 2026-07-07
+// gw-subhex-view.js v0.43.6 — 2026-07-08
+// v0.43.6 — raster far-zoom perf: adapt tile size/coverage pad by zoom
+//           level and reuse SVG <image> nodes so cached tiles do not decode/layout
+//           from scratch whenever the visible parent set changes.
 // v0.43.5 — raster zoom debounce fix: post-wheel idle refresh now recomputes
 //           raster coverage without forcing cached tile regeneration; tile cache
 //           capacity now covers the whole visible raster neighborhood.
@@ -163,9 +166,8 @@
   };
   const ICON_PX = 9;          // marker glyph radius in screen px
   const SAMPLE_PX = 4;        // freehand point spacing in screen px
-  const RASTER_VIEW_PAD_PARENTS = 1.25; // keep offscreen neighbor tiles ready while panning
-  const RASTER_MAX_VISIBLE_TILES = 72;  // safety cap for very zoomed-out raster views
-  const RASTER_TILE_CACHE_MAX = RASTER_MAX_VISIBLE_TILES * 2; // keep a full visible neighborhood plus recent fringe
+  const RASTER_VIEW_PAD_PARENTS = 1.25; // near-zoom offscreen neighbor buffer while panning
+  const RASTER_MAX_VISIBLE_TILES = 72;  // near-zoom safety cap for raster views
   const RASTER_ZOOM_IDLE_MS = 260;  // delay heavyweight raster refresh until wheel input settles
 
   const state = {
@@ -186,7 +188,8 @@
     rasterKey: null,          // rendered neighborhood key
     rasterBusy: false,
     rasterDirty: false,
-    rasterTiles: new Map(),   // tileKey -> { url, bounds, stats, col, row }
+    rasterTiles: new Map(),   // tileKey -> { url, bounds, stats, col, row, size }
+    rasterImageEls: new Map(), // tileKey -> reusable SVG <image> node
     rasterParentKeys: new Set(),
     rasterStats: null,      // last raster layer totals for diagnostics
     editor: null,        // active path editor { kind, pts, width, editingId, origPts, dragIdx }
@@ -1100,8 +1103,45 @@
   function rasterParent(){
     return centerParent() || state.curParent;
   }
+  function rasterParentScreenWidth(){
+    const d = D();
+    if (!d || !state.el.svg) return 0;
+    return (2 * (d.HEX_R || 20)) / Math.max(curU(), 0.0001);
+  }
+  function rasterVisibleParentCols(){
+    const d = D();
+    if (!d) return 1;
+    return state.vb.w / Math.max(1, 1.5 * (d.HEX_R || 20));
+  }
+  function rasterTileSizeForZoom(){
+    // 1024px parent tiles are useful up close, but waste decode/composite time
+    // when the camera is zoomed far enough out that a whole parent is tiny.
+    const px = rasterParentScreenWidth();
+    if (px >= 360) return 1024;
+    if (px >= 220) return 768;
+    if (px >= 120) return 512;
+    return 384;
+  }
+  function rasterViewPadParents(){
+    // At far zoom, a single view already contains many parents; a large offscreen
+    // buffer just creates extra images the browser has to decode and move.
+    const cols = rasterVisibleParentCols();
+    if (cols >= 14) return 0.15;
+    if (cols >= 10) return 0.35;
+    if (cols >= 7) return 0.75;
+    return RASTER_VIEW_PAD_PARENTS;
+  }
+  function rasterMaxVisibleTiles(){
+    const cols = rasterVisibleParentCols();
+    if (cols >= 14) return 40;
+    if (cols >= 10) return 52;
+    return RASTER_MAX_VISIBLE_TILES;
+  }
+  function rasterTileCacheMax(){
+    return Math.max(RASTER_MAX_VISIBLE_TILES, rasterMaxVisibleTiles() * 3);
+  }
   function rasterTileKey(p){
-    return p ? `${p.col},${p.row}|ancient:${state.showAncientRoads ? 1 : 0}` : '';
+    return p ? `${p.col},${p.row}|ancient:${state.showAncientRoads ? 1 : 0}|size:${rasterTileSizeForZoom()}` : '';
   }
   function rasterLayerKey(parents){
     // Tile coverage, not view center, determines whether the raster image layer
@@ -1122,7 +1162,7 @@
   }
   function rasterViewportBounds(){
     const d = D();
-    const pad = (d && d.HEX_R ? d.HEX_R : 20) * RASTER_VIEW_PAD_PARENTS;
+    const pad = (d && d.HEX_R ? d.HEX_R : 20) * rasterViewPadParents();
     return { minX: state.vb.x - pad, maxX: state.vb.x + state.vb.w + pad, minY: state.vb.y - pad, maxY: state.vb.y + state.vb.h + pad };
   }
   function rasterParentDistanceToView(p){
@@ -1162,9 +1202,10 @@
         out.push(p);
       }
     }
-    if (out.length > RASTER_MAX_VISIBLE_TILES){
+    const maxTiles = rasterMaxVisibleTiles();
+    if (out.length > maxTiles){
       out.sort((a, b) => rasterParentDistanceToView(a) - rasterParentDistanceToView(b));
-      out.length = RASTER_MAX_VISIBLE_TILES;
+      out.length = maxTiles;
     }
     out.sort((a, b) => (a.col - b.col) || (a.row - b.row));
     return out;
@@ -1175,6 +1216,7 @@
       const first = state.rasterTiles.keys().next().value;
       if (first == null) break;
       state.rasterTiles.delete(first);
+      state.rasterImageEls.delete(first);
     }
   }
   function rasterCoverageHasParent(p){
@@ -1204,7 +1246,7 @@
     const key = rasterTileKey(p);
     if (!force && !state.rasterDirty && state.rasterTiles.has(key)) return state.rasterTiles.get(key);
     const result = window.GWSubhexTileRenderer.renderParent(p.col, p.row, {
-      size: 1024,
+      size: rasterTileSizeForZoom(),
       marginPx: 0,
       paddingWorld: 1.0,
       showStamp: false,
@@ -1219,26 +1261,34 @@
     });
     const b = result.displayBounds || result.imageWorldBounds || result.bounds;
     const rec = {
-      col: p.col, row: p.row, key,
+      col: p.col, row: p.row, key, size: rasterTileSizeForZoom(),
       bounds: { minX:+b.minX, minY:+b.minY, maxX:+b.maxX, maxY:+b.maxY },
       stats: result.stats || {},
       url: result.canvas.toDataURL('image/webp', 0.9),
     };
     state.rasterTiles.set(key, rec);
-    trimRasterTileCache(RASTER_TILE_CACHE_MAX);
+    trimRasterTileCache(rasterTileCacheMax());
     return rec;
   }
   function imageForRasterTile(rec){
     const b = rec.bounds;
-    const img = document.createElementNS(SVGNS, 'image');
+    let img = state.rasterImageEls.get(rec.key);
+    if (!img){
+      img = document.createElementNS(SVGNS, 'image');
+      img.setAttribute('preserveAspectRatio', 'none');
+      img.setAttribute('loading', 'eager');
+      state.rasterImageEls.set(rec.key, img);
+    }
     img.setAttribute('x', b.minX);
     img.setAttribute('y', b.minY);
     img.setAttribute('width', b.maxX - b.minX);
     img.setAttribute('height', b.maxY - b.minY);
-    img.setAttribute('preserveAspectRatio', 'none');
     img.setAttribute('data-parent', `${rec.col},${rec.row}`);
-    img.setAttribute('href', rec.url);
-    img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', rec.url);
+    img.setAttribute('data-size', rec.size || rasterTileSizeForZoom());
+    if (img.getAttribute('href') !== rec.url){
+      img.setAttribute('href', rec.url);
+      img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', rec.url);
+    }
     return img;
   }
   function updateRasterBase(force){
@@ -1304,7 +1354,7 @@
   function updateRasterModeText(center){
     if (!center || !state.el.mode || !state.rasterBase || !state.rasterStats) return;
     const st = state.rasterStats;
-    state.el.mode.textContent = `Raster tiles: ${st.parents} visible parents around ${center.col},${center.row} · ${st.cells} cells${st.fragments ? ` + ${st.fragments} seams` : ''}`;
+    state.el.mode.textContent = `Raster tiles: ${st.parents} visible parents around ${center.col},${center.row} · ${rasterTileSizeForZoom()}px tiles · ${st.cells} cells${st.fragments ? ` + ${st.fragments} seams` : ''}`;
   }
 
   function renderBounds(){
@@ -1495,10 +1545,16 @@
       if (dr.moved){
         state.vb.x = dr.vx - (dr.dx || 0); state.vb.y = dr.vy - (dr.dy || 0);
         state.el.panG.style.transform = ''; state.el.panG.style.willChange = '';
-        applyViewBox(); render();
+        applyViewBox();
         state.el.gHaz.style.display = ''; state.el.gAnnot.style.display = '';
         state.el.gAnnotFast.style.display = state.fastAnnotDisp == null ? 'none' : state.fastAnnotDisp;
         state.el.basemap.style.display = state.basemapDisp || '';
+        if (state.rasterBase){
+          renderRasterOverlays({ fog: false });
+          scheduleRasterIdleRefresh();
+        } else {
+          render();
+        }
         applyRasterModeVisibility();
       } else if (dr.selCell){
         selectCell(dr.selCell.Q, dr.selCell.R);
@@ -2144,5 +2200,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.43.5 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.43.6 loaded'); } catch(_){}
 })();
