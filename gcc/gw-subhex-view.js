@@ -1,6 +1,7 @@
-// gw-subhex-view.js v0.43.1 — 2026-07-07
-// v0.43.1 — render raster parent tiles with transparent backgrounds so adjacent
-//           parent images do not paint opaque gutters over each other.
+// gw-subhex-view.js v0.43.2 — 2026-07-07
+// v0.43.2 — raster seam fix: request transparent tile gutters, render a
+//           viewport-driven parent tile set instead of a fixed 3x3 cage, and
+//           show seam-fragment counts from the atlas/renderer.
 // v0.43.0 — multi-parent raster panning: raster mode now renders a cached
 //           neighborhood of parent tiles around the view center so panning can
 //           cross 30-mile parent boundaries while live overlays stay active.
@@ -154,6 +155,8 @@
   };
   const ICON_PX = 9;          // marker glyph radius in screen px
   const SAMPLE_PX = 4;        // freehand point spacing in screen px
+  const RASTER_VIEW_PAD_PARENTS = 1.25; // keep offscreen neighbor tiles ready while panning
+  const RASTER_MAX_VISIBLE_TILES = 72;  // safety cap for very zoomed-out raster views
 
   const state = {
     open: false,
@@ -1079,19 +1082,55 @@
   function rasterTileKey(p){
     return p ? `${p.col},${p.row}|ancient:${state.showAncientRoads ? 1 : 0}` : '';
   }
-  function rasterLayerKey(parents){
-    return (parents || []).map(rasterTileKey).join(';');
+  function rasterLayerKey(parents, center){
+    const centerKey = center ? `center:${center.col},${center.row}|` : '';
+    return centerKey + (parents || []).map(rasterTileKey).join(';');
+  }
+  function rasterParentBounds(p, pad){
+    const d = D();
+    if (!d || !p) return null;
+    const c = d.parentSvgCenter(+p.col, +p.row);
+    const r = d.HEX_R + (Number.isFinite(+pad) ? +pad : 0);
+    return { minX: c.x - r, maxX: c.x + r, minY: c.y - r * Math.sqrt(3) / 2, maxY: c.y + r * Math.sqrt(3) / 2 };
+  }
+  function bboxesTouch(a, b){
+    return !!(a && b && a.maxX >= b.minX && a.minX <= b.maxX && a.maxY >= b.minY && a.minY <= b.maxY);
+  }
+  function rasterViewportBounds(){
+    const d = D();
+    const pad = (d && d.HEX_R ? d.HEX_R : 20) * RASTER_VIEW_PAD_PARENTS;
+    return { minX: state.vb.x - pad, maxX: state.vb.x + state.vb.w + pad, minY: state.vb.y - pad, maxY: state.vb.y + state.vb.h + pad };
+  }
+  function rasterParentDistanceToView(p){
+    const d = D();
+    if (!d || !p) return Infinity;
+    const c = d.parentSvgCenter(+p.col, +p.row);
+    const cx = state.vb.x + state.vb.w / 2;
+    const cy = state.vb.y + state.vb.h / 2;
+    return (c.x - cx) * (c.x - cx) + (c.y - cy) * (c.y - cy);
   }
   function rasterNeighborParents(center){
     const out = [];
     const atlas = window.GWSubhexAtlas;
-    if (!center) return out;
-    for (let dc = -1; dc <= 1; dc++){
-      for (let dr = -1; dr <= 1; dr++){
-        const p = { col: +center.col + dc, row: +center.row + dr };
-        if (atlas && typeof atlas.hasParent === 'function' && !atlas.hasParent(p.col, p.row)) continue;
+    const d = D();
+    if (!center || !d) return out;
+    const bounds = rasterViewportBounds();
+    const world = atlas && typeof atlas.inferBounds === 'function' ? atlas.inferBounds() : null;
+    const minCol = world ? world.minCol : Math.max(0, +center.col - 4);
+    const maxCol = world ? world.maxCol : +center.col + 4;
+    const minRow = world ? world.minRow : Math.max(0, +center.row - 4);
+    const maxRow = world ? world.maxRow : +center.row + 4;
+    for (let col = minCol; col <= maxCol; col++){
+      for (let row = minRow; row <= maxRow; row++){
+        if (atlas && typeof atlas.hasParent === 'function' && !atlas.hasParent(col, row)) continue;
+        const p = { col, row };
+        if (!bboxesTouch(rasterParentBounds(p, 0.75), bounds) && !(+col === +center.col && +row === +center.row)) continue;
         out.push(p);
       }
+    }
+    if (out.length > RASTER_MAX_VISIBLE_TILES){
+      out.sort((a, b) => rasterParentDistanceToView(a) - rasterParentDistanceToView(b));
+      out.length = RASTER_MAX_VISIBLE_TILES;
     }
     out.sort((a, b) => (a.col - b.col) || (a.row - b.row));
     return out;
@@ -1135,12 +1174,12 @@
       marginPx: 0,
       paddingWorld: 1.0,
       showStamp: false,
-      transparentBackground: true,
       showGrid: true,
       showRadiation: true,
       showMarkers: true,
       showLabels: true,
       showAncientRoads: state.showAncientRoads,
+      transparentBackground: true,
       showHidden: true,
       maxLabels: 18,
     });
@@ -1178,7 +1217,7 @@
     }
     const center = rasterParent();
     const parents = rasterNeighborParents(center);
-    const key = rasterLayerKey(parents);
+    const key = rasterLayerKey(parents, center);
     if (!center || !parents.length || !window.GWSubhexTileRenderer || !key){
       state.rasterParentKeys.clear();
       state.el.rasterBase.replaceChildren();
@@ -1195,17 +1234,19 @@
       const frag = document.createDocumentFragment();
       const nextKeys = new Set();
       let totalCells = 0;
+      let totalFragments = 0;
       for (const p of parents){
         const rec = renderRasterTile(p, force);
         frag.appendChild(imageForRasterTile(rec));
         nextKeys.add(`${p.col},${p.row}`);
         totalCells += +(rec.stats && rec.stats.cells || 0);
+        totalFragments += +(rec.stats && rec.stats.fragments || 0);
       }
       state.el.rasterBase.replaceChildren(frag);
       state.rasterParentKeys = nextKeys;
       state.rasterKey = key;
       state.rasterDirty = false;
-      if (state.el.mode) state.el.mode.textContent = `Raster tiles: ${parents.length} parents around ${center.col},${center.row} · ${totalCells} cells`;
+      if (state.el.mode) state.el.mode.textContent = `Raster tiles: ${parents.length} visible parents around ${center.col},${center.row} · ${totalCells} cells${totalFragments ? ` + ${totalFragments} seams` : ''}`;
       applyRasterModeVisibility();
       return { center, parents, cells: totalCells };
     } catch (err){

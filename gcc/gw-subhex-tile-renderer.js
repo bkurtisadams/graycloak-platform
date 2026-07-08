@@ -1,5 +1,7 @@
-// gw-subhex-tile-renderer.js v0.1.3 — 2026-07-07
+// gw-subhex-tile-renderer.js v0.1.4 — 2026-07-07
 // Raster preview renderer for the deterministic Gamma World subhex atlas.
+// v0.1.4 — draw atlas renderCells, including parent-edge boundary fragments,
+//          so transparent multi-parent raster tiles stitch cleanly.
 // v0.1.3 — support transparent tile backgrounds so multi-parent raster tiles
 //          can overlap without opaque canvas gutters masking neighboring hexes.
 // v0.1.2 — return pixel-to-world display bounds so SVG overlays align with
@@ -15,7 +17,7 @@
 (function(){
   'use strict';
 
-  const RENDERER_VERSION = '0.1.3';
+  const RENDERER_VERSION = '0.1.4';
   const DEFAULT_SIZE = 1024;
   const DEFAULT_PADDING_WORLD = 1.2;
   const SQRT3 = Math.sqrt(3);
@@ -104,7 +106,7 @@
     if (opts && opts.fitContents === true){
       const d = D();
       const r = d ? d.SUB_R : 2;
-      const cells = (source.parent && source.parent.subhex && source.parent.subhex.cells) || [];
+      const cells = renderCellsForSource(source);
       for (const c of cells){
         if (!c || !c.center) continue;
         b.minX = Math.min(b.minX, c.center.x - r);
@@ -176,10 +178,19 @@
     ctx.restore();
   }
 
+  function renderCellsForSource(source){
+    const sub = source && source.parent && source.parent.subhex;
+    if (!sub) return [];
+    if (Array.isArray(sub.renderCells)) return sub.renderCells;
+    const cells = Array.isArray(sub.cells) ? sub.cells : [];
+    const fragments = Array.isArray(sub.fragments) ? sub.fragments : [];
+    return fragments.length ? cells.concat(fragments) : cells;
+  }
+
   function drawCells(ctx, source, proj, opts){
     const d = D();
     const subR = d ? d.SUB_R : 2;
-    const cells = (source.parent && source.parent.subhex && source.parent.subhex.cells) || [];
+    const cells = renderCellsForSource(source);
     for (const c of cells){
       if (!c || !c.center) continue;
       hexPath(ctx, c.center.x, c.center.y, subR);
@@ -406,8 +417,10 @@
     const bounds = boundsFromSource(source, opts);
     const proj = makeProjection(canvas, bounds, finite(opts.marginPx, 24));
     const ann = collectStrokesAndMarkers(source);
-    const cells = (source.parent.subhex && source.parent.subhex.cells) || [];
-    const stats = { cells: cells.length, strokes: ann.strokes.length, markers: ann.markers.length };
+    const sub = (source.parent && source.parent.subhex) || {};
+    const ownedCells = Array.isArray(sub.cells) ? sub.cells : [];
+    const cells = renderCellsForSource(source);
+    const stats = { cells: ownedCells.length, renderCells: cells.length, fragments: Math.max(0, cells.length - ownedCells.length), strokes: ann.strokes.length, markers: ann.markers.length };
 
     clearCanvas(ctx, canvas, opts);
     proj.apply(ctx);
@@ -512,5 +525,5 @@
     downloadCanvas,
     showPreview,
   };
-  try { console.log('[gw-subhex-tile-renderer] v0.1.1 loaded'); } catch(_){ }
+  try { console.log('[gw-subhex-tile-renderer] v0.1.4 loaded'); } catch(_){ }
 })();

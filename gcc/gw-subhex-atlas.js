@@ -1,5 +1,7 @@
-// gw-subhex-atlas.js v0.1.0 — 2026-07-07
-// Deterministic full-world subhex atlas facade for Gamma World.
+// gw-subhex-atlas.js v0.1.1 — 2026-07-07
+// v0.1.1 — include overlapping neighbor-owned boundary fragments in raster
+//          tile sources so transparent parent tiles stitch without black teeth.
+// v0.1.0 — Deterministic full-world subhex atlas facade for Gamma World.
 //
 // This module is the seam between the editable data model and a future raster
 // tile renderer. It does not draw anything and it does not write to storage.
@@ -20,7 +22,7 @@
 (function(){
   'use strict';
 
-  const ATLAS_VERSION = '0.1.0';
+  const ATLAS_VERSION = '0.1.1';
   const SCHEMA_VERSION = 1;
   const MILES_PER_PARENT = 30;
   const MILES_PER_SUBHEX = 3;
@@ -174,7 +176,21 @@
       generated: { available: !!(F() && typeof F().planForParent === 'function') },
     };
     if (opts.includeCells){
-      rec.subhex.cells = cells.map(c => subhexRecord(c.Q, c.R));
+      const ownedCells = cells.map(c => subhexRecord(c.Q, c.R)).filter(Boolean);
+      const fragments = (typeof d.fragmentsForParent === 'function' ? d.fragmentsForParent(col, row) : []) || [];
+      const fragmentCells = fragments.map(f => {
+        const rec = subhexRecord(f.Q, f.R);
+        if (!rec) return null;
+        rec.fragment = true;
+        rec.owner = { col: +f.ownerCol, row: +f.ownerRow };
+        return rec;
+      }).filter(Boolean);
+      rec.subhex.cells = ownedCells;
+      rec.subhex.fragmentCount = fragmentCells.length;
+      if (fragmentCells.length){
+        rec.subhex.fragments = fragmentCells;
+        rec.subhex.renderCells = ownedCells.concat(fragmentCells);
+      }
     }
     if (opts.includeGeneratedFeatures && rec.generated.available){
       rec.generated.plan = F().planForParent(col, row);
@@ -300,5 +316,5 @@
     parentRecord, subhexRecord, authoredAnnotationsInParent,
     tileSourceForParent, getSourcePolicy, summarize,
   };
-  try { console.log('[gw-subhex-atlas] v0.1.0 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-atlas] v0.1.1 loaded'); } catch(_){}
 })();
