@@ -1,4 +1,7 @@
-// gw-subhex-view.js v0.43.6 — 2026-07-08
+// gw-subhex-view.js v0.43.7 — 2026-07-08
+// v0.43.7 — fog viewport fix: render fog from the live viewport instead of
+//           the padded terrain/raster coverage bounds so Show fog works in
+//           both live SVG and raster modes after deferred pan/zoom refreshes.
 // v0.43.6 — raster far-zoom perf: adapt tile size/coverage pad by zoom
 //           level and reuse SVG <image> nodes so cached tiles do not decode/layout
 //           from scratch whenever the visible parent set changes.
@@ -943,13 +946,23 @@
     dot.setAttribute('class', 'gw-sx-party-dot');
     g.replaceChildren(ring, dot);
   }
+  function fogBounds(){
+    // Fog is an overlay tied to the visible viewport, not to the heavier padded
+    // terrain/raster coverage cache. Keeping it local prevents stale or huge fog
+    // paths when raster pan/zoom work is deferred for performance.
+    const mx = state.vb.w * 0.08, my = state.vb.h * 0.08;
+    return { minX: state.vb.x - mx, maxX: state.vb.x + state.vb.w + mx, minY: state.vb.y - my, maxY: state.vb.y + state.vb.h + my };
+  }
+
   // veil unrevealed cells in view as one batched path; only engages once a party exists
   function renderFog(){
     const g = state.el.gFog; if (!g) return;
     g.replaceChildren();
-    if (!state.fogOn || !state.party || !state.revealed || !state.rendered) return;
-    const d = D(); let dStr = '';
-    for (const { Q, R } of d.cellsInAxialBbox(state.rendered)){
+    if (!state.fogOn || !state.party || !state.revealed) return;
+    const d = D();
+    if (!d || !d.cellsInAxialBbox) return;
+    let dStr = '';
+    for (const { Q, R } of d.cellsInAxialBbox(fogBounds())){
       if (state.rasterBase && !cellInActiveRasterParent(Q, R)) continue;
       if (state.revealed.has(Q + '_' + R)) continue;
       dStr += subhexPath(Q, R);
@@ -2200,5 +2213,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.43.6 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.43.7 loaded'); } catch(_){}
 })();
