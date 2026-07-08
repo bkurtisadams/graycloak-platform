@@ -1,3 +1,8 @@
+// gw-subhex-view.js v0.42.0 — 2026-07-07
+// v0.42.0 — raster alignment: map rendered tile images back through the
+//           renderer's pixel-to-world bounds, clamp hover/selection/edit clicks
+//           to the current parent while single-tile raster mode is active, and
+//           suppress duplicate live parent/target outlines over the raster tile.
 // gw-subhex-view.js v0.41.0 — 2026-07-07
 // v0.41.0 — raster-backed subhex preview mode: an opt-in Raster tile toggle
 //           renders the current 30-mile parent hex with GWSubhexTileRenderer and
@@ -592,7 +597,7 @@
     pane.appendChild(hd('Features'));
     const genRow = document.createElement('div'); genRow.className = 'sx-row2';
     const genB = mkBtn('✦ Generate', 'gw-sx-gen');
-    genB.title = 'Seed features for the highlighted parent (the one under your view center) — pan to retarget';
+    genB.title = 'Seed features for the highlighted parent; raster mode targets the current tile';
     genB.addEventListener('click', generateFeatures);
     const clrB = mkBtn('Clear gen', 'gw-sx-gen-clear');
     clrB.title = 'Clear generated features from the highlighted parent';
@@ -686,8 +691,13 @@
     }
     return state.curParent;
   }
+  function targetParent(){
+    // Raster mode is currently a single-parent tile. Keep Generate/Clear target
+    // anchored to that tile until the future neighbor-tile viewer exists.
+    return state.rasterBase ? rasterParent() : centerParent();
+  }
   function generateFeatures(){
-    const p = centerParent();
+    const p = targetParent();
     if (!p || !window.GWFeatureGen){ return; }
     const res = window.GWFeatureGen.generateForParent(p.col, p.row);
     renderAnnotations();
@@ -698,7 +708,7 @@
     }
   }
   function clearGeneratedFeatures(){
-    const p = centerParent();
+    const p = targetParent();
     if (!p || !window.GWFeatureGen){ return; }
     const n = window.GWFeatureGen.clearForParent(p.col, p.row);
     renderAnnotations();
@@ -719,7 +729,15 @@
     let Q, R;
     if (state.selected){ Q = state.selected.Q; R = state.selected.R; }
     else if (state.hoverKey){ const p = state.hoverKey.split('_'); Q = +p[0]; R = +p[1]; }
-    else { const c = d.svgToAxial(state.vb.x + state.vb.w / 2, state.vb.y + state.vb.h / 2); Q = c.Q; R = c.R; }
+    else {
+      const rp = activeRasterParent();
+      const pc = rp && d.parentCenterAxial ? d.parentCenterAxial(rp.col, rp.row) : null;
+      if (pc){ Q = pc.Q; R = pc.R; }
+      else { const c = d.svgToAxial(state.vb.x + state.vb.w / 2, state.vb.y + state.vb.h / 2); Q = c.Q; R = c.R; }
+    }
+    if (state.rasterBase && !cellInActiveRasterParent(Q, R)){
+      showEncounter('<span class="enc-x" title="Close">✕</span><span class="enc-nope">Pick a subhex inside the current raster tile first.</span>'); return;
+    }
     const sub = d.getSubhexAt(Q, R);
     const feat = d.getCellFeature(Q, R);
     const featKind = feat && feat.kind ? feat.kind : null;
@@ -764,9 +782,11 @@
   // Click a subhex in pan/select mode to mark it; it stays highlighted (cyan)
   // until you pick another, so you can then hit "Roll" in the palette.
   function selectCell(Q, R){
+    if (state.rasterBase && !cellInActiveRasterParent(Q, R)){ clearSelection(); return false; }
     state.selected = { Q, R };
     renderSelection();
     if (state.el.encBtn) state.el.encBtn.textContent = `🎲 Roll: ${Q},${R}`;
+    return true;
   }
   function clearSelection(){
     state.selected = null;
@@ -776,6 +796,11 @@
   function renderSelection(){
     const g = state.el.gSel; if (!g) return;
     if (!state.selected){ g.replaceChildren(); return; }
+    if (state.rasterBase && !cellInActiveRasterParent(state.selected.Q, state.selected.R)){
+      g.replaceChildren();
+      if (state.el.encBtn) state.el.encBtn.textContent = '🎲 Roll here';
+      return;
+    }
     const d = D(); const c = d.subhexSvgCenter(state.selected.Q, state.selected.R);
     const p = document.createElementNS(SVGNS, 'polygon');
     p.setAttribute('points', cornersStr(c.x, c.y, d.SUB_R));
@@ -880,6 +905,7 @@
   function renderParty(){
     const g = state.el.gParty; if (!g) return;
     if (!state.party){ g.replaceChildren(); return; }
+    if (state.rasterBase && !cellInActiveRasterParent(state.party.Q, state.party.R)){ g.replaceChildren(); return; }
     const d = D(); const c = d.subhexSvgCenter(state.party.Q, state.party.R);
     const ring = document.createElementNS(SVGNS, 'circle');
     ring.setAttribute('cx', c.x); ring.setAttribute('cy', c.y); ring.setAttribute('r', (d.SUB_R * 0.42).toFixed(2));
@@ -896,6 +922,7 @@
     if (!state.fogOn || !state.party || !state.revealed || !state.rendered) return;
     const d = D(); let dStr = '';
     for (const { Q, R } of d.cellsInAxialBbox(state.rendered)){
+      if (state.rasterBase && !cellInActiveRasterParent(Q, R)) continue;
       if (state.revealed.has(Q + '_' + R)) continue;
       dStr += subhexPath(Q, R);
     }
@@ -1020,7 +1047,7 @@
     fit.addEventListener('click', () => { if (state.curParent) centerOnParent(state.curParent.col, state.curParent.row); });
     tog.querySelector('input').addEventListener('change', e => { state.showParents = e.target.checked; render(true); });
     arTog.querySelector('input').addEventListener('change', e => { state.showAncientRoads = e.target.checked; saveAncientRoadsVis(state.showAncientRoads); renderAnnotations(); if (state.rasterBase) updateRasterBase(true); });
-    rasterTog.querySelector('input').addEventListener('change', e => { state.rasterBase = !!e.target.checked; saveRasterBaseVis(state.rasterBase); updateRasterBase(true); applyRasterModeVisibility(); syncMode(); });
+    rasterTog.querySelector('input').addEventListener('change', e => { state.rasterBase = !!e.target.checked; saveRasterBaseVis(state.rasterBase); updateRasterBase(true); applyRasterModeVisibility(); renderSelection(); renderParty(); renderGenTarget(); syncMode(); });
     mapTog.querySelector('input').addEventListener('change', e => { basemap.style.display = e.target.checked && !state.rasterBase ? '' : 'none'; });
     mapOp.addEventListener('input', e => { basemap.setAttribute('opacity', (e.target.value / 100).toFixed(2)); });
     hexOp.addEventListener('input', e => { gCells.style.setProperty('--gw-cell-fill', (e.target.value / 100).toFixed(2)); saveHexOp(e.target.value); });
@@ -1093,7 +1120,7 @@
         showHidden: true,
         maxLabels: 18,
       });
-      const b = result.bounds;
+      const b = result.displayBounds || result.imageWorldBounds || result.bounds;
       state.el.rasterBase.setAttribute('x', b.minX);
       state.el.rasterBase.setAttribute('y', b.minY);
       state.el.rasterBase.setAttribute('width', b.maxX - b.minX);
@@ -1137,7 +1164,25 @@
     return { x: state.vb.x + (ev.clientX - r.left) / r.width * state.vb.w,
              y: state.vb.y + (ev.clientY - r.top) / r.height * state.vb.h };
   }
-  function cellAt(ev){ const w = clientToWorld(ev); const a = D().svgToAxial(w.x, w.y); return { Q: a.Q, R: a.R }; }
+  function sameParent(a, b){ return !!(a && b && +a.col === +b.col && +a.row === +b.row); }
+  function activeRasterParent(){ return state.rasterBase ? rasterParent() : null; }
+  function cellOwner(Q, R){ const d = D(); return d && d.ownerOf ? d.ownerOf(Q, R) : null; }
+  function cellInActiveRasterParent(Q, R){
+    const p = activeRasterParent();
+    if (!p) return true;
+    return sameParent(cellOwner(Q, R), p);
+  }
+  function worldPointInActiveRasterParent(w){
+    if (!state.rasterBase) return true;
+    if (!w || !Number.isFinite(w.x) || !Number.isFinite(w.y)) return false;
+    const a = D().svgToAxial(w.x, w.y);
+    return cellInActiveRasterParent(a.Q, a.R);
+  }
+  function cellAt(ev, opts){
+    const w = clientToWorld(ev); const a = D().svgToAxial(w.x, w.y);
+    if (!(opts && opts.allowOutsideRaster) && state.rasterBase && !cellInActiveRasterParent(a.Q, a.R)) return null;
+    return { Q: a.Q, R: a.R };
+  }
 
   function wireViewport(svg){
     svg.addEventListener('mousedown', e => {
@@ -1153,6 +1198,7 @@
           const hit = editorHitDot(e);
           if (hit >= 0){ state.editor.dragIdx = hit; return; }
           const w = clientToWorld(e);
+          if (!worldPointInActiveRasterParent(w)) return;
           state.drag = { r: svg.getBoundingClientRect(), sx: e.clientX, sy: e.clientY, vx: state.vb.x, vy: state.vb.y, moved: false, pointAdd: { x: w.x, y: w.y } };
           svg.classList.add('grabbing');
           return;
@@ -1177,12 +1223,15 @@
     window.addEventListener('mousemove', e => {
       if (state.markerDrag){
         const w = clientToWorld(e);
+        if (!worldPointInActiveRasterParent(w)) return;
         state.markerDrag.m.x = w.x; state.markerDrag.m.y = w.y; state.markerDrag.moved = true;
         renderAnnotations(); return;
       }
       if (state.stroke){ extendStroke(e); return; }
       if (state.editor && state.editor.dragIdx != null){
-        const w = clientToWorld(e); const p = state.snapHex ? snapPt(w) : w;
+        const w = clientToWorld(e);
+        if (!worldPointInActiveRasterParent(w)) return;
+        const p = state.snapHex ? snapPt(w) : w;
         state.editor.pts[state.editor.dragIdx] = [p.x, p.y]; editorRender(); return;
       }
       if (state.brush){ const c = cellAt(e); if (c) paintCell(c.Q, c.R); return; }
@@ -1356,10 +1405,14 @@
   // under the view center). Lets you target any parent without leaving subhex mode.
   function renderGenTarget(){
     const g = state.el.gTarget; if (!g) return;
-    const p = centerParent();
-    if (state.el.genTarget) state.el.genTarget.textContent = p ? `▸ target: parent ${p.col},${p.row}` : '▸ no parent centered';
+    const p = targetParent();
+    if (state.el.genTarget){
+      state.el.genTarget.textContent = p
+        ? (state.rasterBase ? `▸ raster target: parent ${p.col},${p.row}` : `▸ target: parent ${p.col},${p.row}`)
+        : '▸ no parent centered';
+    }
     const d = D();
-    if (!p || !d){ g.replaceChildren(); return; }
+    if (!p || !d || state.rasterBase){ g.replaceChildren(); return; }
     const c = d.parentSvgCenter(p.col, p.row);
     const poly = document.createElementNS(SVGNS, 'polygon');
     poly.setAttribute('points', cornersStr(c.x, c.y, d.HEX_R));
@@ -1531,6 +1584,7 @@
   }
   function startStroke(e){
     const w = clientToWorld(e);
+    if (!worldPointInActiveRasterParent(w)) return;
     state.stroke = { kind: state.armed.kind, pts: [[w.x, w.y]], condition: state.armed.kind === 'ancient-road' ? state.ancientRoadCondition : undefined };
     state.el.svg.classList.add('painting');
     const el = lineEl(state.stroke.kind, '', { width: state.lineWidth, condition: state.stroke.condition });
@@ -1541,6 +1595,7 @@
   function extendStroke(e){
     if (!state.stroke) return;
     const w = clientToWorld(e);
+    if (!worldPointInActiveRasterParent(w)) return;
     const pts = state.stroke.pts, last = pts[pts.length-1];
     const minW = SAMPLE_PX * curU();
     if (Math.hypot(w.x - last[0], w.y - last[1]) < minW) return;
@@ -1555,7 +1610,11 @@
   }
 
   // ── spline waypoint editor (points mode) ────────────────────────────────────
-  function snapPt(w){ const d = D(); const a = d.svgToAxial(w.x, w.y); return d.subhexSvgCenter(a.Q, a.R); }
+  function snapPt(w){
+    const d = D(); const a = d.svgToAxial(w.x, w.y);
+    if (state.rasterBase && !cellInActiveRasterParent(a.Q, a.R)) return w;
+    return d.subhexSvgCenter(a.Q, a.R);
+  }
   function editorHitDot(e){
     if (!state.editor) return -1;
     const w = clientToWorld(e), hitR = 7 * curU(), pts = state.editor.pts;
@@ -1575,6 +1634,7 @@
   }
   function editorAddPoint(p0){
     if (!state.editor && (!state.armed || state.armed.type !== 'draw')) return;
+    if (!worldPointInActiveRasterParent(p0)) return;
     const p = state.snapHex ? snapPt(p0) : p0;
     if (!state.editor){
       const s = nearestStrokeAt(p0);
@@ -1641,6 +1701,7 @@
   // ── markers + erase ────────────────────────────────────────────────────────
   function placeMarker(e){
     const w = clientToWorld(e);
+    if (!worldPointInActiveRasterParent(w)) return;
     let name = '';
     if (e.shiftKey){ try { name = window.prompt('Settlement name (optional):', '') || ''; } catch(_){} }
     A().addMarker(state.armed.kind, w.x, w.y, name ? { name } : null);
@@ -1654,6 +1715,7 @@
   }
   function markerAt(e){
     const w = clientToWorld(e), u = curU(), r = ICON_PX * u * 1.5;
+    if (!worldPointInActiveRasterParent(w)) return null;
     let best = null, bd = r;
     for (const m of A().listMarkers()){ const dd = Math.hypot(w.x - m.x, w.y - m.y); if (dd <= bd){ bd = dd; best = m; } }
     return best;
@@ -1697,6 +1759,7 @@
   }
   function eraseAnnotationAt(e){
     const w = clientToWorld(e), u = curU();
+    if (!worldPointInActiveRasterParent(w)) return;
     const bestM = markerAt(e);                       // markers first
     if (bestM){ A().deleteMarker(bestM.id); markRasterDirty(); renderAnnotations(); return; }
     // then strokes
@@ -1718,6 +1781,7 @@
   // back into the merged paths by a single render(true) on mouseup.
   function paintCell(Q, R){
     if (!state.brush || !state.armed) return;
+    if (state.rasterBase && !cellInActiveRasterParent(Q, R)) return;
     const key = Q + '_' + R; if (state.brush.set.has(key)) return; state.brush.set.add(key);
     const d = D(); const before = d.peekOverride(Q, R);
     state.brush.undo.push({ Q, R, before: before ? JSON.parse(JSON.stringify(before)) : null });
@@ -1797,7 +1861,13 @@
   function bindCellHover(svg){
     svg.addEventListener('mousemove', e => {
       if (state.brush || state.stroke || state.drag || state.markerDrag){ return; }
-      const cell = cellAt(e); const key = cell.Q + '_' + cell.R;
+      const cell = cellAt(e);
+      if (!cell){
+        if (state.hoverKey !== null){ clearHover(); }
+        if (state.rasterBase && state.el.readBody) state.el.readBody.innerHTML = '— outside current raster tile —';
+        return;
+      }
+      const key = cell.Q + '_' + cell.R;
       if (state.hoverKey === key) return;
       state.hoverKey = key;
       const d = D(); const c = d.subhexSvgCenter(cell.Q, cell.R);
@@ -1839,5 +1909,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.35.0 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.42.0 loaded'); } catch(_){}
 })();

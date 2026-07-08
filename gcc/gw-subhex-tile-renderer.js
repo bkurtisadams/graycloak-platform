@@ -1,5 +1,7 @@
-// gw-subhex-tile-renderer.js v0.1.1 — 2026-07-07
+// gw-subhex-tile-renderer.js v0.1.2 — 2026-07-07
 // Raster preview renderer for the deterministic Gamma World subhex atlas.
+// v0.1.2 — return pixel-to-world display bounds so SVG overlays align with
+//          the aspect-preserved canvas projection used by raster tiles.
 //
 // Tile Renderer Slice 1: paint one selected 30-mile parent hex into a canvas
 // from GWSubhexAtlas.tileSourceForParent(). This is a dev/proof layer only:
@@ -11,7 +13,7 @@
 (function(){
   'use strict';
 
-  const RENDERER_VERSION = '0.1.1';
+  const RENDERER_VERSION = '0.1.2';
   const DEFAULT_SIZE = 1024;
   const DEFAULT_PADDING_WORLD = 1.2;
   const SQRT3 = Math.sqrt(3);
@@ -130,6 +132,16 @@
     return {
       scale, offsetX, offsetY,
       worldPx: px => px / scale,
+      pixelToWorldX(px){ return (px - offsetX) / scale; },
+      pixelToWorldY(py){ return (py - offsetY) / scale; },
+      imageWorldBounds(){
+        return {
+          minX: (0 - offsetX) / scale,
+          minY: (0 - offsetY) / scale,
+          maxX: (canvas.width - offsetX) / scale,
+          maxY: (canvas.height - offsetY) / scale,
+        };
+      },
       apply(ctx){ ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY); },
       reset(ctx){ ctx.setTransform(1, 0, 0, 1, 0, 0); },
       x(x){ return x * scale + offsetX; },
@@ -402,7 +414,8 @@
     drawParentFrame(ctx, source, proj);
     drawLegendAndStamp(ctx, canvas, source, stats, opts);
 
-    return { canvas, source, bounds, stats, version: RENDERER_VERSION };
+    const imageWorldBounds = proj.imageWorldBounds();
+    return { canvas, source, bounds, imageWorldBounds, displayBounds: imageWorldBounds, stats, version: RENDERER_VERSION };
   }
 
   function renderParent(col, row, opts){
