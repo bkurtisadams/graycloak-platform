@@ -1,4 +1,6 @@
-// gw-subhex-view.js v0.43.7 — 2026-07-08
+// gw-subhex-view.js v0.43.8 — 2026-07-08
+// v0.43.8 — restore fog with viewport veil + revealed-cell cutouts, and show
+//           named feature labels only at closer zoom levels instead of far out.
 // v0.43.7 — fog viewport fix: render fog from the live viewport instead of
 //           the padded terrain/raster coverage bounds so Show fog works in
 //           both live SVG and raster modes after deferred pan/zoom refreshes.
@@ -168,6 +170,7 @@
     lost:         { color:'#766a59', dash:'1 9', opacity:0.42 },
   };
   const ICON_PX = 9;          // marker glyph radius in screen px
+  const FEATURE_LABEL_MAX_U = 0.20; // show feature names at close/detail zoom only
   const SAMPLE_PX = 4;        // freehand point spacing in screen px
   const RASTER_VIEW_PAD_PARENTS = 1.25; // near-zoom offscreen neighbor buffer while panning
   const RASTER_MAX_VISIBLE_TILES = 72;  // near-zoom safety cap for raster views
@@ -387,6 +390,11 @@
       }
     } catch(_){}
     if (!state.clock) state.clock = defaultClock();
+    // If a saved party exists but the revealed set was missing/cleared, seed the
+    // starting visibility ring so Show fog has an immediate hole to display.
+    if (state.party && state.revealed && state.revealed.size === 0){
+      reveal(state.party.Q, state.party.R);
+    }
   }
   function saveParty(){ try { localStorage.setItem(PARTY_KEY, JSON.stringify(state.party)); } catch(_){} try { window.dispatchEvent(new CustomEvent('gw-party-changed')); } catch(_){} }
   function saveRevealed(){ try { localStorage.setItem(FOG_KEY, JSON.stringify([...state.revealed])); } catch(_){} try { window.dispatchEvent(new CustomEvent('gw-party-changed')); } catch(_){} }
@@ -953,23 +961,44 @@
     const mx = state.vb.w * 0.08, my = state.vb.h * 0.08;
     return { minX: state.vb.x - mx, maxX: state.vb.x + state.vb.w + mx, minY: state.vb.y - my, maxY: state.vb.y + state.vb.h + my };
   }
+  function fogRectPath(bb){
+    const f = n => (+n).toFixed(2);
+    return `M ${f(bb.minX)},${f(bb.minY)} H ${f(bb.maxX)} V ${f(bb.maxY)} H ${f(bb.minX)} Z `;
+  }
+  function keyInFogBounds(key, bb){
+    const parts = String(key).split('_');
+    if (parts.length !== 2) return null;
+    const Q = +parts[0], R = +parts[1];
+    if (!Number.isFinite(Q) || !Number.isFinite(R)) return null;
+    const c = D().subhexSvgCenter(Q, R);
+    const pad = D().SUB_R * 1.2;
+    if (c.x < bb.minX - pad || c.x > bb.maxX + pad || c.y < bb.minY - pad || c.y > bb.maxY + pad) return null;
+    return { Q, R };
+  }
 
-  // veil unrevealed cells in view as one batched path; only engages once a party exists
+  // Draw one viewport-sized fog veil and punch out revealed cells with even-odd
+  // fill. This keeps fog independent of the terrain/raster coverage cache and
+  // avoids building enormous paths for every unrevealed cell at far zoom.
   function renderFog(){
     const g = state.el.gFog; if (!g) return;
     g.replaceChildren();
-    if (!state.fogOn || !state.party || !state.revealed) return;
+    if (!state.fogOn) return;
     const d = D();
-    if (!d || !d.cellsInAxialBbox) return;
-    let dStr = '';
-    for (const { Q, R } of d.cellsInAxialBbox(fogBounds())){
-      if (state.rasterBase && !cellInActiveRasterParent(Q, R)) continue;
-      if (state.revealed.has(Q + '_' + R)) continue;
-      dStr += subhexPath(Q, R);
+    if (!d || !d.subhexSvgCenter) return;
+    if (!state.revealed) state.revealed = new Set();
+    const bb = fogBounds();
+    let dStr = fogRectPath(bb);
+    for (const key of state.revealed){
+      const cell = keyInFogBounds(key, bb);
+      if (!cell) continue;
+      dStr += subhexPath(cell.Q, cell.R);
     }
-    if (!dStr) return;
     const p = document.createElementNS(SVGNS, 'path');
-    p.setAttribute('d', dStr); p.setAttribute('class', 'gw-sx-fog');
+    p.setAttribute('d', dStr);
+    p.setAttribute('class', 'gw-sx-fog');
+    p.setAttribute('fill-rule', 'evenodd');
+    p.style.fillRule = 'evenodd';
+    p.style.stroke = 'none';
     g.appendChild(p);
   }
 
@@ -1154,7 +1183,7 @@
     return Math.max(RASTER_MAX_VISIBLE_TILES, rasterMaxVisibleTiles() * 3);
   }
   function rasterTileKey(p){
-    return p ? `${p.col},${p.row}|ancient:${state.showAncientRoads ? 1 : 0}|size:${rasterTileSizeForZoom()}` : '';
+    return p ? `${p.col},${p.row}|ancient:${state.showAncientRoads ? 1 : 0}|labels:${shouldShowFeatureLabels() ? 1 : 0}|size:${rasterTileSizeForZoom()}` : '';
   }
   function rasterLayerKey(parents){
     // Tile coverage, not view center, determines whether the raster image layer
@@ -1266,7 +1295,7 @@
       showGrid: true,
       showRadiation: true,
       showMarkers: true,
-      showLabels: true,
+      showLabels: shouldShowFeatureLabels(),
       showAncientRoads: state.showAncientRoads,
       transparentBackground: true,
       showHidden: true,
@@ -1436,6 +1465,7 @@
   }
   function pxW(){ const r = state.el.svg.getBoundingClientRect(); return r.width || 1; }
   function curU(){ return state.vb.w / pxW(); }       // world units per screen px
+  function shouldShowFeatureLabels(){ return curU() <= FEATURE_LABEL_MAX_U; }
   function syncAspect(){ const r = state.el.svg.getBoundingClientRect(); if (r.width > 0 && r.height > 0) state.vb.h = state.vb.w * (r.height / r.width); }
   function centerOnParent(col, row){
     const c = D().parentSvgCenter(col, row);
@@ -1762,7 +1792,7 @@
     if (el.tagName && el.tagName.toLowerCase() === 'path') el.setAttribute('d', dStr);
     else el.querySelectorAll && el.querySelectorAll('path').forEach(p => p.setAttribute('d', dStr));
   }
-  function markerEl(kind, x, y, name, u, hidden){
+  function markerEl(kind, x, y, name, u, hidden, showLabel){
     const r = ICON_PX * u;
     const g = document.createElementNS(SVGNS, 'g');
     g.setAttribute('class', 'gw-sx-marker');
@@ -1824,7 +1854,7 @@
     if (hidden){
       add('circle', { cx:x, cy:y, r:r*1.55, fill:'none', stroke:'#ff5252', 'stroke-width':1.4, 'stroke-dasharray':`${r*0.5} ${r*0.34}` });
     }
-    if (name){
+    if (name && showLabel){
       const t = document.createElementNS(SVGNS, 'text');
       t.setAttribute('x', x); t.setAttribute('y', y + r*1.25 + 11*u);
       t.setAttribute('text-anchor', 'middle'); t.setAttribute('font-size', 11*u);
@@ -1857,8 +1887,9 @@
       frag.appendChild(lineEl(s.kind, path, { color: s.color, width: s.width, condition: s.condition }));
       fastFrag.appendChild(lineEl(s.kind, path, { color: s.color, condition: s.condition, width: Math.max(1.4 * u, (s.width || (STROKE_STYLE[s.kind] || STROKE_STYLE.pen).width) * 0.85) }));
     }
+    const showLabels = shouldShowFeatureLabels();
     for (const m of A().markersInBbox(markerBb)){
-      frag.appendChild(markerEl(m.kind, m.x, m.y, m.name, u, m.hidden));
+      frag.appendChild(markerEl(m.kind, m.x, m.y, m.name, u, m.hidden, showLabels));
       fastFrag.appendChild(markerFastEl(m, u));
       if (state.markerSel === m.id) frag.appendChild(markerSelRing(m.x, m.y, u));
     }
@@ -2213,5 +2244,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.43.7 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.43.8 loaded'); } catch(_){}
 })();
