@@ -17,7 +17,7 @@
 <script src="gw-annotations.js?v=44ee919d"></script>
 <script src="gw-feature-gen.js?v=d1a5a4be"></script>
 <script src="gw-subhex-atlas.js?v=d53fd629"></script>
-<script src="gw-subhex-tile-renderer.js?v=ddf91030"></script>
+<script src="gw-subhex-tile-renderer.js?v=8a9c2d11"></script>
 <script src="gw-stock.js?v=70096b9e"></script>
 <script src="gw-mp-bestiary.js?v=2f52209d"></script>
 <script src="gw-mp-export.js?v=11e02ff3"></script>
@@ -116,7 +116,7 @@
 
 <div id="topbar">
   <h1>GAMMA WORLD — Campaign Map</h1>
-  <span class="ver">v0.55.0</span>
+  <span class="ver">v0.55.1</span>
   <span class="sep"></span>
   <button id="btn-reset">Fit View</button>
   <span class="spacer"></span>
@@ -867,6 +867,7 @@ if (tilePreviewBtn){
         showLabels: true,
         showAncientRoads: true,
         showHidden: true,
+        maxLabels: 18,
       });
       window.GWSubhexTileRenderer.showPreview(result);
       if (status){

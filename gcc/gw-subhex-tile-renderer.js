@@ -1,4 +1,4 @@
-// gw-subhex-tile-renderer.js v0.1.0 — 2026-07-07
+// gw-subhex-tile-renderer.js v0.1.1 — 2026-07-07
 // Raster preview renderer for the deterministic Gamma World subhex atlas.
 //
 // Tile Renderer Slice 1: paint one selected 30-mile parent hex into a canvas
@@ -11,9 +11,9 @@
 (function(){
   'use strict';
 
-  const RENDERER_VERSION = '0.1.0';
+  const RENDERER_VERSION = '0.1.1';
   const DEFAULT_SIZE = 1024;
-  const DEFAULT_PADDING_WORLD = 7.5;
+  const DEFAULT_PADDING_WORLD = 1.2;
   const SQRT3 = Math.sqrt(3);
 
   const FALLBACK_TERRAIN = {
@@ -74,28 +74,50 @@
   function expandBounds(b, pad){
     return { minX: b.minX - pad, minY: b.minY - pad, maxX: b.maxX + pad, maxY: b.maxY + pad };
   }
+  function pointsBounds(pts){
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of (pts || [])){
+      if (!Array.isArray(p) || !Number.isFinite(+p[0]) || !Number.isFinite(+p[1])) continue;
+      minX = Math.min(minX, +p[0]); maxX = Math.max(maxX, +p[0]);
+      minY = Math.min(minY, +p[1]); maxY = Math.max(maxY, +p[1]);
+    }
+    return Number.isFinite(minX) ? { minX, minY, maxX, maxY } : null;
+  }
+  function parentHexBounds(source){
+    const d = D();
+    const pc = source && source.parent && source.parent.center;
+    const r = d ? d.HEX_R : 20;
+    if (!pc) return source && source.parent && source.parent.bbox ? source.parent.bbox : { minX: 0, minY: 0, maxX: 40, maxY: 40 };
+    return pointsBounds(flatCorners(pc.x, pc.y, r));
+  }
   function boundsFromSource(source, opts){
     const pad = finite(opts && opts.paddingWorld, DEFAULT_PADDING_WORLD);
-    const base = source && source.parent && source.parent.bbox ? source.parent.bbox : { minX: 0, minY: 0, maxX: 40, maxY: 40 };
-    let b = expandBounds(base, pad);
-    const d = D();
-    const r = d ? d.SUB_R : 2;
-    const cells = (source.parent && source.parent.subhex && source.parent.subhex.cells) || [];
-    for (const c of cells){
-      if (!c || !c.center) continue;
-      b.minX = Math.min(b.minX, c.center.x - r);
-      b.maxX = Math.max(b.maxX, c.center.x + r);
-      b.minY = Math.min(b.minY, c.center.y - r);
-      b.maxY = Math.max(b.maxY, c.center.y + r);
-    }
-    const anns = collectStrokesAndMarkers(source);
-    for (const s of anns.strokes){
-      for (const p of (s.pts || [])){
-        b.minX = Math.min(b.minX, +p[0] - pad * 0.25); b.maxX = Math.max(b.maxX, +p[0] + pad * 0.25);
-        b.minY = Math.min(b.minY, +p[1] - pad * 0.25); b.maxY = Math.max(b.maxY, +p[1] + pad * 0.25);
+    // Tile previews should be scaled to the selected 30-mile parent hex, not
+    // to every road/river point whose bbox happens to intersect it. Including
+    // long authored rivers in the fit bounds made the parent terrain collapse
+    // into a tiny blob while the path sprawled across the whole canvas.
+    let b = expandBounds(parentHexBounds(source), pad);
+    if (opts && opts.fitContents === true){
+      const d = D();
+      const r = d ? d.SUB_R : 2;
+      const cells = (source.parent && source.parent.subhex && source.parent.subhex.cells) || [];
+      for (const c of cells){
+        if (!c || !c.center) continue;
+        b.minX = Math.min(b.minX, c.center.x - r);
+        b.maxX = Math.max(b.maxX, c.center.x + r);
+        b.minY = Math.min(b.minY, c.center.y - r);
+        b.maxY = Math.max(b.maxY, c.center.y + r);
       }
     }
     return b;
+  }
+  function clipToParent(ctx, source){
+    const d = D();
+    const pc = source && source.parent && source.parent.center;
+    if (!pc) return false;
+    hexPath(ctx, pc.x, pc.y, d ? d.HEX_R : 20);
+    ctx.clip();
+    return true;
   }
   function makeProjection(canvas, bounds, marginPx){
     const w = bounds.maxX - bounds.minX;
@@ -130,9 +152,9 @@
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     // subtle parchment-noise bands without random pixels, so the same tile is stable
-    ctx.globalAlpha = 0.08;
+    ctx.globalAlpha = 0.025;
     ctx.fillStyle = '#f0d090';
-    for (let y = 0; y < canvas.height; y += 31) ctx.fillRect(0, y, canvas.width, 1);
+    for (let y = 0; y < canvas.height; y += 37) ctx.fillRect(0, y, canvas.width, 1);
     ctx.restore();
   }
 
@@ -264,12 +286,27 @@
     strokes.filter(s => s.kind === 'ancient-road').forEach(drawOne);
   }
 
+  function priorityForMarker(m){
+    const kind = m && m.kind;
+    if (!m || !m.name) return 99;
+    if (!m.gen) return 0;
+    if (kind === 'city' || kind === 'town' || kind === 'ruin') return 1;
+    if (kind === 'village' || kind === 'vault' || kind === 'spaceport' || kind === 'installation') return 2;
+    return 3;
+  }
+  function boxesOverlap(a, b){
+    return !(a.x2 < b.x1 || a.x1 > b.x2 || a.y2 < b.y1 || a.y1 > b.y2);
+  }
   function drawMarkers(ctx, source, proj, opts){
     const { markers } = collectStrokesAndMarkers(source);
     if (opts.showMarkers === false) return;
-    for (const m of markers){
-      if (!m || !Number.isFinite(+m.x) || !Number.isFinite(+m.y)) continue;
-      if (m.hidden && opts.showHidden === false) continue;
+    const visible = markers
+      .filter(m => m && Number.isFinite(+m.x) && Number.isFinite(+m.y) && !(m.hidden && opts.showHidden === false))
+      .sort((a, b) => priorityForMarker(a) - priorityForMarker(b));
+    const labelBoxes = [];
+    const maxLabels = Number.isFinite(+opts.maxLabels) ? Math.max(0, +opts.maxLabels) : 18;
+    let labelsDrawn = 0;
+    for (const m of visible){
       const r = proj.worldPx(m.kind === 'city' ? 8 : 6);
       ctx.save();
       ctx.globalAlpha = m.hidden ? 0.55 : 1;
@@ -285,17 +322,23 @@
       ctx.font = `${Math.max(proj.worldPx(9.5), r * 1.38)}px Georgia, serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(MARKER_ICON[m.kind] || '•', +m.x, +m.y + r * 0.06);
-      if (opts.showLabels !== false && m.name){
-        const fontWorld = proj.worldPx(11.5);
+      if (opts.showLabels !== false && m.name && labelsDrawn < maxLabels){
+        const fontWorld = proj.worldPx(m.kind === 'city' || m.kind === 'town' ? 12.4 : 10.6);
         ctx.font = `${fontWorld}px Georgia, serif`;
         ctx.textBaseline = 'top';
         const text = String(m.name).slice(0, 34);
         const ty = +m.y + r * 1.45;
-        ctx.lineWidth = proj.worldPx(2.6);
-        ctx.strokeStyle = 'rgba(20, 10, 4, 0.82)';
-        ctx.fillStyle = '#fff0c6';
-        ctx.strokeText(text, +m.x, ty);
-        ctx.fillText(text, +m.x, ty);
+        const w = ctx.measureText(text).width;
+        const pad = proj.worldPx(3);
+        const box = { x1: +m.x - w / 2 - pad, x2: +m.x + w / 2 + pad, y1: ty - pad, y2: ty + fontWorld * 1.25 + pad };
+        if (!labelBoxes.some(b => boxesOverlap(box, b))){
+          labelBoxes.push(box); labelsDrawn++;
+          ctx.lineWidth = proj.worldPx(2.6);
+          ctx.strokeStyle = 'rgba(20, 10, 4, 0.82)';
+          ctx.fillStyle = '#fff0c6';
+          ctx.strokeText(text, +m.x, ty);
+          ctx.fillText(text, +m.x, ty);
+        }
       }
       ctx.restore();
     }
@@ -350,9 +393,12 @@
 
     clearCanvas(ctx, canvas, opts);
     proj.apply(ctx);
+    ctx.save();
+    clipToParent(ctx, source);
     drawCells(ctx, source, proj, opts);
     drawStrokes(ctx, source, proj, opts);
     drawMarkers(ctx, source, proj, opts);
+    ctx.restore();
     drawParentFrame(ctx, source, proj);
     drawLegendAndStamp(ctx, canvas, source, stats, opts);
 
@@ -447,5 +493,5 @@
     downloadCanvas,
     showPreview,
   };
-  try { console.log('[gw-subhex-tile-renderer] v0.1.0 loaded'); } catch(_){ }
+  try { console.log('[gw-subhex-tile-renderer] v0.1.1 loaded'); } catch(_){ }
 })();
