@@ -1,3 +1,13 @@
+// gw-subhex-view.js v0.46.0 — 2026-07-08
+// v0.46.0 — live marker overlay: markers + labels move out of raster tiles
+//           into a live SVG layer (gMarkers) drawn over both base modes, so
+//           labels render at constant screen size at every zoom (tiles pinned
+//           them to ~4-5 screen px regardless of zoom), the per-kind vector
+//           icons return in raster mode, selection rings are visible again,
+//           and marker edits no longer invalidate any tiles. Labels now show
+//           at all zoom levels. Clicking a marker in plain select mode arms
+//           ✎ Edit and opens the feature editor, so drag-to-move works
+//           immediately; Esc closes the editor, Esc again disarms.
 // gw-subhex-view.js v0.45.0 — 2026-07-08
 // v0.45.0 — viewer polish slice: persisted viewport (center + zoom restored on
 //           reopen; explicit parent clicks still recenter at your zoom), public
@@ -187,7 +197,6 @@
     lost:         { color:'#766a59', dash:'1 9', opacity:0.42 },
   };
   const ICON_PX = 9;          // marker glyph radius in screen px
-  const FEATURE_LABEL_MAX_U = 0.20; // show feature names at close/detail zoom only
   const SAMPLE_PX = 4;        // freehand point spacing in screen px
   const RASTER_VIEW_PAD_PARENTS = 1.25; // near-zoom offscreen neighbor buffer while panning
   const RASTER_MAX_VISIBLE_TILES = 72;  // near-zoom safety cap for raster views
@@ -268,8 +277,6 @@
       .gw-sx-rad { fill:url(#gw-sx-rad); stroke:rgba(195,240,55,.4); stroke-width:1; vector-effect:non-scaling-stroke; pointer-events:none; }
       .gw-sx-line { fill:none; vector-effect:non-scaling-stroke; stroke-linecap:round; stroke-linejoin:round; pointer-events:none; }
       .gw-sx-marker, .gw-sx-marker * { pointer-events:none; }
-      .gw-sx-fast-marker { fill:rgba(243,234,210,.82); stroke:rgba(90,42,29,.7); stroke-width:1.2; vector-effect:non-scaling-stroke; pointer-events:none; }
-      .gw-sx-fast-marker.hidden { fill:rgba(243,234,210,.55); stroke:#ff5252; stroke-dasharray:3 2; }
       #gw-sx-bar { position:absolute; top:10px; left:172px; right:10px; display:flex; align-items:center; gap:10px; z-index:6; pointer-events:none; }
       #gw-sx-bar > * { pointer-events:auto; }
       #gw-sx-bar .sx-title { font-family:'Cinzel',serif; font-size:13px; letter-spacing:.08em; color:#ffce9e; background:rgba(14,8,2,.9); border:1px solid #5a3a0a; padding:5px 10px; border-radius:2px; }
@@ -1123,6 +1130,7 @@
     const gAnnotFast = document.createElementNS(SVGNS, 'g'); gAnnotFast.id = 'gw-sx-annot-fast';
     gAnnotFast.style.display = 'none';
     const gAnnot = document.createElementNS(SVGNS, 'g');   gAnnot.id = 'gw-sx-annot';
+    const gMarkers = document.createElementNS(SVGNS, 'g');  gMarkers.id = 'gw-sx-markers';
     const gEditor = document.createElementNS(SVGNS, 'g');  gEditor.id = 'gw-sx-editor';
     const gPreview = document.createElementNS(SVGNS, 'g'); gPreview.id = 'gw-sx-preview';
     const gHover = document.createElementNS(SVGNS, 'g');   gHover.id = 'gw-sx-hover';
@@ -1134,7 +1142,7 @@
     // basemap first = bottom layer: the parent map sits UNDER both the subhex
     // terrain and the raster tile layer, so fading gCells (live) or rasterBase
     // (raster mode) with the subhex-opacity slider reveals the parent map.
-    panG.append(basemap, rasterBase, gCells, gHaz, gPreview, gParents, gTarget, gAnnotFast, gAnnot, gEditor, gFog, gSel, gParty, gHover);
+    panG.append(basemap, rasterBase, gCells, gHaz, gPreview, gParents, gTarget, gAnnotFast, gAnnot, gMarkers, gEditor, gFog, gSel, gParty, gHover);
     svg.append(defs, panG);
 
     const palette = buildPalette();
@@ -1186,7 +1194,7 @@
     applyPalPos(palette);
 
     Object.assign(state.el, {
-      overlay, svg, rasterBase, gCells, gParents, gAnnotFast, gAnnot, gEditor, gHaz, panG, gPreview, gHover, gSel, gFog, gParty, gTarget, basemap, title, read, enc,
+      overlay, svg, rasterBase, gCells, gParents, gAnnotFast, gAnnot, gMarkers, gEditor, gHaz, panG, gPreview, gHover, gSel, gFog, gParty, gTarget, basemap, title, read, enc,
       readBody: read.querySelector('#gw-sx-read-body'),
       mode: palette.querySelector('#gw-sx-mode'),
       undoBtn: palette.querySelector('#gw-sx-undo'),
@@ -1199,10 +1207,10 @@
       medHidden: med.querySelector('#gw-sx-med-hidden'),
       palette,
     });
-    state.el.medName.addEventListener('input', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { name: state.el.medName.value }); markRasterDirtySelMarker(); renderAnnotations(); renderDossier(); } });
-    state.el.medKind.addEventListener('change', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { kind: state.el.medKind.value }); markRasterDirtySelMarker(); renderAnnotations(); renderDossier(); } });
-    state.el.medHidden.addEventListener('change', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { hidden: state.el.medHidden.checked }); markRasterDirtySelMarker(); renderAnnotations(); } });
-    med.querySelector('#gw-sx-med-del').addEventListener('click', () => { if (state.markerSel){ markRasterDirtySelMarker(); A().deleteMarker(state.markerSel); closeMarkerEditor(); renderAnnotations(); } });
+    state.el.medName.addEventListener('input', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { name: state.el.medName.value }); renderAnnotations(); renderDossier(); } });
+    state.el.medKind.addEventListener('change', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { kind: state.el.medKind.value }); renderAnnotations(); renderDossier(); } });
+    state.el.medHidden.addEventListener('change', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { hidden: state.el.medHidden.checked }); renderAnnotations(); } });
+    med.querySelector('#gw-sx-med-del').addEventListener('click', () => { if (state.markerSel){ A().deleteMarker(state.markerSel); closeMarkerEditor(); renderAnnotations(); } });
     med.querySelector('#gw-sx-med-done').addEventListener('click', closeMarkerEditor);
     back.addEventListener('click', close);
     fit.addEventListener('click', () => { if (state.curParent) centerOnParent(state.curParent.col, state.curParent.row); });
@@ -1250,7 +1258,7 @@
     const u = curU();
     const px = (2 * ((d && d.HEX_R) || 20)) / Math.max(u, 0.0001);
     const size = px >= 360 ? 1024 : px >= 220 ? 768 : px >= 120 ? 512 : 384;
-    return { size, labels: u <= FEATURE_LABEL_MAX_U, hidden: state.rasterShowHidden !== false };
+    return { size, hidden: state.rasterShowHidden !== false };
   }
   function rasterVisibleParentCols(){
     const d = D();
@@ -1276,7 +1284,7 @@
     return Math.max(RASTER_MAX_VISIBLE_TILES, rasterMaxVisibleTiles() * 3);
   }
   function rasterTileKey(p, ctx){
-    return p ? `${p.col},${p.row}|ancient:${state.showAncientRoads ? 1 : 0}|labels:${ctx.labels ? 1 : 0}|hidden:${ctx.hidden ? 1 : 0}|size:${ctx.size}` : '';
+    return p ? `${p.col},${p.row}|ancient:${state.showAncientRoads ? 1 : 0}|hidden:${ctx.hidden ? 1 : 0}|size:${ctx.size}` : '';
   }
   function rasterLayerKey(parents, ctx){
     // Tile coverage, not view center, determines whether the raster image layer
@@ -1388,13 +1396,6 @@
   // visible tile. '*' (bare markRasterDirty) still means "everything".
   function markRasterDirty(){ state.rasterDirtyParents.add('*'); }
   function markRasterDirtyParent(p){ if (p) state.rasterDirtyParents.add(`${p.col},${p.row}`); }
-  function markRasterDirtyWorld(x, y){
-    const d = D();
-    if (!d || !d.svgToAxial || !d.ownerOf) return markRasterDirty();
-    const a = d.svgToAxial(+x, +y);
-    const o = d.ownerOf(a.Q, a.R);
-    if (o) markRasterDirtyParent(o); else markRasterDirty();
-  }
   function markRasterDirtyCells(cells){
     const d = D();
     if (!d || !d.ownerOf) return markRasterDirty();
@@ -1415,10 +1416,6 @@
       mark(x, y);
       prev = [x, y];
     }
-  }
-  function markRasterDirtySelMarker(){
-    const m = state.markerSel && A() ? A().listMarkers().find(x => x.id === state.markerSel) : null;
-    if (m) markRasterDirtyWorld(m.x, m.y); else markRasterDirty();
   }
   // Evict cached tiles for dirty parents (all size/label variants) so they
   // regenerate on demand — including offscreen tiles the old boolean flag
@@ -1451,12 +1448,11 @@
       showStamp: false,
       showGrid: true,
       showRadiation: true,
-      showMarkers: true,
-      showLabels: ctx.labels,
+      showMarkers: false,     // markers + labels are the live gMarkers overlay
+      showLabels: false,
       showAncientRoads: state.showAncientRoads,
       transparentBackground: true,
       showHidden: ctx.hidden,
-      maxLabels: 18,
     });
     const b = result.displayBounds || result.imageWorldBounds || result.bounds;
     const rec = {
@@ -1624,7 +1620,7 @@
   function renderRasterOverlays(opts){
     opts = opts || {};
     updateRasterDiag();
-    applyRasterModeVisibility();
+    renderAnnotations();
     if (opts.fog !== false) renderFog();
     renderParty();
     renderSelection();
@@ -1674,7 +1670,6 @@
   }
   function pxW(){ const r = state.el.svg.getBoundingClientRect(); return r.width || 1; }
   function curU(){ return state.vb.w / pxW(); }       // world units per screen px
-  function shouldShowFeatureLabels(){ return curU() <= FEATURE_LABEL_MAX_U; }
   function syncAspect(){ const r = state.el.svg.getBoundingClientRect(); if (r.width > 0 && r.height > 0) state.vb.h = state.vb.w * (r.height / r.width); }
   function centerOnParent(col, row, w){
     const c = D().parentSvgCenter(col, row);
@@ -1753,7 +1748,7 @@
         else if (a.type === 'annot-erase'){ eraseAnnotationAt(e); return; }
         else if (a.type === 'annot-edit'){
           const m = markerAt(e);
-          if (m){ selectMarker(m.id); state.markerDrag = { m, moved: false, ox: m.x, oy: m.y }; return; }
+          if (m){ selectMarker(m.id); state.markerDrag = { m, moved: false }; return; }
           closeMarkerEditor();   // clicked empty space — deselect, but allow panning
           state.drag = { r: svg.getBoundingClientRect(), sx: e.clientX, sy: e.clientY, vx: state.vb.x, vy: state.vb.y, moved: false };
           svg.classList.add('grabbing');
@@ -1762,7 +1757,7 @@
         else if (a.type === 'party-place'){ const c = cellAt(e); if (c) placeParty(c.Q, c.R); return; }
         else if (a.type === 'party-move'){ const c = cellAt(e); if (c) movePartyToward(c.Q, c.R); return; }
       }
-      state.drag = { r: svg.getBoundingClientRect(), sx: e.clientX, sy: e.clientY, vx: state.vb.x, vy: state.vb.y, moved: false, selCell: cellAt(e) };
+      state.drag = { r: svg.getBoundingClientRect(), sx: e.clientX, sy: e.clientY, vx: state.vb.x, vy: state.vb.y, moved: false, selCell: cellAt(e), markerHit: (!a && A()) ? markerAt(e) : null };
       svg.classList.add('grabbing');
     });
     svg.addEventListener('contextmenu', e => e.preventDefault());
@@ -1802,10 +1797,7 @@
     window.addEventListener('mouseup', () => {
       if (state.markerDrag){
         const md = state.markerDrag; state.markerDrag = null;
-        if (md.moved){
-          A().updateMarker(md.m.id, { x: md.m.x, y: md.m.y });   // persist once
-          markRasterDirtyWorld(md.ox, md.oy); markRasterDirtyWorld(md.m.x, md.m.y);
-        }
+        if (md.moved) A().updateMarker(md.m.id, { x: md.m.x, y: md.m.y });   // persist once
         renderAnnotations(); return;
       }
       if (state.editor && state.editor.dragIdx != null){ state.editor.dragIdx = null; return; }
@@ -1836,6 +1828,9 @@
           render();
         }
         applyRasterModeVisibility();
+      } else if (dr.markerHit){
+        arm({ type: 'annot-edit' });   // click a feature icon: select it, armed for drag-to-move
+        selectMarker(dr.markerHit.id);
       } else if (dr.selCell){
         selectCell(dr.selCell.Q, dr.selCell.R);
       }
@@ -2103,14 +2098,8 @@
     }
     return g;
   }
-  function markerFastEl(m, u){
-    const c = document.createElementNS(SVGNS, 'circle');
-    c.setAttribute('cx', m.x); c.setAttribute('cy', m.y); c.setAttribute('r', Math.max(2.2 * u, ICON_PX * 0.34 * u));
-    c.setAttribute('class', 'gw-sx-fast-marker' + (m.hidden ? ' hidden' : ''));
-    return c;
-  }
   function renderAnnotations(){
-    if (!A() || !state.el.gAnnot || !state.el.gAnnotFast) return;
+    if (!A() || !state.el.gAnnot || !state.el.gMarkers) return;
     if (state.rasterBase && state.rasterDirtyParents.size) updateRasterBase(false);
     const u = curU();
     const bb = state.rendered || { minX: state.vb.x, maxX: state.vb.x+state.vb.w, minY: state.vb.y, maxY: state.vb.y+state.vb.h };
@@ -2123,14 +2112,17 @@
       frag.appendChild(lineEl(s.kind, path, { color: s.color, width: s.width, condition: s.condition }));
       fastFrag.appendChild(lineEl(s.kind, path, { color: s.color, condition: s.condition, width: Math.max(1.4 * u, (s.width || (STROKE_STYLE[s.kind] || STROKE_STYLE.pen).width) * 0.85) }));
     }
-    const showLabels = shouldShowFeatureLabels();
+    // Markers + labels are always live SVG (never baked into raster tiles):
+    // constant screen size at every zoom, per-kind icons, clickable, and the
+    // selection ring stays visible in raster mode.
+    const mFrag = document.createDocumentFragment();
     for (const m of A().markersInBbox(markerBb)){
-      frag.appendChild(markerEl(m.kind, m.x, m.y, m.name, u, m.hidden, showLabels));
-      fastFrag.appendChild(markerFastEl(m, u));
-      if (state.markerSel === m.id) frag.appendChild(markerSelRing(m.x, m.y, u));
+      mFrag.appendChild(markerEl(m.kind, m.x, m.y, m.name, u, m.hidden, true));
+      if (state.markerSel === m.id) mFrag.appendChild(markerSelRing(m.x, m.y, u));
     }
     state.el.gAnnot.replaceChildren(frag);
     state.el.gAnnotFast.replaceChildren(fastFrag);
+    state.el.gMarkers.replaceChildren(mFrag);
     applyRasterModeVisibility();
     editorRender();
   }
@@ -2282,7 +2274,7 @@
     let name = '';
     if (e.shiftKey){ try { name = window.prompt('Settlement name (optional):', '') || ''; } catch(_){} }
     A().addMarker(state.armed.kind, w.x, w.y, name ? { name } : null);
-    markRasterDirtyWorld(w.x, w.y); renderAnnotations();
+    renderAnnotations();
   }
   function distToSeg(px, py, ax, ay, bx, by){
     const dx = bx-ax, dy = by-ay; const l2 = dx*dx + dy*dy;
@@ -2338,7 +2330,7 @@
     const w = clientToWorld(e), u = curU();
     if (!worldPointInActiveRasterParent(w)) return;
     const bestM = markerAt(e);                       // markers first
-    if (bestM){ markRasterDirtyWorld(bestM.x, bestM.y); A().deleteMarker(bestM.id); renderAnnotations(); return; }
+    if (bestM){ A().deleteMarker(bestM.id); renderAnnotations(); return; }
     // then strokes
     const thr = 6 * u;
     let bestS = null, bestSD = thr;
@@ -2511,5 +2503,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render, centerOn, zoomTo, rebuildRasterTiles };
-  try { console.log('[gw-subhex-view] v0.45.0 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.46.0 loaded'); } catch(_){}
 })();
