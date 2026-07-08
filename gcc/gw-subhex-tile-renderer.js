@@ -1,7 +1,10 @@
-// gw-subhex-tile-renderer.js v0.1.4 — 2026-07-07
-// Raster preview renderer for the deterministic Gamma World subhex atlas.
+// gw-subhex-tile-renderer.js v0.1.5 — 2026-07-08
+// v0.1.5 — batch cell fills by terrain color and the grid into single paths
+//          (one fill per color, one stroke for the whole grid) instead of a
+//          beginPath/fill/stroke round-trip per cell across three passes.
 // v0.1.4 — draw atlas renderCells, including parent-edge boundary fragments,
 //          so transparent multi-parent raster tiles stitch cleanly.
+// Raster preview renderer for the deterministic Gamma World subhex atlas.
 // v0.1.3 — support transparent tile backgrounds so multi-parent raster tiles
 //          can overlap without opaque canvas gutters masking neighboring hexes.
 // v0.1.2 — return pixel-to-world display bounds so SVG overlays align with
@@ -187,16 +190,30 @@
     return fragments.length ? cells.concat(fragments) : cells;
   }
 
+  function addHexToPath(path, cx, cy, r){
+    const pts = flatCorners(cx, cy, r);
+    path.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < 6; i++) path.lineTo(pts[i][0], pts[i][1]);
+    path.closePath();
+  }
   function drawCells(ctx, source, proj, opts){
     const d = D();
     const subR = d ? d.SUB_R : 2;
     const cells = renderCellsForSource(source);
+    const byColor = new Map();   // fill color -> Path2D of all its hexes
+    const grid = (opts.showGrid !== false) ? new Path2D() : null;
     for (const c of cells){
       if (!c || !c.center) continue;
-      hexPath(ctx, c.center.x, c.center.y, subR);
-      ctx.fillStyle = cssColorForTerrain(c.terrain || 'unknown');
-      ctx.globalAlpha = 0.95;
-      ctx.fill();
+      const color = cssColorForTerrain(c.terrain || 'unknown');
+      let path = byColor.get(color);
+      if (!path){ path = new Path2D(); byColor.set(color, path); }
+      addHexToPath(path, c.center.x, c.center.y, subR);
+      if (grid) addHexToPath(grid, c.center.x, c.center.y, subR);
+    }
+    ctx.globalAlpha = 0.95;
+    for (const [color, path] of byColor){
+      ctx.fillStyle = color;
+      ctx.fill(path);
     }
     if (opts.showRadiation !== false){
       for (const c of cells){
@@ -204,15 +221,11 @@
         drawRadiationHex(ctx, c.center.x, c.center.y, subR, proj);
       }
     }
-    if (opts.showGrid !== false){
+    if (grid){
       ctx.globalAlpha = 1;
       ctx.strokeStyle = 'rgba(25, 15, 8, 0.38)';
       ctx.lineWidth = proj.worldPx(0.8);
-      for (const c of cells){
-        if (!c || !c.center) continue;
-        hexPath(ctx, c.center.x, c.center.y, subR);
-        ctx.stroke();
-      }
+      ctx.stroke(grid);
     }
   }
 

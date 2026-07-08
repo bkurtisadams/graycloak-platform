@@ -1,4 +1,12 @@
-// gw-subhex-view.js v0.43.8 — 2026-07-08
+// gw-subhex-view.js v0.44.0 — 2026-07-08
+// v0.44.0 — raster perf + slider fix: per-parent dirty tracking (edits evict
+//           only touched tiles instead of regenerating every visible tile),
+//           async toBlob/object-URL tile encoding off the sync path (no more
+//           main-thread WebP dataURL stalls), LRU tile cache eviction, one
+//           layout read per raster pass (tile size/labels computed once and
+//           threaded), fog revealed-cell center memo + fog redrawn on pan end,
+//           and Base map / opacity / subhex-fill sliders now work in raster
+//           mode (basemap stacked under the raster layer; hex-op fades it).
 // v0.43.8 — restore fog with viewport veil + revealed-cell cutouts, and show
 //           named feature labels only at closer zoom levels instead of far out.
 // v0.43.7 — fog viewport fix: render fog from the live viewport instead of
@@ -193,7 +201,7 @@
     rasterBase: false,
     rasterKey: null,          // rendered neighborhood key
     rasterBusy: false,
-    rasterDirty: false,
+    rasterDirtyParents: new Set(),   // parent "col,row" keys (or '*') needing tile regen
     rasterTiles: new Map(),   // tileKey -> { url, bounds, stats, col, row, size }
     rasterImageEls: new Map(), // tileKey -> reusable SVG <image> node
     rasterParentKeys: new Set(),
@@ -240,7 +248,7 @@
       .gw-sx-parent-target { fill:rgba(255,196,90,.06); stroke:#ffc45a; stroke-width:2.5; stroke-dasharray:6 4; vector-effect:non-scaling-stroke; pointer-events:none; }
       .gw-sx-hover { fill:none; stroke:rgba(255,220,120,.95); stroke-width:2; vector-effect:non-scaling-stroke; pointer-events:none; }
       .gw-sx-sel { fill:rgba(110,210,255,.14); stroke:#66d9ff; stroke-width:2.5; vector-effect:non-scaling-stroke; pointer-events:none; }
-      .gw-sx-fog { fill:rgba(8,10,16,.55); stroke:rgba(8,10,16,.55); stroke-width:1; vector-effect:non-scaling-stroke; pointer-events:none; }
+      .gw-sx-fog { fill:rgba(8,10,16,.55); fill-rule:evenodd; stroke:none; pointer-events:none; }
       .gw-sx-party { fill:rgba(255,82,82,.16); stroke:#ff5252; stroke-width:2.5; vector-effect:non-scaling-stroke; pointer-events:none; }
       .gw-sx-party-dot { fill:#ff5252; stroke:#fff; stroke-width:1; vector-effect:non-scaling-stroke; pointer-events:none; }
       .gw-sx-parent { fill:none; stroke:rgba(255,200,120,.5); stroke-width:1.5; vector-effect:non-scaling-stroke; pointer-events:none; }
@@ -739,8 +747,9 @@
     const p = targetParent();
     if (!p || !window.GWFeatureGen){ return; }
     const res = window.GWFeatureGen.generateForParent(p.col, p.row);
+    markRasterDirtyParent(p);
     renderAnnotations();
-    if (state.rasterBase) updateRasterBase(true);
+    if (state.rasterBase) updateRasterBase(false);
     if (res && state.el.mode){
       state.el.mode.textContent = `Parent ${p.col},${p.row}: ${res.markers} sites, ${res.strokes} paths`;
       setTimeout(syncMode, 2800);
@@ -750,8 +759,9 @@
     const p = targetParent();
     if (!p || !window.GWFeatureGen){ return; }
     const n = window.GWFeatureGen.clearForParent(p.col, p.row);
+    markRasterDirtyParent(p);
     renderAnnotations();
-    if (state.rasterBase) updateRasterBase(true);
+    if (state.rasterBase) updateRasterBase(false);
     if (state.el.mode){ state.el.mode.textContent = `Cleared ${n} generated`; setTimeout(syncMode, 2000); }
   }
 
@@ -958,22 +968,26 @@
     // Fog is an overlay tied to the visible viewport, not to the heavier padded
     // terrain/raster coverage cache. Keeping it local prevents stale or huge fog
     // paths when raster pan/zoom work is deferred for performance.
-    const mx = state.vb.w * 0.08, my = state.vb.h * 0.08;
+    const mx = state.vb.w * 0.35, my = state.vb.h * 0.35;
     return { minX: state.vb.x - mx, maxX: state.vb.x + state.vb.w + mx, minY: state.vb.y - my, maxY: state.vb.y + state.vb.h + my };
   }
   function fogRectPath(bb){
     const f = n => (+n).toFixed(2);
     return `M ${f(bb.minX)},${f(bb.minY)} H ${f(bb.maxX)} V ${f(bb.maxY)} H ${f(bb.minX)} Z `;
   }
-  function keyInFogBounds(key, bb){
-    const parts = String(key).split('_');
-    if (parts.length !== 2) return null;
-    const Q = +parts[0], R = +parts[1];
-    if (!Number.isFinite(Q) || !Number.isFinite(R)) return null;
-    const c = D().subhexSvgCenter(Q, R);
-    const pad = D().SUB_R * 1.2;
-    if (c.x < bb.minX - pad || c.x > bb.maxX + pad || c.y < bb.minY - pad || c.y > bb.maxY + pad) return null;
-    return { Q, R };
+  // Revealed-key -> {Q,R,x,y} memo: centers are deterministic, so the parse +
+  // subhexSvgCenter cost is paid once per cell ever, not once per fog render.
+  const _fogCenter = new Map();
+  function fogCellCenter(key){
+    let c = _fogCenter.get(key);
+    if (c !== undefined) return c;
+    const s = String(key), i = s.indexOf('_');
+    const Q = +s.slice(0, i), R = +s.slice(i + 1);
+    if (i <= 0 || !Number.isFinite(Q) || !Number.isFinite(R)) c = null;
+    else { const p = D().subhexSvgCenter(Q, R); c = { Q, R, x: p.x, y: p.y }; }
+    if (_fogCenter.size > 300000) _fogCenter.clear();
+    _fogCenter.set(key, c);
+    return c;
   }
 
   // Draw one viewport-sized fog veil and punch out revealed cells with even-odd
@@ -987,18 +1001,18 @@
     if (!d || !d.subhexSvgCenter) return;
     if (!state.revealed) state.revealed = new Set();
     const bb = fogBounds();
+    const pad = d.SUB_R * 1.2;
+    const minX = bb.minX - pad, maxX = bb.maxX + pad, minY = bb.minY - pad, maxY = bb.maxY + pad;
     let dStr = fogRectPath(bb);
     for (const key of state.revealed){
-      const cell = keyInFogBounds(key, bb);
-      if (!cell) continue;
-      dStr += subhexPath(cell.Q, cell.R);
+      const c = fogCellCenter(key);
+      if (!c || c.x < minX || c.x > maxX || c.y < minY || c.y > maxY) continue;
+      dStr += subhexPath(c.Q, c.R);
     }
     const p = document.createElementNS(SVGNS, 'path');
     p.setAttribute('d', dStr);
     p.setAttribute('class', 'gw-sx-fog');
     p.setAttribute('fill-rule', 'evenodd');
-    p.style.fillRule = 'evenodd';
-    p.style.stroke = 'none';
     g.appendChild(p);
   }
 
@@ -1043,9 +1057,10 @@
     const gParty = document.createElementNS(SVGNS, 'g');   gParty.id = 'gw-sx-party';
     const gTarget = document.createElementNS(SVGNS, 'g');  gTarget.id = 'gw-sx-target';
     const panG = document.createElementNS(SVGNS, 'g');     panG.id = 'gw-sx-pan';
-    // basemap first = bottom layer: the parent map sits UNDER the subhex terrain,
-    // so fading gCells (subhex opacity slider) reveals the parent through the hexes.
-    panG.append(rasterBase, basemap, gCells, gHaz, gPreview, gParents, gTarget, gAnnotFast, gAnnot, gEditor, gFog, gSel, gParty, gHover);
+    // basemap first = bottom layer: the parent map sits UNDER both the subhex
+    // terrain and the raster tile layer, so fading gCells (live) or rasterBase
+    // (raster mode) with the subhex-opacity slider reveals the parent map.
+    panG.append(basemap, rasterBase, gCells, gHaz, gPreview, gParents, gTarget, gAnnotFast, gAnnot, gEditor, gFog, gSel, gParty, gHover);
     svg.append(defs, panG);
 
     const palette = buildPalette();
@@ -1070,9 +1085,10 @@
     const hexOp = document.createElement('input');
     hexOp.type = 'range'; hexOp.id = 'gw-sx-hex-op'; hexOp.min = '0'; hexOp.max = '100'; hexOp.step = '5';
     hexOp.value = String(loadHexOp());
-    hexOp.title = 'Subhex fill opacity — fade the terrain fills to reveal the parent map; the hex grid stays';
+    hexOp.title = 'Subhex fill opacity — fade the terrain fills (live) or the raster tile layer to reveal the parent map';
     hexOp.style.cssText = 'width:80px; accent-color:#66d9ff;';
     gCells.style.setProperty('--gw-cell-fill', (loadHexOp() / 100).toFixed(2));   // apply persisted terrain-fill opacity
+    rasterBase.style.opacity = (loadHexOp() / 100).toFixed(2);
     const fit = mkBtn('Fit parent', 'gw-sx-fit');
     bar.append(back, title, spacer, tog, arTog, rasterTog, mapTog, mapOp, hexOp, fit);
     const read = document.createElement('div'); read.id = 'gw-sx-read';
@@ -1108,15 +1124,15 @@
       medHidden: med.querySelector('#gw-sx-med-hidden'),
       palette,
     });
-    state.el.medName.addEventListener('input', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { name: state.el.medName.value }); markRasterDirty(); renderAnnotations(); renderDossier(); } });
-    state.el.medKind.addEventListener('change', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { kind: state.el.medKind.value }); markRasterDirty(); renderAnnotations(); renderDossier(); } });
-    state.el.medHidden.addEventListener('change', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { hidden: state.el.medHidden.checked }); markRasterDirty(); renderAnnotations(); } });
-    med.querySelector('#gw-sx-med-del').addEventListener('click', () => { if (state.markerSel){ A().deleteMarker(state.markerSel); markRasterDirty(); closeMarkerEditor(); renderAnnotations(); } });
+    state.el.medName.addEventListener('input', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { name: state.el.medName.value }); markRasterDirtySelMarker(); renderAnnotations(); renderDossier(); } });
+    state.el.medKind.addEventListener('change', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { kind: state.el.medKind.value }); markRasterDirtySelMarker(); renderAnnotations(); renderDossier(); } });
+    state.el.medHidden.addEventListener('change', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { hidden: state.el.medHidden.checked }); markRasterDirtySelMarker(); renderAnnotations(); } });
+    med.querySelector('#gw-sx-med-del').addEventListener('click', () => { if (state.markerSel){ markRasterDirtySelMarker(); A().deleteMarker(state.markerSel); closeMarkerEditor(); renderAnnotations(); } });
     med.querySelector('#gw-sx-med-done').addEventListener('click', closeMarkerEditor);
     back.addEventListener('click', close);
     fit.addEventListener('click', () => { if (state.curParent) centerOnParent(state.curParent.col, state.curParent.row); });
     tog.querySelector('input').addEventListener('change', e => { state.showParents = e.target.checked; render(true); });
-    arTog.querySelector('input').addEventListener('change', e => { state.showAncientRoads = e.target.checked; saveAncientRoadsVis(state.showAncientRoads); renderAnnotations(); if (state.rasterBase) updateRasterBase(true); });
+    arTog.querySelector('input').addEventListener('change', e => { state.showAncientRoads = e.target.checked; saveAncientRoadsVis(state.showAncientRoads); renderAnnotations(); if (state.rasterBase) updateRasterBase(false); });
     rasterTog.querySelector('input').addEventListener('change', e => {
       state.rasterBase = !!e.target.checked;
       saveRasterBaseVis(state.rasterBase);
@@ -1125,9 +1141,14 @@
       render(true);
       syncMode();
     });
-    mapTog.querySelector('input').addEventListener('change', e => { basemap.style.display = e.target.checked && !state.rasterBase ? '' : 'none'; });
+    mapTog.querySelector('input').addEventListener('change', e => { basemap.style.display = e.target.checked ? '' : 'none'; });
     mapOp.addEventListener('input', e => { basemap.setAttribute('opacity', (e.target.value / 100).toFixed(2)); });
-    hexOp.addEventListener('input', e => { gCells.style.setProperty('--gw-cell-fill', (e.target.value / 100).toFixed(2)); saveHexOp(e.target.value); });
+    hexOp.addEventListener('input', e => {
+      const v = (e.target.value / 100).toFixed(2);
+      gCells.style.setProperty('--gw-cell-fill', v);
+      rasterBase.style.opacity = v;
+      saveHexOp(e.target.value);
+    });
     wireViewport(svg);
     bindCellHover(svg);
     window.addEventListener('keydown', onEditorKey);
@@ -1145,24 +1166,20 @@
   function rasterParent(){
     return centerParent() || state.curParent;
   }
-  function rasterParentScreenWidth(){
+  // One layout read per raster pass: curU() forces getBoundingClientRect, so
+  // tile size + label visibility are computed once here and threaded through
+  // key/render calls instead of re-reading layout per parent tile.
+  function rasterViewContext(){
     const d = D();
-    if (!d || !state.el.svg) return 0;
-    return (2 * (d.HEX_R || 20)) / Math.max(curU(), 0.0001);
+    const u = curU();
+    const px = (2 * ((d && d.HEX_R) || 20)) / Math.max(u, 0.0001);
+    const size = px >= 360 ? 1024 : px >= 220 ? 768 : px >= 120 ? 512 : 384;
+    return { size, labels: u <= FEATURE_LABEL_MAX_U };
   }
   function rasterVisibleParentCols(){
     const d = D();
     if (!d) return 1;
     return state.vb.w / Math.max(1, 1.5 * (d.HEX_R || 20));
-  }
-  function rasterTileSizeForZoom(){
-    // 1024px parent tiles are useful up close, but waste decode/composite time
-    // when the camera is zoomed far enough out that a whole parent is tiny.
-    const px = rasterParentScreenWidth();
-    if (px >= 360) return 1024;
-    if (px >= 220) return 768;
-    if (px >= 120) return 512;
-    return 384;
   }
   function rasterViewPadParents(){
     // At far zoom, a single view already contains many parents; a large offscreen
@@ -1182,15 +1199,15 @@
   function rasterTileCacheMax(){
     return Math.max(RASTER_MAX_VISIBLE_TILES, rasterMaxVisibleTiles() * 3);
   }
-  function rasterTileKey(p){
-    return p ? `${p.col},${p.row}|ancient:${state.showAncientRoads ? 1 : 0}|labels:${shouldShowFeatureLabels() ? 1 : 0}|size:${rasterTileSizeForZoom()}` : '';
+  function rasterTileKey(p, ctx){
+    return p ? `${p.col},${p.row}|ancient:${state.showAncientRoads ? 1 : 0}|labels:${ctx.labels ? 1 : 0}|size:${ctx.size}` : '';
   }
-  function rasterLayerKey(parents){
+  function rasterLayerKey(parents, ctx){
     // Tile coverage, not view center, determines whether the raster image layer
     // needs to be rebuilt. The center parent can change while wheel-zooming
     // around the cursor; forcing a tile DOM rebuild for that label-only change
     // made raster zoom feel like walking through swamp syrup.
-    return (parents || []).map(rasterTileKey).join(';');
+    return (parents || []).map(p => rasterTileKey(p, ctx)).join(';');
   }
   function rasterParentBounds(p, pad){
     const d = D();
@@ -1252,13 +1269,18 @@
     out.sort((a, b) => (a.col - b.col) || (a.row - b.row));
     return out;
   }
+  function evictRasterTile(key){
+    const rec = state.rasterTiles.get(key);
+    if (rec && rec.blob && rec.url){ try { URL.revokeObjectURL(rec.url); } catch(_){} }
+    state.rasterTiles.delete(key);
+    state.rasterImageEls.delete(key);
+  }
   function trimRasterTileCache(max){
     max = max || 36;
     while (state.rasterTiles.size > max){
       const first = state.rasterTiles.keys().next().value;
       if (first == null) break;
-      state.rasterTiles.delete(first);
-      state.rasterImageEls.delete(first);
+      evictRasterTile(first);
     }
   }
   function rasterCoverageHasParent(p){
@@ -1274,7 +1296,7 @@
     state.el.rasterBase.style.display = on && state.el.rasterBase.childNodes.length ? '' : 'none';
     if (state.el.basemap){
       const baseChecked = !!(document.getElementById('gw-sx-toggle-map') || {}).checked;
-      state.el.basemap.style.display = (!on && baseChecked) ? '' : 'none';
+      state.el.basemap.style.display = baseChecked ? '' : 'none';
     }
     // In raster mode, the generated tiles are the expensive visual base. Keep the
     // lightweight interactive layers alive, but hide the live terrain/path stacks.
@@ -1283,19 +1305,73 @@
     // and live mode should keep it hidden except during an active pan.
     if (state.el.gAnnotFast) state.el.gAnnotFast.style.display = 'none';
   }
-  function markRasterDirty(){ state.rasterDirty = true; }
-  function renderRasterTile(p, force){
-    const key = rasterTileKey(p);
-    if (!force && !state.rasterDirty && state.rasterTiles.has(key)) return state.rasterTiles.get(key);
+  // Dirty tracking is per 30-mile parent: editing one marker or brushing a few
+  // cells evicts only that parent's cached tiles instead of regenerating every
+  // visible tile. '*' (bare markRasterDirty) still means "everything".
+  function markRasterDirty(){ state.rasterDirtyParents.add('*'); }
+  function markRasterDirtyParent(p){ if (p) state.rasterDirtyParents.add(`${p.col},${p.row}`); }
+  function markRasterDirtyWorld(x, y){
+    const d = D();
+    if (!d || !d.svgToAxial || !d.ownerOf) return markRasterDirty();
+    const a = d.svgToAxial(+x, +y);
+    const o = d.ownerOf(a.Q, a.R);
+    if (o) markRasterDirtyParent(o); else markRasterDirty();
+  }
+  function markRasterDirtyCells(cells){
+    const d = D();
+    if (!d || !d.ownerOf) return markRasterDirty();
+    for (const c of (cells || [])) markRasterDirtyParent(d.ownerOf(c.Q, c.R));
+  }
+  function markRasterDirtyPts(pts){
+    const d = D();
+    if (!d || !d.svgToAxial || !d.ownerOf) return markRasterDirty();
+    const mark = (x, y) => { const a = d.svgToAxial(x, y); markRasterDirtyParent(d.ownerOf(a.Q, a.R)); };
+    const step = (d.HEX_R || 20) * 0.6;   // sparse spline waypoints can skip whole parents
+    let prev = null;
+    for (const p of (pts || [])){
+      const x = +p[0], y = +p[1];
+      if (prev){
+        const len = Math.hypot(x - prev[0], y - prev[1]);
+        for (let t = step; t < len; t += step) mark(prev[0] + (x - prev[0]) * t / len, prev[1] + (y - prev[1]) * t / len);
+      }
+      mark(x, y);
+      prev = [x, y];
+    }
+  }
+  function markRasterDirtySelMarker(){
+    const m = state.markerSel && A() ? A().listMarkers().find(x => x.id === state.markerSel) : null;
+    if (m) markRasterDirtyWorld(m.x, m.y); else markRasterDirty();
+  }
+  // Evict cached tiles for dirty parents (all size/label variants) so they
+  // regenerate on demand — including offscreen tiles the old boolean flag
+  // left stale after its one visible-tile pass.
+  function flushRasterDirty(){
+    const dirty = state.rasterDirtyParents;
+    if (!dirty.size) return false;
+    const all = dirty.has('*');
+    for (const k of [...state.rasterTiles.keys()]){
+      if (all || dirty.has(k.slice(0, k.indexOf('|')))) evictRasterTile(k);
+    }
+    dirty.clear();
+    return true;
+  }
+  function renderRasterTile(p, force, ctx){
+    const key = rasterTileKey(p, ctx);
+    if (!force && state.rasterTiles.has(key)){
+      const hit = state.rasterTiles.get(key);
+      state.rasterTiles.delete(key); state.rasterTiles.set(key, hit);   // LRU touch
+      return hit;
+    }
+    if (state.rasterTiles.has(key)) evictRasterTile(key);
     const result = window.GWSubhexTileRenderer.renderParent(p.col, p.row, {
-      size: rasterTileSizeForZoom(),
+      size: ctx.size,
       marginPx: 0,
       paddingWorld: 1.0,
       showStamp: false,
       showGrid: true,
       showRadiation: true,
       showMarkers: true,
-      showLabels: shouldShowFeatureLabels(),
+      showLabels: ctx.labels,
       showAncientRoads: state.showAncientRoads,
       transparentBackground: true,
       showHidden: true,
@@ -1303,13 +1379,31 @@
     });
     const b = result.displayBounds || result.imageWorldBounds || result.bounds;
     const rec = {
-      col: p.col, row: p.row, key, size: rasterTileSizeForZoom(),
+      col: p.col, row: p.row, key, size: ctx.size,
       bounds: { minX:+b.minX, minY:+b.minY, maxX:+b.maxX, maxY:+b.maxY },
       stats: result.stats || {},
-      url: result.canvas.toDataURL('image/webp', 0.9),
+      url: null, blob: false,
     };
     state.rasterTiles.set(key, rec);
     trimRasterTileCache(rasterTileCacheMax());
+    // Encode off the sync path: toDataURL('image/webp') blocked the main
+    // thread for every tile; toBlob encodes async and the object URL is
+    // attached to the (reused) <image> node when it lands.
+    const canvas = result.canvas;
+    if (typeof canvas.toBlob === 'function'){
+      canvas.toBlob(blob => {
+        if (state.rasterTiles.get(key) !== rec) return;   // evicted/replaced meanwhile
+        if (blob){ rec.url = URL.createObjectURL(blob); rec.blob = true; }
+        else rec.url = canvas.toDataURL('image/webp', 0.9);
+        const img = state.rasterImageEls.get(key);
+        if (img){
+          img.setAttribute('href', rec.url);
+          img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', rec.url);
+        }
+      }, 'image/webp', 0.9);
+    } else {
+      rec.url = canvas.toDataURL('image/webp', 0.9);
+    }
     return rec;
   }
   function imageForRasterTile(rec){
@@ -1318,7 +1412,6 @@
     if (!img){
       img = document.createElementNS(SVGNS, 'image');
       img.setAttribute('preserveAspectRatio', 'none');
-      img.setAttribute('loading', 'eager');
       state.rasterImageEls.set(rec.key, img);
     }
     img.setAttribute('x', b.minX);
@@ -1326,8 +1419,8 @@
     img.setAttribute('width', b.maxX - b.minX);
     img.setAttribute('height', b.maxY - b.minY);
     img.setAttribute('data-parent', `${rec.col},${rec.row}`);
-    img.setAttribute('data-size', rec.size || rasterTileSizeForZoom());
-    if (img.getAttribute('href') !== rec.url){
+    img.setAttribute('data-size', rec.size);
+    if (rec.url && img.getAttribute('href') !== rec.url){
       img.setAttribute('href', rec.url);
       img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', rec.url);
     }
@@ -1341,20 +1434,22 @@
       state.el.rasterBase.style.display = 'none';
       return null;
     }
+    if (state.rasterBusy) return null;
+    const wasDirty = flushRasterDirty();
     const center = rasterParent();
+    const ctx = rasterViewContext();
     const parents = rasterNeighborParents(center);
-    const key = rasterLayerKey(parents);
+    const key = rasterLayerKey(parents, ctx);
     if (!center || !parents.length || !window.GWSubhexTileRenderer || !key){
       state.rasterParentKeys.clear();
       state.el.rasterBase.replaceChildren();
       state.el.rasterBase.style.display = 'none';
       return null;
     }
-    if (!force && !state.rasterDirty && state.rasterKey === key && state.el.rasterBase.childNodes.length){
+    if (!force && !wasDirty && state.rasterKey === key && state.el.rasterBase.childNodes.length){
       applyRasterModeVisibility();
       return null;
     }
-    if (state.rasterBusy) return null;
     state.rasterBusy = true;
     try {
       const frag = document.createDocumentFragment();
@@ -1362,7 +1457,7 @@
       let totalCells = 0;
       let totalFragments = 0;
       for (const p of parents){
-        const rec = renderRasterTile(p, force);
+        const rec = renderRasterTile(p, force, ctx);
         frag.appendChild(imageForRasterTile(rec));
         nextKeys.add(`${p.col},${p.row}`);
         totalCells += +(rec.stats && rec.stats.cells || 0);
@@ -1371,8 +1466,7 @@
       state.el.rasterBase.replaceChildren(frag);
       state.rasterParentKeys = nextKeys;
       state.rasterKey = key;
-      state.rasterDirty = false;
-      state.rasterStats = { parents: parents.length, cells: totalCells, fragments: totalFragments };
+      state.rasterStats = { parents: parents.length, cells: totalCells, fragments: totalFragments, size: ctx.size };
       updateRasterModeText(center);
       applyRasterModeVisibility();
       return { center, parents, cells: totalCells };
@@ -1396,7 +1490,7 @@
   function updateRasterModeText(center){
     if (!center || !state.el.mode || !state.rasterBase || !state.rasterStats) return;
     const st = state.rasterStats;
-    state.el.mode.textContent = `Raster tiles: ${st.parents} visible parents around ${center.col},${center.row} · ${rasterTileSizeForZoom()}px tiles · ${st.cells} cells${st.fragments ? ` + ${st.fragments} seams` : ''}`;
+    state.el.mode.textContent = `Raster tiles: ${st.parents} visible parents around ${center.col},${center.row} · ${st.size}px tiles · ${st.cells} cells${st.fragments ? ` + ${st.fragments} seams` : ''}`;
   }
 
   function renderBounds(){
@@ -1427,8 +1521,7 @@
     const bbox = renderBounds();
     if (force || !bboxInside(bbox, state.rendered)) state.rendered = bbox;
     if (!state.rasterZooming){
-      if (state.rasterDirty) updateRasterBase(true);
-      else updateRasterBase(false);
+      updateRasterBase(false);
       renderRasterOverlays({ fog: true });
     } else {
       // During active wheel zoom, do not rebuild tile coverage or fog. The SVG
@@ -1520,7 +1613,7 @@
         else if (a.type === 'annot-erase'){ eraseAnnotationAt(e); return; }
         else if (a.type === 'annot-edit'){
           const m = markerAt(e);
-          if (m){ selectMarker(m.id); state.markerDrag = { m, moved: false }; return; }
+          if (m){ selectMarker(m.id); state.markerDrag = { m, moved: false, ox: m.x, oy: m.y }; return; }
           closeMarkerEditor();   // clicked empty space — deselect, but allow panning
           state.drag = { r: svg.getBoundingClientRect(), sx: e.clientX, sy: e.clientY, vx: state.vb.x, vy: state.vb.y, moved: false };
           svg.classList.add('grabbing');
@@ -1569,7 +1662,10 @@
     window.addEventListener('mouseup', () => {
       if (state.markerDrag){
         const md = state.markerDrag; state.markerDrag = null;
-        if (md.moved){ A().updateMarker(md.m.id, { x: md.m.x, y: md.m.y }); markRasterDirty(); }   // persist once
+        if (md.moved){
+          A().updateMarker(md.m.id, { x: md.m.x, y: md.m.y });   // persist once
+          markRasterDirtyWorld(md.ox, md.oy); markRasterDirtyWorld(md.m.x, md.m.y);
+        }
         renderAnnotations(); return;
       }
       if (state.editor && state.editor.dragIdx != null){ state.editor.dragIdx = null; return; }
@@ -1577,9 +1673,10 @@
       if (state.brush){
         D().flushOverrides();
         if (state.brush.undo.length){ state.undoStack.push(state.brush.undo); if (state.undoStack.length > 30) state.undoStack.shift(); }
+        const painted = [...state.brush.set].map(k => { const i = k.indexOf('_'); return { Q: +k.slice(0, i), R: +k.slice(i + 1) }; });
         state.brush = null; state.el.svg.classList.remove('painting');
         state.el.gPreview.replaceChildren(); state.previewMap = new Map();
-        markRasterDirty(); syncUndoBtn(); render(true); return;
+        markRasterDirtyCells(painted); syncUndoBtn(); render(true); return;
       }
       if (!state.drag) return;
       const dr = state.drag; state.drag = null; state.el.svg.classList.remove('grabbing');
@@ -1593,7 +1690,7 @@
         state.el.gAnnotFast.style.display = state.fastAnnotDisp == null ? 'none' : state.fastAnnotDisp;
         state.el.basemap.style.display = state.basemapDisp || '';
         if (state.rasterBase){
-          renderRasterOverlays({ fog: false });
+          renderRasterOverlays({ fog: true });
           scheduleRasterIdleRefresh();
         } else {
           render();
@@ -1875,7 +1972,7 @@
   }
   function renderAnnotations(){
     if (!A() || !state.el.gAnnot || !state.el.gAnnotFast) return;
-    if (state.rasterBase && state.rasterDirty) updateRasterBase(true);
+    if (state.rasterBase && state.rasterDirtyParents.size) updateRasterBase(false);
     const u = curU();
     const bb = state.rendered || { minX: state.vb.x, maxX: state.vb.x+state.vb.w, minY: state.vb.y, maxY: state.vb.y+state.vb.h };
     const markerBb = { minX: bb.minX - 50*u, maxX: bb.maxX + 50*u, minY: bb.minY - 50*u, maxY: bb.maxY + 50*u };
@@ -1934,7 +2031,7 @@
     const st = state.stroke; state.stroke = null;
     state.el.svg.classList.remove('painting');
     if (st && st.el && st.el.parentNode) st.el.parentNode.removeChild(st.el);
-    if (st && st.pts.length >= 2){ A().addStroke(st.kind, st.pts, strokePersistOpts(st.kind, state.lineWidth, st)); markRasterDirty(); renderAnnotations(); }
+    if (st && st.pts.length >= 2){ A().addStroke(st.kind, st.pts, strokePersistOpts(st.kind, state.lineWidth, st)); markRasterDirtyPts(st.pts); renderAnnotations(); }
   }
 
   // ── spline waypoint editor (points mode) ────────────────────────────────────
@@ -1984,19 +2081,19 @@
       if (state.el.ancientConditionSel) state.el.ancientConditionSel.value = state.ancientRoadCondition;
     }
     A().deleteStroke(s.id);
-    markRasterDirty(); renderAnnotations(); editorRender(); syncEditBtns(); syncMode();
+    markRasterDirtyPts(s.pts); renderAnnotations(); editorRender(); syncEditBtns(); syncMode();
   }
   function editorRemoveLast(){ if (state.editor && state.editor.pts.length){ state.editor.pts.pop(); editorRender(); syncEditBtns(); syncMode(); } }
   function finishEditor(){
     const ed = state.editor; if (!ed) return;
     state.editor = null;
-    if (ed.pts.length >= 2){ A().addStroke(ed.kind, ed.pts, strokePersistOpts(ed.kind, ed.width, ed)); markRasterDirty(); }
+    if (ed.pts.length >= 2){ A().addStroke(ed.kind, ed.pts, strokePersistOpts(ed.kind, ed.width, ed)); markRasterDirtyPts(ed.pts); }
     editorRender(); renderAnnotations(); syncEditBtns(); syncMode();
   }
   function cancelEditor(){
     const ed = state.editor; if (!ed) return;
     state.editor = null;
-    if (ed.editingId && ed.origPts && ed.origPts.length >= 2){ A().addStroke(ed.kind, ed.origPts, strokePersistOpts(ed.kind, ed.width, ed)); markRasterDirty(); }
+    if (ed.editingId && ed.origPts && ed.origPts.length >= 2){ A().addStroke(ed.kind, ed.origPts, strokePersistOpts(ed.kind, ed.width, ed)); markRasterDirtyPts(ed.origPts); }
     editorRender(); renderAnnotations(); syncEditBtns(); syncMode();
   }
   function editorRender(){
@@ -2033,7 +2130,7 @@
     let name = '';
     if (e.shiftKey){ try { name = window.prompt('Settlement name (optional):', '') || ''; } catch(_){} }
     A().addMarker(state.armed.kind, w.x, w.y, name ? { name } : null);
-    markRasterDirty(); renderAnnotations();
+    markRasterDirtyWorld(w.x, w.y); renderAnnotations();
   }
   function distToSeg(px, py, ax, ay, bx, by){
     const dx = bx-ax, dy = by-ay; const l2 = dx*dx + dy*dy;
@@ -2089,7 +2186,7 @@
     const w = clientToWorld(e), u = curU();
     if (!worldPointInActiveRasterParent(w)) return;
     const bestM = markerAt(e);                       // markers first
-    if (bestM){ A().deleteMarker(bestM.id); markRasterDirty(); renderAnnotations(); return; }
+    if (bestM){ markRasterDirtyWorld(bestM.x, bestM.y); A().deleteMarker(bestM.id); renderAnnotations(); return; }
     // then strokes
     const thr = 6 * u;
     let bestS = null, bestSD = thr;
@@ -2100,7 +2197,7 @@
         if (d <= bestSD){ bestSD = d; bestS = s; }
       }
     }
-    if (bestS){ A().deleteStroke(bestS.id); markRasterDirty(); renderAnnotations(); }
+    if (bestS){ markRasterDirtyPts(bestS.pts); A().deleteStroke(bestS.id); renderAnnotations(); }
   }
 
   // ── terrain + hazard paint ──────────────────────────────────────────────────
@@ -2136,7 +2233,7 @@
   function undo(){
     const stroke = state.undoStack.pop(); if (!stroke){ syncUndoBtn(); return; }
     const d = D(); for (const { Q, R, before } of stroke) d.restoreOverride(Q, R, before);
-    markRasterDirty(); syncUndoBtn(); render(true);
+    markRasterDirtyCells(stroke); syncUndoBtn(); render(true);
   }
   function syncUndoBtn(){ if (state.el.undoBtn) state.el.undoBtn.disabled = state.undoStack.length === 0; }
 
@@ -2244,5 +2341,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.43.8 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.44.0 loaded'); } catch(_){}
 })();
