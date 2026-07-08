@@ -1,4 +1,6 @@
-// gw-subhex-view.js v0.43.2 — 2026-07-07
+// gw-subhex-view.js v0.43.3 — 2026-07-07
+// v0.43.3 — raster zoom perf: keep wheel zoom on the raster/overlay path,
+//           skip hidden live-cell rebuilds, and avoid center-only tile churn.
 // v0.43.2 — raster seam fix: request transparent tile gutters, render a
 //           viewport-driven parent tile set instead of a fixed 3x3 cage, and
 //           show seam-fragment counts from the atlas/renderer.
@@ -178,6 +180,7 @@
     rasterDirty: false,
     rasterTiles: new Map(),   // tileKey -> { url, bounds, stats, col, row }
     rasterParentKeys: new Set(),
+    rasterStats: null,      // last raster layer totals for diagnostics
     editor: null,        // active path editor { kind, pts, width, editingId, origPts, dragIdx }
     undoStack: [],
     cellMap: new Map(),
@@ -1058,7 +1061,14 @@
     fit.addEventListener('click', () => { if (state.curParent) centerOnParent(state.curParent.col, state.curParent.row); });
     tog.querySelector('input').addEventListener('change', e => { state.showParents = e.target.checked; render(true); });
     arTog.querySelector('input').addEventListener('change', e => { state.showAncientRoads = e.target.checked; saveAncientRoadsVis(state.showAncientRoads); renderAnnotations(); if (state.rasterBase) updateRasterBase(true); });
-    rasterTog.querySelector('input').addEventListener('change', e => { state.rasterBase = !!e.target.checked; saveRasterBaseVis(state.rasterBase); updateRasterBase(true); applyRasterModeVisibility(); renderSelection(); renderParty(); renderGenTarget(); syncMode(); });
+    rasterTog.querySelector('input').addEventListener('change', e => {
+      state.rasterBase = !!e.target.checked;
+      saveRasterBaseVis(state.rasterBase);
+      state.rendered = null;
+      if (!state.rasterBase) state.rasterKey = null;
+      render(true);
+      syncMode();
+    });
     mapTog.querySelector('input').addEventListener('change', e => { basemap.style.display = e.target.checked && !state.rasterBase ? '' : 'none'; });
     mapOp.addEventListener('input', e => { basemap.setAttribute('opacity', (e.target.value / 100).toFixed(2)); });
     hexOp.addEventListener('input', e => { gCells.style.setProperty('--gw-cell-fill', (e.target.value / 100).toFixed(2)); saveHexOp(e.target.value); });
@@ -1082,9 +1092,12 @@
   function rasterTileKey(p){
     return p ? `${p.col},${p.row}|ancient:${state.showAncientRoads ? 1 : 0}` : '';
   }
-  function rasterLayerKey(parents, center){
-    const centerKey = center ? `center:${center.col},${center.row}|` : '';
-    return centerKey + (parents || []).map(rasterTileKey).join(';');
+  function rasterLayerKey(parents){
+    // Tile coverage, not view center, determines whether the raster image layer
+    // needs to be rebuilt. The center parent can change while wheel-zooming
+    // around the cursor; forcing a tile DOM rebuild for that label-only change
+    // made raster zoom feel like walking through swamp syrup.
+    return (parents || []).map(rasterTileKey).join(';');
   }
   function rasterParentBounds(p, pad){
     const d = D();
@@ -1116,11 +1129,21 @@
     if (!center || !d) return out;
     const bounds = rasterViewportBounds();
     const world = atlas && typeof atlas.inferBounds === 'function' ? atlas.inferBounds() : null;
-    const minCol = world ? world.minCol : Math.max(0, +center.col - 4);
-    const maxCol = world ? world.maxCol : +center.col + 4;
-    const minRow = world ? world.minRow : Math.max(0, +center.row - 4);
-    const maxRow = world ? world.maxRow : +center.row + 4;
+    const hexR = d.HEX_R || 20, root3 = Math.sqrt(3);
+    const stepX = 1.5 * hexR, stepY = root3 * hexR;
+    const hardMinCol = world ? world.minCol : Math.max(0, +center.col - 8);
+    const hardMaxCol = world ? world.maxCol : +center.col + 8;
+    const roughPadX = hexR * 2.5;
+    const roughPadY = hexR * root3 * 1.5;
+    const minCol = Math.max(hardMinCol, Math.floor((bounds.minX - hexR - roughPadX) / stepX));
+    const maxCol = Math.min(hardMaxCol, Math.ceil((bounds.maxX - hexR + roughPadX) / stepX));
     for (let col = minCol; col <= maxCol; col++){
+      const oddY = (col & 1) ? hexR * root3 / 2 : 0;
+      const baseY = hexR * root3 / 2 + oddY;
+      const roughMinRow = Math.floor((bounds.minY - baseY - roughPadY) / stepY);
+      const roughMaxRow = Math.ceil((bounds.maxY - baseY + roughPadY) / stepY);
+      const minRow = Math.max(world ? world.minRow : +center.row - 8, roughMinRow);
+      const maxRow = Math.min(world ? world.maxRow : +center.row + 8, roughMaxRow);
       for (let row = minRow; row <= maxRow; row++){
         if (atlas && typeof atlas.hasParent === 'function' && !atlas.hasParent(col, row)) continue;
         const p = { col, row };
@@ -1217,7 +1240,7 @@
     }
     const center = rasterParent();
     const parents = rasterNeighborParents(center);
-    const key = rasterLayerKey(parents, center);
+    const key = rasterLayerKey(parents);
     if (!center || !parents.length || !window.GWSubhexTileRenderer || !key){
       state.rasterParentKeys.clear();
       state.el.rasterBase.replaceChildren();
@@ -1246,12 +1269,14 @@
       state.rasterParentKeys = nextKeys;
       state.rasterKey = key;
       state.rasterDirty = false;
-      if (state.el.mode) state.el.mode.textContent = `Raster tiles: ${parents.length} visible parents around ${center.col},${center.row} · ${totalCells} cells${totalFragments ? ` + ${totalFragments} seams` : ''}`;
+      state.rasterStats = { parents: parents.length, cells: totalCells, fragments: totalFragments };
+      updateRasterModeText(center);
       applyRasterModeVisibility();
       return { center, parents, cells: totalCells };
     } catch (err){
       state.rasterKey = null;
       state.rasterParentKeys.clear();
+      state.rasterStats = null;
       state.rasterBase = false;
       saveRasterBaseVis(false);
       state.el.rasterBase.replaceChildren();
@@ -1263,6 +1288,39 @@
     } finally {
       state.rasterBusy = false;
     }
+  }
+
+  function updateRasterModeText(center){
+    if (!center || !state.el.mode || !state.rasterBase || !state.rasterStats) return;
+    const st = state.rasterStats;
+    state.el.mode.textContent = `Raster tiles: ${st.parents} visible parents around ${center.col},${center.row} · ${st.cells} cells${st.fragments ? ` + ${st.fragments} seams` : ''}`;
+  }
+
+  function renderBounds(){
+    const mx = state.vb.w * 0.4, my = state.vb.h * 0.4;
+    return { minX: state.vb.x - mx, maxX: state.vb.x + state.vb.w + mx, minY: state.vb.y - my, maxY: state.vb.y + state.vb.h + my };
+  }
+
+  function bboxInside(inner, outer){
+    return !!(inner && outer &&
+      inner.minX >= outer.minX && inner.maxX <= outer.maxX &&
+      inner.minY >= outer.minY && inner.maxY <= outer.maxY);
+  }
+
+  function renderRasterViewport(force){
+    if (!state.open) return;
+    const bbox = renderBounds();
+    if (force || !bboxInside(bbox, state.rendered)) state.rendered = bbox;
+    const center = rasterParent();
+    if (state.rasterDirty) updateRasterBase(true);
+    else updateRasterBase(false);
+    updateRasterModeText(center);
+    applyRasterModeVisibility();
+    renderFog();
+    renderParty();
+    renderSelection();
+    renderGenTarget();
+    editorRender();
   }
 
   // ── viewBox + pan/zoom ─────────────────────────────────────────────────────
@@ -1458,13 +1516,10 @@
 
   function render(force){
     if (!state.open) return;
+    if (state.rasterBase){ renderRasterViewport(!!force); return; }
     const d = D();
-    const mx = state.vb.w * 0.4, my = state.vb.h * 0.4;
-    const bbox = { minX: state.vb.x - mx, maxX: state.vb.x + state.vb.w + mx, minY: state.vb.y - my, maxY: state.vb.y + state.vb.h + my };
-    if (!force && state.rendered &&
-        bbox.minX >= state.rendered.minX && bbox.maxX <= state.rendered.maxX &&
-        bbox.minY >= state.rendered.minY && bbox.maxY <= state.rendered.maxY){
-      if (state.rasterBase) updateRasterBase(false);
+    const bbox = renderBounds();
+    if (!force && bboxInside(bbox, state.rendered)){
       applyRasterModeVisibility();
       renderAnnotations(); renderFog(); renderParty(); renderGenTarget();
       return;
