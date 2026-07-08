@@ -1,4 +1,7 @@
-// gw-subhex-view.js v0.43.4 — 2026-07-07
+// gw-subhex-view.js v0.43.5 — 2026-07-07
+// v0.43.5 — raster zoom debounce fix: post-wheel idle refresh now recomputes
+//           raster coverage without forcing cached tile regeneration; tile cache
+//           capacity now covers the whole visible raster neighborhood.
 // v0.43.4 — raster zoom perf: wheel zoom now only updates the SVG viewBox
 //           during active wheel input and defers raster tile coverage/fog rebuilds
 //           until zoom settles, avoiding per-tick tile churn and sticky zoom.
@@ -162,7 +165,8 @@
   const SAMPLE_PX = 4;        // freehand point spacing in screen px
   const RASTER_VIEW_PAD_PARENTS = 1.25; // keep offscreen neighbor tiles ready while panning
   const RASTER_MAX_VISIBLE_TILES = 72;  // safety cap for very zoomed-out raster views
-  const RASTER_ZOOM_IDLE_MS = 160;  // delay heavyweight raster refresh until wheel input settles
+  const RASTER_TILE_CACHE_MAX = RASTER_MAX_VISIBLE_TILES * 2; // keep a full visible neighborhood plus recent fringe
+  const RASTER_ZOOM_IDLE_MS = 260;  // delay heavyweight raster refresh until wheel input settles
 
   const state = {
     open: false,
@@ -1221,7 +1225,7 @@
       url: result.canvas.toDataURL('image/webp', 0.9),
     };
     state.rasterTiles.set(key, rec);
-    trimRasterTileCache();
+    trimRasterTileCache(RASTER_TILE_CACHE_MAX);
     return rec;
   }
   function imageForRasterTile(rec){
@@ -1350,8 +1354,11 @@
       state.rasterIdleTimer = 0;
       state.rasterZooming = false;
       if (!state.open || !state.rasterBase) return;
+      // Recompute coverage/overlays after zoom settles, but do not force cached
+      // raster tiles to regenerate. Tile pixels are zoom-independent; forcing a
+      // rebuild here caused sticky wheel zoom when many parent images were visible.
       state.rendered = null;
-      render(true);
+      renderRasterViewport(false);
     }, RASTER_ZOOM_IDLE_MS);
   }
 
@@ -2137,5 +2144,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render };
-  try { console.log('[gw-subhex-view] v0.43.4 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.43.5 loaded'); } catch(_){}
 })();
