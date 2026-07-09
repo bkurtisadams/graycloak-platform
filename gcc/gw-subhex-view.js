@@ -1,4 +1,10 @@
-// gw-subhex-view.js v0.46.1 — 2026-07-08
+// gw-subhex-view.js v0.46.2 — 2026-07-08
+// v0.46.2 — fix hover/click drift after the svg aspect changes while the view
+//           is open (window resize, devtools dock): clientToWorld now maps
+//           through getScreenCTM(), exact under any letterboxing, and a
+//           resize listener re-syncs the viewBox aspect + re-renders. The
+//           stale-aspect bug is old, but pre-v0.45 every open reset the view
+//           and masked it; the persisted viewport let it survive.
 // v0.46.1 — fix open crash when a saved palette position exists: applyPalPos
 //           ran before state.el.overlay was assigned. It now takes the host
 //           element directly and guards against a missing host.
@@ -231,6 +237,7 @@
     rasterShowHidden: true,   // GM view bakes hidden features; player-safe tiles flip this
     statusTimer: 0,
     viewSaveTimer: 0,
+    resizeTimer: 0,
     editor: null,        // active path editor { kind, pts, width, editingId, origPts, dragIdx }
     undoStack: [],
     cellMap: new Map(),
@@ -1240,6 +1247,7 @@
     wireViewport(svg);
     bindCellHover(svg);
     window.addEventListener('keydown', onEditorKey);
+    window.addEventListener('resize', onViewportResize);
 
     // Ctrl+wheel over a panel adjusts UI zoom (plain wheel still scrolls it).
     [palette, read, enc].forEach(el => el.addEventListener('wheel', e => {
@@ -1674,6 +1682,21 @@
   }
   function pxW(){ const r = state.el.svg.getBoundingClientRect(); return r.width || 1; }
   function curU(){ return state.vb.w / pxW(); }       // world units per screen px
+  // Keep the viewBox aspect matched to the svg rect when the window (or a
+  // devtools dock) resizes while the view is open. The aspect fix is cheap
+  // and immediate; the heavier re-render is debounced behind the resize.
+  function onViewportResize(){
+    if (!state.open || !state.el.svg) return;
+    syncAspect();
+    applyViewBox();
+    if (state.resizeTimer) clearTimeout(state.resizeTimer);
+    state.resizeTimer = setTimeout(() => {
+      state.resizeTimer = 0;
+      if (!state.open) return;
+      state.rendered = null;
+      render(true);
+    }, 160);
+  }
   function syncAspect(){ const r = state.el.svg.getBoundingClientRect(); if (r.width > 0 && r.height > 0) state.vb.h = state.vb.w * (r.height / r.width); }
   function centerOnParent(col, row, w){
     const c = D().parentSvgCenter(col, row);
@@ -1706,7 +1729,19 @@
     applyViewBox(); render(true);
   }
   function clientToWorld(ev){
-    const r = state.el.svg.getBoundingClientRect();
+    // Screen CTM is exact under preserveAspectRatio letterboxing, page zoom,
+    // and any ancestor transforms; the rect math below assumes the viewBox
+    // exactly fills the rect and drifts when the aspect goes stale.
+    const svg = state.el.svg;
+    try {
+      const m = svg.getScreenCTM && svg.getScreenCTM();
+      if (m){
+        const inv = m.inverse();
+        return { x: inv.a * ev.clientX + inv.c * ev.clientY + inv.e,
+                 y: inv.b * ev.clientX + inv.d * ev.clientY + inv.f };
+      }
+    } catch(_){}
+    const r = svg.getBoundingClientRect();
     return { x: state.vb.x + (ev.clientX - r.left) / r.width * state.vb.w,
              y: state.vb.y + (ev.clientY - r.top) / r.height * state.vb.h };
   }
@@ -2507,5 +2542,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render, centerOn, zoomTo, rebuildRasterTiles };
-  try { console.log('[gw-subhex-view] v0.46.1 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.46.2 loaded'); } catch(_){}
 })();
