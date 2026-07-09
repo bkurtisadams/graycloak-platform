@@ -1,4 +1,15 @@
-// gcc-voyage.js v0.7.0 — 2026-07-09
+// gcc-voyage.js v0.8.0 — 2026-07-09
+// v0.8.0: weather continuity + click-to-place ports.
+//   - Daily weather now passes the previous day into GCCWeather
+//     (ctx.previous), enabling Dragon #68 multi-day events: a gale rolled
+//     for 1d3 days actually runs 1d3 days, monsoons run 1d6+6, and
+//     expired events persist on their chanceContinue percentage
+//     (intensifying 10% / easing 10% of continued days).
+//   - Ports without a landmark can be placed by clicking the Darlene map:
+//     Setup → Port setup → Place, then click a hex. Placed hexes live in
+//     localStorage (gcc.voyage.portHexes.v1); a real landmark added later
+//     always takes precedence. Placing a port immediately re-pathfinds any
+//     planned legs that touch it so the water route shows on the map.
 // v0.7.0: dialog + sim fixes.
 //   - Fix voyage overlay vanishing after hex edits: buildHexGrid() wipes
 //     #hex-svg (svg.innerHTML=''), orphaning #voyage-overlay. ensureOverlay
@@ -80,7 +91,7 @@
 (function(){
   if (typeof window === 'undefined') return;
   const LOG = (...a) => console.log('[voyage]', ...a);
-  LOG('gcc-voyage.js v0.7.0 loaded');
+  LOG('gcc-voyage.js v0.8.0 loaded');
 
   // ── DATA ──────────────────────────────────────────────────────────────────
   // Ship templates: dailySail in miles-per-10-hour-sailing-day, hull in HP.
@@ -170,6 +181,7 @@
     voyage: null,          // current voyage state (see buildVoyageState)
     routeLegs: [],         // [{ from, to, waterType, distance }]
     overlayG: null,        // SVG <g> that holds ship marker + route line + trail
+    placingPort: null,     // port name currently being placed via map click
   };
 
   // ── SMALL HELPERS ─────────────────────────────────────────────────────────
@@ -181,15 +193,44 @@
   // trained workers. (Self-repair by crew is ~50 gp materials + a week.)
   const REPAIR_GP_PER_HULL = 100;
   const VOYAGE_STORAGE_KEY = 'gcc.voyage.state.v1';
+  const PORT_HEX_KEY = 'gcc.voyage.portHexes.v1';
 
-
-  function portHex(name){
+  // Manually placed port hexes (user clicked the map). Landmarks stay
+  // canonical: a GCCLandmarks entry always wins; these overrides only fill
+  // in ports that have no landmark yet. { "Rel Mord": {col,row}, ... }
+  let portHexOverrides = loadPortHexOverrides();
+  function loadPortHexOverrides(){
+    try {
+      const raw = localStorage.getItem(PORT_HEX_KEY);
+      const obj = raw ? JSON.parse(raw) : {};
+      return (obj && typeof obj === 'object') ? obj : {};
+    } catch (err){ return {}; }
+  }
+  function savePortHexOverrides(){
+    try { localStorage.setItem(PORT_HEX_KEY, JSON.stringify(portHexOverrides)); }
+    catch (err){ LOG('could not save port hex overrides', err); }
+  }
+  function portOverrideHex(name){
+    const h = portHexOverrides[name];
+    return (h && Number.isFinite(h.col) && Number.isFinite(h.row)) ? { col:h.col, row:h.row } : null;
+  }
+  function portFromLandmark(name){
     if (typeof GCCLandmarks === 'undefined' || typeof darleneToInternal !== 'function') return null;
     const lm = GCCLandmarks.getByName(name);
     if (!lm || !lm.id) return null;
     return darleneToInternal(lm.id);  // { col, row } or null
   }
+
+  function portHex(name){
+    return portFromLandmark(name) || portOverrideHex(name);
+  }
   function portAvailable(name){ return !!portHex(name); }
+  // 'landmark' | 'placed' | null — used by the setup diagnostics UI.
+  function portSource(name){
+    if (portFromLandmark(name)) return 'landmark';
+    if (portOverrideHex(name)) return 'placed';
+    return null;
+  }
 
   // ── HEX GEOMETRY + WATER PATHFINDING ──────────────────────────────────────
   // Flat-top hex grid in odd-q offset (odd columns shifted DOWN — matches
@@ -269,6 +310,90 @@
       }
     }
     return null;
+  }
+
+  // ── PORT PLACEMENT (click a map hex to locate a missing port) ────────────
+  // Uses greyhawk-map globals screenToMap/mapToHex. A capture-phase listener
+  // on #map-wrap beats the map's own onHexClick; a mousedown tracker filters
+  // out pan-drags (the map's internal didDrag flag isn't reachable from here).
+  let _placeClickHandler = null;
+  let _placeDownHandler = null;
+  let _placeDownAt = null;
+
+  function beginPortPlacement(name){
+    if (!PORTS[name]) return;
+    cancelPortPlacement(true);
+    const wrap = document.getElementById('map-wrap');
+    if (!wrap || typeof screenToMap !== 'function' || typeof mapToHex !== 'function'){
+      setStatus('Map hex picking is unavailable on this page.', 'err');
+      return;
+    }
+    state.placingPort = name;
+    document.body.classList.add('ve-placing-port');
+    _placeDownHandler = e => { _placeDownAt = { x:e.clientX, y:e.clientY }; };
+    _placeClickHandler = e => {
+      if (!state.placingPort) return;
+      if (_placeDownAt && (Math.abs(e.clientX - _placeDownAt.x) > 4 || Math.abs(e.clientY - _placeDownAt.y) > 4)) return; // pan, not a pick
+      const m = screenToMap(e.clientX, e.clientY);
+      const hit = mapToHex(m.x, m.y);
+      if (!hit) return;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      completePortPlacement(hit.col, hit.row);
+    };
+    wrap.addEventListener('mousedown', _placeDownHandler, true);
+    wrap.addEventListener('click', _placeClickHandler, true);
+    setStatus(`Click a map hex to place ${name}. Drag the panel aside if it covers the spot. Esc cancels.`, 'warn');
+    if (typeof showToast === 'function') showToast(`Placing port: ${name} — click a map hex`);
+  }
+
+  function cancelPortPlacement(silent){
+    const wrap = document.getElementById('map-wrap');
+    if (wrap){
+      if (_placeClickHandler) wrap.removeEventListener('click', _placeClickHandler, true);
+      if (_placeDownHandler) wrap.removeEventListener('mousedown', _placeDownHandler, true);
+    }
+    _placeClickHandler = null; _placeDownHandler = null; _placeDownAt = null;
+    document.body.classList.remove('ve-placing-port');
+    if (!state.placingPort) return;
+    state.placingPort = null;
+    if (!silent) setStatus('Port placement cancelled.');
+  }
+
+  function completePortPlacement(col, row){
+    const name = state.placingPort;
+    cancelPortPlacement(true);
+    if (!name) return;
+    portHexOverrides[name] = { col, row, placedAt: new Date().toISOString() };
+    savePortHexOverrides();
+    // Re-path planned legs that touch this port so the water route shows
+    // immediately (this was the "click hexes to show the path" ask).
+    state.routeLegs.forEach(leg => {
+      if (leg.from === name || leg.to === name){
+        const fh = portHex(leg.from), th = portHex(leg.to);
+        leg.path = (fh && th) ? findWaterPath(fh, th) : null;
+      }
+    });
+    renderSetupPane();
+    renderRouteOverlay();
+    renderPositionHeader();
+    emitVoyageChanged('port-placed');
+    const lbl = hexLabel({ col, row });
+    const water = isWaterHex(col, row);
+    setStatus(`Placed ${name} at ${lbl}.${water ? '' : ' Note: hex is not painted water — the port can launch/arrive on land, but it needs adjacent water hexes to path.'}`);
+    if (typeof showToast === 'function') showToast(`${name} placed at ${lbl}`);
+  }
+
+  function clearPortPlacement(name){
+    if (!portHexOverrides[name]) return;
+    delete portHexOverrides[name];
+    savePortHexOverrides();
+    state.routeLegs.forEach(leg => {
+      if (leg.from === name || leg.to === name) leg.path = null;
+    });
+    renderSetupPane();
+    renderRouteOverlay();
+    setStatus(`Cleared placed hex for ${name}.`);
   }
 
   function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -781,7 +906,9 @@
       shipId: v.shipId,
       shipType: v.shipType,
       captain: v.captain,
+      previous: v.lastWeather || null,   // enables Dragon #68 day-to-day continuity
     });
+    v.lastWeather = weather;
     let speedInfo = calculateSailingSpeed(v.dailySail, weather);
     const events = [];
     // Becalmed sail power, but the ship has oars → row instead. Only when
@@ -1121,6 +1248,26 @@
         cursor:pointer; color:#d9b76f; font-family:'Cinzel',serif; letter-spacing:.04em;
       }
       #voyage-panel .ve-diagnostic div { margin-top:5px; line-height:1.35; font-style:italic; }
+      #voyage-panel .ve-port-help { font-style:italic; margin-bottom:4px; }
+      #voyage-panel .ve-port-row {
+        display:flex; align-items:center; gap:8px; padding:3px 2px; font-style:normal;
+        border-bottom:1px solid rgba(200,148,26,.1);
+      }
+      #voyage-panel .ve-port-row:last-child { border-bottom:0; }
+      #voyage-panel .ve-port-name { flex:1; min-width:0; color:#f4e4b8; font-family:Georgia,serif; font-size:11px; }
+      #voyage-panel .ve-port-status { color:#c8a96e; font-size:10px; white-space:nowrap; }
+      #voyage-panel .ve-port-status.landmark { color:#77cc88; }
+      #voyage-panel .ve-port-status.placed { color:#88ccee; }
+      #voyage-panel .ve-port-status.missing { color:#ff9944; }
+      #voyage-panel .ve-port-btns { display:flex; gap:4px; }
+      #voyage-panel .ve-mini {
+        background:rgba(200,148,26,.1); border:1px solid #5a3a0a; color:#f4e4b8;
+        font-family:'Cinzel',serif; font-size:9px; letter-spacing:.04em;
+        padding:2px 7px; cursor:pointer; border-radius:2px;
+      }
+      #voyage-panel .ve-mini:hover { background:rgba(200,148,26,.25); border-color:#c8941a; color:#e8b840; }
+      #voyage-panel .ve-mini.danger { border-color:#661111; color:#ff5544; }
+      body.ve-placing-port #map-wrap { cursor:crosshair !important; }
 
       /* Toolbar button */
       #btn-voyage.active { background:rgba(100,180,220,.22); color:#aaddff; border-color:#4488aa; }
@@ -1309,11 +1456,25 @@
       </div>
       </div>
 
-      ${missingPorts.length ? `
-        <details class="ve-diagnostic">
-          <summary>Port setup diagnostics: ${missingPorts.length} optional port${missingPorts.length === 1 ? '' : 's'} not placed</summary>
-          <div>Optional voyage ports not yet placed as landmarks: ${missingPorts.map(esc).join(', ')}. They are ignored until added via 🧰 Hex → Landmarks.</div>
-        </details>` : ''}
+      ${(() => {
+        const rows = Object.keys(PORTS).map(n => {
+          const src = portSource(n);
+          const status = src === 'landmark' ? '✓ landmark'
+            : src === 'placed' ? `📍 ${esc(hexLabel(portOverrideHex(n)))}`
+            : '— not placed';
+          const btns = src === 'landmark' ? ''
+            : src === 'placed'
+              ? `<button class="ve-mini" data-place-port="${esc(n)}">Re-place</button><button class="ve-mini danger" data-clear-port="${esc(n)}" title="Clear placed hex">✕</button>`
+              : `<button class="ve-mini" data-place-port="${esc(n)}">Place</button>`;
+          return `<div class="ve-port-row"><span class="ve-port-name">${esc(n)}</span><span class="ve-port-status ${src || 'missing'}">${status}</span><span class="ve-port-btns">${btns}</span></div>`;
+        }).join('');
+        const located = Object.keys(PORTS).length - missingPorts.length;
+        return `<details class="ve-diagnostic" ${missingPorts.length ? 'open' : ''}>
+          <summary>Port setup: ${located} of ${Object.keys(PORTS).length} ports located${missingPorts.length ? ` · ${missingPorts.length} missing` : ''}</summary>
+          <div class="ve-port-help">Ports resolve from 🧰 Hex → Landmarks by name. A port with no landmark can be placed by hand: click <b>Place</b>, then click its hex on the Darlene map. Placed hexes are stored locally and a landmark added later takes precedence.</div>
+          ${rows}
+        </details>`;
+      })()}
 
       <div class="ve-status" id="ve-status">Plan an itinerary, then Start Voyage. Active voyages and planned routes now persist after refresh.</div>
     `;
@@ -1461,7 +1622,34 @@
     p.querySelector('#ve-start').onclick = startVoyage;
     speedInp.oninput = renderLegsUI;
 
+    p.querySelectorAll('[data-place-port]').forEach(b =>
+      b.onclick = () => beginPortPlacement(b.dataset.placePort));
+    p.querySelectorAll('[data-clear-port]').forEach(b =>
+      b.onclick = () => clearPortPlacement(b.dataset.clearPort));
+
     renderLegsUI();
+  }
+
+  // Rebuild the setup pane (port lists change when a port is placed/cleared)
+  // while preserving whatever the user has typed/selected.
+  function renderSetupPane(){
+    const p = state.panelEl;
+    const pane = p?.querySelector('#ve-pane-setup');
+    if (!pane) return;
+    const keep = {};
+    ['ve-capt','ve-ship','ve-speed','ve-hull','ve-crew','ve-nav',
+     've-sday','ve-smonth','ve-syear','ve-from','ve-final','ve-to','ve-water']
+      .forEach(id => { const el = p.querySelector('#'+id); if (el) keep[id] = el.value; });
+    pane.innerHTML = setupPaneHTML();
+    wireSetupPane();
+    Object.entries(keep).forEach(([id, val]) => {
+      const el = p.querySelector('#'+id);
+      if (!el) return;
+      if (el.tagName === 'SELECT'){
+        if ([...el.options].some(o => o.value === val)) el.value = val;
+      } else el.value = val;
+    });
+    p.querySelector('#ve-from')?.dispatchEvent(new Event('change'));
   }
 
   function wireVoyagePane(){ /* wired per-render via onclick handlers */ }
@@ -1935,6 +2123,7 @@
 
   function exit(){
     if (!state.active) return;
+    cancelPortPlacement(true);
     state.active = false;
     if (state.panelEl) state.panelEl.style.display = 'none';
     document.removeEventListener('keydown', onKey, true);
@@ -1945,7 +2134,11 @@
   function toggle(){ state.active ? exit() : enter(); }
 
   function onKey(e){
-    if (e.key === 'Escape' && state.active){ exit(); e.stopPropagation(); }
+    if (e.key === 'Escape' && state.active){
+      if (state.placingPort) cancelPortPlacement();
+      else exit();
+      e.stopPropagation();
+    }
   }
 
   // Re-render every voyage overlay (route, ship, trail) — used after the hex

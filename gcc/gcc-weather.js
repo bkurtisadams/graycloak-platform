@@ -1,10 +1,20 @@
-// gcc-weather.js v0.1.0 — AD&D / World of Greyhawk campaign weather for GCC
+// gcc-weather.js v0.2.0 — AD&D / World of Greyhawk campaign weather for GCC
+// v0.2.0: day-to-day weather continuity (Dragon #68 / seafaring tables).
+//   generateDailyWeather(ctx) now accepts ctx.previous (the prior day's
+//   weather object). Multi-day events (gale 1d3 days, monsoon 1d6+6,
+//   tropical storm 1d3, hurricane 1d4, heavy clouds 1d10, becalmed 1d100
+//   hours) run their rolled duration via precipitation.daysRemaining.
+//   Shorter events persist on their chanceContinue percentage; a continued
+//   day intensifies 10% of the time and weakens 10% of the time (wind ±25%),
+//   per "If the precipitation continues, 10% of the time the effect
+//   increases, 10% of the time the effect decreases."
+// v0.1.0: initial port.
 // Browser-safe weather engine distilled from the user's seafaring notes and
 // the gcWeather Foundry module data tables. No Foundry globals, no imports.
 (function(){
   if (typeof window === 'undefined') return;
 
-  const VERSION = '0.1.0';
+  const VERSION = '0.2.0';
 
   const MONTHS = [
     'Needfest', 'Fireseek', 'Readying', 'Coldeven', 'Growfest',
@@ -291,6 +301,43 @@
     };
   }
 
+  // ── CONTINUITY ────────────────────────────────────────────────────────────
+  // Convert a freshly rolled precipitation record's duration into whole days
+  // remaining AFTER today. Day-unit events run their rolled span; hour-unit
+  // events longer than a day (becalmed 1d100 hours) convert; everything else
+  // ends today and relies on chanceContinue.
+  function daysRemainingFor(precip){
+    if (!precip || precip.key === 'none') return 0;
+    const d = Number(precip.duration || 0);
+    if (precip.durationUnit === 'days') return Math.max(0, Math.ceil(d) - 1);
+    if (precip.durationUnit === 'hours' && d > 24) return Math.max(0, Math.ceil(d / 24) - 1);
+    return 0;
+  }
+
+  // Roll whether yesterday's weather carries into today, per the seafaring
+  // tables. Returns null (fresh roll) or a precipitation record for today.
+  function continuePrecipitation(prev){
+    const p = prev?.precipitation;
+    if (!p || p.key === 'none' || p.key === 'clouds') return null;
+    const daysLeft = Number(p.daysRemaining || 0);
+    let intensity = 0; // -1 weaken, 0 same, +1 intensify
+    if (daysLeft > 0){
+      // Multi-day event still running its rolled duration.
+      const r = rollPercentile();
+      if (r <= 10) intensity = 1; else if (r <= 20) intensity = -1;
+      return { ...p, daysRemaining: daysLeft - 1, continued: true,
+               dayCount: Number(p.dayCount || 1) + 1, intensity };
+    }
+    // Duration expired — chanceContinue keeps it alive another day.
+    if (rollPercentile() <= Number(p.chanceContinue || 0)){
+      const r = rollPercentile();
+      if (r <= 10) intensity = 1; else if (r <= 20) intensity = -1;
+      return { ...p, daysRemaining: 0, continued: true,
+               dayCount: Number(p.dayCount || 1) + 1, intensity };
+    }
+    return null;
+  }
+
   function generateDailyWeather(ctx){
     ctx = ctx || {};
     const monthName = normalizeMonth(ctx.monthName || ctx.month);
@@ -303,27 +350,37 @@
     const currentTemp = Math.round((high + low) / 2);
     let sky = pickSky(base);
 
+    // ── Continuity: yesterday's weather may still be running. ──
+    const carried = continuePrecipitation(ctx.previous);
     let precipChance = clamp(base.precipChance + waterMod.precip, 0, 95);
     if (['coastal', 'openWater', 'lake'].includes(waterType)) precipChance = Math.max(40, precipChance);
+    let precipitation;
+    if (carried){
+      precipitation = carried;
+    } else {
+      const precipitationOccurs = rollPercentile() <= precipChance;
+      precipitation = precipitationOccurs
+        ? rollPrecipitation(currentTemp, waterMod)
+        : { key: 'none', type: 'None', duration: 0, durationUnit: 'hours', chanceContinue: 0, windExpr: null, unusual: false };
 
-    const precipitationOccurs = rollPercentile() <= precipChance;
-    let precipitation = precipitationOccurs
-      ? rollPrecipitation(currentTemp, waterMod)
-      : { key: 'none', type: 'None', duration: 0, durationUnit: 'hours', chanceContinue: 0, windExpr: null, unusual: false };
-
-    // Weekly unusual weather is represented as a low daily chance, only when no
-    // ordinary precipitation already claimed the sky.
-    if (!precipitationOccurs && rollPercentile() <= 2){
-      const unusual = rollUnusual(currentTemp, waterMod);
-      precipitation = {
-        key: unusual.key,
-        type: unusual.name,
-        duration: rollExpr(unusual.duration),
-        durationUnit: unusual.unit || 'event',
-        chanceContinue: unusual.chanceContinue ?? 0,
-        windExpr: unusual.wind,
-        unusual: true,
-      };
+      // Weekly unusual weather is represented as a low daily chance, only when no
+      // ordinary precipitation already claimed the sky.
+      if (!precipitationOccurs && rollPercentile() <= 2){
+        const unusual = rollUnusual(currentTemp, waterMod);
+        precipitation = {
+          key: unusual.key,
+          type: unusual.name,
+          duration: rollExpr(unusual.duration),
+          durationUnit: unusual.unit || 'event',
+          chanceContinue: unusual.chanceContinue ?? 0,
+          windExpr: unusual.wind,
+          unusual: true,
+        };
+      }
+      precipitation.daysRemaining = daysRemainingFor(precipitation);
+      precipitation.dayCount = precipitation.key === 'none' ? 0 : 1;
+      precipitation.continued = false;
+      precipitation.intensity = 0;
     }
 
     let windBase;
@@ -334,6 +391,10 @@
     }
 
     let windSpeed = Math.max(0, Math.round(windBase.speed + (precipitation.windExpr != null ? waterMod.wind : 0)));
+    // Continued-day intensity: the effect grows or fades (wind ±25%).
+    if (precipitation.continued && precipitation.intensity){
+      windSpeed = Math.max(0, Math.round(windSpeed * (precipitation.intensity > 0 ? 1.25 : 0.75)));
+    }
     // Inland seas and rivers should not casually turn rare hurricane rolls into
     // hurricane weather. Downgrade the label by capping speed, but keep storms scary.
     if (!waterMod.hurricane && windSpeed >= 73) windSpeed = 72;
@@ -363,15 +424,19 @@
       precipitation,
     };
     weather.voyageEffects = deriveVoyageEffects(weather, ctx);
-    weather.summary = `${weather.sky}; ${weather.precipitation.type}; ${weather.wind.force} ${weather.wind.speed} mph from ${weather.wind.direction}`;
+    const contTag = precipitation.continued ? ` (day ${precipitation.dayCount})` : '';
+    weather.summary = `${weather.sky}; ${weather.precipitation.type}${contTag}; ${weather.wind.force} ${weather.wind.speed} mph from ${weather.wind.direction}`;
     return weather;
   }
 
   function describeWeather(weather){
     if (!weather) return '';
     const p = weather.precipitation || { type: 'None' };
-    const dur = p.duration ? ` for ${p.duration} ${p.durationUnit || 'hours'}` : '';
-    return `${weather.sky}; ${p.type}${dur}; ${weather.wind.force || 'Wind'} ${weather.wind.speed} mph from ${weather.wind.direction}; ${weather.temperature.low}°–${weather.temperature.high}°F`;
+    const cont = p.continued
+      ? ` (day ${p.dayCount}${Number(p.daysRemaining) > 0 ? `, ~${p.daysRemaining} more` : ''}${p.intensity > 0 ? ', worsening' : p.intensity < 0 ? ', easing' : ''})`
+      : '';
+    const dur = !p.continued && p.duration ? ` for ${p.duration} ${p.durationUnit || 'hours'}` : '';
+    return `${weather.sky}; ${p.type}${dur}${cont}; ${weather.wind.force || 'Wind'} ${weather.wind.speed} mph from ${weather.wind.direction}; ${weather.temperature.low}°–${weather.temperature.high}°F`;
   }
 
   window.GCCWeather = {
