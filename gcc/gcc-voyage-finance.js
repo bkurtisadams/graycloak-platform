@@ -1,13 +1,23 @@
-// gcc-voyage-finance.js v0.2.1 — Local voyage settlement and finance bridge
+// gcc-voyage-finance.js v0.2.2 — Local voyage settlement and finance bridge
+// v0.2.2: fix Greyhawk month table (missing Growfest shifted all dates from
+//   month index 4 onward; Ready'reat was misspelled). Now prefers
+//   GCCWeather.MONTHS.
 // Adds explicit voyage ledger posting controls to the GCC Voyage Simulator.
 // LocalStorage-only. No Firestore sync or schema writes.
 
 (function(){
   if (typeof window === 'undefined') return;
 
-  const VERSION = '0.2.1';
+  const VERSION = '0.2.2';
   const STORAGE_KEY = 'gcc.voyage.finance.v1';
-  const MONTHS = ['Needfest','Fireseek','Readying','Coldeven','Planting','Flocktime','Wealsun','Richfest','Reaping','Goodmonth','Harvester','Brewfest','Patchwall','Readyreat','Sunsebb'];
+  // Prefer the canonical 16-month table from gcc-weather.js. The old local
+  // array was missing Growfest (shifting every date from month index 4 on)
+  // and misspelled Ready'reat.
+  const MONTHS = (window.GCCWeather && Array.isArray(window.GCCWeather.MONTHS))
+    ? window.GCCWeather.MONTHS
+    : ['Needfest','Fireseek','Readying','Coldeven','Growfest','Planting','Flocktime',
+       'Wealsun','Richfest','Reaping','Goodmonth','Harvester','Brewfest','Patchwall',
+       "Ready'reat",'Sunsebb'];
   const $ = (sel, root=document) => root.querySelector(sel);
   const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

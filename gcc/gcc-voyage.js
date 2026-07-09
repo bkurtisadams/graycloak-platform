@@ -1,4 +1,26 @@
-// gcc-voyage.js v0.6.1 — 2026-07-09
+// gcc-voyage.js v0.7.0 — 2026-07-09
+// v0.7.0: dialog + sim fixes.
+//   - Fix voyage overlay vanishing after hex edits: buildHexGrid() wipes
+//     #hex-svg (svg.innerHTML=''), orphaning #voyage-overlay. ensureOverlay
+//     now checks isConnected, and rebuildGrid is patched to re-render
+//     ship/route/trail after a grid rebuild.
+//   - Dialog: default top now clears the fixed gcc-bar + topbar chrome
+//     (was top:64px, under the toolbar). Panel width/height persist across
+//     refresh (gh-voyage-size). Setup pane is two-column via container
+//     queries; position header card also stacks by panel width, not viewport.
+//   - Start Voyage now confirms before replacing an active voyage.
+//   - Oared ships (dailyOar on templates) row when becalmed instead of
+//     sitting dead (OD&D/1e: sail impossible under 5 mph wind; oars fine).
+//   - Encounters: RAW-aligned daily odds (DMG: 1-in-20 per check; 2 checks
+//     coastal/lake, 1 deep water, 3 fresh water), explicit hostile flags
+//     (keyword sniffing mis-tagged 'Bandit raft', 'Giant shark'), an
+//     evasion roll per the Seafaring evasion table before hostile damage,
+//     and encounters now also occur while becalmed.
+//   - Storm drift is applied: failed Ship Sailing in gale/storm/hurricane
+//     now costs voyageEffects.stormDriftMiles of leg progress (was
+//     informational text only).
+//   - Repair rate 50 → 100 gp/hull (Seafaring: trained port repair
+//     100 gp/day/point; 50 gp is the self-repair materials rate).
 // v0.6.1: widen/resizable voyage dialog and add a persistent ship
 //   position header with map-centering controls.
 // v0.6.0: persist active voyage state, add canonical voyage location,
@@ -58,23 +80,25 @@
 (function(){
   if (typeof window === 'undefined') return;
   const LOG = (...a) => console.log('[voyage]', ...a);
-  LOG('gcc-voyage.js v0.6.1 loaded');
+  LOG('gcc-voyage.js v0.7.0 loaded');
 
   // ── DATA ──────────────────────────────────────────────────────────────────
   // Ship templates: dailySail in miles-per-10-hour-sailing-day, hull in HP.
+  // dailyOar: miles-per-day rowed (Seafaring ship table, rowed column).
+  // 0 = no meaningful oar power; ship is dead in the water when becalmed.
   const SHIP_TEMPLATES = [
-    { id:'cog',           name:'Cog',                   dailySail:36, hull:21 },
-    { id:'caravel',       name:'Caravel',               dailySail:48, hull:18 },
-    { id:'sailing_ship',  name:'Sailing Ship',          dailySail:30, hull:25 },
-    { id:'galley_large',  name:'Large Galley',          dailySail:50, hull:10 },
-    { id:'galley_war',    name:'War Galley',            dailySail:36, hull:18 },
-    { id:'sailing_boat',  name:'Sailing Boat (Fishing)',dailySail:60, hull:14 },
-    { id:'keelboat',      name:'Keelboat',              dailySail:20, hull:9  },
-    { id:'longship',      name:'Longship',              dailySail:50, hull:7  },
-    { id:'merchantman',   name:'Merchantman',           dailySail:24, hull:34 },
-    { id:'dromond',       name:'Dromond',               dailySail:36, hull:30 },
-    { id:'rowboat',       name:'Rowboat / Skiff',       dailySail:18, hull:3  },
-    { id:'outrigger',     name:'Outrigger',             dailySail:24, hull:6  },
+    { id:'cog',           name:'Cog',                   dailySail:36, dailyOar:15, hull:21 },
+    { id:'caravel',       name:'Caravel',               dailySail:48, dailyOar:0,  hull:18 },
+    { id:'sailing_ship',  name:'Sailing Ship',          dailySail:30, dailyOar:20, hull:25 },
+    { id:'galley_large',  name:'Large Galley',          dailySail:50, dailyOar:30, hull:10 },
+    { id:'galley_war',    name:'War Galley',            dailySail:36, dailyOar:12, hull:18 },
+    { id:'sailing_boat',  name:'Sailing Boat (Fishing)',dailySail:60, dailyOar:10, hull:14 },
+    { id:'keelboat',      name:'Keelboat',              dailySail:20, dailyOar:10, hull:9  },
+    { id:'longship',      name:'Longship',              dailySail:50, dailyOar:18, hull:7  },
+    { id:'merchantman',   name:'Merchantman',           dailySail:24, dailyOar:0,  hull:34 },
+    { id:'dromond',       name:'Dromond',               dailySail:36, dailyOar:30, hull:30 },
+    { id:'rowboat',       name:'Rowboat / Skiff',       dailySail:18, dailyOar:9,  hull:3  },
+    { id:'outrigger',     name:'Outrigger',             dailySail:24, dailyOar:18, hull:6  },
   ];
 
   const MONTHS = (window.GCCWeather && Array.isArray(window.GCCWeather.MONTHS))
@@ -153,7 +177,9 @@
   const rollDN = (n,s) => { let t=0; for(let i=0;i<n;i++) t+=rollD(s); return t; };
   const uid = (prefix='id') => `${prefix}_${Math.random().toString(36).slice(2,8)}_${Date.now().toString(36)}`;
 
-  const REPAIR_GP_PER_HULL = 50;
+  // Seafaring: 1 hull point permanently repaired in port for 100 gp/day by
+  // trained workers. (Self-repair by crew is ~50 gp materials + a week.)
+  const REPAIR_GP_PER_HULL = 100;
   const VOYAGE_STORAGE_KEY = 'gcc.voyage.state.v1';
 
 
@@ -308,26 +334,60 @@
     }
     return { speed, note, becalmed:false };
   }
+  // DMG p.47/Seafaring: encounters occur 1-in-20 per check. Salt water gets
+  // two checks/day in coastal/shallow water, one in deep water; fresh water
+  // gets three checks/day. Approximated as a single d20 per day against a
+  // per-check-count threshold.
   function checkEncounter(waterType){
-    const thresholds = { coastal:3, openWater:4, lake:3, river:2 };
-    const threshold = thresholds[waterType] || 3;
+    const thresholds = { coastal:2, openWater:1, lake:2, river:3 };
+    const threshold = thresholds[waterType] || 2;
     if (rollD(20) > threshold) return null;
     const ENC = {
-      coastal:[ 'Pirate vessel (1d4+1 ships)','Merchant convoy (2d6 ships)','Fishing fleet',
-        'Naval patrol','Sea serpent','Giant shark','Stranded sailors',
-        'Wreck (salvageable)','Storm-damaged vessel needing aid','Smugglers' ],
-      openWater:[ 'Pirate squadron','Merchant vessel','Sea dragon','School of sea horses',
-        'Giant squid','Whale pod','Floating wreckage','Ghost ship','Sea elves','Merfolk delegation' ],
-      lake:[ 'Fishermen','River traders','Lake monster','Bandit raft','Elvish vessel',
-        'Dwarven barge','Sunken ruins visible','Fog bank (navigation hazard)','Water weird','Lake hermit' ],
-      river:[ 'River pirates','Ferry barge','Crocodiles','Giant catfish','Bandits on shore',
-        'Sunken barge (obstacle)','River toll collectors','Nixies','River troll','Log jam' ],
+      coastal:[
+        { n:'Pirate vessel (1d4+1 ships)', h:true }, { n:'Merchant convoy (2d6 ships)' },
+        { n:'Fishing fleet' }, { n:'Naval patrol' }, { n:'Sea serpent', h:true },
+        { n:'Giant shark', h:true }, { n:'Stranded sailors' }, { n:'Wreck (salvageable)' },
+        { n:'Storm-damaged vessel needing aid' }, { n:'Smugglers' },
+      ],
+      openWater:[
+        { n:'Pirate squadron', h:true }, { n:'Merchant vessel' }, { n:'Sea dragon', h:true },
+        { n:'School of sea horses' }, { n:'Giant squid', h:true }, { n:'Whale pod' },
+        { n:'Floating wreckage' }, { n:'Ghost ship', h:true }, { n:'Sea elves' },
+        { n:'Merfolk delegation' },
+      ],
+      lake:[
+        { n:'Fishermen' }, { n:'River traders' }, { n:'Lake monster', h:true },
+        { n:'Bandit raft', h:true }, { n:'Elvish vessel' }, { n:'Dwarven barge' },
+        { n:'Sunken ruins visible' }, { n:'Fog bank (navigation hazard)' },
+        { n:'Water weird', h:true }, { n:'Lake hermit' },
+      ],
+      river:[
+        { n:'River pirates', h:true }, { n:'Ferry barge' }, { n:'Crocodiles', h:true },
+        { n:'Giant catfish' }, { n:'Bandits on shore', h:true }, { n:'Sunken barge (obstacle)' },
+        { n:'River toll collectors' }, { n:'Nixies' }, { n:'River troll', h:true },
+        { n:'Log jam' },
+      ],
     };
     const list = ENC[waterType] || ENC.coastal;
     const enc = list[Math.floor(Math.random()*list.length)];
-    const hostile = ['Pirate','pirate','Dragon','dragon','Serpent','serpent','Bandits','bandit','Troll','troll','Squid']
-      .some(k => enc.includes(k));
-    return { name:enc, hostile, distance:(rollD(6)*10)+'yds' };
+    return { name:enc.n, hostile:!!enc.h, distance:(rollD(6)*10)+'yds' };
+  }
+
+  // Seafaring evasion table (abridged): base 80%, open water −50%,
+  // gale +20%, storm +30%, fog +50%; damaged ship −hull-damage%.
+  function rollEvasion(waterType, weather, v){
+    let chance = 80;
+    if (waterType === 'openWater') chance -= 50;
+    const w = Number(weather?.wind?.speed || 0);
+    const p = String(weather?.precipitation?.key || '');
+    if (p === 'fog' || p === 'heavy-fog') chance += 50;
+    else if (w >= 55) chance += 30;
+    else if (w >= 32) chance += 20;
+    const dmgPct = v?.hullMax ? Math.round((1 - v.hullCurrent / v.hullMax) * 100) : 0;
+    chance -= Math.max(0, dmgPct);
+    chance = Math.max(5, Math.min(95, chance));
+    const roll = rollD(100);
+    return { success: roll <= chance, roll, chance };
   }
   function rollNavigationCheck(navSkill, crewMod, weather, waterType){
     const mustCheck = waterType === 'openWater' || Number(weather?.voyageEffects?.navigationPenalty || 0) > 0;
@@ -722,8 +782,15 @@
       shipType: v.shipType,
       captain: v.captain,
     });
-    const speedInfo = calculateSailingSpeed(v.dailySail, weather);
+    let speedInfo = calculateSailingSpeed(v.dailySail, weather);
     const events = [];
+    // Becalmed sail power, but the ship has oars → row instead. Only when
+    // there's no active weather hazard (rowing through a gale is not a plan).
+    const oar = Number(v.dailyOar || 0);
+    if (speedInfo.becalmed && oar > 0 && !weather?.voyageEffects?.hazardLevel){
+      speedInfo = { speed:oar, note:`Becalmed — crew rows ${oar} mi/day.`, becalmed:false, rowed:true };
+      events.push({ type:'weather', text:'Becalmed; the crew takes to the oars.' });
+    }
     if (weather.source === 'GCCWeather'){
       events.push({ type:'weather', text: window.GCCWeather.describeWeather(weather) });
       if (weather.voyageEffects?.stormDriftMiles){
@@ -731,6 +798,39 @@
       }
     }
     let milesThisDay = 0;
+
+    // Encounters are checked whether or not the ship makes way — a becalmed
+    // ship is still on the water (DMG daily encounter checks).
+    const enc = checkEncounter(waterType);
+    if (enc){
+      if (enc.hostile){
+        const ev = rollEvasion(waterType, weather, v);
+        if (ev.success){
+          events.push({ type:'encounter', text:`${enc.name} sighted at ${enc.distance} — evaded (${ev.roll} ≤ ${ev.chance}%).` });
+        } else {
+          const crewLoss = rollD(3)-1, hullDmg = rollD(4);
+          v.hullCurrent -= hullDmg;
+          v.hullDamageTaken = Number(v.hullDamageTaken || 0) + hullDmg;
+          const repairGp = estimateRepairCost(hullDmg, v);
+          addPendingFinanceAction({
+            category:'repair',
+            direction:'expense',
+            amountGp:repairGp,
+            hullDamage:hullDmg,
+            eventType:'encounter_damage',
+            memo:`Repair ${hullDmg} hull HP after ${enc.name} on ${dateStr}.`,
+            day:v.dayNumber,
+            date:dateStr,
+            port:voyageCurrentLocationLabel(v),
+            meta:{ encounter:enc.name, encounterDistance:enc.distance, waterType, evasionRoll:ev.roll, evasionChance:ev.chance }
+          }, v);
+          if (crewLoss>0) events.push({ type:'crew', text:`${enc.name} at ${enc.distance}! ${crewLoss} crew lost.` });
+          events.push({ type:'encounter', text:`${enc.name} — evasion failed (${ev.roll} > ${ev.chance}%). Hull −${hullDmg} HP. Pending repair estimate: ${repairGp} gp.` });
+        }
+      } else {
+        events.push({ type:'encounter', text:`${enc.name} at ${enc.distance}.` });
+      }
+    }
 
     if (speedInfo.becalmed){
       events.push({ type:'becalmed', text:'Becalmed — no progress.' });
@@ -765,34 +865,16 @@
             meta:{ weatherHazard:hz.desc, windForce:weather.wind?.force || '', windSpeed:weather.wind?.speed || 0, waterType }
           }, v);
           events.push({ type:'damage', text:`${hz.desc}! Ship Sailing failed (${pilot} > ${target}). Hull −${dmg} HP. (${v.hullCurrent}/${v.hullMax} remaining). Pending repair estimate: ${repairGp} gp.` });
+          // Seafaring/RC: each storm day the ship is blown d10×10 mi off
+          // course. GCCWeather pre-rolls this as stormDriftMiles; apply it
+          // as lost leg progress when the captain loses control.
+          const drift = Number(weather?.voyageEffects?.stormDriftMiles || 0);
+          if (drift > 0){
+            v.milesOnLeg = Math.max(0, Number(v.milesOnLeg || 0) - drift);
+            events.push({ type:'navigation', text:`Blown ${drift} mi off course by the ${hz.desc.toLowerCase()}.` });
+          }
         } else {
           events.push({ type:'weather', text:`${hz.desc}: captain holds course (${pilot} ≤ ${target}).` });
-        }
-      }
-      // Encounter
-      const enc = checkEncounter(waterType);
-      if (enc){
-        if (enc.hostile){
-          const crewLoss = rollD(3)-1, hullDmg = rollD(4);
-          v.hullCurrent -= hullDmg;
-          v.hullDamageTaken = Number(v.hullDamageTaken || 0) + hullDmg;
-          const repairGp = estimateRepairCost(hullDmg, v);
-          addPendingFinanceAction({
-            category:'repair',
-            direction:'expense',
-            amountGp:repairGp,
-            hullDamage:hullDmg,
-            eventType:'encounter_damage',
-            memo:`Repair ${hullDmg} hull HP after ${enc.name} on ${dateStr}.`,
-            day:v.dayNumber,
-            date:dateStr,
-            port:voyageCurrentLocationLabel(v),
-            meta:{ encounter:enc.name, encounterDistance:enc.distance, waterType }
-          }, v);
-          if (crewLoss>0) events.push({ type:'crew', text:`${enc.name} at ${enc.distance}! ${crewLoss} crew lost.` });
-          events.push({ type:'encounter', text:`${enc.name} — hull −${hullDmg} HP. Pending repair estimate: ${repairGp} gp.` });
-        } else {
-          events.push({ type:'encounter', text:`${enc.name} at ${enc.distance}.` });
         }
       }
 
@@ -862,12 +944,17 @@
     s.id = 've-styles';
     s.textContent = `
       #voyage-panel {
-        position:fixed; top:64px; right:24px; width:min(1080px, calc(100vw - 48px));
-        height:min(760px, calc(100vh - 88px)); min-width:420px; min-height:420px; z-index:2000;
+        /* Default top must clear the fixed gcc-bar (~44px) + #topbar (46px);
+           top:64px put the drag header under the toolbar. */
+        position:fixed; top:calc(var(--gcc-bar-h, 44px) + 56px); right:24px;
+        width:min(1080px, calc(100vw - 48px));
+        height:min(760px, calc(100vh - var(--gcc-bar-h, 44px) - 80px));
+        min-width:520px; min-height:420px; z-index:2000;
         background:rgba(20,14,6,.96); border:1px solid #c8941a; border-radius:10px;
         font-family:'Cinzel',serif; color:#f4e4b8; box-shadow:0 4px 20px rgba(0,0,0,.6);
         max-width:calc(100vw - 24px); max-height:calc(100vh - 24px); display:flex; flex-direction:column;
         overflow:hidden; resize:both;
+        container-type:inline-size; container-name:voyage-panel;
       }
       #voyage-panel::after {
         content:''; position:absolute; right:3px; bottom:3px; width:16px; height:16px;
@@ -892,12 +979,17 @@
         flex-shrink:0; padding:10px; border-bottom:1px solid rgba(139,110,69,.65);
         background:linear-gradient(180deg, rgba(28,18,7,.96), rgba(18,12,3,.96));
       }
+      /* Stacked by default; widen to three columns when the PANEL (not the
+         viewport) is wide enough — the panel is user-resizable. */
       #voyage-panel .ve-position-card {
-        display:grid; grid-template-columns:minmax(220px,1.2fr) minmax(300px,2fr) auto;
+        display:grid; grid-template-columns:1fr;
         gap:10px; align-items:center; padding:9px 10px; border:1px solid rgba(200,148,26,.38);
         border-radius:10px; background:rgba(0,0,0,.22); box-shadow:inset 0 0 0 1px rgba(255,232,170,.04);
       }
-      #voyage-panel .ve-position-card.idle { grid-template-columns:1fr auto; }
+      @container voyage-panel (min-width: 700px){
+        #voyage-panel .ve-position-card { grid-template-columns:minmax(200px,1.2fr) minmax(260px,2fr) auto; }
+        #voyage-panel .ve-position-card.idle { grid-template-columns:1fr auto; }
+      }
       #voyage-panel .ve-position-title { min-width:0; }
       #voyage-panel .ve-position-ship {
         font-size:14px; color:#f4e4b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
@@ -926,10 +1018,18 @@
       #voyage-panel .ve-progress-fill { height:100%; background:linear-gradient(90deg,#9c5b18,#e8b840); width:0%; }
       @media (max-width:760px){
         #voyage-panel { left:12px; right:12px; width:auto; min-width:0; }
-        #voyage-panel .ve-position-card, #voyage-panel .ve-position-card.idle { grid-template-columns:1fr; }
+      }
+      @container voyage-panel (max-width: 699px){
         #voyage-panel .ve-position-meta { grid-template-columns:1fr 1fr; }
         #voyage-panel .ve-position-actions { justify-content:flex-start; flex-wrap:wrap; }
       }
+      /* Setup pane: two columns when the panel is wide (ship/crew/date left,
+         itinerary planner right); single column when narrow. */
+      #voyage-panel .ve-setup-grid { display:grid; grid-template-columns:1fr; gap:0 18px; align-items:start; }
+      @container voyage-panel (min-width: 680px){
+        #voyage-panel .ve-setup-grid { grid-template-columns:minmax(230px,1fr) minmax(300px,1.35fr); }
+      }
+      #voyage-panel .ve-setup-grid > div > .ve-lbl:first-child { margin-top:0; }
       #voyage-panel .ve-tab {
         flex:1; padding:7px 4px; background:none; border:none; color:#8b6e45;
         font-family:'Cinzel',serif; font-size:10px; letter-spacing:.08em; cursor:pointer;
@@ -1083,6 +1183,28 @@
       state.veDrag.restore();
     }
 
+    // Size persistence: makeDraggable only saves x/y, so a resized panel
+    // snapped back to defaults on refresh. Restore, then track via
+    // ResizeObserver (debounced) under gh-voyage-size.
+    try {
+      const SZ = 'gh-voyage-size';
+      const sz = JSON.parse(localStorage.getItem(SZ) || 'null');
+      if (sz && sz.w >= 520 && sz.h >= 420){
+        p.style.width  = Math.min(sz.w, window.innerWidth  - 24) + 'px';
+        p.style.height = Math.min(sz.h, window.innerHeight - 24) + 'px';
+      }
+      if (typeof ResizeObserver === 'function'){
+        let szT = null;
+        new ResizeObserver(() => {
+          clearTimeout(szT);
+          szT = setTimeout(() => {
+            try { localStorage.setItem(SZ, JSON.stringify({ w:p.offsetWidth, h:p.offsetHeight })); }
+            catch (err){ /* ignore */ }
+          }, 250);
+        }).observe(p);
+      }
+    } catch (err){ /* ignore */ }
+
     p.querySelector('.ve-close').onclick = exit;
     p.querySelectorAll('.ve-tab').forEach(t =>
       t.onclick = () => setActiveTab(t.dataset.tab));
@@ -1104,11 +1226,13 @@
     const missingPorts   = Object.keys(PORTS).filter(n => !portAvailable(n));
     const portOpts = availablePorts.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
     const shipOpts = SHIP_TEMPLATES.map(s =>
-      `<option value="${s.id}">${esc(s.name)} (${s.dailySail} mi/d, ${s.hull} HP)</option>`).join('');
+      `<option value="${s.id}">${esc(s.name)} (${s.dailySail} mi/d${s.dailyOar ? ` sail / ${s.dailyOar} oar` : ''}, ${s.hull} HP)</option>`).join('');
     const monthOpts = MONTHS.map((m,i) => `<option value="${i}">${esc(m)}</option>`).join('');
     const waterOpts = WATER_TYPES.map(w => `<option value="${w.id}">${esc(w.label)}</option>`).join('');
 
     return `
+      <div class="ve-setup-grid">
+      <div>
       <label class="ve-lbl">Captain Name</label>
       <input class="ve-input" id="ve-capt" type="text" value="Captain" maxlength="40">
 
@@ -1156,7 +1280,8 @@
           <input class="ve-input" id="ve-syear" type="number" min="1" max="999" value="576">
         </div>
       </div>
-
+      </div>
+      <div>
       <label class="ve-lbl">Itinerary Planner</label>
       <div class="ve-help">Choose a start port and final destination, then use <b>Plan Route</b> for the shortest known port chain. Use <b>Add Stop to Itinerary</b> only when you want to force a manual stopover.</div>
 
@@ -1180,6 +1305,8 @@
       <div class="ve-row">
         <button class="ve-btn danger" id="ve-clearroute">Clear</button>
         <button class="ve-btn primary" id="ve-start">Start Voyage</button>
+      </div>
+      </div>
       </div>
 
       ${missingPorts.length ? `
@@ -1522,6 +1649,9 @@
   // ── ACTIONS: VOYAGE ──────────────────────────────────────────────────────
   function startVoyage(){
     if (!state.routeLegs.length){ setStatus('Plan an itinerary or add at least one stop first.', 'warn'); return; }
+    if (state.voyage && !state.voyage.finished){
+      if (!window.confirm('A voyage is already underway. Starting a new one discards its log and pending settlement items. Continue?')) return;
+    }
     const p = state.panelEl;
     const shipId = p.querySelector('#ve-ship').value;
     const shipTpl = SHIP_TEMPLATES.find(s => s.id===shipId) || SHIP_TEMPLATES[0];
@@ -1548,6 +1678,7 @@
       shipType: shipTpl.name,
       hullMax, hullCurrent: hullMax,
       dailySail,
+      dailyOar: Number(shipTpl.dailyOar || 0),
       crewQuality: crew,
       crewMod: CREW_QUALITY_MOD[crew] ?? 0,
       navSkill,
@@ -1679,7 +1810,11 @@
 
   // ── MAP OVERLAYS ──────────────────────────────────────────────────────────
   function ensureOverlay(){
-    if (state.overlayG) return state.overlayG;
+    // buildHexGrid() does svg.innerHTML='' — a hex edit (rebuildGrid) leaves
+    // state.overlayG pointing at a detached node and the ship silently
+    // disappears. Recreate whenever the group is no longer in the document.
+    if (state.overlayG && state.overlayG.isConnected) return state.overlayG;
+    state.overlayG = null;
     const svg = document.getElementById('hex-svg');
     if (!svg) return null;
     const ns = 'http://www.w3.org/2000/svg';
@@ -1813,17 +1948,40 @@
     if (e.key === 'Escape' && state.active){ exit(); e.stopPropagation(); }
   }
 
+  // Re-render every voyage overlay (route, ship, trail) — used after the hex
+  // grid is rebuilt, which wipes #hex-svg and everything in it.
+  function refreshOverlays(){
+    if (state.overlayG && !state.overlayG.isConnected) state.overlayG = null;
+    if (!state.routeLegs.length && !state.voyage) return;
+    renderRouteOverlay();
+    if (state.voyage){ renderShip(); renderTrailOverlay(); }
+  }
+
   // ── BOOT ──────────────────────────────────────────────────────────────────
   function wire(){
     const btn = document.getElementById('btn-voyage');
     if (btn){ btn.addEventListener('click', toggle); LOG('✓ #btn-voyage wired'); }
     else LOG('✗ #btn-voyage not found — add to toolbar');
+    // gcc-hex-edit.js calls rebuildGrid() after paint/edit, which destroys the
+    // voyage overlay. Wrap it so overlays come back immediately.
+    if (typeof window.rebuildGrid === 'function' && !window.rebuildGrid._voyagePatched){
+      const orig = window.rebuildGrid;
+      const patched = function(){
+        const r = orig.apply(this, arguments);
+        refreshOverlays();
+        return r;
+      };
+      patched._voyagePatched = true;
+      window.rebuildGrid = patched;
+      LOG('✓ rebuildGrid patched for overlay refresh');
+    }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire);
   else wire();
 
   window.GCCVoyage = {
     enter, exit, toggle, state,
+    advanceOneDay: simulateOneDay,
     getSummary: () => getVoyageSummary(),
     getPendingFinanceActions: () => (ensureSettlement(state.voyage)?.pending || []).map(a => ({ ...a })),
     addPendingFinanceAction: data => addPendingFinanceAction(data),
