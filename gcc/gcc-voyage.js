@@ -1,4 +1,6 @@
-// gcc-voyage.js v0.6.0 — 2026-07-07
+// gcc-voyage.js v0.6.1 — 2026-07-09
+// v0.6.1: widen/resizable voyage dialog and add a persistent ship
+//   position header with map-centering controls.
 // v0.6.0: persist active voyage state, add canonical voyage location,
 //   and improve itinerary planning with route helper text + auto-plan.
 // v0.5.0: add voyage settlement/pending finance actions for explicit
@@ -56,7 +58,7 @@
 (function(){
   if (typeof window === 'undefined') return;
   const LOG = (...a) => console.log('[voyage]', ...a);
-  LOG('gcc-voyage.js v0.6.0 loaded');
+  LOG('gcc-voyage.js v0.6.1 loaded');
 
   // ── DATA ──────────────────────────────────────────────────────────────────
   // Ship templates: dailySail in miles-per-10-hour-sailing-day, hull in HP.
@@ -498,6 +500,7 @@
 
   function emitVoyageChanged(reason='changed'){
     if (state.voyage) updateVoyageLocation(reason);
+    renderPositionHeader();
     saveVoyageState();
     try {
       document.dispatchEvent(new CustomEvent('gcc:voyage:changed', { detail:{ reason, voyage:state.voyage } }));
@@ -859,10 +862,17 @@
     s.id = 've-styles';
     s.textContent = `
       #voyage-panel {
-        position:fixed; top:72px; right:280px; width:300px; z-index:2000;
-        background:rgba(20,14,6,.96); border:1px solid #c8941a; border-radius:3px;
+        position:fixed; top:64px; right:24px; width:min(1080px, calc(100vw - 48px));
+        height:min(760px, calc(100vh - 88px)); min-width:420px; min-height:420px; z-index:2000;
+        background:rgba(20,14,6,.96); border:1px solid #c8941a; border-radius:10px;
         font-family:'Cinzel',serif; color:#f4e4b8; box-shadow:0 4px 20px rgba(0,0,0,.6);
-        max-height:calc(100vh - 120px); display:flex; flex-direction:column;
+        max-width:calc(100vw - 24px); max-height:calc(100vh - 24px); display:flex; flex-direction:column;
+        overflow:hidden; resize:both;
+      }
+      #voyage-panel::after {
+        content:''; position:absolute; right:3px; bottom:3px; width:16px; height:16px;
+        background:linear-gradient(135deg, transparent 0 45%, rgba(200,148,26,.45) 46% 52%, transparent 53% 62%, rgba(200,148,26,.6) 63% 70%, transparent 71%);
+        pointer-events:none; opacity:.9;
       }
       #voyage-panel .ve-hdr {
         display:flex; justify-content:space-between; align-items:center;
@@ -877,6 +887,48 @@
       #voyage-panel .ve-close:hover { color:#e8b840; }
       #voyage-panel .ve-tabs {
         display:flex; border-bottom:1px solid #8b6e45; background:rgba(0,0,0,.25); flex-shrink:0;
+      }
+      #voyage-panel .ve-position-dock {
+        flex-shrink:0; padding:10px; border-bottom:1px solid rgba(139,110,69,.65);
+        background:linear-gradient(180deg, rgba(28,18,7,.96), rgba(18,12,3,.96));
+      }
+      #voyage-panel .ve-position-card {
+        display:grid; grid-template-columns:minmax(220px,1.2fr) minmax(300px,2fr) auto;
+        gap:10px; align-items:center; padding:9px 10px; border:1px solid rgba(200,148,26,.38);
+        border-radius:10px; background:rgba(0,0,0,.22); box-shadow:inset 0 0 0 1px rgba(255,232,170,.04);
+      }
+      #voyage-panel .ve-position-card.idle { grid-template-columns:1fr auto; }
+      #voyage-panel .ve-position-title { min-width:0; }
+      #voyage-panel .ve-position-ship {
+        font-size:14px; color:#f4e4b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      }
+      #voyage-panel .ve-position-route {
+        margin-top:2px; color:#e8b840; font-family:Georgia,serif; font-size:12px; line-height:1.25;
+      }
+      #voyage-panel .ve-position-meta {
+        display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; min-width:0;
+      }
+      #voyage-panel .ve-position-chip {
+        background:#0d0600; border:1px solid #4a3518; border-radius:8px; padding:5px 7px;
+        font-family:Georgia,serif; min-width:0;
+      }
+      #voyage-panel .ve-position-chip b {
+        display:block; color:#f4e4b8; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+      }
+      #voyage-panel .ve-position-chip span {
+        display:block; color:#c8a96e; text-transform:uppercase; letter-spacing:.08em; font-size:8px; margin-top:1px;
+      }
+      #voyage-panel .ve-position-actions { display:flex; gap:6px; align-items:center; justify-content:flex-end; }
+      #voyage-panel .ve-position-actions .ve-btn { width:auto; margin:0; white-space:nowrap; padding:5px 8px; font-size:9px; }
+      #voyage-panel .ve-progress-track {
+        grid-column:1 / -1; height:5px; background:#0d0600; border:1px solid #4a3518; border-radius:999px; overflow:hidden;
+      }
+      #voyage-panel .ve-progress-fill { height:100%; background:linear-gradient(90deg,#9c5b18,#e8b840); width:0%; }
+      @media (max-width:760px){
+        #voyage-panel { left:12px; right:12px; width:auto; min-width:0; }
+        #voyage-panel .ve-position-card, #voyage-panel .ve-position-card.idle { grid-template-columns:1fr; }
+        #voyage-panel .ve-position-meta { grid-template-columns:1fr 1fr; }
+        #voyage-panel .ve-position-actions { justify-content:flex-start; flex-wrap:wrap; }
       }
       #voyage-panel .ve-tab {
         flex:1; padding:7px 4px; background:none; border:none; color:#8b6e45;
@@ -1016,6 +1068,7 @@
         <button class="ve-tab" data-tab="voyage">Voyage</button>
         <button class="ve-tab" data-tab="log">Log</button>
       </div>
+      <div class="ve-position-dock" id="ve-position-dock"></div>
       <div class="ve-pane active" id="ve-pane-setup">${setupPaneHTML()}</div>
       <div class="ve-pane" id="ve-pane-voyage">${voyagePaneHTML()}</div>
       <div class="ve-pane" id="ve-pane-log"><div class="ve-log" id="ve-log"></div></div>
@@ -1033,8 +1086,15 @@
     p.querySelector('.ve-close').onclick = exit;
     p.querySelectorAll('.ve-tab').forEach(t =>
       t.onclick = () => setActiveTab(t.dataset.tab));
+    p.querySelector('#ve-position-dock')?.addEventListener('click', e => {
+      const action = e.target?.closest?.('[data-ve-pos-action]')?.dataset?.vePosAction;
+      if (action === 'center') centerMapOnShip();
+      if (action === 'route') setActiveTab('setup');
+      if (action === 'log') setActiveTab('log');
+    });
 
     wireSetupPane();
+    renderPositionHeader();
     wireVoyagePane();
   }
 
@@ -1132,6 +1192,104 @@
     `;
   }
 
+  function hexLabel(pos){
+    if (!pos) return '—';
+    try { if (typeof hexIdStr === 'function') return hexIdStr(pos.col, pos.row); }
+    catch (err){ /* ignore */ }
+    return `${pos.col}, ${pos.row}`;
+  }
+
+  function remainingVoyageMiles(v=state.voyage){
+    if (!v?.legs?.length) return 0;
+    if (v.finished || v.shipSank) return 0;
+    const p = currentLegProgress(v);
+    const future = v.legs.slice(Number(v.currentLegIdx || 0) + 1)
+      .reduce((sum, l) => sum + Number(l.distance || 0), 0);
+    return Math.max(0, Math.round(Number(p.milesRemainingOnLeg || 0) + future));
+  }
+
+  function linkedShipName(v=state.voyage){
+    try {
+      const link = window.GCCVoyageFinance?.getLink?.() || {};
+      const fs = window.GCCFinance?.getState?.();
+      const asset = fs?.assets?.find?.(a => a.id === link.assetId);
+      if (asset?.name) return asset.name;
+    } catch (err){ /* ignore */ }
+    return v?.shipType || 'Ship';
+  }
+
+  function positionHeaderHTML(){
+    const v = state.voyage;
+    if (!v){
+      const planned = state.routeLegs?.length ? voyageRouteLabel({ legs:state.routeLegs }) : '';
+      const start = state.panelEl?.querySelector('#ve-from')?.value || '';
+      const startHex = start ? portHex(start) : null;
+      return `<div class="ve-position-card idle">
+        <div class="ve-position-title">
+          <div class="ve-position-ship">⚓ No active voyage</div>
+          <div class="ve-position-route">${planned ? `Planned route: ${esc(planned)}` : (start ? `Current planner port: ${esc(start)}` : 'Plan an itinerary on the Setup tab.')}</div>
+        </div>
+        <div class="ve-position-actions">
+          <button class="ve-btn" data-ve-pos-action="route">Route Planner</button>
+          <button class="ve-btn" data-ve-pos-action="center" ${startHex ? '' : 'disabled'}>Center Map</button>
+        </div>
+      </div>`;
+    }
+    updateVoyageLocation('position-header');
+    const loc = voyageCurrentLocation(v) || {};
+    const leg = currentLeg(v);
+    const pos = loc.currentHex || shipHexPosition();
+    const remaining = remainingVoyageMiles(v);
+    const eta = (!v.finished && !v.shipSank && Number(v.dailySail || 0) > 0)
+      ? Math.max(1, Math.ceil(remaining / Number(v.dailySail || 1)))
+      : 0;
+    const total = Math.max(1, Number(v.totalDistance || 0));
+    const pct = v.finished ? 100 : Math.max(0, Math.min(100, Math.round(Number(v.distanceCovered || 0) / total * 100)));
+    const status = v.shipSank ? 'Sunk' : v.finished ? 'Arrived' : loc.mode === 'underway' ? 'Underway' : 'Docked';
+    const legMeta = leg ? `${Math.round(Number(v.milesOnLeg || 0))}/${Number(leg.distance || 0)} mi` : '—';
+    return `<div class="ve-position-card ${esc(loc.mode || '')}">
+      <div class="ve-position-title">
+        <div class="ve-position-ship">${loc.mode === 'underway' ? '🚢' : loc.mode === 'arrived' ? '⚓' : loc.mode === 'sunk' ? '☠' : '⚓'} ${esc(linkedShipName(v))}</div>
+        <div class="ve-position-route">${esc(loc.label || voyageRouteLabel(v) || 'At sea')}</div>
+      </div>
+      <div class="ve-position-meta">
+        <div class="ve-position-chip"><b>${esc(status)}</b><span>Status</span></div>
+        <div class="ve-position-chip"><b>${esc(v.currentDate || formatDate(v.calendar))}</b><span>Date</span></div>
+        <div class="ve-position-chip"><b>${esc(hexLabel(pos))}</b><span>Current Hex</span></div>
+        <div class="ve-position-chip"><b>${esc(legMeta)}</b><span>Current Leg</span></div>
+        <div class="ve-position-chip"><b>${remaining} mi</b><span>Remaining</span></div>
+        <div class="ve-position-chip"><b>${eta ? `${eta} day${eta === 1 ? '' : 's'}` : '—'}</b><span>ETA</span></div>
+      </div>
+      <div class="ve-position-actions">
+        <button class="ve-btn" data-ve-pos-action="center" ${pos ? '' : 'disabled'}>Center Map on Ship</button>
+        <button class="ve-btn" data-ve-pos-action="route">Show Route</button>
+        <button class="ve-btn" data-ve-pos-action="log">Open Log</button>
+      </div>
+      <div class="ve-progress-track"><div class="ve-progress-fill" style="width:${pct}%"></div></div>
+    </div>`;
+  }
+
+  function renderPositionHeader(){
+    const dock = state.panelEl?.querySelector('#ve-position-dock');
+    if (!dock) return;
+    dock.innerHTML = positionHeaderHTML();
+  }
+
+  function centerMapOnShip(){
+    const v = state.voyage;
+    const pos = v ? (voyageCurrentLocation(v)?.currentHex || shipHexPosition()) : portHex(state.panelEl?.querySelector('#ve-from')?.value || '');
+    if (!pos){ setStatus('No ship position is available to center on yet.', 'warn'); return; }
+    if (typeof centerOnHex === 'function'){
+      centerOnHex(pos.col, pos.row);
+      renderShip();
+      renderRouteOverlay();
+      renderTrailOverlay();
+      setStatus(`Centered map on ${v ? 'ship' : 'planner port'} at ${hexLabel(pos)}.`);
+    } else {
+      setStatus('Map centering helper is unavailable on this page.', 'warn');
+    }
+  }
+
   function voyagePaneHTML(){
     return `
       <div id="ve-voyage-body">
@@ -1167,7 +1325,7 @@
       if (port?.defaultWater) waterSel.value = port.defaultWater;
       setFinalDestinationOptions();
     };
-    fromSel.onchange = refreshDest;
+    fromSel.onchange = () => { refreshDest(); renderPositionHeader(); };
     refreshDest();
 
     p.querySelector('#ve-addleg').onclick = addLeg;
@@ -1184,6 +1342,7 @@
   // ── UI: TABS ──────────────────────────────────────────────────────────────
   function setActiveTab(tab){
     state.activeTab = tab;
+    renderPositionHeader();
     const p = state.panelEl;
     p.querySelectorAll('.ve-tab').forEach(t => t.classList.toggle('active', t.dataset.tab===tab));
     p.querySelectorAll('.ve-pane').forEach(el => el.classList.remove('active'));
@@ -1452,14 +1611,17 @@
 
   // ── UI: VOYAGE PANE RENDER ────────────────────────────────────────────────
   function renderVoyagePane(){
+    renderPositionHeader();
     const body = state.panelEl?.querySelector('#ve-voyage-body');
     if (!body) return;
     const v = state.voyage;
     if (!v){
       body.innerHTML = '<div class="ve-status">No active voyage. Build a route on the Setup tab.</div>';
+      renderPositionHeader();
       return;
     }
     updateVoyageLocation('render');
+    renderPositionHeader();
     const leg = v.legs[v.currentLegIdx];
     const loc = voyageCurrentLocation(v);
     const legTxt = leg

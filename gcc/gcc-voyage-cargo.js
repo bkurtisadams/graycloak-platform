@@ -1,4 +1,4 @@
-// gcc-voyage-cargo.js v0.1.0 - Port Markets + Cargo Manifest for GCC Voyage
+// gcc-voyage-cargo.js v0.1.1 - Port Markets + Cargo Manifest for GCC Voyage
 // LocalStorage-only. Do not convert to Firestore until the Finance model is final.
 //
 // Rules model notes from Oops, I'm at Sea / 1e AD&D seafaring trade:
@@ -15,7 +15,7 @@
 (function(){
   if (typeof window === 'undefined') return;
 
-  const VERSION = '0.1.0';
+  const VERSION = '0.1.1';
   const STORAGE_KEY = 'gcc.voyage.cargo.v1';
   const LOAD_CN = 10000;
   const $ = (sel, root=document) => root.querySelector(sel);
@@ -524,12 +524,12 @@
       <details class="vc-section" open>
         <summary>Buy cargo at ${esc(info.port || 'port')}</summary>
         ${market ? `<div class="vc-muted">${esc(market.moorageNote || '')}</div>` : ''}
-        <table class="vc-table"><thead><tr><th>Cargo</th><th>Base</th><th>Buy</th><th>Est. sell here</th><th>Loads</th><th></th></tr></thead><tbody>${marketRowsHtml(info, manifest)}</tbody></table>
+        <div class="vc-table-wrap"><table class="vc-table vc-market-table"><thead><tr><th>Cargo</th><th>Base</th><th>Buy</th><th>Est. sell here</th><th>Loads</th><th></th></tr></thead><tbody>${marketRowsHtml(info, manifest)}</tbody></table></div>
       </details>
       <details class="vc-section" open>
         <summary>Cargo aboard</summary>
         <div class="vc-muted">Cost basis: <b>${gp(values.costBasis)}</b> · Estimated net if sold here: <b>${gp(values.netValue)}</b> · Estimated profit: <b class="${values.profit >= 0 ? 'vc-profit' : 'vc-loss'}">${values.profit >= 0 ? '+' : ''}${gp(values.profit)}</b>. Profit is shown, not double-posted.</div>
-        <table class="vc-table"><thead><tr><th>Cargo</th><th>Loads</th><th>Sell/load</th><th>Customs</th><th>Net</th><th>Profit</th><th>Sell</th><th></th></tr></thead><tbody>${cargoRowsHtml(info, manifest)}</tbody></table>
+        <div class="vc-table-wrap"><table class="vc-table vc-manifest-table"><thead><tr><th>Cargo</th><th>Loads</th><th>Sell/load</th><th>Customs</th><th>Net</th><th>Profit</th><th>Sell</th><th></th></tr></thead><tbody>${cargoRowsHtml(info, manifest)}</tbody></table></div>
       </details>`;
   }
 
@@ -549,10 +549,12 @@
       #voyage-panel .vc-summary-grid span{display:block;color:#c8a96e;font-size:9px;text-transform:uppercase;letter-spacing:.08em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
       #voyage-panel .vc-section{margin-top:8px;border-top:1px solid #4a3518;padding-top:6px;}
       #voyage-panel .vc-section summary{cursor:pointer;color:#d9b76f;font-family:'Cinzel',serif;letter-spacing:.04em;font-size:10px;}
-      #voyage-panel .vc-hold-row{display:grid;grid-template-columns:95px 1fr 80px;gap:6px;align-items:end;}
+      #voyage-panel .vc-hold-row{display:grid;grid-template-columns:minmax(140px,.55fr) minmax(220px,1fr) auto;gap:10px;align-items:end;}
       #voyage-panel .vc-hold-note{margin-bottom:7px;}
-      #voyage-panel .vc-table{width:100%;border-collapse:collapse;margin-top:6px;font-size:10px;}
-      #voyage-panel .vc-table th,#voyage-panel .vc-table td{border-bottom:1px solid #3c2a14;padding:4px 3px;vertical-align:top;text-align:left;}
+      #voyage-panel .vc-table-wrap{width:100%;overflow-x:auto;overscroll-behavior-x:contain;}
+      #voyage-panel .vc-table{width:100%;min-width:720px;border-collapse:collapse;margin-top:6px;font-size:10px;}
+      #voyage-panel .vc-manifest-table{min-width:820px;}
+      #voyage-panel .vc-table th,#voyage-panel .vc-table td{border-bottom:1px solid #3c2a14;padding:5px 6px;vertical-align:top;text-align:left;}
       #voyage-panel .vc-table th{color:#d6a84f;font-family:'Cinzel',serif;font-size:9px;letter-spacing:.04em;}
       #voyage-panel .vc-table td small{display:block;color:#9f8454;font-size:9px;line-height:1.25;margin-top:1px;}
       #voyage-panel .vc-qty{min-width:46px;padding:3px 5px;font-size:10px;}
@@ -560,6 +562,11 @@
       #voyage-panel .vc-empty-row{color:#9f8454;font-style:italic;text-align:center;}
       #voyage-panel .vc-profit{color:#9ce28a;}
       #voyage-panel .vc-loss{color:#ff9d7a;}
+      @media (max-width:760px){
+        #voyage-panel .vc-summary-grid{grid-template-columns:repeat(2,1fr);}
+        #voyage-panel .vc-hold-row{grid-template-columns:1fr;}
+        #voyage-panel .ve-btn.vc-inline{width:100%;}
+      }
     `;
     document.head.appendChild(style);
   }
