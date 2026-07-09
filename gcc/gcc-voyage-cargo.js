@@ -1,4 +1,9 @@
-// gcc-voyage-cargo.js v0.1.1 - Port Markets + Cargo Manifest for GCC Voyage
+// gcc-voyage-cargo.js v0.2.0 - Port Markets + Cargo Manifest for GCC Voyage
+// v0.2.0: replace the wide market/manifest tables (min-width 720/820px)
+//   with stacked lot cards so the Voyage tab fits the panel's new 500px
+//   default width without horizontal scrolling. Summary tiles and the hold
+//   row respond to panel width via container queries (2x2 tiles narrow,
+//   4-across when the panel is resized wider).
 // LocalStorage-only. Do not convert to Firestore until the Finance model is final.
 //
 // Rules model notes from Oops, I'm at Sea / 1e AD&D seafaring trade:
@@ -15,7 +20,7 @@
 (function(){
   if (typeof window === 'undefined') return;
 
-  const VERSION = '0.1.1';
+  const VERSION = '0.2.0';
   const STORAGE_KEY = 'gcc.voyage.cargo.v1';
   const LOAD_CN = 10000;
   const $ = (sel, root=document) => root.querySelector(sel);
@@ -428,19 +433,22 @@
       const buy = price(port, id, 'buy');
       const sell = price(port, id, 'sell');
       const avail = availableLoads(port, id);
-      return `<tr>
-        <td><b>${esc(type.name)}</b><small>${esc(type.desc)}</small></td>
-        <td>${gp(type.baseGp)}</td>
-        <td>${gp(buy)}<small>${avail} load${avail===1?'':'s'} available</small></td>
-        <td>${gp(sell)}<small>before customs</small></td>
-        <td><input class="ve-input vc-qty" data-vc-buy-qty="${esc(id)}" type="number" min="0" max="${esc(avail)}" value="1"></td>
-        <td><button class="ve-btn vc-inline" data-vc-buy="${esc(id)}"${disabled}>Buy &amp; Post</button></td>
-      </tr>`;
+      return `<div class="vc-lot">
+        <div class="vc-lot-main">
+          <div class="vc-lot-title"><b>${esc(type.name)}</b><span class="vc-lot-price">${gp(buy)}/load</span></div>
+          <div class="vc-lot-sub">${esc(type.desc)}</div>
+          <div class="vc-lot-meta"><span>base ${gp(type.baseGp)}</span><span>sells here ~${gp(sell)}</span><span>${avail} load${avail===1?'':'s'} avail</span></div>
+        </div>
+        <div class="vc-lot-act">
+          <input class="ve-input vc-qty" data-vc-buy-qty="${esc(id)}" type="number" min="0" max="${esc(avail)}" value="1">
+          <button class="ve-btn vc-inline" data-vc-buy="${esc(id)}"${disabled}>Buy &amp; Post</button>
+        </div>
+      </div>`;
     }).join('');
   }
 
   function cargoRowsHtml(info, manifest){
-    if (!manifest.cargo.length) return `<tr><td colspan="8" class="vc-empty-row">No cargo aboard.</td></tr>`;
+    if (!manifest.cargo.length) return `<div class="vc-empty-row">No cargo aboard.</div>`;
     const port = info.port || DEFAULT_PORT;
     const disabled = info.underway || !knownPort(port) || !financeReady() ? ' disabled' : '';
     return manifest.cargo.map(lot => {
@@ -451,16 +459,17 @@
       const net = gross - customs;
       const basis = Number(lot.purchaseUnitGp || 0) * Number(lot.loads || 0);
       const profit = net - basis;
-      return `<tr>
-        <td><b>${esc(type.name)}</b><small>${esc(lot.purchasePort || 'unknown port')} · ${gp(lot.purchaseUnitGp)}/load</small></td>
-        <td>${Number(lot.loads || 0)}</td>
-        <td>${gp(unit)}</td>
-        <td>${gp(customs)}</td>
-        <td>${gp(net)}</td>
-        <td class="${profit >= 0 ? 'vc-profit' : 'vc-loss'}">${profit >= 0 ? '+' : ''}${gp(profit)}</td>
-        <td><input class="ve-input vc-qty" data-vc-sell-qty="${esc(lot.id)}" type="number" min="0" max="${Number(lot.loads || 0)}" value="${Number(lot.loads || 0)}"></td>
-        <td><button class="ve-btn vc-inline" data-vc-sell="${esc(lot.id)}"${disabled}>Sell &amp; Post</button></td>
-      </tr>`;
+      return `<div class="vc-lot">
+        <div class="vc-lot-main">
+          <div class="vc-lot-title"><b>${esc(type.name)}</b><span class="${profit >= 0 ? 'vc-profit' : 'vc-loss'}">${profit >= 0 ? '+' : ''}${gp(profit)} profit</span></div>
+          <div class="vc-lot-sub">${Number(lot.loads || 0)} load(s) · bought ${esc(lot.purchasePort || 'unknown port')} @ ${gp(lot.purchaseUnitGp)}/load</div>
+          <div class="vc-lot-meta"><span>sell ${gp(unit)}/load</span><span>customs ${gp(customs)}</span><span>net ${gp(net)}</span></div>
+        </div>
+        <div class="vc-lot-act">
+          <input class="ve-input vc-qty" data-vc-sell-qty="${esc(lot.id)}" type="number" min="0" max="${Number(lot.loads || 0)}" value="${Number(lot.loads || 0)}">
+          <button class="ve-btn vc-inline" data-vc-sell="${esc(lot.id)}"${disabled}>Sell &amp; Post</button>
+        </div>
+      </div>`;
     }).join('');
   }
 
@@ -524,12 +533,12 @@
       <details class="vc-section" open>
         <summary>Buy cargo at ${esc(info.port || 'port')}</summary>
         ${market ? `<div class="vc-muted">${esc(market.moorageNote || '')}</div>` : ''}
-        <div class="vc-table-wrap"><table class="vc-table vc-market-table"><thead><tr><th>Cargo</th><th>Base</th><th>Buy</th><th>Est. sell here</th><th>Loads</th><th></th></tr></thead><tbody>${marketRowsHtml(info, manifest)}</tbody></table></div>
+        <div class="vc-lots">${marketRowsHtml(info, manifest)}</div>
       </details>
       <details class="vc-section" open>
         <summary>Cargo aboard</summary>
         <div class="vc-muted">Cost basis: <b>${gp(values.costBasis)}</b> · Estimated net if sold here: <b>${gp(values.netValue)}</b> · Estimated profit: <b class="${values.profit >= 0 ? 'vc-profit' : 'vc-loss'}">${values.profit >= 0 ? '+' : ''}${gp(values.profit)}</b>. Profit is shown, not double-posted.</div>
-        <div class="vc-table-wrap"><table class="vc-table vc-manifest-table"><thead><tr><th>Cargo</th><th>Loads</th><th>Sell/load</th><th>Customs</th><th>Net</th><th>Profit</th><th>Sell</th><th></th></tr></thead><tbody>${cargoRowsHtml(info, manifest)}</tbody></table></div>
+        <div class="vc-lots">${cargoRowsHtml(info, manifest)}</div>
       </details>`;
   }
 
@@ -543,29 +552,37 @@
       #voyage-panel .vc-pill{border:1px solid #6b5129;border-radius:999px;padding:1px 6px;color:#c8a96e;background:#21170d;font-family:system-ui,sans-serif;font-size:10px;letter-spacing:0;}
       #voyage-panel .vc-muted{color:#c8a96e;font-size:10px;line-height:1.35;margin-top:5px;}
       #voyage-panel .vc-warning{margin:8px 0;padding:6px 8px;background:rgba(120,58,18,.22);border:1px solid #8a4f23;border-radius:7px;color:#ffc27a;font-size:10px;line-height:1.35;}
-      #voyage-panel .vc-summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0;}
+      #voyage-panel .vc-summary-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin:8px 0;}
       #voyage-panel .vc-summary-grid>div{background:#0d0600;border:1px solid #4a3518;border-radius:7px;padding:6px;text-align:center;min-width:0;}
       #voyage-panel .vc-summary-grid b{display:block;color:#f4e4b8;font-size:11px;font-family:Georgia,serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
       #voyage-panel .vc-summary-grid span{display:block;color:#c8a96e;font-size:9px;text-transform:uppercase;letter-spacing:.08em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
       #voyage-panel .vc-section{margin-top:8px;border-top:1px solid #4a3518;padding-top:6px;}
       #voyage-panel .vc-section summary{cursor:pointer;color:#d9b76f;font-family:'Cinzel',serif;letter-spacing:.04em;font-size:10px;}
-      #voyage-panel .vc-hold-row{display:grid;grid-template-columns:minmax(140px,.55fr) minmax(220px,1fr) auto;gap:10px;align-items:end;}
-      #voyage-panel .vc-hold-note{margin-bottom:7px;}
-      #voyage-panel .vc-table-wrap{width:100%;overflow-x:auto;overscroll-behavior-x:contain;}
-      #voyage-panel .vc-table{width:100%;min-width:720px;border-collapse:collapse;margin-top:6px;font-size:10px;}
-      #voyage-panel .vc-manifest-table{min-width:820px;}
-      #voyage-panel .vc-table th,#voyage-panel .vc-table td{border-bottom:1px solid #3c2a14;padding:5px 6px;vertical-align:top;text-align:left;}
-      #voyage-panel .vc-table th{color:#d6a84f;font-family:'Cinzel',serif;font-size:9px;letter-spacing:.04em;}
-      #voyage-panel .vc-table td small{display:block;color:#9f8454;font-size:9px;line-height:1.25;margin-top:1px;}
-      #voyage-panel .vc-qty{min-width:46px;padding:3px 5px;font-size:10px;}
-      #voyage-panel .ve-btn.vc-inline{width:auto;margin-top:0;padding:4px 6px;font-size:9px;white-space:nowrap;}
-      #voyage-panel .vc-empty-row{color:#9f8454;font-style:italic;text-align:center;}
-      #voyage-panel .vc-profit{color:#9ce28a;}
-      #voyage-panel .vc-loss{color:#ff9d7a;}
-      @media (max-width:760px){
-        #voyage-panel .vc-summary-grid{grid-template-columns:repeat(2,1fr);}
-        #voyage-panel .vc-hold-row{grid-template-columns:1fr;}
-        #voyage-panel .ve-btn.vc-inline{width:100%;}
+      #voyage-panel .vc-hold-row{display:grid;grid-template-columns:1fr;gap:8px;align-items:end;}
+      #voyage-panel .vc-hold-note{margin-bottom:0;}
+      /* Stacked lot cards — replaces the old min-width:720px+ tables so the
+         Voyage tab fits the 500px default panel without sideways scrolling. */
+      #voyage-panel .vc-lots{display:flex;flex-direction:column;margin-top:6px;}
+      #voyage-panel .vc-lot{display:flex;gap:6px 10px;align-items:center;flex-wrap:wrap;padding:6px 2px;border-bottom:1px solid #3c2a14;}
+      #voyage-panel .vc-lot:last-child{border-bottom:0;}
+      #voyage-panel .vc-lot-main{flex:1 1 240px;min-width:0;}
+      #voyage-panel .vc-lot-title{display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+      #voyage-panel .vc-lot-title b{color:#f4e4b8;font-size:11px;}
+      #voyage-panel .vc-lot-price{color:#e8b840;font-size:11px;white-space:nowrap;}
+      #voyage-panel .vc-lot-sub{color:#9f8454;font-size:9px;line-height:1.3;margin-top:1px;}
+      #voyage-panel .vc-lot-meta{display:flex;flex-wrap:wrap;gap:2px 10px;color:#c8a96e;font-size:9px;margin-top:2px;}
+      #voyage-panel .vc-lot-meta span{white-space:nowrap;}
+      #voyage-panel .vc-lot-act{display:flex;gap:5px;align-items:center;flex:0 0 auto;margin-left:auto;}
+      #voyage-panel .vc-qty{width:52px;min-width:52px;padding:3px 5px;font-size:10px;}
+      #voyage-panel .ve-btn.vc-inline{width:auto;margin-top:0;padding:4px 8px;font-size:9px;white-space:nowrap;}
+      #voyage-panel .vc-empty-row{color:#9f8454;font-style:italic;text-align:center;padding:8px 0;}
+      #voyage-panel .vc-profit{color:#9ce28a;font-size:10px;white-space:nowrap;}
+      #voyage-panel .vc-loss{color:#ff9d7a;font-size:10px;white-space:nowrap;}
+      /* Wider panel → let the summary tiles and hold row spread back out. */
+      @container voyage-panel (min-width: 620px){
+        #voyage-panel .vc-summary-grid{grid-template-columns:repeat(4,1fr);}
+        #voyage-panel .vc-hold-row{grid-template-columns:minmax(140px,.55fr) minmax(220px,1fr) auto;gap:10px;}
+        #voyage-panel .vc-hold-note{margin-bottom:7px;}
       }
     `;
     document.head.appendChild(style);

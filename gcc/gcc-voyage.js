@@ -1,4 +1,8 @@
-// gcc-voyage.js v0.8.0 — 2026-07-09
+// gcc-voyage.js v0.8.1 — 2026-07-09
+// v0.8.1: default panel width 500px (was 1080px); min-width 420px. The
+//   setup two-column and position-card wide layouts still engage via
+//   container query when the user resizes wider. Pairs with
+//   gcc-voyage-cargo.js v0.2.0 (stacked lot cards replace wide tables).
 // v0.8.0: weather continuity + click-to-place ports.
 //   - Daily weather now passes the previous day into GCCWeather
 //     (ctx.previous), enabling Dragon #68 multi-day events: a gale rolled
@@ -91,7 +95,7 @@
 (function(){
   if (typeof window === 'undefined') return;
   const LOG = (...a) => console.log('[voyage]', ...a);
-  LOG('gcc-voyage.js v0.8.0 loaded');
+  LOG('gcc-voyage.js v0.8.1 loaded');
 
   // ── DATA ──────────────────────────────────────────────────────────────────
   // Ship templates: dailySail in miles-per-10-hour-sailing-day, hull in HP.
@@ -1074,9 +1078,9 @@
         /* Default top must clear the fixed gcc-bar (~44px) + #topbar (46px);
            top:64px put the drag header under the toolbar. */
         position:fixed; top:calc(var(--gcc-bar-h, 44px) + 56px); right:24px;
-        width:min(1080px, calc(100vw - 48px));
+        width:min(500px, calc(100vw - 48px));
         height:min(760px, calc(100vh - var(--gcc-bar-h, 44px) - 80px));
-        min-width:520px; min-height:420px; z-index:2000;
+        min-width:420px; min-height:420px; z-index:2000;
         background:rgba(20,14,6,.96); border:1px solid #c8941a; border-radius:10px;
         font-family:'Cinzel',serif; color:#f4e4b8; box-shadow:0 4px 20px rgba(0,0,0,.6);
         max-width:calc(100vw - 24px); max-height:calc(100vh - 24px); display:flex; flex-direction:column;
@@ -1336,7 +1340,7 @@
     try {
       const SZ = 'gh-voyage-size';
       const sz = JSON.parse(localStorage.getItem(SZ) || 'null');
-      if (sz && sz.w >= 520 && sz.h >= 420){
+      if (sz && sz.w >= 420 && sz.h >= 420){
         p.style.width  = Math.min(sz.w, window.innerWidth  - 24) + 'px';
         p.style.height = Math.min(sz.h, window.innerHeight - 24) + 'px';
       }
