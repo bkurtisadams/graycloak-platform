@@ -1,4 +1,16 @@
-// gcc-voyage.js v0.9.0 — 2026-07-09
+// gcc-voyage.js v0.10.0 — 2026-07-09
+// v0.10.0: dedicated Route tab + sailing-plan timeline.
+//   - Tabs are now Setup | Route | Voyage | Log. Setup keeps captain, ship,
+//     crew, and departure date; the route builder, itinerary, and Port setup
+//     move to Route. Both tabs read cleanly at the 500px default width.
+//   - The itinerary renders as a vertical timeline: ports as nodes (⚓ start,
+//     ◉ stopover, 🏁 destination — click a port name to center the map),
+//     legs as rail segments carrying the editable distance, water type,
+//     measured/estimated/manual badge, hex count, and ~days at the current
+//     ship speed. Stops show cumulative miles and a projected arrival date
+//     computed from the Setup tab's departure date on the Greyhawk calendar.
+//   - Position header's Route button opens the Route tab.
+// v0.9.0 — 2026-07-09
 // v0.9.0: landmark-driven ports + path-measured route builder.
 //   - Port roster = landmarks tagged isPort:true (the trading-seaport tag
 //     gcc-landmarks.js reserved for this sim) ∪ legacy canonical names that
@@ -109,7 +121,7 @@
 (function(){
   if (typeof window === 'undefined') return;
   const LOG = (...a) => console.log('[voyage]', ...a);
-  LOG('gcc-voyage.js v0.9.0 loaded');
+  LOG('gcc-voyage.js v0.10.0 loaded');
 
   // ── DATA ──────────────────────────────────────────────────────────────────
   // Ship templates: dailySail in miles-per-10-hour-sailing-day, hull in HP.
@@ -1191,13 +1203,6 @@
         #voyage-panel .ve-position-meta { grid-template-columns:1fr 1fr; }
         #voyage-panel .ve-position-actions { justify-content:flex-start; flex-wrap:wrap; }
       }
-      /* Setup pane: two columns when the panel is wide (ship/crew/date left,
-         itinerary planner right); single column when narrow. */
-      #voyage-panel .ve-setup-grid { display:grid; grid-template-columns:1fr; gap:0 18px; align-items:start; }
-      @container voyage-panel (min-width: 680px){
-        #voyage-panel .ve-setup-grid { grid-template-columns:minmax(230px,1fr) minmax(300px,1.35fr); }
-      }
-      #voyage-panel .ve-setup-grid > div > .ve-lbl:first-child { margin-top:0; }
       #voyage-panel .ve-tab {
         flex:1; padding:7px 4px; background:none; border:none; color:#8b6e45;
         font-family:'Cinzel',serif; font-size:10px; letter-spacing:.08em; cursor:pointer;
@@ -1254,18 +1259,36 @@
       }
       #voyage-panel .ve-legs {
         margin:6px 0; font-size:11px; font-family:Georgia,serif;
-        max-height:140px; overflow-y:auto;
+        max-height:260px; overflow-y:auto;
       }
-      #voyage-panel .ve-leg {
-        display:flex; justify-content:space-between; align-items:center;
-        padding:4px 6px; border-bottom:1px solid rgba(200,148,26,.12); gap:6px;
+      /* Sailing-plan timeline */
+      #voyage-panel .ve-tl-stop {
+        display:flex; align-items:baseline; gap:7px; padding:2px 0;
       }
-      #voyage-panel .ve-leg:last-child { border-bottom:0; }
-      #voyage-panel .ve-leg-text { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
-      #voyage-panel .ve-leg-text small { color:#c8a96e; font-size:10px; }
+      #voyage-panel .ve-tl-node { flex:0 0 16px; text-align:center; font-size:11px; }
+      #voyage-panel .ve-tl-port {
+        color:#f4e4b8; font-family:'Cinzel',serif; font-size:11px; letter-spacing:.03em;
+        cursor:pointer; text-decoration:underline dotted rgba(200,148,26,.45);
+      }
+      #voyage-panel .ve-tl-port:hover { color:#e8b840; }
+      #voyage-panel .ve-tl-meta { color:#8b6e45; font-size:9px; margin-left:auto; white-space:nowrap; }
+      #voyage-panel .ve-tl-leg { display:flex; gap:7px; align-items:stretch; }
+      #voyage-panel .ve-tl-rail {
+        flex:0 0 16px; position:relative;
+      }
+      #voyage-panel .ve-tl-rail::before {
+        content:''; position:absolute; top:0; bottom:0; left:50%;
+        border-left:2px dotted #5a3a0a;
+      }
+      #voyage-panel .ve-tl-leg-body { flex:1; min-width:0; padding:3px 0 5px; }
+      #voyage-panel .ve-tl-leg-line { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+      #voyage-panel .ve-tl-water { color:#c8a96e; font-size:9px; }
+      #voyage-panel .ve-tl-days { color:#c8a96e; font-size:9px; }
+      #voyage-panel .ve-tl-warn { display:block; color:#ff9944; font-size:9px; font-style:italic; margin-top:2px; }
+      #voyage-panel .ve-tl-path { display:block; color:#5f7d8f; font-size:9px; margin-top:2px; }
       #voyage-panel .ve-leg-x {
         background:none; border:none; color:#aa4422; cursor:pointer; font-size:14px;
-        padding:0 3px; line-height:1;
+        padding:0 3px; line-height:1; margin-left:auto;
       }
       #voyage-panel .ve-leg-x:hover { color:#ff6644; }
       #voyage-panel .ve-leg-dist {
@@ -1367,11 +1390,13 @@
       </div>
       <div class="ve-tabs">
         <button class="ve-tab active" data-tab="setup">Setup</button>
+        <button class="ve-tab" data-tab="route">Route</button>
         <button class="ve-tab" data-tab="voyage">Voyage</button>
         <button class="ve-tab" data-tab="log">Log</button>
       </div>
       <div class="ve-position-dock" id="ve-position-dock"></div>
       <div class="ve-pane active" id="ve-pane-setup">${setupPaneHTML()}</div>
+      <div class="ve-pane" id="ve-pane-route">${routePaneHTML()}</div>
       <div class="ve-pane" id="ve-pane-voyage">${voyagePaneHTML()}</div>
       <div class="ve-pane" id="ve-pane-log"><div class="ve-log" id="ve-log"></div></div>
     `;
@@ -1413,29 +1438,23 @@
     p.querySelector('#ve-position-dock')?.addEventListener('click', e => {
       const action = e.target?.closest?.('[data-ve-pos-action]')?.dataset?.vePosAction;
       if (action === 'center') centerMapOnShip();
-      if (action === 'route') setActiveTab('setup');
+      if (action === 'route') setActiveTab('route');
       if (action === 'log') setActiveTab('log');
     });
 
     wireSetupPane();
+    wireRoutePane();
     renderPositionHeader();
     wireVoyagePane();
   }
 
-  // Setup pane: captain, ship, crew, route planner.
+  // Setup tab: captain, ship, crew, and departure date only.
   function setupPaneHTML(){
-    const allPorts = portNames();
-    const availablePorts = allPorts.filter(portAvailable);
-    const missingPorts   = allPorts.filter(n => !portAvailable(n));
-    const portOpts = availablePorts.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
     const shipOpts = SHIP_TEMPLATES.map(s =>
       `<option value="${s.id}">${esc(s.name)} (${s.dailySail} mi/d${s.dailyOar ? ` sail / ${s.dailyOar} oar` : ''}, ${s.hull} HP)</option>`).join('');
     const monthOpts = MONTHS.map((m,i) => `<option value="${i}">${esc(m)}</option>`).join('');
-    const waterOpts = WATER_TYPES.map(w => `<option value="${w.id}">${esc(w.label)}</option>`).join('');
 
     return `
-      <div class="ve-setup-grid">
-      <div>
       <label class="ve-lbl">Captain Name</label>
       <input class="ve-input" id="ve-capt" type="text" value="Captain" maxlength="40">
 
@@ -1483,26 +1502,48 @@
           <input class="ve-input" id="ve-syear" type="number" min="1" max="999" value="576">
         </div>
       </div>
+
+      <div class="ve-status">Configure captain, ship, crew, and departure date here. Plan the itinerary on the Route tab.</div>
+    `;
+  }
+
+  // Route tab: route builder, itinerary timeline, port setup.
+  function routePaneHTML(){
+    const allPorts = portNames();
+    const availablePorts = allPorts.filter(portAvailable);
+    const missingPorts   = allPorts.filter(n => !portAvailable(n));
+    const portOpts = availablePorts.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+    const waterOpts = WATER_TYPES.map(w => `<option value="${w.id}">${esc(w.label)}</option>`).join('');
+
+    return `
+      <div class="ve-help">Legs are pathfound through painted water between any two ports; distance is measured along the route at ${MILES_PER_HEX} mi/hex. No water path yet → a straight-line estimate you can edit. All leg distances stay editable.</div>
+
+      <div class="ve-row">
+        <div>
+          <label class="ve-lbl" id="ve-from-lbl">Start Port</label>
+          <select class="ve-select" id="ve-from">${portOpts}</select>
+        </div>
+        <div>
+          <label class="ve-lbl">Next Stop</label>
+          <select class="ve-select" id="ve-to"></select>
+        </div>
       </div>
-      <div>
-      <label class="ve-lbl">Route Builder</label>
-      <div class="ve-help">Legs are pathfound through painted water between any two ports; distance is measured along the route at ${MILES_PER_HEX} mi/hex. If no water path exists yet, the leg gets a straight-line estimate you can edit — leg distances in the itinerary are always editable.</div>
+      <div class="ve-row">
+        <div>
+          <label class="ve-lbl">Water Type for This Leg</label>
+          <select class="ve-select" id="ve-water">${waterOpts}</select>
+        </div>
+        <div>
+          <label class="ve-lbl">&nbsp;</label>
+          <button class="ve-btn primary" id="ve-addleg" style="margin-top:0">Add Leg</button>
+        </div>
+      </div>
 
-      <label class="ve-lbl" id="ve-from-lbl">Start Port</label>
-      <select class="ve-select" id="ve-from">${portOpts}</select>
-      <label class="ve-lbl">Next Stop</label>
-      <select class="ve-select" id="ve-to"></select>
-      <label class="ve-lbl">Water Type for This Leg</label>
-      <select class="ve-select" id="ve-water">${waterOpts}</select>
-      <button class="ve-btn primary" id="ve-addleg">Add Leg</button>
-
-      <label class="ve-lbl">Planned Itinerary</label>
+      <label class="ve-lbl">Sailing Plan</label>
       <div class="ve-legs" id="ve-legs"></div>
       <div class="ve-row">
         <button class="ve-btn danger" id="ve-clearroute">Clear</button>
         <button class="ve-btn primary" id="ve-start">Start Voyage</button>
-      </div>
-      </div>
       </div>
 
       ${(() => {
@@ -1512,7 +1553,6 @@
             : src === 'landmark' ? '✓ landmark'
             : src === 'placed' ? `📍 ${esc(hexLabel(portOverrideHex(n)))}`
             : '— not placed';
-          const lm = src === 'seaport' ? GCCLandmarks.getByName(n) : null;
           const btns = src === 'seaport'
             ? `<button class="ve-mini danger" data-demote-port="${esc(n)}" title="Remove the trading-seaport tag">Demote</button>`
             : src === 'landmark' ? ''
@@ -1541,7 +1581,7 @@
         </details>`;
       })()}
 
-      <div class="ve-status" id="ve-status">Plan an itinerary, then Start Voyage. Active voyages and planned routes now persist after refresh.</div>
+      <div class="ve-status" id="ve-status">Build the sailing plan, then Start Voyage. Routes and active voyages persist after refresh.</div>
     `;
   }
 
@@ -1646,23 +1686,28 @@
   function voyagePaneHTML(){
     return `
       <div id="ve-voyage-body">
-        <div class="ve-status">No active voyage. Build a route on the Setup tab.</div>
+        <div class="ve-status">No active voyage. Build a sailing plan on the Route tab.</div>
       </div>
     `;
   }
 
   function wireSetupPane(){
     const p = state.panelEl;
-    const fromSel  = p.querySelector('#ve-from');
     const shipSel  = p.querySelector('#ve-ship');
     const speedInp = p.querySelector('#ve-speed');
     const hullInp  = p.querySelector('#ve-hull');
-    const waterSel = p.querySelector('#ve-water');
-
-    shipSel.onchange = () => {
+    if (shipSel) shipSel.onchange = () => {
       const s = SHIP_TEMPLATES.find(x => x.id === shipSel.value);
       if (s){ speedInp.value = s.dailySail; hullInp.value = s.hull; }
     };
+    if (speedInp) speedInp.oninput = renderLegsUI;   // route ETAs track ship speed
+  }
+
+  function wireRoutePane(){
+    const p = state.panelEl;
+    const fromSel  = p.querySelector('#ve-from');
+    const waterSel = p.querySelector('#ve-water');
+    if (!fromSel) return;
 
     const refreshDest = () => {
       // While an itinerary exists, legs chain from its end — lock the
@@ -1693,7 +1738,6 @@
     p.querySelector('#ve-addleg').onclick = addLeg;
     p.querySelector('#ve-clearroute').onclick = clearRoute;
     p.querySelector('#ve-start').onclick = startVoyage;
-    speedInp.oninput = renderLegsUI;
 
     p.querySelectorAll('[data-place-port]').forEach(b =>
       b.onclick = () => beginPortPlacement(b.dataset.placePort));
@@ -1734,18 +1778,21 @@
     renderLegsUI();
   }
 
-  // Rebuild the setup pane (port lists change when a port is placed/cleared)
-  // while preserving whatever the user has typed/selected.
+  // Rebuild the setup + route panes (port lists change when a port is
+  // placed/cleared/promoted) while preserving whatever the user typed.
   function renderSetupPane(){
     const p = state.panelEl;
-    const pane = p?.querySelector('#ve-pane-setup');
-    if (!pane) return;
+    const setupPane = p?.querySelector('#ve-pane-setup');
+    const routePane = p?.querySelector('#ve-pane-route');
+    if (!setupPane || !routePane) return;
     const keep = {};
     ['ve-capt','ve-ship','ve-speed','ve-hull','ve-crew','ve-nav',
      've-sday','ve-smonth','ve-syear','ve-from','ve-to','ve-water','ve-newport-name']
       .forEach(id => { const el = p.querySelector('#'+id); if (el) keep[id] = el.value; });
-    pane.innerHTML = setupPaneHTML();
+    setupPane.innerHTML = setupPaneHTML();
+    routePane.innerHTML = routePaneHTML();
     wireSetupPane();
+    wireRoutePane();
     Object.entries(keep).forEach(([id, val]) => {
       const el = p.querySelector('#'+id);
       if (!el) return;
@@ -1766,6 +1813,7 @@
     p.querySelectorAll('.ve-tab').forEach(t => t.classList.toggle('active', t.dataset.tab===tab));
     p.querySelectorAll('.ve-pane').forEach(el => el.classList.remove('active'));
     p.querySelector('#ve-pane-'+tab)?.classList.add('active');
+    if (tab==='route') renderLegsUI();   // ETAs track ship speed edits on Setup
     if (tab==='log') renderLog();
     if (tab==='voyage') renderVoyagePane();
   }
@@ -1781,11 +1829,6 @@
   function routeTotals(legs=state.routeLegs){
     const miles = legs.reduce((sum,l) => sum + Number(l.distance || 0), 0);
     return { miles, days: estimateDaysForDistance(miles) };
-  }
-
-  function pathStatus(leg){
-    if (leg.path && leg.path.length > 1) return `${leg.path.length} water hexes`;
-    return 'straight fallback';
   }
 
   function availablePortNames(){ return portNames().filter(portAvailable); }
@@ -1815,31 +1858,77 @@
     return 'estimated';
   }
 
-  // ── UI: ROUTE LIST ────────────────────────────────────────────────────────
+  // ── UI: SAILING PLAN TIMELINE ─────────────────────────────────────────────
+  // Ports render as nodes on a vertical rail; each connecting leg carries its
+  // editable distance, water type, source badge, and estimated days. Stops
+  // show cumulative mileage and a projected calendar date from the Setup
+  // tab's departure date at the current ship speed.
+  function plannedStartCalendar(){
+    const p = state.panelEl;
+    return {
+      day:   parseInt(p?.querySelector('#ve-sday')?.value, 10)   || 1,
+      month: parseInt(p?.querySelector('#ve-smonth')?.value, 10) || 0,
+      year:  parseInt(p?.querySelector('#ve-syear')?.value, 10)  || 576,
+    };
+  }
+
   function renderLegsUI(){
     const list = state.panelEl.querySelector('#ve-legs');
     if (!list) return;
     if (!state.routeLegs.length){
-      list.innerHTML = '<div style="color:#8b6e45;font-style:italic;font-size:11px;padding:6px">No itinerary yet. Pick a start port and next stop, then Add Leg. Add more legs to chain stopovers.</div>';
+      list.innerHTML = '<div style="color:#8b6e45;font-style:italic;font-size:11px;padding:6px">No sailing plan yet. Pick a start port and next stop, then Add Leg. Add more legs to chain stopovers.</div>';
       return;
     }
+    const speed = Math.max(1, Number(state.panelEl?.querySelector('#ve-speed')?.value || 36));
+    const startCal = plannedStartCalendar();
     const totals = routeTotals();
-    const items = state.routeLegs.map((leg,i) => {
-      const badge = distanceBadge(leg);
-      const warn = (leg.path && leg.path.length > 1) ? '' : ' · ⚠ no water path';
-      return `<div class="ve-leg">
-        <span class="ve-leg-text"><b>${i+1}.</b> ${esc(leg.from)} → ${esc(leg.to)}<br><small>${esc(waterTypeLabel(leg.waterType))} · ${esc(pathStatus(leg))} · <span class="ve-dist-badge ${badge}">${badge}</span>${warn}</small></span>
-        <input class="ve-input ve-leg-dist" data-i="${i}" type="number" min="1" value="${Number(leg.distance || 0)}" title="Leg distance in miles — edit to override">
-        <span class="ve-leg-mi">mi</span>
-        <button class="ve-leg-x" data-i="${i}" title="Remove segment">✕</button>
+
+    let cumMiles = 0, cumDays = 0;
+    const stopHtml = (name, icon, meta) => `
+      <div class="ve-tl-stop">
+        <span class="ve-tl-node">${icon}</span>
+        <span class="ve-tl-port" data-center-port="${esc(name)}" title="Center map on ${esc(name)}">${esc(name)}</span>
+        <span class="ve-tl-meta">${meta}</span>
       </div>`;
-    }).join('');
-    list.innerHTML = `
-      <div class="ve-route-summary">${state.routeLegs.length} segment${state.routeLegs.length===1?'':'s'} · ${totals.miles} mi · estimated ${totals.days} sailing day${totals.days===1?'':'s'}</div>
-      ${items}
-    `;
+
+    let html = `<div class="ve-route-summary">${state.routeLegs.length} leg${state.routeLegs.length===1?'':'s'} · ${totals.miles} mi · ~${totals.days} sailing day${totals.days===1?'':'s'} at ${speed} mi/day</div>`;
+    html += stopHtml(state.routeLegs[0].from, '⚓', `depart ${esc(formatDate(startCal))}`);
+
+    state.routeLegs.forEach((leg, i) => {
+      const badge = distanceBadge(leg);
+      const legDays = Math.max(1, Math.ceil(Number(leg.distance || 0) / speed));
+      const noPath = !(leg.path && leg.path.length > 1);
+      cumMiles += Number(leg.distance || 0);
+      cumDays  += legDays;
+      html += `
+        <div class="ve-tl-leg">
+          <span class="ve-tl-rail"></span>
+          <span class="ve-tl-leg-body">
+            <span class="ve-tl-leg-line">
+              <input class="ve-input ve-leg-dist" data-i="${i}" type="number" min="1" value="${Number(leg.distance || 0)}" title="Leg distance in miles — edit to override">
+              <span class="ve-leg-mi">mi</span>
+              <span class="ve-dist-badge ${badge}">${badge}</span>
+              <span class="ve-tl-water">${esc(waterTypeLabel(leg.waterType))}</span>
+              <span class="ve-tl-days">~${legDays} day${legDays===1?'':'s'}</span>
+              <button class="ve-leg-x" data-i="${i}" title="Remove leg">✕</button>
+            </span>
+            ${noPath ? `<span class="ve-tl-warn">⚠ no water path — using estimate; edit distance or paint water</span>` : `<span class="ve-tl-path">${leg.path.length} water hexes</span>`}
+          </span>
+        </div>`;
+      const isLast = i === state.routeLegs.length - 1;
+      const eta = calendarAdvance(startCal, cumDays);
+      html += stopHtml(leg.to, isLast ? '🏁' : '◉',
+        `${cumMiles} mi · arrive ≈ ${esc(formatDate(eta))}`);
+    });
+    list.innerHTML = html;
+
     list.querySelectorAll('.ve-leg-x').forEach(b =>
       b.onclick = () => removeLeg(parseInt(b.dataset.i,10)));
+    list.querySelectorAll('[data-center-port]').forEach(el =>
+      el.onclick = () => {
+        const h = portHex(el.dataset.centerPort);
+        if (h && typeof centerOnHex === 'function'){ centerOnHex(h.col, h.row); renderRouteOverlay(); }
+      });
     list.querySelectorAll('.ve-leg-dist').forEach(inp =>
       inp.onchange = () => {
         const i = parseInt(inp.dataset.i, 10);
@@ -2015,7 +2104,7 @@
     if (!body) return;
     const v = state.voyage;
     if (!v){
-      body.innerHTML = '<div class="ve-status">No active voyage. Build a route on the Setup tab.</div>';
+      body.innerHTML = '<div class="ve-status">No active voyage. Build a sailing plan on the Route tab.</div>';
       renderPositionHeader();
       return;
     }
