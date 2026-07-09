@@ -1,4 +1,18 @@
-// gcc-voyage.js v0.8.1 — 2026-07-09
+// gcc-voyage.js v0.9.0 — 2026-07-09
+// v0.9.0: landmark-driven ports + path-measured route builder.
+//   - Port roster = landmarks tagged isPort:true (the trading-seaport tag
+//     gcc-landmarks.js reserved for this sim) ∪ legacy canonical names that
+//     resolve as landmarks ∪ custom map-click placed ports. The hard-coded
+//     11-port PORTS object and its hand-guessed connection graph are gone.
+//   - Port setup can promote any onWater landmark to a trading seaport
+//     (GCCLandmarks.setOverride isPort:true), demote seaports, and add
+//     custom named ports by clicking a map hex.
+//   - Route Builder replaces Plan Route: any port to any port, distance
+//     measured along the A* water path at 30 mi/hex (Darlene scale). No
+//     path yet → straight-line estimate. Every leg's distance is editable
+//     in the itinerary; edited legs are marked manual and never recomputed.
+//   - Legs chain from the itinerary end (start select locks while legs
+//     exist). Legacy saved legs keep their old distances as manual.
 // v0.8.1: default panel width 500px (was 1080px); min-width 420px. The
 //   setup two-column and position-card wide layouts still engage via
 //   container query when the user resizes wider. Pairs with
@@ -95,7 +109,7 @@
 (function(){
   if (typeof window === 'undefined') return;
   const LOG = (...a) => console.log('[voyage]', ...a);
-  LOG('gcc-voyage.js v0.8.1 loaded');
+  LOG('gcc-voyage.js v0.9.0 loaded');
 
   // ── DATA ──────────────────────────────────────────────────────────────────
   // Ship templates: dailySail in miles-per-10-hour-sailing-day, hull in HP.
@@ -127,47 +141,56 @@
 
   const CREW_QUALITY_MOD = { green:-2, average:0, experienced:1, veteran:2 };
 
-  // Ports keyed by landmark name (case-sensitive, must match GCCLandmarks entries).
-  // connections: { destName: distanceMiles }  — distances from AD&D Seafaring.
-  // defaultWater: coastal | openWater | lake | river  — per-leg override via UI.
-  const PORTS = {
-    "City of Greyhawk": { defaultWater:'lake', connections:{
-      "Dyvers":90, "Verbobonc":150, "Leukish":120, "Hardby":60,
-      "Safeton":60, "Fax":90, "Port Elredd":120, "Nessermouth":60,
-    }},
-    "Dyvers": { defaultWater:'lake', connections:{
-      "City of Greyhawk":90, "Verbobonc":60, "Leukish":150,
-      "Hardby":150, "Safeton":120,
-    }},
-    "Verbobonc": { defaultWater:'river', connections:{
-      "City of Greyhawk":150, "Dyvers":60, "Leukish":180,
-    }},
-    "Leukish": { defaultWater:'lake', connections:{
-      "City of Greyhawk":120, "Dyvers":150, "Verbobonc":180, "Port Elredd":90,
-    }},
-    "Hardby": { defaultWater:'coastal', connections:{
-      "Rel Mord":150, "Gradsul":200, "City of Greyhawk":60,
-      "Fax":90, "Port Elredd":150,
-    }},
-    "Safeton": { defaultWater:'coastal', connections:{
-      "City of Greyhawk":60, "Dyvers":90, "Nessermouth":30,
-    }},
-    "Fax": { defaultWater:'coastal', connections:{
-      "City of Greyhawk":90, "Hardby":90, "Rel Mord":120,
-    }},
-    "Port Elredd": { defaultWater:'coastal', connections:{
-      "City of Greyhawk":120, "Leukish":90, "Hardby":150, "Rel Mord":180,
-    }},
-    "Nessermouth": { defaultWater:'river', connections:{
-      "Safeton":30, "City of Greyhawk":60,
-    }},
-    "Rel Mord": { defaultWater:'coastal', connections:{
-      "Hardby":150, "Gradsul":120, "Fax":120, "Port Elredd":180,
-    }},
-    "Gradsul": { defaultWater:'openWater', connections:{
-      "Hardby":200, "Rel Mord":120,
-    }},
+  // ── PORT RESOLUTION ───────────────────────────────────────────────────────
+  // Ports are landmark-driven (gcc-landmarks.js reserved isPort for exactly
+  // this). The port roster is the union of:
+  //   1. landmarks tagged isPort:true (the "trading seaport" tag)
+  //   2. the legacy canonical port names, when they resolve as landmarks
+  //      (compat shim — none of the base landmarks carry isPort yet)
+  //   3. custom ports placed by map click (gcc.voyage.portHexes.v1)
+  // The old hand-maintained connection graph is gone: leg distances derive
+  // from A* water paths at MILES_PER_HEX, with a manual override per leg.
+  const MILES_PER_HEX = 30;   // Darlene World of Greyhawk map scale
+
+  const LEGACY_PORT_NAMES = [
+    "City of Greyhawk","Dyvers","Verbobonc","Leukish","Hardby","Safeton",
+    "Fax","Port Elredd","Nessermouth","Rel Mord","Gradsul",
+  ];
+  // Default per-leg water type by port; anything unlisted starts coastal.
+  const DEFAULT_WATER = {
+    "City of Greyhawk":'lake', "Dyvers":'lake', "Leukish":'lake',
+    "Verbobonc":'river', "Nessermouth":'river',
+    "Gradsul":'openWater',
   };
+  function portDefaultWater(name){ return DEFAULT_WATER[name] || 'coastal'; }
+
+  function seaportLandmarks(){
+    if (typeof GCCLandmarks === 'undefined' || typeof GCCLandmarks.all !== 'function') return [];
+    try {
+      return GCCLandmarks.all()
+        .filter(([id, e]) => e && e.isPort === true && e.name)
+        .map(([id, e]) => ({ id, name:e.name, kind:e.kind || 'feature' }));
+    } catch (err){ return []; }
+  }
+
+  // onWater landmarks not yet tagged isPort — candidates for promotion.
+  function promotablePortLandmarks(){
+    if (typeof GCCLandmarks === 'undefined' || typeof GCCLandmarks.all !== 'function') return [];
+    try {
+      return GCCLandmarks.all()
+        .filter(([id, e]) => e && e.onWater === true && e.isPort !== true && e.name)
+        .map(([id, e]) => ({ id, name:e.name, kind:e.kind || 'feature' }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    } catch (err){ return []; }
+  }
+
+  function portNames(){
+    const names = new Set();
+    seaportLandmarks().forEach(p => names.add(p.name));
+    LEGACY_PORT_NAMES.forEach(n => { if (portFromLandmark(n)) names.add(n); });
+    Object.keys(portHexOverrides).forEach(n => names.add(n));
+    return [...names].sort((a, b) => a.localeCompare(b));
+  }
 
   const WATER_TYPES = [
     { id:'coastal',   label:'Coastal'    },
@@ -229,11 +252,21 @@
     return portFromLandmark(name) || portOverrideHex(name);
   }
   function portAvailable(name){ return !!portHex(name); }
-  // 'landmark' | 'placed' | null — used by the setup diagnostics UI.
+  // 'seaport' (isPort landmark) | 'landmark' (legacy name match) | 'placed' | null
   function portSource(name){
-    if (portFromLandmark(name)) return 'landmark';
+    if (portFromLandmark(name)){
+      const lm = GCCLandmarks.getByName(name);
+      return (lm && lm.isPort === true) ? 'seaport' : 'landmark';
+    }
     if (portOverrideHex(name)) return 'placed';
     return null;
+  }
+
+  // Promote/demote the isPort trading-seaport tag on a landmark.
+  function setLandmarkPortFlag(name, hexId, kind, flag){
+    if (typeof GCCLandmarks === 'undefined' || typeof GCCLandmarks.setOverride !== 'function') return false;
+    try { return GCCLandmarks.setOverride({ name, id:hexId, kind:kind || 'feature', isPort:!!flag }); }
+    catch (err){ LOG('setOverride failed', err); return false; }
   }
 
   // ── HEX GEOMETRY + WATER PATHFINDING ──────────────────────────────────────
@@ -325,7 +358,8 @@
   let _placeDownAt = null;
 
   function beginPortPlacement(name){
-    if (!PORTS[name]) return;
+    name = String(name || '').trim();
+    if (!name) return;
     cancelPortPlacement(true);
     const wrap = document.getElementById('map-wrap');
     if (!wrap || typeof screenToMap !== 'function' || typeof mapToHex !== 'function'){
@@ -574,6 +608,9 @@
       if (!raw) return false;
       const payload = JSON.parse(raw);
       if (Array.isArray(payload?.routeLegs)) state.routeLegs = payload.routeLegs;
+      // Legs saved before v0.9.0 carry connection-graph distances with no
+      // distanceSource — mark them manual so re-pathing never clobbers them.
+      state.routeLegs.forEach(l => { if (l && !l.distanceSource) l.distanceSource = 'manual'; });
       if (payload?.voyage && Array.isArray(payload.voyage.legs)){
         state.voyage = payload.voyage;
         normalizeVoyageState(state.voyage);
@@ -1231,6 +1268,20 @@
         padding:0 3px; line-height:1;
       }
       #voyage-panel .ve-leg-x:hover { color:#ff6644; }
+      #voyage-panel .ve-leg-dist {
+        width:58px; min-width:58px; flex:0 0 auto; padding:3px 5px; font-size:10px; text-align:right;
+      }
+      #voyage-panel .ve-leg-mi { color:#8b6e45; font-size:9px; flex:0 0 auto; }
+      #voyage-panel .ve-dist-badge { text-transform:uppercase; letter-spacing:.06em; font-size:8px; }
+      #voyage-panel .ve-dist-badge.measured  { color:#77cc88; }
+      #voyage-panel .ve-dist-badge.estimated { color:#ff9944; }
+      #voyage-panel .ve-dist-badge.manual    { color:#88ccee; }
+      #voyage-panel .ve-port-add {
+        display:flex; gap:6px; align-items:center; margin-top:7px; font-style:normal;
+      }
+      #voyage-panel .ve-port-add .ve-select,
+      #voyage-panel .ve-port-add .ve-input { flex:1; min-width:0; }
+      #voyage-panel .ve-port-add .ve-mini { flex:0 0 auto; white-space:nowrap; }
       #voyage-panel .ve-log {
         font-size:11px; font-family:Georgia,serif; line-height:1.4;
       }
@@ -1373,8 +1424,9 @@
 
   // Setup pane: captain, ship, crew, route planner.
   function setupPaneHTML(){
-    const availablePorts = Object.keys(PORTS).filter(portAvailable);
-    const missingPorts   = Object.keys(PORTS).filter(n => !portAvailable(n));
+    const allPorts = portNames();
+    const availablePorts = allPorts.filter(portAvailable);
+    const missingPorts   = allPorts.filter(n => !portAvailable(n));
     const portOpts = availablePorts.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
     const shipOpts = SHIP_TEMPLATES.map(s =>
       `<option value="${s.id}">${esc(s.name)} (${s.dailySail} mi/d${s.dailyOar ? ` sail / ${s.dailyOar} oar` : ''}, ${s.hull} HP)</option>`).join('');
@@ -1433,23 +1485,16 @@
       </div>
       </div>
       <div>
-      <label class="ve-lbl">Itinerary Planner</label>
-      <div class="ve-help">Choose a start port and final destination, then use <b>Plan Route</b> for the shortest known port chain. Use <b>Add Stop to Itinerary</b> only when you want to force a manual stopover.</div>
+      <label class="ve-lbl">Route Builder</label>
+      <div class="ve-help">Legs are pathfound through painted water between any two ports; distance is measured along the route at ${MILES_PER_HEX} mi/hex. If no water path exists yet, the leg gets a straight-line estimate you can edit — leg distances in the itinerary are always editable.</div>
 
-      <label class="ve-lbl">Start / Current Port</label>
+      <label class="ve-lbl" id="ve-from-lbl">Start Port</label>
       <select class="ve-select" id="ve-from">${portOpts}</select>
-      <label class="ve-lbl">Final Destination</label>
-      <select class="ve-select" id="ve-final">${portOpts}</select>
-      <button class="ve-btn primary" id="ve-planroute">Plan Route</button>
-
-      <details class="ve-advanced-route">
-        <summary>Manual stopover / advanced leg tools</summary>
-        <label class="ve-lbl">Next Stop</label>
-        <select class="ve-select" id="ve-to"></select>
-        <label class="ve-lbl">Water Type for Next Segment</label>
-        <select class="ve-select" id="ve-water">${waterOpts}</select>
-        <button class="ve-btn" id="ve-addleg">Add Stop to Itinerary</button>
-      </details>
+      <label class="ve-lbl">Next Stop</label>
+      <select class="ve-select" id="ve-to"></select>
+      <label class="ve-lbl">Water Type for This Leg</label>
+      <select class="ve-select" id="ve-water">${waterOpts}</select>
+      <button class="ve-btn primary" id="ve-addleg">Add Leg</button>
 
       <label class="ve-lbl">Planned Itinerary</label>
       <div class="ve-legs" id="ve-legs"></div>
@@ -1461,22 +1506,38 @@
       </div>
 
       ${(() => {
-        const rows = Object.keys(PORTS).map(n => {
+        const rows = allPorts.map(n => {
           const src = portSource(n);
-          const status = src === 'landmark' ? '✓ landmark'
+          const status = src === 'seaport' ? '⚓ seaport'
+            : src === 'landmark' ? '✓ landmark'
             : src === 'placed' ? `📍 ${esc(hexLabel(portOverrideHex(n)))}`
             : '— not placed';
-          const btns = src === 'landmark' ? ''
+          const lm = src === 'seaport' ? GCCLandmarks.getByName(n) : null;
+          const btns = src === 'seaport'
+            ? `<button class="ve-mini danger" data-demote-port="${esc(n)}" title="Remove the trading-seaport tag">Demote</button>`
+            : src === 'landmark' ? ''
             : src === 'placed'
               ? `<button class="ve-mini" data-place-port="${esc(n)}">Re-place</button><button class="ve-mini danger" data-clear-port="${esc(n)}" title="Clear placed hex">✕</button>`
               : `<button class="ve-mini" data-place-port="${esc(n)}">Place</button>`;
           return `<div class="ve-port-row"><span class="ve-port-name">${esc(n)}</span><span class="ve-port-status ${src || 'missing'}">${status}</span><span class="ve-port-btns">${btns}</span></div>`;
         }).join('');
-        const located = Object.keys(PORTS).length - missingPorts.length;
+        const promotable = promotablePortLandmarks();
+        const promoteOpts = promotable.map(p =>
+          `<option value="${esc(p.name)}" data-hexid="${esc(p.id)}" data-kind="${esc(p.kind)}">${esc(p.name)} (${esc(p.kind)})</option>`).join('');
+        const located = allPorts.length - missingPorts.length;
         return `<details class="ve-diagnostic" ${missingPorts.length ? 'open' : ''}>
-          <summary>Port setup: ${located} of ${Object.keys(PORTS).length} ports located${missingPorts.length ? ` · ${missingPorts.length} missing` : ''}</summary>
-          <div class="ve-port-help">Ports resolve from 🧰 Hex → Landmarks by name. A port with no landmark can be placed by hand: click <b>Place</b>, then click its hex on the Darlene map. Placed hexes are stored locally and a landmark added later takes precedence.</div>
-          ${rows}
+          <summary>Port setup: ${located} port${located === 1 ? '' : 's'} located${missingPorts.length ? ` · ${missingPorts.length} missing` : ''}</summary>
+          <div class="ve-port-help">Ports are landmarks tagged as trading seaports (⚓). Promote any water-adjacent landmark below, or add a custom port by name and click its hex on the Darlene map. Placed hexes are stored locally; a matching landmark always takes precedence.</div>
+          ${rows || '<div class="ve-port-help">No ports yet — promote a landmark or place one below.</div>'}
+          ${promotable.length ? `
+            <div class="ve-port-add">
+              <select class="ve-select" id="ve-promote-sel">${promoteOpts}</select>
+              <button class="ve-mini" id="ve-promote-btn" title="Tag this landmark as a trading seaport">Make Port</button>
+            </div>` : ''}
+          <div class="ve-port-add">
+            <input class="ve-input" id="ve-newport-name" type="text" maxlength="40" placeholder="New port name…">
+            <button class="ve-mini" id="ve-newport-btn" title="Place a custom port by clicking a map hex">Place on Map</button>
+          </div>
         </details>`;
       })()}
 
@@ -1604,24 +1665,32 @@
     };
 
     const refreshDest = () => {
+      // While an itinerary exists, legs chain from its end — lock the
+      // start select to that port so routes can't go disjoint.
+      const chained = state.routeLegs.length > 0;
+      if (chained){
+        const end = state.routeLegs[state.routeLegs.length - 1].to;
+        if ([...fromSel.options].some(o => o.value === end)) fromSel.value = end;
+        fromSel.disabled = true;
+        const lbl = p.querySelector('#ve-from-lbl');
+        if (lbl) lbl.textContent = 'Continues From';
+      } else {
+        fromSel.disabled = false;
+        const lbl = p.querySelector('#ve-from-lbl');
+        if (lbl) lbl.textContent = 'Start Port';
+      }
       const from = fromSel.value;
       const toSel = p.querySelector('#ve-to');
-      const port = PORTS[from];
       const prev = toSel.value;
-      const dests = port
-        ? Object.keys(port.connections).filter(portAvailable)
-        : Object.keys(PORTS).filter(n => n !== from && portAvailable(n));
-      toSel.innerHTML = dests.map(n => `<option value="${esc(n)}">${esc(n)} (${port?.connections[n] ?? '?'} mi)</option>`).join('');
+      const dests = availablePortNames().filter(n => n !== from);
+      toSel.innerHTML = dests.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
       if ([...toSel.options].some(o => o.value === prev)) toSel.value = prev;
-      // Default water type to the 'from' port's default
-      if (port?.defaultWater) waterSel.value = port.defaultWater;
-      setFinalDestinationOptions();
+      if (!chained) waterSel.value = portDefaultWater(from);
     };
     fromSel.onchange = () => { refreshDest(); renderPositionHeader(); };
     refreshDest();
 
     p.querySelector('#ve-addleg').onclick = addLeg;
-    p.querySelector('#ve-planroute').onclick = planRoute;
     p.querySelector('#ve-clearroute').onclick = clearRoute;
     p.querySelector('#ve-start').onclick = startVoyage;
     speedInp.oninput = renderLegsUI;
@@ -1630,6 +1699,37 @@
       b.onclick = () => beginPortPlacement(b.dataset.placePort));
     p.querySelectorAll('[data-clear-port]').forEach(b =>
       b.onclick = () => clearPortPlacement(b.dataset.clearPort));
+    p.querySelectorAll('[data-demote-port]').forEach(b =>
+      b.onclick = () => {
+        const name = b.dataset.demotePort;
+        const lm = (typeof GCCLandmarks !== 'undefined') ? GCCLandmarks.getByName(name) : null;
+        const hexId = lm?.id || ((typeof GCCLandmarks !== 'undefined' && GCCLandmarks.all().find(([id, e]) => e?.name === name)) || [])[0];
+        if (!hexId){ setStatus(`Could not resolve a hex id for ${name}.`, 'err'); return; }
+        if (setLandmarkPortFlag(name, hexId, lm?.kind, false)){
+          renderSetupPane();
+          setStatus(`${name} is no longer tagged as a trading seaport.`);
+        }
+      });
+    const promoteBtn = p.querySelector('#ve-promote-btn');
+    if (promoteBtn) promoteBtn.onclick = () => {
+      const sel = p.querySelector('#ve-promote-sel');
+      const opt = sel?.selectedOptions?.[0];
+      if (!opt) return;
+      if (setLandmarkPortFlag(opt.value, opt.dataset.hexid, opt.dataset.kind, true)){
+        renderSetupPane();
+        setStatus(`${opt.value} tagged as a trading seaport and added to the port list.`);
+        if (typeof showToast === 'function') showToast(`⚓ ${opt.value} is now a port`);
+      } else {
+        setStatus('Could not tag that landmark — GCCLandmarks.setOverride unavailable.', 'err');
+      }
+    };
+    const newPortBtn = p.querySelector('#ve-newport-btn');
+    if (newPortBtn) newPortBtn.onclick = () => {
+      const name = (p.querySelector('#ve-newport-name')?.value || '').trim();
+      if (!name){ setStatus('Enter a name for the new port first.', 'warn'); return; }
+      if (portAvailable(name)){ setStatus(`${name} already exists — use Re-place on its row instead.`, 'warn'); return; }
+      beginPortPlacement(name);
+    };
 
     renderLegsUI();
   }
@@ -1642,7 +1742,7 @@
     if (!pane) return;
     const keep = {};
     ['ve-capt','ve-ship','ve-speed','ve-hull','ve-crew','ve-nav',
-     've-sday','ve-smonth','ve-syear','ve-from','ve-final','ve-to','ve-water']
+     've-sday','ve-smonth','ve-syear','ve-from','ve-to','ve-water','ve-newport-name']
       .forEach(id => { const el = p.querySelector('#'+id); if (el) keep[id] = el.value; });
     pane.innerHTML = setupPaneHTML();
     wireSetupPane();
@@ -1688,57 +1788,31 @@
     return 'straight fallback';
   }
 
-  function availablePortNames(){ return Object.keys(PORTS).filter(portAvailable); }
+  function availablePortNames(){ return portNames().filter(portAvailable); }
 
-  function shortestPortPath(from, to){
-    if (!from || !to || from === to) return null;
-    const allowed = new Set(availablePortNames());
-    if (!allowed.has(from) || !allowed.has(to)) return null;
-    const dist = new Map([[from, 0]]);
-    const prev = new Map();
-    const q = new Set([from]);
-    while (q.size){
-      let cur = null, best = Infinity;
-      for (const n of q){ const d = dist.get(n) ?? Infinity; if (d < best){ best=d; cur=n; } }
-      q.delete(cur);
-      if (cur === to) break;
-      const con = PORTS[cur]?.connections || {};
-      for (const [next, miles] of Object.entries(con)){
-        if (!allowed.has(next)) continue;
-        const nd = best + Number(miles || 0);
-        if (nd < (dist.get(next) ?? Infinity)){
-          dist.set(next, nd); prev.set(next, cur); q.add(next);
-        }
-      }
-    }
-    if (!dist.has(to)) return null;
-    const path = [to];
-    while (path[0] !== from){
-      const p = prev.get(path[0]);
-      if (!p) return null;
-      path.unshift(p);
-    }
-    return path;
-  }
-
+  // Build a leg between any two located ports. Distance sources:
+  //   'path'     — measured along the A* water route (hexes × 30 mi)
+  //   'estimate' — straight-line hex distance × 30 mi (no water path yet)
+  //   'manual'   — user typed a distance; never recomputed
   function makeLeg(from, to, waterType){
-    const dist = PORTS[from]?.connections?.[to];
-    if (!dist) return null;
     const fromHex = portHex(from), toHex = portHex(to);
-    const path = (fromHex && toHex) ? findWaterPath(fromHex, toHex) : null;
-    return { from, to, waterType: waterType || PORTS[from]?.defaultWater || 'coastal', distance:dist, path };
+    if (!fromHex || !toHex) return null;
+    const path = findWaterPath(fromHex, toHex);
+    let distance, distanceSource;
+    if (path && path.length > 1){
+      distance = (path.length - 1) * MILES_PER_HEX;
+      distanceSource = 'path';
+    } else {
+      distance = Math.max(MILES_PER_HEX, Math.round(hexDistance(fromHex, toHex) * MILES_PER_HEX));
+      distanceSource = 'estimate';
+    }
+    return { from, to, waterType: waterType || portDefaultWater(from), distance, distanceSource, path };
   }
 
-  function setFinalDestinationOptions(){
-    const p = state.panelEl;
-    const fromSel = p?.querySelector('#ve-from');
-    const finalSel = p?.querySelector('#ve-final');
-    if (!fromSel || !finalSel) return;
-    const prev = finalSel.value;
-    const from = fromSel.value;
-    const opts = availablePortNames().filter(n => n !== from);
-    finalSel.innerHTML = opts.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
-    if ([...finalSel.options].some(o => o.value === prev)) finalSel.value = prev;
+  function distanceBadge(leg){
+    if (leg.distanceSource === 'manual') return 'manual';
+    if (leg.path && leg.path.length > 1) return 'measured';
+    return 'estimated';
   }
 
   // ── UI: ROUTE LIST ────────────────────────────────────────────────────────
@@ -1746,14 +1820,17 @@
     const list = state.panelEl.querySelector('#ve-legs');
     if (!list) return;
     if (!state.routeLegs.length){
-      list.innerHTML = '<div style="color:#8b6e45;font-style:italic;font-size:11px;padding:6px">No itinerary yet. Choose a start and final destination, then click Plan Route.</div>';
+      list.innerHTML = '<div style="color:#8b6e45;font-style:italic;font-size:11px;padding:6px">No itinerary yet. Pick a start port and next stop, then Add Leg. Add more legs to chain stopovers.</div>';
       return;
     }
     const totals = routeTotals();
     const items = state.routeLegs.map((leg,i) => {
-      const warn = leg.path && leg.path.length > 1 ? '' : ' · ⚠ no water path';
+      const badge = distanceBadge(leg);
+      const warn = (leg.path && leg.path.length > 1) ? '' : ' · ⚠ no water path';
       return `<div class="ve-leg">
-        <span class="ve-leg-text"><b>${i+1}.</b> ${esc(leg.from)} → ${esc(leg.to)}<br><small>${leg.distance} mi · ${esc(waterTypeLabel(leg.waterType))} · ${esc(pathStatus(leg))}${warn}</small></span>
+        <span class="ve-leg-text"><b>${i+1}.</b> ${esc(leg.from)} → ${esc(leg.to)}<br><small>${esc(waterTypeLabel(leg.waterType))} · ${esc(pathStatus(leg))} · <span class="ve-dist-badge ${badge}">${badge}</span>${warn}</small></span>
+        <input class="ve-input ve-leg-dist" data-i="${i}" type="number" min="1" value="${Number(leg.distance || 0)}" title="Leg distance in miles — edit to override">
+        <span class="ve-leg-mi">mi</span>
         <button class="ve-leg-x" data-i="${i}" title="Remove segment">✕</button>
       </div>`;
     }).join('');
@@ -1763,6 +1840,19 @@
     `;
     list.querySelectorAll('.ve-leg-x').forEach(b =>
       b.onclick = () => removeLeg(parseInt(b.dataset.i,10)));
+    list.querySelectorAll('.ve-leg-dist').forEach(inp =>
+      inp.onchange = () => {
+        const i = parseInt(inp.dataset.i, 10);
+        const leg = state.routeLegs[i];
+        if (!leg) return;
+        const v = Math.max(1, Math.round(Number(inp.value) || 0));
+        if (v === leg.distance) return;
+        leg.distance = v;
+        leg.distanceSource = 'manual';
+        renderLegsUI();
+        emitVoyageChanged('route-leg-distance');
+        setStatus(`Leg ${i+1} distance set to ${v} mi (manual — won't be recomputed).`);
+      });
   }
 
   function setStatus(msg, cls=''){
@@ -1771,60 +1861,32 @@
   }
 
   // ── ACTIONS: ROUTE ────────────────────────────────────────────────────────
-  function planRoute(){
-    const p = state.panelEl;
-    const from = p.querySelector('#ve-from').value;
-    const final = p.querySelector('#ve-final').value;
-    if (!from || !final || from === final){ setStatus('Pick a different start port and final destination.', 'warn'); return; }
-    const names = shortestPortPath(from, final);
-    if (!names || names.length < 2){ setStatus(`No known port route from ${from} to ${final}. Try manual stopovers.`, 'warn'); return; }
-    const legs = [];
-    for (let i=0; i<names.length-1; i++){
-      const leg = makeLeg(names[i], names[i+1]);
-      if (!leg){ setStatus(`Missing route distance for ${names[i]} → ${names[i+1]}.`, 'err'); return; }
-      legs.push(leg);
-    }
-    state.routeLegs = legs;
-    const last = names[names.length - 1];
-    p.querySelector('#ve-from').value = last;
-    p.querySelector('#ve-from').dispatchEvent(new Event('change'));
-    renderLegsUI();
-    renderRouteOverlay();
-    emitVoyageChanged('route-planned');
-    const totals = routeTotals(legs);
-    const fallbackCount = legs.filter(l => !l.path || l.path.length < 2).length;
-    setStatus(`Planned ${names.join(' → ')} (${totals.miles} mi, about ${totals.days} sailing day${totals.days===1?'':'s'}).${fallbackCount ? ` ⚠ ${fallbackCount} segment${fallbackCount===1?'':'s'} need painted water paths.` : ''}`, fallbackCount ? 'warn' : '');
-  }
-
   function addLeg(){
     const p = state.panelEl;
-    const from = p.querySelector('#ve-from').value;
+    // Legs always chain from the itinerary end when one exists.
+    const from = state.routeLegs.length
+      ? state.routeLegs[state.routeLegs.length - 1].to
+      : p.querySelector('#ve-from').value;
     const to   = p.querySelector('#ve-to').value;
     const waterType = p.querySelector('#ve-water').value;
     if (!from || !to || from===to){ setStatus('Pick different origin and destination.', 'warn'); return; }
-    const fp = PORTS[from];
-    const dist = fp?.connections[to];
-    if (!dist){ setStatus('No direct route between those ports.', 'warn'); return; }
-    // Pathfind a water route through painted water hexes. Success → ship
-    // follows the path; failure → dashed red fallback line + warning toast.
     const leg = makeLeg(from, to, waterType);
-    const path = leg?.path || null;
-    state.routeLegs.push(leg || { from, to, waterType, distance:dist, path:null });
-    // Auto-chain: next leg starts from the port we just arrived at
-    p.querySelector('#ve-from').value = to;
-    p.querySelector('#ve-from').dispatchEvent(new Event('change'));
+    if (!leg){ setStatus('One of those ports has no hex yet — locate it in Port setup first.', 'err'); return; }
+    state.routeLegs.push(leg);
+    p.querySelector('#ve-from').dispatchEvent(new Event('change'));  // re-lock chaining
     renderLegsUI();
     renderRouteOverlay();
     emitVoyageChanged('route-leg-added');
-    if (path){
-      setStatus(`Added stop: ${from} → ${to} (${dist} mi, ${path.length} hex route).`);
+    if (leg.path && leg.path.length > 1){
+      setStatus(`Added leg: ${from} → ${to} — ${leg.distance} mi measured along ${leg.path.length} water hexes.`);
     } else {
-      setStatus(`Added stop: ${from} → ${to} (${dist} mi). ⚠ No water path — paint hexes via 🧰 Hex → Paint.`, 'warn');
+      setStatus(`Added leg: ${from} → ${to} — no water path; using a ${leg.distance} mi straight-line estimate. Edit the distance in the itinerary or paint water via 🧰 Hex → Paint.`, 'warn');
     }
   }
 
   function removeLeg(i){
     state.routeLegs.splice(i,1);
+    state.panelEl?.querySelector('#ve-from')?.dispatchEvent(new Event('change'));
     renderLegsUI();
     renderRouteOverlay();
     emitVoyageChanged('route-leg-removed');
@@ -1832,6 +1894,7 @@
 
   function clearRoute(){
     state.routeLegs = [];
+    state.panelEl?.querySelector('#ve-from')?.dispatchEvent(new Event('change'));
     renderLegsUI();
     renderRouteOverlay();
     setStatus('Route cleared.');
@@ -1856,10 +1919,23 @@
     const sy = parseInt(p.querySelector('#ve-syear').value,10)   || 576;
 
     let cum = 0;
-    // Recompute water paths in case user painted more water since adding legs.
+    // Recompute water paths in case the user painted more water since adding
+    // legs. Measured/estimated distances refresh from the new path; manual
+    // distances are never touched.
     state.routeLegs.forEach(leg => {
       const fh = portHex(leg.from), th = portHex(leg.to);
-      if (fh && th) leg.path = findWaterPath(fh, th);
+      if (fh && th){
+        leg.path = findWaterPath(fh, th);
+        if (leg.distanceSource !== 'manual'){
+          if (leg.path && leg.path.length > 1){
+            leg.distance = (leg.path.length - 1) * MILES_PER_HEX;
+            leg.distanceSource = 'path';
+          } else if (!Number(leg.distance)){
+            leg.distance = Math.max(MILES_PER_HEX, Math.round(hexDistance(fh, th) * MILES_PER_HEX));
+            leg.distanceSource = 'estimate';
+          }
+        }
+      }
     });
     const legs = state.routeLegs.map(l => { cum += l.distance; return { ...l, cumDist:cum }; });
 
