@@ -103,8 +103,14 @@
 
   /* Path overlay — rivers (Phase A). Roads + crossings render here too
      once Phase B/C ship. The trace-preview classes are driven by the
-     Hex Editor's Paths pane while a path is being drawn. */
-  .path-river { fill:#4d8ab6; stroke:#4d8ab6; stroke-linecap:round; stroke-linejoin:round; opacity:.85; pointer-events:none; }
+     Hex Editor's Paths pane while a path is being drawn.
+     CRITICAL: path-river must be fill:none — SVG fills polylines/paths by
+     implicitly closing first→last point, so a filled meandering river
+     renders as a giant solid polygon (the "polyhedral solids" bug). The
+     single-hex disc case gets its own filled class instead. */
+  .path-river { fill:none; stroke:#4d8ab6; stroke-linecap:round; stroke-linejoin:round; opacity:.85; pointer-events:none; }
+  .path-river-casing { fill:none; stroke:#1e3f5c; stroke-linecap:round; stroke-linejoin:round; opacity:.55; pointer-events:none; }
+  .path-river-dot { fill:#4d8ab6; stroke:#1e3f5c; stroke-width:.8; opacity:.85; pointer-events:none; }
   /* Roads (Phase C): muted brown so they read clearly against terrain
      paint without competing with the blue river overlay. Track is the
      same hue but thinner and dashed for "minor route" semantics. */
@@ -127,6 +133,8 @@
      remains visible. Crossings hide with rivers since they're visually
      meaningless without their rivers underneath. */
   body.gcc-rivers-hidden #path-overlay .path-river,
+  body.gcc-rivers-hidden #path-overlay .path-river-casing,
+  body.gcc-rivers-hidden #path-overlay .path-river-dot,
   body.gcc-rivers-hidden #path-overlay .path-cross { display:none; }
   body.gcc-roads-hidden  #path-overlay .path-road,
   body.gcc-roads-hidden  #path-overlay .path-track { display:none; }
@@ -2788,10 +2796,25 @@ function rebuildLandmarkOverlay(){
   else svg.appendChild(next);
 }
 // ── PATH OVERLAY ─────────────────────────────────────────────────────────────
-// Renders rivers (and roads, Phase C) as polylines through hex centers.
+// Renders rivers (and roads, Phase C) as smoothed curves through hex centers.
 // Sits between the cells layer and the labels layer so terrain paint
 // shows underneath but coord text stays readable on top. Width keys
 // off river type (great_river > river > stream).
+// Catmull-Rom → cubic Bézier through the chain's hex centers, so rivers
+// meander instead of zigzagging center-to-center. Tension 1/6 = standard.
+function smoothPathD(pts){
+  if (!pts || pts.length < 2) return '';
+  const f = n => n.toFixed(1);
+  if (pts.length === 2) return `M${f(pts[0].x)},${f(pts[0].y)} L${f(pts[1].x)},${f(pts[1].y)}`;
+  let d = `M${f(pts[0].x)},${f(pts[0].y)}`;
+  for (let i = 0; i < pts.length - 1; i++){
+    const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+    const c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C${f(c1x)},${f(c1y)} ${f(c2x)},${f(c2y)} ${f(p2.x)},${f(p2.y)}`;
+  }
+  return d;
+}
 function buildPathOverlay(){
   const ns = 'http://www.w3.org/2000/svg';
   const g = document.createElementNS(ns, 'g');
@@ -2809,14 +2832,13 @@ function buildPathOverlay(){
       const cls  = info && info.kind === 'track' ? 'path-track' : 'path-road';
       const pts = chain.map(h => {
         const c = hexCenter(h.col, h.row);
-        const s = mapToStage(c.x, c.y);
-        return `${s.x.toFixed(1)},${s.y.toFixed(1)}`;
-      }).join(' ');
-      const poly = document.createElementNS(ns, 'polyline');
-      poly.setAttribute('points', pts);
-      poly.setAttribute('class', cls);
-      poly.dataset.name = name;
-      g.appendChild(poly);
+        return mapToStage(c.x, c.y);
+      });
+      const path = document.createElementNS(ns, 'path');
+      path.setAttribute('d', smoothPathD(pts));
+      path.setAttribute('class', cls);
+      path.dataset.name = name;
+      g.appendChild(path);
     }
   }
   for (const name of GCCPaths.allRiverNames()){
@@ -2829,15 +2851,22 @@ function buildPathOverlay(){
     if (chain.length >= 2){
       const pts = chain.map(h => {
         const c = hexCenter(h.col, h.row);
-        const s = mapToStage(c.x, c.y);
-        return `${s.x.toFixed(1)},${s.y.toFixed(1)}`;
-      }).join(' ');
-      const poly = document.createElementNS(ns, 'polyline');
-      poly.setAttribute('points', pts);
-      poly.setAttribute('class', 'path-river');
-      poly.setAttribute('stroke-width', w);
-      poly.dataset.name = name;
-      g.appendChild(poly);
+        return mapToStage(c.x, c.y);
+      });
+      const d = smoothPathD(pts);
+      // Cartographic casing: a slightly wider dark stroke beneath the blue
+      // channel stroke gives the river definition against pale terrain.
+      const casing = document.createElementNS(ns, 'path');
+      casing.setAttribute('d', d);
+      casing.setAttribute('class', 'path-river-casing');
+      casing.setAttribute('stroke-width', (w + 1.6).toFixed(1));
+      g.appendChild(casing);
+      const path = document.createElementNS(ns, 'path');
+      path.setAttribute('d', d);
+      path.setAttribute('class', 'path-river');
+      path.setAttribute('stroke-width', w);
+      path.dataset.name = name;
+      g.appendChild(path);
     } else {
       // Single-hex river — render as a small disc so it's visible.
       const c = hexCenter(chain[0].col, chain[0].row);
@@ -2845,7 +2874,7 @@ function buildPathOverlay(){
       const dot = document.createElementNS(ns, 'circle');
       dot.setAttribute('cx', s.x); dot.setAttribute('cy', s.y);
       dot.setAttribute('r', w);
-      dot.setAttribute('class', 'path-river');
+      dot.setAttribute('class', 'path-river-dot');
       g.appendChild(dot);
     }
   }

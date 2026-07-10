@@ -1,4 +1,14 @@
-// gcc-map-parent-renderer.js v1.0.2 — 2026-05-09
+// gcc-map-parent-renderer.js v1.1.0 — 2026-07-09
+// v1.1.0: river/road rendering parity with greyhawk-map.html.
+//   - Rivers were polylines with CSS fill, so SVG implicitly closed each
+//     chain and filled the enclosed area — meandering rivers rendered as
+//     giant solid polygons. Now fill:none paths (host page CSS must carry
+//     the updated .path-river / .path-river-casing / .path-river-dot rules).
+//   - Rivers and roads render as Catmull-Rom-smoothed cubic Bézier <path>
+//     curves through hex centers instead of angular polylines; rivers get
+//     a dark under-casing stroke. Single-hex rivers use path-river-dot.
+//
+// v1.0.2 — 2026-05-09
 // v1.0.2: first-mount centering. The unified shell initializes
 //   state.view.cx/cy to (0, 0); the parent map's world coords occupy
 //   the positive quadrant from (0, 0) to (MAP_W, MAP_H), so the
@@ -234,6 +244,21 @@
     if (typeof window.GCCPaths === 'undefined') return g;
     const hexCenter = window.hexCenter;
 
+    // Catmull-Rom → cubic Bézier (tension 1/6). Mirrors greyhawk-map.html's
+    // smoothPathD; duplicated because this module renders standalone on the
+    // GCC site without the map page's inline helpers.
+    const smoothD = pts => {
+      if (!pts || pts.length < 2) return '';
+      const f = n => n.toFixed(1);
+      if (pts.length === 2) return `M${f(pts[0].x)},${f(pts[0].y)} L${f(pts[1].x)},${f(pts[1].y)}`;
+      let d = `M${f(pts[0].x)},${f(pts[0].y)}`;
+      for (let i = 0; i < pts.length - 1; i++){
+        const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+        d += ` C${f(p1.x + (p2.x - p0.x) / 6)},${f(p1.y + (p2.y - p0.y) / 6)} ${f(p2.x - (p3.x - p1.x) / 6)},${f(p2.y - (p3.y - p1.y) / 6)} ${f(p2.x)},${f(p2.y)}`;
+      }
+      return d;
+    };
+
     // Roads first so rivers paint over shared hexes.
     if (typeof window.GCCPaths.allRoadNames === 'function'){
       for (const name of window.GCCPaths.allRoadNames()){
@@ -241,15 +266,12 @@
         if (!chain || chain.length < 2) continue;
         const info = window.GCCPaths.getRoadInfo(name);
         const cls = info && info.kind === 'track' ? 'path-track' : 'path-road';
-        const pts = chain.map(h => {
-          const c = hexCenter(h.col, h.row);
-          return `${c.x.toFixed(1)},${c.y.toFixed(1)}`;
-        }).join(' ');
-        const poly = document.createElementNS(ns, 'polyline');
-        poly.setAttribute('points', pts);
-        poly.setAttribute('class', cls);
-        poly.dataset.name = name;
-        g.appendChild(poly);
+        const pts = chain.map(h => hexCenter(h.col, h.row));
+        const path = document.createElementNS(ns, 'path');
+        path.setAttribute('d', smoothD(pts));
+        path.setAttribute('class', cls);
+        path.dataset.name = name;
+        g.appendChild(path);
       }
     }
     for (const name of window.GCCPaths.allRiverNames()){
@@ -260,22 +282,25 @@
               : info.type === 'river'       ? 2.4
               :                                1.5;
       if (chain.length >= 2){
-        const pts = chain.map(h => {
-          const c = hexCenter(h.col, h.row);
-          return `${c.x.toFixed(1)},${c.y.toFixed(1)}`;
-        }).join(' ');
-        const poly = document.createElementNS(ns, 'polyline');
-        poly.setAttribute('points', pts);
-        poly.setAttribute('class', 'path-river');
-        poly.setAttribute('stroke-width', w);
-        poly.dataset.name = name;
-        g.appendChild(poly);
+        const pts = chain.map(h => hexCenter(h.col, h.row));
+        const d = smoothD(pts);
+        const casing = document.createElementNS(ns, 'path');
+        casing.setAttribute('d', d);
+        casing.setAttribute('class', 'path-river-casing');
+        casing.setAttribute('stroke-width', (w + 1.6).toFixed(1));
+        g.appendChild(casing);
+        const path = document.createElementNS(ns, 'path');
+        path.setAttribute('d', d);
+        path.setAttribute('class', 'path-river');
+        path.setAttribute('stroke-width', w);
+        path.dataset.name = name;
+        g.appendChild(path);
       } else {
         const c = hexCenter(chain[0].col, chain[0].row);
         const dot = document.createElementNS(ns, 'circle');
         dot.setAttribute('cx', c.x); dot.setAttribute('cy', c.y);
         dot.setAttribute('r', w);
-        dot.setAttribute('class', 'path-river');
+        dot.setAttribute('class', 'path-river-dot');
         g.appendChild(dot);
       }
     }
