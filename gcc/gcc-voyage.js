@@ -1,4 +1,11 @@
-// gcc-voyage.js v0.12.0 — 2026-07-10
+// gcc-voyage.js v0.12.1 — 2026-07-10
+// v0.12.1: RAW encounter ranges. Surface vessels are now sighted at
+//   maximum visibility (clear 1d9 mi from the crow's nest, cloudy 1d3,
+//   gale 1d2, hurricane/fog 1, heavy fog 2d4×50 yds); only creatures that
+//   can approach submerged appear close (6d4×10 yds). Was a flat
+//   d6×10 yds — boarding range — for everything, which skipped the whole
+//   sighting/evasion game. checkEncounter now takes weather; encounter
+//   objects carry a vessel flag reused by the drive-off branch.
 // v0.12.0: Seafaring RAW compliance pass + encounter agency.
 //   - Hull damage slows the ship (RAW: each full 10% of hull damage is
 //     −10% speed). At ≥75% damage the ship is dead in the water: no
@@ -189,7 +196,7 @@
 (function(){
   if (typeof window === 'undefined') return;
   const LOG = (...a) => console.log('[voyage]', ...a);
-  LOG('gcc-voyage.js v0.12.0 loaded');
+  LOG('gcc-voyage.js v0.12.1 loaded');
 
   // ── DATA ──────────────────────────────────────────────────────────────────
   // Ship templates: dailySail in miles-per-10-hour-sailing-day, hull in HP.
@@ -701,7 +708,7 @@
   // two checks/day in coastal/shallow water, one in deep water; fresh water
   // gets three checks/day. Approximated as a single d20 per day against a
   // per-check-count threshold.
-  function checkEncounter(waterType){
+  function checkEncounter(waterType, weather){
     const thresholds = { coastal:2, openWater:1, lake:2, river:3 };
     const threshold = thresholds[waterType] || 2;
     if (rollD(20) > threshold) return null;
@@ -733,7 +740,28 @@
     };
     const list = ENC[waterType] || ENC.coastal;
     const enc = list[Math.floor(Math.random()*list.length)];
-    return { name:enc.n, hostile:!!enc.h, distance:(rollD(6)*10)+'yds' };
+    // RAW encounter range: surface vessels are first spotted at maximum
+    // visibility (crow's nest: clear 9 mi, cloudy 3, gale 2, hurricane 1,
+    // fog 1 or less, heavy fog ¼ mi) — hours of sea room, which is what
+    // makes evasion meaningful. Only creatures that can approach submerged
+    // appear close: 6d4" = 60–240 yds. (Was a flat d6×10 yds — boarding
+    // range — for everything.)
+    const vessel = /pirate|vessel|squadron|ship|smuggler|bandit|patrol|raft|convoy|fleet|traders|barge|ferry|fishermen/i.test(enc.n);
+    let distance;
+    if (vessel){
+      const w = Number(weather?.wind?.speed || 0);
+      const p = String(weather?.precipitation?.key || '');
+      const maxVis = p === 'heavy-fog' ? 0.25
+        : (p === 'fog' || w >= 73) ? 1
+        : (w >= 32) ? 2
+        : String(weather?.sky || '').toLowerCase().includes('clear') ? 9
+        : 3;
+      distance = maxVis <= 0.25 ? `${rollDN(2,4)*50} yds`
+        : `${Math.max(1, rollD(Math.round(maxVis)))} mi`;
+    } else {
+      distance = `${rollDN(6,4)*10} yds`;
+    }
+    return { name:enc.n, hostile:!!enc.h, distance, vessel };
   }
 
   // Seafaring evasion table (abridged): base 80%, open water −50%,
@@ -1303,7 +1331,7 @@
     // Encounters are checked whether or not the ship makes way — a becalmed
     // ship is still on the water (DMG daily encounter checks).
     let engaged = false;
-    const enc = checkEncounter(waterType);
+    const enc = checkEncounter(waterType, weather);
     if (enc){
       if (enc.hostile){
         const choice = await promptEncounterAction(enc);
@@ -1314,7 +1342,7 @@
           let evPenalty = 0;
           let mustEvade = true;
           if (choice === 2){
-            const crewed = /pirate|vessel|squadron|ship|smuggler|bandit|patrol|raft|convoy|fleet/i.test(enc.name);
+            const crewed = !!enc.vessel;
             const pct = crewed ? 50 : 75;
             const roll = rollD(100);
             if (roll <= pct){
