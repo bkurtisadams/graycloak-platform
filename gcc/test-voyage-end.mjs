@@ -220,5 +220,154 @@ ok(/window\.GCCDialog\?\.confirm/.test(src) && /return window\.confirm/.test(src
 ok(!/if \(!window\.confirm\('End current voyage/.test(src), 'old raw window.confirm in endVoyage removed');
 ok(!/window\.confirm\('A voyage is already underway/.test(src), 'old raw window.confirm in startVoyage removed');
 
-console.log(`\n${pass} passed, ${fail} failed`);
+console.log(`\n${pass} passed, ${fail} failed (v0.11 suite)`);
+
+// ════ v0.12.0 additions ════════════════════════════════════════════════════
+// Deterministic randomness + scripted GCCDialog.choose for the new mechanics.
+let randQueue = [];
+vm.runInContext(`
+  globalThis.__origRandom = Math.random;
+  globalThis.__randQueue = [];
+  Math.random = function(){
+    return globalThis.__randQueue.length ? globalThis.__randQueue.shift() : globalThis.__origRandom();
+  };
+`, ctx);
+function seedRand(...vals){ vm.runInContext(`globalThis.__randQueue = ${JSON.stringify(vals)}`, ctx); }
+function clearRand(){ vm.runInContext('globalThis.__randQueue = []', ctx); }
+
+let chooseResponses = [];
+let chooseLog = [];
+ctx.GCCDialog.choose = async (title, choices, opts) => {
+  chooseLog.push({ title, n: choices.length, opts });
+  return chooseResponses.length ? chooseResponses.shift() : 0;
+};
+// Stub weather to a controllable fixed day
+let fixedWeather = null;
+ctx.GCCWeather = null; // force internal fallback? No — voyage uses generateWeather internal path when GCCWeather absent.
+
+function calmWeather(){ return null; } // marker; we drive via wind-speed seeds below
+
+section('shipConditionMods via voyage pane math — hull damage slows ship');
+makeVoyage({ legIdx:0, milesOnLeg:0, pending:0 });
+let v12 = V.state.voyage;
+v12.hullMax = 20; v12.hullCurrent = 20; v12.dailySail = 60; v12.quality = 'average';
+// 25% damage → −20% (2 full steps of 10%)
+v12.hullCurrent = 15;
+// no direct export of shipConditionMods; verify through makePortEarly return-day math:
+// 45 mi back at 60 × 0.8 = 48 → 1 day. At 55% dmg (5 steps → ×0.5 = 30) 45 mi → 2 days.
+v12.currentLegIdx = 1; v12.milesOnLeg = 45; v12.legs[1].distance = 90;
+v12.hullCurrent = 9; // 55% damage → 5 steps → ×0.5 → 30 mi/day → 45/30 → round(1.5)=2? Math.round(45/30)=round(1.5)=2
+confirmResponses = [true];
+const day12a = v12.dayNumber;
+await V.makePortEarly(); await sleep(0);
+ok(V.state.voyage.dayNumber === day12a + 2, 'Make Port return charged at hull-damaged speed (2 days for 45 mi at ×0.5)');
+V.state.voyage = null;
+
+section('Make Port blocked when dead in the water');
+makeVoyage({ legIdx:1, milesOnLeg:40, pending:0 });
+V.state.voyage.hullCurrent = 3; V.state.voyage.hullMax = 20; // 85% dmg
+await V.makePortEarly(); await sleep(0);
+ok(V.state.voyage && !V.state.voyage.finished, 'divert refused; voyage still active');
+V.state.voyage = null;
+
+section('simulateOneDay: dead in water = no progress + makeshift repairs');
+makeVoyage({ legIdx:0, milesOnLeg:10, pending:0 });
+v12 = V.state.voyage;
+v12.hullMax = 20; v12.hullCurrent = 4; v12.quality = 'average'; // 80% dmg
+// seeds: generateWeather fallback consumes randoms; then d20 encounter; then d3 repair.
+// Instead of counting draws, run the day and assert invariants.
+clearRand();
+const distBefore = v12.distanceCovered;
+const hullBefore = v12.hullCurrent;
+let entry12 = await V.advanceOneDay();
+ok(entry12.miles === 0, 'no miles made while dead in the water');
+ok(V.state.voyage.hullCurrent >= hullBefore, 'makeshift repairs did not lose hull (gained 1d3 minus possible leak/encounter — none flagged)');
+ok(entry12.events.some(e => /Dead in the water/i.test(e.text)), 'dead-in-water event logged');
+ok(V.state.voyage.distanceCovered === distBefore, 'distanceCovered unchanged');
+V.state.voyage = null;
+
+section('Leaking: 1 hull/day until repair item posted');
+makeVoyage({ legIdx:0, milesOnLeg:10, pending:0 });
+v12 = V.state.voyage;
+v12.leaking = true; v12.hullCurrent = 18;
+entry12 = await V.advanceOneDay();
+ok(entry12.events.some(e => /Leaking/i.test(e.text)), 'leak damage event logged');
+// simulate posting the beam-repair item: fabricate one and post it
+const beamAction = V.addPendingFinanceAction({ category:'repair', amountGp:200, hullDamage:0, restoreHullAllowed:false, memo:'Refit beams', meta:{ leaking:true } });
+V.markPendingFinancePosted(beamAction.id, 'txn_test', {});
+ok(V.state.voyage.leaking === false, 'posting the beam repair clears the leak');
+V.state.voyage = null;
+
+section('Broken mast halves sailing; posting mast item clears it');
+makeVoyage({ legIdx:0, milesOnLeg:0, pending:0 });
+v12 = V.state.voyage;
+v12.brokenMast = true; v12.quality = 'average'; v12.hullCurrent = v12.hullMax = 20;
+// windSpeed 25 → good sailing (no modifier). Internal fallback generateWeather —
+// verify via a sailed day: miles should be ~half dailySail (60 → 30) when wind is fair.
+// Weather randomness makes exact assert flaky; assert miles ≤ 60% of dailySail across a fair-wind day by retry.
+let halvedSeen = false;
+for (let t=0; t<20 && !halvedSeen; t++){
+  v12.currentLegIdx = 0; v12.milesOnLeg = 0; v12.distanceCovered = 0; v12.hullCurrent = 20; v12.finished = false;
+  const e = await V.advanceOneDay();
+  const note = e.speedInfo?.note || '';
+  if (/broken mast/.test(note)){ halvedSeen = true; ok(true, 'condition note names broken mast on a sailed day'); }
+  if (v12.finished) break;
+}
+if (!halvedSeen){ fail++; console.log('  ✗ FAIL: broken-mast note never appeared in 20 days'); }
+const mastAction = V.addPendingFinanceAction({ category:'repair', amountGp:300, hullDamage:0, restoreHullAllowed:false, memo:'Step new mast', meta:{ brokenMast:true } });
+V.markPendingFinancePosted(mastAction.id, 'txn_test2', {});
+ok(V.state.voyage.brokenMast === false, 'posting the mast repair clears the flag');
+V.state.voyage = null;
+
+section('Hostile encounter: fight = engaged day, no progress');
+makeVoyage({ legIdx:0, milesOnLeg:0, pending:0 });
+v12 = V.state.voyage; v12.hullCurrent = v12.hullMax = 20;
+// Force an encounter: encounter check is rollD(20) <= threshold(coastal 2).
+// rollD uses Math.random — first random draw in the day is weather. Too many
+// draws to count reliably; instead retry days until an encounter fires with
+// choose scripted to 1 (fight), asserting the engaged invariant when it does.
+let fought = false;
+chooseResponses = new Array(50).fill(1);
+for (let t=0; t<200 && !fought; t++){
+  v12.currentLegIdx = 0; v12.milesOnLeg = 0; v12.finished = false; v12.shipSank = false; v12.hullCurrent = 20;
+  const e = await V.advanceOneDay();
+  if (e.events.some(ev => /beats to quarters/.test(ev.text))){
+    fought = true;
+    ok(e.miles === 0, 'engaged day makes no progress');
+  }
+}
+ok(fought, 'fight choice reached within 200 simulated days');
+ok(chooseLog.length > 0 && chooseLog[0].n === 3, 'encounter dialog offered 3 choices');
+V.state.voyage = null;
+chooseResponses = [];
+
+section('advanceMany halts on port arrival');
+makeVoyage({ legIdx:0, milesOnLeg:0, pending:0 });
+v12 = V.state.voyage;
+v12.hullCurrent = v12.hullMax = 40; v12.dailySail = 200; // reach Seaton (120 mi) fast
+v12.quality = 'average';
+chooseResponses = new Array(50).fill(0); // auto-evade any encounters
+// advanceMany not exported... check
+ok(typeof V.advanceOneDay === 'function', 'advanceOneDay exported');
+// emulate the +7 loop contract: run advanceMany via the internal path is not
+// exported; assert the source instead.
+const src2 = readFileSync('/home/claude/gcc/gcc-voyage.js', 'utf8');
+ok(/const portEvt = entry\.events\.find\(e => e\.type === 'port'\)/.test(src2) && /Halted: /.test(src2), 'advanceMany halts on port events (source)');
+ok(/async function advanceMany/.test(src2) && /async function advanceDay/.test(src2), 'advance handlers are async');
+ok(/async function clearRoute/.test(src2) && /Clear route/.test(src2), 'clearRoute confirms via dialog');
+ok(/ve-quality/.test(src2) && /SHIP_QUALITY\[p\.querySelector\('#ve-quality'\)/.test(src2), 'quality selector wired into startVoyage');
+ok(/dailySail:45/.test(src2) && /Dromond \(Large Galley\)/.test(src2), 'template RAW fixes present');
+ok(/Math\.floor\(\(20-w\)\/10\)\*4/.test(src2) && /Math\.floor\(\(w-30\)\/10\)\*8/.test(src2), 'wind modifiers at RAW scale');
+V.state.voyage = null;
+
+section('Wind Damage Table: capsize path (seeded)');
+// rollWindDamage draws Math.random()*100 per category in order:
+// capsize, mast, beams, sail, overboard. Storm base: 20/25/35/45/50 → ÷4 = 5/6.25/8.75/11.25/12.5.
+// Direct invocation isn't exported; verify via source that order + ÷4 + quality overrides exist.
+ok(/base \/ 4/.test(src2), 'wind damage rolls at RAW ÷ 4');
+ok(/capsizeOverride:\{ storm:5, hurricane:15 \}/.test(src2), 'excellent capsize override per RAW');
+ok(/hazardHullDice:\{ gale:\[1,2\], storm:\[1,3\], hurricane:\[1,6\] \}/.test(src2), 'unseaworthy hazard-day dice per RAW');
+ok(/if \(hzLvl\) rollWindDamage\(v, hzLvl, dateStr, events\)/.test(src2), 'wind damage fires on failed pilot check only');
+
+console.log(`\n${pass} passed, ${fail} failed (v0.12.0 suite)`);
 process.exit(fail ? 1 : 0);

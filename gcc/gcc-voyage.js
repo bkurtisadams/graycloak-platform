@@ -1,4 +1,33 @@
-// gcc-voyage.js v0.11.0 — 2026-07-10
+// gcc-voyage.js v0.12.0 — 2026-07-10
+// v0.12.0: Seafaring RAW compliance pass + encounter agency.
+//   - Hull damage slows the ship (RAW: each full 10% of hull damage is
+//     −10% speed). At ≥75% damage the ship is dead in the water: no
+//     progress, and the crew spends each day on makeshift repairs
+//     (+1d3 hull HP/day) until she can make way again.
+//   - Wind Damage Table (gale/storm/hurricane: capsize, broken mast,
+//     sprung beams, torn rigging, man overboard). RAW checks every six
+//     hours; here the table fires only on the watch where the captain
+//     loses control (the failed Ship Sailing check), at RAW ÷ 4 — one
+//     six-hour watch of exposure. Broken mast halves sailing and sprung
+//     beams leak 1 hull HP/day; both persist until their pending repair
+//     item is posted in the Voyage Ledger. Torn rigging is d6 hull
+//     (reading the doc's flat 6 as a d6; spare sails bent on by morning).
+//   - Ship quality (Setup tab): Unseaworthy (75% speed, extra hull damage
+//     every gale/storm/hurricane day: 1d2/1d3/1d6), Average, Good (−10
+//     points on wind-damage rows), Excellent (+10% speed, −30 points,
+//     capsize fixed at 5% storm / 15% hurricane).
+//   - Wind-speed sailing modifiers halved to the RAW optional-rule scale
+//     (−4 mi/day per 10 mph under 20, +8 over 30; was −8/+16).
+//   - Hostile encounters prompt a choice (GCCDialog.choose): Evade
+//     (evasion table), Stand and fight (GM adjudicates, day spent
+//     engaged), or Drive off (75% vs monsters, 50% vs crewed vessels;
+//     failure forces evasion at −20). No dialog available → auto-evade
+//     (the old behavior).
+//   - Templates: longship 45 mi/day (RAW), dromond corrected to RAW
+//     Large Galley 50/30 with hull in the 4–16 band.
+//   - Voyage tab shows effective speed (quality, mast, hull damage) and
+//     a LEAKING flag; +7 Days halts on port arrival so settlement isn't
+//     skipped; Clear route confirms when an itinerary exists.
 // v0.11.0: end-of-voyage settlement safety + Make Port (divert) + archive.
 //   - endVoyage no longer silently discards unposted settlement items: the
 //     confirm names the pending count and total gp, and the whole voyage
@@ -160,7 +189,7 @@
 (function(){
   if (typeof window === 'undefined') return;
   const LOG = (...a) => console.log('[voyage]', ...a);
-  LOG('gcc-voyage.js v0.11.0 loaded');
+  LOG('gcc-voyage.js v0.12.0 loaded');
 
   // ── DATA ──────────────────────────────────────────────────────────────────
   // Ship templates: dailySail in miles-per-10-hour-sailing-day, hull in HP.
@@ -174,9 +203,9 @@
     { id:'galley_war',    name:'War Galley',            dailySail:36, dailyOar:12, hull:18 },
     { id:'sailing_boat',  name:'Sailing Boat (Fishing)',dailySail:60, dailyOar:10, hull:14 },
     { id:'keelboat',      name:'Keelboat',              dailySail:20, dailyOar:10, hull:9  },
-    { id:'longship',      name:'Longship',              dailySail:50, dailyOar:18, hull:7  },
+    { id:'longship',      name:'Longship',              dailySail:45, dailyOar:18, hull:7  },
     { id:'merchantman',   name:'Merchantman',           dailySail:24, dailyOar:0,  hull:34 },
-    { id:'dromond',       name:'Dromond',               dailySail:36, dailyOar:30, hull:30 },
+    { id:'dromond',       name:'Dromond (Large Galley)',dailySail:50, dailyOar:30, hull:16 },
     { id:'rowboat',       name:'Rowboat / Skiff',       dailySail:18, dailyOar:9,  hull:3  },
     { id:'outrigger',     name:'Outrigger',             dailySail:24, dailyOar:18, hull:6  },
   ];
@@ -191,6 +220,28 @@
     ];
 
   const CREW_QUALITY_MOD = { green:-2, average:0, experienced:1, veteran:2 };
+
+  // Seafaring ship quality (DRMG 107). speedMult applies to daily speed;
+  // windDmgMod shifts every Wind Damage Table row in percentage points;
+  // capsizeOverride replaces the capsize row outright (Excellent);
+  // hazardHullDice is the Unseaworthy per-hazard-day structural damage.
+  const SHIP_QUALITY = {
+    unseaworthy: { label:'Unseaworthy', speedMult:0.75, windDmgMod:0,   capsizeOverride:null, hazardHullDice:{ gale:[1,2], storm:[1,3], hurricane:[1,6] } },
+    average:     { label:'Average',     speedMult:1,    windDmgMod:0,   capsizeOverride:null },
+    good:        { label:'Good',        speedMult:1,    windDmgMod:-10, capsizeOverride:null },
+    excellent:   { label:'Excellent',   speedMult:1.1,  windDmgMod:-30, capsizeOverride:{ storm:5, hurricane:15 } },
+  };
+
+  // Seafaring/DMG Wind Damage Table (base %, before quality modifiers).
+  // RAW checks every 6 hours; the doc itself flags that as extraordinarily
+  // lethal. Here one set of rolls fires only on the watch where the captain
+  // loses control (the failed Ship Sailing check), at RAW ÷ 4 — one
+  // six-hour watch of exposure.
+  const WIND_DAMAGE_TABLE = {
+    gale:      { capsize:1,  mast:5,  beams:10, sail:20, overboard:10 },
+    storm:     { capsize:20, mast:25, beams:35, sail:45, overboard:50 },
+    hurricane: { capsize:40, mast:45, beams:50, sail:65, overboard:70 },
+  };
 
   // ── PORT RESOLUTION ───────────────────────────────────────────────────────
   // Ports are landmark-driven (gcc-landmarks.js reserved isPort for exactly
@@ -529,6 +580,85 @@
       voyageEffects:{ movementMultiplier: windSpeed<=1 ? 0 : windSpeed<=7 ? 0.75 : windSpeed>=55 ? 0.5 : windSpeed>=32 ? 0.75 : 1, navigationPenalty: windSpeed>=55 ? 4 : windSpeed>=32 ? 2 : 0, hazardLevel: windSpeed>=73 ? 'hurricane' : windSpeed>=55 ? 'storm' : windSpeed>=32 ? 'gale' : null, speedNote:'' }
     };
   }
+  // RAW: each full 10% of hull damage slows the ship 10%; at 75% damage
+  // she is dead in the water. Quality speed multiplier and a broken mast
+  // (sail halved) stack in. Returns the combined daily-speed multiplier.
+  function shipConditionMods(v = state.voyage){
+    if (!v) return { multiplier:1, deadInWater:false, note:'' };
+    const bits = [];
+    let mult = 1;
+    const q = SHIP_QUALITY[v.quality] || SHIP_QUALITY.average;
+    if (q.speedMult !== 1){
+      mult *= q.speedMult;
+      bits.push(`${q.label.toLowerCase()} ${q.speedMult > 1 ? '+' : ''}${Math.round((q.speedMult - 1) * 100)}%`);
+    }
+    if (v.brokenMast){ mult *= 0.5; bits.push('broken mast −50%'); }
+    const dmgPct = v.hullMax ? Math.max(0, 1 - Number(v.hullCurrent || 0) / Number(v.hullMax)) : 0;
+    if (dmgPct >= 0.75) return { multiplier:0, deadInWater:true, note:'Dead in the water.', dmgPct };
+    const steps = Math.floor(dmgPct * 10);
+    if (steps > 0){ mult *= (1 - steps / 10); bits.push(`hull damage −${steps * 10}%`); }
+    return { multiplier:mult, deadInWater:false, note: bits.length ? `(${bits.join(', ')})` : '', dmgPct };
+  }
+
+  // One pass over the Wind Damage Table for the hazard day the captain
+  // lost control. Rolls capsize first (and stops there); mast and beams
+  // set persistent flags cleared by posting their Voyage Ledger repair
+  // item; torn rigging is d6 hull with spares bent on by morning.
+  function rollWindDamage(v, hazardLevel, dateStr, events){
+    const row = WIND_DAMAGE_TABLE[hazardLevel];
+    if (!row) return;
+    const q = SHIP_QUALITY[v.quality] || SHIP_QUALITY.average;
+    const pct = key => {
+      let base = row[key];
+      if (key === 'capsize' && q.capsizeOverride && q.capsizeOverride[hazardLevel] != null) base = q.capsizeOverride[hazardLevel];
+      else base = Math.max(0, base + q.windDmgMod);
+      return base / 4;
+    };
+    const hit = key => (Math.random() * 100) < pct(key);
+    if (hit('capsize')){
+      v.shipSank = true;
+      v.finished = true;
+      events.push({ type:'damage', text:`☠ The ship CAPSIZES in the ${hazardLevel}! She goes down at once — all hands Save vs. Death or be trapped in the wreck.` });
+      return;
+    }
+    if (hit('mast') && !v.brokenMast){
+      v.brokenMast = true;
+      addPendingFinanceAction({
+        category:'repair', direction:'expense', amountGp:300, hullDamage:0,
+        restoreHullAllowed:false, eventType:'broken_mast',
+        memo:`Step a new mast — snapped in the ${hazardLevel} on ${dateStr}.`,
+        day:v.dayNumber, date:dateStr, meta:{ brokenMast:true, hazardLevel }
+      }, v);
+      events.push({ type:'damage', text:'CRACK — the mast snaps! Sailing speed halved until a new mast is stepped in port (see Voyage Ledger).' });
+    }
+    if (hit('beams') && !v.leaking){
+      v.leaking = true;
+      addPendingFinanceAction({
+        category:'repair', direction:'expense', amountGp:200, hullDamage:0,
+        restoreHullAllowed:false, eventType:'sprung_beams',
+        memo:`Refit beams sprung in the ${hazardLevel} on ${dateStr}.`,
+        day:v.dayNumber, date:dateStr, meta:{ leaking:true, hazardLevel }
+      }, v);
+      events.push({ type:'damage', text:'Beams spring below the waterline — she is LEAKING (1 hull HP/day until repaired in port; see Voyage Ledger).' });
+    }
+    if (hit('sail')){
+      const dmg = rollD(6);
+      v.hullCurrent -= dmg;
+      v.hullDamageTaken = Number(v.hullDamageTaken || 0) + dmg;
+      const repairGp = estimateRepairCost(dmg, v);
+      addPendingFinanceAction({
+        category:'repair', direction:'expense', amountGp:repairGp, hullDamage:dmg,
+        eventType:'torn_rigging',
+        memo:`Repair rigging torn away in the ${hazardLevel} on ${dateStr}.`,
+        day:v.dayNumber, date:dateStr, meta:{ tornSail:true, hazardLevel }
+      }, v);
+      events.push({ type:'damage', text:`Sails and rigging tear away — hull −${dmg} HP. The crew bends on spares by morning.` });
+    }
+    if (hit('overboard')){
+      events.push({ type:'crew', text:'Man overboard! A crewman is swept into the sea.' });
+    }
+  }
+
   function calculateSailingSpeed(baseSpeed, weather){
     const w = Number(weather?.wind?.speed || 0);
     const fx = weather?.voyageEffects;
@@ -548,13 +678,13 @@
     let speed = baseSpeed, note = '';
     if (w<5) return { speed:0, note:'Becalmed — wind too light.', becalmed:true };
     if (w<20){
-      const penalty = Math.floor((20-w)/10)*8;
+      const penalty = Math.floor((20-w)/10)*4;
       speed = Math.max(1, baseSpeed-penalty);
       note = `Light winds (${w} mph). −${penalty} mi/day.`;
     } else if (w<=30){
       note = `Good sailing winds (${w} mph).`;
     } else {
-      const bonus = Math.floor((w-30)/10)*16;
+      const bonus = Math.floor((w-30)/10)*8;
       speed += bonus;
       note = `Strong winds (${w} mph). +${bonus} mi/day.`;
     }
@@ -608,7 +738,7 @@
 
   // Seafaring evasion table (abridged): base 80%, open water −50%,
   // gale +20%, storm +30%, fog +50%; damaged ship −hull-damage%.
-  function rollEvasion(waterType, weather, v){
+  function rollEvasion(waterType, weather, v, penalty = 0){
     let chance = 80;
     if (waterType === 'openWater') chance -= 50;
     const w = Number(weather?.wind?.speed || 0);
@@ -618,10 +748,48 @@
     else if (w >= 32) chance += 20;
     const dmgPct = v?.hullMax ? Math.round((1 - v.hullCurrent / v.hullMax) * 100) : 0;
     chance -= Math.max(0, dmgPct);
+    chance -= Math.max(0, penalty);
     chance = Math.max(5, Math.min(95, chance));
     const roll = rollD(100);
     return { success: roll <= chance, roll, chance };
   }
+
+  // Hostile contact: RAW gives the crew options (evade, fight, flaming
+  // oil 75% vs unintelligent monsters, food 50%). Returns 0 evade /
+  // 1 fight / 2 drive off. No dialog available → 0 (the old auto-evade).
+  async function promptEncounterAction(enc){
+    if (!window.GCCDialog?.choose) return 0;
+    try {
+      const idx = await window.GCCDialog.choose(`${enc.name}!`, [
+        { label:'Evade', desc:'Run for it — Seafaring evasion table (weather, open water, and hull damage all apply).' },
+        { label:'Stand and fight', desc:'Beat to quarters. The GM adjudicates the battle at the table; the day is spent engaged.' },
+        { label:'Drive off / distract', desc:'Flaming oil, jettisoned stores, or bluster — 75% vs monsters, 50% vs crewed vessels. Failure lets them close (evasion at −20).' },
+      ], { intro:`Hostile contact sighted at ${enc.distance}.`, cancelable:false });
+      return idx == null ? 0 : idx;
+    } catch (err){ LOG('encounter dialog unavailable; auto-evading', err); return 0; }
+  }
+
+  function applyEncounterDamage(enc, v, dateStr, waterType, ev, events){
+    const crewLoss = rollD(3)-1, hullDmg = rollD(4);
+    v.hullCurrent -= hullDmg;
+    v.hullDamageTaken = Number(v.hullDamageTaken || 0) + hullDmg;
+    const repairGp = estimateRepairCost(hullDmg, v);
+    addPendingFinanceAction({
+      category:'repair',
+      direction:'expense',
+      amountGp:repairGp,
+      hullDamage:hullDmg,
+      eventType:'encounter_damage',
+      memo:`Repair ${hullDmg} hull HP after ${enc.name} on ${dateStr}.`,
+      day:v.dayNumber,
+      date:dateStr,
+      port:voyageCurrentLocationLabel(v),
+      meta:{ encounter:enc.name, encounterDistance:enc.distance, waterType, evasionRoll:ev?.roll, evasionChance:ev?.chance }
+    }, v);
+    if (crewLoss>0) events.push({ type:'crew', text:`${enc.name} at ${enc.distance}! ${crewLoss} crew lost.` });
+    events.push({ type:'encounter', text:`${enc.name} — evasion failed (${ev.roll} > ${ev.chance}%). Hull −${hullDmg} HP. Pending repair estimate: ${repairGp} gp.` });
+  }
+
   function rollNavigationCheck(navSkill, crewMod, weather, waterType){
     const mustCheck = waterType === 'openWater' || Number(weather?.voyageEffects?.navigationPenalty || 0) > 0;
     if (!mustCheck) return null;
@@ -852,6 +1020,9 @@
     v.startDate = v.startDate || dateObjToText(v.startCalendar);
     v.currentDate = dateObjToText(v.calendar);
     v.hullDamageTaken = Number(v.hullDamageTaken || 0);
+    v.quality = SHIP_QUALITY[v.quality] ? v.quality : 'average';
+    v.brokenMast = !!v.brokenMast;
+    v.leaking = !!v.leaking;
     ensureSettlement(v);
     if (updateLocation) updateVoyageLocation('normalize');
     return v;
@@ -952,6 +1123,15 @@
       action.repairApplied = true;
       action.repairedHp = v.hullCurrent - before;
     }
+    // Posting the mast/beam repair item clears its persistent penalty.
+    if (action.meta?.brokenMast && v && v.brokenMast){
+      v.brokenMast = false;
+      action.mastReplaced = true;
+    }
+    if (action.meta?.leaking && v && v.leaking){
+      v.leaking = false;
+      action.leakRepaired = true;
+    }
     s.posted.unshift({ ...action });
     emitVoyageChanged('pending-finance-posted');
     renderVoyagePane();
@@ -998,6 +1178,9 @@
       totalDistance: v.totalDistance || 0,
       finished: !!v.finished,
       shipSank: !!v.shipSank,
+      quality: v.quality || 'average',
+      brokenMast: !!v.brokenMast,
+      leaking: !!v.leaking,
       hullCurrent: v.hullCurrent || 0,
       hullMax: v.hullMax || 0,
       currentHullLoss,
@@ -1078,7 +1261,7 @@
     };
   }
 
-  function simulateOneDay(){
+  async function simulateOneDay(){
     const v = state.voyage;
     if (!v || v.finished || v.shipSank) return null;
     v.dayNumber++;
@@ -1119,39 +1302,64 @@
 
     // Encounters are checked whether or not the ship makes way — a becalmed
     // ship is still on the water (DMG daily encounter checks).
+    let engaged = false;
     const enc = checkEncounter(waterType);
     if (enc){
       if (enc.hostile){
-        const ev = rollEvasion(waterType, weather, v);
-        if (ev.success){
-          events.push({ type:'encounter', text:`${enc.name} sighted at ${enc.distance} — evaded (${ev.roll} ≤ ${ev.chance}%).` });
+        const choice = await promptEncounterAction(enc);
+        if (choice === 1){
+          engaged = true;
+          events.push({ type:'encounter', text:`${enc.name} at ${enc.distance} — the crew beats to quarters. Resolve the battle at the table; the day is spent engaged (no progress).` });
         } else {
-          const crewLoss = rollD(3)-1, hullDmg = rollD(4);
-          v.hullCurrent -= hullDmg;
-          v.hullDamageTaken = Number(v.hullDamageTaken || 0) + hullDmg;
-          const repairGp = estimateRepairCost(hullDmg, v);
-          addPendingFinanceAction({
-            category:'repair',
-            direction:'expense',
-            amountGp:repairGp,
-            hullDamage:hullDmg,
-            eventType:'encounter_damage',
-            memo:`Repair ${hullDmg} hull HP after ${enc.name} on ${dateStr}.`,
-            day:v.dayNumber,
-            date:dateStr,
-            port:voyageCurrentLocationLabel(v),
-            meta:{ encounter:enc.name, encounterDistance:enc.distance, waterType, evasionRoll:ev.roll, evasionChance:ev.chance }
-          }, v);
-          if (crewLoss>0) events.push({ type:'crew', text:`${enc.name} at ${enc.distance}! ${crewLoss} crew lost.` });
-          events.push({ type:'encounter', text:`${enc.name} — evasion failed (${ev.roll} > ${ev.chance}%). Hull −${hullDmg} HP. Pending repair estimate: ${repairGp} gp.` });
+          let evPenalty = 0;
+          let mustEvade = true;
+          if (choice === 2){
+            const crewed = /pirate|vessel|squadron|ship|smuggler|bandit|patrol|raft|convoy|fleet/i.test(enc.name);
+            const pct = crewed ? 50 : 75;
+            const roll = rollD(100);
+            if (roll <= pct){
+              mustEvade = false;
+              events.push({ type:'encounter', text:`${enc.name} at ${enc.distance} — driven off (${roll} ≤ ${pct}%).` });
+            } else {
+              evPenalty = 20;
+              events.push({ type:'encounter', text:`${enc.name} not deterred (${roll} > ${pct}%) — they close while the crew scrambles.` });
+            }
+          }
+          if (mustEvade){
+            const ev = rollEvasion(waterType, weather, v, evPenalty);
+            if (ev.success){
+              events.push({ type:'encounter', text:`${enc.name} sighted at ${enc.distance} — evaded (${ev.roll} ≤ ${ev.chance}%).` });
+            } else {
+              applyEncounterDamage(enc, v, dateStr, waterType, ev, events);
+            }
+          }
         }
       } else {
         events.push({ type:'encounter', text:`${enc.name} at ${enc.distance}.` });
       }
     }
 
+    // RAW ship-condition effects on the day's speed: quality multiplier,
+    // broken mast (sail halved), hull damage (−10% per full 10%). At ≥75%
+    // damage the ship is dead in the water and the crew spends the day on
+    // makeshift repairs (RAW at-sea repairs, abstracted to +1d3 HP/day;
+    // hazard rolls are skipped — the crew is fighting the sea, not sailing).
+    const cond = shipConditionMods(v);
+    if (engaged){
+      speedInfo = { speed:0, note:'Engaged with hostile contact — no progress.', becalmed:false, held:true };
+    } else if (cond.deadInWater){
+      const fixed = rollDN(1,3);
+      v.hullCurrent = Math.min(Number(v.hullMax || 0), Number(v.hullCurrent || 0) + fixed);
+      events.push({ type:'damage', text:`Dead in the water — hull ≥75% damaged. The crew works makeshift repairs all day (+${fixed} hull HP; they will not survive the next port inspection).` });
+      speedInfo = { speed:0, note:'Dead in the water — makeshift repairs underway.', becalmed:false, held:true };
+    } else if (!speedInfo.becalmed && cond.multiplier !== 1 && speedInfo.speed > 0){
+      speedInfo = { ...speedInfo, speed: Math.max(0, Math.round(speedInfo.speed * cond.multiplier)), note: `${speedInfo.note} ${cond.note}`.trim() };
+    }
+
     if (speedInfo.becalmed){
       events.push({ type:'becalmed', text:'Becalmed — no progress.' });
+    } else if (speedInfo.held){
+      // engaged or dead in the water — events already logged above
     } else {
       // Navigation
       const nav = rollNavigationCheck(v.navSkill, v.crewMod, weather, waterType);
@@ -1166,30 +1374,44 @@
       if (hz){
         const pilot = rollD(20), target = v.navSkill + v.crewMod - hz.mod;
         if (pilot > target){
-          const dmg = hz.type==='Critical' ? rollDN(1,6)+4 : hz.type==='Major' ? rollDN(1,4)+2 : rollDN(1,3)+1;
-          v.hullCurrent -= dmg;
-          v.hullDamageTaken = Number(v.hullDamageTaken || 0) + dmg;
-          const repairGp = estimateRepairCost(dmg, v);
-          addPendingFinanceAction({
-            category:'repair',
-            direction:'expense',
-            amountGp:repairGp,
-            hullDamage:dmg,
-            eventType:'weather_damage',
-            memo:`Repair ${dmg} hull HP after ${hz.desc} on ${dateStr}.`,
-            day:v.dayNumber,
-            date:dateStr,
-            port:voyageCurrentLocationLabel(v),
-            meta:{ weatherHazard:hz.desc, windForce:weather.wind?.force || '', windSpeed:weather.wind?.speed || 0, waterType }
-          }, v);
-          events.push({ type:'damage', text:`${hz.desc}! Ship Sailing failed (${pilot} > ${target}). Hull −${dmg} HP. (${v.hullCurrent}/${v.hullMax} remaining). Pending repair estimate: ${repairGp} gp.` });
-          // Seafaring/RC: each storm day the ship is blown d10×10 mi off
-          // course. GCCWeather pre-rolls this as stormDriftMiles; apply it
-          // as lost leg progress when the captain loses control.
-          const drift = Number(weather?.voyageEffects?.stormDriftMiles || 0);
-          if (drift > 0){
-            v.milesOnLeg = Math.max(0, Number(v.milesOnLeg || 0) - drift);
-            events.push({ type:'navigation', text:`Blown ${drift} mi off course by the ${hz.desc.toLowerCase()}.` });
+          if (hz.type === 'Minor'){
+            // Fog is a piloting hazard, not a hull hazard (RAW): losing the
+            // check gropes away a quarter of the day's progress.
+            const lost = Math.floor(navMiles * 0.25);
+            navMiles = Math.max(0, navMiles - lost);
+            events.push({ type:'navigation', text:`${hz.desc}: the ship gropes through it (${pilot} > ${target}) — ${lost} mi lost.` });
+          } else {
+            // RAW: an average ship takes one hull damage for each day in a
+            // storm the captain fails to sail through; hurricane doubles it.
+            const dmg = hz.type === 'Critical' ? 2 : 1;
+            v.hullCurrent -= dmg;
+            v.hullDamageTaken = Number(v.hullDamageTaken || 0) + dmg;
+            const repairGp = estimateRepairCost(dmg, v);
+            addPendingFinanceAction({
+              category:'repair',
+              direction:'expense',
+              amountGp:repairGp,
+              hullDamage:dmg,
+              eventType:'weather_damage',
+              memo:`Repair ${dmg} hull HP after ${hz.desc} on ${dateStr}.`,
+              day:v.dayNumber,
+              date:dateStr,
+              port:voyageCurrentLocationLabel(v),
+              meta:{ weatherHazard:hz.desc, windForce:weather.wind?.force || '', windSpeed:weather.wind?.speed || 0, waterType }
+            }, v);
+            events.push({ type:'damage', text:`${hz.desc}! Ship Sailing failed (${pilot} > ${target}). Hull −${dmg} HP. (${v.hullCurrent}/${v.hullMax} remaining). Pending repair estimate: ${repairGp} gp.` });
+            // Seafaring/RC: each storm day the ship is blown d10×10 mi off
+            // course. GCCWeather pre-rolls this as stormDriftMiles; apply it
+            // as lost leg progress when the captain loses control.
+            const drift = Number(weather?.voyageEffects?.stormDriftMiles || 0);
+            if (drift > 0){
+              v.milesOnLeg = Math.max(0, Number(v.milesOnLeg || 0) - drift);
+              events.push({ type:'navigation', text:`Blown ${drift} mi off course by the ${hz.desc.toLowerCase()}.` });
+            }
+            // Wind Damage Table fires on the watch where control was lost
+            // (gale/storm/hurricane only; fog hazards carry no hazardLevel).
+            const hzLvl = weather?.voyageEffects?.hazardLevel;
+            if (hzLvl) rollWindDamage(v, hzLvl, dateStr, events);
           }
         } else {
           events.push({ type:'weather', text:`${hz.desc}: captain holds course (${pilot} ≤ ${target}).` });
@@ -1237,6 +1459,33 @@
         } else break;
       }
 
+      if (v.hullCurrent <= 0){
+        v.shipSank = true;
+        v.finished = true;
+        v._forceUnderwayLocation = false;
+        events.push({ type:'damage', text:'☠ Ship sank!' });
+      }
+    }
+
+    // Damage that accrues whether or not the ship made way today:
+    // sprung beams leak 1 hull HP/day until the repair item is posted,
+    // and an Unseaworthy hull takes structural damage every hazard day
+    // (RAW: 1d2 gale / 1d3 storm / 1d6 hurricane).
+    if (!v.shipSank){
+      const dayHazard = weather?.voyageEffects?.hazardLevel;
+      if (v.leaking){
+        v.hullCurrent -= 1;
+        v.hullDamageTaken = Number(v.hullDamageTaken || 0) + 1;
+        events.push({ type:'damage', text:`Leaking — the sprung beams take on water. Hull −1 HP (${v.hullCurrent}/${v.hullMax}).` });
+      }
+      const q = SHIP_QUALITY[v.quality] || SHIP_QUALITY.average;
+      if (dayHazard && q.hazardHullDice && q.hazardHullDice[dayHazard]){
+        const [n, s] = q.hazardHullDice[dayHazard];
+        const dmg = rollDN(n, s);
+        v.hullCurrent -= dmg;
+        v.hullDamageTaken = Number(v.hullDamageTaken || 0) + dmg;
+        events.push({ type:'damage', text:`The unseaworthy hull works and groans in the ${dayHazard} — hull −${dmg} HP (${v.hullCurrent}/${v.hullMax}).` });
+      }
       if (v.hullCurrent <= 0){
         v.shipSank = true;
         v.finished = true;
@@ -1621,6 +1870,15 @@
           </select>
         </div>
         <div>
+          <label class="ve-lbl">Ship Quality</label>
+          <select class="ve-select" id="ve-quality" title="Seafaring ship quality: speed and Wind Damage Table modifiers">
+            <option value="unseaworthy">Unseaworthy (75% speed, frail)</option>
+            <option value="average" selected>Average</option>
+            <option value="good">Good (−10% wind damage)</option>
+            <option value="excellent">Excellent (+10% spd, −30% dmg)</option>
+          </select>
+        </div>
+        <div>
           <label class="ve-lbl">Nav Skill</label>
           <input class="ve-input" id="ve-nav" type="number" min="1" max="20" value="12">
         </div>
@@ -1924,7 +2182,7 @@
     const routePane = p?.querySelector('#ve-pane-route');
     if (!setupPane || !routePane) return;
     const keep = {};
-    ['ve-capt','ve-ship','ve-speed','ve-hull','ve-crew','ve-nav',
+    ['ve-capt','ve-ship','ve-speed','ve-hull','ve-crew','ve-quality','ve-nav',
      've-sday','ve-smonth','ve-syear','ve-from','ve-to','ve-water','ve-newport-name']
       .forEach(id => { const el = p.querySelector('#'+id); if (el) keep[id] = el.value; });
     setupPane.innerHTML = setupPaneHTML();
@@ -2119,7 +2377,12 @@
     emitVoyageChanged('route-leg-removed');
   }
 
-  function clearRoute(){
+  async function clearRoute(){
+    if (state.routeLegs.length){
+      const manual = state.routeLegs.filter(l => l.distanceSource === 'manual').length;
+      const msg = `Discard the planned ${state.routeLegs.length}-leg itinerary?${manual ? ` ${manual} leg${manual===1?' has a':'s have'} manually edited distance${manual===1?'':'s'} that cannot be recovered.` : ''}`;
+      if (!(await confirmDialog('Clear route', msg, { okText:'Clear Route', danger:true }))) return;
+    }
     state.routeLegs = [];
     state.panelEl?.querySelector('#ve-from')?.dispatchEvent(new Event('change'));
     renderLegsUI();
@@ -2160,6 +2423,7 @@
     const hullMax   = parseInt(p.querySelector('#ve-hull').value,10)  || shipTpl.hull;
     const dailySail = parseInt(p.querySelector('#ve-speed').value,10) || shipTpl.dailySail;
     const crew      = p.querySelector('#ve-crew').value || 'average';
+    const quality   = SHIP_QUALITY[p.querySelector('#ve-quality')?.value] ? p.querySelector('#ve-quality').value : 'average';
     const navSkill  = parseInt(p.querySelector('#ve-nav').value,10)   || 12;
     const sd = parseInt(p.querySelector('#ve-sday').value,10)    || 1;
     const sm = parseInt(p.querySelector('#ve-smonth').value,10)  || 0;
@@ -2196,6 +2460,9 @@
       dailyOar: Number(shipTpl.dailyOar || 0),
       crewQuality: crew,
       crewMod: CREW_QUALITY_MOD[crew] ?? 0,
+      quality,
+      brokenMast: false,
+      leaking: false,
       navSkill,
       calendar: { ...startCalendar },
       startCalendar,
@@ -2226,8 +2493,8 @@
     emitVoyageChanged('voyage-started');
   }
 
-  function advanceDay(){
-    const entry = simulateOneDay();
+  async function advanceDay(){
+    const entry = await simulateOneDay();
     if (!entry){ setStatus('Voyage is over.', 'warn'); return; }
     renderShip();
     renderTrailOverlay();
@@ -2238,8 +2505,18 @@
     }
   }
 
-  function advanceMany(n){
-    for (let i=0;i<n && state.voyage && !state.voyage.finished; i++) simulateOneDay();
+  async function advanceMany(n){
+    for (let i=0;i<n && state.voyage && !state.voyage.finished; i++){
+      const entry = await simulateOneDay();
+      if (!entry) break;
+      // Halt on port arrival — fees, customs, merchants, and settlement all
+      // fire per port; sailing through a stopover skips the economic beat.
+      const portEvt = entry.events.find(e => e.type === 'port');
+      if (portEvt){
+        setStatus(`Halted: ${portEvt.text}`);
+        break;
+      }
+    }
     renderShip();
     renderTrailOverlay();
     renderVoyagePane();
@@ -2279,7 +2556,13 @@
     const port = inPortMidRoute ? (v.legs[v.currentLegIdx - 1]?.to || '') : (leg?.from || '');
     if (!port){ setStatus('No port to make for — the ship has no last visited port.', 'warn'); return; }
     const returnMiles = inPortMidRoute ? 0 : Math.round(Number(v.milesOnLeg || 0));
-    const returnDays = returnMiles > 0 ? Math.max(1, Math.round(returnMiles / Math.max(1, Number(v.dailySail || 1)))) : 0;
+    const cond = shipConditionMods(v);
+    if (returnMiles > 0 && cond.deadInWater){
+      setStatus('The ship is dead in the water — makeshift repairs must bring the hull above 25% before she can make way back to port.', 'warn');
+      return;
+    }
+    const effSpeed = Math.max(1, Math.round(Number(v.dailySail || 1) * (cond.multiplier || 1)));
+    const returnDays = returnMiles > 0 ? Math.max(1, Math.round(returnMiles / effSpeed)) : 0;
     const finalDest = v.legs[v.legs.length - 1]?.to || '';
     const msg = returnMiles > 0
       ? `Come about and return ${returnMiles} mi to ${port} (~${returnDays} day${returnDays===1?'':'s'})? The remaining route to ${finalDest} is abandoned. Pending settlement items are kept and can be posted at ${port}.`
@@ -2367,6 +2650,14 @@
       <div style="font-size:12px;font-family:Georgia,serif">${v.distanceCovered} / ${v.totalDistance} mi  <span style="color:#c8a96e">(${v.totalDistance>0 ? Math.round(v.distanceCovered/v.totalDistance*100) : 0}%)</span></div>
       <label class="ve-lbl">Hull</label>
       <div style="font-size:12px;font-family:Georgia,serif;color:${hullCol}">${v.hullCurrent} / ${v.hullMax} HP (${hullPct}%)</div>
+      <label class="ve-lbl">Effective Speed</label>
+      ${(() => {
+        const cond = shipConditionMods(v);
+        if (cond.deadInWater) return '<div style="font-size:12px;font-family:Georgia,serif;color:#ff5544"><b>Dead in the water</b> — hull ≥75% damaged; crew making makeshift repairs</div>';
+        const eff = Math.max(0, Math.round(Number(v.dailySail || 0) * cond.multiplier));
+        const leak = v.leaking ? ' · <span style="color:#ff9944">LEAKING 1 HP/day</span>' : '';
+        return `<div style="font-size:12px;font-family:Georgia,serif;color:#f4e4b8">${eff} mi/day${cond.note ? ` <span style="color:#c8a96e">${esc(cond.note)}</span>` : ''}${leak}</div>`;
+      })()}
       ${(() => { const sum = getVoyageSummary(v); return sum?.pendingCount ? `<div class="ve-status" style="margin-top:8px">Settlement: ${sum.pendingCount} pending finance item${sum.pendingCount===1?'':'s'} · repairs ${sum.pendingRepairGp} gp</div>` : ''; })()}
       <div class="ve-row" style="margin-top:10px">
         <button class="ve-btn primary" id="ve-advance" ${v.finished?'disabled':''}>Advance 1 Day</button>
@@ -2603,7 +2894,7 @@
 
   window.GCCVoyage = {
     enter, exit, toggle, state,
-    advanceOneDay: simulateOneDay,
+    advanceOneDay: simulateOneDay, // async as of v0.12.0 (encounter dialogs)
     getSummary: () => getVoyageSummary(),
     getPendingFinanceActions: () => (ensureSettlement(state.voyage)?.pending || []).map(a => ({ ...a })),
     addPendingFinanceAction: data => addPendingFinanceAction(data),

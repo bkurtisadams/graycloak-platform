@@ -1,4 +1,9 @@
-// gcc-weather.js v0.2.0 — AD&D / World of Greyhawk campaign weather for GCC
+// gcc-weather.js v0.2.1 — AD&D / World of Greyhawk campaign weather for GCC
+// v0.2.1: rain-storms and squalls no longer unconditionally count as
+//   hazardLevel 'storm'. Hazard tier now keys on actual wind speed
+//   (>=55 storm, >=32 gale, else none) — common 4d10-wind rain days were
+//   being treated as structural storm days, roughly halving voyage hull
+//   life vs the Seafaring tables.
 // v0.2.0: day-to-day weather continuity (Dragon #68 / seafaring tables).
 //   generateDailyWeather(ctx) now accepts ctx.previous (the prior day's
 //   weather object). Multi-day events (gale 1d3 days, monsoon 1d6+6,
@@ -14,7 +19,7 @@
 (function(){
   if (typeof window === 'undefined') return;
 
-  const VERSION = '0.2.0';
+  const VERSION = '0.2.1';
 
   const MONTHS = [
     'Needfest', 'Fireseek', 'Readying', 'Coldeven', 'Growfest',
@@ -269,7 +274,13 @@
     if (['rain-storm', 'squall'].includes(precipKey)){
       movementMultiplier = Math.min(movementMultiplier, 0.75);
       navigationPenalty += 2;
-      if (!hazardLevel) hazardLevel = 'storm';
+      // A rain storm or squall is only a structural hazard when the wind
+      // says so (Seafaring: hazard tiers key on Wind Force, and common
+      // rain-storms roll 4d10 wind — often under gale force). Tagging every
+      // squall 'storm' made ~half of at-sea days count as storm days and
+      // battered hulls far beyond RAW.
+      if (!hazardLevel && weather.wind.speed >= 55) hazardLevel = 'storm';
+      else if (!hazardLevel && weather.wind.speed >= 32) hazardLevel = 'gale';
       notes.push(precipKey === 'squall' ? 'Squall crosses the route suddenly.' : 'Rain storm batters the ship.');
     }
 
