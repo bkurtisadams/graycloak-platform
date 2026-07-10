@@ -1,4 +1,12 @@
-// gcc-voyage.js v0.10.0 — 2026-07-09
+// gcc-voyage.js v0.10.1 — 2026-07-09
+// v0.10.1: river-aware pathfinding. findWaterPath's A* only traversed
+//   painted 'water' terrain, but rivers are GCCPaths segment data (entry/
+//   exit edges per hex), so river legs ignored the actual river course and
+//   wandered through stray water paint (Verbobonc → Dyvers cut overland
+//   instead of following the Velverdyva). A step is now navigable when the
+//   target hex is painted water OR GCCPaths.edgeRiverDirection reports a
+//   river on the shared edge — boats follow river chains hex by hex.
+// v0.10.0 — 2026-07-09
 // v0.10.0: dedicated Route tab + sailing-plan timeline.
 //   - Tabs are now Setup | Route | Voyage | Log. Setup keeps captain, ship,
 //     crew, and departure date; the route builder, itinerary, and Port setup
@@ -121,7 +129,7 @@
 (function(){
   if (typeof window === 'undefined') return;
   const LOG = (...a) => console.log('[voyage]', ...a);
-  LOG('gcc-voyage.js v0.10.0 loaded');
+  LOG('gcc-voyage.js v0.10.1 loaded');
 
   // ── DATA ──────────────────────────────────────────────────────────────────
   // Ship templates: dailySail in miles-per-10-hour-sailing-day, hull in HP.
@@ -302,6 +310,20 @@
     if (typeof GCCTerrain === 'undefined') return false;
     return GCCTerrain.get(col, row) === 'water';
   }
+  // A step a→b is navigable when b is painted water (lake/sea) OR the shared
+  // edge carries a river segment per GCCPaths — rivers are path data with
+  // entry/exit edges, NOT painted terrain, so without this check river legs
+  // ignore the actual river course and wander through stray water paint.
+  // 'with'/'against' = moving along the chain; 'cross' is accepted too
+  // (confluences, and subhex-canonical edges currently report 'cross').
+  function navigableStep(a, b){
+    if (isWaterHex(b.col, b.row)) return true;
+    if (window.GCCPaths && typeof window.GCCPaths.edgeRiverDirection === 'function'){
+      try { if (window.GCCPaths.edgeRiverDirection(a.col, a.row, b.col, b.row)) return true; }
+      catch (err){ /* resolver hiccup — treat as not navigable */ }
+    }
+    return false;
+  }
   function inGrid(col, row){
     const gc = (typeof GRID_COLS !== 'undefined') ? GRID_COLS : 146;
     const gr = (typeof GRID_ROWS !== 'undefined') ? GRID_ROWS : 97;
@@ -346,9 +368,10 @@
         if (!inGrid(nb.col, nb.row)) continue;
         const nbKey = `${nb.col}-${nb.row}`;
         if (closed.has(nbKey)) continue;
-        // Water-only, except allow start and goal (for land-side ports).
+        // Navigable water or river edge, except allow start and goal
+        // (for land-side ports).
         const atEndpoint = (nbKey === startKey || nbKey === goalKey);
-        if (!atEndpoint && !isWaterHex(nb.col, nb.row)) continue;
+        if (!atEndpoint && !navigableStep(bestNode, nb)) continue;
         const tentativeG = (gScore.get(bestKey) || 0) + 1;
         if (tentativeG < (gScore.get(nbKey) ?? Infinity)){
           came.set(nbKey, bestKey);
