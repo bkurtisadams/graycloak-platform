@@ -369,5 +369,26 @@ ok(/capsizeOverride:\{ storm:5, hurricane:15 \}/.test(src2), 'excellent capsize 
 ok(/hazardHullDice:\{ gale:\[1,2\], storm:\[1,3\], hurricane:\[1,6\] \}/.test(src2), 'unseaworthy hazard-day dice per RAW');
 ok(/if \(hzLvl\) rollWindDamage\(v, hzLvl, dateStr, events\)/.test(src2), 'wind damage fires on failed pilot check only');
 
+section('v0.13.0 helm (source + behavior)');
+const src3 = readFileSync('/home/claude/gcc/gcc-voyage.js', 'utf8');
+ok(/function renderHelmStrip/.test(src3) && /function renderHelmFeed/.test(src3) && /function renderHelmFooter/.test(src3), 'helm renderers present');
+ok(/id="ve-helm-footer"/.test(src3) && /data-tab="log">Archive</.test(src3), 'footer element + Archive tab');
+ok(/gcc:voyage:feed/.test(src3) && /GCCTableFeed\?\.postText\?\./.test(src3), 'table-feed mirror contract');
+ok(/VOYAGE_VERSION = '0\.13\.0'/.test(src3) && /ve-ver/.test(src3), 'panel shows module version');
+// behavior: alerts harvested on a mast-snap day
+makeVoyage({ legIdx:0, milesOnLeg:0, pending:0 });
+v12 = V.state.voyage; v12.hullCurrent = v12.hullMax = 20; v12.quality = 'average';
+let alerted = false;
+chooseResponses = new Array(400).fill(0);
+for (let t=0; t<400 && !alerted; t++){
+  v12.currentLegIdx = 0; v12.milesOnLeg = 0; v12.finished = false; v12.shipSank = false;
+  v12.hullCurrent = 20; v12.brokenMast = false; v12.leaking = false;
+  const e = await V.advanceOneDay();
+  if ((v12.alerts || []).some(a => ['mast','leak','arrival','dead','sank','capsize'].includes(a.kind))) alerted = true;
+}
+ok(alerted, 'critical events push v.alerts within 400 sim days');
+ok(V.state.voyage.alerts.every(a => a.id && a.kind && a.text && a.ack === false), 'alert shape sane');
+V.state.voyage = null;
+
 console.log(`\n${pass} passed, ${fail} failed (v0.12.0 suite)`);
 process.exit(fail ? 1 : 0);
