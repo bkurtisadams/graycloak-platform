@@ -1,4 +1,13 @@
-// gcc-voyage.js v0.10.1 — 2026-07-09
+// gcc-voyage.js v0.10.2 — 2026-07-09
+// v0.10.2: Route-tab Clear now actually clears the drawn route. The route
+//   overlay sourced its legs from state.voyage whenever ANY voyage object
+//   existed — including finished voyages, which persist in localStorage
+//   until End Voyage — so clearing the planner left the old course on the
+//   map. Only an unfinished voyage owns the route line now (overlayVoyage);
+//   a finished voyage keeps its ship marker and trail as a record, but the
+//   route reverts to the planner. Clearing while a voyage is actively
+//   underway says so instead of appearing to fail.
+// v0.10.1 — 2026-07-09
 // v0.10.1: river-aware pathfinding. findWaterPath's A* only traversed
 //   painted 'water' terrain, but rivers are GCCPaths segment data (entry/
 //   exit edges per hex), so river legs ignored the actual river course and
@@ -129,7 +138,7 @@
 (function(){
   if (typeof window === 'undefined') return;
   const LOG = (...a) => console.log('[voyage]', ...a);
-  LOG('gcc-voyage.js v0.10.1 loaded');
+  LOG('gcc-voyage.js v0.10.2 loaded');
 
   // ── DATA ──────────────────────────────────────────────────────────────────
   // Ship templates: dailySail in miles-per-10-hour-sailing-day, hull in HP.
@@ -2009,7 +2018,11 @@
     state.panelEl?.querySelector('#ve-from')?.dispatchEvent(new Event('change'));
     renderLegsUI();
     renderRouteOverlay();
-    setStatus('Route cleared.');
+    if (overlayVoyage()){
+      setStatus('Planned route cleared. The active voyage\u2019s course stays on the map until it ends (End Voyage on the Voyage tab).');
+    } else {
+      setStatus('Route cleared.');
+    }
     emitVoyageChanged('route-cleared');
   }
 
@@ -2226,11 +2239,20 @@
     g.appendChild(t);
   }
 
+  // Only an ACTIVE voyage owns the drawn route. A finished voyage lingers in
+  // state (until End Voyage) so its ship marker and trail persist as a record,
+  // but the route line reverts to the planner — otherwise Route-tab Clear
+  // appears to do nothing while a finished voyage sits in localStorage.
+  function overlayVoyage(){
+    return (state.voyage && !state.voyage.finished) ? state.voyage : null;
+  }
+
   function renderRouteOverlay(){
     const g = ensureOverlay();
     if (!g) return;
     g.querySelectorAll('.voyage-route, .voyage-route-halo, .voyage-route-fallback, .voyage-route-fallback-halo, .voyage-port').forEach(el => el.remove());
-    const legs = state.voyage ? state.voyage.legs : state.routeLegs;
+    const av = overlayVoyage();
+    const legs = av ? av.legs : state.routeLegs;
     if (!legs.length){ if (!state.voyage) clearVoyageOverlays(); return; }
     const ns = 'http://www.w3.org/2000/svg';
     const hexToScreen = h => {
