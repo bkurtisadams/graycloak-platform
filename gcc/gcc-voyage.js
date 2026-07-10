@@ -1,4 +1,26 @@
-// gcc-voyage.js v0.10.2 — 2026-07-09
+// gcc-voyage.js v0.11.0 — 2026-07-10
+// v0.11.0: end-of-voyage settlement safety + Make Port (divert) + archive.
+//   - endVoyage no longer silently discards unposted settlement items: the
+//     confirm names the pending count and total gp, and the whole voyage
+//     (summary, condensed log, settlement, legs) is archived to
+//     localStorage gcc.voyage.archive.v1 (last 10) before state is nulled.
+//   - startVoyage now also confirms when replacing a FINISHED voyage that
+//     still has unposted settlement items (previously only unfinished
+//     voyages triggered the confirm — arriving, then starting a new voyage,
+//     silently ate the arrival settlement). Any replaced voyage is archived
+//     with endReason 'replaced'.
+//   - Make Port (divert): a voyage underway can now end early at the last
+//     visited port instead of running to completion or being discarded.
+//     The ship comes about and returns (return leg charged at dailySail,
+//     min 1 day when mid-leg), the voyage finishes at that port
+//     (v.endedAtPort), remaining legs are abandoned but kept for the
+//     record, and pending settlement items survive so the Voyage Ledger
+//     can post repairs/fees at that port before End Voyage archives.
+//   - Confirms route through GCCDialog.confirm (title, message,
+//     {okText, danger}) with a window.confirm fallback, per the GCC
+//     dialog unification.
+//   - Log tab lists archived past voyages below the current log; renderLog
+//     is defensive about synthetic entries without full weather/speedInfo.
 // v0.10.2: Route-tab Clear now actually clears the drawn route. The route
 //   overlay sourced its legs from state.voyage whenever ANY voyage object
 //   existed — including finished voyages, which persist in localStorage
@@ -138,7 +160,7 @@
 (function(){
   if (typeof window === 'undefined') return;
   const LOG = (...a) => console.log('[voyage]', ...a);
-  LOG('gcc-voyage.js v0.10.2 loaded');
+  LOG('gcc-voyage.js v0.11.0 loaded');
 
   // ── DATA ──────────────────────────────────────────────────────────────────
   // Ship templates: dailySail in miles-per-10-hour-sailing-day, hull in HP.
@@ -249,6 +271,10 @@
   // trained workers. (Self-repair by crew is ~50 gp materials + a week.)
   const REPAIR_GP_PER_HULL = 100;
   const VOYAGE_STORAGE_KEY = 'gcc.voyage.state.v1';
+  // Completed/discarded voyages: summary + condensed log + settlement.
+  // Written by archiveVoyage() before state.voyage is nulled or replaced.
+  const VOYAGE_ARCHIVE_KEY = 'gcc.voyage.archive.v1';
+  const VOYAGE_ARCHIVE_MAX = 10;
   const PORT_HEX_KEY = 'gcc.voyage.portHexes.v1';
 
   // Manually placed port hexes (user clicked the map). Landmarks stay
@@ -667,6 +693,78 @@
     try { localStorage.removeItem(VOYAGE_STORAGE_KEY); } catch (err){ /* ignore */ }
   }
 
+  // Unified confirm: GCCDialog.confirm(title, message, {okText, danger})
+  // per the GCC dialog unification, falling back to window.confirm when
+  // gcc-dialog.js isn't loaded (or throws). Always returns a boolean.
+  async function confirmDialog(title, message, opts = {}){
+    try {
+      if (window.GCCDialog?.confirm){
+        return !!(await window.GCCDialog.confirm(title, message, opts));
+      }
+    } catch (err){ LOG('GCCDialog.confirm unavailable, using window.confirm', err); }
+    return window.confirm(`${title}\n\n${String(message).replace(/<[^>]*>/g, '')}`);
+  }
+
+  // ── VOYAGE ARCHIVE ────────────────────────────────────────────────────────
+  // Full day entries carry whole weather objects; a long voyage would blow
+  // the localStorage budget archived verbatim. Keep what a GM re-reads:
+  // day, date, miles, running total, events, where the ship was.
+  function condenseLogEntry(e){
+    if (!e) return null;
+    const w = e.weather || {};
+    return {
+      day: e.day, date: e.date, miles: e.miles, distTotal: e.distTotal,
+      weather: `${w.wind?.force || ''} ${w.wind?.speed ?? ''} mph ${w.wind?.direction || ''} · ${w.sky || ''} · ${w.precipitation?.type || ''}`.trim(),
+      note: e.speedInfo?.note || '',
+      events: (e.events || []).map(x => ({ type: x.type, text: x.text })),
+      location: e.location?.label || ''
+    };
+  }
+
+  function getArchivedVoyages(){
+    try {
+      const raw = localStorage.getItem(VOYAGE_ARCHIVE_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    } catch (err){ LOG('could not read voyage archive', err); return []; }
+  }
+
+  // endReason: 'ended' (End Voyage), 'replaced' (Start Voyage over it).
+  // Newest first, capped at VOYAGE_ARCHIVE_MAX. Pending settlement items
+  // are preserved verbatim — they are the data endVoyage used to eat.
+  function archiveVoyage(v = state.voyage, endReason = 'ended'){
+    if (!v) return null;
+    try {
+      normalizeVoyageState(v, false);
+      const record = {
+        id: uid('varc'),
+        archivedAt: new Date().toISOString(),
+        endReason,
+        summary: getVoyageSummary(v),
+        captain: v.captain || '',
+        shipType: v.shipType || '',
+        startDate: v.startDate || '',
+        endDate: v.currentDate || dateObjToText(v.calendar),
+        endedAtPort: v.endedAtPort || '',
+        legs: (v.legs || []).map(l => ({ from: l.from, to: l.to, distance: l.distance, waterType: l.waterType, distanceSource: l.distanceSource })),
+        settlement: {
+          pending: (v.settlement?.pending || []).map(a => ({ ...a })),
+          posted: (v.settlement?.posted || []).map(a => ({ ...a })),
+          notes: (v.settlement?.notes || []).map(n => ({ ...n }))
+        },
+        log: (v.log || []).map(condenseLogEntry).filter(Boolean)
+      };
+      const arr = getArchivedVoyages();
+      arr.unshift(record);
+      localStorage.setItem(VOYAGE_ARCHIVE_KEY, JSON.stringify(arr.slice(0, VOYAGE_ARCHIVE_MAX)));
+      return record;
+    } catch (err){ LOG('could not archive voyage', err); return null; }
+  }
+
+  function unpostedSettlementItems(v = state.voyage){
+    return (ensureSettlement(v)?.pending || []).filter(a => a.status === 'pending');
+  }
+
   function dateObjToText(cal){ return cal ? formatDate(cal) : ''; }
 
   function cloneHex(h){
@@ -705,8 +803,9 @@
       return { ...base, mode:'sunk', label:`Sunk: ${p.leg ? `${p.leg.from} → ${p.leg.to}` : voyageRouteLabel(v)}`, lastPort:p.leg?.from || '', nextPort:p.leg?.to || '', port:'', milesOnLeg:p.milesOnLeg, milesRemainingOnLeg:p.milesRemainingOnLeg };
     }
     if (v.finished || v.currentLegIdx >= v.legs.length){
-      const dest = v.legs[v.legs.length - 1]?.to || '';
-      return { ...base, mode:'arrived', label:dest ? `Arrived: ${dest}` : 'Arrived', port:dest, lastPort:dest, nextPort:'', milesOnLeg:0, milesRemainingOnLeg:0 };
+      const dest = v.endedAtPort || v.legs[v.legs.length - 1]?.to || '';
+      const diverted = !!(v.endedAtPort && v.endedAtPort !== v.legs[v.legs.length - 1]?.to);
+      return { ...base, mode:'arrived', diverted, label:dest ? `${diverted ? 'Made port' : 'Arrived'}: ${dest}` : 'Arrived', port:dest, lastPort:dest, nextPort:'', milesOnLeg:0, milesRemainingOnLeg:0 };
     }
     const p = currentLegProgress(v);
     const leg = p.leg || v.legs[0];
@@ -888,6 +987,7 @@
       route: voyageRouteLabel(v),
       origin: v.legs?.[0]?.from || '',
       destination: v.legs?.[v.legs.length - 1]?.to || '',
+      endedAtPort: v.endedAtPort || '',
       currentPort: voyageCurrentLocationLabel(v),
       currentLocation: voyageCurrentLocation(v),
       startDate: v.startDate || '',
@@ -951,6 +1051,12 @@
   }
   function shipHexPosition(){
     const v = state.voyage; if (!v) return null;
+    // A diverted voyage (Make Port) finished at endedAtPort, not at the
+    // planned destination — the legs array is kept for the record.
+    if (v.finished && v.endedAtPort){
+      const h = portHex(v.endedAtPort);
+      if (h) return { ...h };
+    }
     const leg = v.legs[v.currentLegIdx];
     if (!leg){
       const last = v.legs[v.legs.length-1];
@@ -2027,10 +2133,26 @@
   }
 
   // ── ACTIONS: VOYAGE ──────────────────────────────────────────────────────
-  function startVoyage(){
+  async function startVoyage(){
     if (!state.routeLegs.length){ setStatus('Plan an itinerary or add at least one stop first.', 'warn'); return; }
-    if (state.voyage && !state.voyage.finished){
-      if (!window.confirm('A voyage is already underway. Starting a new one discards its log and pending settlement items. Continue?')) return;
+    if (state.voyage){
+      const pending = unpostedSettlementItems(state.voyage);
+      const pendGp = pending.reduce((s,a) => s + Math.max(0, Number(a.amountGp || 0)), 0);
+      const pendTxt = pending.length
+        ? ` It has ${pending.length} unposted settlement item${pending.length===1?'':'s'} (${pendGp} gp) — post them in the Voyage Ledger first, or they are archived unposted.`
+        : '';
+      if (!state.voyage.finished){
+        if (!(await confirmDialog('Replace active voyage',
+          `A voyage is already underway (${voyageRouteLabel(state.voyage)}). Starting a new one archives it as-is.${pendTxt}`,
+          { okText:'Start New Voyage', danger:true }))) return;
+      } else if (pending.length){
+        // Finished voyage still holding unposted arrival settlement —
+        // previously this was stomped with no confirm at all.
+        if (!(await confirmDialog('Unsettled voyage',
+          `The completed voyage (${voyageRouteLabel(state.voyage)}) still has unposted settlement.${pendTxt}`,
+          { okText:'Start Anyway', danger:true }))) return;
+      }
+      archiveVoyage(state.voyage, 'replaced');
     }
     const p = state.panelEl;
     const shipId = p.querySelector('#ve-ship').value;
@@ -2090,6 +2212,7 @@
       dayNumber: 0,
       finished: false,
       shipSank: false,
+      endedAtPort: '',
       log: [],
       hexTrail: [],
       hullDamageTaken: 0,
@@ -2122,15 +2245,87 @@
     renderVoyagePane();
   }
 
-  function endVoyage(){
+  async function endVoyage(){
     if (!state.voyage) return;
-    if (!window.confirm('End current voyage? The active voyage state will be cleared, but the planned itinerary remains.')) return;
+    const pending = unpostedSettlementItems(state.voyage);
+    const pendGp = pending.reduce((s,a) => s + Math.max(0, Number(a.amountGp || 0)), 0);
+    const msg = pending.length
+      ? `${pending.length} settlement item${pending.length===1?'':'s'} (${pendGp} gp) are still unposted — post them from the Voyage Ledger first, or they are archived unposted and never reach Finance. The voyage log and settlement are saved to the archive; the planned itinerary remains.`
+      : 'The voyage log and settlement are saved to the archive; the planned itinerary remains.';
+    if (!(await confirmDialog('End voyage', msg, { okText:'End Voyage', danger: pending.length > 0 }))) return;
+    archiveVoyage(state.voyage, 'ended');
     state.voyage = null;
     saveVoyageState();
     clearVoyageOverlays();
     renderRouteOverlay();
     renderVoyagePane();
-    setStatus('Voyage ended.');
+    renderLog();
+    setStatus(pending.length
+      ? `Voyage ended and archived — ${pending.length} settlement item${pending.length===1?'':'s'} archived unposted.`
+      : 'Voyage ended and archived.');
+  }
+
+  // Divert: end the voyage early at the last visited port instead of the
+  // planned destination. Mid-leg, the ship comes about and sails back
+  // (charged at dailySail, min 1 day). Remaining legs are abandoned but
+  // kept on the voyage for the record; pending settlement items survive so
+  // the Voyage Ledger can post repairs/fees at that port before End Voyage.
+  async function makePortEarly(){
+    const v = state.voyage;
+    if (!v || v.finished || v.shipSank) return;
+    const inPortMidRoute = Number(v.milesOnLeg || 0) === 0 && v.currentLegIdx > 0;
+    const leg = v.legs[v.currentLegIdx];
+    if (!leg && !inPortMidRoute) return;
+    const port = inPortMidRoute ? (v.legs[v.currentLegIdx - 1]?.to || '') : (leg?.from || '');
+    if (!port){ setStatus('No port to make for — the ship has no last visited port.', 'warn'); return; }
+    const returnMiles = inPortMidRoute ? 0 : Math.round(Number(v.milesOnLeg || 0));
+    const returnDays = returnMiles > 0 ? Math.max(1, Math.round(returnMiles / Math.max(1, Number(v.dailySail || 1)))) : 0;
+    const finalDest = v.legs[v.legs.length - 1]?.to || '';
+    const msg = returnMiles > 0
+      ? `Come about and return ${returnMiles} mi to ${port} (~${returnDays} day${returnDays===1?'':'s'})? The remaining route to ${finalDest} is abandoned. Pending settlement items are kept and can be posted at ${port}.`
+      : `End the voyage here at ${port}? The remaining route to ${finalDest} is abandoned. Pending settlement items are kept and can be posted at ${port}.`;
+    if (!(await confirmDialog('Make port early', msg, { okText:'Make Port' }))) return;
+
+    if (returnDays > 0){
+      v.dayNumber = Number(v.dayNumber || 0) + returnDays;
+      v.calendar = calendarAdvance(v.calendar, returnDays);
+    }
+    v.currentDate = formatDate(v.calendar);
+    const dateStr = v.currentDate;
+    v.distanceCovered = Math.max(0, Number(v.distanceCovered || 0) - returnMiles);
+    v.totalDistance = v.distanceCovered; // progress reads 100% at the diverted port
+    v.milesOnLeg = 0;
+    v.endedAtPort = port;
+    v.finished = true;
+    v._forceUnderwayLocation = false;
+    v.arrivalDate = dateStr;
+
+    const s = ensureSettlement(v);
+    s.notes.push({ day:v.dayNumber, date:dateStr, type:'arrival', text:`Made port early at ${port} — remaining route to ${finalDest} abandoned. Review settlement before ending the voyage.` });
+
+    const pos = shipHexPosition();
+    if (pos) v.hexTrail.push(pos);
+    // Synthetic day entry — fully shaped so renderLog and the pane's
+    // "Last:" line can dereference weather/speedInfo like a sailed day.
+    v.log.push({
+      day: v.dayNumber, date: dateStr,
+      weather: { wind:{ force:'—', speed:0, direction:'' }, sky:'—', precipitation:{ type:'—' } },
+      speedInfo: { speed:0, note: returnMiles > 0 ? `Came about — returned ${returnMiles} mi to ${port}.` : `Made port at ${port}.` },
+      miles: 0, distTotal: v.distanceCovered,
+      events: [{ type:'port', text: returnMiles > 0
+        ? `Came about and returned to ${port} (${returnMiles} mi, ${returnDays} day${returnDays===1?'':'s'}). Voyage ends here — review Voyage Settlement before End Voyage.`
+        : `Made port at ${port}. Voyage ends here — review Voyage Settlement before End Voyage.` }],
+      hexPos: pos, location: null
+    });
+    updateVoyageLocation('made-port');
+    v.log[v.log.length - 1].location = voyageCurrentLocation(v);
+    emitVoyageChanged('made-port');
+    renderShip();
+    renderTrailOverlay();
+    renderRouteOverlay();
+    renderVoyagePane();
+    renderLog();
+    setStatus(`Made port at ${port}. Post settlement in the Voyage Ledger, then End Voyage to archive.`);
   }
 
   // ── UI: VOYAGE PANE RENDER ────────────────────────────────────────────────
@@ -2154,6 +2349,7 @@
     const hullPct = Math.round((v.hullCurrent/v.hullMax)*100);
     const hullCol = hullPct<25 ? '#ff5544' : hullPct<50 ? '#ff9944' : '#77cc88';
     const statusLine = v.shipSank ? '<b style="color:#ff5544">☠ SHIP SANK</b>'
+                     : v.finished && v.endedAtPort ? `<b style="color:#55cc88">✓ MADE PORT — ${esc(v.endedAtPort)}</b>`
                      : v.finished ? '<b style="color:#55cc88">✓ VOYAGE COMPLETE</b>'
                      : `Day ${v.dayNumber} · ${esc(formatDate(v.calendar))}`;
     body.innerHTML = `
@@ -2176,11 +2372,13 @@
         <button class="ve-btn primary" id="ve-advance" ${v.finished?'disabled':''}>Advance 1 Day</button>
         <button class="ve-btn" id="ve-advance7" ${v.finished?'disabled':''}>+7 Days</button>
       </div>
+      ${!v.finished && !v.shipSank ? '<button class="ve-btn" id="ve-makeport" title="End the voyage early at the last visited port. Pending settlement items are kept.">⚓ Make Port</button>' : ''}
       <button class="ve-btn danger" id="ve-end">End Voyage</button>
       ${v.log.length ? `<div class="ve-status" style="margin-top:10px">Last: ${esc(v.log[v.log.length-1].date)} · ${v.log[v.log.length-1].miles} mi · ${esc(v.log[v.log.length-1].speedInfo.note)}</div>` : ''}
     `;
     body.querySelector('#ve-advance')?.addEventListener('click', advanceDay);
     body.querySelector('#ve-advance7')?.addEventListener('click', () => advanceMany(7));
+    body.querySelector('#ve-makeport')?.addEventListener('click', makePortEarly);
     body.querySelector('#ve-end')?.addEventListener('click', endVoyage);
   }
 
@@ -2189,16 +2387,33 @@
     const el = state.panelEl?.querySelector('#ve-log');
     if (!el) return;
     const v = state.voyage;
-    if (!v || !v.log.length){ el.innerHTML = '<div style="color:#8b6e45;font-style:italic;font-size:11px">No voyage log yet.</div>'; return; }
-    el.innerHTML = v.log.slice().reverse().map(e => {
-      const evt = e.events.map(x => `<div class="ve-log-evt ${esc(x.type)}">${esc(x.text)}</div>`).join('');
+    const current = (v && v.log.length) ? v.log.slice().reverse().map(e => {
+      const evt = (e.events || []).map(x => `<div class="ve-log-evt ${esc(x.type)}">${esc(x.text)}</div>`).join('');
+      const w = e.weather || {}, wind = w.wind || {}, precip = w.precipitation || {};
       return `<div class="ve-log-day">
         <div class="ve-log-hdr">Day ${e.day} · ${esc(e.date)}</div>
-        <div class="ve-log-sub">${esc(e.weather.wind.force || 'Wind')} ${e.weather.wind.speed} mph ${esc(e.weather.wind.direction)} · ${esc(e.weather.sky)} · ${esc(e.weather.precipitation.type)}</div>
+        <div class="ve-log-sub">${esc(wind.force || 'Wind')} ${wind.speed ?? 0} mph ${esc(wind.direction || '')} · ${esc(w.sky || '')} · ${esc(precip.type || '')}</div>
         <div class="ve-log-sub">Sailed ${e.miles} mi (total ${e.distTotal}) · ${esc(e.location?.label || '')}</div>
         ${evt}
       </div>`;
-    }).join('');
+    }).join('') : '<div style="color:#8b6e45;font-style:italic;font-size:11px">No voyage log yet.</div>';
+
+    // Past voyages — archived by End Voyage / Start Voyage replacement.
+    const archive = getArchivedVoyages();
+    const past = archive.length ? `
+      <div class="ve-log-hdr" style="margin-top:12px;border-top:1px solid #4a3518;padding-top:8px">Past Voyages (${archive.length})</div>
+      ${archive.map(r => {
+        const sum = r.summary || {};
+        const pendingN = (r.settlement?.pending || []).filter(a => a.status === 'pending').length;
+        const dest = r.endedAtPort && r.endedAtPort !== sum.destination ? `${esc(sum.origin || '')} → ${esc(r.endedAtPort)} <span style="color:#c8a96e">(diverted; planned ${esc(sum.destination || '')})</span>` : esc(sum.route || '');
+        return `<div class="ve-log-day">
+          <div class="ve-log-sub" style="color:#e8b840">${dest || 'Voyage'}${r.endReason === 'replaced' ? ' · <span style="color:#ff9944">replaced</span>' : ''}${sum.shipSank ? ' · <span style="color:#ff5544">sank</span>' : ''}</div>
+          <div class="ve-log-sub">${esc(r.startDate || '')} → ${esc(r.endDate || '')} · ${sum.days || 0} days · ${sum.distanceCovered || 0} mi · ${esc(r.shipType || '')} (${esc(r.captain || '')})</div>
+          <div class="ve-log-sub">Settlement: ${(r.settlement?.posted || []).length} posted${pendingN ? ` · <span style="color:#ff9944">${pendingN} unposted</span>` : ''}</div>
+        </div>`;
+      }).join('')}` : '';
+
+    el.innerHTML = current + past;
   }
 
   // ── MAP OVERLAYS ──────────────────────────────────────────────────────────
@@ -2401,6 +2616,10 @@
     saveState: saveVoyageState,
     loadState: loadVoyageState,
     clearSavedState: clearSavedVoyageState,
-    routeLabel: () => voyageRouteLabel()
+    routeLabel: () => voyageRouteLabel(),
+    makePortEarly,
+    endVoyage,
+    getArchivedVoyages,
+    archiveVoyage: (reason='ended') => archiveVoyage(state.voyage, reason)
   };
 })();
