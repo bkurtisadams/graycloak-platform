@@ -1,3 +1,9 @@
+// gw-subhex-view.js v0.47.0 — 2026-07-11
+// v0.47.0 — redesign the Tools palette as a wider, persistent tabbed panel:
+//           320px default width, remembered size, pinned header/status, Build
+//           subtabs (Terrain / Lines / Sites), Play subtabs (Party / Time /
+//           Encounters), and a close control. Removes the long accordion while
+//           preserving every existing map-authoring and play control.
 // gw-subhex-view.js v0.46.4 — 2026-07-11
 // v0.46.4 — give live feature labels a solid, rounded black outline sized in
 //           screen pixels so pale text remains readable over light terrain.
@@ -292,7 +298,7 @@
       .gw-sx-rad { fill:url(#gw-sx-rad); stroke:rgba(195,240,55,.4); stroke-width:1; vector-effect:non-scaling-stroke; pointer-events:none; }
       .gw-sx-line { fill:none; vector-effect:non-scaling-stroke; stroke-linecap:round; stroke-linejoin:round; pointer-events:none; }
       .gw-sx-marker, .gw-sx-marker * { pointer-events:none; }
-      #gw-sx-bar { position:absolute; top:10px; left:172px; right:10px; display:flex; align-items:center; gap:10px; z-index:6; pointer-events:none; }
+      #gw-sx-bar { position:absolute; top:10px; left:342px; right:10px; display:flex; align-items:center; gap:10px; z-index:6; pointer-events:none; }
       #gw-sx-bar > * { pointer-events:auto; }
       #gw-sx-bar .sx-title { font-family:'Cinzel',serif; font-size:13px; letter-spacing:.08em; color:#ffce9e; background:rgba(14,8,2,.9); border:1px solid #5a3a0a; padding:5px 10px; border-radius:2px; }
       #gw-sx-bar .sx-spacer { flex:1; }
@@ -300,47 +306,59 @@
       .gw-sx-btn { background:rgba(14,8,2,.93); border:1px solid #5a3a0a; color:#e8d5a3; font-family:'Cinzel',serif; font-size:11px; letter-spacing:.04em; padding:6px 11px; cursor:pointer; border-radius:2px; }
       .gw-sx-btn:hover { background:rgba(255,136,68,.18); border-color:#ff8844; color:#ffaa66; }
       .gw-sx-btn:disabled { opacity:.4; cursor:default; }
-      #gw-sx-palette { position:absolute; top:10px; left:10px; width:168px; min-width:150px; min-height:120px; max-height:calc(100% - 20px); overflow-y:auto; overflow-x:hidden; resize:both; background:rgba(14,8,2,.95); border:1px solid #5a3a0a; border-radius:3px; padding:8px; z-index:6; font-family:'Crimson Text',serif; }
-      #gw-sx-palette::-webkit-scrollbar { width:9px; }
-      #gw-sx-palette::-webkit-scrollbar-track { background:rgba(0,0,0,.25); }
-      #gw-sx-palette::-webkit-scrollbar-thumb { background:#5a3a0a; border-radius:5px; }
-      #gw-sx-palette .sx-grip { position:sticky; top:-8px; margin:-8px -8px 6px; padding:6px 8px; background:rgba(30,16,4,.98); border-bottom:1px solid #5a3a0a; font-family:'Cinzel',serif; font-size:10px; letter-spacing:.1em; color:#dcb87e; cursor:move; user-select:none; display:flex; align-items:center; gap:6px; z-index:2; }
+      #gw-sx-palette { position:absolute; top:10px; left:10px; width:320px; min-width:280px; max-width:min(420px,calc(100% - 20px)); height:min(660px,calc(100% - 20px)); min-height:360px; max-height:calc(100% - 20px); overflow:hidden; resize:both; display:flex; flex-direction:column; background:rgba(14,8,2,.97); border:1px solid #5a3a0a; border-radius:4px; padding:0; z-index:9; font-family:'Crimson Text',serif; box-shadow:0 5px 22px rgba(0,0,0,.48); }
+      #gw-sx-palette .sx-grip { flex:none; padding:8px 10px; background:rgba(30,16,4,.99); border-bottom:1px solid #5a3a0a; font-family:'Cinzel',serif; font-size:11px; letter-spacing:.1em; color:#dcb87e; cursor:move; user-select:none; display:flex; align-items:center; gap:7px; }
       #gw-sx-palette .sx-grip:hover { color:#ffaa66; }
-      #gw-sx-palette .sx-mode { font-size:11px; color:#ffce9e; margin-bottom:2px; min-height:14px; line-height:1.3; }
-      #gw-sx-palette .sx-status { font-size:10px; font-style:italic; color:#a9c49a; margin-bottom:5px; min-height:12px; line-height:1.3; }
-      #gw-sx-palette .sx-rdiag { display:none; align-items:center; gap:5px; font-size:10px; color:#cbb088; margin-bottom:6px; line-height:1.35; }
+      #gw-sx-palette .sx-grip-title { flex:1; text-align:center; color:#f0d6aa; }
+      #gw-sx-palette .sx-close { width:24px; height:22px; padding:0; border:0; background:transparent; color:#cbb088; font-size:18px; line-height:1; cursor:pointer; border-radius:2px; }
+      #gw-sx-palette .sx-close:hover { color:#fff0dc; background:rgba(255,136,68,.16); }
+      #gw-sx-palette .sx-meta { flex:none; display:grid; grid-template-columns:118px minmax(0,1fr); align-items:center; gap:8px; padding:7px 9px 5px; }
+      #gw-sx-palette .sx-mode { font-size:11px; color:#ffce9e; min-height:14px; line-height:1.25; text-align:right; overflow:hidden; text-overflow:ellipsis; }
+      #gw-sx-palette .sx-status { flex:none; font-size:10px; font-style:italic; color:#a9c49a; padding:0 10px 5px; min-height:15px; line-height:1.3; }
+      #gw-sx-palette .sx-rdiag { flex:none; display:none; align-items:center; gap:5px; font-size:10px; color:#cbb088; padding:0 10px 6px; line-height:1.35; }
       #gw-sx-palette .sx-rdiag.on { display:flex; }
       #gw-sx-palette .sx-rdiag span { flex:1; }
-      #gw-sx-palette .sx-rdiag button { flex:none; width:22px; height:20px; font-size:12px; line-height:1; cursor:pointer; background:rgba(0,0,0,.25); border:1px solid #5a3a0a; color:#e8d5a3; border-radius:2px; }
+      #gw-sx-palette .sx-rdiag button { flex:none; width:24px; height:21px; font-size:12px; line-height:1; cursor:pointer; background:rgba(0,0,0,.25); border:1px solid #5a3a0a; color:#e8d5a3; border-radius:2px; }
       #gw-sx-palette .sx-rdiag button:hover { background:rgba(255,136,68,.18); color:#ffaa66; }
-      #gw-sx-palette .sx-tabs { display:flex; gap:5px; margin:2px 0 5px; }
-      #gw-sx-palette .sx-tab { flex:1; font-size:11px; padding:5px 4px; cursor:pointer; background:rgba(255,136,68,.07); color:#cbb088; border:1px solid #5a3a0a; border-radius:3px; font-family:'Cinzel',serif; letter-spacing:.04em; }
+      #gw-sx-palette .sx-tabs { flex:none; display:flex; gap:5px; padding:0 8px 7px; }
+      #gw-sx-palette .sx-tab { flex:1; font-size:11px; padding:6px 5px; cursor:pointer; background:rgba(255,136,68,.07); color:#cbb088; border:1px solid #5a3a0a; border-radius:3px; font-family:'Cinzel',serif; letter-spacing:.04em; }
       #gw-sx-palette .sx-tab:hover { color:#ffaa66; }
-      #gw-sx-palette .sx-tab.active { background:rgba(255,136,68,.26); color:#ffd9a8; border-color:#ff8844; }
-      #gw-sx-palette .sx-hd { font-family:'Cinzel',serif; font-size:10px; letter-spacing:.1em; color:#e0c089; margin:9px 0 3px; border-top:1px solid #3a2606; padding-top:6px; cursor:pointer; user-select:none; }
-      #gw-sx-palette .sx-hd:first-of-type { border-top:none; padding-top:0; }
-      #gw-sx-palette .sx-hd:hover { color:#ffaa66; }
-      #gw-sx-palette .sx-caret { display:inline-block; width:11px; color:#a98; }
-      #gw-sx-zoom { display:flex; align-items:center; gap:4px; margin-bottom:7px; }
-      #gw-sx-zoom button { width:24px; height:22px; font-size:15px; line-height:1; cursor:pointer; background:rgba(0,0,0,.25); border:1px solid #5a3a0a; color:#e8d5a3; border-radius:2px; }
+      #gw-sx-palette .sx-tab.active { background:rgba(46,116,170,.7); color:#f3e8d5; border-color:#4388bc; }
+      #gw-sx-palette .sx-primary-panel { flex:1; min-height:0; display:flex; flex-direction:column; border-top:1px solid rgba(90,58,10,.65); }
+      #gw-sx-palette .sx-toolarea { flex:1; min-height:0; display:flex; flex-direction:column; }
+      #gw-sx-palette .sx-subtabs { flex:none; display:grid; gap:4px; padding:7px 8px; background:rgba(0,0,0,.13); }
+      #gw-sx-palette .sx-subtabs.cols-3 { grid-template-columns:repeat(3,minmax(0,1fr)); }
+      #gw-sx-palette .sx-subtab { min-width:0; padding:6px 3px; border:1px solid #4a3516; border-radius:3px; background:rgba(0,0,0,.22); color:#d4bea0; font-family:'Cinzel',serif; font-size:10px; cursor:pointer; }
+      #gw-sx-palette .sx-subtab:hover { color:#ffaa66; border-color:#7a531c; }
+      #gw-sx-palette .sx-subtab.active { background:rgba(42,79,103,.62); color:#f5e8d0; border-color:#4c7d9e; }
+      #gw-sx-palette .sx-tabbody { flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; padding:8px 9px 12px; scrollbar-gutter:stable; }
+      #gw-sx-palette .sx-tabbody::-webkit-scrollbar { width:9px; }
+      #gw-sx-palette .sx-tabbody::-webkit-scrollbar-track { background:rgba(0,0,0,.2); }
+      #gw-sx-palette .sx-tabbody::-webkit-scrollbar-thumb { background:#5a3a0a; border-radius:5px; }
+      #gw-sx-palette .sx-toolpane { display:none; }
+      #gw-sx-palette .sx-toolpane.active { display:block; }
+      #gw-sx-palette .sx-hd { font-family:'Cinzel',serif; font-size:10px; letter-spacing:.1em; color:#e0c089; margin:10px 0 5px; border-top:1px solid #3a2606; padding-top:8px; user-select:none; }
+      #gw-sx-palette .sx-hd:first-child { border-top:none; padding-top:0; margin-top:0; }
+      #gw-sx-zoom { display:flex; align-items:center; gap:4px; margin:0; }
+      #gw-sx-zoom button { width:25px; height:23px; font-size:15px; line-height:1; cursor:pointer; background:rgba(0,0,0,.25); border:1px solid #5a3a0a; color:#e8d5a3; border-radius:2px; }
       #gw-sx-zoom button:hover { background:rgba(255,136,68,.18); color:#ffaa66; }
       #gw-sx-zoom .sx-zlabel { flex:1; text-align:center; font-size:11px; color:#ffce9e; }
-      .gw-sx-terr { display:grid; grid-template-columns:1fr 1fr; gap:4px; }
-      .gw-sx-sw { display:flex; align-items:center; gap:6px; width:100%; background:rgba(0,0,0,.18); border:1px solid #5a3a0a; color:#e8d5a3; font-size:12px; padding:5px 5px; cursor:pointer; border-radius:2px; text-align:left; overflow:hidden; }
+      .gw-sx-terr { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; }
+      .gw-sx-sw { display:flex; align-items:center; gap:5px; min-width:0; width:100%; background:rgba(0,0,0,.18); border:1px solid #5a3a0a; color:#e8d5a3; font-size:11px; padding:5px; cursor:pointer; border-radius:2px; text-align:left; overflow:hidden; }
       .gw-sx-sw span:last-child { white-space:nowrap; text-overflow:ellipsis; overflow:hidden; }
       .gw-sx-sw:hover { background:rgba(255,136,68,.15); }
       .gw-sx-sw.armed { border-color:#ff8844; background:rgba(255,136,68,.22); }
-      .gw-sx-chip { width:17px; height:17px; border:1px solid rgba(0,0,0,.45); flex:none; border-radius:1px; }
-      .gw-sx-tools { display:grid; grid-template-columns:1fr 1fr; gap:4px; }
-      .gw-sx-tool { background:rgba(0,0,0,.25); border:1px solid #5a3a0a; color:#e8d5a3; font-family:'Crimson Text',serif; font-size:12px; padding:4px 3px; cursor:pointer; border-radius:2px; }
+      .gw-sx-chip { width:18px; height:18px; border:1px solid rgba(0,0,0,.5); flex:none; border-radius:2px; }
+      .gw-sx-tools { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; }
+      .gw-sx-tool { min-width:0; background:rgba(0,0,0,.25); border:1px solid #5a3a0a; color:#e8d5a3; font-family:'Crimson Text',serif; font-size:12px; padding:6px 3px; cursor:pointer; border-radius:2px; }
       .gw-sx-tool:hover { background:rgba(255,136,68,.15); }
       .gw-sx-tool.armed { border-color:#ff8844; background:rgba(255,136,68,.22); color:#ffaa66; }
       #gw-sx-palette .sx-row2 { display:flex; gap:6px; margin-top:7px; }
-      #gw-sx-palette .sx-row2 .gw-sx-btn { flex:1; padding:5px 4px; }
+      #gw-sx-palette .sx-row2 .gw-sx-btn { flex:1; padding:6px 5px; }
       #gw-sx-read { position:absolute; bottom:10px; right:10px; min-width:200px; max-width:280px; background:rgba(14,8,2,.93); border:1px solid #5a3a0a; border-radius:3px; color:#e8d5a3; padding:8px 12px; font-size:12px; font-family:'Crimson Text',Georgia,serif; z-index:6; }
       #gw-sx-read .sx-t { color:#ffaa66; font-weight:600; }
       #gw-sx-enc { position:absolute; top:54px; right:10px; width:244px; max-height:calc(100% - 130px); overflow-y:auto; background:rgba(14,8,2,.96); border:1px solid #5a3a0a; border-radius:3px; color:#e8d5a3; padding:9px 11px 10px; font-size:12px; font-family:'Crimson Text',Georgia,serif; z-index:7; display:none; }
-      #gw-sx-medit { position:absolute; left:50%; bottom:14px; transform:translateX(-50%); min-width:236px; display:none; background:rgba(14,8,2,.97); border:1px solid #5a3a0a; border-radius:4px; color:#e8d5a3; padding:9px 11px; font-family:'Crimson Text',Georgia,serif; z-index:8; box-shadow:0 4px 18px rgba(0,0,0,.55); }
+      #gw-sx-medit { position:absolute; left:50%; bottom:14px; transform:translateX(-50%); min-width:236px; display:none; background:rgba(14,8,2,.97); border:1px solid #5a3a0a; border-radius:4px; color:#e8d5a3; padding:9px 11px; font-family:'Crimson Text',Georgia,serif; z-index:10; box-shadow:0 4px 18px rgba(0,0,0,.55); }
       #gw-sx-medit.show { display:block; }
       #gw-sx-medit .sx-med-h { font-family:'Cinzel',serif; font-size:10px; letter-spacing:.1em; color:#ffce9e; margin-bottom:7px; }
       #gw-sx-medit .sx-med-row { display:flex; align-items:center; gap:7px; margin-bottom:6px; }
@@ -412,10 +430,37 @@
     const p = loadPalPos(); if (!p) return;
     hostEl = hostEl || state.el.overlay; if (!hostEl) return;
     const host = hostEl.getBoundingClientRect();
-    const left = Math.max(0, Math.min(+p.left, Math.max(0, host.width - 60)));
+    const left = Math.max(0, Math.min(+p.left, Math.max(0, host.width - pal.offsetWidth)));
     const top  = Math.max(0, Math.min(+p.top, Math.max(0, host.height - 44)));
     pal.style.left = left + 'px'; pal.style.top = top + 'px'; pal.style.right = 'auto';
     if (host.height) pal.style.maxHeight = (host.height - top - 10) + 'px';
+  }
+  function applyPalSize(pal){
+    const v = loadPalSize(); if (!v) return;
+    pal.style.width = Math.max(280, Math.min(420, +v.width)) + 'px';
+    pal.style.height = Math.max(360, Math.min(900, +v.height)) + 'px';
+  }
+  function watchPalSize(pal){
+    if (typeof ResizeObserver === 'undefined') return;
+    let timer = 0;
+    const ro = new ResizeObserver(() => {
+      if (!pal.isConnected) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = 0;
+        const hostEl = state.el.overlay;
+        if (hostEl){
+          const host = hostEl.getBoundingClientRect();
+          const left = Math.max(0, Math.min(pal.offsetLeft, Math.max(0, host.width - pal.offsetWidth)));
+          const top = Math.max(0, Math.min(pal.offsetTop, Math.max(0, host.height - 44)));
+          pal.style.left = left + 'px'; pal.style.top = top + 'px'; pal.style.right = 'auto';
+          pal.style.maxHeight = Math.max(120, host.height - top - 10) + 'px';
+        }
+        savePalSize({ width: Math.round(pal.offsetWidth), height: Math.round(pal.offsetHeight) });
+      }, 180);
+    });
+    ro.observe(pal);
+    state.paletteResizeObserver = ro;
   }
 
   // ── UI zoom (readability) ───────────────────────────────────────────────────
@@ -437,12 +482,27 @@
   const TAB_KEY = 'gw-sx-tab';
   function loadTab(){ try { return localStorage.getItem(TAB_KEY) === 'play' ? 'play' : 'build'; } catch(_){ return 'build'; } }
   function saveTab(v){ try { localStorage.setItem(TAB_KEY, v); } catch(_){} }
+  const SUBTAB_KEY = 'gw-sx-subtabs';
+  function loadSubtabs(){
+    try {
+      const v = JSON.parse(localStorage.getItem(SUBTAB_KEY) || 'null');
+      return Object.assign({ build:'terrain', play:'party' }, v && typeof v === 'object' ? v : {});
+    } catch(_){ return { build:'terrain', play:'party' }; }
+  }
+  function saveSubtab(group, key){
+    try { const v = loadSubtabs(); v[group] = key; localStorage.setItem(SUBTAB_KEY, JSON.stringify(v)); } catch(_){}
+  }
   const PALPOS_KEY = 'gw-sx-palpos';
   function loadPalPos(){ try { const p = JSON.parse(localStorage.getItem(PALPOS_KEY) || 'null'); return (p && Number.isFinite(+p.left) && Number.isFinite(+p.top)) ? p : null; } catch(_){ return null; } }
   function savePalPos(p){ try { localStorage.setItem(PALPOS_KEY, JSON.stringify(p)); } catch(_){} }
-  const COLLAPSED_KEY = 'gw-sx-collapsed';
-  function loadCollapsed(){ try { const a = JSON.parse(localStorage.getItem(COLLAPSED_KEY) || '[]'); return new Set(Array.isArray(a) ? a : []); } catch(_){ return new Set(); } }
-  function saveCollapsed(set){ try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...set])); } catch(_){} }
+  const PALSIZE_KEY = 'gw-sx-palsize';
+  function loadPalSize(){
+    try {
+      const v = JSON.parse(localStorage.getItem(PALSIZE_KEY) || 'null');
+      return (v && Number.isFinite(+v.width) && Number.isFinite(+v.height)) ? v : null;
+    } catch(_){ return null; }
+  }
+  function savePalSize(v){ try { localStorage.setItem(PALSIZE_KEY, JSON.stringify(v)); } catch(_){} }
   // Persisted viewport: reopening the same parent resumes exactly where you
   // were; opening a different parent recenters there at your accustomed zoom.
   const VIEW_KEY = 'gw-sx-view';
@@ -587,38 +647,53 @@
     row.append(minus, lbl, plus);
     return row;
   }
-  function makeCollapsible(pal){
-    const collapsed = loadCollapsed();
-    pal.querySelectorAll('.sx-hd').forEach(h => {
-      const name = h.textContent;
-      const caret = document.createElement('span'); caret.className = 'sx-caret';
-      h.prepend(caret);
-      const apply = isCollapsed => {
-        caret.textContent = isCollapsed ? '\u25b8' : '\u25be';
-        h.classList.toggle('collapsed', isCollapsed);
-        let n = h.nextElementSibling;
-        while (n && !n.classList.contains('sx-hd')){ n.style.display = isCollapsed ? 'none' : ''; n = n.nextElementSibling; }
-      };
-      apply(collapsed.has(name));
-      h.addEventListener('click', () => {
-        const isCollapsed = !h.classList.contains('collapsed');
-        apply(isCollapsed);
-        if (isCollapsed) collapsed.add(name); else collapsed.delete(name);
-        saveCollapsed(collapsed);
-      });
-    });
+  function makeToolArea(group, defs){
+    const root = document.createElement('div'); root.className = 'sx-toolarea';
+    const tabs = document.createElement('div'); tabs.className = 'sx-subtabs cols-' + defs.length;
+    const body = document.createElement('div'); body.className = 'sx-tabbody';
+    const panes = {};
+    const buttons = {};
+    for (const def of defs){
+      const b = document.createElement('button');
+      b.className = 'sx-subtab'; b.textContent = def.label; b.dataset.tooltab = def.key;
+      const pane = document.createElement('div'); pane.className = 'sx-toolpane'; pane.dataset.toolpane = def.key;
+      buttons[def.key] = b; panes[def.key] = pane;
+      tabs.appendChild(b); body.appendChild(pane);
+    }
+    function select(key){
+      if (!panes[key]) key = defs[0].key;
+      Object.keys(panes).forEach(k => panes[k].classList.toggle('active', k === key));
+      Object.keys(buttons).forEach(k => buttons[k].classList.toggle('active', k === key));
+      saveSubtab(group, key);
+    }
+    Object.keys(buttons).forEach(k => buttons[k].addEventListener('click', () => select(k)));
+    root.append(tabs, body);
+    const saved = loadSubtabs();
+    select(saved[group] || defs[0].key);
+    return { root, panes, select };
   }
 
   function buildPalette(){
     const pal = document.createElement('div'); pal.id = 'gw-sx-palette';
+    applyPalSize(pal);
+
     const grip = document.createElement('div'); grip.className = 'sx-grip';
-    grip.innerHTML = '<span>⠿</span><span>Tools — drag</span>';
+    const gripIcon = document.createElement('span'); gripIcon.textContent = '⠿';
+    const gripTitle = document.createElement('span'); gripTitle.className = 'sx-grip-title'; gripTitle.textContent = 'TOOLS';
+    const closeB = document.createElement('button'); closeB.className = 'sx-close'; closeB.textContent = '×'; closeB.title = 'Close subhex viewer';
+    closeB.addEventListener('pointerdown', e => e.stopPropagation());
+    closeB.addEventListener('click', e => { e.stopPropagation(); close(); });
+    grip.append(gripIcon, gripTitle, closeB);
     pal.appendChild(grip);
     makePaletteDraggable(pal, grip);
-    pal.appendChild(buildZoomRow());
+
+    const meta = document.createElement('div'); meta.className = 'sx-meta';
+    meta.appendChild(buildZoomRow());
     const mode = document.createElement('div'); mode.className = 'sx-mode'; mode.id = 'gw-sx-mode';
     mode.textContent = 'Mode: Select';
-    pal.appendChild(mode);
+    meta.appendChild(mode);
+    pal.appendChild(meta);
+
     const status = document.createElement('div'); status.className = 'sx-status'; status.id = 'gw-sx-status';
     pal.appendChild(status);
     const rdiag = document.createElement('div'); rdiag.className = 'sx-rdiag'; rdiag.id = 'gw-sx-rdiag';
@@ -632,24 +707,33 @@
     state.el.rdiag = rdiag;
     state.el.rdiagTxt = rdiagTxt;
 
-    // ── Build / Play tab split ─────────────────────────────────────────────
-    // Build = map authoring (terrain, hazards, lines, settlements, features);
-    // Play = running a session (party, fog, time, encounters). Grip/zoom/mode
-    // stay pinned above both. Active tab persists.
     const tabs = document.createElement('div'); tabs.className = 'sx-tabs';
     const buildTabBtn = document.createElement('button'); buildTabBtn.className = 'sx-tab'; buildTabBtn.textContent = '🛠 Build';
-    buildTabBtn.title = 'Map authoring — terrain, hazards, lines, settlements, features';
+    buildTabBtn.title = 'Map authoring — terrain, lines, settlements, and features';
     const playTabBtn = document.createElement('button'); playTabBtn.className = 'sx-tab'; playTabBtn.textContent = '🎲 Play';
-    playTabBtn.title = 'Run a session — party, fog, time, encounters';
+    playTabBtn.title = 'Run a session — party, fog, time, and encounters';
     tabs.append(buildTabBtn, playTabBtn);
     pal.appendChild(tabs);
-    const buildPanel = document.createElement('div'); buildPanel.className = 'sx-tabpanel';
-    const playPanel  = document.createElement('div'); playPanel.className  = 'sx-tabpanel';
-    let pane = buildPanel;
+
+    const buildPanel = document.createElement('div'); buildPanel.className = 'sx-primary-panel';
+    const playPanel  = document.createElement('div'); playPanel.className = 'sx-primary-panel';
+    const buildArea = makeToolArea('build', [
+      { key:'terrain', label:'⛰ Terrain' },
+      { key:'lines',   label:'≋ Lines' },
+      { key:'sites',   label:'♜ Sites' },
+    ]);
+    const playArea = makeToolArea('play', [
+      { key:'party',      label:'📍 Party' },
+      { key:'time',       label:'◷ Time' },
+      { key:'encounters', label:'🎲 Encounters' },
+    ]);
+    buildPanel.appendChild(buildArea.root);
+    playPanel.appendChild(playArea.root);
+
     function setTab(which){
       const play = which === 'play';
-      buildPanel.style.display = play ? 'none' : '';
-      playPanel.style.display  = play ? '' : 'none';
+      buildPanel.style.display = play ? 'none' : 'flex';
+      playPanel.style.display  = play ? 'flex' : 'none';
       buildTabBtn.classList.toggle('active', !play);
       playTabBtn.classList.toggle('active', play);
       saveTab(play ? 'play' : 'build');
@@ -657,36 +741,38 @@
     buildTabBtn.addEventListener('click', () => setTab('build'));
     playTabBtn.addEventListener('click', () => setTab('play'));
 
-    pane.appendChild(hd('Terrain'));
+    // ── Build ▸ Terrain ────────────────────────────────────────────────────
+    let pane = buildArea.panes.terrain;
+    pane.appendChild(hd('Terrain Brush'));
     const T = D().TERRAIN;
     const terr = document.createElement('div'); terr.className = 'gw-sx-terr';
     for (const key of Object.keys(T)){
       if (key === 'unknown') continue;
       const sw = document.createElement('button');
-      sw.className = 'gw-sx-sw'; sw.dataset.arm = 'paint:' + key;
+      sw.className = 'gw-sx-sw'; sw.dataset.arm = 'paint:' + key; sw.title = T[key].label;
       sw.innerHTML = `<span class="gw-sx-chip" style="background:${T[key].fill}"></span><span>${T[key].label}</span>`;
       sw.addEventListener('click', () => arm({ type: 'paint', terrain: key }));
       terr.appendChild(sw);
     }
     pane.appendChild(terr);
-    const trow = document.createElement('div'); trow.className = 'sx-row2';
-    const erase = mkBtn('⌫ Erase', 'gw-sx-erase'); erase.dataset.arm = 'erase';
-    erase.addEventListener('click', () => arm({ type: 'erase' }));
-    const undoB = mkBtn('↶ Undo', 'gw-sx-undo'); undoB.disabled = true;
-    undoB.addEventListener('click', undo);
-    trow.append(erase, undoB); pane.appendChild(trow);
-
     pane.appendChild(hd('Hazards'));
     const hrow = document.createElement('div'); hrow.className = 'sx-row2';
     const radB = mkBtn('☢ Radiation', 'gw-sx-rad-btn'); radB.dataset.arm = 'hazard:radiation';
     radB.title = 'Paint hard radiation onto any terrain';
     radB.addEventListener('click', () => arm({ type: 'hazard', mode: 'radiation' }));
-    const radE = mkBtn('⌫ Clear rad', 'gw-sx-rad-erase'); radE.dataset.arm = 'hazard:off';
-    radE.title = 'Remove radiation (carves safe pockets out of irradiated regions)';
+    const radE = mkBtn('⌫ Clear radiation', 'gw-sx-rad-erase'); radE.dataset.arm = 'hazard:off';
+    radE.title = 'Remove radiation and carve safe pockets out of irradiated regions';
     radE.addEventListener('click', () => arm({ type: 'hazard', mode: 'off' }));
     hrow.append(radB, radE); pane.appendChild(hrow);
+    pane.appendChild(hd('Actions'));
+    const trow = document.createElement('div'); trow.className = 'sx-row2';
+    const undoB = mkBtn('↶ Undo', 'gw-sx-undo'); undoB.disabled = true; undoB.addEventListener('click', undo);
+    const erase = mkBtn('⌫ Erase terrain', 'gw-sx-erase'); erase.dataset.arm = 'erase'; erase.addEventListener('click', () => arm({ type: 'erase' }));
+    trow.append(undoB, erase); pane.appendChild(trow);
 
-    pane.appendChild(hd('Lines'));
+    // ── Build ▸ Lines ──────────────────────────────────────────────────────
+    pane = buildArea.panes.lines;
+    pane.appendChild(hd('Line Type'));
     const lines = document.createElement('div'); lines.className = 'gw-sx-tools';
     lines.append(
       toolBtn('～ River', { type: 'draw', kind: 'river' }),
@@ -696,43 +782,43 @@
       toolBtn('✎ Pen',   { type: 'draw', kind: 'pen' }),
     );
     pane.appendChild(lines);
+    pane.appendChild(hd('Line Settings'));
     const arRow = document.createElement('div');
-    arRow.style.cssText = 'display:flex; align-items:center; gap:6px; margin-top:6px;';
-    const arLbl = document.createElement('span'); arLbl.textContent = 'Ancient'; arLbl.style.cssText = "font-size:11px; color:#e0c089;";
-    const arSel = document.createElement('select');
-    arSel.id = 'gw-sx-ancient-condition';
+    arRow.style.cssText = 'display:flex; align-items:center; gap:8px; margin-top:4px;';
+    const arLbl = document.createElement('span'); arLbl.textContent = 'Ancient condition'; arLbl.style.cssText = 'font-size:11px;color:#e0c089;';
+    const arSel = document.createElement('select'); arSel.id = 'gw-sx-ancient-condition';
     arSel.title = 'Condition saved on new ancient-road strokes for later travel and bridge-out rules';
-    arSel.style.cssText = 'flex:1; min-width:0; background:rgba(0,0,0,.24); border:1px solid #5a3a0a; color:#e8d5a3; font-family:inherit; font-size:11px; padding:3px;';
+    arSel.style.cssText = 'flex:1;min-width:0;background:rgba(0,0,0,.24);border:1px solid #5a3a0a;color:#e8d5a3;font-family:inherit;font-size:11px;padding:4px;';
     const arConditions = (A() && A().ANCIENT_ROAD_CONDITIONS) || ['usable','broken','buried','bridge-out','blocked','lost'];
     for (const c of arConditions){ const opt = document.createElement('option'); opt.value = c; opt.textContent = c; arSel.appendChild(opt); }
     arSel.value = state.ancientRoadCondition;
     arSel.addEventListener('change', () => { state.ancientRoadCondition = arSel.value || 'broken'; if (state.editor && state.editor.kind === 'ancient-road') state.editor.condition = state.ancientRoadCondition; syncMode(); });
     state.el.ancientConditionSel = arSel;
-    arRow.append(arLbl, arSel);
-    pane.appendChild(arRow);
-    const wRow = document.createElement('div');
-    wRow.style.cssText = 'display:flex; align-items:center; gap:6px; margin-top:6px;';
-    const wLbl = document.createElement('span'); wLbl.textContent = 'Width'; wLbl.style.cssText = "font-size:11px; color:#e0c089;";
+    arRow.append(arLbl, arSel); pane.appendChild(arRow);
+    const wRow = document.createElement('div'); wRow.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:8px;';
+    const wLbl = document.createElement('span'); wLbl.textContent = 'Width'; wLbl.style.cssText = 'font-size:11px;color:#e0c089;';
     const wInput = document.createElement('input');
     wInput.type = 'range'; wInput.min = '1'; wInput.max = '8'; wInput.step = '0.5'; wInput.value = String(state.lineWidth);
-    wInput.style.cssText = 'flex:1; accent-color:#ff8844;'; wInput.title = 'Line width (thin minor / thick major)';
-    const wOut = document.createElement('span'); wOut.textContent = String(state.lineWidth); wOut.style.cssText = 'font-size:11px; color:#e8d5a3; min-width:16px; text-align:right;';
+    wInput.style.cssText = 'flex:1;accent-color:#ff8844;'; wInput.title = 'Line width (thin minor / thick major)';
+    const wOut = document.createElement('span'); wOut.textContent = String(state.lineWidth); wOut.style.cssText = 'font-size:11px;color:#e8d5a3;min-width:20px;text-align:right;';
     wInput.addEventListener('input', () => { state.lineWidth = +wInput.value; wOut.textContent = wInput.value; if (state.editor){ state.editor.width = state.lineWidth; editorRender(); } });
-    wRow.append(wLbl, wInput, wOut);
-    pane.appendChild(wRow);
+    wRow.append(wLbl, wInput, wOut); pane.appendChild(wRow);
     const optRow = document.createElement('div');
-    optRow.style.cssText = "display:flex; flex-direction:column; gap:2px; margin-top:6px; font-size:11px; color:#e0c089;";
-    optRow.innerHTML = '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" id="gw-sx-freehand"> Freehand draw</label>' +
-                       '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" id="gw-sx-snap"> Snap to hex</label>';
+    optRow.style.cssText = 'display:flex;gap:14px;margin-top:9px;font-size:11px;color:#e0c089;';
+    optRow.innerHTML = '<label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="gw-sx-freehand"> Freehand</label>' +
+                       '<label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="gw-sx-snap"> Snap to hex</label>';
     pane.appendChild(optRow);
     optRow.querySelector('#gw-sx-freehand').addEventListener('change', e => { state.lineMode = e.target.checked ? 'freehand' : 'points'; if (state.editor) finishEditor(); syncMode(); });
     optRow.querySelector('#gw-sx-snap').addEventListener('change', e => { state.snapHex = e.target.checked; });
+    pane.appendChild(hd('Current Line'));
     const edRow = document.createElement('div'); edRow.className = 'sx-row2';
-    const finB = mkBtn('✓ Finish', 'gw-sx-fin'); finB.disabled = true; finB.addEventListener('click', finishEditor);
+    const finB = mkBtn('✓ Finish line', 'gw-sx-fin'); finB.disabled = true; finB.addEventListener('click', finishEditor);
     const canB = mkBtn('✕ Cancel', 'gw-sx-can'); canB.disabled = true; canB.addEventListener('click', cancelEditor);
     edRow.append(finB, canB); pane.appendChild(edRow);
 
-    pane.appendChild(hd('Settlements'));
+    // ── Build ▸ Sites ──────────────────────────────────────────────────────
+    pane = buildArea.panes.sites;
+    pane.appendChild(hd('Place Site'));
     const marks = document.createElement('div'); marks.className = 'gw-sx-tools';
     marks.append(
       toolBtn('◉ Town',    { type: 'marker', kind: 'town' }),
@@ -743,92 +829,82 @@
       toolBtn('⌂ Installation', { type: 'marker', kind: 'installation' }),
     );
     pane.appendChild(marks);
-
-    pane.appendChild(hd('Features'));
+    pane.appendChild(hd('Generated Features'));
     const genRow = document.createElement('div'); genRow.className = 'sx-row2';
     const genB = mkBtn('✦ Generate', 'gw-sx-gen');
     genB.title = 'Seed features for the highlighted parent; raster mode targets the current tile';
     genB.addEventListener('click', generateFeatures);
-    const clrB = mkBtn('Clear gen', 'gw-sx-gen-clear');
+    const clrB = mkBtn('Clear generated', 'gw-sx-gen-clear');
     clrB.title = 'Clear generated features from the highlighted parent';
     clrB.addEventListener('click', clearGeneratedFeatures);
-    genRow.append(genB, clrB);
-    pane.appendChild(genRow);
+    genRow.append(genB, clrB); pane.appendChild(genRow);
     const genTgt = document.createElement('div'); genTgt.id = 'gw-sx-gen-target';
-    genTgt.style.cssText = 'font-size:10px;color:#cbb088;font-style:italic;margin:3px 0 1px;min-height:13px;';
-    genTgt.textContent = '▸ target follows view center';
-    pane.appendChild(genTgt);
-    state.el.genTarget = genTgt;
+    genTgt.style.cssText = 'font-size:10px;color:#cbb088;font-style:italic;margin:5px 0 1px;min-height:13px;';
+    genTgt.textContent = '▸ target follows view center'; pane.appendChild(genTgt); state.el.genTarget = genTgt;
+    pane.appendChild(hd('Feature Editing'));
     const feRow = document.createElement('div'); feRow.className = 'sx-row2';
-    const edit = mkBtn('✎ Edit', 'gw-sx-annot-edit'); edit.dataset.arm = 'annot-edit';
+    const edit = mkBtn('✎ Edit feature', 'gw-sx-annot-edit'); edit.dataset.arm = 'annot-edit';
     edit.title = 'Select a placed feature to rename, change its type, drag to move, or delete';
     edit.addEventListener('click', () => arm({ type: 'annot-edit' }));
-    const fe = mkBtn('⌫ Erase', 'gw-sx-annot-erase'); fe.dataset.arm = 'annot-erase';
-    fe.title = 'Delete a placed feature (click its icon)';
-    fe.addEventListener('click', () => arm({ type: 'annot-erase' }));
+    const fe = mkBtn('⌫ Erase feature', 'gw-sx-annot-erase'); fe.dataset.arm = 'annot-erase';
+    fe.title = 'Delete a placed feature or line'; fe.addEventListener('click', () => arm({ type: 'annot-erase' }));
     feRow.append(edit, fe); pane.appendChild(feRow);
 
-    pane = playPanel;   // ── Play tab from here down ──
-    pane.appendChild(hd('Party'));
-    const ppB = mkBtn('📍 Place party', 'gw-sx-party-place'); ppB.dataset.arm = 'party-place'; ppB.style.width = '100%';
-    ppB.title = 'GM: drop/teleport the party on any subhex (reveals around it, no time cost)';
+    // ── Play ▸ Party ───────────────────────────────────────────────────────
+    pane = playArea.panes.party;
+    pane.appendChild(hd('Party Position'));
+    const partyRow = document.createElement('div'); partyRow.className = 'sx-row2';
+    const ppB = mkBtn('📍 Place party', 'gw-sx-party-place'); ppB.dataset.arm = 'party-place';
+    ppB.title = 'GM: drop or teleport the party on any subhex (reveals around it, no time cost)';
     ppB.addEventListener('click', () => arm({ type: 'party-place' }));
-    pane.appendChild(ppB);
-    const pmB = mkBtn('🧭 Move party', 'gw-sx-party-move'); pmB.dataset.arm = 'party-move'; pmB.style.width = '100%';
+    const pmB = mkBtn('🧭 Move party', 'gw-sx-party-move'); pmB.dataset.arm = 'party-move';
     pmB.title = 'Step the party one 3-mile hex toward the clicked cell';
     pmB.addEventListener('click', () => arm({ type: 'party-move' }));
-    pane.appendChild(pmB);
-    const puB = mkBtn('↶ Undo move', 'gw-sx-party-undo'); puB.style.width = '100%'; puB.disabled = true;
-    puB.title = 'Undo the last party move/placement (position, fog, and clock)';
-    puB.addEventListener('click', undoPartyMove);
-    pane.appendChild(puB);
-    state.el.partyUndoBtn = puB;
+    partyRow.append(ppB, pmB); pane.appendChild(partyRow);
+    const puB = mkBtn('↶ Undo move', 'gw-sx-party-undo'); puB.style.width = '100%'; puB.style.marginTop = '6px'; puB.disabled = true;
+    puB.title = 'Undo the last party move or placement (position, fog, and clock)'; puB.addEventListener('click', undoPartyMove);
+    pane.appendChild(puB); state.el.partyUndoBtn = puB;
+    pane.appendChild(hd('Fog of War'));
     const fogRow = document.createElement('label');
-    fogRow.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:11px;color:#d8c4a0;margin:4px 0 2px;cursor:pointer;';
+    fogRow.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:12px;color:#d8c4a0;margin:4px 0 7px;cursor:pointer;';
     const fogCb = document.createElement('input'); fogCb.type = 'checkbox'; fogCb.id = 'gw-sx-fog-cb'; fogCb.checked = true;
     fogCb.addEventListener('change', () => { state.fogOn = fogCb.checked; saveFogVis(); renderFog(); });
-    fogRow.append(fogCb, document.createTextNode(' Show fog'));
-    pane.appendChild(fogRow);
-    state.el.fogCb = fogCb;
+    fogRow.append(fogCb, document.createTextNode('Show fog')); pane.appendChild(fogRow); state.el.fogCb = fogCb;
     const resetFog = mkBtn('⟲ Reset fog', 'gw-sx-fog-reset'); resetFog.style.width = '100%';
-    resetFog.title = 'Re-hide every subhex (clears what the party has seen)';
+    resetFog.title = 'Re-hide every subhex and retain only the party visibility ring';
     resetFog.addEventListener('click', () => { if (state.revealed) state.revealed.clear(); if (state.party) reveal(state.party.Q, state.party.R); saveRevealed(); renderFog(); });
     pane.appendChild(resetFog);
 
-    pane.appendChild(hd('Time'));
+    // ── Play ▸ Time ────────────────────────────────────────────────────────
+    pane = playArea.panes.time;
+    pane.appendChild(hd('Campaign Clock'));
     const clockBody = document.createElement('div'); clockBody.id = 'gw-sx-clock';
-    clockBody.style.cssText = 'font-size:11px;line-height:1.45;color:#e8d6b0;margin:2px 0 5px;';
-    pane.appendChild(clockBody);
-    state.el.clockBody = clockBody;
-    const tRow = document.createElement('div'); tRow.style.cssText = 'display:flex;gap:4px;margin-bottom:3px;';
-    const tTurn = mkBtn('+Turn', 'gw-sx-t-turn'); tTurn.style.flex = '1'; tTurn.title = 'Advance one 4-hour route-turn';
-    tTurn.addEventListener('click', () => advanceMinutes(TURN_MIN));
-    const tDay = mkBtn('+Day', 'gw-sx-t-day'); tDay.style.flex = '1'; tDay.title = 'Advance one full day';
-    tDay.addEventListener('click', () => { advanceDay(state.clock); saveClock(); renderClock(); });
+    clockBody.style.cssText = 'font-size:12px;line-height:1.5;color:#e8d6b0;margin:3px 0 8px;padding:7px;background:rgba(0,0,0,.17);border:1px solid #3a2606;border-radius:3px;';
+    pane.appendChild(clockBody); state.el.clockBody = clockBody;
+    const tRow = document.createElement('div'); tRow.className = 'sx-row2';
+    const tTurn = mkBtn('+ Turn', 'gw-sx-t-turn'); tTurn.title = 'Advance one 4-hour route-turn'; tTurn.addEventListener('click', () => advanceMinutes(TURN_MIN));
+    const tDay = mkBtn('+ Day', 'gw-sx-t-day'); tDay.title = 'Advance one full day'; tDay.addEventListener('click', () => { advanceDay(state.clock); saveClock(); renderClock(); });
     tRow.append(tTurn, tDay); pane.appendChild(tRow);
-    const tRow2 = document.createElement('div'); tRow2.style.cssText = 'display:flex;gap:4px;';
-    const tCamp = mkBtn('⛺ Camp', 'gw-sx-t-camp'); tCamp.style.flex = '1'; tCamp.title = 'Rest overnight — jump to next dawn';
-    tCamp.addEventListener('click', makeCamp);
-    const tSet = mkBtn('📅 Set', 'gw-sx-t-set'); tSet.style.flex = '1'; tSet.title = 'Set the campaign date';
-    tSet.addEventListener('click', setDate);
+    const tRow2 = document.createElement('div'); tRow2.className = 'sx-row2';
+    const tCamp = mkBtn('⛺ Camp', 'gw-sx-t-camp'); tCamp.title = 'Rest overnight and jump to next dawn'; tCamp.addEventListener('click', makeCamp);
+    const tSet = mkBtn('📅 Set date', 'gw-sx-t-set'); tSet.title = 'Set the campaign date'; tSet.addEventListener('click', setDate);
     tRow2.append(tCamp, tSet); pane.appendChild(tRow2);
     const travelMsg = document.createElement('div'); travelMsg.id = 'gw-sx-travel-msg';
-    travelMsg.style.cssText = 'font-size:10px;font-style:italic;color:#c2a7b0;margin-top:3px;';
-    pane.appendChild(travelMsg);
-    state.el.travelMsg = travelMsg;
+    travelMsg.style.cssText = 'font-size:10px;font-style:italic;color:#c2a7b0;margin-top:7px;'; pane.appendChild(travelMsg); state.el.travelMsg = travelMsg;
 
-    pane.appendChild(hd('Encounters'));
-    const encB = mkBtn('🎲 Roll here', 'gw-sx-enc-roll'); encB.style.width = '100%';
-    encB.title = 'Roll a wilderness encounter for the selected (or hovered) subhex';
-    encB.addEventListener('click', rollEncounterHere);
-    pane.appendChild(encB);
-    state.el.encBtn = encB;
+    // ── Play ▸ Encounters ──────────────────────────────────────────────────
+    pane = playArea.panes.encounters;
+    pane.appendChild(hd('Wilderness Encounter'));
+    const encHelp = document.createElement('div');
+    encHelp.style.cssText = 'font-size:11px;line-height:1.4;color:#cbb088;margin-bottom:9px;';
+    encHelp.textContent = 'Uses the selected subhex, or the hovered subhex when none is selected.';
+    pane.appendChild(encHelp);
+    const encB = mkBtn('🎲 Roll encounter here', 'gw-sx-enc-roll'); encB.style.width = '100%';
+    encB.title = 'Roll a wilderness encounter for the selected or hovered subhex'; encB.addEventListener('click', rollEncounterHere);
+    pane.appendChild(encB); state.el.encBtn = encB;
 
-    pal.appendChild(buildPanel);
-    pal.appendChild(playPanel);
+    pal.append(buildPanel, playPanel);
     setTab(loadTab());
-
-    makeCollapsible(pal);
     return pal;
   }
 
@@ -1212,6 +1288,7 @@
     overlay.append(svg, palette, bar, read, enc, med);
     document.body.appendChild(overlay);
     applyPalPos(palette, overlay);
+    watchPalSize(palette);
 
     Object.assign(state.el, {
       overlay, svg, rasterBase, gCells, gParents, gAnnotFast, gAnnot, gMarkers, gEditor, gHaz, panG, gPreview, gHover, gSel, gFog, gParty, gTarget, basemap, title, read, enc,
@@ -2557,5 +2634,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render, centerOn, zoomTo, rebuildRasterTiles };
-  try { console.log('[gw-subhex-view] v0.46.2 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.47.0 loaded'); } catch(_){}
 })();
