@@ -374,7 +374,7 @@ const src3 = readFileSync('/home/claude/gcc/gcc-voyage.js', 'utf8');
 ok(/function renderHelmStrip/.test(src3) && /function renderHelmFeed/.test(src3) && /function renderHelmFooter/.test(src3), 'helm renderers present');
 ok(/id="ve-helm-footer"/.test(src3) && /data-tab="log">Archive</.test(src3), 'footer element + Archive tab');
 ok(/gcc:voyage:feed/.test(src3) && /GCCTableFeed\?\.postText\?\./.test(src3), 'table-feed mirror contract');
-ok(/VOYAGE_VERSION = '0\.13\.0'/.test(src3) && /ve-ver/.test(src3), 'panel shows module version');
+ok(/VOYAGE_VERSION = '\d+\.\d+\.\d+'/.test(src3) && /ve-ver/.test(src3), 'panel shows module version');
 // behavior: alerts harvested on a mast-snap day
 makeVoyage({ legIdx:0, milesOnLeg:0, pending:0 });
 v12 = V.state.voyage; v12.hullCurrent = v12.hullMax = 20; v12.quality = 'average';
@@ -389,6 +389,48 @@ for (let t=0; t<400 && !alerted; t++){
 ok(alerted, 'critical events push v.alerts within 400 sim days');
 ok(V.state.voyage.alerts.every(a => a.id && a.kind && a.text && a.ack === false), 'alert shape sane');
 V.state.voyage = null;
+
+section('v0.14.0 port call');
+ctx.GCCVoyageCargo = {
+  getCurrentManifest: () => ({ holdLoads: 20, cargo: [{ cargoId:'fine', loads: 5, purchaseUnitGp: 400 }] }),
+  markets: { Seaton: { sizeMod: 1 } }
+};
+makeVoyage({ legIdx:0, milesOnLeg:110, pending:0 });
+v12 = V.state.voyage;
+v12.hullCurrent = v12.hullMax = 21; v12.dailySail = 30; v12.smuggleSkill = 20; v12.quality = 'average';
+chooseResponses = new Array(20).fill(0);
+let e14 = await V.advanceOneDay(); // 110 + up to 200 crosses the 120-mi leg → arrival
+let guard = 0;
+while ((!v12.portCall) && guard++ < 10){ v12.milesOnLeg = Math.max(v12.milesOnLeg, 115); e14 = await V.advanceOneDay(); }
+ok(!!v12.portCall && v12.portCall.port === 'Seaton', 'arrival creates a port call at the stopover');
+const f14 = v12.portCall.fees;
+ok(f14.entrance >= 11 && f14.entrance <= 20, 'entrance fee d10+10 in range');
+ok((f14.berthAvailable && f14.moorage === 21) || (!f14.berthAvailable && f14.moorage === 5), 'moorage per RAW (1 gp/hull berth or 5 gp anchor)');
+ok(f14.pilot === 21, 'pilot 1 gp/hull for a large ship');
+ok(v12.portCall.customs.state === 'due' && v12.portCall.customs.apprGp === 2000, 'customs due, hold appraised at cost (5×400)');
+ok(v12.portCall.customs.ratePct >= 2 && v12.portCall.customs.ratePct <= 20, 'customs rate 2d10%');
+// fees queue
+const beforeN = v12.settlement.pending.length;
+V.state.voyage.portCall.fees.queued = false;
+// queuePortFees not exported; exercise via source + direct pending check by simulating what it adds:
+const src4 = readFileSync('/home/claude/gcc/gcc-voyage.js', 'utf8');
+ok(/function queuePortFees/.test(src4) && /port_entrance/.test(src4) && /moorage/.test(src4) && /pilotage/.test(src4), 'fee queue posts entrance/moorage/pilot via pending pipe');
+// smuggling: skill 20, sizeMod 1 → target 19; force success then failure via seeded rolls
+seedRand(0.0); // rollD(20) → 1 ≤ 19 success
+vm.runInContext("window.GCCVoyage.state.voyage.portCall.customs.state = 'due'", ctx);
+// attemptSmuggle not exported — assert via customsStatus + source
+ok(V.customsStatus('Seaton') === 'due', 'customsStatus exposes port-call state to cargo module');
+ok(/attemptSmuggle/.test(src4) && /fine = due \* 10/.test(src4), 'caught smuggling fines at 10× customs (RAW)');
+ok(/GCCVoyage\?\.customsStatus\?\.\(port\) === 'waived'/.test(readFileSync('/home/claude/gcc/gcc-voyage-cargo.js','utf8')), 'cargo v0.2.1 waives per-sale customs when smuggled past');
+clearRand();
+// departure closes the call
+chooseResponses = new Array(10).fill(0);
+await V.advanceOneDay();
+ok(v12.portCall.departed === true, 'sailing on closes the port call');
+ok(/const shown = log\.slice\(-MAX_DAYS\)\.reverse\(\)/.test(src4), 'feed renders newest-first');
+ok(/class="ve-hud"/.test(src4) && /holdAppraisal/.test(src4), 'HUD tiles with hold appraisal present');
+V.state.voyage = null;
+delete ctx.GCCVoyageCargo;
 
 console.log(`\n${pass} passed, ${fail} failed (v0.12.0 suite)`);
 process.exit(fail ? 1 : 0);

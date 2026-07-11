@@ -1,4 +1,6 @@
-// gcc-voyage-cargo.js v0.2.0 - Port Markets + Cargo Manifest for GCC Voyage
+// gcc-voyage-cargo.js v0.2.1 - Port Markets + Cargo Manifest for GCC Voyage
+// v0.2.1: customsGp consults GCCVoyage.customsStatus(port) — a successful
+//   Smuggling check in the port-call flow waives per-sale customs here.
 // v0.2.0: replace the wide market/manifest tables (min-width 720/820px)
 //   with stacked lot cards so the Voyage tab fits the panel's new 500px
 //   default width without horizontal scrolling. Summary tiles and the hold
@@ -20,7 +22,7 @@
 (function(){
   if (typeof window === 'undefined') return;
 
-  const VERSION = '0.2.0';
+  const VERSION = '0.2.1';
   const STORAGE_KEY = 'gcc.voyage.cargo.v1';
   const LOAD_CN = 10000;
   const $ = (sel, root=document) => root.querySelector(sel);
@@ -228,6 +230,9 @@
   }
 
   function customsGp(port, gross){
+    // v0.2.1: the voyage port-call customs step can waive per-sale customs
+    // at this port (successful Smuggling check per the Seafaring rules).
+    try { if (window.GCCVoyage?.customsStatus?.(port) === 'waived') return 0; } catch (err){ /* voyage absent */ }
     return Math.max(0, Math.round(Number(gross || 0) * Number(marketFor(port).customsPct || 0) / 100));
   }
 

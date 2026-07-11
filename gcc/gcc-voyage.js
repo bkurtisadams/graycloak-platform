@@ -1,4 +1,28 @@
-// gcc-voyage.js v0.13.0 — 2026-07-10
+// gcc-voyage.js v0.14.0 — 2026-07-10
+// v0.14.0: port call flow + HUD + newest-first feed.
+//   - Feed is newest-first: today's card renders directly under the HUD,
+//     no scrolling to see the day's results. Pill/auto-scroll machinery
+//     removed (last 30 days shown; full history archives with the voyage).
+//   - Status strip becomes a HUD: hull / hold (loads + value at cost from
+//     the cargo manifest) / purse (linked Finance account balance when
+//     resolvable, with queued dues shown against it), plus crew quality,
+//     ship quality, and next-port line.
+//   - Port call card (Seafaring Trade Summary as a checklist) appears on
+//     every arrival: ① Harbor fees — entrance d10+10 gp, berth 1 gp/hull/
+//     day (80% available, else 5 gp/day at anchor), pilot 1 gp/hull for
+//     large ships — rolled on arrival, queued to the Voyage Ledger with
+//     one click (backlog #2 lands here). ② Customs — hold appraised at
+//     cost, 2d10% rate; Declare, or Smuggle: d20 vs Smuggling skill
+//     (Setup input) minus port-size modifier; success waives customs at
+//     this port for the whole call (gcc-voyage-cargo v0.2.1 consults
+//     GCCVoyage.customsStatus), failure posts a fine at 10x the customs
+//     due, per the Smuggling proficiency. ③ Trade / ④ Repairs — live
+//     state (merchants in port, damaged HP + gp) with jump buttons.
+//     ⑤ Depart — Advance 1 Day (End Voyage at the final port).
+//   - v.portCall is created on stopover/final arrival and by Make Port;
+//     it clears on the first sailed day after departure.
+//   RAW gaps deferred to v0.15 (port-days subsystem): repair day costs,
+//   resupply, wages, shore leave.
 // v0.13.0: helm redesign — needed info always visible, results always seen.
 //   During an active voyage the Voyage tab becomes a helm:
 //   - Sticky status strip (day/date, hull bar, effective speed with
@@ -225,7 +249,7 @@
 (function(){
   if (typeof window === 'undefined') return;
   const LOG = (...a) => console.log('[voyage]', ...a);
-  LOG('gcc-voyage.js v0.13.0 loaded');
+  LOG('gcc-voyage.js v0.14.0 loaded');
 
   // ── DATA ──────────────────────────────────────────────────────────────────
   // Ship templates: dailySail in miles-per-10-hour-sailing-day, hull in HP.
@@ -357,7 +381,7 @@
   // Seafaring: 1 hull point permanently repaired in port for 100 gp/day by
   // trained workers. (Self-repair by crew is ~50 gp materials + a week.)
   const REPAIR_GP_PER_HULL = 100;
-  const VOYAGE_VERSION = '0.13.0';
+  const VOYAGE_VERSION = '0.14.0';
   const VOYAGE_STORAGE_KEY = 'gcc.voyage.state.v1';
   // Completed/discarded voyages: summary + condensed log + settlement.
   // Written by archiveVoyage() before state.voyage is nulled or replaced.
@@ -1029,6 +1053,90 @@
     }
   }
 
+  // ── PORT CALL (Seafaring Trade Summary) ──────────────────────────────────
+  // Rolled once per arrival. Fees per RAW: entrance d10+10 gp; berth 80%
+  // available at 1 gp/hull/day else 5 gp/day at anchor (first day charged
+  // here; extended stays are the v0.15 port-days subsystem); pilot/towage
+  // 1 gp/hull for large ships (hull 20+).
+  function holdAppraisal(){
+    try {
+      const m = window.GCCVoyageCargo?.getCurrentManifest?.();
+      if (!m) return { loads:0, capacity:0, valueGp:0 };
+      const lots = m.cargo || [];
+      const loads = lots.reduce((s,l) => s + Number(l.loads || 0), 0);
+      const valueGp = lots.reduce((s,l) => s + Number(l.loads || 0) * Number(l.purchaseUnitGp || l.unitGp || 0), 0);
+      return { loads, capacity: Number(m.holdLoads || 0), valueGp: Math.round(valueGp) };
+    } catch (err){ return { loads:0, capacity:0, valueGp:0 }; }
+  }
+  function beginPortCall(v, port, opts = {}){
+    const hull = Number(v.hullMax || 0);
+    const berthAvailable = rollD(100) <= 80;
+    const largeShip = hull >= 20;
+    const appr = holdAppraisal();
+    v.portCall = {
+      port, day: v.dayNumber, date: v.currentDate || dateObjToText(v.calendar),
+      final: !!opts.final, departed: false,
+      fees: {
+        entrance: rollD(10) + 10,
+        berthAvailable,
+        moorage: berthAvailable ? hull : 5,
+        moorageNote: berthAvailable ? `berth, 1 gp/hull/day (${hull} gp)` : 'no berth — at anchor, 5 gp/day',
+        pilot: largeShip ? hull : 0,
+        queued: false
+      },
+      customs: {
+        state: appr.loads > 0 ? 'due' : 'none',   // due|none|declared|waived|caught
+        apprGp: appr.valueGp, loads: appr.loads,
+        ratePct: rollDN(2,10)
+      }
+    };
+  }
+  // Consulted by gcc-voyage-cargo v0.2.1 before charging per-sale customs.
+  function customsStatus(port){
+    const pc = state.voyage?.portCall;
+    if (!pc || pc.departed || pc.port !== port) return 'none';
+    return pc.customs.state;
+  }
+  function queuePortFees(){
+    const v = state.voyage, pc = v?.portCall;
+    if (!pc || pc.fees.queued) return;
+    const f = pc.fees;
+    addPendingFinanceAction({ category:'port_fee', direction:'expense', amountGp:f.entrance, eventType:'port_entrance', memo:`Port entrance fee — ${pc.port}.`, day:v.dayNumber, date:pc.date, port:pc.port }, v);
+    addPendingFinanceAction({ category:'port_fee', direction:'expense', amountGp:f.moorage, eventType:'moorage', memo:`Moorage (${f.moorageNote}) — ${pc.port}.`, day:v.dayNumber, date:pc.date, port:pc.port }, v);
+    if (f.pilot > 0) addPendingFinanceAction({ category:'port_fee', direction:'expense', amountGp:f.pilot, eventType:'pilotage', memo:`Pilot/towage (1 gp/hull) — ${pc.port}.`, day:v.dayNumber, date:pc.date, port:pc.port }, v);
+    f.queued = true;
+    saveVoyageState();
+    renderVoyagePane();
+    setStatus(`Harbor fees queued to the Voyage Ledger — ${f.entrance + f.moorage + f.pilot} gp.`);
+  }
+  function attemptSmuggle(){
+    const v = state.voyage, pc = v?.portCall;
+    if (!pc || pc.customs.state !== 'due') return;
+    const sizeMod = Number(window.GCCVoyageCargo?.markets?.[pc.port]?.sizeMod || 0);
+    const target = Number(v.smuggleSkill || 4) - Math.max(0, sizeMod);
+    const roll = rollD(20);
+    if (roll <= target){
+      pc.customs.state = 'waived';
+      pushAlert(v, 'smuggle', `Cargo slipped past the ${pc.port} customs house (${roll} ≤ ${target}).`);
+    } else {
+      pc.customs.state = 'caught';
+      const due = Math.round(pc.customs.apprGp * pc.customs.ratePct / 100);
+      const fine = due * 10;
+      addPendingFinanceAction({ category:'fine', direction:'expense', amountGp:fine, eventType:'smuggling_fine', memo:`Smuggling fine (10× customs of ${due} gp) — caught at ${pc.port}.`, day:v.dayNumber, date:pc.date, port:pc.port }, v);
+      pushAlert(v, 'smuggle', `CAUGHT smuggling at ${pc.port} (${roll} > ${target}) — fined ${fine} gp (10× customs).`);
+    }
+    saveVoyageState();
+    renderVoyagePane();
+  }
+  function declareCustoms(){
+    const v = state.voyage, pc = v?.portCall;
+    if (!pc || pc.customs.state !== 'due') return;
+    pc.customs.state = 'declared';
+    saveVoyageState();
+    renderVoyagePane();
+    setStatus(`Cargo declared — customs of ~${pc.customs.ratePct}% will be charged on sales at ${pc.port}.`);
+  }
+
   function dateObjToText(cal){ return cal ? formatDate(cal) : ''; }
 
   function cloneHex(h){
@@ -1362,6 +1470,7 @@
     const v = state.voyage;
     if (!v || v.finished || v.shipSank) return null;
     v.dayNumber++;
+    if (v.portCall && !v.portCall.departed){ v.portCall.departed = true; }  // sailing on — port call closes
     v.calendar = calendarAdvance(v.calendar, 1);
     v.currentDate = formatDate(v.calendar);
     const dateStr = v.currentDate;
@@ -1541,6 +1650,7 @@
           if (v.currentLegIdx < v.legs.length){
             ensureSettlement(v).notes.push({ day:v.dayNumber, date:dateStr, type:'arrival', text:`Arrived at ${leg.to}.` });
             v._forceUnderwayLocation = false;
+            beginPortCall(v, leg.to, { final:false });
             updateVoyageLocation('port-arrival');
             events.push({ type:'port', text:`Arrived at ${leg.to}. Port settlement options are available in Voyage Ledger.` });
           } else {
@@ -1548,6 +1658,7 @@
             v._forceUnderwayLocation = false;
             const dest = v.legs[v.legs.length-1].to;
             v.arrivalDate = dateStr;
+            beginPortCall(v, dest, { final:true });
             const s = ensureSettlement(v);
             s.notes.push({ day:v.dayNumber, date:dateStr, type:'arrival', text:`Voyage complete at ${dest}. Review settlement before ending the voyage.` });
             events.push({ type:'port', text:`Arrived at ${dest}. Voyage complete! Review Voyage Settlement for repair, port, and resupply posting.` });
@@ -1761,6 +1872,18 @@
         background:rgba(255,153,68,.12); color:#ff9944; border:1px solid rgba(255,153,68,.35);
         padding:2px 10px; border-radius:10px; cursor:pointer;
       }
+      #voyage-panel .ve-hud { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-top:6px; }
+      #voyage-panel .ve-hud .tile { background:rgba(0,0,0,.3); border:1px solid #4a3518; border-radius:5px; padding:4px 7px; }
+      #voyage-panel .ve-hud .tile .k { font-size:9px; color:#8b6e45; font-family:Georgia,serif; }
+      #voyage-panel .ve-hud .tile .v { font-size:11px; color:#f4e4b8; font-family:Georgia,serif; }
+      #voyage-panel .ve-hud .tile .v small { color:#c8a96e; font-size:9px; }
+      #voyage-panel .ve-portcall { border:1px solid #c8941a; border-radius:8px; margin:8px 12px 0; overflow:hidden; font-family:Georgia,serif; font-size:11px; }
+      #voyage-panel .ve-portcall .pc-hdr { background:rgba(200,148,26,.18); padding:6px 10px; display:flex; justify-content:space-between; color:#e8b840; font-family:'Cinzel',serif; font-size:11px; letter-spacing:.04em; }
+      #voyage-panel .ve-portcall .pc-row { display:flex; align-items:center; gap:8px; padding:6px 10px; border-top:1px solid #4a3518; color:#d8c8a0; }
+      #voyage-panel .ve-portcall .pc-row.done { color:#8b9e7a; }
+      #voyage-panel .ve-portcall .pc-row .st { width:14px; text-align:center; flex-shrink:0; }
+      #voyage-panel .ve-portcall .pc-row .tx { flex:1; }
+      #voyage-panel .ve-portcall .pc-row .ve-btn { margin:0; font-size:9px; padding:2px 8px; }
       #voyage-panel .ve-flash { animation:veFlash 1.2s ease-out 2; }
       @keyframes veFlash { 0%,100% { box-shadow:none; } 40% { box-shadow:0 0 0 2px #e8b840; } }
       #voyage-panel .ve-pane.active { display:block; }
@@ -2045,6 +2168,10 @@
         <div>
           <label class="ve-lbl">Nav Skill</label>
           <input class="ve-input" id="ve-nav" type="number" min="1" max="20" value="12">
+        </div>
+        <div>
+          <label class="ve-lbl">Smuggling</label>
+          <input class="ve-input" id="ve-smuggle" type="number" min="1" max="20" value="4" title="Smuggling proficiency target on d20, minus port size. 4 = no proficiency.">
         </div>
       </div>
 
@@ -2346,7 +2473,7 @@
     const routePane = p?.querySelector('#ve-pane-route');
     if (!setupPane || !routePane) return;
     const keep = {};
-    ['ve-capt','ve-ship','ve-speed','ve-hull','ve-crew','ve-quality','ve-nav',
+    ['ve-capt','ve-ship','ve-speed','ve-hull','ve-crew','ve-quality','ve-nav','ve-smuggle',
      've-sday','ve-smonth','ve-syear','ve-from','ve-to','ve-water','ve-newport-name']
       .forEach(id => { const el = p.querySelector('#'+id); if (el) keep[id] = el.value; });
     setupPane.innerHTML = setupPaneHTML();
@@ -2590,6 +2717,7 @@
     const crew      = p.querySelector('#ve-crew').value || 'average';
     const quality   = SHIP_QUALITY[p.querySelector('#ve-quality')?.value] ? p.querySelector('#ve-quality').value : 'average';
     const navSkill  = parseInt(p.querySelector('#ve-nav').value,10)   || 12;
+    const smuggleSkill = parseInt(p.querySelector('#ve-smuggle')?.value,10) || 4;
     const sd = parseInt(p.querySelector('#ve-sday').value,10)    || 1;
     const sm = parseInt(p.querySelector('#ve-smonth').value,10)  || 0;
     const sy = parseInt(p.querySelector('#ve-syear').value,10)   || 576;
@@ -2630,6 +2758,7 @@
       leaking: false,
       alerts: [],
       navSkill,
+      smuggleSkill,
       calendar: { ...startCalendar },
       startCalendar,
       startDate: formatDate(startCalendar),
@@ -2746,6 +2875,7 @@
     v.milesOnLeg = 0;
     v.endedAtPort = port;
     v.finished = true;
+    beginPortCall(v, port, { final:true });
     v._forceUnderwayLocation = false;
     v.arrivalDate = dateStr;
 
@@ -2799,37 +2929,16 @@
     // Scaffold once per voyage; strip/banner update in place, feed appends.
     const key = v.createdAt || 'v';
     if (state.feedKey !== key || !body.querySelector('.ve-feed')){
-      body.innerHTML = '<div class="ve-strip" id="ve-strip"></div><div id="ve-banner-slot"></div><div class="ve-feed" id="ve-feed"></div><div id="ve-pill-slot"></div>';
+      body.innerHTML = '<div class="ve-strip" id="ve-strip"></div><div id="ve-banner-slot"></div><div id="ve-portcall-slot"></div><div class="ve-feed" id="ve-feed"></div>';
       state.feedKey = key;
-      state.feedCount = 0;
-      state.feedStick = true; // follow newest until the user scrolls up
-      if (pane && !pane.__helmScrollWired){
-        pane.__helmScrollWired = true;
-        pane.addEventListener('scroll', () => {
-          const nearBottomOfFeed = feedBottomVisible(pane);
-          if (nearBottomOfFeed){ state.feedStick = true; hideNewPill(); }
-          else state.feedStick = false;
-        });
-      }
     }
     renderHelmStrip(v);
     renderHelmBanner(v);
-    renderHelmFeed(v, pane);
+    renderPortCall(v);
+    renderHelmFeed(v);
     renderHelmFooter();
   }
 
-  function feedBottomVisible(pane){
-    const feed = pane?.querySelector('#ve-feed');
-    if (!feed) return true;
-    const last = feed.lastElementChild;
-    if (!last) return true;
-    const pr = pane.getBoundingClientRect(), lr = last.getBoundingClientRect();
-    return lr.top < pr.bottom + 20;
-  }
-  function hideNewPill(){
-    const slot = state.panelEl?.querySelector('#ve-pill-slot');
-    if (slot) slot.innerHTML = '';
-  }
 
   function renderHelmStrip(v){
     const el = state.panelEl?.querySelector('#ve-strip');
@@ -2838,33 +2947,38 @@
     const hullCol = hullPct<25 ? '#ff5544' : hullPct<50 ? '#ff9944' : '#77cc88';
     const cond = shipConditionMods(v);
     const eff = cond.deadInWater ? 0 : Math.max(0, Math.round(Number(v.dailySail || 0) * cond.multiplier));
+    const inPort = v.portCall && !v.portCall.departed;
     const last = v.log[v.log.length-1];
     const w = last?.weather?.wind || {};
-    const wx = last ? `${esc(w.force || '')} ${w.speed ?? ''} mph ${esc(w.direction || '')}` : 'Not yet underway';
-    const statusLine = v.shipSank ? '<b style="color:#ff5544">☠ SHIP SANK</b>'
-      : v.finished && v.endedAtPort ? `<b style="color:#55cc88">✓ MADE PORT — ${esc(v.endedAtPort)}</b>`
-      : v.finished ? '<b style="color:#55cc88">✓ VOYAGE COMPLETE</b>'
-      : `Day ${v.dayNumber} · ${esc(formatDate(v.calendar))}`;
+    const wx = inPort ? `⚓ ${v.finished ? (v.endedAtPort && v.endedAtPort !== v.legs[v.legs.length-1]?.to ? 'Made port' : 'Docked') : 'Docked'} — ${esc(v.portCall.port)}`
+      : last ? `${esc(w.force || '')} ${w.speed ?? ''} mph ${esc(w.direction || '')}` : 'Not yet underway';
+    const statusLine = v.shipSank ? '<b style="color:#ff5544">☠ SHIP SANK</b>' : `Day ${v.dayNumber} · ${esc(formatDate(v.calendar))}`;
     const badges = [
       cond.deadInWater ? '<span class="ve-badge red">DEAD IN THE WATER</span>' : '',
       v.brokenMast ? '<span class="ve-badge">MAST</span>' : '',
-      v.leaking ? '<span class="ve-badge">LEAKING 1 HP/DAY</span>' : '',
+      v.leaking ? '<span class="ve-badge">LEAKING</span>' : '',
     ].filter(Boolean).join(' ');
-    const speedTxt = cond.deadInWater
-      ? '<span style="color:#ff5544">no way on — crew making makeshift repairs</span>'
-      : `${eff} mi/day${cond.note ? ` <span style="color:#8b6e45">${esc(cond.note)}</span>` : ''}`;
+    const hold = holdAppraisal();
+    const pending = unpostedSettlementItems(v);
+    const pendGp = pending.reduce((s,a) => s + Math.max(0, Number(a.amountGp || 0)), 0);
+    let purse = '—';
+    try {
+      const bal = window.GCCFinance?.getAccountBalance?.(window.GCCVoyageFinance?.getLink?.()?.accountId);
+      if (Number.isFinite(bal)) purse = `${Math.round(bal).toLocaleString()} gp`;
+    } catch (err){ /* finance absent */ }
+    const nextLeg = !v.finished ? v.legs[v.currentLegIdx] : null;
     el.innerHTML = `
       <div class="ve-strip-row"><span class="day">${statusLine}</span><span class="wx">${wx}</span></div>
-      <div class="ve-strip-row" style="margin-top:5px;align-items:center">
-        <span style="color:#8b6e45;font-family:Georgia,serif">Hull</span>
-        <div class="ve-hullbar"><div style="width:${hullPct}%;background:${hullCol}"></div></div>
-        <span style="color:${hullCol};font-family:Georgia,serif">${v.hullCurrent}/${v.hullMax}</span>
+      <div class="ve-hud">
+        <div class="tile"><div class="k">Hull</div><div class="v" style="color:${hullCol}">${v.hullCurrent}/${v.hullMax}${cond.multiplier < 1 && !cond.deadInWater ? ` <small>−${Math.round((1-cond.multiplier)*100)}% spd</small>` : ''}</div></div>
+        <div class="tile"><div class="k">Hold</div><div class="v">${hold.loads}/${hold.capacity || '—'} <small>${hold.valueGp.toLocaleString()} gp</small></div></div>
+        <div class="tile"><div class="k">Purse</div><div class="v">${purse}${pending.length ? ` <small style="color:#ff9944">−${pendGp} due</small>` : ''}</div></div>
       </div>
-      <div class="ve-strip-row" style="margin-top:4px">
-        <span style="color:#c8a96e;font-family:Georgia,serif">${speedTxt}</span>
+      <div class="ve-strip-row" style="margin-top:5px">
+        <span style="color:#8b6e45;font-family:Georgia,serif">Crew ${esc(v.crewQuality)} · ${esc((SHIP_QUALITY[v.quality]||SHIP_QUALITY.average).label.toLowerCase())} ship · ${cond.deadInWater ? '<span style="color:#ff5544">no way on</span>' : eff + ' mi/day'}</span>
         <span>${badges}</span>
       </div>
-      ${portStripHTML(v)}
+      ${nextLeg && !inPort ? portStripHTML(v) : ''}
     `;
   }
 
@@ -2938,6 +3052,60 @@
     target.classList.remove('ve-flash'); void target.offsetWidth; target.classList.add('ve-flash');
   }
 
+  function renderPortCall(v){
+    const slot = state.panelEl?.querySelector('#ve-portcall-slot');
+    if (!slot) return;
+    const pc = v.portCall;
+    if (!pc || pc.departed){ slot.innerHTML = ''; return; }
+    const f = pc.fees, c = pc.customs;
+    const feesTotal = f.entrance + f.moorage + f.pilot;
+    const row = (done, text, btnHtml='') =>
+      `<div class="pc-row ${done?'done':''}"><span class="st">${done?'✓':'○'}</span><span class="tx">${text}</span>${btnHtml}</div>`;
+    const customsDue = Math.round(c.apprGp * c.ratePct / 100);
+    let customsRow;
+    if (c.state === 'none') customsRow = row(true, 'Customs — hold is empty, nothing to declare');
+    else if (c.state === 'declared') customsRow = row(true, `Customs — declared; ~${c.ratePct}% charged on sales here`);
+    else if (c.state === 'waived') customsRow = row(true, `Customs — <span style="color:#77cc88">slipped past the customs house</span>`);
+    else if (c.state === 'caught') customsRow = row(true, `Customs — <span style="color:#ff5544">caught smuggling; fine queued</span>`);
+    else customsRow = row(false, `Customs — ${c.loads} loads appraised ${c.apprGp.toLocaleString()} gp · ${c.ratePct}% (${customsDue} gp)`,
+      `<button class="ve-btn" data-pc="declare">Declare</button><button class="ve-btn" data-pc="smuggle" title="d20 ≤ Smuggling skill − port size. Caught = fine at 10× customs.">Smuggle</button>`);
+    const dmg = Math.max(0, Number(v.hullMax||0) - Number(v.hullCurrent||0));
+    const repairItems = unpostedSettlementItems(v).filter(a => a.category === 'repair');
+    const repairGp = repairItems.reduce((s,a) => s + Number(a.amountGp||0), 0);
+    const merchants = Math.max(1, rollAlwaysSame(pc.port) );
+    slot.innerHTML = `
+      <div class="ve-portcall">
+        <div class="pc-hdr"><span>⚓ Port call — ${esc(pc.port)}</span><span>${pc.final ? 'journey\'s end' : 'stopover'}</span></div>
+        ${row(f.queued, `Harbor fees — entrance ${f.entrance} gp · ${f.moorageNote}${f.pilot ? ` · pilot ${f.pilot} gp` : ''}`,
+          f.queued ? `<span style="color:#8b9e7a">queued ${feesTotal} gp</span>` : `<button class="ve-btn" data-pc="fees">Queue ${feesTotal} gp</button>`)}
+        ${customsRow}
+        ${row(false, `Trade — market open at ${esc(pc.port)}`, `<button class="ve-btn" data-pc="market">Open market</button>`)}
+        ${dmg > 0 || repairItems.length
+          ? row(false, `Repairs — ${dmg} HP damaged${repairItems.length ? ` · ${repairItems.length} repair item${repairItems.length===1?'':'s'} (${repairGp} gp) unposted` : ''}`, `<button class="ve-btn" data-pc="ledger">Ledger</button>`)
+          : row(true, 'Repairs — hull sound')}
+        ${pc.final
+          ? row(false, v.endedAtPort ? 'Voyage ended here — settle up, then archive' : 'Voyage complete — settle up, then archive', `<button class="ve-btn danger" data-pc="end">End voyage</button>`)
+          : row(false, 'Depart — sailing resumes the route', `<button class="ve-btn primary" data-pc="depart">Set sail</button>`)}
+      </div>`;
+    slot.querySelectorAll('[data-pc]').forEach(b => b.addEventListener('click', () => {
+      const a = b.dataset.pc;
+      if (a === 'fees') queuePortFees();
+      else if (a === 'declare') declareCustoms();
+      else if (a === 'smuggle') attemptSmuggle();
+      else if (a === 'market') jumpToCard('market');
+      else if (a === 'ledger') jumpToCard('ledger');
+      else if (a === 'depart') advanceDay();
+      else if (a === 'end') endVoyage();
+    }));
+  }
+  // Deterministic per-port merchant count for the Trade row (full weekly
+  // merchant refresh is the speculation-loop slice).
+  function rollAlwaysSame(port){
+    let h = 0; const s = String(port);
+    for (let i=0;i<s.length;i++) h = (h*31 + s.charCodeAt(i)) >>> 0;
+    return 2 + (h % 5);
+  }
+
   function dayCardHTML(e, isLatest){
     const types = (e.events || []).map(x => x.type);
     const sev = types.includes('damage') || types.includes('crew') ? 'sev-damage'
@@ -2954,39 +3122,19 @@
     </div>`;
   }
 
-  function renderHelmFeed(v, pane){
+  function renderHelmFeed(v){
     const feed = state.panelEl?.querySelector('#ve-feed');
     if (!feed) return;
     const log = v.log || [];
-    if (state.feedCount > log.length) state.feedCount = 0; // voyage reset
-    if (state.feedCount === 0) feed.innerHTML = log.length ? '' : '<div style="color:#8b6e45;font-style:italic;font-size:11px;font-family:Georgia,serif">Not yet underway — Advance 1 Day to begin the log.</div>';
-    if (log.length && state.feedCount === 0) feed.innerHTML = '';
-    let appended = 0;
-    for (let i = state.feedCount; i < log.length; i++){
-      feed.insertAdjacentHTML('beforeend', dayCardHTML(log[i], i === log.length - 1));
-      appended++;
+    if (!log.length){
+      feed.innerHTML = '<div style="color:#8b6e45;font-style:italic;font-size:11px;font-family:Georgia,serif">Not yet underway — Advance 1 Day to begin the log.</div>';
+      return;
     }
-    if (appended){
-      feed.querySelectorAll('.ve-daycard.old + .ve-daycard:last-child, .ve-daycard:last-child').forEach(() => {});
-      // demote the previously-latest card
-      const cards = feed.querySelectorAll('.ve-daycard');
-      cards.forEach((c, i) => c.classList.toggle('old', i !== cards.length - 1));
-      state.feedCount = log.length;
-      if (state.feedStick !== false){
-        cards[cards.length-1]?.scrollIntoView({ block:'nearest' });
-        hideNewPill();
-      } else {
-        const slot = state.panelEl.querySelector('#ve-pill-slot');
-        if (slot && pane && !feedBottomVisible(pane)){
-          slot.innerHTML = `<button class="ve-newpill">▼ new events</button>`;
-          slot.querySelector('.ve-newpill').onclick = () => {
-            state.feedStick = true;
-            feed.lastElementChild?.scrollIntoView({ block:'nearest', behavior:'smooth' });
-            hideNewPill();
-          };
-        }
-      }
-    }
+    // Newest first: today's card sits directly under the HUD, no scrolling.
+    const MAX_DAYS = 30;
+    const shown = log.slice(-MAX_DAYS).reverse();
+    feed.innerHTML = shown.map((e, i) => dayCardHTML(e, i === 0)).join('')
+      + (log.length > MAX_DAYS ? `<div style="color:#8b6e45;font-size:10px;font-family:Georgia,serif;text-align:center;padding:4px">… ${log.length - MAX_DAYS} earlier day${log.length - MAX_DAYS === 1 ? '' : 's'} (full log archives with the voyage)</div>` : '');
     if (!feed.__jumpWired){
       feed.__jumpWired = true;
       feed.addEventListener('click', e => {
@@ -3246,6 +3394,7 @@
     makePortEarly,
     endVoyage,
     getArchivedVoyages,
+    customsStatus,
     archiveVoyage: (reason='ended') => archiveVoyage(state.voyage, reason)
   };
 })();
