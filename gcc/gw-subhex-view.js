@@ -1,4 +1,6 @@
-// gw-subhex-view.js v0.46.3 — 2026-07-11
+// gw-subhex-view.js v0.46.4 — 2026-07-11
+// v0.46.4 — give live feature labels a solid, rounded black outline sized in
+//           screen pixels so pale text remains readable over light terrain.
 // v0.46.3 — add a persistent Notes textarea to the feature editor. Marker
 //           notes are stored through GWAnnotations and survive authored-data
 //           export while remaining out of player-safe map publishing.
@@ -2138,9 +2140,12 @@
       t.setAttribute('x', x); t.setAttribute('y', y + r*1.25 + 11*u);
       t.setAttribute('text-anchor', 'middle'); t.setAttribute('font-size', 11*u);
       t.setAttribute('font-family', "'Crimson Text',Georgia,serif");
-      t.setAttribute('fill', '#ffe9c0'); t.setAttribute('stroke', 'rgba(0,0,0,.7)');
-      t.setAttribute('stroke-width', 0.6*u); t.setAttribute('style', 'paint-order:stroke');
-      t.setAttribute('vector-effect', 'non-scaling-stroke');
+      t.setAttribute('fill', '#ffe9c0');
+      t.setAttribute('stroke', '#000'); t.setAttribute('stroke-opacity', '0.95');
+      // Text and stroke both scale through the viewBox. Multiplying by `u`
+      // keeps the outline at about 2.4 screen pixels at every zoom level.
+      t.setAttribute('stroke-width', 2.4*u); t.setAttribute('stroke-linejoin', 'round');
+      t.setAttribute('style', 'paint-order:stroke fill;');
       t.textContent = name;
       g.appendChild(t);
     }

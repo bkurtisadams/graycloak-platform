@@ -1,4 +1,6 @@
-// gw-subhex-tile-renderer.js v0.1.5 — 2026-07-08
+// gw-subhex-tile-renderer.js v0.1.6 — 2026-07-11
+// v0.1.6 — strengthen feature-label legibility with a solid rounded black
+//          outline in rendered tile previews.
 // v0.1.5 — batch cell fills by terrain color and the grid into single paths
 //          (one fill per color, one stroke for the whole grid) instead of a
 //          beginPath/fill/stroke round-trip per cell across three passes.
@@ -20,7 +22,7 @@
 (function(){
   'use strict';
 
-  const RENDERER_VERSION = '0.1.4';
+  const RENDERER_VERSION = '0.1.6';
   const DEFAULT_SIZE = 1024;
   const DEFAULT_PADDING_WORLD = 1.2;
   const SQRT3 = Math.sqrt(3);
@@ -375,8 +377,10 @@
         const box = { x1: +m.x - w / 2 - pad, x2: +m.x + w / 2 + pad, y1: ty - pad, y2: ty + fontWorld * 1.25 + pad };
         if (!labelBoxes.some(b => boxesOverlap(box, b))){
           labelBoxes.push(box); labelsDrawn++;
-          ctx.lineWidth = proj.worldPx(2.6);
-          ctx.strokeStyle = 'rgba(20, 10, 4, 0.82)';
+          ctx.lineWidth = proj.worldPx(3.0);
+          ctx.lineJoin = 'round';
+          ctx.miterLimit = 2;
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.95)';
           ctx.fillStyle = '#fff0c6';
           ctx.strokeText(text, +m.x, ty);
           ctx.fillText(text, +m.x, ty);
