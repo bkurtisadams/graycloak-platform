@@ -13,11 +13,11 @@
 <script src="gw-encounter-data.js?v=cb5275d1"></script>
 <script src="gw-terrain-data.js?v=22c5288c"></script>
 <script src="gcc-rng.js?v=725fb699"></script>
-<script src="gw-subhex-data.js?v=2aa6b1b9"></script>
+<script src="gw-subhex-data.js?v=30d6cea8"></script>
 <script src="gw-annotations.js?v=b8ec1556"></script>
 <script src="gw-feature-gen.js?v=8f0c2a71"></script>
 <script src="gw-subhex-atlas.js?v=886a2839"></script>
-<script src="gw-subhex-tile-renderer.js?v=92e11b04"></script>
+<script src="gw-subhex-tile-renderer.js?v=80102d79"></script>
 <script src="gw-stock.js?v=70096b9e"></script>
 <script src="gw-mp-bestiary.js?v=2f52209d"></script>
 <script src="gw-mp-export.js?v=11e02ff3"></script>
@@ -116,7 +116,7 @@
 
 <div id="topbar">
   <h1>GAMMA WORLD — Campaign Map</h1>
-  <span class="ver">v0.58.1</span>
+  <span class="ver">v0.58.2</span>
   <span class="sep"></span>
   <button id="btn-reset">Fit View</button>
   <span class="spacer"></span>
@@ -230,26 +230,26 @@
 <script src="gcc-sync.js?v=42e069bc"></script>
 <script src="gcc-invite.js?v=83e3f477"></script>
 <script src="gw-map-sync.js?v=25928c00"></script>
-<script src="gw-subhex-view.js?v=0a4d7c31"></script>
+<script src="gw-subhex-view.js?v=67bb2148"></script>
 <script>
 'use strict';
 
 // ─── Terrain layer ───────────────────────────────────────────────────────────
 const TERRAIN_COLOR = {
-  water:            '#72a3c8',
-  coast:            '#9cb87a',
-  plains:           '#e6b04e',
-  desert:           '#eaca44',
-  hills:            '#b58a52',
-  marsh:            '#4e8b78',
-  'forested-hill':  '#7d8a46',
-  'forested-mountains': '#566b3e',
-  forest:           '#76b057',
-  'heavy-forest':   '#28644f',
-  mountains:        '#6e5046',
-  'snow-mountains': '#dcd7d7',
+  water:            '#5b93c6',
+  coast:            '#b6b77b',
+  plains:           '#c9b65f',
+  desert:           '#d8a84e',
+  hills:            '#c18f59',
+  marsh:            '#3a7f6f',
+  'forested-hill':  '#8b9a4e',
+  'forested-mountains': '#49593c',
+  forest:           '#5fb24b',
+  'heavy-forest':   '#19533f',
+  mountains:        '#6b4a3e',
+  'snow-mountains': '#e2e1e6',
   deathlands:       '#d291a0',
-  ruins:            '#a8576b',  // not auto-detected; manually assignable
+  ruins:            '#9b5540',  // not auto-detected; manually assignable
   unknown:          '#3c3c3c',
 };
 

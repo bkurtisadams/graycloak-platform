@@ -1,4 +1,7 @@
-// gw-subhex-data.js v0.6.0 — 2026-05-25 (add hills, marsh, forested-hill/mtn, coast; monastery + installation kinds)
+// gw-subhex-data.js v0.6.1 — 2026-07-11
+// v0.6.1 — revise terrain colors for stronger at-a-glance separation between
+//          plains/desert, wooded elevations, coast, marsh, and ruins.
+// v0.6.0 — 2026-05-25 (add hills, marsh, forested-hill/mtn, coast; monastery + installation kinds)
 // Gamma World 3-mile subhex data layer. LocalStorage-backed port of
 // gcc-subhex-data.js: keeps the flat-top odd-q axial/ownership engine,
 // the seeded procedural-terrain generator, and the per-cell override +
@@ -32,19 +35,19 @@
 
   // GW terrain set (mirrors gw-map.html TERRAIN_COLOR keys).
   const TERRAIN = {
-    water:            { label: 'Water',          fill: '#72a3c8' },
-    coast:            { label: 'Coast',          fill: '#9cb87a' },
-    plains:           { label: 'Plains',         fill: '#e6b04e' },
-    desert:           { label: 'Desert',         fill: '#eaca44' },
-    hills:            { label: 'Hills',          fill: '#b58a52' },
-    marsh:            { label: 'Marsh',          fill: '#4e8b78' },
-    forest:           { label: 'Forest',         fill: '#76b057' },
-    'heavy-forest':   { label: 'Heavy forest',   fill: '#28644f' },
-    'forested-hill':  { label: 'Forested hill',  fill: '#7d8a46' },
-    'forested-mountains': { label: 'Forested mtn', fill: '#566b3e' },
-    mountains:        { label: 'Mountains',      fill: '#6e5046' },
-    'snow-mountains': { label: 'Snow mountains', fill: '#dcd7d7' },
-    ruins:            { label: 'Ruins',          fill: '#a8576b' },
+    water:            { label: 'Water',          fill: '#5b93c6' },
+    coast:            { label: 'Coast',          fill: '#b6b77b' },
+    plains:           { label: 'Plains',         fill: '#c9b65f' },
+    desert:           { label: 'Desert',         fill: '#d8a84e' },
+    hills:            { label: 'Hills',          fill: '#c18f59' },
+    marsh:            { label: 'Marsh',          fill: '#3a7f6f' },
+    forest:           { label: 'Forest',         fill: '#5fb24b' },
+    'heavy-forest':   { label: 'Heavy forest',   fill: '#19533f' },
+    'forested-hill':  { label: 'Forested hill',  fill: '#8b9a4e' },
+    'forested-mountains': { label: 'Forested mtn', fill: '#49593c' },
+    mountains:        { label: 'Mountains',      fill: '#6b4a3e' },
+    'snow-mountains': { label: 'Snow mountains', fill: '#e2e1e6' },
+    ruins:            { label: 'Ruins',          fill: '#9b5540' },
     unknown:          { label: 'Unknown',        fill: '#3c3c3c' },
   };
 

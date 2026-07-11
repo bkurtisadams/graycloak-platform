@@ -1,4 +1,5 @@
-// gw-subhex-tile-renderer.js v0.1.6 — 2026-07-11
+// gw-subhex-tile-renderer.js v0.1.7 — 2026-07-11
+// v0.1.7 — sync fallback terrain colors to the revised high-contrast palette.
 // v0.1.6 — strengthen feature-label legibility with a solid rounded black
 //          outline in rendered tile previews.
 // v0.1.5 — batch cell fills by terrain color and the grid into single paths
@@ -22,16 +23,16 @@
 (function(){
   'use strict';
 
-  const RENDERER_VERSION = '0.1.6';
+  const RENDERER_VERSION = '0.1.7';
   const DEFAULT_SIZE = 1024;
   const DEFAULT_PADDING_WORLD = 1.2;
   const SQRT3 = Math.sqrt(3);
 
   const FALLBACK_TERRAIN = {
-    water: '#72a3c8', coast: '#9cb87a', plains: '#e6b04e', desert: '#eaca44',
-    hills: '#b58a52', marsh: '#4e8b78', forest: '#76b057', 'heavy-forest': '#28644f',
-    'forested-hill': '#7d8a46', 'forested-mountains': '#566b3e', mountains: '#6e5046',
-    'snow-mountains': '#dcd7d7', ruins: '#a8576b', unknown: '#3c3c3c',
+    water: '#5b93c6', coast: '#b6b77b', plains: '#c9b65f', desert: '#d8a84e',
+    hills: '#c18f59', marsh: '#3a7f6f', forest: '#5fb24b', 'heavy-forest': '#19533f',
+    'forested-hill': '#8b9a4e', 'forested-mountains': '#49593c', mountains: '#6b4a3e',
+    'snow-mountains': '#e2e1e6', ruins: '#9b5540', unknown: '#3c3c3c',
   };
 
   const STROKE = {
