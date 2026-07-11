@@ -1,4 +1,8 @@
-// gw-subhex-view.js v0.47.0 — 2026-07-11
+// gw-subhex-view.js v0.47.1 — 2026-07-11
+// v0.47.1 — stop hidden tools when changing primary or secondary Tools tabs.
+//           Switching away from Lines now commits a valid road/path edit (or
+//           restores/discards an invalid one), disarms the tool, closes feature
+//           editing, and returns the map to Select / pan mode.
 // v0.47.0 — redesign the Tools palette as a wider, persistent tabbed panel:
 //           320px default width, remembered size, pinned header/status, Build
 //           subtabs (Terrain / Lines / Sites), Play subtabs (Party / Time /
@@ -647,7 +651,7 @@
     row.append(minus, lbl, plus);
     return row;
   }
-  function makeToolArea(group, defs){
+  function makeToolArea(group, defs, onBeforeChange){
     const root = document.createElement('div'); root.className = 'sx-toolarea';
     const tabs = document.createElement('div'); tabs.className = 'sx-subtabs cols-' + defs.length;
     const body = document.createElement('div'); body.className = 'sx-tabbody';
@@ -660,8 +664,13 @@
       buttons[def.key] = b; panes[def.key] = pane;
       tabs.appendChild(b); body.appendChild(pane);
     }
+    let activeKey = null;
     function select(key){
       if (!panes[key]) key = defs[0].key;
+      if (activeKey && activeKey !== key && typeof onBeforeChange === 'function'){
+        onBeforeChange({ group, from: activeKey, to: key });
+      }
+      activeKey = key;
       Object.keys(panes).forEach(k => panes[k].classList.toggle('active', k === key));
       Object.keys(buttons).forEach(k => buttons[k].classList.toggle('active', k === key));
       saveSubtab(group, key);
@@ -721,22 +730,26 @@
       { key:'terrain', label:'⛰ Terrain' },
       { key:'lines',   label:'≋ Lines' },
       { key:'sites',   label:'♜ Sites' },
-    ]);
+    ], deactivateToolForNavigation);
     const playArea = makeToolArea('play', [
       { key:'party',      label:'📍 Party' },
       { key:'time',       label:'◷ Time' },
       { key:'encounters', label:'🎲 Encounters' },
-    ]);
+    ], deactivateToolForNavigation);
     buildPanel.appendChild(buildArea.root);
     playPanel.appendChild(playArea.root);
 
+    let activePrimaryTab = null;
     function setTab(which){
       const play = which === 'play';
+      const next = play ? 'play' : 'build';
+      if (activePrimaryTab && activePrimaryTab !== next) deactivateToolForNavigation();
+      activePrimaryTab = next;
       buildPanel.style.display = play ? 'none' : 'flex';
       playPanel.style.display  = play ? 'flex' : 'none';
       buildTabBtn.classList.toggle('active', !play);
       playTabBtn.classList.toggle('active', play);
-      saveTab(play ? 'play' : 'build');
+      saveTab(next);
     }
     buildTabBtn.addEventListener('click', () => setTab('build'));
     playTabBtn.addEventListener('click', () => setTab('play'));
@@ -2526,6 +2539,20 @@
     if (a.type === 'party-move') return 'party-move';
     return null;
   }
+  function deactivateToolForNavigation(){
+    // A hidden authoring/play tool must never keep consuming map clicks.
+    // Match normal tool switching: commit valid work, but restore/discard an
+    // invalid spline so changing tabs cannot accidentally delete a road.
+    if (state.stroke) commitStroke();
+    if (state.editor){
+      if (state.editor.pts.length >= 2) finishEditor();
+      else cancelEditor();
+    }
+    closeMarkerEditor();
+    state.armed = null;
+    syncPalette();
+    syncMode();
+  }
   function arm(spec){
     if (state.editor) finishEditor();
     closeMarkerEditor();
@@ -2634,5 +2661,5 @@
   function currentParent(){ return state.curParent || null; }
 
   window.GWSubhexView = { open, close, isOpen, currentParent, render, centerOn, zoomTo, rebuildRasterTiles };
-  try { console.log('[gw-subhex-view] v0.47.0 loaded'); } catch(_){}
+  try { console.log('[gw-subhex-view] v0.47.1 loaded'); } catch(_){}
 })();
