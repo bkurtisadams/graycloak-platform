@@ -1,4 +1,7 @@
-// gw-subhex-view.js v0.46.2 — 2026-07-08
+// gw-subhex-view.js v0.46.3 — 2026-07-11
+// v0.46.3 — add a persistent Notes textarea to the feature editor. Marker
+//           notes are stored through GWAnnotations and survive authored-data
+//           export while remaining out of player-safe map publishing.
 // v0.46.2 — fix hover/click drift after the svg aspect changes while the view
 //           is open (window resize, devtools dock): clientToWorld now maps
 //           through getScreenCTM(), exact under any letterboxing, and a
@@ -340,7 +343,10 @@
       #gw-sx-medit .sx-med-h { font-family:'Cinzel',serif; font-size:10px; letter-spacing:.1em; color:#ffce9e; margin-bottom:7px; }
       #gw-sx-medit .sx-med-row { display:flex; align-items:center; gap:7px; margin-bottom:6px; }
       #gw-sx-medit .sx-med-row span { font-size:11px; color:#cbb088; min-width:34px; }
-      #gw-sx-medit .sx-med-row input, #gw-sx-medit .sx-med-row select { flex:1; background:#1a1206; border:1px solid #5a3a0a; border-radius:2px; color:#f0e0c0; padding:3px 5px; font-size:12px; font-family:inherit; }
+      #gw-sx-medit .sx-med-row input, #gw-sx-medit .sx-med-row select, #gw-sx-medit .sx-med-row textarea { flex:1; min-width:0; background:#1a1206; border:1px solid #5a3a0a; border-radius:2px; color:#f0e0c0; padding:3px 5px; font-size:12px; font-family:inherit; }
+      #gw-sx-medit .sx-med-notes { align-items:flex-start; }
+      #gw-sx-medit .sx-med-notes span { padding-top:4px; }
+      #gw-sx-medit .sx-med-row textarea { min-height:66px; resize:vertical; line-height:1.3; }
       #gw-sx-medit .sx-med-btns { display:flex; gap:6px; margin-top:2px; }
       #gw-sx-medit .sx-med-btns button { flex:1; cursor:pointer; background:rgba(255,136,68,.12); color:#ffce9e; border:1px solid #5a3a0a; border-radius:2px; padding:5px 4px; font-size:11px; font-family:'Crimson Text',serif; }
       #gw-sx-medit .sx-med-btns button:hover { background:rgba(255,136,68,.24); border-color:#ff8844; }
@@ -1195,6 +1201,7 @@
       '<div class="sx-med-h">EDIT FEATURE</div>' +
       '<div class="sx-med-row"><span>Name</span><input id="gw-sx-med-name" type="text" placeholder="(unnamed)"></div>' +
       '<div class="sx-med-row"><span>Type</span><select id="gw-sx-med-kind">' + kindOpts + '</select></div>' +
+      '<div class="sx-med-row sx-med-notes"><span>Notes</span><textarea id="gw-sx-med-notes" rows=4 placeholder="Site details, clues, inhabitants, or GM notes"></textarea></div>' +
       '<div class="sx-med-row"><span>Hidden</span><label style="flex:1;display:flex;align-items:center;gap:6px;font-size:11px;color:#cbb088;cursor:pointer"><input id="gw-sx-med-hidden" type="checkbox"> Hide from players</label></div>' +
       '<div class="sx-med-btns"><button id="gw-sx-med-del">🗑 Delete</button><button id="gw-sx-med-done">✓ Done</button></div>' +
       '<div id="gw-sx-med-dossier" class="sx-dos"></div>' +
@@ -1214,11 +1221,13 @@
       medit: med,
       medName: med.querySelector('#gw-sx-med-name'),
       medKind: med.querySelector('#gw-sx-med-kind'),
+      medNotes: med.querySelector('#gw-sx-med-notes'),
       medDossier: med.querySelector('#gw-sx-med-dossier'),
       medHidden: med.querySelector('#gw-sx-med-hidden'),
       palette,
     });
     state.el.medName.addEventListener('input', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { name: state.el.medName.value }); renderAnnotations(); renderDossier(); } });
+    state.el.medNotes.addEventListener('input', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { notes: state.el.medNotes.value }); } });
     state.el.medKind.addEventListener('change', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { kind: state.el.medKind.value }); renderAnnotations(); renderDossier(); } });
     state.el.medHidden.addEventListener('change', () => { if (state.markerSel){ A().updateMarker(state.markerSel, { hidden: state.el.medHidden.checked }); renderAnnotations(); } });
     med.querySelector('#gw-sx-med-del').addEventListener('click', () => { if (state.markerSel){ A().deleteMarker(state.markerSel); closeMarkerEditor(); renderAnnotations(); } });
@@ -2339,6 +2348,7 @@
     state.markerSel = id;
     state.el.medName.value = m.name || '';
     state.el.medKind.value = m.kind;
+    state.el.medNotes.value = m.notes || '';
     state.el.medHidden.checked = !!m.hidden;
     state.el.medit.classList.add('show');
     renderDossier();

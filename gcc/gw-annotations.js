@@ -1,4 +1,6 @@
-// gw-annotations.js v0.6.0 — 2026-07-07
+// gw-annotations.js v0.7.0 — 2026-07-11
+// v0.7.0 — marker notes metadata for feature-editor persistence and authored
+//          export; notes are omitted from the player-safe publish payload.
 // v0.6.0 — ancient-road stroke kind with condition metadata for the
 //          Gamma World atlas/tile pipeline and editor persistence.
 // v0.5.0 — `hidden` flag on markers/strokes (GM-only features kept off the
@@ -117,6 +119,7 @@
     const k = MARKER_KINDS.includes(kind) ? kind : 'landmark';
     const m = { id: uid('m'), kind: k, x: +x, y: +y };
     if (opts && opts.name && String(opts.name).trim()) m.name = String(opts.name).trim();
+    if (opts && opts.notes && String(opts.notes).trim()) m.notes = String(opts.notes).trim();
     if (opts && opts.gen) m.gen = true;
     if (opts && opts.parent) m.parent = String(opts.parent);
     if (opts && opts.hidden) m.hidden = true;
@@ -131,6 +134,7 @@
     if ('y' in fields) m.y = +fields.y;
     if ('kind' in fields && MARKER_KINDS.includes(fields.kind)) m.kind = fields.kind;
     if ('name' in fields){ const n = String(fields.name || '').trim(); if (n) m.name = n; else delete m.name; }
+    if ('notes' in fields){ const n = String(fields.notes || '').trim(); if (n) m.notes = n; else delete m.notes; }
     if ('hidden' in fields){ if (fields.hidden) m.hidden = true; else delete m.hidden; }
     save(); emit('marker-update');
     return true;
@@ -169,7 +173,11 @@
     return {
       v: DB.v,
       strokes: DB.strokes.filter(s => !s.hidden),
-      markers: DB.markers.filter(m => !m.hidden),
+      markers: DB.markers.filter(m => !m.hidden).map(m => {
+        const safe = Object.assign({}, m);
+        delete safe.notes;
+        return safe;
+      }),
     };
   }
 
@@ -179,5 +187,5 @@
     addMarker, updateMarker, deleteMarker, listMarkers, markersInBbox,
     clearAll, clearGenerated, flush, save, exportSafe,
   };
-  try { console.log('[gw-annotations] v0.6.0 loaded', { strokes: DB.strokes.length, markers: DB.markers.length }); } catch(_){}
+  try { console.log('[gw-annotations] v0.7.0 loaded', { strokes: DB.strokes.length, markers: DB.markers.length }); } catch(_){}
 })();
