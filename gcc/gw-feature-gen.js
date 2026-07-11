@@ -1,4 +1,10 @@
-// gw-feature-gen.js v0.7.0 — 2026-07-07
+// gw-feature-gen.js v0.8.0 — 2026-07-11
+// v0.8.0 — diversify generated site names: lairs now draw from eight distinct
+//          naming families (terrain, relic infrastructure, omens, brood names,
+//          possessives, under-sites, and coded habitats) instead of the dominant
+//          adjective + hole-synonym pattern. Ruins gain facility/district forms,
+//          and each parent generation rejects duplicate names and repeated lair
+//          tail words while remaining deterministic.
 // v0.7.0 — add side-effect-free planForParent() so the full-world
 //          subhex atlas/tile renderer can read deterministic generated
 //          markers and paths without writing to the annotation store.
@@ -114,7 +120,7 @@
       for (const c of cand){
         if (ok && !ok(c)) continue;
         if (tooClose(c.x, c.y, kind, placed)) continue;
-        placed.push({ Q: c.Q, R: c.R, x: c.x, y: c.y, kind });
+        placed.push({ Q: c.Q, R: c.R, x: c.x, y: c.y, kind, terrain: c.terr, hazard: c.haz });
         return true;
       }
       return false;
@@ -125,10 +131,13 @@
   }
 
   // ── procedural site names ───────────────────────────────────────────────
-  // Deterministic per location+kind (own seed stream, independent of placement
-  // and road RNG), so re-generating a parent yields the same names and a given
-  // site keeps its name. Gamma-World-flavored: corrupted Ancient city names,
-  // scavenger compounds, ominous lairs, and tech designations for robot sites.
+  // Deterministic per location+kind. The name stream is independent of feature
+  // placement and road RNG, so re-generating a parent yields stable names.
+  //
+  // v0.8 deliberately avoids one dominant "adjective + den synonym" funnel.
+  // Lairs rotate through several different grammatical families, and the parent
+  // planner retries deterministic variants to prevent exact duplicates and a
+  // cluster of names ending in the same word.
   const NM = {
     pre:  ['Dust','Ash','Rust','Salt','Cinder','Ember','Bone','Mud','Stone','Iron','Glass','Tar','Scrap','Husk','Grey','Pale','Bitter','Hollow','Thorn','Briar','Gloom','Murk','Cold','Drift','Crag','Sump','Slag','Char','Bramble','Flint','Reed','Fen','Moss','Pine','Oak','Elder','Hazel','Stag','Wolf','Raven','Fox','Bear','Hawk','Spire','Quarry','Soot','Smoke','Brine','Grist','Forge','Copper','Tin','Cobalt','Marrow','Sallow','Tallow','Wither','Lone','Weary'],
     suf:  ['ford','well','haven','hold','reach','fall','bend','crossing','gate','mire','hollow','ridge','stead','watch','end','row','burg','market','mill','forge','bridge','dale','moor','shore','point','cliff','rest','gulch','spring','wash','flat','bluff','post','ton','vale'],
@@ -136,40 +145,92 @@
     person:['Kael','Vorn','Hale','Mara','Sef','Dorn','Bex','Tam','Rue','Goll','Vance','Yara','Cray','Soll','Nix','Wren','Juno','Hask','Orly','Pell','Sable','Tace','Vell','Quill'],
     feat: ['Rest','Crossing','Landing','Camp','Hold','Wells','Reach','Ferry','Stand','Run','Folly','Refuge','Outpost','Watch','Claim','Roost','Bluff','Hollow','Bend','Spring'],
     city: ['Nuyok','Filade','Bostodge','Chigo','Ditroyt','Atlana','Memfis','Denva','Seatle','Portlan','Sanfran','Vegath','Dallax','Hewston','Pheonx','Baltmor','Klevlan','Pittsburk','Sin Loose','Noo Leans','Saint Loo','Cleve','Tampah','Orlann','Tuscon','Albukirk','Witcha','Omahaw','Tolido','Akrun','Renoh','Fresna','Spokan','Boysee','Helna','Fargoh','Duluth','Topeeka','Lubbok','Amrillo','Cheyen','Yuman','Tempeh'],
-    rAdj: ['Shattered','Sunken','Glassed','Silent','Forgotten','Toppled','Hollow','Bleached','Burnt','Drowned','Buried','Cracked','Fallen','Ashen','Vine-choked','Rusted'],
-    lAdj: ['Gnawed','Blood','Howling','Scaled','Rotting','Sunken','Broken','Whispering','Festering','Ashen','Venom','Ironclaw','Razor','Snarling','Tainted','Mottled','Hungering','Skittering','Brackish','Glistening','Withered','Bloated','Shrieking','Clotted'],
-    lDen: ['Warren','Den','Hollow','Pit','Burrow','Nest','Maw','Lair','Tangle','Hole','Roost','Hive','Sink','Mound','Gorge','Thicket'],
+
+    rAdj: ['Shattered','Sunken','Glassed','Silent','Forgotten','Toppled','Bleached','Burnt','Drowned','Buried','Cracked','Fallen','Ashen','Vine-choked','Rusted','Flooded','Leaning','Sealed','Overgrown','Wind-scoured'],
+    rForm:['Arcology','Towers','Concourse','Works','District','Causeway','Domes','Hab-Blocks','Exchange','Refinery','Campus','Terminal','Plant','Transit Yards','Skyway','Foundry','Reservoir','Pavilions','Ringway','Suburb'],
+    rFacility:['Research Annex','Municipal Works','Medical Center','Transit Hub','Power Station','Waterworks','Freight Terminal','Data Campus','Defense Complex','Agricultural Lab','Civic Center','Materials Plant','Communications Array','Weather Station','Reclamation Yard','Orbital Office'],
+
+    // Lair families. Complete or nearly complete phrases keep combinations
+    // evocative and grammatical instead of producing random adjective soup.
+    lMood:['Gnawed','Howling','Scaled','Rotting','Whispering','Festering','Ashen','Venomous','Snarling','Tainted','Mottled','Hungering','Skittering','Brackish','Glistening','Withered','Bloated','Shrieking','Clotted','Lightless','Breathing','Crawling','Warm','Watchful'],
+    lLand:['Cleft','Sink','Gully','Wash','Crag','Fen','Reedbed','Bluff','Thicket','Mound','Caverns','Scree','Ravine','Basin','Cut','Scar','Ditch','Gorge','Badlands','Tangle','Deep'],
+    lLandMarsh:['Reedbed','Mire','Fen','Sump','Backwater','Mudbank','Sink','Drowned Grove','Blackwater','Quagmire'],
+    lLandMountain:['Cleft','Crag','Scree','Ravine','Gorge','Fault','High Cut','Talus','Ice Caves','Wind Gap'],
+    lLandDesert:['Wash','Gully','Badlands','Dry Basin','Salt Cut','Dune Scar','Arroyo','Sunken Road','Dust Bowl','Mesa Caves'],
+    lLandForest:['Thicket','Rootmaze','Briar Tangle','Hollow Wood','Moss Cleft','Deadfall','Canopy Sink','Black Grove','Fern Deep','Rotwood'],
+    lLandRuin:['Service Level','Sub-Basement','Transit Cut','Utility Trench','Collapsed Deck','Access Shaft','Freight Crawl','Hab Tunnel','Drain Maze','Maintenance Ring'],
+    lEpithet:['Glasswing','Rustclaw','Bonejaw','Ashback','Mudspine','Wireworm','Sporemaw','Red-Eye','Pale Fang','Black Moth','Needleback','Brine Toad','Soot Leech','Cinder Rat','Moss Horn','Tar Eel','Split-Horn','White Mandible','Longjaw','Glowbelly','Iron Pincer','Grey Crawler','Blue Chitin','Softshell'],
+    lRelic:['Drainage Works','Cooling Tunnels','Service Shafts','Collapsed Interchange','Flooded Station','Buried Concourse','Old Quarry','Broken Aqueduct','Waste Sumps','Red Silo','Abandoned Waterworks','Dead Substation','Freight Tunnels','North Spillway','Dry Reservoir','Ventilation Plant','Storm Culverts','Lower Pump House','Cable Galleries','Reactor Outflow'],
+    lOmen:['Many Teeth','Red Eyes','Empty Skins','Soft Footsteps','Cold Breath','Bent Antennae','Falling Feathers','Chittering Dark','White Bones','Long Hunger','Thousand Legs','Last Howl','Moving Walls','Wet Wings','No Shadows','Second Footfall','Hollow Voices','Warm Stones'],
+    lClaim:['Camp','Claim','Blind','Refuge','Trap','Folly','Last Stand','Feeding Ground','Hunting Ground','Watch','Crawl','Bone Yard','Deadfall','Hideout','Old Claim'],
+    lCollective:['Brood','Pack','Swarm','Colony','Clutch','Choir','Host','Warren','Nest'],
+    lBrood:['Pale Wings','Red Eyes','Glass Teeth','Long Claws','Soft Feet','Black Moths','Wire Worms','Mud Toads','Ash Rats','Spore Hounds','Bone Ants','Needlebacks','Blind Eels','Iron Beetles','Glow Flies','White Mandibles'],
+    lCode:['Habitat','Specimen Zone','Containment Site','Bio-Enclosure','Fauna Annex','Exclusion Cell'],
+
     corp: ['Ankhar','Createk','Vortex','Apertia','Helix','Genus','Omnitech','Ryker','Delvan','Solcorp','Maxon','Cyberdyne','Valtec','Nyx','Orbix','Hadron'],
     fNam: ['Cinder','Vance','Holt','Kael','Drummond','Stark','Reyes','Vorn','Hale','Marsh','Cray','Sable','Orly','Pell'],
     fSuf: ['Bastion','Redoubt','Bunker','Bulwark','Keep','Hold'],
     grk:  ['Alpha','Beta','Gamma','Delta','Theta','Sigma','Omega','Kappa','Lambda','Zeta','Epsilon','Phi'],
   };
   const NAME_AZ = 'ABCDEFGHJKLMNPRSTVWXZ';
-  function nameFor(kind, Q, R){
+
+  function lairLandPool(terrain){
+    if (terrain === 'marsh' || terrain === 'coast') return NM.lLandMarsh;
+    if (terrain === 'mountains' || terrain === 'snow-mountains' || terrain === 'forested-mountains') return NM.lLandMountain;
+    if (terrain === 'desert') return NM.lLandDesert;
+    if (terrain === 'forest' || terrain === 'heavy-forest' || terrain === 'forested-hill') return NM.lLandForest;
+    if (terrain === 'ruins') return NM.lLandRuin;
+    return NM.lLand;
+  }
+
+  function nameFor(kind, Q, R, terrain, variant){
     const G = window.GCCRng;
-    const rng = G.mulberry32(G.seedFor(WORLD_SEED, 'name', kind, Q, R));
+    const v = Number.isFinite(+variant) ? +variant : 0;
+    const rng = G.mulberry32(G.seedFor(WORLD_SEED, 'name-v2', kind, Q, R, terrain || '', v));
     const pick = a => a[Math.floor(rng() * a.length)];
     const compound = () => pick(NM.pre) + pick(NM.suf);
     const settle = () => { const r = rng();
-      if (r < 0.18) return pick(NM.person) + "'s " + pick(NM.feat);   // possessive
-      if (r < 0.34) return pick(NM.qual) + ' ' + compound();           // qualified compound
+      if (r < 0.16) return pick(NM.person) + "'s " + pick(NM.feat);
+      if (r < 0.30) return pick(NM.qual) + ' ' + compound();
+      if (r < 0.38) return pick(NM.city) + ' Reach';
       return compound(); };
-    // coded designations: derive the number/letter from the site's own (Q,R),
-    // independent of the rng stream, so two coded sites rarely collide.
-    const num3 = () => ((((Q * 73856093) ^ (R * 19349663)) >>> 0) % 900) + 100;
-    const lett = () => NAME_AZ[(((Q * 40503) ^ (R * 12289)) >>> 0) % NAME_AZ.length];
+
+    // Coded designations derive from coordinates plus the deterministic retry
+    // variant, so a rejected duplicate can produce a genuinely different code.
+    const salt = (v + 1) * 83492791;
+    const num3 = () => (((((Q * 73856093) ^ (R * 19349663) ^ salt) >>> 0) % 900) + 100);
+    const lett = () => NAME_AZ[(((Q * 40503) ^ (R * 12289) ^ salt) >>> 0) % NAME_AZ.length];
+
     switch (kind){
       case 'village':
       case 'town':
       case 'city': return settle();
+
       case 'ruin': { const r = rng();
-        if (r < 0.34) return 'Ruins of ' + compound();                  // huge space
-        if (r < 0.52) return 'Ruins of ' + pick(NM.city);               // corrupted Ancient city (flavor)
-        if (r < 0.76) return pick(NM.qual) + ' ' + compound();          // "Lost Rustford"
-        return 'The ' + pick(NM.rAdj) + ' Ruins'; }
-      case 'lair': { const r = rng();
-        if (r < 0.7) return 'The ' + pick(NM.lAdj) + ' ' + pick(NM.lDen);
-        return pick(NM.person) + "'s " + pick(NM.lDen); }                // "Goll's Warren"
+        if (r < 0.24) return 'Ruins of ' + compound();
+        if (r < 0.40) return 'Ruins of ' + pick(NM.city);
+        if (r < 0.58) return 'The ' + pick(NM.rAdj) + ' ' + pick(NM.rForm);
+        if (r < 0.74) return pick(NM.corp) + ' ' + pick(NM.rFacility);
+        if (r < 0.88) return pick(NM.qual) + ' ' + pick(NM.rFacility);
+        return pick(NM.city) + ' ' + pick(NM.rForm); }
+
+      case 'lair': {
+        const land = lairLandPool(terrain);
+        // A coordinate-seeded local place-name gives every prose family a much
+        // larger identity space without falling back to visible hex numbers.
+        const anchor = (rng() < 0.22 ? pick(NM.qual) + ' ' : '') + compound();
+        // Eight roughly even families. No family dominates the map.
+        switch (Math.floor(rng() * 8)){
+          case 0: return 'The ' + pick(NM.lMood) + ' ' + pick(land) + ' of ' + anchor;
+          case 1: return pick(NM.lEpithet) + ' ' + pick(land) + ' at ' + anchor;
+          case 2: return anchor + ' ' + pick(NM.lRelic);
+          case 3: return 'The ' + pick(NM.lOmen) + ' at ' + anchor;
+          case 4: return pick(NM.person) + "'s " + pick(NM.lClaim) + ' at ' + anchor;
+          case 5: return 'The ' + pick(NM.lBrood) + ' of ' + anchor;
+          case 6: return 'Beneath ' + anchor;
+          default:return pick(NM.lCode) + ' ' + lett() + '-' + num3();
+        } }
+
       case 'vault':         return 'Vault ' + lett() + '-' + num3();
       case 'robot-farm':    return rng() < 0.5 ? 'Mech-Land ' + num3() : 'Agri-Complex ' + pick(NM.grk) + '-' + num3();
       case 'fortification': { const r = rng();
@@ -187,6 +248,44 @@
         return 'The ' + pick(NM.rAdj) + ' Cloister'; }
       default: return compound();
     }
+  }
+
+  function normalizedName(s){
+    return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+  function finalWord(s){
+    const a = normalizedName(s).split(/\s+/).filter(Boolean);
+    return a.length ? a[a.length - 1] : '';
+  }
+
+  // Assign names as a group so one parent cannot generate duplicate labels or
+  // five neighboring lairs all ending in "Pit". Retries are deterministic and
+  // therefore safe for atlas previews and repeat generation.
+  function assignGeneratedNames(placed, parentTerrain){
+    const used = new Set();
+    const lairTails = new Map();
+    return placed.map(p => {
+      const terrain = p.terrain || parentTerrain || 'unknown';
+      let chosen = '';
+      let chosenTail = '';
+      for (let variant = 0; variant < 24; variant++){
+        const candidate = nameFor(p.kind, p.Q, p.R, terrain, variant);
+        const key = normalizedName(candidate);
+        const tail = p.kind === 'lair' ? finalWord(candidate) : '';
+        const repeatedTail = tail && (lairTails.get(tail) || 0) > 0;
+        if (!used.has(key) && !repeatedTail){ chosen = candidate; chosenTail = tail; break; }
+        // Exact uniqueness remains mandatory. After many retries, permit a
+        // repeated final word rather than falling back to coordinate gibberish.
+        if (variant >= 16 && !used.has(key)){ chosen = candidate; chosenTail = tail; break; }
+      }
+      if (!chosen) chosen = nameFor(p.kind, p.Q, p.R, terrain, 97);
+      used.add(normalizedName(chosen));
+      if (p.kind === 'lair'){
+        chosenTail = chosenTail || finalWord(chosen);
+        if (chosenTail) lairTails.set(chosenTail, (lairTails.get(chosenTail) || 0) + 1);
+      }
+      return chosen;
+    });
   }
 
   function planForParent(col, row){
@@ -213,13 +312,14 @@
       if (!kind) continue;
       const ctr = D.subhexSvgCenter(c.Q, c.R);
       if (tooClose(ctr.x, ctr.y, kind, placed)) continue;
-      placed.push({ Q: c.Q, R: c.R, x: ctr.x, y: ctr.y, kind });
+      placed.push({ Q: c.Q, R: c.R, x: ctr.x, y: ctr.y, kind, terrain: sub.terrain, hazard: sub.hazard });
     }
     placeRareSites(D, R, cells, pt, placed, col, row);   // top-down: robot farms / forts / spaceports
 
-    const markers = placed.map(p => ({
+    const generatedNames = assignGeneratedNames(placed, pt);
+    const markers = placed.map((p, i) => ({
       kind: p.kind, x: p.x, y: p.y,
-      gen: true, parent: pk, name: nameFor(p.kind, p.Q, p.R),
+      gen: true, parent: pk, name: generatedNames[i],
       Q: p.Q, R: p.R,
     }));
     const strokes = [];
@@ -269,5 +369,5 @@
   }
 
   window.GWFeatureGen = { planForParent, generateForParent, clearForParent, FEATURE_RATES };
-  try { console.log('[gw-feature-gen] v0.7.0 loaded'); } catch(_){}
+  try { console.log('[gw-feature-gen] v0.8.0 loaded'); } catch(_){}
 })();
