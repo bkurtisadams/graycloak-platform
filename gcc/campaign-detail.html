@@ -210,6 +210,9 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .lore-actions{display:flex;gap:6px;position:absolute;top:8px;right:8px;opacity:0;transition:opacity .1s}
 .lore-card:hover .lore-actions{opacity:1}
 .lore-thumb{width:64px;height:64px;border-radius:3px;border:1px solid var(--brd);object-fit:contain;float:right;margin:0 0 4px 8px;background:transparent}
+.lore-thumb.size-medium{width:128px;height:128px}
+.lore-thumb.size-large{display:block;float:none;width:100%;height:auto;max-height:360px;object-fit:contain;margin:0 0 8px;background:var(--bg2)}
+.lore-card::after{content:'';display:table;clear:both}
 /* GM-only lore entries (hidden from players) */
 .lore-card[data-gm-only]{border-color:rgba(208,72,72,0.45);background:linear-gradient(90deg,rgba(208,72,72,0.06),transparent 60%)}
 .lore-card[data-gm-only]:hover{border-color:rgba(208,72,72,0.6)}
@@ -931,7 +934,9 @@ async function render(){
     sessions.forEach(s=>{if(s.type!=='timeline')realNum++;if((s.tags||[]).some(t=>t.name===l.name))mentions.push(s.type==='timeline'?'Timeline':`${sesLbl} #${realNum}`)});
     const refsText=mentions.join(', ');
     const loreSrc=resolveImg(l.image,imgMap);
-    const loreImgHtml=loreSrc?`<img class="lore-thumb" src="${loreSrc}" alt="">`:'';
+    const imageSize=['medium','large'].includes(l.imageSize)?l.imageSize:'icon';
+    const sizeClass=imageSize==='icon'?'':` size-${imageSize}`;
+    const loreImgHtml=loreSrc?`<img class="lore-thumb${sizeClass}" src="${loreSrc}" alt="">`:'';
     const gmBadge=(!pm_&&l.gmOnly)?'<span class="lore-gm-badge">🔒 GM ONLY</span>':'';
     const gmNotesHtml=(!pm_&&l.gmNotes)?`<div class="lore-gm-notes"><span class="lore-gm-notes-hdr">🔒 GM ONLY</span>${ESC(l.gmNotes)}</div>`:'';
     loreHtml+=`<div class="lore-card" data-lore-type="${ESC(l.type)}"${l.gmOnly?' data-gm-only="1"':''}>${pm_?'':`<div class="lore-actions"><button class="session-action-btn" data-lore-edit="${origIdx}">Edit</button><button class="session-action-btn danger" data-lore-del="${origIdx}">Del</button></div>`}${loreImgHtml}<div class="lore-type-label">${ESC(typeLabel)}</div><div class="lore-name">${ESC(l.name)}${gmBadge}</div>${l.desc?`<div class="lore-desc">${ESC(l.desc)}</div>`:''}${gmNotesHtml}${refsText?`<div class="lore-refs">${ESC(refsText)}</div>`:''}</div>`;
@@ -1738,12 +1743,14 @@ sesModal.addEventListener('click',e=>{if(e.target===sesModal)closeSessionModal()
 
 // ═══ LORE MODAL ═══
 const loreModal=document.getElementById('lore-modal');let loreEditIdx=-1,loreImageData='';
-function captureLoreFields(){return{type:document.getElementById('lm-type')?.value||'npc',subtype:document.getElementById('lm-subtype')?.value||'',name:document.getElementById('lm-name')?.value||'',desc:document.getElementById('lm-desc')?.value||'',gmNotes:document.getElementById('lm-gmnotes')?.value||'',gmOnly:!!document.getElementById('lm-gmonly')?.checked}}
-function restoreLoreFields(v){if(!v)return;const f=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val||''};f('lm-subtype',v.subtype);f('lm-name',v.name);f('lm-desc',v.desc);f('lm-gmnotes',v.gmNotes);const sel=document.getElementById('lm-type');if(sel)sel.value=v.type||'npc';const gm=document.getElementById('lm-gmonly');if(gm)gm.checked=!!v.gmOnly}
+function captureLoreFields(){return{type:document.getElementById('lm-type')?.value||'npc',subtype:document.getElementById('lm-subtype')?.value||'',name:document.getElementById('lm-name')?.value||'',desc:document.getElementById('lm-desc')?.value||'',imageSize:document.getElementById('lm-image-size')?.value||'icon',gmNotes:document.getElementById('lm-gmnotes')?.value||'',gmOnly:!!document.getElementById('lm-gmonly')?.checked}}
+function restoreLoreFields(v){if(!v)return;const f=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val||''};f('lm-subtype',v.subtype);f('lm-name',v.name);f('lm-desc',v.desc);f('lm-image-size',v.imageSize||'icon');f('lm-gmnotes',v.gmNotes);const sel=document.getElementById('lm-type');if(sel)sel.value=v.type||'npc';const gm=document.getElementById('lm-gmonly');if(gm)gm.checked=!!v.gmOnly}
 function buildLoreModalBody(l){
   const typeOptions=GCC.LORE_TYPES.map(t=>`<option value="${t}"${l&&l.type===t?' selected':''}>${GCC.LORE_TYPE_LABELS[t]}</option>`).join('');
   const imgPreview=loreImageData?`<img class="gcc-dlg-img-preview" src="${loreImageData}">`:'';
-  return`<div class="gcc-dlg-row"><div><label class="gcc-dlg-label">TYPE</label><select class="gcc-dlg-select" id="lm-type">${typeOptions}</select></div><div><label class="gcc-dlg-label">SUBTYPE (optional)</label><input class="gcc-dlg-input" id="lm-subtype" placeholder="e.g. Villain, HQ Room" value="${l?ESC(l.subtype||''):''}"></div></div><label class="gcc-dlg-label">NAME</label><input class="gcc-dlg-input" id="lm-name" placeholder="e.g. Whiplash, ESU Campus" value="${l?ESC(l.name):''}"><label class="gcc-dlg-label">DESCRIPTION</label><textarea class="gcc-dlg-ta" id="lm-desc" rows="3" placeholder="Brief description...">${l?ESC(l.desc||''):''}</textarea><label class="gcc-dlg-label">IMAGE</label><div class="gcc-dlg-img-area" id="lm-img-area">${imgPreview}<div class="gcc-dlg-img-btns"><button class="gcc-dlg-img-btn" id="lm-img-upload">Upload</button><button class="gcc-dlg-img-btn" id="lm-img-paste">Paste</button>${loreImageData?'<button class="gcc-dlg-img-btn danger" id="lm-img-clear">Remove</button>':''}</div><input type="file" id="lm-img-file" accept="image/*" style="display:none"></div><div class="gcc-dlg-gmnotes"><label class="gcc-dlg-label" style="color:var(--red)">🔒 GM-ONLY NOTES<span class="gm-hint">Shown to you on this card but stripped from the players' view</span></label><textarea class="gcc-dlg-ta" id="lm-gmnotes" rows="3" placeholder="Secrets, true motives, plot hooks players shouldn't see...">${l?ESC(l.gmNotes||''):''}</textarea></div><label class="gcc-dlg-gmcheck"><input type="checkbox" id="lm-gmonly"${l&&l.gmOnly?' checked':''}> 🔒 Hide entire entry from players <span class="gm-hint">Whole card hidden, not just the notes</span></label>`;
+  const imageSize=l&&['medium','large'].includes(l.imageSize)?l.imageSize:'icon';
+  const sizeOptions=[['icon','Icon (64 px)'],['medium','Medium (128 px)'],['large','Large (full panel width)']].map(([v,label])=>`<option value="${v}"${imageSize===v?' selected':''}>${label}</option>`).join('');
+  return`<div class="gcc-dlg-row"><div><label class="gcc-dlg-label">TYPE</label><select class="gcc-dlg-select" id="lm-type">${typeOptions}</select></div><div><label class="gcc-dlg-label">SUBTYPE (optional)</label><input class="gcc-dlg-input" id="lm-subtype" placeholder="e.g. Villain, HQ Room" value="${l?ESC(l.subtype||''):''}"></div></div><label class="gcc-dlg-label">NAME</label><input class="gcc-dlg-input" id="lm-name" placeholder="e.g. Whiplash, ESU Campus" value="${l?ESC(l.name):''}"><label class="gcc-dlg-label">DESCRIPTION</label><textarea class="gcc-dlg-ta" id="lm-desc" rows="3" placeholder="Brief description...">${l?ESC(l.desc||''):''}</textarea><label class="gcc-dlg-label">IMAGE</label><div class="gcc-dlg-img-area" id="lm-img-area">${imgPreview}<div class="gcc-dlg-img-btns"><button class="gcc-dlg-img-btn" id="lm-img-upload">Upload</button><button class="gcc-dlg-img-btn" id="lm-img-paste">Paste</button>${loreImageData?'<button class="gcc-dlg-img-btn danger" id="lm-img-clear">Remove</button>':''}</div><input type="file" id="lm-img-file" accept="image/*" style="display:none"></div><label class="gcc-dlg-label">IMAGE SIZE</label><select class="gcc-dlg-select" id="lm-image-size">${sizeOptions}</select><div class="gcc-dlg-gmnotes"><label class="gcc-dlg-label" style="color:var(--red)">🔒 GM-ONLY NOTES<span class="gm-hint">Shown to you on this card but stripped from the players' view</span></label><textarea class="gcc-dlg-ta" id="lm-gmnotes" rows="3" placeholder="Secrets, true motives, plot hooks players shouldn't see...">${l?ESC(l.gmNotes||''):''}</textarea></div><label class="gcc-dlg-gmcheck"><input type="checkbox" id="lm-gmonly"${l&&l.gmOnly?' checked':''}> 🔒 Hide entire entry from players <span class="gm-hint">Whole card hidden, not just the notes</span></label>`;
 }
 function wireLoreModalEvents(){
   document.getElementById('lm-img-upload')?.addEventListener('click',()=>document.getElementById('lm-img-file').click());
@@ -1770,12 +1777,12 @@ function closeLoreModal(){loreModal.classList.remove('open');loreEditIdx=-1;lore
 document.getElementById('lm-save').addEventListener('click',async()=>{const camp=getCamp();if(!camp)return;const lore=camp.lore||[];
   let imageKey='';
   if(loreImageData){
-    const compressed=await new Promise(resolve=>compressImageData(loreImageData,400,resolve));
+    const compressed=await new Promise(resolve=>compressImageData(loreImageData,1200,resolve));
     imageKey=await GCCImages.store(compressed,'img_lore');
   } else if(loreEditIdx>=0&&lore[loreEditIdx]&&lore[loreEditIdx].image){
     // Image was removed — leave imageKey empty
   }
-  const entry={_id:(loreEditIdx>=0&&lore[loreEditIdx])?lore[loreEditIdx]._id:GCC.genId('lore'),type:document.getElementById('lm-type').value,subtype:document.getElementById('lm-subtype').value.trim(),name:document.getElementById('lm-name').value.trim()||'Unnamed',desc:document.getElementById('lm-desc').value.trim(),image:imageKey,gmNotes:document.getElementById('lm-gmnotes')?.value.trim()||'',gmOnly:!!document.getElementById('lm-gmonly')?.checked};
+  const entry={_id:(loreEditIdx>=0&&lore[loreEditIdx])?lore[loreEditIdx]._id:GCC.genId('lore'),type:document.getElementById('lm-type').value,subtype:document.getElementById('lm-subtype').value.trim(),name:document.getElementById('lm-name').value.trim()||'Unnamed',desc:document.getElementById('lm-desc').value.trim(),image:imageKey,imageSize:document.getElementById('lm-image-size')?.value||'icon',gmNotes:document.getElementById('lm-gmnotes')?.value.trim()||'',gmOnly:!!document.getElementById('lm-gmonly')?.checked};
   if(loreEditIdx>=0&&loreEditIdx<lore.length){lore[loreEditIdx]=entry}else{lore.push(entry)}
   GCC.updateCampaign(campId,{lore});closeLoreModal();render()});
 document.getElementById('lm-cancel').addEventListener('click',closeLoreModal);
