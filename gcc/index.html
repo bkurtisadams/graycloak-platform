@@ -1016,6 +1016,8 @@ const charsModal = document.getElementById('chars-modal');
 let charsCampId = '';
 let charsCampSystem = 'mp';
 let charsSelected = new Set(); // set of character names currently in team
+let charsPlayerAssigned = [];  // resolved player-assigned characters (Firestore)
+let charsPlayerKeys = new Set(); // _ids + lowercase names of player-assigned chars
 
 function openCharsModal(campId) {
   const camp = GCC.loadCampaigns().find(c => c.id === campId);
@@ -1038,11 +1040,43 @@ function openCharsModal(campId) {
     charsSelected.add(match ? (match._id || match.name) : (ch._id || ch.name));
   });
 
+  charsPlayerAssigned = [];
+  charsPlayerKeys = new Set();
   renderCharsPicker();
   charsModal.classList.add('open');
+  _loadPlayerAssigned(campId);
 }
 
 function closeCharsModal() { charsModal.classList.remove('open'); }
+
+// Fetch player-assigned characters so the picker can show them as locked/assigned
+async function _loadPlayerAssigned(campId) {
+  if (typeof GCCInvite === 'undefined' || !GCCAuth?.getUser()) return;
+  let players = [];
+  try { players = await GCCInvite.getPlayers(campId); } catch(e) { return; }
+  if (charsCampId !== campId) return;
+  const assigned = [];
+  const keys = new Set();
+  for (const p of players.filter(p => p.charId)) {
+    let ch = null;
+    try { ch = await GCCInvite.getPlayerCharacterWithFallback(campId, p.uid, p.listKey, p.charId); } catch(e) {}
+    if (charsCampId !== campId) return;
+    if (!ch) continue;
+    const r = _resolveChar(ch, charsCampSystem, p.listKey);
+    r.player = p.displayName || r.player || '';
+    assigned.push(r);
+    if (ch._id) keys.add(ch._id);
+    if (p.charId) keys.add(p.charId);
+    if (r.name) keys.add(r.name.trim().toLowerCase());
+  }
+  charsPlayerAssigned = assigned;
+  charsPlayerKeys = keys;
+  // Drop GM-ref selections that duplicate a player assignment
+  Array.from(charsSelected).forEach(k => {
+    if (charsPlayerKeys.has(k) || charsPlayerKeys.has(String(k).trim().toLowerCase())) charsSelected.delete(k);
+  });
+  renderCharsPicker();
+}
 
 function renderCharsPicker() {
   const picker = document.getElementById('chars-picker');
@@ -1063,10 +1097,12 @@ function renderCharsPicker() {
   const orphans = teamRefs.filter(ref => {
     if (ref._id && savedById[ref._id]) return false;
     if (ref.name && savedByName[ref.name]) return false;
+    if (ref._id && charsPlayerKeys.has(ref._id)) return false;
+    if (ref.name && charsPlayerKeys.has(ref.name.trim().toLowerCase())) return false;
     return true;
   });
 
-  if (!saved.length && !orphans.length) {
+  if (!saved.length && !orphans.length && !charsPlayerAssigned.length) {
     info.textContent = 'No saved characters for this system. Create and save characters in the character sheet first.';
     picker.innerHTML = '';
     return;
@@ -1074,6 +1110,25 @@ function renderCharsPicker() {
 
   info.textContent = 'Select characters to add to this campaign. Click to toggle.';
   let html = '';
+
+  // Player-assigned characters (via invite/Players tab) — shown locked, managed there
+  if (charsPlayerAssigned.length) {
+    html += '<div style="font-size:9px;color:var(--tx3);letter-spacing:1px;margin:6px 0 4px;font-family:var(--fsc)">ASSIGNED BY PLAYERS</div>';
+    charsPlayerAssigned.forEach(pc => {
+      const portraitHtml = pc.portrait
+        ? `<img class="cp-portrait" src="${pc.portrait}" alt="">`
+        : `<div class="cp-portrait-ph">?</div>`;
+      html += `<div class="chars-picker-item selected" style="opacity:.7;cursor:default" title="Managed on the campaign's Players tab">
+        <div class="chars-picker-check">✓</div>
+        ${portraitHtml}
+        <div class="cp-info">
+          <div class="cp-name">${ESC(pc.name)}</div>
+          <div class="cp-sub">${ESC(pc.sub || '')}</div>
+          <div class="cp-player">${pc.player ? ESC(pc.player) + ' · ' : ''}assigned via Players tab</div>
+        </div>
+      </div>`;
+    });
+  }
 
   // Render orphaned team members first with remove button
   if (orphans.length) {
@@ -1093,6 +1148,7 @@ function renderCharsPicker() {
 
   // Render saved characters with toggle
   html += saved.map((sc, i) => {
+    if ((sc._id && charsPlayerKeys.has(sc._id)) || (sc.name && charsPlayerKeys.has(sc.name.trim().toLowerCase()))) return '';
     const key = sc._id || sc.name;
     const sel = charsSelected.has(key);
     const portraitHtml = sc.portrait

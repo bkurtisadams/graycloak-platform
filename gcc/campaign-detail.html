@@ -729,6 +729,33 @@ function reconcileCharRefs(camp){
   return changed;
 }
 
+// Adopt characters assigned via the character sheet's Campaign button
+// (char._campaign===campId) into the roster refs — nothing else reads _campaign
+function adoptAssignedChars(camp){
+  if(!camp)return false;
+  const sys=GCC.SYSTEM_DEFS.find(s=>s.id===camp.system);
+  if(!sys)return false;
+  const refs=camp.characters=camp.characters||[];
+  const have=new Set();
+  refs.forEach(r=>{if(r._id)have.add('id:'+r._id);const nm=(r.name||'').trim().toLowerCase();if(nm)have.add('nm:'+nm)});
+  let changed=false;
+  (sys.tools||[]).forEach(t=>{
+    if(!t.charList)return;
+    let list;try{list=JSON.parse(localStorage.getItem(t.charList))||[]}catch(e){return}
+    list.forEach(ch=>{
+      if(ch._campaign!==camp.id)return;
+      const name=ch.heroName||ch.characterName||ch.name||'';
+      const nm=name.trim().toLowerCase();
+      if((ch._id&&have.has('id:'+ch._id))||(nm&&have.has('nm:'+nm)))return;
+      refs.push({name:name||'Unnamed',storageKey:t.charList,_id:ch._id||'',role:'pc'});
+      if(ch._id)have.add('id:'+ch._id);
+      if(nm)have.add('nm:'+nm);
+      changed=true;
+    });
+  });
+  return changed;
+}
+
 // ── Clean orphaned IDB images not referenced by any campaign ──
 async function cleanOrphanImages(dryRun){
   const allKeys=new Set();
@@ -785,8 +812,9 @@ async function render(){
   const cleaned=dedupeCampaignData(camp);
   if(!pm_){
     const refsChanged=reconcileCharRefs(camp);
+    const adopted=adoptAssignedChars(camp);
     await migrateImagesToIDB(camp);
-    if(cleaned||refsChanged)GCC.updateCampaign(camp.id,{characters:camp.characters||[],sessions:camp.sessions||[],session:countRealSessions(camp.sessions||[])});
+    if(cleaned||refsChanged||adopted)GCC.updateCampaign(camp.id,{characters:camp.characters||[],sessions:camp.sessions||[],session:countRealSessions(camp.sessions||[])});
   }
   // Bulk load images from IndexedDB (GM mode); player mode uses Storage URLs directly
   const imgKeys=pm_?[]:collectImageKeys(camp);
