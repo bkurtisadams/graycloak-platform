@@ -1,4 +1,13 @@
-// gw-subhex-view.js v0.47.1 — 2026-07-11
+// gw-subhex-view.js v0.48.0 — 2026-07-11
+// v0.48.0 — restore explicit line editing controls and add an in-view parent
+//           selector. Lines now have dedicated Edit / Erase modes, editable
+//           type/width/condition, point removal, and safe deletion while
+//           preserving generated metadata. The selected parent is persistent
+//           inside subhex view, highlighted in gold in SVG and raster modes,
+//           and can be changed by six-direction navigation, view-center pick,
+//           or clicking a visible parent with Select on map. Generate/Clear
+//           always act on that explicit selection instead of silently following
+//           the viewport center.
 // v0.47.1 — stop hidden tools when changing primary or secondary Tools tabs.
 //           Switching away from Lines now commits a valid road/path edit (or
 //           restores/discards an invalid one), disarms the tool, closes feature
@@ -272,7 +281,7 @@
     rasterZooming: false,
     markerSel: null,   // id of the marker being edited (Edit feature mode)
     markerDrag: null,  // { m, moved } while dragging a marker to move it
-    curParent: null,
+    curParent: null,     // explicitly selected parent / generation target
     el: {},
   };
 
@@ -359,6 +368,16 @@
       .gw-sx-tool.armed { border-color:#ff8844; background:rgba(255,136,68,.22); color:#ffaa66; }
       #gw-sx-palette .sx-row2 { display:flex; gap:6px; margin-top:7px; }
       #gw-sx-palette .sx-row2 .gw-sx-btn { flex:1; padding:6px 5px; }
+      #gw-sx-palette .sx-parent-card { margin:2px 0 9px; padding:8px; border:1px solid rgba(255,196,90,.72); border-radius:4px; background:rgba(255,196,90,.08); box-shadow:inset 0 0 12px rgba(255,196,90,.04); }
+      #gw-sx-palette .sx-parent-label { font-family:'Cinzel',serif; font-size:9px; letter-spacing:.12em; color:#d9b66d; text-align:center; }
+      #gw-sx-palette .sx-parent-value { margin:3px 0 7px; text-align:center; font-family:'Cinzel',serif; font-size:17px; font-weight:600; letter-spacing:.08em; color:#ffd47b; text-shadow:0 0 10px rgba(255,196,90,.28); }
+      #gw-sx-palette .sx-parent-nav { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:4px; }
+      #gw-sx-palette .sx-parent-nav button { min-height:30px; padding:4px; border:1px solid #5a3a0a; border-radius:3px; background:rgba(0,0,0,.26); color:#e8d5a3; cursor:pointer; font-family:'Cinzel',serif; font-size:10px; }
+      #gw-sx-palette .sx-parent-nav button:hover { border-color:#ffc45a; color:#ffd47b; background:rgba(255,196,90,.13); }
+      #gw-sx-palette .sx-parent-actions { display:grid; grid-template-columns:1fr 1fr; gap:5px; margin-top:6px; }
+      #gw-sx-palette .sx-parent-actions .gw-sx-btn { padding:5px 4px; font-size:10px; }
+      #gw-sx-palette .sx-line-select { width:100%; margin-top:4px; background:rgba(0,0,0,.24); border:1px solid #5a3a0a; color:#e8d5a3; font-family:inherit; font-size:11px; padding:5px; border-radius:2px; }
+      #gw-sx-palette .sx-danger:hover { background:rgba(180,60,50,.3)!important; border-color:#b44!important; color:#ffb0a8!important; }
       #gw-sx-read { position:absolute; bottom:10px; right:10px; min-width:200px; max-width:280px; background:rgba(14,8,2,.93); border:1px solid #5a3a0a; border-radius:3px; color:#e8d5a3; padding:8px 12px; font-size:12px; font-family:'Crimson Text',Georgia,serif; z-index:6; }
       #gw-sx-read .sx-t { color:#ffaa66; font-weight:600; }
       #gw-sx-enc { position:absolute; top:54px; right:10px; width:244px; max-height:calc(100% - 130px); overflow-y:auto; background:rgba(14,8,2,.96); border:1px solid #5a3a0a; border-radius:3px; color:#e8d5a3; padding:9px 11px 10px; font-size:12px; font-family:'Crimson Text',Georgia,serif; z-index:7; display:none; }
@@ -795,7 +814,27 @@
       toolBtn('✎ Pen',   { type: 'draw', kind: 'pen' }),
     );
     pane.appendChild(lines);
+    const lineActionRow = document.createElement('div'); lineActionRow.className = 'sx-row2';
+    const lineEditB = mkBtn('✎ Edit line', 'gw-sx-line-edit'); lineEditB.dataset.arm = 'stroke-edit';
+    lineEditB.title = 'Click an existing line to edit its points, type, width, and condition';
+    lineEditB.addEventListener('click', () => arm({ type: 'stroke-edit' }));
+    const lineEraseB = mkBtn('⌫ Erase line', 'gw-sx-line-erase'); lineEraseB.dataset.arm = 'stroke-erase';
+    lineEraseB.title = 'Click an existing line to delete it without affecting nearby site markers';
+    lineEraseB.addEventListener('click', () => arm({ type: 'stroke-erase' }));
+    lineActionRow.append(lineEditB, lineEraseB); pane.appendChild(lineActionRow);
     pane.appendChild(hd('Line Settings'));
+    const kindSel = document.createElement('select'); kindSel.id = 'gw-sx-line-kind'; kindSel.className = 'sx-line-select';
+    for (const k of ((A() && A().STROKE_KINDS) || ['river','road','trail','ancient-road','pen'])){
+      const opt = document.createElement('option'); opt.value = k; opt.textContent = k === 'ancient-road' ? 'Ancient road' : k[0].toUpperCase() + k.slice(1); kindSel.appendChild(opt);
+    }
+    kindSel.title = 'Change the type of the line currently being edited'; kindSel.disabled = true;
+    kindSel.addEventListener('change', () => {
+      if (!state.editor) return;
+      state.editor.kind = kindSel.value;
+      if (state.editor.kind === 'ancient-road' && !state.editor.condition) state.editor.condition = state.ancientRoadCondition || 'broken';
+      editorRender(); syncEditBtns(); syncMode();
+    });
+    pane.appendChild(kindSel); state.el.lineKindSel = kindSel;
     const arRow = document.createElement('div');
     arRow.style.cssText = 'display:flex; align-items:center; gap:8px; margin-top:4px;';
     const arLbl = document.createElement('span'); arLbl.textContent = 'Ancient condition'; arLbl.style.cssText = 'font-size:11px;color:#e0c089;';
@@ -824,13 +863,33 @@
     optRow.querySelector('#gw-sx-freehand').addEventListener('change', e => { state.lineMode = e.target.checked ? 'freehand' : 'points'; if (state.editor) finishEditor(); syncMode(); });
     optRow.querySelector('#gw-sx-snap').addEventListener('change', e => { state.snapHex = e.target.checked; });
     pane.appendChild(hd('Current Line'));
+    const pointRow = document.createElement('div'); pointRow.className = 'sx-row2';
+    const rmPointB = mkBtn('↶ Remove point', 'gw-sx-line-rm-point'); rmPointB.disabled = true; rmPointB.addEventListener('click', editorRemoveLast);
+    const delLineB = mkBtn('⌫ Delete line', 'gw-sx-line-delete'); delLineB.disabled = true; delLineB.classList.add('sx-danger'); delLineB.addEventListener('click', deleteCurrentLine);
+    pointRow.append(rmPointB, delLineB); pane.appendChild(pointRow);
     const edRow = document.createElement('div'); edRow.className = 'sx-row2';
-    const finB = mkBtn('✓ Finish line', 'gw-sx-fin'); finB.disabled = true; finB.addEventListener('click', finishEditor);
+    const finB = mkBtn('✓ Save line', 'gw-sx-fin'); finB.disabled = true; finB.addEventListener('click', finishEditor);
     const canB = mkBtn('✕ Cancel', 'gw-sx-can'); canB.disabled = true; canB.addEventListener('click', cancelEditor);
     edRow.append(finB, canB); pane.appendChild(edRow);
 
     // ── Build ▸ Sites ──────────────────────────────────────────────────────
     pane = buildArea.panes.sites;
+    const parentCard = document.createElement('div'); parentCard.className = 'sx-parent-card';
+    const parentLabel = document.createElement('div'); parentLabel.className = 'sx-parent-label'; parentLabel.textContent = 'SELECTED PARENT / GENERATION TARGET';
+    const parentValue = document.createElement('div'); parentValue.className = 'sx-parent-value'; parentValue.id = 'gw-sx-parent-value'; parentValue.textContent = '—';
+    const parentNav = document.createElement('div'); parentNav.className = 'sx-parent-nav';
+    const navDefs = [
+      ['↖ NW','nw'], ['↑ N','n'], ['↗ NE','ne'],
+      ['↙ SW','sw'], ['↓ S','s'], ['↘ SE','se'],
+    ];
+    for (const [label, dir] of navDefs){ const b = document.createElement('button'); b.textContent = label; b.title = 'Select and center the ' + dir.toUpperCase() + ' neighboring parent'; b.addEventListener('click', () => moveSelectedParent(dir)); parentNav.appendChild(b); }
+    const parentActions = document.createElement('div'); parentActions.className = 'sx-parent-actions';
+    const pickCenterB = mkBtn('◎ Use view center', 'gw-sx-parent-center-pick'); pickCenterB.title = 'Select the parent currently under the center of the view'; pickCenterB.addEventListener('click', selectCenterParent);
+    const pickMapB = mkBtn('⌖ Select on map', 'gw-sx-parent-map-pick'); pickMapB.dataset.arm = 'parent-select'; pickMapB.title = 'Click any visible parent hex to make it the selected generation target'; pickMapB.addEventListener('click', () => arm({ type: 'parent-select' }));
+    const centerSelectedB = mkBtn('◎ Center selected', 'gw-sx-parent-center-selected'); centerSelectedB.style.gridColumn = '1 / -1'; centerSelectedB.title = 'Center the subhex view on the selected parent'; centerSelectedB.addEventListener('click', () => { if (state.curParent) centerOnParent(state.curParent.col, state.curParent.row, state.vb.w); });
+    parentActions.append(pickCenterB, pickMapB, centerSelectedB);
+    parentCard.append(parentLabel, parentValue, parentNav, parentActions); pane.appendChild(parentCard);
+    state.el.parentValue = parentValue;
     pane.appendChild(hd('Place Site'));
     const marks = document.createElement('div'); marks.className = 'gw-sx-tools';
     marks.append(
@@ -853,7 +912,7 @@
     genRow.append(genB, clrB); pane.appendChild(genRow);
     const genTgt = document.createElement('div'); genTgt.id = 'gw-sx-gen-target';
     genTgt.style.cssText = 'font-size:10px;color:#cbb088;font-style:italic;margin:5px 0 1px;min-height:13px;';
-    genTgt.textContent = '▸ target follows view center'; pane.appendChild(genTgt); state.el.genTarget = genTgt;
+    genTgt.textContent = 'Generate and Clear gen act on the gold selected parent.'; pane.appendChild(genTgt); state.el.genTarget = genTgt;
     pane.appendChild(hd('Feature Editing'));
     const feRow = document.createElement('div'); feRow.className = 'sx-row2';
     const edit = mkBtn('✎ Edit feature', 'gw-sx-annot-edit'); edit.dataset.arm = 'annot-edit';
@@ -930,10 +989,59 @@
     }
     return state.curParent;
   }
-  function targetParent(){
-    // In raster mode the tile neighborhood follows the view center, so generated
-    // feature actions target the same parent the raster layer is centered on.
-    return state.rasterBase ? rasterParent() : centerParent();
+  function parentInBounds(col, row){
+    col = +col; row = +row;
+    if (!Number.isInteger(col) || !Number.isInteger(row) || col < 0 || row < 0) return false;
+    const atlas = window.GWSubhexAtlas;
+    if (atlas && atlas.getConfig){
+      const cfg = atlas.getConfig();
+      if (Number.isFinite(+cfg.cols) && col >= +cfg.cols) return false;
+      if (Number.isFinite(+cfg.rows) && row >= +cfg.rows) return false;
+    }
+    return true;
+  }
+  function targetParent(){ return state.curParent || centerParent(); }
+  function updateSelectedParentUi(){
+    const p = state.curParent;
+    if (state.el.parentValue) state.el.parentValue.textContent = p ? `PARENT ${p.col},${p.row}` : 'NO PARENT';
+    if (state.el.title) state.el.title.textContent = p ? `Subhex · selected parent ${p.col},${p.row} · 3 mi/hex` : 'Subhex · no parent selected';
+    if (state.el.genTarget) state.el.genTarget.textContent = p ? `Gold outline: parent ${p.col},${p.row}` : 'No generation target selected';
+  }
+  function setSelectedParent(col, row, opts){
+    col = Math.trunc(+col); row = Math.trunc(+row); opts = opts || {};
+    if (!parentInBounds(col, row)){ setStatus('That parent is outside the map.', 1800); return false; }
+    state.curParent = { col, row };
+    updateSelectedParentUi();
+    renderGenTarget();
+    if (opts.center !== false && state.open) centerOnParent(col, row, opts.keepZoom === false ? undefined : state.vb.w);
+    if (opts.status !== false) setStatus(`Selected parent ${col},${row}`, 1400);
+    return true;
+  }
+  function parentNeighbor(p, dir){
+    if (!p) return null;
+    const c = +p.col, r = +p.row, odd = c & 1;
+    const delta = {
+      n:[0,-1], s:[0,1],
+      ne:[1, odd ? 0 : -1], se:[1, odd ? 1 : 0],
+      nw:[-1, odd ? 0 : -1], sw:[-1, odd ? 1 : 0],
+    }[dir];
+    return delta ? { col:c + delta[0], row:r + delta[1] } : null;
+  }
+  function moveSelectedParent(dir){
+    const next = parentNeighbor(targetParent(), dir);
+    if (next) setSelectedParent(next.col, next.row, { center:true });
+  }
+  function selectCenterParent(){
+    const p = centerParent();
+    if (p) setSelectedParent(p.col, p.row, { center:false });
+  }
+  function selectParentAtWorld(w){
+    if (!w || !D()) return false;
+    const a = D().svgToAxial(w.x, w.y), p = D().ownerOf(a.Q, a.R);
+    if (!p) return false;
+    const ok = setSelectedParent(p.col, p.row, { center:false });
+    if (ok){ state.armed = null; syncPalette(); syncMode(); }
+    return ok;
   }
   function generateFeatures(){
     const p = targetParent();
@@ -1310,6 +1418,10 @@
       undoBtn: palette.querySelector('#gw-sx-undo'),
       finBtn: palette.querySelector('#gw-sx-fin'),
       canBtn: palette.querySelector('#gw-sx-can'),
+      rmPointBtn: palette.querySelector('#gw-sx-line-rm-point'),
+      delLineBtn: palette.querySelector('#gw-sx-line-delete'),
+      lineKindSel: palette.querySelector('#gw-sx-line-kind'),
+      parentValue: palette.querySelector('#gw-sx-parent-value'),
       medit: med,
       medName: med.querySelector('#gw-sx-med-name'),
       medKind: med.querySelector('#gw-sx-med-kind'),
@@ -1325,7 +1437,7 @@
     med.querySelector('#gw-sx-med-del').addEventListener('click', () => { if (state.markerSel){ A().deleteMarker(state.markerSel); closeMarkerEditor(); renderAnnotations(); } });
     med.querySelector('#gw-sx-med-done').addEventListener('click', closeMarkerEditor);
     back.addEventListener('click', close);
-    fit.addEventListener('click', () => { if (state.curParent) centerOnParent(state.curParent.col, state.curParent.row); });
+    fit.addEventListener('click', () => { if (state.curParent) centerOnParent(state.curParent.col, state.curParent.row, state.vb.w); });
     tog.querySelector('input').addEventListener('change', e => { state.showParents = e.target.checked; render(true); });
     arTog.querySelector('input').addEventListener('change', e => { state.showAncientRoads = e.target.checked; saveAncientRoadsVis(state.showAncientRoads); renderAnnotations(); if (state.rasterBase) updateRasterBase(false); });
     rasterTog.querySelector('input').addEventListener('change', e => {
@@ -1884,6 +1996,20 @@
           svg.classList.add('grabbing');
           return;
         }
+        else if (a.type === 'stroke-edit'){
+          if (state.editor){
+            const hit = editorHitDot(e);
+            if (hit >= 0){ state.editor.dragIdx = hit; return; }
+            const w = clientToWorld(e);
+            if (!worldPointInActiveRasterParent(w)) return;
+            state.drag = { r: svg.getBoundingClientRect(), sx: e.clientX, sy: e.clientY, vx: state.vb.x, vy: state.vb.y, moved: false, pointAdd: { x:w.x, y:w.y } };
+            svg.classList.add('grabbing');
+            return;
+          }
+          editStrokeAt(e); return;
+        }
+        else if (a.type === 'stroke-erase'){ eraseStrokeAt(e); return; }
+        else if (a.type === 'parent-select'){ selectParentAtWorld(clientToWorld(e)); return; }
         else if (a.type === 'marker'){ placeMarker(e); return; }
         else if (a.type === 'annot-erase'){ eraseAnnotationAt(e); return; }
         else if (a.type === 'annot-edit'){
@@ -2099,18 +2225,13 @@
     renderParty();
     renderGenTarget();
   }
-  // Highlight + label the parent that Generate/Clear-gen will act on (the parent
-  // under the view center). Lets you target any parent without leaving subhex mode.
+  // Unmistakable selected-parent outline. This is the target used by Generate
+  // and Clear gen, and it remains live above both SVG and raster base modes.
   function renderGenTarget(){
     const g = state.el.gTarget; if (!g) return;
-    const p = targetParent();
-    if (state.el.genTarget){
-      state.el.genTarget.textContent = p
-        ? (state.rasterBase ? `▸ raster center: parent ${p.col},${p.row}` : `▸ target: parent ${p.col},${p.row}`)
-        : '▸ no parent centered';
-    }
-    const d = D();
-    if (!p || !d || state.rasterBase){ g.replaceChildren(); return; }
+    const p = targetParent(), d = D();
+    updateSelectedParentUi();
+    if (!p || !d){ g.replaceChildren(); return; }
     const c = d.parentSvgCenter(p.col, p.row);
     const poly = document.createElementNS(SVGNS, 'polygon');
     poly.setAttribute('points', cornersStr(c.x, c.y, d.HEX_R));
@@ -2250,6 +2371,7 @@
     const frag = document.createDocumentFragment();
     const fastFrag = document.createDocumentFragment();
     for (const s of A().strokesInBbox(bb, ICON_PX*u)){
+      if (state.editor && state.editor.editingId === s.id) continue;
       if (s.kind === 'ancient-road' && !state.showAncientRoads) continue;
       const path = smoothPath(s.pts);
       frag.appendChild(lineEl(s.kind, path, { color: s.color, width: s.width, condition: s.condition }));
@@ -2336,39 +2458,70 @@
     if (!worldPointInActiveRasterParent(p0)) return;
     const p = state.snapHex ? snapPt(p0) : p0;
     if (!state.editor){
-      const s = nearestStrokeAt(p0);
-      if (s){ loadStrokeForEdit(s); return; }
       state.editor = { kind: state.armed.kind, pts: [], width: state.lineWidth, condition: state.armed.kind === 'ancient-road' ? state.ancientRoadCondition : undefined, editingId: null, origPts: null, dragIdx: null };
     }
     state.editor.pts.push([p.x, p.y]);
     editorRender(); syncEditBtns(); syncMode();
   }
   function loadStrokeForEdit(s){
+    if (!s) return;
+    if (state.editor) cancelEditor();
     state.editor = {
       kind: s.kind, pts: s.pts.map(p => [p[0], p[1]]),
       width: s.width || (STROKE_STYLE[s.kind] || STROKE_STYLE.pen).width,
-      condition: s.condition, roadName: s.roadName, ancientName: s.ancientName, source: s.source,
-      editingId: s.id, origPts: s.pts.map(p => [p[0], p[1]]), dragIdx: null,
+      condition: s.condition, editingId: s.id, origPts: s.pts.map(p => [p[0], p[1]]), dragIdx: null,
     };
+    state.lineWidth = state.editor.width;
+    if (state.el.lineKindSel) state.el.lineKindSel.value = s.kind;
+    const widthInput = state.el.palette && state.el.palette.querySelector('input[type=range][title^="Line width"]');
+    if (widthInput){ widthInput.value = String(state.lineWidth); const out = widthInput.nextElementSibling; if (out) out.textContent = String(state.lineWidth); }
     if (s.kind === 'ancient-road'){
       state.ancientRoadCondition = s.condition || 'broken';
+      state.editor.condition = state.ancientRoadCondition;
       if (state.el.ancientConditionSel) state.el.ancientConditionSel.value = state.ancientRoadCondition;
     }
-    A().deleteStroke(s.id);
     markRasterDirtyPts(s.pts); renderAnnotations(); editorRender(); syncEditBtns(); syncMode();
+  }
+  function editStrokeAt(e){
+    const s = nearestStrokeAt(clientToWorld(e));
+    if (!s){ setStatus('No line close enough to edit.', 1500); return; }
+    loadStrokeForEdit(s);
+  }
+  function eraseStrokeAt(e){
+    const s = nearestStrokeAt(clientToWorld(e));
+    if (!s){ setStatus('No line close enough to erase.', 1500); return; }
+    markRasterDirtyPts(s.pts); A().deleteStroke(s.id); renderAnnotations();
+    setStatus(`Erased ${s.kind.replace('-', ' ')} line`, 1500);
   }
   function editorRemoveLast(){ if (state.editor && state.editor.pts.length){ state.editor.pts.pop(); editorRender(); syncEditBtns(); syncMode(); } }
   function finishEditor(){
     const ed = state.editor; if (!ed) return;
     state.editor = null;
-    if (ed.pts.length >= 2){ A().addStroke(ed.kind, ed.pts, strokePersistOpts(ed.kind, ed.width, ed)); markRasterDirtyPts(ed.pts); }
+    if (ed.pts.length >= 2){
+      if (ed.editingId){
+        A().updateStroke(ed.editingId, { pts:ed.pts, kind:ed.kind, width:ed.width, condition:ed.condition });
+        if (ed.origPts) markRasterDirtyPts(ed.origPts);
+      } else {
+        A().addStroke(ed.kind, ed.pts, strokePersistOpts(ed.kind, ed.width, ed));
+      }
+      markRasterDirtyPts(ed.pts);
+    }
     editorRender(); renderAnnotations(); syncEditBtns(); syncMode();
   }
   function cancelEditor(){
     const ed = state.editor; if (!ed) return;
     state.editor = null;
-    if (ed.editingId && ed.origPts && ed.origPts.length >= 2){ A().addStroke(ed.kind, ed.origPts, strokePersistOpts(ed.kind, ed.width, ed)); markRasterDirtyPts(ed.origPts); }
+    if (ed.origPts) markRasterDirtyPts(ed.origPts);
     editorRender(); renderAnnotations(); syncEditBtns(); syncMode();
+  }
+  function deleteCurrentLine(){
+    const ed = state.editor; if (!ed) return;
+    state.editor = null;
+    if (ed.editingId) A().deleteStroke(ed.editingId);
+    if (ed.origPts) markRasterDirtyPts(ed.origPts);
+    if (ed.pts) markRasterDirtyPts(ed.pts);
+    editorRender(); renderAnnotations(); syncEditBtns(); syncMode();
+    setStatus(ed.editingId ? 'Line deleted' : 'New line discarded', 1400);
   }
   function editorRender(){
     const g = state.el.gEditor; if (!g) return;
@@ -2386,8 +2539,12 @@
     });
   }
   function syncEditBtns(){
-    if (state.el.finBtn) state.el.finBtn.disabled = !(state.editor && state.editor.pts.length >= 2);
-    if (state.el.canBtn) state.el.canBtn.disabled = !state.editor;
+    const ed = state.editor;
+    if (state.el.finBtn) state.el.finBtn.disabled = !(ed && ed.pts.length >= 2);
+    if (state.el.canBtn) state.el.canBtn.disabled = !ed;
+    if (state.el.rmPointBtn) state.el.rmPointBtn.disabled = !(ed && ed.pts.length);
+    if (state.el.delLineBtn) state.el.delLineBtn.disabled = !ed;
+    if (state.el.lineKindSel){ state.el.lineKindSel.disabled = !ed; if (ed) state.el.lineKindSel.value = ed.kind; }
   }
   function onEditorKey(e){
     if (!state.open) return;
@@ -2531,6 +2688,9 @@
     if (a.type === 'erase') return 'erase';
     if (a.type === 'annot-erase') return 'annot-erase';
     if (a.type === 'annot-edit') return 'annot-edit';
+    if (a.type === 'stroke-edit') return 'stroke-edit';
+    if (a.type === 'stroke-erase') return 'stroke-erase';
+    if (a.type === 'parent-select') return 'parent-select';
     if (a.type === 'paint') return 'paint:' + a.terrain;
     if (a.type === 'hazard') return 'hazard:' + a.mode;
     if (a.type === 'draw') return 'draw:' + a.kind;
@@ -2574,8 +2734,11 @@
       const name = a.kind === 'ancient-road' ? `ancient road (${state.ancientRoadCondition || 'broken'})` : a.kind;
       if (state.lineMode === 'freehand') el.textContent = `Draw ${name} · drag to trace`;
       else if (state.editor && state.editor.pts.length) el.textContent = `${name}: click=add · drag dot=move · Enter=finish · Esc=cancel`;
-      else el.textContent = `Draw ${name} · click to add points (or click a line to edit)`;
+      else el.textContent = `Draw ${name} · click to add points`;
     }
+    else if (a.type === 'stroke-edit') el.textContent = state.editor ? `Edit ${state.editor.kind.replace('-', ' ')} · drag points, change settings, then Save` : 'Edit line · click an existing line';
+    else if (a.type === 'stroke-erase') el.textContent = 'Erase line · click an existing line';
+    else if (a.type === 'parent-select') el.textContent = 'Select parent · click any visible parent hex';
     else if (a.type === 'marker') el.textContent = `Place ${a.kind} · click (shift = name)`;
     else if (a.type === 'annot-erase') el.textContent = 'Erase feature · click a line/icon';
     else if (a.type === 'annot-edit') el.textContent = 'Edit feature · click an icon (then drag to move)';
@@ -2628,7 +2791,7 @@
     if (state.el.fogCb) state.el.fogCb.checked = state.fogOn;
     renderClock();
     syncPartyUndoBtn();
-    state.el.title.textContent = `Subhex · parent ${col},${row} · 3 mi/hex`;
+    updateSelectedParentUi();
     requestAnimationFrame(() => {
       state.rendered = null;
       const v = loadView();
@@ -2660,6 +2823,6 @@
   function isOpen(){ return state.open; }
   function currentParent(){ return state.curParent || null; }
 
-  window.GWSubhexView = { open, close, isOpen, currentParent, render, centerOn, zoomTo, rebuildRasterTiles };
-  try { console.log('[gw-subhex-view] v0.47.1 loaded'); } catch(_){}
+  window.GWSubhexView = { open, close, isOpen, currentParent, setSelectedParent, render, centerOn, zoomTo, rebuildRasterTiles };
+  try { console.log('[gw-subhex-view] v0.48.0 loaded'); } catch(_){}
 })();
