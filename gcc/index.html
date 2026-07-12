@@ -1165,7 +1165,7 @@ document.getElementById('cf-save').addEventListener('click', () => {
   const prior = (GCC.getCampaign(charsCampId)?.characters) || [];
   const findPrior = sc => prior.find(c => (c._id && sc._id && c._id === sc._id) || (c.name && c.name === sc.name)) || {};
   const characters = saved
-    .filter(sc => charsSelected.has(sc._id) || charsSelected.has(sc.name))
+    .filter(sc => (sc._id && charsSelected.has(sc._id)) || charsSelected.has(sc.name))
     .map(sc => {
       const p = findPrior(sc);
       const entry = { name: sc.name, storageKey: sc.storageKey, _id: sc._id || '' };
@@ -1175,6 +1175,14 @@ document.getElementById('cf-save').addEventListener('click', () => {
       if (p.henchman) entry.henchman = true;
       return entry;
     });
+  // Keep orphan refs (no saved data found) unless they were explicitly removed —
+  // rebuilding only from saved chars was silently deleting them on every Save
+  const savedKeys = new Set();
+  saved.forEach(sc => { if (sc._id) savedKeys.add(sc._id); if (sc.name) savedKeys.add(sc.name); });
+  prior.forEach(c => {
+    if ((c._id && savedKeys.has(c._id)) || (c.name && savedKeys.has(c.name))) return;
+    if (charsSelected.has(c._id || c.name)) characters.push(c);
+  });
   GCC.updateCampaign(charsCampId, { characters, players: characters.length });
   closeCharsModal();
   renderCampaigns();

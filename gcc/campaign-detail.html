@@ -814,7 +814,7 @@ async function render(){
       // Player mode: characters are snapshots from Firestore, resolve directly
       resolved=resolveChar(ch,camp.system,refKey);
     } else if(refKey){
-      try{const saved=JSON.parse(localStorage.getItem(refKey))||[];let found=ch._id?saved.find(s=>s._id===ch._id):null;if(!found&&ch.name)found=saved.find(s=>(s.heroName||s.name)===ch.name);if(found){if(ch._id&&found._id&&ch._id!==found._id)ch._id=found._id;resolved=resolveChar(found,camp.system,refKey)}}catch(e){}
+      try{const saved=JSON.parse(localStorage.getItem(refKey))||[];let found=ch._id?saved.find(s=>s._id===ch._id):null;if(!found&&ch.name)found=saved.find(s=>(s.heroName||s.characterName||s.name)===ch.name);if(found){if(ch._id&&found._id&&ch._id!==found._id)ch._id=found._id;resolved=resolveChar(found,camp.system,refKey)}}catch(e){}
     }
     if(resolved.charType==='pc')pcCount++;else if(resolved.charType==='npc')npcCount++;
     return{ch,resolved,refKey};

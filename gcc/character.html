@@ -1044,8 +1044,11 @@ function populateData(d) {
   // Species: preserve an imported name even if it isn't a preset option (e.g. Gamma World species)
   const spSel = document.getElementById('sel-species');
   if (d.species && spSel && spSel.value !== d.species) {
-    const o = document.createElement('option'); o.value = d.species; o.textContent = d.species;
-    spSel.appendChild(o); spSel.value = d.species;
+    if (!Array.from(spSel.options).some(o => o.value === d.species)) {
+      const o = document.createElement('option'); o.value = d.species; o.textContent = d.species;
+      spSel.appendChild(o);
+    }
+    spSel.value = d.species;
   }
   // Power level: accept an id ('low'), a label ('Low'), or a numeric CP total ('100')
   let plId = '';
@@ -1122,28 +1125,30 @@ function campaignName(id) {
 }
 function saveToSlot() {
   const data = gatherData();
-  // Ensure stable entity ID
-  if (!data._id) {
-    // Check if we're editing an existing slot that has an _id
-    const list = JSON.parse(localStorage.getItem(CHARS_LIST_KEY)) || [];
-    const idx = getEditIdx();
-    if (idx >= 0 && idx < list.length && list[idx]._id) {
-      data._id = list[idx]._id;
-    } else {
-      data._id = (typeof GCC!=='undefined' && GCC.genId) ? GCC.genId('mp') : 'mp_'+Date.now();
-    }
-  }
-  data._saved = new Date().toISOString();
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(data)); } catch(e) {}
   try {
     const list = JSON.parse(localStorage.getItem(CHARS_LIST_KEY)) || [];
-    const idx = getEditIdx();
+    // Resolve target slot by _id first; the edit index goes stale when the
+    // list changes elsewhere (roster delete, cloud sync pull)
+    let idx = -1;
+    if (data._id) {
+      idx = list.findIndex(c => c._id === data._id);
+    } else {
+      idx = getEditIdx();
+      if (idx >= 0 && idx < list.length && list[idx]._id) data._id = list[idx]._id;
+      if (idx >= list.length) idx = -1;
+    }
+    if (!data._id) data._id = (typeof GCC!=='undefined' && GCC.genId) ? GCC.genId('mp') : 'mp_'+Date.now();
+    window._charMeta = window._charMeta || {};
+    window._charMeta._id = data._id;
+    data._saved = new Date().toISOString();
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(data)); } catch(e) {}
     if (idx >= 0 && idx < list.length) {
       list[idx] = data;
     } else {
       list.push(data);
-      localStorage.setItem('mp-char-edit-idx', list.length - 1);
+      idx = list.length - 1;
     }
+    localStorage.setItem('mp-char-edit-idx', String(idx));
     localStorage.setItem(CHARS_LIST_KEY, JSON.stringify(list));
     if(typeof GCCSync!=='undefined' && GCCSync.notifySync) GCCSync.notifySync(CHARS_LIST_KEY);
   } catch(e) {}
@@ -1164,6 +1169,7 @@ document.getElementById('btn-load').addEventListener('click', async () => {
   const idx = await MPDialog.listChars('Load Character', list);
   if (idx == null || idx < 0 || idx >= list.length) return;
   clearAll();
+  window._charMeta = {};
   const data = list[idx];
   if (data._image) window._charMeta._image = data._image;
   if (data._campaign) window._charMeta._campaign = data._campaign;
@@ -1176,8 +1182,13 @@ document.getElementById('btn-load').addEventListener('click', async () => {
 
 // Delete button — delete current character from list
 document.getElementById('btn-delete').addEventListener('click', async () => {
-  const idx = getEditIdx();
   const list = JSON.parse(localStorage.getItem(CHARS_LIST_KEY)) || [];
+  let idx = getEditIdx();
+  const curId = window._charMeta && window._charMeta._id;
+  if (curId) {
+    const byId = list.findIndex(c => c._id === curId);
+    if (byId >= 0) idx = byId;
+  }
   if (idx < 0 || idx >= list.length) {
     MPDialog.alert('No Character', 'No character is currently loaded to delete.');
     return;
@@ -1290,6 +1301,7 @@ document.getElementById('inp-import').addEventListener('change', (e) => {
       const data = JSON.parse(ev.target.result);
       clearAll();
       window._charMeta = {};
+      localStorage.setItem('mp-char-edit-idx', '-1');
       if (data._image) window._charMeta._image = data._image;
       if (data._campaign) window._charMeta._campaign = data._campaign;
       populateData(data);
@@ -1324,6 +1336,7 @@ document.getElementById('btn-r20-import').addEventListener('click', async () => 
     const data = JSON.parse(json);
     clearAll();
     window._charMeta = {};
+    localStorage.setItem('mp-char-edit-idx', '-1');
     if (data._image) window._charMeta._image = data._image;
     if (data._campaign) window._charMeta._campaign = data._campaign;
     populateData(data);
@@ -1439,6 +1452,7 @@ if (new URLSearchParams(window.location.search).get('r20') === '1') {
     : list.findIndex(c => (c.name || '') === charName);
   if (idx < 0) return;
   clearAll();
+  window._charMeta = {};
   const data = list[idx];
   if (data._image) window._charMeta._image = data._image;
   if (data._campaign) window._charMeta._campaign = data._campaign;
