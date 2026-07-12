@@ -632,11 +632,20 @@ function _getSavedCharsForSystem(systemId) {
   const sys = GCC.SYSTEM_DEFS.find(s => s.id === systemId);
   if (!sys) return [];
   const results = [];
+  const seenLists = new Set();
+  const seenIds = new Set();
   sys.tools.forEach(t => {
-    if (!t.charList) return;
+    // Multiple tools can share one charList key — read each list once
+    if (!t.charList || seenLists.has(t.charList)) return;
+    seenLists.add(t.charList);
     try {
       const list = JSON.parse(localStorage.getItem(t.charList)) || [];
       list.forEach(ch => {
+        if (ch._id) {
+          const k = t.charList + ':' + ch._id;
+          if (seenIds.has(k)) return;
+          seenIds.add(k);
+        }
         results.push(_resolveChar(ch, systemId, t.charList));
       });
     } catch(e) {}
