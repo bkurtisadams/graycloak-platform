@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<!-- gcc-diag.html v1.0.0 — self-running sync diagnostic, no console needed -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GCC Diagnostic</title>
+<style>
+body{font-family:monospace;font-size:13px;background:#1a1a1a;color:#ddd;padding:12px;line-height:1.5}
+h2{font-size:14px;color:#e0b050;border-bottom:1px solid #444;padding-bottom:4px;margin:18px 0 6px}
+.ok{color:#7ac97a;font-weight:bold}
+.bad{color:#e06060;font-weight:bold}
+.dim{color:#888}
+div{word-break:break-all}
+button{font-family:monospace;font-size:13px;padding:8px 14px;margin-top:16px;background:#333;color:#ddd;border:1px solid #666;border-radius:4px}
+</style>
+</head>
+<body>
+<h1 style="font-size:16px">GCC Sync Diagnostic</h1>
+<div id="out" class="dim">Running…</div>
+<button onclick="location.reload()">Re-run</button>
+<script>
+(async function(){
+  const out=document.getElementById('out');
+  const lines=[];
+  const add=(h)=>{lines.push(h);out.innerHTML=lines.join('')};
+  const sec=(t)=>add('<h2>'+t+'</h2>');
+  const row=(label,val,good)=>add('<div>'+label+': <span class="'+(good===undefined?'':(good?'ok':'bad'))+'">'+val+'</span></div>');
+  out.innerHTML='';
+
+  // ── 1. What script hashes do the live pages reference? ──
+  sec('1. Page → script versions');
+  const pages=['index.html','campaign-detail.html'];
+  const hashes={};
+  for(const p of pages){
+    try{
+      const html=await (await fetch(p+'?nocache='+Date.now())).text();
+      for(const f of ['gcc-data.js','gcc-sync.js']){
+        const m=html.match(new RegExp(f.replace('.','\\.')+'\\?v=([a-z0-9]+)'));
+        const key=f+' via '+p;
+        hashes[f]=m?m[1]:hashes[f];
+        row(key,m?'?v='+m[1]:'no versioned ref found',!!m);
+      }
+    }catch(e){row(p,'fetch failed: '+e.message,false)}
+  }
+
+  // ── 2. Do those exact versioned URLs serve the fix? ──
+  sec('2. Versioned URLs (what cached pages execute)');
+  const want={'gcc-data.js':['v1.5.0','reconcileRosterTombstones'],'gcc-sync.js':['v2.4.0','deletedCharacters']};
+  for(const f of ['gcc-data.js','gcc-sync.js']){
+    const url=hashes[f]?f+'?v='+hashes[f]:f+'?nocache='+Date.now();
+    try{
+      const txt=await (await fetch(url)).text();
+      const head=txt.split('\n')[0];
+      const good=txt.indexOf(want[f][1])!==-1;
+      row(url,head+(good?' — fix present':' — FIX MISSING'),good);
+    }catch(e){row(url,'fetch failed: '+e.message,false)}
+  }
+
+  // ── 3. Local campaign data on THIS device ──
+  sec('3. This device: campaigns');
+  let camps=[];
+  try{camps=JSON.parse(localStorage.getItem('gcc-campaigns'))||[]}catch(e){}
+  if(!camps.length)row('gcc-campaigns','empty / not loaded on this device yet');
+  camps.forEach(c=>{
+    row(c.name+' ('+c.id+')','roster '+((c.characters||[]).length)+' | tombstones '+((c.deletedCharacters||[]).length));
+  });
+  const gw=camps.find(c=>(c.name||'').toLowerCase().indexOf('gamma world')!==-1);
+  if(gw){
+    sec('3b. '+gw.name+' roster entries');
+    (gw.characters||[]).forEach(e=>row((e.name||'?'),(e._id||'-')+' | role '+(e.role||'-')+' | _updated '+(e._updated||'-')));
+    if((gw.deletedCharacters||[]).length){
+      sec('3c. '+gw.name+' tombstones');
+      gw.deletedCharacters.forEach(t=>row((t.name||'?'),(t._id||'-')+' | '+(t.deletedAt||'-')));
+    }
+  }
+
+  // ── 4. mp-char-list _campaign tags on THIS device ──
+  sec('4. This device: mp-char-list campaign tags');
+  let list=[];
+  try{list=JSON.parse(localStorage.getItem('mp-char-list'))||[]}catch(e){}
+  if(!list.length)row('mp-char-list','empty / not loaded on this device yet');
+  const tagged=list.filter(ch=>ch._campaign);
+  row('total characters',String(list.length));
+  row('tagged with _campaign',String(tagged.length),tagged.length<=1);
+  tagged.forEach(ch=>row((ch.name||'?'),'_campaign '+ch._campaign+' | _gwStarter '+(!!ch._gwStarter)));
+
+  sec('Done');
+  add('<div class="dim">Screenshot this page and send it if anything is red.</div>');
+})();
+</script>
+</body>
+</html>
