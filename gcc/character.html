@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- character.html v0.1.2 — Manage dialog is now multi-delete: pickMulti selection of any number of saved characters, single confirm listing the names, one-pass removal with edit-idx pointer repair. -->
 <!-- character.html v0.1.1 — Preserves GW transfer build-note metadata while keeping concise imported ability labels visible on the sheet. -->
 <!-- character.html v0.1.0 — BC strip counts only the CP column (not modified scores); import preserves custom/Gamma World species and resolves powerLevel by id, label, or CP total -->
 <html lang="en">
@@ -1208,37 +1209,39 @@ document.getElementById('btn-delete').addEventListener('click', async () => {
   MPDialog.alert('Deleted', '<b>' + name + '</b> has been deleted.');
 });
 
-// Manage button — delete any saved character straight from the list (loops for bulk cleanup)
+// Manage button — multi-select saved characters and delete them in one pass
 document.getElementById('btn-manage').addEventListener('click', async () => {
-  while (true) {
-    const list = JSON.parse(localStorage.getItem(CHARS_LIST_KEY)) || [];
-    if (!list.length) { await MPDialog.alert('No Saved Characters', 'There are no saved characters to manage.'); return; }
-    const curIdx = getEditIdx();
-    const items = list.map((c, i) => ({
-      label: (c.name || 'Unnamed') + (i === curIdx ? '  (loaded)' : ''),
-      desc: [c._campaign ? campaignName(c._campaign) : '', c._saved ? 'saved ' + new Date(c._saved).toLocaleDateString() : ''].filter(Boolean).join(' \u00b7 ')
-    }));
-    const pick = await MPDialog.choose('Manage Saved Characters', items, { intro: 'Select a character to delete. This cannot be undone.' });
-    if (pick == null || pick < 0 || pick >= list.length) return;
-    const name = list[pick].name || 'Unnamed';
-    const ok = await MPDialog.confirm('Delete Character', 'Permanently delete <b>' + name + '</b>?', { okText: 'Delete', danger: true });
-    if (!ok) continue;
-    list.splice(pick, 1);
-    localStorage.setItem(CHARS_LIST_KEY, JSON.stringify(list));
-    if (typeof GCCSync !== 'undefined' && GCCSync.notifySync) GCCSync.notifySync(CHARS_LIST_KEY);
-    // Keep the "currently loaded" pointer consistent after removal
-    const editIdx = getEditIdx();
-    if (pick === editIdx) {
-      clearAll();
-      recalcDerived();
-      window._charMeta = {};
-      showPortrait(null);
-      localStorage.removeItem(STORE_KEY);
-      localStorage.setItem('mp-char-edit-idx', '-1');
-    } else if (pick < editIdx) {
-      localStorage.setItem('mp-char-edit-idx', String(editIdx - 1));
-    }
+  const list = JSON.parse(localStorage.getItem(CHARS_LIST_KEY)) || [];
+  if (!list.length) { await MPDialog.alert('No Saved Characters', 'There are no saved characters to manage.'); return; }
+  const curIdx = getEditIdx();
+  const items = list.map((c, i) => ({
+    label: (c.name || 'Unnamed') + (i === curIdx ? '  (loaded)' : ''),
+    desc: [c._campaign ? campaignName(c._campaign) : '', c._saved ? 'saved ' + new Date(c._saved).toLocaleDateString() : ''].filter(Boolean).join(' \u00b7 ')
+  }));
+  const picks = await MPDialog.pickMulti('Manage Saved Characters', items, { intro: 'Select characters to delete. This cannot be undone.', okText: 'Delete Selected', max: list.length });
+  if (!picks || !picks.length) return;
+  const names = picks.map(i => list[i].name || 'Unnamed');
+  const ok = await MPDialog.confirm('Delete ' + picks.length + ' Character' + (picks.length !== 1 ? 's' : ''),
+    'Permanently delete:<br><b>' + names.join('</b><br><b>') + '</b>?', { okText: 'Delete', danger: true });
+  if (!ok) return;
+  const removed = new Set(picks);
+  const kept = list.filter((c, i) => !removed.has(i));
+  localStorage.setItem(CHARS_LIST_KEY, JSON.stringify(kept));
+  if (typeof GCCSync !== 'undefined' && GCCSync.notifySync) GCCSync.notifySync(CHARS_LIST_KEY);
+  // Keep the "currently loaded" pointer consistent after removal
+  const editIdx = getEditIdx();
+  if (removed.has(editIdx)) {
+    clearAll();
+    recalcDerived();
+    window._charMeta = {};
+    showPortrait(null);
+    localStorage.removeItem(STORE_KEY);
+    localStorage.setItem('mp-char-edit-idx', '-1');
+  } else if (editIdx >= 0) {
+    const shift = picks.filter(i => i < editIdx).length;
+    if (shift) localStorage.setItem('mp-char-edit-idx', String(editIdx - shift));
   }
+  await MPDialog.alert('Deleted', picks.length + ' character' + (picks.length !== 1 ? 's' : '') + ' deleted.');
 });
 
 // New button
