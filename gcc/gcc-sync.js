@@ -1,4 +1,10 @@
-// gcc-sync.js v2.3.3 — 2026-07-01
+// gcc-sync.js v2.4.0 — 2026-07-13
+// v2.4.0: Roster tombstones — camp.deletedCharacters now merges like
+//         deletedSessions and gates mergeEmbeddedList('charref'), so removed
+//         roster entries no longer resurrect from stale devices (the
+//         characters merge was a plain union). Charref tombstones are
+//         timestamp-gated: an entry whose _updated is newer than its
+//         tombstone survives, so deliberate re-adds work.
 // v2.3.3: Stop re-IDing duplicate session _ids in normalizeEmbeddedChildren;
 //         same-id copies now collapse newest-wins in mergeEmbeddedList.
 // v2.3.2: Match session tombstones by id OR content signature with no timestamp
@@ -596,6 +602,7 @@ const GCCSync = (function() {
     }
     if (Array.isArray(camp.sessions)) camp.session = camp.sessions.filter(s => s.type !== 'timeline').length;
     if (!Array.isArray(camp.deletedSessions)) camp.deletedSessions = [];
+    if (!Array.isArray(camp.deletedCharacters)) camp.deletedCharacters = [];
     return camp;
   }
 
@@ -625,6 +632,14 @@ const GCCSync = (function() {
     if (tomb._id) keys.push(prefix + '_id_' + tomb._id);
     if (tomb.id) keys.push(prefix + '_id_' + tomb.id);
     if (tomb.sig) keys.push(prefix + '_' + tomb.sig);
+    if (prefix === 'charref') {
+      // Mirror childKeys('charref') aliases so a tombstone matches the entry
+      // whether it's keyed by id or by storage+name.
+      const storage = tomb.storageKey || tomb.listKey || '';
+      const nm = normEmbeddedKeyText(tomb.name);
+      if (tomb._id) keys.push(prefix + '_ref_' + storage + '_' + tomb._id);
+      if (nm) keys.push(prefix + '_name_' + storage + '_' + nm);
+    }
     return keys;
   }
 
@@ -664,13 +679,22 @@ const GCCSync = (function() {
 
   function isDeletedChild(item, prefix, deletedMap) {
     if (!deletedMap) return false;
+    const keys = childKeys(item, prefix, -1);
+    if (prefix === 'charref') {
+      // Roster entries are legitimately re-added (Edit Roster toggle), so
+      // charref tombstones are timestamp-gated: an entry stamped _updated
+      // AFTER the tombstone survives. Legacy/stray entries carry no
+      // timestamp (tsOf 0) and always lose to their tombstone.
+      const t = tsOf(item);
+      return keys.some(k => deletedMap[k] !== undefined && !(t > deletedMap[k]));
+    }
     // A tombstone match on id OR content signature is authoritative. The prior
     // timestamp gate resurrected entries whose _updated was inflated by
     // normalization (legacy items inherit camp.updated) and whose churned _id no
     // longer matched the tombstone; the deterministic content sig always does.
     // Tradeoff: re-authoring byte-identical content of a deleted entry keeps it
     // deleted until its tombstone is cleared.
-    return childKeys(item, prefix, -1).some(k => deletedMap[k] !== undefined);
+    return keys.some(k => deletedMap[k] !== undefined);
   }
 
   // Merge embedded campaign child lists such as sessions/issues, lore, and roster refs.
@@ -733,7 +757,9 @@ const GCCSync = (function() {
     const deletedSessions = tombstoneTimeMap(merged.deletedSessions, 'ses');
     merged.sessions = mergeEmbeddedList(localCamp.sessions, cloudCamp.sessions, 'ses', localIsNewer, deletedSessions);
     merged.lore = mergeEmbeddedList(localCamp.lore, cloudCamp.lore, 'lore', localIsNewer);
-    merged.characters = mergeEmbeddedList(localCamp.characters, cloudCamp.characters, 'charref', localIsNewer);
+    merged.deletedCharacters = mergeTombstones(localCamp.deletedCharacters, cloudCamp.deletedCharacters, 'charref');
+    const deletedCharacters = tombstoneTimeMap(merged.deletedCharacters, 'charref');
+    merged.characters = mergeEmbeddedList(localCamp.characters, cloudCamp.characters, 'charref', localIsNewer, deletedCharacters);
     merged.session = Array.isArray(merged.sessions) ? merged.sessions.filter(s => s.type !== 'timeline').length : 0;
     const maxTs = Math.max(localTs, cloudTs);
     if (maxTs) merged.updated = new Date(maxTs).toISOString();

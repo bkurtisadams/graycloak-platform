@@ -1310,6 +1310,7 @@ async function loadPlayerChars(){
   const cards=[];
   for(let i=0;i<withChars.length;i++){
     const p=withChars[i];
+    if(p.charId)playerKeys.add('id:'+p.charId);
     const ch=await GCCInvite.getPlayerCharacterWithFallback(campId,p.uid,p.listKey,p.charId);
     if(seq!==_playerCharsLoadSeq||!grid.isConnected)return;
     if(!ch)continue;
@@ -1318,7 +1319,6 @@ async function loadPlayerChars(){
     const playerCardKey=ch._id||p.charId||((p.listKey?`${p.listKey}:`:':')+nm);
     if(playerCardKey&&emittedPlayerKeys.has(playerCardKey))continue;
     if(playerCardKey)emittedPlayerKeys.add(playerCardKey);
-    if(p.charId)playerKeys.add('id:'+p.charId);
     if(ch._id)playerKeys.add('id:'+ch._id);
     if(nm)playerKeys.add('nm:'+nm);
     const reserve=!!reserveMap[p.uid];

@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.43 — Transfer no longer auto-assigns characters to a campaign: removed the _campaign stamp in buildMP and the ensureCampaign lookup/auto-create of "Gamma World 2519" on page load. The campaign roster is authoritative; assign transferred characters deliberately via the Campaign button on character.html. -->
 <!-- gw-character.html v0.2.36 — Ability Origin now uses separate PSH, humanoid mutant, mutated animal, mutated plant, and tech origin pools; Mutated Animals no longer share the generic mutant list, PSH/plant origins are more Gamma World-flavored, and Step 11 is labeled Ability Origin to distinguish it from Birthplace/Homeland. -->
 <!-- gw-character.html v0.2.42 — PSH path promoted to the intro screen beside Power Level and Weaknesses: new "PSH Path (Quick Random)" selector (Random 25% Commando / Wastelander / Commando, state.pshQuickPath, default random). generateAll resolves state.pshPath from it before rolling species, so Quick Random no longer silently inherits whatever path the last manual build used. Species-step toggle still governs manual builds. Draft migration defaults missing pshQuickPath to random. -->
 <!-- gw-character.html v0.2.41 — Quick Random now finishes the build: new rollGearToBudget() runs at the end of generateAll(), guaranteeing one offense item then one defense item, then filling remaining CP with random affordable gear (dedup'd, cap-checked, gearAllowed-filtered via flatGear). Fixes Wastelander PSH quick builds landing at Review with ~half the budget unspent and no offense/defense. buildWarnings now flags 5+ CP unspent on the Draft/Review steps and points to the Gear step. -->
@@ -970,7 +971,6 @@
     const data={_id:id,_gwStarter:true,_gwStarterVersion:D.version||'2.0.0',name,player:(state.player||'').trim(),trueId:'',side:state.side||'Neutral',birthplace:[state.home,state.homeland].filter(Boolean).join(' — ')||'Gamma World',species:state.species+(state.apType?' ('+state.apType+')':''),gender:state.gender||'',age:String(state.age||''),weight:String(state.weight||''),mass:'',culture:state.culture||'Modern',originType:(state.origin||'').trim(),background:(state.backgrounds||[]).join(', '),motivation:(state.motivation||'').trim(),legalStatus:state.faction||'Independent',wealth:exportWealthRoll(),luck:'10-',powerLevel:state.powerLevel.toLowerCase(),xpBase:String(tierOf(state.powerLevel).total),
       stats:{st:{cp:String(bc.st),mod:'',score:String(bc.st),save:''},en:{cp:String(bc.en),mod:'',score:String(bc.en),save:''},ag:{cp:String(bc.ag),mod:'',score:String(bc.ag),save:''},in:{cp:String(bc.in),mod:'',score:String(bc.in),save:''},cl:{cp:String(bc.cl),mod:'',score:String(bc.cl),save:''}},
       abilities:abilityRows(),attacks:[{name:'Strike (HTH)',toHit:'',damage:'',dmgType:'Kinetic',kb:''},{name:'',toHit:'',damage:'',dmgType:'',kb:''},{name:'',toHit:'',damage:'',dmgType:'',kb:''}],story:storyText(),gwBuildNotes:gwBuildNotes()};
-    if(window.__gwCampaign)data._campaign=window.__gwCampaign;
     return data;
   }
   function transfer(){
@@ -1440,9 +1440,9 @@
   }
 
   function applyAuthDefault(){if(typeof GCCAuth!=='undefined'&&GCCAuth.onAuthChange)GCCAuth.onAuthChange(u=>{if(u&&!(state.player||'').trim()){state.player=(u.displayName||u.email||'').trim();saveDraft();if(state.step===0||state.step===18)render();}});}
-  function ensureCampaign(){try{let camps=JSON.parse(localStorage.getItem((typeof GCC!=='undefined'&&GCC.KEYS&&GCC.KEYS.campaigns)||'gcc-campaigns')||'[]');const DEF='Gamma World 2519';let ex=camps.find(c=>(c.name||'').trim().toLowerCase()===DEF.toLowerCase());if(!ex&&typeof GCC!=='undefined'&&GCC.addCampaign){ex=GCC.addCampaign({name:DEF,system:'mp',genre:'Post-apocalyptic',world:'Gamma World'});}window.__gwCampaign=ex?(ex.id||ex._id||''):'';}catch(e){}}
 
-  function init(){ensureCampaign();loadDraft();applyAuthDefault();bindHandlers();render();}
+
+  function init(){loadDraft();applyAuthDefault();bindHandlers();render();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
 </script>

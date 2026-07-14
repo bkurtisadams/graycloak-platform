@@ -1,4 +1,9 @@
-// gcc-data.js v1.4.0 — 2026-07-01
+// gcc-data.js v1.5.0 — 2026-07-13
+// v1.5.0: Roster tombstones — updateCampaign diffs any incoming characters
+//         array against the stored roster: removed entries are recorded in
+//         camp.deletedCharacters (so gcc-sync v2.4.0 can keep them dead
+//         across devices), added/changed entries are stamped _updated so
+//         deliberate re-adds outrank their own tombstones in the merge.
 // v1.4.0: 'sig'-prefixed sessionStableKey (matches gcc-sync ids), export
 //         sessionStableId, collapse duplicate session _ids newest-wins
 //         instead of re-IDing them (re-IDing hid sync echoes from dedupe)
@@ -325,10 +330,63 @@ const GCC = (function() {
     saveCampaigns(list);
     return camp;
   }
+  // ── Roster tombstones ──
+  // gcc-sync merges camp.characters as a union across devices, so a removed
+  // roster entry resurrects from any stale copy unless a tombstone in
+  // camp.deletedCharacters marks it deleted. Called whenever updateCampaign
+  // receives a characters array: entries that disappeared get tombstones;
+  // added/changed entries get a fresh _updated so a deliberate re-add
+  // outranks its own tombstone in the sync merge (charref timestamp gate).
+  function rosterKeysOf(c) {
+    const keys = [];
+    if (!c || typeof c !== 'object') return keys;
+    if (c._id) keys.push('id:' + c._id);
+    const nm = String(c.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    if (nm) keys.push('nm:' + (c.storageKey || c.listKey || '') + ':' + nm);
+    return keys;
+  }
+  function reconcileRosterTombstones(camp, updates) {
+    const now = new Date().toISOString();
+    const prior = Array.isArray(camp.characters) ? camp.characters : [];
+    const next = updates.characters;
+    const nextKeys = new Set();
+    next.forEach(c => rosterKeysOf(c).forEach(k => nextKeys.add(k)));
+    const removed = prior.filter(c => {
+      const keys = rosterKeysOf(c);
+      return keys.length && !keys.some(k => nextKeys.has(k));
+    });
+    if (removed.length) {
+      const tombs = Array.isArray(camp.deletedCharacters) ? camp.deletedCharacters.slice() : [];
+      removed.forEach(c => {
+        const keys = rosterKeysOf(c);
+        const existing = tombs.find(t => rosterKeysOf(t).some(k => keys.indexOf(k) !== -1));
+        if (existing) {
+          existing.deletedAt = now;  // refresh so a re-delete beats the re-add's _updated
+          if (c._id && !existing._id) existing._id = c._id;
+        } else {
+          tombs.push({ _id: c._id || '', name: c.name || '', storageKey: c.storageKey || c.listKey || '', deletedAt: now });
+        }
+      });
+      tombs.sort((a, b) => String(b.deletedAt || '').localeCompare(String(a.deletedAt || '')));
+      updates.deletedCharacters = tombs.slice(0, 250);
+    }
+    const priorByKey = {};
+    prior.forEach(c => rosterKeysOf(c).forEach(k => { priorByKey[k] = c; }));
+    const stripTs = o => { const x = Object.assign({}, o); delete x._updated; return JSON.stringify(x); };
+    next.forEach(c => {
+      if (!c || typeof c !== 'object') return;
+      const match = rosterKeysOf(c).map(k => priorByKey[k]).find(Boolean);
+      if (!match) { c._updated = now; return; }
+      if (stripTs(c) !== stripTs(match)) c._updated = now;
+      else if (!c._updated && match._updated) c._updated = match._updated;
+    });
+  }
+
   function updateCampaign(id, updates) {
     const list = loadCampaigns();
     const camp = list.find(c => c.id === id);
     if (!camp) return null;
+    if (Array.isArray(updates.characters)) reconcileRosterTombstones(camp, updates);
     Object.assign(camp, updates);
     if (camp.sessions) normalizeSessions(camp.sessions, camp.updated || camp.created);
     camp.updated = new Date().toISOString();
