@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.44 — Fix duplicate roster characters on re-transfer: transfer() now calls saveDraft() after assigning __gwExportId, so the draft's exportId persists across the navigation to character.html. Previously the id was lost on the next wizard page load and every subsequent Transfer pushed a brand-new character into mp-char-list instead of updating the existing one. -->
 <!-- gw-character.html v0.2.43 — Transfer no longer auto-assigns characters to a campaign: removed the _campaign stamp in buildMP and the ensureCampaign lookup/auto-create of "Gamma World 2519" on page load. The campaign roster is authoritative; assign transferred characters deliberately via the Campaign button on character.html. -->
 <!-- gw-character.html v0.2.36 — Ability Origin now uses separate PSH, humanoid mutant, mutated animal, mutated plant, and tech origin pools; Mutated Animals no longer share the generic mutant list, PSH/plant origins are more Gamma World-flavored, and Step 11 is labeled Ability Origin to distinguish it from Birthplace/Homeland. -->
 <!-- gw-character.html v0.2.42 — PSH path promoted to the intro screen beside Power Level and Weaknesses: new "PSH Path (Quick Random)" selector (Random 25% Commando / Wastelander / Commando, state.pshQuickPath, default random). generateAll resolves state.pshPath from it before rolling species, so Quick Random no longer silently inherits whatever path the last manual build used. Species-step toggle still governs manual builds. Draft migration defaults missing pshQuickPath to random. -->
@@ -977,6 +978,7 @@
     if(unspent()<0&&!confirm('Build overspends by '+fmt(-unspent())+' CP ('+tierOf(state.powerLevel).total+' CP budget at '+state.powerLevel+'). Transfer anyway?'))return;
     try{
       if(!window.__gwExportId)window.__gwExportId=(typeof GCC!=='undefined'&&GCC.genId)?GCC.genId('mp'):'mp_'+Date.now();
+      saveDraft();
       const data=buildMP();data._saved=new Date().toISOString();
       let list=[];try{list=JSON.parse(localStorage.getItem(MP_LIST_KEY)||'[]');}catch(e){list=[];}
       let idx=list.findIndex(c=>c&&c._id===data._id);if(idx>=0)list[idx]=data;else{list.push(data);idx=list.length-1;}

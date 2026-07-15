@@ -1,4 +1,14 @@
-// gcc-sync.js v2.4.0 — 2026-07-13
+// gcc-sync.js v2.5.0 — 2026-07-14
+// v2.5.0: Entity-list delete tombstones — mp-char-list / mp-veh-list /
+//         faserip / add1e deletions are recorded in a per-list ledger
+//         (gcc-deleted-<listKey>, synced in the list meta doc as `deleted`)
+//         and honored by reconcileList. Previously mergeItemLists was a pure
+//         union, so a delete whose cloud push died on navigation (or any
+//         stale second device) resurrected the character on the next
+//         reconcile. Timestamp-gated like charref tombstones: an item
+//         re-saved after its tombstone (fresh _saved) survives, so deliberate
+//         re-adds and re-transfers work. Pages record deletions via
+//         GCCSync.recordListDeletes(listKey, ids) before notifySync.
 // v2.4.0: Roster tombstones — camp.deletedCharacters now merges like
 //         deletedSessions and gates mergeEmbeddedList('charref'), so removed
 //         roster entries no longer resurrect from stale devices (the
@@ -70,6 +80,47 @@ const GCCSync = (function() {
   // Portrait fields that may contain large base64 strings
   const PORTRAIT_FIELDS = ['portraitData', '_image', 'portrait'];
   const PORTRAIT_SENTINEL = '__portrait_too_large__';
+
+  // ── Entity-list delete tombstones (v2.5.0) ──
+  // Local ledger per list key; synced inside the list meta doc as `deleted`.
+  const LIST_TOMB_PREFIX = 'gcc-deleted-';
+  const LIST_TOMB_CAP = 250;
+  let _cloudListTombs = {}; // listKey → `deleted` array from the latest cloudLoadList
+
+  function listLedger(listKey) {
+    try {
+      const p = JSON.parse(localStorage.getItem(LIST_TOMB_PREFIX + listKey) || '[]');
+      return Array.isArray(p) ? p : [];
+    } catch(e) { return []; }
+  }
+  function saveListLedger(listKey, tombs) {
+    try { localStorage.setItem(LIST_TOMB_PREFIX + listKey, JSON.stringify(tombs)); } catch(e) {}
+  }
+  function mergeIdTombstones(a, b) {
+    const byId = {};
+    const out = [];
+    function add(t) {
+      if (!t || !t._id) return;
+      const ex = byId[t._id];
+      if (ex) { if (tsOf(t) > tsOf(ex)) ex.deletedAt = t.deletedAt; return; }
+      const copy = { _id: t._id, deletedAt: t.deletedAt };
+      byId[t._id] = copy;
+      out.push(copy);
+    }
+    (Array.isArray(a) ? a : []).forEach(add);
+    (Array.isArray(b) ? b : []).forEach(add);
+    out.sort((x, y) => tsOf(y) - tsOf(x));
+    return out.slice(0, LIST_TOMB_CAP);
+  }
+  // Public: record deletions from an entity list so sync merges keep them dead.
+  // Call before notifySync(listKey) so the push carries the tombstones.
+  function recordListDeletes(listKey, ids) {
+    if (!isListKey(listKey) || !ids) return;
+    const now = new Date().toISOString();
+    const add = (Array.isArray(ids) ? ids : [ids]).filter(Boolean).map(id => ({ _id: id, deletedAt: now }));
+    if (!add.length) return;
+    saveListLedger(listKey, mergeIdTombstones(add, listLedger(listKey)));
+  }
 
   // ── Load Firestore SDK ──
   function loadScript(url) {
@@ -168,11 +219,11 @@ const GCCSync = (function() {
     items.forEach(item => ensureItemId(item));
     const ids = items.map(it => it._id);
 
-    // Save ordering manifest
+    // Save ordering manifest (with delete tombstones, v2.5.0)
     const metaRef = listDocRef(listKey);
     if (!metaRef) return;
     try {
-      await metaRef.set({ ids: ids, _updated: now });
+      await metaRef.set({ ids: ids, deleted: listLedger(listKey), _updated: now });
     } catch(e) {
       console.warn('[GCCSync] list meta save failed:', listKey, e);
       return;
@@ -236,9 +287,11 @@ const GCCSync = (function() {
     if (!metaRef) return undefined;
 
     try {
+      _cloudListTombs[listKey] = [];
       const metaSnap = await metaRef.get();
       if (!metaSnap.exists) return undefined;
       const meta = metaSnap.data();
+      _cloudListTombs[listKey] = Array.isArray(meta.deleted) ? meta.deleted : [];
       const ids = meta.ids || [];
       if (ids.length === 0) return [];
 
@@ -514,16 +567,29 @@ const GCCSync = (function() {
     mergeLocalPortraits(key, cloudItems);
 
     const merged = mergeItemLists(localItems, cloudItems);
-    const mergedSig = listSig(merged);
+    // v2.5.0: honor delete tombstones — the union alone resurrects deletions
+    // whose cloud push died on navigation or that survive on a stale device.
+    const tombs = mergeIdTombstones(listLedger(key), _cloudListTombs[key]);
+    saveListLedger(key, tombs);
+    const tombTime = {};
+    tombs.forEach(t => { tombTime[t._id] = tsOf(t); });
+    const kept = merged.filter(it => {
+      const t = tombTime[it._id];
+      return t === undefined || tsOf(it) > t;
+    });
+    if (kept.length !== merged.length) {
+      console.log('[GCCSync] dropped', merged.length - kept.length, 'tombstoned item(s) from', key);
+    }
+    const mergedSig = listSig(kept);
 
     if (mergedSig !== listSig(localItems)) {
-      try { localStorage.setItem(key, JSON.stringify(merged)); }
+      try { localStorage.setItem(key, JSON.stringify(kept)); }
       catch(e) { console.warn('[GCCSync] local write failed for', key, e); }
     }
     if (mergedSig !== listSig(cloudItems)) {
-      await cloudSaveList(key, merged);  // union → orphan cleanup deletes nothing legitimate
+      await cloudSaveList(key, kept);  // union → orphan cleanup deletes nothing legitimate
     }
-    console.log('[GCCSync] reconciled', key, '→', merged.length, 'items',
+    console.log('[GCCSync] reconciled', key, '→', kept.length, 'items',
       '(local', localItems.length, '+ cloud', cloudItems.length, ')');
   }
 
@@ -934,6 +1000,7 @@ const GCCSync = (function() {
     syncNow,
     pullNow,
     notifySync,
+    recordListDeletes,
     SYNC_KEYS: ALL_SYNC_KEYS,
   };
 

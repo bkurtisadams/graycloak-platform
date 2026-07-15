@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- character.html v0.1.3 — Delete and Manage now record sync tombstones via GCCSync.recordListDeletes before notifySync, so deleted characters stay dead when the cloud push dies on navigation or a second device merges (requires gcc-sync.js v2.5.0). -->
 <!-- character.html v0.1.2 — Manage dialog is now multi-delete: pickMulti selection of any number of saved characters, single confirm listing the names, one-pass removal with edit-idx pointer repair. -->
 <!-- character.html v0.1.1 — Preserves GW transfer build-note metadata while keeping concise imported ability labels visible on the sheet. -->
 <!-- character.html v0.1.0 — BC strip counts only the CP column (not modified scores); import preserves custom/Gamma World species and resolves powerLevel by id, label, or CP total -->
@@ -1197,8 +1198,10 @@ document.getElementById('btn-delete').addEventListener('click', async () => {
   const name = list[idx].name || 'Unnamed';
   const ok = await MPDialog.confirm('Delete Character', 'Permanently delete <b>' + name + '</b>?', { okText: 'Delete', danger: true });
   if (!ok) return;
+  const delId = list[idx] && list[idx]._id;
   list.splice(idx, 1);
   localStorage.setItem(CHARS_LIST_KEY, JSON.stringify(list));
+  if(typeof GCCSync!=='undefined' && GCCSync.recordListDeletes && delId) GCCSync.recordListDeletes(CHARS_LIST_KEY, [delId]);
   if(typeof GCCSync!=='undefined' && GCCSync.notifySync) GCCSync.notifySync(CHARS_LIST_KEY);
   clearAll();
   recalcDerived();
@@ -1225,8 +1228,10 @@ document.getElementById('btn-manage').addEventListener('click', async () => {
     'Permanently delete:<br><b>' + names.join('</b><br><b>') + '</b>?', { okText: 'Delete', danger: true });
   if (!ok) return;
   const removed = new Set(picks);
+  const removedIds = picks.map(i => list[i] && list[i]._id).filter(Boolean);
   const kept = list.filter((c, i) => !removed.has(i));
   localStorage.setItem(CHARS_LIST_KEY, JSON.stringify(kept));
+  if (typeof GCCSync !== 'undefined' && GCCSync.recordListDeletes && removedIds.length) GCCSync.recordListDeletes(CHARS_LIST_KEY, removedIds);
   if (typeof GCCSync !== 'undefined' && GCCSync.notifySync) GCCSync.notifySync(CHARS_LIST_KEY);
   // Keep the "currently loaded" pointer consistent after removal
   const editIdx = getEditIdx();
