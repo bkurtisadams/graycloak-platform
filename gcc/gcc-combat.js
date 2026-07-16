@@ -58,20 +58,65 @@
   }
 
   // Pure: build the sim handoff payload from a panel result + a party array.
+  // Convert saved GCC character fields into the tactical simulator schema.
+  function _combatPartyMember(character) {
+    var member = Object.assign({}, character || {});
+
+    // The saved character uses _id; the simulator and result bridge use id.
+    if (member.id == null && member._id != null) {
+      member.id = String(member._id);
+    }
+
+    // Preserve zero HP when it is intentional. Only fall back when absent.
+    var currentHp =
+      member.hp_current != null ? member.hp_current :
+      member.hpCurrent != null ? member.hpCurrent :
+      member.currentHp != null ? member.currentHp :
+      member.hpMax != null ? member.hpMax :
+      1;
+
+    var maximumHp =
+      member.hp_max != null ? member.hp_max :
+      member.hpMax != null ? member.hpMax :
+      member.maxHp != null ? member.maxHp :
+      currentHp;
+
+    member.hp_current = Math.max(0, _num(currentHp, 0));
+    member.hp_max = Math.max(0, _num(maximumHp, member.hp_current));
+
+    return member;
+  }
+
+  // Pure: build the sim handoff payload from a panel result + a party array.
   function _buildPayload(result, party) {
     result = result || {};
+
     var mm = result.mmStats || null;
-    var monsters = mm ? [{ mm: mm, count: Math.max(1, _num(result.numberRolled, 1)) }] : [];
-    var dist = (result.distance && (result.distance.yards != null ? result.distance.yards : result.distance.rawYards));
+    var monsters = mm ? [{
+      mm: mm,
+      count: Math.max(1, _num(result.numberRolled, 1))
+    }] : [];
+
+    var dist = result.distance && (
+      result.distance.yards != null
+        ? result.distance.yards
+        : result.distance.rawYards
+    );
+
     return {
-      party: party || [],
+      party: (party || []).map(_combatPartyMember),
+
       monsters: monsters,
+
       context: {
         distance: _num(dist, 8),
         surprise: _surpriseSide(result.surprise),
         surprise_segments: 1,
         label: (mm && (mm.name || mm.NAME)) || 'Encounter',
-        treasure: (mm && (mm.treasureType || mm['TREASURE TYPE'])) || null
+        treasure: (
+          mm &&
+          (mm.treasureType || mm['TREASURE TYPE'])
+        ) || null
       }
     };
   }

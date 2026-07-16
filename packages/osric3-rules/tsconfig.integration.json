@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.browser.json",
+  "compilerOptions": {
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "outDir": "../../gcc/vendor/osric3-rules",
+    "rootDir": "./src"
+  },
+  "include": ["src/**/*"]
+}
