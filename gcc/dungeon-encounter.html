@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.43 -->
+<!-- dungeon-encounter — v0.9.44 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -930,7 +930,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js?v=45ce7839"></script>
 <script>
-const SIM_VERSION = 'v0.9.43';
+const SIM_VERSION = 'v0.9.44';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -3110,9 +3110,22 @@ function initEncounter(payload) {
   _handoffEmitted = false;
   _handoff = { onResolved: (typeof payload.onResolved === 'function' ? payload.onResolved : null), context: ctx };
 
-  const party = (payload.party || []).map(m => { const c = _isCombatant(m) ? m : mapCharToCombatant(m, 'A'); c.side = 'A'; c.kind = c.kind || 'pc'; return c; });
-  party.forEach((c, i) => { state.combatants.push(c); state.formation[c.id] = { rank: i, file: 1 }; });
-  _normalizeMonsters(payload.monsters).forEach(c => state.combatants.push(c));
+  const party = (payload.party || []).map(m => {
+    const c = _isCombatant(m) ? m : mapCharToCombatant(m, 'A');
+    c.side = 'A';
+    c.kind = c.kind || 'pc';
+    return c;
+  });
+  if (!party.length) throw new Error('Encounter handoff did not include a player character.');
+
+  party.forEach((c, i) => {
+    state.combatants.push(c);
+    state.formation[c.id] = { rank: Math.min(i, FORM_RANKS - 1), file: 1 };
+  });
+
+  const monsters = _normalizeMonsters(payload.monsters);
+  if (!monsters.length) throw new Error('Encounter handoff did not produce any monsters.');
+  monsters.forEach(c => state.combatants.push(c));
 
   const sp = ctx.surprise; // surprise[side]=true means that side is caught flat-footed
   state.surprise = { A: sp === 'monsters', B: sp === 'party', rollA: null, rollB: null };
@@ -3120,9 +3133,19 @@ function initEncounter(payload) {
 
   const dist = Math.max(1, _num(ctx.distance, 8));
   state.encounter_distance = dist;
+  state.selected_id = party[0].id;
+
   recomputeAllEncumbrance();
   placeParties(dist);
+  renderFormationEditor();
   renderAll();
+
+  // A GCC handoff already supplied party, monsters, distance, and surprise.
+  // App.init() displayed the standalone setup overlay first, so explicitly
+  // remove it before starting the handed-off battle.
+  const setup = document.getElementById('setup-overlay');
+  if (setup) setup.style.display = 'none';
+
   beginEncounter();
   return true;
 }
@@ -3170,13 +3193,38 @@ function _bootFromHandoff() {
   let raw = null;
   try { raw = localStorage.getItem(HANDOFF_KEY); } catch (e) {}
   if (!raw) return false;
-  try { localStorage.removeItem(HANDOFF_KEY); } catch (e) {}        // consume once
+
   let payload = null;
-  try { payload = JSON.parse(raw); } catch (e) { return false; }
+  try {
+    payload = JSON.parse(raw);
+  } catch (error) {
+    console.error('Invalid GCC encounter handoff JSON.', error);
+    return false;
+  }
   if (!payload) return false;
-  try { localStorage.removeItem(HANDOFF_RESULT_KEY); } catch (e) {} // clear any stale result
-  initEncounter(payload);
-  return true;
+
+  try {
+    initEncounter(payload);
+
+    // Consume only after a successful import. Previously this key was removed
+    // before initEncounter(), which erased the evidence when an import failed.
+    try { localStorage.removeItem(HANDOFF_KEY); } catch (e) {}
+    try { localStorage.removeItem(HANDOFF_RESULT_KEY); } catch (e) {}
+    console.log('GCC encounter handoff loaded:', {
+      party: (payload.party || []).length,
+      monsters: (payload.monsters || []).length,
+      returnTo: _returnTo
+    });
+    return true;
+  } catch (error) {
+    console.error('Unable to initialize GCC encounter handoff.', error);
+    const result = document.getElementById('setup-result');
+    if (result) {
+      result.className = 'setup-result show';
+      result.textContent = 'Encounter handoff failed: ' + (error && error.message ? error.message : String(error));
+    }
+    return false;
+  }
 }
 
 // Public surface + iframe-embed driver (parent posts {type:'encounter:init', payload}).

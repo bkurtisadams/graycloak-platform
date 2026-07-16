@@ -1,4 +1,4 @@
-// gcc-combat.js v0.4.1 - 2026-07-16
+// gcc-combat.js v0.4.2 - 2026-07-16
 // Bridges the GCC encounter panel (greyhawk-map.html) to the dungeon-encounter
 // tactical sim. Adds a Fight button to the encounter panel, stages the handoff
 // payload, and on return applies HP/XP back to the active character + logs it.
@@ -32,13 +32,29 @@
 
   _kernelReady = _loadRulesKernel();
 
-  function _load(key) { try { return (window.GCC && GCC.load) ? GCC.load(key) : JSON.parse(localStorage.getItem(key)); } catch (e) { return null; } }
-  function _save(key, val) { try { if (window.GCC && GCC.save) GCC.save(key, val); else localStorage.setItem(key, JSON.stringify(val)); return true; } catch (e) { return false; } }
+  function _load(key) {
+    try {
+      return (window.GCC && GCC.load)
+        ? GCC.load(key)
+        : JSON.parse(localStorage.getItem(key));
+    } catch (e) {
+      return null;
+    }
+  }
 
-  // Encounter handoff keys are transient browser-to-browser messages, not GCC
-  // data-store records. The tactical simulator reads/writes these exact raw
-  // localStorage keys, so routing them through GCC.save/GCC.load breaks the
-  // handoff whenever GCC's storage adapter namespaces or filters unknown keys.
+  function _save(key, val) {
+    try {
+      if (window.GCC && GCC.save) GCC.save(key, val);
+      else localStorage.setItem(key, JSON.stringify(val));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Encounter handoff values are temporary same-browser messages. The combat
+  // simulator reads and writes these exact raw localStorage keys, so do not
+  // route them through GCC.save/GCC.load or cloud synchronization.
   function _loadLocalJson(key) {
     try {
       var raw = localStorage.getItem(key);
@@ -47,14 +63,18 @@
       return null;
     }
   }
+
   function _saveLocalJson(key, val) {
     try {
-      localStorage.setItem(key, JSON.stringify(val));
-      return localStorage.getItem(key) != null;
+      var raw = JSON.stringify(val);
+      localStorage.setItem(key, raw);
+      return localStorage.getItem(key) === raw;
     } catch (e) {
+      console.error('Unable to write encounter handoff:', key, e);
       return false;
     }
   }
+
   function _removeLocal(key) {
     try { localStorage.removeItem(key); } catch (e) {}
   }
@@ -226,15 +246,24 @@
     var party = window.GCC_ACTIVE_PARTY || [];
     if (!party.length) { _toast('No active character - choose one on the Play page'); return false; }
     if (!result || !result.mmStats) { _toast('No monster in this encounter to fight'); return false; }
+
     var payload = _buildPayload(result, party);
     if (!payload.monsters.length) { _toast('Nothing to fight here'); return false; }
+
     payload.context.returnUrl = _returnUrl();
-    _removeLocal(RESULT_KEY); // never let an older result apply to a new fight
+    payload.context.stagedAt = Date.now();
+
+    // Never apply an older battle result to a newly launched encounter.
+    _removeLocal(RESULT_KEY);
+
     if (!_saveLocalJson(PENDING_KEY, payload)) {
       _toast('Unable to stage the encounter in browser storage');
       return false;
     }
-    window.location.href = SIM_PAGE;
+
+    // Query token forces the latest tactical page during local testing and
+    // after static deployment without changing localStorage origin.
+    window.location.href = SIM_PAGE + '?handoff=' + payload.context.stagedAt;
     return true;
   }
 
@@ -242,13 +271,21 @@
   function checkResult() {
     var res = _loadLocalJson(RESULT_KEY);
     if (!res) return false;
+
     _removeLocal(RESULT_KEY);
+
     var chars = _load(CHARS_KEY) || [];
     var activeId = null; try { activeId = localStorage.getItem(ACTIVE_KEY); } catch (e) {}
     var out = _applyResult(res, chars, activeId);
+
+    // Character data remains in the normal GCC persistence/sync path.
     _save(CHARS_KEY, out.chars);
+
+    // Encounter history remains browser-local.
     var log = _loadLocalJson(LOG_KEY) || [];
-    log.push(out.entry); _saveLocalJson(LOG_KEY, log);
+    log.push(out.entry);
+    _saveLocalJson(LOG_KEY, log);
+
     _toast(out.summary);
     try { window.dispatchEvent(new CustomEvent('gcc-encounter-applied', { detail: out.entry })); } catch (e) {}
     return true;
@@ -293,6 +330,7 @@
   }
 
   window.GCCCombat = {
+    version: '0.4.2',
     fight: fight,
     checkResult: checkResult,
     kernelReady: _kernelReady,
