@@ -2,7 +2,7 @@
 const CG = require('./adnd-chargen.js');
 
 let pass = 0, fail = 0;
-function ok(name, cond) { cond ? (pass++) : (fail++, console.log('  FAIL: ' + name)); }
+function ok(name, cond) { cond ? (pass++) : (fail++, console.log(' FAIL: ' + name)); }
 function inRange(v, lo, hi) { return typeof v === 'number' && v >= lo && v <= hi; }
 
 // --- DMG methods: shape + ranges ---
@@ -57,9 +57,18 @@ const strong = CG.applyRacialAdj({ str:17, int:16, wis:16, dex:16, con:16, cha:1
 const valid = CG.getValidClasses('human', strong);
 ok('getValidClasses returns an array', Array.isArray(valid) && valid.length > 0);
 ok('high stats qualify for paladin', valid.includes('paladin'));
-
 const lowCha = CG.getValidClasses('human', { str:12, int:9, wis:13, dex:12, con:12, cha:9 });
 ok('low cha disqualifies paladin', !lowCha.includes('paladin'));
+
+// NPC-only single classes must not leak into player choices.
+const all18 = { str:18, int:18, wis:18, dex:18, con:18, cha:18 };
+ok('dwarf NPC-only cleric rejected as a player single class', CG.canPlayClass('dwarf', 'cleric', all18) === false);
+ok('gnome NPC-only cleric rejected as a player single class', CG.canPlayClass('gnome', 'cleric', all18) === false);
+ok('half-orc NPC-only cleric rejected as a player single class', CG.canPlayClass('half-orc', 'cleric', all18) === false);
+ok('listed half-orc cleric/fighter multiclass remains available', CG.getValidMulticlasses('half-orc', all18).some(c => c.join('|') === 'cleric|fighter'));
+ok('half-orc NPC-only cleric omitted from valid single classes', !CG.getValidClasses('half-orc', all18).includes('cleric'));
+const npcOnlyBuild = CG.validateAndBuild('half-orc', 'cleric', all18, 'male', []);
+ok('single-class builder rejects half-orc NPC-only cleric', npcOnlyBuild.valid === false);
 
 // --- derived rolls ---
 const hp = CG.rollHp('fighter', 15);

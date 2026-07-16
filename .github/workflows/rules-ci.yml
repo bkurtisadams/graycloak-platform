@@ -1,0 +1,49 @@
+name: Rules CI
+
+on:
+  push:
+    paths:
+      - 'packages/osric3-rules/**'
+      - 'gcc/adnd-chargen.js'
+      - 'gcc/adnd-chargen-test.js'
+      - 'gcc/adnd-class-data.js'
+      - 'gcc/gcc-combat.js'
+      - 'gcc/vendor/osric3-rules/**'
+      - 'gcc/adnd-equipment.js'
+      - 'gcc/adnd.html'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/rules-ci.yml'
+  pull_request:
+    paths:
+      - 'packages/osric3-rules/**'
+      - 'gcc/adnd-chargen.js'
+      - 'gcc/adnd-chargen-test.js'
+      - 'gcc/adnd-class-data.js'
+      - 'gcc/gcc-combat.js'
+      - 'gcc/vendor/osric3-rules/**'
+      - 'gcc/adnd-equipment.js'
+      - 'gcc/adnd.html'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/rules-ci.yml'
+
+jobs:
+  rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.3.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @graycloak/osric3-rules typecheck
+      - run: pnpm --filter @graycloak/osric3-rules test
+      - run: git diff --exit-code -- gcc/vendor/osric3-rules
+      - run: node --check gcc/adnd-class-data.js
+      - run: node --check gcc/gcc-combat.js
+      - run: node gcc/adnd-chargen-test.js

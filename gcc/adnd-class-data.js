@@ -620,6 +620,204 @@ function getClassInfo(player) {
   return info;
 }
 
+// === OSRIC 3 RULES KERNEL BRIDGE ===
+// Slice 4 loads the browser build without replacing legacy calculations yet.
+// Consumers can await osric3KernelReady and opt into the kernel one feature at a time.
+let osric3KernelReady = Promise.resolve(null);
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  osric3KernelReady = import('./vendor/osric3-rules/browser-global.js')
+    .then(() => window.GraycloakOSRIC3 || null)
+    .catch((error) => {
+      console.warn('OSRIC 3 rules kernel did not load; legacy class data remains active.', error);
+      return null;
+    });
+}
+
+function getKernelSpellSlots(charClass, level, wis, wisdomBonusMode = 'legacy-parity') {
+  const kernel = typeof globalThis !== 'undefined' ? globalThis.GraycloakOSRIC3 : null;
+  if (!kernel || typeof kernel.getSpellSlots !== 'function') return null;
+  const classId = charClass === 'magic_user' ? 'magic-user' : charClass;
+  return kernel.getSpellSlots(classId, level, wis, wisdomBonusMode);
+}
+
+function _kernelSigned(value) {
+  return value > 0 ? '+' + value : String(value);
+}
+
+function _kernelField(root, field) {
+  return root && typeof root.querySelector === 'function'
+    ? root.querySelector('[data-field="' + field + '"]')
+    : null;
+}
+
+function _kernelScore(root, field) {
+  const input = _kernelField(root, field);
+  if (!input || input.value === '') return null;
+  const value = Number.parseInt(input.value, 10);
+  return Number.isFinite(value) ? value : null;
+}
+
+function _kernelWrite(root, field, value, force) {
+  if (value === null || value === undefined) return false;
+  const input = _kernelField(root, field);
+  if (!input) return false;
+  if (force || input.value === '' || input.dataset.osric3Managed === 'true') {
+    input.value = String(value);
+    input.dataset.osric3Managed = 'true';
+    return true;
+  }
+  return false;
+}
+
+function _kernelSpellBonus(bonusSpells) {
+  const values = Array.isArray(bonusSpells) ? bonusSpells.slice() : [];
+  let last = values.length - 1;
+  while (last >= 0 && !values[last]) last -= 1;
+  return last < 0 ? '' : values.slice(0, last + 1).join('/');
+}
+
+function _kernelClassIds(root) {
+  const input = _kernelField(root, 'characterClass');
+  if (!input || !input.value) return [];
+  return String(input.value).split('/').map((part) => part.trim().toLowerCase()
+    .replace(/_/g, '-').replace(/\s+/g, '-')).filter(Boolean);
+}
+
+function _kernelUsesFighterConBonus(root) {
+  const classes = _kernelClassIds(root);
+  if (!classes.length) return null;
+  const fighterTypes = new Set(['fighter', 'paladin', 'ranger']);
+  return classes.every((classId) => fighterTypes.has(classId));
+}
+
+function applyKernelStrengthProfile(root, force = false) {
+  const kernel = typeof globalThis !== 'undefined' ? globalThis.GraycloakOSRIC3 : null;
+  if (!kernel || typeof kernel.getStrengthCombatProfile !== 'function') return false;
+  if (!root || typeof root.querySelector !== 'function') return false;
+
+  const strength = _kernelScore(root, 'str');
+  if (strength === null) return false;
+  const percentile = _kernelScore(root, 'strPct') || 0;
+  const combat = kernel.getStrengthCombatProfile(strength, percentile);
+  let applied = false;
+  applied = _kernelWrite(root, 'strHitAdj', _kernelSigned(combat.hitAdjustment), force) || applied;
+  applied = _kernelWrite(root, 'strDamAdj', _kernelSigned(combat.damageAdjustment), force) || applied;
+  if (typeof kernel.getStrengthWeightAllowance === 'function') {
+    applied = _kernelWrite(root, 'strWtAllow', kernel.getStrengthWeightAllowance(strength, percentile), force) || applied;
+  }
+  return applied;
+}
+
+function applyKernelAbilityProfiles(root, force = false) {
+  const kernel = typeof globalThis !== 'undefined' ? globalThis.GraycloakOSRIC3 : null;
+  if (!kernel || !root || typeof root.querySelector !== 'function') return false;
+  let applied = applyKernelStrengthProfile(root, force);
+
+  const intelligence = _kernelScore(root, 'int');
+  if (intelligence !== null && typeof kernel.getIntelligenceDisplayProfile === 'function') {
+    const profile = kernel.getIntelligenceDisplayProfile(intelligence);
+    applied = _kernelWrite(root, 'intAddLang', profile.additionalLanguages, force) || applied;
+    // intKnowSpell, intMinSpells, and intMaxSpells remain manual until the
+    // corresponding source table receives a direct OSRIC 3 citation.
+  }
+
+  const wisdom = _kernelScore(root, 'wis');
+  if (wisdom !== null && typeof kernel.getWisdomDisplayProfile === 'function') {
+    const profile = kernel.getWisdomDisplayProfile(wisdom);
+    applied = _kernelWrite(root, 'wisMagAtkAdj', _kernelSigned(profile.magicalAttackAdjustment), force) || applied;
+    applied = _kernelWrite(root, 'wisSpellBonus', _kernelSpellBonus(profile.bonusSpells), force) || applied;
+    applied = _kernelWrite(root, 'wisSpellFail', profile.spellFailureChance, force) || applied;
+  }
+
+  const dexterity = _kernelScore(root, 'dex');
+  if (dexterity !== null && typeof kernel.getDexterityDisplayProfile === 'function') {
+    const profile = kernel.getDexterityDisplayProfile(dexterity);
+    applied = _kernelWrite(root, 'dexReactAdj', _kernelSigned(profile.reactionAdjustment), force) || applied;
+    applied = _kernelWrite(root, 'dexMissileAdj', _kernelSigned(profile.missileAdjustment), force) || applied;
+    applied = _kernelWrite(root, 'dexDefAdj', _kernelSigned(profile.defenseAdjustment), force) || applied;
+  }
+
+  const constitution = _kernelScore(root, 'con');
+  if (constitution !== null && typeof kernel.getConstitutionDisplayProfile === 'function') {
+    const profile = kernel.getConstitutionDisplayProfile(constitution);
+    const fighterBonus = _kernelUsesFighterConBonus(root);
+    if (fighterBonus !== null) {
+      const hpAdjustment = fighterBonus ? profile.fighterHitPointAdjustment : profile.hitPointAdjustment;
+      applied = _kernelWrite(root, 'conHpAdj', _kernelSigned(hpAdjustment), force) || applied;
+    }
+    applied = _kernelWrite(root, 'conSysShock', profile.systemShockChance, force) || applied;
+    applied = _kernelWrite(root, 'conResSurv', profile.resurrectionSurvivalChance, force) || applied;
+  }
+
+  const charisma = _kernelScore(root, 'cha');
+  if (charisma !== null && typeof kernel.getCharismaDisplayProfile === 'function') {
+    const profile = kernel.getCharismaDisplayProfile(charisma);
+    applied = _kernelWrite(root, 'chaMaxHench', profile.maximumHenchmen, force) || applied;
+    applied = _kernelWrite(root, 'chaLoyalty', _kernelSigned(profile.loyaltyAdjustment), force) || applied;
+    applied = _kernelWrite(root, 'chaReactAdj', _kernelSigned(profile.reactionAdjustment), force) || applied;
+  }
+
+  return applied;
+}
+
+function _kernelMarkManual(root, fields) {
+  fields.forEach((field) => {
+    const input = _kernelField(root, field);
+    if (input) input.addEventListener('input', () => { delete input.dataset.osric3Managed; });
+  });
+}
+
+function _kernelAttachRefresh(root, field, marker, refresh) {
+  const input = _kernelField(root, field);
+  if (!input || input.dataset[marker] === 'true') return false;
+  input.addEventListener('input', refresh);
+  input.addEventListener('change', refresh);
+  input.dataset[marker] = 'true';
+  return true;
+}
+
+function enableKernelStrengthBridge(root) {
+  if (!root || typeof root.querySelector !== 'function') return false;
+  const strengthInput = _kernelField(root, 'str');
+  if (!strengthInput || strengthInput.dataset.osric3Bridge === 'true') return false;
+  const refresh = () => applyKernelStrengthProfile(root, true);
+
+  _kernelAttachRefresh(root, 'str', 'osric3Bridge', refresh);
+  _kernelAttachRefresh(root, 'strPct', 'osric3Bridge', refresh);
+  _kernelMarkManual(root, ['strHitAdj', 'strDamAdj', 'strWtAllow']);
+  applyKernelStrengthProfile(root, false);
+  return true;
+}
+
+function enableKernelAbilityBridges(root) {
+  if (!root || typeof root.querySelector !== 'function') return false;
+  let enabled = enableKernelStrengthBridge(root);
+  const refresh = () => applyKernelAbilityProfiles(root, true);
+  ['int', 'wis', 'dex', 'con', 'cha', 'characterClass'].forEach((field) => {
+    enabled = _kernelAttachRefresh(root, field, 'osric3AbilityBridge', refresh) || enabled;
+  });
+  _kernelMarkManual(root, [
+    'intAddLang',
+    'wisMagAtkAdj', 'wisSpellBonus', 'wisSpellFail',
+    'dexReactAdj', 'dexMissileAdj', 'dexDefAdj',
+    'conHpAdj', 'conSysShock', 'conResSurv',
+    'chaMaxHench', 'chaLoyalty', 'chaReactAdj',
+  ]);
+  applyKernelAbilityProfiles(root, false);
+  return enabled;
+}
+
+function _enableKernelSheetBridges() {
+  if (typeof document === 'undefined') return;
+  enableKernelAbilityBridges(document);
+}
+
+osric3KernelReady.then((kernel) => {
+  if (!kernel || typeof document === 'undefined') return;
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _enableKernelSheetBridges, { once: true });
+  else _enableKernelSheetBridges();
+});
+
 const ADNDClassData = {
   XP_TABLE, XP_PER_LEVEL_AFTER, LEVEL_TITLES, HD_INFO,
   CLERIC_SPELLS, DRUID_SPELLS, MU_SPELLS, ILLUSIONIST_SPELLS,
@@ -629,9 +827,11 @@ const ADNDClassData = {
   SAVE_FIGHTER, SAVE_CLERIC, SAVE_MU, SAVE_THIEF,
   ALIGNMENT_NAMES,
   WIS_SPELL_BONUS, getWisBonus, applyWisBonus,
-  getAttacksPerRound, getLevelTitle, getSpellSlots, getTurnLevel,
+  getAttacksPerRound, getLevelTitle, getSpellSlots, getKernelSpellSlots,
+  applyKernelStrengthProfile, enableKernelStrengthBridge,
+  applyKernelAbilityProfiles, enableKernelAbilityBridges, getTurnLevel,
   getPaladinAbilities, getRangerAbilities, getSavingThrows, getLanguages,
-  getAlignmentName, getClassInfo,
+  getAlignmentName, getClassInfo, osric3KernelReady,
 };
 if (typeof module !== 'undefined' && module.exports) module.exports = ADNDClassData;
 if (typeof window !== 'undefined') window.ADNDClassData = ADNDClassData;

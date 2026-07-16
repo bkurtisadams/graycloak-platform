@@ -611,6 +611,10 @@ function rollStartingAge(race, charClass) {
 function getValidClasses(race, adjStats) {
   const allowed = RACE_CLASSES[race] || RACE_CLASSES.human;
   return allowed.filter(cls => {
+    // Negative level caps are NPC-only and must not appear in player-facing
+    // single-class choices. Listed multiclass combinations are handled by
+    // getValidMulticlasses(), which intentionally has different semantics.
+    if (!canPlayClass(race, cls, adjStats)) return false;
     const mins = CLASS_MINS[cls] || {};
     for (const [ability, minVal] of Object.entries(mins)) {
       if ((adjStats[ability] || 0) < minVal) return false;
@@ -620,7 +624,7 @@ function getValidClasses(race, adjStats) {
 }
 
 // --- Validate a full character creation request ---
-// Returns { valid, error, finalStats, age, ageCat, ageCatName, gold, gender, height, weight } or { valid:false, error }
+// Returns a complete generated profile or { valid:false, error }. Starting gold and HP are rolled separately.
 function validateAndBuild(race, charClass, baseStats, gender, preRolledSkills) {
   // Check race/class allowed
   const allowed = RACE_CLASSES[race] || RACE_CLASSES.human;
@@ -630,6 +634,13 @@ function validateAndBuild(race, charClass, baseStats, gender, preRolledSkills) {
 
   // Apply racial adjustments
   const racialStats = applyRacialAdj(baseStats, race);
+
+  // Negative level caps represent NPC-only classes. They may occur in a
+  // specifically listed multiclass combination, but not in this single-class
+  // builder.
+  if (!canPlayClass(race, charClass, racialStats)) {
+    return { valid: false, error: `A ${race} cannot be a player-character ${charClass}.` };
+  }
 
   // Check class minimums against racial-adjusted stats
   const mins = CLASS_MINS[charClass] || {};
@@ -892,7 +903,10 @@ function getRaceLevelCap(race, charClass, stats) {
 function canPlayClass(race, charClass, stats) {
   if (race === 'human') return RACE_CLASSES.human.includes(charClass);
   const cap = getRaceLevelCap(race, charClass, stats);
-  if (cap === 0) return false;
+  // Zero means forbidden and a negative cap means NPC-only.  Multiclass
+  // eligibility is handled separately by getValidMulticlasses(), where a
+  // listed combination may intentionally include an NPC-only single class.
+  if (typeof cap === 'number' && cap <= 0) return false;
   return true;
 }
 

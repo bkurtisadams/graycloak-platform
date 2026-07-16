@@ -24,6 +24,8 @@ importers:
 
   packages/map-engine: {}
 
+  packages/osric3-rules: {}
+
 packages:
 
   fake-indexeddb@6.2.5:

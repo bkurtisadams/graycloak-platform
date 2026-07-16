@@ -1,13 +1,13 @@
-// gcc-combat.js v0.2.1 - 2026-06-07
+// gcc-combat.js v0.4.0 - 2026-07-16
 // Bridges the GCC encounter panel (greyhawk-map.html) to the dungeon-encounter
 // tactical sim. Adds a Fight button to the encounter panel, stages the handoff
 // payload, and on return applies HP/XP back to the active character + logs it.
 //
-//   launch:  write payload -> 'gcc-pending-encounter', open dungeon-encounter.html
-//   return:  read 'gcc-encounter-result' on boot, write back, append log
+// launch: write payload -> 'gcc-pending-encounter', open dungeon-encounter.html
+// return: read 'gcc-encounter-result' on boot, write back, append log
 //
-// Pure helpers (_buildPayload, _applyResult) are exposed for headless testing.
-
+// Slice 6 routes XP and prime-requisite bonuses through the OSRIC rules kernel when available.
+// Pure helpers (_buildPayload, _applyResult, _awardXP) are exposed for tests.
 (function () {
   'use strict';
 
@@ -17,6 +17,20 @@
   var RESULT_KEY = 'gcc-encounter-result';
   var LOG_KEY = 'gcc-encounter-log';
   var SIM_PAGE = 'dungeon-encounter.html';
+  var _kernelReady = Promise.resolve(null);
+
+  function _loadRulesKernel() {
+    if (window.GraycloakOSRIC3) return Promise.resolve(window.GraycloakOSRIC3);
+    if (typeof document === 'undefined') return Promise.resolve(null);
+    return import('./vendor/osric3-rules/browser-global.js')
+      .then(function () { return window.GraycloakOSRIC3 || null; })
+      .catch(function (error) {
+        console.warn('OSRIC 3 rules kernel did not load; combat XP will use the legacy fallback.', error);
+        return null;
+      });
+  }
+
+  _kernelReady = _loadRulesKernel();
 
   function _load(key) { try { return (window.GCC && GCC.load) ? GCC.load(key) : JSON.parse(localStorage.getItem(key)); } catch (e) { return null; } }
   function _save(key, val) { try { if (window.GCC && GCC.save) GCC.save(key, val); else localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
@@ -62,7 +76,7 @@
     };
   }
 
-// OSRIC: monster XP is divided among the party members who survive the fight
+  // OSRIC: monster XP is divided among the party members who survive the fight
   // (the dead don't advance). Remainder is handed to the first survivors so no
   // XP is silently lost. Per-character credit goes through _awardXP.
   function _survivorIds(res) {
@@ -71,12 +85,25 @@
       .map(function (p) { return String(p.id); });
   }
 
-  // Credit one character with an XP share. Single-class chars take it on
-  // xpTotal. TODO(multiclass): OSRIC splits a character's earned XP evenly
-  // across its classes - wire once the chargen multiclass schema is settled.
+  // Credit one character with an XP share. The kernel updates single- and
+  // multiclass XP fields, levels, and next-level thresholds. Unsupported legacy
+  // records retain the old xpTotal-only behavior.
   function _awardXP(char, amount) {
-    if (!char || amount <= 0) return;
+    if (!char || amount <= 0) return null;
+    var kernel = window.GraycloakOSRIC3;
+    if (kernel && typeof kernel.awardLegacyCharacterExperience === 'function') {
+      try {
+        var result = kernel.awardLegacyCharacterExperience(char, amount);
+        if (result && result.applied && result.character) {
+          Object.assign(char, result.character);
+          return result;
+        }
+      } catch (error) {
+        console.warn('OSRIC 3 XP adapter failed; using legacy xpTotal fallback.', error);
+      }
+    }
     char.xpTotal = _num(char.xpTotal, 0) + amount;
+    return null;
   }
 
   // Pure: apply a sim result to a chars array. Returns { chars, log, summary }.
@@ -88,25 +115,35 @@
       var c = byId[String(p.id)];
       if (c && p.hp_current != null) c.hpCurrent = p.hp_current;
     });
+
     var xp = _num(res.xp_awarded, 0);
     var survivors = _survivorIds(res).filter(function (id) { return byId[id]; });
+    var xpBonus = 0;
     if (xp > 0 && survivors.length) {
       var share = Math.floor(xp / survivors.length);
       var rem = xp - share * survivors.length;
-      survivors.forEach(function (id, i) { _awardXP(byId[id], share + (i < rem ? 1 : 0)); });
+      survivors.forEach(function (id, i) {
+        var awardResult = _awardXP(byId[id], share + (i < rem ? 1 : 0));
+        if (awardResult && awardResult.bonusAward) xpBonus += _num(awardResult.bonusAward, 0);
+      });
     }
+
     var entry = {
       ts: Date.now(),
       label: res.label || (res.defeated_monsters && res.defeated_monsters[0] && res.defeated_monsters[0].label) || 'Encounter',
       outcome: res.outcome || 'aborted',
       xp: xp,
+      xpBonus: xpBonus,
+      xpCredited: xp + xpBonus,
       rounds: _num(res.rounds, 0),
       defeated: (res.defeated_monsters || []).map(function (m) { return m.label; }),
       casualties: (res.casualties || []).filter(function (c) { return c.side === 'A'; }).map(function (c) { return c.label; }),
       activeCharId: activeId || null
     };
+    var victorySummary = 'Victory! +' + xp + ' XP';
+    if (xpBonus > 0) victorySummary += ' (+' + xpBonus + ' prime-requisite bonus)';
     var summary = ({
-      party_victory: 'Victory! +' + xp + ' XP',
+      party_victory: victorySummary,
       party_defeat: 'The party falls.',
       draw: 'Mutual destruction.',
       aborted: 'Encounter aborted.'
@@ -137,8 +174,7 @@
     var out = _applyResult(res, chars, activeId);
     _save(CHARS_KEY, out.chars);
     var log = _load(LOG_KEY) || [];
-    log.push(out.entry);
-    _save(LOG_KEY, log);
+    log.push(out.entry); _save(LOG_KEY, log);
     _toast(out.summary);
     try { window.dispatchEvent(new CustomEvent('gcc-encounter-applied', { detail: out.entry })); } catch (e) {}
     return true;
@@ -170,13 +206,24 @@
     };
   }
 
-  document.addEventListener('click', function (e) {
-    if (e.target && e.target.id === 'enc-fight') { e.preventDefault(); fight(_last); }
-  });
+  if (typeof document !== 'undefined') {
+    document.addEventListener('click', function (e) {
+      if (e.target && e.target.id === 'enc-fight') { e.preventDefault(); fight(_last); }
+    });
+  }
 
-  function _boot() { _wrapPanel(); checkResult(); }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _boot);
-  else _boot();
+  function _boot() { _wrapPanel(); _kernelReady.then(checkResult, checkResult); }
+  if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _boot);
+    else _boot();
+  }
 
-  window.GCCCombat = { fight: fight, checkResult: checkResult, _buildPayload: _buildPayload, _applyResult: _applyResult };
+  window.GCCCombat = {
+    fight: fight,
+    checkResult: checkResult,
+    kernelReady: _kernelReady,
+    _buildPayload: _buildPayload,
+    _applyResult: _applyResult,
+    _awardXP: _awardXP
+  };
 })();
