@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.44 -->
+<!-- dungeon-encounter — v0.9.45 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -930,7 +930,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js?v=45ce7839"></script>
 <script>
-const SIM_VERSION = 'v0.9.44';
+const SIM_VERSION = 'v0.9.45';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -6108,9 +6108,26 @@ function showGameOver() {
   const survivors = aliveCombatantsOnSide(state, winner).map(c => `${c.label} (${c.hp_current}/${c.hp_max})`).join(' · ');
   const xpEarned = state.combatants.filter(c => c.dead && c.side !== winner).reduce((s, c) => s + _num(c.xp, 0), 0);
   document.getElementById('go-stats').innerHTML = `Round ${state.round} · survivors: <span class="v">${survivors}</span>` + (xpEarned > 0 ? ` · XP earned: <span class="v">${xpEarned}</span>` : '');
-  const _ret = document.getElementById('go-return');
-  if (_ret) _ret.style.display = _handoff ? '' : 'none';
+  // Write the encounter result before deciding which end controls to show.
+  // The previous UI depended only on the in-memory _handoff flag, which could
+  // leave a completed GCC fight stranded with no Return to Map button.
   emitEncounterResult();
+
+  const _ret = document.getElementById('go-return');
+  if (_ret) {
+    let hasHandoffMarker = false;
+    let hasStoredResult = false;
+    try {
+      hasHandoffMarker = new URLSearchParams(window.location.search).has('handoff');
+      hasStoredResult = localStorage.getItem(HANDOFF_RESULT_KEY) != null;
+    } catch (e) {}
+
+    const canReturn = !!(_returnTo || _handoff || hasHandoffMarker || hasStoredResult);
+    _ret.style.display = canReturn ? '' : 'none';
+    _ret.textContent = (_returnTo && /hommlet\.html/i.test(_returnTo))
+      ? 'Return to Hommlet'
+      : 'Return to Map';
+  }
 }
 
 const SHEET_SAVE_LABELS = { ppd: 'Paralyze, Poison, Death', pp: 'Petrify, Polymorph', rsw: 'Rod, Staff, Wand', bw: 'Breath Weapon', spell: 'Spell' };
@@ -6870,7 +6887,14 @@ const App = {
     document.getElementById('game-over').style.display = 'none';
   },
   returnToMap() {
-    emitEncounterResult();            // idempotent (guarded by _handoffEmitted)
+    // Normally showGameOver() already emitted the result. If the handoff state
+    // was lost, preserve the finished board directly so HP/XP can still return.
+    emitEncounterResult();
+    try {
+      if (localStorage.getItem(HANDOFF_RESULT_KEY) == null) {
+        localStorage.setItem(HANDOFF_RESULT_KEY, JSON.stringify(buildEncounterResult()));
+      }
+    } catch (e) {}
     window.location.href = _returnTo || 'greyhawk-map.html';
   },
 
