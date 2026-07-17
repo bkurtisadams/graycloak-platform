@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.45 -->
+<!-- dungeon-encounter — v0.9.46 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -920,7 +920,7 @@ body.light .round-head .rh-title { font-family: inherit; }
     <h2>Combat Ends</h2>
     <div class="outcome" id="go-outcome"></div>
     <div class="stats" id="go-stats"></div>
-    <button id="go-return" style="display:none" onclick="App.returnToMap()">Return to Map</button>
+    <button id="go-return" onclick="App.returnToMap()">Return to Map</button>
     <button onclick="App.dismissGameOver()">Review Board</button>
     <button onclick="App.resetCombat()">Run Again</button>
   </div>
@@ -930,7 +930,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js?v=45ce7839"></script>
 <script>
-const SIM_VERSION = 'v0.9.45';
+const SIM_VERSION = 'v0.9.46';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -6115,15 +6115,9 @@ function showGameOver() {
 
   const _ret = document.getElementById('go-return');
   if (_ret) {
-    let hasHandoffMarker = false;
-    let hasStoredResult = false;
-    try {
-      hasHandoffMarker = new URLSearchParams(window.location.search).has('handoff');
-      hasStoredResult = localStorage.getItem(HANDOFF_RESULT_KEY) != null;
-    } catch (e) {}
-
-    const canReturn = !!(_returnTo || _handoff || hasHandoffMarker || hasStoredResult);
-    _ret.style.display = canReturn ? '' : 'none';
+    // Always provide an escape route from the completed battle. Conditional
+    // visibility proved too fragile when transient handoff state was lost.
+    _ret.style.display = '';
     _ret.textContent = (_returnTo && /hommlet\.html/i.test(_returnTo))
       ? 'Return to Hommlet'
       : 'Return to Map';
