@@ -144,11 +144,21 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .session-date-real{font-family:var(--fm);font-size:12px;color:var(--tx3);white-space:nowrap;padding-right:10px;margin-right:4px;border-right:1px solid var(--brd)}
 .session-hdr-right{display:flex;align-items:center;flex-shrink:0}
 /* ── Recap layout: cover left + text right ── */
-.session-recap{display:flex;gap:14px;padding:12px 14px 8px;align-items:flex-start}
-.session-recap-img{flex:0 0 300px;max-width:300px}
-.session-recap-img img{width:100%;border-radius:3px;border:1px solid var(--brd);display:block}
-.session-recap-text{flex:1;min-width:0}
-.session-recap-noimg{padding:10px 14px 6px}
+.session-recap{display:flex;gap:14px;padding:12px 14px 10px;align-items:flex-start}
+.session-recap-img{flex:0 0 clamp(140px,28vw,260px);max-width:260px}
+.session-recap-img img{width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:3px;border:1px solid var(--brd);display:block}
+.session-recap-text{flex:1;min-width:0;display:flex;flex-direction:column;align-self:stretch}
+.session-recap-noimg{padding:10px 14px 8px}
+.session-date-stack{display:flex;gap:12px;flex-wrap:wrap;margin:0 0 8px}
+.session-date-item{display:flex;flex-direction:column;gap:1px;min-width:110px}
+.session-date-label{font-family:var(--fsc);font-size:8px;letter-spacing:1px;color:var(--tx3)}
+.session-date-value{font-family:var(--fm);font-size:11px;color:var(--tx2)}
+.session-date-item.game .session-date-value{color:var(--amber)}
+.session-summary-excerpt{font-size:12px;color:var(--tx2);line-height:1.5;white-space:pre-line}
+.session-read-row{display:flex;justify-content:flex-end;align-items:center;margin-top:auto;padding-top:10px}
+.session-read-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:5px 12px;border:1px solid var(--accent-dim);border-radius:3px;background:rgba(96,160,208,.08);color:var(--accent);font-family:var(--fb);font-size:10px;font-weight:700;letter-spacing:.35px;text-decoration:none;transition:all .12s}
+.session-read-btn:hover{background:rgba(96,160,208,.16);border-color:var(--accent);color:var(--accent-lt)}
+.session-full-content{display:none}
 /* ── Roster strip ── */
 .session-roster{display:flex;gap:4px;flex-wrap:wrap;padding:4px 14px 6px;border-top:1px solid var(--brd);background:var(--bg2)}
 .session-roster-label{font-family:var(--fsc);font-size:8px;color:var(--tx3);letter-spacing:1px;margin-right:4px;align-self:center}
@@ -184,7 +194,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .session-vis{font-size:9px;color:var(--tx3);display:flex;align-items:center;gap:3px}
 .session-actions{display:flex;gap:6px;opacity:0;transition:opacity .1s}
 .session-card:hover .session-actions{opacity:1}
-@media(max-width:600px){.session-recap{flex-direction:column}.session-recap-img{flex:none;max-width:60%;margin:0 auto}.session-sec-img-wrap.pos-left,.session-sec-img-wrap.pos-right{float:none;margin:0 auto 6px;display:block;text-align:center}.session-sec-img.sz-lg,.session-sec-img.sz-md{max-width:100%}}
+@media(max-width:600px){.session-recap{flex-direction:column;padding:10px}.session-recap-img{flex:none;max-width:none;width:100%;margin:0}.session-date-stack{gap:8px}.session-date-item{min-width:calc(50% - 4px)}.session-read-btn{width:100%;padding:8px 12px}.session-actions{opacity:1}.ses-drag-handle{opacity:.45}.session-sec-img-wrap.pos-left,.session-sec-img-wrap.pos-right{float:none;margin:0 auto 6px;display:block;text-align:center}.session-sec-img.sz-lg,.session-sec-img.sz-md{max-width:100%}}
 .session-action-btn{background:none;border:none;color:var(--tx2);font-size:12px;cursor:pointer;padding:4px 8px;font-family:var(--fb);font-weight:700}
 .session-action-btn:hover{color:var(--tx)}.session-action-btn.danger{color:var(--red)}.session-action-btn.danger:hover{color:var(--red-lt)}
 .ses-drag-handle{cursor:grab;color:var(--tx3);font-size:12px;opacity:0;transition:opacity .15s;padding:0 4px 0 0;user-select:none;flex-shrink:0}
@@ -571,17 +581,27 @@ function buildSessionCard(s,idx,total,camp,imgMap){
     ?`<span class="session-num"><span class="session-num-text" style="color:var(--tx3)">Timeline${titlePart}</span></span>`
     :`<span class="session-num"><a class="session-num-text session-recap-link" href="${recapUrl}">${ESC(sesLabel)} #${realNum}${titlePart}</a></span>`;
 
-  let gameDateHtml=s.gameDate?`<span class="session-date-game">${ESC(s.gameDate)}</span>`:'';
-  let realDateHtml=s.date?`<span class="session-date-real">${formatDate(s.date)}</span>`:'';
+  const gameDateValue=s.gameDate?ESC(s.gameDate):'Not recorded';
+  const realDateValue=s.date?formatDate(s.date):'Not recorded';
+  const dateStackHtml=isTimeline?'':`<div class="session-date-stack">
+    <span class="session-date-item game"><span class="session-date-label">GAME DATE</span><span class="session-date-value">${gameDateValue}</span></span>
+    <span class="session-date-item"><span class="session-date-label">PLAYED</span><span class="session-date-value">${realDateValue}</span></span>
+  </div>`;
 
   // ── Recap layout: cover image left, summary text right ──
   let recapHtml='';
-  const summaryHtml=s.text?`<div class="session-text">${ESC(s.text)}</div>`:'';
+  const rawSummary=String(s.text||'').trim();
+  const excerptLimit=420;
+  const excerptText=rawSummary.length>excerptLimit
+    ?rawSummary.slice(0,excerptLimit).replace(/\s+\S*$/,'').trim()+'…'
+    :rawSummary;
+  const summaryHtml=excerptText?`<div class="session-summary-excerpt">${ESC(excerptText)}</div>`:'';
+  const readButtonHtml=isTimeline?'':`<div class="session-read-row"><a class="session-read-btn" href="${recapUrl}">READ ${ESC(sesLabel)} →</a></div>`;
   const coverSrc=resolveImg(s.image,imgMap);
   if(coverSrc){
-    recapHtml=`<div class="session-recap"><div class="session-recap-img"><img src="${coverSrc}" alt=""></div><div class="session-recap-text">${summaryHtml}</div></div>`;
-  }else if(summaryHtml){
-    recapHtml=`<div class="session-recap-noimg">${summaryHtml}</div>`;
+    recapHtml=`<div class="session-recap"><div class="session-recap-img"><img src="${coverSrc}" alt=""></div><div class="session-recap-text">${dateStackHtml}${summaryHtml}${readButtonHtml}</div></div>`;
+  }else{
+    recapHtml=`<div class="session-recap-noimg"><div class="session-recap-text">${dateStackHtml}${summaryHtml}${readButtonHtml}</div></div>`;
   }
 
   // ── Sections: title + multi-image + text ──
@@ -643,11 +663,11 @@ function buildSessionCard(s,idx,total,camp,imgMap){
   const cardClass='session-card'+(isTimeline?' timeline-entry':'')+(isDmOnly?' dm-only':'');
 
   return`<li class="${cardClass}" data-ses-idx="${idx}" draggable="true">
-    <div class="session-card-header"><span class="ses-drag-handle" title="Drag to reorder">⠿</span>${numLabel}${gameDateHtml}<div class="session-hdr-right">${realDateHtml}<div class="session-actions"><button class="session-action-btn" data-ses-edit="${idx}">Edit</button><button class="session-action-btn danger" data-ses-del="${idx}">Del</button></div>
+    <div class="session-card-header"><span class="ses-drag-handle" title="Drag to reorder">⠿</span>${numLabel}<div class="session-hdr-right"><div class="session-actions"><button class="session-action-btn" data-ses-edit="${idx}">Edit</button><button class="session-action-btn danger" data-ses-del="${idx}">Del</button></div>
     </div></div>
     ${recapHtml}
     ${rosterHtml}
-    ${sectionsHtml}
+    <div class="session-full-content">${sectionsHtml}</div>
     <div class="session-footer">${tagsHtml}${xpHtml}${visHtml}</div>
   </li>`;
 }
