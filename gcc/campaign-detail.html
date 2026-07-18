@@ -896,7 +896,7 @@ async function render(){
     const portraitHtml=resolved.portrait?`<img class="entity-portrait" src="${resolved.portrait}" alt="">`:`<div class="entity-portrait-ph">?</div>`;
     let nameHtml;const charSys=GCC.SYSTEM_DEFS.find(s=>s.id===camp.system);const effectiveKey=resolved.storageKey||refKey;
     const charTool=charSys?.tools.find(t=>t.charList===effectiveKey&&t.href)||charSys?.tools.find(t=>t.charList&&t.href);
-    if(!_isPlayerMode&&charTool&&resolved.name){const linkParam=(resolved._id||ch._id)?'id='+encodeURIComponent(resolved._id||ch._id):'char='+encodeURIComponent(resolved.name);const href=charTool.href+(charTool.href.includes('?')?'&':'?')+linkParam;nameHtml=`<a href="${ESC(href+'&mode=view')}">${ESC(resolved.name)}</a> <a href="${ESC(href)}" style="font-size:9px;color:var(--tx3);text-decoration:none" title="Edit">✎</a>`}else{nameHtml=ESC(resolved.name||ch.name||'Unnamed')}
+    if(!_isPlayerMode&&charTool&&resolved.name){const idv=resolved._id||ch._id;const linkParam=idv?'id='+encodeURIComponent(idv):'char='+encodeURIComponent(resolved.name);const href=charTool.href+(charTool.href.includes('?')?'&':'?')+linkParam+(idv?'&char='+encodeURIComponent(resolved.name):'');nameHtml=`<a href="${ESC(href+'&mode=view')}">${ESC(resolved.name)}</a> <a href="${ESC(href)}" style="font-size:9px;color:var(--tx3);text-decoration:none" title="Edit">✎</a>`}else{nameHtml=ESC(resolved.name||ch.name||'Unnamed')}
     const role=opts.role||resolved.charType||'';
     const roleBadge=role?`<span class="entity-badge ${role}">${role.toUpperCase()}</span>`:'';
     const reserveBadge=opts.reserve?`<span class="entity-badge reserve">RESERVE</span>`:'';
@@ -1321,9 +1321,25 @@ async function loadPlayerChars(){
     const effectiveKey=resolved.storageKey||listKey;
     const charTool=charSys?.tools.find(t=>t.charList===effectiveKey&&t.href)||charSys?.tools.find(t=>t.charList&&t.href);
     if(charTool&&resolved.name){
-      const idv=resolved._id||charId;
+      // Heal stale ids: the Firestore assignment/snapshot may carry a character id
+      // that no longer exists in the local list (e.g. pre-v0.2.44 GW re-transfers
+      // minted a NEW id each time, orphaning the id stored in the assignment).
+      // Verify against the local list; if the id is dead, re-match by name and use
+      // the id that actually exists, so character.html never falls back to its
+      // last-opened-sheet cache and silently loads the wrong character.
+      let idv=resolved._id||charId;
+      try{
+        const savedList=JSON.parse(localStorage.getItem(charTool.charList))||[];
+        const byId=idv?savedList.find(s=>s&&s._id===idv):null;
+        if(!byId){
+          const byName=savedList.find(s=>s&&(s.heroName||s.characterName||s.name)===resolved.name);
+          if(byName&&byName._id)idv=byName._id;
+        }
+      }catch(e){}
       const linkParam=idv?'id='+encodeURIComponent(idv):'char='+encodeURIComponent(resolved.name);
-      const href=charTool.href+(charTool.href.includes('?')?'&':'?')+linkParam;
+      // Always include the name as a fallback hint so character.html can recover
+      // by name if the id ever goes stale between page loads.
+      const href=charTool.href+(charTool.href.includes('?')?'&':'?')+linkParam+(idv?'&char='+encodeURIComponent(resolved.name):'');
       return `<a href="${ESC(href+'&mode=view')}">${ESC(resolved.name)}</a> <a href="${ESC(href)}" style="font-size:9px;color:var(--tx3);text-decoration:none" title="Edit">\u270E</a>`;
     }
     return ESC(resolved.name||'Unnamed');

@@ -1455,10 +1455,25 @@ if (new URLSearchParams(window.location.search).get('r20') === '1') {
   const charName = params.get('char');
   if (!charId && !charName) return;
   const list = JSON.parse(localStorage.getItem(CHARS_LIST_KEY)) || [];
-  const idx = charId
-    ? list.findIndex(c => c._id === charId)
-    : list.findIndex(c => (c.name || '') === charName);
-  if (idx < 0) return;
+  // Try exact id first; a stale id (e.g. a campaign assignment still pointing at
+  // a pre-re-transfer character id) falls back to the char= name hint that
+  // campaign-detail now appends to every link.
+  let idx = charId ? list.findIndex(c => c && c._id === charId) : -1;
+  if (idx < 0 && charName) idx = list.findIndex(c => c && (c.name || '') === charName);
+  if (idx < 0) {
+    // Do NOT bail silently: the page has already restored the last-opened sheet
+    // from the mp-char-sheet cache, so returning here would display a completely
+    // different character under this link's name. Clear the form and say so.
+    clearAll();
+    window._charMeta = {};
+    showPortrait(null);
+    localStorage.setItem('mp-char-edit-idx', '-1');
+    alert('Character not found: ' + (charName || charId) +
+      '\n\nThis link points at an id that no longer exists in your character list' +
+      ' (it may have been deleted or re-created with a new id).' +
+      '\nRe-open it from the campaign page, or use Load Character to pick it manually.');
+    return;
+  }
   clearAll();
   window._charMeta = {};
   const data = list[idx];
