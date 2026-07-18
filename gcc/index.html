@@ -429,6 +429,21 @@ body::before { content: ''; position: fixed; inset: 0; pointer-events: none; z-i
       </fieldset>
 
       <fieldset class="gcc-dlg-fieldset">
+        <legend class="gcc-dlg-legend">Corrupted Calendar</legend>
+        <div class="gcc-dlg-check"><input type="checkbox" id="ef-cal-enabled"><label for="ef-cal-enabled">Use a corrupted in-game calendar (enables the ⟵ Derive button in the episode editor)</label></div>
+        <div id="ef-cal-body" style="display:none;margin-top:6px">
+          <div class="gcc-dlg-row">
+            <div class="gcc-dlg-field-sm"><label class="gcc-dlg-label">Year offset</label><input class="gcc-dlg-input" id="ef-cal-offset" type="number" placeholder="e.g. 500"></div>
+          </div>
+          <label class="gcc-dlg-label">Month names (blank keeps the real name)</label>
+          <div id="ef-cal-months" style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:8px"></div>
+          <label class="gcc-dlg-label">Weekday names (optional)</label>
+          <div id="ef-cal-weekdays" style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:6px"></div>
+          <div class="gcc-dlg-check"><input type="checkbox" id="ef-cal-incwd"><label for="ef-cal-incwd">Include weekday in derived date</label></div>
+        </div>
+      </fieldset>
+
+      <fieldset class="gcc-dlg-fieldset">
         <legend class="gcc-dlg-legend">Image</legend>
         <div class="gcc-dlg-img-area">
           <div id="ef-img-wrap"></div>
@@ -816,6 +831,19 @@ function populateSystemSelect() {
 }
 populateSystemSelect();
 
+// ── Corrupted Calendar fields ──
+const CAL_REAL_MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const CAL_REAL_WEEKDAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+function ensureCalendarInputs(){
+  const mWrap=document.getElementById('ef-cal-months');
+  if(!mWrap||mWrap.children.length)return;
+  mWrap.innerHTML=CAL_REAL_MONTHS.map((m,i)=>`<input class="gcc-dlg-input" id="ef-cal-m${i}" placeholder="${m}">`).join('');
+  document.getElementById('ef-cal-weekdays').innerHTML=CAL_REAL_WEEKDAYS.map((w,i)=>`<input class="gcc-dlg-input" id="ef-cal-w${i}" placeholder="${w}">`).join('');
+}
+document.getElementById('ef-cal-enabled').addEventListener('change',e=>{
+  document.getElementById('ef-cal-body').style.display=e.target.checked?'':'none';
+});
+
 async function openEditModal(campId) {
   const camp = GCC.loadCampaigns().find(c => c.id === campId);
   if (!camp) return;
@@ -843,6 +871,20 @@ async function openEditModal(campId) {
   document.getElementById('ef-rulebooks').value = camp.rulebooks || '';
   document.getElementById('ef-houseRules').value = camp.houseRules || '';
   document.getElementById('ef-notes').value = camp.notes || '';
+
+  // Corrupted calendar
+  ensureCalendarInputs();
+  const cal = camp.gameCalendar || null;
+  document.getElementById('ef-cal-enabled').checked = !!cal;
+  document.getElementById('ef-cal-body').style.display = cal ? '' : 'none';
+  document.getElementById('ef-cal-offset').value = cal ? (cal.yearOffset || 0) : '';
+  CAL_REAL_MONTHS.forEach((m, i) => {
+    document.getElementById('ef-cal-m' + i).value = (cal && Array.isArray(cal.months) && cal.months[i]) ? cal.months[i] : '';
+  });
+  CAL_REAL_WEEKDAYS.forEach((w, i) => {
+    document.getElementById('ef-cal-w' + i).value = (cal && Array.isArray(cal.weekdays) && cal.weekdays[i]) ? cal.weekdays[i] : '';
+  });
+  document.getElementById('ef-cal-incwd').checked = !!(cal && cal.includeWeekday);
 
   // Resolve image from IndexedDB if it's a key
   if (camp.campaignImage && GCCImages.isKey(camp.campaignImage)) {
@@ -932,6 +974,20 @@ document.getElementById('ef-save').addEventListener('click', async () => {
     notes: document.getElementById('ef-notes').value.trim(),
     campaignImage: editImageData,
   };
+  // Corrupted calendar: blank month/weekday fields fall back to the real name,
+  // so a partially filled calendar still derives sensibly. Disabling the
+  // checkbox clears the field, which hides the Derive button on the campaign.
+  if (document.getElementById('ef-cal-enabled').checked) {
+    const months = CAL_REAL_MONTHS.map((m, i) => document.getElementById('ef-cal-m' + i).value.trim() || m);
+    const wdVals = CAL_REAL_WEEKDAYS.map((w, i) => document.getElementById('ef-cal-w' + i).value.trim());
+    updates.gameCalendar = { yearOffset: parseInt(document.getElementById('ef-cal-offset').value) || 0, months };
+    if (wdVals.some(v => v)) {
+      updates.gameCalendar.weekdays = CAL_REAL_WEEKDAYS.map((w, i) => wdVals[i] || w);
+      updates.gameCalendar.includeWeekday = !!document.getElementById('ef-cal-incwd').checked;
+    }
+  } else {
+    updates.gameCalendar = null;
+  }
   // Store image in IndexedDB if it's a data URL
   if (updates.campaignImage && GCCImages.isDataUrl(updates.campaignImage)) {
     // Remove old image from IndexedDB
