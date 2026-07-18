@@ -65,7 +65,7 @@ const GCC = (function() {
   tools: [
     { id: 'mp-char', name: 'Character Builder', href: 'character.html', charList: 'mp-char-list' },
     { id: 'mp-gw-char', name: 'Gamma World Starter', href: 'gw-character.html', charList: 'mp-char-list' },
-    { id: 'mp-veh', name: 'Vehicle Builder', href: 'vehicle.html', charList: 'mp-veh-list' },
+    { id: 'mp-veh', name: 'Vehicle Builder', href: 'vehicle.html', charList: 'mp-veh-list', vehicles: true },
     { id: 'mp-r20', name: 'Roll20 Import', href: 'character.html?r20=1' },
     { id: 'mp-gw-map', name: 'Gamma World Map', href: 'gw-map.html' },
   ]
@@ -464,18 +464,26 @@ const GCC = (function() {
   }
 
   // ── Character list helpers (cross-system) ──
-  // Returns characters from a specific system's localStorage list
+  // Returns characters from a specific system's localStorage list.
+  // NOTE: excludes tools flagged `vehicles: true` — vehicle lists share the
+  // charList mechanism for storage/id purposes, but vehicles must never appear
+  // in character pickers or be enrolled into a campaign's party roster.
+  // Also dedupes by list key: multiple tools can point at the same list
+  // (e.g. mp-char and mp-gw-char both use mp-char-list), which previously
+  // returned every character twice.
   function getCharactersForSystem(systemId) {
     const sys = SYSTEM_DEFS.find(s => s.id === systemId);
     if (!sys) return [];
     const results = [];
+    const seenLists = new Set();
     sys.tools.forEach(t => {
-      if (t.charList) {
-        const list = load(t.charList) || [];
-        list.forEach((item, idx) => {
-          results.push({ ...item, _toolId: t.id, _listKey: t.charList, _idx: idx });
-        });
-      }
+      if (!t.charList || t.vehicles) return;
+      if (seenLists.has(t.charList)) return;
+      seenLists.add(t.charList);
+      const list = load(t.charList) || [];
+      list.forEach((item, idx) => {
+        results.push({ ...item, _toolId: t.id, _listKey: t.charList, _idx: idx });
+      });
     });
     return results;
   }

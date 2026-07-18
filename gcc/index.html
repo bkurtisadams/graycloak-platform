@@ -635,8 +635,12 @@ function _getSavedCharsForSystem(systemId) {
   const seenLists = new Set();
   const seenIds = new Set();
   sys.tools.forEach(t => {
-    // Multiple tools can share one charList key — read each list once
-    if (!t.charList || seenLists.has(t.charList)) return;
+    // Multiple tools can share one charList key — read each list once.
+    // Skip tools flagged `vehicles: true` (e.g. mp-veh-list): vehicles use the
+    // charList mechanism for storage, but they are campaign vehicles, not
+    // characters — listing them here made them selectable/enrollable into the
+    // party roster.
+    if (!t.charList || t.vehicles || seenLists.has(t.charList)) return;
     seenLists.add(t.charList);
     try {
       const list = JSON.parse(localStorage.getItem(t.charList)) || [];
@@ -729,7 +733,7 @@ async function renderCampaigns() {
       const charSys = GCC.SYSTEM_DEFS.find(s => s.id === c.system);
       const effectiveKey = resolved.storageKey || refKey;
       const charTool = charSys?.tools.find(t => t.charList === effectiveKey && t.href)
-        || charSys?.tools.find(t => t.charList && t.href);
+        || charSys?.tools.find(t => t.charList && !t.vehicles && t.href);
       if(charTool && resolved.name){
         const linkParam = (resolved._id || ch._id)
           ? 'id=' + encodeURIComponent(resolved._id || ch._id)
