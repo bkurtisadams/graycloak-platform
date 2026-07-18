@@ -591,7 +591,7 @@ function _resolveChar(savedChar, systemId, storageKey) {
     name = savedChar.name || 'Unnamed';
     player = savedChar.player || '';
     portrait = savedChar._image || savedChar.portrait || '';
-    sub = savedChar.archetype || savedChar.className || savedChar.model || '';
+    sub = savedChar.archetype || savedChar.className || savedChar.species || savedChar.model || '';
     let cp = 0;
     if (savedChar.stats) { for (const s of Object.values(savedChar.stats)) cp += parseFloat(s.cp) || 0; }
     if (savedChar.abilities) { for (const a of savedChar.abilities) cp += parseFloat(a.cp) || 0; }
@@ -605,6 +605,8 @@ function _resolveChar(savedChar, systemId, storageKey) {
     if (savedChar.power) derived.push('Power ' + savedChar.power);
     if (savedChar.hitPts) derived.push('HP ' + savedChar.hitPts);
     if (savedChar.initiative) derived.push('Init ' + savedChar.initiative);
+    const _xp = savedChar.xpEarned || savedChar.xpTotal;
+    if (_xp) derived.push('XP ' + _xp);
     if (derived.length) statsHtml += `<div class="cc-char-derived">${derived.map(d=>'<span>'+ESC(d)+'</span>').join('')}</div>`;
   } else if (systemId === 'add1e') {
     name = savedChar.characterName || savedChar.name || 'Unnamed';
