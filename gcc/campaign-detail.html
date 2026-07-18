@@ -190,7 +190,11 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .session-footer{display:flex;gap:8px;align-items:center;padding:6px 14px 10px;flex-wrap:wrap;border-top:1px solid var(--brd)}
 .session-tag{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;font-size:10px;border-radius:2px;border:1px solid var(--brd-lt);color:var(--tx2);background:var(--bg2);cursor:default}
 .session-tag .tag-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
-.session-xp{font-family:var(--fm);font-size:10px;color:var(--accent);margin-left:auto}
+.session-xp{display:inline-flex;align-items:center;gap:5px;font-family:var(--fm);font-size:10px;color:var(--accent);margin-left:auto;padding:2px 8px;border:1px solid rgba(96,160,208,.25);border-radius:2px;background:rgba(96,160,208,.06)}
+.session-xp-label{font-family:var(--fsc);font-size:8px;letter-spacing:.8px;color:var(--tx3)}
+.gcc-dlg-sec-layout{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:6px;margin:6px 0 8px;padding:7px;background:var(--bg2);border:1px solid var(--brd);border-radius:3px}
+.gcc-dlg-sec-layout>div{min-width:0}.gcc-dlg-sec-layout .gcc-dlg-label{margin-bottom:2px;font-size:8px}.gcc-dlg-sec-layout .gcc-dlg-input{margin:0;padding:4px 6px;font-size:10px}
+@media(max-width:600px){.gcc-dlg-sec-layout{grid-template-columns:1fr 1fr}}
 .session-vis{font-size:9px;color:var(--tx3);display:flex;align-items:center;gap:3px}
 .session-actions{display:flex;gap:6px;opacity:0;transition:opacity .1s}
 .session-card:hover .session-actions{opacity:1}
@@ -658,7 +662,7 @@ function buildSessionCard(s,idx,total,camp,imgMap){
     tagsHtml+=`<span class="session-tag"><span class="tag-dot" style="background:${color}"></span> ${ESC(tag.name)}</span>`;
   })}
 
-  const xpHtml=s.xp?`<span class="session-xp">+${s.xp} ${ESC(xpLbl)}</span>`:'';
+  const xpHtml=s.xp?`<span class="session-xp"><span class="session-xp-label">${ESC(xpLbl.toUpperCase())} AWARDED</span><strong>${s.xp}</strong></span>`:'';
   const visHtml=isDmOnly?`<span class="session-vis" style="color:var(--amber)">○ DM only</span>`:`<span class="session-vis">● Players can see</span>`;
   const cardClass='session-card'+(isTimeline?' timeline-entry':'')+(isDmOnly?' dm-only':'');
 
@@ -1581,7 +1585,24 @@ function buildSessionModalBody(camp,isTimeline){
       imgTrayHtml+=`<input class="gcc-dlg-input gcc-dlg-sec-caption" style="font-size:9px;margin:0 0 2px;padding:2px 4px" placeholder="Caption (optional)" value="${ESC(img.caption||'')}" data-sec-img-cap="${i}-${j}">`;
     });
     imgTrayHtml+=`<button class="gcc-dlg-img-btn" data-sec-img-add="${i}" style="font-size:9px;padding:2px 6px;align-self:center">+ Image</button><input type="file" data-sec-img-file="${i}" accept="image/*" style="display:none" multiple></div>`;
-    return`<div class="gcc-dlg-sec-item" data-sec-idx="${i}"><div style="flex:1"><input class="gcc-dlg-input" style="margin:0 0 4px" placeholder="Section title" value="${ESC(sec.title)}" data-sec-title="${i}"><textarea class="gcc-dlg-ta" style="margin:0;min-height:50px" placeholder="Section text..." data-sec-text="${i}">${ESC(sec.text)}</textarea>${imgTrayHtml}</div><button class="gcc-dlg-sec-remove" data-sec-remove="${i}">✕</button></div>`}).join('')}</div><button class="gcc-dlg-sec-add" id="sm-add-section">+ Add Section</button><div style="margin-bottom:10px"></div>`}
+    const layout=sec.layout||'legacy';
+    const columns=String(sec.columns||'auto');
+    const fit=sec.fit||'contain';
+    const textWidth=sec.textWidth||'normal';
+    const layoutControls=`<div class="gcc-dlg-sec-layout">
+      <div><label class="gcc-dlg-label">SECTION LAYOUT</label><select class="gcc-dlg-input" data-sec-layout="${i}">
+        <option value="legacy"${layout==='legacy'?' selected':''}>Legacy image positions</option>
+        <option value="text-first"${layout==='text-first'?' selected':''}>Text, then images</option>
+        <option value="images-first"${layout==='images-first'?' selected':''}>Images, then text</option>
+        <option value="text-left"${layout==='text-left'?' selected':''}>Text left / images right</option>
+        <option value="images-left"${layout==='images-left'?' selected':''}>Images left / text right</option>
+        <option value="gallery"${layout==='gallery'?' selected':''}>Full-width gallery</option>
+      </select></div>
+      <div><label class="gcc-dlg-label">COLUMNS</label><select class="gcc-dlg-input" data-sec-columns="${i}"><option value="auto"${columns==='auto'?' selected':''}>Auto</option><option value="1"${columns==='1'?' selected':''}>1</option><option value="2"${columns==='2'?' selected':''}>2</option><option value="3"${columns==='3'?' selected':''}>3</option></select></div>
+      <div><label class="gcc-dlg-label">IMAGE FIT</label><select class="gcc-dlg-input" data-sec-fit="${i}"><option value="contain"${fit==='contain'?' selected':''}>Contain</option><option value="cover"${fit==='cover'?' selected':''}>Crop</option></select></div>
+      <div><label class="gcc-dlg-label">TEXT WIDTH</label><select class="gcc-dlg-input" data-sec-textwidth="${i}"><option value="normal"${textWidth==='normal'?' selected':''}>Normal</option><option value="wide"${textWidth==='wide'?' selected':''}>Wide</option><option value="narrow"${textWidth==='narrow'?' selected':''}>Narrow</option></select></div>
+    </div>`;
+    return`<div class="gcc-dlg-sec-item" data-sec-idx="${i}"><div style="flex:1"><input class="gcc-dlg-input" style="margin:0 0 4px" placeholder="Section title" value="${ESC(sec.title)}" data-sec-title="${i}"><textarea class="gcc-dlg-ta" style="margin:0;min-height:50px" placeholder="Section text..." data-sec-text="${i}">${ESC(sec.text)}</textarea>${layoutControls}${imgTrayHtml}</div><button class="gcc-dlg-sec-remove" data-sec-remove="${i}">✕</button></div>`}).join('')}</div><button class="gcc-dlg-sec-add" id="sm-add-section">+ Add Section</button><div style="margin-bottom:10px"></div>`}
   // Character participation checklist
   const chars=camp.characters||[];
   let charCheckHtml='';
@@ -1617,7 +1638,7 @@ function buildSessionModalBody(camp,isTimeline){
 
 function captureSessionFields(){return{date:document.getElementById('sm-date')?.value||'',gameDate:document.getElementById('sm-gamedate')?.value||'',title:document.getElementById('sm-title')?.value||'',text:document.getElementById('sm-text')?.value||'',xp:document.getElementById('sm-xp')?.value||'',visible:document.getElementById('sm-visible')?.checked!==false}}
 function restoreSessionFields(vals){if(!vals)return;const f=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v||''};f('sm-date',vals.date);f('sm-gamedate',vals.gameDate);f('sm-title',vals.title);f('sm-text',vals.text);f('sm-xp',vals.xp);const vis=document.getElementById('sm-visible');if(vis)vis.checked=vals.visible!==false}
-function captureSessionSections(){document.querySelectorAll('[data-sec-title]').forEach(el=>{const i=parseInt(el.dataset.secTitle);if(sesSections[i])sesSections[i].title=el.value});document.querySelectorAll('[data-sec-text]').forEach(el=>{const i=parseInt(el.dataset.secText);if(sesSections[i])sesSections[i].text=el.value});document.querySelectorAll('[data-sec-img-cap]').forEach(el=>{const[si,ii]=el.dataset.secImgCap.split('-').map(Number);if(sesSections[si]&&sesSections[si].images&&sesSections[si].images[ii])sesSections[si].images[ii].caption=el.value})}
+function captureSessionSections(){document.querySelectorAll('[data-sec-title]').forEach(el=>{const i=parseInt(el.dataset.secTitle);if(sesSections[i])sesSections[i].title=el.value});document.querySelectorAll('[data-sec-text]').forEach(el=>{const i=parseInt(el.dataset.secText);if(sesSections[i])sesSections[i].text=el.value});document.querySelectorAll('[data-sec-layout]').forEach(el=>{const i=parseInt(el.dataset.secLayout);if(sesSections[i])sesSections[i].layout=el.value});document.querySelectorAll('[data-sec-columns]').forEach(el=>{const i=parseInt(el.dataset.secColumns);if(sesSections[i])sesSections[i].columns=el.value});document.querySelectorAll('[data-sec-fit]').forEach(el=>{const i=parseInt(el.dataset.secFit);if(sesSections[i])sesSections[i].fit=el.value});document.querySelectorAll('[data-sec-textwidth]').forEach(el=>{const i=parseInt(el.dataset.secTextwidth);if(sesSections[i])sesSections[i].textWidth=el.value});document.querySelectorAll('[data-sec-img-cap]').forEach(el=>{const[si,ii]=el.dataset.secImgCap.split('-').map(Number);if(sesSections[si]&&sesSections[si].images&&sesSections[si].images[ii])sesSections[si].images[ii].caption=el.value})}
 
 function refreshModalBody(camp,isTimeline){
   const vals=captureSessionFields();captureSessionSections();
@@ -1659,7 +1680,7 @@ function wireSessionModalEvents(camp,isTimeline){
   document.getElementById('sm-img-file')?.addEventListener('change',e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{sesImageData=ev.target.result;refreshModalBody(camp,isTimeline)};reader.readAsDataURL(file)});
   document.getElementById('sm-img-paste')?.addEventListener('click',async()=>{try{const items=await navigator.clipboard.read();for(const item of items){const imgType=item.types.find(t=>t.startsWith('image/'));if(imgType){const blob=await item.getType(imgType);const reader=new FileReader();reader.onload=ev=>{sesImageData=ev.target.result;refreshModalBody(camp,isTimeline)};reader.readAsDataURL(blob);return}}}catch(e){console.warn('Clipboard paste failed:',e)}});
   document.getElementById('sm-img-clear')?.addEventListener('click',()=>{sesImageData='';refreshModalBody(camp,isTimeline)});
-  if(!isTimeline){document.getElementById('sm-add-section')?.addEventListener('click',()=>{captureSessionSections();sesSections.push({title:'',text:'',images:[]});refreshModalBody(camp,isTimeline)});
+  if(!isTimeline){document.getElementById('sm-add-section')?.addEventListener('click',()=>{captureSessionSections();sesSections.push({title:'',text:'',images:[],layout:'text-first',columns:'auto',fit:'contain',textWidth:'normal'});refreshModalBody(camp,isTimeline)});
     document.querySelectorAll('[data-sec-remove]').forEach(btn=>{btn.addEventListener('click',()=>{captureSessionSections();sesSections.splice(parseInt(btn.dataset.secRemove),1);refreshModalBody(camp,isTimeline)})});
     // Multi-image: add images to section
     document.querySelectorAll('[data-sec-img-add]').forEach(btn=>{btn.addEventListener('click',()=>{const fi=document.querySelector(`[data-sec-img-file="${btn.dataset.secImgAdd}"]`);if(fi)fi.click()})});

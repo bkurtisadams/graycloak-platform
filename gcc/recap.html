@@ -57,7 +57,8 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .recap-dates{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}
 .recap-date-game{font-family:var(--fm);font-size:12px;color:var(--amber)}
 .recap-date-real{font-family:var(--fm);font-size:11px;color:var(--tx3)}
-.recap-xp{font-family:var(--fm);font-size:11px;color:var(--accent)}
+.recap-xp{display:inline-flex;align-items:center;gap:7px;font-family:var(--fm);font-size:12px;color:var(--accent);padding:4px 10px;border:1px solid var(--recap-rule);border-radius:3px;background:var(--recap-num-bg)}
+.recap-xp-label{font-family:var(--fsc);font-size:8px;letter-spacing:1.2px;color:var(--tx3)}
 .recap-tags{display:flex;gap:6px;flex-wrap:wrap}
 .recap-tag{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;font-size:10px;border-radius:2px;border:1px solid var(--brd-lt);color:var(--tx2);background:var(--bg2)}
 .recap-tag-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
@@ -84,20 +85,33 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .recap-sec-title{font-family:var(--fd);font-size:14px;font-weight:700;letter-spacing:1.5px;color:var(--accent-dim);margin-bottom:12px;text-transform:uppercase}
 .recap-sec-text{font-size:15px;line-height:1.75;color:var(--tx);white-space:pre-line}
 
-/* ── Section images (same float model as campaign-detail) ── */
+/* ── Section layouts and image galleries ── */
 .clearfix::after{content:'';display:table;clear:both}
-.recap-sec-images{display:block}
-.recap-sec-img-wrap{display:inline-block;margin:0 0 10px 0}
-.recap-sec-img-wrap.pos-right{float:right;margin:2px 0 10px 18px}
-.recap-sec-img-wrap.pos-left{float:left;margin:2px 18px 10px 0}
-.recap-sec-img-wrap.pos-center{float:none;display:block;margin:0 auto 14px;text-align:center}
-.recap-sec-img-wrap.pos-inline{float:none;display:block;margin:0 0 14px}
-.recap-sec-img{border-radius:4px;border:1px solid var(--brd);display:block;height:auto}
-.recap-sec-img.sz-sm{max-width:120px}
-.recap-sec-img.sz-md{max-width:220px}
-.recap-sec-img.sz-lg{max-width:380px}
-.recap-sec-img.sz-full{width:100%;max-height:500px;object-fit:contain}
+.recap-sec-content{display:block}
+.recap-sec-content.layout-text-first,.recap-sec-content.layout-images-first,.recap-sec-content.layout-gallery{display:flex;flex-direction:column;gap:14px}
+.recap-sec-content.layout-text-first .recap-sec-text{order:1}.recap-sec-content.layout-text-first .recap-sec-images{order:2}
+.recap-sec-content.layout-images-first .recap-sec-images{order:1}.recap-sec-content.layout-images-first .recap-sec-text{order:2}
+.recap-sec-content.layout-gallery .recap-sec-images{order:1}.recap-sec-content.layout-gallery .recap-sec-text{order:2}
+.recap-sec-content.layout-text-left,.recap-sec-content.layout-images-left{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,42%);gap:22px;align-items:start}
+.recap-sec-content.layout-text-left .recap-sec-text{grid-column:1}.recap-sec-content.layout-text-left .recap-sec-images{grid-column:2}
+.recap-sec-content.layout-images-left .recap-sec-images{grid-column:1}.recap-sec-content.layout-images-left .recap-sec-text{grid-column:2}
+.recap-sec-text.text-wide{max-width:none}.recap-sec-text.text-normal{max-width:68ch}.recap-sec-text.text-narrow{max-width:48ch}
+.recap-sec-images{display:grid;gap:12px;align-items:start}
+.recap-sec-images.cols-auto{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+.recap-sec-images.cols-1{grid-template-columns:1fr}.recap-sec-images.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.recap-sec-images.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.recap-sec-img-wrap{min-width:0;margin:0;text-align:center}
+.recap-sec-img{width:100%;height:100%;max-height:440px;border-radius:4px;border:1px solid var(--brd);display:block;background:var(--bg2)}
+.recap-sec-img.fit-contain{object-fit:contain}.recap-sec-img.fit-cover{object-fit:cover;aspect-ratio:16/10}
 .recap-img-caption{display:block;font-size:11px;color:var(--tx3);font-style:italic;margin-top:4px;text-align:center;max-width:100%}
+/* Legacy sections retain their original per-image position and size behavior. */
+.recap-sec-content.layout-legacy .recap-sec-images{display:block}
+.recap-sec-content.layout-legacy .recap-sec-img-wrap{display:inline-block;margin:0 0 10px 0}
+.recap-sec-content.layout-legacy .recap-sec-img-wrap.pos-right{float:right;margin:2px 0 10px 18px}
+.recap-sec-content.layout-legacy .recap-sec-img-wrap.pos-left{float:left;margin:2px 18px 10px 0}
+.recap-sec-content.layout-legacy .recap-sec-img-wrap.pos-center{float:none;display:block;margin:0 auto 14px;text-align:center}
+.recap-sec-content.layout-legacy .recap-sec-img-wrap.pos-inline{float:none;display:block;margin:0 0 14px}
+.recap-sec-content.layout-legacy .recap-sec-img{width:auto;height:auto;object-fit:contain;background:transparent}
+.recap-sec-content.layout-legacy .recap-sec-img.sz-sm{max-width:120px}.recap-sec-content.layout-legacy .recap-sec-img.sz-md{max-width:220px}.recap-sec-content.layout-legacy .recap-sec-img.sz-lg{max-width:380px}.recap-sec-content.layout-legacy .recap-sec-img.sz-full{width:100%;max-height:500px}
 
 /* ── Prev/Next navigation ── */
 .recap-pagination{display:flex;align-items:stretch;gap:0;margin:40px 0 0;border:1px solid var(--brd);border-radius:4px;overflow:hidden}
@@ -126,8 +140,11 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
   .recap-cover{flex-direction:column}
   .recap-cover-img{flex:none;max-width:100%}
   .recap-title{font-size:22px}
-  .recap-sec-img-wrap.pos-left,.recap-sec-img-wrap.pos-right{float:none;margin:0 auto 14px;display:block;text-align:center}
-  .recap-sec-img.sz-lg,.recap-sec-img.sz-md{max-width:100%}
+  .recap-sec-content.layout-text-left,.recap-sec-content.layout-images-left{display:flex;flex-direction:column;gap:14px}
+  .recap-sec-content.layout-text-left .recap-sec-text,.recap-sec-content.layout-text-left .recap-sec-images,.recap-sec-content.layout-images-left .recap-sec-text,.recap-sec-content.layout-images-left .recap-sec-images{width:100%}
+  .recap-sec-images.cols-3,.recap-sec-images.cols-2{grid-template-columns:1fr}
+  .recap-sec-content.layout-legacy .recap-sec-img-wrap.pos-left,.recap-sec-content.layout-legacy .recap-sec-img-wrap.pos-right{float:none;margin:0 auto 14px;display:block;text-align:center}
+  .recap-sec-content.layout-legacy .recap-sec-img.sz-lg,.recap-sec-content.layout-legacy .recap-sec-img.sz-md{max-width:100%}
 }
 </style>
 </head>
@@ -266,7 +283,7 @@ async function render(camp, isPlayer) {
     datesHtml = '<div class="recap-dates">';
     if (session.gameDate) datesHtml += `<span class="recap-date-game">⌛ ${ESC(session.gameDate)}</span>`;
     if (session.date)     datesHtml += `<span class="recap-date-real">${formatDate(session.date)}</span>`;
-    if (session.xp)       datesHtml += `<span class="recap-xp">+${session.xp} ${ESC(xpLbl)}</span>`;
+    if (session.xp)       datesHtml += `<span class="recap-xp"><span class="recap-xp-label">${ESC(xpLbl.toUpperCase())} AWARDED</span><strong>${session.xp}</strong></span>`;
     datesHtml += '</div>';
   }
 
@@ -334,20 +351,26 @@ async function render(camp, isPlayer) {
       sectionsHtml += '<div class="recap-sec clearfix">';
       if (sec.title) sectionsHtml += `<div class="recap-sec-title">${ESC(sec.title)}</div>`;
       const imgs = sec.images || [];
+      const layout = ['legacy','text-first','images-first','text-left','images-left','gallery'].includes(sec.layout) ? sec.layout : 'legacy';
+      const columns = ['1','2','3'].includes(String(sec.columns)) ? String(sec.columns) : 'auto';
+      const fit = sec.fit === 'cover' ? 'cover' : 'contain';
+      const textWidth = ['wide','narrow'].includes(sec.textWidth) ? sec.textWidth : 'normal';
+      let imagesHtml = '';
       if (imgs.length) {
-        sectionsHtml += '<div class="recap-sec-images">';
+        imagesHtml = `<div class="recap-sec-images cols-${columns}">`;
         imgs.forEach(img => {
           const src = resolveImg(img.src);
           if (!src) return;
           const pos = img.pos || 'right';
-          sectionsHtml += `<div class="recap-sec-img-wrap pos-${pos}">`;
-          sectionsHtml += `<img class="recap-sec-img sz-${img.size || 'md'}" src="${ESC(src)}" alt="">`;
-          if (img.caption) sectionsHtml += `<span class="recap-img-caption">${ESC(img.caption)}</span>`;
-          sectionsHtml += '</div>';
+          imagesHtml += `<div class="recap-sec-img-wrap pos-${pos}">`;
+          imagesHtml += `<img class="recap-sec-img sz-${img.size || 'md'} fit-${fit}" src="${ESC(src)}" alt="">`;
+          if (img.caption) imagesHtml += `<span class="recap-img-caption">${ESC(img.caption)}</span>`;
+          imagesHtml += '</div>';
         });
-        sectionsHtml += '</div>';
+        imagesHtml += '</div>';
       }
-      if (sec.text) sectionsHtml += `<div class="recap-sec-text">${ESC(sec.text)}</div>`;
+      const textHtml = sec.text ? `<div class="recap-sec-text text-${textWidth}">${ESC(sec.text)}</div>` : '';
+      sectionsHtml += `<div class="recap-sec-content layout-${layout}">${imagesHtml}${textHtml}</div>`;
       sectionsHtml += '</div>';
     });
     sectionsHtml += '</div>';
