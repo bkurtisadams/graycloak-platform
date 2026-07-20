@@ -3,6 +3,8 @@ import type { RuleAuditStatus, RuleSource } from './types.js';
 export type RuleSourceId =
   | 'ability-display'
   | 'attack-matrix'
+  | 'thief-skills'
+  | 'turn-undead'
   | 'advancement'
   | 'class-eligibility'
   | 'encumbrance'
@@ -28,6 +30,8 @@ function source(record: RuleSourceRecord): RuleSourceRecord {
 export const RULE_SOURCE_CATALOG: Readonly<Record<RuleSourceId, RuleSourceRecord>> = Object.freeze({
   'ability-display': source({ id: 'ability-display', module: 'ability-tables', ruleset: 'legacy-adnd-1e', section: 'Character-sheet ability display tables', auditStatus: 'legacy-import' }),
   'attack-matrix': source({ id: 'attack-matrix', module: 'combat', ruleset: 'legacy-adnd-1e', section: 'Class and monster attack matrices, repeating-20 rule, weapon-vs-AC adjustments', auditStatus: 'legacy-import', note: 'Anchors parity-checked against gcc/dungeon-encounter.html; extended rows and 8+ HD monster rows pending OSRIC 3.0 verification.' }),
+  'thief-skills': source({ id: 'thief-skills', module: 'thief-skills', ruleset: 'osric-3.0', section: 'Thief skills: base percentages, backstab, Dexterity and ancestry adjustments', book: 'OSRIC 3.0 Player Guide, Tables 1.3.10.4B-D', page: 68, auditStatus: 'verified-osric3', note: 'Transcribed from the printed tables; first verified module in the package.' }),
+  'turn-undead': source({ id: 'turn-undead', module: 'turn-undead', ruleset: 'legacy-adnd-1e', section: 'Cleric turning undead matrix and paladin turning level', auditStatus: 'legacy-import', note: 'Imported from gcc/adnd-class-data.js; d20 targets — the sim currently rolls 2d6 against them, pending a ruling.' }),
   advancement: source({ id: 'advancement', module: 'advancement', ruleset: 'legacy-adnd-1e', section: 'Class XP, level titles, and hit dice', auditStatus: 'legacy-import' }),
   'class-eligibility': source({ id: 'class-eligibility', module: 'classes', ruleset: 'legacy-adnd-1e', section: 'Race, class, level-cap, and multiclass eligibility', auditStatus: 'legacy-import' }),
   encumbrance: source({ id: 'encumbrance', module: 'encumbrance', ruleset: 'legacy-adnd-1e', section: 'Weight allowance, encumbrance, and movement', auditStatus: 'legacy-import' }),

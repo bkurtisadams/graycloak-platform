@@ -18,3 +18,5 @@ export * from './ability-tables.js';
 export * from './legacy-character-xp.js';
 export * from './source-catalog.js';
 export * from './combat.js';
+export * from './thief-skills.js';
+export * from './turn-undead.js';

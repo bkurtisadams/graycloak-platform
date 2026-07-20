@@ -1,8 +1,13 @@
-import { OSRIC3_RULESET, applyMulticlassExperienceAward, awardLegacyCharacterExperience, getCharismaDisplayProfile, getRuleSourceRecord, listRuleSourceRecords, getConstitutionDisplayProfile, getDexterityDisplayProfile, getIntelligenceDisplayProfile, getSpellSlots, getStrengthCombatProfile, getAttackMatrixClass, getClassLinearThac0, getBestClassLinearThac0, getMonsterLinearThac0, getWeaponVsArmorAdjustment, linearToMatrixTarget, resolveAttackTarget, getStrengthWeightAllowance, getWisdomDisplayProfile, splitMulticlassExperienceAward, } from './index.js';
+import { OSRIC3_RULESET, applyMulticlassExperienceAward, awardLegacyCharacterExperience, getCharismaDisplayProfile, getRuleSourceRecord, listRuleSourceRecords, getConstitutionDisplayProfile, getDexterityDisplayProfile, getIntelligenceDisplayProfile, getSpellSlots, getStrengthCombatProfile, getAttackMatrixClass, getThiefSkillProfile, getThiefSkillBase, getBackstab, getTurnLevel, getTurnUndeadResult, getClassLinearThac0, getBestClassLinearThac0, getMonsterLinearThac0, getWeaponVsArmorAdjustment, linearToMatrixTarget, resolveAttackTarget, getStrengthWeightAllowance, getWisdomDisplayProfile, splitMulticlassExperienceAward, } from './index.js';
 export const GraycloakOSRIC3 = Object.freeze({
     version: OSRIC3_RULESET.packageVersion,
     getSpellSlots,
     getAttackMatrixClass,
+    getThiefSkillProfile,
+    getThiefSkillBase,
+    getBackstab,
+    getTurnLevel,
+    getTurnUndeadResult,
     getClassLinearThac0,
     getBestClassLinearThac0,
     getMonsterLinearThac0,
