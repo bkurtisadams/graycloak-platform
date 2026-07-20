@@ -19,4 +19,4 @@ service-account-key.json
 *-private-key.json
 /graycloak-files.txt
 /list-graycloak-files.bat
-/zip-adnd-bridge.bat
+/zip-adnd-bridge.bat*.patch
