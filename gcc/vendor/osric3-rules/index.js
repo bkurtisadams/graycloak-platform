@@ -16,3 +16,4 @@ export * from './multiclass-advancement.js';
 export * from './ability-tables.js';
 export * from './legacy-character-xp.js';
 export * from './source-catalog.js';
+export * from './combat.js';

@@ -6,6 +6,7 @@ function source(record) {
 }
 export const RULE_SOURCE_CATALOG = Object.freeze({
     'ability-display': source({ id: 'ability-display', module: 'ability-tables', ruleset: 'legacy-adnd-1e', section: 'Character-sheet ability display tables', auditStatus: 'legacy-import' }),
+    'attack-matrix': source({ id: 'attack-matrix', module: 'combat', ruleset: 'legacy-adnd-1e', section: 'Class and monster attack matrices, repeating-20 rule, weapon-vs-AC adjustments', auditStatus: 'legacy-import', note: 'Anchors parity-checked against gcc/dungeon-encounter.html; extended rows and 8+ HD monster rows pending OSRIC 3.0 verification.' }),
     advancement: source({ id: 'advancement', module: 'advancement', ruleset: 'legacy-adnd-1e', section: 'Class XP, level titles, and hit dice', auditStatus: 'legacy-import' }),
     'class-eligibility': source({ id: 'class-eligibility', module: 'classes', ruleset: 'legacy-adnd-1e', section: 'Race, class, level-cap, and multiclass eligibility', auditStatus: 'legacy-import' }),
     encumbrance: source({ id: 'encumbrance', module: 'encumbrance', ruleset: 'legacy-adnd-1e', section: 'Weight allowance, encumbrance, and movement', auditStatus: 'legacy-import' }),

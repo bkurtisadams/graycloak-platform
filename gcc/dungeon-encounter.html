@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- dungeon-encounter — v0.9.46 -->
+<!-- dungeon-encounter — v0.9.47 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -930,7 +930,7 @@ body.light .round-head .rh-title { font-family: inherit; }
      Keep combat-data.js in the same folder; the tool must be served (http/https), not opened via file://. -->
 <script src="combat-data.js?v=45ce7839"></script>
 <script>
-const SIM_VERSION = 'v0.9.46';
+const SIM_VERSION = 'v0.9.47';
 // ============================================================
 //  RULES DATA
 // ============================================================
@@ -941,6 +941,36 @@ const THAC0 = {
   thief:      { L1_4: 21, L5_8: 19, L9_12: 16 },
   monster:    { HD_lt1: 21, HD_1m: 20, HD_1: 19, HD_1p: 18, HD_2_3: 17, HD_4_5: 15, HD_6_7: 14 }
 };
+
+// OSRIC 3 rules kernel (same load pattern as gcc-combat.js). When present, the
+// kernel supplies attack-matrix rows (extending the truncated THAC0 tiers above)
+// and the printed-matrix target numbers on the non-strict path. Everything below
+// keeps the legacy tables as a silent fallback, so the sim runs unchanged if the
+// vendor bundle is missing or still loading.
+let OSRIC3 = null;
+(function _loadOsric3Kernel() {
+  if (window.GraycloakOSRIC3) { OSRIC3 = window.GraycloakOSRIC3; return; }
+  import('./vendor/osric3-rules/browser-global.js')
+    .then(function () {
+      OSRIC3 = window.GraycloakOSRIC3 || null;
+      if (OSRIC3) console.info('OSRIC 3 rules kernel v' + OSRIC3.version + ' active for attack matrices.');
+    })
+    .catch(function (error) {
+      console.warn('OSRIC 3 rules kernel did not load; attack rolls will use the legacy THAC0 tables.', error);
+    });
+})();
+
+// combatClass() ids → kernel ClassId spelling. 'monster' is handled separately.
+const OSRIC3_CLASS_IDS = { fighter: 'fighter', cleric: 'cleric', magic_user: 'magic-user', thief: 'thief' };
+
+// Monster HD float (0.5, 1, 1.5, 2 …) → the kernel's explicit hit-dice shape.
+// x.5 above 1 reads as the "N+" row, matching pickTier's HD_1p handling.
+function _osric3MonsterHd(level) {
+  const hd = (typeof level === 'number' && isFinite(level)) ? level : 1;
+  if (hd < 1) return { hitDice: hd };
+  const whole = Math.floor(hd);
+  return hd === whole ? { hitDice: whole } : { hitDice: whole, modifier: 'plus' };
+}
 
 function pickTier(kind, level) {
   if (kind === 'fighter') {
@@ -1378,7 +1408,20 @@ function saveClassOf(mc) {
   if (mc === 'assassin' || mc === 'monk') return 'thief';
   return mc;
 }
-function thac0Of(c) { const mc = combatClass(c.matrix_class); return (c.thac0 != null) ? c.thac0 : THAC0[mc][pickTier(mc, c.level)]; }
+function thac0Of(c) {
+  if (c.thac0 != null) return c.thac0;
+  const mc = combatClass(c.matrix_class);
+  // Kernel rows extend past the legacy tiers (fighter 11+, cleric 10+, MU 16+,
+  // thief 13+ keep improving) and give 1-1 HD monsters their own row.
+  if (OSRIC3) {
+    try {
+      if (mc === 'monster') return OSRIC3.getMonsterLinearThac0(_osric3MonsterHd(c.level));
+      const kid = OSRIC3_CLASS_IDS[mc];
+      if (kid) return OSRIC3.getClassLinearThac0(kid, c.level || 0);
+    } catch (e) { /* fall through to legacy tables */ }
+  }
+  return THAC0[mc][pickTier(mc, c.level)];
+}
 
 function computeToHit(attacker, target, weapon, acPenalty) {
   const acEff = Math.min(10, target.ac_current + (acPenalty || 0));
@@ -1820,6 +1863,17 @@ function attackProjection(state, a, t, w, opts) {
     if (tableBase <= 25) needed = 20;            // repeated 20s: natural 20 only, bonuses can't help
     else if (bonus >= tableBase - 25) needed = 20; // past plateau: nat 20 reaches it with enough bonus
     else { needed = 99; suppress_nat20 = true; } // past plateau, bonus too small: even a natural 20 misses
+  } else if (OSRIC3) {
+    // Standard matrix reading: the printed target number (repeating-20 span
+    // included) minus every signed to-hit bonus, uncapped above 20 — a natural
+    // 20 still hits via the executor's roll rule, but a 19 with bonuses no
+    // longer reaches numbers the matrix prints as 21+. The strict_20 branch
+    // above keeps its natural-20-only ruling and always wins when enabled.
+    const bonus = calc.wpnVsAc + calc.magic + calc.str
+      + range + charge + fleeBonus + ammoAtk - parryPen - attackerHeld
+      + targetHeld + targetDown + arcBonus + blessBonus - shieldPen
+      + spaceMod + dexMiss - profPen;
+    needed = Math.max(1, OSRIC3.linearToMatrixTarget(tableBase) - bonus);
   } else {
     needed = Math.max(1, Math.min(20, calc.needed - range - charge - fleeBonus - ammoAtk + parryPen + attackerHeld - targetHeld - targetDown - arcBonus - blessBonus + shieldPen - spaceMod - dexMiss + profPen));
   }
@@ -2038,7 +2092,12 @@ function resolveSpell(state, casterId, targetId, spellId, opts) {
   let saveInfo = null, touchMissed = false, negated = false;
   // Touch attack (shocking grasp): a plain to-hit vs AC, no weapon modifiers.
   if (result.touch) {
-    const need = Math.max(1, Math.min(20, thac0Of(caster) - Math.max(2, Math.min(10, target.ac_current))));
+    // Kernel path: real matrix number for the target's actual AC (the legacy
+    // clamp treated anything better than AC 2 as AC 2, making touch spells too
+    // easy against heavy protection). Natural 20 still auto-hits below.
+    const need = OSRIC3
+      ? Math.max(1, OSRIC3.linearToMatrixTarget(thac0Of(caster) - target.ac_current))
+      : Math.max(1, Math.min(20, thac0Of(caster) - Math.max(2, Math.min(10, target.ac_current))));
     const r = d20();
     if (r === 1 || (r !== 20 && r < need)) { touchMissed = true; damage = 0; }
     result.touch_roll = r; result.touch_need = need;
