@@ -63,15 +63,21 @@
   body.brush-armed .parent-hex { cursor:crosshair; }
 
   .hud { position:fixed; background:var(--panel-bg); border:1px solid var(--panel-border); border-radius:3px; color:var(--parchment-light); padding:10px 14px; font-size:12px; z-index:50; box-shadow:0 4px 16px rgba(0,0,0,.6); }
-  #hud-cell      { top:calc(var(--gcc-bar-h) + var(--topbar-h) + 12px); left:12px;   min-width:200px; }
-  #hud-layers    { top:calc(var(--gcc-bar-h) + var(--topbar-h) + 12px); right:12px;  min-width:160px; }
-  #hud-encounter { bottom:12px; left:12px;  min-width:260px; max-width:320px; }
-  #hud-data      { min-width:200px; }
+  .hud-window { resize:both; overflow:auto; max-width:calc(100vw - 8px); max-height:calc(100vh - var(--gcc-bar-h) - var(--topbar-h) - 8px); }
+  .hud-window > h3 { cursor:grab; user-select:none; }
+  .hud-window > h3.dragging { cursor:grabbing; }
+  #hud-cell      { top:calc(var(--gcc-bar-h) + var(--topbar-h) + 12px); left:12px; min-width:200px; min-height:190px; }
+  #hud-layers    { top:calc(var(--gcc-bar-h) + var(--topbar-h) + 12px); right:12px; min-width:160px; }
+  #hud-encounter { bottom:12px; left:12px; width:300px; min-width:260px; min-height:112px; }
+  #hud-data      { bottom:82px; right:12px; width:380px; min-width:280px; min-height:190px; }
+  #hud-data.is-hidden { display:none; }
   #hud-zoom      { min-width:140px; }
   #hud-br        { position:fixed; bottom:12px; right:12px; display:flex; flex-direction:column; gap:8px; align-items:flex-end; z-index:50; }
   #hud-br .hud   { position:static; }
 
   .hud h3 { font-family:'Cinzel',serif; font-size:11px; font-weight:600; letter-spacing:.1em; color:var(--gamma-orange-light); margin-bottom:6px; }
+  .hud-close { float:right; border:0; padding:0 2px; margin:-2px -2px 0 8px; font-family:Georgia,serif; font-size:16px; line-height:1; color:#c8a96e; }
+  .hud-close:hover { background:transparent; border-color:transparent; color:var(--gamma-orange-light); }
   .hud-row { display:flex; justify-content:space-between; padding:2px 0; }
   .hud-row label { color:#aaa899; }
 
@@ -116,9 +122,10 @@
 
 <div id="topbar">
   <h1>GAMMA WORLD — Campaign Map</h1>
-  <span class="ver">v0.59.0</span>
+  <span class="ver">v0.59.1</span>
   <span class="sep"></span>
   <button id="btn-reset">Fit View</button>
+  <button id="btn-map-data" aria-expanded="false">Map Data</button>
   <span class="spacer"></span>
 </div>
 
@@ -140,7 +147,7 @@
   </div>
 </div>
 
-<div id="hud-cell" class="hud">
+<div id="hud-cell" class="hud hud-window">
   <h3>Cell</h3>
   <div class="hud-row"><label>Coords</label><span id="hc-coords">—</span></div>
   <div class="hud-row"><label>Terrain</label>
@@ -193,7 +200,7 @@
   <div id="territory-legend" style="margin-top:8px;display:none;border-top:1px solid rgba(255,140,60,.25);padding-top:6px;"></div>
 </div>
 
-<div id="hud-encounter" class="hud">
+<div id="hud-encounter" class="hud hud-window">
   <h3>Encounter</h3>
   <div class="hud-row">
     <label>Terrain</label>
@@ -206,16 +213,17 @@
   <div id="enc-result" class="enc-result" style="display:none;"></div>
 </div>
 
+<div id="hud-data" class="hud hud-window is-hidden">
+  <h3>Map data <button id="btn-close-map-data" class="hud-close" title="Close Map Data" aria-label="Close Map Data">×</button></h3>
+  <button id="btn-export-authored" style="width:100%;">⤓ Export authored data</button>
+  <button id="btn-atlas-summary" style="width:100%;margin-top:6px;">▦ Atlas summary</button>
+  <button id="btn-render-tile-preview" style="width:100%;margin-top:6px;">▧ Render selected tile</button>
+  <div id="export-status" style="font-size:11px;color:var(--gamma-orange-light);margin-top:6px;min-height:14px;">Bakes your edits to <code>gw-authored.js</code></div>
+  <div id="atlas-status" style="font-size:11px;color:#c8a96e;margin-top:6px;min-height:14px;">Atlas facade ready for whole-world subhex generation.</div>
+  <div id="tile-status" style="font-size:11px;color:#c8a96e;margin-top:6px;min-height:14px;">Tile renderer preview is opt-in and does not replace the viewer.</div>
+</div>
+
 <div id="hud-br">
-  <div id="hud-data" class="hud">
-    <h3>Map data</h3>
-    <button id="btn-export-authored" style="width:100%;">⤓ Export authored data</button>
-    <button id="btn-atlas-summary" style="width:100%;margin-top:6px;">▦ Atlas summary</button>
-    <button id="btn-render-tile-preview" style="width:100%;margin-top:6px;">▧ Render selected tile</button>
-    <div id="export-status" style="font-size:11px;color:var(--gamma-orange-light);margin-top:6px;min-height:14px;">Bakes your edits to <code>gw-authored.js</code></div>
-    <div id="atlas-status" style="font-size:11px;color:#c8a96e;margin-top:6px;min-height:14px;">Atlas facade ready for whole-world subhex generation.</div>
-    <div id="tile-status" style="font-size:11px;color:#c8a96e;margin-top:6px;min-height:14px;">Tile renderer preview is opt-in and does not replace the viewer.</div>
-  </div>
   <div id="hud-zoom" class="hud">
     <h3>View</h3>
     <div class="hud-row"><label>Zoom</label><span id="hz-zoom">100%</span></div>
@@ -768,6 +776,156 @@ window.addEventListener('keydown', e => {
   if (e.key === 'Escape') clearSelection();
 });
 
+// ─── Persistent HUD windows ─────────────────────────────────────────────────
+const GW_MAP_UI_KEYS = {
+  printedMap: 'gw-map-ui-show-printed-map',
+  cellPanel: 'gw-map-ui-panel-cell',
+  encounterPanel: 'gw-map-ui-panel-encounter',
+  dataPanel: 'gw-map-ui-panel-data',
+};
+
+function loadUiState(key){
+  try { return JSON.parse(localStorage.getItem(key) || 'null'); }
+  catch (_) { return null; }
+}
+function saveUiState(key, value){
+  try { localStorage.setItem(key, JSON.stringify(value)); }
+  catch (_) {}
+}
+
+// Make a fixed HUD panel movable by its title and persist both position and
+// user-resized dimensions. Double-clicking the title resets it to its CSS home.
+function makeHudWindow(panelId, storageKey){
+  const panel = document.getElementById(panelId);
+  const handle = panel && panel.querySelector('h3');
+  if (!panel || !handle) return null;
+
+  const drag = { active:false, pointerId:null, startX:0, startY:0, left:0, top:0, interacting:false };
+  handle.title = 'Drag to move · double-click to reset position and size';
+
+  function topLimit(){
+    const gccH = document.getElementById('gcc-bar')?.offsetHeight || 44;
+    const topH = document.getElementById('topbar')?.offsetHeight || 46;
+    return gccH + topH + 4;
+  }
+  function clamp(x, y){
+    const w = panel.offsetWidth || 240;
+    const h = panel.offsetHeight || 120;
+    return {
+      x: Math.max(4, Math.min(window.innerWidth - w - 4, x)),
+      y: Math.max(topLimit(), Math.min(window.innerHeight - h - 4, y)),
+    };
+  }
+  function place(x, y){
+    const p = clamp(x, y);
+    panel.style.left = p.x + 'px';
+    panel.style.top = p.y + 'px';
+    panel.style.right = '';
+    panel.style.bottom = '';
+  }
+  function snapshot(){
+    if (panel.classList.contains('is-hidden')) return;
+    const r = panel.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    saveUiState(storageKey, { x:r.left, y:r.top, width:r.width, height:r.height });
+  }
+  function restore(){
+    const saved = loadUiState(storageKey);
+    if (!saved) return false;
+    if (Number.isFinite(saved.width)) panel.style.width = Math.max(120, saved.width) + 'px';
+    if (Number.isFinite(saved.height)) panel.style.height = Math.max(80, saved.height) + 'px';
+    if (Number.isFinite(saved.x) && Number.isFinite(saved.y)) place(saved.x, saved.y);
+    return true;
+  }
+  function constrain(){
+    if (panel.style.left && panel.style.top){
+      place(parseFloat(panel.style.left) || 4, parseFloat(panel.style.top) || topLimit());
+    }
+  }
+  function reset(){
+    try { localStorage.removeItem(storageKey); } catch (_) {}
+    panel.style.left = '';
+    panel.style.top = '';
+    panel.style.right = '';
+    panel.style.bottom = '';
+    panel.style.width = '';
+    panel.style.height = '';
+  }
+
+  panel.addEventListener('pointerdown', () => { drag.interacting = true; });
+  handle.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || e.target.closest('button')) return;
+    const r = panel.getBoundingClientRect();
+    drag.active = true;
+    drag.pointerId = e.pointerId;
+    drag.startX = e.clientX;
+    drag.startY = e.clientY;
+    drag.left = r.left;
+    drag.top = r.top;
+    handle.classList.add('dragging');
+    try { handle.setPointerCapture(e.pointerId); } catch (_) {}
+    e.preventDefault();
+  });
+  handle.addEventListener('pointermove', e => {
+    if (!drag.active || e.pointerId !== drag.pointerId) return;
+    place(drag.left + e.clientX - drag.startX, drag.top + e.clientY - drag.startY);
+    e.preventDefault();
+  });
+  function finishPointer(e){
+    if (drag.active && (!e || e.pointerId === drag.pointerId)){
+      drag.active = false;
+      drag.pointerId = null;
+      handle.classList.remove('dragging');
+    }
+    if (drag.interacting){
+      drag.interacting = false;
+      setTimeout(snapshot, 0); // captures native CSS resize after the pointer ends
+    }
+  }
+  handle.addEventListener('pointerup', finishPointer);
+  handle.addEventListener('pointercancel', finishPointer);
+  window.addEventListener('pointerup', finishPointer);
+  handle.addEventListener('dblclick', reset);
+  if (typeof ResizeObserver !== 'undefined'){
+    let resizeTimer = null;
+    new ResizeObserver(() => {
+      if (panel.classList.contains('is-hidden')) return;
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(snapshot, 120);
+    }).observe(panel);
+  }
+
+  restore();
+  return { restore, constrain, reset, snapshot };
+}
+
+const cellHudWindow = makeHudWindow('hud-cell', GW_MAP_UI_KEYS.cellPanel);
+const encounterHudWindow = makeHudWindow('hud-encounter', GW_MAP_UI_KEYS.encounterPanel);
+const dataHudWindow = makeHudWindow('hud-data', GW_MAP_UI_KEYS.dataPanel);
+
+const mapDataPanel = document.getElementById('hud-data');
+const mapDataButton = document.getElementById('btn-map-data');
+function setMapDataOpen(open){
+  mapDataPanel.classList.toggle('is-hidden', !open);
+  mapDataButton.classList.toggle('primary', open);
+  mapDataButton.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open){
+    requestAnimationFrame(() => {
+      dataHudWindow?.restore();
+      dataHudWindow?.constrain();
+    });
+  }
+}
+mapDataButton.addEventListener('click', () => setMapDataOpen(mapDataPanel.classList.contains('is-hidden')));
+document.getElementById('btn-close-map-data').addEventListener('click', () => setMapDataOpen(false));
+setMapDataOpen(false);
+
+window.addEventListener('resize', () => {
+  cellHudWindow?.constrain();
+  encounterHudWindow?.constrain();
+  if (!mapDataPanel.classList.contains('is-hidden')) dataHudWindow?.constrain();
+});
+
 // ─── Layer toggles ───────────────────────────────────────────────────────────
 document.getElementById('lt-parent').onchange = e => {
   document.getElementById('parent-grid').style.display = e.target.checked ? '' : 'none';
@@ -781,9 +939,17 @@ document.getElementById('lt-radiation').onchange = e => {
 document.getElementById('lt-territory').onchange = e => {
   document.getElementById('parent-territory').style.display = e.target.checked ? '' : 'none';
 };
-document.getElementById('lt-png').onchange = e => {
-  document.getElementById('printed-map').style.display = e.target.checked ? '' : 'none';
-  document.body.classList.toggle('printed-map-shown', e.target.checked);
+const printedMapToggle = document.getElementById('lt-png');
+function applyPrintedMapVisibility(show){
+  printedMapToggle.checked = !!show;
+  document.getElementById('printed-map').style.display = show ? '' : 'none';
+  document.body.classList.toggle('printed-map-shown', !!show);
+}
+const savedPrintedMap = loadUiState(GW_MAP_UI_KEYS.printedMap);
+applyPrintedMapVisibility(savedPrintedMap === true);
+printedMapToggle.onchange = e => {
+  applyPrintedMapVisibility(e.target.checked);
+  saveUiState(GW_MAP_UI_KEYS.printedMap, e.target.checked);
 };
 
 // ─── Export authored data ────────────────────────────────────────────────────
