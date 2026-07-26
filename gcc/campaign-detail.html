@@ -174,26 +174,24 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .session-sec-block{margin-bottom:8px}
 .session-sec-block:last-child{margin-bottom:2px}
 /* Multi-image layouts */
-.session-sec-images{display:block;margin:5px 0 4px}
-.session-sec-img-wrap{display:inline-block;margin:0 0 6px 0}
-.session-sec-img-wrap.pos-right{float:right;margin:0 0 6px 10px}
-.session-sec-img-wrap.pos-left{float:left;margin:0 10px 6px 0}
-.session-sec-img-wrap.pos-center{float:none;display:block;margin:0 auto 6px;text-align:center}
-.session-sec-img-wrap.pos-inline{float:none;display:block;margin:0 0 6px}
-.session-sec-img{border-radius:3px;border:1px solid var(--brd);display:block;height:auto}
-.session-sec-img.sz-sm{max-width:100px}
-.session-sec-img.sz-md{max-width:200px}
-.session-sec-img.sz-lg{max-width:320px}
-.session-sec-img.sz-full{width:100%;max-height:400px;object-fit:contain}
-/* Per-image pos/size only apply to legacy sections — every other layout is
-   driven by the section's layout+columns, same as recap.html. */
-.session-sec-images:not(.layout-legacy){display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;align-items:start}
-.session-sec-images:not(.layout-legacy) .session-sec-img-wrap{float:none;display:block;margin:0;min-width:0;text-align:center}
-.session-sec-images:not(.layout-legacy) .session-sec-img{width:100%;max-width:none;max-height:150px;object-fit:contain}
-.session-sec-images.cols-1{grid-template-columns:1fr}
-.session-sec-images.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
-.session-sec-images.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
-.gcc-dlg-sec-img-thumb button[disabled]{opacity:.3;cursor:not-allowed}
+/* Section image flow: placement + per-image width share (no floats) */
+.session-sec-content{display:flex;flex-direction:column;gap:8px}
+.session-sec-content.ip-above .session-sec-images{order:1}.session-sec-content.ip-above .session-sec-text{order:2}
+.session-sec-content.ip-below .session-sec-text{order:1}.session-sec-content.ip-below .session-sec-images{order:2}
+.session-sec-content.ip-left,.session-sec-content.ip-right{display:grid;gap:10px;align-items:start}
+.session-sec-content.ip-left{grid-template-columns:minmax(0,40%) minmax(0,1fr)}
+.session-sec-content.ip-left .session-sec-images{grid-column:1}.session-sec-content.ip-left .session-sec-text{grid-column:2}
+.session-sec-content.ip-right{grid-template-columns:minmax(0,1fr) minmax(0,40%)}
+.session-sec-content.ip-right .session-sec-text{grid-column:1}.session-sec-content.ip-right .session-sec-images{grid-column:2}
+.session-sec-images{display:flex;flex-wrap:wrap;gap:6px;align-content:start;margin:0}
+.session-sec-img-wrap{min-width:0;margin:0;text-align:center}
+.session-sec-img-wrap.w-full{flex:0 1 100%}
+.session-sec-img-wrap.w-half{flex:0 1 calc(50% - 3px)}
+.session-sec-img-wrap.w-third{flex:0 1 calc(33.333% - 4px)}
+.session-sec-img-wrap.w-quarter{flex:0 1 calc(25% - 5px)}
+.session-sec-img{width:100%;height:auto;border-radius:3px;border:1px solid var(--brd);display:block}
+.session-sec-img.fit-cover{aspect-ratio:16/10;object-fit:cover}
+.session-sec-img.fit-contain{object-fit:contain}
 .sec-img-caption{display:block;font-size:10px;color:var(--tx3);font-style:italic;margin-top:2px;text-align:center;max-width:100%}
 .session-body{padding:10px 14px 6px}
 .session-text{font-size:12px;color:var(--tx2);line-height:1.5;white-space:pre-line}
@@ -235,8 +233,12 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .sm-sec-body{padding:7px;border-top:1px solid var(--brd)}
 .sm-sec-body .gcc-dlg-input{margin:0 0 4px;font-size:11px}
 .sm-sec-body .gcc-dlg-ta{margin:0;min-height:64px;font-size:11px}
-.sm-layout-btn{margin-top:6px;background:none;border:1px solid var(--brd);border-radius:3px;color:var(--tx2);cursor:pointer;font-family:var(--fb);font-size:9px;padding:3px 7px;letter-spacing:.3px}
-.sm-layout-btn:hover{border-color:var(--accent-dim);color:var(--tx)}
+.sm-place-row{display:flex;flex-wrap:wrap;align-items:center;gap:3px;margin-top:7px}
+.sm-place-lbl{font-family:var(--fsc);font-size:8px;letter-spacing:1px;color:var(--tx3);margin-right:3px}
+.sm-place-btn{background:none;border:1px solid var(--brd);border-radius:3px;color:var(--tx2);cursor:pointer;font-family:var(--fb);font-size:9px;padding:3px 7px}
+.sm-place-btn:hover{border-color:var(--accent-dim);color:var(--tx)}
+.sm-place-btn.on{border-color:var(--accent);color:var(--accent);background:rgba(96,160,208,0.08)}
+.sm-place-btn.fit{margin-left:6px}
 /* ── Image tray: caption under its own thumb ── */
 .sm-img-tray{display:flex;flex-wrap:wrap;gap:7px;margin-top:7px;align-items:flex-start}
 .sm-img-card{width:92px}
@@ -246,7 +248,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .session-vis{font-size:9px;color:var(--tx3);display:flex;align-items:center;gap:3px}
 .session-actions{display:flex;gap:6px;opacity:0;transition:opacity .1s}
 .session-card:hover .session-actions{opacity:1}
-@media(max-width:600px){.session-recap{flex-direction:column;padding:10px}.session-recap-img{flex:none;max-width:none;width:100%;margin:0}.session-date-stack{gap:8px}.session-date-item{min-width:calc(50% - 4px)}.session-read-btn{width:100%;padding:8px 12px}.session-actions{opacity:1}.ses-drag-handle{opacity:.45}.session-sec-img-wrap.pos-left,.session-sec-img-wrap.pos-right{float:none;margin:0 auto 6px;display:block;text-align:center}.session-sec-img.sz-lg,.session-sec-img.sz-md{max-width:100%}}
+@media(max-width:600px){.session-recap{flex-direction:column;padding:10px}.session-recap-img{flex:none;max-width:none;width:100%;margin:0}.session-date-stack{gap:8px}.session-date-item{min-width:calc(50% - 4px)}.session-read-btn{width:100%;padding:8px 12px}.session-actions{opacity:1}.ses-drag-handle{opacity:.45}.session-sec-content.ip-left,.session-sec-content.ip-right{display:flex;flex-direction:column}.session-sec-img-wrap.w-third,.session-sec-img-wrap.w-quarter{flex:0 1 calc(50% - 3px)}}
 .session-action-btn{background:none;border:none;color:var(--tx2);font-size:12px;cursor:pointer;padding:4px 8px;font-family:var(--fb);font-weight:700}
 .session-action-btn:hover{color:var(--tx)}.session-action-btn.danger{color:var(--red)}.session-action-btn.danger:hover{color:var(--red-lt)}
 .ses-drag-handle{cursor:grab;color:var(--tx3);font-size:12px;opacity:0;transition:opacity .15s;padding:0 4px 0 0;user-select:none;flex-shrink:0}
@@ -676,25 +678,25 @@ function buildSessionCard(s,idx,total,camp,imgMap){
   if(s.sections&&s.sections.length){
     sectionsHtml='<div class="session-sections">';
     s.sections.forEach(sec=>{
-      sectionsHtml+='<div class="session-sec-block clearfix">';
+      migrateSectionLayout(sec);
+      sectionsHtml+='<div class="session-sec-block">';
       if(sec.title)sectionsHtml+=`<div class="session-section-title">${ESC(sec.title)}</div>`;
       const imgs=sec.images||[];
+      const fit=secFit(sec);
+      let imagesHtml='';
       if(imgs.length){
-        const secLayout=['legacy','text-first','images-first','text-left','images-left','gallery'].includes(sec.layout)?sec.layout:'legacy';
-        const secCols=['1','2','3'].includes(String(sec.columns))?' cols-'+sec.columns:'';
-        sectionsHtml+=`<div class="session-sec-images layout-${secLayout}${secCols}">`;
+        imagesHtml='<div class="session-sec-images">';
         imgs.forEach(img=>{
           const src=resolveImg(img.src,imgMap);
-          if(src){
-            const pos=img.pos||'right';
-            sectionsHtml+=`<div class="session-sec-img-wrap pos-${pos}"><img class="session-sec-img sz-${img.size||'md'}" src="${src}" alt="">`;
-            if(img.caption)sectionsHtml+=`<span class="sec-img-caption">${ESC(img.caption)}</span>`;
-            sectionsHtml+='</div>';
-          }
+          if(!src)return;
+          imagesHtml+=`<div class="session-sec-img-wrap w-${imgWidth(img)}"><img class="session-sec-img fit-${fit}" src="${src}" alt="">`;
+          if(img.caption)imagesHtml+=`<span class="sec-img-caption">${ESC(img.caption)}</span>`;
+          imagesHtml+='</div>';
         });
-        sectionsHtml+='</div>';
+        imagesHtml+='</div>';
       }
-      if(sec.text)sectionsHtml+=`<div class="session-section-text">${ESC(sec.text)}</div>`;
+      const textHtml=sec.text?`<div class="session-section-text">${ESC(sec.text)}</div>`:'';
+      sectionsHtml+=`<div class="session-sec-content ip-${secPos(sec)}">${imagesHtml}${textHtml}</div>`;
       sectionsHtml+='</div>';
     });
     sectionsHtml+='</div>';
@@ -746,6 +748,41 @@ function filterSessions(sessions,filter){if(filter==='all')return sessions;retur
 
 // ── RENDER ──
 // ── Migrate inline data URLs to IndexedDB (one-time) ──
+// ── Section layout migration ──────────────────────────────────────────────
+// Collapses the two old models (per-image float pos/size, and section
+// layout/columns) into one: section imagePos + per-image width share.
+// Old fields are left on the object so an older build can still read them.
+const SEC_POS=['above','below','left','right'];
+const IMG_WIDTHS=['quarter','third','half','full'];
+const IMG_WIDTH_LABELS={quarter:'¼',third:'⅓',half:'½',full:'█'};
+function migrateSectionLayout(sec){
+  if(!sec||sec.imagePos)return false;
+  const imgs=sec.images||[];
+  const L=sec.layout||'legacy';
+  let pos;
+  if(L==='legacy'){
+    const p=(imgs[0]&&imgs[0].pos)||'right';
+    pos=(p==='left'||p==='right')?p:'above';
+  }else if(L==='images-first'||L==='gallery')pos='above';
+  else if(L==='text-left')pos='right';
+  else if(L==='images-left')pos='left';
+  else pos='below';
+  const colW={'1':'full','2':'half','3':'third'}[String(sec.columns)];
+  const sizeW={sm:'quarter',md:'third',lg:'half',full:'full'};
+  imgs.forEach(img=>{if(!img.width)img.width=L==='legacy'?(sizeW[img.size]||'third'):(colW||'third')});
+  sec.imagePos=pos;
+  sec.fit=sec.fit==='cover'?'cover':'contain';
+  return true;
+}
+function migrateSessionLayouts(camp){
+  let changed=false;
+  (camp?.sessions||[]).forEach(s=>(s.sections||[]).forEach(sec=>{if(migrateSectionLayout(sec))changed=true}));
+  return changed;
+}
+function secPos(sec){return SEC_POS.includes(sec&&sec.imagePos)?sec.imagePos:'below'}
+function imgWidth(img){return IMG_WIDTHS.includes(img&&img.width)?img.width:'third'}
+function secFit(sec){return sec&&sec.fit==='cover'?'cover':'contain'}
+
 async function migrateImagesToIDB(camp){
   if(!camp)return false;
   let changed=false;
@@ -902,7 +939,8 @@ async function render(){
   if(!pm_){
     const refsChanged=reconcileCharRefs(camp);
     await migrateImagesToIDB(camp);
-    if(cleaned||refsChanged)GCC.updateCampaign(camp.id,{characters:camp.characters||[],sessions:camp.sessions||[],session:countRealSessions(camp.sessions||[])});
+    const layoutChanged=migrateSessionLayouts(camp);
+    if(cleaned||refsChanged||layoutChanged)GCC.updateCampaign(camp.id,{characters:camp.characters||[],sessions:camp.sessions||[],session:countRealSessions(camp.sessions||[])});
   }
   // Bulk load images from IndexedDB (GM mode); player mode uses Storage URLs directly
   const imgKeys=pm_?[]:collectImageKeys(camp);
@@ -1595,17 +1633,21 @@ async function exportJournal(){
     if(s.text)entriesHtml+=`<div class="j-summary">${ESC(s.text)}</div>`;
     if(s.sections&&s.sections.length){
       s.sections.forEach(sec=>{
-        entriesHtml+=`<div class="j-section clearfix">`;
+        migrateSectionLayout(sec);
+        entriesHtml+=`<div class="j-section">`;
         if(sec.title)entriesHtml+=`<h3 class="j-sec-title">${ESC(sec.title)}</h3>`;
         const imgs=sec.images||[];
+        const fit=secFit(sec);
+        let jImgs='';
         imgs.forEach(img=>{
           const src=rImg(img.src);if(!src)return;
-          const pos=img.pos||'right',sz=img.size||'md';
-          entriesHtml+=`<div class="j-img-wrap j-pos-${pos}"><img class="j-img j-sz-${sz}" src="${src}" alt="">`;
-          if(img.caption)entriesHtml+=`<span class="j-caption">${ESC(img.caption)}</span>`;
-          entriesHtml+=`</div>`;
+          jImgs+=`<div class="j-img-wrap j-w-${imgWidth(img)}"><img class="j-img j-fit-${fit}" src="${src}" alt="">`;
+          if(img.caption)jImgs+=`<span class="j-caption">${ESC(img.caption)}</span>`;
+          jImgs+=`</div>`;
         });
-        if(sec.text)entriesHtml+=`<div class="j-sec-text">${ESC(sec.text)}</div>`;
+        if(jImgs)jImgs=`<div class="j-sec-images">${jImgs}</div>`;
+        const jText=sec.text?`<div class="j-sec-text">${ESC(sec.text)}</div>`:'';
+        entriesHtml+=`<div class="j-sec-content j-ip-${secPos(sec)}">${jImgs}${jText}</div>`;
         entriesHtml+=`</div>`;
       });
     }
@@ -1640,13 +1682,23 @@ h1{font-size:28px;margin:0 0 4px;letter-spacing:.5px}
 .j-section{margin:10px 0}
 .j-sec-title{font-size:16px;color:#555;margin:0 0 4px;font-weight:600}
 .j-sec-text{font-size:15px;white-space:pre-line}
-.j-img-wrap{display:inline-block;margin:0 0 8px}
-.j-pos-right{float:right;margin:0 0 8px 14px}
-.j-pos-left{float:left;margin:0 14px 8px 0}
-.j-pos-center{float:none;display:block;margin:0 auto 8px;text-align:center}
-.j-pos-inline{float:none;display:block;margin:0 0 8px}
-.j-img{border-radius:3px;border:1px solid #ddd;display:block;height:auto}
-.j-sz-sm{max-width:100px}.j-sz-md{max-width:200px}.j-sz-lg{max-width:320px}.j-sz-full{width:100%;max-height:400px;object-fit:contain}
+.j-sec-content{display:flex;flex-direction:column;gap:12px}
+.j-sec-content.j-ip-above .j-sec-images{order:1}.j-sec-content.j-ip-above .j-sec-text{order:2}
+.j-sec-content.j-ip-below .j-sec-text{order:1}.j-sec-content.j-ip-below .j-sec-images{order:2}
+.j-sec-content.j-ip-left,.j-sec-content.j-ip-right{display:grid;gap:18px;align-items:start}
+.j-sec-content.j-ip-left{grid-template-columns:minmax(0,38%) minmax(0,1fr)}
+.j-sec-content.j-ip-left .j-sec-images{grid-column:1}.j-sec-content.j-ip-left .j-sec-text{grid-column:2}
+.j-sec-content.j-ip-right{grid-template-columns:minmax(0,1fr) minmax(0,38%)}
+.j-sec-content.j-ip-right .j-sec-text{grid-column:1}.j-sec-content.j-ip-right .j-sec-images{grid-column:2}
+.j-sec-images{display:flex;flex-wrap:wrap;gap:10px;align-content:start}
+.j-img-wrap{min-width:0;margin:0;text-align:center}
+.j-img-wrap.j-w-full{flex:0 1 100%}
+.j-img-wrap.j-w-half{flex:0 1 calc(50% - 5px)}
+.j-img-wrap.j-w-third{flex:0 1 calc(33.333% - 7px)}
+.j-img-wrap.j-w-quarter{flex:0 1 calc(25% - 8px)}
+.j-img{width:100%;height:auto;border-radius:3px;border:1px solid #ddd;display:block}
+.j-img.j-fit-cover{aspect-ratio:16/10;object-fit:cover}
+.j-img.j-fit-contain{object-fit:contain}
 .j-caption{display:block;font-size:11px;color:#888;font-style:italic;margin-top:2px;text-align:center}
 .j-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .j-tag{font-size:11px;padding:2px 8px;border:1px solid #ddd;border-radius:3px;color:#555}
@@ -1672,54 +1724,27 @@ ${entriesHtml}
 const sesModal=document.getElementById('session-modal');
 let sesEditIdx=-1,sesImageData='',sesSections=[],sesTags=[],sesRoster=[];
 let sesDirty=false,sesClosing=false;
-let sesOpenSec=-1,sesLayoutOpen=false; // accordion: index of expanded section, and whether its layout panel is showing
-const SEC_LAYOUT_LABELS={legacy:'Legacy image positions','text-first':'Text, then images','images-first':'Images, then text','text-left':'Text left / images right','images-left':'Images left / text right',gallery:'Full-width gallery'};
-function secLayoutSummary(sec){
-  const parts=[SEC_LAYOUT_LABELS[sec.layout||'legacy']||'Legacy image positions'];
-  const cols=String(sec.columns||'auto');parts.push(cols==='auto'?'auto cols':cols+' col');
-  parts.push((sec.fit||'contain')==='cover'?'crop':'contain');
-  if(sec.textWidth&&sec.textWidth!=='normal')parts.push(sec.textWidth+' text');
-  return parts.join(' · ');
-}
+let sesOpenSec=-1; // accordion: index of the expanded section
 
 function buildSessionModalBody(camp,isTimeline){
   const xpLbl=GCC.xpLabel(camp.system);
   const imgPreview=sesImageData?`<img class="gcc-dlg-img-preview" src="${sesImageData}">`:(sesImageData===null&&_sesImageOrigKey?`<div style="font-size:11px;color:var(--red);padding:6px 0">⚠ Saved cover image couldn't be loaded. Upload again to replace it; saving keeps the existing reference.</div>`:'');
   let sectionsHtml='';
   if(!isTimeline){sectionsHtml=`<label class="gcc-dlg-label">SECTIONS (optional — for structured recaps)</label><div class="gcc-dlg-sections" id="sm-sections">${sesSections.map((sec,i)=>{
+    migrateSectionLayout(sec);
     const imgs=sec.images||[];
     const open=sesOpenSec===i;
-    const layout=sec.layout||'legacy';
-    const isLegacy=layout==='legacy';
-    const SIZES=['sm','md','lg','full'];const SIZE_LABELS={sm:'S',md:'M',lg:'L',full:'W'};
-    const POS_LABELS={left:'◀',right:'▶',center:'◆',inline:'▬'};
     let imgTrayHtml='<div class="sm-img-tray">';
     imgs.forEach((img,j)=>{
-      const posLbl=POS_LABELS[img.pos||'right']||'▶';
-      const off=isLegacy?'':' disabled title="Only used by the Legacy layout"';
-      imgTrayHtml+=`<div class="sm-img-card"><div class="gcc-dlg-sec-img-thumb"><img src="${img.src}"><button class="thumb-remove" data-sec-img-rm="${i}-${j}">✕</button><button class="thumb-size"${isLegacy?` data-sec-img-size="${i}-${j}" title="Cycle size: S/M/L/W"`:off}>${SIZE_LABELS[img.size||'md']}</button><button class="thumb-pos"${isLegacy?` data-sec-img-pos="${i}-${j}" title="Cycle position: L/R/C/I"`:off}>${posLbl}</button></div><input class="gcc-dlg-input sm-img-cap" placeholder="Caption" value="${ESC(img.caption||'')}" data-sec-img-cap="${i}-${j}"></div>`;
+      imgTrayHtml+=`<div class="sm-img-card"><div class="gcc-dlg-sec-img-thumb"><img src="${img.src}"><button class="thumb-remove" data-sec-img-rm="${i}-${j}">✕</button><button class="thumb-size" data-sec-img-w="${i}-${j}" title="Width: quarter / third / half / full">${IMG_WIDTH_LABELS[imgWidth(img)]}</button></div><input class="gcc-dlg-input sm-img-cap" placeholder="Caption" value="${ESC(img.caption||'')}" data-sec-img-cap="${i}-${j}"></div>`;
     });
     imgTrayHtml+=`<button class="gcc-dlg-img-btn" data-sec-img-add="${i}" style="font-size:9px;padding:2px 6px;align-self:center">+ Image</button><input type="file" data-sec-img-file="${i}" accept="image/*" style="display:none" multiple></div>`;
-    if(imgs.length&&!isLegacy)imgTrayHtml+=`<div class="gcc-dlg-hint">Per-image size and position are ignored by this layout — switch the section to <em>Legacy image positions</em> to use them.</div>`;
-    const columns=String(sec.columns||'auto');
-    const fit=sec.fit||'contain';
-    const textWidth=sec.textWidth||'normal';
-    const layoutControls=(open&&sesLayoutOpen)?`<div class="gcc-dlg-sec-layout">
-      <div><label class="gcc-dlg-label">SECTION LAYOUT</label><select class="gcc-dlg-input" data-sec-layout="${i}">
-        <option value="legacy"${layout==='legacy'?' selected':''}>Legacy image positions</option>
-        <option value="text-first"${layout==='text-first'?' selected':''}>Text, then images</option>
-        <option value="images-first"${layout==='images-first'?' selected':''}>Images, then text</option>
-        <option value="text-left"${layout==='text-left'?' selected':''}>Text left / images right</option>
-        <option value="images-left"${layout==='images-left'?' selected':''}>Images left / text right</option>
-        <option value="gallery"${layout==='gallery'?' selected':''}>Full-width gallery</option>
-      </select></div>
-      <div><label class="gcc-dlg-label">COLUMNS</label><select class="gcc-dlg-input" data-sec-columns="${i}"><option value="auto"${columns==='auto'?' selected':''}>Auto</option><option value="1"${columns==='1'?' selected':''}>1</option><option value="2"${columns==='2'?' selected':''}>2</option><option value="3"${columns==='3'?' selected':''}>3</option></select></div>
-      <div><label class="gcc-dlg-label">IMAGE FIT</label><select class="gcc-dlg-input" data-sec-fit="${i}"><option value="contain"${fit==='contain'?' selected':''}>Contain</option><option value="cover"${fit==='cover'?' selected':''}>Crop</option></select></div>
-      <div><label class="gcc-dlg-label">TEXT WIDTH</label><select class="gcc-dlg-input" data-sec-textwidth="${i}"><option value="normal"${textWidth==='normal'?' selected':''}>Normal</option><option value="wide"${textWidth==='wide'?' selected':''}>Wide</option><option value="narrow"${textWidth==='narrow'?' selected':''}>Narrow</option></select></div>
-    </div>`:'';
+    const pos=secPos(sec),fit=secFit(sec);
+    const POS_LABELS={above:'Above text',below:'Below text',left:'Left of text',right:'Right of text'};
+    const placeHtml=imgs.length?`<div class="sm-place-row"><span class="sm-place-lbl">IMAGES</span>${SEC_POS.map(p=>`<button class="sm-place-btn${pos===p?' on':''}" data-sec-pos="${i}-${p}">${POS_LABELS[p]}</button>`).join('')}<button class="sm-place-btn fit${fit==='cover'?' on':''}" data-sec-fit-toggle="${i}" title="Crop images to a uniform tile instead of showing them whole">${fit==='cover'?'Cropped':'Whole'}</button></div>`:'';
     const nameTxt=(sec.title||'').trim();
-    const bodyHtml=open?`<div class="sm-sec-body"><input class="gcc-dlg-input" placeholder="Section title" value="${ESC(sec.title)}" data-sec-title="${i}"><textarea class="gcc-dlg-ta" placeholder="Section text..." data-sec-text="${i}">${ESC(sec.text)}</textarea><button class="sm-layout-btn" data-sec-layout-toggle="${i}">${ESC(secLayoutSummary(sec))} ${sesLayoutOpen?'▴':'▾'}</button>${layoutControls}${imgTrayHtml}</div>`:'';
-    return`<div class="sm-sec${open?' open':''}" data-sec-idx="${i}" draggable="true"><div class="sm-sec-hdr"><span class="sm-sec-grip" title="Drag to reorder">⠿</span><button class="sm-sec-caret" data-sec-toggle="${i}">${open?'▾':'▸'}</button><span class="sm-sec-name${nameTxt?'':' untitled'}" data-sec-toggle="${i}">${nameTxt?ESC(nameTxt):'Untitled section'}</span>${imgs.length?`<span class="sm-sec-meta">${imgs.length} img</span>`:''}<button class="sm-sec-del" data-sec-remove="${i}" title="Remove section">✕</button></div>${bodyHtml}</div>`}).join('')}</div><button class="gcc-dlg-sec-add" id="sm-add-section">+ Add Section</button>`}
+    const bodyHtml=open?`<div class="sm-sec-body"><input class="gcc-dlg-input" placeholder="Section title" value="${ESC(sec.title)}" data-sec-title="${i}"><textarea class="gcc-dlg-ta" placeholder="Section text..." data-sec-text="${i}">${ESC(sec.text)}</textarea>${placeHtml}${imgTrayHtml}</div>`:'';
+    return`<div class="sm-sec${open?' open':''}" data-sec-idx="${i}" draggable="true"><div class="sm-sec-hdr"><span class="sm-sec-grip" title="Drag to reorder">⠿</span><button class="sm-sec-caret" data-sec-toggle="${i}">${open?'▾':'▸'}</button><span class="sm-sec-name${nameTxt?'':' untitled'}" data-sec-toggle="${i}">${nameTxt?ESC(nameTxt):'Untitled section'}</span>${imgs.length?`<span class="sm-sec-meta">${imgs.length} img · ${POS_LABELS[pos].split(' ')[0].toLowerCase()}</span>`:''}<button class="sm-sec-del" data-sec-remove="${i}" title="Remove section">✕</button></div>${bodyHtml}</div>`}).join('')}</div><button class="gcc-dlg-sec-add" id="sm-add-section">+ Add Section</button>`}
   // Character participation checklist
   const chars=camp.characters||[];
   let charCheckHtml='';
@@ -1766,7 +1791,7 @@ function restoreSessionFields(vals){if(!vals)return;const f=(id,v)=>{const el=do
   // and blanking a <select> would leave it showing no option at all.
   const g=(id,v)=>{if(v==null||v==='')return;const el=document.getElementById(id);if(el)el.value=v};
   f('sm-date',vals.date);f('sm-gamedate',vals.gameDate);f('sm-title',vals.title);f('sm-text',vals.text);f('sm-xp',vals.xp);g('sm-position',vals.position);g('sm-tag-input',vals.tagDraft);const vis=document.getElementById('sm-visible');if(vis)vis.checked=vals.visible!==false}
-function captureSessionSections(){document.querySelectorAll('[data-sec-title]').forEach(el=>{const i=parseInt(el.dataset.secTitle);if(sesSections[i])sesSections[i].title=el.value});document.querySelectorAll('[data-sec-text]').forEach(el=>{const i=parseInt(el.dataset.secText);if(sesSections[i])sesSections[i].text=el.value});document.querySelectorAll('[data-sec-layout]').forEach(el=>{const i=parseInt(el.dataset.secLayout);if(sesSections[i])sesSections[i].layout=el.value});document.querySelectorAll('[data-sec-columns]').forEach(el=>{const i=parseInt(el.dataset.secColumns);if(sesSections[i])sesSections[i].columns=el.value});document.querySelectorAll('[data-sec-fit]').forEach(el=>{const i=parseInt(el.dataset.secFit);if(sesSections[i])sesSections[i].fit=el.value});document.querySelectorAll('[data-sec-textwidth]').forEach(el=>{const i=parseInt(el.dataset.secTextwidth);if(sesSections[i])sesSections[i].textWidth=el.value});document.querySelectorAll('[data-sec-img-cap]').forEach(el=>{const[si,ii]=el.dataset.secImgCap.split('-').map(Number);if(sesSections[si]&&sesSections[si].images&&sesSections[si].images[ii])sesSections[si].images[ii].caption=el.value})}
+function captureSessionSections(){document.querySelectorAll('[data-sec-title]').forEach(el=>{const i=parseInt(el.dataset.secTitle);if(sesSections[i])sesSections[i].title=el.value});document.querySelectorAll('[data-sec-text]').forEach(el=>{const i=parseInt(el.dataset.secText);if(sesSections[i])sesSections[i].text=el.value});document.querySelectorAll('[data-sec-img-cap]').forEach(el=>{const[si,ii]=el.dataset.secImgCap.split('-').map(Number);if(sesSections[si]&&sesSections[si].images&&sesSections[si].images[ii])sesSections[si].images[ii].caption=el.value})}
 
 // Every structural edit (add image, cycle size, add/remove section or tag) rebuilds
 // the whole body, so scroll/focus/caret have to be carried across by hand.
@@ -1793,7 +1818,7 @@ function refreshModalBody(camp,isTimeline){
 
 async function openSessionModal(editIdx,typeOverride){
   sesEditIdx=editIdx!=null?editIdx:-1;const camp=getCamp();if(!camp)return;
-  sesOpenSec=-1;sesLayoutOpen=false;
+  sesOpenSec=-1;
   const isEdit=sesEditIdx>=0;let isTimeline=typeOverride==='timeline';
   if(isEdit){const s=camp.sessions?.[sesEditIdx];if(s){
     isTimeline=s.type==='timeline';
@@ -1841,11 +1866,10 @@ function wireSessionModalEvents(camp,isTimeline){
   document.getElementById('sm-img-file')?.addEventListener('change',e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{sesImageData=ev.target.result;refreshModalBody(camp,isTimeline)};reader.readAsDataURL(file)});
   document.getElementById('sm-img-paste')?.addEventListener('click',async()=>{try{const items=await navigator.clipboard.read();for(const item of items){const imgType=item.types.find(t=>t.startsWith('image/'));if(imgType){const blob=await item.getType(imgType);const reader=new FileReader();reader.onload=ev=>{sesImageData=ev.target.result;refreshModalBody(camp,isTimeline)};reader.readAsDataURL(blob);return}}}catch(e){console.warn('Clipboard paste failed:',e)}});
   document.getElementById('sm-img-clear')?.addEventListener('click',()=>{sesImageData='';refreshModalBody(camp,isTimeline)});
-  if(!isTimeline){document.getElementById('sm-add-section')?.addEventListener('click',()=>{captureSessionSections();sesSections.push({title:'',text:'',images:[],layout:'legacy',columns:'auto',fit:'contain',textWidth:'normal'});sesOpenSec=sesSections.length-1;sesLayoutOpen=false;refreshModalBody(camp,isTimeline)});
-    document.querySelectorAll('[data-sec-toggle]').forEach(el=>{el.addEventListener('click',()=>{const i=parseInt(el.dataset.secToggle);sesOpenSec=sesOpenSec===i?-1:i;sesLayoutOpen=false;refreshModalBody(camp,isTimeline)})});
-    document.querySelectorAll('[data-sec-layout-toggle]').forEach(btn=>{btn.addEventListener('click',()=>{sesLayoutOpen=!sesLayoutOpen;refreshModalBody(camp,isTimeline)})});
+  if(!isTimeline){document.getElementById('sm-add-section')?.addEventListener('click',()=>{captureSessionSections();sesSections.push({title:'',text:'',images:[],imagePos:'below',fit:'contain'});sesOpenSec=sesSections.length-1;refreshModalBody(camp,isTimeline)});
+    document.querySelectorAll('[data-sec-toggle]').forEach(el=>{el.addEventListener('click',()=>{const i=parseInt(el.dataset.secToggle);sesOpenSec=sesOpenSec===i?-1:i;refreshModalBody(camp,isTimeline)})});
     document.querySelectorAll('[data-sec-remove]').forEach(btn=>{btn.addEventListener('click',()=>{captureSessionSections();const i=parseInt(btn.dataset.secRemove);sesSections.splice(i,1);
-      if(sesOpenSec===i){sesOpenSec=-1;sesLayoutOpen=false}else if(sesOpenSec>i){sesOpenSec--}
+      if(sesOpenSec===i){sesOpenSec=-1}else if(sesOpenSec>i){sesOpenSec--}
       refreshModalBody(camp,isTimeline)})});
     // Drag-to-reorder sections (grip only, mirrors the session card list)
     let secDrag=null;
@@ -1876,9 +1900,10 @@ function wireSessionModalEvents(camp,isTimeline){
     // Multi-image: remove individual image
     document.querySelectorAll('[data-sec-img-rm]').forEach(btn=>{btn.addEventListener('click',()=>{const[si,ii]=btn.dataset.secImgRm.split('-').map(Number);captureSessionSections();if(sesSections[si]&&sesSections[si].images)sesSections[si].images.splice(ii,1);refreshModalBody(camp,isTimeline)})});
     // Multi-image: cycle size
-    document.querySelectorAll('[data-sec-img-size]').forEach(btn=>{btn.addEventListener('click',()=>{const[si,ii]=btn.dataset.secImgSize.split('-').map(Number);captureSessionSections();if(sesSections[si]&&sesSections[si].images&&sesSections[si].images[ii]){const SIZES=['sm','md','lg','full'];const cur=sesSections[si].images[ii].size||'md';sesSections[si].images[ii].size=SIZES[(SIZES.indexOf(cur)+1)%SIZES.length]}refreshModalBody(camp,isTimeline)})});
+    document.querySelectorAll('[data-sec-pos]').forEach(btn=>{btn.addEventListener('click',()=>{const[si,p]=btn.dataset.secPos.split('-');captureSessionSections();if(sesSections[si])sesSections[si].imagePos=p;refreshModalBody(camp,isTimeline)})});
+    document.querySelectorAll('[data-sec-fit-toggle]').forEach(btn=>{btn.addEventListener('click',()=>{const i=parseInt(btn.dataset.secFitToggle);captureSessionSections();if(sesSections[i])sesSections[i].fit=secFit(sesSections[i])==='cover'?'contain':'cover';refreshModalBody(camp,isTimeline)})});
+    document.querySelectorAll('[data-sec-img-w]').forEach(btn=>{btn.addEventListener('click',()=>{const[si,ii]=btn.dataset.secImgW.split('-').map(Number);captureSessionSections();const img=sesSections[si]&&sesSections[si].images&&sesSections[si].images[ii];if(img)img.width=IMG_WIDTHS[(IMG_WIDTHS.indexOf(imgWidth(img))+1)%IMG_WIDTHS.length];refreshModalBody(camp,isTimeline)})});
     // Multi-image: cycle position
-    document.querySelectorAll('[data-sec-img-pos]').forEach(btn=>{btn.addEventListener('click',()=>{const[si,ii]=btn.dataset.secImgPos.split('-').map(Number);captureSessionSections();if(sesSections[si]&&sesSections[si].images&&sesSections[si].images[ii]){const POSITIONS=['right','left','center','inline'];const cur=sesSections[si].images[ii].pos||'right';sesSections[si].images[ii].pos=POSITIONS[(POSITIONS.indexOf(cur)+1)%POSITIONS.length]}refreshModalBody(camp,isTimeline)})});
   }
   document.getElementById('sm-roster-all')?.addEventListener('click',()=>{sesDirty=true;sesRoster=[...document.querySelectorAll('[data-roster-id]')].map(cb=>cb.dataset.rosterId);refreshModalBody(camp,isTimeline)});
   document.getElementById('sm-roster-none')?.addEventListener('click',()=>{sesDirty=true;sesRoster=[];refreshModalBody(camp,isTimeline)});
@@ -2207,21 +2232,28 @@ function parseHtmlJournal(html){
     entry.querySelectorAll('.j-section').forEach(secEl=>{
       const secTitle=secEl.querySelector('.j-sec-title')?.textContent?.trim()||'';
       const secText=secEl.querySelector('.j-sec-text')?.textContent?.trim()||'';
+      const content=secEl.querySelector('.j-sec-content');
+      let imagePos='below';
+      SEC_POS.forEach(p=>{if(content&&content.classList.contains('j-ip-'+p))imagePos=p});
+      const fit=secEl.querySelector('.j-img.j-fit-cover')?'cover':'contain';
       const images=[];
       secEl.querySelectorAll('.j-img-wrap').forEach(wrap=>{
         const img=wrap.querySelector('.j-img');if(!img)return;
         const src=img.getAttribute('src')||'';if(!src)return;
-        let pos='right',size='md';
-        if(wrap.classList.contains('j-pos-left'))pos='left';
-        else if(wrap.classList.contains('j-pos-center'))pos='center';
-        else if(wrap.classList.contains('j-pos-inline'))pos='inline';
-        if(img.classList.contains('j-sz-sm'))size='sm';
-        else if(img.classList.contains('j-sz-lg'))size='lg';
-        else if(img.classList.contains('j-sz-full'))size='full';
+        let width='third';
+        IMG_WIDTHS.forEach(w=>{if(wrap.classList.contains('j-w-'+w))width=w});
+        // Older journals used per-image float classes; map them onto the flow model.
+        if(!wrap.className.includes('j-w-')){
+          if(img.classList.contains('j-sz-sm'))width='quarter';
+          else if(img.classList.contains('j-sz-lg'))width='half';
+          else if(img.classList.contains('j-sz-full'))width='full';
+          if(wrap.classList.contains('j-pos-left'))imagePos='left';
+          else if(wrap.classList.contains('j-pos-right'))imagePos='right';
+        }
         const caption=wrap.querySelector('.j-caption')?.textContent?.trim()||'';
-        images.push({src,size,pos,caption});
+        images.push({src,width,caption});
       });
-      sections.push({title:secTitle,text:secText,images});
+      sections.push({title:secTitle,text:secText,images,imagePos,fit});
     });
     // Tags
     const tags=[];

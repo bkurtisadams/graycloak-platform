@@ -87,31 +87,24 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 
 /* ── Section layouts and image galleries ── */
 .clearfix::after{content:'';display:table;clear:both}
-.recap-sec-content{display:block}
-.recap-sec-content.layout-text-first,.recap-sec-content.layout-images-first,.recap-sec-content.layout-gallery{display:flex;flex-direction:column;gap:14px}
-.recap-sec-content.layout-text-first .recap-sec-text{order:1}.recap-sec-content.layout-text-first .recap-sec-images{order:2}
-.recap-sec-content.layout-images-first .recap-sec-images{order:1}.recap-sec-content.layout-images-first .recap-sec-text{order:2}
-.recap-sec-content.layout-gallery .recap-sec-images{order:1}.recap-sec-content.layout-gallery .recap-sec-text{order:2}
-.recap-sec-content.layout-text-left,.recap-sec-content.layout-images-left{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,42%);gap:22px;align-items:start}
-.recap-sec-content.layout-text-left .recap-sec-text{grid-column:1}.recap-sec-content.layout-text-left .recap-sec-images{grid-column:2}
-.recap-sec-content.layout-images-left .recap-sec-images{grid-column:1}.recap-sec-content.layout-images-left .recap-sec-text{grid-column:2}
-.recap-sec-text.text-wide{max-width:none}.recap-sec-text.text-normal{max-width:68ch}.recap-sec-text.text-narrow{max-width:48ch}
-.recap-sec-images{display:grid;gap:12px;align-items:start}
-.recap-sec-images.cols-auto{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
-.recap-sec-images.cols-1{grid-template-columns:1fr}.recap-sec-images.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.recap-sec-images.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+".recap-sec-content{display:flex;flex-direction:column;gap:14px}
+.recap-sec-content.ip-above .recap-sec-images{order:1}.recap-sec-content.ip-above .recap-sec-text{order:2}
+.recap-sec-content.ip-below .recap-sec-text{order:1}.recap-sec-content.ip-below .recap-sec-images{order:2}
+.recap-sec-content.ip-left,.recap-sec-content.ip-right{display:grid;gap:22px;align-items:start}
+.recap-sec-content.ip-left{grid-template-columns:minmax(0,38%) minmax(0,1fr)}
+.recap-sec-content.ip-left .recap-sec-images{grid-column:1}.recap-sec-content.ip-left .recap-sec-text{grid-column:2}
+.recap-sec-content.ip-right{grid-template-columns:minmax(0,1fr) minmax(0,38%)}
+.recap-sec-content.ip-right .recap-sec-text{grid-column:1}.recap-sec-content.ip-right .recap-sec-images{grid-column:2}
+.recap-sec-images{display:flex;flex-wrap:wrap;gap:12px;align-content:start}
 .recap-sec-img-wrap{min-width:0;margin:0;text-align:center}
-.recap-sec-img{width:100%;height:100%;max-height:440px;border-radius:4px;border:1px solid var(--brd);display:block;background:var(--bg2)}
-.recap-sec-img.fit-contain{object-fit:contain}.recap-sec-img.fit-cover{object-fit:cover;aspect-ratio:16/10}
+.recap-sec-img-wrap.w-full{flex:0 1 100%}
+.recap-sec-img-wrap.w-half{flex:0 1 calc(50% - 6px)}
+.recap-sec-img-wrap.w-third{flex:0 1 calc(33.333% - 8px)}
+.recap-sec-img-wrap.w-quarter{flex:0 1 calc(25% - 9px)}
+.recap-sec-img{width:100%;height:auto;border-radius:4px;border:1px solid var(--brd);display:block;background:var(--bg2)}
+.recap-sec-img.fit-cover{aspect-ratio:16/10;object-fit:cover}
+.recap-sec-img.fit-contain{object-fit:contain}
 .recap-img-caption{display:block;font-size:11px;color:var(--tx3);font-style:italic;margin-top:4px;text-align:center;max-width:100%}
-/* Legacy sections retain their original per-image position and size behavior. */
-.recap-sec-content.layout-legacy .recap-sec-images{display:block}
-.recap-sec-content.layout-legacy .recap-sec-img-wrap{display:inline-block;margin:0 0 10px 0}
-.recap-sec-content.layout-legacy .recap-sec-img-wrap.pos-right{float:right;margin:2px 0 10px 18px}
-.recap-sec-content.layout-legacy .recap-sec-img-wrap.pos-left{float:left;margin:2px 18px 10px 0}
-.recap-sec-content.layout-legacy .recap-sec-img-wrap.pos-center{float:none;display:block;margin:0 auto 14px;text-align:center}
-.recap-sec-content.layout-legacy .recap-sec-img-wrap.pos-inline{float:none;display:block;margin:0 0 14px}
-.recap-sec-content.layout-legacy .recap-sec-img{width:auto;height:auto;object-fit:contain;background:transparent}
-.recap-sec-content.layout-legacy .recap-sec-img.sz-sm{max-width:120px}.recap-sec-content.layout-legacy .recap-sec-img.sz-md{max-width:220px}.recap-sec-content.layout-legacy .recap-sec-img.sz-lg{max-width:380px}.recap-sec-content.layout-legacy .recap-sec-img.sz-full{width:100%;max-height:500px}
 
 /* ── Prev/Next navigation ── */
 .recap-pagination{display:flex;align-items:stretch;gap:0;margin:40px 0 0;border:1px solid var(--brd);border-radius:4px;overflow:hidden}
@@ -140,11 +133,8 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
   .recap-cover{flex-direction:column}
   .recap-cover-img{flex:none;max-width:100%}
   .recap-title{font-size:22px}
-  .recap-sec-content.layout-text-left,.recap-sec-content.layout-images-left{display:flex;flex-direction:column;gap:14px}
-  .recap-sec-content.layout-text-left .recap-sec-text,.recap-sec-content.layout-text-left .recap-sec-images,.recap-sec-content.layout-images-left .recap-sec-text,.recap-sec-content.layout-images-left .recap-sec-images{width:100%}
-  .recap-sec-images.cols-3,.recap-sec-images.cols-2{grid-template-columns:1fr}
-  .recap-sec-content.layout-legacy .recap-sec-img-wrap.pos-left,.recap-sec-content.layout-legacy .recap-sec-img-wrap.pos-right{float:none;margin:0 auto 14px;display:block;text-align:center}
-  .recap-sec-content.layout-legacy .recap-sec-img.sz-lg,.recap-sec-content.layout-legacy .recap-sec-img.sz-md{max-width:100%}
+  .recap-sec-content.ip-left,.recap-sec-content.ip-right{display:flex;flex-direction:column;gap:14px}
+  .recap-sec-img-wrap.w-third,.recap-sec-img-wrap.w-quarter{flex:0 1 calc(50% - 6px)}
 }
 </style>
 </head>
@@ -195,6 +185,29 @@ function resolveImg(val) {
   if (!val) return '';
   if (GCCImages.isKey(val)) return _imgMap[val] || '';
   return val;
+}
+
+// ── Section layout model (mirrors campaign-detail.html) ──
+const SEC_POS = ['above','below','left','right'];
+const IMG_WIDTHS = ['quarter','third','half','full'];
+function migrateSectionLayout(sec) {
+  if (!sec || sec.imagePos) return false;
+  const imgs = sec.images || [];
+  const L = sec.layout || 'legacy';
+  let pos;
+  if (L === 'legacy') {
+    const p = (imgs[0] && imgs[0].pos) || 'right';
+    pos = (p === 'left' || p === 'right') ? p : 'above';
+  } else if (L === 'images-first' || L === 'gallery') pos = 'above';
+  else if (L === 'text-left') pos = 'right';
+  else if (L === 'images-left') pos = 'left';
+  else pos = 'below';
+  const colW = { '1':'full', '2':'half', '3':'third' }[String(sec.columns)];
+  const sizeW = { sm:'quarter', md:'third', lg:'half', full:'full' };
+  imgs.forEach(img => { if (!img.width) img.width = L === 'legacy' ? (sizeW[img.size] || 'third') : (colW || 'third') });
+  sec.imagePos = pos;
+  sec.fit = sec.fit === 'cover' ? 'cover' : 'contain';
+  return true;
 }
 
 // ── Real session number (skips timeline entries) ──
@@ -348,29 +361,28 @@ async function render(camp, isPlayer) {
     sectionsHtml = '<div class="recap-sections">';
     session.sections.forEach(sec => {
       if (!sec.title && !sec.text && !(sec.images && sec.images.length)) return;
-      sectionsHtml += '<div class="recap-sec clearfix">';
+      sectionsHtml += '<div class="recap-sec">';
+      migrateSectionLayout(sec);
       if (sec.title) sectionsHtml += `<div class="recap-sec-title">${ESC(sec.title)}</div>`;
       const imgs = sec.images || [];
-      const layout = ['legacy','text-first','images-first','text-left','images-left','gallery'].includes(sec.layout) ? sec.layout : 'legacy';
-      const columns = ['1','2','3'].includes(String(sec.columns)) ? String(sec.columns) : 'auto';
+      const imagePos = SEC_POS.includes(sec.imagePos) ? sec.imagePos : 'below';
       const fit = sec.fit === 'cover' ? 'cover' : 'contain';
-      const textWidth = ['wide','narrow'].includes(sec.textWidth) ? sec.textWidth : 'normal';
       let imagesHtml = '';
       if (imgs.length) {
-        imagesHtml = `<div class="recap-sec-images cols-${columns}">`;
+        imagesHtml = '<div class="recap-sec-images">';
         imgs.forEach(img => {
           const src = resolveImg(img.src);
           if (!src) return;
-          const pos = img.pos || 'right';
-          imagesHtml += `<div class="recap-sec-img-wrap pos-${pos}">`;
-          imagesHtml += `<img class="recap-sec-img sz-${img.size || 'md'} fit-${fit}" src="${ESC(src)}" alt="">`;
+          const width = IMG_WIDTHS.includes(img.width) ? img.width : 'third';
+          imagesHtml += `<div class="recap-sec-img-wrap w-${width}">`;
+          imagesHtml += `<img class="recap-sec-img fit-${fit}" src="${ESC(src)}" alt="">`;
           if (img.caption) imagesHtml += `<span class="recap-img-caption">${ESC(img.caption)}</span>`;
           imagesHtml += '</div>';
         });
         imagesHtml += '</div>';
       }
-      const textHtml = sec.text ? `<div class="recap-sec-text text-${textWidth}">${ESC(sec.text)}</div>` : '';
-      sectionsHtml += `<div class="recap-sec-content layout-${layout}">${imagesHtml}${textHtml}</div>`;
+      const textHtml = sec.text ? `<div class="recap-sec-text">${ESC(sec.text)}</div>` : '';
+      sectionsHtml += `<div class="recap-sec-content ip-${imagePos}">${imagesHtml}${textHtml}</div>`;
       sectionsHtml += '</div>';
     });
     sectionsHtml += '</div>';
