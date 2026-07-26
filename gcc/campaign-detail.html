@@ -405,6 +405,11 @@ function formatDateTime(iso){if(!iso)return null;const d=new Date(iso);return d.
 function sysColorCSS(sysId){const c=SYSTEM_COLORS[sysId]||'#888';return`background:${c}18;color:${c};border:1px solid ${c}30`}
 function statusLabel(s){return{active:'Active',hiatus:'On Hiatus',completed:'Completed',archived:'Archived'}[s]||s}
 function countRealSessions(sessions){return sessions.filter(s=>s.type!=='timeline').length}
+// Canonical entry number: sessions are stored newest-first, so count from the
+// end. recap.html uses the same rule — every display of "#n" must go through this.
+function realSessionNum(sessions,idx){let n=0;for(let i=sessions.length-1;i>=0;i--){if(sessions[i].type!=='timeline')n++;if(i===idx)break}return n}
+// Cheap identity check for image data URLs, so untouched images are never re-encoded.
+function imgFp(d){return typeof d==='string'&&d?d.length+':'+d.slice(0,48):''}
 
 // Last appearance per character id, from session rosters. Later sessions
 // (by date, falling back to created stamp) overwrite earlier ones.
@@ -466,7 +471,7 @@ function resolveChar(savedChar,systemId,storageKey){
 
 const campId=new URLSearchParams(window.location.search).get('id');
 let currentTab='overview',sessionFilter='all',loreFilter='all';
-let _sesImageOrigKey=''; // track original IDB key for cover image to avoid orphaning
+let _sesImageOrigKey='',_sesImageOrigFp=''; // original IDB key + fingerprint, to avoid orphaning and re-encoding
 let _isPlayerMode=false,_sharedCamp=null;
 function getCamp(){
   if(_isPlayerMode&&_sharedCamp)return _sharedCamp;
@@ -591,8 +596,7 @@ function buildSessionCard(s,idx,total,camp,imgMap){
   const sesLabel=GCC.sessionLabel(camp.system),xpLbl=GCC.xpLabel(camp.system);
   const isTimeline=s.type==='timeline',isDmOnly=s.visible===false;
   // Count real session number for this entry
-  let realNum=0;const sessions=camp.sessions||[];
-  for(let i=sessions.length-1;i>=0;i--){if(sessions[i].type!=='timeline')realNum++;if(i===idx)break;}
+  const sessions=camp.sessions||[],realNum=realSessionNum(sessions,idx);
 
   const titlePart=s.title?' — '+ESC(s.title):'';
   const recapUrl=`recap.html?id=${encodeURIComponent(campId)}&idx=${idx}`;
@@ -1003,8 +1007,10 @@ async function render(){
   else{loreHtml+='<div class="lore-grid">';filteredLore.forEach((l,i)=>{
     const origIdx=lore.indexOf(l);
     const typeLabel=(GCC.LORE_TYPE_LABELS[l.type]||l.type).toUpperCase()+(l.subtype?' — '+l.subtype.toUpperCase():'');
-    const sesLbl=GCC.sessionLabel(camp.system);let realNum=0;const mentions=[];
-    sessions.forEach(s=>{if(s.type!=='timeline')realNum++;if((s.tags||[]).some(t=>t.name===l.name))mentions.push(s.type==='timeline'?'Timeline':`${sesLbl} #${realNum}`)});
+    const sesLbl=GCC.sessionLabel(camp.system);const mentions=[];
+    const lname=(l.name||'').toLowerCase();
+    sessions.forEach(s=>{if(!(s.tags||[]).some(t=>(t.name||'').toLowerCase()===lname))return;
+      mentions.push(s.type==='timeline'?'Timeline':`${sesLbl} #${realSessionNum(allSessions,allSessions.indexOf(s))}`)});
     const refsText=mentions.join(', ');
     const loreSrc=resolveImg(l.image,imgMap);
     const imageSize=['medium','large'].includes(l.imageSize)?l.imageSize:'icon';
@@ -1171,7 +1177,7 @@ function wireEvents(){
   document.getElementById('btn-import-lore')?.addEventListener('click',openLoreImportModal);
   document.getElementById('btn-export-lore')?.addEventListener('click',exportLore);
   document.querySelectorAll('[data-lore-edit]').forEach(btn=>{btn.addEventListener('click',()=>openLoreModal(parseInt(btn.dataset.loreEdit)))});
-  document.querySelectorAll('[data-lore-del]').forEach(btn=>{btn.addEventListener('click',async()=>{const ok=await GCCDialog.confirm('Delete entry','Delete this lore entry?',{okText:'Delete',danger:true});if(!ok)return;const camp=getCamp();if(!camp)return;const lore=camp.lore||[];lore.splice(parseInt(btn.dataset.loreDel),1);GCC.updateCampaign(campId,{lore});render()})});
+  document.querySelectorAll('[data-lore-del]').forEach(btn=>{btn.addEventListener('click',async()=>{const ok=await GCCDialog.confirm('Delete entry','Delete this lore entry?',{okText:'Delete',danger:true});if(!ok)return;const camp=getCamp();if(!camp)return;const lore=camp.lore||[];const gone=lore[parseInt(btn.dataset.loreDel)];if(gone&&gone.image&&GCCImages.isKey(gone.image))GCCImages.remove(gone.image);lore.splice(parseInt(btn.dataset.loreDel),1);GCC.updateCampaign(campId,{lore});render()})});
   // Vehicle assign/unassign
   document.getElementById('btn-assign-veh')?.addEventListener('click',()=>openVehicleAssignModal());
   document.querySelectorAll('[data-unassign-veh]').forEach(btn=>{btn.addEventListener('click',async()=>{
@@ -1505,7 +1511,7 @@ async function openCharPickerModal(sys,listKey){
 // ═══ EXPORT JOURNAL ═══
 async function exportJournal(){
   const camp=getCamp();if(!camp)return;
-  const sessions=camp.sessions||[];if(!sessions.length){alert('No sessions to export.');return}
+  const sessions=camp.sessions||[];if(!sessions.length){await GCCDialog.alert('Export Journal','No entries to export.');return}
   const includeDM=await GCCDialog.confirm('Export Journal','Include DM-only sessions?',{okText:'Include DM-only',cancelText:'Players-only'}).catch(()=>false);
   const sesLbl=GCC.sessionLabel(camp.system),xpLbl=GCC.xpLabel(camp.system);
   let realNum=0;
@@ -1525,8 +1531,8 @@ async function exportJournal(){
   for(let i=sessions.length-1;i>=0;i--){
     const s=sessions[i];
     const isTimeline=s.type==='timeline',isDmOnly=s.visible===false;
-    if(isDmOnly&&!includeDM)continue;
     if(!isTimeline)realNum++;
+    if(isDmOnly&&!includeDM)continue;
     const heading=isTimeline?('Timeline'+(s.title?' — '+s.title:'')):(sesLbl+' #'+realNum+(s.title?' — '+s.title:''));
     const gameDateStr=s.gameDate?s.gameDate:'';
     const playedStr=s.date?formatDate(s.date):'';
@@ -1619,6 +1625,7 @@ ${entriesHtml}
 // ═══ SESSION MODAL ═══
 const sesModal=document.getElementById('session-modal');
 let sesEditIdx=-1,sesImageData='',sesSections=[],sesTags=[],sesRoster=[];
+let sesDirty=false,sesClosing=false;
 
 function buildSessionModalBody(camp,isTimeline){
   const xpLbl=GCC.xpLabel(camp.system);
@@ -1675,10 +1682,9 @@ function buildSessionModalBody(camp,isTimeline){
     const camp2=getCamp();const existingSessions=(camp2?.sessions||[]);
     const sesLbl2=GCC.sessionLabel(camp2?.system);
     let posOpts=`<option value="0">Beginning (newest)</option>`;
-    let rNum=0;
     for(let i=0;i<existingSessions.length;i++){
-      const es=existingSessions[i];if(es.type!=='timeline')rNum++;
-      const label=es.type==='timeline'?('Timeline'+(es.title?' — '+es.title:'')):(sesLbl2+' #'+rNum+(es.title?' — '+es.title:''));
+      const es=existingSessions[i];
+      const label=es.type==='timeline'?('Timeline'+(es.title?' — '+es.title:'')):(sesLbl2+' #'+realSessionNum(existingSessions,i)+(es.title?' — '+es.title:''));
       posOpts+=`<option value="${i+1}">After ${ESC(label)}</option>`;
     }
     positionHtml=`<label class="gcc-dlg-label">POSITION</label><select class="gcc-dlg-input" id="sm-position">${posOpts}</select>`;
@@ -1686,14 +1692,35 @@ function buildSessionModalBody(camp,isTimeline){
   return`${positionHtml}<div class="gcc-dlg-row"><div><label class="gcc-dlg-label">SESSION DATE (real-world)</label><input class="gcc-dlg-input" id="sm-date" type="date"></div><div><label class="gcc-dlg-label">IN-GAME DATE (text)</label><div style="display:flex;gap:4px"><input class="gcc-dlg-input" id="sm-gamedate" placeholder="e.g. Nov 13, 1976" style="flex:1">${camp&&camp.gameCalendar?'<button class="gcc-dlg-img-btn" id="sm-derive-gamedate" title="Derive the in-game date from the session date using this campaign\'s calendar">\u27F5 Derive</button>':''}</div></div></div><label class="gcc-dlg-label">TITLE</label><input class="gcc-dlg-input" id="sm-title" placeholder="e.g. ESU Break-In"><label class="gcc-dlg-label">SUMMARY</label><textarea class="gcc-dlg-ta" id="sm-text" rows="4" placeholder="${isTimeline?'Brief timeline note...':'What happened this session...'}" style="min-height:${isTimeline?'50':'80'}px"></textarea>${sectionsHtml}<label class="gcc-dlg-label">ARTWORK / IMAGE</label><div class="gcc-dlg-img-area" id="sm-img-area">${imgPreview}<div class="gcc-dlg-img-btns"><button class="gcc-dlg-img-btn" id="sm-img-upload">Upload</button><button class="gcc-dlg-img-btn" id="sm-img-paste">Paste</button>${sesImageData?'<button class="gcc-dlg-img-btn danger" id="sm-img-clear">Remove</button>':''}</div><input type="file" id="sm-img-file" accept="image/*" style="display:none"></div>${charCheckHtml}<label class="gcc-dlg-label">ENTITY TAGS</label><div class="gcc-dlg-tags" id="sm-tags-area">${tagPills}<input class="gcc-dlg-tag-input" id="sm-tag-input" placeholder="Type name, Enter to add..."></div><div class="gcc-dlg-row"><div><label class="gcc-dlg-label">${ESC(xpLbl.toUpperCase())} AWARDED</label><input class="gcc-dlg-input" id="sm-xp" type="number" placeholder="0"></div><div><label class="gcc-dlg-check"><input type="checkbox" id="sm-visible" checked> Visible to players</label></div></div>`;
 }
 
-function captureSessionFields(){return{date:document.getElementById('sm-date')?.value||'',gameDate:document.getElementById('sm-gamedate')?.value||'',title:document.getElementById('sm-title')?.value||'',text:document.getElementById('sm-text')?.value||'',xp:document.getElementById('sm-xp')?.value||'',visible:document.getElementById('sm-visible')?.checked!==false}}
-function restoreSessionFields(vals){if(!vals)return;const f=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v||''};f('sm-date',vals.date);f('sm-gamedate',vals.gameDate);f('sm-title',vals.title);f('sm-text',vals.text);f('sm-xp',vals.xp);const vis=document.getElementById('sm-visible');if(vis)vis.checked=vals.visible!==false}
+function captureSessionFields(){return{date:document.getElementById('sm-date')?.value||'',gameDate:document.getElementById('sm-gamedate')?.value||'',title:document.getElementById('sm-title')?.value||'',text:document.getElementById('sm-text')?.value||'',xp:document.getElementById('sm-xp')?.value||'',visible:document.getElementById('sm-visible')?.checked!==false,position:document.getElementById('sm-position')?.value||'',tagDraft:document.getElementById('sm-tag-input')?.value||''}}
+function restoreSessionFields(vals){if(!vals)return;const f=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v||''};
+  // Only set when present: openSessionModal calls this without position/tagDraft,
+  // and blanking a <select> would leave it showing no option at all.
+  const g=(id,v)=>{if(v==null||v==='')return;const el=document.getElementById(id);if(el)el.value=v};
+  f('sm-date',vals.date);f('sm-gamedate',vals.gameDate);f('sm-title',vals.title);f('sm-text',vals.text);f('sm-xp',vals.xp);g('sm-position',vals.position);g('sm-tag-input',vals.tagDraft);const vis=document.getElementById('sm-visible');if(vis)vis.checked=vals.visible!==false}
 function captureSessionSections(){document.querySelectorAll('[data-sec-title]').forEach(el=>{const i=parseInt(el.dataset.secTitle);if(sesSections[i])sesSections[i].title=el.value});document.querySelectorAll('[data-sec-text]').forEach(el=>{const i=parseInt(el.dataset.secText);if(sesSections[i])sesSections[i].text=el.value});document.querySelectorAll('[data-sec-layout]').forEach(el=>{const i=parseInt(el.dataset.secLayout);if(sesSections[i])sesSections[i].layout=el.value});document.querySelectorAll('[data-sec-columns]').forEach(el=>{const i=parseInt(el.dataset.secColumns);if(sesSections[i])sesSections[i].columns=el.value});document.querySelectorAll('[data-sec-fit]').forEach(el=>{const i=parseInt(el.dataset.secFit);if(sesSections[i])sesSections[i].fit=el.value});document.querySelectorAll('[data-sec-textwidth]').forEach(el=>{const i=parseInt(el.dataset.secTextwidth);if(sesSections[i])sesSections[i].textWidth=el.value});document.querySelectorAll('[data-sec-img-cap]').forEach(el=>{const[si,ii]=el.dataset.secImgCap.split('-').map(Number);if(sesSections[si]&&sesSections[si].images&&sesSections[si].images[ii])sesSections[si].images[ii].caption=el.value})}
 
+// Every structural edit (add image, cycle size, add/remove section or tag) rebuilds
+// the whole body, so scroll/focus/caret have to be carried across by hand.
+function fieldSelector(el){
+  if(!el)return'';
+  if(el.id)return'#'+CSS.escape(el.id);
+  const attr=el.getAttributeNames().find(a=>a.startsWith('data-'));
+  return attr?'['+attr+'="'+el.getAttribute(attr)+'"]':'';
+}
 function refreshModalBody(camp,isTimeline){
+  const body=document.getElementById('session-modal-body');
+  const scrollTop=body.scrollTop;
+  const act=document.activeElement;
+  const sel=act&&body.contains(act)?fieldSelector(act):'';
+  const caret=act&&typeof act.selectionStart==='number'?act.selectionStart:null;
   const vals=captureSessionFields();captureSessionSections();
-  document.getElementById('session-modal-body').innerHTML=buildSessionModalBody(camp,isTimeline);
+  body.innerHTML=buildSessionModalBody(camp,isTimeline);
   restoreSessionFields(vals);wireSessionModalEvents(camp,isTimeline);
+  sesDirty=true;
+  if(sel){const el=body.querySelector(sel);if(el&&el.focus){el.focus();
+    if(caret!=null&&typeof el.selectionStart==='number'){try{el.setSelectionRange(caret,caret)}catch(e){}}}}
+  body.scrollTop=scrollTop;
 }
 
 async function openSessionModal(editIdx,typeOverride){
@@ -1704,17 +1731,18 @@ async function openSessionModal(editIdx,typeOverride){
     // Resolve cover image from IndexedDB if it's a key
     _sesImageOrigKey=s.image&&GCCImages.isKey(s.image)?s.image:'';
     sesImageData=s.image?(GCCImages.isKey(s.image)?await GCCImages.get(s.image):s.image):'';
+    _sesImageOrigFp=imgFp(sesImageData);
     // Resolve section images array
     sesSections=[];for(const sec of(s.sections||[])){
       const copy={...sec,images:[...(sec.images||[])].map(img=>({...img}))};
       for(const img of copy.images){
-        if(img.src&&GCCImages.isKey(img.src)){img._origKey=img.src;img.src=await GCCImages.get(img.src)||''}
+        if(img.src&&GCCImages.isKey(img.src)){img._origKey=img.src;img.src=await GCCImages.get(img.src)||'';img._origFp=imgFp(img.src)}
       }
       sesSections.push(copy);
     }
     sesTags=(s.tags||[]).map(t=>({...t}));sesRoster=[...(s.roster||[])]
   }}
-  else{sesImageData='';sesSections=[];sesTags=[];sesRoster=[];_sesImageOrigKey=''}
+  else{sesImageData='';sesSections=[];sesTags=[];sesRoster=[];_sesImageOrigKey='';_sesImageOrigFp=''}
   const sesLbl=GCC.sessionLabel(camp.system);
   document.getElementById('session-modal-title').textContent=isEdit?(isTimeline?'Edit timeline entry':'Edit '+sesLbl):(isTimeline?'New timeline entry':'New '+sesLbl);
   document.getElementById('session-modal-body').innerHTML=buildSessionModalBody(camp,isTimeline);
@@ -1722,7 +1750,7 @@ async function openSessionModal(editIdx,typeOverride){
   else{document.getElementById('sm-date').value=new Date().toISOString().split('T')[0]}
   // Store type for save
   sesModal.dataset.entryType=isTimeline?'timeline':'session';
-  wireSessionModalEvents(camp,isTimeline);sesModal.classList.add('open');
+  wireSessionModalEvents(camp,isTimeline);sesModal.classList.add('open');sesDirty=false;
 }
 
 function wireSessionModalEvents(camp,isTimeline){
@@ -1755,14 +1783,26 @@ function wireSessionModalEvents(camp,isTimeline){
     // Multi-image: cycle position
     document.querySelectorAll('[data-sec-img-pos]').forEach(btn=>{btn.addEventListener('click',()=>{const[si,ii]=btn.dataset.secImgPos.split('-').map(Number);captureSessionSections();if(sesSections[si]&&sesSections[si].images&&sesSections[si].images[ii]){const POSITIONS=['right','left','center','inline'];const cur=sesSections[si].images[ii].pos||'right';sesSections[si].images[ii].pos=POSITIONS[(POSITIONS.indexOf(cur)+1)%POSITIONS.length]}refreshModalBody(camp,isTimeline)})});
   }
-  document.querySelectorAll('[data-roster-id]').forEach(cb=>{cb.addEventListener('change',()=>{const id=cb.dataset.rosterId;if(cb.checked){if(!sesRoster.includes(id))sesRoster.push(id)}else{sesRoster=sesRoster.filter(r=>r!==id)}cb.closest('.gcc-dlg-char-check').classList.toggle('checked',cb.checked)})});
+  document.querySelectorAll('[data-roster-id]').forEach(cb=>{cb.addEventListener('change',()=>{sesDirty=true;const id=cb.dataset.rosterId;if(cb.checked){if(!sesRoster.includes(id))sesRoster.push(id)}else{sesRoster=sesRoster.filter(r=>r!==id)}cb.closest('.gcc-dlg-char-check').classList.toggle('checked',cb.checked)})});
   document.querySelectorAll('[data-tag-remove]').forEach(btn=>{btn.addEventListener('click',()=>{sesTags.splice(parseInt(btn.dataset.tagRemove),1);refreshModalBody(camp,isTimeline)})});
   const tagInput=document.getElementById('sm-tag-input');
   if(tagInput){tagInput.addEventListener('keydown',e=>{if(e.key==='Enter'&&tagInput.value.trim()){e.preventDefault();const name=tagInput.value.trim();const camp=getCamp();const loreMatch=(camp?.lore||[]).find(l=>l.name.toLowerCase()===name.toLowerCase());sesTags.push({name,type:loreMatch?loreMatch.type:'other'});tagInput.value='';refreshModalBody(camp,isTimeline);document.getElementById('sm-tag-input')?.focus()}});
     document.getElementById('sm-tags-area')?.addEventListener('click',e=>{if(e.target===e.currentTarget)tagInput.focus()})}
 }
 
-function closeSessionModal(){sesModal.classList.remove('open');sesEditIdx=-1;delete sesModal.dataset.entryType}
+function closeSessionModal(){sesModal.classList.remove('open');sesEditIdx=-1;sesDirty=false;delete sesModal.dataset.entryType}
+async function requestCloseSessionModal(){
+  if(sesClosing)return;
+  if(sesDirty){
+    sesClosing=true;
+    const ok=await GCCDialog.confirm('Discard changes','This entry has unsaved changes. Discard them?',{okText:'Discard',danger:true});
+    sesClosing=false;
+    if(!ok)return;
+  }
+  closeSessionModal();
+}
+document.getElementById('session-modal-body').addEventListener('input',()=>{sesDirty=true});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&sesModal.classList.contains('open')&&!sesClosing)requestCloseSessionModal()});
 // Resize image data URL to fit localStorage safely (max ~800KB)
 function compressImageData(dataUrl,maxKB,cb){
   if(!dataUrl||dataUrl.length<maxKB*1024){cb(dataUrl);return}
@@ -1793,8 +1833,9 @@ document.getElementById('sm-save').addEventListener('click',async()=>{
   let imageKey='';
   if(rawImage){
     try{
-      if(_sesImageOrigKey&&!GCCImages.isDataUrl(rawImage)){
-        // Image wasn't changed (still the resolved data URL from the original key)
+      if(_sesImageOrigKey&&imgFp(rawImage)===_sesImageOrigFp){
+        // Unchanged — reuse the key untouched. Re-encoding here would degrade
+        // the stored JPEG a little on every save.
         imageKey=_sesImageOrigKey;
       }else if(_sesImageOrigKey){
         // Image was replaced — update existing key, compress first
@@ -1825,7 +1866,10 @@ document.getElementById('sm-save').addEventListener('click',async()=>{
     for(const img of(sec.images||[])){
       try{
         if(img.src&&GCCImages.isDataUrl(img.src)){
-          if(img._origKey){
+          if(img._origKey&&imgFp(img.src)===img._origFp){
+            // Unchanged — reuse the key without re-encoding
+            img.src=img._origKey;
+          }else if(img._origKey){
             // Image was replaced — update existing key
             const compressed=await new Promise(resolve=>compressImageData(img.src,400,resolve));
             await GCCImages.put(img._origKey,compressed);
@@ -1845,7 +1889,7 @@ document.getElementById('sm-save').addEventListener('click',async()=>{
         console.warn('[GCC] Section image storage failed:',err);
         img.src=img._origKey||''; // keep existing key on edit; drop unstorable new image
       }
-      delete img._origKey;
+      delete img._origKey;delete img._origFp;
     }
   }
   // Drop any image that couldn't be persisted, so raw data URLs never bloat localStorage
@@ -1869,17 +1913,17 @@ document.getElementById('sm-save').addEventListener('click',async()=>{
   console.log('[GCC] Saving session, entries:',sessions.length);
   GCC.updateCampaign(campId,{sessions,session:countRealSessions(sessions)});closeSessionModal();render();
 });
-document.getElementById('sm-cancel').addEventListener('click',closeSessionModal);
-document.getElementById('session-modal-close').addEventListener('click',closeSessionModal);
-sesModal.addEventListener('click',e=>{if(e.target===sesModal)closeSessionModal()});
+document.getElementById('sm-cancel').addEventListener('click',requestCloseSessionModal);
+document.getElementById('session-modal-close').addEventListener('click',requestCloseSessionModal);
+sesModal.addEventListener('click',e=>{if(e.target===sesModal)requestCloseSessionModal()});
 
 // ═══ LORE MODAL ═══
-const loreModal=document.getElementById('lore-modal');let loreEditIdx=-1,loreImageData='';
+const loreModal=document.getElementById('lore-modal');let loreEditIdx=-1,loreImageData='',_loreImageOrigKey='',_loreImageOrigFp='';
 function captureLoreFields(){return{type:document.getElementById('lm-type')?.value||'npc',subtype:document.getElementById('lm-subtype')?.value||'',name:document.getElementById('lm-name')?.value||'',desc:document.getElementById('lm-desc')?.value||'',imageSize:document.getElementById('lm-image-size')?.value||'icon',gmNotes:document.getElementById('lm-gmnotes')?.value||'',gmOnly:!!document.getElementById('lm-gmonly')?.checked}}
 function restoreLoreFields(v){if(!v)return;const f=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val||''};f('lm-subtype',v.subtype);f('lm-name',v.name);f('lm-desc',v.desc);f('lm-image-size',v.imageSize||'icon');f('lm-gmnotes',v.gmNotes);const sel=document.getElementById('lm-type');if(sel)sel.value=v.type||'npc';const gm=document.getElementById('lm-gmonly');if(gm)gm.checked=!!v.gmOnly}
 function buildLoreModalBody(l){
   const typeOptions=GCC.LORE_TYPES.map(t=>`<option value="${t}"${l&&l.type===t?' selected':''}>${GCC.LORE_TYPE_LABELS[t]}</option>`).join('');
-  const imgPreview=loreImageData?`<img class="gcc-dlg-img-preview" src="${loreImageData}">`:'';
+  const imgPreview=loreImageData?`<img class="gcc-dlg-img-preview" src="${loreImageData}">`:(loreImageData===null&&_loreImageOrigKey?`<div style="font-size:11px;color:var(--red);padding:6px 0">⚠ Saved image couldn't be loaded. Upload again to replace it; saving keeps the existing reference.</div>`:'');
   const imageSize=l&&['medium','large'].includes(l.imageSize)?l.imageSize:'icon';
   const sizeOptions=[['icon','Icon (64 px)'],['medium','Medium (128 px)'],['large','Large (full panel width)']].map(([v,label])=>`<option value="${v}"${imageSize===v?' selected':''}>${label}</option>`).join('');
   return`<div class="gcc-dlg-row"><div><label class="gcc-dlg-label">TYPE</label><select class="gcc-dlg-select" id="lm-type">${typeOptions}</select></div><div><label class="gcc-dlg-label">SUBTYPE (optional)</label><input class="gcc-dlg-input" id="lm-subtype" placeholder="e.g. Villain, HQ Room" value="${l?ESC(l.subtype||''):''}"></div></div><label class="gcc-dlg-label">NAME</label><input class="gcc-dlg-input" id="lm-name" placeholder="e.g. Whiplash, ESU Campus" value="${l?ESC(l.name):''}"><label class="gcc-dlg-label">DESCRIPTION</label><textarea class="gcc-dlg-ta" id="lm-desc" rows="3" placeholder="Brief description...">${l?ESC(l.desc||''):''}</textarea><label class="gcc-dlg-label">IMAGE</label><div class="gcc-dlg-img-area" id="lm-img-area">${imgPreview}<div class="gcc-dlg-img-btns"><button class="gcc-dlg-img-btn" id="lm-img-upload">Upload</button><button class="gcc-dlg-img-btn" id="lm-img-paste">Paste</button>${loreImageData?'<button class="gcc-dlg-img-btn danger" id="lm-img-clear">Remove</button>':''}</div><input type="file" id="lm-img-file" accept="image/*" style="display:none"></div><label class="gcc-dlg-label">IMAGE SIZE</label><select class="gcc-dlg-select" id="lm-image-size">${sizeOptions}</select><div class="gcc-dlg-gmnotes"><label class="gcc-dlg-label" style="color:var(--red)">🔒 GM-ONLY NOTES<span class="gm-hint">Shown to you on this card but stripped from the players' view</span></label><textarea class="gcc-dlg-ta" id="lm-gmnotes" rows="3" placeholder="Secrets, true motives, plot hooks players shouldn't see...">${l?ESC(l.gmNotes||''):''}</textarea></div><label class="gcc-dlg-gmcheck"><input type="checkbox" id="lm-gmonly"${l&&l.gmOnly?' checked':''}> 🔒 Hide entire entry from players <span class="gm-hint">Whole card hidden, not just the notes</span></label>`;
@@ -1900,19 +1944,29 @@ async function openLoreModal(editIdx){
   loreEditIdx=editIdx!=null?editIdx:-1;const camp=getCamp();if(!camp)return;const isEdit=loreEditIdx>=0;
   document.getElementById('lore-modal-title').textContent=isEdit?'Edit wiki entry':'New wiki entry';
   const l=isEdit?(camp.lore||[])[loreEditIdx]:null;
+  _loreImageOrigKey=(isEdit&&l&&GCCImages.isKey(l.image))?l.image:'';
   if(isEdit&&l&&l.image){loreImageData=GCCImages.isKey(l.image)?await GCCImages.get(l.image):l.image}else{loreImageData=''}
+  _loreImageOrigFp=imgFp(loreImageData);
   document.getElementById('lore-modal-body').innerHTML=buildLoreModalBody(l);
   wireLoreModalEvents();
   loreModal.classList.add('open');
 }
-function closeLoreModal(){loreModal.classList.remove('open');loreEditIdx=-1;loreImageData=''}
+function closeLoreModal(){loreModal.classList.remove('open');loreEditIdx=-1;loreImageData='';_loreImageOrigKey='';_loreImageOrigFp=''}
 document.getElementById('lm-save').addEventListener('click',async()=>{const camp=getCamp();if(!camp)return;const lore=camp.lore||[];
   let imageKey='';
   if(loreImageData){
-    const compressed=await new Promise(resolve=>compressImageData(loreImageData,1200,resolve));
-    imageKey=await GCCImages.store(compressed,'img_lore');
-  } else if(loreEditIdx>=0&&lore[loreEditIdx]&&lore[loreEditIdx].image){
-    // Image was removed — leave imageKey empty
+    if(_loreImageOrigKey&&imgFp(loreImageData)===_loreImageOrigFp){
+      imageKey=_loreImageOrigKey; // unchanged — reuse the key, don't re-encode
+    }else{
+      try{
+        const compressed=await new Promise(resolve=>compressImageData(loreImageData,1200,resolve));
+        if(_loreImageOrigKey){await GCCImages.put(_loreImageOrigKey,compressed);imageKey=_loreImageOrigKey}
+        else imageKey=await GCCImages.store(compressed,'img_lore');
+      }catch(err){console.warn('[GCC] Lore image storage failed:',err);imageKey=_loreImageOrigKey||''}
+    }
+  }else if(loreImageData===null&&_loreImageOrigKey){
+    // Transient IDB miss, not a removal — the Remove button sets '' not null.
+    imageKey=_loreImageOrigKey;
   }
   const entry={_id:(loreEditIdx>=0&&lore[loreEditIdx])?lore[loreEditIdx]._id:GCC.genId('lore'),type:document.getElementById('lm-type').value,subtype:document.getElementById('lm-subtype').value.trim(),name:document.getElementById('lm-name').value.trim()||'Unnamed',desc:document.getElementById('lm-desc').value.trim(),image:imageKey,imageSize:document.getElementById('lm-image-size')?.value||'icon',gmNotes:document.getElementById('lm-gmnotes')?.value.trim()||'',gmOnly:!!document.getElementById('lm-gmonly')?.checked};
   if(loreEditIdx>=0&&loreEditIdx<lore.length){lore[loreEditIdx]=entry}else{lore.push(entry)}
@@ -2134,14 +2188,15 @@ document.getElementById('sim-html-file').addEventListener('change',e=>{
     const prev=document.getElementById('sim-preview');
     prev.style.display='block';
     const sesLbl=GCC.sessionLabel(getCamp()?.system||'add1e');
+    let prevNum=0;
     prev.innerHTML='<div style="font-family:var(--fsc);font-size:9px;color:var(--tx3);letter-spacing:1px;margin-bottom:6px">PREVIEW ('+parsed.length+' entries from HTML)</div>'+
-      parsed.map((e,i)=>'<div style="padding:3px 0;border-bottom:1px solid var(--brd)"><span style="color:var(--accent);font-weight:700">'+
-        ESC(e.type==='timeline'?'Timeline':sesLbl+' #'+(i+1))+'</span> — '+ESC(e.title)+
+      parsed.map((e,i)=>{if(e.type!=='timeline')prevNum++;return'<div style="padding:3px 0;border-bottom:1px solid var(--brd)"><span style="color:var(--accent);font-weight:700">'+
+        ESC(e.type==='timeline'?'Timeline':sesLbl+' #'+prevNum)+'</span> — '+ESC(e.title)+
         (e.gameDate?' <span style="color:var(--amber)">'+ESC(e.gameDate)+'</span>':'')+
         (e.date?' <span style="color:var(--tx3)">'+ESC(e.date)+'</span>':'')+
         ' <span style="color:var(--tx3)">('+e.sections.length+' sec'+(e.xp?', '+e.xp+' XP':'')+(e.image?', cover':'')+')</span>'+
         (!e.visible?' <span style="color:var(--amber)">DM</span>':'')+
-        '</div>').join('');
+        '</div>'}).join('');
     status.textContent=parsed.length+' entries parsed. Click Import to add them.';
     // Stash parsed data for import button
     sesImportModal._htmlParsed=parsed;
