@@ -185,6 +185,15 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .session-sec-img.sz-md{max-width:200px}
 .session-sec-img.sz-lg{max-width:320px}
 .session-sec-img.sz-full{width:100%;max-height:400px;object-fit:contain}
+/* Per-image pos/size only apply to legacy sections — every other layout is
+   driven by the section's layout+columns, same as recap.html. */
+.session-sec-images:not(.layout-legacy){display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;align-items:start}
+.session-sec-images:not(.layout-legacy) .session-sec-img-wrap{float:none;display:block;margin:0;min-width:0;text-align:center}
+.session-sec-images:not(.layout-legacy) .session-sec-img{width:100%;max-width:none;max-height:150px;object-fit:contain}
+.session-sec-images.cols-1{grid-template-columns:1fr}
+.session-sec-images.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.session-sec-images.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.gcc-dlg-sec-img-thumb button[disabled]{opacity:.3;cursor:not-allowed}
 .sec-img-caption{display:block;font-size:10px;color:var(--tx3);font-style:italic;margin-top:2px;text-align:center;max-width:100%}
 .session-body{padding:10px 14px 6px}
 .session-text{font-size:12px;color:var(--tx2);line-height:1.5;white-space:pre-line}
@@ -671,7 +680,9 @@ function buildSessionCard(s,idx,total,camp,imgMap){
       if(sec.title)sectionsHtml+=`<div class="session-section-title">${ESC(sec.title)}</div>`;
       const imgs=sec.images||[];
       if(imgs.length){
-        sectionsHtml+='<div class="session-sec-images">';
+        const secLayout=['legacy','text-first','images-first','text-left','images-left','gallery'].includes(sec.layout)?sec.layout:'legacy';
+        const secCols=['1','2','3'].includes(String(sec.columns))?' cols-'+sec.columns:'';
+        sectionsHtml+=`<div class="session-sec-images layout-${secLayout}${secCols}">`;
         imgs.forEach(img=>{
           const src=resolveImg(img.src,imgMap);
           if(src){
@@ -1678,15 +1689,18 @@ function buildSessionModalBody(camp,isTimeline){
   if(!isTimeline){sectionsHtml=`<label class="gcc-dlg-label">SECTIONS (optional — for structured recaps)</label><div class="gcc-dlg-sections" id="sm-sections">${sesSections.map((sec,i)=>{
     const imgs=sec.images||[];
     const open=sesOpenSec===i;
+    const layout=sec.layout||'legacy';
+    const isLegacy=layout==='legacy';
     const SIZES=['sm','md','lg','full'];const SIZE_LABELS={sm:'S',md:'M',lg:'L',full:'W'};
     const POS_LABELS={left:'◀',right:'▶',center:'◆',inline:'▬'};
     let imgTrayHtml='<div class="sm-img-tray">';
     imgs.forEach((img,j)=>{
       const posLbl=POS_LABELS[img.pos||'right']||'▶';
-      imgTrayHtml+=`<div class="sm-img-card"><div class="gcc-dlg-sec-img-thumb"><img src="${img.src}"><button class="thumb-remove" data-sec-img-rm="${i}-${j}">✕</button><button class="thumb-size" data-sec-img-size="${i}-${j}" title="Cycle size: S/M/L/W">${SIZE_LABELS[img.size||'md']}</button><button class="thumb-pos" data-sec-img-pos="${i}-${j}" title="Cycle position: L/R/C/I">${posLbl}</button></div><input class="gcc-dlg-input sm-img-cap" placeholder="Caption" value="${ESC(img.caption||'')}" data-sec-img-cap="${i}-${j}"></div>`;
+      const off=isLegacy?'':' disabled title="Only used by the Legacy layout"';
+      imgTrayHtml+=`<div class="sm-img-card"><div class="gcc-dlg-sec-img-thumb"><img src="${img.src}"><button class="thumb-remove" data-sec-img-rm="${i}-${j}">✕</button><button class="thumb-size"${isLegacy?` data-sec-img-size="${i}-${j}" title="Cycle size: S/M/L/W"`:off}>${SIZE_LABELS[img.size||'md']}</button><button class="thumb-pos"${isLegacy?` data-sec-img-pos="${i}-${j}" title="Cycle position: L/R/C/I"`:off}>${posLbl}</button></div><input class="gcc-dlg-input sm-img-cap" placeholder="Caption" value="${ESC(img.caption||'')}" data-sec-img-cap="${i}-${j}"></div>`;
     });
     imgTrayHtml+=`<button class="gcc-dlg-img-btn" data-sec-img-add="${i}" style="font-size:9px;padding:2px 6px;align-self:center">+ Image</button><input type="file" data-sec-img-file="${i}" accept="image/*" style="display:none" multiple></div>`;
-    const layout=sec.layout||'legacy';
+    if(imgs.length&&!isLegacy)imgTrayHtml+=`<div class="gcc-dlg-hint">Per-image size and position are ignored by this layout — switch the section to <em>Legacy image positions</em> to use them.</div>`;
     const columns=String(sec.columns||'auto');
     const fit=sec.fit||'contain';
     const textWidth=sec.textWidth||'normal';
@@ -1827,7 +1841,7 @@ function wireSessionModalEvents(camp,isTimeline){
   document.getElementById('sm-img-file')?.addEventListener('change',e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{sesImageData=ev.target.result;refreshModalBody(camp,isTimeline)};reader.readAsDataURL(file)});
   document.getElementById('sm-img-paste')?.addEventListener('click',async()=>{try{const items=await navigator.clipboard.read();for(const item of items){const imgType=item.types.find(t=>t.startsWith('image/'));if(imgType){const blob=await item.getType(imgType);const reader=new FileReader();reader.onload=ev=>{sesImageData=ev.target.result;refreshModalBody(camp,isTimeline)};reader.readAsDataURL(blob);return}}}catch(e){console.warn('Clipboard paste failed:',e)}});
   document.getElementById('sm-img-clear')?.addEventListener('click',()=>{sesImageData='';refreshModalBody(camp,isTimeline)});
-  if(!isTimeline){document.getElementById('sm-add-section')?.addEventListener('click',()=>{captureSessionSections();sesSections.push({title:'',text:'',images:[],layout:'text-first',columns:'auto',fit:'contain',textWidth:'normal'});sesOpenSec=sesSections.length-1;sesLayoutOpen=false;refreshModalBody(camp,isTimeline)});
+  if(!isTimeline){document.getElementById('sm-add-section')?.addEventListener('click',()=>{captureSessionSections();sesSections.push({title:'',text:'',images:[],layout:'legacy',columns:'auto',fit:'contain',textWidth:'normal'});sesOpenSec=sesSections.length-1;sesLayoutOpen=false;refreshModalBody(camp,isTimeline)});
     document.querySelectorAll('[data-sec-toggle]').forEach(el=>{el.addEventListener('click',()=>{const i=parseInt(el.dataset.secToggle);sesOpenSec=sesOpenSec===i?-1:i;sesLayoutOpen=false;refreshModalBody(camp,isTimeline)})});
     document.querySelectorAll('[data-sec-layout-toggle]').forEach(btn=>{btn.addEventListener('click',()=>{sesLayoutOpen=!sesLayoutOpen;refreshModalBody(camp,isTimeline)})});
     document.querySelectorAll('[data-sec-remove]').forEach(btn=>{btn.addEventListener('click',()=>{captureSessionSections();const i=parseInt(btn.dataset.secRemove);sesSections.splice(i,1);
