@@ -199,6 +199,41 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .gcc-dlg-sec-layout{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:6px;margin:6px 0 8px;padding:7px;background:var(--bg2);border:1px solid var(--brd);border-radius:3px}
 .gcc-dlg-sec-layout>div{min-width:0}.gcc-dlg-sec-layout .gcc-dlg-label{margin-bottom:2px;font-size:8px}.gcc-dlg-sec-layout .gcc-dlg-input{margin:0;padding:4px 6px;font-size:10px}
 @media(max-width:600px){.gcc-dlg-sec-layout{grid-template-columns:1fr 1fr}}
+/* ── Issue editor: two-column shell ── */
+.gcc-dlg.wide-xl{max-width:900px}
+.sm-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:14px;align-items:start}
+.sm-main{min-width:0}
+.sm-rail{min-width:0;border-left:1px solid var(--brd);padding-left:12px}
+.sm-rail .gcc-dlg-label{margin-top:0}
+.sm-block{margin-bottom:10px}
+.sm-block:last-child{margin-bottom:0}
+.sm-rail-hdr{display:flex;align-items:baseline;justify-content:space-between;gap:6px}
+.sm-mini-btn{background:none;border:none;color:var(--accent);cursor:pointer;font-family:var(--fsc);font-size:9px;letter-spacing:.5px;padding:0}
+.sm-mini-btn:hover{color:var(--accent-lt)}
+/* ── Section accordion ── */
+.sm-sec{border:1px solid var(--brd);border-radius:3px;background:var(--bg-section,var(--bg2));margin-bottom:4px}
+.sm-sec.dragging{opacity:.4}
+.sm-sec.drag-over{border-color:var(--accent)}
+.sm-sec-hdr{display:flex;align-items:center;gap:6px;padding:5px 7px}
+.sm-sec-grip{cursor:grab;color:var(--tx3);font-size:11px;user-select:none;flex-shrink:0}
+.sm-sec-grip:hover{color:var(--tx2)}
+.sm-sec-caret{background:none;border:none;color:var(--tx2);cursor:pointer;font-size:9px;padding:0;line-height:1;flex-shrink:0}
+.sm-sec-name{flex:1;min-width:0;font-size:11px;color:var(--tx);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sm-sec-name.untitled{color:var(--tx3);font-style:italic}
+.sm-sec-meta{font-size:9px;color:var(--tx3);font-family:var(--fm);flex-shrink:0}
+.sm-sec-del{background:none;border:none;color:var(--tx3);cursor:pointer;font-size:12px;padding:0 2px;line-height:1;flex-shrink:0}
+.sm-sec-del:hover{color:var(--red)}
+.sm-sec-body{padding:7px;border-top:1px solid var(--brd)}
+.sm-sec-body .gcc-dlg-input{margin:0 0 4px;font-size:11px}
+.sm-sec-body .gcc-dlg-ta{margin:0;min-height:64px;font-size:11px}
+.sm-layout-btn{margin-top:6px;background:none;border:1px solid var(--brd);border-radius:3px;color:var(--tx2);cursor:pointer;font-family:var(--fb);font-size:9px;padding:3px 7px;letter-spacing:.3px}
+.sm-layout-btn:hover{border-color:var(--accent-dim);color:var(--tx)}
+/* ── Image tray: caption under its own thumb ── */
+.sm-img-tray{display:flex;flex-wrap:wrap;gap:7px;margin-top:7px;align-items:flex-start}
+.sm-img-card{width:92px}
+.sm-img-card .gcc-dlg-sec-img-thumb{width:62px;margin:0 auto}
+.sm-img-cap{width:100%;margin:3px 0 0;padding:2px 4px;font-size:9px}
+@media(max-width:760px){.sm-grid{grid-template-columns:1fr;gap:10px}.sm-rail{border-left:none;padding-left:0;border-top:1px solid var(--brd);padding-top:10px}}
 .session-vis{font-size:9px;color:var(--tx3);display:flex;align-items:center;gap:3px}
 .session-actions{display:flex;gap:6px;opacity:0;transition:opacity .1s}
 .session-card:hover .session-actions{opacity:1}
@@ -315,7 +350,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 
 <div class="ftr"><div class="ftr-inner"><span>Graycloak's Campaign Corner v1.9</span><span>Data stored locally in your browser</span></div></div>
 
-<div class="gcc-dlg-overlay cd-modal" id="session-modal"><div class="gcc-dlg">
+<div class="gcc-dlg-overlay cd-modal" id="session-modal"><div class="gcc-dlg wide-xl">
   <div class="gcc-dlg-header"><div class="gcc-dlg-title" id="session-modal-title">New session</div><button class="gcc-dlg-close" id="session-modal-close">✕</button></div>
   <div class="gcc-dlg-body" id="session-modal-body"></div>
   <div class="gcc-dlg-footer"><button class="gcc-dlg-btn" id="sm-cancel">Cancel</button><button class="gcc-dlg-btn primary" id="sm-save">Save</button></div>
@@ -1626,6 +1661,15 @@ ${entriesHtml}
 const sesModal=document.getElementById('session-modal');
 let sesEditIdx=-1,sesImageData='',sesSections=[],sesTags=[],sesRoster=[];
 let sesDirty=false,sesClosing=false;
+let sesOpenSec=-1,sesLayoutOpen=false; // accordion: index of expanded section, and whether its layout panel is showing
+const SEC_LAYOUT_LABELS={legacy:'Legacy image positions','text-first':'Text, then images','images-first':'Images, then text','text-left':'Text left / images right','images-left':'Images left / text right',gallery:'Full-width gallery'};
+function secLayoutSummary(sec){
+  const parts=[SEC_LAYOUT_LABELS[sec.layout||'legacy']||'Legacy image positions'];
+  const cols=String(sec.columns||'auto');parts.push(cols==='auto'?'auto cols':cols+' col');
+  parts.push((sec.fit||'contain')==='cover'?'crop':'contain');
+  if(sec.textWidth&&sec.textWidth!=='normal')parts.push(sec.textWidth+' text');
+  return parts.join(' · ');
+}
 
 function buildSessionModalBody(camp,isTimeline){
   const xpLbl=GCC.xpLabel(camp.system);
@@ -1633,20 +1677,20 @@ function buildSessionModalBody(camp,isTimeline){
   let sectionsHtml='';
   if(!isTimeline){sectionsHtml=`<label class="gcc-dlg-label">SECTIONS (optional — for structured recaps)</label><div class="gcc-dlg-sections" id="sm-sections">${sesSections.map((sec,i)=>{
     const imgs=sec.images||[];
+    const open=sesOpenSec===i;
     const SIZES=['sm','md','lg','full'];const SIZE_LABELS={sm:'S',md:'M',lg:'L',full:'W'};
     const POS_LABELS={left:'◀',right:'▶',center:'◆',inline:'▬'};
-    let imgTrayHtml='<div class="gcc-dlg-sec-img-tray">';
+    let imgTrayHtml='<div class="sm-img-tray">';
     imgs.forEach((img,j)=>{
       const posLbl=POS_LABELS[img.pos||'right']||'▶';
-      imgTrayHtml+=`<div class="gcc-dlg-sec-img-thumb"><img src="${img.src}"><button class="thumb-remove" data-sec-img-rm="${i}-${j}">✕</button><button class="thumb-size" data-sec-img-size="${i}-${j}" title="Cycle size: S/M/L/W">${SIZE_LABELS[img.size||'md']}</button><button class="thumb-pos" data-sec-img-pos="${i}-${j}" title="Cycle position: L/R/C/I">${posLbl}</button></div>`;
-      imgTrayHtml+=`<input class="gcc-dlg-input gcc-dlg-sec-caption" style="font-size:9px;margin:0 0 2px;padding:2px 4px" placeholder="Caption (optional)" value="${ESC(img.caption||'')}" data-sec-img-cap="${i}-${j}">`;
+      imgTrayHtml+=`<div class="sm-img-card"><div class="gcc-dlg-sec-img-thumb"><img src="${img.src}"><button class="thumb-remove" data-sec-img-rm="${i}-${j}">✕</button><button class="thumb-size" data-sec-img-size="${i}-${j}" title="Cycle size: S/M/L/W">${SIZE_LABELS[img.size||'md']}</button><button class="thumb-pos" data-sec-img-pos="${i}-${j}" title="Cycle position: L/R/C/I">${posLbl}</button></div><input class="gcc-dlg-input sm-img-cap" placeholder="Caption" value="${ESC(img.caption||'')}" data-sec-img-cap="${i}-${j}"></div>`;
     });
     imgTrayHtml+=`<button class="gcc-dlg-img-btn" data-sec-img-add="${i}" style="font-size:9px;padding:2px 6px;align-self:center">+ Image</button><input type="file" data-sec-img-file="${i}" accept="image/*" style="display:none" multiple></div>`;
     const layout=sec.layout||'legacy';
     const columns=String(sec.columns||'auto');
     const fit=sec.fit||'contain';
     const textWidth=sec.textWidth||'normal';
-    const layoutControls=`<div class="gcc-dlg-sec-layout">
+    const layoutControls=(open&&sesLayoutOpen)?`<div class="gcc-dlg-sec-layout">
       <div><label class="gcc-dlg-label">SECTION LAYOUT</label><select class="gcc-dlg-input" data-sec-layout="${i}">
         <option value="legacy"${layout==='legacy'?' selected':''}>Legacy image positions</option>
         <option value="text-first"${layout==='text-first'?' selected':''}>Text, then images</option>
@@ -1658,13 +1702,15 @@ function buildSessionModalBody(camp,isTimeline){
       <div><label class="gcc-dlg-label">COLUMNS</label><select class="gcc-dlg-input" data-sec-columns="${i}"><option value="auto"${columns==='auto'?' selected':''}>Auto</option><option value="1"${columns==='1'?' selected':''}>1</option><option value="2"${columns==='2'?' selected':''}>2</option><option value="3"${columns==='3'?' selected':''}>3</option></select></div>
       <div><label class="gcc-dlg-label">IMAGE FIT</label><select class="gcc-dlg-input" data-sec-fit="${i}"><option value="contain"${fit==='contain'?' selected':''}>Contain</option><option value="cover"${fit==='cover'?' selected':''}>Crop</option></select></div>
       <div><label class="gcc-dlg-label">TEXT WIDTH</label><select class="gcc-dlg-input" data-sec-textwidth="${i}"><option value="normal"${textWidth==='normal'?' selected':''}>Normal</option><option value="wide"${textWidth==='wide'?' selected':''}>Wide</option><option value="narrow"${textWidth==='narrow'?' selected':''}>Narrow</option></select></div>
-    </div>`;
-    return`<div class="gcc-dlg-sec-item" data-sec-idx="${i}"><div style="flex:1"><input class="gcc-dlg-input" style="margin:0 0 4px" placeholder="Section title" value="${ESC(sec.title)}" data-sec-title="${i}"><textarea class="gcc-dlg-ta" style="margin:0;min-height:50px" placeholder="Section text..." data-sec-text="${i}">${ESC(sec.text)}</textarea>${layoutControls}${imgTrayHtml}</div><button class="gcc-dlg-sec-remove" data-sec-remove="${i}">✕</button></div>`}).join('')}</div><button class="gcc-dlg-sec-add" id="sm-add-section">+ Add Section</button><div style="margin-bottom:10px"></div>`}
+    </div>`:'';
+    const nameTxt=(sec.title||'').trim();
+    const bodyHtml=open?`<div class="sm-sec-body"><input class="gcc-dlg-input" placeholder="Section title" value="${ESC(sec.title)}" data-sec-title="${i}"><textarea class="gcc-dlg-ta" placeholder="Section text..." data-sec-text="${i}">${ESC(sec.text)}</textarea><button class="sm-layout-btn" data-sec-layout-toggle="${i}">${ESC(secLayoutSummary(sec))} ${sesLayoutOpen?'▴':'▾'}</button>${layoutControls}${imgTrayHtml}</div>`:'';
+    return`<div class="sm-sec${open?' open':''}" data-sec-idx="${i}" draggable="true"><div class="sm-sec-hdr"><span class="sm-sec-grip" title="Drag to reorder">⠿</span><button class="sm-sec-caret" data-sec-toggle="${i}">${open?'▾':'▸'}</button><span class="sm-sec-name${nameTxt?'':' untitled'}" data-sec-toggle="${i}">${nameTxt?ESC(nameTxt):'Untitled section'}</span>${imgs.length?`<span class="sm-sec-meta">${imgs.length} img</span>`:''}<button class="sm-sec-del" data-sec-remove="${i}" title="Remove section">✕</button></div>${bodyHtml}</div>`}).join('')}</div><button class="gcc-dlg-sec-add" id="sm-add-section">+ Add Section</button>`}
   // Character participation checklist
   const chars=camp.characters||[];
   let charCheckHtml='';
   if(chars.length&&!isTimeline){
-    charCheckHtml=`<label class="gcc-dlg-label">CHARACTERS IN THIS SESSION</label><div class="gcc-dlg-char-grid" id="sm-char-grid">`;
+    charCheckHtml=`<div class="sm-block"><div class="sm-rail-hdr"><label class="gcc-dlg-label">ROSTER</label><span><button class="sm-mini-btn" id="sm-roster-all">ALL</button> · <button class="sm-mini-btn" id="sm-roster-none">NONE</button></span></div><div class="gcc-dlg-char-grid" id="sm-char-grid">`;
     chars.forEach(ch=>{
       let name=ch.name||'?',portrait='';
       const refKey=ch.storageKey||ch.listKey||'';
@@ -1673,7 +1719,7 @@ function buildSessionModalBody(camp,isTimeline){
       const ava=portrait?`<img src="${portrait}">`:`<span class="char-ph">?</span>`;
       charCheckHtml+=`<label class="gcc-dlg-char-check${checked?' checked':''}" data-char-id="${ESC(id)}">${ava} ${ESC(name)}<input type="checkbox" data-roster-id="${ESC(id)}"${checked?' checked':''}></label>`;
     });
-    charCheckHtml+='</div>';
+    charCheckHtml+='</div></div>';
   }
   const tagPills=sesTags.map((t,i)=>{const color=LORE_COLORS[t.type]||'var(--tx3)';return`<span class="gcc-dlg-tag"><span class="tag-dot" style="background:${color};width:5px;height:5px;border-radius:50%;display:inline-block"></span> ${ESC(t.name)}<span class="tag-x" data-tag-remove="${i}">✕</span></span>`}).join('');
   // Position picker for new sessions
@@ -1689,7 +1735,15 @@ function buildSessionModalBody(camp,isTimeline){
     }
     positionHtml=`<label class="gcc-dlg-label">POSITION</label><select class="gcc-dlg-input" id="sm-position">${posOpts}</select>`;
   }
-  return`${positionHtml}<div class="gcc-dlg-row"><div><label class="gcc-dlg-label">SESSION DATE (real-world)</label><input class="gcc-dlg-input" id="sm-date" type="date"></div><div><label class="gcc-dlg-label">IN-GAME DATE (text)</label><div style="display:flex;gap:4px"><input class="gcc-dlg-input" id="sm-gamedate" placeholder="e.g. Nov 13, 1976" style="flex:1">${camp&&camp.gameCalendar?'<button class="gcc-dlg-img-btn" id="sm-derive-gamedate" title="Derive the in-game date from the session date using this campaign\'s calendar">\u27F5 Derive</button>':''}</div></div></div><label class="gcc-dlg-label">TITLE</label><input class="gcc-dlg-input" id="sm-title" placeholder="e.g. ESU Break-In"><label class="gcc-dlg-label">SUMMARY</label><textarea class="gcc-dlg-ta" id="sm-text" rows="4" placeholder="${isTimeline?'Brief timeline note...':'What happened this session...'}" style="min-height:${isTimeline?'50':'80'}px"></textarea>${sectionsHtml}<label class="gcc-dlg-label">ARTWORK / IMAGE</label><div class="gcc-dlg-img-area" id="sm-img-area">${imgPreview}<div class="gcc-dlg-img-btns"><button class="gcc-dlg-img-btn" id="sm-img-upload">Upload</button><button class="gcc-dlg-img-btn" id="sm-img-paste">Paste</button>${sesImageData?'<button class="gcc-dlg-img-btn danger" id="sm-img-clear">Remove</button>':''}</div><input type="file" id="sm-img-file" accept="image/*" style="display:none"></div>${charCheckHtml}<label class="gcc-dlg-label">ENTITY TAGS</label><div class="gcc-dlg-tags" id="sm-tags-area">${tagPills}<input class="gcc-dlg-tag-input" id="sm-tag-input" placeholder="Type name, Enter to add..."></div><div class="gcc-dlg-row"><div><label class="gcc-dlg-label">${ESC(xpLbl.toUpperCase())} AWARDED</label><input class="gcc-dlg-input" id="sm-xp" type="number" placeholder="0"></div><div><label class="gcc-dlg-check"><input type="checkbox" id="sm-visible" checked> Visible to players</label></div></div>`;
+  const dateBlock=`<div class="sm-block"><label class="gcc-dlg-label">SESSION DATE (real-world)</label><input class="gcc-dlg-input" id="sm-date" type="date"></div><div class="sm-block"><label class="gcc-dlg-label">IN-GAME DATE (text)</label><div style="display:flex;gap:4px"><input class="gcc-dlg-input" id="sm-gamedate" placeholder="e.g. Nov 13, 1976" style="flex:1;min-width:0">${camp&&camp.gameCalendar?'<button class="gcc-dlg-img-btn" id="sm-derive-gamedate" title="Derive the in-game date from the session date using this campaign\'s calendar">\u27F5 Derive</button>':''}</div></div>`;
+  const coverBlock=`<div class="sm-block"><label class="gcc-dlg-label">ARTWORK / IMAGE</label><div class="gcc-dlg-img-area" id="sm-img-area">${imgPreview}<div class="gcc-dlg-img-btns"><button class="gcc-dlg-img-btn" id="sm-img-upload">Upload</button><button class="gcc-dlg-img-btn" id="sm-img-paste">Paste</button>${sesImageData?'<button class="gcc-dlg-img-btn danger" id="sm-img-clear">Remove</button>':''}</div><input type="file" id="sm-img-file" accept="image/*" style="display:none"></div></div>`;
+  const tagBlock=`<div class="sm-block"><label class="gcc-dlg-label">ENTITY TAGS</label><div class="gcc-dlg-tags" id="sm-tags-area">${tagPills}<input class="gcc-dlg-tag-input" id="sm-tag-input" placeholder="Type name, Enter to add..."></div></div>`;
+  const xpBlock=`<div class="sm-block"><label class="gcc-dlg-label">${ESC(xpLbl.toUpperCase())} AWARDED</label><input class="gcc-dlg-input" id="sm-xp" type="number" placeholder="0"></div><div class="sm-block"><label class="gcc-dlg-check"><input type="checkbox" id="sm-visible" checked> Visible to players</label></div>`;
+  const posBlock=positionHtml?`<div class="sm-block">${positionHtml}</div>`:'';
+
+  const mainCol=`<label class="gcc-dlg-label">TITLE</label><input class="gcc-dlg-input" id="sm-title" placeholder="e.g. ESU Break-In"><label class="gcc-dlg-label">SUMMARY</label><textarea class="gcc-dlg-ta" id="sm-text" rows="4" placeholder="${isTimeline?'Brief timeline note...':'What happened this session...'}" style="min-height:${isTimeline?'60':'110'}px"></textarea>${sectionsHtml}`;
+  const railCol=`${posBlock}${dateBlock}${coverBlock}${charCheckHtml}${tagBlock}${xpBlock}`;
+  return`<div class="sm-grid"><div class="sm-main">${mainCol}</div><div class="sm-rail">${railCol}</div></div>`;
 }
 
 function captureSessionFields(){return{date:document.getElementById('sm-date')?.value||'',gameDate:document.getElementById('sm-gamedate')?.value||'',title:document.getElementById('sm-title')?.value||'',text:document.getElementById('sm-text')?.value||'',xp:document.getElementById('sm-xp')?.value||'',visible:document.getElementById('sm-visible')?.checked!==false,position:document.getElementById('sm-position')?.value||'',tagDraft:document.getElementById('sm-tag-input')?.value||''}}
@@ -1725,6 +1779,7 @@ function refreshModalBody(camp,isTimeline){
 
 async function openSessionModal(editIdx,typeOverride){
   sesEditIdx=editIdx!=null?editIdx:-1;const camp=getCamp();if(!camp)return;
+  sesOpenSec=-1;sesLayoutOpen=false;
   const isEdit=sesEditIdx>=0;let isTimeline=typeOverride==='timeline';
   if(isEdit){const s=camp.sessions?.[sesEditIdx];if(s){
     isTimeline=s.type==='timeline';
@@ -1751,6 +1806,7 @@ async function openSessionModal(editIdx,typeOverride){
   // Store type for save
   sesModal.dataset.entryType=isTimeline?'timeline':'session';
   wireSessionModalEvents(camp,isTimeline);sesModal.classList.add('open');sesDirty=false;
+  document.getElementById('session-modal-body').scrollTop=0;
 }
 
 function wireSessionModalEvents(camp,isTimeline){
@@ -1771,8 +1827,35 @@ function wireSessionModalEvents(camp,isTimeline){
   document.getElementById('sm-img-file')?.addEventListener('change',e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{sesImageData=ev.target.result;refreshModalBody(camp,isTimeline)};reader.readAsDataURL(file)});
   document.getElementById('sm-img-paste')?.addEventListener('click',async()=>{try{const items=await navigator.clipboard.read();for(const item of items){const imgType=item.types.find(t=>t.startsWith('image/'));if(imgType){const blob=await item.getType(imgType);const reader=new FileReader();reader.onload=ev=>{sesImageData=ev.target.result;refreshModalBody(camp,isTimeline)};reader.readAsDataURL(blob);return}}}catch(e){console.warn('Clipboard paste failed:',e)}});
   document.getElementById('sm-img-clear')?.addEventListener('click',()=>{sesImageData='';refreshModalBody(camp,isTimeline)});
-  if(!isTimeline){document.getElementById('sm-add-section')?.addEventListener('click',()=>{captureSessionSections();sesSections.push({title:'',text:'',images:[],layout:'text-first',columns:'auto',fit:'contain',textWidth:'normal'});refreshModalBody(camp,isTimeline)});
-    document.querySelectorAll('[data-sec-remove]').forEach(btn=>{btn.addEventListener('click',()=>{captureSessionSections();sesSections.splice(parseInt(btn.dataset.secRemove),1);refreshModalBody(camp,isTimeline)})});
+  if(!isTimeline){document.getElementById('sm-add-section')?.addEventListener('click',()=>{captureSessionSections();sesSections.push({title:'',text:'',images:[],layout:'text-first',columns:'auto',fit:'contain',textWidth:'normal'});sesOpenSec=sesSections.length-1;sesLayoutOpen=false;refreshModalBody(camp,isTimeline)});
+    document.querySelectorAll('[data-sec-toggle]').forEach(el=>{el.addEventListener('click',()=>{const i=parseInt(el.dataset.secToggle);sesOpenSec=sesOpenSec===i?-1:i;sesLayoutOpen=false;refreshModalBody(camp,isTimeline)})});
+    document.querySelectorAll('[data-sec-layout-toggle]').forEach(btn=>{btn.addEventListener('click',()=>{sesLayoutOpen=!sesLayoutOpen;refreshModalBody(camp,isTimeline)})});
+    document.querySelectorAll('[data-sec-remove]').forEach(btn=>{btn.addEventListener('click',()=>{captureSessionSections();const i=parseInt(btn.dataset.secRemove);sesSections.splice(i,1);
+      if(sesOpenSec===i){sesOpenSec=-1;sesLayoutOpen=false}else if(sesOpenSec>i){sesOpenSec--}
+      refreshModalBody(camp,isTimeline)})});
+    // Drag-to-reorder sections (grip only, mirrors the session card list)
+    let secDrag=null;
+    document.querySelectorAll('.sm-sec[draggable]').forEach(item=>{
+      item.addEventListener('dragstart',e=>{
+        if(!e.target.closest('.sm-sec-grip')){e.preventDefault();return}
+        secDrag=parseInt(item.dataset.secIdx);item.classList.add('dragging');
+        e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',secDrag);
+      });
+      item.addEventListener('dragend',()=>{secDrag=null;item.classList.remove('dragging');
+        document.querySelectorAll('.sm-sec.drag-over').forEach(c=>c.classList.remove('drag-over'))});
+      item.addEventListener('dragover',e=>{if(secDrag===null)return;e.preventDefault();e.dataTransfer.dropEffect='move';
+        document.querySelectorAll('.sm-sec.drag-over').forEach(c=>c.classList.remove('drag-over'));item.classList.add('drag-over')});
+      item.addEventListener('dragleave',()=>item.classList.remove('drag-over'));
+      item.addEventListener('drop',e=>{e.preventDefault();item.classList.remove('drag-over');
+        const to=parseInt(item.dataset.secIdx);if(secDrag===null||secDrag===to)return;
+        captureSessionSections();
+        const wasOpen=sesOpenSec;
+        const moved=sesSections.splice(secDrag,1)[0];sesSections.splice(to,0,moved);
+        // Keep the expanded section expanded through the move
+        if(wasOpen===secDrag)sesOpenSec=to;
+        else if(wasOpen>=0){let n=wasOpen;if(secDrag<n)n--;if(to<=n)n++;sesOpenSec=n}
+        secDrag=null;refreshModalBody(camp,isTimeline)});
+    });
     // Multi-image: add images to section
     document.querySelectorAll('[data-sec-img-add]').forEach(btn=>{btn.addEventListener('click',()=>{const fi=document.querySelector(`[data-sec-img-file="${btn.dataset.secImgAdd}"]`);if(fi)fi.click()})});
     document.querySelectorAll('[data-sec-img-file]').forEach(fi=>{fi.addEventListener('change',e=>{const files=Array.from(e.target.files);if(!files.length)return;const idx=parseInt(fi.dataset.secImgFile);captureSessionSections();let loaded=0;files.forEach(file=>{const reader=new FileReader();reader.onload=ev=>{if(sesSections[idx]){if(!sesSections[idx].images)sesSections[idx].images=[];sesSections[idx].images.push({src:ev.target.result,size:'md',pos:'right',caption:''})}loaded++;if(loaded===files.length)refreshModalBody(camp,isTimeline)};reader.readAsDataURL(file)})})});
@@ -1783,6 +1866,8 @@ function wireSessionModalEvents(camp,isTimeline){
     // Multi-image: cycle position
     document.querySelectorAll('[data-sec-img-pos]').forEach(btn=>{btn.addEventListener('click',()=>{const[si,ii]=btn.dataset.secImgPos.split('-').map(Number);captureSessionSections();if(sesSections[si]&&sesSections[si].images&&sesSections[si].images[ii]){const POSITIONS=['right','left','center','inline'];const cur=sesSections[si].images[ii].pos||'right';sesSections[si].images[ii].pos=POSITIONS[(POSITIONS.indexOf(cur)+1)%POSITIONS.length]}refreshModalBody(camp,isTimeline)})});
   }
+  document.getElementById('sm-roster-all')?.addEventListener('click',()=>{sesDirty=true;sesRoster=[...document.querySelectorAll('[data-roster-id]')].map(cb=>cb.dataset.rosterId);refreshModalBody(camp,isTimeline)});
+  document.getElementById('sm-roster-none')?.addEventListener('click',()=>{sesDirty=true;sesRoster=[];refreshModalBody(camp,isTimeline)});
   document.querySelectorAll('[data-roster-id]').forEach(cb=>{cb.addEventListener('change',()=>{sesDirty=true;const id=cb.dataset.rosterId;if(cb.checked){if(!sesRoster.includes(id))sesRoster.push(id)}else{sesRoster=sesRoster.filter(r=>r!==id)}cb.closest('.gcc-dlg-char-check').classList.toggle('checked',cb.checked)})});
   document.querySelectorAll('[data-tag-remove]').forEach(btn=>{btn.addEventListener('click',()=>{sesTags.splice(parseInt(btn.dataset.tagRemove),1);refreshModalBody(camp,isTimeline)})});
   const tagInput=document.getElementById('sm-tag-input');
