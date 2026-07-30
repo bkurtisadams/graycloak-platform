@@ -43,9 +43,9 @@ const ADNDChargen = (function(){
     return out;
   }
 
-  function rollSets(method){
+  function rollSets(method, random){
     if (!_kernel) return [];
-    return _kernel.rollAbilitySets(method).map(set => ({
+    return _kernel.rollAbilitySets(method, random).map(set => ({
       values: set.slice(),
       viable: _kernel.isViableAbilitySet(set),
     }));
@@ -73,19 +73,21 @@ const ADNDChargen = (function(){
     const raceId = input.raceId;
     const classId = input.classId;
     const baseScores = input.baseScores;
+    const random = input.random;
 
     const built = k.buildStartingCharacter({
       raceId: raceId,
       classId: classId,
       baseScores: baseScores,
       genderId: input.genderId,
+      random: random,
     });
     if (!built.valid) return { valid: false, error: built.error };
 
     const s = built.finalScores;
-    const exceptionalStrength = k.rollPercentileStrength(classId, s.str);
-    const hitPoints = k.rollStartingHitPoints(classId, s.con);
-    const startingGold = k.rollStartingGold(classId);
+    const exceptionalStrength = k.rollPercentileStrength(classId, s.str, random);
+    const hitPoints = k.rollStartingHitPoints(classId, s.con, random);
+    const startingGold = k.rollStartingGold(classId, random);
     const savingThrows = k.savingThrowsToRecord(k.getSavingThrows(classId, 1));
     const slots = k.getSpellSlots(classId, 1, s.wis);
     const arcane = classId === 'magic-user' || classId === 'illusionist';
