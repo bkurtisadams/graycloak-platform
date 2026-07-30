@@ -17,10 +17,10 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && tsc -p tsconfig.integration.json",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && tsc -p tsconfig.integration.json && tsc -p tsconfig.adnd.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node --test test/*.test.mjs",
-    "clean": "rm -rf dist ../../gcc/vendor/osric3-rules"
+    "clean": "rm -rf dist ../../gcc/vendor/osric3-rules ../../graycloak-adnd/public/vendor/osric3-rules"
   },
   "browser": "./dist/browser/index.js"
 }

@@ -9,6 +9,8 @@ on:
       - 'gcc/adnd-class-data.js'
       - 'gcc/gcc-combat.js'
       - 'gcc/vendor/osric3-rules/**'
+      - 'graycloak-adnd/public/vendor/osric3-rules/**'
+      - 'graycloak-adnd/public/adnd-chargen.js'
       - 'gcc/adnd-equipment.js'
       - 'gcc/adnd.html'
       - 'package.json'
@@ -22,6 +24,8 @@ on:
       - 'gcc/adnd-class-data.js'
       - 'gcc/gcc-combat.js'
       - 'gcc/vendor/osric3-rules/**'
+      - 'graycloak-adnd/public/vendor/osric3-rules/**'
+      - 'graycloak-adnd/public/adnd-chargen.js'
       - 'gcc/adnd-equipment.js'
       - 'gcc/adnd.html'
       - 'package.json'
@@ -44,6 +48,9 @@ jobs:
       - run: pnpm --filter @graycloak/osric3-rules typecheck
       - run: pnpm --filter @graycloak/osric3-rules test
       - run: git diff --exit-code -- gcc/vendor/osric3-rules
+      - run: git diff --exit-code -- graycloak-adnd/public/vendor/osric3-rules
+      - run: node --check graycloak-adnd/public/adnd-chargen.js
+      - run: node --check graycloak-adnd/public/adnd-chargen-view.js
       - run: node --check gcc/adnd-class-data.js
       - run: node --check gcc/gcc-combat.js
       - run: node gcc/adnd-chargen-test.js
