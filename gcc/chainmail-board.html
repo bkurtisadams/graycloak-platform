@@ -12322,10 +12322,11 @@ initRailSplitter();
   // GCC multiplayer Slice 1 (v0.11.174): publish pipe + spectate guard.
   { // spectate: pushUndo is a hard no-op — the one guard that kills every mutation echo
     const depth = state.undoStack.length;
+    const _sp = state.net.spectate;
     state.net.spectate = true;
     pushUndo('spectate-selftest');
     console.assert(state.undoStack.length === depth, 'spectate: pushUndo is a no-op');
-    state.net.spectate = false; }
+    state.net.spectate = _sp; }
   { // debounce: three rapid schedules open exactly one window; no write can fire (cancelled)
     const _camp = state.net.campId; state.net.campId = '__selftest__';
     const t0 = NET._test.timerStarts;
