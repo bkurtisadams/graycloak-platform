@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<!-- kaiju-island.html v0.1.0 -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>KAIJU — The Island</title>
+<style>
+:root{
+  --sea:#0b1f2e; --sea-deep:#071722; --sand:#c9b27c; --grass:#4a6b3a; --forest:#2e4a28;
+  --ink:#e8e2d0; --dim:#8a94a0; --amber:#e0a53a; --blood:#c0392b; --panel:#101c26e6;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:var(--sea-deep);font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:var(--ink);
+  overscroll-behavior:none}
+#game{position:fixed;inset:0;touch-action:none;display:block}
+.hud{position:fixed;left:0;right:0;pointer-events:none;padding:env(safe-area-inset-top) 8px 0}
+#topbar{top:0;display:flex;justify-content:space-between;align-items:flex-start;padding-top:calc(env(safe-area-inset-top) + 6px)}
+.plate{background:var(--panel);border:1px solid #223342;border-radius:8px;padding:6px 10px;pointer-events:auto}
+#hdrow{display:flex;gap:3px;margin-top:3px}
+.pip{width:11px;height:14px;border-radius:2px;background:var(--amber);border:1px solid #0006}
+.pip.off{background:#2a3947}
+#namept{font-weight:800;letter-spacing:.06em;font-size:13px;text-transform:uppercase}
+#state{font-size:11px;color:var(--dim)}
+#state.wounded{color:var(--amber)}#state.desperate{color:var(--blood);font-weight:700}
+#xpwrap{margin-top:5px;width:130px;height:6px;background:#1c2b38;border-radius:3px;overflow:hidden}
+#xpbar{height:100%;background:linear-gradient(90deg,#7a9a3a,var(--amber));width:0%}
+#xptxt{font-size:10px;color:var(--dim);margin-top:2px}
+#threatplate{text-align:right}
+#threatlbl{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em}
+#threatval{font-size:15px;font-weight:800;color:var(--amber)}
+#turnval{font-size:11px;color:var(--dim)}
+#log{position:fixed;left:8px;right:8px;bottom:calc(76px + env(safe-area-inset-bottom));max-height:78px;overflow:hidden;
+  pointer-events:none;display:flex;flex-direction:column;justify-content:flex-end;gap:2px}
+.logline{font-size:11.5px;background:#0b141ccc;border-radius:5px;padding:2px 8px;width:fit-content;max-width:100%}
+.logline.hit{color:var(--amber)}.logline.pain{color:#ff8f7a}.logline.ding{color:#b8e06a;font-weight:700}
+#actions{position:fixed;left:0;right:0;bottom:0;display:flex;gap:8px;padding:8px 8px calc(8px + env(safe-area-inset-bottom));
+  background:linear-gradient(#0000,#071722e0 40%)}
+button{font:inherit;color:var(--ink);background:#16283a;border:1px solid #2c4258;border-radius:10px;padding:12px 4px;flex:1;
+  font-weight:700;font-size:13px;letter-spacing:.03em;touch-action:manipulation}
+button:disabled{opacity:.35}
+button.warn{background:#3a2416;border-color:#6b4426}
+button.go{background:#233a16;border-color:#436b26}
+#roarbtn small,#eatbtn small{display:block;font-weight:400;font-size:9px;color:var(--dim)}
+#overlay{position:fixed;inset:0;background:#071722f2;display:flex;align-items:center;justify-content:center;z-index:10}
+#overlay.hidden{display:none}
+.card{max-width:340px;width:88%;text-align:center;padding:26px 22px;background:var(--panel);border:1px solid #223342;border-radius:14px}
+.card h1{font-size:30px;letter-spacing:.14em;font-weight:900;text-transform:uppercase;
+  background:linear-gradient(180deg,#f0d9a0,var(--amber) 60%,#8a5a1a);-webkit-background-clip:text;background-clip:text;color:transparent}
+.card .sub{color:var(--dim);font-size:12px;letter-spacing:.2em;text-transform:uppercase;margin:2px 0 18px}
+.sheet{text-align:left;font-size:13px;background:#0b141c;border-radius:9px;padding:12px 14px;margin-bottom:16px;line-height:1.7}
+.sheet b{color:var(--amber)}
+.card button{width:100%;padding:14px;font-size:15px}
+#resetlink{margin-top:14px;font-size:10px;color:#41586e;text-decoration:underline;background:none;border:none;width:auto;padding:4px;font-weight:400}
+#endtitle{font-size:22px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
+#endtitle.bad{color:var(--blood)}#endtitle.good{color:#b8e06a}
+#endbody{color:var(--dim);font-size:13px;margin-bottom:18px;line-height:1.5}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div class="hud" id="topbar">
+  <div class="plate">
+    <div id="namept">Hatchling</div>
+    <div id="hdrow"></div>
+    <div id="state">Unhurt</div>
+    <div id="xpwrap"><div id="xpbar"></div></div>
+    <div id="xptxt"></div>
+  </div>
+  <div class="plate" id="threatplate">
+    <div id="threatlbl">Threat</div>
+    <div id="threatval">—</div>
+    <div id="turnval">Turn 1</div>
+  </div>
+</div>
+
+<div id="log"></div>
+
+<div id="actions">
+  <button id="roarbtn" disabled>ROAR<small>locked</small></button>
+  <button id="eatbtn" disabled>EAT<small>no corpse</small></button>
+  <button id="withdrawbtn" class="go" disabled>WITHDRAW</button>
+  <button id="endbtn" class="warn">END TURN</button>
+</div>
+
+<div id="overlay">
+  <div class="card" id="startcard">
+    <h1>Kaiju</h1>
+    <div class="sub">Zone 1 · The Island</div>
+    <div class="sheet" id="sheetbox"></div>
+    <button id="beginbtn" class="go">BEGIN RAMPAGE</button>
+    <button id="resetlink">reset monster</button>
+  </div>
+  <div class="card hidden" id="endcard">
+    <div id="endtitle"></div>
+    <div id="endbody"></div>
+    <button id="returnbtn">RETURN</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+const GAME_VERSION='0.1.0';
+const SAVE_KEY='kaiju.save.v1';
+
+/* ---------- rng ---------- */
+function mulberry(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const terrainRng=mulberry(676);
+let rng=mulberry(Date.now());
+const d6=()=>1+Math.floor(rng()*6);
+
+/* ---------- hex math (axial, pointy-top) ---------- */
+const SQ3=Math.sqrt(3);
+const key=(q,r)=>q+','+r;
+const DIRS=[[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]];
+function hexDist(a,b){return (Math.abs(a.q-b.q)+Math.abs(a.q+a.r-b.q-b.r)+Math.abs(a.r-b.r))/2}
+function hexToPix(q,r,s){return{x:s*SQ3*(q+r/2),y:s*1.5*r}}
+function pixToHex(x,y,s){const q=(SQ3/3*x-y/3)/s,r=(2/3*y)/s;return cubeRound(q,r)}
+function cubeRound(q,r){let x=q,z=r,y=-x-z,rx=Math.round(x),ry=Math.round(y),rz=Math.round(z);
+  const dx=Math.abs(rx-x),dy=Math.abs(ry-y),dz=Math.abs(rz-z);
+  if(dx>dy&&dx>dz)rx=-ry-rz;else if(dy>dz)ry=-rx-rz;else rz=-rx-ry;return{q:rx,r:rz}}
+
+/* ---------- map ---------- */
+const R=7;
+const map=new Map(); // key -> {q,r,terrain}
+(function genTerrain(){
+  const c={q:0,r:0};
+  for(let q=-R;q<=R;q++)for(let r=Math.max(-R,-q-R);r<=Math.min(R,-q+R);r++){
+    const d=hexDist({q,r},c);
+    let t='water';
+    const jitter=terrainRng()*1.4;
+    if(d<=4.2+jitter-1.4){t=d>=3.6?'sand':(terrainRng()<0.32?'forest':'grass')}
+    if(d<=1)t='grass';
+    map.set(key(q,r),{q,r,terrain:t});
+  }
+})();
+const landHexes=[...map.values()].filter(h=>h.terrain!=='water');
+function isLand(q,r){const h=map.get(key(q,r));return h&&h.terrain!=='water'}
+function neighbors(q,r){return DIRS.map(d=>({q:q+d[0],r:r+d[1]}))}
+
+/* ---------- xp / levels ---------- */
+const XP={wildlife:50,militia:60,hut:75,longhouse:150,lighthouse:300,eat:25};
+function xpForLevel(L){return L<=1?0:1000*Math.pow(2,L-2)}
+function levelForXp(x){let L=1;while(L<12&&x>=xpForLevel(L+1))L++;return L}
+const NAMES={1:'Hatchling',2:'Young Terror',3:'Island Tyrant',4:'Leviathan'};
+
+/* ---------- persistent monster ---------- */
+let mon=null;
+function defaultMon(){return{level:1,banked:0,maxHd:6,mv:3,str:1,tough:0,abilities:[]}}
+function loadMon(){try{const s=JSON.parse(localStorage.getItem(SAVE_KEY));if(s&&s.maxHd)return s}catch(e){}return defaultMon()}
+function saveMon(){localStorage.setItem(SAVE_KEY,JSON.stringify(mon))}
+
+/* ---------- session state ---------- */
+let S=null;
+function newSession(){
+  rng=mulberry(Date.now()&0xffffffff);
+  S={turn:1,phase:'player',sessionXp:0,threat:0,destroyed:0,over:false,
+     monster:{q:0,r:0,hd:mon.maxHd,mvLeft:mon.mv,acted:false,roarCd:0},
+     units:[],structures:new Map(),corpses:new Map(),feared:new Map(),
+     reach:new Map(),spawnsDone:0};
+  // structures: village cluster east, lighthouse south tip
+  const east=landHexes.filter(h=>h.q>=2&&h.terrain!=='forest').sort((a,b)=>hexDist(b,{q:0,r:0})-hexDist(a,{q:0,r:0}));
+  const vs=east.slice(0,6);
+  vs.forEach((h,i)=>{if(!(h.q===0&&h.r===0))S.structures.set(key(h.q,h.r),{q:h.q,r:h.r,type:i===0?'longhouse':'hut',hits:i===0?2:1})});
+  const south=landHexes.filter(h=>h.r>=3).sort((a,b)=>b.r-a.r)[0];
+  if(south)S.structures.set(key(south.q,south.r),{q:south.q,r:south.r,type:'lighthouse',hits:3});
+  // wildlife
+  const open=landHexes.filter(h=>!S.structures.has(key(h.q,h.r))&&hexDist(h,{q:0,r:0})>1);
+  for(let i=0;i<6&&open.length;i++){
+    const h=open.splice(Math.floor(rng()*open.length),1)[0];
+    S.units.push({id:'w'+i,kind:'wildlife',emoji:rng()<0.5?'🐗':'🦌',q:h.q,r:h.r});
+  }
+  // starting militia pair near village
+  spawnMilitia(2);
+  computeReach();updateHud();
+}
+let mid=0;
+function spawnMilitia(n){
+  const anchors=[...S.structures.values()].filter(s=>s.type!=='lighthouse');
+  for(let i=0;i<n;i++){
+    const a=anchors.length?anchors[Math.floor(rng()*anchors.length)]:landHexes[0];
+    const spot=neighbors(a.q,a.r).map(p=>map.get(key(p.q,p.r)))
+      .filter(h=>h&&h.terrain!=='water'&&!occupied(h.q,h.r));
+    if(spot.length){const h=spot[Math.floor(rng()*spot.length)];
+      S.units.push({id:'m'+(mid++),kind:'militia',emoji:'🪖',q:h.q,r:h.r})}
+  }
+}
+function occupied(q,r){
+  if(S.monster.q===q&&S.monster.r===r)return true;
+  if(S.structures.has(key(q,r)))return true;
+  return S.units.some(u=>u.q===q&&u.r===r);
+}
+function unitAt(q,r){return S.units.find(u=>u.q===q&&u.r===r)}
+
+/* ---------- reachability ---------- */
+function computeReach(){
+  S.reach.clear();
+  const start={q:S.monster.q,r:S.monster.r};
+  const frontier=[{...start,d:0}];S.reach.set(key(start.q,start.r),0);
+  while(frontier.length){
+    const c=frontier.shift();
+    if(c.d>=S.monster.mvLeft)continue;
+    for(const nb of neighbors(c.q,c.r)){
+      const k=key(nb.q,nb.r);
+      if(S.reach.has(k))continue;
+      if(!isLand(nb.q,nb.r))continue;
+      if(S.structures.has(k))continue;
+      if(unitAt(nb.q,nb.r))continue;
+      S.reach.set(k,c.d+1);
+      frontier.push({q:nb.q,r:nb.r,d:c.d+1});
+    }
+  }
+}
+
+/* ---------- combat ---------- */
+function rollPool(n){const rolls=[];for(let i=0;i<n;i++)rolls.push(d6());return rolls}
+function bite(target){
+  const pool=S.monster.hd+mon.str;
+  const rolls=rollPool(pool);
+  const hits=rolls.filter(v=>v===6).length;
+  log(`Bite: [${rolls.join(' ')}] — ${hits} hit${hits===1?'':'s'}`,hits?'hit':'');
+  S.monster.acted=true;
+  if(hits>0)killUnit(target);
+  else log('It survives!');
+  afterAction();
+}
+function killUnit(u){
+  S.units=S.units.filter(x=>x.id!==u.id);
+  S.corpses.set(key(u.q,u.r),{q:u.q,r:u.r});
+  award(XP[u.kind],cap(u.kind)+' slain');
+  if(u.kind==='militia'){S.destroyed++;checkThreat();}
+}
+function checkThreat(){
+  const lvl=Math.min(3,Math.floor(S.destroyed/3));
+  if(lvl>S.threat){S.threat=lvl;
+    const n=1+lvl;spawnMilitia(n);
+    log(`⚠ Threat rises — ${n} militia arrive`,'pain');
+  }
+  updateHud();
+}
+function roar(){
+  S.monster.acted=true;S.monster.roarCd=3;
+  let n=0;
+  for(const u of S.units){
+    if(u.kind!=='militia')continue;
+    if(hexDist(u,S.monster)<=2){S.feared.set(u.id,2);n++}
+  }
+  log(`ROAR! ${n} militia flee in terror`,'hit');
+  afterAction();
+}
+function eat(){
+  const here=key(S.monster.q,S.monster.r);
+  let ck=S.corpses.has(here)?here:null;
+  if(!ck)for(const nb of neighbors(S.monster.q,S.monster.r)){const k=key(nb.q,nb.r);if(S.corpses.has(k)){ck=k;break}}
+  if(!ck)return;
+  S.corpses.delete(ck);
+  S.monster.acted=true;
+  if(S.monster.hd<mon.maxHd){S.monster.hd++;log('Devoured — recover 1 hit die','hit')}
+  else log('Devoured');
+  award(XP.eat,'');
+  afterAction();
+}
+function award(x,msg){
+  S.sessionXp+=x;
+  if(msg)log(`+${x} XP · ${msg}`);
+  const total=mon.banked+S.sessionXp;
+  const newL=levelForXp(total);
+  if(newL>mon.level){
+    mon.level=newL;
+    mon.banked=Math.max(mon.banked,xpForLevel(newL)); // floor: never de-level
+    mon.maxHd+=1;S.monster.hd=Math.min(S.monster.hd+1,mon.maxHd);
+    log(`★ LEVEL ${newL} — +1 hit die`,'ding');
+    if(newL===2&&!mon.abilities.includes('roar')){
+      mon.abilities.push('roar');
+      log('★ New ability: ROAR','ding');
+    }
+    saveMon();
+  }
+  updateHud();
+}
+
+/* ---------- turn flow ---------- */
+function afterAction(){computeReach();updateHud();draw()}
+function endTurn(){
+  if(S.over)return;
+  S.phase='enemy';updateHud();
+  setTimeout(enemyPhase,220);
+}
+function enemyPhase(){
+  // fear decay handled per-unit below
+  for(const u of [...S.units]){
+    const d=hexDist(u,S.monster);
+    if(u.kind==='wildlife'){
+      if(d<=3)stepAway(u);
+      continue;
+    }
+    const fear=S.feared.get(u.id)||0;
+    if(fear>0){S.feared.set(u.id,fear-1);stepAway(u);continue}
+    if(d<=2){
+      const roll=d6();
+      if(roll===6&&mon.tough<=0){
+        S.monster.hd--;
+        log(`Militia fire hits! [${roll}] — lose 1 hit die`,'pain');
+        flashPain();
+        if(S.monster.hd<=0){drivenOff();return}
+      }else if(roll===6){
+        log(`Militia fire glances off hide [${roll}]`);
+      }else{
+        log(`Militia fire misses [${roll}]`);
+      }
+    }else stepToward(u);
+  }
+  S.turn++;S.phase='player';
+  if(S.monster.roarCd>0)S.monster.roarCd--;
+  S.monster.mvLeft=mon.mv-(woundState()==='desperate'?1:0);
+  S.monster.acted=false;
+  computeReach();updateHud();draw();
+}
+function stepToward(u){
+  const opts=neighbors(u.q,u.r).filter(p=>isLand(p.q,p.r)&&!occupied(p.q,p.r));
+  if(!opts.length)return;
+  opts.sort((a,b)=>hexDist(a,S.monster)-hexDist(b,S.monster));
+  if(hexDist(opts[0],S.monster)<hexDist(u,S.monster)){u.q=opts[0].q;u.r=opts[0].r}
+}
+function stepAway(u){
+  const opts=neighbors(u.q,u.r).filter(p=>isLand(p.q,p.r)&&!occupied(p.q,p.r));
+  if(!opts.length)return;
+  opts.sort((a,b)=>hexDist(b,S.monster)-hexDist(a,S.monster));
+  if(hexDist(opts[0],S.monster)>hexDist(u,S.monster)){u.q=opts[0].q;u.r=opts[0].r}
+}
+function woundState(){
+  const f=S.monster.hd/mon.maxHd;
+  return f>2/3?'full':f>1/3?'wounded':'desperate';
+}
+
+/* ---------- visit end ---------- */
+function nearWater(){return neighbors(S.monster.q,S.monster.r).some(p=>{const h=map.get(key(p.q,p.r));return !h||h.terrain==='water'})}
+function withdraw(){
+  S.over=true;
+  mon.banked+=S.sessionXp;saveMon();
+  showEnd('good','Orderly Withdrawal',
+    `The creature slips beneath the waves.<br><b style="color:var(--amber)">+${S.sessionXp} XP banked.</b>`);
+}
+function drivenOff(){
+  S.over=true;
+  saveMon(); // level floor already banked on ding
+  showEnd('bad','Driven Off',
+    `Wounded and shrieking, it flees to the sea.<br>Session XP lost — the island remembers.`);
+}
+function showEnd(cls,title,body){
+  document.getElementById('startcard').classList.add('hidden');
+  const ec=document.getElementById('endcard');ec.classList.remove('hidden');
+  const t=document.getElementById('endtitle');t.textContent=title;t.className=cls;
+  document.getElementById('endbody').innerHTML=body;
+  document.getElementById('overlay').classList.remove('hidden');
+}
+
+/* ---------- hud / log ---------- */
+function updateHud(){
+  document.getElementById('namept').textContent=(NAMES[mon.level]||'Apex')+' · Lv '+mon.level;
+  const hr=document.getElementById('hdrow');hr.innerHTML='';
+  for(let i=0;i<mon.maxHd;i++){const p=document.createElement('div');p.className='pip'+(S&&i<S.monster.hd?'':' off');hr.appendChild(p)}
+  const ws=S?woundState():'full';
+  const st=document.getElementById('state');
+  st.textContent=ws==='full'?'Unhurt':ws==='wounded'?'Wounded':'DESPERATE (move −1)';
+  st.className=ws==='full'?'':ws;
+  const total=mon.banked+(S?S.sessionXp:0);
+  const lo=xpForLevel(mon.level),hi=xpForLevel(Math.min(12,mon.level+1));
+  const pct=mon.level>=12?100:Math.min(100,100*(total-lo)/(hi-lo));
+  document.getElementById('xpbar').style.width=pct+'%';
+  document.getElementById('xptxt').textContent=total+' xp'+(S?` (+${S.sessionXp} this visit)`:'')+(mon.level<12?` · next ${hi}`:'');
+  if(S){
+    document.getElementById('threatval').textContent=['Calm','Alarmed','Mobilized','Full Alert'][S.threat];
+    document.getElementById('turnval').textContent=(S.phase==='player'?'Your turn ':'…')+'· T'+S.turn;
+    document.getElementById('withdrawbtn').disabled=!(S.phase==='player'&&nearWater());
+    document.getElementById('endbtn').disabled=S.phase!=='player';
+    const rb=document.getElementById('roarbtn');
+    const hasRoar=mon.abilities.includes('roar');
+    rb.disabled=!(hasRoar&&S.phase==='player'&&!S.monster.acted&&S.monster.roarCd===0);
+    rb.querySelector('small').textContent=!hasRoar?'locked · Lv 2':S.monster.roarCd>0?'cooldown '+S.monster.roarCd:'scatter foes';
+    const eb=document.getElementById('eatbtn');
+    let corpseNear=S.corpses.has(key(S.monster.q,S.monster.r))||neighbors(S.monster.q,S.monster.r).some(p=>S.corpses.has(key(p.q,p.r)));
+    eb.disabled=!(S.phase==='player'&&!S.monster.acted&&corpseNear);
+    eb.querySelector('small').textContent=corpseNear?'+1 die':'no corpse';
+  }
+}
+function log(msg,cls){
+  const el=document.createElement('div');el.className='logline '+(cls||'');el.textContent=msg;
+  const box=document.getElementById('log');box.appendChild(el);
+  while(box.children.length>4)box.removeChild(box.firstChild);
+}
+
+/* ---------- render ---------- */
+const cv=document.getElementById('game'),ctx=cv.getContext('2d');
+let hexSize=28,cam={x:0,y:0},painFlash=0;
+function flashPain(){painFlash=1}
+function resize(){
+  const dpr=window.devicePixelRatio||1;
+  cv.width=innerWidth*dpr;cv.height=innerHeight*dpr;
+  cv.style.width=innerWidth+'px';cv.style.height=innerHeight+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const span=(2*R+2)*SQ3;
+  hexSize=Math.min(innerWidth/span,(innerHeight-190)/((2*R+2)*1.5));
+  cam.x=innerWidth/2;cam.y=(innerHeight-60)/2;
+}
+addEventListener('resize',resize);resize();
+
+function hexPath(x,y,s){
+  ctx.beginPath();
+  for(let i=0;i<6;i++){const a=Math.PI/180*(60*i-30);
+    const px=x+s*Math.cos(a),py=y+s*Math.sin(a);
+    i?ctx.lineTo(px,py):ctx.moveTo(px,py)}
+  ctx.closePath();
+}
+const TCOL={water:'#0e2a3d',sand:'#c9b27c',grass:'#4a6b3a',forest:'#2e4a28'};
+const SEMOJI={hut:'🛖',longhouse:'🏠',lighthouse:'🗼'};
+let t0=performance.now();
+function draw(){
+  const t=(performance.now()-t0)/1000;
+  ctx.fillStyle='#071722';ctx.fillRect(0,0,innerWidth,innerHeight);
+  // mainland teaser
+  ctx.fillStyle='#122733';
+  ctx.fillRect(0,0,innerWidth,34);
+  ctx.fillStyle='#41586e';ctx.font='10px sans-serif';ctx.textAlign='center';
+  ctx.fillText('▲ THE MAINLAND · THREAT 2–4 · (someday)',innerWidth/2,54);
+  for(const h of map.values()){
+    const p=hexToPix(h.q,h.r,hexSize);
+    const x=p.x+cam.x,y=p.y+cam.y;
+    hexPath(x,y,hexSize-0.6);
+    ctx.fillStyle=TCOL[h.terrain];ctx.fill();
+    if(h.terrain==='water'){ctx.strokeStyle='#0a2233';}else{ctx.strokeStyle='#0006';}
+    ctx.lineWidth=1;ctx.stroke();
+    if(h.terrain==='forest'){ctx.font=hexSize*0.8+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('🌲',x,y)}
+  }
+  if(S&&!S.over){
+    // reachable highlight
+    if(S.phase==='player'){
+      const pulse=0.25+0.12*Math.sin(t*4);
+      for(const k of S.reach.keys()){
+        if(k===key(S.monster.q,S.monster.r))continue;
+        const[q,r]=k.split(',').map(Number);
+        const p=hexToPix(q,r,hexSize);
+        hexPath(p.x+cam.x,p.y+cam.y,hexSize-3);
+        ctx.fillStyle=`rgba(224,165,58,${pulse})`;ctx.fill();
+      }
+      // attackable outline
+      if(!S.monster.acted)for(const nb of neighbors(S.monster.q,S.monster.r)){
+        const k=key(nb.q,nb.r);
+        if(S.structures.has(k)||unitAt(nb.q,nb.r)){
+          const p=hexToPix(nb.q,nb.r,hexSize);
+          hexPath(p.x+cam.x,p.y+cam.y,hexSize-2);
+          ctx.strokeStyle='#c0392b';ctx.lineWidth=2.5;ctx.stroke();
+        }
+      }
+    }
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    for(const c of S.corpses.values()){
+      const p=hexToPix(c.q,c.r,hexSize);
+      ctx.font=hexSize*0.7+'px serif';ctx.fillText('🍖',p.x+cam.x,p.y+cam.y);
+    }
+    for(const s of S.structures.values()){
+      const p=hexToPix(s.q,s.r,hexSize);
+      ctx.font=hexSize*0.95+'px serif';ctx.fillText(SEMOJI[s.type],p.x+cam.x,p.y+cam.y);
+    }
+    for(const u of S.units){
+      const p=hexToPix(u.q,u.r,hexSize);
+      const feared=S.feared.get(u.id)>0;
+      ctx.font=hexSize*0.8+'px serif';
+      ctx.globalAlpha=feared?0.6:1;
+      ctx.fillText(u.emoji,p.x+cam.x,p.y+cam.y);
+      if(feared){ctx.font=hexSize*0.4+'px serif';ctx.fillText('💦',p.x+cam.x+hexSize*0.4,p.y+cam.y-hexSize*0.4)}
+      ctx.globalAlpha=1;
+    }
+    const mp=hexToPix(S.monster.q,S.monster.r,hexSize);
+    ctx.font=hexSize*1.25+'px serif';
+    ctx.fillText('🦖',mp.x+cam.x,mp.y+cam.y-2);
+  }
+  if(painFlash>0){
+    ctx.fillStyle=`rgba(192,57,43,${painFlash*0.28})`;
+    ctx.fillRect(0,0,innerWidth,innerHeight);
+    painFlash=Math.max(0,painFlash-0.05);
+  }
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+/* ---------- input ---------- */
+cv.addEventListener('pointerdown',ev=>{
+  if(!S||S.over||S.phase!=='player')return;
+  const rect=cv.getBoundingClientRect();
+  const h=pixToHex(ev.clientX-rect.left-cam.x,ev.clientY-rect.top-cam.y,hexSize);
+  const k=key(h.q,h.r);
+  const dist=hexDist(h,S.monster);
+  // attack adjacent target
+  if(dist===1&&!S.monster.acted){
+    if(S.structures.has(k)){biteStructAt(k);return}
+    const u=unitAt(h.q,h.r);
+    if(u){bite(u);return}
+  }
+  // move
+  if(S.reach.has(k)&&k!==key(S.monster.q,S.monster.r)){
+    const cost=S.reach.get(k);
+    S.monster.q=h.q;S.monster.r=h.r;
+    S.monster.mvLeft-=cost;
+    computeReach();updateHud();
+  }
+});
+
+/* structure bite needs direct ref — replace proxy approach */
+function biteStructAt(k){
+  const st=S.structures.get(k);
+  if(!st)return;
+  const pool=S.monster.hd+mon.str;
+  const rolls=rollPool(pool);
+  const hits=rolls.filter(v=>v===6).length;
+  log(`Bite: [${rolls.join(' ')}] — ${hits} hit${hits===1?'':'s'}`,hits?'hit':'');
+  S.monster.acted=true;
+  if(hits>0){st.hits-=hits;
+    if(st.hits<=0){
+      S.structures.delete(k);
+      award(XP[st.type],cap(st.type)+' destroyed');
+      S.destroyed++;checkThreat();
+    }else log(cap(st.type)+' damaged');
+  }else log('The '+st.type+' stands.');
+  afterAction();
+}
+
+function cap(s){return s.charAt(0).toUpperCase()+s.slice(1)}
+
+/* ---------- buttons ---------- */
+document.getElementById('endbtn').onclick=endTurn;
+document.getElementById('roarbtn').onclick=roar;
+document.getElementById('eatbtn').onclick=eat;
+document.getElementById('withdrawbtn').onclick=withdraw;
+document.getElementById('beginbtn').onclick=()=>{
+  document.getElementById('overlay').classList.add('hidden');
+  newSession();log('The hatchling wades ashore…');
+};
+document.getElementById('returnbtn').onclick=()=>{
+  document.getElementById('endcard').classList.add('hidden');
+  document.getElementById('startcard').classList.remove('hidden');
+  renderSheet();
+};
+document.getElementById('resetlink').onclick=()=>{
+  if(confirm('Wipe this monster and start over?')){mon=defaultMon();saveMon();renderSheet()}
+};
+
+function renderSheet(){
+  document.getElementById('sheetbox').innerHTML=
+    `<b>${NAMES[mon.level]||'Apex'}</b> — Level ${mon.level} Dinosaur<br>`+
+    `Hit Dice <b>${mon.maxHd}</b> · Move <b>${mon.mv}</b> · Str <b>+${mon.str}</b> · Tough <b>${mon.tough}</b><br>`+
+    `XP <b>${mon.banked}</b>${mon.level<12?' · next level at '+xpForLevel(mon.level+1):''}<br>`+
+    `Abilities: ${mon.abilities.length?mon.abilities.map(cap).join(', '):'<span style="color:var(--dim)">none — Roar at Lv 2</span>'}`;
+}
+
+/* ---------- boot ---------- */
+mon=loadMon();
+renderSheet();
+updateHud();
+</script>
+</body>
+</html>
