@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- kaiju-island.html v0.1.0 -->
+<!-- kaiju-island.html v0.1.1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -54,6 +54,14 @@ button.go{background:#233a16;border-color:#436b26}
 #resetlink{margin-top:14px;font-size:10px;color:#41586e;text-decoration:underline;background:none;border:none;width:auto;padding:4px;font-weight:400}
 #endtitle{font-size:22px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
 #endtitle.bad{color:var(--blood)}#endtitle.good{color:#b8e06a}
+#turnbanner{position:fixed;top:calc(env(safe-area-inset-top) + 92px);left:50%;transform:translateX(-50%);
+  pointer-events:none;font-weight:900;font-size:15px;letter-spacing:.18em;text-transform:uppercase;
+  padding:6px 18px;border-radius:20px;opacity:0;transition:opacity .25s;z-index:5}
+#turnbanner.player{background:#233a16e0;color:#c9e88a;border:1px solid #436b26;opacity:1;animation:bannerpulse 1.6s ease-in-out 3}
+#turnbanner.enemy{background:#3a1616e0;color:#ff9d8a;border:1px solid #6b2626;opacity:1}
+@keyframes bannerpulse{0%,100%{transform:translateX(-50%) scale(1)}50%{transform:translateX(-50%) scale(1.08)}}
+.howto{text-align:left;font-size:12px;color:var(--dim);background:#0b141c;border-radius:9px;padding:10px 14px;margin-bottom:16px;line-height:1.8}
+.howto b{color:var(--ink)}
 #endbody{color:var(--dim);font-size:13px;margin-bottom:18px;line-height:1.5}
 </style>
 </head>
@@ -76,6 +84,7 @@ button.go{background:#233a16;border-color:#436b26}
 </div>
 
 <div id="log"></div>
+<div id="turnbanner"></div>
 
 <div id="actions">
   <button id="roarbtn" disabled>ROAR<small>locked</small></button>
@@ -89,6 +98,13 @@ button.go{background:#233a16;border-color:#436b26}
     <h1>Kaiju</h1>
     <div class="sub">Zone 1 · The Island</div>
     <div class="sheet" id="sheetbox"></div>
+    <div class="howto">
+      <b>Tap a glowing hex</b> — move there<br>
+      <b>Tap a red-ringed target</b> — bite it (6s kill)<br>
+      <b>Eat corpses</b> — recover hit dice<br>
+      <b>Reach the shore &amp; Withdraw</b> — bank your XP<br>
+      <b>Pinch to zoom · drag to pan</b>
+    </div>
     <button id="beginbtn" class="go">BEGIN RAMPAGE</button>
     <button id="resetlink">reset monster</button>
   </div>
@@ -101,7 +117,7 @@ button.go{background:#233a16;border-color:#436b26}
 
 <script>
 'use strict';
-const GAME_VERSION='0.1.0';
+const GAME_VERSION='0.1.1';
 const SAVE_KEY='kaiju.save.v1';
 
 /* ---------- rng ---------- */
@@ -285,7 +301,8 @@ function afterAction(){computeReach();updateHud();draw()}
 function endTurn(){
   if(S.over)return;
   S.phase='enemy';updateHud();
-  setTimeout(enemyPhase,220);
+  setBanner('enemy','MILITIA ACT');
+  setTimeout(enemyPhase,400);
 }
 function enemyPhase(){
   // fear decay handled per-unit below
@@ -315,7 +332,16 @@ function enemyPhase(){
   if(S.monster.roarCd>0)S.monster.roarCd--;
   S.monster.mvLeft=mon.mv-(woundState()==='desperate'?1:0);
   S.monster.acted=false;
+  setBanner('player','YOUR TURN');
   computeReach();updateHud();draw();
+}
+let bannerTimer=null;
+function setBanner(cls,txt){
+  const b=document.getElementById('turnbanner');
+  b.className='';void b.offsetWidth;
+  b.textContent=txt;b.className=cls;
+  clearTimeout(bannerTimer);
+  bannerTimer=setTimeout(()=>{b.className=''},cls==='player'?2200:1400);
 }
 function stepToward(u){
   const opts=neighbors(u.q,u.r).filter(p=>isLand(p.q,p.r)&&!occupied(p.q,p.r));
@@ -393,16 +419,22 @@ function log(msg,cls){
 
 /* ---------- render ---------- */
 const cv=document.getElementById('game'),ctx=cv.getContext('2d');
-let hexSize=28,cam={x:0,y:0},painFlash=0;
+let hexSize=34,cam={x:0,y:0},painFlash=0;
+const ZOOM_MIN=16,ZOOM_MAX=64;
 function flashPain(){painFlash=1}
+function centerOnMonster(){
+  const p=S?hexToPix(S.monster.q,S.monster.r,hexSize):{x:0,y:0};
+  cam.x=innerWidth/2-p.x;cam.y=(innerHeight-80)/2-p.y;
+}
 function resize(){
   const dpr=window.devicePixelRatio||1;
   cv.width=innerWidth*dpr;cv.height=innerHeight*dpr;
   cv.style.width=innerWidth+'px';cv.style.height=innerHeight+'px';
   ctx.setTransform(dpr,0,0,dpr,0,0);
   const span=(2*R+2)*SQ3;
-  hexSize=Math.min(innerWidth/span,(innerHeight-190)/((2*R+2)*1.5));
-  cam.x=innerWidth/2;cam.y=(innerHeight-60)/2;
+  const fit=Math.min(innerWidth/span,(innerHeight-190)/((2*R+2)*1.5));
+  hexSize=Math.max(fit,34);
+  centerOnMonster();
 }
 addEventListener('resize',resize);resize();
 
@@ -481,31 +513,71 @@ function draw(){
     ctx.fillRect(0,0,innerWidth,innerHeight);
     painFlash=Math.max(0,painFlash-0.05);
   }
-  requestAnimationFrame(draw);
 }
-requestAnimationFrame(draw);
+function loop(){draw();requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
 
-/* ---------- input ---------- */
+/* ---------- input: tap / pan / pinch ---------- */
+const ptrs=new Map();
+let gesture=null; // 'pan' | 'pinch' | null
+let panStart=null,pinchStart=null;
 cv.addEventListener('pointerdown',ev=>{
+  cv.setPointerCapture(ev.pointerId);
+  ptrs.set(ev.pointerId,{x:ev.clientX,y:ev.clientY,sx:ev.clientX,sy:ev.clientY});
+  if(ptrs.size===2){
+    gesture='pinch';
+    const[a,b]=[...ptrs.values()];
+    pinchStart={d:Math.hypot(a.x-b.x,a.y-b.y),size:hexSize};
+  }
+});
+cv.addEventListener('pointermove',ev=>{
+  const p=ptrs.get(ev.pointerId);if(!p)return;
+  p.x=ev.clientX;p.y=ev.clientY;
+  if(ptrs.size===2&&gesture==='pinch'){
+    const[a,b]=[...ptrs.values()];
+    const d=Math.hypot(a.x-b.x,a.y-b.y);
+    const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+    const wux=(mx-cam.x)/hexSize,wuy=(my-cam.y)/hexSize;
+    hexSize=Math.max(ZOOM_MIN,Math.min(ZOOM_MAX,pinchStart.size*d/pinchStart.d));
+    cam.x=mx-wux*hexSize;cam.y=my-wuy*hexSize;
+  }else if(ptrs.size===1){
+    const dx=p.x-p.sx,dy=p.y-p.sy;
+    if(gesture==='pan'||Math.hypot(dx,dy)>8){
+      if(gesture!=='pan'){gesture='pan';panStart={cx:cam.x,cy:cam.y}}
+      cam.x=panStart.cx+dx;cam.y=panStart.cy+dy;
+    }
+  }
+});
+function endPtr(ev){
+  const p=ptrs.get(ev.pointerId);
+  ptrs.delete(ev.pointerId);
+  if(ptrs.size>0)return; // wait for all fingers up
+  const wasTap=gesture===null&&p;
+  gesture=null;panStart=null;pinchStart=null;
+  if(wasTap)handleTap(p.sx,p.sy);
+}
+cv.addEventListener('pointerup',endPtr);
+cv.addEventListener('pointercancel',endPtr);
+
+function handleTap(cx,cy){
   if(!S||S.over||S.phase!=='player')return;
   const rect=cv.getBoundingClientRect();
-  const h=pixToHex(ev.clientX-rect.left-cam.x,ev.clientY-rect.top-cam.y,hexSize);
+  const h=pixToHex(cx-rect.left-cam.x,cy-rect.top-cam.y,hexSize);
   const k=key(h.q,h.r);
   const dist=hexDist(h,S.monster);
-  // attack adjacent target
   if(dist===1&&!S.monster.acted){
     if(S.structures.has(k)){biteStructAt(k);return}
     const u=unitAt(h.q,h.r);
     if(u){bite(u);return}
   }
-  // move
   if(S.reach.has(k)&&k!==key(S.monster.q,S.monster.r)){
     const cost=S.reach.get(k);
     S.monster.q=h.q;S.monster.r=h.r;
     S.monster.mvLeft-=cost;
+    centerOnMonster();
     computeReach();updateHud();
   }
-});
+}
 
 /* structure bite needs direct ref — replace proxy approach */
 function biteStructAt(k){
@@ -535,7 +607,10 @@ document.getElementById('eatbtn').onclick=eat;
 document.getElementById('withdrawbtn').onclick=withdraw;
 document.getElementById('beginbtn').onclick=()=>{
   document.getElementById('overlay').classList.add('hidden');
-  newSession();log('The hatchling wades ashore…');
+  newSession();centerOnMonster();
+  setBanner('player','YOUR TURN');
+  log('The hatchling wades ashore…');
+  log('Tap a glowing hex to move · red ring = bite');
 };
 document.getElementById('returnbtn').onclick=()=>{
   document.getElementById('endcard').classList.add('hidden');
