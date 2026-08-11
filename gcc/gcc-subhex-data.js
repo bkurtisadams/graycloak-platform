@@ -1,4 +1,14 @@
-// gcc-subhex-data.js v2.12.0 — 2026-05-13
+// gcc-subhex-data.js v2.13.0 — 2026-08-11
+// v2.13.0: overlay regions join the cloud publish/pull pipeline.
+//          createRegion/renameRegion stamp `_dirtyAt`; importRegions
+//          stamps all docs. New exports: getDirtyRegions,
+//          getDirtyRegionCount, markRegionsPublished,
+//          applyRegionsFromCloud. Cloud collection is mapRegions/
+//          (schema decision #4) keyed by slug; local REGIONS keys
+//          stay `region_${slug}` — translation at the boundary, same
+//          as lakes. One-time load stamp queues legacy regions
+//          (no _publishedAt, no _dirtyAt) for first publish. Local
+//          deletes still don't propagate — tombstones follow-up.
 // v2.12.0: restoreOverride(Q, R, rawEntry) for undo support.
 //          Writes the raw pre-stroke OVERRIDES entry back including
 //          its original _dirtyAt / _publishedAt, WITHOUT re-stamping
@@ -641,6 +651,7 @@
     try { localStorage.setItem(LS_REGIONS_KEY, JSON.stringify(REGIONS)); }
     catch(e){ _reportStorageError(LS_REGIONS_KEY, e); }
     try { window.dispatchEvent(new CustomEvent('gcc-subhex-changed')); } catch(e){}
+    _emitLakeDirtyChange();
   }
   function saveLakes(){
     try { localStorage.setItem(LS_LAKES_KEY, JSON.stringify(LAKES)); }
@@ -696,6 +707,47 @@
     _emitLakeDirtyChange();
   }
 
+  // ── Region dirty tracking for cloud publish ──────────────────────────
+  // Mirrors lakes: writers stamp _dirtyAt, markRegionsPublished clears
+  // it and sets _publishedAt after a successful cloud write. Local
+  // deletes don't propagate yet — tombstones are a follow-up.
+  function _markRegionDirty(localId){
+    if (!localId) return;
+    const doc = REGIONS[regionDocId(localId)];
+    if (!doc) return;
+    doc._dirtyAt = Date.now();
+  }
+  function _markAllRegionsDirty(){
+    const ts = Date.now();
+    for (const k of Object.keys(REGIONS)){
+      if (REGIONS[k]) REGIONS[k]._dirtyAt = ts;
+    }
+  }
+  function getDirtyRegions(){
+    const out = [];
+    for (const k of Object.keys(REGIONS)){
+      const v = REGIONS[k];
+      if (v && v._dirtyAt){
+        const localId = parseRegionId(k);
+        if (localId) out.push([localId, v]);
+      }
+    }
+    return out;
+  }
+  function getDirtyRegionCount(){ return getDirtyRegions().length; }
+  function markRegionsPublished(ids, ts){
+    if (!Array.isArray(ids) || ids.length === 0) return;
+    for (const id of ids){
+      const v = REGIONS[regionDocId(id)];
+      if (!v) continue;
+      delete v._dirtyAt;
+      v._publishedAt = ts;
+    }
+    try { localStorage.setItem(LS_REGIONS_KEY, JSON.stringify(REGIONS)); }
+    catch(e){ _reportStorageError(LS_REGIONS_KEY, e); }
+    _emitLakeDirtyChange();
+  }
+
   // ── Cloud → local apply ────────────────────────────────────────────
   // Pull receivers for subhex cells and lakes. Both bypass dirty-
   // stamping so pulled docs don't immediately re-publish. Cloud docs
@@ -737,6 +789,23 @@
     try { window.dispatchEvent(new CustomEvent('gcc-subhex-changed', { detail: { reason: 'cloud-pull' } })); } catch(_){}
     // Dirty count may have changed if we overwrote previously-dirty
     // local lakes (force-pull case). Fire so the badge refreshes.
+    _emitLakeDirtyChange();
+    return true;
+  }
+
+  function applyRegionsFromCloud(docs){
+    if (!docs || typeof docs !== 'object') return false;
+    const ids = Object.keys(docs);
+    if (ids.length === 0) return false;
+    // Cloud collection 'mapRegions/' keys docs by slug ('whisperwood').
+    // Local REGIONS storage keys by full doc id ('region_whisperwood').
+    // Translate at the boundary, matching applyLakesFromCloud.
+    for (const id of ids){
+      REGIONS[regionDocId(id)] = docs[id];
+    }
+    try { localStorage.setItem(LS_REGIONS_KEY, JSON.stringify(REGIONS)); }
+    catch(e){ _reportStorageError(LS_REGIONS_KEY, e); }
+    try { window.dispatchEvent(new CustomEvent('gcc-subhex-changed', { detail: { reason: 'cloud-pull' } })); } catch(_){}
     _emitLakeDirtyChange();
     return true;
   }
@@ -1089,6 +1158,7 @@
       authoredAt: Date.now(),
     };
     REGIONS[regionDocId(localId)] = region;
+    _markRegionDirty(localId);
     saveRegions();
     return region;
   }
@@ -1098,6 +1168,7 @@
     if (!region || !newName) return false;
     region.name = String(newName).trim() || region.name;
     region.authoredAt = Date.now();
+    _markRegionDirty(localId);
     saveRegions();
     return true;
   }
@@ -1349,6 +1420,7 @@
   function importRegions(obj){
     if (!obj || typeof obj !== 'object') return false;
     REGIONS = JSON.parse(JSON.stringify(obj));
+    _markAllRegionsDirty();
     saveRegions();
     return true;
   }
@@ -1445,6 +1517,24 @@
   // mutation — this seeds the initial state for the first frame's reads.
   _rebuildLakeIndexes();
 
+  // One-time queue of legacy regions for first publish: regions
+  // authored before v2.13.0 carry neither _publishedAt nor _dirtyAt
+  // and would otherwise never publish. Idempotent by construction —
+  // once stamped they have _dirtyAt; once published, _publishedAt.
+  {
+    let stamped = 0;
+    const ts = Date.now();
+    for (const k of Object.keys(REGIONS)){
+      const v = REGIONS[k];
+      if (v && !v._publishedAt && !v._dirtyAt){ v._dirtyAt = ts; stamped++; }
+    }
+    if (stamped){
+      try { localStorage.setItem(LS_REGIONS_KEY, JSON.stringify(REGIONS)); }
+      catch(e){ _reportStorageError(LS_REGIONS_KEY, e); }
+      console.log(`[GCCSubhexData] queued ${stamped} legacy region(s) for first publish.`);
+    }
+  }
+
   window.GCCSubhexData = {
     WORLD_SEED, SCHEMA_VERSION, ANCHOR_COL, ANCHOR_ROW, HEX_R, SUB_R,
     FEATURE_KINDS,
@@ -1465,7 +1555,8 @@
     listLakes, lakesInParent, getLake, createLake, renameLake, updateLake, deleteLake,
     setCellLake, unsetCellLake, lakeMembers, gcLakeIfEmpty, parentHasLakeAuthoring,
     getDirtyLakes, getDirtyLakeCount, markLakesPublished,
-    applyOverridesFromCloud, applyLakesFromCloud,
+    getDirtyRegions, getDirtyRegionCount, markRegionsPublished,
+    applyOverridesFromCloud, applyLakesFromCloud, applyRegionsFromCloud,
     restoreOverride,
     allAuthored, authoredCount,
     exportOverrides, importOverrides,

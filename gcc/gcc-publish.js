@@ -1,4 +1,11 @@
-// gcc-publish.js v0.4.0 — 2026-05-13
+// gcc-publish.js v0.5.0 — 2026-08-11
+// v0.5.0 — Fourth publish source: overlay regions → mapRegions/
+//          (schema decision #4; firestore.rules v8 already gates
+//          writes on isGM()). Reads dirty entries via
+//          GCCSubhexData.getDirtyRegions, batch-writes keyed by
+//          slug, clears via markRegionsPublished. Badge count,
+//          confirm-dialog breakdown, and renderDirtyEntry gain a
+//          'regions' source (name + terrain).
 // v0.4.0 — Confirm dialog enumerates dirty entries when each source
 //          has ≤ ENUMERATE_THRESHOLD (5) dirty items. Each source
 //          renders its entries via renderDirtyEntry — subhex shows
@@ -36,6 +43,7 @@
   const COL_SUBHEX = 'subHexes';
   const COL_LAKES  = 'lakes';
   const COL_PATHS  = 'paths';
+  const COL_REGIONS = 'mapRegions';
   const BATCH_SIZE = 500;
   const FB_VERSION = '10.12.2';
   const FB_FIRESTORE_URL = `https://www.gstatic.com/firebasejs/${FB_VERSION}/firebase-firestore-compat.js`;
@@ -77,7 +85,7 @@
   }
 
   async function getDirtyCounts(){
-    let subhex = 0, lakes = 0, paths = 0;
+    let subhex = 0, lakes = 0, paths = 0, regions = 0;
     try {
       if (window.GCCSubhexStore && window.GCCSubhexStore.getDirtyCount){
         subhex = await window.GCCSubhexStore.getDirtyCount();
@@ -93,7 +101,12 @@
         paths = window.GCCSubhexPaths.getDirtyCount();
       }
     } catch(e){ console.warn('[Publish] path getDirtyCount failed:', e); }
-    return { subhex, lakes, paths, total: subhex + lakes + paths };
+    try {
+      if (window.GCCSubhexData && window.GCCSubhexData.getDirtyRegionCount){
+        regions = window.GCCSubhexData.getDirtyRegionCount();
+      }
+    } catch(e){ console.warn('[Publish] region getDirtyCount failed:', e); }
+    return { subhex, lakes, paths, regions, total: subhex + lakes + paths + regions };
   }
   async function getDirtyCount(){
     const { total } = await getDirtyCounts();
@@ -108,7 +121,7 @@
     _publishing = true;
     try {
       // ── Collect dirty entries from all three sources ────────────────
-      let dirtySubhex = [], dirtyLakes = [], dirtyPaths = [];
+      let dirtySubhex = [], dirtyLakes = [], dirtyPaths = [], dirtyRegions = [];
       if (window.GCCSubhexStore){
         await window.GCCSubhexStore.flush();
         dirtySubhex = await window.GCCSubhexStore.getDirty();
@@ -119,8 +132,11 @@
       if (window.GCCSubhexPaths && window.GCCSubhexPaths.getDirty){
         dirtyPaths = window.GCCSubhexPaths.getDirty();
       }
+      if (window.GCCSubhexData && window.GCCSubhexData.getDirtyRegions){
+        dirtyRegions = window.GCCSubhexData.getDirtyRegions();
+      }
 
-      const total = dirtySubhex.length + dirtyLakes.length + dirtyPaths.length;
+      const total = dirtySubhex.length + dirtyLakes.length + dirtyPaths.length + dirtyRegions.length;
       if (total === 0) return { ok: true, total: 0, published: 0, failed: 0, failures: [] };
 
       let published = 0;
@@ -166,6 +182,10 @@
       if (dirtyPaths.length){
         await pushBatch(dirtyPaths, COL_PATHS,
           (ids, ts) => window.GCCSubhexPaths.markPublished(ids, ts));
+      }
+      if (dirtyRegions.length){
+        await pushBatch(dirtyRegions, COL_REGIONS,
+          (ids, ts) => window.GCCSubhexData.markRegionsPublished(ids, ts));
       }
 
       return { ok: true, total, published, failed: failures.length, failures };
@@ -222,7 +242,7 @@
   // Sources over threshold get null (skip the read entirely for
   // subhex since IDB cursor walk isn't free at 50k+ entries).
   async function getDirtyDetails(counts){
-    const out = { subhex: null, lakes: null, paths: null };
+    const out = { subhex: null, lakes: null, paths: null, regions: null };
     if (counts.subhex > 0 && counts.subhex <= ENUMERATE_THRESHOLD){
       if (window.GCCSubhexStore){
         try { out.subhex = await window.GCCSubhexStore.getDirty(); }
@@ -239,6 +259,12 @@
       if (window.GCCSubhexPaths && window.GCCSubhexPaths.getDirty){
         try { out.paths = window.GCCSubhexPaths.getDirty(); }
         catch(e){ console.warn('[Publish] getDirty(paths) failed:', e); }
+      }
+    }
+    if (counts.regions > 0 && counts.regions <= ENUMERATE_THRESHOLD){
+      if (window.GCCSubhexData && window.GCCSubhexData.getDirtyRegions){
+        try { out.regions = window.GCCSubhexData.getDirtyRegions(); }
+        catch(e){ console.warn('[Publish] getDirtyRegions failed:', e); }
       }
     }
     return out;
@@ -284,6 +310,11 @@
       const tier = entry.tier ? `${entry.tier}, ` : '';
       return `${Label} "${name}" (${tier}${cells} cell${cells === 1 ? '' : 's'})`;
     }
+    if (source === 'regions'){
+      const name = entry.name || idOrSlug;
+      const terrain = entry.terrain ? `, ${entry.terrain}` : '';
+      return `Region "${name}" (overlay${terrain})`;
+    }
     return String(idOrSlug);
   }
 
@@ -306,11 +337,13 @@
     if (counts.subhex) parts.push(`${counts.subhex} subhex cell${counts.subhex === 1 ? '' : 's'}`);
     if (counts.lakes)  parts.push(`${counts.lakes} lake${counts.lakes === 1 ? '' : 's'}`);
     if (counts.paths)  parts.push(`${counts.paths} path${counts.paths === 1 ? '' : 's'}`);
+    if (counts.regions) parts.push(`${counts.regions} region${counts.regions === 1 ? '' : 's'}`);
     const breakdown = parts.join(', ');
     const detailsHtml = details ? (''
         + renderSourceGroup('Subhex', 'subhex', details.subhex)
         + renderSourceGroup('Lakes',  'lakes',  details.lakes)
         + renderSourceGroup('Paths',  'paths',  details.paths)
+        + renderSourceGroup('Regions', 'regions', details.regions)
       ) : '';
     const detailsBlock = detailsHtml
       ? `<div class="gcc-publish-details">${detailsHtml}</div>`

@@ -1,4 +1,10 @@
-// gcc-pull.js v0.2.2 — 2026-05-13
+// gcc-pull.js v0.3.0 — 2026-08-11
+// v0.3.0 — Fourth pull source: mapRegions/ → overlay regions.
+//          Mirrors lakes: cloud keys by slug, local REGIONS keys by
+//          'region_slug'; getLocalRegions translates via
+//          parseRegionId, apply goes through
+//          GCCSubhexData.applyRegionsFromCloud (no _dirtyAt
+//          re-stamp). Confirm + result dialogs gain a Regions row.
 // v0.2.2 — Tooltip hover text on every verdict bit in the
 //          per-source summary lines + the force-overwrite checkbox.
 //          Native `title` attributes; dotted underline visual cue
@@ -55,6 +61,7 @@
   const COL_SUBHEX = 'subHexes';
   const COL_LAKES  = 'lakes';
   const COL_PATHS  = 'paths';
+  const COL_REGIONS = 'mapRegions';
   const FB_VERSION = '10.12.2';
   const FB_FIRESTORE_URL = `https://www.gstatic.com/firebasejs/${FB_VERSION}/firebase-firestore-compat.js`;
 
@@ -163,6 +170,18 @@
     }
     return out;
   }
+  function getLocalRegions(){
+    const D = window.GCCSubhexData;
+    if (!D || typeof D.exportRegions !== 'function') return {};
+    const raw = D.exportRegions();
+    const out = {};
+    const parse = D.parseRegionId || (k => k);
+    for (const k of Object.keys(raw)){
+      const slug = parse(k);
+      if (slug) out[slug] = raw[k];
+    }
+    return out;
+  }
 
   // ── Verdict computation ────────────────────────────────────────────
   function verdictForDoc(localDoc, cloudDoc, force){
@@ -218,18 +237,20 @@
     if (!_uid)  return { ok: false, reason: 'Not signed in' };
     const force = !!(opts && opts.force);
     try {
-      const [subhex, lakes, paths] = await Promise.all([
-        previewSource(getLocalSubhex, () => getCloudDocs(COL_SUBHEX), force),
-        previewSource(getLocalLakes,  () => getCloudDocs(COL_LAKES),  force),
-        previewSource(getLocalPaths,  () => getCloudDocs(COL_PATHS),  force),
+      const [subhex, lakes, paths, regions] = await Promise.all([
+        previewSource(getLocalSubhex,  () => getCloudDocs(COL_SUBHEX),  force),
+        previewSource(getLocalLakes,   () => getCloudDocs(COL_LAKES),   force),
+        previewSource(getLocalPaths,   () => getCloudDocs(COL_PATHS),   force),
+        previewSource(getLocalRegions, () => getCloudDocs(COL_REGIONS), force),
       ]);
       return {
         ok: true,
         subhex:  subhex.summary,
         lakes:   lakes.summary,
         paths:   paths.summary,
-        total:   subhex.summary.total + lakes.summary.total + paths.summary.total,
-        skipped: subhex.summary.skip  + lakes.summary.skip  + paths.summary.skip,
+        regions: regions.summary,
+        total:   subhex.summary.total + lakes.summary.total + paths.summary.total + regions.summary.total,
+        skipped: subhex.summary.skip  + lakes.summary.skip  + paths.summary.skip  + regions.summary.skip,
       };
     } catch(e){
       console.warn('[Pull] previewPull failed:', e);
@@ -246,7 +267,7 @@
 
     _pulling = true;
     const force = !!(opts && opts.force);
-    const result = { ok: true, subhex: null, lakes: null, paths: null };
+    const result = { ok: true, subhex: null, lakes: null, paths: null, regions: null };
 
     try {
       // Subhex
@@ -295,6 +316,22 @@
       } catch(e){
         console.warn('[Pull] paths failed:', e);
         result.paths = { ok: false, error: e.message || String(e) };
+      }
+
+      // Regions (mapRegions/)
+      try {
+        const { buckets, cloud, summary } = await previewSource(
+          getLocalRegions, () => getCloudDocs(COL_REGIONS), force);
+        const toApply = pickApplySet(buckets, cloud);
+        if (Object.keys(toApply).length
+            && window.GCCSubhexData
+            && typeof window.GCCSubhexData.applyRegionsFromCloud === 'function'){
+          window.GCCSubhexData.applyRegionsFromCloud(toApply);
+        }
+        result.regions = { ok: true, summary };
+      } catch(e){
+        console.warn('[Pull] regions failed:', e);
+        result.regions = { ok: false, error: e.message || String(e) };
       }
 
       return result;
@@ -412,6 +449,7 @@
         +     renderSummaryLine('Subhex', preview.subhex)
         +     renderSummaryLine('Lakes',  preview.lakes)
         +     renderSummaryLine('Paths',  preview.paths)
+        +     renderSummaryLine('Regions', preview.regions)
         +   '</div>'
         +   forceRow
         +   '<div class="gcc-pull-note">Local-only docs are kept. Cloud deletes don\'t propagate yet (tombstones land in a follow-up).</div>'
@@ -501,6 +539,7 @@
       renderOne('Subhex', result.subhex);
       renderOne('Lakes',  result.lakes);
       renderOne('Paths',  result.paths);
+      renderOne('Regions', result.regions);
 
       status.textContent = errors.length
         ? `Pull completed with ${errors.length} error${errors.length === 1 ? '' : 's'}`
