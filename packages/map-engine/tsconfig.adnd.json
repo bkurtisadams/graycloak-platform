@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "outDir": "../../graycloak-adnd/public/vendor/map-engine",
+    "rootDir": "./src"
+  },
+  "include": ["src/**/*"]
+}
