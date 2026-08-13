@@ -1,4 +1,15 @@
-// adnd-map-view.js v1.0.0 — 2026-08-11
+// adnd-map-view.js v1.1.0 — 2026-08-11
+// v1.1.0 — party position + world clock (§6 milestone close-out).
+//          With ?camp=<cid>: loads campaigns/{cid} and characters
+//          where campaignId == cid; renders a party marker (gold
+//          diamond + names) on each occupied currentLocation cell,
+//          and the campaign's currentDate in the card header
+//          formatted per the Greyhawk calendar ({year, month, day},
+//          Fireseek = 1). Center preference: ?q&r → party →
+//          settlement → authored cell → D4-86. No clock writes —
+//          the GM sets campaigns/{cid}.currentDate (owner-gated
+//          under rules v8).
+// v1.0.0 — 2026-08-11
 // Slice B: read-only player map. Fetches the published world from
 // Firestore (regions/flanaess, subHexes/, lakes/, paths/, mapRegions/,
 // settlements/, freeholds/ — all authed-read under rules v8) and
@@ -38,6 +49,11 @@ const ADNDMapView = (function(){
   const RIVER_STROKE = 'rgb(70,140,175)';
   const ROAD_STROKE  = 'rgb(120,90,55)';
   const RIVER_W = { stream: 0.35, river: 0.6, greatriver: 1.0 };
+
+  // Greyhawk common-year months, currentDate.month 1-12 (Fireseek = 1).
+  const GREYHAWK_MONTHS = ['Fireseek', 'Readying', 'Coldeven', 'Planting',
+    'Flocktime', 'Wealsun', 'Reaping', 'Goodmonth', 'Harvester',
+    'Patchwall', "Ready'reat", 'Sunsebb'];
 
   const PX_PER_UNIT = 6;      // screen px per world unit at zoom 1
   const ZOOM_MIN = 0.15, ZOOM_MAX = 10;
@@ -80,6 +96,10 @@ const ADNDMapView = (function(){
   }
 
   // ── Data load ────────────────────────────────────────────────────
+  function campaignId(){
+    return new URLSearchParams(location.search).get('camp');
+  }
+
   async function loadAll(db){
     const col = async (name) => {
       const out = {};
@@ -87,16 +107,33 @@ const ADNDMapView = (function(){
       snap.forEach(doc => { out[doc.id] = doc.data(); });
       return out;
     };
-    const [flanaessSnap, subhex, lakes, paths, regions, settlements, freeholds] =
+    const cid = campaignId();
+    const [flanaessSnap, subhex, lakes, paths, regions, settlements, freeholds,
+           campSnap, charSnap] =
       await Promise.all([
         db.collection('regions').doc('flanaess').get(),
         col('subHexes'), col('lakes'), col('paths'),
         col('mapRegions'), col('settlements'), col('freeholds'),
+        cid ? db.collection('campaigns').doc(cid).get() : Promise.resolve(null),
+        cid ? db.collection('characters').where('campaignId', '==', cid).get()
+            : Promise.resolve(null),
       ]);
+    const characters = {};
+    if (charSnap) charSnap.forEach(doc => { characters[doc.id] = doc.data(); });
     return {
       flanaess: flanaessSnap.exists ? (flanaessSnap.data().hexes || {}) : {},
       subhex, lakes, paths, regions, settlements, freeholds,
+      campaign: (campSnap && campSnap.exists) ? campSnap.data() : null,
+      characters,
     };
+  }
+
+  function formatWorldDate(d){
+    if (!d) return null;
+    if (typeof d === 'string') return d;
+    if (typeof d !== 'object' || typeof d.year !== 'number') return null;
+    const month = GREYHAWK_MONTHS[(d.month || 1) - 1] || `month ${d.month}`;
+    return `${d.day != null ? d.day + ' ' : ''}${month}, ${d.year} CY`;
   }
 
   // ── Geometry helpers ─────────────────────────────────────────────
@@ -269,6 +306,26 @@ const ADNDMapView = (function(){
         + `</g></a>`);
     }
 
+    // Party: characters grouped by occupied cell
+    const byCell = {};
+    for (const id of Object.keys(state.data.characters || {})){
+      const ch = state.data.characters[id];
+      const loc = ch.currentLocation;
+      if (!loc || !Array.isArray(loc.subHexCoord)) continue;
+      const key = `${loc.subHexCoord[0]}_${loc.subHexCoord[1]}`;
+      (byCell[key] = byCell[key] || []).push(ch.name || id);
+    }
+    for (const key of Object.keys(byCell)){
+      const [Q, R] = key.split('_').map(Number);
+      const p = ME.subhexSvgCenter(Q, R);
+      const names = byCell[key].join(', ');
+      chunks.push(
+        `<g class="mv-marker mv-party">`
+        + `<polygon points="${p.x.toFixed(2)},${(p.y - 1.3).toFixed(2)} ${(p.x + 1.3).toFixed(2)},${p.y.toFixed(2)} ${p.x.toFixed(2)},${(p.y + 1.3).toFixed(2)} ${(p.x - 1.3).toFixed(2)},${p.y.toFixed(2)}"/>`
+        + `<text x="${p.x.toFixed(2)}" y="${(p.y + 2.6).toFixed(2)}">${esc(names)}</text>`
+        + `</g>`);
+    }
+
     svg.innerHTML = chunks.join('');
   }
   function scheduleRender(){
@@ -330,6 +387,7 @@ const ADNDMapView = (function(){
     card.innerHTML = `
       <div class="map-card">
         <h2>World Map</h2>
+        <div id="map-clock" class="map-clock"></div>
         <div class="map-hint">${esc(msg || 'drag to pan · wheel to zoom · click a marker')}</div>
         <svg id="map-svg" xmlns="http://www.w3.org/2000/svg"></svg>
       </div>`;
@@ -345,6 +403,10 @@ const ADNDMapView = (function(){
     if (p.has('q') && p.has('r')){
       return ME.subhexSvgCenter(+p.get('q'), +p.get('r'));
     }
+    const ch = Object.values(state.data.characters || {})
+      .find(c => c.currentLocation && Array.isArray(c.currentLocation.subHexCoord));
+    if (ch) return ME.subhexSvgCenter(
+      ch.currentLocation.subHexCoord[0], ch.currentLocation.subHexCoord[1]);
     const st = Object.values(state.data.settlements || {})
       .find(s => Array.isArray(s.subHexCoord));
     if (st) return ME.subhexSvgCenter(st.subHexCoord[0], st.subHexCoord[1]);
@@ -373,6 +435,13 @@ const ADNDMapView = (function(){
     const c = pickCenter();
     state.view.cx = c.x; state.view.cy = c.y; state.view.zoom = 1.6;
     state.svg = shell();
+    const clockEl = document.getElementById('map-clock');
+    if (clockEl){
+      const date = formatWorldDate(state.data.campaign && state.data.campaign.currentDate);
+      if (date) clockEl.textContent = date;
+      else if (campaignId()) clockEl.textContent = 'world date not set';
+      else clockEl.style.display = 'none';
+    }
     wireInput(state.svg);
     render();
     window.addEventListener('resize', scheduleRender);
@@ -388,5 +457,5 @@ const ADNDMapView = (function(){
     });
   }
 
-  return { ready, boot, render, internalToDarlene, darleneToInternal, state };
+  return { ready, boot, render, internalToDarlene, darleneToInternal, formatWorldDate, state };
 })();

@@ -1,4 +1,11 @@
-// adnd-chargen-view.js v1.0.0 — 2026-07-29
+// adnd-chargen-view.js v1.1.0 — 2026-08-11
+// v1.1.0 — save() stamps currentLocation on the character doc
+//          (schema §4.x shape: { regionalHexId, subHexCoord }).
+//          Spawn resolution order: campaigns/{cid}.spawnLocation if
+//          set → first settlement (sorted by id) with a subHexCoord
+//          → SPAWN_FALLBACK (O4-96 center). Data-driven so moving
+//          the campaign start is a Firestore edit, not a deploy.
+// v1.0.0 — 2026-07-29
 // Chargen UI + the characters/{charId} write path. URL: ?camp=<cid>.
 // Roll -> assign -> race/gender -> class -> save. All numbers come from
 // ADNDChargen (which reads the kernel); this file only collects input,
@@ -14,6 +21,9 @@
     str: 'Strength', int: 'Intelligence', wis: 'Wisdom',
     dex: 'Dexterity', con: 'Constitution', cha: 'Charisma',
   };
+  // Spawn fallback: O4-96's center subhex (Hommlet's parent hex).
+  const SPAWN_FALLBACK = { regionalHexId: 'O4-96', subHexCoord: [-170, 70] };
+
   const METHOD_LABELS = {
     I: 'I — 4d6 drop lowest, arrange',
     II: 'II — 12 × 3d6, best six, arrange',
@@ -291,6 +301,31 @@
     render();
   }
 
+  // Where a new character enters the world. campaigns/{cid}.spawnLocation
+  // wins if it matches the schema shape; else the first settlement
+  // (sorted by doc id) that carries a subHexCoord; else the constant.
+  async function resolveSpawn(db, cid) {
+    try {
+      if (cid) {
+        const camp = await db.collection('campaigns').doc(cid).get();
+        const sp = camp.exists && camp.data().spawnLocation;
+        if (sp && Array.isArray(sp.subHexCoord)) return sp;
+      }
+      const snap = await db.collection('settlements').get();
+      const docs = [];
+      snap.forEach(d => docs.push([d.id, d.data()]));
+      docs.sort((a, b) => a[0].localeCompare(b[0]));
+      for (const [, st] of docs) {
+        if (Array.isArray(st.subHexCoord)) {
+          return { regionalHexId: st.regionalHexId || null, subHexCoord: st.subHexCoord };
+        }
+      }
+    } catch (e) {
+      console.warn('[chargen] spawn resolution failed, using fallback:', e);
+    }
+    return SPAWN_FALLBACK;
+  }
+
   async function save() {
     const r = state.result;
     if (!r || !r.valid || state.saving) return;
@@ -301,8 +336,12 @@
     render();
     try {
       const stamp = firebase.firestore.FieldValue.serverTimestamp();
+      const spawn = await resolveSpawn(db, campaignId());
       const ref = db.collection('characters').doc();
-      const doc = Object.assign({}, r.doc, { id: ref.id, createdAt: stamp, updatedAt: stamp });
+      const doc = Object.assign({}, r.doc, {
+        id: ref.id, createdAt: stamp, updatedAt: stamp,
+        currentLocation: spawn,
+      });
       await ref.set(doc);
       state.saving = false;
       state.result = null;

@@ -189,3 +189,7 @@ button:hover { background: #e4b027; }
 .mv-marker:hover circle, .mv-marker:hover rect { fill: #c00; }
 .mv-freehold-ring { fill: rgba(91, 58, 122, .06); stroke: rgba(91, 58, 122, .5);
   stroke-width: .2; stroke-dasharray: 1 .6; pointer-events: none; }
+.map-clock { font-size: 13px; color: #5b3a1e; font-weight: bold; margin-bottom: 2px;
+  font-variant: small-caps; letter-spacing: .03em; }
+.mv-marker.mv-party polygon { fill: #c9a227; stroke: #fff; stroke-width: .25; }
+.mv-marker.mv-party text { fill: #4a3510; }
