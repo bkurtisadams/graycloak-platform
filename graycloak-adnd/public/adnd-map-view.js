@@ -1,4 +1,7 @@
-// adnd-map-view.js v1.1.0 — 2026-08-11
+// adnd-map-view.js v1.1.1 — 2026-08-13
+// v1.1.1 — river tier key fix: great_river (matches
+//          gcc-subhex-paths RIVER_TIERS), was greatriver. Width
+//          only; visibility was never affected.
 // v1.1.0 — party position + world clock (§6 milestone close-out).
 //          With ?camp=<cid>: loads campaigns/{cid} and characters
 //          where campaignId == cid; renders a party marker (gold
@@ -48,7 +51,7 @@ const ADNDMapView = (function(){
   };
   const RIVER_STROKE = 'rgb(70,140,175)';
   const ROAD_STROKE  = 'rgb(120,90,55)';
-  const RIVER_W = { stream: 0.35, river: 0.6, greatriver: 1.0 };
+  const RIVER_W = { stream: 0.35, river: 0.6, great_river: 1.0 };
 
   // Greyhawk common-year months, currentDate.month 1-12 (Fireseek = 1).
   const GREYHAWK_MONTHS = ['Fireseek', 'Readying', 'Coldeven', 'Planting',
