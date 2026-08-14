@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- kaiju-island.html v0.1.1 -->
+<!-- kaiju-island.html v0.2.0 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -29,11 +29,18 @@ html,body{height:100%;overflow:hidden;background:var(--sea-deep);font-family:-ap
 #threatplate{text-align:right}
 #threatlbl{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em}
 #threatval{font-size:15px;font-weight:800;color:var(--amber)}
-#turnval{font-size:11px;color:var(--dim)}
+#timeval{font-size:11px;color:var(--dim)}
+#pausebtn{margin-top:6px;padding:6px 14px;font-size:11px}
 #log{position:fixed;left:8px;right:8px;bottom:calc(76px + env(safe-area-inset-bottom));max-height:78px;overflow:hidden;
   pointer-events:none;display:flex;flex-direction:column;justify-content:flex-end;gap:2px}
 .logline{font-size:11.5px;background:#0b141ccc;border-radius:5px;padding:2px 8px;width:fit-content;max-width:100%}
 .logline.hit{color:var(--amber)}.logline.pain{color:#ff8f7a}.logline.ding{color:#b8e06a;font-weight:700}
+#turnbanner{position:fixed;top:calc(env(safe-area-inset-top) + 92px);left:50%;transform:translateX(-50%);
+  pointer-events:none;font-weight:900;font-size:15px;letter-spacing:.18em;text-transform:uppercase;
+  padding:6px 18px;border-radius:20px;opacity:0;transition:opacity .25s;z-index:5}
+#turnbanner.player{background:#233a16e0;color:#c9e88a;border:1px solid #436b26;opacity:1;animation:bannerpulse 1.6s ease-in-out 2}
+#turnbanner.enemy{background:#3a1616e0;color:#ff9d8a;border:1px solid #6b2626;opacity:1}
+@keyframes bannerpulse{0%,100%{transform:translateX(-50%) scale(1)}50%{transform:translateX(-50%) scale(1.08)}}
 #actions{position:fixed;left:0;right:0;bottom:0;display:flex;gap:8px;padding:8px 8px calc(8px + env(safe-area-inset-bottom));
   background:linear-gradient(#0000,#071722e0 40%)}
 button{font:inherit;color:var(--ink);background:#16283a;border:1px solid #2c4258;border-radius:10px;padding:12px 4px;flex:1;
@@ -42,27 +49,27 @@ button:disabled{opacity:.35}
 button.warn{background:#3a2416;border-color:#6b4426}
 button.go{background:#233a16;border-color:#436b26}
 #roarbtn small,#eatbtn small{display:block;font-weight:400;font-size:9px;color:var(--dim)}
+.cdring{display:block;font-weight:400;font-size:9px;color:var(--dim)}
 #overlay{position:fixed;inset:0;background:#071722f2;display:flex;align-items:center;justify-content:center;z-index:10}
 #overlay.hidden{display:none}
+#pauseveil{position:fixed;inset:0;background:#071722cc;display:flex;align-items:center;justify-content:center;z-index:9;
+  font-weight:900;font-size:24px;letter-spacing:.2em;text-transform:uppercase;color:var(--amber);flex-direction:column;gap:10px}
+#pauseveil.hidden{display:none}
+#pauseveil .tip{font-size:12px;font-weight:400;letter-spacing:.05em;color:var(--dim);text-transform:none}
 .card{max-width:340px;width:88%;text-align:center;padding:26px 22px;background:var(--panel);border:1px solid #223342;border-radius:14px}
 .card h1{font-size:30px;letter-spacing:.14em;font-weight:900;text-transform:uppercase;
   background:linear-gradient(180deg,#f0d9a0,var(--amber) 60%,#8a5a1a);-webkit-background-clip:text;background-clip:text;color:transparent}
 .card .sub{color:var(--dim);font-size:12px;letter-spacing:.2em;text-transform:uppercase;margin:2px 0 18px}
-.sheet{text-align:left;font-size:13px;background:#0b141c;border-radius:9px;padding:12px 14px;margin-bottom:16px;line-height:1.7}
+.sheet{text-align:left;font-size:13px;background:#0b141c;border-radius:9px;padding:12px 14px;margin-bottom:12px;line-height:1.7}
 .sheet b{color:var(--amber)}
+.howto{text-align:left;font-size:12px;color:var(--dim);background:#0b141c;border-radius:9px;padding:10px 14px;margin-bottom:16px;line-height:1.8}
+.howto b{color:var(--ink)}
 .card button{width:100%;padding:14px;font-size:15px}
 #resetlink{margin-top:14px;font-size:10px;color:#41586e;text-decoration:underline;background:none;border:none;width:auto;padding:4px;font-weight:400}
 #endtitle{font-size:22px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
 #endtitle.bad{color:var(--blood)}#endtitle.good{color:#b8e06a}
-#turnbanner{position:fixed;top:calc(env(safe-area-inset-top) + 92px);left:50%;transform:translateX(-50%);
-  pointer-events:none;font-weight:900;font-size:15px;letter-spacing:.18em;text-transform:uppercase;
-  padding:6px 18px;border-radius:20px;opacity:0;transition:opacity .25s;z-index:5}
-#turnbanner.player{background:#233a16e0;color:#c9e88a;border:1px solid #436b26;opacity:1;animation:bannerpulse 1.6s ease-in-out 3}
-#turnbanner.enemy{background:#3a1616e0;color:#ff9d8a;border:1px solid #6b2626;opacity:1}
-@keyframes bannerpulse{0%,100%{transform:translateX(-50%) scale(1)}50%{transform:translateX(-50%) scale(1.08)}}
-.howto{text-align:left;font-size:12px;color:var(--dim);background:#0b141c;border-radius:9px;padding:10px 14px;margin-bottom:16px;line-height:1.8}
-.howto b{color:var(--ink)}
 #endbody{color:var(--dim);font-size:13px;margin-bottom:18px;line-height:1.5}
+.hidden{display:none!important}
 </style>
 </head>
 <body>
@@ -79,7 +86,8 @@ button.go{background:#233a16;border-color:#436b26}
   <div class="plate" id="threatplate">
     <div id="threatlbl">Threat</div>
     <div id="threatval">—</div>
-    <div id="turnval">Turn 1</div>
+    <div id="timeval">0:00</div>
+    <button id="pausebtn">⏸ PAUSE</button>
   </div>
 </div>
 
@@ -90,8 +98,9 @@ button.go{background:#233a16;border-color:#436b26}
   <button id="roarbtn" disabled>ROAR<small>locked</small></button>
   <button id="eatbtn" disabled>EAT<small>no corpse</small></button>
   <button id="withdrawbtn" class="go" disabled>WITHDRAW</button>
-  <button id="endbtn" class="warn">END TURN</button>
 </div>
+
+<div id="pauseveil" class="hidden">PAUSED<div class="tip">tap anywhere to resume</div></div>
 
 <div id="overlay">
   <div class="card" id="startcard">
@@ -99,11 +108,11 @@ button.go{background:#233a16;border-color:#436b26}
     <div class="sub">Zone 1 · The Island</div>
     <div class="sheet" id="sheetbox"></div>
     <div class="howto">
-      <b>Tap a glowing hex</b> — move there<br>
-      <b>Tap a red-ringed target</b> — bite it (6s kill)<br>
+      <b>Tap ground</b> — walk there<br>
+      <b>Tap a target</b> — attack it until it's gone (6s kill)<br>
       <b>Eat corpses</b> — recover hit dice<br>
       <b>Reach the shore &amp; Withdraw</b> — bank your XP<br>
-      <b>Pinch to zoom · drag to pan</b>
+      <b>Pinch to zoom · drag to pan · ⏸ any time</b>
     </div>
     <button id="beginbtn" class="go">BEGIN RAMPAGE</button>
     <button id="resetlink">reset monster</button>
@@ -117,8 +126,14 @@ button.go{background:#233a16;border-color:#436b26}
 
 <script>
 'use strict';
-const GAME_VERSION='0.1.1';
+const GAME_VERSION='0.2.0';
 const SAVE_KEY='kaiju.save.v1';
+
+/* ---------- tuning ---------- */
+const MON_SPEED=1.7, MON_SPEED_DESPERATE=1.1;   // hex/sec
+const BITE_CD=1.3, ROAR_CD=12, FEAR_DUR=4;
+const MIL_SPEED=0.8, MIL_SHOT_CD=2.0, MIL_RANGE=2;
+const WILD_SPEED=1.2, FLEE_RADIUS=3;
 
 /* ---------- rng ---------- */
 function mulberry(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
@@ -139,7 +154,7 @@ function cubeRound(q,r){let x=q,z=r,y=-x-z,rx=Math.round(x),ry=Math.round(y),rz=
 
 /* ---------- map ---------- */
 const R=7;
-const map=new Map(); // key -> {q,r,terrain}
+const map=new Map();
 (function genTerrain(){
   const c={q:0,r:0};
   for(let q=-R;q<=R;q++)for(let r=Math.max(-R,-q-R);r<=Math.min(R,-q+R);r++){
@@ -167,31 +182,30 @@ function defaultMon(){return{level:1,banked:0,maxHd:6,mv:3,str:1,tough:0,abiliti
 function loadMon(){try{const s=JSON.parse(localStorage.getItem(SAVE_KEY));if(s&&s.maxHd)return s}catch(e){}return defaultMon()}
 function saveMon(){localStorage.setItem(SAVE_KEY,JSON.stringify(mon))}
 
-/* ---------- session state ---------- */
-let S=null;
+/* ---------- session ---------- */
+let S=null,mid=0;
 function newSession(){
   rng=mulberry(Date.now()&0xffffffff);
-  S={turn:1,phase:'player',sessionXp:0,threat:0,destroyed:0,over:false,
-     monster:{q:0,r:0,hd:mon.maxHd,mvLeft:mon.mv,acted:false,roarCd:0},
-     units:[],structures:new Map(),corpses:new Map(),feared:new Map(),
-     reach:new Map(),spawnsDone:0};
-  // structures: village cluster east, lighthouse south tip
+  S={t:0,paused:false,over:false,sessionXp:0,threat:0,destroyed:0,
+     monster:{q:0,r:0,from:null,prog:0,path:[],target:null,biteReady:0,roarReady:0,hdLost:0},
+     units:[],structures:new Map(),corpses:new Map()};
   const east=landHexes.filter(h=>h.q>=2&&h.terrain!=='forest').sort((a,b)=>hexDist(b,{q:0,r:0})-hexDist(a,{q:0,r:0}));
   const vs=east.slice(0,6);
   vs.forEach((h,i)=>{if(!(h.q===0&&h.r===0))S.structures.set(key(h.q,h.r),{q:h.q,r:h.r,type:i===0?'longhouse':'hut',hits:i===0?2:1})});
   const south=landHexes.filter(h=>h.r>=3).sort((a,b)=>b.r-a.r)[0];
   if(south)S.structures.set(key(south.q,south.r),{q:south.q,r:south.r,type:'lighthouse',hits:3});
-  // wildlife
   const open=landHexes.filter(h=>!S.structures.has(key(h.q,h.r))&&hexDist(h,{q:0,r:0})>1);
   for(let i=0;i<6&&open.length;i++){
     const h=open.splice(Math.floor(rng()*open.length),1)[0];
-    S.units.push({id:'w'+i,kind:'wildlife',emoji:rng()<0.5?'🐗':'🦌',q:h.q,r:h.r});
+    S.units.push(mkUnit('wildlife',rng()<0.5?'🐗':'🦌',h.q,h.r));
   }
-  // starting militia pair near village
   spawnMilitia(2);
-  computeReach();updateHud();
+  updateHud(true);
 }
-let mid=0;
+function mkUnit(kind,emoji,q,r){
+  return{id:kind[0]+(mid++),kind,emoji,q,r,from:null,prog:0,
+    nextMove:S.t+rng(),nextShot:S.t+1+rng()*2,fearUntil:0};
+}
 function spawnMilitia(n){
   const anchors=[...S.structures.values()].filter(s=>s.type!=='lighthouse');
   for(let i=0;i<n;i++){
@@ -199,7 +213,7 @@ function spawnMilitia(n){
     const spot=neighbors(a.q,a.r).map(p=>map.get(key(p.q,p.r)))
       .filter(h=>h&&h.terrain!=='water'&&!occupied(h.q,h.r));
     if(spot.length){const h=spot[Math.floor(rng()*spot.length)];
-      S.units.push({id:'m'+(mid++),kind:'militia',emoji:'🪖',q:h.q,r:h.r})}
+      S.units.push(mkUnit('militia','🪖',h.q,h.r))}
   }
 }
 function occupied(q,r){
@@ -209,37 +223,84 @@ function occupied(q,r){
 }
 function unitAt(q,r){return S.units.find(u=>u.q===q&&u.r===r)}
 
-/* ---------- reachability ---------- */
-function computeReach(){
-  S.reach.clear();
-  const start={q:S.monster.q,r:S.monster.r};
-  const frontier=[{...start,d:0}];S.reach.set(key(start.q,start.r),0);
+/* ---------- pathfinding (BFS, avoids water/structures/units) ---------- */
+function findPath(start,goalPred,allowGoalOccupied){
+  const startK=key(start.q,start.r);
+  const prev=new Map();prev.set(startK,null);
+  const frontier=[start];
   while(frontier.length){
     const c=frontier.shift();
-    if(c.d>=S.monster.mvLeft)continue;
+    if(goalPred(c)&&key(c.q,c.r)!==startK){
+      const path=[];let k=key(c.q,c.r);
+      while(k&&k!==startK){path.unshift(k);k=prev.get(k)}
+      return path.map(s=>{const[q,r]=s.split(',').map(Number);return{q,r}});
+    }
     for(const nb of neighbors(c.q,c.r)){
       const k=key(nb.q,nb.r);
-      if(S.reach.has(k))continue;
+      if(prev.has(k))continue;
       if(!isLand(nb.q,nb.r))continue;
-      if(S.structures.has(k))continue;
-      if(unitAt(nb.q,nb.r))continue;
-      S.reach.set(k,c.d+1);
-      frontier.push({q:nb.q,r:nb.r,d:c.d+1});
+      const blocked=S.structures.has(k)||unitAt(nb.q,nb.r);
+      if(blocked&&!(allowGoalOccupied&&goalPred(nb)))continue;
+      prev.set(k,key(c.q,c.r));
+      frontier.push(nb);
     }
   }
+  return null;
+}
+
+/* ---------- monster orders ---------- */
+function orderMove(q,r){
+  const m=S.monster;
+  m.target=null;
+  const path=findPath({q:m.q,r:m.r},h=>h.q===q&&h.r===r,false);
+  if(path)m.path=path;
+}
+function orderAttack(tgt){ // tgt: {struct:key} or {unit:id}
+  const m=S.monster;
+  m.target=tgt;m.path=[];
+  replanAttackPath();
+}
+function targetPos(){
+  const t=S.monster.target;
+  if(!t)return null;
+  if(t.struct){const s=S.structures.get(t.struct);return s?{q:s.q,r:s.r}:null}
+  const u=S.units.find(u=>u.id===t.unit);return u?{q:u.q,r:u.r}:null;
+}
+function replanAttackPath(){
+  const m=S.monster,tp=targetPos();
+  if(!tp){m.target=null;return}
+  if(hexDist(m,tp)<=1){m.path=[];return}
+  const path=findPath({q:m.q,r:m.r},h=>hexDist(h,tp)<=1&&isLand(h.q,h.r)&&!S.structures.has(key(h.q,h.r)),false);
+  m.path=path||[];
 }
 
 /* ---------- combat ---------- */
 function rollPool(n){const rolls=[];for(let i=0;i<n;i++)rolls.push(d6());return rolls}
-function bite(target){
-  const pool=S.monster.hd+mon.str;
+function doBite(){
+  const m=S.monster,tp=targetPos();
+  if(!tp)return;
+  const pool=hd()+mon.str;
   const rolls=rollPool(pool);
   const hits=rolls.filter(v=>v===6).length;
   log(`Bite: [${rolls.join(' ')}] — ${hits} hit${hits===1?'':'s'}`,hits?'hit':'');
-  S.monster.acted=true;
-  if(hits>0)killUnit(target);
-  else log('It survives!');
-  afterAction();
+  m.biteReady=S.t+BITE_CD;
+  const t=m.target;
+  if(t.struct){
+    const st=S.structures.get(t.struct);
+    if(!st)return;
+    if(hits>0){st.hits-=hits;
+      if(st.hits<=0){
+        S.structures.delete(t.struct);
+        award(XP[st.type],cap(st.type)+' destroyed');
+        S.destroyed++;checkThreat();m.target=null;
+      }else log(cap(st.type)+' damaged');
+    }else log('The '+st.type+' stands.');
+  }else{
+    const u=S.units.find(u=>u.id===t.unit);
+    if(!u)return;
+    if(hits>0){killUnit(u);m.target=null}
+    else log('It survives!');
+  }
 }
 function killUnit(u){
   S.units=S.units.filter(x=>x.id!==u.id);
@@ -252,31 +313,39 @@ function checkThreat(){
   if(lvl>S.threat){S.threat=lvl;
     const n=1+lvl;spawnMilitia(n);
     log(`⚠ Threat rises — ${n} militia arrive`,'pain');
+    setBanner('enemy','REINFORCEMENTS');
   }
-  updateHud();
 }
-function roar(){
-  S.monster.acted=true;S.monster.roarCd=3;
+function doRoar(){
+  const m=S.monster;
+  if(!mon.abilities.includes('roar')||S.t<m.roarReady||S.paused||S.over)return;
+  m.roarReady=S.t+ROAR_CD;
   let n=0;
   for(const u of S.units){
     if(u.kind!=='militia')continue;
-    if(hexDist(u,S.monster)<=2){S.feared.set(u.id,2);n++}
+    if(hexDist(u,m)<=2){u.fearUntil=S.t+FEAR_DUR;n++}
   }
   log(`ROAR! ${n} militia flee in terror`,'hit');
-  afterAction();
 }
-function eat(){
-  const here=key(S.monster.q,S.monster.r);
-  let ck=S.corpses.has(here)?here:null;
-  if(!ck)for(const nb of neighbors(S.monster.q,S.monster.r)){const k=key(nb.q,nb.r);if(S.corpses.has(k)){ck=k;break}}
+function corpseNearKey(){
+  const m=S.monster;
+  if(S.corpses.has(key(m.q,m.r)))return key(m.q,m.r);
+  for(const nb of neighbors(m.q,m.r)){const k=key(nb.q,nb.r);if(S.corpses.has(k))return k}
+  return null;
+}
+function doEat(){
+  const m=S.monster;
+  if(S.paused||S.over||S.t<m.biteReady)return;
+  const ck=corpseNearKey();
   if(!ck)return;
   S.corpses.delete(ck);
-  S.monster.acted=true;
-  if(S.monster.hd<mon.maxHd){S.monster.hd++;log('Devoured — recover 1 hit die','hit')}
+  m.biteReady=S.t+BITE_CD;
+  if(hd()<mon.maxHd){S.monster.hdLost=Math.max(0,S.monster.hdLost-1);log('Devoured — recover 1 hit die','hit')}
   else log('Devoured');
   award(XP.eat,'');
-  afterAction();
 }
+function hd(){return mon.maxHd-(S.monster.hdLost||0)}
+function loseHd(){S.monster.hdLost=(S.monster.hdLost||0)+1}
 function award(x,msg){
   S.sessionXp+=x;
   if(msg)log(`+${x} XP · ${msg}`);
@@ -284,84 +353,129 @@ function award(x,msg){
   const newL=levelForXp(total);
   if(newL>mon.level){
     mon.level=newL;
-    mon.banked=Math.max(mon.banked,xpForLevel(newL)); // floor: never de-level
-    mon.maxHd+=1;S.monster.hd=Math.min(S.monster.hd+1,mon.maxHd);
+    mon.maxHd+=1;
     log(`★ LEVEL ${newL} — +1 hit die`,'ding');
+    setBanner('player','LEVEL '+newL);
     if(newL===2&&!mon.abilities.includes('roar')){
       mon.abilities.push('roar');
       log('★ New ability: ROAR','ding');
     }
     saveMon();
   }
-  updateHud();
+}
+function woundState(){
+  const f=hd()/mon.maxHd;
+  return f>2/3?'full':f>1/3?'wounded':'desperate';
 }
 
-/* ---------- turn flow ---------- */
-function afterAction(){computeReach();updateHud();draw()}
-function endTurn(){
-  if(S.over)return;
-  S.phase='enemy';updateHud();
-  setBanner('enemy','MILITIA ACT');
-  setTimeout(enemyPhase,400);
+/* ---------- movers ---------- */
+function stepMover(e,speed,dt){ // returns true when idle at a hex
+  if(e.from){
+    e.prog+=speed*dt;
+    if(e.prog>=1){e.from=null;e.prog=0;return true}
+    return false;
+  }
+  return true;
 }
-function enemyPhase(){
-  // fear decay handled per-unit below
+function beginStep(e,to){ // reserve destination immediately
+  e.from={q:e.q,r:e.r};e.prog=0;e.q=to.q;e.r=to.r;
+}
+function renderPos(e,s){
+  const a=hexToPix(e.q,e.r,s);
+  if(!e.from)return a;
+  const b=hexToPix(e.from.q,e.from.r,s);
+  const t=e.prog;
+  return{x:b.x+(a.x-b.x)*t,y:b.y+(a.y-b.y)*t};
+}
+
+/* ---------- sim ---------- */
+function sim(dt){
+  if(S.paused||S.over)return;
+  S.t+=dt;
+  const m=S.monster;
+  const speed=(woundState()==='desperate'?MON_SPEED_DESPERATE:MON_SPEED);
+  // monster movement
+  if(stepMover(m,speed,dt)){
+    if(m.target){
+      const tp=targetPos();
+      if(!tp)m.target=null;
+      else if(hexDist(m,tp)<=1){
+        if(S.t>=m.biteReady)doBite();
+      }else{
+        if(!m.path.length||hexDist(m.path[m.path.length-1],tp)>1)replanAttackPath();
+        advancePath(m);
+      }
+    }else if(m.path.length)advancePath(m);
+  }
+  // units
   for(const u of [...S.units]){
-    const d=hexDist(u,S.monster);
+    if(!stepMover(u,u.kind==='militia'?MIL_SPEED:WILD_SPEED,dt))continue;
+    const d=hexDist(u,m);
     if(u.kind==='wildlife'){
-      if(d<=3)stepAway(u);
+      if(d<=FLEE_RADIUS&&S.t>=u.nextMove){stepAway(u);u.nextMove=S.t+0.4+rng()*0.4}
       continue;
     }
-    const fear=S.feared.get(u.id)||0;
-    if(fear>0){S.feared.set(u.id,fear-1);stepAway(u);continue}
-    if(d<=2){
-      const roll=d6();
-      if(roll===6&&mon.tough<=0){
-        S.monster.hd--;
-        log(`Militia fire hits! [${roll}] — lose 1 hit die`,'pain');
-        flashPain();
-        if(S.monster.hd<=0){drivenOff();return}
-      }else if(roll===6){
-        log(`Militia fire glances off hide [${roll}]`);
-      }else{
-        log(`Militia fire misses [${roll}]`);
+    if(u.fearUntil>S.t){
+      if(S.t>=u.nextMove){stepAway(u);u.nextMove=S.t+0.4}
+      continue;
+    }
+    if(d<=MIL_RANGE){
+      if(S.t>=u.nextShot){
+        u.nextShot=S.t+MIL_SHOT_CD*(0.85+rng()*0.3);
+        const roll=d6();
+        if(roll===6&&mon.tough<=0){
+          loseHd();
+          log(`Militia fire hits! [${roll}] — lose 1 hit die`,'pain');
+          flashPain();
+          if(hd()<=0){drivenOff();return}
+        }else if(roll===6){
+          log(`Fire glances off hide [${roll}]`);
+        }
       }
-    }else stepToward(u);
+    }else if(S.t>=u.nextMove){
+      stepToward(u);u.nextMove=S.t+0.15;
+    }
   }
-  S.turn++;S.phase='player';
-  if(S.monster.roarCd>0)S.monster.roarCd--;
-  S.monster.mvLeft=mon.mv-(woundState()==='desperate'?1:0);
-  S.monster.acted=false;
-  setBanner('player','YOUR TURN');
-  computeReach();updateHud();draw();
 }
-let bannerTimer=null;
-function setBanner(cls,txt){
-  const b=document.getElementById('turnbanner');
-  b.className='';void b.offsetWidth;
-  b.textContent=txt;b.className=cls;
-  clearTimeout(bannerTimer);
-  bannerTimer=setTimeout(()=>{b.className=''},cls==='player'?2200:1400);
+function advancePath(m){
+  const next=m.path[0];
+  if(!next)return;
+  if(!isLand(next.q,next.r)||S.structures.has(key(next.q,next.r))||unitAt(next.q,next.r)){
+    // blocked — replan
+    if(m.target)replanAttackPath();
+    else{const goal=m.path[m.path.length-1];m.path=findPath({q:m.q,r:m.r},h=>h.q===goal.q&&h.r===goal.r,false)||[]}
+    return;
+  }
+  m.path.shift();
+  beginStep(m,next);
 }
 function stepToward(u){
   const opts=neighbors(u.q,u.r).filter(p=>isLand(p.q,p.r)&&!occupied(p.q,p.r));
   if(!opts.length)return;
   opts.sort((a,b)=>hexDist(a,S.monster)-hexDist(b,S.monster));
-  if(hexDist(opts[0],S.monster)<hexDist(u,S.monster)){u.q=opts[0].q;u.r=opts[0].r}
+  if(hexDist(opts[0],S.monster)<hexDist(u,S.monster))beginStep(u,opts[0]);
 }
 function stepAway(u){
   const opts=neighbors(u.q,u.r).filter(p=>isLand(p.q,p.r)&&!occupied(p.q,p.r));
   if(!opts.length)return;
   opts.sort((a,b)=>hexDist(b,S.monster)-hexDist(a,S.monster));
-  if(hexDist(opts[0],S.monster)>hexDist(u,S.monster)){u.q=opts[0].q;u.r=opts[0].r}
-}
-function woundState(){
-  const f=S.monster.hd/mon.maxHd;
-  return f>2/3?'full':f>1/3?'wounded':'desperate';
+  if(hexDist(opts[0],S.monster)>hexDist(u,S.monster))beginStep(u,opts[0]);
 }
 
+/* ---------- pause ---------- */
+function setPaused(p){
+  if(!S||S.over)return;
+  S.paused=p;
+  document.getElementById('pauseveil').classList.toggle('hidden',!p);
+  document.getElementById('pausebtn').textContent=p?'▶ RESUME':'⏸ PAUSE';
+}
+document.addEventListener('visibilitychange',()=>{if(document.hidden)setPaused(true)});
+addEventListener('blur',()=>setPaused(true));
+document.getElementById('pauseveil').addEventListener('pointerdown',()=>setPaused(false));
+document.getElementById('pausebtn').onclick=()=>setPaused(!S.paused);
+
 /* ---------- visit end ---------- */
-function nearWater(){return neighbors(S.monster.q,S.monster.r).some(p=>{const h=map.get(key(p.q,p.r));return !h||h.terrain==='water'})}
+function nearWater(){const m=S.monster;return !m.from&&neighbors(m.q,m.r).some(p=>{const h=map.get(key(p.q,p.r));return !h||h.terrain==='water'})}
 function withdraw(){
   S.over=true;
   mon.banked+=S.sessionXp;saveMon();
@@ -370,11 +484,13 @@ function withdraw(){
 }
 function drivenOff(){
   S.over=true;
-  saveMon(); // level floor already banked on ding
+  mon.banked=Math.max(mon.banked,xpForLevel(mon.level)); // never de-level
+  saveMon();
   showEnd('bad','Driven Off',
     `Wounded and shrieking, it flees to the sea.<br>Session XP lost — the island remembers.`);
 }
 function showEnd(cls,title,body){
+  document.getElementById('pauseveil').classList.add('hidden');
   document.getElementById('startcard').classList.add('hidden');
   const ec=document.getElementById('endcard');ec.classList.remove('hidden');
   const t=document.getElementById('endtitle');t.textContent=title;t.className=cls;
@@ -383,13 +499,17 @@ function showEnd(cls,title,body){
 }
 
 /* ---------- hud / log ---------- */
-function updateHud(){
+let lastHud=0;
+function updateHud(force){
+  if(!force&&performance.now()-lastHud<150)return;
+  lastHud=performance.now();
   document.getElementById('namept').textContent=(NAMES[mon.level]||'Apex')+' · Lv '+mon.level;
   const hr=document.getElementById('hdrow');hr.innerHTML='';
-  for(let i=0;i<mon.maxHd;i++){const p=document.createElement('div');p.className='pip'+(S&&i<S.monster.hd?'':' off');hr.appendChild(p)}
+  const cur=S?hd():mon.maxHd;
+  for(let i=0;i<mon.maxHd;i++){const p=document.createElement('div');p.className='pip'+(i<cur?'':' off');hr.appendChild(p)}
   const ws=S?woundState():'full';
   const st=document.getElementById('state');
-  st.textContent=ws==='full'?'Unhurt':ws==='wounded'?'Wounded':'DESPERATE (move −1)';
+  st.textContent=ws==='full'?'Unhurt':ws==='wounded'?'Wounded':'DESPERATE (slowed)';
   st.className=ws==='full'?'':ws;
   const total=mon.banked+(S?S.sessionXp:0);
   const lo=xpForLevel(mon.level),hi=xpForLevel(Math.min(12,mon.level+1));
@@ -398,23 +518,32 @@ function updateHud(){
   document.getElementById('xptxt').textContent=total+' xp'+(S?` (+${S.sessionXp} this visit)`:'')+(mon.level<12?` · next ${hi}`:'');
   if(S){
     document.getElementById('threatval').textContent=['Calm','Alarmed','Mobilized','Full Alert'][S.threat];
-    document.getElementById('turnval').textContent=(S.phase==='player'?'Your turn ':'…')+'· T'+S.turn;
-    document.getElementById('withdrawbtn').disabled=!(S.phase==='player'&&nearWater());
-    document.getElementById('endbtn').disabled=S.phase!=='player';
+    const mm=Math.floor(S.t/60),ss=Math.floor(S.t%60);
+    document.getElementById('timeval').textContent=mm+':'+String(ss).padStart(2,'0');
+    document.getElementById('withdrawbtn').disabled=!(!S.over&&nearWater());
     const rb=document.getElementById('roarbtn');
     const hasRoar=mon.abilities.includes('roar');
-    rb.disabled=!(hasRoar&&S.phase==='player'&&!S.monster.acted&&S.monster.roarCd===0);
-    rb.querySelector('small').textContent=!hasRoar?'locked · Lv 2':S.monster.roarCd>0?'cooldown '+S.monster.roarCd:'scatter foes';
+    const roarCd=Math.max(0,S.monster.roarReady-S.t);
+    rb.disabled=!(hasRoar&&!S.over&&roarCd<=0);
+    rb.querySelector('small').textContent=!hasRoar?'locked · Lv 2':roarCd>0?'cooldown '+Math.ceil(roarCd)+'s':'scatter foes';
     const eb=document.getElementById('eatbtn');
-    let corpseNear=S.corpses.has(key(S.monster.q,S.monster.r))||neighbors(S.monster.q,S.monster.r).some(p=>S.corpses.has(key(p.q,p.r)));
-    eb.disabled=!(S.phase==='player'&&!S.monster.acted&&corpseNear);
-    eb.querySelector('small').textContent=corpseNear?'+1 die':'no corpse';
+    const cn=corpseNearKey();
+    eb.disabled=!(!S.over&&cn&&S.t>=S.monster.biteReady);
+    eb.querySelector('small').textContent=cn?'+1 die':'no corpse';
   }
 }
 function log(msg,cls){
   const el=document.createElement('div');el.className='logline '+(cls||'');el.textContent=msg;
   const box=document.getElementById('log');box.appendChild(el);
   while(box.children.length>4)box.removeChild(box.firstChild);
+}
+let bannerTimer=null;
+function setBanner(cls,txt){
+  const b=document.getElementById('turnbanner');
+  b.className='';void b.offsetWidth;
+  b.textContent=txt;b.className=cls;
+  clearTimeout(bannerTimer);
+  bannerTimer=setTimeout(()=>{b.className=''},1800);
 }
 
 /* ---------- render ---------- */
@@ -423,7 +552,7 @@ let hexSize=34,cam={x:0,y:0},painFlash=0;
 const ZOOM_MIN=16,ZOOM_MAX=64;
 function flashPain(){painFlash=1}
 function centerOnMonster(){
-  const p=S?hexToPix(S.monster.q,S.monster.r,hexSize):{x:0,y:0};
+  const p=S?renderPos(S.monster,hexSize):{x:0,y:0};
   cam.x=innerWidth/2-p.x;cam.y=(innerHeight-80)/2-p.y;
 }
 function resize(){
@@ -451,9 +580,7 @@ let t0=performance.now();
 function draw(){
   const t=(performance.now()-t0)/1000;
   ctx.fillStyle='#071722';ctx.fillRect(0,0,innerWidth,innerHeight);
-  // mainland teaser
-  ctx.fillStyle='#122733';
-  ctx.fillRect(0,0,innerWidth,34);
+  ctx.fillStyle='#122733';ctx.fillRect(0,0,innerWidth,34);
   ctx.fillStyle='#41586e';ctx.font='10px sans-serif';ctx.textAlign='center';
   ctx.fillText('▲ THE MAINLAND · THREAT 2–4 · (someday)',innerWidth/2,54);
   for(const h of map.values()){
@@ -461,32 +588,22 @@ function draw(){
     const x=p.x+cam.x,y=p.y+cam.y;
     hexPath(x,y,hexSize-0.6);
     ctx.fillStyle=TCOL[h.terrain];ctx.fill();
-    if(h.terrain==='water'){ctx.strokeStyle='#0a2233';}else{ctx.strokeStyle='#0006';}
+    ctx.strokeStyle=h.terrain==='water'?'#0a2233':'#0006';
     ctx.lineWidth=1;ctx.stroke();
     if(h.terrain==='forest'){ctx.font=hexSize*0.8+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('🌲',x,y)}
   }
   if(S&&!S.over){
-    // reachable highlight
-    if(S.phase==='player'){
-      const pulse=0.25+0.12*Math.sin(t*4);
-      for(const k of S.reach.keys()){
-        if(k===key(S.monster.q,S.monster.r))continue;
-        const[q,r]=k.split(',').map(Number);
-        const p=hexToPix(q,r,hexSize);
-        hexPath(p.x+cam.x,p.y+cam.y,hexSize-3);
-        ctx.fillStyle=`rgba(224,165,58,${pulse})`;ctx.fill();
-      }
-      // attackable outline
-      if(!S.monster.acted)for(const nb of neighbors(S.monster.q,S.monster.r)){
-        const k=key(nb.q,nb.r);
-        if(S.structures.has(k)||unitAt(nb.q,nb.r)){
-          const p=hexToPix(nb.q,nb.r,hexSize);
-          hexPath(p.x+cam.x,p.y+cam.y,hexSize-2);
-          ctx.strokeStyle='#c0392b';ctx.lineWidth=2.5;ctx.stroke();
-        }
-      }
-    }
     ctx.textAlign='center';ctx.textBaseline='middle';
+    // destination marker
+    const m=S.monster;
+    const dest=m.target?targetPos():(m.path.length?m.path[m.path.length-1]:null);
+    if(dest){
+      const p=hexToPix(dest.q,dest.r,hexSize);
+      const pulse=0.35+0.2*Math.sin(t*5);
+      hexPath(p.x+cam.x,p.y+cam.y,hexSize-3);
+      ctx.strokeStyle=m.target?`rgba(192,57,43,${pulse+0.3})`:`rgba(224,165,58,${pulse+0.3})`;
+      ctx.lineWidth=2.5;ctx.stroke();
+    }
     for(const c of S.corpses.values()){
       const p=hexToPix(c.q,c.r,hexSize);
       ctx.font=hexSize*0.7+'px serif';ctx.fillText('🍖',p.x+cam.x,p.y+cam.y);
@@ -496,17 +613,28 @@ function draw(){
       ctx.font=hexSize*0.95+'px serif';ctx.fillText(SEMOJI[s.type],p.x+cam.x,p.y+cam.y);
     }
     for(const u of S.units){
-      const p=hexToPix(u.q,u.r,hexSize);
-      const feared=S.feared.get(u.id)>0;
+      const p=renderPos(u,hexSize);
+      const feared=u.fearUntil>S.t;
       ctx.font=hexSize*0.8+'px serif';
       ctx.globalAlpha=feared?0.6:1;
       ctx.fillText(u.emoji,p.x+cam.x,p.y+cam.y);
       if(feared){ctx.font=hexSize*0.4+'px serif';ctx.fillText('💦',p.x+cam.x+hexSize*0.4,p.y+cam.y-hexSize*0.4)}
       ctx.globalAlpha=1;
     }
-    const mp=hexToPix(S.monster.q,S.monster.r,hexSize);
+    const mp=renderPos(m,hexSize);
+    // bite cooldown arc
+    const cd=(m.biteReady-S.t)/BITE_CD;
+    if(cd>0){
+      ctx.beginPath();ctx.arc(mp.x+cam.x,mp.y+cam.y,hexSize*0.85,-Math.PI/2,-Math.PI/2+2*Math.PI*(1-cd));
+      ctx.strokeStyle='#e0a53a88';ctx.lineWidth=3;ctx.stroke();
+    }
     ctx.font=hexSize*1.25+'px serif';
     ctx.fillText('🦖',mp.x+cam.x,mp.y+cam.y-2);
+    // soft camera follow while walking
+    if(m.from){
+      const tx=innerWidth/2-mp.x,ty=(innerHeight-80)/2-mp.y;
+      cam.x+=(tx-cam.x)*0.06;cam.y+=(ty-cam.y)*0.06;
+    }
   }
   if(painFlash>0){
     ctx.fillStyle=`rgba(192,57,43,${painFlash*0.28})`;
@@ -514,13 +642,21 @@ function draw(){
     painFlash=Math.max(0,painFlash-0.05);
   }
 }
-function loop(){draw();requestAnimationFrame(loop)}
+let lastFrame=performance.now();
+function loop(){
+  const now=performance.now();
+  let dt=(now-lastFrame)/1000;lastFrame=now;
+  if(dt>0.1)dt=0.1; // clamp: background tabs, hitches
+  if(S)sim(dt);
+  draw();
+  if(S)updateHud();
+  requestAnimationFrame(loop);
+}
 requestAnimationFrame(loop);
 
 /* ---------- input: tap / pan / pinch ---------- */
 const ptrs=new Map();
-let gesture=null; // 'pan' | 'pinch' | null
-let panStart=null,pinchStart=null;
+let gesture=null,panStart=null,pinchStart=null;
 cv.addEventListener('pointerdown',ev=>{
   cv.setPointerCapture(ev.pointerId);
   ptrs.set(ev.pointerId,{x:ev.clientX,y:ev.clientY,sx:ev.clientX,sy:ev.clientY});
@@ -551,7 +687,7 @@ cv.addEventListener('pointermove',ev=>{
 function endPtr(ev){
   const p=ptrs.get(ev.pointerId);
   ptrs.delete(ev.pointerId);
-  if(ptrs.size>0)return; // wait for all fingers up
+  if(ptrs.size>0)return;
   const wasTap=gesture===null&&p;
   gesture=null;panStart=null;pinchStart=null;
   if(wasTap)handleTap(p.sx,p.sy);
@@ -560,57 +696,29 @@ cv.addEventListener('pointerup',endPtr);
 cv.addEventListener('pointercancel',endPtr);
 
 function handleTap(cx,cy){
-  if(!S||S.over||S.phase!=='player')return;
+  if(!S||S.over)return;
+  if(S.paused){setPaused(false);return}
   const rect=cv.getBoundingClientRect();
   const h=pixToHex(cx-rect.left-cam.x,cy-rect.top-cam.y,hexSize);
   const k=key(h.q,h.r);
-  const dist=hexDist(h,S.monster);
-  if(dist===1&&!S.monster.acted){
-    if(S.structures.has(k)){biteStructAt(k);return}
-    const u=unitAt(h.q,h.r);
-    if(u){bite(u);return}
-  }
-  if(S.reach.has(k)&&k!==key(S.monster.q,S.monster.r)){
-    const cost=S.reach.get(k);
-    S.monster.q=h.q;S.monster.r=h.r;
-    S.monster.mvLeft-=cost;
-    centerOnMonster();
-    computeReach();updateHud();
-  }
-}
-
-/* structure bite needs direct ref — replace proxy approach */
-function biteStructAt(k){
-  const st=S.structures.get(k);
-  if(!st)return;
-  const pool=S.monster.hd+mon.str;
-  const rolls=rollPool(pool);
-  const hits=rolls.filter(v=>v===6).length;
-  log(`Bite: [${rolls.join(' ')}] — ${hits} hit${hits===1?'':'s'}`,hits?'hit':'');
-  S.monster.acted=true;
-  if(hits>0){st.hits-=hits;
-    if(st.hits<=0){
-      S.structures.delete(k);
-      award(XP[st.type],cap(st.type)+' destroyed');
-      S.destroyed++;checkThreat();
-    }else log(cap(st.type)+' damaged');
-  }else log('The '+st.type+' stands.');
-  afterAction();
+  if(S.structures.has(k)){orderAttack({struct:k});return}
+  const u=unitAt(h.q,h.r);
+  if(u){orderAttack({unit:u.id});return}
+  if(isLand(h.q,h.r))orderMove(h.q,h.r);
 }
 
 function cap(s){return s.charAt(0).toUpperCase()+s.slice(1)}
 
 /* ---------- buttons ---------- */
-document.getElementById('endbtn').onclick=endTurn;
-document.getElementById('roarbtn').onclick=roar;
-document.getElementById('eatbtn').onclick=eat;
+document.getElementById('roarbtn').onclick=doRoar;
+document.getElementById('eatbtn').onclick=doEat;
 document.getElementById('withdrawbtn').onclick=withdraw;
 document.getElementById('beginbtn').onclick=()=>{
   document.getElementById('overlay').classList.add('hidden');
   newSession();centerOnMonster();
-  setBanner('player','YOUR TURN');
+  setBanner('player','RAMPAGE');
   log('The hatchling wades ashore…');
-  log('Tap a glowing hex to move · red ring = bite');
+  log('Tap ground to walk · tap a target to attack');
 };
 document.getElementById('returnbtn').onclick=()=>{
   document.getElementById('endcard').classList.add('hidden');
@@ -624,7 +732,7 @@ document.getElementById('resetlink').onclick=()=>{
 function renderSheet(){
   document.getElementById('sheetbox').innerHTML=
     `<b>${NAMES[mon.level]||'Apex'}</b> — Level ${mon.level} Dinosaur<br>`+
-    `Hit Dice <b>${mon.maxHd}</b> · Move <b>${mon.mv}</b> · Str <b>+${mon.str}</b> · Tough <b>${mon.tough}</b><br>`+
+    `Hit Dice <b>${mon.maxHd}</b> · Str <b>+${mon.str}</b> · Tough <b>${mon.tough}</b><br>`+
     `XP <b>${mon.banked}</b>${mon.level<12?' · next level at '+xpForLevel(mon.level+1):''}<br>`+
     `Abilities: ${mon.abilities.length?mon.abilities.map(cap).join(', '):'<span style="color:var(--dim)">none — Roar at Lv 2</span>'}`;
 }
@@ -632,7 +740,7 @@ function renderSheet(){
 /* ---------- boot ---------- */
 mon=loadMon();
 renderSheet();
-updateHud();
+updateHud(true);
 </script>
 </body>
 </html>
