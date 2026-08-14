@@ -1319,3 +1319,7 @@ body.theme-dark .sxw-cell-group.fogged .sxw-cell {
   stroke-width:2.5;
   stroke-opacity:1;
 }
+
+/* v1.6.0 drag-a-cell ghost — dashed preview of the healed course */
+.sxw-path-ghost { stroke:#ffdd55; stroke-width:2.5; stroke-dasharray:5 4;
+  opacity:.85; pointer-events:none; }

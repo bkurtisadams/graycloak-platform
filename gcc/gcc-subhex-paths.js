@@ -1,4 +1,16 @@
-// gcc-subhex-paths.js v2.4.0 — 2026-05-13
+// gcc-subhex-paths.js v2.5.0 — 2026-08-13
+// v2.5.0: mid-path editing primitives. hexLine(a, b) — cube-lerp
+//         axial line, consecutive cells guaranteed neighbors.
+//         replaceSpan(localId, i0, i1, newCells) — splice cells
+//         [i0..i1] out, newCells in; validates newCells internal
+//         adjacency and both seams; empty newCells allowed when the
+//         resulting seam is adjacent (or an end). moveCell(localId,
+//         index, Q, R) — relocate one cell, healing the course to
+//         its neighbors via hexLine; ends relocate + heal one side.
+//         deleteCellAt(localId, index) — remove one cell, healing
+//         interior gaps via hexLine. All stamp _dirtyAt via the
+//         normal writer path. Foundation for the subhex renderer's
+//         drag-a-cell editing (v1.6.0).
 // v2.4.0: cloud→local pull receiver. applyPathsFromCloud(docs)
 //         replaces matching PATHS entries in place, persists to
 //         localStorage, rebuilds indexes, emits 'gcc-subhex-changed'
@@ -368,6 +380,149 @@
   // choose to delete it). Used by the view's per-cell remove flow:
   // clicking an armed path's cell while the Path tool is active treats
   // the click as "I want the path to stop before here."
+  // ── Mid-path editing (v2.5.0) ────────────────────────────────────────
+  // Cube-lerp hex line from a to b inclusive. Consecutive cells are
+  // axial neighbors by construction (standard cube-round walk).
+  // bias (+1 default / -1) flips the epsilon nudge so ties round to
+  // the mirror route — moveCell uses it to avoid retracing its own
+  // approach leg when a straight return would double back.
+  function hexLine(a, b, bias){
+    const e = (bias === -1) ? -1 : 1;
+    const dQ = b.Q - a.Q, dR = b.R - a.R;
+    const N = (Math.abs(dQ) + Math.abs(dR) + Math.abs(dQ + dR)) / 2;
+    if (N === 0) return [{ Q: a.Q, R: a.R }];
+    const out = [];
+    const ax = a.Q, az = a.R, ay = -ax - az;
+    const bx = b.Q, bz = b.R, by = -bx - bz;
+    for (let i = 0; i <= N; i++){
+      const t = i / N;
+      let x = ax + (bx - ax) * t + e * 1e-6;
+      let y = ay + (by - ay) * t + e * 2e-6;
+      let z = az + (bz - az) * t - e * 3e-6;
+      let rx = Math.round(x), ry = Math.round(y), rz = Math.round(z);
+      const ddx = Math.abs(rx - x), ddy = Math.abs(ry - y), ddz = Math.abs(rz - z);
+      if (ddx > ddy && ddx > ddz) rx = -ry - rz;
+      else if (ddy > ddz)         ry = -rx - rz;
+      else                        rz = -rx - ry;
+      out.push({ Q: rx, R: rz });
+    }
+    return out;
+  }
+
+  // Replace cells[i0..i1] (inclusive) with newCells. Validates:
+  //   - indices in range, i0 <= i1
+  //   - newCells internally neighbor-adjacent, no consecutive dupes
+  //   - both seams adjacent (prev↔newCells[0], last↔next), or —
+  //     when newCells is empty — prev↔next adjacent. Seams at path
+  //     ends are trivially valid.
+  // Returns true on success; false leaves the path untouched.
+  function replaceSpan(localId, i0, i1, newCells){
+    const p = getPath(localId);
+    if (!p) return false;
+    const cells = p.cells;
+    if (!Number.isInteger(i0) || !Number.isInteger(i1)) return false;
+    if (i0 < 0 || i1 >= cells.length || i0 > i1) return false;
+    const nc = Array.isArray(newCells) ? newCells : [];
+    for (let i = 0; i < nc.length; i++){
+      const c = nc[i];
+      if (!c || typeof c.Q !== 'number' || typeof c.R !== 'number') return false;
+      if (i > 0){
+        if (nc[i-1].Q === c.Q && nc[i-1].R === c.R) return false;
+        if (!isNeighbor(nc[i-1], c)) return false;
+      }
+    }
+    const prev = i0 > 0 ? cells[i0 - 1] : null;
+    const next = i1 < cells.length - 1 ? cells[i1 + 1] : null;
+    const head = nc.length ? nc[0] : null;
+    const tail = nc.length ? nc[nc.length - 1] : null;
+    if (prev && head && !(isNeighbor(prev, head) && !(prev.Q === head.Q && prev.R === head.R))) return false;
+    if (next && tail && !(isNeighbor(tail, next) && !(tail.Q === next.Q && tail.R === next.R))) return false;
+    if (!nc.length && prev && next
+        && !(isNeighbor(prev, next) && !(prev.Q === next.Q && prev.R === next.R))) return false;
+    p.cells = cells.slice(0, i0)
+      .concat(nc.map(c => ({ Q: c.Q, R: c.R })))
+      .concat(cells.slice(i1 + 1));
+    p.authoredAt = Date.now();
+    _markDirty(localId);
+    save();
+    return true;
+  }
+
+  // Relocate cells[index] to (Q, R), healing the course to both
+  // neighbors via hexLine. Endpoints relocate freely and heal the
+  // single inward seam. No-op move returns true without a write.
+  function moveCell(localId, index, Q, R){
+    const p = getPath(localId);
+    if (!p) return false;
+    const cells = p.cells;
+    if (!Number.isInteger(index) || index < 0 || index >= cells.length) return false;
+    const cur = cells[index];
+    if (cur.Q === Q && cur.R === R) return true;
+    const target = { Q, R };
+    const prev = index > 0 ? cells[index - 1] : null;
+    const next = index < cells.length - 1 ? cells[index + 1] : null;
+    // Refuse a move onto an immediate neighbor cell of the path span
+    // being healed — the heal would create a duplicate.
+    if ((prev && prev.Q === Q && prev.R === R) || (next && next.Q === Q && next.R === R)) return false;
+    const axDist = (a, b) => {
+      const dQ = b.Q - a.Q, dR = b.R - a.R;
+      return (Math.abs(dQ) + Math.abs(dR) + Math.abs(dQ + dR)) / 2;
+    };
+    let nc;
+    if (prev && next){
+      const leg1 = hexLine(prev, target);
+      let leg2 = hexLine(target, next);
+      // Straight return retracing the approach (…X, T, X…): detour
+      // the first return step through a different neighbor of the
+      // target that still makes progress toward `next`. Only a true
+      // dead end (no such neighbor) keeps the spike.
+      const beforeTarget = leg1.length >= 2 ? leg1[leg1.length - 2] : null;
+      if (beforeTarget && leg2.length >= 2
+          && leg2[1].Q === beforeTarget.Q && leg2[1].R === beforeTarget.R){
+        let best = null;
+        for (const [dq, dr] of NEIGHBOR_DELTAS){
+          const n = { Q: target.Q + dq, R: target.R + dr };
+          if (n.Q === beforeTarget.Q && n.R === beforeTarget.R) continue;
+          const d = axDist(n, next);
+          if (!best || d < best.d) best = { n, d };
+        }
+        if (best && best.d < axDist(target, next)){
+          leg2 = [target].concat(hexLine(best.n, next));
+        }
+      }
+      nc = leg1.slice(1).concat(leg2.slice(1, -1));
+    } else if (next){        // head
+      nc = hexLine(target, next).slice(0, -1);
+    } else if (prev){        // tail
+      nc = hexLine(prev, target).slice(1);
+    } else {                 // single-cell path
+      nc = [target];
+    }
+    return replaceSpan(localId, index, index, nc);
+  }
+
+  // Remove cells[index]; interior gaps heal via hexLine. Removing the
+  // last remaining cell empties the path (matches truncate semantics —
+  // callers may then delete it).
+  function deleteCellAt(localId, index){
+    const p = getPath(localId);
+    if (!p) return false;
+    const cells = p.cells;
+    if (!Number.isInteger(index) || index < 0 || index >= cells.length) return false;
+    const prev = index > 0 ? cells[index - 1] : null;
+    const next = index < cells.length - 1 ? cells[index + 1] : null;
+    // Spike (…A, B, A…): removing B alone would leave a duplicate
+    // seam. Collapse the spike — remove B and one of the A's.
+    if (prev && next && prev.Q === next.Q && prev.R === next.R){
+      return replaceSpan(localId, index, index + 1, []);
+    }
+    let nc = [];
+    if (prev && next && !isNeighbor(prev, next)){
+      nc = hexLine(prev, next).slice(1, -1);
+    }
+    return replaceSpan(localId, index, index, nc);
+  }
+
   function truncateBefore(localId, Q, R){
     const p = getPath(localId);
     if (!p || !p.cells.length) return false;
@@ -867,6 +1022,7 @@
     pathDocId, parsePathDocId,
     listPaths, pathsInParent, getPath, findByKindName, createPath, renamePath, deletePath,
     appendCell, popCell, truncateBefore, prependCell, truncateAfter, pathsAtCell, isNeighbor,
+    hexLine, replaceSpan, moveCell, deleteCellAt,
     setPathTier, setPathHeadwaters, setPathMouth, reverseCells,
     parentHasPathAuthoring, parentHasSubhexPaths,
     pathsCrossingParentEdge, edgeKey,

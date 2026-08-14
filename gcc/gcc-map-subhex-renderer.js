@@ -1,4 +1,13 @@
 // gcc-map-subhex-renderer.js v1.5.0 — 2026-05-12
+// v1.6.0 — Drag-a-cell path editing. Mousedown on a cell of the
+//          armed path no longer truncates immediately: it opens a
+//          pending drag. Dragging onto other cells shows a dashed
+//          ghost of the healed course (GCCSubhexPaths.moveCell
+//          preview computed locally with hexLine); mouseup commits
+//          via moveCell. Mouseup without leaving the cell falls
+//          through to the original truncate semantics, so plain
+//          clicks behave exactly as before. Escape or leaving the
+//          SVG cancels. Extend-clicks off-path are unchanged.
 // v1.5.0 — Path-click handler reads a.extendEnd from the armed
 //          payload. 'head' routes to GCCSubhexPaths.prependCell /
 //          truncateAfter; 'tail' (default, back-compat) keeps the
@@ -354,6 +363,10 @@
     // Raise on hover so the hover stroke isn't masked by adjacent cells.
     const parent = g.parentNode;
     if (parent && parent.lastChild !== g) parent.appendChild(g);
+    if (rs.pathDrag){
+      updatePathCellDrag(+g.dataset.q, +g.dataset.r);
+      return;
+    }
     if (!rs.brushing) return;
     const Q = +g.dataset.q;
     const R = +g.dataset.r;
@@ -467,17 +480,10 @@
       const armedPath = P() && P().getPath(a.value);
       const onArmed = armedPath && armedPath.cells.some(c => c.Q === Q && c.R === R);
       if (onArmed){
-        if (extendEnd === 'head'){
-          P().truncateAfter(a.value, Q, R);
-        } else {
-          P().truncateBefore(a.value, Q, R);
-        }
-        if (window.GCCMapSubhexPalette){
-          window.GCCMapSubhexPalette.rebuildPathPicker(a.value);
-        }
-        _ctx.requestRender();
-        applyCellPaint(Q, R);
-        notifyPaintedCell(Q, R);
+        // v1.6.0: don't truncate on mousedown — open a pending drag.
+        // If the mouse never leaves this cell, mouseup runs the old
+        // truncate; if it drags, mouseup commits a moveCell instead.
+        beginPathCellDrag(a.value, Q, R, extendEnd);
         return;
       }
       const ok = extendEnd === 'head'
@@ -571,6 +577,133 @@
   }
 
   // ── Paths ──────────────────────────────────────────────────────
+  // ── Drag-a-cell path editing (v1.6.0) ─────────────────────────────
+  // Pending state opens on mousedown over an armed-path cell. The
+  // proposed course is computed locally (same heal legs moveCell
+  // uses) so the ghost matches the commit exactly; on mouseup we
+  // hand the target to moveCell, which recomputes and validates.
+  function beginPathCellDrag(pathId, Q, R, extendEnd){
+    const path = P().getPath(pathId);
+    if (!path) return;
+    const index = path.cells.findIndex(c => c.Q === Q && c.R === R);
+    if (index < 0) return;
+    rs.pathDrag = {
+      pathId, index, extendEnd,
+      startQ: Q, startR: R,
+      curQ: Q, curR: R,
+      moved: false,
+      ghostEl: null,
+    };
+    window.addEventListener('mouseup', onPathCellDragEnd);
+    window.addEventListener('keydown', onPathDragKey);
+  }
+
+  function proposedCells(drag, Q, R){
+    const SP = P();
+    const path = SP.getPath(drag.pathId);
+    if (!path) return null;
+    const cells = path.cells;
+    const i = drag.index;
+    const target = { Q, R };
+    const prev = i > 0 ? cells[i - 1] : null;
+    const next = i < cells.length - 1 ? cells[i + 1] : null;
+    if ((prev && prev.Q === Q && prev.R === R) || (next && next.Q === Q && next.R === R)) return null;
+    let nc;
+    if (prev && next){
+      nc = SP.hexLine(prev, target).slice(1).concat(SP.hexLine(target, next).slice(1, -1));
+    } else if (next){
+      nc = SP.hexLine(target, next).slice(0, -1);
+    } else if (prev){
+      nc = SP.hexLine(prev, target).slice(1);
+    } else {
+      nc = [target];
+    }
+    return cells.slice(0, i).concat(nc).concat(cells.slice(i + 1));
+  }
+
+  function updatePathCellDrag(Q, R){
+    const drag = rs.pathDrag;
+    if (!drag) return;
+    drag.curQ = Q; drag.curR = R;
+    if (Q === drag.startQ && R === drag.startR){
+      // Dragged back home — treat as not-moved so mouseup truncates.
+      drag.moved = false;
+      removeDragGhost(drag);
+      return;
+    }
+    drag.moved = true;
+    const proposed = proposedCells(drag, Q, R);
+    if (!proposed){ removeDragGhost(drag); return; }
+    drawDragGhost(drag, proposed);
+  }
+
+  function drawDragGhost(drag, cells){
+    const pts = pathPolylinePoints(cells);
+    if (pts.length < 2){ removeDragGhost(drag); return; }
+    // Mount into the renderer's ghost layer (right z-order, cleared
+    // by render passes — recreate if a mid-drag render detached it).
+    if (!drag.ghostEl || !drag.ghostEl.isConnected){
+      const host = (layers && layers.ghost) || _root;
+      if (!host) return;
+      const poly = document.createElementNS(NS, 'polyline');
+      poly.setAttribute('class', 'sxw-path sxw-path-ghost');
+      poly.setAttribute('fill', 'none');
+      poly.style.pointerEvents = 'none';
+      host.appendChild(poly);
+      drag.ghostEl = poly;
+    }
+    drag.ghostEl.setAttribute('points',
+      pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' '));
+  }
+
+  function removeDragGhost(drag){
+    if (drag && drag.ghostEl){
+      drag.ghostEl.remove();
+      drag.ghostEl = null;
+    }
+  }
+
+  function cancelPathCellDrag(){
+    const drag = rs.pathDrag;
+    if (!drag) return;
+    removeDragGhost(drag);
+    rs.pathDrag = null;
+    window.removeEventListener('mouseup', onPathCellDragEnd);
+    window.removeEventListener('keydown', onPathDragKey);
+  }
+
+  function onPathDragKey(ev){
+    if (ev.key === 'Escape') cancelPathCellDrag();
+  }
+
+  function onPathCellDragEnd(){
+    const drag = rs.pathDrag;
+    if (!drag) return;
+    const { pathId, index, extendEnd, startQ, startR, curQ, curR, moved } = drag;
+    cancelPathCellDrag();
+    const SP = P();
+    if (!SP) return;
+    if (moved){
+      const ok = SP.moveCell(pathId, index, curQ, curR);
+      if (!ok && window.GCCMapSubhexPalette){
+        window.GCCMapSubhexPalette.flash('Cannot move cell there');
+      }
+    } else {
+      // Plain click: original truncate semantics.
+      if (extendEnd === 'head'){
+        SP.truncateAfter(pathId, startQ, startR);
+      } else {
+        SP.truncateBefore(pathId, startQ, startR);
+      }
+    }
+    if (window.GCCMapSubhexPalette){
+      window.GCCMapSubhexPalette.rebuildPathPicker(pathId);
+    }
+    _ctx.requestRender();
+    applyCellPaint(startQ, startR);
+    notifyPaintedCell(startQ, startR);
+  }
+
   function renderPaths(layer){
     const p = P();
     if (!p) return;
