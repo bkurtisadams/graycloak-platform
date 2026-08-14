@@ -1,4 +1,7 @@
-// gcc-pull.js v0.3.0 — 2026-08-11
+// gcc-pull.js v0.3.1 — 2026-08-13
+// v0.3.1 — wireButton anchor fallback (mirror of publish v0.5.1):
+//          after ⬆ publish → before settings → before theme toggle
+//          → append to .gcc-nav.
 // v0.3.0 — Fourth pull source: mapRegions/ → overlay regions.
 //          Mirrors lakes: cloud keys by slug, local REGIONS keys by
 //          'region_slug'; getLocalRegions translates via
@@ -358,14 +361,17 @@
       // Insert right after ⬆ Publish if present; fall back to before
       // settings (so we're still in the nav cluster).
       const publish  = document.getElementById('gcc-btn-publish');
-      const settings = document.getElementById('gcc-btn-settings');
+      const anchor = document.getElementById('gcc-btn-settings')
+        || document.getElementById('gcc-btn-theme');
       btn = makeButton();
       if (publish && publish.parentNode){
         publish.parentNode.insertBefore(btn, publish.nextSibling);
-      } else if (settings && settings.parentNode){
-        settings.parentNode.insertBefore(btn, settings);
+      } else if (anchor && anchor.parentNode){
+        anchor.parentNode.insertBefore(btn, anchor);
       } else {
-        return;  // no nav yet; wireButton will be re-tried by init
+        const nav = document.querySelector('.gcc-nav');
+        if (!nav) return;  // no nav yet; wireButton re-tried by init
+        nav.appendChild(btn);
       }
     }
     _btnEl = btn;

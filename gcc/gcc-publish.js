@@ -1,4 +1,7 @@
-// gcc-publish.js v0.5.0 — 2026-08-11
+// gcc-publish.js v0.5.1 — 2026-08-13
+// v0.5.1 — wireButton anchor fallback so the ⬆ button appears on
+//          pages without #gcc-btn-settings (greyhawk-map.html):
+//          settings → theme toggle → append to .gcc-nav.
 // v0.5.0 — Fourth publish source: overlay regions → mapRegions/
 //          (schema decision #4; firestore.rules v8 already gates
 //          writes on isGM()). Reads dirty entries via
@@ -207,10 +210,16 @@
   function wireButton(){
     let btn = document.getElementById('gcc-btn-publish');
     if (!btn){
-      const settings = document.getElementById('gcc-btn-settings');
-      if (!settings) return;
+      const anchor = document.getElementById('gcc-btn-settings')
+        || document.getElementById('gcc-btn-theme');
       btn = makeButton();
-      settings.parentNode.insertBefore(btn, settings);
+      if (anchor && anchor.parentNode){
+        anchor.parentNode.insertBefore(btn, anchor);
+      } else {
+        const nav = document.querySelector('.gcc-nav');
+        if (!nav) return;
+        nav.appendChild(btn);
+      }
     }
     _btnEl = btn;
     _badgeEl = btn.querySelector('#gcc-publish-badge');
