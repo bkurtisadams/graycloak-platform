@@ -1,4 +1,12 @@
-// gcc-subhex-view.js v3.2.0 — 2026-05-12
+// gcc-subhex-view.js v3.3.0 — 2026-08-13
+// v3.3.0 — Drag-a-cell path editing (port of unified renderer
+//          v1.6.0). Mousedown on a cell of the armed path opens a
+//          pending drag instead of truncating; dragging shows a
+//          dashed ghost of the healed course and mouseup commits
+//          via GCCSubhexPaths.moveCell (v2.5.0). Mouseup without
+//          leaving the cell falls through to the original truncate,
+//          so plain clicks behave exactly as before. Escape cancels.
+// v3.2.0 — 2026-05-12
 // v3.2.0 — Mirror unified renderer's path-click dispatch on
 //          a.extendEnd. Legacy floating window has no toggle UI
 //          yet, so the value defaults to 'tail' (existing behavior)
@@ -2237,6 +2245,10 @@
     const Q = +g.dataset.q;
     const R = +g.dataset.r;
     state.cursor = { Q, R };
+    if (state.pathDrag){
+      updatePathCellDrag(Q, R);
+      return;
+    }
     if (!state.brushing) return;
     paintCell(Q, R, g);
   }
@@ -2263,6 +2275,123 @@
     if (!owner) return null;
     return (typeof getHexTerrain === 'function')
       ? getHexTerrain(owner.col, owner.row) : null;
+  }
+
+  // ── Drag-a-cell path editing (v3.3.0, mirrors unified v1.6.0) ─────
+  function beginPathCellDrag(pathId, Q, R, extendEnd){
+    const path = window.GCCSubhexPaths.getPath(pathId);
+    if (!path) return;
+    const index = path.cells.findIndex(c => c.Q === Q && c.R === R);
+    if (index < 0) return;
+    state.pathDrag = {
+      pathId, index, extendEnd,
+      startQ: Q, startR: R, curQ: Q, curR: R,
+      moved: false, ghostEl: null,
+    };
+    window.addEventListener('mouseup', onPathCellDragEnd);
+    window.addEventListener('keydown', onPathDragKey);
+  }
+
+  function pathDragProposedCells(drag, Q, R){
+    const SP = window.GCCSubhexPaths;
+    const path = SP.getPath(drag.pathId);
+    if (!path) return null;
+    const cells = path.cells;
+    const i = drag.index;
+    const target = { Q, R };
+    const prev = i > 0 ? cells[i - 1] : null;
+    const next = i < cells.length - 1 ? cells[i + 1] : null;
+    if ((prev && prev.Q === Q && prev.R === R) || (next && next.Q === Q && next.R === R)) return null;
+    let nc;
+    if (prev && next){
+      nc = SP.hexLine(prev, target).slice(1).concat(SP.hexLine(target, next).slice(1, -1));
+    } else if (next){
+      nc = SP.hexLine(target, next).slice(0, -1);
+    } else if (prev){
+      nc = SP.hexLine(prev, target).slice(1);
+    } else {
+      nc = [target];
+    }
+    return cells.slice(0, i).concat(nc).concat(cells.slice(i + 1));
+  }
+
+  function updatePathCellDrag(Q, R){
+    const drag = state.pathDrag;
+    if (!drag) return;
+    drag.curQ = Q; drag.curR = R;
+    if (Q === drag.startQ && R === drag.startR){
+      drag.moved = false;
+      removePathDragGhost(drag);
+      return;
+    }
+    drag.moved = true;
+    const proposed = pathDragProposedCells(drag, Q, R);
+    if (!proposed){ removePathDragGhost(drag); return; }
+    drawPathDragGhost(drag, proposed);
+  }
+
+  function drawPathDragGhost(drag, cells){
+    const svg = state.win?.querySelector('#sxw-svg');
+    if (!svg) return;
+    const pts = pathPolylinePoints(cells);
+    if (pts.length < 2){ removePathDragGhost(drag); return; }
+    if (!drag.ghostEl || !drag.ghostEl.isConnected){
+      const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+      poly.setAttribute('class', 'sxw-path sxw-path-ghost');
+      poly.setAttribute('fill', 'none');
+      poly.style.pointerEvents = 'none';
+      svg.appendChild(poly);
+      drag.ghostEl = poly;
+    }
+    drag.ghostEl.setAttribute('points',
+      pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' '));
+  }
+
+  function removePathDragGhost(drag){
+    if (drag && drag.ghostEl){
+      drag.ghostEl.remove();
+      drag.ghostEl = null;
+    }
+  }
+
+  function cancelPathCellDrag(){
+    const drag = state.pathDrag;
+    if (!drag) return;
+    removePathDragGhost(drag);
+    state.pathDrag = null;
+    window.removeEventListener('mouseup', onPathCellDragEnd);
+    window.removeEventListener('keydown', onPathDragKey);
+  }
+
+  function onPathDragKey(ev){
+    if (ev.key === 'Escape') cancelPathCellDrag();
+  }
+
+  function onPathCellDragEnd(){
+    const drag = state.pathDrag;
+    if (!drag) return;
+    const { pathId, index, extendEnd, startQ, startR, curQ, curR, moved } = drag;
+    cancelPathCellDrag();
+    const SP = window.GCCSubhexPaths;
+    if (!SP) return;
+    if (moved){
+      const ok = SP.moveCell(pathId, index, curQ, curR);
+      if (!ok) flashMode('Cannot move cell there');
+    } else {
+      if (extendEnd === 'head'){
+        SP.truncateAfter(pathId, startQ, startR);
+      } else {
+        SP.truncateBefore(pathId, startQ, startR);
+      }
+    }
+    const svg = state.win?.querySelector('#sxw-svg');
+    if (svg){ renderPaths(svg); renderParentPathMarkers(svg); renderCrossings(svg); }
+    rebuildPathArmedPicker();
+    const psel = findEl('sxw-path-armed');
+    if (psel) psel.value = pathId;
+    syncModeLabel();
+    applyCellPaint(startQ, startR);
+    if (startQ === state.selectedQ && startR === state.selectedR) syncDetailPanel();
   }
 
   function paintCell(Q, R, group){
@@ -2340,19 +2469,10 @@
       const armedPath = window.GCCSubhexPaths.getPath(a.value);
       const onArmed = armedPath && armedPath.cells.some(c => c.Q === Q && c.R === R);
       if (onArmed){
-        if (extendEnd === 'head'){
-          window.GCCSubhexPaths.truncateAfter(a.value, Q, R);
-        } else {
-          window.GCCSubhexPaths.truncateBefore(a.value, Q, R);
-        }
-        const svg = state.win?.querySelector('#sxw-svg');
-        if (svg){ renderPaths(svg); renderParentPathMarkers(svg); renderCrossings(svg); }
-        rebuildPathArmedPicker();
-        const psel = findEl('sxw-path-armed');
-        if (psel) psel.value = a.value;
-        syncModeLabel();
-        applyCellPaint(Q, R);
-        if (Q === state.selectedQ && R === state.selectedR) syncDetailPanel();
+        // v3.3.0: pending drag instead of immediate truncate. A plain
+        // click (mouseup without leaving the cell) still truncates —
+        // see onPathCellDragEnd.
+        beginPathCellDrag(a.value, Q, R, extendEnd);
         return;
       }
       const ok = extendEnd === 'head'
