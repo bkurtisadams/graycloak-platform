@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- kaiju-island.html v0.2.0 -->
+<!-- kaiju-island.html v0.2.1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -126,7 +126,7 @@ button.go{background:#233a16;border-color:#436b26}
 
 <script>
 'use strict';
-const GAME_VERSION='0.2.0';
+const GAME_VERSION='0.2.1';
 const SAVE_KEY='kaiju.save.v1';
 
 /* ---------- tuning ---------- */
@@ -153,15 +153,21 @@ function cubeRound(q,r){let x=q,z=r,y=-x-z,rx=Math.round(x),ry=Math.round(y),rz=
   if(dx>dy&&dx>dz)rx=-ry-rz;else if(dy>dz)ry=-rx-rz;else rz=-rx-ry;return{q:rx,r:rz}}
 
 /* ---------- map ---------- */
-const R=7;
+const R=10;
 const map=new Map();
 (function genTerrain(){
   const c={q:0,r:0};
   for(let q=-R;q<=R;q++)for(let r=Math.max(-R,-q-R);r<=Math.min(R,-q+R);r++){
     const d=hexDist({q,r},c);
     let t='water';
-    const jitter=terrainRng()*1.4;
-    if(d<=4.2+jitter-1.4){t=d>=3.6?'sand':(terrainRng()<0.32?'forest':'grass')}
+    const j=terrainRng()*2-1;
+    if(d<=6.2+j){
+      if(d>=5.4)t='sand';
+      else{
+        const forestP=(d>=2&&d<=4.2)?0.55:0.18;
+        t=terrainRng()<forestP?'forest':'grass';
+      }
+    }
     if(d<=1)t='grass';
     map.set(key(q,r),{q,r,terrain:t});
   }
@@ -171,7 +177,7 @@ function isLand(q,r){const h=map.get(key(q,r));return h&&h.terrain!=='water'}
 function neighbors(q,r){return DIRS.map(d=>({q:q+d[0],r:r+d[1]}))}
 
 /* ---------- xp / levels ---------- */
-const XP={wildlife:50,militia:60,hut:75,longhouse:150,lighthouse:300,eat:25};
+const XP={wildlife:50,militia:60,hut:75,longhouse:150,lighthouse:300,shrine:200,eat:25};
 function xpForLevel(L){return L<=1?0:1000*Math.pow(2,L-2)}
 function levelForXp(x){let L=1;while(L<12&&x>=xpForLevel(L+1))L++;return L}
 const NAMES={1:'Hatchling',2:'Young Terror',3:'Island Tyrant',4:'Leviathan'};
@@ -189,17 +195,32 @@ function newSession(){
   S={t:0,paused:false,over:false,sessionXp:0,threat:0,destroyed:0,
      monster:{q:0,r:0,from:null,prog:0,path:[],target:null,biteReady:0,roarReady:0,hdLost:0},
      units:[],structures:new Map(),corpses:new Map()};
-  const east=landHexes.filter(h=>h.q>=2&&h.terrain!=='forest').sort((a,b)=>hexDist(b,{q:0,r:0})-hexDist(a,{q:0,r:0}));
-  const vs=east.slice(0,6);
-  vs.forEach((h,i)=>{if(!(h.q===0&&h.r===0))S.structures.set(key(h.q,h.r),{q:h.q,r:h.r,type:i===0?'longhouse':'hut',hits:i===0?2:1})});
-  const south=landHexes.filter(h=>h.r>=3).sort((a,b)=>b.r-a.r)[0];
+  // structures need approachable ground
+  const landNbrs=h=>neighbors(h.q,h.r).filter(p=>isLand(p.q,p.r)).length;
+  // east village
+  const east=landHexes.filter(h=>h.q>=3&&h.terrain!=='forest'&&landNbrs(h)>=2).sort((a,b)=>hexDist(b,{q:0,r:0})-hexDist(a,{q:0,r:0}));
+  east.slice(0,6).forEach((h,i)=>{
+    S.structures.set(key(h.q,h.r),{q:h.q,r:h.r,type:i===0?'longhouse':'hut',hits:i===0?2:1})});
+  // west village
+  const west=landHexes.filter(h=>h.q<=-3&&h.terrain!=='forest'&&landNbrs(h)>=2&&!S.structures.has(key(h.q,h.r)))
+    .sort((a,b)=>hexDist(b,{q:0,r:0})-hexDist(a,{q:0,r:0}));
+  west.slice(0,5).forEach((h,i)=>{
+    S.structures.set(key(h.q,h.r),{q:h.q,r:h.r,type:i===0?'longhouse':'hut',hits:i===0?2:1})});
+  // lighthouse south tip
+  const south=landHexes.filter(h=>h.r>=4&&landNbrs(h)>=2&&!S.structures.has(key(h.q,h.r))).sort((a,b)=>b.r-a.r)[0];
   if(south)S.structures.set(key(south.q,south.r),{q:south.q,r:south.r,type:'lighthouse',hits:3});
-  const open=landHexes.filter(h=>!S.structures.has(key(h.q,h.r))&&hexDist(h,{q:0,r:0})>1);
-  for(let i=0;i<6&&open.length;i++){
-    const h=open.splice(Math.floor(rng()*open.length),1)[0];
-    S.units.push(mkUnit('wildlife',rng()<0.5?'🐗':'🦌',h.q,h.r));
+  // shrine, north interior
+  const north=landHexes.filter(h=>h.r<=-4&&landNbrs(h)>=2&&!S.structures.has(key(h.q,h.r))).sort((a,b)=>a.r-b.r)[0];
+  if(north)S.structures.set(key(north.q,north.r),{q:north.q,r:north.r,type:'shrine',hits:2});
+  // wildlife herds near forest
+  const forests=landHexes.filter(h=>h.terrain==='forest'&&hexDist(h,{q:0,r:0})>1);
+  for(let herd=0;herd<3&&forests.length;herd++){
+    const f=forests.splice(Math.floor(rng()*forests.length),1)[0];
+    const spots=[f,...neighbors(f.q,f.r)].filter(p=>isLand(p.q,p.r)&&!occupied(p.q,p.r));
+    for(let i=0;i<3&&i<spots.length;i++)
+      S.units.push(mkUnit('wildlife',rng()<0.5?'🐗':'🦌',spots[i].q,spots[i].r));
   }
-  spawnMilitia(2);
+  spawnMilitia(3);
   updateHud(true);
 }
 function mkUnit(kind,emoji,q,r){
@@ -309,7 +330,7 @@ function killUnit(u){
   if(u.kind==='militia'){S.destroyed++;checkThreat();}
 }
 function checkThreat(){
-  const lvl=Math.min(3,Math.floor(S.destroyed/3));
+  const lvl=Math.min(3,Math.floor(S.destroyed/4));
   if(lvl>S.threat){S.threat=lvl;
     const n=1+lvl;spawnMilitia(n);
     log(`⚠ Threat rises — ${n} militia arrive`,'pain');
@@ -549,7 +570,7 @@ function setBanner(cls,txt){
 /* ---------- render ---------- */
 const cv=document.getElementById('game'),ctx=cv.getContext('2d');
 let hexSize=34,cam={x:0,y:0},painFlash=0;
-const ZOOM_MIN=16,ZOOM_MAX=64;
+const ZOOM_MIN=11,ZOOM_MAX=64;
 function flashPain(){painFlash=1}
 function centerOnMonster(){
   const p=S?renderPos(S.monster,hexSize):{x:0,y:0};
@@ -575,7 +596,7 @@ function hexPath(x,y,s){
   ctx.closePath();
 }
 const TCOL={water:'#0e2a3d',sand:'#c9b27c',grass:'#4a6b3a',forest:'#2e4a28'};
-const SEMOJI={hut:'🛖',longhouse:'🏠',lighthouse:'🗼'};
+const SEMOJI={hut:'🛖',longhouse:'🏠',lighthouse:'🗼',shrine:'🗿'};
 let t0=performance.now();
 function draw(){
   const t=(performance.now()-t0)/1000;
