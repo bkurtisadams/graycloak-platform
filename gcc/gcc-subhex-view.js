@@ -1,3 +1,10 @@
+// gcc-subhex-view.js v3.3.1 — 2026-08-13
+// v3.3.1 — Guard rail on click-truncate. A plain click on a path
+//          cell that would remove more than 3 cells now asks for
+//          confirmation ("Remove N cells…?"). Catches the failure
+//          where a too-small drag registers as a click and silently
+//          truncates half a long (e.g. migrated) river. Short trims
+//          while authoring stay one-click.
 // gcc-subhex-view.js v3.3.0 — 2026-08-13
 // v3.3.0 — Drag-a-cell path editing (port of unified renderer
 //          v1.6.0). Mousedown on a cell of the armed path opens a
@@ -2367,6 +2374,21 @@
     if (ev.key === 'Escape') cancelPathCellDrag();
   }
 
+  // Click-truncate guard: >3 removed cells requires confirmation.
+  function confirmTruncate(SP, pathId, Q, R, extendEnd){
+    const p = SP.getPath(pathId);
+    if (!p) return false;
+    const idx = p.cells.findIndex(c => c.Q === Q && c.R === R);
+    if (idx < 0) return false;
+    const removed = extendEnd === 'head' ? idx + 1 : p.cells.length - idx;
+    if (removed <= 3) return true;
+    const where = extendEnd === 'head' ? 'from the start to here' : 'from here to the end';
+    return window.confirm(
+      `Remove ${removed} cells of "${p.name || pathId}" (${where})?\n\n`
+      + `OK truncates the path. Cancel keeps it. (To move a cell instead, `
+      + `hold the button and drag before releasing.)`);
+  }
+
   function onPathCellDragEnd(){
     const drag = state.pathDrag;
     if (!drag) return;
@@ -2378,6 +2400,7 @@
       const ok = SP.moveCell(pathId, index, curQ, curR);
       if (!ok) flashMode('Cannot move cell there');
     } else {
+      if (!confirmTruncate(SP, pathId, startQ, startR, extendEnd)) return;
       if (extendEnd === 'head'){
         SP.truncateAfter(pathId, startQ, startR);
       } else {

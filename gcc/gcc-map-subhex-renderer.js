@@ -1,4 +1,7 @@
 // gcc-map-subhex-renderer.js v1.5.0 — 2026-05-12
+// v1.6.1 — Click-truncate guard (mirror of gcc-subhex-view v3.3.1):
+//          plain clicks removing more than 3 cells prompt for
+//          confirmation before truncating.
 // v1.6.0 — Drag-a-cell path editing. Mousedown on a cell of the
 //          armed path no longer truncates immediately: it opens a
 //          pending drag. Dragging onto other cells shows a dashed
@@ -676,6 +679,21 @@
     if (ev.key === 'Escape') cancelPathCellDrag();
   }
 
+  // Click-truncate guard: >3 removed cells requires confirmation.
+  function confirmTruncate(SP, pathId, Q, R, extendEnd){
+    const p = SP.getPath(pathId);
+    if (!p) return false;
+    const idx = p.cells.findIndex(c => c.Q === Q && c.R === R);
+    if (idx < 0) return false;
+    const removed = extendEnd === 'head' ? idx + 1 : p.cells.length - idx;
+    if (removed <= 3) return true;
+    const where = extendEnd === 'head' ? 'from the start to here' : 'from here to the end';
+    return window.confirm(
+      `Remove ${removed} cells of "${p.name || pathId}" (${where})?\n\n`
+      + `OK truncates the path. Cancel keeps it. (To move a cell instead, `
+      + `hold the button and drag before releasing.)`);
+  }
+
   function onPathCellDragEnd(){
     const drag = rs.pathDrag;
     if (!drag) return;
@@ -689,7 +707,8 @@
         window.GCCMapSubhexPalette.flash('Cannot move cell there');
       }
     } else {
-      // Plain click: original truncate semantics.
+      // Plain click: original truncate semantics — guarded.
+      if (!confirmTruncate(SP, pathId, startQ, startR, extendEnd)) return;
       if (extendEnd === 'head'){
         SP.truncateAfter(pathId, startQ, startR);
       } else {
