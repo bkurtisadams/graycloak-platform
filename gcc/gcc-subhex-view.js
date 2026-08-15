@@ -1,3 +1,20 @@
+// gcc-subhex-view.js v3.5.0 — 2026-08-14
+// v3.5.0 — Fill-the-window viewport. The SVG no longer renders a
+//          fixed 660×580 fixed-aspect canvas (which left part of the
+//          window blank whenever the window's shape didn't match):
+//          the viewBox span is now derived from the wrap's actual
+//          pixel size each render — spanW = VIEW_BASE_W / zoom,
+//          spanH = spanW × wrapH/wrapW — so the map covers the whole
+//          window at every zoom and window shape. Zoom semantics
+//          preserved (zoom 1 still shows 660 world units across the
+//          width) but the mechanism moves from CSS-width scaling +
+//          wrap scrolling to viewBox-span scaling: setZoom keeps the
+//          world point under the cursor fixed by shifting cx/cy, the
+//          wrap no longer scrolls (drag-pan replaced scrolling), and
+//          zoom rebuilds materialize on a 120ms settle debounce. A
+//          ResizeObserver on the wrap re-derives the span when the
+//          window is resized. Crossing-menu clamping and region-label
+//          culling switch to the derived span.
 // gcc-subhex-view.js v3.4.0 — 2026-08-13
 // v3.4.0 — Slice 4 of DESIGN-subhex-fullview.md: drag-pan. Three
 //          gestures move the viewport: space+left-drag (primary,
@@ -325,8 +342,25 @@
   // (with its hardcoded stroke widths) work unchanged.
   const SUB_R = 26;
   const PARENT_R = 260;
-  const VIEWBOX_W = 660;
-  const VIEWBOX_H = 580;
+  const VIEW_BASE_W = 660;   // world units across the window width at zoom 1
+  // Derived viewport span (world units): the wrap's real pixel size
+  // divided by px-per-unit. Falls back to the legacy 660×580 before
+  // the first measure.
+  function viewPx(){
+    return { w: state.view.pxW || 660, h: state.view.pxH || 580 };
+  }
+  function pxPerUnit(){
+    return (viewPx().w / VIEW_BASE_W) * state.view.zoom;
+  }
+  function spanW(){ return viewPx().w / pxPerUnit(); }
+  function spanH(){ return viewPx().h / pxPerUnit(); }
+  function measureWrap(){
+    const wrap = state.win?.querySelector('#sxw-svg-wrap');
+    if (!wrap) return;
+    const r = wrap.getBoundingClientRect();
+    if (r.width > 0)  state.view.pxW = r.width;
+    if (r.height > 0) state.view.pxH = r.height;
+  }
   const SQRT3 = Math.sqrt(3);
 
   // World coords come from GCCSubhexData.subhexSvgCenter (HEX_R=20 /
@@ -396,7 +430,7 @@
       </div>
       <div class="sxw-body">
         <div class="sxw-svg-wrap" id="sxw-svg-wrap">
-          <svg id="sxw-svg" viewBox="0 0 ${VIEWBOX_W} ${VIEWBOX_H}" preserveAspectRatio="xMidYMid meet"></svg>
+          <svg id="sxw-svg" viewBox="0 0 660 580" preserveAspectRatio="xMidYMid slice"></svg>
           <div class="sxw-zoom-controls">
             <button class="sxw-zoom-btn" id="sxw-zoom-out" title="Zoom out">−</button>
             <button class="sxw-zoom-btn" id="sxw-zoom-reset" title="Reset zoom (1:1)">⟲</button>
@@ -428,6 +462,15 @@
     });
     window.addEventListener('keydown', onPanKeyDown);
     window.addEventListener('keyup', onPanKeyUp);
+    // v3.5.0: viewport span follows the wrap's real size.
+    if (typeof ResizeObserver !== 'undefined'){
+      state.resizeObs = new ResizeObserver(() => {
+        measureWrap();
+        applyViewBox();
+        scheduleSettleRebuild();
+      });
+      state.resizeObs.observe(svgWrap);
+    }
     w.querySelector('#sxw-show-parents').addEventListener('click', onShowParentsToggle);
     try {
       const sp = localStorage.getItem('gcc-subhex-show-parents');
@@ -935,12 +978,10 @@
     const dx = pan.dx, dy = pan.dy;
     endPanCleanup();
     if (!svg || (dx === 0 && dy === 0)) return;
-    // Screen px → world units: the viewBox is VIEWBOX_W wide however
-    // the CSS-width zoom renders it, so rendered-px / VIEWBOX_W is the
-    // scale. Dragging content +dx moves the view center −dx/scale.
-    const rect = svg.getBoundingClientRect();
-    if (!rect.width) return;
-    const scale = rect.width / VIEWBOX_W;
+    // Screen px → world units via the derived scale. Dragging content
+    // +dx moves the view center −dx/scale.
+    const scale = pxPerUnit();
+    if (!scale) return;
     state.view.cx -= dx / scale;
     state.view.cy -= dy / scale;
     rebuildSVG();
@@ -952,27 +993,27 @@
     const z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, newZoom));
     if (z === state.view.zoom) return;
     const wrap = state.win?.querySelector('#sxw-svg-wrap');
-    const svg  = state.win?.querySelector('#sxw-svg');
-    if (!wrap || !svg) return;
+    if (!wrap) return;
 
-    let scrollAdjust = null;
+    // Keep the world point under the cursor fixed: capture it at the
+    // old scale, restore its screen position by shifting cx/cy at the
+    // new scale. No anchor → zoom about the view center.
     if (anchor){
-      const wrapRect = wrap.getBoundingClientRect();
-      const localX = anchor.x - wrapRect.left + wrap.scrollLeft;
-      const localY = anchor.y - wrapRect.top  + wrap.scrollTop;
-      const ratio = z / state.view.zoom;
-      scrollAdjust = {
-        sl: localX * ratio - (anchor.x - wrapRect.left),
-        st: localY * ratio - (anchor.y - wrapRect.top),
-      };
+      const rect = wrap.getBoundingClientRect();
+      const offX = anchor.x - rect.left - rect.width / 2;
+      const offY = anchor.y - rect.top  - rect.height / 2;
+      const s0 = pxPerUnit();
+      const wx = state.view.cx + offX / s0;
+      const wy = state.view.cy + offY / s0;
+      state.view.zoom = z;
+      const s1 = pxPerUnit();
+      state.view.cx = wx - offX / s1;
+      state.view.cy = wy - offY / s1;
+    } else {
+      state.view.zoom = z;
     }
-
-    state.view.zoom = z;
     applyZoom();
-    if (scrollAdjust){
-      wrap.scrollLeft = Math.max(0, scrollAdjust.sl);
-      wrap.scrollTop  = Math.max(0, scrollAdjust.st);
-    }
+    scheduleSettleRebuild();
     persistWindowRect();
   }
 
@@ -981,15 +1022,23 @@
   }
 
   function applyZoom(){
-    const svg = state.win?.querySelector('#sxw-svg');
+    // v3.5.0: zoom is viewBox-span, not CSS width. The SVG always
+    // fills the wrap; only the world span changes.
+    applyViewBox();
     const pct = state.win?.querySelector('#sxw-zoom-pct');
-    if (svg){
-      svg.style.width = `${state.view.zoom * 100}%`;
-      svg.style.height = 'auto';
-    }
     if (pct){
       pct.textContent = `${Math.round(state.view.zoom * 100)}%`;
     }
+  }
+
+  // Debounced rebuild for zoom / resize bursts: the viewBox updates
+  // every step (cheap), cells materialize once input settles.
+  function scheduleSettleRebuild(){
+    if (state.settleTimer) clearTimeout(state.settleTimer);
+    state.settleTimer = setTimeout(() => {
+      state.settleTimer = null;
+      rebuildSVG();
+    }, 120);
   }
 
   function onSvgWheel(ev){
@@ -1350,15 +1399,16 @@
   }
 
   // Slide the SVG viewBox so the world point (state.view.cx, .cy) sits
-  // at the visible center, with the existing VIEWBOX_W × VIEWBOX_H
+  // at the visible center, with the derived spanW() × spanH()
   // extent. Called whenever centerOnParent changes the view center;
   // zoom continues to be applied via CSS width on #sxw-svg.
   function applyViewBox(){
     const svg = state.win?.querySelector('#sxw-svg');
     if (!svg) return;
-    const x = state.view.cx - VIEWBOX_W / 2;
-    const y = state.view.cy - VIEWBOX_H / 2;
-    svg.setAttribute('viewBox', `${x.toFixed(1)} ${y.toFixed(1)} ${VIEWBOX_W} ${VIEWBOX_H}`);
+    const w = spanW(), h = spanH();
+    const x = state.view.cx - w / 2;
+    const y = state.view.cy - h / 2;
+    svg.setAttribute('viewBox', `${x.toFixed(1)} ${y.toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}`);
   }
 
   // Set the view to be centered on the given parent. Single-parent
@@ -1438,7 +1488,7 @@
   }
 
   // Viewport bbox in data-layer coords (HEX_R=20, SUB_R=2 native).
-  // state.view.cx/cy and VIEWBOX_W/H live in display-scaled coords
+  // state.view.cx/cy and the derived spans live in display-scaled coords
   // (DISPLAY_SCALE × data); the data-layer helpers cellsInAxialBbox /
   // parentSvgCenter operate in data coords, so we divide on the way
   // out. Margin = HEX_R * 2 covers cells whose hex polygons straddle
@@ -1448,8 +1498,8 @@
     const HEX_R_DATA = PARENT_R / DISPLAY_SCALE;
     // PAN_OVERSCAN materializes a margin beyond the viewBox so short
     // drag-pans slide over already-built cells (Slice 4).
-    const halfW = (VIEWBOX_W / 2) * (1 + 2 * PAN_OVERSCAN) / DISPLAY_SCALE;
-    const halfH = (VIEWBOX_H / 2) * (1 + 2 * PAN_OVERSCAN) / DISPLAY_SCALE;
+    const halfW = (spanW() / 2) * (1 + 2 * PAN_OVERSCAN) / DISPLAY_SCALE;
+    const halfH = (spanH() / 2) * (1 + 2 * PAN_OVERSCAN) / DISPLAY_SCALE;
     const cx = state.view.cx / DISPLAY_SCALE;
     const cy = state.view.cy / DISPLAY_SCALE;
     const margin = HEX_R_DATA * 2;
@@ -1554,6 +1604,7 @@
   function rebuildSVG(){
     const svg = state.win.querySelector('#sxw-svg');
     if (!svg) return;
+    measureWrap();
     applyViewBox();
     svg.innerHTML = '';
     const ns = 'http://www.w3.org/2000/svg';
@@ -2058,11 +2109,11 @@
     fo.setAttribute('class', 'sxw-crossing-menu');
     const W = 160, H = 30 + 28 * (kinds.length + 1);
     // Clamp inside the slid viewBox: world bounds are
-    // [view.cx ± VIEWBOX_W/2, view.cy ± VIEWBOX_H/2]. Try right of
+    // [view.cx ± spanW()/2, view.cy ± spanH()/2]. Try right of
     // the badge; flip left if close to the viewBox right edge.
-    const xMax = state.view.cx + VIEWBOX_W / 2;
-    const yMin = state.view.cy - VIEWBOX_H / 2;
-    const yMax = state.view.cy + VIEWBOX_H / 2;
+    const xMax = state.view.cx + spanW() / 2;
+    const yMin = state.view.cy - spanH() / 2;
+    const yMax = state.view.cy + spanH() / 2;
     const place = (mx + 8 + W < xMax) ? mx + 8 : mx - W - 8;
     const placeY = (my + H < yMax) ? my : Math.max(yMin + 8, yMax - H - 8);
     fo.setAttribute('x', place.toFixed(1));
@@ -2282,10 +2333,10 @@
     svg.querySelectorAll('.sxw-region-label-layer').forEach(n => n.remove());
     const regions = window.GCCSubhexData.listRegions();
     if (!regions.length) return;
-    const minX = state.view.cx - VIEWBOX_W / 2;
-    const maxX = state.view.cx + VIEWBOX_W / 2;
-    const minY = state.view.cy - VIEWBOX_H / 2;
-    const maxY = state.view.cy + VIEWBOX_H / 2;
+    const minX = state.view.cx - spanW() / 2;
+    const maxX = state.view.cx + spanW() / 2;
+    const minY = state.view.cy - spanH() / 2;
+    const maxY = state.view.cy + spanH() / 2;
     const ns = 'http://www.w3.org/2000/svg';
     const layer = document.createElementNS(ns, 'g');
     layer.setAttribute('class', 'sxw-region-label-layer');

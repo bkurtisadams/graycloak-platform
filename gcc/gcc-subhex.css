@@ -275,7 +275,7 @@ body.theme-dark #subhex-window::after {
   position:relative;
   flex:1 1 auto;
   min-height:0;
-  overflow:auto;
+  overflow:hidden;   /* v3.5.0: drag-pan replaces scrolling */
   background:#e8d8b0;
   border:1px solid #b09060;
   border-radius:4px;
@@ -284,8 +284,7 @@ body.theme-dark .sxw-svg-wrap { background:#1a1a1a; border-color:#7a6a40; }
 #sxw-svg {
   display:block;
   width:100%;
-  aspect-ratio:610 / 530;
-  height:auto;
+  height:100%;   /* v3.5.0: fill the window; viewBox span carries zoom */
 }
 
 /* ── Zoom controls (overlay on top-right of svg wrap) ─────────────────── */
