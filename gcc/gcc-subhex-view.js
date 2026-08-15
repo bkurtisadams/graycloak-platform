@@ -1,3 +1,18 @@
+// gcc-subhex-view.js v3.4.0 — 2026-08-13
+// v3.4.0 — Slice 4 of DESIGN-subhex-fullview.md: drag-pan. Three
+//          gestures move the viewport: space+left-drag (primary,
+//          per design Q3), middle-mouse drag, and right-mouse drag
+//          (gw-map parity; context menu suppressed on the map).
+//          During the gesture the SVG rides a rAF-batched CSS
+//          translate3d — no re-render per frame (design decision
+//          #7: transform-on-pan, rebuild-on-settle). On release the
+//          accumulated screen delta converts to world units, commits
+//          to state.view.cx/cy, the transform clears, and rebuildSVG
+//          materializes the new viewport. Escape mid-drag cancels
+//          without committing. Cell hover/paint is suppressed while
+//          panning. viewportBboxData gains PAN_OVERSCAN (25% each
+//          side) so short pans land on already-materialized cells.
+//          Wheel zoom and open(col,row) navigation unchanged.
 // gcc-subhex-view.js v3.3.1 — 2026-08-13
 // v3.3.1 — Guard rail on click-truncate. A plain click on a path
 //          cell that would remove more than 3 cells now asks for
@@ -324,6 +339,7 @@
   // the visual diff at zero.
   const DISPLAY_SCALE = 13;
 
+  const PAN_OVERSCAN = 0.25;   // fraction of viewBox rendered beyond each edge
   const ZOOM_MIN = 0.5;
   const ZOOM_MAX = 4.0;
   const ZOOM_STEP = 1.15;
@@ -404,6 +420,14 @@
     w.querySelector('#sxw-zoom-out').addEventListener('click', () => zoomBy(1 / ZOOM_STEP));
     w.querySelector('#sxw-zoom-reset').addEventListener('click', () => setZoom(ZOOM_DEFAULT));
     w.querySelector('#sxw-svg-wrap').addEventListener('wheel', onSvgWheel, { passive: false });
+    const svgWrap = w.querySelector('#sxw-svg-wrap');
+    svgWrap.addEventListener('mousedown', onPanMouseDown, true);
+    svgWrap.addEventListener('contextmenu', ev => {
+      // Right-drag pans; keep the browser menu off the map surface.
+      ev.preventDefault();
+    });
+    window.addEventListener('keydown', onPanKeyDown);
+    window.addEventListener('keyup', onPanKeyUp);
     w.querySelector('#sxw-show-parents').addEventListener('click', onShowParentsToggle);
     try {
       const sp = localStorage.getItem('gcc-subhex-show-parents');
@@ -822,6 +846,105 @@
   // #sxw-zoom-pct, #sxw-coord-bar) still live in the map window.
   function findEl(id){
     return state.win?.querySelector('#' + id) || state.ctrl?.querySelector('#' + id) || null;
+  }
+
+  // ── Drag-pan (Slice 4) ─────────────────────────────────────────────────
+  // state.pan: { startX, startY, dx, dy, raf } while a gesture is live.
+  // state.spaceHeld: primary-gesture modifier.
+  function isTypingTarget(ev){
+    const t = ev.target;
+    return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA'
+      || t.tagName === 'SELECT' || t.isContentEditable);
+  }
+
+  function onPanKeyDown(ev){
+    if (ev.code === 'Space' && !isTypingTarget(ev) && state.win){
+      if (!state.spaceHeld){
+        state.spaceHeld = true;
+        const wrap = state.win.querySelector('#sxw-svg-wrap');
+        if (wrap) wrap.classList.add('sxw-pan-ready');
+      }
+      // Keep space from scrolling the page while the map window is up.
+      ev.preventDefault();
+      return;
+    }
+    if (ev.key === 'Escape' && state.pan){
+      cancelPan();
+    }
+  }
+
+  function onPanKeyUp(ev){
+    if (ev.code === 'Space'){
+      state.spaceHeld = false;
+      const wrap = state.win?.querySelector('#sxw-svg-wrap');
+      if (wrap) wrap.classList.remove('sxw-pan-ready');
+    }
+  }
+
+  function onPanMouseDown(ev){
+    // Middle (1) and right (2) pan from anywhere; left (0) pans only
+    // with space held so painting and drag-a-cell keep the plain left
+    // button. Capture phase so cell handlers never see pan presses.
+    const isPan = ev.button === 1 || ev.button === 2
+      || (ev.button === 0 && state.spaceHeld);
+    if (!isPan) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    state.pan = { startX: ev.clientX, startY: ev.clientY, dx: 0, dy: 0, raf: 0 };
+    const wrap = state.win?.querySelector('#sxw-svg-wrap');
+    const svg  = state.win?.querySelector('#sxw-svg');
+    if (wrap) wrap.classList.add('sxw-panning');
+    if (svg)  svg.style.willChange = 'transform';
+    window.addEventListener('mousemove', onPanMouseMove);
+    window.addEventListener('mouseup', onPanMouseUp);
+  }
+
+  function onPanMouseMove(ev){
+    const pan = state.pan;
+    if (!pan) return;
+    pan.dx = ev.clientX - pan.startX;
+    pan.dy = ev.clientY - pan.startY;
+    if (pan.raf) return;
+    pan.raf = requestAnimationFrame(() => {
+      pan.raf = 0;
+      const svg = state.win?.querySelector('#sxw-svg');
+      if (svg) svg.style.transform = `translate3d(${pan.dx}px, ${pan.dy}px, 0)`;
+    });
+  }
+
+  function endPanCleanup(){
+    const pan = state.pan;
+    if (pan && pan.raf) cancelAnimationFrame(pan.raf);
+    state.pan = null;
+    const wrap = state.win?.querySelector('#sxw-svg-wrap');
+    const svg  = state.win?.querySelector('#sxw-svg');
+    if (wrap) wrap.classList.remove('sxw-panning');
+    if (svg){ svg.style.transform = ''; svg.style.willChange = ''; }
+    window.removeEventListener('mousemove', onPanMouseMove);
+    window.removeEventListener('mouseup', onPanMouseUp);
+  }
+
+  function cancelPan(){
+    endPanCleanup();
+  }
+
+  function onPanMouseUp(){
+    const pan = state.pan;
+    if (!pan) return;
+    const svg = state.win?.querySelector('#sxw-svg');
+    const dx = pan.dx, dy = pan.dy;
+    endPanCleanup();
+    if (!svg || (dx === 0 && dy === 0)) return;
+    // Screen px → world units: the viewBox is VIEWBOX_W wide however
+    // the CSS-width zoom renders it, so rendered-px / VIEWBOX_W is the
+    // scale. Dragging content +dx moves the view center −dx/scale.
+    const rect = svg.getBoundingClientRect();
+    if (!rect.width) return;
+    const scale = rect.width / VIEWBOX_W;
+    state.view.cx -= dx / scale;
+    state.view.cy -= dy / scale;
+    rebuildSVG();
+    persistWindowRect();
   }
 
   // ── Zoom ───────────────────────────────────────────────────────────────
@@ -1323,8 +1446,10 @@
   // their center being inside (cheap; cellsInAxialBbox is O(W*H)).
   function viewportBboxData(){
     const HEX_R_DATA = PARENT_R / DISPLAY_SCALE;
-    const halfW = (VIEWBOX_W / 2) / DISPLAY_SCALE;
-    const halfH = (VIEWBOX_H / 2) / DISPLAY_SCALE;
+    // PAN_OVERSCAN materializes a margin beyond the viewBox so short
+    // drag-pans slide over already-built cells (Slice 4).
+    const halfW = (VIEWBOX_W / 2) * (1 + 2 * PAN_OVERSCAN) / DISPLAY_SCALE;
+    const halfH = (VIEWBOX_H / 2) * (1 + 2 * PAN_OVERSCAN) / DISPLAY_SCALE;
     const cx = state.view.cx / DISPLAY_SCALE;
     const cy = state.view.cy / DISPLAY_SCALE;
     const margin = HEX_R_DATA * 2;
@@ -2252,6 +2377,7 @@
     const Q = +g.dataset.q;
     const R = +g.dataset.r;
     state.cursor = { Q, R };
+    if (state.pan) return;               // mid-pan: no hover effects
     if (state.pathDrag){
       updatePathCellDrag(Q, R);
       return;

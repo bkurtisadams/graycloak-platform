@@ -1323,3 +1323,8 @@ body.theme-dark .sxw-cell-group.fogged .sxw-cell {
 /* v1.6.0 drag-a-cell ghost — dashed preview of the healed course */
 .sxw-path-ghost { stroke:#ffdd55; stroke-width:2.5; stroke-dasharray:5 4;
   opacity:.85; pointer-events:none; }
+
+/* v3.4.0 drag-pan */
+.sxw-pan-ready { cursor: grab; }
+.sxw-panning { cursor: grabbing !important; }
+.sxw-panning .sxw-cells-layer { pointer-events: none; }
