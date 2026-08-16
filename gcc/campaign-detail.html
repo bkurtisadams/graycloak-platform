@@ -349,6 +349,16 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
   .lore-grid{grid-template-columns:1fr}.tab{padding:6px 12px;font-size:10px}
   .gcc-dlg-row{flex-direction:column;gap:0}
 }
+.battles-list{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.battle-row{display:flex;align-items:center;gap:10px;padding:7px 12px;border:1px solid var(--border,#d8d0c0);border-radius:6px;font-size:13px}
+.battle-st{font-size:10px;letter-spacing:1.2px;font-weight:700;padding:2px 7px;border-radius:3px;border:1px solid var(--border,#d8d0c0);opacity:.75}
+.battle-st.live{color:var(--accent,#8b0000);border-color:var(--accent,#8b0000);opacity:1}
+.battle-name{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.battle-when{font-size:11px;opacity:.6}
+.battle-lnk{font-size:12px;font-weight:600;text-decoration:none;color:var(--accent,#8b0000);border:1px solid var(--accent,#8b0000);border-radius:4px;padding:3px 10px;cursor:pointer}
+.battle-lnk:hover{filter:brightness(1.2)}
+.battle-del{color:#a03030;border-color:#a03030}
+.battles-note{font-size:12px;opacity:.6;font-style:italic}
 </style>
 </head>
 <body>
@@ -427,13 +437,13 @@ End of episode 1. Total xp = 71.' style="min-height:200px;font-family:var(--fm,m
 </div></div>
 
 <script src="gcc-dialog.js?v=d89481ae"></script>
-<script src="gcc-data.js?v=9971930b"></script>
+<script src="gcc-data.js?v=f0da24c1"></script>
 <script src="gcc-images.js?v=d771a7c0"></script>
 <script src="gcc-backup.js?v=41639a0c"></script>
 <script src="gcc-header.js?v=e1ca49dc"></script>
 <script src="gcc-firebase-config.js?v=ed16c91d"></script>
 <script src="gcc-auth.js?v=dc620d93"></script>
-<script src="gcc-sync.js?v=1e5a9f39"></script>
+<script src="gcc-sync.js?v=42e069bc"></script>
 <script src="gcc-storage.js?v=e0bcb37c"></script>
 <script src="gcc-invite.js?v=83e3f477"></script>
 <script src="gcc-table-feed.js?v=ab655d68"></script>
@@ -1706,15 +1716,6 @@ h1{font-size:28px;margin:0 0 4px;letter-spacing:.5px}
 .j-dm-only{border-left:3px solid #c89030;padding-left:12px}
 .clearfix::after{content:'';display:table;clear:both}
 @media print{body{padding:20px}@page{margin:1in}.j-entry{page-break-inside:avoid}}
-.battles-list{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
-.battle-row{display:flex;align-items:center;gap:10px;padding:7px 12px;border:1px solid var(--border,#3a3a3a);border-radius:6px;font-size:13px}
-.battle-st{font-size:10px;letter-spacing:1.2px;font-weight:700;padding:2px 7px;border-radius:3px;border:1px solid var(--border,#3a3a3a);opacity:.75}
-.battle-st.live{color:var(--accent);border-color:var(--accent);opacity:1}
-.battle-name{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.battle-when{font-size:11px;opacity:.6}
-.battle-lnk{font-size:12px;font-weight:600;text-decoration:none;color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:3px 10px}
-.battle-lnk:hover{filter:brightness(1.2)}
-.battles-note{font-size:12px;opacity:.6;font-style:italic}
 </style></head><body>
 <h1>${ESC(campName)}</h1>
 <div class="j-subtitle">${ESC(sysName)}${camp.world?' — '+ESC(camp.world):''}${camp.gm?' — '+ESC(camp.gmTitle||'GM')+': '+ESC(camp.gm):''}</div>
@@ -2529,8 +2530,23 @@ function renderBattlesRow(){
     const st=b.status==='live'?'<span class="battle-st live">LIVE</span>':'<span class="battle-st">SETUP</span>';
     const when=b._updated?new Date(b._updated).toLocaleDateString():'';
     const gm=!_isPlayerMode?`<a class="battle-lnk" href="${ESC(base)}">Resume</a>`:'';
-    return `<div class="battle-row">${st}<span class="battle-name" title="${ESC(b.name||'')}">${ESC(b.name||'Untitled battle')}</span><span class="battle-when">${ESC(when)}</span>${gm}<a class="battle-lnk" href="${ESC(base)}&player=1">Play</a><a class="battle-lnk" href="${ESC(base)}&spectate=1">Watch</a></div>`;
+    const del=!_isPlayerMode?`<a class="battle-lnk battle-del" data-del="${ESC(b.id)}" data-name="${ESC(b.name||'Untitled battle')}">Delete</a>`:'';
+    return `<div class="battle-row">${st}<span class="battle-name" title="${ESC(b.name||'')}">${ESC(b.name||'Untitled battle')}</span><span class="battle-when">${ESC(when)}</span>${gm}<a class="battle-lnk" href="${ESC(base)}&player=1">Play</a><a class="battle-lnk" href="${ESC(base)}&spectate=1">Watch</a>${del}</div>`;
   }).join('');
+  row.onclick=(e)=>{const b=e.target.closest('[data-del]');if(!b)return;e.preventDefault();deleteBattle(b.dataset.del,b.dataset.name)};
+}
+async function deleteBattle(battleId,name){
+  const ok=await GCCDialog.confirm('Delete battle','Delete "'+name+'"? Spectator and player links to it will stop working. This cannot be undone.',{okText:'Delete',danger:true});
+  if(!ok)return;
+  try{
+    const db=(typeof firebase!=='undefined'&&firebase.firestore)?firebase.firestore():null;
+    if(!db)return;
+    const ref=db.collection('campaigns').doc(campId).collection('battles').doc(battleId);
+    const cmds=await ref.collection('commands').get();   // subcollection docs are NOT auto-deleted with the parent
+    await Promise.all(cmds.docs.map(d=>d.ref.delete()));
+    await ref.delete();
+  }catch(e){console.warn('[GCC] battle delete failed:',e);alert('Delete failed: '+(e.message||e))}
+  loadBattles();
 }
 async function loadBattles(){
   try{
