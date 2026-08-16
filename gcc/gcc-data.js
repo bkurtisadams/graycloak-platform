@@ -1,4 +1,7 @@
-// gcc-data.js v1.5.0 — 2026-07-13
+// gcc-data.js v1.5.1 — 2026-08-16
+// v1.5.1: add1e tools gain 'Chainmail Battles' → chainmail-board.html
+//         (campaign-detail appends ?camp=<cid> so the board opens net-live;
+//         chainmail multiplayer Slice 2A, board v0.11.177).
 // v1.5.0: Roster tombstones — updateCampaign diffs any incoming characters
 //         array against the stored roster: removed entries are recorded in
 //         camp.deletedCharacters (so gcc-sync v2.4.0 can keep them dead
@@ -97,6 +100,7 @@ const GCC = (function() {
         { id: 'add1-dun', name: 'DMG Dungeon Builder', href: null },
         { id: 'add1-voy', name: 'Voyage Simulator', href: 'greyhawk-map.html#voyage' },
         { id: 'add1-set', name: 'Settlement Editor', href: 'settlement-editor.html' },
+        { id: 'add1-chainmail', name: 'Chainmail Battles', href: 'chainmail-board.html' },
       ]
     },
 
