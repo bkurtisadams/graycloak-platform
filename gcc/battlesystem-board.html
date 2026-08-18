@@ -1,9 +1,9 @@
 <!doctype html>
-<!-- battlesystem-board.html · v0.3.2 · FIX: melee skipped again — the v0.3.0 card was drawn with a 3px pad OUTWARD in board coordinates, inflating every unit's apparent footprint ~0.21\" per side; cards that looked engaged were mechanically 0.5-0.7\" apart (past CONTACT_EPS 0.3 and even the 0.6 snap capture), so the engine rightly saw no contact and phaseIsEmpty skipped the phase your eyes said was due. The closure geometry itself verified clean across offsets this time. Fixes: (1) WYSIWYG card — the card rect now sits EXACTLY on the true base footprint (0,0,w,h) with the pips inset, so the drawn edge IS the base edge and the standoff gap you see is the gap the rules see; (2) snap capture widened to 0.8\" so near drops glue reliably; (3) honest skip — the Melee phase NEVER auto-skips while any unit has a declared charge [7.14], and when it does skip it names the closest enemy pair and their gap ('closest: X vs Y — 0.71\" apart') so a miss is information, not mystery. Self-tests add the charge skip-guard. PRIOR (v0.3.1): FIX: dwarf base size per [2.3] footnote — 'Dwarves are mounted on 3/4\" bases even though they are size S creatures' (width over height). Type rows gain an optional `base` override consumed by unitRect (BASE_W[t.base || t.size]); DWARF and DW_PIKE set base:'M'. Combat size stays S (the size field still drives [8.5] vs-L selection and future size rules); only the footprint changes. Self-test locks dwarf figure width to 0.75\". PRIOR (v0.3.0): Slice 3 — chainmail visual language + engagement standoff. Units now render as chainmail-board cards: parchment card (#efe7d2) with a side-colored border, SQUARE figure pips with the FRONT RANK in the dark side color and rear ranks in the light tint (his frontage/non-frontage convention), the wounded figure shown as a pink half-tone pip, and the two-line label BELOW the unit ('A · Name #id' in the side color over 'type · figs/start' in soft ink) so adjacent labels stop colliding. Engaged enemy pairs draw a dotted clash line between them. ENGAGEMENT STANDOFF: BS melee is base-to-base RAW ([1.6]/[7.8]/[8.1] — no Chainmail 3-inch rule), but glued bases were unreadable, so contact is now RENDERED with a 0.25-inch fighting-line gap: charge and snap close to the standoff rather than to zero, and the contact epsilon is 0.3 inch, so a standoff pair IS in base-to-base contact mechanically while the boards breathe visually. Selected/targeted units draw last (labels never buried). Self-tests updated for the standoff geometry. PRIOR (v0.2.1): FIX: melee phase auto-skipped after a charge/snap that visually touched. Root cause: chargeToTarget and snapToContact closed along the CENTER-to-center vector by the rect-gap distance, but the rect gap is the hypot of the per-axis edge deficits — on any diagonal offset the center vector is not the deficit vector, so the move under-closed (repro: 0.671" gap 'closed' to 0.301", above the 0.15" contact epsilon), inContact stayed false, and phaseIsEmpty(melee) skipped the phase. Fix: new contactDelta(u,v) returns the exact per-axis translation whose hypot IS the rect gap; charge and snap now translate by that delta, zeroing the gap by construction (movedIn charged with delta.dist, identical to the reach test's rectGap so budgets are unchanged). Self-test adds a diagonal-offset fixture locked to end in contact. PRIOR (v0.2.0): Slice 2 — chainmail targeting grammar + feel pass. Mirrors chainmail-board's attack grammar exactly: SHIFT+CLICK an enemy toggles it as the TARGET (dashed ring + reticle tag), plain click selects, and the action buttons in the phase row LIGHT UP from eligibility-state functions (meleeState/chargeState/rallyState, each returning {ok, reason}; the reason surfaces as the disabled button's tooltip, chainmail's btn-melee pattern). '⚔ Resolve melee' enables when a friendly is selected, an enemy targeted, the pair is in base-to-base contact, it is the Melee phase, and the attacker is neither routed nor rallied-this-round [6.3]; 'Charge target' enables in the Movement phase when the target is reachable within the 1.5x charge allowance [7.14] and, on click, declares the charge and auto-closes straight into contact (last leg straight per [7.14], cost charged to the move budget); 'Attempt rally' enables in the Rally phase for a selected routed unit. Also: SNAP-TO-CONTACT — a drop that leaves <=0.35 inch of gap to an enemy glues the facing edges (kills the pixel-fiddling to reach [7.8] contact); CLICK-TO-PLACE muster — a muster button arms placement and the next board click drops the unit there (Esc or right-click cancels; shift-click keeps placing more of the same); EMPTY-PHASE AUTO-SKIP — Rally with no routed units and Melee with no contacts advance themselves with a one-line log note. The Selected pane gains a Target row; the panel Attack flow is retired in favor of the lit buttons. Self-tests add meleeState gating and the snap closure math. PRIOR (v0.1.0): Slice 1 — BATTLESYSTEM Basic Game on the chainmail-board chassis. New file forked from chainmail-board v0.11.180's chassis PATTERNS (parchment palette + toolbar/panel/log CSS, right-drag pan + wheel zoom, phase rail, undo/redo, JSON save/load, boot self-tests), with the rules core supplied by @graycloak/battlesystem-engine v0.2.0 (synced at ./engine/, same copy the Foundry module consumes — do NOT edit ./engine/ here; edit graycloak-platform/packages/battlesystem-engine and re-sync). SCOPE (Basic Game, rulebook Part 2): Army-Roster units (Regular/Mob; AC, creature HD, ratio [2.2], figures, frontage, formation, MV, THAC0, weapon, size), 5-phase round [Basic seq: Initiative d6 reroll-ties / Rally / Movement A-chooses / Melee simultaneous [8.0] / End], closed-open formation change at 1/3 MV [7.6], drag movement with live budget clamp + charge at 1.5x MV requiring contact [7.14], melee via engine resolveMeleeCombat (AR pipeline [8.3], CRT [8.4-8.5], eligible fighters [8.1] with measured contact frontage, casualties + single-wound rule [8.7]), automatic morale triggers 25%/50%/post-50%-per-figure [4.4] via engine checkMorale 2d10 with situational stack [4.2], failure effects [4.5] (closed breaks to open; open/mob ROUTS with auto move MV+1/3 away, back to enemy [7.15]), Rally-phase attemptRally [6.1-6.3] with rallied-unit restrictions, fight-in-melee-only-if-attacked [6.3]. OPEN RULINGS this slice (flagged in-log where they bite): no commanders/CR yet, so In-Command bonuses, CB, and the OOC penalties are not applied (units treated as in command; [4.7]-[4.10] land with the Intermediate slice); skirmish units deferred (no missiles in Basic anyway); contact frontage measured as overlapping facing-edge figures, side-extras [8.1] auto-computed 0-2 from geometry; wheeling/facing costs deferred — drag cost is path length (straight-line legs), which under-charges a wheel; mobs get Move Forward only (orders system with commanders). Self-tests at boot lock the [8.4] worked example, morale example, rout distance, and save round-trip. -->
+<!-- battlesystem-board.html · v0.4.0 · Slice 4 — facing, flanks, and rear + M/F/X acted chips. FACING: units carry a cardinal facing (0/90/180/270 — RAW's own facing-change set, since [7.9] defines exactly Right Face, Left Face, About Face; free 45-degree drift and wheeling stay OPEN for a later slice). The front edge draws a green stripe; the front RANK of pips is the rank nearest that edge (dark pips follow the facing). Facing changes are Selected-pane buttons costed per [7.9] — Left/Right Face 1/3 MV, About Face 1/2 MV — budget-checked in the Movement phase, and FREE once immediately after a successful rally per [6.3]. A charge turns the charger to face its target (the last 2/3-straight leg implies it); a rout ends with the unit's back to the enemy [7.15], now literally. ARCS: arcOf(defender, attacker) classifies the attacker's center against the defender's facing-axis edges — front of the front edge = FRONTAL, behind the rear edge = REAR, else FLANK. Targeting shows the chainmail-style arc banner over the target (green/amber/red per the --front/--flank/--rear palette). COMBAT WIRING: rear attacks take arDelta -2 and flank attacks -1 when the defender carries a shield ([8.3] SPECIAL NOTE examples — shield flags added to MEN_HF, DWARF, DW_PIKE, HOBGOB), the melee log names the arc, and a unit meleeing with an enemy in contact with its REAR arc checks morale with the [4.2] enemyAtRear -2 (engine key verified). M/F/X CHIPS: chainmail's acted trio — u.acted {moved, fired, fought} — renders as chips above each card, dark when done (M on any move/charge/facing spend, X on fighting a melee, F reserved until the missile slice), reset at End of Round. Self-tests add arc classification, facing-cost/center-preserving rotation, and the rear arDelta. PRIOR (v0.3.2): FIX: melee skipped again — the v0.3.0 card was drawn with a 3px pad OUTWARD in board coordinates, inflating every unit's apparent footprint ~0.21\" per side; cards that looked engaged were mechanically 0.5-0.7\" apart (past CONTACT_EPS 0.3 and even the 0.6 snap capture), so the engine rightly saw no contact and phaseIsEmpty skipped the phase your eyes said was due. The closure geometry itself verified clean across offsets this time. Fixes: (1) WYSIWYG card — the card rect now sits EXACTLY on the true base footprint (0,0,w,h) with the pips inset, so the drawn edge IS the base edge and the standoff gap you see is the gap the rules see; (2) snap capture widened to 0.8\" so near drops glue reliably; (3) honest skip — the Melee phase NEVER auto-skips while any unit has a declared charge [7.14], and when it does skip it names the closest enemy pair and their gap ('closest: X vs Y — 0.71\" apart') so a miss is information, not mystery. Self-tests add the charge skip-guard. PRIOR (v0.3.1): FIX: dwarf base size per [2.3] footnote — 'Dwarves are mounted on 3/4\" bases even though they are size S creatures' (width over height). Type rows gain an optional `base` override consumed by unitRect (BASE_W[t.base || t.size]); DWARF and DW_PIKE set base:'M'. Combat size stays S (the size field still drives [8.5] vs-L selection and future size rules); only the footprint changes. Self-test locks dwarf figure width to 0.75\". PRIOR (v0.3.0): Slice 3 — chainmail visual language + engagement standoff. Units now render as chainmail-board cards: parchment card (#efe7d2) with a side-colored border, SQUARE figure pips with the FRONT RANK in the dark side color and rear ranks in the light tint (his frontage/non-frontage convention), the wounded figure shown as a pink half-tone pip, and the two-line label BELOW the unit ('A · Name #id' in the side color over 'type · figs/start' in soft ink) so adjacent labels stop colliding. Engaged enemy pairs draw a dotted clash line between them. ENGAGEMENT STANDOFF: BS melee is base-to-base RAW ([1.6]/[7.8]/[8.1] — no Chainmail 3-inch rule), but glued bases were unreadable, so contact is now RENDERED with a 0.25-inch fighting-line gap: charge and snap close to the standoff rather than to zero, and the contact epsilon is 0.3 inch, so a standoff pair IS in base-to-base contact mechanically while the boards breathe visually. Selected/targeted units draw last (labels never buried). Self-tests updated for the standoff geometry. PRIOR (v0.2.1): FIX: melee phase auto-skipped after a charge/snap that visually touched. Root cause: chargeToTarget and snapToContact closed along the CENTER-to-center vector by the rect-gap distance, but the rect gap is the hypot of the per-axis edge deficits — on any diagonal offset the center vector is not the deficit vector, so the move under-closed (repro: 0.671" gap 'closed' to 0.301", above the 0.15" contact epsilon), inContact stayed false, and phaseIsEmpty(melee) skipped the phase. Fix: new contactDelta(u,v) returns the exact per-axis translation whose hypot IS the rect gap; charge and snap now translate by that delta, zeroing the gap by construction (movedIn charged with delta.dist, identical to the reach test's rectGap so budgets are unchanged). Self-test adds a diagonal-offset fixture locked to end in contact. PRIOR (v0.2.0): Slice 2 — chainmail targeting grammar + feel pass. Mirrors chainmail-board's attack grammar exactly: SHIFT+CLICK an enemy toggles it as the TARGET (dashed ring + reticle tag), plain click selects, and the action buttons in the phase row LIGHT UP from eligibility-state functions (meleeState/chargeState/rallyState, each returning {ok, reason}; the reason surfaces as the disabled button's tooltip, chainmail's btn-melee pattern). '⚔ Resolve melee' enables when a friendly is selected, an enemy targeted, the pair is in base-to-base contact, it is the Melee phase, and the attacker is neither routed nor rallied-this-round [6.3]; 'Charge target' enables in the Movement phase when the target is reachable within the 1.5x charge allowance [7.14] and, on click, declares the charge and auto-closes straight into contact (last leg straight per [7.14], cost charged to the move budget); 'Attempt rally' enables in the Rally phase for a selected routed unit. Also: SNAP-TO-CONTACT — a drop that leaves <=0.35 inch of gap to an enemy glues the facing edges (kills the pixel-fiddling to reach [7.8] contact); CLICK-TO-PLACE muster — a muster button arms placement and the next board click drops the unit there (Esc or right-click cancels; shift-click keeps placing more of the same); EMPTY-PHASE AUTO-SKIP — Rally with no routed units and Melee with no contacts advance themselves with a one-line log note. The Selected pane gains a Target row; the panel Attack flow is retired in favor of the lit buttons. Self-tests add meleeState gating and the snap closure math. PRIOR (v0.1.0): Slice 1 — BATTLESYSTEM Basic Game on the chainmail-board chassis. New file forked from chainmail-board v0.11.180's chassis PATTERNS (parchment palette + toolbar/panel/log CSS, right-drag pan + wheel zoom, phase rail, undo/redo, JSON save/load, boot self-tests), with the rules core supplied by @graycloak/battlesystem-engine v0.2.0 (synced at ./engine/, same copy the Foundry module consumes — do NOT edit ./engine/ here; edit graycloak-platform/packages/battlesystem-engine and re-sync). SCOPE (Basic Game, rulebook Part 2): Army-Roster units (Regular/Mob; AC, creature HD, ratio [2.2], figures, frontage, formation, MV, THAC0, weapon, size), 5-phase round [Basic seq: Initiative d6 reroll-ties / Rally / Movement A-chooses / Melee simultaneous [8.0] / End], closed-open formation change at 1/3 MV [7.6], drag movement with live budget clamp + charge at 1.5x MV requiring contact [7.14], melee via engine resolveMeleeCombat (AR pipeline [8.3], CRT [8.4-8.5], eligible fighters [8.1] with measured contact frontage, casualties + single-wound rule [8.7]), automatic morale triggers 25%/50%/post-50%-per-figure [4.4] via engine checkMorale 2d10 with situational stack [4.2], failure effects [4.5] (closed breaks to open; open/mob ROUTS with auto move MV+1/3 away, back to enemy [7.15]), Rally-phase attemptRally [6.1-6.3] with rallied-unit restrictions, fight-in-melee-only-if-attacked [6.3]. OPEN RULINGS this slice (flagged in-log where they bite): no commanders/CR yet, so In-Command bonuses, CB, and the OOC penalties are not applied (units treated as in command; [4.7]-[4.10] land with the Intermediate slice); skirmish units deferred (no missiles in Basic anyway); contact frontage measured as overlapping facing-edge figures, side-extras [8.1] auto-computed 0-2 from geometry; wheeling/facing costs deferred — drag cost is path length (straight-line legs), which under-charges a wheel; mobs get Move Forward only (orders system with commanders). Self-tests at boot lock the [8.4] worked example, morale example, rout distance, and save round-trip. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Battlesystem — Battlefield · v0.3.2</title>
+<title>Battlesystem — Battlefield · v0.4.0</title>
 <style>
   :root {
     --bg:#ece0c4; --panel:#f5eedb; --field:#a8b094; --field-edge:#6d735a; --ink:#2c2316; --ink-soft:#6e6047; --rule:#b6a682;
@@ -121,7 +121,7 @@
 </div>
 
 <script type="module">
-const SIM_VERSION = '0.3.2';
+const SIM_VERSION = '0.4.0';
 import {
   BattlesystemCombat, BattlesystemMorale, BattlesystemMovement,
   ratioFromHD, calculateHDPerFigure, creaturesPerFigure
@@ -134,12 +134,12 @@ const BS_TYPES = Object.freeze([
   { id:'ORC',    name:'Orc Infantry',     ac:6, hd:1,   mv:9,  thaco:19, weapon:'longsword',  size:'M', unitType:'regular' },
   { id:'ORC_SP', name:'Orc Spears',       ac:6, hd:1,   mv:9,  thaco:19, weapon:'spear',      size:'M', unitType:'regular' },
   { id:'GOBLIN', name:'Goblin Warband',   ac:6, hd:0.875,mv:6, thaco:20, weapon:'shortsword', size:'S', unitType:'regular' },
-  { id:'HOBGOB', name:'Hobgoblin Guard',  ac:5, hd:1.5, mv:9,  thaco:18, weapon:'morningstar',size:'M', unitType:'regular' },
+  { id:'HOBGOB', name:'Hobgoblin Guard',  ac:5, hd:1.5, mv:9,  thaco:18, weapon:'morningstar',size:'M', unitType:'regular', shield:true },
   { id:'GNOLL',  name:'Gnoll Pack',       ac:5, hd:2,   mv:9,  thaco:16, weapon:'halberd',    size:'L', unitType:'regular' },
-  { id:'DWARF',  name:'Dwarf Shieldwall', ac:4, hd:1,   mv:6,  thaco:19, weapon:'battleaxe',  size:'S', base:'M', unitType:'regular', demihuman:true },   // [2.3] fn: 3/4" base
-  { id:'DW_PIKE',name:'Dwarf Pikes',      ac:4, hd:1,   mv:6,  thaco:19, weapon:'pike',       size:'S', base:'M', unitType:'regular', demihuman:true },   // [2.3] fn: 3/4" base
+  { id:'DWARF',  name:'Dwarf Shieldwall', ac:4, hd:1,   mv:6,  thaco:19, weapon:'battleaxe',  size:'S', base:'M', unitType:'regular', demihuman:true, shield:true },   // [2.3] fn: 3/4" base
+  { id:'DW_PIKE',name:'Dwarf Pikes',      ac:4, hd:1,   mv:6,  thaco:19, weapon:'pike',       size:'S', base:'M', unitType:'regular', demihuman:true, shield:true },   // [2.3] fn: 3/4" base
   { id:'ELF',    name:'Elf Swords',       ac:5, hd:1.125,mv:12,thaco:19, weapon:'longsword',  size:'M', unitType:'regular', demihuman:true },
-  { id:'MEN_HF', name:'Men-at-Arms',      ac:4, hd:1,   mv:9,  thaco:20, weapon:'longsword',  size:'M', unitType:'regular' },
+  { id:'MEN_HF', name:'Men-at-Arms',      ac:4, hd:1,   mv:9,  thaco:20, weapon:'longsword',  size:'M', unitType:'regular', shield:true },
   { id:'MEN_SP', name:'Men Spears',       ac:5, hd:1,   mv:9,  thaco:20, weapon:'spear',      size:'M', unitType:'regular' },
   { id:'OGRE',   name:'Ogres',            ac:5, hd:4.5, mv:9,  thaco:15, weapon:'greatclub',  size:'L', unitType:'regular' },
   { id:'PEAS',   name:'Peasant Mob',      ac:10,hd:0.5, mv:12, thaco:20, weapon:'club',       size:'M', unitType:'mob' },
@@ -182,7 +182,8 @@ function mkUnit(typeId, side, figures, x, y) {
   const u = {
     id: nextId++, type: typeId, side, figures, startFigures: figures,
     frontage, formation: t.unitType === 'mob' ? 'mob' : 'closed',    // [7.1]
-    x, y, facing: side === 'A' ? 0 : 180,
+    x, y, facing: side === 'A' ? 180 : 0,                            // A deploys north facing south (+y=down)
+    acted: { moved:false, fired:false, fought:false }, freeFace: false,
     wounded: 0,                                                      // [8.7] max one
     routed: false, ralliedThisRound: false, wasAttackedThisPhase: false,
     movedIn: 0, charging: false,
@@ -208,10 +209,46 @@ function unitRect(u) {         // tabletop-inch rect from figures/frontage/base 
   const gap = u.formation === 'open' ? 0.5 : 0;                      // [7.3] bases ~1/2" apart
   const cols = Math.min(u.frontage, u.figures);
   const rows = Math.max(1, Math.ceil(u.figures / cols));
-  const w = cols * bw + Math.max(0, cols - 1) * gap;
-  const h = rows * bw + Math.max(0, rows - 1) * gap;
-  return { w, h, cols, rows, bw, gap };
+  let w = cols * bw + Math.max(0, cols - 1) * gap;
+  let h = rows * bw + Math.max(0, rows - 1) * gap;
+  const vertical = u.facing === 90 || u.facing === 270;              // frontage runs vertically
+  if (vertical) [w, h] = [h, w];
+  return { w, h, cols, rows, bw, gap, vertical };
 }
+/* Which arc of `def` does `att`'s center lie in? Cardinal facing, edge-based. */
+function arcOf(def, att) {
+  const r = unitRect(def), c = unitCenter(att);
+  const f = def.facing || 0;
+  if (f === 0)   return c.cy < def.y ? 'front' : c.cy > def.y + r.h ? 'rear' : 'flank';
+  if (f === 180) return c.cy > def.y + r.h ? 'front' : c.cy < def.y ? 'rear' : 'flank';
+  if (f === 90)  return c.cx > def.x + r.w ? 'front' : c.cx < def.x ? 'rear' : 'flank';
+  return c.cx < def.x ? 'front' : c.cx > def.x + r.w ? 'rear' : 'flank';   // 270
+}
+const ARC_LABEL = { front:'FRONTAL', flank:'FLANK', rear:'REAR' };
+const ARC_COLOR = { front:'var(--front)', flank:'var(--flank)', rear:'var(--rear)' };
+function faceUnit(u, newFacing) {                                    // center-preserving rotation
+  const c0 = unitCenter(u);
+  u.facing = ((newFacing % 360) + 360) % 360;
+  const r = unitRect(u);
+  u.x = c0.cx - r.w / 2; u.y = c0.cy - r.h / 2;
+}
+function facingChange(u, kind) {                                     // [7.9] costs; [6.3] free after rally
+  const t = typeById(u.type);
+  const free = u.freeFace;
+  const cost = free ? 0 : (kind === 'about' ? t.mv / 2 : t.mv / 3);
+  if (!free) {
+    if (curPhase().id !== 'movement') { log('phase', 'Facing changes happen in the Movement Phase [7.9]'); return; }
+    if (moveBudget(u) < cost) { log('phase', `${esc(uName(u))} lacks movement for that facing change`, `needs ${fmt(cost)}" [7.9]`); return; }
+  }
+  pushUndo('face');
+  u.movedIn += cost; u.acted.moved = true;
+  u.freeFace = false;
+  faceUnit(u, u.facing + (kind === 'left' ? -90 : kind === 'right' ? 90 : 180));
+  log('phase', `${esc(uName(u))} ${kind === 'about' ? 'about faces' : kind + ' faces'}`,
+    free ? 'free facing change after rally [6.3]' : `cost ${fmt(cost)}" [7.9]`);
+  renderAll();
+}
+const nearestCardinal = (dx, dy) => Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 90 : 270) : (dy > 0 ? 180 : 0);
 function unitCenter(u) { const r = unitRect(u); return { cx: u.x + r.w/2, cy: u.y + r.h/2 }; }
 function dist(a, b) { return Math.hypot(a.cx - b.cx, a.cy - b.cy); }
 
@@ -278,6 +315,11 @@ function saveScenario() {
 function loadScenario(data) {
   if (!data || data.format !== 'battlesystem-board' || !data.state) { alert('Not a Battlesystem board save.'); return false; }
   applySnap(data.state);
+  for (const u of state.units) {                                     // hydrate pre-v0.4.0 saves
+    if (!u.acted) u.acted = { moved:false, fired:false, fought:false };
+    if (u.freeFace === undefined) u.freeFace = false;
+    if (![0,90,180,270].includes(u.facing)) u.facing = u.side === 'A' ? 180 : 0;
+  }
   state.undoStack = []; state.redoStack = []; state.selId = null; syncUndo();
   renderAll();
   log('phase', 'Board loaded', `${state.units.length} units · ${data.simVersion !== SIM_VERSION ? `saved with v${data.simVersion}, now v${SIM_VERSION}` : 'round ' + state.round}`);
@@ -351,7 +393,7 @@ function runPhaseEntry() {
   }
 }
 function endRound() {
-  for (const u of state.units) { u.movedIn = 0; u.charging = false; }
+  for (const u of state.units) { u.movedIn = 0; u.charging = false; u.acted = { moved:false, fired:false, fought:false }; }
   log('phase', `— End of Round ${state.round} —`, '[1.7]');
 }
 
@@ -386,7 +428,7 @@ function autoRout(u, mvOverride, why) {                              // [7.15]/[
     const m = Math.hypot(ex, ey) || 1; dx = -ex/m; dy = -ey/m;
   }
   u.x = clamp(u.x + dx*routMV, -2, BOARD_W+2); u.y = clamp(u.y + dy*routMV, -2, BOARD_H+2);
-  u.facing = (Math.atan2(dy, dx) * 180/Math.PI + 450) % 360;         // back to the enemy
+  faceUnit(u, nearestCardinal(dx, dy));                              // back to the enemy [7.15]
   if (u.x < -1 || u.y < -1 || u.x > BOARD_W || u.y > BOARD_H) {
     log('morale', `☠ ${esc(uName(u))} routs off the field`, 'removed from play [7.15]');
     u.figures = 0;
@@ -429,12 +471,14 @@ function resolveMelee(attU, defU) {
   }
   pushUndo('melee');
   defU.wasAttackedThisPhase = true;
+  attU.acted.fought = true; defU.acted.fought = true;
 
   const legs = [ [attU, defU], [defU, attU] ];
   const results = [];
   for (const [A, D] of legs) {
     const aT = typeById(A.type), dT = typeById(D.type);
     if (A.routed) { results.push(null); continue; }                  // routed units take damage, deal none [6.4]
+    const arc = arcOf(D, A);
     const ci = contactInfo(A, D);
     const eligible = BattlesystemCombat.calculateEligibleFighters({
       ratio: ratioFromHD(aT.hd), formation: A.formation, weapon: aT.weapon,
@@ -448,14 +492,16 @@ function resolveMelee(attU, defU) {
           openFormation: A.formation === 'open',
           chargingClosed: A.charging && A.formation === 'closed',    // [7.14] -1
         },
+        // [8.3] SPECIAL NOTE examples: -2 rear; -1 flank when it negates a shield
         weapon: BattlesystemCombat.defineWeapon(aT.weapon),
         numberOfAttacks: BattlesystemCombat.defineWeapon(aT.weapon).numberOfAttacks || 1,
-        eligibleFigures: eligible, arDelta: 0,
+        eligibleFigures: eligible,
+        arDelta: arc === 'rear' ? -2 : (arc === 'flank' && dT.shield ? -1 : 0),
       },
       { ac: dT.ac, hitDice: hdPerFig(D), size: dT.size },
       roll2d6
     );
-    r._eligible = eligible; r._ci = ci;
+    r._eligible = eligible; r._ci = ci; r._arc = arc;
     results.push(r);
   }
   // [8.0] simultaneous: apply casualties only after both legs rolled
@@ -466,9 +512,10 @@ function resolveMelee(attU, defU) {
     applyCasualties(D, r);
     summ.push(`${esc(names[1-i])}: ${r.killed} killed${r.wounds ? ' · 1 wounded' : ''}`);
     log('melee',
-      `${i===0?'⚔':'↩'} ${esc(names[i])} → ${esc(names[1-i])}`,
+      `${i===0?'⚔':'↩'} ${esc(names[i])} → ${esc(names[1-i])} · <span style="color:${ARC_COLOR[r._arc]}">${ARC_LABEL[r._arc]}</span>`,
       `Roll ${r.totalAttackRoll} → CRT → ${r.totalDamage} HD → ${r.killed} killed${r.wounds ? ', 1 wound' : ''}`,
-      `2d6 (${r.rollTotal}) + AR ${r.adjustedAR} − AC ${r.defenderAC} · ${r._eligible} figs ` +
+      `2d6 (${r.rollTotal}) + AR ${r.adjustedAR} − AC ${r.defenderAC}` +
+      `${r._arc !== 'front' ? ` (${r._arc} ${r._arc==='rear' ? '−2' : 'shield negated −1'})` : ''} · ${r._eligible} figs ` +
       `(${r._ci.contactFrontage} contact${r._ci.sideExtras ? ` + ${r._ci.sideExtras} side` : ''}) [8.1] · ` +
       `${r.weaponDice}${r.usedLargeVariant ? ' vs L' : ' vs S/M'}`);
   });
@@ -503,6 +550,8 @@ function runMoraleCheck(u, why) {                                    // [4.2]/[4
     fiftyPercentLosses: lost >= 0.5 && lost < 0.75,
     seventyFivePercentLosses: lost >= 0.75,
     closedFormation: u.formation === 'closed',
+    enemyAtRear: state.units.some(v => v.side !== u.side && v.figures > 0
+      && inContact(u, v) && arcOf(u, v) === 'rear'),                 // [4.2] −2
   };
   const res = BattlesystemMorale.checkMorale(unitEngineData(u), situation, roll2d10);
   if (res.passed) {
@@ -524,7 +573,7 @@ function attemptRallySelected(u) {                                   // [6.1]-[6
   // OPEN RULING (slice 1, no commanders yet): rally is a plain Morale Check [6.2].
   const res = BattlesystemMorale.checkMorale(unitEngineData(u), {}, roll2d10);
   if (res.passed) {
-    u.routed = false; u.ralliedThisRound = true;
+    u.routed = false; u.ralliedThisRound = true; u.freeFace = true;   // [6.3] may change facing now
     log('morale', `⚑ ${esc(uName(u))} RALLIES`, `need ${res.currentMorale}, rolled ${res.roll} · may change facing now; no move/attack this round [6.3]`);
   } else {
     log('morale', `⚑ ${esc(uName(u))} fails to rally`, `need ${res.currentMorale}, rolled ${res.roll} · rout continues [6.4]`);
@@ -592,12 +641,41 @@ function renderUnit(u) {
   // the wounded figure renders as a pink half-tone.
   const per = r.bw + r.gap, sq = r.bw*PXI*0.58, off = (r.bw*PXI - sq)/2;
   for (let i=0; i<u.figures; i++) {
-    const c = i % r.cols, rw = Math.floor(i / r.cols);
-    const isFront = rw === 0;
+    let c = i % r.cols, rw = Math.floor(i / r.cols);
+    if (r.vertical) [c, rw] = [rw, c];                               // frontage runs vertically
+    const isFront = u.facing === 0   ? rw === 0
+                  : u.facing === 180 ? rw === Math.max(0, Math.ceil(u.figures / r.cols) - 1)
+                  : u.facing === 90  ? c === r.cols - 1
+                  :                    c === 0;
     const isWounded = u.wounded && i === u.figures - 1;
     g.appendChild(el('rect', { x:(c*per)*PXI+off, y:(rw*per)*PXI+off, width:sq, height:sq, rx:2,
       fill: isWounded ? '#e0a6a0' : isFront ? sideC : sideL,
       stroke: sideD, 'stroke-width': isFront ? .9 : .6, opacity: isFront ? 1 : .9 }));
+  }
+  // front-edge stripe (green) per facing
+  const fe = { 0:[0,0,r.w*PXI,0], 180:[0,r.h*PXI,r.w*PXI,r.h*PXI], 90:[r.w*PXI,0,r.w*PXI,r.h*PXI], 270:[0,0,0,r.h*PXI] }[u.facing || 0];
+  g.appendChild(el('line', { x1:fe[0], y1:fe[1], x2:fe[2], y2:fe[3], stroke:'var(--front)', 'stroke-width':3, 'stroke-linecap':'round' }));
+  // chainmail M/F/X acted chips above the card
+  const chips = [['M', u.acted?.moved], ['F', u.acted?.fired], ['X', u.acted?.fought]];
+  chips.forEach(([ch, on], ci2) => {
+    const bx = ci2 * 16;
+    g.appendChild(el('rect', { x:bx, y:-18, width:14, height:14, rx:3,
+      fill: on ? '#3d3325' : '#efe7d2', stroke:'#8a7a58', 'stroke-width':1 }));
+    const tt = el('text', { x:bx+7, y:-7, 'text-anchor':'middle', 'font-size':9.5, 'font-family':'var(--sans)',
+      'font-weight':700, fill: on ? '#f5eedb' : '#8a7a58' });
+    tt.textContent = ch; g.appendChild(tt);
+  });
+  // arc banner over the TARGET, classified from the selected attacker (chainmail's FRONTAL banner)
+  if (tgt && state.selId) {
+    const A0 = state.units.find(x => x.id === state.selId);
+    if (A0 && A0.side !== u.side) {
+      const arc = arcOf(u, A0);
+      const bw2 = 74;
+      g.appendChild(el('rect', { x:(r.w*PXI-bw2)/2, y:-44, width:bw2, height:20, rx:4, fill:ARC_COLOR[arc], opacity:.92 }));
+      const bt = el('text', { x:r.w*PXI/2, y:-30, 'text-anchor':'middle', 'font-size':11, 'font-family':'var(--sans)',
+        'font-weight':700, 'letter-spacing':'2', fill:'#f5eedb' });
+      bt.textContent = ARC_LABEL[arc]; g.appendChild(bt);
+    }
   }
   // two-line label BELOW the card, chainmail style
   const cx = r.w*PXI/2, by = r.h*PXI;
@@ -635,7 +713,7 @@ function renderSel() {
     ['AC / AR', `${t.ac} / ${t.thaco + ({'10:1':0,'5:1':5,'2:1':10}[ratio]||0)} (THAC0 ${t.thaco} ${ratio})`],
     ['ML / MV', `${u.baseMorale} / ${t.mv}" ${u.charging ? '(charging 1.5×)' : ''}`],
     ['Weapon', `${t.weapon}`],
-    ['Formation', `${u.formation} · frontage ${Math.min(u.frontage, u.figures)}`],
+    ['Formation', `${u.formation} · frontage ${Math.min(u.frontage, u.figures)} · facing ${u.facing}°`],
     ['Moved', `${fmt(u.movedIn)}" of ${fmt(typeById(u.type).mv * (u.charging?1.5:1))}"`],
     ['Status', u.routed ? '<span class="amber">ROUTED</span>' : u.ralliedThisRound ? 'rallied (no move/attack) [6.3]' : 'ready'],
     ['Target', (() => { const d = state.units.find(x=>x.id===state.targetId);
@@ -645,6 +723,9 @@ function renderSel() {
   const act = document.createElement('div'); act.className = 'sel-actions';
   const mkBtn = (label, fn, dis) => { const b = document.createElement('button'); b.textContent = label; b.disabled = !!dis; b.onclick = fn; act.appendChild(b); };
   mkBtn(u.formation === 'closed' ? 'Open form. (⅓ MV)' : 'Closed form. (⅓ MV)', () => toggleFormation(u), t.unitType==='mob' || state.setup);
+  mkBtn('⟲ Left face', () => facingChange(u, 'left'), state.setup || u.routed);
+  mkBtn('⟳ Right face', () => facingChange(u, 'right'), state.setup || u.routed);
+  mkBtn('⇅ About face', () => facingChange(u, 'about'), state.setup || u.routed);
   mkBtn(u.charging ? 'Cancel charge' : 'Declare charge', () => { pushUndo('charge'); u.charging = !u.charging; renderAll(); }, state.setup || u.routed || curPhase().id!=='movement');
   mkBtn('Remove', () => { pushUndo('remove'); state.units = state.units.filter(x=>x.id!==u.id); state.selId=null; renderAll(); });
   pane.appendChild(act);
@@ -704,7 +785,8 @@ function chargeToTarget() {                                          // declare 
   const step = Math.max(0, delta.dist - STANDOFF);
   const sc = delta.dist > 0 ? step / delta.dist : 0;
   a.x += delta.dx * sc; a.y += delta.dy * sc;
-  a.movedIn += step;
+  a.movedIn += step; a.acted.moved = true;
+  faceUnit(a, nearestCardinal(delta.dx, delta.dy));                  // the straight final leg [7.14]
   log('phase', `⚡ ${esc(uName(a))} CHARGES ${esc(uName(d))}`, `closes ${fmt(step)}" straight in — melee resolves in the Melee Phase [7.14]`);
   renderAll();
 }
@@ -772,6 +854,7 @@ window.addEventListener('mouseup', () => {
   if (d > 0.05) {
     if (!state.setup) {
       drag.u.movedIn = drag.spent0 + d;
+      drag.u.acted.moved = true;
       snapToContact(drag.u);                                         // glue a near-miss drop [7.8]
       // [7.8] stop on contact is naturally enforced by the player; contact log aid:
       const hit = state.units.find(v => v.side !== drag.u.side && inContact(drag.u, v));
@@ -851,6 +934,21 @@ $('#btn-advance').onclick = advancePhase;
   t('melee never skipped while a charge is declared', phaseIsEmpty(PHASES.find(x=>x.id==='melee')) === false);
   CG.charging = false;
   t('melee skips when truly empty', phaseIsEmpty(PHASES.find(x=>x.id==='melee')) === true);
+  // arc classification: defender facing 0 (north) — attacker above=front, below=rear, beside=flank
+  const DEF = mkUnit('MEN_HF','B',12,20,20); DEF.facing = 0;
+  const NF = mkUnit('ORC','A',12,20,14), RR = mkUnit('ORC','A',12,20,26), FL = mkUnit('ORC','A',12,28,20.4);
+  t('arcOf front/rear/flank', arcOf(DEF,NF)==='front' && arcOf(DEF,RR)==='rear' && arcOf(DEF,FL)==='flank');
+  // facing change preserves center and swaps orientation
+  const FU = mkUnit('ORC','A',12,10,10); const c0 = unitCenter(FU); const w0 = unitRect(FU).w;
+  faceUnit(FU, 90); const c1 = unitCenter(FU);
+  t('faceUnit preserves center + swaps axis', Math.abs(c0.cx-c1.cx)<1e-9 && Math.abs(c0.cy-c1.cy)<1e-9 && Math.abs(unitRect(FU).h - w0) < 1e-9);
+  // rear arDelta reaches the engine: same forced dice, rear beats front by the -2 AR shift on the CRT
+  const mkAtk = delta => BattlesystemCombat.resolveMeleeCombat(
+    { thaco:17, ratio:'10:1', modifiers:{}, arBaseOverride:17, weapon:{damageDice:'D8',damageModifier:0,numberOfDice:1},
+      numberOfAttacks:1, eligibleFigures:10, arDelta: delta },
+    { ac:8, hitDice:10, size:'M' }, () => ({ total:7, dice:[3,4] }));
+  t('rear −2 arDelta shifts the CRT', mkAtk(-2).totalAttackRoll === 14 && mkAtk(0).totalAttackRoll === 16
+    && mkAtk(-2).damagePerFigure >= mkAtk(0).damagePerFigure);
   // save round-trip
   const before = JSON.stringify(snap()); loadOK: {
     const s = snap(); applySnap(JSON.parse(JSON.stringify(s)));
