@@ -1,9 +1,9 @@
 <!doctype html>
-<!-- battlesystem-board.html · v0.3.1 · FIX: dwarf base size per [2.3] footnote — 'Dwarves are mounted on 3/4\" bases even though they are size S creatures' (width over height). Type rows gain an optional `base` override consumed by unitRect (BASE_W[t.base || t.size]); DWARF and DW_PIKE set base:'M'. Combat size stays S (the size field still drives [8.5] vs-L selection and future size rules); only the footprint changes. Self-test locks dwarf figure width to 0.75\". PRIOR (v0.3.0): Slice 3 — chainmail visual language + engagement standoff. Units now render as chainmail-board cards: parchment card (#efe7d2) with a side-colored border, SQUARE figure pips with the FRONT RANK in the dark side color and rear ranks in the light tint (his frontage/non-frontage convention), the wounded figure shown as a pink half-tone pip, and the two-line label BELOW the unit ('A · Name #id' in the side color over 'type · figs/start' in soft ink) so adjacent labels stop colliding. Engaged enemy pairs draw a dotted clash line between them. ENGAGEMENT STANDOFF: BS melee is base-to-base RAW ([1.6]/[7.8]/[8.1] — no Chainmail 3-inch rule), but glued bases were unreadable, so contact is now RENDERED with a 0.25-inch fighting-line gap: charge and snap close to the standoff rather than to zero, and the contact epsilon is 0.3 inch, so a standoff pair IS in base-to-base contact mechanically while the boards breathe visually. Selected/targeted units draw last (labels never buried). Self-tests updated for the standoff geometry. PRIOR (v0.2.1): FIX: melee phase auto-skipped after a charge/snap that visually touched. Root cause: chargeToTarget and snapToContact closed along the CENTER-to-center vector by the rect-gap distance, but the rect gap is the hypot of the per-axis edge deficits — on any diagonal offset the center vector is not the deficit vector, so the move under-closed (repro: 0.671" gap 'closed' to 0.301", above the 0.15" contact epsilon), inContact stayed false, and phaseIsEmpty(melee) skipped the phase. Fix: new contactDelta(u,v) returns the exact per-axis translation whose hypot IS the rect gap; charge and snap now translate by that delta, zeroing the gap by construction (movedIn charged with delta.dist, identical to the reach test's rectGap so budgets are unchanged). Self-test adds a diagonal-offset fixture locked to end in contact. PRIOR (v0.2.0): Slice 2 — chainmail targeting grammar + feel pass. Mirrors chainmail-board's attack grammar exactly: SHIFT+CLICK an enemy toggles it as the TARGET (dashed ring + reticle tag), plain click selects, and the action buttons in the phase row LIGHT UP from eligibility-state functions (meleeState/chargeState/rallyState, each returning {ok, reason}; the reason surfaces as the disabled button's tooltip, chainmail's btn-melee pattern). '⚔ Resolve melee' enables when a friendly is selected, an enemy targeted, the pair is in base-to-base contact, it is the Melee phase, and the attacker is neither routed nor rallied-this-round [6.3]; 'Charge target' enables in the Movement phase when the target is reachable within the 1.5x charge allowance [7.14] and, on click, declares the charge and auto-closes straight into contact (last leg straight per [7.14], cost charged to the move budget); 'Attempt rally' enables in the Rally phase for a selected routed unit. Also: SNAP-TO-CONTACT — a drop that leaves <=0.35 inch of gap to an enemy glues the facing edges (kills the pixel-fiddling to reach [7.8] contact); CLICK-TO-PLACE muster — a muster button arms placement and the next board click drops the unit there (Esc or right-click cancels; shift-click keeps placing more of the same); EMPTY-PHASE AUTO-SKIP — Rally with no routed units and Melee with no contacts advance themselves with a one-line log note. The Selected pane gains a Target row; the panel Attack flow is retired in favor of the lit buttons. Self-tests add meleeState gating and the snap closure math. PRIOR (v0.1.0): Slice 1 — BATTLESYSTEM Basic Game on the chainmail-board chassis. New file forked from chainmail-board v0.11.180's chassis PATTERNS (parchment palette + toolbar/panel/log CSS, right-drag pan + wheel zoom, phase rail, undo/redo, JSON save/load, boot self-tests), with the rules core supplied by @graycloak/battlesystem-engine v0.2.0 (synced at ./engine/, same copy the Foundry module consumes — do NOT edit ./engine/ here; edit graycloak-platform/packages/battlesystem-engine and re-sync). SCOPE (Basic Game, rulebook Part 2): Army-Roster units (Regular/Mob; AC, creature HD, ratio [2.2], figures, frontage, formation, MV, THAC0, weapon, size), 5-phase round [Basic seq: Initiative d6 reroll-ties / Rally / Movement A-chooses / Melee simultaneous [8.0] / End], closed-open formation change at 1/3 MV [7.6], drag movement with live budget clamp + charge at 1.5x MV requiring contact [7.14], melee via engine resolveMeleeCombat (AR pipeline [8.3], CRT [8.4-8.5], eligible fighters [8.1] with measured contact frontage, casualties + single-wound rule [8.7]), automatic morale triggers 25%/50%/post-50%-per-figure [4.4] via engine checkMorale 2d10 with situational stack [4.2], failure effects [4.5] (closed breaks to open; open/mob ROUTS with auto move MV+1/3 away, back to enemy [7.15]), Rally-phase attemptRally [6.1-6.3] with rallied-unit restrictions, fight-in-melee-only-if-attacked [6.3]. OPEN RULINGS this slice (flagged in-log where they bite): no commanders/CR yet, so In-Command bonuses, CB, and the OOC penalties are not applied (units treated as in command; [4.7]-[4.10] land with the Intermediate slice); skirmish units deferred (no missiles in Basic anyway); contact frontage measured as overlapping facing-edge figures, side-extras [8.1] auto-computed 0-2 from geometry; wheeling/facing costs deferred — drag cost is path length (straight-line legs), which under-charges a wheel; mobs get Move Forward only (orders system with commanders). Self-tests at boot lock the [8.4] worked example, morale example, rout distance, and save round-trip. -->
+<!-- battlesystem-board.html · v0.3.2 · FIX: melee skipped again — the v0.3.0 card was drawn with a 3px pad OUTWARD in board coordinates, inflating every unit's apparent footprint ~0.21\" per side; cards that looked engaged were mechanically 0.5-0.7\" apart (past CONTACT_EPS 0.3 and even the 0.6 snap capture), so the engine rightly saw no contact and phaseIsEmpty skipped the phase your eyes said was due. The closure geometry itself verified clean across offsets this time. Fixes: (1) WYSIWYG card — the card rect now sits EXACTLY on the true base footprint (0,0,w,h) with the pips inset, so the drawn edge IS the base edge and the standoff gap you see is the gap the rules see; (2) snap capture widened to 0.8\" so near drops glue reliably; (3) honest skip — the Melee phase NEVER auto-skips while any unit has a declared charge [7.14], and when it does skip it names the closest enemy pair and their gap ('closest: X vs Y — 0.71\" apart') so a miss is information, not mystery. Self-tests add the charge skip-guard. PRIOR (v0.3.1): FIX: dwarf base size per [2.3] footnote — 'Dwarves are mounted on 3/4\" bases even though they are size S creatures' (width over height). Type rows gain an optional `base` override consumed by unitRect (BASE_W[t.base || t.size]); DWARF and DW_PIKE set base:'M'. Combat size stays S (the size field still drives [8.5] vs-L selection and future size rules); only the footprint changes. Self-test locks dwarf figure width to 0.75\". PRIOR (v0.3.0): Slice 3 — chainmail visual language + engagement standoff. Units now render as chainmail-board cards: parchment card (#efe7d2) with a side-colored border, SQUARE figure pips with the FRONT RANK in the dark side color and rear ranks in the light tint (his frontage/non-frontage convention), the wounded figure shown as a pink half-tone pip, and the two-line label BELOW the unit ('A · Name #id' in the side color over 'type · figs/start' in soft ink) so adjacent labels stop colliding. Engaged enemy pairs draw a dotted clash line between them. ENGAGEMENT STANDOFF: BS melee is base-to-base RAW ([1.6]/[7.8]/[8.1] — no Chainmail 3-inch rule), but glued bases were unreadable, so contact is now RENDERED with a 0.25-inch fighting-line gap: charge and snap close to the standoff rather than to zero, and the contact epsilon is 0.3 inch, so a standoff pair IS in base-to-base contact mechanically while the boards breathe visually. Selected/targeted units draw last (labels never buried). Self-tests updated for the standoff geometry. PRIOR (v0.2.1): FIX: melee phase auto-skipped after a charge/snap that visually touched. Root cause: chargeToTarget and snapToContact closed along the CENTER-to-center vector by the rect-gap distance, but the rect gap is the hypot of the per-axis edge deficits — on any diagonal offset the center vector is not the deficit vector, so the move under-closed (repro: 0.671" gap 'closed' to 0.301", above the 0.15" contact epsilon), inContact stayed false, and phaseIsEmpty(melee) skipped the phase. Fix: new contactDelta(u,v) returns the exact per-axis translation whose hypot IS the rect gap; charge and snap now translate by that delta, zeroing the gap by construction (movedIn charged with delta.dist, identical to the reach test's rectGap so budgets are unchanged). Self-test adds a diagonal-offset fixture locked to end in contact. PRIOR (v0.2.0): Slice 2 — chainmail targeting grammar + feel pass. Mirrors chainmail-board's attack grammar exactly: SHIFT+CLICK an enemy toggles it as the TARGET (dashed ring + reticle tag), plain click selects, and the action buttons in the phase row LIGHT UP from eligibility-state functions (meleeState/chargeState/rallyState, each returning {ok, reason}; the reason surfaces as the disabled button's tooltip, chainmail's btn-melee pattern). '⚔ Resolve melee' enables when a friendly is selected, an enemy targeted, the pair is in base-to-base contact, it is the Melee phase, and the attacker is neither routed nor rallied-this-round [6.3]; 'Charge target' enables in the Movement phase when the target is reachable within the 1.5x charge allowance [7.14] and, on click, declares the charge and auto-closes straight into contact (last leg straight per [7.14], cost charged to the move budget); 'Attempt rally' enables in the Rally phase for a selected routed unit. Also: SNAP-TO-CONTACT — a drop that leaves <=0.35 inch of gap to an enemy glues the facing edges (kills the pixel-fiddling to reach [7.8] contact); CLICK-TO-PLACE muster — a muster button arms placement and the next board click drops the unit there (Esc or right-click cancels; shift-click keeps placing more of the same); EMPTY-PHASE AUTO-SKIP — Rally with no routed units and Melee with no contacts advance themselves with a one-line log note. The Selected pane gains a Target row; the panel Attack flow is retired in favor of the lit buttons. Self-tests add meleeState gating and the snap closure math. PRIOR (v0.1.0): Slice 1 — BATTLESYSTEM Basic Game on the chainmail-board chassis. New file forked from chainmail-board v0.11.180's chassis PATTERNS (parchment palette + toolbar/panel/log CSS, right-drag pan + wheel zoom, phase rail, undo/redo, JSON save/load, boot self-tests), with the rules core supplied by @graycloak/battlesystem-engine v0.2.0 (synced at ./engine/, same copy the Foundry module consumes — do NOT edit ./engine/ here; edit graycloak-platform/packages/battlesystem-engine and re-sync). SCOPE (Basic Game, rulebook Part 2): Army-Roster units (Regular/Mob; AC, creature HD, ratio [2.2], figures, frontage, formation, MV, THAC0, weapon, size), 5-phase round [Basic seq: Initiative d6 reroll-ties / Rally / Movement A-chooses / Melee simultaneous [8.0] / End], closed-open formation change at 1/3 MV [7.6], drag movement with live budget clamp + charge at 1.5x MV requiring contact [7.14], melee via engine resolveMeleeCombat (AR pipeline [8.3], CRT [8.4-8.5], eligible fighters [8.1] with measured contact frontage, casualties + single-wound rule [8.7]), automatic morale triggers 25%/50%/post-50%-per-figure [4.4] via engine checkMorale 2d10 with situational stack [4.2], failure effects [4.5] (closed breaks to open; open/mob ROUTS with auto move MV+1/3 away, back to enemy [7.15]), Rally-phase attemptRally [6.1-6.3] with rallied-unit restrictions, fight-in-melee-only-if-attacked [6.3]. OPEN RULINGS this slice (flagged in-log where they bite): no commanders/CR yet, so In-Command bonuses, CB, and the OOC penalties are not applied (units treated as in command; [4.7]-[4.10] land with the Intermediate slice); skirmish units deferred (no missiles in Basic anyway); contact frontage measured as overlapping facing-edge figures, side-extras [8.1] auto-computed 0-2 from geometry; wheeling/facing costs deferred — drag cost is path length (straight-line legs), which under-charges a wheel; mobs get Move Forward only (orders system with commanders). Self-tests at boot lock the [8.4] worked example, morale example, rout distance, and save round-trip. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Battlesystem — Battlefield · v0.3.1</title>
+<title>Battlesystem — Battlefield · v0.3.2</title>
 <style>
   :root {
     --bg:#ece0c4; --panel:#f5eedb; --field:#a8b094; --field-edge:#6d735a; --ink:#2c2316; --ink-soft:#6e6047; --rule:#b6a682;
@@ -121,7 +121,7 @@
 </div>
 
 <script type="module">
-const SIM_VERSION = '0.3.1';
+const SIM_VERSION = '0.3.2';
 import {
   BattlesystemCombat, BattlesystemMorale, BattlesystemMovement,
   ratioFromHD, calculateHDPerFigure, creaturesPerFigure
@@ -295,9 +295,21 @@ function beginBattle() {
 }
 function phaseIsEmpty(p) {
   if (p.id === 'rally') return !state.units.some(u => u.routed);
-  if (p.id === 'melee') return !state.units.some(u =>
-    state.units.some(v => v.side !== u.side && v.figures > 0 && u.figures > 0 && inContact(u, v)));
+  if (p.id === 'melee') {
+    if (state.units.some(u => u.charging)) return false;             // a charge promises melee [7.14]
+    return !state.units.some(u =>
+      state.units.some(v => v.side !== u.side && v.figures > 0 && u.figures > 0 && inContact(u, v)));
+  }
   return false;
+}
+function closestEnemyPair() {
+  let best = null;
+  for (const u of state.units) for (const v of state.units) {
+    if (u.side !== 'A' || v.side !== 'B' || u.figures <= 0 || v.figures <= 0) continue;
+    const gp = rectGap(u, v);
+    if (!best || gp < best.gp) best = { u, v, gp };
+  }
+  return best;
 }
 function advancePhase() {
   pushUndo('phase');
@@ -307,7 +319,12 @@ function advancePhase() {
     if (state.phaseIdx >= PHASES.length) { endRound(); state.phaseIdx = 0; state.round++; }
     runPhaseEntry();
     if (phaseIsEmpty(curPhase()) && hops < PHASES.length) {
-      log('phase', `— ${curPhase().label} skipped (nothing to do) —`);
+      let why = '';
+      if (curPhase().id === 'melee') {
+        const cp = closestEnemyPair();
+        if (cp) why = `closest: ${esc(uName(cp.u))} vs ${esc(uName(cp.v))} — ${fmt(cp.gp)}" apart (contact needs ≤ ${CONTACT_EPS}")`;
+      }
+      log('phase', `— ${curPhase().label} skipped (nothing to do) —`, why);
       hops++; continue;
     }
     break;
@@ -383,7 +400,7 @@ function snapToContact(u) {                                          // close a 
   for (const v of state.units) {
     if (v.side === u.side || v.figures <= 0) continue;
     const gp = rectGap(u, v);
-    if (gp > STANDOFF + 0.001 && gp <= 0.6 && (!best || gp < best.gp)) best = { v, gp };
+    if (gp > STANDOFF + 0.001 && gp <= 0.8 && (!best || gp < best.gp)) best = { v, gp };
   }
   if (!best) return;
   const delta = contactDelta(u, best.v);                             // close to the fighting line
@@ -564,16 +581,16 @@ function renderUnit(u) {
   const sideC = u.side==='A' ? 'var(--side-a)'   : 'var(--side-b)';
   const sideD = u.side==='A' ? 'var(--side-a-d)' : 'var(--side-b-d)';
   const sideL = u.side==='A' ? 'var(--side-a-l)' : 'var(--side-b-l)';
-  const pad = 3;
-  // chainmail card: parchment fill, side-colored border; gold ring when selected
-  g.appendChild(el('rect', { x:-pad, y:-pad, width:r.w*PXI+pad*2, height:r.h*PXI+pad*2, rx:4,
+  // WYSIWYG card: the drawn edge IS the base edge — no outward padding, or the
+  // visual footprint lies about the mechanical one (the v0.3.0 melee-skip bug).
+  g.appendChild(el('rect', { x:0, y:0, width:r.w*PXI, height:r.h*PXI, rx:3,
     fill:'#efe7d2', stroke: sel ? 'var(--gold)' : sideD,
     'stroke-width': sel ? 3 : 1.6, opacity: u.routed ? .62 : .96 }));
-  if (tgt) g.appendChild(el('rect', { x:-pad-5, y:-pad-5, width:r.w*PXI+pad*2+10, height:r.h*PXI+pad*2+10,
+  if (tgt) g.appendChild(el('rect', { x:-5, y:-5, width:r.w*PXI+10, height:r.h*PXI+10,
     rx:6, fill:'none', stroke:'#7a2418', 'stroke-width':2.2, 'stroke-dasharray':'8 5' }));
-  // square pips: FRONT RANK dark, rear ranks light (chainmail frontage convention);
+  // square pips inset within the true footprint: FRONT RANK dark, rear ranks light;
   // the wounded figure renders as a pink half-tone.
-  const per = r.bw + r.gap, sq = r.bw*PXI*0.62, off = (r.bw*PXI - sq)/2;
+  const per = r.bw + r.gap, sq = r.bw*PXI*0.58, off = (r.bw*PXI - sq)/2;
   for (let i=0; i<u.figures; i++) {
     const c = i % r.cols, rw = Math.floor(i / r.cols);
     const isFront = rw === 0;
@@ -583,7 +600,7 @@ function renderUnit(u) {
       stroke: sideD, 'stroke-width': isFront ? .9 : .6, opacity: isFront ? 1 : .9 }));
   }
   // two-line label BELOW the card, chainmail style
-  const cx = r.w*PXI/2, by = r.h*PXI + pad;
+  const cx = r.w*PXI/2, by = r.h*PXI;
   const l1 = el('text', { x:cx, y:by+13, 'text-anchor':'middle', 'font-size':11.5,
     'font-family':'var(--sans)', fill:sideD, 'font-weight':700 });
   l1.textContent = `${u.side} · ${t.name} #${u.id}${u.routed ? ' · ROUT' : ''}`;
@@ -828,6 +845,12 @@ $('#btn-advance').onclick = advancePhase;
   t('[7.15] rout distance 9 MV → 12', BattlesystemMovement.getRoutMovement(9) === 12);
   t('[2.2] ogre 4+1 HD → 5:1 · 22.5 HD/fig', ratioFromHD(4.5)==='5:1' && calculateHDPerFigure(4.5,'5:1')===22.5);
   t('[2.3] dwarf base 3/4\" despite size S', unitRect(mkUnit('DWARF','A',6,0,0)).bw === 0.75 && typeById('DWARF').size === 'S');
+  // charge skip-guard: a declared charge keeps the Melee phase even without contact
+  const CG = mkUnit('ORC','A',12,2,2), CT = mkUnit('MEN_HF','B',12,40,40);
+  CG.charging = true; state.units = [CG, CT];
+  t('melee never skipped while a charge is declared', phaseIsEmpty(PHASES.find(x=>x.id==='melee')) === false);
+  CG.charging = false;
+  t('melee skips when truly empty', phaseIsEmpty(PHASES.find(x=>x.id==='melee')) === true);
   // save round-trip
   const before = JSON.stringify(snap()); loadOK: {
     const s = snap(); applySnap(JSON.parse(JSON.stringify(s)));
