@@ -79,16 +79,16 @@ test('[8.5] D20-3 reads on D14; minus cannot pass D2', () => {
     assert.deepEqual(CombatResultsTable.handleDamageModifier('D6', -4), { dice: 'D2', additionalD20s: 0 });
 });
 
-// RULEBOOK ERRATA NOTE [8.5]: the book's D8+11 example ("sum of D20 and D12")
-// and D10+40 example ("D20×4 + D8") are inconsistent with its own D20+3
-// example (wrap restarts at D2, one column per shift). The engine steps
-// consistently with D20+3, giving D8+11 → D8 + 1×D20 and D10+40 → D3 + 4×D20.
-// These tests pin CURRENT engine behavior; Kurt holds the RAW call.
-test('[8.5] D8+11 — consistent stepping (see errata note)', () => {
+// RULEBOOK ERRATA [8.5] — RULED: the book's D8+11 example ("sum of D20 and
+// D12") and D10+40 example ("D20×4 + D8") are printing errors, inconsistent
+// with its own canonical D20+3 example (wrap restarts at D2, one column per
+// shift). Engine steps consistently with D20+3: D8+11 → D8 + 1×D20,
+// D10+40 → D3 + 4×D20. Ruling: Kurt, 2026-08-17 — known errata, code is RAW.
+test('[8.5] D8+11 → D8 + 1×D20 (rulebook example is errata)', () => {
     assert.deepEqual(CombatResultsTable.handleDamageModifier('D8', 11), { dice: 'D8', additionalD20s: 1 });
 });
 
-test('[8.5] D10+40 — consistent stepping, 4 D20 passes (see errata note)', () => {
+test('[8.5] D10+40 → D3 + 4×D20 (rulebook example is errata)', () => {
     assert.deepEqual(CombatResultsTable.handleDamageModifier('D10', 40), { dice: 'D3', additionalD20s: 4 });
 });
 
