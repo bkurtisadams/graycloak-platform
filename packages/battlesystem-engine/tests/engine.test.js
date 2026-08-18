@@ -17,7 +17,10 @@ import {
     calculateHDPerFigure,
     parseHDNumeric,
     parseDamageString,
-    appendMountDamageComponents
+    appendMountDamageComponents,
+    splitLegacyDamagePair,
+    resolveDamagePair,
+    buildWeaponDamageDefinition
 } from '../index.js';
 
 // ═══ [8.4] Rulebook worked example ═══
@@ -248,6 +251,13 @@ test('parseDamageString and mount components', () => {
         { damageDice: 'D8', damageModifier: 0, numberOfDice: 1 }, '1d6/1d6');
     assert.equal(combined.components.length, 3);
     assert.equal(combined.numberOfAttacks, 1);
+    // v1.14.0: per-component mount L profiles pair positionally, falling back to S/M
+    const withL = appendMountDamageComponents(
+        { damageDice: 'D8', damageModifier: 0, numberOfDice: 1 }, '1d4/1d6', '1d6/1d8');
+    assert.equal(withL.components[1].damageDice, 'D4');
+    assert.equal(withL.components[1].damageDiceVsLarge, 'D6');
+    assert.equal(withL.components[2].damageDice, 'D6');
+    assert.equal(withL.components[2].damageDiceVsLarge, 'D8');
 });
 
 // ═══ CRT spot checks against printed table ═══
@@ -258,6 +268,58 @@ test('CRT band handling: 0/less, 1-34 direct, 35-39 band, 40+ band', () => {
     assert.equal(CombatResultsTable.getDamageResult(37, 'D8'), 0);
     assert.equal(CombatResultsTable.getDamageResult(45, 'D20'), 0);
     assert.equal(CombatResultsTable.getDamageResult(45, 'D2'), 0);
+});
+
+// ═══ v3.1.0: component-wise vs-Large selection (module v2.7.0 port) ═══
+test('[11.5] cavalry vs L: only the rider component with an L profile swaps', () => {
+    // Rider lance 1d8 (1d12 vs L), mount hooves 1d6 (no L variant).
+    const weapon = { components: [
+        { damageDice: 'D8', damageModifier: 0, numberOfDice: 1, damageDiceVsLarge: 'D12' },
+        { damageDice: 'D6', damageModifier: 0, numberOfDice: 1 }
+    ]};
+    const sel = BattlesystemCombat.selectWeaponForTargetSize(weapon, 'L');
+    assert.equal(sel.components[0].damageDice, 'D12');
+    assert.equal(sel.components[1].damageDice, 'D6');
+    // vs M: untouched
+    assert.equal(BattlesystemCombat.selectWeaponForTargetSize(weapon, 'M'), weapon);
+});
+
+test('selectWeaponForTargetSize applies damageModifierVsLarge', () => {
+    const w = { damageDice: 'D8', damageModifier: 1, numberOfDice: 1,
+                damageDiceVsLarge: 'D12', damageModifierVsLarge: 0 };
+    const sel = BattlesystemCombat.selectWeaponForTargetSize(w, 'large');
+    assert.equal(sel.damageDice, 'D12');
+    assert.equal(sel.damageModifier, 0);
+});
+
+test('isLargeTarget: L words yes; S/M and non-size words no', () => {
+    assert.equal(BattlesystemCombat.isLargeTarget('L'), true);
+    assert.equal(BattlesystemCombat.isLargeTarget('huge'), true);
+    assert.equal(BattlesystemCombat.isLargeTarget('gargantuan'), true);
+    assert.equal(BattlesystemCombat.isLargeTarget('M'), false);
+    assert.equal(BattlesystemCombat.isLargeTarget('gnoll'), false);  // old prefix-g bug
+});
+
+// ═══ unit-math v1.1.0: S/M-vs-L damage pairs (shared.js v1.14.0 port) ═══
+test('splitLegacyDamagePair: only splits when RHS is L-marked', () => {
+    assert.deepEqual(splitLegacyDamagePair('1d8 / 1d12 L'), { sm: '1d8', large: '1d12' });
+    assert.deepEqual(splitLegacyDamagePair('1d4/1d4/1d8'), { sm: '1d4/1d4/1d8', large: '' });
+    assert.deepEqual(splitLegacyDamagePair(''), { sm: '', large: '' });
+});
+
+test('resolveDamagePair precedence: explicit > legacy > fallback; large defaults to sm', () => {
+    assert.deepEqual(resolveDamagePair('1d8', '1d12'), { sm: '1d8', large: '1d12' });
+    assert.deepEqual(resolveDamagePair('', '', '1d8 / 1d12 L'), { sm: '1d8', large: '1d12' });
+    assert.deepEqual(resolveDamagePair('1d6'), { sm: '1d6', large: '1d6' });
+});
+
+test('buildWeaponDamageDefinition attaches VsLarge fields with S/M fallback', () => {
+    const w = buildWeaponDamageDefinition('1d8', '1d12');
+    assert.equal(w.damageDice, 'D8');
+    assert.equal(w.damageDiceVsLarge, 'D12');
+    const same = buildWeaponDamageDefinition('2d4');
+    assert.equal(same.damageDiceVsLarge, 'D4');
+    assert.equal(same.numberOfDiceVsLarge, 2);
 });
 
 // ═══ [PHB] vs-Large weapon variant (v2.5.19 feature) ═══

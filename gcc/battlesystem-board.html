@@ -1,0 +1,709 @@
+<!doctype html>
+<!-- battlesystem-board.html · v0.1.0 · Slice 1 — BATTLESYSTEM Basic Game on the chainmail-board chassis. New file forked from chainmail-board v0.11.180's chassis PATTERNS (parchment palette + toolbar/panel/log CSS, right-drag pan + wheel zoom, phase rail, undo/redo, JSON save/load, boot self-tests), with the rules core supplied by @graycloak/battlesystem-engine v0.2.0 (synced at ./engine/, same copy the Foundry module consumes — do NOT edit ./engine/ here; edit graycloak-platform/packages/battlesystem-engine and re-sync). SCOPE (Basic Game, rulebook Part 2): Army-Roster units (Regular/Mob; AC, creature HD, ratio [2.2], figures, frontage, formation, MV, THAC0, weapon, size), 5-phase round [Basic seq: Initiative d6 reroll-ties / Rally / Movement A-chooses / Melee simultaneous [8.0] / End], closed-open formation change at 1/3 MV [7.6], drag movement with live budget clamp + charge at 1.5x MV requiring contact [7.14], melee via engine resolveMeleeCombat (AR pipeline [8.3], CRT [8.4-8.5], eligible fighters [8.1] with measured contact frontage, casualties + single-wound rule [8.7]), automatic morale triggers 25%/50%/post-50%-per-figure [4.4] via engine checkMorale 2d10 with situational stack [4.2], failure effects [4.5] (closed breaks to open; open/mob ROUTS with auto move MV+1/3 away, back to enemy [7.15]), Rally-phase attemptRally [6.1-6.3] with rallied-unit restrictions, fight-in-melee-only-if-attacked [6.3]. OPEN RULINGS this slice (flagged in-log where they bite): no commanders/CR yet, so In-Command bonuses, CB, and the OOC penalties are not applied (units treated as in command; [4.7]-[4.10] land with the Intermediate slice); skirmish units deferred (no missiles in Basic anyway); contact frontage measured as overlapping facing-edge figures, side-extras [8.1] auto-computed 0-2 from geometry; wheeling/facing costs deferred — drag cost is path length (straight-line legs), which under-charges a wheel; mobs get Move Forward only (orders system with commanders). Self-tests at boot lock the [8.4] worked example, morale example, rout distance, and save round-trip. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Battlesystem — Battlefield · v0.1.0</title>
+<style>
+  :root {
+    --bg:#ece0c4; --panel:#f5eedb; --field:#a8b094; --field-edge:#6d735a; --ink:#2c2316; --ink-soft:#6e6047; --rule:#b6a682;
+    --side-a:#3a6e90; --side-a-d:#27516c; --side-a-l:#9cbed4; --side-b:#9c3b2c; --side-b-d:#73291d; --side-b-l:#d7a89c;
+    --front:#2f7d4f; --flank:#c0892e; --rear:#b0392c; --gold:#d8b25a; --rank-hi:#ecd08a;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+    --sans:"Avenir Next Condensed","Avenir Next","Helvetica Neue",Helvetica,sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--bg); color: var(--ink); margin: 0; font-family: var(--serif); }
+  .page { max-width: 1600px; margin: 0 auto; padding: 14px 22px 28px; }
+  .toolbar { display: flex; flex-direction: column; gap: 6px; background: var(--panel); border: 1px solid var(--rule);
+    padding: 8px 12px; border-radius: 6px; margin-bottom: 10px; font-family: var(--sans); }
+  .tb-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .tb-setup { padding-bottom: 6px; border-bottom: 1px solid var(--rule); }
+  .brand { display: inline-flex; flex-direction: column; gap: 1px; font-family: var(--serif); font-size: 20px;
+    font-weight: 700; margin-right: 6px; line-height: 1; }
+  .brand .version-tag { font-size: 11px; font-weight: 600; opacity: .72; letter-spacing: 1.2px;
+    font-family: var(--sans); text-transform: uppercase; }
+  .tb-sep { width: 1px; height: 20px; background: var(--rule); opacity: .6; margin: 0 3px; }
+  .tb-pin-right { margin-left: auto; }
+  button, select, input[type=number], input[type=text] {
+    font-family: var(--sans); font-size: 12px; padding: 5px 11px; border: 1px solid var(--rule);
+    border-radius: 5px; background: var(--bg); color: var(--ink); cursor: pointer; }
+  button:hover { border-color: var(--gold); background: var(--panel); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary { background: var(--gold); border-color: #b8923a; font-weight: 700; }
+  button.on { background: var(--rank-hi); border-color: #b8923a; }
+  input[type=number] { width: 62px; cursor: text; } input[type=text] { cursor: text; }
+  label.f { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; letter-spacing: 1px;
+    text-transform: uppercase; color: var(--ink-soft); }
+  .phase-rail { display: flex; gap: 3px; flex-wrap: wrap; align-items: flex-end; }
+  .pstep { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; padding: 1px 6px; }
+  .pstep .plabel { font-size: 11px; letter-spacing: .3px; border-bottom: 2px solid transparent; white-space: nowrap; }
+  .pstep.todo .plabel { color: #c2b48f; } .pstep.done .plabel { color: var(--ink-soft); }
+  .pstep.now .plabel { color: var(--ink); border-bottom-color: #8a6d2e; font-weight: 700; }
+  .phase-tag { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ink-soft);
+    padding: 4px 10px; background: rgba(216,178,90,.18); border: 1px solid rgba(216,178,90,.5);
+    border-radius: 3px; font-weight: 700; }
+  .layout { display: grid; grid-template-columns: 285px 1fr 300px; gap: 12px; align-items: start; }
+  .panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; }
+  .panel h2 { font-family: var(--sans); font-size: 12px; letter-spacing: 3px; text-transform: uppercase;
+    font-weight: 700; margin: 0 0 8px; }
+  .board-wrap { background: var(--field); border: 2px solid var(--field-edge); border-radius: 6px; overflow: hidden; position: relative; }
+  #board { display: block; width: 100%; height: 74vh; cursor: default; }
+  .roster-row { display: grid; grid-template-columns: 74px 1fr; gap: 4px 8px; font-size: 12.5px; margin-bottom: 4px; align-items: center; }
+  .roster-row .k { font-family: var(--sans); font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--ink-soft); }
+  .spawn-grid { display: flex; flex-direction: column; gap: 5px; }
+  .spawn-grid button { text-align: left; display: flex; justify-content: space-between; gap: 8px; }
+  .spawn-grid button small { color: var(--ink-soft); font-size: 10.5px; }
+  #log { max-height: 66vh; overflow-y: auto; font-size: 13px; line-height: 1.42; }
+  .log-e { border-bottom: 1px solid rgba(182,166,130,.5); padding: 7px 2px; }
+  .log-e h4 { margin: 0 0 3px; font-size: 13.5px; }
+  .log-e .sub { font-family: var(--sans); font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--ink-soft); }
+  .log-e .det { font-family: var(--sans); font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
+  .log-e.melee h4 { color: #6b3120; } .log-e.morale h4 { color: #7a5a15; } .log-e.phase h4 { color: #3d5a74; }
+  .amber { color: #8a6d2e; font-weight: 700; }
+  .kbd { font-family: var(--sans); font-size: 10.5px; border: 1px solid var(--rule); border-radius: 3px;
+    padding: 0 4px; background: var(--bg); }
+  .sel-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+  .hintline { font-family: var(--sans); font-size: 10.5px; letter-spacing: .5px; color: var(--ink-soft); margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="toolbar">
+    <div class="tb-row tb-setup">
+      <span class="brand">Battlesystem<span class="version-tag" id="version-tag"></span></span>
+      <span class="tb-sep"></span>
+      <button id="btn-save">Save</button>
+      <button id="btn-load">Load</button><input type="file" id="file-load" accept=".json" style="display:none">
+      <button id="btn-reset">Reset</button>
+      <span class="tb-sep"></span>
+      <button id="btn-undo" disabled>Undo</button>
+      <button id="btn-redo" disabled>Redo</button>
+      <span class="tb-sep"></span>
+      <button id="btn-grid" class="on">Grid</button>
+      <button id="btn-measure">Measure</button>
+      <button id="btn-recenter">Recenter</button>
+      <span class="tb-pin-right hintline">right-drag pan · wheel zoom · <span class="kbd">Del</span> remove · drag unit to move</span>
+    </div>
+    <div class="tb-row">
+      <span class="phase-tag" id="round-tag">Setup</span>
+      <div class="phase-rail" id="phase-rail"></div>
+      <span class="tb-pin-right"></span>
+      <button id="btn-begin" class="primary">Begin battle</button>
+      <button id="btn-advance" class="primary" style="display:none">Next phase</button>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div>
+      <div class="panel">
+        <h2>Muster</h2>
+        <div class="tb-row" style="margin-bottom:7px">
+          <label class="f">Side
+            <select id="spawn-side"><option value="A">A — Blue</option><option value="B">B — Red</option></select>
+          </label>
+          <label class="f">Figs <input type="number" id="spawn-figs" value="12" min="1" max="48"></label>
+        </div>
+        <div class="spawn-grid" id="spawn-grid"></div>
+      </div>
+      <div class="panel">
+        <h2>Selected</h2>
+        <div id="sel-pane"><span class="hintline">No unit selected.</span></div>
+      </div>
+    </div>
+    <div class="board-wrap"><svg id="board"></svg></div>
+    <div class="panel"><h2>Battle Log</h2><div id="log"></div></div>
+  </div>
+</div>
+
+<script type="module">
+const SIM_VERSION = '0.1.0';
+import {
+  BattlesystemCombat, BattlesystemMorale, BattlesystemMovement,
+  ratioFromHD, calculateHDPerFigure, creaturesPerFigure
+} from './engine/index.js';
+
+/* === A. ROSTER TYPES — Army Roster blocks [3.1], 1e MM/PHB values ========= */
+/* thaco: creature attack matrix "to hit AC 0" (multiple-20s rule [8.3] applied  */
+/* where relevant). ml/dl computed by the engine from these fields at spawn.     */
+const BS_TYPES = Object.freeze([
+  { id:'ORC',    name:'Orc Infantry',     ac:6, hd:1,   mv:9,  thaco:19, weapon:'longsword',  size:'M', unitType:'regular' },
+  { id:'ORC_SP', name:'Orc Spears',       ac:6, hd:1,   mv:9,  thaco:19, weapon:'spear',      size:'M', unitType:'regular' },
+  { id:'GOBLIN', name:'Goblin Warband',   ac:6, hd:0.875,mv:6, thaco:20, weapon:'shortsword', size:'S', unitType:'regular' },
+  { id:'HOBGOB', name:'Hobgoblin Guard',  ac:5, hd:1.5, mv:9,  thaco:18, weapon:'morningstar',size:'M', unitType:'regular' },
+  { id:'GNOLL',  name:'Gnoll Pack',       ac:5, hd:2,   mv:9,  thaco:16, weapon:'halberd',    size:'L', unitType:'regular' },
+  { id:'DWARF',  name:'Dwarf Shieldwall', ac:4, hd:1,   mv:6,  thaco:19, weapon:'battleaxe',  size:'S', unitType:'regular', demihuman:true },
+  { id:'DW_PIKE',name:'Dwarf Pikes',      ac:4, hd:1,   mv:6,  thaco:19, weapon:'pike',       size:'S', unitType:'regular', demihuman:true },
+  { id:'ELF',    name:'Elf Swords',       ac:5, hd:1.125,mv:12,thaco:19, weapon:'longsword',  size:'M', unitType:'regular', demihuman:true },
+  { id:'MEN_HF', name:'Men-at-Arms',      ac:4, hd:1,   mv:9,  thaco:20, weapon:'longsword',  size:'M', unitType:'regular' },
+  { id:'MEN_SP', name:'Men Spears',       ac:5, hd:1,   mv:9,  thaco:20, weapon:'spear',      size:'M', unitType:'regular' },
+  { id:'OGRE',   name:'Ogres',            ac:5, hd:4.5, mv:9,  thaco:15, weapon:'greatclub',  size:'L', unitType:'regular' },
+  { id:'PEAS',   name:'Peasant Mob',      ac:10,hd:0.5, mv:12, thaco:20, weapon:'club',       size:'M', unitType:'mob' },
+]);
+const typeById = id => BS_TYPES.find(t => t.id === id);
+
+/* Base widths per [2.3] in inches of tabletop. */
+const BASE_W = { S: 0.5, M: 0.75, L: 1.0 };
+
+/* === B. PHASES — Basic Game sequence (rulebook Part 2) ==================== */
+const PHASES = Object.freeze([
+  { id:'initiative', label:'Initiative', rule:'[5.1]' },
+  { id:'rally',      label:'Rally',      rule:'[6.0]' },
+  { id:'movement',   label:'Movement',   rule:'[7.0]' },
+  { id:'melee',      label:'Melee',      rule:'[8.0]' },
+  { id:'end',        label:'End Round',  rule:'[1.7]' },
+]);
+function rollInitiative(rng) { // [5.1] 1d6 each, reroll ties
+  let a, b; do { a = 1 + Math.floor(rng()*6); b = 1 + Math.floor(rng()*6); } while (a === b);
+  return { a, b, winner: a > b ? 'A' : 'B' };
+}
+const roll2d6  = () => { const d=[1+Math.floor(Math.random()*6),1+Math.floor(Math.random()*6)];  return { total:d[0]+d[1], dice:d }; };
+const roll2d10 = () => { const d=[1+Math.floor(Math.random()*10),1+Math.floor(Math.random()*10)];return { total:d[0]+d[1], dice:d }; };
+
+/* === C. STATE ============================================================= */
+const PXI = 14;                       // px per tabletop inch (1" = 10 yds [2.1])
+const BOARD_W = 72, BOARD_H = 48;     // 6' x 4' table
+let nextId = 1;
+const state = {
+  units: [], selId: null, setup: true, round: 0, phaseIdx: 0, sideA: null,
+  grid: true, measure: { on:false, a:null, live:null },
+  view: { x:0, y:0, k:1 },
+  undoStack: [], redoStack: [],
+};
+
+function mkUnit(typeId, side, figures, x, y) {
+  const t = typeById(typeId);
+  const ratio = ratioFromHD(t.hd);                                   // [2.2]
+  const frontage = Math.min(figures, Math.max(3, Math.ceil(Math.sqrt(figures)*1.6)));
+  const u = {
+    id: nextId++, type: typeId, side, figures, startFigures: figures,
+    frontage, formation: t.unitType === 'mob' ? 'mob' : 'closed',    // [7.1]
+    x, y, facing: side === 'A' ? 0 : 180,
+    wounded: 0,                                                      // [8.7] max one
+    routed: false, ralliedThisRound: false, wasAttackedThisPhase: false,
+    movedIn: 0, charging: false,
+    moraleChecked: { p25:false, p50:false },
+  };
+  u.baseMorale = computeBaseMorale(u);                               // [4.1]
+  return u;
+}
+function unitEngineData(u) {   // shape shared with the Foundry module's buildDefender-alikes
+  const t = typeById(u.type);
+  return {
+    hitDice: t.hd, figures: u.figures, armorClass: t.ac,
+    isDemihuman: !!t.demihuman, hasMagicEquipment: false,
+    hasSpecialAbilities: false, hasExceptionalAbilities: false,
+    mounted: false, unitIsRegular: t.unitType === 'regular',
+    baseMorale: u.baseMorale, formation: u.formation,
+  };
+}
+function computeBaseMorale(u) { return BattlesystemMorale.calculateBaseMorale(unitEngineData(u)); }
+function hdPerFig(u) { const t = typeById(u.type); return calculateHDPerFigure(t.hd, ratioFromHD(t.hd)); }
+function unitRect(u) {         // tabletop-inch rect from figures/frontage/base size [2.3]
+  const t = typeById(u.type), bw = BASE_W[t.size];
+  const gap = u.formation === 'open' ? 0.5 : 0;                      // [7.3] bases ~1/2" apart
+  const cols = Math.min(u.frontage, u.figures);
+  const rows = Math.max(1, Math.ceil(u.figures / cols));
+  const w = cols * bw + Math.max(0, cols - 1) * gap;
+  const h = rows * bw + Math.max(0, rows - 1) * gap;
+  return { w, h, cols, rows, bw, gap };
+}
+function unitCenter(u) { const r = unitRect(u); return { cx: u.x + r.w/2, cy: u.y + r.h/2 }; }
+function dist(a, b) { return Math.hypot(a.cx - b.cx, a.cy - b.cy); }
+
+/* Base-to-base contact [7.8]: rect gap under a small epsilon. */
+function rectGap(u, v) {
+  const a = unitRect(u), b = unitRect(v);
+  const dx = Math.max(u.x - (v.x + b.w), v.x - (u.x + a.w), 0);
+  const dy = Math.max(u.y - (v.y + b.h), v.y - (u.y + a.h), 0);
+  return Math.hypot(dx, dy);
+}
+const inContact = (u, v) => rectGap(u, v) <= 0.15;
+/* Measured contact frontage for [8.1]: overlap of the facing edges in figures. */
+function contactInfo(att, def) {
+  const a = unitRect(att), b = unitRect(def);
+  const overlap = Math.max(0, Math.min(att.x + a.w, def.x + b.w) - Math.max(att.x, def.x));
+  const per = a.bw + a.gap;
+  const cf = Math.max(1, Math.min(a.cols, Math.round(overlap / per) || 1));
+  const sideExtras = att.formation === 'closed' ? Math.min(2, Math.max(0, a.cols - cf)) : 0;
+  return { contactFrontage: cf, sideExtras };
+}
+
+/* === D. UNDO / SAVE / LOG ================================================ */
+function snap() { return JSON.parse(JSON.stringify({ units: state.units, setup: state.setup, round: state.round, phaseIdx: state.phaseIdx, sideA: state.sideA, nextId })); }
+function applySnap(s) { state.units = s.units; state.setup = s.setup; state.round = s.round; state.phaseIdx = s.phaseIdx; state.sideA = s.sideA; nextId = s.nextId; }
+function pushUndo(tag) {
+  state.undoStack.push({ tag, s: snap() });
+  if (state.undoStack.length > 60) state.undoStack.shift();
+  state.redoStack = []; syncUndo();
+}
+function undo() { const e = state.undoStack.pop(); if (!e) return; state.redoStack.push({ tag:e.tag, s: snap() }); applySnap(e.s); afterRestore(); }
+function redo() { const e = state.redoStack.pop(); if (!e) return; state.undoStack.push({ tag:e.tag, s: snap() }); applySnap(e.s); afterRestore(); }
+function afterRestore() { state.selId = null; syncUndo(); renderAll(); }
+function syncUndo() { $('#btn-undo').disabled = !state.undoStack.length; $('#btn-redo').disabled = !state.redoStack.length; }
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function log(kind, title, sub, det) {
+  const e = document.createElement('div');
+  e.className = 'log-e ' + kind;
+  e.innerHTML = `<h4>${title}</h4>${sub ? `<div class="sub">${sub}</div>` : ''}${det ? `<div class="det">${det}</div>` : ''}`;
+  const L = $('#log'); L.prepend(e);
+}
+
+function saveScenario() {
+  const data = { format:'battlesystem-board', simVersion: SIM_VERSION, savedAt: new Date().toISOString(), state: snap() };
+  const blob = new Blob([JSON.stringify(data)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `battlesystem-${new Date().toISOString().slice(0,10)}.json`;
+  a.click(); URL.revokeObjectURL(a.href);
+}
+function loadScenario(data) {
+  if (!data || data.format !== 'battlesystem-board' || !data.state) { alert('Not a Battlesystem board save.'); return false; }
+  applySnap(data.state);
+  state.undoStack = []; state.redoStack = []; state.selId = null; syncUndo();
+  renderAll();
+  log('phase', 'Board loaded', `${state.units.length} units · ${data.simVersion !== SIM_VERSION ? `saved with v${data.simVersion}, now v${SIM_VERSION}` : 'round ' + state.round}`);
+  return true;
+}
+
+/* === E. PHASE MACHINE ==================================================== */
+const curPhase = () => PHASES[state.phaseIdx];
+function beginBattle() {
+  if (!state.units.length) { alert('Muster at least one unit per side first.'); return; }
+  pushUndo('begin');
+  state.setup = false; state.round = 1; state.phaseIdx = 0;
+  log('phase', '⚔ Battle Begins', `Basic Game · ${PHASES.length} phases · Round 1`);
+  runPhaseEntry(); renderAll();
+}
+function advancePhase() {
+  pushUndo('phase');
+  state.phaseIdx++;
+  if (state.phaseIdx >= PHASES.length) { endRound(); state.phaseIdx = 0; state.round++; }
+  runPhaseEntry(); renderAll();
+}
+function runPhaseEntry() {
+  const p = curPhase();
+  log('phase', `⚐ R${state.round} · ${state.phaseIdx+1}/${PHASES.length} — ${p.label}`, p.rule);
+  if (p.id === 'initiative') {
+    const r = rollInitiative(Math.random);
+    state.sideA = r.winner;
+    log('phase', `⚀ Initiative — Side ${r.winner} acts first`, `A rolled ${r.a} · B rolled ${r.b} [5.1]`);
+  }
+  if (p.id === 'rally') {
+    for (const u of state.units) u.ralliedThisRound = false;
+  }
+  if (p.id === 'movement') {
+    // [6.4] unrallied routed units continue their rout automatically
+    for (const u of state.units) if (u.routed && !u.ralliedThisRound) autoRout(u, typeById(u.type).mv, 'continues to rout [6.4]');
+  }
+  if (p.id === 'melee') {
+    for (const u of state.units) u.wasAttackedThisPhase = false;
+  }
+}
+function endRound() {
+  for (const u of state.units) { u.movedIn = 0; u.charging = false; }
+  log('phase', `— End of Round ${state.round} —`, '[1.7]');
+}
+
+/* === F. MOVEMENT [7.x] =================================================== */
+function moveBudget(u) {
+  const t = typeById(u.type);
+  let mv = t.mv;
+  if (u.charging) mv = mv * 1.5;                                     // [7.14]
+  return mv - u.movedIn;
+}
+function toggleFormation(u) {                                        // [7.6] 1/3 MV
+  if (u.routed) return;
+  const t = typeById(u.type);
+  if (t.unitType === 'mob') { log('phase', 'Mobs fight in Mob Formation only [7.5]'); return; }
+  const cost = t.mv / 3;
+  if (moveBudget(u) < cost) { log('phase', `${esc(uName(u))} lacks movement to change formation`, `needs ${fmt(cost)}" [7.6]`); return; }
+  pushUndo('formation');
+  u.movedIn += cost;
+  u.formation = u.formation === 'closed' ? 'open' : 'closed';
+  log('phase', `${esc(uName(u))} → ${u.formation} formation`, `cost ${fmt(cost)}" [7.6]`);
+  renderAll();
+}
+function autoRout(u, mvOverride, why) {                              // [7.15]/[6.4]
+  const t = typeById(u.type);
+  const routMV = mvOverride ?? BattlesystemMovement.getRoutMovement(t.mv);
+  const enemies = state.units.filter(v => v.side !== u.side && v.figures > 0);
+  let dx = 0, dy = u.side === 'A' ? 1 : -1;                          // default: toward own edge
+  if (enemies.length) {
+    const c = unitCenter(u);
+    const e = enemies.reduce((acc, v) => { const ec = unitCenter(v); acc.x += ec.cx; acc.y += ec.cy; return acc; }, { x:0, y:0 });
+    const ex = e.x/enemies.length - c.cx, ey = e.y/enemies.length - c.cy;
+    const m = Math.hypot(ex, ey) || 1; dx = -ex/m; dy = -ey/m;
+  }
+  u.x = clamp(u.x + dx*routMV, -2, BOARD_W+2); u.y = clamp(u.y + dy*routMV, -2, BOARD_H+2);
+  u.facing = (Math.atan2(dy, dx) * 180/Math.PI + 450) % 360;         // back to the enemy
+  if (u.x < -1 || u.y < -1 || u.x > BOARD_W || u.y > BOARD_H) {
+    log('morale', `☠ ${esc(uName(u))} routs off the field`, 'removed from play [7.15]');
+    u.figures = 0;
+  } else {
+    log('morale', `${esc(uName(u))} ${why || 'ROUTS'}`, `moves ${fmt(routMV)}" away, back to enemy [7.15]`);
+  }
+}
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const fmt = n => (Math.round(n*100)/100).toString();
+
+/* === G. MELEE [8.x] — engine-driven, simultaneous ======================== */
+function resolveMelee(attU, defU) {
+  const at = typeById(attU.type), dt = typeById(defU.type);
+  // [6.3] a rallied unit fights only if attacked; being the defender here qualifies.
+  if (attU.routed || (attU.ralliedThisRound && !attU.wasAttackedThisPhase)) {
+    log('melee', `${esc(uName(attU))} may not attack this round`, attU.routed ? 'routed' : 'rallied this round [6.3]');
+    return;
+  }
+  pushUndo('melee');
+  defU.wasAttackedThisPhase = true;
+
+  const legs = [ [attU, defU], [defU, attU] ];
+  const results = [];
+  for (const [A, D] of legs) {
+    const aT = typeById(A.type), dT = typeById(D.type);
+    if (A.routed) { results.push(null); continue; }                  // routed units take damage, deal none [6.4]
+    const ci = contactInfo(A, D);
+    const eligible = BattlesystemCombat.calculateEligibleFighters({
+      ratio: ratioFromHD(aT.hd), formation: A.formation, weapon: aT.weapon,
+      frontage: Math.min(A.frontage, A.figures), figures: A.figures,
+      contactFrontage: ci.contactFrontage, sideExtraFigures: ci.sideExtras,
+    });
+    const r = BattlesystemCombat.resolveMeleeCombat(
+      {
+        thaco: aT.thaco, ratio: ratioFromHD(aT.hd),
+        modifiers: {
+          openFormation: A.formation === 'open',
+          chargingClosed: A.charging && A.formation === 'closed',    // [7.14] -1
+        },
+        weapon: BattlesystemCombat.defineWeapon(aT.weapon),
+        numberOfAttacks: BattlesystemCombat.defineWeapon(aT.weapon).numberOfAttacks || 1,
+        eligibleFigures: eligible, arDelta: 0,
+      },
+      { ac: dT.ac, hitDice: hdPerFig(D), size: dT.size },
+      roll2d6
+    );
+    r._eligible = eligible; r._ci = ci;
+    results.push(r);
+  }
+  // [8.0] simultaneous: apply casualties only after both legs rolled
+  const names = [uName(attU), uName(defU)];
+  const summ = [];
+  legs.forEach(([A, D], i) => {
+    const r = results[i]; if (!r) { summ.push(`${esc(names[i])}: routed, no attack`); return; }
+    applyCasualties(D, r);
+    summ.push(`${esc(names[1-i])}: ${r.killed} killed${r.wounds ? ' · 1 wounded' : ''}`);
+    log('melee',
+      `${i===0?'⚔':'↩'} ${esc(names[i])} → ${esc(names[1-i])}`,
+      `Roll ${r.totalAttackRoll} → CRT → ${r.totalDamage} HD → ${r.killed} killed${r.wounds ? ', 1 wound' : ''}`,
+      `2d6 (${r.rollTotal}) + AR ${r.adjustedAR} − AC ${r.defenderAC} · ${r._eligible} figs ` +
+      `(${r._ci.contactFrontage} contact${r._ci.sideExtras ? ` + ${r._ci.sideExtras} side` : ''}) [8.1] · ` +
+      `${r.weaponDice}${r.usedLargeVariant ? ' vs L' : ' vs S/M'}`);
+  });
+  log('melee', `⚔ Simultaneous Melee — ${esc(names[0])} vs ${esc(names[1])}`, `R${state.round} · ${summ.join(' · ')} [8.0]`);
+  // morale triggers AFTER removal, both units [4.4]
+  for (const u of [attU, defU]) moraleTriggers(u);
+  cleanupDead(); renderAll();
+}
+function applyCasualties(u, r) {                                     // [8.7]
+  u.figures = Math.max(0, u.figures - r.killed);
+  if (r.wounds) {
+    u.wounded += 1;
+    if (u.wounded >= 2) { u.figures = Math.max(0, u.figures - 1); u.wounded = 0;
+      log('melee', `${esc(uName(u))}: two wounds — one figure removed [8.7]`); }
+  }
+  u._lostThisAttack = r.killed + (r.wounds ? 0.01 : 0);
+}
+function moraleTriggers(u) {                                         // [4.4] Table 5
+  if (u.figures <= 0) return;
+  const lost = u.startFigures - u.figures;
+  const pct = lost / u.startFigures;
+  const checks = [];
+  if (pct >= 0.25 && !u.moraleChecked.p25) { u.moraleChecked.p25 = true; checks.push('25% losses'); }
+  if (pct >= 0.5 && !u.moraleChecked.p50)  { u.moraleChecked.p50 = true; checks.push('50% losses'); }
+  else if (pct > 0.5 && u._lostThisAttack >= 1) checks.push('figure lost past 50%');
+  u._lostThisAttack = 0;
+  for (const why of checks) runMoraleCheck(u, why);
+}
+function runMoraleCheck(u, why) {                                    // [4.2]/[4.3]/[4.5]
+  const lost = (u.startFigures - u.figures) / u.startFigures;
+  const situation = {
+    fiftyPercentLosses: lost >= 0.5 && lost < 0.75,
+    seventyFivePercentLosses: lost >= 0.75,
+    closedFormation: u.formation === 'closed',
+  };
+  const res = BattlesystemMorale.checkMorale(unitEngineData(u), situation, roll2d10);
+  if (res.passed) {
+    log('morale', `⚑ Morale — ${esc(uName(u))} HOLDS`, `${why} · need ${res.currentMorale}, rolled ${res.roll} (${res.diceResults.join('+')})`);
+    return;
+  }
+  const eff = BattlesystemMorale.handleMoraleFailure(unitEngineData(u));
+  log('morale', `⚑ Morale — ${esc(uName(u))} FAILED`, `${why} · need ${res.currentMorale}, rolled ${res.roll} (${res.diceResults.join('+')}) · ${eff.description} [4.5]`);
+  if (eff.effect === 'breakFormation') u.formation = 'open';
+  else if (eff.effect === 'rout') { u.routed = true; autoRout(u); }
+}
+function attemptRallySelected(u) {                                   // [6.1]-[6.3]
+  if (curPhase().id !== 'rally') { log('phase', 'Rally attempts happen in the Rally Phase [6.0]'); return; }
+  if (!u.routed) { log('phase', `${esc(uName(u))} is not routed`); return; }
+  if (state.units.some(v => v.side !== u.side && v.figures > 0 && inContact(u, v))) {
+    log('morale', `${esc(uName(u))} cannot rally in contact with the enemy [6.1]`); return;
+  }
+  pushUndo('rally');
+  // OPEN RULING (slice 1, no commanders yet): rally is a plain Morale Check [6.2].
+  const res = BattlesystemMorale.checkMorale(unitEngineData(u), {}, roll2d10);
+  if (res.passed) {
+    u.routed = false; u.ralliedThisRound = true;
+    log('morale', `⚑ ${esc(uName(u))} RALLIES`, `need ${res.currentMorale}, rolled ${res.roll} · may change facing now; no move/attack this round [6.3]`);
+  } else {
+    log('morale', `⚑ ${esc(uName(u))} fails to rally`, `need ${res.currentMorale}, rolled ${res.roll} · rout continues [6.4]`);
+  }
+  renderAll();
+}
+function cleanupDead() {
+  for (const u of state.units) if (u.figures <= 0) log('melee', `☠ ${esc(uName(u))} destroyed`);
+  state.units = state.units.filter(u => u.figures > 0);
+  if (state.selId && !state.units.find(u => u.id === state.selId)) state.selId = null;
+}
+const uName = u => `${typeById(u.type).name} #${u.id}`;
+
+/* === H. BOARD RENDER / INTERACTION ======================================= */
+const svg = $('#board');
+const NS = 'http://www.w3.org/2000/svg';
+function el(n, attrs) { const e = document.createElementNS(NS, n); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; }
+function viewBox() {
+  const w = BOARD_W*PXI/state.view.k, h = BOARD_H*PXI/state.view.k;
+  return `${state.view.x} ${state.view.y} ${w} ${h}`;
+}
+function renderBoard() {
+  svg.setAttribute('viewBox', viewBox());
+  svg.innerHTML = '';
+  svg.appendChild(el('rect', { x:0, y:0, width:BOARD_W*PXI, height:BOARD_H*PXI, fill:'var(--field)' }));
+  if (state.grid) {
+    for (let i=0; i<=BOARD_W; i+=6) svg.appendChild(el('line', { x1:i*PXI, y1:0, x2:i*PXI, y2:BOARD_H*PXI, stroke:'rgba(45,55,40,.16)', 'stroke-width':i%12?0.6:1.2 }));
+    for (let j=0; j<=BOARD_H; j+=6) svg.appendChild(el('line', { x1:0, y1:j*PXI, x2:BOARD_W*PXI, y2:j*PXI, stroke:'rgba(45,55,40,.16)', 'stroke-width':j%12?0.6:1.2 }));
+  }
+  for (const u of state.units) renderUnit(u);
+  if (state.measure.a && state.measure.live) {
+    const a = state.measure.a, b = state.measure.live;
+    svg.appendChild(el('line', { x1:a.x*PXI, y1:a.y*PXI, x2:b.x*PXI, y2:b.y*PXI, stroke:'#2c2316', 'stroke-width':1.5, 'stroke-dasharray':'6 4' }));
+    const t = el('text', { x:(a.x+b.x)/2*PXI, y:(a.y+b.y)/2*PXI - 6, 'font-size':13, 'font-family':'var(--sans)', fill:'#2c2316', 'text-anchor':'middle', 'font-weight':700 });
+    t.textContent = `${fmt(Math.hypot(b.x-a.x, b.y-a.y))}" (${fmt(Math.hypot(b.x-a.x, b.y-a.y)*10)} yds)`;
+    svg.appendChild(t);
+  }
+}
+function renderUnit(u) {
+  const t = typeById(u.type), r = unitRect(u);
+  const g = el('g', { transform:`translate(${u.x*PXI},${u.y*PXI})`, 'data-uid':u.id, style:'cursor:grab' });
+  const sideC = u.side==='A' ? 'var(--side-a)' : 'var(--side-b)';
+  const sideD = u.side==='A' ? 'var(--side-a-d)' : 'var(--side-b-d)';
+  g.appendChild(el('rect', { x:0, y:0, width:r.w*PXI, height:r.h*PXI, rx:2,
+    fill:u.routed ? 'rgba(120,60,50,.35)' : sideC, stroke: state.selId===u.id ? 'var(--gold)' : sideD,
+    'stroke-width': state.selId===u.id ? 2.5 : 1.2, opacity: .92 }));
+  // figure pips
+  const per = r.bw + r.gap;
+  for (let i=0; i<u.figures; i++) {
+    const c = i % r.cols, rw = Math.floor(i / r.cols);
+    g.appendChild(el('circle', { cx:(c*per + r.bw/2)*PXI, cy:(rw*per + r.bw/2)*PXI, r: r.bw*PXI*0.3,
+      fill: u.side==='A' ? 'var(--side-a-l)' : 'var(--side-b-l)', stroke: sideD, 'stroke-width':.6 }));
+  }
+  const lbl = el('text', { x:r.w*PXI/2, y:-4, 'text-anchor':'middle', 'font-size':10.5, 'font-family':'var(--sans)', fill:'#2c2316', 'font-weight':700 });
+  lbl.textContent = `${t.name} · ${u.figures}${u.routed ? ' · ROUT' : ''}${u.wounded ? ' · W' : ''}`;
+  g.appendChild(lbl);
+  svg.appendChild(g);
+}
+function renderRail() {
+  const rail = $('#phase-rail'); rail.innerHTML = '';
+  if (state.setup) { $('#round-tag').textContent = 'Setup'; return; }
+  $('#round-tag').textContent = `Round ${state.round}${state.sideA ? ` · Side ${state.sideA} first` : ''}`;
+  PHASES.forEach((p, i) => {
+    const d = document.createElement('span');
+    d.className = 'pstep ' + (i < state.phaseIdx ? 'done' : i === state.phaseIdx ? 'now' : 'todo');
+    d.innerHTML = `<span class="plabel">${p.label}</span>`;
+    rail.appendChild(d);
+  });
+}
+function renderSel() {
+  const pane = $('#sel-pane');
+  const u = state.units.find(x => x.id === state.selId);
+  if (!u) { pane.innerHTML = '<span class="hintline">No unit selected.</span>'; return; }
+  const t = typeById(u.type);
+  const ratio = ratioFromHD(t.hd);
+  const rows = [
+    ['Unit', `${esc(t.name)} #${u.id} — Side ${u.side}`],
+    ['Type', `${t.unitType} · size ${t.size} · ${ratio}`],
+    ['Figures', `${u.figures}/${u.startFigures}${u.wounded ? ' · 1 wounded' : ''} · ${creaturesPerFigure(ratio)} ea`],
+    ['HD/fig', `${fmt(hdPerFig(u))}`],
+    ['AC / AR', `${t.ac} / ${t.thaco + ({'10:1':0,'5:1':5,'2:1':10}[ratio]||0)} (THAC0 ${t.thaco} ${ratio})`],
+    ['ML / MV', `${u.baseMorale} / ${t.mv}" ${u.charging ? '(charging 1.5×)' : ''}`],
+    ['Weapon', `${t.weapon}`],
+    ['Formation', `${u.formation} · frontage ${Math.min(u.frontage, u.figures)}`],
+    ['Moved', `${fmt(u.movedIn)}" of ${fmt(typeById(u.type).mv * (u.charging?1.5:1))}"`],
+    ['Status', u.routed ? '<span class="amber">ROUTED</span>' : u.ralliedThisRound ? 'rallied (no move/attack) [6.3]' : 'ready'],
+  ];
+  pane.innerHTML = rows.map(([k,v]) => `<div class="roster-row"><span class="k">${k}</span><span>${v}</span></div>`).join('');
+  const act = document.createElement('div'); act.className = 'sel-actions';
+  const mkBtn = (label, fn, dis) => { const b = document.createElement('button'); b.textContent = label; b.disabled = !!dis; b.onclick = fn; act.appendChild(b); };
+  mkBtn(u.formation === 'closed' ? 'Open form. (⅓ MV)' : 'Closed form. (⅓ MV)', () => toggleFormation(u), t.unitType==='mob' || state.setup);
+  mkBtn(u.charging ? 'Cancel charge' : 'Declare charge', () => { pushUndo('charge'); u.charging = !u.charging; renderAll(); }, state.setup || u.routed || curPhase().id!=='movement');
+  mkBtn('Attempt rally', () => attemptRallySelected(u), state.setup || !u.routed);
+  mkBtn('⚔ Attack…', () => { armAttack(u); }, state.setup || curPhase().id!=='melee' || u.routed);
+  mkBtn('Remove', () => { pushUndo('remove'); state.units = state.units.filter(x=>x.id!==u.id); state.selId=null; renderAll(); });
+  pane.appendChild(act);
+  if (curPhase().id==='melee' && !state.setup) {
+    const targets = state.units.filter(v => v.side!==u.side && inContact(u,v));
+    if (targets.length) pane.insertAdjacentHTML('beforeend', `<div class="hintline">In contact: ${targets.map(v=>esc(uName(v))).join(', ')}</div>`);
+  }
+}
+let attackFrom = null;
+function armAttack(u) {
+  const targets = state.units.filter(v => v.side !== u.side && inContact(u, v));
+  if (!targets.length) { log('melee', `${esc(uName(u))} is not in base-to-base contact [8.1]`); return; }
+  if (targets.length === 1) { resolveMelee(u, targets[0]); return; }
+  attackFrom = u.id;
+  log('melee', `Pick a target for ${esc(uName(u))}`, `${targets.length} enemies in contact — click one`);
+}
+function renderAll() { renderBoard(); renderRail(); renderSel();
+  $('#btn-begin').style.display = state.setup ? '' : 'none';
+  $('#btn-advance').style.display = state.setup ? 'none' : '';
+  $('#version-tag').textContent = 'v' + SIM_VERSION;
+}
+
+/* --- pointer interaction: select / drag-move / pan / measure ------------- */
+let drag = null, pan = null;
+function boardPt(evt) {
+  const r = svg.getBoundingClientRect();
+  const vb = svg.viewBox.baseVal;
+  return { x: (vb.x + (evt.clientX - r.left) / r.width * vb.width) / PXI,
+           y: (vb.y + (evt.clientY - r.top) / r.height * vb.height) / PXI };
+}
+svg.addEventListener('contextmenu', e => e.preventDefault());
+svg.addEventListener('mousedown', evt => {
+  const p = boardPt(evt);
+  if (evt.button === 2) { pan = { sx:evt.clientX, sy:evt.clientY, vx:state.view.x, vy:state.view.y }; return; }
+  if (state.measure.on) { state.measure.a = { x:p.x, y:p.y }; state.measure.live = { x:p.x, y:p.y }; renderBoard(); return; }
+  const g = evt.target.closest('[data-uid]');
+  if (g) {
+    const u = state.units.find(x => x.id === +g.dataset.uid);
+    if (attackFrom && u && u.side !== state.units.find(x=>x.id===attackFrom)?.side) {
+      const A = state.units.find(x=>x.id===attackFrom); attackFrom = null;
+      if (A && inContact(A, u)) { resolveMelee(A, u); return; }
+    }
+    state.selId = u.id; renderSel(); renderBoard();
+    const mayMove = !state.setup ? (curPhase().id === 'movement' && !u.routed && !u.ralliedThisRound) : true;
+    if (mayMove) drag = { u, start:{x:u.x, y:u.y}, grab:{ dx:p.x-u.x, dy:p.y-u.y }, spent0: u.movedIn };
+  } else { state.selId = null; renderSel(); renderBoard(); }
+});
+window.addEventListener('mousemove', evt => {
+  if (pan) {
+    const r = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal;
+    state.view.x = pan.vx - (evt.clientX - pan.sx) / r.width * vb.width;
+    state.view.y = pan.vy - (evt.clientY - pan.sy) / r.height * vb.height;
+    renderBoard(); return;
+  }
+  const p = boardPt(evt);
+  if (state.measure.on && state.measure.a) { state.measure.live = { x:p.x, y:p.y }; renderBoard(); return; }
+  if (!drag) return;
+  let nx = p.x - drag.grab.dx, ny = p.y - drag.grab.dy;
+  if (!state.setup) {                                   // live budget clamp [7.7]
+    const budget = moveBudget(drag.u) + (drag.u.movedIn - drag.spent0);
+    const d = Math.hypot(nx - drag.start.x, ny - drag.start.y);
+    if (d > budget) { const s = budget / d; nx = drag.start.x + (nx-drag.start.x)*s; ny = drag.start.y + (ny-drag.start.y)*s; }
+  }
+  drag.u.x = clamp(nx, 0, BOARD_W-1); drag.u.y = clamp(ny, 0, BOARD_H-1);
+  renderBoard();
+});
+window.addEventListener('mouseup', () => {
+  if (pan) { pan = null; return; }
+  if (state.measure.on && state.measure.a) { state.measure.a = null; return; }
+  if (!drag) return;
+  const d = Math.hypot(drag.u.x - drag.start.x, drag.u.y - drag.start.y);
+  if (d > 0.05) {
+    if (!state.setup) {
+      drag.u.movedIn = drag.spent0 + d;
+      // [7.8] stop on contact is naturally enforced by the player; contact log aid:
+      const hit = state.units.find(v => v.side !== drag.u.side && inContact(drag.u, v));
+      if (drag.u.charging && !hit) log('phase', `${esc(uName(drag.u))} charge did not reach contact`, 'must end in base-to-base contact or take -3 ML (open/mob) [7.14]');
+      if (hit) log('phase', `${esc(uName(drag.u))} contacts ${esc(uName(hit))}`, `moved ${fmt(d)}" [7.8]`);
+    }
+    pushUndo('move');
+  } else { drag.u.x = drag.start.x; drag.u.y = drag.start.y; renderBoard(); }
+  drag = null; renderSel();
+});
+svg.addEventListener('wheel', evt => {
+  evt.preventDefault();
+  const k0 = state.view.k;
+  state.view.k = clamp(k0 * (evt.deltaY < 0 ? 1.12 : 0.9), 0.5, 4);
+  const p = boardPt(evt);
+  state.view.x += (p.x*PXI - state.view.x) * (1 - k0/state.view.k);
+  state.view.y += (p.y*PXI - state.view.y) * (1 - k0/state.view.k);
+  renderBoard();
+}, { passive:false });
+window.addEventListener('keydown', evt => {
+  if (evt.key === 'Delete' && state.selId) { pushUndo('remove'); state.units = state.units.filter(x=>x.id!==state.selId); state.selId=null; renderAll(); }
+});
+
+/* === I. TOOLBAR / MUSTER WIRING ========================================== */
+$('#btn-save').onclick = saveScenario;
+$('#btn-load').onclick = () => $('#file-load').click();
+$('#file-load').onchange = evt => {
+  const f = evt.target.files && evt.target.files[0]; evt.target.value = '';
+  if (!f) return; const rd = new FileReader();
+  rd.onload = () => { try { loadScenario(JSON.parse(rd.result)); } catch { alert('Could not read that file as JSON.'); } };
+  rd.readAsText(f);
+};
+$('#btn-reset').onclick = () => { if (!state.units.length || confirm('Clear the board?')) { pushUndo('reset'); state.units=[]; state.setup=true; state.round=0; state.phaseIdx=0; state.selId=null; renderAll(); } };
+$('#btn-undo').onclick = undo; $('#btn-redo').onclick = redo;
+$('#btn-grid').onclick = e => { state.grid = !state.grid; e.target.classList.toggle('on', state.grid); renderBoard(); };
+$('#btn-measure').onclick = e => { state.measure.on = !state.measure.on; state.measure.a = state.measure.live = null; e.target.classList.toggle('on', state.measure.on); renderBoard(); };
+$('#btn-recenter').onclick = () => { state.view = { x:0, y:0, k:1 }; renderBoard(); };
+$('#btn-begin').onclick = beginBattle;
+$('#btn-advance').onclick = advancePhase;
+(function buildMuster() {
+  const grid = $('#spawn-grid');
+  for (const t of BS_TYPES) {
+    const b = document.createElement('button');
+    b.innerHTML = `<span>${t.name}</span><small>AC ${t.ac} · ${t.hd} HD · MV ${t.mv}" · ${t.unitType==='mob'?'MOB':ratioFromHD(t.hd)}</small>`;
+    b.onclick = () => {
+      pushUndo('spawn');
+      const side = $('#spawn-side').value;
+      const figs = clamp(+$('#spawn-figs').value || 12, 1, t.unitType==='mob' ? 96 : 48);   // [2.8]/[2.10]
+      const u = mkUnit(t.id, side, figs, 6 + Math.random()*8, side==='A' ? 4 + Math.random()*6 : BOARD_H - 12 + Math.random()*6);
+      state.units.push(u); state.selId = u.id; renderAll();
+    };
+    grid.appendChild(b);
+  }
+})();
+
+/* === J. SELF-TESTS (boot, console) ======================================= */
+(function selfTests() {
+  const ok = [], bad = [];
+  const t = (label, cond) => (cond ? ok : bad).push(label);
+  // [8.4] rulebook worked example through the engine with forced dice
+  const r = BattlesystemCombat.resolveMeleeCombat(
+    { thaco:17, ratio:'10:1', modifiers:{}, arBaseOverride:17,
+      weapon:{ damageDice:'D8', damageModifier:0, numberOfDice:1 }, numberOfAttacks:1, eligibleFigures:10 },
+    { ac:8, hitDice:10, size:'M' }, () => ({ total:7, dice:[3,4] }));
+  t('[8.4] worked example 60 HD / 6 killed', r.rawTotalDamage===60 && r.killed===6);
+  // [4.1] orc base morale from BS_TYPES row (11 -1 AC6? no: AC6 no mod; regular +1) = 12
+  const orc = mkUnit('ORC','A',12,0,0);
+  t('[4.1] orc regulars ML 12', orc.baseMorale === 12);
+  t('[7.15] rout distance 9 MV → 12', BattlesystemMovement.getRoutMovement(9) === 12);
+  t('[2.2] ogre 4+1 HD → 5:1 · 22.5 HD/fig', ratioFromHD(4.5)==='5:1' && calculateHDPerFigure(4.5,'5:1')===22.5);
+  // save round-trip
+  const before = JSON.stringify(snap()); loadOK: {
+    const s = snap(); applySnap(JSON.parse(JSON.stringify(s)));
+    t('save/load round-trip', JSON.stringify(snap()) === before);
+  }
+  state.units = []; nextId = 1; state.selId = null;   // tests must not leak pieces
+  console.log(`[BS-BOARD] self-tests: ${ok.length} ok${bad.length ? ` · FAILED: ${bad.join('; ')}` : ''}`);
+  if (bad.length) log('phase', '⚠ Self-test failures', bad.join(' · '));
+})();
+
+renderAll();
+log('phase', `Battlesystem Board v${SIM_VERSION}`, 'Basic Game slice — muster both sides, then Begin battle',
+  'Engine: @graycloak/battlesystem-engine v0.2.0 · Intermediate slice (missiles, commanders, cavalry, terrain) to follow');
+</script>
+</body>
+</html>

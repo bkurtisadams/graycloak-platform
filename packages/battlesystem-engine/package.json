@@ -1,7 +1,7 @@
 {
   "name": "@graycloak/battlesystem-engine",
-  "version": "0.1.0",
-  "description": "BATTLESYSTEM 1e mass combat rules engine — pure JS, no host dependencies",
+  "version": "0.2.0",
+  "description": "BATTLESYSTEM 1e mass combat rules engine \u2014 pure JS, no host dependencies",
   "type": "module",
   "main": "index.js",
   "exports": {

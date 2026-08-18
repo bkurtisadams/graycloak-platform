@@ -22,6 +22,8 @@ importers:
 
   graycloak-adnd: {}
 
+  packages/battlesystem-engine: {}
+
   packages/map-engine: {}
 
   packages/osric3-rules: {}
