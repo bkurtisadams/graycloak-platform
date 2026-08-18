@@ -1,0 +1,15 @@
+{
+  "name": "@graycloak/battlesystem-engine",
+  "version": "0.1.0",
+  "description": "BATTLESYSTEM 1e mass combat rules engine — pure JS, no host dependencies",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "license": "MIT",
+  "private": true
+}
