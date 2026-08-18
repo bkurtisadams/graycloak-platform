@@ -1,9 +1,9 @@
 <!doctype html>
-<!-- battlesystem-board.html · v0.4.1 · Ctrl+wheel facing, ported from chainmail-board's onWheel grammar (ctrl+wheel rotates the SELECTED unit, falling through to zoom when nothing is selected; there ±15° free-form, here one CARDINAL step per notch since BS facing is the [7.9] set). Wheel-down = Right Face, wheel-up = Left Face. In SETUP the rotation is free and ungated; in battle each notch routes through facingChange() so the [7.9] 1/3-MV cost, Movement-phase gating, rout guard, and the [6.3] free-face-after-rally all apply unchanged — the budget is what stops a spin. Setup wheel bursts collapse to ONE undo entry (tag 'wheel-face:<id>' skipped while it's already on top of the stack, chainmail's tag-collapse pattern). Toolbar hint updated. PRIOR (v0.4.0): Slice 4 — facing, flanks, and rear + M/F/X acted chips. FACING: units carry a cardinal facing (0/90/180/270 — RAW's own facing-change set, since [7.9] defines exactly Right Face, Left Face, About Face; free 45-degree drift and wheeling stay OPEN for a later slice). The front edge draws a green stripe; the front RANK of pips is the rank nearest that edge (dark pips follow the facing). Facing changes are Selected-pane buttons costed per [7.9] — Left/Right Face 1/3 MV, About Face 1/2 MV — budget-checked in the Movement phase, and FREE once immediately after a successful rally per [6.3]. A charge turns the charger to face its target (the last 2/3-straight leg implies it); a rout ends with the unit's back to the enemy [7.15], now literally. ARCS: arcOf(defender, attacker) classifies the attacker's center against the defender's facing-axis edges — front of the front edge = FRONTAL, behind the rear edge = REAR, else FLANK. Targeting shows the chainmail-style arc banner over the target (green/amber/red per the --front/--flank/--rear palette). COMBAT WIRING: rear attacks take arDelta -2 and flank attacks -1 when the defender carries a shield ([8.3] SPECIAL NOTE examples — shield flags added to MEN_HF, DWARF, DW_PIKE, HOBGOB), the melee log names the arc, and a unit meleeing with an enemy in contact with its REAR arc checks morale with the [4.2] enemyAtRear -2 (engine key verified). M/F/X CHIPS: chainmail's acted trio — u.acted {moved, fired, fought} — renders as chips above each card, dark when done (M on any move/charge/facing spend, X on fighting a melee, F reserved until the missile slice), reset at End of Round. Self-tests add arc classification, facing-cost/center-preserving rotation, and the rear arDelta. PRIOR (v0.3.2): FIX: melee skipped again — the v0.3.0 card was drawn with a 3px pad OUTWARD in board coordinates, inflating every unit's apparent footprint ~0.21\" per side; cards that looked engaged were mechanically 0.5-0.7\" apart (past CONTACT_EPS 0.3 and even the 0.6 snap capture), so the engine rightly saw no contact and phaseIsEmpty skipped the phase your eyes said was due. The closure geometry itself verified clean across offsets this time. Fixes: (1) WYSIWYG card — the card rect now sits EXACTLY on the true base footprint (0,0,w,h) with the pips inset, so the drawn edge IS the base edge and the standoff gap you see is the gap the rules see; (2) snap capture widened to 0.8\" so near drops glue reliably; (3) honest skip — the Melee phase NEVER auto-skips while any unit has a declared charge [7.14], and when it does skip it names the closest enemy pair and their gap ('closest: X vs Y — 0.71\" apart') so a miss is information, not mystery. Self-tests add the charge skip-guard. PRIOR (v0.3.1): FIX: dwarf base size per [2.3] footnote — 'Dwarves are mounted on 3/4\" bases even though they are size S creatures' (width over height). Type rows gain an optional `base` override consumed by unitRect (BASE_W[t.base || t.size]); DWARF and DW_PIKE set base:'M'. Combat size stays S (the size field still drives [8.5] vs-L selection and future size rules); only the footprint changes. Self-test locks dwarf figure width to 0.75\". PRIOR (v0.3.0): Slice 3 — chainmail visual language + engagement standoff. Units now render as chainmail-board cards: parchment card (#efe7d2) with a side-colored border, SQUARE figure pips with the FRONT RANK in the dark side color and rear ranks in the light tint (his frontage/non-frontage convention), the wounded figure shown as a pink half-tone pip, and the two-line label BELOW the unit ('A · Name #id' in the side color over 'type · figs/start' in soft ink) so adjacent labels stop colliding. Engaged enemy pairs draw a dotted clash line between them. ENGAGEMENT STANDOFF: BS melee is base-to-base RAW ([1.6]/[7.8]/[8.1] — no Chainmail 3-inch rule), but glued bases were unreadable, so contact is now RENDERED with a 0.25-inch fighting-line gap: charge and snap close to the standoff rather than to zero, and the contact epsilon is 0.3 inch, so a standoff pair IS in base-to-base contact mechanically while the boards breathe visually. Selected/targeted units draw last (labels never buried). Self-tests updated for the standoff geometry. PRIOR (v0.2.1): FIX: melee phase auto-skipped after a charge/snap that visually touched. Root cause: chargeToTarget and snapToContact closed along the CENTER-to-center vector by the rect-gap distance, but the rect gap is the hypot of the per-axis edge deficits — on any diagonal offset the center vector is not the deficit vector, so the move under-closed (repro: 0.671" gap 'closed' to 0.301", above the 0.15" contact epsilon), inContact stayed false, and phaseIsEmpty(melee) skipped the phase. Fix: new contactDelta(u,v) returns the exact per-axis translation whose hypot IS the rect gap; charge and snap now translate by that delta, zeroing the gap by construction (movedIn charged with delta.dist, identical to the reach test's rectGap so budgets are unchanged). Self-test adds a diagonal-offset fixture locked to end in contact. PRIOR (v0.2.0): Slice 2 — chainmail targeting grammar + feel pass. Mirrors chainmail-board's attack grammar exactly: SHIFT+CLICK an enemy toggles it as the TARGET (dashed ring + reticle tag), plain click selects, and the action buttons in the phase row LIGHT UP from eligibility-state functions (meleeState/chargeState/rallyState, each returning {ok, reason}; the reason surfaces as the disabled button's tooltip, chainmail's btn-melee pattern). '⚔ Resolve melee' enables when a friendly is selected, an enemy targeted, the pair is in base-to-base contact, it is the Melee phase, and the attacker is neither routed nor rallied-this-round [6.3]; 'Charge target' enables in the Movement phase when the target is reachable within the 1.5x charge allowance [7.14] and, on click, declares the charge and auto-closes straight into contact (last leg straight per [7.14], cost charged to the move budget); 'Attempt rally' enables in the Rally phase for a selected routed unit. Also: SNAP-TO-CONTACT — a drop that leaves <=0.35 inch of gap to an enemy glues the facing edges (kills the pixel-fiddling to reach [7.8] contact); CLICK-TO-PLACE muster — a muster button arms placement and the next board click drops the unit there (Esc or right-click cancels; shift-click keeps placing more of the same); EMPTY-PHASE AUTO-SKIP — Rally with no routed units and Melee with no contacts advance themselves with a one-line log note. The Selected pane gains a Target row; the panel Attack flow is retired in favor of the lit buttons. Self-tests add meleeState gating and the snap closure math. PRIOR (v0.1.0): Slice 1 — BATTLESYSTEM Basic Game on the chainmail-board chassis. New file forked from chainmail-board v0.11.180's chassis PATTERNS (parchment palette + toolbar/panel/log CSS, right-drag pan + wheel zoom, phase rail, undo/redo, JSON save/load, boot self-tests), with the rules core supplied by @graycloak/battlesystem-engine v0.2.0 (synced at ./engine/, same copy the Foundry module consumes — do NOT edit ./engine/ here; edit graycloak-platform/packages/battlesystem-engine and re-sync). SCOPE (Basic Game, rulebook Part 2): Army-Roster units (Regular/Mob; AC, creature HD, ratio [2.2], figures, frontage, formation, MV, THAC0, weapon, size), 5-phase round [Basic seq: Initiative d6 reroll-ties / Rally / Movement A-chooses / Melee simultaneous [8.0] / End], closed-open formation change at 1/3 MV [7.6], drag movement with live budget clamp + charge at 1.5x MV requiring contact [7.14], melee via engine resolveMeleeCombat (AR pipeline [8.3], CRT [8.4-8.5], eligible fighters [8.1] with measured contact frontage, casualties + single-wound rule [8.7]), automatic morale triggers 25%/50%/post-50%-per-figure [4.4] via engine checkMorale 2d10 with situational stack [4.2], failure effects [4.5] (closed breaks to open; open/mob ROUTS with auto move MV+1/3 away, back to enemy [7.15]), Rally-phase attemptRally [6.1-6.3] with rallied-unit restrictions, fight-in-melee-only-if-attacked [6.3]. OPEN RULINGS this slice (flagged in-log where they bite): no commanders/CR yet, so In-Command bonuses, CB, and the OOC penalties are not applied (units treated as in command; [4.7]-[4.10] land with the Intermediate slice); skirmish units deferred (no missiles in Basic anyway); contact frontage measured as overlapping facing-edge figures, side-extras [8.1] auto-computed 0-2 from geometry; wheeling/facing costs deferred — drag cost is path length (straight-line legs), which under-charges a wheel; mobs get Move Forward only (orders system with commanders). Self-tests at boot lock the [8.4] worked example, morale example, rout distance, and save round-trip. -->
+<!-- battlesystem-board.html · v0.5.0 · Slice 5 — commanders and command [4.7]-[4.10], retiring the Slice-1 open ruling. Every REGULAR unit now spawns with an embedded Unit Commander (RAW [2.8]: regulars must have one) — a fighter of level 3-6 with rolled CHA, giving CB per Table 8 [4.9] and CR = (CHA+level)/2 + 3\" fighter bonus [4.8]; mobs spawn with a boss who can Give Orders but never confers In-Command benefits ([2.10]: mobs always suffer OOC penalties). WIRED CONSEQUENCES (engine keys verified before wiring, per house rule): commanderFighting -1 AR for regulars (Table 10, embedded commander fights with the unit), outOfCommand +1 AR and -2 ML for mobs and routed units, commander CB added to current morale [4.9] via unit.commander.charismaBonus, mobWithSupport +2 ML when a friendly regular unit sits in the mob's rear arc within 6\" [2.10], and closed formation now REQUIRES command [4.7]. RALLY moves to the engine's attemptRally with the [6.1] flags (inMeleeContact, commanderInRange = has a commander) — the manual checkMorale shim is retired. MOB ORDERS [2.10]/[6.6]: mobs cannot be dragged in battle; in the Rally phase a mob's commander may attempt ONE order (Advance or Charge) via rally check, the mob then follows its last order each Movement phase — Advance walks it straight along its facing, Charge closes on the nearest enemy in the 1.5x reach — and at the start of each Movement phase a mob that SEES an enemy within charge range checks DISCIPLINE (Table 7; PEAS DL is low) and on failure charges regardless of orders, going OOC-wild per [4.6]. Board: gold star = commander pip, dashed CR circle on selection, OOC and order tags in the card label, Cmdr row in the Selected pane. Commander death is NOT reachable this slice — [9.2]: an embedded Unit Commander cannot be killed without his unit being destroyed; detached commanders, Brigade/Army ranks, and hero assassinations arrive with the heroes slice, as does commander editing. Pre-v0.5.0 saves hydrate generated commanders on load. PRIOR (v0.4.1): Ctrl+wheel facing, ported from chainmail-board's onWheel grammar (ctrl+wheel rotates the SELECTED unit, falling through to zoom when nothing is selected; there ±15° free-form, here one CARDINAL step per notch since BS facing is the [7.9] set). Wheel-down = Right Face, wheel-up = Left Face. In SETUP the rotation is free and ungated; in battle each notch routes through facingChange() so the [7.9] 1/3-MV cost, Movement-phase gating, rout guard, and the [6.3] free-face-after-rally all apply unchanged — the budget is what stops a spin. Setup wheel bursts collapse to ONE undo entry (tag 'wheel-face:<id>' skipped while it's already on top of the stack, chainmail's tag-collapse pattern). Toolbar hint updated. PRIOR (v0.4.0): Slice 4 — facing, flanks, and rear + M/F/X acted chips. FACING: units carry a cardinal facing (0/90/180/270 — RAW's own facing-change set, since [7.9] defines exactly Right Face, Left Face, About Face; free 45-degree drift and wheeling stay OPEN for a later slice). The front edge draws a green stripe; the front RANK of pips is the rank nearest that edge (dark pips follow the facing). Facing changes are Selected-pane buttons costed per [7.9] — Left/Right Face 1/3 MV, About Face 1/2 MV — budget-checked in the Movement phase, and FREE once immediately after a successful rally per [6.3]. A charge turns the charger to face its target (the last 2/3-straight leg implies it); a rout ends with the unit's back to the enemy [7.15], now literally. ARCS: arcOf(defender, attacker) classifies the attacker's center against the defender's facing-axis edges — front of the front edge = FRONTAL, behind the rear edge = REAR, else FLANK. Targeting shows the chainmail-style arc banner over the target (green/amber/red per the --front/--flank/--rear palette). COMBAT WIRING: rear attacks take arDelta -2 and flank attacks -1 when the defender carries a shield ([8.3] SPECIAL NOTE examples — shield flags added to MEN_HF, DWARF, DW_PIKE, HOBGOB), the melee log names the arc, and a unit meleeing with an enemy in contact with its REAR arc checks morale with the [4.2] enemyAtRear -2 (engine key verified). M/F/X CHIPS: chainmail's acted trio — u.acted {moved, fired, fought} — renders as chips above each card, dark when done (M on any move/charge/facing spend, X on fighting a melee, F reserved until the missile slice), reset at End of Round. Self-tests add arc classification, facing-cost/center-preserving rotation, and the rear arDelta. PRIOR (v0.3.2): FIX: melee skipped again — the v0.3.0 card was drawn with a 3px pad OUTWARD in board coordinates, inflating every unit's apparent footprint ~0.21\" per side; cards that looked engaged were mechanically 0.5-0.7\" apart (past CONTACT_EPS 0.3 and even the 0.6 snap capture), so the engine rightly saw no contact and phaseIsEmpty skipped the phase your eyes said was due. The closure geometry itself verified clean across offsets this time. Fixes: (1) WYSIWYG card — the card rect now sits EXACTLY on the true base footprint (0,0,w,h) with the pips inset, so the drawn edge IS the base edge and the standoff gap you see is the gap the rules see; (2) snap capture widened to 0.8\" so near drops glue reliably; (3) honest skip — the Melee phase NEVER auto-skips while any unit has a declared charge [7.14], and when it does skip it names the closest enemy pair and their gap ('closest: X vs Y — 0.71\" apart') so a miss is information, not mystery. Self-tests add the charge skip-guard. PRIOR (v0.3.1): FIX: dwarf base size per [2.3] footnote — 'Dwarves are mounted on 3/4\" bases even though they are size S creatures' (width over height). Type rows gain an optional `base` override consumed by unitRect (BASE_W[t.base || t.size]); DWARF and DW_PIKE set base:'M'. Combat size stays S (the size field still drives [8.5] vs-L selection and future size rules); only the footprint changes. Self-test locks dwarf figure width to 0.75\". PRIOR (v0.3.0): Slice 3 — chainmail visual language + engagement standoff. Units now render as chainmail-board cards: parchment card (#efe7d2) with a side-colored border, SQUARE figure pips with the FRONT RANK in the dark side color and rear ranks in the light tint (his frontage/non-frontage convention), the wounded figure shown as a pink half-tone pip, and the two-line label BELOW the unit ('A · Name #id' in the side color over 'type · figs/start' in soft ink) so adjacent labels stop colliding. Engaged enemy pairs draw a dotted clash line between them. ENGAGEMENT STANDOFF: BS melee is base-to-base RAW ([1.6]/[7.8]/[8.1] — no Chainmail 3-inch rule), but glued bases were unreadable, so contact is now RENDERED with a 0.25-inch fighting-line gap: charge and snap close to the standoff rather than to zero, and the contact epsilon is 0.3 inch, so a standoff pair IS in base-to-base contact mechanically while the boards breathe visually. Selected/targeted units draw last (labels never buried). Self-tests updated for the standoff geometry. PRIOR (v0.2.1): FIX: melee phase auto-skipped after a charge/snap that visually touched. Root cause: chargeToTarget and snapToContact closed along the CENTER-to-center vector by the rect-gap distance, but the rect gap is the hypot of the per-axis edge deficits — on any diagonal offset the center vector is not the deficit vector, so the move under-closed (repro: 0.671" gap 'closed' to 0.301", above the 0.15" contact epsilon), inContact stayed false, and phaseIsEmpty(melee) skipped the phase. Fix: new contactDelta(u,v) returns the exact per-axis translation whose hypot IS the rect gap; charge and snap now translate by that delta, zeroing the gap by construction (movedIn charged with delta.dist, identical to the reach test's rectGap so budgets are unchanged). Self-test adds a diagonal-offset fixture locked to end in contact. PRIOR (v0.2.0): Slice 2 — chainmail targeting grammar + feel pass. Mirrors chainmail-board's attack grammar exactly: SHIFT+CLICK an enemy toggles it as the TARGET (dashed ring + reticle tag), plain click selects, and the action buttons in the phase row LIGHT UP from eligibility-state functions (meleeState/chargeState/rallyState, each returning {ok, reason}; the reason surfaces as the disabled button's tooltip, chainmail's btn-melee pattern). '⚔ Resolve melee' enables when a friendly is selected, an enemy targeted, the pair is in base-to-base contact, it is the Melee phase, and the attacker is neither routed nor rallied-this-round [6.3]; 'Charge target' enables in the Movement phase when the target is reachable within the 1.5x charge allowance [7.14] and, on click, declares the charge and auto-closes straight into contact (last leg straight per [7.14], cost charged to the move budget); 'Attempt rally' enables in the Rally phase for a selected routed unit. Also: SNAP-TO-CONTACT — a drop that leaves <=0.35 inch of gap to an enemy glues the facing edges (kills the pixel-fiddling to reach [7.8] contact); CLICK-TO-PLACE muster — a muster button arms placement and the next board click drops the unit there (Esc or right-click cancels; shift-click keeps placing more of the same); EMPTY-PHASE AUTO-SKIP — Rally with no routed units and Melee with no contacts advance themselves with a one-line log note. The Selected pane gains a Target row; the panel Attack flow is retired in favor of the lit buttons. Self-tests add meleeState gating and the snap closure math. PRIOR (v0.1.0): Slice 1 — BATTLESYSTEM Basic Game on the chainmail-board chassis. New file forked from chainmail-board v0.11.180's chassis PATTERNS (parchment palette + toolbar/panel/log CSS, right-drag pan + wheel zoom, phase rail, undo/redo, JSON save/load, boot self-tests), with the rules core supplied by @graycloak/battlesystem-engine v0.2.0 (synced at ./engine/, same copy the Foundry module consumes — do NOT edit ./engine/ here; edit graycloak-platform/packages/battlesystem-engine and re-sync). SCOPE (Basic Game, rulebook Part 2): Army-Roster units (Regular/Mob; AC, creature HD, ratio [2.2], figures, frontage, formation, MV, THAC0, weapon, size), 5-phase round [Basic seq: Initiative d6 reroll-ties / Rally / Movement A-chooses / Melee simultaneous [8.0] / End], closed-open formation change at 1/3 MV [7.6], drag movement with live budget clamp + charge at 1.5x MV requiring contact [7.14], melee via engine resolveMeleeCombat (AR pipeline [8.3], CRT [8.4-8.5], eligible fighters [8.1] with measured contact frontage, casualties + single-wound rule [8.7]), automatic morale triggers 25%/50%/post-50%-per-figure [4.4] via engine checkMorale 2d10 with situational stack [4.2], failure effects [4.5] (closed breaks to open; open/mob ROUTS with auto move MV+1/3 away, back to enemy [7.15]), Rally-phase attemptRally [6.1-6.3] with rallied-unit restrictions, fight-in-melee-only-if-attacked [6.3]. OPEN RULINGS this slice (flagged in-log where they bite): no commanders/CR yet, so In-Command bonuses, CB, and the OOC penalties are not applied (units treated as in command; [4.7]-[4.10] land with the Intermediate slice); skirmish units deferred (no missiles in Basic anyway); contact frontage measured as overlapping facing-edge figures, side-extras [8.1] auto-computed 0-2 from geometry; wheeling/facing costs deferred — drag cost is path length (straight-line legs), which under-charges a wheel; mobs get Move Forward only (orders system with commanders). Self-tests at boot lock the [8.4] worked example, morale example, rout distance, and save round-trip. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Battlesystem — Battlefield · v0.4.1</title>
+<title>Battlesystem — Battlefield · v0.5.0</title>
 <style>
   :root {
     --bg:#ece0c4; --panel:#f5eedb; --field:#a8b094; --field-edge:#6d735a; --ink:#2c2316; --ink-soft:#6e6047; --rule:#b6a682;
@@ -121,7 +121,7 @@
 </div>
 
 <script type="module">
-const SIM_VERSION = '0.4.1';
+const SIM_VERSION = '0.5.0';
 import {
   BattlesystemCombat, BattlesystemMorale, BattlesystemMovement,
   ratioFromHD, calculateHDPerFigure, creaturesPerFigure
@@ -175,6 +175,23 @@ const state = {
   undoStack: [], redoStack: [],
 };
 
+/* [4.9] Table 8 — commander charisma bonus */
+function cbFromCha(cha) {
+  if (cha >= 19) return 3; if (cha >= 17) return 2; if (cha >= 15) return 1;
+  if (cha >= 7) return 0; if (cha >= 5) return -1; if (cha >= 3) return -2; return -3;
+}
+/* [4.8] CR = (CHA + level)/2, fighters +3" */
+const crOf = c => (c.cha + c.level) / 2 + (c.cls === 'fighter' ? 3 : 0);
+const CMDR_NAMES = ['Aldric','Berrin','Cass','Doone','Edda','Fenn','Garrick','Hale','Iva','Jorun','Kell','Marta','Osric','Pell','Rowan','Sten','Tam','Ulf','Vera','Wynn'];
+function mkCommander(mob) {
+  const cha = 8 + Math.floor(Math.random() * 10);                    // 8-17 → CB 0..+2
+  const level = mob ? 2 : 3 + Math.floor(Math.random() * 4);         // regulars F3-F6
+  return { name: CMDR_NAMES[Math.floor(Math.random() * CMDR_NAMES.length)], cls:'fighter', level, cha };
+}
+/* [4.7] In Command: embedded commander → all figures trivially within CR;
+   mobs NEVER gain the benefits and routed units are OOC. */
+const inCommand = u => !!u.cmdr && !u.routed && typeById(u.type).unitType === 'regular';
+const isOOC = u => u.routed || typeById(u.type).unitType === 'mob';
 function mkUnit(typeId, side, figures, x, y) {
   const t = typeById(typeId);
   const ratio = ratioFromHD(t.hd);                                   // [2.2]
@@ -188,6 +205,8 @@ function mkUnit(typeId, side, figures, x, y) {
     routed: false, ralliedThisRound: false, wasAttackedThisPhase: false,
     movedIn: 0, charging: false,
     moraleChecked: { p25:false, p50:false },
+    cmdr: mkCommander(t.unitType === 'mob'),                         // [2.8]/[2.10]
+    mobOrder: null, orderedThisRound: false,
   };
   u.baseMorale = computeBaseMorale(u);                               // [4.1]
   return u;
@@ -200,6 +219,7 @@ function unitEngineData(u) {   // shape shared with the Foundry module's buildDe
     hasSpecialAbilities: false, hasExceptionalAbilities: false,
     mounted: false, unitIsRegular: t.unitType === 'regular',
     baseMorale: u.baseMorale, formation: u.formation,
+    commander: (u.cmdr && !u.routed) ? { charismaBonus: cbFromCha(u.cmdr.cha) } : undefined,  // [4.9]
   };
 }
 function computeBaseMorale(u) { return BattlesystemMorale.calculateBaseMorale(unitEngineData(u)); }
@@ -329,6 +349,9 @@ function loadScenario(data) {
     if (!u.acted) u.acted = { moved:false, fired:false, fought:false };
     if (u.freeFace === undefined) u.freeFace = false;
     if (![0,90,180,270].includes(u.facing)) u.facing = u.side === 'A' ? 180 : 0;
+    if (u.cmdr === undefined) u.cmdr = mkCommander(typeById(u.type).unitType === 'mob');
+    if (u.mobOrder === undefined) u.mobOrder = null;
+    if (u.orderedThisRound === undefined) u.orderedThisRound = false;
   }
   state.undoStack = []; state.redoStack = []; state.selId = null; syncUndo();
   renderAll();
@@ -392,11 +415,12 @@ function runPhaseEntry() {
     log('phase', `⚀ Initiative — Side ${r.winner} acts first`, `A rolled ${r.a} · B rolled ${r.b} [5.1]`);
   }
   if (p.id === 'rally') {
-    for (const u of state.units) u.ralliedThisRound = false;
+    for (const u of state.units) { u.ralliedThisRound = false; u.orderedThisRound = false; }
   }
   if (p.id === 'movement') {
     // [6.4] unrallied routed units continue their rout automatically
     for (const u of state.units) if (u.routed && !u.ralliedThisRound) autoRout(u, typeById(u.type).mv, 'continues to rout [6.4]');
+    for (const u of state.units) if (typeById(u.type).unitType === 'mob' && !u.routed && u.figures > 0) runMobMovement(u);
   }
   if (p.id === 'melee') {
     for (const u of state.units) u.wasAttackedThisPhase = false;
@@ -408,6 +432,57 @@ function endRound() {
 }
 
 /* === F. MOVEMENT [7.x] =================================================== */
+function giveOrder(u, order) {                                       // [2.10]/[6.6] one per Rally Phase
+  if (curPhase().id !== 'rally') { log('phase', 'Orders are given in the Rally Phase [6.6]'); return; }
+  if (u.orderedThisRound) { log('phase', `${esc(uName(u))} already received an order this round [2.10]`); return; }
+  if (!u.cmdr) { log('phase', `${esc(uName(u))} has no commander to give orders [2.10]`); return; }
+  pushUndo('order');
+  u.orderedThisRound = true;
+  const res = BattlesystemMorale.checkMorale(unitEngineData(u), {}, roll2d10);   // successful rally attempt [6.6]
+  if (res.passed) {
+    u.mobOrder = order;
+    log('phase', `📯 ${esc(u.cmdr.name)} orders ${esc(uName(u))}: ${order.toUpperCase()}`, `rolled ${res.roll} vs ${res.currentMorale} [6.6]`);
+  } else {
+    log('phase', `📯 ${esc(uName(u))} ignores the order`, `rolled ${res.roll} vs ${res.currentMorale} — last order stands [2.10]`);
+  }
+  renderAll();
+}
+function runMobMovement(u) {                                         // [2.10] mobs follow last order
+  const t = typeById(u.type);
+  // Table 7: a mob that sees an opponent within charge range checks discipline
+  const reach = t.mv * 1.5;
+  let nearest = null;
+  for (const v of state.units) {
+    if (v.side === u.side || v.figures <= 0) continue;
+    const gp = rectGap(u, v);
+    if (!nearest || gp < nearest.gp) nearest = { v, gp };
+  }
+  if (nearest && nearest.gp <= reach && !inContact(u, nearest.v)) {
+    const dc = BattlesystemMorale.checkDiscipline(unitEngineData(u), roll2d10);
+    if (!dc.passed) {
+      log('morale', `⚡ ${esc(uName(u))} loses its head`, `discipline ${dc.autoFail ? 'auto-fails (DL 0)' : `${dc.roll} vs ${dc.discipline}`} — charges wild [4.6]`);
+      mobCharge(u, nearest.v); return;
+    }
+  }
+  if (u.mobOrder === 'charge' && nearest && nearest.gp <= reach) { mobCharge(u, nearest.v); return; }
+  if (u.mobOrder === 'advance' || u.mobOrder === 'charge') {         // charge with nothing in reach walks on
+    const dir = { 0:[0,-1], 90:[1,0], 180:[0,1], 270:[-1,0] }[u.facing || 0];
+    u.x = clamp(u.x + dir[0] * t.mv, 0, BOARD_W - 1); u.y = clamp(u.y + dir[1] * t.mv, 0, BOARD_H - 1);
+    u.movedIn = t.mv; u.acted.moved = true;
+    snapToContact(u);
+    log('phase', `${esc(uName(u))} shambles forward`, `${fmt(t.mv)}" along its facing [2.10]`);
+  }
+}
+function mobCharge(u, target) {                                      // [7.14] via mob order/discipline
+  const delta = contactDelta(u, target);
+  u.charging = true;
+  const step = Math.max(0, delta.dist - STANDOFF);
+  const sc = delta.dist > 0 ? step / delta.dist : 0;
+  u.x += delta.dx * sc; u.y += delta.dy * sc;
+  u.movedIn += step; u.acted.moved = true;
+  faceUnit(u, nearestCardinal(delta.dx, delta.dy));
+  log('phase', `⚡ ${esc(uName(u))} CHARGES ${esc(uName(target))}`, `mob closes ${fmt(step)}" [7.14]`);
+}
 function moveBudget(u) {
   const t = typeById(u.type);
   let mv = t.mv;
@@ -419,6 +494,7 @@ function toggleFormation(u) {                                        // [7.6] 1/
   const t = typeById(u.type);
   if (t.unitType === 'mob') { log('phase', 'Mobs fight in Mob Formation only [7.5]'); return; }
   const cost = t.mv / 3;
+  if (u.formation === 'open' && !inCommand(u)) { log('phase', `${esc(uName(u))} must be in command to enter closed formation [4.7]`); return; }
   if (moveBudget(u) < cost) { log('phase', `${esc(uName(u))} lacks movement to change formation`, `needs ${fmt(cost)}" [7.6]`); return; }
   pushUndo('formation');
   u.movedIn += cost;
@@ -501,6 +577,8 @@ function resolveMelee(attU, defU) {
         modifiers: {
           openFormation: A.formation === 'open',
           chargingClosed: A.charging && A.formation === 'closed',    // [7.14] -1
+          outOfCommand: isOOC(A),                                    // Table 10 +1
+          commanderFighting: inCommand(A),                           // Table 10 -1 (embedded cmdr)
         },
         // [8.3] SPECIAL NOTE examples: -2 rear; -1 flank when it negates a shield
         weapon: BattlesystemCombat.defineWeapon(aT.weapon),
@@ -562,6 +640,10 @@ function runMoraleCheck(u, why) {                                    // [4.2]/[4
     closedFormation: u.formation === 'closed',
     enemyAtRear: state.units.some(v => v.side !== u.side && v.figures > 0
       && inContact(u, v) && arcOf(u, v) === 'rear'),                 // [4.2] −2
+    outOfCommand: isOOC(u),                                          // [4.2] −2 (mobs always [2.10])
+    mobWithSupport: typeById(u.type).unitType === 'mob'              // [2.10] +2
+      && state.units.some(v => v.side === u.side && v.id !== u.id && v.figures > 0
+           && typeById(v.type).unitType === 'regular' && arcOf(u, v) === 'rear' && rectGap(u, v) <= 6),
   };
   const res = BattlesystemMorale.checkMorale(unitEngineData(u), situation, roll2d10);
   if (res.passed) {
@@ -576,15 +658,15 @@ function runMoraleCheck(u, why) {                                    // [4.2]/[4
 function attemptRallySelected(u) {                                   // [6.1]-[6.3]
   if (curPhase().id !== 'rally') { log('phase', 'Rally attempts happen in the Rally Phase [6.0]'); return; }
   if (!u.routed) { log('phase', `${esc(uName(u))} is not routed`); return; }
-  if (state.units.some(v => v.side !== u.side && v.figures > 0 && inContact(u, v))) {
-    log('morale', `${esc(uName(u))} cannot rally in contact with the enemy [6.1]`); return;
-  }
   pushUndo('rally');
-  // OPEN RULING (slice 1, no commanders yet): rally is a plain Morale Check [6.2].
-  const res = BattlesystemMorale.checkMorale(unitEngineData(u), {}, roll2d10);
-  if (res.passed) {
+  const data = unitEngineData(u);
+  data.inMeleeContact = state.units.some(v => v.side !== u.side && v.figures > 0 && inContact(u, v));
+  data.commanderInRange = !!u.cmdr;                                  // embedded cmdr → within CR [4.8]
+  const res = BattlesystemMorale.attemptRally(data, {}, roll2d10);   // [6.1]-[6.2]
+  if (res.reason) { log('morale', `⚑ ${esc(uName(u))} cannot rally`, `${esc(res.reason)} [6.1]`); renderAll(); return; }
+  if (res.rallied) {
     u.routed = false; u.ralliedThisRound = true; u.freeFace = true;   // [6.3] may change facing now
-    log('morale', `⚑ ${esc(uName(u))} RALLIES`, `need ${res.currentMorale}, rolled ${res.roll} · may change facing now; no move/attack this round [6.3]`);
+    log('morale', `⚑ ${esc(uName(u))} RALLIES`, `${esc(u.cmdr.name)} steadies them · need ${res.currentMorale}, rolled ${res.roll} · free facing change; no move/attack this round [6.3]`);
   } else {
     log('morale', `⚑ ${esc(uName(u))} fails to rally`, `need ${res.currentMorale}, rolled ${res.roll} · rout continues [6.4]`);
   }
@@ -687,6 +769,15 @@ function renderUnit(u) {
       bt.textContent = ARC_LABEL[arc]; g.appendChild(bt);
     }
   }
+  if (u.cmdr) {                                                      // commander pip
+    const st = el('text', { x:3, y:r.h*PXI-4, 'font-size':11, fill:'#a97f1f', 'font-weight':700 });
+    st.textContent = '★'; g.appendChild(st);
+  }
+  if (sel && u.cmdr && typeById(u.type).unitType === 'regular') {    // dashed CR circle [4.8]
+    const cr = crOf(u.cmdr);
+    g.appendChild(el('circle', { cx:r.w*PXI/2, cy:r.h*PXI/2, r:cr*PXI, fill:'none',
+      stroke:'#a97f1f', 'stroke-width':1, 'stroke-dasharray':'4 6', opacity:.6 }));
+  }
   // two-line label BELOW the card, chainmail style
   const cx = r.w*PXI/2, by = r.h*PXI;
   const l1 = el('text', { x:cx, y:by+13, 'text-anchor':'middle', 'font-size':11.5,
@@ -694,7 +785,7 @@ function renderUnit(u) {
   l1.textContent = `${u.side} · ${t.name} #${u.id}${u.routed ? ' · ROUT' : ''}`;
   const l2 = el('text', { x:cx, y:by+25, 'text-anchor':'middle', 'font-size':10,
     'font-family':'var(--sans)', fill:'var(--ink-soft)', 'font-weight':600 });
-  l2.textContent = `${t.unitType === 'mob' ? 'Mob' : t.weapon} · ${u.figures}/${u.startFigures}${u.wounded ? ' · 1W' : ''}${u.charging ? ' · CHG' : ''}`;
+  l2.textContent = `${t.unitType === 'mob' ? 'Mob' : t.weapon} · ${u.figures}/${u.startFigures}${u.wounded ? ' · 1W' : ''}${u.charging ? ' · CHG' : ''}${isOOC(u) && !u.routed ? ' · OOC' : ''}${u.mobOrder ? ' · ' + u.mobOrder.toUpperCase().slice(0,3) : ''}`;
   g.appendChild(l1); g.appendChild(l2);
   svg.appendChild(g);
 }
@@ -722,6 +813,8 @@ function renderSel() {
     ['HD/fig', `${fmt(hdPerFig(u))}`],
     ['AC / AR', `${t.ac} / ${t.thaco + ({'10:1':0,'5:1':5,'2:1':10}[ratio]||0)} (THAC0 ${t.thaco} ${ratio})`],
     ['ML / MV', `${u.baseMorale} / ${t.mv}" ${u.charging ? '(charging 1.5×)' : ''}`],
+    ['Cmdr', u.cmdr ? `★ ${esc(u.cmdr.name)} · F${u.cmdr.level} · CHA ${u.cmdr.cha} · CB ${cbFromCha(u.cmdr.cha) >= 0 ? '+' : ''}${cbFromCha(u.cmdr.cha)} · CR ${fmt(crOf(u.cmdr))}"` : '—'],
+    ['Command', isOOC(u) ? '<span class="amber">OUT OF COMMAND</span>' + (t.unitType === 'mob' ? ' [2.10]' : '') : 'in command'],
     ['Weapon', `${t.weapon}`],
     ['Formation', `${u.formation} · frontage ${Math.min(u.frontage, u.figures)} · facing ${u.facing}°`],
     ['Moved', `${fmt(u.movedIn)}" of ${fmt(typeById(u.type).mv * (u.charging?1.5:1))}"`],
@@ -733,6 +826,10 @@ function renderSel() {
   const act = document.createElement('div'); act.className = 'sel-actions';
   const mkBtn = (label, fn, dis) => { const b = document.createElement('button'); b.textContent = label; b.disabled = !!dis; b.onclick = fn; act.appendChild(b); };
   mkBtn(u.formation === 'closed' ? 'Open form. (⅓ MV)' : 'Closed form. (⅓ MV)', () => toggleFormation(u), t.unitType==='mob' || state.setup);
+  if (t.unitType === 'mob') {
+    mkBtn('📯 Order: Advance', () => giveOrder(u, 'advance'), state.setup || u.routed || curPhase().id !== 'rally' || u.orderedThisRound);
+    mkBtn('📯 Order: Charge', () => giveOrder(u, 'charge'), state.setup || u.routed || curPhase().id !== 'rally' || u.orderedThisRound);
+  }
   mkBtn('⟲ Left face', () => facingChange(u, 'left'), state.setup || u.routed);
   mkBtn('⟳ Right face', () => facingChange(u, 'right'), state.setup || u.routed);
   mkBtn('⇅ About face', () => facingChange(u, 'about'), state.setup || u.routed);
@@ -776,6 +873,7 @@ function rallyState(a) {
   if (curPhase().id !== 'rally') return { ok:false, reason:'rally attempts happen in the Rally Phase [6.0]' };
   if (!a) return { ok:false, reason:'select one of your units' };
   if (!a.routed) return { ok:false, reason:'unit is not routed' };
+  if (!a.cmdr) return { ok:false, reason:'no eligible commander [6.1]' };
   if (state.units.some(v => v.side !== a.side && v.figures > 0 && inContact(a, v)))
     return { ok:false, reason:'cannot rally in contact with the enemy [6.1]' };
   return { ok:true };
@@ -833,7 +931,7 @@ svg.addEventListener('mousedown', evt => {
     state.selId = u.id;
     if (state.targetId === u.id) state.targetId = null;
     renderAll();
-    const mayMove = !state.setup ? (curPhase().id === 'movement' && !u.routed && !u.ralliedThisRound) : true;
+    const mayMove = !state.setup ? (curPhase().id === 'movement' && !u.routed && !u.ralliedThisRound && typeById(u.type).unitType !== 'mob') : true;
     if (mayMove) drag = { u, start:{x:u.x, y:u.y}, grab:{ dx:p.x-u.x, dy:p.y-u.y }, spent0: u.movedIn };
   } else { state.selId = null; renderAll(); }
 });
@@ -972,6 +1070,21 @@ $('#btn-advance').onclick = advancePhase;
   t('wheel facing rotates free in setup', WF.facing === 270 && WF.movedIn === 0);   // A spawns at 180; +90+90-90
   t('wheel burst collapses to one undo', state.undoStack.length === depth0 + 1);
   state.undoStack.length = depth0;
+  // [4.9] Table 8 CB boundaries
+  t('[4.9] CB table', cbFromCha(19)===3 && cbFromCha(17)===2 && cbFromCha(15)===1 && cbFromCha(14)===0 && cbFromCha(6)===-1 && cbFromCha(4)===-2 && cbFromCha(2)===-3);
+  // [4.8] CR: F4 CHA 12 → (12+4)/2+3 = 11
+  t('[4.8] CR fighter bonus', crOf({ cha:12, level:4, cls:'fighter' }) === 11);
+  // command wiring: mob is OOC (−2 ML through engine), regular with cmdr gets commanderFighting −1 AR
+  const MB = mkUnit('PEAS','A',12,10,10);
+  const mlNoOOC = BattlesystemMorale.calculateCurrentMorale(unitEngineData(MB), {});
+  const mlOOC   = BattlesystemMorale.calculateCurrentMorale(unitEngineData(MB), { outOfCommand:true });
+  t('[2.10] mob OOC −2 ML reaches engine', mlOOC === mlNoOOC - 2);
+  t('Table 10 commanderFighting −1 AR', BattlesystemCombat.calculateAR(19,'10:1',{ commanderFighting:true }) === 18
+    && BattlesystemCombat.calculateAR(19,'10:1',{ outOfCommand:true }) === 20);
+  // [6.1] rally blocked without a commander via the engine path
+  const RU = mkUnit('ORC','A',12,10,10); RU.routed = true;
+  const rdata = unitEngineData(RU); rdata.inMeleeContact = false; rdata.commanderInRange = false;
+  t('[6.1] no commander, no rally', BattlesystemMorale.attemptRally(rdata, {}, () => ({ total:2, dice:[1,1] })).rallied === false);
   // save round-trip
   const before = JSON.stringify(snap()); loadOK: {
     const s = snap(); applySnap(JSON.parse(JSON.stringify(s)));
