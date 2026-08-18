@@ -1,9 +1,9 @@
 <!doctype html>
-<!-- battlesystem-board.html · v0.5.0 · Slice 5 — commanders and command [4.7]-[4.10], retiring the Slice-1 open ruling. Every REGULAR unit now spawns with an embedded Unit Commander (RAW [2.8]: regulars must have one) — a fighter of level 3-6 with rolled CHA, giving CB per Table 8 [4.9] and CR = (CHA+level)/2 + 3\" fighter bonus [4.8]; mobs spawn with a boss who can Give Orders but never confers In-Command benefits ([2.10]: mobs always suffer OOC penalties). WIRED CONSEQUENCES (engine keys verified before wiring, per house rule): commanderFighting -1 AR for regulars (Table 10, embedded commander fights with the unit), outOfCommand +1 AR and -2 ML for mobs and routed units, commander CB added to current morale [4.9] via unit.commander.charismaBonus, mobWithSupport +2 ML when a friendly regular unit sits in the mob's rear arc within 6\" [2.10], and closed formation now REQUIRES command [4.7]. RALLY moves to the engine's attemptRally with the [6.1] flags (inMeleeContact, commanderInRange = has a commander) — the manual checkMorale shim is retired. MOB ORDERS [2.10]/[6.6]: mobs cannot be dragged in battle; in the Rally phase a mob's commander may attempt ONE order (Advance or Charge) via rally check, the mob then follows its last order each Movement phase — Advance walks it straight along its facing, Charge closes on the nearest enemy in the 1.5x reach — and at the start of each Movement phase a mob that SEES an enemy within charge range checks DISCIPLINE (Table 7; PEAS DL is low) and on failure charges regardless of orders, going OOC-wild per [4.6]. Board: gold star = commander pip, dashed CR circle on selection, OOC and order tags in the card label, Cmdr row in the Selected pane. Commander death is NOT reachable this slice — [9.2]: an embedded Unit Commander cannot be killed without his unit being destroyed; detached commanders, Brigade/Army ranks, and hero assassinations arrive with the heroes slice, as does commander editing. Pre-v0.5.0 saves hydrate generated commanders on load. PRIOR (v0.4.1): Ctrl+wheel facing, ported from chainmail-board's onWheel grammar (ctrl+wheel rotates the SELECTED unit, falling through to zoom when nothing is selected; there ±15° free-form, here one CARDINAL step per notch since BS facing is the [7.9] set). Wheel-down = Right Face, wheel-up = Left Face. In SETUP the rotation is free and ungated; in battle each notch routes through facingChange() so the [7.9] 1/3-MV cost, Movement-phase gating, rout guard, and the [6.3] free-face-after-rally all apply unchanged — the budget is what stops a spin. Setup wheel bursts collapse to ONE undo entry (tag 'wheel-face:<id>' skipped while it's already on top of the stack, chainmail's tag-collapse pattern). Toolbar hint updated. PRIOR (v0.4.0): Slice 4 — facing, flanks, and rear + M/F/X acted chips. FACING: units carry a cardinal facing (0/90/180/270 — RAW's own facing-change set, since [7.9] defines exactly Right Face, Left Face, About Face; free 45-degree drift and wheeling stay OPEN for a later slice). The front edge draws a green stripe; the front RANK of pips is the rank nearest that edge (dark pips follow the facing). Facing changes are Selected-pane buttons costed per [7.9] — Left/Right Face 1/3 MV, About Face 1/2 MV — budget-checked in the Movement phase, and FREE once immediately after a successful rally per [6.3]. A charge turns the charger to face its target (the last 2/3-straight leg implies it); a rout ends with the unit's back to the enemy [7.15], now literally. ARCS: arcOf(defender, attacker) classifies the attacker's center against the defender's facing-axis edges — front of the front edge = FRONTAL, behind the rear edge = REAR, else FLANK. Targeting shows the chainmail-style arc banner over the target (green/amber/red per the --front/--flank/--rear palette). COMBAT WIRING: rear attacks take arDelta -2 and flank attacks -1 when the defender carries a shield ([8.3] SPECIAL NOTE examples — shield flags added to MEN_HF, DWARF, DW_PIKE, HOBGOB), the melee log names the arc, and a unit meleeing with an enemy in contact with its REAR arc checks morale with the [4.2] enemyAtRear -2 (engine key verified). M/F/X CHIPS: chainmail's acted trio — u.acted {moved, fired, fought} — renders as chips above each card, dark when done (M on any move/charge/facing spend, X on fighting a melee, F reserved until the missile slice), reset at End of Round. Self-tests add arc classification, facing-cost/center-preserving rotation, and the rear arDelta. PRIOR (v0.3.2): FIX: melee skipped again — the v0.3.0 card was drawn with a 3px pad OUTWARD in board coordinates, inflating every unit's apparent footprint ~0.21\" per side; cards that looked engaged were mechanically 0.5-0.7\" apart (past CONTACT_EPS 0.3 and even the 0.6 snap capture), so the engine rightly saw no contact and phaseIsEmpty skipped the phase your eyes said was due. The closure geometry itself verified clean across offsets this time. Fixes: (1) WYSIWYG card — the card rect now sits EXACTLY on the true base footprint (0,0,w,h) with the pips inset, so the drawn edge IS the base edge and the standoff gap you see is the gap the rules see; (2) snap capture widened to 0.8\" so near drops glue reliably; (3) honest skip — the Melee phase NEVER auto-skips while any unit has a declared charge [7.14], and when it does skip it names the closest enemy pair and their gap ('closest: X vs Y — 0.71\" apart') so a miss is information, not mystery. Self-tests add the charge skip-guard. PRIOR (v0.3.1): FIX: dwarf base size per [2.3] footnote — 'Dwarves are mounted on 3/4\" bases even though they are size S creatures' (width over height). Type rows gain an optional `base` override consumed by unitRect (BASE_W[t.base || t.size]); DWARF and DW_PIKE set base:'M'. Combat size stays S (the size field still drives [8.5] vs-L selection and future size rules); only the footprint changes. Self-test locks dwarf figure width to 0.75\". PRIOR (v0.3.0): Slice 3 — chainmail visual language + engagement standoff. Units now render as chainmail-board cards: parchment card (#efe7d2) with a side-colored border, SQUARE figure pips with the FRONT RANK in the dark side color and rear ranks in the light tint (his frontage/non-frontage convention), the wounded figure shown as a pink half-tone pip, and the two-line label BELOW the unit ('A · Name #id' in the side color over 'type · figs/start' in soft ink) so adjacent labels stop colliding. Engaged enemy pairs draw a dotted clash line between them. ENGAGEMENT STANDOFF: BS melee is base-to-base RAW ([1.6]/[7.8]/[8.1] — no Chainmail 3-inch rule), but glued bases were unreadable, so contact is now RENDERED with a 0.25-inch fighting-line gap: charge and snap close to the standoff rather than to zero, and the contact epsilon is 0.3 inch, so a standoff pair IS in base-to-base contact mechanically while the boards breathe visually. Selected/targeted units draw last (labels never buried). Self-tests updated for the standoff geometry. PRIOR (v0.2.1): FIX: melee phase auto-skipped after a charge/snap that visually touched. Root cause: chargeToTarget and snapToContact closed along the CENTER-to-center vector by the rect-gap distance, but the rect gap is the hypot of the per-axis edge deficits — on any diagonal offset the center vector is not the deficit vector, so the move under-closed (repro: 0.671" gap 'closed' to 0.301", above the 0.15" contact epsilon), inContact stayed false, and phaseIsEmpty(melee) skipped the phase. Fix: new contactDelta(u,v) returns the exact per-axis translation whose hypot IS the rect gap; charge and snap now translate by that delta, zeroing the gap by construction (movedIn charged with delta.dist, identical to the reach test's rectGap so budgets are unchanged). Self-test adds a diagonal-offset fixture locked to end in contact. PRIOR (v0.2.0): Slice 2 — chainmail targeting grammar + feel pass. Mirrors chainmail-board's attack grammar exactly: SHIFT+CLICK an enemy toggles it as the TARGET (dashed ring + reticle tag), plain click selects, and the action buttons in the phase row LIGHT UP from eligibility-state functions (meleeState/chargeState/rallyState, each returning {ok, reason}; the reason surfaces as the disabled button's tooltip, chainmail's btn-melee pattern). '⚔ Resolve melee' enables when a friendly is selected, an enemy targeted, the pair is in base-to-base contact, it is the Melee phase, and the attacker is neither routed nor rallied-this-round [6.3]; 'Charge target' enables in the Movement phase when the target is reachable within the 1.5x charge allowance [7.14] and, on click, declares the charge and auto-closes straight into contact (last leg straight per [7.14], cost charged to the move budget); 'Attempt rally' enables in the Rally phase for a selected routed unit. Also: SNAP-TO-CONTACT — a drop that leaves <=0.35 inch of gap to an enemy glues the facing edges (kills the pixel-fiddling to reach [7.8] contact); CLICK-TO-PLACE muster — a muster button arms placement and the next board click drops the unit there (Esc or right-click cancels; shift-click keeps placing more of the same); EMPTY-PHASE AUTO-SKIP — Rally with no routed units and Melee with no contacts advance themselves with a one-line log note. The Selected pane gains a Target row; the panel Attack flow is retired in favor of the lit buttons. Self-tests add meleeState gating and the snap closure math. PRIOR (v0.1.0): Slice 1 — BATTLESYSTEM Basic Game on the chainmail-board chassis. New file forked from chainmail-board v0.11.180's chassis PATTERNS (parchment palette + toolbar/panel/log CSS, right-drag pan + wheel zoom, phase rail, undo/redo, JSON save/load, boot self-tests), with the rules core supplied by @graycloak/battlesystem-engine v0.2.0 (synced at ./engine/, same copy the Foundry module consumes — do NOT edit ./engine/ here; edit graycloak-platform/packages/battlesystem-engine and re-sync). SCOPE (Basic Game, rulebook Part 2): Army-Roster units (Regular/Mob; AC, creature HD, ratio [2.2], figures, frontage, formation, MV, THAC0, weapon, size), 5-phase round [Basic seq: Initiative d6 reroll-ties / Rally / Movement A-chooses / Melee simultaneous [8.0] / End], closed-open formation change at 1/3 MV [7.6], drag movement with live budget clamp + charge at 1.5x MV requiring contact [7.14], melee via engine resolveMeleeCombat (AR pipeline [8.3], CRT [8.4-8.5], eligible fighters [8.1] with measured contact frontage, casualties + single-wound rule [8.7]), automatic morale triggers 25%/50%/post-50%-per-figure [4.4] via engine checkMorale 2d10 with situational stack [4.2], failure effects [4.5] (closed breaks to open; open/mob ROUTS with auto move MV+1/3 away, back to enemy [7.15]), Rally-phase attemptRally [6.1-6.3] with rallied-unit restrictions, fight-in-melee-only-if-attacked [6.3]. OPEN RULINGS this slice (flagged in-log where they bite): no commanders/CR yet, so In-Command bonuses, CB, and the OOC penalties are not applied (units treated as in command; [4.7]-[4.10] land with the Intermediate slice); skirmish units deferred (no missiles in Basic anyway); contact frontage measured as overlapping facing-edge figures, side-extras [8.1] auto-computed 0-2 from geometry; wheeling/facing costs deferred — drag cost is path length (straight-line legs), which under-charges a wheel; mobs get Move Forward only (orders system with commanders). Self-tests at boot lock the [8.4] worked example, morale example, rout distance, and save round-trip. -->
+<!-- battlesystem-board.html · v0.6.0 · Slice 6 — GCC multiplayer, chainmail-board's NET layer (Slice 1 publish/spectate + Slice 2A player seats) ported whole onto this board's snap/applySnap architecture. FIREBASE: same GCC project via the same three head includes (gcc-firebase-config.js / gcc-auth.js / gcc-auth.css, chainmail's current ?v= hashes); battles publish into the SAME campaigns/{cid}/battles/{bid} collection under the existing rules v9 — ZERO rules changes; the payload's format field ('battlesystem-board') disambiguates and each board's applyRemote rejects the other's docs as 'bad snapshot'. PUBLISH: NET.schedulePublish() rides pushUndo's tail (still the complete map of mutations), debounced 750 ms non-extending; undo/redo (afterRestore) and loadScenario republish explicitly; doc carries name/ownerUid/simVersion/seq-increment/status(setup→live)/snapshot/_updated. Unlike chainmail, snap() does not carry the log, so the payload ships logHtml alongside — captured from #log (prepend-newest-first) capped at the newest 300 entries for 1 MB doc headroom. SPECTATE (?camp=&battle=&spectate=1): onSnapshot → applyRemote → applySnap + hydrateUnits (extracted from loadScenario's hydration loop, now shared; seeds controllerUid/controllerName) + logHtml swap — NOT loadScenario, whose resets would stomp the viewport; state.view is never in the snapshot so pan/zoom survive publishes (first snapshot recentres); stale selId/targetId cleared; version-skew banner nudges a refresh when the publisher is newer. Inputs: spectate mousedown hard-returns after pan/measure, keydown and ctrl+wheel-facing gated, mutating buttons + Muster/Selected hidden via body.spectate CSS (the pushUndo seat guard is the backstop — no capture-phase allowlist needed since hidden buttons can't be clicked). PLAYER SEATS (&player=1): subscribes via the same pipe; body.player keeps the Selected pane; pushUndo hard no-ops (seats never write the battle doc); drag arms only on OWNED units (NET.ownsUnit) and only when playerMayMoveNow — the BS WRINKLE chainmail lacks: NEW state.moverSide (in snap(), so it publishes and undoes) seeds to the initiative winner at Movement entry [5.1] and the GM's new 'Pass move → Side X' phase-row button flips it; seats move only while their side holds the move (deployment is free; mobs never drag [2.10]; routed/rallied blocked [6.3]/[6.4]). A seat drop posts a move intent to battles/{bid}/commands (rules v9: members create-as-self) and stands as a local preview until the GM echo; the GM board is the authority — startCommandFeed consumes 'added' → validateMove (alive, controllerUid match, playerMayMoveNow incl. the side gate) → applyCommand replays the exact drop bookkeeping (budget re-clamp via moveBudget, board clamp, pushUndo 'net-move' with a PRE-move snapshot, movedIn charge, acted.moved, snapToContact, contact + 'Player move' log lines) → deletes the command; refusals log 'Player move refused' and schedulePublish explicitly. ASSIGN: GM's Selected pane gains 'Assign to player…' → #assign-menu populated live from campaigns/{cid}/players (gcc-invite roster) with clear-control; seats persist through every snapshot/save via hydrateUnits; Selected shows a Player row in net sessions. FIX (pre-existing, exposed by the port): drag undo was off-by-one — the drop's pushUndo('move') fired AFTER the live mousemove mutations, snapshotting the POST-drop state (every other call site pushes pre-mutation), so undo-after-drag was a visual no-op and a second undo ate the previous action too. pushUndo(tag, pre) now takes an optional pre-mutation snapshot; mousedown captures drag.pre and the drop passes it — net-move uses the same path. Boot banner names the session params; net chip (⟳/✓/⚠, click-to-sign-in), Share spectate/player link buttons, 6 s auth watchdog and [NET] console breadcrumbs all ported as-is. Self-tests +13: seat pushUndo guards (spectate + player), debounce collapse 3→1, payload format/round-trip/size canary, hydrate seat seeding, validateMove owned-in-setup + unowned rejection, seat gate (wrong side / own side / wrong phase), otherSide, and the drag-undo pre-snapshot fix; test cleanup now also clears undo/redo artifacts and cancels the test publish window. Script still parses as a MODULE (checked as .mjs per chainmail's v0.11.178 lesson). PRIOR (v0.5.0): Slice 5 — commanders and command [4.7]-[4.10], retiring the Slice-1 open ruling. Every REGULAR unit now spawns with an embedded Unit Commander (RAW [2.8]: regulars must have one) — a fighter of level 3-6 with rolled CHA, giving CB per Table 8 [4.9] and CR = (CHA+level)/2 + 3\" fighter bonus [4.8]; mobs spawn with a boss who can Give Orders but never confers In-Command benefits ([2.10]: mobs always suffer OOC penalties). WIRED CONSEQUENCES (engine keys verified before wiring, per house rule): commanderFighting -1 AR for regulars (Table 10, embedded commander fights with the unit), outOfCommand +1 AR and -2 ML for mobs and routed units, commander CB added to current morale [4.9] via unit.commander.charismaBonus, mobWithSupport +2 ML when a friendly regular unit sits in the mob's rear arc within 6\" [2.10], and closed formation now REQUIRES command [4.7]. RALLY moves to the engine's attemptRally with the [6.1] flags (inMeleeContact, commanderInRange = has a commander) — the manual checkMorale shim is retired. MOB ORDERS [2.10]/[6.6]: mobs cannot be dragged in battle; in the Rally phase a mob's commander may attempt ONE order (Advance or Charge) via rally check, the mob then follows its last order each Movement phase — Advance walks it straight along its facing, Charge closes on the nearest enemy in the 1.5x reach — and at the start of each Movement phase a mob that SEES an enemy within charge range checks DISCIPLINE (Table 7; PEAS DL is low) and on failure charges regardless of orders, going OOC-wild per [4.6]. Board: gold star = commander pip, dashed CR circle on selection, OOC and order tags in the card label, Cmdr row in the Selected pane. Commander death is NOT reachable this slice — [9.2]: an embedded Unit Commander cannot be killed without his unit being destroyed; detached commanders, Brigade/Army ranks, and hero assassinations arrive with the heroes slice, as does commander editing. Pre-v0.5.0 saves hydrate generated commanders on load. PRIOR (v0.4.1): Ctrl+wheel facing, ported from chainmail-board's onWheel grammar (ctrl+wheel rotates the SELECTED unit, falling through to zoom when nothing is selected; there ±15° free-form, here one CARDINAL step per notch since BS facing is the [7.9] set). Wheel-down = Right Face, wheel-up = Left Face. In SETUP the rotation is free and ungated; in battle each notch routes through facingChange() so the [7.9] 1/3-MV cost, Movement-phase gating, rout guard, and the [6.3] free-face-after-rally all apply unchanged — the budget is what stops a spin. Setup wheel bursts collapse to ONE undo entry (tag 'wheel-face:<id>' skipped while it's already on top of the stack, chainmail's tag-collapse pattern). Toolbar hint updated. PRIOR (v0.4.0): Slice 4 — facing, flanks, and rear + M/F/X acted chips. FACING: units carry a cardinal facing (0/90/180/270 — RAW's own facing-change set, since [7.9] defines exactly Right Face, Left Face, About Face; free 45-degree drift and wheeling stay OPEN for a later slice). The front edge draws a green stripe; the front RANK of pips is the rank nearest that edge (dark pips follow the facing). Facing changes are Selected-pane buttons costed per [7.9] — Left/Right Face 1/3 MV, About Face 1/2 MV — budget-checked in the Movement phase, and FREE once immediately after a successful rally per [6.3]. A charge turns the charger to face its target (the last 2/3-straight leg implies it); a rout ends with the unit's back to the enemy [7.15], now literally. ARCS: arcOf(defender, attacker) classifies the attacker's center against the defender's facing-axis edges — front of the front edge = FRONTAL, behind the rear edge = REAR, else FLANK. Targeting shows the chainmail-style arc banner over the target (green/amber/red per the --front/--flank/--rear palette). COMBAT WIRING: rear attacks take arDelta -2 and flank attacks -1 when the defender carries a shield ([8.3] SPECIAL NOTE examples — shield flags added to MEN_HF, DWARF, DW_PIKE, HOBGOB), the melee log names the arc, and a unit meleeing with an enemy in contact with its REAR arc checks morale with the [4.2] enemyAtRear -2 (engine key verified). M/F/X CHIPS: chainmail's acted trio — u.acted {moved, fired, fought} — renders as chips above each card, dark when done (M on any move/charge/facing spend, X on fighting a melee, F reserved until the missile slice), reset at End of Round. Self-tests add arc classification, facing-cost/center-preserving rotation, and the rear arDelta. PRIOR (v0.3.2): FIX: melee skipped again — the v0.3.0 card was drawn with a 3px pad OUTWARD in board coordinates, inflating every unit's apparent footprint ~0.21\" per side; cards that looked engaged were mechanically 0.5-0.7\" apart (past CONTACT_EPS 0.3 and even the 0.6 snap capture), so the engine rightly saw no contact and phaseIsEmpty skipped the phase your eyes said was due. The closure geometry itself verified clean across offsets this time. Fixes: (1) WYSIWYG card — the card rect now sits EXACTLY on the true base footprint (0,0,w,h) with the pips inset, so the drawn edge IS the base edge and the standoff gap you see is the gap the rules see; (2) snap capture widened to 0.8\" so near drops glue reliably; (3) honest skip — the Melee phase NEVER auto-skips while any unit has a declared charge [7.14], and when it does skip it names the closest enemy pair and their gap ('closest: X vs Y — 0.71\" apart') so a miss is information, not mystery. Self-tests add the charge skip-guard. PRIOR (v0.3.1): FIX: dwarf base size per [2.3] footnote — 'Dwarves are mounted on 3/4\" bases even though they are size S creatures' (width over height). Type rows gain an optional `base` override consumed by unitRect (BASE_W[t.base || t.size]); DWARF and DW_PIKE set base:'M'. Combat size stays S (the size field still drives [8.5] vs-L selection and future size rules); only the footprint changes. Self-test locks dwarf figure width to 0.75\". PRIOR (v0.3.0): Slice 3 — chainmail visual language + engagement standoff. Units now render as chainmail-board cards: parchment card (#efe7d2) with a side-colored border, SQUARE figure pips with the FRONT RANK in the dark side color and rear ranks in the light tint (his frontage/non-frontage convention), the wounded figure shown as a pink half-tone pip, and the two-line label BELOW the unit ('A · Name #id' in the side color over 'type · figs/start' in soft ink) so adjacent labels stop colliding. Engaged enemy pairs draw a dotted clash line between them. ENGAGEMENT STANDOFF: BS melee is base-to-base RAW ([1.6]/[7.8]/[8.1] — no Chainmail 3-inch rule), but glued bases were unreadable, so contact is now RENDERED with a 0.25-inch fighting-line gap: charge and snap close to the standoff rather than to zero, and the contact epsilon is 0.3 inch, so a standoff pair IS in base-to-base contact mechanically while the boards breathe visually. Selected/targeted units draw last (labels never buried). Self-tests updated for the standoff geometry. PRIOR (v0.2.1): FIX: melee phase auto-skipped after a charge/snap that visually touched. Root cause: chargeToTarget and snapToContact closed along the CENTER-to-center vector by the rect-gap distance, but the rect gap is the hypot of the per-axis edge deficits — on any diagonal offset the center vector is not the deficit vector, so the move under-closed (repro: 0.671" gap 'closed' to 0.301", above the 0.15" contact epsilon), inContact stayed false, and phaseIsEmpty(melee) skipped the phase. Fix: new contactDelta(u,v) returns the exact per-axis translation whose hypot IS the rect gap; charge and snap now translate by that delta, zeroing the gap by construction (movedIn charged with delta.dist, identical to the reach test's rectGap so budgets are unchanged). Self-test adds a diagonal-offset fixture locked to end in contact. PRIOR (v0.2.0): Slice 2 — chainmail targeting grammar + feel pass. Mirrors chainmail-board's attack grammar exactly: SHIFT+CLICK an enemy toggles it as the TARGET (dashed ring + reticle tag), plain click selects, and the action buttons in the phase row LIGHT UP from eligibility-state functions (meleeState/chargeState/rallyState, each returning {ok, reason}; the reason surfaces as the disabled button's tooltip, chainmail's btn-melee pattern). '⚔ Resolve melee' enables when a friendly is selected, an enemy targeted, the pair is in base-to-base contact, it is the Melee phase, and the attacker is neither routed nor rallied-this-round [6.3]; 'Charge target' enables in the Movement phase when the target is reachable within the 1.5x charge allowance [7.14] and, on click, declares the charge and auto-closes straight into contact (last leg straight per [7.14], cost charged to the move budget); 'Attempt rally' enables in the Rally phase for a selected routed unit. Also: SNAP-TO-CONTACT — a drop that leaves <=0.35 inch of gap to an enemy glues the facing edges (kills the pixel-fiddling to reach [7.8] contact); CLICK-TO-PLACE muster — a muster button arms placement and the next board click drops the unit there (Esc or right-click cancels; shift-click keeps placing more of the same); EMPTY-PHASE AUTO-SKIP — Rally with no routed units and Melee with no contacts advance themselves with a one-line log note. The Selected pane gains a Target row; the panel Attack flow is retired in favor of the lit buttons. Self-tests add meleeState gating and the snap closure math. PRIOR (v0.1.0): Slice 1 — BATTLESYSTEM Basic Game on the chainmail-board chassis. New file forked from chainmail-board v0.11.180's chassis PATTERNS (parchment palette + toolbar/panel/log CSS, right-drag pan + wheel zoom, phase rail, undo/redo, JSON save/load, boot self-tests), with the rules core supplied by @graycloak/battlesystem-engine v0.2.0 (synced at ./engine/, same copy the Foundry module consumes — do NOT edit ./engine/ here; edit graycloak-platform/packages/battlesystem-engine and re-sync). SCOPE (Basic Game, rulebook Part 2): Army-Roster units (Regular/Mob; AC, creature HD, ratio [2.2], figures, frontage, formation, MV, THAC0, weapon, size), 5-phase round [Basic seq: Initiative d6 reroll-ties / Rally / Movement A-chooses / Melee simultaneous [8.0] / End], closed-open formation change at 1/3 MV [7.6], drag movement with live budget clamp + charge at 1.5x MV requiring contact [7.14], melee via engine resolveMeleeCombat (AR pipeline [8.3], CRT [8.4-8.5], eligible fighters [8.1] with measured contact frontage, casualties + single-wound rule [8.7]), automatic morale triggers 25%/50%/post-50%-per-figure [4.4] via engine checkMorale 2d10 with situational stack [4.2], failure effects [4.5] (closed breaks to open; open/mob ROUTS with auto move MV+1/3 away, back to enemy [7.15]), Rally-phase attemptRally [6.1-6.3] with rallied-unit restrictions, fight-in-melee-only-if-attacked [6.3]. OPEN RULINGS this slice (flagged in-log where they bite): no commanders/CR yet, so In-Command bonuses, CB, and the OOC penalties are not applied (units treated as in command; [4.7]-[4.10] land with the Intermediate slice); skirmish units deferred (no missiles in Basic anyway); contact frontage measured as overlapping facing-edge figures, side-extras [8.1] auto-computed 0-2 from geometry; wheeling/facing costs deferred — drag cost is path length (straight-line legs), which under-charges a wheel; mobs get Move Forward only (orders system with commanders). Self-tests at boot lock the [8.4] worked example, morale example, rout distance, and save round-trip. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Battlesystem — Battlefield · v0.5.0</title>
+<title>Battlesystem — Battlefield · v0.6.0</title>
 <style>
   :root {
     --bg:#ece0c4; --panel:#f5eedb; --field:#a8b094; --field-edge:#6d735a; --ink:#2c2316; --ink-soft:#6e6047; --rule:#b6a682;
@@ -65,13 +65,68 @@
     padding: 0 4px; background: var(--bg); }
   .sel-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
   .hintline { font-family: var(--sans); font-size: 10.5px; letter-spacing: .5px; color: var(--ink-soft); margin-top: 6px; }
+
+  /* ── Net (GCC multiplayer Slice 6): header status chip — chainmail-board pattern ── */
+  .net-chip[hidden] { display: none; }  /* author display beats [hidden] (chainmail v0.11.179 lesson) */
+  .net-chip { display: inline-flex; align-items: center; gap: 5px; font-family: var(--sans);
+    font-size: 10.5px; letter-spacing: 1.2px; text-transform: uppercase; padding: 3px 9px;
+    border-radius: 10px; border: 1px solid var(--rule); background: #fff8e7; color: var(--ink-soft);
+    align-self: center; white-space: nowrap; }
+  .net-chip.live { border-color: var(--front); color: var(--front); }
+  .net-chip.busy { border-color: var(--gold); color: #8a6a1e; }
+  .net-chip.err  { border-color: var(--rear); color: var(--rear); }
+  .net-chip.click { cursor: pointer; }
+
+  /* ── Spectate mode: read-only chrome. Muster + Selected are replaced by the
+     Spectating banner; board + Battle Log stay (that's the show). Grid /
+     Measure / Recenter remain live. Mutating buttons hide via CSS — the
+     pushUndo seat guard is the backstop. ─────────────────────────────────── */
+  #spectate-panel { display: none; }
+  body.spectate #btn-save, body.spectate #btn-load, body.spectate #btn-reset,
+  body.spectate #btn-undo, body.spectate #btn-redo,
+  body.spectate #btn-melee, body.spectate #btn-charge, body.spectate #btn-rally,
+  body.spectate #btn-begin, body.spectate #btn-advance, body.spectate #btn-pass-move,
+  body.spectate #btn-net-share, body.spectate #btn-net-share-player { display: none !important; }
+  body.spectate #muster-panel, body.spectate #selected-panel { display: none; }
+  body.spectate #spectate-panel { display: block; }
+  #spectate-panel .sp-name { font-size: 15px; font-weight: 700; margin: 2px 0 6px; }
+  #spectate-panel .sp-row { font-family: var(--sans); font-size: 11.5px; letter-spacing: 1px;
+    text-transform: uppercase; color: var(--ink-soft); margin: 3px 0; }
+  #spectate-panel .sp-warn { color: #8a6a1e; font-size: 11.5px; margin-top: 8px; }
+  /* Slice 2A player mode: spectate chrome, but the Selected pane stays and owned units drag */
+  body.player #btn-save, body.player #btn-load, body.player #btn-reset,
+  body.player #btn-undo, body.player #btn-redo,
+  body.player #btn-melee, body.player #btn-charge, body.player #btn-rally,
+  body.player #btn-begin, body.player #btn-advance, body.player #btn-pass-move,
+  body.player #btn-net-share, body.player #btn-net-share-player { display: none !important; }
+  body.player #muster-panel { display: none; }
+  body.player #spectate-panel { display: block; }
+
+  /* GM "Assign to player…" menu (chainmail #assign-menu, restyled to BS ids) */
+  .ctx-menu { position: fixed; z-index: 40; background: var(--panel); border: 1px solid var(--rule);
+    border-radius: 6px; padding: 4px; display: flex; flex-direction: column; gap: 2px;
+    min-width: 190px; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+  .ctx-menu[hidden] { display: none; }
+  .ctx-menu .ctx-head { font-family: var(--sans); font-size: 10.5px; letter-spacing: 1.2px;
+    text-transform: uppercase; color: var(--ink-soft); padding: 3px 6px; }
+  .ctx-menu button { text-align: left; }
+  .ctx-menu button.danger { color: var(--rear); }
 </style>
+<link rel="stylesheet" href="gcc-auth.css?v=03238a9b">
+<script src="gcc-firebase-config.js?v=ed16c91d"></script>
+<script src="gcc-auth.js?v=dc620d93"></script>
+<!-- The three GCC includes above are absent on file:// — every net feature
+     below guards on window.GCCAuth + ?camp=, so the board stays fully
+     functional offline exactly as before. -->
 </head>
 <body>
 <div class="page">
   <div class="toolbar">
     <div class="tb-row tb-setup">
       <span class="brand">Battlesystem<span class="version-tag" id="version-tag"></span></span>
+      <span id="net-chip" class="net-chip" hidden></span>
+      <button id="btn-net-share" hidden title="Copy a read-only spectate link for this battle">Share spectate link</button>
+      <button id="btn-net-share-player" hidden title="Copy a player link — assigned units can be moved from it">Share player link</button>
       <span class="tb-sep"></span>
       <button id="btn-save">Save</button>
       <button id="btn-load">Load</button><input type="file" id="file-load" accept=".json" style="display:none">
@@ -92,6 +147,7 @@
       <button id="btn-melee" disabled>⚔ Resolve melee</button>
       <button id="btn-charge" disabled>Charge target</button>
       <button id="btn-rally" disabled>Attempt rally</button>
+      <button id="btn-pass-move" hidden title="Hand the Movement Phase to the other side — player seats may only move while their side holds it">Pass move</button>
       <span class="tb-pin-right"></span>
       <button id="btn-begin" class="primary">Begin battle</button>
       <button id="btn-advance" class="primary" style="display:none">Next phase</button>
@@ -100,7 +156,15 @@
 
   <div class="layout">
     <div>
-      <div class="panel">
+      <div class="panel" id="spectate-panel">
+        <h2 id="sp-head">Spectating</h2>
+        <div class="sp-name" id="sp-name">—</div>
+        <div class="sp-row" id="sp-turn">—</div>
+        <div class="sp-row" id="sp-status">connecting…</div>
+        <div class="sp-row" id="sp-mine" hidden></div>
+        <div class="sp-warn" id="sp-warn" hidden></div>
+      </div>
+      <div class="panel" id="muster-panel">
         <h2>Muster</h2>
         <div class="tb-row" style="margin-bottom:7px">
           <label class="f">Side
@@ -110,7 +174,7 @@
         </div>
         <div class="spawn-grid" id="spawn-grid"></div>
       </div>
-      <div class="panel">
+      <div class="panel" id="selected-panel">
         <h2>Selected</h2>
         <div id="sel-pane"><span class="hintline">No unit selected.</span></div>
       </div>
@@ -119,9 +183,10 @@
     <div class="panel"><h2>Battle Log</h2><div id="log"></div></div>
   </div>
 </div>
+<div id="assign-menu" class="ctx-menu" hidden></div>
 
 <script type="module">
-const SIM_VERSION = '0.5.0';
+const SIM_VERSION = '0.6.0';
 import {
   BattlesystemCombat, BattlesystemMorale, BattlesystemMovement,
   ratioFromHD, calculateHDPerFigure, creaturesPerFigure
@@ -170,10 +235,20 @@ const BOARD_W = 72, BOARD_H = 48;     // 6' x 4' table
 let nextId = 1;
 const state = {
   units: [], selId: null, targetId: null, place: null, setup: true, round: 0, phaseIdx: 0, sideA: null,
+  moverSide: null,                    // Slice 6: who holds the Movement Phase — the seat gate [5.1]
   grid: true, measure: { on:false, a:null, live:null },
   view: { x:0, y:0, k:1 },
   undoStack: [], redoStack: [],
+  net: {                              // Slice 6: GCC multiplayer session (chainmail-board pattern)
+    campId: null,                     // ?camp= — campaign id; null = fully offline board
+    battleId: null,                   // ?battle= — battle doc id (created on first publish)
+    spectate: false,                  // ?spectate=1 — read-only live view; kills pushUndo + publish + inputs
+    player: false,                    // ?player=1 — live view + drag on OWNED units only (move intents)
+    name: null,                       // battle display name (prompted once on first publish; doc.name in spectate)
+    publishing: false, lastPublishedSeq: 0, error: null,
+  },
 };
+const otherSide = s => s === 'A' ? 'B' : 'A';
 
 /* [4.9] Table 8 — commander charisma bonus */
 function cbFromCha(cha) {
@@ -313,16 +388,23 @@ function contactInfo(att, def) {
 }
 
 /* === D. UNDO / SAVE / LOG ================================================ */
-function snap() { return JSON.parse(JSON.stringify({ units: state.units, setup: state.setup, round: state.round, phaseIdx: state.phaseIdx, sideA: state.sideA, nextId })); }
-function applySnap(s) { state.units = s.units; state.setup = s.setup; state.round = s.round; state.phaseIdx = s.phaseIdx; state.sideA = s.sideA; nextId = s.nextId; }
-function pushUndo(tag) {
-  state.undoStack.push({ tag, s: snap() });
+function snap() { return JSON.parse(JSON.stringify({ units: state.units, setup: state.setup, round: state.round, phaseIdx: state.phaseIdx, sideA: state.sideA, moverSide: state.moverSide, nextId })); }
+function applySnap(s) { state.units = s.units; state.setup = s.setup; state.round = s.round; state.phaseIdx = s.phaseIdx; state.sideA = s.sideA; state.moverSide = s.moverSide ?? null; nextId = s.nextId; }
+/* pushUndo is the complete map of mutating actions — the publish pipe rides its
+   tail (chainmail pattern). Seats never write: spectate/player hard-return here,
+   one guard killing every mutation echo. `pre` (optional) is a snapshot taken
+   BEFORE the mutation — used by drag drops and net moves, whose state has
+   already changed by the time the undo entry is pushed. */
+function pushUndo(tag, pre) {
+  if (state.net.spectate || state.net.player) return;
+  state.undoStack.push({ tag, s: pre || snap() });
   if (state.undoStack.length > 60) state.undoStack.shift();
   state.redoStack = []; syncUndo();
+  NET.schedulePublish();
 }
 function undo() { const e = state.undoStack.pop(); if (!e) return; state.redoStack.push({ tag:e.tag, s: snap() }); applySnap(e.s); afterRestore(); }
 function redo() { const e = state.redoStack.pop(); if (!e) return; state.undoStack.push({ tag:e.tag, s: snap() }); applySnap(e.s); afterRestore(); }
-function afterRestore() { state.selId = null; syncUndo(); renderAll(); }
+function afterRestore() { state.selId = null; syncUndo(); renderAll(); NET.schedulePublish(); }   // restore paths bypass pushUndo — republish explicitly
 function syncUndo() { $('#btn-undo').disabled = !state.undoStack.length; $('#btn-redo').disabled = !state.redoStack.length; }
 
 const $ = s => document.querySelector(s);
@@ -342,20 +424,26 @@ function saveScenario() {
   a.download = `battlesystem-${new Date().toISOString().slice(0,10)}.json`;
   a.click(); URL.revokeObjectURL(a.href);
 }
-function loadScenario(data) {
-  if (!data || data.format !== 'battlesystem-board' || !data.state) { alert('Not a Battlesystem board save.'); return false; }
-  applySnap(data.state);
-  for (const u of state.units) {                                     // hydrate pre-v0.4.0 saves
+function hydrateUnits(units) {   // version-skew defaults, shared by loadScenario and NET.applyRemote
+  for (const u of units) {                                           // hydrate pre-v0.4.0 saves
     if (!u.acted) u.acted = { moved:false, fired:false, fought:false };
     if (u.freeFace === undefined) u.freeFace = false;
     if (![0,90,180,270].includes(u.facing)) u.facing = u.side === 'A' ? 180 : 0;
     if (u.cmdr === undefined) u.cmdr = mkCommander(typeById(u.type).unitType === 'mob');
     if (u.mobOrder === undefined) u.mobOrder = null;
     if (u.orderedThisRound === undefined) u.orderedThisRound = false;
+    if (u.controllerUid === undefined) u.controllerUid = null;       // Slice 6: player seats
+    if (u.controllerName === undefined) u.controllerName = '';       //   persist through every snapshot/save
   }
+}
+function loadScenario(data) {
+  if (!data || data.format !== 'battlesystem-board' || !data.state) { alert('Not a Battlesystem board save.'); return false; }
+  applySnap(data.state);
+  hydrateUnits(state.units);
   state.undoStack = []; state.redoStack = []; state.selId = null; syncUndo();
   renderAll();
   log('phase', 'Board loaded', `${state.units.length} units · ${data.simVersion !== SIM_VERSION ? `saved with v${data.simVersion}, now v${SIM_VERSION}` : 'round ' + state.round}`);
+  NET.schedulePublish();                                             // load restores without pushUndo — republish explicitly
   return true;
 }
 
@@ -418,6 +506,8 @@ function runPhaseEntry() {
     for (const u of state.units) { u.ralliedThisRound = false; u.orderedThisRound = false; }
   }
   if (p.id === 'movement') {
+    state.moverSide = state.sideA;                                   // Slice 6: initiative winner leads [5.1]; Pass move flips
+    log('phase', `Side ${state.moverSide} moves first`, 'per initiative [5.1] — Pass move hands the phase to the other side');
     // [6.4] unrallied routed units continue their rout automatically
     for (const u of state.units) if (u.routed && !u.ralliedThisRound) autoRout(u, typeById(u.type).mv, 'continues to rout [6.4]');
     for (const u of state.units) if (typeById(u.type).unitType === 'mob' && !u.routed && u.figures > 0) runMobMovement(u);
@@ -429,6 +519,25 @@ function runPhaseEntry() {
 function endRound() {
   for (const u of state.units) { u.movedIn = 0; u.charging = false; u.acted = { moved:false, fired:false, fought:false }; }
   log('phase', `— End of Round ${state.round} —`, '[1.7]');
+}
+/* Slice 6: the Side A/B alternation gate. The GM board is ungated (advisory,
+   chainmail's convention); PLAYER SEATS are always enforce-gated — a seat may
+   move only its owned, regular, unrouted units, in the Movement Phase, while
+   its side holds the move (or freely during deployment). Mobs move by orders
+   [2.10], never by drag, so seats never drag them either. */
+function playerMayMoveNow(u) {
+  if (state.setup) return true;                                      // deployment placement
+  if (curPhase().id !== 'movement') return false;
+  if (u.routed || u.ralliedThisRound) return false;                  // [6.3]/[6.4]
+  if (typeById(u.type).unitType === 'mob') return false;             // [2.10]
+  return state.moverSide === u.side;
+}
+function passMove() {                                                // GM hands the Movement Phase across
+  if (state.setup || curPhase().id !== 'movement' || state.net.spectate || state.net.player) return;
+  pushUndo('pass-move');
+  state.moverSide = otherSide(state.moverSide || state.sideA || 'A');
+  log('phase', `Move passes to Side ${state.moverSide}`, 'player seats on that side may now move');
+  renderAll();
 }
 
 /* === F. MOVEMENT [7.x] =================================================== */
@@ -792,7 +901,8 @@ function renderUnit(u) {
 function renderRail() {
   const rail = $('#phase-rail'); rail.innerHTML = '';
   if (state.setup) { $('#round-tag').textContent = 'Setup'; return; }
-  $('#round-tag').textContent = `Round ${state.round}${state.sideA ? ` · Side ${state.sideA} first` : ''}`;
+  const moving = curPhase().id === 'movement' && state.moverSide ? ` · Side ${state.moverSide} moving` : '';
+  $('#round-tag').textContent = `Round ${state.round}${state.sideA ? ` · Side ${state.sideA} first` : ''}${moving}`;
   PHASES.forEach((p, i) => {
     const d = document.createElement('span');
     d.className = 'pstep ' + (i < state.phaseIdx ? 'done' : i === state.phaseIdx ? 'now' : 'todo');
@@ -822,7 +932,14 @@ function renderSel() {
     ['Target', (() => { const d = state.units.find(x=>x.id===state.targetId);
       return d ? `${esc(uName(d))}${inContact(u,d)?' · in contact':''}` : '<span class="hintline">shift+click an enemy</span>'; })()],
   ];
+  if (state.net.campId) rows.push(['Player', u.controllerName       // Slice 6: seat row (net sessions only)
+    ? `${esc(u.controllerName)}${state.net.player && NET.ownsUnit(u) ? ' (you)' : ''}` : '—']);
   pane.innerHTML = rows.map(([k,v]) => `<div class="roster-row"><span class="k">${k}</span><span>${v}</span></div>`).join('');
+  if (state.net.spectate || state.net.player) {                      // Slice 6: seats get info + drag, never buttons
+    if (state.net.player && NET.ownsUnit(u))
+      pane.insertAdjacentHTML('beforeend', `<div class="hintline">${playerMayMoveNow(u) ? 'Your unit — drag it to move.' : 'Your unit — waits for its side\u2019s Movement Phase.'}</div>`);
+    return;
+  }
   const act = document.createElement('div'); act.className = 'sel-actions';
   const mkBtn = (label, fn, dis) => { const b = document.createElement('button'); b.textContent = label; b.disabled = !!dis; b.onclick = fn; act.appendChild(b); };
   mkBtn(u.formation === 'closed' ? 'Open form. (⅓ MV)' : 'Closed form. (⅓ MV)', () => toggleFormation(u), t.unitType==='mob' || state.setup);
@@ -834,6 +951,10 @@ function renderSel() {
   mkBtn('⟳ Right face', () => facingChange(u, 'right'), state.setup || u.routed);
   mkBtn('⇅ About face', () => facingChange(u, 'about'), state.setup || u.routed);
   mkBtn(u.charging ? 'Cancel charge' : 'Declare charge', () => { pushUndo('charge'); u.charging = !u.charging; renderAll(); }, state.setup || u.routed || curPhase().id!=='movement');
+  if (NET.canAssign()) {                                             // Slice 6: GM seats a campaign player on this unit
+    const b = document.createElement('button'); b.textContent = u.controllerName ? `Player: ${u.controllerName}` : 'Assign to player…';
+    b.onclick = e => NET.openAssignMenu(u, e.clientX, e.clientY); act.appendChild(b);
+  }
   mkBtn('Remove', () => { pushUndo('remove'); state.units = state.units.filter(x=>x.id!==u.id); state.selId=null; renderAll(); });
   pane.appendChild(act);
   if (curPhase().id==='melee' && !state.setup) {
@@ -901,6 +1022,9 @@ function chargeToTarget() {                                          // declare 
 function renderAll() { renderBoard(); renderRail(); renderSel(); syncActions();
   $('#btn-begin').style.display = state.setup ? '' : 'none';
   $('#btn-advance').style.display = state.setup ? 'none' : '';
+  const pm = $('#btn-pass-move');                                    // Slice 6: GM hands the Movement Phase across
+  pm.hidden = state.setup || curPhase().id !== 'movement' || state.net.spectate || state.net.player;
+  if (!pm.hidden) pm.textContent = `Pass move → Side ${otherSide(state.moverSide || state.sideA || 'A')}`;
   $('#version-tag').textContent = 'v' + SIM_VERSION;
 }
 
@@ -917,6 +1041,7 @@ svg.addEventListener('mousedown', evt => {
   const p = boardPt(evt);
   if (evt.button === 2) { pan = { sx:evt.clientX, sy:evt.clientY, vx:state.view.x, vy:state.view.y }; return; }
   if (state.measure.on) { state.measure.a = { x:p.x, y:p.y }; state.measure.live = { x:p.x, y:p.y }; renderBoard(); return; }
+  if (state.net.spectate) return;                                    // Slice 6: read-only — pan/measure only
   const g = evt.target.closest('[data-uid]');
   if (state.place && !g) {                                           // click-to-place muster
     placeArmed(p.x, p.y, evt.shiftKey); return;
@@ -931,8 +1056,14 @@ svg.addEventListener('mousedown', evt => {
     state.selId = u.id;
     if (state.targetId === u.id) state.targetId = null;
     renderAll();
-    const mayMove = !state.setup ? (curPhase().id === 'movement' && !u.routed && !u.ralliedThisRound && typeById(u.type).unitType !== 'mob') : true;
-    if (mayMove) drag = { u, start:{x:u.x, y:u.y}, grab:{ dx:p.x-u.x, dy:p.y-u.y }, spent0: u.movedIn };
+    // Slice 6: player seats drag only OWNED units, always enforce-gated; the GM
+    // drag gate stays advisory as before. drag.pre is the PRE-move snapshot —
+    // the drop's undo entry must restore the start position, not the drop
+    // (the mutation happens live in mousemove, before pushUndo can fire).
+    const mayMove = state.net.player
+      ? (NET.ownsUnit(u) && playerMayMoveNow(u))
+      : (!state.setup ? (curPhase().id === 'movement' && !u.routed && !u.ralliedThisRound && typeById(u.type).unitType !== 'mob') : true);
+    if (mayMove) drag = { u, start:{x:u.x, y:u.y}, grab:{ dx:p.x-u.x, dy:p.y-u.y }, spent0: u.movedIn, pre: state.net.player ? null : snap() };
   } else { state.selId = null; renderAll(); }
 });
 window.addEventListener('mousemove', evt => {
@@ -960,6 +1091,10 @@ window.addEventListener('mouseup', () => {
   if (!drag) return;
   const d = Math.hypot(drag.u.x - drag.start.x, drag.u.y - drag.start.y);
   if (d > 0.05) {
+    if (state.net.player) {                                          // Slice 6: seat drop → move intent;
+      NET.sendMove(drag.u, drag.start.x, drag.start.y);              //   local position stands as a preview
+      drag = null; renderSel(); return;                              //   until the GM echo reconciles it
+    }
     if (!state.setup) {
       drag.u.movedIn = drag.spent0 + d;
       drag.u.acted.moved = true;
@@ -969,7 +1104,7 @@ window.addEventListener('mouseup', () => {
       if (drag.u.charging && !hit) log('phase', `${esc(uName(drag.u))} charge did not reach contact`, 'must end in base-to-base contact or take -3 ML (open/mob) [7.14]');
       if (hit) log('phase', `${esc(uName(drag.u))} contacts ${esc(uName(hit))}`, `moved ${fmt(d)}" [7.8]`);
     }
-    pushUndo('move');
+    pushUndo('move', drag.pre);                                      // FIX: pre-drag snapshot — undo restores the start position
   } else { drag.u.x = drag.start.x; drag.u.y = drag.start.y; renderBoard(); }
   drag = null; renderSel();
 });
@@ -977,7 +1112,7 @@ svg.addEventListener('wheel', evt => {
   evt.preventDefault();
   // Ctrl+wheel rotates the selected unit one cardinal step (chainmail grammar);
   // falls through to zoom when nothing is selected.
-  if (evt.ctrlKey) {
+  if (evt.ctrlKey && !state.net.spectate && !state.net.player) {     // seats: facing is a GM action — fall through to zoom
     const u = state.units.find(x => x.id === state.selId);
     if (u && u.figures > 0 && !u.routed) { wheelFace(u, evt.deltaY > 0 ? 'right' : 'left'); return; }
   }
@@ -989,6 +1124,7 @@ svg.addEventListener('wheel', evt => {
   renderBoard();
 }, { passive:false });
 window.addEventListener('keydown', evt => {
+  if (state.net.spectate || state.net.player) return;                // Slice 6: seats never mutate
   if (evt.key === 'Escape' && state.place) { state.place = null; svg.style.cursor = 'default'; return; }
   if (evt.key === 'Delete' && state.selId) { pushUndo('remove'); state.units = state.units.filter(x=>x.id!==state.selId); state.selId=null; renderAll(); }
 });
@@ -1026,7 +1162,433 @@ $('#btn-advance').onclick = advancePhase;
   }
 })();
 
-/* === J. SELF-TESTS (boot, console) ======================================= */
+/* === J. NET — GCC multiplayer (Slice 6: chainmail Slice 1 + 2A port) ===== */
+// Ported whole from chainmail-board v0.11.180's NET layer onto this board's
+// snap/applySnap architecture. Publishes a full minified snapshot to
+// campaigns/{cid}/battles/{bid} — SAME collection and rules (v9) as chainmail
+// battles; the payload's format field ('battlesystem-board') disambiguates and
+// each board rejects the other's docs. Publish rides pushUndo's tail (the
+// complete map of mutations); undo/redo/loadScenario republish explicitly.
+// Spectators/players subscribe onSnapshot → applyRemote (applySnap +
+// hydrateUnits, NOT loadScenario — its resets would stomp the viewport).
+// Player seats post move intents to battles/{bid}/commands; the GM board is
+// the authority and gates every intent through playerMayMoveNow, including
+// the BS wrinkle chainmail lacks: the Side A/B Movement-Phase alternation
+// (state.moverSide, seeded from initiative, flipped by Pass move).
+// EVERYTHING here no-ops on file:// (no GCCAuth) or without ?camp=.
+const NET = (function () {
+  const FB_VERSION = '10.12.2';   // matches gcc-auth.js / gcc-sync.js compat builds
+  const FS_URL = `https://www.gstatic.com/firebasejs/${FB_VERSION}/firebase-firestore-compat.js`;
+  const DEBOUNCE_MS = 750;        // non-extending window: drag storms collapse to ≤1 publish per window
+  const LOG_PUBLISH_CAP = 300;    // newest-first entries carried in the payload (1 MB doc cap headroom)
+
+  let db = null, user = null, unsub = null, cmdUnsub = null;
+  let timer = null, dirty = false, declined = false, firstRemote = false, modalShown = false;
+  let timerStarts = 0;            // self-test hook: debounce windows opened
+
+  const $chip = () => $('#net-chip');
+  function chip(cls, text, title, onclick) {
+    const c = $chip(); if (!c) return;
+    c.hidden = false;
+    c.className = 'net-chip' + (cls ? ' ' + cls : '') + (onclick ? ' click' : '');
+    c.textContent = text;
+    c.title = title || '';
+    c.onclick = onclick || null;
+  }
+
+  function loadScript(url) {   // same pattern as gcc-auth/gcc-sync
+    return new Promise((res, rej) => {
+      if (document.querySelector(`script[src="${url}"]`)) { res(); return; }
+      const s = document.createElement('script');
+      s.src = url; s.onload = res; s.onerror = () => rej(new Error('Failed to load ' + url));
+      document.head.appendChild(s);
+    });
+  }
+
+  const battleRef = () => db.collection('campaigns').doc(state.net.campId)
+                            .collection('battles').doc(state.net.battleId);
+
+  // Same payload as saveScenario minus filename/savedAt, plus the Battle Log —
+  // snap() does not carry the log here (unlike chainmail's captureSnapshot), so
+  // it ships alongside, capped to the newest entries (#log prepends newest-first).
+  function logCapture() {
+    const L = $('#log'); if (!L) return '';
+    return Array.from(L.children).slice(0, LOG_PUBLISH_CAP).map(k => k.outerHTML).join('');
+  }
+  function publishPayload() {
+    return JSON.stringify({
+      format: 'battlesystem-board',
+      simVersion: SIM_VERSION,
+      state: snap(),
+      logHtml: logCapture(),
+    });
+  }
+
+  function schedulePublish() {
+    if (!state.net.campId || state.net.spectate || state.net.player || declined) return;
+    dirty = true;
+    if (timer) return;   // a window is already open — this mutation rides it
+    timerStarts++;
+    timer = setTimeout(() => { timer = null; if (dirty) publishNow(); }, DEBOUNCE_MS);
+  }
+
+  async function publishNow() {
+    dirty = false;
+    if (!db || !user) { chip('err', '⚠ not signed in', 'Sign in to publish this battle'); return; }
+    if (state.net.publishing) { schedulePublish(); return; }   // one write in flight at a time
+    try {
+      if (!state.net.battleId) {   // first publish creates the doc (auto-id) and rewrites the URL
+        const suggested = state.net.name || `Battle — ${new Date().toLocaleDateString()}`;
+        const entered = prompt('Name this battle (spectators will see it):', suggested);
+        if (entered === null) {   // cancelled — stop nagging for this session
+          declined = true;
+          chip('', '— not publishing', 'Battle naming cancelled — reload the page to publish');
+          return;
+        }
+        state.net.name = (entered.trim() || suggested).slice(0, 80);
+        const ref = db.collection('campaigns').doc(state.net.campId).collection('battles').doc();
+        state.net.battleId = ref.id;
+        const url = new URL(location.href);
+        url.searchParams.set('battle', ref.id);
+        history.replaceState(null, '', url);
+      }
+      state.net.publishing = true;
+      chip('busy', '⟳ publishing');
+      await battleRef().set({
+        name: state.net.name || 'Untitled battle',
+        ownerUid: user.uid,
+        simVersion: SIM_VERSION,
+        seq: firebase.firestore.FieldValue.increment(1),
+        status: state.setup ? 'setup' : 'live',   // Begin battle flips this on its own publish
+        snapshot: publishPayload(),
+        _updated: new Date().toISOString(),
+      }, { merge: true });
+      state.net.lastPublishedSeq += 1;
+      state.net.error = null;
+      console.info('[NET] published seq', state.net.lastPublishedSeq);
+      chip('live', `✓ live (seq ${state.net.lastPublishedSeq})`, 'Latest board state is published');
+      const share = $('#btn-net-share'); if (share) share.hidden = false;
+      const pshare = $('#btn-net-share-player'); if (pshare) pshare.hidden = false;
+      startCommandFeed();   // first publish may have just created the doc
+    } catch (e) {
+      state.net.error = e.message || String(e);
+      chip('err', '⚠ publish error', state.net.error);
+      console.error('[NET] publish failed:', e);
+    } finally {
+      state.net.publishing = false;
+      if (dirty) schedulePublish();   // mutations landed mid-write — open a fresh window
+    }
+  }
+
+  function shareLink(kind) {
+    if (!state.net.battleId) return;
+    const url = new URL(location.origin + location.pathname);
+    url.searchParams.set('camp', state.net.campId);
+    url.searchParams.set('battle', state.net.battleId);
+    url.searchParams.set(kind, '1');
+    const link = url.toString();
+    const done = () => chip('live', '✓ link copied', link);
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done, () => prompt('Link:', link));
+    else prompt('Link:', link);
+  }
+  const shareSpectateLink = () => shareLink('spectate');
+  const sharePlayerLink = () => shareLink('player');
+
+  // ── Player seats + move intents (chainmail Slice 2A) ────────────────────
+  // Players never write the battle doc. A drop on a player's board posts a tiny
+  // intent to battles/{bid}/commands (rules v9: members create-as-self); the
+  // GM's open board validates against the live engine, replays the exact drop
+  // bookkeeping, deletes the command, and the normal publish pipe echoes the
+  // result to every client. Rejections log a Battle-Log line — the log IS the
+  // reply channel, no second wire needed.
+  const cmdsRef = () => battleRef().collection('commands');
+  const me = () => user ? { uid: user.uid, name: user.displayName || (user.email ? user.email.split('@')[0] : user.uid) } : null;
+  const canAssign = () => !!(db && user && state.net.campId && !state.net.spectate && !state.net.player);
+  const ownsUnit = (u) => !!(user && u && u.controllerUid === user.uid);
+
+  async function fetchPlayers() {   // campaigns/{cid}/players — the roster gcc-invite.js writes
+    const qs = await db.collection('campaigns').doc(state.net.campId).collection('players').get();
+    return qs.docs.map(d => ({ uid: d.id, name: d.data().displayName || d.data().email || d.id }));
+  }
+
+  async function openAssignMenu(u, x, y) {
+    const m = $('#assign-menu');
+    if (!m || !canAssign()) return;
+    const head = `<div class="ctx-head">Assign ${esc(uName(u))} (${u.side})</div>`;
+    m.innerHTML = head + '<button disabled>loading roster\u2026</button>';
+    m.style.left = Math.min(x, innerWidth - 220) + 'px'; m.style.top = Math.min(y, innerHeight - 160) + 'px';
+    m.hidden = false;
+    let roster = [];
+    try { roster = await fetchPlayers(); }
+    catch (e) { m.innerHTML = head + `<button disabled>roster failed \u2014 ${esc(e.message)}</button>`; return; }
+    if (m.hidden) return;   // closed while loading
+    m.innerHTML = head
+      + (roster.length ? roster.map(p =>
+          `<button data-uid="${esc(p.uid)}" data-name="${esc(p.name)}">${esc(p.name)}${u.controllerUid === p.uid ? ' \u2713' : ''}</button>`).join('')
+        : '<button disabled>no players in this campaign yet</button>')
+      + (u.controllerUid ? '<button data-clear="1" class="danger">Clear player control</button>' : '');
+    m.onclick = (e) => {
+      const b = e.target.closest('button');
+      if (!b || b.disabled) return;
+      m.hidden = true;
+      const unit = state.units.find(w => w.id === u.id);
+      if (!unit || unit.figures <= 0) return;
+      pushUndo('assign:' + unit.id);
+      if (b.dataset.clear) {
+        const was = unit.controllerName || 'a player';
+        unit.controllerUid = null; unit.controllerName = '';
+        log('phase', `Player control cleared \u00b7 ${esc(uName(unit))} (${unit.side})`, `${esc(was)} no longer moves it`);
+      } else if (b.dataset.uid) {
+        unit.controllerUid = b.dataset.uid;
+        unit.controllerName = (b.dataset.name || '').slice(0, 60);
+        log('phase', `Player control \u00b7 ${esc(uName(unit))} (${unit.side})`, `${esc(unit.controllerName)} now moves it from their own board`);
+      }
+      renderAll();
+    };
+  }
+
+  async function sendMove(u, ox, oy) {   // player drop → intent doc; the preview stands until the echo
+    if (!db || !user || !state.net.battleId) {
+      chip('err', '\u26a0 not connected', 'Sign in and reload the player link');
+      u.x = ox; u.y = oy; renderBoard();
+      return;
+    }
+    try {
+      chip('busy', '\u27f3 move sent');
+      await cmdsRef().add({
+        uid: user.uid, name: me().name, action: 'move',
+        unitId: u.id, to: { x: u.x, y: u.y },
+        ts: firebase.firestore.FieldValue.serverTimestamp(), build: SIM_VERSION,
+      });
+      chip('live', '\u2713 sent \u2014 awaiting the GM', 'The GM\u2019s board resolves the move; the echo lands here');
+    } catch (e) {
+      chip('err', '\u26a0 send failed', e.message);
+      u.x = ox; u.y = oy; renderBoard();
+    }
+  }
+
+  // GM side. Pure-ish so the self-tests can exercise it: reads state, mutates nothing.
+  function validateMove(c) {
+    const u = state.units.find(w => w.id === Number(c.unitId));
+    if (!u || u.figures <= 0) return { ok: false, why: 'that unit is gone' };
+    if (!c.uid || u.controllerUid !== c.uid) return { ok: false, why: `${esc(uName(u))} is not under that player\u2019s control`, u };
+    if (!playerMayMoveNow(u)) {
+      const why = curPhase().id !== 'movement' ? 'it is not the Movement Phase [7.0]'
+        : u.routed ? `${esc(uName(u))} is routed [6.4]`
+        : u.ralliedThisRound ? `${esc(uName(u))} rallied this round \u2014 no move [6.3]`
+        : typeById(u.type).unitType === 'mob' ? 'mobs move by orders, not drags [2.10]'
+        : `it is Side ${state.moverSide}\u2019s move`;
+      return { ok: false, why, u };
+    }
+    const nx = Number(c.to && c.to.x), ny = Number(c.to && c.to.y);
+    if (!Number.isFinite(nx) || !Number.isFinite(ny)) return { ok: false, why: 'bad destination', u };
+    return { ok: true, u, nx, ny };
+  }
+
+  function applyCommand(c) {
+    if (!c || c.action !== 'move') return;
+    const who = esc((c.name || 'A player').slice(0, 60));
+    const refuse = (why) => {
+      log('phase', 'Player move refused', `${who} \u2014 ${why} (command dropped)`);
+      schedulePublish();   // no pushUndo to ride \u2014 the refusal line must still echo out
+      renderAll();
+    };
+    const v = validateMove(c);
+    if (!v.ok) { refuse(v.why); return; }
+    const u = v.u;
+    const pre = snap();                                  // the undo entry restores the pre-move board
+    let nx = v.nx, ny = v.ny;
+    // Replays the exact drop bookkeeping — same clamp the seat's own mousemove
+    // applied live, re-run here because the GM's board is the authority.
+    if (!state.setup) {
+      const budget = moveBudget(u);
+      const d0 = Math.hypot(nx - u.x, ny - u.y);
+      if (d0 > budget) { const sc = Math.max(0, budget) / d0; nx = u.x + (nx - u.x) * sc; ny = u.y + (ny - u.y) * sc; }
+    }
+    nx = clamp(nx, 0, BOARD_W - 1); ny = clamp(ny, 0, BOARD_H - 1);
+    const moved = Math.hypot(nx - u.x, ny - u.y);
+    if (moved <= 0.05) { refuse(`no legal move remained for ${esc(uName(u))}`); return; }
+    pushUndo('net-move:' + u.id, pre);
+    u.x = nx; u.y = ny;
+    if (!state.setup) {
+      u.movedIn += moved; u.acted.moved = true;
+      snapToContact(u);                                              // glue a near-miss drop [7.8]
+      const hit = state.units.find(w => w.side !== u.side && w.figures > 0 && inContact(u, w));
+      if (hit) log('phase', `${esc(uName(u))} contacts ${esc(uName(hit))}`, `moved ${fmt(moved)}" [7.8]`);
+    }
+    log('phase', `Player move \u00b7 ${esc(uName(u))} (${u.side})`,
+      `${who} moves it ${fmt(moved)}"${state.setup ? ' (deployment)' : ` (turn total ${fmt(u.movedIn)}")`}`);
+    renderAll();
+  }
+
+  function startCommandFeed() {
+    if (cmdUnsub || !db || !state.net.battleId || state.net.spectate || state.net.player) return;
+    cmdUnsub = cmdsRef().onSnapshot(qs => {
+      qs.docChanges().forEach(ch => {
+        if (ch.type !== 'added') return;
+        try { applyCommand(ch.doc.data()); }
+        catch (e) { console.error('[NET] command failed:', e, ch.doc.data()); }
+        ch.doc.ref.delete().catch(e => console.warn('[NET] command cleanup failed:', e));
+      });
+    }, err => console.error('[NET] command feed error:', err));
+    console.info('[NET] command feed open');
+  }
+
+  // ── Spectate: onSnapshot → applySnap + hydrateUnits ─────────────────────
+  // Deliberately NOT loadScenario: its fresh-context resets (alerts, stack
+  // clears, "Board loaded" log line) would fire on every publish. This path
+  // reuses the same primitives, and the spectator's pan/zoom/measure survive
+  // publishes (state.view is never in the snapshot; first snapshot recentres).
+  function applyRemote(d) {
+    let data = null;
+    try { data = JSON.parse(d.snapshot || ''); } catch (e) { /* fallthrough */ }
+    if (!data || data.format !== 'battlesystem-board' || !data.state || !Array.isArray(data.state.units)) {
+      $('#sp-status').textContent = 'bad snapshot — waiting for the next publish';
+      return;
+    }
+    applySnap(data.state);
+    hydrateUnits(state.units);
+    if (state.selId && !state.units.some(u => u.id === state.selId)) state.selId = null;
+    if (state.targetId && !state.units.some(u => u.id === state.targetId)) state.targetId = null;
+    if (typeof data.logHtml === 'string') $('#log').innerHTML = data.logHtml;
+    if (!firstRemote) { state.view = { x: 0, y: 0, k: 1 }; firstRemote = true; }
+    renderAll();
+    // Banner: battle · turn · phase · publish status
+    $('#sp-name').textContent = d.name || 'Untitled battle';
+    $('#sp-turn').textContent = state.setup ? 'Deployment'
+      : `Round ${state.round} · ${curPhase().label}${curPhase().id === 'movement' && state.moverSide ? ` · Side ${state.moverSide} moving` : ''}`;
+    $('#sp-status').textContent = `${d.status || 'live'} · seq ${d.seq != null ? d.seq : '?'} · v${d.simVersion || '?'}`;
+    // Name the seat's units and whether the phase + side gate lets them move right now.
+    const mine = $('#sp-mine');
+    if (mine) {
+      mine.hidden = !state.net.player;
+      if (state.net.player && user) {
+        const owned = state.units.filter(w => w.figures > 0 && w.controllerUid === user.uid);
+        mine.innerHTML = owned.length
+          ? 'Your units: ' + owned.map(w => `${esc(uName(w))} (${w.side})${playerMayMoveNow(w) ? ' — may move' : ''}`).join(' · ')
+          : 'No units assigned to you yet — ask the GM.';
+      }
+    }
+    // Version skew (GitHub Pages caching): publisher NEWER than local → nudge a refresh.
+    const warn = $('#sp-warn');
+    if (warn) {
+      const cmp = (a, b) => { const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number);
+        for (let i = 0; i < 3; i++) { if ((pa[i]||0) < (pb[i]||0)) return -1; if ((pa[i]||0) > (pb[i]||0)) return 1; } return 0; };
+      const newer = d.simVersion && cmp(SIM_VERSION, d.simVersion) < 0;
+      warn.hidden = !newer;
+      if (newer) warn.textContent = `The GM is publishing from v${d.simVersion} (you are on v${SIM_VERSION}) — refresh for the latest build.`;
+    }
+  }
+
+  function startSpectate() {   // also the player-mode subscription — same pipe, different gates
+    if (unsub) return;   // onAuthChange can refire — subscribe once
+    chip('busy', state.net.player ? '⟳ joining' : '⟳ spectating');
+    console.info('[NET] subscribing to battle', state.net.battleId);
+    unsub = battleRef().onSnapshot(doc => {
+      if (!doc.exists) { $('#sp-status').textContent = 'battle not found'; chip('err', '⚠ not found', 'No battle doc at this id'); console.warn('[NET] battle doc does not exist'); return; }
+      chip('live', state.net.player ? '✓ playing' : '✓ spectating',
+        state.net.player ? 'Live view — drag your assigned units while your side holds the move' : 'Live read-only view — updates as the GM plays');
+      console.info('[NET] snapshot in, seq', doc.data().seq);
+      applyRemote(doc.data());
+    }, err => {
+      chip('err', '⚠ error', err.message);
+      $('#sp-status').textContent = 'error: ' + err.message;
+    });
+  }
+
+  // ── Boot ────────────────────────────────────────────────────────────────
+  function init() {
+    const q = new URLSearchParams(location.search);
+    state.net.campId = q.get('camp') || null;
+    state.net.battleId = q.get('battle') || null;
+    state.net.spectate = q.get('spectate') === '1';
+    state.net.player = !state.net.spectate && q.get('player') === '1';   // spectate wins a conflict
+    if (!state.net.campId) { state.net.spectate = false; state.net.player = false; return; }   // offline / standalone — fully inert
+    if (state.net.spectate) document.body.classList.add('spectate');   // gate inputs before auth resolves
+    if (state.net.player) {
+      document.body.classList.add('player');
+      const h = $('#sp-head'); if (h) h.textContent = 'Playing';
+    }
+    if ((state.net.spectate || state.net.player) && !state.net.battleId) {   // a live view but nothing to watch
+      chip('err', '⚠ link is missing &battle=', 'Ask the GM for a fresh share link');
+      if ($('#sp-status')) $('#sp-status').textContent = 'this link has no battle id';
+      return;
+    }
+    console.info('[NET] init', { camp: state.net.campId, battle: state.net.battleId, spectate: state.net.spectate, player: state.net.player, build: SIM_VERSION });
+    if (typeof GCCAuth === 'undefined') { chip('err', '⚠ no GCC scripts', 'gcc-auth.js failed to load'); return; }
+    chip('busy', '⟳ connecting');
+    if (state.net.spectate || state.net.player) $('#sp-status').textContent = 'connecting…';
+    // Watchdog (chainmail v0.11.176): gcc-auth ALWAYS emits an initial auth event
+    // once Firebase resolves — if nothing arrives in 6 s, name the stall.
+    let authEventSeen = false;
+    setTimeout(() => {
+      if (authEventSeen) return;
+      chip('err', '⚠ auth never resolved', 'No sign-in state arrived from gcc-auth — press F12 and check the console');
+      if ((state.net.spectate || state.net.player) && $('#sp-status')) $('#sp-status').textContent = 'stalled waiting for sign-in state — press F12';
+      console.error('[NET] watchdog: no auth event after 6 s.',
+        { GCCAuth: typeof GCCAuth, firebase: typeof firebase,
+          config: typeof GCC_FIREBASE_CONFIG !== 'undefined',
+          hint: 'Check the Network tab for failed gcc-*.js or gstatic firebase-*.js loads.' });
+    }, 6000);
+    GCCAuth.onAuthChange(async (u) => {
+      authEventSeen = true;
+      console.info('[NET] auth event:', u ? `signed in as ${u.email || u.uid}` : 'signed out');
+      user = u;
+      if (!u) {
+        chip('err', '⚠ sign in', 'Click to sign in to Graycloak\u2019s Campaign Corner',
+          () => { try { GCCAuth.showModal('signin'); } catch (e) {} });
+        if (state.net.spectate || state.net.player) {   // reads require auth (rules v8+) — say so, and open the door
+          if ($('#sp-status')) $('#sp-status').textContent = state.net.player ? 'sign in to play' : 'sign in to spectate';
+          if (!modalShown) { modalShown = true; try { GCCAuth.showModal('signin'); } catch (e) {} }
+        }
+        return;
+      }
+      try {
+        if (!db) { await loadScript(FS_URL); db = firebase.firestore(); console.info('[NET] Firestore ready'); }
+      } catch (e) { chip('err', '⚠ Firestore failed', e.message); console.error('[NET] Firestore load failed:', e); return; }
+      if (state.net.spectate || state.net.player) startSpectate();
+      else {
+        if (state.net.battleId) {   // reconnect — seed the chip's seq and the battle name from
+          try {                     // the doc so a reload neither restarts the count at 1 nor
+            const doc = await battleRef().get();   // republishes as 'Untitled battle'
+            if (doc.exists) {
+              const d = doc.data();
+              state.net.lastPublishedSeq = d.seq || 0;
+              if (!state.net.name && d.name) state.net.name = d.name;
+            }
+          } catch (e) { /* non-fatal — the first publish still lands, chip just starts fresh */ }
+        }
+        chip('live', state.net.battleId ? `✓ connected (seq ${state.net.lastPublishedSeq})` : '✓ ready — first action publishes',
+          state.net.battleId ? 'Publishing to the battle doc' : 'The first mutating action creates the battle doc');
+        const share = $('#btn-net-share'); if (share && state.net.battleId) share.hidden = false;
+        const pshare = $('#btn-net-share-player'); if (pshare && state.net.battleId) pshare.hidden = false;
+        if (state.net.battleId) schedulePublish();   // announce the current board on (re)connect
+        startCommandFeed();   // consume player move intents (no-op until battleId exists)
+      }
+    });
+  }
+
+  return {
+    init, schedulePublish, publishNow, publishPayload, applyRemote,
+    shareSpectateLink, sharePlayerLink, sendMove, ownsUnit, canAssign, openAssignMenu,
+    // self-test hooks — not for gameplay use
+    _test: {
+      get timerStarts() { return timerStarts; },
+      get pending() { return !!timer; },
+      cancel() { if (timer) clearTimeout(timer); timer = null; dirty = false; },
+      validateMove,
+    },
+  };
+})();
+$('#btn-net-share').onclick = () => NET.shareSpectateLink();
+$('#btn-net-share-player').onclick = () => NET.sharePlayerLink();
+$('#btn-pass-move').onclick = passMove;
+window.addEventListener('mousedown', e => {   // assign menu closes on any outside press
+  const m = $('#assign-menu');
+  if (m && !m.hidden && !m.contains(e.target)) m.hidden = true;
+}, true);
+
+/* === K. SELF-TESTS (boot, console) ======================================= */
 (function selfTests() {
   const ok = [], bad = [];
   const t = (label, cond) => (cond ? ok : bad).push(label);
@@ -1107,15 +1669,61 @@ $('#btn-advance').onclick = advancePhase;
   A2.x += del.dx * sc; A2.y += del.dy * sc;
   const after = rectGap(A2, D2);
   t('diagonal charge closes to standoff contact', dg > CONTACT_EPS && inContact(A2, D2) && after > 0.1 && Math.abs(after - STANDOFF) < 0.05);
-  state.setup = true; state.round = 0; state.phaseIdx = 0;
+  // ── Slice 6: NET ──
+  // seat guards: spectate and player kill every pushUndo
+  const dep0 = state.undoStack.length;
+  state.net.spectate = true; pushUndo('guard-test');
+  t('spectate pushUndo guard', state.undoStack.length === dep0);
+  state.net.spectate = false; state.net.player = true; pushUndo('guard-test');
+  t('player pushUndo guard', state.undoStack.length === dep0);
+  state.net.player = false;
+  // debounce: 3 schedules collapse into one open window
+  state.net.campId = '__test__';
+  NET._test.cancel();
+  const tw0 = NET._test.timerStarts;
+  NET.schedulePublish(); NET.schedulePublish(); NET.schedulePublish();
+  t('publish debounce collapses (3 → 1 window)', NET._test.timerStarts === tw0 + 1 && NET._test.pending);
+  NET._test.cancel();
+  // payload: format + round-trip + size canary
+  state.units = [mkUnit('ORC','A',12,5,5)];
+  const pp = JSON.parse(NET.publishPayload());
+  t('payload format + state round-trip', pp.format === 'battlesystem-board' && pp.state.units.length === 1 && typeof pp.logHtml === 'string');
+  t('payload size canary < 900 KB', NET.publishPayload().length < 900 * 1024);
+  // hydrate seeds seat fields on foreign/old units
+  const HU = { id: 990, type:'ORC', side:'A', figures:12, startFigures:12, frontage:4, formation:'closed', x:0, y:0 };
+  hydrateUnits([HU]);
+  t('hydrate seeds controller seat fields', HU.controllerUid === null && HU.controllerName === '' && !!HU.cmdr);
+  // validateMove: ownership + setup admission
+  const PU = state.units[0]; PU.controllerUid = 'uidX'; state.setup = true;
+  t('validateMove accepts owned in setup', NET._test.validateMove({ unitId: PU.id, uid:'uidX', to:{ x:6, y:6 } }).ok === true);
+  t('validateMove rejects unowned', NET._test.validateMove({ unitId: PU.id, uid:'other', to:{ x:6, y:6 } }).ok === false);
+  // seat gate: Side A/B alternation + phase
+  state.setup = false; state.round = 1; state.phaseIdx = PHASES.findIndex(x => x.id === 'movement');
+  state.moverSide = 'B';
+  t('seat gate: wrong side blocked', playerMayMoveNow(PU) === false);
+  state.moverSide = 'A';
+  t('seat gate: own side in Movement ok', playerMayMoveNow(PU) === true);
+  state.phaseIdx = PHASES.findIndex(x => x.id === 'melee');
+  t('seat gate: non-Movement phase blocked', playerMayMoveNow(PU) === false);
+  t('otherSide flips', otherSide('A') === 'B' && otherSide('B') === 'A');
+  // drag-undo FIX: the drop's undo entry is the PRE-drag snapshot
+  state.setup = true; state.units = [mkUnit('ORC','A',12,10,10)];
+  const MU = state.units[0], preS = snap();
+  MU.x = 20;                                   // simulate the live mousemove mutation
+  pushUndo('move', preS); undo();
+  t('drag undo restores the pre-drag position', state.units[0].x === 10);
+  NET._test.cancel(); state.net.campId = null;         // kill the test publish window before real boot
+  state.setup = true; state.round = 0; state.phaseIdx = 0; state.moverSide = null;
   state.units = []; nextId = 1; state.selId = null; state.targetId = null;   // tests must not leak pieces
+  state.undoStack.length = 0; state.redoStack.length = 0; syncUndo();        // no test undo/redo artifacts
   console.log(`[BS-BOARD] self-tests: ${ok.length} ok${bad.length ? ` · FAILED: ${bad.join('; ')}` : ''}`);
   if (bad.length) log('phase', '⚠ Self-test failures', bad.join(' · '));
 })();
 
+NET.init();
 renderAll();
 log('phase', `Battlesystem Board v${SIM_VERSION}`, 'Muster (click board to place) · shift+click targets an enemy · lit buttons show legal actions',
-  'Engine: @graycloak/battlesystem-engine v0.2.0 · Intermediate slice (missiles, commanders, cavalry, terrain) to follow');
+  'Engine: @graycloak/battlesystem-engine v0.2.0 · Multiplayer: ?camp= publishes · &spectate=1 watches · &player=1 moves assigned units · Intermediate slice (missiles, cavalry, terrain) to follow');
 </script>
 </body>
 </html>
