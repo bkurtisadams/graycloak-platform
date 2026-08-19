@@ -1,10 +1,10 @@
 <!doctype html>
-<!-- battlesystem-board.html · v0.13.0 · TSR-STYLE UNIT SHEET. The live Selected inspector is now a compact BATTLESYSTEM Army Roster block modeled on the rulebook sheet: Unit Name/Type; AC/#FIG/Commander; HD/fig/Ratio/Level-Race-Class; MV/Size/MR+saves; AR+modifiers; ML+modifiers; DL; Weapon/Damage/#AT; Special Abilities/Limitations. A small Battle footer keeps transient state (formation/frontage/facing, movement, status, target/attack) separate from roster data. Edit mode is in-place in the same grid instead of a long replacement form. Per-unit `u.prof` overrides let a deployed unit differ from its BS_TYPES template without copying the whole template; AC, HD, MV, Base AR, Base ML, DL, size, weapon/damage/#AT, roster notes, MR/saves, race and deputy persist in saves/network snapshots and feed the rules engine where applicable. The detached panel title becomes “Unit Sheet · <name>”; controls are compacted with a facing dropdown. PRIOR (v0.12.0): BOARD-FIRST LAYOUT. The battlefield now owns the viewport: full-height app shell, one resizable right inspector dock (Selected/Muster tabs), and a collapsible/resizable bottom Battle Log replace the old two permanent side rails. The dock defaults to 320px, can be resized or snapped closed, and persists independently of battle saves; the log defaults collapsed, opens upward, can be height-resized, and persists as view state. Selected can pop into a draggable/resizable floating window and re-dock without cloning or losing live button handlers. Setup opens Muster; battle start and clicking a unit open Selected. Spectator/player seat chrome is preserved in the new dock. No rules, save-snapshot, or network payload changes. PRIOR (v0.11.1): VISUAL UX PASS. Battlefield chrome is quieter and selection/targeting carry the emphasis: selected units use animated gold corner brackets; targets use an animated ivory/red reticle; ordinary card borders keep army color. Labels are smaller with a thinner halo, drop army letter / #id / weapon clutter in compact mode, selected/targeted units stay one-line enhanced compact instead of forcing full detail, Labels: off now really hides labels except hover, and Full/hover retain two-line detail. M/F/X chips shrink ~20% and inactive chips soften. The commander star is removed; the first front-rank figure pip now carries a gold outline to represent the embedded commander/boss. The selected commander CR circle is retained but substantially faded, and the FRONT/FLANK/REAR target banner is reduced. No rules, save, or network state changes. PRIOR (v0.11.0): ARMY/ROLE NAMING + STRICT TWO-STEP MOVEMENT (the sub-phase slice, cut against [5.1] as pasted). VERIFICATION FIRST: ChatGPT's claimed discrepancy ("Side A CHOOSES which side moves first") is WRONG — [5.1] opens "The side that moves first in each Game Round is determined by making an Initiative Roll", i.e. the WINNER MOVES FIRST with no choosing step, corroborated by [7.8]'s "lost initiative and had an enemy unit move into base-to-base contact" (only possible because the loser moves second). The Slice 6 seeding stands as RAW. What [5.1] DOES establish: "The side that wins initiative is called Side A" — Side A/B are PER-ROUND ROLES, not army identities, and the sim conflated them. NAMING: armies are now player-facing BLUE (internal id A) and RED (internal id B) everywhere — muster dropdown, rail ("Round 2 · Red is Side A · Red moving (Side A)"), initiative log ("Red wins initiative — Red is Side A this round"), seat refusals ("it is Blue's move"), spectate banner — while Side A/Side B appear only as role annotations (roleOf helper); internal ids, saves, and the NET payload are UNTOUCHED (zero migration). MOVEMENT is now the RAW strict sequence instead of a free toggle: state.moveStep (0 Side A's turn · 1 Side B's · 2 both done; carried in snap(), so it publishes and undoes) — the pass button reads "Blue done → Red moves", then "Red done — end movement", then hides; after both, moverSide = null so NO seat may move (previously the GM could toggle back and forth forever, which [5.1] does not allow). Rally and Melee entries log their role order informationally ("Rally order: Red (Side A), then Blue" [6.0]; "Red (Side A) chooses the order of engagements" [8.2]) — display-only for now since seats have no rally/melee actions; the enforcement machinery arrives when they do. Self-tests 70 → 77: helper semantics (armyName permanent, roleOf per-round), movement entry seeds winner + step 0, first pass hands across, second pass ends movement with nobody holding it, seats locked out after both moved, third pass a no-op, moveStep round-trips through snapshots. PRIOR (v0.10.0): [7.14] MINIMUM CHARGE RUN-UP + UNIT EDITOR. (1) The too-close "CHARGE READY" Kurt caught is a real Basic-rules gap, not Intermediate — [7.14]: "the unit must be able to move at least 2/3 its normal movement rate before it comes into base-to-base contact." chargeState now enforces it; RULED 2026-08-18: movement already made this phase COUNTS toward the run-up (the charge is the unit's move — a fresh MV-9 unit 3" out cannot charge, but one that marched 4" and closes 3" can, 7 >= 6). The closing distance measures to the standoff. Refusal reads 'too close to charge — needs a X" run-up before contact, this move totals Y" [7.14]'. Wild mob charges from failed discipline stay UNGATED per [4.6] (forced regardless). (2) UNIT EDITOR — no way existed to touch a deployed unit or its rolled commander, which made testing morale/discipline/rally against specific stats impossible. The Selected pane gains '✎ Edit' (GM only; seats never see buttons): custom NAME (u.label, hydrated on old saves, flows through uName into every log line, the Selected pane, and both board label modes — escaped at write per the XSS convention), figures + startFigures (settable independently to stage loss-threshold morale checks), frontage, movedIn, wounded, ROUTED and RALLIED-THIS-ROUND flags (rally/discipline testing), and the embedded commander's name / level 1-20 / CHA 3-19 — Apply recomputes CB, CR, and baseMorale [4.8]/[4.9] and logs the edit; Cancel or deselect closes; every Apply is one undo entry. Self-tests 63 → 70: run-up refusal names the rule, prior-movement completion, long-approach pass, editor form render, Apply rewrites unit + commander + pushes one undo + closes, ML recompute, custom name through uName and onto the board. PRIOR (v0.9.1): FIX: chrome in the fighting gap (screenshot repro from Kurt: an engaged ogre/dwarf pair with BOTH units' M/F/X chips stacked in the gap over both cards, plus the FRONTAL banner colliding with the ogres' above-label). Root cause: v0.9.0 moved LABELS to the rear but its chip "swap" placed chips at the top of the bounds unless the label was up there — for a front-south unit that put chips BELOW its card, and for its front-north opponent chips ABOVE its card: both sets landed in the shared engagement gap, precisely the space the labels had just vacated. FIX: a single REAR-CHROME PLAN computed once per unit positions chips AND label as one stack off the rear edge, chips nearest the card, label lines beyond (rear-down: chips,l1,l2 downward; rear-up: l1,l2,chips upward with chips hugging the card; rear-sideways: block vertically centred at the anchor). The fighting gap between two engaged fronts now holds NOTHING. The arc banner is stack-aware: when the target's chrome sits above its card the banner climbs past the label block instead of printing through it. Anchor margin trimmed 0.55"→0.45" since the stack is taller. Self-tests 61 → 63: an engaged front-to-front pair rendered and BOTH chip rows asserted geometrically out of the gap (north-facer's chips ≥ card bottom, south-facer's < card top). PRIOR (v0.9.0): Rear-anchored labels + Labels modes + hover reveal (the "text in the fighting gap" fix, decoupled from the reach ruling — 1" melee reach STANDS). ANCHORING: the unit label now sits off the REAR edge — the side opposite the green front stripe — computed as center − facingDir·(depth/2 + 0.55") in the upright overlay, correct at every 45° heading. Units fight front-to-front, so labels structurally vacate the engagement gap: two battle lines closing on each other keep their name tags trailing BEHIND them like standards, never between the fronts. When the rear points up (front-south headings) the label block shifts clear and the M/F/X chips SWAP to below the card so the two never collide. MODES: new Labels toolbar button cycling compact → full → off (state.labels 1/2/0, view-local like Grid, never snapshotted): compact stays the default one-liner per unit; full draws every unit's two-line detail; off gives a clean tabletop for screenshots and dense fights. HOVER: mousing over any unit reveals its full two-line detail in ANY mode (state.hoverId, tracked in mousemove with re-render only on change, cleared on board mouseleave) — identification is always one hover away even on a bare board; selection and targeting still force detail as before. Self-tests 57 → 61: full mode = 2 lines/unit and off = none via real button clicks, hover reveals detail with labels off, Labels cycles back to compact, and rear anchoring locked geometrically (facing-0 label y below the card, facing-180 label y above). PRIOR (v0.8.1): HOUSE RULE (2026-08-18): melee reach is 1", the AD&D engagement convention — fighters within 1" (10 yds outdoors, matching BS's own [2.1] ground scale) may melee. This SUPERSEDES the v0.3.0 ruling that BS melee is literal base-to-base per [7.8]/[8.1]; Kurt's rationale: you can't swing a sword pressed against a man, and the AD&D convention BS descends from always gave the 1" fighting gap. Mechanics: CONTACT_EPS 0.5 → 1.0 (inContact, melee eligibility, phase auto-skip, enemyAtRear morale, clash lines, and the [8.1] frontage measurement all key off it consistently). The 0.25" STANDOFF stays as the rendered fighting line CHARGES still slam to [7.14] — a charge presses home; ordinary approach fights from anywhere inside 1". snapToContact REPURPOSED: with 1" of reach the old glue-everything-to-the-standoff behavior would override player positioning, so drops already within reach now STAY EXACTLY where dropped, and only the just-barely-out drop (reach..reach+0.4"] glues to 0.9" — the frustration killer without the teleport. chargeState's 'already in contact' floor widens from 0.15" to the full reach ('already within melee reach' — no burning move to charge someone you can already strike). Wording pass: 'engages' replaces 'contacts' in drop/mob logs, 'In reach:' in the Selected pane, the blocked-melee reason reads 'out of melee reach — X" apart, needs <= 1" [house: AD&D 1" engagement]', and the failed-charge warning cites reach. Self-tests 54 → 57: reach lock at 1.0, 0.9"-pair fights / 1.2"-pair doesn't / just-out drop glues to 0.9", in-reach drops stay put (snap fixture repurposed), out-of-reach reason fixture moved to 1.5", diagonal-charge fixture pushed beyond the widened reach. PRIOR (v0.8.0): UX slice — chainmail layout parity + engagement legibility (three reported issues run down). (1) UNREADABLE UNIT TEXT — root causes: every card drew TWO label lines (plus chips) with no halo over the green field, colliding on any crowded line, and the old 285px|board|300px grid squeezed the board into the middle column so everything rendered small. Fixes: labels are now HALOED (paint-order:stroke, chainmail's technique) and COMPACT by default — one 10px line (side·name #id · figs · ROUT/CHG) — with the full two-line detail drawn only for the selected/targeted unit; labels are pointer-events:none so they never block clicks; M/F/X chips draw in battle only. (2) LAYOUT — chainmail's arrangement ported whole: Board FIRST at minmax(0,1fr) | 7px rail-splitter | controls rail | log rail, the two rails holding a 250:300 ratio off --rail (default 550px); the splitter drags to resize, snaps closed past the min for a full-width board, double-click resets, persists in localStorage (bs-rail). The old left column is gone — Spectate/Selected/Muster stack in the controls rail (Selected ABOVE Muster: battle-first), the Battle Log is the far rail with its own scroll. Selected and Muster panels are COLLAPSIBLE via their headers (▾/▸), and Muster auto-collapses at Begin battle (header re-opens; Reset re-expands). Seat CSS untouched — the spectate/player rules target ids, which moved with their elements. (3) CAN'T CLOSE / CAN'T FIGHT "EVEN IN CONTACT" — two real causes found: (a) CONTACT_EPS was 0.3 vs the 0.25 rendered standoff — 0.05" of slack, so a pair 0.31" apart LOOKED exactly like an engaged standoff pair but wasn't mechanically in contact; EPS widens to 0.5 (a pair that looks engaged IS engaged; the standoff renders at 0.25 so daylight between engaged and not is visible) and the drop/snap capture widens 0.8→1.0. (b) The disabled attack buttons carried their block reason in `title` — but DISABLED elements don't fire pointer events in Chrome, so the tooltip NEVER SHOWED and a blocked melee was a silent mystery. The Selected pane now has an ATTACK row that states it plainly: MELEE/CHARGE READY in green, or the live reason — and the not-in-contact reason now names the actual gap ('0.42" apart, needs <= 0.5"'). Self-tests 49 → 54: EPS lock, gap-naming reason, compact-vs-detail label counts, splitter presence, header collapse toggle. PRIOR (v0.7.1): 1" SUB-GRID (chainmail-board parity, snap-to-grid deliberately declined). The Grid button now CYCLES three states — Grid: 6" → Grid: 6"+1" → Grid: off — with the label naming the mode (state.grid 1/2/0; view-local, never snapshotted or published). In 6"+1" mode, faint 1" lines (stroke-width 0.35, .09 alpha) draw between the 6" majors, but ONLY past a zoom threshold (view.k >= 1.5): at full-table view 72×48 fine lines are noise over the parchment, so the sub-grid fades in as you lean in; the button tooltip says so. Snap-to-grid was considered and DECLINED (ruled with Kurt 2026-08-18): (1) it fights snap-to-contact — inch quantization vs the 0.25" standoff is exactly the visual-vs-mechanical divergence behind the v0.2.1/v0.3.2 melee-skip bugs; (2) BS footprints are sub-inch (3/4" dwarf bases, 0.5" open-formation gaps) so a 1" quantum misaligns edges; (3) 45° headings (v0.7.0) don't align to a square grid at all. If ever revisited: opt-in, center-snapped at 0.5", drop-only, cardinal-only, always yielding to snap-to-contact. Self-tests 46 → 49: button cycles 6"→6"+1"→off→6" with the .on class tracking, and the sub-grid line count is zero below the zoom gate and exactly (71-11)+(47-7) non-major lines above it. PRIOR (v0.7.0): Slice 7A — 45° headings on true oriented-rect geometry. FACING: u.facing is now any 45° step (0-315); ctrl+wheel rotates 45° per notch (setup free + burst-collapsed; battle routes through the [7.9] economy); Selected pane gains Oblique L/R 45° buttons; Right/Left/About Face keep their RAW 1/3-1/3-1/2 MV costs. OBLIQUE ECONOMY per the 2026-08-18 ruling: ONE free ≤45° direction change per move for closed/open (u.obliqueUsed, reset at End of Round); FURTHER 45° steps cost 1/6 MV — a pro-rated half of a Right Face (house extrapolation, open to veto: two steps = 1/3 MV ✓ consistent, though four steps at 2/3 exceeds About Face's 1/2, so About stays the cheap 180). GEOMETRY: the local rect is now ALWAYS frontage-horizontal with the front edge at local top — the old 90/270 w/h swap is retired and rotation happens about the center in world space. unitPoly/toLocal/worldBounds/facingDir are the new frame helpers. rectGap/contactDelta become SAT intersection + vertex-edge closest-pair on the oriented quads (EXACT parity with the old AABB distance at cardinal headings — locked by self-test); contactDelta returns the true closing vector at any heading, so charge/snap/mobCharge close correctly rotated. arcOf classifies the attacker's center in the DEFENDER'S LOCAL FRAME — one formula, cardinal semantics unchanged, front/flank/rear now correct at every heading (this is the aiming machinery missiles, dragon breath, and spell templates will consume). contactInfo [8.1] projects the overlap onto the attacker's front-edge axis — which also FIXES a latent cardinal bug: at 90/270 the old code measured the x-extent (unit DEPTH), not frontage. nearestCardinal → nearestFacing (nearest 45°): chargers, mob charges, and routs now end actually pointed at/away from their target. RENDER: card/pips/front-stripe/CR-circle rotate as a group about the card center; chips, labels, and the arc banner stay UPRIGHT, anchored to the world-bounds box; the front rank is always local row 0 (the rotation carries it — identical cardinal visuals). Mob Advance walks along any heading via facingDir. MIGRATION: pre-v0.7 saves stored the SWAPPED rect's top-left for facing 90/270; hydrateUnits(units, fromVersion) shifts x,y so the world CENTER is preserved (self-tested); hydration also normalizes facing to 45° steps and seeds obliqueUsed; loadScenario and NET.applyRemote pass their payload's simVersion. Mob facing buttons deliberately KEPT this slice as the GM's proxy for the wheel (RAW gives mobs Wheeling, not facing changes — the honest fix lands with 7B). DEFERRED to 7B: Wheel as a first-class costed action (outermost-figure arc, any-figure pivot [7.9]), drag-leg heading enforcement (straight/≤45° legs, the one-free-oblique consumed by an oblique DRAG leg too), and the [7.8] engaged-unit lockdown with Wrap-Around [7.11]/Fighting Withdrawal [7.12]. Melee at cardinal headings is behavior-identical to v0.6.1 except the 90/270 contactInfo fix. Self-tests 35 → 46: 45° normalize + center invariance, cardinal AABB gap parity, gap symmetry, rotated contactDelta measure + closure-to-contact, arcOf at 45°, pre-0.7 center-preserving migration, facingDir NE, contactInfo x-overlap parity at facing 0, oblique free-then-1/6-MV; faceUnit and wheel-burst tests updated for the fixed local rect and 45° notches. Script parses as a MODULE. PRIOR (v0.6.1): FIX: the measure tool. Two defects: (1) the mouseup handler cleared measure.a and returned WITHOUT renderBoard(), so the dashed line + label froze on screen until an unrelated action redrew the board (the stale ghost line); (2) it was hold-to-measure — the anchor cleared on release, so the reading could not be read after letting go. Now: measure.dragging tracks the active drag; on release the measurement PINS (line + inches/yards label stay drawn), the next mousedown in measure mode starts a fresh one, and toggling Measure off clears everything; a zero-length click (<0.05") clears instead of pinning a "0" label. Pre-measuring is a deliberate deviation from [7.7]'s SPECIAL NOTE (no pre-measuring at the table) — ruled a GM aid appropriate to a computer game (2026-08-18). RULING RECORDED for the movement slice, [7.9] free 45-degree oblique: ONE free direction change of up to 45 degrees per move for closed/open formations; only skirmish formation changes direction at will (multiple changes). RAW says "at will" in both sentences, but unlimited free 45-degree legs would let closed/open approximate any curve for free and the costed Wheel would never be paid — the one-per-move reading preserves wheeling's purpose (house interpretation, ruled 2026-08-18; implementation lands with the heading-aware movement slice). PRIOR (v0.6.0): Slice 6 — GCC multiplayer, chainmail-board's NET layer (Slice 1 publish/spectate + Slice 2A player seats) ported whole onto this board's snap/applySnap architecture. FIREBASE: same GCC project via the same three head includes (gcc-firebase-config.js / gcc-auth.js / gcc-auth.css, chainmail's current ?v= hashes); battles publish into the SAME campaigns/{cid}/battles/{bid} collection under the existing rules v9 — ZERO rules changes; the payload's format field ('battlesystem-board') disambiguates and each board's applyRemote rejects the other's docs as 'bad snapshot'. PUBLISH: NET.schedulePublish() rides pushUndo's tail (still the complete map of mutations), debounced 750 ms non-extending; undo/redo (afterRestore) and loadScenario republish explicitly; doc carries name/ownerUid/simVersion/seq-increment/status(setup→live)/snapshot/_updated. Unlike chainmail, snap() does not carry the log, so the payload ships logHtml alongside — captured from #log (prepend-newest-first) capped at the newest 300 entries for 1 MB doc headroom. SPECTATE (?camp=&battle=&spectate=1): onSnapshot → applyRemote → applySnap + hydrateUnits (extracted from loadScenario's hydration loop, now shared; seeds controllerUid/controllerName) + logHtml swap — NOT loadScenario, whose resets would stomp the viewport; state.view is never in the snapshot so pan/zoom survive publishes (first snapshot recentres); stale selId/targetId cleared; version-skew banner nudges a refresh when the publisher is newer. Inputs: spectate mousedown hard-returns after pan/measure, keydown and ctrl+wheel-facing gated, mutating buttons + Muster/Selected hidden via body.spectate CSS (the pushUndo seat guard is the backstop — no capture-phase allowlist needed since hidden buttons can't be clicked). PLAYER SEATS (&player=1): subscribes via the same pipe; body.player keeps the Selected pane; pushUndo hard no-ops (seats never write the battle doc); drag arms only on OWNED units (NET.ownsUnit) and only when playerMayMoveNow — the BS WRINKLE chainmail lacks: NEW state.moverSide (in snap(), so it publishes and undoes) seeds to the initiative winner at Movement entry [5.1] and the GM's new 'Pass move → Side X' phase-row button flips it; seats move only while their side holds the move (deployment is free; mobs never drag [2.10]; routed/rallied blocked [6.3]/[6.4]). A seat drop posts a move intent to battles/{bid}/commands (rules v9: members create-as-self) and stands as a local preview until the GM echo; the GM board is the authority — startCommandFeed consumes 'added' → validateMove (alive, controllerUid match, playerMayMoveNow incl. the side gate) → applyCommand replays the exact drop bookkeeping (budget re-clamp via moveBudget, board clamp, pushUndo 'net-move' with a PRE-move snapshot, movedIn charge, acted.moved, snapToContact, contact + 'Player move' log lines) → deletes the command; refusals log 'Player move refused' and schedulePublish explicitly. ASSIGN: GM's Selected pane gains 'Assign to player…' → #assign-menu populated live from campaigns/{cid}/players (gcc-invite roster) with clear-control; seats persist through every snapshot/save via hydrateUnits; Selected shows a Player row in net sessions. FIX (pre-existing, exposed by the port): drag undo was off-by-one — the drop's pushUndo('move') fired AFTER the live mousemove mutations, snapshotting the POST-drop state (every other call site pushes pre-mutation), so undo-after-drag was a visual no-op and a second undo ate the previous action too. pushUndo(tag, pre) now takes an optional pre-mutation snapshot; mousedown captures drag.pre and the drop passes it — net-move uses the same path. Boot banner names the session params; net chip (⟳/✓/⚠, click-to-sign-in), Share spectate/player link buttons, 6 s auth watchdog and [NET] console breadcrumbs all ported as-is. Self-tests +13: seat pushUndo guards (spectate + player), debounce collapse 3→1, payload format/round-trip/size canary, hydrate seat seeding, validateMove owned-in-setup + unowned rejection, seat gate (wrong side / own side / wrong phase), otherSide, and the drag-undo pre-snapshot fix; test cleanup now also clears undo/redo artifacts and cancels the test publish window. Script still parses as a MODULE (checked as .mjs per chainmail's v0.11.178 lesson). PRIOR (v0.5.0): Slice 5 — commanders and command [4.7]-[4.10], retiring the Slice-1 open ruling. Every REGULAR unit now spawns with an embedded Unit Commander (RAW [2.8]: regulars must have one) — a fighter of level 3-6 with rolled CHA, giving CB per Table 8 [4.9] and CR = (CHA+level)/2 + 3\" fighter bonus [4.8]; mobs spawn with a boss who can Give Orders but never confers In-Command benefits ([2.10]: mobs always suffer OOC penalties). WIRED CONSEQUENCES (engine keys verified before wiring, per house rule): commanderFighting -1 AR for regulars (Table 10, embedded commander fights with the unit), outOfCommand +1 AR and -2 ML for mobs and routed units, commander CB added to current morale [4.9] via unit.commander.charismaBonus, mobWithSupport +2 ML when a friendly regular unit sits in the mob's rear arc within 6\" [2.10], and closed formation now REQUIRES command [4.7]. RALLY moves to the engine's attemptRally with the [6.1] flags (inMeleeContact, commanderInRange = has a commander) — the manual checkMorale shim is retired. MOB ORDERS [2.10]/[6.6]: mobs cannot be dragged in battle; in the Rally phase a mob's commander may attempt ONE order (Advance or Charge) via rally check, the mob then follows its last order each Movement phase — Advance walks it straight along its facing, Charge closes on the nearest enemy in the 1.5x reach — and at the start of each Movement phase a mob that SEES an enemy within charge range checks DISCIPLINE (Table 7; PEAS DL is low) and on failure charges regardless of orders, going OOC-wild per [4.6]. Board: gold star = commander pip, dashed CR circle on selection, OOC and order tags in the card label, Cmdr row in the Selected pane. Commander death is NOT reachable this slice — [9.2]: an embedded Unit Commander cannot be killed without his unit being destroyed; detached commanders, Brigade/Army ranks, and hero assassinations arrive with the heroes slice, as does commander editing. Pre-v0.5.0 saves hydrate generated commanders on load. PRIOR (v0.4.1): Ctrl+wheel facing, ported from chainmail-board's onWheel grammar (ctrl+wheel rotates the SELECTED unit, falling through to zoom when nothing is selected; there ±15° free-form, here one CARDINAL step per notch since BS facing is the [7.9] set). Wheel-down = Right Face, wheel-up = Left Face. In SETUP the rotation is free and ungated; in battle each notch routes through facingChange() so the [7.9] 1/3-MV cost, Movement-phase gating, rout guard, and the [6.3] free-face-after-rally all apply unchanged — the budget is what stops a spin. Setup wheel bursts collapse to ONE undo entry (tag 'wheel-face:<id>' skipped while it's already on top of the stack, chainmail's tag-collapse pattern). Toolbar hint updated. PRIOR (v0.4.0): Slice 4 — facing, flanks, and rear + M/F/X acted chips. FACING: units carry a cardinal facing (0/90/180/270 — RAW's own facing-change set, since [7.9] defines exactly Right Face, Left Face, About Face; free 45-degree drift and wheeling stay OPEN for a later slice). The front edge draws a green stripe; the front RANK of pips is the rank nearest that edge (dark pips follow the facing). Facing changes are Selected-pane buttons costed per [7.9] — Left/Right Face 1/3 MV, About Face 1/2 MV — budget-checked in the Movement phase, and FREE once immediately after a successful rally per [6.3]. A charge turns the charger to face its target (the last 2/3-straight leg implies it); a rout ends with the unit's back to the enemy [7.15], now literally. ARCS: arcOf(defender, attacker) classifies the attacker's center against the defender's facing-axis edges — front of the front edge = FRONTAL, behind the rear edge = REAR, else FLANK. Targeting shows the chainmail-style arc banner over the target (green/amber/red per the --front/--flank/--rear palette). COMBAT WIRING: rear attacks take arDelta -2 and flank attacks -1 when the defender carries a shield ([8.3] SPECIAL NOTE examples — shield flags added to MEN_HF, DWARF, DW_PIKE, HOBGOB), the melee log names the arc, and a unit meleeing with an enemy in contact with its REAR arc checks morale with the [4.2] enemyAtRear -2 (engine key verified). M/F/X CHIPS: chainmail's acted trio — u.acted {moved, fired, fought} — renders as chips above each card, dark when done (M on any move/charge/facing spend, X on fighting a melee, F reserved until the missile slice), reset at End of Round. Self-tests add arc classification, facing-cost/center-preserving rotation, and the rear arDelta. PRIOR (v0.3.2): FIX: melee skipped again — the v0.3.0 card was drawn with a 3px pad OUTWARD in board coordinates, inflating every unit's apparent footprint ~0.21\" per side; cards that looked engaged were mechanically 0.5-0.7\" apart (past CONTACT_EPS 0.3 and even the 0.6 snap capture), so the engine rightly saw no contact and phaseIsEmpty skipped the phase your eyes said was due. The closure geometry itself verified clean across offsets this time. Fixes: (1) WYSIWYG card — the card rect now sits EXACTLY on the true base footprint (0,0,w,h) with the pips inset, so the drawn edge IS the base edge and the standoff gap you see is the gap the rules see; (2) snap capture widened to 0.8\" so near drops glue reliably; (3) honest skip — the Melee phase NEVER auto-skips while any unit has a declared charge [7.14], and when it does skip it names the closest enemy pair and their gap ('closest: X vs Y — 0.71\" apart') so a miss is information, not mystery. Self-tests add the charge skip-guard. PRIOR (v0.3.1): FIX: dwarf base size per [2.3] footnote — 'Dwarves are mounted on 3/4\" bases even though they are size S creatures' (width over height). Type rows gain an optional `base` override consumed by unitRect (BASE_W[t.base || t.size]); DWARF and DW_PIKE set base:'M'. Combat size stays S (the size field still drives [8.5] vs-L selection and future size rules); only the footprint changes. Self-test locks dwarf figure width to 0.75\". PRIOR (v0.3.0): Slice 3 — chainmail visual language + engagement standoff. Units now render as chainmail-board cards: parchment card (#efe7d2) with a side-colored border, SQUARE figure pips with the FRONT RANK in the dark side color and rear ranks in the light tint (his frontage/non-frontage convention), the wounded figure shown as a pink half-tone pip, and the two-line label BELOW the unit ('A · Name #id' in the side color over 'type · figs/start' in soft ink) so adjacent labels stop colliding. Engaged enemy pairs draw a dotted clash line between them. ENGAGEMENT STANDOFF: BS melee is base-to-base RAW ([1.6]/[7.8]/[8.1] — no Chainmail 3-inch rule), but glued bases were unreadable, so contact is now RENDERED with a 0.25-inch fighting-line gap: charge and snap close to the standoff rather than to zero, and the contact epsilon is 0.3 inch, so a standoff pair IS in base-to-base contact mechanically while the boards breathe visually. Selected/targeted units draw last (labels never buried). Self-tests updated for the standoff geometry. PRIOR (v0.2.1): FIX: melee phase auto-skipped after a charge/snap that visually touched. Root cause: chargeToTarget and snapToContact closed along the CENTER-to-center vector by the rect-gap distance, but the rect gap is the hypot of the per-axis edge deficits — on any diagonal offset the center vector is not the deficit vector, so the move under-closed (repro: 0.671" gap 'closed' to 0.301", above the 0.15" contact epsilon), inContact stayed false, and phaseIsEmpty(melee) skipped the phase. Fix: new contactDelta(u,v) returns the exact per-axis translation whose hypot IS the rect gap; charge and snap now translate by that delta, zeroing the gap by construction (movedIn charged with delta.dist, identical to the reach test's rectGap so budgets are unchanged). Self-test adds a diagonal-offset fixture locked to end in contact. PRIOR (v0.2.0): Slice 2 — chainmail targeting grammar + feel pass. Mirrors chainmail-board's attack grammar exactly: SHIFT+CLICK an enemy toggles it as the TARGET (dashed ring + reticle tag), plain click selects, and the action buttons in the phase row LIGHT UP from eligibility-state functions (meleeState/chargeState/rallyState, each returning {ok, reason}; the reason surfaces as the disabled button's tooltip, chainmail's btn-melee pattern). '⚔ Resolve melee' enables when a friendly is selected, an enemy targeted, the pair is in base-to-base contact, it is the Melee phase, and the attacker is neither routed nor rallied-this-round [6.3]; 'Charge target' enables in the Movement phase when the target is reachable within the 1.5x charge allowance [7.14] and, on click, declares the charge and auto-closes straight into contact (last leg straight per [7.14], cost charged to the move budget); 'Attempt rally' enables in the Rally phase for a selected routed unit. Also: SNAP-TO-CONTACT — a drop that leaves <=0.35 inch of gap to an enemy glues the facing edges (kills the pixel-fiddling to reach [7.8] contact); CLICK-TO-PLACE muster — a muster button arms placement and the next board click drops the unit there (Esc or right-click cancels; shift-click keeps placing more of the same); EMPTY-PHASE AUTO-SKIP — Rally with no routed units and Melee with no contacts advance themselves with a one-line log note. The Selected pane gains a Target row; the panel Attack flow is retired in favor of the lit buttons. Self-tests add meleeState gating and the snap closure math. PRIOR (v0.1.0): Slice 1 — BATTLESYSTEM Basic Game on the chainmail-board chassis. New file forked from chainmail-board v0.11.180's chassis PATTERNS (parchment palette + toolbar/panel/log CSS, right-drag pan + wheel zoom, phase rail, undo/redo, JSON save/load, boot self-tests), with the rules core supplied by @graycloak/battlesystem-engine v0.2.0 (synced at ./engine/, same copy the Foundry module consumes — do NOT edit ./engine/ here; edit graycloak-platform/packages/battlesystem-engine and re-sync). SCOPE (Basic Game, rulebook Part 2): Army-Roster units (Regular/Mob; AC, creature HD, ratio [2.2], figures, frontage, formation, MV, THAC0, weapon, size), 5-phase round [Basic seq: Initiative d6 reroll-ties / Rally / Movement A-chooses / Melee simultaneous [8.0] / End], closed-open formation change at 1/3 MV [7.6], drag movement with live budget clamp + charge at 1.5x MV requiring contact [7.14], melee via engine resolveMeleeCombat (AR pipeline [8.3], CRT [8.4-8.5], eligible fighters [8.1] with measured contact frontage, casualties + single-wound rule [8.7]), automatic morale triggers 25%/50%/post-50%-per-figure [4.4] via engine checkMorale 2d10 with situational stack [4.2], failure effects [4.5] (closed breaks to open; open/mob ROUTS with auto move MV+1/3 away, back to enemy [7.15]), Rally-phase attemptRally [6.1-6.3] with rallied-unit restrictions, fight-in-melee-only-if-attacked [6.3]. OPEN RULINGS this slice (flagged in-log where they bite): no commanders/CR yet, so In-Command bonuses, CB, and the OOC penalties are not applied (units treated as in command; [4.7]-[4.10] land with the Intermediate slice); skirmish units deferred (no missiles in Basic anyway); contact frontage measured as overlapping facing-edge figures, side-extras [8.1] auto-computed 0-2 from geometry; wheeling/facing costs deferred — drag cost is path length (straight-line legs), which under-charges a wheel; mobs get Move Forward only (orders system with commanders). Self-tests at boot lock the [8.4] worked example, morale example, rout distance, and save round-trip. -->
+<!-- battlesystem-board.html · v0.14.0 · SLICE 7B — PATH-AWARE MOVEMENT. Movement is now stored as explicit legs with trails, start/end markers, distance/cost/facing diagnostics, heading enforcement, first-contact stops, charge declaration + path validation, true 45° wheels, engaged-unit lockdown, frontage changes, fighting withdrawal, and an assisted wrap-around action. Charge uses the user-verified 1/3 final-straight reading of [7.14]; it must be declared before movement, travel at least 2/3 normal MV before contact, and spend its final 1/3 of actual path in one straight heading. Failed charges apply the RAW closed→open or open/mob −3 morale consequences. Movement auto-actions now run when each army’s turn actually begins. PRIOR (v0.13.0): TSR-STYLE UNIT SHEET. The live Selected inspector is now a compact BATTLESYSTEM Army Roster block modeled on the rulebook sheet: Unit Name/Type; AC/#FIG/Commander; HD/fig/Ratio/Level-Race-Class; MV/Size/MR+saves; AR+modifiers; ML+modifiers; DL; Weapon/Damage/#AT; Special Abilities/Limitations. A small Battle footer keeps transient state (formation/frontage/facing, movement, status, target/attack) separate from roster data. Edit mode is in-place in the same grid instead of a long replacement form. Per-unit `u.prof` overrides let a deployed unit differ from its BS_TYPES template without copying the whole template; AC, HD, MV, Base AR, Base ML, DL, size, weapon/damage/#AT, roster notes, MR/saves, race and deputy persist in saves/network snapshots and feed the rules engine where applicable. The detached panel title becomes “Unit Sheet · <name>”; controls are compacted with a facing dropdown. PRIOR (v0.12.0): BOARD-FIRST LAYOUT. The battlefield now owns the viewport: full-height app shell, one resizable right inspector dock (Selected/Muster tabs), and a collapsible/resizable bottom Battle Log replace the old two permanent side rails. The dock defaults to 320px, can be resized or snapped closed, and persists independently of battle saves; the log defaults collapsed, opens upward, can be height-resized, and persists as view state. Selected can pop into a draggable/resizable floating window and re-dock without cloning or losing live button handlers. Setup opens Muster; battle start and clicking a unit open Selected. Spectator/player seat chrome is preserved in the new dock. No rules, save-snapshot, or network payload changes. PRIOR (v0.11.1): VISUAL UX PASS. Battlefield chrome is quieter and selection/targeting carry the emphasis: selected units use animated gold corner brackets; targets use an animated ivory/red reticle; ordinary card borders keep army color. Labels are smaller with a thinner halo, drop army letter / #id / weapon clutter in compact mode, selected/targeted units stay one-line enhanced compact instead of forcing full detail, Labels: off now really hides labels except hover, and Full/hover retain two-line detail. M/F/X chips shrink ~20% and inactive chips soften. The commander star is removed; the first front-rank figure pip now carries a gold outline to represent the embedded commander/boss. The selected commander CR circle is retained but substantially faded, and the FRONT/FLANK/REAR target banner is reduced. No rules, save, or network state changes. PRIOR (v0.11.0): ARMY/ROLE NAMING + STRICT TWO-STEP MOVEMENT (the sub-phase slice, cut against [5.1] as pasted). VERIFICATION FIRST: ChatGPT's claimed discrepancy ("Side A CHOOSES which side moves first") is WRONG — [5.1] opens "The side that moves first in each Game Round is determined by making an Initiative Roll", i.e. the WINNER MOVES FIRST with no choosing step, corroborated by [7.8]'s "lost initiative and had an enemy unit move into base-to-base contact" (only possible because the loser moves second). The Slice 6 seeding stands as RAW. What [5.1] DOES establish: "The side that wins initiative is called Side A" — Side A/B are PER-ROUND ROLES, not army identities, and the sim conflated them. NAMING: armies are now player-facing BLUE (internal id A) and RED (internal id B) everywhere — muster dropdown, rail ("Round 2 · Red is Side A · Red moving (Side A)"), initiative log ("Red wins initiative — Red is Side A this round"), seat refusals ("it is Blue's move"), spectate banner — while Side A/Side B appear only as role annotations (roleOf helper); internal ids, saves, and the NET payload are UNTOUCHED (zero migration). MOVEMENT is now the RAW strict sequence instead of a free toggle: state.moveStep (0 Side A's turn · 1 Side B's · 2 both done; carried in snap(), so it publishes and undoes) — the pass button reads "Blue done → Red moves", then "Red done — end movement", then hides; after both, moverSide = null so NO seat may move (previously the GM could toggle back and forth forever, which [5.1] does not allow). Rally and Melee entries log their role order informationally ("Rally order: Red (Side A), then Blue" [6.0]; "Red (Side A) chooses the order of engagements" [8.2]) — display-only for now since seats have no rally/melee actions; the enforcement machinery arrives when they do. Self-tests 70 → 77: helper semantics (armyName permanent, roleOf per-round), movement entry seeds winner + step 0, first pass hands across, second pass ends movement with nobody holding it, seats locked out after both moved, third pass a no-op, moveStep round-trips through snapshots. PRIOR (v0.10.0): [7.14] MINIMUM CHARGE RUN-UP + UNIT EDITOR. (1) The too-close "CHARGE READY" Kurt caught is a real Basic-rules gap, not Intermediate — [7.14]: "the unit must be able to move at least 2/3 its normal movement rate before it comes into base-to-base contact." chargeState now enforces it; RULED 2026-08-18: movement already made this phase COUNTS toward the run-up (the charge is the unit's move — a fresh MV-9 unit 3" out cannot charge, but one that marched 4" and closes 3" can, 7 >= 6). The closing distance measures to the standoff. Refusal reads 'too close to charge — needs a X" run-up before contact, this move totals Y" [7.14]'. Wild mob charges from failed discipline stay UNGATED per [4.6] (forced regardless). (2) UNIT EDITOR — no way existed to touch a deployed unit or its rolled commander, which made testing morale/discipline/rally against specific stats impossible. The Selected pane gains '✎ Edit' (GM only; seats never see buttons): custom NAME (u.label, hydrated on old saves, flows through uName into every log line, the Selected pane, and both board label modes — escaped at write per the XSS convention), figures + startFigures (settable independently to stage loss-threshold morale checks), frontage, movedIn, wounded, ROUTED and RALLIED-THIS-ROUND flags (rally/discipline testing), and the embedded commander's name / level 1-20 / CHA 3-19 — Apply recomputes CB, CR, and baseMorale [4.8]/[4.9] and logs the edit; Cancel or deselect closes; every Apply is one undo entry. Self-tests 63 → 70: run-up refusal names the rule, prior-movement completion, long-approach pass, editor form render, Apply rewrites unit + commander + pushes one undo + closes, ML recompute, custom name through uName and onto the board. PRIOR (v0.9.1): FIX: chrome in the fighting gap (screenshot repro from Kurt: an engaged ogre/dwarf pair with BOTH units' M/F/X chips stacked in the gap over both cards, plus the FRONTAL banner colliding with the ogres' above-label). Root cause: v0.9.0 moved LABELS to the rear but its chip "swap" placed chips at the top of the bounds unless the label was up there — for a front-south unit that put chips BELOW its card, and for its front-north opponent chips ABOVE its card: both sets landed in the shared engagement gap, precisely the space the labels had just vacated. FIX: a single REAR-CHROME PLAN computed once per unit positions chips AND label as one stack off the rear edge, chips nearest the card, label lines beyond (rear-down: chips,l1,l2 downward; rear-up: l1,l2,chips upward with chips hugging the card; rear-sideways: block vertically centred at the anchor). The fighting gap between two engaged fronts now holds NOTHING. The arc banner is stack-aware: when the target's chrome sits above its card the banner climbs past the label block instead of printing through it. Anchor margin trimmed 0.55"→0.45" since the stack is taller. Self-tests 61 → 63: an engaged front-to-front pair rendered and BOTH chip rows asserted geometrically out of the gap (north-facer's chips ≥ card bottom, south-facer's < card top). PRIOR (v0.9.0): Rear-anchored labels + Labels modes + hover reveal (the "text in the fighting gap" fix, decoupled from the reach ruling — 1" melee reach STANDS). ANCHORING: the unit label now sits off the REAR edge — the side opposite the green front stripe — computed as center − facingDir·(depth/2 + 0.55") in the upright overlay, correct at every 45° heading. Units fight front-to-front, so labels structurally vacate the engagement gap: two battle lines closing on each other keep their name tags trailing BEHIND them like standards, never between the fronts. When the rear points up (front-south headings) the label block shifts clear and the M/F/X chips SWAP to below the card so the two never collide. MODES: new Labels toolbar button cycling compact → full → off (state.labels 1/2/0, view-local like Grid, never snapshotted): compact stays the default one-liner per unit; full draws every unit's two-line detail; off gives a clean tabletop for screenshots and dense fights. HOVER: mousing over any unit reveals its full two-line detail in ANY mode (state.hoverId, tracked in mousemove with re-render only on change, cleared on board mouseleave) — identification is always one hover away even on a bare board; selection and targeting still force detail as before. Self-tests 57 → 61: full mode = 2 lines/unit and off = none via real button clicks, hover reveals detail with labels off, Labels cycles back to compact, and rear anchoring locked geometrically (facing-0 label y below the card, facing-180 label y above). PRIOR (v0.8.1): HOUSE RULE (2026-08-18): melee reach is 1", the AD&D engagement convention — fighters within 1" (10 yds outdoors, matching BS's own [2.1] ground scale) may melee. This SUPERSEDES the v0.3.0 ruling that BS melee is literal base-to-base per [7.8]/[8.1]; Kurt's rationale: you can't swing a sword pressed against a man, and the AD&D convention BS descends from always gave the 1" fighting gap. Mechanics: CONTACT_EPS 0.5 → 1.0 (inContact, melee eligibility, phase auto-skip, enemyAtRear morale, clash lines, and the [8.1] frontage measurement all key off it consistently). The 0.25" STANDOFF stays as the rendered fighting line CHARGES still slam to [7.14] — a charge presses home; ordinary approach fights from anywhere inside 1". snapToContact REPURPOSED: with 1" of reach the old glue-everything-to-the-standoff behavior would override player positioning, so drops already within reach now STAY EXACTLY where dropped, and only the just-barely-out drop (reach..reach+0.4"] glues to 0.9" — the frustration killer without the teleport. chargeState's 'already in contact' floor widens from 0.15" to the full reach ('already within melee reach' — no burning move to charge someone you can already strike). Wording pass: 'engages' replaces 'contacts' in drop/mob logs, 'In reach:' in the Selected pane, the blocked-melee reason reads 'out of melee reach — X" apart, needs <= 1" [house: AD&D 1" engagement]', and the failed-charge warning cites reach. Self-tests 54 → 57: reach lock at 1.0, 0.9"-pair fights / 1.2"-pair doesn't / just-out drop glues to 0.9", in-reach drops stay put (snap fixture repurposed), out-of-reach reason fixture moved to 1.5", diagonal-charge fixture pushed beyond the widened reach. PRIOR (v0.8.0): UX slice — chainmail layout parity + engagement legibility (three reported issues run down). (1) UNREADABLE UNIT TEXT — root causes: every card drew TWO label lines (plus chips) with no halo over the green field, colliding on any crowded line, and the old 285px|board|300px grid squeezed the board into the middle column so everything rendered small. Fixes: labels are now HALOED (paint-order:stroke, chainmail's technique) and COMPACT by default — one 10px line (side·name #id · figs · ROUT/CHG) — with the full two-line detail drawn only for the selected/targeted unit; labels are pointer-events:none so they never block clicks; M/F/X chips draw in battle only. (2) LAYOUT — chainmail's arrangement ported whole: Board FIRST at minmax(0,1fr) | 7px rail-splitter | controls rail | log rail, the two rails holding a 250:300 ratio off --rail (default 550px); the splitter drags to resize, snaps closed past the min for a full-width board, double-click resets, persists in localStorage (bs-rail). The old left column is gone — Spectate/Selected/Muster stack in the controls rail (Selected ABOVE Muster: battle-first), the Battle Log is the far rail with its own scroll. Selected and Muster panels are COLLAPSIBLE via their headers (▾/▸), and Muster auto-collapses at Begin battle (header re-opens; Reset re-expands). Seat CSS untouched — the spectate/player rules target ids, which moved with their elements. (3) CAN'T CLOSE / CAN'T FIGHT "EVEN IN CONTACT" — two real causes found: (a) CONTACT_EPS was 0.3 vs the 0.25 rendered standoff — 0.05" of slack, so a pair 0.31" apart LOOKED exactly like an engaged standoff pair but wasn't mechanically in contact; EPS widens to 0.5 (a pair that looks engaged IS engaged; the standoff renders at 0.25 so daylight between engaged and not is visible) and the drop/snap capture widens 0.8→1.0. (b) The disabled attack buttons carried their block reason in `title` — but DISABLED elements don't fire pointer events in Chrome, so the tooltip NEVER SHOWED and a blocked melee was a silent mystery. The Selected pane now has an ATTACK row that states it plainly: MELEE/CHARGE READY in green, or the live reason — and the not-in-contact reason now names the actual gap ('0.42" apart, needs <= 0.5"'). Self-tests 49 → 54: EPS lock, gap-naming reason, compact-vs-detail label counts, splitter presence, header collapse toggle. PRIOR (v0.7.1): 1" SUB-GRID (chainmail-board parity, snap-to-grid deliberately declined). The Grid button now CYCLES three states — Grid: 6" → Grid: 6"+1" → Grid: off — with the label naming the mode (state.grid 1/2/0; view-local, never snapshotted or published). In 6"+1" mode, faint 1" lines (stroke-width 0.35, .09 alpha) draw between the 6" majors, but ONLY past a zoom threshold (view.k >= 1.5): at full-table view 72×48 fine lines are noise over the parchment, so the sub-grid fades in as you lean in; the button tooltip says so. Snap-to-grid was considered and DECLINED (ruled with Kurt 2026-08-18): (1) it fights snap-to-contact — inch quantization vs the 0.25" standoff is exactly the visual-vs-mechanical divergence behind the v0.2.1/v0.3.2 melee-skip bugs; (2) BS footprints are sub-inch (3/4" dwarf bases, 0.5" open-formation gaps) so a 1" quantum misaligns edges; (3) 45° headings (v0.7.0) don't align to a square grid at all. If ever revisited: opt-in, center-snapped at 0.5", drop-only, cardinal-only, always yielding to snap-to-contact. Self-tests 46 → 49: button cycles 6"→6"+1"→off→6" with the .on class tracking, and the sub-grid line count is zero below the zoom gate and exactly (71-11)+(47-7) non-major lines above it. PRIOR (v0.7.0): Slice 7A — 45° headings on true oriented-rect geometry. FACING: u.facing is now any 45° step (0-315); ctrl+wheel rotates 45° per notch (setup free + burst-collapsed; battle routes through the [7.9] economy); Selected pane gains Oblique L/R 45° buttons; Right/Left/About Face keep their RAW 1/3-1/3-1/2 MV costs. OBLIQUE ECONOMY per the 2026-08-18 ruling: ONE free ≤45° direction change per move for closed/open (u.obliqueUsed, reset at End of Round); FURTHER 45° steps cost 1/6 MV — a pro-rated half of a Right Face (house extrapolation, open to veto: two steps = 1/3 MV ✓ consistent, though four steps at 2/3 exceeds About Face's 1/2, so About stays the cheap 180). GEOMETRY: the local rect is now ALWAYS frontage-horizontal with the front edge at local top — the old 90/270 w/h swap is retired and rotation happens about the center in world space. unitPoly/toLocal/worldBounds/facingDir are the new frame helpers. rectGap/contactDelta become SAT intersection + vertex-edge closest-pair on the oriented quads (EXACT parity with the old AABB distance at cardinal headings — locked by self-test); contactDelta returns the true closing vector at any heading, so charge/snap/mobCharge close correctly rotated. arcOf classifies the attacker's center in the DEFENDER'S LOCAL FRAME — one formula, cardinal semantics unchanged, front/flank/rear now correct at every heading (this is the aiming machinery missiles, dragon breath, and spell templates will consume). contactInfo [8.1] projects the overlap onto the attacker's front-edge axis — which also FIXES a latent cardinal bug: at 90/270 the old code measured the x-extent (unit DEPTH), not frontage. nearestCardinal → nearestFacing (nearest 45°): chargers, mob charges, and routs now end actually pointed at/away from their target. RENDER: card/pips/front-stripe/CR-circle rotate as a group about the card center; chips, labels, and the arc banner stay UPRIGHT, anchored to the world-bounds box; the front rank is always local row 0 (the rotation carries it — identical cardinal visuals). Mob Advance walks along any heading via facingDir. MIGRATION: pre-v0.7 saves stored the SWAPPED rect's top-left for facing 90/270; hydrateUnits(units, fromVersion) shifts x,y so the world CENTER is preserved (self-tested); hydration also normalizes facing to 45° steps and seeds obliqueUsed; loadScenario and NET.applyRemote pass their payload's simVersion. Mob facing buttons deliberately KEPT this slice as the GM's proxy for the wheel (RAW gives mobs Wheeling, not facing changes — the honest fix lands with 7B). DEFERRED to 7B: Wheel as a first-class costed action (outermost-figure arc, any-figure pivot [7.9]), drag-leg heading enforcement (straight/≤45° legs, the one-free-oblique consumed by an oblique DRAG leg too), and the [7.8] engaged-unit lockdown with Wrap-Around [7.11]/Fighting Withdrawal [7.12]. Melee at cardinal headings is behavior-identical to v0.6.1 except the 90/270 contactInfo fix. Self-tests 35 → 46: 45° normalize + center invariance, cardinal AABB gap parity, gap symmetry, rotated contactDelta measure + closure-to-contact, arcOf at 45°, pre-0.7 center-preserving migration, facingDir NE, contactInfo x-overlap parity at facing 0, oblique free-then-1/6-MV; faceUnit and wheel-burst tests updated for the fixed local rect and 45° notches. Script parses as a MODULE. PRIOR (v0.6.1): FIX: the measure tool. Two defects: (1) the mouseup handler cleared measure.a and returned WITHOUT renderBoard(), so the dashed line + label froze on screen until an unrelated action redrew the board (the stale ghost line); (2) it was hold-to-measure — the anchor cleared on release, so the reading could not be read after letting go. Now: measure.dragging tracks the active drag; on release the measurement PINS (line + inches/yards label stay drawn), the next mousedown in measure mode starts a fresh one, and toggling Measure off clears everything; a zero-length click (<0.05") clears instead of pinning a "0" label. Pre-measuring is a deliberate deviation from [7.7]'s SPECIAL NOTE (no pre-measuring at the table) — ruled a GM aid appropriate to a computer game (2026-08-18). RULING RECORDED for the movement slice, [7.9] free 45-degree oblique: ONE free direction change of up to 45 degrees per move for closed/open formations; only skirmish formation changes direction at will (multiple changes). RAW says "at will" in both sentences, but unlimited free 45-degree legs would let closed/open approximate any curve for free and the costed Wheel would never be paid — the one-per-move reading preserves wheeling's purpose (house interpretation, ruled 2026-08-18; implementation lands with the heading-aware movement slice). PRIOR (v0.6.0): Slice 6 — GCC multiplayer, chainmail-board's NET layer (Slice 1 publish/spectate + Slice 2A player seats) ported whole onto this board's snap/applySnap architecture. FIREBASE: same GCC project via the same three head includes (gcc-firebase-config.js / gcc-auth.js / gcc-auth.css, chainmail's current ?v= hashes); battles publish into the SAME campaigns/{cid}/battles/{bid} collection under the existing rules v9 — ZERO rules changes; the payload's format field ('battlesystem-board') disambiguates and each board's applyRemote rejects the other's docs as 'bad snapshot'. PUBLISH: NET.schedulePublish() rides pushUndo's tail (still the complete map of mutations), debounced 750 ms non-extending; undo/redo (afterRestore) and loadScenario republish explicitly; doc carries name/ownerUid/simVersion/seq-increment/status(setup→live)/snapshot/_updated. Unlike chainmail, snap() does not carry the log, so the payload ships logHtml alongside — captured from #log (prepend-newest-first) capped at the newest 300 entries for 1 MB doc headroom. SPECTATE (?camp=&battle=&spectate=1): onSnapshot → applyRemote → applySnap + hydrateUnits (extracted from loadScenario's hydration loop, now shared; seeds controllerUid/controllerName) + logHtml swap — NOT loadScenario, whose resets would stomp the viewport; state.view is never in the snapshot so pan/zoom survive publishes (first snapshot recentres); stale selId/targetId cleared; version-skew banner nudges a refresh when the publisher is newer. Inputs: spectate mousedown hard-returns after pan/measure, keydown and ctrl+wheel-facing gated, mutating buttons + Muster/Selected hidden via body.spectate CSS (the pushUndo seat guard is the backstop — no capture-phase allowlist needed since hidden buttons can't be clicked). PLAYER SEATS (&player=1): subscribes via the same pipe; body.player keeps the Selected pane; pushUndo hard no-ops (seats never write the battle doc); drag arms only on OWNED units (NET.ownsUnit) and only when playerMayMoveNow — the BS WRINKLE chainmail lacks: NEW state.moverSide (in snap(), so it publishes and undoes) seeds to the initiative winner at Movement entry [5.1] and the GM's new 'Pass move → Side X' phase-row button flips it; seats move only while their side holds the move (deployment is free; mobs never drag [2.10]; routed/rallied blocked [6.3]/[6.4]). A seat drop posts a move intent to battles/{bid}/commands (rules v9: members create-as-self) and stands as a local preview until the GM echo; the GM board is the authority — startCommandFeed consumes 'added' → validateMove (alive, controllerUid match, playerMayMoveNow incl. the side gate) → applyCommand replays the exact drop bookkeeping (budget re-clamp via moveBudget, board clamp, pushUndo 'net-move' with a PRE-move snapshot, movedIn charge, acted.moved, snapToContact, contact + 'Player move' log lines) → deletes the command; refusals log 'Player move refused' and schedulePublish explicitly. ASSIGN: GM's Selected pane gains 'Assign to player…' → #assign-menu populated live from campaigns/{cid}/players (gcc-invite roster) with clear-control; seats persist through every snapshot/save via hydrateUnits; Selected shows a Player row in net sessions. FIX (pre-existing, exposed by the port): drag undo was off-by-one — the drop's pushUndo('move') fired AFTER the live mousemove mutations, snapshotting the POST-drop state (every other call site pushes pre-mutation), so undo-after-drag was a visual no-op and a second undo ate the previous action too. pushUndo(tag, pre) now takes an optional pre-mutation snapshot; mousedown captures drag.pre and the drop passes it — net-move uses the same path. Boot banner names the session params; net chip (⟳/✓/⚠, click-to-sign-in), Share spectate/player link buttons, 6 s auth watchdog and [NET] console breadcrumbs all ported as-is. Self-tests +13: seat pushUndo guards (spectate + player), debounce collapse 3→1, payload format/round-trip/size canary, hydrate seat seeding, validateMove owned-in-setup + unowned rejection, seat gate (wrong side / own side / wrong phase), otherSide, and the drag-undo pre-snapshot fix; test cleanup now also clears undo/redo artifacts and cancels the test publish window. Script still parses as a MODULE (checked as .mjs per chainmail's v0.11.178 lesson). PRIOR (v0.5.0): Slice 5 — commanders and command [4.7]-[4.10], retiring the Slice-1 open ruling. Every REGULAR unit now spawns with an embedded Unit Commander (RAW [2.8]: regulars must have one) — a fighter of level 3-6 with rolled CHA, giving CB per Table 8 [4.9] and CR = (CHA+level)/2 + 3\" fighter bonus [4.8]; mobs spawn with a boss who can Give Orders but never confers In-Command benefits ([2.10]: mobs always suffer OOC penalties). WIRED CONSEQUENCES (engine keys verified before wiring, per house rule): commanderFighting -1 AR for regulars (Table 10, embedded commander fights with the unit), outOfCommand +1 AR and -2 ML for mobs and routed units, commander CB added to current morale [4.9] via unit.commander.charismaBonus, mobWithSupport +2 ML when a friendly regular unit sits in the mob's rear arc within 6\" [2.10], and closed formation now REQUIRES command [4.7]. RALLY moves to the engine's attemptRally with the [6.1] flags (inMeleeContact, commanderInRange = has a commander) — the manual checkMorale shim is retired. MOB ORDERS [2.10]/[6.6]: mobs cannot be dragged in battle; in the Rally phase a mob's commander may attempt ONE order (Advance or Charge) via rally check, the mob then follows its last order each Movement phase — Advance walks it straight along its facing, Charge closes on the nearest enemy in the 1.5x reach — and at the start of each Movement phase a mob that SEES an enemy within charge range checks DISCIPLINE (Table 7; PEAS DL is low) and on failure charges regardless of orders, going OOC-wild per [4.6]. Board: gold star = commander pip, dashed CR circle on selection, OOC and order tags in the card label, Cmdr row in the Selected pane. Commander death is NOT reachable this slice — [9.2]: an embedded Unit Commander cannot be killed without his unit being destroyed; detached commanders, Brigade/Army ranks, and hero assassinations arrive with the heroes slice, as does commander editing. Pre-v0.5.0 saves hydrate generated commanders on load. PRIOR (v0.4.1): Ctrl+wheel facing, ported from chainmail-board's onWheel grammar (ctrl+wheel rotates the SELECTED unit, falling through to zoom when nothing is selected; there ±15° free-form, here one CARDINAL step per notch since BS facing is the [7.9] set). Wheel-down = Right Face, wheel-up = Left Face. In SETUP the rotation is free and ungated; in battle each notch routes through facingChange() so the [7.9] 1/3-MV cost, Movement-phase gating, rout guard, and the [6.3] free-face-after-rally all apply unchanged — the budget is what stops a spin. Setup wheel bursts collapse to ONE undo entry (tag 'wheel-face:<id>' skipped while it's already on top of the stack, chainmail's tag-collapse pattern). Toolbar hint updated. PRIOR (v0.4.0): Slice 4 — facing, flanks, and rear + M/F/X acted chips. FACING: units carry a cardinal facing (0/90/180/270 — RAW's own facing-change set, since [7.9] defines exactly Right Face, Left Face, About Face; free 45-degree drift and wheeling stay OPEN for a later slice). The front edge draws a green stripe; the front RANK of pips is the rank nearest that edge (dark pips follow the facing). Facing changes are Selected-pane buttons costed per [7.9] — Left/Right Face 1/3 MV, About Face 1/2 MV — budget-checked in the Movement phase, and FREE once immediately after a successful rally per [6.3]. A charge turns the charger to face its target (the last 2/3-straight leg implies it); a rout ends with the unit's back to the enemy [7.15], now literally. ARCS: arcOf(defender, attacker) classifies the attacker's center against the defender's facing-axis edges — front of the front edge = FRONTAL, behind the rear edge = REAR, else FLANK. Targeting shows the chainmail-style arc banner over the target (green/amber/red per the --front/--flank/--rear palette). COMBAT WIRING: rear attacks take arDelta -2 and flank attacks -1 when the defender carries a shield ([8.3] SPECIAL NOTE examples — shield flags added to MEN_HF, DWARF, DW_PIKE, HOBGOB), the melee log names the arc, and a unit meleeing with an enemy in contact with its REAR arc checks morale with the [4.2] enemyAtRear -2 (engine key verified). M/F/X CHIPS: chainmail's acted trio — u.acted {moved, fired, fought} — renders as chips above each card, dark when done (M on any move/charge/facing spend, X on fighting a melee, F reserved until the missile slice), reset at End of Round. Self-tests add arc classification, facing-cost/center-preserving rotation, and the rear arDelta. PRIOR (v0.3.2): FIX: melee skipped again — the v0.3.0 card was drawn with a 3px pad OUTWARD in board coordinates, inflating every unit's apparent footprint ~0.21\" per side; cards that looked engaged were mechanically 0.5-0.7\" apart (past CONTACT_EPS 0.3 and even the 0.6 snap capture), so the engine rightly saw no contact and phaseIsEmpty skipped the phase your eyes said was due. The closure geometry itself verified clean across offsets this time. Fixes: (1) WYSIWYG card — the card rect now sits EXACTLY on the true base footprint (0,0,w,h) with the pips inset, so the drawn edge IS the base edge and the standoff gap you see is the gap the rules see; (2) snap capture widened to 0.8\" so near drops glue reliably; (3) honest skip — the Melee phase NEVER auto-skips while any unit has a declared charge [7.14], and when it does skip it names the closest enemy pair and their gap ('closest: X vs Y — 0.71\" apart') so a miss is information, not mystery. Self-tests add the charge skip-guard. PRIOR (v0.3.1): FIX: dwarf base size per [2.3] footnote — 'Dwarves are mounted on 3/4\" bases even though they are size S creatures' (width over height). Type rows gain an optional `base` override consumed by unitRect (BASE_W[t.base || t.size]); DWARF and DW_PIKE set base:'M'. Combat size stays S (the size field still drives [8.5] vs-L selection and future size rules); only the footprint changes. Self-test locks dwarf figure width to 0.75\". PRIOR (v0.3.0): Slice 3 — chainmail visual language + engagement standoff. Units now render as chainmail-board cards: parchment card (#efe7d2) with a side-colored border, SQUARE figure pips with the FRONT RANK in the dark side color and rear ranks in the light tint (his frontage/non-frontage convention), the wounded figure shown as a pink half-tone pip, and the two-line label BELOW the unit ('A · Name #id' in the side color over 'type · figs/start' in soft ink) so adjacent labels stop colliding. Engaged enemy pairs draw a dotted clash line between them. ENGAGEMENT STANDOFF: BS melee is base-to-base RAW ([1.6]/[7.8]/[8.1] — no Chainmail 3-inch rule), but glued bases were unreadable, so contact is now RENDERED with a 0.25-inch fighting-line gap: charge and snap close to the standoff rather than to zero, and the contact epsilon is 0.3 inch, so a standoff pair IS in base-to-base contact mechanically while the boards breathe visually. Selected/targeted units draw last (labels never buried). Self-tests updated for the standoff geometry. PRIOR (v0.2.1): FIX: melee phase auto-skipped after a charge/snap that visually touched. Root cause: chargeToTarget and snapToContact closed along the CENTER-to-center vector by the rect-gap distance, but the rect gap is the hypot of the per-axis edge deficits — on any diagonal offset the center vector is not the deficit vector, so the move under-closed (repro: 0.671" gap 'closed' to 0.301", above the 0.15" contact epsilon), inContact stayed false, and phaseIsEmpty(melee) skipped the phase. Fix: new contactDelta(u,v) returns the exact per-axis translation whose hypot IS the rect gap; charge and snap now translate by that delta, zeroing the gap by construction (movedIn charged with delta.dist, identical to the reach test's rectGap so budgets are unchanged). Self-test adds a diagonal-offset fixture locked to end in contact. PRIOR (v0.2.0): Slice 2 — chainmail targeting grammar + feel pass. Mirrors chainmail-board's attack grammar exactly: SHIFT+CLICK an enemy toggles it as the TARGET (dashed ring + reticle tag), plain click selects, and the action buttons in the phase row LIGHT UP from eligibility-state functions (meleeState/chargeState/rallyState, each returning {ok, reason}; the reason surfaces as the disabled button's tooltip, chainmail's btn-melee pattern). '⚔ Resolve melee' enables when a friendly is selected, an enemy targeted, the pair is in base-to-base contact, it is the Melee phase, and the attacker is neither routed nor rallied-this-round [6.3]; 'Charge target' enables in the Movement phase when the target is reachable within the 1.5x charge allowance [7.14] and, on click, declares the charge and auto-closes straight into contact (last leg straight per [7.14], cost charged to the move budget); 'Attempt rally' enables in the Rally phase for a selected routed unit. Also: SNAP-TO-CONTACT — a drop that leaves <=0.35 inch of gap to an enemy glues the facing edges (kills the pixel-fiddling to reach [7.8] contact); CLICK-TO-PLACE muster — a muster button arms placement and the next board click drops the unit there (Esc or right-click cancels; shift-click keeps placing more of the same); EMPTY-PHASE AUTO-SKIP — Rally with no routed units and Melee with no contacts advance themselves with a one-line log note. The Selected pane gains a Target row; the panel Attack flow is retired in favor of the lit buttons. Self-tests add meleeState gating and the snap closure math. PRIOR (v0.1.0): Slice 1 — BATTLESYSTEM Basic Game on the chainmail-board chassis. New file forked from chainmail-board v0.11.180's chassis PATTERNS (parchment palette + toolbar/panel/log CSS, right-drag pan + wheel zoom, phase rail, undo/redo, JSON save/load, boot self-tests), with the rules core supplied by @graycloak/battlesystem-engine v0.2.0 (synced at ./engine/, same copy the Foundry module consumes — do NOT edit ./engine/ here; edit graycloak-platform/packages/battlesystem-engine and re-sync). SCOPE (Basic Game, rulebook Part 2): Army-Roster units (Regular/Mob; AC, creature HD, ratio [2.2], figures, frontage, formation, MV, THAC0, weapon, size), 5-phase round [Basic seq: Initiative d6 reroll-ties / Rally / Movement A-chooses / Melee simultaneous [8.0] / End], closed-open formation change at 1/3 MV [7.6], drag movement with live budget clamp + charge at 1.5x MV requiring contact [7.14], melee via engine resolveMeleeCombat (AR pipeline [8.3], CRT [8.4-8.5], eligible fighters [8.1] with measured contact frontage, casualties + single-wound rule [8.7]), automatic morale triggers 25%/50%/post-50%-per-figure [4.4] via engine checkMorale 2d10 with situational stack [4.2], failure effects [4.5] (closed breaks to open; open/mob ROUTS with auto move MV+1/3 away, back to enemy [7.15]), Rally-phase attemptRally [6.1-6.3] with rallied-unit restrictions, fight-in-melee-only-if-attacked [6.3]. OPEN RULINGS this slice (flagged in-log where they bite): no commanders/CR yet, so In-Command bonuses, CB, and the OOC penalties are not applied (units treated as in command; [4.7]-[4.10] land with the Intermediate slice); skirmish units deferred (no missiles in Basic anyway); contact frontage measured as overlapping facing-edge figures, side-extras [8.1] auto-computed 0-2 from geometry; wheeling/facing costs deferred — drag cost is path length (straight-line legs), which under-charges a wheel; mobs get Move Forward only (orders system with commanders). Self-tests at boot lock the [8.4] worked example, morale example, rout distance, and save round-trip. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Battlesystem — Battlefield · v0.13.0</title>
+<title>Battlesystem — Battlefield · v0.14.0</title>
 <style>
   :root {
     --bg:#ece0c4; --panel:#f5eedb; --field:#a8b094; --field-edge:#6d735a; --ink:#2c2316; --ink-soft:#6e6047; --rule:#b6a682;
@@ -239,6 +239,7 @@
       <span class="tb-sep"></span>
       <button id="btn-grid" class="on" title="Click to cycle: 6″ · 6″+1″ sub-grid · off">Grid: 6″</button>
       <button id="btn-labels" class="on" title="Click to cycle: compact · full · off — hover any unit for its detail">Labels: compact</button>
+      <button id="btn-trails" class="on" title="Click to cycle: selected unit · all moved units · off">Trails: selected</button>
       <button id="btn-measure">Measure</button>
       <button id="btn-recenter">Recenter</button>
       <span class="tb-pin-right hintline">right-drag pan · wheel zoom · <span class="kbd">ctrl</span>+wheel = face selected 45° · <span class="kbd">shift</span>+click = target · <span class="kbd">Del</span> remove · <span class="kbd">Esc</span> cancel place</span>
@@ -248,7 +249,7 @@
       <div class="phase-rail" id="phase-rail"></div>
       <span class="tb-sep"></span>
       <button id="btn-melee" disabled>⚔ Resolve melee</button>
-      <button id="btn-charge" disabled>Charge target</button>
+      <button id="btn-charge" disabled>Declare charge</button>
       <button id="btn-rally" disabled>Attempt rally</button>
       <button id="btn-pass-move" hidden title="Hand the Movement Phase to the other side — player seats may only move while their side holds it">Pass move</button>
       <span class="tb-pin-right"></span>
@@ -313,7 +314,7 @@
 </div>
 
 <script type="module">
-const SIM_VERSION = '0.13.0';
+const SIM_VERSION = '0.14.0';
 import {
   BattlesystemCombat, BattlesystemMorale, BattlesystemMovement,
   ratioFromHD, calculateHDPerFigure, creaturesPerFigure
@@ -387,6 +388,7 @@ const state = {
   moverSide: null,                    // Slice 6: who holds the Movement Phase — the seat gate [5.1]
   grid: 1, measure: { on:false, a:null, live:null, dragging:false },   // grid: 0 off · 1 six-inch · 2 six+one-inch sub-grid
   labels: 1, hoverId: null,       // labels: 0 off · 1 compact · 2 full; hover reveals detail (view-local, never snapshotted)
+  trails: 1,                       // 0 off · 1 selected · 2 all; current-round movement traces (view-local)
   editId: null,                   // unit editor open for this id (view-local)
   view: { x:0, y:0, k:1 },
   undoStack: [], redoStack: [],
@@ -431,7 +433,9 @@ function mkUnit(typeId, side, figures, x, y) {
     acted: { moved:false, fired:false, fought:false }, freeFace: false, obliqueUsed: false,
     wounded: 0,                                                      // [8.7] max one
     routed: false, ralliedThisRound: false, wasAttackedThisPhase: false,
-    movedIn: 0, charging: false,
+    movedIn: 0, charging: false, chargeTargetId: null, chargeSucceeded: false, chargeFailedThisRound: false,
+    movementAction: null, movePath: { start:null, legs:[], travel:0 }, engagedAtMoveStart:false, contactedThisMove:false,
+    frontageDir: null, wrapAround: null, noChargeTargets: [],
     moraleChecked: { p25:false, p50:false },
     cmdr: mkCommander(t.unitType === 'mob'),                         // [2.8]/[2.10]
     mobOrder: null, orderedThisRound: false, label: '', prof: {},
@@ -446,6 +450,7 @@ function unitEngineData(u) {   // shape shared with the Foundry module's buildDe
     isDemihuman: !!t.demihuman, hasMagicEquipment: false,
     hasSpecialAbilities: false, hasExceptionalAbilities: false,
     mounted: false, unitIsRegular: t.unitType === 'regular',
+    lowIntelligence: !!t.lowIntelligence, chaoticAlignment: !!t.chaoticAlignment,
     baseMorale: u.baseMorale, formation: u.formation,
     ...(Number.isFinite(dl) ? { discipline: dl } : {}),
     commander: (u.cmdr && !u.routed) ? { charismaBonus: cbFromCha(u.cmdr.cha) } : undefined,  // [4.9]
@@ -502,6 +507,7 @@ function faceUnit(u, newFacing) {                                    // 45° hea
 function facingChange(u, kind) {                                     // [7.9] costs; [6.3] free after rally
   const t = profileOf(u);
   const oblique = kind === 'obl-left' || kind === 'obl-right';
+  if (!u.freeFace) { const lock=movementLockReason(u); if (lock) { log('phase',`${esc(uName(u))} cannot change facing`,lock); return; } }
   const free = u.freeFace || (oblique && !u.obliqueUsed);            // ruling 2026-08-18: ONE free ≤45° per move
   const cost = free ? 0 : (kind === 'about' ? t.mv / 2 : oblique ? t.mv / 6 : t.mv / 3);
   const why = u.freeFace ? 'free facing change after rally [6.3]'
@@ -512,11 +518,13 @@ function facingChange(u, kind) {                                     // [7.9] co
     if (moveBudget(u) < cost) { log('phase', `${esc(uName(u))} lacks movement for that facing change`, `needs ${fmt(cost)}" [7.9]`); return; }
   }
   pushUndo('face');
-  u.movedIn += cost; u.acted.moved = true;
+  if (!u.freeFace) ensureMovePath(u,u.charging?'charge':'move');
+  u.movedIn += cost; u.acted.moved = true; if (!u.freeFace && !u.movementAction) u.movementAction=u.charging?'charge':'move';
   if (oblique) u.obliqueUsed = true;
   u.freeFace = false;
   const step = { left:-90, right:90, about:180, 'obl-left':-45, 'obl-right':45 }[kind];
   faceUnit(u, u.facing + step);
+  if (curPhase().id==='movement') addMoveEvent(u,'turn',cost,{ degrees:step });
   log('phase', `${esc(uName(u))} ${kind === 'about' ? 'about faces' : oblique ? 'obliques ' + (kind === 'obl-left' ? 'left' : 'right') : kind + ' faces'}`, why);
   renderAll();
 }
@@ -585,9 +593,125 @@ function contactInfo(att, def) {
   const [a0, a1] = span(unitPoly(att)), [b0, b1] = span(unitPoly(def));
   const overlap = Math.max(0, Math.min(a1, b1) - Math.max(a0, b0));
   const per = a.bw + a.gap;
-  const cf = Math.max(1, Math.min(a.cols, Math.round(overlap / per) || 1));
+  let cf = Math.max(1, Math.min(a.cols, Math.round(overlap / per) || 1));
+  if (att.wrapAround?.targetId === def.id) cf = Math.min(att.figures, cf + (att.wrapAround.extraContact || 0));
   const sideExtras = att.formation === 'closed' ? Math.min(2, Math.max(0, a.cols - cf)) : 0;
   return { contactFrontage: cf, sideExtras };
+}
+
+
+/* --- Slice 7B: path-aware movement -------------------------------------- */
+const normFacing = a => ((Math.round(a / 45) * 45) % 360 + 360) % 360;
+function angleDelta(a, b) { let d = ((a - b + 540) % 360) - 180; return d === -180 ? 180 : d; }
+function localWorld(u, lx, ly) {
+  const r = unitRect(u), cx = u.x + r.w/2, cy = u.y + r.h/2;
+  const c = Math.cos(facingRad(u.facing)), s = Math.sin(facingRad(u.facing));
+  const dx = lx - (u.x + r.w/2), dy = ly - (u.y + r.h/2);
+  return { x:cx + c*dx - s*dy, y:cy + s*dx + c*dy };
+}
+function setUnitCenter(u, cx, cy) { const r=unitRect(u); u.x=cx-r.w/2; u.y=cy-r.h/2; }
+function centerPoint(u) { const c=unitCenter(u); return { x:c.cx, y:c.cy }; }
+function ensureMovePath(u, action='move') {
+  if (!u.movePath || !Array.isArray(u.movePath.legs)) u.movePath = { start:null, legs:[], travel:0 };
+  if (!u.movePath.start) { const c=centerPoint(u); u.movePath.start={ x:c.x, y:c.y, facing:u.facing }; }
+  if (!u.movementAction) u.movementAction = action;
+  return u.movePath;
+}
+function addMoveLeg(u, kind, from, to, cost=0, heading=null, extra={}) {
+  const mp=ensureMovePath(u, u.charging ? 'charge' : (u.movementAction || 'move'));
+  const travel = Number.isFinite(Number(extra.travel)) ? Number(extra.travel) : Math.hypot(to.x-from.x,to.y-from.y);
+  const leg={ kind, from:{...from}, to:{...to}, cost:Number(cost)||0, travel, heading:heading==null?null:normFacing(heading), ...extra };
+  mp.legs.push(leg); mp.travel = mp.legs.reduce((n,l)=>n+(Number(l.travel)||0),0);
+  return leg;
+}
+function addMoveEvent(u, kind, cost=0, extra={}) { const c=centerPoint(u); return addMoveLeg(u,kind,c,c,cost,u.facing,{...extra,travel:0}); }
+function moveTravel(u) { return Number(u.movePath?.travel)||0; }
+function straightKind(k) { return k==='move' || k==='charge' || k==='pursuit'; }
+function chargeStraightStatusFromLegs(legs) {
+  const total = legs.reduce((n,l)=>n+(Number(l.travel)||0),0);
+  if (total <= 0.01) return { ok:false, total, required:0, straight:0, heading:null };
+  const required = total/3;                                          // USER RULING: [7.14] OCR glyph is 1/3
+  let straight=0, heading=null, started=false;
+  for (let i=legs.length-1;i>=0;i--) {
+    const l=legs[i], tr=Number(l.travel)||0;
+    if (tr <= 0.001) { if (started && straight < required && ['turn','wheel','formation','frontage','wrap'].includes(l.kind)) break; continue; }
+    if (!straightKind(l.kind) || l.heading==null) break;
+    if (!started) { heading=normFacing(l.heading); started=true; }
+    if (Math.abs(angleDelta(normFacing(l.heading),heading)) > 1) break;
+    straight += tr;
+    if (straight + 1e-6 >= required) break;
+  }
+  return { ok:straight+1e-6>=required, total, required, straight, heading };
+}
+function chargePathStatus(u, extraLegs=[]) {
+  const p=profileOf(u), legs=[...(u.movePath?.legs||[]), ...extraLegs];
+  const ss=chargeStraightStatusFromLegs(legs), min=p.mv*2/3;
+  const target=state.units.find(v=>v.id===u.chargeTargetId);
+  return { ...ss, min, runUpOk:ss.total+1e-6>=min, target, contactOk:!!target&&inContact(u,target), costOk:u.movedIn<=p.mv*1.5+1e-6 };
+}
+function movementLockReason(u) {
+  if (u.contactedThisMove) return 'movement stops after enemy contact [7.8]';
+  if (u.engagedAtMoveStart) return 'began the Movement Phase engaged — only Wrap-Around, Fighting Withdrawal, or Flee [7.8]';
+  if (u.movementAction==='withdraw') return 'fighting withdrawal already completed [7.12]';
+  if (u.movementAction==='wrap') return 'wrap-around movement already completed [7.11]';
+  if (u.chargeSucceeded) return 'charge reached its target; movement is complete [7.14]';
+  return '';
+}
+function markEngagedAtMoveStart(side) {
+  for (const u of state.units) if (u.side===side && u.figures>0) {
+    const now=state.units.some(v=>v.side!==u.side&&v.figures>0&&inContact(u,v));
+    u.engagedAtMoveStart = !!(u.engagedAtMoveStart || now);
+  }
+}
+function firstContactAlongLeg(u, sx, sy, ex, ey) {
+  const ox=u.x, oy=u.y, d=Math.hypot(ex-sx,ey-sy), steps=Math.max(1,Math.ceil(d/0.15));
+  let hit=null;
+  for (let i=1;i<=steps&&!hit;i++) {
+    const t=i/steps; u.x=sx+(ex-sx)*t; u.y=sy+(ey-sy)*t;
+    const enemy=state.units.find(v=>v.side!==u.side&&v.figures>0&&inContact(u,v));
+    if (enemy) hit={ enemy, x:u.x, y:u.y, t };
+  }
+  u.x=ox; u.y=oy; return hit;
+}
+function standoffAlongHeading(u, target, heading, maxDistance) {       // charge must press home on the SAME straight leg [7.14]
+  const ox=u.x, oy=u.y, dir=facingDir(heading), max=Math.max(0,Number(maxDistance)||0);
+  if (rectGap(u,target)<=STANDOFF+0.01) return { x:u.x,y:u.y,distance:0 };
+  let lo=0, hi=null, last=0;
+  for (let d=0.04; d<=max+1e-6; d+=0.04) {
+    const dd=Math.min(d,max); u.x=ox+dir[0]*dd; u.y=oy+dir[1]*dd;
+    if (rectGap(u,target)<=STANDOFF+0.01) { lo=last; hi=dd; break; }
+    last=dd;
+    if (dd>=max-1e-6) break;
+  }
+  if (hi==null) { u.x=ox;u.y=oy;return null; }
+  for (let i=0;i<14;i++) {
+    const mid=(lo+hi)/2;u.x=ox+dir[0]*mid;u.y=oy+dir[1]*mid;
+    if(rectGap(u,target)<=STANDOFF+0.01)hi=mid;else lo=mid;
+  }
+  u.x=ox;u.y=oy;return {x:ox+dir[0]*hi,y:oy+dir[1]*hi,distance:hi};
+}
+function dragPlan(u, start, rawX, rawY, spent0, baseFacing) {
+  const dx=rawX-start.x, dy=rawY-start.y, rawDist=Math.hypot(dx,dy);
+  if (rawDist<0.001) return { x:start.x,y:start.y,distance:0,heading:baseFacing,turn:false,turnCost:0 };
+  if (state.setup) return { x:rawX,y:rawY,distance:rawDist,heading:baseFacing,turn:false,turnCost:0 };
+  const p=profileOf(u), rawHeading=nearestFacing(dx,dy);
+  let heading=rawHeading;
+  if (p.unitType!=='skirmish') {
+    const cand=[normFacing(baseFacing-45),normFacing(baseFacing),normFacing(baseFacing+45)];
+    heading=cand.reduce((best,h)=>Math.abs(angleDelta(rawHeading,h))<Math.abs(angleDelta(rawHeading,best))?h:best,cand[0]);
+  }
+  const turn=Math.abs(angleDelta(heading,baseFacing))>1;
+  const turnCost=turn ? (u.obliqueUsed ? p.mv/6 : 0) : 0;             // established 7A ruling: one free 45° change per move
+  const max=p.mv*(u.charging?1.5:1), avail=Math.max(0,max-spent0-turnCost);
+  const d=Math.min(rawDist,avail), dir=facingDir(heading);
+  return { x:start.x+dir[0]*d, y:start.y+dir[1]*d, distance:d, heading, turn, turnCost, rawHeading };
+}
+function chargeSummary(u) {
+  if (!u.charging) return '';
+  const st=chargePathStatus(u), p=profileOf(u);
+  const target=st.target?uName(st.target):'target';
+  if (u.chargeSucceeded) return `CHARGE ✓ ${fmt(st.total)}″ · ${target}`;
+  return `CHARGE ${fmt(st.total)}″ · run ${st.runUpOk?'✓':fmt(st.min)+'″ min'} · final ⅓ ${st.ok?'✓':fmt(st.straight)+'/'+fmt(st.required)+'″'}`;
 }
 
 /* === D. UNDO / SAVE / LOG ================================================ */
@@ -674,6 +798,18 @@ function hydrateUnits(units, fromVersion) {   // version-skew defaults, shared b
     if (u.freeFace === undefined) u.freeFace = false;
     if (typeof u.facing !== 'number' || u.facing % 45 !== 0) u.facing = u.side === 'A' ? 180 : 0;
     if (u.obliqueUsed === undefined) u.obliqueUsed = false;          // Slice 7A: one free ≤45° per move
+    if (!u.movePath || typeof u.movePath !== 'object') u.movePath = { start:null, legs:[], travel:0 };
+    if (!Array.isArray(u.movePath.legs)) u.movePath.legs = [];
+    if (!Number.isFinite(Number(u.movePath.travel))) u.movePath.travel = u.movePath.legs.reduce((n,l)=>n+(Number(l.travel)||0),0);
+    if (u.movementAction === undefined) u.movementAction = null;
+    if (u.engagedAtMoveStart === undefined) u.engagedAtMoveStart = false;
+    if (u.contactedThisMove === undefined) u.contactedThisMove = false;
+    if (u.frontageDir === undefined) u.frontageDir = null;
+    if (u.chargeTargetId === undefined) u.chargeTargetId = null;
+    if (u.chargeSucceeded === undefined) u.chargeSucceeded = false;
+    if (u.chargeFailedThisRound === undefined) u.chargeFailedThisRound = false;
+    if (!Array.isArray(u.noChargeTargets)) u.noChargeTargets = [];
+    if (u.wrapAround === undefined) u.wrapAround = null;
     if (preOriented && (u.facing === 90 || u.facing === 270)) {      // old x,y was the SWAPPED rect's top-left;
       const r = unitRect(u);                                         //   shift so the world center is preserved
       u.x += (r.h - r.w) / 2; u.y += (r.w - r.h) / 2;
@@ -728,6 +864,11 @@ function closestEnemyPair() {
 }
 function advancePhase() {
   pushUndo('phase');
+  if (!state.setup && curPhase().id==='movement') {
+    for (const sd of ['A','B']) finishMovementForSide(sd);           // protects against skipping the pass buttons
+    state.moverSide=null; state.moveStep=2;
+  }
+  if (!state.setup && curPhase().id==='melee') finishWrapArounds();
   let hops = 0;
   do {
     state.phaseIdx++;
@@ -760,12 +901,11 @@ function runPhaseEntry() {
     if (state.sideA) log('phase', `Rally order: ${armyName(state.sideA)} (Side A), then ${armyName(otherSide(state.sideA))}`, '[6.0]');
   }
   if (p.id === 'movement') {
-    state.moverSide = state.sideA;                                   // the initiative WINNER moves first [5.1] — no choosing step
-    state.moveStep = 0;                                              // v0.11.0: 0 = Side A's turn, 1 = Side B's, 2 = both done
-    log('phase', `${armyName(state.moverSide)} (Side A) moves first`, 'per initiative [5.1] — the button hands the phase across');
-    // [6.4] unrallied routed units continue their rout automatically
-    for (const u of state.units) if (u.routed && !u.ralliedThisRound) autoRout(u, profileOf(u).mv, 'continues to rout [6.4]');
-    for (const u of state.units) if (profileOf(u).unitType === 'mob' && !u.routed && u.figures > 0) runMobMovement(u);
+    state.moverSide = state.sideA;                                   // initiative winner moves first [5.1]
+    state.moveStep = 0;
+    for (const u of state.units) { u.engagedAtMoveStart=false; u.contactedThisMove=false; }
+    log('phase', `${armyName(state.moverSide)} (Side A) moves first`, 'per initiative [5.1] — path-aware movement [7.x]');
+    beginMovementForSide(state.moverSide);                           // auto rout/mob actions belong to THIS army's turn
   }
   if (p.id === 'melee') {
     for (const u of state.units) u.wasAttackedThisPhase = false;
@@ -773,7 +913,12 @@ function runPhaseEntry() {
   }
 }
 function endRound() {
-  for (const u of state.units) { u.movedIn = 0; u.charging = false; u.acted = { moved:false, fired:false, fought:false }; u.obliqueUsed = false; }
+  for (const u of state.units) {
+    u.movedIn = 0; u.charging = false; u.chargeTargetId = null; u.chargeSucceeded = false; u.chargeFailedThisRound = false;
+    u.movementAction = null; u.movePath = { start:null, legs:[], travel:0 }; u.engagedAtMoveStart = false; u.contactedThisMove = false;
+    u.frontageDir = null; u.wrapAround = null; u.noChargeTargets = [];
+    u.acted = { moved:false, fired:false, fought:false }; u.obliqueUsed = false;
+  }
   log('phase', `— End of Round ${state.round} —`, '[1.7]');
 }
 /* Slice 6: the Side A/B alternation gate. The GM board is ungated (advisory,
@@ -788,19 +933,65 @@ function playerMayMoveNow(u) {
   if (profileOf(u).unitType === 'mob') return false;             // [2.10]
   return state.moverSide === u.side;
 }
-function passMove() {   // GM hands the Movement Phase across — strict A-then-B [5.1]: after both, nobody holds it
+function passMove() {   // GM hands the Movement Phase across — strict A-then-B [5.1]
   if (state.setup || curPhase().id !== 'movement' || state.net.spectate || state.net.player) return;
   if (state.moveStep >= 2) return;
   pushUndo('pass-move');
+  const finished=state.moverSide;
+  if (finished) finishMovementForSide(finished);                    // undeveloped charges fail when that army ends its move
   state.moveStep = (state.moveStep || 0) + 1;
   if (state.moveStep === 1) {
-    state.moverSide = otherSide(state.moverSide || state.sideA || 'A');
-    log('phase', `${armyName(otherSide(state.moverSide))} done — ${armyName(state.moverSide)} (Side B) moves`, 'player seats on that side may now move');
+    state.moverSide = otherSide(finished || state.sideA || 'A');
+    log('phase', `${armyName(finished)} done — ${armyName(state.moverSide)} (Side B) moves`, 'player seats on that side may now move');
+    beginMovementForSide(state.moverSide);                           // [7.8] engagement is tested as this army's turn begins
   } else {
-    state.moverSide = null;                                          // both armies have moved
+    state.moverSide = null;
     log('phase', 'Both sides have moved', 'advance to the Melee Phase when ready');
   }
   renderAll();
+}
+
+
+function failCharge(u, why='did not reach its declared target') {
+  const was=u.formation;
+  u.chargeSucceeded=false; u.charging=false;
+  if (was==='closed') {
+    u.formation='open';
+    log('phase', `⚠ ${esc(uName(u))} fails its charge`, `${why} · closed formation breaks to OPEN [7.14]`);
+  } else {
+    u.chargeFailedThisRound=true;
+    log('phase', `⚠ ${esc(uName(u))} fails its charge`, `${why} · −3 current morale for the rest of the round [7.14]`);
+  }
+}
+function finishChargeForUnit(u) {
+  if (!u.charging || u.chargeSucceeded) return;
+  const st=chargePathStatus(u), target=st.target;
+  if (target && st.contactOk && st.runUpOk && st.ok && st.costOk) {
+    u.chargeSucceeded=true; u.contactedThisMove=true;
+    log('phase', `⚡ ${esc(uName(u))} completes its charge`, `${fmt(st.total)}″ path · final ⅓ straight ✓ · attacks ${esc(uName(target))} in Melee [7.14]`);
+    return;
+  }
+  const bits=[];
+  if (!target || !st.contactOk) bits.push('target not reached');
+  if (!st.runUpOk) bits.push(`run-up ${fmt(st.total)}″ < ${fmt(st.min)}″`);
+  if (!st.ok) bits.push('final ⅓ not straight');
+  if (!st.costOk) bits.push('charge allowance exceeded');
+  failCharge(u,bits.join(' · ')||'charge incomplete');
+}
+function finishMovementForSide(side) {
+  for (const u of state.units) if (u.side===side && u.figures>0) finishChargeForUnit(u);
+}
+function beginMovementForSide(side) {
+  markEngagedAtMoveStart(side);
+  for (const u of state.units) if (u.side===side && u.routed && !u.ralliedThisRound) autoRout(u,profileOf(u).mv,'continues to rout [6.4]');
+  for (const u of state.units) if (u.side===side && profileOf(u).unitType==='mob' && !u.routed && u.figures>0) runMobMovement(u);
+}
+function finishWrapArounds() {
+  for (const u of state.units) if (u.wrapAround) {
+    u.formation='open';
+    log('phase', `${esc(uName(u))} settles into Open formation`, 'wrap-around ends in Open formation [7.11]');
+    u.wrapAround=null;
+  }
 }
 
 /* === F. MOVEMENT [7.x] =================================================== */
@@ -821,6 +1012,10 @@ function giveOrder(u, order) {                                       // [2.10]/[
 }
 function runMobMovement(u) {                                         // [2.10] mobs follow last order
   const t = profileOf(u);
+  if (u.engagedAtMoveStart) {                                       // [7.8] no automatic advance/charge out of an existing melee
+    log('phase',`${esc(uName(u))} remains engaged`,'began its Movement Phase in melee reach [7.8]');
+    return;
+  }
   // Table 7: a mob that sees an opponent within charge range checks discipline
   const reach = t.mv * 1.5;
   let nearest = null;
@@ -833,27 +1028,33 @@ function runMobMovement(u) {                                         // [2.10] m
     const dc = BattlesystemMorale.checkDiscipline(unitEngineData(u), roll2d10);
     if (!dc.passed) {
       log('morale', `⚡ ${esc(uName(u))} loses its head`, `discipline ${dc.autoFail ? 'auto-fails (DL 0)' : `${dc.roll} vs ${dc.discipline}`} — charges wild [4.6]`);
-      mobCharge(u, nearest.v); return;
+      mobCharge(u, nearest.v,{forced:true}); return;
     }
   }
   if (u.mobOrder === 'charge' && nearest && nearest.gp <= reach) { mobCharge(u, nearest.v); return; }
   if (u.mobOrder === 'advance' || u.mobOrder === 'charge') {         // charge with nothing in reach walks on
-    const dir = facingDir(u.facing);
-    u.x = clamp(u.x + dir[0] * t.mv, 0, BOARD_W - 1); u.y = clamp(u.y + dir[1] * t.mv, 0, BOARD_H - 1);
-    u.movedIn = t.mv; u.acted.moved = true;
-    snapToContact(u);
-    log('phase', `${esc(uName(u))} shambles forward`, `${fmt(t.mv)}" along its facing [2.10]`);
+    const dir=facingDir(u.facing), c0=centerPoint(u); ensureMovePath(u,'move'); u.movementAction='move';
+    u.x=clamp(u.x+dir[0]*t.mv,0,BOARD_W-1);u.y=clamp(u.y+dir[1]*t.mv,0,BOARD_H-1);snapToContact(u);
+    const c1=centerPoint(u), travelled=Math.hypot(c1.x-c0.x,c1.y-c0.y);u.movedIn=travelled;u.acted.moved=true;
+    addMoveLeg(u,'move',c0,c1,travelled,u.facing,{travel:travelled});
+    const hit=state.units.find(v=>v.side!==u.side&&v.figures>0&&inContact(u,v));if(hit)u.contactedThisMove=true;
+    log('phase',`${esc(uName(u))} shambles forward`,`${fmt(travelled)}" along its facing [2.10]`);
   }
 }
-function mobCharge(u, target) {                                      // [7.14] via mob order/discipline
-  const delta = contactDelta(u, target);
-  u.charging = true;
-  const step = Math.max(0, delta.dist - STANDOFF);
-  const sc = delta.dist > 0 ? step / delta.dist : 0;
-  u.x += delta.dx * sc; u.y += delta.dy * sc;
-  u.movedIn += step; u.acted.moved = true;
-  faceUnit(u, nearestFacing(delta.dx, delta.dy));
-  log('phase', `⚡ ${esc(uName(u))} CHARGES ${esc(uName(target))}`, `mob closes ${fmt(step)}" [7.14]`);
+function mobCharge(u, target, opts={}) {                              // [7.14] via mob order/discipline
+  const c0=centerPoint(u),delta=contactDelta(u,target), step=Math.max(0,delta.dist-STANDOFF), min=profileOf(u).mv*2/3;
+  if (!opts.forced && step+1e-6<min) {
+    log('phase',`${esc(uName(u))} cannot execute its Charge order`,`straight run ${fmt(step)}″ is shorter than the ${fmt(min)}″ minimum [7.14]`);
+    return false;
+  }
+  ensureMovePath(u,'charge');u.movementAction='charge';u.charging=true;u.chargeTargetId=target.id;
+  const sc=delta.dist>0?step/delta.dist:0;u.x+=delta.dx*sc;u.y+=delta.dy*sc;
+  faceUnit(u,nearestFacing(delta.dx,delta.dy));const c1=centerPoint(u),travel=Math.hypot(c1.x-c0.x,c1.y-c0.y);u.movedIn+=travel;u.acted.moved=true;
+  addMoveLeg(u,'charge',c0,c1,travel,u.facing,{travel});u.contactedThisMove=inContact(u,target);const st=chargePathStatus(u);
+  u.chargeSucceeded=u.contactedThisMove&&(opts.forced||(st.runUpOk&&st.ok));
+  if(opts.forced && u.contactedThisMove && (!st.runUpOk||!st.ok)) log('phase',`⚡ ${esc(uName(u))} makes a forced wild charge`,`Discipline failure compels the attack despite voluntary charge geometry [4.6]`);
+  else log('phase',`⚡ ${esc(uName(u))} CHARGES ${esc(uName(target))}`,`mob closes ${fmt(travel)}" [7.14]`);
+  return u.chargeSucceeded;
 }
 function moveBudget(u) {
   const t = profileOf(u);
@@ -861,16 +1062,129 @@ function moveBudget(u) {
   if (u.charging) mv = mv * 1.5;                                     // [7.14]
   return mv - u.movedIn;
 }
+
+function wheelCost(u, dir, degrees=45) {
+  const r=unitRect(u), per=r.bw+r.gap, pc=dir==='left'?0:Math.max(0,r.cols-1);
+  const px=pc*per+r.bw/2, py=r.bw/2;
+  let radius=0;
+  for (let i=0;i<u.figures;i++) {
+    const c=i%r.cols, rw=Math.floor(i/r.cols), fx=c*per+r.bw/2, fy=rw*per+r.bw/2;
+    radius=Math.max(radius,Math.hypot(fx-px,fy-py));
+  }
+  return radius*Math.abs(degrees)*Math.PI/180;                        // outermost figure's arc distance [7.9]
+}
+function wheelUnit(u, dir, degrees=45, opts={}) {                    // first-class Wheel [7.9]
+  if (!opts.mobOrder && (state.setup || curPhase().id!=='movement')) { log('phase','Wheeling happens in the Movement Phase [7.9]'); return false; }
+  if (u.routed || u.ralliedThisRound) return false;
+  const lock=movementLockReason(u); if (lock) { log('phase',`${esc(uName(u))} cannot wheel`,lock); return false; }
+  if (profileOf(u).unitType==='mob' && !opts.mobOrder) { log('phase','Mobs wheel only by an Order [2.10]'); return false; }
+  degrees=Math.max(1,Math.min(90,Math.abs(Number(degrees)||45)));
+  const cost=wheelCost(u,dir,degrees);
+  if (moveBudget(u)+1e-6<cost) { log('phase',`${esc(uName(u))} lacks movement to wheel`,`needs ${fmt(cost)}″ [7.9]`); return false; }
+  if (!opts.noUndo) pushUndo('wheel');
+  ensureMovePath(u,u.charging?'charge':'move');
+  const r=unitRect(u), per=r.bw+r.gap, pc=dir==='left'?0:Math.max(0,r.cols-1);
+  const pivot=localWorld(u,u.x+pc*per+r.bw/2,u.y+r.bw/2), c0=centerPoint(u), delta=(dir==='right'?1:-1)*degrees;
+  const a=delta*Math.PI/180, vx=c0.x-pivot.x, vy=c0.y-pivot.y;
+  const c1={ x:pivot.x+Math.cos(a)*vx-Math.sin(a)*vy, y:pivot.y+Math.sin(a)*vx+Math.cos(a)*vy };
+  const centerTravel=Math.hypot(vx,vy)*Math.abs(a);
+  faceUnit(u,u.facing+delta); setUnitCenter(u,c1.x,c1.y);
+  u.movedIn+=cost; u.acted.moved=true; if (!u.movementAction) u.movementAction=u.charging?'charge':'move';
+  addMoveLeg(u,'wheel',c0,c1,cost,u.facing,{ travel:centerTravel, degrees:delta, pivot });
+  const hit=state.units.find(v=>v.side!==u.side&&v.figures>0&&inContact(u,v));
+  if (hit) { u.contactedThisMove=true; log('phase',`${esc(uName(u))} contacts ${esc(uName(hit))} while wheeling`,'movement stops [7.8]'); }
+  log('phase',`${esc(uName(u))} wheels ${dir} ${degrees}°`,`outermost figure moves ${fmt(cost)}″ [7.9]`);
+  renderAll(); return true;
+}
+function frontageChange(u, delta) {                                  // [7.10] 1″ per figure
+  if (state.setup || curPhase().id!=='movement' || u.routed || u.ralliedThisRound) return;
+  const p=profileOf(u), lock=movementLockReason(u); if (lock) { log('phase',`${esc(uName(u))} cannot change frontage`,lock); return; }
+  if (p.unitType==='mob') { log('phase','A mob cannot voluntarily change frontage [7.10]'); return; }
+  delta=Math.sign(delta); if (!delta) return;
+  const dir=delta>0?'expand':'contract';
+  if (u.frontageDir && u.frontageDir!==dir) { log('phase',`${esc(uName(u))} cannot both expand and contract frontage this Movement Phase [7.10]`); return; }
+  if (delta>0 && u.frontage>=u.figures) return;
+  if (delta<0 && u.frontage<=1) return;
+  if (moveBudget(u)<1) { log('phase',`${esc(uName(u))} lacks 1″ to change frontage [7.10]`); return; }
+  const c=centerPoint(u), old=u.frontage;
+  u.frontage=clamp(u.frontage+delta,1,u.figures); setUnitCenter(u,c.x,c.y);
+  const bad=state.units.some(v=>v.side!==u.side&&v.figures>0&&inContact(u,v));
+  u.frontage=old; setUnitCenter(u,c.x,c.y);
+  if (bad) { log('phase','Frontage change refused','a figure may not move into enemy contact while changing frontage [7.10]'); renderAll(); return; }
+  pushUndo('frontage'); ensureMovePath(u,u.charging?'charge':'move');
+  u.frontage=clamp(u.frontage+delta,1,u.figures); setUnitCenter(u,c.x,c.y);
+  u.frontageDir=dir; u.movedIn+=1; u.acted.moved=true; if(!u.movementAction)u.movementAction=u.charging?'charge':'move'; addMoveEvent(u,'frontage',1,{delta});
+  log('phase',`${esc(uName(u))} ${dir}s frontage to ${u.frontage}`,'cost 1″ [7.10]'); renderAll();
+}
+function wrapCost(u, extra) {                                       // [7.11] diagram: 8 figures + (3″+3″) end-wheels = 14″
+  const r=unitRect(u), per=r.bw+r.gap, left=Math.ceil(extra/2), right=Math.floor(extra/2);
+  const wheel=(left*per)+(right*per);                                // end-wing extension moved inward; matches the rulebook worked diagram
+  return { total:extra+wheel, expand:extra, wheel, left, right };
+}
+function wrapAround(u) {                                            // [7.11] assisted geometry for rectangular unit cards
+  if (state.setup || curPhase().id!=='movement' || u.routed || u.ralliedThisRound) return;
+  const p=profileOf(u); if (p.unitType==='mob') { log('phase','Mobs cannot voluntarily expand frontage [7.10]'); return; }
+  if (!u.engagedAtMoveStart) { log('phase','Wrap-Around requires beginning the Movement Phase engaged [7.11]'); return; }
+  if (u.movementAction || u.movedIn>0.01) { log('phase','Wrap-Around must be the declared movement action [7.7]'); return; }
+  const contacts=state.units.filter(v=>v.side!==u.side&&v.figures>0&&inContact(u,v));
+  const target=contacts.find(v=>v.id===state.targetId)||contacts[0]; if (!target) return;
+  const avail=Math.max(0,u.figures-u.frontage); let max=0;
+  for (let n=1;n<=avail;n++) if (wrapCost(u,n).total<=p.mv+1e-6) max=n; else break;
+  if (!max) { log('phase',`${esc(uName(u))} lacks movement to wrap around`,'expansion + end-wheel cost exceeds MV [7.11]'); return; }
+  const raw=prompt(`Wrap-Around ${uName(target)}: add how many figures to frontage? (1-${max})`,String(max));
+  if (raw===null) return; const extra=clamp(Math.round(Number(raw)||0),0,max); if (!extra) return;
+  const wc=wrapCost(u,extra), c=centerPoint(u); pushUndo('wrap-around'); ensureMovePath(u,'wrap');
+  u.movementAction='wrap'; u.frontage+=extra; setUnitCenter(u,c.x,c.y); u.movedIn+=wc.total; u.acted.moved=true;
+  u.wrapAround={ targetId:target.id, extraContact:extra, cost:wc.total };
+  addMoveEvent(u,'wrap',wc.total,{ extraContact:extra, targetId:target.id });
+  log('phase',`${esc(uName(u))} wraps around ${esc(uName(target))}`,`+${extra} frontage · expand ${fmt(wc.expand)}″ + end-wheels ${fmt(wc.wheel)}″ = ${fmt(wc.total)}″ [7.11]`);
+  renderAll();
+}
+function fightingWithdrawal(u) {                                    // [7.12]
+  if (state.setup || curPhase().id!=='movement' || u.routed || u.ralliedThisRound) return;
+  const contacts=state.units.filter(v=>v.side!==u.side&&v.figures>0&&inContact(u,v));
+  const enemy=contacts.find(v=>v.id===state.targetId)||contacts[0];
+  const chk=BattlesystemMovement.canFightingWithdrawal({ movementRate:profileOf(u).mv, inMeleeContact:!!enemy, isRouting:u.routed, outOfCommand:isOOC(u), movementActionCommittedThisPhase:!!u.movementAction||u.movedIn>0.01 });
+  if (!u.engagedAtMoveStart || !chk.can) { log('phase',`${esc(uName(u))} cannot make a Fighting Withdrawal`,!u.engagedAtMoveStart?'must begin the Movement Phase engaged [7.12]':chk.reason); return; }
+  const c0=centerPoint(u), ec=centerPoint(enemy), dx=c0.x-ec.x, dy=c0.y-ec.y, m=Math.hypot(dx,dy)||1, c1={x:c0.x+dx/m*3,y:c0.y+dy/m*3};
+  const r=unitRect(u); if (c1.x-r.w/2<0||c1.y-r.h/2<0||c1.x+r.w/2>BOARD_W||c1.y+r.h/2>BOARD_H) { log('phase','Fighting Withdrawal refused','unit cannot complete the full 3″ backward move on the battlefield [7.12]'); return; }
+  const ox=u.x,oy=u.y; setUnitCenter(u,c1.x,c1.y);
+  const bad=state.units.find(v=>v.id!==enemy.id&&v.side!==u.side&&v.figures>0&&inContact(u,v));
+  u.x=ox;u.y=oy;
+  if (bad) { log('phase','Fighting Withdrawal refused',`would end engaged with ${esc(uName(bad))} [7.12]`); return; }
+  pushUndo('fighting-withdrawal'); ensureMovePath(u,'withdraw'); setUnitCenter(u,c1.x,c1.y); u.movementAction='withdraw'; u.movedIn=3; u.acted.moved=true;
+  addMoveLeg(u,'withdraw',c0,c1,3,nearestFacing(c1.x-c0.x,c1.y-c0.y),{travel:3});
+  log('phase',`${esc(uName(u))} makes a Fighting Withdrawal`,`3″ backward from ${esc(uName(enemy))} [7.12]`);
+  let advance=false, must=BattlesystemMorale.pursuerRequiresDisciplineCheck(unitEngineData(enemy));
+  if (must) {
+    const dc=BattlesystemMorale.checkDiscipline(unitEngineData(enemy),roll2d10);
+    if (!dc.passed) { advance=true; log('morale',`${esc(uName(enemy))} must pursue`,`Discipline ${dc.autoFail?'auto-fails':`${dc.roll} vs ${dc.discipline}`} [7.12]`); }
+    else advance=confirm(`${uName(enemy)} passed Discipline. Advance 3″ to continue the melee?`);
+  } else advance=confirm(`${uName(enemy)} may immediately advance 3″ to continue the melee. Advance?`);
+  if (advance) {
+    const e0=centerPoint(enemy), wc=centerPoint(u), vx=wc.x-e0.x,vy=wc.y-e0.y,mm=Math.hypot(vx,vy)||1, e1={x:e0.x+vx/mm*3,y:e0.y+vy/mm*3};
+    ensureMovePath(enemy,enemy.movementAction||'move'); setUnitCenter(enemy,e1.x,e1.y); snapToContact(enemy);
+    const e2=centerPoint(enemy); addMoveLeg(enemy,'pursuit',e0,e2,0,nearestFacing(e2.x-e0.x,e2.y-e0.y),{travel:Math.hypot(e2.x-e0.x,e2.y-e0.y),free:true});
+    enemy.acted.moved=true; log('phase',`${esc(uName(enemy))} follows the withdrawal`,'immediate 3″ advance; normal MV limit does not prevent it [7.12]');
+  } else {
+    if (!Array.isArray(enemy.noChargeTargets)) enemy.noChargeTargets=[];
+    if (!enemy.noChargeTargets.includes(u.id)) enemy.noChargeTargets.push(u.id);
+    log('phase',`${esc(uName(enemy))} remains in place`,`cannot Charge ${esc(uName(u))} for the rest of this round [7.12]`);
+  }
+  renderAll();
+}
+
 function toggleFormation(u) {                                        // [7.6] 1/3 MV
   if (u.routed) return;
-  const t = profileOf(u);
+  const t = profileOf(u), lock=movementLockReason(u);
+  if (lock) { log('phase',`${esc(uName(u))} cannot change formation`,lock); return; }
   if (t.unitType === 'mob') { log('phase', 'Mobs fight in Mob Formation only [7.5]'); return; }
   const cost = t.mv / 3;
   if (u.formation === 'open' && !inCommand(u)) { log('phase', `${esc(uName(u))} must be in command to enter closed formation [4.7]`); return; }
   if (moveBudget(u) < cost) { log('phase', `${esc(uName(u))} lacks movement to change formation`, `needs ${fmt(cost)}" [7.6]`); return; }
-  pushUndo('formation');
-  u.movedIn += cost;
-  u.formation = u.formation === 'closed' ? 'open' : 'closed';
+  pushUndo('formation'); ensureMovePath(u,u.charging?'charge':'move');
+  u.movedIn += cost; u.acted.moved=true; if (!u.movementAction) u.movementAction=u.charging?'charge':'move';
+  u.formation = u.formation === 'closed' ? 'open' : 'closed'; addMoveEvent(u,'formation',cost,{formation:u.formation});
   log('phase', `${esc(uName(u))} → ${u.formation} formation`, `cost ${fmt(cost)}" [7.6]`);
   renderAll();
 }
@@ -951,8 +1265,9 @@ function autoRout(u, mvOverride, why) {                              // [7.15]/[
     const ex = e.x/enemies.length - c.cx, ey = e.y/enemies.length - c.cy;
     const m = Math.hypot(ex, ey) || 1; dx = -ex/m; dy = -ey/m;
   }
-  u.x = clamp(u.x + dx*routMV, -2, BOARD_W+2); u.y = clamp(u.y + dy*routMV, -2, BOARD_H+2);
-  faceUnit(u, nearestFacing(dx, dy));                              // back to the enemy [7.15]
+  const c0=centerPoint(u); ensureMovePath(u,'rout');
+  u.x=clamp(u.x+dx*routMV,-2,BOARD_W+2);u.y=clamp(u.y+dy*routMV,-2,BOARD_H+2);
+  faceUnit(u,nearestFacing(dx,dy));const c1=centerPoint(u);addMoveLeg(u,'rout',c0,c1,0,u.facing,{travel:Math.hypot(c1.x-c0.x,c1.y-c0.y),automatic:true});
   if (u.x < -1 || u.y < -1 || u.x > BOARD_W || u.y > BOARD_H) {
     log('morale', `☠ ${esc(uName(u))} routs off the field`, 'removed from play [7.15]');
     u.figures = 0;
@@ -1079,6 +1394,7 @@ function runMoraleCheck(u, why) {                                    // [4.2]/[4
     enemyAtRear: state.units.some(v => v.side !== u.side && v.figures > 0
       && inContact(u, v) && arcOf(u, v) === 'rear'),                 // [4.2] −2
     outOfCommand: isOOC(u),                                          // [4.2] −2 (mobs always [2.10])
+    failedCharge: !!u.chargeFailedThisRound,                          // [7.14]/Table 4 −3 for open/mob failed charge
     mobWithSupport: profileOf(u).unitType === 'mob'              // [2.10] +2
       && state.units.some(v => v.side === u.side && v.id !== u.id && v.figures > 0
            && profileOf(v).unitType === 'regular' && arcOf(u, v) === 'rear' && rectGap(u, v) <= 6),
@@ -1145,6 +1461,28 @@ function viewBox() {
   const w = BOARD_W*PXI/state.view.k, h = BOARD_H*PXI/state.view.k;
   return `${state.view.x} ${state.view.y} ${w} ${h}`;
 }
+
+function renderMoveTrail(u) {
+  const legs=u.movePath?.legs||[]; if (!legs.length) return;
+  if (state.trails===0 || (state.trails===1 && state.selId!==u.id)) return;
+  const charge=!!(u.charging||u.chargeTargetId||u.chargeSucceeded), color=charge?'#8c2f22':'#5a4a2e';
+  const start=u.movePath.start || legs[0].from, last=legs[legs.length-1];
+  svg.appendChild(el('circle',{cx:start.x*PXI,cy:start.y*PXI,r:3.2,fill:'#f0e9d4',stroke:color,'stroke-width':1.3,opacity:.88}));
+  for (const l of legs) {
+    if (!l.from||!l.to) continue;
+    const dash=l.kind==='wheel'?'2 4':l.kind==='withdraw'?'4 3':charge?'7 5':'2 5';
+    svg.appendChild(el('line',{x1:l.from.x*PXI,y1:l.from.y*PXI,x2:l.to.x*PXI,y2:l.to.y*PXI,stroke:color,'stroke-width':charge?1.8:1.35,'stroke-dasharray':dash,opacity:charge?.78:.56,'pointer-events':'none'}));
+  }
+  const end=last.to, prev=last.from, ang=Math.atan2(end.y-prev.y,end.x-prev.x), len=6, a1=ang+2.55,a2=ang-2.55;
+  const pts=[[end.x*PXI,end.y*PXI],[(end.x*PXI)+Math.cos(a1)*len,(end.y*PXI)+Math.sin(a1)*len],[(end.x*PXI)+Math.cos(a2)*len,(end.y*PXI)+Math.sin(a2)*len]].map(q=>q.join(',')).join(' ');
+  svg.appendChild(el('polygon',{points:pts,fill:color,opacity:.78,'pointer-events':'none'}));
+  const max=profileOf(u).mv*(charge?1.5:1), st=charge?chargePathStatus(u):null;
+  let txt=charge ? `CHARGE ${fmt(moveTravel(u))}″ · cost ${fmt(u.movedIn)}/${fmt(max)}″ · final ⅓ ${st?.ok?'✓':'…'}` : `MOVE ${fmt(moveTravel(u))}″ · cost ${fmt(u.movedIn)}/${fmt(max)}″ · ${u.facing}°`;
+  if (u.chargeSucceeded) txt=`CHARGE ✓ ${fmt(moveTravel(u))}″ · ${u.facing}°`;
+  const tx=end.x*PXI+8, ty=end.y*PXI-7;
+  const halo={stroke:'#f0e9d4','stroke-width':3,'paint-order':'stroke','stroke-linejoin':'round'};
+  const t=el('text',{x:tx,y:ty,'font-size':8.6,'font-family':'var(--sans)','font-weight':700,fill:color,opacity:.92,'pointer-events':'none',...halo}); t.textContent=txt; svg.appendChild(t);
+}
 function renderBoard() {
   svg.setAttribute('viewBox', viewBox());
   svg.innerHTML = '';
@@ -1160,6 +1498,7 @@ function renderBoard() {
     for (let i=0; i<=BOARD_W; i+=6) svg.appendChild(el('line', { x1:i*PXI, y1:0, x2:i*PXI, y2:BOARD_H*PXI, stroke:'rgba(45,55,40,.16)', 'stroke-width':i%12?0.6:1.2 }));
     for (let j=0; j<=BOARD_H; j+=6) svg.appendChild(el('line', { x1:0, y1:j*PXI, x2:BOARD_W*PXI, y2:j*PXI, stroke:'rgba(45,55,40,.16)', 'stroke-width':j%12?0.6:1.2 }));
   }
+  for (const u of state.units) renderMoveTrail(u);                  // 7B current-round movement history
   // dotted clash line between engaged enemy pairs (chainmail's engagement cue)
   for (let i = 0; i < state.units.length; i++) for (let j = i + 1; j < state.units.length; j++) {
     const u = state.units[i], v = state.units[j];
@@ -1328,6 +1667,7 @@ function mlModifierText(u) {
   if (lost >= .75) parts.push('75% loss −4'); else if (lost >= .5) parts.push('50% loss −2');
   if (u.formation === 'closed') parts.push('closed +1');
   if (isOOC(u)) parts.push('OOC −2');
+  if (u.chargeFailedThisRound) parts.push('failed charge −3');
   if (state.units.some(v => v.side!==u.side && v.figures>0 && inContact(u,v) && arcOf(u,v)==='rear')) parts.push('enemy rear −2');
   if (profileOf(u).unitType === 'mob' && state.units.some(v => v.side===u.side && v.id!==u.id && v.figures>0 && profileOf(v).unitType==='regular' && arcOf(u,v)==='rear' && rectGap(u,v)<=6)) parts.push('support +2');
   return parts.length ? parts.join(' · ') : '—';
@@ -1400,7 +1740,9 @@ function renderSel() {
 
   const d = state.units.find(x=>x.id===state.targetId);
   const attackText = (() => {
-    if (!d || state.setup) return '—';
+    if (state.setup) return '—';
+    if (curPhase().id==='movement' && u.charging) return `<span style="color:var(--front);font-weight:800">${esc(chargeSummary(u))}</span>`;
+    if (!d) return '—';
     const st = curPhase().id === 'movement' ? chargeState(u,d) : meleeState(u,d);
     const verb = curPhase().id === 'movement' ? 'CHARGE' : 'MELEE';
     return st.ok ? `<span style="color:var(--front);font-weight:800">${verb} READY</span>` : `<span class="muted">${esc(st.reason||'')}</span>`;
@@ -1425,7 +1767,7 @@ function renderSel() {
     ${usCell(4,'DL',disciplineOf(u),'us-stat')}
     ${usCell(20,'WPN / DMG / #AT',`${esc(p.weapon)} · ${esc(damageText(u))} · ${w.numberOfAttacks} AT`)}
     ${usCell(24,'SPECIAL ABILITIES AND LIMITATIONS',u.prof?.specials?`<span class="small">${esc(u.prof.specials)}</span>`:'<span class="small muted">—</span>','us-special')}
-    ${usCell(24,'BATTLE',`<div class="us-battle-grid"><span><b>Formation</b><br>${esc(u.formation)} · front ${Math.min(u.frontage,u.figures)} · ${u.facing}°</span><span><b>Movement</b><br>${fmt(u.movedIn)}″ / ${fmt(movedMax)}″${u.charging?' · charging':''}</span><span><b>Status</b><br>${u.routed?'<span class="amber">ROUTED</span>':u.ralliedThisRound?'rallied [6.3]':isOOC(u)?'<span class="amber">OUT OF COMMAND</span>':'ready / in command'}</span><span><b>Target / Attack</b><br>${d?esc(uName(d)):'—'}${d&&inContact(u,d)?' · in reach':''}<br>${attackText}</span></div>`,'us-battle')}
+    ${usCell(24,'BATTLE',`<div class="us-battle-grid"><span><b>Formation</b><br>${esc(u.formation)} · front ${Math.min(u.frontage,u.figures)} · ${u.facing}°</span><span><b>Movement</b><br>path ${fmt(moveTravel(u))}″ · cost ${fmt(u.movedIn)}″ / ${fmt(movedMax)}″</span><span><b>Status</b><br>${u.routed?'<span class="amber">ROUTED</span>':u.ralliedThisRound?'rallied [6.3]':u.engagedAtMoveStart?'<span class="amber">ENGAGED AT START</span>':u.chargeFailedThisRound?'<span class="amber">FAILED CHARGE −3 ML</span>':isOOC(u)?'<span class="amber">OUT OF COMMAND</span>':'ready / in command'}</span><span><b>Target / Attack</b><br>${u.charging&&u.chargeTargetId?(state.units.find(v=>v.id===u.chargeTargetId)?esc(uName(state.units.find(v=>v.id===u.chargeTargetId))):'—'):(d?esc(uName(d)):'—')}${d&&inContact(u,d)?' · in reach':''}<br>${attackText}</span></div>`,'us-battle')}
   </div>`;
 
   if (state.net.campId) pane.insertAdjacentHTML('beforeend', `<div class="hintline">Player: ${u.controllerName?`${esc(u.controllerName)}${state.net.player&&NET.ownsUnit(u)?' (you)':''}`:'—'}</div>`);
@@ -1436,10 +1778,16 @@ function renderSel() {
 
   const act=document.createElement('div'); act.className='us-actions';
   const mkBtn=(label,fn,dis,cls='')=>{const b=document.createElement('button');b.textContent=label;b.disabled=!!dis;b.className=cls;b.onclick=fn;act.appendChild(b);return b;};
-  mkBtn(u.formation==='closed'?'Open (⅓ MV)':'Close (⅓ MV)',()=>toggleFormation(u),p.unitType==='mob'||state.setup);
-  const face=document.createElement('select'); face.innerHTML='<option value="">Face…</option><option value="obl-left">Oblique L 45°</option><option value="obl-right">Oblique R 45°</option><option value="left">Left face</option><option value="right">Right face</option><option value="about">About face</option>'; face.disabled=state.setup||u.routed; face.onchange=()=>{if(face.value)facingChange(u,face.value);face.value='';}; act.appendChild(face);
+  const lock=movementLockReason(u);
+  mkBtn(u.formation==='closed'?'Open (⅓ MV)':'Close (⅓ MV)',()=>toggleFormation(u),p.unitType==='mob'||state.setup||!!lock);
+  const face=document.createElement('select'); face.innerHTML='<option value="">Face…</option><option value="obl-left">Oblique L 45°</option><option value="obl-right">Oblique R 45°</option><option value="left">Left face</option><option value="right">Right face</option><option value="about">About face</option>'; face.disabled=state.setup||u.routed||!!lock; face.onchange=()=>{if(face.value)facingChange(u,face.value);face.value='';}; act.appendChild(face);
+  if (p.unitType!=='mob') {
+    const wh=document.createElement('select'); wh.innerHTML='<option value="">Wheel…</option><option value="left45">Left 45°</option><option value="right45">Right 45°</option><option value="left90">Left 90°</option><option value="right90">Right 90°</option>'; wh.disabled=state.setup||u.routed||!!lock; wh.onchange=()=>{if(wh.value){const m=wh.value.match(/(left|right)(45|90)/);if(m)wheelUnit(u,m[1],+m[2]);}wh.value='';}; act.appendChild(wh);
+    const fr=document.createElement('select'); fr.innerHTML='<option value="">Frontage…</option><option value="1">Expand +1 (1″)</option><option value="-1">Contract −1 (1″)</option>'; fr.disabled=state.setup||u.routed||!!lock; fr.onchange=()=>{if(fr.value)frontageChange(u,+fr.value);fr.value='';}; act.appendChild(fr);
+  }
   if (p.unitType==='mob') { const ord=document.createElement('select'); ord.innerHTML='<option value="">Order…</option><option value="advance">Advance</option><option value="charge">Charge</option>'; ord.disabled=state.setup||u.routed||curPhase().id!=='rally'||u.orderedThisRound; ord.onchange=()=>{if(ord.value)giveOrder(u,ord.value);ord.value='';}; act.appendChild(ord); }
-  mkBtn(u.charging?'Cancel charge':'Declare charge',()=>{pushUndo('charge');u.charging=!u.charging;renderAll();},state.setup||u.routed||curPhase().id!=='movement');
+  if (u.engagedAtMoveStart && curPhase().id==='movement') { mkBtn('Withdraw 3″',()=>fightingWithdrawal(u),!!u.movementAction); if(p.unitType!=='mob') mkBtn('Wrap around…',()=>wrapAround(u),!!u.movementAction); }
+  const cst=d?chargeState(u,d):{ok:false}; mkBtn(u.charging?'Charge declared':'Declare charge',()=>chargeToTarget(),!cst.ok);
   mkBtn('✎ Edit',()=>{state.editId=u.id;renderAll();});
   if (NET.canAssign()) { const b=mkBtn(u.controllerName?`Player: ${u.controllerName}`:'Assign player…',()=>{}); b.onclick=e=>NET.openAssignMenu(u,e.clientX,e.clientY); }
   mkBtn('Remove',()=>{pushUndo('remove');state.units=state.units.filter(x=>x.id!==u.id);state.selId=null;renderAll();},false,'danger');
@@ -1460,22 +1808,22 @@ function meleeState(a, d) {                                          // lit when
   if (!inContact(a, d)) return { ok:false, reason:`out of melee reach — ${fmt(rectGap(a, d))}″ apart, needs ≤ ${CONTACT_EPS}″ [house: AD&D 1″ engagement]` };
   return { ok:true };
 }
-function chargeState(a, d) {                                         // [7.14]
+function chargeState(a, d) {                                         // [7.14] declaration gate; path legality is checked on contact
   if (state.setup) return { ok:false, reason:'battle not begun' };
   if (curPhase().id !== 'movement') return { ok:false, reason:'charges are declared in the Movement Phase [7.14]' };
   if (!a) return { ok:false, reason:'select one of your units' };
   if (!d || d.side === a.side) return { ok:false, reason:'shift+click an enemy to target it' };
   if (a.routed || a.ralliedThisRound) return { ok:false, reason: a.routed ? 'routed' : 'rallied this round [6.3]' };
-  const gap = rectGap(a, d);
-  if (gap <= CONTACT_EPS) return { ok:false, reason:'already within melee reach' };
-  const t = profileOf(a);
-  const reach = t.mv * 1.5 - a.movedIn;
-  if (gap > reach) return { ok:false, reason:`out of charge reach — ${fmt(gap)}" gap vs ${fmt(reach)}" allowance [7.14]` };
-  // [7.14] minimum: the unit must move at least 2/3 MV before contact. Ruled
-  // 2026-08-18: movement already made this phase counts toward the run-up.
-  const runUp = a.movedIn + Math.max(0, gap - STANDOFF);
-  if (runUp < t.mv * 2 / 3)
-    return { ok:false, reason:`too close to charge — needs a ${fmt(t.mv * 2 / 3)}" run-up before contact, this move totals ${fmt(runUp)}" [7.14]` };
+  if (a.charging) return { ok:false, reason:'charge already declared' };
+  const lock=movementLockReason(a); if (lock) return {ok:false,reason:lock};
+  if (a.movementAction || a.movedIn>0.01 || (a.movePath?.legs?.length||0)) return { ok:false, reason:'declare the charge before any movement action [7.7]/[7.14]' };
+  const t=profileOf(a);
+  if (t.unitType!=='regular' && t.unitType!=='mob') return { ok:false, reason:'skirmish units and individuals cannot charge [7.14]' };
+  if (t.unitType==='regular' && !inCommand(a)) return { ok:false, reason:'out-of-command regular units cannot charge [7.14]' };
+  if (Array.isArray(a.noChargeTargets) && a.noChargeTargets.includes(d.id)) return { ok:false, reason:'cannot charge that unit after declining pursuit this round [7.12]' };
+  const gap=rectGap(a,d);
+  if (gap<=CONTACT_EPS) return { ok:false, reason:'already within melee reach' };
+  if (gap>t.mv*1.5+CONTACT_EPS) return { ok:false, reason:`target is farther than the ${fmt(t.mv*1.5)}″ charge allowance [7.14]` };
   return { ok:true, gap };
 }
 function rallyState(a) {
@@ -1494,18 +1842,11 @@ function syncActions() {
   const set = (id, st) => { const b = $(id); b.disabled = !st.ok; b.title = st.ok ? '' : (st.reason || ''); };
   set('#btn-melee', ms); set('#btn-charge', cs); set('#btn-rally', rs);
 }
-function chargeToTarget() {                                          // declare + close [7.14]
-  const [a, d] = selTarget();
-  const st = chargeState(a, d); if (!st.ok) return;
-  pushUndo('charge');
-  a.charging = true;
-  const delta = contactDelta(a, d);                                  // close to the fighting line
-  const step = Math.max(0, delta.dist - STANDOFF);
-  const sc = delta.dist > 0 ? step / delta.dist : 0;
-  a.x += delta.dx * sc; a.y += delta.dy * sc;
-  a.movedIn += step; a.acted.moved = true;
-  faceUnit(a, nearestFacing(delta.dx, delta.dy));                  // the straight final leg [7.14]
-  log('phase', `⚡ ${esc(uName(a))} CHARGES ${esc(uName(d))}`, `closes ${fmt(step)}" straight in — melee resolves in the Melee Phase [7.14]`);
+function chargeToTarget() {                                          // declare now; movement is performed with path-aware drags [7.14]
+  const [a,d]=selTarget(), st=chargeState(a,d); if (!st.ok) return;
+  pushUndo('declare-charge'); ensureMovePath(a,'charge');
+  a.charging=true; a.chargeTargetId=d.id; a.chargeSucceeded=false; a.movementAction='charge';
+  log('phase',`⚡ ${esc(uName(a))} declares a CHARGE on ${esc(uName(d))}`,`allowance ${fmt(profileOf(a).mv*1.5)}″ · must travel ≥ ${fmt(profileOf(a).mv*2/3)}″ before contact · final ⅓ straight [7.14]`);
   renderAll();
 }
 function renderAll() { renderBoard(); renderRail(); renderSel(); syncActions();
@@ -1522,114 +1863,99 @@ function renderAll() { renderBoard(); renderRail(); renderSel(); syncActions();
 /* --- pointer interaction: select / drag-move / pan / measure ------------- */
 let drag = null, pan = null;
 function boardPt(evt) {
-  const r = svg.getBoundingClientRect();
-  const vb = svg.viewBox.baseVal;
-  return { x: (vb.x + (evt.clientX - r.left) / r.width * vb.width) / PXI,
-           y: (vb.y + (evt.clientY - r.top) / r.height * vb.height) / PXI };
+  const r = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal;
+  return { x:(vb.x+(evt.clientX-r.left)/r.width*vb.width)/PXI, y:(vb.y+(evt.clientY-r.top)/r.height*vb.height)/PXI };
 }
-svg.addEventListener('contextmenu', e => { e.preventDefault(); if (state.place) { state.place = null; svg.style.cursor = 'default'; } });
-svg.addEventListener('mouseleave', () => { if (state.hoverId !== null) { state.hoverId = null; renderBoard(); } });
-svg.addEventListener('mousedown', evt => {
-  const p = boardPt(evt);
-  if (evt.button === 2) { pan = { sx:evt.clientX, sy:evt.clientY, vx:state.view.x, vy:state.view.y }; return; }
-  if (state.measure.on) { state.measure.a = { x:p.x, y:p.y }; state.measure.live = { x:p.x, y:p.y }; state.measure.dragging = true; renderBoard(); return; }
-  if (state.net.spectate) return;                                    // Slice 6: read-only — pan/measure only
-  const g = evt.target.closest('[data-uid]');
-  if (state.place && !g) {                                           // click-to-place muster
-    placeArmed(p.x, p.y, evt.shiftKey); return;
-  }
-  if (g) {
-    const u = state.units.find(x => x.id === +g.dataset.uid);
-    if (evt.shiftKey) {                                              // chainmail grammar: shift+click = target
-      state.targetId = (state.targetId === u.id) ? null : u.id;
-      if (state.targetId === state.selId) state.targetId = null;
-      renderAll(); return;
+function commitDraggedMove(dg) {
+  const u=dg.u, plan=dg.plan||dragPlan(u,dg.start,u.x,u.y,dg.spent0,dg.baseFacing);
+  if (state.setup) { pushUndo('move',dg.pre); return true; }
+  u.facing=plan.heading;
+  let ex=u.x,ey=u.y, hit=firstContactAlongLeg(u,dg.start.x,dg.start.y,ex,ey);
+  if (hit) { ex=hit.x;ey=hit.y; }
+  u.x=ex;u.y=ey;
+  const c0={x:dg.startCenter.x,y:dg.startCenter.y}, cMain=centerPoint(u), mainDist=Math.hypot(cMain.x-c0.x,cMain.y-c0.y);
+  const pending=[];
+  if (plan.turn) pending.push({kind:'turn',from:c0,to:c0,cost:plan.turnCost,travel:0,heading:plan.heading,degrees:angleDelta(plan.heading,dg.baseFacing)});
+  if (mainDist>0.001) pending.push({kind:u.charging?'charge':'move',from:c0,to:{...cMain},cost:mainDist,travel:mainDist,heading:plan.heading});
+  let closure=0, closureLeg=null;
+  if (u.charging && hit && hit.enemy.id===u.chargeTargetId) {
+    const target=hit.enemy, max=profileOf(u).mv*1.5, remaining=Math.max(0,max-dg.spent0-plan.turnCost-mainDist);
+    const press=standoffAlongHeading(u,target,plan.heading,remaining);
+    if (!press) {
+      u.x=dg.start.x;u.y=dg.start.y;u.facing=dg.baseFacing;
+      log('phase',`${esc(uName(u))} cannot press the charge home`,'the declared straight leg only reaches melee range, not the fighting line; aim the charge more directly [7.14]'); renderAll(); return false;
     }
-    state.selId = u.id;
-    if (state.targetId === u.id) state.targetId = null;
-    setDockTab('selected'); renderAll();
-    // Slice 6: player seats drag only OWNED units, always enforce-gated; the GM
-    // drag gate stays advisory as before. drag.pre is the PRE-move snapshot —
-    // the drop's undo entry must restore the start position, not the drop
-    // (the mutation happens live in mousemove, before pushUndo can fire).
-    const mayMove = state.net.player
-      ? (NET.ownsUnit(u) && playerMayMoveNow(u))
-      : (!state.setup ? (curPhase().id === 'movement' && !u.routed && !u.ralliedThisRound && profileOf(u).unitType !== 'mob') : true);
-    if (mayMove) drag = { u, start:{x:u.x, y:u.y}, grab:{ dx:p.x-u.x, dy:p.y-u.y }, spent0: u.movedIn, pre: state.net.player ? null : snap() };
-  } else { state.selId = null; state.editId = null; renderAll(); }
-});
-window.addEventListener('mousemove', evt => {
-  if (!pan && !drag) {                                               // hover reveal (labels feature): re-render only on change
-    const hg = evt.target?.closest?.('[data-uid]');
-    const hid = hg ? +hg.dataset.uid : null;
-    if (hid !== state.hoverId) { state.hoverId = hid; renderBoard(); }
-  }
-  if (pan) {
-    const r = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal;
-    state.view.x = pan.vx - (evt.clientX - pan.sx) / r.width * vb.width;
-    state.view.y = pan.vy - (evt.clientY - pan.sy) / r.height * vb.height;
-    renderBoard(); return;
-  }
-  const p = boardPt(evt);
-  if (state.measure.on && state.measure.dragging) { state.measure.live = { x:p.x, y:p.y }; renderBoard(); return; }
-  if (!drag) return;
-  let nx = p.x - drag.grab.dx, ny = p.y - drag.grab.dy;
-  if (!state.setup) {                                   // live budget clamp [7.7]
-    const budget = moveBudget(drag.u) + (drag.u.movedIn - drag.spent0);
-    const d = Math.hypot(nx - drag.start.x, ny - drag.start.y);
-    if (d > budget) { const s = budget / d; nx = drag.start.x + (nx-drag.start.x)*s; ny = drag.start.y + (ny-drag.start.y)*s; }
-  }
-  drag.u.x = clamp(nx, 0, BOARD_W-1); drag.u.y = clamp(ny, 0, BOARD_H-1);
-  renderBoard();
-});
-window.addEventListener('mouseup', () => {
-  if (pan) { pan = null; return; }
-  if (state.measure.on && state.measure.dragging) {                  // pin the reading; next click starts a new one
-    state.measure.dragging = false;
-    const { a, live } = state.measure;
-    if (a && live && Math.hypot(live.x-a.x, live.y-a.y) < 0.05) state.measure.a = state.measure.live = null;
-    renderBoard(); return;
-  }
-  if (!drag) return;
-  const d = Math.hypot(drag.u.x - drag.start.x, drag.u.y - drag.start.y);
-  if (d > 0.05) {
-    if (state.net.player) {                                          // Slice 6: seat drop → move intent;
-      NET.sendMove(drag.u, drag.start.x, drag.start.y);              //   local position stands as a preview
-      drag = null; renderSel(); return;                              //   until the GM echo reconciles it
+    const before=centerPoint(u);u.x=press.x;u.y=press.y;const after=centerPoint(u);
+    closure=press.distance;
+    if (closure>0.001) { closureLeg={kind:'charge',from:before,to:after,cost:closure,travel:closure,heading:plan.heading};pending.push(closureLeg); }
+    const test=chargeStraightStatusFromLegs([...(u.movePath?.legs||[]),...pending]), total=(u.movePath?.legs||[]).reduce((n,l)=>n+(Number(l.travel)||0),0)+pending.reduce((n,l)=>n+(Number(l.travel)||0),0), min=profileOf(u).mv*2/3;
+    if (total+1e-6<min || !test.ok) {
+      u.x=dg.start.x;u.y=dg.start.y;u.facing=dg.baseFacing;
+      const why=total<min?`needs at least ${fmt(min)}″ before contact; this path would be ${fmt(total)}″`:`the final ⅓ (${fmt(test.required)}″) is not one straight heading`;
+      log('phase',`${esc(uName(u))} charge leg refused`,`${why} [7.14]`); renderAll(); return false;
     }
-    if (!state.setup) {
-      drag.u.movedIn = drag.spent0 + d;
-      drag.u.acted.moved = true;
-      snapToContact(drag.u);                                         // glue a near-miss drop [7.8]
-      // [7.8] stop on contact is naturally enforced by the player; contact log aid:
-      const hit = state.units.find(v => v.side !== drag.u.side && inContact(drag.u, v));
-      if (drag.u.charging && !hit) log('phase', `${esc(uName(drag.u))} charge did not reach`, 'must end within melee reach (1\u2033) or take -3 ML (open/mob) [7.14]');
-      if (hit) log('phase', `${esc(uName(drag.u))} engages ${esc(uName(hit))}`, `moved ${fmt(d)}" \u00b7 within 1\u2033 reach [7.8]`);
-    }
-    pushUndo('move', drag.pre);                                      // FIX: pre-drag snapshot — undo restores the start position
-  } else { drag.u.x = drag.start.x; drag.u.y = drag.start.y; renderBoard(); }
-  drag = null; renderSel();
+  }
+  pushUndo('move',dg.pre);
+  if (!u.movePath || !Array.isArray(u.movePath.legs)) u.movePath={start:null,legs:[],travel:0};
+  if (!u.movePath.start) u.movePath.start={x:c0.x,y:c0.y,facing:dg.baseFacing};
+  if (!u.movementAction) u.movementAction=u.charging?'charge':'move';
+  if (plan.turn) { u.obliqueUsed=true; addMoveLeg(u,'turn',c0,c0,plan.turnCost,plan.heading,{travel:0,degrees:angleDelta(plan.heading,dg.baseFacing)}); }
+  for (const l of pending.filter(l=>l.kind!=='turn')) addMoveLeg(u,l.kind,l.from,l.to,l.cost,l.heading,{travel:l.travel});
+  u.movedIn=dg.spent0+plan.turnCost+mainDist+closure; u.acted.moved=true; if (!u.movementAction) u.movementAction=u.charging?'charge':'move';
+  const finalHit=state.units.find(v=>v.side!==u.side&&v.figures>0&&inContact(u,v));
+  if (finalHit) {
+    u.contactedThisMove=true;
+    if (u.charging) {
+      if (finalHit.id===u.chargeTargetId) {
+        const st=chargePathStatus(u); u.chargeSucceeded=st.runUpOk&&st.ok&&st.costOk;
+        if (u.chargeSucceeded) log('phase',`⚡ ${esc(uName(u))} completes its charge on ${esc(uName(finalHit))}`,`${fmt(st.total)}″ path · final ⅓ straight ✓ [7.14]`);
+      } else failCharge(u,`contacted ${esc(uName(finalHit))} instead of the declared target`);
+    } else log('phase',`${esc(uName(u))} engages ${esc(uName(finalHit))}`,`path ${fmt(mainDist)}″ · movement stops [7.8]`);
+  } else log('phase',`${esc(uName(u))} moves`,`${fmt(mainDist)}″ leg · path ${fmt(moveTravel(u))}″ · cost ${fmt(u.movedIn)}″ · facing ${u.facing}°`);
+  renderAll(); return true;
+}
+svg.addEventListener('contextmenu',e=>{e.preventDefault();if(state.place){state.place=null;svg.style.cursor='default';}});
+svg.addEventListener('mouseleave',()=>{if(state.hoverId!==null){state.hoverId=null;renderBoard();}});
+svg.addEventListener('mousedown',evt=>{
+  const p=boardPt(evt);
+  if(evt.button===2){pan={sx:evt.clientX,sy:evt.clientY,vx:state.view.x,vy:state.view.y};return;}
+  if(state.measure.on){state.measure.a={x:p.x,y:p.y};state.measure.live={x:p.x,y:p.y};state.measure.dragging=true;renderBoard();return;}
+  if(state.net.spectate)return;
+  const g=evt.target.closest('[data-uid]');
+  if(state.place&&!g){placeArmed(p.x,p.y,evt.shiftKey);return;}
+  if(g){
+    const u=state.units.find(x=>x.id===+g.dataset.uid);
+    if(evt.shiftKey){state.targetId=state.targetId===u.id?null:u.id;if(state.targetId===state.selId)state.targetId=null;renderAll();return;}
+    state.selId=u.id;if(state.targetId===u.id)state.targetId=null;setDockTab('selected');renderAll();
+    const lock=!state.setup?movementLockReason(u):'';
+    const mayMove=state.net.player?(NET.ownsUnit(u)&&playerMayMoveNow(u)&&!lock):(!state.setup?(curPhase().id==='movement'&&!u.routed&&!u.ralliedThisRound&&profileOf(u).unitType!=='mob'&&!lock):true);
+    if(mayMove){const c=centerPoint(u);drag={u,start:{x:u.x,y:u.y},startCenter:c,grab:{dx:p.x-u.x,dy:p.y-u.y},spent0:u.movedIn,baseFacing:u.facing,oblique0:u.obliqueUsed,pre:state.net.player?null:snap(),plan:null};}
+    else if(lock&&!state.setup) log('phase',`${esc(uName(u))} cannot be dragged`,lock);
+  }else{state.selId=null;state.editId=null;renderAll();}
 });
-svg.addEventListener('wheel', evt => {
+window.addEventListener('mousemove',evt=>{
+  if(!pan&&!drag){const hg=evt.target?.closest?.('[data-uid]'),hid=hg?+hg.dataset.uid:null;if(hid!==state.hoverId){state.hoverId=hid;renderBoard();}}
+  if(pan){const r=svg.getBoundingClientRect(),vb=svg.viewBox.baseVal;state.view.x=pan.vx-(evt.clientX-pan.sx)/r.width*vb.width;state.view.y=pan.vy-(evt.clientY-pan.sy)/r.height*vb.height;renderBoard();return;}
+  const p=boardPt(evt);if(state.measure.on&&state.measure.dragging){state.measure.live={x:p.x,y:p.y};renderBoard();return;}if(!drag)return;
+  const rx=p.x-drag.grab.dx,ry=p.y-drag.grab.dy;drag.plan=dragPlan(drag.u,drag.start,rx,ry,drag.spent0,drag.baseFacing);
+  drag.u.facing=drag.plan.heading;drag.u.x=clamp(drag.plan.x,0,BOARD_W-1);drag.u.y=clamp(drag.plan.y,0,BOARD_H-1);renderBoard();
+});
+window.addEventListener('mouseup',()=>{
+  if(pan){pan=null;return;}
+  if(state.measure.on&&state.measure.dragging){state.measure.dragging=false;const{a,live}=state.measure;if(a&&live&&Math.hypot(live.x-a.x,live.y-a.y)<.05)state.measure.a=state.measure.live=null;renderBoard();return;}
+  if(!drag)return;const d=Math.hypot(drag.u.x-drag.start.x,drag.u.y-drag.start.y);
+  if(d>.05){
+    if(state.net.player){NET.sendMove(drag.u,drag.start.x,drag.start.y,drag.baseFacing);drag=null;renderSel();return;}
+    commitDraggedMove(drag);
+  }else{drag.u.x=drag.start.x;drag.u.y=drag.start.y;drag.u.facing=drag.baseFacing;renderBoard();}
+  drag=null;renderSel();
+});
+svg.addEventListener('wheel',evt=>{
   evt.preventDefault();
-  // Ctrl+wheel rotates the selected unit one cardinal step (chainmail grammar);
-  // falls through to zoom when nothing is selected.
-  if (evt.ctrlKey && !state.net.spectate && !state.net.player) {     // seats: facing is a GM action — fall through to zoom
-    const u = state.units.find(x => x.id === state.selId);
-    if (u && u.figures > 0 && !u.routed) { wheelFace(u, evt.deltaY > 0 ? 'right' : 'left'); return; }
-  }
-  const k0 = state.view.k;
-  state.view.k = clamp(k0 * (evt.deltaY < 0 ? 1.12 : 0.9), 0.5, 4);
-  const p = boardPt(evt);
-  state.view.x += (p.x*PXI - state.view.x) * (1 - k0/state.view.k);
-  state.view.y += (p.y*PXI - state.view.y) * (1 - k0/state.view.k);
-  renderBoard();
-}, { passive:false });
-window.addEventListener('keydown', evt => {
-  if (state.net.spectate || state.net.player) return;                // Slice 6: seats never mutate
-  if (evt.key === 'Escape' && state.place) { state.place = null; svg.style.cursor = 'default'; return; }
-  if (evt.key === 'Delete' && state.selId) { pushUndo('remove'); state.units = state.units.filter(x=>x.id!==state.selId); state.selId=null; renderAll(); }
-});
+  if(evt.ctrlKey&&!state.net.spectate&&!state.net.player){const u=state.units.find(x=>x.id===state.selId);if(u&&u.figures>0&&!u.routed){wheelFace(u,evt.deltaY>0?'right':'left');return;}}
+  const k0=state.view.k;state.view.k=clamp(k0*(evt.deltaY<0?1.12:.9),.5,4);const p=boardPt(evt);state.view.x+=(p.x*PXI-state.view.x)*(1-k0/state.view.k);state.view.y+=(p.y*PXI-state.view.y)*(1-k0/state.view.k);renderBoard();
+},{passive:false});
+window.addEventListener('keydown',evt=>{if(state.net.spectate||state.net.player)return;if(evt.key==='Escape'&&state.place){state.place=null;svg.style.cursor='default';return;}if(evt.key==='Delete'&&state.selId){pushUndo('remove');state.units=state.units.filter(x=>x.id!==state.selId);state.selId=null;renderAll();}});
 
 /* === I. TOOLBAR / MUSTER WIRING ========================================== */
 $('#btn-save').onclick = saveScenario;
@@ -1711,6 +2037,11 @@ $('#btn-labels').onclick = e => {                                    // cycle: c
   e.target.textContent = ['Labels: off', 'Labels: compact', 'Labels: full'][state.labels];
   e.target.classList.toggle('on', !!state.labels);
   renderBoard();
+};
+$('#btn-trails').onclick = e => {                                  // cycle: selected → all → off
+  state.trails = (state.trails + 1) % 3;                             // 1 → 2 → 0 → 1
+  e.target.textContent = ['Trails: off','Trails: selected','Trails: all'][state.trails];
+  e.target.classList.toggle('on',!!state.trails); renderBoard();
 };
 $('#btn-grid').onclick = e => {                                      // cycle: 6" → 6"+1" → off
   state.grid = (state.grid + 1) % 3;
@@ -1925,23 +2256,23 @@ const NET = (function () {
     };
   }
 
-  async function sendMove(u, ox, oy) {   // player drop → intent doc; the preview stands until the echo
+  async function sendMove(u, ox, oy, ofacing=u.facing) {   // player drop → intent doc; the preview stands until the echo
     if (!db || !user || !state.net.battleId) {
       chip('err', '\u26a0 not connected', 'Sign in and reload the player link');
-      u.x = ox; u.y = oy; renderBoard();
+      u.x = ox; u.y = oy; u.facing=ofacing; renderBoard();
       return;
     }
     try {
       chip('busy', '\u27f3 move sent');
       await cmdsRef().add({
         uid: user.uid, name: me().name, action: 'move',
-        unitId: u.id, to: { x: u.x, y: u.y },
+        unitId: u.id, to: { x: u.x, y: u.y }, facing:u.facing,
         ts: firebase.firestore.FieldValue.serverTimestamp(), build: SIM_VERSION,
       });
       chip('live', '\u2713 sent \u2014 awaiting the GM', 'The GM\u2019s board resolves the move; the echo lands here');
     } catch (e) {
       chip('err', '\u26a0 send failed', e.message);
-      u.x = ox; u.y = oy; renderBoard();
+      u.x = ox; u.y = oy; u.facing=ofacing; renderBoard();
     }
   }
 
@@ -1950,12 +2281,12 @@ const NET = (function () {
     const u = state.units.find(w => w.id === Number(c.unitId));
     if (!u || u.figures <= 0) return { ok: false, why: 'that unit is gone' };
     if (!c.uid || u.controllerUid !== c.uid) return { ok: false, why: `${esc(uName(u))} is not under that player\u2019s control`, u };
-    if (!playerMayMoveNow(u)) {
-      const why = curPhase().id !== 'movement' ? 'it is not the Movement Phase [7.0]'
+    if (!playerMayMoveNow(u) || movementLockReason(u)) {
+      const why = movementLockReason(u) || (curPhase().id !== 'movement' ? 'it is not the Movement Phase [7.0]'
         : u.routed ? `${esc(uName(u))} is routed [6.4]`
         : u.ralliedThisRound ? `${esc(uName(u))} rallied this round \u2014 no move [6.3]`
         : profileOf(u).unitType === 'mob' ? 'mobs move by orders, not drags [2.10]'
-        : `it is ${armyName(state.moverSide)}\u2019s move`;
+        : `it is ${armyName(state.moverSide)}\u2019s move`);
       return { ok: false, why, u };
     }
     const nx = Number(c.to && c.to.x), ny = Number(c.to && c.to.y);
@@ -1973,30 +2304,13 @@ const NET = (function () {
     };
     const v = validateMove(c);
     if (!v.ok) { refuse(v.why); return; }
-    const u = v.u;
-    const pre = snap();                                  // the undo entry restores the pre-move board
-    let nx = v.nx, ny = v.ny;
-    // Replays the exact drop bookkeeping — same clamp the seat's own mousemove
-    // applied live, re-run here because the GM's board is the authority.
-    if (!state.setup) {
-      const budget = moveBudget(u);
-      const d0 = Math.hypot(nx - u.x, ny - u.y);
-      if (d0 > budget) { const sc = Math.max(0, budget) / d0; nx = u.x + (nx - u.x) * sc; ny = u.y + (ny - u.y) * sc; }
-    }
-    nx = clamp(nx, 0, BOARD_W - 1); ny = clamp(ny, 0, BOARD_H - 1);
-    const moved = Math.hypot(nx - u.x, ny - u.y);
-    if (moved <= 0.05) { refuse(`no legal move remained for ${esc(uName(u))}`); return; }
-    pushUndo('net-move:' + u.id, pre);
-    u.x = nx; u.y = ny;
-    if (!state.setup) {
-      u.movedIn += moved; u.acted.moved = true;
-      snapToContact(u);                                              // glue a near-miss drop [7.8]
-      const hit = state.units.find(w => w.side !== u.side && w.figures > 0 && inContact(u, w));
-      if (hit) log('phase', `${esc(uName(u))} engages ${esc(uName(hit))}`, `moved ${fmt(moved)}" \u00b7 within 1\u2033 reach [7.8]`);
-    }
-    log('phase', `Player move \u00b7 ${esc(uName(u))} (${u.side})`,
-      `${who} moves it ${fmt(moved)}"${state.setup ? ' (deployment)' : ` (turn total ${fmt(u.movedIn)}")`}`);
-    renderAll();
+    const u=v.u, pre=snap(), start={x:u.x,y:u.y}, startCenter=centerPoint(u), baseFacing=u.facing, spent0=u.movedIn;
+    const plan=dragPlan(u,start,v.nx,v.ny,spent0,baseFacing);
+    if (plan.distance<=0.05) { refuse(`no legal move remained for ${esc(uName(u))}`); return; }
+    u.x=clamp(plan.x,0,BOARD_W-1); u.y=clamp(plan.y,0,BOARD_H-1); u.facing=plan.heading;
+    const ok=commitDraggedMove({u,start,startCenter,spent0,baseFacing,oblique0:u.obliqueUsed,pre,plan});
+    if (!ok) { refuse('the requested leg was illegal under the movement path rules'); return; }
+    log('phase',`Player move · ${esc(uName(u))} (${u.side})`,`${who} · path ${fmt(moveTravel(u))}″ · cost ${fmt(u.movedIn)}″ · facing ${u.facing}°`);
   }
 
   function startCommandFeed() {
@@ -2425,17 +2739,41 @@ window.addEventListener('mousedown', e => {   // assign menu closes on any outsi
   t('Labels off hides selected/target labels', svg.querySelectorAll('g[data-uid] text[paint-order="stroke"]').length === 0);
   state.labels = 1; state.selId = null; state.targetId = null;
   state.setup = true;
-  // v0.10.0: [7.14] minimum charge run-up + the unit editor
+  // v0.14.0 Slice 7B: path-aware movement + declared charge [7.7]-[7.14]
   const CA = mkUnit('ORC','A',12,10,10), CB2 = mkUnit('MEN_HF','B',12,10,10 + unitRect(mkUnit('ORC','A',12,0,0)).h + 3);
-  state.units = [CA, CB2]; state.setup = false; state.round = 1;
+  state.units = [CA, CB2]; state.setup = false; state.round = 1; state.moverSide = 'A';
   state.phaseIdx = PHASES.findIndex(x => x.id === 'movement');
-  const mv23 = typeById('ORC').mv * 2 / 3;
-  const cs1 = chargeState(CA, CB2);
-  t('[7.14] too-close charge refused with run-up reason', !cs1.ok && /run-up/.test(cs1.reason));
-  CA.movedIn = mv23;                                                 // prior movement counts toward the run-up (ruling)
-  t('[7.14] prior movement completes the run-up', chargeState(CA, CB2).ok === true);
-  CA.movedIn = 0; CB2.y = CA.y + unitRect(CA).h + mv23 + 0.5;
-  t('[7.14] a long approach charges normally', chargeState(CA, CB2).ok === true);
+  const mv23 = profileOf(CA).mv * 2 / 3;
+  markEngagedAtMoveStart('A');
+  t('[7.14] close target may be declared if path can build the run-up', chargeState(CA, CB2).ok === true);
+  CA.movedIn = 1;
+  t('[7.7] charge must be declared before ordinary movement', chargeState(CA, CB2).ok === false && /before movement/i.test(chargeState(CA, CB2).reason));
+  CA.movedIn = 0; CA.acted.moved = false; CA.movementAction = null; CA.movePath = { start:null, legs:[], travel:0 };
+  CB2.y = CA.y + unitRect(CA).h + mv23 + 0.5;
+  t('[7.14] a long approach is declarable inside 1.5× MV', chargeState(CA, CB2).ok === true);
+  const straightOK = chargeStraightStatusFromLegs([
+    { kind:'move', distance:3, heading:0 }, { kind:'move', distance:3, heading:45 }, { kind:'move', distance:3, heading:45 }
+  ]);
+  const straightBad = chargeStraightStatusFromLegs([
+    { kind:'move', distance:4, heading:0 }, { kind:'move', distance:2, heading:45 }, { kind:'move', distance:2, heading:0 }
+  ]);
+  t('[7.14] final one-third straight validator accepts a long straight finish', straightOK.ok === true && Math.abs(straightOK.required - 3) < 1e-9);
+  t('[7.14] final one-third straight validator rejects a late heading change', straightBad.ok === false);
+  const DP = mkUnit('ORC','A',12,20,20); DP.facing = 0; DP.movePath = { start:centerPoint(DP), legs:[], travel:0 };
+  const dplan = dragPlan(DP, centerPoint(DP), { x:centerPoint(DP).x + 5, y:centerPoint(DP).y });
+  t('[7.9] drag legs snap to straight or ±45° headings', Math.abs(angleDelta(DP.facing, dplan.facing)) <= 45 && dplan.distance > 0);
+  const WU = mkUnit('ORC','A',12,25,25); WU.facing = 0; state.units = [WU]; state.moverSide = 'A';
+  const wc = wheelCost(WU, 'right', 45); const wf0 = WU.facing; const wm0 = WU.movedIn;
+  wheelUnit(WU, 'right', 45);
+  t('[7.9] Wheel rotates and spends outer-figure arc movement', wc > 0 && WU.facing === normFacing(wf0 + 45) && WU.movedIn > wm0);
+  const WR = mkUnit('ORC','A',20,0,0); WR.frontage=8;
+  t('[7.11] wrap cost matches the rulebook 8 + (3+3) = 14 diagram', Math.abs(wrapCost(WR,8).total - 14) < 1e-9);
+  const EU = mkUnit('ORC','A',12,30,30), EV = mkUnit('MEN_HF','B',12,30,30 + unitRect(EU).h + 0.5);
+  state.units = [EU, EV]; state.moverSide = 'A'; markEngagedAtMoveStart('A');
+  t('[7.8] engaged-at-start unit is locked to special movement', !!movementLockReason(EU));
+  const fm = BattlesystemMorale.calculateCurrentMorale(unitEngineData(EU), { failedCharge:true });
+  const fm0 = BattlesystemMorale.calculateCurrentMorale(unitEngineData(EU), {});
+  t('[7.14] failed open/mob charge morale penalty reaches engine', fm === fm0 - 3);
   // v0.13.0 Unit Sheet: TSR roster grid + in-place editor + sparse per-unit profile overrides
   state.selId = CA.id; state.editId = null; renderSel();
   t('Unit Sheet renders TSR roster blocks', !!document.querySelector('#sel-pane .unit-sheet') && /UNIT NAME/.test($('#sel-pane').textContent) && /AR MODIFIERS/.test($('#sel-pane').textContent));
