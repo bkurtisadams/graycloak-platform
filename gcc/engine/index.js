@@ -1,4 +1,7 @@
-// @graycloak/battlesystem-engine v0.1.0 - 2026-08-17
+// @graycloak/battlesystem-engine v0.3.0 - 2026-08-20
+// v0.3.0: missiles.js module — MISSILE_WEAPONS + ARTILLERY_WEAPONS [10.9],
+//         missileKey/missileDataFor normalization, rangeBand [10.8]/[10.9].
+//         Fire data migrated out of battlesystem-board.html (v0.24-v0.25).
 // BATTLESYSTEM 1e mass combat rules engine. Pure JS, no host dependencies.
 // Consumers: ars-battlesystem-tab (Foundry), battlesystem-board.html (GCC),
 // Node battle simulations (Emridy Meadows).
@@ -13,6 +16,7 @@ export { BattlesystemMovement } from './src/movement.js';
 export { BattlesystemCreatures } from './src/creatures.js';
 export { BattlesystemCavalry } from './src/cavalry.js';
 export { BattlesystemTerrain } from './src/terrain.js';
+export { MISSILE_WEAPONS, ARTILLERY_WEAPONS, missileKey, missileDataFor, rangeBand } from './src/missiles.js';
 export {
     ratioFromHD,
     creaturesPerFigure,
