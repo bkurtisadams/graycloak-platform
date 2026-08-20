@@ -1,4 +1,20 @@
-// combat.js v3.1.0 - 2026-08-17 — @graycloak/battlesystem-engine
+// combat.js v3.2.1 - 2026-08-19 — @graycloak/battlesystem-engine
+// v3.2.1: PHB verification pass (Kurt, 2026-08-19). 'warhammer' is not a PHB
+//         weapon — the entry is renamed 'hammer' (PHB Hammer 2-5 S/M, 1-4 L) with
+//         'warhammer' retained as an alias so existing actors keep resolving;
+//         'lucernhammer' added (2-8 S/M as 2d4, 1-6 L); 'horsemansmace' added
+//         (1-6 S/M, 1-4 L) — 'mace' remains the footman's (2-7 S/M, 1-6 L).
+//         Confirmed against the PHB: mace footman's, morningstar (2-8/2-7),
+//         trident (2-7/3-12), heavy crossbow (2-5/2-7), and all other pairs.
+// v3.2.0: defineWeapon carries the 1e PHB S/M-vs-Large damage pairs on the
+//         *VsLarge keys that selectWeaponForTargetSize (v3.1.0) already consumes
+//         — the mechanism existed but the table had no data, so usedLargeVariant
+//         never fired for table weapons. S/M bases corrected to PHB where the old
+//         table diverged (RAW): mace 1d6+1 (was 1d6), morningstar 2d4 (was 1d8),
+//         flail footman's 1d6+1 (was 1d8), hammer 1d4+1 (was 1d6 'warhammer'),
+//         crossbow heavy 1d4+1 (was 1d8), trident 1d6+1 (was 1d8). Hobgoblin
+//         morningstar units and saved sims using these weapons WILL see different
+//         damage. 'polearm' stays generic D8 (PHB family — set per type).
 // v3.1.0: Port module v2.7.0 — isLargeTarget/selectWeaponForTargetSize walk every
 //         weapon component and swap S/M to Large dice, modifiers, and dice-count
 //         independently, fixing cavalry rider+mount and mixed natural attacks vs L.
@@ -249,38 +265,46 @@ export class BattlesystemCombat {
      * Returns { damageDice, damageModifier, numberOfDice, numberOfAttacks }
      */
     static defineWeapon(type) {
+        // 1e PHB damage table: S/M base + vs-Large variant on the *VsLarge keys
+        // consumed by selectWeaponForTargetSize. Weapons identical vs L omit the
+        // keys so usedLargeVariant stays false. S/M values corrected to PHB where
+        // they diverged (flagged in v3.2.0 header): mace, morningstar, flail,
+        // warhammer, crossbow, trident. 'polearm' is a PHB family — pick per type.
         const weapons = {
-            'longsword':     { damageDice: 'D8',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
-            'longsword+1':   { damageDice: 'D8',  damageModifier: 1, numberOfDice: 1, numberOfAttacks: 1 },
-            'longsword+2':   { damageDice: 'D8',  damageModifier: 2, numberOfDice: 1, numberOfAttacks: 1 },
-            'longsword+3':   { damageDice: 'D8',  damageModifier: 3, numberOfDice: 1, numberOfAttacks: 1 },
-            'twohanded':     { damageDice: 'D10', damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
-            'twohanded+1':   { damageDice: 'D10', damageModifier: 1, numberOfDice: 1, numberOfAttacks: 1 },
-            'twohanded+2':   { damageDice: 'D10', damageModifier: 2, numberOfDice: 1, numberOfAttacks: 1 },
-            'twohanded+3':   { damageDice: 'D10', damageModifier: 3, numberOfDice: 1, numberOfAttacks: 1 },
-            'shortsword':    { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
-            'dagger':        { damageDice: 'D4',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
+            'longsword':     { damageDice: 'D8',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D12', damageModifierVsLarge: 0, numberOfDiceVsLarge: 1 },
+            'longsword+1':   { damageDice: 'D8',  damageModifier: 1, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D12', damageModifierVsLarge: 1, numberOfDiceVsLarge: 1 },
+            'longsword+2':   { damageDice: 'D8',  damageModifier: 2, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D12', damageModifierVsLarge: 2, numberOfDiceVsLarge: 1 },
+            'longsword+3':   { damageDice: 'D8',  damageModifier: 3, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D12', damageModifierVsLarge: 3, numberOfDiceVsLarge: 1 },
+            'twohanded':     { damageDice: 'D10', damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D6',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 3 },
+            'twohanded+1':   { damageDice: 'D10', damageModifier: 1, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D6',  damageModifierVsLarge: 1, numberOfDiceVsLarge: 3 },
+            'twohanded+2':   { damageDice: 'D10', damageModifier: 2, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D6',  damageModifierVsLarge: 2, numberOfDiceVsLarge: 3 },
+            'twohanded+3':   { damageDice: 'D10', damageModifier: 3, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D6',  damageModifierVsLarge: 3, numberOfDiceVsLarge: 3 },
+            'shortsword':    { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D8',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 1 },
+            'dagger':        { damageDice: 'D4',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D3',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 1 },
             'battleaxe':     { damageDice: 'D8',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
-            'mace':          { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
-            'morningstar':   { damageDice: 'D8',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
-            'flail':         { damageDice: 'D8',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
-            'warhammer':     { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
-            'spear':         { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
-            'pike':          { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
-            'halberd':       { damageDice: 'D10', damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
+            'mace':          { damageDice: 'D6',  damageModifier: 1, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D6',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 1 }, // footman's
+            'horsemansmace': { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D4',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 1 },
+            'morningstar':   { damageDice: 'D4',  damageModifier: 0, numberOfDice: 2, numberOfAttacks: 1, damageDiceVsLarge: 'D6',  damageModifierVsLarge: 1, numberOfDiceVsLarge: 1 },
+            'flail':         { damageDice: 'D6',  damageModifier: 1, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D4',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 2 },
+            'hammer':        { damageDice: 'D4',  damageModifier: 1, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D4',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 1 },
+            'warhammer':     { damageDice: 'D4',  damageModifier: 1, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D4',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 1 }, // alias — PHB weapon is 'Hammer'
+            'lucernhammer':  { damageDice: 'D4',  damageModifier: 0, numberOfDice: 2, numberOfAttacks: 1, damageDiceVsLarge: 'D6',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 1 },
+            'spear':         { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D8',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 1 },
+            'pike':          { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D12', damageModifierVsLarge: 0, numberOfDiceVsLarge: 1 },
+            'halberd':       { damageDice: 'D10', damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D6',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 2 },
             'polearm':       { damageDice: 'D8',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
             'shortbow':      { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 2 },
             'longbow':       { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 2 },
-            'crossbow':      { damageDice: 'D8',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
+            'crossbow':      { damageDice: 'D4',  damageModifier: 1, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D6',  damageModifierVsLarge: 1, numberOfDiceVsLarge: 1 },
             'javelin':       { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
             'sling':         { damageDice: 'D4',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
-            'club':          { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
+            'club':          { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D3',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 1 },
             'greatclub':     { damageDice: 'D10', damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
             'staff':         { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
             'quarterstaff':  { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
-            'handaxe':       { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
+            'handaxe':       { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D4',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 1 },
             'scimitar':      { damageDice: 'D8',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
-            'trident':       { damageDice: 'D8',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
+            'trident':       { damageDice: 'D6',  damageModifier: 1, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D4',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 3 },
             'claw':          { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 2 },
             'bite':          { damageDice: 'D8',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
             'fist':          { damageDice: 'D4',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
