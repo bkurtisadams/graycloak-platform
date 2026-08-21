@@ -1,4 +1,7 @@
-// @graycloak/battlesystem-engine v0.3.0 - 2026-08-20
+// @graycloak/battlesystem-engine v0.4.0 - 2026-08-21
+// v0.4.0: combat.js v3.3.0 — PHB lance damage pairs (light/medium/heavy + 'lance'
+//         alias) for the cavalry slice. BattlesystemCavalry [11.1]-[11.5] and
+//         appendMountDamageComponents were already exported; no API changes.
 // v0.3.0: missiles.js module — MISSILE_WEAPONS + ARTILLERY_WEAPONS [10.9],
 //         missileKey/missileDataFor normalization, rangeBand [10.8]/[10.9].
 //         Fire data migrated out of battlesystem-board.html (v0.24-v0.25).

@@ -1,4 +1,8 @@
-// combat.js v3.2.1 - 2026-08-19 — @graycloak/battlesystem-engine
+// combat.js v3.3.0 - 2026-08-21 — @graycloak/battlesystem-engine
+// v3.3.0: PHB lances for the cavalry slice — light lance 1d6/1d6 (identical vs L,
+//         keys omitted), medium lance 1d6+1 / 2d6 L, heavy lance 1d8+1 / 3d6 L;
+//         'lance' is an alias for the medium horse lance. VERIFY vs the physical
+//         PHB weapon table (values from the 1e PHB lance rows, Kurt to confirm).
 // v3.2.1: PHB verification pass (Kurt, 2026-08-19). 'warhammer' is not a PHB
 //         weapon — the entry is renamed 'hammer' (PHB Hammer 2-5 S/M, 1-4 L) with
 //         'warhammer' retained as an alias so existing actors keep resolving;
@@ -304,6 +308,10 @@ export class BattlesystemCombat {
             'quarterstaff':  { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
             'handaxe':       { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D4',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 1 },
             'scimitar':      { damageDice: 'D8',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
+            'lightlance':    { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
+            'mediumlance':   { damageDice: 'D6',  damageModifier: 1, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D6',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 2 },
+            'lance':         { damageDice: 'D6',  damageModifier: 1, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D6',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 2 }, // alias — medium horse lance
+            'heavylance':    { damageDice: 'D8',  damageModifier: 1, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D6',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 3 },
             'trident':       { damageDice: 'D6',  damageModifier: 1, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D4',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 3 },
             'claw':          { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 2 },
             'bite':          { damageDice: 'D8',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
