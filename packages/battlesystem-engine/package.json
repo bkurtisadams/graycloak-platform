@@ -1,6 +1,6 @@
 {
   "name": "@graycloak/battlesystem-engine",
-  "version": "0.4.0",
+  "version": "0.4.2",
   "description": "BATTLESYSTEM 1e mass combat rules engine \u2014 pure JS, no host dependencies",
   "type": "module",
   "main": "index.js",

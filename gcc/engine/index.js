@@ -1,4 +1,8 @@
-// @graycloak/battlesystem-engine v0.4.0 - 2026-08-21
+// @graycloak/battlesystem-engine v0.4.2 - 2026-08-21
+// v0.4.2: combat.js v3.3.2 — heavy lance S/M ruled 2d4+1 (3-9 as the idiomatic
+//         1e dice combo, superseding v3.3.1's 3d3). No API changes.
+// v0.4.1: combat.js v3.3.1 — lances corrected to the verified PHB table (light
+//         1d6 / 1d8 L; heavy 3d3 / 3d6 L). No API changes.
 // v0.4.0: combat.js v3.3.0 — PHB lance damage pairs (light/medium/heavy + 'lance'
 //         alias) for the cavalry slice. BattlesystemCavalry [11.1]-[11.5] and
 //         appendMountDamageComponents were already exported; no API changes.

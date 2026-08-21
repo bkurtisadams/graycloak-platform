@@ -1,8 +1,13 @@
-// combat.js v3.3.0 - 2026-08-21 — @graycloak/battlesystem-engine
-// v3.3.0: PHB lances for the cavalry slice — light lance 1d6/1d6 (identical vs L,
-//         keys omitted), medium lance 1d6+1 / 2d6 L, heavy lance 1d8+1 / 3d6 L;
-//         'lance' is an alias for the medium horse lance. VERIFY vs the physical
-//         PHB weapon table (values from the 1e PHB lance rows, Kurt to confirm).
+// combat.js v3.3.2 - 2026-08-21 — @graycloak/battlesystem-engine
+// v3.3.2: RULED (Kurt, 2026-08-21): heavy lance S/M is 2d4+1, not 3d3 — the PHB
+//         prints the 3-9 range and 2d4+1 is the idiomatic 1e dice combo (d3s are
+//         rare; cf. morningstar/lucern hammer 2d4). CRT note: this reads TWO D4
+//         columns at the [8.5] +1 shift instead of three D3 columns. 3d6 L stands.
+// v3.3.1: PHB lances VERIFIED against Kurt's physical table (2026-08-21) — two of
+//         the v3.3.0 guesses were wrong: light lance is 1d6 S/M with a 1d8 vs-L
+//         variant (not identical), heavy lance is 3d3 S/M (not 1d8+1) / 3d6 L.
+//         Medium lance 1d6+1 / 2d6 L confirmed; 'lance' alias stays medium.
+// v3.3.0: PHB lances for the cavalry slice; 'lance' aliases the medium horse lance.
 // v3.2.1: PHB verification pass (Kurt, 2026-08-19). 'warhammer' is not a PHB
 //         weapon — the entry is renamed 'hammer' (PHB Hammer 2-5 S/M, 1-4 L) with
 //         'warhammer' retained as an alias so existing actors keep resolving;
@@ -308,10 +313,10 @@ export class BattlesystemCombat {
             'quarterstaff':  { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
             'handaxe':       { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D4',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 1 },
             'scimitar':      { damageDice: 'D8',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
-            'lightlance':    { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
+            'lightlance':    { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D8',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 1 },
             'mediumlance':   { damageDice: 'D6',  damageModifier: 1, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D6',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 2 },
             'lance':         { damageDice: 'D6',  damageModifier: 1, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D6',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 2 }, // alias — medium horse lance
-            'heavylance':    { damageDice: 'D8',  damageModifier: 1, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D6',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 3 },
+            'heavylance':    { damageDice: 'D4',  damageModifier: 1, numberOfDice: 2, numberOfAttacks: 1, damageDiceVsLarge: 'D6',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 3 },
             'trident':       { damageDice: 'D6',  damageModifier: 1, numberOfDice: 1, numberOfAttacks: 1, damageDiceVsLarge: 'D4',  damageModifierVsLarge: 0, numberOfDiceVsLarge: 3 },
             'claw':          { damageDice: 'D6',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 2 },
             'bite':          { damageDice: 'D8',  damageModifier: 0, numberOfDice: 1, numberOfAttacks: 1 },
