@@ -1,5 +1,12 @@
-// cavalry.js v1.1.0 - 2026-08-17
-// v1.1.0: Accept AD&D HD expressions (e.g. 3+3) for rider/mount cavalry
+// cavalry.js v1.2.0 - 2026-08-22
+// v1.2.0: calculateChariotRating [11.3] repairs, ahead of the board slice.
+//         (1) HD now runs through parseHDExpression like cavalry does — MM
+//         warhorses are 2+2/3+3 and previously produced NaN through the whole
+//         rating. (2) pullerMV is the SLOWEST puller, not pullers[0]. (3) dmg
+//         components filter falsy/'0' instead of emitting zero-dice CRT
+//         components. (4) specialAbilities de-duplicated. hdExact exposed
+//         alongside the ceiled hd. Ratio stays Table 1 via ratioFromHD.
+// PRIOR v1.1.0: Accept AD&D HD expressions (e.g. 3+3) for rider/mount cavalry
 //         ratings. Bonus hit points are treated as fractional d8 HD for the
 //         [11.2] average, then the combined cavalry HD is rounded up.
 // Cavalry and Chariot rating [11.1]-[11.5]
@@ -126,34 +133,39 @@ export class BattlesystemCavalry {
         const allAR = [...passengers.map(p => p.ar), ...pullers.map(p => p.ar)];
         const ar = Math.floor(allAR.reduce((s, v) => s + v, 0) / allAR.length);
 
-        // HD: average puller HD + average passenger HD
-        const avgPullerHD = pullers.reduce((s, p) => s + p.hd, 0) / pullers.length;
-        const avgPassengerHD = passengers.reduce((s, p) => s + p.hd, 0) / passengers.length;
-        const hd = Math.ceil(avgPullerHD + avgPassengerHD);
+        // HD: average puller HD + average passenger HD [11.3]
+        const pullerHD = pullers.map(p => this.parseHDExpression(p.hd));
+        const passengerHD = passengers.map(p => this.parseHDExpression(p.hd));
+        const avgPullerHD = pullerHD.reduce((s, v) => s + v, 0) / pullerHD.length;
+        const avgPassengerHD = passengerHD.reduce((s, v) => s + v, 0) / passengerHD.length;
+        const hdExact = avgPullerHD + avgPassengerHD;
+        const hd = Math.ceil(hdExact);
 
         // AC: average all, then -2 bonus
         const allAC = [...passengers.map(p => p.ac), ...pullers.map(p => p.ac)];
         const ac = Math.floor(allAC.reduce((s, v) => s + v, 0) / allAC.length) - 2;
 
         // MV: 2/3 puller MV, or full if pullers have 3x+ total HD of riders
-        const pullerTotalHD = pullers.reduce((s, p) => s + p.hd, 0);
-        const passengerTotalHD = passengers.reduce((s, p) => s + p.hd, 0);
-        const pullerMV = pullers[0]?.mv || 12;
+        const pullerTotalHD = pullerHD.reduce((s, v) => s + v, 0);
+        const passengerTotalHD = passengerHD.reduce((s, v) => s + v, 0);
+        const pullerMVs = pullers.map(p => Number(p.mv)).filter(v => Number.isFinite(v) && v > 0);
+        const pullerMV = pullerMVs.length ? Math.min(...pullerMVs) : 12;   // the team moves at its slowest horse
         const mv = (pullerTotalHD >= passengerTotalHD * 3)
             ? pullerMV
             : Math.floor(pullerMV * 2 / 3);
 
-        // Dmg: sum all
+        // Dmg: sum all — a creature with no attack routine contributes NOTHING,
+        // not a zero-dice CRT component [11.5]
         const allDmg = [
-            ...pullers.map(p => p.dmg || '0'),
-            ...passengers.map(p => p.dmg || '0')
-        ];
+            ...pullers.map(p => p.dmg),
+            ...passengers.map(p => p.dmg)
+        ].filter(d => d && String(d).trim() !== '' && String(d).trim() !== '0');
 
-        // SA: union of all
-        const sa = [
+        // SA: union of all, de-duplicated
+        const sa = [...new Set([
             ...pullers.flatMap(p => p.specialAbilities || []),
             ...passengers.flatMap(p => p.specialAbilities || [])
-        ];
+        ])];
 
         // SD: intersection of ALL creatures (every creature must have it)
         const allCreatures = [...passengers, ...pullers];
@@ -165,6 +177,7 @@ export class BattlesystemCavalry {
         return {
             ar,
             hd,
+            hdExact,
             ac,
             mv,
             pullerMV,
