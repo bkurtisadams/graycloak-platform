@@ -184,6 +184,10 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .session-sec-content.ip-right{grid-template-columns:minmax(0,1fr) minmax(0,40%)}
 .session-sec-content.ip-right .session-sec-text{grid-column:1}.session-sec-content.ip-right .session-sec-images{grid-column:2}
 .session-sec-images{display:flex;flex-wrap:wrap;gap:6px;align-content:start;margin:0}
+/* Side placement already constrains the image rail to 40% of the section.
+   Do not apply the per-image fractional width a second time inside that rail. */
+.session-sec-content.ip-left .session-sec-images,.session-sec-content.ip-right .session-sec-images{width:100%}
+.session-sec-content.ip-left .session-sec-img-wrap,.session-sec-content.ip-right .session-sec-img-wrap{flex:0 0 100%}
 .session-sec-img-wrap{min-width:0;margin:0;text-align:center}
 .session-sec-img-wrap.w-full{flex:0 1 100%}
 .session-sec-img-wrap.w-half{flex:0 1 calc(50% - 3px)}
