@@ -162,7 +162,6 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .session-read-row{display:flex;justify-content:flex-end;align-items:center;margin-top:auto;padding-top:10px}
 .session-read-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:5px 12px;border:1px solid var(--accent-dim);border-radius:3px;background:rgba(96,160,208,.08);color:var(--accent);font-family:var(--fb);font-size:10px;font-weight:700;letter-spacing:.35px;text-decoration:none;transition:all .12s}
 .session-read-btn:hover{background:rgba(96,160,208,.16);border-color:var(--accent);color:var(--accent-lt)}
-.session-full-content{display:none}
 /* ── Roster strip ── */
 .session-roster{display:flex;gap:4px;flex-wrap:wrap;padding:4px 14px 6px;border-top:1px solid var(--brd);background:var(--bg2)}
 .session-roster-label{font-family:var(--fsc);font-size:8px;color:var(--tx3);letter-spacing:1px;margin-right:4px;align-self:center}
@@ -214,7 +213,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .gcc-dlg.wide-xl{max-width:900px}
 .sm-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:14px;align-items:start}
 .sm-main{min-width:0}
-.sm-rail{min-width:0;border-left:1px solid var(--brd);padding-left:12px}
+.sm-rail{min-width:0;border-left:1px solid var(--brd);padding-left:12px;position:sticky;top:0;align-self:start;max-height:calc(88vh - 150px);overflow-y:auto}
 .sm-rail .gcc-dlg-label{margin-top:0}
 .sm-block{margin-bottom:10px}
 .sm-block:last-child{margin-bottom:0}
@@ -248,7 +247,12 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .sm-img-card{width:92px}
 .sm-img-card .gcc-dlg-sec-img-thumb{width:62px;margin:0 auto}
 .sm-img-cap{width:100%;margin:3px 0 0;padding:2px 4px;font-size:9px}
-@media(max-width:760px){.sm-grid{grid-template-columns:1fr;gap:10px}.sm-rail{border-left:none;padding-left:0;border-top:1px solid var(--brd);padding-top:10px}}
+.sm-w-row{display:flex;justify-content:center;gap:2px;margin-top:3px}
+.sm-w-btn{background:none;border:1px solid var(--brd);border-radius:2px;color:var(--tx3);cursor:pointer;font-family:var(--fb);font-size:9px;line-height:1;padding:2px 3px;min-width:16px}
+.sm-w-btn:hover{border-color:var(--accent-dim);color:var(--tx2)}
+.sm-w-btn.on{border-color:var(--accent);color:var(--accent);background:rgba(96,160,208,0.08)}
+.sm-sec-thumb{width:22px;height:16px;object-fit:cover;border-radius:2px;border:1px solid var(--brd);flex-shrink:0;cursor:pointer;display:block}
+@media(max-width:760px){.sm-grid{grid-template-columns:1fr;gap:10px}.sm-rail{border-left:none;padding-left:0;border-top:1px solid var(--brd);padding-top:10px;position:static;max-height:none;overflow:visible}}
 .session-vis{font-size:9px;color:var(--tx3);display:flex;align-items:center;gap:3px}
 .session-actions{display:flex;gap:6px;opacity:0;transition:opacity .1s}
 .session-card:hover .session-actions{opacity:1}
@@ -687,35 +691,6 @@ function buildSessionCard(s,idx,total,camp,imgMap){
     recapHtml=`<div class="session-recap-noimg"><div class="session-recap-text">${dateStackHtml}${summaryHtml}${readButtonHtml}</div></div>`;
   }
 
-  // ── Sections: title + multi-image + text ──
-  let sectionsHtml='';
-  if(s.sections&&s.sections.length){
-    sectionsHtml='<div class="session-sections">';
-    s.sections.forEach(sec=>{
-      migrateSectionLayout(sec);
-      sectionsHtml+='<div class="session-sec-block">';
-      if(sec.title)sectionsHtml+=`<div class="session-section-title">${ESC(sec.title)}</div>`;
-      const imgs=sec.images||[];
-      const fit=secFit(sec);
-      let imagesHtml='';
-      if(imgs.length){
-        imagesHtml='<div class="session-sec-images">';
-        imgs.forEach(img=>{
-          const src=resolveImg(img.src,imgMap);
-          if(!src)return;
-          imagesHtml+=`<div class="session-sec-img-wrap w-${imgWidth(img)}"><img class="session-sec-img fit-${fit}" src="${src}" alt="">`;
-          if(img.caption)imagesHtml+=`<span class="sec-img-caption">${ESC(img.caption)}</span>`;
-          imagesHtml+='</div>';
-        });
-        imagesHtml+='</div>';
-      }
-      const textHtml=sec.text?`<div class="session-section-text">${ESC(sec.text)}</div>`:'';
-      sectionsHtml+=`<div class="session-sec-content ip-${secPos(sec)}">${imagesHtml}${textHtml}</div>`;
-      sectionsHtml+='</div>';
-    });
-    sectionsHtml+='</div>';
-  }
-
   // ── Character roster strip ──
   let rosterHtml='';
   if(s.roster&&s.roster.length){
@@ -752,7 +727,6 @@ function buildSessionCard(s,idx,total,camp,imgMap){
     </div></div>
     ${recapHtml}
     ${rosterHtml}
-    <div class="session-full-content">${sectionsHtml}</div>
     <div class="session-footer">${tagsHtml}${xpHtml}${visHtml}</div>
   </li>`;
 }
@@ -928,7 +902,6 @@ function collectImageKeys(camp){
   if(camp.hqImage&&GCCImages.isKey(camp.hqImage))keys.push(camp.hqImage);
   (camp.sessions||[]).forEach(s=>{
     if(s.image&&GCCImages.isKey(s.image))keys.push(s.image);
-    (s.sections||[]).forEach(sec=>{(sec.images||[]).forEach(img=>{if(img.src&&GCCImages.isKey(img.src))keys.push(img.src)})});
   });
   (camp.lore||[]).forEach(l=>{if(l.image&&GCCImages.isKey(l.image))keys.push(l.image)});
   return keys;
@@ -1740,25 +1713,31 @@ let sesEditIdx=-1,sesImageData='',sesSections=[],sesTags=[],sesRoster=[];
 let sesDirty=false,sesClosing=false;
 let sesOpenSec=-1; // accordion: index of the expanded section
 
+function buildSectionRow(sec,i){
+    migrateSectionLayout(sec);
+    const imgs=sec.images||[];
+    const open=sesOpenSec===i;
+    const pos=secPos(sec),fit=secFit(sec);
+    const showWidth=pos==='above'||pos==='below';
+    let imgTrayHtml='<div class="sm-img-tray">';
+    imgs.forEach((img,j)=>{
+      const wRow=showWidth?`<div class="sm-w-row">${IMG_WIDTHS.map(w=>`<button class="sm-w-btn${imgWidth(img)===w?' on':''}" data-sec-img-w="${i}-${j}-${w}" title="${w} width">${IMG_WIDTH_LABELS[w]}</button>`).join('')}</div>`:'';
+      imgTrayHtml+=`<div class="sm-img-card"><div class="gcc-dlg-sec-img-thumb"><img src="${img.src}"><button class="thumb-remove" data-sec-img-rm="${i}-${j}">✕</button></div>${wRow}<input class="gcc-dlg-input sm-img-cap" placeholder="Caption" value="${ESC(img.caption||'')}" data-sec-img-cap="${i}-${j}"></div>`;
+    });
+    imgTrayHtml+=`<button class="gcc-dlg-img-btn" data-sec-img-add="${i}" style="font-size:9px;padding:2px 6px;align-self:center">+ Image</button><input type="file" data-sec-img-file="${i}" accept="image/*" style="display:none" multiple></div>`;
+    const POS_LABELS={above:'Above text',below:'Below text',left:'Left of text',right:'Right of text'};
+    const placeHtml=imgs.length?`<div class="sm-place-row"><span class="sm-place-lbl">IMAGES</span>${SEC_POS.map(p=>`<button class="sm-place-btn${pos===p?' on':''}" data-sec-pos="${i}-${p}">${POS_LABELS[p]}</button>`).join('')}<button class="sm-place-btn fit${fit==='cover'?' on':''}" data-sec-fit-toggle="${i}" title="Crop images to a uniform tile instead of showing them whole">${fit==='cover'?'Cropped':'Whole'}</button></div>`:'';
+    const nameTxt=(sec.title||'').trim();
+    const hdrThumb=imgs.length&&imgs[0].src?`<img class="sm-sec-thumb" src="${imgs[0].src}" alt="" data-sec-toggle="${i}">`:'';
+    const bodyHtml=open?`<div class="sm-sec-body"><input class="gcc-dlg-input" placeholder="Section title" value="${ESC(sec.title)}" data-sec-title="${i}"><textarea class="gcc-dlg-ta" placeholder="Section text..." data-sec-text="${i}">${ESC(sec.text)}</textarea>${placeHtml}${imgTrayHtml}</div>`:'';
+    return`<div class="sm-sec${open?' open':''}" data-sec-idx="${i}" draggable="true"><div class="sm-sec-hdr"><span class="sm-sec-grip" title="Drag to reorder">⠿</span><button class="sm-sec-caret" data-sec-toggle="${i}">${open?'▾':'▸'}</button>${hdrThumb}<span class="sm-sec-name${nameTxt?'':' untitled'}" data-sec-toggle="${i}">${nameTxt?ESC(nameTxt):'Untitled section'}</span>${imgs.length?`<span class="sm-sec-meta">${imgs.length} img · ${POS_LABELS[pos].split(' ')[0].toLowerCase()}</span>`:''}<button class="sm-sec-del" data-sec-remove="${i}" title="Remove section">✕</button></div>${bodyHtml}</div>`;
+}
+
 function buildSessionModalBody(camp,isTimeline){
   const xpLbl=GCC.xpLabel(camp.system);
   const imgPreview=sesImageData?`<img class="gcc-dlg-img-preview" src="${sesImageData}">`:(sesImageData===null&&_sesImageOrigKey?`<div style="font-size:11px;color:var(--red);padding:6px 0">⚠ Saved cover image couldn't be loaded. Upload again to replace it; saving keeps the existing reference.</div>`:'');
   let sectionsHtml='';
-  if(!isTimeline){sectionsHtml=`<label class="gcc-dlg-label">SECTIONS (optional — for structured recaps)</label><div class="gcc-dlg-sections" id="sm-sections">${sesSections.map((sec,i)=>{
-    migrateSectionLayout(sec);
-    const imgs=sec.images||[];
-    const open=sesOpenSec===i;
-    let imgTrayHtml='<div class="sm-img-tray">';
-    imgs.forEach((img,j)=>{
-      imgTrayHtml+=`<div class="sm-img-card"><div class="gcc-dlg-sec-img-thumb"><img src="${img.src}"><button class="thumb-remove" data-sec-img-rm="${i}-${j}">✕</button><button class="thumb-size" data-sec-img-w="${i}-${j}" title="Width: quarter / third / half / full">${IMG_WIDTH_LABELS[imgWidth(img)]}</button></div><input class="gcc-dlg-input sm-img-cap" placeholder="Caption" value="${ESC(img.caption||'')}" data-sec-img-cap="${i}-${j}"></div>`;
-    });
-    imgTrayHtml+=`<button class="gcc-dlg-img-btn" data-sec-img-add="${i}" style="font-size:9px;padding:2px 6px;align-self:center">+ Image</button><input type="file" data-sec-img-file="${i}" accept="image/*" style="display:none" multiple></div>`;
-    const pos=secPos(sec),fit=secFit(sec);
-    const POS_LABELS={above:'Above text',below:'Below text',left:'Left of text',right:'Right of text'};
-    const placeHtml=imgs.length?`<div class="sm-place-row"><span class="sm-place-lbl">IMAGES</span>${SEC_POS.map(p=>`<button class="sm-place-btn${pos===p?' on':''}" data-sec-pos="${i}-${p}">${POS_LABELS[p]}</button>`).join('')}<button class="sm-place-btn fit${fit==='cover'?' on':''}" data-sec-fit-toggle="${i}" title="Crop images to a uniform tile instead of showing them whole">${fit==='cover'?'Cropped':'Whole'}</button></div>`:'';
-    const nameTxt=(sec.title||'').trim();
-    const bodyHtml=open?`<div class="sm-sec-body"><input class="gcc-dlg-input" placeholder="Section title" value="${ESC(sec.title)}" data-sec-title="${i}"><textarea class="gcc-dlg-ta" placeholder="Section text..." data-sec-text="${i}">${ESC(sec.text)}</textarea>${placeHtml}${imgTrayHtml}</div>`:'';
-    return`<div class="sm-sec${open?' open':''}" data-sec-idx="${i}" draggable="true"><div class="sm-sec-hdr"><span class="sm-sec-grip" title="Drag to reorder">⠿</span><button class="sm-sec-caret" data-sec-toggle="${i}">${open?'▾':'▸'}</button><span class="sm-sec-name${nameTxt?'':' untitled'}" data-sec-toggle="${i}">${nameTxt?ESC(nameTxt):'Untitled section'}</span>${imgs.length?`<span class="sm-sec-meta">${imgs.length} img · ${POS_LABELS[pos].split(' ')[0].toLowerCase()}</span>`:''}<button class="sm-sec-del" data-sec-remove="${i}" title="Remove section">✕</button></div>${bodyHtml}</div>`}).join('')}</div><button class="gcc-dlg-sec-add" id="sm-add-section">+ Add Section</button>`}
+  if(!isTimeline){sectionsHtml=`<label class="gcc-dlg-label">SECTIONS (optional — for structured recaps)</label><div class="gcc-dlg-sections" id="sm-sections">${sesSections.map((sec,i)=>buildSectionRow(sec,i)).join('')}</div><button class="gcc-dlg-sec-add" id="sm-add-section">+ Add Section</button>`}
   // Character participation checklist
   const chars=camp.characters||[];
   let charCheckHtml='';
@@ -1807,8 +1786,60 @@ function restoreSessionFields(vals){if(!vals)return;const f=(id,v)=>{const el=do
   f('sm-date',vals.date);f('sm-gamedate',vals.gameDate);f('sm-title',vals.title);f('sm-text',vals.text);f('sm-xp',vals.xp);g('sm-position',vals.position);g('sm-tag-input',vals.tagDraft);const vis=document.getElementById('sm-visible');if(vis)vis.checked=vals.visible!==false}
 function captureSessionSections(){document.querySelectorAll('[data-sec-title]').forEach(el=>{const i=parseInt(el.dataset.secTitle);if(sesSections[i])sesSections[i].title=el.value});document.querySelectorAll('[data-sec-text]').forEach(el=>{const i=parseInt(el.dataset.secText);if(sesSections[i])sesSections[i].text=el.value});document.querySelectorAll('[data-sec-img-cap]').forEach(el=>{const[si,ii]=el.dataset.secImgCap.split('-').map(Number);if(sesSections[si]&&sesSections[si].images&&sesSections[si].images[ii])sesSections[si].images[ii].caption=el.value})}
 
-// Every structural edit (add image, cycle size, add/remove section or tag) rebuilds
-// the whole body, so scroll/focus/caret have to be carried across by hand.
+// Section-scoped edits (image add/remove/width, placement, fit) replace one row.
+// List-shape edits (add/remove/reorder/toggle) still rebuild the whole body.
+let secDrag=null;
+function wireSectionRow(item,camp,isTimeline){
+  const i=parseInt(item.dataset.secIdx);
+  item.querySelectorAll('[data-sec-toggle]').forEach(el=>{el.addEventListener('click',()=>{const n=parseInt(el.dataset.secToggle);sesOpenSec=sesOpenSec===n?-1:n;refreshModalBody(camp,isTimeline)})});
+  item.querySelectorAll('[data-sec-remove]').forEach(btn=>{btn.addEventListener('click',()=>{captureSessionSections();const n=parseInt(btn.dataset.secRemove);sesSections.splice(n,1);
+    if(sesOpenSec===n){sesOpenSec=-1}else if(sesOpenSec>n){sesOpenSec--}
+    refreshModalBody(camp,isTimeline)})});
+  item.addEventListener('dragstart',e=>{
+    if(!e.target.closest('.sm-sec-grip')){e.preventDefault();return}
+    secDrag=i;item.classList.add('dragging');
+    e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',secDrag);
+  });
+  item.addEventListener('dragend',()=>{secDrag=null;item.classList.remove('dragging');
+    document.querySelectorAll('.sm-sec.drag-over').forEach(c=>c.classList.remove('drag-over'))});
+  item.addEventListener('dragover',e=>{if(secDrag===null)return;e.preventDefault();e.dataTransfer.dropEffect='move';
+    document.querySelectorAll('.sm-sec.drag-over').forEach(c=>c.classList.remove('drag-over'));item.classList.add('drag-over')});
+  item.addEventListener('dragleave',()=>item.classList.remove('drag-over'));
+  item.addEventListener('drop',e=>{e.preventDefault();item.classList.remove('drag-over');
+    const to=parseInt(item.dataset.secIdx);if(secDrag===null||secDrag===to)return;
+    captureSessionSections();
+    const wasOpen=sesOpenSec;
+    const moved=sesSections.splice(secDrag,1)[0];sesSections.splice(to,0,moved);
+    if(wasOpen===secDrag)sesOpenSec=to;
+    else if(wasOpen>=0){let n=wasOpen;if(secDrag<n)n--;if(to<=n)n++;sesOpenSec=n}
+    secDrag=null;refreshModalBody(camp,isTimeline)});
+  item.querySelectorAll('[data-sec-img-add]').forEach(btn=>{btn.addEventListener('click',()=>{const fi=item.querySelector(`[data-sec-img-file="${btn.dataset.secImgAdd}"]`);if(fi)fi.click()})});
+  item.querySelectorAll('[data-sec-img-file]').forEach(fi=>{fi.addEventListener('change',e=>{const files=Array.from(e.target.files);if(!files.length)return;const idx=parseInt(fi.dataset.secImgFile);captureSessionSections();let loaded=0;files.forEach(file=>{const reader=new FileReader();reader.onload=ev=>{if(sesSections[idx]){if(!sesSections[idx].images)sesSections[idx].images=[];sesSections[idx].images.push({src:ev.target.result,size:'md',pos:'right',caption:''})}loaded++;if(loaded===files.length)refreshSection(idx,camp,isTimeline)};reader.readAsDataURL(file)})})});
+  item.querySelectorAll('[data-sec-img-rm]').forEach(btn=>{btn.addEventListener('click',()=>{const[si,ii]=btn.dataset.secImgRm.split('-').map(Number);captureSessionSections();if(sesSections[si]&&sesSections[si].images)sesSections[si].images.splice(ii,1);refreshSection(si,camp,isTimeline)})});
+  item.querySelectorAll('[data-sec-pos]').forEach(btn=>{btn.addEventListener('click',()=>{const[si,p]=btn.dataset.secPos.split('-');captureSessionSections();if(sesSections[si])sesSections[si].imagePos=p;refreshSection(Number(si),camp,isTimeline)})});
+  item.querySelectorAll('[data-sec-fit-toggle]').forEach(btn=>{btn.addEventListener('click',()=>{const n=parseInt(btn.dataset.secFitToggle);captureSessionSections();if(sesSections[n])sesSections[n].fit=secFit(sesSections[n])==='cover'?'contain':'cover';refreshSection(n,camp,isTimeline)})});
+  item.querySelectorAll('[data-sec-img-w]').forEach(btn=>{btn.addEventListener('click',()=>{const parts=btn.dataset.secImgW.split('-');const si=Number(parts[0]),ii=Number(parts[1]),w=parts[2];captureSessionSections();const img=sesSections[si]&&sesSections[si].images&&sesSections[si].images[ii];if(img&&IMG_WIDTHS.includes(w))img.width=w;refreshSection(si,camp,isTimeline)})});
+}
+function refreshSection(i,camp,isTimeline){
+  const el=document.querySelector(`.sm-sec[data-sec-idx="${i}"]`);
+  if(!el||!sesSections[i]){refreshModalBody(camp,isTimeline);return}
+  captureSessionSections();
+  const tmp=document.createElement('div');
+  tmp.innerHTML=buildSectionRow(sesSections[i],i);
+  const next=tmp.firstElementChild;
+  if(!next){refreshModalBody(camp,isTimeline);return}
+  const act=document.activeElement;
+  const sel=act&&el.contains(act)?fieldSelector(act):'';
+  const caret=act&&typeof act.selectionStart==='number'?act.selectionStart:null;
+  el.replaceWith(next);
+  wireSectionRow(next,camp,isTimeline);
+  if(sel){const f=next.querySelector(sel);if(f&&f.focus){f.focus();
+    if(caret!=null&&typeof f.selectionStart==='number'){try{f.setSelectionRange(caret,caret)}catch(e){}}}}
+  sesDirty=true;
+}
+
+// Structural edits outside a single section (add/remove/reorder, tags, cover, roster)
+// still rebuild the whole body, so scroll/focus/caret have to be carried across by hand.
 function fieldSelector(el){
   if(!el)return'';
   if(el.id)return'#'+CSS.escape(el.id);
@@ -1881,43 +1912,7 @@ function wireSessionModalEvents(camp,isTimeline){
   document.getElementById('sm-img-paste')?.addEventListener('click',async()=>{try{const items=await navigator.clipboard.read();for(const item of items){const imgType=item.types.find(t=>t.startsWith('image/'));if(imgType){const blob=await item.getType(imgType);const reader=new FileReader();reader.onload=ev=>{sesImageData=ev.target.result;refreshModalBody(camp,isTimeline)};reader.readAsDataURL(blob);return}}}catch(e){console.warn('Clipboard paste failed:',e)}});
   document.getElementById('sm-img-clear')?.addEventListener('click',()=>{sesImageData='';refreshModalBody(camp,isTimeline)});
   if(!isTimeline){document.getElementById('sm-add-section')?.addEventListener('click',()=>{captureSessionSections();sesSections.push({title:'',text:'',images:[],imagePos:'below',fit:'contain'});sesOpenSec=sesSections.length-1;refreshModalBody(camp,isTimeline)});
-    document.querySelectorAll('[data-sec-toggle]').forEach(el=>{el.addEventListener('click',()=>{const i=parseInt(el.dataset.secToggle);sesOpenSec=sesOpenSec===i?-1:i;refreshModalBody(camp,isTimeline)})});
-    document.querySelectorAll('[data-sec-remove]').forEach(btn=>{btn.addEventListener('click',()=>{captureSessionSections();const i=parseInt(btn.dataset.secRemove);sesSections.splice(i,1);
-      if(sesOpenSec===i){sesOpenSec=-1}else if(sesOpenSec>i){sesOpenSec--}
-      refreshModalBody(camp,isTimeline)})});
-    // Drag-to-reorder sections (grip only, mirrors the session card list)
-    let secDrag=null;
-    document.querySelectorAll('.sm-sec[draggable]').forEach(item=>{
-      item.addEventListener('dragstart',e=>{
-        if(!e.target.closest('.sm-sec-grip')){e.preventDefault();return}
-        secDrag=parseInt(item.dataset.secIdx);item.classList.add('dragging');
-        e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',secDrag);
-      });
-      item.addEventListener('dragend',()=>{secDrag=null;item.classList.remove('dragging');
-        document.querySelectorAll('.sm-sec.drag-over').forEach(c=>c.classList.remove('drag-over'))});
-      item.addEventListener('dragover',e=>{if(secDrag===null)return;e.preventDefault();e.dataTransfer.dropEffect='move';
-        document.querySelectorAll('.sm-sec.drag-over').forEach(c=>c.classList.remove('drag-over'));item.classList.add('drag-over')});
-      item.addEventListener('dragleave',()=>item.classList.remove('drag-over'));
-      item.addEventListener('drop',e=>{e.preventDefault();item.classList.remove('drag-over');
-        const to=parseInt(item.dataset.secIdx);if(secDrag===null||secDrag===to)return;
-        captureSessionSections();
-        const wasOpen=sesOpenSec;
-        const moved=sesSections.splice(secDrag,1)[0];sesSections.splice(to,0,moved);
-        // Keep the expanded section expanded through the move
-        if(wasOpen===secDrag)sesOpenSec=to;
-        else if(wasOpen>=0){let n=wasOpen;if(secDrag<n)n--;if(to<=n)n++;sesOpenSec=n}
-        secDrag=null;refreshModalBody(camp,isTimeline)});
-    });
-    // Multi-image: add images to section
-    document.querySelectorAll('[data-sec-img-add]').forEach(btn=>{btn.addEventListener('click',()=>{const fi=document.querySelector(`[data-sec-img-file="${btn.dataset.secImgAdd}"]`);if(fi)fi.click()})});
-    document.querySelectorAll('[data-sec-img-file]').forEach(fi=>{fi.addEventListener('change',e=>{const files=Array.from(e.target.files);if(!files.length)return;const idx=parseInt(fi.dataset.secImgFile);captureSessionSections();let loaded=0;files.forEach(file=>{const reader=new FileReader();reader.onload=ev=>{if(sesSections[idx]){if(!sesSections[idx].images)sesSections[idx].images=[];sesSections[idx].images.push({src:ev.target.result,size:'md',pos:'right',caption:''})}loaded++;if(loaded===files.length)refreshModalBody(camp,isTimeline)};reader.readAsDataURL(file)})})});
-    // Multi-image: remove individual image
-    document.querySelectorAll('[data-sec-img-rm]').forEach(btn=>{btn.addEventListener('click',()=>{const[si,ii]=btn.dataset.secImgRm.split('-').map(Number);captureSessionSections();if(sesSections[si]&&sesSections[si].images)sesSections[si].images.splice(ii,1);refreshModalBody(camp,isTimeline)})});
-    // Multi-image: cycle size
-    document.querySelectorAll('[data-sec-pos]').forEach(btn=>{btn.addEventListener('click',()=>{const[si,p]=btn.dataset.secPos.split('-');captureSessionSections();if(sesSections[si])sesSections[si].imagePos=p;refreshModalBody(camp,isTimeline)})});
-    document.querySelectorAll('[data-sec-fit-toggle]').forEach(btn=>{btn.addEventListener('click',()=>{const i=parseInt(btn.dataset.secFitToggle);captureSessionSections();if(sesSections[i])sesSections[i].fit=secFit(sesSections[i])==='cover'?'contain':'cover';refreshModalBody(camp,isTimeline)})});
-    document.querySelectorAll('[data-sec-img-w]').forEach(btn=>{btn.addEventListener('click',()=>{const[si,ii]=btn.dataset.secImgW.split('-').map(Number);captureSessionSections();const img=sesSections[si]&&sesSections[si].images&&sesSections[si].images[ii];if(img)img.width=IMG_WIDTHS[(IMG_WIDTHS.indexOf(imgWidth(img))+1)%IMG_WIDTHS.length];refreshModalBody(camp,isTimeline)})});
-    // Multi-image: cycle position
+    document.querySelectorAll('.sm-sec[data-sec-idx]').forEach(el=>wireSectionRow(el,camp,isTimeline));
   }
   document.getElementById('sm-roster-all')?.addEventListener('click',()=>{sesDirty=true;sesRoster=[...document.querySelectorAll('[data-roster-id]')].map(cb=>cb.dataset.rosterId);refreshModalBody(camp,isTimeline)});
   document.getElementById('sm-roster-none')?.addEventListener('click',()=>{sesDirty=true;sesRoster=[];refreshModalBody(camp,isTimeline)});
