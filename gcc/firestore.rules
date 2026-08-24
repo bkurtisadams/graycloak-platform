@@ -1,6 +1,13 @@
-// Firestore Security Rules for GCC v9
+// Firestore Security Rules for GCC v10
 // Go to Firebase Console → Firestore → Rules tab
 // Replace existing rules with everything below this comment header
+//
+// v10 changes from v9:
+//   • BATTLESYSTEM v0.45.7+ parent battle docs are spectator-safe filtered
+//     snapshots; side-authorized state lives in battles/{bid}/views/{uid},
+//     and the full authoritative snapshot lives in private/authority.
+//   • Player view reads are self-only and revocable from the parent battle doc.
+//   • Command reads are author/GM-only because move intents contain coordinates.
 //
 // v9 changes from v8:
 //   • NEW campaigns/{cid}/battles/{bid}/commands/{commandId} — player
@@ -151,22 +158,40 @@ service cloud.firestore {
         allow write: if request.auth != null && isCampaignOwner(campaignId);
       }
 
-      // Battle boards published by chainmail-board.html (NEW v8, and
-      // already live). Any campaign member spectates; only the GM
-      // publishes. Same shape as maps/ — a full-state snapshot doc with
-      // a monotonic seq.
+      // Battle boards. v0.45.7+ publishes only a spectator-safe filtered
+      // snapshot on the parent doc. Secret state lives in ACL'd subdocuments.
       match /battles/{battleId} {
         allow read: if request.auth != null;
         allow write: if request.auth != null
           && (isCampaignOwner(campaignId) || isGM());
 
-        // Player move intents (NEW v9, multiplayer Slice 2A). Tiny docs
-        // {uid, name, action, unitId, to{x,y}, ts} posted by a player's
-        // board and consumed (validated + deleted) by the GM's board.
-        // Seat enforcement (controllerUid) happens on the GM client
-        // against the live engine — rules only pin authorship.
+        // Side-filtered BATTLESYSTEM player views. The parent document is
+        // the revocation switch: stale view docs are unreadable unless the
+        // latest authoritative publish says private feeds are current and
+        // still lists this uid as an authorized viewer.
+        match /views/{viewerUid} {
+          allow read: if request.auth != null
+            && (isCampaignOwner(campaignId)
+                || isGM()
+                || (request.auth.uid == viewerUid
+                    && get(/databases/$(database)/documents/campaigns/$(campaignId)/battles/$(battleId)).data.privateFeedsReady == true
+                    && request.auth.uid in get(/databases/$(database)/documents/campaigns/$(campaignId)/battles/$(battleId)).data.viewerUids));
+          allow write: if request.auth != null
+            && (isCampaignOwner(campaignId) || isGM());
+        }
+
+        // Full GM-authoritative BATTLESYSTEM state.
+        match /private/{privateId} {
+          allow read, write: if request.auth != null
+            && (isCampaignOwner(campaignId) || isGM());
+        }
+
+        // Player move intents contain destination coordinates. Authors may
+        // create/read/delete their own; campaign owner/GM may read/delete all.
         match /commands/{commandId} {
-          allow read: if request.auth != null;
+          allow read: if request.auth != null
+            && (isCampaignOwner(campaignId) || isGM()
+                || resource.data.uid == request.auth.uid);
           allow create: if request.auth != null
             && request.resource.data.uid == request.auth.uid;
           allow update: if false;
