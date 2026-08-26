@@ -1,4 +1,8 @@
-// @graycloak/battlesystem-engine v0.6.0 - 2026-08-26
+// @graycloak/battlesystem-engine v0.7.0 - 2026-08-26
+// v0.7.0: spells.js begins source-backed spell/item-spell adapters. Daoud's
+//         Wondrous Lanthorn now supplies authoritative effective level, fuel costs,
+//         30-foot battlefield range, one-victim single-prism targeting, and its
+//         10-foot no-save/no-MR exception while host spell resolvers remain shared.
 // v0.6.0: items.js extracts canonical character items, inventory/loadout state,
 //         item resources, weapon/armor normalization, item-provided actions/effects,
 //         and legacy weapon/magic-item migration helpers from the GCC board.
@@ -30,6 +34,7 @@ export { BattlesystemTerrain } from './src/terrain.js';
 export { BattlesystemEffects, EFFECT_MODES } from './src/effects.js';
 export { BattlesystemActions, CHARACTER_ACTION_KINDS } from './src/actions.js';
 export { BattlesystemItems } from './src/items.js';
+export { BattlesystemSpells } from './src/spells.js';
 export { MISSILE_WEAPONS, ARTILLERY_WEAPONS, missileKey, missileDataFor, rangeBand } from './src/missiles.js';
 export {
   ratioFromHD,
