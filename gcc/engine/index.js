@@ -1,4 +1,7 @@
-// @graycloak/battlesystem-engine v0.8.0 - 2026-08-26
+// @graycloak/battlesystem-engine v0.9.0 - 2026-08-26
+// v0.9.0: spells.js adds pure execution contracts for named spell resolver,
+//         automation, caster class, target/save/damage/timing/status routing.
+//         Board hosts retain geometry, dice, state mutation, logs, and UI.
 // v0.8.0: spells.js owns the complete PHB class/level catalog + metadata and
 //         the existing pure named spell preset / Hold Person / Sleep rule helpers.
 //         Board geometry, rolls, application, preparation, and UI remain host-side.

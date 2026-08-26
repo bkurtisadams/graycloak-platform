@@ -106,3 +106,55 @@ test('unrelated item magic receives no Daoud override',()=>{
   assert.equal(BattlesystemSpells.itemResourceCost(e),null);
   assert.equal(BattlesystemSpells.sourcePreset(e),null);
 });
+
+
+test('execution contracts centralize resolver, caster, target, save, damage, timing, and status vocabulary',()=>{
+  const firePreset=BattlesystemSpells.spellPreset({name:'Fireball',kind:'spell',level:3},{casterLevel:9});
+  const fire=BattlesystemSpells.executionContract({name:'Fireball',kind:'spell',level:3},firePreset);
+  assert.equal(fire.spellKey,'fireball');
+  assert.equal(fire.resolver,'damage');
+  assert.equal(fire.automation,'full');
+  assert.deepEqual(fire.casterClassKeys,['magic-user']);
+  assert.equal(fire.target.policy,'area');
+  assert.equal(fire.target.rangeIn,19);
+  assert.equal(fire.save.type,'sp');
+  assert.equal(fire.save.effect,'half');
+  assert.equal(fire.damage.expr,'9d6');
+  assert.equal(fire.damage.tag,'fire');
+  assert.equal(fire.timing.durationRounds,null);
+
+  const hastePreset=BattlesystemSpells.spellPreset({name:'Haste',kind:'spell',level:3},{casterLevel:9});
+  const haste=BattlesystemSpells.executionContract({name:'Haste',kind:'spell',level:3},hastePreset);
+  assert.equal(haste.resolver,'speed');
+  assert.equal(haste.status.effect,'haste');
+  assert.equal(haste.timing.durationRounds,12);
+});
+
+test('execution contracts preserve class-specific Hold and Fear caster requirements',()=>{
+  assert.deepEqual(BattlesystemSpells.castingClassKeys({name:'Hold Person',kind:'spell',level:2}),['cleric']);
+  assert.deepEqual(BattlesystemSpells.castingClassKeys({name:'Hold Person',kind:'spell',level:3}),['magic-user']);
+  assert.deepEqual(BattlesystemSpells.castingClassKeys({name:'Fear',kind:'spell',level:3}),['illusionist']);
+  assert.deepEqual(BattlesystemSpells.castingClassKeys({name:'Fear',kind:'spell',level:4}),['magic-user']);
+  assert.deepEqual(BattlesystemSpells.castingClassKeys({name:'Detect Invisibility',kind:'spell',level:1}),['illusionist']);
+  assert.deepEqual(BattlesystemSpells.castingClassKeys({name:'Detect Invisibility',kind:'spell',level:2}),['magic-user']);
+  assert.equal(BattlesystemSpells.holdPersonSaveMod(1,2),-2);
+  assert.equal(BattlesystemSpells.holdPersonSaveMod(1,3),-3);
+  assert.equal(BattlesystemSpells.holdMonsterSaveMod(1),-3);
+});
+
+test('Daoud item spells use the same execution contract vocabulary with source overrides',()=>{
+  const e=daoud('Flame Strike'),p=BattlesystemSpells.sourcePreset(e),c=BattlesystemSpells.executionContract(e,p);
+  assert.equal(c.spellKey,'flameStrike');
+  assert.deepEqual(c.casterClassKeys,[]);
+  assert.equal(c.resolver,'damage');
+  assert.equal(c.automation,'full');
+  assert.equal(c.target.singleCreature,true);
+  assert.equal(c.target.defaultMode,'target');
+  assert.equal(c.target.rangeIn,3);
+  assert.equal(c.save.type,'sp');
+  assert.equal(c.save.effect,'half');
+  assert.equal(c.save.noSaveWithinIn,1);
+  assert.equal(c.save.ignoreMagicResistanceWithinIn,1);
+  assert.equal(c.damage.expr,'6d8');
+  assert.equal(c.damage.tag,'fire');
+});
