@@ -1,4 +1,7 @@
-// @graycloak/battlesystem-engine v0.7.1 - 2026-08-26
+// @graycloak/battlesystem-engine v0.8.0 - 2026-08-26
+// v0.8.0: spells.js owns the complete PHB class/level catalog + metadata and
+//         the existing pure named spell preset / Hold Person / Sleep rule helpers.
+//         Board geometry, rolls, application, preparation, and UI remain host-side.
 // v0.7.1: correct Daoud's Wondrous Lanthorn source-distance scaling: its
 //         dungeon-scale 30-foot range is 3 AD&D game inches and its 10-foot
 //         no-save/no-MR zone is 1 game inch; those tabletop inches carry unchanged

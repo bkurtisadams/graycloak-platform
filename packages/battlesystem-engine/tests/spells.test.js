@@ -4,6 +4,46 @@ import { BattlesystemSpells } from '../src/spells.js';
 
 const daoud=(fn)=>({kind:'item',sourceName:"Daoud's Wondrous Lanthorn",functionName:fn,name:`Daoud's Wondrous Lanthorn · ${fn}`});
 
+test('PHB catalog and metadata are engine-owned without changing canonical lookups',()=>{
+  assert.ok(BattlesystemSpells.spellNames('magic-user',3).includes('Fireball'));
+  assert.ok(BattlesystemSpells.spellNames('cleric',5).includes('Flame Strike'));
+  assert.equal(BattlesystemSpells.canonicalSpellNameForKeys(['illusionist'],1,'Colour Spray'),'Color Spray');
+  const flame=BattlesystemSpells.spellMetadataForKeys(['cleric'],5,'Flame Strike');
+  assert.equal(flame.range,'6”');
+  assert.equal(flame.savingThrow,'½');
+  assert.match(flame.area,/1” diameter/);
+  const color=BattlesystemSpells.spellMetadataForKeys(['illusionist'],1,'Colour Spray');
+  assert.equal(color.name,'Color Spray');
+  assert.equal(color.castingTime,'1 segment');
+  assert.equal(color.savingThrow,'Special');
+});
+
+test('named battlefield presets reproduce the board-owned v0.53 behavior',()=>{
+  const fire=BattlesystemSpells.spellPreset({name:'Fireball',kind:'spell'},{casterLevel:10});
+  const haste=BattlesystemSpells.spellPreset({name:'Haste',kind:'spell'},{casterLevel:5});
+  const slow=BattlesystemSpells.spellPreset({name:'Slow',kind:'spell'},{casterLevel:5});
+  const sleep=BattlesystemSpells.spellPreset({name:'Sleep',kind:'spell'},{casterLevel:5});
+  const hold=BattlesystemSpells.spellPreset({name:'Hold Person',kind:'spell'},{casterLevel:5});
+  const fear=BattlesystemSpells.spellPreset({name:'Fear',kind:'spell'},{casterLevel:10});
+  const detect=BattlesystemSpells.spellPreset({name:'Detect Invisibility',kind:'spell'},{casterLevel:10,battlePathWidthIn:.333});
+  assert.deepEqual([fire.rangeIn,fire.sourceLength,fire.damageExpr,fire.saveType],[20,2,'10d6','sp']);
+  assert.deepEqual([haste.rangeIn,haste.sourceLength,haste.durationRounds],[6,4,8]);
+  assert.deepEqual([slow.rangeIn,slow.sourceLength,slow.durationRounds],[14,4,8]);
+  assert.deepEqual([sleep.rangeIn,sleep.sourceLength,sleep.durationRounds],[8,1.5,25]);
+  assert.deepEqual([hold.rangeIn,hold.durationRounds,hold.saveType],[12,10,'sp']);
+  assert.deepEqual([fear.sourceLength,fear.sourceWidth,fear.onsetRounds,fear.durationRounds],[6,3,1,10]);
+  assert.deepEqual([detect.rangeIn,detect.sourceWidth,detect.durationRounds,detect.defaultTarget],[10,1,50,'self']);
+});
+
+test('Hold Person target-count and Sleep HD capacity rules live in spells.js',()=>{
+  assert.deepEqual([1,2,3,4].map(BattlesystemSpells.holdPersonSaveMod),[-3,-1,0,0]);
+  assert.equal(BattlesystemSpells.sleepCreatureCapacity(1,()=>.999).count,16);
+  assert.equal(BattlesystemSpells.sleepCreatureCapacity(2,()=>.999).count,8);
+  assert.equal(BattlesystemSpells.sleepCreatureCapacity(3,()=>.999).count,4);
+  assert.equal(BattlesystemSpells.sleepCreatureCapacity(4,()=>.999).count,2);
+  assert.equal(BattlesystemSpells.sleepCreatureCapacity(4.5,()=>.999).count,1);
+});
+
 test('Daoud Hold Monster supplies source range/target/save/duration instead of referee guesses',()=>{
   const e=daoud('Hold Monster (One Target)'),p=BattlesystemSpells.sourcePreset(e);
   assert.equal(BattlesystemSpells.itemEffectiveLevel(e),19);
@@ -31,24 +71,25 @@ test('Daoud close range suppresses saves and records magic-resistance bypass',()
   assert.equal(far.closeRangeNoSave,false);
 });
 
-test('Daoud single-prism spell presets keep their artifact overrides',()=>{
+test('Daoud remaining single-prism powers retain their source-backed engine presets',()=>{
   const haste=BattlesystemSpells.sourcePreset(daoud('Haste'));
-  const flame=BattlesystemSpells.sourcePreset(daoud('Flame Strike'));
+  const color=BattlesystemSpells.sourcePreset(daoud('Color Spray'));
   const fear=BattlesystemSpells.sourcePreset(daoud('Fear'));
+  const rage=BattlesystemSpells.sourcePreset(daoud('Emotion (Rage)'));
+  const flame=BattlesystemSpells.sourcePreset(daoud('Flame Strike'));
   assert.equal(haste.durationRounds,22);
   assert.equal(haste.statusEffect,'haste');
+  assert.equal(color.specialResolver,'colorSpray');
+  assert.equal(rage.specialResolver,'emotionRage');
   assert.equal(flame.damageExpr,'6d8');
   assert.equal(flame.damageTag,'fire');
-  assert.equal(flame.saveMod,0);
-  assert.equal(flame.lockSaveMod,true);
-  assert.equal(fear.saveMod,0);
-  assert.equal(fear.lockSaveMod,true);
   assert.equal(fear.onsetRounds,1);
   assert.equal(fear.durationRounds,19);
-  for(const p of [haste,flame,fear]){
+  for(const p of [haste,color,fear,rage,flame]){
     assert.equal(p.rangeIn,3);
     assert.equal(p.defaultTarget,'target');
     assert.equal(p.singleCreatureTarget,true);
+    assert.equal(p.resourceCost,5);
   }
 });
 
