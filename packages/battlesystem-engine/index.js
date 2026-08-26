@@ -1,4 +1,6 @@
-// @graycloak/battlesystem-engine v0.4.2 - 2026-08-21
+// @graycloak/battlesystem-engine v0.5.0 - 2026-08-26
+// v0.5.0: actions.js + effects.js — pure shared action/effect vocabulary, ordered
+//         action groups, unified action surfaces, and numeric effect application.
 // v0.4.2: combat.js v3.3.2 — heavy lance S/M ruled 2d4+1 (3-9 as the idiomatic
 //         1e dice combo, superseding v3.3.1's 3d3). No API changes.
 // v0.4.1: combat.js v3.3.1 — lances corrected to the verified PHB table (light
@@ -35,3 +37,26 @@ export {
     resolveDamagePair,
     buildWeaponDamageDefinition
 } from './src/unit-math.js';
+
+// v0.5.0 public Actions / Effects API
+export {
+    BattlesystemEffects,
+    EFFECT_MODES,
+    EFFECT_MODE_ALIASES,
+    normalizeEffectMode,
+    normalizeEffect,
+    normalizeEffects,
+    applyNumericEffect,
+    applyEffectsToProfile
+} from './src/effects.js';
+
+export {
+    BattlesystemActions,
+    CHARACTER_ACTION_KINDS,
+    ACTION_STEP_KINDS,
+    normalizeAction,
+    normalizeActionGroup,
+    normalizeActionGroups,
+    flattenActionGroups,
+    buildUnifiedActionSurface
+} from './src/actions.js';
