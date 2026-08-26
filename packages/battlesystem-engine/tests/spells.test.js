@@ -8,7 +8,7 @@ test('Daoud Hold Monster supplies source range/target/save/duration instead of r
   const e=daoud('Hold Monster (One Target)'),p=BattlesystemSpells.sourcePreset(e);
   assert.equal(BattlesystemSpells.itemEffectiveLevel(e),19);
   assert.equal(BattlesystemSpells.itemResourceCost(e),5);
-  assert.equal(p.rangeIn,1);
+  assert.equal(p.rangeIn,3);
   assert.equal(p.sourceRangeFeet,30);
   assert.equal(p.defaultTarget,'target');
   assert.equal(p.singleCreatureTarget,true);
@@ -16,15 +16,17 @@ test('Daoud Hold Monster supplies source range/target/save/duration instead of r
   assert.equal(p.saveMod,-3);
   assert.equal(p.statusEffect,'hold');
   assert.equal(p.durationRounds,19);
-  assert.equal(p.noSaveWithinIn,1/3);
+  assert.equal(p.noSaveWithinIn,1);
 });
 
 test('Daoud close range suppresses saves and records magic-resistance bypass',()=>{
   const p=BattlesystemSpells.sourcePreset(daoud('Hold Monster (One Target)'));
-  const close=BattlesystemSpells.sourceSaveRule(p,.25,'sp'),far=BattlesystemSpells.sourceSaveRule(p,.5,'sp');
+  const close=BattlesystemSpells.sourceSaveRule(p,.75,'sp'),edge=BattlesystemSpells.sourceSaveRule(p,1,'sp'),far=BattlesystemSpells.sourceSaveRule(p,1.01,'sp');
   assert.equal(close.saveType,'none');
   assert.equal(close.closeRangeNoSave,true);
   assert.equal(close.ignoreMagicResistance,true);
+  assert.equal(edge.saveType,'none');
+  assert.equal(edge.ignoreMagicResistance,true);
   assert.equal(far.saveType,'sp');
   assert.equal(far.closeRangeNoSave,false);
 });
@@ -44,7 +46,7 @@ test('Daoud single-prism spell presets keep their artifact overrides',()=>{
   assert.equal(fear.onsetRounds,1);
   assert.equal(fear.durationRounds,19);
   for(const p of [haste,flame,fear]){
-    assert.equal(p.rangeIn,1);
+    assert.equal(p.rangeIn,3);
     assert.equal(p.defaultTarget,'target');
     assert.equal(p.singleCreatureTarget,true);
   }

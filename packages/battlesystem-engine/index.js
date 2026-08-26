@@ -1,8 +1,11 @@
-// @graycloak/battlesystem-engine v0.7.0 - 2026-08-26
+// @graycloak/battlesystem-engine v0.7.1 - 2026-08-26
+// v0.7.1: correct Daoud's Wondrous Lanthorn source-distance scaling: its
+//         dungeon-scale 30-foot range is 3 AD&D game inches and its 10-foot
+//         no-save/no-MR zone is 1 game inch; those tabletop inches carry unchanged
+//         onto the outdoor BATTLESYSTEM battlefield.
 // v0.7.0: spells.js begins source-backed spell/item-spell adapters. Daoud's
-//         Wondrous Lanthorn now supplies authoritative effective level, fuel costs,
-//         30-foot battlefield range, one-victim single-prism targeting, and its
-//         10-foot no-save/no-MR exception while host spell resolvers remain shared.
+//         Wondrous Lanthorn supplies effective level, fuel costs, source targeting,
+//         and close-range save/MR overrides while host spell resolvers remain shared.
 // v0.6.0: items.js extracts canonical character items, inventory/loadout state,
 //         item resources, weapon/armor normalization, item-provided actions/effects,
 //         and legacy weapon/magic-item migration helpers from the GCC board.
