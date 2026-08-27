@@ -1,4 +1,8 @@
-// @graycloak/battlesystem-engine v0.10.2 - 2026-08-27
+// @graycloak/battlesystem-engine v0.10.3 - 2026-08-27
+// v0.10.3: magic-defenses.js adds pure §14.12 defensive-magic recognition,
+//          Pass-Through eligibility metadata, and the explicit BATTLESYSTEM
+//          Mirror Image HD-damage sharing calculation. Hosts retain AD&D
+//          spell-specific resolution, state mutation, UI, logs, and referee rulings.
 // v0.10.2: missiles.js generalizes giant rock throwing across recognized giant races,
 //          using BATTLESYSTEM S/M/L roster bands and subtype damage. Giants expose
 //          Hurl rocks as ROF 1 thrown missile capability rather than artillery.
@@ -55,6 +59,7 @@ export { BattlesystemActions, CHARACTER_ACTION_KINDS } from './src/actions.js';
 export { BattlesystemItems } from './src/items.js';
 export { BattlesystemSpells } from './src/spells.js';
 export { BattlesystemIndividualCombat } from './src/individual-combat.js';
+export { BattlesystemMagicDefenses } from './src/magic-defenses.js';
 export { MISSILE_WEAPONS, GIANT_ROCK_PROFILES, ARTILLERY_WEAPONS, missileKey, missileDataFor, giantRockTypeFor, giantRockDataFor, rangeBand } from './src/missiles.js';
 export {
   ratioFromHD,
