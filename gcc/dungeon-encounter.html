@@ -2780,11 +2780,13 @@ function arsActorToLegacyChar(raw) {
       }
     }
   }
+  const clsXp = classes.map(c => Number(c.system?.xp) || 0);
   return {
-    _id: raw._id ? 'ars-' + raw._id : undefined,
+    _id: 'ars-' + (raw._id || String(raw.name || 'pc').toLowerCase().replace(/[^a-z0-9]+/g, '-')),
     characterName: String(raw.name || '').trim(),
     characterClass: classes.map(c => String(c.name || 'Fighter').trim()).join('/'),
     level: classes.map(arsActorLevel).join('/'),
+    xpTotal: clsXp[0], xpTotal2: clsXp[1], xpTotal3: clsXp[2],
     hpMax: Number(hp.max), hpCurrent: Number(hp.value),
     ac, acShieldless,
     str: av('str'), dex, con: av('con'), int: av('int'), wis: av('wis'), cha: av('cha'),
@@ -2793,6 +2795,7 @@ function arsActorToLegacyChar(raw) {
     moveBase: Number(attrs.movement?.value) || 12,
   };
 }
+let _lastLoadedChar = null;   // legacy-schema source of the last file import, for Save to GCC roster
 function loadCharacterFromObj(obj) {
   let src = obj;
   if (obj && obj.type === 'character' && obj.system && Array.isArray(obj.items)) {
@@ -2800,6 +2803,8 @@ function loadCharacterFromObj(obj) {
   } else if (!obj || (!obj.characterName && !obj.characterClass)) {
     throw new Error('Unrecognized character JSON — expected a GCC sheet export or a Foundry ARS Actor export.');
   }
+  if (src._id == null) src._id = 'pc-' + String(src.characterName || 'pc').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  _lastLoadedChar = src;
   const c = mapCharToCombatant(src, 'A');
   const i = state.combatants.findIndex(x => x.id === c.id);
   if (i >= 0) state.combatants.splice(i, 1);
@@ -7023,6 +7028,24 @@ const App = {
             if (state.encounter_distance != null) placeParties(state.encounter_distance);
             renderAll();
             res.innerHTML = `<span class="step">Loaded <b>${c.label}</b> — ${c.matrix_class} ${c.level}, AC ${c.ac_current}, ${c.hp_current}/${c.hp_max} hp, ${c.active_weapon}</span>`;
+            if (_lastLoadedChar && _lastLoadedChar._id) {
+              const btn = document.createElement('button');
+              btn.textContent = '\uD83D\uDCBE Save ' + (_lastLoadedChar.characterName || 'character') + ' to GCC roster';
+              btn.title = 'Add to your saved characters and make active — enables world-map encounters and XP/HP tracking';
+              btn.style.cssText = 'display:block;margin-top:6px';
+              btn.onclick = () => {
+                try {
+                  const key = 'gcc-add1e-chars';
+                  const all = JSON.parse(localStorage.getItem(key) || '[]');
+                  const i = all.findIndex(x => x && x._id === _lastLoadedChar._id);
+                  if (i >= 0) all[i] = _lastLoadedChar; else all.push(_lastLoadedChar);
+                  localStorage.setItem(key, JSON.stringify(all));
+                  localStorage.setItem('gcc-active-char', _lastLoadedChar._id);
+                  btn.replaceWith(Object.assign(document.createElement('span'), { className: 'step', textContent: '\u2713 Saved — active character for map encounters' }));
+                } catch (err2) { btn.textContent = 'Save failed: ' + (err2.message || 'storage error'); }
+              };
+              res.appendChild(btn);
+            }
           } catch (err) {
             res.innerHTML = `<span class="step">Could not load: ${err.message || 'invalid JSON'}</span>`;
           }
