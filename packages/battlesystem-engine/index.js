@@ -1,4 +1,8 @@
-// @graycloak/battlesystem-engine v0.10.0 - 2026-08-27
+// @graycloak/battlesystem-engine v0.10.2 - 2026-08-27
+// v0.10.2: missiles.js generalizes giant rock throwing across recognized giant races,
+//          using BATTLESYSTEM S/M/L roster bands and subtype damage. Giants expose
+//          Hurl rocks as ROF 1 thrown missile capability rather than artillery.
+// v0.10.1: Hill-Giant-only source-flat prototype (superseded by v0.10.2).
 // v0.10.0: individual-combat.js extracts pure §9.4B AD&D 1e individual-combat
 //          cadence, initiative scheduling, THAC0/AC hit resolution, hp damage,
 //          weapon hitability traits, regeneration, and level-drain pause state.
@@ -51,7 +55,7 @@ export { BattlesystemActions, CHARACTER_ACTION_KINDS } from './src/actions.js';
 export { BattlesystemItems } from './src/items.js';
 export { BattlesystemSpells } from './src/spells.js';
 export { BattlesystemIndividualCombat } from './src/individual-combat.js';
-export { MISSILE_WEAPONS, ARTILLERY_WEAPONS, missileKey, missileDataFor, rangeBand } from './src/missiles.js';
+export { MISSILE_WEAPONS, GIANT_ROCK_PROFILES, ARTILLERY_WEAPONS, missileKey, missileDataFor, giantRockTypeFor, giantRockDataFor, rangeBand } from './src/missiles.js';
 export {
   ratioFromHD,
   creaturesPerFigure,
