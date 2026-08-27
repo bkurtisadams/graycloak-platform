@@ -18,10 +18,12 @@ export interface MulticlassExperienceAward {
 }
 
 export const MULTICLASS_ADVANCEMENT_RULE_SOURCE: RuleSource = Object.freeze({
-  ruleset: 'legacy-adnd-1e',
+  ruleset: 'osric-3.0',
   section: 'Multiclass experience division and independent advancement',
-  auditStatus: 'legacy-import',
-  note: 'Adds the helper layer required by the current combat bridge TODO. Verify the division rule against OSRIC 3.0 before final certification.',
+  book: 'OSRIC 3.0 Player Guide, §1.3.11',
+  page: 69,
+  auditStatus: 'verified-osric3',
+  note: 'XP divides equally with fractions dropped (125 xp to a two-class character is 62 each, 1 lost). Capped classes still receive their share.',
 });
 
 function normalizeAward(experience: number): number {
@@ -41,12 +43,10 @@ export function splitMulticlassExperienceAward(
   validateClasses(classIds);
   const award = normalizeAward(totalExperience);
   const baseShare = Math.floor(award / classIds.length);
-  let remainder = award % classIds.length;
   const shares = {} as Record<ClassId, number>;
 
   for (const classId of classIds) {
-    shares[classId] = baseShare + (remainder > 0 ? 1 : 0);
-    remainder = Math.max(0, remainder - 1);
+    shares[classId] = baseShare;
   }
   return Object.freeze(shares);
 }

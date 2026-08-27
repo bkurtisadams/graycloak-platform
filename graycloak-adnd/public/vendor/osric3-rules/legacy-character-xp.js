@@ -120,7 +120,7 @@ export function awardLegacyCharacterExperience(character, totalExperience) {
         character: copy,
         totalAward: award,
         bonusAward,
-        creditedAward: award + bonusAward,
+        creditedAward: components.reduce((sum, component) => sum + component.awardedExperience, 0),
         components: Object.freeze(components),
     });
 }

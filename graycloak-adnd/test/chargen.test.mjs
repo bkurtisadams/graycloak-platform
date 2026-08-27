@@ -49,7 +49,7 @@ function build(overrides) {
 }
 
 test('kernel loads and reports its version', () => {
-  assert.equal(Chargen.rulesVersion(), '0.8.0');
+  assert.equal(Chargen.rulesVersion(), '0.9.0');
 });
 
 test('every generation method yields six scores; only III is fixed-order', () => {
@@ -100,7 +100,7 @@ test('a seeded build is reproducible and internally consistent', () => {
 
   const doc = first.doc;
   assert.equal(doc.schemaVersion, 1);
-  assert.equal(doc.rulesVersion, '0.8.0');
+  assert.equal(doc.rulesVersion, '0.9.0');
   assert.equal(doc.ownerUid, 'uid-test');
   assert.equal(doc.campaignId, 'camp-test');
   assert.equal(doc.level, 1);

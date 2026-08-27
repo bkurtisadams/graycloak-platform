@@ -7,7 +7,7 @@ const require = createRequire(import.meta.url);
 test('generated GCC browser kernel installs a stable global API', async () => {
   delete globalThis.GraycloakOSRIC3;
   await import(`../../../gcc/vendor/osric3-rules/browser-global.js?test=${Date.now()}`);
-  assert.equal(globalThis.GraycloakOSRIC3.version, '0.8.0');
+  assert.equal(globalThis.GraycloakOSRIC3.version, '0.9.0');
   assert.deepEqual(
     globalThis.GraycloakOSRIC3.getSpellSlots('cleric', 1, 18, 'eligible-levels-only'),
     { type: 'Cleric', levels: [3, 0, 0, 0, 0, 0, 0] },

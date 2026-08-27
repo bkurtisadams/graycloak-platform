@@ -1,6 +1,6 @@
 export const OSRIC3_RULESET = Object.freeze({
   id: 'osric3',
-  packageVersion: '0.8.0',
+  packageVersion: '0.9.0',
   intendedRuleset: 'OSRIC 3.0',
   auditStatus: 'foundation' as const,
   legacyImport: 'gcc/adnd-chargen.js v1.2.0, gcc/adnd-class-data.js v1.2.0, and gcc/adnd-equipment.js v6.0.0',

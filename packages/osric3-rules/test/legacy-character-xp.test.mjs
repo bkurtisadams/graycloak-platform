@@ -34,14 +34,14 @@ test('multiclass awards split into the three legacy XP slots independently', () 
   }, 101);
 
   assert.equal(result.applied, true);
-  assert.equal(result.character.xpTotal, 2024);
-  assert.equal(result.character.xpTotal2, 2524);
+  assert.equal(result.character.xpTotal, 2023);
+  assert.equal(result.character.xpTotal2, 2523);
   assert.equal(result.character.xpTotal3, 1273);
   assert.equal(result.character.level, '2/2/2');
   assert.equal(result.character.xpNextLevel, 4001);
   assert.equal(result.character.xpNextLevel2, 5001);
   assert.equal(result.character.xpNextLevel3, 2501);
-  assert.deepEqual(result.components.map((component) => component.awardedExperience), [34, 34, 33]);
+  assert.deepEqual(result.components.map((component) => component.awardedExperience), [33, 33, 33]);
 });
 
 test('unsupported class records are left untouched for the combat fallback', () => {
@@ -76,11 +76,11 @@ test('multiclass prime-requisite bonuses are calculated independently after spli
   }, 101);
 
   assert.equal(result.applied, true);
-  assert.deepEqual(result.components.map((component) => component.baseAwardedExperience), [51, 50]);
-  assert.deepEqual(result.components.map((component) => component.bonusExperience), [6, 0]);
-  assert.deepEqual(result.components.map((component) => component.awardedExperience), [57, 50]);
-  assert.equal(result.bonusAward, 6);
-  assert.equal(result.creditedAward, 107);
-  assert.equal(result.character.xpTotal, 1057);
+  assert.deepEqual(result.components.map((component) => component.baseAwardedExperience), [50, 50]);
+  assert.deepEqual(result.components.map((component) => component.bonusExperience), [5, 0]);
+  assert.deepEqual(result.components.map((component) => component.awardedExperience), [55, 50]);
+  assert.equal(result.bonusAward, 5);
+  assert.equal(result.creditedAward, 105);
+  assert.equal(result.character.xpTotal, 1055);
   assert.equal(result.character.xpTotal2, 1050);
 });

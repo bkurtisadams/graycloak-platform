@@ -20,7 +20,7 @@ test('classes fold onto the four legacy attack matrices', () => {
   assert.equal(getAttackMatrixClass('druid'), 'cleric');
   assert.equal(getAttackMatrixClass('illusionist'), 'magic-user');
   assert.equal(getAttackMatrixClass('assassin'), 'thief');
-  assert.equal(getAttackMatrixClass('monk'), 'thief');
+  assert.equal(getAttackMatrixClass('monk'), 'cleric');
 });
 
 test('linear THAC0 matches the sim anchors where the sim has rows', () => {
@@ -147,7 +147,8 @@ test('weapon-vs-armor adjustments clamp to the AC 2-10 table columns', () => {
   assert.equal(getWeaponVsArmorAdjustment({}, 5), 0);
 });
 
-test('the combat module ships under the legacy-import audit status', () => {
+test('the combat module ships disputed: 1e values held pending the OSRIC 3.0 progression ruling', () => {
   assert.equal(ATTACK_MATRIX_RULE_SOURCE.ruleset, 'legacy-adnd-1e');
-  assert.equal(ATTACK_MATRIX_RULE_SOURCE.auditStatus, 'legacy-import');
+  assert.equal(ATTACK_MATRIX_RULE_SOURCE.auditStatus, 'disputed');
+  assert.match(ATTACK_MATRIX_RULE_SOURCE.note, /per level/);
 });

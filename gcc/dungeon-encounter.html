@@ -1391,13 +1391,13 @@ function rollDice(notation) {
   return Math.max(1, total);
 }
 
-// THAC0 class: paladins/rangers/bards fight as fighters, druids as clerics,
-// assassins/monks as thieves, illusionists as magic-users.
+// THAC0 class: paladins/rangers/bards fight as fighters, druids/monks as clerics,
+// assassins as thieves, illusionists as magic-users (1e DMG matrix groups; OSRIC 3.0 concurs).
 function combatClass(mc) {
   if (mc === 'paladin' || mc === 'ranger' || mc === 'bard') return 'fighter';
   if (mc === 'illusionist') return 'magic_user';
-  if (mc === 'druid') return 'cleric';
-  if (mc === 'assassin' || mc === 'monk') return 'thief';
+  if (mc === 'druid' || mc === 'monk') return 'cleric';
+  if (mc === 'assassin') return 'thief';
   return mc;
 }
 // Save class: same, except bards save as druids (cleric matrix).
@@ -4653,6 +4653,14 @@ async function executeCastDecl(c, decl) {
 // Real 1e turning matrix (harvested from AMMOG → combat-data.js). Falls back to no-effect if the
 // data file isn't loaded. `undeadType` is one of CDATA.undeadTypes (Skeleton, Zombie, Ghoul, ...).
 function turnUndeadResult(turnLevel, undeadType) {
+  if (OSRIC3 && OSRIC3.getTurnUndeadResult) {
+    const kid = undeadType === 'Special' ? 'fiend' : String(undeadType || 'Skeleton').toLowerCase();
+    const r = OSRIC3.getTurnUndeadResult(turnLevel, kid);
+    if (r.result === 'destroyed') return { result: 'D', affected: r.affected };
+    if (r.result === 'turned') return { result: 'T', affected: r.affected };
+    if (r.result === 'roll') return { result: 'roll', needed: r.needed, affected: r.affected };
+    return { result: 'none' };
+  }
   if (typeof CDATA !== 'undefined' && CDATA.getTurnResult) return CDATA.getTurnResult(turnLevel, undeadType);
   return { result: 'none' };
 }
@@ -4669,17 +4677,19 @@ async function executeTurnDecl(c) {
   }
   undead.sort((a, b) => hdValue(a) - hdValue(b));
   const lvl = (typeof CDATA !== 'undefined' && CDATA.getTurnLevel) ? CDATA.getTurnLevel(c.matrix_class, c.level) : (c.level || 1);
-  let cap = rollDice('2d6');   // up to 2d6 affected, weakest first
+  const turnRoll = rollDice('1d20');   // single d20 for the whole attempt (OSRIC 3.0 §1.6.5)
+  let cap = -1;                         // affected count rolled once, from the first affecting tier, weakest first
   for (const u of undead) {
-    if (cap <= 0) break;
     const tSide = u.side === 'A' ? 'a' : 'b';
     const r = turnUndeadResult(lvl, u.undead_type || 'Skeleton');
     if (r.result === 'none') { log(state, 'system', ts(`<span class="${tSide}">${u.label}</span> is too mighty to be turned.`)); continue; }
+    if (cap < 0) cap = rollDice(r.affected || '2d6');
+    if (cap <= 0) break;
     if (r.result === 'D') {
       dropCombatant(state, u); cap--;
       const tc = tokenCenter(u); showFloatingText(tc.x, tc.y - 18, 'destroyed!', 'crit');
       log(state, 'death', ts(`<span class="${tSide}">${u.label}</span> crumbles to dust — <span class="em">destroyed!</span>`));
-    } else if (r.result === 'T' || rollDice('2d6') >= r.needed) {
+    } else if (r.result === 'T' || turnRoll >= r.needed) {
       u._turned_until = state.round + rollDice('3d4'); cap--;
       log(state, 'system', ts(`<span class="${tSide}">${u.label}</span> is <span class="em">turned</span> — it flees and cowers.`));
     } else {

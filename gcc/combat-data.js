@@ -61,21 +61,6 @@ const CDATA = {
     ],
     [
       "T",
-      4,
-      7,
-      10,
-      13,
-      16,
-      19,
-      20,
-      0,
-      0,
-      0,
-      0,
-      0
-    ],
-    [
-      "T",
       "T",
       4,
       7,
@@ -90,7 +75,7 @@ const CDATA = {
       0
     ],
     [
-      "D",
+      "T",
       "T",
       "T",
       4,
@@ -135,7 +120,7 @@ const CDATA = {
       0
     ],
     [
-      "D",
+      "D*",
       "D",
       "D",
       "D",
@@ -148,6 +133,51 @@ const CDATA = {
       16,
       19,
       20
+    ],
+    [
+      "D*",
+      "D*",
+      "D",
+      "D",
+      "D",
+      "T",
+      "T",
+      4,
+      7,
+      10,
+      13,
+      16,
+      19
+    ],
+    [
+      "D*",
+      "D*",
+      "D*",
+      "D",
+      "D",
+      "D",
+      "T",
+      "T",
+      "T",
+      7,
+      10,
+      13,
+      16
+    ],
+    [
+      "D*",
+      "D*",
+      "D*",
+      "D*",
+      "D",
+      "D",
+      "D",
+      "D",
+      "T",
+      4,
+      7,
+      10,
+      13
     ]
   ],
   "undeadTypes": [
@@ -163,7 +193,7 @@ const CDATA = {
     "Vampire",
     "Ghost",
     "Lich",
-    "Special"
+    "Fiend"
   ],
   "saves": {
     "fighter": [
@@ -5645,17 +5675,22 @@ const CDATA = {
 };
 
 // ---- helpers (logic that can't be JSON) ----
-// Turn Undead: cleric turning-level vs undead type -> {result:'none'|'T'|'D'|'roll', needed?}
-// Numeric cells are the 2d6 target (>=). Values >12 are unreachable at that level => cannot turn yet.
+// Turn Undead per OSRIC 3.0 Table 1.6.5a (Player Guide p.98).
+// Rows: levels 1-8, then bands 9-13, 14-18, 19+. Numeric cells are d20 targets (>=).
+// 'D' destroys 2d6; 'D*' destroys 1d6+6; fiends are affected 1d2 and never more.
 CDATA.getTurnResult = function (turnLevel, undeadType) {
   if (!CDATA.turnUndead) return { result: 'none' };
-  const row = CDATA.turnUndead[Math.min(Math.max(turnLevel | 0, 1), CDATA.turnUndead.length) - 1];
-  const ti = CDATA.undeadTypes.indexOf(undeadType);
+  const lvl = Math.max(turnLevel | 0, 1);
+  const ri = lvl <= 8 ? lvl - 1 : lvl <= 13 ? 8 : lvl <= 18 ? 9 : 10;
+  const row = CDATA.turnUndead[ri];
+  const name = undeadType === 'Special' ? 'Fiend' : undeadType;
+  const ti = CDATA.undeadTypes.indexOf(name);
   const cell = (ti >= 0) ? row[ti] : 0;
-  if (cell === 'D') return { result: 'D' };
-  if (cell === 'T') return { result: 'T' };
-  if (typeof cell === 'number' && cell > 0 && cell <= 12) return { result: 'roll', needed: cell };
-  return { result: 'none' };  // 0, dash, or unreachable (>12)
+  const affected = name === 'Fiend' ? '1d2' : cell === 'D*' ? '1d6+6' : '2d6';
+  if (cell === 'D' || cell === 'D*') return { result: 'D', affected };
+  if (cell === 'T') return { result: 'T', affected };
+  if (typeof cell === 'number' && cell > 0) return { result: 'roll', needed: cell, affected };
+  return { result: 'none' };
 };
 // Cleric turns at level; paladin at level-2 (>=3).
 CDATA.getTurnLevel = function (cls, level) {

@@ -12,9 +12,11 @@ import type { ClassId, RuleSource } from './types.js';
 export const ATTACK_MATRIX_RULE_SOURCE: RuleSource = Object.freeze({
   ruleset: 'legacy-adnd-1e',
   section: 'Class and monster attack matrices, repeating-20 rule, weapon-vs-AC adjustments',
-  auditStatus: 'legacy-import',
+  book: 'OSRIC 3.0 Player Guide (2026-01-22 rev), Tables 1.3.1.4D-1.3.10.4F',
+  page: 43,
+  auditStatus: 'disputed',
   note:
-    'Anchors are parity-checked against gcc/dungeon-encounter.html. Extended-level rows, monster rows above 7 HD, and the six-column repeating-20 span require OSRIC 3.0 verification.',
+    'Checked against OSRIC 3.0 Player Guide class tables. Verified: six-column repeating-20 span; level-0 linear 21; thief, assassin, and druid brackets; monk on the cleric matrix. Disputed pending ruling (kernel keeps 1e values): fighter/paladin/ranger print one point per level (linear 21-level, floor 1 at 20+) vs 1e two-level brackets; cleric 19+ prints 9 vs 1e 8; magic-user/illusionist 16-20 print 14 vs 1e 13. Monster rows above 7 HD still need the Gamemaster Guide.',
 });
 
 // ── Matrix class mapping ───────────────────────────────────────────────────
@@ -31,7 +33,7 @@ const ATTACK_MATRIX_CLASS_MAP: Readonly<Record<ClassId, AttackMatrixClassId>> = 
   illusionist: 'magic-user',
   thief: 'thief',
   assassin: 'thief',
-  monk: 'thief',
+  monk: 'cleric',
 });
 
 export function getAttackMatrixClass(classId: ClassId): AttackMatrixClassId {

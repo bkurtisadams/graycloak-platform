@@ -6,10 +6,14 @@ import {
   splitMulticlassExperienceAward,
 } from '../dist/index.js';
 
-test('multiclass XP divides evenly with deterministic remainder assignment', () => {
+test('multiclass XP divides equally with fractions dropped', () => {
+  assert.deepEqual(
+    splitMulticlassExperienceAward(125, ['fighter', 'thief']),
+    { fighter: 62, thief: 62 },
+  );
   assert.deepEqual(
     splitMulticlassExperienceAward(101, ['fighter', 'magic-user', 'thief']),
-    { fighter: 34, 'magic-user': 34, thief: 33 },
+    { fighter: 33, 'magic-user': 33, thief: 33 },
   );
 });
 

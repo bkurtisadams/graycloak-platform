@@ -11,6 +11,7 @@ import {
   getThiefSkillProfile,
   getTurnLevel,
   getTurnUndeadResult,
+  getPaladinTurnTargetType,
   getRuleSourceRecord,
 } from '../dist/index.js';
 
@@ -101,16 +102,36 @@ test('thief skills register as the first verified OSRIC 3 source record', () => 
   assert.ok(record.book && record.page === 68);
 });
 
-// ── Turn undead: parity with the legacy engines ───────────────────────────
+// ── Turn undead: pinned to OSRIC 3.0 Table 1.6.5a ─────────────────────────
 
-test('turning matrix matches the legacy adnd-class-data values', () => {
-  assert.deepEqual(getTurnUndeadResult(1, 'skeleton'), { result: 'roll', needed: 10 });
-  assert.deepEqual(getTurnUndeadResult(1, 'wight'), { result: 'roll', needed: 20 });
+test('turning matrix matches printed Table 1.6.5a', () => {
+  assert.deepEqual(getTurnUndeadResult(1, 'skeleton'), { result: 'roll', needed: 10, affected: '2d6' });
+  assert.deepEqual(getTurnUndeadResult(1, 'wight'), { result: 'roll', needed: 20, affected: '2d6' });
   assert.deepEqual(getTurnUndeadResult(1, 'ghast'), { result: 'none' });
-  assert.deepEqual(getTurnUndeadResult(4, 'skeleton'), { result: 'turned' });
-  assert.deepEqual(getTurnUndeadResult(6, 'skeleton'), { result: 'destroyed' });
-  assert.deepEqual(getTurnUndeadResult(9, 'special'), { result: 'roll', needed: 20 });
-  assert.deepEqual(getTurnUndeadResult(14, 'lich'), { result: 'roll', needed: 19 }); // clamps to 9+ row
+  assert.deepEqual(getTurnUndeadResult(4, 'skeleton'), { result: 'turned', affected: '2d6' });
+  assert.deepEqual(getTurnUndeadResult(4, 'zombie'), { result: 'turned', affected: '2d6' });
+  assert.deepEqual(getTurnUndeadResult(4, 'ghoul'), { result: 'roll', needed: 4, affected: '2d6' });
+  assert.deepEqual(getTurnUndeadResult(4, 'spectre'), { result: 'roll', needed: 20, affected: '2d6' });
+  assert.deepEqual(getTurnUndeadResult(6, 'skeleton'), { result: 'destroyed', affected: '2d6' });
+  assert.deepEqual(getTurnUndeadResult(6, 'zombie'), { result: 'destroyed', affected: '2d6' });
+  assert.deepEqual(getTurnUndeadResult(8, 'skeleton'), { result: 'destroyed', affected: '1d6+6' });
+  assert.deepEqual(getTurnUndeadResult(8, 'fiend'), { result: 'roll', needed: 20, affected: '1d2' });
+  assert.deepEqual(getTurnUndeadResult(9, 'fiend'), { result: 'roll', needed: 19, affected: '1d2' });
+  assert.deepEqual(getTurnUndeadResult(13, 'lich'), { result: 'roll', needed: 16, affected: '2d6' });
+  assert.deepEqual(getTurnUndeadResult(14, 'lich'), { result: 'roll', needed: 13, affected: '2d6' });
+  assert.deepEqual(getTurnUndeadResult(14, 'spectre'), { result: 'turned', affected: '2d6' });
+  assert.deepEqual(getTurnUndeadResult(19, 'shadow'), { result: 'destroyed', affected: '1d6+6' });
+  assert.deepEqual(getTurnUndeadResult(19, 'vampire'), { result: 'roll', needed: 4, affected: '2d6' });
+  assert.deepEqual(getTurnUndeadResult(19, 'fiend'), { result: 'roll', needed: 13, affected: '1d2' });
+});
+
+test('evil clerics turn paladins as mapped undead types that cannot be destroyed', () => {
+  assert.equal(getPaladinTurnTargetType(1), 'mummy');
+  assert.equal(getPaladinTurnTargetType(4), 'spectre');
+  assert.equal(getPaladinTurnTargetType(6), 'vampire');
+  assert.equal(getPaladinTurnTargetType(8), 'ghost');
+  assert.equal(getPaladinTurnTargetType(10), 'lich');
+  assert.equal(getPaladinTurnTargetType(11), 'fiend');
 });
 
 test('paladins turn two levels behind clerics starting at level 3', () => {
@@ -121,7 +142,10 @@ test('paladins turn two levels behind clerics starting at level 3', () => {
   assert.equal(getTurnLevel('fighter', 9), 0);
 });
 
-test('the turn undead source note flags the 2d6 discrepancy for the audit pass', () => {
-  assert.equal(TURN_UNDEAD_RULE_SOURCE.auditStatus, 'legacy-import');
-  assert.match(TURN_UNDEAD_RULE_SOURCE.note, /2d6/);
+test('turn undead is a verified OSRIC 3 source with d20 resolution', () => {
+  assert.equal(TURN_UNDEAD_RULE_SOURCE.auditStatus, 'verified-osric3');
+  assert.equal(TURN_UNDEAD_RULE_SOURCE.page, 98);
+  assert.match(TURN_UNDEAD_RULE_SOURCE.note, /d20/);
+  const record = getRuleSourceRecord('turn-undead');
+  assert.equal(record.auditStatus, 'verified-osric3');
 });
