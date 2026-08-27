@@ -2652,11 +2652,19 @@ function mapCharToCombatant(char, side) {
   const thief_skills = {};
   ['HN', 'CW', 'FRT', 'HIS', 'MS', 'OL', 'PP', 'RL'].forEach(k => { const v = char['thief' + k]; if (v != null && v !== '') thief_skills[k] = String(v); });
   const rate = _num(char.moveAdj, 0) || _num(char.moveBase, 12); // sheet-authoritative encumbrance-adjusted rate
+  // Turning level across ALL classes, so a fighter/cleric on the fighter matrix still turns.
+  const turn_level = String(char.characterClass || '').split('/').map((cn, i) => {
+    const lv = _num(String(char.level || '1').split('/')[i], 1);
+    const c2 = String(cn).toLowerCase();
+    if (/cleric|priest/.test(c2)) return lv;
+    if (/paladin/.test(c2) && lv >= 3) return lv - 2;
+    return 0;
+  }).reduce((a, b) => Math.max(a, b), 0);
   return {
     id: char._id ? String(char._id) : _slug(name),
     side: side || 'A', kind: 'pc',
     label: name, letter: (name.trim()[0] || '?').toUpperCase(),
-    matrix_class: cls.matrix_class, level: cls.level,
+    matrix_class: cls.matrix_class, level: cls.level, turn_level,
     position: { col: 2, row: 2 }, facing: 90,
     hp_max: _num(char.hpMax, 1), hp_current: _num(char.hpCurrent, _num(char.hpMax, 1)),
     ac_base: _num(char.acShieldless, _num(char.ac, 10)), ac_current: _num(char.ac, 10),
@@ -2683,7 +2691,10 @@ function mapCharToCombatant(char, side) {
   };
 }
 // Foundry ARS Actor export -> the legacy sheet shape mapCharToCombatant consumes.
-// Field paths follow the ARS import machinery in adnd.html (parseArsActorExport et al).
+// Field paths verified against a real ARS export (fvtt-Actor-maxwell): abilities at
+// system.abilities.X.value (+str.percent), hp at system.attributes.hp, memorized spells
+// at system.spellInfo.memorization, AC derived from equipped armor/shield/ring items,
+// missile ranges at item system.attack.range, weights at item system.attributes.weight.
 function arsActorLevel(item) {
   const adv = Array.isArray(item?.system?.advancement) ? item.system.advancement : [];
   const n = Math.max(0, ...adv.map(a => Math.round(Number(a?.level) || 0)));
@@ -2693,37 +2704,93 @@ function arsActorLevel(item) {
   for (const r of ranks) { if (Number(r?.xp) >= xp && Number(r?.level) > 0) return Math.max(1, Math.round(Number(r.level))); }
   return 1;
 }
+// 1e PHB Strength table (to-hit / damage), exceptional bands included.
+function arsStrengthAdj(str, pct) {
+  const s = Math.round(Number(str) || 10);
+  if (s >= 18 && pct > 0) {
+    if (pct >= 100) return { hit: 3, dmg: 6 };
+    if (pct >= 91) return { hit: 2, dmg: 5 };
+    if (pct >= 76) return { hit: 2, dmg: 4 };
+    if (pct >= 51) return { hit: 2, dmg: 3 };
+    return { hit: 1, dmg: 3 };
+  }
+  if (s <= 3) return { hit: -3, dmg: -1 };
+  if (s <= 5) return { hit: -2, dmg: -1 };
+  if (s <= 7) return { hit: -1, dmg: 0 };
+  if (s <= 15) return { hit: 0, dmg: 0 };
+  if (s === 16) return { hit: 0, dmg: 1 };
+  if (s === 17) return { hit: 1, dmg: 1 };
+  return { hit: 1, dmg: 2 };
+}
+function arsEquipped(it) {
+  const loc = it?.system?.location;
+  const state = (loc && typeof loc === 'object') ? loc.state : loc;
+  return String(state || '').toLowerCase() === 'equipped';
+}
+const ARS_PSEUDO_WEAPONS = ['brawl', 'grapple', 'overbear'];
 function arsActorToLegacyChar(raw) {
   const classes = raw.items.filter(i => i?.type === 'class' && i?.system?.active !== false);
   if (!classes.length) throw new Error('ARS Actor has no active class items.');
   const abil = raw.system?.abilities || {};
   const av = k => { const v = Number(abil?.[k]?.value); return Number.isFinite(v) ? v : undefined; };
   const attrs = raw.system?.attributes || {};
-  const hp = attrs.hp || raw.system?.hp || {};
-  const acRaw = attrs.ac || raw.system?.ac || {};
-  const ac = Number(acRaw.value ?? acRaw.normal ?? acRaw.current);
-  const acRear = Number(acRaw.shieldless ?? acRaw.rear);
-  const mv = Number(attrs.movement?.value ?? attrs.move?.value ?? raw.system?.movement?.value);
-  const weapons = raw.items.filter(i => i?.type === 'weapon').map(it => {
-    const d = it.system?.damage || {};
-    return { name: it.name, dmg: String(d.normal || d.sm || d.value || '').trim(), range: String(it.system?.range || '').trim() };
+  const hp = attrs.hp || {};
+  // AC derived from equipped protection items (RAW: a ring of protection does not
+  // stack with worn magic armor; shields and their pluses always apply).
+  let armorAC = 10, magicArmor = false, shieldAdj = 0, ringBonus = 0;
+  raw.items.filter(i => i?.type === 'armor' && arsEquipped(i)).forEach(it => {
+    const p = it.system?.protection || {};
+    const mod = Number(p.modifier) || 0;
+    if (p.type === 'armor') { armorAC = Math.min(armorAC, (Number(p.ac) || 10) - mod); if (mod > 0) magicArmor = true; }
+    else if (p.type === 'shield') { shieldAdj += (Number(p.ac) || 1) + mod; }
+    else if (p.type === 'ring') { ringBonus = Math.max(ringBonus, mod); }
   });
+  const dex = av('dex');
+  const dexAdj = dex == null ? 0 : dex <= 3 ? 4 : dex === 4 ? 3 : dex === 5 ? 2 : dex === 6 ? 1 : dex <= 14 ? 0 : dex === 15 ? -1 : dex === 16 ? -2 : dex === 17 ? -3 : -4;
+  const acShieldless = armorAC + dexAdj - (magicArmor ? 0 : ringBonus);
+  const ac = acShieldless - shieldAdj;
+  const strAdj = arsStrengthAdj(av('str'), Number(abil?.str?.percent) || 0);
+  const weapons = raw.items
+    .filter(i => i?.type === 'weapon' && !ARS_PSEUDO_WEAPONS.includes(String(i.name || '').toLowerCase()))
+    .map(it => {
+      const d = it.system?.damage || {};
+      const rg = it.system?.attack?.range || {};
+      const range = [rg.short, rg.medium, rg.long].map(x => String(x || '').trim()).filter(Boolean).join('/');
+      return { name: it.name, dmg: String(d.normal || '').trim(), range };
+    });
   const items = raw.items
-    .filter(i => i && i.name && !['class', 'weapon', 'spell', 'proficiency', 'skill', 'race'].includes(i.type))
-    .map(it => ({ name: it.name, qty: Number(it.system?.quantity) || 1, weight: Math.round((Number(it.system?.weight) || 0) * 10) }));
-  const spells = raw.items.filter(i => i?.type === 'spell' && (i.system?.memorized || i.system?.prepared))
-    .map(it => ({ name: it.name, memorized: true, qty: Number(it.system?.memorized) || 1, cast: Number(it.system?.cast) || 0 }));
+    .filter(i => i && i.name && ['item', 'potion', 'container'].includes(i.type))
+    .map(it => {
+      const loc = it.system?.location;
+      const state = (loc && typeof loc === 'object') ? loc.state : loc;
+      return { name: it.name, qty: Number(it.system?.quantity) || 1,
+        weight: Math.round((Number(it.system?.attributes?.weight) || 0) * 10),
+        location: String(state || '') === 'nocarried' ? 'nocarried' : undefined };
+    });
+  // Memorized/prayed copies live at actor level, one entry per prepared copy.
+  const spells = [];
+  const memo = raw.system?.spellInfo?.memorization || {};
+  for (const kind of ['divine', 'arcane']) {
+    const byLevel = memo[kind] || {};
+    for (const lvl of Object.keys(byLevel)) {
+      const slots = byLevel[lvl] || {};
+      for (const k of Object.keys(slots)) {
+        const e = slots[k];
+        if (e && e.name) spells.push({ name: e.name, memorized: true, qty: 1, cast: e.cast ? 1 : 0 });
+      }
+    }
+  }
   return {
     _id: raw._id ? 'ars-' + raw._id : undefined,
     characterName: String(raw.name || '').trim(),
     characterClass: classes.map(c => String(c.name || 'Fighter').trim()).join('/'),
     level: classes.map(arsActorLevel).join('/'),
-    hpMax: Number(hp.max), hpCurrent: Number(hp.value ?? hp.current),
-    ac: Number.isFinite(ac) ? ac : undefined,
-    acShieldless: Number.isFinite(acRear) ? acRear : undefined,
-    str: av('str'), dex: av('dex'), con: av('con'), int: av('int'), wis: av('wis'), cha: av('cha'),
+    hpMax: Number(hp.max), hpCurrent: Number(hp.value),
+    ac, acShieldless,
+    str: av('str'), dex, con: av('con'), int: av('int'), wis: av('wis'), cha: av('cha'),
+    combatToHitAdj: strAdj.hit, combatDamAdj: strAdj.dmg,
     weapons, items, spells,
-    moveBase: Number.isFinite(mv) ? mv : 12,
+    moveBase: Number(attrs.movement?.value) || 12,
   };
 }
 function loadCharacterFromObj(obj) {
@@ -4726,7 +4793,7 @@ async function executeTurnDecl(c) {
     await sleep(250); return;
   }
   undead.sort((a, b) => hdValue(a) - hdValue(b));
-  const lvl = (typeof CDATA !== 'undefined' && CDATA.getTurnLevel) ? CDATA.getTurnLevel(c.matrix_class, c.level) : (c.level || 1);
+  const lvl = (c.turn_level > 0) ? c.turn_level : ((typeof CDATA !== 'undefined' && CDATA.getTurnLevel) ? CDATA.getTurnLevel(c.matrix_class, c.level) : (c.level || 1));
   const turnRoll = rollDice('1d20');   // single d20 for the whole attempt (OSRIC 3.0 §1.6.5)
   let cap = -1;                         // affected count rolled once, from the first affecting tier, weakest first
   for (const u of undead) {
