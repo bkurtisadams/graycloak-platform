@@ -316,9 +316,18 @@
   // those and route to the same subtables so we always end up with
   // a concrete creature name.
   const IMPLICIT_SUBTABLES = {
-    'demi-human': 'demi_human',
-    'demihuman':  'demi_human',
-    'humanoid':   'humanoid',
+    'demi-human':  'demi_human',
+    'demihuman':   'demi_human',
+    'humanoid':    'humanoid',
+    'dragon':      'dragon',
+    'lycanthrope': 'lycanthrope',
+    'men':         'men',
+    'snake':       'snake',
+    'undead':      'undead',
+    'frog':        'frog',
+    'giant':       'giant',
+    'sphinx':      'sphinx',
+    'spider':      'spider',
   };
   function resolveSubtable(result, dmgTerrain){
     const D = window.GCCEncounterData;
@@ -477,18 +486,45 @@
       // that name the variant resolve to a full stat block instead of
       // falling back to the parent's defaults (or null). A top-level name
       // already in the index wins over a colliding variant key.
+      // Variant labels are inconsistent across families: some carry a full
+      // v.name ('Bombardier Beetle'), others a bare v.type qualifier
+      // ('Brown' under 'Bear, Lesser'). Index every label, and when a bare
+      // label lacks the family head noun, also index the composed forms
+      // ('brown bear', 'bear brown') so table spellings resolve.
+      const head = m.name.toLowerCase().split(',')[0].trim().split(/\s+/)[0];
       if (Array.isArray(m.variants)){
         for (const v of m.variants){
-          if (!v || !v.type) continue;
-          const merged = Object.assign({}, m, v, { name: v.type, variants: undefined });
-          const vk = v.type.toLowerCase().trim();
-          if (vk && !idx.has(vk)) idx.set(vk, merged);
-          const vs = vk.replace(/s$/, '');
-          if (vs && !idx.has(vs)) idx.set(vs, merged);
+          if (!v) continue;
+          const labels = [v.type, v.name].filter(x => x && String(x).trim());
+          if (!labels.length) continue;
+          const label0 = String(labels[0]);
+          const displayName = label0.toLowerCase().indexOf(head) >= 0
+            ? label0
+            : label0 + ' ' + m.name.split(',')[0].trim();
+          const merged = Object.assign({}, m, v, { name: displayName, variants: undefined });
+          for (const label of labels){
+            const vk = String(label).toLowerCase().trim();
+            const keys = [vk, vk.replace(/s$/, '')];
+            if (head && vk.indexOf(head) < 0){
+              keys.push(vk + ' ' + head, head + ' ' + vk);
+            }
+            for (const key of keys){ if (key && !idx.has(key)) idx.set(key, merged); }
+          }
         }
       }
     }
     return idx;
+  }
+  // Punctuation-insensitive mirror of the index ('will-o-(the)-wisp' ↔
+  // 'will-o-wisp'). Built lazily beside the main index.
+  let _mmNorm = null;
+  function _normKey(s){ return String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+  function normIndex(){
+    if (_mmNorm) return _mmNorm;
+    if (!_mmIndex) _mmIndex = buildMMIndex();
+    _mmNorm = new Map();
+    for (const [k, v] of _mmIndex){ const nk = _normKey(k); if (nk && !_mmNorm.has(nk)) _mmNorm.set(nk, v); }
+    return _mmNorm;
   }
   // Encounter-table monster names sometimes don't match MM entry
   // names exactly — typos in source data, parenthetical qualifiers,
@@ -530,29 +566,61 @@
     // resolves 'Lynx, Giant' directly — this covers the reversed spelling
     // ('Giant lynx') some tables use.
     'giant lynx':                'lynx, giant',
+    // Singular table form of the plural alias above.
+    'men, nomad':                'men, tribesmen',
+    // MM names the groaning spirit entry Banshee.
+    'groaning spirit':           'banshee',
+    // Tables abbreviate; the MM entry is Rhinoceros with a Woolly variant.
+    'rhino, woolly':             'woolly rhinoceros',
+    // MM prints the parenthesized article; tables drop it.
+    'will-o-wisp':               'will-o-(the)-wisp',
+    'will-o-the-wisp':           'will-o-(the)-wisp',
   };
   function lookupMonster(name){
     if (!_mmIndex) _mmIndex = buildMMIndex();
     if (!name) return null;
     const k = String(name).toLowerCase().trim();
-    if (_mmIndex.has(k)) return _mmIndex.get(k);
-    // Try without trailing 's'
-    if (_mmIndex.has(k.replace(/s$/, ''))) return _mmIndex.get(k.replace(/s$/, ''));
-    // Try the alias map for known canon mismatches.
-    if (MM_ALIAS[k] && _mmIndex.has(MM_ALIAS[k])) return _mmIndex.get(MM_ALIAS[k]);
-    // Strip parenthetical qualifiers: "Hobgoblin (raiding)" →
-    // "hobgoblin". Common in regional tables that flavor a base
-    // creature with circumstance.
-    const noParens = k.replace(/\s*\([^)]*\)/g, '').trim();
-    if (noParens !== k){
-      if (_mmIndex.has(noParens)) return _mmIndex.get(noParens);
-      if (_mmIndex.has(noParens.replace(/s$/, ''))) return _mmIndex.get(noParens.replace(/s$/, ''));
-      if (MM_ALIAS[noParens] && _mmIndex.has(MM_ALIAS[noParens])) return _mmIndex.get(MM_ALIAS[noParens]);
+    // Slash alternatives ('Bull/Cattle, wild', 'Ki-rin/Lammasu/Shedu'):
+    // resolve to the first component with a stat block.
+    if (k.indexOf('/') >= 0){
+      for (const part of k.split('/')){
+        const hit = lookupMonster(part.trim());
+        if (hit) return hit;
+      }
+      return null;
     }
-    // Try splitting on comma ('Wolf, worg' → try 'Wolf')
-    const parts = k.split(',').map(p => p.trim());
-    if (parts.length > 1){
-      if (_mmIndex.has(parts[0])) return _mmIndex.get(parts[0]);
+    const tryKey = key => {
+      if (!key) return null;
+      if (_mmIndex.has(key)) return _mmIndex.get(key);
+      const s = key.replace(/s$/, '');
+      if (_mmIndex.has(s)) return _mmIndex.get(s);
+      if (MM_ALIAS[key] && _mmIndex.has(MM_ALIAS[key])) return _mmIndex.get(MM_ALIAS[key]);
+      return null;
+    };
+    // Candidate spellings, tried in order: as written, parens stripped,
+    // MM-index comma forms reversed to natural order ('Beetle, bombardier'
+    // → 'bombardier beetle'; 'Snake, giant, constrictor' → 'constrictor
+    // giant snake' and 'constrictor snake'), and the lycanthrope prefix
+    // dropped ('Lycanthrope, werewolf' → 'werewolf').
+    const candidates = [k];
+    const noParens = k.replace(/\s*\([^)]*\)/g, '').trim();
+    if (noParens !== k) candidates.push(noParens);
+    for (const base of candidates.slice()){
+      const parts = base.split(',').map(p => p.trim()).filter(Boolean);
+      if (parts.length > 1){
+        candidates.push(parts.slice().reverse().join(' '));
+        candidates.push(parts[parts.length - 1] + ' ' + parts[0]);
+        if (parts[0] === 'lycanthrope') candidates.push(parts.slice(1).join(' '));
+        candidates.push(parts[0]);
+      }
+    }
+    for (const c of candidates){ const hit = tryKey(c); if (hit) return hit; }
+    const nidx = normIndex();
+    for (const c of candidates){
+      const nk = _normKey(c);
+      if (nidx.has(nk)) return nidx.get(nk);
+      const ns = nk.replace(/s$/, '');
+      if (nidx.has(ns)) return nidx.get(ns);
     }
     return null;
   }
