@@ -1,4 +1,8 @@
-// @graycloak/battlesystem-engine v0.9.1 - 2026-08-26
+// @graycloak/battlesystem-engine v0.10.0 - 2026-08-27
+// v0.10.0: individual-combat.js extracts pure §9.4B AD&D 1e individual-combat
+//          cadence, initiative scheduling, THAC0/AC hit resolution, hp damage,
+//          weapon hitability traits, regeneration, and level-drain pause state.
+//          Board hosts retain geometry, roster adapters, logs, DOM/UI, and dialogs.
 // v0.9.1: spells.js layers source/item overrides over canonical named-spell
 //         presets and adds ordinary Cleric Flame Strike to the shared damage
 //         preset vocabulary. Board hosts still own battlefield execution.
@@ -46,6 +50,7 @@ export { BattlesystemEffects, EFFECT_MODES } from './src/effects.js';
 export { BattlesystemActions, CHARACTER_ACTION_KINDS } from './src/actions.js';
 export { BattlesystemItems } from './src/items.js';
 export { BattlesystemSpells } from './src/spells.js';
+export { BattlesystemIndividualCombat } from './src/individual-combat.js';
 export { MISSILE_WEAPONS, ARTILLERY_WEAPONS, missileKey, missileDataFor, rangeBand } from './src/missiles.js';
 export {
   ratioFromHD,
