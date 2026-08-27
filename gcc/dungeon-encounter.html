@@ -2682,8 +2682,58 @@ function mapCharToCombatant(char, side) {
     attacks_per_round: char.numAttacks || '1', _source: 'adnd-sheet'
   };
 }
+// Foundry ARS Actor export -> the legacy sheet shape mapCharToCombatant consumes.
+// Field paths follow the ARS import machinery in adnd.html (parseArsActorExport et al).
+function arsActorLevel(item) {
+  const adv = Array.isArray(item?.system?.advancement) ? item.system.advancement : [];
+  const n = Math.max(0, ...adv.map(a => Math.round(Number(a?.level) || 0)));
+  if (n) return n;
+  const xp = Number(item?.system?.xp) || 0;
+  const ranks = Array.isArray(item?.system?.ranks) ? item.system.ranks : [];
+  for (const r of ranks) { if (Number(r?.xp) >= xp && Number(r?.level) > 0) return Math.max(1, Math.round(Number(r.level))); }
+  return 1;
+}
+function arsActorToLegacyChar(raw) {
+  const classes = raw.items.filter(i => i?.type === 'class' && i?.system?.active !== false);
+  if (!classes.length) throw new Error('ARS Actor has no active class items.');
+  const abil = raw.system?.abilities || {};
+  const av = k => { const v = Number(abil?.[k]?.value); return Number.isFinite(v) ? v : undefined; };
+  const attrs = raw.system?.attributes || {};
+  const hp = attrs.hp || raw.system?.hp || {};
+  const acRaw = attrs.ac || raw.system?.ac || {};
+  const ac = Number(acRaw.value ?? acRaw.normal ?? acRaw.current);
+  const acRear = Number(acRaw.shieldless ?? acRaw.rear);
+  const mv = Number(attrs.movement?.value ?? attrs.move?.value ?? raw.system?.movement?.value);
+  const weapons = raw.items.filter(i => i?.type === 'weapon').map(it => {
+    const d = it.system?.damage || {};
+    return { name: it.name, dmg: String(d.normal || d.sm || d.value || '').trim(), range: String(it.system?.range || '').trim() };
+  });
+  const items = raw.items
+    .filter(i => i && i.name && !['class', 'weapon', 'spell', 'proficiency', 'skill', 'race'].includes(i.type))
+    .map(it => ({ name: it.name, qty: Number(it.system?.quantity) || 1, weight: Math.round((Number(it.system?.weight) || 0) * 10) }));
+  const spells = raw.items.filter(i => i?.type === 'spell' && (i.system?.memorized || i.system?.prepared))
+    .map(it => ({ name: it.name, memorized: true, qty: Number(it.system?.memorized) || 1, cast: Number(it.system?.cast) || 0 }));
+  return {
+    _id: raw._id ? 'ars-' + raw._id : undefined,
+    characterName: String(raw.name || '').trim(),
+    characterClass: classes.map(c => String(c.name || 'Fighter').trim()).join('/'),
+    level: classes.map(arsActorLevel).join('/'),
+    hpMax: Number(hp.max), hpCurrent: Number(hp.value ?? hp.current),
+    ac: Number.isFinite(ac) ? ac : undefined,
+    acShieldless: Number.isFinite(acRear) ? acRear : undefined,
+    str: av('str'), dex: av('dex'), con: av('con'), int: av('int'), wis: av('wis'), cha: av('cha'),
+    weapons, items, spells,
+    moveBase: Number.isFinite(mv) ? mv : 12,
+  };
+}
 function loadCharacterFromObj(obj) {
-  const c = mapCharToCombatant(obj, 'A');
+  let src = obj;
+  if (obj && obj.type === 'character' && obj.system && Array.isArray(obj.items)) {
+    src = arsActorToLegacyChar(obj);
+  } else if (!obj || (!obj.characterName && !obj.characterClass)) {
+    throw new Error('Unrecognized character JSON — expected a GCC sheet export or a Foundry ARS Actor export.');
+  }
+  const c = mapCharToCombatant(src, 'A');
   const i = state.combatants.findIndex(x => x.id === c.id);
   if (i >= 0) state.combatants.splice(i, 1);
   state.combatants.push(c);
