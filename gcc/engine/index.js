@@ -1,4 +1,7 @@
-// @graycloak/battlesystem-engine v0.10.3 - 2026-08-27
+// @graycloak/battlesystem-engine v0.10.4 - 2026-08-27
+// v0.10.4: magic-movement.js adds pure §14.13 movement-magic recognition and
+//          the Missile-&-Magic-Phase-only timing contract, including innate
+//          Teleport. Normal AD&D/D&D movement effects remain host/referee-owned.
 // v0.10.3: magic-defenses.js adds pure §14.12 defensive-magic recognition,
 //          Pass-Through eligibility metadata, and the explicit BATTLESYSTEM
 //          Mirror Image HD-damage sharing calculation. Hosts retain AD&D
@@ -60,6 +63,7 @@ export { BattlesystemItems } from './src/items.js';
 export { BattlesystemSpells } from './src/spells.js';
 export { BattlesystemIndividualCombat } from './src/individual-combat.js';
 export { BattlesystemMagicDefenses } from './src/magic-defenses.js';
+export { BattlesystemMagicMovement } from './src/magic-movement.js';
 export { MISSILE_WEAPONS, GIANT_ROCK_PROFILES, ARTILLERY_WEAPONS, missileKey, missileDataFor, giantRockTypeFor, giantRockDataFor, rangeBand } from './src/missiles.js';
 export {
   ratioFromHD,
