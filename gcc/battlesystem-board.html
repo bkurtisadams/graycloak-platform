@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- battlesystem-board.html · v0.57.0 · AD&D ATTACK ROUTINE FOUNDATION — Adds engine-owned ordered attack routines: component attacks resolve together at one routine opportunity while cadence (1/1, 3/2, 2/1, etc.) repeats the entire routine using the DMG multiple-routine timing pattern. §9.4B now resolves multi-part natural routines with distinct damage expressions; ordinary characters fall back to the active weapon as a one-component routine. A resizable Attack Routines dialog records multiple routines, ordered components, cadence, and future target-splitting capacity. @graycloak/battlesystem-engine v0.11.0. PRIOR (v0.56.19): COMPACT HERO FLIGHT MV DISPLAY — Keeps the Hero MV cell focused on movement rates: ground MV remains the first line and active flight becomes a compact FLY MV second line. Flight source, maneuverability, endurance mode, and active speed modifiers move to hover text while the Effects row remains the detailed visible flight record. No flight-rule changes. PRIOR (v0.56.18): BOARD DRAG TEXT-SELECTION HOTFIX — Prevents native browser text selection/drag behavior from taking over when a unit drag is clamped at its legal movement limit or the pointer continues beyond the battlefield movement envelope. The battlefield SVG is explicitly non-selectable, selectstart/dragstart are cancelled, and custom left-button board gestures prevent the native mousedown default before unit/measure/terrain handling. No movement-rule or flight-rule changes. PRIOR (v0.56.17): COMPACT RESIZABLE RECORD DIALOGS + ARS SPELLBOOK REFERENCE FIX — Compacts the Inventory, Item, Spell Roster, and Spell Details dialogs and adds an explicit bottom-right resize grip. Fixes ARS Spell Book imports whose container references report level 0 by resolving them to the actor spell item before reading level/name. Progression-derived slot fields stay blank while calculated totals omit the ARS prefix, and imported caster labels use AD&D 1e class names without arcane/divine wording. Weapon assignment labels clarify active vs alternate rather than implying unsupported two-weapon fighting. No flight-rule expansion; Wings state from v0.56.15 is preserved. PRIOR (v0.56.15): HERO RECORD DIALOGS + WINGS FLIGHT STATE — Keeps the Hero sheet focused on BATTLESYSTEM play state while canonical equipment/weapon records edit through the Inventory + Item Editor dialogs and spell roster/metadata edit through dedicated dialogs. Hero Edit no longer duplicates weapon/item/spell record maintenance inline. Using equipped Wings of Flying now creates a persistent visible airborne state, uses the selected DMG Wings speed/endurance mode (32"/2 turns, 18"/4 turns, or 12"/8 turns), displays FLY MV on the Hero sheet and a FLY badge on the counter, and provides a Land action. §14.13 still controls when the movement-magic use occurs; detailed §15 aerial movement remains a later slice. @graycloak/battlesystem-engine remains v0.10.4. PRIOR (v0.56.14): UNIFIED HERO INVENTORY UI. -->
+<!-- battlesystem-board.html · v0.57.1 · §9.4B MELEE-WEAPON FALLBACK HOTFIX — A missile-only active weapon (bow/crossbow/sling/dart/blowgun) can no longer become a melee attack routine or leak its missile ROF into AD&D melee cadence. If a character enters §9.4B with a missile-only primary weapon, the routine fallback uses the equipped alternate/first melee-capable weapon without mutating the loadout, and the combat preface explains the substitution. Custom attack routines remain authoritative. @graycloak/battlesystem-engine remains v0.11.0. PRIOR (v0.57.0): AD&D ATTACK ROUTINE FOUNDATION — Adds engine-owned ordered attack routines: component attacks resolve together at one routine opportunity while cadence (1/1, 3/2, 2/1, etc.) repeats the entire routine using the DMG multiple-routine timing pattern. §9.4B now resolves multi-part natural routines with distinct damage expressions; ordinary characters fall back to the active weapon as a one-component routine. A resizable Attack Routines dialog records multiple routines, ordered components, cadence, and future target-splitting capacity. @graycloak/battlesystem-engine v0.11.0. PRIOR (v0.56.19): COMPACT HERO FLIGHT MV DISPLAY — Keeps the Hero MV cell focused on movement rates: ground MV remains the first line and active flight becomes a compact FLY MV second line. Flight source, maneuverability, endurance mode, and active speed modifiers move to hover text while the Effects row remains the detailed visible flight record. No flight-rule changes. PRIOR (v0.56.18): BOARD DRAG TEXT-SELECTION HOTFIX — Prevents native browser text selection/drag behavior from taking over when a unit drag is clamped at its legal movement limit or the pointer continues beyond the battlefield movement envelope. The battlefield SVG is explicitly non-selectable, selectstart/dragstart are cancelled, and custom left-button board gestures prevent the native mousedown default before unit/measure/terrain handling. No movement-rule or flight-rule changes. PRIOR (v0.56.17): COMPACT RESIZABLE RECORD DIALOGS + ARS SPELLBOOK REFERENCE FIX — Compacts the Inventory, Item, Spell Roster, and Spell Details dialogs and adds an explicit bottom-right resize grip. Fixes ARS Spell Book imports whose container references report level 0 by resolving them to the actor spell item before reading level/name. Progression-derived slot fields stay blank while calculated totals omit the ARS prefix, and imported caster labels use AD&D 1e class names without arcane/divine wording. Weapon assignment labels clarify active vs alternate rather than implying unsupported two-weapon fighting. No flight-rule expansion; Wings state from v0.56.15 is preserved. PRIOR (v0.56.15): HERO RECORD DIALOGS + WINGS FLIGHT STATE — Keeps the Hero sheet focused on BATTLESYSTEM play state while canonical equipment/weapon records edit through the Inventory + Item Editor dialogs and spell roster/metadata edit through dedicated dialogs. Hero Edit no longer duplicates weapon/item/spell record maintenance inline. Using equipped Wings of Flying now creates a persistent visible airborne state, uses the selected DMG Wings speed/endurance mode (32"/2 turns, 18"/4 turns, or 12"/8 turns), displays FLY MV on the Hero sheet and a FLY badge on the counter, and provides a Land action. §14.13 still controls when the movement-magic use occurs; detailed §15 aerial movement remains a later slice. @graycloak/battlesystem-engine remains v0.10.4. PRIOR (v0.56.14): UNIFIED HERO INVENTORY UI. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -928,7 +928,7 @@
 </dialog>
 
 <script type="module">
-const SIM_VERSION = '0.57.0';
+const SIM_VERSION = '0.57.1';
 import {
   BattlesystemCombat, CombatResultsTable, BattlesystemMorale, BattlesystemMovement, BattlesystemCavalry,
   BattlesystemEffects, BattlesystemActions, BattlesystemItems, BattlesystemSpells, BattlesystemIndividualCombat, BattlesystemAttackRoutines, BattlesystemMagicDefenses, BattlesystemMagicMovement, EFFECT_MODES, CHARACTER_ACTION_KINDS,
@@ -2572,17 +2572,26 @@ function normalizeAttackRateValue(v,fallback='1/1',allowBlank=false) {
 function normalizeCharacterMeleeRateValue(v,fallback='1/1') {
   const s=normalizeAttackRateValue(v,fallback); if(s==='1')return '1/1'; if(s==='2')return '2/1'; if(s==='1.5')return '3/2'; return s;
 }
-function characterMeleeAttackRate(u) {
+function characterMeleeAttackRate(u,eOverride=null) {
   if(!u||!isIndividual(u))return '1/1';
   const raw=String(u.char?.meleeAt??'').trim(); if(raw)return normalizeCharacterMeleeRateValue(raw,'1/1');
   const a=normalizeArsProgression(u.char?.arsProgression); if(a)return arsBestAttackRate(a,a.classes.map(x=>x.level));
-  const e=activeWeaponEntry(u), legacy=e?.at ?? profileForEntry(u,e)?.numberOfAttacks ?? 1;
+  const e=eOverride||activeWeaponEntry(u), legacy=e?.at ?? profileForEntry(u,e)?.numberOfAttacks ?? 1;
   return normalizeCharacterMeleeRateValue(legacy,'1/1');
 }
 function weaponAttackRateOverride(e={}) { return normalizeAttackRateValue(e?.atOverride,'',true); }
 function configuredAttackRoutines(u){return BattlesystemAttackRoutines.normalizeRoutines(u?.prof?.attackRoutines||profileOf(u)?.attackRoutines||[]);}
 function activeConfiguredAttackRoutine(u){const list=configuredAttackRoutines(u);return BattlesystemAttackRoutines.activeRoutine(list,u?.prof?.activeAttackRoutineId||profileOf(u)?.activeAttackRoutineId||'');}
-function effectiveIndividualAttackRate(u,e=activeWeaponEntry(u)) { const r=activeConfiguredAttackRoutine(u);return r?.cadence||weaponAttackRateOverride(e)||characterMeleeAttackRate(u); }
+function missileOnlyMeleeWeapon(e,u=null){
+  if(!e)return false;const md=missileDataForEntry(u,e);if(!md)return false;const key=missileKey(rosterBaseWeaponName(e.name||'')),cls=String(md.cls||'').toLowerCase();
+  return cls==='archer'||cls==='xbow'||/(?:bow|crossbow|sling|dart|blowgun)/.test(key);
+}
+function individualMeleeWeaponEntry(u){
+  const rows=weaponEntries(u),active=activeWeaponEntry(u);if(active&&!missileOnlyMeleeWeapon(active,u))return active;
+  if(characterRawIndividual(u)){const inv=characterInventory(u),alt=rows.find(e=>e?.itemId&&e.itemId===inv.alternateWeapon);if(alt&&!missileOnlyMeleeWeapon(alt,u))return alt;}
+  return rows.find(e=>!missileOnlyMeleeWeapon(e,u))||null;
+}
+function effectiveIndividualAttackRate(u,e=null) { const r=activeConfiguredAttackRoutine(u);if(r)return r.cadence;const melee=e||individualMeleeWeaponEntry(u);return weaponAttackRateOverride(melee)||characterMeleeAttackRate(u,melee); }
 function normalizeIndividualCombatRates(u) {
   if(!u||!isIndividual(u))return;
   const c=u.char||(u.char=mkCharacter()), pr=u.prof||(u.prof={}), list=Array.isArray(pr.weapons)?pr.weapons:null, a=normalizeArsProgression(c.arsProgression);
@@ -3723,10 +3732,14 @@ function useAweFear(source,target) {
   renderAll(); return true;
 }
 function fallbackIndividualAttackRoutine(u){
-  const e=activeWeaponEntry(u)||{name:activeWeaponName(u)||'Attack'},w=profileForEntry(u,e),sm=smStr(w)||'1d6',l=lStr(w)||sm,traits=weaponTraitData(e);
-  return BattlesystemAttackRoutines.normalizeRoutine({id:'active-weapon',name:e.name||'Weapon',cadence:weaponAttackRateOverride(e)||characterMeleeAttackRate(u),maxTargets:1,components:[{id:e._itemId||e.id||'weapon',name:e.name||'Weapon',sm,l,hit:Number(e.hit)||0,dmod:Number(e.dmod)||0,...traits}]});
+  const e=individualMeleeWeaponEntry(u)||{name:'Attack'},w=profileForEntry(u,e),sm=smStr(w)||'1d6',l=lStr(w)||sm,traits=weaponTraitData(e);
+  return BattlesystemAttackRoutines.normalizeRoutine({id:'melee-weapon',name:e.name||'Weapon',cadence:weaponAttackRateOverride(e)||characterMeleeAttackRate(u,e),maxTargets:1,components:[{id:e._itemId||e.id||'weapon',name:e.name||'Weapon',sm,l,hit:Number(e.hit)||0,dmod:Number(e.dmod)||0,...traits}]});
 }
 function individualAttackRoutine(u){return activeConfiguredAttackRoutine(u)||fallbackIndividualAttackRoutine(u);}
+function individualMeleeFallbackNote(u){
+  if(activeConfiguredAttackRoutine(u))return'';const active=activeWeaponEntry(u),melee=individualMeleeWeaponEntry(u);if(!active||!melee||active===melee||active.name===melee.name)return'';
+  return missileOnlyMeleeWeapon(active,u)?`${uName(u)}: ${active.name} is missile-only; §9.4B uses ${melee.name} as the melee routine [8.2].`:'';
+}
 function attackRoutineComponentEntry(component){return BattlesystemAttackRoutines.componentWeaponEntry(component);}
 function attackRoutineSummary(u){const r=activeConfiguredAttackRoutine(u);return r?`${r.name} · ${r.components.length} attack${r.components.length===1?'':'s'} · ${r.cadence}${r.maxTargets>1?` · ≤${r.maxTargets} targets`:''}`:'';}
 function normalizeUnitAttackRoutines(u){if(!u?.prof)return [];const list=BattlesystemAttackRoutines.normalizeRoutines(u.prof.attackRoutines||[]);if(list.length)u.prof.attackRoutines=list;else delete u.prof.attackRoutines;if(list.length&&!list.some(r=>r.id===u.prof.activeAttackRoutineId))u.prof.activeAttackRoutineId=list[0].id;if(!list.length)delete u.prof.activeAttackRoutineId;return list;}
@@ -6392,6 +6405,7 @@ function individualCombatState(a,d) {
   if(!magicTacticalEnemy(a,d))return {ok:false,reason:'Individual Combat requires enemy figures'};
   if(!isIndividual(a)||!isIndividual(d)||ratioOf(a)!=='1:1'||ratioOf(d)!=='1:1')
     return {ok:false,reason:'§9.4B Individual Combat is only between 1:1 figures'};
+  for(const u of [a,d])if(!activeConfiguredAttackRoutine(u)&&!individualMeleeWeaponEntry(u))return {ok:false,reason:`${uName(u)} has no melee-capable weapon or configured attack routine; missile-only weapons do not resolve as §9.4B melee`};
   if((a.char?.hp||0)<=0||(d.char?.hp||0)<=0)return {ok:false,reason:'a DOWN individual cannot continue Individual Combat'};
   if(!setupSandbox()&&(a.acted?.fought||d.acted?.fought))return {ok:false,reason:'one of these individuals has already resolved its Melee Phase combat'};
   if(!inIndividualContact(a,d))return {ok:false,reason:`not in individual contact — ${fmt(rectGap(a,d))}″ edge gap, needs ≤ ${fmt(INDIVIDUAL_CONTACT_EPS)}″ (adjacent 1″ grid positions count) [9.4B]`};
@@ -6431,9 +6445,10 @@ function resolveIndividualCombat(a,b,rng=Math.random) {               // [1.6A]/
   const cadenceStart=individualCombatCadenceNext(a,b);
   a.acted.fought=true;b.acted.fought=true;
   a.wasAttackedThisPhase=true;a.wasAttackedThisRound=true;b.wasAttackedThisPhase=true;b.wasAttackedThisRound=true;
+  const meleeFallbackNotes=[individualMeleeFallbackNote(a),individualMeleeFallbackNote(b)].filter(Boolean).map(esc).join('<br>');
   log('melee',`⚔ INDIVIDUAL COMBAT · ${esc(uName(a))} vs ${esc(uName(b))}`,
     `1:1 figures · 3 AD&D melee rounds this BATTLESYSTEM Melee Phase · individual d6 initiative [5.2]/[9.4B] · continuing AD&D round ${cadenceStart}`,
-    'Weapon melee uses THAC0 vs AC and hp damage. Per-weapon Magic/Silver/Sharpness/Fire/Acid traits and applicable [13.0] creature defenses bridge into this normal-AD&D path. Routine cadence continues while the same pair remains engaged; every scheduled routine resolves all of its ordered component attacks. Level drain is immediate and pauses later unresolved components/routines until the referee updates the victim.');
+    ['Weapon melee uses THAC0 vs AC and hp damage. Per-weapon Magic/Silver/Sharpness/Fire/Acid traits and applicable [13.0] creature defenses bridge into this normal-AD&D path. Routine cadence continues while the same pair remains engaged; every scheduled routine resolves all of its ordered component attacks. Level drain is immediate and pauses later unresolved components/routines until the referee updates the victim.',meleeFallbackNotes].filter(Boolean).join('<br>'));
   for(let mr=1;mr<=3;mr++){
     if((a.char?.hp||0)<=0||(b.char?.hp||0)<=0)break;
     const absRound=cadenceStart+mr-1,r=executeIndividualRoundPlan(a,b,individualRoundPlan(a,b,mr,rng,absRound),rng);
@@ -10776,6 +10791,14 @@ window.addEventListener('mousedown', e => {   // assign menu closes on any outsi
         t('[9.4B] character Melee #AT applies across ordinary weapon switches',individualAttackCount(IA,1)===2);IA.activeWeapon='halberd';t('[9.4B] switching to a second thrusting/striking weapon keeps the same class cadence',individualAttackCount(IA,2)===1);
         IA.prof.weapons[1].atOverride='2/1';t('[9.4B] explicit weapon #AT override can supersede the character rate',individualAttackCount(IA,2)===2);
         IA.prof.weapons=oldWeapons;IA.activeWeapon=oldActive; }
+      { const oldWeapons=IA.prof.weapons,oldActive=IA.activeWeapon,oldRate=IA.char.meleeAt,oldInv=IA.char.inventory;
+        IA.char.inventory=null;IA.char.meleeAt='1/1';IA.prof.weapons=[{name:'Composite Bow, Long +2',sm:'1d6',l:'1d6',atOverride:'2/1',rangeS:7,rangeM:14,rangeL:21},{name:'longsword',sm:'1d8',l:'1d12'}];IA.activeWeapon='Composite Bow, Long +2';
+        const mw=individualMeleeWeaponEntry(IA),mr=individualAttackRoutine(IA);
+        t('[9.4B/v0.57.1] missile-only active weapon falls back to a melee-capable weapon',mw?.name==='longsword'&&mr.name==='longsword');
+        t('[9.4B/v0.57.1] missile ROF does not leak into melee routine cadence',individualAttackCount(IA,1)===1&&mr.cadence==='1/1');
+        IA.prof.weapons=[{name:'Composite Bow, Long +2',sm:'1d6',l:'1d6',atOverride:'2/1',rangeS:7,rangeM:14,rangeL:21}];IA.activeWeapon='Composite Bow, Long +2';
+        t('[9.4B/v0.57.1] a missile-only character with no melee routine is refused rather than using bow damage in melee',individualMeleeWeaponEntry(IA)===null);
+        IA.prof.weapons=oldWeapons;IA.activeWeapon=oldActive;IA.char.meleeAt=oldRate;IA.char.inventory=oldInv; }
       t('[9.4B] fractional #AT 3/2 expands as 2,1,2 across the three AD&D rounds', [1,2,3].map(r=>individualAttackCount(IA,r)).join(',')==='2,1,2');
       t('[9.4B] continuing 3/2 cadence alternates 1,2,1 on AD&D rounds 4-6', [4,5,6].map(r=>individualAttackCount(IA,r)).join(',')==='1,2,1');
       { const keepA=JSON.parse(JSON.stringify(magicStatusesOf(IA))),keepB=JSON.parse(JSON.stringify(magicStatusesOf(IB)));
@@ -12328,7 +12351,7 @@ NET.init();
 setDockTab(state.setup ? 'muster' : 'selected');
 renderAll(); syncLogCount();
 log('phase', `Battlesystem Board v${SIM_VERSION}`, 'Muster (click board to place) · shift+click targets an enemy · lit buttons show legal actions',
-  "Engine: @graycloak/battlesystem-engine v0.11.0 · v0.57.0 AD&D ordered attack routines + DMG whole-routine cadence · v0.56.19 compact flight MV + v0.56.17 record dialogs/spellbook fixes · Multiplayer: private feeds + GM privacy diagnostics (Firestore v10 rules required) · Advanced [12.0]-[14.13]: weather/night, special creatures, exact spell preparation, magic casting/damage/status, Create Troops, private Detection/Information, §14.13 Movement-magic Missile-&-Magic-only timing including innate Teleport + referee-managed AD&D movement effects, v0.56.12 Mirror Image low-damage rule clarification + regression lock, §14.12 defensive-magic recognition + Mirror Image damage sharing, v0.56.10 Army-Roster Level/Race/Class identity correction + compact Unit Commander/Deputy CR display + v0.56.9 giant Hurl-rocks unit-name/custom-range integration fix + v0.56.6 guided unresolved-Melee navigation + v0.56.5 Pass-Through Fire Fire-now/Hold decision UX + PT battlefield cues + v0.56.4 self-test fixture correction + v0.56.3 sequence fixture-compatibility hotfix + v0.56.2 Chainmail-style explicit stable subphase sequence for Initial Missile/Rally/Movement/Magic/Missile/Artillery + exhausted-entry auto-skip + Movement-only pass-through declaration, v0.56.1 action-flow/engagement-progress foundation, v0.56.0 engine-extracted §9.4B individual combat, v0.55.9 stable phase rail + compact ? help with familiar visible header controls, v0.55.7 flat TSR-grid Hero play view plus v0.55.6 Hero missile-arc/weapon-switch consistency, §14.6A Charm/Mass Charm temporary-control rules, persistent/actionable advisory DUE tracking, engine-extracted Hero items/actions/effects, PHB spell catalog, canonical spell + source-override presets, and shared spell execution contracts for resolver/target/save/damage/timing/status routing");
+  "Engine: @graycloak/battlesystem-engine v0.11.0 · v0.57.1 melee-weapon fallback + v0.57.0 AD&D ordered attack routines + DMG whole-routine cadence · v0.56.19 compact flight MV + v0.56.17 record dialogs/spellbook fixes · Multiplayer: private feeds + GM privacy diagnostics (Firestore v10 rules required) · Advanced [12.0]-[14.13]: weather/night, special creatures, exact spell preparation, magic casting/damage/status, Create Troops, private Detection/Information, §14.13 Movement-magic Missile-&-Magic-only timing including innate Teleport + referee-managed AD&D movement effects, v0.56.12 Mirror Image low-damage rule clarification + regression lock, §14.12 defensive-magic recognition + Mirror Image damage sharing, v0.56.10 Army-Roster Level/Race/Class identity correction + compact Unit Commander/Deputy CR display + v0.56.9 giant Hurl-rocks unit-name/custom-range integration fix + v0.56.6 guided unresolved-Melee navigation + v0.56.5 Pass-Through Fire Fire-now/Hold decision UX + PT battlefield cues + v0.56.4 self-test fixture correction + v0.56.3 sequence fixture-compatibility hotfix + v0.56.2 Chainmail-style explicit stable subphase sequence for Initial Missile/Rally/Movement/Magic/Missile/Artillery + exhausted-entry auto-skip + Movement-only pass-through declaration, v0.56.1 action-flow/engagement-progress foundation, v0.56.0 engine-extracted §9.4B individual combat, v0.55.9 stable phase rail + compact ? help with familiar visible header controls, v0.55.7 flat TSR-grid Hero play view plus v0.55.6 Hero missile-arc/weapon-switch consistency, §14.6A Charm/Mass Charm temporary-control rules, persistent/actionable advisory DUE tracking, engine-extracted Hero items/actions/effects, PHB spell catalog, canonical spell + source-override presets, and shared spell execution contracts for resolver/target/save/damage/timing/status routing");
 </script>
 </body>
 </html>
