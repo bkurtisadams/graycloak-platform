@@ -818,7 +818,7 @@ body.light .round-head .rh-title { font-family: inherit; }
   <div class="workspace">
     <section class="map">
       <svg id="map-svg" viewBox="0 0 880 540" preserveAspectRatio="xMidYMid meet"></svg>
-      <div class="scale-bar">1 square<span class="scale-line"></span>≈ 10 ft</div>
+      <div class="scale-bar" id="scale-bar">1 square<span class="scale-line"></span>≈ 10 ft</div>
       <div class="zoom-hint">scroll = zoom · drag background = pan · dbl-click = reset</div>
       <div class="hit-preview" id="hit-preview"></div>
     </section>
@@ -2402,7 +2402,39 @@ async function copyChatLogJsonToClipboard() {
 //  SCENE & STATE
 // ============================================================
 const SUB = 4; // figure-cells per 10ft square (2.5 ft each — aligns to the 5ft line)
-const SCENE = {
+// ── SCALE ────────────────────────────────────────────────────────────────────
+// 1e DMG / OSRIC 1.5.3.2: the tactical layer is denominated in inches, and one
+// inch is 10 ft underground but 10 yd outdoors. Anything already measured in
+// inches (movement rates, missile ranges, spell ranges) is therefore
+// scale-invariant — the same square count means three times the ground. Only
+// quantities natively expressed in FEET (weapon reach and space, light radii)
+// shrink relative to the grid outdoors, and spell areas of effect explicitly
+// stay unchanged (OSRIC 1.5.3.2 p.87).
+//
+// The scale is fixed for the encounter, so it is resolved from the pending
+// handoff before the grid constants below are derived.
+const SCALES = {
+  dungeon: { id: 'dungeon', ft_per_square: 10, unit: 'ft',  unit_long: 'feet',  per_inch: 10 },
+  outdoor: { id: 'outdoor', ft_per_square: 30, unit: 'yd',  unit_long: 'yards', per_inch: 10 },
+};
+function _pendingScale() {
+  try {
+    const raw = localStorage.getItem('gcc-pending-encounter');
+    if (!raw) return 'dungeon';
+    const ctx = (JSON.parse(raw) || {}).context || {};
+    return ctx.scale === 'outdoor' ? 'outdoor' : 'dungeon';
+  } catch (e) { return 'dungeon'; }
+}
+const SCALE = SCALES[_pendingScale()];
+// Ground covered by one mapping square, in the scale's own unit (10 ft or 10 yd).
+function unitsPerSquare() { return SCALE.per_inch; }
+function ftPerSquare() { return SCALE.ft_per_square; }
+// Feet -> mapping squares. Physical reach doesn't change outdoors; the squares do.
+function ftToSquares(ft) { return (ft || 0) / ftPerSquare(); }
+// Distance in squares -> a display string in the active scale's unit.
+function distLabel(squares) { return Math.round(squares * unitsPerSquare()) + ' ' + SCALE.unit; }
+
+const DUNGEON_SCENE = {
   cols_10: 14, rows_10: 9, cell_ft: 10, sub: SUB,
   terrain_10: [
     'WWWWWWWWWWWWWW',
@@ -2416,6 +2448,16 @@ const SCENE = {
     'WWWWWWWWWWWWWW'
   ]
 };
+// Open ground for wilderness encounters: no walls, and wide enough to hold a
+// DMG outdoor encounter distance (6d4″, up to 24″) with room to close.
+const OUTDOOR_SCENE = (() => {
+  const cols = 30, rows = 15;
+  return {
+    cols_10: cols, rows_10: rows, cell_ft: 10, sub: SUB, open: true,
+    terrain_10: Array.from({ length: rows }, () => '.'.repeat(cols)),
+  };
+})();
+const SCENE = SCALE.id === 'outdoor' ? OUTDOOR_SCENE : DUNGEON_SCENE;
 // Expand the authored 10ft map into a fine figure-cell grid (each 10ft cell -> SUB×SUB).
 // Terrain lives on the fine grid, so walls/features may cut through a 10ft mapping square.
 SCENE.cols = SCENE.cols_10 * SUB;
@@ -3336,7 +3378,13 @@ function initEncounter(payload) {
   state.surprise = { A: sp === 'monsters', B: sp === 'party', rollA: null, rollB: null };
   state.surprise_segments = Math.max(1, _num(ctx.surprise_segments, 1));
 
-  const dist = Math.max(1, _num(ctx.distance, 8));
+  // ctx.distance is in mapping squares (= inches). Older payloads sent yards;
+  // detect and convert those so a 150-yard roll doesn't become 150 squares.
+  let dist = _num(ctx.distance, 8);
+  if (ctx.distance_unit === 'yards' || (SCALE.id === 'outdoor' && dist > SCENE.cols_10 * 2)) {
+    dist = dist / unitsPerSquare();
+  }
+  dist = Math.max(1, Math.min(SCENE.cols_10 - 3, Math.round(dist)));
   state.encounter_distance = dist;
   state.selected_id = party[0].id;
 
@@ -4919,7 +4967,7 @@ async function moveCombatantTo(c, newCol, newRow, cost) {
 
   const sideCls = c.side === 'A' ? 'a' : 'b';
   const inches = cellsToInches(cost);
-  log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${sideCls}">${c.label}</span> moves ${inches}".</span>`);
+  log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${sideCls}">${c.label}</span> moves ${inches}" (${distLabel(inches)}).</span>`);
   renderAll();
 
   const tokenG = document.querySelector(`g[data-token-id="${c.id}"]`);
@@ -4960,7 +5008,7 @@ const CHURN = { running: false };
 function markStrike(c, target) {
   if (c && target) state._strike = { id: c.id, until: performance.now() + 240 };
 }
-function spaceCells(weaponId) { return weaponSpace(weaponId) * SUB / 10; } // ft -> figure-cells
+function spaceCells(weaponId) { return ftToSquares(weaponSpace(weaponId)) * SUB; } // ft -> figure-cells at the active scale
 function churnAnchor(c) {
   const cc = cellCenter(c.position.col, c.position.row), o = (sizeCells(c) - 1) / 2 * SIZE;
   return { x: cc.x + o, y: cc.y + o };
@@ -5061,7 +5109,7 @@ function describeArc(cx, cy, r, startAngle, endAngle) {
 function renderReachRing(c, w, g, half) {
   if (!w) return;
   const lenFt = w.length || 2;
-  const rr = half + (lenFt / 10) * SQ;
+  const rr = half + ftToSquares(lenFt) * SQ;
   svgEl('circle', {
     cx: 0, cy: 0, r: rr.toFixed(1), fill: 'none',
     stroke: c.side === 'A' ? 'var(--steel-bright)' : 'var(--crimson-bright)',
@@ -5073,7 +5121,7 @@ function renderSpaceRing(c, w, g, half) {
   if (!w || !w.melee) return;
   const spaceFt = w.space || 0;
   if (spaceFt < 1) return;
-  const sr = half + (spaceFt / 10) * SQ;
+  const sr = half + ftToSquares(spaceFt) * SQ;
   svgEl('circle', {
     cx: 0, cy: 0, r: sr.toFixed(1), fill: 'none',
     stroke: 'var(--gold)',
@@ -5169,7 +5217,7 @@ function renderMap() {
           const tn = sizeCells(t);
           const thalf = (SIZE * 0.41) * (tn > 1 ? tn : (t.size_token || 1));
           const dw = WEAPONS[t.active_weapon];
-          const rr = thalf + ((dw.length || 2) / 10) * SQ;
+          const rr = thalf + ftToSquares(dw.length || 2) * SQ;
           svgEl('circle', {
             cx: tc2.x.toFixed(2), cy: tc2.y.toFixed(2), r: rr.toFixed(1),
             fill: 'none', stroke: 'var(--crimson-bright)', 'stroke-width': 1.5,
@@ -6759,7 +6807,16 @@ function renderSheetPack(c) {
   return html;
 }
 
+// Reflect the active ground scale in the map's scale bar so an outdoor fight
+// is never misread as dungeon distances.
+function renderScaleBar() {
+  const el = document.getElementById('scale-bar');
+  if (!el) return;
+  el.innerHTML = '1 square<span class="scale-line"></span>\u2248 ' + unitsPerSquare() + ' ' + SCALE.unit
+    + (SCALE.id === 'outdoor' ? ' <b>· outdoor</b>' : '');
+}
 function renderAll() {
+  renderScaleBar();
   renderMap();
   renderTracker();
   renderChat();
@@ -7464,9 +7521,16 @@ document.addEventListener('keydown', (e) => {
 })();
 
 // ===== Map zoom & pan via SVG viewBox =====
-const VIEW_DEFAULT = { x: 0, y: 0, w: 880, h: 540 };
-const VIEW_ASPECT = 880 / 540;
-const VIEW_MIN_W = 240, VIEW_MAX_W = 1100;
+// The dungeon room fits the authored 880x540 frame. An outdoor field is much
+// larger, so fit the default view (and the zoom-out limit) to the scene extent
+// — otherwise the far rank of an outdoor encounter sits off-screen.
+const _sceneW = OX + SCENE.cols_10 * SQ + 40;
+const _sceneH = OY + SCENE.rows_10 * SQ + 40;
+const VIEW_DEFAULT = SCALE.id === 'outdoor'
+  ? { x: 0, y: 0, w: _sceneW, h: _sceneH }
+  : { x: 0, y: 0, w: 880, h: 540 };
+const VIEW_ASPECT = VIEW_DEFAULT.w / VIEW_DEFAULT.h;
+const VIEW_MIN_W = 240, VIEW_MAX_W = Math.max(1100, Math.round(_sceneW * 1.15));
 let view = { ...VIEW_DEFAULT };
 
 function applyView() {

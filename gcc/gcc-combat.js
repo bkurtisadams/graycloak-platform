@@ -142,10 +142,14 @@
       count: Math.max(1, _num(result.numberRolled, 1))
     }] : [];
 
+    // The sim's tactical grid is denominated in inches (one mapping square),
+    // so hand it inches, not yards — rollDistance's `raw` is the effective
+    // post-surprise sum in inches. Outdoors one inch is 10 yd (DMG / OSRIC
+    // 1.5.3.2), which the sim applies via its outdoor scale.
     var dist = result.distance && (
-      result.distance.yards != null
-        ? result.distance.yards
-        : result.distance.rawYards
+      result.distance.raw != null
+        ? result.distance.raw
+        : (result.distance.yards != null ? result.distance.yards / 10 : null)
     );
 
     return {
@@ -155,6 +159,9 @@
 
       context: {
         distance: _num(dist, 8),
+        distance_unit: 'squares',
+        // Wilderness encounters are fought at outdoor scale: 1" = 10 yd.
+        scale: 'outdoor',
         surprise: _surpriseSide(result.surprise),
         surprise_segments: 1,
         label: (mm && (mm.name || mm.NAME)) || 'Encounter',
