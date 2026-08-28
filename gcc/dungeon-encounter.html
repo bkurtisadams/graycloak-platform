@@ -1364,6 +1364,11 @@ function saveTargetFor(c, category) {
       ? Math.max(0, Math.ceil(parseHD(hd).dice / 2)) : baseLevel;
     return Math.min(...classes.map(cl => saveTargetFromMatrix(cl, level, category)));
   }
+  // Multi-class: most favorable save in each category across all classes
+  // (OSRIC 1.3.11 — the cleric/assassin picks assassin only for petrifaction).
+  if (Array.isArray(c.classes) && c.classes.length > 1) {
+    return Math.min(...c.classes.map(cc => saveTargetFromMatrix(saveClassOf(cc.matrix_class), cc.level, category)));
+  }
   return saveTargetFromMatrix(saveClassOf(c.matrix_class), c.level, category);
 }
 // Roll a save. PHB N.B.: a natural 1 always fails. `mod` is a bonus (+) / penalty (-) to the d20.
@@ -1407,6 +1412,11 @@ function saveClassOf(mc) {
   if (mc === 'druid' || mc === 'bard') return 'cleric';
   if (mc === 'assassin' || mc === 'monk') return 'thief';
   return mc;
+}
+// THAC0 for a bare (class, level) pair — the table lookup thac0Of() uses,
+// factored out so multiclass selection can compare classes' tables directly.
+function thac0For(matrixClass, level) {
+  return thac0Of({ matrix_class: matrixClass, level: level });
 }
 function thac0Of(c) {
   if (c.thac0 != null) return c.thac0;
@@ -2566,21 +2576,35 @@ function _lenByName(name) {
   return 2;
 }
 // "Magic User/Thief" + "10/11" -> best sim combat matrix and its paired level
+function _matrixClassOf(c) {
+  c = String(c).toLowerCase().replace(/[^a-z]/g, '');
+  if (/fighter|paladin|ranger|cavalier|barbarian|bard/.test(c)) return 'fighter';
+  if (/cleric|druid|monk|priest/.test(c)) return 'cleric';
+  if (/thief|assassin|acrobat/.test(c)) return 'thief';
+  if (/magicuser|mage|illusionist|wizard/.test(c)) return 'magic_user';
+  return 'fighter';
+}
+// OSRIC 1.3.11 / 1e PHB: a multi-classed character uses whichever of their
+// classes' tables is best, chosen per situation. Return every class/level pair
+// plus the one with the best attack matrix — best by actual THAC0, not by a
+// fixed class ranking (a cleric 9/fighter 1 fights as the cleric).
 function _bestMatrix(classStr, levelStr) {
-  const order = ['fighter', 'cleric', 'thief', 'magic_user'];
-  const map = c => {
-    c = String(c).toLowerCase().replace(/[^a-z]/g, '');
-    if (/fighter|paladin|ranger|cavalier|barbarian|bard/.test(c)) return 'fighter';
-    if (/cleric|druid|monk|priest/.test(c)) return 'cleric';
-    if (/thief|assassin|acrobat/.test(c)) return 'thief';
-    if (/magicuser|mage|illusionist|wizard/.test(c)) return 'magic_user';
-    return 'fighter';
-  };
-  const classes = String(classStr || 'fighter').split('/').map(s => s.trim()).filter(Boolean);
+  const names = String(classStr || 'fighter').split('/').map(s => s.trim()).filter(Boolean);
   const levels = String(levelStr || '1').split('/').map(s => _num(s, 1));
-  let bestI = 0, bestRank = 99;
-  classes.forEach((c, i) => { const r = order.indexOf(map(c)); if (r >= 0 && r < bestRank) { bestRank = r; bestI = i; } });
-  return { matrix_class: map(classes[bestI] || 'fighter'), level: levels[bestI] !== undefined ? levels[bestI] : (levels[0] || 1) };
+  const classes = names.map((n, i) => ({
+    name: n,
+    matrix_class: _matrixClassOf(n),
+    level: levels[i] !== undefined ? levels[i] : (levels[0] || 1),
+  }));
+  if (!classes.length) classes.push({ name: 'Fighter', matrix_class: 'fighter', level: 1 });
+  let best = classes[0];
+  classes.forEach(c => { if (thac0For(c.matrix_class, c.level) < thac0For(best.matrix_class, best.level)) best = c; });
+  return {
+    matrix_class: best.matrix_class,
+    level: best.level,
+    classes,
+    class_label: classes.map(c => c.name).join('/') + ' ' + classes.map(c => c.level).join('/'),
+  };
 }
 // One CHAR.weapons row -> sim WEAPONS-shaped entry (registered into WEAPONS). Returns {id, magic, ranged} or null to skip.
 function _synthWeapon(row) {
@@ -2664,7 +2688,7 @@ function mapCharToCombatant(char, side) {
     id: char._id ? String(char._id) : _slug(name),
     side: side || 'A', kind: 'pc',
     label: name, letter: (name.trim()[0] || '?').toUpperCase(),
-    matrix_class: cls.matrix_class, level: cls.level, turn_level,
+    matrix_class: cls.matrix_class, level: cls.level, classes: cls.classes, class_label: cls.class_label, turn_level,
     position: { col: 2, row: 2 }, facing: 90,
     hp_max: _num(char.hpMax, 1), hp_current: _num(char.hpCurrent, _num(char.hpMax, 1)),
     ac_base: _num(char.acShieldless, _num(char.ac, 10)), ac_current: _num(char.ac, 10),
@@ -5526,6 +5550,9 @@ function renderTracker() {
 function classMicro(c) {
   if (c.kind === 'pc') {
     const m = { fighter: 'Ftr', magic_user: 'MU', thief: 'Thf', cleric: 'Clr' };
+    if (Array.isArray(c.classes) && c.classes.length > 1) {
+      return c.classes.map(cc => (m[cc.matrix_class] || '?')).join('/') + ' ' + c.classes.map(cc => cc.level).join('/');
+    }
     return (m[c.matrix_class] || '?') + ' ' + c.level;
   }
   return 'HD ' + (c.hd != null ? c.hd : c.level);
@@ -5850,6 +5877,7 @@ function renderMiniStats() {
 
 function describeC(c) {
   if (c.kind === 'pc') {
+    if (c.class_label) return c.class_label;
     const cls = { fighter: 'Fighter', magic_user: 'Magic-User', thief: 'Thief', cleric: 'Cleric' };
     return `${cls[c.matrix_class] || '?'} ${c.level}`;
   }
@@ -5938,7 +5966,7 @@ function renderHotbar() {
   const _hpcls = _r > 0.5 ? '' : (_r > 0.25 ? 'hp-mid' : 'hp-low');
   const _hppct = Math.max(0, Math.min(100, Math.round(_r * 100)));
   const _lvl = c.kind === 'pc'
-    ? `${String(c.matrix_class || '').replace(/^./, m => m.toUpperCase())} · ${c.level}`
+    ? (c.class_label ? c.class_label.replace(/\s(?=\S+$)/, ' · ') : `${String(c.matrix_class || '').replace(/^./, m => m.toUpperCase())} · ${c.level}`)
     : (c.hd ? `Monster · HD ${c.hd}` : 'Monster');
 
   const tabDefs = c.kind === 'pc'
@@ -6593,7 +6621,7 @@ function renderHudStats(c) {
   const list = (v) => Array.isArray(v) && v.length ? v.join(', ') : null;
   const dmg = aw ? (aw.damage ? `${aw.damage.sm || aw.damage}${aw.damage.l ? ` / ${aw.damage.l} (L)` : ''}` : '—') : 'Nil';
   const lvlLine = c.kind === 'pc'
-    ? `${String(c.matrix_class || 'Adventurer').replace(/^./, m => m.toUpperCase())} ${c.level}`
+    ? (c.class_label || `${String(c.matrix_class || 'Adventurer').replace(/^./, m => m.toUpperCase())} ${c.level}`)
     : (c.hd != null ? String(c.hd) : String(c.level));
   const abilities = [['Str', c.str], ['Dex', c.dex], ['Con', c.con], ['Int', c.int], ['Wis', c.wis], ['Cha', c.cha]].filter(([, v]) => v != null);
   const hasAbilities = abilities.length > 0;
@@ -6807,7 +6835,7 @@ function renderGmRoster() {
       const dead = c.dead ? ' dead' : '';
       html += `<div class="gm-row side-${side}${sel}${dead}" onclick="App.gmSelect('${c.id}')">` +
         `<span class="nm">${_gmEsc(c.label)}</span>` +
-        `<span class="meta">${c.matrix_class.replace('_', '-')} ${c.level} · ${c.hp_current}/${c.hp_max}hp · AC${c.ac_current}</span></div>`;
+        `<span class="meta">${_gmEsc(c.class_label || (c.matrix_class.replace('_', '-') + ' ' + c.level))} · ${c.hp_current}/${c.hp_max}hp · AC${c.ac_current}</span></div>`;
     });
   });
   el.innerHTML = html || '<div class="gm-empty">No combatants.</div>';
@@ -7027,7 +7055,7 @@ const App = {
             renderFormationEditor();
             if (state.encounter_distance != null) placeParties(state.encounter_distance);
             renderAll();
-            res.innerHTML = `<span class="step">Loaded <b>${c.label}</b> — ${c.matrix_class} ${c.level}, AC ${c.ac_current}, ${c.hp_current}/${c.hp_max} hp, ${c.active_weapon}</span>`;
+            res.innerHTML = `<span class="step">Loaded <b>${c.label}</b> — ${c.class_label || (c.matrix_class + ' ' + c.level)}, AC ${c.ac_current}, ${c.hp_current}/${c.hp_max} hp, ${c.active_weapon}</span>`;
             if (_lastLoadedChar && _lastLoadedChar._id) {
               const btn = document.createElement('button');
               btn.textContent = '\uD83D\uDCBE Save ' + (_lastLoadedChar.characterName || 'character') + ' to GCC roster';
