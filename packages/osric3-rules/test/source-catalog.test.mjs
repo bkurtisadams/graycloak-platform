@@ -16,7 +16,9 @@ test('source catalog exposes stable module-level audit hooks', () => {
   });
   assert.ok(listRuleSourceRecords().length >= 10);
   assert.equal(getRuleSourceRecord('prime-requisite-xp').auditStatus, 'verified-osric3');
-  assert.equal(listRuleSourceRecords('verified-osric3').length, 4); // thief-skills, turn-undead, multiclass-advancement, prime-requisite-xp
+  assert.equal(listRuleSourceRecords('verified-osric3').length, 5); // thief-skills, turn-undead, multiclass-advancement, prime-requisite-xp, attack-matrix
+  assert.equal(getRuleSourceRecord('attack-matrix').auditStatus, 'verified-osric3');
+  assert.equal(getRuleSourceRecord('attack-matrix').ruleset, 'osric-3.0');
 });
 
 test('verified source records can never omit book and page metadata', () => {

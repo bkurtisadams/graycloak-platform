@@ -61,16 +61,13 @@ export const LEVEL_ZERO_THAC0 = 21;
 export const ATTACK_MATRIX_BRACKETS: Readonly<
   Record<AttackMatrixClassId, readonly AttackMatrixBracket[]>
 > = Object.freeze({
+  // OSRIC 3.0 gives the fighter family one point of improvement per level
+  // (Table 1.3.1.4d): linear THAC0 21 - level, floored at 1 from level 20.
+  // AD&D 1e used two-level brackets, so every even level differed and the
+  // 1e cap was 1 only at much higher level; OSRIC 3.0 is authoritative here.
   fighter: Object.freeze([
-    bracket(1, 2, 20),
-    bracket(3, 4, 18),
-    bracket(5, 6, 16),
-    bracket(7, 8, 14),
-    bracket(9, 10, 12),
-    bracket(11, 12, 10),
-    bracket(13, 14, 8),
-    bracket(15, 16, 6),
-    bracket(17, null, 4),
+    ...Array.from({ length: 19 }, (_unused, index) => bracket(index + 1, index + 1, 20 - index)),
+    bracket(20, null, 1),
   ]),
   cleric: Object.freeze([
     bracket(1, 3, 20),
@@ -79,13 +76,17 @@ export const ATTACK_MATRIX_BRACKETS: Readonly<
     bracket(10, 12, 14),
     bracket(13, 15, 12),
     bracket(16, 18, 10),
-    bracket(19, null, 8),
+    // OSRIC 3.0 prints 9 here; 1e printed 8.
+    bracket(19, null, 9),
   ]),
   'magic-user': Object.freeze([
     bracket(1, 5, 21),
     bracket(6, 10, 19),
     bracket(11, 15, 16),
-    bracket(16, 20, 13),
+    // OSRIC 3.0 prints 14 for 16-20; 1e printed 13.
+    bracket(16, 20, 14),
+    // The Player Guide's magic-user table stops at level 20. This row is the
+    // retained 1e value, not a printed OSRIC 3.0 figure - see the rule source.
     bracket(21, null, 11),
   ]),
   thief: Object.freeze([
@@ -94,6 +95,7 @@ export const ATTACK_MATRIX_BRACKETS: Readonly<
     bracket(9, 12, 16),
     bracket(13, 16, 14),
     bracket(17, 20, 12),
+    // Printed thief table stops at level 20; retained 1e value.
     bracket(21, null, 10),
   ]),
 });
@@ -131,8 +133,7 @@ export function getBestClassLinearThac0(classLevels: readonly ClassLevelEntry[])
 // as a whole number plus an optional modifier flag rather than a bare float.
 // Parity note: the legacy sim's pickTier() returned its below-1 tier for
 // 1-1 HD monsters because `level < 1` shadowed the dedicated branch; the
-// kernel models the 1-1 row explicitly. Rows above 7 HD are clamped to the
-// 6-7 row pending OSRIC 3.0 verification — flagged in the rule source note.
+// kernel models the 1-1 row explicitly. Rows run through 24+ HD.
 
 export type MonsterHitDiceModifier = 'minus' | 'plus' | null;
 
@@ -141,21 +142,17 @@ export interface MonsterHitDice {
   readonly modifier?: MonsterHitDiceModifier;
 }
 
-// Rows carry the legacy AD&D 1e linear THAC0 values. Rows from 8-9 HD up were
-// previously absent (the sim clamped at 6-7); they are filled from the printed
-// OSRIC 3.0 monster matrix, Table 2.1.2a, which is the only source for them and
-// does not conflict with 1e at those hit dice.
-//
-// Two rows DO conflict with the printed OSRIC table and keep their 1e values
-// pending a ruling — see PRINTED_OSRIC3_MONSTER_THAC0 below.
+// Rows are the printed OSRIC 3.0 monster matrix, Table 2.1.2a, in full.
+// The 2-3+ and 6-7+ rows formerly held 1e values (17 and 14); OSRIC 3.0 is
+// now the ruling document, so the printed 16 and 13 apply.
 export const MONSTER_ATTACK_ROWS = Object.freeze([
   Object.freeze({ id: 'up-to-1-1', label: 'Up to 1-1', linearThac0: 21 }),
   Object.freeze({ id: '1-1', label: '1-1', linearThac0: 20 }),
   Object.freeze({ id: '1', label: '1', linearThac0: 19 }),
   Object.freeze({ id: '1-plus', label: '1+', linearThac0: 18 }),
-  Object.freeze({ id: '2-3', label: '2 to 3+', linearThac0: 17 }),
+  Object.freeze({ id: '2-3', label: '2 to 3+', linearThac0: 16 }),
   Object.freeze({ id: '4-5', label: '4 to 5+', linearThac0: 15 }),
-  Object.freeze({ id: '6-7', label: '6 to 7+', linearThac0: 14 }),
+  Object.freeze({ id: '6-7', label: '6 to 7+', linearThac0: 13 }),
   Object.freeze({ id: '8-9', label: '8 to 9+', linearThac0: 12 }),
   Object.freeze({ id: '10-11', label: '10 to 11+', linearThac0: 10 }),
   Object.freeze({ id: '12-13', label: '12 to 13+', linearThac0: 9 }),
@@ -168,9 +165,8 @@ export const MONSTER_ATTACK_ROWS = Object.freeze([
 ] as const);
 
 // The monster matrix exactly as printed in OSRIC 3.0 Table 2.1.2a (linear THAC0,
-// read from the AC 0 column). Recorded for audit: every row matches the active
-// values above EXCEPT '2-3' (printed 16, 1e 17) and '6-7' (printed 13, 1e 14).
-// Not consumed by the resolver while those two rows are disputed.
+// read from the AC 0 column). Retained as the transcription of record; the
+// active rows above now match it exactly.
 export const PRINTED_OSRIC3_MONSTER_THAC0: Readonly<Record<MonsterAttackRowId, number>> = Object.freeze({
   'up-to-1-1': 21, '1-1': 20, '1': 19, '1-plus': 18,
   '2-3': 16, '4-5': 15, '6-7': 13, '8-9': 12,

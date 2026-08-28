@@ -575,6 +575,9 @@
     // MM prints the parenthesized article; tables drop it.
     'will-o-wisp':               'will-o-(the)-wisp',
     'will-o-the-wisp':           'will-o-(the)-wisp',
+    // OSRIC 3.0 folds giant eagles and owls into Bird of Prey (Giant).
+    'eagle, giant':              'bird of prey, giant',
+    'owl, giant':                'bird of prey, giant',
   };
   function lookupMonster(name){
     if (!_mmIndex) _mmIndex = buildMMIndex();

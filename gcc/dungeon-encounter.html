@@ -934,13 +934,25 @@ const SIM_VERSION = 'v0.9.47';
 // ============================================================
 //  RULES DATA
 // ============================================================
+// Legacy fallback tables, used only when the OSRIC 3 kernel hasn't loaded.
+// Values follow OSRIC 3.0 (the ruling document): the fighter family improves
+// one point per level rather than in two-level brackets, and the monster
+// 2-3+ / 6-7+ rows are the printed 16 and 13.
 const THAC0 = {
   fighter:    { L0: 21, L1_2: 20, L3_4: 18, L5_6: 16, L7_8: 14, L9_10: 12 },
   cleric:     { L1_3: 20, L4_6: 18, L7_9: 16 },
   magic_user: { L1_5: 21, L6_10: 19, L11_15: 16 },
   thief:      { L1_4: 21, L5_8: 19, L9_12: 16 },
-  monster:    { HD_lt1: 21, HD_1m: 20, HD_1: 19, HD_1p: 18, HD_2_3: 17, HD_4_5: 15, HD_6_7: 14 }
+  monster:    { HD_lt1: 21, HD_1m: 20, HD_1: 19, HD_1p: 18, HD_2_3: 16, HD_4_5: 15, HD_6_7: 13 }
 };
+// OSRIC 3.0 Table 1.3.1.4d: fighters, paladins and rangers gain one point per
+// level, floored at linear 1 from level 20. Applied ahead of the bracket
+// lookup so the fallback agrees with the kernel.
+function osricFighterLinearThac0(level) {
+  const lv = Math.max(0, Math.round(level || 0));
+  if (lv <= 0) return 21;
+  return Math.max(1, 21 - lv);
+}
 
 // OSRIC 3 rules kernel (same load pattern as gcc-combat.js). When present, the
 // kernel supplies attack-matrix rows (extending the truncated THAC0 tiers above)
@@ -1476,6 +1488,7 @@ function thac0Of(c) {
       if (kid) return OSRIC3.getClassLinearThac0(kid, c.level || 0);
     } catch (e) { /* fall through to legacy tables */ }
   }
+  if (mc === 'fighter') return osricFighterLinearThac0(c.level);
   return THAC0[mc][pickTier(mc, c.level)];
 }
 
@@ -2479,6 +2492,17 @@ function ftPerSquare() { return SCALE.ft_per_square; }
 function ftToSquares(ft) { return (ft || 0) / ftPerSquare(); }
 // Distance in squares -> a display string in the active scale's unit.
 function distLabel(squares) { return Math.round(squares * unitsPerSquare()) + ' ' + SCALE.unit; }
+// One mapping square is one inch. Rendered per the GM's units setting:
+// inches by default (AD&D nomenclature), ground distance when asked.
+function showGroundUnits() { return (typeof state !== 'undefined' && state && state.dist_units === 'ground'); }
+function inchLabel(squares) {
+  const inches = Math.round(squares);
+  return showGroundUnits() ? distLabel(squares) : inches + '\u2033';
+}
+// The alternate reading, for tooltips — always the one not shown inline.
+function inchAltLabel(squares) {
+  return showGroundUnits() ? Math.round(squares) + '\u2033' : distLabel(squares);
+}
 
 const DUNGEON_SCENE = {
   cols_10: 14, rows_10: 9, cell_ft: 10, sub: SUB,
@@ -2544,6 +2568,9 @@ function makeInitialState() {
     single_out_mode: false,
     weight_unit: 'gp',   // 'gp' (1e gp-weight) or 'lb'
     range_mod_enabled: true,  // v0.8.6: PHB medium (-2) / long (-5) range penalty toggle
+    // Display units. AD&D (and the BATTLESYSTEM tools) speak in inches, so
+    // that is the default; 'ground' shows feet underground / yards outdoors.
+    dist_units: 'inches',
     space_check_mode: 'warn', // v0.8.7: 'off' | 'warn' | 'penalty' | 'prevent' — space-too-small check
     strict_20: true, // DMG optional: repeated-20 band is natural-20-only; past-plateau needs nat 20 + enough bonus
     game_over: null,
@@ -5013,7 +5040,7 @@ async function moveCombatantTo(c, newCol, newRow, cost) {
 
   const sideCls = c.side === 'A' ? 'a' : 'b';
   const inches = cellsToInches(cost);
-  log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${sideCls}">${c.label}</span> moves <span title="${distLabel(inches)}">${inches}\u2033</span>.</span>`);
+  log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${sideCls}">${c.label}</span> moves <span title="${inchAltLabel(inches)}">${inchLabel(inches)}</span>.</span>`);
   renderAll();
 
   const tokenG = document.querySelector(`g[data-token-id="${c.id}"]`);
@@ -6860,7 +6887,7 @@ function renderScaleBar() {
   if (!el) return;
   // AD&D nomenclature: the grid is denominated in inches. The ground scale
   // lives in the tooltip (1" = 10 ft underground, 10 yd outdoors).
-  el.innerHTML = '1 square<span class="scale-line"></span>= 1\u2033'
+  el.innerHTML = '1 square<span class="scale-line"></span>= ' + inchLabel(1)
     + (SCALE.id === 'outdoor' ? ' <b>\u00b7 outdoor</b>' : '');
   el.title = '1\u2033 = ' + unitsPerSquare() + ' ' + SCALE.unit_long
     + (SCALE.id === 'outdoor' ? ' (outdoor scale)' : ' (dungeon scale)');
@@ -6928,6 +6955,7 @@ function renderGmSettings() {
     `<button class="${u === 'lb' ? 'on' : ''}" onclick="App.gmSetWeightUnit('lb')">lb</button></div>` +
     `<div class="gm-seg"><button class="${peekDecl ? 'on' : ''}" onclick="App.gmTogglePeek()">Peek orders: ${peekDecl ? 'ON' : 'OFF'}</button></div>` +
     `<div class="gm-seg"><button class="${state.range_mod_enabled !== false ? 'on' : ''}" onclick="App.gmToggleRangeMod()" title="PHB -2 medium / -5 long range to-hit penalty">Range mod: ${state.range_mod_enabled !== false ? 'PHB' : 'OFF'}</button></div>` +
+    `<div class="gm-seg"><button class="${showGroundUnits() ? '' : 'on'}" onclick="App.gmToggleDistUnits()" title="Show distances in inches (AD&amp;D nomenclature) or as ground distance — ${unitsPerSquare()} ${SCALE.unit_long} per inch at this scale">Units: ${showGroundUnits() ? SCALE.unit : 'inches'}</button></div>` +
     `<div class="gm-seg"><button class="${(state.space_check_mode || 'warn') !== 'off' ? 'on' : ''}" onclick="App.gmCycleSpaceCheckMode()" title="Space-too-small (weapon.space ≥ 4 + crowded): cycles off → warn → penalty (-2) → prevent">Space: ${state.space_check_mode || 'warn'}</button></div>`;
 }
 function renderGmRoster() {
@@ -7042,6 +7070,7 @@ const App = {
   gmSetWeightUnit(u) { state.weight_unit = (u === 'lb') ? 'lb' : 'gp'; renderGmSettings(); renderAll(); },
   gmTogglePeek() { peekDecl = !peekDecl; renderGmSettings(); renderAll(); },
   gmToggleRangeMod() { state.range_mod_enabled = (state.range_mod_enabled === false); renderGmSettings(); renderAll(); },
+  gmToggleDistUnits() { state.dist_units = showGroundUnits() ? 'inches' : 'ground'; renderGmSettings(); renderAll(); },
   gmCycleSpaceCheckMode() {
     const order = ['off', 'warn', 'penalty', 'prevent'];
     const cur = state.space_check_mode || 'warn';

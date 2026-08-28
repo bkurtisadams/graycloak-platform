@@ -25,14 +25,15 @@ test('classes fold onto the four legacy attack matrices', () => {
   assert.equal(getAttackMatrixClass('monk'), 'cleric');
 });
 
-test('linear THAC0 matches the sim anchors where the sim has rows', () => {
-  // Parity with the THAC0 table in gcc/dungeon-encounter.html.
+test('linear THAC0 matches the printed OSRIC 3.0 class tables', () => {
+  // Fighter family: one point per level (Table 1.3.1.4d). The even levels
+  // below differed under the 1e two-level brackets the sim previously used.
   assert.equal(getClassLinearThac0('fighter', 0), 21);
   assert.equal(getClassLinearThac0('fighter', 1), 20);
-  assert.equal(getClassLinearThac0('fighter', 4), 18);
-  assert.equal(getClassLinearThac0('fighter', 6), 16);
-  assert.equal(getClassLinearThac0('fighter', 8), 14);
-  assert.equal(getClassLinearThac0('fighter', 10), 12);
+  assert.equal(getClassLinearThac0('fighter', 4), 17);
+  assert.equal(getClassLinearThac0('fighter', 6), 15);
+  assert.equal(getClassLinearThac0('fighter', 8), 13);
+  assert.equal(getClassLinearThac0('fighter', 10), 11);
   assert.equal(getClassLinearThac0('cleric', 3), 20);
   assert.equal(getClassLinearThac0('cleric', 6), 18);
   assert.equal(getClassLinearThac0('cleric', 9), 16);
@@ -44,13 +45,14 @@ test('linear THAC0 matches the sim anchors where the sim has rows', () => {
   assert.equal(getClassLinearThac0('thief', 12), 16);
 });
 
-test('extended rows continue the bracket progression beyond the sim tables', () => {
+test('extended rows continue past the levels the sim tables covered', () => {
   assert.equal(getClassLinearThac0('fighter', 11), 10);
   assert.equal(getClassLinearThac0('fighter', 17), 4);
-  assert.equal(getClassLinearThac0('fighter', 30), 4);
+  assert.equal(getClassLinearThac0('fighter', 30), 1);
   assert.equal(getClassLinearThac0('cleric', 12), 14);
-  assert.equal(getClassLinearThac0('cleric', 19), 8);
-  assert.equal(getClassLinearThac0('magic-user', 16), 13);
+  assert.equal(getClassLinearThac0('cleric', 19), 9);
+  assert.equal(getClassLinearThac0('magic-user', 16), 14);
+  // Not printed in the Player Guide; retained 1e value.
   assert.equal(getClassLinearThac0('magic-user', 21), 11);
   assert.equal(getClassLinearThac0('thief', 16), 14);
   assert.equal(getClassLinearThac0('thief', 21), 10);
@@ -157,7 +159,7 @@ test('the combat module ships disputed: 1e values held pending the OSRIC 3.0 pro
 
 test('monster attack matrix covers the full printed HD range', () => {
   const rows = [
-    [0.5, 'up-to-1-1', 21], [1, '1', 19], [3, '2-3', 17], [5, '4-5', 15], [7, '6-7', 14],
+    [0.5, 'up-to-1-1', 21], [1, '1', 19], [3, '2-3', 16], [5, '4-5', 15], [7, '6-7', 13],
     [9, '8-9', 12], [11, '10-11', 10], [13, '12-13', 9], [15, '14-15', 8],
     [17, '16-17', 7], [19, '18-19', 5], [21, '20-21', 4], [23, '22-23', 3], [30, '24-plus', 2],
   ];
@@ -167,12 +169,25 @@ test('monster attack matrix covers the full printed HD range', () => {
   }
 });
 
-test('printed OSRIC 3.0 monster matrix is recorded and differs only on the two disputed rows', () => {
-  const disputed = new Set(['2-3', '6-7']);
+test('every monster row matches the printed OSRIC 3.0 matrix', () => {
   for (const row of MONSTER_ATTACK_ROWS) {
-    const printed = PRINTED_OSRIC3_MONSTER_THAC0[row.id];
-    assert.equal(typeof printed, 'number', `printed value for ${row.id}`);
-    if (disputed.has(row.id)) assert.notEqual(printed, row.linearThac0, `${row.id} should differ`);
-    else assert.equal(printed, row.linearThac0, `${row.id} should agree`);
+    assert.equal(row.linearThac0, PRINTED_OSRIC3_MONSTER_THAC0[row.id], `row ${row.id}`);
   }
+});
+
+test('the fighter family improves one point per level, floored at 20 (OSRIC 3.0)', () => {
+  assert.equal(getClassLinearThac0('fighter', 1), 20);
+  assert.equal(getClassLinearThac0('fighter', 2), 19);   // 1e bracketed this with level 1
+  assert.equal(getClassLinearThac0('fighter', 9), 12);
+  assert.equal(getClassLinearThac0('fighter', 19), 2);
+  assert.equal(getClassLinearThac0('fighter', 20), 1);
+  assert.equal(getClassLinearThac0('fighter', 30), 1);
+  assert.equal(getClassLinearThac0('paladin', 6), 15);
+  assert.equal(getClassLinearThac0('ranger', 6), 15);
+});
+
+test('printed OSRIC 3.0 values apply on the formerly disputed class rows', () => {
+  assert.equal(getClassLinearThac0('cleric', 19), 9);        // 1e printed 8
+  assert.equal(getClassLinearThac0('magic-user', 16), 14);   // 1e printed 13
+  assert.equal(getClassLinearThac0('illusionist', 20), 14);
 });
