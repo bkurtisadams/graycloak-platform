@@ -7,6 +7,8 @@ import {
   getAttackMatrixClass,
   getBestClassLinearThac0,
   getClassLinearThac0,
+  MONSTER_ATTACK_ROWS,
+  PRINTED_OSRIC3_MONSTER_THAC0,
   getMonsterAttackRowId,
   getMonsterLinearThac0,
   getWeaponVsArmorAdjustment,
@@ -80,8 +82,8 @@ test('monster hit dice select explicit rows, including the 1-1 row', () => {
   assert.equal(getMonsterAttackRowId({ hitDice: 3 }), '2-3');
   assert.equal(getMonsterAttackRowId({ hitDice: 5 }), '4-5');
   assert.equal(getMonsterAttackRowId({ hitDice: 7 }), '6-7');
-  // Rows above 7 HD clamp to the top known row pending the audit pass.
-  assert.equal(getMonsterAttackRowId({ hitDice: 12 }), '6-7');
+  // Rows above 7 HD are now filled from printed Table 2.1.2a (was clamped).
+  assert.equal(getMonsterAttackRowId({ hitDice: 12 }), '12-13');
 
   assert.equal(getMonsterLinearThac0({ hitDice: 1, modifier: 'minus' }), 20);
   assert.equal(getMonsterLinearThac0({ hitDice: 4 }), 15);
@@ -151,4 +153,26 @@ test('the combat module ships disputed: 1e values held pending the OSRIC 3.0 pro
   assert.equal(ATTACK_MATRIX_RULE_SOURCE.ruleset, 'legacy-adnd-1e');
   assert.equal(ATTACK_MATRIX_RULE_SOURCE.auditStatus, 'disputed');
   assert.match(ATTACK_MATRIX_RULE_SOURCE.note, /per level/);
+});
+
+test('monster attack matrix covers the full printed HD range', () => {
+  const rows = [
+    [0.5, 'up-to-1-1', 21], [1, '1', 19], [3, '2-3', 17], [5, '4-5', 15], [7, '6-7', 14],
+    [9, '8-9', 12], [11, '10-11', 10], [13, '12-13', 9], [15, '14-15', 8],
+    [17, '16-17', 7], [19, '18-19', 5], [21, '20-21', 4], [23, '22-23', 3], [30, '24-plus', 2],
+  ];
+  for (const [hitDice, id, linear] of rows) {
+    assert.equal(getMonsterAttackRowId({ hitDice }), id, `row for ${hitDice} HD`);
+    assert.equal(getMonsterLinearThac0({ hitDice }), linear, `linear THAC0 for ${hitDice} HD`);
+  }
+});
+
+test('printed OSRIC 3.0 monster matrix is recorded and differs only on the two disputed rows', () => {
+  const disputed = new Set(['2-3', '6-7']);
+  for (const row of MONSTER_ATTACK_ROWS) {
+    const printed = PRINTED_OSRIC3_MONSTER_THAC0[row.id];
+    assert.equal(typeof printed, 'number', `printed value for ${row.id}`);
+    if (disputed.has(row.id)) assert.notEqual(printed, row.linearThac0, `${row.id} should differ`);
+    else assert.equal(printed, row.linearThac0, `${row.id} should agree`);
+  }
 });

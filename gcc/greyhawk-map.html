@@ -5300,7 +5300,14 @@ window.addEventListener('load',init);
     if(pc){
       var hp=(pc.hpCurrent!=null&&pc.hpMax!=null)?(pc.hpCurrent+'/'+pc.hpMax+' hp'):null;
       var sub=[pc.race,((pc.characterClass||'')+(pc.level?' '+pc.level:'')).trim(),hp].filter(Boolean).join(' \u00b7 ');
-      el.innerHTML='<span class="gab-dot">\u25b6</span><span class="gab-name">'+esc(pc.characterName||'Adventurer')+'</span>'+(sub?'<span class="gab-sub">'+esc(sub)+'</span>':'')+'<a class="gab-switch" href="play.html">Switch</a>';
+      el.innerHTML='<span class="gab-dot">\u25b6</span><span class="gab-name">'+esc(pc.characterName||'Adventurer')+'</span>'+(sub?'<span class="gab-sub">'+esc(sub)+'</span>':'')+'<span class="gab-switch gab-journey">\ud83e\udded Journey</span><a class="gab-switch" href="play.html">Switch</a>';
+      var jl=el.querySelector('.gab-journey');
+      if(jl) jl.onclick=function(){
+        var sp=document.getElementById('side-panel');
+        if(sp&&!sp.classList.contains('open')) document.getElementById('btn-panel-toggle')?.click();
+        var pb=document.getElementById('p-btn-plan-journey');
+        if(pb&&pb.style.display!=='none') pb.click();
+      };
     } else {
       el.innerHTML='<span class="gab-none">No active character</span><a class="gab-switch" href="play.html">Choose</a>';
     }

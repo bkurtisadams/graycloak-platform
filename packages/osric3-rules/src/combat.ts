@@ -141,6 +141,13 @@ export interface MonsterHitDice {
   readonly modifier?: MonsterHitDiceModifier;
 }
 
+// Rows carry the legacy AD&D 1e linear THAC0 values. Rows from 8-9 HD up were
+// previously absent (the sim clamped at 6-7); they are filled from the printed
+// OSRIC 3.0 monster matrix, Table 2.1.2a, which is the only source for them and
+// does not conflict with 1e at those hit dice.
+//
+// Two rows DO conflict with the printed OSRIC table and keep their 1e values
+// pending a ruling — see PRINTED_OSRIC3_MONSTER_THAC0 below.
 export const MONSTER_ATTACK_ROWS = Object.freeze([
   Object.freeze({ id: 'up-to-1-1', label: 'Up to 1-1', linearThac0: 21 }),
   Object.freeze({ id: '1-1', label: '1-1', linearThac0: 20 }),
@@ -149,7 +156,27 @@ export const MONSTER_ATTACK_ROWS = Object.freeze([
   Object.freeze({ id: '2-3', label: '2 to 3+', linearThac0: 17 }),
   Object.freeze({ id: '4-5', label: '4 to 5+', linearThac0: 15 }),
   Object.freeze({ id: '6-7', label: '6 to 7+', linearThac0: 14 }),
+  Object.freeze({ id: '8-9', label: '8 to 9+', linearThac0: 12 }),
+  Object.freeze({ id: '10-11', label: '10 to 11+', linearThac0: 10 }),
+  Object.freeze({ id: '12-13', label: '12 to 13+', linearThac0: 9 }),
+  Object.freeze({ id: '14-15', label: '14 to 15+', linearThac0: 8 }),
+  Object.freeze({ id: '16-17', label: '16 to 17+', linearThac0: 7 }),
+  Object.freeze({ id: '18-19', label: '18 to 19+', linearThac0: 5 }),
+  Object.freeze({ id: '20-21', label: '20 to 21+', linearThac0: 4 }),
+  Object.freeze({ id: '22-23', label: '22 to 23+', linearThac0: 3 }),
+  Object.freeze({ id: '24-plus', label: '24+', linearThac0: 2 }),
 ] as const);
+
+// The monster matrix exactly as printed in OSRIC 3.0 Table 2.1.2a (linear THAC0,
+// read from the AC 0 column). Recorded for audit: every row matches the active
+// values above EXCEPT '2-3' (printed 16, 1e 17) and '6-7' (printed 13, 1e 14).
+// Not consumed by the resolver while those two rows are disputed.
+export const PRINTED_OSRIC3_MONSTER_THAC0: Readonly<Record<MonsterAttackRowId, number>> = Object.freeze({
+  'up-to-1-1': 21, '1-1': 20, '1': 19, '1-plus': 18,
+  '2-3': 16, '4-5': 15, '6-7': 13, '8-9': 12,
+  '10-11': 10, '12-13': 9, '14-15': 8, '16-17': 7,
+  '18-19': 5, '20-21': 4, '22-23': 3, '24-plus': 2,
+});
 
 export type MonsterAttackRowId = (typeof MONSTER_ATTACK_ROWS)[number]['id'];
 
@@ -165,7 +192,16 @@ export function getMonsterAttackRowId(hd: MonsterHitDice): MonsterAttackRowId {
   }
   if (hitDice <= 3) return '2-3';
   if (hitDice <= 5) return '4-5';
-  return '6-7';
+  if (hitDice <= 7) return '6-7';
+  if (hitDice <= 9) return '8-9';
+  if (hitDice <= 11) return '10-11';
+  if (hitDice <= 13) return '12-13';
+  if (hitDice <= 15) return '14-15';
+  if (hitDice <= 17) return '16-17';
+  if (hitDice <= 19) return '18-19';
+  if (hitDice <= 21) return '20-21';
+  if (hitDice <= 23) return '22-23';
+  return '24-plus';
 }
 
 export function getMonsterLinearThac0(hd: MonsterHitDice): number {
