@@ -1,3 +1,7 @@
+// @graycloak/battlesystem-engine spells.js v0.9.2 - 2026-08-28
+// v0.9.2 adds the ordinary AD&D Magic Missile execution contract/preset:
+//         caster-level range and missile count, selected-target no-save damage,
+//         and a magic damage tag so host Magic Resistance resolves first.
 // @graycloak/battlesystem-engine spells.js v0.9.1 - 2026-08-26
 // Pure PHB spell catalog/rules vocabulary plus source-backed item-spell adapters.
 // Host applications still own battlefield geometry, DOM/UI, saving-throw rolls,
@@ -91,6 +95,7 @@ function isDaoudLanthorn(entry={}) {
 function namedSpellKey(entry={},notes='') {
   const fn=String(entry?.functionName||entry?.name||''),txt=textKey(`${fn} ${notes||''}`),magicKind=['spell','item','innate'].includes(entry?.kind);
   if(!magicKind)return'';
+  if(/\bmagic missile\b/.test(txt))return'magicMissile';
   if(/\bfire ball\b/.test(txt)||/\bfireball\b/.test(txt))return'fireball';
   if(/\bflame strike\b/.test(txt))return'flameStrike';
   if(/\bhaste\b/.test(txt))return'haste';
@@ -120,6 +125,13 @@ function holdMonsterSaveMod(targetCount) {
 }
 
 const SPELL_EXECUTION_RULES=Object.freeze({
+  magicMissile:Object.freeze({
+    resolver:'damage',
+    automation:'full',
+    casterClasses:['magic-user'],
+    targetPolicy:'direct',
+    section:'14.5'
+  }),
   fireball:Object.freeze({resolver:'damage',automation:'full',casterClasses:['magic-user'],targetPolicy:'area',section:'14.5'}),
   flameStrike:Object.freeze({resolver:'damage',automation:'full',casterClasses:['cleric'],targetPolicy:'area',section:'14.5'}),
   haste:Object.freeze({resolver:'speed',automation:'full',casterClasses:['magic-user'],targetPolicy:'area',statusEffect:'haste',section:'14.7'}),
@@ -206,6 +218,29 @@ function sleepCreatureCapacity(hd,rng=Math.random) {
 
 function canonicalPresetForKey(key,L,opts={}) {
   L=Math.max(0,Math.round(Number(L)||0));if(!L)return null;
+
+  if(key==='magicMissile'){
+    const missiles=Math.max(1,Math.ceil(L/2));
+    const damageExpr=missiles===1
+      ?'1d4+1'
+      :`${missiles}d4+${missiles}`;
+
+    return {
+      executionResolver:'damage',
+      automation:'full',
+      level:L,
+      rangeIn:6+L,
+      shape:'point',
+      defaultTarget:'target',
+      saveType:'none',
+      saveEffect:'none',
+      damageExpr,
+      damageTag:'magic',
+      damageFloor:1,
+      label:`Magic Missile · caster level ${L} · range ${6+L}″ · ${missiles} missile${missiles===1?'':'s'} · ${damageExpr} to selected target · no save · Magic Resistance applies`
+    };
+  }
+
   if(key==='fireball')return{executionResolver:'damage',automation:'full',level:L,rangeIn:10+L,shape:'circle',sourceLength:2,saveType:'sp',damageExpr:`${L}d6`,saveEffect:'half',damageTag:'fire',damageFloor:1,label:`Fireball · caster level ${L} · range ${10+L}″ · 2″ radius · ${L}d6 fire · save vs Spell for half`};
   if(key==='flameStrike')return{executionResolver:'damage',automation:'full',level:L,rangeIn:6,shape:'circle',sourceLength:.5,saveType:'sp',saveEffect:'half',damageExpr:'6d8',damageTag:'fire',damageFloor:1,label:`Flame Strike · caster level ${L} · range 6″ · 1″ diameter × 3″ high column · 6d8 fire · save vs Spell for half`};
   if(key==='haste')return{executionResolver:'speed',automation:'full',level:L,rangeIn:6,shape:'square',sourceLength:4,saveType:'none',saveEffect:'none',damageTag:'normal',statusEffect:'haste',durationRounds:3+L,label:`Haste · caster level ${L} · range 6″ · 4″×4″ area · ${3+L} rounds · up to ${L} creatures; whole-figure coverage [14.7]`};
