@@ -1,4 +1,8 @@
-// @graycloak/battlesystem-engine v0.11.0 - 2026-08-27
+// @graycloak/battlesystem-engine v0.11.1 - 2026-08-28
+// v0.11.1: creature-defenses.js extracts reusable creature-defense normalization,
+//          AD&D magic-resistance adjustment/rolls, arbitrary tagged damage
+//          responses, generalized weapon requirements, and legacy §13.3
+//          Magic/Silver migration. Hosts retain UI, state mutation, logs, and rulings.
 // v0.11.0: attack-routines.js separates ordered attacks inside one AD&D routine
 //          from the cadence that repeats the entire routine; §9.4B can now resolve
 //          multi-part monster routines without treating each component as #AT.
@@ -67,6 +71,7 @@ export { BattlesystemSpells } from './src/spells.js';
 export { BattlesystemIndividualCombat } from './src/individual-combat.js';
 export { BattlesystemAttackRoutines } from './src/attack-routines.js';
 export { BattlesystemMagicDefenses } from './src/magic-defenses.js';
+export { BattlesystemCreatureDefenses } from './src/creature-defenses.js';
 export { BattlesystemMagicMovement } from './src/magic-movement.js';
 export { MISSILE_WEAPONS, GIANT_ROCK_PROFILES, ARTILLERY_WEAPONS, missileKey, missileDataFor, giantRockTypeFor, giantRockDataFor, rangeBand } from './src/missiles.js';
 export {
