@@ -1,10 +1,10 @@
 <!doctype html>
-<!-- battlesystem-board.html · v0.57.2 · MAINHAND AUTHORITY + ARS WEAPON REIMPORT HOTFIX — The canonical Inventory mainWeapon assignment is authoritative for §9.4B melee by item ID; a stale activeWeapon/first roster row can no longer displace an explicitly assigned melee weapon. ARS inventory import now carries weapon damage/magic bonuses into canonical weaponData and preserves surviving main/alternate weapon assignments plus existing board-edited weapon/armor data across re-imports. An explicitly assigned melee weapon with missing combat data now refuses rather than silently substituting another weapon. @graycloak/battlesystem-engine remains v0.11.0. PRIOR (v0.57.1): §9.4B MELEE-WEAPON FALLBACK HOTFIX — A missile-only active weapon can no longer become a melee attack routine or leak its missile ROF into AD&D melee cadence. PRIOR (v0.57.0): AD&D ATTACK ROUTINE FOUNDATION. -->
+<!-- battlesystem-board.html · v0.57.3 · NATURAL-ROUTINE DAMAGE EXPRESSION HOTFIX — Custom §9.4B attack-routine components now bypass the BATTLESYSTEM CRT weapon-die parser and feed their normal AD&D damage expressions directly to the individual-combat hp roller, preserving legal monster expressions such as 2d5 plus per-component damage modifiers. Ordinary weapon/CRT parsing is unchanged. PRIOR (v0.57.2): MAINHAND AUTHORITY + ARS WEAPON REIMPORT HOTFIX — The canonical Inventory mainWeapon assignment is authoritative for §9.4B melee by item ID; a stale activeWeapon/first roster row can no longer displace an explicitly assigned melee weapon. ARS inventory import now carries weapon damage/magic bonuses into canonical weaponData and preserves surviving main/alternate weapon assignments plus existing board-edited weapon/armor data across re-imports. An explicitly assigned melee weapon with missing combat data now refuses rather than silently substituting another weapon. @graycloak/battlesystem-engine remains v0.11.0. PRIOR (v0.57.1): §9.4B MELEE-WEAPON FALLBACK HOTFIX — A missile-only active weapon can no longer become a melee attack routine or leak its missile ROF into AD&D melee cadence. PRIOR (v0.57.0): AD&D ATTACK ROUTINE FOUNDATION. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Battlesystem — Battlefield · v0.57.2</title>
+<title>Battlesystem — Battlefield · v0.57.3</title>
 <style>
   :root {
     --bg:#ece0c4; --panel:#f5eedb; --field:#a8b094; --field-edge:#6d735a; --ink:#2c2316; --ink-soft:#6e6047; --rule:#b6a682;
@@ -928,7 +928,7 @@
 </dialog>
 
 <script type="module">
-const SIM_VERSION = '0.57.2';
+const SIM_VERSION = '0.57.3';
 import {
   BattlesystemCombat, CombatResultsTable, BattlesystemMorale, BattlesystemMovement, BattlesystemCavalry,
   BattlesystemEffects, BattlesystemActions, BattlesystemItems, BattlesystemSpells, BattlesystemIndividualCombat, BattlesystemAttackRoutines, BattlesystemMagicDefenses, BattlesystemMagicMovement, EFFECT_MODES, CHARACTER_ACTION_KINDS,
@@ -6356,13 +6356,25 @@ function rollIndividualDamage(expr,rng=Math.random) { return BattlesystemIndivid
 function sharpnessCheck(def,e,d20,hit=true) {
   return BattlesystemIndividualCombat.sharpnessCheck({defenderSize:profileOf(def).size,traits:weaponTraitData(e),d20,hit});
 }
+function individualRoutineComponentDamageExpr(e,size='M') {
+  const raw=String(String(size||'M').toUpperCase()==='L'?(e?.l||e?.sm||''):(e?.sm||'')).trim();
+  if(!raw)return'';
+  const compact=raw.replace(/\s+/g,''),m=compact.match(/^(\d*d\d+)([+-]\d+)?$/i),extra=Number(e?.dmod)||0;
+  if(!m||!extra)return compact;
+  const mod=(Number(m[2])||0)+extra;
+  return `${m[1]}${mod?`${mod>0?'+':''}${mod}`:''}`;
+}
 function individualAttackRoll(att,def,rng=Math.random,weaponEntry=null) {
-  const ap=profileOf(att), dp=profileOf(def), e=weaponEntry||activeWeaponEntry(att), w=profileForEntry(att,e);
+  const ap=profileOf(att), dp=profileOf(def), e=weaponEntry||activeWeaponEntry(att), routineComponent=!!e?._routineComponent, w=routineComponent?null:profileForEntry(att,e);
   const scA=specialCombatTotals(att), scD=specialCombatTotals(def), ca=creatureAbilities(att), vuln=magicTargetHitState(def);
   // [13.1] in normal AD&D §9.4B combat: AR± maps to THAC0, AC± to AC,
   // and DMG± modifies hp damage rather than shifting the BATTLESYSTEM CRT.
+  // v0.57.3: a custom natural-attack component is already an AD&D damage
+  // expression. Do not force it through the BATTLESYSTEM CRT die-size parser;
+  // that parser intentionally rejects values such as d5 even though §9.4B hp
+  // combat can roll them normally.
   const effectiveAc=invisibilityAdjustedAC(def,Number(dp.ac)+scD.ac), weapon=e?.name||activeWeaponName(att), tags=creatureAttackTags(att,weapon,e);
-  const size=String(dp.size||'M').toUpperCase(), expr=size==='L'?(lStr(w)||smStr(w)):smStr(w);
+  const size=String(dp.size||'M').toUpperCase(), expr=routineComponent?individualRoutineComponentDamageExpr(e,size):(size==='L'?(lStr(w)||smStr(w)):smStr(w));
   const core=BattlesystemIndividualCombat.resolveAttack({
     thaco:Number(ap.thaco),thacoDelta:scA.ar,ac:effectiveAc,hitBonus:Number(e?.hit)||0,targetBonus:vuln.bonus||0,autoHit:!!vuln.auto,
     invulnerability:creatureAbilities(def).invulnerability,attackTags:tags,damageExpr:expr,damageModifier:scA.damage,
