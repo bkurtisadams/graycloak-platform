@@ -1,4 +1,7 @@
-// @graycloak/battlesystem-engine v0.10.4 - 2026-08-27
+// @graycloak/battlesystem-engine v0.11.0 - 2026-08-27
+// v0.11.0: attack-routines.js separates ordered attacks inside one AD&D routine
+//          from the cadence that repeats the entire routine; §9.4B can now resolve
+//          multi-part monster routines without treating each component as #AT.
 // v0.10.4: magic-movement.js adds pure §14.13 movement-magic recognition and
 //          the Missile-&-Magic-Phase-only timing contract, including innate
 //          Teleport. Normal AD&D/D&D movement effects remain host/referee-owned.
@@ -62,6 +65,7 @@ export { BattlesystemActions, CHARACTER_ACTION_KINDS } from './src/actions.js';
 export { BattlesystemItems } from './src/items.js';
 export { BattlesystemSpells } from './src/spells.js';
 export { BattlesystemIndividualCombat } from './src/individual-combat.js';
+export { BattlesystemAttackRoutines } from './src/attack-routines.js';
 export { BattlesystemMagicDefenses } from './src/magic-defenses.js';
 export { BattlesystemMagicMovement } from './src/magic-movement.js';
 export { MISSILE_WEAPONS, GIANT_ROCK_PROFILES, ARTILLERY_WEAPONS, missileKey, missileDataFor, giantRockTypeFor, giantRockDataFor, rangeBand } from './src/missiles.js';
