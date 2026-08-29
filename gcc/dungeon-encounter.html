@@ -3017,6 +3017,13 @@ function arsActorToLegacyChar(raw) {
     })
     // Conjured effects sort last so a real weapon is the default.
     .sort((a, b) => (a.spell_effect ? 1 : 0) - (b.spell_effect ? 1 : 0));
+  // ARS carries weapon proficiencies as their own item type. Without these every
+  // imported character counted as non-proficient with everything, taking the class
+  // penalty even on their own magic weapons.
+  const proficiencies = raw.items
+    .filter(i => i && i.type === 'proficiency' && i.name)
+    .map(i => String(i.name).replace(/\s*\((P|Free Prof)\)\s*$/i, '').trim())
+    .filter(n => n && !ARS_PSEUDO_WEAPONS.includes(n.toLowerCase()));
   const items = raw.items
     .filter(i => i && i.name && ['item', 'potion', 'container'].includes(i.type))
     .map(it => {
@@ -3051,7 +3058,7 @@ function arsActorToLegacyChar(raw) {
     shieldSize: shieldSize || undefined,
     str: av('str'), dex, con: av('con'), int: av('int'), wis: av('wis'), cha: av('cha'),
     combatToHitAdj: strAdj.hit, combatDamAdj: strAdj.dmg,
-    weapons, items, spells,
+    weapons, items, spells, proficiencies,
     moveBase: Number(attrs.movement?.value) || 12,
   };
 }
@@ -3217,22 +3224,29 @@ function spawnFromTemplate(template, side, pos) {
   if (!loadout.length) loadout.push(_registerNaturalAttack(templateId, { name: 'strike', damage: [1, 4], verb: 'strikes' }, false));
   const hdNum = t.hd != null ? t.hd : 1;
   const hdInfo = parseHD(hdNum);
+  // hd may be written "4+1", so never coerce it with Math.round — that yields NaN
+  // and collapses hit points to 1. Use the parsed dice count and plus instead.
+  const hdDice = Math.max(1, hdInfo.dice);
+  const hdPlus = hdInfo.plus || 0;
   const level = hdInfo.dice + (hdInfo.plus > 0 ? 0.5 : 0); // "4+1" HD -> level 4.5, matching seed convention
   const sizeCells = t.size === 'L' ? 2 : t.size === 'H' ? 3 : 1;
   const mv = Math.max(1, Math.round(t.moveRate != null ? t.moveRate : 12)); // true 1e rate (1" = 10 ft indoors)
   let hp;
   if (t.hp_formula) hp = Math.max(1, rollDice(t.hp_formula));                           // sub-HD human ("1d6 hp")
-  else if (t.hp_per_die != null) hp = Math.max(1, Math.round(hdNum) * t.hp_per_die);     // fixed hp/die (dragons by age)
+  else if (t.hp_per_die != null) hp = Math.max(1, hdDice * t.hp_per_die);     // fixed hp/die (dragons by age)
   else {
     // hd_bonus_dice covers monsters whose extra hit points are rolled rather
     // than fixed (OSRIC hill giant: "8+1d2").
-    const extra = t.hd_bonus_dice ? rollDice(t.hd_bonus_dice) : (t.hd_bonus || 0);
-    hp = Math.max(1, rollDice(Math.max(1, Math.round(hdNum)) + 'd8') + extra);
+    // Extra hit points: a rolled bonus (hill giant "8+1d2"), an explicit
+    // hd_bonus, or the "+N" carried in the hit dice string itself ("4+1").
+    const extra = t.hd_bonus_dice ? rollDice(t.hd_bonus_dice)
+                : (t.hd_bonus != null ? t.hd_bonus : hdPlus);
+    hp = Math.max(1, rollDice(hdDice + 'd8') + extra);
   }
   let xpVal;
   if (t.xp_base != null || t.xp_per_hp != null) xpVal = Math.max(0, _num(t.xp_base, 0) + _num(t.xp_per_hp, 0) * hp);
   else if (t.xp != null) xpVal = t.xp;
-  else { const b = _mmXPBand(hdNum); xpVal = b.bxpv + b.perHp * hp; } // template w/o xp -> DMG table by HD
+  else { const b = _mmXPBand(level); xpVal = b.bxpv + b.perHp * hp; } // template w/o xp -> DMG table by HD
   const baseCol = pos ? pos.col : Math.floor(COLS / SUB) - 2;
   const baseRow = pos ? pos.row : 3;
   return {
