@@ -316,7 +316,34 @@ body {
 .combatant { display: grid; grid-template-columns: 38px 1fr; gap: 10px;
   align-items: center; padding: 8px 11px; cursor: pointer;
   border-radius: 6px; margin: 0 6px 5px; border: 1px solid transparent;
-  transition: background 120ms, box-shadow 120ms; }
+  transition: background 120ms, box-shadow 120ms; position: relative; }
+/* Remove-from-encounter affordance: only on hover, so the row stays clean. */
+.tracker-remove { position: absolute; top: 4px; right: 5px; width: 18px; height: 18px;
+  line-height: 16px; text-align: center; padding: 0; border-radius: 4px; cursor: pointer;
+  border: 1px solid var(--line, #3a4351); background: transparent; color: var(--dim, #8b97a8);
+  font-size: 13px; opacity: 0; transition: opacity 120ms, background 120ms, color 120ms; }
+.combatant:hover .tracker-remove { opacity: 1; }
+.tracker-remove:hover { background: #7d2b2b; border-color: #a23b3b; color: #fff; }
+.tracker-add { display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+  padding: 6px 8px 8px; margin-top: 2px; border-top: 1px solid var(--line, #3a4351); }
+.tracker-add-btn { flex: 1 1 auto; padding: 5px 8px; font-size: 11px; cursor: pointer;
+  border-radius: 5px; border: 1px solid var(--line, #3a4351);
+  background: transparent; color: var(--dim, #8b97a8); }
+.tracker-add-btn:hover { color: #fff; border-color: #6b7788; }
+.tracker-add-btn.cancel:hover { background: #7d2b2b; border-color: #a23b3b; }
+.tracker-add .placing { flex: 1 1 100%; font-size: 11px; color: var(--dim, #8b97a8); }
+.tracker-add-menu { position: absolute; z-index: 60; min-width: 210px; max-height: 320px;
+  overflow-y: auto; padding: 5px; border-radius: 7px; border: 1px solid var(--line, #3a4351);
+  background: var(--panel, #1b212b); box-shadow: 0 8px 26px rgba(0,0,0,.5); }
+.tracker-add-menu .grp { font-size: 10px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--dim, #8b97a8); padding: 6px 7px 3px; }
+.tracker-add-menu button { display: block; width: 100%; text-align: left; padding: 6px 8px;
+  font-size: 12px; cursor: pointer; border: 0; border-radius: 5px; background: transparent;
+  color: var(--ink, #dfe6ef); }
+.tracker-add-menu button:hover { background: rgba(255,255,255,.08); }
+.hex-place-zone { fill: rgba(90, 170, 120, .18); stroke: rgba(120, 210, 150, .55);
+  stroke-width: 1; cursor: pointer; }
+.hex-place-zone:hover { fill: rgba(120, 210, 150, .38); }
 .combatant:hover { background: var(--surface-2); }
 .combatant.A.selected { background: rgba(74,120,152,0.18); border-color: var(--party);
   box-shadow: inset 0 0 0 1px var(--party); }
@@ -5361,7 +5388,9 @@ function renderMap() {
   const wall = svgEl('g', {}, svg);
   const overlay = svgEl('g', {}, svg);
   const engagementLayer = svgEl('g', {}, svg);
+  const placeLayer = svgEl('g', {}, svg);
   const tokens = svgEl('g', {}, svg);
+  renderPlacementZones(placeLayer);
 
   // Floor base
   svgEl('rect', { x: OX, y: OY, width: COLS * SIZE, height: ROWS * SIZE, 'class': 'cell-floor' }, floor);
@@ -5396,6 +5425,7 @@ function renderMap() {
       const reachable = computeReachable(state, c.position, budget, c.id);
       const moverN = sizeCells(c);
       // Ghost of the mover's full footprint at the hovered destination (large creatures only)
+      // (placement zones are drawn separately below, see renderPlacementZones)
       const ghost = moverN > 1 ? svgEl('rect', {
         width: moverN * SIZE, height: moverN * SIZE,
         'class': 'hex-footprint-ghost', style: 'display:none'
@@ -5815,9 +5845,58 @@ function renderTracker() {
           </div>
         </div>`;
       row.addEventListener('click', () => App.handleTokenClick(c.id));
+      const rm = document.createElement('button');
+      rm.className = 'tracker-remove';
+      rm.textContent = '\u00d7';
+      rm.title = `Remove ${c.label} from the encounter`;
+      rm.addEventListener('click', (e) => { e.stopPropagation(); App.removeCombatant(c.id); });
+      row.appendChild(rm);
       el.appendChild(row);
     });
   }
+  // Add-a-combatant control: pick a source, then click a square on the map.
+  const add = document.createElement('div');
+  add.className = 'tracker-add';
+  add.innerHTML = placeMode
+    ? `<span class="placing">Click a square to place <b>${_gmEsc(placeMode.label)}</b></span>` +
+      `<button class="tracker-add-btn cancel" onclick="App.cancelPlace()">Cancel</button>`
+    : `<button class="tracker-add-btn" onclick="App.openAddMenu('A')">+ Add to A</button>` +
+      `<button class="tracker-add-btn" onclick="App.openAddMenu('B')">+ Add to B</button>`;
+  el.appendChild(add);
+}
+
+// --- Adding combatants from the canvas -------------------------------------
+// placeMode holds a prepared combatant waiting for the GM to click a square.
+let placeMode = null;
+function rosterCharacters() {
+  try { return JSON.parse(localStorage.getItem('gcc-add1e-chars') || '[]') || []; }
+  catch (e) { return []; }
+}
+function freeCellsForPlacement(n) {
+  const out = [];
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      let ok = true;
+      for (let dr = 0; dr < n && ok; dr++) for (let dc = 0; dc < n && ok; dc++) {
+        if (isWallCell(col + dc, row + dr)) ok = false;
+      }
+      if (!ok) continue;
+      for (const c of state.combatants) {
+        if (c.dead) continue;
+        for (const cell of footprintCells(c)) {
+          if (cell.col >= col && cell.col < col + n && cell.row >= row && cell.row < row + n) { ok = false; break; }
+        }
+        if (!ok) break;
+      }
+      if (ok) out.push({ col, row });
+    }
+  }
+  return out;
+}
+function uniqueCombatantId(base) {
+  let id = base, n = 2;
+  while (state.combatants.some(c => c.id === id)) id = base + '_' + (n++);
+  return id;
 }
 
 function classMicro(c) {
@@ -7036,6 +7115,20 @@ function renderSheetPack(c) {
 
 // Reflect the active ground scale in the map's scale bar so an outdoor fight
 // is never misread as dungeon distances.
+// While placing a new combatant, every legal square is clickable.
+function renderPlacementZones(overlay) {
+  if (!placeMode || !overlay) return;
+  const n = sizeCells(placeMode.combatant);
+  for (const cell of freeCellsForPlacement(n)) {
+    const tl = cellTopLeft(cell.col, cell.row);
+    const rect = svgEl('rect', {
+      x: tl.x.toFixed(2), y: tl.y.toFixed(2),
+      width: (SIZE * n).toFixed(2), height: (SIZE * n).toFixed(2),
+      'class': 'hex-place-zone'
+    }, overlay);
+    rect.addEventListener('click', () => App.completePlace(cell.col, cell.row));
+  }
+}
 function renderScaleBar() {
   const el = document.getElementById('scale-bar');
   if (!el) return;
@@ -7419,6 +7512,84 @@ const App = {
     window.location.href = _returnTo || 'greyhawk-map.html';
   },
 
+  // Remove a combatant from the encounter entirely (not a kill — it never was here).
+  removeCombatant(id) {
+    const c = findCombatant(state, id);
+    if (!c) return;
+    state.combatants = state.combatants.filter(x => x.id !== id);
+    delete state.declarations[id];
+    if (state.selected_id === id) state.selected_id = null;
+    if (state.current_actor === id) state.current_actor = null;
+    log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${c.side === 'A' ? 'a' : 'b'}">${c.label}</span> is removed from the encounter.</span>`);
+    renderAll();
+  },
+  // Choose what to add: a saved roster character, a party template, or a monster.
+  openAddMenu(side) {
+    document.querySelectorAll('.tracker-add-menu').forEach(m => m.remove());
+    const menu = document.createElement('div');
+    menu.className = 'tracker-add-menu';
+    let html = '';
+    const roster = rosterCharacters();
+    if (roster.length) {
+      html += '<div class="grp">Saved roster</div>';
+      roster.forEach((pc, i) => {
+        const lvl = pc.level != null ? ' ' + pc.level : '';
+        html += `<button onclick="App.beginPlaceRoster(${i}, '${side}')">${_gmEsc(pc.characterName || 'Character')}` +
+                `<span style="opacity:.6"> — ${_gmEsc((pc.characterClass || '') + lvl)}</span></button>`;
+      });
+    }
+    const tmpl = (_CD && _CD.monsters) ? _CD.monsters : null;
+    if (tmpl) {
+      html += '<div class="grp">Monsters</div>';
+      Object.keys(tmpl).sort((a, b) => String((tmpl[a] || {}).name || a).localeCompare(String((tmpl[b] || {}).name || b)))
+        .forEach(id => {
+          html += `<button onclick="App.beginPlaceMonster('${id}', '${side}')">${_gmEsc((tmpl[id] || {}).name || id)}</button>`;
+        });
+    }
+    if (!html) html = '<div class="grp">Nothing available to add</div>';
+    menu.innerHTML = html;
+    document.body.appendChild(menu);
+    const anchor = document.querySelector('.tracker-add');
+    if (anchor) {
+      const r = anchor.getBoundingClientRect();
+      menu.style.left = Math.max(8, Math.min(window.innerWidth - 230, r.left)) + 'px';
+      menu.style.top = Math.max(8, r.top - menu.offsetHeight - 6) + 'px';
+    }
+    setTimeout(() => {
+      const close = (e) => { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', close); } };
+      document.addEventListener('click', close);
+    }, 0);
+  },
+  beginPlaceRoster(index, side) {
+    document.querySelectorAll('.tracker-add-menu').forEach(m => m.remove());
+    const pc = rosterCharacters()[index];
+    if (!pc) return;
+    const c = mapCharToCombatant(pc, side);
+    c.id = uniqueCombatantId(c.id || ('pc_' + index));
+    placeMode = { combatant: c, label: c.label };
+    renderAll();
+  },
+  beginPlaceMonster(templateId, side) {
+    document.querySelectorAll('.tracker-add-menu').forEach(m => m.remove());
+    // spawnFromTemplate places the token itself; the square is chosen on the
+    // canvas, so spawn first and move it when the GM clicks.
+    const c = spawnFromTemplate(templateId, side, null);
+    if (!c) return;
+    c.id = uniqueCombatantId(c.id || (templateId + '_1'));
+    placeMode = { combatant: c, label: c.label };
+    renderAll();
+  },
+  cancelPlace() { placeMode = null; renderAll(); },
+  // The GM clicked a square while placing.
+  completePlace(col, row) {
+    if (!placeMode) return;
+    const c = placeMode.combatant;
+    c.position = { col, row };
+    state.combatants.push(c);
+    placeMode = null;
+    log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${c.side === 'A' ? 'a' : 'b'}">${c.label}</span> joins the encounter.</span>`);
+    renderAll();
+  },
   handleTokenClick(id) {
     const c = findCombatant(state, id);
     if (!c || c.dead) return;
