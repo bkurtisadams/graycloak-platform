@@ -1,6 +1,6 @@
 import { JSDOM, VirtualConsole } from 'jsdom';
 import fs from 'node:fs'; import path from 'node:path';
-const root=process.argv[2];
+const root=path.resolve(process.argv[2]||'.');   // v0.61.3: a relative repo root ('.') built an invalid file:// URL on Linux
 let html=fs.readFileSync(path.join(root,'gcc/battlesystem-board.html'),'utf8');
 html=html.replace(/<script src="gcc-[^"]+"><\/script>/g,'').replace(/<link[^>]+gcc-auth[^>]*>/g,'');
 const i=html.indexOf('<script type="module">'),j=html.indexOf('</script>',i);

@@ -4,5 +4,8 @@
   "private": true,
   "devDependencies": {
     "fake-indexeddb": "^6.2.5"
+  },
+  "dependencies": {
+    "jsdom": "^24.1.3"
   }
 }
