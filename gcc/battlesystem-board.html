@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Battlesystem — Battlefield · v0.61.1</title>
+<title>Battlesystem — Battlefield · v0.61.1.1</title>
 <style>
   :root {
     --bg:#ece0c4; --panel:#f5eedb; --field:#a8b094; --field-edge:#6d735a; --ink:#2c2316; --ink-soft:#6e6047; --rule:#b6a682;
@@ -1094,7 +1094,7 @@
 </dialog>
 
 <script type="module">
-const SIM_VERSION = '0.61.1';
+const SIM_VERSION = '0.61.1.1';
 import {
   BattlesystemCombat, CombatResultsTable, BattlesystemMorale, BattlesystemMovement, BattlesystemCavalry,
   BattlesystemEffects, BattlesystemActions, BattlesystemItems, BattlesystemSpells, BattlesystemIndividualCombat, BattlesystemAttackRoutines, BattlesystemMagicDefenses, BattlesystemCreatureDefenses, BattlesystemMagicMovement, BattlesystemInnateActions, BattlesystemSecondaryEffects, EFFECT_MODES, CHARACTER_ACTION_KINDS,
@@ -8051,7 +8051,7 @@ function renderUnit(u, combatCue=null) {
       if (fsel.includes(i)) { pip.setAttribute('stroke','#c9a227'); pip.setAttribute('stroke-width','2'); pip.classList.add('fig-selected'); }
       if (turned) pip.setAttribute('stroke-dasharray','2 1.5');
       if ((sel || tgt) && !isIndividual(u) && !state.net.spectate) { pip.style.cursor='pointer'; pip.setAttribute('data-fig', String(i)); }   // selection/targeting is handled in the board mousedown (renderAll rebuilds the SVG before 'click' could fire)
-      if (tgt && figureTargetFor(u).includes(i)) { pip.setAttribute('stroke','#b0392c'); pip.setAttribute('stroke-width','2'); pip.classList.add('fig-targeted'); }
+      if (tgt && figureTargetFor(u).includes(i)) { pip.setAttribute('stroke','#f2a900'); pip.setAttribute('stroke-width','2.4'); pip.setAttribute('filter','drop-shadow(0 0 1.2px #3a2a06)'); pip.classList.add('fig-targeted'); }   // v0.61.1.1: amber on either side colour
     }
     const ah=Math.max(2.2,Math.min(sq,sqD)*0.34), aw=ah*0.72, rel=angleDelta(figureFacing(u,i),physFacing(u));
     gr.appendChild(el('path', { d:`M ${pcx} ${pcy-ah} L ${pcx+aw} ${pcy+ah*.55} L ${pcx} ${pcy+ah*.18} L ${pcx-aw} ${pcy+ah*.55} Z`,
