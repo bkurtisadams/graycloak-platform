@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Battlesystem — Battlefield · v0.60.5.3</title>
+<title>Battlesystem — Battlefield · v0.60.5.4</title>
 <style>
   :root {
     --bg:#ece0c4; --panel:#f5eedb; --field:#a8b094; --field-edge:#6d735a; --ink:#2c2316; --ink-soft:#6e6047; --rule:#b6a682;
@@ -366,6 +366,7 @@
   .bs-cue .bs-cue-dot { fill:#f8f1df; stroke:#9f8d67; stroke-width:1; }
   .bs-cue.can .bs-cue-dot { fill:#ffe9a6; stroke:#b8923a; } .bs-cue.must .bs-cue-dot { fill:#ffd6b0; stroke:#d0782a; } .bs-cue.done { opacity:.45; }
   .bs-cue-glyph { font-family:var(--sans); font-size:10px; font-weight:800; fill:#4a3a16; pointer-events:none; }
+  .bs-cue-ring.small { stroke-width:1.1; } .bs-cue.small .bs-cue-glyph { font-size:6.5px; } .bs-cue.small .bs-cue-dot { stroke-width:.8; }
   .hintline .reach-target.on { font-weight:800; color:var(--rear); }
   .hintline .char-flat-btn { font-family:var(--sans); font-size:8.5px; padding:1px 5px; border:1px solid #9f8d67; border-radius:0; background:#f8f1df; }
   .attack-routine-strip select { min-height:21px; font-size:8.5px; padding:0 3px; max-width:220px; }
@@ -1093,7 +1094,7 @@
 </dialog>
 
 <script type="module">
-const SIM_VERSION = '0.60.5.3';
+const SIM_VERSION = '0.60.5.4';
 import {
   BattlesystemCombat, CombatResultsTable, BattlesystemMorale, BattlesystemMovement, BattlesystemCavalry,
   BattlesystemEffects, BattlesystemActions, BattlesystemItems, BattlesystemSpells, BattlesystemIndividualCombat, BattlesystemAttackRoutines, BattlesystemMagicDefenses, BattlesystemCreatureDefenses, BattlesystemMagicMovement, BattlesystemInnateActions, BattlesystemSecondaryEffects, EFFECT_MODES, CHARACTER_ACTION_KINDS,
@@ -8075,8 +8076,9 @@ function renderUnit(u, combatCue=null) {
   if (sel) appendCornerReticle(gr, r.w*PXI, r.h*PXI, 'selected', selCombatState);
   if (tgt) appendCornerReticle(gr, r.w*PXI, r.h*PXI, 'target');
   { const cue=unitStepCue(u); if(cue){                              // v0.60.4 board cues: gold = can act, amber = must act, dim = done
-      const ring=el('rect',{x:-2.5,y:-2.5,width:r.w*PXI+5,height:r.h*PXI+5,rx:5,'class':`bs-cue-ring ${cue.kind}`});gr.appendChild(ring);
-      const g=el('g',{'class':`bs-cue ${cue.kind}`,transform:`translate(${r.w*PXI+2},${-2})`});g.appendChild(el('circle',{cx:0,cy:0,r:7.5,'class':'bs-cue-dot'}));const t=el('text',{x:0,y:3.4,'text-anchor':'middle','class':'bs-cue-glyph'});t.textContent=cue.glyph;g.appendChild(t);const ti=el('title',{});ti.textContent=cue.title;g.appendChild(ti);gr.appendChild(g);
+      const small=isIndividual(u), rr=small?4.5:7.5, off=small?1.5:2.5;   // v0.60.5.4: ½" hero counters get a proportionate cue
+      const ring=el('rect',{x:-off,y:-off,width:r.w*PXI+off*2,height:r.h*PXI+off*2,rx:small?3:5,'class':`bs-cue-ring ${cue.kind}${small?' small':''}`});gr.appendChild(ring);
+      const g=el('g',{'class':`bs-cue ${cue.kind}${small?' small':''}`,transform:`translate(${r.w*PXI+(small?1:2)},${small?-1:-2})`});g.appendChild(el('circle',{cx:0,cy:0,r:rr,'class':'bs-cue-dot'}));const t=el('text',{x:0,y:small?2.2:3.4,'text-anchor':'middle','class':'bs-cue-glyph'});t.textContent=cue.glyph;g.appendChild(t);const ti=el('title',{});ti.textContent=cue.title;g.appendChild(ti);gr.appendChild(g);
   } }
 
   if(dueCount){
