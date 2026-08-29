@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Battlesystem — Battlefield · v0.60.3</title>
+<title>Battlesystem — Battlefield · v0.60.3.1</title>
 <style>
   :root {
     --bg:#ece0c4; --panel:#f5eedb; --field:#a8b094; --field-edge:#6d735a; --ink:#2c2316; --ink-soft:#6e6047; --rule:#b6a682;
@@ -938,8 +938,7 @@
       <div class="phase-due-slot"><button id="btn-due" class="due-ready" hidden title="Unresolved advisory Morale/Discipline checks · click to review and resolve">⚑ DUE 0</button></div>
       <div class="phase-rail" id="phase-rail"></div>
       <span class="tb-sep"></span>
-      <span class="tb-pin-right"></span>
-      <span id="battle-dock" class="slot-dock">
+      <span id="battle-dock" class="slot-dock"><!-- v0.60.3.1: docked right after the rail's End Round step, not pinned to the far edge -->
       <button id="btn-back-setup" class="slot s-setup" hidden title="Return to Setup: keep positions, losses, ammunition and spent magic; clear round state. One Undo restores the battle.">↩ Setup</button>
       <button id="btn-begin" class="primary slot s-next">Begin battle</button>
       <button id="btn-advance" class="primary slot s-next" style="display:none">Next phase</button>
@@ -1081,7 +1080,7 @@
 </dialog>
 
 <script type="module">
-const SIM_VERSION = '0.60.3';
+const SIM_VERSION = '0.60.3.1';
 import {
   BattlesystemCombat, CombatResultsTable, BattlesystemMorale, BattlesystemMovement, BattlesystemCavalry,
   BattlesystemEffects, BattlesystemActions, BattlesystemItems, BattlesystemSpells, BattlesystemIndividualCombat, BattlesystemAttackRoutines, BattlesystemMagicDefenses, BattlesystemCreatureDefenses, BattlesystemMagicMovement, BattlesystemInnateActions, BattlesystemSecondaryEffects, EFFECT_MODES, CHARACTER_ACTION_KINDS,
