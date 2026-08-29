@@ -66,10 +66,17 @@ function attackTimes(count){
 }
 
 function rollDamage(expr,rng=Math.random){
-  const t=String(expr||'').trim().replace(/\s+/g,'').toLowerCase(),m=t.match(/^(\d*)d(\d+)([+-]\d+)?$/);
-  if(!m)return {total:0,expr:t||'—',rolls:[],modifier:0,invalid:true};
-  const n=Math.max(1,Number(m[1]||1)),sides=Math.max(1,Number(m[2])),modifier=Number(m[3]||0),rolls=Array.from({length:n},()=>rollDie(sides,rng));
-  return {total:Math.max(0,rolls.reduce((a,b)=>a+b,0)+modifier),expr:t,rolls,modifier,invalid:false};
+  // AD&D damage as written: NdS±M term sums ("1d4+1d4", "2d5-1", any die size)
+  // and Monster Manual range notation ("3-12", rolled uniformly).
+  const t=String(expr||'').trim().replace(/\s+/g,'').toLowerCase(),range=t.match(/^(\d+)-(\d+)$/);
+  if(range&&Number(range[1])<Number(range[2])){const lo=Number(range[1]),hi=Number(range[2]),total=lo+Math.floor(rng()*(hi-lo+1));return {total,expr:t,rolls:[total],modifier:0,invalid:false,range:[lo,hi]};}
+  if(!/^[+-]?(\d*d\d+|\d+)([+-](\d*d\d+|\d+))*$/.test(t))return {total:0,expr:t||'—',rolls:[],modifier:0,invalid:true};
+  const rolls=[];let modifier=0,total=0;
+  for(const m of t.matchAll(/([+-]?)(\d*)d(\d+)|([+-]?)(\d+)/g)){
+    if(m[3]!==undefined){const sign=m[1]==='-'?-1:1,n=Math.max(1,Number(m[2]||1)),sides=Math.max(1,Number(m[3]));for(let i=0;i<n;i++){const r=rollDie(sides,rng);rolls.push(sign*r);total+=sign*r;}}
+    else{const v=(m[4]==='-'?-1:1)*Number(m[5]);modifier+=v;total+=v;}
+  }
+  return {total:Math.max(0,total),expr:t,rolls,modifier,invalid:false};
 }
 
 function weaponTraits(entry={}){

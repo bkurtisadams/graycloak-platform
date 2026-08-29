@@ -338,3 +338,15 @@ test('vs-Large damage variant used against L targets only', () => {
     assert.equal(vsL.usedLargeVariant, true);
     assert.equal(vsL.damagePerFigure, 9);    // D12 @ 16
 });
+
+test('v0.14.0 CRT approximation of non-CRT AD&D expressions is flagged and close', async () => {
+  const { approximateCrtDamage, damageExpressionStats, parseDamageString } = await import('../src/unit-math.js');
+  assert.deepEqual(parseDamageString('1d6-1'), { damageDice:'D6', damageModifier:-1, numberOfDice:1, numberOfAttacks:1 });
+  assert.equal(parseDamageString('1d4+1d4'), null);
+  assert.deepEqual(damageExpressionStats('3-12'), { expr:'3-12', min:3, max:12, avg:7.5, range:true });
+  const a=approximateCrtDamage('2d5');
+  assert.equal(a.approximated, true); assert.equal(a.sourceExpr, '2d5');
+  const avg=a.numberOfDice*(Number(a.damageDice.slice(1))+1)/2+a.damageModifier;
+  assert.ok(Math.abs(avg-6)<=0.5);
+  assert.equal(approximateCrtDamage('1d8').approximated, undefined);
+});

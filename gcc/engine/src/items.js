@@ -1,4 +1,4 @@
-// @graycloak/battlesystem-engine items.js v0.6.0 - 2026-08-26
+// @graycloak/battlesystem-engine items.js v0.7.0 - 2026-08-28
 // Pure canonical character-item, loadout, resource, action, and effect helpers.
 // Host adapters own actor/character documents, UI, import dialogs, battlefield state,
 // logging, undo, and serialization. This module mutates only explicitly supplied
@@ -159,8 +159,14 @@ function normalizeArmorData(raw=null) {
   return{ac,bonus,notes};
 }
 
+const GEAR_KINDS=Object.freeze(['weapon','armor','shield','ring','potion','scroll','item','container']);
 function gearKind(raw={}) {
   const name=String(raw.name||''),type=String(raw.sourceType||raw.type||'item').toLowerCase(),alias=String(raw.alias||'').toLowerCase();
+  // An explicit kind always wins; the name heuristics below only classify
+  // untyped records ("Ring Mail" must stay armor when the editor says armor).
+  const explicit=String(raw.kind||'').toLowerCase();
+  if(GEAR_KINDS.includes(explicit))return explicit;
+  if(GEAR_KINDS.includes(type)&&type!=='item')return type;
   if(/^ring\b/i.test(name)||alias==='ring')return'ring';
   if(/\bshield\b/i.test(name)||alias==='shield')return'shield';
   if(type==='weapon')return'weapon';
@@ -195,8 +201,11 @@ function normalizeInventory(raw={}) {
   raw=raw&&typeof raw==='object'?raw:{};
   const items=(Array.isArray(raw.items)?raw.items:[]).map(normalizeGearItem).filter(Boolean),ids=new Set(items.map(x=>x.id)),available=id=>!id||ids.has(String(id)),first=(kind,state='equipped')=>items.find(x=>x.kind===kind&&x.state===state)?.id||'';
   const weapons=items.filter(x=>x.kind==='weapon'&&x.state!=='nocarried'),equippedWeapons=weapons.filter(x=>x.state==='equipped');
-  let mainWeapon=available(raw.mainWeapon??raw.mainHand)?String(raw.mainWeapon??raw.mainHand??''):'';
-  if(!mainWeapon)mainWeapon=equippedWeapons[0]?.id||weapons[0]?.id||'';
+  // An explicitly empty Primary stays empty (hands-free / natural-attack
+  // combatant); only a missing or dangling reference is auto-filled.
+  const rawMain=String(raw.mainWeapon??raw.mainHand??''),mainWeaponExplicit=rawMain===''&&!!raw.mainWeaponExplicit;
+  let mainWeapon=available(rawMain)?rawMain:'';
+  if(!mainWeapon&&!mainWeaponExplicit)mainWeapon=equippedWeapons[0]?.id||weapons[0]?.id||'';
   let alternateWeapon=available(raw.alternateWeapon??raw.offHand)?String(raw.alternateWeapon??raw.offHand??''):'';
   if(!alternateWeapon)alternateWeapon=equippedWeapons.find(x=>x.id!==mainWeapon)?.id||weapons.find(x=>x.id!==mainWeapon)?.id||'';
   if(alternateWeapon===mainWeapon)alternateWeapon='';
@@ -209,7 +218,7 @@ function normalizeInventory(raw={}) {
   if(ringLeft&&ringLeft===ringRight)ringRight='';
   const readyMagic=(Array.isArray(raw.readyMagic)?raw.readyMagic:[]).map(String).filter((id,i,a)=>ids.has(id)&&a.indexOf(id)===i).slice(0,3);
   while(readyMagic.length<3)readyMagic.push('');
-  return markInventoryNormalized({schemaVersion:CHARACTER_ITEM_SCHEMA,items,mainWeapon,alternateWeapon,armor,shield,ringLeft,ringRight,readyMagic,activeAmmo:available(raw.activeAmmo)?String(raw.activeAmmo||''):'',weaponsCanonical:!!raw.weaponsCanonical,magicCanonical:!!raw.magicCanonical,source:String(raw.source||''),importedAt:String(raw.importedAt||'')});
+  return markInventoryNormalized({schemaVersion:CHARACTER_ITEM_SCHEMA,items,mainWeapon,alternateWeapon,mainWeaponExplicit,armor,shield,ringLeft,ringRight,readyMagic,activeAmmo:available(raw.activeAmmo)?String(raw.activeAmmo||''):'',weaponsCanonical:!!raw.weaponsCanonical,magicCanonical:!!raw.magicCanonical,source:String(raw.source||''),importedAt:String(raw.importedAt||'')});
 }
 
 function inventoryItem(inv,id) {
@@ -249,8 +258,12 @@ function syncWeaponRows(inv,rows=[],{replace=false,activeWeapon=''}={}) {
   const used=[];
   for(let i=0;i<rows.length;i++){
     const row=rows[i],key=magicItemKey(row.name);
-    let it=(inv.items||[]).find(x=>x.kind==='weapon'&&magicItemKey(x.name)===key);
-    if(!it){it=normalizeGearItem({id:`weapon-${key.replace(/\s+/g,'-')||i+1}-${i+1}`,name:row.name,sourceType:'weapon',state:i===0?'equipped':'carried',source:'BATTLESYSTEM roster'},inv.items.length);inv.items.push(it);}
+    // Match by item id first; a name match is only a migration fallback and
+    // never re-uses an item already claimed by an earlier row (two daggers).
+    let it=row.itemId?(inv.items||[]).find(x=>x.id===String(row.itemId)&&x.kind==='weapon'):null;
+    if(!it)it=(inv.items||[]).find(x=>x.kind==='weapon'&&!used.includes(x)&&magicItemKey(x.name)===key);
+    if(!it){it=normalizeGearItem({id:`weapon-${key.replace(/\s+/g,'-')||i+1}-${Date.now().toString(36)}-${i+1}`,name:row.name,sourceType:'weapon',state:i===0?'equipped':'carried',source:'BATTLESYSTEM roster'},inv.items.length);inv.items.push(it);}
+    it.name=String(row.name).trim()||it.name;
     it.weaponData=weaponDataFromRow(row)||{};
     used.push(it);
   }
@@ -312,6 +325,7 @@ function setLoadoutSlot(inv,slot,value,{dryRun=false}={}) {
   if(dryRun)return{ok:true,inventory:inv,gear,id,slot};
   if(slot==='mainWeapon'||slot==='alternateWeapon'){
     const other=slot==='mainWeapon'?'alternateWeapon':'mainWeapon';inv[slot]=id;if(id&&inv[other]===id)inv[other]='';
+    if(slot==='mainWeapon')inv.mainWeaponExplicit=!id;
     for(const w of (inv.items||[]).filter(x=>x.kind==='weapon'&&x.state!=='nocarried'))w.state=(w.id===inv.mainWeapon||w.id===inv.alternateWeapon)?'equipped':'carried';
   } else if(slot==='armor'||slot==='shield'){
     inv[slot]=id;for(const it of (inv.items||[]).filter(x=>x.kind===slot&&x.state!=='nocarried'))it.state=it.id===id?'equipped':'carried';

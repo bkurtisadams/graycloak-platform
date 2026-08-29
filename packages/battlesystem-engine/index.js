@@ -1,4 +1,11 @@
-// @graycloak/battlesystem-engine v0.13.0 - 2026-08-28
+// @graycloak/battlesystem-engine v0.14.0 - 2026-08-28
+// v0.14.0: individual-combat.js rollDamage rolls AD&D expressions as written (any die
+//          size, NdS±M term sums, negative modifiers, MM a-b ranges). unit-math.js adds
+//          damageExpressionStats + approximateCrtDamage (nearest legal CRT die, flagged
+//          approximated/sourceExpr) for §9.4A hero-vs-unit; parseDamageString accepts
+//          '-' modifiers and is anchored. items.js: explicit kind beats name heuristics,
+//          syncWeaponRows matches by itemId, an explicitly empty Primary is preserved
+//          (mainWeaponExplicit).
 // v0.13.0: secondary-effects.js adds pure reusable conditional creature-effect records,
 //          trigger/attack-match/chance/save metadata, multi-hit batch predicates, and
 //          level-drain bridging. Hosts retain AD&D saves, state/status/equipment mutation,
@@ -78,6 +85,7 @@ export { BattlesystemTerrain } from './src/terrain.js';
 export { BattlesystemEffects, EFFECT_MODES } from './src/effects.js';
 export { BattlesystemActions, CHARACTER_ACTION_KINDS } from './src/actions.js';
 export { BattlesystemItems } from './src/items.js';
+export { damageExpressionStats, approximateCrtDamage } from './src/unit-math.js';
 export { BattlesystemSpells } from './src/spells.js';
 export { BattlesystemIndividualCombat } from './src/individual-combat.js';
 export { BattlesystemAttackRoutines } from './src/attack-routines.js';

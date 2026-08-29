@@ -50,20 +50,68 @@ export function parseHDNumeric(raw) {
 // ─── Damage string → CRT weapon definition ───
 // "2d4" → { damageDice: 'D4', numberOfDice: 2 }; "1d8+1" → D8 with modifier 1.
 // Returns null for unparseable or non-CRT die sizes.
+const CRT_DICE = [2, 3, 4, 6, 8, 10, 12, 14, 16, 18, 20];
 export function parseDamageString(dmgStr) {
     if (!dmgStr) return null;
-    const m = String(dmgStr).match(/(\d+)?d(\d+)(?:\s*\+\s*(\d+))?/i);
+    const m = String(dmgStr).trim().match(/^(\d+)?d(\d+)(?:\s*([+-])\s*(\d+))?$/i);
     if (!m) return null;
     const numDice = parseInt(m[1]) || 1;
     const dieSize = parseInt(m[2]);
-    const bonus = parseInt(m[3]) || 0;
-    const validDice = [2, 3, 4, 6, 8, 10, 12, 14, 16, 18, 20];
-    if (!validDice.includes(dieSize)) return null;
+    const bonus = (m[3] === '-' ? -1 : 1) * (parseInt(m[4]) || 0);
+    if (!CRT_DICE.includes(dieSize)) return null;
     return {
         damageDice: 'D' + dieSize,
         damageModifier: bonus,
         numberOfDice: numDice,
         numberOfAttacks: 1
+    };
+}
+
+// ─── AD&D damage expression → min / max / average ───
+// Accepts NdS±M term sums ("1d4+1d4", "2d5-1") and MM range notation ("3-12").
+export function damageExpressionStats(expr) {
+    const t = String(expr || '').trim().replace(/\s+/g, '').toLowerCase();
+    if (!t) return null;
+    const range = t.match(/^(\d+)-(\d+)$/);
+    if (range && Number(range[1]) < Number(range[2])) {
+        const min = Number(range[1]), max = Number(range[2]);
+        return { expr: t, min, max, avg: (min + max) / 2, range: true };
+    }
+    if (!/^[+-]?(\d*d\d+|\d+)([+-](\d*d\d+|\d+))*$/.test(t)) return null;
+    let min = 0, max = 0;
+    for (const m of t.matchAll(/([+-]?)(\d*)d(\d+)|([+-]?)(\d+)/g)) {
+        if (m[3] !== undefined) {
+            const sign = m[1] === '-' ? -1 : 1, n = Math.max(1, Number(m[2] || 1)), sides = Math.max(1, Number(m[3]));
+            if (sign > 0) { min += n; max += n * sides; } else { min -= n * sides; max -= n; }
+        } else {
+            const v = (m[4] === '-' ? -1 : 1) * Number(m[5]);
+            min += v; max += v;
+        }
+    }
+    return { expr: t, min, max, avg: (min + max) / 2, range: false };
+}
+
+// ─── Nearest legal CRT weapon definition for a non-CRT AD&D expression ───
+// Hero-vs-hero (§9.4B) rolls the AD&D expression as written; only the
+// hero-vs-unit CRT path (§9.4A) needs a legal die. When no exact CRT die
+// exists the closest NdS+M profile by average/min/max is returned with
+// approximated:true and sourceExpr so the host can log the substitution.
+export function approximateCrtDamage(expr) {
+    const exact = parseDamageString(expr);
+    if (exact) return exact;
+    const stats = damageExpressionStats(expr);
+    if (!stats) return null;
+    let best = null;
+    for (let n = 1; n <= 4; n++) {
+        for (const die of CRT_DICE) {
+            const avgDice = n * (die + 1) / 2, mod = Math.max(0, Math.round(stats.avg - avgDice));
+            const score = Math.abs(stats.avg - (avgDice + mod)) * 10 + Math.abs((n * die + mod) - stats.max) + Math.abs((n + mod) - stats.min) + mod * 0.5 + n * 0.1;
+            if (!best || score < best.score) best = { score, n, die, mod };
+        }
+    }
+    return {
+        damageDice: 'D' + best.die, damageModifier: best.mod, numberOfDice: best.n, numberOfAttacks: 1,
+        approximated: true, sourceExpr: stats.expr
     };
 }
 

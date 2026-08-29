@@ -47,3 +47,26 @@ test('loadout dry-run validates without mutating and committed change updates eq
   assert.equal(inv.mainWeapon,'w2');
   assert.equal(Items.inventoryItem(inv,'w2').state,'equipped');
 });
+
+test('v0.7.0 explicit gear kind beats name heuristics; weapon rows sync by item id; empty Primary can be explicit', () => {
+  const inv=Items.normalizeInventory({items:[
+    {id:'a',name:'Ring Mail',kind:'armor',sourceType:'armor',state:'equipped'},
+    {id:'r',name:'Ring of Protection',sourceType:'item'},
+    {id:'d1',name:'Dagger',sourceType:'weapon',weaponData:{sm:'1d4'}},
+    {id:'d2',name:'Dagger',sourceType:'weapon',weaponData:{sm:'1d4'}}
+  ]});
+  assert.equal(Items.inventoryItem(inv,'a').kind,'armor');
+  assert.equal(Items.inventoryItem(inv,'r').kind,'ring');
+  assert.equal(inv.armor,'a');
+  Items.syncWeaponRows(inv,[{itemId:'d1',name:'Dagger',sm:'1d4',hit:1},{itemId:'d2',name:'Dagger +1',sm:'1d4',dmod:1}]);
+  assert.equal(Items.inventoryItem(inv,'d1').weaponData.hit,1);
+  assert.equal(Items.inventoryItem(inv,'d2').name,'Dagger +1');
+  assert.equal(Items.inventoryItem(inv,'d2').weaponData.dmod,1);
+  assert.equal(inv.items.filter(x=>x.kind==='weapon').length,2);
+  assert.equal(Items.setLoadoutSlot(inv,'mainWeapon','').ok,true);
+  const again=Items.normalizeInventory(inv);
+  assert.equal(again.mainWeapon,'');
+  assert.equal(again.mainWeaponExplicit,true);
+  const refill=Items.normalizeInventory({...again,mainWeaponExplicit:false});
+  assert.notEqual(refill.mainWeapon,'');
+});

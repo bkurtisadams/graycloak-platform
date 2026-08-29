@@ -121,3 +121,15 @@ test('higher individual initiative level drain pauses lower-initiative same-time
   assert.deepEqual(out.remainingEvents,[{time:.5,who:'b',seq:0}]);
   assert.equal(out.roundFinished,false);
 });
+
+test('v1.1 rollDamage rolls AD&D expressions as written: any die size, term sums, negative modifiers, MM ranges',()=>{
+  const max=()=>.999,min=()=>0;
+  assert.equal(IC.rollDamage('2d5',max).total,10);
+  assert.equal(IC.rollDamage('2d5',min).total,2);
+  assert.equal(IC.rollDamage('1d6-1',min).total,0);
+  assert.equal(IC.rollDamage('1d6-1',max).total,5);
+  assert.equal(IC.rollDamage('1d4+1d4+2',max).total,10);
+  assert.equal(IC.rollDamage('3-12',max).total,12);
+  assert.equal(IC.rollDamage('3-12',min).total,3);
+  assert.equal(IC.rollDamage('claw',max).invalid,true);
+});
