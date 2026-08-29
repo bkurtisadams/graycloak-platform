@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Battlesystem — Battlefield · v0.60.5</title>
+<title>Battlesystem — Battlefield · v0.60.5.1</title>
 <style>
   :root {
     --bg:#ece0c4; --panel:#f5eedb; --field:#a8b094; --field-edge:#6d735a; --ink:#2c2316; --ink-soft:#6e6047; --rule:#b6a682;
@@ -26,7 +26,7 @@
   .tb-actions .ag-lead { min-width:0; }
   .ag-col { display:flex; flex-direction:column; gap:3px; align-items:stretch; min-width:0; }
   .ag-col > span { display:block; height:22px; }
-  .ag-col button.slot { width:100%; min-height:22px; height:22px; padding:0 4px; font-size:11px; line-height:1; }
+  .ag-col button.slot { width:100%; min-height:22px; height:22px; padding:0 4px; font-size:11px; line-height:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; box-sizing:border-box; }
   .tb-actions .phase-flow-hint { grid-column:9; align-self:start; margin-left:4px; white-space:normal; line-height:1.25; max-height:72px; overflow:hidden; max-width:none; }
   .ag-col button[hidden] { display:inline-block !important; visibility:hidden; pointer-events:none; }
   .ag-col button.parked { visibility:hidden; pointer-events:none; }
@@ -47,7 +47,7 @@
   input[type=number] { width:62px; cursor:text; } input[type=text] { cursor:text; }
   label.f { display:inline-flex; align-items:center; gap:5px; font-size:10.5px; letter-spacing:1px;
     text-transform:uppercase; color:var(--ink-soft); }
-  .phase-rail { display:flex; gap:0; flex:0 0 794px; width:794px; min-width:794px; flex-wrap:nowrap; align-items:flex-end; }   /* v0.60.5: 7 cells + 6 separators from the shared column plan */
+  .phase-rail { display:flex; gap:0; flex:0 0 854px; width:854px; min-width:854px; flex-wrap:nowrap; align-items:flex-end; }   /* v0.60.5.1: 7 cells (758) + 6 separators (96) from the shared column plan */
   .phase-round-slot { flex:0 0 208px; width:208px; min-width:208px; }
   .phase-round-slot .phase-tag { display:block; width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .phase-due-slot { flex:0 0 82px; width:82px; min-width:82px; display:flex; align-items:center; }
@@ -55,11 +55,11 @@
   .phase-due-slot #btn-due[hidden] { display:inline-block !important; visibility:hidden; pointer-events:none; }
   .pstep { display:inline-flex; flex-direction:column; align-items:center; gap:2px; padding:1px 5px; box-sizing:border-box; flex:0 0 auto; }
   /* v0.60.5: rail cells and the action grid share one column plan so each verb sits under its phase */
-  :root { --col-initiative:64px; --col-initial:84px; --col-rally:104px; --col-movement:126px; --col-missile:96px; --col-melee:128px; --col-end:84px; --col-sep:18px; --ag-lead:302px; }
+  :root { --col-initiative:88px; --col-initial:112px; --col-rally:92px; --col-movement:132px; --col-missile:130px; --col-melee:112px; --col-end:92px; --col-sep:16px; --ag-lead:302px; }
   .pstep[data-phase="initiative"] { width:var(--col-initiative); } .pstep[data-phase="initialMissile"] { width:var(--col-initial); } .pstep[data-phase="rally"] { width:var(--col-rally); }
   .pstep[data-phase="movement"] { width:var(--col-movement); } .pstep[data-phase="missileMagic"] { width:var(--col-missile); } .pstep[data-phase="melee"] { width:var(--col-melee); } .pstep[data-phase="end"] { width:var(--col-end); }
   .ppill.elect { cursor:pointer; outline:1px dashed #8a6d2e; outline-offset:1px; } .ppill.elect:hover { filter:brightness(1.12); }
-  .pstep .plabel { font-size:10.5px; letter-spacing:.3px; border-bottom:2px solid transparent; white-space:nowrap; }
+  .pstep .plabel { font-size:10.5px; letter-spacing:.3px; border-bottom:2px solid transparent; white-space:nowrap; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
   .pstep .pmk { display:inline-block; width:10px; text-align:center; }
   .pstep.todo .plabel { color:#c2b48f; } .pstep.done .plabel { color:var(--ink-soft); }
   .pstep.now .plabel { color:var(--ink); border-bottom-color:#8a6d2e; font-weight:700; }
@@ -1093,7 +1093,7 @@
 </dialog>
 
 <script type="module">
-const SIM_VERSION = '0.60.5';
+const SIM_VERSION = '0.60.5.1';
 import {
   BattlesystemCombat, CombatResultsTable, BattlesystemMorale, BattlesystemMovement, BattlesystemCavalry,
   BattlesystemEffects, BattlesystemActions, BattlesystemItems, BattlesystemSpells, BattlesystemIndividualCombat, BattlesystemAttackRoutines, BattlesystemMagicDefenses, BattlesystemCreatureDefenses, BattlesystemMagicMovement, BattlesystemInnateActions, BattlesystemSecondaryEffects, EFFECT_MODES, CHARACTER_ACTION_KINDS,
@@ -5974,7 +5974,7 @@ function primaryFlowActionId(){
 function syncPhaseFlowGuidance(){
   const hint=$('#phase-flow-hint'),pass=$('#btn-pass-flow'),pm=$('#btn-pass-move'),next=$('#btn-advance'),step=activePhaseStep(),seq=phaseSequenceForPhase();
   if(hint){const pr=phasePrompt();hint.hidden=state.setup;hint.innerHTML=state.setup?'':`${pr.refusal?`<b class="amber">⚠ ${esc(pr.refusal)}</b> · `:''}${esc(pr.text)}${pr.blocked&&!pr.refusal?` <span class="muted">· ${esc(pr.blocked)}</span>`:''}`;hint.title=`${pr.refusal?pr.refusal+' · ':''}${pr.text}${pr.blocked?' · '+pr.blocked:''}`;}
-  if(pass){pass.hidden=false;pass.classList.toggle('parked',state.setup||!step||step.kind==='movement'||state.net.spectate||state.net.player);if(step&&step.kind!=='movement'){const i=phaseStepIndex(),n=seq[i+1];pass.textContent=n?`${armyName(step.side)} done → ${n.label} · ${armyName(n.side)}`:`${armyName(step.side)} done`;pass.title=`Finish explicit ${step.label} entry for ${armyName(step.side)}${n?` and advance to ${n.label} for ${armyName(n.side)}`:''}`;}}
+  if(pass){pass.hidden=false;pass.classList.toggle('parked',state.setup||!step||step.kind==='movement'||state.net.spectate||state.net.player);if(step&&step.kind!=='movement'){const i=phaseStepIndex(),n=seq[i+1];pass.textContent=`${armyName(step.side)} done ▸`;pass.title=`Finish the ${step.label} entry for ${armyName(step.side)}${n?` → ${n.label} · ${armyName(n.side)}`:''}`;}}
   if(pm&&curPhase().id==='movement'&&step?.kind==='movement'){const i=phaseStepIndex(),n=seq[i+1];pm.textContent=n?`${armyName(step.side)} done → ${armyName(n.side)} moves`:`${armyName(step.side)} done — end movement`;pm.title=`Finish ${armyName(step.side)}'s explicit Movement entry${n?` and hand movement to ${armyName(n.side)}`:''}`;}
   const obligation=phaseFlowObligation();if(next&&!state.setup){
     const pendingMelee=curPhase().id==='melee'&&!state.individualCombatPending?meleePendingEngagements():[];
@@ -9678,7 +9678,7 @@ function renderAll() { pruneIndividualCombatCadence(); syncInvisibleContacts(); 
   const pm = $('#btn-pass-move');                                    // Slice 6: GM hands the Movement Phase across
   pm.hidden = false; pm.classList.toggle('parked', state.setup || curPhase().id !== 'movement' || state.net.spectate || state.net.player || state.moveStep >= 2);
   if (!pm.classList.contains('parked')) pm.textContent = state.moveStep === 0
-    ? `${armyName(state.moverSide || state.initiativeWinner || 'A')} done → ${armyName(otherSide(state.moverSide || state.initiativeWinner || 'A'))} moves`
+    ? `${armyName(state.moverSide || state.initiativeWinner || 'A')} done ▸`
     : `${armyName(state.moverSide || 'B')} done — end movement`;
   const tb = $('#btn-terrain');                                       // v0.31.0
   if (tb) { tb.classList.toggle('on', state.terrainMode); $('#terrain-type').hidden = !state.terrainMode; }
