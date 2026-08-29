@@ -1229,7 +1229,7 @@ const SPELLS = {
   sleep: {
     id: 'sleep', name: 'Sleep', icon: '☾',
     level: 1, range_squares: 3, casting_time: 1, target_mode: 'area_enemy', area: true
-    // resolved in executeCastDecl: 2d4 HD of the lowest-HD creatures (≤4 HD) in the area fall asleep
+    // resolved in executeCastDecl via SLEEP_CATEGORIES below
   },
   shield: {
     id: 'shield', name: 'Shield', icon: '⛨',
@@ -1258,6 +1258,25 @@ const SPELLS = {
     cast() { return { status: 'paralyze', duration: 4, statusText: 'held rigid' }; }
   }
 };
+
+// Sleep, per OSRIC: number affected by hit dice category, each rolled separately.
+// Anything above 4+4 HD is immune.
+const SLEEP_MAX_HD = 4.5;                     // 4+4 expressed on the sim's HD scale
+const SLEEP_CATEGORIES = [
+  { id: '1-or-less', max: 1,    label: '1 or less',   roll: () => rollDice('4d4') },
+  { id: '1p-2',      max: 2,    label: '1+ to 2',     roll: () => rollDice('2d4') },
+  { id: '2p-3',      max: 3,    label: '2+ to 3',     roll: () => rollDice('1d4') },
+  { id: '3p-4',      max: 4,    label: '3+ to 4',     roll: () => rollDice('1d2') },
+  { id: '4p1-4p4',   max: 4.5,  label: '4+1 to 4+4',  roll: () => rollDice('1d2') - 1 },
+];
+function sleepCategory(hd) { return SLEEP_CATEGORIES.find(c => hd <= c.max) || null; }
+// Sleep bands distinguish "4" from "4+1", which hdValue() flattens away, so keep
+// the plus as a half step: 4+1 through 4+4 all read as 4.5.
+function sleepHd(c) {
+  if (c.kind === 'pc') return c.level || 1;
+  const p = parseHD(c.hd != null ? c.hd : c.level);
+  return Math.max(1, p.dice) + (p.plus > 0 ? 0.5 : 0);
+}
 
 // Optional flavor/effect text for the expandable spell rows (own wording, not PHB verbatim).
 const SPELL_INFO = {
@@ -1498,7 +1517,8 @@ function computeToHit(attacker, target, weapon, acPenalty) {
   const ac = Math.max(2, Math.min(10, acEff));
   const wpnVsAc = weapon.vs_ac ? (weapon.vs_ac[ac] || 0) : 0;
   const magic = (attacker.magic_weapons && attacker.magic_weapons[weapon.id]) || weapon.magic_bonus || 0;
-  const str = attacker.attack_bonus || 0;
+  // A conjured spell effect strikes independently of the caster's Strength.
+  const str = (weapon && weapon.spell_effect) ? 0 : (attacker.attack_bonus || 0);
   const needed = Math.max(1, Math.min(20, base - wpnVsAc - magic - str));
   return { base, wpnVsAc, magic, str, needed };
 }
@@ -1586,8 +1606,11 @@ function attackArc(a, t) {
   if (ac.col === tc.col && ac.row === tc.row) return 'front';
   const toAtt = Math.atan2(ac.row - tc.row, ac.col - tc.col) * 180 / Math.PI;
   const d = Math.abs(((toAtt - (t.facing - 90) + 540) % 360) - 180); // 0 = dead ahead, 180 = dead behind
-  if (d <= 60) return 'front';
-  if (d >= 120) return 'rear';
+  // DMG facing diagrams: on a square grid the eight surrounding cells resolve as
+  // three FRONT (ahead and both forward diagonals), two FLANK (directly to each
+  // side), and three REAR — putting the boundaries at 67.5° and 112.5°.
+  if (d < 67.5) return 'front';
+  if (d >= 112.5) return 'rear';
   return 'flank';
 }
 // Everyone (alive) in physical base-to-base contact with t, plus t — the "press" a stray
@@ -1871,6 +1894,7 @@ function isProficient(c, weapon) {
   return c.proficiencies.includes(id);
 }
 function nonProfPenalty(c, weapon) {
+  if (weapon && weapon.spell_effect) return 0;   // a conjured effect isn't wielded
   if (isProficient(c, weapon)) return 0;
   const cd = CLASS_DATA[c.matrix_class];
   const pen = (c.nonprof_penalty != null) ? c.nonprof_penalty
@@ -1905,9 +1929,21 @@ function attackProjection(state, a, t, w, opts) {
   const targetDown = (t._prone || isStunned(t) || isHelpless(t)) ? 4 : 0;  // prone/stunned/helpless — struck as from the rear
   const blessBonus = isBlessed(a) ? 1 : 0;  // bless: +1 to the attack
   const shieldPen = isShielded(t) ? (w.ranged ? 4 : 2) : 0;  // shield spell: harder to hit, esp. missiles
-  // Position relative to the foe's facing: flank negates shield (≈+1), rear adds +2 (shield & Dex gone).
-  let arc = 'front', arcBonus = 0;
-  if (w.melee && !opts.fleeing) { arc = attackArc(a, t); arcBonus = arc === 'rear' ? 2 : arc === 'flank' ? 1 : 0; }
+  // DMG "Special Types Of Attacks": a flank attack negates the defender's shield
+  // AC addition; a REAR flank also negates the Dexterity AC bonus; a rear attack
+  // gives +2 to hit and negates both. These are worth whatever the defender's
+  // shield and Dex are actually worth — a +3 large shield is four points, a
+  // shieldless target gives nothing — not a flat bonus.
+  let arc = 'front', arcBonus = 0, shieldUsed = false;
+  if (w.melee && !opts.fleeing) {
+    arc = attackArc(a, t);
+    // The shield only helps if the defender can actually interpose it: front or
+    // shield side, aware of the attacker, and with a use left this round (small
+    // 1 / medium 2 / large 3). Otherwise the attacker gains what it was worth.
+    shieldUsed = shieldApplies(t, a, arc);
+    if (!shieldUsed) arcBonus += shieldAcValue(t);
+    if (arc === 'rear') arcBonus += dexAcValue(t) + 2;   // rear also negates Dex and adds +2
+  }
   // v0.8.7: Space-too-small penalty (-2 to-hit) when state.space_check_mode === 'penalty'
   // AND the wielder is crowded by a non-target combatant in adjacent fine cells.
   // Stored as a signed to-hit mod so modAdjList renders "-2 space" naturally.
@@ -1947,11 +1983,13 @@ function attackProjection(state, a, t, w, opts) {
     needed = Math.max(1, Math.min(20, calc.needed - range - charge - fleeBonus - ammoAtk + parryPen + attackerHeld - targetHeld - targetDown - arcBonus - blessBonus + shieldPen - spaceMod - dexMiss + profPen));
   }
   const dmgDice = noAmmo ? '0' : ((t.size === 'L') ? effW.damage.l : effW.damage.sm);
-  const dmgBonus = noAmmo ? 0 : (((a.magic_weapons && a.magic_weapons[w.id]) || w.magic_bonus || 0) + (a.damage_bonus || 0) + (effW.ammo_damage_bonus || 0));
+  // A conjured effect strikes on its own; the caster's Strength does not carry.
+  const strDamage = w.spell_effect ? 0 : (a.damage_bonus || 0);
+  const dmgBonus = noAmmo ? 0 : (((a.magic_weapons && a.magic_weapons[w.id]) || w.magic_bonus || 0) + strDamage + (effW.ammo_damage_bonus || 0));
   return {
     needed, base: calc.base, arc, suppress_nat20,
     mods: { wpnVsAc: calc.wpnVsAc, magic: calc.magic, str: calc.str, range, charge, exposed, fleeing: fleeBonus, parry: -parryPen, grappled: -attackerHeld, vsHeld: targetHeld, vsDown: targetDown, flank: arcBonus, bless: -blessBonus, shield: shieldPen, space: spaceMod, dexMissile: dexMiss, prof: -profPen },
-    dmgDice, dmgBonus, range_band
+    dmgDice, dmgBonus, range_band, shield_used: shieldUsed
   };
 }
 
@@ -2116,6 +2154,7 @@ function resolveAttack(state, attackerId, targetId, weaponId, opts) {
   if (!a || !t || !w) return null;
 
   const proj = attackProjection(state, a, t, w, opts);
+  if (proj.shield_used) consumeShieldUse(t);   // this attack is what the shield was spent on
   const roll = d20();
   const natural20 = roll === 20;
   const natural1 = roll === 1;
@@ -2125,7 +2164,9 @@ function resolveAttack(state, attackerId, targetId, weaponId, opts) {
   let dmg = 0, dieDamage = 0;
   const damageMultiplier = opts.damageMultiplier || (opts.setSpear ? 2 : 1);
   if (hit) {
-    dieDamage = rollDice(proj.dmgDice);
+    // OSRIC: a magically sleeping creature struck while opponents are in melee
+    // range is hit automatically for MAXIMUM damage.
+    dieDamage = (helpless && t._asleep) ? maxDice(proj.dmgDice) : rollDice(proj.dmgDice);
     dmg = dieDamage * damageMultiplier + proj.dmgBonus;
   }
   const event = {
@@ -2142,7 +2183,13 @@ function resolveAttack(state, attackerId, targetId, weaponId, opts) {
     arc: proj.arc
   };
   const out = applyHitConsequences(state, a, t, event, opts);
-  if (out && (out.kind === 'attack_hit' || out.kind === 'attack_crit') && t._asleep && !t.dead) t._asleep = false; // jolted awake
+  // OSRIC: "a sleeping creature requires a full round to waken". Being wounded
+  // starts the waking, but the creature loses the rest of this round and the
+  // next one before it can act.
+  if (out && (out.kind === 'attack_hit' || out.kind === 'attack_crit') && t._asleep && !t.dead) {
+    t._asleep = false;
+    t._waking_until = state.round + 1;
+  }
   applyPoison(state, a, t, w, out);
   return out;
 }
@@ -2807,6 +2854,7 @@ function mapCharToCombatant(char, side) {
     position: { col: 2, row: 2 }, facing: 90,
     hp_max: _num(char.hpMax, 1), hp_current: _num(char.hpCurrent, _num(char.hpMax, 1)),
     ac_base: _num(char.acShieldless, _num(char.ac, 10)), ac_current: _num(char.ac, 10),
+    shield_size: char.shieldSize || undefined, shield_side: char.shieldSide || undefined,
     size: 'M', size_cells: 1,
     str: _num(char.str, _num(char.strength, 12)), dex: _num(char.dex, _num(char.dexterity, 12)),
     con: _abil(char.con, char.constitution), int: _abil(char.int, char.intelligence),
@@ -2867,6 +2915,16 @@ function arsEquipped(it) {
   return String(state || '').toLowerCase() === 'equipped';
 }
 const ARS_PSEUDO_WEAPONS = ['brawl', 'grapple', 'overbear'];
+// ARS stores conjured spell effects as weapon items. They are real attacks, but
+// they are not wielded: no Strength adjustment and no proficiency penalty, and
+// they must not be auto-selected ahead of a character's actual weapons.
+const ARS_SPELL_WEAPONS = [
+  'spiritual hammer', 'flame blade', 'shillelagh', 'mordenkainen\u2019s sword',
+  "mordenkainen's sword", 'spiritual weapon',
+];
+function isArsSpellWeapon(name) {
+  return ARS_SPELL_WEAPONS.includes(String(name || '').trim().toLowerCase());
+}
 function arsActorToLegacyChar(raw) {
   const classes = raw.items.filter(i => i?.type === 'class' && i?.system?.active !== false);
   if (!classes.length) throw new Error('ARS Actor has no active class items.');
@@ -2876,12 +2934,16 @@ function arsActorToLegacyChar(raw) {
   const hp = attrs.hp || {};
   // AC derived from equipped protection items (RAW: a ring of protection does not
   // stack with worn magic armor; shields and their pluses always apply).
-  let armorAC = 10, magicArmor = false, shieldAdj = 0, ringBonus = 0;
+  let armorAC = 10, magicArmor = false, shieldAdj = 0, ringBonus = 0, shieldSize = null;
   raw.items.filter(i => i?.type === 'armor' && arsEquipped(i)).forEach(it => {
     const p = it.system?.protection || {};
     const mod = Number(p.modifier) || 0;
     if (p.type === 'armor') { armorAC = Math.min(armorAC, (Number(p.ac) || 10) - mod); if (mod > 0) magicArmor = true; }
-    else if (p.type === 'shield') { shieldAdj += (Number(p.ac) || 1) + mod; }
+    else if (p.type === 'shield') {
+      shieldAdj += (Number(p.ac) || 1) + mod;
+      const n = String(it.name || '').toLowerCase();
+      shieldSize = /large|body|tower/.test(n) ? 'large' : /small|buckler|target/.test(n) ? 'small' : 'medium';
+    }
     else if (p.type === 'ring') { ringBonus = Math.max(ringBonus, mod); }
   });
   const dex = av('dex');
@@ -2895,8 +2957,11 @@ function arsActorToLegacyChar(raw) {
       const d = it.system?.damage || {};
       const rg = it.system?.attack?.range || {};
       const range = [rg.short, rg.medium, rg.long].map(x => String(x || '').trim()).filter(Boolean).join('/');
-      return { name: it.name, dmg: String(d.normal || '').trim(), range };
-    });
+      return { name: it.name, dmg: String(d.normal || '').trim(), range,
+               spell_effect: isArsSpellWeapon(it.name) || undefined };
+    })
+    // Conjured effects sort last so a real weapon is the default.
+    .sort((a, b) => (a.spell_effect ? 1 : 0) - (b.spell_effect ? 1 : 0));
   const items = raw.items
     .filter(i => i && i.name && ['item', 'potion', 'container'].includes(i.type))
     .map(it => {
@@ -2928,6 +2993,7 @@ function arsActorToLegacyChar(raw) {
     xpTotal: clsXp[0], xpTotal2: clsXp[1], xpTotal3: clsXp[2],
     hpMax: Number(hp.max), hpCurrent: Number(hp.value),
     ac, acShieldless,
+    shieldSize: shieldSize || undefined,
     str: av('str'), dex, con: av('con'), int: av('int'), wis: av('wis'), cha: av('cha'),
     combatToHitAdj: strAdj.hit, combatDamAdj: strAdj.dmg,
     weapons, items, spells,
@@ -3888,7 +3954,7 @@ function aiPickSpell(m) {
     if (mode === 'self') continue; // don't proactively burn defensive self-buffs
     if (!spellFitsSurprise(sp)) continue; // too slow to complete in a surprise segment
     if (mode === 'area_enemy') {
-      const hits = foes.filter(e => !e.undead && inRange(e, range) && hdValue(e) <= 4);
+      const hits = foes.filter(e => !e.undead && inRange(e, range) && sleepHd(e) <= SLEEP_MAX_HD);
       if (hits.length) cands.push({ id, target_id: m.id, score: 5 + hits.length });
     } else if (mode === 'area_ally') {
       const hits = allies.filter(e => inRange(e, range));
@@ -4034,9 +4100,78 @@ function bodyWeight(c) { return _WEIGHT_BY_SIZE[c.size || 'M'] || 175; }
 function bodyHeight(c) { return _HEIGHT_BY_SIZE[c.size || 'M'] || 72; }
 function strOf(c) { return c.str != null ? c.str : 12; }
 function dexOf(c) { return c.dex != null ? c.dex : 12; }
+// How many points of AC the defender's shield is actually contributing. Imported
+// characters carry ac_base as their shieldless AC, so the difference is exact
+// (Maxwell's +3 large shield is worth four). Fall back to one point for the
+// stock roster's boolean `shield` flag.
+// Which side of the defender the attacker is on, in the defender's own frame.
+function attackSide(a, t) {
+  if (t.facing == null || !a || !t) return null;
+  const ac = footCenter(a), tc = footCenter(t);
+  if (ac.col === tc.col && ac.row === tc.row) return null;
+  const toAtt = Math.atan2(ac.row - tc.row, ac.col - tc.col) * 180 / Math.PI;
+  const rel = ((toAtt - (t.facing - 90) + 540) % 360) - 180;  // -180..180
+  return rel < 0 ? 'left' : 'right';
+}
+// A shield is carried on one side (left by default) and can only be brought to
+// bear a limited number of times per round: small 1, medium 2, large 3.
+const SHIELD_USES = { small: 1, medium: 2, large: 3 };
+function shieldSizeOf(c) { return c.shield_size || 'medium'; }
+function shieldSideOf(c) { return c.shield_side || 'left'; }
+function shieldUsesPerRound(c) { return SHIELD_USES[shieldSizeOf(c)] || 1; }
+function shieldUsesLeft(c) {
+  if (c._shield_round !== state.round) return shieldUsesPerRound(c);
+  return Math.max(0, shieldUsesPerRound(c) - (c._shield_used || 0));
+}
+// Can the defender interpose the shield against THIS attack? Requires the shield
+// to be worth something, the defender to be aware, the attacker to be in front or
+// on the shield side, and an unspent use this round.
+function shieldApplies(t, a, arc) {
+  if (shieldAcValue(t) <= 0) return false;
+  if (isHelpless(t) || t._surprised) return false;         // can't use a shield you can't bring up
+  if (arc === 'rear') return false;
+  if (arc === 'flank') {
+    const side = attackSide(a, t);
+    if (side && side !== shieldSideOf(t)) return false;    // weapon-side flank: no shield
+  }
+  return shieldUsesLeft(t) > 0;
+}
+function consumeShieldUse(t) {
+  if (t._shield_round !== state.round) { t._shield_round = state.round; t._shield_used = 0; }
+  t._shield_used = (t._shield_used || 0) + 1;
+}
+function shieldAcValue(c) {
+  if (c.ac_base != null && c.ac_current != null) {
+    const diff = c.ac_base - c.ac_current;
+    if (diff > 0) return diff;
+  }
+  return c.shield ? 1 : 0;
+}
+// The defender's Dexterity AC bonus, negated by attacks from the rear flank
+// and the rear. Only a bonus counts; a Dex penalty is not handed back.
+function dexAcValue(c) {
+  const d = c.dex;
+  if (d == null) return 0;
+  const adj = d >= 18 ? 4 : d === 17 ? 3 : d === 16 ? 2 : d === 15 ? 1 : 0;
+  return adj;
+}
 function isStunned(c) { return c._stunned_until != null && c._stunned_until >= state.round; }
 // Magically asleep, held/paralyzed, or battered senseless — can't act and is struck automatically.
-function isHelpless(c) { return !!c._asleep || !!c._unconscious || (c._paralyzed_until != null && c._paralyzed_until >= state.round); }
+function isHelpless(c) {
+  return !!c._asleep || !!c._unconscious
+    || (c._paralyzed_until != null && c._paralyzed_until >= state.round)
+    || (c._waking_until != null && c._waking_until >= state.round);
+}
+// Maximum result of a damage expression, for automatic hits on sleeping foes.
+function maxDice(expr) {
+  let total = 0;
+  String(expr || '').replace(/([+-]?)\s*(\d*)d(\d+)|([+-]?\s*\d+)(?!\s*d)/gi, (m, sign, n, faces, flat) => {
+    if (faces) total += (sign === '-' ? -1 : 1) * (parseInt(n || '1', 10) * parseInt(faces, 10));
+    else if (flat) total += parseInt(String(flat).replace(/\s+/g, ''), 10);
+    return m;
+  });
+  return total;
+}
 function isBlessed(c) { return c._bless_until != null && c._bless_until >= state.round; }
 function isShielded(c) { return c._shield_until != null && c._shield_until >= state.round; }
 function isTurned(c) { return c._turned_until != null && c._turned_until >= state.round; }
@@ -4180,6 +4315,10 @@ async function executeDeclaration(c, decl) {
   }
   if (c._asleep) {
     log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${c.side === 'A' ? 'a' : 'b'}">${c.label}</span> sleeps soundly.</span>`);
+    decl._resolved = true; await sleep(150); return;
+  }
+  if (c._waking_until != null && c._waking_until >= state.round) {
+    log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${c.side === 'A' ? 'a' : 'b'}">${c.label}</span> struggles awake — a full round to rouse.</span>`);
     decl._resolved = true; await sleep(150); return;
   }
   if (c._paralyzed_until != null && c._paralyzed_until >= state.round) {
@@ -4881,16 +5020,29 @@ async function executeCastDecl(c, decl) {
     renderAll(); await sleep(450); return;
   }
 
-  // Sleep — caster-centred; 2d4 HD of the lowest-HD foes (≤4 HD, not undead) within range slumber.
+  // Sleep — OSRIC: the number affected depends on the target's HIT DICE CATEGORY,
+  // and each category present is rolled for separately. Creatures over 4+4 HD are
+  // immune. Within a category the weakest fall first.
   if (mode === 'area_enemy') {
     consumeSpellCharge(c, decl.spell_id);
-    let budget = rollDice('2d4');
     const opp = c.side === 'A' ? 'B' : 'A';
     const foes = aliveCombatantsOnSide(state, opp)
       .filter(e => !e.undead && dist10(c.position, e.position) <= spell.range_squares)
-      .map(e => ({ e, hd: hdValue(e) })).filter(x => x.hd <= 4).sort((a, b) => a.hd - b.hd);
+      .map(e => ({ e, hd: sleepHd(e) }))
+      .filter(x => x.hd <= SLEEP_MAX_HD)
+      .sort((a, b) => a.hd - b.hd);
+    const buckets = new Map();
+    for (const x of foes) {
+      const cat = sleepCategory(x.hd);
+      if (!cat) continue;
+      if (!buckets.has(cat.id)) buckets.set(cat.id, { cat, list: [] });
+      buckets.get(cat.id).list.push(x);
+    }
     const slept = [];
-    for (const x of foes) { if (x.hd <= budget) { x.e._asleep = true; budget -= x.hd; slept.push(x.e.label); } }
+    for (const { cat, list } of buckets.values()) {
+      let n = cat.roll();
+      for (const x of list) { if (n <= 0) break; x.e._asleep = true; n -= 1; slept.push(x.e.label); }
+    }
     log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span> casts <span class="em">Sleep</span> — ${slept.length ? slept.join(', ') + ' collapse into slumber' : 'but no one succumbs'}.</span>`);
     renderAll(); await sleep(450); return;
   }
@@ -6370,7 +6522,9 @@ function logAttackEvent(ev) {
   const heldSelfNote = ev.held_self ? ` <span class="em">grappled −4</span>` : '';
   const vsHeldNote = ev.vs_held ? ` <span class="em">vs held +2</span>` : '';
   const vsDownNote = ev.vs_down ? ` <span class="em">vs prone +4</span>` : '';
-  const arcNote = ev.arc === 'rear' ? ` <span class="em">rear +2</span>` : ev.arc === 'flank' ? ` <span class="em">flank +1</span>` : '';
+  const arcAmt = ev.mods && ev.mods.flank ? ev.mods.flank : 0;
+  const arcNote = (ev.arc === 'rear' || ev.arc === 'flank') && arcAmt
+    ? ` <span class="em">${ev.arc} +${arcAmt}</span>` : '';
   const subdueNote = ev.subdued ? ` <span class="em">subdual ¼ real</span>` : '';
   const tagNote = chargeNote + setNote + exposedNote + interruptNote + fleeNote + parryNote + heldSelfNote + vsHeldNote + vsDownNote + arcNote + subdueNote;
   if (ev.kind === 'attack_miss') {
@@ -7126,7 +7280,7 @@ const App = {
     if (c.hp_current > c.hp_max) c.hp_current = c.hp_max;
     const wasDead = c.dead;
     c.dead = c.hp_current <= 0;
-    if (wasDead && !c.dead) { c._asleep = false; c._unconscious = false; c._paralyzed_until = null; }
+    if (wasDead && !c.dead) { c._asleep = false; c._unconscious = false; c._paralyzed_until = null; c._waking_until = null; }
     c.ac_base = Math.round(numv('gm-f-acbase', c.ac_base));
     c.ac_current = Math.round(numv('gm-f-accur', c.ac_current));
     c.str = Math.round(numv('gm-f-str', strOf(c)));
