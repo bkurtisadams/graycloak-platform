@@ -4200,7 +4200,7 @@ const CDATA = {
       "id": "ogre",
       "name": "Ogre",
       "size": "L",
-      "hd": 4,
+      "hd": "4+1",
       "ac": 5,
       "thac0": 16,
       "attacks": [
@@ -4210,12 +4210,14 @@ const CDATA = {
             1,
             10
           ],
+          "damage_bonus": 2,
           "verb": "smashes"
         }
       ],
       "speed": 4,
       "moveRate": 9,
-      "xp": 90,
+      "xp_base": 95,
+      "xp_per_hp": 5,
       "treasureIndividual": [
         "M*10"
       ],
@@ -4785,6 +4787,7 @@ const CDATA = {
       "name": "Hill Giant",
       "size": "L",
       "hd": 8,
+      "hd_bonus_dice": "1d2",
       "ac": 4,
       "thac0": 12,
       "attacks": [
@@ -4806,15 +4809,16 @@ const CDATA = {
           ],
           "verb": "hurls a boulder at",
           "range": [
-            3,
-            8,
-            15
+            7,
+            13,
+            20
           ]
         }
       ],
       "speed": 3,
       "moveRate": 12,
-      "xp": 900,
+      "xp_base": 1200,
+      "xp_per_hp": 12,
       "treasureIndividual": [],
       "treasureLair": [
         "D"

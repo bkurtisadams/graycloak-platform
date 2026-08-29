@@ -1282,9 +1282,29 @@ const SPELLS = {
     id: 'hold_person', name: 'Hold Person', icon: '✣',
     level: 2, range_squares: 6, casting_time: 2, target_mode: 'enemy',
     save: { category: 'spell', effect: 'negate' },
+    // OSRIC: "Creatures aren't affected if they are not bipedal (human,
+    // demi-human, or humanoid-like) and size Medium or smaller."
+    eligible: holdPersonEligible,
     cast() { return { status: 'paralyze', duration: 4, statusText: 'held rigid' }; }
   }
 };
+
+// Hold Person only affects man-like bipeds of Medium size or smaller. Undead are
+// not "persons", and anything Large is out — so skeletons, ogres, and hill giants
+// are all immune.
+const HOLD_PERSON_NONPERSONS = [
+  'carrion_crawler', 'gelatinous_cube', 'giant_rat', 'giant_spider', 'hyaenodon',
+  'hyena', 'owlbear', 'wolf', 'worg', 'wyvern', 'training_dummy', 'gargoyle', 'minotaur',
+];
+function holdPersonEligible(target) {
+  if (!target) return { ok: false, reason: 'no target' };
+  if (target.undead) return { ok: false, reason: 'undead are not persons' };
+  const size = String(target.size || 'M').toUpperCase();
+  if (size === 'L' || size === 'H' || sizeCells(target) > 1) return { ok: false, reason: 'too large' };
+  const tid = target.template_id || '';
+  if (HOLD_PERSON_NONPERSONS.indexOf(tid) >= 0) return { ok: false, reason: 'not a man-like biped' };
+  return { ok: true };
+}
 
 // Sleep, per OSRIC: number affected by hit dice category, each rolled separately.
 // Anything above 4+4 HD is immune.
@@ -3153,7 +3173,10 @@ function _natDie(dmg) {
 }
 function _titleCase(s) { return String(s || '').replace(/\b\w/g, ch => ch.toUpperCase()); }
 function _registerNaturalAttack(monId, atk, ranged) {
-  const die = _natDie(atk.damage) || '1d2';
+  // A monster may add a flat damage bonus to its own attack (OSRIC ogres inflict
+  // +2 when swinging a weapon), folded into the die expression.
+  const base = _natDie(atk.damage) || '1d2';
+  const die = atk.damage_bonus ? `${base}+${atk.damage_bonus}` : base;
   const id = monId + '_' + _slug(atk.name);
   const w = {
     id, name: _titleCase(atk.name), icon: ranged ? '\u27B3' : '\u2606',
@@ -3192,7 +3215,12 @@ function spawnFromTemplate(template, side, pos) {
   let hp;
   if (t.hp_formula) hp = Math.max(1, rollDice(t.hp_formula));                           // sub-HD human ("1d6 hp")
   else if (t.hp_per_die != null) hp = Math.max(1, Math.round(hdNum) * t.hp_per_die);     // fixed hp/die (dragons by age)
-  else hp = Math.max(1, rollDice(Math.max(1, Math.round(hdNum)) + 'd8') + (t.hd_bonus || 0));
+  else {
+    // hd_bonus_dice covers monsters whose extra hit points are rolled rather
+    // than fixed (OSRIC hill giant: "8+1d2").
+    const extra = t.hd_bonus_dice ? rollDice(t.hd_bonus_dice) : (t.hd_bonus || 0);
+    hp = Math.max(1, rollDice(Math.max(1, Math.round(hdNum)) + 'd8') + extra);
+  }
   let xpVal;
   if (t.xp_base != null || t.xp_per_hp != null) xpVal = Math.max(0, _num(t.xp_base, 0) + _num(t.xp_per_hp, 0) * hp);
   else if (t.xp != null) xpVal = t.xp;
@@ -5038,12 +5066,19 @@ async function executeCastDecl(c, decl) {
     renderAll(); await sleep(400); return;
   }
 
-  // Bless — caster-centred buff on living allies within range.
+  // Bless — OSRIC: only creatures NOT in melee when it is cast can be blessed
+  // ("must be 10ft distant from enemies"). The caster may include themselves.
   if (mode === 'area_ally') {
     consumeSpellCharge(c, decl.spell_id);
-    const allies = aliveCombatantsOnSide(state, c.side).filter(e => dist10(c.position, e.position) <= spell.range_squares);
+    const foes = aliveCombatantsOnSide(state, c.side === 'A' ? 'B' : 'A');
+    const inMelee = e => foes.some(f => dist10(e.position, f.position) <= 1);
+    const inRangeAllies = aliveCombatantsOnSide(state, c.side)
+      .filter(e => dist10(c.position, e.position) <= spell.range_squares);
+    const allies = inRangeAllies.filter(e => !inMelee(e));
+    const skipped = inRangeAllies.length - allies.length;
     allies.forEach(e => { e._bless_until = state.round + 6; });
-    log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span> intones a <span class="em">Bless</span> — ${allies.length} ${allies.length === 1 ? 'ally fights' : 'allies fight'} at +1 for 6 rounds.</span>`);
+    const note = skipped ? ` <span class="audit">${skipped} already in melee — not blessed</span>` : '';
+    log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span> intones a <span class="em">Bless</span> — ${allies.length} ${allies.length === 1 ? 'ally fights' : 'allies fight'} at +1 for 6 rounds.${note}</span>`);
     renderAll(); await sleep(450); return;
   }
 
@@ -5083,6 +5118,16 @@ async function executeCastDecl(c, decl) {
   if (spell.range_squares > 0 && dist10(c.position, target.position) > spell.range_squares) {
     log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span>'s ${spell.name} is out of range.</span>`);
     return;
+  }
+  // Some spells only work on certain creatures (Hold Person). The charge is
+  // still spent — the caster commits before learning the target is immune.
+  if (typeof spell.eligible === 'function') {
+    const elig = spell.eligible(target);
+    if (!elig.ok) {
+      consumeSpellCharge(c, decl.spell_id);
+      log(state, 'system', `<span class="ts">R${state.round}</span><span class="body"><span class="${aSide}">${c.label}</span>'s <span class="em">${spell.name}</span> has no hold on <span class="${c.side === 'A' ? 'b' : 'a'}">${target.label}</span> — ${elig.reason}.</span>`);
+      renderAll(); await sleep(400); return;
+    }
   }
   faceToward(c, target.position);
   renderAll();
