@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Battlesystem — Battlefield · v0.61.0</title>
+<title>Battlesystem — Battlefield · v0.61.0.1</title>
 <style>
   :root {
     --bg:#ece0c4; --panel:#f5eedb; --field:#a8b094; --field-edge:#6d735a; --ink:#2c2316; --ink-soft:#6e6047; --rule:#b6a682;
@@ -1094,7 +1094,7 @@
 </dialog>
 
 <script type="module">
-const SIM_VERSION = '0.61.0';
+const SIM_VERSION = '0.61.0.1';
 import {
   BattlesystemCombat, CombatResultsTable, BattlesystemMorale, BattlesystemMovement, BattlesystemCavalry,
   BattlesystemEffects, BattlesystemActions, BattlesystemItems, BattlesystemSpells, BattlesystemIndividualCombat, BattlesystemAttackRoutines, BattlesystemMagicDefenses, BattlesystemCreatureDefenses, BattlesystemMagicMovement, BattlesystemInnateActions, BattlesystemSecondaryEffects, EFFECT_MODES, CHARACTER_ACTION_KINDS,
@@ -8050,7 +8050,7 @@ function renderUnit(u, combatCue=null) {
     { const pip=gr.lastElementChild, fsel=figureSelectionFor(u), turned=Math.abs(angleDelta(figureFacing(u,i),tacFacing(u)))>1e-6;   // v0.61.0 figure model
       if (fsel.includes(i)) { pip.setAttribute('stroke','#c9a227'); pip.setAttribute('stroke-width','2'); pip.classList.add('fig-selected'); }
       if (turned) pip.setAttribute('stroke-dasharray','2 1.5');
-      if (sel && !isIndividual(u) && !state.net.spectate) { pip.style.cursor='pointer'; pip.addEventListener('click', ev=>{ ev.stopPropagation(); toggleFigureSelection(u, i, ev.shiftKey); renderAll(); }); }
+      if (sel && !isIndividual(u) && !state.net.spectate) { pip.style.cursor='pointer'; pip.setAttribute('data-fig', String(i)); }   // selection is handled in the board mousedown (renderAll rebuilds the SVG before 'click' could fire)
     }
     const ah=Math.max(2.2,Math.min(sq,sqD)*0.34), aw=ah*0.72, rel=angleDelta(figureFacing(u,i),physFacing(u));
     gr.appendChild(el('path', { d:`M ${pcx} ${pcy-ah} L ${pcx+aw} ${pcy+ah*.55} L ${pcx} ${pcy+ah*.18} L ${pcx-aw} ${pcy+ah*.55} Z`,
@@ -10060,6 +10060,7 @@ svg.addEventListener('mousedown',evt=>{
   if(state.place&&!g){const q=snapMoveAnchor(p.x,p.y,moveSnapStep,evt.altKey);placeArmed(q.x,q.y,evt.shiftKey);return;} // v0.42.2: manual muster placement uses the same local grid
   if(g){
     const u=state.units.find(x=>x.id===+g.dataset.uid);
+    { const pipEl=evt.target?.closest?.('[data-fig]'); if(pipEl&&u&&state.selId===u.id&&!isIndividual(u)&&!state.net.spectate){ evt.preventDefault(); toggleFigureSelection(u, +pipEl.dataset.fig, evt.shiftKey); renderAll(); return; } }   // v0.61.0 figure selection
     if(evt.shiftKey){toggleTarget(u);pruneExtraTargets();renderAll();return;}
     if(state.selId!==u.id){state.extraTargetIds=[];clearFigureSelection();}state.selId=u.id;if(state.targetId===u.id)state.targetId=null;pruneExtraTargets();setDockTab('selected');renderAll();
     const lock=!state.setup?(movementLockReason(u)||closedCommandMoveReason(u)):'';
