@@ -1,4 +1,11 @@
-// @graycloak/battlesystem-engine v0.11.2 - 2026-08-28
+// @graycloak/battlesystem-engine v0.12.0 - 2026-08-28
+// v0.12.0: innate-actions.js adds pure structured innate/spell-like action records,
+//          frequency/chance/caster-level/timing/target/resolver metadata, Magic-entry
+//          bridging, and activation/timing checks. Hosts retain battlefield UI,
+//          state mutation, logs, spell/item resources, placement, and referee rulings.
+// v0.11.2: spells.js adds the ordinary AD&D Magic Missile execution contract/preset:
+//          caster-level range and missile count, selected-target no-save damage,
+//          and a magic damage tag so host Magic Resistance resolves first.
 // v0.11.1: creature-defenses.js extracts reusable creature-defense normalization,
 //          AD&D magic-resistance adjustment/rolls, arbitrary tagged damage
 //          responses, generalized weapon requirements, and legacy §13.3
@@ -73,6 +80,7 @@ export { BattlesystemAttackRoutines } from './src/attack-routines.js';
 export { BattlesystemMagicDefenses } from './src/magic-defenses.js';
 export { BattlesystemCreatureDefenses } from './src/creature-defenses.js';
 export { BattlesystemMagicMovement } from './src/magic-movement.js';
+export { BattlesystemInnateActions } from './src/innate-actions.js';
 export { MISSILE_WEAPONS, GIANT_ROCK_PROFILES, ARTILLERY_WEAPONS, missileKey, missileDataFor, giantRockTypeFor, giantRockDataFor, rangeBand } from './src/missiles.js';
 export {
   ratioFromHD,
