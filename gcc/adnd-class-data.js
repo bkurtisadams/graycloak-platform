@@ -388,17 +388,41 @@ function getAlignmentName(key) { return ALIGNMENT_NAMES[key] || key; }
 // Categories: PPD=Paralyzation/Poison/Death, PP=Petrification/Polymorph, RSW=Rod/Staff/Wand, BW=Breath Weapon, SP=Spell
 // Each row is [PPD, PP, RSW, BW, SP]. Rows indexed by level bracket.
 // Fighter group (fighter, paladin, ranger)
+// Transcribed from the printed OSRIC 3.0 class saving throw tables.
 const SAVE_FIGHTER = [
-  [14, 15, 16, 17, 17], // L0 (normal human)
+  [16, 17, 18, 20, 19], // L0 (normal human)
   [14, 15, 16, 17, 17], // L1-2
   [13, 14, 15, 16, 16], // L3-4
   [11, 12, 13, 13, 14], // L5-6
   [10, 11, 12, 12, 13], // L7-8
-  [ 8,  9, 10, 10, 11], // L9-10
-  [ 7,  8,  9,  9, 10], // L11-12
-  [ 5,  6,  7,  7,  8], // L13-14
-  [ 4,  5,  6,  6,  7], // L15-16
-  [ 3,  4,  5,  5,  6], // L17+
+  [ 8,  9, 10,  9, 11], // L9-10
+  [ 7,  8,  9,  8, 10], // L11-12
+  [ 5,  6,  7,  5,  8], // L13-14
+  [ 4,  5,  6,  4,  7], // L15-16
+  [ 3,  4,  5,  4,  6], // L17-18
+  [ 2,  3,  4,  3,  5], // L19+
+];
+// Paladins have their own printed table — not the fighter's less two, since the
+// top bands floor differently.
+const SAVE_PALADIN = [
+  [12, 13, 14, 15, 15], // L1-2
+  [11, 12, 13, 14, 14], // L3-4
+  [ 9, 10, 11, 11, 12], // L5-6
+  [ 8,  9, 10, 10, 11], // L7-8
+  [ 6,  7,  8,  7,  9], // L9-10
+  [ 5,  6,  7,  6,  8], // L11-12
+  [ 3,  4,  5,  3,  6], // L13-14
+  [ 2,  3,  4,  2,  5], // L15-16
+  [ 2,  2,  3,  2,  4], // L17-18
+  [ 2,  2,  2,  2,  3], // L19+
+];
+// Monks save on their own printed table, not the thief's.
+const SAVE_MONK = [
+  [13, 12, 14, 16, 15], // L1-4
+  [12, 11, 12, 15, 13], // L5-8
+  [11, 10, 10, 14, 11], // L9-12
+  [10,  9,  8, 13,  9], // L13-16
+  [ 9,  8,  6, 12,  7], // L17+
 ];
 // Cleric group (cleric, druid)
 const SAVE_CLERIC = [
@@ -415,17 +439,15 @@ const SAVE_MU = [
   [14, 13, 11, 15, 12], // L1-5
   [13, 11,  9, 13, 10], // L6-10
   [11,  9,  7, 11,  8], // L11-15
-  [10,  7,  5,  9,  6], // L16-20
-  [ 8,  5,  3,  7,  4], // L21+
+  [10,  7,  5,  9,  6], // L16-20 (printed table ends here)
 ];
 // Thief group (thief, assassin, monk, bard)
 const SAVE_THIEF = [
   [13, 12, 14, 16, 15], // L1-4
-  [12, 11, 13, 15, 14], // L5-8
-  [11, 10, 12, 14, 13], // L9-12
-  [10,  9, 11, 13, 12], // L13-16
-  [ 9,  8, 10, 12, 11], // L17-20
-  [ 8,  7,  9, 11, 10], // L21+
+  [12, 11, 12, 15, 13], // L5-8
+  [11, 10, 10, 14, 11], // L9-12
+  [10,  9,  8, 13,  9], // L13-16
+  [ 9,  8,  6, 12,  7], // L17-20 (printed table ends here)
 ];
 
 const SAVE_NAMES = ['Para/Poison/Death','Petrify/Polymorph','Rod/Staff/Wand','Breath Weapon','Spell'];
@@ -435,9 +457,15 @@ function getSavingThrows(charClass, level) {
   const fTypes = ['fighter','paladin','ranger'];
   const cTypes = ['cleric','druid'];
   const mTypes = ['magic-user','illusionist'];
-  const tTypes = ['thief','assassin','monk','bard'];
+  const tTypes = ['thief','assassin','bard'];
 
-  if (fTypes.includes(charClass)) {
+  if (charClass === 'paladin') {
+    table = SAVE_PALADIN;
+    idx = Math.min(Math.floor((Math.max(1, level) - 1) / 2), table.length - 1);
+  } else if (charClass === 'monk') {
+    table = SAVE_MONK;
+    idx = Math.min(Math.floor((Math.max(1, level) - 1) / 4), table.length - 1);
+  } else if (fTypes.includes(charClass)) {
     table = SAVE_FIGHTER;
     if (level <= 0) idx = 0;
     else if (level <= 2) idx = 1;
@@ -456,10 +484,7 @@ function getSavingThrows(charClass, level) {
     idx = 0;
   }
   const saves = table[idx].slice();
-  // Paladin +2 all saves
-  if (charClass === 'paladin') {
-    for (let i = 0; i < saves.length; i++) saves[i] = Math.max(1, saves[i] - 2);
-  }
+  // Paladins read their own printed table above; no blanket adjustment applies.
   return saves;
 }
 
@@ -824,7 +849,7 @@ const ADNDClassData = {
   PALADIN_SPELLS, RANGER_SPELLS, BARD_TABLE,
   MONK_TABLE, MONK_SPECIALS, ASSASSINATION_TABLE,
   TURN_UNDEAD, UNDEAD_TYPES, SAVE_NAMES,
-  SAVE_FIGHTER, SAVE_CLERIC, SAVE_MU, SAVE_THIEF,
+  SAVE_FIGHTER, SAVE_PALADIN, SAVE_MONK, SAVE_CLERIC, SAVE_MU, SAVE_THIEF,
   ALIGNMENT_NAMES,
   WIS_SPELL_BONUS, getWisBonus, applyWisBonus,
   getAttacksPerRound, getLevelTitle, getSpellSlots, getKernelSpellSlots,

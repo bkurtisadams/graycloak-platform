@@ -25,77 +25,96 @@ export const SAVING_THROW_RULE_SOURCE = Object.freeze({
     auditStatus: 'legacy-import',
     note: 'Imported from gcc/adnd-class-data.js. Paladin adjustment and every matrix row require OSRIC 3.0 verification.',
 });
-export const FIGHTER_SAVING_THROWS = Object.freeze([
-    [14, 15, 16, 17, 17],
-    [14, 15, 16, 17, 17],
-    [13, 14, 15, 16, 16],
-    [11, 12, 13, 13, 14],
-    [10, 11, 12, 12, 13],
-    [8, 9, 10, 10, 11],
-    [7, 8, 9, 9, 10],
-    [5, 6, 7, 7, 8],
-    [4, 5, 6, 6, 7],
-    [3, 4, 5, 5, 6],
-]);
-export const CLERIC_SAVING_THROWS = Object.freeze([
-    [10, 13, 14, 16, 15],
-    [9, 12, 13, 15, 14],
-    [7, 10, 11, 13, 12],
-    [6, 9, 10, 12, 11],
-    [5, 8, 9, 11, 10],
-    [4, 7, 8, 10, 9],
-    [2, 5, 6, 8, 7],
-]);
-export const MAGIC_USER_SAVING_THROWS = Object.freeze([
-    [14, 13, 11, 15, 12],
-    [13, 11, 9, 13, 10],
-    [11, 9, 7, 11, 8],
-    [10, 7, 5, 9, 6],
-    [8, 5, 3, 7, 4],
-]);
-export const THIEF_SAVING_THROWS = Object.freeze([
-    [13, 12, 14, 16, 15],
-    [12, 11, 13, 15, 14],
-    [11, 10, 12, 14, 13],
-    [10, 9, 11, 13, 12],
-    [9, 8, 10, 12, 11],
-    [8, 7, 9, 11, 10],
-]);
+// Values are [paralyzation/poison/death, petrification/polymorph, rod/staff/wand,
+// breath weapon, spell], transcribed from the printed OSRIC 3.0 class tables.
+// Every class has its own table: paladins are NOT fighters minus two (the top
+// bands floor differently) and monks are NOT thieves.
+const SAVING_THROW_TABLES = Object.freeze({
+    fighter: Object.freeze([
+        { upTo: 0, values: [16, 17, 18, 20, 19] },
+        { upTo: 2, values: [14, 15, 16, 17, 17] },
+        { upTo: 4, values: [13, 14, 15, 16, 16] },
+        { upTo: 6, values: [11, 12, 13, 13, 14] },
+        { upTo: 8, values: [10, 11, 12, 12, 13] },
+        { upTo: 10, values: [8, 9, 10, 9, 11] },
+        { upTo: 12, values: [7, 8, 9, 8, 10] },
+        { upTo: 14, values: [5, 6, 7, 5, 8] },
+        { upTo: 16, values: [4, 5, 6, 4, 7] },
+        { upTo: 18, values: [3, 4, 5, 4, 6] },
+        { upTo: Infinity, values: [2, 3, 4, 3, 5] },
+    ]),
+    paladin: Object.freeze([
+        { upTo: 2, values: [12, 13, 14, 15, 15] },
+        { upTo: 4, values: [11, 12, 13, 14, 14] },
+        { upTo: 6, values: [9, 10, 11, 11, 12] },
+        { upTo: 8, values: [8, 9, 10, 10, 11] },
+        { upTo: 10, values: [6, 7, 8, 7, 9] },
+        { upTo: 12, values: [5, 6, 7, 6, 8] },
+        { upTo: 14, values: [3, 4, 5, 3, 6] },
+        { upTo: 16, values: [2, 3, 4, 2, 5] },
+        { upTo: 18, values: [2, 2, 3, 2, 4] },
+        { upTo: Infinity, values: [2, 2, 2, 2, 3] },
+    ]),
+    cleric: Object.freeze([
+        { upTo: 3, values: [10, 13, 14, 16, 15] },
+        { upTo: 6, values: [9, 12, 13, 15, 14] },
+        { upTo: 9, values: [7, 10, 11, 13, 12] },
+        { upTo: 12, values: [6, 9, 10, 12, 11] },
+        { upTo: 15, values: [5, 8, 9, 11, 10] },
+        { upTo: 18, values: [4, 7, 8, 10, 9] },
+        { upTo: Infinity, values: [2, 5, 6, 8, 7] },
+    ]),
+    'magic-user': Object.freeze([
+        { upTo: 5, values: [14, 13, 11, 15, 12] },
+        { upTo: 10, values: [13, 11, 9, 13, 10] },
+        { upTo: 15, values: [11, 9, 7, 11, 8] },
+        { upTo: Infinity, values: [10, 7, 5, 9, 6] },
+    ]),
+    thief: Object.freeze([
+        { upTo: 4, values: [13, 12, 14, 16, 15] },
+        { upTo: 8, values: [12, 11, 12, 15, 13] },
+        { upTo: 12, values: [11, 10, 10, 14, 11] },
+        { upTo: 16, values: [10, 9, 8, 13, 9] },
+        { upTo: Infinity, values: [9, 8, 6, 12, 7] },
+    ]),
+    monk: Object.freeze([
+        { upTo: 4, values: [13, 12, 14, 16, 15] },
+        { upTo: 8, values: [12, 11, 12, 15, 13] },
+        { upTo: 12, values: [11, 10, 10, 14, 11] },
+        { upTo: 16, values: [10, 9, 8, 13, 9] },
+        { upTo: Infinity, values: [9, 8, 6, 12, 7] },
+    ]),
+});
+// Which printed table each class rolls on.
+const SAVING_THROW_TABLE_OF = Object.freeze({
+    fighter: 'fighter', ranger: 'fighter', paladin: 'paladin',
+    cleric: 'cleric', druid: 'cleric',
+    'magic-user': 'magic-user', illusionist: 'magic-user',
+    thief: 'thief', assassin: 'thief', monk: 'monk',
+});
+// Retained for callers (and the legacy parity test) that read a table directly.
+const rowsOf = (id) => Object.freeze((SAVING_THROW_TABLES[id] ?? []).map((b) => b.values));
+export const FIGHTER_SAVING_THROWS = rowsOf('fighter');
+export const PALADIN_SAVING_THROWS = rowsOf('paladin');
+export const MONK_SAVING_THROWS = rowsOf('monk');
+export const CLERIC_SAVING_THROWS = rowsOf('cleric');
+export const MAGIC_USER_SAVING_THROWS = rowsOf('magic-user');
+export const THIEF_SAVING_THROWS = rowsOf('thief');
 function normalizeLevel(level) {
     if (!Number.isFinite(level))
         throw new RangeError('Level must be a finite number.');
     return Math.floor(level);
 }
-function rowAt(table, index) {
-    const safeIndex = Math.max(0, Math.min(index, table.length - 1));
-    const row = table[safeIndex];
-    if (!row)
-        throw new RangeError('Saving throw table is empty.');
-    return row;
-}
 export function getSavingThrows(classId, level) {
     const normalizedLevel = normalizeLevel(level);
-    let values;
-    if (classId === 'fighter' || classId === 'paladin' || classId === 'ranger') {
-        const index = normalizedLevel <= 0
-            ? 0
-            : normalizedLevel <= 2
-                ? 1
-                : 1 + Math.floor((normalizedLevel - 1) / 2);
-        values = rowAt(FIGHTER_SAVING_THROWS, index);
-    }
-    else if (classId === 'cleric' || classId === 'druid') {
-        values = rowAt(CLERIC_SAVING_THROWS, Math.floor((Math.max(1, normalizedLevel) - 1) / 3));
-    }
-    else if (classId === 'magic-user' || classId === 'illusionist') {
-        values = rowAt(MAGIC_USER_SAVING_THROWS, Math.floor((Math.max(1, normalizedLevel) - 1) / 5));
-    }
-    else {
-        values = rowAt(THIEF_SAVING_THROWS, Math.floor((Math.max(1, normalizedLevel) - 1) / 4));
-    }
-    if (classId !== 'paladin')
-        return [...values];
-    return values.map((value) => Math.max(1, value - 2));
+    const tableId = SAVING_THROW_TABLE_OF[classId] ?? 'fighter';
+    const table = SAVING_THROW_TABLES[tableId];
+    if (!table)
+        throw new RangeError(`No saving throw table for ${classId}.`);
+    const band = table.find((b) => normalizedLevel <= b.upTo) ?? table[table.length - 1];
+    if (!band)
+        throw new RangeError('Saving throw table is empty.');
+    return [...band.values];
 }
 export function savingThrowsToRecord(values) {
     return Object.freeze({

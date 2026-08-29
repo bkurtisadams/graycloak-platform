@@ -1396,7 +1396,30 @@ const SAVE_MATRIX = {
     { upTo:12,  ppd: 7, pp: 8, rsw: 9, bw: 8, spell:10 },
     { upTo:14,  ppd: 5, pp: 6, rsw: 7, bw: 5, spell: 8 },
     { upTo:16,  ppd: 4, pp: 5, rsw: 6, bw: 4, spell: 7 },
-    { upTo:Infinity, ppd:3, pp:4, rsw:5, bw:4, spell:6 }
+    { upTo:18,  ppd: 3, pp: 4, rsw: 5, bw: 4, spell: 6 },
+    { upTo:Infinity, ppd:2, pp:3, rsw:4, bw:3, spell:5 }
+  ],
+  // Paladins have their own table, not the fighter's — roughly two points
+  // better across the board (OSRIC Table 1.3.8.4b).
+  paladin: [
+    { upTo: 2,  ppd:12, pp:13, rsw:14, bw:15, spell:15 },
+    { upTo: 4,  ppd:11, pp:12, rsw:13, bw:14, spell:14 },
+    { upTo: 6,  ppd: 9, pp:10, rsw:11, bw:11, spell:12 },
+    { upTo: 8,  ppd: 8, pp: 9, rsw:10, bw:10, spell:11 },
+    { upTo:10,  ppd: 6, pp: 7, rsw: 8, bw: 7, spell: 9 },
+    { upTo:12,  ppd: 5, pp: 6, rsw: 7, bw: 6, spell: 8 },
+    { upTo:14,  ppd: 3, pp: 4, rsw: 5, bw: 3, spell: 6 },
+    { upTo:16,  ppd: 2, pp: 3, rsw: 4, bw: 2, spell: 5 },
+    { upTo:18,  ppd: 2, pp: 2, rsw: 3, bw: 2, spell: 4 },
+    { upTo:Infinity, ppd:2, pp:2, rsw:2, bw:2, spell:3 }
+  ],
+  // Monks save on their own table (OSRIC Table 1.3.7.4c), not the thief's.
+  monk: [
+    { upTo: 4,  ppd:13, pp:12, rsw:14, bw:16, spell:15 },
+    { upTo: 8,  ppd:12, pp:11, rsw:12, bw:15, spell:13 },
+    { upTo:12,  ppd:11, pp:10, rsw:10, bw:14, spell:11 },
+    { upTo:16,  ppd:10, pp: 9, rsw: 8, bw:13, spell: 9 },
+    { upTo:Infinity, ppd:9, pp:8, rsw:6, bw:12, spell:7 }
   ],
   magic_user: [
     { upTo: 5,  ppd:14, pp:13, rsw:11, bw:15, spell:12 },
@@ -1539,10 +1562,12 @@ function combatClass(mc) {
 }
 // Save class: same, except bards save as druids (cleric matrix).
 function saveClassOf(mc) {
-  if (mc === 'paladin' || mc === 'ranger') return 'fighter';
+  if (mc === 'paladin') return 'paladin';        // its own printed table
+  if (mc === 'monk') return 'monk';              // its own printed table
+  if (mc === 'ranger') return 'fighter';
   if (mc === 'illusionist') return 'magic_user';
   if (mc === 'druid' || mc === 'bard') return 'cleric';
-  if (mc === 'assassin' || mc === 'monk') return 'thief';
+  if (mc === 'assassin') return 'thief';
   return mc;
 }
 // THAC0 for a bare (class, level) pair — the table lookup thac0Of() uses,
