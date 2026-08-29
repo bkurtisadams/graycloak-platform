@@ -1,4 +1,4 @@
-// @graycloak/battlesystem-engine v0.11.1 - 2026-08-28
+// @graycloak/battlesystem-engine v0.11.2 - 2026-08-28
 // v0.11.1: creature-defenses.js extracts reusable creature-defense normalization,
 //          AD&D magic-resistance adjustment/rolls, arbitrary tagged damage
 //          responses, generalized weapon requirements, and legacy §13.3
