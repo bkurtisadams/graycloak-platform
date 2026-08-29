@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Battlesystem — Battlefield · v0.60.5.1</title>
+<title>Battlesystem — Battlefield · v0.60.5.3</title>
 <style>
   :root {
     --bg:#ece0c4; --panel:#f5eedb; --field:#a8b094; --field-edge:#6d735a; --ink:#2c2316; --ink-soft:#6e6047; --rule:#b6a682;
@@ -653,7 +653,7 @@
   .slot.s-charge { width:114px; } .slot.s-rally { width:98px; } .slot.s-flow { width:140px; } .slot.s-elect { width:112px; } .slot.s-setup { width:72px; } .slot.s-next { width:108px; }
   .tb-phase > button.slot[hidden] { display:inline-block !important; visibility:hidden; pointer-events:none; } .tb-phase > button.slot.parked { visibility:hidden; pointer-events:none; }
 
-  #battle-dock { position:relative; } #battle-dock .slot.s-next { }
+  #battle-dock { position:relative; }
   #btn-advance[style*="display:none"], #btn-begin[style*="display:none"] { display:none !important; }
   @media (max-width:1100px) { .slot.s-melee { width:110px; } .slot.s-flow { width:124px; } #flow-dock { width:124px; } .slot.s-charge { width:104px; } .slot.s-elect { width:100px; } }
   #btn-pt.armed { background:#2f6b4f; color:#f3ead4; }
@@ -1093,7 +1093,7 @@
 </dialog>
 
 <script type="module">
-const SIM_VERSION = '0.60.5.1';
+const SIM_VERSION = '0.60.5.3';
 import {
   BattlesystemCombat, CombatResultsTable, BattlesystemMorale, BattlesystemMovement, BattlesystemCavalry,
   BattlesystemEffects, BattlesystemActions, BattlesystemItems, BattlesystemSpells, BattlesystemIndividualCombat, BattlesystemAttackRoutines, BattlesystemMagicDefenses, BattlesystemCreatureDefenses, BattlesystemMagicMovement, BattlesystemInnateActions, BattlesystemSecondaryEffects, EFFECT_MODES, CHARACTER_ACTION_KINDS,
@@ -5729,7 +5729,7 @@ function unitStepCue(u){
   if(step){
     if(phaseActionSide(u,step.kind==='movement'?'move':step.kind)!==step.side&&magicMovementControlSide(u)!==step.side)return null;
     if(step.kind==='movement'){
-      if(magicMovementControlSide(u)!==step.side)return null;
+      if(magicMovementControlSide(u)!==step.side){ if(u.passThrough)return{kind:'must',glyph:'➶',title:'Pass-Through armed — fires when a mover crosses its cone [10.6]'}; const ps=ptArmState(u); return ps.ok?{kind:'can',glyph:'➶',title:`may Declare Pass-Through Fire against ${armyName(step.side)}'s movers [10.6]`}:null; }
       if(u.acted?.moved||u.movementAction||u.chargeSucceeded)return{kind:'done',glyph:'⇢',title:'moved this entry'};
       if(u.engagedAtMoveStart)return{kind:'must',glyph:'⇢',title:u.skirmishWithdrawDue?'must Withdraw or Flee [2.9]':'engaged — Wrap, Withdraw or Flee only [7.8]'};
       if(u.routed)return{kind:'must',glyph:'⇢',title:'routed — continues its rout [6.4]'};
@@ -5939,7 +5939,8 @@ function phasePrompt(){                                              // v0.60.3:
     if(a&&magicMovementControlSide(a)===step.side){
       const st=step.kind==='magic'?magicButtonState(a):step.kind==='rally'?rallyState(a):step.kind==='movement'?null:fireState(a,d);
       if(st&&!st.ok&&st.reason&&!/^(shift\+click|select )/i.test(st.reason))refusal=`${sel}: ${st.reason}`;   // a missing target is a hint, not a refusal
-    } else if(a&&step.kind!=='movement')refusal=`${sel} belongs to ${armyName(magicMovementControlSide(a))} — ${who} acts now`;
+    } else if(a&&step.kind==='movement'){ const ps=a.passThrough?{ok:true}:ptArmState(a); refusal=ps.ok?'':`${sel}: ${ps.reason||'cannot declare Pass-Through Fire now'}`; if(ps.ok)what=`${sel} may Declare PT — one shot fired when a ${armyName(step.side)} unit crosses its cone [10.6] · ${what}`; }
+    else if(a&&step.kind!=='movement')refusal=`${sel} belongs to ${armyName(magicMovementControlSide(a))} — ${who} acts now`;
   } else if(id==='initiative'){what=`${armyName(state.initiativeWinner||'A')} won initiative and is Side A this round [5.1]`;how='Next phase';}
   else if(id==='melee'){
     if(state.individualCombatPending){what='Individual Combat is paused — resolve the level drain or dismiss it';how='▶ Continue duel';}
