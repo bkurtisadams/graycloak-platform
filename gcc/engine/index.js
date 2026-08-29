@@ -1,4 +1,8 @@
-// @graycloak/battlesystem-engine v0.12.0 - 2026-08-28
+// @graycloak/battlesystem-engine v0.13.0 - 2026-08-28
+// v0.13.0: secondary-effects.js adds pure reusable conditional creature-effect records,
+//          trigger/attack-match/chance/save metadata, multi-hit batch predicates, and
+//          level-drain bridging. Hosts retain AD&D saves, state/status/equipment mutation,
+//          logs, UI, and referee rulings.
 // v0.12.0: innate-actions.js adds pure structured innate/spell-like action records,
 //          frequency/chance/caster-level/timing/target/resolver metadata, Magic-entry
 //          bridging, and activation/timing checks. Hosts retain battlefield UI,
@@ -81,6 +85,7 @@ export { BattlesystemMagicDefenses } from './src/magic-defenses.js';
 export { BattlesystemCreatureDefenses } from './src/creature-defenses.js';
 export { BattlesystemMagicMovement } from './src/magic-movement.js';
 export { BattlesystemInnateActions } from './src/innate-actions.js';
+export { BattlesystemSecondaryEffects } from './src/secondary-effects.js';
 export { MISSILE_WEAPONS, GIANT_ROCK_PROFILES, ARTILLERY_WEAPONS, missileKey, missileDataFor, giantRockTypeFor, giantRockDataFor, rangeBand } from './src/missiles.js';
 export {
   ratioFromHD,
