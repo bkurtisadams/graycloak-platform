@@ -12,7 +12,7 @@
     ]
   },
   "firestore": {
-    "rules": "../gcc/firestore.rules"
+    "rules": "firestore.rules"
   },
   "hosting": [
     {

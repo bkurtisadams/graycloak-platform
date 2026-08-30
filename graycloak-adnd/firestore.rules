@@ -1,0 +1,265 @@
+// Firestore Security Rules for GCC / Graycloak AD&D v10
+// v10 authority hardening:
+//   - campaigns.worldTick/worldRevision are server-authoritative.
+//   - character travel/runtime/identity fields are immutable to all clients after create.
+//   - new character docs must begin unbound and cannot inject movement authority fields.
+//   - activities/ and events/ are trusted-runtime-only collections.
+//
+// Admin SDK / server client libraries bypass Firestore Security Rules and are the
+// intended write path for authoritative MMO state transitions.
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ────────────────────────────────────────────────
+    function isAuthed() {
+      return request.auth != null;
+    }
+
+    function isGM() {
+      return isAuthed()
+        && exists(/databases/$(database)/documents/gms/$(request.auth.uid));
+    }
+
+    function isCampaignOwner(cid) {
+      return isAuthed()
+        && get(/databases/$(database)/documents/campaigns/$(cid)).data.ownerUid
+           == request.auth.uid;
+    }
+
+    // worldTick is the authoritative shared time frontier. worldRevision is
+    // reserved for future optimistic-concurrency/version checks. Browser writes
+    // may edit other campaign fields but cannot alter either authority field.
+    function campaignAuthorityFieldsUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['worldTick', 'worldRevision']);
+    }
+
+    // These fields affect Actor identity, temporal availability, physical
+    // position, or authoritative movement. They may only be changed through a
+    // trusted Admin/server path (which bypasses Security Rules).
+    function actorAuthorityFieldsUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'id',
+        'documentType',
+        'type',
+        'ownerUid',
+        'campaignId',
+        'currentLocation',
+        'runtime',
+        'movementRate',
+        'movement',
+        'movementProfile',
+        'travelMovementProfile'
+      ]);
+    }
+
+    function validClientCharacterCreate() {
+      return isAuthed()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.campaignId is string
+        && request.resource.data.documentType == 'actor'
+        && request.resource.data.type == 'character'
+        && request.resource.data.runtime is map
+        && request.resource.data.runtime.keys().hasAll([
+          'lastResolvedTick', 'availableAtTick', 'activityId'
+        ])
+        && request.resource.data.runtime.lastResolvedTick == null
+        && request.resource.data.runtime.availableAtTick == null
+        && request.resource.data.runtime.activityId == null
+        && !request.resource.data.keys().hasAny([
+          'movementRate',
+          'movement',
+          'movementProfile',
+          'travelMovementProfile'
+        ]);
+    }
+
+    // ── User-private synced data ───────────────────────────────
+    match /users/{userId}/data/{document=**} {
+      allow read, write: if isAuthed() && request.auth.uid == userId;
+    }
+
+    match /users/{userId}/lists/{listKey} {
+      allow read, write: if isAuthed() && request.auth.uid == userId;
+      match /items/{itemId} {
+        allow read: if isAuthed();
+        allow write: if isAuthed() && request.auth.uid == userId;
+      }
+    }
+
+    // ── Invites ────────────────────────────────────────────────
+    match /invites/{code} {
+      allow read: if isAuthed();
+      allow create: if isAuthed();
+      allow update, delete: if isAuthed()
+        && resource.data.ownerUid == request.auth.uid;
+    }
+
+    // ── Campaigns ──────────────────────────────────────────────
+    match /campaigns/{campaignId} {
+      allow read: if isAuthed();
+      allow create: if isAuthed();
+      allow update: if isAuthed()
+        && (resource.data.ownerUid == request.auth.uid
+            || !('ownerUid' in resource.data))
+        && campaignAuthorityFieldsUnchanged();
+      allow delete: if isAuthed()
+        && (resource.data.ownerUid == request.auth.uid
+            || !('ownerUid' in resource.data));
+
+      // Player roster: owner can manage all, players can add/read themselves.
+      match /players/{playerId} {
+        allow read: if isAuthed();
+        allow create, update: if isAuthed()
+          && (request.auth.uid == playerId
+              || get(/databases/$(database)/documents/campaigns/$(campaignId)).data.ownerUid
+                 == request.auth.uid);
+        allow delete: if isAuthed()
+          && get(/databases/$(database)/documents/campaigns/$(campaignId)).data.ownerUid
+             == request.auth.uid;
+      }
+
+      // Table feed: dice rolls + chat messages.
+      match /rolls/{rollId} {
+        allow read: if isAuthed();
+        allow create: if isAuthed()
+          && request.resource.data.uid == request.auth.uid
+          && (!('text' in request.resource.data)
+              || request.resource.data.text.size() <= 2000);
+        allow delete: if isAuthed()
+          && (resource.data.uid == request.auth.uid
+              || isCampaignOwner(campaignId)
+              || isGM());
+      }
+
+      // Player-safe map state published by the GM client.
+      match /maps/{mapId} {
+        allow read: if isAuthed()
+          && (isCampaignOwner(campaignId)
+              || exists(/databases/$(database)/documents/campaigns/$(campaignId)/players/$(request.auth.uid)));
+        allow write: if isAuthed() && isCampaignOwner(campaignId);
+      }
+
+      // Battle board snapshots and legacy multiplayer command intents.
+      match /battles/{battleId} {
+        allow read: if isAuthed();
+        allow write: if isAuthed()
+          && (isCampaignOwner(campaignId) || isGM());
+
+        match /commands/{commandId} {
+          allow read: if isAuthed();
+          allow create: if isAuthed()
+            && request.resource.data.uid == request.auth.uid;
+          allow update: if false;
+          allow delete: if isAuthed()
+            && (isCampaignOwner(campaignId) || isGM()
+                || resource.data.uid == request.auth.uid);
+        }
+      }
+    }
+
+    // ── GM roster ──────────────────────────────────────────────
+    match /gms/{uid} {
+      allow read: if isAuthed();
+      allow write: if false;
+    }
+
+    // ── Base world data ────────────────────────────────────────
+    match /regions/{regionId} {
+      allow read: if isAuthed();
+      allow write: if false;
+    }
+
+    match /landmarks/{hexId} {
+      allow read: if isAuthed();
+      allow write: if false;
+    }
+
+    // ── GM-authored world overlays ─────────────────────────────
+    match /subHexes/{docId} {
+      allow read: if isAuthed();
+      allow write: if isGM();
+    }
+
+    match /lakes/{lakeId} {
+      allow read: if isAuthed();
+      allow write: if isGM();
+    }
+
+    match /paths/{pathId} {
+      allow read: if isAuthed();
+      allow write: if isGM();
+    }
+
+    match /mapRegions/{slug} {
+      allow read: if isAuthed();
+      allow write: if isGM();
+    }
+
+    match /settlements/{settlementId} {
+      allow read: if isAuthed();
+      allow write: if isGM();
+    }
+
+    // ── Campaign-scoped entities ───────────────────────────────
+    match /entities/{entityId} {
+      allow read: if isAuthed();
+      allow create: if isAuthed()
+        && (request.resource.data.ownerUid == request.auth.uid
+            || isCampaignOwner(request.resource.data.campaignId)
+            || isGM());
+      allow update, delete: if isAuthed()
+        && (resource.data.ownerUid == request.auth.uid
+            || isCampaignOwner(resource.data.campaignId)
+            || isGM());
+    }
+
+    // ── Freeholds ──────────────────────────────────────────────
+    match /freeholds/{freeholdId} {
+      allow read: if isAuthed();
+      allow create: if isAuthed()
+        && (request.resource.data.founderUid == request.auth.uid
+            || isCampaignOwner(request.resource.data.campaignId)
+            || isGM());
+      allow update, delete: if isAuthed()
+        && (resource.data.founderUid == request.auth.uid
+            || isCampaignOwner(resource.data.campaignId)
+            || isGM());
+    }
+
+    // ── Player characters / Actors ─────────────────────────────
+    // New PCs are still created by the current browser chargen, but they must
+    // enter as unbound Actors and may not inject authoritative movement data.
+    // Existing Actor authority fields are immutable to ALL browser clients,
+    // including owners and GMs. The trusted Admin runtime performs those writes.
+    match /characters/{characterId} {
+      allow read: if isAuthed();
+      allow create: if validClientCharacterCreate();
+      allow update: if isAuthed()
+        && (resource.data.ownerUid == request.auth.uid
+            || isCampaignOwner(resource.data.campaignId)
+            || isGM())
+        && actorAuthorityFieldsUnchanged();
+      allow delete: if isAuthed()
+        && (isCampaignOwner(resource.data.campaignId) || isGM());
+    }
+
+    // ── Authoritative MMO runtime collections ──────────────────
+    // Admin/server SDK only. Server client libraries bypass Security Rules;
+    // browsers have no direct read or write path to these collections yet.
+    match /activities/{activityId} {
+      allow read, write: if false;
+    }
+
+    match /events/{eventId} {
+      allow read, write: if false;
+    }
+
+    // ── Deny everything else ───────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
