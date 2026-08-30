@@ -94,6 +94,13 @@ Status key: **RULING** — a choice between readings, or a rule the book does no
 - **[11.9] Spell line of sight** passes through up to 6″ of woods for elves and other woodland creatures and 1″ for everyone else (v0.60.0); a mob's wild-charge discipline only triggers on an enemy it can see.
 - **[PHB] Lances — RULED 2026-08-21.** Light 1d6 / 1d8 L · medium (alias "lance") 1d6+1 / 2d6 L · heavy 2d4+1 / 3d6 L.
 
+## §15 Flying
+
+- **[15.1] Altitude is a level, not a height.** `u.altitude` is 0 ground, 1 low (30′/1″), 2 medium (120′/4″), 3 high (240′/8″). Rising one level costs ⅓ of the figure's flying rate; descending any number of levels is free; a flyer that climbs past 8″ has left the battlefield and is removed from play, which the rule notes is a legitimate escape. v0.62.0.
+- **[15.2]** A unit that takes to the air leaves closed formation automatically; closed is legal only on the ground. v0.62.0.
+- **[15.3]** A ground unit attacked from the air suffers a +2 AC penalty, itemised in the melee line. A unit firing while airborne treats short range as medium and medium as long; fly spells and carpets of flying are exempt. A **winged** flyer that takes any hit dice of damage lands at once and may spend ⅓ its rate doing so even after a full move — innate and magical flight are exempt — and a flyer carrying a Wound marker cannot take flight again. v0.62.0.
+- **Not yet built:** [15.1] Maneuverability Class turn limits (the class is recorded on the roster but not enforced, and the D&D size-based alternative is not implemented), [15.4] bombing, and any board display of altitude.
+
 ## §12 Conditions
 
 - Conditions are applied per [12.x] and summarised at Begin battle; visibility limits gate charges and fire.
