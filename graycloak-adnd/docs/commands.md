@@ -1,11 +1,11 @@
-# Graycloak Authoritative Command Boundary v1.0
+# Graycloak Authoritative Command Boundary v1.1
 
 Graycloak's player runtime is intentionally split into two trust domains:
 
 1. the browser may **preview** rules and construct an intent;
 2. a trusted runtime must **re-read authoritative state, recompute the outcome, and commit it atomically**.
 
-v1.0 introduces `Begin Travel` as the first command that follows that model. The module is transport/storage agnostic. It does not call Firestore itself; it returns a semantic commit bundle for a later Firestore transaction adapter.
+v1.0 introduced `Begin Travel` as the first command that follows that model. v1.1 adds the first Firestore transaction adapter for the semantic commit bundle. The browser still does not become authoritative.
 
 ## Client-safe Begin Travel intent
 
@@ -77,13 +77,48 @@ On success the executor returns one bundle containing:
 
 The executor itself does **not** mutate source Actors or write storage.
 
-A later Firestore adapter should run the command inside a transaction and use these preconditions to guarantee that the read state has not changed before applying all writes together.
+## v1.1 Firestore transaction adapter
 
-## Idempotency
+`runtime/firestore-transaction.mjs` applies a validated v1 semantic commit bundle through a Firestore-compatible `runTransaction()` API. It is deliberately outside `public/` and is not loaded by `public/index.html`.
 
-`commandId` is the idempotency key and is also used as the `GameEvent.id` for this first command. A storage adapter must reject/replay an already-recorded command rather than execute it twice.
+The default physical collections are:
 
-`activityId` is independently stable. The transaction should require that neither the command event nor Activity already exists before first execution.
+```text
+campaigns/{campaignId}
+characters/{actorId}
+activities/{activityId}
+events/{commandId}
+```
+
+The Actor collection remains `characters` for this phase. The Foundry-inspired Actor abstraction does not require a destructive `characters` to `actors` migration.
+
+Inside the transaction, v1.1 verifies:
+
+1. the command-event idempotency marker does not already exist, or represents the same already-committed command;
+2. the target Activity id does not already exist for a first execution;
+3. the campaign still exists and has the exact expected `worldTick`;
+4. every Actor still exists;
+5. every Actor still has the expected `campaignId`, `currentLocation`, and time-runtime snapshot.
+
+Only after all reads and preconditions succeed does the adapter:
+
+1. create the Activity;
+2. patch each Actor's `runtime` reservation;
+3. create the immutable GameEvent.
+
+Those writes commit atomically. If a precondition fails, none of them are written.
+
+### Idempotent retry
+
+The GameEvent document at `events/{commandId}` is the durable idempotency marker. If the same command is retried after it was already committed, the adapter returns `already-committed` without reserving Actors again. This remains true even if the original travel Activity later completes and the Actors have moved on.
+
+If the same command id is already occupied by a conflicting event, the adapter returns `idempotency-conflict`.
+
+### Storage boundary that v1.1 does not claim
+
+The v1.0 bundle currently carries transaction preconditions for campaign time and Actor snapshots only. Authored terrain and externally supplied movement policy are revalidated by the trusted command executor before bundle creation, but they are not yet represented as Firestore transaction preconditions.
+
+Therefore v1.1 must not be described as detecting a concurrent GM edit to authored terrain between command execution and bundle commit. If that becomes important, the command context should add explicit map-data revision/fingerprint preconditions rather than hiding the gap.
 
 ## Current limitation: movement authority
 
@@ -91,16 +126,17 @@ Current character generation does not yet persist a canonical movement profile f
 
 Until Actor movement is fully modeled, the trusted runtime must supply `authoritativeMovementProfiles` from trusted data/GM policy. This is intentional: a client-entered Movement Rate must never become authoritative merely because it was used to render a preview.
 
-## Not included in v1.0
+## Not included in v1.1
 
-v1.0 does not yet provide:
+v1.1 does not yet provide:
 
 - a network endpoint;
 - a Cloud Run/Firebase Functions deployment;
-- a Firestore transaction adapter;
 - a Begin Travel UI button;
+- Firestore Security Rules for the new authoritative collections;
 - world-clock advancement;
 - Activity completion/resolution;
-- encounters, provisions, navigation, weather, crossings, or mounts.
+- encounters, provisions, navigation, weather, crossings, or mounts;
+- transaction fingerprints for authored map terrain or external movement-policy revisions.
 
-The command boundary is the seam those systems can safely attach to later.
+The command boundary and transaction adapter are the seams those systems can attach to later.

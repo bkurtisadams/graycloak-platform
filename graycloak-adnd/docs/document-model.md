@@ -1,4 +1,4 @@
-# Graycloak Document Model v0.4
+# Graycloak Document Model v1.1
 
 Graycloak uses a Foundry-inspired document model for game objects that have their own identity and lifecycle. This is an **application contract**, not a requirement that every record live in one Firestore collection.
 
@@ -45,7 +45,7 @@ Actor runtime metadata reserves three time fields:
 - `availableAtTick`
 - `activityId`
 
-These do **not** create private character timelines. They are defined against one shared campaign `worldTick`; see `docs/world-clock.md`. v0.4 Travel Activities can produce pure reservation patches for these fields without mutating or persisting Actors. Tick values are non-negative safe integers, with one tick equal to one six-second OSRIC combat segment.
+These do **not** create private character timelines. They are defined against one shared campaign `worldTick`; see `docs/world-clock.md`. Travel Activities produce pure reservation patches for these fields before the authoritative command layer persists them. Tick values are non-negative safe integers, with one tick equal to one six-second OSRIC combat segment.
 
 ### Item
 
@@ -61,13 +61,27 @@ A separately addressable temporary or persistent condition such as Haste, poison
 
 ### Activity
 
-A time-spanning commitment such as travel, training, resting, research, or construction. Activities bridge Actors to the non-realtime MMO clock. Multiple Actors can share one Activity. v0.4 implements pure Travel Activity planning; see `docs/activities.md`.
+A time-spanning commitment such as travel, training, resting, research, or construction. Activities bridge Actors to the non-realtime MMO clock. Multiple Actors can share one Activity.
+
+v1.1 introduces first-use physical persistence at:
+
+```text
+activities/{activityId}
+```
+
+The Activity is created only by the trusted transaction boundary after the command has been authoritatively recomputed and its Firestore-backed preconditions succeed.
 
 ### GameEvent
 
 An immutable audit/history record for authoritative outcomes such as character creation, travel, damage, spell casting, XP awards, death, and world-clock advancement.
 
-The Document model defines the shape only. It does not yet create an event collection or move authority out of the browser.
+v1.1 introduces the first physical event ledger collection at:
+
+```text
+events/{eventId}
+```
+
+For `Begin Travel`, `eventId` equals the stable `commandId`, so the event doubles as the durable idempotency marker for command retries.
 
 ## Definition versus instance
 
@@ -79,6 +93,19 @@ An item instance answers: "Which Long Sword is this, who owns it, what condition
 
 The same principle can later apply to monsters, spells, abilities, settlements, and other catalog-driven content.
 
+## Physical collections are an implementation detail
+
+The common Document contract does not require one giant `documents` collection. v1.1 currently uses typed collections:
+
+```text
+campaigns/
+characters/     # Actor: character instances
+activities/
+events/
+```
+
+Later document types may use their own typed collections or subcollections where their query and ownership patterns justify it.
+
 ## Migration policy
 
 The migration policy remains intentionally additive:
@@ -89,5 +116,6 @@ The migration policy remains intentionally additive:
 4. Old PCs remain readable and can be normalized on read.
 5. No `characters` to `actors` collection migration is performed yet.
 6. No inventory migration is performed yet.
+7. New Activity and GameEvent collections are introduced only when an authoritative command actually commits them.
 
 This lets the abstraction prove useful before Graycloak pays the cost of broader schema migration.
