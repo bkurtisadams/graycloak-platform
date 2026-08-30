@@ -1,175 +1,215 @@
-# Graycloak Activity / Travel Primitives v0.6
+# Graycloak Activity / Travel Primitives v0.7
 
-v0.6 extends the pure Travel Activity planner with explicit axial route segments and map-derived distance. It still does not pathfind, write Firestore, advance campaign time, move Actors, roll encounters, or resolve completed Activities.
+v0.7 bridges the authored world map into the v0.6 axial route model. Given an ordered list of adjacent subhex coordinates, the Activity layer can now resolve each entered cell's authored terrain, classify it into an outdoor travel band, construct route segments, and create a Travel Activity.
 
-## Rules boundary
+It still does **not** pathfind, write Firestore, advance campaign time, move Actors, roll encounters, or resolve completed Activities.
 
-The outdoor pace layer continues to use the OSRIC 3.0 Player Guide Section 1.5.3.2 hiking formulas:
+## Rules and policy boundary
+
+The travel-speed formulas remain the OSRIC 3.0 outdoor hiking bands already used by v0.5/v0.6:
 
 - level terrain: Movement Rate × 0.20 miles/day
 - rugged terrain: Movement Rate × 0.15 miles/day
 - very rugged terrain: Movement Rate × 0.10 miles/day
 
-The Activity layer does **not** own Graycloak map scale. The current map engine already defines the global subhex and mile scales. A caller that has loaded `@graycloak/map-engine` should pass the relevant map scale into the travel planner as `routeMilesPerStep`.
+OSRIC defines those three movement bands, but Graycloak's authored world uses a more detailed terrain vocabulary. Therefore the mapping from authored terrain names to those bands is a **Graycloak map policy**, not an OSRIC table.
 
-For the current player world map:
+Default v0.7 mapping:
+
+```text
+level
+  clear
+  plains
+
+rugged
+  forest
+  hardwood
+  conifer
+  hills
+  desert
+
+very-rugged
+  forest_hills
+  jungle
+  mountains
+  barrens
+  swamp
+```
+
+`river` and the `water*` terrain types are intentionally not classified for pedestrian travel yet. A later crossing/naval layer must decide whether a bridge, ford, ferry, boat, swimming, or other rule makes that transition legal.
+
+Callers may provide a small `terrainClasses` override object when a campaign adds a custom authored terrain name:
 
 ```js
-routeMilesPerStep = MapEngine.SCALES.subhex.milesAcross;
+terrainClasses: {
+  ash_wastes: 'rugged'
+}
 ```
 
-This is 3 miles in the present map-engine scale, but `adnd-activities.js` deliberately does not hard-code that world geometry.
+## Authored terrain precedence
 
-## Explicit route segments
+v0.7 mirrors the player map's terrain precedence.
 
-A calculated route is supplied as an ordered chain of adjacent axial map-cell transitions:
+For a given global axial cell `(Q,R)`:
+
+1. look for `subHexes/subhex_{Q}_{R}`;
+2. if the subhex is part of a lake and is not already explicitly water terrain, treat it as `water_fresh`;
+3. otherwise use the subhex's explicit `terrain` override if present;
+4. otherwise inherit the owning parent hex's base terrain.
+
+The helper is:
 
 ```js
-routeSegments: [
-  {
-    from: { subHexCoord: [10, 20] },
-    to:   { subHexCoord: [11, 20] },
-    terrain: 'level'
-  },
-  {
-    from: { subHexCoord: [11, 20] },
-    to:   { subHexCoord: [12, 20] },
-    terrain: 'rugged'
-  }
-],
-routeMilesPerStep: 3
+ADNDActivities.resolveAuthoredCellTerrain(coord, {
+  subhexes,
+  parentTerrain,
+  ownerOf,
+  terrainClasses
+})
 ```
 
-Coordinates may be supplied as:
+`subhexes` is the keyed object already produced by the player-map loader. `parentTerrain` is the packed base-terrain map such as `regions/flanaess.hexes`. `ownerOf(Q,R)` is supplied by `@graycloak/map-engine` when the subhex document itself does not contain an owner.
+
+The result records both:
 
 ```text
-[Q, R]
-{ Q, R }
-{ subHexCoord: [Q, R] }
+mapTerrain     // authored vocabulary, e.g. forest
+terrain        // travel band, e.g. rugged
+terrainSource  // subhex-override | parent-inherited | lake
 ```
 
-The cube-coordinate distance formula matches the existing `@graycloak/map-engine axialDistance()` behavior.
+## Route cells -> route segments
 
-## Why every segment must be adjacent
+The v0.7 route-builder accepts an ordered list of actual map cells:
 
-v0.6 requires every route segment to cross exactly one axial cell edge, and each segment must begin where the previous segment ended.
+```js
+const route = ADNDActivities.buildAuthoredRouteSegments({
+  routeMilesPerStep: 3,
+  routeCells: [
+    [10, 20],
+    [11, 20],
+    [12, 20]
+  ],
+  subhexes,
+  parentTerrain,
+  ownerOf
+});
+```
 
-This is intentional.
+Every consecutive cell must be adjacent. v0.7 does not fill gaps or select a path.
 
-Terrain is attached to the specific route segment. Allowing a single long segment to jump across several cells would permit the caller to label an entire skipped path as one terrain type even if the intervening authored map contained different terrain.
+The route above becomes two v0.6-compatible segments.
 
-Pathfinding is still deferred. The future map/path layer is responsible for producing the ordered adjacent-cell chain.
+### Entered-cell cost
 
-## Mixed terrain
+A segment's movement cost uses the terrain of the cell being **entered**.
 
-Each route segment is resolved independently against the same participating Actors' movement profiles.
-
-For a Movement Rate 120 party using a 3-mile subhex step:
+For:
 
 ```text
-3 miles level  / 24 miles/day = 0.125 day
-3 miles rugged / 18 miles/day = 0.166666... day
-total                         = 0.291666... day
+A -> B -> C
 ```
 
-Graycloak then schedules the Activity with:
+segment `A -> B` uses B's terrain, and segment `B -> C` uses C's terrain.
 
-```text
-durationTicks = ceil(totalTravelDays × TICKS_PER_DAY)
-```
+The starting cell does not consume another cell's worth of travel merely because the party begins there.
 
-The example above is 4,200 world ticks.
-
-The Activity stores the segment calculations so the authoritative runtime can later explain why the trip took as long as it did.
-
-## Route provenance
-
-Route-calculated travel uses:
-
-```text
-durationSource: osric-outdoor-route
-```
-
-and records:
-
-```text
-system.outdoorTravel.routeMode
-system.outdoorTravel.routeMilesPerStep
-system.outdoorTravel.segmentCount
-system.outdoorTravel.distanceMiles
-system.outdoorTravel.partyMovementRate
-system.outdoorTravel.travelDays
-system.outdoorTravel.origin
-system.outdoorTravel.destination
-system.outdoorTravel.segments[]
-```
-
-Each stored segment includes:
+Each generated segment carries calculation provenance:
 
 ```text
 from
 to
+terrain
+mapTerrain
+terrainSource
+enteredCellId
+owner
+```
+
+The normal v0.6 route calculator then adds:
+
+```text
 steps
 distanceMiles
-terrain
 terrainFactor
 partyMovementRate
 milesPerDay
 travelDays
 ```
 
-This is calculation provenance, not a pathfinding result.
+## Direct authored-map Travel Activity
 
-## Origin/destination consistency
-
-When the Activity's `origin` or `destination` contains a subhex coordinate, v0.6 verifies that it matches the first or last route coordinate.
-
-Named Place IDs remain valid even when the place's coordinates are not present in the request, so:
+The convenience wrapper combines map lookup, segment construction, route-duration calculation, and the existing pure Activity planner:
 
 ```js
-origin: 'place-a'
-destination: 'place-b'
+const plan = ADNDActivities.createAuthoredMapTravelPlan({
+  id: 'activity-travel-1',
+  campaignId,
+  actors,
+  worldTick,
+
+  routeMilesPerStep: MapEngine.SCALES.subhex.milesAcross,
+  routeCells: [
+    [10, 20],
+    [11, 20],
+    [12, 20]
+  ],
+
+  subhexes: loadedMapData.subhex,
+  parentTerrain: loadedMapData.flanaess,
+  ownerOf: MapEngine.ownerOf,
+
+  movementProfiles
+});
 ```
 
-may still accompany a route.
+If `origin` and `destination` are omitted, the wrapper creates structured subhex location refs from the first and last route cells.
+
+The resulting Activity records:
+
+```text
+system.outdoorTravel.routeMode   = axial-segments
+system.outdoorTravel.routeSource = authored-map
+```
+
+and stores the raw terrain provenance on every segment.
+
+The source Actors are still not mutated. The result contains the same Actor reservation patches introduced in v0.4 for a future authoritative transaction.
+
+## Missing and unsupported terrain are explicit failures
+
+If an entered cell has neither an authored override nor resolvable inherited parent terrain, route construction returns:
+
+```text
+missing-map-terrain
+```
+
+If terrain exists but is not currently legal for this travel mode, such as `water_fresh`, route construction returns:
+
+```text
+unsupported-map-terrain
+```
+
+This is deliberate. The runtime should not invent a travel rate just to keep a route moving.
 
 ## Existing travel modes remain valid
 
-The v0.5 single-terrain form remains supported:
+v0.7 does not remove any prior API:
 
-```js
-distanceMiles: 12,
-terrain: 'level',
-movementProfiles: { ... }
-```
+- manual `durationTicks`
+- v0.5 single-terrain `distanceMiles + terrain`
+- v0.6 caller-built `routeSegments`
 
-and continues to use:
-
-```text
-durationSource: osric-outdoor
-```
-
-A positive manual `durationTicks` still overrides all calculated routing data and uses:
-
-```text
-durationSource: manual
-```
-
-This remains the GM/script escape hatch for travel modes not yet modeled.
-
-## Encumbrance boundary
-
-v0.6 still does not calculate encumbrance from carried pounds. Callers must provide either an already-final `movementRate`, or an already-known `baseMovementRate` / `encumbrancePace` / optional `armourMovementCap` profile.
-
-That keeps the current unaudited inventory-weight thresholds out of persistent travel calculations.
+`createAuthoredMapTravelPlan()` is an additional map-aware entry point.
 
 ## Still deferred
 
-v0.6 intentionally does not implement:
+v0.7 intentionally does not implement:
 
-- route/path finding
-- map UI route selection
-- road/trail modifiers
+- shortest-path or A* pathfinding
+- map click/drag route UI
+- roads/trails changing terrain cost
+- bridges/fords/ferries and water crossing
 - deriving movement profiles from Actor inventory
 - mounted travel
 - vehicles
@@ -183,4 +223,4 @@ v0.6 intentionally does not implement:
 - Activity resolution
 - Firestore writes
 
-The next useful layer can connect authored map cells to route construction, or add road/path effects after the route geometry has proven stable.
+The next useful slice is the **map adapter/UI boundary**: let `adnd-map-view.js` expose the loaded map-engine scale/terrain data to this route builder, then support selecting an ordered route on the map without yet adding pathfinding.

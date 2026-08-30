@@ -1,16 +1,16 @@
-// adnd-activities.js v0.6.0 — 2026-08-30
+// adnd-activities.js v0.7.0 — 2026-08-30
 // Pure Activity/travel planning primitives for Graycloak's shared world clock.
 //
-// v0.6 adds explicit axial route segments and map-derived distance. The map
-// layer remains the authority for scale and supplies routeMilesPerStep (for the
-// current subhex map this is @graycloak/map-engine SCALES.subhex.milesAcross).
-// Mixed-terrain route time is the sum of each segment's OSRIC outdoor travel
-// time. This file still does not pathfind, write Firestore, move Actors, advance
-// campaign time, roll encounters, or resolve completed Activities.
+// v0.7 bridges authored world-map cells into the v0.6 route model. An ordered
+// list of subhex coordinates can now resolve terrain using the same precedence
+// as the player map: per-subhex override (including lake water) first, then the
+// owning parent hex's base terrain. The destination/entered cell supplies each
+// segment's terrain cost. This file still does not pathfind, write Firestore,
+// move Actors, advance campaign time, roll encounters, or resolve Activities.
 const ADNDActivities = (function(){
   'use strict';
 
-  const ACTIVITY_VERSION = 3;
+  const ACTIVITY_VERSION = 4;
   const ACTIVITY_TYPES = Object.freeze({
     TRAVEL: 'travel',
   });
@@ -24,6 +24,27 @@ const ADNDActivities = (function(){
     LEVEL: 'level',
     RUGGED: 'rugged',
     VERY_RUGGED: 'very-rugged',
+  });
+  // Graycloak map-terrain classification policy. OSRIC 3 defines the three
+  // outdoor movement bands but does not assign Graycloak's authored terrain
+  // vocabulary to them. Keep this mapping explicit and overridable rather than
+  // pretending it is an OSRIC table. Water/river cells are intentionally absent
+  // until a later crossing/naval travel layer can adjudicate them.
+  const MAP_TERRAIN_TRAVEL_CLASS = Object.freeze({
+    clear: TRAVEL_TERRAIN.LEVEL,
+    plains: TRAVEL_TERRAIN.LEVEL,
+
+    forest: TRAVEL_TERRAIN.RUGGED,
+    hardwood: TRAVEL_TERRAIN.RUGGED,
+    conifer: TRAVEL_TERRAIN.RUGGED,
+    hills: TRAVEL_TERRAIN.RUGGED,
+    desert: TRAVEL_TERRAIN.RUGGED,
+
+    forest_hills: TRAVEL_TERRAIN.VERY_RUGGED,
+    jungle: TRAVEL_TERRAIN.VERY_RUGGED,
+    mountains: TRAVEL_TERRAIN.VERY_RUGGED,
+    barrens: TRAVEL_TERRAIN.VERY_RUGGED,
+    swamp: TRAVEL_TERRAIN.VERY_RUGGED,
   });
   const TERRAIN_MILES_PER_MOVEMENT = Object.freeze({
     [TRAVEL_TERRAIN.LEVEL]: 0.20,
@@ -63,6 +84,9 @@ const ADNDActivities = (function(){
     INVALID_ROUTE_SCALE: 'invalid-route-scale',
     NONCONTIGUOUS_ROUTE: 'noncontiguous-route',
     ROUTE_ENDPOINT_MISMATCH: 'route-endpoint-mismatch',
+    INVALID_ROUTE_CELLS: 'invalid-route-cells',
+    MISSING_MAP_TERRAIN: 'missing-map-terrain',
+    UNSUPPORTED_MAP_TERRAIN: 'unsupported-map-terrain',
     INVALID_MOVEMENT_PROFILE: 'invalid-movement-profile',
     INVALID_MOVEMENT_RATE: 'invalid-movement-rate',
     INVALID_ENCUMBRANCE_PACE: 'invalid-encumbrance-pace',
@@ -139,6 +163,161 @@ const ADNDActivities = (function(){
     const aa = normalizeAxialCoord(a);
     const bb = normalizeAxialCoord(b);
     return !!aa && !!bb && aa.Q === bb.Q && aa.R === bb.R;
+  }
+
+  function subhexDocumentId(coord) {
+    const cell = normalizeAxialCoord(coord);
+    return cell ? `subhex_${cell.Q}_${cell.R}` : null;
+  }
+
+  function classifyMapTerrain(mapTerrain, terrainClasses) {
+    if (mapTerrain == null || mapTerrain === '') return null;
+    const key = String(mapTerrain).trim().toLowerCase();
+    const direct = normalizeTerrain(key);
+    if (direct) return direct;
+
+    if (isPlainObject(terrainClasses) &&
+        Object.prototype.hasOwnProperty.call(terrainClasses, key)) {
+      return normalizeTerrain(terrainClasses[key]);
+    }
+    return MAP_TERRAIN_TRAVEL_CLASS[key] || null;
+  }
+
+  function normalizeParentOwner(value) {
+    if (!isPlainObject(value)) return null;
+    const col = value.col;
+    const row = value.row;
+    if (!Number.isSafeInteger(col) || !Number.isSafeInteger(row)) return null;
+    return { col, row };
+  }
+
+  // Resolve authored terrain using the same precedence as adnd-map-view.js:
+  // explicit subhex/lake override first, otherwise inherited parent terrain.
+  function resolveAuthoredCellTerrain(coord, input) {
+    input = input || {};
+    const cell = normalizeAxialCoord(coord);
+    if (!cell) return { ok: false, code: TRAVEL_ERROR.INVALID_ROUTE_CELLS };
+
+    const docId = subhexDocumentId(cell);
+    const subhexes = isPlainObject(input.subhexes) ? input.subhexes : {};
+    const parentTerrain = isPlainObject(input.parentTerrain) ? input.parentTerrain : {};
+    const authored = isPlainObject(subhexes[docId]) ? subhexes[docId] : null;
+
+    let mapTerrain = null;
+    let terrainSource = null;
+    let owner = authored ? normalizeParentOwner(authored.owner) : null;
+
+    if (authored && authored.lakeId &&
+        !(typeof authored.terrain === 'string' && authored.terrain.startsWith('water'))) {
+      mapTerrain = 'water_fresh';
+      terrainSource = 'lake';
+    } else if (authored && authored.terrain) {
+      mapTerrain = String(authored.terrain);
+      terrainSource = 'subhex-override';
+    } else {
+      if (!owner && typeof input.ownerOf === 'function') {
+        owner = normalizeParentOwner(input.ownerOf(cell.Q, cell.R));
+      }
+      if (owner) {
+        const inherited = parentTerrain[`${owner.col}-${owner.row}`];
+        if (inherited != null && inherited !== '') {
+          mapTerrain = String(inherited);
+          terrainSource = 'parent-inherited';
+        }
+      }
+    }
+
+    if (!mapTerrain) {
+      return {
+        ok: false,
+        code: TRAVEL_ERROR.MISSING_MAP_TERRAIN,
+        coord: cell,
+        documentId: docId,
+        owner,
+      };
+    }
+
+    const terrain = classifyMapTerrain(mapTerrain, input.terrainClasses);
+    if (!terrain) {
+      return {
+        ok: false,
+        code: TRAVEL_ERROR.UNSUPPORTED_MAP_TERRAIN,
+        coord: cell,
+        documentId: docId,
+        mapTerrain,
+        terrainSource,
+        owner,
+      };
+    }
+
+    return {
+      ok: true,
+      coord: cell,
+      documentId: docId,
+      mapTerrain,
+      terrain,
+      terrainSource,
+      owner,
+    };
+  }
+
+  // Convert an ordered list of map cells into v0.6 one-edge route segments.
+  // Movement cost belongs to the cell being entered (the segment destination).
+  function buildAuthoredRouteSegments(input) {
+    input = input || {};
+    if (!Array.isArray(input.routeCells) || input.routeCells.length < 2) {
+      return { ok: false, code: TRAVEL_ERROR.INVALID_ROUTE_CELLS };
+    }
+
+    const routeMilesPerStep = normalizeRouteMilesPerStep(input.routeMilesPerStep);
+    if (routeMilesPerStep === null) {
+      return { ok: false, code: TRAVEL_ERROR.INVALID_ROUTE_SCALE };
+    }
+
+    const cells = [];
+    for (let index = 0; index < input.routeCells.length; index++) {
+      const cell = normalizeAxialCoord(input.routeCells[index]);
+      if (!cell) {
+        return { ok: false, code: TRAVEL_ERROR.INVALID_ROUTE_CELLS, cellIndex: index };
+      }
+      cells.push(cell);
+    }
+
+    const routeSegments = [];
+    for (let index = 1; index < cells.length; index++) {
+      const from = cells[index - 1];
+      const to = cells[index];
+      if (axialDistance(from, to) !== 1) {
+        return {
+          ok: false,
+          code: TRAVEL_ERROR.NONCONTIGUOUS_ROUTE,
+          cellIndex: index,
+          reason: 'route-cells-not-adjacent',
+        };
+      }
+
+      const resolved = resolveAuthoredCellTerrain(to, input);
+      if (!resolved.ok) return Object.assign({}, resolved, { cellIndex: index });
+
+      routeSegments.push({
+        from,
+        to,
+        terrain: resolved.terrain,
+        mapTerrain: resolved.mapTerrain,
+        terrainSource: resolved.terrainSource,
+        enteredCellId: resolved.documentId,
+        owner: resolved.owner,
+      });
+    }
+
+    return {
+      ok: true,
+      routeMilesPerStep,
+      routeCells: cells,
+      routeSegments,
+      origin: cells[0],
+      destination: cells[cells.length - 1],
+    };
   }
 
   // Cube-coordinate distance, matching @graycloak/map-engine axialDistance().
@@ -218,14 +397,18 @@ const ADNDActivities = (function(){
       }
 
       const distanceMiles = steps * milesPerStep;
-      normalized.push({
+      const normalizedSegment = {
         index,
         from,
         to,
         steps,
         distanceMiles,
         terrain,
-      });
+      };
+      for (const key of ['mapTerrain', 'terrainSource', 'enteredCellId', 'owner']) {
+        if (segment[key] != null) normalizedSegment[key] = clonePlain(segment[key]);
+      }
+      normalized.push(normalizedSegment);
       totalDistanceMiles += distanceMiles;
       previousTo = to;
     }
@@ -465,7 +648,7 @@ const ADNDActivities = (function(){
       travelDays += segmentTravelDays;
       if (partyMovementRate === null) partyMovementRate = pace.partyMovementRate;
 
-      segments.push({
+      const calculatedSegment = {
         index: routeSegment.index,
         from: routeSegment.from,
         to: routeSegment.to,
@@ -476,7 +659,11 @@ const ADNDActivities = (function(){
         partyMovementRate: pace.partyMovementRate,
         milesPerDay: pace.milesPerDay,
         travelDays: segmentTravelDays,
-      });
+      };
+      for (const key of ['mapTerrain', 'terrainSource', 'enteredCellId', 'owner']) {
+        if (routeSegment[key] != null) calculatedSegment[key] = clonePlain(routeSegment[key]);
+      }
+      segments.push(calculatedSegment);
     }
 
     const rawTicks = travelDays * ADNDWorldClock.TICKS_PER_DAY;
@@ -493,6 +680,7 @@ const ADNDActivities = (function(){
         ruleset: 'OSRIC 3.0',
         section: '1.5.3.2 Outdoor Movement',
         routeMode: 'axial-segments',
+        routeSource: cleanId(input.routeSource),
         routeMilesPerStep: route.routeMilesPerStep,
         segmentCount: segments.length,
         distanceMiles: route.totalDistanceMiles,
@@ -714,11 +902,38 @@ const ADNDActivities = (function(){
     };
   }
 
+  function createAuthoredMapTravelPlan(input) {
+    input = input || {};
+    const route = buildAuthoredRouteSegments(input);
+    if (!route.ok) return route;
+
+    const origin = input.origin || { subHexCoord: [route.origin.Q, route.origin.R] };
+    const destination = input.destination || {
+      subHexCoord: [route.destination.Q, route.destination.R],
+    };
+
+    const request = Object.assign({}, input, {
+      routeSegments: route.routeSegments,
+      routeMilesPerStep: route.routeMilesPerStep,
+      routeSource: 'authored-map',
+      origin,
+      destination,
+    });
+    delete request.routeCells;
+    delete request.subhexes;
+    delete request.parentTerrain;
+    delete request.ownerOf;
+    delete request.terrainClasses;
+
+    return createTravelPlan(request);
+  }
+
   return {
     ACTIVITY_VERSION,
     ACTIVITY_TYPES,
     ACTIVITY_STATUS,
     TRAVEL_TERRAIN,
+    MAP_TERRAIN_TRAVEL_CLASS,
     TERRAIN_MILES_PER_MOVEMENT,
     ENCUMBRANCE_PACE,
     ENCUMBRANCE_MULTIPLIER,
@@ -727,6 +942,10 @@ const ADNDActivities = (function(){
     cleanLocationRef,
     normalizeAxialCoord,
     sameAxialCoord,
+    subhexDocumentId,
+    classifyMapTerrain,
+    resolveAuthoredCellTerrain,
+    buildAuthoredRouteSegments,
     axialDistance,
     normalizeRouteMilesPerStep,
     normalizeRouteSegments,
@@ -745,5 +964,6 @@ const ADNDActivities = (function(){
     validateActorSet,
     validateTravelRequest,
     createTravelPlan,
+    createAuthoredMapTravelPlan,
   };
 })();

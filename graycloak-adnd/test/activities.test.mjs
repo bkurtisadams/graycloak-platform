@@ -678,3 +678,206 @@ test('route-backed travel may use named place ids when coordinate endpoint valid
   assert.equal(plan.activity.system.origin.id, 'place-a');
   assert.equal(plan.activity.system.destination.id, 'place-b');
 });
+
+test('Graycloak map terrain classification is explicit and water remains unsupported', () => {
+  assert.equal(Activities.classifyMapTerrain('plains'), Activities.TRAVEL_TERRAIN.LEVEL);
+  assert.equal(Activities.classifyMapTerrain('forest'), Activities.TRAVEL_TERRAIN.RUGGED);
+  assert.equal(Activities.classifyMapTerrain('mountains'), Activities.TRAVEL_TERRAIN.VERY_RUGGED);
+  assert.equal(Activities.classifyMapTerrain('water_fresh'), null);
+
+  assert.equal(
+    Activities.classifyMapTerrain('ash_wastes', { ash_wastes: 'rugged' }),
+    Activities.TRAVEL_TERRAIN.RUGGED,
+  );
+});
+
+test('authored cell terrain prefers a subhex override over inherited parent terrain', () => {
+  const resolved = Activities.resolveAuthoredCellTerrain([11, 20], {
+    subhexes: {
+      subhex_11_20: {
+        Q: 11,
+        R: 20,
+        owner: { col: 64, row: 44 },
+        terrain: 'forest',
+      },
+    },
+    parentTerrain: {
+      '64-44': 'plains',
+    },
+  });
+
+  assert.equal(resolved.ok, true);
+  assert.equal(resolved.mapTerrain, 'forest');
+  assert.equal(resolved.terrain, Activities.TRAVEL_TERRAIN.RUGGED);
+  assert.equal(resolved.terrainSource, 'subhex-override');
+  assert.equal(resolved.documentId, 'subhex_11_20');
+});
+
+test('authored cell terrain inherits the owning parent terrain when no subhex override exists', () => {
+  const resolved = Activities.resolveAuthoredCellTerrain([12, 20], {
+    subhexes: {},
+    parentTerrain: {
+      '64-44': 'plains',
+    },
+    ownerOf(Q, R) {
+      assert.equal(Q, 12);
+      assert.equal(R, 20);
+      return { col: 64, row: 44 };
+    },
+  });
+
+  assert.equal(resolved.ok, true);
+  assert.equal(resolved.mapTerrain, 'plains');
+  assert.equal(resolved.terrain, Activities.TRAVEL_TERRAIN.LEVEL);
+  assert.equal(resolved.terrainSource, 'parent-inherited');
+  assert.equal(resolved.owner.col, 64);
+});
+
+test('authored lake cells become water and are rejected by pedestrian travel classification', () => {
+  const resolved = Activities.resolveAuthoredCellTerrain([11, 20], {
+    subhexes: {
+      subhex_11_20: {
+        Q: 11,
+        R: 20,
+        owner: { col: 64, row: 44 },
+        terrain: 'plains',
+        lakeId: 'lake-glasspool',
+      },
+    },
+    parentTerrain: {
+      '64-44': 'plains',
+    },
+  });
+
+  assert.equal(resolved.ok, false);
+  assert.equal(resolved.code, Activities.TRAVEL_ERROR.UNSUPPORTED_MAP_TERRAIN);
+  assert.equal(resolved.mapTerrain, 'water_fresh');
+  assert.equal(resolved.terrainSource, 'lake');
+});
+
+test('authored route construction assigns each segment the terrain of the cell being entered', () => {
+  const route = Activities.buildAuthoredRouteSegments({
+    routeMilesPerStep: 3,
+    routeCells: [[10, 20], [11, 20], [12, 20]],
+    subhexes: {
+      subhex_11_20: {
+        Q: 11,
+        R: 20,
+        owner: { col: 64, row: 44 },
+        terrain: 'forest',
+      },
+      subhex_12_20: {
+        Q: 12,
+        R: 20,
+        owner: { col: 64, row: 44 },
+        terrain: 'mountains',
+      },
+    },
+    parentTerrain: {
+      '64-44': 'plains',
+    },
+  });
+
+  assert.equal(route.ok, true);
+  assert.equal(route.routeSegments.length, 2);
+  assert.equal(route.routeSegments[0].terrain, Activities.TRAVEL_TERRAIN.RUGGED);
+  assert.equal(route.routeSegments[0].mapTerrain, 'forest');
+  assert.equal(route.routeSegments[0].enteredCellId, 'subhex_11_20');
+  assert.equal(route.routeSegments[1].terrain, Activities.TRAVEL_TERRAIN.VERY_RUGGED);
+  assert.equal(route.routeSegments[1].mapTerrain, 'mountains');
+  assert.equal(route.origin.Q, 10);
+  assert.equal(route.destination.Q, 12);
+});
+
+test('authored route construction rejects route-cell jumps before terrain lookup', () => {
+  const route = Activities.buildAuthoredRouteSegments({
+    routeMilesPerStep: 3,
+    routeCells: [[10, 20], [12, 20]],
+    subhexes: {},
+    parentTerrain: {},
+  });
+
+  assert.equal(route.ok, false);
+  assert.equal(route.code, Activities.TRAVEL_ERROR.NONCONTIGUOUS_ROUTE);
+  assert.equal(route.reason, 'route-cells-not-adjacent');
+  assert.equal(route.cellIndex, 1);
+});
+
+test('authored route construction reports a missing terrain cell explicitly', () => {
+  const route = Activities.buildAuthoredRouteSegments({
+    routeMilesPerStep: 3,
+    routeCells: [[10, 20], [11, 20]],
+    subhexes: {},
+    parentTerrain: {},
+    ownerOf() { return { col: 64, row: 44 }; },
+  });
+
+  assert.equal(route.ok, false);
+  assert.equal(route.code, Activities.TRAVEL_ERROR.MISSING_MAP_TERRAIN);
+  assert.equal(route.cellIndex, 1);
+  assert.equal(route.documentId, 'subhex_11_20');
+});
+
+test('authored map travel plan converts loaded map cells directly into a mixed-terrain Activity', () => {
+  const plan = Activities.createAuthoredMapTravelPlan({
+    id: 'travel-authored-map',
+    campaignId: 'campaign-1',
+    actors: [currentActor('char-val', 100)],
+    worldTick: 100,
+    routeMilesPerStep: 3,
+    routeCells: [[10, 20], [11, 20], [12, 20]],
+    subhexes: {
+      subhex_11_20: {
+        Q: 11,
+        R: 20,
+        owner: { col: 64, row: 44 },
+        terrain: 'plains',
+      },
+      subhex_12_20: {
+        Q: 12,
+        R: 20,
+        owner: { col: 64, row: 44 },
+        terrain: 'forest',
+      },
+    },
+    parentTerrain: {
+      '64-44': 'plains',
+    },
+    movementProfiles: {
+      'char-val': { movementRate: 120 },
+    },
+  });
+
+  assert.equal(plan.ok, true);
+  assert.equal(plan.activity.system.origin.subHexCoord[0], 10);
+  assert.equal(plan.activity.system.destination.subHexCoord[0], 12);
+  assert.equal(plan.activity.system.outdoorTravel.routeSource, 'authored-map');
+  assert.equal(plan.activity.system.outdoorTravel.distanceMiles, 6);
+  assert.equal(plan.activity.system.outdoorTravel.segments[0].mapTerrain, 'plains');
+  assert.equal(plan.activity.system.outdoorTravel.segments[0].terrainSource, 'subhex-override');
+  assert.equal(plan.activity.system.outdoorTravel.segments[1].mapTerrain, 'forest');
+  assert.equal(plan.activity.system.outdoorTravel.segments[1].terrain, 'rugged');
+  assert.equal(plan.activity.system.durationTicks, 4200);
+});
+
+test('authored map travel can inherit terrain for unauthored cells through ownerOf', () => {
+  const plan = Activities.createAuthoredMapTravelPlan({
+    id: 'travel-inherited-map',
+    campaignId: 'campaign-1',
+    actors: [currentActor('char-val', 100)],
+    worldTick: 100,
+    routeMilesPerStep: 3,
+    routeCells: [[10, 20], [11, 20]],
+    subhexes: {},
+    parentTerrain: { '64-44': 'plains' },
+    ownerOf() { return { col: 64, row: 44 }; },
+    movementProfiles: {
+      'char-val': { movementRate: 120 },
+    },
+  });
+
+  assert.equal(plan.ok, true);
+  assert.equal(plan.activity.system.outdoorTravel.segments[0].mapTerrain, 'plains');
+  assert.equal(plan.activity.system.outdoorTravel.segments[0].terrainSource, 'parent-inherited');
+  assert.equal(plan.activity.system.durationTicks, 1800);
+});
