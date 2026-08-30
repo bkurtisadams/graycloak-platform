@@ -428,3 +428,253 @@ test('caller system metadata cannot override canonical calculated travel fields'
   assert.equal(plan.activity.system.durationSource, Activities.TRAVEL_DURATION_SOURCE.OSRIC_OUTDOOR);
   assert.equal(plan.activity.system.outdoorTravel.distanceMiles, 12);
 });
+
+
+test('axial route distance accepts currentLocation/subHexCoord shapes', () => {
+  assert.equal(Activities.axialDistance([10, 20], [11, 20]), 1);
+  assert.equal(
+    Activities.axialDistance(
+      { subHexCoord: [10, 20] },
+      { Q: 12, R: 19 },
+    ),
+    2,
+  );
+});
+
+test('route normalization derives map distance from adjacent axial segments', () => {
+  const route = Activities.normalizeRouteSegments([
+    {
+      from: { subHexCoord: [10, 20] },
+      to: [11, 20],
+      terrain: Activities.TRAVEL_TERRAIN.LEVEL,
+    },
+    {
+      from: [11, 20],
+      to: { Q: 12, R: 20 },
+      terrain: Activities.TRAVEL_TERRAIN.RUGGED,
+    },
+  ], 3);
+
+  assert.equal(route.ok, true);
+  assert.equal(route.routeMilesPerStep, 3);
+  assert.equal(route.segments.length, 2);
+  assert.equal(route.segments[0].distanceMiles, 3);
+  assert.equal(route.segments[1].distanceMiles, 3);
+  assert.equal(route.totalDistanceMiles, 6);
+  assert.equal(route.origin.Q, 10);
+  assert.equal(route.destination.Q, 12);
+});
+
+test('route normalization rejects non-adjacent or broken segment chains', () => {
+  const skippedCell = Activities.normalizeRouteSegments([
+    {
+      from: [10, 20],
+      to: [12, 20],
+      terrain: Activities.TRAVEL_TERRAIN.LEVEL,
+    },
+  ], 3);
+  assert.equal(skippedCell.ok, false);
+  assert.equal(skippedCell.code, Activities.TRAVEL_ERROR.NONCONTIGUOUS_ROUTE);
+  assert.equal(skippedCell.reason, 'segment-not-adjacent');
+
+  const brokenChain = Activities.normalizeRouteSegments([
+    {
+      from: [10, 20],
+      to: [11, 20],
+      terrain: Activities.TRAVEL_TERRAIN.LEVEL,
+    },
+    {
+      from: [12, 20],
+      to: [13, 20],
+      terrain: Activities.TRAVEL_TERRAIN.LEVEL,
+    },
+  ], 3);
+  assert.equal(brokenChain.ok, false);
+  assert.equal(brokenChain.code, Activities.TRAVEL_ERROR.NONCONTIGUOUS_ROUTE);
+  assert.equal(brokenChain.reason, 'segment-chain-break');
+});
+
+test('route normalization requires the map layer to supply a positive miles-per-step scale', () => {
+  const segments = [{
+    from: [10, 20],
+    to: [11, 20],
+    terrain: Activities.TRAVEL_TERRAIN.LEVEL,
+  }];
+
+  assert.equal(
+    Activities.normalizeRouteSegments(segments, null).code,
+    Activities.TRAVEL_ERROR.INVALID_ROUTE_SCALE,
+  );
+  assert.equal(
+    Activities.normalizeRouteSegments(segments, 0).code,
+    Activities.TRAVEL_ERROR.INVALID_ROUTE_SCALE,
+  );
+});
+
+test('mixed-terrain route duration sums per-segment OSRIC travel time', () => {
+  const result = Activities.calculateRouteTravelDuration({
+    routeMilesPerStep: 3,
+    routeSegments: [
+      {
+        from: [10, 20],
+        to: [11, 20],
+        terrain: Activities.TRAVEL_TERRAIN.LEVEL,
+      },
+      {
+        from: [11, 20],
+        to: [12, 20],
+        terrain: Activities.TRAVEL_TERRAIN.RUGGED,
+      },
+    ],
+    movementProfiles: {
+      'char-val': { movementRate: 120 },
+    },
+  }, [currentActor('char-val')]);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.durationSource, Activities.TRAVEL_DURATION_SOURCE.OSRIC_OUTDOOR_ROUTE);
+  assert.equal(result.outdoorTravel.distanceMiles, 6);
+  assert.equal(result.outdoorTravel.segmentCount, 2);
+  assert.equal(result.outdoorTravel.segments[0].milesPerDay, 24);
+  assert.equal(result.outdoorTravel.segments[1].milesPerDay, 18);
+  assert.ok(Math.abs(result.outdoorTravel.travelDays - (7 / 24)) < Number.EPSILON * 4);
+  assert.equal(result.durationTicks, 4200);
+});
+
+test('createTravelPlan records a map-derived mixed-terrain route', () => {
+  const plan = Activities.createTravelPlan({
+    id: 'travel-route-calculated',
+    campaignId: 'campaign-1',
+    actors: [currentActor('char-val', 100)],
+    worldTick: 100,
+    routeMilesPerStep: 3,
+    routeSegments: [
+      {
+        from: origin,
+        to: destination,
+        terrain: Activities.TRAVEL_TERRAIN.LEVEL,
+      },
+      {
+        from: destination,
+        to: { subHexCoord: [12, 20] },
+        terrain: Activities.TRAVEL_TERRAIN.RUGGED,
+      },
+    ],
+    movementProfiles: {
+      'char-val': { movementRate: 120 },
+    },
+    origin,
+    destination: { regionalHexId: 'D4-86', subHexCoord: [12, 20] },
+  });
+
+  assert.equal(plan.ok, true);
+  assert.equal(
+    plan.activity.system.durationSource,
+    Activities.TRAVEL_DURATION_SOURCE.OSRIC_OUTDOOR_ROUTE,
+  );
+  assert.equal(plan.activity.system.durationTicks, 4200);
+  assert.equal(plan.activity.system.outdoorTravel.routeMode, 'axial-segments');
+  assert.equal(plan.activity.system.outdoorTravel.routeMilesPerStep, 3);
+  assert.equal(plan.activity.system.outdoorTravel.segmentCount, 2);
+  assert.equal(plan.activity.system.outdoorTravel.distanceMiles, 6);
+  assert.equal(plan.activity.system.outdoorTravel.segments[1].terrain, 'rugged');
+  assert.equal(plan.activity.availableAtTick, 4300);
+});
+
+test('manual duration still overrides route calculation and route validation', () => {
+  const plan = Activities.createTravelPlan({
+    id: 'travel-route-manual',
+    campaignId: 'campaign-1',
+    actors: [currentActor('char-val', 100)],
+    worldTick: 100,
+    durationTicks: 50,
+    routeSegments: [{ definitely: 'not-a-valid-segment' }],
+    origin,
+    destination,
+  });
+
+  assert.equal(plan.ok, true);
+  assert.equal(plan.activity.system.durationSource, Activities.TRAVEL_DURATION_SOURCE.MANUAL);
+  assert.equal(plan.activity.system.durationTicks, 50);
+  assert.equal(Object.prototype.hasOwnProperty.call(plan.activity.system, 'outdoorTravel'), false);
+});
+
+test('single-terrain distance travel remains backward compatible after route support', () => {
+  const result = Activities.calculateOutdoorTravelDuration({
+    distanceMiles: 12,
+    terrain: Activities.TRAVEL_TERRAIN.LEVEL,
+    movementProfiles: {
+      'char-val': { movementRate: 120 },
+    },
+  }, [currentActor('char-val')]);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.durationSource, Activities.TRAVEL_DURATION_SOURCE.OSRIC_OUTDOOR);
+  assert.equal(result.durationTicks, Clock.TICKS_PER_DAY / 2);
+});
+
+
+test('route-backed travel rejects structured origin or destination that disagrees with route endpoints', () => {
+  const actor = currentActor('char-val', 100);
+  const base = {
+    id: 'travel-route-endpoint-check',
+    campaignId: 'campaign-1',
+    actors: [actor],
+    worldTick: 100,
+    routeMilesPerStep: 3,
+    routeSegments: [
+      {
+        from: [10, 20],
+        to: [11, 20],
+        terrain: Activities.TRAVEL_TERRAIN.LEVEL,
+      },
+    ],
+    movementProfiles: {
+      'char-val': { movementRate: 120 },
+    },
+  };
+
+  const badOrigin = Activities.createTravelPlan({
+    ...base,
+    origin: { subHexCoord: [9, 20] },
+    destination: { subHexCoord: [11, 20] },
+  });
+  assert.equal(badOrigin.ok, false);
+  assert.equal(badOrigin.code, Activities.TRAVEL_ERROR.ROUTE_ENDPOINT_MISMATCH);
+  assert.equal(badOrigin.endpoint, 'origin');
+
+  const badDestination = Activities.createTravelPlan({
+    ...base,
+    origin: { subHexCoord: [10, 20] },
+    destination: { subHexCoord: [12, 20] },
+  });
+  assert.equal(badDestination.ok, false);
+  assert.equal(badDestination.code, Activities.TRAVEL_ERROR.ROUTE_ENDPOINT_MISMATCH);
+  assert.equal(badDestination.endpoint, 'destination');
+});
+
+test('route-backed travel may use named place ids when coordinate endpoint validation is unavailable', () => {
+  const plan = Activities.createTravelPlan({
+    id: 'travel-route-place-ids',
+    campaignId: 'campaign-1',
+    actors: [currentActor('char-val', 100)],
+    worldTick: 100,
+    routeMilesPerStep: 3,
+    routeSegments: [
+      {
+        from: [10, 20],
+        to: [11, 20],
+        terrain: Activities.TRAVEL_TERRAIN.LEVEL,
+      },
+    ],
+    movementProfiles: {
+      'char-val': { movementRate: 120 },
+    },
+    origin: 'place-a',
+    destination: 'place-b',
+  });
+
+  assert.equal(plan.ok, true);
+  assert.equal(plan.activity.system.origin.id, 'place-a');
+  assert.equal(plan.activity.system.destination.id, 'place-b');
+});

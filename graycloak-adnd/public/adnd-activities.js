@@ -1,14 +1,16 @@
-// adnd-activities.js v0.5.0 — 2026-08-30
+// adnd-activities.js v0.6.0 — 2026-08-30
 // Pure Activity/travel planning primitives for Graycloak's shared world clock.
 //
-// v0.5 adds OSRIC 3 outdoor hiking-duration calculation from movement rate,
-// encumbrance pace, armour cap, terrain, and distance. It still does not write
-// Firestore, move Actors, advance campaign time, roll encounters, or resolve
-// completed Activities.
+// v0.6 adds explicit axial route segments and map-derived distance. The map
+// layer remains the authority for scale and supplies routeMilesPerStep (for the
+// current subhex map this is @graycloak/map-engine SCALES.subhex.milesAcross).
+// Mixed-terrain route time is the sum of each segment's OSRIC outdoor travel
+// time. This file still does not pathfind, write Firestore, move Actors, advance
+// campaign time, roll encounters, or resolve completed Activities.
 const ADNDActivities = (function(){
   'use strict';
 
-  const ACTIVITY_VERSION = 2;
+  const ACTIVITY_VERSION = 3;
   const ACTIVITY_TYPES = Object.freeze({
     TRAVEL: 'travel',
   });
@@ -45,6 +47,7 @@ const ADNDActivities = (function(){
   const TRAVEL_DURATION_SOURCE = Object.freeze({
     MANUAL: 'manual',
     OSRIC_OUTDOOR: 'osric-outdoor',
+    OSRIC_OUTDOOR_ROUTE: 'osric-outdoor-route',
   });
   const TRAVEL_ERROR = Object.freeze({
     INVALID_REQUEST: 'invalid-request',
@@ -55,6 +58,11 @@ const ADNDActivities = (function(){
     INVALID_DURATION: 'invalid-duration',
     INVALID_DISTANCE: 'invalid-distance',
     INVALID_TERRAIN: 'invalid-terrain',
+    INVALID_ROUTE: 'invalid-route',
+    INVALID_ROUTE_SEGMENT: 'invalid-route-segment',
+    INVALID_ROUTE_SCALE: 'invalid-route-scale',
+    NONCONTIGUOUS_ROUTE: 'noncontiguous-route',
+    ROUTE_ENDPOINT_MISMATCH: 'route-endpoint-mismatch',
     INVALID_MOVEMENT_PROFILE: 'invalid-movement-profile',
     INVALID_MOVEMENT_RATE: 'invalid-movement-rate',
     INVALID_ENCUMBRANCE_PACE: 'invalid-encumbrance-pace',
@@ -104,6 +112,132 @@ const ADNDActivities = (function(){
 
   function normalizeNonnegativeFinite(value) {
     return Number.isFinite(value) && value >= 0 ? value : null;
+  }
+
+  function normalizeAxialCoord(value) {
+    let Q = null;
+    let R = null;
+
+    if (Array.isArray(value) && value.length >= 2) {
+      Q = value[0];
+      R = value[1];
+    } else if (isPlainObject(value)) {
+      if (Array.isArray(value.subHexCoord) && value.subHexCoord.length >= 2) {
+        Q = value.subHexCoord[0];
+        R = value.subHexCoord[1];
+      } else {
+        Q = value.Q;
+        R = value.R;
+      }
+    }
+
+    if (!Number.isSafeInteger(Q) || !Number.isSafeInteger(R)) return null;
+    return { Q, R };
+  }
+
+  function sameAxialCoord(a, b) {
+    const aa = normalizeAxialCoord(a);
+    const bb = normalizeAxialCoord(b);
+    return !!aa && !!bb && aa.Q === bb.Q && aa.R === bb.R;
+  }
+
+  // Cube-coordinate distance, matching @graycloak/map-engine axialDistance().
+  // Geometry owns the miles-per-step scale; Activities only consumes the
+  // supplied scale so this classic-script runtime does not duplicate map scale.
+  function axialDistance(a, b) {
+    const aa = normalizeAxialCoord(a);
+    const bb = normalizeAxialCoord(b);
+    if (!aa || !bb) return null;
+    const dQ = aa.Q - bb.Q;
+    const dR = aa.R - bb.R;
+    return Math.max(Math.abs(dQ), Math.abs(dR), Math.abs(dQ + dR));
+  }
+
+  function normalizeRouteMilesPerStep(value) {
+    return normalizePositiveFinite(value);
+  }
+
+  function normalizeRouteSegments(routeSegments, routeMilesPerStep) {
+    if (!Array.isArray(routeSegments) || routeSegments.length === 0) {
+      return { ok: false, code: TRAVEL_ERROR.INVALID_ROUTE };
+    }
+
+    const milesPerStep = normalizeRouteMilesPerStep(routeMilesPerStep);
+    if (milesPerStep === null) {
+      return { ok: false, code: TRAVEL_ERROR.INVALID_ROUTE_SCALE };
+    }
+
+    const normalized = [];
+    let totalDistanceMiles = 0;
+    let previousTo = null;
+
+    for (let index = 0; index < routeSegments.length; index++) {
+      const segment = routeSegments[index];
+      if (!isPlainObject(segment)) {
+        return { ok: false, code: TRAVEL_ERROR.INVALID_ROUTE_SEGMENT, segmentIndex: index };
+      }
+
+      const from = normalizeAxialCoord(segment.from);
+      const to = normalizeAxialCoord(segment.to);
+      const terrain = normalizeTerrain(segment.terrain);
+      if (!from || !to) {
+        return {
+          ok: false,
+          code: TRAVEL_ERROR.INVALID_ROUTE_SEGMENT,
+          segmentIndex: index,
+        };
+      }
+      if (!terrain) {
+        return {
+          ok: false,
+          code: TRAVEL_ERROR.INVALID_TERRAIN,
+          segmentIndex: index,
+        };
+      }
+
+      const steps = axialDistance(from, to);
+      // A route segment represents one entered map cell. Requiring adjacency
+      // keeps terrain attribution exact and prevents a "rugged" long segment
+      // from silently skipping intervening terrain.
+      if (steps !== 1) {
+        return {
+          ok: false,
+          code: TRAVEL_ERROR.NONCONTIGUOUS_ROUTE,
+          segmentIndex: index,
+          reason: 'segment-not-adjacent',
+        };
+      }
+
+      if (previousTo && !sameAxialCoord(previousTo, from)) {
+        return {
+          ok: false,
+          code: TRAVEL_ERROR.NONCONTIGUOUS_ROUTE,
+          segmentIndex: index,
+          reason: 'segment-chain-break',
+        };
+      }
+
+      const distanceMiles = steps * milesPerStep;
+      normalized.push({
+        index,
+        from,
+        to,
+        steps,
+        distanceMiles,
+        terrain,
+      });
+      totalDistanceMiles += distanceMiles;
+      previousTo = to;
+    }
+
+    return {
+      ok: true,
+      routeMilesPerStep: milesPerStep,
+      totalDistanceMiles,
+      segments: normalized,
+      origin: normalized[0].from,
+      destination: normalized[normalized.length - 1].to,
+    };
   }
 
   function normalizeTerrain(value) {
@@ -308,6 +442,69 @@ const ADNDActivities = (function(){
     };
   }
 
+  function calculateRouteTravelDuration(input, actors) {
+    input = input || {};
+    const route = normalizeRouteSegments(input.routeSegments, input.routeMilesPerStep);
+    if (!route.ok) return route;
+
+    let travelDays = 0;
+    let partyMovementRate = null;
+    const segments = [];
+
+    for (const routeSegment of route.segments) {
+      const pace = resolvePartyTravelPace(
+        actors,
+        input.movementProfiles,
+        routeSegment.terrain,
+      );
+      if (!pace.ok) {
+        return Object.assign({}, pace, { segmentIndex: routeSegment.index });
+      }
+
+      const segmentTravelDays = routeSegment.distanceMiles / pace.milesPerDay;
+      travelDays += segmentTravelDays;
+      if (partyMovementRate === null) partyMovementRate = pace.partyMovementRate;
+
+      segments.push({
+        index: routeSegment.index,
+        from: routeSegment.from,
+        to: routeSegment.to,
+        steps: routeSegment.steps,
+        distanceMiles: routeSegment.distanceMiles,
+        terrain: routeSegment.terrain,
+        terrainFactor: pace.terrainFactor,
+        partyMovementRate: pace.partyMovementRate,
+        milesPerDay: pace.milesPerDay,
+        travelDays: segmentTravelDays,
+      });
+    }
+
+    const rawTicks = travelDays * ADNDWorldClock.TICKS_PER_DAY;
+    if (!Number.isFinite(rawTicks) || rawTicks > Number.MAX_SAFE_INTEGER) {
+      return { ok: false, code: TRAVEL_ERROR.TICK_OVERFLOW };
+    }
+    const durationTicks = Math.max(1, Math.ceil(rawTicks));
+
+    return {
+      ok: true,
+      durationTicks,
+      durationSource: TRAVEL_DURATION_SOURCE.OSRIC_OUTDOOR_ROUTE,
+      outdoorTravel: {
+        ruleset: 'OSRIC 3.0',
+        section: '1.5.3.2 Outdoor Movement',
+        routeMode: 'axial-segments',
+        routeMilesPerStep: route.routeMilesPerStep,
+        segmentCount: segments.length,
+        distanceMiles: route.totalDistanceMiles,
+        partyMovementRate,
+        travelDays,
+        origin: route.origin,
+        destination: route.destination,
+        segments,
+      },
+    };
+  }
+
   function resolveTravelDuration(input, actors) {
     input = input || {};
     if (input.durationTicks != null) {
@@ -321,6 +518,9 @@ const ADNDActivities = (function(){
         durationSource: TRAVEL_DURATION_SOURCE.MANUAL,
         outdoorTravel: null,
       };
+    }
+    if (input.routeSegments != null) {
+      return calculateRouteTravelDuration(input, actors);
     }
     return calculateOutdoorTravelDuration(input, actors);
   }
@@ -423,6 +623,28 @@ const ADNDActivities = (function(){
       });
     }
 
+    if (duration.outdoorTravel &&
+        duration.outdoorTravel.routeMode === 'axial-segments') {
+      const requestedOrigin = normalizeAxialCoord(origin);
+      const requestedDestination = normalizeAxialCoord(destination);
+      if (requestedOrigin &&
+          !sameAxialCoord(requestedOrigin, duration.outdoorTravel.origin)) {
+        return {
+          ok: false,
+          code: TRAVEL_ERROR.ROUTE_ENDPOINT_MISMATCH,
+          endpoint: 'origin',
+        };
+      }
+      if (requestedDestination &&
+          !sameAxialCoord(requestedDestination, duration.outdoorTravel.destination)) {
+        return {
+          ok: false,
+          code: TRAVEL_ERROR.ROUTE_ENDPOINT_MISMATCH,
+          endpoint: 'destination',
+        };
+      }
+    }
+
     const availableAtTick = ADNDWorldClock.addTicks(worldTick, duration.durationTicks);
     if (availableAtTick === null) {
       return { ok: false, code: TRAVEL_ERROR.TICK_OVERFLOW };
@@ -503,6 +725,11 @@ const ADNDActivities = (function(){
     TRAVEL_DURATION_SOURCE,
     TRAVEL_ERROR,
     cleanLocationRef,
+    normalizeAxialCoord,
+    sameAxialCoord,
+    axialDistance,
+    normalizeRouteMilesPerStep,
+    normalizeRouteSegments,
     normalizeTerrain,
     normalizeEncumbrancePace,
     resolveMovementProfile,
@@ -510,6 +737,7 @@ const ADNDActivities = (function(){
     resolvePartyTravelPace,
     calculateTravelDurationTicks,
     calculateOutdoorTravelDuration,
+    calculateRouteTravelDuration,
     resolveTravelDuration,
     activityCompletionTick,
     isTravelActivity,
