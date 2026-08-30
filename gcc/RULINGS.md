@@ -99,7 +99,10 @@ Status key: **RULING** — a choice between readings, or a rule the book does no
 - **[15.1] Altitude is a level, not a height.** `u.altitude` is 0 ground, 1 low (30′/1″), 2 medium (120′/4″), 3 high (240′/8″). Rising one level costs ⅓ of the figure's flying rate; descending any number of levels is free; a flyer that climbs past 8″ has left the battlefield and is removed from play, which the rule notes is a legitimate escape. v0.62.0.
 - **[15.2]** A unit that takes to the air leaves closed formation automatically; closed is legal only on the ground. v0.62.0.
 - **[15.3]** A ground unit attacked from the air suffers a +2 AC penalty, itemised in the melee line. A unit firing while airborne treats short range as medium and medium as long; fly spells and carpets of flying are exempt. A **winged** flyer that takes any hit dice of damage lands at once and may spend ⅓ its rate doing so even after a full move — innate and magical flight are exempt — and a flyer carrying a Wound marker cannot take flight again. v0.62.0.
-- **Not yet built:** [15.1] Maneuverability Class turn limits (the class is recorded on the roster but not enforced, and the D&D size-based alternative is not implemented), [15.4] bombing, and any board display of altitude.
+- **Maneuverability Class (DMG, adopted by [15.1] for the AD&D game).** A–E turn 180/120/90/60/30° per Game Round, enforced against an airborne unit's facing changes with a per-round budget. Half speed or less turns as one class better; a mounted flyer and one carrying bombs [15.4] as one class worse. v0.62.1.
+- **Climb, dive and flight rate (DMG).** An airborne unit moves at its flying rate, climbs at half of it and dives at twice; class A is exempt from the geometry. A unit that descends is diving for the round, and a diving physical attack does double damage unless its target is also diving. v0.62.1.
+- **[15.3]/DMG** Missile fire from the air at long range always misses — the band shift alone does not capture this. v0.62.1.
+- **Not yet built:** the D&D size-based turn table (the alternative to MC), [15.4] bombing, the DMG 50%/75% wing-damage rules (BS [15.3]'s any-damage landing rule supersedes them for BATTLESYSTEM play), dragon breath vs moving aerial targets (+2 to saves), and any board display of altitude.
 
 ## §12 Conditions
 
