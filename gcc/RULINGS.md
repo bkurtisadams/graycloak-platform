@@ -100,6 +100,8 @@ Status key: **RULING** — a choice between readings, or a rule the book does no
 
 ## Board lifecycle (not rules)
 
+- **Playing area size.** The table is resizable (Table: button beside Grid; presets and a custom WIDTHxDEPTH, 24–600″). The size lives in the scenario, so it is saved, snapshotted, published and restored on load; Reset returns to the 6′×4′ default. Published scenarios drawn at 3″ per map square need it — Battle at the Crossroads is 90″×48″. v0.61.7.
+
 - **Reset** clears the board. **↩ Setup** returns a live battle to deployment keeping positions, losses, ammunition and spent magic (one Undo). **↺ Restart** (v0.61.6) restores the deployment as it stood at Begin battle (one Undo); a battle begun before the snapshot existed is restored to full strength in place.
 
 ## Open items
