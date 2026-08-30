@@ -1,10 +1,30 @@
 {
+  "functions": {
+    "source": ".",
+    "runtime": "nodejs22",
+    "ignore": [
+      "node_modules",
+      ".git",
+      "firebase-debug.log",
+      "firebase-debug.*.log",
+      "test",
+      "docs"
+    ]
+  },
   "hosting": [
     {
       "target": "adnd",
       "public": "public",
       "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
       "rewrites": [
+        {
+          "source": "/api/commands/begin-travel",
+          "function": {
+            "functionId": "beginTravel",
+            "region": "us-central1",
+            "pinTag": true
+          }
+        },
         { "source": "**", "destination": "/index.html" }
       ],
       "headers": [

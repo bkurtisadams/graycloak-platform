@@ -3,3 +3,6 @@ packages:
   - 'gcc'
   - 'graycloak-adnd'
   - 'editor'
+allowBuilds:
+  '@firebase/util': true
+  protobufjs: true
