@@ -1,4 +1,5 @@
-// adnd-documents.js v0.2.0 — 2026-08-29
+// adnd-documents.js v0.3.0 — 2026-08-30
+// v0.3.0 — world-time fields now accept only non-negative safe-integer ticks.
 // v0.2.0 — Actor runtime integration support: normalization now preserves
 //          non-plain objects such as Firestore Timestamp/FieldValue instances.
 // Graycloak's lightweight Foundry-inspired document contract.
@@ -44,6 +45,10 @@ const ADNDDocuments = (function(){
     return String(value);
   }
 
+  function cleanTick(value) {
+    return Number.isSafeInteger(value) && value >= 0 ? value : null;
+  }
+
   function baseDocument(input, documentType) {
     input = input || {};
     return {
@@ -61,8 +66,8 @@ const ADNDDocuments = (function(){
   function actorRuntime(runtime) {
     runtime = runtime || {};
     return {
-      lastResolvedTick: Number.isFinite(runtime.lastResolvedTick) ? runtime.lastResolvedTick : null,
-      availableAtTick: Number.isFinite(runtime.availableAtTick) ? runtime.availableAtTick : null,
+      lastResolvedTick: cleanTick(runtime.lastResolvedTick),
+      availableAtTick: cleanTick(runtime.availableAtTick),
       activityId: cleanId(runtime.activityId),
     };
   }
@@ -94,8 +99,8 @@ const ADNDDocuments = (function(){
       type: input.type || 'effect',
       ownerActorId: cleanId(input.ownerActorId),
       sourceDocumentId: cleanId(input.sourceDocumentId),
-      startsAtTick: Number.isFinite(input.startsAtTick) ? input.startsAtTick : null,
-      expiresAtTick: Number.isFinite(input.expiresAtTick) ? input.expiresAtTick : null,
+      startsAtTick: cleanTick(input.startsAtTick),
+      expiresAtTick: cleanTick(input.expiresAtTick),
       disabled: input.disabled === true,
       system: clonePlain(input.system || {}),
     });
@@ -106,8 +111,8 @@ const ADNDDocuments = (function(){
     return Object.assign({}, clonePlain(input), baseDocument(input, DOCUMENT_TYPES.ACTIVITY), {
       type: input.type || 'activity',
       actorIds: Array.isArray(input.actorIds) ? input.actorIds.map(String) : [],
-      startedAtTick: Number.isFinite(input.startedAtTick) ? input.startedAtTick : null,
-      availableAtTick: Number.isFinite(input.availableAtTick) ? input.availableAtTick : null,
+      startedAtTick: cleanTick(input.startedAtTick),
+      availableAtTick: cleanTick(input.availableAtTick),
       status: input.status || 'pending',
       system: clonePlain(input.system || {}),
     });
@@ -119,7 +124,7 @@ const ADNDDocuments = (function(){
       type: input.type || 'event',
       actorId: cleanId(input.actorId),
       targetIds: Array.isArray(input.targetIds) ? input.targetIds.map(String) : [],
-      worldTick: Number.isFinite(input.worldTick) ? input.worldTick : null,
+      worldTick: cleanTick(input.worldTick),
       rulesVersion: input.rulesVersion || null,
       commandId: cleanId(input.commandId),
       data: clonePlain(input.data || {}),
@@ -147,6 +152,7 @@ const ADNDDocuments = (function(){
     SCHEMA_VERSION,
     DOCUMENT_TYPES,
     ACTOR_TYPES,
+    cleanTick,
     actorRuntime,
     createActor,
     createItem,

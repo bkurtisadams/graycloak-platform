@@ -1,4 +1,4 @@
-# Graycloak Document Model v0.2
+# Graycloak Document Model v0.3
 
 Graycloak uses a Foundry-inspired document model for game objects that have their own identity and lifecycle. This is an **application contract**, not a requirement that every record live in one Firestore collection.
 
@@ -37,7 +37,7 @@ Living or independently acting game entities:
 - `animal`
 - `monster`
 
-The existing `characters/{id}` collection remains the physical storage for PCs in v0.2. New characters are stamped `documentType: "actor"` and `type: "character"`. Existing character records can be normalized on read and do not require a destructive migration.
+The existing `characters/{id}` collection remains the physical storage for PCs. New characters are stamped `documentType: "actor"` and `type: "character"`. Existing character records can be normalized on read and do not require a destructive migration.
 
 Actor runtime metadata reserves three time fields:
 
@@ -45,7 +45,7 @@ Actor runtime metadata reserves three time fields:
 - `availableAtTick`
 - `activityId`
 
-These do **not** create private character timelines. They are bookkeeping against one future authoritative campaign `worldTick`.
+These do **not** create private character timelines. v0.3 defines them against one shared campaign `worldTick`; see `docs/world-clock.md`. Tick values are non-negative safe integers, with one tick equal to one six-second OSRIC combat segment.
 
 ### Item
 
@@ -53,7 +53,7 @@ An owned or world item instance. `definitionId` identifies what the rules/conten
 
 Example: `definitionId: "long-sword"`, `id: "item-..."`, `ownerActorId: "char-..."`.
 
-The v0.2 change does not migrate the existing `equipment` array. Item persistence should be introduced when inventory becomes an active gameplay system.
+The current Document-model work does not migrate the existing `equipment` array. Item persistence should be introduced when inventory becomes an active gameplay system.
 
 ### ActiveEffect
 
@@ -67,18 +67,7 @@ A time-spanning commitment such as travel, training, resting, research, or const
 
 An immutable audit/history record for authoritative outcomes such as character creation, travel, damage, spell casting, XP awards, death, and world-clock advancement.
 
-The v0.2 model defines the shape only. It does not yet create an event collection or move authority out of the browser.
-
-
-## Actor runtime integration (v0.2)
-
-Character records are normalized at the runtime read boundary before map or other character-facing code consumes them. This establishes a simple invariant: downstream runtime code sees an Actor-shaped character whether the Firestore record predates the Document model or was created by current chargen.
-
-Normalization is in-memory compatibility, not a migration. Reading an old character does not write it back to Firestore or change its collection.
-
-The normalization helper also preserves non-plain runtime values such as Firestore `Timestamp` and `FieldValue` objects rather than recursively converting them into plain objects.
-
-There is not yet a separate character-selection loader. When one is introduced, it should normalize records at the same boundary rather than duplicating legacy-shape checks in the UI.
+The Document model defines the shape only. It does not yet create an event collection or move authority out of the browser.
 
 ## Definition versus instance
 
@@ -92,7 +81,7 @@ The same principle can later apply to monsters, spells, abilities, settlements, 
 
 ## Migration policy
 
-v0.2 remains intentionally additive:
+The migration policy remains intentionally additive:
 
 1. Existing Firestore collections remain in place.
 2. Existing character fields remain in place.

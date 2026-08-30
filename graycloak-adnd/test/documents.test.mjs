@@ -115,3 +115,24 @@ test('game events keep references and rules version together', () => {
   assert.equal(event.rulesVersion, '3.0-test');
   assert.deepEqual(event.data, { method: 'I' });
 });
+
+test('document time fields accept only non-negative safe-integer world ticks', () => {
+  assert.equal(Documents.cleanTick(0), 0);
+  assert.equal(Documents.cleanTick(120), 120);
+  assert.equal(Documents.cleanTick(-1), null);
+  assert.equal(Documents.cleanTick(1.5), null);
+  assert.equal(Documents.cleanTick('120'), null);
+
+  const actor = Documents.createActor({
+    runtime: { lastResolvedTick: 120.5, availableAtTick: -1, activityId: null },
+  });
+  assert.equal(actor.runtime.lastResolvedTick, null);
+  assert.equal(actor.runtime.availableAtTick, null);
+
+  const activity = Documents.createActivity({
+    startedAtTick: 100,
+    availableAtTick: 220.5,
+  });
+  assert.equal(activity.startedAtTick, 100);
+  assert.equal(activity.availableAtTick, null);
+});
