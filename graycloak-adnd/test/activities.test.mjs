@@ -246,3 +246,185 @@ test('travel planning carries optional system metadata without overriding canoni
   assert.equal(plan.activity.system.durationTicks, 20);
   assert.equal(plan.activity.system.destination.regionalHexId, 'D4-86');
 });
+
+test('OSRIC outdoor terrain converts movement rate into miles per day', () => {
+  assert.equal(Activities.outdoorMilesPerDay(120, Activities.TRAVEL_TERRAIN.LEVEL), 24);
+  assert.equal(Activities.outdoorMilesPerDay(120, Activities.TRAVEL_TERRAIN.RUGGED), 18);
+  assert.equal(Activities.outdoorMilesPerDay(120, Activities.TRAVEL_TERRAIN.VERY_RUGGED), 12);
+  assert.equal(Activities.outdoorMilesPerDay(120, 'swampy-ish'), null);
+});
+
+test('derived movement applies encumbrance to base rate and then the independent armour cap', () => {
+  const profile = Activities.resolveMovementProfile({
+    baseMovementRate: 120,
+    armourMovementCap: 90,
+    encumbrancePace: Activities.ENCUMBRANCE_PACE.HALF,
+  });
+
+  assert.equal(profile.ok, true);
+  assert.equal(profile.baseMovementRate, 120);
+  assert.equal(profile.armourMovementCap, 90);
+  assert.equal(profile.encumbranceMultiplier, 0.5);
+  assert.equal(profile.movementRate, 60);
+});
+
+test('effective movement can be supplied directly without using unaudited weight thresholds', () => {
+  const profile = Activities.resolveMovementProfile({ movementRate: 60 });
+  assert.equal(profile.ok, true);
+  assert.equal(profile.source, 'effective');
+  assert.equal(profile.movementRate, 60);
+  assert.equal(profile.encumbrancePace, null);
+});
+
+test('party outdoor pace is set by the slowest Actor', () => {
+  const val = currentActor('char-val');
+  const kris = currentActor('char-kris');
+  const pace = Activities.resolvePartyTravelPace(
+    [val, kris],
+    {
+      'char-val': { movementRate: 120 },
+      'char-kris': { movementRate: 60 },
+    },
+    Activities.TRAVEL_TERRAIN.LEVEL,
+  );
+
+  assert.equal(pace.ok, true);
+  assert.equal(pace.partyMovementRate, 60);
+  assert.equal(pace.milesPerDay, 12);
+  assert.equal(pace.actorPaces.length, 2);
+});
+
+test('calculated outdoor duration converts fractional travel days into world ticks', () => {
+  const halfDay = Activities.calculateOutdoorTravelDuration({
+    distanceMiles: 12,
+    terrain: Activities.TRAVEL_TERRAIN.LEVEL,
+    movementProfiles: {
+      'char-val': { movementRate: 120 },
+    },
+  }, [currentActor('char-val')]);
+
+  assert.equal(halfDay.ok, true);
+  assert.equal(halfDay.durationSource, Activities.TRAVEL_DURATION_SOURCE.OSRIC_OUTDOOR);
+  assert.equal(halfDay.outdoorTravel.milesPerDay, 24);
+  assert.equal(halfDay.outdoorTravel.travelDays, 0.5);
+  assert.equal(halfDay.durationTicks, Clock.TICKS_PER_DAY / 2);
+});
+
+test('createTravelPlan calculates duration when manual durationTicks is omitted', () => {
+  const plan = Activities.createTravelPlan({
+    id: 'travel-calculated',
+    campaignId: 'campaign-1',
+    actors: [currentActor('char-val', 100)],
+    worldTick: 100,
+    distanceMiles: 12,
+    terrain: Activities.TRAVEL_TERRAIN.LEVEL,
+    movementProfiles: {
+      'char-val': { movementRate: 120 },
+    },
+    origin,
+    destination,
+  });
+
+  assert.equal(plan.ok, true);
+  assert.equal(plan.activity.system.durationSource, Activities.TRAVEL_DURATION_SOURCE.OSRIC_OUTDOOR);
+  assert.equal(plan.activity.system.durationTicks, Clock.TICKS_PER_DAY / 2);
+  assert.equal(plan.activity.availableAtTick, 100 + Clock.TICKS_PER_DAY / 2);
+  assert.equal(plan.activity.system.outdoorTravel.distanceMiles, 12);
+  assert.equal(plan.activity.system.outdoorTravel.terrain, Activities.TRAVEL_TERRAIN.LEVEL);
+  assert.equal(plan.activity.system.outdoorTravel.partyMovementRate, 120);
+  assert.equal(plan.activity.system.outdoorTravel.actorPaces[0].actorId, 'char-val');
+});
+
+test('manual duration remains an explicit escape hatch and wins over calculated inputs', () => {
+  const plan = Activities.createTravelPlan({
+    id: 'travel-manual-override',
+    campaignId: 'campaign-1',
+    actors: [currentActor('char-val', 100)],
+    worldTick: 100,
+    durationTicks: 77,
+    distanceMiles: 999,
+    terrain: Activities.TRAVEL_TERRAIN.VERY_RUGGED,
+    movementProfiles: {},
+    origin,
+    destination,
+    system: { outdoorTravel: { bogus: true } },
+  });
+
+  assert.equal(plan.ok, true);
+  assert.equal(plan.activity.system.durationTicks, 77);
+  assert.equal(plan.activity.system.durationSource, Activities.TRAVEL_DURATION_SOURCE.MANUAL);
+  assert.equal(Object.prototype.hasOwnProperty.call(plan.activity.system, 'outdoorTravel'), false);
+});
+
+test('calculated travel rejects invalid terrain, distance, movement profiles, and immobile parties', () => {
+  const actor = currentActor('char-val');
+  const base = {
+    id: 'travel-invalid-calculation',
+    campaignId: 'campaign-1',
+    actors: [actor],
+    worldTick: 100,
+    origin,
+    destination,
+  };
+
+  assert.equal(Activities.createTravelPlan({
+    ...base,
+    distanceMiles: 0,
+    terrain: Activities.TRAVEL_TERRAIN.LEVEL,
+    movementProfiles: { 'char-val': { movementRate: 120 } },
+  }).code, Activities.TRAVEL_ERROR.INVALID_DISTANCE);
+
+  assert.equal(Activities.createTravelPlan({
+    ...base,
+    distanceMiles: 10,
+    terrain: 'forest',
+    movementProfiles: { 'char-val': { movementRate: 120 } },
+  }).code, Activities.TRAVEL_ERROR.INVALID_TERRAIN);
+
+  assert.equal(Activities.createTravelPlan({
+    ...base,
+    distanceMiles: 10,
+    terrain: Activities.TRAVEL_TERRAIN.LEVEL,
+    movementProfiles: {},
+  }).code, Activities.TRAVEL_ERROR.INVALID_MOVEMENT_PROFILE);
+
+  assert.equal(Activities.createTravelPlan({
+    ...base,
+    distanceMiles: 10,
+    terrain: Activities.TRAVEL_TERRAIN.LEVEL,
+    movementProfiles: { 'char-val': { baseMovementRate: 120, encumbrancePace: 'immobile' } },
+  }).code, Activities.TRAVEL_ERROR.NO_TRAVEL_SPEED);
+});
+
+test('encumbrance pace accepts OSRIC quarter bands and rejects arbitrary multipliers', () => {
+  assert.equal(Activities.normalizeEncumbrancePace('full'), 'full');
+  assert.equal(Activities.normalizeEncumbrancePace('three_quarter'), 'three-quarter');
+  assert.equal(Activities.normalizeEncumbrancePace(0.5), 'half');
+  assert.equal(Activities.normalizeEncumbrancePace(0.25), 'quarter');
+  assert.equal(Activities.normalizeEncumbrancePace(0), 'immobile');
+  assert.equal(Activities.normalizeEncumbrancePace(0.6), null);
+});
+
+test('caller system metadata cannot override canonical calculated travel fields', () => {
+  const plan = Activities.createTravelPlan({
+    id: 'travel-calculated-meta',
+    campaignId: 'campaign-1',
+    actors: [currentActor('char-val', 100)],
+    worldTick: 100,
+    distanceMiles: 12,
+    terrain: Activities.TRAVEL_TERRAIN.LEVEL,
+    movementProfiles: { 'char-val': { movementRate: 120 } },
+    origin,
+    destination,
+    system: {
+      durationTicks: 1,
+      durationSource: 'bogus',
+      outdoorTravel: { distanceMiles: 999 },
+    },
+  });
+
+  assert.equal(plan.ok, true);
+  assert.equal(plan.activity.system.durationTicks, Clock.TICKS_PER_DAY / 2);
+  assert.equal(plan.activity.system.durationSource, Activities.TRAVEL_DURATION_SOURCE.OSRIC_OUTDOOR);
+  assert.equal(plan.activity.system.outdoorTravel.distanceMiles, 12);
+});

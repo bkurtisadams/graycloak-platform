@@ -1,91 +1,135 @@
-# Graycloak Activity / Travel Primitives v0.4
+# Graycloak Activity / Travel Primitives v0.5
 
-v0.4 makes the existing `Activity` Document useful for the first time-spanning MMO action: travel. It remains deliberately pure and non-authoritative.
+v0.5 extends the pure Travel Activity planner with outdoor hiking-duration calculation. It still does not write Firestore, advance campaign time, move Actors, roll encounters, or resolve completed Activities.
 
-## Activity purpose
+## Rules boundary
 
-An Activity is a stable-ID document representing a commitment that occupies one or more Actors over campaign time. Travel, training, rest, research, and construction can later use the same pattern.
+The outdoor pace layer implements the OSRIC 3.0 Player Guide Section 1.5.3.2 outdoor hiking formulas:
 
-v0.4 implements only `type: "travel"`.
+- level terrain: Movement Rate × 0.20 miles/day
+- rugged terrain: Movement Rate × 0.15 miles/day
+- very rugged terrain: Movement Rate × 0.10 miles/day
 
-## Travel input
+The supported encumbrance pace bands are:
 
-`ADNDActivities.createTravelPlan()` expects:
+- full
+- three-quarter
+- half
+- quarter
+- immobile
 
-- a stable Activity `id`
-- a campaign `campaignId`
-- one or more Actor documents
-- the shared campaign `worldTick`
-- a positive integer `durationTicks`
-- an `origin` location reference
-- a `destination` location reference
+Armour may supply an independent maximum Movement Rate.
 
-Location references may be a stable string ID such as `place-hommlet`, or a structured plain object such as the current map's regional/subhex location data. A location reference is not required to become its own Document merely to participate in travel.
+v0.5 deliberately does **not** calculate an Actor's encumbrance band from carried weight. The current `@graycloak/osric3-rules` encumbrance thresholds are still marked as a legacy import awaiting direct OSRIC 3 verification. Callers may therefore either:
 
-The duration is supplied by the caller. v0.4 does **not** implement OSRIC wilderness movement rates, terrain costs, weather, mounts, roads, encumbrance, or route finding. Those rules belong in a later travel-rules layer.
+1. supply an already-final `movementRate`, or
+2. supply a `baseMovementRate`, an already-known `encumbrancePace`, and an optional `armourMovementCap`.
 
-## Availability rule
+This keeps unaudited weight thresholds out of persistent travel results.
 
-Every participating Actor must belong to the same supplied campaign and be `current` at the supplied `worldTick` according to `ADNDWorldClock`. Cross-campaign Activities are rejected.
+## Calculated travel input
 
-Travel therefore refuses Actors that are:
-
-- `unbound`
-- `behind`
-- `unavailable`
-- `ahead`
-- `unknown`
-
-This prevents a party from beginning a new shared-world action while one member is temporally unresolved.
-
-## Pure result
-
-A successful plan returns two things that an eventual authoritative command can commit transactionally:
-
-1. one active Travel Activity document
-2. one runtime reservation patch for each participating Actor
-
-The Activity carries:
+`ADNDActivities.createTravelPlan()` can now omit `durationTicks` and instead supply:
 
 ```text
-id
-type: travel
-actorIds
-startedAtTick
-availableAtTick
-status: active
-system.durationTicks
-system.origin
-system.destination
+distanceMiles
+terrain
+movementProfiles
 ```
 
-Each Actor patch carries:
+`movementProfiles` is keyed by Actor ID.
+
+A final Movement Rate may be supplied directly:
+
+```js
+movementProfiles: {
+  'char-val': { movementRate: 120 },
+  'char-kris': { movementRate: 90 }
+}
+```
+
+Or a rate may be derived from already-known movement facts:
+
+```js
+movementProfiles: {
+  'char-val': {
+    baseMovementRate: 120,
+    encumbrancePace: 'half',
+    armourMovementCap: 90
+  }
+}
+```
+
+The encumbrance fraction is applied to Base Movement Rate and the armour cap remains an independent absolute maximum.
+
+## Party pace
+
+A multi-Actor Travel Activity moves at the slowest participating Actor's outdoor pace. Every participating Actor must still pass the v0.4 shared-time and campaign checks before travel may begin.
+
+The calculated Activity records the per-Actor pace data and the resulting party pace so later authoritative events can explain how the travel duration was obtained.
+
+## Fractional travel days
+
+OSRIC wilderness procedure uses the day as its normal exploration unit. Graycloak nevertheless needs an exact `availableAtTick` for asynchronous Activities.
+
+v0.5 therefore uses this scheduling convention:
 
 ```text
-runtime.lastResolvedTick = startedAtTick
-runtime.availableAtTick = activity.availableAtTick
-runtime.activityId = activity.id
+travelDays = distanceMiles / partyMilesPerDay
+durationTicks = ceil(travelDays × TICKS_PER_DAY)
 ```
 
-Planning does not mutate the source Actor objects.
+Example: Movement Rate 120 in level terrain yields 24 miles/day. A 12-mile trip is scheduled as 0.5 day, or 7,200 world ticks.
 
-## Due is not resolved
+This proportional conversion is a Graycloak MMO scheduling rule layered on top of the OSRIC daily hiking rate. It is not intended to redefine OSRIC's wilderness order of play. Later wilderness resolution may still divide a multi-day Activity into daily encounter/navigation/camp steps.
 
-`ADNDActivities.isActivityDue(activity, worldTick)` answers whether an active Activity has reached its `availableAtTick`.
+## Manual duration escape hatch
 
-Being due does **not** automatically:
+Supplying a positive `durationTicks` still bypasses calculated outdoor movement and marks the Activity with:
 
-- move an Actor to the destination
-- clear `activityId`
-- advance `lastResolvedTick`
-- advance the campaign clock
-- roll encounters
-- spend supplies
-- apply damage or other consequences
-- write Firestore
+```text
+durationSource: manual
+```
 
-Those are authoritative resolution operations intentionally deferred to later slices.
+This is intentional for GM adjudication, unusual travel modes, teleports, scripted movement, or rules not yet modeled.
 
-## Why the Activity owns the reservation
+Calculated outdoor travel is marked:
 
-A party of multiple Actors shares one Activity ID. This gives a group trip one stable object that later encounter rolls, route choices, events, cancellation, and resolution can reference rather than duplicating travel state independently on every Actor.
+```text
+durationSource: osric-outdoor
+```
+
+and records:
+
+```text
+system.outdoorTravel.ruleset
+system.outdoorTravel.section
+system.outdoorTravel.distanceMiles
+system.outdoorTravel.terrain
+system.outdoorTravel.terrainFactor
+system.outdoorTravel.partyMovementRate
+system.outdoorTravel.milesPerDay
+system.outdoorTravel.travelDays
+system.outdoorTravel.actorPaces
+```
+
+## Still deferred
+
+v0.5 intentionally does not implement:
+
+- deriving encumbrance from inventory weight
+- ancestry/base-movement lookup from the OSRIC kernel
+- road bonuses or penalties
+- route segmentation across multiple terrain types
+- mounted travel
+- vehicles
+- forced marches
+- weather
+- getting lost/navigation
+- wilderness encounters
+- food/water consumption
+- camping/rest
+- automatic world-clock advancement
+- Activity resolution or Firestore writes
+
+Those concerns can be layered on after this duration calculator has proven stable.
