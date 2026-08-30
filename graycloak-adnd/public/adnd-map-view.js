@@ -1,4 +1,6 @@
-// adnd-map-view.js v1.1.1 — 2026-08-13
+// adnd-map-view.js v1.2.0 — 2026-08-29
+// v1.2.0 — normalize characters through ADNDDocuments at the Firestore read
+//          boundary so legacy and current records are Actor-shaped downstream.
 // v1.1.1 — river tier key fix: great_river (matches
 //          gcc-subhex-paths RIVER_TIERS), was greatriver. Width
 //          only; visibility was never affected.
@@ -32,12 +34,10 @@
 // owner has no Flanaess entry don't render (world edge). Zoomed out
 // past CELL_BUDGET cells, the renderer falls back to parent-hex fills
 // so the whole Flanaess stays pannable.
-
 const ADNDMapView = (function(){
   'use strict';
 
   const ENGINE_URL = './vendor/map-engine/index.js';
-
   // Mirrors gcc-map.js TERRAIN rgb values — display only.
   const TERRAIN_RGB = {
     clear: '245,232,190', plains: '195,215,100', forest: '70,120,55',
@@ -52,7 +52,6 @@ const ADNDMapView = (function(){
   const RIVER_STROKE = 'rgb(70,140,175)';
   const ROAD_STROKE  = 'rgb(120,90,55)';
   const RIVER_W = { stream: 0.35, river: 0.6, great_river: 1.0 };
-
   // Greyhawk common-year months, currentDate.month 1-12 (Fireseek = 1).
   const GREYHAWK_MONTHS = ['Fireseek', 'Readying', 'Coldeven', 'Planting',
     'Flocktime', 'Wealsun', 'Reaping', 'Goodmonth', 'Harvester',
@@ -63,7 +62,6 @@ const ADNDMapView = (function(){
   const CELL_BUDGET = 6000;   // above this, drop to parent-level fills
   const PARENT_LABEL_ZOOM = 0.8;
   const GRID_COLS = 146, GRID_ROWS = 97;
-
   let ME = null;              // map-engine module
   let _ready = null;
 
@@ -73,7 +71,6 @@ const ADNDMapView = (function(){
     svg: null,
     raf: 0,
   };
-
   function ready(url){
     if (_ready) return _ready;
     _ready = import(url || ENGINE_URL)
@@ -85,7 +82,6 @@ const ADNDMapView = (function(){
       });
     return _ready;
   }
-
   // ── Darlene labels ───────────────────────────────────────────────
   // Inverse of gcc-map.js darleneToInternal; round-trips its QA
   // corners (A-1 / P6-74 / A-97 / P6-170).
@@ -97,12 +93,28 @@ const ADNDMapView = (function(){
     const offset = idx === 0 ? 0 : Math.floor(idx / 2) + 1;
     return `${letter}${band ? band + 1 : ''}-${row + 1 + offset}`;
   }
-
   // ── Data load ────────────────────────────────────────────────────
   function campaignId(){
     return new URLSearchParams(location.search).get('camp');
   }
-
+  function normalizeCharacterRecord(record, id){
+    if (typeof ADNDDocuments !== 'undefined' && ADNDDocuments
+        && typeof ADNDDocuments.normalizeCharacter === 'function') {
+      return ADNDDocuments.normalizeCharacter(record, id);
+    }
+    // index.html loads adnd-documents.js before this file. Keep a small
+    // compatibility fallback so the map remains independently testable.
+    const out = Object.assign({}, record || {});
+    out.id = out.id || id || null;
+    out.documentType = out.documentType || 'actor';
+    out.type = out.type || 'character';
+    out.runtime = Object.assign({
+      lastResolvedTick: null,
+      availableAtTick: null,
+      activityId: null,
+    }, out.runtime || {});
+    return out;
+  }
   async function loadAll(db){
     const col = async (name) => {
       const out = {};
@@ -122,7 +134,9 @@ const ADNDMapView = (function(){
             : Promise.resolve(null),
       ]);
     const characters = {};
-    if (charSnap) charSnap.forEach(doc => { characters[doc.id] = doc.data(); });
+    if (charSnap) charSnap.forEach(doc => {
+      characters[doc.id] = normalizeCharacterRecord(doc.data(), doc.id);
+    });
     return {
       flanaess: flanaessSnap.exists ? (flanaessSnap.data().hexes || {}) : {},
       subhex, lakes, paths, regions, settlements, freeholds,
@@ -130,7 +144,6 @@ const ADNDMapView = (function(){
       characters,
     };
   }
-
   function formatWorldDate(d){
     if (!d) return null;
     if (typeof d === 'string') return d;
@@ -138,7 +151,6 @@ const ADNDMapView = (function(){
     const month = GREYHAWK_MONTHS[(d.month || 1) - 1] || `month ${d.month}`;
     return `${d.day != null ? d.day + ' ' : ''}${month}, ${d.year} CY`;
   }
-
   // ── Geometry helpers ─────────────────────────────────────────────
   function hexPoints(cx, cy, r){
     const pts = [];
@@ -172,7 +184,6 @@ const ADNDMapView = (function(){
     const o = ME.ownerOf(Q, R);
     return o ? (state.data.flanaess[`${o.col}-${o.row}`] || null) : null;
   }
-
   // ── Render ───────────────────────────────────────────────────────
   function esc(s){
     return String(s).replace(/[&<>"']/g, c => ({
@@ -184,7 +195,6 @@ const ADNDMapView = (function(){
     p.set(param, id);
     return '?' + p.toString();
   }
-
   function render(){
     const svg = state.svg;
     if (!svg || !state.data || !ME) return;
@@ -196,7 +206,6 @@ const ADNDMapView = (function(){
     const cells = ME.cellsInAxialBbox(bb);
     const cellLevel = cells.length <= CELL_BUDGET;
     const chunks = [];
-
     // Terrain
     if (cellLevel){
       for (const c of cells){
@@ -215,7 +224,6 @@ const ADNDMapView = (function(){
         chunks.push(`<polygon points="${hexPoints(p.x, p.y, ME.HEX_R)}" fill="rgb(${rgb})" stroke="rgba(0,0,0,.12)" stroke-width=".2"/>`);
       }
     }
-
     // Paths (rivers under roads)
     const pathDocs = Object.values(state.data.paths || {});
     for (const pass of ['river', 'road']){
@@ -236,7 +244,6 @@ const ADNDMapView = (function(){
         }
       }
     }
-
     // Parent outlines + Darlene labels
     if (state.view.zoom >= 0.35){
       for (const par of parentsInBbox(bb)){
@@ -249,7 +256,6 @@ const ADNDMapView = (function(){
         }
       }
     }
-
     // Region / lake name labels (centroid of member cells)
     if (cellLevel && state.view.zoom >= 0.6){
       const groups = { regionId: state.data.regions, lakeId: state.data.lakes };
@@ -275,7 +281,6 @@ const ADNDMapView = (function(){
         }
       }
     }
-
     // Freeholds: territory ring + keep marker
     for (const id of Object.keys(state.data.freeholds || {})){
       const fh = state.data.freeholds[id];
@@ -296,7 +301,6 @@ const ADNDMapView = (function(){
         + `<text x="${p.x.toFixed(2)}" y="${(p.y - 1.5).toFixed(2)}">${esc(fh.name || id)}</text>`
         + `</g></a>`);
     }
-
     // Settlements
     for (const id of Object.keys(state.data.settlements || {})){
       const st = state.data.settlements[id];
@@ -308,7 +312,6 @@ const ADNDMapView = (function(){
         + `<text x="${p.x.toFixed(2)}" y="${(p.y - 1.7).toFixed(2)}">${esc(st.name || id)}</text>`
         + `</g></a>`);
     }
-
     // Party: characters grouped by occupied cell
     const byCell = {};
     for (const id of Object.keys(state.data.characters || {})){
@@ -328,14 +331,12 @@ const ADNDMapView = (function(){
         + `<text x="${p.x.toFixed(2)}" y="${(p.y + 2.6).toFixed(2)}">${esc(names)}</text>`
         + `</g>`);
     }
-
     svg.innerHTML = chunks.join('');
   }
   function scheduleRender(){
     if (state.raf) return;
     state.raf = requestAnimationFrame(() => { state.raf = 0; render(); });
   }
-
   // Local port of gcc-map.js darleneToInternal (freehold parent fallback).
   function darleneToInternal(label){
     const m = String(label || '').trim().toUpperCase().match(/^([A-Z])(\d*)-(\d+)$/);
@@ -347,7 +348,6 @@ const ADNDMapView = (function(){
     if (col < 0 || col >= GRID_COLS || row < 0 || row >= GRID_ROWS) return null;
     return { col, row };
   }
-
   // ── Interaction ──────────────────────────────────────────────────
   function wireInput(svg){
     let drag = null;
@@ -382,7 +382,6 @@ const ADNDMapView = (function(){
       scheduleRender();
     }, { passive: false });
   }
-
   // ── Boot ─────────────────────────────────────────────────────────
   function shell(msg){
     const card = document.getElementById('map-card');
@@ -400,7 +399,6 @@ const ADNDMapView = (function(){
     const card = document.getElementById('map-card');
     if (card) card.innerHTML = `<div class="map-empty">${esc(msg)}</div>`;
   }
-
   function pickCenter(){
     const p = new URLSearchParams(location.search);
     if (p.has('q') && p.has('r')){
@@ -420,7 +418,6 @@ const ADNDMapView = (function(){
     }
     return ME.parentSvgCenter(64, 44);   // D4-86, schema-doc starter
   }
-
   async function boot(){
     const svg = shell('loading world…');
     if (!svg) return;
@@ -452,7 +449,6 @@ const ADNDMapView = (function(){
       .map(k => `${Object.keys(state.data[k]).length} ${k}`).join(', ');
     console.log(`[map-view] world loaded: ${counts}`);
   }
-
   if (typeof ADNDAuth !== 'undefined'){
     ADNDAuth.onAuthChange(user => {
       if (user) boot();
@@ -460,5 +456,6 @@ const ADNDMapView = (function(){
     });
   }
 
-  return { ready, boot, render, internalToDarlene, darleneToInternal, formatWorldDate, state };
+  return { ready, boot, render, internalToDarlene, darleneToInternal,
+    formatWorldDate, normalizeCharacterRecord, loadAll, state };
 })();

@@ -46,6 +46,22 @@ test('legacy character records normalize without destructive migration', () => {
   assert.equal(actor.level, 4);
 });
 
+
+test('normalization preserves Firestore-like non-plain runtime values', () => {
+  class FakeTimestamp {
+    constructor(seconds) { this.seconds = seconds; }
+    toDate() { return new Date(this.seconds * 1000); }
+  }
+  const createdAt = new FakeTimestamp(12345);
+  const actor = Documents.normalizeCharacter({
+    name: 'Timestamped Character',
+    createdAt,
+  }, 'timestamped-id');
+
+  assert.equal(actor.createdAt, createdAt);
+  assert.equal(actor.createdAt.toDate().getTime(), 12345000);
+});
+
 test('owned item instances separate definition identity from owner identity', () => {
   const item = Documents.createItem({
     id: 'item-1',

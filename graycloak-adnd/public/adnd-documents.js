@@ -1,4 +1,6 @@
-// adnd-documents.js v0.1.0 — 2026-08-29
+// adnd-documents.js v0.2.0 — 2026-08-29
+// v0.2.0 — Actor runtime integration support: normalization now preserves
+//          non-plain objects such as Firestore Timestamp/FieldValue instances.
 // Graycloak's lightweight Foundry-inspired document contract.
 //
 // This is deliberately an application abstraction, not a demand that all
@@ -21,9 +23,17 @@ const ADNDDocuments = (function(){
     'character', 'npc', 'henchman', 'hireling', 'mount', 'animal', 'monster',
   ]);
 
+  function isPlainObject(value) {
+    if (value == null || typeof value !== 'object') return false;
+    const proto = Object.getPrototypeOf(value);
+    return proto === Object.prototype || proto === null;
+  }
   function clonePlain(value) {
     if (value == null || typeof value !== 'object') return value;
     if (Array.isArray(value)) return value.map(clonePlain);
+    // Firestore Timestamps, FieldValue transforms, Dates, and other runtime
+    // objects are values, not Graycloak document data to recursively reshape.
+    if (!isPlainObject(value)) return value;
     const out = {};
     for (const [key, child] of Object.entries(value)) out[key] = clonePlain(child);
     return out;
