@@ -11,7 +11,7 @@ imported from gcc/engine/index.js and injected as window.__ENGINE__, a few SVG/d
 and `window.__S()` / `window.__G(name)` expose module-scope state and functions to checks.
 
 Known harness-only failure: "[UI/v0.56.18] battlefield drag suppresses native SVG text selection"
-(jsdom does not compute user-select). Everything else should pass; baseline 980 ok at v0.61.4 (954 at v0.61.2.1). `node run.mjs .` from the repo root works — the root is path.resolve()d.
+(jsdom does not compute user-select). Everything else should pass; baseline 981 ok at v0.61.4.1 (954 at v0.61.2.1). `node run.mjs .` from the repo root works — the root is path.resolve()d.
 
 dbg*.js are ad-hoc functional checks used during v0.58–v0.61 (multi-target, skirmish, cues, rail,
 figure selection/targeting); wrap one with the same pattern as extra.mjs to run it.
