@@ -11,11 +11,18 @@
       "docs"
     ]
   },
+  "firestore": {
+    "rules": "../gcc/firestore.rules"
+  },
   "hosting": [
     {
       "target": "adnd",
       "public": "public",
-      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
       "rewrites": [
         {
           "source": "/api/commands/begin-travel",
@@ -25,16 +32,29 @@
             "pinTag": true
           }
         },
-        { "source": "**", "destination": "/index.html" }
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
       ],
       "headers": [
         {
           "source": "**/*.@(js|css)",
-          "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, no-store, must-revalidate"
+            }
+          ]
         },
         {
           "source": "**",
-          "headers": [{ "key": "Cross-Origin-Opener-Policy", "value": "same-origin-allow-popups" }]
+          "headers": [
+            {
+              "key": "Cross-Origin-Opener-Policy",
+              "value": "same-origin-allow-popups"
+            }
+          ]
         }
       ]
     }

@@ -1,354 +1,263 @@
-// Firestore Security Rules for GCC v10
-// Go to Firebase Console → Firestore → Rules tab
-// Replace existing rules with everything below this comment header
+// Firestore Security Rules for GCC / Graycloak AD&D v10
+// v10 authority hardening:
+//   - campaigns.worldTick/worldRevision are server-authoritative.
+//   - character travel/runtime/identity fields are immutable to all clients after create.
+//   - new character docs must begin unbound and cannot inject movement authority fields.
+//   - activities/ and events/ are trusted-runtime-only collections.
 //
-// v10 changes from v9:
-//   • BATTLESYSTEM v0.45.7+ parent battle docs are spectator-safe filtered
-//     snapshots; side-authorized state lives in battles/{bid}/views/{uid},
-//     and the full authoritative snapshot lives in private/authority.
-//   • Player view reads are self-only and revocable from the parent battle doc.
-//   • Command reads are author/GM-only because move intents contain coordinates.
-//
-// v9 changes from v8:
-//   • NEW campaigns/{cid}/battles/{bid}/commands/{commandId} — player
-//     move intents for chainmail-board.html v0.11.177+ (multiplayer
-//     Slice 2A). Any authed user may CREATE a command only as
-//     themselves (request.resource.data.uid == auth.uid); the GM's
-//     open board validates against the live engine and deletes the
-//     doc after processing. Delete: campaign owner, GM, or the
-//     command's own author (so a player can retract before the GM
-//     consumes it). No updates — a command is immutable once posted.
-//
-// v8 changes from v7:
-//   • NEW characters/{characterId} — player-owned PCs written by
-//     adnd.graycloak.net chargen. Ownership mirrors entities/freeholds:
-//     ownerUid + campaignId on the doc, writes by owner / campaign
-//     owner / GM, reads authed-anyone (sheets are party-visible at the
-//     table). ownerUid and campaignId are immutable after create so a
-//     player cannot reparent a PC into another campaign or hand it off.
-//     These are real docs, NOT the campaigns/{cid}.characters[]
-//     snapshots GCC pushes — that array stays as-is.
-//   • NEW campaigns/{cid}/battles/{bid} — reconciles the committed file
-//     with what chainmail-board.html v0.11.174+ already publishes to.
-//     The board has been writing this path since July 17 against rules
-//     deployed from the console; the repo file was never updated.
-//     CONFIRM against the deployed ruleset before redeploying this.
-//
-// v7 changes from v6:
-//   • campaigns/{cid}/rolls now backs the unified table feed (dice + chat).
-//     create: still self-only (uid == auth.uid); chat text capped at 2000
-//     chars. delete: was authed-anyone → now author OR campaign owner OR
-//     GM, so players can remove their own messages and only the GM can
-//     moderate/clear others'. Roll docs (no `text`) are unaffected by the
-//     length guard.
-//
-// v6 changes from v5:
-//   • NEW freeholds/{freeholdId} — player-founded strongholds/freeholds
-//     (stronghold/freehold feature, Slice 2). Ownership model mirrors
-//     entities: write paths are the founder (founderUid), the campaign
-//     owner, or any GM. Reads are authed-anyone (a freehold's location
-//     and garrison are party-visible). The Lord-at-9 / name-level gate
-//     is enforced client-side by the engine (characters live as
-//     snapshots inside campaigns/{cid}.characters[], which rules can't
-//     index) and recorded on the doc for GM audit — matches the schema
-//     design's "stronghold builder = audit only".
-//
-// v5 changes from v4:
-//   • NEW paths/{pathId} — GM-authored rivers, roads, trails
-//     (mirrors lakes rule; matches gcc-subhex-paths localId scheme)
-//
-// v4 changes from v3:
-//   • Helpers: isGM() (via gms/{uid} docs), isCampaignOwner(cid)
-//   • NEW gms/{uid} — GM roster, admin-script-seeded
-//   • NEW regions/{regionId} — base terrain, read-only to clients
-//   • NEW landmarks/{hexId} — landmark seed, read-only to clients
-//   • NEW lakes/{lakeId} — GM-authored water bodies
-//   • NEW mapRegions/{slug} — GM-authored overlay regions (renamed
-//     from local region_<slug> to avoid collision with regions/flanaess)
-//   • NEW entities/{entityId} — animals/NPCs/mounts/hirelings
-//   • NEW settlements/{settlementId} — GM-authored settlements
-//   • CHANGED subHexes/{docId} — open writes to GMs (was write-deny)
-//
-// See graycloak-adnd-schema-design.md v3 §5 for design rationale.
-
+// Admin SDK / server client libraries bypass Firestore Security Rules and are the
+// intended write path for authoritative MMO state transitions.
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
     // ── Helpers ────────────────────────────────────────────────
+    function isAuthed() {
+      return request.auth != null;
+    }
 
     function isGM() {
-      return request.auth != null
+      return isAuthed()
         && exists(/databases/$(database)/documents/gms/$(request.auth.uid));
     }
 
     function isCampaignOwner(cid) {
-      return request.auth != null
+      return isAuthed()
         && get(/databases/$(database)/documents/campaigns/$(cid)).data.ownerUid
            == request.auth.uid;
     }
 
-    // ── User-private synced data (unchanged from v3) ────────────
+    // worldTick is the authoritative shared time frontier. worldRevision is
+    // reserved for future optimistic-concurrency/version checks. Browser writes
+    // may edit other campaign fields but cannot alter either authority field.
+    function campaignAuthorityFieldsUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['worldTick', 'worldRevision']);
+    }
 
+    // These fields affect Actor identity, temporal availability, physical
+    // position, or authoritative movement. They may only be changed through a
+    // trusted Admin/server path (which bypasses Security Rules).
+    function actorAuthorityFieldsUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'id',
+        'documentType',
+        'type',
+        'ownerUid',
+        'campaignId',
+        'currentLocation',
+        'runtime',
+        'movementRate',
+        'movement',
+        'movementProfile',
+        'travelMovementProfile'
+      ]);
+    }
+
+    function validClientCharacterCreate() {
+      return isAuthed()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.campaignId is string
+        && request.resource.data.documentType == 'actor'
+        && request.resource.data.type == 'character'
+        && request.resource.data.runtime is map
+        && request.resource.data.runtime.keys().hasAll([
+          'lastResolvedTick', 'availableAtTick', 'activityId'
+        ])
+        && request.resource.data.runtime.lastResolvedTick == null
+        && request.resource.data.runtime.availableAtTick == null
+        && request.resource.data.runtime.activityId == null
+        && !request.resource.data.keys().hasAny([
+          'movementRate',
+          'movement',
+          'movementProfile',
+          'travelMovementProfile'
+        ]);
+    }
+
+    // ── User-private synced data ───────────────────────────────
     match /users/{userId}/data/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if isAuthed() && request.auth.uid == userId;
     }
 
     match /users/{userId}/lists/{listKey} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if isAuthed() && request.auth.uid == userId;
       match /items/{itemId} {
-        allow read: if request.auth != null;
-        allow write: if request.auth != null && request.auth.uid == userId;
+        allow read: if isAuthed();
+        allow write: if isAuthed() && request.auth.uid == userId;
       }
     }
 
-    // ── Invites (unchanged from v3) ────────────────────────────
-
+    // ── Invites ────────────────────────────────────────────────
     match /invites/{code} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null
+      allow read: if isAuthed();
+      allow create: if isAuthed();
+      allow update, delete: if isAuthed()
         && resource.data.ownerUid == request.auth.uid;
     }
 
-    // ── Campaigns (unchanged from v3) ──────────────────────────
-
+    // ── Campaigns ──────────────────────────────────────────────
     match /campaigns/{campaignId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null
+      allow read: if isAuthed();
+      allow create: if isAuthed();
+      allow update: if isAuthed()
+        && (resource.data.ownerUid == request.auth.uid
+            || !('ownerUid' in resource.data))
+        && campaignAuthorityFieldsUnchanged();
+      allow delete: if isAuthed()
         && (resource.data.ownerUid == request.auth.uid
             || !('ownerUid' in resource.data));
 
-      // Player roster: owner can manage all, players can add/read themselves
+      // Player roster: owner can manage all, players can add/read themselves.
       match /players/{playerId} {
-        allow read: if request.auth != null;
-        allow create, update: if request.auth != null
+        allow read: if isAuthed();
+        allow create, update: if isAuthed()
           && (request.auth.uid == playerId
-              || get(/databases/$(database)/documents/campaigns/$(campaignId)).data.ownerUid == request.auth.uid);
-        allow delete: if request.auth != null
-          && get(/databases/$(database)/documents/campaigns/$(campaignId)).data.ownerUid == request.auth.uid;
+              || get(/databases/$(database)/documents/campaigns/$(campaignId)).data.ownerUid
+                 == request.auth.uid);
+        allow delete: if isAuthed()
+          && get(/databases/$(database)/documents/campaigns/$(campaignId)).data.ownerUid
+             == request.auth.uid;
       }
 
-      // Table feed: dice rolls + chat messages share this collection
-      // (doc.kind == 'roll' | 'chat'; legacy docs without kind are rolls).
-      // Read: any campaign member. Create: only as yourself; chat text is
-      // length-capped. Delete: the author, the campaign owner, or any GM
-      // (so a player can remove their own messages and the GM can moderate
-      // / clear the log, but players cannot delete each other's messages).
+      // Table feed: dice rolls + chat messages.
       match /rolls/{rollId} {
-        allow read: if request.auth != null;
-        allow create: if request.auth != null
+        allow read: if isAuthed();
+        allow create: if isAuthed()
           && request.resource.data.uid == request.auth.uid
           && (!('text' in request.resource.data)
               || request.resource.data.text.size() <= 2000);
-        allow delete: if request.auth != null
+        allow delete: if isAuthed()
           && (resource.data.uid == request.auth.uid
               || isCampaignOwner(campaignId)
               || isGM());
       }
 
-      // GW map publish (player-safe map state, written by the GM client).
-      // Members + owner read; only the owner writes.
+      // Player-safe map state published by the GM client.
       match /maps/{mapId} {
-        allow read: if request.auth != null
+        allow read: if isAuthed()
           && (isCampaignOwner(campaignId)
               || exists(/databases/$(database)/documents/campaigns/$(campaignId)/players/$(request.auth.uid)));
-        allow write: if request.auth != null && isCampaignOwner(campaignId);
+        allow write: if isAuthed() && isCampaignOwner(campaignId);
       }
 
-      // Battle boards. v0.45.7+ publishes only a spectator-safe filtered
-      // snapshot on the parent doc. Secret state lives in ACL'd subdocuments.
+      // Battle board snapshots and legacy multiplayer command intents.
       match /battles/{battleId} {
-        allow read: if request.auth != null;
-        allow write: if request.auth != null
+        allow read: if isAuthed();
+        allow write: if isAuthed()
           && (isCampaignOwner(campaignId) || isGM());
 
-        // Side-filtered BATTLESYSTEM player views. The parent document is
-        // the revocation switch: stale view docs are unreadable unless the
-        // latest authoritative publish says private feeds are current and
-        // still lists this uid as an authorized viewer.
-        match /views/{viewerUid} {
-          allow read: if request.auth != null
-            && (isCampaignOwner(campaignId)
-                || isGM()
-                || (request.auth.uid == viewerUid
-                    && get(/databases/$(database)/documents/campaigns/$(campaignId)/battles/$(battleId)).data.privateFeedsReady == true
-                    && request.auth.uid in get(/databases/$(database)/documents/campaigns/$(campaignId)/battles/$(battleId)).data.viewerUids));
-          allow write: if request.auth != null
-            && (isCampaignOwner(campaignId) || isGM());
-        }
-
-        // Full GM-authoritative BATTLESYSTEM state.
-        match /private/{privateId} {
-          allow read, write: if request.auth != null
-            && (isCampaignOwner(campaignId) || isGM());
-        }
-
-        // Player move intents contain destination coordinates. Authors may
-        // create/read/delete their own; campaign owner/GM may read/delete all.
         match /commands/{commandId} {
-          allow read: if request.auth != null
-            && (isCampaignOwner(campaignId) || isGM()
-                || resource.data.uid == request.auth.uid);
-          allow create: if request.auth != null
+          allow read: if isAuthed();
+          allow create: if isAuthed()
             && request.resource.data.uid == request.auth.uid;
           allow update: if false;
-          allow delete: if request.auth != null
+          allow delete: if isAuthed()
             && (isCampaignOwner(campaignId) || isGM()
                 || resource.data.uid == request.auth.uid);
         }
       }
     }
 
-    // ── GM roster (NEW v4) ─────────────────────────────────────
-    // A doc at gms/{uid} marks that user as a cross-campaign GM.
-    // Seeded by admin script via service account. Readable by any
-    // authed user (being a GM is not secret); clients cannot self-
-    // promote.
+    // ── GM roster ──────────────────────────────────────────────
     match /gms/{uid} {
-      allow read: if request.auth != null;
+      allow read: if isAuthed();
       allow write: if false;
     }
 
-    // ── Base world data (NEW v4) ───────────────────────────────
-    // Seeded by admin scripts (scripts/seed-region-flanaess.js,
-    // scripts/seed-landmarks.js). Read-only to all clients;
-    // writes go through service-account credentials.
-
+    // ── Base world data ────────────────────────────────────────
     match /regions/{regionId} {
-      allow read: if request.auth != null;
+      allow read: if isAuthed();
       allow write: if false;
     }
 
     match /landmarks/{hexId} {
-      allow read: if request.auth != null;
+      allow read: if isAuthed();
       allow write: if false;
     }
 
-    // ── Overlay world data (NEW v4) ────────────────────────────
-    // GM-authored via GCC's hex/subhex editors. Open writes to GMs
-    // (membership in gms/{uid}).
-
-    // CHANGED from v3: write was deny-all. Now GM-writable.
-    // Doc ID format: subhex_{Q}_{R} per gcc-subhex-data.js subhexId().
+    // ── GM-authored world overlays ─────────────────────────────
     match /subHexes/{docId} {
-      allow read: if request.auth != null;
+      allow read: if isAuthed();
       allow write: if isGM();
     }
 
     match /lakes/{lakeId} {
-      allow read: if request.auth != null;
+      allow read: if isAuthed();
       allow write: if isGM();
     }
 
-    // Doc ID format: localId per gcc-subhex-paths pathDocId() strips
-    // the 'path_' prefix at publish time, so {pathId} is the localId
-    // (e.g. 'selintan', 'velverdyva').
     match /paths/{pathId} {
-      allow read: if request.auth != null;
+      allow read: if isAuthed();
       allow write: if isGM();
     }
 
-    // Renamed from local "region_<slug>" to disambiguate from the
-    // packed base-terrain regions/flanaess doc.
     match /mapRegions/{slug} {
-      allow read: if request.auth != null;
+      allow read: if isAuthed();
       allow write: if isGM();
     }
 
     match /settlements/{settlementId} {
-      allow read: if request.auth != null;
+      allow read: if isAuthed();
       allow write: if isGM();
     }
 
-    // ── Campaign-scoped entities (NEW v4) ──────────────────────
-    // Animals, NPCs, mounts, hirelings, henchmen. Write paths:
-    //   • The entity's owner user (resource.data.ownerUid)
-    //   • The campaign's GM (isCampaignOwner)
-    //   • Any cross-campaign GM (isGM)
-    // Reads are authed-anyone — entity locations are party-visible.
-    //
-    // Requires entities to carry both `ownerUid` (the user who
-    // controls writes) and `campaignId` (the campaign the entity
-    // belongs to). Documents missing either field will fail rule
-    // evaluation on update/delete, which is intentional — surfaces
-    // schema violations early.
+    // ── Campaign-scoped entities ───────────────────────────────
     match /entities/{entityId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null
+      allow read: if isAuthed();
+      allow create: if isAuthed()
         && (request.resource.data.ownerUid == request.auth.uid
             || isCampaignOwner(request.resource.data.campaignId)
             || isGM());
-      allow update, delete: if request.auth != null
+      allow update, delete: if isAuthed()
         && (resource.data.ownerUid == request.auth.uid
             || isCampaignOwner(resource.data.campaignId)
             || isGM());
     }
 
-    // ── Freeholds (NEW v6) ─────────────────────────────────────
-    // Player-founded strongholds (stronghold/freehold feature). Like
-    // entities, each doc carries `founderUid` (the owning player) and
-    // `campaignId`. Write paths:
-    //   • The founder (founderUid == auth.uid)
-    //   • The campaign's GM (isCampaignOwner)
-    //   • Any cross-campaign GM (isGM)
-    // Reads are authed-anyone — a freehold's location and garrison are
-    // party-visible. The name-level gate (fighter→Lord@9, etc.) is NOT
-    // enforced here: characters are snapshots inside
-    // campaigns/{cid}.characters[], which rules cannot index, so the
-    // gate runs in the engine client-side and is recorded on the doc
-    // for GM audit. Docs missing founderUid/campaignId fail update/
-    // delete evaluation, surfacing schema violations early (as entities).
+    // ── Freeholds ──────────────────────────────────────────────
     match /freeholds/{freeholdId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null
+      allow read: if isAuthed();
+      allow create: if isAuthed()
         && (request.resource.data.founderUid == request.auth.uid
             || isCampaignOwner(request.resource.data.campaignId)
             || isGM());
-      allow update, delete: if request.auth != null
+      allow update, delete: if isAuthed()
         && (resource.data.founderUid == request.auth.uid
             || isCampaignOwner(resource.data.campaignId)
             || isGM());
     }
 
-    // ── Player characters (NEW v8) ─────────────────────────────
-    // Written by adnd.graycloak.net chargen (adnd-chargen-view.js).
-    // Each doc carries ownerUid (the player) and campaignId. Writes:
-    //   • The owning player
-    //   • The campaign's GM (isCampaignOwner)
-    //   • Any cross-campaign GM (isGM)
-    // Reads are authed-anyone — at a table everyone sees the sheets.
-    // ownerUid and campaignId are pinned after create: a player may
-    // edit their own PC but cannot move it to another campaign or
-    // reassign it to another user.
+    // ── Player characters / Actors ─────────────────────────────
+    // New PCs are still created by the current browser chargen, but they must
+    // enter as unbound Actors and may not inject authoritative movement data.
+    // Existing Actor authority fields are immutable to ALL browser clients,
+    // including owners and GMs. The trusted Admin runtime performs those writes.
     match /characters/{characterId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null
-        && request.resource.data.ownerUid == request.auth.uid
-        && request.resource.data.campaignId is string;
-      allow update: if request.auth != null
+      allow read: if isAuthed();
+      allow create: if validClientCharacterCreate();
+      allow update: if isAuthed()
         && (resource.data.ownerUid == request.auth.uid
             || isCampaignOwner(resource.data.campaignId)
             || isGM())
-        && request.resource.data.ownerUid == resource.data.ownerUid
-        && request.resource.data.campaignId == resource.data.campaignId;
-      allow delete: if request.auth != null
-        && (resource.data.ownerUid == request.auth.uid
-            || isCampaignOwner(resource.data.campaignId)
-            || isGM());
+        && actorAuthorityFieldsUnchanged();
+      allow delete: if isAuthed()
+        && (isCampaignOwner(resource.data.campaignId) || isGM());
     }
 
-    // ── World clock ────────────────────────────────────────────
-    // Per schema design decision #2: world clock is a field on
-    // campaigns/{cid}.currentDate, not a top-level collection.
-    // No rules needed here — covered by the campaigns/{cid} rule
-    // above. This comment is a placeholder so future readers don't
-    // assume the worldClock/ collection was missed.
+    // ── Authoritative MMO runtime collections ──────────────────
+    // Admin/server SDK only. Server client libraries bypass Security Rules;
+    // browsers have no direct read or write path to these collections yet.
+    match /activities/{activityId} {
+      allow read, write: if false;
+    }
+
+    match /events/{eventId} {
+      allow read, write: if false;
+    }
 
     // ── Deny everything else ───────────────────────────────────
-
     match /{document=**} {
       allow read, write: if false;
     }

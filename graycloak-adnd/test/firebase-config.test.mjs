@@ -10,11 +10,11 @@ function readJson(path) {
   return JSON.parse(fs.readFileSync(path, 'utf8'));
 }
 
-test('Functions package is ESM on Node 22 with current Firebase server dependencies', () => {
+test('Functions package is ESM on Node 22+ with current Firebase server dependencies', () => {
   const pkg = readJson(packagePath);
   assert.equal(pkg.type, 'module');
   assert.equal(pkg.main, 'firebase-functions.mjs');
-  assert.equal(pkg.engines.node, '22');
+  assert.equal(pkg.engines.node, '>=22');
   assert.equal(pkg.dependencies['firebase-admin'], '^14.3.0');
   assert.equal(pkg.dependencies['firebase-functions'], '^7.3.2');
 });
