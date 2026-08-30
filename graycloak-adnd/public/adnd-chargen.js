@@ -1,4 +1,8 @@
-// adnd-chargen.js v1.0.0 — 2026-07-29
+// adnd-chargen.js v1.1.0 — 2026-08-29
+// v1.1.0 — character output now carries Graycloak Document identity:
+//          documentType=actor, type=character, stable runtime/time fields.
+//          The physical Firestore collection remains characters/{charId}.
+// v1.0.0 — 2026-07-29
 // Player character generation for adnd.graycloak.net. Pure: no DOM, no
 // Firestore. Loads the generated OSRIC 3 kernel from
 // public/vendor/osric3-rules (emitted by tsconfig.adnd.json, gated by
@@ -7,7 +11,6 @@
 //
 // Exposed as the global ADNDChargen, same classic-script pattern as
 // ADNDAuth and ADNDFreehold.
-
 const ADNDChargen = (function(){
   'use strict';
 
@@ -20,7 +23,6 @@ const ADNDChargen = (function(){
 
   let _kernel = null;
   let _ready = null;
-
   function ready(url){
     if (_ready) return _ready;
     _ready = import(url || KERNEL_URL)
@@ -32,7 +34,6 @@ const ADNDChargen = (function(){
       });
     return _ready;
   }
-
   function kernel(){ return _kernel; }
   function rulesVersion(){ return _kernel ? _kernel.OSRIC3_RULESET.packageVersion : null; }
   function isArrangeable(method){ return FIXED_ORDER_METHODS.indexOf(method) === -1; }
@@ -42,7 +43,6 @@ const ADNDChargen = (function(){
     ABILITY_IDS.forEach((id, i) => { out[id] = values[i]; });
     return out;
   }
-
   function rollSets(method, random){
     if (!_kernel) return [];
     return _kernel.rollAbilitySets(method, random).map(set => ({
@@ -50,7 +50,6 @@ const ADNDChargen = (function(){
       viable: _kernel.isViableAbilitySet(set),
     }));
   }
-
   function classOptions(raceId, baseScores){
     if (!_kernel) return [];
     const racial = _kernel.applyRacialAbilityAdjustments(baseScores, raceId);
@@ -66,6 +65,24 @@ const ADNDChargen = (function(){
     });
   }
 
+  function asActorDocument(data){
+    if (typeof ADNDDocuments !== 'undefined' && ADNDDocuments && ADNDDocuments.createActor) {
+      return ADNDDocuments.createActor(data);
+    }
+    // Keeps chargen independently testable and backward-compatible if this
+    // classic script is loaded without adnd-documents.js.
+    return Object.assign({
+      id: null,
+      documentType: 'actor',
+      type: 'character',
+      runtime: {
+        lastResolvedTick: null,
+        availableAtTick: null,
+        activityId: null,
+      },
+    }, data);
+  }
+
   function buildCharacter(input){
     if (!_kernel) return { valid: false, error: 'Rules kernel not loaded.' };
 
@@ -74,7 +91,6 @@ const ADNDChargen = (function(){
     const classId = input.classId;
     const baseScores = input.baseScores;
     const random = input.random;
-
     const built = k.buildStartingCharacter({
       raceId: raceId,
       classId: classId,
@@ -83,7 +99,6 @@ const ADNDChargen = (function(){
       random: random,
     });
     if (!built.valid) return { valid: false, error: built.error };
-
     const s = built.finalScores;
     const exceptionalStrength = k.rollPercentileStrength(classId, s.str, random);
     const hitPoints = k.rollStartingHitPoints(classId, s.con, random);
@@ -92,13 +107,13 @@ const ADNDChargen = (function(){
     const slots = k.getSpellSlots(classId, 1, s.wis);
     const arcane = classId === 'magic-user' || classId === 'illusionist';
     const rogue = classId === 'thief' || classId === 'assassin';
-
-    const doc = {
+    const doc = asActorDocument({
       schemaVersion: SCHEMA_VERSION,
       rulesVersion: k.OSRIC3_RULESET.packageVersion,
       ownerUid: input.ownerUid,
       campaignId: input.campaignId,
       name: input.name,
+      type: 'character',
       raceId: raceId,
       classId: classId,
       genderId: built.genderId,
@@ -136,8 +151,7 @@ const ADNDChargen = (function(){
       equipment: [],
       createdAt: null,
       updatedAt: null,
-    };
-
+    });
     return { valid: true, doc: doc, hitPointsRolled: hitPoints };
   }
 
