@@ -1,4 +1,9 @@
-// adnd-map-view.js v1.2.0 — 2026-08-29
+// adnd-map-view.js v1.3.0 — 2026-08-30
+// v1.3.0 — map route-selection adapter. Route mode collects an ordered chain
+//          of adjacent subhexes while normal drag/wheel navigation remains
+//          available. The selected route can be previewed against authored
+//          terrain and handed to ADNDActivities, but this view still performs
+//          no travel writes, Actor movement, or world-clock advancement.
 // v1.2.0 — normalize characters through ADNDDocuments at the Firestore read
 //          boundary so legacy and current records are Actor-shaped downstream.
 // v1.1.1 — river tier key fix: great_river (matches
@@ -62,14 +67,23 @@ const ADNDMapView = (function(){
   const CELL_BUDGET = 6000;   // above this, drop to parent-level fills
   const PARENT_LABEL_ZOOM = 0.8;
   const GRID_COLS = 146, GRID_ROWS = 97;
+  const CLICK_SLOP_PX = 4;
   let ME = null;              // map-engine module
   let _ready = null;
 
+  function newRouteSelection(){
+    if (typeof ADNDMapRoute !== 'undefined' && ADNDMapRoute &&
+        typeof ADNDMapRoute.createSelection === 'function') {
+      return ADNDMapRoute.createSelection();
+    }
+    return { active: false, cells: [], error: null };
+  }
   const state = {
     view: { cx: 0, cy: 0, zoom: 1 },
     data: null,               // { flanaess, subhex, lakes, paths, regions, settlements, freeholds }
     svg: null,
     raf: 0,
+    route: newRouteSelection(),
   };
   function ready(url){
     if (_ready) return _ready;
@@ -184,6 +198,109 @@ const ADNDMapView = (function(){
     const o = ME.ownerOf(Q, R);
     return o ? (state.data.flanaess[`${o.col}-${o.row}`] || null) : null;
   }
+  function subhexMilesPerStep(){
+    const scale = ME && ME.SCALES && ME.SCALES.subhex;
+    return scale && Number.isFinite(scale.milesAcross) ? scale.milesAcross : null;
+  }
+  function routeCells(){
+    return state.route && Array.isArray(state.route.cells) ? state.route.cells : [];
+  }
+  function uniquePartyStartCell(){
+    const seen = new Map();
+    for (const ch of Object.values((state.data && state.data.characters) || {})){
+      const loc = ch && ch.currentLocation;
+      if (!loc || !Array.isArray(loc.subHexCoord) || loc.subHexCoord.length < 2) continue;
+      const Q = loc.subHexCoord[0], R = loc.subHexCoord[1];
+      if (!Number.isSafeInteger(Q) || !Number.isSafeInteger(R)) continue;
+      seen.set(`${Q},${R}`, { Q, R });
+    }
+    return seen.size === 1 ? Array.from(seen.values())[0] : null;
+  }
+  function previewSelectedRoute(){
+    if (typeof ADNDActivities === 'undefined' || !ADNDActivities ||
+        typeof ADNDActivities.buildAuthoredRouteSegments !== 'function') {
+      return { ok: false, code: 'activities-unavailable' };
+    }
+    const cells = routeCells();
+    if (cells.length < 2) return { ok: false, code: 'route-too-short' };
+    const miles = subhexMilesPerStep();
+    if (!(miles > 0)) return { ok: false, code: 'map-scale-unavailable' };
+    return ADNDActivities.buildAuthoredRouteSegments({
+      routeCells: cells,
+      routeMilesPerStep: miles,
+      subhexes: (state.data && state.data.subhex) || {},
+      parentTerrain: (state.data && state.data.flanaess) || {},
+      ownerOf: ME && typeof ME.ownerOf === 'function' ? ME.ownerOf : null,
+    });
+  }
+  function buildSelectedTravelPlan(input){
+    if (typeof ADNDMapRoute === 'undefined' || !ADNDMapRoute ||
+        typeof ADNDMapRoute.buildTravelPlan !== 'function') {
+      return { ok: false, code: 'map-route-unavailable' };
+    }
+    input = input || {};
+    const miles = subhexMilesPerStep();
+    const request = Object.assign({}, input, {
+      campaignId: input.campaignId || campaignId(),
+      routeMilesPerStep: input.routeMilesPerStep || miles,
+      subhexes: (state.data && state.data.subhex) || {},
+      parentTerrain: (state.data && state.data.flanaess) || {},
+      ownerOf: ME && typeof ME.ownerOf === 'function' ? ME.ownerOf : null,
+    });
+    if (request.worldTick == null && state.data && state.data.campaign &&
+        typeof ADNDWorldClock !== 'undefined' && ADNDWorldClock &&
+        typeof ADNDWorldClock.campaignWorldTick === 'function') {
+      request.worldTick = ADNDWorldClock.campaignWorldTick(state.data.campaign);
+    }
+    return ADNDMapRoute.buildTravelPlan(state.route, request);
+  }
+  function routeStatusText(){
+    const cells = routeCells();
+    if (state.route && state.route.error) {
+      if (state.route.error === 'noncontiguous-route') return 'route cells must be adjacent';
+      if (state.route.error === 'route-loop') return 'route cannot loop through a selected cell';
+      return `route error: ${state.route.error}`;
+    }
+    if (cells.length === 0) return state.route && state.route.active
+      ? 'click a start cell'
+      : 'no route selected';
+    if (cells.length === 1) return state.route && state.route.active
+      ? `start ${cells[0].Q},${cells[0].R} · click an adjacent cell`
+      : `start ${cells[0].Q},${cells[0].R}`;
+    const preview = previewSelectedRoute();
+    if (!preview.ok) {
+      if (preview.code === 'unsupported-map-terrain') {
+        return `route blocked by unsupported terrain: ${preview.mapTerrain || 'unknown'}`;
+      }
+      if (preview.code === 'missing-map-terrain') return 'route enters an unauthored map cell';
+      return `route preview: ${preview.code}`;
+    }
+    const miles = (cells.length - 1) * preview.routeMilesPerStep;
+    return `${cells.length} cells · ${miles} mi · ${preview.routeSegments.length} legs`;
+  }
+  function refreshRouteControls(){
+    if (typeof document === 'undefined') return;
+    const toggle = document.getElementById('map-route-toggle');
+    const undo = document.getElementById('map-route-undo');
+    const clear = document.getElementById('map-route-clear');
+    const status = document.getElementById('map-route-status');
+    if (toggle) toggle.textContent = state.route && state.route.active ? 'Stop Route' : 'Plan Route';
+    if (undo) undo.disabled = routeCells().length === 0;
+    if (clear) clear.disabled = routeCells().length === 0;
+    if (status) status.textContent = routeStatusText();
+  }
+  function setRouteSelection(selection){
+    state.route = selection || newRouteSelection();
+    refreshRouteControls();
+    scheduleRender();
+  }
+  function addRouteCell(cell){
+    if (typeof ADNDMapRoute === 'undefined' || !ADNDMapRoute ||
+        typeof ADNDMapRoute.appendCell !== 'function') return false;
+    const result = ADNDMapRoute.appendCell(state.route, cell);
+    setRouteSelection(result.selection);
+    return !!result.ok;
+  }
   // ── Render ───────────────────────────────────────────────────────
   function esc(s){
     return String(s).replace(/[&<>"']/g, c => ({
@@ -243,6 +360,23 @@ const ADNDMapView = (function(){
           chunks.push(`<polyline points="${pts}" fill="none" stroke="${ROAD_STROKE}" stroke-width="${pd.kind === 'trail' ? 0.3 : 0.45}"${dash} stroke-linejoin="round" stroke-linecap="round"/>`);
         }
       }
+    }
+    // Selected travel route. This is a local planning overlay only; no game state
+    // changes occur until a future authoritative command commits a Travel Activity.
+    const selectedRoute = routeCells();
+    if (selectedRoute.length){
+      const pts = selectedRoute.map(c => {
+        const p = ME.subhexSvgCenter(c.Q, c.R);
+        return `${p.x.toFixed(2)},${p.y.toFixed(2)}`;
+      }).join(' ');
+      if (selectedRoute.length > 1){
+        chunks.push(`<polyline points="${pts}" fill="none" stroke="rgba(143,62,12,.95)" stroke-width=".72" stroke-linejoin="round" stroke-linecap="round" pointer-events="none"/>`);
+      }
+      selectedRoute.forEach((c, index) => {
+        const p = ME.subhexSvgCenter(c.Q, c.R);
+        chunks.push(`<polygon points="${hexPoints(p.x, p.y, ME.SUB_R * .88)}" fill="rgba(212,160,23,.18)" stroke="rgba(111,62,10,.95)" stroke-width=".28" pointer-events="none"/>`);
+        chunks.push(`<text x="${p.x.toFixed(2)}" y="${(p.y + .52).toFixed(2)}" font-size="1.45" text-anchor="middle" font-weight="bold" fill="#5c2e0c" paint-order="stroke" stroke="rgba(250,248,242,.9)" stroke-width=".22" pointer-events="none">${index + 1}</text>`);
+      });
     }
     // Parent outlines + Darlene labels
     if (state.view.zoom >= 0.35){
@@ -349,24 +483,67 @@ const ADNDMapView = (function(){
     return { col, row };
   }
   // ── Interaction ──────────────────────────────────────────────────
+  function clientToSubhex(svg, clientX, clientY){
+    if (!svg || !ME || typeof ME.svgToAxial !== 'function') return null;
+    const rect = svg.getBoundingClientRect();
+    if (!(rect.width > 0 && rect.height > 0)) return null;
+    const scale = PX_PER_UNIT * state.view.zoom;
+    const wx = state.view.cx + (clientX - rect.left - rect.width / 2) / scale;
+    const wy = state.view.cy + (clientY - rect.top - rect.height / 2) / scale;
+    return ME.svgToAxial(wx, wy);
+  }
+  function wireRouteControls(){
+    const toggle = document.getElementById('map-route-toggle');
+    const undo = document.getElementById('map-route-undo');
+    const clear = document.getElementById('map-route-clear');
+    if (toggle) toggle.addEventListener('click', () => {
+      if (typeof ADNDMapRoute === 'undefined' || !ADNDMapRoute) return;
+      const activating = !(state.route && state.route.active);
+      const start = activating && routeCells().length === 0 ? uniquePartyStartCell() : null;
+      const result = ADNDMapRoute.setActive(state.route, activating, start);
+      setRouteSelection(result.selection);
+    });
+    if (undo) undo.addEventListener('click', () => {
+      if (typeof ADNDMapRoute === 'undefined' || !ADNDMapRoute) return;
+      setRouteSelection(ADNDMapRoute.undoSelection(state.route).selection);
+    });
+    if (clear) clear.addEventListener('click', () => {
+      if (typeof ADNDMapRoute === 'undefined' || !ADNDMapRoute) return;
+      setRouteSelection(ADNDMapRoute.clearSelection(state.route).selection);
+    });
+    refreshRouteControls();
+  }
   function wireInput(svg){
     let drag = null;
     svg.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
       if (e.target.closest('a')) return;      // let marker links click through
-      drag = { x: e.clientX, y: e.clientY, cx: state.view.cx, cy: state.view.cy };
+      drag = {
+        x: e.clientX, y: e.clientY,
+        cx: state.view.cx, cy: state.view.cy,
+        moved: false,
+      };
       svg.setPointerCapture(e.pointerId);
     });
     svg.addEventListener('pointermove', (e) => {
       if (!drag) return;
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      if (Math.abs(dx) > CLICK_SLOP_PX || Math.abs(dy) > CLICK_SLOP_PX) drag.moved = true;
       const s = PX_PER_UNIT * state.view.zoom;
-      state.view.cx = drag.cx - (e.clientX - drag.x) / s;
-      state.view.cy = drag.cy - (e.clientY - drag.y) / s;
+      state.view.cx = drag.cx - dx / s;
+      state.view.cy = drag.cy - dy / s;
       scheduleRender();
     });
-    const endDrag = () => { drag = null; };
-    svg.addEventListener('pointerup', endDrag);
-    svg.addEventListener('pointercancel', endDrag);
+    svg.addEventListener('pointerup', (e) => {
+      if (!drag) return;
+      const wasClick = !drag.moved;
+      drag = null;
+      if (wasClick && state.route && state.route.active){
+        const cell = clientToSubhex(svg, e.clientX, e.clientY);
+        if (cell) addRouteCell(cell);
+      }
+    });
+    svg.addEventListener('pointercancel', () => { drag = null; });
     svg.addEventListener('wheel', (e) => {
       e.preventDefault();
       const v = state.view;
@@ -390,7 +567,13 @@ const ADNDMapView = (function(){
       <div class="map-card">
         <h2>World Map</h2>
         <div id="map-clock" class="map-clock"></div>
-        <div class="map-hint">${esc(msg || 'drag to pan · wheel to zoom · click a marker')}</div>
+        <div class="map-hint">${esc(msg || 'drag to pan · wheel to zoom · route mode: click adjacent subhexes')}</div>
+        <div id="map-route-controls" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 8px;">
+          <button id="map-route-toggle" type="button" style="padding:5px 9px;margin:0;font-size:12px;">Plan Route</button>
+          <button id="map-route-undo" type="button" style="padding:5px 9px;margin:0;font-size:12px;" disabled>Undo</button>
+          <button id="map-route-clear" type="button" style="padding:5px 9px;margin:0;font-size:12px;" disabled>Clear</button>
+          <span id="map-route-status" style="font-size:11px;color:#666;">no route selected</span>
+        </div>
         <svg id="map-svg" xmlns="http://www.w3.org/2000/svg"></svg>
       </div>`;
     return document.getElementById('map-svg');
@@ -432,6 +615,7 @@ const ADNDMapView = (function(){
       renderEmpty(`Map load failed: ${e.message}`);
       return;
     }
+    state.route = newRouteSelection();
     const c = pickCenter();
     state.view.cx = c.x; state.view.cy = c.y; state.view.zoom = 1.6;
     state.svg = shell();
@@ -442,6 +626,7 @@ const ADNDMapView = (function(){
       else if (campaignId()) clockEl.textContent = 'world date not set';
       else clockEl.style.display = 'none';
     }
+    wireRouteControls();
     wireInput(state.svg);
     render();
     window.addEventListener('resize', scheduleRender);
@@ -456,6 +641,11 @@ const ADNDMapView = (function(){
     });
   }
 
-  return { ready, boot, render, internalToDarlene, darleneToInternal,
-    formatWorldDate, normalizeCharacterRecord, loadAll, state };
+  return {
+    ready, boot, render, internalToDarlene, darleneToInternal,
+    formatWorldDate, normalizeCharacterRecord, loadAll,
+    subhexMilesPerStep, routeCells, uniquePartyStartCell, previewSelectedRoute,
+    buildSelectedTravelPlan, routeStatusText, addRouteCell, clientToSubhex,
+    state,
+  };
 })();

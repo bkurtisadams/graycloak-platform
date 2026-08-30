@@ -1,4 +1,4 @@
-# Graycloak Activity / Travel Primitives v0.7
+# Graycloak Activity / Travel Primitives v0.8
 
 v0.7 bridges the authored world map into the v0.6 axial route model. Given an ordered list of adjacent subhex coordinates, the Activity layer can now resolve each entered cell's authored terrain, classify it into an outdoor travel band, construct route segments, and create a Travel Activity.
 
@@ -224,3 +224,123 @@ v0.7 intentionally does not implement:
 - Firestore writes
 
 The next useful slice is the **map adapter/UI boundary**: let `adnd-map-view.js` expose the loaded map-engine scale/terrain data to this route builder, then support selecting an ordered route on the map without yet adding pathfinding.
+
+---
+
+## v0.8 map route-selection adapter
+
+v0.8 adds a small pure `ADNDMapRoute` layer and connects it to `adnd-map-view.js`.
+It does not change the v0.7 Activity calculation rules. Instead, it gives the player
+map a safe way to collect the `routeCells` that v0.7 already knows how to adjudicate.
+
+The browser UI remains a planner only. Selecting a route does **not** move an Actor,
+reserve time, create a Firestore Activity, or advance `campaign.worldTick`.
+
+### Map interaction
+
+The World Map card now exposes:
+
+```text
+Plan Route   Undo   Clear
+```
+
+When route mode is active:
+
+- ordinary click adds the selected subhex;
+- every new cell must be adjacent to the current endpoint;
+- dragging still pans the map;
+- the mouse wheel still zooms;
+- clicking the immediately previous route cell backtracks one step;
+- clicking another previously selected cell is rejected rather than creating a loop;
+- settlement/freehold marker links continue to behave as links.
+
+If all located loaded characters occupy one shared subhex, `Plan Route` seeds that cell as
+the starting point. If the loaded characters occupy different cells, the route starts
+empty and the first click chooses the origin. This is deliberately only a convenience;
+v0.8 does not decide which Actors will eventually participate in the trip.
+
+The selected route is drawn as a numbered overlay so its order remains visible.
+The status line shows the cell count and map-derived mileage, or an authored-terrain
+error such as an unsupported water cell.
+
+### Pure route-selection API
+
+`adnd-map-route.js` exposes the pure selection state separately from the DOM:
+
+```js
+let selection = ADNDMapRoute.createSelection();
+selection = ADNDMapRoute.setActive(selection, true, [10, 20]).selection;
+selection = ADNDMapRoute.appendCell(selection, [11, 20]).selection;
+selection = ADNDMapRoute.appendCell(selection, [12, 20]).selection;
+```
+
+The selection object is intentionally small:
+
+```text
+active
+cells[]
+error
+```
+
+`routeDistanceMiles(selection, milesPerStep)` derives the geometric mileage without
+performing travel adjudication.
+
+### Player-map Activity adapter
+
+`ADNDMapView.buildSelectedTravelPlan(input)` bridges the selected route into v0.7.
+The map view supplies:
+
+```text
+routeCells
+MapEngine.SCALES.subhex.milesAcross
+loaded subhex documents
+loaded parent terrain
+MapEngine.ownerOf
+campaignId (when available from ?camp=)
+worldTick (when available from the loaded campaign)
+```
+
+The caller must still supply authoritative gameplay inputs that the map does not yet
+own, especially:
+
+```text
+id / activityId
+actors
+movementProfiles
+```
+
+For example:
+
+```js
+const plan = ADNDMapView.buildSelectedTravelPlan({
+  id: 'activity-travel-1',
+  actors,
+  movementProfiles
+});
+```
+
+That call remains pure. It returns the same Travel Activity + Actor reservation patches
+as `ADNDActivities.createAuthoredMapTravelPlan()`. Nothing is written automatically.
+
+`ADNDMapView.previewSelectedRoute()` is lighter-weight and requires no movement
+profiles. It resolves the current route against authored terrain so the UI can show
+terrain/water problems while the player is still choosing cells.
+
+### Still deferred after v0.8
+
+v0.8 still does not implement:
+
+- shortest-path or A* route finding
+- choosing which Actor/party is travelling
+- deriving movement profiles from Actor equipment/encumbrance
+- a final "Begin Travel" command
+- authoritative Activity/Actor Firestore transactions
+- road/trail modifiers
+- bridges/fords/ferries or water travel
+- mounts, vehicles, forced marches, weather, navigation, encounters, supplies, or camp/rest
+- automatic world-clock advancement or Activity completion
+
+The next slice should make the route planner **party-aware**: choose the travelling
+Actor set, derive/collect the movement profile data required by v0.5, preview the
+calculated duration, and only then prepare a future authoritative `Begin Travel`
+command boundary.
