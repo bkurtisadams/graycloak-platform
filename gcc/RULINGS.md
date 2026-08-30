@@ -62,6 +62,9 @@ Status key: **RULING** — a choice between readings, or a rule the book does no
 
 ## §9 Heroes and Commanders
 
+- **[9.4B] 1:1 adjacency is grid adjacency — RULING 2026-08-30 (Kurt approved).** Individual counters are ½″ bases seated in 1″ grid squares, so an orthogonal neighbour stands 0.5″ away and a diagonal neighbour 0.707″. `INDIVIDUAL_CONTACT_EPS` is 0.75″ so both count as adjacent; at 0.5″ a diagonal opponent could not be fought at all. Flip the constant back to 0.5 for orthogonal-only. v0.61.6.3. Placement itself is the Snap preference's job (¼″ puts a ½″ counter in a square), not something the board forces.
+- **[9.4B]/[Table 10] 1:1 counters are never glued.** The base-to-base glue and seam settle are for army cards only. A counter is a figure the GM places: it lands where the pointer and the Snap preference put it (¼″ keeps heroes in grid squares), and contact is judged where it stands by the ½″-plus-diagonal allowance. v0.61.6.5.
+
 - **[9.4A]/[9.4B] Two combat systems.** Hero-vs-unit uses the BATTLESYSTEM CRT (§9.4A); Hero-vs-Hero resolves as AD&D characters with AD&D combat (§9.4B) — attack routines, real damage expressions, cadence — never the CRT.
 - **[9.4A] CRT die substitution** — a hero's AD&D damage expression is mapped to the nearest legal CRT die and the substitution is logged (v0.58.0).
 - **[9.1] Table 11** rolls the fate of a Unit Commander or Member of Unit when the last figure is removed (v0.61.2).
