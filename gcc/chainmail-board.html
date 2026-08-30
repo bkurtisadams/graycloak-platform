@@ -11126,7 +11126,7 @@ renderBoard();
 
 // GCC multiplayer Slice 1 (v0.11.174): parse ?camp/?battle/?spectate and connect.
 // Inert without ?camp= or the GCC scripts — the board stays a standalone page.
-NET.init();
+
 $('#btn-net-share').addEventListener('click', () => NET.shareSpectateLink());
 $('#btn-net-share-player').addEventListener('click', () => NET.sharePlayerLink());   // Slice 2A
 // Spectate: mutating toolbar controls are CSS-hidden, but a capture-phase
@@ -12845,6 +12845,11 @@ initRailSplitter();
     return { missileEnabled, reach, arc, shots, missileOk, canAct, phaseId, dispatch };
   };
 })();
+
+// Start multiplayer only after the synchronous self-tests have completed.
+// This prevents live reconnect timers from colliding with the debounce tests.
+NET.init();
+
 </script>
 </body>
 </html>
