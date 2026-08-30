@@ -1,4 +1,12 @@
-// adnd-map-view.js v1.3.0 — 2026-08-30
+// adnd-map-view.js v1.5.0 — 2026-08-30
+// v1.5.0 — expose a client-safe Begin Travel intent builder. The map can now
+//          package selected Actor ids + ordered route cells + expected worldTick
+//          for the authoritative command boundary, but still performs no writes.
+// v1.4.0 — party-aware travel preview. Route-origin Actors can be selected,
+//          explicit movement profiles are auto-filled when present, and local
+//          preview-only Movement Rate overrides feed the v0.7/v0.8 travel
+//          calculator. Shows duration, slowest Actor, and arrival worldTick;
+//          still performs no writes or Begin Travel command.
 // v1.3.0 — map route-selection adapter. Route mode collects an ordered chain
 //          of adjacent subhexes while normal drag/wheel navigation remains
 //          available. The selected route can be previewed against authored
@@ -78,12 +86,20 @@ const ADNDMapView = (function(){
     }
     return { active: false, cells: [], error: null };
   }
+  function newTravelPartyState(){
+    return {
+      seedKey: null,
+      selectedActorIds: [],
+      movementOverrides: {},
+    };
+  }
   const state = {
     view: { cx: 0, cy: 0, zoom: 1 },
     data: null,               // { flanaess, subhex, lakes, paths, regions, settlements, freeholds }
     svg: null,
     raf: 0,
     route: newRouteSelection(),
+    travelParty: newTravelPartyState(),
   };
   function ready(url){
     if (_ready) return _ready;
@@ -254,6 +270,189 @@ const ADNDMapView = (function(){
     }
     return ADNDMapRoute.buildTravelPlan(state.route, request);
   }
+  function campaignWorldTick(){
+    if (!state.data || !state.data.campaign ||
+        typeof ADNDWorldClock === 'undefined' || !ADNDWorldClock ||
+        typeof ADNDWorldClock.campaignWorldTick !== 'function') return null;
+    return ADNDWorldClock.campaignWorldTick(state.data.campaign);
+  }
+  function travelPartyCandidates(){
+    if (typeof ADNDTravelParty === 'undefined' || !ADNDTravelParty ||
+        typeof ADNDTravelParty.listCandidates !== 'function') return [];
+    const cells = routeCells();
+    const start = cells.length ? cells[0] : uniquePartyStartCell();
+    if (!start) return [];
+    return ADNDTravelParty.listCandidates(
+      (state.data && state.data.characters) || {},
+      start,
+      campaignWorldTick(),
+      campaignId(),
+    );
+  }
+  function travelPartySeedKey(candidates){
+    const cells = routeCells();
+    const start = cells.length ? cells[0] : uniquePartyStartCell();
+    if (!start) return 'none';
+    return `${start.Q},${start.R}|${candidates.map(c => c.actorId).join(',')}`;
+  }
+  function ensureTravelPartySelection(){
+    const candidates = travelPartyCandidates();
+    const key = travelPartySeedKey(candidates);
+    if (!state.travelParty) state.travelParty = newTravelPartyState();
+    if (state.travelParty.seedKey !== key){
+      state.travelParty.seedKey = key;
+      state.travelParty.selectedActorIds = candidates.map(c => c.actorId);
+    } else {
+      const allowed = new Set(candidates.map(c => c.actorId));
+      state.travelParty.selectedActorIds =
+        state.travelParty.selectedActorIds.filter(id => allowed.has(id));
+    }
+    return candidates;
+  }
+  function selectedTravelActors(candidates){
+    candidates = candidates || ensureTravelPartySelection();
+    const selected = new Set((state.travelParty && state.travelParty.selectedActorIds) || []);
+    return candidates.filter(c => selected.has(c.actorId)).map(c => c.actor);
+  }
+  function selectedMovementOverrides(actors){
+    const out = {};
+    const stored = (state.travelParty && state.travelParty.movementOverrides) || {};
+    for (const actor of actors || []){
+      const actorId = actor && actor.id != null ? String(actor.id) : null;
+      if (!actorId) continue;
+      if (Object.prototype.hasOwnProperty.call(stored, actorId) && stored[actorId] !== '') {
+        out[actorId] = stored[actorId];
+      }
+    }
+    return out;
+  }
+  function previewSelectedPartyTravel(){
+    if (typeof ADNDTravelParty === 'undefined' || !ADNDTravelParty ||
+        typeof ADNDTravelParty.buildPreview !== 'function') {
+      return { ok: false, code: 'travel-party-unavailable' };
+    }
+    const route = previewSelectedRoute();
+    if (!route.ok) return route;
+    const candidates = ensureTravelPartySelection();
+    const actors = selectedTravelActors(candidates);
+    if (!actors.length) return { ok: false, code: 'no-selected-actors' };
+    return ADNDTravelParty.buildPreview({
+      actors,
+      movementOverrides: selectedMovementOverrides(actors),
+      routeSegments: route.routeSegments,
+      routeMilesPerStep: route.routeMilesPerStep,
+      routeSource: 'authored-map',
+      worldTick: campaignWorldTick(),
+    });
+  }
+  function buildSelectedPartyTravelPlan(input){
+    if (typeof ADNDTravelParty === 'undefined' || !ADNDTravelParty ||
+        typeof ADNDTravelParty.buildMovementProfiles !== 'function') {
+      return { ok: false, code: 'travel-party-unavailable' };
+    }
+    const candidates = ensureTravelPartySelection();
+    const actors = selectedTravelActors(candidates);
+    if (!actors.length) return { ok: false, code: 'no-selected-actors' };
+    const movement = ADNDTravelParty.buildMovementProfiles(
+      actors,
+      selectedMovementOverrides(actors),
+    );
+    if (!movement.ok) return movement;
+    return buildSelectedTravelPlan(Object.assign({}, input || {}, {
+      actors,
+      movementProfiles: movement.movementProfiles,
+    }));
+  }
+  function buildBeginTravelIntent(input){
+    if (typeof ADNDCommands === 'undefined' || !ADNDCommands ||
+        typeof ADNDCommands.createBeginTravelIntent !== 'function') {
+      return { ok: false, code: 'commands-unavailable' };
+    }
+    const candidates = ensureTravelPartySelection();
+    const actors = selectedTravelActors(candidates);
+    if (!actors.length) return { ok: false, code: 'no-selected-actors' };
+    const cells = routeCells();
+    if (cells.length < 2) return { ok: false, code: 'route-too-short' };
+    input = input || {};
+    return ADNDCommands.createBeginTravelIntent({
+      commandId: input.commandId,
+      activityId: input.activityId,
+      campaignId: input.campaignId || campaignId(),
+      expectedWorldTick: input.expectedWorldTick == null
+        ? campaignWorldTick() : input.expectedWorldTick,
+      actorIds: actors.map(actor => String(actor.id)),
+      routeCells: cells,
+    });
+  }
+
+  function travelPreviewText(preview){
+    if (!preview || !preview.ok){
+      const code = preview && preview.code;
+      if (code === 'route-too-short') return 'select at least two route cells';
+      if (code === 'no-selected-actors') return 'select at least one traveler';
+      if (code === 'missing-movement-profile') {
+        const ids = (preview.missingActorIds || []).join(', ');
+        return `enter Movement Rate${ids ? ` for ${ids}` : ''}`;
+      }
+      if (code === 'invalid-movement-profile') return 'one or more Movement Rates are invalid';
+      if (code === 'unsupported-map-terrain') return `route blocked: ${preview.mapTerrain || 'unsupported terrain'}`;
+      if (code === 'missing-map-terrain') return 'route enters an unauthored map cell';
+      return code ? `preview unavailable: ${code}` : 'preview unavailable';
+    }
+    const travel = preview.outdoorTravel || {};
+    const miles = Number.isFinite(travel.distanceMiles) ? `${travel.distanceMiles} mi` : 'distance ?';
+    const duration = preview.durationText || `${preview.durationTicks} ticks`;
+    const slow = preview.slowestActor
+      ? `slowest ${preview.slowestActor.name} (MR ${preview.slowestActor.movementRate})`
+      : 'slowest ?';
+    const arrival = preview.arrivalTick == null
+      ? 'arrival tick unavailable'
+      : `arrival tick ${preview.arrivalTick}`;
+    const availability = preview.canBegin
+      ? 'all selected Actors current'
+      : 'preview only · selected Actors not all current/bound';
+    return `${miles} · ${duration} · ${slow} · ${arrival} · ${availability}`;
+  }
+  function refreshTravelPartyControls(){
+    if (typeof document === 'undefined') return;
+    const list = document.getElementById('map-travel-party-list');
+    const previewEl = document.getElementById('map-travel-preview');
+    if (!list || !previewEl) return;
+    const cells = routeCells();
+    if (!cells.length){
+      list.innerHTML = '<span style="font-size:11px;color:#777;">select a route start to choose travelers</span>';
+      previewEl.textContent = 'no travel preview';
+      return;
+    }
+    const candidates = ensureTravelPartySelection();
+    if (!candidates.length){
+      list.innerHTML = '<span style="font-size:11px;color:#777;">no loaded Actors at route start</span>';
+      previewEl.textContent = 'no travel preview';
+      return;
+    }
+    const selected = new Set(state.travelParty.selectedActorIds);
+    const overrides = state.travelParty.movementOverrides || {};
+    list.innerHTML = candidates.map(c => {
+      const checked = selected.has(c.actorId) ? ' checked' : '';
+      let derived = '';
+      if (c.movementProfile && typeof ADNDActivities !== 'undefined' && ADNDActivities &&
+          typeof ADNDActivities.resolveMovementProfile === 'function') {
+        const resolved = ADNDActivities.resolveMovementProfile(c.movementProfile);
+        if (resolved.ok) derived = resolved.movementRate;
+      }
+      const value = Object.prototype.hasOwnProperty.call(overrides, c.actorId)
+        ? overrides[c.actorId] : derived;
+      const status = c.time && c.time.status ? c.time.status : 'unknown';
+      return `<label style="display:inline-flex;align-items:center;gap:4px;margin:2px 10px 2px 0;font-size:11px;">`
+        + `<input type="checkbox" data-travel-actor="${esc(c.actorId)}"${checked}>`
+        + `<span>${esc(c.name)}</span>`
+        + `<span style="color:#777;">${esc(status)}</span>`
+        + `<span>MR</span>`
+        + `<input type="number" min="0" step="1" data-travel-mr="${esc(c.actorId)}" value="${esc(value)}" placeholder="rate" style="width:58px;padding:2px 4px;font-size:11px;">`
+        + `</label>`;
+    }).join('');
+    previewEl.textContent = travelPreviewText(previewSelectedPartyTravel());
+  }
   function routeStatusText(){
     const cells = routeCells();
     if (state.route && state.route.error) {
@@ -292,6 +491,7 @@ const ADNDMapView = (function(){
   function setRouteSelection(selection){
     state.route = selection || newRouteSelection();
     refreshRouteControls();
+    refreshTravelPartyControls();
     scheduleRender();
   }
   function addRouteCell(cell){
@@ -513,6 +713,28 @@ const ADNDMapView = (function(){
     });
     refreshRouteControls();
   }
+  function wireTravelPartyControls(){
+    const list = document.getElementById('map-travel-party-list');
+    if (!list) return;
+    list.addEventListener('change', (e) => {
+      const target = e.target;
+      if (!target || !state.travelParty) return;
+      const actorId = target.getAttribute('data-travel-actor');
+      if (actorId != null){
+        const selected = new Set(state.travelParty.selectedActorIds || []);
+        if (target.checked) selected.add(actorId); else selected.delete(actorId);
+        state.travelParty.selectedActorIds = Array.from(selected);
+        refreshTravelPartyControls();
+        return;
+      }
+      const mrActorId = target.getAttribute('data-travel-mr');
+      if (mrActorId != null){
+        state.travelParty.movementOverrides[mrActorId] = target.value;
+        refreshTravelPartyControls();
+      }
+    });
+    refreshTravelPartyControls();
+  }
   function wireInput(svg){
     let drag = null;
     svg.addEventListener('pointerdown', (e) => {
@@ -574,6 +796,11 @@ const ADNDMapView = (function(){
           <button id="map-route-clear" type="button" style="padding:5px 9px;margin:0;font-size:12px;" disabled>Clear</button>
           <span id="map-route-status" style="font-size:11px;color:#666;">no route selected</span>
         </div>
+        <div id="map-travel-party" style="margin:0 0 8px;padding:6px 8px;border:1px solid rgba(0,0,0,.12);border-radius:4px;">
+          <div style="font-size:11px;font-weight:700;margin-bottom:4px;">Travel Party</div>
+          <div id="map-travel-party-list"></div>
+          <div id="map-travel-preview" style="font-size:11px;color:#555;margin-top:4px;">no travel preview</div>
+        </div>
         <svg id="map-svg" xmlns="http://www.w3.org/2000/svg"></svg>
       </div>`;
     return document.getElementById('map-svg');
@@ -616,6 +843,7 @@ const ADNDMapView = (function(){
       return;
     }
     state.route = newRouteSelection();
+    state.travelParty = newTravelPartyState();
     const c = pickCenter();
     state.view.cx = c.x; state.view.cy = c.y; state.view.zoom = 1.6;
     state.svg = shell();
@@ -627,6 +855,7 @@ const ADNDMapView = (function(){
       else clockEl.style.display = 'none';
     }
     wireRouteControls();
+    wireTravelPartyControls();
     wireInput(state.svg);
     render();
     window.addEventListener('resize', scheduleRender);
@@ -645,7 +874,10 @@ const ADNDMapView = (function(){
     ready, boot, render, internalToDarlene, darleneToInternal,
     formatWorldDate, normalizeCharacterRecord, loadAll,
     subhexMilesPerStep, routeCells, uniquePartyStartCell, previewSelectedRoute,
-    buildSelectedTravelPlan, routeStatusText, addRouteCell, clientToSubhex,
+    buildSelectedTravelPlan, campaignWorldTick, travelPartyCandidates,
+    ensureTravelPartySelection, selectedTravelActors, previewSelectedPartyTravel,
+    buildSelectedPartyTravelPlan, buildBeginTravelIntent, travelPreviewText, routeStatusText,
+    addRouteCell, clientToSubhex,
     state,
   };
 })();

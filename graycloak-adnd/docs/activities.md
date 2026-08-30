@@ -1,8 +1,15 @@
-# Graycloak Activity / Travel Primitives v0.8
+# Graycloak Activity / Travel Primitives v1.0
 
 v0.7 bridges the authored world map into the v0.6 axial route model. Given an ordered list of adjacent subhex coordinates, the Activity layer can now resolve each entered cell's authored terrain, classify it into an outdoor travel band, construct route segments, and create a Travel Activity.
 
 It still does **not** pathfind, write Firestore, advance campaign time, move Actors, roll encounters, or resolve completed Activities.
+
+
+## v1.0 authoritative command boundary
+
+Travel preview and travel authority are now deliberately separate. The map may package selected Actor ids, the ordered route cells, and the campaign `expectedWorldTick` into a client-safe `beginTravel` intent through `ADNDCommands.createBeginTravelIntent()` / `ADNDMapView.buildBeginTravelIntent()`. It does not submit Movement Rate, terrain, duration, arrival time, or Actor patches as authoritative facts.
+
+`ADNDCommands.executeBeginTravelCommand()` is intended to run only against trusted state. It reloads/rechecks the campaign frontier and Actors, verifies every Actor is still at the route origin and temporally current, obtains authoritative movement profiles, rebuilds the authored route terrain, and reruns the Activity planner. On success it returns the Travel Activity, Actor reservation patches, a `travel.started` GameEvent, and transaction preconditions as one semantic commit bundle. It still performs no Firestore writes itself. See `docs/commands.md`.
 
 ## Rules and policy boundary
 
@@ -344,3 +351,126 @@ The next slice should make the route planner **party-aware**: choose the travell
 Actor set, derive/collect the movement profile data required by v0.5, preview the
 calculated duration, and only then prepare a future authoritative `Begin Travel`
 command boundary.
+
+---
+
+## v0.9 party-aware travel preview
+
+v0.9 adds a pure `ADNDTravelParty` adapter and a small Travel Party panel to the
+World Map. It remains a **preview layer only**. Choosing travelers or entering a
+Movement Rate does not write character data, reserve time, create an Activity,
+or move anyone on the map.
+
+### Route-origin Actor selection
+
+Once a route has a starting cell, the map lists only loaded Actors whose
+`currentLocation.subHexCoord` matches that route origin. The initial local
+selection includes all such Actors; checkboxes may remove Actors from the
+preview party.
+
+Actors elsewhere on the map cannot be added to that route preview. Campaign-id
+filtering is also preserved.
+
+### Movement profile bridge
+
+The current starting-character schema does not yet persist an authoritative
+OSRIC movement rate. v0.9 therefore does not invent one.
+
+`ADNDTravelParty.explicitMovementProfile(actor)` recognizes explicit movement
+information when some upstream source already provides it:
+
+```text
+actor.travelMovementProfile
+actor.movementProfile
+actor.movementRate
+actor.movement.movementRate
+actor.movement.rate
+actor.movement.baseMovementRate + optional encumbrance/armour fields
+```
+
+If none exists, the World Map shows a local `MR` field beside that Actor. A
+value entered there is a **preview-only override**. It is not persisted to the
+Actor and is not evidence that the value has been rules-audited.
+
+This preserves the v0.5 boundary: the travel calculator may consume an already
+known effective movement profile, while inventory-weight encumbrance remains
+outside this slice until its OSRIC tables are verified and the Item system can
+supply authoritative equipment state.
+
+### Read-only party preview
+
+`ADNDTravelParty.buildPreview()` consumes:
+
+```text
+actors[]
+movementOverrides / movementProfiles
+routeSegments[]
+routeMilesPerStep
+worldTick (optional for duration-only preview)
+```
+
+It calls the existing mixed-terrain route calculator and returns:
+
+```text
+durationTicks
+durationText
+outdoorTravel.distanceMiles
+outdoorTravel.travelDays
+slowestActor
+worldTick
+arrivalTick
+actorStatuses[]
+canBegin
+```
+
+The slowest Actor is determined from effective Movement Rate. Because the
+OSRIC terrain multiplier is applied equally to all members of the party, the
+Actor with the lowest effective Movement Rate sets the party pace on every
+ordinary pedestrian route segment.
+
+A preview can still calculate duration for an `unbound` legacy Actor. In that
+case `canBegin` is false. This is intentional: the player can inspect route
+cost without weakening the shared-time-frontier rule that only `current`
+Actors may begin a new Activity.
+
+### Arrival display
+
+The map shows the calculated arrival **worldTick** and relative duration. v0.9
+does not convert that tick into a Greyhawk/calendar date. `worldTick` is
+calendar-agnostic by design, and a proper calendar adapter is still deferred.
+This avoids hard-coding Greyhawk calendar rules into the MMO time engine just
+to decorate a preview.
+
+### Future authoritative bridge
+
+`ADNDMapView.buildSelectedPartyTravelPlan(input)` is exposed for the next
+slice. It takes the current local traveler selection and preview movement
+profiles, then feeds them into the existing selected-route Travel Activity
+planner. It remains pure and requires the caller to provide any required
+Activity identity. There is still no `Begin Travel` UI in v0.9.
+
+### Still deferred after v0.9
+
+v0.9 still does not implement:
+
+- authoritative Actor movement-rate derivation from Items/encumbrance
+- time binding or catch-up side effects
+- a `Begin Travel` command
+- Activity / Actor Firestore transactions
+- world-clock advancement
+- Activity completion/resolution
+- shortest-path or A* pathfinding
+- road/trail speed modifiers
+- bridges, fords, ferries, boats, or water travel
+- mounts and vehicles
+- forced marches
+- weather
+- navigation/getting lost
+- wilderness encounters
+- food/water consumption
+- camping/rest
+
+The next slice should establish the **authoritative Begin Travel command
+boundary** without yet resolving travel. That command must revalidate the route,
+Actor ownership/location/time status, and movement inputs server-side before
+atomically creating the Activity and reserving the participating Actors.
