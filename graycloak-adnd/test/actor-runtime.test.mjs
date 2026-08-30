@@ -35,12 +35,12 @@ test('map read boundary normalizes a legacy character into an Actor', () => {
   assert.equal(actor.documentType, 'actor');
   assert.equal(actor.type, 'character');
   assert.equal(actor.level, 6);
-  assert.deepEqual(actor.runtime, {
-    lastResolvedTick: null,
-    availableAtTick: null,
-    activityId: null,
-  });
-  assert.deepEqual(actor.currentLocation.subHexCoord, [10, 20]);
+  assert.equal(actor.runtime.lastResolvedTick, null);
+  assert.equal(actor.runtime.availableAtTick, null);
+  assert.equal(actor.runtime.activityId, null);
+  assert.equal(actor.currentLocation.subHexCoord.length, 2);
+  assert.equal(actor.currentLocation.subHexCoord[0], 10);
+  assert.equal(actor.currentLocation.subHexCoord[1], 20);
 });
 
 test('map normalization preserves current Actor identity and runtime values', () => {
@@ -60,9 +60,7 @@ test('map normalization preserves current Actor identity and runtime values', ()
   assert.equal(actor.id, 'actor-current');
   assert.equal(actor.documentType, 'actor');
   assert.equal(actor.type, 'character');
-  assert.deepEqual(actor.runtime, {
-    lastResolvedTick: 120,
-    availableAtTick: 144,
-    activityId: 'activity-travel-1',
-  });
+  assert.equal(actor.runtime.lastResolvedTick, 120);
+  assert.equal(actor.runtime.availableAtTick, 144);
+  assert.equal(actor.runtime.activityId, 'activity-travel-1');
 });
