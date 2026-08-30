@@ -112,7 +112,7 @@ Status key: **RULING** — a choice between readings, or a rule the book does no
 
 Off by default; switched on per scenario in Conditions ▸ Optional rules and carried in the save.
 
-- **Tribal standards [MM] — v0.61.7.6.** An orc or hobgoblin tribal standard makes units of its OWN race within 6″ fight more fiercely: −1 AR in melee and +1 on morale checks, both itemised. Presence is a scenario decision (the MM rolls for it at encounter time), so the bearer is flagged per unit. Radius ruling (Kurt 2026-08-30): the MM's 6″ is at 1″ = 10 yards, which is BATTLESYSTEM's own ground scale [2.1], so it carries over unconverted. The mechanism is race-generic even though the MM cases are orcs and hobgoblins.
+- **Tribal standards [MM] — v0.61.7.6.** An orc or hobgoblin tribal standard makes units of its OWN race within 6″ fight more fiercely: −1 AR in melee and +1 on morale checks, both itemised. Presence is a scenario decision (the MM rolls for it at encounter time), so the bearer is flagged per unit. Radius ruling (Kurt 2026-08-30): the MM's 6″ is at 1″ = 10 yards, which is BATTLESYSTEM's own ground scale [2.1], so it carries over unconverted. The bearer is flagged on its unit sheet (✎ Edit ▸ Special abilities) and a selected bearer shows its 6″ radius on the same C toggle as the command radius, greyed when the rule is off. The mechanism is race-generic even though the MM cases are orcs and hobgoblins.
 - **DMG missile cover bands** (see §10) are the other AD&D layer over RAW — graduated cover where the printed Table 13 has flat rows.
 
 ## Open items
