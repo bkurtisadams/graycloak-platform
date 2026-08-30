@@ -120,23 +120,65 @@ The v1.0 bundle currently carries transaction preconditions for campaign time an
 
 Therefore v1.1 must not be described as detecting a concurrent GM edit to authored terrain between command execution and bundle commit. If that becomes important, the command context should add explicit map-data revision/fingerprint preconditions rather than hiding the gap.
 
+## v1.2 trusted command-service shell
+
+`runtime/command-service.mjs` is the first trusted orchestration layer around the pure command executor and the v1.1 Firestore transaction adapter. It is deliberately transport agnostic: an HTTP, Cloud Run, or Firebase Functions endpoint can call it later without moving rules or persistence authority into the browser.
+
+For `Begin Travel`, the service now performs this sequence:
+
+1. normalize the raw client intent with the same `ADNDCommands` contract used by the browser;
+2. require an authenticated principal;
+3. load the current campaign record and every requested Actor from Firestore;
+4. authorize the principal for every Actor before exposing command history or applying state;
+5. detect a previously committed matching command event for end-to-end idempotent retry;
+6. load the authoritative region parent-terrain document and only the route's referenced `subHexes/{id}` documents;
+7. resolve trusted movement profiles from Actor state or a server-supplied movement policy resolver;
+8. execute `executeBeginTravelCommand()` against that fresh authoritative context;
+9. annotate the GameEvent with the requesting uid and command-service version;
+10. pass the semantic bundle to `applyCommitBundle()` for the atomic Firestore transaction.
+
+### Authentication and Actor authorization
+
+The default authorization rule is intentionally strict: `principal.uid` must equal `actor.ownerUid` for every Actor in the command.
+
+That means a future multi-owner party cannot be moved merely because one player selected everybody on the map. Party consent, party leadership, and GM authority should be implemented as a trusted `authorizeActor(actor, principal, context)` policy supplied to the service. Until such a policy exists, the safe default is owner-only.
+
+### End-to-end idempotency
+
+v1.1 can recognize a repeated *commit bundle*, but an already-committed Begin Travel command changes the Actors into an unavailable/reserved state. Re-running the command executor first would therefore correctly reject those Actors before the v1.1 adapter ever saw the old idempotency marker.
+
+v1.2 closes that seam. After authentication and Actor authorization, the service checks `events/{commandId}` before recomputing travel. A matching historical event returns `already-committed`; a conflicting event returns `idempotency-conflict`. The transaction adapter still repeats its own idempotency check to close races between the service read and the final commit.
+
+### Authoritative map reads
+
+The service does not load the entire `subHexes` collection. It loads the region document used for inherited parent terrain and the individual subhex documents named by the normalized route. That is sufficient for the current authored-terrain resolver and avoids turning one travel command into a world-sized Firestore read.
+
+The pure map geometry remains a trusted dependency supplied by the host (`ownerOf` plus the canonical miles-per-subhex scale). v1.2 does not duplicate map-engine geometry inside the service.
+
+### Transitional Node command-runtime loader
+
+The current pure command modules are classic browser scripts, not ESM. `runtime/command-runtime.mjs` loads the exact local `adnd-documents.js`, `adnd-world-clock.js`, `adnd-activities.js`, and `adnd-commands.js` sources once in Node and exposes their runtime objects to the trusted service.
+
+This is a bridge, not a second rules implementation. A future dedicated ESM/server build target can replace the loader without changing the command-service contract.
+
 ## Current limitation: movement authority
 
 Current character generation does not yet persist a canonical movement profile for every PC. The map's v0.9 Movement Rate field remains a **preview-only** value and is deliberately excluded from the Begin Travel command.
 
-Until Actor movement is fully modeled, the trusted runtime must supply `authoritativeMovementProfiles` from trusted data/GM policy. This is intentional: a client-entered Movement Rate must never become authoritative merely because it was used to render a preview.
+Until Actor movement is fully modeled, the trusted runtime may supply a `movementProfileResolver` from trusted data/GM policy. If no resolver is configured, the command executor still accepts explicit movement data already stored on the authoritative Actor. A client-entered preview Movement Rate is never accepted as authoritative input.
 
-## Not included in v1.1
+## Not included in v1.2
 
-v1.1 does not yet provide:
+v1.2 still does not provide:
 
-- a network endpoint;
-- a Cloud Run/Firebase Functions deployment;
+- an HTTP/network endpoint;
+- Cloud Run/Firebase Functions deployment glue;
 - a Begin Travel UI button;
 - Firestore Security Rules for the new authoritative collections;
+- multi-owner party consent/leadership policy;
 - world-clock advancement;
 - Activity completion/resolution;
 - encounters, provisions, navigation, weather, crossings, or mounts;
 - transaction fingerprints for authored map terrain or external movement-policy revisions.
 
-The command boundary and transaction adapter are the seams those systems can attach to later.
+The trusted service now connects intent → authoritative reads → pure command execution → atomic storage, while leaving transport and later gameplay systems outside this slice.
