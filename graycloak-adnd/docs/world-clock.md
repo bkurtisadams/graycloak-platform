@@ -1,4 +1,4 @@
-# Graycloak World Clock v0.3
+# Graycloak World Clock v0.4
 
 Graycloak uses one authoritative numeric campaign clock. Characters do not own independent timelines.
 
@@ -33,7 +33,7 @@ Actors already reserve:
 - `runtime.availableAtTick` — earliest tick at which the actor may become available
 - `runtime.activityId` — Activity currently reserving the actor, if any
 
-v0.3 gives those fields deterministic meaning but does not write or advance them.
+v0.4 keeps those meanings and adds pure Activity/travel planning that can produce reservation patches without writing or advancing them.
 
 ## Actor time statuses
 
@@ -52,16 +52,16 @@ An actor is available to begin a new action only when status is `current`.
 
 Being behind never creates a private past version of the world. A behind actor must eventually be resolved forward to the shared `worldTick` before taking a new world-affecting action.
 
-v0.3 defines the query primitives only:
+The clock query primitives remain:
 
 - `actorNeedsTimeBinding(actor, worldTick)`
 - `actorNeedsCatchUp(actor, worldTick)`
 - `isActorAvailable(actor, worldTick)`
 - `getActorTimeStatus(actor, worldTick)`
 
-Binding, catch-up effects, Activity resolution, world-clock advancement, and Firestore writes are deferred to later authoritative-runtime slices.
+Binding, catch-up effects, Activity resolution, world-clock advancement, and Firestore writes remain deferred to later authoritative-runtime slices. v0.4 may plan a Travel Activity only after every participating Actor is already `current`.
 
-## No side effects in v0.3
+## No authoritative side effects in v0.4
 
 This version intentionally does **not**:
 
@@ -69,8 +69,7 @@ This version intentionally does **not**:
 - convert `currentDate` into `worldTick`
 - bind legacy actors automatically
 - process downtime
-- create travel Activities
 - clear completed Activities
 - write to Firestore
 
-Those operations need an authoritative command layer rather than a browser-side helper.
+v0.4 can construct a Travel Activity and Actor reservation patches as pure data. Committing those patches, resolving the Activity, moving Actors, or advancing the clock still requires an authoritative command layer rather than a browser-side helper.

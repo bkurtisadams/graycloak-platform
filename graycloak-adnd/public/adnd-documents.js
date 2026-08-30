@@ -1,4 +1,5 @@
-// adnd-documents.js v0.3.0 — 2026-08-30
+// adnd-documents.js v0.4.0 — 2026-08-30
+// v0.4.0 — Activity documents are now consumed by pure travel-planning primitives.
 // v0.3.0 — world-time fields now accept only non-negative safe-integer ticks.
 // v0.2.0 — Actor runtime integration support: normalization now preserves
 //          non-plain objects such as Firestore Timestamp/FieldValue instances.

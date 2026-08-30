@@ -1,4 +1,4 @@
-# Graycloak Document Model v0.3
+# Graycloak Document Model v0.4
 
 Graycloak uses a Foundry-inspired document model for game objects that have their own identity and lifecycle. This is an **application contract**, not a requirement that every record live in one Firestore collection.
 
@@ -45,7 +45,7 @@ Actor runtime metadata reserves three time fields:
 - `availableAtTick`
 - `activityId`
 
-These do **not** create private character timelines. v0.3 defines them against one shared campaign `worldTick`; see `docs/world-clock.md`. Tick values are non-negative safe integers, with one tick equal to one six-second OSRIC combat segment.
+These do **not** create private character timelines. They are defined against one shared campaign `worldTick`; see `docs/world-clock.md`. v0.4 Travel Activities can produce pure reservation patches for these fields without mutating or persisting Actors. Tick values are non-negative safe integers, with one tick equal to one six-second OSRIC combat segment.
 
 ### Item
 
@@ -61,7 +61,7 @@ A separately addressable temporary or persistent condition such as Haste, poison
 
 ### Activity
 
-A time-spanning commitment such as travel, training, resting, research, or construction. Activities are the intended bridge to the non-realtime MMO clock. Multiple actors can share one activity.
+A time-spanning commitment such as travel, training, resting, research, or construction. Activities bridge Actors to the non-realtime MMO clock. Multiple Actors can share one Activity. v0.4 implements pure Travel Activity planning; see `docs/activities.md`.
 
 ### GameEvent
 
