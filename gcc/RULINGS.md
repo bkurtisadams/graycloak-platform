@@ -58,6 +58,9 @@ Status key: **RULING** — a choice between readings, or a rule the book does no
 
 - **[8.0] Phase-level simultaneous losses.** In a live Melee Phase every engagement is computed on pre-phase strength and casualties are queued until the phase's last engagement resolves (or the phase ends), so killed figures fight their final Melee Phase. Setup sandbox, Set Spears, hero-vs-unit and free attacks remain immediate. v0.58.3.
 - **[8.1] Multi-opponent designation.** A unit in contact with two or more enemies designates which figures attack which (geometry default, Designate… override); a figure never attacks twice. v0.58.3.
+- **[12.5] Daylight +1 is automatic.** The Army Roster's "+1 in daylight" on light-shunning creatures is applied in melee to roster-flagged types (orcs, goblins) whenever Conditions ▸ Night is unticked — the Night checkbox is the declaration, so daylight needs none. It appears in the itemised AR. v0.61.7.4.
+- **[3.1]/[8.3] Racial combat modifiers are applied from their own table (1e MM).** Dwarves roll +1 to hit goblins, orcs and hobgoblins (AR −1), and ogres, trolls and giants deduct 4 against dwarves (AR +4); gnomes roll +1 against kobolds and goblins, and gnolls, bugbears, ogres, trolls and giants deduct 4 against gnomes. These are Army Roster AR-modifier lines, kept in `RACIAL_COMBAT` deliberately apart from Table 7 [4.6] hatred, which forces a discipline check and never touches AR — the two name some of the same enemies and must not share a lookup. Each is itemised in the melee line. Not yet applied: the elven +1 with normal bow or sword (a weapon bonus, not racial) and the hobgoblin tribal standard's +1 within 6″. v0.61.7.5.
+- **[12.5] Sunlight is per the MM.** Orcs, goblins and kobolds deduct 1 to hit in full daylight; hobgoblins explicitly fight well in daylight and carry no penalty. v0.61.7.5.
 - **[8.3] Multiple 20s** — AR conversion ignores repeated 20s on the attack matrix (matrices verified against the DMG by Kurt 2026-08-20).
 - **[Table 10] Higher ground — RULED 2026-08-21.** Table 10 prints "Defender occupies higher ground −1", which taken literally rewards attacking uphill. Attacking a unit on higher ground is a **penalty**: sign flipped, magnitude 1; downhill attacks get no bonus. `terrainMeleeDelta`.
 
@@ -104,6 +107,13 @@ Status key: **RULING** — a choice between readings, or a rule the book does no
 - **Playing area size.** The table is resizable (Table: button beside Grid; presets and a custom WIDTHxDEPTH, 24–600″). The size lives in the scenario, so it is saved, snapshotted, published and restored on load; Reset returns to the 6′×4′ default. Published scenarios drawn at 3″ per map square need it — Battle at the Crossroads is 90″×48″. v0.61.7.
 
 - **Reset** clears the board. **↩ Setup** returns a live battle to deployment keeping positions, losses, ammunition and spent magic (one Undo). **↺ Restart** (v0.61.6) restores the deployment as it stood at Begin battle (one Undo); a battle begun before the snapshot existed is restored to full strength in place.
+
+## Optional rules from AD&D (not in BATTLESYSTEM)
+
+Off by default; switched on per scenario in Conditions ▸ Optional rules and carried in the save.
+
+- **Tribal standards [MM] — v0.61.7.6.** An orc or hobgoblin tribal standard makes units of its OWN race within 6″ fight more fiercely: −1 AR in melee and +1 on morale checks, both itemised. Presence is a scenario decision (the MM rolls for it at encounter time), so the bearer is flagged per unit. Radius ruling (Kurt 2026-08-30): the MM's 6″ is at 1″ = 10 yards, which is BATTLESYSTEM's own ground scale [2.1], so it carries over unconverted. The mechanism is race-generic even though the MM cases are orcs and hobgoblins.
+- **DMG missile cover bands** (see §10) are the other AD&D layer over RAW — graduated cover where the printed Table 13 has flat rows.
 
 ## Open items
 
