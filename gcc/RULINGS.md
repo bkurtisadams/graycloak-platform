@@ -177,3 +177,31 @@ MM scale places animal at 1 and semi-intelligent at 2-4, so neither the Griffon
 saves ARE its derived values; an explicit roster entry overrides them per
 creature. A global toggle would make the same creature save differently
 depending on a checkbox and would drift between saved scenarios.
+
+## Flight speed and Maneuverability Class — v0.62.6a
+
+**Verified from the DMG.** "The stated amount the creature can turn per round
+assumes that the creature is moving at full speed. Creatures moving at half
+speed turn as one class better." Mounted flyers turn one class worse (class E
+creatures excepted, being large enough to carry a rider). Climbing is at half
+the stated rate and diving at twice it, and none of the climb/dive geometry
+applies to class A creatures, which move in any direction they choose.
+
+**Design decision.** Half speed is DECLARED (`u.halfSpeedFlight`), not inferred
+from movement spent so far. Inferring it from `movedIn` made an unmoved flyer
+count as half speed at the start of every Movement Phase — the better turn
+allowance, followed by a full-rate flight. Declaring half speed halves the
+round's flying allowance, so the better turn class is paid for.
+
+**Design decision.** The class splits in two. The PERSISTENT class (source or
+roster, one worse mounted, one worse bombing) is what the creature is; the TURN
+class is that improved one step at declared half speed. Climb and dive geometry
+read the persistent class, so the class A exemption cannot be acquired by
+slowing down. Half speed lets a flyer turn as one class better; it does not
+grant a natural class A flyer's physics.
+
+**OPEN, needs a ruling.** A 1:1 Hero in base contact is currently offered Take
+off. `syncSituationalDock` defines its "engaged" state as excluding individuals,
+so the Withdraw/Flee machinery that governs a unit breaking contact never
+applies to a Hero. Whether a Hero may break contact by taking to the air, and at
+what cost, is not settled by any text supplied so far.
