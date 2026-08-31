@@ -235,7 +235,10 @@ export function performChargenAction(character, action, payload = {}) {
     case CHARGEN_ACTIONS.ROLL_MUSTER_BENEFIT:
       return withNextActions(rollMusterOutBenefit(character, { dice }));
     case CHARGEN_ACTIONS.RESOLVE_MUSTER_BENEFIT_SPECIALIZATION:
-      return withNextActions(resolveMusterBenefitSpecialization(character, payload.specialization));
+      return withNextActions(resolveMusterBenefitSpecialization(character, {
+        specialization: payload.specialization,
+        asSkill: payload.asSkill ?? false
+      }));
     default:
       throw new RangeError(`unknown chargen action: ${action}`);
   }

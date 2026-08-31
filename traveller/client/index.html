@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Traveller Personnel Intake Terminal</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="terminal" aria-labelledby="app-title">
+    <header class="masthead">
+      <div>
+        <div id="app-title" class="title">TRAVELLER // PERSONNEL INTAKE TERMINAL</div>
+        <div class="subtitle">CLIENT v0.5.0 // CLASSIC TRAVELLER BOOK 1 CHARGEN</div>
+      </div>
+      <div id="system-status" class="status" aria-live="polite">READY</div>
+    </header>
+
+    <nav class="utility" aria-label="Character file commands">
+      <button id="new-character" class="text-button" type="button">[ NEW CHARACTER ]</button>
+      <button id="save-character" class="text-button" type="button">[ SAVE JSON ]</button>
+      <button id="load-character" class="text-button" type="button">[ LOAD JSON ]</button>
+      <input id="load-file" type="file" accept="application/json,.json" hidden>
+    </nav>
+
+    <section aria-labelledby="record-heading">
+      <h2 id="record-heading" class="section-title">PERSONNEL RECORD</h2>
+      <label class="name-line" for="character-name">
+        <span>NAME</span>
+        <input id="character-name" type="text" maxlength="80" autocomplete="off" spellcheck="false">
+      </label>
+      <pre id="character-record" class="record" aria-live="polite"></pre>
+    </section>
+
+    <section aria-labelledby="procedure-heading">
+      <h2 id="procedure-heading" class="section-title">CURRENT PROCEDURE</h2>
+      <div id="procedure" class="procedure" aria-live="polite"></div>
+      <div id="actions" class="actions"></div>
+    </section>
+
+    <section class="two-column" aria-label="Character history and generation log">
+      <div>
+        <h2 class="section-title">SERVICE HISTORY</h2>
+        <pre id="service-history" class="history"></pre>
+      </div>
+      <div>
+        <h2 class="section-title">GENERATION LOG</h2>
+        <pre id="generation-log" class="history"></pre>
+      </div>
+    </section>
+
+    <footer class="footer">
+      RULES ARE RESOLVED BY @graycloak/classic-traveller-rules. THIS CLIENT DISPLAYS STATE AND LEGAL ACTIONS ONLY.
+    </footer>
+  </main>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

@@ -122,3 +122,42 @@ test('cash action disappears after the third cash-table consultation', () => {
 
   assert.deepEqual(getAvailableActions(character).actions, [CHARGEN_ACTIONS.ROLL_MUSTER_BENEFIT]);
 });
+
+test('dispatcher forwards mustering-out weapon specialization payload', () => {
+  const character = {
+    ...sevenCharacter(),
+    service: 'army',
+    phase: CHARGEN_PHASES.MUSTER_BENEFIT_SPECIALIZATION_REQUIRED,
+    terms: 1,
+    yearsServed: 4,
+    pendingMusterBenefit: { category: 'gun', resultIndex: 0 },
+    musterOut: {
+      totalRolls: 2,
+      remainingRolls: 1,
+      rankBonusRolls: 1,
+      cashRolls: 0,
+      benefitRolls: 1,
+      cashReceived: 0,
+      results: [{
+        type: 'benefit',
+        roll: 4,
+        dm: 0,
+        total: 4,
+        outcome: { type: 'weapon', category: 'gun' },
+        pending: true
+      }]
+    }
+  };
+
+  const result = performChargenAction(
+    character,
+    CHARGEN_ACTIONS.RESOLVE_MUSTER_BENEFIT_SPECIALIZATION,
+    { specialization: 'Rifle', asSkill: false }
+  );
+
+  assert.deepEqual(result.character.materialBenefits, [
+    { type: 'weapon', category: 'gun', specialization: 'Rifle' }
+  ]);
+  assert.equal(result.character.pendingMusterBenefit, null);
+  assert.equal(result.character.phase, CHARGEN_PHASES.MUSTER_OUT_ROLLS_PENDING);
+});

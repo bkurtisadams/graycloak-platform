@@ -28,7 +28,7 @@ test('character-generation public API exposes acquired skills, aging, reenlistme
 });
 
 
-test('v0.4 public API exposes lifecycle and JSON boundary helpers', () => {
+test('public API exposes lifecycle and JSON boundary helpers', () => {
   for (const name of [
     'getAvailableActions',
     'performChargenAction',

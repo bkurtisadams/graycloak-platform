@@ -3,6 +3,7 @@ packages:
   - 'gcc'
   - 'graycloak-adnd'
   - 'editor'
+  - 'traveller'
 allowBuilds:
   '@firebase/util': true
   protobufjs: true

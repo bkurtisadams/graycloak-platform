@@ -3,7 +3,7 @@
 Pure JavaScript rules package for the Graycloak Classic Traveller browser-game project.
 It intentionally has no HTML, Foundry, Firebase, or server dependencies.
 
-## v0.4.0 scope
+## v0.5.0 scope
 
 Implemented from Classic Traveller Book 1:
 
@@ -28,7 +28,7 @@ Implemented from Classic Traveller Book 1:
 - credits, material benefits, retirement pay, and final COMPLETE chargen state
 - deterministic dice injection for regression testing
 
-v0.4.0 adds the stable host-facing boundary:
+v0.4.0 added the stable host-facing boundary:
 
 - `CHARGEN_ACTIONS` action vocabulary
 - `getAvailableActions(character)` so clients do not duplicate phase legality rules
@@ -40,11 +40,11 @@ v0.4.0 adds the stable host-facing boundary:
 - import rejection of unknown fields, impossible phase/state combinations, inconsistent UPPs, invalid ranks, bad counters, and malformed JSON
 - migration of compatible v3 character documents to schema v4
 
-Not implemented yet:
+Not implemented in the pure rules package:
 
 - validation catalogs for specific gun, blade/polearm, and vehicle specializations
 - full skill-effect rules outside character generation
-- browser UI or persistence adapters
+- persistent server/database adapters
 
 ## Tests
 
@@ -55,3 +55,8 @@ npm test
 ```
 
 From the Graycloak monorepo root, the normal workspace test command should include this package automatically because the workspace includes `packages/*`.
+
+
+## v0.5.0 client milestone
+
+The first browser chargen client lives outside this package at `traveller/client/`. It consumes the public lifecycle API and does not duplicate Book 1 target numbers or phase legality rules.

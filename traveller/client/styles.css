@@ -1,0 +1,182 @@
+:root {
+  color-scheme: light;
+  --paper: #d9d9d3;
+  --paper-deep: #cdcdc6;
+  --ink: #111311;
+  --muted: #565a56;
+  --link: #29465c;
+  --rule: #272a27;
+  --error: #6a1f1f;
+  --ok: #28442f;
+}
+
+* { box-sizing: border-box; }
+
+html, body { min-height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: Consolas, "Cascadia Mono", "Lucida Console", "Courier New", monospace;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+button, input, select { font: inherit; }
+
+.terminal {
+  width: min(1120px, calc(100% - 28px));
+  margin: 0 auto;
+  padding: 20px 0 32px;
+}
+
+.masthead {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-end;
+  border-top: 2px solid var(--rule);
+  border-bottom: 2px solid var(--rule);
+  padding: 9px 0 8px;
+}
+
+.title { font-weight: 700; letter-spacing: 0.05em; }
+.subtitle, .status, .footer { color: var(--muted); font-size: 12px; }
+.status { white-space: nowrap; }
+.status.error { color: var(--error); font-weight: 700; }
+.status.ok { color: var(--ok); }
+
+.utility {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  padding: 9px 0 3px;
+}
+
+.text-button {
+  border: 0;
+  padding: 2px 0;
+  background: transparent;
+  color: var(--link);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.text-button:hover,
+.text-button:focus-visible {
+  color: var(--ink);
+  outline: 1px dotted var(--ink);
+  outline-offset: 2px;
+}
+
+section { margin-top: 16px; }
+
+.section-title {
+  margin: 0 0 7px;
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.section-title::before { content: "── "; }
+.section-title::after { content: " ─────────────────"; color: var(--muted); }
+
+.name-line {
+  display: grid;
+  grid-template-columns: 10ch minmax(180px, 46ch);
+  gap: 1ch;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+input[type="text"],
+input[type="number"] {
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  background: #e4e4df;
+  color: var(--ink);
+  padding: 3px 5px;
+  min-height: 27px;
+}
+
+input[type="number"] { width: 7ch; }
+input:focus-visible { outline: 2px solid var(--link); outline-offset: 1px; }
+
+.record,
+.history {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+}
+
+.record {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.procedure {
+  min-height: 44px;
+  padding: 2px 0 4px;
+}
+
+.phase {
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+
+.phase-detail { color: var(--muted); }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 8px 0 2px;
+  border-top: 1px solid var(--rule);
+}
+
+.action-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.prompt-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.prompt-control label { color: var(--muted); }
+
+.two-column {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 30px;
+}
+
+.history {
+  max-height: 340px;
+  overflow: auto;
+  border-top: 1px solid var(--rule);
+  padding-top: 7px;
+}
+
+.empty { color: var(--muted); }
+
+.footer {
+  border-top: 2px solid var(--rule);
+  margin-top: 20px;
+  padding-top: 7px;
+}
+
+@media (max-width: 760px) {
+  .masthead { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .two-column { grid-template-columns: 1fr; gap: 18px; }
+  .section-title::after { content: " ─────"; }
+  .name-line { grid-template-columns: 8ch 1fr; }
+}

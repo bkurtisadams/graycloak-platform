@@ -1,4 +1,4 @@
-// @graycloak/classic-traveller-rules v0.4.0
+// @graycloak/classic-traveller-rules v0.5.0
 // Source-backed Classic Traveller Book 1 character-generation engine.
 // Pure rules/state logic: no host, UI, persistence, Foundry, or Firebase dependencies.
 
