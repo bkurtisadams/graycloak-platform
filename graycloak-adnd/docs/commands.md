@@ -182,3 +182,70 @@ v1.2 still does not provide:
 - transaction fingerprints for authored map terrain or external movement-policy revisions.
 
 The trusted service now connects intent → authoritative reads → pure command execution → atomic storage, while leaving transport and later gameplay systems outside this slice.
+
+## v1.6.0 Create Character command boundary
+
+v1.6.0 adds the client-safe `createCharacter` command contract and a pure trusted
+creation plan. It does **not** write Firestore, expose a new HTTP endpoint, or
+change browser chargen yet.
+
+The browser-side intent is restricted to player choices:
+
+```js
+{
+  schemaVersion: 1,
+  commandId: 'command-create-...',
+  type: 'createCharacter',
+  campaignId: 'campaign-1',
+  generationMethod: 'III',
+  raceId: 'elf',
+  classId: 'magic-user',
+  genderId: 'female',
+  name: 'Val',
+  alignment: 'neutral-good'
+}
+```
+
+The command intentionally excludes authoritative or derived state including
+`ownerUid`, character/document id, ability scores, random seeds/results, hit
+points, gold, spells, rules version, runtime fields, and world placement.
+Appended client claims are discarded during normalization.
+
+### Narrow Method III gate
+
+Only fixed-order generation Method III is accepted in v1.6.0. Methods I, II,
+and IV remain on the existing browser chargen path until Graycloak has a
+server-backed staged roll/assignment workflow. This prevents the new trusted
+boundary from pretending that a one-shot command can preserve the player's
+post-roll assignment choices for arrangeable methods.
+
+This restriction is also a provenance guard: v1.6.0 does not yet persist a
+character built from the still-partially-audited OSRIC chargen tables.
+
+### Trusted creation plan
+
+`executeCreateCharacterCommand()` requires trusted context for:
+
+- the fresh campaign record and its current `worldTick`;
+- the authenticated owner uid;
+- a server-selected character document id;
+- a trusted character builder;
+- optional authoritative rules version and timestamps.
+
+The trusted builder receives only normalized player choices. The executor then
+overwrites identity, ownership, campaign, name/race/class/gender/method,
+location, and runtime fields after the builder returns. New characters are
+bound to the current world frontier but have `currentLocation: null`; entering
+the world remains a later slice.
+
+On success the executor returns:
+
+- the authoritative Actor document;
+- a `character.created` GameEvent;
+- a semantic `creationPlan` with campaign, event-id, and character-id
+  preconditions.
+
+The existing v1.1 `applyCommitBundle()` adapter is Travel-specific and must not
+be used with this creation plan. A later v1.6 slice will add an atomic
+character-creation transaction and starting Item instances after the focused
+OSRIC chargen provenance audit.
