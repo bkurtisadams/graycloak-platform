@@ -35,6 +35,8 @@ importers:
 
   packages/battlesystem-engine: {}
 
+  packages/classic-traveller-rules: {}
+
   packages/map-engine: {}
 
   packages/osric3-rules: {}
