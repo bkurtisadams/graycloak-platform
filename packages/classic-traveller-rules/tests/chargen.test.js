@@ -182,3 +182,173 @@ test('optional survival rule converts failure to injury only when enabled before
   assert.equal(result.character.currentTerm.plannedYears, 2);
   assert.equal(result.character.phase, CHARGEN_PHASES.SKILLS_PENDING);
 });
+
+test('acquired characteristic results apply immediately and update the UPP', async () => {
+  const { rollAcquiredSkill } = await import('../index.js');
+  const character = baseCharacter({
+    service: 'navy',
+    phase: CHARGEN_PHASES.SKILLS_PENDING,
+    skillsDue: 1,
+    currentTerm: {
+      number: 1, startAge: 18, plannedYears: 4, forcedSeparation: false,
+      survival: null, commission: null, promotion: null, skillRolls: [], automaticBenefits: []
+    }
+  });
+
+  const result = rollAcquiredSkill(character, 'personal-development', {
+    dice: createSequenceDice([1])
+  });
+
+  assert.equal(result.character.characteristics.STR, 8);
+  assert.equal(result.character.upp, '877777');
+  assert.equal(result.character.skillsDue, 0);
+  assert.equal(result.character.phase, CHARGEN_PHASES.TERM_COMPLETION_READY);
+});
+
+test('repeated acquisitions of a basic skill increase its level', async () => {
+  const { rollAcquiredSkill } = await import('../index.js');
+  let character = baseCharacter({
+    service: 'scouts',
+    phase: CHARGEN_PHASES.SKILLS_PENDING,
+    skillsDue: 2,
+    skills: {},
+    currentTerm: {
+      number: 1, startAge: 18, plannedYears: 4, forcedSeparation: false,
+      survival: null, commission: null, promotion: null, skillRolls: [], automaticBenefits: []
+    }
+  });
+
+  character = rollAcquiredSkill(character, 'service-skills', {
+    dice: createSequenceDice([4])
+  }).character;
+  character = rollAcquiredSkill(character, 'service-skills', {
+    dice: createSequenceDice([4])
+  }).character;
+
+  assert.equal(character.skills.Navigation, 2);
+  assert.equal(character.phase, CHARGEN_PHASES.TERM_COMPLETION_READY);
+});
+
+test('weapon expertise waits for the required specific weapon choice', async () => {
+  const { rollAcquiredSkill, resolveSkillSpecialization } = await import('../index.js');
+  let character = baseCharacter({
+    service: 'army',
+    phase: CHARGEN_PHASES.SKILLS_PENDING,
+    skillsDue: 1,
+    skills: {},
+    currentTerm: {
+      number: 1, startAge: 18, plannedYears: 4, forcedSeparation: false,
+      survival: null, commission: null, promotion: null, skillRolls: [], automaticBenefits: []
+    }
+  });
+
+  const rolled = rollAcquiredSkill(character, 'service-skills', {
+    dice: createSequenceDice([3])
+  });
+  character = rolled.character;
+
+  assert.equal(character.skillsDue, 0);
+  assert.equal(character.phase, CHARGEN_PHASES.SKILL_SPECIALIZATION_REQUIRED);
+  assert.equal(character.pendingSkill.specializationType, 'gun');
+
+  character = resolveSkillSpecialization(character, 'Rifle').character;
+  assert.equal(character.skills.Rifle, 1);
+  assert.equal(character.pendingSkill, null);
+  assert.equal(character.phase, CHARGEN_PHASES.TERM_COMPLETION_READY);
+});
+
+test('the EDU 8+ table cannot be rolled by EDU 7', async () => {
+  const { ChargenStateError, rollAcquiredSkill } = await import('../index.js');
+  const character = baseCharacter({
+    service: 'navy',
+    phase: CHARGEN_PHASES.SKILLS_PENDING,
+    skillsDue: 1,
+    currentTerm: {
+      number: 1, startAge: 18, plannedYears: 4, forcedSeparation: false,
+      survival: null, commission: null, promotion: null, skillRolls: [], automaticBenefits: []
+    }
+  });
+  const dice = createSequenceDice([1]);
+
+  assert.throws(
+    () => rollAcquiredSkill(character, 'advanced-education-8', { dice }),
+    ChargenStateError
+  );
+  assert.equal(dice.remaining(), 1);
+});
+
+test('term completion advances four years and applies rank/service automatic skills once', async () => {
+  const { completeTerm } = await import('../index.js');
+  const character = baseCharacter({
+    service: 'marines',
+    rank: 1,
+    rankTitle: 'Lieutenant',
+    phase: CHARGEN_PHASES.TERM_COMPLETION_READY,
+    skills: {},
+    skillsDue: 0,
+    yearsServed: 0,
+    automaticSkillsReceived: [],
+    completedTerms: [],
+    currentTerm: {
+      number: 1, startAge: 18, plannedYears: 4, forcedSeparation: false,
+      survival: { success: true }, commission: { success: true }, promotion: null,
+      skillRolls: [], automaticBenefits: []
+    }
+  });
+
+  const result = completeTerm(character);
+
+  assert.equal(result.character.age, 22);
+  assert.equal(result.character.terms, 1);
+  assert.equal(result.character.yearsServed, 4);
+  assert.equal(result.character.skills.Cutlass, 1);
+  assert.equal(result.character.skills.Revolver, 1);
+  assert.deepEqual(result.character.automaticSkillsReceived, [
+    'marine-cutlass',
+    'marine-lieutenant-revolver'
+  ]);
+  assert.equal(result.character.phase, CHARGEN_PHASES.REENLISTMENT_REQUIRED);
+  assert.equal(result.character.currentTerm, null);
+});
+
+test('injury-rule separation completes a two-year partial term and goes to muster out', async () => {
+  const { completeTerm } = await import('../index.js');
+  const character = baseCharacter({
+    service: 'scouts',
+    age: 20,
+    phase: CHARGEN_PHASES.TERM_COMPLETION_READY,
+    skills: {},
+    skillsDue: 0,
+    yearsServed: 0,
+    automaticSkillsReceived: [],
+    completedTerms: [],
+    currentTerm: {
+      number: 1, startAge: 18, plannedYears: 2, forcedSeparation: true,
+      survival: { success: false }, commission: null, promotion: null,
+      skillRolls: [], automaticBenefits: []
+    }
+  });
+
+  const result = completeTerm(character);
+  assert.equal(result.character.age, 20);
+  assert.equal(result.character.yearsServed, 2);
+  assert.equal(result.character.skills.Pilot, 1);
+  assert.equal(result.character.phase, CHARGEN_PHASES.MUSTER_OUT_REQUIRED);
+});
+
+
+test('a character already at the highest service rank is not offered another promotion', () => {
+  const character = baseCharacter({
+    service: 'navy',
+    rank: 6,
+    rankTitle: 'Admiral',
+    phase: CHARGEN_PHASES.TERM_READY,
+    characteristics: { STR: 7, DEX: 7, END: 7, INT: 8, EDU: 9, SOC: 9 }
+  });
+
+  const survived = resolveSurvival(beginTerm(character), {
+    dice: createSequenceDice([2, 3])
+  }).character;
+
+  assert.equal(survived.phase, CHARGEN_PHASES.SKILLS_PENDING);
+});

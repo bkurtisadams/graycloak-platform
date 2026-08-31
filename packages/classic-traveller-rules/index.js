@@ -1,7 +1,7 @@
-// @graycloak/classic-traveller-rules v0.1.0
-// First source-backed Book 1 chargen slice: dice, initial UPP, prior-service
-// tables, enlistment/draft, term start, survival, commission, promotion, and
-// deterministic state transitions. No host/UI/persistence dependencies.
+// @graycloak/classic-traveller-rules v0.2.1
+// Source-backed Book 1 chargen foundation: initial UPP, prior service,
+// acquired skills, rank/service automatic skills, and term completion.
+// No host/UI/persistence dependencies.
 
 export {
   createDice,
@@ -26,6 +26,16 @@ export {
 } from './src/careers/services.js';
 
 export {
+  SKILL_TABLE_KEYS,
+  SKILL_TABLES,
+  RANK_SERVICE_BENEFITS,
+  getSkillTable,
+  availableSkillTables,
+  getAcquiredSkillOutcome,
+  eligibleRankServiceBenefits
+} from './src/skills/acquired-skills.js';
+
+export {
   CHARGEN_PHASES,
   ChargenStateError,
   createCharacter,
@@ -36,5 +46,8 @@ export {
   resolveCommission,
   skipCommission,
   resolvePromotion,
-  skipPromotion
+  skipPromotion,
+  rollAcquiredSkill,
+  resolveSkillSpecialization,
+  completeTerm
 } from './src/characters/chargen.js';

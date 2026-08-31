@@ -1,42 +1,51 @@
 # @graycloak/classic-traveller-rules
 
-Pure JavaScript Classic Traveller rules package for the Graycloak platform.
+Pure JavaScript rules package for the Graycloak Classic Traveller browser-game project.
+It intentionally has no HTML, Foundry, Firebase, or server dependencies.
 
-## v0.1.0 scope
+## v0.2.0 scope
 
-This first slice deliberately stops at the point where a surviving term reaches skill acquisition. It implements:
+Implemented from Classic Traveller Book 1:
 
-- deterministic or random d6 / 2d6 rolling
-- initial six-characteristic generation and UPP formatting
-- the six Book 1 prior-service entries and draft numbers
-- enlistment with cumulative characteristic DMs
-- draft resolution after failed enlistment
-- four-year term start state
-- survival checks, with standard death as the default
-- the printed optional injury-on-failed-survival rule behind an explicit chargen option
-- first-term draftee commission restriction
-- commissions and promotions, including rank titles
-- Book 1 basic skill-eligibility counts (2 first term, +1 commission, +1 promotion)
-- serializable history/state suitable for later JSON import/export
+- six 2D initial characteristics and UPP formatting
+- the six prior services and their enlistment, survival, commission, promotion, and reenlistment targets/DMs
+- failed enlistment and the one-die draft
+- four-year service-term setup
+- Book 1 survival and the optional injury alternative already introduced in v0.1.0
+- commission and promotion eligibility
+- acquired-skill eligibility: two in the initial term, one in later terms, +1 on commission, +1 on promotion
+- all four acquired-skill tables
+- EDU 8+ restriction on the fourth table
+- characteristic alterations applied immediately
+- repeated basic-skill acquisitions increase skill level
+- Blade Combat, Gun Combat, and Vehicle results pause for the required specific expertise choice
+- rank/service automatic skills, each granted only once
+- service-term completion, age advancement, service years, and completed-term history
+- transition to reenlistment (or muster out after optional-rule injury)
+- serializable chargen state
+- deterministic dice injection for tests
 
-The package has no DOM, Firebase, Foundry, server, or persistence dependencies.
+Not implemented yet:
 
-## Source
+- reenlistment resolution
+- aging throws
+- retirement / mandatory reenlistment
+- mustering-out cash and benefit tables
+- weapon/vehicle specialization catalogs and validation
+- full skill-effect rules
+- UI or persistence adapters
 
-Rules are based on *Classic Traveller Facsimile Edition*, Book 1, especially pp. 8-15 of the original Book 1 pagination: Initial Character Generation; Acquiring Skills and Expertise; Prior Service Table; Table of Ranks; Acquired Skills Tables.
-
-The implementation intentionally does not yet automate acquired skill-table results, term completion, reenlistment, aging, retirement, or mustering-out benefits. Those are the next rules slice rather than placeholders hidden in the first slice.
-
-## Test
+## Tests
 
 From this package directory:
 
-```sh
+```text
 npm test
 ```
 
-From the Graycloak workspace root, the existing recursive test script will discover the package automatically because `pnpm-workspace.yaml` includes `packages/*`:
+From the Graycloak monorepo root, the normal workspace test command should include this package automatically because the workspace already includes `packages/*`.
 
-```sh
-npm test
-```
+
+## v0.2.1 packaging hotfix
+
+Adds a public-API integrity regression test covering the acquired-skill and term-completion exports. No Traveller rules behavior changed from v0.2.0.
