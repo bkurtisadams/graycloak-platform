@@ -102,6 +102,7 @@ Status key: **RULING** — a choice between readings, or a rule the book does no
 - **Maneuverability Class (DMG, adopted by [15.1] for the AD&D game).** A–E turn 180/120/90/60/30° per Game Round, enforced against an airborne unit's facing changes with a per-round budget. Half speed or less turns as one class better; a mounted flyer and one carrying bombs [15.4] as one class worse. v0.62.1.
 - **Climb, dive and flight rate (DMG).** An airborne unit moves at its flying rate, climbs at half of it and dives at twice; class A is exempt from the geometry. A unit that descends is diving for the round, and a diving physical attack does double damage unless its target is also diving. v0.62.1.
 - **[15.3]/DMG** Missile fire from the air at long range always misses — the band shift alone does not capture this. v0.62.1.
+- **Using it.** ▲ Take off / ▲ Climb and ▼ Descend / ▼ Land are situational verbs in the Movement column, shown only for a flyer and disabled with the reason in the tooltip; taking off is a climb from the ground. An airborne unit carries an L/M/H chip on its counter, and MV reads the standard ground″ / flying″ notation with the current rate emboldened. Flying, FLY MV and Maneuverability Class are on the unit editor. v0.62.2.
 - **Not yet built:** the D&D size-based turn table (the alternative to MC), [15.4] bombing, the DMG 50%/75% wing-damage rules (BS [15.3]'s any-damage landing rule supersedes them for BATTLESYSTEM play), dragon breath vs moving aerial targets (+2 to saves), and any board display of altitude.
 
 ## §12 Conditions
