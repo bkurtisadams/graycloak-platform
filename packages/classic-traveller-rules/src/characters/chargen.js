@@ -7,6 +7,19 @@ import {
   getAcquiredSkillOutcome,
   getSkillTable
 } from '../skills/acquired-skills.js';
+import {
+  AGING_INTERVAL_MONTHS,
+  AGING_START_MONTHS,
+  agingRulesForAge
+} from './aging.js';
+import {
+  benefitTableDM,
+  cashTableDM,
+  getMusterBenefitOutcome,
+  getMusterCash,
+  musterRollAllowance,
+  retirementPayForTerms
+} from '../careers/mustering-out.js';
 
 export const CHARGEN_PHASES = Object.freeze({
   SERVICE_SELECTION: 'service-selection',
@@ -18,8 +31,14 @@ export const CHARGEN_PHASES = Object.freeze({
   SKILLS_PENDING: 'skills-pending',
   SKILL_SPECIALIZATION_REQUIRED: 'skill-specialization-required',
   TERM_COMPLETION_READY: 'term-completion-ready',
+  AGING_REQUIRED: 'aging-required',
+  AGING_CRISIS_REQUIRED: 'aging-crisis-required',
   REENLISTMENT_REQUIRED: 'reenlistment-required',
+  REENLISTMENT_DECISION: 'reenlistment-decision',
   MUSTER_OUT_REQUIRED: 'muster-out-required',
+  MUSTER_OUT_ROLLS_PENDING: 'muster-out-rolls-pending',
+  MUSTER_BENEFIT_SPECIALIZATION_REQUIRED: 'muster-benefit-specialization-required',
+  COMPLETE: 'complete',
   DEAD: 'dead'
 });
 
@@ -39,11 +58,18 @@ function cloneCurrentTerm(currentTerm) {
   };
 }
 
+function cloneMusterOut(musterOut) {
+  if (!musterOut) return null;
+  return {
+    ...musterOut,
+    results: [...(musterOut.results ?? [])]
+  };
+}
+
 function copyCharacter(character, patch = {}) {
   const sourceCurrentTerm = Object.hasOwn(patch, 'currentTerm')
     ? patch.currentTerm
     : character.currentTerm;
-
   const sourceCharacteristics = Object.hasOwn(patch, 'characteristics')
     ? patch.characteristics
     : character.characteristics;
@@ -54,6 +80,16 @@ function copyCharacter(character, patch = {}) {
   const sourceCompletedTerms = Object.hasOwn(patch, 'completedTerms')
     ? patch.completedTerms
     : character.completedTerms;
+  const sourceMaterialBenefits = Object.hasOwn(patch, 'materialBenefits')
+    ? patch.materialBenefits
+    : character.materialBenefits;
+  const sourcePendingAgingChecks = Object.hasOwn(patch, 'pendingAgingChecks')
+    ? patch.pendingAgingChecks
+    : character.pendingAgingChecks;
+  const sourcePendingAgingCrises = Object.hasOwn(patch, 'pendingAgingCrises')
+    ? patch.pendingAgingCrises
+    : character.pendingAgingCrises;
+  const sourceMusterOut = Object.hasOwn(patch, 'musterOut') ? patch.musterOut : character.musterOut;
 
   return {
     ...character,
@@ -62,11 +98,19 @@ function copyCharacter(character, patch = {}) {
     skills: { ...(sourceSkills ?? {}) },
     automaticSkillsReceived: [...(sourceAutomaticSkills ?? [])],
     completedTerms: [...(sourceCompletedTerms ?? [])],
-    history: [...character.history],
+    materialBenefits: [...(sourceMaterialBenefits ?? [])],
+    pendingAgingChecks: [...(sourcePendingAgingChecks ?? [])],
+    pendingAgingCrises: [...(sourcePendingAgingCrises ?? [])],
+    history: [...(character.history ?? [])],
+    options: { ...(character.options ?? {}), ...(patch.options ?? {}) },
     pendingSkill: Object.hasOwn(patch, 'pendingSkill')
       ? patch.pendingSkill
       : (character.pendingSkill ? { ...character.pendingSkill } : null),
-    currentTerm: cloneCurrentTerm(sourceCurrentTerm)
+    pendingMusterBenefit: Object.hasOwn(patch, 'pendingMusterBenefit')
+      ? patch.pendingMusterBenefit
+      : (character.pendingMusterBenefit ? { ...character.pendingMusterBenefit } : null),
+    currentTerm: cloneCurrentTerm(sourceCurrentTerm),
+    musterOut: cloneMusterOut(sourceMusterOut)
   };
 }
 
@@ -93,6 +137,18 @@ function serviceCheck(character, rule, dice) {
 
 function historyEvent(type, character, details = {}) {
   return Object.freeze({ type, age: character.age, ...details });
+}
+
+function chronologicalMonths(character) {
+  return character.chronologicalAgeMonths ?? Math.round((character.age ?? 18) * 12);
+}
+
+function physicalMonths(character) {
+  return character.physicalAgeMonths ?? chronologicalMonths(character);
+}
+
+function ageInWholeYears(months) {
+  return Math.floor(months / 12);
 }
 
 function nextAfterSurvival(character) {
@@ -165,6 +221,50 @@ function applyRankServiceBenefits(next) {
   return applied;
 }
 
+function baseSkillEligibility(serviceKey, termNumber) {
+  // Book 1 exception: Scouts receive two skills every term, not merely in the first.
+  if (serviceKey === 'scouts') return 2;
+  return termNumber === 1 ? 2 : 1;
+}
+
+function markSeparated(next, reason) {
+  next.separationReason = reason;
+  next.retired = next.terms >= 5;
+  next.retirementPayAnnual = retirementPayForTerms(next.terms);
+  return next;
+}
+
+function routeAfterAging(next) {
+  if (next.pendingAgingCrises.length > 0) {
+    next.phase = CHARGEN_PHASES.AGING_CRISIS_REQUIRED;
+    return;
+  }
+  if (next.pendingAgingChecks.length > 0) {
+    next.phase = CHARGEN_PHASES.AGING_REQUIRED;
+    return;
+  }
+  next.phase = next.postAgingPhase ?? CHARGEN_PHASES.REENLISTMENT_REQUIRED;
+  next.postAgingPhase = null;
+}
+
+function finishMusterOutIfComplete(next) {
+  if (!next.musterOut || next.musterOut.remainingRolls > 0 || next.pendingMusterBenefit) return;
+  next.phase = CHARGEN_PHASES.COMPLETE;
+  if (!next.history.some((event) => event.type === 'chargen-complete')) {
+    next.history.push(Object.freeze({
+      type: 'chargen-complete',
+      age: next.age,
+      service: next.service,
+      terms: next.terms,
+      rank: next.rank,
+      rankTitle: next.rankTitle,
+      credits: next.credits,
+      retirementPayAnnual: next.retirementPayAnnual,
+      upp: next.upp
+    }));
+  }
+}
+
 export function createCharacter({
   name = '',
   dice = createDice(),
@@ -172,11 +272,15 @@ export function createCharacter({
 } = {}) {
   const characteristics = generateCharacteristics({ dice });
   const upp = formatUPP(characteristics);
+  const startingMonths = 18 * 12;
 
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     name,
     age: 18,
+    chronologicalAgeMonths: startingMonths,
+    physicalAgeMonths: startingMonths,
+    nextAgingCheckAgeMonths: AGING_START_MONTHS,
     characteristics,
     upp,
     service: null,
@@ -190,6 +294,16 @@ export function createCharacter({
     pendingSkill: null,
     automaticSkillsReceived: [],
     completedTerms: [],
+    pendingAgingChecks: [],
+    pendingAgingCrises: [],
+    postAgingPhase: null,
+    credits: 0,
+    materialBenefits: [],
+    musterOut: null,
+    pendingMusterBenefit: null,
+    retired: false,
+    retirementPayAnnual: 0,
+    separationReason: null,
     alive: true,
     phase: CHARGEN_PHASES.SERVICE_SELECTION,
     currentTerm: null,
@@ -251,11 +365,13 @@ export function beginTerm(character) {
   const termNumber = character.terms + 1;
   const next = copyCharacter(character, {
     phase: CHARGEN_PHASES.SURVIVAL_REQUIRED,
-    skillsDue: termNumber === 1 ? 2 : 1,
+    skillsDue: baseSkillEligibility(character.service, termNumber),
     pendingSkill: null,
     currentTerm: {
       number: termNumber,
       startAge: character.age,
+      startChronologicalAgeMonths: chronologicalMonths(character),
+      startPhysicalAgeMonths: physicalMonths(character),
       plannedYears: 4,
       forcedSeparation: false,
       survival: null,
@@ -295,7 +411,11 @@ export function resolveSurvival(character, { dice = createDice() } = {}) {
   }
 
   if (!check.success && character.options.survivalInjuryRule) {
-    next.age = character.currentTerm.startAge + 2;
+    const endChronological = (next.currentTerm.startChronologicalAgeMonths ?? Math.round(next.currentTerm.startAge * 12)) + 24;
+    const endPhysical = (next.currentTerm.startPhysicalAgeMonths ?? Math.round(next.currentTerm.startAge * 12)) + 24;
+    next.age = ageInWholeYears(endChronological);
+    next.chronologicalAgeMonths = endChronological;
+    next.physicalAgeMonths = endPhysical;
     next.phase = skillPhase(next.skillsDue);
     next.currentTerm.plannedYears = 2;
     next.currentTerm.forcedSeparation = true;
@@ -509,13 +629,24 @@ export function completeTerm(character) {
   }
 
   const next = copyCharacter(character);
-  const endingAge = next.currentTerm.startAge + next.currentTerm.plannedYears;
-  next.age = endingAge;
+  const startChronological = next.currentTerm.startChronologicalAgeMonths
+    ?? Math.round(next.currentTerm.startAge * 12);
+  const startPhysical = next.currentTerm.startPhysicalAgeMonths
+    ?? Math.round(next.currentTerm.startAge * 12);
+  const elapsedMonths = next.currentTerm.plannedYears * 12;
+  const endingChronological = startChronological + elapsedMonths;
+  const endingPhysical = startPhysical + elapsedMonths;
+
+  next.chronologicalAgeMonths = endingChronological;
+  next.physicalAgeMonths = endingPhysical;
+  next.age = ageInWholeYears(endingChronological);
 
   const automaticBenefits = applyRankServiceBenefits(next);
   const completedTerm = Object.freeze({
     ...cloneCurrentTerm(next.currentTerm),
-    endAge: endingAge,
+    endAge: next.age,
+    endChronologicalAgeMonths: endingChronological,
+    endPhysicalAgeMonths: endingPhysical,
     endingRank: next.rank,
     endingRankTitle: next.rankTitle
   });
@@ -523,22 +654,408 @@ export function completeTerm(character) {
   next.completedTerms.push(completedTerm);
   next.terms = character.terms + 1;
   next.yearsServed = (character.yearsServed ?? 0) + next.currentTerm.plannedYears;
-  next.phase = next.currentTerm.forcedSeparation
+
+  const normalPostTermPhase = next.currentTerm.forcedSeparation
     ? CHARGEN_PHASES.MUSTER_OUT_REQUIRED
     : CHARGEN_PHASES.REENLISTMENT_REQUIRED;
+  if (next.currentTerm.forcedSeparation) {
+    markSeparated(next, 'injury');
+  }
+
+  const pendingAgingChecks = [];
+  let nextAgingCheck = character.nextAgingCheckAgeMonths ?? AGING_START_MONTHS;
+  while (nextAgingCheck <= endingPhysical) {
+    pendingAgingChecks.push(nextAgingCheck);
+    nextAgingCheck += AGING_INTERVAL_MONTHS;
+  }
+  next.nextAgingCheckAgeMonths = nextAgingCheck;
+  next.pendingAgingChecks = pendingAgingChecks;
+  next.pendingAgingCrises = [];
+  next.postAgingPhase = pendingAgingChecks.length > 0 ? normalPostTermPhase : null;
+  next.phase = pendingAgingChecks.length > 0 ? CHARGEN_PHASES.AGING_REQUIRED : normalPostTermPhase;
   next.currentTerm = null;
 
   next.history.push(Object.freeze({
     type: 'term-complete',
-    age: endingAge,
+    age: next.age,
     term: completedTerm.number,
     service: character.service,
     yearsServed: completedTerm.plannedYears,
     rank: next.rank,
     rankTitle: next.rankTitle,
     automaticBenefits,
-    forcedSeparation: completedTerm.forcedSeparation
+    forcedSeparation: completedTerm.forcedSeparation,
+    agingChecksDue: pendingAgingChecks.map((months) => ageInWholeYears(months))
   }));
 
   return { character: next, term: completedTerm, automaticBenefits };
+}
+
+export function resolveAging(character, { dice = createDice() } = {}) {
+  requirePhase(character, CHARGEN_PHASES.AGING_REQUIRED);
+  if (!character.pendingAgingChecks?.length) {
+    throw new ChargenStateError('no aging check is pending');
+  }
+  requireDice(dice);
+
+  const checkpointMonths = character.pendingAgingChecks[0];
+  const checkpointAge = ageInWholeYears(checkpointMonths);
+  const rules = agingRulesForAge(checkpointAge);
+  const next = copyCharacter(character, {
+    pendingAgingChecks: character.pendingAgingChecks.slice(1),
+    pendingAgingCrises: []
+  });
+  const checks = [];
+
+  for (const rule of rules) {
+    const rolled = dice.roll2D6();
+    const success = rolled.total >= rule.target;
+    const before = next.characteristics[rule.characteristic];
+    let after = before;
+
+    if (!success) {
+      after = Math.max(0, before - rule.loss);
+      next.characteristics[rule.characteristic] = after;
+      next.upp = formatUPP(next.characteristics);
+      if (after === 0) {
+        next.pendingAgingCrises.push(Object.freeze({
+          characteristic: rule.characteristic,
+          checkpointAge,
+          loss: rule.loss
+        }));
+      }
+    }
+
+    checks.push(Object.freeze({
+      characteristic: rule.characteristic,
+      dice: rolled.dice,
+      roll: rolled.total,
+      target: rule.target,
+      success,
+      loss: success ? 0 : rule.loss,
+      before,
+      after
+    }));
+  }
+
+  routeAfterAging(next);
+  next.history.push(Object.freeze({
+    type: 'aging',
+    age: next.age,
+    physicalAge: checkpointAge,
+    checks,
+    crises: [...next.pendingAgingCrises]
+  }));
+
+  return { character: next, checkpointAge, checks };
+}
+
+export function resolveAgingCrisis(character, {
+  dice = createDice(),
+  medicalSkill = 0,
+  slowDrug = true
+} = {}) {
+  requirePhase(character, CHARGEN_PHASES.AGING_CRISIS_REQUIRED);
+  if (!character.pendingAgingCrises?.length) {
+    throw new ChargenStateError('no aging crisis is pending');
+  }
+  if (!Number.isInteger(medicalSkill) || medicalSkill < 0) {
+    throw new RangeError(`medicalSkill must be a non-negative integer; received ${medicalSkill}`);
+  }
+  requireDice(dice);
+
+  const crisis = character.pendingAgingCrises[0];
+  const rolled = dice.roll2D6();
+  const total = rolled.total + medicalSkill;
+  const success = total >= 8;
+  const next = copyCharacter(character, {
+    pendingAgingCrises: character.pendingAgingCrises.slice(1)
+  });
+
+  if (!success) {
+    next.alive = false;
+    next.phase = CHARGEN_PHASES.DEAD;
+    next.history.push(Object.freeze({
+      type: 'aging-crisis',
+      age: next.age,
+      characteristic: crisis.characteristic,
+      dice: rolled.dice,
+      roll: rolled.total,
+      medicalSkill,
+      total,
+      target: 8,
+      success: false,
+      outcome: 'death'
+    }));
+    return { character: next, success: false, crisis, recoveryMonths: 0 };
+  }
+
+  const recoveryMonths = dice.rollD6();
+  next.characteristics[crisis.characteristic] = 1;
+  next.upp = formatUPP(next.characteristics);
+  next.physicalAgeMonths = physicalMonths(next) + recoveryMonths;
+  if (!slowDrug) {
+    next.chronologicalAgeMonths = chronologicalMonths(next) + recoveryMonths;
+    next.age = ageInWholeYears(next.chronologicalAgeMonths);
+  }
+
+  routeAfterAging(next);
+  next.history.push(Object.freeze({
+    type: 'aging-crisis',
+    age: next.age,
+    characteristic: crisis.characteristic,
+    dice: rolled.dice,
+    roll: rolled.total,
+    medicalSkill,
+    total,
+    target: 8,
+    success: true,
+    outcome: 'survived',
+    slowDrug: Boolean(slowDrug),
+    recoveryMonths,
+    restoredTo: 1
+  }));
+
+  return { character: next, success: true, crisis, recoveryMonths };
+}
+
+export function resolveReenlistment(character, { dice = createDice() } = {}) {
+  requirePhase(character, CHARGEN_PHASES.REENLISTMENT_REQUIRED);
+  requireDice(dice);
+  const service = getService(character.service);
+  const rolled = dice.roll2D6();
+  const mandatory = rolled.total === 12;
+  const success = rolled.total >= service.reenlistment.target;
+  const check = Object.freeze({
+    dice: rolled.dice,
+    roll: rolled.total,
+    target: service.reenlistment.target,
+    success,
+    mandatory
+  });
+  const next = copyCharacter(character);
+
+  if (mandatory) {
+    next.phase = CHARGEN_PHASES.TERM_READY;
+    next.separationReason = null;
+  } else if (!success) {
+    next.phase = CHARGEN_PHASES.MUSTER_OUT_REQUIRED;
+    markSeparated(next, 'reenlistment-denied');
+  } else if (next.terms >= 7) {
+    next.phase = CHARGEN_PHASES.MUSTER_OUT_REQUIRED;
+    markSeparated(next, 'mandatory-retirement');
+  } else {
+    next.phase = CHARGEN_PHASES.REENLISTMENT_DECISION;
+  }
+
+  next.history.push(Object.freeze({
+    type: 'reenlistment',
+    age: next.age,
+    service: next.service,
+    term: next.terms,
+    ...check,
+    outcome: mandatory
+      ? 'mandatory-service'
+      : !success
+        ? 'denied'
+        : next.terms >= 7
+          ? 'retirement'
+          : 'eligible'
+  }));
+
+  return { character: next, check };
+}
+
+export function chooseReenlistment(character) {
+  requirePhase(character, CHARGEN_PHASES.REENLISTMENT_DECISION);
+  const next = copyCharacter(character, {
+    phase: CHARGEN_PHASES.TERM_READY,
+    separationReason: null
+  });
+  next.history.push(historyEvent('reenlistment-choice', character, {
+    choice: 'reenlist'
+  }));
+  return next;
+}
+
+export function chooseMusterOut(character) {
+  requirePhase(character, CHARGEN_PHASES.REENLISTMENT_DECISION);
+  const next = copyCharacter(character, { phase: CHARGEN_PHASES.MUSTER_OUT_REQUIRED });
+  markSeparated(next, 'voluntary');
+  next.history.push(historyEvent('reenlistment-choice', character, {
+    choice: 'muster-out',
+    retired: next.retired,
+    retirementPayAnnual: next.retirementPayAnnual
+  }));
+  return next;
+}
+
+export function beginMusterOut(character) {
+  requirePhase(character, CHARGEN_PHASES.MUSTER_OUT_REQUIRED);
+  const next = copyCharacter(character);
+  if (next.terms >= 5 && !next.retired) {
+    next.retired = true;
+    next.retirementPayAnnual = retirementPayForTerms(next.terms);
+  }
+
+  const allowance = musterRollAllowance(next.terms, next.rank);
+  next.musterOut = {
+    totalRolls: allowance.total,
+    remainingRolls: allowance.total,
+    rankBonusRolls: allowance.rankBonus,
+    cashRolls: 0,
+    benefitRolls: 0,
+    cashReceived: 0,
+    results: []
+  };
+  next.phase = allowance.total > 0
+    ? CHARGEN_PHASES.MUSTER_OUT_ROLLS_PENDING
+    : CHARGEN_PHASES.COMPLETE;
+
+  next.history.push(historyEvent('muster-out-start', character, {
+    terms: next.terms,
+    rank: next.rank,
+    totalRolls: allowance.total,
+    rankBonusRolls: allowance.rankBonus,
+    retired: next.retired,
+    retirementPayAnnual: next.retirementPayAnnual
+  }));
+  finishMusterOutIfComplete(next);
+  return next;
+}
+
+export function rollMusterOutCash(character, { dice = createDice() } = {}) {
+  requirePhase(character, CHARGEN_PHASES.MUSTER_OUT_ROLLS_PENDING);
+  if (!character.musterOut || character.musterOut.remainingRolls < 1) {
+    throw new ChargenStateError('no mustering-out rolls remain');
+  }
+  if (character.musterOut.cashRolls >= 3) {
+    throw new ChargenStateError('the cash table may be consulted no more than three times');
+  }
+  requireDice(dice);
+
+  const roll = dice.rollD6();
+  const dm = cashTableDM(character.skills);
+  const total = roll + dm;
+  const amount = getMusterCash(character.service, total);
+  const next = copyCharacter(character);
+  next.credits = (character.credits ?? 0) + amount;
+  next.musterOut.remainingRolls -= 1;
+  next.musterOut.cashRolls += 1;
+  next.musterOut.cashReceived += amount;
+  const record = Object.freeze({ type: 'cash', roll, dm, total, amount });
+  next.musterOut.results.push(record);
+
+  next.history.push(historyEvent('muster-out-cash', character, record));
+  finishMusterOutIfComplete(next);
+  return { character: next, roll, dm, total, amount };
+}
+
+export function rollMusterOutBenefit(character, { dice = createDice() } = {}) {
+  requirePhase(character, CHARGEN_PHASES.MUSTER_OUT_ROLLS_PENDING);
+  if (!character.musterOut || character.musterOut.remainingRolls < 1) {
+    throw new ChargenStateError('no mustering-out rolls remain');
+  }
+  requireDice(dice);
+
+  const roll = dice.rollD6();
+  const dm = benefitTableDM(character.rank);
+  const total = roll + dm;
+  const outcome = getMusterBenefitOutcome(character.service, total);
+  const next = copyCharacter(character);
+  next.musterOut.remainingRolls -= 1;
+  next.musterOut.benefitRolls += 1;
+
+  const recordIndex = next.musterOut.results.length;
+  const baseRecord = { type: 'benefit', roll, dm, total, outcome: { ...outcome } };
+
+  if (outcome.type === 'weapon') {
+    next.pendingMusterBenefit = {
+      category: outcome.category,
+      resultIndex: recordIndex
+    };
+    next.musterOut.results.push(Object.freeze({ ...baseRecord, pending: true }));
+    next.phase = CHARGEN_PHASES.MUSTER_BENEFIT_SPECIALIZATION_REQUIRED;
+    next.history.push(historyEvent('muster-out-benefit', character, {
+      ...baseRecord,
+      pendingSpecialization: outcome.category
+    }));
+    return { character: next, roll, dm, total, outcome, pendingSpecialization: true };
+  }
+
+  let result = null;
+  if (outcome.type === 'characteristic') {
+    applyCharacteristic(next, outcome.characteristic, outcome.amount);
+    result = Object.freeze({
+      characteristic: outcome.characteristic,
+      amount: outcome.amount,
+      newValue: next.characteristics[outcome.characteristic]
+    });
+  } else if (outcome.type === 'material') {
+    result = Object.freeze({ type: 'material', name: outcome.name });
+    next.materialBenefits.push(result);
+  } else if (outcome.type === 'none') {
+    result = Object.freeze({ type: 'none' });
+  }
+
+  next.musterOut.results.push(Object.freeze({ ...baseRecord, pending: false, result }));
+  next.history.push(historyEvent('muster-out-benefit', character, {
+    ...baseRecord,
+    result
+  }));
+  finishMusterOutIfComplete(next);
+  return { character: next, roll, dm, total, outcome, result, pendingSpecialization: false };
+}
+
+export function resolveMusterBenefitSpecialization(character, {
+  specialization,
+  asSkill = false
+} = {}) {
+  requirePhase(character, CHARGEN_PHASES.MUSTER_BENEFIT_SPECIALIZATION_REQUIRED);
+  if (!character.pendingMusterBenefit || !character.musterOut) {
+    throw new ChargenStateError('no mustering-out weapon benefit is awaiting specialization');
+  }
+  const choice = String(specialization ?? '').trim();
+  if (!choice) {
+    throw new ChargenStateError('a specific gun or blade type must be declared immediately');
+  }
+
+  const next = copyCharacter(character);
+  const { category, resultIndex } = next.pendingMusterBenefit;
+  const previousBenefit = next.materialBenefits.some((benefit) => (
+    benefit.type === 'weapon' && benefit.category === category
+  ));
+
+  if (asSkill && !previousBenefit) {
+    throw new ChargenStateError(`the first ${category} mustering-out benefit must be taken as a weapon; only an additional benefit may be taken as skill`);
+  }
+
+  let result;
+  if (asSkill) {
+    applySkill(next, choice, 1);
+    result = Object.freeze({
+      type: 'skill',
+      category,
+      specialization: choice,
+      level: next.skills[choice]
+    });
+  } else {
+    result = Object.freeze({
+      type: 'weapon',
+      category,
+      specialization: choice
+    });
+    next.materialBenefits.push(result);
+  }
+
+  next.musterOut.results[resultIndex] = Object.freeze({
+    ...next.musterOut.results[resultIndex],
+    pending: false,
+    result
+  });
+  next.pendingMusterBenefit = null;
+  next.phase = CHARGEN_PHASES.MUSTER_OUT_ROLLS_PENDING;
+  next.history.push(historyEvent('muster-out-weapon', character, result));
+  finishMusterOutIfComplete(next);
+  return { character: next, result };
 }

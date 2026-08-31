@@ -4,11 +4,20 @@ import assert from 'node:assert/strict';
 import * as publicApi from '../index.js';
 import * as chargen from '../src/characters/chargen.js';
 
-test('v0.2 acquired-skill and term-completion functions are exported by both chargen and package API', () => {
+test('character-generation public API exposes acquired skills, aging, reenlistment, and mustering out', () => {
   const expectedFunctions = [
     'rollAcquiredSkill',
     'resolveSkillSpecialization',
-    'completeTerm'
+    'completeTerm',
+    'resolveAging',
+    'resolveAgingCrisis',
+    'resolveReenlistment',
+    'chooseReenlistment',
+    'chooseMusterOut',
+    'beginMusterOut',
+    'rollMusterOutCash',
+    'rollMusterOutBenefit',
+    'resolveMusterBenefitSpecialization'
   ];
 
   for (const name of expectedFunctions) {

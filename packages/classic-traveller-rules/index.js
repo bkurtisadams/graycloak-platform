@@ -1,7 +1,6 @@
-// @graycloak/classic-traveller-rules v0.2.1
-// Source-backed Book 1 chargen foundation: initial UPP, prior service,
-// acquired skills, rank/service automatic skills, and term completion.
-// No host/UI/persistence dependencies.
+// @graycloak/classic-traveller-rules v0.3.0
+// Source-backed Classic Traveller Book 1 character-generation engine.
+// Pure rules/state logic: no host, UI, persistence, Foundry, or Firebase dependencies.
 
 export {
   createDice,
@@ -36,6 +35,25 @@ export {
 } from './src/skills/acquired-skills.js';
 
 export {
+  AGING_START_AGE,
+  AGING_INTERVAL_YEARS,
+  AGING_START_MONTHS,
+  AGING_INTERVAL_MONTHS,
+  AGING_BANDS,
+  agingRulesForAge
+} from './src/characters/aging.js';
+
+export {
+  MUSTERING_OUT_TABLES,
+  musterRollAllowance,
+  benefitTableDM,
+  cashTableDM,
+  getMusterBenefitOutcome,
+  getMusterCash,
+  retirementPayForTerms
+} from './src/careers/mustering-out.js';
+
+export {
   CHARGEN_PHASES,
   ChargenStateError,
   createCharacter,
@@ -49,5 +67,14 @@ export {
   skipPromotion,
   rollAcquiredSkill,
   resolveSkillSpecialization,
-  completeTerm
+  completeTerm,
+  resolveAging,
+  resolveAgingCrisis,
+  resolveReenlistment,
+  chooseReenlistment,
+  chooseMusterOut,
+  beginMusterOut,
+  rollMusterOutCash,
+  rollMusterOutBenefit,
+  resolveMusterBenefitSpecialization
 } from './src/characters/chargen.js';
