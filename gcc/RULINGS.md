@@ -135,3 +135,45 @@ Off by default; switched on per scenario in Conditions ▸ Optional rules and ca
 - Per-figure skirmish moves are GM-side only (no NET path); body drags ignore per-figure spend.
 - RAW audit: §1–§12 done; §13–§16 and the printed CRT / Tables 12–14 not yet supplied.
 - Hero sheet UX still unsatisfying.
+
+## Saving throws (DMG Saving Throw Matrices I & II) — v0.62.5
+
+**Verified from the DMG.** Monsters use the character matrix (II.A). Hit dice
+equate to Experience Level, any plus raising the creature one hit die and a
+further die per four additional points (II.B): 1+1..1+4 -> 2, 1+5..1+8 -> 3,
+2+1..2+4 -> 3, 2+5..2+8 -> 4. Most monsters save as fighters (II.C). A natural
+1 always fails (Matrix I, N.B.).
+
+**Verified, and deliberately NOT unified with the above.** The monster ATTACK
+matrix converts pluses differently: only a plus ABOVE +3 adds a hit die
+("6+6 equals 7 hit dice"). The same creature therefore attacks and saves at
+different levels — a 3+3 hippogriff attacks as 3 HD (THAC0 16) and saves as a
+4th-level fighter. `attackHitDice` and `saveLevelFor` are separate functions
+and a self-test asserts they disagree. Do not merge them.
+
+**RULING (Kurt 2026-08-31), rule II.D direction.** A non-intelligent creature
+saves at half its hit dice rounded up "except with regard to poison or death
+magic". The halving is a PENALTY and poison/death is carved OUT of it, so the
+penalised columns are Petrification/Polymorph, Rod/Staff/Wand, Breath Weapon
+and Spell, while PPD keeps the full level. (The alternative reading — worse
+saves against poison and death specifically — was considered and rejected.)
+
+**RULING (Kurt 2026-08-31), the PPD column.** Matrix I bundles Paralyzation
+with Poison and Death Magic in a single column that cannot be split, so the
+WHOLE column takes the full level. This grants paralyzation a better save than
+II.D strictly allows; the alternative would make mindless creatures unusually
+easy to paralyse, which is the worse outcome.
+
+**RULING (Kurt 2026-08-31), half of what.** II.B settles what the creature's
+hit dice ARE before II.D operates, so the half is taken of the ADJUSTED level,
+not the printed hit dice. A 7+7 creature reaches 9 under II.B and its penalised
+columns sit at 5.
+
+**Verified from the MM.** "Non-intelligent" is intelligence rank 0 alone. The
+MM scale places animal at 1 and semi-intelligent at 2-4, so neither the Griffon
+(animal) nor the Hippogriff (semi-) is subject to II.D.
+
+**Design decision, not a rule.** Derivation is not a setting. A creature's
+saves ARE its derived values; an explicit roster entry overrides them per
+creature. A global toggle would make the same creature save differently
+depending on a checkbox and would drift between saved scenarios.
