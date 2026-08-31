@@ -275,7 +275,7 @@ export function createCharacter({
   const startingMonths = 18 * 12;
 
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     name,
     age: 18,
     chronologicalAgeMonths: startingMonths,

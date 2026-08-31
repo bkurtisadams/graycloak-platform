@@ -3,7 +3,7 @@
 Pure JavaScript rules package for the Graycloak Classic Traveller browser-game project.
 It intentionally has no HTML, Foundry, Firebase, or server dependencies.
 
-## v0.3.0 scope
+## v0.4.0 scope
 
 Implemented from Classic Traveller Book 1:
 
@@ -13,7 +13,7 @@ Implemented from Classic Traveller Book 1:
 - four-year service terms and the optional two-year injury separation rule
 - acquired skills, EDU 8+ restriction, specialization pauses, and rank/service automatic skills
 - Scout exception: two acquired skills in every term
-- term completion and serializable career history
+- term completion and career history
 - aging checks beginning at physical age 34 and recurring at four-year intervals
 - Book 1 aging characteristic-loss bands and aging crises
 - medical-skill DM on aging-crisis survival, slow-drug physical aging, and no-slow-drug recovery delay
@@ -28,11 +28,22 @@ Implemented from Classic Traveller Book 1:
 - credits, material benefits, retirement pay, and final COMPLETE chargen state
 - deterministic dice injection for regression testing
 
+v0.4.0 adds the stable host-facing boundary:
+
+- `CHARGEN_ACTIONS` action vocabulary
+- `getAvailableActions(character)` so clients do not duplicate phase legality rules
+- `performChargenAction(character, action, payload)` as a single UI-facing dispatcher
+- action-specific choice metadata for services, skill tables, specialization, aging, and mustering out
+- schema v4 character documents
+- `validateCharacter()` and `assertValidCharacter()` structural/state validation
+- `exportCharacter()` and `importCharacter()` strict JSON helpers
+- import rejection of unknown fields, impossible phase/state combinations, inconsistent UPPs, invalid ranks, bad counters, and malformed JSON
+- migration of compatible v3 character documents to schema v4
+
 Not implemented yet:
 
 - validation catalogs for specific gun, blade/polearm, and vehicle specializations
 - full skill-effect rules outside character generation
-- high-level import/export helpers beyond the naturally JSON-serializable state object
 - browser UI or persistence adapters
 
 ## Tests

@@ -26,3 +26,19 @@ test('character-generation public API exposes acquired skills, aging, reenlistme
     assert.equal(publicApi[name], chargen[name], `${name} must be the same public function`);
   }
 });
+
+
+test('v0.4 public API exposes lifecycle and JSON boundary helpers', () => {
+  for (const name of [
+    'getAvailableActions',
+    'performChargenAction',
+    'validateCharacter',
+    'assertValidCharacter',
+    'exportCharacter',
+    'importCharacter'
+  ]) {
+    assert.equal(typeof publicApi[name], 'function', `index.js must export ${name}`);
+  }
+  assert.equal(typeof publicApi.CHARGEN_ACTIONS, 'object');
+  assert.equal(publicApi.CURRENT_CHARACTER_SCHEMA_VERSION, 4);
+});
