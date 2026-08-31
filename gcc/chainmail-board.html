@@ -75,13 +75,6 @@
   button.lit { background: var(--gold); color: var(--ink); border: 2px solid #b8923a; animation: litpulse 1.6s ease-in-out infinite; }
   button.lit:disabled { animation: none; }
   button.quiet { background: transparent; color: var(--ink); border: 1px solid var(--ink-soft); }
-  /* Keep the Setup button's toolbar space reserved when it is hidden.
-   This prevents Reset board from shifting/flickering as battle state changes. */
-  #btn-back-setup[hidden] {
-    display: inline-block;
-    visibility: hidden;
-    pointer-events: none;
-  }
   @keyframes litpulse { 0%, 100% { border-color: #b8923a; } 50% { border-color: #e7ca7e; } }
   .toolbar .phase-hint { flex-basis: 100%; font-size: 11.5px; color: var(--ink-soft); padding: 1px 2px 0; }
   .toolbar .phase-rail { display: flex; align-items: flex-start; gap: 3px; }
@@ -10724,6 +10717,8 @@ function applyPhaseEmphasis() {
     if (id !== primary) $('#'+id).classList.add('quiet');
   });
 }
+let runningSelfTests = false;
+
 function renderTurnUI() {
   const ph = PHASES[state.phaseIdx];
   const mover = moverForPhase(ph.id, state.firstMover);
@@ -10736,7 +10731,7 @@ function renderTurnUI() {
     $('#btn-phase-fwd').disabled = false;   // ▶ begins the battle (Setup → Init) — always live in deployment
     $('#btn-phase-back').title = 'Deployment — nothing precedes it';
     $('#btn-phase-fwd').title = 'Begin battle →';
-    $('#btn-back-setup').hidden = true;
+    if (!runningSelfTests) $('#btn-back-setup').hidden = true;
     $('#btn-end-round').hidden = true;
     $('#btn-roll-init').hidden = true;
     $('#btn-elect-order').hidden = true;
@@ -10757,7 +10752,7 @@ function renderTurnUI() {
   }
   $('#turn-badge').innerHTML = `Turn ${state.turn}` + (enf ? ' <span class="enf-pill">enf</span>' : '');
   $('#btn-end-round').hidden = true;   // retired — the ▶ arrow ends the turn at Melee
-  $('#btn-back-setup').hidden = false;
+  if (!runningSelfTests) $('#btn-back-setup').hidden = false;
   // Phase arrows drive the whole turn: ▶ advances within the turn and, at Melee, ends
   // the turn (endRound) and rolls into the next; ◀ steps back, off at Init.
   const atMelee = state.phaseIdx >= PHASES.length - 1;
@@ -11133,7 +11128,6 @@ renderBoard();
 
 // GCC multiplayer Slice 1 (v0.11.174): parse ?camp/?battle/?spectate and connect.
 // Inert without ?camp= or the GCC scripts — the board stays a standalone page.
-
 $('#btn-net-share').addEventListener('click', () => NET.shareSpectateLink());
 $('#btn-net-share-player').addEventListener('click', () => NET.sharePlayerLink());   // Slice 2A
 // Spectate: mutating toolbar controls are CSS-hidden, but a capture-phase
@@ -11155,7 +11149,6 @@ function initRailSplitter() {
   const layout = document.querySelector('.layout');
   const grip = document.getElementById('rail-splitter');
   if (!layout || !grip) return;
-
   const DEF = 560, MIN = 450, COLLAPSE = MIN - 60, CAP = 820, BOARD_MIN = 360;
   let collapsed = false;
 
@@ -11163,7 +11156,6 @@ function initRailSplitter() {
     collapsed
       ? 0
       : (parseFloat(getComputedStyle(layout).getPropertyValue('--rail')) || DEF);
-
   const apply = (rail) => {
     if (rail <= 0) {
       collapsed = true;
@@ -11175,7 +11167,6 @@ function initRailSplitter() {
       layout.style.setProperty('--rail', rail + 'px');
     }
   };
-
   const persist = () => {
     try {
       // Do not persist a collapsed rail. Persisting "x" caused Units and
@@ -11190,7 +11181,6 @@ function initRailSplitter() {
 
   try {
     const s = localStorage.getItem('cm-rail');
-
     // Recover automatically from the old broken persisted collapsed state.
     if (s === 'x') {
       localStorage.removeItem('cm-rail');
@@ -11205,7 +11195,6 @@ function initRailSplitter() {
   grip.addEventListener('pointerdown', (e) => {
     dragging = true;
     startX = e.clientX;
-
     // If the rail is collapsed, grabbing the splitter should reopen it
     // immediately instead of starting the drag from width zero.
     if (collapsed) {
@@ -11224,7 +11213,6 @@ function initRailSplitter() {
 
     e.preventDefault();
   });
-
   grip.addEventListener('pointermove', (e) => {
     if (!dragging) return;
 
@@ -11249,7 +11237,6 @@ function initRailSplitter() {
 
     persist();
   };
-
   grip.addEventListener('pointerup', end);
   grip.addEventListener('pointercancel', end);
 
@@ -11261,6 +11248,16 @@ function initRailSplitter() {
 initRailSplitter();
 
 /* === J. TESTS (geometry + casualty + class bump) ====================== */
+// The tests deliberately exercise real render/load/network helpers. Preserve the
+// startup state so no temporary test mutation can leak into the visible board or
+// the first multiplayer publish, even if a test throws before its own cleanup.
+const selfTestBootState = {};
+for (const [key, value] of Object.entries(state)) {
+  if (key !== 'rng') selfTestBootState[key] = structuredClone(value);
+}
+
+runningSelfTests = true;
+try {
 (function tests() {
   // engagementEdge — defender facing 0 (north), attacker at various positions
   const def = { x:0, y:0, facing:0 };
@@ -12852,9 +12849,29 @@ initRailSplitter();
     return { missileEnabled, reach, arc, shots, missileOk, canAct, phaseId, dispatch };
   };
 })();
+} catch (err) {
+  console.error(`[chainmail-board v${SIM_VERSION}] self-tests aborted:`, err);
+} finally {
+  // Cancel any debounce window a failing network self-test may have left behind.
+  NET._test.cancel();
 
-// Start multiplayer only after the synchronous self-tests have completed.
-// This prevents live reconnect timers from colliding with the debounce tests.
+  // Restore the exact pre-test startup state. state.rng is the one non-cloneable
+  // function and was never replaced, so every data field can be restored safely.
+  for (const [key, value] of Object.entries(selfTestBootState)) {
+    state[key] = structuredClone(value);
+  }
+
+  runningSelfTests = false;
+  saveSettings();
+  applyBoardSize();
+  applyViewBox();
+  syncUndoButtons();
+  renderTurnUI();
+  renderBoard();
+}
+
+// Start multiplayer only after self-test state and UI have been restored.
+// A thrown self-test is logged, but cannot strand test state in the live session.
 NET.init();
 
 </script>
