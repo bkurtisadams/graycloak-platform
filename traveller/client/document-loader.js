@@ -17,6 +17,11 @@ import {
 } from '../src/contract-document.js';
 
 import {
+  SITUATION_DOCUMENT_TYPE,
+  importSituationDocument
+} from '../src/situation-document.js';
+
+import {
   CAMPAIGN_BUNDLE_TYPE,
   importCampaignBundle
 } from '../src/campaign-bundle.js';
@@ -27,6 +32,7 @@ export const TRAVELLER_DOCUMENT_KINDS = Object.freeze({
   SHIP: 'ship',
   CAMPAIGN: 'campaign',
   CONTRACT: 'contract',
+  SITUATION: 'situation',
   CAMPAIGN_BUNDLE: 'campaign-bundle'
 });
 
@@ -70,6 +76,13 @@ export function loadTravellerDocument(input) {
     return {
       kind: TRAVELLER_DOCUMENT_KINDS.CONTRACT,
       contractDocument: importContractDocument(parsed)
+    };
+  }
+
+  if (parsed.documentType === SITUATION_DOCUMENT_TYPE) {
+    return {
+      kind: TRAVELLER_DOCUMENT_KINDS.SITUATION,
+      situationDocument: importSituationDocument(parsed)
     };
   }
 

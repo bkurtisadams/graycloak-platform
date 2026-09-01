@@ -12,7 +12,7 @@ const fixture = path.resolve(here, 'fixtures/Sea-of-Suns-v0.11.2-buggy.campaign.
 
 test('Sea of Suns v0.11.2 regression fixture migrates and exposes the overdue courier that prompted v0.11.2.1', async () => {
   const bundle = importCampaignBundle(await readFile(fixture, 'utf8'));
-  assert.equal(bundle.campaign.schemaVersion, 3);
+  assert.equal(bundle.campaign.schemaVersion, 4);
   assert.deepEqual(bundle.campaign.commerce.speculativeLots, []);
   assert.equal(bundle.campaign.time.dayOfYear, 106);
   const reconciled = reconcileContractDeadlines(bundle.documents.contracts, bundle.campaign.time);

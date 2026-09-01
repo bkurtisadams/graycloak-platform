@@ -11,7 +11,7 @@
     <header class="masthead">
       <div>
         <div id="app-title" class="title">TRAVELLER // PERSONNEL INTAKE TERMINAL</div>
-        <div class="subtitle">CLIENT v0.11.2.1 // CLASSIC TRAVELLER BOOKS 1-3 // OPERATIONS DESK</div>
+        <div class="subtitle">CLIENT v0.12.0 // CLASSIC TRAVELLER BOOKS 1-3 // SITUATIONS + PATRONS</div>
       </div>
       <div id="system-status" class="status" aria-live="polite">READY</div>
     </header>
@@ -88,6 +88,7 @@
               <button id="operations-tab-port" class="text-button operations-tab" type="button" role="tab" aria-controls="port-services-section" aria-selected="false">[ PORT ]</button>
               <button id="operations-tab-trade" class="text-button operations-tab" type="button" role="tab" aria-controls="commerce-section" aria-selected="true">[ TRADE ]</button>
               <button id="operations-tab-jobs" class="text-button operations-tab" type="button" role="tab" aria-controls="contract-section" aria-selected="false">[ JOBS ]</button>
+              <button id="operations-tab-situation" class="text-button operations-tab" type="button" role="tab" aria-controls="situation-section" aria-selected="false">[ SITUATION ]</button>
             </div>
             <div class="operations-panel-scroll">
               <section id="port-services-section" class="operations-panel" hidden aria-labelledby="port-services-heading">
@@ -115,6 +116,15 @@
                 </div>
                 <pre id="contract-record" class="record contract-record" aria-live="polite"></pre>
                 <div id="contract-actions" class="actions contract-actions"></div>
+              </section>
+
+              <section id="situation-section" class="operations-panel" hidden aria-labelledby="situation-heading">
+                <div class="section-heading">
+                  <h2 id="situation-heading" class="section-title">SITUATION</h2>
+                  <button class="help-button" type="button" data-help-topic="situations" aria-label="Explain situations and patrons">[?]</button>
+                </div>
+                <pre id="situation-record" class="record situation-record" aria-live="polite"></pre>
+                <div id="situation-actions" class="actions situation-actions"></div>
               </section>
             </div>
           </div>

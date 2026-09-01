@@ -454,6 +454,13 @@ input[readonly] {
   outline-offset: 1px;
 }
 
+.operations-tab.attention {
+  background: var(--attention);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+
 .operations-panel-scroll {
   min-height: 0;
   flex: 1 1 auto;

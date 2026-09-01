@@ -41,7 +41,7 @@ test('v0.11.0.1 retains contextual help and highlighted legal actions', async ()
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /CLIENT v0\.11\.2/);
+  assert.match(html, /CLIENT v0\.(?:11\.2(?:\.1)?|12\.0)/);
   assert.match(html, /data-help-topic="personnel-record"/);
   assert.match(html, /id="context-help"/);
   assert.match(app, /helpForTopic/);
@@ -58,7 +58,7 @@ test('v0.11.0 specialization UI uses engine-supplied legal choices instead of fr
   const html = await read('index.html');
   const app = await read('app.js');
 
-  assert.match(html, /CLIENT v0\.11\.2/);
+  assert.match(html, /CLIENT v0\.(?:11\.2(?:\.1)?|12\.0)/);
   assert.match(app, /available\.choices\.specializations/);
   assert.doesNotMatch(app, /id = 'skill-specialization'/);
   assert.doesNotMatch(app, /id = 'benefit-specialization'/);
@@ -208,7 +208,7 @@ test('v0.11.0.1 adds base markers, map zoom controls, and a left navigation rail
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /CLIENT v0\.11\.2/);
+  assert.match(html, /CLIENT v0\.(?:11\.2(?:\.1)?|12\.0)/);
   assert.match(html, /class="subsector-workspace"/);
   assert.match(html, /class="navigation-plan-panel"/);
   assert.match(html, /id="map-zoom-out"/);
@@ -228,7 +228,7 @@ test('v0.11.0.2 highlights navigation and port states that require attention', a
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /CLIENT v0\.11\.2/);
+  assert.match(html, /CLIENT v0\.(?:11\.2(?:\.1)?|12\.0)/);
   assert.match(app, /renderRecordWithHighlights/);
   assert.match(app, /jumpAttention\.push\('FUEL NEED '/);
   assert.match(app, /portAttention\.push\('BERTHING '/);
@@ -245,7 +245,7 @@ test('v0.11.1 exposes Book 2 passengers, freight, speculative trade, and life-su
   const model = await read('ui-model.js');
   const market = await read('commerce-market.js');
 
-  assert.match(html, /CLIENT v0\.11\.2/);
+  assert.match(html, /CLIENT v0\.(?:11\.2(?:\.1)?|12\.0)/);
   assert.match(html, /id="commerce-section"/);
   assert.match(html, /data-help-topic="commerce"/);
   assert.match(app, /generatePassengerDemand/);
@@ -270,7 +270,7 @@ test('v0.11.2 exposes persistent contracts and the port Contract Board', async (
   const app = await read('app.js');
   const model = await read('ui-model.js');
 
-  assert.match(html, /CLIENT v0\.11\.2/);
+  assert.match(html, /CLIENT v0\.(?:11\.2(?:\.1)?|12\.0)/);
   assert.match(html, /id="contract-section"/);
   assert.match(html, /CONTRACT BOARD/);
   assert.match(app, /createContractDocument/);
@@ -286,7 +286,7 @@ test('v0.11.2.1 keeps port, trade, and jobs beside the map and guards repaired s
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /CLIENT v0\.11\.2\.1/);
+  assert.match(html, /CLIENT v0\.(?:11\.2\.1|12\.0)/);
   assert.match(html, /id="operations-tab-port"/);
   assert.match(html, /id="operations-tab-trade"/);
   assert.match(html, /id="operations-tab-jobs"/);
@@ -298,4 +298,21 @@ test('v0.11.2.1 keeps port, trade, and jobs beside the map and guards repaired s
   assert.match(app, /transported to another world before resale/);
   assert.match(app, /reconcileExpiredContracts/);
   assert.match(app, /persistCampaignState/);
+});
+
+test('v0.12.0 exposes persistent situations, patrons, and non-combat skill checks in the Operations Desk', async () => {
+  const html = await read('index.html');
+  const app = await read('app.js');
+  const model = await read('ui-model.js');
+  const loader = await read('document-loader.js');
+
+  assert.match(html, /CLIENT v0\.12\.0/);
+  assert.match(html, /id="operations-tab-situation"/);
+  assert.match(html, /id="situation-section"/);
+  assert.match(app, /generatePatronContact/);
+  assert.match(app, /ensureArrivalSituation/);
+  assert.match(app, /resolveRefereeSkillCheck/);
+  assert.match(app, /logActivity\('SITUATION'/);
+  assert.match(model, /buildSituationRecord/);
+  assert.match(loader, /SITUATION/);
 });

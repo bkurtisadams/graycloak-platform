@@ -16,6 +16,11 @@ import {
 } from './contract-document.js';
 
 import {
+  SITUATION_DOCUMENT_TYPE,
+  importSituationDocument
+} from './situation-document.js';
+
+import {
   CAMPAIGN_BUNDLE_TYPE,
   createCampaignBundle,
   importCampaignBundle
@@ -35,6 +40,7 @@ function validateDocument(document) {
     case SHIP_DOCUMENT_TYPE: return importShipDocument(document);
     case CAMPAIGN_DOCUMENT_TYPE: return importCampaignDocument(document);
     case CONTRACT_DOCUMENT_TYPE: return importContractDocument(document);
+    case SITUATION_DOCUMENT_TYPE: return importSituationDocument(document);
     default: throw new Error(`unsupported registry documentType: ${document?.documentType ?? '(missing)'}`);
   }
 }
@@ -107,6 +113,7 @@ export function createDocumentRegistry({
     for (const character of validated.documents.characters) put(character);
     for (const ship of validated.documents.ships) put(ship);
     for (const contract of validated.documents.contracts) put(contract);
+    for (const situation of validated.documents.situations) put(situation);
     put(validated.campaign);
     return cloneJson(validated);
   }
@@ -122,6 +129,7 @@ export function createDocumentRegistry({
     const characters = [];
     const ships = [];
     const contracts = [];
+    const situations = [];
     const missing = [];
     for (const ref of campaign.documentRefs.characters) {
       const document = get(ref.id);
@@ -138,7 +146,12 @@ export function createDocumentRegistry({
       if (!document || document.documentType !== CONTRACT_DOCUMENT_TYPE) missing.push(ref.id);
       else contracts.push(document);
     }
-    return { campaign, characters, ships, contracts, missing };
+    for (const ref of campaign.documentRefs.situations) {
+      const document = get(ref.id);
+      if (!document || document.documentType !== SITUATION_DOCUMENT_TYPE) missing.push(ref.id);
+      else situations.push(document);
+    }
+    return { campaign, characters, ships, contracts, situations, missing };
   }
 
   function buildBundle(campaignOrId) {
@@ -147,7 +160,8 @@ export function createDocumentRegistry({
     return createCampaignBundle(resolved.campaign, {
       characters: resolved.characters,
       ships: resolved.ships,
-      contracts: resolved.contracts
+      contracts: resolved.contracts,
+      situations: resolved.situations
     });
   }
 

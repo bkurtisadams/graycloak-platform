@@ -46,7 +46,9 @@ import {
   calculateSpeculativePurchaseCost,
   quoteSpeculativeResale,
   PASSAGE_FARES_CR,
-  FREIGHT_RATE_PER_TON_CR
+  FREIGHT_RATE_PER_TON_CR,
+  generatePatronContact,
+  resolveRefereeSkillCheck
 } from '../../packages/classic-traveller-rules/index.js';
 
 import {
@@ -61,6 +63,7 @@ import {
   buildShipRecord,
   buildProcedure,
   buildServiceHistory,
+  buildSituationRecord,
   buildSystemRecord,
   helpForTopic,
   serviceName,
@@ -99,6 +102,7 @@ import {
 import {
   addShipToCampaign,
   addContractToCampaign,
+  addSituationToCampaign,
   advanceCampaignDays,
   createCampaignDocument,
   refreshCampaignDocumentRefs,
@@ -130,6 +134,20 @@ import {
   isContractOverdue,
   reconcileContractDeadlines
 } from '../src/contract-document.js';
+
+import {
+  SITUATION_DOCUMENT_TYPE,
+  createSituationDocument,
+  importSituationDocument,
+  resolveSituationDocument
+} from '../src/situation-document.js';
+
+import {
+  arrivalSituationEventKey,
+  patronSituationEventKey,
+  generateArrivalSituationOffer,
+  buildPatronSituationOffer
+} from '../world/situation-events.js';
 
 import {
   generateContractBoard
@@ -198,6 +216,10 @@ const el = {
   contractSection: document.querySelector('#contract-section'),
   contractRecord: document.querySelector('#contract-record'),
   contractActions: document.querySelector('#contract-actions'),
+  situationSection: document.querySelector('#situation-section'),
+  situationRecord: document.querySelector('#situation-record'),
+  situationActions: document.querySelector('#situation-actions'),
+  operationsTabSituation: document.querySelector('#operations-tab-situation'),
   operationsTabPort: document.querySelector('#operations-tab-port'),
   operationsTabTrade: document.querySelector('#operations-tab-trade'),
   operationsTabJobs: document.querySelector('#operations-tab-jobs'),
@@ -212,6 +234,7 @@ let gameplayDocument = null;
 let shipDocument = null;
 let campaignDocument = null;
 let contractDocuments = [];
+let situationDocuments = [];
 let documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
 let openHelpTopic = null;
 let selectedSystemId = null;
@@ -571,6 +594,7 @@ function persistGameplayDocuments() {
   if (gameplayDocument) registry.put(gameplayDocument);
   if (shipDocument) registry.put(shipDocument);
   for (const contract of contractDocuments) registry.put(contract);
+  for (const situation of situationDocuments) registry.put(situation);
 }
 
 function syncCampaignRefs() {
@@ -578,7 +602,8 @@ function syncCampaignRefs() {
   campaignDocument = refreshCampaignDocumentRefs(campaignDocument, {
     characters: gameplayDocument ? [gameplayDocument] : [],
     ships: shipDocument ? [shipDocument] : [],
-    contracts: contractDocuments
+    contracts: contractDocuments,
+    situations: situationDocuments
   });
 }
 
@@ -613,10 +638,11 @@ function reconcileExpiredContracts({ log = true } = {}) {
 }
 
 function campaignDocumentsForDisplay() {
-  if (!campaignDocument) return { characters: [], ships: [], contracts: [], missing: [] };
+  if (!campaignDocument) return { characters: [], ships: [], contracts: [], situations: [], missing: [] };
   let characters = [];
   let ships = [];
   let contracts = [];
+  let situations = [];
   let missing = [];
   if (registry) {
     try {
@@ -624,6 +650,7 @@ function campaignDocumentsForDisplay() {
       characters = resolved.characters;
       ships = resolved.ships;
       contracts = resolved.contracts;
+      situations = resolved.situations;
       missing = resolved.missing;
     } catch (error) {
       console.error(error);
@@ -644,7 +671,12 @@ function campaignDocumentsForDisplay() {
     contracts.push(contract);
     missing = missing.filter((id) => id !== contract.identity.id);
   }
-  return { characters, ships, contracts, missing };
+  for (const situation of situationDocuments) {
+    situations = situations.filter((entry) => entry.identity.id !== situation.identity.id);
+    situations.push(situation);
+    missing = missing.filter((id) => id !== situation.identity.id);
+  }
+  return { characters, ships, contracts, situations, missing };
 }
 
 function renderCampaign() {
@@ -685,6 +717,7 @@ function selectSubsectorSystem(systemId) {
   renderSystemRecord();
   renderCommerce();
   renderContracts();
+  renderSituations();
 }
 
 function setStartingSubsectorLocation() {
@@ -872,9 +905,10 @@ function jumpToSelectedSystem() {
     });
     shipDocument = nextShip;
     reconcileExpiredContracts();
-    persistCampaignState();
     selectedSystemId = null;
     logActivity('ARRIVAL', `${shipLabel} arrived ${destination.name} / ${destination.hex} / ${destination.mainWorld.name} / fuel ${shipDocument.state.currentFuelTons}t`);
+    ensureArrivalSituation({ log: true });
+    persistCampaignState();
     if (freightDelivery.delivered.length) {
       logActivity('TRADE', `${freightDelivery.delivered.length} freight shipment${freightDelivery.delivered.length === 1 ? '' : 's'} delivered at ${destination.name} / +${formatCr(freightDelivery.revenueCr)}`);
     }
@@ -1539,16 +1573,194 @@ function renderContracts() {
   applyOperationsDeskTab();
 }
 
+
+function situationForEventKey(eventKey) {
+  return situationDocuments.find((entry) => entry.provenance.eventKey === eventKey) ?? null;
+}
+
+function activeSituationAtCurrentSystem() {
+  const current = mappedCurrentSystem();
+  if (!current) return null;
+  return situationDocuments.find((entry) => entry.status === 'active' && entry.location.systemId === current.id) ?? null;
+}
+
+function currentPatronEventKey() {
+  const current = mappedCurrentSystem();
+  if (!campaignDocument || !current || !shipDocument) return null;
+  return patronSituationEventKey({ campaign: campaignDocument, system: current, ship: shipDocument });
+}
+
+function attachSituation(situation, { log = true, select = true } = {}) {
+  situationDocuments = situationDocuments.filter((entry) => entry.identity.id !== situation.identity.id);
+  situationDocuments.push(situation);
+  campaignDocument = addSituationToCampaign(campaignDocument, situation);
+  syncCampaignRefs();
+  if (select && situation.status === 'active') operationsDeskTab = 'situation';
+  if (log) {
+    const suffix = situation.status === 'active' ? 'requires attention' : situation.resolution.notes || situation.status;
+    logActivity('SITUATION', `${situation.identity.title} / ${situation.location.systemName} / ${suffix}`);
+  }
+  return situation;
+}
+
+function ensureArrivalSituation({ log = true } = {}) {
+  const current = mappedCurrentSystem();
+  if (!campaignDocument || !current || !shipDocument) return null;
+  if (shipDocument.state.portCall?.systemId !== current.id) return null;
+  const eventKey = arrivalSituationEventKey({ campaign: campaignDocument, system: current, ship: shipDocument });
+  if (situationForEventKey(eventKey)) return null;
+  const offer = generateArrivalSituationOffer({
+    campaign: campaignDocument,
+    system: current,
+    ship: shipDocument,
+    dice: seededDice(`${eventKey}|generate`)
+  });
+  if (!offer) return null;
+  return attachSituation(createSituationDocument(offer), { log, select: true });
+}
+
+function seekPatron() {
+  try {
+    const current = mappedCurrentSystem();
+    if (!campaignDocument || !current || !shipDocument || !gameplayDocument) throw new Error('active campaign character and ship at a mapped port are required');
+    if (shipDocument.state.portCall?.systemId !== current.id) throw new Error('a current port call is required to seek a patron');
+    if (activeSituationAtCurrentSystem()) throw new Error('resolve the current situation before seeking another patron');
+    const eventKey = currentPatronEventKey();
+    if (situationForEventKey(eventKey)) throw new Error('patron contact has already been checked for this port call');
+    const dice = seededDice(`${eventKey}|book3-patron`);
+    const contact = generatePatronContact(dice);
+    const offer = buildPatronSituationOffer({ campaign: campaignDocument, system: current, ship: shipDocument, contact, dice });
+    const situation = attachSituation(createSituationDocument(offer), { log: true, select: true });
+    persistCampaignState();
+    setStatus(situation.status === 'active' ? `SITUATION: ${situation.identity.title.toUpperCase()}` : situation.identity.title.toUpperCase(), 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function resolveSituationChoice(situationId, choiceId) {
+  try {
+    if (!campaignDocument || !gameplayDocument) throw new Error('active campaign character is required');
+    const index = situationDocuments.findIndex((entry) => entry.identity.id === situationId);
+    if (index < 0) throw new Error('situation not found');
+    const situation = situationDocuments[index];
+    if (situation.status !== 'active') throw new Error('situation is already resolved');
+    const choice = situation.choices.find((entry) => entry.id === choiceId);
+    if (!choice) throw new Error('situation choice not found');
+    const date = campaignDateSnapshot();
+    let resolved;
+    if (choice.action === 'skill-check') {
+      const skillLevel = Number(gameplayDocument.skills?.[choice.skillName] ?? 0);
+      const result = resolveRefereeSkillCheck({
+        dice: seededDice(`${situation.provenance.eventKey}|${choice.id}|skill-check`),
+        target: choice.target,
+        skillLevel,
+        intelligence: gameplayDocument.characteristics.INT,
+        education: gameplayDocument.characteristics.EDU,
+        situationalDM: choice.situationalDM
+      });
+      resolved = resolveSituationDocument(situation, {
+        date,
+        choiceId: choice.id,
+        success: result.success,
+        roll: { skillName: choice.skillName, ...result },
+        notes: result.success ? choice.successText : choice.failureText
+      });
+    } else if (choice.action === 'decline') {
+      resolved = resolveSituationDocument(situation, {
+        date,
+        choiceId: choice.id,
+        success: null,
+        notes: choice.resolutionText,
+        declined: true
+      });
+    } else {
+      resolved = resolveSituationDocument(situation, {
+        date,
+        choiceId: choice.id,
+        success: true,
+        notes: choice.resolutionText
+      });
+    }
+    situationDocuments[index] = resolved;
+    syncCampaignRefs();
+    persistCampaignState();
+    const roll = resolved.resolution.roll;
+    const rollText = roll ? ` / ${roll.dice.join('+')} + DM ${roll.dm} = ${roll.total} vs ${roll.target}+` : '';
+    logActivity('SITUATION', `${resolved.identity.title} / ${resolved.status.toUpperCase()}${rollText} / ${resolved.resolution.notes}`);
+    setStatus(`SITUATION ${resolved.status.toUpperCase()}: ${resolved.identity.title.toUpperCase()}`, resolved.resolution.success === false ? 'error' : 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function renderSituations() {
+  const current = mappedCurrentSystem();
+  if (!campaignDocument || !current || !shipDocument || !gameplayDocument) {
+    el.situationSection.dataset.available = 'false';
+    el.situationSection.hidden = true;
+    el.situationRecord.textContent = '';
+    el.situationActions.replaceChildren();
+    el.operationsTabSituation?.classList.remove('attention');
+    applyOperationsDeskTab();
+    return;
+  }
+
+  el.situationSection.dataset.available = 'true';
+  el.situationSection.hidden = false;
+  el.situationRecord.textContent = buildSituationRecord({ system: current, situations: situationDocuments });
+  el.situationActions.replaceChildren();
+  const active = activeSituationAtCurrentSystem();
+  el.operationsTabSituation?.classList.toggle('attention', Boolean(active));
+  if (el.operationsTabSituation) el.operationsTabSituation.textContent = active ? '[ SITUATION ! ]' : '[ SITUATION ]';
+
+  if (active) {
+    for (const choice of active.choices) {
+      const button = makePortButton(choice.label, () => resolveSituationChoice(active.identity.id, choice.id));
+      if (choice.action === 'skill-check') {
+        const level = Number(gameplayDocument.skills?.[choice.skillName] ?? 0);
+        button.title = `${choice.skillName}-${level} / target ${choice.target}+ / Graycloak referee check generalized from Book 1 Electronics guidance`;
+      }
+      el.situationActions.append(button);
+    }
+    if (!active.choices.length) {
+      const note = document.createElement('span');
+      note.className = 'attention-message';
+      note.textContent = 'PERSONAL ENCOUNTER / COMBAT RESOLUTION NOT YET IMPLEMENTED. THIS SITUATION REMAINS OPEN.';
+      el.situationActions.append(note);
+    }
+  } else {
+    const patronKey = currentPatronEventKey();
+    if (patronKey && !situationForEventKey(patronKey)) {
+      const button = makePortButton('SEEK PATRON', seekPatron);
+      button.title = 'Book 3 patron table / Graycloak once-per-port-call cadence';
+      el.situationActions.append(button);
+    } else {
+      const note = document.createElement('span');
+      note.className = 'commerce-note';
+      note.textContent = patronKey ? 'PATRON CONTACT ALREADY CHECKED THIS PORT CALL.' : 'NO PATRON CHECK AVAILABLE.';
+      el.situationActions.append(note);
+    }
+  }
+  applyOperationsDeskTab();
+}
+
 function applyOperationsDeskTab() {
   const panels = {
     port: el.portServicesSection,
     trade: el.commerceSection,
-    jobs: el.contractSection
+    jobs: el.contractSection,
+    situation: el.situationSection
   };
   const tabs = {
     port: el.operationsTabPort,
     trade: el.operationsTabTrade,
-    jobs: el.operationsTabJobs
+    jobs: el.operationsTabJobs,
+    situation: el.operationsTabSituation
   };
   for (const [key, panel] of Object.entries(panels)) {
     const available = panel?.dataset.available === 'true';
@@ -1558,7 +1770,7 @@ function applyOperationsDeskTab() {
 }
 
 function setOperationsDeskTab(tab) {
-  if (!['port', 'trade', 'jobs'].includes(tab)) return;
+  if (!['port', 'trade', 'jobs', 'situation'].includes(tab)) return;
   operationsDeskTab = tab;
   applyOperationsDeskTab();
 }
@@ -1831,11 +2043,13 @@ function restoreCampaignFromRegistry(campaign) {
   gameplayDocument = nextCharacter;
   shipDocument = nextShip;
   contractDocuments = resolved.contracts;
+  situationDocuments = resolved.situations;
   documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
   character = createCharacter();
   setActivityContext();
   const expired = reconcileExpiredContracts();
-  if (expired.length) persistCampaignState();
+  const createdSituation = ensureArrivalSituation({ log: false });
+  if (expired.length || createdSituation) persistCampaignState();
 }
 
 function newCampaign() {
@@ -1845,10 +2059,12 @@ function newCampaign() {
     persistGameplayDocuments();
     selectedSystemId = null;
     contractDocuments = [];
+    situationDocuments = [];
     campaignDocument = createCampaignDocument({
       characters: [gameplay],
       ships: shipDocument ? [shipDocument] : [],
       contracts: [],
+      situations: [],
       partyCharacterIds: [gameplay.identity.id],
       activeShipId: shipDocument?.identity.id ?? null
     });
@@ -2144,6 +2360,7 @@ function render() {
   renderPortServices();
   renderCommerce();
   renderContracts();
+  renderSituations();
   applyOperationsDeskTab();
   renderShip();
   renderActivity();
@@ -2275,6 +2492,7 @@ async function loadDocument(file) {
       shipDocument = null;
       campaignDocument = null;
       contractDocuments = [];
+      situationDocuments = [];
       selectedSystemId = null;
       documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
       setActivityContext();
@@ -2285,6 +2503,7 @@ async function loadDocument(file) {
       documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
       campaignDocument = null;
       contractDocuments = [];
+      situationDocuments = [];
       selectedSystemId = null;
       if (shipDocument && !shipMatchesCharacter(shipDocument, gameplayDocument)) shipDocument = null;
       if (registry) registry.put(gameplayDocument);
@@ -2298,6 +2517,7 @@ async function loadDocument(file) {
       shipDocument = loaded.shipDocument;
       campaignDocument = null;
       contractDocuments = [];
+      situationDocuments = [];
       selectedSystemId = null;
       if (gameplayDocument) shipDocument = updateShipAssignedCharacterName(shipDocument, gameplayDocument.identity.name);
       if (registry) registry.put(shipDocument);
@@ -2320,6 +2540,21 @@ async function loadDocument(file) {
         setStatus('CONTRACT DOCUMENT LOADED / ADDED TO CAMPAIGN', 'ok');
       } else {
         setStatus('CONTRACT DOCUMENT REGISTERED LOCALLY', 'ok');
+      }
+    } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.SITUATION) {
+      if (!registry) throw new Error('browser local storage is unavailable');
+      const situation = importSituationDocument(loaded.situationDocument);
+      registry.put(situation);
+      if (campaignDocument && situation.location.systemId === campaignDocument.location.systemId) {
+        situationDocuments = situationDocuments.filter((entry) => entry.identity.id !== situation.identity.id);
+        situationDocuments.push(situation);
+        campaignDocument = addSituationToCampaign(campaignDocument, situation);
+        syncCampaignRefs();
+        registry.put(campaignDocument);
+        logActivity('SITUATION', `Situation loaded: ${situation.identity.title}`);
+        setStatus('SITUATION DOCUMENT LOADED / ADDED TO CAMPAIGN', 'ok');
+      } else {
+        setStatus('SITUATION DOCUMENT REGISTERED LOCALLY', 'ok');
       }
     } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CAMPAIGN) {
       if (!registry) throw new Error('browser local storage is unavailable');
@@ -2480,6 +2715,7 @@ el.newCharacter.addEventListener('click', () => {
   shipDocument = null;
   campaignDocument = null;
   contractDocuments = [];
+  situationDocuments = [];
   selectedSystemId = null;
   closeHelp();
   setActivityContext();
@@ -2516,6 +2752,7 @@ el.mapZoomFit.addEventListener('click', () => setSubsectorZoom(1));
 el.operationsTabPort.addEventListener('click', () => setOperationsDeskTab('port'));
 el.operationsTabTrade.addEventListener('click', () => setOperationsDeskTab('trade'));
 el.operationsTabJobs.addEventListener('click', () => setOperationsDeskTab('jobs'));
+el.operationsTabSituation.addEventListener('click', () => setOperationsDeskTab('situation'));
 
 el.newCampaign.addEventListener('click', newCampaign);
 el.saveCampaign.addEventListener('click', saveCampaignLocal);

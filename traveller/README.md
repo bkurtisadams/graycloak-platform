@@ -4,6 +4,10 @@ Standalone browser client for the original-universe Classic Traveller project.
 
 The Classic Traveller rules engine lives in `../packages/classic-traveller-rules/`. Pure rules and document legality stay there; the browser renders state and legal actions. Original Sea of Suns content stays under `traveller/world/`.
 
+## v0.12.0 situations, patrons, and non-combat checks
+
+v0.12.0 adds persistent Situation Documents to Campaign Document v4 and Campaign Bundle v3. Authored and procedural Sea of Suns arrival events can appear at port calls, Book 3 patron contacts use the printed patron and reaction tables, and accepted situations expose explicit choices in the Operations Desk. The browser uses a Graycloak once-per-port-call patron cadence rather than adding a waiting subsystem. Non-combat skill resolution is a clearly labeled Graycloak generalization of the Book 1 Electronics referee-check guidance. Personal and starship combat remain out of scope for this milestone.
+
 ## v0.11.2.1 operations-desk and state repair
 
 This hotfix keeps Port Services, Commerce, and Contract Board in a tabbed operations desk beside the subsector map. Campaign Document v3 adds persistent speculative-lot purchase state, same-world speculative resale is rejected, contract deadlines reconcile when campaign time advances or a campaign loads, and time-consuming gas-giant refueling now persists campaign time together with ship state.

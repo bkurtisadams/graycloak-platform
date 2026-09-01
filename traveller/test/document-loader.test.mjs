@@ -78,3 +78,15 @@ test('loader recognizes a persistent Contract Document', async () => {
   assert.equal(loaded.kind, TRAVELLER_DOCUMENT_KINDS.CONTRACT);
   assert.equal(loaded.contractDocument.identity.title, 'Route Verification Survey');
 });
+
+test('loader recognizes a persistent Situation Document', async () => {
+  const { createSituationDocument } = await import('../src/situation-document.js');
+  const situation = createSituationDocument({
+    eventKey: 'loader|cinder|arrival', kind: 'arrival-event', title: 'Dead Approach Beacon',
+    location: { systemId: 'cinder', systemName: 'Cinder' }, createdDate: { year: 4800, dayOfYear: 106 },
+    summary: 'Beacon signal.', detail: '', choices: []
+  });
+  const loaded = loadTravellerDocument(situation);
+  assert.equal(loaded.kind, TRAVELLER_DOCUMENT_KINDS.SITUATION);
+  assert.equal(loaded.situationDocument.identity.title, 'Dead Approach Beacon');
+});

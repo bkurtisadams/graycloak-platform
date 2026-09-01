@@ -76,7 +76,7 @@ export const HELP_TOPICS = Object.freeze({
   }),
   'campaign-status': Object.freeze({
     title: 'CAMPAIGN STATUS',
-    body: 'A Campaign Document is the persistent shell that ties gameplay Character and Ship Documents together by stable ID. SAVE CAMPAIGN stores the campaign and referenced documents in this browser. EXPORT CAMPAIGN creates one portable bundle containing the Campaign Document plus its referenced character, ship, and contract documents. The ordinal date is a Graycloak campaign-state convention. In v0.9 the system and world fields are driven by the authored subsector map so their IDs and displayed names stay synchronized.'
+    body: 'A Campaign Document is the persistent shell that ties gameplay Character and Ship Documents together by stable ID. SAVE CAMPAIGN stores the campaign and referenced documents in this browser. EXPORT CAMPAIGN creates one portable bundle containing the Campaign Document plus its referenced character, ship, contract, and situation documents. The ordinal date is a Graycloak campaign-state convention. In v0.9 the system and world fields are driven by the authored subsector map so their IDs and displayed names stay synchronized.'
   }),
   'subsector-map': Object.freeze({
     title: 'SUBSECTOR NAVIGATION',
@@ -93,6 +93,10 @@ export const HELP_TOPICS = Object.freeze({
   'contract-board': Object.freeze({
     title: 'CONTRACT BOARD',
     body: 'The contract board turns travel into persistent jobs. Book 2-backed whole-ship charters use the printed two-week charter formula, and private-message jobs use the Book 2 9+ availability rule and Cr20-Cr120 honorarium range. Priority courier, survey, and small-lot delivery jobs are original Sea of Suns campaign content. Accepted contracts become persistent Contract Documents and are included in campaign saves and portable bundles.'
+  }),
+  situations: Object.freeze({
+    title: 'SITUATIONS',
+    body: 'Situations are persistent adventure events. Book 3 supplies the patron encounter table, the one-throw-per-week patron procedure, and the reaction table; this browser uses a clearly labeled Graycloak once-per-port-call patron check so campaign play does not require a waiting subsystem. Patron tasks and arrival events are original Sea of Suns content. Non-combat checks use a Graycloak generalization of the Book 1 Electronics referee guidance: 2D against a referee-set target with skill and appropriate characteristic or circumstance DMs.'
   }),
   commerce: Object.freeze({
     title: 'COMMERCE',
@@ -504,11 +508,12 @@ export function formatCampaignDate(time = {}) {
   return `${day}-${year} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
-export function buildCampaignRecord(campaign, { characters = [], ships = [], contracts = [], missing = [] } = {}) {
+export function buildCampaignRecord(campaign, { characters = [], ships = [], contracts = [], situations = [], missing = [] } = {}) {
   const characterMap = new Map(characters.map((entry) => [entry.identity.id, entry]));
   const shipMap = new Map(ships.map((entry) => [entry.identity.id, entry]));
   const activeShip = campaign.activeShipId ? shipMap.get(campaign.activeShipId) : null;
   const activeContracts = contracts.filter((entry) => entry.status === 'accepted');
+  const activeSituations = situations.filter((entry) => entry.status === 'active');
   const partyLines = campaign.party.characterIds.map((id) => {
     const character = characterMap.get(id);
     if (!character) return `PARTY ${id} / DOCUMENT MISSING`;
@@ -530,8 +535,8 @@ export function buildCampaignRecord(campaign, { characters = [], ships = [], con
     `LOCATION SYSTEM ${system} / WORLD ${world}`,
     activeShipLine,
     ...partyLines,
-    `DOCUMENTS CHARACTERS ${campaign.documentRefs.characters.length} / SHIPS ${campaign.documentRefs.ships.length} / CONTRACTS ${campaign.documentRefs.contracts.length}`,
-    `ACTIVE CONTRACTS ${activeContracts.length}`, 
+    `DOCUMENTS CHARACTERS ${campaign.documentRefs.characters.length} / SHIPS ${campaign.documentRefs.ships.length} / CONTRACTS ${campaign.documentRefs.contracts.length} / SITUATIONS ${campaign.documentRefs.situations.length}`,
+    `ACTIVE CONTRACTS ${activeContracts.length} / ACTIVE SITUATIONS ${activeSituations.length}`, 
     `SHIP FUNDS ${activeShip ? formatCredits(activeShip.state.finances.balanceCr) : 'none'}`,
     ...(missing.length ? [`MISSING DOCUMENTS ${missing.join(', ')}`] : [])
   ], 96);
@@ -736,3 +741,48 @@ export function buildPortServicesRecord({ system, ship = null, character = null 
   ], 106);
 }
 
+
+
+function situationDate(date) {
+  if (!date) return '--';
+  return `${String(date.dayOfYear).padStart(3, '0')}-${date.year}`;
+}
+
+export function buildSituationRecord({ system = null, situations = [] } = {}) {
+  if (!system) return '';
+  const current = situations.filter((entry) => entry.location.systemId === system.id);
+  const active = current.filter((entry) => entry.status === 'active');
+  const recent = current.filter((entry) => entry.status !== 'active').slice(-4);
+  const lines = [
+    `SITUATIONS // ${system.name.toUpperCase()} // ${system.hex}`,
+    `ACTIVE ${active.length} / RECENT ${recent.length}`
+  ];
+  if (active.length) {
+    lines.push('', 'REQUIRES ATTENTION');
+    for (const entry of active) {
+      lines.push(entry.identity.title.toUpperCase());
+      if (entry.actor) lines.push(`CONTACT ${entry.actor.type.toUpperCase()} / REACTION ${entry.actor.reaction ?? '--'}`);
+      lines.push(entry.content.summary);
+      if (entry.content.detail) lines.push(entry.content.detail);
+      for (const choice of entry.choices) {
+        if (choice.action === 'skill-check') lines.push(`CHECK ${choice.skillName.toUpperCase()} / ${choice.target}+`);
+      }
+      lines.push(`SOURCE ${String(entry.provenance.rulesBasis).toUpperCase()}`);
+    }
+  } else {
+    lines.push('', 'NO ACTIVE SITUATION.');
+  }
+  if (recent.length) {
+    lines.push('', 'RECENT');
+    for (const entry of recent) {
+      const result = entry.resolution.success === true ? 'SUCCESS' : entry.resolution.success === false ? 'FAILURE' : entry.status.toUpperCase();
+      lines.push(`${result} / ${entry.identity.title.toUpperCase()} / ${situationDate(entry.timing.resolvedDate)}`);
+      if (entry.resolution.notes) lines.push(entry.resolution.notes);
+      if (entry.resolution.roll) {
+        const roll = entry.resolution.roll;
+        lines.push(`ROLL ${roll.dice?.join('+') ?? '--'} + DM ${roll.dm ?? 0} = ${roll.total ?? '--'} vs ${roll.target ?? '--'}+`);
+      }
+    }
+  }
+  return box(lines, 96);
+}

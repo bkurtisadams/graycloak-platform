@@ -1,4 +1,4 @@
-// @graycloak/classic-traveller-rules v0.11.2.1
+// @graycloak/classic-traveller-rules v0.12.0
 // Source-backed Classic Traveller Books 1-3 character, starship, world, and subsector rules engine.
 // Pure rules/state logic: no host, UI, persistence, Foundry, or Firebase dependencies.
 
@@ -227,6 +227,23 @@ export {
   calculateSpeculativePurchaseCost,
   quoteSpeculativeResale
 } from './src/trade/commerce.js';
+
+
+export {
+  PATRON_AVAILABILITY_NO_PATRON_ROLLS,
+  PATRON_SUITABILITY_TARGET,
+  PATRON_ENCOUNTER_TABLE,
+  REACTION_TABLE,
+  reactionForTotal,
+  rollReaction,
+  rollPatronType,
+  generatePatronContact
+} from './src/encounters/patrons.js';
+
+export {
+  REFEREE_SKILL_CHECK_BASIS,
+  resolveRefereeSkillCheck
+} from './src/skills/referee-checks.js';
 
 export {
   SUBSECTOR_COLUMNS,

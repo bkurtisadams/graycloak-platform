@@ -2,6 +2,10 @@
 
 Pure JavaScript rules package for the Graycloak Classic Traveller browser-game project. It intentionally has no HTML, Foundry, Firebase, or server dependencies.
 
+## v0.12.0 encounters and referee checks
+
+v0.12.0 adds the Book 3 patron encounter table, patron availability procedure, and reaction table as pure rules data/functions. It also adds a deliberately labeled generalized referee skill-check helper based on the Book 1 Electronics errata guidance rather than claiming Classic Traveller has a universal task system.
+
 ## v0.11.2.1 commerce guard
 
 Speculative cargo sale now requires a destination system different from the cargo origin, preventing same-world buy/sell loops while preserving Book 2 resale pricing.

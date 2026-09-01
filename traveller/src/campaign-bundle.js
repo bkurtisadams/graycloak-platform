@@ -16,9 +16,14 @@ import {
   importContractDocument
 } from './contract-document.js';
 
+import {
+  assertValidSituationDocument,
+  importSituationDocument
+} from './situation-document.js';
+
 export const CAMPAIGN_BUNDLE_TYPE = 'graycloak-traveller-campaign-bundle';
-export const CURRENT_CAMPAIGN_BUNDLE_SCHEMA_VERSION = 2;
-export const SUPPORTED_CAMPAIGN_BUNDLE_SCHEMA_VERSIONS = Object.freeze([1, 2]);
+export const CURRENT_CAMPAIGN_BUNDLE_SCHEMA_VERSION = 3;
+export const SUPPORTED_CAMPAIGN_BUNDLE_SCHEMA_VERSIONS = Object.freeze([1, 2, 3]);
 
 export class CampaignBundleValidationError extends Error {
   constructor(errors) {
@@ -48,18 +53,21 @@ function exactIdSet(actual, expected, label) {
   }
 }
 
-export function createCampaignBundle(campaign, { characters = [], ships = [], contracts = [] } = {}) {
+export function createCampaignBundle(campaign, { characters = [], ships = [], contracts = [], situations = [] } = {}) {
   assertValidCampaignDocument(campaign);
   for (const document of characters) assertValidCharacterDocument(document);
   for (const document of ships) assertValidShipDocument(document);
   for (const document of contracts) assertValidContractDocument(document);
+  for (const document of situations) assertValidSituationDocument(document);
   assertUnique(characters, 'character');
   assertUnique(ships, 'ship');
   assertUnique(contracts, 'contract');
+  assertUnique(situations, 'situation');
 
   exactIdSet(ids(characters), campaign.documentRefs.characters.map((ref) => ref.id), 'character');
   exactIdSet(ids(ships), campaign.documentRefs.ships.map((ref) => ref.id), 'ship');
   exactIdSet(ids(contracts), campaign.documentRefs.contracts.map((ref) => ref.id), 'contract');
+  exactIdSet(ids(situations), campaign.documentRefs.situations.map((ref) => ref.id), 'situation');
 
   const characterIds = new Set(ids(characters));
   const shipIds = new Set(ids(ships));
@@ -90,7 +98,8 @@ export function createCampaignBundle(campaign, { characters = [], ships = [], co
     documents: {
       characters: cloneJson(characters),
       ships: cloneJson(ships),
-      contracts: cloneJson(contracts)
+      contracts: cloneJson(contracts),
+      situations: cloneJson(situations)
     }
   };
 }
@@ -113,7 +122,8 @@ export function importCampaignBundle(input) {
   const characters = parsed.documents.characters.map((entry) => importCharacterDocument(entry));
   const ships = parsed.documents.ships.map((entry) => importShipDocument(entry));
   const contracts = (parsed.documents.contracts ?? []).map((entry) => importContractDocument(entry));
-  return createCampaignBundle(campaign, { characters, ships, contracts });
+  const situations = (parsed.documents.situations ?? []).map((entry) => importSituationDocument(entry));
+  return createCampaignBundle(campaign, { characters, ships, contracts, situations });
 }
 
 export function exportCampaignBundle(bundle, { space = 2 } = {}) {
