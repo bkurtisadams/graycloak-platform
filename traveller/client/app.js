@@ -1,6 +1,7 @@
 import {
   CHARGEN_ACTIONS,
   CHARGEN_PHASES,
+  createDice,
   createCharacter,
   createCharacterDocument,
   createTypeSScoutReserveShipForCharacter,
@@ -159,6 +160,26 @@ import {
 
 const el = {
   status: document.querySelector('#system-status'),
+  appTitle: document.querySelector('#app-title'),
+  appSubtitle: document.querySelector('#app-subtitle'),
+  terminal: document.querySelector('.terminal'),
+  campaignHeader: document.querySelector('#campaign-header'),
+  headerCharacterName: document.querySelector('#header-character-name'),
+  headerCharacterMeta: document.querySelector('#header-character-meta'),
+  headerWorld: document.querySelector('#header-world'),
+  headerDate: document.querySelector('#header-date'),
+  headerShipName: document.querySelector('#header-ship-name'),
+  headerShipMeta: document.querySelector('#header-ship-meta'),
+  headerCharacteristics: document.querySelector('#header-characteristics'),
+  headerQuickSkills: document.querySelector('#header-quick-skills'),
+  headerTask: document.querySelector('#header-task'),
+  togglePersonnel: document.querySelector('#toggle-personnel'),
+  toggleShip: document.querySelector('#toggle-ship'),
+  toggleCampaign: document.querySelector('#toggle-campaign'),
+  toggleChargenRecord: document.querySelector('#toggle-chargen-record'),
+  personnelSection: document.querySelector('#personnel-section'),
+  procedureSection: document.querySelector('#procedure-section'),
+  chargenRecordSection: document.querySelector('#chargen-record-section'),
   name: document.querySelector('#character-name'),
   randomCharacterName: document.querySelector('#random-character-name'),
   recordHeading: document.querySelector('#record-heading'),
@@ -207,6 +228,9 @@ const el = {
   systemRecordSection: document.querySelector('#system-record-section'),
   systemRecordHeading: document.querySelector('#system-record-heading'),
   systemRecord: document.querySelector('#system-record'),
+  selectedSystemSummary: document.querySelector('#selected-system-summary'),
+  selectedSystemSummaryText: document.querySelector('#selected-system-summary-text'),
+  toggleSystemDetails: document.querySelector('#toggle-system-details'),
   portServicesSection: document.querySelector('#port-services-section'),
   portServicesRecord: document.querySelector('#port-services-record'),
   portActions: document.querySelector('#port-actions'),
@@ -223,6 +247,18 @@ const el = {
   operationsTabPort: document.querySelector('#operations-tab-port'),
   operationsTabTrade: document.querySelector('#operations-tab-trade'),
   operationsTabJobs: document.querySelector('#operations-tab-jobs'),
+  rollDialog: document.querySelector('#roll-dialog'),
+  rollDialogForm: document.querySelector('#roll-dialog-form'),
+  rollDialogTitle: document.querySelector('#roll-dialog-title'),
+  rollDialogBasis: document.querySelector('#roll-dialog-basis'),
+  rollTargetRow: document.querySelector('#roll-target-row'),
+  rollTarget: document.querySelector('#roll-target'),
+  rollTargetSuffix: document.querySelector('#roll-target-suffix'),
+  rollBuiltIn: document.querySelector('#roll-built-in'),
+  rollModifier: document.querySelector('#roll-modifier'),
+  rollSubmit: document.querySelector('#roll-submit'),
+  rollCancel: document.querySelector('#roll-cancel'),
+  rollDialogClose: document.querySelector('#roll-dialog-close'),
   activityPanel: document.querySelector('#activity-panel'),
   activityContext: document.querySelector('#activity-context'),
   activityFeed: document.querySelector('#activity-feed'),
@@ -241,6 +277,14 @@ let selectedSystemId = null;
 let subsectorZoom = 1;
 let speculativeBrokerDM = 0;
 let operationsDeskTab = 'trade';
+let pendingRoll = null;
+const detailPanels = {
+  personnel: false,
+  ship: false,
+  campaign: false,
+  chargen: false,
+  system: false
+};
 let registry = null;
 
 try {
@@ -309,6 +353,325 @@ function setStatus(message, kind = '') {
   el.status.textContent = message;
   el.status.className = `status${kind ? ` ${kind}` : ''}`;
 }
+
+const HEADER_CHARACTERISTICS = Object.freeze([
+  ['STR', 'STRENGTH'],
+  ['DEX', 'DEXTERITY'],
+  ['END', 'ENDURANCE'],
+  ['INT', 'INTELLIGENCE'],
+  ['EDU', 'EDUCATION'],
+  ['SOC', 'SOCIAL STANDING']
+]);
+
+const QUICK_SKILL_PRIORITY = Object.freeze([
+  'Pilot',
+  'Navigation',
+  'Electronics',
+  'Mechanical',
+  'Jack-of-All-Trades',
+  'Grav Vehicle',
+  'Laser Rifle'
+]);
+
+function signedNumber(value) {
+  const number = Number(value ?? 0);
+  return number >= 0 ? `+${number}` : String(number);
+}
+
+function campaignPlayActive() {
+  return Boolean(campaignDocument && gameplayDocument);
+}
+
+function quickSkillNames() {
+  if (!gameplayDocument?.skills) return [];
+  const names = Object.keys(gameplayDocument.skills);
+  const prioritized = QUICK_SKILL_PRIORITY.filter((name) => names.includes(name));
+  const remaining = names.filter((name) => !prioritized.includes(name)).sort((a, b) => a.localeCompare(b));
+  return [...prioritized, ...remaining].slice(0, 6);
+}
+
+function headerTaskSnapshot() {
+  const situation = activeSituationAtCurrentSystem();
+  if (situation) {
+    const skillChoice = situation.choices.find((choice) => choice.action === 'skill-check') ?? null;
+    return {
+      kind: 'situation',
+      id: situation.identity.id,
+      label: `SITUATION // ${situation.identity.title.toUpperCase()} // ${situation.location.systemName.toUpperCase()}`,
+      attention: true,
+      skillName: skillChoice?.skillName ?? null
+    };
+  }
+
+  const contracts = activeContracts().slice().sort((a, b) => {
+    const ay = a.timing?.deadlineDate?.year ?? Number.MAX_SAFE_INTEGER;
+    const by = b.timing?.deadlineDate?.year ?? Number.MAX_SAFE_INTEGER;
+    if (ay !== by) return ay - by;
+    return (a.timing?.deadlineDate?.dayOfYear ?? Number.MAX_SAFE_INTEGER) - (b.timing?.deadlineDate?.dayOfYear ?? Number.MAX_SAFE_INTEGER);
+  });
+  if (contracts.length) {
+    const contract = contracts[0];
+    const due = contract.timing?.deadlineDate
+      ? `${String(contract.timing.deadlineDate.dayOfYear).padStart(3, '0')}-${contract.timing.deadlineDate.year}`
+      : 'NO DEADLINE';
+    return {
+      kind: 'contract',
+      id: contract.identity.id,
+      label: `${contract.identity.title.toUpperCase()} // ${contract.destination.systemName.toUpperCase()} // DUE ${due}${contracts.length > 1 ? ` // +${contracts.length - 1} MORE` : ''}`,
+      attention: false,
+      skillName: null
+    };
+  }
+  return { kind: 'none', id: null, label: 'NONE', attention: false, skillName: null };
+}
+
+function shipHeaderMeta() {
+  if (!shipDocument) return 'NO ACTIVE SHIP';
+  const jump = shipDocument.specifications?.drives?.jump?.rating ?? '--';
+  const fuel = shipDocument.state?.currentFuelTons ?? '--';
+  const fuelCapacity = shipDocument.specifications?.fuel?.capacityTons ?? '--';
+  const cargo = Number.isFinite(shipDocument.state?.cargoUsedTons) ? shipDocument.state.cargoUsedTons : 0;
+  const cargoCapacity = shipDocument.specifications?.cargo?.capacityTons ?? '--';
+  const account = shipDocument.state?.finances?.balanceCr;
+  return `J${jump} / FUEL ${fuel}/${fuelCapacity}t / CARGO ${cargo}/${cargoCapacity}t / ${Number.isInteger(account) ? formatCr(account) : 'ACCOUNT --'}`;
+}
+
+function renderCampaignHeader() {
+  const active = campaignPlayActive();
+  el.campaignHeader.hidden = !active;
+  el.terminal?.classList.toggle('campaign-play', active);
+  if (!active) {
+    el.appTitle.textContent = 'TRAVELLER // PERSONNEL INTAKE TERMINAL';
+    return;
+  }
+
+  el.appTitle.textContent = `${(campaignDocument.identity.name || 'TRAVELLER').toUpperCase()} // CAMPAIGN TERMINAL`;
+  const current = mappedCurrentSystem();
+  const task = headerTaskSnapshot();
+  const career = gameplayDocument.career;
+  const careerLabel = serviceName(career.service).toUpperCase();
+  el.headerCharacterName.textContent = gameplayDocument.identity.name || '(UNNAMED)';
+  el.headerCharacterMeta.textContent = `${gameplayDocument.upp} / ${careerLabel} / AGE ${gameplayDocument.age} / ${formatCr(gameplayDocument.finances.credits)}`;
+  el.headerWorld.textContent = current?.mainWorld?.name || campaignDocument.location.worldName || 'UNMAPPED';
+  el.headerDate.textContent = `${current?.name ? `${current.name.toUpperCase()} / ` : ''}${activityDateLabel()}`;
+  el.headerShipName.textContent = shipDocument
+    ? `${shipDocument.identity.name || '(UNNAMED)'}${shipDocument.identity.registry ? ` / ${shipDocument.identity.registry}` : ''}`
+    : 'NO ACTIVE SHIP';
+  el.headerShipMeta.textContent = shipHeaderMeta();
+
+  el.headerCharacteristics.replaceChildren();
+  for (const [key, label] of HEADER_CHARACTERISTICS) {
+    const value = gameplayDocument.characteristics[key];
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'header-roll-button';
+    button.textContent = `${key} ${value}`;
+    button.title = `${label} ${value} / click for an ad hoc characteristic-or-less roll`;
+    button.addEventListener('click', () => openCharacteristicRollDialog(key, label));
+    el.headerCharacteristics.append(button);
+  }
+
+  el.headerQuickSkills.replaceChildren();
+  const quick = quickSkillNames();
+  if (!quick.length) {
+    const none = document.createElement('span');
+    none.className = 'empty';
+    none.textContent = 'NONE';
+    el.headerQuickSkills.append(none);
+  } else {
+    for (const skillName of quick) {
+      const level = Number(gameplayDocument.skills[skillName] ?? 0);
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `header-skill-button${task.skillName === skillName ? ' context-relevant' : ''}`;
+      button.textContent = `${skillName}-${level}`;
+      button.title = task.skillName === skillName
+        ? `Current situation uses ${skillName}-${level}`
+        : `${skillName}-${level} / click for a referee skill check`;
+      button.addEventListener('click', () => {
+        if (task.kind === 'situation' && task.skillName === skillName) {
+          const situation = activeSituationAtCurrentSystem();
+          const choice = situation?.choices.find((entry) => entry.action === 'skill-check' && entry.skillName === skillName);
+          if (situation && choice) return openSituationSkillRollDialog(situation, choice);
+        }
+        openSkillRollDialog(skillName);
+      });
+      el.headerQuickSkills.append(button);
+    }
+  }
+
+  el.headerTask.textContent = task.label;
+  el.headerTask.disabled = task.kind === 'none';
+  el.headerTask.classList.toggle('attention', task.attention);
+  el.headerTask.dataset.taskKind = task.kind;
+  el.headerTask.dataset.taskId = task.id ?? '';
+}
+
+function renderSelectedSystemSummary() {
+  if (!campaignDocument) {
+    el.selectedSystemSummary.hidden = true;
+    return;
+  }
+  const current = mappedCurrentSystem();
+  const selected = selectedSystemId ? getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, selectedSystemId) : null;
+  const system = selected ?? current;
+  if (!system) {
+    el.selectedSystemSummary.hidden = true;
+    return;
+  }
+  const profile = parseUniversalWorldProfile(system.mainWorld.uwp);
+  const bases = [system.bases.scout ? 'SCOUT' : '', system.bases.naval ? 'NAVAL' : ''].filter(Boolean).join('+') || 'NO BASE';
+  const zone = system.travelZone === 'none' ? 'NORMAL' : system.travelZone.toUpperCase();
+  el.selectedSystemSummaryText.textContent = `${selected && selected.id !== current?.id ? 'SELECTED' : 'CURRENT'}: ${system.name.toUpperCase()} // ${system.hex} // ${system.mainWorld.uwp} // TL ${profile.techLevel} // ${bases} // GAS GIANT ${system.gasGiant ? 'YES' : 'NO'} // ${zone}`;
+  el.selectedSystemSummary.hidden = false;
+  el.toggleSystemDetails.textContent = detailPanels.system ? '[ HIDE DETAILS ]' : '[ DETAILS ]';
+}
+
+function applyCampaignLayout() {
+  const active = campaignPlayActive();
+  if (!active) {
+    el.personnelSection.hidden = false;
+    el.procedureSection.hidden = false;
+    el.chargenRecordSection.hidden = false;
+    return;
+  }
+  el.personnelSection.hidden = !detailPanels.personnel;
+  el.procedureSection.hidden = true;
+  el.campaignSection.hidden = !detailPanels.campaign;
+  if (shipDocument) el.shipSection.hidden = !detailPanels.ship;
+  el.chargenRecordSection.hidden = !detailPanels.chargen;
+  if (el.systemRecord.textContent) el.systemRecordSection.hidden = !detailPanels.system;
+  el.togglePersonnel.textContent = detailPanels.personnel ? '[ HIDE PERSONNEL ]' : '[ PERSONNEL ]';
+  el.toggleShip.textContent = detailPanels.ship ? '[ HIDE SHIP ]' : '[ SHIP ]';
+  el.toggleCampaign.textContent = detailPanels.campaign ? '[ HIDE CAMPAIGN ]' : '[ CAMPAIGN ]';
+  el.toggleChargenRecord.textContent = detailPanels.chargen ? '[ HIDE CHARGEN RECORD ]' : '[ CHARGEN RECORD ]';
+  for (const [key, section] of [
+    ['personnel', el.personnelSection],
+    ['ship', el.shipSection],
+    ['campaign', el.campaignSection],
+    ['chargen', el.chargenRecordSection],
+    ['system', el.systemRecordSection]
+  ]) {
+    section?.classList.toggle('detail-view-open', Boolean(detailPanels[key]));
+  }
+}
+
+function toggleDetailPanel(key) {
+  if (!(key in detailPanels)) return;
+  detailPanels[key] = !detailPanels[key];
+  applyCampaignLayout();
+  renderSelectedSystemSummary();
+}
+
+function intelligenceEducationDM() {
+  if (!gameplayDocument) return { intelligenceDM: 0, educationDM: 0 };
+  return {
+    intelligenceDM: gameplayDocument.characteristics.INT > 10 ? 1 : 0,
+    educationDM: gameplayDocument.characteristics.EDU > 9 ? 1 : 0
+  };
+}
+
+function openRollDialog(config) {
+  pendingRoll = config;
+  el.rollDialogTitle.textContent = config.title;
+  el.rollDialogBasis.textContent = config.basis;
+  el.rollModifier.value = '0';
+  el.rollTargetRow.hidden = config.kind === 'characteristic';
+  el.rollTarget.readOnly = Boolean(config.targetLocked);
+  el.rollTarget.value = String(config.target ?? 8);
+  el.rollTargetSuffix.textContent = config.kind === 'characteristic' ? '' : '+';
+  el.rollBuiltIn.textContent = config.builtInText ?? '+0';
+  if (typeof el.rollDialog.showModal === 'function') el.rollDialog.showModal();
+  else el.rollDialog.setAttribute('open', '');
+  window.setTimeout(() => el.rollModifier.focus(), 0);
+}
+
+function closeRollDialog() {
+  pendingRoll = null;
+  if (typeof el.rollDialog.close === 'function') el.rollDialog.close();
+  else el.rollDialog.removeAttribute('open');
+}
+
+function openSkillRollDialog(skillName, { target = 8 } = {}) {
+  if (!gameplayDocument) return;
+  const skillLevel = Number(gameplayDocument.skills?.[skillName] ?? 0);
+  const { intelligenceDM, educationDM } = intelligenceEducationDM();
+  openRollDialog({
+    kind: 'skill',
+    title: `${skillName.toUpperCase()}-${skillLevel} // ${gameplayDocument.identity.name.toUpperCase()}`,
+    basis: 'AD HOC REFEREE CHECK // DEFAULT THROW 8+\nChange THROW if the referee sets a different target. MODIFIER defaults to 0.',
+    skillName,
+    skillLevel,
+    target,
+    targetLocked: false,
+    builtInText: `SKILL ${signedNumber(skillLevel)} / INT ${signedNumber(intelligenceDM)} / EDU ${signedNumber(educationDM)}`
+  });
+}
+
+function openCharacteristicRollDialog(characteristic, label) {
+  if (!gameplayDocument) return;
+  const value = Number(gameplayDocument.characteristics?.[characteristic] ?? 0);
+  openRollDialog({
+    kind: 'characteristic',
+    title: `${label.toUpperCase()} ${value} // ${gameplayDocument.identity.name.toUpperCase()}`,
+    basis: `AD HOC CHARACTERISTIC-OR-LESS CHECK // 2D ≤ ${characteristic} ${value}\nPositive MODIFIER helps by raising the effective characteristic; negative MODIFIER lowers it.`,
+    characteristic,
+    characteristicLabel: label,
+    characteristicValue: value,
+    builtInText: `${characteristic} ${value}`
+  });
+}
+
+function openSituationSkillRollDialog(situation, choice) {
+  if (!gameplayDocument) return;
+  const skillLevel = Number(gameplayDocument.skills?.[choice.skillName] ?? 0);
+  const { intelligenceDM, educationDM } = intelligenceEducationDM();
+  openRollDialog({
+    kind: 'situation-skill',
+    title: `${choice.skillName.toUpperCase()}-${skillLevel} // ${situation.identity.title.toUpperCase()}`,
+    basis: `SITUATION CHECK // THROW ${choice.target}+\nThe task already supplies its target and built-in DMs. Add only the referee's extra situational modifier.`,
+    skillName: choice.skillName,
+    skillLevel,
+    target: choice.target,
+    targetLocked: true,
+    situationId: situation.identity.id,
+    choiceId: choice.id,
+    taskDM: Number(choice.situationalDM ?? 0),
+    builtInText: `SKILL ${signedNumber(skillLevel)} / INT ${signedNumber(intelligenceDM)} / EDU ${signedNumber(educationDM)} / TASK ${signedNumber(choice.situationalDM ?? 0)}`
+  });
+}
+
+function executeAdHocRoll() {
+  if (!pendingRoll || !gameplayDocument) return;
+  const modifier = Number.parseInt(el.rollModifier.value || '0', 10);
+  if (!Number.isInteger(modifier)) throw new Error('modifier must be an integer');
+
+  if (pendingRoll.kind === 'characteristic') {
+    const dice = createDice().roll2D6();
+    const effectiveTarget = pendingRoll.characteristicValue + modifier;
+    const success = dice.total <= effectiveTarget;
+    logActivity('CHECK', `${gameplayDocument.identity.name} / ${pendingRoll.characteristic} ${pendingRoll.characteristicValue} / 2D ${dice.dice.join('+')} = ${dice.total} / modifier ${signedNumber(modifier)} / effective ${effectiveTarget} or less / ${success ? 'SUCCESS' : 'FAILURE'}`);
+    setStatus(`${pendingRoll.characteristic} CHECK ${success ? 'SUCCEEDED' : 'FAILED'}: ${dice.total} vs ${effectiveTarget} OR LESS`, success ? 'ok' : 'error');
+    return;
+  }
+
+  const target = pendingRoll.targetLocked
+    ? pendingRoll.target
+    : Number.parseInt(el.rollTarget.value, 10);
+  const taskDM = Number(pendingRoll.taskDM ?? 0);
+  const result = resolveRefereeSkillCheck({
+    dice: createDice(),
+    target,
+    skillLevel: pendingRoll.skillLevel,
+    intelligence: gameplayDocument.characteristics.INT,
+    education: gameplayDocument.characteristics.EDU,
+    situationalDM: taskDM + modifier
+  });
+  const extra = taskDM ? ` / task ${signedNumber(taskDM)}` : '';
+  logActivity('CHECK', `${gameplayDocument.identity.name} / ${pendingRoll.skillName}-${pendingRoll.skillLevel} / 2D ${result.dice.join('+')} = ${result.roll} / skill ${signedNumber(result.skillLevel)} / INT ${signedNumber(result.intelligenceDM)} / EDU ${signedNumber(result.educationDM)}${extra} / modifier ${signedNumber(modifier)} / TOTAL ${result.total} vs ${result.target}+ / ${result.success ? 'SUCCESS' : 'FAILURE'}`);
+  setStatus(`${pendingRoll.skillName.toUpperCase()} CHECK ${result.success ? 'SUCCEEDED' : 'FAILED'}: ${result.total} vs ${result.target}+`, result.success ? 'ok' : 'error');
+}
+
 
 function closeHelp() {
   el.helpPanel.hidden = true;
@@ -581,12 +944,16 @@ function shipMatchesCharacter(ship, document) {
 function renderShip() {
   if (!shipDocument) {
     el.shipSection.hidden = true;
+    renderCampaignHeader();
+    applyCampaignLayout();
     return;
   }
   el.shipSection.hidden = false;
   if (el.shipName.value !== shipDocument.identity.name) el.shipName.value = shipDocument.identity.name;
   if (el.shipRegistry.value !== shipDocument.identity.registry) el.shipRegistry.value = shipDocument.identity.registry;
   el.shipRecord.textContent = buildShipRecord(shipDocument);
+  renderCampaignHeader();
+  applyCampaignLayout();
 }
 
 function persistGameplayDocuments() {
@@ -685,6 +1052,8 @@ function renderCampaign() {
   el.loadCampaign.disabled = !registry || !registry.getActiveCampaignId();
   if (!campaignDocument) {
     el.campaignSection.hidden = true;
+    renderCampaignHeader();
+    applyCampaignLayout();
     return;
   }
 
@@ -697,6 +1066,8 @@ function renderCampaign() {
   if (el.campaignWorld.value !== campaignDocument.location.worldName) el.campaignWorld.value = campaignDocument.location.worldName;
   const resolved = campaignDocumentsForDisplay();
   el.campaignRecord.textContent = buildCampaignRecord(campaignDocument, resolved);
+  renderCampaignHeader();
+  applyCampaignLayout();
 }
 
 function selectSubsectorSystem(systemId) {
@@ -718,6 +1089,9 @@ function selectSubsectorSystem(systemId) {
   renderCommerce();
   renderContracts();
   renderSituations();
+  renderSelectedSystemSummary();
+  renderCampaignHeader();
+  applyCampaignLayout();
 }
 
 function setStartingSubsectorLocation() {
@@ -953,8 +1327,8 @@ function clampSubsectorZoom(value) {
 function applySubsectorZoom() {
   const svg = el.subsectorMap.querySelector('.subsector-svg');
   if (svg) {
-    const vh = Math.round(64 * subsectorZoom * 100) / 100;
-    const px = Math.round(640 * subsectorZoom);
+    const vh = Math.round(62 * subsectorZoom * 100) / 100;
+    const px = Math.round(610 * subsectorZoom);
     svg.style.height = `min(${vh}vh, ${px}px)`;
   }
   if (el.mapZoomLabel) el.mapZoomLabel.textContent = `${Math.round(subsectorZoom * 100)}%`;
@@ -1105,6 +1479,7 @@ function renderSystemRecord() {
   if (!campaignDocument) {
     el.systemRecordSection.hidden = true;
     el.systemRecord.textContent = '';
+    renderSelectedSystemSummary();
     return;
   }
   const current = mappedCurrentSystem();
@@ -1113,6 +1488,7 @@ function renderSystemRecord() {
   if (!system) {
     el.systemRecordSection.hidden = true;
     el.systemRecord.textContent = '';
+    renderSelectedSystemSummary();
     return;
   }
   el.systemRecordSection.hidden = false;
@@ -1120,6 +1496,8 @@ function renderSystemRecord() {
     ? 'SELECTED SYSTEM RECORD'
     : 'CURRENT SYSTEM RECORD';
   el.systemRecord.textContent = buildSystemRecord(system);
+  renderSelectedSystemSummary();
+  applyCampaignLayout();
 }
 
 function makePortButton(label, handler, { disabled = false } = {}) {
@@ -1640,6 +2018,47 @@ function seekPatron() {
   }
 }
 
+function resolveSituationSkillChoice(situationId, choiceId, userModifier = 0) {
+  try {
+    if (!campaignDocument || !gameplayDocument) throw new Error('active campaign character is required');
+    const index = situationDocuments.findIndex((entry) => entry.identity.id === situationId);
+    if (index < 0) throw new Error('situation not found');
+    const situation = situationDocuments[index];
+    if (situation.status !== 'active') throw new Error('situation is already resolved');
+    const choice = situation.choices.find((entry) => entry.id === choiceId);
+    if (!choice || choice.action !== 'skill-check') throw new Error('situation skill check not found');
+    if (!Number.isInteger(userModifier)) throw new Error('modifier must be an integer');
+
+    const skillLevel = Number(gameplayDocument.skills?.[choice.skillName] ?? 0);
+    const result = resolveRefereeSkillCheck({
+      dice: seededDice(`${situation.provenance.eventKey}|${choice.id}|skill-check`),
+      target: choice.target,
+      skillLevel,
+      intelligence: gameplayDocument.characteristics.INT,
+      education: gameplayDocument.characteristics.EDU,
+      situationalDM: Number(choice.situationalDM ?? 0) + userModifier
+    });
+    const resolved = resolveSituationDocument(situation, {
+      date: campaignDateSnapshot(),
+      choiceId: choice.id,
+      success: result.success,
+      roll: { skillName: choice.skillName, userModifier, taskDM: Number(choice.situationalDM ?? 0), ...result },
+      notes: result.success ? choice.successText : choice.failureText
+    });
+    situationDocuments[index] = resolved;
+    syncCampaignRefs();
+    persistCampaignState();
+    const rollText = `${result.dice.join('+')}=${result.roll} / skill ${signedNumber(result.skillLevel)} / INT ${signedNumber(result.intelligenceDM)} / EDU ${signedNumber(result.educationDM)} / task ${signedNumber(choice.situationalDM ?? 0)} / modifier ${signedNumber(userModifier)} / TOTAL ${result.total} vs ${result.target}+`;
+    logActivity('SITUATION', `${resolved.identity.title} / ${choice.skillName}-${skillLevel} / ${rollText} / ${result.success ? 'SUCCESS' : 'FAILURE'} / ${resolved.resolution.notes}`);
+    setStatus(`SITUATION ${resolved.status.toUpperCase()}: ${resolved.identity.title.toUpperCase()}`, result.success ? 'ok' : 'error');
+    closeRollDialog();
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
 function resolveSituationChoice(situationId, choiceId) {
   try {
     if (!campaignDocument || !gameplayDocument) throw new Error('active campaign character is required');
@@ -1649,26 +2068,14 @@ function resolveSituationChoice(situationId, choiceId) {
     if (situation.status !== 'active') throw new Error('situation is already resolved');
     const choice = situation.choices.find((entry) => entry.id === choiceId);
     if (!choice) throw new Error('situation choice not found');
+    if (choice.action === 'skill-check') {
+      openSituationSkillRollDialog(situation, choice);
+      return;
+    }
+
     const date = campaignDateSnapshot();
     let resolved;
-    if (choice.action === 'skill-check') {
-      const skillLevel = Number(gameplayDocument.skills?.[choice.skillName] ?? 0);
-      const result = resolveRefereeSkillCheck({
-        dice: seededDice(`${situation.provenance.eventKey}|${choice.id}|skill-check`),
-        target: choice.target,
-        skillLevel,
-        intelligence: gameplayDocument.characteristics.INT,
-        education: gameplayDocument.characteristics.EDU,
-        situationalDM: choice.situationalDM
-      });
-      resolved = resolveSituationDocument(situation, {
-        date,
-        choiceId: choice.id,
-        success: result.success,
-        roll: { skillName: choice.skillName, ...result },
-        notes: result.success ? choice.successText : choice.failureText
-      });
-    } else if (choice.action === 'decline') {
+    if (choice.action === 'decline') {
       resolved = resolveSituationDocument(situation, {
         date,
         choiceId: choice.id,
@@ -1687,10 +2094,8 @@ function resolveSituationChoice(situationId, choiceId) {
     situationDocuments[index] = resolved;
     syncCampaignRefs();
     persistCampaignState();
-    const roll = resolved.resolution.roll;
-    const rollText = roll ? ` / ${roll.dice.join('+')} + DM ${roll.dm} = ${roll.total} vs ${roll.target}+` : '';
-    logActivity('SITUATION', `${resolved.identity.title} / ${resolved.status.toUpperCase()}${rollText} / ${resolved.resolution.notes}`);
-    setStatus(`SITUATION ${resolved.status.toUpperCase()}: ${resolved.identity.title.toUpperCase()}`, resolved.resolution.success === false ? 'error' : 'ok');
+    logActivity('SITUATION', `${resolved.identity.title} / ${resolved.status.toUpperCase()} / ${resolved.resolution.notes}`);
+    setStatus(`SITUATION ${resolved.status.toUpperCase()}: ${resolved.identity.title.toUpperCase()}`, 'ok');
     render();
   } catch (error) {
     console.error(error);
@@ -1747,6 +2152,8 @@ function renderSituations() {
     }
   }
   applyOperationsDeskTab();
+  renderCampaignHeader();
+  applyCampaignLayout();
 }
 
 function applyOperationsDeskTab() {
@@ -1904,7 +2311,7 @@ function renderSubsector() {
     }
   }
 
-  el.subsectorName.textContent = `${FAR_MERIDIAN_SUBSECTOR.name.toUpperCase()} // PROVISIONAL TEST SUBSECTOR`;
+  el.subsectorName.textContent = FAR_MERIDIAN_SUBSECTOR.name.toUpperCase();
   el.jumpCapability.textContent = shipDocument && Number.isInteger(jumpRating)
     ? `${shipDocument.identity.name || shipDocument.identity.registry || 'ACTIVE SHIP'} / JUMP-${jumpRating}`
     : 'NO ACTIVE JUMP SHIP';
@@ -2363,6 +2770,9 @@ function render() {
   renderSituations();
   applyOperationsDeskTab();
   renderShip();
+  renderCampaignHeader();
+  renderSelectedSystemSummary();
+  applyCampaignLayout();
   renderActivity();
 }
 
@@ -2717,6 +3127,8 @@ el.newCharacter.addEventListener('click', () => {
   contractDocuments = [];
   situationDocuments = [];
   selectedSystemId = null;
+  for (const key of Object.keys(detailPanels)) detailPanels[key] = false;
+  closeRollDialog();
   closeHelp();
   setActivityContext();
   logActivity('CHAR', 'New character generation started');
@@ -2743,6 +3155,46 @@ el.clearActivity.addEventListener('click', () => {
   activityLog.clear();
   renderActivity();
   setStatus('ACTIVITY LOG CLEARED', 'ok');
+});
+
+el.togglePersonnel.addEventListener('click', () => toggleDetailPanel('personnel'));
+el.toggleShip.addEventListener('click', () => toggleDetailPanel('ship'));
+el.toggleCampaign.addEventListener('click', () => toggleDetailPanel('campaign'));
+el.toggleChargenRecord.addEventListener('click', () => toggleDetailPanel('chargen'));
+el.toggleSystemDetails.addEventListener('click', () => toggleDetailPanel('system'));
+
+el.headerTask.addEventListener('click', () => {
+  const kind = el.headerTask.dataset.taskKind;
+  if (kind === 'situation') setOperationsDeskTab('situation');
+  else if (kind === 'contract') setOperationsDeskTab('jobs');
+  else return;
+  el.subsectorSection?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+});
+
+el.rollDialogClose.addEventListener('click', closeRollDialog);
+el.rollCancel.addEventListener('click', closeRollDialog);
+el.rollDialog.addEventListener('cancel', (event) => {
+  event.preventDefault();
+  closeRollDialog();
+});
+el.rollDialogForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  if (!pendingRoll) return closeRollDialog();
+  try {
+    const modifier = Number.parseInt(el.rollModifier.value || '0', 10);
+    if (!Number.isInteger(modifier)) throw new Error('modifier must be an integer');
+    if (pendingRoll.kind === 'situation-skill') {
+      const { situationId, choiceId } = pendingRoll;
+      resolveSituationSkillChoice(situationId, choiceId, modifier);
+      return;
+    }
+    executeAdHocRoll();
+    closeRollDialog();
+    renderCampaignHeader();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
 });
 
 el.mapZoomOut.addEventListener('click', () => setSubsectorZoom(subsectorZoom - SUBSECTOR_ZOOM_STEP));

@@ -218,7 +218,7 @@ test('v0.11.0.1 adds base markers, map zoom controls, and a left navigation rail
   assert.match(app, /Scout Base/);
   assert.match(app, /Naval Base/);
   assert.match(app, /setSubsectorZoom/);
-  assert.match(css, /grid-template-columns:\s*minmax\(260px, 300px\) minmax\(0, 1fr\)/);
+  assert.match(css, /grid-template-columns:\s*minmax\(460px, 500px\) minmax\(0, 1fr\)/);
   assert.match(css, /\.subsector-base-icon-shape/);
 });
 
@@ -315,4 +315,27 @@ test('v0.12.0 exposes persistent situations, patrons, and non-combat skill check
   assert.match(app, /logActivity\('SITUATION'/);
   assert.match(model, /buildSituationRecord/);
   assert.match(loader, /SITUATION/);
+});
+
+
+test('v0.12.0.1 promotes campaign status and interactive rolls into a compact play header', async () => {
+  const html = await read('index.html');
+  const app = await read('app.js');
+  const css = await read('styles.css');
+
+  assert.match(html, /CLIENT v0\.12\.0\.1/);
+  assert.match(html, /id="campaign-header"/);
+  assert.match(html, /id="header-characteristics"/);
+  assert.match(html, /id="header-quick-skills"/);
+  assert.match(html, /id="header-task"/);
+  assert.match(html, /id="roll-dialog"/);
+  assert.match(html, /id="roll-modifier"[^>]*value="0"/);
+  assert.match(html, /id="selected-system-summary"/);
+  assert.match(app, /openCharacteristicRollDialog/);
+  assert.match(app, /openSkillRollDialog/);
+  assert.match(app, /openSituationSkillRollDialog/);
+  assert.match(app, /logActivity\('CHECK'/);
+  assert.match(app, /detailPanels/);
+  assert.match(css, /\.campaign-play #procedure-section/);
+  assert.match(css, /\.operations-tabs[\s\S]*grid-template-columns:\s*repeat\(4/);
 });

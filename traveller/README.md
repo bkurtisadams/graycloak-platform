@@ -1,5 +1,10 @@
 # Graycloak Traveller
 
+
+## v0.12.0.1 campaign UI pass
+
+v0.12.0.1 reorganizes completed-character campaign play around a persistent status header and a larger Operations Desk. The header keeps character identity, current characteristics, six quick skills, current world/date, ship resources, and the most urgent active situation or contract visible. Characteristics and quick skills are clickable and use one small modifier dialog, defaulting the referee modifier to 0; rolls are recorded in the Activity Log. Situation skill checks use the same dialog while retaining their authored target and built-in DMs. Full Personnel, Ship, Campaign, System, Service History, and Generation Log records remain available as explicit detail views instead of permanently occupying the play screen. The Subsector workspace now gives 460-500px to navigation/operations because the 8x10 Traveller map is naturally portrait-oriented.
+
 Standalone browser client for the original-universe Classic Traveller project.
 
 The Classic Traveller rules engine lives in `../packages/classic-traveller-rules/`. Pure rules and document legality stay there; the browser renders state and legal actions. Original Sea of Suns content stays under `traveller/world/`.
