@@ -12,6 +12,7 @@ import {
   buildGenerationLog,
   buildProcedure,
   buildServiceHistory,
+  helpForTopic,
   serviceName,
   skillTableName
 } from './ui-model.js';
@@ -24,6 +25,10 @@ const el = {
   actions: document.querySelector('#actions'),
   serviceHistory: document.querySelector('#service-history'),
   generationLog: document.querySelector('#generation-log'),
+  helpPanel: document.querySelector('#context-help'),
+  helpTitle: document.querySelector('#help-title'),
+  helpBody: document.querySelector('#help-body'),
+  closeHelp: document.querySelector('#close-help'),
   newCharacter: document.querySelector('#new-character'),
   saveCharacter: document.querySelector('#save-character'),
   loadCharacter: document.querySelector('#load-character'),
@@ -31,19 +36,54 @@ const el = {
 };
 
 let character = createCharacter();
+let openHelpTopic = null;
 
 function setStatus(message, kind = '') {
   el.status.textContent = message;
   el.status.className = `status${kind ? ` ${kind}` : ''}`;
 }
 
+function closeHelp() {
+  el.helpPanel.hidden = true;
+  openHelpTopic = null;
+}
+
+function showHelp(topic, source) {
+  const help = helpForTopic(topic);
+  if (!help) return;
+
+  if (!el.helpPanel.hidden && openHelpTopic === topic) {
+    closeHelp();
+    return;
+  }
+
+  openHelpTopic = topic;
+  el.helpTitle.textContent = `${help.title} // HELP`;
+  el.helpBody.textContent = help.body;
+
+  const section = source?.closest('section');
+  if (section) section.append(el.helpPanel);
+  el.helpPanel.hidden = false;
+}
+
+function makeHelpButton(topic, label) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'help-button';
+  button.textContent = '[?]';
+  button.dataset.helpTopic = topic;
+  button.setAttribute('aria-label', label ?? `Explain ${topic}`);
+  button.addEventListener('click', () => showHelp(topic, button));
+  return button;
+}
+
 function actionButton(label, action, payload = {}) {
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = 'text-button';
+  button.className = 'text-button action-button';
   button.textContent = `[ ${label} ]`;
   button.dataset.action = action;
-  button.addEventListener('click', () => execute(action, payload));
+  button.addEventListener('click', () => execute(action, typeof payload === 'function' ? payload() : payload));
   return button;
 }
 
@@ -90,20 +130,17 @@ function renderActions(procedure) {
   }
 
   if (available.actions.includes(CHARGEN_ACTIONS.RESOLVE_SKILL_SPECIALIZATION)) {
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.id = 'skill-specialization';
-    input.placeholder = 'e.g. Rifle';
-    input.autocomplete = 'off';
-    input.spellcheck = false;
-    el.actions.append(promptControl('SPECIALIZATION', input));
-    const accept = document.createElement('button');
-    accept.type = 'button';
-    accept.className = 'text-button';
-    accept.textContent = '[ ACCEPT SPECIALIZATION ]';
-    accept.addEventListener('click', () => execute(CHARGEN_ACTIONS.RESOLVE_SKILL_SPECIALIZATION, { specialization: input.value }));
-    el.actions.append(accept);
-    input.focus();
+    const label = document.createElement('span');
+    label.className = 'choice-label';
+    label.textContent = `CHOOSE ${String(available.choices.pendingSkill?.name ?? 'SPECIALIZATION').toUpperCase()}:`;
+    el.actions.append(label);
+    for (const specialization of available.choices.specializations ?? []) {
+      el.actions.append(actionButton(
+        specialization.toUpperCase(),
+        CHARGEN_ACTIONS.RESOLVE_SKILL_SPECIALIZATION,
+        { specialization }
+      ));
+    }
     return;
   }
 
@@ -125,7 +162,7 @@ function renderActions(procedure) {
 
     const accept = document.createElement('button');
     accept.type = 'button';
-    accept.className = 'text-button';
+    accept.className = 'text-button action-button';
     accept.textContent = '[ ROLL CRISIS SURVIVAL ]';
     accept.addEventListener('click', () => execute(CHARGEN_ACTIONS.RESOLVE_AGING_CRISIS, {
       medicalSkill: Number.parseInt(medical.value, 10) || 0,
@@ -136,30 +173,25 @@ function renderActions(procedure) {
   }
 
   if (available.actions.includes(CHARGEN_ACTIONS.RESOLVE_MUSTER_BENEFIT_SPECIALIZATION)) {
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.id = 'benefit-specialization';
-    input.placeholder = available.choices.pendingBenefit?.category === 'gun' ? 'e.g. Rifle' : 'e.g. Cutlass';
-    input.autocomplete = 'off';
-    input.spellcheck = false;
-
     const asSkill = document.createElement('input');
     asSkill.type = 'checkbox';
     asSkill.id = 'benefit-as-skill';
+    if (available.choices.canTakeAsSkill) {
+      el.actions.append(promptControl('TAKE AS SKILL', asSkill));
+    }
 
-    el.actions.append(promptControl('WEAPON', input));
-    el.actions.append(promptControl('TAKE AS SKILL IF ELIGIBLE', asSkill));
+    const label = document.createElement('span');
+    label.className = 'choice-label';
+    label.textContent = `CHOOSE ${String(available.choices.pendingBenefit?.category ?? 'WEAPON').toUpperCase()}:`;
+    el.actions.append(label);
 
-    const accept = document.createElement('button');
-    accept.type = 'button';
-    accept.className = 'text-button';
-    accept.textContent = '[ ACCEPT BENEFIT ]';
-    accept.addEventListener('click', () => execute(CHARGEN_ACTIONS.RESOLVE_MUSTER_BENEFIT_SPECIALIZATION, {
-      specialization: input.value,
-      asSkill: asSkill.checked
-    }));
-    el.actions.append(accept);
-    input.focus();
+    for (const specialization of available.choices.specializations ?? []) {
+      el.actions.append(actionButton(
+        specialization.toUpperCase(),
+        CHARGEN_ACTIONS.RESOLVE_MUSTER_BENEFIT_SPECIALIZATION,
+        () => ({ specialization, asSkill: asSkill.checked })
+      ));
+    }
     return;
   }
 
@@ -174,12 +206,22 @@ function render() {
 
   const procedure = buildProcedure(character);
   el.procedure.replaceChildren();
+  el.procedure.className = `procedure${procedure.attention ? ' attention' : ''}`;
+
+  const whatNow = document.createElement('div');
+  whatNow.className = 'what-now';
+  whatNow.textContent = 'WHAT NOW?';
+
+  const phaseLine = document.createElement('div');
+  phaseLine.className = 'phase-line';
   const phase = document.createElement('div');
   phase.className = 'phase';
   phase.textContent = procedure.title;
+  phaseLine.append(phase, makeHelpButton(procedure.helpTopic, `Explain ${procedure.title}`));
+
   const text = document.createElement('div');
   text.textContent = procedure.text;
-  el.procedure.append(phase, text);
+  el.procedure.append(whatNow, phaseLine, text);
   if (procedure.detail) {
     const detail = document.createElement('div');
     detail.className = 'phase-detail';
@@ -193,6 +235,7 @@ function execute(action, payload = {}) {
   try {
     const result = performChargenAction(character, action, payload);
     character = result.character;
+    closeHelp();
     setStatus('ACTION RESOLVED', 'ok');
     render();
   } catch (error) {
@@ -233,6 +276,7 @@ async function loadCharacter(file) {
   try {
     const text = await file.text();
     character = importCharacter(text);
+    closeHelp();
     setStatus('JSON LOADED', 'ok');
     render();
   } catch (error) {
@@ -243,6 +287,15 @@ async function loadCharacter(file) {
   }
 }
 
+for (const button of document.querySelectorAll('[data-help-topic]')) {
+  button.addEventListener('click', () => showHelp(button.dataset.helpTopic, button));
+}
+
+el.closeHelp.addEventListener('click', closeHelp);
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !el.helpPanel.hidden) closeHelp();
+});
+
 el.name.addEventListener('input', () => {
   character = { ...character, name: el.name.value };
   setStatus('NAME UPDATED', 'ok');
@@ -251,6 +304,7 @@ el.name.addEventListener('input', () => {
 el.newCharacter.addEventListener('click', () => {
   if (!window.confirm('Discard the current chargen state and create a new character?')) return;
   character = createCharacter();
+  closeHelp();
   setStatus('NEW CHARACTER GENERATED', 'ok');
   render();
 });

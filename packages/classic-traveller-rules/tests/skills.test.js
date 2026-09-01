@@ -46,3 +46,21 @@ test('selected acquired-skill entries reproduce the Book 1 table', () => {
     type: 'specialization', name: 'Gun Combat', specializationType: 'gun'
   });
 });
+
+test('Book 1 specialization lists distinguish guns, blades/polearms, and vehicles', async () => {
+  const { getSpecializationOptions } = await import('../index.js');
+
+  assert.ok(getSpecializationOptions('gun').includes('Rifle'));
+  assert.ok(!getSpecializationOptions('vehicle').includes('Rifle'));
+  assert.ok(getSpecializationOptions('vehicle').includes('Grav Vehicle'));
+  assert.ok(getSpecializationOptions('vehicle').includes('Helicopter'));
+  assert.ok(getSpecializationOptions('blade-or-polearm').includes('Cutlass'));
+});
+
+test('specialization canonicalization accepts case differences but not cross-category choices', async () => {
+  const { canonicalSpecialization } = await import('../index.js');
+
+  assert.equal(canonicalSpecialization('gun', 'rifle'), 'Rifle');
+  assert.equal(canonicalSpecialization('vehicle', 'grav vehicle'), 'Grav Vehicle');
+  assert.equal(canonicalSpecialization('vehicle', 'Rifle'), null);
+});

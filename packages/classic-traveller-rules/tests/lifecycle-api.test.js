@@ -161,3 +161,36 @@ test('dispatcher forwards mustering-out weapon specialization payload', () => {
   assert.equal(result.character.pendingMusterBenefit, null);
   assert.equal(result.character.phase, CHARGEN_PHASES.MUSTER_OUT_ROLLS_PENDING);
 });
+
+test('Vehicle specialization exposes legal vehicle choices and rejects Rifle', () => {
+  let character = sevenCharacter();
+  character = performChargenAction(character, CHARGEN_ACTIONS.ATTEMPT_ENLISTMENT, {
+    service: 'scouts', dice: createSequenceDice([3, 3])
+  }).character;
+  character = performChargenAction(character, CHARGEN_ACTIONS.BEGIN_TERM).character;
+  character = performChargenAction(character, CHARGEN_ACTIONS.RESOLVE_SURVIVAL, {
+    dice: createSequenceDice([4, 3])
+  }).character;
+  character = performChargenAction(character, CHARGEN_ACTIONS.ROLL_SKILL, {
+    tableKey: 'service-skills', dice: createSequenceDice([1])
+  }).character;
+
+  const available = getAvailableActions(character);
+  assert.equal(available.phase, CHARGEN_PHASES.SKILL_SPECIALIZATION_REQUIRED);
+  assert.equal(available.choices.pendingSkill.specializationType, 'vehicle');
+  assert.ok(available.choices.specializations.includes('Grav Vehicle'));
+  assert.ok(!available.choices.specializations.includes('Rifle'));
+
+  assert.throws(
+    () => performChargenAction(character, CHARGEN_ACTIONS.RESOLVE_SKILL_SPECIALIZATION, {
+      specialization: 'Rifle'
+    }),
+    (error) => error instanceof ChargenStateError && /invalid vehicle specialization/.test(error.message)
+  );
+
+  character = performChargenAction(character, CHARGEN_ACTIONS.RESOLVE_SKILL_SPECIALIZATION, {
+    specialization: 'Grav Vehicle'
+  }).character;
+  assert.equal(character.skills['Grav Vehicle'], 1);
+  assert.equal(character.skills.Rifle, undefined);
+});

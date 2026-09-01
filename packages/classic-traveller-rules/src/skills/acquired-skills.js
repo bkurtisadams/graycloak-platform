@@ -35,6 +35,74 @@ function freezeTable({ key, name, minimumEducation = null, columns }) {
   });
 }
 
+
+
+// Book 1 requires broad Gun Combat, Blade Combat, and Vehicle results to be
+// resolved to a specific expertise immediately. Vehicle options incorporate
+// the facsimile errata clarification for Aircraft and Watercraft groups.
+export const SPECIALIZATION_OPTIONS = Object.freeze({
+  gun: Object.freeze([
+    'Body Pistol',
+    'Auto Pistol',
+    'Revolver',
+    'Carbine',
+    'Rifle',
+    'Auto Rifle',
+    'Shotgun',
+    'SMG',
+    'Laser Carbine',
+    'Laser Rifle'
+  ]),
+  'blade-or-polearm': Object.freeze([
+    'Dagger',
+    'Blade',
+    'Foil',
+    'Sword',
+    'Cutlass',
+    'Broadsword',
+    'Bayonet',
+    'Spear',
+    'Halberd',
+    'Pike',
+    'Cudgel'
+  ]),
+  vehicle: Object.freeze([
+    'Helicopter',
+    'Propeller-driven Fixed Wing',
+    'Jet-driven Fixed Wing',
+    'Grav Vehicle',
+    'Tracked Vehicle',
+    'Wheeled Vehicle',
+    'Small Watercraft',
+    'Large Watercraft',
+    'Hovercraft',
+    'Submersible'
+  ])
+});
+
+export function getSpecializationOptions(specializationType) {
+  const options = SPECIALIZATION_OPTIONS[specializationType];
+  if (!options) {
+    throw new RangeError(`unknown Classic Traveller specialization type: ${specializationType}`);
+  }
+  return options;
+}
+
+export function canonicalSpecialization(specializationType, value) {
+  const choice = String(value ?? '').trim();
+  if (!choice) return null;
+  const lowered = choice.toLocaleLowerCase('en-US');
+  return getSpecializationOptions(specializationType).find(
+    (option) => option.toLocaleLowerCase('en-US') === lowered
+  ) ?? null;
+}
+
+export function specializationTypeForWeaponCategory(category) {
+  if (category === 'gun') return 'gun';
+  if (category === 'blade') return 'blade-or-polearm';
+  throw new RangeError(`unknown Classic Traveller weapon benefit category: ${category}`);
+}
+
 export const SKILL_TABLE_KEYS = Object.freeze([
   'personal-development',
   'service-skills',

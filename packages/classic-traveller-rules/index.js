@@ -1,4 +1,4 @@
-// @graycloak/classic-traveller-rules v0.5.0
+// @graycloak/classic-traveller-rules v0.5.2
 // Source-backed Classic Traveller Book 1 character-generation engine.
 // Pure rules/state logic: no host, UI, persistence, Foundry, or Firebase dependencies.
 
@@ -27,10 +27,14 @@ export {
 export {
   SKILL_TABLE_KEYS,
   SKILL_TABLES,
+  SPECIALIZATION_OPTIONS,
   RANK_SERVICE_BENEFITS,
   getSkillTable,
   availableSkillTables,
   getAcquiredSkillOutcome,
+  getSpecializationOptions,
+  canonicalSpecialization,
+  specializationTypeForWeaponCategory,
   eligibleRankServiceBenefits
 } from './src/skills/acquired-skills.js';
 

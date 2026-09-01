@@ -49,6 +49,109 @@ export const ACTION_LABELS = Object.freeze({
   [CHARGEN_ACTIONS.RESOLVE_MUSTER_BENEFIT_SPECIALIZATION]: 'ACCEPT BENEFIT'
 });
 
+
+export const HELP_TOPICS = Object.freeze({
+  'personnel-record': Object.freeze({
+    title: 'PERSONNEL RECORD',
+    body: 'The Universal Personality Profile (UPP) lists STR, DEX, END, INT, EDU, and SOC in that order. Values above 9 use Traveller hexadecimal notation, so A means 10, B means 11, and so on. The record also shows your current service, rank, terms, skills, credits, benefits, and chargen phase.'
+  }),
+  'service-history': Object.freeze({
+    title: 'SERVICE HISTORY',
+    body: 'This is the condensed career record: enlistment or draft, terms served, survival, commissions, promotions, reenlistment decisions, and final mustering out. It is intended to become part of the character’s persistent biography.'
+  }),
+  'generation-log': Object.freeze({
+    title: 'GENERATION LOG',
+    body: 'This is the detailed audit trail for character generation. It records the actual dice, DMs, totals, targets, skill results, aging results, cash, and benefits used to produce the personnel record.'
+  }),
+  'service-selection': Object.freeze({
+    title: 'SERVICE APPLICATION',
+    body: 'Choose the service your character tries to enter. The rules engine rolls enlistment and applies any characteristic DMs automatically. If enlistment fails, the next step is the draft; the draft service is determined randomly rather than chosen.'
+  }),
+  'draft-required': Object.freeze({
+    title: 'DRAFT',
+    body: 'Your voluntary enlistment attempt failed. Resolve the one-die draft to determine which service takes the character. Once drafted, the career continues in that service.'
+  }),
+  'term-ready': Object.freeze({
+    title: 'SERVICE TERM',
+    body: 'A Traveller service term lasts four years. Beginning a term moves the character into the term sequence: survival first, then any commission or promotion opportunities, followed by acquired skills.'
+  }),
+  'survival-required': Object.freeze({
+    title: 'SURVIVAL',
+    body: 'Every term requires a survival throw. Under standard Classic Traveller Book 1 character generation, failure is fatal. A successful survival throw allows the term to continue.'
+  }),
+  'commission-option': Object.freeze({
+    title: 'COMMISSION',
+    body: 'Eligible characters may attempt to become commissioned officers. You may also decline the attempt. A successful commission grants officer rank and an additional acquired-skill opportunity for the term. Scouts and Other do not use the normal commission structure.'
+  }),
+  'promotion-option': Object.freeze({
+    title: 'PROMOTION',
+    body: 'A commissioned character may attempt promotion when eligible, or decline the attempt. Success advances rank and grants an additional acquired-skill opportunity for the term.'
+  }),
+  'skills-pending': Object.freeze({
+    title: 'ACQUIRED SKILLS',
+    body: 'Choose a skill table before each roll. Only tables currently legal for this character are shown. The rules engine then rolls on the selected table and applies the resulting characteristic increase, skill, or required specialization.'
+  }),
+  'skill-specialization-required': Object.freeze({
+    title: 'SKILL SPECIALIZATION',
+    body: 'Some acquired-skill results name a broad category rather than a final skill. Choose one of the legal weapon or vehicle specialties shown. The rules engine supplies and validates the choices, so a Vehicle result cannot accidentally become a gun skill.'
+  }),
+  'term-completion-ready': Object.freeze({
+    title: 'TERM COMPLETION',
+    body: 'All required actions for this term are resolved. Completing the term advances chronological age by four years, records the finished term, and moves to aging or reenlistment as appropriate.'
+  }),
+  'aging-required': Object.freeze({
+    title: 'AGING',
+    body: 'Classic Traveller aging begins once the character reaches the relevant physical-age thresholds. Aging checks can reduce characteristics. Resolve aging before the career can proceed to reenlistment.'
+  }),
+  'aging-crisis-required': Object.freeze({
+    title: 'AGING CRISIS',
+    body: 'An aging result reduced a characteristic to zero and created a medical crisis. Resolve the crisis survival throw. Medical skill and the slow-drug option are supplied to the rules engine for this resolution.'
+  }),
+  'reenlistment-required': Object.freeze({
+    title: 'REENLISTMENT',
+    body: 'After a completed term, roll to see whether the service will retain the character. Failure ends the career. A qualifying result allows a choice to continue or muster out. An exact 12 requires another term rather than permitting voluntary separation.'
+  }),
+  'reenlistment-decision': Object.freeze({
+    title: 'REENLISTMENT DECISION',
+    body: 'The service is willing to retain the character. Choose REENLIST to begin another four-year term or MUSTER OUT to end the career and collect benefits. If continuation had been mandatory, this choice would not be offered.'
+  }),
+  'muster-out-required': Object.freeze({
+    title: 'MUSTERING OUT',
+    body: 'The service career has ended. Begin mustering out to calculate how many benefit rolls the character receives and whether retirement pay applies. The resulting cash and material benefits become part of the starting character.'
+  }),
+  'muster-out-rolls-pending': Object.freeze({
+    title: 'MUSTERING OUT BENEFITS',
+    body: 'For each remaining mustering-out roll, choose either CASH or BENEFIT. No more than three rolls may be made on the Cash table. The rules engine applies any Gambling or rank modifiers automatically when they are relevant.'
+  }),
+  'muster-benefit-specialization-required': Object.freeze({
+    title: 'BENEFIT SPECIALIZATION',
+    body: 'A Gun or Blade mustering-out benefit requires a specific weapon declaration. Choose one of the legal weapons shown. If this is an additional benefit of the same category, TAKE AS SKILL lets the repeated benefit increase that weapon skill instead.'
+  }),
+  complete: Object.freeze({
+    title: 'CHARACTER COMPLETE',
+    body: 'Character generation is finished. The personnel record, career history, skills, credits, benefits, and final UPP can now be saved as JSON and used by later Traveller game systems.'
+  }),
+  dead: Object.freeze({
+    title: 'CHARACTER DECEASED',
+    body: 'The character died during Book 1 generation. The record can still be saved for reference, or NEW CHARACTER can begin another attempt.'
+  })
+});
+
+const ATTENTION_PHASES = new Set([
+  'draft-required',
+  'commission-option',
+  'promotion-option',
+  'skill-specialization-required',
+  'aging-crisis-required',
+  'reenlistment-decision',
+  'muster-out-rolls-pending',
+  'muster-benefit-specialization-required'
+]);
+
+export function helpForTopic(topic) {
+  return HELP_TOPICS[topic] ?? null;
+}
+
 const PROCEDURE_TEXT = Object.freeze({
   'service-selection': 'Choose one of the six prior services. The engine will resolve enlistment and apply the appropriate characteristic DMs.',
   'draft-required': 'The enlistment attempt failed. Resolve the one-die draft.',
@@ -57,7 +160,7 @@ const PROCEDURE_TEXT = Object.freeze({
   'commission-option': 'The character is eligible to attempt a commission this term, or may decline the attempt.',
   'promotion-option': 'The commissioned character is eligible to attempt promotion this term, or may decline the attempt.',
   'skills-pending': 'Choose an eligible acquired-skill table before rolling. The engine determines the result.',
-  'skill-specialization-required': 'The rolled skill requires a specific weapon or vehicle expertise. Enter the exact specialization to record.',
+  'skill-specialization-required': 'The rolled skill requires a specific weapon or vehicle expertise. Choose one of the legal specializations shown below.',
   'term-completion-ready': 'All current-term skill opportunities are resolved. Complete the term and advance campaign age.',
   'aging-required': 'Resolve the pending Book 1 aging checkpoint.',
   'aging-crisis-required': 'A characteristic reached zero during aging. Resolve the required survival crisis.',
@@ -65,7 +168,7 @@ const PROCEDURE_TEXT = Object.freeze({
   'reenlistment-decision': 'Reenlistment is available. Choose whether to continue service or muster out.',
   'muster-out-required': 'Service has ended. Begin mustering out to determine cash and material benefits.',
   'muster-out-rolls-pending': 'Choose the Cash or Benefits table for each remaining mustering-out roll.',
-  'muster-benefit-specialization-required': 'A Gun or Blade benefit requires immediate declaration of a specific weapon.',
+  'muster-benefit-specialization-required': 'A Gun or Blade benefit requires immediate declaration of a specific legal weapon. Choose from the list below.',
   complete: 'Character generation is complete. Save the JSON record or begin a new character.',
   dead: 'The character died during generation. Save the record if desired, or begin a new character.'
 });
@@ -258,6 +361,8 @@ export function buildProcedure(character) {
     available,
     title: PHASE_LABELS[character.phase] ?? character.phase.toUpperCase(),
     text: PROCEDURE_TEXT[character.phase] ?? 'Awaiting a legal chargen action.',
-    detail: details.join(' · ')
+    detail: details.join(' · '),
+    helpTopic: character.phase,
+    attention: ATTENTION_PHASES.has(character.phase)
   };
 }

@@ -3,7 +3,7 @@
 Pure JavaScript rules package for the Graycloak Classic Traveller browser-game project.
 It intentionally has no HTML, Foundry, Firebase, or server dependencies.
 
-## v0.5.0 scope
+## v0.5.2 scope
 
 Implemented from Classic Traveller Book 1:
 
@@ -12,6 +12,8 @@ Implemented from Classic Traveller Book 1:
 - failed enlistment and the one-die draft
 - four-year service terms and the optional two-year injury separation rule
 - acquired skills, EDU 8+ restriction, specialization pauses, and rank/service automatic skills
+- source-backed legal specialization catalogs for Gun Combat, Blade/Polearm, and Vehicle results
+- engine-side rejection of cross-category specializations such as Vehicle -> Rifle
 - Scout exception: two acquired skills in every term
 - term completion and career history
 - aging checks beginning at physical age 34 and recurring at four-year intervals
@@ -42,7 +44,6 @@ v0.4.0 added the stable host-facing boundary:
 
 Not implemented in the pure rules package:
 
-- validation catalogs for specific gun, blade/polearm, and vehicle specializations
 - full skill-effect rules outside character generation
 - persistent server/database adapters
 
@@ -57,6 +58,6 @@ npm test
 From the Graycloak monorepo root, the normal workspace test command should include this package automatically because the workspace includes `packages/*`.
 
 
-## v0.5.0 client milestone
+## v0.5.x client milestone
 
 The first browser chargen client lives outside this package at `traveller/client/`. It consumes the public lifecycle API and does not duplicate Book 1 target numbers or phase legality rules.

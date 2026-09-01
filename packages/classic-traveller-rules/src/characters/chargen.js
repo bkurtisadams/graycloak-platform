@@ -3,9 +3,11 @@ import { formatUPP, generateCharacteristics } from './upp.js';
 import { calculateDM, getService, serviceForDraftRoll } from '../careers/services.js';
 import {
   availableSkillTables,
+  canonicalSpecialization,
   eligibleRankServiceBenefits,
   getAcquiredSkillOutcome,
-  getSkillTable
+  getSkillTable,
+  specializationTypeForWeaponCategory
 } from '../skills/acquired-skills.js';
 import {
   AGING_INTERVAL_MONTHS,
@@ -581,12 +583,13 @@ export function rollAcquiredSkill(character, tableKey, { dice = createDice() } =
 
 export function resolveSkillSpecialization(character, specialization) {
   requirePhase(character, CHARGEN_PHASES.SKILL_SPECIALIZATION_REQUIRED);
-  const choice = String(specialization ?? '').trim();
-  if (!choice) {
-    throw new ChargenStateError('a specific weapon or vehicle expertise must be selected');
-  }
   if (!character.pendingSkill) {
     throw new ChargenStateError('no acquired skill is awaiting specialization');
+  }
+  const type = character.pendingSkill.specializationType;
+  const choice = canonicalSpecialization(type, specialization);
+  if (!choice) {
+    throw new ChargenStateError(`invalid ${type} specialization: ${String(specialization ?? '').trim() || '(blank)'}`);
   }
 
   const next = copyCharacter(character);
@@ -1015,13 +1018,13 @@ export function resolveMusterBenefitSpecialization(character, {
   if (!character.pendingMusterBenefit || !character.musterOut) {
     throw new ChargenStateError('no mustering-out weapon benefit is awaiting specialization');
   }
-  const choice = String(specialization ?? '').trim();
-  if (!choice) {
-    throw new ChargenStateError('a specific gun or blade type must be declared immediately');
-  }
-
   const next = copyCharacter(character);
   const { category, resultIndex } = next.pendingMusterBenefit;
+  const type = specializationTypeForWeaponCategory(category);
+  const choice = canonicalSpecialization(type, specialization);
+  if (!choice) {
+    throw new ChargenStateError(`invalid ${category} weapon specialization: ${String(specialization ?? '').trim() || '(blank)'}`);
+  }
   const previousBenefit = next.materialBenefits.some((benefit) => (
     benefit.type === 'weapon' && benefit.category === category
   ));

@@ -1,6 +1,10 @@
 import { createDice } from '../dice.js';
 import { SERVICE_KEYS } from '../careers/services.js';
-import { availableSkillTables } from '../skills/acquired-skills.js';
+import {
+  availableSkillTables,
+  getSpecializationOptions,
+  specializationTypeForWeaponCategory
+} from '../skills/acquired-skills.js';
 import {
   CHARGEN_PHASES,
   ChargenStateError,
@@ -97,10 +101,16 @@ export function getAvailableActions(character) {
         skillsDue: character.skillsDue
       });
 
-    case CHARGEN_PHASES.SKILL_SPECIALIZATION_REQUIRED:
+    case CHARGEN_PHASES.SKILL_SPECIALIZATION_REQUIRED: {
+      const pendingSkill = character.pendingSkill ? Object.freeze({ ...character.pendingSkill }) : null;
+      const specializations = pendingSkill
+        ? Object.freeze([...getSpecializationOptions(pendingSkill.specializationType)])
+        : Object.freeze([]);
       return descriptor(character, [CHARGEN_ACTIONS.RESOLVE_SKILL_SPECIALIZATION], {
-        pendingSkill: character.pendingSkill ? Object.freeze({ ...character.pendingSkill }) : null
+        pendingSkill,
+        specializations
       });
+    }
 
     case CHARGEN_PHASES.TERM_COMPLETION_READY:
       return descriptor(character, [CHARGEN_ACTIONS.COMPLETE_TERM]);
@@ -139,12 +149,26 @@ export function getAvailableActions(character) {
       });
     }
 
-    case CHARGEN_PHASES.MUSTER_BENEFIT_SPECIALIZATION_REQUIRED:
+    case CHARGEN_PHASES.MUSTER_BENEFIT_SPECIALIZATION_REQUIRED: {
+      const pendingBenefit = character.pendingMusterBenefit
+        ? Object.freeze({ ...character.pendingMusterBenefit })
+        : null;
+      const specializationType = pendingBenefit
+        ? specializationTypeForWeaponCategory(pendingBenefit.category)
+        : null;
+      const specializations = specializationType
+        ? Object.freeze([...getSpecializationOptions(specializationType)])
+        : Object.freeze([]);
+      const canTakeAsSkill = Boolean(pendingBenefit && character.materialBenefits.some((benefit) => (
+        benefit.type === 'weapon' && benefit.category === pendingBenefit.category
+      )));
       return descriptor(character, [CHARGEN_ACTIONS.RESOLVE_MUSTER_BENEFIT_SPECIALIZATION], {
-        pendingBenefit: character.pendingMusterBenefit
-          ? Object.freeze({ ...character.pendingMusterBenefit })
-          : null
+        pendingBenefit,
+        specializationType,
+        specializations,
+        canTakeAsSkill
       });
+    }
 
     case CHARGEN_PHASES.COMPLETE:
     case CHARGEN_PHASES.DEAD:

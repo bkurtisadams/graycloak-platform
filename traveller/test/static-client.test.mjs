@@ -35,3 +35,32 @@ test('terminal presentation avoids rounded-card styling', async () => {
   assert.doesNotMatch(css, /border-radius:\s*[1-9]/);
   assert.doesNotMatch(css, /box-shadow/);
 });
+
+test('v0.5.2 retains contextual help and highlighted legal actions', async () => {
+  const html = await read('index.html');
+  const app = await read('app.js');
+  const css = await read('styles.css');
+
+  assert.match(html, /CLIENT v0\.5\.2/);
+  assert.match(html, /data-help-topic="personnel-record"/);
+  assert.match(html, /id="context-help"/);
+  assert.match(app, /helpForTopic/);
+  assert.match(app, /WHAT NOW\?/);
+  assert.match(app, /action-button/);
+  assert.match(css, /--action-ready:/);
+  assert.match(css, /--attention:/);
+  assert.match(css, /\.action-button/);
+  assert.match(css, /\.procedure\.attention/);
+  assert.match(css, /\.help-panel/);
+});
+
+test('v0.5.2 specialization UI uses engine-supplied legal choices instead of free text', async () => {
+  const html = await read('index.html');
+  const app = await read('app.js');
+
+  assert.match(html, /CLIENT v0\.5\.2/);
+  assert.match(app, /available\.choices\.specializations/);
+  assert.doesNotMatch(app, /id = 'skill-specialization'/);
+  assert.doesNotMatch(app, /id = 'benefit-specialization'/);
+  assert.doesNotMatch(app, /placeholder = 'e\.g\. Rifle'/);
+});

@@ -68,3 +68,24 @@ test('history formatter exposes actual roll, DM, total, and target from engine h
   assert.match(line, /vs 8\+/);
   assert.match(line, /FAILED/);
 });
+
+test('browser model supplies contextual help and attention state for decisions', async () => {
+  const { helpForTopic } = await import('../client/ui-model.js');
+  const help = helpForTopic('service-selection');
+  assert.equal(help.title, 'SERVICE APPLICATION');
+  assert.match(help.body, /draft/i);
+
+  let character = sevenCharacter();
+  character = performChargenAction(character, CHARGEN_ACTIONS.ATTEMPT_ENLISTMENT, {
+    service: 'other',
+    dice: createSequenceDice([2, 2])
+  }).character;
+  character = performChargenAction(character, CHARGEN_ACTIONS.BEGIN_TERM).character;
+  character = performChargenAction(character, CHARGEN_ACTIONS.RESOLVE_SURVIVAL, {
+    dice: createSequenceDice([6, 6])
+  }).character;
+
+  const procedure = buildProcedure(character);
+  assert.equal(procedure.helpTopic, character.phase);
+  assert.equal(typeof procedure.attention, 'boolean');
+});

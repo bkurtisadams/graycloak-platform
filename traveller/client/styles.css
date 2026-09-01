@@ -8,6 +8,13 @@
   --rule: #272a27;
   --error: #6a1f1f;
   --ok: #28442f;
+  --action-ready: #cfe0cf;
+  --action-ready-hover: #bdd3bd;
+  --action-border: #6f866f;
+  --attention: #e7dfb6;
+  --attention-border: #978d58;
+  --disabled: #a9aaa5;
+  --help-paper: #e4e4de;
 }
 
 * { box-sizing: border-box; }
@@ -54,7 +61,8 @@ button, input, select { font: inherit; }
   padding: 9px 0 3px;
 }
 
-.text-button {
+.text-button,
+.help-button {
   border: 0;
   padding: 2px 0;
   background: transparent;
@@ -65,13 +73,24 @@ button, input, select { font: inherit; }
 }
 
 .text-button:hover,
-.text-button:focus-visible {
+.text-button:focus-visible,
+.help-button:hover,
+.help-button:focus-visible {
   color: var(--ink);
   outline: 1px dotted var(--ink);
   outline-offset: 2px;
 }
 
+.utility-button { color: var(--link); }
+
 section { margin-top: 16px; }
+
+.section-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+}
 
 .section-title {
   margin: 0 0 7px;
@@ -82,6 +101,12 @@ section { margin-top: 16px; }
 
 .section-title::before { content: "── "; }
 .section-title::after { content: " ─────────────────"; color: var(--muted); }
+
+.help-button {
+  flex: 0 0 auto;
+  padding: 0 2px;
+  font-weight: 700;
+}
 
 .name-line {
   display: grid;
@@ -118,8 +143,31 @@ input:focus-visible { outline: 2px solid var(--link); outline-offset: 1px; }
 }
 
 .procedure {
-  min-height: 44px;
-  padding: 2px 0 4px;
+  min-height: 58px;
+  padding: 6px 8px 7px;
+  border-left: 4px solid transparent;
+}
+
+.procedure.attention {
+  background: var(--attention);
+  border-left-color: var(--attention-border);
+}
+
+.what-now {
+  display: inline-block;
+  margin-bottom: 5px;
+  padding: 1px 5px;
+  background: var(--attention);
+  border: 1px solid var(--attention-border);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.phase-line {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 7px;
 }
 
 .phase {
@@ -127,7 +175,7 @@ input:focus-visible { outline: 2px solid var(--link); outline-offset: 1px; }
   margin-bottom: 3px;
 }
 
-.phase-detail { color: var(--muted); }
+.phase-detail { color: var(--muted); margin-top: 3px; }
 
 .actions {
   display: flex;
@@ -136,6 +184,32 @@ input:focus-visible { outline: 2px solid var(--link); outline-offset: 1px; }
   gap: 8px 14px;
   padding: 8px 0 2px;
   border-top: 1px solid var(--rule);
+}
+
+.action-button {
+  border: 1px solid var(--action-border);
+  padding: 3px 6px;
+  background: var(--action-ready);
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.action-button:hover,
+.action-button:focus-visible {
+  background: var(--action-ready-hover);
+  color: var(--ink);
+  outline: 1px dotted var(--ink);
+  outline-offset: 2px;
+}
+
+.action-button:disabled,
+.action-button[aria-disabled="true"] {
+  border-color: var(--disabled);
+  background: transparent;
+  color: var(--disabled);
+  cursor: default;
+  text-decoration: none;
 }
 
 .action-group {
@@ -153,6 +227,12 @@ input:focus-visible { outline: 2px solid var(--link); outline-offset: 1px; }
 
 .prompt-control label { color: var(--muted); }
 
+.choice-label {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+
 .two-column {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -168,6 +248,30 @@ input:focus-visible { outline: 2px solid var(--link); outline-offset: 1px; }
 
 .empty { color: var(--muted); }
 
+.help-panel {
+  margin-top: 18px;
+  padding: 9px 10px 10px;
+  border-top: 2px solid var(--rule);
+  border-bottom: 2px solid var(--rule);
+  background: var(--help-paper);
+}
+
+.help-panel[hidden] { display: none; }
+
+.help-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.help-body {
+  max-width: 88ch;
+  padding-top: 7px;
+  white-space: pre-line;
+}
+
 .footer {
   border-top: 2px solid var(--rule);
   margin-top: 20px;
@@ -180,3 +284,5 @@ input:focus-visible { outline: 2px solid var(--link); outline-offset: 1px; }
   .section-title::after { content: " ─────"; }
   .name-line { grid-template-columns: 8ch 1fr; }
 }
+
+.two-column > .help-panel { grid-column: 1 / -1; }

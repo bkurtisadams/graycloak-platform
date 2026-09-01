@@ -11,20 +11,23 @@
     <header class="masthead">
       <div>
         <div id="app-title" class="title">TRAVELLER // PERSONNEL INTAKE TERMINAL</div>
-        <div class="subtitle">CLIENT v0.5.0 // CLASSIC TRAVELLER BOOK 1 CHARGEN</div>
+        <div class="subtitle">CLIENT v0.5.2 // CLASSIC TRAVELLER BOOK 1 CHARGEN</div>
       </div>
       <div id="system-status" class="status" aria-live="polite">READY</div>
     </header>
 
     <nav class="utility" aria-label="Character file commands">
-      <button id="new-character" class="text-button" type="button">[ NEW CHARACTER ]</button>
-      <button id="save-character" class="text-button" type="button">[ SAVE JSON ]</button>
-      <button id="load-character" class="text-button" type="button">[ LOAD JSON ]</button>
+      <button id="new-character" class="text-button utility-button" type="button">[ NEW CHARACTER ]</button>
+      <button id="save-character" class="text-button utility-button" type="button">[ SAVE JSON ]</button>
+      <button id="load-character" class="text-button utility-button" type="button">[ LOAD JSON ]</button>
       <input id="load-file" type="file" accept="application/json,.json" hidden>
     </nav>
 
     <section aria-labelledby="record-heading">
-      <h2 id="record-heading" class="section-title">PERSONNEL RECORD</h2>
+      <div class="section-heading">
+        <h2 id="record-heading" class="section-title">PERSONNEL RECORD</h2>
+        <button class="help-button" type="button" data-help-topic="personnel-record" aria-label="Explain the personnel record">[?]</button>
+      </div>
       <label class="name-line" for="character-name">
         <span>NAME</span>
         <input id="character-name" type="text" maxlength="80" autocomplete="off" spellcheck="false">
@@ -33,21 +36,37 @@
     </section>
 
     <section aria-labelledby="procedure-heading">
-      <h2 id="procedure-heading" class="section-title">CURRENT PROCEDURE</h2>
+      <div class="section-heading">
+        <h2 id="procedure-heading" class="section-title">CURRENT PROCEDURE</h2>
+      </div>
       <div id="procedure" class="procedure" aria-live="polite"></div>
       <div id="actions" class="actions"></div>
     </section>
 
     <section class="two-column" aria-label="Character history and generation log">
       <div>
-        <h2 class="section-title">SERVICE HISTORY</h2>
+        <div class="section-heading">
+          <h2 class="section-title">SERVICE HISTORY</h2>
+          <button class="help-button" type="button" data-help-topic="service-history" aria-label="Explain service history">[?]</button>
+        </div>
         <pre id="service-history" class="history"></pre>
       </div>
       <div>
-        <h2 class="section-title">GENERATION LOG</h2>
+        <div class="section-heading">
+          <h2 class="section-title">GENERATION LOG</h2>
+          <button class="help-button" type="button" data-help-topic="generation-log" aria-label="Explain generation log">[?]</button>
+        </div>
         <pre id="generation-log" class="history"></pre>
       </div>
     </section>
+
+    <aside id="context-help" class="help-panel" hidden aria-live="polite" aria-labelledby="help-title">
+      <div class="help-header">
+        <strong id="help-title">HELP</strong>
+        <button id="close-help" class="help-button" type="button">[ CLOSE ]</button>
+      </div>
+      <div id="help-body" class="help-body"></div>
+    </aside>
 
     <footer class="footer">
       RULES ARE RESOLVED BY @graycloak/classic-traveller-rules. THIS CLIENT DISPLAYS STATE AND LEGAL ACTIONS ONLY.
