@@ -1,5 +1,10 @@
 # Graycloak Traveller
 
+## v0.9.1 map renderer
+
+v0.9.1 is a presentation-only follow-up to v0.9.0. It replaces the CSS-clipped subsector cells with a single responsive SVG honeycomb of true regular hexagons. Jump legality, distance, campaign time, persistence, and document schemas are unchanged.
+
+
 Standalone browser client for the original-universe Classic Traveller project.
 
 ## v0.9.0 scope

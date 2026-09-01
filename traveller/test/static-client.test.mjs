@@ -36,12 +36,12 @@ test('terminal presentation avoids rounded-card styling', async () => {
   assert.doesNotMatch(css, /box-shadow/);
 });
 
-test('v0.9.0 retains contextual help and highlighted legal actions', async () => {
+test('v0.9.1 retains contextual help and highlighted legal actions', async () => {
   const html = await read('index.html');
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /CLIENT v0\.9\.0/);
+  assert.match(html, /CLIENT v0\.9\.1/);
   assert.match(html, /data-help-topic="personnel-record"/);
   assert.match(html, /id="context-help"/);
   assert.match(app, /helpForTopic/);
@@ -54,11 +54,11 @@ test('v0.9.0 retains contextual help and highlighted legal actions', async () =>
   assert.match(css, /\.help-panel/);
 });
 
-test('v0.9.0 specialization UI uses engine-supplied legal choices instead of free text', async () => {
+test('v0.9.1 specialization UI uses engine-supplied legal choices instead of free text', async () => {
   const html = await read('index.html');
   const app = await read('app.js');
 
-  assert.match(html, /CLIENT v0\.9\.0/);
+  assert.match(html, /CLIENT v0\.9\.1/);
   assert.match(app, /available\.choices\.specializations/);
   assert.doesNotMatch(app, /id = 'skill-specialization'/);
   assert.doesNotMatch(app, /id = 'benefit-specialization'/);
@@ -66,7 +66,7 @@ test('v0.9.0 specialization UI uses engine-supplied legal choices instead of fre
 });
 
 
-test('v0.9.0 exposes character and ship document actions after chargen', async () => {
+test('v0.9.1 exposes character and ship document actions after chargen', async () => {
   const html = await read('index.html');
   const app = await read('app.js');
   const model = await read('ui-model.js');
@@ -87,7 +87,7 @@ test('v0.9.0 exposes character and ship document actions after chargen', async (
 });
 
 
-test('v0.9.0 exposes opt-in character, ship, and registry generators', async () => {
+test('v0.9.1 exposes opt-in character, ship, and registry generators', async () => {
   const html = await read('index.html');
   const app = await read('app.js');
 
@@ -100,7 +100,7 @@ test('v0.9.0 exposes opt-in character, ship, and registry generators', async () 
 });
 
 
-test('v0.9.0 routes chargen, gameplay character, and ship JSON through the document loader', async () => {
+test('v0.9.1 routes chargen, gameplay character, and ship JSON through the document loader', async () => {
   const html = await read('index.html');
   const app = await read('app.js');
   const loader = await read('document-loader.js');
@@ -114,7 +114,7 @@ test('v0.9.0 routes chargen, gameplay character, and ship JSON through the docum
 });
 
 
-test('v0.9.0 exposes the persistent campaign shell and portable bundle controls', async () => {
+test('v0.9.1 exposes the persistent campaign shell and portable bundle controls', async () => {
   const html = await read('index.html');
   const app = await read('app.js');
   const loader = await read('document-loader.js');
@@ -133,7 +133,7 @@ test('v0.9.0 exposes the persistent campaign shell and portable bundle controls'
 });
 
 
-test('v0.9.0 exposes an authored subsector map and jump controls', async () => {
+test('v0.9.1 exposes an authored subsector map and jump controls', async () => {
   const html = await read('index.html');
   const app = await read('app.js');
   const css = await read('styles.css');
@@ -145,7 +145,9 @@ test('v0.9.0 exposes an authored subsector map and jump controls', async () => {
   assert.match(app, /getJumpDestinations/);
   assert.match(app, /jumpDistanceBetweenSystems/);
   assert.match(app, /advanceCampaignDays\(campaignDocument, 7\)/);
-  assert.match(css, /\.subsector-map/);
-  assert.match(css, /\.hex-cell\.reachable/);
-  assert.match(css, /\.hex-cell\.current/);
+  assert.match(app, /createElementNS\('http:\/\/www\.w3\.org\/2000\/svg'/);
+  assert.match(app, /flatTopHexPoints/);
+  assert.match(css, /\.subsector-svg/);
+  assert.match(css, /\.subsector-hex\.reachable/);
+  assert.match(css, /\.subsector-hex\.current/);
 });

@@ -48,6 +48,15 @@ import {
 } from './generators.js';
 
 import {
+  SUBSECTOR_SVG_GEOMETRY,
+  flatTopHexPoints,
+  formatSvgPoints,
+  splitSystemName,
+  subsectorHexCenter,
+  subsectorSvgViewBox
+} from './subsector-svg.js';
+
+import {
   addShipToCampaign,
   advanceCampaignDays,
   createCampaignDocument,
@@ -354,6 +363,104 @@ function jumpToSelectedSystem() {
   }
 }
 
+function createSvgElement(name, attributes = {}) {
+  const node = document.createElementNS('http://www.w3.org/2000/svg', name);
+  for (const [key, value] of Object.entries(attributes)) {
+    node.setAttribute(key, String(value));
+  }
+  return node;
+}
+
+function renderSubsectorSvg({ current, selected, reachable }) {
+  const viewBox = subsectorSvgViewBox(SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, SUBSECTOR_SVG_GEOMETRY);
+  const svg = createSvgElement('svg', {
+    class: 'subsector-svg',
+    viewBox: `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`,
+    role: 'group',
+    'aria-label': `${FAR_MERIDIAN_SUBSECTOR.name} subsector hex map`,
+    preserveAspectRatio: 'xMidYMid meet'
+  });
+
+  const systemByHex = new Map(FAR_MERIDIAN_SUBSECTOR.systems.map((system) => [system.hex, system]));
+  for (let column = 1; column <= SUBSECTOR_COLUMNS; column += 1) {
+    for (let row = 1; row <= SUBSECTOR_ROWS; row += 1) {
+      const hex = formatSubsectorHex(column, row);
+      const system = systemByHex.get(hex) ?? null;
+      const center = subsectorHexCenter(column, row, SUBSECTOR_SVG_GEOMETRY);
+      const points = formatSvgPoints(flatTopHexPoints(center, SUBSECTOR_SVG_GEOMETRY.radius));
+      const group = createSvgElement('g', { class: 'subsector-hex' });
+      const polygon = createSvgElement('polygon', { points, class: 'subsector-hex-shape' });
+      group.append(polygon);
+
+      const coordinate = createSvgElement('text', {
+        x: center.x - SUBSECTOR_SVG_GEOMETRY.radius * 0.63,
+        y: center.y - (Math.sqrt(3) * SUBSECTOR_SVG_GEOMETRY.radius) / 2 + 9,
+        class: 'subsector-hex-coordinate'
+      });
+      coordinate.textContent = hex;
+      group.append(coordinate);
+
+      if (!system) {
+        group.classList.add('empty-hex');
+        svg.append(group);
+        continue;
+      }
+
+      group.classList.add('system-hex');
+      if (current && reachable.has(system.id)) group.classList.add('reachable');
+      if (current?.id === system.id) group.classList.add('current');
+      if (selected?.id === system.id) group.classList.add('selected');
+
+      const relation = current?.id === system.id
+        ? 'current system'
+        : reachable.has(system.id)
+          ? `${reachable.get(system.id)} parsecs, in range`
+          : current
+            ? 'out of range'
+            : 'available starting system';
+      group.setAttribute('role', 'button');
+      group.setAttribute('tabindex', '0');
+      group.setAttribute('aria-label', `${system.name}, hex ${hex}, ${relation}`);
+      group.dataset.systemId = system.id;
+
+      const title = createSvgElement('title');
+      title.textContent = `${system.name} / ${system.mainWorld.name} / ${hex} / ${relation}`;
+      group.append(title);
+
+      const marker = createSvgElement('text', {
+        x: center.x,
+        y: center.y + 3,
+        class: 'subsector-system-marker',
+        'text-anchor': 'middle'
+      });
+      marker.textContent = current?.id === system.id ? '◆' : '●';
+      group.append(marker);
+
+      const lines = splitSystemName(system.name);
+      lines.forEach((line, index) => {
+        const label = createSvgElement('text', {
+          x: center.x,
+          y: center.y + 17 + index * 10,
+          class: 'subsector-system-name',
+          'text-anchor': 'middle'
+        });
+        label.textContent = line;
+        group.append(label);
+      });
+
+      const select = () => selectSubsectorSystem(system.id);
+      group.addEventListener('click', select);
+      group.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        select();
+      });
+      svg.append(group);
+    }
+  }
+  return svg;
+}
+
 function renderSubsector() {
   if (!campaignDocument) {
     el.subsectorSection.hidden = true;
@@ -381,57 +488,10 @@ function renderSubsector() {
     : 'NO ACTIVE JUMP SHIP';
 
   el.subsectorLegend.textContent = current
-    ? 'CURRENT ■   JUMP RANGE □   OUT OF RANGE ·'
-    : 'SELECT STARTING SYSTEM □   EMPTY HEX ·';
+    ? 'CURRENT ◆   IN RANGE ●   OUT OF RANGE ●   EMPTY ·'
+    : 'SYSTEM ●   SELECTED SYSTEM OUTLINED   EMPTY ·';
 
-  const systemByHex = new Map(FAR_MERIDIAN_SUBSECTOR.systems.map((system) => [system.hex, system]));
-  const cells = [];
-  for (let column = 1; column <= SUBSECTOR_COLUMNS; column += 1) {
-    for (let row = 1; row <= SUBSECTOR_ROWS; row += 1) {
-      const hex = formatSubsectorHex(column, row);
-      const system = systemByHex.get(hex) ?? null;
-      const cell = document.createElement('button');
-      cell.type = 'button';
-      cell.className = `hex-cell${column % 2 === 0 ? ' odd-column' : ''}`;
-      cell.style.gridColumn = String(column);
-      cell.style.gridRow = String(row);
-      cell.setAttribute('role', 'gridcell');
-
-      const coordinate = document.createElement('span');
-      coordinate.className = 'hex-coordinate';
-      coordinate.textContent = hex;
-      cell.append(coordinate);
-
-      if (!system) {
-        cell.disabled = true;
-        cell.setAttribute('aria-label', `Empty hex ${hex}`);
-        cells.push(cell);
-        continue;
-      }
-
-      cell.classList.add('system');
-      if (!current || reachable.has(system.id)) cell.classList.add('reachable');
-      if (current?.id === system.id) cell.classList.add('current');
-      if (selected?.id === system.id) cell.classList.add('selected');
-
-      const label = document.createElement('span');
-      label.className = 'hex-system-name';
-      label.textContent = system.name;
-      cell.append(label);
-      const relation = current?.id === system.id
-        ? 'current system'
-        : reachable.has(system.id)
-          ? `${reachable.get(system.id)} parsecs, in range`
-          : current
-            ? 'out of range'
-            : 'available starting system';
-      cell.setAttribute('aria-label', `${system.name}, hex ${hex}, ${relation}`);
-      cell.title = `${system.name} / ${system.mainWorld.name} / ${hex} / ${relation}`;
-      cell.addEventListener('click', () => selectSubsectorSystem(system.id));
-      cells.push(cell);
-    }
-  }
-  el.subsectorMap.replaceChildren(...cells);
+  el.subsectorMap.replaceChildren(renderSubsectorSvg({ current, selected, reachable }));
 
   const distance = current && selected && current.id !== selected.id
     ? jumpDistanceBetweenSystems(FAR_MERIDIAN_SUBSECTOR, current.id, selected.id)

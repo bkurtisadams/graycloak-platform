@@ -394,75 +394,104 @@ input[readonly] {
 }
 
 .subsector-map {
-  display: grid;
-  grid-template-columns: repeat(8, minmax(86px, 1fr));
-  grid-template-rows: repeat(10, 54px);
-  gap: 3px 5px;
-  min-width: 780px;
-  padding: 4px 2px 31px;
-  overflow: visible;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 8px 0 10px;
+  overflow: auto;
   border-top: 1px solid var(--rule);
   border-bottom: 1px solid var(--rule);
 }
 
-.hex-cell {
-  min-width: 0;
-  height: 54px;
-  border: 1px solid var(--disabled);
-  border-radius: 0;
-  padding: 4px 6px;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 11px;
-  line-height: 1.1;
-  text-align: left;
-  cursor: default;
-  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+.subsector-svg {
+  display: block;
+  height: min(64vh, 640px);
+  width: auto;
+  flex: 0 0 auto;
+  overflow: visible;
+  font-family: inherit;
 }
 
-.hex-cell.odd-column { transform: translateY(27px); }
+.subsector-hex-shape {
+  fill: transparent;
+  stroke: var(--disabled);
+  stroke-width: 0.8;
+  vector-effect: non-scaling-stroke;
+}
 
-.hex-cell.system {
-  border-color: var(--rule);
-  color: var(--ink);
+.subsector-hex.empty-hex .subsector-hex-coordinate {
+  opacity: 0.58;
+}
+
+.subsector-hex.system-hex {
   cursor: pointer;
 }
 
-.hex-cell.reachable {
-  background: var(--action-ready);
-  border-color: var(--action-border);
+.subsector-hex.system-hex .subsector-hex-shape {
+  stroke: var(--rule);
+  stroke-width: 1;
 }
 
-.hex-cell.current {
-  background: var(--attention);
-  border-color: var(--attention-border);
+.subsector-hex.reachable .subsector-hex-shape {
+  fill: var(--action-ready);
+  stroke: var(--action-border);
+}
+
+.subsector-hex.current .subsector-hex-shape {
+  fill: var(--attention);
+  stroke: var(--attention-border);
+  stroke-width: 1.35;
+}
+
+.subsector-hex.selected .subsector-hex-shape {
+  stroke: var(--link);
+  stroke-width: 2.4;
+}
+
+.subsector-hex.system-hex:hover .subsector-hex-shape,
+.subsector-hex.system-hex:focus-visible .subsector-hex-shape {
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.subsector-hex.system-hex:focus-visible {
+  outline: none;
+}
+
+.subsector-hex-coordinate {
+  fill: var(--muted);
+  font-size: 7px;
+  font-weight: 400;
+  pointer-events: none;
+  user-select: none;
+}
+
+.subsector-system-marker {
+  fill: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+  pointer-events: none;
+  user-select: none;
+}
+
+.subsector-system-name {
+  fill: var(--ink);
+  font-size: 8.7px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+  user-select: none;
+}
+
+.subsector-hex.current .subsector-system-name,
+.subsector-hex.current .subsector-system-marker {
   font-weight: 700;
 }
 
-.hex-cell.selected {
-  outline: 2px solid var(--link);
-  outline-offset: -3px;
-}
-
-.hex-cell.system:hover,
-.hex-cell.system:focus-visible {
-  outline: 2px dotted var(--ink);
-  outline-offset: -4px;
-}
-
-.hex-coordinate {
-  display: block;
-  color: var(--muted);
-  font-size: 10px;
-}
-
-.hex-system-name {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 700;
+@media (max-width: 760px) {
+  .subsector-map { justify-content: flex-start; }
+  .subsector-svg { height: 540px; }
 }
 
 .jump-plan {
@@ -473,6 +502,3 @@ input[readonly] {
   margin-top: 2px;
 }
 
-@media (max-width: 900px) {
-  #subsector-section { overflow-x: auto; }
-}
