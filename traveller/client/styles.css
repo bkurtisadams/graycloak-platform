@@ -129,6 +129,21 @@ input[type="number"] {
 input[type="number"] { width: 7ch; }
 input:focus-visible { outline: 2px solid var(--link); outline-offset: 1px; }
 
+.field-with-tool {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1ch;
+  align-items: center;
+  min-width: 0;
+}
+
+.field-with-tool input { min-width: 0; width: 100%; }
+
+.field-tool {
+  white-space: nowrap;
+  font-size: 12px;
+}
+
 .record,
 .history {
   margin: 0;
@@ -283,6 +298,7 @@ input:focus-visible { outline: 2px solid var(--link); outline-offset: 1px; }
   .two-column { grid-template-columns: 1fr; gap: 18px; }
   .section-title::after { content: " ─────"; }
   .name-line { grid-template-columns: 8ch 1fr; }
+  .field-with-tool { grid-template-columns: minmax(0, 1fr) auto; }
 }
 
 .two-column > .help-panel { grid-column: 1 / -1; }
@@ -291,4 +307,28 @@ input:focus-visible { outline: 2px solid var(--link); outline-offset: 1px; }
   border-top: 2px solid var(--rule);
   border-bottom: 2px solid var(--rule);
   padding: 8px 0;
+}
+
+.ship-fields {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(240px, 1fr);
+  gap: 8px 22px;
+  margin-bottom: 7px;
+}
+
+.ship-field {
+  display: grid;
+  grid-template-columns: 10ch minmax(0, 1fr);
+  gap: 1ch;
+  align-items: center;
+}
+
+.ship-record {
+  border-top: 2px solid var(--rule);
+  border-bottom: 2px solid var(--rule);
+  padding: 8px 0;
+}
+
+@media (max-width: 760px) {
+  .ship-fields { grid-template-columns: 1fr; }
 }

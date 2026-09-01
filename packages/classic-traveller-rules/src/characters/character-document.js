@@ -2,13 +2,19 @@ import { CHARACTERISTIC_KEYS, formatUPP } from './upp.js';
 import { CHARGEN_PHASES } from './chargen.js';
 import { assertValidCharacter } from './serialization.js';
 import { SERVICE_KEYS, getService } from '../careers/services.js';
+import { stableDocumentId } from '../documents/ids.js';
 
 export const CHARACTER_DOCUMENT_TYPE = 'classic-traveller-character';
-export const CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION = 1;
-export const SUPPORTED_CHARACTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1]);
+export const CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION = 2;
+export const SUPPORTED_CHARACTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2]);
 
 const SERVICE_VALUES = new Set(SERVICE_KEYS);
 const TOP_LEVEL_KEYS = new Set([
+  'documentType', 'schemaVersion', 'identity', 'age', 'chronology',
+  'characteristics', 'upp', 'status', 'career', 'skills', 'finances',
+  'benefits', 'shipRefs', 'history', 'notes', 'provenance'
+]);
+const LEGACY_V1_TOP_LEVEL_KEYS = new Set([
   'documentType', 'schemaVersion', 'identity', 'age', 'chronology',
   'characteristics', 'upp', 'status', 'career', 'skills', 'finances',
   'benefits', 'history', 'notes', 'provenance'
@@ -72,10 +78,27 @@ function aggregateNamed(benefits) {
     .map(([name, count]) => ({ name, count }));
 }
 
-export function summarizeMaterialBenefits(materialBenefits = []) {
-  if (!Array.isArray(materialBenefits)) {
-    throw new TypeError('materialBenefits must be an array');
+function normalizeShipEntitlement(name, rolls) {
+  if (name === 'Scout Ship') {
+    return {
+      name,
+      rolls,
+      effectiveCount: 1,
+      noEffectCount: Math.max(0, rolls - 1),
+      disposition: 'reserve-assignment-available'
+    };
   }
+  return {
+    name,
+    rolls,
+    effectiveCount: null,
+    noEffectCount: 0,
+    disposition: 'unresolved'
+  };
+}
+
+export function summarizeMaterialBenefits(materialBenefits = []) {
+  if (!Array.isArray(materialBenefits)) throw new TypeError('materialBenefits must be an array');
 
   const passages = [];
   const memberships = [];
@@ -108,14 +131,33 @@ export function summarizeMaterialBenefits(materialBenefits = []) {
     passages: aggregateNamed(passages),
     memberships: aggregateNamed(memberships),
     equipment: [...groupedEquipment.values()].sort((a, b) => a.name.localeCompare(b.name)),
-    shipEntitlements: aggregateNamed(ships).map((entry) => ({
-      ...entry,
-      disposition: 'unresolved'
-    }))
+    shipEntitlements: aggregateNamed(ships).map(({ name, count }) => normalizeShipEntitlement(name, count))
   };
 }
 
-export function createCharacterDocument(character, { aliases = [], notes = '' } = {}) {
+function characterDocumentSeedFromChargen(character) {
+  return JSON.stringify({
+    name: character.name,
+    upp: character.upp,
+    service: character.service,
+    terms: character.terms,
+    yearsServed: character.yearsServed,
+    history: character.history
+  });
+}
+
+function characterDocumentSeedFromLegacy(document) {
+  return JSON.stringify({
+    name: document.identity?.name ?? '',
+    upp: document.upp,
+    service: document.career?.service,
+    terms: document.career?.terms,
+    yearsServed: document.career?.yearsServed,
+    history: document.history
+  });
+}
+
+export function createCharacterDocument(character, { id, aliases = [], notes = '' } = {}) {
   assertValidCharacter(character);
   if (character.phase !== CHARGEN_PHASES.COMPLETE) {
     throw new CharacterDocumentValidationError('only a completed chargen state can become a gameplay character document');
@@ -123,6 +165,7 @@ export function createCharacterDocument(character, { aliases = [], notes = '' } 
   if (!character.alive) {
     throw new CharacterDocumentValidationError('a deceased chargen state cannot become a playable character document');
   }
+  if (id !== undefined && (typeof id !== 'string' || !id.trim())) throw new TypeError('id must be a nonblank string');
   if (!Array.isArray(aliases) || aliases.some((alias) => typeof alias !== 'string')) {
     throw new TypeError('aliases must be an array of strings');
   }
@@ -132,6 +175,7 @@ export function createCharacterDocument(character, { aliases = [], notes = '' } 
     documentType: CHARACTER_DOCUMENT_TYPE,
     schemaVersion: CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION,
     identity: {
+      id: id?.trim() ?? stableDocumentId('char', characterDocumentSeedFromChargen(character)),
       name: character.name,
       aliases: [...aliases]
     },
@@ -162,6 +206,7 @@ export function createCharacterDocument(character, { aliases = [], notes = '' } 
       retirementPayAnnual: character.retirementPayAnnual
     },
     benefits: summarizeMaterialBenefits(character.materialBenefits),
+    shipRefs: [],
     history: cloneJson(character.history),
     notes,
     provenance: {
@@ -177,6 +222,7 @@ export function createCharacterDocument(character, { aliases = [], notes = '' } 
 function validateIdentity(document, errors) {
   add(errors, isPlainObject(document.identity), 'identity must be an object');
   if (!isPlainObject(document.identity)) return;
+  add(errors, typeof document.identity.id === 'string' && document.identity.id.trim().length > 0, 'identity.id must be a nonblank string');
   add(errors, typeof document.identity.name === 'string', 'identity.name must be a string');
   add(errors, Array.isArray(document.identity.aliases), 'identity.aliases must be an array');
   if (Array.isArray(document.identity.aliases)) {
@@ -236,7 +282,16 @@ function validateBenefits(document, errors) {
   for (const key of ['raw', 'passages', 'memberships', 'equipment', 'shipEntitlements']) {
     add(errors, Array.isArray(benefits[key]), `benefits.${key} must be an array`);
   }
-  for (const key of ['passages', 'memberships', 'equipment', 'shipEntitlements']) {
+
+  const rawShipCounts = new Map();
+  if (Array.isArray(benefits.raw)) {
+    for (const benefit of benefits.raw) {
+      if (!isPlainObject(benefit) || benefit.type !== 'material') continue;
+      if (benefit.name !== 'Scout Ship' && benefit.name !== 'Free Trader') continue;
+      rawShipCounts.set(benefit.name, (rawShipCounts.get(benefit.name) ?? 0) + 1);
+    }
+  }
+  for (const key of ['passages', 'memberships', 'equipment']) {
     if (!Array.isArray(benefits[key])) continue;
     for (const entry of benefits[key]) {
       add(errors, isPlainObject(entry), `benefits.${key} entries must be objects`);
@@ -247,7 +302,42 @@ function validateBenefits(document, errors) {
   }
   if (Array.isArray(benefits.shipEntitlements)) {
     for (const entry of benefits.shipEntitlements) {
-      if (isPlainObject(entry)) add(errors, entry.disposition === 'unresolved', 'ship entitlement disposition must be unresolved until the ship system resolves it');
+      add(errors, isPlainObject(entry), 'benefits.shipEntitlements entries must be objects');
+      if (!isPlainObject(entry)) continue;
+      add(errors, typeof entry.name === 'string' && entry.name.length > 0, 'ship entitlement name must be nonblank');
+      add(errors, integerAtLeast(entry.rolls, 1), 'ship entitlement rolls must be a positive integer');
+      add(errors, entry.effectiveCount === null || integerAtLeast(entry.effectiveCount, 1), 'ship entitlement effectiveCount must be null or a positive integer');
+      add(errors, integerAtLeast(entry.noEffectCount, 0), 'ship entitlement noEffectCount must be a non-negative integer');
+      add(errors, typeof entry.disposition === 'string' && entry.disposition.length > 0, 'ship entitlement disposition must be nonblank');
+      if (rawShipCounts.has(entry.name)) {
+        add(errors, entry.rolls === rawShipCounts.get(entry.name), `${entry.name} entitlement rolls must match raw benefits`);
+      }
+      if (entry.name === 'Scout Ship') {
+        add(errors, entry.effectiveCount === 1, 'Scout Ship effectiveCount must be 1');
+        add(errors, entry.noEffectCount === entry.rolls - 1, 'Scout Ship additional results must have no further effect');
+        add(errors, ['reserve-assignment-available', 'reserve-assignment-active'].includes(entry.disposition), 'Scout Ship disposition must describe its reserve assignment state');
+      }
+    }
+    for (const [name] of rawShipCounts) {
+      add(errors, benefits.shipEntitlements.some((entry) => entry?.name === name), `${name} raw benefit requires a ship entitlement`);
+    }
+  }
+}
+
+function validateShipRefs(document, errors) {
+  add(errors, Array.isArray(document.shipRefs), 'shipRefs must be an array');
+  if (!Array.isArray(document.shipRefs)) return;
+  const seen = new Set();
+  for (const ref of document.shipRefs) {
+    add(errors, isPlainObject(ref), 'shipRefs entries must be objects');
+    if (!isPlainObject(ref)) continue;
+    add(errors, typeof ref.shipId === 'string' && ref.shipId.length > 0, 'shipRefs.shipId must be nonblank');
+    add(errors, typeof ref.relationship === 'string' && ref.relationship.length > 0, 'shipRefs.relationship must be nonblank');
+    add(errors, typeof ref.shipType === 'string', 'shipRefs.shipType must be a string');
+    add(errors, typeof ref.shipName === 'string', 'shipRefs.shipName must be a string');
+    if (typeof ref.shipId === 'string') {
+      add(errors, !seen.has(ref.shipId), `duplicate ship reference: ${ref.shipId}`);
+      seen.add(ref.shipId);
     }
   }
 }
@@ -297,6 +387,16 @@ export function validateCharacterDocument(document) {
   }
 
   validateBenefits(document, errors);
+  validateShipRefs(document, errors);
+  if (Array.isArray(document.benefits?.shipEntitlements) && Array.isArray(document.shipRefs)) {
+    const scout = document.benefits.shipEntitlements.find((entry) => entry?.name === 'Scout Ship');
+    const reserveRefs = document.shipRefs.filter((entry) => entry?.relationship === 'reserve-assignee');
+    if (scout?.disposition === 'reserve-assignment-available') {
+      add(errors, reserveRefs.length === 0, 'available Scout Ship entitlement cannot already have a reserve-assignee ship reference');
+    } else if (scout?.disposition === 'reserve-assignment-active') {
+      add(errors, reserveRefs.length === 1, 'active Scout Ship entitlement must have exactly one reserve-assignee ship reference');
+    }
+  }
   add(errors, Array.isArray(document.history), 'history must be an array');
   add(errors, typeof document.notes === 'string', 'notes must be a string');
   add(errors, isPlainObject(document.provenance), 'provenance must be an object');
@@ -314,6 +414,40 @@ export function assertValidCharacterDocument(document) {
   return document;
 }
 
+function migrateV1CharacterDocument(document) {
+  if (!isPlainObject(document)) throw new CharacterDocumentValidationError('character document must be an object');
+  for (const key of Object.keys(document)) {
+    if (!LEGACY_V1_TOP_LEVEL_KEYS.has(key)) throw new CharacterDocumentValidationError(`unknown top-level field: ${key}`);
+  }
+  if (document.documentType !== CHARACTER_DOCUMENT_TYPE) {
+    throw new CharacterDocumentValidationError(`documentType must be ${CHARACTER_DOCUMENT_TYPE}`);
+  }
+  if (document.schemaVersion !== 1) throw new CharacterDocumentValidationError(`unsupported character document schemaVersion: ${document.schemaVersion}`);
+
+  const migrated = cloneJson(document);
+  migrated.schemaVersion = CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION;
+  migrated.identity = {
+    id: stableDocumentId('char', characterDocumentSeedFromLegacy(document)),
+    name: document.identity?.name ?? '',
+    aliases: Array.isArray(document.identity?.aliases) ? [...document.identity.aliases] : []
+  };
+  migrated.shipRefs = [];
+  if (isPlainObject(migrated.benefits) && Array.isArray(migrated.benefits.shipEntitlements)) {
+    migrated.benefits.shipEntitlements = migrated.benefits.shipEntitlements.map((entry) => {
+      const rolls = Number.isInteger(entry?.count) && entry.count > 0 ? entry.count : 1;
+      return normalizeShipEntitlement(entry?.name ?? '', rolls);
+    });
+  }
+  return migrated;
+}
+
+export function migrateCharacterDocument(document) {
+  if (!isPlainObject(document)) throw new CharacterDocumentValidationError('character document must be an object');
+  if (document.schemaVersion === CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION) return cloneJson(document);
+  if (document.schemaVersion === 1) return migrateV1CharacterDocument(document);
+  throw new CharacterDocumentValidationError(`unsupported character document schemaVersion: ${document.schemaVersion}`);
+}
+
 export function exportCharacterDocument(document, { space = 2 } = {}) {
   assertValidCharacterDocument(document);
   return JSON.stringify(document, null, space);
@@ -328,6 +462,45 @@ export function importCharacterDocument(input) {
       throw new CharacterDocumentValidationError(`invalid JSON: ${error.message}`);
     }
   }
-  assertValidCharacterDocument(parsed);
-  return cloneJson(parsed);
+  const migrated = migrateCharacterDocument(parsed);
+  assertValidCharacterDocument(migrated);
+  return cloneJson(migrated);
+}
+
+export function updateCharacterShipReference(document, { shipId, shipType, shipName, relationship } = {}) {
+  assertValidCharacterDocument(document);
+  if (typeof shipId !== 'string' || !shipId.trim()) throw new TypeError('shipId must be a nonblank string');
+  if (shipType !== undefined && typeof shipType !== 'string') throw new TypeError('shipType must be a string when provided');
+  if (shipName !== undefined && typeof shipName !== 'string') throw new TypeError('shipName must be a string when provided');
+  if (relationship !== undefined && (typeof relationship !== 'string' || !relationship.trim())) {
+    throw new TypeError('relationship must be a nonblank string when provided');
+  }
+
+  const next = cloneJson(document);
+  const ref = next.shipRefs.find((entry) => entry.shipId === shipId.trim());
+  if (!ref) throw new CharacterDocumentValidationError(`character does not reference ship ${shipId.trim()}`);
+  if (shipType !== undefined) ref.shipType = shipType;
+  if (shipName !== undefined) ref.shipName = shipName;
+  if (relationship !== undefined) ref.relationship = relationship.trim();
+  assertValidCharacterDocument(next);
+  return next;
+}
+
+export function linkCharacterToShip(document, { shipId, relationship, shipType = '', shipName = '' } = {}) {
+  assertValidCharacterDocument(document);
+  if (typeof shipId !== 'string' || !shipId.trim()) throw new TypeError('shipId must be a nonblank string');
+  if (typeof relationship !== 'string' || !relationship.trim()) throw new TypeError('relationship must be a nonblank string');
+  if (typeof shipType !== 'string' || typeof shipName !== 'string') throw new TypeError('shipType and shipName must be strings');
+  if (document.shipRefs.some((entry) => entry.shipId === shipId)) {
+    throw new CharacterDocumentValidationError(`character already references ship ${shipId}`);
+  }
+
+  const next = cloneJson(document);
+  next.shipRefs.push({ shipId: shipId.trim(), relationship: relationship.trim(), shipType, shipName });
+  if (relationship === 'reserve-assignee') {
+    const scout = next.benefits.shipEntitlements.find((entry) => entry.name === 'Scout Ship');
+    if (scout?.disposition === 'reserve-assignment-available') scout.disposition = 'reserve-assignment-active';
+  }
+  assertValidCharacterDocument(next);
+  return next;
 }

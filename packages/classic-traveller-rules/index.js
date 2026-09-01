@@ -1,5 +1,5 @@
-// @graycloak/classic-traveller-rules v0.6.0
-// Source-backed Classic Traveller Book 1 character-generation engine.
+// @graycloak/classic-traveller-rules v0.7.1
+// Source-backed Classic Traveller Books 1-2 character and starship engine.
 // Pure rules/state logic: no host, UI, persistence, Foundry, or Firebase dependencies.
 
 export {
@@ -109,5 +109,34 @@ export {
   validateCharacterDocument,
   assertValidCharacterDocument,
   exportCharacterDocument,
-  importCharacterDocument
+  importCharacterDocument,
+  migrateCharacterDocument,
+  linkCharacterToShip,
+  updateCharacterShipReference
 } from './src/characters/character-document.js';
+
+export {
+  stableDocumentId
+} from './src/documents/ids.js';
+
+export {
+  TYPE_S_SCOUT_COURIER_KEY,
+  TYPE_S_SCOUT_COURIER,
+  STANDARD_SHIP_DESIGN_KEYS,
+  getStandardShipDesign
+} from './src/starships/standard-designs.js';
+
+export {
+  SHIP_DOCUMENT_TYPE,
+  CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION,
+  SUPPORTED_SHIP_DOCUMENT_SCHEMA_VERSIONS,
+  ShipDocumentValidationError,
+  createShipDocument,
+  validateShipDocument,
+  assertValidShipDocument,
+  exportShipDocument,
+  importShipDocument,
+  updateShipIdentity,
+  updateShipAssignedCharacterName,
+  createTypeSScoutReserveShipForCharacter
+} from './src/starships/ship-document.js';

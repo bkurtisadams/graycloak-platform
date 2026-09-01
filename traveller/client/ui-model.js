@@ -53,11 +53,15 @@ export const ACTION_LABELS = Object.freeze({
 export const HELP_TOPICS = Object.freeze({
   'personnel-record': Object.freeze({
     title: 'PERSONNEL RECORD',
-    body: 'The Universal Personality Profile (UPP) lists STR, DEX, END, INT, EDU, and SOC in that order. Values above 9 use Traveller hexadecimal notation, so A means 10, B means 11, and so on. The record also shows your current service, rank, terms, skills, credits, benefits, and chargen phase.'
+    body: 'The Universal Personality Profile (UPP) lists STR, DEX, END, INT, EDU, and SOC in that order. Values above 9 use Traveller hexadecimal notation, so A means 10, B means 11, and so on. The record also shows your current service, rank, terms, skills, credits, benefits, and chargen phase. RANDOM beside the name field is an optional client-side naming aid, not a Classic Traveller rule; you may always type your own name.'
   }),
   'final-character-record': Object.freeze({
     title: 'FINAL PERSONNEL RECORD',
-    body: 'This is the compact gameplay-facing character record derived from completed chargen. It keeps the final UPP, career, skills, finances, benefits, and service history without carrying temporary chargen phases or pending-action state. Ship results remain entitlements until the ship system resolves their exact ownership or disposition.'
+    body: 'This is the compact gameplay-facing character record derived from completed chargen. It keeps the final UPP, career, skills, finances, benefits, service history, and references to separately stored ships. A Scout Ship benefit is a reserve assignment: only one may be acquired, later Scout Ship results have no further effect, the vessel is recallable, and it cannot be sold by the character.'
+  }),
+  'ship-register': Object.freeze({
+    title: "SHIP'S REGISTER",
+    body: 'The ship is a separate persistent document referenced by character ID and ship ID. The Type S record comes from the Book 2 standard Scout/Courier design. Authority is shown separately from assignment: a Scout benefit provides a reserve vessel subject to Scout Service recall and does not make the character an unrestricted owner. RANDOM ship names and generated S-##### registry numbers are optional project utilities, not formats prescribed by Classic Traveller RAW.'
   }),
   'service-history': Object.freeze({
     title: 'SERVICE HISTORY',
@@ -173,7 +177,7 @@ const PROCEDURE_TEXT = Object.freeze({
   'muster-out-required': 'Service has ended. Begin mustering out to determine cash and material benefits.',
   'muster-out-rolls-pending': 'Choose the Cash or Benefits table for each remaining mustering-out roll.',
   'muster-benefit-specialization-required': 'A Gun or Blade benefit requires immediate declaration of a specific legal weapon. Choose from the list below.',
-  complete: 'Character generation is complete. Export the final gameplay character document, preserve the chargen record if desired, or begin a new character.',
+  complete: 'Character generation is complete. Export the gameplay character document. If a Scout Ship reserve assignment is available, assign its separate Ship Document before entering campaign play.',
   dead: 'The character died during generation. Save the record if desired, or begin a new character.'
 });
 
@@ -263,7 +267,11 @@ function groupedBenefitLines(benefits = {}) {
   for (const entry of benefits.memberships ?? []) lines.push(`MEMBERSHIP ${entry.name}${entry.count > 1 ? ` ×${entry.count}` : ''}`);
   for (const entry of benefits.equipment ?? []) lines.push(`EQUIPMENT ${entry.name}${entry.count > 1 ? ` ×${entry.count}` : ''}`);
   for (const entry of benefits.shipEntitlements ?? []) {
-    lines.push(`SHIP ENTITLEMENT ${entry.name}${entry.count > 1 ? ` ×${entry.count}` : ''} / DISPOSITION ${String(entry.disposition ?? 'unresolved').toUpperCase()}`);
+    const rolled = Number(entry.rolls ?? 0);
+    const effective = entry.effectiveCount === null ? 'UNRESOLVED' : String(entry.effectiveCount);
+    const ignored = Number(entry.noEffectCount ?? 0);
+    lines.push(`SHIP ENTITLEMENT ${entry.name} / ROLLS ${rolled} / EFFECTIVE ${effective} / ${String(entry.disposition ?? 'unresolved').toUpperCase()}`);
+    if (ignored > 0) lines.push(`  ADDITIONAL ${entry.name.toUpperCase()} RESULTS WITH NO FURTHER EFFECT: ${ignored}`);
   }
   return lines.length ? lines : ['BENEFITS none'];
 }
@@ -278,7 +286,7 @@ export function buildFinalCharacterRecord(document) {
   const benefitLines = groupedBenefitLines(document.benefits);
 
   return box([
-    'FINAL PERSONNEL RECORD // GAMEPLAY DOCUMENT v1',
+    `FINAL PERSONNEL RECORD // GAMEPLAY DOCUMENT v${document.schemaVersion}`,
     `NAME ${document.identity.name || '(unnamed)'}`,
     `UPP ${document.upp}    AGE ${document.age}    STATUS ${document.status.alive ? 'ALIVE' : 'DECEASED'}`,
     `STR ${c.STR}    DEX ${c.DEX}    END ${c.END}    INT ${c.INT}    EDU ${c.EDU}    SOC ${c.SOC}`,
@@ -286,8 +294,52 @@ export function buildFinalCharacterRecord(document) {
     `TERMS ${career.terms}    YEARS SERVED ${career.yearsServed}    DRAFTED ${career.drafted ? 'YES' : 'NO'}`,
     `CREDITS ${formatCredits(document.finances.credits)}    RETIRED ${retired}`,
     `SKILLS ${formatSkills(document.skills)}`,
-    ...benefitLines
+    ...benefitLines,
+    ...(document.shipRefs?.length
+      ? document.shipRefs.map((ref) => `SHIP REF ${ref.shipId} / ${ref.relationship.toUpperCase()}${ref.shipName ? ` / ${ref.shipName}` : ''}`)
+      : ['SHIP REF none'])
   ], 82);
+}
+
+export function buildShipRecord(ship) {
+  const s = ship.specifications;
+  const authority = ship.authority;
+  const turret = s.armament.turrets[0];
+  const weapons = turret?.weapons?.length ? turret.weapons.join(', ') : 'NONE INSTALLED';
+  const fuelCurrent = ship.state.currentFuelTons === null ? '--' : ship.state.currentFuelTons;
+  const cargoUsed = ship.state.cargoUsedTons === null ? '--' : ship.state.cargoUsedTons;
+  const crew = ship.crew.assignments.length
+    ? ship.crew.assignments.map((entry) => `${entry.role.toUpperCase()} ${entry.characterName || entry.characterId}`).join(' / ')
+    : 'none';
+  const pilotAssignment = ship.crew.assignments.find((entry) => entry.role === 'pilot');
+  const standardEngineeringDuty = s.crew.standardCount === 1
+    && s.crew.standardDuties.includes('pilot')
+    && s.crew.standardDuties.includes('engineer')
+    && pilotAssignment;
+  const engineeringDutyLine = standardEngineeringDuty
+    ? `ENGINEERING DUTIES ${pilotAssignment.characterName || pilotAssignment.characterId} / STANDARD TYPE S DUTY; ENGINEERING SKILL NOT IMPLIED`
+    : null;
+
+  return box([
+    "SHIP'S REGISTER // GAMEPLAY DOCUMENT v1",
+    `ID ${ship.identity.id}`,
+    `NAME ${ship.identity.name || '(not assigned)'}    REGISTRY ${ship.identity.registry || '(not assigned)'}    STATUS ${ship.state.operationalStatus.toUpperCase()}`,
+    `TYPE ${ship.design.typeCode} ${ship.design.name.toUpperCase()}    HULL ${s.hull.tons}t ${s.hull.standard ? 'STANDARD' : 'CUSTOM'} / ${s.hull.streamlined ? 'STREAMLINED' : 'UNSTREAMLINED'}`,
+    `JUMP ${s.drives.jump.rating} (${s.drives.jump.letter})    MANEUVER ${s.drives.maneuver.rating}G (${s.drives.maneuver.letter})    POWER ${s.drives.powerPlant.letter}`,
+    `FUEL ${fuelCurrent}/${s.fuel.capacityTons}t    COMPUTER MODEL/${s.computer.model} CPU ${s.computer.cpu} STORAGE ${s.computer.storage}`,
+    `STATEROOMS ${s.accommodations.staterooms}    LOW BERTHS ${s.accommodations.lowBerths}    CARGO ${cargoUsed}/${s.cargo.capacityTons}t`,
+    `TURRET ${turret?.mount?.toUpperCase() ?? 'NONE'} / FIRE CONTROL ${turret?.fireControlInstalled ? 'INSTALLED' : 'NONE'} / WEAPONS ${weapons}`,
+    `VEHICLE ${s.vehicles.map((vehicle) => vehicle.name).join(', ') || 'none'}`,
+    `STANDARD CREW ${s.crew.standardCount} / DUTIES ${s.crew.standardDuties.map((duty) => duty.toUpperCase()).join(' + ')}`,
+    `ASSIGNED CREW ${crew}`,
+    ...(engineeringDutyLine ? [engineeringDutyLine] : []),
+    `CONTROL ${authority.controllingAuthority}    ASSIGNMENT ${authority.assignmentType.toUpperCase()}    RECALLABLE ${authority.recallable ? 'YES' : 'NO'}`,
+    `CHARACTER TITLE ${authority.characterOwnsShip ? 'RECORDED' : 'NOT GRANTED BY BENEFIT'}    SALE ALLOWED ${authority.saleAllowed ? 'YES' : 'NO'}    USE AS DESIRED ${authority.useAsDesired ? 'YES' : 'NO'}`,
+    `LEGAL TITLE HOLDER ${authority.legalTitleHolder ?? 'NOT EXPLICITLY STATED IN BOOK 1'}`,
+    `FUEL AT SCOUT BASES ${authority.servicePrivileges.freeFuelAtScoutBases ? 'FREE' : 'NORMAL COST'}    CLASS B SCOUT-BASE MAINT ${authority.servicePrivileges.freeMaintenanceAtScoutBasesAtClassBStarports ? 'FREE' : 'NORMAL COST'}`,
+    `STANDARD COST MCr${s.economics.newCostMCr.toFixed(2)}    BUILD ${s.economics.buildMonths} MONTHS    ANNUAL MAINT ${formatCredits(s.economics.annualRoutineMaintenanceCr)}`,
+    `MAINTENANCE STATUS ${ship.state.maintenance.status.toUpperCase()}`
+  ], 96);
 }
 
 function diceText(event) {

@@ -36,12 +36,12 @@ test('terminal presentation avoids rounded-card styling', async () => {
   assert.doesNotMatch(css, /box-shadow/);
 });
 
-test('v0.6.0 retains contextual help and highlighted legal actions', async () => {
+test('v0.7.1 retains contextual help and highlighted legal actions', async () => {
   const html = await read('index.html');
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /CLIENT v0\.6\.0/);
+  assert.match(html, /CLIENT v0\.7\.1/);
   assert.match(html, /data-help-topic="personnel-record"/);
   assert.match(html, /id="context-help"/);
   assert.match(app, /helpForTopic/);
@@ -54,11 +54,11 @@ test('v0.6.0 retains contextual help and highlighted legal actions', async () =>
   assert.match(css, /\.help-panel/);
 });
 
-test('v0.6.0 specialization UI uses engine-supplied legal choices instead of free text', async () => {
+test('v0.7.1 specialization UI uses engine-supplied legal choices instead of free text', async () => {
   const html = await read('index.html');
   const app = await read('app.js');
 
-  assert.match(html, /CLIENT v0\.6\.0/);
+  assert.match(html, /CLIENT v0\.7\.1/);
   assert.match(app, /available\.choices\.specializations/);
   assert.doesNotMatch(app, /id = 'skill-specialization'/);
   assert.doesNotMatch(app, /id = 'benefit-specialization'/);
@@ -66,7 +66,7 @@ test('v0.6.0 specialization UI uses engine-supplied legal choices instead of fre
 });
 
 
-test('v0.6.0 exposes a separate gameplay character export after chargen', async () => {
+test('v0.7.1 exposes character and ship document actions after chargen', async () => {
   const html = await read('index.html');
   const app = await read('app.js');
   const model = await read('ui-model.js');
@@ -76,6 +76,25 @@ test('v0.6.0 exposes a separate gameplay character export after chargen', async 
   assert.match(app, /createCharacterDocument/);
   assert.match(app, /exportCharacterDocument/);
   assert.match(app, /EXPORT CHARACTER/);
+  assert.match(app, /ASSIGN SCOUT SHIP/);
+  assert.match(app, /EXPORT SHIP/);
+  assert.match(app, /createTypeSScoutReserveShipForCharacter/);
+  assert.match(html, /id="ship-section"/);
+  assert.match(html, /SHIP'S REGISTER/);
   assert.match(model, /FINAL PERSONNEL RECORD/);
   assert.match(model, /SHIP ENTITLEMENT/);
+  assert.match(model, /buildShipRecord/);
+});
+
+
+test('v0.7.1 exposes opt-in character, ship, and registry generators', async () => {
+  const html = await read('index.html');
+  const app = await read('app.js');
+
+  assert.match(html, /id="random-character-name"/);
+  assert.match(html, /id="random-ship-name"/);
+  assert.match(html, /id="generate-ship-registry"/);
+  assert.match(app, /generateCharacterName/);
+  assert.match(app, /generateShipName/);
+  assert.match(app, /generateShipRegistry/);
 });

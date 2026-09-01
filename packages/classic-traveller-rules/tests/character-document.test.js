@@ -53,7 +53,9 @@ test('completed chargen state converts to a compact gameplay character document'
 
   assert.equal(document.documentType, CHARACTER_DOCUMENT_TYPE);
   assert.equal(document.schemaVersion, CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION);
-  assert.deepEqual(document.identity, { name: 'Avery', aliases: ['Test Call Sign'] });
+  assert.match(document.identity.id, /^char-[0-9a-f]{16}$/);
+  assert.equal(document.identity.name, 'Avery');
+  assert.deepEqual(document.identity.aliases, ['Test Call Sign']);
   assert.equal(document.upp, chargen.upp);
   assert.deepEqual(document.characteristics, chargen.characteristics);
   assert.deepEqual(document.skills, chargen.skills);
@@ -78,7 +80,7 @@ test('incomplete chargen state cannot become a gameplay character document', () 
   );
 });
 
-test('material-benefit summary preserves duplicate ship results without inventing ownership semantics', () => {
+test('material-benefit summary applies the Book 1 duplicate Scout Ship rule', () => {
   const benefits = summarizeMaterialBenefits([
     { type: 'material', name: 'Scout Ship' },
     { type: 'material', name: 'Low Passage' },
@@ -88,8 +90,10 @@ test('material-benefit summary preserves duplicate ship results without inventin
   assert.deepEqual(benefits.passages, [{ name: 'Low Passage', count: 1 }]);
   assert.deepEqual(benefits.shipEntitlements, [{
     name: 'Scout Ship',
-    count: 2,
-    disposition: 'unresolved'
+    rolls: 2,
+    effectiveCount: 1,
+    noEffectCount: 1,
+    disposition: 'reserve-assignment-available'
   }]);
   assert.equal(benefits.raw.length, 3);
 });

@@ -1,0 +1,783 @@
+{
+  "documentType": "classic-traveller-character",
+  "schemaVersion": 1,
+  "identity": {
+    "name": "Hawkeye",
+    "aliases": []
+  },
+  "age": 38,
+  "chronology": {
+    "chronologicalAgeMonths": 456,
+    "physicalAgeMonths": 456,
+    "nextAgingCheckAgeMonths": 504
+  },
+  "characteristics": {
+    "STR": 10,
+    "DEX": 11,
+    "END": 5,
+    "INT": 6,
+    "EDU": 7,
+    "SOC": 8
+  },
+  "upp": "AB5678",
+  "status": {
+    "alive": true,
+    "retired": true
+  },
+  "career": {
+    "service": "scouts",
+    "drafted": false,
+    "terms": 5,
+    "yearsServed": 20,
+    "rank": 0,
+    "rankTitle": "",
+    "separationReason": "voluntary"
+  },
+  "skills": {
+    "Pilot": 1,
+    "Jack-of-All-Trades": 2,
+    "Electronics": 1,
+    "Navigation": 2,
+    "Laser Rifle": 1,
+    "Mechanical": 1,
+    "Grav Vehicle": 1
+  },
+  "finances": {
+    "credits": 80000,
+    "retirementPayAnnual": 4000
+  },
+  "benefits": {
+    "raw": [
+      {
+        "type": "material",
+        "name": "Scout Ship"
+      },
+      {
+        "type": "material",
+        "name": "Low Passage"
+      },
+      {
+        "type": "material",
+        "name": "Scout Ship"
+      }
+    ],
+    "passages": [
+      {
+        "name": "Low Passage",
+        "count": 1
+      }
+    ],
+    "memberships": [],
+    "equipment": [],
+    "shipEntitlements": [
+      {
+        "name": "Scout Ship",
+        "count": 2,
+        "disposition": "unresolved"
+      }
+    ]
+  },
+  "history": [
+    {
+      "type": "character-created",
+      "age": 18,
+      "upp": "BA6678"
+    },
+    {
+      "type": "enlistment",
+      "age": 18,
+      "service": "scouts",
+      "dice": [
+        4,
+        5
+      ],
+      "roll": 9,
+      "dm": 3,
+      "total": 12,
+      "target": 7,
+      "success": true
+    },
+    {
+      "type": "term-start",
+      "age": 18,
+      "term": 1,
+      "service": "scouts",
+      "drafted": false
+    },
+    {
+      "type": "survival",
+      "age": 18,
+      "term": 1,
+      "service": "scouts",
+      "dice": [
+        3,
+        4
+      ],
+      "roll": 7,
+      "dm": 0,
+      "total": 7,
+      "target": 7,
+      "success": true,
+      "outcome": "survived"
+    },
+    {
+      "type": "skill-roll",
+      "age": 18,
+      "term": 1,
+      "service": "scouts",
+      "table": "personal-development",
+      "tableName": "Personal Development",
+      "roll": 1,
+      "outcome": {
+        "type": "characteristic",
+        "characteristic": "STR",
+        "amount": 1
+      },
+      "result": {
+        "type": "characteristic",
+        "characteristic": "STR",
+        "amount": 1,
+        "newValue": 12
+      },
+      "skillsDue": 1
+    },
+    {
+      "type": "skill-roll",
+      "age": 18,
+      "term": 1,
+      "service": "scouts",
+      "table": "service-skills",
+      "tableName": "Service Skills",
+      "roll": 1,
+      "outcome": {
+        "type": "specialization",
+        "name": "Vehicle",
+        "specializationType": "vehicle"
+      },
+      "pendingSpecialization": "vehicle",
+      "skillsDue": 0
+    },
+    {
+      "type": "skill-specialization",
+      "age": 18,
+      "term": 1,
+      "service": "scouts",
+      "source": "Vehicle",
+      "specializationType": "vehicle",
+      "specialization": "Grav Vehicle",
+      "level": 1,
+      "skillsDue": 0
+    },
+    {
+      "type": "term-complete",
+      "age": 22,
+      "term": 1,
+      "service": "scouts",
+      "yearsServed": 4,
+      "rank": 0,
+      "rankTitle": "",
+      "automaticBenefits": [
+        {
+          "id": "scout-pilot",
+          "label": "Scout: Pilot-1",
+          "result": {
+            "type": "skill",
+            "name": "Pilot",
+            "level": 1
+          }
+        }
+      ],
+      "forcedSeparation": false,
+      "agingChecksDue": []
+    },
+    {
+      "type": "reenlistment",
+      "age": 22,
+      "service": "scouts",
+      "term": 1,
+      "dice": [
+        2,
+        6
+      ],
+      "roll": 8,
+      "target": 3,
+      "success": true,
+      "mandatory": false,
+      "outcome": "eligible"
+    },
+    {
+      "type": "reenlistment-choice",
+      "age": 22,
+      "choice": "reenlist"
+    },
+    {
+      "type": "term-start",
+      "age": 22,
+      "term": 2,
+      "service": "scouts",
+      "drafted": false
+    },
+    {
+      "type": "survival",
+      "age": 22,
+      "term": 2,
+      "service": "scouts",
+      "dice": [
+        5,
+        6
+      ],
+      "roll": 11,
+      "dm": 0,
+      "total": 11,
+      "target": 7,
+      "success": true,
+      "outcome": "survived"
+    },
+    {
+      "type": "skill-roll",
+      "age": 22,
+      "term": 2,
+      "service": "scouts",
+      "table": "service-skills",
+      "tableName": "Service Skills",
+      "roll": 6,
+      "outcome": {
+        "type": "skill",
+        "name": "Jack-of-All-Trades"
+      },
+      "result": {
+        "type": "skill",
+        "name": "Jack-of-All-Trades",
+        "level": 1
+      },
+      "skillsDue": 1
+    },
+    {
+      "type": "skill-roll",
+      "age": 22,
+      "term": 2,
+      "service": "scouts",
+      "table": "advanced-education",
+      "tableName": "Advanced Education",
+      "roll": 3,
+      "outcome": {
+        "type": "skill",
+        "name": "Electronics"
+      },
+      "result": {
+        "type": "skill",
+        "name": "Electronics",
+        "level": 1
+      },
+      "skillsDue": 0
+    },
+    {
+      "type": "term-complete",
+      "age": 26,
+      "term": 2,
+      "service": "scouts",
+      "yearsServed": 4,
+      "rank": 0,
+      "rankTitle": "",
+      "automaticBenefits": [],
+      "forcedSeparation": false,
+      "agingChecksDue": []
+    },
+    {
+      "type": "reenlistment",
+      "age": 26,
+      "service": "scouts",
+      "term": 2,
+      "dice": [
+        5,
+        5
+      ],
+      "roll": 10,
+      "target": 3,
+      "success": true,
+      "mandatory": false,
+      "outcome": "eligible"
+    },
+    {
+      "type": "reenlistment-choice",
+      "age": 26,
+      "choice": "reenlist"
+    },
+    {
+      "type": "term-start",
+      "age": 26,
+      "term": 3,
+      "service": "scouts",
+      "drafted": false
+    },
+    {
+      "type": "survival",
+      "age": 26,
+      "term": 3,
+      "service": "scouts",
+      "dice": [
+        4,
+        3
+      ],
+      "roll": 7,
+      "dm": 0,
+      "total": 7,
+      "target": 7,
+      "success": true,
+      "outcome": "survived"
+    },
+    {
+      "type": "skill-roll",
+      "age": 26,
+      "term": 3,
+      "service": "scouts",
+      "table": "service-skills",
+      "tableName": "Service Skills",
+      "roll": 4,
+      "outcome": {
+        "type": "skill",
+        "name": "Navigation"
+      },
+      "result": {
+        "type": "skill",
+        "name": "Navigation",
+        "level": 1
+      },
+      "skillsDue": 1
+    },
+    {
+      "type": "skill-roll",
+      "age": 26,
+      "term": 3,
+      "service": "scouts",
+      "table": "advanced-education",
+      "tableName": "Advanced Education",
+      "roll": 4,
+      "outcome": {
+        "type": "skill",
+        "name": "Jack-of-All-Trades"
+      },
+      "result": {
+        "type": "skill",
+        "name": "Jack-of-All-Trades",
+        "level": 2
+      },
+      "skillsDue": 0
+    },
+    {
+      "type": "term-complete",
+      "age": 30,
+      "term": 3,
+      "service": "scouts",
+      "yearsServed": 4,
+      "rank": 0,
+      "rankTitle": "",
+      "automaticBenefits": [],
+      "forcedSeparation": false,
+      "agingChecksDue": []
+    },
+    {
+      "type": "reenlistment",
+      "age": 30,
+      "service": "scouts",
+      "term": 3,
+      "dice": [
+        4,
+        5
+      ],
+      "roll": 9,
+      "target": 3,
+      "success": true,
+      "mandatory": false,
+      "outcome": "eligible"
+    },
+    {
+      "type": "reenlistment-choice",
+      "age": 30,
+      "choice": "reenlist"
+    },
+    {
+      "type": "term-start",
+      "age": 30,
+      "term": 4,
+      "service": "scouts",
+      "drafted": false
+    },
+    {
+      "type": "survival",
+      "age": 30,
+      "term": 4,
+      "service": "scouts",
+      "dice": [
+        3,
+        4
+      ],
+      "roll": 7,
+      "dm": 0,
+      "total": 7,
+      "target": 7,
+      "success": true,
+      "outcome": "survived"
+    },
+    {
+      "type": "skill-roll",
+      "age": 30,
+      "term": 4,
+      "service": "scouts",
+      "table": "personal-development",
+      "tableName": "Personal Development",
+      "roll": 6,
+      "outcome": {
+        "type": "specialization",
+        "name": "Gun Combat",
+        "specializationType": "gun"
+      },
+      "pendingSpecialization": "gun",
+      "skillsDue": 1
+    },
+    {
+      "type": "skill-specialization",
+      "age": 30,
+      "term": 4,
+      "service": "scouts",
+      "source": "Gun Combat",
+      "specializationType": "gun",
+      "specialization": "Laser Rifle",
+      "level": 1,
+      "skillsDue": 1
+    },
+    {
+      "type": "skill-roll",
+      "age": 30,
+      "term": 4,
+      "service": "scouts",
+      "table": "service-skills",
+      "tableName": "Service Skills",
+      "roll": 4,
+      "outcome": {
+        "type": "skill",
+        "name": "Navigation"
+      },
+      "result": {
+        "type": "skill",
+        "name": "Navigation",
+        "level": 2
+      },
+      "skillsDue": 0
+    },
+    {
+      "type": "term-complete",
+      "age": 34,
+      "term": 4,
+      "service": "scouts",
+      "yearsServed": 4,
+      "rank": 0,
+      "rankTitle": "",
+      "automaticBenefits": [],
+      "forcedSeparation": false,
+      "agingChecksDue": [
+        34
+      ]
+    },
+    {
+      "type": "aging",
+      "age": 34,
+      "physicalAge": 34,
+      "checks": [
+        {
+          "characteristic": "STR",
+          "dice": [
+            5,
+            2
+          ],
+          "roll": 7,
+          "target": 8,
+          "success": false,
+          "loss": 1,
+          "before": 12,
+          "after": 11
+        },
+        {
+          "characteristic": "DEX",
+          "dice": [
+            6,
+            5
+          ],
+          "roll": 11,
+          "target": 7,
+          "success": true,
+          "loss": 0,
+          "before": 10,
+          "after": 10
+        },
+        {
+          "characteristic": "END",
+          "dice": [
+            6,
+            4
+          ],
+          "roll": 10,
+          "target": 8,
+          "success": true,
+          "loss": 0,
+          "before": 6,
+          "after": 6
+        }
+      ],
+      "crises": []
+    },
+    {
+      "type": "reenlistment",
+      "age": 34,
+      "service": "scouts",
+      "term": 4,
+      "dice": [
+        1,
+        3
+      ],
+      "roll": 4,
+      "target": 3,
+      "success": true,
+      "mandatory": false,
+      "outcome": "eligible"
+    },
+    {
+      "type": "reenlistment-choice",
+      "age": 34,
+      "choice": "reenlist"
+    },
+    {
+      "type": "term-start",
+      "age": 34,
+      "term": 5,
+      "service": "scouts",
+      "drafted": false
+    },
+    {
+      "type": "survival",
+      "age": 34,
+      "term": 5,
+      "service": "scouts",
+      "dice": [
+        4,
+        4
+      ],
+      "roll": 8,
+      "dm": 0,
+      "total": 8,
+      "target": 7,
+      "success": true,
+      "outcome": "survived"
+    },
+    {
+      "type": "skill-roll",
+      "age": 34,
+      "term": 5,
+      "service": "scouts",
+      "table": "personal-development",
+      "tableName": "Personal Development",
+      "roll": 2,
+      "outcome": {
+        "type": "characteristic",
+        "characteristic": "DEX",
+        "amount": 1
+      },
+      "result": {
+        "type": "characteristic",
+        "characteristic": "DEX",
+        "amount": 1,
+        "newValue": 11
+      },
+      "skillsDue": 1
+    },
+    {
+      "type": "skill-roll",
+      "age": 34,
+      "term": 5,
+      "service": "scouts",
+      "table": "advanced-education",
+      "tableName": "Advanced Education",
+      "roll": 2,
+      "outcome": {
+        "type": "skill",
+        "name": "Mechanical"
+      },
+      "result": {
+        "type": "skill",
+        "name": "Mechanical",
+        "level": 1
+      },
+      "skillsDue": 0
+    },
+    {
+      "type": "term-complete",
+      "age": 38,
+      "term": 5,
+      "service": "scouts",
+      "yearsServed": 4,
+      "rank": 0,
+      "rankTitle": "",
+      "automaticBenefits": [],
+      "forcedSeparation": false,
+      "agingChecksDue": [
+        38
+      ]
+    },
+    {
+      "type": "aging",
+      "age": 38,
+      "physicalAge": 38,
+      "checks": [
+        {
+          "characteristic": "STR",
+          "dice": [
+            4,
+            2
+          ],
+          "roll": 6,
+          "target": 8,
+          "success": false,
+          "loss": 1,
+          "before": 11,
+          "after": 10
+        },
+        {
+          "characteristic": "DEX",
+          "dice": [
+            4,
+            3
+          ],
+          "roll": 7,
+          "target": 7,
+          "success": true,
+          "loss": 0,
+          "before": 11,
+          "after": 11
+        },
+        {
+          "characteristic": "END",
+          "dice": [
+            3,
+            4
+          ],
+          "roll": 7,
+          "target": 8,
+          "success": false,
+          "loss": 1,
+          "before": 6,
+          "after": 5
+        }
+      ],
+      "crises": []
+    },
+    {
+      "type": "reenlistment",
+      "age": 38,
+      "service": "scouts",
+      "term": 5,
+      "dice": [
+        2,
+        2
+      ],
+      "roll": 4,
+      "target": 3,
+      "success": true,
+      "mandatory": false,
+      "outcome": "eligible"
+    },
+    {
+      "type": "reenlistment-choice",
+      "age": 38,
+      "choice": "muster-out",
+      "retired": true,
+      "retirementPayAnnual": 4000
+    },
+    {
+      "type": "muster-out-start",
+      "age": 38,
+      "terms": 5,
+      "rank": 0,
+      "totalRolls": 5,
+      "rankBonusRolls": 0,
+      "retired": true,
+      "retirementPayAnnual": 4000
+    },
+    {
+      "type": "benefit",
+      "age": 38,
+      "roll": 6,
+      "dm": 0,
+      "total": 6,
+      "outcome": {
+        "type": "material",
+        "name": "Scout Ship"
+      },
+      "result": {
+        "type": "material",
+        "name": "Scout Ship"
+      }
+    },
+    {
+      "type": "benefit",
+      "age": 38,
+      "roll": 1,
+      "dm": 0,
+      "total": 1,
+      "outcome": {
+        "type": "material",
+        "name": "Low Passage"
+      },
+      "result": {
+        "type": "material",
+        "name": "Low Passage"
+      }
+    },
+    {
+      "type": "cash",
+      "age": 38,
+      "roll": 5,
+      "dm": 0,
+      "total": 5,
+      "amount": 50000
+    },
+    {
+      "type": "benefit",
+      "age": 38,
+      "roll": 6,
+      "dm": 0,
+      "total": 6,
+      "outcome": {
+        "type": "material",
+        "name": "Scout Ship"
+      },
+      "result": {
+        "type": "material",
+        "name": "Scout Ship"
+      }
+    },
+    {
+      "type": "cash",
+      "age": 38,
+      "roll": 3,
+      "dm": 0,
+      "total": 3,
+      "amount": 30000
+    },
+    {
+      "type": "chargen-complete",
+      "age": 38,
+      "service": "scouts",
+      "terms": 5,
+      "rank": 0,
+      "rankTitle": "",
+      "credits": 80000,
+      "retirementPayAnnual": 4000,
+      "upp": "AB5678"
+    }
+  ],
+  "notes": "",
+  "provenance": {
+    "source": "classic-traveller-book-1-chargen",
+    "chargenSchemaVersion": 4
+  }
+}

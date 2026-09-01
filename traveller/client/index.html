@@ -11,7 +11,7 @@
     <header class="masthead">
       <div>
         <div id="app-title" class="title">TRAVELLER // PERSONNEL INTAKE TERMINAL</div>
-        <div class="subtitle">CLIENT v0.6.0 // CLASSIC TRAVELLER BOOK 1 CHARGEN</div>
+        <div class="subtitle">CLIENT v0.7.1 // CLASSIC TRAVELLER BOOKS 1-2</div>
       </div>
       <div id="system-status" class="status" aria-live="polite">READY</div>
     </header>
@@ -28,10 +28,13 @@
         <h2 id="record-heading" class="section-title">PERSONNEL RECORD</h2>
         <button id="record-help" class="help-button" type="button" data-help-topic="personnel-record" aria-label="Explain the personnel record">[?]</button>
       </div>
-      <label class="name-line" for="character-name">
-        <span>NAME</span>
-        <input id="character-name" type="text" maxlength="80" autocomplete="off" spellcheck="false">
-      </label>
+      <div class="name-line">
+        <label for="character-name">NAME</label>
+        <span class="field-with-tool">
+          <input id="character-name" type="text" maxlength="80" autocomplete="off" spellcheck="false">
+          <button id="random-character-name" class="text-button field-tool" type="button">[ RANDOM ]</button>
+        </span>
+      </div>
       <pre id="character-record" class="record" aria-live="polite"></pre>
     </section>
 
@@ -41,6 +44,18 @@
       </div>
       <div id="procedure" class="procedure" aria-live="polite"></div>
       <div id="actions" class="actions"></div>
+    </section>
+
+    <section id="ship-section" hidden aria-labelledby="ship-heading">
+      <div class="section-heading">
+        <h2 id="ship-heading" class="section-title">SHIP'S REGISTER</h2>
+        <button class="help-button" type="button" data-help-topic="ship-register" aria-label="Explain the ship register">[?]</button>
+      </div>
+      <div class="ship-fields">
+        <div class="ship-field"><label for="ship-name">NAME</label><span class="field-with-tool"><input id="ship-name" type="text" maxlength="80" autocomplete="off" spellcheck="false"><button id="random-ship-name" class="text-button field-tool" type="button">[ RANDOM ]</button></span></div>
+        <div class="ship-field"><label for="ship-registry">REGISTRY</label><span class="field-with-tool"><input id="ship-registry" type="text" maxlength="80" autocomplete="off" spellcheck="false"><button id="generate-ship-registry" class="text-button field-tool" type="button">[ GENERATE ]</button></span></div>
+      </div>
+      <pre id="ship-record" class="record ship-record" aria-live="polite"></pre>
     </section>
 
     <section class="two-column" aria-label="Character history and generation log">

@@ -1,0 +1,145 @@
+{
+  "documentType": "classic-traveller-ship",
+  "schemaVersion": 1,
+  "identity": {
+    "id": "ship-5bd8f4fad2ec67fe",
+    "name": "",
+    "registry": ""
+  },
+  "design": {
+    "key": "type-s-scout-courier",
+    "typeCode": "S",
+    "name": "Scout/Courier"
+  },
+  "specifications": {
+    "hull": {
+      "tons": 100,
+      "standard": true,
+      "streamlined": true
+    },
+    "drives": {
+      "jump": {
+        "letter": "A",
+        "rating": 2
+      },
+      "maneuver": {
+        "letter": "A",
+        "rating": 2
+      },
+      "powerPlant": {
+        "letter": "A",
+        "rating": 2
+      }
+    },
+    "fuel": {
+      "capacityTons": 40,
+      "jumpFuelTonsAtMaxJump": 20,
+      "powerPlantFuelTonsForFourWeeks": 20
+    },
+    "computer": {
+      "model": "1bis",
+      "tons": 1,
+      "cpu": 4,
+      "storage": 0,
+      "maximumSupportedJump": 2
+    },
+    "accommodations": {
+      "staterooms": 4,
+      "lowBerths": 0
+    },
+    "cargo": {
+      "capacityTons": 3
+    },
+    "armament": {
+      "hardpoints": 1,
+      "turrets": [
+        {
+          "id": "T-1",
+          "mount": "double",
+          "fireControlInstalled": true,
+          "fireControlTons": 1,
+          "weapons": []
+        }
+      ]
+    },
+    "vehicles": [
+      {
+        "name": "Air/Raft",
+        "tons": 4,
+        "stowage": "specially fitted hangar within ship"
+      }
+    ],
+    "crew": {
+      "standardCount": 1,
+      "standardDuties": [
+        "pilot",
+        "engineer"
+      ],
+      "rulesMinimumPositions": [
+        {
+          "role": "pilot",
+          "skill": "Pilot",
+          "minimumLevel": 1
+        }
+      ],
+      "notes": "Book 2 general crew rules do not require a separate engineer on ships under 200 tons; the Type S standard-design description assigns engineering duties to its single crew member."
+    },
+    "economics": {
+      "standardDesignDiscountApplied": true,
+      "newCostMCr": 29.43,
+      "buildMonths": 9,
+      "annualRoutineMaintenanceCr": 29430
+    }
+  },
+  "authority": {
+    "assignmentType": "reserve",
+    "controllingAuthority": "Scout Service",
+    "legalTitleHolder": null,
+    "legalTitleSourceStatus": "not-explicitly-stated-in-book-1",
+    "characterOwnsShip": false,
+    "assignedCharacterId": "char-04164baa70c3b5a6",
+    "assignedCharacterName": "Hawkeye",
+    "recallable": true,
+    "saleAllowed": false,
+    "useAsDesired": true,
+    "possessionAtServicePleasure": true,
+    "servicePrivileges": {
+      "freeFuelAtScoutBases": true,
+      "freeMaintenanceAtScoutBasesAtClassBStarports": true
+    },
+    "operatorResponsibilities": {
+      "upkeep": true,
+      "crewCosts": true
+    }
+  },
+  "crew": {
+    "assignments": [
+      {
+        "role": "pilot",
+        "characterId": "char-04164baa70c3b5a6",
+        "characterName": "Hawkeye"
+      }
+    ]
+  },
+  "state": {
+    "operationalStatus": "available",
+    "currentFuelTons": null,
+    "cargoUsedTons": null,
+    "maintenance": {
+      "status": "unknown",
+      "lastOverhaulDate": null,
+      "monthsPastDue": null
+    }
+  },
+  "notes": "",
+  "provenance": {
+    "source": "classic-traveller-book-2-standard-design",
+    "sourceDesign": "type-s-scout-courier",
+    "sourceReferences": [
+      "Classic Traveller Book 2 p.19 (standard Scout/Courier design)",
+      "Classic Traveller Book 2 p.15 (crew requirements)",
+      "Classic Traveller Book 2 p.14 (fuel formula)",
+      "Classic Traveller Facsimile Errata p.158 (standard hull and corrected MCr29.43 cost)"
+    ]
+  }
+}

@@ -3,53 +3,44 @@
 Pure JavaScript rules package for the Graycloak Classic Traveller browser-game project.
 It intentionally has no HTML, Foundry, Firebase, or server dependencies.
 
-## v0.6.0 scope
+## v0.7.1 scope
 
-Implemented from Classic Traveller Book 1:
+v0.7.1 retains the v0.7.0 rules and persistence layer unchanged while the browser receives a focused usability pass. The rules package continues to provide the complete Book 1 character-generation engine and persistent starship layer.
 
-- six 2D initial characteristics and UPP formatting
-- the six prior services and their enlistment, survival, commission, promotion, and reenlistment rules
-- failed enlistment and the one-die draft
-- four-year service terms and the optional two-year injury separation rule
-- acquired skills, EDU 8+ restriction, specialization pauses, and rank/service automatic skills
-- source-backed legal specialization catalogs for Gun Combat, Blade/Polearm, and Vehicle results
-- engine-side rejection of cross-category specializations such as Vehicle -> Rifle
-- Scout exception: two acquired skills in every term
-- term completion and career history
-- aging checks beginning at physical age 34 and recurring at four-year intervals
-- Book 1 aging characteristic-loss bands and aging crises
-- medical-skill DM on aging-crisis survival, slow-drug physical aging, and no-slow-drug recovery delay
-- mandatory reenlistment on an exact 12
-- reenlistment denial, voluntary departure, and mandatory retirement after the seventh term unless mandatory reenlistment occurs
-- retirement pay from the fifth term onward
-- Book 1 mustering-out cash and material-benefit tables
-- rank-based extra mustering-out rolls and benefit-table DM
-- Gambling-1+ cash-table DM
-- maximum three cash-table rolls
-- immediate declaration of Gun/Blade material benefits, with later benefits of the same type optionally taken as skill
-- credits, material benefits, retirement pay, and final COMPLETE chargen state
-- deterministic dice injection for regression testing
-- completed chargen -> compact gameplay character-document conversion
-- gameplay character-document schema v1 with strict validation/import/export
-- benefit normalization for passages, memberships, equipment, and ship entitlements
-- duplicate ship results preserved as raw benefits and unresolved entitlements rather than guessed ownership
+Character generation includes:
 
-v0.4.0 added the stable host-facing boundary:
+- six 2D characteristics and UPP formatting
+- all six Book 1 prior services
+- enlistment, draft, survival, commission, promotion, reenlistment, retirement, aging, and mustering out
+- acquired skills, legal specialization catalogs, and Scout two-skills-per-term handling
+- deterministic dice injection for tests
+- chargen schema v4 validation/import/export
+- completed chargen -> gameplay Character Document conversion
 
-- `CHARGEN_ACTIONS` action vocabulary
-- `getAvailableActions(character)` so clients do not duplicate phase legality rules
-- `performChargenAction(character, action, payload)` as a single UI-facing dispatcher
-- action-specific choice metadata for services, skill tables, specialization, aging, and mustering out
-- schema v4 chargen-state documents
-- `validateCharacter()` and `assertValidCharacter()` structural/state validation
-- `exportCharacter()` and `importCharacter()` strict JSON helpers
-- import rejection of unknown fields, impossible phase/state combinations, inconsistent UPPs, invalid ranks, bad counters, and malformed JSON
-- migration of compatible v3 character documents to schema v4
+Gameplay Character Document v2 adds:
 
-Not implemented in the pure rules package:
+- stable character document IDs
+- ship references by ship ID instead of embedding ship state
+- migration of v1 gameplay Character Documents
+- source-backed resolution of the Scout Ship benefit: one effective reserve assignment; additional Scout Ship results have no further effect
 
-- full skill-effect rules outside character generation
-- persistent server/database adapters
+Starship support adds:
+
+- Ship Document schema v1 with strict validation/import/export
+- canonical Classic Traveller Type S Scout/Courier standard design
+- Book 2 p.19 and Facsimile errata corrections, including the standard hull and MCr29.43 cost
+- 100-ton streamlined hull, Jump-2, 2-G, power plant A, 40 tons fuel, Model/1bis computer, four staterooms, no low berths, three tons cargo, double turret/fire control with no weapons, and Air/Raft
+- one-person standard Type S crew/duty description without overriding Book 2's general under-200-ton crew rule
+- Scout reserve-assignment authority state: recallable, not saleable, usable as desired, free fuel at Scout bases, free maintenance at Scout bases at class B starports, and character responsibility for upkeep/crew costs
+- explicit preservation that Book 1 does not name the legal title holder; the schema records Scout Service control without inventing a stronger title rule
+
+Not implemented yet:
+
+- campaign calendar and world location
+- routine travel/jump execution
+- trade, cargo/passenger generation, or economics loop
+- starship combat
+- server/database adapters
 
 ## Tests
 
@@ -59,9 +50,4 @@ From this package directory:
 npm test
 ```
 
-From the Graycloak monorepo root, the normal workspace test command should include this package automatically because the workspace includes `packages/*`.
-
-
-## v0.6.0 client milestone
-
-The first browser chargen client lives outside this package at `traveller/client/`. It consumes the public lifecycle API and does not duplicate Book 1 target numbers or phase legality rules.
+The Graycloak monorepo root workspace test should include this package automatically when installed into the existing workspace.

@@ -40,12 +40,25 @@ test('public API exposes lifecycle and JSON boundary helpers', () => {
     'validateCharacterDocument',
     'assertValidCharacterDocument',
     'exportCharacterDocument',
-    'importCharacterDocument'
+    'importCharacterDocument',
+    'migrateCharacterDocument',
+    'linkCharacterToShip',
+    'updateCharacterShipReference',
+    'getStandardShipDesign',
+    'createShipDocument',
+    'validateShipDocument',
+    'assertValidShipDocument',
+    'exportShipDocument',
+    'importShipDocument',
+    'createTypeSScoutReserveShipForCharacter'
   ]) {
     assert.equal(typeof publicApi[name], 'function', `index.js must export ${name}`);
   }
   assert.equal(typeof publicApi.CHARGEN_ACTIONS, 'object');
   assert.equal(publicApi.CURRENT_CHARACTER_SCHEMA_VERSION, 4);
-  assert.equal(publicApi.CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION, 1);
+  assert.equal(publicApi.CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION, 2);
+  assert.equal(publicApi.CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION, 1);
+  assert.equal(publicApi.SHIP_DOCUMENT_TYPE, 'classic-traveller-ship');
+  assert.equal(publicApi.TYPE_S_SCOUT_COURIER.computer.model, '1bis');
   assert.equal(publicApi.CHARACTER_DOCUMENT_TYPE, 'classic-traveller-character');
 });

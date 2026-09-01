@@ -3,10 +3,16 @@ import {
   CHARGEN_PHASES,
   createCharacter,
   createCharacterDocument,
+  createTypeSScoutReserveShipForCharacter,
   exportCharacter,
   exportCharacterDocument,
+  exportShipDocument,
   importCharacter,
-  performChargenAction
+  linkCharacterToShip,
+  performChargenAction,
+  updateCharacterShipReference,
+  updateShipAssignedCharacterName,
+  updateShipIdentity
 } from '../../packages/classic-traveller-rules/index.js';
 
 import {
@@ -14,6 +20,7 @@ import {
   buildCharacterRecord,
   buildFinalCharacterRecord,
   buildGenerationLog,
+  buildShipRecord,
   buildProcedure,
   buildServiceHistory,
   helpForTopic,
@@ -21,9 +28,16 @@ import {
   skillTableName
 } from './ui-model.js';
 
+import {
+  generateCharacterName,
+  generateShipName,
+  generateShipRegistry
+} from './generators.js';
+
 const el = {
   status: document.querySelector('#system-status'),
   name: document.querySelector('#character-name'),
+  randomCharacterName: document.querySelector('#random-character-name'),
   recordHeading: document.querySelector('#record-heading'),
   recordHelp: document.querySelector('#record-help'),
   record: document.querySelector('#character-record'),
@@ -31,6 +45,12 @@ const el = {
   actions: document.querySelector('#actions'),
   serviceHistory: document.querySelector('#service-history'),
   generationLog: document.querySelector('#generation-log'),
+  shipSection: document.querySelector('#ship-section'),
+  shipName: document.querySelector('#ship-name'),
+  shipRegistry: document.querySelector('#ship-registry'),
+  randomShipName: document.querySelector('#random-ship-name'),
+  generateShipRegistry: document.querySelector('#generate-ship-registry'),
+  shipRecord: document.querySelector('#ship-record'),
   helpPanel: document.querySelector('#context-help'),
   helpTitle: document.querySelector('#help-title'),
   helpBody: document.querySelector('#help-body'),
@@ -42,6 +62,8 @@ const el = {
 };
 
 let character = createCharacter();
+let gameplayDocument = null;
+let shipDocument = null;
 let openHelpTopic = null;
 
 function setStatus(message, kind = '') {
@@ -70,6 +92,23 @@ function showHelp(topic, source) {
   const section = source?.closest('section');
   if (section) section.append(el.helpPanel);
   el.helpPanel.hidden = false;
+}
+
+function ensureGameplayDocument() {
+  if (character.phase !== CHARGEN_PHASES.COMPLETE) return null;
+  if (!gameplayDocument) gameplayDocument = createCharacterDocument(character);
+  return gameplayDocument;
+}
+
+function renderShip() {
+  if (!shipDocument) {
+    el.shipSection.hidden = true;
+    return;
+  }
+  el.shipSection.hidden = false;
+  if (el.shipName.value !== shipDocument.identity.name) el.shipName.value = shipDocument.identity.name;
+  if (el.shipRegistry.value !== shipDocument.identity.registry) el.shipRegistry.value = shipDocument.identity.registry;
+  el.shipRecord.textContent = buildShipRecord(shipDocument);
 }
 
 function makeHelpButton(topic, label) {
@@ -114,12 +153,33 @@ function renderActions(procedure) {
   const { available } = procedure;
 
   if (character.phase === CHARGEN_PHASES.COMPLETE) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'text-button action-button';
-    button.textContent = '[ EXPORT CHARACTER ]';
-    button.addEventListener('click', exportGameplayCharacter);
-    el.actions.append(button);
+    const gameplay = ensureGameplayDocument();
+
+    const exportCharacterButton = document.createElement('button');
+    exportCharacterButton.type = 'button';
+    exportCharacterButton.className = 'text-button action-button';
+    exportCharacterButton.textContent = '[ EXPORT CHARACTER ]';
+    exportCharacterButton.addEventListener('click', exportGameplayCharacter);
+    el.actions.append(exportCharacterButton);
+
+    const scoutEntitlement = gameplay.benefits.shipEntitlements.find((entry) => entry.name === 'Scout Ship');
+    if (!shipDocument && scoutEntitlement?.disposition === 'reserve-assignment-available') {
+      const assignButton = document.createElement('button');
+      assignButton.type = 'button';
+      assignButton.className = 'text-button action-button';
+      assignButton.textContent = '[ ASSIGN SCOUT SHIP ]';
+      assignButton.addEventListener('click', assignScoutShip);
+      el.actions.append(assignButton);
+    }
+
+    if (shipDocument) {
+      const exportShipButton = document.createElement('button');
+      exportShipButton.type = 'button';
+      exportShipButton.className = 'text-button action-button';
+      exportShipButton.textContent = '[ EXPORT SHIP ]';
+      exportShipButton.addEventListener('click', exportGameplayShip);
+      el.actions.append(exportShipButton);
+    }
     return;
   }
 
@@ -218,7 +278,7 @@ function render() {
   if (el.name.value !== character.name) el.name.value = character.name ?? '';
 
   if (character.phase === CHARGEN_PHASES.COMPLETE) {
-    const finalDocument = createCharacterDocument(character);
+    const finalDocument = ensureGameplayDocument();
     el.recordHeading.textContent = 'FINAL PERSONNEL RECORD';
     el.recordHelp.dataset.helpTopic = 'final-character-record';
     el.record.classList.add('final-record');
@@ -258,12 +318,15 @@ function render() {
     el.procedure.append(detail);
   }
   renderActions(procedure);
+  renderShip();
 }
 
 function execute(action, payload = {}) {
   try {
     const result = performChargenAction(character, action, payload);
     character = result.character;
+    gameplayDocument = null;
+    shipDocument = null;
     closeHelp();
     setStatus('ACTION RESOLVED', 'ok');
     render();
@@ -283,8 +346,8 @@ function safeFilename(name) {
 
 function exportGameplayCharacter() {
   try {
-    const gameplayDocument = createCharacterDocument(character);
-    const json = exportCharacterDocument(gameplayDocument, { space: 2 });
+    const gameplay = ensureGameplayDocument();
+    const json = exportCharacterDocument(gameplay, { space: 2 });
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -296,6 +359,41 @@ function exportGameplayCharacter() {
     a.remove();
     URL.revokeObjectURL(url);
     setStatus('CHARACTER DOCUMENT EXPORTED', 'ok');
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function assignScoutShip() {
+  try {
+    const current = ensureGameplayDocument();
+    const result = createTypeSScoutReserveShipForCharacter(current);
+    gameplayDocument = result.character;
+    shipDocument = result.ship;
+    setStatus('SCOUT SHIP ASSIGNED ON RESERVE BASIS', 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function exportGameplayShip() {
+  if (!shipDocument) return;
+  try {
+    const json = exportShipDocument(shipDocument, { space: 2 });
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const baseName = shipDocument.identity.name || `type-${shipDocument.design.typeCode}-${shipDocument.identity.id}`;
+    a.download = `${safeFilename(baseName).replace(/\.json$/i, '')}.ship.json`;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    setStatus('SHIP DOCUMENT EXPORTED', 'ok');
   } catch (error) {
     console.error(error);
     setStatus(error?.message ?? String(error), 'error');
@@ -326,6 +424,8 @@ async function loadCharacter(file) {
   try {
     const text = await file.text();
     character = importCharacter(text);
+    gameplayDocument = null;
+    shipDocument = null;
     closeHelp();
     setStatus('JSON LOADED', 'ok');
     render();
@@ -346,14 +446,67 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !el.helpPanel.hidden) closeHelp();
 });
 
-el.name.addEventListener('input', () => {
-  character = { ...character, name: el.name.value };
-  setStatus('NAME UPDATED', 'ok');
+function updateCharacterName(name, statusMessage = 'NAME UPDATED') {
+  character = { ...character, name };
+  if (gameplayDocument) {
+    const prior = gameplayDocument;
+    gameplayDocument = createCharacterDocument(character, {
+      id: prior.identity.id,
+      aliases: prior.identity.aliases,
+      notes: prior.notes
+    });
+    for (const ref of prior.shipRefs) gameplayDocument = linkCharacterToShip(gameplayDocument, ref);
+  }
+  if (shipDocument) shipDocument = updateShipAssignedCharacterName(shipDocument, name);
+  setStatus(statusMessage, 'ok');
+  render();
+}
+
+function updateShipName(name, statusMessage = 'SHIP NAME UPDATED') {
+  if (!shipDocument) return;
+  shipDocument = updateShipIdentity(shipDocument, { name });
+  if (gameplayDocument) {
+    gameplayDocument = updateCharacterShipReference(gameplayDocument, {
+      shipId: shipDocument.identity.id,
+      shipName: shipDocument.identity.name
+    });
+  }
+  renderShip();
+  setStatus(statusMessage, 'ok');
+}
+
+function updateShipRegistry(registry, statusMessage = 'SHIP REGISTRY UPDATED') {
+  if (!shipDocument) return;
+  shipDocument = updateShipIdentity(shipDocument, { registry });
+  renderShip();
+  setStatus(statusMessage, 'ok');
+}
+
+el.name.addEventListener('input', () => updateCharacterName(el.name.value));
+
+el.randomCharacterName.addEventListener('click', () => {
+  updateCharacterName(generateCharacterName(), 'RANDOM CHARACTER NAME GENERATED');
+});
+
+el.shipName.addEventListener('input', () => updateShipName(el.shipName.value));
+
+el.randomShipName.addEventListener('click', () => {
+  if (!shipDocument) return;
+  updateShipName(generateShipName(), 'RANDOM SHIP NAME GENERATED');
+});
+
+el.shipRegistry.addEventListener('input', () => updateShipRegistry(el.shipRegistry.value));
+
+el.generateShipRegistry.addEventListener('click', () => {
+  if (!shipDocument) return;
+  updateShipRegistry(generateShipRegistry(shipDocument.design.typeCode), 'SHIP REGISTRY CANDIDATE GENERATED');
 });
 
 el.newCharacter.addEventListener('click', () => {
   if (!window.confirm('Discard the current chargen state and create a new character?')) return;
   character = createCharacter();
+  gameplayDocument = null;
+  shipDocument = null;
   closeHelp();
   setStatus('NEW CHARACTER GENERATED', 'ok');
   render();
