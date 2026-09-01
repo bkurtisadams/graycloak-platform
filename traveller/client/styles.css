@@ -33,10 +33,16 @@ body {
 button, input, select { font: inherit; }
 
 .terminal {
-  width: min(1120px, calc(100% - 28px));
+  width: min(1500px, calc(100% - 28px));
   margin: 0 auto;
   padding: 20px 0 32px;
+  display: grid;
+  grid-template-columns: minmax(0, 1120px) minmax(280px, 1fr);
+  column-gap: 24px;
+  align-items: start;
 }
+
+.terminal > :not(.activity-panel) { grid-column: 1; }
 
 .masthead {
   display: flex;
@@ -507,4 +513,108 @@ input[readonly] {
   border-top: 1px solid var(--rule);
   border-bottom: 1px solid var(--rule);
   padding: 8px 0;
+}
+
+
+.activity-panel {
+  grid-column: 2;
+  grid-row: 1 / span 30;
+  position: sticky;
+  top: 16px;
+  height: min(720px, calc(100vh - 32px));
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  border-top: 2px solid var(--rule);
+  border-bottom: 2px solid var(--rule);
+  background: var(--paper-deep);
+  padding: 9px 10px 10px;
+}
+
+.activity-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 5px;
+}
+
+.activity-title {
+  margin: 0;
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.activity-context {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--disabled);
+}
+
+.activity-feed {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding-top: 4px;
+  scrollbar-gutter: stable;
+}
+
+.activity-empty {
+  color: var(--muted);
+  padding: 8px 2px;
+}
+
+.activity-entry {
+  border-bottom: 1px solid var(--disabled);
+  padding: 7px 5px 8px;
+}
+
+.activity-entry.latest {
+  background: var(--attention);
+  border-left: 3px solid var(--attention-border);
+  padding-left: 7px;
+}
+
+.activity-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 9px;
+  color: var(--muted);
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+
+.activity-category {
+  color: var(--link);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.activity-entry[data-category="ERROR"] .activity-category,
+.activity-entry[data-category="ERROR"] .activity-message {
+  color: var(--error);
+}
+
+.activity-message {
+  overflow-wrap: anywhere;
+}
+
+.activity-clear { font-size: 11px; }
+
+@media (max-width: 1200px) {
+  .terminal {
+    width: min(1120px, calc(100% - 28px));
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .terminal > :not(.activity-panel),
+  .activity-panel { grid-column: 1; }
+  .activity-panel {
+    grid-row: auto;
+    position: static;
+    height: 360px;
+    margin-top: 18px;
+  }
 }

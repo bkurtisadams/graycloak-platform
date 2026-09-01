@@ -76,6 +76,10 @@ import {
 } from '../src/document-registry.js';
 
 import {
+  createActivityLogStore
+} from '../src/activity-log.js';
+
+import {
   FAR_MERIDIAN_SUBSECTOR
 } from '../world/far-meridian-subsector.js';
 
@@ -124,7 +128,11 @@ const el = {
   jumpActions: document.querySelector('#jump-actions'),
   systemRecordSection: document.querySelector('#system-record-section'),
   systemRecordHeading: document.querySelector('#system-record-heading'),
-  systemRecord: document.querySelector('#system-record')
+  systemRecord: document.querySelector('#system-record'),
+  activityPanel: document.querySelector('#activity-panel'),
+  activityContext: document.querySelector('#activity-context'),
+  activityFeed: document.querySelector('#activity-feed'),
+  clearActivity: document.querySelector('#clear-activity')
 };
 
 let character = createCharacter();
@@ -140,6 +148,62 @@ try {
   registry = createDocumentRegistry({ storage: window.localStorage });
 } catch (error) {
   console.error(error);
+}
+
+let activityLog = null;
+try {
+  activityLog = createActivityLogStore({ storage: window.localStorage });
+} catch (error) {
+  console.error(error);
+}
+
+function activityDateLabel() {
+  if (!campaignDocument) return 'SESSION';
+  return `${String(campaignDocument.time.dayOfYear).padStart(3, '0')}-${campaignDocument.time.year}`;
+}
+
+function setActivityContext() {
+  if (!activityLog) return;
+  activityLog.setContext(campaignDocument?.identity?.id || 'session');
+}
+
+function renderActivity() {
+  const contextName = campaignDocument?.identity?.name || 'SESSION / NO CAMPAIGN';
+  el.activityContext.textContent = contextName.toUpperCase();
+  el.activityFeed.replaceChildren();
+  const entries = activityLog ? activityLog.list() : [];
+  if (!entries.length) {
+    const empty = document.createElement('div');
+    empty.className = 'activity-empty';
+    empty.textContent = 'NO RECORDED ACTIVITY.';
+    el.activityFeed.append(empty);
+    return;
+  }
+  entries.forEach((entry, index) => {
+    const row = document.createElement('div');
+    row.className = `activity-entry${index === entries.length - 1 ? ' latest' : ''}`;
+    row.dataset.category = entry.category;
+    const meta = document.createElement('div');
+    meta.className = 'activity-meta';
+    const date = document.createElement('span');
+    date.textContent = entry.dateLabel;
+    const category = document.createElement('span');
+    category.className = 'activity-category';
+    category.textContent = entry.category;
+    meta.append(date, category);
+    const message = document.createElement('div');
+    message.className = 'activity-message';
+    message.textContent = entry.message;
+    row.append(meta, message);
+    el.activityFeed.append(row);
+  });
+  el.activityFeed.scrollTop = el.activityFeed.scrollHeight;
+}
+
+function logActivity(category, message, { dateLabel = activityDateLabel() } = {}) {
+  if (!activityLog) return;
+  activityLog.append({ category, message, dateLabel });
+  renderActivity();
 }
 
 function setStatus(message, kind = '') {
@@ -319,10 +383,21 @@ function renderCampaign() {
 }
 
 function selectSubsectorSystem(systemId) {
+  const changed = selectedSystemId !== systemId;
   selectedSystemId = systemId;
   const system = getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, systemId);
   setStatus(`SYSTEM SELECTED: ${system?.name ?? systemId}`, 'ok');
+  if (changed && system) {
+    const current = mappedCurrentSystem();
+    const distance = current && current.id !== system.id
+      ? jumpDistanceBetweenSystems(FAR_MERIDIAN_SUBSECTOR, current.id, system.id)
+      : 0;
+    logActivity('NAV', current
+      ? `${system.name} selected / ${system.hex} / ${distance} parsec${distance === 1 ? '' : 's'}`
+      : `${system.name} selected / ${system.hex}`);
+  }
   renderSubsector();
+  renderSystemRecord();
 }
 
 function setStartingSubsectorLocation() {
@@ -333,6 +408,7 @@ function setStartingSubsectorLocation() {
     if (!system) throw new Error('select a starting system first');
     campaignDocument = updateCampaignLocation(campaignDocument, campaignLocationForSystem(system));
     selectedSystemId = null;
+    logActivity('NAV', `Current location established: ${system.name} / ${system.hex} / ${system.mainWorld.name}`);
     setStatus(`STARTING LOCATION SET: ${system.name} / ${system.mainWorld.name} / SAVE CAMPAIGN`, 'ok');
     render();
   } catch (error) {
@@ -354,11 +430,14 @@ function jumpToSelectedSystem() {
     const distance = jumpDistanceBetweenSystems(FAR_MERIDIAN_SUBSECTOR, current.id, destination.id);
     if (distance > jumpRating) throw new Error(`${destination.name} is ${distance} parsecs away; active ship is Jump-${jumpRating}`);
 
+    const shipLabel = shipDocument?.identity?.name || shipDocument?.identity?.registry || 'Active ship';
+    logActivity('JUMP', `${shipLabel} departed ${current.name} / destination ${destination.name} / ${distance} parsec${distance === 1 ? '' : 's'}`);
     campaignDocument = updateCampaignLocation(campaignDocument, campaignLocationForSystem(destination));
     // Book 2 describes jump travel as taking about one week regardless of
     // distance. v0.9 resolves that campaign interval as seven days.
     campaignDocument = advanceCampaignDays(campaignDocument, 7);
     selectedSystemId = null;
+    logActivity('ARRIVAL', `${shipLabel} arrived ${destination.name} / ${destination.hex} / ${destination.mainWorld.name}`);
     setStatus(`JUMP COMPLETE: ${destination.name} / +7 DAYS / SAVE CAMPAIGN`, 'ok');
     render();
   } catch (error) {
@@ -587,6 +666,7 @@ function restoreCampaignFromRegistry(campaign) {
   shipDocument = nextShip;
   documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
   character = createCharacter();
+  setActivityContext();
 }
 
 function newCampaign() {
@@ -602,6 +682,8 @@ function newCampaign() {
       activeShipId: shipDocument?.identity.id ?? null
     });
     documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
+    setActivityContext();
+    logActivity('SYSLOG', `Campaign created: ${campaignDocument.identity.name || 'Unnamed Campaign'}`);
     setStatus('NEW CAMPAIGN SHELL CREATED', 'ok');
     render();
   } catch (error) {
@@ -618,6 +700,7 @@ function saveCampaignLocal() {
     persistGameplayDocuments();
     registry.put(campaignDocument);
     registry.setActiveCampaignId(campaignDocument.identity.id);
+    logActivity('SYSLOG', `${campaignDocument.identity.name || 'Campaign'} saved locally`);
     setStatus('CAMPAIGN SAVED TO THIS BROWSER', 'ok');
     renderCampaign();
   } catch (error) {
@@ -634,6 +717,7 @@ function loadSavedCampaign() {
     const campaign = registry.get(id);
     if (!campaign) throw new Error(`saved campaign document is missing: ${id}`);
     restoreCampaignFromRegistry(campaign);
+    logActivity('SYSLOG', `${campaignDocument.identity.name || 'Campaign'} restored from local save`);
     setStatus('CAMPAIGN RESTORED FROM THIS BROWSER', 'ok');
     closeHelp();
     render();
@@ -663,6 +747,7 @@ function exportCampaignPortable() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+    logActivity('SYSLOG', `${campaignDocument.identity.name || 'Campaign'} portable bundle exported`);
     setStatus('PORTABLE CAMPAIGN BUNDLE EXPORTED', 'ok');
     renderCampaign();
   } catch (error) {
@@ -886,6 +971,7 @@ function render() {
   renderSubsector();
   renderSystemRecord();
   renderShip();
+  renderActivity();
 }
 
 function execute(action, payload = {}) {
@@ -899,6 +985,8 @@ function execute(action, payload = {}) {
     campaignDocument = null;
     selectedSystemId = null;
     closeHelp();
+    setActivityContext();
+    logActivity('CHAR', `${ACTION_LABELS[action] ?? action} resolved`);
     setStatus('ACTION RESOLVED', 'ok');
     render();
   } catch (error) {
@@ -930,6 +1018,7 @@ function exportGameplayCharacter() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+    logActivity('SYSLOG', `Character document exported: ${gameplay.identity.name || gameplay.identity.id}`);
     setStatus('CHARACTER DOCUMENT EXPORTED', 'ok');
   } catch (error) {
     console.error(error);
@@ -948,6 +1037,7 @@ function assignScoutShip() {
       campaignDocument = addShipToCampaign(campaignDocument, shipDocument, { makeActive: true });
       syncCampaignRefs();
     }
+    logActivity('SHIP', `${shipDocument.identity.name || 'Type S Scout/Courier'} assigned on Scout reserve basis to ${gameplayDocument.identity.name}`);
     setStatus('SCOUT SHIP ASSIGNED ON RESERVE BASIS', 'ok');
     render();
   } catch (error) {
@@ -970,6 +1060,7 @@ function exportGameplayShip() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+    logActivity('SYSLOG', `Ship document exported: ${shipDocument.identity.name || shipDocument.identity.registry || shipDocument.identity.id}`);
     setStatus('SHIP DOCUMENT EXPORTED', 'ok');
   } catch (error) {
     console.error(error);
@@ -989,6 +1080,7 @@ function saveCharacter() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+    logActivity('SYSLOG', `Chargen JSON exported: ${character.name || 'Unnamed Traveller'}`);
     setStatus('JSON SAVED', 'ok');
   } catch (error) {
     console.error(error);
@@ -1009,6 +1101,8 @@ async function loadDocument(file) {
       campaignDocument = null;
       selectedSystemId = null;
       documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
+      setActivityContext();
+      logActivity('SYSLOG', `Chargen JSON loaded: ${file.name}`);
       setStatus('CHARGEN JSON LOADED', 'ok');
     } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CHARACTER) {
       gameplayDocument = loaded.characterDocument;
@@ -1017,6 +1111,8 @@ async function loadDocument(file) {
       selectedSystemId = null;
       if (shipDocument && !shipMatchesCharacter(shipDocument, gameplayDocument)) shipDocument = null;
       if (registry) registry.put(gameplayDocument);
+      setActivityContext();
+      logActivity('CHAR', `Character loaded: ${gameplayDocument.identity.name || gameplayDocument.identity.id}`);
       setStatus('CHARACTER DOCUMENT LOADED / REGISTERED LOCALLY', 'ok');
     } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.SHIP) {
       if (gameplayDocument && !shipMatchesCharacter(loaded.shipDocument, gameplayDocument)) {
@@ -1027,18 +1123,22 @@ async function loadDocument(file) {
       selectedSystemId = null;
       if (gameplayDocument) shipDocument = updateShipAssignedCharacterName(shipDocument, gameplayDocument.identity.name);
       if (registry) registry.put(shipDocument);
+      setActivityContext();
+      logActivity('SHIP', `Ship loaded: ${shipDocument.identity.name || shipDocument.identity.registry || shipDocument.identity.id}`);
       setStatus(gameplayDocument ? 'LINKED SHIP DOCUMENT LOADED / REGISTERED LOCALLY' : 'SHIP DOCUMENT LOADED / REGISTERED LOCALLY', 'ok');
     } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CAMPAIGN) {
       if (!registry) throw new Error('browser local storage is unavailable');
       registry.put(loaded.campaignDocument);
       registry.setActiveCampaignId(loaded.campaignDocument.identity.id);
       restoreCampaignFromRegistry(loaded.campaignDocument);
+      logActivity('SYSLOG', `${campaignDocument.identity.name || 'Campaign'} document loaded from local registry`);
       setStatus('CAMPAIGN DOCUMENT LOADED FROM LOCAL REGISTRY', 'ok');
     } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CAMPAIGN_BUNDLE) {
       if (!registry) throw new Error('browser local storage is unavailable');
       const bundle = registry.putBundle(loaded.campaignBundle);
       registry.setActiveCampaignId(bundle.campaign.identity.id);
       restoreCampaignFromRegistry(bundle.campaign);
+      logActivity('SYSLOG', `${campaignDocument.identity.name || 'Campaign'} portable bundle loaded`);
       setStatus('PORTABLE CAMPAIGN BUNDLE LOADED', 'ok');
     }
 
@@ -1183,6 +1283,8 @@ el.newCharacter.addEventListener('click', () => {
   campaignDocument = null;
   selectedSystemId = null;
   closeHelp();
+  setActivityContext();
+  logActivity('CHAR', 'New character generation started');
   setStatus('NEW CHARACTER GENERATED', 'ok');
   render();
 });
@@ -1190,6 +1292,23 @@ el.newCharacter.addEventListener('click', () => {
 el.campaignName.addEventListener('input', () => updateCampaignName(el.campaignName.value));
 el.campaignDay.addEventListener('change', updateCampaignDate);
 el.campaignYear.addEventListener('change', updateCampaignDate);
+el.campaignName.addEventListener('change', () => {
+  if (campaignDocument) logActivity('SYSLOG', `Campaign name set: ${campaignDocument.identity.name || 'Unnamed Campaign'}`);
+});
+el.shipName.addEventListener('change', () => {
+  if (shipDocument) logActivity('SHIP', `Ship name set: ${shipDocument.identity.name || '(unnamed)'}`);
+});
+el.shipRegistry.addEventListener('change', () => {
+  if (shipDocument) logActivity('SHIP', `Ship registry set: ${shipDocument.identity.registry || '(blank)'}`);
+});
+
+el.clearActivity.addEventListener('click', () => {
+  if (!activityLog) return;
+  if (!window.confirm('Clear the activity log for the current campaign/session?')) return;
+  activityLog.clear();
+  renderActivity();
+  setStatus('ACTIVITY LOG CLEARED', 'ok');
+});
 
 el.newCampaign.addEventListener('click', newCampaign);
 el.saveCampaign.addEventListener('click', saveCampaignLocal);
@@ -1200,5 +1319,6 @@ el.saveCharacter.addEventListener('click', saveCharacter);
 el.loadCharacter.addEventListener('click', () => el.loadFile.click());
 el.loadFile.addEventListener('change', () => loadDocument(el.loadFile.files?.[0]));
 
+setActivityContext();
 render();
 if (!registry) setStatus('READY / LOCAL CAMPAIGN STORAGE UNAVAILABLE', 'error');

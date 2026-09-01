@@ -11,7 +11,7 @@
     <header class="masthead">
       <div>
         <div id="app-title" class="title">TRAVELLER // PERSONNEL INTAKE TERMINAL</div>
-        <div class="subtitle">CLIENT v0.10.0 // CLASSIC TRAVELLER BOOKS 1-3 // WORLD & SYSTEM RECORDS</div>
+        <div class="subtitle">CLIENT v0.10.1 // CLASSIC TRAVELLER BOOKS 1-3 // ACTIVITY LOG</div>
       </div>
       <div id="system-status" class="status" aria-live="polite">READY</div>
     </header>
@@ -125,6 +125,16 @@
         <button id="close-help" class="help-button" type="button">[ CLOSE ]</button>
       </div>
       <div id="help-body" class="help-body"></div>
+    </aside>
+
+
+    <aside id="activity-panel" class="activity-panel" aria-labelledby="activity-heading">
+      <div class="activity-header">
+        <h2 id="activity-heading" class="activity-title">ACTIVITY LOG</h2>
+        <button id="clear-activity" class="text-button activity-clear" type="button">[ CLEAR ]</button>
+      </div>
+      <div id="activity-context" class="activity-context">SESSION</div>
+      <div id="activity-feed" class="activity-feed" role="log" aria-live="polite" aria-relevant="additions"></div>
     </aside>
 
     <footer class="footer">
