@@ -479,18 +479,27 @@ input[readonly] {
 .operations-panel-scroll {
   min-height: 0;
   flex: 1 1 auto;
-  overflow-y: auto;
-  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding-right: 4px;
-  scrollbar-gutter: stable;
 }
 
 .operations-panel {
   margin-top: 0;
   min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.operations-panel[hidden] {
+  display: none;
 }
 
 .operations-panel .section-heading {
+  flex: 0 0 auto;
   margin-bottom: 3px;
 }
 
@@ -498,10 +507,29 @@ input[readonly] {
   font-size: 12px;
 }
 
+.operations-primary-actions {
+  flex: 0 0 auto;
+  margin: 2px 0 7px;
+  padding: 5px 0 8px;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+
+.operations-panel-record {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin: 0;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
 .operations-panel .record {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
 
 .subsector-map-column {
   min-width: 0;
@@ -687,6 +715,7 @@ input[readonly] {
     overflow: visible;
   }
   .operations-panel-scroll {
+    height: min(58vh, 420px);
     max-height: 420px;
   }
   .subsector-map-tools {
@@ -850,9 +879,9 @@ input[readonly] {
 }
 
 .commerce-record {
-  border-top: 1px solid var(--rule);
-  border-bottom: 1px solid var(--rule);
-  padding: 8px 0;
+  border-top: 0;
+  border-bottom: 0;
+  padding: 4px 0 8px;
   font-size: 11px;
 }
 
@@ -891,9 +920,9 @@ input[readonly] {
 }
 
 .contract-record {
-  border-top: 1px solid var(--rule);
-  border-bottom: 1px solid var(--rule);
-  padding: 8px 0;
+  border-top: 0;
+  border-bottom: 0;
+  padding: 4px 0 8px;
   font-size: 11px;
 }
 

@@ -323,7 +323,7 @@ test('v0.12.0.1 promotes campaign status and interactive rolls into a compact pl
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /CLIENT v0\.12\.0\.1/);
+  assert.match(html, /CLIENT v0\.12\.0\.(?:1|2)/);
   assert.match(html, /id="campaign-header"/);
   assert.match(html, /id="header-characteristics"/);
   assert.match(html, /id="header-quick-skills"/);
@@ -338,4 +338,24 @@ test('v0.12.0.1 promotes campaign status and interactive rolls into a compact pl
   assert.match(app, /detailPanels/);
   assert.match(css, /\.campaign-play #procedure-section/);
   assert.match(css, /\.operations-tabs[\s\S]*grid-template-columns:\s*repeat\(4/);
+});
+
+
+test('v0.12.0.2 keeps tab actions above independently scrolling records', async () => {
+  const html = await read('index.html');
+  const css = await read('styles.css');
+
+  assert.match(html, /CLIENT v0\.12\.0\.2/);
+  for (const [actions, record] of [
+    ['port-actions', 'port-services-record'],
+    ['commerce-actions', 'commerce-record'],
+    ['contract-actions', 'contract-record'],
+    ['situation-actions', 'situation-record']
+  ]) {
+    assert.ok(html.indexOf(`id="${actions}"`) < html.indexOf(`id="${record}"`), `${actions} should precede ${record}`);
+  }
+  assert.match(html, /class="actions operations-primary-actions situation-actions"/);
+  assert.match(css, /\.operations-primary-actions[\s\S]*flex:\s*0 0 auto/);
+  assert.match(css, /\.operations-panel-record[\s\S]*overflow-y:\s*auto/);
+  assert.match(css, /\.operations-panel-scroll[\s\S]*overflow:\s*hidden/);
 });

@@ -1,6 +1,10 @@
 # Graycloak Traveller
 
 
+## v0.12.0.2 operations action-strip usability
+
+v0.12.0.2 keeps each Operations Desk tab's available actions directly below its tab header. PORT, TRADE, JOBS, and SITUATION actions no longer sit below a potentially long record; the record itself takes the remaining panel height and scrolls independently. This is a UI-only patch with no Traveller rules or persistent-document changes.
+
 ## v0.12.0.1 campaign UI pass
 
 v0.12.0.1 reorganizes completed-character campaign play around a persistent status header and a larger Operations Desk. The header keeps character identity, current characteristics, six quick skills, current world/date, ship resources, and the most urgent active situation or contract visible. Characteristics and quick skills are clickable and use one small modifier dialog, defaulting the referee modifier to 0; rolls are recorded in the Activity Log. Situation skill checks use the same dialog while retaining their authored target and built-in DMs. Full Personnel, Ship, Campaign, System, Service History, and Generation Log records remain available as explicit detail views instead of permanently occupying the play screen. The Subsector workspace now gives 460-500px to navigation/operations because the 8x10 Traveller map is naturally portrait-oriented.
