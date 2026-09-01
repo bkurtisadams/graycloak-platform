@@ -332,3 +332,42 @@ input:focus-visible { outline: 2px solid var(--link); outline-offset: 1px; }
 @media (max-width: 760px) {
   .ship-fields { grid-template-columns: 1fr; }
 }
+
+.campaign-utility {
+  border-top: 1px solid var(--muted);
+  margin-top: 3px;
+}
+
+.text-button:disabled,
+.utility-button:disabled {
+  color: var(--disabled);
+  cursor: default;
+  text-decoration: none;
+}
+
+.campaign-fields {
+  display: grid;
+  grid-template-columns: minmax(260px, 2fr) minmax(130px, 1fr) minmax(130px, 1fr);
+  gap: 8px 22px;
+  margin-bottom: 7px;
+}
+
+.campaign-field {
+  display: grid;
+  grid-template-columns: 10ch minmax(0, 1fr);
+  gap: 1ch;
+  align-items: center;
+}
+
+.campaign-field input { width: 100%; }
+.campaign-field.compact input { width: 10ch; }
+
+.campaign-record {
+  border-top: 2px solid var(--rule);
+  border-bottom: 2px solid var(--rule);
+  padding: 8px 0;
+}
+
+@media (max-width: 760px) {
+  .campaign-fields { grid-template-columns: 1fr; }
+}

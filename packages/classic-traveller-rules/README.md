@@ -3,9 +3,9 @@
 Pure JavaScript rules package for the Graycloak Classic Traveller browser-game project.
 It intentionally has no HTML, Foundry, Firebase, or server dependencies.
 
-## v0.7.2 scope
+## v0.8.0 scope
 
-v0.7.2 retains the v0.7.0 rules and persistence layer unchanged while the browser receives a focused usability pass. The rules package continues to provide the complete Book 1 character-generation engine and persistent starship layer.
+v0.8.0 retains the established Book 1 character-generation and Book 2 starship rules layer. The new Campaign Document, local document registry, and portable campaign bundle live in the `traveller` application package rather than this pure Classic Traveller rules package.
 
 Character generation includes:
 
@@ -36,7 +36,7 @@ Starship support adds:
 
 Not implemented yet:
 
-- campaign calendar and world location
+- campaign application state (implemented in `traveller`, not in this rules package)
 - routine travel/jump execution
 - trade, cargo/passenger generation, or economics loop
 - starship combat

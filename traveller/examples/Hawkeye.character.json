@@ -80,6 +80,14 @@
       }
     ]
   },
+  "shipRefs": [
+    {
+      "shipId": "ship-5bd8f4fad2ec67fe",
+      "relationship": "reserve-assignee",
+      "shipType": "S",
+      "shipName": "Marisol"
+    }
+  ],
   "history": [
     {
       "type": "character-created",
@@ -782,13 +790,5 @@
   "provenance": {
     "source": "classic-traveller-book-1-chargen",
     "chargenSchemaVersion": 4
-  },
-  "shipRefs": [
-    {
-      "shipId": "ship-5bd8f4fad2ec67fe",
-      "relationship": "reserve-assignee",
-      "shipType": "S",
-      "shipName": ""
-    }
-  ]
+  }
 }

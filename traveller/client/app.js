@@ -17,6 +17,7 @@ import {
 
 import {
   ACTION_LABELS,
+  buildCampaignRecord,
   buildCharacterRecord,
   buildFinalCharacterRecord,
   buildGenerationLog,
@@ -38,6 +39,23 @@ import {
   generateShipName,
   generateShipRegistry
 } from './generators.js';
+
+import {
+  addShipToCampaign,
+  createCampaignDocument,
+  refreshCampaignDocumentRefs,
+  updateCampaignIdentity,
+  updateCampaignLocation,
+  updateCampaignTime
+} from '../src/campaign-document.js';
+
+import {
+  exportCampaignBundle
+} from '../src/campaign-bundle.js';
+
+import {
+  createDocumentRegistry
+} from '../src/document-registry.js';
 
 const el = {
   status: document.querySelector('#system-status'),
@@ -63,14 +81,33 @@ const el = {
   newCharacter: document.querySelector('#new-character'),
   saveCharacter: document.querySelector('#save-character'),
   loadCharacter: document.querySelector('#load-character'),
-  loadFile: document.querySelector('#load-file')
+  loadFile: document.querySelector('#load-file'),
+  newCampaign: document.querySelector('#new-campaign'),
+  saveCampaign: document.querySelector('#save-campaign'),
+  loadCampaign: document.querySelector('#load-campaign'),
+  exportCampaign: document.querySelector('#export-campaign'),
+  campaignSection: document.querySelector('#campaign-section'),
+  campaignName: document.querySelector('#campaign-name'),
+  campaignDay: document.querySelector('#campaign-day'),
+  campaignYear: document.querySelector('#campaign-year'),
+  campaignSystem: document.querySelector('#campaign-system'),
+  campaignWorld: document.querySelector('#campaign-world'),
+  campaignRecord: document.querySelector('#campaign-record')
 };
 
 let character = createCharacter();
 let gameplayDocument = null;
 let shipDocument = null;
+let campaignDocument = null;
 let documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
 let openHelpTopic = null;
+let registry = null;
+
+try {
+  registry = createDocumentRegistry({ storage: window.localStorage });
+} catch (error) {
+  console.error(error);
+}
 
 function setStatus(message, kind = '') {
   el.status.textContent = message;
@@ -109,6 +146,16 @@ function ensureGameplayDocument() {
 
 function gameplayProcedure() {
   const missingShip = gameplayDocument?.shipRefs?.length && !shipDocument;
+  if (campaignDocument) {
+    return {
+      available: { actions: [], choices: {} },
+      title: 'CAMPAIGN SHELL ACTIVE',
+      text: 'The campaign, party, and active ship are linked by persistent document IDs. Travel and world actions are intentionally deferred to the next milestone.',
+      detail: `${campaignDocument.identity.name || 'Unnamed Campaign'} / ${campaignDocument.party.characterIds.length} active character${campaignDocument.party.characterIds.length === 1 ? '' : 's'}`,
+      helpTopic: 'campaign-status',
+      attention: false
+    };
+  }
   return {
     available: { actions: [], choices: {} },
     title: 'GAMEPLAY DOCUMENT LOADED',
@@ -136,6 +183,169 @@ function renderShip() {
   if (el.shipName.value !== shipDocument.identity.name) el.shipName.value = shipDocument.identity.name;
   if (el.shipRegistry.value !== shipDocument.identity.registry) el.shipRegistry.value = shipDocument.identity.registry;
   el.shipRecord.textContent = buildShipRecord(shipDocument);
+}
+
+function persistGameplayDocuments() {
+  if (!registry) return;
+  if (gameplayDocument) registry.put(gameplayDocument);
+  if (shipDocument) registry.put(shipDocument);
+}
+
+function syncCampaignRefs() {
+  if (!campaignDocument) return;
+  campaignDocument = refreshCampaignDocumentRefs(campaignDocument, {
+    characters: gameplayDocument ? [gameplayDocument] : [],
+    ships: shipDocument ? [shipDocument] : []
+  });
+}
+
+function campaignDocumentsForDisplay() {
+  if (!campaignDocument) return { characters: [], ships: [], missing: [] };
+  let characters = [];
+  let ships = [];
+  let missing = [];
+  if (registry) {
+    try {
+      const resolved = registry.resolveCampaign(campaignDocument);
+      characters = resolved.characters;
+      ships = resolved.ships;
+      missing = resolved.missing;
+    } catch (error) {
+      console.error(error);
+    }
+  }
+  if (gameplayDocument) {
+    characters = characters.filter((entry) => entry.identity.id !== gameplayDocument.identity.id);
+    characters.push(gameplayDocument);
+    missing = missing.filter((id) => id !== gameplayDocument.identity.id);
+  }
+  if (shipDocument) {
+    ships = ships.filter((entry) => entry.identity.id !== shipDocument.identity.id);
+    ships.push(shipDocument);
+    missing = missing.filter((id) => id !== shipDocument.identity.id);
+  }
+  return { characters, ships, missing };
+}
+
+function renderCampaign() {
+  el.saveCampaign.disabled = !campaignDocument || !registry;
+  el.exportCampaign.disabled = !campaignDocument || !registry;
+  el.loadCampaign.disabled = !registry || !registry.getActiveCampaignId();
+  if (!campaignDocument) {
+    el.campaignSection.hidden = true;
+    return;
+  }
+
+  syncCampaignRefs();
+  el.campaignSection.hidden = false;
+  if (el.campaignName.value !== campaignDocument.identity.name) el.campaignName.value = campaignDocument.identity.name;
+  el.campaignDay.value = String(campaignDocument.time.dayOfYear);
+  el.campaignYear.value = String(campaignDocument.time.year);
+  if (el.campaignSystem.value !== campaignDocument.location.systemName) el.campaignSystem.value = campaignDocument.location.systemName;
+  if (el.campaignWorld.value !== campaignDocument.location.worldName) el.campaignWorld.value = campaignDocument.location.worldName;
+  const resolved = campaignDocumentsForDisplay();
+  el.campaignRecord.textContent = buildCampaignRecord(campaignDocument, resolved);
+}
+
+function restoreCampaignFromRegistry(campaign) {
+  if (!registry) throw new Error('browser local storage is unavailable');
+  const resolved = registry.resolveCampaign(campaign);
+  if (resolved.missing.length) {
+    throw new Error(`campaign references missing documents: ${resolved.missing.join(', ')}`);
+  }
+  const preferredCharacterId = campaign.party.characterIds[0];
+  const nextCharacter = resolved.characters.find((entry) => entry.identity.id === preferredCharacterId) ?? resolved.characters[0];
+  if (!nextCharacter) throw new Error('campaign has no resolvable party character');
+  const nextShip = campaign.activeShipId
+    ? resolved.ships.find((entry) => entry.identity.id === campaign.activeShipId) ?? null
+    : null;
+
+  campaignDocument = campaign;
+  gameplayDocument = nextCharacter;
+  shipDocument = nextShip;
+  documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
+  character = createCharacter();
+}
+
+function newCampaign() {
+  try {
+    const gameplay = ensureGameplayDocument();
+    if (!gameplay) throw new Error('complete or load a gameplay character before creating a campaign');
+    persistGameplayDocuments();
+    campaignDocument = createCampaignDocument({
+      characters: [gameplay],
+      ships: shipDocument ? [shipDocument] : [],
+      partyCharacterIds: [gameplay.identity.id],
+      activeShipId: shipDocument?.identity.id ?? null
+    });
+    documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
+    setStatus('NEW CAMPAIGN SHELL CREATED', 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function saveCampaignLocal() {
+  if (!campaignDocument) return;
+  try {
+    if (!registry) throw new Error('browser local storage is unavailable');
+    syncCampaignRefs();
+    persistGameplayDocuments();
+    registry.put(campaignDocument);
+    registry.setActiveCampaignId(campaignDocument.identity.id);
+    setStatus('CAMPAIGN SAVED TO THIS BROWSER', 'ok');
+    renderCampaign();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function loadSavedCampaign() {
+  try {
+    if (!registry) throw new Error('browser local storage is unavailable');
+    const id = registry.getActiveCampaignId();
+    if (!id) throw new Error('no saved campaign is recorded in this browser');
+    const campaign = registry.get(id);
+    if (!campaign) throw new Error(`saved campaign document is missing: ${id}`);
+    restoreCampaignFromRegistry(campaign);
+    setStatus('CAMPAIGN RESTORED FROM THIS BROWSER', 'ok');
+    closeHelp();
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function exportCampaignPortable() {
+  if (!campaignDocument) return;
+  try {
+    if (!registry) throw new Error('browser local storage is unavailable');
+    syncCampaignRefs();
+    persistGameplayDocuments();
+    registry.put(campaignDocument);
+    registry.setActiveCampaignId(campaignDocument.identity.id);
+    const bundle = registry.buildBundle(campaignDocument.identity.id);
+    const json = exportCampaignBundle(bundle, { space: 2 });
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const base = safeFilename(campaignDocument.identity.name || 'traveller-campaign').replace(/\.json$/i, '');
+    a.download = `${base}.campaign.json`;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    setStatus('PORTABLE CAMPAIGN BUNDLE EXPORTED', 'ok');
+    renderCampaign();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
 }
 
 function makeHelpButton(topic, label) {
@@ -349,6 +559,7 @@ function render() {
     el.procedure.append(detail);
   }
   renderActions(procedure);
+  renderCampaign();
   renderShip();
 }
 
@@ -360,6 +571,7 @@ function execute(action, payload = {}) {
     documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
     gameplayDocument = null;
     shipDocument = null;
+    campaignDocument = null;
     closeHelp();
     setStatus('ACTION RESOLVED', 'ok');
     render();
@@ -405,6 +617,11 @@ function assignScoutShip() {
     const result = createTypeSScoutReserveShipForCharacter(current);
     gameplayDocument = result.character;
     shipDocument = result.ship;
+    persistGameplayDocuments();
+    if (campaignDocument) {
+      campaignDocument = addShipToCampaign(campaignDocument, shipDocument, { makeActive: true });
+      syncCampaignRefs();
+    }
     setStatus('SCOUT SHIP ASSIGNED ON RESERVE BASIS', 'ok');
     render();
   } catch (error) {
@@ -463,22 +680,37 @@ async function loadDocument(file) {
       character = loaded.character;
       gameplayDocument = null;
       shipDocument = null;
+      campaignDocument = null;
       documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
       setStatus('CHARGEN JSON LOADED', 'ok');
     } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CHARACTER) {
       gameplayDocument = loaded.characterDocument;
       documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
+      campaignDocument = null;
       if (shipDocument && !shipMatchesCharacter(shipDocument, gameplayDocument)) shipDocument = null;
-      setStatus('CHARACTER DOCUMENT LOADED', 'ok');
+      if (registry) registry.put(gameplayDocument);
+      setStatus('CHARACTER DOCUMENT LOADED / REGISTERED LOCALLY', 'ok');
     } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.SHIP) {
       if (gameplayDocument && !shipMatchesCharacter(loaded.shipDocument, gameplayDocument)) {
         throw new Error(`ship ${loaded.shipDocument.identity.id} is not linked to loaded character ${gameplayDocument.identity.id}`);
       }
       shipDocument = loaded.shipDocument;
-      if (gameplayDocument) {
-        shipDocument = updateShipAssignedCharacterName(shipDocument, gameplayDocument.identity.name);
-      }
-      setStatus(gameplayDocument ? 'LINKED SHIP DOCUMENT LOADED' : 'SHIP DOCUMENT LOADED', 'ok');
+      campaignDocument = null;
+      if (gameplayDocument) shipDocument = updateShipAssignedCharacterName(shipDocument, gameplayDocument.identity.name);
+      if (registry) registry.put(shipDocument);
+      setStatus(gameplayDocument ? 'LINKED SHIP DOCUMENT LOADED / REGISTERED LOCALLY' : 'SHIP DOCUMENT LOADED / REGISTERED LOCALLY', 'ok');
+    } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CAMPAIGN) {
+      if (!registry) throw new Error('browser local storage is unavailable');
+      registry.put(loaded.campaignDocument);
+      registry.setActiveCampaignId(loaded.campaignDocument.identity.id);
+      restoreCampaignFromRegistry(loaded.campaignDocument);
+      setStatus('CAMPAIGN DOCUMENT LOADED FROM LOCAL REGISTRY', 'ok');
+    } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CAMPAIGN_BUNDLE) {
+      if (!registry) throw new Error('browser local storage is unavailable');
+      const bundle = registry.putBundle(loaded.campaignBundle);
+      registry.setActiveCampaignId(bundle.campaign.identity.id);
+      restoreCampaignFromRegistry(bundle.campaign);
+      setStatus('PORTABLE CAMPAIGN BUNDLE LOADED', 'ok');
     }
 
     closeHelp();
@@ -520,6 +752,8 @@ function updateCharacterName(name, statusMessage = 'NAME UPDATED') {
   if (shipDocument && (!gameplayDocument || shipMatchesCharacter(shipDocument, gameplayDocument))) {
     shipDocument = updateShipAssignedCharacterName(shipDocument, name);
   }
+  persistGameplayDocuments();
+  syncCampaignRefs();
   setStatus(statusMessage, 'ok');
   render();
 }
@@ -533,6 +767,9 @@ function updateShipName(name, statusMessage = 'SHIP NAME UPDATED') {
       shipName: shipDocument.identity.name
     });
   }
+  persistGameplayDocuments();
+  syncCampaignRefs();
+  renderCampaign();
   renderShip();
   setStatus(statusMessage, 'ok');
 }
@@ -540,8 +777,50 @@ function updateShipName(name, statusMessage = 'SHIP NAME UPDATED') {
 function updateShipRegistry(registry, statusMessage = 'SHIP REGISTRY UPDATED') {
   if (!shipDocument) return;
   shipDocument = updateShipIdentity(shipDocument, { registry });
+  persistGameplayDocuments();
+  syncCampaignRefs();
+  renderCampaign();
   renderShip();
   setStatus(statusMessage, 'ok');
+}
+
+function updateCampaignName(name) {
+  if (!campaignDocument) return;
+  try {
+    campaignDocument = updateCampaignIdentity(campaignDocument, { name });
+    renderCampaign();
+    setStatus('CAMPAIGN NAME UPDATED', 'ok');
+  } catch (error) {
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function updateCampaignDate() {
+  if (!campaignDocument) return;
+  try {
+    campaignDocument = updateCampaignTime(campaignDocument, {
+      dayOfYear: Number.parseInt(el.campaignDay.value, 10),
+      year: Number.parseInt(el.campaignYear.value, 10)
+    });
+    renderCampaign();
+    setStatus('CAMPAIGN DATE UPDATED', 'ok');
+  } catch (error) {
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function updateCampaignLocationFields() {
+  if (!campaignDocument) return;
+  try {
+    campaignDocument = updateCampaignLocation(campaignDocument, {
+      systemName: el.campaignSystem.value,
+      worldName: el.campaignWorld.value
+    });
+    renderCampaign();
+    setStatus('CAMPAIGN LOCATION UPDATED', 'ok');
+  } catch (error) {
+    setStatus(error?.message ?? String(error), 'error');
+  }
 }
 
 el.name.addEventListener('input', () => updateCharacterName(el.name.value));
@@ -570,13 +849,26 @@ el.newCharacter.addEventListener('click', () => {
   documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
   gameplayDocument = null;
   shipDocument = null;
+  campaignDocument = null;
   closeHelp();
   setStatus('NEW CHARACTER GENERATED', 'ok');
   render();
 });
+
+el.campaignName.addEventListener('input', () => updateCampaignName(el.campaignName.value));
+el.campaignDay.addEventListener('change', updateCampaignDate);
+el.campaignYear.addEventListener('change', updateCampaignDate);
+el.campaignSystem.addEventListener('input', updateCampaignLocationFields);
+el.campaignWorld.addEventListener('input', updateCampaignLocationFields);
+
+el.newCampaign.addEventListener('click', newCampaign);
+el.saveCampaign.addEventListener('click', saveCampaignLocal);
+el.loadCampaign.addEventListener('click', loadSavedCampaign);
+el.exportCampaign.addEventListener('click', exportCampaignPortable);
 
 el.saveCharacter.addEventListener('click', saveCharacter);
 el.loadCharacter.addEventListener('click', () => el.loadFile.click());
 el.loadFile.addEventListener('change', () => loadDocument(el.loadFile.files?.[0]));
 
 render();
+if (!registry) setStatus('READY / LOCAL CAMPAIGN STORAGE UNAVAILABLE', 'error');

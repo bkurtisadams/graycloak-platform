@@ -2,11 +2,11 @@
 
 Standalone browser client for the original-universe Classic Traveller project.
 
-## v0.7.2 scope
+## v0.8.0 scope
 
-The browser retains the complete Book 1 character-generation flow and the v0.7.0 Type S Scout/Courier Ship Document handoff. v0.7.2 is a focused persistence hotfix plus the v0.7.1 usability pass.
+v0.8.0 adds the first persistent campaign shell on top of the existing Book 1 character-generation and Book 2 Type S Ship Document layers.
 
-The client imports the pure rules engine from `../packages/classic-traveller-rules/`. It does not duplicate Book 1 career tables or Book 2 ship specifications in browser code.
+The Classic Traveller rules engine remains in `../packages/classic-traveller-rules/`. Campaign persistence is an application-layer concern under `traveller/src/`; it does not add or alter Classic Traveller rules.
 
 ## Run locally
 
@@ -22,37 +22,38 @@ Then open:
 http://localhost:8080/traveller/client/
 ```
 
-Do not type the URL into Command Prompt; enter it in the browser address bar.
+## v0.8.0 campaign flow
 
-## v0.7.2 browser flow
+A Campaign Document v1 contains stable references rather than embedded character or ship state. Its current scope is deliberately small:
 
-After character generation is complete:
+- stable campaign ID and editable campaign name
+- canonical campaign date as ordinal day/year plus seconds-of-day internally
+- current system/world placeholders as free-text campaign state
+- active party character IDs
+- active ship ID
+- references to Character and Ship Documents
 
-- `[ EXPORT CHARACTER ]` exports gameplay Character Document v2
-- a character with an available Scout Ship benefit receives `[ ASSIGN SCOUT SHIP ]`
-- assignment creates a separate Type S Ship Document and links the Character Document to it by ship ID
-- the Ship's Register displays the source-backed Type S specifications and Scout reserve authority terms
-- ship name and registry may be entered without changing canonical design data
-- `[ EXPORT SHIP ]` exports Ship Document v1
+The browser now provides:
 
-Usability and persistence additions in v0.7.2:
+- `[ NEW CAMPAIGN ]` to create a campaign from the currently loaded gameplay character and optional ship
+- `[ SAVE CAMPAIGN ]` to save the campaign and its referenced documents in browser local storage
+- `[ LOAD CAMPAIGN ]` to restore the last locally saved campaign without manually reloading each Character/Ship JSON file
+- `[ EXPORT CAMPAIGN ]` to export one portable Campaign Bundle JSON containing the Campaign Document plus exactly its referenced Character and Ship Documents
+- `[ LOAD JSON ]` recognizes chargen saves, Character Documents, Ship Documents, Campaign Documents, and portable Campaign Bundles
 
-- `[ RANDOM ]` beside the character name suggests a broad provisional human name
-- `[ RANDOM ]` beside the ship name suggests a ship name
-- `[ GENERATE ]` beside registry creates a Type S candidate in the project format `S-#####`
-- generators never run automatically and never prevent manual entry
-- the generated registry format is a Graycloak project convention, not a Classic Traveller RAW format
-- the Ship's Register now shows the standard Type S engineering duty assigned to its one-person crew while explicitly noting that the duty does not grant Engineering skill
+Imported Character and Ship Documents are placed into the local document registry by stable ID. Loading a campaign resolves those IDs rather than embedding duplicate state.
 
-For a duplicate Scout Ship result, the final personnel record shows the number of benefit rolls, one effective reserve assignment, and the number of additional results which have no further effect under Book 1.
+The default date begins at `001-4800 00:00`, matching the current project-era convention. This campaign calendar representation and the free-text location fields are Graycloak application conventions, not additions to Classic Traveller RAW.
 
-## Source-backed Type S data
+## Existing character and ship support retained
 
-The canonical design comes from Classic Traveller Book 2 p.19 and the Facsimile errata. In particular, the standard Type S uses a Model/1bis computer. The later Book 2 combat data-card example is not used to overwrite the standard-design specification.
+- complete Book 1 character generation
+- gameplay Character Document v2
+- source-backed duplicate Scout Ship resolution
+- Type S Scout/Courier Ship Document v1
+- Scout reserve-assignment authority state
+- separate stable character/ship IDs
+- optional character-name, ship-name, and registry generators
+- source-backed Type S one-person pilot/engineering-duty display
 
-No Firebase, accounts, campaign world, trade loop, travel execution, personal combat, or starship combat are included in v0.7.2.
-
-
-### v0.7.2 persistence hotfix
-
-`[ LOAD JSON ]` accepts chargen saves, gameplay Character Documents, and Ship Documents. Gameplay characters and ships remain separate documents and are linked by stable IDs.
+No subsector generation, jump execution, trade loop, encounters, personal combat, or starship combat are included in v0.8.0.

@@ -63,6 +63,10 @@ export const HELP_TOPICS = Object.freeze({
     title: "SHIP'S REGISTER",
     body: 'The ship is a separate persistent document referenced by character ID and ship ID. The Type S record comes from the Book 2 standard Scout/Courier design. Authority is shown separately from assignment: a Scout benefit provides a reserve vessel subject to Scout Service recall and does not make the character an unrestricted owner. RANDOM ship names and generated S-##### registry numbers are optional project utilities, not formats prescribed by Classic Traveller RAW.'
   }),
+  'campaign-status': Object.freeze({
+    title: 'CAMPAIGN STATUS',
+    body: 'A Campaign Document is the persistent shell that ties gameplay Character and Ship Documents together by stable ID. SAVE CAMPAIGN stores the campaign and referenced documents in this browser. EXPORT CAMPAIGN creates one portable bundle containing the Campaign Document plus its referenced character and ship documents. The ordinal date and free-text location fields are Graycloak campaign-state conventions, not new Classic Traveller rules.'
+  }),
   'service-history': Object.freeze({
     title: 'SERVICE HISTORY',
     body: 'This is the condensed career record: enlistment or draft, terms served, survival, commissions, promotions, reenlistment decisions, and final mustering out. It is intended to become part of the character’s persistent biography.'
@@ -455,4 +459,45 @@ export function buildProcedure(character) {
     helpTopic: character.phase,
     attention: ATTENTION_PHASES.has(character.phase)
   };
+}
+
+
+export function formatCampaignDate(time = {}) {
+  const day = String(Number(time.dayOfYear ?? 1)).padStart(3, '0');
+  const year = String(Number(time.year ?? 0)).padStart(4, '0');
+  const seconds = Number(time.secondsOfDay ?? 0);
+  const hour = Math.floor(seconds / 3600);
+  const minute = Math.floor((seconds % 3600) / 60);
+  return `${day}-${year} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+}
+
+export function buildCampaignRecord(campaign, { characters = [], ships = [], missing = [] } = {}) {
+  const characterMap = new Map(characters.map((entry) => [entry.identity.id, entry]));
+  const shipMap = new Map(ships.map((entry) => [entry.identity.id, entry]));
+  const activeShip = campaign.activeShipId ? shipMap.get(campaign.activeShipId) : null;
+  const partyLines = campaign.party.characterIds.map((id) => {
+    const character = characterMap.get(id);
+    if (!character) return `PARTY ${id} / DOCUMENT MISSING`;
+    return `PARTY ${character.identity.name || id} / ${serviceName(character.career.service).toUpperCase()} / UPP ${character.upp} / ${formatCredits(character.finances.credits)}`;
+  });
+  const activeShipLine = activeShip
+    ? `ACTIVE SHIP ${activeShip.identity.name || activeShip.identity.id} / ${activeShip.identity.registry || 'NO REGISTRY'} / TYPE ${activeShip.design.typeCode}`
+    : campaign.activeShipId
+      ? `ACTIVE SHIP ${campaign.activeShipId} / DOCUMENT MISSING`
+      : 'ACTIVE SHIP none';
+  const system = campaign.location.systemName || campaign.location.systemId || '(not assigned)';
+  const world = campaign.location.worldName || campaign.location.worldId || '(not assigned)';
+
+  return box([
+    `CAMPAIGN STATUS // DOCUMENT v${campaign.schemaVersion}`,
+    `ID ${campaign.identity.id}`,
+    `CAMPAIGN ${campaign.identity.name || '(unnamed)'}`,
+    `DATE ${formatCampaignDate(campaign.time)}`,
+    `LOCATION SYSTEM ${system} / WORLD ${world}`,
+    activeShipLine,
+    ...partyLines,
+    `DOCUMENTS CHARACTERS ${campaign.documentRefs.characters.length} / SHIPS ${campaign.documentRefs.ships.length}`,
+    `SHIP FUNDS not yet tracked`,
+    ...(missing.length ? [`MISSING DOCUMENTS ${missing.join(', ')}`] : [])
+  ], 96);
 }

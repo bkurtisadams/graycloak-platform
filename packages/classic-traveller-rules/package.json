@@ -1,6 +1,6 @@
 {
   "name": "@graycloak/classic-traveller-rules",
-  "version": "0.7.2",
+  "version": "0.8.0",
   "description": "Classic Traveller rules engine - pure JS, no host dependencies",
   "type": "module",
   "main": "index.js",

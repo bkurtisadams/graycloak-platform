@@ -37,3 +37,27 @@ test('loader rejects unknown typed documents instead of misrouting them as charg
     /unsupported Traveller documentType/
   );
 });
+
+
+test('loader recognizes Campaign Documents and portable Campaign Bundles', async () => {
+  const { importCharacterDocument, importShipDocument } = await import('../../packages/classic-traveller-rules/index.js');
+  const { createCampaignDocument } = await import('../src/campaign-document.js');
+  const { createCampaignBundle } = await import('../src/campaign-bundle.js');
+  const character = importCharacterDocument(await readExample('Hawkeye.character.json'));
+  const ship = importShipDocument(await readExample('Hawkeye.ship.json'));
+  const campaign = createCampaignDocument({
+    id: 'campaign-loader-test',
+    characters: [character],
+    ships: [ship],
+    partyCharacterIds: [character.identity.id],
+    activeShipId: ship.identity.id
+  });
+
+  const campaignLoaded = loadTravellerDocument(campaign);
+  assert.equal(campaignLoaded.kind, TRAVELLER_DOCUMENT_KINDS.CAMPAIGN);
+  assert.equal(campaignLoaded.campaignDocument.identity.id, 'campaign-loader-test');
+
+  const bundleLoaded = loadTravellerDocument(createCampaignBundle(campaign, { characters: [character], ships: [ship] }));
+  assert.equal(bundleLoaded.kind, TRAVELLER_DOCUMENT_KINDS.CAMPAIGN_BUNDLE);
+  assert.equal(bundleLoaded.campaignBundle.documents.characters[0].identity.name, 'Hawkeye');
+});

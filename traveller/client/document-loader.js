@@ -6,10 +6,22 @@ import {
   importShipDocument
 } from '../../packages/classic-traveller-rules/index.js';
 
+import {
+  CAMPAIGN_DOCUMENT_TYPE,
+  importCampaignDocument
+} from '../src/campaign-document.js';
+
+import {
+  CAMPAIGN_BUNDLE_TYPE,
+  importCampaignBundle
+} from '../src/campaign-bundle.js';
+
 export const TRAVELLER_DOCUMENT_KINDS = Object.freeze({
   CHARGEN: 'chargen',
   CHARACTER: 'character',
-  SHIP: 'ship'
+  SHIP: 'ship',
+  CAMPAIGN: 'campaign',
+  CAMPAIGN_BUNDLE: 'campaign-bundle'
 });
 
 function parseJson(input) {
@@ -38,6 +50,20 @@ export function loadTravellerDocument(input) {
     return {
       kind: TRAVELLER_DOCUMENT_KINDS.SHIP,
       shipDocument: importShipDocument(parsed)
+    };
+  }
+
+  if (parsed.documentType === CAMPAIGN_DOCUMENT_TYPE) {
+    return {
+      kind: TRAVELLER_DOCUMENT_KINDS.CAMPAIGN,
+      campaignDocument: importCampaignDocument(parsed)
+    };
+  }
+
+  if (parsed.documentType === CAMPAIGN_BUNDLE_TYPE) {
+    return {
+      kind: TRAVELLER_DOCUMENT_KINDS.CAMPAIGN_BUNDLE,
+      campaignBundle: importCampaignBundle(parsed)
     };
   }
 

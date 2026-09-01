@@ -11,7 +11,7 @@
     <header class="masthead">
       <div>
         <div id="app-title" class="title">TRAVELLER // PERSONNEL INTAKE TERMINAL</div>
-        <div class="subtitle">CLIENT v0.7.2 // CLASSIC TRAVELLER BOOKS 1-2</div>
+        <div class="subtitle">CLIENT v0.8.0 // CLASSIC TRAVELLER BOOKS 1-2 // CAMPAIGN SHELL</div>
       </div>
       <div id="system-status" class="status" aria-live="polite">READY</div>
     </header>
@@ -21,6 +21,12 @@
       <button id="save-character" class="text-button utility-button" type="button">[ SAVE CHARGEN JSON ]</button>
       <button id="load-character" class="text-button utility-button" type="button">[ LOAD JSON ]</button>
       <input id="load-file" type="file" accept="application/json,.json" hidden>
+    </nav>
+    <nav class="utility campaign-utility" aria-label="Campaign commands">
+      <button id="new-campaign" class="text-button utility-button" type="button">[ NEW CAMPAIGN ]</button>
+      <button id="save-campaign" class="text-button utility-button" type="button" disabled>[ SAVE CAMPAIGN ]</button>
+      <button id="load-campaign" class="text-button utility-button" type="button">[ LOAD CAMPAIGN ]</button>
+      <button id="export-campaign" class="text-button utility-button" type="button" disabled>[ EXPORT CAMPAIGN ]</button>
     </nav>
 
     <section aria-labelledby="record-heading">
@@ -44,6 +50,21 @@
       </div>
       <div id="procedure" class="procedure" aria-live="polite"></div>
       <div id="actions" class="actions"></div>
+    </section>
+
+    <section id="campaign-section" hidden aria-labelledby="campaign-heading">
+      <div class="section-heading">
+        <h2 id="campaign-heading" class="section-title">CAMPAIGN STATUS</h2>
+        <button class="help-button" type="button" data-help-topic="campaign-status" aria-label="Explain campaign status">[?]</button>
+      </div>
+      <div class="campaign-fields">
+        <div class="campaign-field"><label for="campaign-name">CAMPAIGN</label><input id="campaign-name" type="text" maxlength="100" autocomplete="off" spellcheck="false"></div>
+        <div class="campaign-field compact"><label for="campaign-day">DAY</label><input id="campaign-day" type="number" min="1" max="366" step="1"></div>
+        <div class="campaign-field compact"><label for="campaign-year">YEAR</label><input id="campaign-year" type="number" min="0" step="1"></div>
+        <div class="campaign-field"><label for="campaign-system">SYSTEM</label><input id="campaign-system" type="text" maxlength="100" autocomplete="off" spellcheck="false"></div>
+        <div class="campaign-field"><label for="campaign-world">WORLD</label><input id="campaign-world" type="text" maxlength="100" autocomplete="off" spellcheck="false"></div>
+      </div>
+      <pre id="campaign-record" class="record campaign-record" aria-live="polite"></pre>
     </section>
 
     <section id="ship-section" hidden aria-labelledby="ship-heading">
