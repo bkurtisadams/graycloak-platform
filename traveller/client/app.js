@@ -1,7 +1,10 @@
 import {
   CHARGEN_ACTIONS,
+  CHARGEN_PHASES,
   createCharacter,
+  createCharacterDocument,
   exportCharacter,
+  exportCharacterDocument,
   importCharacter,
   performChargenAction
 } from '../../packages/classic-traveller-rules/index.js';
@@ -9,6 +12,7 @@ import {
 import {
   ACTION_LABELS,
   buildCharacterRecord,
+  buildFinalCharacterRecord,
   buildGenerationLog,
   buildProcedure,
   buildServiceHistory,
@@ -20,6 +24,8 @@ import {
 const el = {
   status: document.querySelector('#system-status'),
   name: document.querySelector('#character-name'),
+  recordHeading: document.querySelector('#record-heading'),
+  recordHelp: document.querySelector('#record-help'),
   record: document.querySelector('#character-record'),
   procedure: document.querySelector('#procedure'),
   actions: document.querySelector('#actions'),
@@ -106,6 +112,16 @@ function renderGenericActions(actions) {
 function renderActions(procedure) {
   el.actions.replaceChildren();
   const { available } = procedure;
+
+  if (character.phase === CHARGEN_PHASES.COMPLETE) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'text-button action-button';
+    button.textContent = '[ EXPORT CHARACTER ]';
+    button.addEventListener('click', exportGameplayCharacter);
+    el.actions.append(button);
+    return;
+  }
 
   if (!available.actions.length) {
     const text = document.createElement('span');
@@ -200,7 +216,20 @@ function renderActions(procedure) {
 
 function render() {
   if (el.name.value !== character.name) el.name.value = character.name ?? '';
-  el.record.textContent = buildCharacterRecord(character);
+
+  if (character.phase === CHARGEN_PHASES.COMPLETE) {
+    const finalDocument = createCharacterDocument(character);
+    el.recordHeading.textContent = 'FINAL PERSONNEL RECORD';
+    el.recordHelp.dataset.helpTopic = 'final-character-record';
+    el.record.classList.add('final-record');
+    el.record.textContent = buildFinalCharacterRecord(finalDocument);
+  } else {
+    el.recordHeading.textContent = 'PERSONNEL RECORD';
+    el.recordHelp.dataset.helpTopic = 'personnel-record';
+    el.record.classList.remove('final-record');
+    el.record.textContent = buildCharacterRecord(character);
+  }
+
   el.serviceHistory.textContent = buildServiceHistory(character);
   el.generationLog.textContent = buildGenerationLog(character);
 
@@ -250,6 +279,27 @@ function safeFilename(name) {
     .replace(/[^a-z0-9._-]+/gi, '-')
     .replace(/^-+|-+$/g, '');
   return `${cleaned || 'traveller-character'}.json`;
+}
+
+function exportGameplayCharacter() {
+  try {
+    const gameplayDocument = createCharacterDocument(character);
+    const json = exportCharacterDocument(gameplayDocument, { space: 2 });
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const base = safeFilename(character.name).replace(/\.json$/i, '');
+    a.download = `${base}.character.json`;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    setStatus('CHARACTER DOCUMENT EXPORTED', 'ok');
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
 }
 
 function saveCharacter() {

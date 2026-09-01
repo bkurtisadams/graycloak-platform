@@ -55,6 +55,10 @@ export const HELP_TOPICS = Object.freeze({
     title: 'PERSONNEL RECORD',
     body: 'The Universal Personality Profile (UPP) lists STR, DEX, END, INT, EDU, and SOC in that order. Values above 9 use Traveller hexadecimal notation, so A means 10, B means 11, and so on. The record also shows your current service, rank, terms, skills, credits, benefits, and chargen phase.'
   }),
+  'final-character-record': Object.freeze({
+    title: 'FINAL PERSONNEL RECORD',
+    body: 'This is the compact gameplay-facing character record derived from completed chargen. It keeps the final UPP, career, skills, finances, benefits, and service history without carrying temporary chargen phases or pending-action state. Ship results remain entitlements until the ship system resolves their exact ownership or disposition.'
+  }),
   'service-history': Object.freeze({
     title: 'SERVICE HISTORY',
     body: 'This is the condensed career record: enlistment or draft, terms served, survival, commissions, promotions, reenlistment decisions, and final mustering out. It is intended to become part of the character’s persistent biography.'
@@ -129,7 +133,7 @@ export const HELP_TOPICS = Object.freeze({
   }),
   complete: Object.freeze({
     title: 'CHARACTER COMPLETE',
-    body: 'Character generation is finished. The personnel record, career history, skills, credits, benefits, and final UPP can now be saved as JSON and used by later Traveller game systems.'
+    body: 'Character generation is finished. The final personnel record is now derived into a compact gameplay character document. SAVE CHARGEN JSON preserves the full generation state; EXPORT CHARACTER writes the gameplay document used by later Traveller systems.'
   }),
   dead: Object.freeze({
     title: 'CHARACTER DECEASED',
@@ -169,7 +173,7 @@ const PROCEDURE_TEXT = Object.freeze({
   'muster-out-required': 'Service has ended. Begin mustering out to determine cash and material benefits.',
   'muster-out-rolls-pending': 'Choose the Cash or Benefits table for each remaining mustering-out roll.',
   'muster-benefit-specialization-required': 'A Gun or Blade benefit requires immediate declaration of a specific legal weapon. Choose from the list below.',
-  complete: 'Character generation is complete. Save the JSON record or begin a new character.',
+  complete: 'Character generation is complete. Export the final gameplay character document, preserve the chargen record if desired, or begin a new character.',
   dead: 'The character died during generation. Save the record if desired, or begin a new character.'
 });
 
@@ -250,6 +254,40 @@ export function buildCharacterRecord(character) {
     `BENEFITS ${formatBenefits(character.materialBenefits)}`,
     `PHASE ${PHASE_LABELS[character.phase] ?? character.phase}${remaining ? `    MUSTER ROLLS REMAINING ${remaining}` : ''}`
   ]);
+}
+
+
+function groupedBenefitLines(benefits = {}) {
+  const lines = [];
+  for (const entry of benefits.passages ?? []) lines.push(`PASSAGE ${entry.name}${entry.count > 1 ? ` ×${entry.count}` : ''}`);
+  for (const entry of benefits.memberships ?? []) lines.push(`MEMBERSHIP ${entry.name}${entry.count > 1 ? ` ×${entry.count}` : ''}`);
+  for (const entry of benefits.equipment ?? []) lines.push(`EQUIPMENT ${entry.name}${entry.count > 1 ? ` ×${entry.count}` : ''}`);
+  for (const entry of benefits.shipEntitlements ?? []) {
+    lines.push(`SHIP ENTITLEMENT ${entry.name}${entry.count > 1 ? ` ×${entry.count}` : ''} / DISPOSITION ${String(entry.disposition ?? 'unresolved').toUpperCase()}`);
+  }
+  return lines.length ? lines : ['BENEFITS none'];
+}
+
+export function buildFinalCharacterRecord(document) {
+  const c = document.characteristics;
+  const career = document.career;
+  const rank = career.rankTitle || (career.rank > 0 ? `Rank ${career.rank}` : 'unranked');
+  const retired = document.status.retired
+    ? `YES / ${formatCredits(document.finances.retirementPayAnnual)} annual`
+    : 'NO';
+  const benefitLines = groupedBenefitLines(document.benefits);
+
+  return box([
+    'FINAL PERSONNEL RECORD // GAMEPLAY DOCUMENT v1',
+    `NAME ${document.identity.name || '(unnamed)'}`,
+    `UPP ${document.upp}    AGE ${document.age}    STATUS ${document.status.alive ? 'ALIVE' : 'DECEASED'}`,
+    `STR ${c.STR}    DEX ${c.DEX}    END ${c.END}    INT ${c.INT}    EDU ${c.EDU}    SOC ${c.SOC}`,
+    `CAREER ${serviceName(career.service)} / ${rank}`,
+    `TERMS ${career.terms}    YEARS SERVED ${career.yearsServed}    DRAFTED ${career.drafted ? 'YES' : 'NO'}`,
+    `CREDITS ${formatCredits(document.finances.credits)}    RETIRED ${retired}`,
+    `SKILLS ${formatSkills(document.skills)}`,
+    ...benefitLines
+  ], 82);
 }
 
 function diceText(event) {

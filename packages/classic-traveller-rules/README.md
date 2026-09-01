@@ -3,7 +3,7 @@
 Pure JavaScript rules package for the Graycloak Classic Traveller browser-game project.
 It intentionally has no HTML, Foundry, Firebase, or server dependencies.
 
-## v0.5.2 scope
+## v0.6.0 scope
 
 Implemented from Classic Traveller Book 1:
 
@@ -29,6 +29,10 @@ Implemented from Classic Traveller Book 1:
 - immediate declaration of Gun/Blade material benefits, with later benefits of the same type optionally taken as skill
 - credits, material benefits, retirement pay, and final COMPLETE chargen state
 - deterministic dice injection for regression testing
+- completed chargen -> compact gameplay character-document conversion
+- gameplay character-document schema v1 with strict validation/import/export
+- benefit normalization for passages, memberships, equipment, and ship entitlements
+- duplicate ship results preserved as raw benefits and unresolved entitlements rather than guessed ownership
 
 v0.4.0 added the stable host-facing boundary:
 
@@ -36,7 +40,7 @@ v0.4.0 added the stable host-facing boundary:
 - `getAvailableActions(character)` so clients do not duplicate phase legality rules
 - `performChargenAction(character, action, payload)` as a single UI-facing dispatcher
 - action-specific choice metadata for services, skill tables, specialization, aging, and mustering out
-- schema v4 character documents
+- schema v4 chargen-state documents
 - `validateCharacter()` and `assertValidCharacter()` structural/state validation
 - `exportCharacter()` and `importCharacter()` strict JSON helpers
 - import rejection of unknown fields, impossible phase/state combinations, inconsistent UPPs, invalid ranks, bad counters, and malformed JSON
@@ -58,6 +62,6 @@ npm test
 From the Graycloak monorepo root, the normal workspace test command should include this package automatically because the workspace includes `packages/*`.
 
 
-## v0.5.x client milestone
+## v0.6.0 client milestone
 
 The first browser chargen client lives outside this package at `traveller/client/`. It consumes the public lifecycle API and does not duplicate Book 1 target numbers or phase legality rules.

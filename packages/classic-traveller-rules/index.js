@@ -1,4 +1,4 @@
-// @graycloak/classic-traveller-rules v0.5.2
+// @graycloak/classic-traveller-rules v0.6.0
 // Source-backed Classic Traveller Book 1 character-generation engine.
 // Pure rules/state logic: no host, UI, persistence, Foundry, or Firebase dependencies.
 
@@ -98,3 +98,16 @@ export {
   exportCharacter,
   importCharacter
 } from './src/characters/serialization.js';
+
+export {
+  CHARACTER_DOCUMENT_TYPE,
+  CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION,
+  SUPPORTED_CHARACTER_DOCUMENT_SCHEMA_VERSIONS,
+  CharacterDocumentValidationError,
+  summarizeMaterialBenefits,
+  createCharacterDocument,
+  validateCharacterDocument,
+  assertValidCharacterDocument,
+  exportCharacterDocument,
+  importCharacterDocument
+} from './src/characters/character-document.js';

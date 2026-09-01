@@ -2,9 +2,9 @@
 
 Standalone browser client for the original-universe Classic Traveller project.
 
-## v0.5.2 scope
+## v0.6.0 scope
 
-The playable slice is the Book 1 character generator in `client/`. v0.5.2 replaces ambiguous free-text specialization prompts with engine-supplied legal choices while retaining the v0.5.1 contextual help and interaction grammar.
+The playable slice is the Book 1 character generator in `client/`. v0.6.0 adds the handoff from completed chargen to a compact gameplay character document and final personnel record, while retaining constrained specialization choices and contextual help.
 
 The browser client imports the pure rules engine from `../packages/classic-traveller-rules/` and uses only the public lifecycle/serialization API. The client does not contain enlistment targets, survival targets, career tables, aging tables, or mustering-out tables.
 
@@ -36,7 +36,9 @@ Opening `index.html` directly as a `file://` URL is not recommended because brow
 - pale-green highlighting for actions that are legal now
 - pale-yellow `WHAT NOW?` guidance and decision/attention states
 - gray disabled-action styling reserved for unavailable controls
-- export validated character JSON
-- import validated character JSON and resume chargen
+- save validated chargen-state JSON and resume chargen
+- export a separate schema-v1 gameplay character document after chargen completes
+- render a final personnel record from the gameplay document rather than transient chargen state
+- preserve duplicate ship benefits as unresolved entitlements for the later ship system
 
-No Firebase, accounts, campaign world, trading, combat, or server persistence are included in v0.5.2.
+No Firebase, accounts, campaign world, trading, combat, ship resolution, or server persistence are included in v0.6.0.

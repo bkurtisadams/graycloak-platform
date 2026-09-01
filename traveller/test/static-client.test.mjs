@@ -36,12 +36,12 @@ test('terminal presentation avoids rounded-card styling', async () => {
   assert.doesNotMatch(css, /box-shadow/);
 });
 
-test('v0.5.2 retains contextual help and highlighted legal actions', async () => {
+test('v0.6.0 retains contextual help and highlighted legal actions', async () => {
   const html = await read('index.html');
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /CLIENT v0\.5\.2/);
+  assert.match(html, /CLIENT v0\.6\.0/);
   assert.match(html, /data-help-topic="personnel-record"/);
   assert.match(html, /id="context-help"/);
   assert.match(app, /helpForTopic/);
@@ -54,13 +54,28 @@ test('v0.5.2 retains contextual help and highlighted legal actions', async () =>
   assert.match(css, /\.help-panel/);
 });
 
-test('v0.5.2 specialization UI uses engine-supplied legal choices instead of free text', async () => {
+test('v0.6.0 specialization UI uses engine-supplied legal choices instead of free text', async () => {
   const html = await read('index.html');
   const app = await read('app.js');
 
-  assert.match(html, /CLIENT v0\.5\.2/);
+  assert.match(html, /CLIENT v0\.6\.0/);
   assert.match(app, /available\.choices\.specializations/);
   assert.doesNotMatch(app, /id = 'skill-specialization'/);
   assert.doesNotMatch(app, /id = 'benefit-specialization'/);
   assert.doesNotMatch(app, /placeholder = 'e\.g\. Rifle'/);
+});
+
+
+test('v0.6.0 exposes a separate gameplay character export after chargen', async () => {
+  const html = await read('index.html');
+  const app = await read('app.js');
+  const model = await read('ui-model.js');
+
+  assert.match(html, /SAVE CHARGEN JSON/);
+  assert.match(html, /LOAD CHARGEN JSON/);
+  assert.match(app, /createCharacterDocument/);
+  assert.match(app, /exportCharacterDocument/);
+  assert.match(app, /EXPORT CHARACTER/);
+  assert.match(model, /FINAL PERSONNEL RECORD/);
+  assert.match(model, /SHIP ENTITLEMENT/);
 });

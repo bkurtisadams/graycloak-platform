@@ -35,10 +35,17 @@ test('public API exposes lifecycle and JSON boundary helpers', () => {
     'validateCharacter',
     'assertValidCharacter',
     'exportCharacter',
-    'importCharacter'
+    'importCharacter',
+    'createCharacterDocument',
+    'validateCharacterDocument',
+    'assertValidCharacterDocument',
+    'exportCharacterDocument',
+    'importCharacterDocument'
   ]) {
     assert.equal(typeof publicApi[name], 'function', `index.js must export ${name}`);
   }
   assert.equal(typeof publicApi.CHARGEN_ACTIONS, 'object');
   assert.equal(publicApi.CURRENT_CHARACTER_SCHEMA_VERSION, 4);
+  assert.equal(publicApi.CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION, 1);
+  assert.equal(publicApi.CHARACTER_DOCUMENT_TYPE, 'classic-traveller-character');
 });
