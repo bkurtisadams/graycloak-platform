@@ -11,6 +11,8 @@
   --action-ready: #cfe0cf;
   --action-ready-hover: #bdd3bd;
   --action-border: #6f866f;
+  --failure-bg: #e5c9c9;
+  --failure-border: #8b4b4b;
   --attention: #e7dfb6;
   --attention-border: #978d58;
   --disabled: #a9aaa5;
@@ -253,6 +255,10 @@ input:focus-visible { outline: 2px solid var(--link); outline-offset: 1px; }
   font-weight: 700;
 }
 
+
+[hidden] {
+  display: none !important;
+}
 
 .two-column {
   display: grid;
@@ -822,6 +828,64 @@ input[readonly] {
 
 .activity-message {
   overflow-wrap: anywhere;
+}
+
+.activity-roll-message {
+  display: grid;
+  gap: 3px;
+}
+
+.activity-message-line {
+  min-width: 0;
+}
+
+.activity-dice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 3px 0;
+  font-weight: 700;
+}
+
+.activity-roll-label {
+  letter-spacing: 0.04em;
+  margin-right: 2px;
+}
+
+.activity-die {
+  min-width: 25px;
+  height: 25px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--rule);
+  background: var(--help-paper);
+  font-weight: 700;
+}
+
+.activity-roll-total {
+  margin-left: 2px;
+}
+
+.activity-outcome {
+  margin-top: 4px;
+  padding: 4px 6px;
+  border-left: 4px solid;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.activity-outcome.success {
+  background: var(--action-ready);
+  border-color: var(--action-border);
+  color: var(--ok);
+}
+
+.activity-outcome.failure {
+  background: var(--failure-bg);
+  border-color: var(--failure-border);
+  color: var(--error);
 }
 
 .activity-clear { font-size: 11px; }

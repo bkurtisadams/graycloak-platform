@@ -323,7 +323,7 @@ test('v0.12.0.1 promotes campaign status and interactive rolls into a compact pl
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /CLIENT v0\.12\.0\.(?:1|2)/);
+  assert.match(html, /CLIENT v0\.12\.0\.(?:1|2|3|4)/);
   assert.match(html, /id="campaign-header"/);
   assert.match(html, /id="header-characteristics"/);
   assert.match(html, /id="header-quick-skills"/);
@@ -345,7 +345,7 @@ test('v0.12.0.2 keeps tab actions above independently scrolling records', async 
   const html = await read('index.html');
   const css = await read('styles.css');
 
-  assert.match(html, /CLIENT v0\.12\.0\.2/);
+  assert.match(html, /CLIENT v0\.12\.0\.(?:2|3|4)/);
   for (const [actions, record] of [
     ['port-actions', 'port-services-record'],
     ['commerce-actions', 'commerce-record'],
@@ -358,4 +358,33 @@ test('v0.12.0.2 keeps tab actions above independently scrolling records', async 
   assert.match(css, /\.operations-primary-actions[\s\S]*flex:\s*0 0 auto/);
   assert.match(css, /\.operations-panel-record[\s\S]*overflow-y:\s*auto/);
   assert.match(css, /\.operations-panel-scroll[\s\S]*overflow:\s*hidden/);
+});
+
+
+test('v0.12.0.3 makes Activity Log dice and outcomes visually explicit', async () => {
+  const html = await read('index.html');
+  const app = await read('app.js');
+  const css = await read('styles.css');
+
+  assert.match(html, /CLIENT v0\.12\.0\.(?:3|4)/);
+  assert.match(app, /ROLL 2D \[\$\{dice\.dice\[0\]\}\] \[\$\{dice\.dice\[1\]\}\]/);
+  assert.match(app, /appendActivityDiceLine/);
+  assert.match(app, /RESULT \/\/ SUCCESS/);
+  assert.match(app, /RESULT \/\/ FAILURE/);
+  assert.match(css, /\.activity-die[\s\S]*border:\s*1px solid var\(--rule\)/);
+  assert.match(css, /\.activity-outcome\.success[\s\S]*background:\s*var\(--action-ready\)/);
+  assert.match(css, /\.activity-outcome\.failure[\s\S]*background:\s*var\(--failure-bg\)/);
+});
+
+
+test('v0.12.0.4 keeps chargen history hidden until explicitly opened in campaign play', async () => {
+  const html = await read('index.html');
+  const css = await read('styles.css');
+  const app = await read('app.js');
+
+  assert.match(html, /CLIENT v0\.12\.0\.4/);
+  assert.match(html, /id="chargen-record-section"[^>]*hidden/);
+  assert.match(css, /\[hidden\]\s*\{[\s\S]*display:\s*none\s*!important/);
+  assert.match(app, /el\.chargenRecordSection\.hidden = !detailPanels\.chargen/);
+  assert.match(app, /toggleDetailPanel\('chargen'\)/);
 });

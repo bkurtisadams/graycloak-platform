@@ -1,5 +1,14 @@
 # Graycloak Traveller
 
+## v0.12.0.4 chargen-record visibility fix
+
+v0.12.0.4 fixes the completed-campaign detail layout so Service History and Generation Log remain hidden during normal campaign play and appear only when `[ CHARGEN RECORD ]` is selected. The shared `hidden` attribute is now enforced against layout classes such as `.two-column`, preventing display rules from accidentally overriding hidden detail panels. This is a UI-only patch with no Traveller rules or persistent-document changes.
+
+
+
+## v0.12.0.3 activity-roll readability
+
+v0.12.0.3 makes Activity Log checks visibly read as dice rolls. CHECK and rolled SITUATION entries render two boxed d6 results with an explicit `ROLL 2D` label, and their outcome is separated into a high-contrast result band: pale green for SUCCESS and pale red for FAILURE. Existing v0.12.0.x activity entries are still readable and legacy `2D a+b = total` roll text is recognized by the renderer. This is a UI-only patch with no Traveller rules or persistent-document changes.
 
 ## v0.12.0.2 operations action-strip usability
 

@@ -310,6 +310,64 @@ function setActivityContext() {
   activityLog.setContext(campaignDocument?.identity?.id || 'session');
 }
 
+function appendActivityDiceLine(container, part) {
+  const explicit = String(part).match(/^ROLL\s+2D\s+\[(\d+)\]\s+\[(\d+)\]\s*=\s*(\d+)$/i);
+  const legacy = String(part).match(/^2D\s+(\d+)\+(\d+)\s*=\s*(\d+)$/i)
+    || String(part).match(/^(\d+)\+(\d+)=(\d+)$/);
+  const match = explicit || legacy;
+  if (!match) return false;
+
+  const line = document.createElement('div');
+  line.className = 'activity-message-line activity-dice';
+  const label = document.createElement('span');
+  label.className = 'activity-roll-label';
+  label.textContent = 'ROLL 2D';
+  const dieOne = document.createElement('span');
+  dieOne.className = 'activity-die';
+  dieOne.textContent = match[1];
+  const dieTwo = document.createElement('span');
+  dieTwo.className = 'activity-die';
+  dieTwo.textContent = match[2];
+  const total = document.createElement('span');
+  total.className = 'activity-roll-total';
+  total.textContent = `= ${match[3]}`;
+  line.append(label, dieOne, dieTwo, total);
+  container.append(line);
+  return true;
+}
+
+function appendActivityMessage(row, entry) {
+  const message = document.createElement('div');
+  message.className = 'activity-message';
+  const parts = String(entry.message).split(/\s*\/\s*/).filter(Boolean);
+  const hasRoll = parts.some((part) => /^ROLL\s+2D\b/i.test(part) || /^2D\s+\d+\+\d+\s*=/i.test(part) || /^\d+\+\d+=\d+$/.test(part));
+  const hasOutcome = parts.some((part) => /^(SUCCESS|FAILURE)$/i.test(part));
+
+  if (!hasRoll && !hasOutcome) {
+    message.textContent = entry.message;
+    row.append(message);
+    return;
+  }
+
+  message.classList.add('activity-roll-message');
+  for (const part of parts) {
+    if (appendActivityDiceLine(message, part)) continue;
+    const line = document.createElement('div');
+    line.className = 'activity-message-line';
+    if (/^SUCCESS$/i.test(part)) {
+      line.classList.add('activity-outcome', 'success');
+      line.textContent = 'RESULT // SUCCESS';
+    } else if (/^FAILURE$/i.test(part)) {
+      line.classList.add('activity-outcome', 'failure');
+      line.textContent = 'RESULT // FAILURE';
+    } else {
+      line.textContent = part;
+    }
+    message.append(line);
+  }
+  row.append(message);
+}
+
 function renderActivity() {
   const contextName = campaignDocument?.identity?.name || 'SESSION / NO CAMPAIGN';
   el.activityContext.textContent = contextName.toUpperCase();
@@ -334,10 +392,8 @@ function renderActivity() {
     category.className = 'activity-category';
     category.textContent = entry.category;
     meta.append(date, category);
-    const message = document.createElement('div');
-    message.className = 'activity-message';
-    message.textContent = entry.message;
-    row.append(meta, message);
+    row.append(meta);
+    appendActivityMessage(row, entry);
     el.activityFeed.append(row);
   });
   el.activityFeed.scrollTop = el.activityFeed.scrollHeight;
@@ -650,7 +706,7 @@ function executeAdHocRoll() {
     const dice = createDice().roll2D6();
     const effectiveTarget = pendingRoll.characteristicValue + modifier;
     const success = dice.total <= effectiveTarget;
-    logActivity('CHECK', `${gameplayDocument.identity.name} / ${pendingRoll.characteristic} ${pendingRoll.characteristicValue} / 2D ${dice.dice.join('+')} = ${dice.total} / modifier ${signedNumber(modifier)} / effective ${effectiveTarget} or less / ${success ? 'SUCCESS' : 'FAILURE'}`);
+    logActivity('CHECK', `${gameplayDocument.identity.name} / ${pendingRoll.characteristic} ${pendingRoll.characteristicValue} / ROLL 2D [${dice.dice[0]}] [${dice.dice[1]}] = ${dice.total} / MODIFIER ${signedNumber(modifier)} / EFFECTIVE ${effectiveTarget} OR LESS / ${success ? 'SUCCESS' : 'FAILURE'}`);
     setStatus(`${pendingRoll.characteristic} CHECK ${success ? 'SUCCEEDED' : 'FAILED'}: ${dice.total} vs ${effectiveTarget} OR LESS`, success ? 'ok' : 'error');
     return;
   }
@@ -667,8 +723,8 @@ function executeAdHocRoll() {
     education: gameplayDocument.characteristics.EDU,
     situationalDM: taskDM + modifier
   });
-  const extra = taskDM ? ` / task ${signedNumber(taskDM)}` : '';
-  logActivity('CHECK', `${gameplayDocument.identity.name} / ${pendingRoll.skillName}-${pendingRoll.skillLevel} / 2D ${result.dice.join('+')} = ${result.roll} / skill ${signedNumber(result.skillLevel)} / INT ${signedNumber(result.intelligenceDM)} / EDU ${signedNumber(result.educationDM)}${extra} / modifier ${signedNumber(modifier)} / TOTAL ${result.total} vs ${result.target}+ / ${result.success ? 'SUCCESS' : 'FAILURE'}`);
+  const extra = taskDM ? ` / TASK ${signedNumber(taskDM)}` : '';
+  logActivity('CHECK', `${gameplayDocument.identity.name} / ${pendingRoll.skillName}-${pendingRoll.skillLevel} / ROLL 2D [${result.dice[0]}] [${result.dice[1]}] = ${result.roll} / SKILL ${signedNumber(result.skillLevel)} / INT ${signedNumber(result.intelligenceDM)} / EDU ${signedNumber(result.educationDM)}${extra} / MODIFIER ${signedNumber(modifier)} / TOTAL ${result.total} vs ${result.target}+ / ${result.success ? 'SUCCESS' : 'FAILURE'}`);
   setStatus(`${pendingRoll.skillName.toUpperCase()} CHECK ${result.success ? 'SUCCEEDED' : 'FAILED'}: ${result.total} vs ${result.target}+`, result.success ? 'ok' : 'error');
 }
 
@@ -2048,7 +2104,7 @@ function resolveSituationSkillChoice(situationId, choiceId, userModifier = 0) {
     situationDocuments[index] = resolved;
     syncCampaignRefs();
     persistCampaignState();
-    const rollText = `${result.dice.join('+')}=${result.roll} / skill ${signedNumber(result.skillLevel)} / INT ${signedNumber(result.intelligenceDM)} / EDU ${signedNumber(result.educationDM)} / task ${signedNumber(choice.situationalDM ?? 0)} / modifier ${signedNumber(userModifier)} / TOTAL ${result.total} vs ${result.target}+`;
+    const rollText = `ROLL 2D [${result.dice[0]}] [${result.dice[1]}] = ${result.roll} / SKILL ${signedNumber(result.skillLevel)} / INT ${signedNumber(result.intelligenceDM)} / EDU ${signedNumber(result.educationDM)} / TASK ${signedNumber(choice.situationalDM ?? 0)} / MODIFIER ${signedNumber(userModifier)} / TOTAL ${result.total} vs ${result.target}+`;
     logActivity('SITUATION', `${resolved.identity.title} / ${choice.skillName}-${skillLevel} / ${rollText} / ${result.success ? 'SUCCESS' : 'FAILURE'} / ${resolved.resolution.notes}`);
     setStatus(`SITUATION ${resolved.status.toUpperCase()}: ${resolved.identity.title.toUpperCase()}`, result.success ? 'ok' : 'error');
     closeRollDialog();
