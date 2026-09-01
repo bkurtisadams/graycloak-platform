@@ -3,9 +3,9 @@
 Pure JavaScript rules package for the Graycloak Classic Traveller browser-game project.
 It intentionally has no HTML, Foundry, Firebase, or server dependencies.
 
-## v0.8.0 scope
+## v0.9.0 scope
 
-v0.8.0 retains the established Book 1 character-generation and Book 2 starship rules layer. The new Campaign Document, local document registry, and portable campaign bundle live in the `traveller` application package rather than this pure Classic Traveller rules package.
+v0.9.0 retains the established Book 1 character-generation and Book 2 starship layers and adds the first Book 3 subsector/navigation primitives.
 
 Character generation includes:
 
@@ -17,28 +17,26 @@ Character generation includes:
 - chargen schema v4 validation/import/export
 - completed chargen -> gameplay Character Document conversion
 
-Gameplay Character Document v2 adds:
+Gameplay Character Document v2 includes stable IDs, ship references by ID, and the source-backed Scout Ship duplicate-benefit rule.
 
-- stable character document IDs
-- ship references by ship ID instead of embedding ship state
-- migration of v1 gameplay Character Documents
-- source-backed resolution of the Scout Ship benefit: one effective reserve assignment; additional Scout Ship results have no further effect
+Starship support includes the canonical Type S Scout/Courier Ship Document v1 with the Book 2 p.19/facsimile-errata data used by the browser client.
 
-Starship support adds:
+Subsector/navigation primitives add:
 
-- Ship Document schema v1 with strict validation/import/export
-- canonical Classic Traveller Type S Scout/Courier standard design
-- Book 2 p.19 and Facsimile errata corrections, including the standard hull and MCr29.43 cost
-- 100-ton streamlined hull, Jump-2, 2-G, power plant A, 40 tons fuel, Model/1bis computer, four staterooms, no low berths, three tons cargo, double turret/fire control with no weapons, and Air/Raft
-- one-person standard Type S crew/duty description without overriding Book 2's general under-200-ton crew rule
-- Scout reserve-assignment authority state: recallable, not saleable, usable as desired, free fuel at Scout bases, free maintenance at Scout bases at class B starports, and character responsibility for upkeep/crew costs
-- explicit preservation that Book 1 does not name the legal title holder; the schema records Scout Service control without inventing a stronger title rule
+- Classic Traveller 8-column by 10-row subsector coordinate validation
+- printed four-digit hex formatting such as `0405`
+- one-parsec hex distance calculation
+- Jump-N destination filtering against an authored subsector
+- pure lookup/distance helpers with no browser or campaign-setting dependencies
+
+The authored Far Meridian systems themselves live under `traveller/world/`; they are original provisional Graycloak campaign content, not Classic Traveller canon and not part of the pure rules package.
 
 Not implemented yet:
 
-- campaign application state (implemented in `traveller`, not in this rules package)
-- routine travel/jump execution
+- random subsector/world generation
+- fuel purchase/skimming and refueling state
 - trade, cargo/passenger generation, or economics loop
+- encounters during/after travel
 - starship combat
 - server/database adapters
 

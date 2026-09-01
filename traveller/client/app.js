@@ -12,7 +12,13 @@ import {
   performChargenAction,
   updateCharacterShipReference,
   updateShipAssignedCharacterName,
-  updateShipIdentity
+  updateShipIdentity,
+  SUBSECTOR_COLUMNS,
+  SUBSECTOR_ROWS,
+  formatSubsectorHex,
+  getJumpDestinations,
+  getSubsectorSystem,
+  jumpDistanceBetweenSystems
 } from '../../packages/classic-traveller-rules/index.js';
 
 import {
@@ -21,6 +27,7 @@ import {
   buildCharacterRecord,
   buildFinalCharacterRecord,
   buildGenerationLog,
+  buildJumpPlan,
   buildShipRecord,
   buildProcedure,
   buildServiceHistory,
@@ -42,6 +49,7 @@ import {
 
 import {
   addShipToCampaign,
+  advanceCampaignDays,
   createCampaignDocument,
   refreshCampaignDocumentRefs,
   updateCampaignIdentity,
@@ -56,6 +64,10 @@ import {
 import {
   createDocumentRegistry
 } from '../src/document-registry.js';
+
+import {
+  FAR_MERIDIAN_SUBSECTOR
+} from '../world/far-meridian-subsector.js';
 
 const el = {
   status: document.querySelector('#system-status'),
@@ -92,7 +104,14 @@ const el = {
   campaignYear: document.querySelector('#campaign-year'),
   campaignSystem: document.querySelector('#campaign-system'),
   campaignWorld: document.querySelector('#campaign-world'),
-  campaignRecord: document.querySelector('#campaign-record')
+  campaignRecord: document.querySelector('#campaign-record'),
+  subsectorSection: document.querySelector('#subsector-section'),
+  subsectorName: document.querySelector('#subsector-name'),
+  jumpCapability: document.querySelector('#jump-capability'),
+  subsectorLegend: document.querySelector('#subsector-legend'),
+  subsectorMap: document.querySelector('#subsector-map'),
+  jumpPlan: document.querySelector('#jump-plan'),
+  jumpActions: document.querySelector('#jump-actions')
 };
 
 let character = createCharacter();
@@ -101,6 +120,7 @@ let shipDocument = null;
 let campaignDocument = null;
 let documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
 let openHelpTopic = null;
+let selectedSystemId = null;
 let registry = null;
 
 try {
@@ -144,16 +164,54 @@ function ensureGameplayDocument() {
   return gameplayDocument;
 }
 
+function systemByName(name) {
+  const target = String(name ?? '').trim().toLocaleLowerCase();
+  if (!target) return null;
+  return FAR_MERIDIAN_SUBSECTOR.systems.find((system) => system.name.toLocaleLowerCase() === target) ?? null;
+}
+
+function mappedCurrentSystem() {
+  if (!campaignDocument) return null;
+  if (campaignDocument.location.systemId) {
+    return getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, campaignDocument.location.systemId);
+  }
+  return systemByName(campaignDocument.location.systemName);
+}
+
+function campaignLocationForSystem(system) {
+  return {
+    systemId: system.id,
+    systemName: system.name,
+    worldId: system.mainWorld.id,
+    worldName: system.mainWorld.name
+  };
+}
+
+function normalizeCampaignMappedLocation() {
+  if (!campaignDocument || campaignDocument.location.systemId) return;
+  const match = systemByName(campaignDocument.location.systemName);
+  if (!match) return;
+  campaignDocument = updateCampaignLocation(campaignDocument, campaignLocationForSystem(match));
+}
+
+function activeJumpRating() {
+  const value = shipDocument?.specifications?.drives?.jump?.rating;
+  return Number.isInteger(value) && value >= 0 ? value : null;
+}
+
 function gameplayProcedure() {
   const missingShip = gameplayDocument?.shipRefs?.length && !shipDocument;
   if (campaignDocument) {
+    const currentSystem = mappedCurrentSystem();
     return {
       available: { actions: [], choices: {} },
-      title: 'CAMPAIGN SHELL ACTIVE',
-      text: 'The campaign, party, and active ship are linked by persistent document IDs. Travel and world actions are intentionally deferred to the next milestone.',
-      detail: `${campaignDocument.identity.name || 'Unnamed Campaign'} / ${campaignDocument.party.characterIds.length} active character${campaignDocument.party.characterIds.length === 1 ? '' : 's'}`,
-      helpTopic: 'campaign-status',
-      attention: false
+      title: 'SUBSECTOR NAVIGATION ACTIVE',
+      text: currentSystem
+        ? 'Select a system on the subsector map. In-range destinations may be jumped to by the active ship.'
+        : 'The campaign has no mapped starting system yet. Select a system on the subsector map and set the current location.',
+      detail: `${campaignDocument.identity.name || 'Unnamed Campaign'} / ${currentSystem ? currentSystem.name : 'LOCATION NOT MAPPED'}`,
+      helpTopic: 'subsector-map',
+      attention: !currentSystem
     };
   }
   return {
@@ -247,6 +305,182 @@ function renderCampaign() {
   el.campaignRecord.textContent = buildCampaignRecord(campaignDocument, resolved);
 }
 
+function selectSubsectorSystem(systemId) {
+  selectedSystemId = systemId;
+  const system = getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, systemId);
+  setStatus(`SYSTEM SELECTED: ${system?.name ?? systemId}`, 'ok');
+  renderSubsector();
+}
+
+function setStartingSubsectorLocation() {
+  try {
+    if (!campaignDocument) throw new Error('no campaign is active');
+    if (mappedCurrentSystem()) throw new Error('campaign already has a mapped current system');
+    const system = getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, selectedSystemId);
+    if (!system) throw new Error('select a starting system first');
+    campaignDocument = updateCampaignLocation(campaignDocument, campaignLocationForSystem(system));
+    selectedSystemId = null;
+    setStatus(`STARTING LOCATION SET: ${system.name} / ${system.mainWorld.name} / SAVE CAMPAIGN`, 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function jumpToSelectedSystem() {
+  try {
+    if (!campaignDocument) throw new Error('no campaign is active');
+    const current = mappedCurrentSystem();
+    if (!current) throw new Error('set the campaign starting system before jumping');
+    const destination = getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, selectedSystemId);
+    if (!destination) throw new Error('select a destination system first');
+    if (destination.id === current.id) throw new Error('destination must be a different system');
+    const jumpRating = activeJumpRating();
+    if (!Number.isInteger(jumpRating)) throw new Error('an active ship with a jump drive is required');
+    const distance = jumpDistanceBetweenSystems(FAR_MERIDIAN_SUBSECTOR, current.id, destination.id);
+    if (distance > jumpRating) throw new Error(`${destination.name} is ${distance} parsecs away; active ship is Jump-${jumpRating}`);
+
+    campaignDocument = updateCampaignLocation(campaignDocument, campaignLocationForSystem(destination));
+    // Book 2 describes jump travel as taking about one week regardless of
+    // distance. v0.9 resolves that campaign interval as seven days.
+    campaignDocument = advanceCampaignDays(campaignDocument, 7);
+    selectedSystemId = null;
+    setStatus(`JUMP COMPLETE: ${destination.name} / +7 DAYS / SAVE CAMPAIGN`, 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function renderSubsector() {
+  if (!campaignDocument) {
+    el.subsectorSection.hidden = true;
+    el.subsectorMap.replaceChildren();
+    el.jumpPlan.textContent = '';
+    el.jumpActions.replaceChildren();
+    return;
+  }
+
+  normalizeCampaignMappedLocation();
+  el.subsectorSection.hidden = false;
+  const current = mappedCurrentSystem();
+  const selected = selectedSystemId ? getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, selectedSystemId) : null;
+  const jumpRating = activeJumpRating();
+  const reachable = new Map();
+  if (current && Number.isInteger(jumpRating)) {
+    for (const entry of getJumpDestinations(FAR_MERIDIAN_SUBSECTOR, current.id, jumpRating)) {
+      reachable.set(entry.system.id, entry.distance);
+    }
+  }
+
+  el.subsectorName.textContent = `${FAR_MERIDIAN_SUBSECTOR.name.toUpperCase()} // PROVISIONAL TEST SUBSECTOR`;
+  el.jumpCapability.textContent = shipDocument && Number.isInteger(jumpRating)
+    ? `${shipDocument.identity.name || shipDocument.identity.registry || 'ACTIVE SHIP'} / JUMP-${jumpRating}`
+    : 'NO ACTIVE JUMP SHIP';
+
+  el.subsectorLegend.textContent = current
+    ? 'CURRENT ■   JUMP RANGE □   OUT OF RANGE ·'
+    : 'SELECT STARTING SYSTEM □   EMPTY HEX ·';
+
+  const systemByHex = new Map(FAR_MERIDIAN_SUBSECTOR.systems.map((system) => [system.hex, system]));
+  const cells = [];
+  for (let column = 1; column <= SUBSECTOR_COLUMNS; column += 1) {
+    for (let row = 1; row <= SUBSECTOR_ROWS; row += 1) {
+      const hex = formatSubsectorHex(column, row);
+      const system = systemByHex.get(hex) ?? null;
+      const cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = `hex-cell${column % 2 === 0 ? ' odd-column' : ''}`;
+      cell.style.gridColumn = String(column);
+      cell.style.gridRow = String(row);
+      cell.setAttribute('role', 'gridcell');
+
+      const coordinate = document.createElement('span');
+      coordinate.className = 'hex-coordinate';
+      coordinate.textContent = hex;
+      cell.append(coordinate);
+
+      if (!system) {
+        cell.disabled = true;
+        cell.setAttribute('aria-label', `Empty hex ${hex}`);
+        cells.push(cell);
+        continue;
+      }
+
+      cell.classList.add('system');
+      if (!current || reachable.has(system.id)) cell.classList.add('reachable');
+      if (current?.id === system.id) cell.classList.add('current');
+      if (selected?.id === system.id) cell.classList.add('selected');
+
+      const label = document.createElement('span');
+      label.className = 'hex-system-name';
+      label.textContent = system.name;
+      cell.append(label);
+      const relation = current?.id === system.id
+        ? 'current system'
+        : reachable.has(system.id)
+          ? `${reachable.get(system.id)} parsecs, in range`
+          : current
+            ? 'out of range'
+            : 'available starting system';
+      cell.setAttribute('aria-label', `${system.name}, hex ${hex}, ${relation}`);
+      cell.title = `${system.name} / ${system.mainWorld.name} / ${hex} / ${relation}`;
+      cell.addEventListener('click', () => selectSubsectorSystem(system.id));
+      cells.push(cell);
+    }
+  }
+  el.subsectorMap.replaceChildren(...cells);
+
+  const distance = current && selected && current.id !== selected.id
+    ? jumpDistanceBetweenSystems(FAR_MERIDIAN_SUBSECTOR, current.id, selected.id)
+    : current && selected
+      ? 0
+      : null;
+  el.jumpPlan.textContent = buildJumpPlan({
+    campaign: campaignDocument,
+    currentSystem: current,
+    selectedSystem: selected,
+    distance,
+    jumpRating
+  });
+
+  el.jumpActions.replaceChildren();
+  if (!selected) return;
+  if (!current) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'text-button action-button';
+    button.textContent = '[ SET CURRENT LOCATION ]';
+    button.addEventListener('click', setStartingSubsectorLocation);
+    el.jumpActions.append(button);
+    return;
+  }
+  if (selected.id === current.id) {
+    const text = document.createElement('span');
+    text.className = 'empty';
+    text.textContent = 'SELECTED SYSTEM IS CURRENT LOCATION.';
+    el.jumpActions.append(text);
+    return;
+  }
+  if (Number.isInteger(jumpRating) && distance <= jumpRating) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'text-button action-button';
+    button.textContent = `[ JUMP TO ${selected.name.toUpperCase()} ]`;
+    button.addEventListener('click', jumpToSelectedSystem);
+    el.jumpActions.append(button);
+  } else {
+    const text = document.createElement('span');
+    text.className = 'empty';
+    text.textContent = Number.isInteger(jumpRating)
+      ? `OUT OF RANGE: ${distance} PARSECS / JUMP-${jumpRating}`
+      : 'ACTIVE JUMP-CAPABLE SHIP REQUIRED.';
+    el.jumpActions.append(text);
+  }
+}
+
 function restoreCampaignFromRegistry(campaign) {
   if (!registry) throw new Error('browser local storage is unavailable');
   const resolved = registry.resolveCampaign(campaign);
@@ -261,6 +495,8 @@ function restoreCampaignFromRegistry(campaign) {
     : null;
 
   campaignDocument = campaign;
+  selectedSystemId = null;
+  normalizeCampaignMappedLocation();
   gameplayDocument = nextCharacter;
   shipDocument = nextShip;
   documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
@@ -272,6 +508,7 @@ function newCampaign() {
     const gameplay = ensureGameplayDocument();
     if (!gameplay) throw new Error('complete or load a gameplay character before creating a campaign');
     persistGameplayDocuments();
+    selectedSystemId = null;
     campaignDocument = createCampaignDocument({
       characters: [gameplay],
       ships: shipDocument ? [shipDocument] : [],
@@ -560,6 +797,7 @@ function render() {
   }
   renderActions(procedure);
   renderCampaign();
+  renderSubsector();
   renderShip();
 }
 
@@ -572,6 +810,7 @@ function execute(action, payload = {}) {
     gameplayDocument = null;
     shipDocument = null;
     campaignDocument = null;
+    selectedSystemId = null;
     closeHelp();
     setStatus('ACTION RESOLVED', 'ok');
     render();
@@ -681,12 +920,14 @@ async function loadDocument(file) {
       gameplayDocument = null;
       shipDocument = null;
       campaignDocument = null;
+      selectedSystemId = null;
       documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
       setStatus('CHARGEN JSON LOADED', 'ok');
     } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CHARACTER) {
       gameplayDocument = loaded.characterDocument;
       documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
       campaignDocument = null;
+      selectedSystemId = null;
       if (shipDocument && !shipMatchesCharacter(shipDocument, gameplayDocument)) shipDocument = null;
       if (registry) registry.put(gameplayDocument);
       setStatus('CHARACTER DOCUMENT LOADED / REGISTERED LOCALLY', 'ok');
@@ -696,6 +937,7 @@ async function loadDocument(file) {
       }
       shipDocument = loaded.shipDocument;
       campaignDocument = null;
+      selectedSystemId = null;
       if (gameplayDocument) shipDocument = updateShipAssignedCharacterName(shipDocument, gameplayDocument.identity.name);
       if (registry) registry.put(shipDocument);
       setStatus(gameplayDocument ? 'LINKED SHIP DOCUMENT LOADED / REGISTERED LOCALLY' : 'SHIP DOCUMENT LOADED / REGISTERED LOCALLY', 'ok');
@@ -770,6 +1012,7 @@ function updateShipName(name, statusMessage = 'SHIP NAME UPDATED') {
   persistGameplayDocuments();
   syncCampaignRefs();
   renderCampaign();
+  renderSubsector();
   renderShip();
   setStatus(statusMessage, 'ok');
 }
@@ -850,6 +1093,7 @@ el.newCharacter.addEventListener('click', () => {
   gameplayDocument = null;
   shipDocument = null;
   campaignDocument = null;
+  selectedSystemId = null;
   closeHelp();
   setStatus('NEW CHARACTER GENERATED', 'ok');
   render();
@@ -858,8 +1102,6 @@ el.newCharacter.addEventListener('click', () => {
 el.campaignName.addEventListener('input', () => updateCampaignName(el.campaignName.value));
 el.campaignDay.addEventListener('change', updateCampaignDate);
 el.campaignYear.addEventListener('change', updateCampaignDate);
-el.campaignSystem.addEventListener('input', updateCampaignLocationFields);
-el.campaignWorld.addEventListener('input', updateCampaignLocationFields);
 
 el.newCampaign.addEventListener('click', newCampaign);
 el.saveCampaign.addEventListener('click', saveCampaignLocal);

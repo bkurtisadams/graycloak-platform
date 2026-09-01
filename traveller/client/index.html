@@ -11,7 +11,7 @@
     <header class="masthead">
       <div>
         <div id="app-title" class="title">TRAVELLER // PERSONNEL INTAKE TERMINAL</div>
-        <div class="subtitle">CLIENT v0.8.0 // CLASSIC TRAVELLER BOOKS 1-2 // CAMPAIGN SHELL</div>
+        <div class="subtitle">CLIENT v0.9.0 // CLASSIC TRAVELLER BOOKS 1-3 // SUBSECTOR NAVIGATION</div>
       </div>
       <div id="system-status" class="status" aria-live="polite">READY</div>
     </header>
@@ -61,10 +61,25 @@
         <div class="campaign-field"><label for="campaign-name">CAMPAIGN</label><input id="campaign-name" type="text" maxlength="100" autocomplete="off" spellcheck="false"></div>
         <div class="campaign-field compact"><label for="campaign-day">DAY</label><input id="campaign-day" type="number" min="1" max="366" step="1"></div>
         <div class="campaign-field compact"><label for="campaign-year">YEAR</label><input id="campaign-year" type="number" min="0" step="1"></div>
-        <div class="campaign-field"><label for="campaign-system">SYSTEM</label><input id="campaign-system" type="text" maxlength="100" autocomplete="off" spellcheck="false"></div>
-        <div class="campaign-field"><label for="campaign-world">WORLD</label><input id="campaign-world" type="text" maxlength="100" autocomplete="off" spellcheck="false"></div>
+        <div class="campaign-field"><label for="campaign-system">SYSTEM</label><input id="campaign-system" type="text" maxlength="100" autocomplete="off" spellcheck="false" readonly></div>
+        <div class="campaign-field"><label for="campaign-world">WORLD</label><input id="campaign-world" type="text" maxlength="100" autocomplete="off" spellcheck="false" readonly></div>
       </div>
       <pre id="campaign-record" class="record campaign-record" aria-live="polite"></pre>
+    </section>
+
+    <section id="subsector-section" hidden aria-labelledby="subsector-heading">
+      <div class="section-heading">
+        <h2 id="subsector-heading" class="section-title">SUBSECTOR NAVIGATION</h2>
+        <button class="help-button" type="button" data-help-topic="subsector-map" aria-label="Explain subsector navigation">[?]</button>
+      </div>
+      <div class="subsector-caption">
+        <span id="subsector-name">FAR MERIDIAN</span>
+        <span id="jump-capability">JUMP --</span>
+        <span id="subsector-legend" class="subsector-legend">CURRENT ■ &nbsp; JUMP RANGE □ &nbsp; OUT OF RANGE ·</span>
+      </div>
+      <div id="subsector-map" class="subsector-map" role="grid" aria-label="Far Meridian subsector map"></div>
+      <pre id="jump-plan" class="record jump-plan" aria-live="polite"></pre>
+      <div id="jump-actions" class="actions jump-actions"></div>
     </section>
 
     <section id="ship-section" hidden aria-labelledby="ship-heading">

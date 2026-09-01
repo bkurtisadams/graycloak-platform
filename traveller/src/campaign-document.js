@@ -104,7 +104,7 @@ export function createCampaignDocument({
   notes = ''
 } = {}) {
   if (!Array.isArray(characters) || characters.length === 0) {
-    throw new CampaignDocumentValidationError('a v0.8 campaign requires at least one gameplay Character Document');
+    throw new CampaignDocumentValidationError('a campaign requires at least one gameplay Character Document');
   }
   if (!Array.isArray(ships)) throw new TypeError('ships must be an array');
   if (typeof name !== 'string') throw new TypeError('name must be a string');
@@ -269,6 +269,23 @@ export function updateCampaignIdentity(document, { name = document.identity?.nam
 export function updateCampaignTime(document, patch = {}) {
   const next = cloneJson(document);
   next.time = { ...next.time, ...patch };
+  assertValidCampaignDocument(next);
+  return next;
+}
+
+
+export function advanceCampaignDays(document, days, { daysPerYear = 365 } = {}) {
+  if (!Number.isInteger(days) || days < 0) throw new RangeError('days must be a non-negative integer');
+  if (!Number.isInteger(daysPerYear) || daysPerYear < 1 || daysPerYear > 366) throw new RangeError('daysPerYear must be an integer from 1 to 366');
+  const next = cloneJson(document);
+  let dayIndex = next.time.dayOfYear - 1 + days;
+  let year = next.time.year;
+  while (dayIndex >= daysPerYear) {
+    dayIndex -= daysPerYear;
+    year += 1;
+  }
+  next.time.year = year;
+  next.time.dayOfYear = dayIndex + 1;
   assertValidCampaignDocument(next);
   return next;
 }

@@ -65,7 +65,11 @@ export const HELP_TOPICS = Object.freeze({
   }),
   'campaign-status': Object.freeze({
     title: 'CAMPAIGN STATUS',
-    body: 'A Campaign Document is the persistent shell that ties gameplay Character and Ship Documents together by stable ID. SAVE CAMPAIGN stores the campaign and referenced documents in this browser. EXPORT CAMPAIGN creates one portable bundle containing the Campaign Document plus its referenced character and ship documents. The ordinal date and free-text location fields are Graycloak campaign-state conventions, not new Classic Traveller rules.'
+    body: 'A Campaign Document is the persistent shell that ties gameplay Character and Ship Documents together by stable ID. SAVE CAMPAIGN stores the campaign and referenced documents in this browser. EXPORT CAMPAIGN creates one portable bundle containing the Campaign Document plus its referenced character and ship documents. The ordinal date is a Graycloak campaign-state convention. In v0.9 the system and world fields are driven by the authored subsector map so their IDs and displayed names stay synchronized.'
+  }),
+  'subsector-map': Object.freeze({
+    title: 'SUBSECTOR NAVIGATION',
+    body: 'Classic Traveller Book 3 maps a subsector as an 8-by-10 field of one-parsec hexes. Select a system to inspect its distance. Pale green systems are within the active ship’s jump rating. If the campaign has no mapped location yet, select a system and set it as the starting location without advancing time. JUMP advances the campaign by seven days as the current Graycloak implementation of Book 2’s approximately one-week jump interval. The Far Meridian names and worlds are original provisional campaign content, not Traveller canon.'
   }),
   'service-history': Object.freeze({
     title: 'SERVICE HISTORY',
@@ -501,3 +505,32 @@ export function buildCampaignRecord(campaign, { characters = [], ships = [], mis
     ...(missing.length ? [`MISSING DOCUMENTS ${missing.join(', ')}`] : [])
   ], 96);
 }
+
+export function buildJumpPlan({ campaign, currentSystem = null, selectedSystem = null, distance = null, jumpRating = null } = {}) {
+  if (!campaign) return '';
+  if (!selectedSystem) {
+    return box([
+      'NAVIGATION PLAN',
+      currentSystem
+        ? `CURRENT ${currentSystem.name} / HEX ${currentSystem.hex} / SELECT A DESTINATION`
+        : 'CURRENT LOCATION NOT MAPPED / SELECT A SYSTEM TO SET THE STARTING LOCATION'
+    ], 82);
+  }
+  if (!currentSystem) {
+    return box([
+      'NAVIGATION PLAN',
+      `START ${selectedSystem.name} / HEX ${selectedSystem.hex}`,
+      `WORLD ${selectedSystem.mainWorld.name}`,
+      'ACTION SET CURRENT LOCATION / NO CAMPAIGN TIME ADVANCE'
+    ], 82);
+  }
+  const inRange = Number.isInteger(distance) && Number.isInteger(jumpRating) && distance >= 1 && distance <= jumpRating;
+  return box([
+    'NAVIGATION PLAN',
+    `FROM ${currentSystem.name} / ${currentSystem.hex}`,
+    `TO ${selectedSystem.name} / ${selectedSystem.hex} / WORLD ${selectedSystem.mainWorld.name}`,
+    `DISTANCE ${distance ?? '--'} PARSEC${distance === 1 ? '' : 'S'} / SHIP JUMP-${jumpRating ?? '--'}`,
+    inRange ? 'STATUS IN RANGE / JUMP TIME APPROX. ONE WEEK' : 'STATUS OUT OF RANGE'
+  ], 82);
+}
+

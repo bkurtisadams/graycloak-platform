@@ -15,6 +15,7 @@ import {
   buildCharacterRecord,
   buildFinalCharacterRecord,
   buildGenerationLog,
+  buildJumpPlan,
   buildProcedure,
   buildShipRecord,
   buildServiceHistory,
@@ -187,4 +188,15 @@ test('ship register renders the source-backed Type S reserve assignment', () => 
   assert.match(record, /CHARACTER TITLE NOT GRANTED BY BENEFIT/);
   assert.match(record, /SALE ALLOWED NO/);
   assert.match(record, /ENGINEERING DUTIES Scout \/ STANDARD TYPE S DUTY; ENGINEERING SKILL NOT IMPLIED/);
+});
+
+
+test('jump plan distinguishes starting location, in-range jump, and out-of-range selection', () => {
+  const campaign = { identity: { name: 'Sea of Suns' } };
+  const currentSystem = { id: 'port-meridian', hex: '0405', name: 'Port Meridian', mainWorld: { id: 'new-esperanza', name: 'New Esperanza' } };
+  const selectedSystem = { id: 'aster', hex: '0505', name: 'Aster', mainWorld: { id: 'aster-prime', name: 'Aster Prime' } };
+
+  assert.match(buildJumpPlan({ campaign, selectedSystem }), /SET CURRENT LOCATION/);
+  assert.match(buildJumpPlan({ campaign, currentSystem, selectedSystem, distance: 1, jumpRating: 2 }), /STATUS IN RANGE/);
+  assert.match(buildJumpPlan({ campaign, currentSystem, selectedSystem, distance: 3, jumpRating: 2 }), /STATUS OUT OF RANGE/);
 });

@@ -1,5 +1,5 @@
-// @graycloak/classic-traveller-rules v0.8.0
-// Source-backed Classic Traveller Books 1-2 character and starship engine.
+// @graycloak/classic-traveller-rules v0.9.0
+// Source-backed Classic Traveller Books 1-3 character, starship, and subsector rules engine.
 // Pure rules/state logic: no host, UI, persistence, Foundry, or Firebase dependencies.
 
 export {
@@ -140,3 +140,17 @@ export {
   updateShipAssignedCharacterName,
   createTypeSScoutReserveShipForCharacter
 } from './src/starships/ship-document.js';
+
+
+export {
+  SUBSECTOR_COLUMNS,
+  SUBSECTOR_ROWS,
+  formatSubsectorHex,
+  parseSubsectorHex,
+  subsectorHexDistance,
+  validateAuthoredSubsector,
+  assertValidAuthoredSubsector,
+  getSubsectorSystem,
+  getJumpDestinations,
+  jumpDistanceBetweenSystems
+} from './src/worlds/subsector.js';

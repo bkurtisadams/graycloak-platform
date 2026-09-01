@@ -2,11 +2,11 @@
 
 Standalone browser client for the original-universe Classic Traveller project.
 
-## v0.8.0 scope
+## v0.9.0 scope
 
-v0.8.0 adds the first persistent campaign shell on top of the existing Book 1 character-generation and Book 2 Type S Ship Document layers.
+v0.9.0 adds the first navigable subsector on top of the persistent v0.8 Campaign Document, Book 1 character generation, and Book 2 Type S Ship Document layers.
 
-The Classic Traveller rules engine remains in `../packages/classic-traveller-rules/`. Campaign persistence is an application-layer concern under `traveller/src/`; it does not add or alter Classic Traveller rules.
+The Classic Traveller rules engine remains in `../packages/classic-traveller-rules/`. The rules package owns subsector hex geometry and Jump-N range calculations; the browser renders those results. Original setting content remains under `traveller/world/`.
 
 ## Run locally
 
@@ -22,28 +22,41 @@ Then open:
 http://localhost:8080/traveller/client/
 ```
 
-## v0.8.0 campaign flow
+## v0.9.0 navigation flow
 
-A Campaign Document v1 contains stable references rather than embedded character or ship state. Its current scope is deliberately small:
+The browser includes the provisional **Far Meridian** test subsector. Its names and worlds are original Graycloak campaign content and may be revised later.
 
-- stable campaign ID and editable campaign name
-- canonical campaign date as ordinal day/year plus seconds-of-day internally
-- current system/world placeholders as free-text campaign state
-- active party character IDs
-- active ship ID
-- references to Character and Ship Documents
+Classic Traveller Book 3 uses an 8-by-10 subsector grid with one parsec per hex. The v0.9 rules layer uses that geometry to determine which systems are in range of the active ship.
 
-The browser now provides:
+For an existing v0.8 campaign with no mapped system:
 
-- `[ NEW CAMPAIGN ]` to create a campaign from the currently loaded gameplay character and optional ship
-- `[ SAVE CAMPAIGN ]` to save the campaign and its referenced documents in browser local storage
-- `[ LOAD CAMPAIGN ]` to restore the last locally saved campaign without manually reloading each Character/Ship JSON file
-- `[ EXPORT CAMPAIGN ]` to export one portable Campaign Bundle JSON containing the Campaign Document plus exactly its referenced Character and Ship Documents
-- `[ LOAD JSON ]` recognizes chargen saves, Character Documents, Ship Documents, Campaign Documents, and portable Campaign Bundles
+1. Load the campaign.
+2. Select any occupied system hex.
+3. Use `[ SET CURRENT LOCATION ]` to establish the starting system without advancing campaign time.
+4. Select another system. Pale-green systems are within the active ship's Jump rating.
+5. Use `[ JUMP TO ... ]` for an in-range destination.
 
-Imported Character and Ship Documents are placed into the local document registry by stable ID. Loading a campaign resolves those IDs rather than embedding duplicate state.
+A successful v0.9 jump:
 
-The default date begins at `001-4800 00:00`, matching the current project-era convention. This campaign calendar representation and the free-text location fields are Graycloak application conventions, not additions to Classic Traveller RAW.
+- checks distance against the active ship's Jump rating
+- changes the Campaign Document's system/world IDs and names
+- advances the campaign clock by seven days
+
+Book 2 describes jump travel as taking about one week regardless of distance. v0.9 resolves that campaign interval as exactly seven days for the current discrete campaign clock. The 365-day campaign-year rollover remains a Graycloak setting/application convention.
+
+## Persistence retained
+
+Campaign Document v1 remains compatible with v0.8. Its location fields already included stable system/world ID slots, so no schema migration was necessary.
+
+The browser continues to provide:
+
+- `[ NEW CAMPAIGN ]`
+- `[ SAVE CAMPAIGN ]`
+- `[ LOAD CAMPAIGN ]`
+- `[ EXPORT CAMPAIGN ]`
+- `[ LOAD JSON ]` for chargen, Character, Ship, Campaign, and Campaign Bundle documents
+
+Existing v0.8 local saves therefore remain loadable. A campaign that did not yet have a mapped system simply prompts for a starting location on the new map.
 
 ## Existing character and ship support retained
 
@@ -56,4 +69,4 @@ The default date begins at `001-4800 00:00`, matching the current project-era co
 - optional character-name, ship-name, and registry generators
 - source-backed Type S one-person pilot/engineering-duty display
 
-No subsector generation, jump execution, trade loop, encounters, personal combat, or starship combat are included in v0.8.0.
+Not included in v0.9.0: random world generation, fuel/refueling operations, trade, encounters, personal combat, or starship combat.
