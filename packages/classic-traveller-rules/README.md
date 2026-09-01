@@ -49,3 +49,8 @@ npm test
 ```
 
 The Graycloak monorepo root workspace test should include this package automatically when installed into the existing workspace.
+
+
+## v0.10 world/system primitives
+
+The pure rules package now includes Book 3 Universal World Profile parsing, formatting, validation, and descriptive helpers for starport, size, atmosphere, hydrographics, population, government, and law level. It also validates authored system records with scout/naval base flags, gas-giant presence, and Book 3 amber/red travel-zone values.

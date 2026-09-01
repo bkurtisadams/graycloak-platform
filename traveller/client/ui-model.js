@@ -2,7 +2,16 @@ import {
   CHARGEN_ACTIONS,
   SERVICES,
   SKILL_TABLES,
-  getAvailableActions
+  getAvailableActions,
+  parseUniversalWorldProfile,
+  encodeTravellerDigit,
+  describeStarport,
+  describeWorldSize,
+  describeAtmosphere,
+  describeHydrographics,
+  describePopulation,
+  describeGovernment,
+  describeLawLevel
 } from '../../packages/classic-traveller-rules/index.js';
 
 export const PHASE_LABELS = Object.freeze({
@@ -70,6 +79,10 @@ export const HELP_TOPICS = Object.freeze({
   'subsector-map': Object.freeze({
     title: 'SUBSECTOR NAVIGATION',
     body: 'Classic Traveller Book 3 maps a subsector as an 8-by-10 field of one-parsec hexes. Select a system to inspect its distance. Pale green systems are within the active ship’s jump rating. If the campaign has no mapped location yet, select a system and set it as the starting location without advancing time. JUMP advances the campaign by seven days as the current Graycloak implementation of Book 2’s approximately one-week jump interval. The Far Meridian names and worlds are original provisional campaign content, not Traveller canon.'
+  }),
+  'system-record': Object.freeze({
+    title: 'SYSTEM RECORD',
+    body: 'The Universal World Profile (UWP) is the compact Book 3 code for starport, size, atmosphere, hydrographics, population, government, law level, and tech level. Scout and naval bases, gas giants, and amber/red travel zones are recorded separately. Far Meridian system data is authored provisional Sea of Suns content; the meanings and validation of the UWP fields come from the Classic Traveller rules layer.'
   }),
   'service-history': Object.freeze({
     title: 'SERVICE HISTORY',
@@ -534,3 +547,35 @@ export function buildJumpPlan({ campaign, currentSystem = null, selectedSystem =
   ], 82);
 }
 
+
+
+function worldCode(value) {
+  return encodeTravellerDigit(Number(value));
+}
+
+function formatBases(bases = {}) {
+  const values = [];
+  if (bases.naval) values.push('NAVAL');
+  if (bases.scout) values.push('SCOUT');
+  return values.length ? values.join(' + ') : 'NONE';
+}
+
+export function buildSystemRecord(system) {
+  if (!system) return '';
+  const profile = parseUniversalWorldProfile(system.mainWorld.uwp);
+  const zone = system.travelZone === 'none' ? 'NONE / NORMAL' : system.travelZone.toUpperCase();
+  return box([
+    `SYSTEM RECORD // ${system.name.toUpperCase()} // ${system.hex}`,
+    `MAIN WORLD ${system.mainWorld.name.toUpperCase()}    UWP ${system.mainWorld.uwp}`,
+    `STARPORT ${profile.starport} / ${describeStarport(profile.starport).toUpperCase()}`,
+    `SIZE ${worldCode(profile.size)} / ${describeWorldSize(profile.size).toUpperCase()}`,
+    `ATMOSPHERE ${worldCode(profile.atmosphere)} / ${describeAtmosphere(profile.atmosphere).toUpperCase()}`,
+    `HYDROGRAPHICS ${worldCode(profile.hydrographics)} / ${describeHydrographics(profile.hydrographics).toUpperCase()}`,
+    `POPULATION ${worldCode(profile.population)} / ${describePopulation(profile.population).toUpperCase()}`,
+    `GOVERNMENT ${worldCode(profile.government)} / ${describeGovernment(profile.government).toUpperCase()}`,
+    `LAW LEVEL ${worldCode(profile.lawLevel)} / ${describeLawLevel(profile.lawLevel).toUpperCase()}`,
+    `TECH LEVEL ${worldCode(profile.techLevel)}${profile.techLevel > 9 ? ` / NUMERIC ${profile.techLevel}` : ''}`,
+    `BASES ${formatBases(system.bases)}    GAS GIANT ${system.gasGiant ? 'YES' : 'NO'}    TRAVEL ZONE ${zone}`,
+    `NOTES ${system.notes || 'none'}`
+  ], 96);
+}

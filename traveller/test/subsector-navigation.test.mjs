@@ -5,7 +5,9 @@ import {
   getJumpDestinations,
   getSubsectorSystem,
   jumpDistanceBetweenSystems,
-  validateAuthoredSubsector
+  validateAuthoredSubsector,
+  validateAuthoredSystemRecord,
+  parseUniversalWorldProfile
 } from '../../packages/classic-traveller-rules/index.js';
 
 import {
@@ -29,6 +31,10 @@ test('Far Meridian is a valid authored 8x10 Traveller subsector fixture', () => 
   assert.equal(result.valid, true, result.errors.join('; '));
   assert.equal(FAR_MERIDIAN_SUBSECTOR.systems.some((system) => system.name === 'Port Meridian'), true);
   assert.equal(FAR_MERIDIAN_SUBSECTOR.systems.some((system) => system.name === 'Aurelia'), false);
+  for (const system of FAR_MERIDIAN_SUBSECTOR.systems) {
+    const worldResult = validateAuthoredSystemRecord(system);
+    assert.equal(worldResult.valid, true, `${system.name}: ${worldResult.errors.join('; ')}`);
+  }
 });
 
 test('Marisol Jump-2 range from Port Meridian includes one- and two-parsec systems only', () => {
@@ -80,4 +86,24 @@ test('campaign day advancement rolls over a 365-day Graycloak campaign year', ()
   });
   campaign = advanceCampaignDays(campaign, 7);
   assert.deepEqual(campaign.time, { year: 4801, dayOfYear: 5, secondsOfDay: 0 });
+});
+
+
+test('Aster carries the authored Book 3 world/system record used by the browser', () => {
+  const aster = getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, 'aster');
+  assert.equal(aster.mainWorld.name, 'Aster Prime');
+  assert.equal(aster.mainWorld.uwp, 'B765845-9');
+  assert.deepEqual(parseUniversalWorldProfile(aster.mainWorld.uwp), {
+    starport: 'B', size: 7, atmosphere: 6, hydrographics: 5,
+    population: 8, government: 4, lawLevel: 5, techLevel: 9
+  });
+  assert.deepEqual(aster.bases, { scout: true, naval: false });
+  assert.equal(aster.gasGiant, true);
+  assert.equal(aster.travelZone, 'none');
+});
+
+ test('Far Meridian includes amber and red advisory travel-zone examples without inventing a green zone', () => {
+  assert.equal(FAR_MERIDIAN_SUBSECTOR.systems.some((system) => system.travelZone === 'amber'), true);
+  assert.equal(FAR_MERIDIAN_SUBSECTOR.systems.some((system) => system.travelZone === 'red'), true);
+  assert.equal(FAR_MERIDIAN_SUBSECTOR.systems.some((system) => system.travelZone === 'green'), false);
 });

@@ -75,3 +75,8 @@ Existing v0.8 local saves therefore remain loadable. A campaign that did not yet
 - source-backed Type S one-person pilot/engineering-duty display
 
 Not included in v0.9.0: random world generation, fuel/refueling operations, trade, encounters, personal combat, or starship combat.
+
+
+## v0.10.0
+
+The Far Meridian subsector now carries authored system/world records. Selecting a mapped system shows its main-world UWP and Book 3 field meanings, bases, gas-giant status, travel-zone advisory, and provisional Sea of Suns notes. Campaign location continues to persist stable system/world IDs; trade and encounters remain out of scope for this milestone.

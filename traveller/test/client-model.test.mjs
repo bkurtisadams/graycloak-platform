@@ -18,9 +18,12 @@ import {
   buildJumpPlan,
   buildProcedure,
   buildShipRecord,
+  buildSystemRecord,
   buildServiceHistory,
   formatHistoryEvent
 } from '../client/ui-model.js';
+
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js';
 
 function sevenCharacter() {
   return createCharacter({
@@ -199,4 +202,18 @@ test('jump plan distinguishes starting location, in-range jump, and out-of-range
   assert.match(buildJumpPlan({ campaign, selectedSystem }), /SET CURRENT LOCATION/);
   assert.match(buildJumpPlan({ campaign, currentSystem, selectedSystem, distance: 1, jumpRating: 2 }), /STATUS IN RANGE/);
   assert.match(buildJumpPlan({ campaign, currentSystem, selectedSystem, distance: 3, jumpRating: 2 }), /STATUS OUT OF RANGE/);
+});
+
+
+test('system record renders Aster UWP meanings and system contents', () => {
+  const aster = FAR_MERIDIAN_SUBSECTOR.systems.find((system) => system.id === 'aster');
+  const record = buildSystemRecord(aster);
+  assert.match(record, /SYSTEM RECORD \/\/ ASTER \/\/ 0505/);
+  assert.match(record, /MAIN WORLD ASTER PRIME\s+UWP B765845-9/);
+  assert.match(record, /STARPORT B \/ GOOD QUALITY INSTALLATION/);
+  assert.match(record, /ATMOSPHERE 6 \/ STANDARD/);
+  assert.match(record, /HYDROGRAPHICS 5 \/ 50% WATER/);
+  assert.match(record, /POPULATION 8 \/ HUNDREDS OF MILLIONS/);
+  assert.match(record, /GOVERNMENT 4 \/ REPRESENTATIVE DEMOCRACY/);
+  assert.match(record, /BASES SCOUT\s+GAS GIANT YES\s+TRAVEL ZONE NONE \/ NORMAL/);
 });

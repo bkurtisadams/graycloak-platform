@@ -1,5 +1,5 @@
-// @graycloak/classic-traveller-rules v0.9.0
-// Source-backed Classic Traveller Books 1-3 character, starship, and subsector rules engine.
+// @graycloak/classic-traveller-rules v0.10.0
+// Source-backed Classic Traveller Books 1-3 character, starship, world, and subsector rules engine.
 // Pure rules/state logic: no host, UI, persistence, Foundry, or Firebase dependencies.
 
 export {
@@ -141,6 +141,26 @@ export {
   createTypeSScoutReserveShipForCharacter
 } from './src/starships/ship-document.js';
 
+
+
+export {
+  encodeTravellerDigit,
+  decodeTravellerDigit,
+  formatUniversalWorldProfile,
+  parseUniversalWorldProfile,
+  validateUniversalWorldProfile,
+  assertValidUniversalWorldProfile,
+  describeStarport,
+  describeWorldSize,
+  describeAtmosphere,
+  describeHydrographics,
+  describePopulation,
+  describeGovernment,
+  describeLawLevel,
+  TRAVEL_ZONE_CODES,
+  validateAuthoredSystemRecord,
+  assertValidAuthoredSystemRecord
+} from './src/worlds/world-profile.js';
 
 export {
   SUBSECTOR_COLUMNS,

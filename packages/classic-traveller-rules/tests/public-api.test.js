@@ -50,7 +50,11 @@ test('public API exposes lifecycle and JSON boundary helpers', () => {
     'assertValidShipDocument',
     'exportShipDocument',
     'importShipDocument',
-    'createTypeSScoutReserveShipForCharacter'
+    'createTypeSScoutReserveShipForCharacter',
+    'parseUniversalWorldProfile',
+    'formatUniversalWorldProfile',
+    'validateUniversalWorldProfile',
+    'validateAuthoredSystemRecord'
   ]) {
     assert.equal(typeof publicApi[name], 'function', `index.js must export ${name}`);
   }

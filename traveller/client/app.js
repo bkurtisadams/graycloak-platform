@@ -31,6 +31,7 @@ import {
   buildShipRecord,
   buildProcedure,
   buildServiceHistory,
+  buildSystemRecord,
   helpForTopic,
   serviceName,
   skillTableName
@@ -120,7 +121,10 @@ const el = {
   subsectorLegend: document.querySelector('#subsector-legend'),
   subsectorMap: document.querySelector('#subsector-map'),
   jumpPlan: document.querySelector('#jump-plan'),
-  jumpActions: document.querySelector('#jump-actions')
+  jumpActions: document.querySelector('#jump-actions'),
+  systemRecordSection: document.querySelector('#system-record-section'),
+  systemRecordHeading: document.querySelector('#system-record-heading'),
+  systemRecord: document.querySelector('#system-record')
 };
 
 let character = createCharacter();
@@ -424,7 +428,7 @@ function renderSubsectorSvg({ current, selected, reachable }) {
       group.dataset.systemId = system.id;
 
       const title = createSvgElement('title');
-      title.textContent = `${system.name} / ${system.mainWorld.name} / ${hex} / ${relation}`;
+      title.textContent = `${system.name} / ${system.mainWorld.name} / ${system.mainWorld.uwp} / ${hex} / ${relation}`;
       group.append(title);
 
       const marker = createSvgElement('text', {
@@ -459,6 +463,28 @@ function renderSubsectorSvg({ current, selected, reachable }) {
     }
   }
   return svg;
+}
+
+
+function renderSystemRecord() {
+  if (!campaignDocument) {
+    el.systemRecordSection.hidden = true;
+    el.systemRecord.textContent = '';
+    return;
+  }
+  const current = mappedCurrentSystem();
+  const selected = selectedSystemId ? getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, selectedSystemId) : null;
+  const system = selected ?? current;
+  if (!system) {
+    el.systemRecordSection.hidden = true;
+    el.systemRecord.textContent = '';
+    return;
+  }
+  el.systemRecordSection.hidden = false;
+  el.systemRecordHeading.textContent = selected && selected.id !== current?.id
+    ? 'SELECTED SYSTEM RECORD'
+    : 'CURRENT SYSTEM RECORD';
+  el.systemRecord.textContent = buildSystemRecord(system);
 }
 
 function renderSubsector() {
@@ -858,6 +884,7 @@ function render() {
   renderActions(procedure);
   renderCampaign();
   renderSubsector();
+  renderSystemRecord();
   renderShip();
 }
 
@@ -1073,6 +1100,7 @@ function updateShipName(name, statusMessage = 'SHIP NAME UPDATED') {
   syncCampaignRefs();
   renderCampaign();
   renderSubsector();
+  renderSystemRecord();
   renderShip();
   setStatus(statusMessage, 'ok');
 }

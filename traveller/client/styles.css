@@ -502,3 +502,9 @@ input[readonly] {
   margin-top: 2px;
 }
 
+
+.system-record {
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  padding: 8px 0;
+}
