@@ -409,9 +409,76 @@ input[readonly] {
 
 .navigation-plan-panel {
   min-width: 0;
+  height: min(72vh, 720px);
+  min-height: 500px;
+  display: flex;
+  flex-direction: column;
   border-top: 1px solid var(--rule);
   border-bottom: 1px solid var(--rule);
   padding: 8px 8px 10px;
+  overflow: hidden;
+}
+
+.navigation-plan-fixed {
+  flex: 0 0 auto;
+}
+
+.operations-desk {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--rule);
+}
+
+.operations-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 11px;
+  padding-bottom: 6px;
+}
+
+.operations-tab {
+  font-size: 11px;
+}
+
+.operations-tab[aria-selected="true"] {
+  background: var(--action-ready);
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: none;
+  outline: 1px solid var(--action-border);
+  outline-offset: 1px;
+}
+
+.operations-panel-scroll {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
+.operations-panel {
+  margin-top: 0;
+  min-width: 0;
+}
+
+.operations-panel .section-heading {
+  margin-bottom: 3px;
+}
+
+.operations-panel .section-title {
+  font-size: 12px;
+}
+
+.operations-panel .record {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .subsector-map-column {
@@ -602,6 +669,12 @@ input[readonly] {
   }
   .navigation-plan-panel {
     max-width: none;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+  .operations-panel-scroll {
+    max-height: 420px;
   }
   .subsector-map-tools {
     justify-content: flex-start;
@@ -730,6 +803,7 @@ input[readonly] {
   border-top: 1px solid var(--rule);
   border-bottom: 1px solid var(--rule);
   padding: 8px 0;
+  font-size: 11px;
 }
 
 .port-actions {
@@ -766,6 +840,7 @@ input[readonly] {
   border-top: 1px solid var(--rule);
   border-bottom: 1px solid var(--rule);
   padding: 8px 0;
+  font-size: 11px;
 }
 
 .commerce-actions {
@@ -806,6 +881,7 @@ input[readonly] {
   border-top: 1px solid var(--rule);
   border-bottom: 1px solid var(--rule);
   padding: 8px 0;
+  font-size: 11px;
 }
 
 .contract-actions {

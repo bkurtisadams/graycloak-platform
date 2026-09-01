@@ -1,0 +1,1761 @@
+{
+  "documentType": "graycloak-traveller-campaign-bundle",
+  "schemaVersion": 2,
+  "campaign": {
+    "documentType": "graycloak-traveller-campaign",
+    "schemaVersion": 2,
+    "identity": {
+      "id": "campaign-38a2aab661b8ebca",
+      "name": "Sea of Suns"
+    },
+    "time": {
+      "year": 4800,
+      "dayOfYear": 106,
+      "secondsOfDay": 0
+    },
+    "location": {
+      "systemId": "cinder",
+      "systemName": "Cinder",
+      "worldId": "cinder-main",
+      "worldName": "Cinder"
+    },
+    "party": {
+      "characterIds": [
+        "char-04164baa70c3b5a6"
+      ]
+    },
+    "activeShipId": "ship-5bd8f4fad2ec67fe",
+    "documentRefs": {
+      "characters": [
+        {
+          "id": "char-04164baa70c3b5a6",
+          "name": "Hawkeye"
+        }
+      ],
+      "ships": [
+        {
+          "id": "ship-5bd8f4fad2ec67fe",
+          "name": "Marisol",
+          "registry": "S-17384",
+          "typeCode": "S"
+        }
+      ],
+      "contracts": [
+        {
+          "id": "contract-9e852d53578ec7bf",
+          "title": "Whole-Ship Charter",
+          "kind": "charter",
+          "status": "completed"
+        },
+        {
+          "id": "contract-3a5bbe658d9e0591",
+          "title": "Priority Courier Packet",
+          "kind": "priority-courier",
+          "status": "accepted"
+        },
+        {
+          "id": "contract-32b5799b1979d3cf",
+          "title": "Priority Small-Lot Delivery",
+          "kind": "delivery",
+          "status": "completed"
+        },
+        {
+          "id": "contract-e3d2d1085b395414",
+          "title": "Priority Courier Packet",
+          "kind": "priority-courier",
+          "status": "completed"
+        },
+        {
+          "id": "contract-1bce3e837cc06297",
+          "title": "Priority Small-Lot Delivery",
+          "kind": "delivery",
+          "status": "accepted"
+        },
+        {
+          "id": "contract-f7b85279e50e871d",
+          "title": "Priority Courier Packet",
+          "kind": "priority-courier",
+          "status": "accepted"
+        }
+      ]
+    },
+    "notes": ""
+  },
+  "documents": {
+    "characters": [
+      {
+        "documentType": "classic-traveller-character",
+        "schemaVersion": 2,
+        "identity": {
+          "id": "char-04164baa70c3b5a6",
+          "name": "Hawkeye",
+          "aliases": []
+        },
+        "age": 38,
+        "chronology": {
+          "chronologicalAgeMonths": 456,
+          "physicalAgeMonths": 456,
+          "nextAgingCheckAgeMonths": 504
+        },
+        "characteristics": {
+          "STR": 10,
+          "DEX": 11,
+          "END": 5,
+          "INT": 6,
+          "EDU": 7,
+          "SOC": 8
+        },
+        "upp": "AB5678",
+        "status": {
+          "alive": true,
+          "retired": true
+        },
+        "career": {
+          "service": "scouts",
+          "drafted": false,
+          "terms": 5,
+          "yearsServed": 20,
+          "rank": 0,
+          "rankTitle": "",
+          "separationReason": "voluntary"
+        },
+        "skills": {
+          "Pilot": 1,
+          "Jack-of-All-Trades": 2,
+          "Electronics": 1,
+          "Navigation": 2,
+          "Laser Rifle": 1,
+          "Mechanical": 1,
+          "Grav Vehicle": 1
+        },
+        "finances": {
+          "credits": 60000,
+          "retirementPayAnnual": 4000
+        },
+        "benefits": {
+          "raw": [
+            {
+              "type": "material",
+              "name": "Scout Ship"
+            },
+            {
+              "type": "material",
+              "name": "Low Passage"
+            },
+            {
+              "type": "material",
+              "name": "Scout Ship"
+            }
+          ],
+          "passages": [
+            {
+              "name": "Low Passage",
+              "count": 1
+            }
+          ],
+          "memberships": [],
+          "equipment": [],
+          "shipEntitlements": [
+            {
+              "name": "Scout Ship",
+              "rolls": 2,
+              "effectiveCount": 1,
+              "noEffectCount": 1,
+              "disposition": "reserve-assignment-active"
+            }
+          ]
+        },
+        "shipRefs": [
+          {
+            "shipId": "ship-5bd8f4fad2ec67fe",
+            "relationship": "reserve-assignee",
+            "shipType": "S",
+            "shipName": "Marisol"
+          }
+        ],
+        "history": [
+          {
+            "type": "character-created",
+            "age": 18,
+            "upp": "BA6678"
+          },
+          {
+            "type": "enlistment",
+            "age": 18,
+            "service": "scouts",
+            "dice": [
+              4,
+              5
+            ],
+            "roll": 9,
+            "dm": 3,
+            "total": 12,
+            "target": 7,
+            "success": true
+          },
+          {
+            "type": "term-start",
+            "age": 18,
+            "term": 1,
+            "service": "scouts",
+            "drafted": false
+          },
+          {
+            "type": "survival",
+            "age": 18,
+            "term": 1,
+            "service": "scouts",
+            "dice": [
+              3,
+              4
+            ],
+            "roll": 7,
+            "dm": 0,
+            "total": 7,
+            "target": 7,
+            "success": true,
+            "outcome": "survived"
+          },
+          {
+            "type": "skill-roll",
+            "age": 18,
+            "term": 1,
+            "service": "scouts",
+            "table": "personal-development",
+            "tableName": "Personal Development",
+            "roll": 1,
+            "outcome": {
+              "type": "characteristic",
+              "characteristic": "STR",
+              "amount": 1
+            },
+            "result": {
+              "type": "characteristic",
+              "characteristic": "STR",
+              "amount": 1,
+              "newValue": 12
+            },
+            "skillsDue": 1
+          },
+          {
+            "type": "skill-roll",
+            "age": 18,
+            "term": 1,
+            "service": "scouts",
+            "table": "service-skills",
+            "tableName": "Service Skills",
+            "roll": 1,
+            "outcome": {
+              "type": "specialization",
+              "name": "Vehicle",
+              "specializationType": "vehicle"
+            },
+            "pendingSpecialization": "vehicle",
+            "skillsDue": 0
+          },
+          {
+            "type": "skill-specialization",
+            "age": 18,
+            "term": 1,
+            "service": "scouts",
+            "source": "Vehicle",
+            "specializationType": "vehicle",
+            "specialization": "Grav Vehicle",
+            "level": 1,
+            "skillsDue": 0
+          },
+          {
+            "type": "term-complete",
+            "age": 22,
+            "term": 1,
+            "service": "scouts",
+            "yearsServed": 4,
+            "rank": 0,
+            "rankTitle": "",
+            "automaticBenefits": [
+              {
+                "id": "scout-pilot",
+                "label": "Scout: Pilot-1",
+                "result": {
+                  "type": "skill",
+                  "name": "Pilot",
+                  "level": 1
+                }
+              }
+            ],
+            "forcedSeparation": false,
+            "agingChecksDue": []
+          },
+          {
+            "type": "reenlistment",
+            "age": 22,
+            "service": "scouts",
+            "term": 1,
+            "dice": [
+              2,
+              6
+            ],
+            "roll": 8,
+            "target": 3,
+            "success": true,
+            "mandatory": false,
+            "outcome": "eligible"
+          },
+          {
+            "type": "reenlistment-choice",
+            "age": 22,
+            "choice": "reenlist"
+          },
+          {
+            "type": "term-start",
+            "age": 22,
+            "term": 2,
+            "service": "scouts",
+            "drafted": false
+          },
+          {
+            "type": "survival",
+            "age": 22,
+            "term": 2,
+            "service": "scouts",
+            "dice": [
+              5,
+              6
+            ],
+            "roll": 11,
+            "dm": 0,
+            "total": 11,
+            "target": 7,
+            "success": true,
+            "outcome": "survived"
+          },
+          {
+            "type": "skill-roll",
+            "age": 22,
+            "term": 2,
+            "service": "scouts",
+            "table": "service-skills",
+            "tableName": "Service Skills",
+            "roll": 6,
+            "outcome": {
+              "type": "skill",
+              "name": "Jack-of-All-Trades"
+            },
+            "result": {
+              "type": "skill",
+              "name": "Jack-of-All-Trades",
+              "level": 1
+            },
+            "skillsDue": 1
+          },
+          {
+            "type": "skill-roll",
+            "age": 22,
+            "term": 2,
+            "service": "scouts",
+            "table": "advanced-education",
+            "tableName": "Advanced Education",
+            "roll": 3,
+            "outcome": {
+              "type": "skill",
+              "name": "Electronics"
+            },
+            "result": {
+              "type": "skill",
+              "name": "Electronics",
+              "level": 1
+            },
+            "skillsDue": 0
+          },
+          {
+            "type": "term-complete",
+            "age": 26,
+            "term": 2,
+            "service": "scouts",
+            "yearsServed": 4,
+            "rank": 0,
+            "rankTitle": "",
+            "automaticBenefits": [],
+            "forcedSeparation": false,
+            "agingChecksDue": []
+          },
+          {
+            "type": "reenlistment",
+            "age": 26,
+            "service": "scouts",
+            "term": 2,
+            "dice": [
+              5,
+              5
+            ],
+            "roll": 10,
+            "target": 3,
+            "success": true,
+            "mandatory": false,
+            "outcome": "eligible"
+          },
+          {
+            "type": "reenlistment-choice",
+            "age": 26,
+            "choice": "reenlist"
+          },
+          {
+            "type": "term-start",
+            "age": 26,
+            "term": 3,
+            "service": "scouts",
+            "drafted": false
+          },
+          {
+            "type": "survival",
+            "age": 26,
+            "term": 3,
+            "service": "scouts",
+            "dice": [
+              4,
+              3
+            ],
+            "roll": 7,
+            "dm": 0,
+            "total": 7,
+            "target": 7,
+            "success": true,
+            "outcome": "survived"
+          },
+          {
+            "type": "skill-roll",
+            "age": 26,
+            "term": 3,
+            "service": "scouts",
+            "table": "service-skills",
+            "tableName": "Service Skills",
+            "roll": 4,
+            "outcome": {
+              "type": "skill",
+              "name": "Navigation"
+            },
+            "result": {
+              "type": "skill",
+              "name": "Navigation",
+              "level": 1
+            },
+            "skillsDue": 1
+          },
+          {
+            "type": "skill-roll",
+            "age": 26,
+            "term": 3,
+            "service": "scouts",
+            "table": "advanced-education",
+            "tableName": "Advanced Education",
+            "roll": 4,
+            "outcome": {
+              "type": "skill",
+              "name": "Jack-of-All-Trades"
+            },
+            "result": {
+              "type": "skill",
+              "name": "Jack-of-All-Trades",
+              "level": 2
+            },
+            "skillsDue": 0
+          },
+          {
+            "type": "term-complete",
+            "age": 30,
+            "term": 3,
+            "service": "scouts",
+            "yearsServed": 4,
+            "rank": 0,
+            "rankTitle": "",
+            "automaticBenefits": [],
+            "forcedSeparation": false,
+            "agingChecksDue": []
+          },
+          {
+            "type": "reenlistment",
+            "age": 30,
+            "service": "scouts",
+            "term": 3,
+            "dice": [
+              4,
+              5
+            ],
+            "roll": 9,
+            "target": 3,
+            "success": true,
+            "mandatory": false,
+            "outcome": "eligible"
+          },
+          {
+            "type": "reenlistment-choice",
+            "age": 30,
+            "choice": "reenlist"
+          },
+          {
+            "type": "term-start",
+            "age": 30,
+            "term": 4,
+            "service": "scouts",
+            "drafted": false
+          },
+          {
+            "type": "survival",
+            "age": 30,
+            "term": 4,
+            "service": "scouts",
+            "dice": [
+              3,
+              4
+            ],
+            "roll": 7,
+            "dm": 0,
+            "total": 7,
+            "target": 7,
+            "success": true,
+            "outcome": "survived"
+          },
+          {
+            "type": "skill-roll",
+            "age": 30,
+            "term": 4,
+            "service": "scouts",
+            "table": "personal-development",
+            "tableName": "Personal Development",
+            "roll": 6,
+            "outcome": {
+              "type": "specialization",
+              "name": "Gun Combat",
+              "specializationType": "gun"
+            },
+            "pendingSpecialization": "gun",
+            "skillsDue": 1
+          },
+          {
+            "type": "skill-specialization",
+            "age": 30,
+            "term": 4,
+            "service": "scouts",
+            "source": "Gun Combat",
+            "specializationType": "gun",
+            "specialization": "Laser Rifle",
+            "level": 1,
+            "skillsDue": 1
+          },
+          {
+            "type": "skill-roll",
+            "age": 30,
+            "term": 4,
+            "service": "scouts",
+            "table": "service-skills",
+            "tableName": "Service Skills",
+            "roll": 4,
+            "outcome": {
+              "type": "skill",
+              "name": "Navigation"
+            },
+            "result": {
+              "type": "skill",
+              "name": "Navigation",
+              "level": 2
+            },
+            "skillsDue": 0
+          },
+          {
+            "type": "term-complete",
+            "age": 34,
+            "term": 4,
+            "service": "scouts",
+            "yearsServed": 4,
+            "rank": 0,
+            "rankTitle": "",
+            "automaticBenefits": [],
+            "forcedSeparation": false,
+            "agingChecksDue": [
+              34
+            ]
+          },
+          {
+            "type": "aging",
+            "age": 34,
+            "physicalAge": 34,
+            "checks": [
+              {
+                "characteristic": "STR",
+                "dice": [
+                  5,
+                  2
+                ],
+                "roll": 7,
+                "target": 8,
+                "success": false,
+                "loss": 1,
+                "before": 12,
+                "after": 11
+              },
+              {
+                "characteristic": "DEX",
+                "dice": [
+                  6,
+                  5
+                ],
+                "roll": 11,
+                "target": 7,
+                "success": true,
+                "loss": 0,
+                "before": 10,
+                "after": 10
+              },
+              {
+                "characteristic": "END",
+                "dice": [
+                  6,
+                  4
+                ],
+                "roll": 10,
+                "target": 8,
+                "success": true,
+                "loss": 0,
+                "before": 6,
+                "after": 6
+              }
+            ],
+            "crises": []
+          },
+          {
+            "type": "reenlistment",
+            "age": 34,
+            "service": "scouts",
+            "term": 4,
+            "dice": [
+              1,
+              3
+            ],
+            "roll": 4,
+            "target": 3,
+            "success": true,
+            "mandatory": false,
+            "outcome": "eligible"
+          },
+          {
+            "type": "reenlistment-choice",
+            "age": 34,
+            "choice": "reenlist"
+          },
+          {
+            "type": "term-start",
+            "age": 34,
+            "term": 5,
+            "service": "scouts",
+            "drafted": false
+          },
+          {
+            "type": "survival",
+            "age": 34,
+            "term": 5,
+            "service": "scouts",
+            "dice": [
+              4,
+              4
+            ],
+            "roll": 8,
+            "dm": 0,
+            "total": 8,
+            "target": 7,
+            "success": true,
+            "outcome": "survived"
+          },
+          {
+            "type": "skill-roll",
+            "age": 34,
+            "term": 5,
+            "service": "scouts",
+            "table": "personal-development",
+            "tableName": "Personal Development",
+            "roll": 2,
+            "outcome": {
+              "type": "characteristic",
+              "characteristic": "DEX",
+              "amount": 1
+            },
+            "result": {
+              "type": "characteristic",
+              "characteristic": "DEX",
+              "amount": 1,
+              "newValue": 11
+            },
+            "skillsDue": 1
+          },
+          {
+            "type": "skill-roll",
+            "age": 34,
+            "term": 5,
+            "service": "scouts",
+            "table": "advanced-education",
+            "tableName": "Advanced Education",
+            "roll": 2,
+            "outcome": {
+              "type": "skill",
+              "name": "Mechanical"
+            },
+            "result": {
+              "type": "skill",
+              "name": "Mechanical",
+              "level": 1
+            },
+            "skillsDue": 0
+          },
+          {
+            "type": "term-complete",
+            "age": 38,
+            "term": 5,
+            "service": "scouts",
+            "yearsServed": 4,
+            "rank": 0,
+            "rankTitle": "",
+            "automaticBenefits": [],
+            "forcedSeparation": false,
+            "agingChecksDue": [
+              38
+            ]
+          },
+          {
+            "type": "aging",
+            "age": 38,
+            "physicalAge": 38,
+            "checks": [
+              {
+                "characteristic": "STR",
+                "dice": [
+                  4,
+                  2
+                ],
+                "roll": 6,
+                "target": 8,
+                "success": false,
+                "loss": 1,
+                "before": 11,
+                "after": 10
+              },
+              {
+                "characteristic": "DEX",
+                "dice": [
+                  4,
+                  3
+                ],
+                "roll": 7,
+                "target": 7,
+                "success": true,
+                "loss": 0,
+                "before": 11,
+                "after": 11
+              },
+              {
+                "characteristic": "END",
+                "dice": [
+                  3,
+                  4
+                ],
+                "roll": 7,
+                "target": 8,
+                "success": false,
+                "loss": 1,
+                "before": 6,
+                "after": 5
+              }
+            ],
+            "crises": []
+          },
+          {
+            "type": "reenlistment",
+            "age": 38,
+            "service": "scouts",
+            "term": 5,
+            "dice": [
+              2,
+              2
+            ],
+            "roll": 4,
+            "target": 3,
+            "success": true,
+            "mandatory": false,
+            "outcome": "eligible"
+          },
+          {
+            "type": "reenlistment-choice",
+            "age": 38,
+            "choice": "muster-out",
+            "retired": true,
+            "retirementPayAnnual": 4000
+          },
+          {
+            "type": "muster-out-start",
+            "age": 38,
+            "terms": 5,
+            "rank": 0,
+            "totalRolls": 5,
+            "rankBonusRolls": 0,
+            "retired": true,
+            "retirementPayAnnual": 4000
+          },
+          {
+            "type": "benefit",
+            "age": 38,
+            "roll": 6,
+            "dm": 0,
+            "total": 6,
+            "outcome": {
+              "type": "material",
+              "name": "Scout Ship"
+            },
+            "result": {
+              "type": "material",
+              "name": "Scout Ship"
+            }
+          },
+          {
+            "type": "benefit",
+            "age": 38,
+            "roll": 1,
+            "dm": 0,
+            "total": 1,
+            "outcome": {
+              "type": "material",
+              "name": "Low Passage"
+            },
+            "result": {
+              "type": "material",
+              "name": "Low Passage"
+            }
+          },
+          {
+            "type": "cash",
+            "age": 38,
+            "roll": 5,
+            "dm": 0,
+            "total": 5,
+            "amount": 50000
+          },
+          {
+            "type": "benefit",
+            "age": 38,
+            "roll": 6,
+            "dm": 0,
+            "total": 6,
+            "outcome": {
+              "type": "material",
+              "name": "Scout Ship"
+            },
+            "result": {
+              "type": "material",
+              "name": "Scout Ship"
+            }
+          },
+          {
+            "type": "cash",
+            "age": 38,
+            "roll": 3,
+            "dm": 0,
+            "total": 3,
+            "amount": 30000
+          },
+          {
+            "type": "chargen-complete",
+            "age": 38,
+            "service": "scouts",
+            "terms": 5,
+            "rank": 0,
+            "rankTitle": "",
+            "credits": 80000,
+            "retirementPayAnnual": 4000,
+            "upp": "AB5678"
+          }
+        ],
+        "notes": "",
+        "provenance": {
+          "source": "classic-traveller-book-1-chargen",
+          "chargenSchemaVersion": 4
+        }
+      }
+    ],
+    "ships": [
+      {
+        "documentType": "classic-traveller-ship",
+        "schemaVersion": 3,
+        "identity": {
+          "id": "ship-5bd8f4fad2ec67fe",
+          "name": "Marisol",
+          "registry": "S-17384"
+        },
+        "design": {
+          "key": "type-s-scout-courier",
+          "typeCode": "S",
+          "name": "Scout/Courier"
+        },
+        "specifications": {
+          "hull": {
+            "tons": 100,
+            "standard": true,
+            "streamlined": true
+          },
+          "drives": {
+            "jump": {
+              "letter": "A",
+              "rating": 2
+            },
+            "maneuver": {
+              "letter": "A",
+              "rating": 2
+            },
+            "powerPlant": {
+              "letter": "A",
+              "rating": 2
+            }
+          },
+          "fuel": {
+            "capacityTons": 40,
+            "jumpFuelTonsAtMaxJump": 20,
+            "powerPlantFuelTonsForFourWeeks": 20
+          },
+          "computer": {
+            "model": "1bis",
+            "tons": 1,
+            "cpu": 4,
+            "storage": 0,
+            "maximumSupportedJump": 2
+          },
+          "accommodations": {
+            "staterooms": 4,
+            "lowBerths": 0
+          },
+          "cargo": {
+            "capacityTons": 3
+          },
+          "armament": {
+            "hardpoints": 1,
+            "turrets": [
+              {
+                "id": "T-1",
+                "mount": "double",
+                "fireControlInstalled": true,
+                "fireControlTons": 1,
+                "weapons": []
+              }
+            ]
+          },
+          "vehicles": [
+            {
+              "name": "Air/Raft",
+              "tons": 4,
+              "stowage": "specially fitted hangar within ship"
+            }
+          ],
+          "crew": {
+            "standardCount": 1,
+            "standardDuties": [
+              "pilot",
+              "engineer"
+            ],
+            "rulesMinimumPositions": [
+              {
+                "role": "pilot",
+                "skill": "Pilot",
+                "minimumLevel": 1
+              }
+            ],
+            "notes": "Book 2 general crew rules do not require a separate engineer on ships under 200 tons; the Type S standard-design description assigns engineering duties to its single crew member."
+          },
+          "economics": {
+            "standardDesignDiscountApplied": true,
+            "newCostMCr": 29.43,
+            "buildMonths": 9,
+            "annualRoutineMaintenanceCr": 29430
+          }
+        },
+        "authority": {
+          "assignmentType": "reserve",
+          "controllingAuthority": "Scout Service",
+          "legalTitleHolder": null,
+          "legalTitleSourceStatus": "not-explicitly-stated-in-book-1",
+          "characterOwnsShip": false,
+          "assignedCharacterId": "char-04164baa70c3b5a6",
+          "assignedCharacterName": "Hawkeye",
+          "recallable": true,
+          "saleAllowed": false,
+          "useAsDesired": true,
+          "possessionAtServicePleasure": true,
+          "servicePrivileges": {
+            "freeFuelAtScoutBases": true,
+            "freeMaintenanceAtScoutBasesAtClassBStarports": true
+          },
+          "operatorResponsibilities": {
+            "upkeep": true,
+            "crewCosts": true
+          }
+        },
+        "crew": {
+          "assignments": [
+            {
+              "role": "pilot",
+              "characterId": "char-04164baa70c3b5a6",
+              "characterName": "Hawkeye"
+            }
+          ]
+        },
+        "state": {
+          "operationalStatus": "available",
+          "currentFuelTons": 40,
+          "fuelQuality": "mixed",
+          "cargoUsedTons": 1,
+          "cargoManifest": [
+            {
+              "id": "contract-1bce3e837cc06297:cargo",
+              "category": "contract:contract-1bce3e837cc06297",
+              "description": "Priority Small-Lot Delivery",
+              "tons": 1,
+              "originSystemId": "orison",
+              "destinationSystemId": "pelagos",
+              "acquisitionCostCr": 0,
+              "notes": "Contract cargo / contract-1bce3e837cc06297"
+            }
+          ],
+          "finances": {
+            "balanceCr": 843620,
+            "ledger": [
+              {
+                "id": "ship-5bd8f4fad2ec67fe:029-4800:transfer:1",
+                "date": "029-4800",
+                "kind": "transfer",
+                "amountCr": 5000,
+                "description": "Transfer from Hawkeye",
+                "balanceCr": 5000
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:029-4800:fuel:2",
+                "date": "029-4800",
+                "kind": "fuel",
+                "amountCr": -4000,
+                "description": "40 tons unrefined fuel / STARPORT C",
+                "balanceCr": 1000
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:036-4800:berthing:3",
+                "date": "036-4800",
+                "kind": "berthing",
+                "amountCr": -100,
+                "description": "Port Meridian starport berthing",
+                "balanceCr": 900
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:043-4800:transfer:4",
+                "date": "043-4800",
+                "kind": "transfer",
+                "amountCr": 5000,
+                "description": "Transfer from Hawkeye",
+                "balanceCr": 5900
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:043-4800:fuel:5",
+                "date": "043-4800",
+                "kind": "fuel",
+                "amountCr": -2500,
+                "description": "25 tons unrefined fuel / STARPORT C",
+                "balanceCr": 3400
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:043-4800:berthing:6",
+                "date": "043-4800",
+                "kind": "berthing",
+                "amountCr": -100,
+                "description": "Calder starport berthing",
+                "balanceCr": 3300
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:050-4800:berthing:7",
+                "date": "050-4800",
+                "kind": "berthing",
+                "amountCr": -100,
+                "description": "Orison starport berthing",
+                "balanceCr": 3200
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:036-4800:transfer:8",
+                "date": "036-4800",
+                "kind": "transfer",
+                "amountCr": 5000,
+                "description": "Transfer from Hawkeye",
+                "balanceCr": 8200
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:036-4800:speculative-purchase:9",
+                "date": "036-4800",
+                "kind": "speculative-purchase",
+                "amountCr": -3333,
+                "description": "3 tons Aluminum / partial lot incl. 1% handling",
+                "balanceCr": 4867
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:036-4800:life-support:10",
+                "date": "036-4800",
+                "kind": "life-support",
+                "amountCr": -2000,
+                "description": "1 occupied stateroom",
+                "balanceCr": 2867
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:043-4800:speculative-sale:11",
+                "date": "043-4800",
+                "kind": "speculative-sale",
+                "amountCr": 2100,
+                "description": "3 tons Aluminum sold at 70% of base",
+                "balanceCr": 4967
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:036-4800:life-support:12",
+                "date": "036-4800",
+                "kind": "life-support",
+                "amountCr": -2000,
+                "description": "1 occupied stateroom",
+                "balanceCr": 2967
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:043-4800:berthing:13",
+                "date": "043-4800",
+                "kind": "berthing",
+                "amountCr": -100,
+                "description": "San Telmo starport berthing",
+                "balanceCr": 2867
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:043-4800:transfer:14",
+                "date": "043-4800",
+                "kind": "transfer",
+                "amountCr": 5000,
+                "description": "Transfer from Hawkeye",
+                "balanceCr": 7867
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:043-4800:life-support:15",
+                "date": "043-4800",
+                "kind": "life-support",
+                "amountCr": -4000,
+                "description": "2 occupied staterooms",
+                "balanceCr": 3867
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:050-4800:passage:16",
+                "date": "050-4800",
+                "kind": "passage",
+                "amountCr": 8000,
+                "description": "1 passenger delivered",
+                "balanceCr": 11867
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:050-4800:berthing:17",
+                "date": "050-4800",
+                "kind": "berthing",
+                "amountCr": -100,
+                "description": "Port Meridian starport berthing",
+                "balanceCr": 11767
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:050-4800:life-support:18",
+                "date": "050-4800",
+                "kind": "life-support",
+                "amountCr": -8000,
+                "description": "4 occupied staterooms",
+                "balanceCr": 3767
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:057-4800:freight:19",
+                "date": "057-4800",
+                "kind": "freight",
+                "amountCr": 1000,
+                "description": "1 tons freight delivered / incidental freight to Aster",
+                "balanceCr": 4767
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:057-4800:passage:20",
+                "date": "057-4800",
+                "kind": "passage",
+                "amountCr": 24000,
+                "description": "3 passengers delivered",
+                "balanceCr": 28767
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:057-4800:berthing:21",
+                "date": "057-4800",
+                "kind": "berthing",
+                "amountCr": -100,
+                "description": "Aster starport berthing",
+                "balanceCr": 28667
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:057-4800:life-support:22",
+                "date": "057-4800",
+                "kind": "life-support",
+                "amountCr": -8000,
+                "description": "4 occupied staterooms",
+                "balanceCr": 20667
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:064-4800:passage:23",
+                "date": "064-4800",
+                "kind": "passage",
+                "amountCr": 24000,
+                "description": "3 passengers delivered",
+                "balanceCr": 44667
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:064-4800:berthing:24",
+                "date": "064-4800",
+                "kind": "berthing",
+                "amountCr": -100,
+                "description": "Port Meridian starport berthing",
+                "balanceCr": 44567
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:064-4800:life-support:25",
+                "date": "064-4800",
+                "kind": "life-support",
+                "amountCr": -8000,
+                "description": "4 occupied staterooms",
+                "balanceCr": 36567
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:071-4800:freight:26",
+                "date": "071-4800",
+                "kind": "freight",
+                "amountCr": 2000,
+                "description": "2 tons freight delivered / incidental freight to San Telmo",
+                "balanceCr": 38567
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:071-4800:passage:27",
+                "date": "071-4800",
+                "kind": "passage",
+                "amountCr": 24000,
+                "description": "3 passengers delivered",
+                "balanceCr": 62567
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:071-4800:berthing:28",
+                "date": "071-4800",
+                "kind": "berthing",
+                "amountCr": -100,
+                "description": "San Telmo starport berthing",
+                "balanceCr": 62467
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:071-4800:life-support:29",
+                "date": "071-4800",
+                "kind": "life-support",
+                "amountCr": -2000,
+                "description": "1 occupied stateroom",
+                "balanceCr": 60467
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:078-4800:contract:30",
+                "date": "078-4800",
+                "kind": "contract",
+                "amountCr": 29700,
+                "description": "Whole-Ship Charter completed / Aster",
+                "balanceCr": 90167
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:078-4800:berthing:31",
+                "date": "078-4800",
+                "kind": "berthing",
+                "amountCr": -100,
+                "description": "Aster starport berthing",
+                "balanceCr": 90067
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:078-4800:life-support:32",
+                "date": "078-4800",
+                "kind": "life-support",
+                "amountCr": -2000,
+                "description": "1 occupied stateroom",
+                "balanceCr": 88067
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:085-4800:contract:33",
+                "date": "085-4800",
+                "kind": "contract",
+                "amountCr": 11500,
+                "description": "Priority Small-Lot Delivery completed / Orison",
+                "balanceCr": 99567
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:085-4800:berthing:34",
+                "date": "085-4800",
+                "kind": "berthing",
+                "amountCr": -100,
+                "description": "Orison starport berthing",
+                "balanceCr": 99467
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:085-4800:speculative-purchase:35",
+                "date": "085-4800",
+                "kind": "speculative-purchase",
+                "amountCr": -14847,
+                "description": "3 tons Polymers / partial lot incl. 1% handling",
+                "balanceCr": 84620
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:092-4800:speculative-sale:36",
+                "date": "092-4800",
+                "kind": "speculative-sale",
+                "amountCr": 31500,
+                "description": "3 tons Polymers sold at 150% of base",
+                "balanceCr": 116120
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:092-4800:speculative-purchase:37",
+                "date": "092-4800",
+                "kind": "speculative-purchase",
+                "amountCr": -70700,
+                "description": "2 tons Mechanical Parts / partial lot incl. 1% handling",
+                "balanceCr": 45420
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:092-4800:speculative-sale:38",
+                "date": "092-4800",
+                "kind": "speculative-sale",
+                "amountCr": 280000,
+                "description": "2 tons Mechanical Parts sold at 200% of base",
+                "balanceCr": 325420
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:092-4800:speculative-purchase:39",
+                "date": "092-4800",
+                "kind": "speculative-purchase",
+                "amountCr": -70700,
+                "description": "2 tons Mechanical Parts / partial lot incl. 1% handling",
+                "balanceCr": 254720
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:092-4800:speculative-sale:40",
+                "date": "092-4800",
+                "kind": "speculative-sale",
+                "amountCr": 280000,
+                "description": "2 tons Mechanical Parts sold at 200% of base",
+                "balanceCr": 534720
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:092-4800:life-support:41",
+                "date": "092-4800",
+                "kind": "life-support",
+                "amountCr": -2000,
+                "description": "1 occupied stateroom",
+                "balanceCr": 532720
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:099-4800:contract:42",
+                "date": "099-4800",
+                "kind": "contract",
+                "amountCr": 16000,
+                "description": "Priority Courier Packet completed / Cinder",
+                "balanceCr": 548720
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:099-4800:berthing:43",
+                "date": "099-4800",
+                "kind": "berthing",
+                "amountCr": -100,
+                "description": "Cinder starport berthing",
+                "balanceCr": 548620
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:106-4800:speculative-purchase:44",
+                "date": "106-4800",
+                "kind": "speculative-purchase",
+                "amountCr": -505000,
+                "description": "1 tons Radioactives / partial lot incl. 1% handling",
+                "balanceCr": 43620
+              },
+              {
+                "id": "ship-5bd8f4fad2ec67fe:106-4800:speculative-sale:45",
+                "date": "106-4800",
+                "kind": "speculative-sale",
+                "amountCr": 800000,
+                "description": "1 tons Radioactives sold at 80% of base",
+                "balanceCr": 843620
+              }
+            ]
+          },
+          "portCall": {
+            "systemId": "cinder",
+            "arrivalDate": "099-4800",
+            "berthingDueCr": 100,
+            "berthingPaid": true
+          },
+          "maintenance": {
+            "status": "unknown",
+            "lastOverhaulDate": null,
+            "monthsPastDue": null
+          },
+          "passengerManifest": []
+        },
+        "notes": "",
+        "provenance": {
+          "source": "classic-traveller-book-2-standard-design",
+          "sourceDesign": "type-s-scout-courier",
+          "sourceReferences": [
+            "Classic Traveller Book 2 p.19 (standard Scout/Courier design)",
+            "Classic Traveller Book 2 p.15 (crew requirements)",
+            "Classic Traveller Book 2 p.14 (fuel formula)",
+            "Classic Traveller Facsimile Errata p.158 (standard hull and corrected MCr29.43 cost)"
+          ]
+        }
+      }
+    ],
+    "contracts": [
+      {
+        "documentType": "graycloak-traveller-contract",
+        "schemaVersion": 1,
+        "identity": {
+          "id": "contract-9e852d53578ec7bf",
+          "title": "Whole-Ship Charter"
+        },
+        "kind": "charter",
+        "provenance": {
+          "offerId": "campaign-38a2aab661b8ebca|san-telmo|071-4800|contract-board:1:charter:aster",
+          "rulesBasis": "classic-traveller-book-2-charter",
+          "setting": "Sea of Suns"
+        },
+        "issuer": {
+          "name": "San Telmo Commercial Exchange",
+          "type": "commercial"
+        },
+        "origin": {
+          "systemId": "san-telmo",
+          "systemName": "San Telmo"
+        },
+        "destination": {
+          "systemId": "aster",
+          "systemName": "Aster"
+        },
+        "requirements": {
+          "cargoTons": 0,
+          "exclusiveShip": true,
+          "description": "Exclusive use of ship for one two-week charter block. Owner supplies crew and overhead."
+        },
+        "economics": {
+          "paymentCr": 29700,
+          "paymentTiming": "completion"
+        },
+        "timing": {
+          "acceptedDate": {
+            "year": 4800,
+            "dayOfYear": 71
+          },
+          "deadlineDate": {
+            "year": 4800,
+            "dayOfYear": 85
+          }
+        },
+        "assigned": {
+          "characterId": "char-04164baa70c3b5a6",
+          "shipId": "ship-5bd8f4fad2ec67fe"
+        },
+        "status": "completed",
+        "resolution": {
+          "date": {
+            "year": 4800,
+            "dayOfYear": 78
+          },
+          "paymentCr": 29700,
+          "notes": "Completed at Aster"
+        },
+        "notes": "Book 2 charter rate: Cr900/cargo ton + Cr9,000/high-passage berth + Cr900/low berth; Type S quote 29700."
+      },
+      {
+        "documentType": "graycloak-traveller-contract",
+        "schemaVersion": 1,
+        "identity": {
+          "id": "contract-3a5bbe658d9e0591",
+          "title": "Priority Courier Packet"
+        },
+        "kind": "priority-courier",
+        "provenance": {
+          "offerId": "campaign-38a2aab661b8ebca|aster|078-4800|contract-board:2:priority-courier:calder",
+          "rulesBasis": "sea-of-suns-original",
+          "setting": "Sea of Suns"
+        },
+        "issuer": {
+          "name": "Aster Prime Dispatch Office",
+          "type": "government"
+        },
+        "origin": {
+          "systemId": "aster",
+          "systemName": "Aster"
+        },
+        "destination": {
+          "systemId": "calder",
+          "systemName": "Calder"
+        },
+        "requirements": {
+          "cargoTons": 0,
+          "exclusiveShip": false,
+          "description": "Sealed priority packet. Negligible cargo displacement."
+        },
+        "economics": {
+          "paymentCr": 12000,
+          "paymentTiming": "completion"
+        },
+        "timing": {
+          "acceptedDate": {
+            "year": 4800,
+            "dayOfYear": 78
+          },
+          "deadlineDate": {
+            "year": 4800,
+            "dayOfYear": 92
+          }
+        },
+        "assigned": {
+          "characterId": "char-04164baa70c3b5a6",
+          "shipId": "ship-5bd8f4fad2ec67fe"
+        },
+        "status": "accepted",
+        "resolution": {
+          "date": null,
+          "paymentCr": 0,
+          "notes": ""
+        },
+        "notes": "Original Sea of Suns contract built on the setting assumption that interstellar information travels by ship."
+      },
+      {
+        "documentType": "graycloak-traveller-contract",
+        "schemaVersion": 1,
+        "identity": {
+          "id": "contract-32b5799b1979d3cf",
+          "title": "Priority Small-Lot Delivery"
+        },
+        "kind": "delivery",
+        "provenance": {
+          "offerId": "campaign-38a2aab661b8ebca|aster|078-4800|contract-board:3:delivery:orison",
+          "rulesBasis": "sea-of-suns-original",
+          "setting": "Sea of Suns"
+        },
+        "issuer": {
+          "name": "Aster Prime Factors Guild",
+          "type": "commercial"
+        },
+        "origin": {
+          "systemId": "aster",
+          "systemName": "Aster"
+        },
+        "destination": {
+          "systemId": "orison",
+          "systemName": "Orison"
+        },
+        "requirements": {
+          "cargoTons": 2,
+          "exclusiveShip": false,
+          "description": "2 tons sealed priority cargo. Payment on timely delivery."
+        },
+        "economics": {
+          "paymentCr": 11500,
+          "paymentTiming": "completion"
+        },
+        "timing": {
+          "acceptedDate": {
+            "year": 4800,
+            "dayOfYear": 78
+          },
+          "deadlineDate": {
+            "year": 4800,
+            "dayOfYear": 92
+          }
+        },
+        "assigned": {
+          "characterId": "char-04164baa70c3b5a6",
+          "shipId": "ship-5bd8f4fad2ec67fe"
+        },
+        "status": "completed",
+        "resolution": {
+          "date": {
+            "year": 4800,
+            "dayOfYear": 85
+          },
+          "paymentCr": 11500,
+          "notes": "Completed at Orison"
+        },
+        "notes": "Original Sea of Suns fixed-fee delivery contract; separate from Book 2 common-carrier freight."
+      },
+      {
+        "documentType": "graycloak-traveller-contract",
+        "schemaVersion": 1,
+        "identity": {
+          "id": "contract-e3d2d1085b395414",
+          "title": "Priority Courier Packet"
+        },
+        "kind": "priority-courier",
+        "provenance": {
+          "offerId": "campaign-38a2aab661b8ebca|orison|085-4800|contract-board:2:priority-courier:cinder",
+          "rulesBasis": "sea-of-suns-original",
+          "setting": "Sea of Suns"
+        },
+        "issuer": {
+          "name": "Orison Dispatch Office",
+          "type": "government"
+        },
+        "origin": {
+          "systemId": "orison",
+          "systemName": "Orison"
+        },
+        "destination": {
+          "systemId": "cinder",
+          "systemName": "Cinder"
+        },
+        "requirements": {
+          "cargoTons": 0,
+          "exclusiveShip": false,
+          "description": "Sealed priority packet. Negligible cargo displacement."
+        },
+        "economics": {
+          "paymentCr": 16000,
+          "paymentTiming": "completion"
+        },
+        "timing": {
+          "acceptedDate": {
+            "year": 4800,
+            "dayOfYear": 85
+          },
+          "deadlineDate": {
+            "year": 4800,
+            "dayOfYear": 99
+          }
+        },
+        "assigned": {
+          "characterId": "char-04164baa70c3b5a6",
+          "shipId": "ship-5bd8f4fad2ec67fe"
+        },
+        "status": "completed",
+        "resolution": {
+          "date": {
+            "year": 4800,
+            "dayOfYear": 99
+          },
+          "paymentCr": 16000,
+          "notes": "Completed at Cinder"
+        },
+        "notes": "Original Sea of Suns contract built on the setting assumption that interstellar information travels by ship."
+      },
+      {
+        "documentType": "graycloak-traveller-contract",
+        "schemaVersion": 1,
+        "identity": {
+          "id": "contract-1bce3e837cc06297",
+          "title": "Priority Small-Lot Delivery"
+        },
+        "kind": "delivery",
+        "provenance": {
+          "offerId": "campaign-38a2aab661b8ebca|orison|085-4800|contract-board:3:delivery:pelagos",
+          "rulesBasis": "sea-of-suns-original",
+          "setting": "Sea of Suns"
+        },
+        "issuer": {
+          "name": "Orison Factors Guild",
+          "type": "commercial"
+        },
+        "origin": {
+          "systemId": "orison",
+          "systemName": "Orison"
+        },
+        "destination": {
+          "systemId": "pelagos",
+          "systemName": "Pelagos"
+        },
+        "requirements": {
+          "cargoTons": 1,
+          "exclusiveShip": false,
+          "description": "1 tons sealed priority cargo. Payment on timely delivery."
+        },
+        "economics": {
+          "paymentCr": 9500,
+          "paymentTiming": "completion"
+        },
+        "timing": {
+          "acceptedDate": {
+            "year": 4800,
+            "dayOfYear": 92
+          },
+          "deadlineDate": {
+            "year": 4800,
+            "dayOfYear": 106
+          }
+        },
+        "assigned": {
+          "characterId": "char-04164baa70c3b5a6",
+          "shipId": "ship-5bd8f4fad2ec67fe"
+        },
+        "status": "accepted",
+        "resolution": {
+          "date": null,
+          "paymentCr": 0,
+          "notes": ""
+        },
+        "notes": "Original Sea of Suns fixed-fee delivery contract; separate from Book 2 common-carrier freight."
+      },
+      {
+        "documentType": "graycloak-traveller-contract",
+        "schemaVersion": 1,
+        "identity": {
+          "id": "contract-f7b85279e50e871d",
+          "title": "Priority Courier Packet"
+        },
+        "kind": "priority-courier",
+        "provenance": {
+          "offerId": "campaign-38a2aab661b8ebca|cinder|099-4800|contract-board:2:priority-courier:orison",
+          "rulesBasis": "sea-of-suns-original",
+          "setting": "Sea of Suns"
+        },
+        "issuer": {
+          "name": "Cinder Dispatch Office",
+          "type": "government"
+        },
+        "origin": {
+          "systemId": "cinder",
+          "systemName": "Cinder"
+        },
+        "destination": {
+          "systemId": "orison",
+          "systemName": "Orison"
+        },
+        "requirements": {
+          "cargoTons": 0,
+          "exclusiveShip": false,
+          "description": "Sealed priority packet. Negligible cargo displacement."
+        },
+        "economics": {
+          "paymentCr": 17000,
+          "paymentTiming": "completion"
+        },
+        "timing": {
+          "acceptedDate": {
+            "year": 4800,
+            "dayOfYear": 106
+          },
+          "deadlineDate": {
+            "year": 4800,
+            "dayOfYear": 120
+          }
+        },
+        "assigned": {
+          "characterId": "char-04164baa70c3b5a6",
+          "shipId": "ship-5bd8f4fad2ec67fe"
+        },
+        "status": "accepted",
+        "resolution": {
+          "date": null,
+          "paymentCr": 0,
+          "notes": ""
+        },
+        "notes": "Original Sea of Suns contract built on the setting assumption that interstellar information travels by ship."
+      }
+    ]
+  }
+}

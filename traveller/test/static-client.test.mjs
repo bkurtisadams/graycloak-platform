@@ -279,3 +279,23 @@ test('v0.11.2 exposes persistent contracts and the port Contract Board', async (
   assert.match(app, /creditShipAccount/);
   assert.match(model, /buildContractBoardRecord/);
 });
+
+
+test('v0.11.2.1 keeps port, trade, and jobs beside the map and guards repaired state flows', async () => {
+  const html = await read('index.html');
+  const app = await read('app.js');
+  const css = await read('styles.css');
+
+  assert.match(html, /CLIENT v0\.11\.2\.1/);
+  assert.match(html, /id="operations-tab-port"/);
+  assert.match(html, /id="operations-tab-trade"/);
+  assert.match(html, /id="operations-tab-jobs"/);
+  assert.ok(html.indexOf('id="commerce-section"') < html.indexOf('id="subsector-map"'));
+  assert.match(css, /\.operations-panel-scroll/);
+  assert.match(css, /overflow-y:\s*auto/);
+  assert.match(app, /recordSpeculativeLotPurchase/);
+  assert.match(app, /speculativeLotPurchasedQuantity/);
+  assert.match(app, /transported to another world before resale/);
+  assert.match(app, /reconcileExpiredContracts/);
+  assert.match(app, /persistCampaignState/);
+});

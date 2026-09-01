@@ -261,3 +261,25 @@ export function failContractDocument(document, { date, notes = '' } = {}) {
   assertValidContractDocument(next);
   return next;
 }
+
+export function reconcileContractDeadlines(contracts, campaignTime) {
+  if (!Array.isArray(contracts)) throw new TypeError('contracts must be an array');
+  if (!validDate(campaignTime)) throw new TypeError('campaignTime must contain year and dayOfYear');
+  const updated = [];
+  const failed = [];
+  for (const contract of contracts) {
+    assertValidContractDocument(contract);
+    if (contract.status === 'accepted' && isContractOverdue(contract, campaignTime)) {
+      const next = failContractDocument(contract, {
+        date: campaignTime,
+        notes: 'Deadline missed before destination delivery.'
+      });
+      updated.push(next);
+      failed.push(next);
+    } else {
+      updated.push(cloneJson(contract));
+    }
+  }
+  return Object.freeze({ contracts: Object.freeze(updated), failed: Object.freeze(failed) });
+}
+

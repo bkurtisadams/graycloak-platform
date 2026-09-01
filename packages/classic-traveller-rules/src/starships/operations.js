@@ -460,13 +460,16 @@ export function purchaseSpeculativeCargo(ship, offer, quantity, {
   return Object.freeze({ ship: next, cargoId: id, costCr: cost.totalCr, handlingFeeCr: cost.handlingFeeCr });
 }
 
-export function sellSpeculativeCargo(ship, cargoId, quote, { dateLabel = null } = {}) {
+export function sellSpeculativeCargo(ship, cargoId, quote, { dateLabel = null, destinationSystemId } = {}) {
   assertValidShipDocument(ship);
   const id = String(cargoId ?? '').trim();
+  const destination = String(destinationSystemId ?? '').trim();
+  if (!destination) throw new TypeError('destinationSystemId must be nonblank');
   const cargo = ship.state.cargoManifest.find((entry) => entry.id === id);
   if (!cargo) throw new RangeError(`cargo not found: ${id}`);
   const match = /^speculative:(\d{2})$/.exec(cargo.category);
   if (!match) throw new RangeError('cargo is not speculative trade goods');
+  if (cargo.originSystemId === destination) throw new RangeError('speculative trade goods must be transported to another world before resale');
   const code = Number(match[1]);
   if (!quote || quote.code !== code || quote.quantity !== cargo.tons) throw new RangeError('sale quote does not match cargo lot');
   const unloaded = unloadCargo(ship, id);

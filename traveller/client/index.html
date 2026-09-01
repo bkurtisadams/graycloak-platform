@@ -11,7 +11,7 @@
     <header class="masthead">
       <div>
         <div id="app-title" class="title">TRAVELLER // PERSONNEL INTAKE TERMINAL</div>
-        <div class="subtitle">CLIENT v0.11.2 // CLASSIC TRAVELLER BOOKS 1-3 // CONTRACTS</div>
+        <div class="subtitle">CLIENT v0.11.2.1 // CLASSIC TRAVELLER BOOKS 1-3 // OPERATIONS DESK</div>
       </div>
       <div id="system-status" class="status" aria-live="polite">READY</div>
     </header>
@@ -78,9 +78,46 @@
         <span id="subsector-legend" class="subsector-legend">CURRENT ■ &nbsp; JUMP RANGE □ &nbsp; OUT OF RANGE ·</span>
       </div>
       <div class="subsector-workspace">
-        <aside class="navigation-plan-panel" aria-label="Navigation plan">
-          <pre id="jump-plan" class="record jump-plan" aria-live="polite"></pre>
-          <div id="jump-actions" class="actions jump-actions"></div>
+        <aside class="navigation-plan-panel" aria-label="Navigation and operations desk">
+          <div class="navigation-plan-fixed">
+            <pre id="jump-plan" class="record jump-plan" aria-live="polite"></pre>
+            <div id="jump-actions" class="actions jump-actions"></div>
+          </div>
+          <div class="operations-desk" aria-label="Port operations desk">
+            <div class="operations-tabs" role="tablist" aria-label="Operations desk views">
+              <button id="operations-tab-port" class="text-button operations-tab" type="button" role="tab" aria-controls="port-services-section" aria-selected="false">[ PORT ]</button>
+              <button id="operations-tab-trade" class="text-button operations-tab" type="button" role="tab" aria-controls="commerce-section" aria-selected="true">[ TRADE ]</button>
+              <button id="operations-tab-jobs" class="text-button operations-tab" type="button" role="tab" aria-controls="contract-section" aria-selected="false">[ JOBS ]</button>
+            </div>
+            <div class="operations-panel-scroll">
+              <section id="port-services-section" class="operations-panel" hidden aria-labelledby="port-services-heading">
+                <div class="section-heading">
+                  <h2 id="port-services-heading" class="section-title">PORT SERVICES</h2>
+                  <button class="help-button" type="button" data-help-topic="port-services" aria-label="Explain port services">[?]</button>
+                </div>
+                <pre id="port-services-record" class="record port-services-record" aria-live="polite"></pre>
+                <div id="port-actions" class="actions port-actions"></div>
+              </section>
+
+              <section id="commerce-section" class="operations-panel" aria-labelledby="commerce-heading">
+                <div class="section-heading">
+                  <h2 id="commerce-heading" class="section-title">COMMERCE</h2>
+                  <button class="help-button" type="button" data-help-topic="commerce" aria-label="Explain commerce">[?]</button>
+                </div>
+                <pre id="commerce-record" class="record commerce-record" aria-live="polite"></pre>
+                <div id="commerce-actions" class="actions commerce-actions"></div>
+              </section>
+
+              <section id="contract-section" class="operations-panel" hidden aria-labelledby="contract-heading">
+                <div class="section-heading">
+                  <h2 id="contract-heading" class="section-title">CONTRACT BOARD</h2>
+                  <button class="help-button" type="button" data-help-topic="contract-board" aria-label="Explain contracts">[?]</button>
+                </div>
+                <pre id="contract-record" class="record contract-record" aria-live="polite"></pre>
+                <div id="contract-actions" class="actions contract-actions"></div>
+              </section>
+            </div>
+          </div>
         </aside>
         <div class="subsector-map-column">
           <div class="subsector-map-tools" aria-label="Subsector map zoom controls">
@@ -101,33 +138,6 @@
         <button class="help-button" type="button" data-help-topic="system-record" aria-label="Explain the system record">[?]</button>
       </div>
       <pre id="system-record" class="record system-record" aria-live="polite"></pre>
-    </section>
-
-    <section id="port-services-section" hidden aria-labelledby="port-services-heading">
-      <div class="section-heading">
-        <h2 id="port-services-heading" class="section-title">PORT SERVICES</h2>
-        <button class="help-button" type="button" data-help-topic="port-services" aria-label="Explain port services">[?]</button>
-      </div>
-      <pre id="port-services-record" class="record port-services-record" aria-live="polite"></pre>
-      <div id="port-actions" class="actions port-actions"></div>
-    </section>
-
-    <section id="commerce-section" hidden aria-labelledby="commerce-heading">
-      <div class="section-heading">
-        <h2 id="commerce-heading" class="section-title">COMMERCE</h2>
-        <button class="help-button" type="button" data-help-topic="commerce" aria-label="Explain commerce">[?]</button>
-      </div>
-      <pre id="commerce-record" class="record commerce-record" aria-live="polite"></pre>
-      <div id="commerce-actions" class="actions commerce-actions"></div>
-    </section>
-
-    <section id="contract-section" hidden aria-labelledby="contract-heading">
-      <div class="section-heading">
-        <h2 id="contract-heading" class="section-title">CONTRACT BOARD</h2>
-        <button class="help-button" type="button" data-help-topic="contract-board" aria-label="Explain contracts">[?]</button>
-      </div>
-      <pre id="contract-record" class="record contract-record" aria-live="polite"></pre>
-      <div id="contract-actions" class="actions contract-actions"></div>
     </section>
 
     <section id="ship-section" hidden aria-labelledby="ship-heading">

@@ -2,6 +2,10 @@
 
 Pure JavaScript rules package for the Graycloak Classic Traveller browser-game project. It intentionally has no HTML, Foundry, Firebase, or server dependencies.
 
+## v0.11.2.1 commerce guard
+
+Speculative cargo sale now requires a destination system different from the cargo origin, preventing same-world buy/sell loops while preserving Book 2 resale pricing.
+
 ## v0.11.2 scope
 
 The package retains the established Book 1 character-generation, gameplay Character Document, Book 2 Type S starship, and Book 3 subsector/world layers, and now includes source-backed passenger, freight, speculative-commerce, and charter/private-message primitives.

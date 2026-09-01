@@ -14,7 +14,9 @@ import {
   exportCampaignDocument,
   importCampaignDocument,
   updateCampaignLocation,
-  updateCampaignTime
+  updateCampaignTime,
+  speculativeLotPurchasedQuantity,
+  recordSpeculativeLotPurchase
 } from '../src/campaign-document.js';
 
 import {
@@ -54,18 +56,19 @@ function campaignFor(character, ship) {
   });
 }
 
-test('Campaign Document v2 links Hawkeye and Marisol by stable IDs without embedding them', async () => {
+test('Campaign Document v3 links Hawkeye and Marisol by stable IDs without embedding them', async () => {
   const { character, ship } = await acceptanceDocuments();
   const campaign = campaignFor(character, ship);
   const roundTrip = importCampaignDocument(exportCampaignDocument(campaign));
 
   assert.equal(roundTrip.documentType, 'graycloak-traveller-campaign');
-  assert.equal(roundTrip.schemaVersion, 2);
+  assert.equal(roundTrip.schemaVersion, 3);
   assert.deepEqual(roundTrip.party.characterIds, [character.identity.id]);
   assert.equal(roundTrip.activeShipId, ship.identity.id);
   assert.deepEqual(roundTrip.documentRefs.characters, [{ id: character.identity.id, name: 'Hawkeye' }]);
   assert.equal(roundTrip.documentRefs.ships[0].name, 'Marisol');
   assert.deepEqual(roundTrip.documentRefs.contracts, []);
+  assert.deepEqual(roundTrip.commerce.speculativeLots, []);
   assert.equal(roundTrip.documents, undefined);
 });
 
@@ -130,15 +133,16 @@ test('campaign status record shows date, location, party, and active Marisol', a
 });
 
 
-test('Campaign Document v1 imports migrate to v2 with an empty contract reference list', async () => {
+test('Campaign Document v1 imports migrate to v3 with empty contract and commerce state', async () => {
   const { character, ship } = await acceptanceDocuments();
   const current = campaignFor(character, ship);
   const legacy = structuredClone(current);
   legacy.schemaVersion = 1;
   delete legacy.documentRefs.contracts;
   const migrated = importCampaignDocument(legacy);
-  assert.equal(migrated.schemaVersion, 2);
+  assert.equal(migrated.schemaVersion, 3);
   assert.deepEqual(migrated.documentRefs.contracts, []);
+  assert.deepEqual(migrated.commerce.speculativeLots, []);
 });
 
 test('Campaign Bundle v1 imports migrate to v2 and add an empty contract collection', async () => {
@@ -152,6 +156,27 @@ test('Campaign Bundle v1 imports migrate to v2 and add an empty contract collect
   delete legacy.documents.contracts;
   const migrated = importCampaignBundle(legacy);
   assert.equal(migrated.schemaVersion, 2);
-  assert.equal(migrated.campaign.schemaVersion, 2);
+  assert.equal(migrated.campaign.schemaVersion, 3);
+  assert.deepEqual(migrated.campaign.commerce.speculativeLots, []);
   assert.deepEqual(migrated.documents.contracts, []);
 });
+
+test('Campaign Document v2 migrates to v3 and speculative lot purchases survive round-trip', async () => {
+  const { character, ship } = await acceptanceDocuments();
+  let campaign = campaignFor(character, ship);
+  const legacy = structuredClone(campaign);
+  legacy.schemaVersion = 2;
+  delete legacy.commerce;
+  campaign = importCampaignDocument(legacy);
+  assert.equal(campaign.schemaVersion, 3);
+  assert.equal(speculativeLotPurchasedQuantity(campaign, 'weekly-lot'), 0);
+  campaign = recordSpeculativeLotPurchase(campaign, {
+    key: 'weekly-lot', systemId: 'calder', tradeGoodCode: 62, quantity: 2
+  });
+  campaign = recordSpeculativeLotPurchase(campaign, {
+    key: 'weekly-lot', systemId: 'calder', tradeGoodCode: 62, quantity: 1
+  });
+  const roundTrip = importCampaignDocument(exportCampaignDocument(campaign));
+  assert.equal(speculativeLotPurchasedQuantity(roundTrip, 'weekly-lot'), 3);
+});
+

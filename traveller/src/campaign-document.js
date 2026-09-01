@@ -1,8 +1,8 @@
 import { stableDocumentId } from '../../packages/classic-traveller-rules/index.js';
 
 export const CAMPAIGN_DOCUMENT_TYPE = 'graycloak-traveller-campaign';
-export const CURRENT_CAMPAIGN_DOCUMENT_SCHEMA_VERSION = 2;
-export const SUPPORTED_CAMPAIGN_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2]);
+export const CURRENT_CAMPAIGN_DOCUMENT_SCHEMA_VERSION = 3;
+export const SUPPORTED_CAMPAIGN_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3]);
 
 export const DEFAULT_CAMPAIGN_TIME = Object.freeze({
   year: 4800,
@@ -12,7 +12,7 @@ export const DEFAULT_CAMPAIGN_TIME = Object.freeze({
 
 const TOP_LEVEL_KEYS = Object.freeze([
   'documentType', 'schemaVersion', 'identity', 'time', 'location',
-  'party', 'activeShipId', 'documentRefs', 'notes'
+  'party', 'activeShipId', 'documentRefs', 'commerce', 'notes'
 ]);
 
 export class CampaignDocumentValidationError extends Error {
@@ -109,6 +109,7 @@ export function createCampaignDocument({
   characters = [],
   ships = [],
   contracts = [],
+  commerce = {},
   partyCharacterIds,
   activeShipId,
   notes = ''
@@ -154,6 +155,9 @@ export function createCampaignDocument({
       characters: characterRefs,
       ships: shipRefs,
       contracts: contractRefs
+    },
+    commerce: {
+      speculativeLots: Array.isArray(commerce.speculativeLots) ? cloneJson(commerce.speculativeLots) : []
     },
     notes
   };
@@ -269,6 +273,28 @@ export function validateCampaignDocument(document) {
   }
   if (document.activeShipId !== null) add(errors, shipIds.has(document.activeShipId), 'activeShipId must reference a ship in documentRefs');
 
+  add(errors, isPlainObject(document.commerce), 'commerce must be an object');
+  if (isPlainObject(document.commerce)) {
+    exactKeys(document.commerce, ['speculativeLots'], 'commerce', errors);
+    add(errors, Array.isArray(document.commerce.speculativeLots), 'commerce.speculativeLots must be an array');
+    const lotKeys = new Set();
+    if (Array.isArray(document.commerce.speculativeLots)) {
+      for (const lot of document.commerce.speculativeLots) {
+        add(errors, isPlainObject(lot), 'commerce.speculativeLots[] must be an object');
+        if (!isPlainObject(lot)) continue;
+        exactKeys(lot, ['key', 'systemId', 'tradeGoodCode', 'purchasedQuantity'], 'commerce.speculativeLots[]', errors);
+        add(errors, nonblank(lot.key), 'commerce speculative lot key must be nonblank');
+        add(errors, nonblank(lot.systemId), 'commerce speculative lot systemId must be nonblank');
+        add(errors, Number.isInteger(lot.tradeGoodCode) && lot.tradeGoodCode >= 11 && lot.tradeGoodCode <= 66, 'commerce speculative lot tradeGoodCode must be an integer from 11 to 66');
+        add(errors, Number.isInteger(lot.purchasedQuantity) && lot.purchasedQuantity >= 0, 'commerce speculative lot purchasedQuantity must be a non-negative integer');
+        if (nonblank(lot.key)) {
+          add(errors, !lotKeys.has(lot.key), `duplicate commerce speculative lot key: ${lot.key}`);
+          lotKeys.add(lot.key);
+        }
+      }
+    }
+  }
+
   add(errors, typeof document.notes === 'string', 'notes must be a string');
   return { valid: errors.length === 0, errors };
 }
@@ -293,6 +319,10 @@ export function migrateCampaignDocument(input) {
   if (next.schemaVersion === 1) {
     next.schemaVersion = 2;
     next.documentRefs = { ...next.documentRefs, contracts: [] };
+  }
+  if (next.schemaVersion === 2) {
+    next.schemaVersion = 3;
+    next.commerce = { speculativeLots: [] };
   }
   assertValidCampaignDocument(next);
   return next;
@@ -390,3 +420,45 @@ export function addContractToCampaign(document, contractDocument) {
   assertValidCampaignDocument(next);
   return next;
 }
+
+export function speculativeLotPurchasedQuantity(document, lotKey) {
+  assertValidCampaignDocument(document);
+  const key = String(lotKey ?? '').trim();
+  if (!key) throw new TypeError('lotKey must be nonblank');
+  return document.commerce.speculativeLots.find((entry) => entry.key === key)?.purchasedQuantity ?? 0;
+}
+
+export function recordSpeculativeLotPurchase(document, {
+  key,
+  systemId,
+  tradeGoodCode,
+  quantity
+} = {}) {
+  assertValidCampaignDocument(document);
+  const normalizedKey = String(key ?? '').trim();
+  const normalizedSystemId = String(systemId ?? '').trim();
+  if (!normalizedKey) throw new TypeError('key must be nonblank');
+  if (!normalizedSystemId) throw new TypeError('systemId must be nonblank');
+  if (!Number.isInteger(tradeGoodCode) || tradeGoodCode < 11 || tradeGoodCode > 66) throw new TypeError('tradeGoodCode must be an integer from 11 to 66');
+  if (!Number.isInteger(quantity) || quantity < 1) throw new TypeError('quantity must be a positive integer');
+
+  const next = cloneJson(document);
+  const index = next.commerce.speculativeLots.findIndex((entry) => entry.key === normalizedKey);
+  if (index >= 0) {
+    const lot = next.commerce.speculativeLots[index];
+    if (lot.systemId !== normalizedSystemId || lot.tradeGoodCode !== tradeGoodCode) {
+      throw new CampaignDocumentValidationError(`speculative lot key conflicts with existing market state: ${normalizedKey}`);
+    }
+    lot.purchasedQuantity += quantity;
+  } else {
+    next.commerce.speculativeLots.push({
+      key: normalizedKey,
+      systemId: normalizedSystemId,
+      tradeGoodCode,
+      purchasedQuantity: quantity
+    });
+  }
+  assertValidCampaignDocument(next);
+  return next;
+}
+

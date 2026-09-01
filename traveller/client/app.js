@@ -104,7 +104,9 @@ import {
   refreshCampaignDocumentRefs,
   updateCampaignIdentity,
   updateCampaignLocation,
-  updateCampaignTime
+  updateCampaignTime,
+  speculativeLotPurchasedQuantity,
+  recordSpeculativeLotPurchase
 } from '../src/campaign-document.js';
 
 import {
@@ -125,7 +127,8 @@ import {
   completeContractDocument,
   failContractDocument,
   importContractDocument,
-  isContractOverdue
+  isContractOverdue,
+  reconcileContractDeadlines
 } from '../src/contract-document.js';
 
 import {
@@ -195,6 +198,9 @@ const el = {
   contractSection: document.querySelector('#contract-section'),
   contractRecord: document.querySelector('#contract-record'),
   contractActions: document.querySelector('#contract-actions'),
+  operationsTabPort: document.querySelector('#operations-tab-port'),
+  operationsTabTrade: document.querySelector('#operations-tab-trade'),
+  operationsTabJobs: document.querySelector('#operations-tab-jobs'),
   activityPanel: document.querySelector('#activity-panel'),
   activityContext: document.querySelector('#activity-context'),
   activityFeed: document.querySelector('#activity-feed'),
@@ -211,6 +217,7 @@ let openHelpTopic = null;
 let selectedSystemId = null;
 let subsectorZoom = 1;
 let speculativeBrokerDM = 0;
+let operationsDeskTab = 'trade';
 let registry = null;
 
 try {
@@ -476,11 +483,15 @@ function contractSourceLabel(offer) {
   return 'SEA OF SUNS';
 }
 
-function speculativeQuantityAlreadyAboard(offer, systemId) {
-  if (!shipDocument || !offer || !systemId) return 0;
-  return shipDocument.state.cargoManifest
-    .filter((entry) => entry.category === `speculative:${offer.code}` && entry.originSystemId === systemId)
-    .reduce((sum, entry) => sum + entry.tons, 0);
+function speculativeLotStateKey(offer, systemId) {
+  if (!campaignDocument || !offer || !systemId) return null;
+  return `${weeklyTradeSeed(campaignDocument, systemId)}|${offer.code}`;
+}
+
+function speculativeQuantityPurchased(offer, systemId) {
+  const key = speculativeLotStateKey(offer, systemId);
+  if (!campaignDocument || !key) return 0;
+  return speculativeLotPurchasedQuantity(campaignDocument, key);
 }
 
 function speculativeSaleQuote(cargo) {
@@ -569,6 +580,36 @@ function syncCampaignRefs() {
     ships: shipDocument ? [shipDocument] : [],
     contracts: contractDocuments
   });
+}
+
+function persistCampaignState() {
+  syncCampaignRefs();
+  persistGameplayDocuments();
+  if (registry && campaignDocument) registry.put(campaignDocument);
+}
+
+function reconcileExpiredContracts({ log = true } = {}) {
+  if (!campaignDocument || !contractDocuments.length) return [];
+  const reconciled = reconcileContractDeadlines(contractDocuments, campaignDocument.time);
+  if (!reconciled.failed.length) return [];
+
+  contractDocuments = [...reconciled.contracts];
+  const releasedCargo = [];
+  for (const contract of reconciled.failed) {
+    if (shipDocument && contract.requirements.cargoTons > 0) {
+      const cargoId = contractCargoId(contract);
+      if (shipDocument.state.cargoManifest.some((entry) => entry.id === cargoId)) {
+        shipDocument = unloadCargo(shipDocument, cargoId).ship;
+        releasedCargo.push(contract.identity.title);
+      }
+    }
+    if (log) logActivity('CONTRACT', `${contract.identity.title} failed / deadline missed / due ${String(contract.timing.deadlineDate.dayOfYear).padStart(3, '0')}-${contract.timing.deadlineDate.year}`);
+  }
+  if (log && releasedCargo.length) {
+    logActivity('SHIP', `${releasedCargo.length} failed contract cargo reservation${releasedCargo.length === 1 ? '' : 's'} released from manifest`);
+  }
+  syncCampaignRefs();
+  return [...reconciled.failed];
 }
 
 function campaignDocumentsForDisplay() {
@@ -830,9 +871,8 @@ function jumpToSelectedSystem() {
       berthingDueCr: destinationProfile.starport === 'X' ? 0 : calculateBerthingCost(1)
     });
     shipDocument = nextShip;
-    syncCampaignRefs();
-    persistGameplayDocuments();
-    if (registry) registry.put(campaignDocument);
+    reconcileExpiredContracts();
+    persistCampaignState();
     selectedSystemId = null;
     logActivity('ARRIVAL', `${shipLabel} arrived ${destination.name} / ${destination.hex} / ${destination.mainWorld.name} / fuel ${shipDocument.state.currentFuelTons}t`);
     if (freightDelivery.delivered.length) {
@@ -1142,7 +1182,8 @@ function skimCurrentGasGiant() {
     }
     shipDocument = result.ship;
     campaignDocument = advanceCampaignDays(campaignDocument, result.elapsedDays);
-    persistGameplayDocuments();
+    reconcileExpiredContracts();
+    persistCampaignState();
     logActivity('SHIP', `${shipDocument.identity.name || 'Ship'} skimmed ${result.addedTons}t unrefined fuel at ${system.name} gas giant / +${result.elapsedDays} days`);
     setStatus(`GAS-GIANT REFUEL COMPLETE: +${result.addedTons}t UNREFINED / +${result.elapsedDays} DAYS`, 'ok');
     render();
@@ -1217,15 +1258,21 @@ function buySpeculativeQuantity(quantity) {
     if (!campaignDocument || !system || !shipDocument) throw new Error('active campaign ship at a mapped system is required');
     const offer = weeklySpeculativeOffer();
     if (!offer) throw new Error('no speculative trade lot is available');
-    const aboard = speculativeQuantityAlreadyAboard(offer, system.id);
-    const remaining = Math.max(0, offer.quantityAvailable - aboard);
+    const purchased = speculativeQuantityPurchased(offer, system.id);
+    const remaining = Math.max(0, offer.quantityAvailable - purchased);
     if (quantity > remaining) throw new Error(`only ${remaining} ${offer.unit} remain in this weekly lot`);
     const result = purchaseSpeculativeCargo(shipDocument, offer, quantity, {
       originSystemId: system.id,
       dateLabel: activityDateLabel()
     });
     shipDocument = result.ship;
-    persistGameplayDocuments();
+    campaignDocument = recordSpeculativeLotPurchase(campaignDocument, {
+      key: speculativeLotStateKey(offer, system.id),
+      systemId: system.id,
+      tradeGoodCode: offer.code,
+      quantity
+    });
+    persistCampaignState();
     logActivity('TRADE', `${shipDocument.identity.name || 'Ship'} bought ${quantity}t ${offer.name} at ${system.name} / ${formatCr(result.costCr)}${result.handlingFeeCr ? ` incl. ${formatCr(result.handlingFeeCr)} handling` : ''}`);
     setStatus(`SPECULATIVE CARGO BOUGHT: ${quantity}t ${offer.name.toUpperCase()} / ${formatCr(result.costCr)}`, 'ok');
     render();
@@ -1238,14 +1285,19 @@ function buySpeculativeQuantity(quantity) {
 function sellSpeculativeLot(cargoId) {
   try {
     assertCommerceAvailable();
-    if (!shipDocument) throw new Error('active ship is required');
+    const system = mappedCurrentSystem();
+    if (!shipDocument || !system) throw new Error('active ship at a mapped system is required');
     const cargo = shipDocument.state.cargoManifest.find((entry) => entry.id === cargoId);
     if (!cargo) throw new Error('speculative cargo lot is no longer aboard');
+    if (cargo.originSystemId === system.id) throw new Error('speculative cargo must be transported to another world before resale');
     const quote = speculativeSaleQuote(cargo);
     if (!quote) throw new Error('unable to quote this cargo');
-    const result = sellSpeculativeCargo(shipDocument, cargoId, quote, { dateLabel: activityDateLabel() });
+    const result = sellSpeculativeCargo(shipDocument, cargoId, quote, {
+      dateLabel: activityDateLabel(),
+      destinationSystemId: system.id
+    });
     shipDocument = result.ship;
-    persistGameplayDocuments();
+    persistCampaignState();
     const profitText = `${result.profitCr >= 0 ? '+' : '-'}${formatCr(Math.abs(result.profitCr))}`;
     logActivity('TRADE', `${cargo.tons}t ${cargo.description} sold / ${formatCr(result.revenueCr)} net / result ${profitText}`);
     setStatus(`SPECULATIVE CARGO SOLD: ${formatCr(result.revenueCr)} / RESULT ${profitText}`, 'ok');
@@ -1263,12 +1315,15 @@ function commerceLine(label, value) {
 function renderCommerce() {
   const current = mappedCurrentSystem();
   if (!campaignDocument || !current || !shipDocument) {
+    el.commerceSection.dataset.available = 'false';
     el.commerceSection.hidden = true;
     el.commerceRecord.textContent = '';
     el.commerceActions.replaceChildren();
+    applyOperationsDeskTab();
     return;
   }
 
+  el.commerceSection.dataset.available = 'true';
   el.commerceSection.hidden = false;
   const route = commerceRouteSnapshot();
   const offer = weeklySpeculativeOffer();
@@ -1312,7 +1367,7 @@ function renderCommerce() {
   }
 
   if (offer) {
-    const aboard = offer.unit === 'tons' ? speculativeQuantityAlreadyAboard(offer, current.id) : 0;
+    const aboard = offer.unit === 'tons' ? speculativeQuantityPurchased(offer, current.id) : 0;
     const remaining = Math.max(0, offer.quantityAvailable - aboard);
     lines.push(
       '',
@@ -1336,6 +1391,10 @@ function renderCommerce() {
     lines.push(commerceLine('FREIGHT ABOARD', `${cargo.tons}t -> ${(dest?.name ?? cargo.destinationSystemId).toUpperCase()} / ${formatCr(cargo.tons * FREIGHT_RATE_PER_TON_CR)}`));
   }
   for (const cargo of saleCargo.slice(0, 4)) {
+    if (cargo.originSystemId === current.id) {
+      lines.push(commerceLine('RESALE', `${cargo.tons}t ${cargo.description.toUpperCase()} / TRANSPORT TO ANOTHER WORLD REQUIRED`));
+      continue;
+    }
     const quote = speculativeSaleQuote(cargo);
     lines.push(commerceLine('RESALE QUOTE', `${cargo.tons}t ${cargo.description.toUpperCase()} / NET ${formatCr(quote.netCr)} / ${quote.percentage}% / DM ${quote.worldDM + quote.characterSkillDM + quote.brokerDM >= 0 ? '+' : ''}${quote.worldDM + quote.characterSkillDM + quote.brokerDM}`));
   }
@@ -1370,7 +1429,7 @@ function renderCommerce() {
   }
 
   if (offer?.unit === 'tons') {
-    const aboard = speculativeQuantityAlreadyAboard(offer, current.id);
+    const aboard = speculativeQuantityPurchased(offer, current.id);
     const remaining = Math.max(0, offer.quantityAvailable - aboard);
     const maxByHold = Math.min(Math.floor(freeHold), remaining);
     if (maxByHold >= 1) {
@@ -1394,7 +1453,6 @@ function renderCommerce() {
     }
   }
 
-  const speculativeAboard = shipDocument.state.cargoManifest.filter((entry) => /^speculative:\d{2}$/.test(entry.category));
   if (saleCargo.length) {
     const broker = document.createElement('span');
     broker.className = 'commerce-group commerce-broker';
@@ -1416,6 +1474,7 @@ function renderCommerce() {
     broker.append(label, input);
     el.commerceActions.append(broker);
     for (const cargo of saleCargo.slice(0, 4)) {
+      if (cargo.originSystemId === current.id) continue;
       const quote = speculativeSaleQuote(cargo);
       el.commerceActions.append(makePortButton(`SELL ${cargo.tons}t ${cargo.description.toUpperCase()} / ${formatCr(quote.netCr)}`, () => sellSpeculativeLot(cargo.id)));
     }
@@ -1427,17 +1486,21 @@ function renderCommerce() {
     note.textContent = 'NO CURRENT COMMERCE ACTION FITS SHIP CAPACITY / ROUTE / FUNDS.';
     el.commerceActions.append(note);
   }
+  applyOperationsDeskTab();
 }
 
 function renderContracts() {
   const current = mappedCurrentSystem();
   if (!campaignDocument || !current || !shipDocument || !gameplayDocument) {
+    el.contractSection.dataset.available = 'false';
     el.contractSection.hidden = true;
     el.contractRecord.textContent = '';
     el.contractActions.replaceChildren();
+    applyOperationsDeskTab();
     return;
   }
 
+  el.contractSection.dataset.available = 'true';
   el.contractSection.hidden = false;
   const offers = availableContractOffers();
   el.contractRecord.textContent = buildContractBoardRecord({
@@ -1473,23 +1536,53 @@ function renderContracts() {
     note.textContent = `EXCLUSIVE CHARTER ACTIVE TO ${exclusive.destination.systemName.toUpperCase()} / COMPLETE IT BEFORE ACCEPTING OTHER WORK.`;
     el.contractActions.append(note);
   }
+  applyOperationsDeskTab();
+}
+
+function applyOperationsDeskTab() {
+  const panels = {
+    port: el.portServicesSection,
+    trade: el.commerceSection,
+    jobs: el.contractSection
+  };
+  const tabs = {
+    port: el.operationsTabPort,
+    trade: el.operationsTabTrade,
+    jobs: el.operationsTabJobs
+  };
+  for (const [key, panel] of Object.entries(panels)) {
+    const available = panel?.dataset.available === 'true';
+    if (panel) panel.hidden = key !== operationsDeskTab || !available;
+    if (tabs[key]) tabs[key].setAttribute('aria-selected', key === operationsDeskTab ? 'true' : 'false');
+  }
+}
+
+function setOperationsDeskTab(tab) {
+  if (!['port', 'trade', 'jobs'].includes(tab)) return;
+  operationsDeskTab = tab;
+  applyOperationsDeskTab();
 }
 
 function renderPortServices() {
   if (!campaignDocument) {
+    el.portServicesSection.dataset.available = 'false';
     el.portServicesSection.hidden = true;
     el.portServicesRecord.textContent = '';
     el.portActions.replaceChildren();
+    applyOperationsDeskTab();
     return;
   }
   const system = mappedCurrentSystem();
   if (!system) {
+    el.portServicesSection.dataset.available = 'false';
     el.portServicesSection.hidden = true;
     el.portServicesRecord.textContent = '';
     el.portActions.replaceChildren();
+    applyOperationsDeskTab();
     return;
   }
 
+  el.portServicesSection.dataset.available = 'true';
   el.portServicesSection.hidden = false;
   const portRecordText = buildPortServicesRecord({
     system,
@@ -1508,6 +1601,7 @@ function renderPortServices() {
     text.className = 'empty';
     text.textContent = 'LOAD OR ASSIGN AN ACTIVE SHIP FOR PORT OPERATIONS.';
     el.portActions.append(text);
+    applyOperationsDeskTab();
     return;
   }
 
@@ -1557,6 +1651,7 @@ function renderPortServices() {
     }));
   }
 
+  applyOperationsDeskTab();
 }
 
 function renderRecordWithHighlights(target, text, attentionPrefixes = []) {
@@ -1739,6 +1834,8 @@ function restoreCampaignFromRegistry(campaign) {
   documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
   character = createCharacter();
   setActivityContext();
+  const expired = reconcileExpiredContracts();
+  if (expired.length) persistCampaignState();
 }
 
 function newCampaign() {
@@ -2047,6 +2144,7 @@ function render() {
   renderPortServices();
   renderCommerce();
   renderContracts();
+  applyOperationsDeskTab();
   renderShip();
   renderActivity();
 }
@@ -2331,7 +2429,9 @@ function updateCampaignDate() {
       dayOfYear: Number.parseInt(el.campaignDay.value, 10),
       year: Number.parseInt(el.campaignYear.value, 10)
     });
-    renderCampaign();
+    reconcileExpiredContracts();
+    persistCampaignState();
+    render();
     setStatus('CAMPAIGN DATE UPDATED', 'ok');
   } catch (error) {
     setStatus(error?.message ?? String(error), 'error');
@@ -2412,6 +2512,10 @@ el.clearActivity.addEventListener('click', () => {
 el.mapZoomOut.addEventListener('click', () => setSubsectorZoom(subsectorZoom - SUBSECTOR_ZOOM_STEP));
 el.mapZoomIn.addEventListener('click', () => setSubsectorZoom(subsectorZoom + SUBSECTOR_ZOOM_STEP));
 el.mapZoomFit.addEventListener('click', () => setSubsectorZoom(1));
+
+el.operationsTabPort.addEventListener('click', () => setOperationsDeskTab('port'));
+el.operationsTabTrade.addEventListener('click', () => setOperationsDeskTab('trade'));
+el.operationsTabJobs.addEventListener('click', () => setOperationsDeskTab('jobs'));
 
 el.newCampaign.addEventListener('click', newCampaign);
 el.saveCampaign.addEventListener('click', saveCampaignLocal);

@@ -117,11 +117,25 @@ test('speculative cargo purchase uses the hold and sale returns a quoted market 
   assert.equal(vessel.state.cargoUsedTons, 1);
   assert.equal(vessel.state.finances.balanceCr, 29800);
   const quote = quoteSpeculativeResale(15, 1, neutralProfile, { dice: createSequenceDice([3, 4]) });
-  const sold = sellSpeculativeCargo(vessel, purchased.cargoId, quote, { dateLabel: '008-4800' });
+  const sold = sellSpeculativeCargo(vessel, purchased.cargoId, quote, { dateLabel: '008-4800', destinationSystemId: 'aster' });
   assert.equal(sold.revenueCr, 20000);
   assert.equal(sold.profitCr, -200);
   assert.equal(sold.ship.state.cargoUsedTons, 0);
   assert.equal(sold.ship.state.finances.balanceCr, 49800);
+});
+
+
+test('speculative cargo cannot be resold on the world where it was purchased', async () => {
+  const character = await hawkeye();
+  let vessel = createTypeSScoutReserveShipForCharacter(character).ship;
+  vessel = transferCharacterCreditsToShip(character, vessel, 50000, { dateLabel: '001-4800' }).ship;
+  const offer = generateSpeculativeTradeOffer(neutralProfile, { dice: createSequenceDice([1, 5, 3, 3, 4]) });
+  const purchased = purchaseSpeculativeCargo(vessel, offer, 1, { originSystemId: 'calder', dateLabel: '001-4800' });
+  const quote = quoteSpeculativeResale(15, 1, neutralProfile, { dice: createSequenceDice([3, 4]) });
+  assert.throws(
+    () => sellSpeculativeCargo(purchased.ship, purchased.cargoId, quote, { dateLabel: '001-4800', destinationSystemId: 'calder' }),
+    /transported to another world/
+  );
 });
 
 test('ship schema v2 migrates to v3 with an empty passenger manifest', async () => {

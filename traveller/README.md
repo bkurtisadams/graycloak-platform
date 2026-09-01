@@ -4,9 +4,13 @@ Standalone browser client for the original-universe Classic Traveller project.
 
 The Classic Traveller rules engine lives in `../packages/classic-traveller-rules/`. Pure rules and document legality stay there; the browser renders state and legal actions. Original Sea of Suns content stays under `traveller/world/`.
 
+## v0.11.2.1 operations-desk and state repair
+
+This hotfix keeps Port Services, Commerce, and Contract Board in a tabbed operations desk beside the subsector map. Campaign Document v3 adds persistent speculative-lot purchase state, same-world speculative resale is rejected, contract deadlines reconcile when campaign time advances or a campaign loads, and time-consuming gas-giant refueling now persists campaign time together with ship state.
+
 ## v0.11.2 contracts and courier work
 
-v0.11.2 adds a persistent Contract Document and port Contract Board. Accepted contracts are referenced by Campaign Document v2, stored in the local document registry, and included in Campaign Bundle v2 exports. Campaign Document v1 and Campaign Bundle v1 imports migrate forward with an empty contract list, preserving older saves.
+v0.11.2 adds a persistent Contract Document and port Contract Board. Accepted contracts are referenced by Campaign Document v3, stored in the local document registry, and included in Campaign Bundle v2 exports. Campaign Document v1 and Campaign Bundle v1 imports migrate forward with an empty contract list, preserving older saves.
 
 Each port call exposes deterministic offers among reachable systems. Book 2-backed whole-ship charters use the printed two-week charter formula (Cr900 per cargo ton + Cr9,000 per high-passage berth + Cr900 per low berth), while Book 2 private-message work uses the 9+ availability check and an honorarium generated within the stated Cr20-Cr120 range. Priority courier packets, route-verification surveys, and fixed-fee small-lot deliveries are original Sea of Suns contract content.
 

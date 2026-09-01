@@ -6,7 +6,8 @@ import {
   completeContractDocument,
   failContractDocument,
   importContractDocument,
-  isContractOverdue
+  isContractOverdue,
+  reconcileContractDeadlines
 } from '../src/contract-document.js';
 
 const offer = {
@@ -60,4 +61,16 @@ test('contract overdue check and completion/failure states are deterministic', (
   const failed = failContractDocument(contract, { date: { year: 4800, dayOfYear: 23 }, notes: 'deadline missed' });
   assert.equal(failed.status, 'failed');
   assert.equal(failed.resolution.paymentCr, 0);
+});
+
+
+test('deadline reconciliation fails accepted contracts once campaign time passes the deadline', () => {
+  const contract = createContractDocument(offer, {
+    acceptedByCharacterId: 'char-hawkeye', acceptedShipId: 'ship-marisol',
+    acceptedDate: { year: 4800, dayOfYear: 8 }
+  });
+  const result = reconcileContractDeadlines([contract], { year: 4800, dayOfYear: 30 });
+  assert.equal(result.failed.length, 1);
+  assert.equal(result.contracts[0].status, 'failed');
+  assert.deepEqual(result.contracts[0].resolution.date, { year: 4800, dayOfYear: 30 });
 });
