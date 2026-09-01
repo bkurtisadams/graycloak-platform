@@ -16,6 +16,7 @@ import {
   buildFinalCharacterRecord,
   buildGenerationLog,
   buildJumpPlan,
+  buildPortServicesRecord,
   buildProcedure,
   buildShipRecord,
   buildSystemRecord,
@@ -184,7 +185,9 @@ test('ship register renders the source-backed Type S reserve assignment', () => 
   assert.match(record, /JUMP 2 \(A\)/);
   assert.match(record, /MANEUVER 2G \(A\)/);
   assert.match(record, /COMPUTER MODEL\/1bis/);
-  assert.match(record, /CARGO --\/3t/);
+  assert.match(record, /CARGO 0\/3t/);
+  assert.match(record, /FUEL UNRECORDED\/40t/);
+  assert.match(record, /SHIP ACCOUNT Cr0/);
   assert.match(record, /TURRET DOUBLE/);
   assert.match(record, /WEAPONS NONE INSTALLED/);
   assert.match(record, /CONTROL Scout Service/);
@@ -215,5 +218,30 @@ test('system record renders Aster UWP meanings and system contents', () => {
   assert.match(record, /HYDROGRAPHICS 5 \/ 50% WATER/);
   assert.match(record, /POPULATION 8 \/ HUNDREDS OF MILLIONS/);
   assert.match(record, /GOVERNMENT 4 \/ REPRESENTATIVE DEMOCRACY/);
+  assert.match(record, /TRADE CLASSIFICATIONS RICH/);
   assert.match(record, /BASES SCOUT\s+GAS GIANT YES\s+TRAVEL ZONE NONE \/ NORMAL/);
+});
+
+
+test('port services record exposes fuel, berthing, cargo, and operating funds at the current world', () => {
+  const document = {
+    documentType: 'classic-traveller-character', schemaVersion: 2,
+    identity: { id: 'char-port-test', name: 'Scout', aliases: [] }, age: 38,
+    chronology: { chronologicalAgeMonths: 456, physicalAgeMonths: 456, nextAgingCheckAgeMonths: 504 },
+    characteristics: { STR: 10, DEX: 10, END: 6, INT: 7, EDU: 7, SOC: 7 }, upp: 'AA6777',
+    status: { alive: true, retired: true }, career: { service: 'scouts', drafted: false, terms: 5, yearsServed: 20, rank: 0, rankTitle: '', separationReason: 'voluntary' },
+    skills: { Pilot: 1 }, finances: { credits: 80000, retirementPayAnnual: 4000 },
+    benefits: { raw: [{ type: 'material', name: 'Scout Ship' }], passages: [], memberships: [], equipment: [], shipEntitlements: [{ name: 'Scout Ship', rolls: 1, effectiveCount: 1, noEffectCount: 0, disposition: 'reserve-assignment-available' }] },
+    shipRefs: [], history: [], notes: '', provenance: { source: 'classic-traveller-book-1-chargen', chargenSchemaVersion: 4 }
+  };
+  const { ship } = createTypeSScoutReserveShipForCharacter(document);
+  const aster = FAR_MERIDIAN_SUBSECTOR.systems.find((system) => system.id === 'aster');
+  const record = buildPortServicesRecord({ system: aster, ship, character: document });
+  assert.match(record, /PORT SERVICES \/\/ ASTER \/\/ 0505/);
+  assert.match(record, /TRADE RICH/);
+  assert.match(record, /FUEL UNRECORDED\/40t \/ UNKNOWN/);
+  assert.match(record, /SERVICE REFINED \/ FREE AT SCOUT BASE/);
+  assert.match(record, /BERTHING NO CURRENT FEE RECORDED/);
+  assert.match(record, /CARGO 0\/3t/);
+  assert.match(record, /SHIP ACCOUNT Cr0\s+CHARACTER Cr80,000/);
 });

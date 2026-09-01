@@ -11,7 +11,9 @@ import {
   describeHydrographics,
   describePopulation,
   describeGovernment,
-  describeLawLevel
+  describeLawLevel,
+  describeTradeClassifications,
+  starportFuelService
 } from '../../packages/classic-traveller-rules/index.js';
 
 export const PHASE_LABELS = Object.freeze({
@@ -74,7 +76,7 @@ export const HELP_TOPICS = Object.freeze({
   }),
   'campaign-status': Object.freeze({
     title: 'CAMPAIGN STATUS',
-    body: 'A Campaign Document is the persistent shell that ties gameplay Character and Ship Documents together by stable ID. SAVE CAMPAIGN stores the campaign and referenced documents in this browser. EXPORT CAMPAIGN creates one portable bundle containing the Campaign Document plus its referenced character and ship documents. The ordinal date is a Graycloak campaign-state convention. In v0.9 the system and world fields are driven by the authored subsector map so their IDs and displayed names stay synchronized.'
+    body: 'A Campaign Document is the persistent shell that ties gameplay Character and Ship Documents together by stable ID. SAVE CAMPAIGN stores the campaign and referenced documents in this browser. EXPORT CAMPAIGN creates one portable bundle containing the Campaign Document plus its referenced character, ship, and contract documents. The ordinal date is a Graycloak campaign-state convention. In v0.9 the system and world fields are driven by the authored subsector map so their IDs and displayed names stay synchronized.'
   }),
   'subsector-map': Object.freeze({
     title: 'SUBSECTOR NAVIGATION',
@@ -82,7 +84,19 @@ export const HELP_TOPICS = Object.freeze({
   }),
   'system-record': Object.freeze({
     title: 'SYSTEM RECORD',
-    body: 'The Universal World Profile (UWP) is the compact Book 3 code for starport, size, atmosphere, hydrographics, population, government, law level, and tech level. Scout and naval bases, gas giants, and amber/red travel zones are recorded separately. Far Meridian system data is authored provisional Sea of Suns content; the meanings and validation of the UWP fields come from the Classic Traveller rules layer.'
+    body: 'The Universal World Profile (UWP) is the compact Book 3 code for starport, size, atmosphere, hydrographics, population, government, law level, and tech level. Scout and naval bases, gas giants, and amber/red travel zones are recorded separately. The six commerce classifications are derived from the UWP by the rules layer rather than authored by hand. Far Meridian system data is provisional Sea of Suns content.'
+  }),
+  'port-services': Object.freeze({
+    title: 'PORT SERVICES',
+    body: 'Book 3 starports A and B provide refined fuel; C and D provide unrefined fuel; E provides no fuel, and X means no starport. Book 2 prices refined fuel at Cr500 per ton and unrefined fuel at Cr100 per ton, with baseline berthing of Cr100 for up to six days. A reserve Scout/Courier receives free fuel at Scout bases. Older ship saves deliberately retain FUEL UNRECORDED rather than guessing a tank quantity; the first refuel or gas-giant skim establishes the operational fuel state. Ship operating money is tracked separately from the character’s personal credits.'
+  }),
+  'contract-board': Object.freeze({
+    title: 'CONTRACT BOARD',
+    body: 'The contract board turns travel into persistent jobs. Book 2-backed whole-ship charters use the printed two-week charter formula, and private-message jobs use the Book 2 9+ availability rule and Cr20-Cr120 honorarium range. Priority courier, survey, and small-lot delivery jobs are original Sea of Suns campaign content. Accepted contracts become persistent Contract Documents and are included in campaign saves and portable bundles.'
+  }),
+  commerce: Object.freeze({
+    title: 'COMMERCE',
+    body: 'Book 2 starship revenue comes from passengers, cargo, mail, and speculative trade. This panel uses the selected reachable system as the announced route for passenger and freight availability, pays freight at Cr1,000 per ton on delivery, and uses the Book 2 trade-and-speculation table for the current world’s weekly speculative lot. High passage requires a steward; middle passage uses a stateroom; low passage requires a low berth. The Type S has four staterooms, no low berths, and only three tons of cargo. Graycloak keeps a weekly speculative offer stable within the campaign week so reopening the panel does not reroll the market. Passenger fares are credited to the ship account on arrival as a Graycloak bookkeeping sequence; the source establishes the fare and route but does not specify that accounting timestamp.'
   }),
   'service-history': Object.freeze({
     title: 'SERVICE HISTORY',
@@ -327,8 +341,9 @@ export function buildShipRecord(ship) {
   const authority = ship.authority;
   const turret = s.armament.turrets[0];
   const weapons = turret?.weapons?.length ? turret.weapons.join(', ') : 'NONE INSTALLED';
-  const fuelCurrent = ship.state.currentFuelTons === null ? '--' : ship.state.currentFuelTons;
-  const cargoUsed = ship.state.cargoUsedTons === null ? '--' : ship.state.cargoUsedTons;
+  const fuelCurrent = ship.state.currentFuelTons === null ? 'UNRECORDED' : ship.state.currentFuelTons;
+  const fuelQuality = ship.state.fuelQuality?.toUpperCase?.() ?? 'UNKNOWN';
+  const cargoUsed = Number.isFinite(ship.state.cargoUsedTons) ? ship.state.cargoUsedTons : 0;
   const crew = ship.crew.assignments.length
     ? ship.crew.assignments.map((entry) => `${entry.role.toUpperCase()} ${entry.characterName || entry.characterId}`).join(' / ')
     : 'none';
@@ -342,13 +357,14 @@ export function buildShipRecord(ship) {
     : null;
 
   return box([
-    "SHIP'S REGISTER // GAMEPLAY DOCUMENT v1",
+    `SHIP'S REGISTER // GAMEPLAY DOCUMENT v${ship.schemaVersion}`,
     `ID ${ship.identity.id}`,
     `NAME ${ship.identity.name || '(not assigned)'}    REGISTRY ${ship.identity.registry || '(not assigned)'}    STATUS ${ship.state.operationalStatus.toUpperCase()}`,
     `TYPE ${ship.design.typeCode} ${ship.design.name.toUpperCase()}    HULL ${s.hull.tons}t ${s.hull.standard ? 'STANDARD' : 'CUSTOM'} / ${s.hull.streamlined ? 'STREAMLINED' : 'UNSTREAMLINED'}`,
     `JUMP ${s.drives.jump.rating} (${s.drives.jump.letter})    MANEUVER ${s.drives.maneuver.rating}G (${s.drives.maneuver.letter})    POWER ${s.drives.powerPlant.letter}`,
-    `FUEL ${fuelCurrent}/${s.fuel.capacityTons}t    COMPUTER MODEL/${s.computer.model} CPU ${s.computer.cpu} STORAGE ${s.computer.storage}`,
-    `STATEROOMS ${s.accommodations.staterooms}    LOW BERTHS ${s.accommodations.lowBerths}    CARGO ${cargoUsed}/${s.cargo.capacityTons}t`,
+    `FUEL ${fuelCurrent}/${s.fuel.capacityTons}t    QUALITY ${fuelQuality}    COMPUTER MODEL/${s.computer.model} CPU ${s.computer.cpu} STORAGE ${s.computer.storage}`,
+    `STATEROOMS ${s.accommodations.staterooms}    LOW BERTHS ${s.accommodations.lowBerths}    CARGO ${cargoUsed}/${s.cargo.capacityTons}t / ${ship.state.cargoManifest.length} LOT${ship.state.cargoManifest.length === 1 ? '' : 'S'}`,
+    `PASSENGERS ${ship.state.passengerManifest?.length ?? 0}    SHIP ACCOUNT ${formatCredits(ship.state.finances.balanceCr)}    LEDGER ${ship.state.finances.ledger.length} ENTR${ship.state.finances.ledger.length === 1 ? 'Y' : 'IES'}`,
     `TURRET ${turret?.mount?.toUpperCase() ?? 'NONE'} / FIRE CONTROL ${turret?.fireControlInstalled ? 'INSTALLED' : 'NONE'} / WEAPONS ${weapons}`,
     `VEHICLE ${s.vehicles.map((vehicle) => vehicle.name).join(', ') || 'none'}`,
     `STANDARD CREW ${s.crew.standardCount} / DUTIES ${s.crew.standardDuties.map((duty) => duty.toUpperCase()).join(' + ')}`,
@@ -360,7 +376,7 @@ export function buildShipRecord(ship) {
     `FUEL AT SCOUT BASES ${authority.servicePrivileges.freeFuelAtScoutBases ? 'FREE' : 'NORMAL COST'}    CLASS B SCOUT-BASE MAINT ${authority.servicePrivileges.freeMaintenanceAtScoutBasesAtClassBStarports ? 'FREE' : 'NORMAL COST'}`,
     `STANDARD COST MCr${s.economics.newCostMCr.toFixed(2)}    BUILD ${s.economics.buildMonths} MONTHS    ANNUAL MAINT ${formatCredits(s.economics.annualRoutineMaintenanceCr)}`,
     `MAINTENANCE STATUS ${ship.state.maintenance.status.toUpperCase()}`
-  ], 96);
+  ], 106);
 }
 
 function diceText(event) {
@@ -488,10 +504,11 @@ export function formatCampaignDate(time = {}) {
   return `${day}-${year} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
-export function buildCampaignRecord(campaign, { characters = [], ships = [], missing = [] } = {}) {
+export function buildCampaignRecord(campaign, { characters = [], ships = [], contracts = [], missing = [] } = {}) {
   const characterMap = new Map(characters.map((entry) => [entry.identity.id, entry]));
   const shipMap = new Map(ships.map((entry) => [entry.identity.id, entry]));
   const activeShip = campaign.activeShipId ? shipMap.get(campaign.activeShipId) : null;
+  const activeContracts = contracts.filter((entry) => entry.status === 'accepted');
   const partyLines = campaign.party.characterIds.map((id) => {
     const character = characterMap.get(id);
     if (!character) return `PARTY ${id} / DOCUMENT MISSING`;
@@ -513,40 +530,133 @@ export function buildCampaignRecord(campaign, { characters = [], ships = [], mis
     `LOCATION SYSTEM ${system} / WORLD ${world}`,
     activeShipLine,
     ...partyLines,
-    `DOCUMENTS CHARACTERS ${campaign.documentRefs.characters.length} / SHIPS ${campaign.documentRefs.ships.length}`,
-    `SHIP FUNDS not yet tracked`,
+    `DOCUMENTS CHARACTERS ${campaign.documentRefs.characters.length} / SHIPS ${campaign.documentRefs.ships.length} / CONTRACTS ${campaign.documentRefs.contracts.length}`,
+    `ACTIVE CONTRACTS ${activeContracts.length}`, 
+    `SHIP FUNDS ${activeShip ? formatCredits(activeShip.state.finances.balanceCr) : 'none'}`,
     ...(missing.length ? [`MISSING DOCUMENTS ${missing.join(', ')}`] : [])
   ], 96);
 }
 
-export function buildJumpPlan({ campaign, currentSystem = null, selectedSystem = null, distance = null, jumpRating = null } = {}) {
+export function buildJumpPlan({
+  campaign,
+  currentSystem = null,
+  selectedSystem = null,
+  distance = null,
+  jumpRating = null,
+  fuelCheck = null,
+  departureBlocked = false,
+  commerceBlockedReason = null,
+  contractBlockedReason = null,
+  lifeSupportCostCr = null,
+  operatingBalanceCr = null
+} = {}) {
   if (!campaign) return '';
+  const width = 38;
   if (!selectedSystem) {
     return box([
       'NAVIGATION PLAN',
-      currentSystem
-        ? `CURRENT ${currentSystem.name} / HEX ${currentSystem.hex} / SELECT A DESTINATION`
-        : 'CURRENT LOCATION NOT MAPPED / SELECT A SYSTEM TO SET THE STARTING LOCATION'
-    ], 82);
+      currentSystem ? 'CURRENT' : 'CURRENT LOCATION',
+      currentSystem ? `${currentSystem.name} / ${currentSystem.hex}` : 'NOT MAPPED',
+      '',
+      currentSystem ? 'SELECT A DESTINATION' : 'SELECT A STARTING SYSTEM'
+    ], width);
   }
   if (!currentSystem) {
     return box([
       'NAVIGATION PLAN',
-      `START ${selectedSystem.name} / HEX ${selectedSystem.hex}`,
+      'START',
+      `${selectedSystem.name} / ${selectedSystem.hex}`,
       `WORLD ${selectedSystem.mainWorld.name}`,
-      'ACTION SET CURRENT LOCATION / NO CAMPAIGN TIME ADVANCE'
-    ], 82);
+      '',
+      'SET CURRENT LOCATION',
+      'NO TIME ADVANCE'
+    ], width);
+  }
+  if (selectedSystem.id === currentSystem.id) {
+    return box([
+      'NAVIGATION PLAN',
+      'CURRENT',
+      `${currentSystem.name} / ${currentSystem.hex}`,
+      `WORLD ${currentSystem.mainWorld.name}`,
+      '',
+      'STATUS CURRENT LOCATION',
+      'SELECT ANOTHER SYSTEM'
+    ], width);
   }
   const inRange = Number.isInteger(distance) && Number.isInteger(jumpRating) && distance >= 1 && distance <= jumpRating;
+  const availableFuel = fuelCheck?.availableTons === null ? 'UNRECORDED' : fuelCheck ? `${fuelCheck.availableTons}t` : '--';
+  const neededFuel = fuelCheck ? `${fuelCheck.requirement.totalTons}t` : '--';
+  const lifeSupport = Number.isInteger(lifeSupportCostCr)
+    ? `${formatCredits(lifeSupportCostCr)} / ACCOUNT ${formatCredits(operatingBalanceCr ?? 0)}`
+    : null;
+  let status = inRange ? 'IN RANGE / READY / APPROX. ONE WEEK' : 'OUT OF RANGE';
+  if (inRange && departureBlocked) status = 'BERTHING DUE / DEPARTURE BLOCKED';
+  else if (inRange && commerceBlockedReason) status = commerceBlockedReason;
+  else if (inRange && contractBlockedReason) status = contractBlockedReason;
+  else if (inRange && fuelCheck && !fuelCheck.allowed) status = fuelCheck.reason;
+  else if (inRange && Number.isInteger(lifeSupportCostCr) && Number.isInteger(operatingBalanceCr) && lifeSupportCostCr > operatingBalanceCr) {
+    status = 'INSUFFICIENT SHIP FUNDS FOR LIFE SUPPORT';
+  }
   return box([
     'NAVIGATION PLAN',
-    `FROM ${currentSystem.name} / ${currentSystem.hex}`,
-    `TO ${selectedSystem.name} / ${selectedSystem.hex} / WORLD ${selectedSystem.mainWorld.name}`,
-    `DISTANCE ${distance ?? '--'} PARSEC${distance === 1 ? '' : 'S'} / SHIP JUMP-${jumpRating ?? '--'}`,
-    inRange ? 'STATUS IN RANGE / JUMP TIME APPROX. ONE WEEK' : 'STATUS OUT OF RANGE'
-  ], 82);
+    'CURRENT',
+    `${currentSystem.name} / ${currentSystem.hex}`,
+    '',
+    'DESTINATION',
+    `${selectedSystem.name} / ${selectedSystem.hex}`,
+    `WORLD ${selectedSystem.mainWorld.name}`,
+    '',
+    `DISTANCE ${distance ?? '--'} PARSEC${distance === 1 ? '' : 'S'}`,
+    `SHIP JUMP-${jumpRating ?? '--'}`,
+    `FUEL NEED ${neededFuel}`,
+    `FUEL HAVE ${availableFuel}`,
+    ...(lifeSupport ? [`LIFE SUPPORT ${lifeSupport}`] : []),
+    '',
+    `STATUS ${status}`
+  ], width);
 }
 
+
+function formatContractDate(date) {
+  if (!date) return '--';
+  return `${String(date.dayOfYear).padStart(3, '0')}-${date.year}`;
+}
+
+export function buildContractBoardRecord({ system, contracts = [], offers = [] } = {}) {
+  if (!system) return '';
+  const active = contracts.filter((entry) => entry.status === 'accepted');
+  const resolved = contracts.filter((entry) => entry.status !== 'accepted').slice(-4);
+  const lines = [
+    `CONTRACT BOARD // ${system.name.toUpperCase()} // ${system.hex}`,
+    `ACTIVE ${active.length} / OFFERS ${offers.length}`
+  ];
+  if (active.length) {
+    lines.push('', 'ACTIVE CONTRACTS');
+    for (const contract of active) {
+      const cargo = contract.requirements.cargoTons ? ` / CARGO ${contract.requirements.cargoTons}t` : '';
+      const exclusive = contract.requirements.exclusiveShip ? ' / EXCLUSIVE SHIP' : '';
+      lines.push(`${contract.identity.title.toUpperCase()} -> ${contract.destination.systemName.toUpperCase()} / ${formatCredits(contract.economics.paymentCr)} / DUE ${formatContractDate(contract.timing.deadlineDate)}${cargo}${exclusive}`);
+    }
+  }
+  if (offers.length) {
+    lines.push('', 'AVAILABLE OFFERS');
+    offers.forEach((offer, index) => {
+      const cargo = offer.cargoTons ? ` / CARGO ${offer.cargoTons}t` : '';
+      const exclusive = offer.exclusiveShip ? ' / EXCLUSIVE' : '';
+      lines.push(`${index + 1}. ${offer.title.toUpperCase()} -> ${offer.destinationSystemName.toUpperCase()} / ${formatCredits(offer.paymentCr)} / ${offer.deadlineDays} DAYS${cargo}${exclusive}`);
+      lines.push(`   ${String(offer.rulesBasis).toUpperCase()} / ${offer.requirementsDescription}`);
+    });
+  } else {
+    lines.push('', 'NO NEW CONTRACT OFFERS AT THIS PORT CALL.');
+  }
+  if (resolved.length) {
+    lines.push('', 'RECENT CONTRACTS');
+    for (const contract of resolved) {
+      lines.push(`${contract.status.toUpperCase()} / ${contract.identity.title.toUpperCase()} / ${contract.destination.systemName.toUpperCase()} / ${formatCredits(contract.resolution.paymentCr)}`);
+    }
+  }
+  return box(lines, 96);
+}
 
 
 function worldCode(value) {
@@ -575,7 +685,54 @@ export function buildSystemRecord(system) {
     `GOVERNMENT ${worldCode(profile.government)} / ${describeGovernment(profile.government).toUpperCase()}`,
     `LAW LEVEL ${worldCode(profile.lawLevel)} / ${describeLawLevel(profile.lawLevel).toUpperCase()}`,
     `TECH LEVEL ${worldCode(profile.techLevel)}${profile.techLevel > 9 ? ` / NUMERIC ${profile.techLevel}` : ''}`,
+    `TRADE CLASSIFICATIONS ${describeTradeClassifications(profile).map((entry) => entry.label.toUpperCase()).join(' + ') || 'NONE'}`,
     `BASES ${formatBases(system.bases)}    GAS GIANT ${system.gasGiant ? 'YES' : 'NO'}    TRAVEL ZONE ${zone}`,
     `NOTES ${system.notes || 'none'}`
   ], 96);
 }
+
+export function buildPortServicesRecord({ system, ship = null, character = null } = {}) {
+  if (!system) return '';
+  const profile = parseUniversalWorldProfile(system.mainWorld.uwp);
+  const trade = describeTradeClassifications(profile).map((entry) => entry.label.toUpperCase()).join(' / ') || 'NONE';
+  const fuelService = ship ? starportFuelService(profile.starport, { scoutBase: system.bases.scout, ship }) : null;
+  const fuelCurrent = ship?.state?.currentFuelTons === null || ship?.state?.currentFuelTons === undefined
+    ? 'UNRECORDED'
+    : `${ship.state.currentFuelTons}t`;
+  const fuelCapacity = ship?.specifications?.fuel?.capacityTons ?? '--';
+  const fuelQuality = ship?.state?.fuelQuality?.toUpperCase?.() ?? 'UNKNOWN';
+  const serviceText = !fuelService
+    ? 'NO ACTIVE SHIP'
+    : !fuelService.available
+      ? 'NO STARPORT FUEL'
+      : fuelService.freeScoutFuel
+        ? `${fuelService.quality.toUpperCase()} / FREE AT SCOUT BASE`
+        : `${fuelService.quality.toUpperCase()} / ${formatCredits(fuelService.pricePerTonCr)} PER TON`;
+  const portCall = ship?.state?.portCall?.systemId === system.id ? ship.state.portCall : null;
+  const berthing = !ship
+    ? 'NO ACTIVE SHIP'
+    : !portCall
+      ? 'NO CURRENT FEE RECORDED'
+      : portCall.berthingPaid
+        ? `${formatCredits(portCall.berthingDueCr)} / PAID`
+        : `${formatCredits(portCall.berthingDueCr)} / DUE`;
+  const cargoUsed = Number.isFinite(ship?.state?.cargoUsedTons) ? ship.state.cargoUsedTons : 0;
+  const cargoCapacity = ship?.specifications?.cargo?.capacityTons ?? '--';
+  const ledger = ship?.state?.finances?.ledger ?? [];
+  const ledgerLines = ledger.slice(-6).map((entry) => {
+    const sign = entry.amountCr >= 0 ? '+' : '-';
+    return `LEDGER ${entry.date ?? 'UNDATED'}  ${entry.kind.toUpperCase()}  ${sign}${formatCredits(Math.abs(entry.amountCr))}  ${entry.description}`;
+  });
+  return box([
+    `PORT SERVICES // ${system.name.toUpperCase()} // ${system.hex}`,
+    `STARPORT ${profile.starport} / ${describeStarport(profile.starport).toUpperCase()}`,
+    `TRADE ${trade}`,
+    `FUEL ${fuelCurrent}/${fuelCapacity}t / ${fuelQuality}    SERVICE ${serviceText}`,
+    `GAS GIANT ${system.gasGiant ? 'YES / SKIMMING AVAILABLE TO STREAMLINED SHIPS' : 'NO'}`,
+    `BERTHING ${berthing}`,
+    `CARGO ${cargoUsed}/${cargoCapacity}t    MANIFEST ${ship?.state?.cargoManifest?.length ?? 0} LOT${ship?.state?.cargoManifest?.length === 1 ? '' : 'S'}`,
+    `SHIP ACCOUNT ${ship ? formatCredits(ship.state.finances.balanceCr) : 'none'}    CHARACTER ${character ? formatCredits(character.finances.credits) : 'none'}`,
+    ...(ledgerLines.length ? ledgerLines : ['LEDGER no transactions recorded'])
+  ], 106);
+}
+

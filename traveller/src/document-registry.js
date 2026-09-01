@@ -11,6 +11,11 @@ import {
 } from './campaign-document.js';
 
 import {
+  CONTRACT_DOCUMENT_TYPE,
+  importContractDocument
+} from './contract-document.js';
+
+import {
   CAMPAIGN_BUNDLE_TYPE,
   createCampaignBundle,
   importCampaignBundle
@@ -29,6 +34,7 @@ function validateDocument(document) {
     case CHARACTER_DOCUMENT_TYPE: return importCharacterDocument(document);
     case SHIP_DOCUMENT_TYPE: return importShipDocument(document);
     case CAMPAIGN_DOCUMENT_TYPE: return importCampaignDocument(document);
+    case CONTRACT_DOCUMENT_TYPE: return importContractDocument(document);
     default: throw new Error(`unsupported registry documentType: ${document?.documentType ?? '(missing)'}`);
   }
 }
@@ -100,6 +106,7 @@ export function createDocumentRegistry({
     const validated = importCampaignBundle(bundle);
     for (const character of validated.documents.characters) put(character);
     for (const ship of validated.documents.ships) put(ship);
+    for (const contract of validated.documents.contracts) put(contract);
     put(validated.campaign);
     return cloneJson(validated);
   }
@@ -114,6 +121,7 @@ export function createDocumentRegistry({
 
     const characters = [];
     const ships = [];
+    const contracts = [];
     const missing = [];
     for (const ref of campaign.documentRefs.characters) {
       const document = get(ref.id);
@@ -125,7 +133,12 @@ export function createDocumentRegistry({
       if (!document || document.documentType !== SHIP_DOCUMENT_TYPE) missing.push(ref.id);
       else ships.push(document);
     }
-    return { campaign, characters, ships, missing };
+    for (const ref of campaign.documentRefs.contracts) {
+      const document = get(ref.id);
+      if (!document || document.documentType !== CONTRACT_DOCUMENT_TYPE) missing.push(ref.id);
+      else contracts.push(document);
+    }
+    return { campaign, characters, ships, contracts, missing };
   }
 
   function buildBundle(campaignOrId) {
@@ -133,7 +146,8 @@ export function createDocumentRegistry({
     if (resolved.missing.length) throw new Error(`campaign has missing referenced documents: ${resolved.missing.join(', ')}`);
     return createCampaignBundle(resolved.campaign, {
       characters: resolved.characters,
-      ships: resolved.ships
+      ships: resolved.ships,
+      contracts: resolved.contracts
     });
   }
 

@@ -399,15 +399,66 @@ input[readonly] {
   letter-spacing: 0.04em;
 }
 
+.subsector-workspace {
+  display: grid;
+  grid-template-columns: minmax(260px, 300px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+  min-width: 0;
+}
+
+.navigation-plan-panel {
+  min-width: 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  padding: 8px 8px 10px;
+}
+
+.subsector-map-column {
+  min-width: 0;
+}
+
+.subsector-map-tools {
+  min-height: 29px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 7px;
+  border-top: 1px solid var(--rule);
+  padding: 5px 2px 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.subsector-map-tools-label {
+  margin-right: 4px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.map-zoom-button {
+  min-width: 4ch;
+  text-align: center;
+  font-size: 11px;
+}
+
+.map-zoom-label {
+  min-width: 5ch;
+  color: var(--ink);
+  text-align: center;
+  font-weight: 700;
+}
+
 .subsector-map {
   display: flex;
   justify-content: center;
   align-items: flex-start;
   min-width: 0;
+  max-height: min(72vh, 720px);
   padding: 8px 0 10px;
   overflow: auto;
-  border-top: 1px solid var(--rule);
   border-bottom: 1px solid var(--rule);
+  scrollbar-gutter: stable both-edges;
 }
 
 .subsector-svg {
@@ -490,22 +541,78 @@ input[readonly] {
   user-select: none;
 }
 
+.subsector-base-marker {
+  pointer-events: none;
+  user-select: none;
+}
+
+.subsector-base-icon-shape {
+  fill: var(--paper-deep);
+  stroke: var(--link);
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+
+.subsector-base-icon-line {
+  fill: none;
+  stroke: var(--link);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
 .subsector-hex.current .subsector-system-name,
 .subsector-hex.current .subsector-system-marker {
   font-weight: 700;
 }
 
-@media (max-width: 760px) {
-  .subsector-map { justify-content: flex-start; }
-  .subsector-svg { height: 540px; }
+.jump-plan {
+  padding: 0;
+  font-size: 12px;
 }
 
-.jump-plan {
-  padding: 8px 0 2px;
+.record-attention {
+  background: var(--attention);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.attention-message {
+  display: inline-block;
+  padding: 2px 4px;
+  background: var(--attention);
+  border-left: 3px solid var(--attention-border);
+  color: var(--ink);
+  font-weight: 700;
 }
 
 .jump-actions {
-  margin-top: 2px;
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.navigation-plan-panel .jump-actions .action-button {
+  max-width: 100%;
+  white-space: normal;
+  text-align: left;
+}
+
+@media (max-width: 900px) {
+  .subsector-workspace {
+    grid-template-columns: 1fr;
+  }
+  .navigation-plan-panel {
+    max-width: none;
+  }
+  .subsector-map-tools {
+    justify-content: flex-start;
+  }
+  .subsector-map {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 760px) {
+  .subsector-svg { height: 540px; }
 }
 
 
@@ -617,4 +724,95 @@ input[readonly] {
     height: 360px;
     margin-top: 18px;
   }
+}
+
+.port-services-record {
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  padding: 8px 0;
+}
+
+.port-actions {
+  align-items: center;
+}
+
+.port-transfer {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.port-transfer label {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.port-transfer input[type="number"] {
+  width: 11ch;
+}
+
+.port-future {
+  margin-left: auto;
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .port-transfer { width: 100%; }
+  .port-future { margin-left: 0; width: 100%; }
+}
+
+.commerce-record {
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  padding: 8px 0;
+}
+
+.commerce-actions {
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.commerce-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.commerce-group-label {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.commerce-broker input[type="number"] {
+  width: 5ch;
+}
+
+.commerce-note {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.commerce-actions .attention-message {
+  display: inline-block;
+}
+
+@media (max-width: 760px) {
+  .commerce-group { width: 100%; }
+}
+
+.contract-record {
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  padding: 8px 0;
+}
+
+.contract-actions {
+  align-items: flex-start;
+}
+
+.contract-source {
+  color: var(--muted);
+  font-size: 11px;
 }

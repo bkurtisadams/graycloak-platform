@@ -65,3 +65,11 @@ test('authored system records require a valid UWP and explicit Book 3 system fla
   invalid.travelZone = 'green';
   assert.equal(validateAuthoredSystemRecord(invalid).valid, false);
 });
+
+test('Book 3 commerce classifications derive from UWP characteristics including Non-Agricultural errata', async () => {
+  const { deriveTradeClassifications } = await import('../index.js');
+  assert.deepEqual(deriveTradeClassifications(parseUniversalWorldProfile('B667755-A')), ['agricultural', 'rich']);
+  assert.deepEqual(deriveTradeClassifications(parseUniversalWorldProfile('C544635-8')), ['agricultural', 'nonIndustrial']);
+  assert.deepEqual(deriveTradeClassifications(parseUniversalWorldProfile('C200677-9')), ['nonAgricultural', 'nonIndustrial']);
+  assert.deepEqual(deriveTradeClassifications(parseUniversalWorldProfile('B765845-9')), ['rich']);
+});

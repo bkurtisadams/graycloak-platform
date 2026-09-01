@@ -10,8 +10,8 @@ import {
 } from './standard-designs.js';
 
 export const SHIP_DOCUMENT_TYPE = 'classic-traveller-ship';
-export const CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION = 1;
-export const SUPPORTED_SHIP_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1]);
+export const CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION = 3;
+export const SUPPORTED_SHIP_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3]);
 
 const TOP_LEVEL_KEYS = new Set([
   'documentType', 'schemaVersion', 'identity', 'design', 'specifications',
@@ -150,7 +150,15 @@ export function createShipDocument({
     state: {
       operationalStatus: state.operationalStatus ?? 'available',
       currentFuelTons: state.currentFuelTons ?? null,
-      cargoUsedTons: state.cargoUsedTons ?? null,
+      fuelQuality: state.fuelQuality ?? 'unknown',
+      cargoUsedTons: state.cargoUsedTons ?? 0,
+      cargoManifest: cloneJson(state.cargoManifest ?? []),
+      passengerManifest: cloneJson(state.passengerManifest ?? []),
+      finances: {
+        balanceCr: state.finances?.balanceCr ?? 0,
+        ledger: cloneJson(state.finances?.ledger ?? [])
+      },
+      portCall: state.portCall ? cloneJson(state.portCall) : null,
       maintenance: {
         status: state.maintenance?.status ?? 'unknown',
         lastOverhaulDate: state.maintenance?.lastOverhaulDate ?? null,
@@ -235,20 +243,137 @@ function validateCrew(document, errors) {
   }
 }
 
+function validateCargoManifest(document, errors) {
+  const manifest = document.state?.cargoManifest;
+  add(errors, Array.isArray(manifest), 'state.cargoManifest must be an array');
+  if (!Array.isArray(manifest)) return;
+  let totalTons = 0;
+  const ids = new Set();
+  for (const entry of manifest) {
+    add(errors, isPlainObject(entry), 'cargo manifest entry must be an object');
+    if (!isPlainObject(entry)) continue;
+    validateExactKeys(entry, [
+      'id', 'category', 'description', 'tons', 'originSystemId', 'destinationSystemId',
+      'acquisitionCostCr', 'notes'
+    ], 'state.cargoManifest entry', errors);
+    add(errors, typeof entry.id === 'string' && entry.id.trim().length > 0, 'cargo manifest id must be nonblank');
+    if (typeof entry.id === 'string') {
+      add(errors, !ids.has(entry.id), `duplicate cargo manifest id: ${entry.id}`);
+      ids.add(entry.id);
+    }
+    add(errors, typeof entry.category === 'string' && entry.category.trim().length > 0, 'cargo manifest category must be nonblank');
+    add(errors, typeof entry.description === 'string', 'cargo manifest description must be a string');
+    add(errors, finiteAtLeast(entry.tons, 0), 'cargo manifest tons must be a non-negative number');
+    if (Number.isFinite(entry.tons)) totalTons += entry.tons;
+    add(errors, entry.originSystemId === null || typeof entry.originSystemId === 'string', 'cargo manifest originSystemId must be null or a string');
+    add(errors, entry.destinationSystemId === null || typeof entry.destinationSystemId === 'string', 'cargo manifest destinationSystemId must be null or a string');
+    add(errors, integerAtLeast(entry.acquisitionCostCr, 0), 'cargo manifest acquisitionCostCr must be a non-negative integer');
+    add(errors, typeof entry.notes === 'string', 'cargo manifest notes must be a string');
+  }
+  if (Number.isFinite(document.state?.cargoUsedTons)) {
+    add(errors, Math.abs(totalTons - document.state.cargoUsedTons) < 1e-9, 'cargo manifest tonnage must equal state.cargoUsedTons');
+  }
+}
+
+function validatePassengerManifest(document, errors) {
+  const manifest = document.state?.passengerManifest;
+  add(errors, Array.isArray(manifest), 'state.passengerManifest must be an array');
+  if (!Array.isArray(manifest)) return;
+  const ids = new Set();
+  let stateroomPassengers = 0;
+  let lowPassengers = 0;
+  for (const entry of manifest) {
+    add(errors, isPlainObject(entry), 'passenger manifest entry must be an object');
+    if (!isPlainObject(entry)) continue;
+    validateExactKeys(entry, [
+      'id', 'class', 'originSystemId', 'destinationSystemId', 'fareCr'
+    ], 'state.passengerManifest entry', errors);
+    add(errors, typeof entry.id === 'string' && entry.id.trim().length > 0, 'passenger manifest id must be nonblank');
+    if (typeof entry.id === 'string') {
+      add(errors, !ids.has(entry.id), `duplicate passenger manifest id: ${entry.id}`);
+      ids.add(entry.id);
+    }
+    add(errors, ['high', 'middle', 'low'].includes(entry.class), 'passenger class must be high, middle, or low');
+    add(errors, typeof entry.originSystemId === 'string' && entry.originSystemId.trim().length > 0, 'passenger originSystemId must be nonblank');
+    add(errors, typeof entry.destinationSystemId === 'string' && entry.destinationSystemId.trim().length > 0, 'passenger destinationSystemId must be nonblank');
+    add(errors, integerAtLeast(entry.fareCr, 0), 'passenger fareCr must be a non-negative integer');
+    if (entry.class === 'low') lowPassengers += 1;
+    else if (entry.class === 'high' || entry.class === 'middle') stateroomPassengers += 1;
+  }
+  const crewPeople = new Set((document.crew?.assignments ?? []).map((entry) => entry?.characterId).filter(Boolean)).size;
+  const staterooms = document.specifications?.accommodations?.staterooms ?? 0;
+  const lowBerths = document.specifications?.accommodations?.lowBerths ?? 0;
+  add(errors, crewPeople + stateroomPassengers <= staterooms, 'crew plus passengers exceed stateroom capacity');
+  add(errors, lowPassengers <= lowBerths, 'low passengers exceed low-berth capacity');
+}
+
+function validateShipFinances(document, errors) {
+  const finances = document.state?.finances;
+  add(errors, isPlainObject(finances), 'state.finances must be an object');
+  if (!isPlainObject(finances)) return;
+  validateExactKeys(finances, ['balanceCr', 'ledger'], 'state.finances', errors);
+  add(errors, integerAtLeast(finances.balanceCr, 0), 'state.finances.balanceCr must be a non-negative integer');
+  add(errors, Array.isArray(finances.ledger), 'state.finances.ledger must be an array');
+  if (!Array.isArray(finances.ledger)) return;
+  let running = 0;
+  const ids = new Set();
+  for (const entry of finances.ledger) {
+    add(errors, isPlainObject(entry), 'ship ledger entry must be an object');
+    if (!isPlainObject(entry)) continue;
+    validateExactKeys(entry, ['id', 'date', 'kind', 'amountCr', 'description', 'balanceCr'], 'state.finances.ledger entry', errors);
+    add(errors, typeof entry.id === 'string' && entry.id.trim().length > 0, 'ship ledger id must be nonblank');
+    if (typeof entry.id === 'string') {
+      add(errors, !ids.has(entry.id), `duplicate ship ledger id: ${entry.id}`);
+      ids.add(entry.id);
+    }
+    add(errors, entry.date === null || typeof entry.date === 'string', 'ship ledger date must be null or a string');
+    add(errors, typeof entry.kind === 'string' && entry.kind.trim().length > 0, 'ship ledger kind must be nonblank');
+    add(errors, Number.isInteger(entry.amountCr), 'ship ledger amountCr must be an integer');
+    add(errors, typeof entry.description === 'string' && entry.description.trim().length > 0, 'ship ledger description must be nonblank');
+    if (Number.isInteger(entry.amountCr)) running += entry.amountCr;
+    add(errors, Number.isInteger(entry.balanceCr) && entry.balanceCr >= 0, 'ship ledger balanceCr must be a non-negative integer');
+    if (Number.isInteger(entry.balanceCr)) add(errors, entry.balanceCr === running, 'ship ledger running balance does not reconcile');
+  }
+  add(errors, finances.balanceCr === running, 'state.finances.balanceCr does not reconcile with ledger');
+}
+
+function validatePortCall(document, errors) {
+  const portCall = document.state?.portCall;
+  add(errors, portCall === null || isPlainObject(portCall), 'state.portCall must be null or an object');
+  if (!isPlainObject(portCall)) return;
+  validateExactKeys(portCall, ['systemId', 'arrivalDate', 'berthingDueCr', 'berthingPaid'], 'state.portCall', errors);
+  add(errors, typeof portCall.systemId === 'string' && portCall.systemId.trim().length > 0, 'state.portCall.systemId must be nonblank');
+  add(errors, portCall.arrivalDate === null || typeof portCall.arrivalDate === 'string', 'state.portCall.arrivalDate must be null or a string');
+  add(errors, integerAtLeast(portCall.berthingDueCr, 0), 'state.portCall.berthingDueCr must be a non-negative integer');
+  add(errors, typeof portCall.berthingPaid === 'boolean', 'state.portCall.berthingPaid must be boolean');
+  if (portCall.berthingDueCr === 0) add(errors, portCall.berthingPaid === true, 'zero-cost berthing must be marked paid');
+}
+
 function validateState(document, errors) {
   const state = document.state;
   add(errors, isPlainObject(state), 'state must be an object');
   if (!isPlainObject(state)) return;
-  validateExactKeys(state, ['operationalStatus', 'currentFuelTons', 'cargoUsedTons', 'maintenance'], 'state', errors);
+  validateExactKeys(state, [
+    'operationalStatus', 'currentFuelTons', 'fuelQuality', 'cargoUsedTons',
+    'cargoManifest', 'passengerManifest', 'finances', 'portCall', 'maintenance'
+  ], 'state', errors);
   add(errors, typeof state.operationalStatus === 'string' && state.operationalStatus.length > 0, 'state.operationalStatus must be nonblank');
   add(errors, state.currentFuelTons === null || finiteAtLeast(state.currentFuelTons, 0), 'state.currentFuelTons must be null or a non-negative number');
   if (Number.isFinite(state.currentFuelTons)) {
     add(errors, state.currentFuelTons <= document.specifications.fuel.capacityTons, 'state.currentFuelTons exceeds fuel capacity');
   }
-  add(errors, state.cargoUsedTons === null || finiteAtLeast(state.cargoUsedTons, 0), 'state.cargoUsedTons must be null or a non-negative number');
+  add(errors, ['unknown', 'refined', 'unrefined', 'mixed'].includes(state.fuelQuality), 'state.fuelQuality must be unknown, refined, unrefined, or mixed');
+  if (state.currentFuelTons === null || state.currentFuelTons === 0) {
+    add(errors, state.fuelQuality === 'unknown', 'unrecorded or empty fuel state must have unknown fuel quality');
+  }
+  add(errors, finiteAtLeast(state.cargoUsedTons, 0), 'state.cargoUsedTons must be a non-negative number');
   if (Number.isFinite(state.cargoUsedTons)) {
     add(errors, state.cargoUsedTons <= document.specifications.cargo.capacityTons, 'state.cargoUsedTons exceeds cargo capacity');
   }
+  validateCargoManifest(document, errors);
+  validatePassengerManifest(document, errors);
+  validateShipFinances(document, errors);
+  validatePortCall(document, errors);
   add(errors, isPlainObject(state.maintenance), 'state.maintenance must be an object');
   if (isPlainObject(state.maintenance)) {
     validateExactKeys(state.maintenance, ['status', 'lastOverhaulDate', 'monthsPastDue'], 'state.maintenance', errors);
@@ -318,6 +443,62 @@ export function exportShipDocument(document, { space = 2 } = {}) {
   return JSON.stringify(document, null, space);
 }
 
+export function migrateShipDocument(input) {
+  if (!isPlainObject(input)) throw new ShipDocumentValidationError('ship document must be an object');
+  const version = input.schemaVersion;
+  if (!SUPPORTED_SHIP_DOCUMENT_SCHEMA_VERSIONS.includes(version)) {
+    throw new ShipDocumentValidationError(`unsupported schemaVersion: ${version}`);
+  }
+  if (version === CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION) {
+    assertValidShipDocument(input);
+    return cloneJson(input);
+  }
+
+  const next = cloneJson(input);
+  if (version === 1) {
+    const legacyCargoUsed = Number.isFinite(next.state?.cargoUsedTons) ? next.state.cargoUsedTons : 0;
+    next.schemaVersion = 2;
+    next.state = {
+      operationalStatus: next.state?.operationalStatus ?? 'available',
+      currentFuelTons: Number.isFinite(next.state?.currentFuelTons) ? next.state.currentFuelTons : null,
+      fuelQuality: 'unknown',
+      cargoUsedTons: legacyCargoUsed,
+      cargoManifest: legacyCargoUsed > 0 ? [{
+        id: `${next.identity?.id ?? 'ship'}:legacy-cargo`,
+        category: 'legacy',
+        description: 'Legacy recorded cargo',
+        tons: legacyCargoUsed,
+        originSystemId: null,
+        destinationSystemId: null,
+        acquisitionCostCr: 0,
+        notes: 'Migrated from ship document schema v1, which stored only cargoUsedTons.'
+      }] : [],
+      finances: {
+        balanceCr: 0,
+        ledger: []
+      },
+      portCall: null,
+      maintenance: {
+        status: next.state?.maintenance?.status ?? 'unknown',
+        lastOverhaulDate: next.state?.maintenance?.lastOverhaulDate ?? null,
+        monthsPastDue: next.state?.maintenance?.monthsPastDue ?? null
+      }
+    };
+  }
+
+  if (next.schemaVersion === 2) {
+    next.schemaVersion = 3;
+    next.state.passengerManifest = [];
+  }
+
+  if (next.schemaVersion === CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION) {
+    assertValidShipDocument(next);
+    return next;
+  }
+
+  throw new ShipDocumentValidationError(`no migration path for schemaVersion: ${version}`);
+}
+
 export function importShipDocument(input) {
   let parsed = input;
   if (typeof input === 'string') {
@@ -327,8 +508,7 @@ export function importShipDocument(input) {
       throw new ShipDocumentValidationError(`invalid JSON: ${error.message}`);
     }
   }
-  assertValidShipDocument(parsed);
-  return cloneJson(parsed);
+  return migrateShipDocument(parsed);
 }
 
 export function updateShipIdentity(document, { name = document.identity?.name, registry = document.identity?.registry } = {}) {

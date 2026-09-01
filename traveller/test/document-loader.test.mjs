@@ -28,7 +28,7 @@ test('loader accepts a separate Ship Document', async () => {
   const loaded = loadTravellerDocument(await readExample('Hawkeye.ship.json'));
   assert.equal(loaded.kind, TRAVELLER_DOCUMENT_KINDS.SHIP);
   assert.equal(loaded.shipDocument.documentType, 'classic-traveller-ship');
-  assert.equal(loaded.shipDocument.schemaVersion, 1);
+  assert.equal(loaded.shipDocument.schemaVersion, 3);
 });
 
 test('loader rejects unknown typed documents instead of misrouting them as chargen', () => {
@@ -60,4 +60,21 @@ test('loader recognizes Campaign Documents and portable Campaign Bundles', async
   const bundleLoaded = loadTravellerDocument(createCampaignBundle(campaign, { characters: [character], ships: [ship] }));
   assert.equal(bundleLoaded.kind, TRAVELLER_DOCUMENT_KINDS.CAMPAIGN_BUNDLE);
   assert.equal(bundleLoaded.campaignBundle.documents.characters[0].identity.name, 'Hawkeye');
+});
+
+
+test('loader recognizes a persistent Contract Document', async () => {
+  const { createContractDocument } = await import('../src/contract-document.js');
+  const contract = createContractDocument({
+    offerId: 'loader-contract-offer', kind: 'survey', title: 'Route Verification Survey',
+    rulesBasis: 'sea-of-suns-original', setting: 'Sea of Suns', issuerName: 'Survey Bureau', issuerType: 'survey',
+    originSystemId: 'calder', originSystemName: 'Calder', destinationSystemId: 'aster', destinationSystemName: 'Aster',
+    paymentCr: 18000, deadlineDays: 21, cargoTons: 0, exclusiveShip: false,
+    requirementsDescription: 'Verify route.', notes: ''
+  }, {
+    acceptedByCharacterId: 'char-hawkeye', acceptedShipId: 'ship-marisol', acceptedDate: { year: 4800, dayOfYear: 8 }
+  });
+  const loaded = loadTravellerDocument(contract);
+  assert.equal(loaded.kind, TRAVELLER_DOCUMENT_KINDS.CONTRACT);
+  assert.equal(loaded.contractDocument.identity.title, 'Route Verification Survey');
 });

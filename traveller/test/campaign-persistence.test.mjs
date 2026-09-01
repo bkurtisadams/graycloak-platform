@@ -54,17 +54,18 @@ function campaignFor(character, ship) {
   });
 }
 
-test('Campaign Document v1 links Hawkeye and Marisol by stable IDs without embedding them', async () => {
+test('Campaign Document v2 links Hawkeye and Marisol by stable IDs without embedding them', async () => {
   const { character, ship } = await acceptanceDocuments();
   const campaign = campaignFor(character, ship);
   const roundTrip = importCampaignDocument(exportCampaignDocument(campaign));
 
   assert.equal(roundTrip.documentType, 'graycloak-traveller-campaign');
-  assert.equal(roundTrip.schemaVersion, 1);
+  assert.equal(roundTrip.schemaVersion, 2);
   assert.deepEqual(roundTrip.party.characterIds, [character.identity.id]);
   assert.equal(roundTrip.activeShipId, ship.identity.id);
   assert.deepEqual(roundTrip.documentRefs.characters, [{ id: character.identity.id, name: 'Hawkeye' }]);
   assert.equal(roundTrip.documentRefs.ships[0].name, 'Marisol');
+  assert.deepEqual(roundTrip.documentRefs.contracts, []);
   assert.equal(roundTrip.documents, undefined);
 });
 
@@ -89,6 +90,7 @@ test('portable Campaign Bundle contains the campaign plus exactly its referenced
   assert.equal(roundTrip.documentType, 'graycloak-traveller-campaign-bundle');
   assert.equal(roundTrip.documents.characters.length, 1);
   assert.equal(roundTrip.documents.ships.length, 1);
+  assert.equal(roundTrip.documents.contracts.length, 0);
   assert.equal(roundTrip.documents.characters[0].identity.id, character.identity.id);
   assert.equal(roundTrip.documents.ships[0].identity.id, ship.identity.id);
 });
@@ -125,4 +127,31 @@ test('campaign status record shows date, location, party, and active Marisol', a
   assert.match(record, /LOCATION SYSTEM Port Meridian \/ WORLD New Esperanza/);
   assert.match(record, /ACTIVE SHIP Marisol \/ S-17384 \/ TYPE S/);
   assert.match(record, /PARTY Hawkeye \/ SCOUTS \/ UPP AB5678 \/ Cr80,000/);
+});
+
+
+test('Campaign Document v1 imports migrate to v2 with an empty contract reference list', async () => {
+  const { character, ship } = await acceptanceDocuments();
+  const current = campaignFor(character, ship);
+  const legacy = structuredClone(current);
+  legacy.schemaVersion = 1;
+  delete legacy.documentRefs.contracts;
+  const migrated = importCampaignDocument(legacy);
+  assert.equal(migrated.schemaVersion, 2);
+  assert.deepEqual(migrated.documentRefs.contracts, []);
+});
+
+test('Campaign Bundle v1 imports migrate to v2 and add an empty contract collection', async () => {
+  const { character, ship } = await acceptanceDocuments();
+  const campaign = campaignFor(character, ship);
+  const current = createCampaignBundle(campaign, { characters: [character], ships: [ship] });
+  const legacy = structuredClone(current);
+  legacy.schemaVersion = 1;
+  legacy.campaign.schemaVersion = 1;
+  delete legacy.campaign.documentRefs.contracts;
+  delete legacy.documents.contracts;
+  const migrated = importCampaignBundle(legacy);
+  assert.equal(migrated.schemaVersion, 2);
+  assert.equal(migrated.campaign.schemaVersion, 2);
+  assert.deepEqual(migrated.documents.contracts, []);
 });

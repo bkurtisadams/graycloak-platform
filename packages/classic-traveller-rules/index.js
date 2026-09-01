@@ -1,4 +1,4 @@
-// @graycloak/classic-traveller-rules v0.10.0
+// @graycloak/classic-traveller-rules v0.11.2
 // Source-backed Classic Traveller Books 1-3 character, starship, world, and subsector rules engine.
 // Pure rules/state logic: no host, UI, persistence, Foundry, or Firebase dependencies.
 
@@ -136,12 +136,43 @@ export {
   assertValidShipDocument,
   exportShipDocument,
   importShipDocument,
+  migrateShipDocument,
   updateShipIdentity,
   updateShipAssignedCharacterName,
   createTypeSScoutReserveShipForCharacter
 } from './src/starships/ship-document.js';
 
 
+
+
+export {
+  REFINED_FUEL_COST_PER_TON_CR,
+  UNREFINED_FUEL_COST_PER_TON_CR,
+  BASE_BERTHING_COST_CR,
+  starportFuelService,
+  calculateBerthingCost,
+  calculateJumpFuelRequirement,
+  availableShipFuelTons,
+  canShipMakeJump,
+  establishShipFuelState,
+  refuelShipToCapacity,
+  consumeJumpFuel,
+  transferCharacterCreditsToShip,
+  creditShipAccount,
+  beginPortCall,
+  payCurrentBerthing,
+  skimGasGiantToCapacity,
+  loadCargo,
+  unloadCargo,
+  availablePassengerCapacity,
+  bookPassenger,
+  calculateLifeSupportCostForTrip,
+  chargeLifeSupportForTrip,
+  deliverFreightAtDestination,
+  disembarkPassengersAtDestination,
+  purchaseSpeculativeCargo,
+  sellSpeculativeCargo
+} from './src/starships/operations.js';
 
 export {
   encodeTravellerDigit,
@@ -161,6 +192,41 @@ export {
   validateAuthoredSystemRecord,
   assertValidAuthoredSystemRecord
 } from './src/worlds/world-profile.js';
+
+
+export {
+  TRADE_CLASSIFICATIONS,
+  deriveTradeClassifications,
+  describeTradeClassifications
+} from './src/worlds/trade-classifications.js';
+
+
+
+export {
+  CHARTER_BLOCK_DAYS,
+  CHARTER_CARGO_RATE_PER_TON_CR,
+  CHARTER_HIGH_BERTH_RATE_CR,
+  CHARTER_LOW_BERTH_RATE_CR,
+  PRIVATE_MESSAGE_THROW,
+  calculateStarshipCharterPrice,
+  calculateShipCharterPrice,
+  privateMessageAvailable,
+  privateMessageHonorarium
+} from './src/trade/contracts.js';
+
+export {
+  FREIGHT_RATE_PER_TON_CR,
+  PASSAGE_FARES_CR,
+  STATEROOM_LIFE_SUPPORT_PER_TRIP_CR,
+  LOW_BERTH_LIFE_SUPPORT_PER_USE_CR,
+  TRADE_GOODS,
+  generatePassengerDemand,
+  generateFreightOffers,
+  actualValuePercentage,
+  generateSpeculativeTradeOffer,
+  calculateSpeculativePurchaseCost,
+  quoteSpeculativeResale
+} from './src/trade/commerce.js';
 
 export {
   SUBSECTOR_COLUMNS,

@@ -18,16 +18,46 @@ import {
   formatSubsectorHex,
   getJumpDestinations,
   getSubsectorSystem,
-  jumpDistanceBetweenSystems
+  jumpDistanceBetweenSystems,
+  parseUniversalWorldProfile,
+  starportFuelService,
+  calculateBerthingCost,
+  canShipMakeJump,
+  consumeJumpFuel,
+  transferCharacterCreditsToShip,
+  creditShipAccount,
+  refuelShipToCapacity,
+  beginPortCall,
+  payCurrentBerthing,
+  skimGasGiantToCapacity,
+  loadCargo,
+  unloadCargo,
+  availablePassengerCapacity,
+  bookPassenger,
+  calculateLifeSupportCostForTrip,
+  chargeLifeSupportForTrip,
+  deliverFreightAtDestination,
+  disembarkPassengersAtDestination,
+  purchaseSpeculativeCargo,
+  sellSpeculativeCargo,
+  generatePassengerDemand,
+  generateFreightOffers,
+  generateSpeculativeTradeOffer,
+  calculateSpeculativePurchaseCost,
+  quoteSpeculativeResale,
+  PASSAGE_FARES_CR,
+  FREIGHT_RATE_PER_TON_CR
 } from '../../packages/classic-traveller-rules/index.js';
 
 import {
   ACTION_LABELS,
   buildCampaignRecord,
+  buildContractBoardRecord,
   buildCharacterRecord,
   buildFinalCharacterRecord,
   buildGenerationLog,
   buildJumpPlan,
+  buildPortServicesRecord,
   buildShipRecord,
   buildProcedure,
   buildServiceHistory,
@@ -58,7 +88,17 @@ import {
 } from './subsector-svg.js';
 
 import {
+  seededDice,
+  campaignDateKey,
+  campaignWeekKey,
+  routeMarketSeed,
+  weeklyTradeSeed,
+  saleQuoteSeed
+} from './commerce-market.js';
+
+import {
   addShipToCampaign,
+  addContractToCampaign,
   advanceCampaignDays,
   createCampaignDocument,
   refreshCampaignDocumentRefs,
@@ -78,6 +118,19 @@ import {
 import {
   createActivityLogStore
 } from '../src/activity-log.js';
+
+import {
+  CONTRACT_DOCUMENT_TYPE,
+  createContractDocument,
+  completeContractDocument,
+  failContractDocument,
+  importContractDocument,
+  isContractOverdue
+} from '../src/contract-document.js';
+
+import {
+  generateContractBoard
+} from '../world/contract-board.js';
 
 import {
   FAR_MERIDIAN_SUBSECTOR
@@ -126,9 +179,22 @@ const el = {
   subsectorMap: document.querySelector('#subsector-map'),
   jumpPlan: document.querySelector('#jump-plan'),
   jumpActions: document.querySelector('#jump-actions'),
+  mapZoomOut: document.querySelector('#map-zoom-out'),
+  mapZoomLabel: document.querySelector('#map-zoom-label'),
+  mapZoomIn: document.querySelector('#map-zoom-in'),
+  mapZoomFit: document.querySelector('#map-zoom-fit'),
   systemRecordSection: document.querySelector('#system-record-section'),
   systemRecordHeading: document.querySelector('#system-record-heading'),
   systemRecord: document.querySelector('#system-record'),
+  portServicesSection: document.querySelector('#port-services-section'),
+  portServicesRecord: document.querySelector('#port-services-record'),
+  portActions: document.querySelector('#port-actions'),
+  commerceSection: document.querySelector('#commerce-section'),
+  commerceRecord: document.querySelector('#commerce-record'),
+  commerceActions: document.querySelector('#commerce-actions'),
+  contractSection: document.querySelector('#contract-section'),
+  contractRecord: document.querySelector('#contract-record'),
+  contractActions: document.querySelector('#contract-actions'),
   activityPanel: document.querySelector('#activity-panel'),
   activityContext: document.querySelector('#activity-context'),
   activityFeed: document.querySelector('#activity-feed'),
@@ -139,9 +205,12 @@ let character = createCharacter();
 let gameplayDocument = null;
 let shipDocument = null;
 let campaignDocument = null;
+let contractDocuments = [];
 let documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
 let openHelpTopic = null;
 let selectedSystemId = null;
+let subsectorZoom = 1;
+let speculativeBrokerDM = 0;
 let registry = null;
 
 try {
@@ -276,6 +345,172 @@ function activeJumpRating() {
   return Number.isInteger(value) && value >= 0 ? value : null;
 }
 
+function currentPortFuelService() {
+  const system = mappedCurrentSystem();
+  if (!system || !shipDocument) return null;
+  const profile = parseUniversalWorldProfile(system.mainWorld.uwp);
+  return starportFuelService(profile.starport, {
+    scoutBase: system.bases.scout,
+    ship: shipDocument
+  });
+}
+
+function currentBerthingDue() {
+  const system = mappedCurrentSystem();
+  const portCall = shipDocument?.state?.portCall;
+  if (!system || !portCall || portCall.systemId !== system.id) return null;
+  return portCall;
+}
+
+function currentBerthingBlocksDeparture() {
+  const portCall = currentBerthingDue();
+  return Boolean(portCall && !portCall.berthingPaid && portCall.berthingDueCr > 0);
+}
+
+function formatCr(value) {
+  return `Cr${Number(value ?? 0).toLocaleString('en-US')}`;
+}
+
+function freeCargoTons(ship = shipDocument) {
+  if (!ship) return 0;
+  return Math.max(0, ship.specifications.cargo.capacityTons - ship.state.cargoUsedTons);
+}
+
+function currentCommerceSkillDM() {
+  if (!gameplayDocument?.skills) return 0;
+  return Math.max(
+    Number(gameplayDocument.skills.Admin ?? 0),
+    Number(gameplayDocument.skills.Bribery ?? 0)
+  );
+}
+
+function passengerRouteBlockReason(destinationSystemId) {
+  if (!shipDocument || !destinationSystemId) return null;
+  const mismatched = shipDocument.state.passengerManifest.filter((entry) => entry.destinationSystemId !== destinationSystemId);
+  if (!mismatched.length) return null;
+  const destinations = [...new Set(mismatched.map((entry) => getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, entry.destinationSystemId)?.name ?? entry.destinationSystemId))];
+  return `PASSENGERS BOOKED FOR ${destinations.join(' / ').toUpperCase()}`;
+}
+
+function commerceRouteSnapshot() {
+  if (!campaignDocument || !shipDocument) return null;
+  const origin = mappedCurrentSystem();
+  const destination = selectedSystemId ? getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, selectedSystemId) : null;
+  if (!origin || !destination || origin.id === destination.id) return { origin, destination, reachable: false };
+  const jumpRating = activeJumpRating();
+  const distance = jumpDistanceBetweenSystems(FAR_MERIDIAN_SUBSECTOR, origin.id, destination.id);
+  const reachable = Number.isInteger(jumpRating) && distance >= 1 && distance <= jumpRating;
+  if (!reachable) return { origin, destination, distance, reachable: false };
+  const originProfile = parseUniversalWorldProfile(origin.mainWorld.uwp);
+  const destinationProfile = parseUniversalWorldProfile(destination.mainWorld.uwp);
+  const passengerDemand = generatePassengerDemand(originProfile, destinationProfile, {
+    destinationTravelZone: destination.travelZone,
+    dice: seededDice(routeMarketSeed(campaignDocument, origin.id, destination.id, 'passengers'))
+  });
+  const freightIdPrefix = `freight-${campaignDateKey(campaignDocument)}-${origin.id}-${destination.id}`;
+  const freight = generateFreightOffers(originProfile, destinationProfile, {
+    destinationTravelZone: destination.travelZone,
+    dice: seededDice(routeMarketSeed(campaignDocument, origin.id, destination.id, 'freight')),
+    idPrefix: freightIdPrefix
+  });
+  return { origin, destination, originProfile, destinationProfile, distance, reachable, passengerDemand, freight };
+}
+
+function weeklySpeculativeOffer() {
+  const system = mappedCurrentSystem();
+  if (!campaignDocument || !system) return null;
+  const profile = parseUniversalWorldProfile(system.mainWorld.uwp);
+  return generateSpeculativeTradeOffer(profile, {
+    dice: seededDice(weeklyTradeSeed(campaignDocument, system.id))
+  });
+}
+
+function campaignDateSnapshot() {
+  if (!campaignDocument) return null;
+  return { year: campaignDocument.time.year, dayOfYear: campaignDocument.time.dayOfYear };
+}
+
+function currentContractBoard() {
+  const system = mappedCurrentSystem();
+  if (!campaignDocument || !system || !shipDocument) return { key: null, offers: [] };
+  const jumpRating = activeJumpRating();
+  const destinations = Number.isInteger(jumpRating)
+    ? getJumpDestinations(FAR_MERIDIAN_SUBSECTOR, system.id, jumpRating)
+    : [];
+  return generateContractBoard({ campaign: campaignDocument, system, destinations, ship: shipDocument });
+}
+
+function activeContracts() {
+  return contractDocuments.filter((entry) => entry.status === 'accepted');
+}
+
+function activeExclusiveContract() {
+  return activeContracts().find((entry) => entry.requirements.exclusiveShip) ?? null;
+}
+
+function contractRouteBlockReason(destinationSystemId) {
+  const exclusive = activeExclusiveContract();
+  if (!exclusive || exclusive.destination.systemId === destinationSystemId) return null;
+  return `EXCLUSIVE CHARTER FOR ${exclusive.destination.systemName.toUpperCase()}`;
+}
+
+function contractOfferAlreadyUsed(offer) {
+  return contractDocuments.some((entry) => entry.provenance.offerId === offer.offerId);
+}
+
+function availableContractOffers() {
+  return currentContractBoard().offers.filter((offer) => !contractOfferAlreadyUsed(offer));
+}
+
+function contractCargoId(contract) {
+  return `${contract.identity.id}:cargo`;
+}
+
+function acceptedContractForOffer(offerId) {
+  return contractDocuments.find((entry) => entry.provenance.offerId === offerId) ?? null;
+}
+
+function contractSourceLabel(offer) {
+  if (offer.rulesBasis === 'classic-traveller-book-2-charter') return 'BOOK 2 CHARTER';
+  if (offer.rulesBasis === 'classic-traveller-book-2-private-message') return 'BOOK 2 PRIVATE MESSAGE';
+  return 'SEA OF SUNS';
+}
+
+function speculativeQuantityAlreadyAboard(offer, systemId) {
+  if (!shipDocument || !offer || !systemId) return 0;
+  return shipDocument.state.cargoManifest
+    .filter((entry) => entry.category === `speculative:${offer.code}` && entry.originSystemId === systemId)
+    .reduce((sum, entry) => sum + entry.tons, 0);
+}
+
+function speculativeSaleQuote(cargo) {
+  const system = mappedCurrentSystem();
+  if (!campaignDocument || !system || !cargo) return null;
+  const match = /^speculative:(\d{2})$/.exec(cargo.category);
+  if (!match) return null;
+  const code = Number(match[1]);
+  const profile = parseUniversalWorldProfile(system.mainWorld.uwp);
+  return quoteSpeculativeResale(code, cargo.tons, profile, {
+    dice: seededDice(saleQuoteSeed(campaignDocument, system.id, cargo.id)),
+    characterSkillDM: currentCommerceSkillDM(),
+    brokerDM: speculativeBrokerDM
+  });
+}
+
+function bookedPassengerCount(route, passageClass) {
+  if (!shipDocument || !route?.origin || !route?.destination) return 0;
+  return shipDocument.state.passengerManifest.filter((entry) => (
+    entry.originSystemId === route.origin.id
+    && entry.destinationSystemId === route.destination.id
+    && entry.class === passageClass
+  )).length;
+}
+
+function passengerIdForRoute(route, passageClass) {
+  const sequence = bookedPassengerCount(route, passageClass) + 1;
+  return `pass-${campaignDateKey(campaignDocument)}-${route.origin.id}-${route.destination.id}-${passageClass}-${sequence}`;
+}
+
 function gameplayProcedure() {
   const missingShip = gameplayDocument?.shipRefs?.length && !shipDocument;
   if (campaignDocument) {
@@ -324,26 +559,30 @@ function persistGameplayDocuments() {
   if (!registry) return;
   if (gameplayDocument) registry.put(gameplayDocument);
   if (shipDocument) registry.put(shipDocument);
+  for (const contract of contractDocuments) registry.put(contract);
 }
 
 function syncCampaignRefs() {
   if (!campaignDocument) return;
   campaignDocument = refreshCampaignDocumentRefs(campaignDocument, {
     characters: gameplayDocument ? [gameplayDocument] : [],
-    ships: shipDocument ? [shipDocument] : []
+    ships: shipDocument ? [shipDocument] : [],
+    contracts: contractDocuments
   });
 }
 
 function campaignDocumentsForDisplay() {
-  if (!campaignDocument) return { characters: [], ships: [], missing: [] };
+  if (!campaignDocument) return { characters: [], ships: [], contracts: [], missing: [] };
   let characters = [];
   let ships = [];
+  let contracts = [];
   let missing = [];
   if (registry) {
     try {
       const resolved = registry.resolveCampaign(campaignDocument);
       characters = resolved.characters;
       ships = resolved.ships;
+      contracts = resolved.contracts;
       missing = resolved.missing;
     } catch (error) {
       console.error(error);
@@ -359,7 +598,12 @@ function campaignDocumentsForDisplay() {
     ships.push(shipDocument);
     missing = missing.filter((id) => id !== shipDocument.identity.id);
   }
-  return { characters, ships, missing };
+  for (const contract of contractDocuments) {
+    contracts = contracts.filter((entry) => entry.identity.id !== contract.identity.id);
+    contracts.push(contract);
+    missing = missing.filter((id) => id !== contract.identity.id);
+  }
+  return { characters, ships, contracts, missing };
 }
 
 function renderCampaign() {
@@ -398,6 +642,8 @@ function selectSubsectorSystem(systemId) {
   }
   renderSubsector();
   renderSystemRecord();
+  renderCommerce();
+  renderContracts();
 }
 
 function setStartingSubsectorLocation() {
@@ -417,6 +663,110 @@ function setStartingSubsectorLocation() {
   }
 }
 
+function acceptContractOffer(offerId) {
+  try {
+    if (!campaignDocument || !gameplayDocument || !shipDocument) throw new Error('active campaign character and ship are required');
+    const current = mappedCurrentSystem();
+    if (!current) throw new Error('current system must be mapped');
+    const offer = currentContractBoard().offers.find((entry) => entry.offerId === offerId);
+    if (!offer) throw new Error('contract offer is no longer available at this port call');
+    if (acceptedContractForOffer(offer.offerId)) throw new Error('that contract offer has already been used');
+    if (offer.originSystemId !== current.id) throw new Error('contract offer does not originate at the current system');
+
+    const exclusive = activeExclusiveContract();
+    if (exclusive) throw new Error(`exclusive charter already active for ${exclusive.destination.systemName}`);
+    if (offer.exclusiveShip) {
+      if (activeContracts().length) throw new Error('complete existing contracts before accepting an exclusive whole-ship charter');
+      if (shipDocument.state.cargoManifest.length || shipDocument.state.passengerManifest.length) {
+        throw new Error('exclusive whole-ship charter requires empty cargo and passenger manifests');
+      }
+    }
+    if (offer.cargoTons > freeCargoTons()) {
+      throw new Error(`contract requires ${offer.cargoTons} tons; only ${freeCargoTons()} tons are free`);
+    }
+
+    const contract = createContractDocument(offer, {
+      acceptedByCharacterId: gameplayDocument.identity.id,
+      acceptedShipId: shipDocument.identity.id,
+      acceptedDate: campaignDateSnapshot()
+    });
+
+    let nextShip = shipDocument;
+    if (contract.requirements.cargoTons > 0) {
+      nextShip = loadCargo(nextShip, {
+        id: contractCargoId(contract),
+        category: `contract:${contract.identity.id}`,
+        description: contract.identity.title,
+        tons: contract.requirements.cargoTons,
+        originSystemId: contract.origin.systemId,
+        destinationSystemId: contract.destination.systemId,
+        acquisitionCostCr: 0,
+        notes: `Contract cargo / ${contract.identity.id}`
+      });
+    }
+
+    shipDocument = nextShip;
+    contractDocuments = [...contractDocuments, contract];
+    campaignDocument = addContractToCampaign(campaignDocument, contract);
+    syncCampaignRefs();
+    persistGameplayDocuments();
+    if (registry) registry.put(campaignDocument);
+    logActivity('CONTRACT', `${contract.identity.title} accepted / ${contract.origin.systemName} to ${contract.destination.systemName} / ${formatCr(contract.economics.paymentCr)} / due ${String(contract.timing.deadlineDate.dayOfYear).padStart(3, '0')}-${contract.timing.deadlineDate.year}`);
+    setStatus(`CONTRACT ACCEPTED: ${contract.identity.title.toUpperCase()} / ${contract.destination.systemName.toUpperCase()}`, 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function resolveContractsAtDestination(ship, destination) {
+  let nextShip = ship;
+  const date = campaignDateSnapshot();
+  const updated = [];
+  const results = [];
+
+  for (const contract of contractDocuments) {
+    if (contract.status !== 'accepted' || contract.destination.systemId !== destination.id) {
+      updated.push(contract);
+      continue;
+    }
+
+    let cargoPresent = true;
+    if (contract.requirements.cargoTons > 0) {
+      const cargoId = contractCargoId(contract);
+      const cargo = nextShip.state.cargoManifest.find((entry) => entry.id === cargoId);
+      cargoPresent = Boolean(cargo && Math.abs(cargo.tons - contract.requirements.cargoTons) < 1e-9);
+      if (cargo) nextShip = unloadCargo(nextShip, cargoId).ship;
+    }
+
+    const overdue = isContractOverdue(contract, campaignDocument.time);
+    if (overdue || !cargoPresent) {
+      const reason = overdue ? 'deadline missed' : 'required contract cargo missing';
+      const failed = failContractDocument(contract, { date, notes: reason });
+      updated.push(failed);
+      results.push({ contract: failed, success: false, paymentCr: 0, reason });
+      continue;
+    }
+
+    nextShip = creditShipAccount(nextShip, contract.economics.paymentCr, {
+      kind: 'contract',
+      description: `${contract.identity.title} completed / ${destination.name}`,
+      dateLabel: activityDateLabel()
+    });
+    const completed = completeContractDocument(contract, {
+      date,
+      paymentCr: contract.economics.paymentCr,
+      notes: `Completed at ${destination.name}`
+    });
+    updated.push(completed);
+    results.push({ contract: completed, success: true, paymentCr: completed.economics.paymentCr, reason: null });
+  }
+
+  contractDocuments = updated;
+  return { ship: nextShip, results };
+}
+
 function jumpToSelectedSystem() {
   try {
     if (!campaignDocument) throw new Error('no campaign is active');
@@ -426,19 +776,82 @@ function jumpToSelectedSystem() {
     if (!destination) throw new Error('select a destination system first');
     if (destination.id === current.id) throw new Error('destination must be a different system');
     const jumpRating = activeJumpRating();
-    if (!Number.isInteger(jumpRating)) throw new Error('an active ship with a jump drive is required');
+    if (!Number.isInteger(jumpRating) || !shipDocument) throw new Error('an active ship with a jump drive is required');
     const distance = jumpDistanceBetweenSystems(FAR_MERIDIAN_SUBSECTOR, current.id, destination.id);
     if (distance > jumpRating) throw new Error(`${destination.name} is ${distance} parsecs away; active ship is Jump-${jumpRating}`);
+    if (currentBerthingBlocksDeparture()) {
+      throw new Error(`${formatCr(currentBerthingDue().berthingDueCr)} berthing is due before departure`);
+    }
 
-    const shipLabel = shipDocument?.identity?.name || shipDocument?.identity?.registry || 'Active ship';
-    logActivity('JUMP', `${shipLabel} departed ${current.name} / destination ${destination.name} / ${distance} parsec${distance === 1 ? '' : 's'}`);
+    const passengerBlock = passengerRouteBlockReason(destination.id);
+    if (passengerBlock) throw new Error(`${passengerBlock.toLowerCase()}; deliver booked passengers before changing route`);
+    const contractBlock = contractRouteBlockReason(destination.id);
+    if (contractBlock) throw new Error(`${contractBlock.toLowerCase()}; complete the charter before changing route`);
+
+    const fuelCheck = canShipMakeJump(shipDocument, distance);
+    if (!fuelCheck.allowed) {
+      if (fuelCheck.reason === 'FUEL UNRECORDED') throw new Error('ship fuel is unrecorded; refuel or skim before jumping');
+      throw new Error(`insufficient fuel: need ${fuelCheck.requirement.totalTons} tons; have ${fuelCheck.availableTons} tons`);
+    }
+
+    const lifeSupport = calculateLifeSupportCostForTrip(shipDocument);
+    if (lifeSupport.totalCr > shipDocument.state.finances.balanceCr) {
+      throw new Error(`ship operating account requires ${formatCr(lifeSupport.totalCr)} for life support; balance ${formatCr(shipDocument.state.finances.balanceCr)}`);
+    }
+
+    const shipLabel = shipDocument.identity.name || shipDocument.identity.registry || 'Active ship';
+    let nextShip = shipDocument;
+    const lifeSupportResult = chargeLifeSupportForTrip(nextShip, { dateLabel: activityDateLabel() });
+    nextShip = lifeSupportResult.ship;
+    const fuelResult = consumeJumpFuel(nextShip, distance);
+    nextShip = fuelResult.ship;
+
+    logActivity('JUMP', `${shipLabel} departed ${current.name} / destination ${destination.name} / ${distance} parsec${distance === 1 ? '' : 's'} / fuel ${fuelCheck.requirement.totalTons}t`);
+    if (lifeSupportResult.totalCr > 0) {
+      logActivity('SHIP', `${shipLabel} life support charged / ${formatCr(lifeSupportResult.totalCr)} / ${lifeSupportResult.occupiedStaterooms} occupied stateroom${lifeSupportResult.occupiedStaterooms === 1 ? '' : 's'}`);
+    }
+
     campaignDocument = updateCampaignLocation(campaignDocument, campaignLocationForSystem(destination));
     // Book 2 describes jump travel as taking about one week regardless of
     // distance. v0.9 resolves that campaign interval as seven days.
     campaignDocument = advanceCampaignDays(campaignDocument, 7);
+
+    const freightDelivery = deliverFreightAtDestination(nextShip, destination.id, { dateLabel: activityDateLabel() });
+    nextShip = freightDelivery.ship;
+    const passengerDelivery = disembarkPassengersAtDestination(nextShip, destination.id, { dateLabel: activityDateLabel() });
+    nextShip = passengerDelivery.ship;
+    const contractResolution = resolveContractsAtDestination(nextShip, destination);
+    nextShip = contractResolution.ship;
+
+    const destinationProfile = parseUniversalWorldProfile(destination.mainWorld.uwp);
+    nextShip = beginPortCall(nextShip, {
+      systemId: destination.id,
+      arrivalDate: activityDateLabel(),
+      berthingDueCr: destinationProfile.starport === 'X' ? 0 : calculateBerthingCost(1)
+    });
+    shipDocument = nextShip;
+    syncCampaignRefs();
+    persistGameplayDocuments();
+    if (registry) registry.put(campaignDocument);
     selectedSystemId = null;
-    logActivity('ARRIVAL', `${shipLabel} arrived ${destination.name} / ${destination.hex} / ${destination.mainWorld.name}`);
-    setStatus(`JUMP COMPLETE: ${destination.name} / +7 DAYS / SAVE CAMPAIGN`, 'ok');
+    logActivity('ARRIVAL', `${shipLabel} arrived ${destination.name} / ${destination.hex} / ${destination.mainWorld.name} / fuel ${shipDocument.state.currentFuelTons}t`);
+    if (freightDelivery.delivered.length) {
+      logActivity('TRADE', `${freightDelivery.delivered.length} freight shipment${freightDelivery.delivered.length === 1 ? '' : 's'} delivered at ${destination.name} / +${formatCr(freightDelivery.revenueCr)}`);
+    }
+    if (passengerDelivery.passengers.length) {
+      logActivity('TRADE', `${passengerDelivery.passengers.length} passenger${passengerDelivery.passengers.length === 1 ? '' : 's'} disembarked at ${destination.name} / +${formatCr(passengerDelivery.revenueCr)}`);
+    }
+    for (const result of contractResolution.results) {
+      if (result.success) {
+        logActivity('CONTRACT', `${result.contract.identity.title} completed at ${destination.name} / +${formatCr(result.paymentCr)}`);
+      } else {
+        logActivity('CONTRACT', `${result.contract.identity.title} failed at ${destination.name} / ${result.reason}`);
+      }
+    }
+    if (shipDocument.state.portCall.berthingDueCr > 0) {
+      logActivity('PORT', `${destination.name} berthing assessed / ${formatCr(shipDocument.state.portCall.berthingDueCr)} due`);
+    }
+    setStatus(`JUMP COMPLETE: ${destination.name} / +7 DAYS / FUEL ${shipDocument.state.currentFuelTons}t / SAVE CAMPAIGN`, 'ok');
     render();
   } catch (error) {
     console.error(error);
@@ -446,12 +859,77 @@ function jumpToSelectedSystem() {
   }
 }
 
+
 function createSvgElement(name, attributes = {}) {
   const node = document.createElementNS('http://www.w3.org/2000/svg', name);
   for (const [key, value] of Object.entries(attributes)) {
     node.setAttribute(key, String(value));
   }
   return node;
+}
+
+const SUBSECTOR_ZOOM_MIN = 0.7;
+const SUBSECTOR_ZOOM_MAX = 1.6;
+const SUBSECTOR_ZOOM_STEP = 0.15;
+
+function clampSubsectorZoom(value) {
+  return Math.min(SUBSECTOR_ZOOM_MAX, Math.max(SUBSECTOR_ZOOM_MIN, Math.round(value * 100) / 100));
+}
+
+function applySubsectorZoom() {
+  const svg = el.subsectorMap.querySelector('.subsector-svg');
+  if (svg) {
+    const vh = Math.round(64 * subsectorZoom * 100) / 100;
+    const px = Math.round(640 * subsectorZoom);
+    svg.style.height = `min(${vh}vh, ${px}px)`;
+  }
+  if (el.mapZoomLabel) el.mapZoomLabel.textContent = `${Math.round(subsectorZoom * 100)}%`;
+  if (el.mapZoomOut) el.mapZoomOut.disabled = subsectorZoom <= SUBSECTOR_ZOOM_MIN;
+  if (el.mapZoomIn) el.mapZoomIn.disabled = subsectorZoom >= SUBSECTOR_ZOOM_MAX;
+}
+
+function setSubsectorZoom(value) {
+  subsectorZoom = clampSubsectorZoom(value);
+  applySubsectorZoom();
+}
+
+function appendBaseMarkers(group, system, center) {
+  const bases = system?.bases ?? {};
+  if (!bases.scout && !bases.naval) return;
+  const radius = SUBSECTOR_SVG_GEOMETRY.radius;
+  let x = center.x + radius * 0.47;
+  const y = center.y - (Math.sqrt(3) * radius) / 2 + 11;
+
+  if (bases.naval) {
+    const naval = createSvgElement('g', { class: 'subsector-base-marker naval-base-marker' });
+    const navalTitle = createSvgElement('title');
+    navalTitle.textContent = 'Naval Base';
+    naval.append(navalTitle);
+    const diamond = createSvgElement('path', {
+      d: `M ${x} ${y - 4.2} L ${x + 4.2} ${y} L ${x} ${y + 4.2} L ${x - 4.2} ${y} Z`,
+      class: 'subsector-base-icon-shape'
+    });
+    const cross = createSvgElement('path', {
+      d: `M ${x - 5.2} ${y} H ${x + 5.2} M ${x} ${y - 5.2} V ${y + 5.2}`,
+      class: 'subsector-base-icon-line'
+    });
+    naval.append(diamond, cross);
+    group.append(naval);
+    x -= 12;
+  }
+
+  if (bases.scout) {
+    const scout = createSvgElement('g', { class: 'subsector-base-marker scout-base-marker' });
+    const scoutTitle = createSvgElement('title');
+    scoutTitle.textContent = 'Scout Base';
+    scout.append(scoutTitle);
+    const triangle = createSvgElement('path', {
+      d: `M ${x} ${y - 5} L ${x + 5} ${y + 4} L ${x - 5} ${y + 4} Z`,
+      class: 'subsector-base-icon-shape'
+    });
+    scout.append(triangle);
+    group.append(scout);
+  }
 }
 
 function renderSubsectorSvg({ current, selected, reachable }) {
@@ -503,11 +981,13 @@ function renderSubsectorSvg({ current, selected, reachable }) {
             : 'available starting system';
       group.setAttribute('role', 'button');
       group.setAttribute('tabindex', '0');
-      group.setAttribute('aria-label', `${system.name}, hex ${hex}, ${relation}`);
+      const baseNames = [system.bases?.scout ? 'Scout Base' : null, system.bases?.naval ? 'Naval Base' : null].filter(Boolean);
+      const baseLabel = baseNames.length ? `, ${baseNames.join(' and ')}` : '';
+      group.setAttribute('aria-label', `${system.name}, hex ${hex}, ${relation}${baseLabel}`);
       group.dataset.systemId = system.id;
 
       const title = createSvgElement('title');
-      title.textContent = `${system.name} / ${system.mainWorld.name} / ${system.mainWorld.uwp} / ${hex} / ${relation}`;
+      title.textContent = `${system.name} / ${system.mainWorld.name} / ${system.mainWorld.uwp} / ${hex} / ${relation}${baseNames.length ? ` / ${baseNames.join(' + ')}` : ''}`;
       group.append(title);
 
       const marker = createSvgElement('text', {
@@ -530,6 +1010,8 @@ function renderSubsectorSvg({ current, selected, reachable }) {
         label.textContent = line;
         group.append(label);
       });
+
+      appendBaseMarkers(group, system, center);
 
       const select = () => selectSubsectorSystem(system.id);
       group.addEventListener('click', select);
@@ -566,6 +1048,534 @@ function renderSystemRecord() {
   el.systemRecord.textContent = buildSystemRecord(system);
 }
 
+function makePortButton(label, handler, { disabled = false } = {}) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'text-button action-button';
+  button.textContent = `[ ${label} ]`;
+  button.disabled = disabled;
+  button.addEventListener('click', handler);
+  return button;
+}
+
+function transferFundsToShip() {
+  try {
+    if (!gameplayDocument || !shipDocument) throw new Error('active character and ship are required');
+    const input = el.portActions.querySelector('#ship-transfer-amount');
+    const amountCr = Number.parseInt(input?.value ?? '', 10);
+    const result = transferCharacterCreditsToShip(gameplayDocument, shipDocument, amountCr, {
+      dateLabel: activityDateLabel()
+    });
+    gameplayDocument = result.character;
+    shipDocument = result.ship;
+    persistGameplayDocuments();
+    logActivity('SHIP', `${gameplayDocument.identity.name || 'Character'} transferred ${formatCr(amountCr)} to ${shipDocument.identity.name || 'ship'} operating account`);
+    setStatus(`SHIP ACCOUNT FUNDED: +${formatCr(amountCr)}`, 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function refuelAtCurrentPort() {
+  try {
+    const system = mappedCurrentSystem();
+    if (!system || !shipDocument) throw new Error('active ship at a mapped system is required');
+    const service = currentPortFuelService();
+    if (!service?.available) throw new Error('starport fuel is unavailable here');
+    const source = service.freeScoutFuel ? `${system.name} Scout Base` : service.source;
+    const result = refuelShipToCapacity(shipDocument, {
+      quality: service.quality,
+      pricePerTonCr: service.pricePerTonCr,
+      source,
+      dateLabel: activityDateLabel()
+    });
+    shipDocument = result.ship;
+    persistGameplayDocuments();
+    if (result.addedTons > 0) {
+      logActivity('SHIP', `${shipDocument.identity.name || 'Ship'} refueled ${result.addedTons}t ${service.quality} at ${system.name} / ${result.costCr ? formatCr(result.costCr) : 'FREE'}`);
+      setStatus(`REFUELED ${result.addedTons}t ${service.quality.toUpperCase()} / ${result.costCr ? formatCr(result.costCr) : 'FREE'}`, 'ok');
+    } else {
+      setStatus('FUEL TANKS ALREADY FULL', 'ok');
+    }
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function payBerthingAtCurrentPort() {
+  try {
+    const system = mappedCurrentSystem();
+    if (!system || !shipDocument) throw new Error('active ship at a mapped system is required');
+    const result = payCurrentBerthing(shipDocument, {
+      dateLabel: activityDateLabel(),
+      description: `${system.name} starport berthing`
+    });
+    shipDocument = result.ship;
+    persistGameplayDocuments();
+    if (result.costCr > 0) {
+      logActivity('PORT', `${shipDocument.identity.name || 'Ship'} paid ${formatCr(result.costCr)} berthing at ${system.name}`);
+      setStatus(`BERTHING PAID: ${formatCr(result.costCr)}`, 'ok');
+    } else {
+      setStatus('BERTHING ALREADY SETTLED', 'ok');
+    }
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function skimCurrentGasGiant() {
+  try {
+    const system = mappedCurrentSystem();
+    if (!campaignDocument || !system || !shipDocument) throw new Error('active campaign ship at a mapped system is required');
+    if (!system.gasGiant) throw new Error('this system has no recorded gas giant');
+    if (currentBerthingBlocksDeparture()) throw new Error('pay current berthing before departing for gas-giant refueling');
+    const result = skimGasGiantToCapacity(shipDocument);
+    if (result.addedTons <= 0) {
+      setStatus('FUEL TANKS ALREADY FULL', 'ok');
+      return;
+    }
+    shipDocument = result.ship;
+    campaignDocument = advanceCampaignDays(campaignDocument, result.elapsedDays);
+    persistGameplayDocuments();
+    logActivity('SHIP', `${shipDocument.identity.name || 'Ship'} skimmed ${result.addedTons}t unrefined fuel at ${system.name} gas giant / +${result.elapsedDays} days`);
+    setStatus(`GAS-GIANT REFUEL COMPLETE: +${result.addedTons}t UNREFINED / +${result.elapsedDays} DAYS`, 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function assertCommerceAvailable() {
+  const exclusive = activeExclusiveContract();
+  if (exclusive) throw new Error(`exclusive charter active for ${exclusive.destination.systemName}; commercial capacity is committed`);
+}
+
+function acceptFreightOffer(offerId) {
+  try {
+    assertCommerceAvailable();
+    const route = commerceRouteSnapshot();
+    if (!route?.reachable || !shipDocument) throw new Error('select a reachable freight destination first');
+    const offer = route.freight.offers.find((entry) => entry.id === offerId);
+    if (!offer) throw new Error('freight offer is no longer available');
+    if (shipDocument.state.cargoManifest.some((entry) => entry.id === offer.id)) throw new Error('that freight shipment is already aboard');
+    shipDocument = loadCargo(shipDocument, {
+      id: offer.id,
+      category: 'freight',
+      description: `${offer.category} freight to ${route.destination.name}`,
+      tons: offer.tons,
+      originSystemId: route.origin.id,
+      destinationSystemId: route.destination.id,
+      acquisitionCostCr: 0,
+      notes: `Book 2 freight / ${formatCr(FREIGHT_RATE_PER_TON_CR)} per ton on delivery.`
+    });
+    persistGameplayDocuments();
+    logActivity('TRADE', `${shipDocument.identity.name || 'Ship'} accepted ${offer.tons}t ${offer.category} freight / ${route.origin.name} to ${route.destination.name} / ${formatCr(offer.revenueCr)} on delivery`);
+    setStatus(`FREIGHT ACCEPTED: ${offer.tons}t TO ${route.destination.name.toUpperCase()}`, 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function bookRoutePassenger(passageClass) {
+  try {
+    assertCommerceAvailable();
+    const route = commerceRouteSnapshot();
+    if (!route?.reachable || !shipDocument) throw new Error('select a reachable passenger destination first');
+    const demand = route.passengerDemand[passageClass] ?? 0;
+    const alreadyBooked = bookedPassengerCount(route, passageClass);
+    if (alreadyBooked >= demand) throw new Error(`no additional ${passageClass} passengers are available for this route`);
+    const id = passengerIdForRoute(route, passageClass);
+    shipDocument = bookPassenger(shipDocument, {
+      id,
+      passageClass,
+      originSystemId: route.origin.id,
+      destinationSystemId: route.destination.id
+    });
+    persistGameplayDocuments();
+    logActivity('TRADE', `${passageClass.toUpperCase()} passenger booked / ${route.origin.name} to ${route.destination.name} / fare ${formatCr(PASSAGE_FARES_CR[passageClass])}`);
+    setStatus(`${passageClass.toUpperCase()} PASSENGER BOOKED TO ${route.destination.name.toUpperCase()}`, 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function buySpeculativeQuantity(quantity) {
+  try {
+    assertCommerceAvailable();
+    const system = mappedCurrentSystem();
+    if (!campaignDocument || !system || !shipDocument) throw new Error('active campaign ship at a mapped system is required');
+    const offer = weeklySpeculativeOffer();
+    if (!offer) throw new Error('no speculative trade lot is available');
+    const aboard = speculativeQuantityAlreadyAboard(offer, system.id);
+    const remaining = Math.max(0, offer.quantityAvailable - aboard);
+    if (quantity > remaining) throw new Error(`only ${remaining} ${offer.unit} remain in this weekly lot`);
+    const result = purchaseSpeculativeCargo(shipDocument, offer, quantity, {
+      originSystemId: system.id,
+      dateLabel: activityDateLabel()
+    });
+    shipDocument = result.ship;
+    persistGameplayDocuments();
+    logActivity('TRADE', `${shipDocument.identity.name || 'Ship'} bought ${quantity}t ${offer.name} at ${system.name} / ${formatCr(result.costCr)}${result.handlingFeeCr ? ` incl. ${formatCr(result.handlingFeeCr)} handling` : ''}`);
+    setStatus(`SPECULATIVE CARGO BOUGHT: ${quantity}t ${offer.name.toUpperCase()} / ${formatCr(result.costCr)}`, 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function sellSpeculativeLot(cargoId) {
+  try {
+    assertCommerceAvailable();
+    if (!shipDocument) throw new Error('active ship is required');
+    const cargo = shipDocument.state.cargoManifest.find((entry) => entry.id === cargoId);
+    if (!cargo) throw new Error('speculative cargo lot is no longer aboard');
+    const quote = speculativeSaleQuote(cargo);
+    if (!quote) throw new Error('unable to quote this cargo');
+    const result = sellSpeculativeCargo(shipDocument, cargoId, quote, { dateLabel: activityDateLabel() });
+    shipDocument = result.ship;
+    persistGameplayDocuments();
+    const profitText = `${result.profitCr >= 0 ? '+' : '-'}${formatCr(Math.abs(result.profitCr))}`;
+    logActivity('TRADE', `${cargo.tons}t ${cargo.description} sold / ${formatCr(result.revenueCr)} net / result ${profitText}`);
+    setStatus(`SPECULATIVE CARGO SOLD: ${formatCr(result.revenueCr)} / RESULT ${profitText}`, 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function commerceLine(label, value) {
+  return `${label.padEnd(16, ' ')}${value}`;
+}
+
+function renderCommerce() {
+  const current = mappedCurrentSystem();
+  if (!campaignDocument || !current || !shipDocument) {
+    el.commerceSection.hidden = true;
+    el.commerceRecord.textContent = '';
+    el.commerceActions.replaceChildren();
+    return;
+  }
+
+  el.commerceSection.hidden = false;
+  const route = commerceRouteSnapshot();
+  const offer = weeklySpeculativeOffer();
+  const freeHold = freeCargoTons();
+  const lines = [
+    `COMMERCE // ${current.name.toUpperCase()} // ${current.hex}`,
+    commerceLine('SHIP ACCOUNT', formatCr(shipDocument.state.finances.balanceCr)),
+    commerceLine('CARGO HOLD', `${shipDocument.state.cargoUsedTons}/${shipDocument.specifications.cargo.capacityTons}t / ${freeHold}t FREE`)
+  ];
+
+  if (route?.destination && route.reachable) {
+    const bookedHigh = bookedPassengerCount(route, 'high');
+    const bookedMiddle = bookedPassengerCount(route, 'middle');
+    const bookedLow = bookedPassengerCount(route, 'low');
+    const highRemaining = Math.max(0, route.passengerDemand.high - bookedHigh);
+    const middleRemaining = Math.max(0, route.passengerDemand.middle - bookedMiddle);
+    const lowRemaining = Math.max(0, route.passengerDemand.low - bookedLow);
+    const highCapacity = availablePassengerCapacity(shipDocument, 'high');
+    const middleCapacity = availablePassengerCapacity(shipDocument, 'middle');
+    const lowCapacity = availablePassengerCapacity(shipDocument, 'low');
+    const steward = shipDocument.crew.assignments.some((entry) => entry.role.toLowerCase() === 'steward');
+    const acceptedFreightIds = new Set(shipDocument.state.cargoManifest.filter((entry) => entry.category === 'freight').map((entry) => entry.id));
+    const remainingFreight = route.freight.offers.filter((entry) => !acceptedFreightIds.has(entry.id));
+    const fittingFreight = remainingFreight.filter((entry) => entry.tons <= freeHold + 1e-9);
+    lines.push(
+      '',
+      commerceLine('ROUTE', `${route.origin.name} -> ${route.destination.name} / ${route.distance} parsec${route.distance === 1 ? '' : 's'}`),
+      commerceLine('PASSENGERS', `DEMAND H${route.passengerDemand.high} M${route.passengerDemand.middle} L${route.passengerDemand.low} / BOOKED H${bookedHigh} M${bookedMiddle} L${bookedLow}`),
+      commerceLine('CABIN SPACE', `HIGH ${highCapacity}${steward ? '' : ' / STEWARD REQUIRED'} / MIDDLE ${middleCapacity} / LOW ${lowCapacity}`),
+      commerceLine('BOOKABLE', `HIGH ${steward ? Math.min(highRemaining, highCapacity) : 0} / MIDDLE ${Math.min(middleRemaining, middleCapacity)} / LOW ${Math.min(lowRemaining, lowCapacity)}`),
+      commerceLine('FREIGHT', `MAJOR ${route.freight.counts.major} / MINOR ${route.freight.counts.minor} / INCIDENTAL ${route.freight.counts.incidental}`),
+      commerceLine('FREIGHT FIT', `${fittingFreight.length} SHIPMENT${fittingFreight.length === 1 ? '' : 'S'} FIT CURRENT ${freeHold}t HOLD`)
+    );
+    for (const freight of fittingFreight.slice(0, 4)) {
+      lines.push(commerceLine('OFFER', `${freight.tons}t ${freight.category.toUpperCase()} / ${formatCr(freight.revenueCr)} ON DELIVERY`));
+    }
+  } else if (route?.destination) {
+    lines.push('', commerceLine('ROUTE', `${current.name} -> ${route.destination.name} / OUT OF JUMP RANGE`));
+  } else {
+    lines.push('', commerceLine('ROUTE', 'SELECT A REACHABLE DESTINATION FOR PASSENGERS / FREIGHT'));
+  }
+
+  if (offer) {
+    const aboard = offer.unit === 'tons' ? speculativeQuantityAlreadyAboard(offer, current.id) : 0;
+    const remaining = Math.max(0, offer.quantityAvailable - aboard);
+    lines.push(
+      '',
+      commerceLine('SPECULATION', `WEEK ${campaignWeekKey(campaignDocument)} / LOT ${offer.code} ${offer.name.toUpperCase()}`),
+      commerceLine('AVAILABLE', `${remaining}/${offer.quantityAvailable} ${offer.unit.toUpperCase()} / BASE ${formatCr(offer.basePriceCr)} EACH ${offer.unit === 'tons' ? 'TON' : 'ITEM'}`),
+      commerceLine('BUY QUOTE', `${formatCr(offer.pricePerUnitCr)} / ${offer.percentage}% OF BASE / PURCHASE DM ${offer.purchaseDM >= 0 ? '+' : ''}${offer.purchaseDM}`)
+    );
+    if (offer.unit === 'each') lines.push(commerceLine('AUTOMATION', 'REFEREE TONNAGE REQUIRED FOR INDIVIDUAL ITEMS'));
+  }
+
+  const passengers = shipDocument.state.passengerManifest;
+  const freightAboard = shipDocument.state.cargoManifest.filter((entry) => entry.category === 'freight');
+  const saleCargo = shipDocument.state.cargoManifest.filter((entry) => /^speculative:\d{2}$/.test(entry.category));
+  lines.push('', commerceLine('ABOARD', `${passengers.length} PASSENGER${passengers.length === 1 ? '' : 'S'} / ${freightAboard.length} FREIGHT / ${saleCargo.length} SPECULATIVE LOT${saleCargo.length === 1 ? '' : 'S'}`));
+  for (const passenger of passengers.slice(0, 4)) {
+    const dest = getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, passenger.destinationSystemId);
+    lines.push(commerceLine('PASSENGER', `${passenger.class.toUpperCase()} -> ${(dest?.name ?? passenger.destinationSystemId).toUpperCase()} / ${formatCr(passenger.fareCr)}`));
+  }
+  for (const cargo of freightAboard.slice(0, 4)) {
+    const dest = getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, cargo.destinationSystemId);
+    lines.push(commerceLine('FREIGHT ABOARD', `${cargo.tons}t -> ${(dest?.name ?? cargo.destinationSystemId).toUpperCase()} / ${formatCr(cargo.tons * FREIGHT_RATE_PER_TON_CR)}`));
+  }
+  for (const cargo of saleCargo.slice(0, 4)) {
+    const quote = speculativeSaleQuote(cargo);
+    lines.push(commerceLine('RESALE QUOTE', `${cargo.tons}t ${cargo.description.toUpperCase()} / NET ${formatCr(quote.netCr)} / ${quote.percentage}% / DM ${quote.worldDM + quote.characterSkillDM + quote.brokerDM >= 0 ? '+' : ''}${quote.worldDM + quote.characterSkillDM + quote.brokerDM}`));
+  }
+  if (saleCargo.length) {
+    lines.push(commerceLine('SALE DMS', `CHARACTER +${currentCommerceSkillDM()} / BROKER +${speculativeBrokerDM} / COMMISSION ${speculativeBrokerDM * 5}%`));
+  }
+  el.commerceRecord.textContent = lines.join('\n');
+
+  el.commerceActions.replaceChildren();
+  if (route?.destination && route.reachable) {
+    const steward = shipDocument.crew.assignments.some((entry) => entry.role.toLowerCase() === 'steward');
+    const highRemaining = Math.max(0, route.passengerDemand.high - bookedPassengerCount(route, 'high'));
+    const middleRemaining = Math.max(0, route.passengerDemand.middle - bookedPassengerCount(route, 'middle'));
+    const lowRemaining = Math.max(0, route.passengerDemand.low - bookedPassengerCount(route, 'low'));
+    if (highRemaining > 0 && availablePassengerCapacity(shipDocument, 'high') > 0) {
+      el.commerceActions.append(makePortButton(`BOOK HIGH / FARE ${formatCr(PASSAGE_FARES_CR.high)}`, () => bookRoutePassenger('high'), { disabled: !steward }));
+    }
+    if (middleRemaining > 0 && availablePassengerCapacity(shipDocument, 'middle') > 0) {
+      el.commerceActions.append(makePortButton(`BOOK MIDDLE / FARE ${formatCr(PASSAGE_FARES_CR.middle)}`, () => bookRoutePassenger('middle')));
+    }
+    if (lowRemaining > 0 && availablePassengerCapacity(shipDocument, 'low') > 0) {
+      el.commerceActions.append(makePortButton(`BOOK LOW / FARE ${formatCr(PASSAGE_FARES_CR.low)}`, () => bookRoutePassenger('low')));
+    }
+
+    const acceptedFreightIds = new Set(shipDocument.state.cargoManifest.filter((entry) => entry.category === 'freight').map((entry) => entry.id));
+    const fittingFreight = route.freight.offers
+      .filter((entry) => !acceptedFreightIds.has(entry.id) && entry.tons <= freeHold + 1e-9)
+      .slice(0, 4);
+    for (const freight of fittingFreight) {
+      el.commerceActions.append(makePortButton(`ACCEPT ${freight.tons}t FREIGHT / ${formatCr(freight.revenueCr)}`, () => acceptFreightOffer(freight.id)));
+    }
+  }
+
+  if (offer?.unit === 'tons') {
+    const aboard = speculativeQuantityAlreadyAboard(offer, current.id);
+    const remaining = Math.max(0, offer.quantityAvailable - aboard);
+    const maxByHold = Math.min(Math.floor(freeHold), remaining);
+    if (maxByHold >= 1) {
+      const oneCost = calculateSpeculativePurchaseCost(offer, 1).totalCr;
+      el.commerceActions.append(makePortButton(`BUY 1t ${offer.name.toUpperCase()} / ${formatCr(oneCost)}`, () => buySpeculativeQuantity(1), {
+        disabled: oneCost > shipDocument.state.finances.balanceCr
+      }));
+      if (maxByHold > 1) {
+        let affordableMax = 0;
+        for (let quantity = maxByHold; quantity >= 1; quantity -= 1) {
+          if (calculateSpeculativePurchaseCost(offer, quantity).totalCr <= shipDocument.state.finances.balanceCr) {
+            affordableMax = quantity;
+            break;
+          }
+        }
+        if (affordableMax > 1) {
+          const maxCost = calculateSpeculativePurchaseCost(offer, affordableMax).totalCr;
+          el.commerceActions.append(makePortButton(`BUY ${affordableMax}t MAX / ${formatCr(maxCost)}`, () => buySpeculativeQuantity(affordableMax)));
+        }
+      }
+    }
+  }
+
+  const speculativeAboard = shipDocument.state.cargoManifest.filter((entry) => /^speculative:\d{2}$/.test(entry.category));
+  if (saleCargo.length) {
+    const broker = document.createElement('span');
+    broker.className = 'commerce-group commerce-broker';
+    const label = document.createElement('label');
+    label.className = 'commerce-group-label';
+    label.htmlFor = 'commerce-broker-dm';
+    label.textContent = 'BROKER DM';
+    const input = document.createElement('input');
+    input.id = 'commerce-broker-dm';
+    input.type = 'number';
+    input.min = '0';
+    input.max = '4';
+    input.step = '1';
+    input.value = String(speculativeBrokerDM);
+    input.addEventListener('change', () => {
+      speculativeBrokerDM = Math.max(0, Math.min(4, Number.parseInt(input.value || '0', 10) || 0));
+      renderCommerce();
+    });
+    broker.append(label, input);
+    el.commerceActions.append(broker);
+    for (const cargo of saleCargo.slice(0, 4)) {
+      const quote = speculativeSaleQuote(cargo);
+      el.commerceActions.append(makePortButton(`SELL ${cargo.tons}t ${cargo.description.toUpperCase()} / ${formatCr(quote.netCr)}`, () => sellSpeculativeLot(cargo.id)));
+    }
+  }
+
+  if (!el.commerceActions.childNodes.length) {
+    const note = document.createElement('span');
+    note.className = 'commerce-note';
+    note.textContent = 'NO CURRENT COMMERCE ACTION FITS SHIP CAPACITY / ROUTE / FUNDS.';
+    el.commerceActions.append(note);
+  }
+}
+
+function renderContracts() {
+  const current = mappedCurrentSystem();
+  if (!campaignDocument || !current || !shipDocument || !gameplayDocument) {
+    el.contractSection.hidden = true;
+    el.contractRecord.textContent = '';
+    el.contractActions.replaceChildren();
+    return;
+  }
+
+  el.contractSection.hidden = false;
+  const offers = availableContractOffers();
+  el.contractRecord.textContent = buildContractBoardRecord({
+    system: current,
+    contracts: contractDocuments,
+    offers
+  });
+  el.contractActions.replaceChildren();
+
+  const exclusive = activeExclusiveContract();
+  offers.forEach((offer, index) => {
+    const requiresEmptyShip = offer.exclusiveShip && (
+      activeContracts().length > 0
+      || shipDocument.state.cargoManifest.length > 0
+      || shipDocument.state.passengerManifest.length > 0
+    );
+    const disabled = Boolean(exclusive)
+      || requiresEmptyShip
+      || offer.cargoTons > freeCargoTons();
+    const button = makePortButton(`ACCEPT ${index + 1} / ${offer.title.toUpperCase()} / ${formatCr(offer.paymentCr)}`, () => acceptContractOffer(offer.offerId), { disabled });
+    button.title = `${contractSourceLabel(offer)} / ${offer.destinationSystemName}`;
+    el.contractActions.append(button);
+  });
+
+  if (!offers.length) {
+    const note = document.createElement('span');
+    note.className = 'commerce-note';
+    note.textContent = 'NO UNUSED CONTRACT OFFERS AT THIS PORT CALL.';
+    el.contractActions.append(note);
+  } else if (exclusive) {
+    const note = document.createElement('span');
+    note.className = 'attention-message';
+    note.textContent = `EXCLUSIVE CHARTER ACTIVE TO ${exclusive.destination.systemName.toUpperCase()} / COMPLETE IT BEFORE ACCEPTING OTHER WORK.`;
+    el.contractActions.append(note);
+  }
+}
+
+function renderPortServices() {
+  if (!campaignDocument) {
+    el.portServicesSection.hidden = true;
+    el.portServicesRecord.textContent = '';
+    el.portActions.replaceChildren();
+    return;
+  }
+  const system = mappedCurrentSystem();
+  if (!system) {
+    el.portServicesSection.hidden = true;
+    el.portServicesRecord.textContent = '';
+    el.portActions.replaceChildren();
+    return;
+  }
+
+  el.portServicesSection.hidden = false;
+  const portRecordText = buildPortServicesRecord({
+    system,
+    ship: shipDocument,
+    character: gameplayDocument
+  });
+  const portAttention = [];
+  if (shipDocument?.state?.currentFuelTons === null || shipDocument?.state?.currentFuelTons === undefined) portAttention.push('FUEL ');
+  const currentPortCall = shipDocument?.state?.portCall?.systemId === system.id ? shipDocument.state.portCall : null;
+  if (currentPortCall && !currentPortCall.berthingPaid && currentPortCall.berthingDueCr > 0) portAttention.push('BERTHING ');
+  renderRecordWithHighlights(el.portServicesRecord, portRecordText, portAttention);
+  el.portActions.replaceChildren();
+
+  if (!shipDocument) {
+    const text = document.createElement('span');
+    text.className = 'empty';
+    text.textContent = 'LOAD OR ASSIGN AN ACTIVE SHIP FOR PORT OPERATIONS.';
+    el.portActions.append(text);
+    return;
+  }
+
+  if (gameplayDocument) {
+    const transfer = document.createElement('span');
+    transfer.className = 'port-transfer';
+    const label = document.createElement('label');
+    label.htmlFor = 'ship-transfer-amount';
+    label.textContent = 'TRANSFER Cr';
+    const input = document.createElement('input');
+    input.id = 'ship-transfer-amount';
+    input.type = 'number';
+    input.min = '1';
+    input.max = String(gameplayDocument.finances.credits);
+    input.step = '1';
+    input.value = String(Math.min(5000, Math.max(0, gameplayDocument.finances.credits)));
+    transfer.append(label, input, makePortButton('TRANSFER TO SHIP', transferFundsToShip, {
+      disabled: gameplayDocument.finances.credits <= 0
+    }));
+    el.portActions.append(transfer);
+  }
+
+  const service = currentPortFuelService();
+  const capacity = shipDocument.specifications.fuel.capacityTons;
+  const currentFuel = Number.isFinite(shipDocument.state.currentFuelTons) ? shipDocument.state.currentFuelTons : 0;
+  const missingFuel = Math.max(0, capacity - currentFuel);
+  if (service?.available && missingFuel > 0) {
+    const projectedCost = Math.round(missingFuel * service.pricePerTonCr);
+    const label = service.freeScoutFuel
+      ? `REFUEL TO FULL / FREE`
+      : `REFUEL TO FULL / ${formatCr(projectedCost)}`;
+    el.portActions.append(makePortButton(label, refuelAtCurrentPort, {
+      disabled: projectedCost > shipDocument.state.finances.balanceCr
+    }));
+  }
+
+  const portCall = currentBerthingDue();
+  if (portCall && !portCall.berthingPaid && portCall.berthingDueCr > 0) {
+    el.portActions.append(makePortButton(`PAY BERTHING / ${formatCr(portCall.berthingDueCr)}`, payBerthingAtCurrentPort, {
+      disabled: portCall.berthingDueCr > shipDocument.state.finances.balanceCr
+    }));
+  }
+
+  if (system.gasGiant && shipDocument.specifications.hull.streamlined && missingFuel > 0) {
+    el.portActions.append(makePortButton('SKIM GAS GIANT / +7 DAYS', skimCurrentGasGiant, {
+      disabled: currentBerthingBlocksDeparture()
+    }));
+  }
+
+}
+
+function renderRecordWithHighlights(target, text, attentionPrefixes = []) {
+  target.replaceChildren();
+  const lines = String(text ?? '').split('\n');
+  lines.forEach((line, index) => {
+    const highlighted = attentionPrefixes.some((prefix) => line.trimStart().startsWith(prefix));
+    if (highlighted) {
+      const span = document.createElement('span');
+      span.className = 'record-attention';
+      span.textContent = line;
+      target.append(span);
+    } else {
+      target.append(document.createTextNode(line));
+    }
+    if (index < lines.length - 1) target.append(document.createTextNode('\n'));
+  });
+}
+
 function renderSubsector() {
   if (!campaignDocument) {
     el.subsectorSection.hidden = true;
@@ -593,23 +1603,46 @@ function renderSubsector() {
     : 'NO ACTIVE JUMP SHIP';
 
   el.subsectorLegend.textContent = current
-    ? 'CURRENT ◆   IN RANGE ●   OUT OF RANGE ●   EMPTY ·'
-    : 'SYSTEM ●   SELECTED SYSTEM OUTLINED   EMPTY ·';
+    ? 'CURRENT ◆   IN RANGE ●   OUT OF RANGE ●   SCOUT △   NAVAL ✦   EMPTY ·'
+    : 'SYSTEM ●   SCOUT △   NAVAL ✦   SELECTED SYSTEM OUTLINED   EMPTY ·';
 
   el.subsectorMap.replaceChildren(renderSubsectorSvg({ current, selected, reachable }));
+  applySubsectorZoom();
 
   const distance = current && selected && current.id !== selected.id
     ? jumpDistanceBetweenSystems(FAR_MERIDIAN_SUBSECTOR, current.id, selected.id)
     : current && selected
       ? 0
       : null;
-  el.jumpPlan.textContent = buildJumpPlan({
+  const inJumpRange = shipDocument && Number.isInteger(distance) && distance >= 1 && Number.isInteger(jumpRating) && distance <= jumpRating;
+  const fuelCheck = inJumpRange ? canShipMakeJump(shipDocument, distance) : null;
+  const departureBlocked = currentBerthingBlocksDeparture();
+  const commerceBlockedReason = inJumpRange && selected ? passengerRouteBlockReason(selected.id) : null;
+  const contractBlockedReason = inJumpRange && selected ? contractRouteBlockReason(selected.id) : null;
+  const lifeSupport = inJumpRange ? calculateLifeSupportCostForTrip(shipDocument) : null;
+  const operatingBalanceCr = shipDocument?.state?.finances?.balanceCr ?? null;
+  const lifeSupportBlocked = Boolean(lifeSupport && Number.isInteger(operatingBalanceCr) && lifeSupport.totalCr > operatingBalanceCr);
+  const jumpPlanText = buildJumpPlan({
     campaign: campaignDocument,
     currentSystem: current,
     selectedSystem: selected,
     distance,
-    jumpRating
+    jumpRating,
+    fuelCheck,
+    departureBlocked,
+    commerceBlockedReason,
+    contractBlockedReason,
+    lifeSupportCostCr: lifeSupport?.totalCr ?? null,
+    operatingBalanceCr
   });
+  const jumpAttention = [];
+  if (departureBlocked || commerceBlockedReason || contractBlockedReason || lifeSupportBlocked || (fuelCheck && !fuelCheck.allowed)) jumpAttention.push('STATUS ');
+  if (fuelCheck && !fuelCheck.allowed) {
+    if (fuelCheck.reason === 'FUEL UNRECORDED') jumpAttention.push('FUEL HAVE ');
+    else jumpAttention.push('FUEL NEED ', 'FUEL HAVE ');
+  }
+  if (lifeSupportBlocked) jumpAttention.push('LIFE SUPPORT ');
+  renderRecordWithHighlights(el.jumpPlan, jumpPlanText, jumpAttention);
 
   el.jumpActions.replaceChildren();
   if (!selected) return;
@@ -629,7 +1662,44 @@ function renderSubsector() {
     el.jumpActions.append(text);
     return;
   }
-  if (Number.isInteger(jumpRating) && distance <= jumpRating) {
+  if (Number.isInteger(jumpRating) && distance <= jumpRating && shipDocument) {
+    if (departureBlocked) {
+      const text = document.createElement('span');
+      text.className = 'attention-message';
+      text.textContent = `BERTHING ${formatCr(currentBerthingDue().berthingDueCr)} DUE / PAY BEFORE DEPARTURE.`;
+      el.jumpActions.append(text);
+      return;
+    }
+    if (commerceBlockedReason) {
+      const text = document.createElement('span');
+      text.className = 'attention-message';
+      text.textContent = `${commerceBlockedReason} / DELIVER THEM BEFORE CHANGING ROUTE.`;
+      el.jumpActions.append(text);
+      return;
+    }
+    if (contractBlockedReason) {
+      const text = document.createElement('span');
+      text.className = 'attention-message';
+      text.textContent = `${contractBlockedReason} / COMPLETE CHARTER BEFORE CHANGING ROUTE.`;
+      el.jumpActions.append(text);
+      return;
+    }
+    if (!fuelCheck?.allowed) {
+      const text = document.createElement('span');
+      text.className = 'attention-message';
+      text.textContent = fuelCheck?.reason === 'FUEL UNRECORDED'
+        ? 'FUEL UNRECORDED / REFUEL OR SKIM BEFORE JUMP.'
+        : `INSUFFICIENT FUEL: NEED ${fuelCheck?.requirement?.totalTons ?? '--'}t / HAVE ${fuelCheck?.availableTons ?? '--'}t.`;
+      el.jumpActions.append(text);
+      return;
+    }
+    if (lifeSupportBlocked) {
+      const text = document.createElement('span');
+      text.className = 'attention-message';
+      text.textContent = `INSUFFICIENT SHIP FUNDS: LIFE SUPPORT ${formatCr(lifeSupport.totalCr)} / ACCOUNT ${formatCr(operatingBalanceCr)}.`;
+      el.jumpActions.append(text);
+      return;
+    }
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'text-button action-button';
@@ -644,6 +1714,7 @@ function renderSubsector() {
       : 'ACTIVE JUMP-CAPABLE SHIP REQUIRED.';
     el.jumpActions.append(text);
   }
+
 }
 
 function restoreCampaignFromRegistry(campaign) {
@@ -664,6 +1735,7 @@ function restoreCampaignFromRegistry(campaign) {
   normalizeCampaignMappedLocation();
   gameplayDocument = nextCharacter;
   shipDocument = nextShip;
+  contractDocuments = resolved.contracts;
   documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
   character = createCharacter();
   setActivityContext();
@@ -675,9 +1747,11 @@ function newCampaign() {
     if (!gameplay) throw new Error('complete or load a gameplay character before creating a campaign');
     persistGameplayDocuments();
     selectedSystemId = null;
+    contractDocuments = [];
     campaignDocument = createCampaignDocument({
       characters: [gameplay],
       ships: shipDocument ? [shipDocument] : [],
+      contracts: [],
       partyCharacterIds: [gameplay.identity.id],
       activeShipId: shipDocument?.identity.id ?? null
     });
@@ -970,6 +2044,9 @@ function render() {
   renderCampaign();
   renderSubsector();
   renderSystemRecord();
+  renderPortServices();
+  renderCommerce();
+  renderContracts();
   renderShip();
   renderActivity();
 }
@@ -1099,6 +2176,7 @@ async function loadDocument(file) {
       gameplayDocument = null;
       shipDocument = null;
       campaignDocument = null;
+      contractDocuments = [];
       selectedSystemId = null;
       documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
       setActivityContext();
@@ -1108,6 +2186,7 @@ async function loadDocument(file) {
       gameplayDocument = loaded.characterDocument;
       documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
       campaignDocument = null;
+      contractDocuments = [];
       selectedSystemId = null;
       if (shipDocument && !shipMatchesCharacter(shipDocument, gameplayDocument)) shipDocument = null;
       if (registry) registry.put(gameplayDocument);
@@ -1120,12 +2199,30 @@ async function loadDocument(file) {
       }
       shipDocument = loaded.shipDocument;
       campaignDocument = null;
+      contractDocuments = [];
       selectedSystemId = null;
       if (gameplayDocument) shipDocument = updateShipAssignedCharacterName(shipDocument, gameplayDocument.identity.name);
       if (registry) registry.put(shipDocument);
       setActivityContext();
       logActivity('SHIP', `Ship loaded: ${shipDocument.identity.name || shipDocument.identity.registry || shipDocument.identity.id}`);
       setStatus(gameplayDocument ? 'LINKED SHIP DOCUMENT LOADED / REGISTERED LOCALLY' : 'SHIP DOCUMENT LOADED / REGISTERED LOCALLY', 'ok');
+    } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CONTRACT) {
+      if (!registry) throw new Error('browser local storage is unavailable');
+      const contract = importContractDocument(loaded.contractDocument);
+      registry.put(contract);
+      if (campaignDocument && gameplayDocument && shipDocument
+        && contract.assigned.characterId === gameplayDocument.identity.id
+        && contract.assigned.shipId === shipDocument.identity.id) {
+        contractDocuments = contractDocuments.filter((entry) => entry.identity.id !== contract.identity.id);
+        contractDocuments.push(contract);
+        campaignDocument = addContractToCampaign(campaignDocument, contract);
+        syncCampaignRefs();
+        registry.put(campaignDocument);
+        logActivity('CONTRACT', `Contract loaded: ${contract.identity.title}`);
+        setStatus('CONTRACT DOCUMENT LOADED / ADDED TO CAMPAIGN', 'ok');
+      } else {
+        setStatus('CONTRACT DOCUMENT REGISTERED LOCALLY', 'ok');
+      }
     } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CAMPAIGN) {
       if (!registry) throw new Error('browser local storage is unavailable');
       registry.put(loaded.campaignDocument);
@@ -1201,6 +2298,7 @@ function updateShipName(name, statusMessage = 'SHIP NAME UPDATED') {
   renderCampaign();
   renderSubsector();
   renderSystemRecord();
+  renderPortServices();
   renderShip();
   setStatus(statusMessage, 'ok');
 }
@@ -1281,6 +2379,7 @@ el.newCharacter.addEventListener('click', () => {
   gameplayDocument = null;
   shipDocument = null;
   campaignDocument = null;
+  contractDocuments = [];
   selectedSystemId = null;
   closeHelp();
   setActivityContext();
@@ -1309,6 +2408,10 @@ el.clearActivity.addEventListener('click', () => {
   renderActivity();
   setStatus('ACTIVITY LOG CLEARED', 'ok');
 });
+
+el.mapZoomOut.addEventListener('click', () => setSubsectorZoom(subsectorZoom - SUBSECTOR_ZOOM_STEP));
+el.mapZoomIn.addEventListener('click', () => setSubsectorZoom(subsectorZoom + SUBSECTOR_ZOOM_STEP));
+el.mapZoomFit.addEventListener('click', () => setSubsectorZoom(1));
 
 el.newCampaign.addEventListener('click', newCampaign);
 el.saveCampaign.addEventListener('click', saveCampaignLocal);

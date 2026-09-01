@@ -11,8 +11,14 @@ import {
   importCampaignDocument
 } from './campaign-document.js';
 
+import {
+  assertValidContractDocument,
+  importContractDocument
+} from './contract-document.js';
+
 export const CAMPAIGN_BUNDLE_TYPE = 'graycloak-traveller-campaign-bundle';
-export const CURRENT_CAMPAIGN_BUNDLE_SCHEMA_VERSION = 1;
+export const CURRENT_CAMPAIGN_BUNDLE_SCHEMA_VERSION = 2;
+export const SUPPORTED_CAMPAIGN_BUNDLE_SCHEMA_VERSIONS = Object.freeze([1, 2]);
 
 export class CampaignBundleValidationError extends Error {
   constructor(errors) {
@@ -23,28 +29,17 @@ export class CampaignBundleValidationError extends Error {
   }
 }
 
-function cloneJson(value) {
-  return JSON.parse(JSON.stringify(value));
-}
-
+function cloneJson(value) { return JSON.parse(JSON.stringify(value)); }
 function parseJson(input) {
   if (typeof input !== 'string') return input;
-  try {
-    return JSON.parse(input);
-  } catch (error) {
-    throw new CampaignBundleValidationError(`invalid JSON: ${error.message}`);
-  }
+  try { return JSON.parse(input); }
+  catch (error) { throw new CampaignBundleValidationError(`invalid JSON: ${error.message}`); }
 }
-
-function ids(entries) {
-  return entries.map((entry) => entry.identity.id);
-}
-
+function ids(entries) { return entries.map((entry) => entry.identity.id); }
 function assertUnique(entries, label) {
   const values = ids(entries);
   if (new Set(values).size !== values.length) throw new CampaignBundleValidationError(`${label} document IDs must be unique`);
 }
-
 function exactIdSet(actual, expected, label) {
   const actualSorted = [...actual].sort();
   const expectedSorted = [...expected].sort();
@@ -53,17 +48,21 @@ function exactIdSet(actual, expected, label) {
   }
 }
 
-export function createCampaignBundle(campaign, { characters = [], ships = [] } = {}) {
+export function createCampaignBundle(campaign, { characters = [], ships = [], contracts = [] } = {}) {
   assertValidCampaignDocument(campaign);
   for (const document of characters) assertValidCharacterDocument(document);
   for (const document of ships) assertValidShipDocument(document);
+  for (const document of contracts) assertValidContractDocument(document);
   assertUnique(characters, 'character');
   assertUnique(ships, 'ship');
+  assertUnique(contracts, 'contract');
 
   exactIdSet(ids(characters), campaign.documentRefs.characters.map((ref) => ref.id), 'character');
   exactIdSet(ids(ships), campaign.documentRefs.ships.map((ref) => ref.id), 'ship');
+  exactIdSet(ids(contracts), campaign.documentRefs.contracts.map((ref) => ref.id), 'contract');
 
   const characterIds = new Set(ids(characters));
+  const shipIds = new Set(ids(ships));
   for (const ship of ships) {
     if (ship.authority.assignedCharacterId) {
       if (!characterIds.has(ship.authority.assignedCharacterId)) {
@@ -75,6 +74,14 @@ export function createCampaignBundle(campaign, { characters = [], ships = [] } =
       }
     }
   }
+  for (const contract of contracts) {
+    if (!characterIds.has(contract.assigned.characterId)) {
+      throw new CampaignBundleValidationError(`contract ${contract.identity.id} assigned character is missing from bundle: ${contract.assigned.characterId}`);
+    }
+    if (!shipIds.has(contract.assigned.shipId)) {
+      throw new CampaignBundleValidationError(`contract ${contract.identity.id} assigned ship is missing from bundle: ${contract.assigned.shipId}`);
+    }
+  }
 
   return {
     documentType: CAMPAIGN_BUNDLE_TYPE,
@@ -82,21 +89,18 @@ export function createCampaignBundle(campaign, { characters = [], ships = [] } =
     campaign: cloneJson(campaign),
     documents: {
       characters: cloneJson(characters),
-      ships: cloneJson(ships)
+      ships: cloneJson(ships),
+      contracts: cloneJson(contracts)
     }
   };
 }
 
 export function importCampaignBundle(input) {
   const parsed = parseJson(input);
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new CampaignBundleValidationError('bundle must be an object');
-  }
-  if (parsed.documentType !== CAMPAIGN_BUNDLE_TYPE) {
-    throw new CampaignBundleValidationError(`documentType must be ${CAMPAIGN_BUNDLE_TYPE}`);
-  }
-  if (parsed.schemaVersion !== CURRENT_CAMPAIGN_BUNDLE_SCHEMA_VERSION) {
-    throw new CampaignBundleValidationError(`schemaVersion must be ${CURRENT_CAMPAIGN_BUNDLE_SCHEMA_VERSION}`);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new CampaignBundleValidationError('bundle must be an object');
+  if (parsed.documentType !== CAMPAIGN_BUNDLE_TYPE) throw new CampaignBundleValidationError(`documentType must be ${CAMPAIGN_BUNDLE_TYPE}`);
+  if (!SUPPORTED_CAMPAIGN_BUNDLE_SCHEMA_VERSIONS.includes(parsed.schemaVersion)) {
+    throw new CampaignBundleValidationError(`unsupported schemaVersion: ${parsed.schemaVersion}`);
   }
   if (!parsed.campaign || parsed.campaign.documentType !== CAMPAIGN_DOCUMENT_TYPE) {
     throw new CampaignBundleValidationError('bundle.campaign must be a Campaign Document');
@@ -108,7 +112,8 @@ export function importCampaignBundle(input) {
   const campaign = importCampaignDocument(parsed.campaign);
   const characters = parsed.documents.characters.map((entry) => importCharacterDocument(entry));
   const ships = parsed.documents.ships.map((entry) => importShipDocument(entry));
-  return createCampaignBundle(campaign, { characters, ships });
+  const contracts = (parsed.documents.contracts ?? []).map((entry) => importContractDocument(entry));
+  return createCampaignBundle(campaign, { characters, ships, contracts });
 }
 
 export function exportCampaignBundle(bundle, { space = 2 } = {}) {
