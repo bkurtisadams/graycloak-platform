@@ -36,12 +36,12 @@ test('terminal presentation avoids rounded-card styling', async () => {
   assert.doesNotMatch(css, /box-shadow/);
 });
 
-test('v0.7.1 retains contextual help and highlighted legal actions', async () => {
+test('v0.7.2 retains contextual help and highlighted legal actions', async () => {
   const html = await read('index.html');
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /CLIENT v0\.7\.1/);
+  assert.match(html, /CLIENT v0\.7\.2/);
   assert.match(html, /data-help-topic="personnel-record"/);
   assert.match(html, /id="context-help"/);
   assert.match(app, /helpForTopic/);
@@ -54,11 +54,11 @@ test('v0.7.1 retains contextual help and highlighted legal actions', async () =>
   assert.match(css, /\.help-panel/);
 });
 
-test('v0.7.1 specialization UI uses engine-supplied legal choices instead of free text', async () => {
+test('v0.7.2 specialization UI uses engine-supplied legal choices instead of free text', async () => {
   const html = await read('index.html');
   const app = await read('app.js');
 
-  assert.match(html, /CLIENT v0\.7\.1/);
+  assert.match(html, /CLIENT v0\.7\.2/);
   assert.match(app, /available\.choices\.specializations/);
   assert.doesNotMatch(app, /id = 'skill-specialization'/);
   assert.doesNotMatch(app, /id = 'benefit-specialization'/);
@@ -66,13 +66,13 @@ test('v0.7.1 specialization UI uses engine-supplied legal choices instead of fre
 });
 
 
-test('v0.7.1 exposes character and ship document actions after chargen', async () => {
+test('v0.7.2 exposes character and ship document actions after chargen', async () => {
   const html = await read('index.html');
   const app = await read('app.js');
   const model = await read('ui-model.js');
 
   assert.match(html, /SAVE CHARGEN JSON/);
-  assert.match(html, /LOAD CHARGEN JSON/);
+  assert.match(html, /LOAD JSON/);
   assert.match(app, /createCharacterDocument/);
   assert.match(app, /exportCharacterDocument/);
   assert.match(app, /EXPORT CHARACTER/);
@@ -87,7 +87,7 @@ test('v0.7.1 exposes character and ship document actions after chargen', async (
 });
 
 
-test('v0.7.1 exposes opt-in character, ship, and registry generators', async () => {
+test('v0.7.2 exposes opt-in character, ship, and registry generators', async () => {
   const html = await read('index.html');
   const app = await read('app.js');
 
@@ -97,4 +97,18 @@ test('v0.7.1 exposes opt-in character, ship, and registry generators', async () 
   assert.match(app, /generateCharacterName/);
   assert.match(app, /generateShipName/);
   assert.match(app, /generateShipRegistry/);
+});
+
+
+test('v0.7.2 routes chargen, gameplay character, and ship JSON through the document loader', async () => {
+  const html = await read('index.html');
+  const app = await read('app.js');
+  const loader = await read('document-loader.js');
+
+  assert.match(html, /\[ LOAD JSON \]/);
+  assert.match(app, /loadTravellerDocument/);
+  assert.match(loader, /importCharacterDocument/);
+  assert.match(loader, /importShipDocument/);
+  assert.match(loader, /importCharacter/);
+  assert.match(app, /GAMEPLAY DOCUMENT LOADED/);
 });

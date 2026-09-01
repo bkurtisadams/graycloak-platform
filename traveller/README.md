@@ -2,9 +2,9 @@
 
 Standalone browser client for the original-universe Classic Traveller project.
 
-## v0.7.1 scope
+## v0.7.2 scope
 
-The browser retains the complete Book 1 character-generation flow and the v0.7.0 Type S Scout/Courier Ship Document handoff. v0.7.1 is a focused usability pass.
+The browser retains the complete Book 1 character-generation flow and the v0.7.0 Type S Scout/Courier Ship Document handoff. v0.7.2 is a focused persistence hotfix plus the v0.7.1 usability pass.
 
 The client imports the pure rules engine from `../packages/classic-traveller-rules/`. It does not duplicate Book 1 career tables or Book 2 ship specifications in browser code.
 
@@ -24,7 +24,7 @@ http://localhost:8080/traveller/client/
 
 Do not type the URL into Command Prompt; enter it in the browser address bar.
 
-## v0.7.1 browser flow
+## v0.7.2 browser flow
 
 After character generation is complete:
 
@@ -35,7 +35,7 @@ After character generation is complete:
 - ship name and registry may be entered without changing canonical design data
 - `[ EXPORT SHIP ]` exports Ship Document v1
 
-Usability additions in v0.7.1:
+Usability and persistence additions in v0.7.2:
 
 - `[ RANDOM ]` beside the character name suggests a broad provisional human name
 - `[ RANDOM ]` beside the ship name suggests a ship name
@@ -50,4 +50,9 @@ For a duplicate Scout Ship result, the final personnel record shows the number o
 
 The canonical design comes from Classic Traveller Book 2 p.19 and the Facsimile errata. In particular, the standard Type S uses a Model/1bis computer. The later Book 2 combat data-card example is not used to overwrite the standard-design specification.
 
-No Firebase, accounts, campaign world, trade loop, travel execution, personal combat, or starship combat are included in v0.7.1.
+No Firebase, accounts, campaign world, trade loop, travel execution, personal combat, or starship combat are included in v0.7.2.
+
+
+### v0.7.2 persistence hotfix
+
+`[ LOAD JSON ]` accepts chargen saves, gameplay Character Documents, and Ship Documents. Gameplay characters and ships remain separate documents and are linked by stable IDs.

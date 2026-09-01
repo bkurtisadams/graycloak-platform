@@ -3,9 +3,9 @@
 Pure JavaScript rules package for the Graycloak Classic Traveller browser-game project.
 It intentionally has no HTML, Foundry, Firebase, or server dependencies.
 
-## v0.7.1 scope
+## v0.7.2 scope
 
-v0.7.1 retains the v0.7.0 rules and persistence layer unchanged while the browser receives a focused usability pass. The rules package continues to provide the complete Book 1 character-generation engine and persistent starship layer.
+v0.7.2 retains the v0.7.0 rules and persistence layer unchanged while the browser receives a focused usability pass. The rules package continues to provide the complete Book 1 character-generation engine and persistent starship layer.
 
 Character generation includes:
 

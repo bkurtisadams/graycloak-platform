@@ -7,7 +7,7 @@ import {
   exportCharacter,
   exportCharacterDocument,
   exportShipDocument,
-  importCharacter,
+  importCharacterDocument,
   linkCharacterToShip,
   performChargenAction,
   updateCharacterShipReference,
@@ -27,6 +27,11 @@ import {
   serviceName,
   skillTableName
 } from './ui-model.js';
+
+import {
+  TRAVELLER_DOCUMENT_KINDS,
+  loadTravellerDocument
+} from './document-loader.js';
 
 import {
   generateCharacterName,
@@ -64,6 +69,7 @@ const el = {
 let character = createCharacter();
 let gameplayDocument = null;
 let shipDocument = null;
+let documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
 let openHelpTopic = null;
 
 function setStatus(message, kind = '') {
@@ -95,9 +101,30 @@ function showHelp(topic, source) {
 }
 
 function ensureGameplayDocument() {
-  if (character.phase !== CHARGEN_PHASES.COMPLETE) return null;
-  if (!gameplayDocument) gameplayDocument = createCharacterDocument(character);
+  if (gameplayDocument) return gameplayDocument;
+  if (documentMode !== TRAVELLER_DOCUMENT_KINDS.CHARGEN || character.phase !== CHARGEN_PHASES.COMPLETE) return null;
+  gameplayDocument = createCharacterDocument(character);
   return gameplayDocument;
+}
+
+function gameplayProcedure() {
+  const missingShip = gameplayDocument?.shipRefs?.length && !shipDocument;
+  return {
+    available: { actions: [], choices: {} },
+    title: 'GAMEPLAY DOCUMENT LOADED',
+    text: missingShip
+      ? 'The character document is loaded. Its ship is stored separately; load the matching Ship Document JSON to restore the ship register.'
+      : 'The persistent gameplay character document is loaded.',
+    detail: missingShip ? `${gameplayDocument.shipRefs.length} ship reference${gameplayDocument.shipRefs.length === 1 ? '' : 's'} recorded` : '',
+    helpTopic: 'final-character-record',
+    attention: Boolean(missingShip)
+  };
+}
+
+function shipMatchesCharacter(ship, document) {
+  if (!ship || !document) return false;
+  return document.shipRefs.some((ref) => ref.shipId === ship.identity.id)
+    && ship.authority.assignedCharacterId === document.identity.id;
 }
 
 function renderShip() {
@@ -152,7 +179,7 @@ function renderActions(procedure) {
   el.actions.replaceChildren();
   const { available } = procedure;
 
-  if (character.phase === CHARGEN_PHASES.COMPLETE) {
+  if (documentMode === TRAVELLER_DOCUMENT_KINDS.CHARACTER || character.phase === CHARGEN_PHASES.COMPLETE) {
     const gameplay = ensureGameplayDocument();
 
     const exportCharacterButton = document.createElement('button');
@@ -275,9 +302,12 @@ function renderActions(procedure) {
 }
 
 function render() {
-  if (el.name.value !== character.name) el.name.value = character.name ?? '';
+  const gameplayOnly = documentMode === TRAVELLER_DOCUMENT_KINDS.CHARACTER;
+  const displayName = gameplayOnly ? gameplayDocument?.identity.name : character.name;
+  if (el.name.value !== (displayName ?? '')) el.name.value = displayName ?? '';
+  el.saveCharacter.disabled = gameplayOnly;
 
-  if (character.phase === CHARGEN_PHASES.COMPLETE) {
+  if (gameplayOnly || character.phase === CHARGEN_PHASES.COMPLETE) {
     const finalDocument = ensureGameplayDocument();
     el.recordHeading.textContent = 'FINAL PERSONNEL RECORD';
     el.recordHelp.dataset.helpTopic = 'final-character-record';
@@ -290,10 +320,11 @@ function render() {
     el.record.textContent = buildCharacterRecord(character);
   }
 
-  el.serviceHistory.textContent = buildServiceHistory(character);
-  el.generationLog.textContent = buildGenerationLog(character);
+  const historySource = gameplayOnly ? gameplayDocument : character;
+  el.serviceHistory.textContent = buildServiceHistory(historySource);
+  el.generationLog.textContent = buildGenerationLog(historySource);
 
-  const procedure = buildProcedure(character);
+  const procedure = gameplayOnly ? gameplayProcedure() : buildProcedure(character);
   el.procedure.replaceChildren();
   el.procedure.className = `procedure${procedure.attention ? ' attention' : ''}`;
 
@@ -323,8 +354,10 @@ function render() {
 
 function execute(action, payload = {}) {
   try {
+    if (documentMode !== TRAVELLER_DOCUMENT_KINDS.CHARGEN) throw new Error('chargen actions are unavailable while a gameplay document is loaded');
     const result = performChargenAction(character, action, payload);
     character = result.character;
+    documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
     gameplayDocument = null;
     shipDocument = null;
     closeHelp();
@@ -352,7 +385,8 @@ function exportGameplayCharacter() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const base = safeFilename(character.name).replace(/\.json$/i, '');
+    const exportName = gameplayDocument?.identity.name ?? character.name;
+    const base = safeFilename(exportName).replace(/\.json$/i, '');
     a.download = `${base}.character.json`;
     document.body.append(a);
     a.click();
@@ -419,15 +453,35 @@ function saveCharacter() {
   }
 }
 
-async function loadCharacter(file) {
+async function loadDocument(file) {
   if (!file) return;
   try {
     const text = await file.text();
-    character = importCharacter(text);
-    gameplayDocument = null;
-    shipDocument = null;
+    const loaded = loadTravellerDocument(text);
+
+    if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CHARGEN) {
+      character = loaded.character;
+      gameplayDocument = null;
+      shipDocument = null;
+      documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
+      setStatus('CHARGEN JSON LOADED', 'ok');
+    } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CHARACTER) {
+      gameplayDocument = loaded.characterDocument;
+      documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
+      if (shipDocument && !shipMatchesCharacter(shipDocument, gameplayDocument)) shipDocument = null;
+      setStatus('CHARACTER DOCUMENT LOADED', 'ok');
+    } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.SHIP) {
+      if (gameplayDocument && !shipMatchesCharacter(loaded.shipDocument, gameplayDocument)) {
+        throw new Error(`ship ${loaded.shipDocument.identity.id} is not linked to loaded character ${gameplayDocument.identity.id}`);
+      }
+      shipDocument = loaded.shipDocument;
+      if (gameplayDocument) {
+        shipDocument = updateShipAssignedCharacterName(shipDocument, gameplayDocument.identity.name);
+      }
+      setStatus(gameplayDocument ? 'LINKED SHIP DOCUMENT LOADED' : 'SHIP DOCUMENT LOADED', 'ok');
+    }
+
     closeHelp();
-    setStatus('JSON LOADED', 'ok');
     render();
   } catch (error) {
     console.error(error);
@@ -447,17 +501,25 @@ document.addEventListener('keydown', (event) => {
 });
 
 function updateCharacterName(name, statusMessage = 'NAME UPDATED') {
-  character = { ...character, name };
-  if (gameplayDocument) {
-    const prior = gameplayDocument;
-    gameplayDocument = createCharacterDocument(character, {
-      id: prior.identity.id,
-      aliases: prior.identity.aliases,
-      notes: prior.notes
-    });
-    for (const ref of prior.shipRefs) gameplayDocument = linkCharacterToShip(gameplayDocument, ref);
+  if (documentMode === TRAVELLER_DOCUMENT_KINDS.CHARACTER) {
+    const next = JSON.parse(JSON.stringify(gameplayDocument));
+    next.identity.name = name;
+    gameplayDocument = importCharacterDocument(next);
+  } else {
+    character = { ...character, name };
+    if (gameplayDocument) {
+      const prior = gameplayDocument;
+      gameplayDocument = createCharacterDocument(character, {
+        id: prior.identity.id,
+        aliases: prior.identity.aliases,
+        notes: prior.notes
+      });
+      for (const ref of prior.shipRefs) gameplayDocument = linkCharacterToShip(gameplayDocument, ref);
+    }
   }
-  if (shipDocument) shipDocument = updateShipAssignedCharacterName(shipDocument, name);
+  if (shipDocument && (!gameplayDocument || shipMatchesCharacter(shipDocument, gameplayDocument))) {
+    shipDocument = updateShipAssignedCharacterName(shipDocument, name);
+  }
   setStatus(statusMessage, 'ok');
   render();
 }
@@ -505,6 +567,7 @@ el.generateShipRegistry.addEventListener('click', () => {
 el.newCharacter.addEventListener('click', () => {
   if (!window.confirm('Discard the current chargen state and create a new character?')) return;
   character = createCharacter();
+  documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
   gameplayDocument = null;
   shipDocument = null;
   closeHelp();
@@ -514,6 +577,6 @@ el.newCharacter.addEventListener('click', () => {
 
 el.saveCharacter.addEventListener('click', saveCharacter);
 el.loadCharacter.addEventListener('click', () => el.loadFile.click());
-el.loadFile.addEventListener('change', () => loadCharacter(el.loadFile.files?.[0]));
+el.loadFile.addEventListener('change', () => loadDocument(el.loadFile.files?.[0]));
 
 render();

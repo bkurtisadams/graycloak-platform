@@ -1,0 +1,39 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+import {
+  TRAVELLER_DOCUMENT_KINDS,
+  loadTravellerDocument
+} from '../client/document-loader.js';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const examples = path.resolve(here, '../examples');
+
+async function readExample(name) {
+  return readFile(path.join(examples, name), 'utf8');
+}
+
+test('loader accepts a v0.7 gameplay Character Document instead of sending it to chargen import', async () => {
+  const loaded = loadTravellerDocument(await readExample('Hawkeye.character.json'));
+  assert.equal(loaded.kind, TRAVELLER_DOCUMENT_KINDS.CHARACTER);
+  assert.equal(loaded.characterDocument.documentType, 'classic-traveller-character');
+  assert.equal(loaded.characterDocument.schemaVersion, 2);
+  assert.equal(loaded.characterDocument.identity.name, 'Hawkeye');
+});
+
+test('loader accepts a separate Ship Document', async () => {
+  const loaded = loadTravellerDocument(await readExample('Hawkeye.ship.json'));
+  assert.equal(loaded.kind, TRAVELLER_DOCUMENT_KINDS.SHIP);
+  assert.equal(loaded.shipDocument.documentType, 'classic-traveller-ship');
+  assert.equal(loaded.shipDocument.schemaVersion, 1);
+});
+
+test('loader rejects unknown typed documents instead of misrouting them as chargen', () => {
+  assert.throws(
+    () => loadTravellerDocument({ documentType: 'unknown-traveller-document', schemaVersion: 1 }),
+    /unsupported Traveller documentType/
+  );
+});

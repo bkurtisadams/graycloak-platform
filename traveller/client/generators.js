@@ -1,4 +1,4 @@
-// Client-side setting utilities for Traveller v0.7.1.
+// Client-side setting utilities for Traveller v0.7.2.
 // These are intentionally not Classic Traveller RAW. They provide optional
 // suggestions only; the player can always type a different value.
 
