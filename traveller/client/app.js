@@ -154,7 +154,10 @@ import {
   createEncounterDocument,
   importEncounterDocument,
   resolveEncounterRound,
-  avoidEncounter
+  avoidEncounter,
+  encounterRangeGuide,
+  repositionEncounterCombatant,
+  setEncounterRangeFromPositions
 } from '../src/encounter-document.js';
 
 import {
@@ -283,7 +286,17 @@ const el = {
   encounterRecord: document.querySelector('#encounter-record'),
   encounterActions: document.querySelector('#encounter-actions'),
   encounterTactical: document.querySelector('#encounter-tactical'),
+  encounterSelectionStatus: document.querySelector('#encounter-selection-status'),
+  encounterMapViewport: document.querySelector('#encounter-map-viewport'),
   encounterMap: document.querySelector('#encounter-map'),
+  encounterZoomOut: document.querySelector('#encounter-zoom-out'),
+  encounterZoomLabel: document.querySelector('#encounter-zoom-label'),
+  encounterZoomIn: document.querySelector('#encounter-zoom-in'),
+  encounterZoomFit: document.querySelector('#encounter-zoom-fit'),
+  encounterApplyRange: document.querySelector('#encounter-apply-range'),
+  encounterPartyRoster: document.querySelector('#encounter-party-roster'),
+  encounterRosterPanel: document.querySelector('#encounter-roster-panel'),
+  encounterRosterSummary: document.querySelector('#encounter-roster-summary'),
   encounterRoster: document.querySelector('#encounter-roster'),
   operationsTabEncounter: document.querySelector('#operations-tab-encounter'),
   operationsTabPort: document.querySelector('#operations-tab-port'),
@@ -305,6 +318,8 @@ const el = {
   combatSetupForm: document.querySelector('#combat-setup-form'),
   combatSetupClose: document.querySelector('#combat-setup-close'),
   combatSetupCancel: document.querySelector('#combat-setup-cancel'),
+  combatEnemyGroups: document.querySelector('#combat-enemy-groups'),
+  combatAddEnemyType: document.querySelector('#combat-add-enemy-type'),
   combatEnemyName: document.querySelector('#combat-enemy-name'),
   combatEnemyCount: document.querySelector('#combat-enemy-count'),
   combatEnemyStr: document.querySelector('#combat-enemy-str'),
@@ -323,6 +338,7 @@ const el = {
 
 let character = createCharacter();
 let gameplayDocument = null;
+let partyCharacterDocuments = [];
 let shipDocument = null;
 let campaignDocument = null;
 let contractDocuments = [];
@@ -337,7 +353,9 @@ let subsectorZoom = 1;
 let speculativeBrokerDM = 0;
 let operationsDeskTab = 'trade';
 let pendingRoll = null;
+let selectedEncounterActorId = null;
 let selectedEncounterTargetId = null;
+let encounterMapZoom = 1;
 const detailPanels = {
   personnel: false,
   ship: false,
@@ -848,7 +866,15 @@ function ensureGameplayDocument() {
   if (gameplayDocument) return gameplayDocument;
   if (documentMode !== TRAVELLER_DOCUMENT_KINDS.CHARGEN || character.phase !== CHARGEN_PHASES.COMPLETE) return null;
   gameplayDocument = createCharacterDocument(character);
+  partyCharacterDocuments = [gameplayDocument];
   return gameplayDocument;
+}
+
+function currentPartyCharacters() {
+  const byId = new Map(partyCharacterDocuments.map((entry) => [entry.identity.id, entry]));
+  if (gameplayDocument) byId.set(gameplayDocument.identity.id, gameplayDocument);
+  const order = campaignDocument?.party?.characterIds ?? [...byId.keys()];
+  return order.map((id) => byId.get(id)).filter(Boolean);
 }
 
 function systemByName(name) {
@@ -1106,7 +1132,7 @@ function renderShip() {
 
 function persistGameplayDocuments() {
   if (!registry) return;
-  if (gameplayDocument) registry.put(gameplayDocument);
+  for (const partyCharacter of currentPartyCharacters()) registry.put(partyCharacter);
   if (shipDocument) registry.put(shipDocument);
   for (const contract of contractDocuments) registry.put(contract);
   for (const situation of situationDocuments) registry.put(situation);
@@ -1118,7 +1144,7 @@ function persistGameplayDocuments() {
 function syncCampaignRefs() {
   if (!campaignDocument) return;
   campaignDocument = refreshCampaignDocumentRefs(campaignDocument, {
-    characters: gameplayDocument ? [gameplayDocument] : [],
+    characters: currentPartyCharacters(),
     ships: shipDocument ? [shipDocument] : [],
     contracts: contractDocuments,
     situations: situationDocuments,
@@ -2432,7 +2458,7 @@ function resolveSituationChoice(situationId, choiceId) {
   }
 }
 
-function preferredPersonalWeapon() {
+function preferredPersonalWeapon(characterDocument = gameplayDocument) {
   const skillWeapons = [
     ['Laser Rifle', 'laser-rifle'], ['Laser Carbine', 'laser-carbine'],
     ['Automatic Rifle', 'automatic-rifle'], ['Rifle', 'rifle'], ['Carbine', 'carbine'],
@@ -2441,12 +2467,12 @@ function preferredPersonalWeapon() {
     ['Broadsword', 'broadsword'], ['Cutlass', 'cutlass'], ['Sword', 'sword'],
     ['Blade', 'blade'], ['Dagger', 'dagger']
   ];
-  const equipment = new Set((gameplayDocument?.benefits?.equipment ?? []).map((entry) => String(entry.name).toLowerCase()));
+  const equipment = new Set((characterDocument?.benefits?.equipment ?? []).map((entry) => String(entry.name).toLowerCase()));
   const equipped = skillWeapons.find(([name]) => equipment.has(name.toLowerCase()));
   if (equipped) return equipped[1];
   const trained = skillWeapons
-    .filter(([name]) => Number(gameplayDocument?.skills?.[name] ?? -1) >= 0)
-    .sort((left, right) => Number(gameplayDocument.skills[right[0]] ?? 0) - Number(gameplayDocument.skills[left[0]] ?? 0));
+    .filter(([name]) => Number(characterDocument?.skills?.[name] ?? -1) >= 0)
+    .sort((left, right) => Number(characterDocument.skills[right[0]] ?? 0) - Number(characterDocument.skills[left[0]] ?? 0));
   return trained[0]?.[1] ?? 'hands';
 }
 
@@ -2477,6 +2503,24 @@ function selectedEncounterTarget(encounter) {
   return selected;
 }
 
+function selectedEncounterActor(encounter) {
+  const declared = new Set(encounter?.roundState?.declaredActions?.map((entry) => entry.actorId) ?? []);
+  const active = encounter?.combatants.filter((entry) => entry.side === 'party' && entry.status === 'active') ?? [];
+  const awaiting = active.filter((entry) => !declared.has(entry.id));
+  let selected = awaiting.find((entry) => entry.id === selectedEncounterActorId) ?? awaiting[0] ?? active[0] ?? null;
+  selectedEncounterActorId = selected?.id ?? null;
+  return selected;
+}
+
+function setEncounterActor(encounterId, actorId) {
+  const encounter = encounterDocuments.find((entry) => entry.identity.id === encounterId);
+  const declared = new Set(encounter?.roundState?.declaredActions?.map((entry) => entry.actorId) ?? []);
+  const actor = encounter?.combatants.find((entry) => entry.id === actorId && entry.side === 'party' && entry.status === 'active' && !declared.has(entry.id));
+  if (!actor) return;
+  selectedEncounterActorId = actor.id;
+  renderEncounter();
+}
+
 function setEncounterTarget(encounterId, targetId) {
   const encounter = encounterDocuments.find((entry) => entry.identity.id === encounterId);
   const target = encounter?.combatants.find((entry) => entry.id === targetId && entry.side === 'opposition' && entry.status === 'active');
@@ -2496,52 +2540,147 @@ function combatantSkillLevel(combatant) {
   return Math.max(...weapon.skillNames.map((name) => Number(combatant.skills?.[name] ?? 0)));
 }
 
+function setEncounterMapZoom(value) {
+  encounterMapZoom = Math.max(0.5, Math.min(2, Math.round(value * 4) / 4));
+  el.encounterMap.style.width = `${1280 * encounterMapZoom}px`;
+  el.encounterMap.style.height = `${800 * encounterMapZoom}px`;
+  el.encounterZoomLabel.textContent = `${Math.round(encounterMapZoom * 100)}%`;
+}
+
+function fitEncounterMap() {
+  const width = Math.max(1, el.encounterMapViewport.clientWidth - 18);
+  setEncounterMapZoom(width / 1280);
+  el.encounterMapViewport.scrollTo({ left: 0, top: 0 });
+}
+
+function moveEncounterToken(encounterId, combatantId, column, row) {
+  try {
+    const index = encounterDocuments.findIndex((entry) => entry.identity.id === encounterId);
+    if (index < 0) throw new Error('encounter is unavailable');
+    const result = repositionEncounterCombatant(encounterDocuments[index], { combatantId, column, row });
+    encounterDocuments[index] = result.encounter;
+    if (result.entry) logActivity('COMBAT', result.entry.text);
+    persistCampaignState();
+    renderEncounter();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect } = {}) {
+  if (encounter.status !== 'active' || combatant.status !== 'active') return;
+  let drag = null;
+  group.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    drag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, moved: false };
+    group.setPointerCapture(event.pointerId);
+    group.classList.add('dragging');
+  });
+  group.addEventListener('pointermove', (event) => {
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 4) drag.moved = true;
+  });
+  group.addEventListener('pointerup', (event) => {
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const moved = drag.moved;
+    drag = null;
+    group.classList.remove('dragging');
+    if (!moved) return onSelect?.();
+    const rect = el.encounterMap.getBoundingClientRect();
+    const column = Math.max(0, Math.min(encounter.map.columns - 1, Math.floor((event.clientX - rect.left) * 1280 / rect.width / 40)));
+    const row = Math.max(0, Math.min(encounter.map.rows - 1, Math.floor((event.clientY - rect.top) * 800 / rect.height / 40)));
+    moveEncounterToken(encounter.identity.id, combatant.id, column, row);
+  });
+  group.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect?.(); }
+  });
+}
+
 function renderEncounterMap(encounter) {
   if (!encounter) {
     el.encounterTactical.hidden = true;
     el.encounterMap.replaceChildren();
+    el.encounterPartyRoster.replaceChildren();
     el.encounterRoster.replaceChildren();
+    el.encounterSelectionStatus.textContent = 'ACTOR -- // TARGET --';
+    el.encounterApplyRange.hidden = true;
     return;
   }
   el.encounterTactical.hidden = false;
-  const width = 480;
-  const height = 320;
+  const width = 1280;
+  const height = 800;
   const cellWidth = width / encounter.map.columns;
   const cellHeight = height / encounter.map.rows;
   const fragments = [];
   for (let column = 0; column <= encounter.map.columns; column += 1) {
-    fragments.push(svgElement('line', { x1: column * cellWidth, y1: 0, x2: column * cellWidth, y2: height, class: column % 3 === 0 ? 'encounter-grid-major' : 'encounter-grid-line' }));
+    fragments.push(svgElement('line', { x1: column * cellWidth, y1: 0, x2: column * cellWidth, y2: height, class: column % 4 === 0 ? 'encounter-grid-major' : 'encounter-grid-line' }));
   }
   for (let row = 0; row <= encounter.map.rows; row += 1) {
-    fragments.push(svgElement('line', { x1: 0, y1: row * cellHeight, x2: width, y2: row * cellHeight, class: row % 2 === 0 ? 'encounter-grid-major' : 'encounter-grid-line' }));
+    fragments.push(svgElement('line', { x1: 0, y1: row * cellHeight, x2: width, y2: row * cellHeight, class: row % 4 === 0 ? 'encounter-grid-major' : 'encounter-grid-line' }));
   }
+  const actor = selectedEncounterActor(encounter);
   const target = selectedEncounterTarget(encounter);
+  const declared = new Set(encounter.roundState?.declaredActions?.map((entry) => entry.actorId) ?? []);
+  let guide = null;
+  if (actor && target) {
+    guide = encounterRangeGuide(encounter, actor.id, target.id);
+    const actorX = actor.position.column * cellWidth + cellWidth / 2;
+    const actorY = actor.position.row * cellHeight + cellHeight / 2;
+    const targetX = target.position.column * cellWidth + cellWidth / 2;
+    const targetY = target.position.row * cellHeight + cellHeight / 2;
+    fragments.push(svgElement('line', { x1: actorX, y1: actorY, x2: targetX, y2: targetY, class: 'encounter-range-line' }));
+  }
   for (const combatant of encounter.combatants) {
     const x = combatant.position.column * cellWidth + cellWidth / 2;
     const y = combatant.position.row * cellHeight + cellHeight / 2;
+    const group = svgElement('g', {
+      class: 'encounter-token', role: combatant.status === 'active' ? 'button' : 'img',
+      tabindex: combatant.status === 'active' ? 0 : -1,
+      'aria-label': `${combatant.name}, ${combatant.side}, ${combatant.status}`
+    });
     if (combatant.side === 'party') {
-      fragments.push(svgElement('circle', { cx: x, cy: y, r: 14, class: 'encounter-token-pc' }));
+      group.append(svgElement('circle', { cx: x, cy: y, r: 15, class: `encounter-token-pc${actor?.id === combatant.id ? ' selected' : ''}${declared.has(combatant.id) ? ' declared' : ''}` }));
       const label = svgElement('text', { x, y, class: 'encounter-token-pc-label' });
       label.textContent = (combatant.name || 'P').charAt(0).toUpperCase();
-      fragments.push(label);
+      group.append(label);
+      attachEncounterTokenInteraction(group, encounter, combatant, { onSelect: () => setEncounterActor(encounter.identity.id, combatant.id) });
+      fragments.push(group);
       continue;
     }
     const circle = svgElement('circle', {
       cx: x, cy: y, r: 8,
       class: `encounter-token-enemy${target?.id === combatant.id ? ' selected' : ''}${combatant.status === 'active' ? '' : ' inactive'}`,
-      role: combatant.status === 'active' ? 'button' : 'img',
-      tabindex: combatant.status === 'active' ? 0 : -1,
       'aria-label': `${combatant.name}, ${combatant.status}${target?.id === combatant.id ? ', selected target' : ''}`
     });
-    if (combatant.status === 'active') {
-      circle.addEventListener('click', () => setEncounterTarget(encounter.identity.id, combatant.id));
-      circle.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setEncounterTarget(encounter.identity.id, combatant.id); }
-      });
-    }
-    fragments.push(circle);
+    group.append(circle);
+    attachEncounterTokenInteraction(group, encounter, combatant, { onSelect: () => setEncounterTarget(encounter.identity.id, combatant.id) });
+    fragments.push(group);
   }
   el.encounterMap.replaceChildren(...fragments);
+  setEncounterMapZoom(encounterMapZoom);
+
+  const guideText = guide ? ` // MAP GUIDE ${guide.suggestedRange.toUpperCase().replace('-', ' ')} / ${guide.distance} SQ` : '';
+  el.encounterSelectionStatus.textContent = `ACTOR ${actor?.name.toUpperCase() ?? '--'} // TARGET ${target?.name.toUpperCase() ?? '--'} // BOOK 1 RANGE ${encounter.range.toUpperCase().replace('-', ' ')}${guideText}`;
+  el.encounterApplyRange.hidden = !guide || guide.matches || encounter.status !== 'active';
+
+  const partyHeading = document.createElement('div');
+  partyHeading.className = 'encounter-roster-heading';
+  partyHeading.textContent = `PARTY / ROUND ${encounter.round} DECLARATIONS`;
+  const partyCards = encounter.combatants.filter((entry) => entry.side === 'party').map((partyMember) => {
+    const card = document.createElement('button');
+    card.type = 'button';
+    const hasDeclared = declared.has(partyMember.id);
+    card.className = `encounter-enemy-card encounter-party-card${actor?.id === partyMember.id ? ' selected' : ''}${hasDeclared ? ' declared' : ''}${partyMember.status === 'active' ? '' : ' inactive'}`;
+    card.disabled = partyMember.status !== 'active' || hasDeclared;
+    const declaration = encounter.roundState?.declaredActions?.find((entry) => entry.actorId === partyMember.id);
+    card.textContent = `${actor?.id === partyMember.id ? '▶ ' : ''}${partyMember.name.toUpperCase()} / ${hasDeclared ? declaration.action.toUpperCase() : partyMember.status.toUpperCase()}\nSTR ${partyMember.current.STR}/${partyMember.characteristics.STR}  DEX ${partyMember.current.DEX}/${partyMember.characteristics.DEX}  END ${partyMember.current.END}/${partyMember.characteristics.END}\n${getPersonalWeapon(partyMember.weaponKey).name} / SKILL-${combatantSkillLevel(partyMember)} / ${partyMember.armor.toUpperCase()}`;
+    card.addEventListener('click', () => setEncounterActor(encounter.identity.id, partyMember.id));
+    return card;
+  });
+  el.encounterPartyRoster.replaceChildren(partyHeading, ...partyCards);
 
   const heading = document.createElement('div');
   heading.className = 'encounter-roster-heading';
@@ -2563,6 +2702,7 @@ function renderEncounterMap(encounter) {
     return card;
   });
   el.encounterRoster.replaceChildren(heading, ...cards);
+  el.encounterRosterSummary.textContent = `ENEMY ROSTER [${cards.length}]`;
 }
 
 function openCombatSetupDialog() {
@@ -2586,37 +2726,80 @@ function setupInteger(input, label, minimum, maximum) {
   return value;
 }
 
+function relabelCombatEnemyGroups() {
+  [...el.combatEnemyGroups.querySelectorAll('[data-enemy-group]')].forEach((group, index) => {
+    group.querySelector('legend').textContent = `ENEMY TYPE ${index + 1}`;
+  });
+}
+
+function addCombatEnemyGroup() {
+  const groups = [...el.combatEnemyGroups.querySelectorAll('[data-enemy-group]')];
+  if (groups.length >= 4) return setStatus('A MANUAL ENCOUNTER SUPPORTS UP TO FOUR ENEMY TYPES', 'error');
+  const group = groups[0].cloneNode(true);
+  group.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'));
+  group.querySelector('[data-combat-field="name"]').value = `Hostile Type ${groups.length + 1}`;
+  group.querySelector('[data-combat-field="count"]').value = '1';
+  const header = document.createElement('div');
+  header.className = 'combat-enemy-group-header';
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'text-button';
+  remove.textContent = '[ REMOVE TYPE ]';
+  remove.addEventListener('click', () => { group.remove(); relabelCombatEnemyGroups(); });
+  header.append(remove);
+  group.querySelector('.combat-setup-grid').before(header);
+  el.combatEnemyGroups.append(group);
+  relabelCombatEnemyGroups();
+}
+
+function combatEnemyGroupSpecs() {
+  const groups = [...el.combatEnemyGroups.querySelectorAll('[data-enemy-group]')];
+  const specs = groups.map((group, groupIndex) => {
+    const field = (name) => group.querySelector(`[data-combat-field="${name}"]`);
+    const baseName = field('name').value.trim();
+    if (!baseName) throw new Error(`enemy type ${groupIndex + 1} name is required`);
+    const count = setupInteger(field('count'), `enemy type ${groupIndex + 1} count`, 1, 8);
+    const characteristics = {
+      STR: setupInteger(field('str'), `enemy type ${groupIndex + 1} STR`, 1, 15),
+      DEX: setupInteger(field('dex'), `enemy type ${groupIndex + 1} DEX`, 1, 15),
+      END: setupInteger(field('end'), `enemy type ${groupIndex + 1} END`, 1, 15),
+      INT: setupInteger(field('int'), `enemy type ${groupIndex + 1} INT`, 1, 15)
+    };
+    const weaponKey = field('weapon').value;
+    const weapon = getPersonalWeapon(weaponKey);
+    const skillLevel = setupInteger(field('skill'), `enemy type ${groupIndex + 1} weapon skill`, 0, 5);
+    return {
+      baseName, count,
+      opponents: Array.from({ length: count }, (_, index) => ({
+        name: count === 1 ? baseName : `${baseName} ${index + 1}`,
+        characteristics,
+        skills: { [weapon.skillNames[0]]: skillLevel },
+        weaponKey,
+        armor: field('armor').value
+      }))
+    };
+  });
+  const total = groups.reduce((sum, group) => sum + setupInteger(group.querySelector('[data-combat-field="count"]'), 'enemy count', 1, 8), 0);
+  if (total > 16) throw new Error('a manual encounter supports at most sixteen enemies total');
+  return { groups: specs, opponents: specs.flatMap((entry) => entry.opponents), total };
+}
+
 function startManualEncounter() {
   if (!campaignDocument || !gameplayDocument) throw new Error('active campaign character is required');
   if (activeEncounterAtCurrentSystem()) throw new Error('resolve the active encounter before starting another');
-  const baseName = el.combatEnemyName.value.trim();
-  if (!baseName) throw new Error('enemy name is required');
-  const count = setupInteger(el.combatEnemyCount, 'enemy count', 1, 6);
-  const characteristics = {
-    STR: setupInteger(el.combatEnemyStr, 'enemy STR', 1, 15),
-    DEX: setupInteger(el.combatEnemyDex, 'enemy DEX', 1, 15),
-    END: setupInteger(el.combatEnemyEnd, 'enemy END', 1, 15),
-    INT: setupInteger(el.combatEnemyInt, 'enemy INT', 1, 15)
-  };
-  const weaponKey = el.combatEnemyWeapon.value;
-  const weapon = getPersonalWeapon(weaponKey);
-  const skillLevel = setupInteger(el.combatEnemySkill, 'enemy weapon skill', 0, 5);
+  const setup = combatEnemyGroupSpecs();
   const date = campaignDateSnapshot();
   const manualNumber = encounterDocuments.filter((entry) => entry.situationId === null).length + 1;
   const encounterKey = `${campaignDocument.identity.id}|manual-${manualNumber}|${date.year}-${date.dayOfYear}`;
-  const opponents = Array.from({ length: count }, (_, index) => ({
-    name: count === 1 ? baseName : `${baseName} ${index + 1}`,
-    characteristics,
-    skills: { [weapon.skillNames[0]]: skillLevel },
-    weaponKey,
-    armor: el.combatEnemyArmor.value,
-    playerWeaponKey: preferredPersonalWeapon()
-  }));
+  const characters = currentPartyCharacters();
+  const partyLoadouts = Object.fromEntries(characters.map((entry) => [entry.identity.id, { weaponKey: preferredPersonalWeapon(entry) }]));
+  const typeTitle = setup.groups.map((entry) => entry.baseName).join(' + ');
   let encounter = createEncounterDocument({
     campaign: campaignDocument,
-    character: gameplayDocument,
-    opponents,
-    title: `Manual Combat / ${baseName}${count > 1 ? ` ×${count}` : ''}`,
+    characters,
+    partyLoadouts,
+    opponents: setup.opponents,
+    title: `Manual Combat / ${typeTitle}`,
     encounterKey,
     date,
     range: el.combatStartingRange.value,
@@ -2633,11 +2816,12 @@ function startManualEncounter() {
   }
   encounterDocuments.push(encounter);
   campaignDocument = addEncounterToCampaign(campaignDocument, encounter);
+  selectedEncounterActorId = encounter.combatants.find((entry) => entry.side === 'party' && entry.status === 'active')?.id ?? null;
   selectedEncounterTargetId = encounter.combatants.find((entry) => entry.side === 'opposition' && entry.status === 'active')?.id ?? null;
   persistCampaignState();
   operationsDeskTab = 'encounter';
   closeCombatSetupDialog();
-  logActivity('COMBAT', `${encounter.identity.title} started manually / ${count} opponent${count === 1 ? '' : 's'} / ${encounter.range} range / surprise ${surpriseWinner ?? 'none'}`);
+  logActivity('COMBAT', `${encounter.identity.title} started manually / ${characters.length} PC${characters.length === 1 ? '' : 's'} / ${setup.total} opponent${setup.total === 1 ? '' : 's'} in ${setup.groups.length} type${setup.groups.length === 1 ? '' : 's'} / ${encounter.range} range / surprise ${surpriseWinner ?? 'none'}`);
   setStatus(`MANUAL COMBAT STARTED: ${encounter.identity.title.toUpperCase()}`, encounter.status === 'defeat' ? 'error' : 'ok');
   render();
 }
@@ -2674,13 +2858,15 @@ function startSituationEncounter(situation) {
       render();
       return;
     }
+    const characters = currentPartyCharacters();
+    const partyLoadouts = Object.fromEntries(characters.map((entry) => [entry.identity.id, { weaponKey: preferredPersonalWeapon(entry) }]));
     let encounter = createEncounterDocument({
       campaign: campaignDocument,
       situation,
-      character: gameplayDocument,
+      characters,
+      partyLoadouts,
       opponent: {
-        name: situation.actor?.name ?? 'Hostile Contact',
-        playerWeaponKey: preferredPersonalWeapon()
+        name: situation.actor?.name ?? 'Hostile Contact'
       },
       date: campaignDateSnapshot(),
       range: 'medium',
@@ -2697,6 +2883,8 @@ function startSituationEncounter(situation) {
     }
     encounterDocuments.push(encounter);
     campaignDocument = addEncounterToCampaign(campaignDocument, encounter);
+    selectedEncounterActorId = encounter.combatants.find((entry) => entry.side === 'party' && entry.status === 'active')?.id ?? null;
+    selectedEncounterTargetId = encounter.combatants.find((entry) => entry.side === 'opposition' && entry.status === 'active')?.id ?? null;
     resolveLinkedCombatSituation(encounter);
     syncCampaignRefs();
     persistCampaignState();
@@ -2710,23 +2898,45 @@ function startSituationEncounter(situation) {
   }
 }
 
-function resolveActiveEncounterAction(action, modifier = 0, targetId = null) {
+function resolveActiveEncounterAction(action, modifier = 0, targetId = null, actorId = null) {
   try {
     const active = activeEncounterAtCurrentSystem();
     if (!active) throw new Error('no active personal encounter');
     const index = encounterDocuments.findIndex((entry) => entry.identity.id === active.identity.id);
     const result = resolveEncounterRound(active, {
-      action, modifier, targetId, date: campaignDateSnapshot(),
-      dice: seededDice(`${active.identity.id}|round-${active.round}|${action}|${targetId ?? 'none'}|${modifier}`)
+      action, modifier, actorId: actorId ?? selectedEncounterActor(active)?.id ?? null, targetId, date: campaignDateSnapshot(),
+      dice: seededDice(`${active.identity.id}|round-${active.round}|${action}|${actorId ?? 'auto'}|${targetId ?? 'none'}|${modifier}`)
     });
     encounterDocuments[index] = result.encounter;
     for (const entry of result.entries) logActivity('COMBAT', entry.text);
     resolveLinkedCombatSituation(result.encounter);
     syncCampaignRefs();
     persistCampaignState();
-    setStatus(`ENCOUNTER ${result.encounter.status.toUpperCase()} / ROUND ${result.encounter.round}`, result.encounter.status === 'defeat' ? 'error' : 'ok');
+    selectedEncounterActorId = result.awaitingActorIds?.[0] ?? null;
+    setStatus(result.pending
+      ? `ACTION DECLARED / SELECT NEXT PARTY MEMBER / ROUND ${result.encounter.round}`
+      : `ENCOUNTER ${result.encounter.status.toUpperCase()} / ROUND ${result.encounter.round}`, result.encounter.status === 'defeat' ? 'error' : 'ok');
     closeRollDialog();
     render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function applySelectedMapRange() {
+  try {
+    const active = activeEncounterAtCurrentSystem();
+    const actor = selectedEncounterActor(active);
+    const target = selectedEncounterTarget(active);
+    if (!active || !actor || !target) throw new Error('select an active party actor and enemy target');
+    const index = encounterDocuments.findIndex((entry) => entry.identity.id === active.identity.id);
+    const result = setEncounterRangeFromPositions(active, { actorId: actor.id, targetId: target.id });
+    encounterDocuments[index] = result.encounter;
+    logActivity('COMBAT', result.entry.text);
+    persistCampaignState();
+    setStatus(`BOOK 1 RANGE SET TO ${result.encounter.range.toUpperCase().replace('-', ' ')}`, 'ok');
+    renderEncounter();
   } catch (error) {
     console.error(error);
     setStatus(error?.message ?? String(error), 'error');
@@ -2752,17 +2962,17 @@ function avoidActiveEncounter() {
 }
 
 function openEncounterAttackDialog(encounter) {
-  const player = encounter.combatants.find((entry) => entry.side === 'party');
+  const player = selectedEncounterActor(encounter);
   const target = selectedEncounterTarget(encounter);
-  if (!target) {
-    setStatus('NO ACTIVE ENEMY TARGET', 'error');
+  if (!player || !target) {
+    setStatus('SELECT AN ACTIVE PARTY ACTOR AND ENEMY TARGET', 'error');
     return;
   }
   openRollDialog({
     kind: 'encounter-attack',
     title: `ATTACK ${target.name.toUpperCase()} // ${player.name.toUpperCase()}`,
     basis: `PERSONAL COMBAT // ROUND ${encounter.round} // ${encounter.range.toUpperCase()} RANGE\nWeapon, skill, characteristic, armor, and range are built into the combat throw. Add only the referee's extra situational modifier.`,
-    target: 8, targetLocked: true, targetId: target.id,
+    target: 8, targetLocked: true, actorId: player.id, targetId: target.id,
     builtInText: `${player.weaponKey.toUpperCase().replaceAll('-', ' ')} / ${target.armor.toUpperCase()} / TABLE TARGET`
   });
   el.rollTargetRow.hidden = true;
@@ -2787,16 +2997,18 @@ function renderEncounter() {
   el.operationsTabEncounter?.classList.toggle('attention', Boolean(active));
   if (el.operationsTabEncounter) el.operationsTabEncounter.textContent = active ? '[ ENCOUNTER ! ]' : '[ ENCOUNTER ]';
   if (active) {
+    const actor = selectedEncounterActor(active);
     const target = selectedEncounterTarget(active);
     if (active.round === 1 && active.surprise.surpriseSideId === 'party') {
       el.encounterActions.append(makePortButton('AVOID', avoidActiveEncounter));
     }
     el.encounterActions.append(
-      makePortButton(target ? `ATTACK ${target.name.toUpperCase()}` : 'ATTACK', () => openEncounterAttackDialog(active), { disabled: !target }),
-      makePortButton('EVADE', () => resolveActiveEncounterAction('evade')),
-      makePortButton('CLOSE RANGE', () => resolveActiveEncounterAction('close')),
-      makePortButton('OPEN RANGE', () => resolveActiveEncounterAction('open')),
-      makePortButton('ESCAPE', () => resolveActiveEncounterAction('escape'))
+      makePortButton(actor && target ? `${actor.name.toUpperCase()}: ATTACK ${target.name.toUpperCase()}` : 'SELECT ACTOR + TARGET', () => openEncounterAttackDialog(active), { disabled: !actor || !target }),
+      makePortButton('EVADE', () => resolveActiveEncounterAction('evade', 0, null, actor?.id), { disabled: !actor }),
+      makePortButton('CLOSE RANGE', () => resolveActiveEncounterAction('close', 0, target?.id ?? null, actor?.id), { disabled: !actor || !target }),
+      makePortButton('OPEN RANGE', () => resolveActiveEncounterAction('open', 0, target?.id ?? null, actor?.id), { disabled: !actor || !target }),
+      makePortButton('ESCAPE', () => resolveActiveEncounterAction('escape', 0, null, actor?.id), { disabled: !actor }),
+      makePortButton('WAIT', () => resolveActiveEncounterAction('wait', 0, null, actor?.id), { disabled: !actor })
     );
   } else {
     const button = makePortButton('START COMBAT', openCombatSetupDialog);
@@ -2880,6 +3092,7 @@ function applyOperationsDeskTab() {
     if (panel) panel.hidden = key !== operationsDeskTab || !available;
     if (tabs[key]) tabs[key].setAttribute('aria-selected', key === operationsDeskTab ? 'true' : 'false');
   }
+  el.subsectorSection?.classList.toggle('encounter-workspace-active', operationsDeskTab === 'encounter' && panels.encounter?.dataset.available === 'true');
 }
 
 function setOperationsDeskTab(tab) {
@@ -3309,6 +3522,9 @@ function restoreCampaignFromRegistry(campaign) {
   selectedSystemId = null;
   normalizeCampaignMappedLocation();
   gameplayDocument = nextCharacter;
+  partyCharacterDocuments = campaign.party.characterIds
+    .map((id) => resolved.characters.find((entry) => entry.identity.id === id))
+    .filter(Boolean);
   shipDocument = nextShip;
   contractDocuments = resolved.contracts;
   situationDocuments = resolved.situations;
@@ -3335,6 +3551,7 @@ function newCampaign() {
     encounterDocuments = [];
     contactDocuments = [];
     threadDocuments = [];
+    partyCharacterDocuments = [gameplay];
     campaignDocument = createCampaignDocument({
       characters: [gameplay],
       ships: shipDocument ? [shipDocument] : [],
@@ -3655,6 +3872,7 @@ function execute(action, payload = {}) {
     character = result.character;
     documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
     gameplayDocument = null;
+    partyCharacterDocuments = [];
     shipDocument = null;
     campaignDocument = null;
     selectedSystemId = null;
@@ -3771,6 +3989,7 @@ async function loadDocument(file) {
     if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CHARGEN) {
       character = loaded.character;
       gameplayDocument = null;
+      partyCharacterDocuments = [];
       shipDocument = null;
       campaignDocument = null;
       contractDocuments = [];
@@ -3785,6 +4004,7 @@ async function loadDocument(file) {
       setStatus('CHARGEN JSON LOADED', 'ok');
     } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CHARACTER) {
       gameplayDocument = loaded.characterDocument;
+      partyCharacterDocuments = [gameplayDocument];
       documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
       campaignDocument = null;
       contractDocuments = [];
@@ -4054,6 +4274,7 @@ el.newCharacter.addEventListener('click', () => {
   character = createCharacter();
   documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
   gameplayDocument = null;
+  partyCharacterDocuments = [];
   shipDocument = null;
   campaignDocument = null;
   contractDocuments = [];
@@ -4125,6 +4346,32 @@ el.rollDialog.addEventListener('cancel', (event) => {
 });
 el.combatSetupClose.addEventListener('click', closeCombatSetupDialog);
 el.combatSetupCancel.addEventListener('click', closeCombatSetupDialog);
+el.combatAddEnemyType.addEventListener('click', addCombatEnemyGroup);
+el.encounterZoomOut.addEventListener('click', () => setEncounterMapZoom(encounterMapZoom - 0.25));
+el.encounterZoomIn.addEventListener('click', () => setEncounterMapZoom(encounterMapZoom + 0.25));
+el.encounterZoomFit.addEventListener('click', fitEncounterMap);
+el.encounterApplyRange.addEventListener('click', applySelectedMapRange);
+{
+  let pan = null;
+  el.encounterMapViewport.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0 || event.target.closest?.('.encounter-token')) return;
+    pan = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, left: el.encounterMapViewport.scrollLeft, top: el.encounterMapViewport.scrollTop };
+    el.encounterMapViewport.setPointerCapture(event.pointerId);
+    el.encounterMapViewport.classList.add('panning');
+  });
+  el.encounterMapViewport.addEventListener('pointermove', (event) => {
+    if (!pan || pan.pointerId !== event.pointerId) return;
+    el.encounterMapViewport.scrollLeft = pan.left - (event.clientX - pan.x);
+    el.encounterMapViewport.scrollTop = pan.top - (event.clientY - pan.y);
+  });
+  const endPan = (event) => {
+    if (!pan || pan.pointerId !== event.pointerId) return;
+    pan = null;
+    el.encounterMapViewport.classList.remove('panning');
+  };
+  el.encounterMapViewport.addEventListener('pointerup', endPan);
+  el.encounterMapViewport.addEventListener('pointercancel', endPan);
+}
 el.combatSetupDialog.addEventListener('cancel', (event) => {
   event.preventDefault();
   closeCombatSetupDialog();
@@ -4150,7 +4397,7 @@ el.rollDialogForm.addEventListener('submit', (event) => {
       return;
     }
     if (pendingRoll.kind === 'encounter-attack') {
-      resolveActiveEncounterAction('attack', modifier, pendingRoll.targetId);
+      resolveActiveEncounterAction('attack', modifier, pendingRoll.targetId, pendingRoll.actorId);
       return;
     }
     executeAdHocRoll();

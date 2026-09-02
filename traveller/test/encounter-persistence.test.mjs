@@ -7,7 +7,16 @@ import path from 'node:path';
 import { importCharacterDocument, importShipDocument } from '../../packages/classic-traveller-rules/index.js';
 import { createCampaignDocument, addSituationToCampaign, addEncounterToCampaign } from '../src/campaign-document.js';
 import { createSituationDocument } from '../src/situation-document.js';
-import { createEncounterDocument, exportEncounterDocument, importEncounterDocument, resolveEncounterRound, avoidEncounter } from '../src/encounter-document.js';
+import {
+  createEncounterDocument,
+  exportEncounterDocument,
+  importEncounterDocument,
+  resolveEncounterRound,
+  avoidEncounter,
+  encounterRangeGuide,
+  repositionEncounterCombatant,
+  setEncounterRangeFromPositions
+} from '../src/encounter-document.js';
 import { createDocumentRegistry, createMemoryStorage } from '../src/document-registry.js';
 import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from '../client/document-loader.js';
 
@@ -43,12 +52,13 @@ async function encounterFixture() {
   return { character, ship, campaign, situation, encounter };
 }
 
-test('Encounter Document v2 round-trips surprise, map positions, combatants, range, and audit history', async () => {
+test('Encounter Document v3 round-trips the expanded workspace, declarations, positions, range, and audit history', async () => {
   const { encounter } = await encounterFixture();
   const roundTrip = importEncounterDocument(exportEncounterDocument(encounter));
-  assert.equal(roundTrip.schemaVersion, 2);
-  assert.deepEqual(roundTrip.map, { grid: 'square', columns: 12, rows: 8 });
-  assert.deepEqual(roundTrip.combatants[0].position, { column: 1, row: 4 });
+  assert.equal(roundTrip.schemaVersion, 3);
+  assert.deepEqual(roundTrip.map, { grid: 'square', columns: 32, rows: 20, rangeGuide: 'graycloak-band-guide-v1' });
+  assert.deepEqual(roundTrip.roundState, { declaredActions: [] });
+  assert.deepEqual(roundTrip.combatants[0].position, { column: 4, row: 9 });
   assert.equal(roundTrip.surprise.surpriseSideId, 'party');
   assert.equal(roundTrip.range, 'medium');
   assert.equal(roundTrip.combatants[0].name, 'Hawkeye');
@@ -57,16 +67,33 @@ test('Encounter Document v2 round-trips surprise, map positions, combatants, ran
   assert.equal(avoided.status, 'avoided');
 });
 
-test('Encounter Document v1 imports migrate to the square-grid v2 schema', async () => {
+test('Encounter Document v1 imports migrate through v2 to the expanded v3 workspace', async () => {
   const { encounter } = await encounterFixture();
   const legacy = structuredClone(encounter);
   legacy.schemaVersion = 1;
   delete legacy.map;
   for (const combatant of legacy.combatants) delete combatant.position;
   const migrated = importEncounterDocument(legacy);
-  assert.equal(migrated.schemaVersion, 2);
+  assert.equal(migrated.schemaVersion, 3);
   assert.equal(migrated.map.grid, 'square');
+  assert.equal(migrated.map.columns, 32);
+  assert.equal(migrated.map.rows, 20);
   assert.ok(migrated.combatants.every((entry) => Number.isInteger(entry.position.column) && Number.isInteger(entry.position.row)));
+});
+
+test('dragged token positions persist while Book 1 range changes only through an explicit referee action', async () => {
+  const { encounter } = await encounterFixture();
+  const player = encounter.combatants.find((entry) => entry.side === 'party');
+  const foe = encounter.combatants.find((entry) => entry.side === 'opposition');
+  const moved = repositionEncounterCombatant(encounter, { combatantId: player.id, column: 10, row: 9 });
+  assert.equal(moved.encounter.range, 'medium');
+  assert.equal(moved.entry.kind, 'map-position');
+  const guide = encounterRangeGuide(moved.encounter, player.id, foe.id);
+  assert.equal(guide.suggestedRange, 'short');
+  assert.equal(guide.matches, false);
+  const applied = setEncounterRangeFromPositions(moved.encounter, { actorId: player.id, targetId: foe.id });
+  assert.equal(applied.encounter.range, 'short');
+  assert.equal(applied.entry.kind, 'range');
 });
 
 test('campaign registry and portable Bundle v5 persist Encounter Documents', async () => {
@@ -135,4 +162,37 @@ test('multi-enemy encounters preserve selectable targets and every active oppone
   assert.equal(result.entries.filter((entry) => entry.kind === 'attack' && entry.side === 'opposition').length, 2);
   assert.ok(result.encounter.combatants.find((entry) => entry.side === 'party').current.STR < fixture.character.characteristics.STR);
   assert.equal(result.encounter.combatants.filter((entry) => entry.side === 'opposition').length, 2);
+});
+
+test('multiple PCs each declare once before one simultaneous round resolves', async () => {
+  const fixture = await encounterFixture();
+  const second = structuredClone(fixture.character);
+  second.identity.id = 'character-marisol-combat-test';
+  second.identity.name = 'Marisol';
+  const opponents = [1, 2].map((number) => ({
+    name: `Raider ${number}`, weaponKey: 'automatic-pistol', armor: 'jack',
+    characteristics: { STR: 7, DEX: 7, END: 7, INT: 7 }, skills: { 'Automatic Pistol': 0 }
+  }));
+  const encounter = createEncounterDocument({
+    campaign: fixture.campaign, characters: [fixture.character, second], opponents, encounterKey: 'multi-party-test',
+    partyLoadouts: {
+      [fixture.character.identity.id]: { weaponKey: 'rifle' },
+      [second.identity.id]: { weaponKey: 'automatic-pistol' }
+    },
+    date: { year: 4800, dayOfYear: 106 }, range: 'medium', dice: sequenceDice([3, 3])
+  });
+  const first = resolveEncounterRound(encounter, {
+    actorId: fixture.character.identity.id, action: 'wait', date: { year: 4800, dayOfYear: 106 }, dice: sequenceDice([])
+  });
+  assert.equal(first.pending, true);
+  assert.equal(first.encounter.round, 1);
+  assert.deepEqual(first.awaitingActorIds, [second.identity.id]);
+  const secondDeclaration = resolveEncounterRound(first.encounter, {
+    actorId: second.identity.id, action: 'wait', date: { year: 4800, dayOfYear: 106 }, dice: sequenceDice(Array(40).fill(1))
+  });
+  assert.equal(secondDeclaration.pending, false);
+  assert.equal(secondDeclaration.encounter.round, 2);
+  assert.equal(secondDeclaration.encounter.roundState.declaredActions.length, 0);
+  assert.equal(secondDeclaration.entries.filter((entry) => entry.kind === 'attack' && entry.side === 'opposition').length, 2);
+  assert.equal(new Set(secondDeclaration.entries.filter((entry) => entry.side === 'opposition').map((entry) => entry.targetId)).size, 2);
 });

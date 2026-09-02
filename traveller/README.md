@@ -1,5 +1,11 @@
 # Graycloak Traveller
 
+## v0.14.0 personal combat workspace
+
+v0.14.0 expands the compact encounter map into a full-width 32-by-20 personal-combat workspace. The ENCOUNTER tab temporarily replaces the subsector view while selected, exposing a scrollable map with 50%-200% zoom, fit, drag-to-pan, and persistent draggable PC/enemy tokens. The side rail now separates a party actor roster from a collapsible enemy roster. Clicking a party token/card chooses the acting traveller; clicking an enemy chooses the target. Campaigns with multiple party Character Documents place every member in combat, each active PC declares once per round, and opponents choose the nearest active PC from the visual positions. Manual setup supports up to four distinct enemy types and sixteen enemies total.
+
+Encounter Document v3 migrates v1/v2 encounters to the expanded workspace and persists pending party declarations. Square distance produces a clearly labeled Graycloak range suggestion only. Dragging never silently changes the authoritative Classic Traveller Book 1 abstract range band: CLOSE/OPEN remains a combat action, while `[ APPLY MAP RANGE ]` is an explicit referee action with its own audit and activity-log entry. Abstract range changes reposition the acting token to keep the visual guide aligned. The Classic Traveller rules package remains unchanged because the grid and its range guide are host policy, not new Traveller rules.
+
 ## v0.13.1 manual combat and encounter map
 
 v0.13.1 makes personal combat directly accessible from the ENCOUNTER tab. `START COMBAT` opens a referee setup for one to six enemies, including name, STR, DEX, END, INT, weapon skill, weapon, armor, and starting range. Encounter Document v2 adds persistent positions on a 12-by-8 square grid and migrates v1 encounters automatically. The map shows the player character as a labeled token and enemies as selectable dots; a linked roster displays every enemy's current physical characteristics and equipment. Clicking a dot or roster entry selects the player's attack target. Multi-enemy rounds allow every active opponent to act, preserve simultaneous wound effects, and make the existing 25-percent casualty morale procedure meaningful. The square grid is explicitly a Graycloak visual aid; Book 1 range bands remain authoritative.

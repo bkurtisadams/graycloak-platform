@@ -100,7 +100,7 @@ export const HELP_TOPICS = Object.freeze({
   }),
   'personal-combat': Object.freeze({
     title: 'PERSONAL ENCOUNTER',
-    body: 'START COMBAT creates a referee-defined encounter without requiring a patron result. Set enemy count, physical statistics, weapon skill, weapon, armor, and starting range. The square map is a Graycloak visual aid because Classic Traveller Book 1 personal combat uses abstract range bands rather than a required tactical grid; those range bands remain authoritative. Click an enemy dot or equipment card to select the attack target. The panel tracks surprise, movement, evasion, visible 2D attacks, wounds, unconsciousness, death, morale, and escape, and persists its round-by-round audit trail with the campaign.'
+    body: 'START COMBAT creates a referee-defined encounter without requiring a patron result. Add up to four enemy types with distinct counts, physical statistics, weapon skill, weapon, and armor. The 32 × 20 square workspace supports zoom, pan, and draggable party/enemy tokens. Click a party token or card to choose the acting traveller and an enemy token or roster card to choose the target. Each active PC declares once before the round resolves. The map shows a Graycloak range suggestion, but Classic Traveller Book 1 abstract range bands remain authoritative and change only through CLOSE/OPEN or the explicit APPLY MAP RANGE referee action. Position, declarations, range changes, combat results, and wounds persist with the campaign.'
   }),
   'adventure-threads': Object.freeze({
     title: 'ADVENTURE THREADS',
@@ -847,8 +847,12 @@ export function buildEncounterRecord({ system = null, encounters = [] } = {}) {
   const lines = [
     `PERSONAL ENCOUNTER // ${encounter.status.toUpperCase()}`,
     encounter.identity.title.toUpperCase(),
-    `ROUND ${encounter.round} / RANGE ${encounter.range.toUpperCase().replace('-', ' ')} / SURPRISE ${surprise}`
+    `ROUND ${encounter.round} / BOOK 1 RANGE ${encounter.range.toUpperCase().replace('-', ' ')} / SURPRISE ${surprise}`,
+    `WORKSPACE ${encounter.map.columns} × ${encounter.map.rows} SQUARES / VISUAL RANGE GUIDE ONLY`
   ];
+  if (encounter.roundState?.declaredActions?.length) {
+    lines.push(`DECLARED ${encounter.roundState.declaredActions.length} / ${encounter.combatants.filter((entry) => entry.side === 'party' && entry.status === 'active').length} ACTIVE PARTY`);
+  }
   for (const combatant of encounter.combatants) {
     const current = combatant.current;
     lines.push('', `${combatant.side.toUpperCase()} // ${combatant.name.toUpperCase()} // ${combatant.status.toUpperCase()}`);
