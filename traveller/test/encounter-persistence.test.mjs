@@ -43,16 +43,30 @@ async function encounterFixture() {
   return { character, ship, campaign, situation, encounter };
 }
 
-test('Encounter Document v1 round-trips surprise, combatants, range, and audit history', async () => {
+test('Encounter Document v2 round-trips surprise, map positions, combatants, range, and audit history', async () => {
   const { encounter } = await encounterFixture();
   const roundTrip = importEncounterDocument(exportEncounterDocument(encounter));
-  assert.equal(roundTrip.schemaVersion, 1);
+  assert.equal(roundTrip.schemaVersion, 2);
+  assert.deepEqual(roundTrip.map, { grid: 'square', columns: 12, rows: 8 });
+  assert.deepEqual(roundTrip.combatants[0].position, { column: 1, row: 4 });
   assert.equal(roundTrip.surprise.surpriseSideId, 'party');
   assert.equal(roundTrip.range, 'medium');
   assert.equal(roundTrip.combatants[0].name, 'Hawkeye');
   assert.equal(roundTrip.history[0].kind, 'surprise');
   const avoided = avoidEncounter(roundTrip, { date: { year: 4800, dayOfYear: 106 } });
   assert.equal(avoided.status, 'avoided');
+});
+
+test('Encounter Document v1 imports migrate to the square-grid v2 schema', async () => {
+  const { encounter } = await encounterFixture();
+  const legacy = structuredClone(encounter);
+  legacy.schemaVersion = 1;
+  delete legacy.map;
+  for (const combatant of legacy.combatants) delete combatant.position;
+  const migrated = importEncounterDocument(legacy);
+  assert.equal(migrated.schemaVersion, 2);
+  assert.equal(migrated.map.grid, 'square');
+  assert.ok(migrated.combatants.every((entry) => Number.isInteger(entry.position.column) && Number.isInteger(entry.position.row)));
 });
 
 test('campaign registry and portable Bundle v5 persist Encounter Documents', async () => {
@@ -100,4 +114,25 @@ test('ordinary combat rounds resolve both declared attacks before wound effects'
   assert.equal(result.entries.filter((entry) => entry.kind === 'attack').length, 2);
   assert.ok(result.encounter.combatants.find((entry) => entry.side === 'party').current.STR < fixture.character.characteristics.STR);
   assert.ok(result.encounter.combatants.find((entry) => entry.side === 'opposition').current.STR < 7);
+});
+
+test('multi-enemy encounters preserve selectable targets and every active opponent acts', async () => {
+  const fixture = await encounterFixture();
+  const opponents = [1, 2].map((number) => ({
+    name: `Raider ${number}`, weaponKey: 'automatic-pistol', armor: 'jack',
+    characteristics: { STR: 7, DEX: 7, END: 7, INT: 7 }, skills: { 'Automatic Pistol': 0 },
+    playerWeaponKey: 'laser-rifle'
+  }));
+  const encounter = createEncounterDocument({
+    campaign: fixture.campaign, character: fixture.character, opponents, encounterKey: 'multi-enemy-test',
+    date: { year: 4800, dayOfYear: 106 }, range: 'medium', dice: sequenceDice([3, 3])
+  });
+  const targetId = encounter.combatants.find((entry) => entry.name === 'Raider 2').id;
+  const result = resolveEncounterRound(encounter, {
+    action: 'evade', targetId, date: { year: 4800, dayOfYear: 106 },
+    dice: sequenceDice([6, 6, 1, 1, 1, 1, 6, 6, 1, 1, 1])
+  });
+  assert.equal(result.entries.filter((entry) => entry.kind === 'attack' && entry.side === 'opposition').length, 2);
+  assert.ok(result.encounter.combatants.find((entry) => entry.side === 'party').current.STR < fixture.character.characteristics.STR);
+  assert.equal(result.encounter.combatants.filter((entry) => entry.side === 'opposition').length, 2);
 });

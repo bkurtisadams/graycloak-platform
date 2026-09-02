@@ -100,7 +100,7 @@ export const HELP_TOPICS = Object.freeze({
   }),
   'personal-combat': Object.freeze({
     title: 'PERSONAL ENCOUNTER',
-    body: 'This compact panel resolves Classic Traveller Book 1 personal combat without a tactical map. It tracks surprise, abstract range bands, movement, evasion, weapon skill, characteristic, armor and range modifiers, visible 2D attack throws, weapon damage, physical-characteristic wounds, unconsciousness, death, morale, and escape. Combat documents persist with the campaign and retain a round-by-round audit trail.'
+    body: 'START COMBAT creates a referee-defined encounter without requiring a patron result. Set enemy count, physical statistics, weapon skill, weapon, armor, and starting range. The square map is a Graycloak visual aid because Classic Traveller Book 1 personal combat uses abstract range bands rather than a required tactical grid; those range bands remain authoritative. Click an enemy dot or equipment card to select the attack target. The panel tracks surprise, movement, evasion, visible 2D attacks, wounds, unconsciousness, death, morale, and escape, and persists its round-by-round audit trail with the campaign.'
   }),
   'adventure-threads': Object.freeze({
     title: 'ADVENTURE THREADS',

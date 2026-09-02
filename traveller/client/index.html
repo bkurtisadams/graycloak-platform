@@ -11,7 +11,7 @@
     <header class="masthead">
       <div>
         <div id="app-title" class="title">TRAVELLER // PERSONNEL INTAKE TERMINAL</div>
-        <div id="app-subtitle" class="subtitle">CLIENT v0.13.0 // PERSONAL ENCOUNTERS + COMBAT // CLASSIC TRAVELLER BOOKS 1-3</div>
+        <div id="app-subtitle" class="subtitle">CLIENT v0.13.1 // MANUAL COMBAT + ENCOUNTER MAP // CLASSIC TRAVELLER BOOKS 1-3</div>
       </div>
       <div id="system-status" class="status" aria-live="polite">READY</div>
     </header>
@@ -197,6 +197,13 @@
                   <button class="help-button" type="button" data-help-topic="personal-combat" aria-label="Explain personal combat">[?]</button>
                 </div>
                 <div id="encounter-actions" class="actions operations-primary-actions encounter-actions" aria-label="Personal combat actions"></div>
+                <div id="encounter-tactical" class="encounter-tactical" hidden>
+                  <div class="encounter-map-frame">
+                    <svg id="encounter-map" class="encounter-map" viewBox="0 0 480 320" role="img" aria-label="Square personal encounter map"></svg>
+                    <div class="encounter-map-legend"><span><i class="encounter-legend-pc"></i> PC</span><span><i class="encounter-legend-enemy"></i> ENEMY / CLICK TO TARGET</span></div>
+                  </div>
+                  <div id="encounter-roster" class="encounter-roster" aria-label="Enemy statistics and equipment"></div>
+                </div>
                 <pre id="encounter-record" class="record operations-panel-record encounter-record" aria-live="polite"></pre>
               </section>
             </div>
@@ -271,6 +278,52 @@
         <div class="roll-dialog-actions">
           <button id="roll-submit" class="text-button action-button" type="submit">[ ROLL ]</button>
           <button id="roll-cancel" class="text-button" type="button">[ CANCEL ]</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="combat-setup-dialog" class="roll-dialog combat-setup-dialog" aria-labelledby="combat-setup-title">
+      <form id="combat-setup-form" class="roll-dialog-form" method="dialog">
+        <div class="roll-dialog-header">
+          <strong id="combat-setup-title">START COMBAT</strong>
+          <button id="combat-setup-close" class="text-button" type="button">[ CLOSE ]</button>
+        </div>
+        <div class="roll-dialog-basis">MANUAL PERSONAL ENCOUNTER // SQUARE GRID IS A VISUAL AID
+Book 1 range bands remain authoritative for attacks and movement.</div>
+        <div class="combat-setup-grid">
+          <label>ENEMY NAME<input id="combat-enemy-name" type="text" maxlength="40" value="Hostile" autocomplete="off" spellcheck="false"></label>
+          <label>COUNT<input id="combat-enemy-count" type="number" min="1" max="6" step="1" value="1"></label>
+          <label>STR<input id="combat-enemy-str" type="number" min="1" max="15" step="1" value="7"></label>
+          <label>DEX<input id="combat-enemy-dex" type="number" min="1" max="15" step="1" value="7"></label>
+          <label>END<input id="combat-enemy-end" type="number" min="1" max="15" step="1" value="7"></label>
+          <label>INT<input id="combat-enemy-int" type="number" min="1" max="15" step="1" value="7"></label>
+          <label>WEAPON
+            <select id="combat-enemy-weapon">
+              <option value="automatic-pistol">Automatic Pistol</option><option value="body-pistol">Body Pistol</option>
+              <option value="revolver">Revolver</option><option value="carbine">Carbine</option><option value="rifle">Rifle</option>
+              <option value="automatic-rifle">Automatic Rifle</option><option value="shotgun">Shotgun</option><option value="submachine-gun">Submachine Gun</option>
+              <option value="laser-carbine">Laser Carbine</option><option value="laser-rifle">Laser Rifle</option><option value="hands">Hands</option>
+              <option value="club">Club</option><option value="dagger">Dagger</option><option value="blade">Blade</option>
+              <option value="cutlass">Cutlass</option><option value="sword">Sword</option><option value="broadsword">Broadsword</option><option value="bayonet">Bayonet</option>
+            </select>
+          </label>
+          <label>SKILL<input id="combat-enemy-skill" type="number" min="0" max="5" step="1" value="0"></label>
+          <label>ARMOR
+            <select id="combat-enemy-armor">
+              <option value="none">None</option><option value="jack" selected>Jack</option><option value="mesh">Mesh</option>
+              <option value="cloth">Cloth</option><option value="reflec">Reflec</option><option value="ablat">Ablat</option><option value="combat">Combat Armor</option>
+            </select>
+          </label>
+          <label>STARTING RANGE
+            <select id="combat-starting-range">
+              <option value="close">Close</option><option value="short">Short</option><option value="medium" selected>Medium</option>
+              <option value="long">Long</option><option value="very-long">Very Long</option>
+            </select>
+          </label>
+        </div>
+        <div class="roll-dialog-actions">
+          <button class="text-button action-button" type="submit">[ START COMBAT ]</button>
+          <button id="combat-setup-cancel" class="text-button" type="button">[ CANCEL ]</button>
         </div>
       </form>
     </dialog>

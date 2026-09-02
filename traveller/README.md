@@ -1,5 +1,9 @@
 # Graycloak Traveller
 
+## v0.13.1 manual combat and encounter map
+
+v0.13.1 makes personal combat directly accessible from the ENCOUNTER tab. `START COMBAT` opens a referee setup for one to six enemies, including name, STR, DEX, END, INT, weapon skill, weapon, armor, and starting range. Encounter Document v2 adds persistent positions on a 12-by-8 square grid and migrates v1 encounters automatically. The map shows the player character as a labeled token and enemies as selectable dots; a linked roster displays every enemy's current physical characteristics and equipment. Clicking a dot or roster entry selects the player's attack target. Multi-enemy rounds allow every active opponent to act, preserve simultaneous wound effects, and make the existing 25-percent casualty morale procedure meaningful. The square grid is explicitly a Graycloak visual aid; Book 1 range bands remain authoritative.
+
 ## v0.13.0 personal encounters and combat
 
 v0.13.0 adds a generic Book 1 personal-combat engine and a compact ENCOUNTER tab linked to hostile Situation Documents. Combat resolves surprise and avoidance, abstract range bands, movement, evasion, escape, weapon/armor/range tables, weapon and characteristic DMs, untrained penalties, visible 2D throws, first-wound location, STR/DEX/END damage, simultaneous round effects, unconsciousness, death, morale, retreat, and end-of-combat recovery. Each Encounter Document preserves combatants and a round audit trail; Campaign Document v6 and Campaign Bundle v5 persist those documents while migrating older saves with empty encounter collections. No tactical map is introduced.

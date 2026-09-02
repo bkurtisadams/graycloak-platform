@@ -50,7 +50,8 @@ import {
   PASSAGE_FARES_CR,
   FREIGHT_RATE_PER_TON_CR,
   generatePatronContact,
-  resolveRefereeSkillCheck
+  resolveRefereeSkillCheck,
+  getPersonalWeapon
 } from '../../packages/classic-traveller-rules/index.js';
 
 import {
@@ -281,6 +282,9 @@ const el = {
   encounterSection: document.querySelector('#encounter-section'),
   encounterRecord: document.querySelector('#encounter-record'),
   encounterActions: document.querySelector('#encounter-actions'),
+  encounterTactical: document.querySelector('#encounter-tactical'),
+  encounterMap: document.querySelector('#encounter-map'),
+  encounterRoster: document.querySelector('#encounter-roster'),
   operationsTabEncounter: document.querySelector('#operations-tab-encounter'),
   operationsTabPort: document.querySelector('#operations-tab-port'),
   operationsTabTrade: document.querySelector('#operations-tab-trade'),
@@ -297,6 +301,20 @@ const el = {
   rollSubmit: document.querySelector('#roll-submit'),
   rollCancel: document.querySelector('#roll-cancel'),
   rollDialogClose: document.querySelector('#roll-dialog-close'),
+  combatSetupDialog: document.querySelector('#combat-setup-dialog'),
+  combatSetupForm: document.querySelector('#combat-setup-form'),
+  combatSetupClose: document.querySelector('#combat-setup-close'),
+  combatSetupCancel: document.querySelector('#combat-setup-cancel'),
+  combatEnemyName: document.querySelector('#combat-enemy-name'),
+  combatEnemyCount: document.querySelector('#combat-enemy-count'),
+  combatEnemyStr: document.querySelector('#combat-enemy-str'),
+  combatEnemyDex: document.querySelector('#combat-enemy-dex'),
+  combatEnemyEnd: document.querySelector('#combat-enemy-end'),
+  combatEnemyInt: document.querySelector('#combat-enemy-int'),
+  combatEnemyWeapon: document.querySelector('#combat-enemy-weapon'),
+  combatEnemySkill: document.querySelector('#combat-enemy-skill'),
+  combatEnemyArmor: document.querySelector('#combat-enemy-armor'),
+  combatStartingRange: document.querySelector('#combat-starting-range'),
   activityPanel: document.querySelector('#activity-panel'),
   activityContext: document.querySelector('#activity-context'),
   activityFeed: document.querySelector('#activity-feed'),
@@ -319,6 +337,7 @@ let subsectorZoom = 1;
 let speculativeBrokerDM = 0;
 let operationsDeskTab = 'trade';
 let pendingRoll = null;
+let selectedEncounterTargetId = null;
 const detailPanels = {
   personnel: false,
   ship: false,
@@ -2441,6 +2460,188 @@ function activeEncounterAtCurrentSystem() {
   return encounterDocuments.find((entry) => entry.status === 'active' && entry.location.systemId === current.id) ?? null;
 }
 
+function latestEncounterAtCurrentSystem() {
+  const current = mappedCurrentSystem();
+  if (!current) return null;
+  const local = encounterDocuments.filter((entry) => entry.location.systemId === current.id);
+  return local.find((entry) => entry.status === 'active') ?? local.at(-1) ?? null;
+}
+
+function selectedEncounterTarget(encounter) {
+  const active = encounter?.combatants.filter((entry) => entry.side === 'opposition' && entry.status === 'active') ?? [];
+  let selected = active.find((entry) => entry.id === selectedEncounterTargetId) ?? null;
+  if (!selected) {
+    selected = active[0] ?? null;
+    selectedEncounterTargetId = selected?.id ?? null;
+  }
+  return selected;
+}
+
+function setEncounterTarget(encounterId, targetId) {
+  const encounter = encounterDocuments.find((entry) => entry.identity.id === encounterId);
+  const target = encounter?.combatants.find((entry) => entry.id === targetId && entry.side === 'opposition' && entry.status === 'active');
+  if (!target) return;
+  selectedEncounterTargetId = target.id;
+  renderEncounter();
+}
+
+function svgElement(name, attributes = {}) {
+  const node = document.createElementNS('http://www.w3.org/2000/svg', name);
+  for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, String(value));
+  return node;
+}
+
+function combatantSkillLevel(combatant) {
+  const weapon = getPersonalWeapon(combatant.weaponKey);
+  return Math.max(...weapon.skillNames.map((name) => Number(combatant.skills?.[name] ?? 0)));
+}
+
+function renderEncounterMap(encounter) {
+  if (!encounter) {
+    el.encounterTactical.hidden = true;
+    el.encounterMap.replaceChildren();
+    el.encounterRoster.replaceChildren();
+    return;
+  }
+  el.encounterTactical.hidden = false;
+  const width = 480;
+  const height = 320;
+  const cellWidth = width / encounter.map.columns;
+  const cellHeight = height / encounter.map.rows;
+  const fragments = [];
+  for (let column = 0; column <= encounter.map.columns; column += 1) {
+    fragments.push(svgElement('line', { x1: column * cellWidth, y1: 0, x2: column * cellWidth, y2: height, class: column % 3 === 0 ? 'encounter-grid-major' : 'encounter-grid-line' }));
+  }
+  for (let row = 0; row <= encounter.map.rows; row += 1) {
+    fragments.push(svgElement('line', { x1: 0, y1: row * cellHeight, x2: width, y2: row * cellHeight, class: row % 2 === 0 ? 'encounter-grid-major' : 'encounter-grid-line' }));
+  }
+  const target = selectedEncounterTarget(encounter);
+  for (const combatant of encounter.combatants) {
+    const x = combatant.position.column * cellWidth + cellWidth / 2;
+    const y = combatant.position.row * cellHeight + cellHeight / 2;
+    if (combatant.side === 'party') {
+      fragments.push(svgElement('circle', { cx: x, cy: y, r: 14, class: 'encounter-token-pc' }));
+      const label = svgElement('text', { x, y, class: 'encounter-token-pc-label' });
+      label.textContent = (combatant.name || 'P').charAt(0).toUpperCase();
+      fragments.push(label);
+      continue;
+    }
+    const circle = svgElement('circle', {
+      cx: x, cy: y, r: 8,
+      class: `encounter-token-enemy${target?.id === combatant.id ? ' selected' : ''}${combatant.status === 'active' ? '' : ' inactive'}`,
+      role: combatant.status === 'active' ? 'button' : 'img',
+      tabindex: combatant.status === 'active' ? 0 : -1,
+      'aria-label': `${combatant.name}, ${combatant.status}${target?.id === combatant.id ? ', selected target' : ''}`
+    });
+    if (combatant.status === 'active') {
+      circle.addEventListener('click', () => setEncounterTarget(encounter.identity.id, combatant.id));
+      circle.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setEncounterTarget(encounter.identity.id, combatant.id); }
+      });
+    }
+    fragments.push(circle);
+  }
+  el.encounterMap.replaceChildren(...fragments);
+
+  const heading = document.createElement('div');
+  heading.className = 'encounter-roster-heading';
+  heading.textContent = 'ENEMY STATUS / EQUIPMENT';
+  const cards = encounter.combatants.filter((entry) => entry.side === 'opposition').map((enemy) => {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = `encounter-enemy-card${target?.id === enemy.id ? ' selected' : ''}${enemy.status === 'active' ? '' : ' inactive'}`;
+    card.disabled = enemy.status !== 'active';
+    const name = document.createElement('span');
+    name.className = 'encounter-enemy-name';
+    name.textContent = `${target?.id === enemy.id ? '● ' : ''}${enemy.name.toUpperCase()} / ${enemy.status.toUpperCase()}`;
+    const stats = document.createElement('span');
+    stats.textContent = `STR ${enemy.current.STR}/${enemy.characteristics.STR}  DEX ${enemy.current.DEX}/${enemy.characteristics.DEX}  END ${enemy.current.END}/${enemy.characteristics.END}`;
+    const equipment = document.createElement('span');
+    equipment.textContent = `${getPersonalWeapon(enemy.weaponKey).name} / SKILL-${combatantSkillLevel(enemy)} / ${enemy.armor.toUpperCase()}`;
+    card.append(name, document.createElement('br'), stats, document.createElement('br'), equipment);
+    card.addEventListener('click', () => setEncounterTarget(encounter.identity.id, enemy.id));
+    return card;
+  });
+  el.encounterRoster.replaceChildren(heading, ...cards);
+}
+
+function openCombatSetupDialog() {
+  if (!campaignDocument || !gameplayDocument || !mappedCurrentSystem()) {
+    setStatus('AN ACTIVE CHARACTER AT A MAPPED CAMPAIGN LOCATION IS REQUIRED', 'error');
+    return;
+  }
+  if (typeof el.combatSetupDialog.showModal === 'function') el.combatSetupDialog.showModal();
+  else el.combatSetupDialog.setAttribute('open', '');
+  window.setTimeout(() => el.combatEnemyName.focus(), 0);
+}
+
+function closeCombatSetupDialog() {
+  if (typeof el.combatSetupDialog.close === 'function') el.combatSetupDialog.close();
+  else el.combatSetupDialog.removeAttribute('open');
+}
+
+function setupInteger(input, label, minimum, maximum) {
+  const value = Number.parseInt(input.value, 10);
+  if (!Number.isInteger(value) || value < minimum || value > maximum) throw new Error(`${label} must be ${minimum}-${maximum}`);
+  return value;
+}
+
+function startManualEncounter() {
+  if (!campaignDocument || !gameplayDocument) throw new Error('active campaign character is required');
+  if (activeEncounterAtCurrentSystem()) throw new Error('resolve the active encounter before starting another');
+  const baseName = el.combatEnemyName.value.trim();
+  if (!baseName) throw new Error('enemy name is required');
+  const count = setupInteger(el.combatEnemyCount, 'enemy count', 1, 6);
+  const characteristics = {
+    STR: setupInteger(el.combatEnemyStr, 'enemy STR', 1, 15),
+    DEX: setupInteger(el.combatEnemyDex, 'enemy DEX', 1, 15),
+    END: setupInteger(el.combatEnemyEnd, 'enemy END', 1, 15),
+    INT: setupInteger(el.combatEnemyInt, 'enemy INT', 1, 15)
+  };
+  const weaponKey = el.combatEnemyWeapon.value;
+  const weapon = getPersonalWeapon(weaponKey);
+  const skillLevel = setupInteger(el.combatEnemySkill, 'enemy weapon skill', 0, 5);
+  const date = campaignDateSnapshot();
+  const manualNumber = encounterDocuments.filter((entry) => entry.situationId === null).length + 1;
+  const encounterKey = `${campaignDocument.identity.id}|manual-${manualNumber}|${date.year}-${date.dayOfYear}`;
+  const opponents = Array.from({ length: count }, (_, index) => ({
+    name: count === 1 ? baseName : `${baseName} ${index + 1}`,
+    characteristics,
+    skills: { [weapon.skillNames[0]]: skillLevel },
+    weaponKey,
+    armor: el.combatEnemyArmor.value,
+    playerWeaponKey: preferredPersonalWeapon()
+  }));
+  let encounter = createEncounterDocument({
+    campaign: campaignDocument,
+    character: gameplayDocument,
+    opponents,
+    title: `Manual Combat / ${baseName}${count > 1 ? ` ×${count}` : ''}`,
+    encounterKey,
+    date,
+    range: el.combatStartingRange.value,
+    dice: seededDice(`${encounterKey}|surprise`)
+  });
+  const surpriseWinner = encounter.surprise.surpriseSideId;
+  if (surpriseWinner === 'opposition') {
+    const result = resolveEncounterRound(encounter, {
+      action: 'wait', date,
+      dice: seededDice(`${encounter.identity.id}|round-1|surprise`)
+    });
+    encounter = result.encounter;
+    for (const entry of result.entries) logActivity('COMBAT', entry.text);
+  }
+  encounterDocuments.push(encounter);
+  campaignDocument = addEncounterToCampaign(campaignDocument, encounter);
+  selectedEncounterTargetId = encounter.combatants.find((entry) => entry.side === 'opposition' && entry.status === 'active')?.id ?? null;
+  persistCampaignState();
+  operationsDeskTab = 'encounter';
+  closeCombatSetupDialog();
+  logActivity('COMBAT', `${encounter.identity.title} started manually / ${count} opponent${count === 1 ? '' : 's'} / ${encounter.range} range / surprise ${surpriseWinner ?? 'none'}`);
+  setStatus(`MANUAL COMBAT STARTED: ${encounter.identity.title.toUpperCase()}`, encounter.status === 'defeat' ? 'error' : 'ok');
+  render();
+}
+
 function resolveLinkedCombatSituation(encounter) {
   if (!encounter.situationId || encounter.status === 'active') return;
   const index = situationDocuments.findIndex((entry) => entry.identity.id === encounter.situationId && entry.status === 'active');
@@ -2509,14 +2710,14 @@ function startSituationEncounter(situation) {
   }
 }
 
-function resolveActiveEncounterAction(action, modifier = 0) {
+function resolveActiveEncounterAction(action, modifier = 0, targetId = null) {
   try {
     const active = activeEncounterAtCurrentSystem();
     if (!active) throw new Error('no active personal encounter');
     const index = encounterDocuments.findIndex((entry) => entry.identity.id === active.identity.id);
     const result = resolveEncounterRound(active, {
-      action, modifier, date: campaignDateSnapshot(),
-      dice: seededDice(`${active.identity.id}|round-${active.round}|${action}|${modifier}`)
+      action, modifier, targetId, date: campaignDateSnapshot(),
+      dice: seededDice(`${active.identity.id}|round-${active.round}|${action}|${targetId ?? 'none'}|${modifier}`)
     });
     encounterDocuments[index] = result.encounter;
     for (const entry of result.entries) logActivity('COMBAT', entry.text);
@@ -2552,11 +2753,17 @@ function avoidActiveEncounter() {
 
 function openEncounterAttackDialog(encounter) {
   const player = encounter.combatants.find((entry) => entry.side === 'party');
+  const target = selectedEncounterTarget(encounter);
+  if (!target) {
+    setStatus('NO ACTIVE ENEMY TARGET', 'error');
+    return;
+  }
   openRollDialog({
     kind: 'encounter-attack',
-    title: `ATTACK // ${player.name.toUpperCase()}`,
+    title: `ATTACK ${target.name.toUpperCase()} // ${player.name.toUpperCase()}`,
     basis: `PERSONAL COMBAT // ROUND ${encounter.round} // ${encounter.range.toUpperCase()} RANGE\nWeapon, skill, characteristic, armor, and range are built into the combat throw. Add only the referee's extra situational modifier.`,
-    target: 8, targetLocked: true, builtInText: `${player.weaponKey.toUpperCase().replaceAll('-', ' ')} / TABLE TARGET`
+    target: 8, targetLocked: true, targetId: target.id,
+    builtInText: `${player.weaponKey.toUpperCase().replaceAll('-', ' ')} / ${target.armor.toUpperCase()} / TABLE TARGET`
   });
   el.rollTargetRow.hidden = true;
 }
@@ -2567,6 +2774,7 @@ function renderEncounter() {
     el.encounterSection.dataset.available = 'false';
     el.encounterRecord.textContent = '';
     el.encounterActions.replaceChildren();
+    renderEncounterMap(null);
     applyOperationsDeskTab();
     return;
   }
@@ -2574,19 +2782,26 @@ function renderEncounter() {
   el.encounterRecord.textContent = buildEncounterRecord({ system: current, encounters: encounterDocuments });
   el.encounterActions.replaceChildren();
   const active = activeEncounterAtCurrentSystem();
+  const displayed = active ?? latestEncounterAtCurrentSystem();
+  renderEncounterMap(displayed);
   el.operationsTabEncounter?.classList.toggle('attention', Boolean(active));
   if (el.operationsTabEncounter) el.operationsTabEncounter.textContent = active ? '[ ENCOUNTER ! ]' : '[ ENCOUNTER ]';
   if (active) {
+    const target = selectedEncounterTarget(active);
     if (active.round === 1 && active.surprise.surpriseSideId === 'party') {
       el.encounterActions.append(makePortButton('AVOID', avoidActiveEncounter));
     }
     el.encounterActions.append(
-      makePortButton('ATTACK', () => openEncounterAttackDialog(active)),
+      makePortButton(target ? `ATTACK ${target.name.toUpperCase()}` : 'ATTACK', () => openEncounterAttackDialog(active), { disabled: !target }),
       makePortButton('EVADE', () => resolveActiveEncounterAction('evade')),
       makePortButton('CLOSE RANGE', () => resolveActiveEncounterAction('close')),
       makePortButton('OPEN RANGE', () => resolveActiveEncounterAction('open')),
       makePortButton('ESCAPE', () => resolveActiveEncounterAction('escape'))
     );
+  } else {
+    const button = makePortButton('START COMBAT', openCombatSetupDialog);
+    button.title = 'Create a manual personal encounter with referee-defined enemy statistics and equipment';
+    el.encounterActions.append(button);
   }
   applyOperationsDeskTab();
 }
@@ -3908,6 +4123,21 @@ el.rollDialog.addEventListener('cancel', (event) => {
   event.preventDefault();
   closeRollDialog();
 });
+el.combatSetupClose.addEventListener('click', closeCombatSetupDialog);
+el.combatSetupCancel.addEventListener('click', closeCombatSetupDialog);
+el.combatSetupDialog.addEventListener('cancel', (event) => {
+  event.preventDefault();
+  closeCombatSetupDialog();
+});
+el.combatSetupForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  try {
+    startManualEncounter();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+});
 el.rollDialogForm.addEventListener('submit', (event) => {
   event.preventDefault();
   if (!pendingRoll) return closeRollDialog();
@@ -3920,7 +4150,7 @@ el.rollDialogForm.addEventListener('submit', (event) => {
       return;
     }
     if (pendingRoll.kind === 'encounter-attack') {
-      resolveActiveEncounterAction('attack', modifier);
+      resolveActiveEncounterAction('attack', modifier, pendingRoll.targetId);
       return;
     }
     executeAdHocRoll();
