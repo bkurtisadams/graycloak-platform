@@ -1,5 +1,11 @@
 # Graycloak Traveller
 
+## v0.15.1.1 portable activity journal and token-menu fix
+
+v0.15.1.1 promotes the Activity Log from a capped browser-only display into a stable-ID Activity Log Document owned by the campaign. Campaign Document v8 and Campaign Bundle v7 preserve the complete chronological journal through local saves and portable bundle exports. Existing per-campaign browser entries migrate into the document on first load. The feed groups filters for character activity, trade, ship operations, personal combat, space combat, campaign events, and system messages; referees may also add dated campaign notes. Character generation now records its actual history events instead of a generic completion message. Working documents remain the source of truth—the journal records meaningful actions, resolved rolls, and state changes rather than transient selections or hover events.
+
+Token context actions now measure their rendered menu and clamp it inside the encounter viewport beside the pointer or keyboard-selected token. The viewport is the menu's positioning container, and focusing the first action no longer scrolls the page, correcting the dialog that could appear far from its token. Hover summaries, right-click actions, and the position-derived Graycloak range suggestion remain interface aids; the explicit Classic Traveller Book 1 range band is still authoritative.
+
 ## v0.15.1 persistent actor roster and map inspection
 
 v0.15.1 establishes the shared actor paradigm for personal encounters without prematurely automating optional robot or alien rules. Campaign Document v7 and Campaign Bundle v6 add stable-ID NPC Actor Documents, portrait Media Asset Documents, and roster folders. An actor record carries the six classic characteristics and UPP, current physical values, career/service details, skills, equipment, inventory, credits, public/referee notes, description, portrait reference, effects, and body-aware state. Biological actors can be alive, unconscious, or dead; robotic actors use activation and integrity states such as powered down, offline, damaged, disabled, and destroyed rather than being forced into biological labels.
@@ -146,8 +152,8 @@ http://localhost:8080/traveller/client/
 - true SVG 8-by-10 Far Meridian subsector map
 - Jump-N range and seven-day jump travel
 - authored UWP system/world records
-- persistent per-campaign Activity Log
+- portable, filterable per-campaign Activity Log Document with referee notes
 
 ## Next gameplay layer
 
-The commerce foundation now supports passengers, freight, and speculative cargo. Mail, crew salary calendars, annual maintenance scheduling, extended berthing days, low-berth revival for ships that actually carry low berths, encounters, patrons, and starship combat remain later milestones.
+The commerce foundation supports passengers, freight, speculative cargo, contracts, patrons, situations, adventure threads, and personal encounters. Mail, crew salary calendars, annual maintenance scheduling, extended berthing days, low-berth revival for ships that actually carry low berths, and starship combat remain later milestones.

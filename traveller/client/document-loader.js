@@ -34,6 +34,7 @@ import {
 import { ENCOUNTER_DOCUMENT_TYPE, importEncounterDocument } from '../src/encounter-document.js';
 import { NPC_ACTOR_DOCUMENT_TYPE, importNpcActorDocument } from '../src/npc-actor-document.js';
 import { MEDIA_ASSET_DOCUMENT_TYPE, importMediaAssetDocument } from '../src/media-asset-document.js';
+import { ACTIVITY_LOG_DOCUMENT_TYPE, importActivityLogDocument } from '../src/activity-log-document.js';
 
 import {
   CAMPAIGN_BUNDLE_TYPE,
@@ -52,6 +53,7 @@ export const TRAVELLER_DOCUMENT_KINDS = Object.freeze({
   ENCOUNTER: 'encounter',
   NPC_ACTOR: 'npc-actor',
   MEDIA_ASSET: 'media-asset',
+  ACTIVITY_LOG: 'activity-log',
   CAMPAIGN_BUNDLE: 'campaign-bundle'
 });
 
@@ -129,6 +131,10 @@ export function loadTravellerDocument(input) {
 
   if (parsed.documentType === MEDIA_ASSET_DOCUMENT_TYPE) {
     return { kind: TRAVELLER_DOCUMENT_KINDS.MEDIA_ASSET, mediaAssetDocument: importMediaAssetDocument(parsed) };
+  }
+
+  if (parsed.documentType === ACTIVITY_LOG_DOCUMENT_TYPE) {
+    return { kind: TRAVELLER_DOCUMENT_KINDS.ACTIVITY_LOG, activityLogDocument: importActivityLogDocument(parsed) };
   }
 
   if (parsed.documentType === CAMPAIGN_BUNDLE_TYPE) {

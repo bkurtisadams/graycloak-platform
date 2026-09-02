@@ -96,7 +96,7 @@ test('dragged token positions persist while Book 1 range changes only through an
   assert.equal(applied.entry.kind, 'range');
 });
 
-test('campaign registry and portable Bundle v6 persist Encounter Documents', async () => {
+test('campaign registry and portable Bundle v7 persist Encounter Documents', async () => {
   const { character, ship, campaign, situation, encounter } = await encounterFixture();
   const registry = createDocumentRegistry({ storage: createMemoryStorage() });
   for (const document of [character, ship, situation, encounter, campaign]) registry.put(document);
@@ -104,7 +104,7 @@ test('campaign registry and portable Bundle v6 persist Encounter Documents', asy
   assert.deepEqual(resolved.missing, []);
   assert.equal(resolved.encounters[0].identity.id, encounter.identity.id);
   const bundle = registry.buildBundle(campaign.identity.id);
-  assert.equal(bundle.schemaVersion, 6);
+  assert.equal(bundle.schemaVersion, 7);
   assert.equal(bundle.documents.encounters[0].identity.title, 'Encounter / Veyra Kade');
 });
 

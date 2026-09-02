@@ -109,3 +109,14 @@ test('loader recognizes persistent Contact and Adventure Thread Documents', asyn
   assert.equal(loadedThread.kind, TRAVELLER_DOCUMENT_KINDS.THREAD);
   assert.equal(loadedThread.threadDocument.identity.title, 'Carranza Route');
 });
+
+test('loader recognizes a portable campaign Activity Log Document', async () => {
+  const { createActivityLogDocument, appendActivityLogEntry } = await import('../src/activity-log-document.js');
+  let activityLog = createActivityLogDocument({ campaignId: 'campaign-loader-log', name: 'Loader Log' });
+  activityLog = appendActivityLogEntry(activityLog, {
+    category: 'NOTE', message: 'Test the portable journal.', createdAt: '2026-09-01T00:00:00.000Z'
+  });
+  const loaded = loadTravellerDocument(activityLog);
+  assert.equal(loaded.kind, TRAVELLER_DOCUMENT_KINDS.ACTIVITY_LOG);
+  assert.equal(loaded.activityLogDocument.entries[0].message, 'Test the portable journal.');
+});

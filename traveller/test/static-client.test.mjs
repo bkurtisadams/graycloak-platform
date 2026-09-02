@@ -542,3 +542,22 @@ test('v0.15.1 adds a persistent actor roster and token inspection actions', asyn
   assert.match(css, /\.roster-card/);
   assert.match(css, /\.encounter-token-menu/);
 });
+
+test('v0.15.1.1 makes the activity journal portable and anchors token menus to the map viewport', async () => {
+  const html = await read('index.html');
+  const app = await read('app.js');
+  const css = await read('styles.css');
+
+  assert.match(html, /CLIENT v0\.15\.1\.1/);
+  assert.match(html, /id="activity-filter"/);
+  assert.match(html, /id="add-activity-note"/);
+  assert.match(html, /id="activity-note-dialog"/);
+  assert.match(app, /createActivityLogDocument/);
+  assert.match(app, /appendActivityLogEntry/);
+  assert.match(app, /formatHistoryEvent/);
+  assert.match(app, /overlayRect = node\.getBoundingClientRect\(\)/);
+  assert.match(app, /focus\(\{ preventScroll: true \}\)/);
+  assert.match(css, /\.encounter-map-viewport \{[^}]*position: relative/s);
+  assert.doesNotMatch(app, /rect\.width - 210/);
+  assert.doesNotMatch(app, /rect\.height - 100/);
+});

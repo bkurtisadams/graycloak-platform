@@ -63,6 +63,7 @@ import {
   buildCharacterRecord,
   buildFinalCharacterRecord,
   buildGenerationLog,
+  formatHistoryEvent,
   buildJumpPlan,
   buildPortServicesRecord,
   buildShipRecord,
@@ -111,6 +112,7 @@ import {
   addEncounterToCampaign,
   addNpcActorToCampaign,
   addMediaAssetToCampaign,
+  addActivityLogToCampaign,
   addContactToCampaign,
   addAdventureThreadToCampaign,
   advanceCampaignDays,
@@ -125,6 +127,12 @@ import {
 
 import { createNpcActorDocument, updateNpcActorDocument, importNpcActorDocument } from '../src/npc-actor-document.js';
 import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js';
+import {
+  createActivityLogDocument,
+  appendActivityLogEntry,
+  clearActivityLogDocument,
+  importActivityLogDocument
+} from '../src/activity-log-document.js';
 
 import {
   exportCampaignBundle
@@ -362,7 +370,14 @@ const el = {
   activityPanel: document.querySelector('#activity-panel'),
   activityContext: document.querySelector('#activity-context'),
   activityFeed: document.querySelector('#activity-feed'),
-  clearActivity: document.querySelector('#clear-activity')
+  clearActivity: document.querySelector('#clear-activity'),
+  addActivityNote: document.querySelector('#add-activity-note'),
+  activityFilter: document.querySelector('#activity-filter'),
+  activityNoteDialog: document.querySelector('#activity-note-dialog'),
+  activityNoteForm: document.querySelector('#activity-note-form'),
+  activityNoteText: document.querySelector('#activity-note-text'),
+  activityNoteClose: document.querySelector('#activity-note-close'),
+  activityNoteCancel: document.querySelector('#activity-note-cancel')
 };
 
 let character = createCharacter();
@@ -377,6 +392,8 @@ let contactDocuments = [];
 let threadDocuments = [];
 let npcActorDocuments = [];
 let mediaAssetDocuments = [];
+let activityLogDocument = null;
+let activityFilter = 'all';
 let pendingNpcPortraitAsset = null;
 let documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
 let openHelpTopic = null;
@@ -422,9 +439,21 @@ function activityDateLabel() {
   return `${String(campaignDocument.time.dayOfYear).padStart(3, '0')}-${campaignDocument.time.year}`;
 }
 
-function setActivityContext() {
-  if (!activityLog) return;
-  activityLog.setContext(campaignDocument?.identity?.id || 'session');
+function setActivityContext({ initialEntries = [] } = {}) {
+  if (activityLog) activityLog.setContext(campaignDocument?.identity?.id || 'session');
+  if (!campaignDocument) { activityLogDocument = null; return; }
+  const legacyEntries = [...initialEntries, ...(activityLog ? activityLog.list() : [])];
+  if (!activityLogDocument || activityLogDocument.campaignId !== campaignDocument.identity.id) {
+    activityLogDocument = createActivityLogDocument({ campaign: campaignDocument, entries: legacyEntries });
+    campaignDocument = addActivityLogToCampaign(campaignDocument, activityLogDocument);
+  } else if (legacyEntries.length) {
+    for (const entry of legacyEntries) activityLogDocument = appendActivityLogEntry(activityLogDocument, entry);
+  }
+  if (legacyEntries.length) activityLog?.clear();
+  if (registry) {
+    registry.put(activityLogDocument);
+    registry.put(campaignDocument);
+  }
 }
 
 function appendActivityDiceLine(container, part) {
@@ -488,12 +517,25 @@ function appendActivityMessage(row, entry) {
 function renderActivity() {
   const contextName = campaignDocument?.identity?.name || 'SESSION / NO CAMPAIGN';
   el.activityContext.textContent = contextName.toUpperCase();
+  el.addActivityNote.disabled = !campaignDocument;
+  if (el.activityFilter.value !== activityFilter) el.activityFilter.value = activityFilter;
   el.activityFeed.replaceChildren();
-  const entries = activityLog ? activityLog.list() : [];
+  const allEntries = campaignDocument ? (activityLogDocument?.entries ?? []) : (activityLog ? activityLog.list() : []);
+  const filterCategories = {
+    character: new Set(['CHAR', 'CHECK']),
+    trade: new Set(['TRADE', 'JOB', 'CONTRACT']),
+    ship: new Set(['SHIP', 'PORT', 'NAV', 'JUMP', 'ARRIVAL']),
+    'personal-combat': new Set(['COMBAT']),
+    'space-combat': new Set(['SPACE COMBAT']),
+    campaign: new Set(['SITUATION', 'THREAD', 'ROSTER', 'NOTE']),
+    system: new Set(['SYSLOG', 'ERROR'])
+  };
+  const allowed = filterCategories[activityFilter];
+  const entries = allowed ? allEntries.filter((entry) => allowed.has(entry.category)) : allEntries;
   if (!entries.length) {
     const empty = document.createElement('div');
     empty.className = 'activity-empty';
-    empty.textContent = 'NO RECORDED ACTIVITY.';
+    empty.textContent = allEntries.length ? 'NO ACTIVITY IN THIS FILTER.' : 'NO RECORDED ACTIVITY.';
     el.activityFeed.append(empty);
     return;
   }
@@ -516,10 +558,30 @@ function renderActivity() {
   el.activityFeed.scrollTop = el.activityFeed.scrollHeight;
 }
 
-function logActivity(category, message, { dateLabel = activityDateLabel() } = {}) {
-  if (!activityLog) return;
-  activityLog.append({ category, message, dateLabel });
+function logActivity(category, message, { dateLabel = activityDateLabel(), sourceDocumentId = null, sourceActorId = null } = {}) {
+  if (campaignDocument) {
+    if (!activityLogDocument) {
+      activityLogDocument = createActivityLogDocument({ campaign: campaignDocument });
+      campaignDocument = addActivityLogToCampaign(campaignDocument, activityLogDocument);
+      if (registry) registry.put(campaignDocument);
+    }
+    activityLogDocument = appendActivityLogEntry(activityLogDocument, { category, message, dateLabel, sourceDocumentId, sourceActorId });
+    if (registry) registry.put(activityLogDocument);
+  } else if (activityLog) activityLog.append({ category, message, dateLabel });
   renderActivity();
+}
+
+function openActivityNoteDialog() {
+  if (!campaignDocument) return setStatus('A CAMPAIGN IS REQUIRED FOR JOURNAL NOTES', 'error');
+  el.activityNoteForm.reset();
+  if (typeof el.activityNoteDialog.showModal === 'function') el.activityNoteDialog.showModal();
+  else el.activityNoteDialog.setAttribute('open', '');
+  window.setTimeout(() => el.activityNoteText.focus(), 0);
+}
+
+function closeActivityNoteDialog() {
+  if (typeof el.activityNoteDialog.close === 'function') el.activityNoteDialog.close();
+  else el.activityNoteDialog.removeAttribute('open');
 }
 
 function setStatus(message, kind = '') {
@@ -1179,6 +1241,7 @@ function persistGameplayDocuments() {
   for (const thread of threadDocuments) registry.put(thread);
   for (const actor of npcActorDocuments) registry.put(actor);
   for (const asset of mediaAssetDocuments) registry.put(asset);
+  if (activityLogDocument) registry.put(activityLogDocument);
 }
 
 function syncCampaignRefs() {
@@ -1192,7 +1255,8 @@ function syncCampaignRefs() {
     contacts: contactDocuments,
     threads: threadDocuments,
     npcActors: npcActorDocuments,
-    assets: mediaAssetDocuments
+    assets: mediaAssetDocuments,
+    activityLogs: activityLogDocument ? [activityLogDocument] : []
   });
 }
 
@@ -1227,7 +1291,7 @@ function reconcileExpiredContracts({ log = true } = {}) {
 }
 
 function campaignDocumentsForDisplay() {
-  if (!campaignDocument) return { characters: [], ships: [], contracts: [], situations: [], encounters: [], contacts: [], threads: [], npcActors: [], assets: [], missing: [] };
+  if (!campaignDocument) return { characters: [], ships: [], contracts: [], situations: [], encounters: [], contacts: [], threads: [], npcActors: [], assets: [], activityLogs: [], missing: [] };
   let characters = [];
   let ships = [];
   let contracts = [];
@@ -1237,6 +1301,7 @@ function campaignDocumentsForDisplay() {
   let threads = [];
   let npcActors = [];
   let assets = [];
+  let activityLogs = [];
   let missing = [];
   if (registry) {
     try {
@@ -1250,6 +1315,7 @@ function campaignDocumentsForDisplay() {
       threads = resolved.threads;
       npcActors = resolved.npcActors;
       assets = resolved.assets;
+      activityLogs = resolved.activityLogs;
       missing = resolved.missing;
     } catch (error) {
       console.error(error);
@@ -1300,7 +1366,11 @@ function campaignDocumentsForDisplay() {
     assets.push(asset);
     missing = missing.filter((id) => id !== asset.identity.id);
   }
-  return { characters, ships, contracts, situations, encounters, contacts, threads, npcActors, assets, missing };
+  if (activityLogDocument) {
+    activityLogs = [activityLogDocument];
+    missing = missing.filter((id) => id !== activityLogDocument.identity.id);
+  }
+  return { characters, ships, contracts, situations, encounters, contacts, threads, npcActors, assets, activityLogs, missing };
 }
 
 function renderCampaign() {
@@ -2698,15 +2768,24 @@ function combatantHoverText(combatant) {
   return `${combatant.name.toUpperCase()} // ${combatant.side.toUpperCase()} // ${state.toUpperCase()}\nSTR ${combatant.current.STR}/${combatant.characteristics.STR}  DEX ${combatant.current.DEX}/${combatant.characteristics.DEX}  END ${combatant.current.END}/${combatant.characteristics.END}\n${getPersonalWeapon(combatant.weaponKey).name} / SKILL-${combatantSkillLevel(combatant)} / ${combatant.armor.toUpperCase()}${source?.presentation.description ? `\n${source.presentation.description}` : ''}`;
 }
 
-function positionEncounterOverlay(node, event) {
+function positionEncounterOverlay(node, event, anchorElement = null) {
   const rect = el.encounterMapViewport.getBoundingClientRect();
-  const clientX = Number.isFinite(event.clientX) && event.clientX ? event.clientX : rect.left + rect.width / 2;
-  const clientY = Number.isFinite(event.clientY) && event.clientY ? event.clientY : rect.top + rect.height / 2;
-  node.style.left = `${Math.max(4, Math.min(rect.width - 210, clientX - rect.left + 10))}px`;
-  node.style.top = `${Math.max(4, Math.min(rect.height - 100, clientY - rect.top + 10))}px`;
+  const anchorRect = anchorElement?.getBoundingClientRect?.();
+  const clientX = Number.isFinite(event.clientX) && event.clientX ? event.clientX : (anchorRect?.right ?? rect.left + rect.width / 2);
+  const clientY = Number.isFinite(event.clientY) && event.clientY ? event.clientY : (anchorRect?.top ?? rect.top + rect.height / 2);
+  node.hidden = false;
+  node.style.visibility = 'hidden';
+  node.style.left = '0px';
+  node.style.top = '0px';
+  const overlayRect = node.getBoundingClientRect();
+  const left = Math.max(4, Math.min(rect.width - overlayRect.width - 4, clientX - rect.left + 9));
+  const top = Math.max(4, Math.min(rect.height - overlayRect.height - 4, clientY - rect.top + 9));
+  node.style.left = `${left}px`;
+  node.style.top = `${top}px`;
+  node.style.visibility = '';
 }
 
-function showEncounterTokenMenu(event, encounter, combatant, onSelect) {
+function showEncounterTokenMenu(event, encounter, combatant, onSelect, anchorElement = null) {
   event.preventDefault();
   event.stopPropagation();
   el.encounterTokenTooltip.hidden = true;
@@ -2722,9 +2801,8 @@ function showEncounterTokenMenu(event, encounter, combatant, onSelect) {
   if (combatant.side === 'opposition') add('ATTACK TARGET', () => { setEncounterTarget(encounter.identity.id, combatant.id); openEncounterAttackDialog(encounter); }, !actor || combatant.status !== 'active');
   if (combatant.sourceActorId && npcActorDocuments.some((entry) => entry.identity.id === combatant.sourceActorId)) add('OPEN ROSTER ACTOR', () => { operationsDeskTab = 'roster'; render(); openNpcActorDialog(combatant.sourceActorId); });
   el.encounterTokenMenu.replaceChildren(...actions);
-  positionEncounterOverlay(el.encounterTokenMenu, event);
-  el.encounterTokenMenu.hidden = false;
-  actions[0]?.focus();
+  positionEncounterOverlay(el.encounterTokenMenu, event, anchorElement);
+  actions.find((button) => !button.disabled)?.focus({ preventScroll: true });
 }
 
 function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect } = {}) {
@@ -2734,7 +2812,7 @@ function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect
     el.encounterTokenTooltip.hidden = false;
   });
   group.addEventListener('pointerleave', () => { el.encounterTokenTooltip.hidden = true; });
-  group.addEventListener('contextmenu', (event) => showEncounterTokenMenu(event, encounter, combatant, onSelect));
+  group.addEventListener('contextmenu', (event) => showEncounterTokenMenu(event, encounter, combatant, onSelect, group));
   if (encounter.status !== 'active' || combatant.status !== 'active') return;
   let drag = null;
   group.addEventListener('pointerdown', (event) => {
@@ -2806,7 +2884,7 @@ function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect
   group.addEventListener('pointercancel', (event) => finishDrag(event, true));
   group.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect?.(); }
-    if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) showEncounterTokenMenu(event, encounter, combatant, onSelect);
+    if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) showEncounterTokenMenu(event, encounter, combatant, onSelect, group);
   });
 }
 
@@ -3900,6 +3978,7 @@ function restoreCampaignFromRegistry(campaign) {
   threadDocuments = resolved.threads;
   npcActorDocuments = resolved.npcActors;
   mediaAssetDocuments = resolved.assets;
+  activityLogDocument = resolved.activityLogs[0] ?? null;
   documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
   character = createCharacter();
   setActivityContext();
@@ -3911,6 +3990,7 @@ function restoreCampaignFromRegistry(campaign) {
 
 function newCampaign() {
   try {
+    const sessionActivity = activityLog && !campaignDocument ? activityLog.list() : [];
     const gameplay = ensureGameplayDocument();
     if (!gameplay) throw new Error('complete or load a gameplay character before creating a campaign');
     persistGameplayDocuments();
@@ -3922,6 +4002,7 @@ function newCampaign() {
     threadDocuments = [];
     npcActorDocuments = [];
     mediaAssetDocuments = [];
+    activityLogDocument = null;
     partyCharacterDocuments = [gameplay];
     campaignDocument = createCampaignDocument({
       characters: [gameplay],
@@ -3933,11 +4014,12 @@ function newCampaign() {
       threads: [],
       npcActors: [],
       assets: [],
+      activityLogs: [],
       partyCharacterIds: [gameplay.identity.id],
       activeShipId: shipDocument?.identity.id ?? null
     });
     documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
-    setActivityContext();
+    setActivityContext({ initialEntries: sessionActivity });
     logActivity('SYSLOG', `Campaign created: ${campaignDocument.identity.name || 'Unnamed Campaign'}`);
     setStatus('NEW CAMPAIGN SHELL CREATED', 'ok');
     render();
@@ -4242,6 +4324,7 @@ function render() {
 function execute(action, payload = {}) {
   try {
     if (documentMode !== TRAVELLER_DOCUMENT_KINDS.CHARGEN) throw new Error('chargen actions are unavailable while a gameplay document is loaded');
+    const priorHistoryLength = character.history.length;
     const result = performChargenAction(character, action, payload);
     character = result.character;
     documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
@@ -4252,7 +4335,9 @@ function execute(action, payload = {}) {
     selectedSystemId = null;
     closeHelp();
     setActivityContext();
-    logActivity('CHAR', `${ACTION_LABELS[action] ?? action} resolved`);
+    const events = character.history.slice(priorHistoryLength);
+    if (events.length) for (const entry of events) logActivity('CHAR', formatHistoryEvent(entry));
+    else logActivity('CHAR', `${ACTION_LABELS[action] ?? action} resolved`);
     setStatus('ACTION RESOLVED', 'ok');
     render();
   } catch (error) {
@@ -4508,6 +4593,7 @@ async function loadDocument(file) {
         if (!campaignDocument.documentRefs.npcActors.some((entry) => entry.id === actor.identity.id)) campaignDocument = addNpcActorToCampaign(campaignDocument, actor);
         persistCampaignState();
         operationsDeskTab = 'roster';
+        logActivity('ROSTER', `Actor loaded: ${actor.identity.name}`, { sourceActorId: actor.identity.id });
         setStatus('NPC ACTOR LOADED / ADDED TO CAMPAIGN', 'ok');
       } else setStatus('NPC ACTOR REGISTERED LOCALLY', 'ok');
     } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.MEDIA_ASSET) {
@@ -4519,8 +4605,20 @@ async function loadDocument(file) {
         mediaAssetDocuments.push(asset);
         if (!campaignDocument.documentRefs.assets.some((entry) => entry.id === asset.identity.id)) campaignDocument = addMediaAssetToCampaign(campaignDocument, asset);
         persistCampaignState();
+        logActivity('ROSTER', `Media asset loaded: ${asset.identity.name}`, { sourceDocumentId: asset.identity.id });
         setStatus('MEDIA ASSET LOADED / ADDED TO CAMPAIGN', 'ok');
       } else setStatus('MEDIA ASSET REGISTERED LOCALLY', 'ok');
+    } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.ACTIVITY_LOG) {
+      if (!registry) throw new Error('browser local storage is unavailable');
+      const importedLog = importActivityLogDocument(loaded.activityLogDocument);
+      registry.put(importedLog);
+      if (campaignDocument && importedLog.campaignId === campaignDocument.identity.id) {
+        activityLogDocument = importedLog;
+        campaignDocument = addActivityLogToCampaign(campaignDocument, importedLog);
+        persistCampaignState();
+        logActivity('SYSLOG', `Activity Log Document loaded: ${importedLog.identity.name}`, { sourceDocumentId: importedLog.identity.id });
+        setStatus('ACTIVITY LOG DOCUMENT LOADED / ADDED TO CAMPAIGN', 'ok');
+      } else setStatus('ACTIVITY LOG DOCUMENT REGISTERED LOCALLY', 'ok');
     } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CAMPAIGN) {
       if (!registry) throw new Error('browser local storage is unavailable');
       registry.put(loaded.campaignDocument);
@@ -4711,11 +4809,26 @@ el.shipRegistry.addEventListener('change', () => {
 });
 
 el.clearActivity.addEventListener('click', () => {
-  if (!activityLog) return;
   if (!window.confirm('Clear the activity log for the current campaign/session?')) return;
-  activityLog.clear();
+  if (campaignDocument && activityLogDocument) {
+    activityLogDocument = clearActivityLogDocument(activityLogDocument);
+    if (registry) registry.put(activityLogDocument);
+  } else activityLog?.clear();
   renderActivity();
   setStatus('ACTIVITY LOG CLEARED', 'ok');
+});
+el.activityFilter.addEventListener('change', () => { activityFilter = el.activityFilter.value; renderActivity(); });
+el.addActivityNote.addEventListener('click', openActivityNoteDialog);
+el.activityNoteClose.addEventListener('click', closeActivityNoteDialog);
+el.activityNoteCancel.addEventListener('click', closeActivityNoteDialog);
+el.activityNoteDialog.addEventListener('cancel', (event) => { event.preventDefault(); closeActivityNoteDialog(); });
+el.activityNoteForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const note = el.activityNoteText.value.trim();
+  if (!note) return setStatus('CAMPAIGN NOTE CANNOT BE BLANK', 'error');
+  logActivity('NOTE', note, { sourceDocumentId: campaignDocument?.identity.id ?? null });
+  closeActivityNoteDialog();
+  setStatus('CAMPAIGN NOTE RECORDED', 'ok');
 });
 
 el.togglePersonnel.addEventListener('click', () => toggleDetailPanel('personnel'));

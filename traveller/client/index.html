@@ -11,7 +11,7 @@
     <header class="masthead">
       <div>
         <div id="app-title" class="title">TRAVELLER // PERSONNEL INTAKE TERMINAL</div>
-        <div id="app-subtitle" class="subtitle">CLIENT v0.15.1 // ACTOR ROSTER + MAP INTEGRATION // CLASSIC TRAVELLER BOOKS 1-3 // UPGRADED FROM CLIENT v0.14.1</div>
+        <div id="app-subtitle" class="subtitle">CLIENT v0.15.1.1 // PORTABLE ACTIVITY LOG + TOKEN MENU FIX // CLASSIC TRAVELLER BOOKS 1-3 // UPGRADED FROM CLIENT v0.14.1</div>
       </div>
       <div id="system-status" class="status" aria-live="polite">READY</div>
     </header>
@@ -393,6 +393,15 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
       </form>
     </dialog>
 
+    <dialog id="activity-note-dialog" class="roll-dialog activity-note-dialog" aria-labelledby="activity-note-title">
+      <form id="activity-note-form" class="roll-dialog-form" method="dialog">
+        <div class="roll-dialog-header"><strong id="activity-note-title">CAMPAIGN NOTE</strong><button id="activity-note-close" class="text-button" type="button">[ CLOSE ]</button></div>
+        <div class="roll-dialog-basis">A TIMESTAMPED JOURNAL ENTRY IN THE PORTABLE CAMPAIGN ACTIVITY LOG.</div>
+        <label>NOTE<textarea id="activity-note-text" rows="6" maxlength="2000" required></textarea></label>
+        <div class="roll-dialog-actions"><button class="text-button action-button" type="submit">[ RECORD NOTE ]</button><button id="activity-note-cancel" class="text-button" type="button">[ CANCEL ]</button></div>
+      </form>
+    </dialog>
+
     <aside id="context-help" class="help-panel" hidden aria-live="polite" aria-labelledby="help-title">
       <div class="help-header">
         <strong id="help-title">HELP</strong>
@@ -405,9 +414,10 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
     <aside id="activity-panel" class="activity-panel" aria-labelledby="activity-heading">
       <div class="activity-header">
         <h2 id="activity-heading" class="activity-title">ACTIVITY LOG</h2>
-        <button id="clear-activity" class="text-button activity-clear" type="button">[ CLEAR ]</button>
+        <span class="activity-header-actions"><button id="add-activity-note" class="text-button" type="button">[ NOTE ]</button><button id="clear-activity" class="text-button activity-clear" type="button">[ CLEAR ]</button></span>
       </div>
       <div id="activity-context" class="activity-context">SESSION</div>
+      <label class="activity-filter-label">SHOW<select id="activity-filter"><option value="all">ALL</option><option value="character">CHARACTER</option><option value="trade">TRADE + JOBS</option><option value="ship">SHIP + TRAVEL</option><option value="personal-combat">PERSONAL COMBAT</option><option value="space-combat">SPACE COMBAT</option><option value="campaign">CAMPAIGN + NOTES</option><option value="system">SYSTEM</option></select></label>
       <div id="activity-feed" class="activity-feed" role="log" aria-live="polite" aria-relevant="additions"></div>
     </aside>
 

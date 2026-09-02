@@ -50,7 +50,7 @@ test('registry resolves accepted Contract Documents and portable bundle includes
   assert.equal(resolved.contracts[0].identity.title, 'Priority Courier Packet');
 
   const bundle = registry.buildBundle(campaign.identity.id);
-  assert.equal(bundle.schemaVersion, 6);
+  assert.equal(bundle.schemaVersion, 7);
   assert.equal(bundle.documents.contracts.length, 1);
   assert.equal(bundle.documents.contracts[0].identity.id, contract.identity.id);
 });
