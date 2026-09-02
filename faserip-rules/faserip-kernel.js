@@ -205,7 +205,6 @@ export function escalateForMultipleActions(neededColor) {
 // Source-text issues and GM rulings. Kurt (Graycloak) holds final RAW authority.
 export const ERRATA = [
   'RULED 2026-08-31: Cosmic rank ranges — Shift Z 351-999, Class 1000 = 1000-2999, Class 3000 = 3000-4999, Class 5000 = 5000+, Beyond = infinity (imported from msh-faserip rules-reference ruling).',
-  'NOTE: AP Shot is RAW (ammunition rules): target Body Armor -2CS for hit and damage, no effect on force fields. Implemented in faserip-ammo.js.',
   'RULED 2026-08-31: Monstrous rank range is 63-87. PDF text "63-67" is an OCR error.',
   'RULED 2026-08-31: Automatic FEAT threshold is exactly three ranks below ability (>=3). Kernel requiredColor implements this.',
   'RULED 2026-08-31: Universal Table color bands certified against table image; Class 1000/3000/5000/Beyond corrected from provisional values.',
@@ -217,10 +216,8 @@ export const ERRATA = [
   'NOTE: Conspiracy example totals 185 but prints "55 points each" for three heroes; floor(185/3)=61. Kernel follows the stated split rule (100/3 -> 33 each), treating 55 as a book math error.',
   'NOTE: Karma Summary Listing prints Failing Commitment as -5; prose and the Reed Richards example say failure to show is -10 and leaving early is -5. Karma module encodes both per prose.',
   'RULED 2026-08-31: Teleporting into an object inflicts damage equal to the material strength (1x, Movement chapter text authoritative); the Appendix A power description saying twice is wrong. Body Armor gives no protection.',
-  'RULED 2026-08-31: Fall impact resolves entirely as a Charging attack per the Charging rules (rebound mechanism); "damage equivalent to the distance" is descriptive, not an alternate formula.',
-  'RULED 2026-08-31: Laser rifles are Energy attacks (Energy column, Body Armor at -20); the weapon table typing them "S" is wrong.',
-  'RULED 2026-08-31: Mercy Shot drug applies when the weapon damage would have met or beaten the defenses (borderline-consistent).',
   'OPEN (narrowed): Fall-catch intensity — book text certifies only 20 floors/round = Excellent Intensity (matches no speed column; designer fiat). Movement module interpolates the slower rates one rank per fall round (3=Pr, 6=Ty, 10=Gd, 20=Ex certified), overridable, pending GM blessing of the interpolation.',
+  'OPEN: Fall impact when the ground holds — "the hero takes damage from the fall equivalent to the distance" may mean the standard charging rebound or the floors fallen as points. resolveFallImpact defaults to the charging rebound with a distance model selectable, pending ruling. (She-Hulk takes zero under both.)',
   'NOTE: Long Distance table prints Shift Z air as 200 areas but 3750 mph; mph is areas x 15 everywhere else (200 -> 3000). Kernel stores the printed values.',
   'NOTE: Chargen tables restored where the PDF text leaves gaps: Random Ranks column 2 Good "78-95" -> 76-95; Powers/Talents/Contacts counts "21-80"/"61-90" -> 21-60/61-90; Power Categories "08-10"/"18-25" -> 06-10/16-25.',
   'NOTE: Chargen Examples 1 and 3 have their roll/rank/number rows scrambled in the PDF text extraction and do not reconcile with the tables; Example 2 (Lodestone) aligns exactly and anchors column 1 certification.',

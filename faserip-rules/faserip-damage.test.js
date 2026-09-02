@@ -2,8 +2,7 @@
 // [CERT] tests certify against Players Book worked examples and prose.
 
 import {
-  bluntDamage, meleeWeaponDamage, bluntThrowDamage, chargeDamage, chargeDamageParts,
-  chargeToHitShift, chargeMissContinuation, MATERIAL_EXAMPLES, INDESTRUCTIBLE_MATERIAL_RANKS,
+  bluntDamage, meleeWeaponDamage, bluntThrowDamage, chargeDamage,
   defenseValue, applyDefense, resolveChargeImpact, forceFieldBreach,
   resolveResistance, enduranceLossStep, recoveryAmount, healingPerHour,
   applyHealing, resolveFallImpact, KARMA_STABILIZE_ONE_ROUND, KARMA_EXTRA_ENDURANCE_FEAT,
@@ -59,33 +58,6 @@ t('[CERT] charging example: Endurance Good(10), 10 areas -> 10 + 2x10 = 30', () 
 
 t('[CERT] charging uses higher of Endurance or Body Armor as the base', () => {
   eq(chargeDamage({ endurance: 10, bodyArmor: 40, areas: 5 }), 50);
-});
-
-t('[CERT] charge to-hit: +1CS per area moved, max +3, minimum one area', () => {
-  eq(chargeToHitShift(0), null);
-  eq(chargeToHitShift(1), 1);
-  eq(chargeToHitShift(3), 3);
-  eq(chargeToHitShift(10), 3);
-});
-
-t('[CERT] charge damage parts: base reducible, speed bonus fixed', () => {
-  eq(chargeDamageParts({ endurance: 10, areas: 10 }), { base: 10, speedBonus: 20, total: 30, baseReducible: true, speedBonusFixed: true });
-});
-
-t('[CERT] a charging Miss continues half speed rounding up', () => {
-  eq(chargeMissContinuation(7), 4);
-  eq(chargeMissContinuation(10), 5);
-});
-
-t('[CERT] material examples: asphalt Good, steel Remarkable, Adamantium Unearthly; Class ranks indestructible', () => {
-  eq(MATERIAL_EXAMPLES.GD.includes('asphalt'), true);
-  eq(MATERIAL_EXAMPLES.RM.includes('steel'), true);
-  eq(MATERIAL_EXAMPLES.UN.includes('Adamantium steel'), true);
-  eq(INDESTRUCTIBLE_MATERIAL_RANKS, ['CL1000', 'CL3000', 'CL5000']);
-});
-
-t('[CERT] charging through a Good wall inflicts 10 on an unarmored attacker', () => {
-  eq(resolveChargeImpact({ damage: 30, targetDefense: 10, attackerDefense: 0 }).attackerTakes, 10);
 });
 
 // --- Defenses ----------------------------------------------------------

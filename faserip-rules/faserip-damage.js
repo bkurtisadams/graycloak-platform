@@ -1,4 +1,4 @@
-// faserip-rules damage v0.8.1
+// faserip-rules damage v0.7.2
 // Damage computation, defenses, dying, and recovery.
 // Certified against Players Book combat, Powers in Combat, and
 // Life/Death/Health prose.
@@ -8,7 +8,7 @@ import {
   requiredColor, colorForRoll, colorAtLeast, RANKS,
 } from './faserip-kernel.js';
 
-export const DAMAGE_VERSION = '0.8.1';
+export const DAMAGE_VERSION = '0.7.2';
 export const DAMAGE_CERTIFIED = true;
 
 // --- Damage by attack form ---------------------------------------------
@@ -41,54 +41,10 @@ export function bluntThrowDamage({ strength, itemMaterialRank }) {
 }
 
 // Charging: higher of current Endurance or Body Armor rank number,
-// plus 2 per area covered (End Gd(10), 10 areas -> 30). The base is
-// reducible by the attacker; the speed bonus is fixed.
+// plus 2 per area covered (End Gd(10), 10 areas -> 30).
 export function chargeDamage({ endurance, bodyArmor = 0, areas }) {
   return Math.max(endurance, bodyArmor) + 2 * areas;
 }
-
-export function chargeDamageParts({ endurance, bodyArmor = 0, areas }) {
-  const base = Math.max(endurance, bodyArmor);
-  return { base, speedBonus: 2 * areas, total: base + 2 * areas, baseReducible: true, speedBonusFixed: true };
-}
-
-// Charging to-hit: minimum one area moved; +1CS per area moved before
-// reaching combat, maximum +3CS; Endurance for figuring may not be
-// raised beyond Shift Z. Charging takes full movement (other actions
-// halve it).
-export const CHARGE_MIN_AREAS = 1;
-export const CHARGE_MAX_TO_HIT_CS = 3;
-export const CHARGE_ENDURANCE_SHIFT_CAP = 'SHZ';
-
-export function chargeToHitShift(areasMoved) {
-  if (areasMoved < CHARGE_MIN_AREAS) return null;
-  return Math.min(areasMoved, CHARGE_MAX_TO_HIT_CS);
-}
-
-// A charging Miss continues the mover half his speed (round up) in a
-// straight line; changing direction takes an Agility FEAT; a material
-// obstacle in the line becomes the attack's target instead. The charged
-// character may counterattack only if his action followed the charge.
-export function chargeMissContinuation(speedAreas) {
-  return Math.ceil(speedAreas / 2);
-}
-
-// Updated Material Strength Table (rank -> example materials).
-// Class 1000-5000 materials are virtually indestructible (Cap's shield,
-// Mjolnir).
-export const MATERIAL_EXAMPLES = {
-  FE: ['cloth', 'glass', 'brush', 'paper'],
-  PR: ['normal plastics', 'crystal', 'wood'],
-  TY: ['rubber', 'soft metals (gold, brass, copper)', 'ice', 'adobe', 'computer chips'],
-  GD: ['brick', 'aluminum', 'light machinery pieces', 'asphalt', 'high strength plastics'],
-  EX: ['concrete', 'Beta cloth', 'iron', 'bullet-proof glass'],
-  RM: ['reinforced concrete', 'steel'],
-  IN: ['solid stone', 'Vibranium', 'volcanic rock'],
-  AM: ['osmium steel', 'granite', 'gemstones'],
-  MN: ['diamond', 'super-heavy alloys'],
-  UN: ['Adamantium steel', 'certain mystical and enchanted elements'],
-};
-export const INDESTRUCTIBLE_MATERIAL_RANKS = ['CL1000', 'CL3000', 'CL5000'];
 
 // --- Defenses ----------------------------------------------------------
 
