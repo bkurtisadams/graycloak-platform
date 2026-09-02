@@ -148,23 +148,32 @@ export function establishShipFuelState(ship, { tons, quality = 'unknown' } = {})
   return next;
 }
 
-export function refuelShipToCapacity(ship, {
+export function purchaseShipFuel(ship, {
+  tons,
   quality,
   pricePerTonCr,
   source = 'fuel service',
   dateLabel = null
 } = {}) {
   assertValidShipDocument(ship);
+  assertNonNegativeFinite(tons, 'fuel tons');
+  if (tons <= 0) throw new RangeError('fuel tons must be greater than zero');
   if (!['refined', 'unrefined'].includes(quality)) throw new RangeError('refuel quality must be refined or unrefined');
   assertNonNegativeFinite(pricePerTonCr, 'fuel price per ton');
+
   const currentTons = Number.isFinite(ship.state.currentFuelTons) ? ship.state.currentFuelTons : 0;
   const capacity = ship.specifications.fuel.capacityTons;
-  const addedTons = Math.max(0, capacity - currentTons);
+  const availableCapacityTons = Math.max(0, capacity - currentTons);
+  if (tons > availableCapacityTons + 1e-9) {
+    throw new RangeError(`fuel purchase exceeds remaining tank capacity of ${availableCapacityTons} tons`);
+  }
+
+  const addedTons = tons;
   const costCr = Math.round(addedTons * pricePerTonCr);
   if (costCr > ship.state.finances.balanceCr) throw new RangeError(`ship operating account requires Cr${costCr.toLocaleString('en-US')} for fuel`);
 
   let next = cloneJson(ship);
-  next.state.currentFuelTons = capacity;
+  next.state.currentFuelTons = currentTons + addedTons;
   next.state.fuelQuality = fuelQualityAfterAdding(ship.state.fuelQuality, currentTons, quality, addedTons);
   if (costCr > 0) {
     next = appendLedger(next, {
@@ -177,6 +186,30 @@ export function refuelShipToCapacity(ship, {
     assertValidShipDocument(next);
   }
   return Object.freeze({ ship: next, addedTons, costCr, quality: next.state.fuelQuality });
+}
+
+export function refuelShipToCapacity(ship, {
+  quality,
+  pricePerTonCr,
+  source = 'fuel service',
+  dateLabel = null
+} = {}) {
+  assertValidShipDocument(ship);
+  if (!['refined', 'unrefined'].includes(quality)) throw new RangeError('refuel quality must be refined or unrefined');
+  assertNonNegativeFinite(pricePerTonCr, 'fuel price per ton');
+  const currentTons = Number.isFinite(ship.state.currentFuelTons) ? ship.state.currentFuelTons : 0;
+  const capacity = ship.specifications.fuel.capacityTons;
+  const addedTons = Math.max(0, capacity - currentTons);
+  if (addedTons <= 0) {
+    return Object.freeze({ ship: cloneJson(ship), addedTons: 0, costCr: 0, quality: ship.state.fuelQuality });
+  }
+  return purchaseShipFuel(ship, {
+    tons: addedTons,
+    quality,
+    pricePerTonCr,
+    source,
+    dateLabel
+  });
 }
 
 export function consumeJumpFuel(ship, distance, options = {}) {

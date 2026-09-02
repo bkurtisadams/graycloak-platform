@@ -27,6 +27,7 @@ import {
   consumeJumpFuel,
   transferCharacterCreditsToShip,
   creditShipAccount,
+  purchaseShipFuel,
   refuelShipToCapacity,
   beginPortCall,
   payCurrentBerthing,
@@ -242,6 +243,9 @@ const el = {
   subsectorMap: document.querySelector('#subsector-map'),
   jumpPlan: document.querySelector('#jump-plan'),
   jumpActions: document.querySelector('#jump-actions'),
+  liveShipPanel: document.querySelector('#live-ship-panel'),
+  liveShipIdentity: document.querySelector('#live-ship-identity'),
+  liveShipStatus: document.querySelector('#live-ship-status'),
   mapZoomOut: document.querySelector('#map-zoom-out'),
   mapZoomLabel: document.querySelector('#map-zoom-label'),
   mapZoomIn: document.querySelector('#map-zoom-in'),
@@ -1281,8 +1285,8 @@ function acceptContractOffer(offerId) {
     syncCampaignRefs();
     persistGameplayDocuments();
     if (registry) registry.put(campaignDocument);
-    logActivity('CONTRACT', `${contract.identity.title} accepted / ${contract.origin.systemName} to ${contract.destination.systemName} / ${formatCr(contract.economics.paymentCr)} / due ${String(contract.timing.deadlineDate.dayOfYear).padStart(3, '0')}-${contract.timing.deadlineDate.year}`);
-    setStatus(`CONTRACT ACCEPTED: ${contract.identity.title.toUpperCase()} / ${contract.destination.systemName.toUpperCase()}`, 'ok');
+    logActivity('JOB', `ACCEPTED / ${contract.identity.title} / ${contract.origin.systemName} -> ${contract.destination.systemName} / ${formatCr(contract.economics.paymentCr)} / DUE ${String(contract.timing.deadlineDate.dayOfYear).padStart(3, '0')}-${contract.timing.deadlineDate.year}`);
+    setStatus(`JOB ACCEPTED: ${contract.identity.title.toUpperCase()} / ${contract.origin.systemName.toUpperCase()} -> ${contract.destination.systemName.toUpperCase()}`, 'ok');
     render();
   } catch (error) {
     console.error(error);
@@ -1680,6 +1684,40 @@ function refuelAtCurrentPort() {
   }
 }
 
+function buyFuelAtCurrentPort() {
+  try {
+    const system = mappedCurrentSystem();
+    if (!system || !shipDocument) throw new Error('active ship at a mapped system is required');
+    const service = currentPortFuelService();
+    if (!service?.available) throw new Error('starport fuel is unavailable here');
+    const input = el.portActions.querySelector('#ship-fuel-tons');
+    const tons = Number.parseInt(input?.value ?? '', 10);
+    if (!Number.isInteger(tons) || tons < 1) throw new Error('fuel purchase must be at least 1 ton');
+
+    const capacity = shipDocument.specifications.fuel.capacityTons;
+    const currentFuel = Number.isFinite(shipDocument.state.currentFuelTons) ? shipDocument.state.currentFuelTons : 0;
+    const missingFuel = Math.max(0, capacity - currentFuel);
+    if (tons > missingFuel) throw new Error(`fuel tanks have room for only ${missingFuel} tons`);
+
+    const source = service.freeScoutFuel ? `${system.name} Scout Base` : service.source;
+    const result = purchaseShipFuel(shipDocument, {
+      tons,
+      quality: service.quality,
+      pricePerTonCr: service.pricePerTonCr,
+      source,
+      dateLabel: activityDateLabel()
+    });
+    shipDocument = result.ship;
+    persistGameplayDocuments();
+    logActivity('SHIP', `${shipDocument.identity.name || 'Ship'} took on ${result.addedTons}t ${service.quality} fuel at ${system.name} / ${result.costCr ? formatCr(result.costCr) : 'FREE'}`);
+    setStatus(`FUEL PURCHASED: ${result.addedTons}t ${service.quality.toUpperCase()} / ${result.costCr ? formatCr(result.costCr) : 'FREE'}`, 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
 function payBerthingAtCurrentPort() {
   try {
     const system = mappedCurrentSystem();
@@ -2037,8 +2075,10 @@ function renderContracts() {
   el.contractSection.dataset.available = 'true';
   el.contractSection.hidden = false;
   const offers = availableContractOffers();
+  const selected = selectedSystemId ? getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, selectedSystemId) : null;
   el.contractRecord.textContent = buildContractBoardRecord({
     system: current,
+    selectedSystem: selected,
     contracts: contractDocuments,
     offers
   });
@@ -2054,8 +2094,8 @@ function renderContracts() {
     const disabled = Boolean(exclusive)
       || requiresEmptyShip
       || offer.cargoTons > freeCargoTons();
-    const button = makePortButton(`ACCEPT ${index + 1} / ${offer.title.toUpperCase()} / ${formatCr(offer.paymentCr)}`, () => acceptContractOffer(offer.offerId), { disabled });
-    button.title = `${contractSourceLabel(offer)} / ${offer.destinationSystemName}`;
+    const button = makePortButton(`ACCEPT ${index + 1} / ${offer.originSystemName.toUpperCase()} -> ${offer.destinationSystemName.toUpperCase()} / ${offer.title.toUpperCase()} / ${formatCr(offer.paymentCr)}`, () => acceptContractOffer(offer.offerId), { disabled });
+    button.title = `${contractSourceLabel(offer)} / LOCAL OFFER AT ${offer.originSystemName} / DESTINATION ${offer.destinationSystemName}`;
     el.contractActions.append(button);
   });
 
@@ -2486,13 +2526,58 @@ function renderPortServices() {
   const currentFuel = Number.isFinite(shipDocument.state.currentFuelTons) ? shipDocument.state.currentFuelTons : 0;
   const missingFuel = Math.max(0, capacity - currentFuel);
   if (service?.available && missingFuel > 0) {
-    const projectedCost = Math.round(missingFuel * service.pricePerTonCr);
-    const label = service.freeScoutFuel
-      ? `REFUEL TO FULL / FREE`
-      : `REFUEL TO FULL / ${formatCr(projectedCost)}`;
-    el.portActions.append(makePortButton(label, refuelAtCurrentPort, {
-      disabled: projectedCost > shipDocument.state.finances.balanceCr
-    }));
+    if (service.freeScoutFuel) {
+      el.portActions.append(makePortButton('REFUEL TO FULL / FREE', refuelAtCurrentPort));
+    } else {
+      const purchase = document.createElement('span');
+      purchase.className = 'port-transfer fuel-purchase';
+
+      const label = document.createElement('label');
+      label.htmlFor = 'ship-fuel-tons';
+      label.textContent = `FUEL t / ${formatCr(service.pricePerTonCr)} PER TON`;
+
+      const input = document.createElement('input');
+      input.id = 'ship-fuel-tons';
+      input.type = 'number';
+      input.min = '1';
+      input.max = String(Math.floor(missingFuel));
+      input.step = '1';
+
+      const balanceCr = shipDocument.state.finances.balanceCr;
+      const maximumAffordableTons = Math.floor(balanceCr / service.pricePerTonCr);
+      const defaultTons = Math.max(1, Math.min(Math.floor(missingFuel), maximumAffordableTons || 1));
+      input.value = String(defaultTons);
+
+      const button = makePortButton('BUY FUEL', buyFuelAtCurrentPort);
+      const updateFuelPurchaseButton = () => {
+        const tons = Number.parseInt(input.value || '0', 10);
+        const validQuantity = Number.isInteger(tons) && tons >= 1 && tons <= missingFuel;
+        const costCr = validQuantity ? Math.round(tons * service.pricePerTonCr) : 0;
+        button.textContent = validQuantity
+          ? `[ BUY ${tons}t / ${formatCr(costCr)} ]`
+          : '[ BUY FUEL ]';
+        button.disabled = !validQuantity || costCr > balanceCr;
+        if (!validQuantity) {
+          button.title = `Enter 1 to ${Math.floor(missingFuel)} tons.`;
+        } else if (costCr > balanceCr) {
+          button.title = `Ship operating account has ${formatCr(balanceCr)}; transfer funds or buy fewer tons.`;
+        } else {
+          button.title = `${service.quality.toUpperCase()} fuel / ${service.source}`;
+        }
+      };
+      input.addEventListener('input', updateFuelPurchaseButton);
+      updateFuelPurchaseButton();
+
+      purchase.append(label, input, button);
+      el.portActions.append(purchase);
+    }
+  } else if (service && !service.available && missingFuel > 0) {
+    const note = document.createElement('span');
+    note.className = 'commerce-note';
+    note.textContent = system.gasGiant
+      ? 'STARPORT FUEL UNAVAILABLE / GAS GIANT SKIM AVAILABLE.'
+      : 'STARPORT FUEL UNAVAILABLE.';
+    el.portActions.append(note);
   }
 
   const portCall = currentBerthingDue();
@@ -2528,12 +2613,121 @@ function renderRecordWithHighlights(target, text, attentionPrefixes = []) {
   });
 }
 
+function appendLiveShipRow(labelText, valueText, { stateClass = '', tab = null, title = '' } = {}) {
+  const row = document.createElement('div');
+  row.className = `live-ship-row${stateClass ? ` ${stateClass}` : ''}`;
+  if (title) row.title = title;
+  const label = document.createElement('span');
+  label.className = 'live-ship-label';
+  label.textContent = labelText;
+  const value = document.createElement('span');
+  value.className = 'live-ship-value';
+  value.textContent = valueText;
+  row.append(label, value);
+  if (tab) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'text-button live-ship-link';
+    button.textContent = `[ ${tab.toUpperCase()} ]`;
+    button.addEventListener('click', () => setOperationsDeskTab(tab));
+    row.append(button);
+  }
+  el.liveShipStatus.append(row);
+  return row;
+}
+
+function renderLiveShipStatus({ currentSystem = null, selectedSystem = null, distance = null, fuelCheck = null } = {}) {
+  el.liveShipStatus.replaceChildren();
+  if (!shipDocument) {
+    el.liveShipIdentity.textContent = 'NO ACTIVE SHIP';
+    appendLiveShipRow('STATUS', 'LOAD OR ASSIGN A SHIP');
+    return;
+  }
+
+  const shipName = shipDocument.identity.name || 'UNNAMED SHIP';
+  const registry = shipDocument.identity.registry || '--';
+  el.liveShipIdentity.textContent = `${shipName.toUpperCase()} / ${registry}`;
+
+  appendLiveShipRow('TYPE', `${shipDocument.design.typeCode} ${shipDocument.design.name.toUpperCase()} / JUMP-${shipDocument.specifications.drives.jump.rating}`);
+
+  const fuelCapacity = shipDocument.specifications.fuel.capacityTons;
+  const fuelAboard = Number.isFinite(shipDocument.state.currentFuelTons) ? shipDocument.state.currentFuelTons : null;
+  const fuelService = currentSystem ? currentPortFuelService() : null;
+  const gasGiantFuel = Boolean(currentSystem?.gasGiant && shipDocument.specifications.hull.streamlined);
+  const localFuelSource = Boolean(fuelService?.available || gasGiantFuel);
+  let fuelStateClass = '';
+  let fuelTitle = 'Select a destination to compare fuel aboard with jump requirement.';
+  if (fuelAboard === null) {
+    fuelStateClass = 'live-state-attention';
+    fuelTitle = 'Fuel state is unrecorded.';
+  } else if (fuelCheck) {
+    if (fuelCheck.allowed) {
+      fuelStateClass = 'live-state-ready';
+      fuelTitle = `Enough fuel for the selected ${distance}-parsec jump.`;
+    } else if (localFuelSource) {
+      fuelStateClass = 'live-state-attention';
+      fuelTitle = 'Insufficient fuel for the selected jump; fuel is obtainable in the current system.';
+    } else {
+      fuelStateClass = 'live-state-critical';
+      fuelTitle = 'Insufficient fuel for the selected jump and no local refueling source is available.';
+    }
+  }
+  const fuelText = `${fuelAboard === null ? 'UNRECORDED' : `${fuelAboard}t`} / ${fuelCapacity}t`;
+  appendLiveShipRow('FUEL', fuelText, { stateClass: fuelStateClass, tab: 'port', title: fuelTitle });
+  if (fuelCheck && selectedSystem) {
+    const required = fuelCheck.requirement?.totalTons ?? null;
+    const shortage = Number.isFinite(required) && Number.isFinite(fuelAboard) ? Math.max(0, required - fuelAboard) : null;
+    appendLiveShipRow('JUMP NEED', `${required ?? '--'}t -> ${selectedSystem.name.toUpperCase()}${shortage > 0 ? ` / SHORT ${shortage}t` : ''}`, {
+      stateClass: shortage > 0 ? fuelStateClass : 'live-state-ready'
+    });
+  } else {
+    appendLiveShipRow('JUMP NEED', selectedSystem && currentSystem && selectedSystem.id === currentSystem.id ? 'CURRENT SYSTEM' : 'SELECT DESTINATION');
+  }
+
+  const cargoCapacity = shipDocument.specifications.cargo.capacityTons;
+  const cargoUsed = shipDocument.state.cargoUsedTons;
+  appendLiveShipRow('CARGO', `${cargoUsed}/${cargoCapacity}t${cargoUsed >= cargoCapacity ? ' / FULL' : ''}`, {
+    stateClass: cargoUsed >= cargoCapacity ? 'live-state-attention' : '',
+    tab: 'trade'
+  });
+  for (const cargo of shipDocument.state.cargoManifest.slice(0, 3)) {
+    const destination = cargo.destinationSystemId ? getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, cargo.destinationSystemId) : null;
+    appendLiveShipRow('  ABOARD', `${cargo.tons}t ${cargo.description.toUpperCase()}${destination ? ` -> ${destination.name.toUpperCase()}` : ''}`);
+  }
+
+  const crewPeople = new Set(shipDocument.crew.assignments.map((entry) => entry.characterId)).size;
+  const passengerCapacity = Math.max(0, shipDocument.specifications.accommodations.staterooms - crewPeople);
+  const cabinPassengers = shipDocument.state.passengerManifest.filter((entry) => entry.class === 'high' || entry.class === 'middle');
+  const lowPassengers = shipDocument.state.passengerManifest.filter((entry) => entry.class === 'low');
+  const lowCapacity = shipDocument.specifications.accommodations.lowBerths;
+  const passengerFull = (passengerCapacity > 0 && cabinPassengers.length >= passengerCapacity)
+    || (lowCapacity > 0 && lowPassengers.length >= lowCapacity);
+  const passengerText = `${cabinPassengers.length}/${passengerCapacity} CABINS${lowCapacity ? ` / LOW ${lowPassengers.length}/${lowCapacity}` : ''}${passengerFull ? ' / FULL' : ''}`;
+  appendLiveShipRow('PASSENGERS', passengerText, {
+    stateClass: passengerFull ? 'live-state-attention' : '',
+    tab: 'trade'
+  });
+  for (const passenger of shipDocument.state.passengerManifest.slice(0, 3)) {
+    const destination = getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, passenger.destinationSystemId);
+    appendLiveShipRow('  ABOARD', `${passenger.class.toUpperCase()} -> ${(destination?.name ?? passenger.destinationSystemId).toUpperCase()}`);
+  }
+
+  const jobs = activeContracts();
+  appendLiveShipRow('ACTIVE JOBS', `${jobs.length}`, { tab: 'jobs' });
+  for (const contract of jobs.slice(0, 2)) {
+    appendLiveShipRow('  JOB', `${contract.origin.systemName.toUpperCase()} -> ${contract.destination.systemName.toUpperCase()} / ${contract.identity.title.toUpperCase()}`);
+  }
+  appendLiveShipRow('ACCOUNT', formatCr(shipDocument.state.finances.balanceCr));
+}
+
 function renderSubsector() {
   if (!campaignDocument) {
     el.subsectorSection.hidden = true;
     el.subsectorMap.replaceChildren();
     el.jumpPlan.textContent = '';
     el.jumpActions.replaceChildren();
+    el.liveShipStatus.replaceChildren();
+    el.liveShipIdentity.textContent = shipDocument ? `${(shipDocument.identity.name || 'SHIP').toUpperCase()} / ${shipDocument.identity.registry || '--'}` : 'NO ACTIVE SHIP';
     return;
   }
 
@@ -2574,6 +2768,7 @@ function renderSubsector() {
   const lifeSupport = inJumpRange ? calculateLifeSupportCostForTrip(shipDocument) : null;
   const operatingBalanceCr = shipDocument?.state?.finances?.balanceCr ?? null;
   const lifeSupportBlocked = Boolean(lifeSupport && Number.isInteger(operatingBalanceCr) && lifeSupport.totalCr > operatingBalanceCr);
+  renderLiveShipStatus({ currentSystem: current, selectedSystem: selected, distance, fuelCheck });
   const jumpPlanText = buildJumpPlan({
     campaign: campaignDocument,
     currentSystem: current,

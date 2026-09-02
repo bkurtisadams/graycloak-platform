@@ -155,6 +155,7 @@ export {
   availableShipFuelTons,
   canShipMakeJump,
   establishShipFuelState,
+  purchaseShipFuel,
   refuelShipToCapacity,
   consumeJumpFuel,
   transferCharacterCreditsToShip,

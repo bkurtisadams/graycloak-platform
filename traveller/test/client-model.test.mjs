@@ -13,6 +13,7 @@ import {
 
 import {
   buildCharacterRecord,
+  buildContractBoardRecord,
   buildFinalCharacterRecord,
   buildGenerationLog,
   buildJumpPlan,
@@ -244,4 +245,32 @@ test('port services record exposes fuel, berthing, cargo, and operating funds at
   assert.match(record, /BERTHING NO CURRENT FEE RECORDED/);
   assert.match(record, /CARGO 0\/3t/);
   assert.match(record, /SHIP ACCOUNT Cr0\s+CHARACTER Cr80,000/);
+});
+
+
+test('job board labels current port, map selection, and origin-to-destination routes', () => {
+  const system = { id: 'orison', name: 'Orison', hex: '0704' };
+  const selectedSystem = { id: 'aster', name: 'Aster', hex: '0505' };
+  const active = {
+    status: 'accepted',
+    identity: { title: 'Priority Delivery' },
+    origin: { systemName: 'Orison' },
+    destination: { systemName: 'Aster' },
+    requirements: { cargoTons: 1, exclusiveShip: false },
+    economics: { paymentCr: 12000 },
+    timing: { deadlineDate: { year: 4800, dayOfYear: 127 } }
+  };
+  const offer = {
+    title: 'Courier Packet', originSystemName: 'Orison', destinationSystemName: 'Cinder',
+    paymentCr: 16000, deadlineDays: 14, cargoTons: 0, exclusiveShip: false,
+    rulesBasis: 'sea-of-suns-original', requirementsDescription: 'Sealed packet.'
+  };
+  const record = buildContractBoardRecord({ system, selectedSystem, contracts: [active], offers: [offer] });
+  assert.match(record, /CURRENT PORT ORISON \/ 0704/);
+  assert.match(record, /MAP SELECTED ASTER \/ NAVIGATION SELECTION ONLY/);
+  assert.match(record, /ALL NEW OFFERS ORIGINATE AT THE CURRENT PORT/);
+  assert.match(record, /ACTIVE JOBS/);
+  assert.match(record, /ORISON -> ASTER/);
+  assert.match(record, /AVAILABLE AT ORISON/);
+  assert.match(record, /ORISON -> CINDER/);
 });

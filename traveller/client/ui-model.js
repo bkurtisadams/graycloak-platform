@@ -588,7 +588,7 @@ export function buildJumpPlan({
   operatingBalanceCr = null
 } = {}) {
   if (!campaign) return '';
-  const width = 38;
+  const width = 30;
   if (!selectedSystem) {
     return box([
       'NAVIGATION PLAN',
@@ -659,37 +659,47 @@ function formatContractDate(date) {
   return `${String(date.dayOfYear).padStart(3, '0')}-${date.year}`;
 }
 
-export function buildContractBoardRecord({ system, contracts = [], offers = [] } = {}) {
+export function buildContractBoardRecord({ system, selectedSystem = null, contracts = [], offers = [] } = {}) {
   if (!system) return '';
   const active = contracts.filter((entry) => entry.status === 'accepted');
   const resolved = contracts.filter((entry) => entry.status !== 'accepted').slice(-4);
+  const selectionNote = !selectedSystem
+    ? 'NONE / NAVIGATION SELECTION ONLY'
+    : selectedSystem.id === system.id
+      ? `${system.name.toUpperCase()} / CURRENT PORT`
+      : `${selectedSystem.name.toUpperCase()} / NAVIGATION SELECTION ONLY`;
   const lines = [
-    `CONTRACT BOARD // ${system.name.toUpperCase()} // ${system.hex}`,
+    `JOBS // ${system.name.toUpperCase()} STARPORT // LOCAL BOARD`,
+    `CURRENT PORT ${system.name.toUpperCase()} / ${system.hex}`,
+    `MAP SELECTED ${selectionNote}`,
+    'ALL NEW OFFERS ORIGINATE AT THE CURRENT PORT.',
     `ACTIVE ${active.length} / OFFERS ${offers.length}`
   ];
   if (active.length) {
-    lines.push('', 'ACTIVE CONTRACTS');
+    lines.push('', 'ACTIVE JOBS');
     for (const contract of active) {
       const cargo = contract.requirements.cargoTons ? ` / CARGO ${contract.requirements.cargoTons}t` : '';
       const exclusive = contract.requirements.exclusiveShip ? ' / EXCLUSIVE SHIP' : '';
-      lines.push(`${contract.identity.title.toUpperCase()} -> ${contract.destination.systemName.toUpperCase()} / ${formatCredits(contract.economics.paymentCr)} / DUE ${formatContractDate(contract.timing.deadlineDate)}${cargo}${exclusive}`);
+      lines.push(`${contract.identity.title.toUpperCase()}`);
+      lines.push(`   ${contract.origin.systemName.toUpperCase()} -> ${contract.destination.systemName.toUpperCase()} / ${formatCredits(contract.economics.paymentCr)} / DUE ${formatContractDate(contract.timing.deadlineDate)}${cargo}${exclusive}`);
     }
   }
   if (offers.length) {
-    lines.push('', 'AVAILABLE OFFERS');
+    lines.push('', `AVAILABLE AT ${system.name.toUpperCase()}`);
     offers.forEach((offer, index) => {
       const cargo = offer.cargoTons ? ` / CARGO ${offer.cargoTons}t` : '';
       const exclusive = offer.exclusiveShip ? ' / EXCLUSIVE' : '';
-      lines.push(`${index + 1}. ${offer.title.toUpperCase()} -> ${offer.destinationSystemName.toUpperCase()} / ${formatCredits(offer.paymentCr)} / ${offer.deadlineDays} DAYS${cargo}${exclusive}`);
+      lines.push(`${index + 1}. ${offer.title.toUpperCase()}`);
+      lines.push(`   ${offer.originSystemName.toUpperCase()} -> ${offer.destinationSystemName.toUpperCase()} / ${formatCredits(offer.paymentCr)} / ${offer.deadlineDays} DAYS${cargo}${exclusive}`);
       lines.push(`   ${String(offer.rulesBasis).toUpperCase()} / ${offer.requirementsDescription}`);
     });
   } else {
-    lines.push('', 'NO NEW CONTRACT OFFERS AT THIS PORT CALL.');
+    lines.push('', `NO UNUSED JOB OFFERS AT ${system.name.toUpperCase()} THIS PORT CALL.`);
   }
   if (resolved.length) {
-    lines.push('', 'RECENT CONTRACTS');
+    lines.push('', 'RECENT JOBS');
     for (const contract of resolved) {
-      lines.push(`${contract.status.toUpperCase()} / ${contract.identity.title.toUpperCase()} / ${contract.destination.systemName.toUpperCase()} / ${formatCredits(contract.resolution.paymentCr)}`);
+      lines.push(`${contract.status.toUpperCase()} / ${contract.identity.title.toUpperCase()} / ${contract.origin.systemName.toUpperCase()} -> ${contract.destination.systemName.toUpperCase()} / ${formatCredits(contract.resolution.paymentCr)}`);
     }
   }
   return box(lines, 96);

@@ -1,4 +1,12 @@
+## v0.12.1.3 live ship status and clearer local job board
+
+v0.12.1.3 keeps a live ship-status panel beside Navigation Plan so fuel, cargo, passengers, active jobs, and the ship operating account visibly change as the player acts. Fuel is green when the selected jump is ready, yellow when fuel is short but obtainable locally, and red only when the selected jump lacks fuel and the current system has no usable refueling source. Fuel, cargo/passenger, and job rows link directly to PORT, TRADE, and JOBS. The JOBS tab now labels the current port explicitly, states that map selection is navigation-only, prints origin -> destination on both offers and active jobs, and uses a green JOB activity entry when work is accepted. No Traveller rules or persistence schemas change in this milestone.
+
 # Graycloak Traveller
+
+## v0.12.1.2 partial fuel-purchase fix
+
+v0.12.1.2 fixes a port-operations bug where paid fuel could only be purchased by filling the tank completely. The old UI disabled `REFUEL TO FULL` whenever the ship operating account could not afford every missing ton, even when the account could afford enough fuel for the next jump. Paid starports now expose a fuel-tonnage input and calculate the exact purchase price; Scout-base free fuel retains one-click fill-to-capacity. Contract/job acceptance does not debit the ship operating account and does not reserve fuel. The rules package now exposes `purchaseShipFuel()` for quantity-based purchases while retaining `refuelShipToCapacity()` as a convenience wrapper.
 
 ## v0.12.1.1 generic adventure engine
 

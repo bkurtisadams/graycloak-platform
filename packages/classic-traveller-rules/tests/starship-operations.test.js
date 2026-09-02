@@ -17,6 +17,7 @@ import {
   loadCargo,
   unloadCargo,
   payCurrentBerthing,
+  purchaseShipFuel,
   refuelShipToCapacity,
   skimGasGiantToCapacity,
   starportFuelService,
@@ -85,6 +86,35 @@ test('character credits transfer into ship account without duplicating money', a
   assert.equal(result.ship.state.finances.balanceCr, 5000);
   assert.equal(result.ship.state.finances.ledger.length, 1);
   assert.equal(result.ship.state.finances.ledger[0].amountCr, 5000);
+});
+
+test('paid fuel can be purchased partially when filling the tank would exceed the ship account', async () => {
+  const character = await hawkeye();
+  let { ship } = createTypeSScoutReserveShipForCharacter(character);
+  ship = transferCharacterCreditsToShip(character, ship, 500, { dateLabel: '001-4800' }).ship;
+
+  assert.throws(() => refuelShipToCapacity(ship, {
+    quality: 'unrefined', pricePerTonCr: 100, source: 'STARPORT C', dateLabel: '001-4800'
+  }), /requires Cr4,000 for fuel/);
+
+  const partial = purchaseShipFuel(ship, {
+    tons: 5,
+    quality: 'unrefined',
+    pricePerTonCr: 100,
+    source: 'STARPORT C',
+    dateLabel: '001-4800'
+  });
+  assert.equal(partial.addedTons, 5);
+  assert.equal(partial.costCr, 500);
+  assert.equal(partial.ship.state.currentFuelTons, 5);
+  assert.equal(partial.ship.state.fuelQuality, 'unrefined');
+  assert.equal(partial.ship.state.finances.balanceCr, 0);
+  assert.throws(() => purchaseShipFuel(ship, {
+    tons: 6,
+    quality: 'unrefined',
+    pricePerTonCr: 100,
+    source: 'STARPORT C'
+  }), /requires Cr600 for fuel/);
 });
 
 test('paid and Scout-free refueling fill Type S tanks and update operating ledger correctly', async () => {

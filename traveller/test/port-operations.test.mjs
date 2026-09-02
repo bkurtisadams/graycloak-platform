@@ -9,7 +9,9 @@ import {
   consumeJumpFuel,
   importCharacterDocument,
   importShipDocument,
+  loadCargo,
   payCurrentBerthing,
+  purchaseShipFuel,
   parseUniversalWorldProfile,
   refuelShipToCapacity,
   starportFuelService,
@@ -19,6 +21,7 @@ import {
 import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js';
 import { createDocumentRegistry, createMemoryStorage } from '../src/document-registry.js';
 import { createCampaignDocument, updateCampaignLocation, advanceCampaignDays } from '../src/campaign-document.js';
+import { createContractDocument } from '../src/contract-document.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const examples = path.resolve(here, '../examples');
@@ -32,6 +35,65 @@ async function loadFixture() {
 function system(id) {
   return FAR_MERIDIAN_SUBSECTOR.systems.find((entry) => entry.id === id);
 }
+
+test('accepted job cargo does not block a partial fuel purchase when a full refill is unaffordable', async () => {
+  let { character, ship } = await loadFixture();
+  ship = refuelShipToCapacity(ship, {
+    quality: 'refined', pricePerTonCr: 0, source: 'SCOUT BASE', dateLabel: '001-4800'
+  }).ship;
+  ship = consumeJumpFuel(ship, 1).ship;
+  ({ character, ship } = transferCharacterCreditsToShip(character, ship, 500, { dateLabel: '008-4800' }));
+
+  const contract = createContractDocument({
+    offerId: 'fuel-regression-job',
+    kind: 'delivery',
+    title: 'Test Delivery',
+    rulesBasis: 'sea-of-suns-original',
+    setting: 'Sea of Suns',
+    issuerName: 'Test Dispatcher',
+    issuerType: 'private',
+    originSystemId: 'calder',
+    originSystemName: 'Calder',
+    destinationSystemId: 'pelagos',
+    destinationSystemName: 'Pelagos',
+    paymentCr: 5000,
+    deadlineDays: 21,
+    cargoTons: 1,
+    exclusiveShip: false,
+    requirementsDescription: 'Carry one ton.',
+    notes: ''
+  }, {
+    acceptedByCharacterId: character.identity.id,
+    acceptedShipId: ship.identity.id,
+    acceptedDate: { year: 4800, dayOfYear: 8 }
+  });
+
+  ship = loadCargo(ship, {
+    id: `${contract.identity.id}:cargo`,
+    category: `contract:${contract.identity.id}`,
+    description: contract.identity.title,
+    tons: contract.requirements.cargoTons,
+    originSystemId: contract.origin.systemId,
+    destinationSystemId: contract.destination.systemId,
+    acquisitionCostCr: 0,
+    notes: 'Contract cargo'
+  });
+
+  assert.equal(ship.state.currentFuelTons, 25);
+  assert.equal(ship.state.finances.balanceCr, 500);
+  assert.equal(ship.state.cargoUsedTons, 1);
+
+  const partial = purchaseShipFuel(ship, {
+    tons: 5,
+    quality: 'unrefined',
+    pricePerTonCr: 100,
+    source: 'STARPORT C',
+    dateLabel: '008-4800'
+  });
+  assert.equal(partial.ship.state.currentFuelTons, 30);
+  assert.equal(partial.ship.state.finances.balanceCr, 0);
+  assert.equal(partial.ship.state.cargoUsedTons, 1);
+});
 
 test('Hawkeye and Marisol can establish fuel, fund the ship, jump, pay port costs, and persist the ledger', async () => {
   let { character, ship } = await loadFixture();

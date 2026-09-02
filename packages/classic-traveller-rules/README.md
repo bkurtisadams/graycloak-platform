@@ -2,6 +2,10 @@
 
 Pure JavaScript rules package for the Graycloak Classic Traveller browser-game project. It intentionally has no HTML, Foundry, Firebase, or server dependencies.
 
+## v0.12.0.1 fuel purchase quantity fix
+
+Adds `purchaseShipFuel()` so a vessel can buy a specified amount of available starport fuel rather than requiring a fill-to-capacity transaction. `refuelShipToCapacity()` remains available and now delegates to the quantity-based primitive. Fuel price, tank capacity, fuel quality, and ship-account ledger rules are unchanged.
+
 ## v0.12.0 encounters and referee checks
 
 v0.12.0 adds the Book 3 patron encounter table, patron availability procedure, and reaction table as pure rules data/functions. It also adds a deliberately labeled generalized referee skill-check helper based on the Book 1 Electronics errata guidance rather than claiming Classic Traveller has a universal task system.

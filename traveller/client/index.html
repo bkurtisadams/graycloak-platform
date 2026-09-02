@@ -11,7 +11,7 @@
     <header class="masthead">
       <div>
         <div id="app-title" class="title">TRAVELLER // PERSONNEL INTAKE TERMINAL</div>
-        <div id="app-subtitle" class="subtitle">CLIENT v0.12.1.1 // GENERIC ADVENTURE ENGINE // CLASSIC TRAVELLER BOOKS 1-3</div>
+        <div id="app-subtitle" class="subtitle">CLIENT v0.12.1.3 // LIVE SHIP STATUS + CLEARER JOBS // CLASSIC TRAVELLER BOOKS 1-3</div>
       </div>
       <div id="system-status" class="status" aria-live="polite">READY</div>
     </header>
@@ -132,8 +132,19 @@
       <div class="subsector-workspace">
         <aside class="navigation-plan-panel" aria-label="Navigation and operations desk">
           <div class="navigation-plan-fixed">
-            <pre id="jump-plan" class="record jump-plan" aria-live="polite"></pre>
-            <div id="jump-actions" class="actions jump-actions"></div>
+            <div class="navigation-cockpit">
+              <div class="navigation-cockpit-plan">
+                <pre id="jump-plan" class="record jump-plan" aria-live="polite"></pre>
+                <div id="jump-actions" class="actions jump-actions"></div>
+              </div>
+              <section id="live-ship-panel" class="live-ship-panel" aria-labelledby="live-ship-heading">
+                <div class="live-ship-heading">
+                  <strong id="live-ship-heading">SHIP STATUS</strong>
+                  <span id="live-ship-identity" class="live-ship-identity">NO ACTIVE SHIP</span>
+                </div>
+                <div id="live-ship-status" class="live-ship-status" aria-live="polite"></div>
+              </section>
+            </div>
           </div>
           <div class="operations-desk" aria-label="Port operations desk">
             <div class="operations-tabs" role="tablist" aria-label="Operations desk views">
