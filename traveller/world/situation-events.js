@@ -1,4 +1,6 @@
 import { requireDice } from '../../packages/classic-traveller-rules/index.js';
+import { generateAdventureArrivalOffer } from '../src/adventure-engine.js';
+import { SEA_OF_SUNS_ADVENTURES } from '../campaigns/sea-of-suns/adventure-catalog.js';
 
 function dateLabelFromCampaign(campaign) {
   return `${String(campaign.time.dayOfYear).padStart(3, '0')}-${campaign.time.year}`;
@@ -17,34 +19,6 @@ export function patronSituationEventKey({ campaign, system, ship }) {
 }
 
 const AUTHORED_ARRIVAL_EVENTS = Object.freeze({
-  cinder: Object.freeze({
-    title: 'Dead Approach Beacon',
-    summary: 'Cinder traffic control reports that an obsolete approach beacon has begun transmitting again.',
-    detail: 'The signal is weak, intermittent, and formatted in a survey protocol older than the current Far Meridian route standards. Port personnel are treating it as failing hardware.',
-    skillName: 'Electronics',
-    target: 8,
-    successText: 'Hawkeye separates the beacon failure from its payload. Buried in the old handshake is a route-designator family no longer used on modern charts. The code is worth preserving for later comparison.',
-    failureText: 'The transmission collapses into noise before Hawkeye can separate the old route data from the beacon fault.'
-  }),
-  aster: Object.freeze({
-    title: 'Scout Archive Recorder',
-    actor: Object.freeze({ name: 'Mara Venn', type: 'Scout Archivist', reaction: 'friendly' }),
-    summary: 'Aster Scout Base has an old survey recorder that refuses to index correctly.',
-    detail: 'The base technician recognizes Marisol as a reserve Scout vessel and asks whether Hawkeye can take a quick look before the recorder is written off.',
-    skillName: 'Electronics',
-    target: 8,
-    successText: 'The recorder yields a partial index of obsolete route annotations. Most are routine, but several use naming conventions predating the modern subsector charts.',
-    failureText: 'The recorder remains unreadable. The technician tags it for depot-level recovery instead.'
-  }),
-  heliograph: Object.freeze({
-    title: 'Misfiled Survey Index',
-    summary: 'A Heliograph archive clerk notices Hawkeye studying an obsolete route index.',
-    detail: 'One entry describes a waypoint by an old navigator\'s name rather than a modern system designation. The clerk cannot place it on any current chart.',
-    skillName: 'Navigation',
-    target: 8,
-    successText: 'Hawkeye recognizes the notation as an older route convention rather than a bad coordinate. The entry is copied into his working notes for later cross-reference.',
-    failureText: 'The notation remains ambiguous. It could be a person, a waypoint, or merely an archival filing code.'
-  }),
   vesper: Object.freeze({
     title: 'Conflicting Port Notices',
     summary: 'Two Vesper authorities have posted incompatible approach instructions for the same orbital corridor.',
@@ -87,6 +61,15 @@ export function generateArrivalSituationOffer({ campaign, system, ship, dice }) 
   requireDice(dice);
   if (!campaign?.identity?.id || !campaign?.time) throw new TypeError('campaign is required');
   if (!system?.id || !system?.name) throw new TypeError('system is required');
+
+  const adventureOffer = generateAdventureArrivalOffer({
+    definitions: SEA_OF_SUNS_ADVENTURES,
+    campaign,
+    system,
+    ship,
+    eventKeyForSystem: arrivalSituationEventKey
+  });
+  if (adventureOffer) return adventureOffer;
 
   const authored = AUTHORED_ARRIVAL_EVENTS[system.id];
   let event = authored;

@@ -41,7 +41,7 @@ test('v0.11.0.1 retains contextual help and highlighted legal actions', async ()
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /CLIENT v0\.(?:11\.2(?:\.1)?|12\.(?:0(?:\.[1-4])?|1))/);
+  assert.match(html, /CLIENT v0\.(?:11\.2(?:\.1)?|12\.(?:0(?:\.[1-4])?|1(?:\.1)?))/);
   assert.match(html, /data-help-topic="personnel-record"/);
   assert.match(html, /id="context-help"/);
   assert.match(app, /helpForTopic/);
@@ -58,7 +58,7 @@ test('v0.11.0 specialization UI uses engine-supplied legal choices instead of fr
   const html = await read('index.html');
   const app = await read('app.js');
 
-  assert.match(html, /CLIENT v0\.(?:11\.2(?:\.1)?|12\.(?:0(?:\.[1-4])?|1))/);
+  assert.match(html, /CLIENT v0\.(?:11\.2(?:\.1)?|12\.(?:0(?:\.[1-4])?|1(?:\.1)?))/);
   assert.match(app, /available\.choices\.specializations/);
   assert.doesNotMatch(app, /id = 'skill-specialization'/);
   assert.doesNotMatch(app, /id = 'benefit-specialization'/);
@@ -208,7 +208,7 @@ test('v0.11.0.1 adds base markers, map zoom controls, and a left navigation rail
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /CLIENT v0\.(?:11\.2(?:\.1)?|12\.(?:0(?:\.[1-4])?|1))/);
+  assert.match(html, /CLIENT v0\.(?:11\.2(?:\.1)?|12\.(?:0(?:\.[1-4])?|1(?:\.1)?))/);
   assert.match(html, /class="subsector-workspace"/);
   assert.match(html, /class="navigation-plan-panel"/);
   assert.match(html, /id="map-zoom-out"/);
@@ -228,7 +228,7 @@ test('v0.11.0.2 highlights navigation and port states that require attention', a
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /CLIENT v0\.(?:11\.2(?:\.1)?|12\.(?:0(?:\.[1-4])?|1))/);
+  assert.match(html, /CLIENT v0\.(?:11\.2(?:\.1)?|12\.(?:0(?:\.[1-4])?|1(?:\.1)?))/);
   assert.match(app, /renderRecordWithHighlights/);
   assert.match(app, /jumpAttention\.push\('FUEL NEED '/);
   assert.match(app, /portAttention\.push\('BERTHING '/);
@@ -245,7 +245,7 @@ test('v0.11.1 exposes Book 2 passengers, freight, speculative trade, and life-su
   const model = await read('ui-model.js');
   const market = await read('commerce-market.js');
 
-  assert.match(html, /CLIENT v0\.(?:11\.2(?:\.1)?|12\.(?:0(?:\.[1-4])?|1))/);
+  assert.match(html, /CLIENT v0\.(?:11\.2(?:\.1)?|12\.(?:0(?:\.[1-4])?|1(?:\.1)?))/);
   assert.match(html, /id="commerce-section"/);
   assert.match(html, /data-help-topic="commerce"/);
   assert.match(app, /generatePassengerDemand/);
@@ -270,7 +270,7 @@ test('v0.11.2 exposes persistent contracts and the port Contract Board', async (
   const app = await read('app.js');
   const model = await read('ui-model.js');
 
-  assert.match(html, /CLIENT v0\.(?:11\.2(?:\.1)?|12\.(?:0(?:\.[1-4])?|1))/);
+  assert.match(html, /CLIENT v0\.(?:11\.2(?:\.1)?|12\.(?:0(?:\.[1-4])?|1(?:\.1)?))/);
   assert.match(html, /id="contract-section"/);
   assert.match(html, /CONTRACT BOARD/);
   assert.match(app, /createContractDocument/);
@@ -286,7 +286,7 @@ test('v0.11.2.1 keeps port, trade, and jobs beside the map and guards repaired s
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /CLIENT v0\.(?:11\.2\.1|12\.(?:0(?:\.[1-4])?|1))/);
+  assert.match(html, /CLIENT v0\.(?:11\.2\.1|12\.(?:0(?:\.[1-4])?|1(?:\.1)?))/);
   assert.match(html, /id="operations-tab-port"/);
   assert.match(html, /id="operations-tab-trade"/);
   assert.match(html, /id="operations-tab-jobs"/);
@@ -306,7 +306,7 @@ test('v0.12.0 exposes persistent situations, patrons, and non-combat skill check
   const model = await read('ui-model.js');
   const loader = await read('document-loader.js');
 
-  assert.match(html, /CLIENT v0\.12\.(?:0|1)/);
+  assert.match(html, /CLIENT v0\.12\.(?:0|1(?:\.1)?)/);
   assert.match(html, /id="operations-tab-situation"/);
   assert.match(html, /id="situation-section"/);
   assert.match(app, /generatePatronContact/);
@@ -323,7 +323,7 @@ test('v0.12.0.1 promotes campaign status and interactive rolls into a compact pl
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /CLIENT v0\.12\.(?:0\.(?:1|2|3|4)|1)/);
+  assert.match(html, /CLIENT v0\.12\.(?:0\.(?:1|2|3|4)|1(?:\.1)?)/);
   assert.match(html, /id="campaign-header"/);
   assert.match(html, /id="header-characteristics"/);
   assert.match(html, /id="header-quick-skills"/);
@@ -345,7 +345,7 @@ test('v0.12.0.2 keeps tab actions above independently scrolling records', async 
   const html = await read('index.html');
   const css = await read('styles.css');
 
-  assert.match(html, /CLIENT v0\.12\.(?:0\.(?:2|3|4)|1)/);
+  assert.match(html, /CLIENT v0\.12\.(?:0\.(?:2|3|4)|1(?:\.1)?)/);
   for (const [actions, record] of [
     ['port-actions', 'port-services-record'],
     ['commerce-actions', 'commerce-record'],
@@ -366,7 +366,7 @@ test('v0.12.0.3 makes Activity Log dice and outcomes visually explicit', async (
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /CLIENT v0\.12\.(?:0\.(?:3|4)|1)/);
+  assert.match(html, /CLIENT v0\.12\.(?:0\.(?:3|4)|1(?:\.1)?)/);
   assert.match(app, /ROLL 2D \[\$\{dice\.dice\[0\]\}\] \[\$\{dice\.dice\[1\]\}\]/);
   assert.match(app, /appendActivityDiceLine/);
   assert.match(app, /RESULT \/\/ SUCCESS/);
@@ -382,21 +382,23 @@ test('v0.12.0.4 keeps chargen history hidden until explicitly opened in campaign
   const css = await read('styles.css');
   const app = await read('app.js');
 
-  assert.match(html, /CLIENT v0\.12\.(?:0\.4|1)/);
+  assert.match(html, /CLIENT v0\.12\.(?:0\.4|1(?:\.1)?)/);
   assert.match(html, /id="chargen-record-section"[^>]*hidden/);
   assert.match(css, /\[hidden\]\s*\{[\s\S]*display:\s*none\s*!important/);
   assert.match(app, /el\.chargenRecordSection\.hidden = !detailPanels\.chargen/);
   assert.match(app, /toggleDetailPanel\('chargen'\)/);
 });
 
-test('v0.12.1 exposes persistent Adventure Threads, recurring contacts, and consequence-driven follow-ups', async () => {
+test('v0.12.1.1 keeps generic adventure machinery separate from Sea of Suns authored content', async () => {
   const html = await read('index.html');
   const app = await read('app.js');
   const model = await read('ui-model.js');
   const loader = await read('document-loader.js');
   const consequences = await read('../world/thread-consequences.js');
+  const engine = await read('../src/adventure-engine.js');
+  const definition = await read('../campaigns/sea-of-suns/adventures/carranza-route.js');
 
-  assert.match(html, /CLIENT v0\.12\.1/);
+  assert.match(html, /CLIENT v0\.12\.1\.1/);
   assert.match(html, /id="toggle-threads"/);
   assert.match(html, /id="thread-section"/);
   assert.match(app, /applySituationThreadConsequences/);
@@ -405,8 +407,14 @@ test('v0.12.1 exposes persistent Adventure Threads, recurring contacts, and cons
   assert.match(model, /buildAdventureThreadRecord/);
   assert.match(loader, /CONTACT/);
   assert.match(loader, /THREAD/);
-  assert.match(consequences, /Carranza Route/);
-  assert.match(consequences, /Mara Venn/);
-  assert.match(consequences, /Archival Query/);
-  assert.match(consequences, /AURELIA\?/);
+  assert.match(consequences, /applyAdventureConsequences/);
+  for (const source of [engine, consequences]) {
+    assert.doesNotMatch(source, /Carranza Route/);
+    assert.doesNotMatch(source, /Mara Venn/);
+    assert.doesNotMatch(source, /AURELIA\?/);
+  }
+  assert.match(definition, /Carranza Route/);
+  assert.match(definition, /Mara Venn/);
+  assert.match(definition, /Archival Query/);
+  assert.match(definition, /AURELIA\?/);
 });

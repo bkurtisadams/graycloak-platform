@@ -1,5 +1,9 @@
 # Graycloak Traveller
 
+## v0.12.1.1 generic adventure engine
+
+v0.12.1.1 separates authored campaign content from the reusable adventure machinery. `traveller/src/adventure-definition.js` defines a portable JSON-compatible Adventure Definition v1, and `traveller/src/adventure-engine.js` resolves generic thread, clue, objective, contact, follow-up, contract, history, and event actions. The engine contains no Carranza, Aurelia, or Mara Venn knowledge. The Sea of Suns Carranza Route now lives under `traveller/campaigns/sea-of-suns/adventures/` and is consumed through the same data interface intended for future referee-authored adventures. Existing v0.12.1 Carranza threads, contacts, contracts, and resolved situation titles are recognized through generic legacy matching so campaign continuity is not duplicated during upgrade. No new Classic Traveller rules are introduced in this patch.
+
 ## v0.12.1 adventure threads and consequences
 
 v0.12.1 adds persistent Adventure Thread and Contact Documents. Resolved situations can now add clues, update a current objective, create follow-up situations, introduce recurring named contacts, and create linked contracts. Campaign Document v5 and Campaign Bundle v4 carry contacts and threads forward while older campaigns migrate with empty continuity collections. The campaign header prefers an active thread objective after any immediate Situation, and `[ THREADS ]` opens the compact thread record with objectives, clues, contacts, and history.
@@ -26,7 +30,7 @@ v0.12.0.1 reorganizes completed-character campaign play around a persistent stat
 
 Standalone browser client for the original-universe Classic Traveller project.
 
-The Classic Traveller rules engine lives in `../packages/classic-traveller-rules/`. Pure rules and document legality stay there; the browser renders state and legal actions. Original Sea of Suns content stays under `traveller/world/`.
+The Classic Traveller rules engine lives in `../packages/classic-traveller-rules/`. Pure rules and document legality stay there; the browser renders state and legal actions. Original Sea of Suns adventure content stays under `traveller/campaigns/sea-of-suns/`; world-generation content remains under `traveller/world/`.
 
 ## v0.12.0 situations, patrons, and non-combat checks
 
