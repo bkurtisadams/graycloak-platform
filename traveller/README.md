@@ -1,5 +1,11 @@
 # Graycloak Traveller
 
+## v0.12.1 adventure threads and consequences
+
+v0.12.1 adds persistent Adventure Thread and Contact Documents. Resolved situations can now add clues, update a current objective, create follow-up situations, introduce recurring named contacts, and create linked contracts. Campaign Document v5 and Campaign Bundle v4 carry contacts and threads forward while older campaigns migrate with empty continuity collections. The campaign header prefers an active thread objective after any immediate Situation, and `[ THREADS ]` opens the compact thread record with objectives, clues, contacts, and history.
+
+The first authored continuity chain begins with Cinder's obsolete beacon and follows the navigator Carranza through Aster and Heliograph. Failed investigation rolls yield weaker evidence instead of automatically dead-ending the thread. Mara Venn, an Aster Scout archivist, can recur across related situations and may offer a paid Heliograph archival courier job. The thread deliberately treats Aurelia as a marginal clue rather than announcing a main quest. Personal combat remains out of scope.
+
 ## v0.12.0.4 chargen-record visibility fix
 
 v0.12.0.4 fixes the completed-campaign detail layout so Service History and Generation Log remain hidden during normal campaign play and appear only when `[ CHARGEN RECORD ]` is selected. The shared `hidden` attribute is now enforced against layout classes such as `.two-column`, preventing display rules from accidentally overriding hidden detail panels. This is a UI-only patch with no Traveller rules or persistent-document changes.

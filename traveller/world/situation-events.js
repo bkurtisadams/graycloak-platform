@@ -28,6 +28,7 @@ const AUTHORED_ARRIVAL_EVENTS = Object.freeze({
   }),
   aster: Object.freeze({
     title: 'Scout Archive Recorder',
+    actor: Object.freeze({ name: 'Mara Venn', type: 'Scout Archivist', reaction: 'friendly' }),
     summary: 'Aster Scout Base has an old survey recorder that refuses to index correctly.',
     detail: 'The base technician recognizes Marisol as a reserve Scout vessel and asks whether Hawkeye can take a quick look before the recorder is written off.',
     skillName: 'Electronics',
@@ -105,7 +106,7 @@ export function generateArrivalSituationOffer({ campaign, system, ship, dice }) 
     title: event.title,
     location: { systemId: system.id, systemName: system.name },
     createdDate: { year: campaign.time.year, dayOfYear: campaign.time.dayOfYear },
-    actor: null,
+    actor: event.actor ?? null,
     summary: event.summary,
     detail: event.detail,
     choices: Object.freeze([
@@ -134,6 +135,24 @@ export function generateArrivalSituationOffer({ campaign, system, ship, dice }) 
     ]),
     notes: 'Original Sea of Suns arrival situation.'
   });
+}
+
+const PATRON_NAMES = Object.freeze([
+  'Elena Varga', 'Tomas Rhee', 'Inez Serrano', 'Marcus Vale', 'Sera Okafor',
+  'Jonah Keene', 'Linh Calder', 'Nadia Mercer', 'Elias Navarro', 'Caro Bell'
+]);
+
+function stableIndex(text, size) {
+  let hash = 2166136261;
+  for (const ch of String(text)) {
+    hash ^= ch.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) % size;
+}
+
+function patronName({ eventKey, patronType }) {
+  return PATRON_NAMES[stableIndex(`${eventKey}|${patronType}`, PATRON_NAMES.length)];
 }
 
 const PATRON_TASKS = Object.freeze([
@@ -203,6 +222,7 @@ export function buildPatronSituationOffer({ campaign, system, ship, contact, dic
   }
 
   const patronType = contact.patron.type;
+  const namedPatron = patronName({ eventKey, patronType });
   const reactionText = `${contact.reaction.total} / ${contact.reaction.description}`;
   if (!contact.suitable) {
     if (contact.reaction.tableTotal <= 5) {
@@ -210,8 +230,8 @@ export function buildPatronSituationOffer({ campaign, system, ship, contact, dic
         kind: 'patron-contact', eventKey,
         rulesBasis: 'classic-traveller-book-3-patron-table-graycloak-port-call-cadence', setting: 'Sea of Suns',
         title: `Hostile Contact / ${patronType}`, location: { systemId: system.id, systemName: system.name }, createdDate,
-        actor: { name: `A ${patronType}`, type: patronType, reaction: reactionText },
-        summary: `The potential ${patronType.toLowerCase()} patron reacts with hostility rather than offering work.`,
+        actor: { name: namedPatron, type: patronType, reaction: reactionText },
+        summary: `${namedPatron}, a ${patronType.toLowerCase()} contact, reacts with hostility rather than offering work.`,
         detail: `Reaction ${reactionText}. Personal encounter or combat resolution is deliberately deferred until that rules slice exists.`,
         choices: [],
         notes: 'Book 3 patron type and reaction. Hostile reaction remains unresolved because v0.12.0 does not yet implement personal encounter/combat resolution.'
@@ -221,8 +241,8 @@ export function buildPatronSituationOffer({ campaign, system, ship, contact, dic
       kind: 'patron-contact', eventKey,
       rulesBasis: 'classic-traveller-book-3-patron-table-graycloak-port-call-cadence', setting: 'Sea of Suns',
       title: `Patron Contact / ${patronType}`, location: { systemId: system.id, systemName: system.name }, createdDate,
-      actor: { name: `A ${patronType}`, type: patronType, reaction: reactionText },
-      summary: `A potential ${patronType.toLowerCase()} patron makes contact but decides not to proceed.`,
+      actor: { name: namedPatron, type: patronType, reaction: reactionText },
+      summary: `${namedPatron}, a ${patronType.toLowerCase()} contact, makes contact but decides not to proceed.`,
       detail: `Reaction ${reactionText}. The patron does not judge the party suitable for the proposed task.`,
       choices: [], status: 'resolved',
       resolution: { date: createdDate, choiceId: null, success: false, roll: null, notes: 'Patron declined to offer the task.' },
@@ -235,8 +255,8 @@ export function buildPatronSituationOffer({ campaign, system, ship, contact, dic
     kind: 'patron-contact', eventKey,
     rulesBasis: 'classic-traveller-book-3-patron-table-graycloak-port-call-cadence', setting: 'Sea of Suns',
     title: `Patron Contact / ${patronType}`, location: { systemId: system.id, systemName: system.name }, createdDate,
-    actor: { name: `A ${patronType}`, type: patronType, reaction: reactionText },
-    summary: `A ${patronType.toLowerCase()} patron decides Hawkeye may be useful.`,
+    actor: { name: namedPatron, type: patronType, reaction: reactionText },
+    summary: `${namedPatron}, a ${patronType.toLowerCase()} patron, decides Hawkeye may be useful.`,
     detail: `${task.request} Reaction ${reactionText}.`,
     choices: Object.freeze([
       Object.freeze({ id: 'assist', label: `ASSIST / ${task.skillName.toUpperCase()}`, action: 'skill-check', skillName: task.skillName, target: task.target, situationalDM: 0, successText: task.successText, failureText: task.failureText, resolutionText: '' }),

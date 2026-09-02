@@ -98,6 +98,10 @@ export const HELP_TOPICS = Object.freeze({
     title: 'SITUATIONS',
     body: 'Situations are persistent adventure events. Book 3 supplies the patron encounter table, the one-throw-per-week patron procedure, and the reaction table; this browser uses a clearly labeled Graycloak once-per-port-call patron check so campaign play does not require a waiting subsystem. Patron tasks and arrival events are original Sea of Suns content. Non-combat checks use a Graycloak generalization of the Book 1 Electronics referee guidance: 2D against a referee-set target with skill and appropriate characteristic or circumstance DMs.'
   }),
+  'adventure-threads': Object.freeze({
+    title: 'ADVENTURE THREADS',
+    body: 'Adventure Threads are persistent Sea of Suns campaign continuity records. They collect objectives, clues, recurring contacts, linked Situations, and linked Contracts so an adventure can continue across worlds and sessions. They are original Graycloak campaign structure rather than an additional Classic Traveller rule.'
+  }),
   commerce: Object.freeze({
     title: 'COMMERCE',
     body: 'Book 2 starship revenue comes from passengers, cargo, mail, and speculative trade. This panel uses the selected reachable system as the announced route for passenger and freight availability, pays freight at Cr1,000 per ton on delivery, and uses the Book 2 trade-and-speculation table for the current world’s weekly speculative lot. High passage requires a steward; middle passage uses a stateroom; low passage requires a low berth. The Type S has four staterooms, no low berths, and only three tons of cargo. Graycloak keeps a weekly speculative offer stable within the campaign week so reopening the panel does not reroll the market. Passenger fares are credited to the ship account on arrival as a Graycloak bookkeeping sequence; the source establishes the fare and route but does not specify that accounting timestamp.'
@@ -508,12 +512,13 @@ export function formatCampaignDate(time = {}) {
   return `${day}-${year} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
-export function buildCampaignRecord(campaign, { characters = [], ships = [], contracts = [], situations = [], missing = [] } = {}) {
+export function buildCampaignRecord(campaign, { characters = [], ships = [], contracts = [], situations = [], contacts = [], threads = [], missing = [] } = {}) {
   const characterMap = new Map(characters.map((entry) => [entry.identity.id, entry]));
   const shipMap = new Map(ships.map((entry) => [entry.identity.id, entry]));
   const activeShip = campaign.activeShipId ? shipMap.get(campaign.activeShipId) : null;
   const activeContracts = contracts.filter((entry) => entry.status === 'accepted');
   const activeSituations = situations.filter((entry) => entry.status === 'active');
+  const activeThreads = threads.filter((entry) => entry.status === 'active');
   const partyLines = campaign.party.characterIds.map((id) => {
     const character = characterMap.get(id);
     if (!character) return `PARTY ${id} / DOCUMENT MISSING`;
@@ -536,10 +541,37 @@ export function buildCampaignRecord(campaign, { characters = [], ships = [], con
     activeShipLine,
     ...partyLines,
     `DOCUMENTS CHARACTERS ${campaign.documentRefs.characters.length} / SHIPS ${campaign.documentRefs.ships.length} / CONTRACTS ${campaign.documentRefs.contracts.length} / SITUATIONS ${campaign.documentRefs.situations.length}`,
+    `CONTINUITY CONTACTS ${contacts.length} / THREADS ${threads.length} / ACTIVE THREADS ${activeThreads.length}`,
     `ACTIVE CONTRACTS ${activeContracts.length} / ACTIVE SITUATIONS ${activeSituations.length}`, 
     `SHIP FUNDS ${activeShip ? formatCredits(activeShip.state.finances.balanceCr) : 'none'}`,
     ...(missing.length ? [`MISSING DOCUMENTS ${missing.join(', ')}`] : [])
   ], 96);
+}
+
+export function buildAdventureThreadRecord({ threads = [], contacts = [] } = {}) {
+  const contactMap = new Map(contacts.map((entry) => [entry.identity.id, entry]));
+  const ordered = [...threads].sort((a, b) => {
+    if (a.status === 'active' && b.status !== 'active') return -1;
+    if (b.status === 'active' && a.status !== 'active') return 1;
+    const ay = a.timing.updatedDate.year * 400 + a.timing.updatedDate.dayOfYear;
+    const by = b.timing.updatedDate.year * 400 + b.timing.updatedDate.dayOfYear;
+    return by - ay;
+  });
+  if (!ordered.length) return box(['ADVENTURE THREADS', 'NO THREADS RECORDED.'], 96);
+  const lines = ['ADVENTURE THREADS'];
+  for (const thread of ordered) {
+    lines.push('', `${thread.status.toUpperCase()} // ${thread.identity.title.toUpperCase()}`);
+    if (thread.objective.text) lines.push(`OBJECTIVE ${thread.objective.text}`);
+    if (thread.objective.targetSystemName) lines.push(`TARGET ${thread.objective.targetSystemName.toUpperCase()}`);
+    lines.push(`CLUES ${thread.clues.length} / CONTACTS ${thread.contactIds.length} / SITUATIONS ${thread.situationIds.length} / CONTRACTS ${thread.contractIds.length}`);
+    for (const clue of thread.clues.slice(-4)) lines.push(`CLUE ${clue.label.toUpperCase()} // ${clue.text}`);
+    for (const id of thread.contactIds.slice(-4)) {
+      const contact = contactMap.get(id);
+      lines.push(contact ? `CONTACT ${contact.identity.name.toUpperCase()} // ${contact.profile.role.toUpperCase()} // ${contact.home.systemName.toUpperCase()} // ${contact.relationship.standing.toUpperCase()}` : `CONTACT ${id} // DOCUMENT MISSING`);
+    }
+    for (const entry of thread.history.slice(-3)) lines.push(`HISTORY ${situationDate(entry.date)} // ${entry.kind.toUpperCase()} // ${entry.text}`);
+  }
+  return box(lines, 106);
 }
 
 export function buildJumpPlan({

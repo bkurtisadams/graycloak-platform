@@ -22,6 +22,16 @@ import {
 } from '../src/situation-document.js';
 
 import {
+  CONTACT_DOCUMENT_TYPE,
+  importContactDocument
+} from '../src/contact-document.js';
+
+import {
+  ADVENTURE_THREAD_DOCUMENT_TYPE,
+  importAdventureThreadDocument
+} from '../src/adventure-thread-document.js';
+
+import {
   CAMPAIGN_BUNDLE_TYPE,
   importCampaignBundle
 } from '../src/campaign-bundle.js';
@@ -33,6 +43,8 @@ export const TRAVELLER_DOCUMENT_KINDS = Object.freeze({
   CAMPAIGN: 'campaign',
   CONTRACT: 'contract',
   SITUATION: 'situation',
+  CONTACT: 'contact',
+  THREAD: 'thread',
   CAMPAIGN_BUNDLE: 'campaign-bundle'
 });
 
@@ -83,6 +95,20 @@ export function loadTravellerDocument(input) {
     return {
       kind: TRAVELLER_DOCUMENT_KINDS.SITUATION,
       situationDocument: importSituationDocument(parsed)
+    };
+  }
+
+  if (parsed.documentType === CONTACT_DOCUMENT_TYPE) {
+    return {
+      kind: TRAVELLER_DOCUMENT_KINDS.CONTACT,
+      contactDocument: importContactDocument(parsed)
+    };
+  }
+
+  if (parsed.documentType === ADVENTURE_THREAD_DOCUMENT_TYPE) {
+    return {
+      kind: TRAVELLER_DOCUMENT_KINDS.THREAD,
+      threadDocument: importAdventureThreadDocument(parsed)
     };
   }
 

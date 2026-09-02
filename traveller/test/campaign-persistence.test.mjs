@@ -56,19 +56,21 @@ function campaignFor(character, ship) {
   });
 }
 
-test('Campaign Document v4 links Hawkeye, Marisol, contracts, and situations by stable IDs without embedding them', async () => {
+test('Campaign Document v5 links Hawkeye, Marisol, contracts, situations, contacts, and threads by stable IDs without embedding them', async () => {
   const { character, ship } = await acceptanceDocuments();
   const campaign = campaignFor(character, ship);
   const roundTrip = importCampaignDocument(exportCampaignDocument(campaign));
 
   assert.equal(roundTrip.documentType, 'graycloak-traveller-campaign');
-  assert.equal(roundTrip.schemaVersion, 4);
+  assert.equal(roundTrip.schemaVersion, 5);
   assert.deepEqual(roundTrip.party.characterIds, [character.identity.id]);
   assert.equal(roundTrip.activeShipId, ship.identity.id);
   assert.deepEqual(roundTrip.documentRefs.characters, [{ id: character.identity.id, name: 'Hawkeye' }]);
   assert.equal(roundTrip.documentRefs.ships[0].name, 'Marisol');
   assert.deepEqual(roundTrip.documentRefs.contracts, []);
   assert.deepEqual(roundTrip.documentRefs.situations, []);
+  assert.deepEqual(roundTrip.documentRefs.contacts, []);
+  assert.deepEqual(roundTrip.documentRefs.threads, []);
   assert.deepEqual(roundTrip.commerce.speculativeLots, []);
   assert.equal(roundTrip.documents, undefined);
 });
@@ -96,6 +98,8 @@ test('portable Campaign Bundle contains the campaign plus exactly its referenced
   assert.equal(roundTrip.documents.ships.length, 1);
   assert.equal(roundTrip.documents.contracts.length, 0);
   assert.equal(roundTrip.documents.situations.length, 0);
+  assert.equal(roundTrip.documents.contacts.length, 0);
+  assert.equal(roundTrip.documents.threads.length, 0);
   assert.equal(roundTrip.documents.characters[0].identity.id, character.identity.id);
   assert.equal(roundTrip.documents.ships[0].identity.id, ship.identity.id);
 });
@@ -135,20 +139,22 @@ test('campaign status record shows date, location, party, and active Marisol', a
 });
 
 
-test('Campaign Document v1 imports migrate to v4 with empty contract, situation, and commerce state', async () => {
+test('Campaign Document v1 imports migrate to v5 with empty continuity collections and commerce state', async () => {
   const { character, ship } = await acceptanceDocuments();
   const current = campaignFor(character, ship);
   const legacy = structuredClone(current);
   legacy.schemaVersion = 1;
   delete legacy.documentRefs.contracts;
   const migrated = importCampaignDocument(legacy);
-  assert.equal(migrated.schemaVersion, 4);
+  assert.equal(migrated.schemaVersion, 5);
   assert.deepEqual(migrated.documentRefs.contracts, []);
   assert.deepEqual(migrated.documentRefs.situations, []);
+  assert.deepEqual(migrated.documentRefs.contacts, []);
+  assert.deepEqual(migrated.documentRefs.threads, []);
   assert.deepEqual(migrated.commerce.speculativeLots, []);
 });
 
-test('Campaign Bundle v1 imports migrate to v3 and add empty contract and situation collections', async () => {
+test('Campaign Bundle v1 imports migrate to v4 and add empty continuity collections', async () => {
   const { character, ship } = await acceptanceDocuments();
   const campaign = campaignFor(character, ship);
   const current = createCampaignBundle(campaign, { characters: [character], ships: [ship] });
@@ -158,21 +164,23 @@ test('Campaign Bundle v1 imports migrate to v3 and add empty contract and situat
   delete legacy.campaign.documentRefs.contracts;
   delete legacy.documents.contracts;
   const migrated = importCampaignBundle(legacy);
-  assert.equal(migrated.schemaVersion, 3);
-  assert.equal(migrated.campaign.schemaVersion, 4);
+  assert.equal(migrated.schemaVersion, 4);
+  assert.equal(migrated.campaign.schemaVersion, 5);
   assert.deepEqual(migrated.campaign.commerce.speculativeLots, []);
   assert.deepEqual(migrated.documents.contracts, []);
   assert.deepEqual(migrated.documents.situations, []);
+  assert.deepEqual(migrated.documents.contacts, []);
+  assert.deepEqual(migrated.documents.threads, []);
 });
 
-test('Campaign Document v2 migrates to v4 and speculative lot purchases survive round-trip', async () => {
+test('Campaign Document v2 migrates to v5 and speculative lot purchases survive round-trip', async () => {
   const { character, ship } = await acceptanceDocuments();
   let campaign = campaignFor(character, ship);
   const legacy = structuredClone(campaign);
   legacy.schemaVersion = 2;
   delete legacy.commerce;
   campaign = importCampaignDocument(legacy);
-  assert.equal(campaign.schemaVersion, 4);
+  assert.equal(campaign.schemaVersion, 5);
   assert.equal(speculativeLotPurchasedQuantity(campaign, 'weekly-lot'), 0);
   campaign = recordSpeculativeLotPurchase(campaign, {
     key: 'weekly-lot', systemId: 'calder', tradeGoodCode: 62, quantity: 2
@@ -185,7 +193,7 @@ test('Campaign Document v2 migrates to v4 and speculative lot purchases survive 
 });
 
 
-test('Campaign Document v4 and Bundle v3 persist Situation Documents through the registry', async () => {
+test('Campaign Document v5 and Bundle v4 persist Situation Documents through the registry', async () => {
   const { createSituationDocument } = await import('../src/situation-document.js');
   const { addSituationToCampaign } = await import('../src/campaign-document.js');
   const { character, ship } = await acceptanceDocuments();
@@ -205,16 +213,79 @@ test('Campaign Document v4 and Bundle v3 persist Situation Documents through the
   assert.equal(resolved.situations.length, 1);
   assert.equal(resolved.situations[0].identity.title, 'Dead Approach Beacon');
   const bundle = registry.buildBundle(campaign.identity.id);
-  assert.equal(bundle.schemaVersion, 3);
+  assert.equal(bundle.schemaVersion, 4);
   assert.equal(bundle.documents.situations.length, 1);
 });
 
-test('Campaign Document v3 migrates to v4 with an empty situation collection', async () => {
+test('Campaign Document v3 migrates to v5 with empty situation and continuity collections', async () => {
   const { character, ship } = await acceptanceDocuments();
   const legacy = structuredClone(campaignFor(character, ship));
   legacy.schemaVersion = 3;
   delete legacy.documentRefs.situations;
   const migrated = importCampaignDocument(legacy);
-  assert.equal(migrated.schemaVersion, 4);
+  assert.equal(migrated.schemaVersion, 5);
   assert.deepEqual(migrated.documentRefs.situations, []);
+  assert.deepEqual(migrated.documentRefs.contacts, []);
+  assert.deepEqual(migrated.documentRefs.threads, []);
+});
+
+
+test('Campaign Document v4 migrates to v5 with empty contact and thread collections', async () => {
+  const { character, ship } = await acceptanceDocuments();
+  const legacy = structuredClone(campaignFor(character, ship));
+  legacy.schemaVersion = 4;
+  delete legacy.documentRefs.contacts;
+  delete legacy.documentRefs.threads;
+  const migrated = importCampaignDocument(legacy);
+  assert.equal(migrated.schemaVersion, 5);
+  assert.deepEqual(migrated.documentRefs.contacts, []);
+  assert.deepEqual(migrated.documentRefs.threads, []);
+});
+
+test('Campaign Document v5 and Bundle v4 persist named contacts and adventure threads through the registry', async () => {
+  const { createContactDocument } = await import('../src/contact-document.js');
+  const { createAdventureThreadDocument } = await import('../src/adventure-thread-document.js');
+  const { addContactToCampaign, addAdventureThreadToCampaign } = await import('../src/campaign-document.js');
+  const { character, ship } = await acceptanceDocuments();
+  const contact = createContactDocument({
+    contactKey: 'campaign-hawkeye-test|aster|Mara Venn|Scout Archivist',
+    name: 'Mara Venn', role: 'Scout Archivist', type: 'Scout Service',
+    homeSystem: { systemId: 'aster', systemName: 'Aster' },
+    firstMetDate: { year: 4800, dayOfYear: 120 }, standing: 'friendly'
+  });
+  const thread = createAdventureThreadDocument({
+    threadKey: 'campaign-hawkeye-test|carranza-route', title: 'Carranza Route',
+    createdDate: { year: 4800, dayOfYear: 106 }, origin: { systemId: 'cinder', systemName: 'Cinder' },
+    objective: 'Review Carranza records at Aster.', targetSystemId: 'aster', targetSystemName: 'Aster',
+    contactIds: [contact.identity.id]
+  });
+  let campaign = campaignFor(character, ship);
+  campaign = addContactToCampaign(campaign, contact);
+  campaign = addAdventureThreadToCampaign(campaign, thread);
+  const registry = createDocumentRegistry({ storage: createMemoryStorage() });
+  registry.put(character); registry.put(ship); registry.put(contact); registry.put(thread); registry.put(campaign);
+  const resolved = registry.resolveCampaign(campaign.identity.id);
+  assert.equal(resolved.contacts[0].identity.name, 'Mara Venn');
+  assert.equal(resolved.threads[0].identity.title, 'Carranza Route');
+  const bundle = registry.buildBundle(campaign.identity.id);
+  assert.equal(bundle.schemaVersion, 4);
+  assert.equal(bundle.documents.contacts.length, 1);
+  assert.equal(bundle.documents.threads.length, 1);
+});
+
+test('Campaign Bundle v3 from v0.12.0 migrates to v4 with empty contacts and threads', async () => {
+  const { character, ship } = await acceptanceDocuments();
+  const current = createCampaignBundle(campaignFor(character, ship), { characters: [character], ships: [ship] });
+  const legacy = structuredClone(current);
+  legacy.schemaVersion = 3;
+  legacy.campaign.schemaVersion = 4;
+  delete legacy.campaign.documentRefs.contacts;
+  delete legacy.campaign.documentRefs.threads;
+  delete legacy.documents.contacts;
+  delete legacy.documents.threads;
+  const migrated = importCampaignBundle(legacy);
+  assert.equal(migrated.schemaVersion, 4);
+  assert.equal(migrated.campaign.schemaVersion, 5);
+  assert.deepEqual(migrated.documents.contacts, []);
+  assert.deepEqual(migrated.documents.threads, []);
 });

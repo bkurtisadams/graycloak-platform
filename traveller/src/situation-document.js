@@ -2,7 +2,7 @@ import { stableDocumentId } from '../../packages/classic-traveller-rules/index.j
 
 export const SITUATION_DOCUMENT_TYPE = 'graycloak-traveller-situation';
 export const CURRENT_SITUATION_DOCUMENT_SCHEMA_VERSION = 1;
-export const SITUATION_KINDS = Object.freeze(['arrival-event', 'patron-contact', 'rumor']);
+export const SITUATION_KINDS = Object.freeze(['arrival-event', 'patron-contact', 'rumor', 'thread-follow-up']);
 export const SITUATION_STATUSES = Object.freeze(['active', 'resolved', 'declined']);
 export const SITUATION_CHOICE_ACTIONS = Object.freeze(['skill-check', 'resolve', 'decline']);
 

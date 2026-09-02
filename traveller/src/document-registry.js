@@ -21,6 +21,16 @@ import {
 } from './situation-document.js';
 
 import {
+  CONTACT_DOCUMENT_TYPE,
+  importContactDocument
+} from './contact-document.js';
+
+import {
+  ADVENTURE_THREAD_DOCUMENT_TYPE,
+  importAdventureThreadDocument
+} from './adventure-thread-document.js';
+
+import {
   CAMPAIGN_BUNDLE_TYPE,
   createCampaignBundle,
   importCampaignBundle
@@ -41,6 +51,8 @@ function validateDocument(document) {
     case CAMPAIGN_DOCUMENT_TYPE: return importCampaignDocument(document);
     case CONTRACT_DOCUMENT_TYPE: return importContractDocument(document);
     case SITUATION_DOCUMENT_TYPE: return importSituationDocument(document);
+    case CONTACT_DOCUMENT_TYPE: return importContactDocument(document);
+    case ADVENTURE_THREAD_DOCUMENT_TYPE: return importAdventureThreadDocument(document);
     default: throw new Error(`unsupported registry documentType: ${document?.documentType ?? '(missing)'}`);
   }
 }
@@ -114,6 +126,8 @@ export function createDocumentRegistry({
     for (const ship of validated.documents.ships) put(ship);
     for (const contract of validated.documents.contracts) put(contract);
     for (const situation of validated.documents.situations) put(situation);
+    for (const contact of validated.documents.contacts) put(contact);
+    for (const thread of validated.documents.threads) put(thread);
     put(validated.campaign);
     return cloneJson(validated);
   }
@@ -130,6 +144,8 @@ export function createDocumentRegistry({
     const ships = [];
     const contracts = [];
     const situations = [];
+    const contacts = [];
+    const threads = [];
     const missing = [];
     for (const ref of campaign.documentRefs.characters) {
       const document = get(ref.id);
@@ -151,7 +167,17 @@ export function createDocumentRegistry({
       if (!document || document.documentType !== SITUATION_DOCUMENT_TYPE) missing.push(ref.id);
       else situations.push(document);
     }
-    return { campaign, characters, ships, contracts, situations, missing };
+    for (const ref of campaign.documentRefs.contacts) {
+      const document = get(ref.id);
+      if (!document || document.documentType !== CONTACT_DOCUMENT_TYPE) missing.push(ref.id);
+      else contacts.push(document);
+    }
+    for (const ref of campaign.documentRefs.threads) {
+      const document = get(ref.id);
+      if (!document || document.documentType !== ADVENTURE_THREAD_DOCUMENT_TYPE) missing.push(ref.id);
+      else threads.push(document);
+    }
+    return { campaign, characters, ships, contracts, situations, contacts, threads, missing };
   }
 
   function buildBundle(campaignOrId) {
@@ -161,7 +187,9 @@ export function createDocumentRegistry({
       characters: resolved.characters,
       ships: resolved.ships,
       contracts: resolved.contracts,
-      situations: resolved.situations
+      situations: resolved.situations,
+      contacts: resolved.contacts,
+      threads: resolved.threads
     });
   }
 

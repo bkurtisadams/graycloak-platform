@@ -21,9 +21,19 @@ import {
   importSituationDocument
 } from './situation-document.js';
 
+import {
+  assertValidContactDocument,
+  importContactDocument
+} from './contact-document.js';
+
+import {
+  assertValidAdventureThreadDocument,
+  importAdventureThreadDocument
+} from './adventure-thread-document.js';
+
 export const CAMPAIGN_BUNDLE_TYPE = 'graycloak-traveller-campaign-bundle';
-export const CURRENT_CAMPAIGN_BUNDLE_SCHEMA_VERSION = 3;
-export const SUPPORTED_CAMPAIGN_BUNDLE_SCHEMA_VERSIONS = Object.freeze([1, 2, 3]);
+export const CURRENT_CAMPAIGN_BUNDLE_SCHEMA_VERSION = 4;
+export const SUPPORTED_CAMPAIGN_BUNDLE_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4]);
 
 export class CampaignBundleValidationError extends Error {
   constructor(errors) {
@@ -53,21 +63,27 @@ function exactIdSet(actual, expected, label) {
   }
 }
 
-export function createCampaignBundle(campaign, { characters = [], ships = [], contracts = [], situations = [] } = {}) {
+export function createCampaignBundle(campaign, { characters = [], ships = [], contracts = [], situations = [], contacts = [], threads = [] } = {}) {
   assertValidCampaignDocument(campaign);
   for (const document of characters) assertValidCharacterDocument(document);
   for (const document of ships) assertValidShipDocument(document);
   for (const document of contracts) assertValidContractDocument(document);
   for (const document of situations) assertValidSituationDocument(document);
+  for (const document of contacts) assertValidContactDocument(document);
+  for (const document of threads) assertValidAdventureThreadDocument(document);
   assertUnique(characters, 'character');
   assertUnique(ships, 'ship');
   assertUnique(contracts, 'contract');
   assertUnique(situations, 'situation');
+  assertUnique(contacts, 'contact');
+  assertUnique(threads, 'thread');
 
   exactIdSet(ids(characters), campaign.documentRefs.characters.map((ref) => ref.id), 'character');
   exactIdSet(ids(ships), campaign.documentRefs.ships.map((ref) => ref.id), 'ship');
   exactIdSet(ids(contracts), campaign.documentRefs.contracts.map((ref) => ref.id), 'contract');
   exactIdSet(ids(situations), campaign.documentRefs.situations.map((ref) => ref.id), 'situation');
+  exactIdSet(ids(contacts), campaign.documentRefs.contacts.map((ref) => ref.id), 'contact');
+  exactIdSet(ids(threads), campaign.documentRefs.threads.map((ref) => ref.id), 'thread');
 
   const characterIds = new Set(ids(characters));
   const shipIds = new Set(ids(ships));
@@ -90,6 +106,14 @@ export function createCampaignBundle(campaign, { characters = [], ships = [], co
       throw new CampaignBundleValidationError(`contract ${contract.identity.id} assigned ship is missing from bundle: ${contract.assigned.shipId}`);
     }
   }
+  const situationIds = new Set(ids(situations));
+  const contactIds = new Set(ids(contacts));
+  const contractIds = new Set(ids(contracts));
+  for (const thread of threads) {
+    for (const id of thread.situationIds) if (!situationIds.has(id)) throw new CampaignBundleValidationError(`thread ${thread.identity.id} references missing situation: ${id}`);
+    for (const id of thread.contactIds) if (!contactIds.has(id)) throw new CampaignBundleValidationError(`thread ${thread.identity.id} references missing contact: ${id}`);
+    for (const id of thread.contractIds) if (!contractIds.has(id)) throw new CampaignBundleValidationError(`thread ${thread.identity.id} references missing contract: ${id}`);
+  }
 
   return {
     documentType: CAMPAIGN_BUNDLE_TYPE,
@@ -99,7 +123,9 @@ export function createCampaignBundle(campaign, { characters = [], ships = [], co
       characters: cloneJson(characters),
       ships: cloneJson(ships),
       contracts: cloneJson(contracts),
-      situations: cloneJson(situations)
+      situations: cloneJson(situations),
+      contacts: cloneJson(contacts),
+      threads: cloneJson(threads)
     }
   };
 }
@@ -123,7 +149,9 @@ export function importCampaignBundle(input) {
   const ships = parsed.documents.ships.map((entry) => importShipDocument(entry));
   const contracts = (parsed.documents.contracts ?? []).map((entry) => importContractDocument(entry));
   const situations = (parsed.documents.situations ?? []).map((entry) => importSituationDocument(entry));
-  return createCampaignBundle(campaign, { characters, ships, contracts, situations });
+  const contacts = (parsed.documents.contacts ?? []).map((entry) => importContactDocument(entry));
+  const threads = (parsed.documents.threads ?? []).map((entry) => importAdventureThreadDocument(entry));
+  return createCampaignBundle(campaign, { characters, ships, contracts, situations, contacts, threads });
 }
 
 export function exportCampaignBundle(bundle, { space = 2 } = {}) {

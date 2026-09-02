@@ -90,3 +90,22 @@ test('loader recognizes a persistent Situation Document', async () => {
   assert.equal(loaded.kind, TRAVELLER_DOCUMENT_KINDS.SITUATION);
   assert.equal(loaded.situationDocument.identity.title, 'Dead Approach Beacon');
 });
+
+test('loader recognizes persistent Contact and Adventure Thread Documents', async () => {
+  const { createContactDocument } = await import('../src/contact-document.js');
+  const { createAdventureThreadDocument } = await import('../src/adventure-thread-document.js');
+  const contact = createContactDocument({
+    contactKey: 'loader|aster|Mara Venn|Scout Archivist', name: 'Mara Venn', role: 'Scout Archivist', type: 'Scout Service',
+    homeSystem: { systemId: 'aster', systemName: 'Aster' }, firstMetDate: { year: 4800, dayOfYear: 120 }
+  });
+  const thread = createAdventureThreadDocument({
+    threadKey: 'loader|carranza-route', title: 'Carranza Route', createdDate: { year: 4800, dayOfYear: 106 },
+    origin: { systemId: 'cinder', systemName: 'Cinder' }, objective: 'Reach Aster.', contactIds: [contact.identity.id]
+  });
+  const loadedContact = loadTravellerDocument(contact);
+  const loadedThread = loadTravellerDocument(thread);
+  assert.equal(loadedContact.kind, TRAVELLER_DOCUMENT_KINDS.CONTACT);
+  assert.equal(loadedContact.contactDocument.identity.name, 'Mara Venn');
+  assert.equal(loadedThread.kind, TRAVELLER_DOCUMENT_KINDS.THREAD);
+  assert.equal(loadedThread.threadDocument.identity.title, 'Carranza Route');
+});

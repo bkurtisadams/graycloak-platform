@@ -1253,3 +1253,7 @@ input[readonly] {
   .operations-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .selected-system-summary { align-items: flex-start; flex-direction: column; }
 }
+
+/* v0.12.1 adventure-thread record */
+.thread-record { min-height: 0; }
+.campaign-header-links { flex-wrap: wrap; }

@@ -55,6 +55,7 @@ import {
 import {
   ACTION_LABELS,
   buildCampaignRecord,
+  buildAdventureThreadRecord,
   buildContractBoardRecord,
   buildCharacterRecord,
   buildFinalCharacterRecord,
@@ -104,6 +105,8 @@ import {
   addShipToCampaign,
   addContractToCampaign,
   addSituationToCampaign,
+  addContactToCampaign,
+  addAdventureThreadToCampaign,
   advanceCampaignDays,
   createCampaignDocument,
   refreshCampaignDocumentRefs,
@@ -144,6 +147,17 @@ import {
 } from '../src/situation-document.js';
 
 import {
+  createContactDocument,
+  importContactDocument,
+  touchContactDocument
+} from '../src/contact-document.js';
+
+import {
+  importAdventureThreadDocument,
+  linkAdventureThreadDocument
+} from '../src/adventure-thread-document.js';
+
+import {
   arrivalSituationEventKey,
   patronSituationEventKey,
   generateArrivalSituationOffer,
@@ -153,6 +167,10 @@ import {
 import {
   generateContractBoard
 } from '../world/contract-board.js';
+
+import {
+  applySituationThreadConsequences
+} from '../world/thread-consequences.js';
 
 import {
   FAR_MERIDIAN_SUBSECTOR
@@ -176,6 +194,7 @@ const el = {
   togglePersonnel: document.querySelector('#toggle-personnel'),
   toggleShip: document.querySelector('#toggle-ship'),
   toggleCampaign: document.querySelector('#toggle-campaign'),
+  toggleThreads: document.querySelector('#toggle-threads'),
   toggleChargenRecord: document.querySelector('#toggle-chargen-record'),
   personnelSection: document.querySelector('#personnel-section'),
   procedureSection: document.querySelector('#procedure-section'),
@@ -214,6 +233,8 @@ const el = {
   campaignSystem: document.querySelector('#campaign-system'),
   campaignWorld: document.querySelector('#campaign-world'),
   campaignRecord: document.querySelector('#campaign-record'),
+  threadSection: document.querySelector('#thread-section'),
+  threadRecord: document.querySelector('#thread-record'),
   subsectorSection: document.querySelector('#subsector-section'),
   subsectorName: document.querySelector('#subsector-name'),
   jumpCapability: document.querySelector('#jump-capability'),
@@ -271,6 +292,8 @@ let shipDocument = null;
 let campaignDocument = null;
 let contractDocuments = [];
 let situationDocuments = [];
+let contactDocuments = [];
+let threadDocuments = [];
 let documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
 let openHelpTopic = null;
 let selectedSystemId = null;
@@ -282,6 +305,7 @@ const detailPanels = {
   personnel: false,
   ship: false,
   campaign: false,
+  threads: false,
   chargen: false,
   system: false
 };
@@ -459,6 +483,26 @@ function headerTaskSnapshot() {
     };
   }
 
+  const activeThreads = threadDocuments
+    .filter((entry) => entry.status === 'active' && entry.objective?.text)
+    .slice()
+    .sort((a, b) => {
+      const av = (a.timing?.updatedDate?.year ?? 0) * 400 + (a.timing?.updatedDate?.dayOfYear ?? 0);
+      const bv = (b.timing?.updatedDate?.year ?? 0) * 400 + (b.timing?.updatedDate?.dayOfYear ?? 0);
+      return bv - av;
+    });
+  if (activeThreads.length) {
+    const thread = activeThreads[0];
+    const jobs = activeContracts().length;
+    return {
+      kind: 'thread',
+      id: thread.identity.id,
+      label: `THREAD // ${thread.identity.title.toUpperCase()} // ${thread.objective.text.toUpperCase()}${jobs ? ` // JOBS ${jobs}` : ''}`,
+      attention: false,
+      skillName: null
+    };
+  }
+
   const contracts = activeContracts().slice().sort((a, b) => {
     const ay = a.timing?.deadlineDate?.year ?? Number.MAX_SAFE_INTEGER;
     const by = b.timing?.deadlineDate?.year ?? Number.MAX_SAFE_INTEGER;
@@ -594,17 +638,20 @@ function applyCampaignLayout() {
   el.personnelSection.hidden = !detailPanels.personnel;
   el.procedureSection.hidden = true;
   el.campaignSection.hidden = !detailPanels.campaign;
+  el.threadSection.hidden = !detailPanels.threads;
   if (shipDocument) el.shipSection.hidden = !detailPanels.ship;
   el.chargenRecordSection.hidden = !detailPanels.chargen;
   if (el.systemRecord.textContent) el.systemRecordSection.hidden = !detailPanels.system;
   el.togglePersonnel.textContent = detailPanels.personnel ? '[ HIDE PERSONNEL ]' : '[ PERSONNEL ]';
   el.toggleShip.textContent = detailPanels.ship ? '[ HIDE SHIP ]' : '[ SHIP ]';
   el.toggleCampaign.textContent = detailPanels.campaign ? '[ HIDE CAMPAIGN ]' : '[ CAMPAIGN ]';
+  el.toggleThreads.textContent = detailPanels.threads ? '[ HIDE THREADS ]' : '[ THREADS ]';
   el.toggleChargenRecord.textContent = detailPanels.chargen ? '[ HIDE CHARGEN RECORD ]' : '[ CHARGEN RECORD ]';
   for (const [key, section] of [
     ['personnel', el.personnelSection],
     ['ship', el.shipSection],
     ['campaign', el.campaignSection],
+    ['threads', el.threadSection],
     ['chargen', el.chargenRecordSection],
     ['system', el.systemRecordSection]
   ]) {
@@ -1018,6 +1065,8 @@ function persistGameplayDocuments() {
   if (shipDocument) registry.put(shipDocument);
   for (const contract of contractDocuments) registry.put(contract);
   for (const situation of situationDocuments) registry.put(situation);
+  for (const contact of contactDocuments) registry.put(contact);
+  for (const thread of threadDocuments) registry.put(thread);
 }
 
 function syncCampaignRefs() {
@@ -1026,7 +1075,9 @@ function syncCampaignRefs() {
     characters: gameplayDocument ? [gameplayDocument] : [],
     ships: shipDocument ? [shipDocument] : [],
     contracts: contractDocuments,
-    situations: situationDocuments
+    situations: situationDocuments,
+    contacts: contactDocuments,
+    threads: threadDocuments
   });
 }
 
@@ -1061,11 +1112,13 @@ function reconcileExpiredContracts({ log = true } = {}) {
 }
 
 function campaignDocumentsForDisplay() {
-  if (!campaignDocument) return { characters: [], ships: [], contracts: [], situations: [], missing: [] };
+  if (!campaignDocument) return { characters: [], ships: [], contracts: [], situations: [], contacts: [], threads: [], missing: [] };
   let characters = [];
   let ships = [];
   let contracts = [];
   let situations = [];
+  let contacts = [];
+  let threads = [];
   let missing = [];
   if (registry) {
     try {
@@ -1074,6 +1127,8 @@ function campaignDocumentsForDisplay() {
       ships = resolved.ships;
       contracts = resolved.contracts;
       situations = resolved.situations;
+      contacts = resolved.contacts;
+      threads = resolved.threads;
       missing = resolved.missing;
     } catch (error) {
       console.error(error);
@@ -1099,7 +1154,17 @@ function campaignDocumentsForDisplay() {
     situations.push(situation);
     missing = missing.filter((id) => id !== situation.identity.id);
   }
-  return { characters, ships, contracts, situations, missing };
+  for (const contact of contactDocuments) {
+    contacts = contacts.filter((entry) => entry.identity.id !== contact.identity.id);
+    contacts.push(contact);
+    missing = missing.filter((id) => id !== contact.identity.id);
+  }
+  for (const thread of threadDocuments) {
+    threads = threads.filter((entry) => entry.identity.id !== thread.identity.id);
+    threads.push(thread);
+    missing = missing.filter((id) => id !== thread.identity.id);
+  }
+  return { characters, ships, contracts, situations, contacts, threads, missing };
 }
 
 function renderCampaign() {
@@ -1122,6 +1187,7 @@ function renderCampaign() {
   if (el.campaignWorld.value !== campaignDocument.location.worldName) el.campaignWorld.value = campaignDocument.location.worldName;
   const resolved = campaignDocumentsForDisplay();
   el.campaignRecord.textContent = buildCampaignRecord(campaignDocument, resolved);
+  el.threadRecord.textContent = buildAdventureThreadRecord({ threads: resolved.threads, contacts: resolved.contacts });
   renderCampaignHeader();
   applyCampaignLayout();
 }
@@ -2008,6 +2074,119 @@ function renderContracts() {
 }
 
 
+function contactStandingFromReaction(reaction) {
+  const text = String(reaction ?? '').toUpperCase();
+  if (text.includes('VIOLENT') || text.includes('HOSTILE')) return 'hostile';
+  if (text.includes('FRIENDLY') || text.includes('ENTHUSIASTIC')) return 'friendly';
+  return 'neutral';
+}
+
+function registerSituationActorContact(situation) {
+  if (!campaignDocument || !situation?.actor?.name || !situation?.actor?.type) return null;
+  const key = `${campaignDocument.identity.id}|${situation.location.systemId}|${situation.actor.name}|${situation.actor.type}`;
+  const date = situation.timing?.createdDate ?? campaignDateSnapshot();
+  let contact = contactDocuments.find((entry) => entry.provenance.contactKey === key) ?? null;
+  const standing = contactStandingFromReaction(situation.actor.reaction);
+  if (!contact) {
+    contact = createContactDocument({
+      contactKey: key,
+      name: situation.actor.name,
+      role: situation.actor.type,
+      type: situation.actor.type,
+      homeSystem: { systemId: situation.location.systemId, systemName: situation.location.systemName },
+      firstMetDate: date,
+      standing,
+      relationshipNotes: situation.actor.reaction ? `Initial reaction: ${situation.actor.reaction}.` : '',
+      sourceSituationId: situation.identity.id,
+      rulesBasis: situation.provenance.rulesBasis,
+      setting: situation.provenance.setting
+    });
+  } else {
+    contact = touchContactDocument(contact, {
+      date,
+      standing: standing === 'neutral' ? contact.relationship.standing : standing,
+      relationshipNotes: contact.relationship.notes
+    });
+  }
+  contactDocuments = contactDocuments.filter((entry) => entry.identity.id !== contact.identity.id);
+  contactDocuments.push(contact);
+  if (!campaignDocument.documentRefs.contacts.some((ref) => ref.id === contact.identity.id)) {
+    campaignDocument = addContactToCampaign(campaignDocument, contact);
+  }
+  return contact;
+}
+
+function applyResolvedSituationConsequences(situation, { log = true } = {}) {
+  if (!campaignDocument || !situation || situation.status === 'active') return false;
+  const before = JSON.stringify({
+    threads: threadDocuments,
+    contacts: contactDocuments,
+    contracts: contractDocuments,
+    situations: situationDocuments.map((entry) => entry.identity.id)
+  });
+  const result = applySituationThreadConsequences({
+    campaign: campaignDocument,
+    situation,
+    threads: threadDocuments,
+    contacts: contactDocuments,
+    contracts: contractDocuments,
+    character: gameplayDocument,
+    ship: shipDocument
+  });
+  threadDocuments = [...result.threads];
+  contactDocuments = [...result.contacts];
+  contractDocuments = [...result.contracts];
+
+  for (const contact of contactDocuments) {
+    if (!campaignDocument.documentRefs.contacts.some((ref) => ref.id === contact.identity.id)) campaignDocument = addContactToCampaign(campaignDocument, contact);
+  }
+  for (const thread of threadDocuments) {
+    if (!campaignDocument.documentRefs.threads.some((ref) => ref.id === thread.identity.id)) campaignDocument = addAdventureThreadToCampaign(campaignDocument, thread);
+  }
+  for (const contract of contractDocuments) {
+    if (!campaignDocument.documentRefs.contracts.some((ref) => ref.id === contract.identity.id)) campaignDocument = addContractToCampaign(campaignDocument, contract);
+  }
+
+  for (const offer of result.followUpOffers) {
+    if (situationForEventKey(offer.eventKey)) continue;
+    const followUp = createSituationDocument(offer);
+    attachSituation(followUp, { log, select: true });
+    const threadIndex = threadDocuments.findIndex((entry) => entry.status === 'active' && entry.situationIds.includes(situation.identity.id));
+    if (threadIndex >= 0) {
+      threadDocuments[threadIndex] = linkAdventureThreadDocument(threadDocuments[threadIndex], {
+        situationId: followUp.identity.id,
+        date: followUp.timing.createdDate
+      });
+      if (!campaignDocument.documentRefs.threads.some((ref) => ref.id === threadDocuments[threadIndex].identity.id)) {
+        campaignDocument = addAdventureThreadToCampaign(campaignDocument, threadDocuments[threadIndex]);
+      }
+    }
+  }
+
+  if (log) for (const event of result.events) logActivity('THREAD', event);
+  syncCampaignRefs();
+  const after = JSON.stringify({
+    threads: threadDocuments,
+    contacts: contactDocuments,
+    contracts: contractDocuments,
+    situations: situationDocuments.map((entry) => entry.identity.id)
+  });
+  return before !== after;
+}
+
+function reconcileAdventureConsequences({ log = false } = {}) {
+  let changed = false;
+  const resolved = situationDocuments
+    .filter((entry) => entry.status !== 'active')
+    .sort((left, right) => {
+      const a = left.timing.resolvedDate ?? left.timing.createdDate;
+      const b = right.timing.resolvedDate ?? right.timing.createdDate;
+      return (a.year - b.year) || (a.dayOfYear - b.dayOfYear) || left.identity.id.localeCompare(right.identity.id);
+    });
+  for (const situation of resolved) changed = applyResolvedSituationConsequences(situation, { log }) || changed;
+  return changed;
+}
+
 function situationForEventKey(eventKey) {
   return situationDocuments.find((entry) => entry.provenance.eventKey === eventKey) ?? null;
 }
@@ -2028,6 +2207,7 @@ function attachSituation(situation, { log = true, select = true } = {}) {
   situationDocuments = situationDocuments.filter((entry) => entry.identity.id !== situation.identity.id);
   situationDocuments.push(situation);
   campaignDocument = addSituationToCampaign(campaignDocument, situation);
+  registerSituationActorContact(situation);
   syncCampaignRefs();
   if (select && situation.status === 'active') operationsDeskTab = 'situation';
   if (log) {
@@ -2102,6 +2282,7 @@ function resolveSituationSkillChoice(situationId, choiceId, userModifier = 0) {
       notes: result.success ? choice.successText : choice.failureText
     });
     situationDocuments[index] = resolved;
+    applyResolvedSituationConsequences(resolved, { log: true });
     syncCampaignRefs();
     persistCampaignState();
     const rollText = `ROLL 2D [${result.dice[0]}] [${result.dice[1]}] = ${result.roll} / SKILL ${signedNumber(result.skillLevel)} / INT ${signedNumber(result.intelligenceDM)} / EDU ${signedNumber(result.educationDM)} / TASK ${signedNumber(choice.situationalDM ?? 0)} / MODIFIER ${signedNumber(userModifier)} / TOTAL ${result.total} vs ${result.target}+`;
@@ -2148,6 +2329,7 @@ function resolveSituationChoice(situationId, choiceId) {
       });
     }
     situationDocuments[index] = resolved;
+    applyResolvedSituationConsequences(resolved, { log: true });
     syncCampaignRefs();
     persistCampaignState();
     logActivity('SITUATION', `${resolved.identity.title} / ${resolved.status.toUpperCase()} / ${resolved.resolution.notes}`);
@@ -2507,12 +2689,15 @@ function restoreCampaignFromRegistry(campaign) {
   shipDocument = nextShip;
   contractDocuments = resolved.contracts;
   situationDocuments = resolved.situations;
+  contactDocuments = resolved.contacts;
+  threadDocuments = resolved.threads;
   documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
   character = createCharacter();
   setActivityContext();
   const expired = reconcileExpiredContracts();
   const createdSituation = ensureArrivalSituation({ log: false });
-  if (expired.length || createdSituation) persistCampaignState();
+  const consequencesChanged = reconcileAdventureConsequences({ log: false });
+  if (expired.length || createdSituation || consequencesChanged) persistCampaignState();
 }
 
 function newCampaign() {
@@ -2523,11 +2708,15 @@ function newCampaign() {
     selectedSystemId = null;
     contractDocuments = [];
     situationDocuments = [];
+    contactDocuments = [];
+    threadDocuments = [];
     campaignDocument = createCampaignDocument({
       characters: [gameplay],
       ships: shipDocument ? [shipDocument] : [],
       contracts: [],
       situations: [],
+      contacts: [],
+      threads: [],
       partyCharacterIds: [gameplay.identity.id],
       activeShipId: shipDocument?.identity.id ?? null
     });
@@ -2959,6 +3148,8 @@ async function loadDocument(file) {
       campaignDocument = null;
       contractDocuments = [];
       situationDocuments = [];
+      contactDocuments = [];
+      threadDocuments = [];
       selectedSystemId = null;
       documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
       setActivityContext();
@@ -2970,6 +3161,8 @@ async function loadDocument(file) {
       campaignDocument = null;
       contractDocuments = [];
       situationDocuments = [];
+      contactDocuments = [];
+      threadDocuments = [];
       selectedSystemId = null;
       if (shipDocument && !shipMatchesCharacter(shipDocument, gameplayDocument)) shipDocument = null;
       if (registry) registry.put(gameplayDocument);
@@ -2984,6 +3177,8 @@ async function loadDocument(file) {
       campaignDocument = null;
       contractDocuments = [];
       situationDocuments = [];
+      contactDocuments = [];
+      threadDocuments = [];
       selectedSystemId = null;
       if (gameplayDocument) shipDocument = updateShipAssignedCharacterName(shipDocument, gameplayDocument.identity.name);
       if (registry) registry.put(shipDocument);
@@ -3021,6 +3216,42 @@ async function loadDocument(file) {
         setStatus('SITUATION DOCUMENT LOADED / ADDED TO CAMPAIGN', 'ok');
       } else {
         setStatus('SITUATION DOCUMENT REGISTERED LOCALLY', 'ok');
+      }
+    } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CONTACT) {
+      if (!registry) throw new Error('browser local storage is unavailable');
+      const contact = importContactDocument(loaded.contactDocument);
+      registry.put(contact);
+      if (campaignDocument) {
+        contactDocuments = contactDocuments.filter((entry) => entry.identity.id !== contact.identity.id);
+        contactDocuments.push(contact);
+        campaignDocument = addContactToCampaign(campaignDocument, contact);
+        syncCampaignRefs();
+        registry.put(campaignDocument);
+        logActivity('THREAD', `Contact loaded: ${contact.identity.name}`);
+        setStatus('CONTACT DOCUMENT LOADED / ADDED TO CAMPAIGN', 'ok');
+      } else {
+        setStatus('CONTACT DOCUMENT REGISTERED LOCALLY', 'ok');
+      }
+    } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.THREAD) {
+      if (!registry) throw new Error('browser local storage is unavailable');
+      const thread = importAdventureThreadDocument(loaded.threadDocument);
+      registry.put(thread);
+      const knownSituations = new Set(situationDocuments.map((entry) => entry.identity.id));
+      const knownContacts = new Set(contactDocuments.map((entry) => entry.identity.id));
+      const knownContracts = new Set(contractDocuments.map((entry) => entry.identity.id));
+      const relationsPresent = thread.situationIds.every((id) => knownSituations.has(id))
+        && thread.contactIds.every((id) => knownContacts.has(id))
+        && thread.contractIds.every((id) => knownContracts.has(id));
+      if (campaignDocument && relationsPresent) {
+        threadDocuments = threadDocuments.filter((entry) => entry.identity.id !== thread.identity.id);
+        threadDocuments.push(thread);
+        campaignDocument = addAdventureThreadToCampaign(campaignDocument, thread);
+        syncCampaignRefs();
+        registry.put(campaignDocument);
+        logActivity('THREAD', `Adventure thread loaded: ${thread.identity.title}`);
+        setStatus('THREAD DOCUMENT LOADED / ADDED TO CAMPAIGN', 'ok');
+      } else {
+        setStatus(campaignDocument ? 'THREAD DOCUMENT REGISTERED / RELATED DOCUMENTS NOT ALL IN ACTIVE CAMPAIGN' : 'THREAD DOCUMENT REGISTERED LOCALLY', 'ok');
       }
     } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CAMPAIGN) {
       if (!registry) throw new Error('browser local storage is unavailable');
@@ -3182,6 +3413,8 @@ el.newCharacter.addEventListener('click', () => {
   campaignDocument = null;
   contractDocuments = [];
   situationDocuments = [];
+  contactDocuments = [];
+  threadDocuments = [];
   selectedSystemId = null;
   for (const key of Object.keys(detailPanels)) detailPanels[key] = false;
   closeRollDialog();
@@ -3216,15 +3449,23 @@ el.clearActivity.addEventListener('click', () => {
 el.togglePersonnel.addEventListener('click', () => toggleDetailPanel('personnel'));
 el.toggleShip.addEventListener('click', () => toggleDetailPanel('ship'));
 el.toggleCampaign.addEventListener('click', () => toggleDetailPanel('campaign'));
+el.toggleThreads.addEventListener('click', () => toggleDetailPanel('threads'));
 el.toggleChargenRecord.addEventListener('click', () => toggleDetailPanel('chargen'));
 el.toggleSystemDetails.addEventListener('click', () => toggleDetailPanel('system'));
 
 el.headerTask.addEventListener('click', () => {
   const kind = el.headerTask.dataset.taskKind;
-  if (kind === 'situation') setOperationsDeskTab('situation');
-  else if (kind === 'contract') setOperationsDeskTab('jobs');
-  else return;
-  el.subsectorSection?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  if (kind === 'situation') {
+    setOperationsDeskTab('situation');
+    el.subsectorSection?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  } else if (kind === 'contract') {
+    setOperationsDeskTab('jobs');
+    el.subsectorSection?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  } else if (kind === 'thread') {
+    detailPanels.threads = true;
+    applyCampaignLayout();
+    el.threadSection?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  } else return;
 });
 
 el.rollDialogClose.addEventListener('click', closeRollDialog);

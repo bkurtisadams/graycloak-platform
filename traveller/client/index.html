@@ -11,7 +11,7 @@
     <header class="masthead">
       <div>
         <div id="app-title" class="title">TRAVELLER // PERSONNEL INTAKE TERMINAL</div>
-        <div id="app-subtitle" class="subtitle">CLIENT v0.12.0.4 // CAMPAIGN UI // CLASSIC TRAVELLER BOOKS 1-3</div>
+        <div id="app-subtitle" class="subtitle">CLIENT v0.12.1 // ADVENTURE THREADS // CLASSIC TRAVELLER BOOKS 1-3</div>
       </div>
       <div id="system-status" class="status" aria-live="polite">READY</div>
     </header>
@@ -47,6 +47,7 @@
         <button id="toggle-personnel" class="text-button" type="button">[ PERSONNEL ]</button>
         <button id="toggle-ship" class="text-button" type="button">[ SHIP ]</button>
         <button id="toggle-campaign" class="text-button" type="button">[ CAMPAIGN ]</button>
+        <button id="toggle-threads" class="text-button" type="button">[ THREADS ]</button>
         <button id="toggle-chargen-record" class="text-button" type="button">[ CHARGEN RECORD ]</button>
       </div>
     </section>
@@ -100,6 +101,14 @@
         <div class="campaign-field"><label for="campaign-world">WORLD</label><input id="campaign-world" type="text" maxlength="100" autocomplete="off" spellcheck="false" readonly></div>
       </div>
       <pre id="campaign-record" class="record campaign-record" aria-live="polite"></pre>
+    </section>
+
+    <section id="thread-section" hidden aria-labelledby="thread-heading">
+      <div class="section-heading">
+        <h2 id="thread-heading" class="section-title">ADVENTURE THREADS</h2>
+        <button class="help-button" type="button" data-help-topic="adventure-threads" aria-label="Explain adventure threads">[?]</button>
+      </div>
+      <pre id="thread-record" class="record thread-record" aria-live="polite"></pre>
     </section>
 
     <section id="subsector-section" hidden aria-labelledby="subsector-heading">
