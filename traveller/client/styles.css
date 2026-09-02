@@ -534,7 +534,7 @@ input[readonly] {
 .operations-tabs {
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 5px;
   padding-bottom: 8px;
 }
@@ -690,6 +690,12 @@ input[readonly] {
 .encounter-token-enemy:focus { stroke: #29465c; stroke-width: 4; outline: none; }
 .encounter-token-enemy.selected { fill: #111311; stroke: #e7dfb6; stroke-width: 5; }
 .encounter-token-enemy.inactive { fill: #777a75; opacity: 0.55; cursor: default; }
+.encounter-token-tooltip,
+.encounter-token-menu { position: absolute; z-index: 8; max-width: 280px; border: 1px solid #111311; background: #e5e5e1; color: #111311; padding: 5px 7px; font: 11px/1.35 Consolas, monospace; white-space: pre-line; pointer-events: none; }
+.encounter-token-menu { z-index: 9; display: grid; gap: 2px; min-width: 170px; pointer-events: auto; white-space: normal; }
+.encounter-token-menu button { border: 0; background: transparent; color: #111311; padding: 3px; text-align: left; font: inherit; cursor: pointer; }
+.encounter-token-menu button:hover,
+.encounter-token-menu button:focus { background: #111311; color: #f2f2ed; outline: none; }
 
 .encounter-map-legend {
   display: flex;
@@ -766,6 +772,27 @@ input[readonly] {
 .combat-enemy-group { margin: 7px 0; padding: 5px 7px 8px; border: 1px solid var(--disabled); }
 .combat-enemy-group legend { padding: 0 4px; color: var(--muted); font-size: 10px; font-weight: 700; }
 .combat-enemy-group-header { display: flex; justify-content: flex-end; margin-bottom: 3px; }
+.combat-roster-picker { display: flex; align-items: end; gap: 8px; margin: 8px 0; padding: 6px; border: 1px solid var(--disabled); }
+.combat-roster-picker label { flex: 1; }
+
+.roster-basis { margin-bottom: 8px; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.roster-folders { display: grid; gap: 7px; }
+.roster-folder { border: 1px solid var(--disabled); }
+.roster-folder summary { padding: 5px 7px; cursor: pointer; font-weight: 700; }
+.roster-folder-body { display: grid; gap: 5px; padding: 0 6px 6px; }
+.roster-card { display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 7px; border: 1px solid var(--disabled); background: #deded9; padding: 5px; color: #111311; }
+.roster-portrait { width: 54px; height: 54px; border: 1px solid #111311; background: #bfc0bb; object-fit: cover; }
+.roster-portrait-placeholder { display: grid; place-items: center; font-size: 20px; font-weight: 700; }
+.roster-card-name { font-weight: 700; }
+.roster-card-meta,
+.roster-card-description { display: block; color: #3c3f3b; font-size: 10px; }
+.roster-card-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+.npc-actor-dialog { width: min(760px, calc(100vw - 24px)); }
+.npc-editor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; max-height: 68vh; overflow-y: auto; padding-right: 3px; }
+.npc-editor-grid label { display: grid; gap: 2px; }
+.npc-editor-wide { grid-column: 1 / -1; }
+.npc-editor-grid textarea { resize: vertical; }
+.npc-portrait-status { align-self: end; padding-bottom: 5px; color: var(--muted); font-size: 10px; }
 .combat-setup-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

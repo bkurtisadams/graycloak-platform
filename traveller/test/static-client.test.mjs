@@ -524,3 +524,21 @@ test('v0.14.1 gives the encounter map a fluid viewBox camera and live token drag
   assert.match(css, /\.encounter-map-viewport \{[^}]*overflow: hidden/s);
   assert.match(css, /\.encounter-map \{[^}]*width: 100%[^}]*height: 100%/s);
 });
+
+test('v0.15.1 adds a persistent actor roster and token inspection actions', async () => {
+  const html = await read('index.html');
+  const app = await read('app.js');
+  const css = await read('styles.css');
+
+  assert.match(html, /CLIENT v0\.15\.1/);
+  assert.match(html, /id="operations-tab-roster"/);
+  assert.match(html, /id="npc-actor-dialog"/);
+  assert.match(html, /id="combat-roster-actor"/);
+  assert.match(html, /id="encounter-token-tooltip"/);
+  assert.match(html, /id="encounter-token-menu"/);
+  assert.match(app, /createNpcActorDocument/);
+  assert.match(app, /addRosterActorToCombatSetup/);
+  assert.match(app, /showEncounterTokenMenu/);
+  assert.match(css, /\.roster-card/);
+  assert.match(css, /\.encounter-token-menu/);
+});

@@ -1,8 +1,8 @@
 import { stableDocumentId } from '../../packages/classic-traveller-rules/index.js';
 
 export const CAMPAIGN_DOCUMENT_TYPE = 'graycloak-traveller-campaign';
-export const CURRENT_CAMPAIGN_DOCUMENT_SCHEMA_VERSION = 6;
-export const SUPPORTED_CAMPAIGN_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6]);
+export const CURRENT_CAMPAIGN_DOCUMENT_SCHEMA_VERSION = 7;
+export const SUPPORTED_CAMPAIGN_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7]);
 
 export const DEFAULT_CAMPAIGN_TIME = Object.freeze({
   year: 4800,
@@ -12,7 +12,7 @@ export const DEFAULT_CAMPAIGN_TIME = Object.freeze({
 
 const TOP_LEVEL_KEYS = Object.freeze([
   'documentType', 'schemaVersion', 'identity', 'time', 'location',
-  'party', 'activeShipId', 'documentRefs', 'commerce', 'notes'
+  'party', 'activeShipId', 'documentRefs', 'roster', 'commerce', 'notes'
 ]);
 
 export class CampaignDocumentValidationError extends Error {
@@ -124,6 +124,14 @@ function encounterRef(document) {
   return { id: document.identity.id, title: document.identity.title, status: document.status };
 }
 
+function npcActorRef(document) {
+  return { id: document.identity.id, name: document.identity.name, role: document.profile.role, archived: document.state.archived };
+}
+
+function mediaAssetRef(document) {
+  return { id: document.identity.id, name: document.identity.name, purpose: document.purpose };
+}
+
 function uniqueById(entries) {
   const byId = new Map();
   for (const entry of entries) byId.set(entry.id, entry);
@@ -142,6 +150,9 @@ export function createCampaignDocument({
   contacts = [],
   threads = [],
   encounters = [],
+  npcActors = [],
+  assets = [],
+  roster = {},
   commerce = {},
   partyCharacterIds,
   activeShipId,
@@ -156,6 +167,8 @@ export function createCampaignDocument({
   if (!Array.isArray(contacts)) throw new TypeError('contacts must be an array');
   if (!Array.isArray(threads)) throw new TypeError('threads must be an array');
   if (!Array.isArray(encounters)) throw new TypeError('encounters must be an array');
+  if (!Array.isArray(npcActors)) throw new TypeError('npcActors must be an array');
+  if (!Array.isArray(assets)) throw new TypeError('assets must be an array');
   if (typeof name !== 'string') throw new TypeError('name must be a string');
   if (typeof notes !== 'string') throw new TypeError('notes must be a string');
 
@@ -166,6 +179,8 @@ export function createCampaignDocument({
   const contactRefs = uniqueById(contacts.map(contactRef));
   const threadRefs = uniqueById(threads.map(threadRef));
   const encounterRefs = uniqueById(encounters.map(encounterRef));
+  const npcActorRefs = uniqueById(npcActors.map(npcActorRef));
+  const assetRefs = uniqueById(assets.map(mediaAssetRef));
   const partyIds = partyCharacterIds === undefined
     ? characterRefs.map((entry) => entry.id)
     : [...partyCharacterIds];
@@ -199,7 +214,14 @@ export function createCampaignDocument({
       situations: situationRefs,
       contacts: contactRefs,
       threads: threadRefs,
-      encounters: encounterRefs
+      encounters: encounterRefs,
+      npcActors: npcActorRefs,
+      assets: assetRefs
+    },
+    roster: {
+      folders: Array.isArray(roster.folders) && roster.folders.length
+        ? cloneJson(roster.folders)
+        : [{ id: 'folder-npcs', name: 'NPCS', actorIds: npcActorRefs.map((entry) => entry.id) }]
     },
     commerce: {
       speculativeLots: Array.isArray(commerce.speculativeLots) ? cloneJson(commerce.speculativeLots) : []
@@ -260,7 +282,7 @@ export function validateCampaignDocument(document) {
   const characterIds = new Set();
   const shipIds = new Set();
   if (isPlainObject(document.documentRefs)) {
-    exactKeys(document.documentRefs, ['characters', 'ships', 'contracts', 'situations', 'contacts', 'threads', 'encounters'], 'documentRefs', errors);
+    exactKeys(document.documentRefs, ['characters', 'ships', 'contracts', 'situations', 'contacts', 'threads', 'encounters', 'npcActors', 'assets'], 'documentRefs', errors);
     add(errors, Array.isArray(document.documentRefs.characters) && document.documentRefs.characters.length > 0, 'documentRefs.characters must be a non-empty array');
     add(errors, Array.isArray(document.documentRefs.ships), 'documentRefs.ships must be an array');
     add(errors, Array.isArray(document.documentRefs.contracts), 'documentRefs.contracts must be an array');
@@ -268,6 +290,8 @@ export function validateCampaignDocument(document) {
     add(errors, Array.isArray(document.documentRefs.contacts), 'documentRefs.contacts must be an array');
     add(errors, Array.isArray(document.documentRefs.threads), 'documentRefs.threads must be an array');
     add(errors, Array.isArray(document.documentRefs.encounters), 'documentRefs.encounters must be an array');
+    add(errors, Array.isArray(document.documentRefs.npcActors), 'documentRefs.npcActors must be an array');
+    add(errors, Array.isArray(document.documentRefs.assets), 'documentRefs.assets must be an array');
 
     if (Array.isArray(document.documentRefs.characters)) {
       for (const ref of document.documentRefs.characters) {
@@ -380,6 +404,45 @@ export function validateCampaignDocument(document) {
         }
       }
     }
+
+    const npcActorIds = new Set();
+    if (Array.isArray(document.documentRefs.npcActors)) for (const ref of document.documentRefs.npcActors) {
+      add(errors, isPlainObject(ref), 'NPC actor reference must be an object');
+      if (!isPlainObject(ref)) continue;
+      exactKeys(ref, ['id', 'name', 'role', 'archived'], 'documentRefs.npcActors[]', errors);
+      add(errors, nonblank(ref.id), 'NPC actor reference id must be nonblank');
+      add(errors, typeof ref.name === 'string' && typeof ref.role === 'string' && typeof ref.archived === 'boolean', 'NPC actor reference fields are invalid');
+      if (nonblank(ref.id)) { add(errors, !npcActorIds.has(ref.id), `duplicate NPC actor reference: ${ref.id}`); npcActorIds.add(ref.id); }
+    }
+
+    const assetIds = new Set();
+    if (Array.isArray(document.documentRefs.assets)) for (const ref of document.documentRefs.assets) {
+      add(errors, isPlainObject(ref), 'asset reference must be an object');
+      if (!isPlainObject(ref)) continue;
+      exactKeys(ref, ['id', 'name', 'purpose'], 'documentRefs.assets[]', errors);
+      add(errors, nonblank(ref.id), 'asset reference id must be nonblank');
+      add(errors, typeof ref.name === 'string' && ref.purpose === 'portrait', 'asset reference fields are invalid');
+      if (nonblank(ref.id)) { add(errors, !assetIds.has(ref.id), `duplicate asset reference: ${ref.id}`); assetIds.add(ref.id); }
+    }
+
+    add(errors, isPlainObject(document.roster) && Array.isArray(document.roster?.folders), 'roster must contain folders');
+    if (Array.isArray(document.roster?.folders)) {
+      const folderIds = new Set();
+      const assignedActorIds = new Set();
+      for (const folder of document.roster.folders) {
+        add(errors, isPlainObject(folder), 'roster folder must be an object');
+        if (!isPlainObject(folder)) continue;
+        exactKeys(folder, ['id', 'name', 'actorIds'], 'roster.folders[]', errors);
+        add(errors, nonblank(folder.id) && nonblank(folder.name) && Array.isArray(folder.actorIds), 'roster folder is invalid');
+        if (nonblank(folder.id)) { add(errors, !folderIds.has(folder.id), `duplicate roster folder: ${folder.id}`); folderIds.add(folder.id); }
+        if (Array.isArray(folder.actorIds)) for (const actorId of folder.actorIds) {
+          add(errors, npcActorIds.has(actorId), `roster folder references unknown NPC actor: ${actorId}`);
+          add(errors, !assignedActorIds.has(actorId), `NPC actor appears in multiple roster folders: ${actorId}`);
+          assignedActorIds.add(actorId);
+        }
+      }
+      for (const actorId of npcActorIds) add(errors, assignedActorIds.has(actorId), `NPC actor is not assigned to a roster folder: ${actorId}`);
+    }
   }
 
   if (Array.isArray(document.party?.characterIds)) {
@@ -450,6 +513,11 @@ export function migrateCampaignDocument(input) {
     next.schemaVersion = 6;
     next.documentRefs = { ...next.documentRefs, encounters: [] };
   }
+  if (next.schemaVersion === 6) {
+    next.schemaVersion = 7;
+    next.documentRefs = { ...next.documentRefs, npcActors: [], assets: [] };
+    next.roster = { folders: [{ id: 'folder-npcs', name: 'NPCS', actorIds: [] }] };
+  }
   assertValidCampaignDocument(next);
   return next;
 }
@@ -501,7 +569,7 @@ export function updateCampaignLocation(document, patch = {}) {
   return next;
 }
 
-export function refreshCampaignDocumentRefs(document, { characters = [], ships = [], contracts = [], situations = [], contacts = [], threads = [], encounters = [] } = {}) {
+export function refreshCampaignDocumentRefs(document, { characters = [], ships = [], contracts = [], situations = [], contacts = [], threads = [], encounters = [], npcActors = [], assets = [] } = {}) {
   const next = cloneJson(document);
   const characterMap = new Map(characters.map((entry) => [entry.identity.id, entry]));
   const shipMap = new Map(ships.map((entry) => [entry.identity.id, entry]));
@@ -510,6 +578,8 @@ export function refreshCampaignDocumentRefs(document, { characters = [], ships =
   const contactMap = new Map(contacts.map((entry) => [entry.identity.id, entry]));
   const threadMap = new Map(threads.map((entry) => [entry.identity.id, entry]));
   const encounterMap = new Map(encounters.map((entry) => [entry.identity.id, entry]));
+  const npcActorMap = new Map(npcActors.map((entry) => [entry.identity.id, entry]));
+  const assetMap = new Map(assets.map((entry) => [entry.identity.id, entry]));
 
   next.documentRefs.characters = next.documentRefs.characters.map((ref) => {
     const source = characterMap.get(ref.id);
@@ -538,6 +608,14 @@ export function refreshCampaignDocumentRefs(document, { characters = [], ships =
   next.documentRefs.encounters = next.documentRefs.encounters.map((ref) => {
     const source = encounterMap.get(ref.id);
     return source ? encounterRef(source) : ref;
+  });
+  next.documentRefs.npcActors = next.documentRefs.npcActors.map((ref) => {
+    const source = npcActorMap.get(ref.id);
+    return source ? npcActorRef(source) : ref;
+  });
+  next.documentRefs.assets = next.documentRefs.assets.map((ref) => {
+    const source = assetMap.get(ref.id);
+    return source ? mediaAssetRef(source) : ref;
   });
   assertValidCampaignDocument(next);
   return next;
@@ -591,6 +669,27 @@ export function addAdventureThreadToCampaign(document, threadDocument) {
 export function addEncounterToCampaign(document, encounterDocument) {
   const next = cloneJson(document);
   next.documentRefs.encounters = uniqueById([...next.documentRefs.encounters, encounterRef(encounterDocument)]);
+  assertValidCampaignDocument(next);
+  return next;
+}
+
+export function addNpcActorToCampaign(document, actorDocument, { folderId = 'folder-npcs' } = {}) {
+  const next = cloneJson(document);
+  next.documentRefs.npcActors = uniqueById([...next.documentRefs.npcActors, npcActorRef(actorDocument)]);
+  let folder = next.roster.folders.find((entry) => entry.id === folderId);
+  if (!folder) {
+    folder = { id: folderId, name: folderId.replace(/^folder-/, '').replace(/-/g, ' ').toUpperCase() || 'NPCS', actorIds: [] };
+    next.roster.folders.push(folder);
+  }
+  for (const entry of next.roster.folders) entry.actorIds = entry.actorIds.filter((id) => id !== actorDocument.identity.id);
+  folder.actorIds.push(actorDocument.identity.id);
+  assertValidCampaignDocument(next);
+  return next;
+}
+
+export function addMediaAssetToCampaign(document, assetDocument) {
+  const next = cloneJson(document);
+  next.documentRefs.assets = uniqueById([...next.documentRefs.assets, mediaAssetRef(assetDocument)]);
   assertValidCampaignDocument(next);
   return next;
 }

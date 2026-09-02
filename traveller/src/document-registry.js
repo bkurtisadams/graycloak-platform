@@ -31,6 +31,8 @@ import {
 } from './adventure-thread-document.js';
 
 import { ENCOUNTER_DOCUMENT_TYPE, importEncounterDocument } from './encounter-document.js';
+import { NPC_ACTOR_DOCUMENT_TYPE, importNpcActorDocument } from './npc-actor-document.js';
+import { MEDIA_ASSET_DOCUMENT_TYPE, importMediaAssetDocument } from './media-asset-document.js';
 
 import {
   CAMPAIGN_BUNDLE_TYPE,
@@ -56,6 +58,8 @@ function validateDocument(document) {
     case CONTACT_DOCUMENT_TYPE: return importContactDocument(document);
     case ADVENTURE_THREAD_DOCUMENT_TYPE: return importAdventureThreadDocument(document);
     case ENCOUNTER_DOCUMENT_TYPE: return importEncounterDocument(document);
+    case NPC_ACTOR_DOCUMENT_TYPE: return importNpcActorDocument(document);
+    case MEDIA_ASSET_DOCUMENT_TYPE: return importMediaAssetDocument(document);
     default: throw new Error(`unsupported registry documentType: ${document?.documentType ?? '(missing)'}`);
   }
 }
@@ -132,6 +136,8 @@ export function createDocumentRegistry({
     for (const contact of validated.documents.contacts) put(contact);
     for (const thread of validated.documents.threads) put(thread);
     for (const encounter of validated.documents.encounters) put(encounter);
+    for (const actor of validated.documents.npcActors) put(actor);
+    for (const asset of validated.documents.assets) put(asset);
     put(validated.campaign);
     return cloneJson(validated);
   }
@@ -151,6 +157,8 @@ export function createDocumentRegistry({
     const contacts = [];
     const threads = [];
     const encounters = [];
+    const npcActors = [];
+    const assets = [];
     const missing = [];
     for (const ref of campaign.documentRefs.characters) {
       const document = get(ref.id);
@@ -187,7 +195,17 @@ export function createDocumentRegistry({
       if (!document || document.documentType !== ENCOUNTER_DOCUMENT_TYPE) missing.push(ref.id);
       else encounters.push(document);
     }
-    return { campaign, characters, ships, contracts, situations, contacts, threads, encounters, missing };
+    for (const ref of campaign.documentRefs.npcActors) {
+      const document = get(ref.id);
+      if (!document || document.documentType !== NPC_ACTOR_DOCUMENT_TYPE) missing.push(ref.id);
+      else npcActors.push(document);
+    }
+    for (const ref of campaign.documentRefs.assets) {
+      const document = get(ref.id);
+      if (!document || document.documentType !== MEDIA_ASSET_DOCUMENT_TYPE) missing.push(ref.id);
+      else assets.push(document);
+    }
+    return { campaign, characters, ships, contracts, situations, contacts, threads, encounters, npcActors, assets, missing };
   }
 
   function buildBundle(campaignOrId) {
@@ -200,7 +218,9 @@ export function createDocumentRegistry({
       situations: resolved.situations,
       contacts: resolved.contacts,
       threads: resolved.threads,
-      encounters: resolved.encounters
+      encounters: resolved.encounters,
+      npcActors: resolved.npcActors,
+      assets: resolved.assets
     });
   }
 

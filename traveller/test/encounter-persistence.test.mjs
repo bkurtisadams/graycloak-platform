@@ -55,7 +55,7 @@ async function encounterFixture() {
 test('Encounter Document v3 round-trips the expanded workspace, declarations, positions, range, and audit history', async () => {
   const { encounter } = await encounterFixture();
   const roundTrip = importEncounterDocument(exportEncounterDocument(encounter));
-  assert.equal(roundTrip.schemaVersion, 3);
+  assert.equal(roundTrip.schemaVersion, 4);
   assert.deepEqual(roundTrip.map, { grid: 'square', columns: 32, rows: 20, rangeGuide: 'graycloak-band-guide-v1' });
   assert.deepEqual(roundTrip.roundState, { declaredActions: [] });
   assert.deepEqual(roundTrip.combatants[0].position, { column: 4, row: 9 });
@@ -67,14 +67,14 @@ test('Encounter Document v3 round-trips the expanded workspace, declarations, po
   assert.equal(avoided.status, 'avoided');
 });
 
-test('Encounter Document v1 imports migrate through v2 to the expanded v3 workspace', async () => {
+test('Encounter Document v1 imports migrate through v4 to the expanded workspace', async () => {
   const { encounter } = await encounterFixture();
   const legacy = structuredClone(encounter);
   legacy.schemaVersion = 1;
   delete legacy.map;
   for (const combatant of legacy.combatants) delete combatant.position;
   const migrated = importEncounterDocument(legacy);
-  assert.equal(migrated.schemaVersion, 3);
+  assert.equal(migrated.schemaVersion, 4);
   assert.equal(migrated.map.grid, 'square');
   assert.equal(migrated.map.columns, 32);
   assert.equal(migrated.map.rows, 20);
@@ -96,7 +96,7 @@ test('dragged token positions persist while Book 1 range changes only through an
   assert.equal(applied.entry.kind, 'range');
 });
 
-test('campaign registry and portable Bundle v5 persist Encounter Documents', async () => {
+test('campaign registry and portable Bundle v6 persist Encounter Documents', async () => {
   const { character, ship, campaign, situation, encounter } = await encounterFixture();
   const registry = createDocumentRegistry({ storage: createMemoryStorage() });
   for (const document of [character, ship, situation, encounter, campaign]) registry.put(document);
@@ -104,7 +104,7 @@ test('campaign registry and portable Bundle v5 persist Encounter Documents', asy
   assert.deepEqual(resolved.missing, []);
   assert.equal(resolved.encounters[0].identity.id, encounter.identity.id);
   const bundle = registry.buildBundle(campaign.identity.id);
-  assert.equal(bundle.schemaVersion, 5);
+  assert.equal(bundle.schemaVersion, 6);
   assert.equal(bundle.documents.encounters[0].identity.title, 'Encounter / Veyra Kade');
 });
 

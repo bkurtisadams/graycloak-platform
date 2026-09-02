@@ -13,8 +13,8 @@ import {
 } from '../../packages/classic-traveller-rules/index.js';
 
 export const ENCOUNTER_DOCUMENT_TYPE = 'graycloak-traveller-personal-encounter';
-export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 3;
-export const SUPPORTED_ENCOUNTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3]);
+export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 4;
+export const SUPPORTED_ENCOUNTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4]);
 export const ENCOUNTER_STATUSES = Object.freeze(['active', 'victory', 'defeat', 'escaped', 'avoided', 'opposition-withdrew']);
 export const ENCOUNTER_MAP_COLUMNS = 32;
 export const ENCOUNTER_MAP_ROWS = 20;
@@ -72,23 +72,23 @@ export function createEncounterDocument({ campaign, situation = null, character 
   const party = characterDocuments.map((entry, index) => {
     const military = ['Navy', 'Army', 'Marines', 'Scouts'].includes(entry.career?.service);
     const loadout = partyLoadouts[entry.identity.id] ?? {};
-    return withPosition(createPersonalCombatant({
+    return { ...withPosition(createPersonalCombatant({
       id: entry.identity.id, name: entry.identity.name, side: 'party', playerCharacter: true,
       characteristics: entry.characteristics, skills: entry.skills,
       armor: loadout.armor ?? opponentSpecs[0].playerArmor ?? 'none',
       weaponKey: loadout.weaponKey ?? opponentSpecs[0].playerWeaponKey ?? 'rifle',
       surpriseDM: (military ? 1 : 0) + Math.min(1, Number(entry.skills?.Leadership ?? 0)) + Math.min(1, Number(entry.skills?.Tactics ?? 0))
-    }), initialPosition('party', index, characterDocuments.length, range));
+    }), initialPosition('party', index, characterDocuments.length, range)), sourceActorId: entry.identity.id };
   });
   const hostiles = opponentSpecs.map((spec, index) => {
     const weaponKey = spec.weaponKey ?? 'automatic-pistol';
     const defaultSkill = getPersonalWeapon(weaponKey).skillNames[0];
-    return withPosition(createPersonalCombatant({
+    return { ...withPosition(createPersonalCombatant({
       id: spec.id ?? stableDocumentId('foe', `${campaign.identity.id}|${encounterKey ?? situation?.identity?.id ?? date.dayOfYear}|${index}|${spec.name}`),
       name: spec.name, side: 'opposition', characteristics: spec.characteristics ?? { STR: 7, DEX: 7, END: 7, INT: 7 },
       skills: spec.skills ?? { [defaultSkill]: 0 }, armor: spec.armor ?? 'jack',
       weaponKey, surpriseDM: Number(spec.surpriseDM ?? 0)
-    }), initialPosition('opposition', index, opponentSpecs.length, range));
+    }), initialPosition('opposition', index, opponentSpecs.length, range)), sourceActorId: spec.actorId ?? null };
   });
   const surprise = resolvePersonalSurprise({ sides: [{ id: 'party', combatants: party }, { id: 'opposition', combatants: hostiles }], dice });
   const seed = `${campaign.identity.id}|${encounterKey ?? situation?.identity?.id ?? 'encounter'}|${date.year}-${date.dayOfYear}`;
@@ -155,6 +155,7 @@ export function validateEncounterDocument(document) {
     add(errors, PERSONAL_ARMOR_TYPES.includes(entry.armor), `combatant ${entry.name ?? ''} armor is invalid`);
     try { getPersonalWeapon(entry.weaponKey); } catch (error) { errors.push(error.message); }
     add(errors, PERSONAL_COMBAT_STATUSES.includes(entry.status), `combatant ${entry.name ?? ''} status is invalid`);
+    add(errors, entry.sourceActorId === null || nonblank(entry.sourceActorId), `combatant ${entry.name ?? ''} sourceActorId is invalid`);
   }
   if (Array.isArray(document.combatants)) {
     add(errors, document.combatants.some((entry) => entry.side === 'party'), 'combatants require a party side');
@@ -213,6 +214,10 @@ function migrateEncounterDocument(document) {
     document.map = { grid: 'square', columns: ENCOUNTER_MAP_COLUMNS, rows: ENCOUNTER_MAP_ROWS, rangeGuide: 'graycloak-band-guide-v1' };
     document.roundState = { declaredActions: [] };
     document.schemaVersion = 3;
+  }
+  if (document.schemaVersion === 3) {
+    document.combatants = document.combatants.map((entry) => ({ ...entry, sourceActorId: entry.side === 'party' ? entry.id : null }));
+    document.schemaVersion = 4;
   }
   return document;
 }

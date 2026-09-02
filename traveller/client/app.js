@@ -109,6 +109,8 @@ import {
   addContractToCampaign,
   addSituationToCampaign,
   addEncounterToCampaign,
+  addNpcActorToCampaign,
+  addMediaAssetToCampaign,
   addContactToCampaign,
   addAdventureThreadToCampaign,
   advanceCampaignDays,
@@ -120,6 +122,9 @@ import {
   speculativeLotPurchasedQuantity,
   recordSpeculativeLotPurchase
 } from '../src/campaign-document.js';
+
+import { createNpcActorDocument, updateNpcActorDocument, importNpcActorDocument } from '../src/npc-actor-document.js';
+import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js';
 
 import {
   exportCampaignBundle
@@ -298,10 +303,16 @@ const el = {
   encounterRosterPanel: document.querySelector('#encounter-roster-panel'),
   encounterRosterSummary: document.querySelector('#encounter-roster-summary'),
   encounterRoster: document.querySelector('#encounter-roster'),
+  encounterTokenTooltip: document.querySelector('#encounter-token-tooltip'),
+  encounterTokenMenu: document.querySelector('#encounter-token-menu'),
   operationsTabEncounter: document.querySelector('#operations-tab-encounter'),
   operationsTabPort: document.querySelector('#operations-tab-port'),
   operationsTabTrade: document.querySelector('#operations-tab-trade'),
   operationsTabJobs: document.querySelector('#operations-tab-jobs'),
+  operationsTabRoster: document.querySelector('#operations-tab-roster'),
+  rosterSection: document.querySelector('#roster-section'),
+  rosterFolders: document.querySelector('#roster-folders'),
+  rosterNewActor: document.querySelector('#roster-new-actor'),
   rollDialog: document.querySelector('#roll-dialog'),
   rollDialogForm: document.querySelector('#roll-dialog-form'),
   rollDialogTitle: document.querySelector('#roll-dialog-title'),
@@ -320,6 +331,8 @@ const el = {
   combatSetupCancel: document.querySelector('#combat-setup-cancel'),
   combatEnemyGroups: document.querySelector('#combat-enemy-groups'),
   combatAddEnemyType: document.querySelector('#combat-add-enemy-type'),
+  combatRosterActor: document.querySelector('#combat-roster-actor'),
+  combatAddRosterActor: document.querySelector('#combat-add-roster-actor'),
   combatEnemyName: document.querySelector('#combat-enemy-name'),
   combatEnemyCount: document.querySelector('#combat-enemy-count'),
   combatEnemyStr: document.querySelector('#combat-enemy-str'),
@@ -330,6 +343,22 @@ const el = {
   combatEnemySkill: document.querySelector('#combat-enemy-skill'),
   combatEnemyArmor: document.querySelector('#combat-enemy-armor'),
   combatStartingRange: document.querySelector('#combat-starting-range'),
+  npcActorDialog: document.querySelector('#npc-actor-dialog'),
+  npcActorForm: document.querySelector('#npc-actor-form'),
+  npcActorClose: document.querySelector('#npc-actor-close'),
+  npcActorCancel: document.querySelector('#npc-actor-cancel'),
+  npcActorId: document.querySelector('#npc-actor-id'),
+  npcName: document.querySelector('#npc-name'), npcRole: document.querySelector('#npc-role'),
+  npcType: document.querySelector('#npc-type'), npcBody: document.querySelector('#npc-body'),
+  npcSpecies: document.querySelector('#npc-species'), npcFaction: document.querySelector('#npc-faction'),
+  npcHomeworld: document.querySelector('#npc-homeworld'), npcAge: document.querySelector('#npc-age'),
+  npcStr: document.querySelector('#npc-str'), npcDex: document.querySelector('#npc-dex'), npcEnd: document.querySelector('#npc-end'),
+  npcInt: document.querySelector('#npc-int'), npcEdu: document.querySelector('#npc-edu'), npcSoc: document.querySelector('#npc-soc'),
+  npcService: document.querySelector('#npc-service'), npcTerms: document.querySelector('#npc-terms'), npcRank: document.querySelector('#npc-rank'),
+  npcCredits: document.querySelector('#npc-credits'), npcWeapon: document.querySelector('#npc-weapon'), npcArmor: document.querySelector('#npc-armor'),
+  npcSkills: document.querySelector('#npc-skills'), npcDescription: document.querySelector('#npc-description'),
+  npcPortrait: document.querySelector('#npc-portrait'), npcPortraitStatus: document.querySelector('#npc-portrait-status'),
+  npcPublicNotes: document.querySelector('#npc-public-notes'), npcRefereeNotes: document.querySelector('#npc-referee-notes'),
   activityPanel: document.querySelector('#activity-panel'),
   activityContext: document.querySelector('#activity-context'),
   activityFeed: document.querySelector('#activity-feed'),
@@ -346,6 +375,9 @@ let situationDocuments = [];
 let encounterDocuments = [];
 let contactDocuments = [];
 let threadDocuments = [];
+let npcActorDocuments = [];
+let mediaAssetDocuments = [];
+let pendingNpcPortraitAsset = null;
 let documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
 let openHelpTopic = null;
 let selectedSystemId = null;
@@ -1145,6 +1177,8 @@ function persistGameplayDocuments() {
   for (const encounter of encounterDocuments) registry.put(encounter);
   for (const contact of contactDocuments) registry.put(contact);
   for (const thread of threadDocuments) registry.put(thread);
+  for (const actor of npcActorDocuments) registry.put(actor);
+  for (const asset of mediaAssetDocuments) registry.put(asset);
 }
 
 function syncCampaignRefs() {
@@ -1156,7 +1190,9 @@ function syncCampaignRefs() {
     situations: situationDocuments,
     encounters: encounterDocuments,
     contacts: contactDocuments,
-    threads: threadDocuments
+    threads: threadDocuments,
+    npcActors: npcActorDocuments,
+    assets: mediaAssetDocuments
   });
 }
 
@@ -1191,7 +1227,7 @@ function reconcileExpiredContracts({ log = true } = {}) {
 }
 
 function campaignDocumentsForDisplay() {
-  if (!campaignDocument) return { characters: [], ships: [], contracts: [], situations: [], encounters: [], contacts: [], threads: [], missing: [] };
+  if (!campaignDocument) return { characters: [], ships: [], contracts: [], situations: [], encounters: [], contacts: [], threads: [], npcActors: [], assets: [], missing: [] };
   let characters = [];
   let ships = [];
   let contracts = [];
@@ -1199,6 +1235,8 @@ function campaignDocumentsForDisplay() {
   let encounters = [];
   let contacts = [];
   let threads = [];
+  let npcActors = [];
+  let assets = [];
   let missing = [];
   if (registry) {
     try {
@@ -1210,6 +1248,8 @@ function campaignDocumentsForDisplay() {
       encounters = resolved.encounters;
       contacts = resolved.contacts;
       threads = resolved.threads;
+      npcActors = resolved.npcActors;
+      assets = resolved.assets;
       missing = resolved.missing;
     } catch (error) {
       console.error(error);
@@ -1250,7 +1290,17 @@ function campaignDocumentsForDisplay() {
     threads.push(thread);
     missing = missing.filter((id) => id !== thread.identity.id);
   }
-  return { characters, ships, contracts, situations, encounters, contacts, threads, missing };
+  for (const actor of npcActorDocuments) {
+    npcActors = npcActors.filter((entry) => entry.identity.id !== actor.identity.id);
+    npcActors.push(actor);
+    missing = missing.filter((id) => id !== actor.identity.id);
+  }
+  for (const asset of mediaAssetDocuments) {
+    assets = assets.filter((entry) => entry.identity.id !== asset.identity.id);
+    assets.push(asset);
+    missing = missing.filter((id) => id !== asset.identity.id);
+  }
+  return { characters, ships, contracts, situations, encounters, contacts, threads, npcActors, assets, missing };
 }
 
 function renderCampaign() {
@@ -2635,7 +2685,56 @@ function moveEncounterToken(encounterId, combatantId, column, row) {
   }
 }
 
+function hideEncounterTokenOverlays() {
+  el.encounterTokenTooltip.hidden = true;
+  el.encounterTokenMenu.hidden = true;
+}
+
+function combatantHoverText(combatant) {
+  const source = npcActorDocuments.find((entry) => entry.identity.id === combatant.sourceActorId);
+  const state = source?.profile.bodyModel === 'robotic'
+    ? `${source.state.activation} / ${source.state.integrity}`
+    : combatant.status;
+  return `${combatant.name.toUpperCase()} // ${combatant.side.toUpperCase()} // ${state.toUpperCase()}\nSTR ${combatant.current.STR}/${combatant.characteristics.STR}  DEX ${combatant.current.DEX}/${combatant.characteristics.DEX}  END ${combatant.current.END}/${combatant.characteristics.END}\n${getPersonalWeapon(combatant.weaponKey).name} / SKILL-${combatantSkillLevel(combatant)} / ${combatant.armor.toUpperCase()}${source?.presentation.description ? `\n${source.presentation.description}` : ''}`;
+}
+
+function positionEncounterOverlay(node, event) {
+  const rect = el.encounterMapViewport.getBoundingClientRect();
+  const clientX = Number.isFinite(event.clientX) && event.clientX ? event.clientX : rect.left + rect.width / 2;
+  const clientY = Number.isFinite(event.clientY) && event.clientY ? event.clientY : rect.top + rect.height / 2;
+  node.style.left = `${Math.max(4, Math.min(rect.width - 210, clientX - rect.left + 10))}px`;
+  node.style.top = `${Math.max(4, Math.min(rect.height - 100, clientY - rect.top + 10))}px`;
+}
+
+function showEncounterTokenMenu(event, encounter, combatant, onSelect) {
+  event.preventDefault();
+  event.stopPropagation();
+  el.encounterTokenTooltip.hidden = true;
+  const actions = [];
+  const add = (label, handler, disabled = false) => {
+    const button = document.createElement('button');
+    button.type = 'button'; button.textContent = `[ ${label} ]`; button.disabled = disabled;
+    button.addEventListener('click', () => { el.encounterTokenMenu.hidden = true; handler(); });
+    actions.push(button);
+  };
+  add(combatant.side === 'party' ? 'SELECT ACTOR' : 'SELECT TARGET', onSelect, combatant.status !== 'active');
+  const actor = selectedEncounterActor(encounter);
+  if (combatant.side === 'opposition') add('ATTACK TARGET', () => { setEncounterTarget(encounter.identity.id, combatant.id); openEncounterAttackDialog(encounter); }, !actor || combatant.status !== 'active');
+  if (combatant.sourceActorId && npcActorDocuments.some((entry) => entry.identity.id === combatant.sourceActorId)) add('OPEN ROSTER ACTOR', () => { operationsDeskTab = 'roster'; render(); openNpcActorDialog(combatant.sourceActorId); });
+  el.encounterTokenMenu.replaceChildren(...actions);
+  positionEncounterOverlay(el.encounterTokenMenu, event);
+  el.encounterTokenMenu.hidden = false;
+  actions[0]?.focus();
+}
+
 function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect } = {}) {
+  group.addEventListener('pointerenter', (event) => {
+    el.encounterTokenTooltip.textContent = combatantHoverText(combatant);
+    positionEncounterOverlay(el.encounterTokenTooltip, event);
+    el.encounterTokenTooltip.hidden = false;
+  });
+  group.addEventListener('pointerleave', () => { el.encounterTokenTooltip.hidden = true; });
+  group.addEventListener('contextmenu', (event) => showEncounterTokenMenu(event, encounter, combatant, onSelect));
   if (encounter.status !== 'active' || combatant.status !== 'active') return;
   let drag = null;
   group.addEventListener('pointerdown', (event) => {
@@ -2707,11 +2806,13 @@ function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect
   group.addEventListener('pointercancel', (event) => finishDrag(event, true));
   group.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect?.(); }
+    if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) showEncounterTokenMenu(event, encounter, combatant, onSelect);
   });
 }
 
 function renderEncounterMap(encounter) {
   if (!encounter) {
+    hideEncounterTokenOverlays();
     el.encounterTactical.hidden = true;
     el.encounterMap.replaceChildren();
     el.encounterPartyRoster.replaceChildren();
@@ -2753,6 +2854,9 @@ function renderEncounterMap(encounter) {
       transform: `translate(${x} ${y})`,
       'aria-label': `${combatant.name}, ${combatant.side}, ${combatant.status}`
     });
+    const title = svgElement('title');
+    title.textContent = combatantHoverText(combatant);
+    group.append(title);
     if (combatant.side === 'party') {
       group.append(svgElement('circle', { cx: 0, cy: 0, r: 15, class: `encounter-token-pc${actor?.id === combatant.id ? ' selected' : ''}${declared.has(combatant.id) ? ' declared' : ''}` }));
       const label = svgElement('text', { x: 0, y: 0, class: 'encounter-token-pc-label' });
@@ -2817,11 +2921,157 @@ function renderEncounterMap(encounter) {
   el.encounterRosterSummary.textContent = `ENEMY ROSTER [${cards.length}]`;
 }
 
+function assetForActor(actor) {
+  return mediaAssetDocuments.find((entry) => entry.identity.id === actor?.presentation?.portraitAssetId) ?? null;
+}
+
+function parseNpcSkills(text) {
+  const skills = {};
+  for (const line of String(text).split(/\r?\n|,/)) {
+    const match = line.trim().match(/^(.+?)\s+(\d+)$/);
+    if (!match) { if (line.trim()) throw new Error(`skill must use "NAME LEVEL": ${line.trim()}`); continue; }
+    skills[match[1].trim()] = Number.parseInt(match[2], 10);
+  }
+  return skills;
+}
+
+function npcSkillsText(skills) {
+  return Object.entries(skills).sort(([a], [b]) => a.localeCompare(b)).map(([name, level]) => `${name} ${level}`).join('\n');
+}
+
+function closeNpcActorDialog() {
+  pendingNpcPortraitAsset = null;
+  if (typeof el.npcActorDialog.close === 'function') el.npcActorDialog.close();
+  else el.npcActorDialog.removeAttribute('open');
+}
+
+function openNpcActorDialog(actorId = null) {
+  if (!campaignDocument) return setStatus('CREATE OR LOAD A CAMPAIGN BEFORE ADDING ROSTER ACTORS', 'error');
+  const actor = actorId ? npcActorDocuments.find((entry) => entry.identity.id === actorId) : null;
+  el.npcActorForm.reset();
+  el.npcActorId.value = actor?.identity.id ?? '';
+  el.npcName.value = actor?.identity.name ?? '';
+  el.npcRole.value = actor?.profile.role ?? '';
+  el.npcType.value = actor?.profile.actorType ?? 'npc';
+  el.npcBody.value = actor?.profile.bodyModel ?? 'biological';
+  el.npcSpecies.value = actor?.profile.species ?? 'Human';
+  el.npcFaction.value = actor?.profile.faction ?? '';
+  el.npcHomeworld.value = actor?.profile.homeworld ?? '';
+  el.npcAge.value = actor?.profile.age ?? '';
+  for (const [element, key] of [[el.npcStr, 'STR'], [el.npcDex, 'DEX'], [el.npcEnd, 'END'], [el.npcInt, 'INT'], [el.npcEdu, 'EDU'], [el.npcSoc, 'SOC']]) element.value = String(actor?.characteristics[key] ?? 7);
+  el.npcService.value = actor?.career.service ?? '';
+  el.npcTerms.value = String(actor?.career.terms ?? 0);
+  el.npcRank.value = actor?.career.rankTitle ?? '';
+  el.npcCredits.value = String(actor?.finances.credits ?? 0);
+  el.npcWeapon.value = actor?.loadout.weaponKey ?? 'automatic-pistol';
+  el.npcArmor.value = actor?.loadout.armor ?? 'none';
+  el.npcSkills.value = npcSkillsText(actor?.skills ?? {});
+  el.npcDescription.value = actor?.presentation.description ?? '';
+  el.npcPublicNotes.value = actor?.notes.public ?? '';
+  el.npcRefereeNotes.value = actor?.notes.referee ?? '';
+  pendingNpcPortraitAsset = null;
+  el.npcPortraitStatus.textContent = assetForActor(actor ?? {}) ? 'PORTRAIT SAVED' : 'NO PORTRAIT';
+  if (typeof el.npcActorDialog.showModal === 'function') el.npcActorDialog.showModal();
+  else el.npcActorDialog.setAttribute('open', '');
+  window.setTimeout(() => el.npcName.focus(), 0);
+}
+
+function fieldInteger(input, label, minimum = 0, maximum = Number.MAX_SAFE_INTEGER) {
+  const value = Number.parseInt(input.value, 10);
+  if (!Number.isInteger(value) || value < minimum || value > maximum) throw new Error(`${label} must be ${minimum}-${maximum}`);
+  return value;
+}
+
+function saveNpcActorFromForm() {
+  const existing = npcActorDocuments.find((entry) => entry.identity.id === el.npcActorId.value) ?? null;
+  if (pendingNpcPortraitAsset) {
+    mediaAssetDocuments = mediaAssetDocuments.filter((entry) => entry.identity.id !== pendingNpcPortraitAsset.identity.id);
+    mediaAssetDocuments.push(pendingNpcPortraitAsset);
+    campaignDocument = addMediaAssetToCampaign(campaignDocument, pendingNpcPortraitAsset);
+  }
+  const values = {
+    name: el.npcName.value.trim(), role: el.npcRole.value.trim(), actorType: el.npcType.value,
+    bodyModel: el.npcBody.value, species: el.npcSpecies.value.trim(), faction: el.npcFaction.value.trim(), homeworld: el.npcHomeworld.value.trim(),
+    age: el.npcAge.value === '' ? null : fieldInteger(el.npcAge, 'age', 0, 999),
+    characteristics: { STR: fieldInteger(el.npcStr, 'STR', 0, 15), DEX: fieldInteger(el.npcDex, 'DEX', 0, 15), END: fieldInteger(el.npcEnd, 'END', 0, 15), INT: fieldInteger(el.npcInt, 'INT', 0, 15), EDU: fieldInteger(el.npcEdu, 'EDU', 0, 15), SOC: fieldInteger(el.npcSoc, 'SOC', 0, 15) },
+    career: { service: el.npcService.value.trim(), terms: fieldInteger(el.npcTerms, 'terms', 0, 20), rankTitle: el.npcRank.value.trim() },
+    credits: Number.parseInt(el.npcCredits.value || '0', 10), skills: parseNpcSkills(el.npcSkills.value),
+    weaponKey: el.npcWeapon.value, armor: el.npcArmor.value, description: el.npcDescription.value,
+    portraitAssetId: pendingNpcPortraitAsset?.identity.id ?? existing?.presentation.portraitAssetId ?? null,
+    publicNotes: el.npcPublicNotes.value, refereeNotes: el.npcRefereeNotes.value
+  };
+  values.current = { STR: values.characteristics.STR, DEX: values.characteristics.DEX, END: values.characteristics.END };
+  if (existing) values.career = { ...existing.career, ...values.career, yearsServed: values.career.terms * 4 };
+  if (!existing || existing.profile.bodyModel !== values.bodyModel) values.state = values.bodyModel === 'robotic'
+    ? { lifeState: 'not-applicable', consciousness: 'not-applicable', activation: 'active', integrity: 'intact', archived: false }
+    : { lifeState: 'alive', consciousness: 'conscious', activation: 'not-applicable', integrity: 'intact', archived: false };
+  const actor = existing ? updateNpcActorDocument(existing, values) : createNpcActorDocument(values);
+  npcActorDocuments = npcActorDocuments.filter((entry) => entry.identity.id !== actor.identity.id);
+  npcActorDocuments.push(actor);
+  if (!existing) campaignDocument = addNpcActorToCampaign(campaignDocument, actor);
+  syncCampaignRefs();
+  persistCampaignState();
+  closeNpcActorDialog();
+  logActivity('ROSTER', `${existing ? 'Updated' : 'Created'} actor: ${actor.identity.name}`);
+  setStatus(`ROSTER ACTOR ${existing ? 'UPDATED' : 'CREATED'}: ${actor.identity.name.toUpperCase()}`, 'ok');
+  render();
+}
+
+function renderRoster() {
+  const available = Boolean(campaignDocument);
+  el.rosterSection.dataset.available = available ? 'true' : 'false';
+  el.rosterNewActor.disabled = !available;
+  if (!available) { el.rosterFolders.replaceChildren(); applyOperationsDeskTab(); return; }
+  const folders = campaignDocument.roster.folders.map((folder) => {
+    const details = document.createElement('details'); details.className = 'roster-folder'; details.open = true;
+    const summary = document.createElement('summary'); summary.textContent = `${folder.name} [${folder.actorIds.length}]`;
+    const body = document.createElement('div'); body.className = 'roster-folder-body';
+    const actors = folder.actorIds.map((id) => npcActorDocuments.find((entry) => entry.identity.id === id)).filter(Boolean);
+    if (!actors.length) { const empty = document.createElement('span'); empty.className = 'empty'; empty.textContent = 'NO SAVED ACTORS.'; body.append(empty); }
+    for (const actor of actors) {
+      const card = document.createElement('article'); card.className = 'roster-card';
+      const asset = assetForActor(actor);
+      const portrait = asset ? document.createElement('img') : document.createElement('span');
+      portrait.className = `roster-portrait${asset ? '' : ' roster-portrait-placeholder'}`;
+      if (asset) { portrait.src = asset.dataUrl; portrait.alt = asset.altText || actor.identity.name; } else portrait.textContent = actor.identity.name.charAt(0).toUpperCase();
+      const content = document.createElement('div');
+      const name = document.createElement('span'); name.className = 'roster-card-name'; name.textContent = `${actor.identity.name.toUpperCase()} / ${actor.upp}`;
+      const meta = document.createElement('span'); meta.className = 'roster-card-meta'; meta.textContent = `${actor.profile.actorType.toUpperCase()} / ${actor.profile.role || 'NO ROLE'} / ${actor.profile.bodyModel.toUpperCase()} / ${getPersonalWeapon(actor.loadout.weaponKey).name} / ${actor.loadout.armor.toUpperCase()}`;
+      const description = document.createElement('span'); description.className = 'roster-card-description'; description.textContent = actor.presentation.description || 'No description.';
+      const actions = document.createElement('span'); actions.className = 'roster-card-actions';
+      const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'text-button'; edit.textContent = '[ EDIT ]'; edit.addEventListener('click', () => openNpcActorDialog(actor.identity.id));
+      const combat = document.createElement('button'); combat.type = 'button'; combat.className = 'text-button'; combat.textContent = '[ ADD TO COMBAT ]'; combat.addEventListener('click', () => { openCombatSetupDialog(); addRosterActorToCombatSetup(actor.identity.id); });
+      actions.append(edit, combat); content.append(name, meta, description, actions); card.append(portrait, content); body.append(card);
+    }
+    details.append(summary, body); return details;
+  });
+  el.rosterFolders.replaceChildren(...folders);
+  applyOperationsDeskTab();
+}
+
+function addRosterActorToCombatSetup(actorId = el.combatRosterActor.value) {
+  const actor = npcActorDocuments.find((entry) => entry.identity.id === actorId && !entry.state.archived);
+  if (!actor) return;
+  const groups = [...el.combatEnemyGroups.querySelectorAll('[data-enemy-group]')];
+  const group = groups.length === 1 && groups[0].querySelector('[data-combat-field="name"]').value === 'Hostile' ? groups[0] : (() => { addCombatEnemyGroup(); return [...el.combatEnemyGroups.querySelectorAll('[data-enemy-group]')].at(-1); })();
+  group.dataset.actorId = actor.identity.id;
+  const set = (name, value) => { group.querySelector(`[data-combat-field="${name}"]`).value = String(value); };
+  set('name', actor.identity.name); set('count', 1); set('str', actor.characteristics.STR); set('dex', actor.characteristics.DEX); set('end', actor.characteristics.END); set('int', actor.characteristics.INT);
+  const weapon = getPersonalWeapon(actor.loadout.weaponKey);
+  set('weapon', actor.loadout.weaponKey); set('skill', Math.max(0, ...weapon.skillNames.map((name) => Number(actor.skills[name] ?? 0)))); set('armor', actor.loadout.armor);
+  group.querySelector('[data-combat-field="count"]').disabled = true;
+  relabelCombatEnemyGroups();
+  setStatus(`ROSTER ACTOR ADDED TO COMBAT SETUP: ${actor.identity.name.toUpperCase()}`, 'ok');
+}
+
 function openCombatSetupDialog() {
   if (!campaignDocument || !gameplayDocument || !mappedCurrentSystem()) {
     setStatus('AN ACTIVE CHARACTER AT A MAPPED CAMPAIGN LOCATION IS REQUIRED', 'error');
     return;
   }
+  const options = [new Option('-- SELECT SAVED NPC --', '')];
+  for (const actor of npcActorDocuments.filter((entry) => !entry.state.archived)) options.push(new Option(`${actor.identity.name} / ${actor.profile.role || actor.profile.actorType}`, actor.identity.id));
+  el.combatRosterActor.replaceChildren(...options);
   if (typeof el.combatSetupDialog.showModal === 'function') el.combatSetupDialog.showModal();
   else el.combatSetupDialog.setAttribute('open', '');
   window.setTimeout(() => el.combatEnemyName.focus(), 0);
@@ -2848,9 +3098,11 @@ function addCombatEnemyGroup() {
   const groups = [...el.combatEnemyGroups.querySelectorAll('[data-enemy-group]')];
   if (groups.length >= 4) return setStatus('A MANUAL ENCOUNTER SUPPORTS UP TO FOUR ENEMY TYPES', 'error');
   const group = groups[0].cloneNode(true);
+  delete group.dataset.actorId;
   group.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'));
   group.querySelector('[data-combat-field="name"]').value = `Hostile Type ${groups.length + 1}`;
   group.querySelector('[data-combat-field="count"]').value = '1';
+  group.querySelector('[data-combat-field="count"]').disabled = false;
   const header = document.createElement('div');
   header.className = 'combat-enemy-group-header';
   const remove = document.createElement('button');
@@ -2883,6 +3135,7 @@ function combatEnemyGroupSpecs() {
     return {
       baseName, count,
       opponents: Array.from({ length: count }, (_, index) => ({
+        actorId: group.dataset.actorId || null,
         name: count === 1 ? baseName : `${baseName} ${index + 1}`,
         characteristics,
         skills: { [weapon.skillNames[0]]: skillLevel },
@@ -3190,14 +3443,16 @@ function applyOperationsDeskTab() {
     trade: el.commerceSection,
     jobs: el.contractSection,
     situation: el.situationSection,
-    encounter: el.encounterSection
+    encounter: el.encounterSection,
+    roster: el.rosterSection
   };
   const tabs = {
     port: el.operationsTabPort,
     trade: el.operationsTabTrade,
     jobs: el.operationsTabJobs,
     situation: el.operationsTabSituation,
-    encounter: el.operationsTabEncounter
+    encounter: el.operationsTabEncounter,
+    roster: el.operationsTabRoster
   };
   for (const [key, panel] of Object.entries(panels)) {
     const available = panel?.dataset.available === 'true';
@@ -3208,7 +3463,7 @@ function applyOperationsDeskTab() {
 }
 
 function setOperationsDeskTab(tab) {
-  if (!['port', 'trade', 'jobs', 'situation', 'encounter'].includes(tab)) return;
+  if (!['port', 'trade', 'jobs', 'situation', 'encounter', 'roster'].includes(tab)) return;
   operationsDeskTab = tab;
   applyOperationsDeskTab();
 }
@@ -3643,6 +3898,8 @@ function restoreCampaignFromRegistry(campaign) {
   encounterDocuments = resolved.encounters;
   contactDocuments = resolved.contacts;
   threadDocuments = resolved.threads;
+  npcActorDocuments = resolved.npcActors;
+  mediaAssetDocuments = resolved.assets;
   documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
   character = createCharacter();
   setActivityContext();
@@ -3663,6 +3920,8 @@ function newCampaign() {
     encounterDocuments = [];
     contactDocuments = [];
     threadDocuments = [];
+    npcActorDocuments = [];
+    mediaAssetDocuments = [];
     partyCharacterDocuments = [gameplay];
     campaignDocument = createCampaignDocument({
       characters: [gameplay],
@@ -3672,6 +3931,8 @@ function newCampaign() {
       encounters: [],
       contacts: [],
       threads: [],
+      npcActors: [],
+      assets: [],
       partyCharacterIds: [gameplay.identity.id],
       activeShipId: shipDocument?.identity.id ?? null
     });
@@ -3969,6 +4230,7 @@ function render() {
   renderContracts();
   renderSituations();
   renderEncounter();
+  renderRoster();
   applyOperationsDeskTab();
   renderShip();
   renderCampaignHeader();
@@ -4109,6 +4371,8 @@ async function loadDocument(file) {
       encounterDocuments = [];
       contactDocuments = [];
       threadDocuments = [];
+      npcActorDocuments = [];
+      mediaAssetDocuments = [];
       selectedSystemId = null;
       documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
       setActivityContext();
@@ -4124,6 +4388,8 @@ async function loadDocument(file) {
       encounterDocuments = [];
       contactDocuments = [];
       threadDocuments = [];
+      npcActorDocuments = [];
+      mediaAssetDocuments = [];
       selectedSystemId = null;
       if (shipDocument && !shipMatchesCharacter(shipDocument, gameplayDocument)) shipDocument = null;
       if (registry) registry.put(gameplayDocument);
@@ -4141,6 +4407,8 @@ async function loadDocument(file) {
       encounterDocuments = [];
       contactDocuments = [];
       threadDocuments = [];
+      npcActorDocuments = [];
+      mediaAssetDocuments = [];
       selectedSystemId = null;
       if (gameplayDocument) shipDocument = updateShipAssignedCharacterName(shipDocument, gameplayDocument.identity.name);
       if (registry) registry.put(shipDocument);
@@ -4230,6 +4498,29 @@ async function loadDocument(file) {
       } else {
         setStatus(campaignDocument ? 'THREAD DOCUMENT REGISTERED / RELATED DOCUMENTS NOT ALL IN ACTIVE CAMPAIGN' : 'THREAD DOCUMENT REGISTERED LOCALLY', 'ok');
       }
+    } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.NPC_ACTOR) {
+      if (!registry) throw new Error('browser local storage is unavailable');
+      const actor = importNpcActorDocument(loaded.npcActorDocument);
+      registry.put(actor);
+      if (campaignDocument) {
+        npcActorDocuments = npcActorDocuments.filter((entry) => entry.identity.id !== actor.identity.id);
+        npcActorDocuments.push(actor);
+        if (!campaignDocument.documentRefs.npcActors.some((entry) => entry.id === actor.identity.id)) campaignDocument = addNpcActorToCampaign(campaignDocument, actor);
+        persistCampaignState();
+        operationsDeskTab = 'roster';
+        setStatus('NPC ACTOR LOADED / ADDED TO CAMPAIGN', 'ok');
+      } else setStatus('NPC ACTOR REGISTERED LOCALLY', 'ok');
+    } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.MEDIA_ASSET) {
+      if (!registry) throw new Error('browser local storage is unavailable');
+      const asset = importMediaAssetDocument(loaded.mediaAssetDocument);
+      registry.put(asset);
+      if (campaignDocument) {
+        mediaAssetDocuments = mediaAssetDocuments.filter((entry) => entry.identity.id !== asset.identity.id);
+        mediaAssetDocuments.push(asset);
+        if (!campaignDocument.documentRefs.assets.some((entry) => entry.id === asset.identity.id)) campaignDocument = addMediaAssetToCampaign(campaignDocument, asset);
+        persistCampaignState();
+        setStatus('MEDIA ASSET LOADED / ADDED TO CAMPAIGN', 'ok');
+      } else setStatus('MEDIA ASSET REGISTERED LOCALLY', 'ok');
     } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CAMPAIGN) {
       if (!registry) throw new Error('browser local storage is unavailable');
       registry.put(loaded.campaignDocument);
@@ -4394,6 +4685,8 @@ el.newCharacter.addEventListener('click', () => {
   encounterDocuments = [];
   contactDocuments = [];
   threadDocuments = [];
+  npcActorDocuments = [];
+  mediaAssetDocuments = [];
   selectedSystemId = null;
   for (const key of Object.keys(detailPanels)) detailPanels[key] = false;
   closeRollDialog();
@@ -4459,6 +4752,30 @@ el.rollDialog.addEventListener('cancel', (event) => {
 el.combatSetupClose.addEventListener('click', closeCombatSetupDialog);
 el.combatSetupCancel.addEventListener('click', closeCombatSetupDialog);
 el.combatAddEnemyType.addEventListener('click', addCombatEnemyGroup);
+el.combatAddRosterActor.addEventListener('click', () => addRosterActorToCombatSetup());
+el.rosterNewActor.addEventListener('click', () => openNpcActorDialog());
+el.npcActorClose.addEventListener('click', closeNpcActorDialog);
+el.npcActorCancel.addEventListener('click', closeNpcActorDialog);
+el.npcActorDialog.addEventListener('cancel', (event) => { event.preventDefault(); closeNpcActorDialog(); });
+el.npcType.addEventListener('change', () => { if (el.npcType.value === 'robot') { el.npcBody.value = 'robotic'; if (el.npcSpecies.value === 'Human') el.npcSpecies.value = 'Robot'; } });
+el.npcPortrait.addEventListener('change', () => {
+  const file = el.npcPortrait.files?.[0];
+  if (!file) { pendingNpcPortraitAsset = null; return; }
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) { el.npcPortrait.value = ''; return setStatus('PORTRAIT MUST BE PNG, JPEG, OR WEBP', 'error'); }
+  if (file.size > 400 * 1024) { el.npcPortrait.value = ''; return setStatus('PORTRAIT MUST BE 400 KiB OR SMALLER', 'error'); }
+  const reader = new FileReader();
+  reader.addEventListener('load', () => {
+    try {
+      pendingNpcPortraitAsset = createMediaAssetDocument({ name: file.name, mimeType: file.type, dataUrl: reader.result, altText: `${el.npcName.value || 'NPC'} portrait` });
+      el.npcPortraitStatus.textContent = `${file.name} / ${Math.ceil(file.size / 1024)} KiB`;
+    } catch (error) { pendingNpcPortraitAsset = null; setStatus(error?.message ?? String(error), 'error'); }
+  });
+  reader.readAsDataURL(file);
+});
+el.npcActorForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  try { saveNpcActorFromForm(); } catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); }
+});
 el.encounterZoomOut.addEventListener('click', () => setEncounterMapZoom(encounterMapZoom - 0.25));
 el.encounterZoomIn.addEventListener('click', () => setEncounterMapZoom(encounterMapZoom + 0.25));
 el.encounterZoomFit.addEventListener('click', fitEncounterMap);
@@ -4467,6 +4784,7 @@ el.encounterMap.addEventListener('dragstart', (event) => event.preventDefault())
 {
   let pan = null;
   el.encounterMapViewport.addEventListener('pointerdown', (event) => {
+    hideEncounterTokenOverlays();
     if (![0, 1, 2].includes(event.button) || event.target.closest?.('.encounter-token')) return;
     event.preventDefault();
     const rect = el.encounterMap.getBoundingClientRect();
@@ -4550,6 +4868,7 @@ el.operationsTabTrade.addEventListener('click', () => setOperationsDeskTab('trad
 el.operationsTabJobs.addEventListener('click', () => setOperationsDeskTab('jobs'));
 el.operationsTabSituation.addEventListener('click', () => setOperationsDeskTab('situation'));
 el.operationsTabEncounter.addEventListener('click', () => setOperationsDeskTab('encounter'));
+el.operationsTabRoster.addEventListener('click', () => setOperationsDeskTab('roster'));
 
 el.newCampaign.addEventListener('click', newCampaign);
 el.saveCampaign.addEventListener('click', saveCampaignLocal);

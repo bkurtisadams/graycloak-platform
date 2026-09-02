@@ -11,7 +11,7 @@
     <header class="masthead">
       <div>
         <div id="app-title" class="title">TRAVELLER // PERSONNEL INTAKE TERMINAL</div>
-        <div id="app-subtitle" class="subtitle">CLIENT v0.14.1 // FLUID COMBAT WORKSPACE // CLASSIC TRAVELLER BOOKS 1-3</div>
+        <div id="app-subtitle" class="subtitle">CLIENT v0.15.1 // ACTOR ROSTER + MAP INTEGRATION // CLASSIC TRAVELLER BOOKS 1-3 // UPGRADED FROM CLIENT v0.14.1</div>
       </div>
       <div id="system-status" class="status" aria-live="polite">READY</div>
     </header>
@@ -153,6 +153,7 @@
               <button id="operations-tab-jobs" class="text-button operations-tab" type="button" role="tab" aria-controls="contract-section" aria-selected="false">[ JOBS ]</button>
               <button id="operations-tab-situation" class="text-button operations-tab" type="button" role="tab" aria-controls="situation-section" aria-selected="false">[ SITUATION ]</button>
               <button id="operations-tab-encounter" class="text-button operations-tab" type="button" role="tab" aria-controls="encounter-section" aria-selected="false">[ ENCOUNTER ]</button>
+              <button id="operations-tab-roster" class="text-button operations-tab" type="button" role="tab" aria-controls="roster-section" aria-selected="false">[ ROSTER ]</button>
             </div>
             <div class="operations-panel-scroll">
               <section id="port-services-section" class="operations-panel" hidden aria-labelledby="port-services-heading">
@@ -211,6 +212,8 @@
                     </div>
                     <div id="encounter-map-viewport" class="encounter-map-viewport" tabindex="0" aria-label="Pan and zoom encounter map">
                       <svg id="encounter-map" class="encounter-map" viewBox="0 0 1280 800" role="img" aria-label="32 by 20 square personal encounter map"></svg>
+                      <div id="encounter-token-tooltip" class="encounter-token-tooltip" hidden></div>
+                      <div id="encounter-token-menu" class="encounter-token-menu" hidden></div>
                     </div>
                     <div class="encounter-map-legend"><span><i class="encounter-legend-pc"></i> PC / CLICK TO ACT</span><span><i class="encounter-legend-enemy"></i> ENEMY / CLICK TO TARGET</span><span>DRAG TOKENS // DRAG EMPTY MAP TO PAN // WHEEL TO ZOOM</span></div>
                   </div>
@@ -223,6 +226,14 @@
                   </div>
                 </div>
                 <pre id="encounter-record" class="record operations-panel-record encounter-record" aria-live="polite"></pre>
+              </section>
+              <section id="roster-section" class="operations-panel" hidden aria-labelledby="roster-heading">
+                <div class="section-heading">
+                  <h2 id="roster-heading" class="section-title">ACTOR ROSTER</h2>
+                  <button id="roster-new-actor" class="text-button" type="button">[ NEW NPC ]</button>
+                </div>
+                <div class="roster-basis">PERSISTENT CAMPAIGN ACTORS // CLASSIC CHARACTERISTICS, SKILLS, EQUIPMENT, NOTES, PORTRAIT, AND BODY-AWARE STATE</div>
+                <div id="roster-folders" class="roster-folders" aria-live="polite"></div>
               </section>
             </div>
           </div>
@@ -308,6 +319,7 @@
         </div>
         <div class="roll-dialog-basis">MANUAL PERSONAL ENCOUNTER // 32 × 20 VISUAL WORKSPACE
 Dragging tokens suggests a range band. Book 1 range changes only through an explicit combat or referee action.</div>
+        <div class="combat-roster-picker"><label>ROSTER ACTOR<select id="combat-roster-actor"><option value="">-- SELECT SAVED NPC --</option></select></label><button id="combat-add-roster-actor" class="text-button" type="button">[ ADD TO SETUP ]</button></div>
         <div id="combat-enemy-groups" class="combat-enemy-groups">
           <fieldset class="combat-enemy-group" data-enemy-group>
             <legend>ENEMY TYPE 1</legend>
@@ -351,6 +363,33 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
           <button class="text-button action-button" type="submit">[ START COMBAT ]</button>
           <button id="combat-setup-cancel" class="text-button" type="button">[ CANCEL ]</button>
         </div>
+      </form>
+    </dialog>
+
+    <dialog id="npc-actor-dialog" class="roll-dialog npc-actor-dialog" aria-labelledby="npc-actor-dialog-title">
+      <form id="npc-actor-form" class="roll-dialog-form" method="dialog">
+        <div class="roll-dialog-header"><strong id="npc-actor-dialog-title">NPC ACTOR</strong><button id="npc-actor-close" class="text-button" type="button">[ CLOSE ]</button></div>
+        <input id="npc-actor-id" type="hidden">
+        <div class="npc-editor-grid">
+          <label>NAME<input id="npc-name" required maxlength="60"></label><label>ROLE<input id="npc-role" maxlength="60"></label>
+          <label>ACTOR TYPE<select id="npc-type"><option value="npc">NPC</option><option value="robot">Robot</option><option value="creature">Creature</option></select></label>
+          <label>BODY MODEL<select id="npc-body"><option value="biological">Biological</option><option value="robotic">Robotic</option><option value="hybrid">Hybrid</option></select></label>
+          <label>SPECIES<input id="npc-species" value="Human" maxlength="60"></label><label>FACTION<input id="npc-faction" maxlength="60"></label>
+          <label>HOMEWORLD<input id="npc-homeworld" maxlength="60"></label><label>AGE<input id="npc-age" type="number" min="0" max="999"></label>
+          <label>STR<input id="npc-str" type="number" min="0" max="15" value="7"></label><label>DEX<input id="npc-dex" type="number" min="0" max="15" value="7"></label>
+          <label>END<input id="npc-end" type="number" min="0" max="15" value="7"></label><label>INT<input id="npc-int" type="number" min="0" max="15" value="7"></label>
+          <label>EDU<input id="npc-edu" type="number" min="0" max="15" value="7"></label><label>SOC<input id="npc-soc" type="number" min="0" max="15" value="7"></label>
+          <label>SERVICE<input id="npc-service" maxlength="40"></label><label>TERMS<input id="npc-terms" type="number" min="0" max="20" value="0"></label>
+          <label>RANK / TITLE<input id="npc-rank" maxlength="60"></label><label>CREDITS<input id="npc-credits" type="number" step="1" value="0"></label>
+          <label>WEAPON<select id="npc-weapon"><option value="automatic-pistol">Automatic Pistol</option><option value="body-pistol">Body Pistol</option><option value="revolver">Revolver</option><option value="carbine">Carbine</option><option value="rifle">Rifle</option><option value="automatic-rifle">Automatic Rifle</option><option value="shotgun">Shotgun</option><option value="submachine-gun">Submachine Gun</option><option value="laser-carbine">Laser Carbine</option><option value="laser-rifle">Laser Rifle</option><option value="hands">Hands</option><option value="club">Club</option><option value="dagger">Dagger</option><option value="blade">Blade</option><option value="cutlass">Cutlass</option><option value="sword">Sword</option><option value="broadsword">Broadsword</option><option value="bayonet">Bayonet</option></select></label>
+          <label>ARMOR<select id="npc-armor"><option value="none">None</option><option value="jack">Jack</option><option value="mesh">Mesh</option><option value="cloth">Cloth</option><option value="reflec">Reflec</option><option value="ablat">Ablat</option><option value="combat">Combat Armor</option></select></label>
+          <label class="npc-editor-wide">SKILLS (ONE PER LINE: NAME 1)<textarea id="npc-skills" rows="4" placeholder="Gun Combat 1&#10;Streetwise 2"></textarea></label>
+          <label class="npc-editor-wide">DESCRIPTION<textarea id="npc-description" rows="3"></textarea></label>
+          <label>PORTRAIT<input id="npc-portrait" type="file" accept="image/png,image/jpeg,image/webp"></label><span id="npc-portrait-status" class="npc-portrait-status">NO PORTRAIT</span>
+          <label class="npc-editor-wide">PUBLIC NOTES<textarea id="npc-public-notes" rows="2"></textarea></label>
+          <label class="npc-editor-wide">REFEREE NOTES<textarea id="npc-referee-notes" rows="2"></textarea></label>
+        </div>
+        <div class="roll-dialog-actions"><button class="text-button action-button" type="submit">[ SAVE ACTOR ]</button><button id="npc-actor-cancel" class="text-button" type="button">[ CANCEL ]</button></div>
       </form>
     </dialog>
 

@@ -1,5 +1,13 @@
 # Graycloak Traveller
 
+## v0.15.1 persistent actor roster and map inspection
+
+v0.15.1 establishes the shared actor paradigm for personal encounters without prematurely automating optional robot or alien rules. Campaign Document v7 and Campaign Bundle v6 add stable-ID NPC Actor Documents, portrait Media Asset Documents, and roster folders. An actor record carries the six classic characteristics and UPP, current physical values, career/service details, skills, equipment, inventory, credits, public/referee notes, description, portrait reference, effects, and body-aware state. Biological actors can be alive, unconscious, or dead; robotic actors use activation and integrity states such as powered down, offline, damaged, disabled, and destroyed rather than being forced into biological labels.
+
+The Operations Desk now includes a compact collapsible roster. Referees can create or edit human, alien, creature, hybrid, or robot records, attach a small PNG/JPEG/WebP portrait, and insert a saved actor into manual combat setup. Encounter Document v4 records each combatant's source actor ID. Tokens expose an accessible SVG title plus a richer hover summary; right-click or Shift+F10 opens contextual select/target/attack/open-roster actions. These controls clarify intent without changing resolution: token positions still produce only a Graycloak distance/range suggestion, and the authoritative Classic Traveller Book 1 range band changes only through an explicit combat or referee action.
+
+This slice deliberately does not implement Book 2 ship-to-ship combat, ship damage tracks, or optional robot/alien sourcebook procedures. The stable-ID document and effect/state foundation is intended to support those later additions.
+
 ## v0.14.1 fluid combat-map interaction
 
 v0.14.1 replaces the encounter map's scroll-container camera with an SVG viewBox camera adapted from the Graycloak BATTLESYSTEM/Chainmail board interaction pattern. Tokens now follow the pointer continuously while dragged, preserve the initial grab offset, remain inside the battlefield, and snap to their persistent square only when dropped. Empty-map drag pans without rebuilding the battlefield; wheel zoom is smooth, cursor-centred, and coalesced to one view update per animation frame. `[ − ]`, `[ + ]`, and `[ FIT ]` remain available, with a 50%-400% camera range.

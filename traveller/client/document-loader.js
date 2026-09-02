@@ -32,6 +32,8 @@ import {
 } from '../src/adventure-thread-document.js';
 
 import { ENCOUNTER_DOCUMENT_TYPE, importEncounterDocument } from '../src/encounter-document.js';
+import { NPC_ACTOR_DOCUMENT_TYPE, importNpcActorDocument } from '../src/npc-actor-document.js';
+import { MEDIA_ASSET_DOCUMENT_TYPE, importMediaAssetDocument } from '../src/media-asset-document.js';
 
 import {
   CAMPAIGN_BUNDLE_TYPE,
@@ -48,6 +50,8 @@ export const TRAVELLER_DOCUMENT_KINDS = Object.freeze({
   CONTACT: 'contact',
   THREAD: 'thread',
   ENCOUNTER: 'encounter',
+  NPC_ACTOR: 'npc-actor',
+  MEDIA_ASSET: 'media-asset',
   CAMPAIGN_BUNDLE: 'campaign-bundle'
 });
 
@@ -117,6 +121,14 @@ export function loadTravellerDocument(input) {
 
   if (parsed.documentType === ENCOUNTER_DOCUMENT_TYPE) {
     return { kind: TRAVELLER_DOCUMENT_KINDS.ENCOUNTER, encounterDocument: importEncounterDocument(parsed) };
+  }
+
+  if (parsed.documentType === NPC_ACTOR_DOCUMENT_TYPE) {
+    return { kind: TRAVELLER_DOCUMENT_KINDS.NPC_ACTOR, npcActorDocument: importNpcActorDocument(parsed) };
+  }
+
+  if (parsed.documentType === MEDIA_ASSET_DOCUMENT_TYPE) {
+    return { kind: TRAVELLER_DOCUMENT_KINDS.MEDIA_ASSET, mediaAssetDocument: importMediaAssetDocument(parsed) };
   }
 
   if (parsed.documentType === CAMPAIGN_BUNDLE_TYPE) {
