@@ -1,8 +1,8 @@
 import { stableDocumentId } from '../../packages/classic-traveller-rules/index.js';
 
 export const CAMPAIGN_DOCUMENT_TYPE = 'graycloak-traveller-campaign';
-export const CURRENT_CAMPAIGN_DOCUMENT_SCHEMA_VERSION = 5;
-export const SUPPORTED_CAMPAIGN_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5]);
+export const CURRENT_CAMPAIGN_DOCUMENT_SCHEMA_VERSION = 6;
+export const SUPPORTED_CAMPAIGN_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6]);
 
 export const DEFAULT_CAMPAIGN_TIME = Object.freeze({
   year: 4800,
@@ -120,6 +120,10 @@ function threadRef(document) {
   };
 }
 
+function encounterRef(document) {
+  return { id: document.identity.id, title: document.identity.title, status: document.status };
+}
+
 function uniqueById(entries) {
   const byId = new Map();
   for (const entry of entries) byId.set(entry.id, entry);
@@ -137,6 +141,7 @@ export function createCampaignDocument({
   situations = [],
   contacts = [],
   threads = [],
+  encounters = [],
   commerce = {},
   partyCharacterIds,
   activeShipId,
@@ -150,6 +155,7 @@ export function createCampaignDocument({
   if (!Array.isArray(situations)) throw new TypeError('situations must be an array');
   if (!Array.isArray(contacts)) throw new TypeError('contacts must be an array');
   if (!Array.isArray(threads)) throw new TypeError('threads must be an array');
+  if (!Array.isArray(encounters)) throw new TypeError('encounters must be an array');
   if (typeof name !== 'string') throw new TypeError('name must be a string');
   if (typeof notes !== 'string') throw new TypeError('notes must be a string');
 
@@ -159,6 +165,7 @@ export function createCampaignDocument({
   const situationRefs = uniqueById(situations.map(situationRef));
   const contactRefs = uniqueById(contacts.map(contactRef));
   const threadRefs = uniqueById(threads.map(threadRef));
+  const encounterRefs = uniqueById(encounters.map(encounterRef));
   const partyIds = partyCharacterIds === undefined
     ? characterRefs.map((entry) => entry.id)
     : [...partyCharacterIds];
@@ -191,7 +198,8 @@ export function createCampaignDocument({
       contracts: contractRefs,
       situations: situationRefs,
       contacts: contactRefs,
-      threads: threadRefs
+      threads: threadRefs,
+      encounters: encounterRefs
     },
     commerce: {
       speculativeLots: Array.isArray(commerce.speculativeLots) ? cloneJson(commerce.speculativeLots) : []
@@ -252,13 +260,14 @@ export function validateCampaignDocument(document) {
   const characterIds = new Set();
   const shipIds = new Set();
   if (isPlainObject(document.documentRefs)) {
-    exactKeys(document.documentRefs, ['characters', 'ships', 'contracts', 'situations', 'contacts', 'threads'], 'documentRefs', errors);
+    exactKeys(document.documentRefs, ['characters', 'ships', 'contracts', 'situations', 'contacts', 'threads', 'encounters'], 'documentRefs', errors);
     add(errors, Array.isArray(document.documentRefs.characters) && document.documentRefs.characters.length > 0, 'documentRefs.characters must be a non-empty array');
     add(errors, Array.isArray(document.documentRefs.ships), 'documentRefs.ships must be an array');
     add(errors, Array.isArray(document.documentRefs.contracts), 'documentRefs.contracts must be an array');
     add(errors, Array.isArray(document.documentRefs.situations), 'documentRefs.situations must be an array');
     add(errors, Array.isArray(document.documentRefs.contacts), 'documentRefs.contacts must be an array');
     add(errors, Array.isArray(document.documentRefs.threads), 'documentRefs.threads must be an array');
+    add(errors, Array.isArray(document.documentRefs.encounters), 'documentRefs.encounters must be an array');
 
     if (Array.isArray(document.documentRefs.characters)) {
       for (const ref of document.documentRefs.characters) {
@@ -355,6 +364,22 @@ export function validateCampaignDocument(document) {
         }
       }
     }
+
+    const encounterIds = new Set();
+    if (Array.isArray(document.documentRefs.encounters)) {
+      for (const ref of document.documentRefs.encounters) {
+        add(errors, isPlainObject(ref), 'encounter reference must be an object');
+        if (!isPlainObject(ref)) continue;
+        exactKeys(ref, ['id', 'title', 'status'], 'documentRefs.encounters[]', errors);
+        add(errors, nonblank(ref.id), 'encounter reference id must be nonblank');
+        add(errors, typeof ref.title === 'string', 'encounter reference title must be a string');
+        add(errors, typeof ref.status === 'string', 'encounter reference status must be a string');
+        if (nonblank(ref.id)) {
+          add(errors, !encounterIds.has(ref.id), `duplicate encounter reference: ${ref.id}`);
+          encounterIds.add(ref.id);
+        }
+      }
+    }
   }
 
   if (Array.isArray(document.party?.characterIds)) {
@@ -421,6 +446,10 @@ export function migrateCampaignDocument(input) {
     next.schemaVersion = 5;
     next.documentRefs = { ...next.documentRefs, contacts: [], threads: [] };
   }
+  if (next.schemaVersion === 5) {
+    next.schemaVersion = 6;
+    next.documentRefs = { ...next.documentRefs, encounters: [] };
+  }
   assertValidCampaignDocument(next);
   return next;
 }
@@ -472,7 +501,7 @@ export function updateCampaignLocation(document, patch = {}) {
   return next;
 }
 
-export function refreshCampaignDocumentRefs(document, { characters = [], ships = [], contracts = [], situations = [], contacts = [], threads = [] } = {}) {
+export function refreshCampaignDocumentRefs(document, { characters = [], ships = [], contracts = [], situations = [], contacts = [], threads = [], encounters = [] } = {}) {
   const next = cloneJson(document);
   const characterMap = new Map(characters.map((entry) => [entry.identity.id, entry]));
   const shipMap = new Map(ships.map((entry) => [entry.identity.id, entry]));
@@ -480,6 +509,7 @@ export function refreshCampaignDocumentRefs(document, { characters = [], ships =
   const situationMap = new Map(situations.map((entry) => [entry.identity.id, entry]));
   const contactMap = new Map(contacts.map((entry) => [entry.identity.id, entry]));
   const threadMap = new Map(threads.map((entry) => [entry.identity.id, entry]));
+  const encounterMap = new Map(encounters.map((entry) => [entry.identity.id, entry]));
 
   next.documentRefs.characters = next.documentRefs.characters.map((ref) => {
     const source = characterMap.get(ref.id);
@@ -504,6 +534,10 @@ export function refreshCampaignDocumentRefs(document, { characters = [], ships =
   next.documentRefs.threads = next.documentRefs.threads.map((ref) => {
     const source = threadMap.get(ref.id);
     return source ? threadRef(source) : ref;
+  });
+  next.documentRefs.encounters = next.documentRefs.encounters.map((ref) => {
+    const source = encounterMap.get(ref.id);
+    return source ? encounterRef(source) : ref;
   });
   assertValidCampaignDocument(next);
   return next;
@@ -554,6 +588,13 @@ export function addAdventureThreadToCampaign(document, threadDocument) {
   return next;
 }
 
+export function addEncounterToCampaign(document, encounterDocument) {
+  const next = cloneJson(document);
+  next.documentRefs.encounters = uniqueById([...next.documentRefs.encounters, encounterRef(encounterDocument)]);
+  assertValidCampaignDocument(next);
+  return next;
+}
+
 export function speculativeLotPurchasedQuantity(document, lotKey) {
   assertValidCampaignDocument(document);
   const key = String(lotKey ?? '').trim();
@@ -594,4 +635,3 @@ export function recordSpeculativeLotPurchase(document, {
   assertValidCampaignDocument(next);
   return next;
 }
-

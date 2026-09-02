@@ -57,6 +57,7 @@ import {
   ACTION_LABELS,
   buildCampaignRecord,
   buildAdventureThreadRecord,
+  buildEncounterRecord,
   buildContractBoardRecord,
   buildCharacterRecord,
   buildFinalCharacterRecord,
@@ -106,6 +107,7 @@ import {
   addShipToCampaign,
   addContractToCampaign,
   addSituationToCampaign,
+  addEncounterToCampaign,
   addContactToCampaign,
   addAdventureThreadToCampaign,
   advanceCampaignDays,
@@ -146,6 +148,13 @@ import {
   importSituationDocument,
   resolveSituationDocument
 } from '../src/situation-document.js';
+
+import {
+  createEncounterDocument,
+  importEncounterDocument,
+  resolveEncounterRound,
+  avoidEncounter
+} from '../src/encounter-document.js';
 
 import {
   createContactDocument,
@@ -269,6 +278,10 @@ const el = {
   situationRecord: document.querySelector('#situation-record'),
   situationActions: document.querySelector('#situation-actions'),
   operationsTabSituation: document.querySelector('#operations-tab-situation'),
+  encounterSection: document.querySelector('#encounter-section'),
+  encounterRecord: document.querySelector('#encounter-record'),
+  encounterActions: document.querySelector('#encounter-actions'),
+  operationsTabEncounter: document.querySelector('#operations-tab-encounter'),
   operationsTabPort: document.querySelector('#operations-tab-port'),
   operationsTabTrade: document.querySelector('#operations-tab-trade'),
   operationsTabJobs: document.querySelector('#operations-tab-jobs'),
@@ -296,6 +309,7 @@ let shipDocument = null;
 let campaignDocument = null;
 let contractDocuments = [];
 let situationDocuments = [];
+let encounterDocuments = [];
 let contactDocuments = [];
 let threadDocuments = [];
 let documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
@@ -475,6 +489,14 @@ function quickSkillNames() {
 }
 
 function headerTaskSnapshot() {
+  const encounter = activeEncounterAtCurrentSystem();
+  if (encounter) {
+    return {
+      kind: 'encounter', id: encounter.identity.id,
+      label: `ENCOUNTER // ${encounter.identity.title.toUpperCase()} // ROUND ${encounter.round} // ${encounter.range.toUpperCase().replace('-', ' ')} RANGE`,
+      attention: true, skillName: null
+    };
+  }
   const situation = activeSituationAtCurrentSystem();
   if (situation) {
     const skillChoice = situation.choices.find((choice) => choice.action === 'skill-check') ?? null;
@@ -1069,6 +1091,7 @@ function persistGameplayDocuments() {
   if (shipDocument) registry.put(shipDocument);
   for (const contract of contractDocuments) registry.put(contract);
   for (const situation of situationDocuments) registry.put(situation);
+  for (const encounter of encounterDocuments) registry.put(encounter);
   for (const contact of contactDocuments) registry.put(contact);
   for (const thread of threadDocuments) registry.put(thread);
 }
@@ -1080,6 +1103,7 @@ function syncCampaignRefs() {
     ships: shipDocument ? [shipDocument] : [],
     contracts: contractDocuments,
     situations: situationDocuments,
+    encounters: encounterDocuments,
     contacts: contactDocuments,
     threads: threadDocuments
   });
@@ -1116,11 +1140,12 @@ function reconcileExpiredContracts({ log = true } = {}) {
 }
 
 function campaignDocumentsForDisplay() {
-  if (!campaignDocument) return { characters: [], ships: [], contracts: [], situations: [], contacts: [], threads: [], missing: [] };
+  if (!campaignDocument) return { characters: [], ships: [], contracts: [], situations: [], encounters: [], contacts: [], threads: [], missing: [] };
   let characters = [];
   let ships = [];
   let contracts = [];
   let situations = [];
+  let encounters = [];
   let contacts = [];
   let threads = [];
   let missing = [];
@@ -1131,6 +1156,7 @@ function campaignDocumentsForDisplay() {
       ships = resolved.ships;
       contracts = resolved.contracts;
       situations = resolved.situations;
+      encounters = resolved.encounters;
       contacts = resolved.contacts;
       threads = resolved.threads;
       missing = resolved.missing;
@@ -1158,6 +1184,11 @@ function campaignDocumentsForDisplay() {
     situations.push(situation);
     missing = missing.filter((id) => id !== situation.identity.id);
   }
+  for (const encounter of encounterDocuments) {
+    encounters = encounters.filter((entry) => entry.identity.id !== encounter.identity.id);
+    encounters.push(encounter);
+    missing = missing.filter((id) => id !== encounter.identity.id);
+  }
   for (const contact of contactDocuments) {
     contacts = contacts.filter((entry) => entry.identity.id !== contact.identity.id);
     contacts.push(contact);
@@ -1168,7 +1199,7 @@ function campaignDocumentsForDisplay() {
     threads.push(thread);
     missing = missing.filter((id) => id !== thread.identity.id);
   }
-  return { characters, ships, contracts, situations, contacts, threads, missing };
+  return { characters, ships, contracts, situations, encounters, contacts, threads, missing };
 }
 
 function renderCampaign() {
@@ -1215,6 +1246,7 @@ function selectSubsectorSystem(systemId) {
   renderCommerce();
   renderContracts();
   renderSituations();
+  renderEncounter();
   renderSelectedSystemSummary();
   renderCampaignHeader();
   applyCampaignLayout();
@@ -2381,6 +2413,184 @@ function resolveSituationChoice(situationId, choiceId) {
   }
 }
 
+function preferredPersonalWeapon() {
+  const skillWeapons = [
+    ['Laser Rifle', 'laser-rifle'], ['Laser Carbine', 'laser-carbine'],
+    ['Automatic Rifle', 'automatic-rifle'], ['Rifle', 'rifle'], ['Carbine', 'carbine'],
+    ['Submachine Gun', 'submachine-gun'], ['Automatic Pistol', 'automatic-pistol'],
+    ['Revolver', 'revolver'], ['Body Pistol', 'body-pistol'], ['Shotgun', 'shotgun'],
+    ['Broadsword', 'broadsword'], ['Cutlass', 'cutlass'], ['Sword', 'sword'],
+    ['Blade', 'blade'], ['Dagger', 'dagger']
+  ];
+  const equipment = new Set((gameplayDocument?.benefits?.equipment ?? []).map((entry) => String(entry.name).toLowerCase()));
+  const equipped = skillWeapons.find(([name]) => equipment.has(name.toLowerCase()));
+  if (equipped) return equipped[1];
+  const trained = skillWeapons
+    .filter(([name]) => Number(gameplayDocument?.skills?.[name] ?? -1) >= 0)
+    .sort((left, right) => Number(gameplayDocument.skills[right[0]] ?? 0) - Number(gameplayDocument.skills[left[0]] ?? 0));
+  return trained[0]?.[1] ?? 'hands';
+}
+
+function encounterForSituation(situationId) {
+  return encounterDocuments.find((entry) => entry.situationId === situationId) ?? null;
+}
+
+function activeEncounterAtCurrentSystem() {
+  const current = mappedCurrentSystem();
+  if (!current) return null;
+  return encounterDocuments.find((entry) => entry.status === 'active' && entry.location.systemId === current.id) ?? null;
+}
+
+function resolveLinkedCombatSituation(encounter) {
+  if (!encounter.situationId || encounter.status === 'active') return;
+  const index = situationDocuments.findIndex((entry) => entry.identity.id === encounter.situationId && entry.status === 'active');
+  if (index < 0) return;
+  const success = ['victory', 'opposition-withdrew'].includes(encounter.status)
+    ? true
+    : encounter.status === 'defeat' ? false : null;
+  const declined = ['escaped', 'avoided'].includes(encounter.status);
+  const notes = {
+    victory: 'The hostile encounter was overcome.',
+    'opposition-withdrew': 'The opposition failed morale and withdrew.',
+    defeat: 'The traveller was incapacitated in the encounter.',
+    escaped: 'The traveller escaped the encounter.',
+    avoided: 'Surprise allowed the traveller to avoid the encounter.'
+  }[encounter.status] ?? `Encounter ended: ${encounter.status}.`;
+  const resolved = resolveSituationDocument(situationDocuments[index], {
+    date: campaignDateSnapshot(), success, declined, notes
+  });
+  situationDocuments[index] = resolved;
+  applyResolvedSituationConsequences(resolved, { log: true });
+  logActivity('SITUATION', `${resolved.identity.title} / ${resolved.status.toUpperCase()} / ${notes}`);
+}
+
+function startSituationEncounter(situation) {
+  try {
+    if (!campaignDocument || !gameplayDocument) throw new Error('active campaign character is required');
+    const existing = encounterForSituation(situation.identity.id);
+    if (existing) {
+      operationsDeskTab = 'encounter';
+      render();
+      return;
+    }
+    let encounter = createEncounterDocument({
+      campaign: campaignDocument,
+      situation,
+      character: gameplayDocument,
+      opponent: {
+        name: situation.actor?.name ?? 'Hostile Contact',
+        playerWeaponKey: preferredPersonalWeapon()
+      },
+      date: campaignDateSnapshot(),
+      range: 'medium',
+      dice: seededDice(`${situation.provenance.eventKey}|personal-combat|surprise`)
+    });
+    const surpriseWinner = encounter.surprise.surpriseSideId;
+    if (surpriseWinner === 'opposition') {
+      const result = resolveEncounterRound(encounter, {
+        action: 'wait', date: campaignDateSnapshot(),
+        dice: seededDice(`${encounter.identity.id}|round-1|surprise`)
+      });
+      encounter = result.encounter;
+      for (const entry of result.entries) logActivity('COMBAT', entry.text);
+    }
+    encounterDocuments.push(encounter);
+    campaignDocument = addEncounterToCampaign(campaignDocument, encounter);
+    resolveLinkedCombatSituation(encounter);
+    syncCampaignRefs();
+    persistCampaignState();
+    operationsDeskTab = 'encounter';
+    logActivity('COMBAT', `${encounter.identity.title} / ${encounter.range} range / surprise ${surpriseWinner ?? 'none'}`);
+    setStatus(`ENCOUNTER ${encounter.status.toUpperCase()}: ${encounter.identity.title.toUpperCase()}`, encounter.status === 'defeat' ? 'error' : 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function resolveActiveEncounterAction(action, modifier = 0) {
+  try {
+    const active = activeEncounterAtCurrentSystem();
+    if (!active) throw new Error('no active personal encounter');
+    const index = encounterDocuments.findIndex((entry) => entry.identity.id === active.identity.id);
+    const result = resolveEncounterRound(active, {
+      action, modifier, date: campaignDateSnapshot(),
+      dice: seededDice(`${active.identity.id}|round-${active.round}|${action}|${modifier}`)
+    });
+    encounterDocuments[index] = result.encounter;
+    for (const entry of result.entries) logActivity('COMBAT', entry.text);
+    resolveLinkedCombatSituation(result.encounter);
+    syncCampaignRefs();
+    persistCampaignState();
+    setStatus(`ENCOUNTER ${result.encounter.status.toUpperCase()} / ROUND ${result.encounter.round}`, result.encounter.status === 'defeat' ? 'error' : 'ok');
+    closeRollDialog();
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function avoidActiveEncounter() {
+  try {
+    const active = activeEncounterAtCurrentSystem();
+    if (!active) throw new Error('no active personal encounter');
+    const index = encounterDocuments.findIndex((entry) => entry.identity.id === active.identity.id);
+    const resolved = avoidEncounter(active, { date: campaignDateSnapshot() });
+    encounterDocuments[index] = resolved;
+    logActivity('COMBAT', resolved.history.at(-1).text);
+    resolveLinkedCombatSituation(resolved);
+    persistCampaignState();
+    setStatus('ENCOUNTER AVOIDED', 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function openEncounterAttackDialog(encounter) {
+  const player = encounter.combatants.find((entry) => entry.side === 'party');
+  openRollDialog({
+    kind: 'encounter-attack',
+    title: `ATTACK // ${player.name.toUpperCase()}`,
+    basis: `PERSONAL COMBAT // ROUND ${encounter.round} // ${encounter.range.toUpperCase()} RANGE\nWeapon, skill, characteristic, armor, and range are built into the combat throw. Add only the referee's extra situational modifier.`,
+    target: 8, targetLocked: true, builtInText: `${player.weaponKey.toUpperCase().replaceAll('-', ' ')} / TABLE TARGET`
+  });
+  el.rollTargetRow.hidden = true;
+}
+
+function renderEncounter() {
+  const current = mappedCurrentSystem();
+  if (!campaignDocument || !current || !gameplayDocument) {
+    el.encounterSection.dataset.available = 'false';
+    el.encounterRecord.textContent = '';
+    el.encounterActions.replaceChildren();
+    applyOperationsDeskTab();
+    return;
+  }
+  el.encounterSection.dataset.available = 'true';
+  el.encounterRecord.textContent = buildEncounterRecord({ system: current, encounters: encounterDocuments });
+  el.encounterActions.replaceChildren();
+  const active = activeEncounterAtCurrentSystem();
+  el.operationsTabEncounter?.classList.toggle('attention', Boolean(active));
+  if (el.operationsTabEncounter) el.operationsTabEncounter.textContent = active ? '[ ENCOUNTER ! ]' : '[ ENCOUNTER ]';
+  if (active) {
+    if (active.round === 1 && active.surprise.surpriseSideId === 'party') {
+      el.encounterActions.append(makePortButton('AVOID', avoidActiveEncounter));
+    }
+    el.encounterActions.append(
+      makePortButton('ATTACK', () => openEncounterAttackDialog(active)),
+      makePortButton('EVADE', () => resolveActiveEncounterAction('evade')),
+      makePortButton('CLOSE RANGE', () => resolveActiveEncounterAction('close')),
+      makePortButton('OPEN RANGE', () => resolveActiveEncounterAction('open')),
+      makePortButton('ESCAPE', () => resolveActiveEncounterAction('escape'))
+    );
+  }
+  applyOperationsDeskTab();
+}
+
 function renderSituations() {
   const current = mappedCurrentSystem();
   if (!campaignDocument || !current || !shipDocument || !gameplayDocument) {
@@ -2411,10 +2621,11 @@ function renderSituations() {
       el.situationActions.append(button);
     }
     if (!active.choices.length) {
-      const note = document.createElement('span');
-      note.className = 'attention-message';
-      note.textContent = 'PERSONAL ENCOUNTER / COMBAT RESOLUTION NOT YET IMPLEMENTED. THIS SITUATION REMAINS OPEN.';
-      el.situationActions.append(note);
+      const linked = encounterForSituation(active.identity.id);
+      el.situationActions.append(makePortButton(linked ? 'OPEN ENCOUNTER' : 'BEGIN ENCOUNTER', () => {
+        if (linked) { operationsDeskTab = 'encounter'; render(); }
+        else startSituationEncounter(active);
+      }));
     }
   } else {
     const patronKey = currentPatronEventKey();
@@ -2439,13 +2650,15 @@ function applyOperationsDeskTab() {
     port: el.portServicesSection,
     trade: el.commerceSection,
     jobs: el.contractSection,
-    situation: el.situationSection
+    situation: el.situationSection,
+    encounter: el.encounterSection
   };
   const tabs = {
     port: el.operationsTabPort,
     trade: el.operationsTabTrade,
     jobs: el.operationsTabJobs,
-    situation: el.operationsTabSituation
+    situation: el.operationsTabSituation,
+    encounter: el.operationsTabEncounter
   };
   for (const [key, panel] of Object.entries(panels)) {
     const available = panel?.dataset.available === 'true';
@@ -2455,7 +2668,7 @@ function applyOperationsDeskTab() {
 }
 
 function setOperationsDeskTab(tab) {
-  if (!['port', 'trade', 'jobs', 'situation'].includes(tab)) return;
+  if (!['port', 'trade', 'jobs', 'situation', 'encounter'].includes(tab)) return;
   operationsDeskTab = tab;
   applyOperationsDeskTab();
 }
@@ -2884,6 +3097,7 @@ function restoreCampaignFromRegistry(campaign) {
   shipDocument = nextShip;
   contractDocuments = resolved.contracts;
   situationDocuments = resolved.situations;
+  encounterDocuments = resolved.encounters;
   contactDocuments = resolved.contacts;
   threadDocuments = resolved.threads;
   documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
@@ -2903,6 +3117,7 @@ function newCampaign() {
     selectedSystemId = null;
     contractDocuments = [];
     situationDocuments = [];
+    encounterDocuments = [];
     contactDocuments = [];
     threadDocuments = [];
     campaignDocument = createCampaignDocument({
@@ -2910,6 +3125,7 @@ function newCampaign() {
       ships: shipDocument ? [shipDocument] : [],
       contracts: [],
       situations: [],
+      encounters: [],
       contacts: [],
       threads: [],
       partyCharacterIds: [gameplay.identity.id],
@@ -3208,6 +3424,7 @@ function render() {
   renderCommerce();
   renderContracts();
   renderSituations();
+  renderEncounter();
   applyOperationsDeskTab();
   renderShip();
   renderCampaignHeader();
@@ -3343,6 +3560,7 @@ async function loadDocument(file) {
       campaignDocument = null;
       contractDocuments = [];
       situationDocuments = [];
+      encounterDocuments = [];
       contactDocuments = [];
       threadDocuments = [];
       selectedSystemId = null;
@@ -3356,6 +3574,7 @@ async function loadDocument(file) {
       campaignDocument = null;
       contractDocuments = [];
       situationDocuments = [];
+      encounterDocuments = [];
       contactDocuments = [];
       threadDocuments = [];
       selectedSystemId = null;
@@ -3372,6 +3591,7 @@ async function loadDocument(file) {
       campaignDocument = null;
       contractDocuments = [];
       situationDocuments = [];
+      encounterDocuments = [];
       contactDocuments = [];
       threadDocuments = [];
       selectedSystemId = null;
@@ -3411,6 +3631,21 @@ async function loadDocument(file) {
         setStatus('SITUATION DOCUMENT LOADED / ADDED TO CAMPAIGN', 'ok');
       } else {
         setStatus('SITUATION DOCUMENT REGISTERED LOCALLY', 'ok');
+      }
+    } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.ENCOUNTER) {
+      if (!registry) throw new Error('browser local storage is unavailable');
+      const encounter = importEncounterDocument(loaded.encounterDocument);
+      registry.put(encounter);
+      if (campaignDocument && encounter.campaignId === campaignDocument.identity.id) {
+        encounterDocuments = encounterDocuments.filter((entry) => entry.identity.id !== encounter.identity.id);
+        encounterDocuments.push(encounter);
+        campaignDocument = addEncounterToCampaign(campaignDocument, encounter);
+        syncCampaignRefs();
+        registry.put(campaignDocument);
+        logActivity('COMBAT', `Encounter loaded: ${encounter.identity.title}`);
+        setStatus('ENCOUNTER DOCUMENT LOADED / ADDED TO CAMPAIGN', 'ok');
+      } else {
+        setStatus('ENCOUNTER DOCUMENT REGISTERED LOCALLY', 'ok');
       }
     } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CONTACT) {
       if (!registry) throw new Error('browser local storage is unavailable');
@@ -3608,6 +3843,7 @@ el.newCharacter.addEventListener('click', () => {
   campaignDocument = null;
   contractDocuments = [];
   situationDocuments = [];
+  encounterDocuments = [];
   contactDocuments = [];
   threadDocuments = [];
   selectedSystemId = null;
@@ -3650,7 +3886,10 @@ el.toggleSystemDetails.addEventListener('click', () => toggleDetailPanel('system
 
 el.headerTask.addEventListener('click', () => {
   const kind = el.headerTask.dataset.taskKind;
-  if (kind === 'situation') {
+  if (kind === 'encounter') {
+    setOperationsDeskTab('encounter');
+    el.subsectorSection?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  } else if (kind === 'situation') {
     setOperationsDeskTab('situation');
     el.subsectorSection?.scrollIntoView({ block: 'start', behavior: 'smooth' });
   } else if (kind === 'contract') {
@@ -3680,6 +3919,10 @@ el.rollDialogForm.addEventListener('submit', (event) => {
       resolveSituationSkillChoice(situationId, choiceId, modifier);
       return;
     }
+    if (pendingRoll.kind === 'encounter-attack') {
+      resolveActiveEncounterAction('attack', modifier);
+      return;
+    }
     executeAdHocRoll();
     closeRollDialog();
     renderCampaignHeader();
@@ -3697,6 +3940,7 @@ el.operationsTabPort.addEventListener('click', () => setOperationsDeskTab('port'
 el.operationsTabTrade.addEventListener('click', () => setOperationsDeskTab('trade'));
 el.operationsTabJobs.addEventListener('click', () => setOperationsDeskTab('jobs'));
 el.operationsTabSituation.addEventListener('click', () => setOperationsDeskTab('situation'));
+el.operationsTabEncounter.addEventListener('click', () => setOperationsDeskTab('encounter'));
 
 el.newCampaign.addEventListener('click', newCampaign);
 el.saveCampaign.addEventListener('click', saveCampaignLocal);

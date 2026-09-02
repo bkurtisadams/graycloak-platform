@@ -534,7 +534,7 @@ input[readonly] {
 .operations-tabs {
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 5px;
   padding-bottom: 8px;
 }

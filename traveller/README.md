@@ -1,8 +1,12 @@
+# Graycloak Traveller
+
+## v0.13.0 personal encounters and combat
+
+v0.13.0 adds a generic Book 1 personal-combat engine and a compact ENCOUNTER tab linked to hostile Situation Documents. Combat resolves surprise and avoidance, abstract range bands, movement, evasion, escape, weapon/armor/range tables, weapon and characteristic DMs, untrained penalties, visible 2D throws, first-wound location, STR/DEX/END damage, simultaneous round effects, unconsciousness, death, morale, retreat, and end-of-combat recovery. Each Encounter Document preserves combatants and a round audit trail; Campaign Document v6 and Campaign Bundle v5 persist those documents while migrating older saves with empty encounter collections. No tactical map is introduced.
+
 ## v0.12.1.3 live ship status and clearer local job board
 
 v0.12.1.3 keeps a live ship-status panel beside Navigation Plan so fuel, cargo, passengers, active jobs, and the ship operating account visibly change as the player acts. Fuel is green when the selected jump is ready, yellow when fuel is short but obtainable locally, and red only when the selected jump lacks fuel and the current system has no usable refueling source. Fuel, cargo/passenger, and job rows link directly to PORT, TRADE, and JOBS. The JOBS tab now labels the current port explicitly, states that map selection is navigation-only, prints origin -> destination on both offers and active jobs, and uses a green JOB activity entry when work is accepted. No Traveller rules or persistence schemas change in this milestone.
-
-# Graycloak Traveller
 
 ## v0.12.1.2 partial fuel-purchase fix
 

@@ -11,7 +11,7 @@
     <header class="masthead">
       <div>
         <div id="app-title" class="title">TRAVELLER // PERSONNEL INTAKE TERMINAL</div>
-        <div id="app-subtitle" class="subtitle">CLIENT v0.12.1.3 // LIVE SHIP STATUS + CLEARER JOBS // CLASSIC TRAVELLER BOOKS 1-3</div>
+        <div id="app-subtitle" class="subtitle">CLIENT v0.13.0 // PERSONAL ENCOUNTERS + COMBAT // CLASSIC TRAVELLER BOOKS 1-3</div>
       </div>
       <div id="system-status" class="status" aria-live="polite">READY</div>
     </header>
@@ -152,6 +152,7 @@
               <button id="operations-tab-trade" class="text-button operations-tab" type="button" role="tab" aria-controls="commerce-section" aria-selected="true">[ TRADE ]</button>
               <button id="operations-tab-jobs" class="text-button operations-tab" type="button" role="tab" aria-controls="contract-section" aria-selected="false">[ JOBS ]</button>
               <button id="operations-tab-situation" class="text-button operations-tab" type="button" role="tab" aria-controls="situation-section" aria-selected="false">[ SITUATION ]</button>
+              <button id="operations-tab-encounter" class="text-button operations-tab" type="button" role="tab" aria-controls="encounter-section" aria-selected="false">[ ENCOUNTER ]</button>
             </div>
             <div class="operations-panel-scroll">
               <section id="port-services-section" class="operations-panel" hidden aria-labelledby="port-services-heading">
@@ -188,6 +189,15 @@
                 </div>
                 <div id="situation-actions" class="actions operations-primary-actions situation-actions" aria-label="Situation actions"></div>
                 <pre id="situation-record" class="record operations-panel-record situation-record" aria-live="polite"></pre>
+              </section>
+
+              <section id="encounter-section" class="operations-panel" hidden aria-labelledby="encounter-heading">
+                <div class="section-heading">
+                  <h2 id="encounter-heading" class="section-title">PERSONAL ENCOUNTER</h2>
+                  <button class="help-button" type="button" data-help-topic="personal-combat" aria-label="Explain personal combat">[?]</button>
+                </div>
+                <div id="encounter-actions" class="actions operations-primary-actions encounter-actions" aria-label="Personal combat actions"></div>
+                <pre id="encounter-record" class="record operations-panel-record encounter-record" aria-live="polite"></pre>
               </section>
             </div>
           </div>

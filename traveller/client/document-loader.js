@@ -31,6 +31,8 @@ import {
   importAdventureThreadDocument
 } from '../src/adventure-thread-document.js';
 
+import { ENCOUNTER_DOCUMENT_TYPE, importEncounterDocument } from '../src/encounter-document.js';
+
 import {
   CAMPAIGN_BUNDLE_TYPE,
   importCampaignBundle
@@ -45,6 +47,7 @@ export const TRAVELLER_DOCUMENT_KINDS = Object.freeze({
   SITUATION: 'situation',
   CONTACT: 'contact',
   THREAD: 'thread',
+  ENCOUNTER: 'encounter',
   CAMPAIGN_BUNDLE: 'campaign-bundle'
 });
 
@@ -110,6 +113,10 @@ export function loadTravellerDocument(input) {
       kind: TRAVELLER_DOCUMENT_KINDS.THREAD,
       threadDocument: importAdventureThreadDocument(parsed)
     };
+  }
+
+  if (parsed.documentType === ENCOUNTER_DOCUMENT_TYPE) {
+    return { kind: TRAVELLER_DOCUMENT_KINDS.ENCOUNTER, encounterDocument: importEncounterDocument(parsed) };
   }
 
   if (parsed.documentType === CAMPAIGN_BUNDLE_TYPE) {

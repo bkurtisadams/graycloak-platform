@@ -2,6 +2,10 @@
 
 Pure JavaScript rules package for the Graycloak Classic Traveller browser-game project. It intentionally has no HTML, Foundry, Firebase, or server dependencies.
 
+## v0.13.0 personal combat
+
+Adds a generic Classic Traveller Book 1 personal-combat layer: surprise, five abstract range bands, movement, weapon/armor/range target tables, skill and characteristic DMs, untrained attack/defence modifiers, evasion, escape, visible attack and damage dice, first-wound location, physical-characteristic wounds, unconsciousness/death, morale, and end-of-combat recovery. The rules package remains independent of Sea of Suns situations and browser UI.
+
 ## v0.12.0.1 fuel purchase quantity fix
 
 Adds `purchaseShipFuel()` so a vessel can buy a specified amount of available starport fuel rather than requiring a fill-to-capacity transaction. `refuelShipToCapacity()` remains available and now delegates to the quantity-based primitive. Fuel price, tank capacity, fuel quality, and ship-account ledger rules are unchanged.
@@ -46,7 +50,7 @@ Not implemented yet:
 - crew salary / annual maintenance calendar automation
 - extended berthing-day automation
 - low-berth revival procedure for ships with low berths
-- encounters during/after travel
+- procedural encounters during/after travel
 - starship combat
 - server/database adapters
 

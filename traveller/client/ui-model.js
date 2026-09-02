@@ -76,7 +76,7 @@ export const HELP_TOPICS = Object.freeze({
   }),
   'campaign-status': Object.freeze({
     title: 'CAMPAIGN STATUS',
-    body: 'A Campaign Document is the persistent shell that ties gameplay Character and Ship Documents together by stable ID. SAVE CAMPAIGN stores the campaign and referenced documents in this browser. EXPORT CAMPAIGN creates one portable bundle containing the Campaign Document plus its referenced character, ship, contract, and situation documents. The ordinal date is a Graycloak campaign-state convention. In v0.9 the system and world fields are driven by the authored subsector map so their IDs and displayed names stay synchronized.'
+    body: 'A Campaign Document is the persistent shell that ties gameplay Character and Ship Documents together by stable ID. SAVE CAMPAIGN stores the campaign and referenced documents in this browser. EXPORT CAMPAIGN creates one portable bundle containing the Campaign Document plus its referenced character, ship, contract, situation, contact, adventure-thread, and personal-encounter documents. The ordinal date is a Graycloak campaign-state convention. In v0.9 the system and world fields are driven by the authored subsector map so their IDs and displayed names stay synchronized.'
   }),
   'subsector-map': Object.freeze({
     title: 'SUBSECTOR NAVIGATION',
@@ -97,6 +97,10 @@ export const HELP_TOPICS = Object.freeze({
   situations: Object.freeze({
     title: 'SITUATIONS',
     body: 'Situations are persistent adventure events. Book 3 supplies the patron encounter table, the one-throw-per-week patron procedure, and the reaction table; this browser uses a clearly labeled Graycloak once-per-port-call patron check so campaign play does not require a waiting subsystem. Patron tasks and arrival events are original Sea of Suns content. Non-combat checks use a Graycloak generalization of the Book 1 Electronics referee guidance: 2D against a referee-set target with skill and appropriate characteristic or circumstance DMs.'
+  }),
+  'personal-combat': Object.freeze({
+    title: 'PERSONAL ENCOUNTER',
+    body: 'This compact panel resolves Classic Traveller Book 1 personal combat without a tactical map. It tracks surprise, abstract range bands, movement, evasion, weapon skill, characteristic, armor and range modifiers, visible 2D attack throws, weapon damage, physical-characteristic wounds, unconsciousness, death, morale, and escape. Combat documents persist with the campaign and retain a round-by-round audit trail.'
   }),
   'adventure-threads': Object.freeze({
     title: 'ADVENTURE THREADS',
@@ -512,7 +516,7 @@ export function formatCampaignDate(time = {}) {
   return `${day}-${year} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
-export function buildCampaignRecord(campaign, { characters = [], ships = [], contracts = [], situations = [], contacts = [], threads = [], missing = [] } = {}) {
+export function buildCampaignRecord(campaign, { characters = [], ships = [], contracts = [], situations = [], encounters = [], contacts = [], threads = [], missing = [] } = {}) {
   const characterMap = new Map(characters.map((entry) => [entry.identity.id, entry]));
   const shipMap = new Map(ships.map((entry) => [entry.identity.id, entry]));
   const activeShip = campaign.activeShipId ? shipMap.get(campaign.activeShipId) : null;
@@ -540,7 +544,7 @@ export function buildCampaignRecord(campaign, { characters = [], ships = [], con
     `LOCATION SYSTEM ${system} / WORLD ${world}`,
     activeShipLine,
     ...partyLines,
-    `DOCUMENTS CHARACTERS ${campaign.documentRefs.characters.length} / SHIPS ${campaign.documentRefs.ships.length} / CONTRACTS ${campaign.documentRefs.contracts.length} / SITUATIONS ${campaign.documentRefs.situations.length}`,
+    `DOCUMENTS CHARACTERS ${campaign.documentRefs.characters.length} / SHIPS ${campaign.documentRefs.ships.length} / CONTRACTS ${campaign.documentRefs.contracts.length} / SITUATIONS ${campaign.documentRefs.situations.length} / ENCOUNTERS ${encounters.length}`,
     `CONTINUITY CONTACTS ${contacts.length} / THREADS ${threads.length} / ACTIVE THREADS ${activeThreads.length}`,
     `ACTIVE CONTRACTS ${activeContracts.length} / ACTIVE SITUATIONS ${activeSituations.length}`, 
     `SHIP FUNDS ${activeShip ? formatCredits(activeShip.state.finances.balanceCr) : 'none'}`,
@@ -827,4 +831,34 @@ export function buildSituationRecord({ system = null, situations = [] } = {}) {
     }
   }
   return box(lines, 96);
+}
+
+export function buildEncounterRecord({ system = null, encounters = [] } = {}) {
+  if (!system) return '';
+  const local = encounters.filter((entry) => entry.location.systemId === system.id);
+  const encounter = local.find((entry) => entry.status === 'active') ?? local.at(-1);
+  if (!encounter) return box([
+    `PERSONAL ENCOUNTERS // ${system.name.toUpperCase()} // ${system.hex}`,
+    'NO ENCOUNTER RECORDED.'
+  ], 96);
+  const surprise = encounter.surprise.surpriseSideId
+    ? `${encounter.surprise.surpriseSideId.toUpperCase()} / MARGIN ${encounter.surprise.margin}`
+    : 'NONE';
+  const lines = [
+    `PERSONAL ENCOUNTER // ${encounter.status.toUpperCase()}`,
+    encounter.identity.title.toUpperCase(),
+    `ROUND ${encounter.round} / RANGE ${encounter.range.toUpperCase().replace('-', ' ')} / SURPRISE ${surprise}`
+  ];
+  for (const combatant of encounter.combatants) {
+    const current = combatant.current;
+    lines.push('', `${combatant.side.toUpperCase()} // ${combatant.name.toUpperCase()} // ${combatant.status.toUpperCase()}`);
+    lines.push(`STR ${current.STR}/${combatant.characteristics.STR}  DEX ${current.DEX}/${combatant.characteristics.DEX}  END ${current.END}/${combatant.characteristics.END}`);
+    lines.push(`WEAPON ${combatant.weaponKey.toUpperCase().replaceAll('-', ' ')} / ARMOR ${combatant.armor.toUpperCase()}`);
+  }
+  if (encounter.outcome) lines.push('', `OUTCOME ${String(encounter.outcome.reason).toUpperCase().replaceAll('-', ' ')}`);
+  if (encounter.history.length) {
+    lines.push('', 'RECENT ACTIONS');
+    for (const entry of encounter.history.slice(-6)) lines.push(`R${entry.round} ${entry.text}`);
+  }
+  return box(lines, 106);
 }

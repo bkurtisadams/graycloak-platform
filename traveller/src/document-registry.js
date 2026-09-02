@@ -30,6 +30,8 @@ import {
   importAdventureThreadDocument
 } from './adventure-thread-document.js';
 
+import { ENCOUNTER_DOCUMENT_TYPE, importEncounterDocument } from './encounter-document.js';
+
 import {
   CAMPAIGN_BUNDLE_TYPE,
   createCampaignBundle,
@@ -53,6 +55,7 @@ function validateDocument(document) {
     case SITUATION_DOCUMENT_TYPE: return importSituationDocument(document);
     case CONTACT_DOCUMENT_TYPE: return importContactDocument(document);
     case ADVENTURE_THREAD_DOCUMENT_TYPE: return importAdventureThreadDocument(document);
+    case ENCOUNTER_DOCUMENT_TYPE: return importEncounterDocument(document);
     default: throw new Error(`unsupported registry documentType: ${document?.documentType ?? '(missing)'}`);
   }
 }
@@ -128,6 +131,7 @@ export function createDocumentRegistry({
     for (const situation of validated.documents.situations) put(situation);
     for (const contact of validated.documents.contacts) put(contact);
     for (const thread of validated.documents.threads) put(thread);
+    for (const encounter of validated.documents.encounters) put(encounter);
     put(validated.campaign);
     return cloneJson(validated);
   }
@@ -146,6 +150,7 @@ export function createDocumentRegistry({
     const situations = [];
     const contacts = [];
     const threads = [];
+    const encounters = [];
     const missing = [];
     for (const ref of campaign.documentRefs.characters) {
       const document = get(ref.id);
@@ -177,7 +182,12 @@ export function createDocumentRegistry({
       if (!document || document.documentType !== ADVENTURE_THREAD_DOCUMENT_TYPE) missing.push(ref.id);
       else threads.push(document);
     }
-    return { campaign, characters, ships, contracts, situations, contacts, threads, missing };
+    for (const ref of campaign.documentRefs.encounters) {
+      const document = get(ref.id);
+      if (!document || document.documentType !== ENCOUNTER_DOCUMENT_TYPE) missing.push(ref.id);
+      else encounters.push(document);
+    }
+    return { campaign, characters, ships, contracts, situations, contacts, threads, encounters, missing };
   }
 
   function buildBundle(campaignOrId) {
@@ -189,7 +199,8 @@ export function createDocumentRegistry({
       contracts: resolved.contracts,
       situations: resolved.situations,
       contacts: resolved.contacts,
-      threads: resolved.threads
+      threads: resolved.threads,
+      encounters: resolved.encounters
     });
   }
 
