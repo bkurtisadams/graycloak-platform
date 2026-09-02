@@ -1,5 +1,11 @@
 # Graycloak Traveller
 
+## v0.14.1 fluid combat-map interaction
+
+v0.14.1 replaces the encounter map's scroll-container camera with an SVG viewBox camera adapted from the Graycloak BATTLESYSTEM/Chainmail board interaction pattern. Tokens now follow the pointer continuously while dragged, preserve the initial grab offset, remain inside the battlefield, and snap to their persistent square only when dropped. Empty-map drag pans without rebuilding the battlefield; wheel zoom is smooth, cursor-centred, and coalesced to one view update per animation frame. `[ − ]`, `[ + ]`, and `[ FIT ]` remain available, with a 50%-400% camera range.
+
+The interaction pass changes no combat resolution or persistence schema. A dropped token records one map-position event, while the live preview records nothing. Position-derived range remains a labeled visual suggestion; Classic Traveller Book 1 range bands remain authoritative until the referee deliberately uses `[ APPLY MAP RANGE ]`.
+
 ## v0.14.0 personal combat workspace
 
 v0.14.0 expands the compact encounter map into a full-width 32-by-20 personal-combat workspace. The ENCOUNTER tab temporarily replaces the subsector view while selected, exposing a scrollable map with 50%-200% zoom, fit, drag-to-pan, and persistent draggable PC/enemy tokens. The side rail now separates a party actor roster from a collapsible enemy roster. Clicking a party token/card chooses the acting traveller; clicking an enemy chooses the target. Campaigns with multiple party Character Documents place every member in combat, each active PC declares once per round, and opponents choose the nearest active PC from the visual positions. Manual setup supports up to four distinct enemy types and sixteen enemies total.

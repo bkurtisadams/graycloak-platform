@@ -657,18 +657,20 @@ input[readonly] {
   width: 100%;
   height: min(58vh, 580px);
   min-height: 390px;
-  overflow: auto;
+  overflow: hidden;
   background: #c7c8c1;
   cursor: grab;
   overscroll-behavior: contain;
+  touch-action: none;
+  user-select: none;
 }
 
 .encounter-map-viewport.panning { cursor: grabbing; user-select: none; }
 
 .encounter-map {
   display: block;
-  width: 1280px;
-  height: 800px;
+  width: 100%;
+  height: 100%;
   max-width: none;
   touch-action: none;
   background: #d1d1ca;
