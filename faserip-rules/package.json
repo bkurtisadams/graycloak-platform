@@ -1,6 +1,6 @@
 {
   "name": "@graycloak/faserip-rules",
-  "version": "0.7.7",
+  "version": "0.8.0",
   "description": "MSH Advanced Set (FASERIP) rules kernel, certified against the book with deterministic tests",
   "type": "module",
   "main": "faserip-kernel.js",

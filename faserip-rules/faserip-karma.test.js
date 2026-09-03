@@ -9,7 +9,7 @@ import {
   applyKarmaDelta, applyDeathPenalty,
   poolLeaveShare, poolAbsorbLoss, poolKillWipe, LEADERSHIP_POOL_BONUS,
   MIN_KARMA_DECLARATION, EFFECT_REDUCTION_COST, POWER_STUNT_COST,
-  powerStuntRequiredColor, advancementOptions,
+  powerStuntRequiredColor, POWER_STUNT_MASTERY, advancementOptions,
   powerAdditionCost, TALENT_ADDITION_COST, contactAdditionCost,
   KARMA_VERSION, KARMA_CERTIFIED,
 } from './faserip-karma.js';
@@ -145,12 +145,14 @@ t('[CERT] spend constants: declaration min 10, effect reduction 50/color, stunt 
   eq(POWER_STUNT_COST, 100);
 });
 
-t('[CERT] power stunt colors: never=red, 1-3=yellow, 4-10=green, 11+=automatic', () => {
+t('[CERT] power stunt colors by successes: 0=red, 1-3=yellow, 4-9=green; RULED 2026-09-03: 10 successes = mastered (automatic)', () => {
+  eq(POWER_STUNT_MASTERY, 10);
   eq(powerStuntRequiredColor(0), 'red');
   eq(powerStuntRequiredColor(2), 'yellow');
   eq(powerStuntRequiredColor(3), 'yellow');
   eq(powerStuntRequiredColor(4), 'green');
-  eq(powerStuntRequiredColor(10), 'green');
+  eq(powerStuntRequiredColor(9), 'green');
+  eq(powerStuntRequiredColor(10), 'automatic');
   eq(powerStuntRequiredColor(11), 'automatic');
 });
 
