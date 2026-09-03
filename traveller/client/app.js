@@ -125,7 +125,15 @@ import {
   recordSpeculativeLotPurchase
 } from '../src/campaign-document.js';
 
-import { createNpcActorDocument, updateNpcActorDocument, importNpcActorDocument } from '../src/npc-actor-document.js';
+import {
+  NPC_CONDITIONS,
+  createNpcActorDocument,
+  updateNpcActorDocument,
+  importNpcActorDocument,
+  activeNpcActorConditions,
+  setNpcActorCondition,
+  clearNpcActorConditions
+} from '../src/npc-actor-document.js';
 import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js';
 import {
   createActivityLogDocument,
@@ -170,7 +178,10 @@ import {
   avoidEncounter,
   encounterRangeGuide,
   repositionEncounterCombatant,
-  setEncounterRangeFromPositions
+  setEncounterRangeFromPositions,
+  addEncounterCombatantFromActor,
+  removeEncounterCombatant,
+  setEncounterCombatantCondition
 } from '../src/encounter-document.js';
 
 import {
@@ -357,6 +368,22 @@ const el = {
   combatEnemySkill: document.querySelector('#combat-enemy-skill'),
   combatEnemyArmor: document.querySelector('#combat-enemy-armor'),
   combatStartingRange: document.querySelector('#combat-starting-range'),
+  combatMapScale: document.querySelector('#combat-map-scale'),
+  encounterPlacementDialog: document.querySelector('#encounter-placement-dialog'),
+  encounterPlacementForm: document.querySelector('#encounter-placement-form'),
+  encounterPlacementClose: document.querySelector('#encounter-placement-close'),
+  encounterPlacementCancel: document.querySelector('#encounter-placement-cancel'),
+  encounterPlacementActor: document.querySelector('#encounter-placement-actor'),
+  encounterPlacementSide: document.querySelector('#encounter-placement-side'),
+  encounterPlacementPosition: document.querySelector('#encounter-placement-position'),
+  encounterConditionDialog: document.querySelector('#encounter-condition-dialog'),
+  encounterConditionForm: document.querySelector('#encounter-condition-form'),
+  encounterConditionClose: document.querySelector('#encounter-condition-close'),
+  encounterConditionCancel: document.querySelector('#encounter-condition-cancel'),
+  encounterConditionActor: document.querySelector('#encounter-condition-actor'),
+  encounterConditionSelect: document.querySelector('#encounter-condition-select'),
+  encounterConditionActive: document.querySelector('#encounter-condition-active'),
+  encounterConditionClear: document.querySelector('#encounter-condition-clear'),
   npcActorDialog: document.querySelector('#npc-actor-dialog'),
   npcActorForm: document.querySelector('#npc-actor-form'),
   npcActorClose: document.querySelector('#npc-actor-close'),
@@ -411,6 +438,8 @@ let operationsDeskTab = 'navigation';
 let pendingRoll = null;
 let selectedEncounterActorId = null;
 let selectedEncounterTargetId = null;
+let pendingEncounterPlacement = null;
+let pendingEncounterConditionCombatantId = null;
 const ENCOUNTER_MAP_WIDTH = 1280;
 const ENCOUNTER_MAP_HEIGHT = 800;
 const ENCOUNTER_MAP_MIN_ZOOM = 0.5;
@@ -2685,6 +2714,18 @@ function combatantSkillLevel(combatant) {
   return Math.max(...weapon.skillNames.map((name) => Number(combatant.skills?.[name] ?? 0)));
 }
 
+function combatantRulesStatus(combatant) {
+  if (combatant.bodyModel === 'robotic') {
+    if (combatant.status === 'dead') return 'destroyed';
+    if (combatant.status === 'unconscious') return 'disabled';
+  }
+  return combatant.status;
+}
+
+function combatantConditionText(combatant) {
+  return combatant.conditions?.length ? combatant.conditions.map((entry) => entry.toUpperCase().replaceAll('-', ' ')).join(' + ') : 'NONE';
+}
+
 function clampEncounterMapView(view = encounterMapView) {
   const width = ENCOUNTER_MAP_WIDTH / encounterMapZoom;
   const height = ENCOUNTER_MAP_HEIGHT / encounterMapZoom;
@@ -2781,10 +2822,8 @@ function hideEncounterTokenOverlays() {
 
 function combatantHoverText(combatant) {
   const source = npcActorDocuments.find((entry) => entry.identity.id === combatant.sourceActorId);
-  const state = source?.profile.bodyModel === 'robotic'
-    ? `${source.state.activation} / ${source.state.integrity}`
-    : combatant.status;
-  return `${combatant.name.toUpperCase()} // ${combatant.side.toUpperCase()} // ${state.toUpperCase()}\nSTR ${combatant.current.STR}/${combatant.characteristics.STR}  DEX ${combatant.current.DEX}/${combatant.characteristics.DEX}  END ${combatant.current.END}/${combatant.characteristics.END}\n${getPersonalWeapon(combatant.weaponKey).name} / SKILL-${combatantSkillLevel(combatant)} / ${combatant.armor.toUpperCase()}${source?.presentation.description ? `\n${source.presentation.description}` : ''}`;
+  const identity = `${combatant.actorType.toUpperCase()} / ${combatant.bodyModel.toUpperCase()}`;
+  return `${combatant.name.toUpperCase()} // ${combatant.side.toUpperCase()} // ${identity}\nBOOK 1 STATUS ${combatantRulesStatus(combatant).toUpperCase()} // CONDITIONS ${combatantConditionText(combatant)}\nSTR ${combatant.current.STR}/${combatant.characteristics.STR}  DEX ${combatant.current.DEX}/${combatant.characteristics.DEX}  END ${combatant.current.END}/${combatant.characteristics.END}\n${getPersonalWeapon(combatant.weaponKey).name} / SKILL-${combatantSkillLevel(combatant)} / ${combatant.armor.toUpperCase()}${source?.presentation.description ? `\n${source.presentation.description}` : ''}`;
 }
 
 function positionEncounterOverlay(node, event, anchorElement = null) {
@@ -2818,10 +2857,127 @@ function showEncounterTokenMenu(event, encounter, combatant, onSelect, anchorEle
   add(combatant.side === 'party' ? 'SELECT ACTOR' : 'SELECT TARGET', onSelect, combatant.status !== 'active');
   const actor = selectedEncounterActor(encounter);
   if (combatant.side === 'opposition') add('ATTACK TARGET', () => { setEncounterTarget(encounter.identity.id, combatant.id); openEncounterAttackDialog(encounter); }, !actor || combatant.status !== 'active');
+  add('CHANGE CONDITION', () => openEncounterConditionDialog(encounter.identity.id, combatant.id));
   if (combatant.sourceActorId && npcActorDocuments.some((entry) => entry.identity.id === combatant.sourceActorId)) add('OPEN ROSTER ACTOR', () => { operationsDeskTab = 'roster'; render(); openNpcActorDialog(combatant.sourceActorId); });
+  add('REMOVE FROM ENCOUNTER', () => removeCombatantFromActiveEncounter(encounter.identity.id, combatant.id));
   el.encounterTokenMenu.replaceChildren(...actions);
   positionEncounterOverlay(el.encounterTokenMenu, event, anchorElement);
   actions.find((button) => !button.disabled)?.focus({ preventScroll: true });
+}
+
+function showEncounterMapMenu(event) {
+  event.preventDefault();
+  if (event.target.closest?.('.encounter-token')) return;
+  const encounter = activeEncounterAtCurrentSystem();
+  if (!encounter) return;
+  const point = encounterMapPoint(event.clientX, event.clientY);
+  const column = Math.max(0, Math.min(encounter.map.columns - 1, Math.floor(point.x / (ENCOUNTER_MAP_WIDTH / encounter.map.columns))));
+  const row = Math.max(0, Math.min(encounter.map.rows - 1, Math.floor(point.y / (ENCOUNTER_MAP_HEIGHT / encounter.map.rows))));
+  const place = document.createElement('button');
+  place.type = 'button';
+  place.textContent = '[ PLACE ROSTER ACTOR HERE ]';
+  place.addEventListener('click', () => { el.encounterTokenMenu.hidden = true; openEncounterPlacementDialog(encounter.identity.id, column, row); });
+  el.encounterTokenTooltip.hidden = true;
+  el.encounterTokenMenu.replaceChildren(place);
+  positionEncounterOverlay(el.encounterTokenMenu, event);
+  place.focus({ preventScroll: true });
+}
+
+function closeEncounterPlacementDialog() {
+  pendingEncounterPlacement = null;
+  if (typeof el.encounterPlacementDialog.close === 'function') el.encounterPlacementDialog.close();
+  else el.encounterPlacementDialog.removeAttribute('open');
+}
+
+function openEncounterPlacementDialog(encounterId, column, row) {
+  const encounter = encounterDocuments.find((entry) => entry.identity.id === encounterId && entry.status === 'active');
+  if (!encounter) return;
+  const present = new Set(encounter.combatants.map((entry) => entry.sourceActorId));
+  const actors = npcActorDocuments.filter((entry) => !entry.state.archived && !present.has(entry.identity.id));
+  if (!actors.length) return setStatus('NO UNUSED ROSTER ACTORS ARE AVAILABLE FOR PLACEMENT', 'error');
+  pendingEncounterPlacement = { encounterId, column, row };
+  el.encounterPlacementActor.replaceChildren(...actors.map((actor) => new Option(`${actor.identity.name} / ${actor.profile.actorType} / ${actor.profile.bodyModel}`, actor.identity.id)));
+  el.encounterPlacementSide.value = 'opposition';
+  el.encounterPlacementPosition.textContent = `${column + 1},${row + 1}`;
+  if (typeof el.encounterPlacementDialog.showModal === 'function') el.encounterPlacementDialog.showModal();
+  else el.encounterPlacementDialog.setAttribute('open', '');
+}
+
+function placeRosterActorInEncounter() {
+  if (!pendingEncounterPlacement) return;
+  const { encounterId, column, row } = pendingEncounterPlacement;
+  const actor = npcActorDocuments.find((entry) => entry.identity.id === el.encounterPlacementActor.value);
+  const index = encounterDocuments.findIndex((entry) => entry.identity.id === encounterId);
+  if (index < 0 || !actor) throw new Error('encounter or roster actor is unavailable');
+  const result = addEncounterCombatantFromActor(encounterDocuments[index], { actor, side: el.encounterPlacementSide.value, column, row });
+  encounterDocuments[index] = result.encounter;
+  if (result.combatant.side === 'party') selectedEncounterActorId = result.combatant.id;
+  else selectedEncounterTargetId = result.combatant.id;
+  logActivity('COMBAT', result.entry.text);
+  persistCampaignState();
+  closeEncounterPlacementDialog();
+  setStatus(`${actor.identity.name.toUpperCase()} PLACED IN ENCOUNTER`, 'ok');
+  renderEncounter();
+}
+
+function closeEncounterConditionDialog() {
+  pendingEncounterConditionCombatantId = null;
+  if (typeof el.encounterConditionDialog.close === 'function') el.encounterConditionDialog.close();
+  else el.encounterConditionDialog.removeAttribute('open');
+}
+
+function openEncounterConditionDialog(encounterId, combatantId) {
+  const encounter = encounterDocuments.find((entry) => entry.identity.id === encounterId);
+  const combatant = encounter?.combatants.find((entry) => entry.id === combatantId);
+  if (!combatant) return;
+  pendingEncounterConditionCombatantId = combatantId;
+  el.encounterConditionDialog.dataset.encounterId = encounterId;
+  el.encounterConditionActor.textContent = `${combatant.name.toUpperCase()} / ${combatant.bodyModel.toUpperCase()} / CURRENT ${combatantConditionText(combatant)}`;
+  el.encounterConditionSelect.replaceChildren(...NPC_CONDITIONS[combatant.bodyModel].map((condition) => new Option(condition.replaceAll('-', ' ').toUpperCase(), condition)));
+  el.encounterConditionActive.value = 'apply';
+  if (typeof el.encounterConditionDialog.showModal === 'function') el.encounterConditionDialog.showModal();
+  else el.encounterConditionDialog.setAttribute('open', '');
+}
+
+function updateEncounterCondition({ clear = false } = {}) {
+  const encounterId = el.encounterConditionDialog.dataset.encounterId;
+  const combatantId = pendingEncounterConditionCombatantId;
+  const index = encounterDocuments.findIndex((entry) => entry.identity.id === encounterId);
+  const original = encounterDocuments[index]?.combatants.find((entry) => entry.id === combatantId);
+  if (index < 0 || !original) throw new Error('combatant is unavailable');
+  const condition = clear ? null : el.encounterConditionSelect.value;
+  const active = !clear && el.encounterConditionActive.value === 'apply';
+  const result = setEncounterCombatantCondition(encounterDocuments[index], { combatantId, condition, active });
+  encounterDocuments[index] = result.encounter;
+  const sourceIndex = npcActorDocuments.findIndex((entry) => entry.identity.id === original.sourceActorId);
+  if (sourceIndex >= 0) {
+    npcActorDocuments[sourceIndex] = clear
+      ? clearNpcActorConditions(npcActorDocuments[sourceIndex])
+      : setNpcActorCondition(npcActorDocuments[sourceIndex], { condition, active });
+  }
+  if (result.entry) logActivity('COMBAT', result.entry.text);
+  persistCampaignState();
+  closeEncounterConditionDialog();
+  setStatus(`${original.name.toUpperCase()} CONDITIONS UPDATED`, 'ok');
+  render();
+}
+
+function removeCombatantFromActiveEncounter(encounterId, combatantId) {
+  try {
+    const index = encounterDocuments.findIndex((entry) => entry.identity.id === encounterId);
+    if (index < 0) throw new Error('encounter is unavailable');
+    const result = removeEncounterCombatant(encounterDocuments[index], { combatantId });
+    encounterDocuments[index] = result.encounter;
+    if (selectedEncounterActorId === combatantId) selectedEncounterActorId = null;
+    if (selectedEncounterTargetId === combatantId) selectedEncounterTargetId = null;
+    logActivity('COMBAT', result.entry.text);
+    persistCampaignState();
+    setStatus(`${result.combatant.name.toUpperCase()} REMOVED FROM ENCOUNTER`, 'ok');
+    renderEncounter();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
 }
 
 function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect } = {}) {
@@ -2959,23 +3115,33 @@ function renderEncounterMap(encounter) {
       const label = svgElement('text', { x: 0, y: 0, class: 'encounter-token-pc-label' });
       label.textContent = (combatant.name || 'P').charAt(0).toUpperCase();
       group.append(label);
+      if (combatant.conditions?.length) {
+        const marker = svgElement('text', { x: 13, y: -11, class: 'encounter-token-condition-marker' }); marker.textContent = '!'; group.append(marker);
+      }
       attachEncounterTokenInteraction(group, encounter, combatant, { onSelect: () => setEncounterActor(encounter.identity.id, combatant.id) });
       fragments.push(group);
       continue;
     }
-    const circle = svgElement('circle', {
-      cx: 0, cy: 0, r: 8,
-      class: `encounter-token-enemy${target?.id === combatant.id ? ' selected' : ''}${combatant.status === 'active' ? '' : ' inactive'}`,
-      'aria-label': `${combatant.name}, ${combatant.status}${target?.id === combatant.id ? ', selected target' : ''}`
-    });
-    group.append(circle);
+    const enemyClass = `encounter-token-enemy encounter-token-${combatant.actorType}${target?.id === combatant.id ? ' selected' : ''}${combatant.status === 'active' ? '' : ' inactive'}`;
+    if (combatant.actorType === 'robot') group.append(svgElement('rect', { x: -10, y: -10, width: 20, height: 20, class: enemyClass }));
+    else if (combatant.actorType === 'creature') group.append(svgElement('path', { d: 'M 0 -11 L 11 0 L 0 11 L -11 0 Z', class: enemyClass }));
+    else group.append(svgElement('circle', { cx: 0, cy: 0, r: 10, class: enemyClass }));
+    const enemyLabel = svgElement('text', { x: 0, y: 0, class: 'encounter-token-enemy-label' });
+    enemyLabel.textContent = combatant.tokenLabel || combatant.name.charAt(0).toUpperCase();
+    group.append(enemyLabel);
+    if (combatant.conditions?.length) {
+      const marker = svgElement('text', { x: 12, y: -10, class: 'encounter-token-condition-marker' }); marker.textContent = '!'; group.append(marker);
+    }
     attachEncounterTokenInteraction(group, encounter, combatant, { onSelect: () => setEncounterTarget(encounter.identity.id, combatant.id) });
     fragments.push(group);
   }
   el.encounterMap.replaceChildren(...fragments);
   applyEncounterMapView();
 
-  const guideText = guide ? ` // MAP GUIDE ${guide.suggestedRange.toUpperCase().replace('-', ' ')} / ${guide.distance} SQ` : '';
+  const distanceText = guide ? `${guide.distance} SQ${guide.meters === null ? ' / SCALE UNSET' : ` / ≈${guide.meters} M`}` : '';
+  const guideText = guide ? guide.matches
+    ? ` // MAP MATCHES ${guide.suggestedRange.toUpperCase().replace('-', ' ')} / ${distanceText}`
+    : ` // MAP SUGGESTS ${guide.suggestedRange.toUpperCase().replace('-', ' ')} / ${distanceText}` : '';
   el.encounterSelectionStatus.textContent = `ACTOR ${actor?.name.toUpperCase() ?? '--'} // TARGET ${target?.name.toUpperCase() ?? '--'} // BOOK 1 RANGE ${encounter.range.toUpperCase().replace('-', ' ')}${guideText}`;
   el.encounterApplyRange.hidden = !guide || guide.matches || encounter.status !== 'active';
 
@@ -2989,7 +3155,7 @@ function renderEncounterMap(encounter) {
     card.className = `encounter-enemy-card encounter-party-card${actor?.id === partyMember.id ? ' selected' : ''}${hasDeclared ? ' declared' : ''}${partyMember.status === 'active' ? '' : ' inactive'}`;
     card.disabled = partyMember.status !== 'active' || hasDeclared;
     const declaration = encounter.roundState?.declaredActions?.find((entry) => entry.actorId === partyMember.id);
-    card.textContent = `${actor?.id === partyMember.id ? '▶ ' : ''}${partyMember.name.toUpperCase()} / ${hasDeclared ? declaration.action.toUpperCase() : partyMember.status.toUpperCase()}\nSTR ${partyMember.current.STR}/${partyMember.characteristics.STR}  DEX ${partyMember.current.DEX}/${partyMember.characteristics.DEX}  END ${partyMember.current.END}/${partyMember.characteristics.END}\n${getPersonalWeapon(partyMember.weaponKey).name} / SKILL-${combatantSkillLevel(partyMember)} / ${partyMember.armor.toUpperCase()}`;
+    card.textContent = `${actor?.id === partyMember.id ? '▶ ' : ''}${partyMember.name.toUpperCase()} / ${hasDeclared ? declaration.action.toUpperCase() : combatantRulesStatus(partyMember).toUpperCase()}\nSTR ${partyMember.current.STR}/${partyMember.characteristics.STR}  DEX ${partyMember.current.DEX}/${partyMember.characteristics.DEX}  END ${partyMember.current.END}/${partyMember.characteristics.END}\n${getPersonalWeapon(partyMember.weaponKey).name} / SKILL-${combatantSkillLevel(partyMember)} / ${partyMember.armor.toUpperCase()} / CONDITION ${combatantConditionText(partyMember)}`;
     card.addEventListener('click', () => setEncounterActor(encounter.identity.id, partyMember.id));
     return card;
   });
@@ -3005,11 +3171,11 @@ function renderEncounterMap(encounter) {
     card.disabled = enemy.status !== 'active';
     const name = document.createElement('span');
     name.className = 'encounter-enemy-name';
-    name.textContent = `${target?.id === enemy.id ? '● ' : ''}${enemy.name.toUpperCase()} / ${enemy.status.toUpperCase()}`;
+    name.textContent = `${target?.id === enemy.id ? '● ' : ''}${enemy.name.toUpperCase()} / ${enemy.actorType.toUpperCase()} / ${combatantRulesStatus(enemy).toUpperCase()}`;
     const stats = document.createElement('span');
     stats.textContent = `STR ${enemy.current.STR}/${enemy.characteristics.STR}  DEX ${enemy.current.DEX}/${enemy.characteristics.DEX}  END ${enemy.current.END}/${enemy.characteristics.END}`;
     const equipment = document.createElement('span');
-    equipment.textContent = `${getPersonalWeapon(enemy.weaponKey).name} / SKILL-${combatantSkillLevel(enemy)} / ${enemy.armor.toUpperCase()}`;
+    equipment.textContent = `${getPersonalWeapon(enemy.weaponKey).name} / SKILL-${combatantSkillLevel(enemy)} / ${enemy.armor.toUpperCase()} / CONDITION ${combatantConditionText(enemy)}`;
     card.append(name, document.createElement('br'), stats, document.createElement('br'), equipment);
     card.addEventListener('click', () => setEncounterTarget(encounter.identity.id, enemy.id));
     return card;
@@ -3135,10 +3301,11 @@ function renderRoster() {
       const name = document.createElement('span'); name.className = 'roster-card-name'; name.textContent = `${actor.identity.name.toUpperCase()} / ${actor.upp}`;
       const meta = document.createElement('span'); meta.className = 'roster-card-meta'; meta.textContent = `${actor.profile.actorType.toUpperCase()} / ${actor.profile.role || 'NO ROLE'} / ${actor.profile.bodyModel.toUpperCase()} / ${getPersonalWeapon(actor.loadout.weaponKey).name} / ${actor.loadout.armor.toUpperCase()}`;
       const description = document.createElement('span'); description.className = 'roster-card-description'; description.textContent = actor.presentation.description || 'No description.';
+      const conditions = document.createElement('span'); conditions.className = `roster-card-conditions${activeNpcActorConditions(actor).length ? ' active' : ''}`; conditions.textContent = `CONDITION ${activeNpcActorConditions(actor).map((entry) => entry.toUpperCase().replaceAll('-', ' ')).join(' + ') || 'NONE'}`;
       const actions = document.createElement('span'); actions.className = 'roster-card-actions';
       const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'text-button'; edit.textContent = '[ EDIT ]'; edit.addEventListener('click', () => openNpcActorDialog(actor.identity.id));
       const combat = document.createElement('button'); combat.type = 'button'; combat.className = 'text-button'; combat.textContent = '[ ADD TO COMBAT ]'; combat.addEventListener('click', () => { openCombatSetupDialog(); addRosterActorToCombatSetup(actor.identity.id); });
-      actions.append(edit, combat); content.append(name, meta, description, actions); card.append(portrait, content); body.append(card);
+      actions.append(edit, combat); content.append(name, meta, description, conditions, actions); card.append(portrait, content); body.append(card);
     }
     details.append(summary, body); return details;
   });
@@ -3152,6 +3319,10 @@ function addRosterActorToCombatSetup(actorId = el.combatRosterActor.value) {
   const groups = [...el.combatEnemyGroups.querySelectorAll('[data-enemy-group]')];
   const group = groups.length === 1 && groups[0].querySelector('[data-combat-field="name"]').value === 'Hostile' ? groups[0] : (() => { addCombatEnemyGroup(); return [...el.combatEnemyGroups.querySelectorAll('[data-enemy-group]')].at(-1); })();
   group.dataset.actorId = actor.identity.id;
+  group.dataset.actorType = actor.profile.actorType;
+  group.dataset.bodyModel = actor.profile.bodyModel;
+  group.dataset.tokenLabel = actor.presentation.tokenLabel || actor.identity.name.charAt(0);
+  group.dataset.conditions = JSON.stringify(activeNpcActorConditions(actor));
   const set = (name, value) => { group.querySelector(`[data-combat-field="${name}"]`).value = String(value); };
   set('name', actor.identity.name); set('count', 1); set('str', actor.characteristics.STR); set('dex', actor.characteristics.DEX); set('end', actor.characteristics.END); set('int', actor.characteristics.INT);
   const weapon = getPersonalWeapon(actor.loadout.weaponKey);
@@ -3196,6 +3367,10 @@ function addCombatEnemyGroup() {
   if (groups.length >= 4) return setStatus('A MANUAL ENCOUNTER SUPPORTS UP TO FOUR ENEMY TYPES', 'error');
   const group = groups[0].cloneNode(true);
   delete group.dataset.actorId;
+  delete group.dataset.actorType;
+  delete group.dataset.bodyModel;
+  delete group.dataset.tokenLabel;
+  delete group.dataset.conditions;
   group.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'));
   group.querySelector('[data-combat-field="name"]').value = `Hostile Type ${groups.length + 1}`;
   group.querySelector('[data-combat-field="count"]').value = '1';
@@ -3233,6 +3408,10 @@ function combatEnemyGroupSpecs() {
       baseName, count,
       opponents: Array.from({ length: count }, (_, index) => ({
         actorId: group.dataset.actorId || null,
+        actorType: group.dataset.actorType || 'npc',
+        bodyModel: group.dataset.bodyModel || 'biological',
+        tokenLabel: group.dataset.tokenLabel || baseName.charAt(0),
+        conditions: group.dataset.conditions ? JSON.parse(group.dataset.conditions) : [],
         name: count === 1 ? baseName : `${baseName} ${index + 1}`,
         characteristics,
         skills: { [weapon.skillNames[0]]: skillLevel },
@@ -3265,6 +3444,7 @@ function startManualEncounter() {
     encounterKey,
     date,
     range: el.combatStartingRange.value,
+    metersPerSquare: el.combatMapScale.value === '' ? null : Number.parseFloat(el.combatMapScale.value),
     dice: seededDice(`${encounterKey}|surprise`)
   });
   const surpriseWinner = encounter.surprise.surpriseSideId;
@@ -4892,6 +5072,23 @@ el.rollDialog.addEventListener('cancel', (event) => {
 });
 el.combatSetupClose.addEventListener('click', closeCombatSetupDialog);
 el.combatSetupCancel.addEventListener('click', closeCombatSetupDialog);
+el.encounterPlacementClose.addEventListener('click', closeEncounterPlacementDialog);
+el.encounterPlacementCancel.addEventListener('click', closeEncounterPlacementDialog);
+el.encounterPlacementDialog.addEventListener('cancel', (event) => { event.preventDefault(); closeEncounterPlacementDialog(); });
+el.encounterPlacementForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  try { placeRosterActorInEncounter(); } catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); }
+});
+el.encounterConditionClose.addEventListener('click', closeEncounterConditionDialog);
+el.encounterConditionCancel.addEventListener('click', closeEncounterConditionDialog);
+el.encounterConditionDialog.addEventListener('cancel', (event) => { event.preventDefault(); closeEncounterConditionDialog(); });
+el.encounterConditionForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  try { updateEncounterCondition(); } catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); }
+});
+el.encounterConditionClear.addEventListener('click', () => {
+  try { updateEncounterCondition({ clear: true }); } catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); }
+});
 el.combatAddEnemyType.addEventListener('click', addCombatEnemyGroup);
 el.combatAddRosterActor.addEventListener('click', () => addRosterActorToCombatSetup());
 el.rosterNewActor.addEventListener('click', () => openNpcActorDialog());
@@ -4926,7 +5123,7 @@ el.encounterMap.addEventListener('dragstart', (event) => event.preventDefault())
   let pan = null;
   el.encounterMapViewport.addEventListener('pointerdown', (event) => {
     hideEncounterTokenOverlays();
-    if (![0, 1, 2].includes(event.button) || event.target.closest?.('.encounter-token')) return;
+    if (![0, 1].includes(event.button) || event.target.closest?.('.encounter-token')) return;
     event.preventDefault();
     const rect = el.encounterMap.getBoundingClientRect();
     const scale = Math.min(rect.width / encounterMapView.width, rect.height / encounterMapView.height) || 1;
@@ -4961,7 +5158,7 @@ el.encounterMap.addEventListener('dragstart', (event) => event.preventDefault())
     const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
     setEncounterMapZoom(encounterMapZoom * factor, event);
   }, { passive: false });
-  el.encounterMapViewport.addEventListener('contextmenu', (event) => event.preventDefault());
+  el.encounterMapViewport.addEventListener('contextmenu', showEncounterMapMenu);
 }
 el.combatSetupDialog.addEventListener('cancel', (event) => {
   event.preventDefault();

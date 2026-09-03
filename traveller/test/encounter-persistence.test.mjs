@@ -15,8 +15,12 @@ import {
   avoidEncounter,
   encounterRangeGuide,
   repositionEncounterCombatant,
-  setEncounterRangeFromPositions
+  setEncounterRangeFromPositions,
+  addEncounterCombatantFromActor,
+  removeEncounterCombatant,
+  setEncounterCombatantCondition
 } from '../src/encounter-document.js';
+import { createNpcActorDocument, setNpcActorCondition } from '../src/npc-actor-document.js';
 import { createDocumentRegistry, createMemoryStorage } from '../src/document-registry.js';
 import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from '../client/document-loader.js';
 
@@ -52,11 +56,11 @@ async function encounterFixture() {
   return { character, ship, campaign, situation, encounter };
 }
 
-test('Encounter Document v3 round-trips the expanded workspace, declarations, positions, range, and audit history', async () => {
+test('Encounter Document v5 round-trips the expanded workspace, declarations, positions, range, and audit history', async () => {
   const { encounter } = await encounterFixture();
   const roundTrip = importEncounterDocument(exportEncounterDocument(encounter));
-  assert.equal(roundTrip.schemaVersion, 4);
-  assert.deepEqual(roundTrip.map, { grid: 'square', columns: 32, rows: 20, rangeGuide: 'graycloak-band-guide-v1' });
+  assert.equal(roundTrip.schemaVersion, 5);
+  assert.deepEqual(roundTrip.map, { grid: 'square', columns: 32, rows: 20, rangeGuide: 'graycloak-band-guide-v1', metersPerSquare: null });
   assert.deepEqual(roundTrip.roundState, { declaredActions: [] });
   assert.deepEqual(roundTrip.combatants[0].position, { column: 4, row: 9 });
   assert.equal(roundTrip.surprise.surpriseSideId, 'party');
@@ -67,18 +71,73 @@ test('Encounter Document v3 round-trips the expanded workspace, declarations, po
   assert.equal(avoided.status, 'avoided');
 });
 
-test('Encounter Document v1 imports migrate through v4 to the expanded workspace', async () => {
+test('Encounter Document v1 imports migrate through v5 to the expanded workspace', async () => {
   const { encounter } = await encounterFixture();
   const legacy = structuredClone(encounter);
   legacy.schemaVersion = 1;
   delete legacy.map;
   for (const combatant of legacy.combatants) delete combatant.position;
   const migrated = importEncounterDocument(legacy);
-  assert.equal(migrated.schemaVersion, 4);
+  assert.equal(migrated.schemaVersion, 5);
   assert.equal(migrated.map.grid, 'square');
   assert.equal(migrated.map.columns, 32);
   assert.equal(migrated.map.rows, 20);
   assert.ok(migrated.combatants.every((entry) => Number.isInteger(entry.position.column) && Number.isInteger(entry.position.row)));
+  assert.ok(migrated.combatants.every((entry) => entry.bodyModel === 'biological' && Array.isArray(entry.conditions)));
+});
+
+test('roster actors can be placed and removed at an explicit map position without rerolling surprise or range', async () => {
+  const { encounter } = await encounterFixture();
+  let robot = createNpcActorDocument({
+    id: 'actor-r17', name: 'R-17', actorType: 'robot', bodyModel: 'robotic', species: 'Robot', tokenLabel: 'R7',
+    characteristics: { STR: 9, DEX: 8, END: 10, INT: 6, EDU: 4, SOC: 0 }, weaponKey: 'laser-carbine'
+  });
+  robot = setNpcActorCondition(robot, { condition: 'disrupted', active: true });
+  const surprise = structuredClone(encounter.surprise);
+  const placed = addEncounterCombatantFromActor(encounter, { actor: robot, side: 'opposition', column: 22, row: 4 });
+  assert.equal(placed.encounter.range, 'medium');
+  assert.deepEqual(placed.encounter.surprise, surprise);
+  assert.equal(placed.combatant.sourceActorId, 'actor-r17');
+  assert.equal(placed.combatant.actorType, 'robot');
+  assert.equal(placed.combatant.bodyModel, 'robotic');
+  assert.equal(placed.combatant.tokenLabel, 'R7');
+  assert.deepEqual(placed.combatant.position, { column: 22, row: 4 });
+  assert.deepEqual(placed.combatant.conditions, ['disrupted']);
+  assert.throws(() => addEncounterCombatantFromActor(placed.encounter, { actor: robot, side: 'party', column: 2, row: 2 }), /already in this encounter/);
+  const removed = removeEncounterCombatant(placed.encounter, { combatantId: placed.combatant.id });
+  assert.equal(removed.encounter.combatants.some((entry) => entry.sourceActorId === 'actor-r17'), false);
+  assert.equal(removed.entry.kind, 'removal');
+});
+
+test('body-aware referee conditions persist without replacing Book 1 wound status', async () => {
+  const { encounter } = await encounterFixture();
+  const foe = encounter.combatants.find((entry) => entry.side === 'opposition');
+  const applied = setEncounterCombatantCondition(encounter, { combatantId: foe.id, condition: 'stunned', active: true });
+  assert.deepEqual(applied.combatant.conditions, ['stunned']);
+  assert.equal(applied.combatant.status, 'active');
+  assert.equal(applied.encounter.range, 'medium');
+  assert.match(applied.entry.text, /does not replace Book 1 wound status/);
+  assert.throws(() => setEncounterCombatantCondition(applied.encounter, { combatantId: foe.id, condition: 'destroyed' }), /not valid for a biological/);
+  const cleared = setEncounterCombatantCondition(applied.encounter, { combatantId: foe.id, condition: null });
+  assert.deepEqual(cleared.combatant.conditions, []);
+});
+
+test('referee map scale adds approximate distance while map guidance remains non-authoritative', async () => {
+  const fixture = await encounterFixture();
+  const scaled = createEncounterDocument({
+    campaign: fixture.campaign, character: fixture.character, opponent: { name: 'Scaled Raider' },
+    encounterKey: 'scaled-map', date: { year: 4800, dayOfYear: 106 }, range: 'medium', metersPerSquare: 1.5,
+    dice: sequenceDice([3, 3])
+  });
+  const actor = scaled.combatants.find((entry) => entry.side === 'party');
+  const foe = scaled.combatants.find((entry) => entry.side === 'opposition');
+  const guide = encounterRangeGuide(scaled, actor.id, foe.id);
+  assert.equal(guide.distance, 8);
+  assert.equal(guide.meters, 12);
+  assert.equal(guide.authoritativeRange, 'medium');
+  const moved = repositionEncounterCombatant(scaled, { combatantId: actor.id, column: 6, row: actor.position.row });
+  assert.match(moved.entry.text, /approximately 3 m at the referee scale/);
+  assert.equal(moved.encounter.range, 'medium');
 });
 
 test('dragged token positions persist while Book 1 range changes only through an explicit referee action', async () => {

@@ -8,6 +8,11 @@ export const NPC_ACTOR_DOCUMENT_TYPE = 'graycloak-traveller-npc-actor';
 export const CURRENT_NPC_ACTOR_SCHEMA_VERSION = 1;
 export const NPC_ACTOR_TYPES = Object.freeze(['npc', 'robot', 'creature']);
 export const NPC_BODY_MODELS = Object.freeze(['biological', 'robotic', 'hybrid']);
+export const NPC_CONDITIONS = Object.freeze({
+  biological: Object.freeze(['stunned', 'unconscious', 'dead']),
+  robotic: Object.freeze(['disrupted', 'powered-down', 'disabled', 'destroyed']),
+  hybrid: Object.freeze(['stunned', 'unconscious', 'disrupted', 'powered-down', 'disabled', 'dead', 'destroyed'])
+});
 
 export class NpcActorDocumentValidationError extends Error {
   constructor(errors) {
@@ -144,6 +149,7 @@ export function validateNpcActorDocument(document) {
   add(errors, Array.isArray(document.effects), 'effects must be an array');
   if (Array.isArray(document.effects)) for (const effect of document.effects) {
     add(errors, nonblank(effect?.id) && nonblank(effect?.label) && ['condition', 'injury', 'equipment', 'environmental', 'custom'].includes(effect?.kind) && typeof effect?.active === 'boolean', 'effect is invalid');
+    if (effect?.kind === 'condition' && effect.key !== undefined) add(errors, NPC_CONDITIONS[document.profile?.bodyModel]?.includes(effect.key), 'condition effect key is invalid for the actor body model');
   }
   add(errors, typeof document.notes?.public === 'string' && typeof document.notes?.referee === 'string', 'notes are invalid');
   add(errors, nonblank(document.provenance?.rulesBasis) && nonblank(document.provenance?.setting), 'provenance is invalid');
@@ -193,4 +199,36 @@ export function updateNpcActorDocument(document, patch = {}) {
     publicNotes: patch.publicNotes ?? current.notes.public,
     refereeNotes: patch.refereeNotes ?? current.notes.referee
   });
+}
+
+export function activeNpcActorConditions(document) {
+  const actor = importNpcActorDocument(document);
+  return actor.effects.filter((effect) => effect.kind === 'condition' && effect.active).map((effect) => effect.key ?? effect.label.toLowerCase().replaceAll(' ', '-'));
+}
+
+export function setNpcActorCondition(document, { condition, active = true } = {}) {
+  const actor = importNpcActorDocument(document);
+  if (!NPC_CONDITIONS[actor.profile.bodyModel].includes(condition)) throw new RangeError(`${condition} is not valid for a ${actor.profile.bodyModel} actor`);
+  const effectId = stableDocumentId('effect', `${actor.identity.id}|condition|${condition}`);
+  const effects = actor.effects.filter((effect) => effect.id !== effectId);
+  effects.push({ id: effectId, key: condition, label: condition.replaceAll('-', ' '), kind: 'condition', active: Boolean(active), source: 'referee' });
+  const state = { ...actor.state };
+  const activeKeys = new Set(effects.filter((effect) => effect.kind === 'condition' && effect.active).map((effect) => effect.key));
+  if (actor.profile.bodyModel !== 'biological') {
+    state.activation = activeKeys.has('powered-down') ? 'powered-down' : 'active';
+    state.integrity = activeKeys.has('destroyed') ? 'destroyed' : activeKeys.has('disabled') ? 'disabled' : activeKeys.has('disrupted') ? 'damaged' : 'intact';
+  }
+  if (actor.profile.bodyModel !== 'robotic') {
+    state.consciousness = activeKeys.has('unconscious') ? 'unconscious' : 'conscious';
+    state.lifeState = activeKeys.has('dead') ? 'dead' : 'alive';
+  }
+  return updateNpcActorDocument(actor, { effects, state });
+}
+
+export function clearNpcActorConditions(document) {
+  let actor = importNpcActorDocument(document);
+  for (const condition of NPC_CONDITIONS[actor.profile.bodyModel]) {
+    if (activeNpcActorConditions(actor).includes(condition)) actor = setNpcActorCondition(actor, { condition, active: false });
+  }
+  return actor;
 }

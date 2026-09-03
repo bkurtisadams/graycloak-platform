@@ -12,7 +12,14 @@ import {
   importCampaignDocument
 } from '../src/campaign-document.js';
 import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js';
-import { createNpcActorDocument, importNpcActorDocument, updateNpcActorDocument } from '../src/npc-actor-document.js';
+import {
+  createNpcActorDocument,
+  importNpcActorDocument,
+  updateNpcActorDocument,
+  activeNpcActorConditions,
+  setNpcActorCondition,
+  clearNpcActorConditions
+} from '../src/npc-actor-document.js';
 import { createEncounterDocument, importEncounterDocument } from '../src/encounter-document.js';
 import { createCampaignBundle, importCampaignBundle } from '../src/campaign-bundle.js';
 import { createDocumentRegistry, createMemoryStorage } from '../src/document-registry.js';
@@ -55,6 +62,22 @@ test('NPC actors retain classic characteristics, presentation, equipment, notes,
   assert.equal(robot.state.consciousness, 'not-applicable');
   assert.equal(robot.state.activation, 'active');
   assert.equal(updateNpcActorDocument(robot, { state: { ...robot.state, activation: 'offline', integrity: 'damaged' } }).state.activation, 'offline');
+});
+
+test('body-aware actor conditions distinguish robot shutdown and destruction from biological death', () => {
+  let robot = createNpcActorDocument({ id: 'actor-condition-robot', name: 'R-17', actorType: 'robot', bodyModel: 'robotic', species: 'Robot' });
+  robot = setNpcActorCondition(robot, { condition: 'powered-down' });
+  assert.equal(robot.state.activation, 'powered-down');
+  assert.equal(robot.state.lifeState, 'not-applicable');
+  assert.deepEqual(activeNpcActorConditions(robot), ['powered-down']);
+  assert.throws(() => setNpcActorCondition(robot, { condition: 'dead' }), /not valid for a robotic/);
+  robot = setNpcActorCondition(robot, { condition: 'destroyed' });
+  assert.equal(robot.state.integrity, 'destroyed');
+  assert.deepEqual(new Set(activeNpcActorConditions(robot)), new Set(['powered-down', 'destroyed']));
+  robot = clearNpcActorConditions(robot);
+  assert.deepEqual(activeNpcActorConditions(robot), []);
+  assert.equal(robot.state.activation, 'active');
+  assert.equal(robot.state.integrity, 'intact');
 });
 
 test('Campaign v8 and Bundle v7 preserve roster folders, actors, and portrait assets through the registry', async () => {

@@ -1,5 +1,11 @@
 # Graycloak Traveller
 
+## v0.16.0 roster-driven encounters and conditions
+
+v0.16.0 connects the persistent actor roster to the live encounter workspace. Right-click an empty map square to place an unused roster NPC, robot, or creature as opposition or a party ally; surprise is not rerolled and the authoritative Book 1 range is unchanged. Right-click tokens to select, target, inspect, apply or remove a body-aware referee condition, or remove the participant while retaining its roster record. Biological actors use stunned/unconscious/dead vocabulary; robots use disrupted/powered-down/disabled/destroyed vocabulary; hybrid actors can use either set. Conditions persist in both encounters and linked roster actors but remain explicit annotations rather than inventing automatic rules effects.
+
+Enemy tokens now use actor-type shapes and short labels, active actor/target and range-mismatch text are more explicit, token hover text includes actor/body type and conditions, and the collapsible roster shows those conditions. Manual encounter setup may optionally record a referee-defined meters-per-square scale; otherwise the display says scale unset. Movement logs record square distance and optional approximate meters, while `[ APPLY MAP RANGE ]` remains the only way map geometry can change the Book 1 range band. Encounter Documents migrate from schema v4 to v5; Campaign and Bundle schemas are unchanged.
+
 ## v0.15.2.1 navigation-return hotfix
 
 v0.15.2.1 restores an explicit route from the focused encounter workspace to the subsector jump controls. The jump action itself was still being generated, but encounter-focus styling deliberately hid the navigation-plan block and the operations tabs did not include a dedicated way back to it. A compact `[ NAV ]` tab now restores the subsector map, jump plan, ship status, and `[ JUMP TO ... ]` action. Navigation is also the default workspace whenever a campaign is created, loaded locally, or imported. Combat retains its full-width focused map until the user selects `[ NAV ]`. No rules or persistence schemas change.

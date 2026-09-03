@@ -13,9 +13,16 @@ import {
 } from '../../packages/classic-traveller-rules/index.js';
 
 export const ENCOUNTER_DOCUMENT_TYPE = 'graycloak-traveller-personal-encounter';
-export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 4;
-export const SUPPORTED_ENCOUNTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4]);
+export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 5;
+export const SUPPORTED_ENCOUNTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5]);
 export const ENCOUNTER_STATUSES = Object.freeze(['active', 'victory', 'defeat', 'escaped', 'avoided', 'opposition-withdrew']);
+export const ENCOUNTER_ACTOR_TYPES = Object.freeze(['pc', 'npc', 'robot', 'creature']);
+export const ENCOUNTER_BODY_MODELS = Object.freeze(['biological', 'robotic', 'hybrid']);
+export const ENCOUNTER_CONDITIONS = Object.freeze({
+  biological: Object.freeze(['stunned', 'unconscious', 'dead']),
+  robotic: Object.freeze(['disrupted', 'powered-down', 'disabled', 'destroyed']),
+  hybrid: Object.freeze(['stunned', 'unconscious', 'disrupted', 'powered-down', 'disabled', 'dead', 'destroyed'])
+});
 export const ENCOUNTER_MAP_COLUMNS = 32;
 export const ENCOUNTER_MAP_ROWS = 20;
 export const ENCOUNTER_RANGE_GUIDE = Object.freeze({
@@ -61,7 +68,7 @@ function partyDocuments(character, characters) {
   return entries;
 }
 
-export function createEncounterDocument({ campaign, situation = null, character = null, characters = null, partyLoadouts = {}, opponent = null, opponents = null, title = null, encounterKey = null, date, range = 'medium', dice } = {}) {
+export function createEncounterDocument({ campaign, situation = null, character = null, characters = null, partyLoadouts = {}, opponent = null, opponents = null, title = null, encounterKey = null, date, range = 'medium', metersPerSquare = null, dice } = {}) {
   if (!campaign?.identity?.id) throw new TypeError('campaign is required');
   const characterDocuments = partyDocuments(character, characters);
   const opponentSpecs = Array.isArray(opponents) && opponents.length ? opponents : opponent ? [opponent] : [];
@@ -78,7 +85,8 @@ export function createEncounterDocument({ campaign, situation = null, character 
       armor: loadout.armor ?? opponentSpecs[0].playerArmor ?? 'none',
       weaponKey: loadout.weaponKey ?? opponentSpecs[0].playerWeaponKey ?? 'rifle',
       surpriseDM: (military ? 1 : 0) + Math.min(1, Number(entry.skills?.Leadership ?? 0)) + Math.min(1, Number(entry.skills?.Tactics ?? 0))
-    }), initialPosition('party', index, characterDocuments.length, range)), sourceActorId: entry.identity.id };
+    }), initialPosition('party', index, characterDocuments.length, range)), sourceActorId: entry.identity.id,
+      actorType: 'pc', bodyModel: 'biological', tokenLabel: entry.identity.name.charAt(0).toUpperCase(), conditions: [] };
   });
   const hostiles = opponentSpecs.map((spec, index) => {
     const weaponKey = spec.weaponKey ?? 'automatic-pistol';
@@ -88,7 +96,9 @@ export function createEncounterDocument({ campaign, situation = null, character 
       name: spec.name, side: 'opposition', characteristics: spec.characteristics ?? { STR: 7, DEX: 7, END: 7, INT: 7 },
       skills: spec.skills ?? { [defaultSkill]: 0 }, armor: spec.armor ?? 'jack',
       weaponKey, surpriseDM: Number(spec.surpriseDM ?? 0)
-    }), initialPosition('opposition', index, opponentSpecs.length, range)), sourceActorId: spec.actorId ?? null };
+    }), initialPosition('opposition', index, opponentSpecs.length, range)), sourceActorId: spec.actorId ?? null,
+      actorType: spec.actorType ?? 'npc', bodyModel: spec.bodyModel ?? (spec.actorType === 'robot' ? 'robotic' : 'biological'),
+      tokenLabel: String(spec.tokenLabel ?? spec.name).charAt(0).toUpperCase(), conditions: Array.isArray(spec.conditions) ? [...spec.conditions] : [] };
   });
   const surprise = resolvePersonalSurprise({ sides: [{ id: 'party', combatants: party }, { id: 'opposition', combatants: hostiles }], dice });
   const seed = `${campaign.identity.id}|${encounterKey ?? situation?.identity?.id ?? 'encounter'}|${date.year}-${date.dayOfYear}`;
@@ -105,7 +115,7 @@ export function createEncounterDocument({ campaign, situation = null, character 
     },
     timing: { createdDate: { year: date.year, dayOfYear: date.dayOfYear }, resolvedDate: null },
     status: 'active', round: 1, range, surprise,
-    map: { grid: 'square', columns: ENCOUNTER_MAP_COLUMNS, rows: ENCOUNTER_MAP_ROWS, rangeGuide: 'graycloak-band-guide-v1' },
+    map: { grid: 'square', columns: ENCOUNTER_MAP_COLUMNS, rows: ENCOUNTER_MAP_ROWS, rangeGuide: 'graycloak-band-guide-v1', metersPerSquare },
     roundState: { declaredActions: [] },
     combatants: [...party, ...hostiles],
     history: [{ round: 0, kind: 'surprise', text: surprise.surpriseSideId ? `${surprise.surpriseSideId} achieved surprise.` : 'Neither side achieved surprise.', detail: surprise }],
@@ -132,6 +142,7 @@ export function validateEncounterDocument(document) {
   add(errors, Number.isInteger(document.round) && document.round >= 1, 'round must be a positive integer');
   add(errors, PERSONAL_COMBAT_RANGES.includes(document.range), 'range is invalid');
   add(errors, document.map?.grid === 'square' && document.map?.columns === ENCOUNTER_MAP_COLUMNS && document.map?.rows === ENCOUNTER_MAP_ROWS && document.map?.rangeGuide === 'graycloak-band-guide-v1', 'map must be the supported square encounter workspace');
+  add(errors, document.map?.metersPerSquare === null || (typeof document.map?.metersPerSquare === 'number' && Number.isFinite(document.map.metersPerSquare) && document.map.metersPerSquare > 0 && document.map.metersPerSquare <= 1000), 'map.metersPerSquare must be null or a positive number no greater than 1000');
   add(errors, plain(document.roundState) && Array.isArray(document.roundState?.declaredActions), 'roundState must contain declaredActions');
   if (Array.isArray(document.roundState?.declaredActions)) for (const declaration of document.roundState.declaredActions) {
     add(errors, nonblank(declaration.actorId) && ['attack', 'evade', 'close', 'open', 'escape', 'wait'].includes(declaration.action), 'declared party action is invalid');
@@ -156,6 +167,10 @@ export function validateEncounterDocument(document) {
     try { getPersonalWeapon(entry.weaponKey); } catch (error) { errors.push(error.message); }
     add(errors, PERSONAL_COMBAT_STATUSES.includes(entry.status), `combatant ${entry.name ?? ''} status is invalid`);
     add(errors, entry.sourceActorId === null || nonblank(entry.sourceActorId), `combatant ${entry.name ?? ''} sourceActorId is invalid`);
+    add(errors, ENCOUNTER_ACTOR_TYPES.includes(entry.actorType), `combatant ${entry.name ?? ''} actorType is invalid`);
+    add(errors, ENCOUNTER_BODY_MODELS.includes(entry.bodyModel), `combatant ${entry.name ?? ''} bodyModel is invalid`);
+    add(errors, typeof entry.tokenLabel === 'string' && entry.tokenLabel.length <= 3, `combatant ${entry.name ?? ''} tokenLabel is invalid`);
+    add(errors, Array.isArray(entry.conditions) && entry.conditions.every((condition) => ENCOUNTER_CONDITIONS[entry.bodyModel]?.includes(condition)), `combatant ${entry.name ?? ''} conditions are invalid`);
   }
   if (Array.isArray(document.combatants)) {
     add(errors, document.combatants.some((entry) => entry.side === 'party'), 'combatants require a party side');
@@ -219,6 +234,17 @@ function migrateEncounterDocument(document) {
     document.combatants = document.combatants.map((entry) => ({ ...entry, sourceActorId: entry.side === 'party' ? entry.id : null }));
     document.schemaVersion = 4;
   }
+  if (document.schemaVersion === 4) {
+    document.map = { ...document.map, metersPerSquare: null };
+    document.combatants = document.combatants.map((entry) => ({
+      ...entry,
+      actorType: entry.playerCharacter ? 'pc' : 'npc',
+      bodyModel: 'biological',
+      tokenLabel: String(entry.name ?? '').charAt(0).toUpperCase(),
+      conditions: []
+    }));
+    document.schemaVersion = 5;
+  }
   return document;
 }
 
@@ -257,7 +283,8 @@ export function encounterRangeGuide(document, actorId, targetId) {
   if (!actor || !target || actor.side === target.side) throw new Error('range guide requires opposing combatants');
   const distance = encounterMapDistance(actor, target);
   const suggestedRange = rangeBandForMapDistance(distance);
-  return { actorId, targetId, distance, suggestedRange, authoritativeRange: encounter.range, matches: suggestedRange === encounter.range };
+  const meters = encounter.map.metersPerSquare === null ? null : Number((distance * encounter.map.metersPerSquare).toFixed(2));
+  return { actorId, targetId, distance, meters, suggestedRange, authoritativeRange: encounter.range, matches: suggestedRange === encounter.range };
 }
 
 export function repositionEncounterCombatant(document, { combatantId, column, row } = {}) {
@@ -269,10 +296,89 @@ export function repositionEncounterCombatant(document, { combatantId, column, ro
   if (current.position.column === column && current.position.row === row) return { encounter: next, entry: null };
   const prior = { ...current.position };
   current.position = { column, row };
-  const entry = { round: next.round, kind: 'map-position', side: current.side, combatantId: current.id, text: `${current.name} repositioned on the visual map from ${prior.column + 1},${prior.row + 1} to ${column + 1},${row + 1}; Book 1 range remains ${next.range}.` };
+  const distance = Math.max(Math.abs(prior.column - column), Math.abs(prior.row - row));
+  const metric = next.map.metersPerSquare === null ? '' : ` / approximately ${Number((distance * next.map.metersPerSquare).toFixed(2))} m at the referee scale`;
+  const entry = { round: next.round, kind: 'map-position', side: current.side, combatantId: current.id, text: `${current.name} repositioned ${distance} square${distance === 1 ? '' : 's'}${metric} on the visual map from ${prior.column + 1},${prior.row + 1} to ${column + 1},${row + 1}; Book 1 range remains ${next.range}.` };
   next.history.push(entry);
   assertValidEncounterDocument(next);
   return { encounter: next, entry };
+}
+
+function actorConditionKeys(actor) {
+  return (actor.effects ?? [])
+    .filter((effect) => effect?.active && effect.kind === 'condition')
+    .map((effect) => effect.key)
+    .filter((key) => ENCOUNTER_CONDITIONS[actor.profile?.bodyModel]?.includes(key));
+}
+
+export function addEncounterCombatantFromActor(document, { actor, side = 'opposition', column, row } = {}) {
+  const next = importEncounterDocument(document);
+  if (next.status !== 'active') throw new Error('encounter is already resolved');
+  if (!actor?.identity?.id || !actor?.identity?.name || !actor?.profile?.bodyModel) throw new TypeError('a roster actor is required');
+  if (!['party', 'opposition'].includes(side)) throw new RangeError('combatant side must be party or opposition');
+  if (next.combatants.some((entry) => entry.sourceActorId === actor.identity.id)) throw new Error(`${actor.identity.name} is already in this encounter`);
+  const sideCount = next.combatants.filter((entry) => entry.side === side).length;
+  const sideLimit = side === 'party' ? 8 : 16;
+  if (sideCount >= sideLimit) throw new RangeError(`${side} supports at most ${sideLimit} combatants`);
+  if (!Number.isInteger(column) || column < 0 || column >= ENCOUNTER_MAP_COLUMNS || !Number.isInteger(row) || row < 0 || row >= ENCOUNTER_MAP_ROWS) throw new RangeError('map position is outside the encounter workspace');
+  const weaponKey = actor.loadout?.weaponKey ?? 'hands';
+  const combatant = {
+    ...createPersonalCombatant({
+      id: stableDocumentId('participant', `${next.identity.id}|${actor.identity.id}`),
+      name: actor.identity.name,
+      side,
+      characteristics: actor.characteristics,
+      skills: actor.skills ?? {},
+      armor: actor.loadout?.armor ?? 'none',
+      weaponKey,
+      surpriseDM: 0
+    }),
+    position: { column, row },
+    sourceActorId: actor.identity.id,
+    actorType: actor.profile.actorType ?? 'npc',
+    bodyModel: actor.profile.bodyModel,
+    tokenLabel: String(actor.presentation?.tokenLabel || actor.identity.name).slice(0, 3).toUpperCase(),
+    conditions: actorConditionKeys(actor)
+  };
+  next.combatants.push(combatant);
+  const entry = { round: next.round, kind: 'placement', side, combatantId: combatant.id, sourceActorId: actor.identity.id, text: `${actor.identity.name} placed for ${side} at ${column + 1},${row + 1}; surprise is not rerolled and Book 1 range remains ${next.range}.` };
+  next.history.push(entry);
+  assertValidEncounterDocument(next);
+  return { encounter: next, combatant, entry };
+}
+
+export function removeEncounterCombatant(document, { combatantId } = {}) {
+  const next = importEncounterDocument(document);
+  if (next.status !== 'active') throw new Error('encounter is already resolved');
+  const combatant = next.combatants.find((entry) => entry.id === combatantId);
+  if (!combatant) throw new Error('combatant is unavailable');
+  if (next.combatants.filter((entry) => entry.side === combatant.side).length <= 1) throw new Error(`cannot remove the last ${combatant.side} combatant`);
+  next.combatants = next.combatants.filter((entry) => entry.id !== combatantId);
+  next.roundState.declaredActions = next.roundState.declaredActions.filter((entry) => entry.actorId !== combatantId && entry.targetId !== combatantId);
+  const entry = { round: next.round, kind: 'removal', side: combatant.side, combatantId, sourceActorId: combatant.sourceActorId, text: `${combatant.name} removed from the encounter by the referee.` };
+  next.history.push(entry);
+  assertValidEncounterDocument(next);
+  return { encounter: next, combatant, entry };
+}
+
+export function setEncounterCombatantCondition(document, { combatantId, condition = null, active = true } = {}) {
+  const next = importEncounterDocument(document);
+  const combatant = next.combatants.find((entry) => entry.id === combatantId);
+  if (!combatant) throw new Error('combatant is unavailable');
+  if (condition !== null && !ENCOUNTER_CONDITIONS[combatant.bodyModel].includes(condition)) throw new RangeError(`${condition} is not valid for a ${combatant.bodyModel} combatant`);
+  const before = [...combatant.conditions];
+  if (condition === null) combatant.conditions = [];
+  else if (active && !combatant.conditions.includes(condition)) combatant.conditions.push(condition);
+  else if (!active) combatant.conditions = combatant.conditions.filter((entry) => entry !== condition);
+  const label = condition === null ? 'all referee conditions' : condition;
+  const verb = condition === null ? 'cleared' : active ? 'applied' : 'removed';
+  const entry = before.join('|') === combatant.conditions.join('|') ? null : {
+    round: next.round, kind: 'condition', side: 'referee', combatantId, condition, active: condition === null ? false : active,
+    text: `Referee ${verb} ${label} for ${combatant.name}; this annotation does not replace Book 1 wound status (${combatant.status}).`
+  };
+  if (entry) next.history.push(entry);
+  assertValidEncounterDocument(next);
+  return { encounter: next, combatant, entry };
 }
 
 export function setEncounterRangeFromPositions(document, { actorId, targetId } = {}) {

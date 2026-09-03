@@ -12,7 +12,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.15.2.1</div>
+          <div id="app-subtitle" class="subtitle">v0.16.0</div>
           <button id="toggle-activity" class="text-button masthead-log-toggle" type="button" aria-expanded="true" aria-controls="activity-panel">[ HIDE LOG ]</button>
         </div>
         <div id="campaign-identity" class="campaign-identity"><span>CAMPAIGN</span> // <strong id="header-campaign-name">NO CAMPAIGN</strong></div>
@@ -220,7 +220,7 @@
                       <div id="encounter-token-tooltip" class="encounter-token-tooltip" hidden></div>
                       <div id="encounter-token-menu" class="encounter-token-menu" hidden></div>
                     </div>
-                    <div class="encounter-map-legend"><span><i class="encounter-legend-pc"></i> PARTY</span><span><i class="encounter-legend-enemy"></i> OPPOSITION</span></div>
+                    <div class="encounter-map-legend"><span><i class="encounter-legend-pc"></i> PARTY</span><span><i class="encounter-legend-enemy"></i> OPPOSITION</span><span>RIGHT-CLICK EMPTY MAP TO PLACE ROSTER ACTOR</span></div>
                   </div>
                   <div class="encounter-side-panel">
                     <div id="encounter-party-roster" class="encounter-party-roster" aria-label="Party combatants"></div>
@@ -366,11 +366,34 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
               <option value="long">Long</option><option value="very-long">Very Long</option>
             </select>
           </label>
+          <label>METERS / SQUARE <input id="combat-map-scale" type="number" min="0.1" max="1000" step="0.1" placeholder="UNSET"></label>
         </div>
         <div class="roll-dialog-actions">
           <button class="text-button action-button" type="submit">[ START COMBAT ]</button>
           <button id="combat-setup-cancel" class="text-button" type="button">[ CANCEL ]</button>
         </div>
+      </form>
+    </dialog>
+
+    <dialog id="encounter-placement-dialog" class="roll-dialog encounter-placement-dialog" aria-labelledby="encounter-placement-title">
+      <form id="encounter-placement-form" class="roll-dialog-form" method="dialog">
+        <div class="roll-dialog-header"><strong id="encounter-placement-title">PLACE ROSTER ACTOR</strong><button id="encounter-placement-close" class="text-button" type="button">[ CLOSE ]</button></div>
+        <div class="roll-dialog-basis">RIGHT-CLICK MAP PLACEMENT // SURPRISE IS NOT REROLLED // BOOK 1 RANGE IS UNCHANGED</div>
+        <label>ACTOR<select id="encounter-placement-actor" required></select></label>
+        <label>SIDE<select id="encounter-placement-side"><option value="opposition">Opposition</option><option value="party">Party ally</option></select></label>
+        <div class="roll-dialog-row"><span>POSITION</span><strong id="encounter-placement-position">--</strong></div>
+        <div class="roll-dialog-actions"><button class="text-button action-button" type="submit">[ PLACE ]</button><button id="encounter-placement-cancel" class="text-button" type="button">[ CANCEL ]</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="encounter-condition-dialog" class="roll-dialog encounter-condition-dialog" aria-labelledby="encounter-condition-title">
+      <form id="encounter-condition-form" class="roll-dialog-form" method="dialog">
+        <div class="roll-dialog-header"><strong id="encounter-condition-title">REFEREE CONDITION</strong><button id="encounter-condition-close" class="text-button" type="button">[ CLOSE ]</button></div>
+        <div class="roll-dialog-basis">BODY-AWARE PERSISTENT ANNOTATION // DOES NOT REPLACE BOOK 1 WOUND STATUS OR AUTOMATE AN UNSOURCED RULE</div>
+        <div class="roll-dialog-row"><span>ACTOR</span><strong id="encounter-condition-actor">--</strong></div>
+        <label>CONDITION<select id="encounter-condition-select" required></select></label>
+        <label>ACTION<select id="encounter-condition-active"><option value="apply">Apply</option><option value="remove">Remove</option></select></label>
+        <div class="roll-dialog-actions"><button class="text-button action-button" type="submit">[ UPDATE ]</button><button id="encounter-condition-clear" class="text-button" type="button">[ CLEAR ALL ]</button><button id="encounter-condition-cancel" class="text-button" type="button">[ CANCEL ]</button></div>
       </form>
     </dialog>
 

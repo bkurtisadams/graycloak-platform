@@ -721,6 +721,8 @@ input[readonly] {
 .encounter-token-enemy:focus { stroke: #29465c; stroke-width: 4; outline: none; }
 .encounter-token-enemy.selected { fill: #111311; stroke: #e7dfb6; stroke-width: 5; }
 .encounter-token-enemy.inactive { fill: #777a75; opacity: 0.55; cursor: default; }
+.encounter-token-enemy-label { fill: #f2f2ed; font: 700 10px Consolas, monospace; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.encounter-token-condition-marker { fill: #6a1f1f; stroke: #e7dfb6; stroke-width: 0.5px; font: 700 16px Consolas, monospace; pointer-events: none; }
 .encounter-token-tooltip,
 .encounter-token-menu { position: absolute; z-index: 8; max-width: 280px; border: 1px solid #111311; background: #e5e5e1; color: #111311; padding: 5px 7px; font: 11px/1.35 Consolas, monospace; white-space: pre-line; pointer-events: none; }
 .encounter-token-menu { z-index: 9; display: grid; gap: 2px; min-width: 170px; pointer-events: auto; white-space: normal; }
@@ -817,7 +819,11 @@ input[readonly] {
 .roster-card-name { font-weight: 700; }
 .roster-card-meta,
 .roster-card-description { display: block; color: #3c3f3b; font-size: 10px; }
+.roster-card-conditions { display: block; margin-top: 2px; color: var(--muted); font-size: 10px; }
+.roster-card-conditions.active { color: #6a1f1f; font-weight: 700; }
 .roster-card-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+.encounter-placement-dialog,
+.encounter-condition-dialog { width: min(470px, calc(100vw - 24px)); }
 .npc-actor-dialog { width: min(760px, calc(100vw - 24px)); }
 .npc-editor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; max-height: 68vh; overflow-y: auto; padding-right: 3px; }
 .npc-editor-grid label { display: grid; gap: 2px; }
