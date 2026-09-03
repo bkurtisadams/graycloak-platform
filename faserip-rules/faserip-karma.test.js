@@ -156,19 +156,24 @@ t('[CERT] power stunt colors: never=red, 1-3=yellow, 4-10=green, 11+=automatic',
 
 // --- Advancement --------------------------------------------------------
 
-t('[CERT] Potato Salad Man: Reason 14->15 costs 140; 15 -> Excellent(16) costs 550', () => {
+t('[CERT] Potato Salad Man: Reason 14->15 costs 140 (no crest offered mid-rank); 15 -> Excellent(16) costs 550', () => {
   const at14 = advancementOptions({ current: 14, kind: 'ability' });
   eq(at14.step, { to: 15, cost: 140 });
+  eq(at14.crest, null);
   const at15 = advancementOptions({ current: 15, kind: 'ability' });
   eq(at15.step, null);
   eq(at15.crest, { to: 16, cost: 550 });
 });
 
-t('[CERT] Coldboy: power Amazing(60)->61 costs 1200; 61 -> Monstrous(63) crest costs 1720', () => {
+t('[CERT] Coldboy: power Amazing(60)->61 costs 1200, 61->62 costs 1220, 62 -> Monstrous(63) crests for 1740 (RULED 2026-09-02: the book\'s 61->63 for 1720 skips 62)', () => {
   const at60 = advancementOptions({ current: 60, kind: 'power' });
   eq(at60.step, { to: 61, cost: 1200 });
   const at61 = advancementOptions({ current: 61, kind: 'power' });
-  eq(at61.crest, { to: 63, cost: 1720 });
+  eq(at61.step, { to: 62, cost: 1220 });
+  eq(at61.crest, null);
+  const at62 = advancementOptions({ current: 62, kind: 'power' });
+  eq(at62.step, null);
+  eq(at62.crest, { to: 63, cost: 1740 });
 });
 
 t('[CERT] resource crest fee 200, popularity crest free', () => {
@@ -176,12 +181,17 @@ t('[CERT] resource crest fee 200, popularity crest free', () => {
   eq(advancementOptions({ current: 15, kind: 'popularity' }).crest, { to: 16, cost: 150 });
 });
 
-t('[CERT] additions: power 3000+40n (robots 3000+10n); talents 2000 PC / 1000 NPC (students 1000/800); contacts 500+10xRes, x2 extradimensional', () => {
+t('[CERT] additions: power 3000+40n (robots 3000+10n); talents 2000 PC / 1000 NPC (students 1000/800); contacts 500+10xRes', () => {
   eq(powerAdditionCost(20), 3800);
   eq(powerAdditionCost(20, { robot: true }), 3200);
   eq(TALENT_ADDITION_COST, { fromPC: 2000, fromNPC: 1000, studentFromPC: 1000, studentFromNPC: 800 });
   eq(contactAdditionCost(30), 800);
-  eq(contactAdditionCost(30, { extradimensional: true }), 1600);
+});
+
+t('[CERT] RULED 2026-09-02: Contact Addition is flat 500+10xRes; no extradimensional/mystic multiplier (Appendix C prices nothing)', () => {
+  eq(contactAdditionCost(10), 600);
+  eq(contactAdditionCost(10, { extradimensional: true }), 600);
+  eq(contactAdditionCost(0), 500);
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

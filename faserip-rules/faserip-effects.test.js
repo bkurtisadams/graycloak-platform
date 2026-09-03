@@ -5,7 +5,7 @@
 import {
   EFFECT_COLUMNS, SLAM_TABLE, STUN_TABLE, KILL_TABLE,
   effectForColor, reduceEffectColor, resolveAttack,
-  resolveSlam, resolveStun, resolveKill,
+  resolveSlam, resolveStun, resolveKill, resolveGrabBreak,
   CATCH_MIN_AGILITY, canAttemptCatch, resolveCatch, CATCH_SELF_DIRECTED_SHIFT,
   EFFECTS_VERSION, EFFECTS_CERTIFIED,
 } from './faserip-effects.js';
@@ -111,11 +111,22 @@ t('[CERT] shooting effect reducible only via 50 Karma per color step', () => {
   eq(reduceEffectColor('Sh', 'red', 1, 50), { color: 'yellow', allowed: true, karmaCost: 50 });
 });
 
-t('[CERT] pulling-punch flags: damage-reducible BA/TB/TE/En/Fo/Gp/Ch; effect-reducible BA/TB/Fo/Gp/Ch (En excluded per Energy Attack section; errata note)', () => {
+t('[CERT] pulling-punch flags: damage-reducible BA/TB/TE/En/Fo/Gp/Ch; effect-reducible BA/TB/Gp/Ch (En and Fo excluded: Energy Attack and Force Attack section text over the Pulling Punches summary, RULED 2026-09-02)', () => {
   const dmg = Object.keys(EFFECT_COLUMNS).filter(k => EFFECT_COLUMNS[k].reduceDamage).sort();
   eq(dmg, ['BA', 'Ch', 'En', 'Fo', 'Gp', 'TB', 'TE'].sort());
   const eff = Object.keys(EFFECT_COLUMNS).filter(k => EFFECT_COLUMNS[k].reduceEffect).sort();
-  eq(eff, ['BA', 'Ch', 'Fo', 'Gp', 'TB'].sort());
+  eq(eff, ['BA', 'Ch', 'Gp', 'TB'].sort());
+  eq(reduceEffectColor('Fo', 'red', 1), { color: 'red', allowed: false, karmaCost: 0 });
+});
+
+t('[CERT] Grabbing Break: second roll on the item\'s material column — white breaks it, any colour keeps it intact', () => {
+  // Excellent material: greenStart 41 -> 40 white, 41 green
+  const broken = resolveGrabBreak({ materialRank: 'EX', roll: 40 });
+  eq(broken.broken, true);
+  eq(broken.intact, false);
+  const kept = resolveGrabBreak({ materialRank: 'EX', roll: 41 });
+  eq(kept.intact, true);
+  eq(kept.color, 'green');
 });
 
 // --- Composed attack resolution ----------------------------------------
