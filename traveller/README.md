@@ -1,5 +1,11 @@
 # Graycloak Traveller
 
+## v0.15.2 Traveller-first campaign interface
+
+v0.15.2 simplifies the campaign-play hierarchy without changing rules or persistent document schemas. The masthead now identifies the application as `TRAVELLER`, displays the current campaign separately, and keeps `[ NEW ]`, `[ SAVE ]`, `[ LOAD ]`, `[ IMPORT ]`, and `[ EXPORT ]` together immediately below the campaign name. Save/Load remain browser-local; Import/Export operate on portable campaign JSON. The long feature/version banner, campaign-terminal label, and developer-facing rules footer have been removed, leaving a small version marker and transient status message.
+
+The main workspace heading changes from `SUBSECTOR NAVIGATION` to `PERSONAL COMBAT` while the encounter workspace is active. Repeated map instructions have moved into contextual help, and the full text encounter record is collapsed behind `ENCOUNTER DETAILS`; the map, action bar, party cards, and enemy roster remain immediately visible. The Activity Log can be hidden from the masthead, and its new default `PLAY` filter shows campaign activity while suppressing routine `SYSLOG` administration. Saving, loading, importing, and exporting still report success in the status line but no longer add repetitive journal entries. Classic Traveller Book 1 abstract range bands remain authoritative.
+
 ## v0.15.1.1 portable activity journal and token-menu fix
 
 v0.15.1.1 promotes the Activity Log from a capped browser-only display into a stable-ID Activity Log Document owned by the campaign. Campaign Document v8 and Campaign Bundle v7 preserve the complete chronological journal through local saves and portable bundle exports. Existing per-campaign browser entries migrate into the document on first load. The feed groups filters for character activity, trade, ship operations, personal combat, space combat, campaign events, and system messages; referees may also add dated campaign notes. Character generation now records its actual history events instead of a generic completion message. Working documents remain the source of truth—the journal records meaningful actions, resolved rolls, and state changes rather than transient selections or hover events.

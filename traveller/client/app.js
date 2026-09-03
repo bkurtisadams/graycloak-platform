@@ -207,6 +207,8 @@ const el = {
   status: document.querySelector('#system-status'),
   appTitle: document.querySelector('#app-title'),
   appSubtitle: document.querySelector('#app-subtitle'),
+  headerCampaignName: document.querySelector('#header-campaign-name'),
+  toggleActivity: document.querySelector('#toggle-activity'),
   terminal: document.querySelector('.terminal'),
   campaignHeader: document.querySelector('#campaign-header'),
   headerCharacterName: document.querySelector('#header-character-name'),
@@ -252,6 +254,7 @@ const el = {
   newCampaign: document.querySelector('#new-campaign'),
   saveCampaign: document.querySelector('#save-campaign'),
   loadCampaign: document.querySelector('#load-campaign'),
+  importCampaign: document.querySelector('#import-campaign'),
   exportCampaign: document.querySelector('#export-campaign'),
   campaignSection: document.querySelector('#campaign-section'),
   campaignName: document.querySelector('#campaign-name'),
@@ -263,6 +266,7 @@ const el = {
   threadSection: document.querySelector('#thread-section'),
   threadRecord: document.querySelector('#thread-record'),
   subsectorSection: document.querySelector('#subsector-section'),
+  subsectorHeading: document.querySelector('#subsector-heading'),
   subsectorName: document.querySelector('#subsector-name'),
   jumpCapability: document.querySelector('#jump-capability'),
   subsectorLegend: document.querySelector('#subsector-legend'),
@@ -296,6 +300,7 @@ const el = {
   situationActions: document.querySelector('#situation-actions'),
   operationsTabSituation: document.querySelector('#operations-tab-situation'),
   encounterSection: document.querySelector('#encounter-section'),
+  encounterDetails: document.querySelector('#encounter-details'),
   encounterRecord: document.querySelector('#encounter-record'),
   encounterActions: document.querySelector('#encounter-actions'),
   encounterTactical: document.querySelector('#encounter-tactical'),
@@ -393,7 +398,8 @@ let threadDocuments = [];
 let npcActorDocuments = [];
 let mediaAssetDocuments = [];
 let activityLogDocument = null;
-let activityFilter = 'all';
+let activityFilter = 'play';
+let activityPanelVisible = true;
 let pendingNpcPortraitAsset = null;
 let documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
 let openHelpTopic = null;
@@ -531,7 +537,9 @@ function renderActivity() {
     system: new Set(['SYSLOG', 'ERROR'])
   };
   const allowed = filterCategories[activityFilter];
-  const entries = allowed ? allEntries.filter((entry) => allowed.has(entry.category)) : allEntries;
+  const entries = activityFilter === 'play'
+    ? allEntries.filter((entry) => entry.category !== 'SYSLOG')
+    : allowed ? allEntries.filter((entry) => allowed.has(entry.category)) : allEntries;
   if (!entries.length) {
     const empty = document.createElement('div');
     empty.className = 'activity-empty';
@@ -569,6 +577,14 @@ function logActivity(category, message, { dateLabel = activityDateLabel(), sourc
     if (registry) registry.put(activityLogDocument);
   } else if (activityLog) activityLog.append({ category, message, dateLabel });
   renderActivity();
+}
+
+function setActivityPanelVisible(visible) {
+  activityPanelVisible = Boolean(visible);
+  el.activityPanel.hidden = !activityPanelVisible;
+  el.terminal.classList.toggle('activity-log-hidden', !activityPanelVisible);
+  el.toggleActivity.textContent = activityPanelVisible ? '[ HIDE LOG ]' : '[ ACTIVITY LOG ]';
+  el.toggleActivity.setAttribute('aria-expanded', activityPanelVisible ? 'true' : 'false');
 }
 
 function openActivityNoteDialog() {
@@ -703,12 +719,14 @@ function renderCampaignHeader() {
   const active = campaignPlayActive();
   el.campaignHeader.hidden = !active;
   el.terminal?.classList.toggle('campaign-play', active);
+  el.appTitle.textContent = 'TRAVELLER';
+  el.headerCampaignName.textContent = active
+    ? (campaignDocument.identity.name || 'UNNAMED CAMPAIGN').toUpperCase()
+    : 'NO CAMPAIGN';
   if (!active) {
-    el.appTitle.textContent = 'TRAVELLER // PERSONNEL INTAKE TERMINAL';
     return;
   }
 
-  el.appTitle.textContent = `${(campaignDocument.identity.name || 'TRAVELLER').toUpperCase()} // CAMPAIGN TERMINAL`;
   const current = mappedCurrentSystem();
   const task = headerTaskSnapshot();
   const career = gameplayDocument.career;
@@ -3425,6 +3443,7 @@ function renderEncounter() {
   const current = mappedCurrentSystem();
   if (!campaignDocument || !current || !gameplayDocument) {
     el.encounterSection.dataset.available = 'false';
+    el.encounterDetails.hidden = true;
     el.encounterRecord.textContent = '';
     el.encounterActions.replaceChildren();
     renderEncounterMap(null);
@@ -3436,6 +3455,7 @@ function renderEncounter() {
   el.encounterActions.replaceChildren();
   const active = activeEncounterAtCurrentSystem();
   const displayed = active ?? latestEncounterAtCurrentSystem();
+  el.encounterDetails.hidden = !displayed;
   renderEncounterMap(displayed);
   el.operationsTabEncounter?.classList.toggle('attention', Boolean(active));
   if (el.operationsTabEncounter) el.operationsTabEncounter.textContent = active ? '[ ENCOUNTER ! ]' : '[ ENCOUNTER ]';
@@ -3537,7 +3557,9 @@ function applyOperationsDeskTab() {
     if (panel) panel.hidden = key !== operationsDeskTab || !available;
     if (tabs[key]) tabs[key].setAttribute('aria-selected', key === operationsDeskTab ? 'true' : 'false');
   }
-  el.subsectorSection?.classList.toggle('encounter-workspace-active', operationsDeskTab === 'encounter' && panels.encounter?.dataset.available === 'true');
+  const encounterWorkspaceActive = operationsDeskTab === 'encounter' && panels.encounter?.dataset.available === 'true';
+  el.subsectorSection?.classList.toggle('encounter-workspace-active', encounterWorkspaceActive);
+  if (el.subsectorHeading) el.subsectorHeading.textContent = encounterWorkspaceActive ? 'PERSONAL COMBAT' : 'SUBSECTOR NAVIGATION';
 }
 
 function setOperationsDeskTab(tab) {
@@ -4037,7 +4059,6 @@ function saveCampaignLocal() {
     persistGameplayDocuments();
     registry.put(campaignDocument);
     registry.setActiveCampaignId(campaignDocument.identity.id);
-    logActivity('SYSLOG', `${campaignDocument.identity.name || 'Campaign'} saved locally`);
     setStatus('CAMPAIGN SAVED TO THIS BROWSER', 'ok');
     renderCampaign();
   } catch (error) {
@@ -4054,7 +4075,6 @@ function loadSavedCampaign() {
     const campaign = registry.get(id);
     if (!campaign) throw new Error(`saved campaign document is missing: ${id}`);
     restoreCampaignFromRegistry(campaign);
-    logActivity('SYSLOG', `${campaignDocument.identity.name || 'Campaign'} restored from local save`);
     setStatus('CAMPAIGN RESTORED FROM THIS BROWSER', 'ok');
     closeHelp();
     render();
@@ -4084,7 +4104,6 @@ function exportCampaignPortable() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    logActivity('SYSLOG', `${campaignDocument.identity.name || 'Campaign'} portable bundle exported`);
     setStatus('PORTABLE CAMPAIGN BUNDLE EXPORTED', 'ok');
     renderCampaign();
   } catch (error) {
@@ -4439,11 +4458,14 @@ function saveCharacter() {
   }
 }
 
-async function loadDocument(file) {
+async function loadDocument(file, { campaignOnly = false } = {}) {
   if (!file) return;
   try {
     const text = await file.text();
     const loaded = loadTravellerDocument(text);
+    if (campaignOnly && ![TRAVELLER_DOCUMENT_KINDS.CAMPAIGN, TRAVELLER_DOCUMENT_KINDS.CAMPAIGN_BUNDLE].includes(loaded.kind)) {
+      throw new Error('select a Traveller Campaign Document or portable Campaign Bundle');
+    }
 
     if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CHARGEN) {
       character = loaded.character;
@@ -4624,14 +4646,12 @@ async function loadDocument(file) {
       registry.put(loaded.campaignDocument);
       registry.setActiveCampaignId(loaded.campaignDocument.identity.id);
       restoreCampaignFromRegistry(loaded.campaignDocument);
-      logActivity('SYSLOG', `${campaignDocument.identity.name || 'Campaign'} document loaded from local registry`);
       setStatus('CAMPAIGN DOCUMENT LOADED FROM LOCAL REGISTRY', 'ok');
     } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CAMPAIGN_BUNDLE) {
       if (!registry) throw new Error('browser local storage is unavailable');
       const bundle = registry.putBundle(loaded.campaignBundle);
       registry.setActiveCampaignId(bundle.campaign.identity.id);
       restoreCampaignFromRegistry(bundle.campaign);
-      logActivity('SYSLOG', `${campaignDocument.identity.name || 'Campaign'} portable bundle loaded`);
       setStatus('PORTABLE CAMPAIGN BUNDLE LOADED', 'ok');
     }
 
@@ -4642,6 +4662,7 @@ async function loadDocument(file) {
     setStatus(error?.message ?? String(error), 'error');
   } finally {
     el.loadFile.value = '';
+    el.loadFile.dataset.scope = 'any';
   }
 }
 
@@ -4818,6 +4839,7 @@ el.clearActivity.addEventListener('click', () => {
   setStatus('ACTIVITY LOG CLEARED', 'ok');
 });
 el.activityFilter.addEventListener('change', () => { activityFilter = el.activityFilter.value; renderActivity(); });
+el.toggleActivity.addEventListener('click', () => setActivityPanelVisible(!activityPanelVisible));
 el.addActivityNote.addEventListener('click', openActivityNoteDialog);
 el.activityNoteClose.addEventListener('click', closeActivityNoteDialog);
 el.activityNoteCancel.addEventListener('click', closeActivityNoteDialog);
@@ -4986,12 +5008,20 @@ el.operationsTabRoster.addEventListener('click', () => setOperationsDeskTab('ros
 el.newCampaign.addEventListener('click', newCampaign);
 el.saveCampaign.addEventListener('click', saveCampaignLocal);
 el.loadCampaign.addEventListener('click', loadSavedCampaign);
+el.importCampaign.addEventListener('click', () => {
+  el.loadFile.dataset.scope = 'campaign';
+  el.loadFile.click();
+});
 el.exportCampaign.addEventListener('click', exportCampaignPortable);
 
 el.saveCharacter.addEventListener('click', saveCharacter);
-el.loadCharacter.addEventListener('click', () => el.loadFile.click());
-el.loadFile.addEventListener('change', () => loadDocument(el.loadFile.files?.[0]));
+el.loadCharacter.addEventListener('click', () => {
+  el.loadFile.dataset.scope = 'any';
+  el.loadFile.click();
+});
+el.loadFile.addEventListener('change', () => loadDocument(el.loadFile.files?.[0], { campaignOnly: el.loadFile.dataset.scope === 'campaign' }));
 
 setActivityContext();
+setActivityPanelVisible(true);
 render();
 if (!registry) setStatus('READY / LOCAL CAMPAIGN STORAGE UNAVAILABLE', 'error');

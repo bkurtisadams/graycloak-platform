@@ -76,7 +76,7 @@ export const HELP_TOPICS = Object.freeze({
   }),
   'campaign-status': Object.freeze({
     title: 'CAMPAIGN STATUS',
-    body: 'A Campaign Document is the persistent shell that ties gameplay Character and Ship Documents together by stable ID. SAVE CAMPAIGN stores the campaign and referenced documents in this browser. EXPORT CAMPAIGN creates one portable bundle containing the Campaign Document plus its referenced character, ship, contract, situation, contact, adventure-thread, and personal-encounter documents. The ordinal date is a Graycloak campaign-state convention. In v0.9 the system and world fields are driven by the authored subsector map so their IDs and displayed names stay synchronized.'
+    body: 'A Campaign Document is the persistent shell that ties gameplay Character and Ship Documents together by stable ID. SAVE and LOAD use this browser. IMPORT and EXPORT use a portable campaign JSON bundle containing the campaign and all referenced character, ship, contract, situation, contact, adventure-thread, actor, encounter, media, and activity-log documents. The ordinal date is a Graycloak campaign-state convention. System and world fields are driven by the authored subsector map so their IDs and displayed names stay synchronized.'
   }),
   'subsector-map': Object.freeze({
     title: 'SUBSECTOR NAVIGATION',
@@ -100,7 +100,7 @@ export const HELP_TOPICS = Object.freeze({
   }),
   'personal-combat': Object.freeze({
     title: 'PERSONAL ENCOUNTER',
-    body: 'START COMBAT creates a referee-defined encounter without requiring a patron result. Add up to four enemy types with distinct counts, physical statistics, weapon skill, weapon, and armor. The 32 × 20 square workspace supports zoom, pan, and draggable party/enemy tokens. Click a party token or card to choose the acting traveller and an enemy token or roster card to choose the target. Each active PC declares once before the round resolves. The map shows a Graycloak range suggestion, but Classic Traveller Book 1 abstract range bands remain authoritative and change only through CLOSE/OPEN or the explicit APPLY MAP RANGE referee action. Position, declarations, range changes, combat results, and wounds persist with the campaign.'
+    body: 'START COMBAT creates a referee-defined encounter without requiring a patron result. Add up to four enemy types with distinct counts, physical statistics, weapon skill, weapon, and armor. The 32 × 20 square workspace supports zoom, wheel zoom, empty-map drag panning, and draggable party/enemy tokens. Click a party token or card to choose the acting traveller and an enemy token or roster card to choose the target. Right-click a token, or focus it and press Shift+F10, for contextual actions. Each active PC declares once before the round resolves. The map shows a Graycloak range suggestion, but Classic Traveller Book 1 abstract range bands remain authoritative and change only through CLOSE/OPEN or the explicit APPLY MAP RANGE referee action. Open ENCOUNTER DETAILS below the map for the full text record. Position, declarations, range changes, combat results, and wounds persist with the campaign.'
   }),
   'adventure-threads': Object.freeze({
     title: 'ADVENTURE THREADS',
