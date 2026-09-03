@@ -564,7 +564,7 @@ input[readonly] {
 .operations-tabs {
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 5px;
   padding-bottom: 8px;
 }
@@ -871,6 +871,8 @@ input[readonly] {
 #subsector-section.encounter-workspace-active .navigation-plan-panel { max-width: none; height: auto; min-height: 0; overflow: visible; }
 #subsector-section.encounter-workspace-active .operations-desk { margin-top: 0; padding-top: 0; border-top: 0; }
 #subsector-section.encounter-workspace-active .operations-panel-scroll { height: auto; max-height: none; overflow: visible; }
+
+#subsector-section.navigation-workspace-active .operations-panel-scroll { display: none; }
 
 .encounter-details {
   flex: 0 0 auto;

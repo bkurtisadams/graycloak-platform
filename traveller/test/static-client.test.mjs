@@ -340,7 +340,7 @@ test('v0.12.0.1 promotes campaign status and interactive rolls into a compact pl
   assert.match(app, /logActivity\('CHECK'/);
   assert.match(app, /detailPanels/);
   assert.match(css, /\.campaign-play #procedure-section/);
-  assert.match(css, /\.operations-tabs[\s\S]*grid-template-columns:\s*repeat\((?:4|5)/);
+  assert.match(css, /\.operations-tabs[\s\S]*grid-template-columns:\s*repeat\((?:4|5|6|7)/);
 });
 
 
@@ -569,7 +569,7 @@ test('v0.15.2 establishes a Traveller-first campaign hierarchy and removes dupli
   const model = await read('ui-model.js');
 
   assert.match(html, /id="app-title" class="title">TRAVELLER</);
-  assert.match(html, /id="app-subtitle" class="subtitle">v0\.15\.2</);
+  assert.match(html, /id="app-subtitle" class="subtitle">v0\.15\.2\.1</);
   assert.match(html, /CAMPAIGN<\/span> \/\/ <strong id="header-campaign-name">NO CAMPAIGN/);
   for (const id of ['new-campaign', 'save-campaign', 'load-campaign', 'import-campaign', 'export-campaign']) {
     assert.match(html, new RegExp(`id="${id}"`));
@@ -587,4 +587,18 @@ test('v0.15.2 establishes a Traveller-first campaign hierarchy and removes dupli
   assert.match(css, /\.terminal\.activity-log-hidden/);
   assert.match(css, /\.encounter-details/);
   assert.match(model, /Shift\+F10/);
+});
+
+test('v0.15.2.1 keeps jump controls reachable from the focused encounter workspace', async () => {
+  const html = await read('index.html');
+  const app = await read('app.js');
+  const css = await read('styles.css');
+
+  assert.match(html, /id="operations-tab-navigation"/);
+  assert.match(html, />\[ NAV \]<\/button>/);
+  assert.match(app, /operationsDeskTab = 'navigation'/);
+  assert.match(app, /setOperationsDeskTab\('navigation'\)/);
+  assert.match(app, /button\.textContent = `\[ JUMP TO \$\{selected\.name\.toUpperCase\(\)\} \]`/);
+  assert.match(app, /classList\.toggle\('navigation-workspace-active', navigationWorkspaceActive\)/);
+  assert.match(css, /\.navigation-workspace-active \.operations-panel-scroll \{ display: none; \}/);
 });

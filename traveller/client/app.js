@@ -298,6 +298,7 @@ const el = {
   situationSection: document.querySelector('#situation-section'),
   situationRecord: document.querySelector('#situation-record'),
   situationActions: document.querySelector('#situation-actions'),
+  operationsTabNavigation: document.querySelector('#operations-tab-navigation'),
   operationsTabSituation: document.querySelector('#operations-tab-situation'),
   encounterSection: document.querySelector('#encounter-section'),
   encounterDetails: document.querySelector('#encounter-details'),
@@ -406,7 +407,7 @@ let openHelpTopic = null;
 let selectedSystemId = null;
 let subsectorZoom = 1;
 let speculativeBrokerDM = 0;
-let operationsDeskTab = 'trade';
+let operationsDeskTab = 'navigation';
 let pendingRoll = null;
 let selectedEncounterActorId = null;
 let selectedEncounterTargetId = null;
@@ -3545,6 +3546,7 @@ function applyOperationsDeskTab() {
     roster: el.rosterSection
   };
   const tabs = {
+    navigation: el.operationsTabNavigation,
     port: el.operationsTabPort,
     trade: el.operationsTabTrade,
     jobs: el.operationsTabJobs,
@@ -3555,15 +3557,17 @@ function applyOperationsDeskTab() {
   for (const [key, panel] of Object.entries(panels)) {
     const available = panel?.dataset.available === 'true';
     if (panel) panel.hidden = key !== operationsDeskTab || !available;
-    if (tabs[key]) tabs[key].setAttribute('aria-selected', key === operationsDeskTab ? 'true' : 'false');
   }
+  for (const [key, tab] of Object.entries(tabs)) tab?.setAttribute('aria-selected', key === operationsDeskTab ? 'true' : 'false');
   const encounterWorkspaceActive = operationsDeskTab === 'encounter' && panels.encounter?.dataset.available === 'true';
+  const navigationWorkspaceActive = operationsDeskTab === 'navigation';
   el.subsectorSection?.classList.toggle('encounter-workspace-active', encounterWorkspaceActive);
+  el.subsectorSection?.classList.toggle('navigation-workspace-active', navigationWorkspaceActive);
   if (el.subsectorHeading) el.subsectorHeading.textContent = encounterWorkspaceActive ? 'PERSONAL COMBAT' : 'SUBSECTOR NAVIGATION';
 }
 
 function setOperationsDeskTab(tab) {
-  if (!['port', 'trade', 'jobs', 'situation', 'encounter', 'roster'].includes(tab)) return;
+  if (!['navigation', 'port', 'trade', 'jobs', 'situation', 'encounter', 'roster'].includes(tab)) return;
   operationsDeskTab = tab;
   applyOperationsDeskTab();
 }
@@ -3987,6 +3991,7 @@ function restoreCampaignFromRegistry(campaign) {
 
   campaignDocument = campaign;
   selectedSystemId = null;
+  operationsDeskTab = 'navigation';
   normalizeCampaignMappedLocation();
   gameplayDocument = nextCharacter;
   partyCharacterDocuments = campaign.party.characterIds
@@ -4017,6 +4022,7 @@ function newCampaign() {
     if (!gameplay) throw new Error('complete or load a gameplay character before creating a campaign');
     persistGameplayDocuments();
     selectedSystemId = null;
+    operationsDeskTab = 'navigation';
     contractDocuments = [];
     situationDocuments = [];
     encounterDocuments = [];
@@ -4998,6 +5004,7 @@ el.mapZoomOut.addEventListener('click', () => setSubsectorZoom(subsectorZoom - S
 el.mapZoomIn.addEventListener('click', () => setSubsectorZoom(subsectorZoom + SUBSECTOR_ZOOM_STEP));
 el.mapZoomFit.addEventListener('click', () => setSubsectorZoom(1));
 
+el.operationsTabNavigation.addEventListener('click', () => setOperationsDeskTab('navigation'));
 el.operationsTabPort.addEventListener('click', () => setOperationsDeskTab('port'));
 el.operationsTabTrade.addEventListener('click', () => setOperationsDeskTab('trade'));
 el.operationsTabJobs.addEventListener('click', () => setOperationsDeskTab('jobs'));

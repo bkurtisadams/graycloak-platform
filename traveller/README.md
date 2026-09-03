@@ -1,5 +1,9 @@
 # Graycloak Traveller
 
+## v0.15.2.1 navigation-return hotfix
+
+v0.15.2.1 restores an explicit route from the focused encounter workspace to the subsector jump controls. The jump action itself was still being generated, but encounter-focus styling deliberately hid the navigation-plan block and the operations tabs did not include a dedicated way back to it. A compact `[ NAV ]` tab now restores the subsector map, jump plan, ship status, and `[ JUMP TO ... ]` action. Navigation is also the default workspace whenever a campaign is created, loaded locally, or imported. Combat retains its full-width focused map until the user selects `[ NAV ]`. No rules or persistence schemas change.
+
 ## v0.15.2 Traveller-first campaign interface
 
 v0.15.2 simplifies the campaign-play hierarchy without changing rules or persistent document schemas. The masthead now identifies the application as `TRAVELLER`, displays the current campaign separately, and keeps `[ NEW ]`, `[ SAVE ]`, `[ LOAD ]`, `[ IMPORT ]`, and `[ EXPORT ]` together immediately below the campaign name. Save/Load remain browser-local; Import/Export operate on portable campaign JSON. The long feature/version banner, campaign-terminal label, and developer-facing rules footer have been removed, leaving a small version marker and transient status message.
