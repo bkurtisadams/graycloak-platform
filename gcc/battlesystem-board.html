@@ -1,4 +1,5 @@
 <!doctype html>
+<!-- battlesystem-board.html · v0.66.1 · TURNING RANGE + CLASS DETECTION. Turning reaches 6″ (edge to edge) — the rulebook gives no range and 6″ is the accepted table distance (Kurt, board procedure). The turning level now also reads a cleric or paladin level recorded only on the spell roster's class line, so a character whose class field says something else still gets ☩ Turn. Baseline 1283 ok. -->
 <!-- battlesystem-board.html · v0.66.0 · CAMPAIGN RULES [16.1]/[16.2]. A kill ledger (state.campaign, snapshotted, fresh at Begin battle) credits every casualty path — melee, hero-vs-unit, set spears, free attacks, invisible contact attacks, break-through, missile, artillery, magic, turning — with creatures removed × the victim's XP kill value, and a unit that routs off the table credits the unit that broke it. Where destroyed and routed-off units left the board is recorded. ⚑ Result beside Restart asks which side holds the field (A, B, or split at mid-depth), then logs and downloads: [16.1] ⅔ of a side's dead recovered on its own ground, ⅓ of enemy dead on held ground taken prisoner, ⅔ of routed-off forces returned; [16.2] unit XP ÷ surviving creatures, Unit Commander 25% of kills less 25% of own losses (never negative), Brigade 25% of subordinate awards and skirmish/mob unit XP, Army 50% of brigades, Hero kills listed for normal AD&D awards. BOARD PROCEDURE: a unit's dead lie where it stands or fell. Baseline 1281 ok. -->
 <!-- battlesystem-board.html · v0.65.0 · CLERIC SLICE. [14.16] Curative magic reaches the Wound marker at last: a cure cures 1 HD per spell level and heal/regeneration/restoration/resurrection 2 HD per level, the marker clears once the HD cured by such magic in total reaches half the figure's HD (running total kept on the marker), hp cures convert at hp ÷ 4, Raise Dead returns a dead individual at 1 hp under an indefinite Immobilized status, Limited Wish/Alter Reality remove one marker and Wish removes the marker or brings one lost figure back; a 1:1 individual heals hit points by the normal AD&D expression. BOARD PROCEDURE: touch cures use a 1″ adjacency. [14.19] ☩ Turn on the rail for a cleric or 3rd+ paladin in Missile & Magic, resolved on the OSRIC 3.0 turn-undead kernel the dungeon sim already uses (one d20, automatic T/D, kernel creature dice, 3d4 rounds); the unit's undead type is recorded on the sheet and Skeleton/Zombie/Ghoul roster rows carry it. BATTLESYSTEM's additions applied: at least one figure routs or is destroyed even when the count falls short of a figure, one attempt per unit per round until a failure locks that cleric out of that unit, turned figures detach and rout under a fear status that blocks rally for the duration, and an evil cleric's 61+ commands them as a mass charm ranged by his CR (ruling, open to veto). [14.20] Ring of Human Influence +1 CB and Rod of Rulership +2 read from the active inventory; Drums of Panic force a Morale Check on every enemy unit within 12″. [14.22] A Hero bard who is not commanding is taken to be singing: +1 on friendly morale within his CR (ruling, open to veto). Engine v0.16.0 (magic-healing.js); the harness loaders now handle the second import; baseline 1271 ok. -->
 <!-- battlesystem-board.html · v0.64.2 · HARNESS TRIAGE. Three self-tests had gone red since the v0.62.3 baseline without any behaviour intended to change: the v0.61.6 Restart test measured the Undo stack by length, which the 60-entry cap holds flat once the suite fills it, so it now checks that the top entry is the restart record; the v0.62.10 preset test built a Pegasus with no flight fields, and v0.62.4's refusal to fly without a FLY MV correctly left it with no aerial modes, so the fixture is a flyer now; and the battlefield hover for an army unit read the roster type name without the unit's own number, so a hover on 'Men-at-Arms #6' said only 'Men-at-Arms' — it now reads the same unit name as the log and the sheet. Harness baseline 1249 ok (one known jsdom-only failure). -->
@@ -9,7 +10,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Battlesystem — Battlefield · v0.66.0</title>
+<title>Battlesystem — Battlefield · v0.66.1</title>
 <style>
   :root {
     --bg:#ece0c4; --panel:#f5eedb; --field:#a8b094; --field-edge:#6d735a; --ink:#2c2316; --ink-soft:#6e6047; --rule:#b6a682;
@@ -1134,7 +1135,7 @@
 
 <script type="module">
 
-const SIM_VERSION = '0.66.0';
+const SIM_VERSION = '0.66.1';
 import {
   BattlesystemCombat, CombatResultsTable, BattlesystemMorale, BattlesystemMovement, BattlesystemCavalry,
   BattlesystemEffects, BattlesystemActions, BattlesystemItems, BattlesystemSpells, BattlesystemIndividualCombat, BattlesystemAttackRoutines, BattlesystemMagicDefenses, BattlesystemCreatureDefenses, BattlesystemMagicMovement, BattlesystemInnateActions, BattlesystemSecondaryEffects, BattlesystemAerial, EFFECT_MODES, CHARACTER_ACTION_KINDS,
@@ -2796,7 +2797,8 @@ function magicResolveHealingUse(u,entry,opts,target,targetMode,rng=Math.random){
    which that cleric may not try that unit again; an evil cleric's success (d100
    61+) puts the figures under his command instead, modelled as a mass charm with
    the cleric as Unit Commander and his CR as the range [14.6A]. */
-function turnUndeadLevelOf(u){if(!isIndividual(u))return 0;let best=0;for(const r of magicCharacterClassLevels(u)){const n=String(r.name||'').toLowerCase(),lv=n.includes('cleric')?getTurnLevel('cleric',r.level):n.includes('paladin')?getTurnLevel('paladin',r.level):0;best=Math.max(best,lv);}return best;}
+const TURN_UNDEAD_RANGE_IN=6;   // v0.66.1 board procedure: the rules give turning no range; 6″ is the accepted table distance (RULINGS.md)
+function turnUndeadLevelOf(u){if(!isIndividual(u))return 0;let best=0;const rows=[...magicCharacterClassLevels(u),...magicParseCasterClassLevels(normalizeCharacterSpells(u.char?.spells||{}).classes)];for(const r of rows){const n=String(r.name||'').toLowerCase(),lv=n.includes('cleric')?getTurnLevel('cleric',r.level):n.includes('paladin')?getTurnLevel('paladin',r.level):0;best=Math.max(best,lv);}return best;}
 const isEvil=u=>/E$/i.test(String(profileOf(u).align||''));
 function undeadTypeOf(u){const t=creatureAbilities(u).undeadType;return t&&t!=='none'?t:null;}
 function turnUndeadState(a,d){
@@ -2810,6 +2812,7 @@ function turnUndeadState(a,d){
   if(magicStateOf(a).actionsUsed>=1)return{ok:false,reason:'already used a magic action this Game Round [14.1]'};
   if(!d||!magicTacticalEnemy(a,d))return{ok:false,reason:'shift+click an enemy undead unit'};
   const ut=undeadTypeOf(d);if(!ut)return{ok:false,reason:`${uName(d)} has no undead type recorded (unit sheet ▸ Special abilities ▸ Undead)`};
+  {const gap=rectGap(a,d);if(gap>TURN_UNDEAD_RANGE_IN+1e-6)return{ok:false,reason:`${uName(d)} is ${fmt(gap)}″ away; turning reaches ${TURN_UNDEAD_RANGE_IN}″ [board procedure]`};}
   if(d.figures<=0)return{ok:false,reason:`${uName(d)} has no figures left`};
   if(a.turnFailed?.[d.id])return{ok:false,reason:`${uName(a)} already failed to turn ${uName(d)}; no further attempts on that unit [14.19]`};
   if(a.turnedUnitRound?.[d.id]===state.round&&!state.setup)return{ok:false,reason:'one turning attempt per undead unit per Game Round [14.19]'};
@@ -16154,7 +16157,7 @@ window.addEventListener('mousedown', e => {   // assign menu closes on any outsi
       t('[14.16/v0.65.0] Raise Dead returns a dead individual at 1 hp under an indefinite IMMOBILIZED status',r6.resolved&&H.char.hp===1&&magicStatusesOf(H).some(st=>st.kind==='hold'&&st.remainingDuration==null));
       const preset=magicUsePreset({name:'Cure Serious Wounds',kind:'spell',level:4},'',C);t('[14.16/v0.65.0] magicUsePreset routes cures to the healing resolver with no saving throw',preset?.healingMagic===true&&preset.executionResolver==='healing'&&preset.saveType==='none'&&preset.healingHd===4);
     }
-    { const S=mkUnit('SKELETON','B',12,20,30),C=mkUnit('PCNPC','A',1,20,20);C.char=mkCharacter({name:'Turning Cleric',cls:'Cleric',level:1});C.char.hp=20;state.units=[S,C];state.setup=true;state.enforce=false;
+    { const S=mkUnit('SKELETON','B',12,20,30),C=mkUnit('PCNPC','A',1,20,27);C.char=mkCharacter({name:'Turning Cleric',cls:'Cleric',level:1});C.char.hp=20;state.units=[S,C];state.setup=true;state.enforce=false;
       t('[13.9/14.19/v0.65.0] the Skeleton roster row is mindless undead of turning type skeleton',isMindless(S)&&undeadTypeOf(S)==='skeleton'&&creatureAbilities(S).undeadType==='skeleton');
       t('[14.19/v0.65.0] turning level derives from the cleric/paladin class levels only',turnUndeadLevelOf(C)===1&&(()=>{const P=mkUnit('PCNPC','A',1,1,1);P.char=mkCharacter({name:'Pal',cls:'Paladin',level:5});return turnUndeadLevelOf(P)===3;})()&&(()=>{const F=mkUnit('PCNPC','A',1,1,1);F.char=mkCharacter({name:'Ftr',cls:'Fighter',level:9});return turnUndeadLevelOf(F)===0;})());
       const st0=turnUndeadState(C,S);t('[14.19/v0.65.0] a 1st-level cleric needs a d20 10+ against skeletons',st0.ok&&st0.cell.result==='roll'&&st0.cell.needed===10);
@@ -16162,9 +16165,11 @@ window.addEventListener('mousedown', e => {   // assign menu closes on any outsi
       magicStateOf(C).actionsUsed=0;delete C.turnFailed;const n0=state.units.length;
       const ok1=resolveTurnUndead(C,S,rngQ(0.95,0.0,0.0,0.5));
       t('[14.19/v0.65.0] a successful turn routs at least one figure even when the count falls short of a figure',ok1.success===true&&ok1.turned===1&&S.figures===11&&state.units.length===n0+1&&ok1.body!==S&&ok1.body.routed===true&&magicFearActive(ok1.body));
-      const C7=mkUnit('PCNPC','A',1,20,21);C7.char=mkCharacter({name:'High Cleric',cls:'Cleric',level:7});C7.char.hp=30;state.units.push(C7);
+      const far=mkUnit('PCNPC','A',1,20,10);far.char=mkCharacter({name:'Far Cleric',cls:'Cleric',level:7});far.char.hp=30;state.units.push(far);t('[14.19/v0.66.1] turning reaches 6″ and no further',turnUndeadState(far,S).ok===false&&/6″/.test(turnUndeadState(far,S).reason));
+      const spellOnly=mkUnit('PCNPC','A',1,20,26);spellOnly.char=mkCharacter({name:'Spell-roster Cleric',cls:'Fighter',level:3});spellOnly.char.spells=normalizeCharacterSpells({classes:'Cleric 5'});t('[14.19/v0.66.1] a cleric level recorded only on the spell roster still turns',turnUndeadLevelOf(spellOnly)===5);
+      const C7=mkUnit('PCNPC','A',1,20,26);C7.char=mkCharacter({name:'High Cleric',cls:'Cleric',level:7});C7.char.hp=30;state.units.push(C7);
       const dst=resolveTurnUndead(C7,S,rngQ(0.999,0.999));t('[14.19/v0.65.0] an automatic D destroys the affected figures outright',dst.success===true&&dst.destroyed===1&&S.figures===10);
-      const E=mkUnit('PCNPC','A',1,20,22);E.char=mkCharacter({name:'Evil Cleric',cls:'Cleric',level:7});E.char.hp=30;E.prof.align='CE';state.units.push(E);
+      const E=mkUnit('PCNPC','A',1,20,26);E.char=mkCharacter({name:'Evil Cleric',cls:'Cleric',level:7});E.char.hp=30;E.prof.align='CE';state.units.push(E);
       const ev=resolveTurnUndead(E,S,rngQ(0.999,0.7,0.999,0.5));t('[14.19/v0.65.0] an evil cleric who rolls 61+ commands the turned figures as a mass charm ranged by his CR',ev.success===true&&ev.control===true&&magicStatusesOf(ev.body).some(x=>x.kind==='massCharm'&&x.controllerSide==='A'));
       state.setup=true;
     }
