@@ -8,6 +8,8 @@ let code=html.slice(i+'<script type="module">'.length,j);
 const im=code.match(/import \{([\s\S]*?)\} from '\.\/engine\/index\.js';/);
 const names=im[1].split(',').map(s=>s.trim()).filter(Boolean);
 code=code.replace(im[0],`const {${names.join(',')}}=window.__ENGINE__;`);
+const tm=code.match(/import \{([\s\S]*?)\} from '\.\/vendor\/osric3-rules\/turn-undead\.js';/);
+if(tm)code=code.replace(tm[0],`const {${tm[1].split(',').map(s=>s.trim()).filter(Boolean).join(',')}}=window.__TURN__;`);
 html=html.slice(0,i)+html.slice(j+'</script>'.length);
 const vc=new VirtualConsole();const fails=[];
 vc.on('log',(...a)=>{const s=a.join(' ');if(/self-tests/.test(s))console.log(s.slice(0,6000));});
@@ -16,6 +18,7 @@ vc.on('jsdomError',e=>console.log('JSDOMERR',String(e?.stack||e).slice(0,1500)))
 const dom=new JSDOM(html,{runScripts:'outside-only',pretendToBeVisual:true,url:'http://localhost/gcc/battlesystem-board.html',virtualConsole:vc});
 const w=dom.window;
 w.__ENGINE__=await import('file://'+path.join(root,'gcc/engine/index.js'));
+w.__TURN__=await import('file://'+path.join(root,'gcc/vendor/osric3-rules/turn-undead.js'));
 w.SVGElement.prototype.getBBox=()=>({x:0,y:0,width:10,height:10});
 w.SVGElement.prototype.getScreenCTM=()=>null;
 Object.defineProperty(w.SVGElement.prototype,'viewBox',{get(){const v=(this.getAttribute('viewBox')||'0 0 1000 1000').split(/\s+/).map(Number);return{baseVal:{x:v[0],y:v[1],width:v[2],height:v[3]}};}});
