@@ -1,4 +1,5 @@
 <!doctype html>
+<!-- battlesystem-board.html · v0.66.2 · ROSTER XP VALUES [16.2]. Every stock roster row now carries its DMG Appendix E XP kill value per creature at the row's average hit points (Orc 15, Goblin 14, Hobgoblin 31, Gnoll 46, Bugbear 193, Ogre 185, Skeleton 19, Zombie 38, Ghoul 83, Griffon 690, Pegasus 132, Hippogriff 126, Elf 31, Dwarf 15, Peasant 8); 0-level men and artillery crews use the DMG <1-1 row (10); cavalry is rider plus mount on its hit-dice bracket (light 39, medium 41, heavy 95, pegasus 142, hippogriff 136, griffon 700). Chariots and CUSTOM stay blank for the sheet, and a sheet value overrides the roster. ⚑ Result no longer reports missing values for stock units. Baseline 1285 ok. -->
 <!-- battlesystem-board.html · v0.66.1 · TURNING RANGE + CLASS DETECTION. Turning reaches 6″ (edge to edge) — the rulebook gives no range and 6″ is the accepted table distance (Kurt, board procedure). The turning level now also reads a cleric or paladin level recorded only on the spell roster's class line, so a character whose class field says something else still gets ☩ Turn. Baseline 1283 ok. -->
 <!-- battlesystem-board.html · v0.66.0 · CAMPAIGN RULES [16.1]/[16.2]. A kill ledger (state.campaign, snapshotted, fresh at Begin battle) credits every casualty path — melee, hero-vs-unit, set spears, free attacks, invisible contact attacks, break-through, missile, artillery, magic, turning — with creatures removed × the victim's XP kill value, and a unit that routs off the table credits the unit that broke it. Where destroyed and routed-off units left the board is recorded. ⚑ Result beside Restart asks which side holds the field (A, B, or split at mid-depth), then logs and downloads: [16.1] ⅔ of a side's dead recovered on its own ground, ⅓ of enemy dead on held ground taken prisoner, ⅔ of routed-off forces returned; [16.2] unit XP ÷ surviving creatures, Unit Commander 25% of kills less 25% of own losses (never negative), Brigade 25% of subordinate awards and skirmish/mob unit XP, Army 50% of brigades, Hero kills listed for normal AD&D awards. BOARD PROCEDURE: a unit's dead lie where it stands or fell. Baseline 1281 ok. -->
 <!-- battlesystem-board.html · v0.65.0 · CLERIC SLICE. [14.16] Curative magic reaches the Wound marker at last: a cure cures 1 HD per spell level and heal/regeneration/restoration/resurrection 2 HD per level, the marker clears once the HD cured by such magic in total reaches half the figure's HD (running total kept on the marker), hp cures convert at hp ÷ 4, Raise Dead returns a dead individual at 1 hp under an indefinite Immobilized status, Limited Wish/Alter Reality remove one marker and Wish removes the marker or brings one lost figure back; a 1:1 individual heals hit points by the normal AD&D expression. BOARD PROCEDURE: touch cures use a 1″ adjacency. [14.19] ☩ Turn on the rail for a cleric or 3rd+ paladin in Missile & Magic, resolved on the OSRIC 3.0 turn-undead kernel the dungeon sim already uses (one d20, automatic T/D, kernel creature dice, 3d4 rounds); the unit's undead type is recorded on the sheet and Skeleton/Zombie/Ghoul roster rows carry it. BATTLESYSTEM's additions applied: at least one figure routs or is destroyed even when the count falls short of a figure, one attempt per unit per round until a failure locks that cleric out of that unit, turned figures detach and rout under a fear status that blocks rally for the duration, and an evil cleric's 61+ commands them as a mass charm ranged by his CR (ruling, open to veto). [14.20] Ring of Human Influence +1 CB and Rod of Rulership +2 read from the active inventory; Drums of Panic force a Morale Check on every enemy unit within 12″. [14.22] A Hero bard who is not commanding is taken to be singing: +1 on friendly morale within his CR (ruling, open to veto). Engine v0.16.0 (magic-healing.js); the harness loaders now handle the second import; baseline 1271 ok. -->
@@ -10,7 +11,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Battlesystem — Battlefield · v0.66.1</title>
+<title>Battlesystem — Battlefield · v0.66.2</title>
 <style>
   :root {
     --bg:#ece0c4; --panel:#f5eedb; --field:#a8b094; --field-edge:#6d735a; --ink:#2c2316; --ink-soft:#6e6047; --rule:#b6a682;
@@ -1135,7 +1136,7 @@
 
 <script type="module">
 
-const SIM_VERSION = '0.66.1';
+const SIM_VERSION = '0.66.2';
 import {
   BattlesystemCombat, CombatResultsTable, BattlesystemMorale, BattlesystemMovement, BattlesystemCavalry,
   BattlesystemEffects, BattlesystemActions, BattlesystemItems, BattlesystemSpells, BattlesystemIndividualCombat, BattlesystemAttackRoutines, BattlesystemMagicDefenses, BattlesystemCreatureDefenses, BattlesystemMagicMovement, BattlesystemInnateActions, BattlesystemSecondaryEffects, BattlesystemAerial, EFFECT_MODES, CHARACTER_ACTION_KINDS,
@@ -1163,28 +1164,30 @@ function resolveMeleeCombatFractional(attacker, defender, rng) {
 /* thaco: creature attack matrix "to hit AC 0" (multiple-20s rule [8.3] applied  */
 /* where relevant). ml/dl computed by the engine from these fields at spawn.     */
 const BS_TYPES = Object.freeze([
-  { id:'ORC',    name:'Orc Infantry',     ac:6, hd:1,   mv:9,  thaco:19, weapon:'longsword',  size:'M', race:'Orc',      unitType:'regular', int:'average', align:'LE', infravision:true, sunlightPenalty:true },
-  { id:'ORC_SP', name:'Orc Spears',       ac:6, hd:1,   mv:9,  thaco:19, weapon:'spear',      size:'M', race:'Orc',      unitType:'regular', int:'average', align:'LE', infravision:true, sunlightPenalty:true },
-  { id:'GOBLIN', name:'Goblin Warband',   ac:6, hd:0.875,mv:6, thaco:20, weapon:'shortsword', size:'S', race:'Goblin',   unitType:'regular', int:'average', align:'LE', infravision:true, sunlightPenalty:true },
-  { id:'HOBGOB', name:'Hobgoblin Guard',  ac:5, hd:1.5, mv:9,  thaco:18, weapon:'morningstar',size:'M', race:'Hobgoblin',unitType:'regular', shield:true, int:'average', align:'LE', infravision:true },
-  { id:'GNOLL',  name:'Gnoll Pack',       ac:5, hd:2,   mv:9,  thaco:16, weapon:'halberd',    size:'L', race:'Gnoll',    unitType:'regular', int:'low', align:'CE', infravision:true },
-  { id:'GRIFFON',name:'Griffons',          ac:3, hd:7,   mv:12, thaco:13, weapon:'claw',       size:'L', race:'Griffon', unitType:'regular', int:'animal', align:'N', flying:true, flightMv:30, flightKind:'wings', maneuverability:'C' },   // §15 MM: MV 12"/30"
-  { id:'PEGASUS',name:'Pegasi',            ac:6, hd:4,   mv:24, thaco:15, weapon:'hoof',       size:'L', race:'Pegasus', unitType:'regular', int:'average', align:'CG', flying:true, flightMv:48, flightKind:'wings', maneuverability:'C' },
-  { id:'HIPPOGRIFF',name:'Hippogriffs',    ac:5, hd:3, hdPlus:3, mv:18, thaco:16, weapon:'claw', size:'L', race:'Hippogriff', unitType:'regular', int:'semi', align:'N', flying:true, flightMv:36, flightKind:'wings', maneuverability:'C' },   // MM 3+3, AC 5, 18"/36", 1-6/1-6/1-10; DMG class C (D mounted)
-  { id:'BUGBEAR',name:'Bugbears',         ac:5, hd:3.5, mv:9,  thaco:16, weapon:'morningstar',size:'L', race:'Bugbear',  unitType:'regular', int:'low', align:'CE', infravision:true },   // MM 3+1 HD; equally at home in daylight or darkness — no sunlight penalty
-  { id:'DWARF',  name:'Dwarf Shieldwall', ac:4, hd:1,   mv:6,  thaco:19, weapon:'battleaxe',  size:'S', base:'M', race:'Dwarf', unitType:'regular', demihuman:true, shield:true, int:'very', align:'LG', infravision:true, hates:['Orc','Goblin','Hobgoblin'], terrainKin:'mountain' },   // [2.3] fn: 3/4" base · mountain-bred: ignores rough [11.8]
-  { id:'DW_PIKE',name:'Dwarf Pikes',      ac:4, hd:1,   mv:6,  thaco:19, weapon:'pike',       size:'S', base:'M', race:'Dwarf', unitType:'regular', demihuman:true, shield:true, int:'very', align:'LG', infravision:true, terrainKin:'mountain' },   // [2.3] fn: 3/4" base · mountain-bred: ignores rough [11.8]
-  { id:'ELF',    name:'Elf Swords',       ac:5, hd:1.125,mv:12,thaco:18, hates:['Orc'], weapon:'longsword',  size:'M', race:'Elf', unitType:'regular', demihuman:true, int:'high', align:'CG', specialAbilities:true, infravision:true, terrainKin:'woodland' },   // 90% sleep/charm resistance — Special Ability per DMG p.85 [4.1] · woodland: ignores the woods penalty [11.8]
-  { id:'MEN_HF', name:'Men-at-Arms',      ac:4, hd:1,   mv:9,  thaco:20, arThaco:21, weapon:'longsword',  size:'M', race:'Human', unitType:'regular', shield:true, int:'average', align:'N' },
-  { id:'ELF_SKIRM', name:'Elf Skirmishers', ac:6, hd:1.125, mv:12, thaco:18, hates:['Orc'], weapon:'shortsword', weapon2:'longbow', size:'M', race:'Elf', unitType:'skirmish', demihuman:true, int:'high', align:'CG', specialAbilities:true, infravision:true, terrainKin:'woodland' }, // [2.9] scouts/ambushers: independent figures, 1"+ spacing, never into regular/mob contact
-  { id:'HUM_SKIRM', name:'Human Skirmishers', ac:7, hd:1, mv:12, thaco:20, arThaco:21, weapon:'spear', weapon2:'shortbow', size:'M', race:'Human', unitType:'skirmish', int:'average', align:'N' },   // [2.9]
-  { id:'MEN_SP', name:'Men Spears',       ac:5, hd:1,   mv:9,  thaco:20, arThaco:21, weapon:'spear',      size:'M', race:'Human', unitType:'regular', int:'average', align:'N' },
-  { id:'OGRE',   name:'Ogres',            ac:5, hd:4.5, mv:9,  thaco:15, weapon:'greatclub',  size:'L', race:'Ogre', unitType:'regular', int:'low', align:'CE', infravision:true },
+  { id:'ORC',    name:'Orc Infantry',     ac:6, hd:1,   mv:9,  thaco:19, weapon:'longsword',  size:'M', race:'Orc',      unitType:'regular', int:'average', align:'LE', infravision:true, sunlightPenalty:true, xpValue:15 },
+  { id:'ORC_SP', name:'Orc Spears',       ac:6, hd:1,   mv:9,  thaco:19, weapon:'spear',      size:'M', race:'Orc',      unitType:'regular', int:'average', align:'LE', infravision:true, sunlightPenalty:true, xpValue:15 },
+  { id:'GOBLIN', name:'Goblin Warband',   ac:6, hd:0.875,mv:6, thaco:20, weapon:'shortsword', size:'S', race:'Goblin',   unitType:'regular', int:'average', align:'LE', infravision:true, sunlightPenalty:true, xpValue:14 },
+  { id:'HOBGOB', name:'Hobgoblin Guard',  ac:5, hd:1.5, mv:9,  thaco:18, weapon:'morningstar',size:'M', race:'Hobgoblin',unitType:'regular', shield:true, int:'average', align:'LE', infravision:true, xpValue:31 },
+  { id:'GNOLL',  name:'Gnoll Pack',       ac:5, hd:2,   mv:9,  thaco:16, weapon:'halberd',    size:'L', race:'Gnoll',    unitType:'regular', int:'low', align:'CE', infravision:true, xpValue:46 },
+  { id:'GRIFFON',name:'Griffons',          ac:3, hd:7, xpValue:690,   mv:12, thaco:13, weapon:'claw',       size:'L', race:'Griffon', unitType:'regular', int:'animal', align:'N', flying:true, flightMv:30, flightKind:'wings', maneuverability:'C' },   // §15 MM: MV 12"/30"
+  { id:'PEGASUS',name:'Pegasi',            ac:6, hd:4, xpValue:132,   mv:24, thaco:15, weapon:'hoof',       size:'L', race:'Pegasus', unitType:'regular', int:'average', align:'CG', flying:true, flightMv:48, flightKind:'wings', maneuverability:'C', xpValue:132 },
+  { id:'HIPPOGRIFF',name:'Hippogriffs',    ac:5, hd:3, xpValue:126, hdPlus:3, mv:18, thaco:16, weapon:'claw', size:'L', race:'Hippogriff', unitType:'regular', int:'semi', align:'N', flying:true, flightMv:36, flightKind:'wings', maneuverability:'C' },   // MM 3+3, AC 5, 18"/36", 1-6/1-6/1-10; DMG class C (D mounted)
+  { id:'BUGBEAR',name:'Bugbears',         ac:5, hd:3.5, xpValue:193, mv:9,  thaco:16, weapon:'morningstar',size:'L', race:'Bugbear',  unitType:'regular', int:'low', align:'CE', infravision:true },   // MM 3+1 HD; equally at home in daylight or darkness — no sunlight penalty
+  { id:'DWARF',  name:'Dwarf Shieldwall', ac:4, hd:1, xpValue:15,   mv:6,  thaco:19, weapon:'battleaxe',  size:'S', base:'M', race:'Dwarf', unitType:'regular', demihuman:true, shield:true, int:'very', align:'LG', infravision:true, hates:['Orc','Goblin','Hobgoblin'], terrainKin:'mountain' },   // [2.3] fn: 3/4" base · mountain-bred: ignores rough [11.8]
+  { id:'DW_PIKE',name:'Dwarf Pikes',      ac:4, hd:1, xpValue:15,   mv:6,  thaco:19, weapon:'pike',       size:'S', base:'M', race:'Dwarf', unitType:'regular', demihuman:true, shield:true, int:'very', align:'LG', infravision:true, terrainKin:'mountain' },   // [2.3] fn: 3/4" base · mountain-bred: ignores rough [11.8]
+  { id:'ELF',    name:'Elf Swords',       ac:5, hd:1.125, xpValue:31,mv:12,thaco:18, hates:['Orc'], weapon:'longsword',  size:'M', race:'Elf', unitType:'regular', demihuman:true, int:'high', align:'CG', specialAbilities:true, infravision:true, terrainKin:'woodland' },   // 90% sleep/charm resistance — Special Ability per DMG p.85 [4.1] · woodland: ignores the woods penalty [11.8]
+  { id:'MEN_HF', name:'Men-at-Arms',      ac:4, hd:1,   mv:9,  thaco:20, arThaco:21, weapon:'longsword',  size:'M', race:'Human', unitType:'regular', shield:true, int:'average', align:'N', xpValue:10 },
+  { id:'ELF_SKIRM', name:'Elf Skirmishers', ac:6, hd:1.125, xpValue:31, mv:12, thaco:18, hates:['Orc'], weapon:'shortsword', weapon2:'longbow', size:'M', race:'Elf', unitType:'skirmish', demihuman:true, int:'high', align:'CG', specialAbilities:true, infravision:true, terrainKin:'woodland' }, // [2.9] scouts/ambushers: independent figures, 1"+ spacing, never into regular/mob contact
+  { id:'HUM_SKIRM', name:'Human Skirmishers', ac:7, hd:1, xpValue:10, mv:12, thaco:20, arThaco:21, weapon:'spear', weapon2:'shortbow', size:'M', race:'Human', unitType:'skirmish', int:'average', align:'N' },   // [2.9]
+  { id:'MEN_SP', name:'Men Spears',       ac:5, hd:1,   mv:9,  thaco:20, arThaco:21, weapon:'spear',      size:'M', race:'Human', unitType:'regular', int:'average', align:'N', xpValue:10 },
+  { id:'OGRE',   name:'Ogres',            ac:5, hd:4.5, xpValue:185, mv:9,  thaco:15, weapon:'greatclub',  size:'L', race:'Ogre', unitType:'regular', int:'low', align:'CE', infravision:true, xpValue:185 },
+  // v0.66.2 xpValue = DMG Appendix E base + per-hp at the row's average hit points (d8 4.5, ½ HD d4 2.5, 1-1 3.5); 0-level men use the DMG <1-1 row (5 + 1/hp);
+  // cavalry = rider + mount (light horse 2 HD 20+2, medium 2+2 20+2, heavy 3+3 35+3 by the DMG hit-dice brackets); chariots and CUSTOM are left for the sheet.
   // v0.65.0 §14.19 undead from the 1e MM; mindless [13.9]; undeadType feeds the OSRIC 3.0 turning matrix
-  { id:'SKELETON',name:'Skeletons',        ac:7, hd:1,   mv:12, thaco:19, weapon:'longsword',  size:'M', race:'Skeleton', unitType:'regular', int:'non', align:'N', infravision:true, creatureAbilities:{mindless:true,undeadType:'skeleton'} },
-  { id:'ZOMBIE', name:'Zombies',          ac:8, hd:2,   mv:6,  thaco:16, weapon:'club',       size:'M', race:'Zombie',   unitType:'regular', int:'non', align:'N', infravision:true, creatureAbilities:{mindless:true,undeadType:'zombie'} },
-  { id:'GHOUL',  name:'Ghouls',           ac:6, hd:2,   mv:9,  thaco:16, weapon:'club',       size:'M', race:'Ghoul',    unitType:'regular', int:'low', align:'CE', infravision:true, creatureAbilities:{paralysis:'touch',undeadType:'ghoul'} },
-  { id:'PEAS',   name:'Peasant Mob',      ac:10,hd:0.5, mv:12, thaco:20, arThaco:21, weapon:'club',       size:'M', race:'Human', unitType:'mob', int:'average', align:'N' },
+  { id:'SKELETON',name:'Skeletons',        ac:7, hd:1,   mv:12, thaco:19, weapon:'longsword',  size:'M', race:'Skeleton', unitType:'regular', int:'non', align:'N', infravision:true, creatureAbilities:{mindless:true,undeadType:'skeleton'}, xpValue:19 },
+  { id:'ZOMBIE', name:'Zombies',          ac:8, hd:2,   mv:6,  thaco:16, weapon:'club',       size:'M', race:'Zombie',   unitType:'regular', int:'non', align:'N', infravision:true, creatureAbilities:{mindless:true,undeadType:'zombie'}, xpValue:38 },
+  { id:'GHOUL',  name:'Ghouls',           ac:6, hd:2,   mv:9,  thaco:16, weapon:'club',       size:'M', race:'Ghoul',    unitType:'regular', int:'low', align:'CE', infravision:true, creatureAbilities:{paralysis:'touch',undeadType:'ghoul'}, xpValue:83 },
+  { id:'PEAS',   name:'Peasant Mob',      ac:10,hd:0.5, xpValue:8, mv:12, thaco:20, arThaco:21, weapon:'club',       size:'M', race:'Human', unitType:'mob', int:'average', align:'N', xpValue:8 },
   // [11.1]-[11.2] CAVALRY — one figure = rider + mount. The ac/hd/mv literals below
   // ARE the engine's BattlesystemCavalry.calculateCavalryRating output, locked by a
   // boot self-test: AR = the RIDER's (0-level men → thaco 20/arThaco 21), HD =
@@ -1194,13 +1197,13 @@ const BS_TYPES = Object.freeze([
   // damage AGAINST cavalry and the 1″ base). mount.dmg is the FULL MM hoof routine —
   // each part reads its own CRT column on the ONE Attack Roll [11.5] (heavy warhorse
   // 1-3 bite omitted pending MM verification — open to veto, one string edit).
-  { id:'LT_CAV',  name:'Light Cavalry',   ac:7, hd:2, mv:24, thaco:20, arThaco:21, weapon:'light lance',  size:'L', base:'CAV', race:'Human', unitType:'regular', shield:true, mounted:true, int:'average', align:'N',
+  { id:'LT_CAV',  name:'Light Cavalry',   ac:7, hd:2, xpValue:39, mv:24, thaco:20, arThaco:21, weapon:'light lance',  size:'L', base:'CAV', race:'Human', unitType:'regular', shield:true, mounted:true, int:'average', align:'N',
     rider:{ label:'light horseman',  ac:6, hd:1 }, mount:{ label:'light warhorse',  ac:7, hd:'2',   mv:24, dmg:'1d4/1d4' } },
-  { id:'MED_CAV', name:'Medium Cavalry',  ac:7, hd:2, mv:18, thaco:20, arThaco:21, weapon:'medium lance', size:'L', base:'CAV', race:'Human', unitType:'regular', shield:true, mounted:true, int:'average', align:'N',
+  { id:'MED_CAV', name:'Medium Cavalry',  ac:7, hd:2, xpValue:41, mv:18, thaco:20, arThaco:21, weapon:'medium lance', size:'L', base:'CAV', race:'Human', unitType:'regular', shield:true, mounted:true, int:'average', align:'N',
     rider:{ label:'medium horseman', ac:4, hd:1 }, mount:{ label:'medium warhorse', ac:7, hd:'2+2', mv:18, dmg:'1d6/1d6' } },
-  { id:'HVY_CAV', name:'Heavy Cavalry',   ac:7, hd:2, mv:15, thaco:20, arThaco:21, weapon:'heavy lance',  size:'L', base:'CAV', race:'Human', unitType:'regular', shield:true, mounted:true, int:'average', align:'N',
+  { id:'HVY_CAV', name:'Heavy Cavalry',   ac:7, hd:2, xpValue:95, mv:15, thaco:20, arThaco:21, weapon:'heavy lance',  size:'L', base:'CAV', race:'Human', unitType:'regular', shield:true, mounted:true, int:'average', align:'N',
     rider:{ label:'heavy horseman',  ac:2, hd:1 }, mount:{ label:'heavy warhorse',  ac:7, hd:'3+3', mv:15, dmg:'1d8/1d8' } },
-  { id:'HORSE_ARCH', name:'Horse Archers', ac:7, hd:2, mv:24, thaco:20, arThaco:21, weapon:'scimitar', weapon2:'shortbow', size:'L', base:'CAV', race:'Human', unitType:'regular', mounted:true, splitFire:true, int:'average', align:'N',
+  { id:'HORSE_ARCH', name:'Horse Archers', ac:7, hd:2, xpValue:39, mv:24, thaco:20, arThaco:21, weapon:'scimitar', weapon2:'shortbow', size:'L', base:'CAV', race:'Human', unitType:'regular', mounted:true, splitFire:true, int:'average', align:'N',
     rider:{ label:'horse archer',    ac:7, hd:1 }, mount:{ label:'light warhorse',  ac:7, hd:'2',   mv:24, dmg:'1d4/1d4' } },   // Table 12/[10.5]: fire with FULL movement
   // [11.1]/[15.0] FLYING CAVALRY — a rider on a flying mount IS cavalry. Top-level
   // ratings follow the same [11.2] convention as the horse types above (AR = rider's,
@@ -1209,13 +1212,13 @@ const BS_TYPES = Object.freeze([
   // is, and the mount object keeps its own copy. mountedFlyer is DERIVED, so each of
   // these turns one class worse than the creature alone (DMG: pegasus/griffon/
   // hippogriff all C, D when mounted).
-  { id:'PEG_CAV', name:'Pegasus Riders',   ac:6, hd:3, mv:24, thaco:20, arThaco:21, weapon:'medium lance', size:'L', base:'CAV', race:'Human', unitType:'regular', mounted:true, int:'average', align:'CG',
+  { id:'PEG_CAV', name:'Pegasus Riders',   ac:6, hd:3, xpValue:142, mv:24, thaco:20, arThaco:21, weapon:'medium lance', size:'L', base:'CAV', race:'Human', unitType:'regular', mounted:true, int:'average', align:'CG',
     flying:true, flightMv:48, flightKind:'wings', maneuverability:'C',
     rider:{ label:'pegasus rider',   ac:4, hd:1 }, mount:{ label:'pegasus',   ac:6, hd:'4',   mv:24, flightMv:48, maneuverability:'C', dmg:'1d8/1d8' } },
-  { id:'HIP_CAV', name:'Hippogriff Riders',ac:5, hd:2, mv:18, thaco:20, arThaco:21, weapon:'medium lance', size:'L', base:'CAV', race:'Human', unitType:'regular', mounted:true, int:'average', align:'N',
+  { id:'HIP_CAV', name:'Hippogriff Riders',ac:5, hd:2, xpValue:136, mv:18, thaco:20, arThaco:21, weapon:'medium lance', size:'L', base:'CAV', race:'Human', unitType:'regular', mounted:true, int:'average', align:'N',
     flying:true, flightMv:36, flightKind:'wings', maneuverability:'C',
     rider:{ label:'hippogriff rider', ac:4, hd:1 }, mount:{ label:'hippogriff', ac:5, hd:'3+3', mv:18, flightMv:36, maneuverability:'C', dmg:'1d6/1d6/1d10' } },
-  { id:'GRIF_CAV',name:'Griffon Riders',   ac:4, hd:4, mv:12, thaco:20, arThaco:21, weapon:'medium lance', size:'L', base:'CAV', race:'Human', unitType:'regular', mounted:true, int:'average', align:'N',
+  { id:'GRIF_CAV',name:'Griffon Riders',   ac:4, hd:4, xpValue:700, mv:12, thaco:20, arThaco:21, weapon:'medium lance', size:'L', base:'CAV', race:'Human', unitType:'regular', mounted:true, int:'average', align:'N',
     flying:true, flightMv:30, flightKind:'wings', maneuverability:'C',
     rider:{ label:'griffon rider',   ac:4, hd:1 }, mount:{ label:'griffon',    ac:3, hd:'7',   mv:12, flightMv:30, maneuverability:'C', dmg:'1d4/1d4/2d8' } },
   // [11.3] Generic editable chariot. The top-level ratings are only safe fallbacks;
@@ -1238,9 +1241,9 @@ const BS_TYPES = Object.freeze([
     race:'Human', unitType:'individual', individual:true, int:'average', align:'N' },
   // [10.9]/[10.10] field artillery: one 10-HD crew figure (ten 0-level men at 10:1);
   // the piece's AR = crewThaco flat, never ratio-adjusted; crew is skirmish-handled.
-  { id:'ARTY_LC', name:'Light Catapult', ac:10, hd:1, mv:8, thaco:20, arThaco:21, crewThaco:20, weapon:'club', size:'L', race:'Human', unitType:'skirmish', artillery:'lightCatapult', int:'average', align:'N' },
-  { id:'ARTY_HC', name:'Heavy Catapult', ac:10, hd:1, mv:4, thaco:20, arThaco:21, crewThaco:20, weapon:'club', size:'L', race:'Human', unitType:'skirmish', artillery:'heavyCatapult', int:'average', align:'N' },
-  { id:'ARTY_BAL',name:'Ballista',       ac:10, hd:1, mv:6, thaco:20, arThaco:21, crewThaco:20, weapon:'club', size:'L', race:'Human', unitType:'skirmish', artillery:'ballista', int:'average', align:'N' },
+  { id:'ARTY_LC', name:'Light Catapult', ac:10, hd:1, mv:8, thaco:20, arThaco:21, crewThaco:20, weapon:'club', size:'L', race:'Human', unitType:'skirmish', artillery:'lightCatapult', int:'average', align:'N', xpValue:10 },
+  { id:'ARTY_HC', name:'Heavy Catapult', ac:10, hd:1, mv:4, thaco:20, arThaco:21, crewThaco:20, weapon:'club', size:'L', race:'Human', unitType:'skirmish', artillery:'heavyCatapult', int:'average', align:'N', xpValue:10 },
+  { id:'ARTY_BAL',name:'Ballista',       ac:10, hd:1, mv:6, thaco:20, arThaco:21, crewThaco:20, weapon:'club', size:'L', race:'Human', unitType:'skirmish', artillery:'ballista', int:'average', align:'N', xpValue:10 },
 ]);
 const typeById = id => BS_TYPES.find(t => t.id === id);
 
@@ -16201,6 +16204,10 @@ window.addEventListener('mousedown', e => {   // assign menu closes on any outsi
     const sn=snap();t('[16/v0.66.0] the ledger rides the snapshot',!!sn.campaign&&sn.campaign.fallen.length===1&&sn.campaign.kills[String(A.id)].xp===1200);
     state.setup=true;
   }finally{applySnap(bak);}})();
+  // v0.66.2 roster XP kill values from DMG Appendix E.
+  { const want={ORC:15,GOBLIN:14,HOBGOB:31,GNOLL:46,GRIFFON:690,PEGASUS:132,HIPPOGRIFF:126,BUGBEAR:193,ELF:31,MEN_HF:10,OGRE:185,SKELETON:19,ZOMBIE:38,GHOUL:83,PEAS:8,LT_CAV:39,HVY_CAV:95,GRIF_CAV:700,ARTY_BAL:10};
+    t('[16.2/v0.66.2] roster rows carry Appendix E XP kill values at average hit points',Object.entries(want).every(([id,v])=>typeById(id)?.xpValue===v)&&xpValuePer(mkUnit('ORC','A',12,20,20))===15&&typeById('CUSTOM').xpValue==null&&typeById('CHARIOT').xpValue==null);
+    const OV=mkUnit('ORC','A',12,20,20);OV.prof.xpValue=99;t('[16.2/v0.66.2] a sheet value overrides the roster XP',xpValuePer(OV)===99); }
   // v0.48.2: §14.11 regressions intentionally exercise log-producing privacy paths; none may survive boot.
   $('#log').innerHTML = logBeforeTests; syncLogCount();
   t('[UI/v0.48.2] boot self-tests restore Battle Log exactly after §14.11 side-effect tests', $('#log').innerHTML === logBeforeTests);
