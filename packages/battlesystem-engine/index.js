@@ -1,4 +1,7 @@
-// @graycloak/battlesystem-engine v0.14.0 - 2026-08-28
+// @graycloak/battlesystem-engine v0.15.0 - 2026-09-04
+// v0.15.0: aerial.js adds pure BATTLESYSTEM [15.4] bombing data: fixed target
+//          AC by altitude, whole man-sized weight-equivalent normalization, the
+//          2d6 damage profile, and the one-class maneuverability penalty.
 // v0.14.0: individual-combat.js rollDamage rolls AD&D expressions as written (any die
 //          size, NdS±M term sums, negative modifiers, MM a-b ranges). unit-math.js adds
 //          damageExpressionStats + approximateCrtDamage (nearest legal CRT die, flagged
@@ -94,6 +97,7 @@ export { BattlesystemCreatureDefenses } from './src/creature-defenses.js';
 export { BattlesystemMagicMovement } from './src/magic-movement.js';
 export { BattlesystemInnateActions } from './src/innate-actions.js';
 export { BattlesystemSecondaryEffects } from './src/secondary-effects.js';
+export { BattlesystemAerial } from './src/aerial.js';
 export { MISSILE_WEAPONS, GIANT_ROCK_PROFILES, ARTILLERY_WEAPONS, missileKey, missileDataFor, giantRockTypeFor, giantRockDataFor, rangeBand } from './src/missiles.js';
 export {
   ratioFromHD,
