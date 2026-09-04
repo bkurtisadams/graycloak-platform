@@ -234,11 +234,11 @@ const el = {
   headerCharacteristics: document.querySelector('#header-characteristics'),
   headerQuickSkills: document.querySelector('#header-quick-skills'),
   headerTask: document.querySelector('#header-task'),
-  togglePersonnel: document.querySelector('#toggle-personnel'),
-  toggleShip: document.querySelector('#toggle-ship'),
-  toggleCampaign: document.querySelector('#toggle-campaign'),
-  toggleThreads: document.querySelector('#toggle-threads'),
-  toggleChargenRecord: document.querySelector('#toggle-chargen-record'),
+  workspaceTabPlay: document.querySelector('#workspace-tab-play'),
+  workspaceTabCharacter: document.querySelector('#workspace-tab-character'),
+  workspaceTabShip: document.querySelector('#workspace-tab-ship'),
+  workspaceTabCampaign: document.querySelector('#workspace-tab-campaign'),
+  workspaceTabThreads: document.querySelector('#workspace-tab-threads'),
   personnelSection: document.querySelector('#personnel-section'),
   procedureSection: document.querySelector('#procedure-section'),
   chargenRecordSection: document.querySelector('#chargen-record-section'),
@@ -468,14 +468,9 @@ const ENCOUNTER_MAP_MAX_ZOOM = 4;
 let encounterMapZoom = 1;
 let encounterMapView = { x: 0, y: 0, width: ENCOUNTER_MAP_WIDTH, height: ENCOUNTER_MAP_HEIGHT };
 let encounterMapViewFrame = 0;
-const detailPanels = {
-  personnel: false,
-  ship: false,
-  campaign: false,
-  threads: false,
-  chargen: false,
-  system: false
-};
+const WORKSPACE_VIEWS = ['play', 'character', 'ship', 'campaign', 'threads'];
+let activeWorkspaceView = 'play';
+let systemDetailsOpen = false;
 let registry = null;
 
 try {
@@ -943,7 +938,8 @@ function renderSelectedSystemSummary() {
   const zone = system.travelZone === 'none' ? 'NORMAL' : system.travelZone.toUpperCase();
   el.selectedSystemSummaryText.textContent = `${selected && selected.id !== current?.id ? 'SELECTED' : 'CURRENT'}: ${system.name.toUpperCase()} // ${system.hex} // ${system.mainWorld.uwp} // TL ${profile.techLevel} // ${bases} // GAS GIANT ${system.gasGiant ? 'YES' : 'NO'} // ${zone}`;
   el.selectedSystemSummary.hidden = false;
-  el.toggleSystemDetails.textContent = detailPanels.system ? '[ HIDE DETAILS ]' : '[ DETAILS ]';
+  el.toggleSystemDetails.textContent = systemDetailsOpen ? '[ HIDE DETAILS ]' : '[ DETAILS ]';
+  el.toggleSystemDetails.setAttribute('aria-expanded', systemDetailsOpen ? 'true' : 'false');
 }
 
 function applyCampaignLayout() {
@@ -956,35 +952,41 @@ function applyCampaignLayout() {
     el.chargenRecordSection.hidden = false;
     return;
   }
+  if (activeWorkspaceView === 'ship' && !shipDocument) activeWorkspaceView = 'play';
+  const view = activeWorkspaceView;
   el.legacyPersonnelFields.hidden = true;
   el.characterSheet.hidden = false;
-  el.personnelSection.hidden = !detailPanels.personnel;
   el.procedureSection.hidden = true;
-  el.campaignSection.hidden = !detailPanels.campaign;
-  el.threadSection.hidden = !detailPanels.threads;
-  if (shipDocument) el.shipSection.hidden = !detailPanels.ship;
-  el.chargenRecordSection.hidden = !detailPanels.chargen;
-  if (el.systemRecord.textContent) el.systemRecordSection.hidden = !detailPanels.system;
-  el.togglePersonnel.textContent = detailPanels.personnel ? '[ HIDE CHARACTER ]' : '[ CHARACTER ]';
-  el.toggleShip.textContent = detailPanels.ship ? '[ HIDE SHIP ]' : '[ SHIP ]';
-  el.toggleCampaign.textContent = detailPanels.campaign ? '[ HIDE CAMPAIGN ]' : '[ CAMPAIGN ]';
-  el.toggleThreads.textContent = detailPanels.threads ? '[ HIDE THREADS ]' : '[ THREADS ]';
-  el.toggleChargenRecord.textContent = detailPanels.chargen ? '[ HIDE CHARGEN RECORD ]' : '[ CHARGEN RECORD ]';
-  for (const [key, section] of [
-    ['personnel', el.personnelSection],
-    ['ship', el.shipSection],
-    ['campaign', el.campaignSection],
-    ['threads', el.threadSection],
-    ['chargen', el.chargenRecordSection],
-    ['system', el.systemRecordSection]
+  el.chargenRecordSection.hidden = true;
+  el.subsectorSection.hidden = view !== 'play';
+  el.personnelSection.hidden = view !== 'character';
+  el.shipSection.hidden = view !== 'ship';
+  el.campaignSection.hidden = view !== 'campaign';
+  el.threadSection.hidden = view !== 'threads';
+  el.systemRecordSection.hidden = !(systemDetailsOpen && el.systemRecord.textContent);
+  el.workspaceTabShip.disabled = !shipDocument;
+  el.workspaceTabShip.title = shipDocument ? '' : 'No active ship assigned';
+  for (const [key, tab] of [
+    ['play', el.workspaceTabPlay],
+    ['character', el.workspaceTabCharacter],
+    ['ship', el.workspaceTabShip],
+    ['campaign', el.workspaceTabCampaign],
+    ['threads', el.workspaceTabThreads]
   ]) {
-    section?.classList.toggle('detail-view-open', Boolean(detailPanels[key]));
+    tab?.setAttribute('aria-selected', key === view ? 'true' : 'false');
   }
 }
 
-function toggleDetailPanel(key) {
-  if (!(key in detailPanels)) return;
-  detailPanels[key] = !detailPanels[key];
+function setWorkspaceView(view) {
+  if (!WORKSPACE_VIEWS.includes(view)) return;
+  if (view === 'ship' && !shipDocument) return;
+  activeWorkspaceView = view;
+  applyCampaignLayout();
+  renderSelectedSystemSummary();
+}
+
+function toggleSystemDetails() {
+  systemDetailsOpen = !systemDetailsOpen;
   applyCampaignLayout();
   renderSelectedSystemSummary();
 }
@@ -1384,7 +1386,7 @@ function renderShip() {
     applyCampaignLayout();
     return;
   }
-  el.shipSection.hidden = false;
+  el.shipSection.hidden = campaignPlayActive() && activeWorkspaceView !== 'ship';
   if (el.shipName.value !== shipDocument.identity.name) el.shipName.value = shipDocument.identity.name;
   if (el.shipRegistry.value !== shipDocument.identity.registry) el.shipRegistry.value = shipDocument.identity.registry;
   el.shipRecord.textContent = buildShipRecord(shipDocument);
@@ -1982,7 +1984,7 @@ function renderSystemRecord() {
     renderSelectedSystemSummary();
     return;
   }
-  el.systemRecordSection.hidden = false;
+  el.systemRecordSection.hidden = !systemDetailsOpen;
   el.systemRecordHeading.textContent = selected && selected.id !== current?.id
     ? 'SELECTED SYSTEM RECORD'
     : 'CURRENT SYSTEM RECORD';
@@ -3759,7 +3761,7 @@ function renderEncounter() {
   el.encounterDetails.hidden = !displayed;
   renderEncounterMap(displayed);
   el.operationsTabEncounter?.classList.toggle('attention', Boolean(active));
-  if (el.operationsTabEncounter) el.operationsTabEncounter.textContent = active ? '[ ENCOUNTER ! ]' : '[ ENCOUNTER ]';
+  if (el.operationsTabEncounter) el.operationsTabEncounter.textContent = 'COMBAT';
   if (active) {
     const actor = selectedEncounterActor(active);
     const target = selectedEncounterTarget(active);
@@ -3800,7 +3802,7 @@ function renderSituations() {
   el.situationActions.replaceChildren();
   const active = activeSituationAtCurrentSystem();
   el.operationsTabSituation?.classList.toggle('attention', Boolean(active));
-  if (el.operationsTabSituation) el.operationsTabSituation.textContent = active ? '[ SITUATION ! ]' : '[ SITUATION ]';
+  if (el.operationsTabSituation) el.operationsTabSituation.textContent = 'SITUATION';
 
   if (active) {
     for (const choice of active.choices) {
@@ -4144,7 +4146,7 @@ function renderSubsector() {
   }
 
   normalizeCampaignMappedLocation();
-  el.subsectorSection.hidden = false;
+  el.subsectorSection.hidden = campaignPlayActive() && activeWorkspaceView !== 'play';
   const current = mappedCurrentSystem();
   const selected = selectedSystemId ? getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, selectedSystemId) : null;
   const jumpRating = activeJumpRating();
@@ -5114,7 +5116,8 @@ el.newCharacter.addEventListener('click', () => {
   npcActorDocuments = [];
   mediaAssetDocuments = [];
   selectedSystemId = null;
-  for (const key of Object.keys(detailPanels)) detailPanels[key] = false;
+  activeWorkspaceView = 'play';
+  systemDetailsOpen = false;
   closeRollDialog();
   closeHelp();
   setActivityContext();
@@ -5160,12 +5163,12 @@ el.activityNoteForm.addEventListener('submit', (event) => {
   setStatus('CAMPAIGN NOTE RECORDED', 'ok');
 });
 
-el.togglePersonnel.addEventListener('click', () => toggleDetailPanel('personnel'));
-el.headerCharacterName.addEventListener('click', () => {
-  detailPanels.personnel = true;
-  applyCampaignLayout();
-  el.personnelSection?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-});
+el.workspaceTabPlay.addEventListener('click', () => setWorkspaceView('play'));
+el.workspaceTabCharacter.addEventListener('click', () => setWorkspaceView('character'));
+el.workspaceTabShip.addEventListener('click', () => setWorkspaceView('ship'));
+el.workspaceTabCampaign.addEventListener('click', () => setWorkspaceView('campaign'));
+el.workspaceTabThreads.addEventListener('click', () => setWorkspaceView('threads'));
+el.headerCharacterName.addEventListener('click', () => setWorkspaceView('character'));
 el.sheetWeapon.addEventListener('change', () => saveCharacterSheetState(
   { weaponKey: el.sheetWeapon.value },
   `Ready weapon set: ${getPersonalWeapon(el.sheetWeapon.value).name}`
@@ -5178,27 +5181,21 @@ el.sheetNotes.addEventListener('change', () => saveCharacterSheetState(
   { notes: el.sheetNotes.value },
   'Character notes updated'
 ));
-el.toggleShip.addEventListener('click', () => toggleDetailPanel('ship'));
-el.toggleCampaign.addEventListener('click', () => toggleDetailPanel('campaign'));
-el.toggleThreads.addEventListener('click', () => toggleDetailPanel('threads'));
-el.toggleChargenRecord.addEventListener('click', () => toggleDetailPanel('chargen'));
-el.toggleSystemDetails.addEventListener('click', () => toggleDetailPanel('system'));
+el.toggleSystemDetails.addEventListener('click', toggleSystemDetails);
 
 el.headerTask.addEventListener('click', () => {
   const kind = el.headerTask.dataset.taskKind;
   if (kind === 'encounter') {
+    setWorkspaceView('play');
     setOperationsDeskTab('encounter');
-    el.subsectorSection?.scrollIntoView({ block: 'start', behavior: 'smooth' });
   } else if (kind === 'situation') {
+    setWorkspaceView('play');
     setOperationsDeskTab('situation');
-    el.subsectorSection?.scrollIntoView({ block: 'start', behavior: 'smooth' });
   } else if (kind === 'contract') {
+    setWorkspaceView('play');
     setOperationsDeskTab('jobs');
-    el.subsectorSection?.scrollIntoView({ block: 'start', behavior: 'smooth' });
   } else if (kind === 'thread') {
-    detailPanels.threads = true;
-    applyCampaignLayout();
-    el.threadSection?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    setWorkspaceView('threads');
   } else return;
 });
 

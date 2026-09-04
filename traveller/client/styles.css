@@ -571,11 +571,15 @@ input[readonly] {
 
 .operations-tab {
   min-width: 0;
-  padding: 4px 3px;
+  padding: 4px 2px;
   border: 1px solid var(--disabled);
   font-size: 11px;
+  letter-spacing: 0.04em;
   text-align: center;
   text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .operations-tab[aria-selected="true"] {
@@ -591,6 +595,8 @@ input[readonly] {
   background: var(--attention);
   color: var(--ink);
   font-weight: 700;
+  border-color: var(--attention-border);
+  border-left-width: 4px;
 }
 
 
@@ -1749,14 +1755,59 @@ input[readonly] {
   text-decoration: none;
 }
 
-.campaign-header-links {
+.workspace-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px 16px;
-  margin-top: 7px;
-  padding-top: 5px;
-  border-top: 1px solid var(--disabled);
+  gap: 0 4px;
+  margin-top: 8px;
+  border-bottom: 2px solid var(--rule);
+}
+
+.workspace-tab {
+  padding: 4px 14px 3px;
+  border: 1px solid var(--disabled);
+  border-bottom: 0;
+  margin-bottom: -2px;
   font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  background: var(--paper-deep);
+  color: var(--muted);
+}
+
+.workspace-tab:hover,
+.workspace-tab:focus-visible {
+  color: var(--ink);
+  outline: 1px dotted var(--ink);
+  outline-offset: -3px;
+}
+
+.workspace-tab[aria-selected="true"] {
+  background: var(--paper);
+  color: var(--ink);
+  border-color: var(--rule);
+  border-bottom: 2px solid var(--paper);
+}
+
+.workspace-tab:disabled {
+  color: var(--disabled);
+  cursor: default;
+  text-decoration: none;
+}
+
+.campaign-play #subsector-section,
+.campaign-play #personnel-section,
+.campaign-play #ship-section,
+.campaign-play #campaign-section,
+.campaign-play #thread-section {
+  margin-top: 12px;
+}
+
+.system-record-section {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--disabled);
 }
 
 
@@ -1764,6 +1815,8 @@ input[readonly] {
   position: sticky;
   top: 0;
   z-index: 10;
+  padding-bottom: 0;
+  border-bottom: 0;
   background: var(--paper);
 }
 
@@ -1860,11 +1913,6 @@ input[readonly] {
   border-top: 1px solid var(--rule);
 }
 
-.detail-view-open {
-  padding-top: 8px;
-  border-top: 1px solid var(--rule);
-}
-
 @media (max-width: 980px) {
   .campaign-header-grid {
     grid-template-columns: 1fr 1fr;
@@ -1896,4 +1944,3 @@ input[readonly] {
 
 /* v0.12.1 adventure-thread record */
 .thread-record { min-height: 0; }
-.campaign-header-links { flex-wrap: wrap; }

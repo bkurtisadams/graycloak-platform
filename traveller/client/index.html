@@ -12,7 +12,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.16.1</div>
+          <div id="app-subtitle" class="subtitle">v0.17.0</div>
           <button id="toggle-activity" class="text-button masthead-log-toggle" type="button" aria-expanded="true" aria-controls="activity-panel">[ HIDE LOG ]</button>
         </div>
         <div id="campaign-identity" class="campaign-identity"><span>CAMPAIGN</span> // <strong id="header-campaign-name">NO CAMPAIGN</strong></div>
@@ -54,12 +54,12 @@
         <span class="campaign-header-label">TASK</span>
         <button id="header-task" class="header-task text-button" type="button" disabled>NONE</button>
       </div>
-      <div class="campaign-header-links" aria-label="Campaign detail views">
-        <button id="toggle-personnel" class="text-button" type="button">[ CHARACTER ]</button>
-        <button id="toggle-ship" class="text-button" type="button">[ SHIP ]</button>
-        <button id="toggle-campaign" class="text-button" type="button">[ CAMPAIGN ]</button>
-        <button id="toggle-threads" class="text-button" type="button">[ THREADS ]</button>
-        <button id="toggle-chargen-record" class="text-button" type="button">[ CHARGEN RECORD ]</button>
+      <div id="workspace-tabs" class="workspace-tabs" role="tablist" aria-label="Campaign workspace views">
+        <button id="workspace-tab-play" class="text-button workspace-tab" type="button" role="tab" aria-selected="true" aria-controls="subsector-section">PLAY</button>
+        <button id="workspace-tab-character" class="text-button workspace-tab" type="button" role="tab" aria-selected="false" aria-controls="personnel-section">CHARACTER</button>
+        <button id="workspace-tab-ship" class="text-button workspace-tab" type="button" role="tab" aria-selected="false" aria-controls="ship-section">SHIP</button>
+        <button id="workspace-tab-campaign" class="text-button workspace-tab" type="button" role="tab" aria-selected="false" aria-controls="campaign-section">CAMPAIGN</button>
+        <button id="workspace-tab-threads" class="text-button workspace-tab" type="button" role="tab" aria-selected="false" aria-controls="thread-section">THREADS</button>
       </div>
     </section>
 
@@ -207,13 +207,13 @@
           </div>
           <div class="operations-desk" aria-label="Port operations desk">
             <div class="operations-tabs" role="tablist" aria-label="Operations desk views">
-              <button id="operations-tab-navigation" class="text-button operations-tab" type="button" role="tab" aria-selected="true" title="Subsector navigation and jump controls">[ NAV ]</button>
-              <button id="operations-tab-port" class="text-button operations-tab" type="button" role="tab" aria-controls="port-services-section" aria-selected="false">[ PORT ]</button>
-              <button id="operations-tab-trade" class="text-button operations-tab" type="button" role="tab" aria-controls="commerce-section" aria-selected="true">[ TRADE ]</button>
-              <button id="operations-tab-jobs" class="text-button operations-tab" type="button" role="tab" aria-controls="contract-section" aria-selected="false">[ JOBS ]</button>
-              <button id="operations-tab-situation" class="text-button operations-tab" type="button" role="tab" aria-controls="situation-section" aria-selected="false">[ SITUATION ]</button>
-              <button id="operations-tab-encounter" class="text-button operations-tab" type="button" role="tab" aria-controls="encounter-section" aria-selected="false">[ ENCOUNTER ]</button>
-              <button id="operations-tab-roster" class="text-button operations-tab" type="button" role="tab" aria-controls="roster-section" aria-selected="false">[ ROSTER ]</button>
+              <button id="operations-tab-navigation" class="text-button operations-tab" type="button" role="tab" aria-selected="true" title="Subsector navigation and jump controls">NAV</button>
+              <button id="operations-tab-port" class="text-button operations-tab" type="button" role="tab" aria-controls="port-services-section" aria-selected="false">PORT</button>
+              <button id="operations-tab-trade" class="text-button operations-tab" type="button" role="tab" aria-controls="commerce-section" aria-selected="false">TRADE</button>
+              <button id="operations-tab-jobs" class="text-button operations-tab" type="button" role="tab" aria-controls="contract-section" aria-selected="false">JOBS</button>
+              <button id="operations-tab-situation" class="text-button operations-tab" type="button" role="tab" aria-controls="situation-section" aria-selected="false">SITUATION</button>
+              <button id="operations-tab-encounter" class="text-button operations-tab" type="button" role="tab" aria-controls="encounter-section" aria-selected="false" title="Personal combat encounter workspace">COMBAT</button>
+              <button id="operations-tab-roster" class="text-button operations-tab" type="button" role="tab" aria-controls="roster-section" aria-selected="false" title="Persistent NPC, creature, and robot roster">NPCS</button>
             </div>
             <div class="operations-panel-scroll">
               <section id="port-services-section" class="operations-panel" hidden aria-labelledby="port-services-heading">
@@ -307,16 +307,15 @@
       </div>
       <div id="selected-system-summary" class="selected-system-summary" hidden>
         <span id="selected-system-summary-text">--</span>
-        <button id="toggle-system-details" class="text-button" type="button">[ DETAILS ]</button>
+        <button id="toggle-system-details" class="text-button" type="button" aria-expanded="false" aria-controls="system-record-section">[ DETAILS ]</button>
       </div>
-    </section>
-
-    <section id="system-record-section" hidden aria-labelledby="system-record-heading">
-      <div class="section-heading">
-        <h2 id="system-record-heading" class="section-title">SYSTEM RECORD</h2>
-        <button class="help-button" type="button" data-help-topic="system-record" aria-label="Explain the system record">[?]</button>
-      </div>
-      <pre id="system-record" class="record system-record" aria-live="polite"></pre>
+      <section id="system-record-section" class="system-record-section" hidden aria-labelledby="system-record-heading">
+        <div class="section-heading">
+          <h2 id="system-record-heading" class="section-title">SYSTEM RECORD</h2>
+          <button class="help-button" type="button" data-help-topic="system-record" aria-label="Explain the system record">[?]</button>
+        </div>
+        <pre id="system-record" class="record system-record" aria-live="polite"></pre>
+      </section>
     </section>
 
     <section id="ship-section" hidden aria-labelledby="ship-heading">
