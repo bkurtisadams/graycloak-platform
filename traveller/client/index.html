@@ -12,7 +12,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.16.0</div>
+          <div id="app-subtitle" class="subtitle">v0.16.1</div>
           <button id="toggle-activity" class="text-button masthead-log-toggle" type="button" aria-expanded="true" aria-controls="activity-panel">[ HIDE LOG ]</button>
         </div>
         <div id="campaign-identity" class="campaign-identity"><span>CAMPAIGN</span> // <strong id="header-campaign-name">NO CAMPAIGN</strong></div>
@@ -31,7 +31,7 @@
       <div class="campaign-header-grid">
         <div class="campaign-header-character">
           <div class="campaign-header-kicker">CHARACTER</div>
-          <div id="header-character-name" class="campaign-header-name">--</div>
+          <button id="header-character-name" class="campaign-header-name text-button header-character-link" type="button">--</button>
           <div id="header-character-meta" class="campaign-header-meta">--</div>
         </div>
         <div class="campaign-header-location">
@@ -55,7 +55,7 @@
         <button id="header-task" class="header-task text-button" type="button" disabled>NONE</button>
       </div>
       <div class="campaign-header-links" aria-label="Campaign detail views">
-        <button id="toggle-personnel" class="text-button" type="button">[ PERSONNEL ]</button>
+        <button id="toggle-personnel" class="text-button" type="button">[ CHARACTER ]</button>
         <button id="toggle-ship" class="text-button" type="button">[ SHIP ]</button>
         <button id="toggle-campaign" class="text-button" type="button">[ CAMPAIGN ]</button>
         <button id="toggle-threads" class="text-button" type="button">[ THREADS ]</button>
@@ -74,6 +74,7 @@
         <h2 id="record-heading" class="section-title">PERSONNEL RECORD</h2>
         <button id="record-help" class="help-button" type="button" data-help-topic="personnel-record" aria-label="Explain the personnel record">[?]</button>
       </div>
+      <div id="legacy-personnel-fields">
       <div class="name-line">
         <label for="character-name">NAME</label>
         <span class="field-with-tool">
@@ -82,6 +83,60 @@
         </span>
       </div>
       <pre id="character-record" class="record" aria-live="polite"></pre>
+      </div>
+      <article id="character-sheet" class="traveller-character-sheet" hidden aria-label="Playable Traveller character sheet">
+        <header class="sheet-banner">
+          <div><span class="sheet-number">PERSONAL DATA AND HISTORY</span><strong id="sheet-name">--</strong></div>
+          <div><span>DATE OF RECORD</span><strong id="sheet-date">--</strong></div>
+        </header>
+        <div class="sheet-identity-grid">
+          <div><span>UPP</span><strong id="sheet-upp">------</strong></div>
+          <div><span>MILITARY RANK</span><strong id="sheet-rank">--</strong></div>
+          <div><span>AGE</span><strong id="sheet-age">--</strong></div>
+          <div><span>CURRENT WORLD</span><strong id="sheet-world">--</strong></div>
+        </div>
+        <section class="sheet-block sheet-characteristics-block">
+          <h3>CHARACTERISTICS</h3>
+          <div id="sheet-characteristics" class="sheet-characteristics" aria-label="Clickable original and current characteristics"></div>
+          <div id="sheet-health-status" class="sheet-health-status">STATUS --</div>
+        </section>
+        <div class="sheet-two-column">
+          <section class="sheet-block">
+            <h3>SERVICE HISTORY</h3>
+            <dl id="sheet-service" class="sheet-data-list"></dl>
+          </section>
+          <section class="sheet-block">
+            <h3>EQUIPMENT AND COMBAT</h3>
+            <div class="sheet-loadout-grid">
+              <label>READY WEAPON<select id="sheet-weapon"></select></label>
+              <label>WORN ARMOR<select id="sheet-armor"></select></label>
+            </div>
+            <div id="sheet-equipment" class="sheet-list"></div>
+          </section>
+        </div>
+        <section class="sheet-block">
+          <h3>SKILLS</h3>
+          <div id="sheet-skills" class="sheet-skills"></div>
+        </section>
+        <div class="sheet-two-column">
+          <section class="sheet-block">
+            <h3>BENEFITS AND FINANCES</h3>
+            <div id="sheet-benefits" class="sheet-list"></div>
+          </section>
+          <section class="sheet-block sheet-psionics">
+            <h3>PSIONICS <span>CONFIDENTIAL</span></h3>
+            <div>STATUS: UNTESTED</div>
+          </section>
+        </div>
+        <details class="sheet-block sheet-history">
+          <summary>SERVICE AND GENERATION HISTORY</summary>
+          <pre id="sheet-history-record" class="record"></pre>
+        </details>
+        <section class="sheet-block">
+          <h3>NOTES</h3>
+          <textarea id="sheet-notes" rows="4" maxlength="4000" spellcheck="true"></textarea>
+        </section>
+      </article>
     </section>
 
     <section id="procedure-section" aria-labelledby="procedure-heading">

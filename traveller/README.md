@@ -1,5 +1,11 @@
 # Graycloak Traveller
 
+## v0.16.1 playable character sheet and persistent health foundation
+
+v0.16.1 gives completed campaign characters a dedicated playable sheet inspired by the boxed Personal Data and History form in the Classic Traveller facsimile. The screen preserves the application's light paper, heavy black rule, and compact administrative-record style while reorganizing the printed form for interactive play. Clicking the campaign character name or `[ CHARACTER ]` opens current identity, original and current characteristics, service record, clickable skills, explicit ready weapon and worn armor, benefits, assigned ship, confidential psionics placeholder, collapsed generation history, and persistent notes. Chargen retains its existing Personnel Record and does not reappear at the bottom of campaign play.
+
+Character Document v3 adds separate current STR/DEX/END values, consciousness, and an explicit personal-combat loadout. Existing v1/v2 documents migrate with undamaged current characteristics, a conscious living state, no armor, and the same deterministic preferred-weapon selection previously used by the client. Characteristic checks use current physical values while INT, EDU, SOC, and the original UPP remain unchanged. New encounters use the sheet's selected weapon and armor. This milestone establishes the persistence and interface required for combat aftermath, but combat wounds are not yet synchronized back to Character Documents; that remains the next bounded slice.
+
 ## v0.16.0 roster-driven encounters and conditions
 
 v0.16.0 connects the persistent actor roster to the live encounter workspace. Right-click an empty map square to place an unused roster NPC, robot, or creature as opposition or a party ally; surprise is not rerolled and the authoritative Book 1 range is unchanged. Right-click tokens to select, target, inspect, apply or remove a body-aware referee condition, or remove the participant while retaining its roster record. Biological actors use stunned/unconscious/dead vocabulary; robots use disrupted/powered-down/disabled/destroyed vocabulary; hybrid actors can use either set. Conditions persist in both encounters and linked roster actors but remain explicit annotations rather than inventing automatic rules effects.

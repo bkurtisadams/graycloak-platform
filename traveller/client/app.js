@@ -12,6 +12,7 @@ import {
   linkCharacterToShip,
   performChargenAction,
   updateCharacterShipReference,
+  updateCharacterGameplayState,
   updateShipAssignedCharacterName,
   updateShipIdentity,
   SUBSECTOR_COLUMNS,
@@ -51,7 +52,9 @@ import {
   FREIGHT_RATE_PER_TON_CR,
   generatePatronContact,
   resolveRefereeSkillCheck,
-  getPersonalWeapon
+  getPersonalWeapon,
+  PERSONAL_WEAPONS,
+  PERSONAL_ARMOR_TYPES
 } from '../../packages/classic-traveller-rules/index.js';
 
 import {
@@ -244,6 +247,24 @@ const el = {
   recordHeading: document.querySelector('#record-heading'),
   recordHelp: document.querySelector('#record-help'),
   record: document.querySelector('#character-record'),
+  legacyPersonnelFields: document.querySelector('#legacy-personnel-fields'),
+  characterSheet: document.querySelector('#character-sheet'),
+  sheetName: document.querySelector('#sheet-name'),
+  sheetDate: document.querySelector('#sheet-date'),
+  sheetUpp: document.querySelector('#sheet-upp'),
+  sheetRank: document.querySelector('#sheet-rank'),
+  sheetAge: document.querySelector('#sheet-age'),
+  sheetWorld: document.querySelector('#sheet-world'),
+  sheetCharacteristics: document.querySelector('#sheet-characteristics'),
+  sheetHealthStatus: document.querySelector('#sheet-health-status'),
+  sheetService: document.querySelector('#sheet-service'),
+  sheetWeapon: document.querySelector('#sheet-weapon'),
+  sheetArmor: document.querySelector('#sheet-armor'),
+  sheetEquipment: document.querySelector('#sheet-equipment'),
+  sheetSkills: document.querySelector('#sheet-skills'),
+  sheetBenefits: document.querySelector('#sheet-benefits'),
+  sheetHistoryRecord: document.querySelector('#sheet-history-record'),
+  sheetNotes: document.querySelector('#sheet-notes'),
   procedure: document.querySelector('#procedure'),
   actions: document.querySelector('#actions'),
   serviceHistory: document.querySelector('#service-history'),
@@ -745,6 +766,93 @@ function shipHeaderMeta() {
   return `J${jump} / FUEL ${fuel}/${fuelCapacity}t / CARGO ${cargo}/${cargoCapacity}t / ${Number.isInteger(account) ? formatCr(account) : 'ACCOUNT --'}`;
 }
 
+function characterHealthLabel(document = gameplayDocument) {
+  if (!document) return 'UNAVAILABLE';
+  if (!document.status.alive) return 'DEAD';
+  if (document.status.consciousness === 'unconscious') return 'UNCONSCIOUS';
+  const wounded = ['STR', 'DEX', 'END'].some((key) => document.current[key] < document.characteristics[key]);
+  return wounded ? 'WOUNDED' : 'READY';
+}
+
+function appendSheetDatum(list, label, value) {
+  const term = document.createElement('dt');
+  term.textContent = label;
+  const detail = document.createElement('dd');
+  detail.textContent = value;
+  list.append(term, detail);
+}
+
+function renderCharacterSheet() {
+  if (!gameplayDocument || !campaignPlayActive()) return;
+  const currentWorld = mappedCurrentSystem()?.mainWorld?.name ?? campaignDocument.location.worldName ?? 'UNMAPPED';
+  el.sheetName.textContent = gameplayDocument.identity.name || '(UNNAMED)';
+  el.sheetDate.textContent = activityDateLabel();
+  el.sheetUpp.textContent = gameplayDocument.upp;
+  el.sheetRank.textContent = gameplayDocument.career.rankTitle || 'NO RANK';
+  el.sheetAge.textContent = String(gameplayDocument.age);
+  el.sheetWorld.textContent = currentWorld;
+  el.sheetHealthStatus.textContent = `STATUS ${characterHealthLabel()} // ORIGINAL UPP ${gameplayDocument.upp}`;
+
+  el.sheetCharacteristics.replaceChildren();
+  for (const [key, label] of HEADER_CHARACTERISTICS) {
+    const original = gameplayDocument.characteristics[key];
+    const current = ['STR', 'DEX', 'END'].includes(key) ? gameplayDocument.current[key] : original;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `sheet-characteristic${current < original ? ' injured' : ''}`;
+    button.title = `${label} ${current} / original ${original} / click for an ad hoc characteristic-or-less roll`;
+    const code = document.createElement('span'); code.className = 'sheet-stat-code'; code.textContent = key;
+    const value = document.createElement('strong'); value.className = 'sheet-stat-value'; value.textContent = String(current);
+    const base = document.createElement('span'); base.className = 'sheet-stat-current'; base.textContent = current === original ? 'CURRENT' : `ORIGINAL ${original}`;
+    button.append(code, value, base);
+    button.addEventListener('click', () => openCharacteristicRollDialog(key, label));
+    el.sheetCharacteristics.append(button);
+  }
+
+  el.sheetService.replaceChildren();
+  appendSheetDatum(el.sheetService, 'SERVICE', serviceName(gameplayDocument.career.service).toUpperCase());
+  appendSheetDatum(el.sheetService, 'TERMS SERVED', String(gameplayDocument.career.terms));
+  appendSheetDatum(el.sheetService, 'FINAL RANK', gameplayDocument.career.rankTitle || 'NONE');
+  appendSheetDatum(el.sheetService, 'RETIRED', gameplayDocument.status.retired ? 'YES' : 'NO');
+  appendSheetDatum(el.sheetService, 'RETIREMENT PAY', formatCr(gameplayDocument.finances.retirementPayAnnual));
+
+  el.sheetWeapon.replaceChildren(...Object.entries(PERSONAL_WEAPONS).map(([key, weapon]) => new Option(weapon.name.toUpperCase(), key)));
+  el.sheetWeapon.value = gameplayDocument.loadout.weaponKey;
+  el.sheetArmor.replaceChildren(...PERSONAL_ARMOR_TYPES.map((armor) => new Option(armor.toUpperCase(), armor)));
+  el.sheetArmor.value = gameplayDocument.loadout.armor;
+  const equipment = gameplayDocument.benefits.equipment.map((entry) => `${entry.name}${entry.count > 1 ? ` x${entry.count}` : ''}`);
+  el.sheetEquipment.textContent = equipment.length ? `OWNED: ${equipment.join(' / ')}` : 'OWNED: NONE RECORDED';
+
+  el.sheetSkills.replaceChildren();
+  const skills = Object.entries(gameplayDocument.skills).sort(([left], [right]) => left.localeCompare(right));
+  if (!skills.length) el.sheetSkills.textContent = 'NONE RECORDED';
+  for (const [name, level] of skills) {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'sheet-skill'; button.textContent = `${name}-${level}`;
+    button.title = `${name}-${level} / click for a referee skill check`;
+    button.addEventListener('click', () => openSkillRollDialog(name));
+    el.sheetSkills.append(button);
+  }
+
+  const passages = gameplayDocument.benefits.passages.map((entry) => `${entry.name}${entry.count > 1 ? ` x${entry.count}` : ''}`).join(' / ') || 'NONE';
+  const memberships = gameplayDocument.benefits.memberships.map((entry) => entry.name).join(' / ') || 'NONE';
+  const ships = gameplayDocument.shipRefs.map((entry) => entry.shipName || entry.shipType || entry.shipId).join(' / ') || 'NONE';
+  el.sheetBenefits.textContent = `CREDITS ${formatCr(gameplayDocument.finances.credits)}\nPASSAGES ${passages}\nMEMBERSHIPS ${memberships}\nASSIGNED SHIP ${ships}`;
+  el.sheetHistoryRecord.textContent = `${buildServiceHistory(gameplayDocument)}\n\n${buildGenerationLog(gameplayDocument)}`;
+  if (document.activeElement !== el.sheetNotes) el.sheetNotes.value = gameplayDocument.notes;
+}
+
+function saveCharacterSheetState(patch, message) {
+  if (!gameplayDocument) return;
+  gameplayDocument = updateCharacterGameplayState(gameplayDocument, patch);
+  partyCharacterDocuments = partyCharacterDocuments.map((entry) => entry.identity.id === gameplayDocument.identity.id ? gameplayDocument : entry);
+  syncCampaignRefs();
+  persistCampaignState();
+  logActivity('CHAR', message, { sourceDocumentId: gameplayDocument.identity.id });
+  setStatus(message.toUpperCase(), 'ok');
+  render();
+}
+
 function renderCampaignHeader() {
   const active = campaignPlayActive();
   el.campaignHeader.hidden = !active;
@@ -762,7 +870,7 @@ function renderCampaignHeader() {
   const career = gameplayDocument.career;
   const careerLabel = serviceName(career.service).toUpperCase();
   el.headerCharacterName.textContent = gameplayDocument.identity.name || '(UNNAMED)';
-  el.headerCharacterMeta.textContent = `${gameplayDocument.upp} / ${careerLabel} / AGE ${gameplayDocument.age} / ${formatCr(gameplayDocument.finances.credits)}`;
+  el.headerCharacterMeta.textContent = `${gameplayDocument.upp} / ${careerLabel} / AGE ${gameplayDocument.age} / ${characterHealthLabel()} / ${formatCr(gameplayDocument.finances.credits)}`;
   el.headerWorld.textContent = current?.mainWorld?.name || campaignDocument.location.worldName || 'UNMAPPED';
   el.headerDate.textContent = `${current?.name ? `${current.name.toUpperCase()} / ` : ''}${activityDateLabel()}`;
   el.headerShipName.textContent = shipDocument
@@ -772,10 +880,10 @@ function renderCampaignHeader() {
 
   el.headerCharacteristics.replaceChildren();
   for (const [key, label] of HEADER_CHARACTERISTICS) {
-    const value = gameplayDocument.characteristics[key];
+    const value = ['STR', 'DEX', 'END'].includes(key) ? gameplayDocument.current[key] : gameplayDocument.characteristics[key];
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'header-roll-button';
+    button.className = `header-roll-button${value < gameplayDocument.characteristics[key] ? ' injured' : ''}`;
     button.textContent = `${key} ${value}`;
     button.title = `${label} ${value} / click for an ad hoc characteristic-or-less roll`;
     button.addEventListener('click', () => openCharacteristicRollDialog(key, label));
@@ -841,11 +949,15 @@ function renderSelectedSystemSummary() {
 function applyCampaignLayout() {
   const active = campaignPlayActive();
   if (!active) {
+    el.legacyPersonnelFields.hidden = false;
+    el.characterSheet.hidden = true;
     el.personnelSection.hidden = false;
     el.procedureSection.hidden = false;
     el.chargenRecordSection.hidden = false;
     return;
   }
+  el.legacyPersonnelFields.hidden = true;
+  el.characterSheet.hidden = false;
   el.personnelSection.hidden = !detailPanels.personnel;
   el.procedureSection.hidden = true;
   el.campaignSection.hidden = !detailPanels.campaign;
@@ -853,7 +965,7 @@ function applyCampaignLayout() {
   if (shipDocument) el.shipSection.hidden = !detailPanels.ship;
   el.chargenRecordSection.hidden = !detailPanels.chargen;
   if (el.systemRecord.textContent) el.systemRecordSection.hidden = !detailPanels.system;
-  el.togglePersonnel.textContent = detailPanels.personnel ? '[ HIDE PERSONNEL ]' : '[ PERSONNEL ]';
+  el.togglePersonnel.textContent = detailPanels.personnel ? '[ HIDE CHARACTER ]' : '[ CHARACTER ]';
   el.toggleShip.textContent = detailPanels.ship ? '[ HIDE SHIP ]' : '[ SHIP ]';
   el.toggleCampaign.textContent = detailPanels.campaign ? '[ HIDE CAMPAIGN ]' : '[ CAMPAIGN ]';
   el.toggleThreads.textContent = detailPanels.threads ? '[ HIDE THREADS ]' : '[ THREADS ]';
@@ -924,7 +1036,9 @@ function openSkillRollDialog(skillName, { target = 8 } = {}) {
 
 function openCharacteristicRollDialog(characteristic, label) {
   if (!gameplayDocument) return;
-  const value = Number(gameplayDocument.characteristics?.[characteristic] ?? 0);
+  const value = Number(['STR', 'DEX', 'END'].includes(characteristic)
+    ? gameplayDocument.current?.[characteristic]
+    : gameplayDocument.characteristics?.[characteristic] ?? 0);
   openRollDialog({
     kind: 'characteristic',
     title: `${label.toUpperCase()} ${value} // ${gameplayDocument.identity.name.toUpperCase()}`,
@@ -3433,7 +3547,10 @@ function startManualEncounter() {
   const manualNumber = encounterDocuments.filter((entry) => entry.situationId === null).length + 1;
   const encounterKey = `${campaignDocument.identity.id}|manual-${manualNumber}|${date.year}-${date.dayOfYear}`;
   const characters = currentPartyCharacters();
-  const partyLoadouts = Object.fromEntries(characters.map((entry) => [entry.identity.id, { weaponKey: preferredPersonalWeapon(entry) }]));
+  const partyLoadouts = Object.fromEntries(characters.map((entry) => [entry.identity.id, {
+    weaponKey: entry.loadout?.weaponKey ?? preferredPersonalWeapon(entry),
+    armor: entry.loadout?.armor ?? 'none'
+  }]));
   const typeTitle = setup.groups.map((entry) => entry.baseName).join(' + ');
   let encounter = createEncounterDocument({
     campaign: campaignDocument,
@@ -3501,7 +3618,10 @@ function startSituationEncounter(situation) {
       return;
     }
     const characters = currentPartyCharacters();
-    const partyLoadouts = Object.fromEntries(characters.map((entry) => [entry.identity.id, { weaponKey: preferredPersonalWeapon(entry) }]));
+    const partyLoadouts = Object.fromEntries(characters.map((entry) => [entry.identity.id, {
+      weaponKey: entry.loadout?.weaponKey ?? preferredPersonalWeapon(entry),
+      armor: entry.loadout?.armor ?? 'none'
+    }]));
     let encounter = createEncounterDocument({
       campaign: campaignDocument,
       situation,
@@ -4510,6 +4630,7 @@ function render() {
   }
   renderActions(procedure);
   renderCampaign();
+  renderCharacterSheet();
   renderSubsector();
   renderSystemRecord();
   renderPortServices();
@@ -5040,6 +5161,23 @@ el.activityNoteForm.addEventListener('submit', (event) => {
 });
 
 el.togglePersonnel.addEventListener('click', () => toggleDetailPanel('personnel'));
+el.headerCharacterName.addEventListener('click', () => {
+  detailPanels.personnel = true;
+  applyCampaignLayout();
+  el.personnelSection?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+});
+el.sheetWeapon.addEventListener('change', () => saveCharacterSheetState(
+  { weaponKey: el.sheetWeapon.value },
+  `Ready weapon set: ${getPersonalWeapon(el.sheetWeapon.value).name}`
+));
+el.sheetArmor.addEventListener('change', () => saveCharacterSheetState(
+  { armor: el.sheetArmor.value },
+  `Worn armor set: ${el.sheetArmor.value}`
+));
+el.sheetNotes.addEventListener('change', () => saveCharacterSheetState(
+  { notes: el.sheetNotes.value },
+  'Character notes updated'
+));
 el.toggleShip.addEventListener('click', () => toggleDetailPanel('ship'));
 el.toggleCampaign.addEventListener('click', () => toggleDetailPanel('campaign'));
 el.toggleThreads.addEventListener('click', () => toggleDetailPanel('threads'));

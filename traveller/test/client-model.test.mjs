@@ -8,6 +8,7 @@ import {
   createCharacterDocument,
   createSequenceDice,
   createTypeSScoutReserveShipForCharacter,
+  importCharacterDocument,
   performChargenAction
 } from '../../packages/classic-traveller-rules/index.js';
 
@@ -128,7 +129,7 @@ test('completed chargen renders a final gameplay personnel record', () => {
   const document = createCharacterDocument(character);
   const record = buildFinalCharacterRecord(document);
   assert.match(record, /FINAL PERSONNEL RECORD/);
-  assert.match(record, /GAMEPLAY DOCUMENT v2/);
+  assert.match(record, /GAMEPLAY DOCUMENT v3/);
   assert.match(record, /PASSAGE Low Passage/);
   assert.doesNotMatch(record, /PHASE/);
 });
@@ -180,7 +181,7 @@ test('ship register renders the source-backed Type S reserve assignment', () => 
     shipRefs: [],
     history: [], notes: '', provenance: { source: 'classic-traveller-book-1-chargen', chargenSchemaVersion: 4 }
   };
-  const { ship } = createTypeSScoutReserveShipForCharacter(document);
+  const { ship } = createTypeSScoutReserveShipForCharacter(importCharacterDocument(document));
   const record = buildShipRecord(ship);
   assert.match(record, /TYPE S SCOUT\/COURIER/);
   assert.match(record, /JUMP 2 \(A\)/);
@@ -235,9 +236,10 @@ test('port services record exposes fuel, berthing, cargo, and operating funds at
     benefits: { raw: [{ type: 'material', name: 'Scout Ship' }], passages: [], memberships: [], equipment: [], shipEntitlements: [{ name: 'Scout Ship', rolls: 1, effectiveCount: 1, noEffectCount: 0, disposition: 'reserve-assignment-available' }] },
     shipRefs: [], history: [], notes: '', provenance: { source: 'classic-traveller-book-1-chargen', chargenSchemaVersion: 4 }
   };
-  const { ship } = createTypeSScoutReserveShipForCharacter(document);
+  const migrated = importCharacterDocument(document);
+  const { ship } = createTypeSScoutReserveShipForCharacter(migrated);
   const aster = FAR_MERIDIAN_SUBSECTOR.systems.find((system) => system.id === 'aster');
-  const record = buildPortServicesRecord({ system: aster, ship, character: document });
+  const record = buildPortServicesRecord({ system: aster, ship, character: migrated });
   assert.match(record, /PORT SERVICES \/\/ ASTER \/\/ 0505/);
   assert.match(record, /TRADE RICH/);
   assert.match(record, /FUEL UNRECORDED\/40t \/ UNKNOWN/);

@@ -20,7 +20,7 @@ test('loader accepts a v0.7 gameplay Character Document instead of sending it to
   const loaded = loadTravellerDocument(await readExample('Hawkeye.character.json'));
   assert.equal(loaded.kind, TRAVELLER_DOCUMENT_KINDS.CHARACTER);
   assert.equal(loaded.characterDocument.documentType, 'classic-traveller-character');
-  assert.equal(loaded.characterDocument.schemaVersion, 2);
+  assert.equal(loaded.characterDocument.schemaVersion, 3);
   assert.equal(loaded.characterDocument.identity.name, 'Hawkeye');
 });
 

@@ -2,6 +2,10 @@
 
 Pure JavaScript rules package for the Graycloak Classic Traveller browser-game project. It intentionally has no HTML, Foundry, Firebase, or server dependencies.
 
+## v0.13.1 playable character state
+
+Character Document v3 separates original characteristics and UPP from current STR/DEX/END, records consciousness, and carries an explicit ready weapon and worn armor. Existing v1/v2 gameplay documents migrate deterministically without inventing wounds or armor. `updateCharacterGameplayState()` provides the strict boundary used by the browser character sheet while leaving encounter-to-character wound synchronization for the host's next milestone.
+
 ## v0.13.0 personal combat
 
 Adds a generic Classic Traveller Book 1 personal-combat layer: surprise, five abstract range bands, movement, weapon/armor/range target tables, skill and characteristic DMs, untrained attack/defence modifiers, evasion, escape, visible attack and damage dice, first-wound location, physical-characteristic wounds, unconsciousness/death, morale, and end-of-combat recovery. The rules package remains independent of Sea of Suns situations and browser UI.

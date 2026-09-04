@@ -14,6 +14,7 @@ import {
   importCharacterDocument,
   performChargenAction,
   summarizeMaterialBenefits,
+  updateCharacterGameplayState,
   validateCharacterDocument
 } from '../index.js';
 
@@ -58,6 +59,9 @@ test('completed chargen state converts to a compact gameplay character document'
   assert.deepEqual(document.identity.aliases, ['Test Call Sign']);
   assert.equal(document.upp, chargen.upp);
   assert.deepEqual(document.characteristics, chargen.characteristics);
+  assert.deepEqual(document.current, { STR: chargen.characteristics.STR, DEX: chargen.characteristics.DEX, END: chargen.characteristics.END });
+  assert.equal(document.status.consciousness, 'conscious');
+  assert.deepEqual(document.loadout, { weaponKey: 'hands', armor: 'none' });
   assert.deepEqual(document.skills, chargen.skills);
   assert.equal(document.career.service, 'other');
   assert.equal(document.career.terms, 1);
@@ -68,6 +72,38 @@ test('completed chargen state converts to a compact gameplay character document'
   assert.equal(Object.hasOwn(document, 'musterOut'), false);
   assert.equal(Object.hasOwn(document, 'currentTerm'), false);
   assert.equal(validateCharacterDocument(document).valid, true);
+});
+
+test('schema v2 gameplay characters migrate with current health and a usable loadout', () => {
+  const legacy = createCharacterDocument(completeOneTermCharacter());
+  legacy.schemaVersion = 2;
+  delete legacy.current;
+  delete legacy.status.consciousness;
+  delete legacy.loadout;
+
+  const migrated = importCharacterDocument(legacy);
+  assert.equal(migrated.schemaVersion, 3);
+  assert.deepEqual(migrated.current, {
+    STR: migrated.characteristics.STR,
+    DEX: migrated.characteristics.DEX,
+    END: migrated.characteristics.END
+  });
+  assert.deepEqual(migrated.loadout, { weaponKey: 'hands', armor: 'none' });
+  assert.equal(migrated.status.consciousness, 'conscious');
+});
+
+test('gameplay state updates preserve original UPP while recording wounds and loadout', () => {
+  const document = createCharacterDocument(completeOneTermCharacter());
+  const updated = updateCharacterGameplayState(document, {
+    current: { ...document.current, STR: document.current.STR - 2 },
+    weaponKey: 'rifle',
+    armor: 'cloth'
+  });
+
+  assert.equal(updated.characteristics.STR, document.characteristics.STR);
+  assert.equal(updated.current.STR, document.current.STR - 2);
+  assert.equal(updated.upp, document.upp);
+  assert.deepEqual(updated.loadout, { weaponKey: 'rifle', armor: 'cloth' });
 });
 
 test('incomplete chargen state cannot become a gameplay character document', () => {

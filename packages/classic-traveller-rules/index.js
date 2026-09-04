@@ -1,4 +1,4 @@
-// @graycloak/classic-traveller-rules v0.13.0
+// @graycloak/classic-traveller-rules v0.13.1
 // Source-backed Classic Traveller Books 1-3 character, starship, world, and subsector rules engine.
 // Pure rules/state logic: no host, UI, persistence, Foundry, or Firebase dependencies.
 
@@ -112,7 +112,8 @@ export {
   importCharacterDocument,
   migrateCharacterDocument,
   linkCharacterToShip,
-  updateCharacterShipReference
+  updateCharacterShipReference,
+  updateCharacterGameplayState
 } from './src/characters/character-document.js';
 
 export {

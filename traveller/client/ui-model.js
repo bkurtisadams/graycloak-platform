@@ -13,7 +13,8 @@ import {
   describeGovernment,
   describeLawLevel,
   describeTradeClassifications,
-  starportFuelService
+  starportFuelService,
+  getPersonalWeapon
 } from '../../packages/classic-traveller-rules/index.js';
 
 export const PHASE_LABELS = Object.freeze({
@@ -325,6 +326,7 @@ function groupedBenefitLines(benefits = {}) {
 
 export function buildFinalCharacterRecord(document) {
   const c = document.characteristics;
+  const current = document.current ?? { STR: c.STR, DEX: c.DEX, END: c.END };
   const career = document.career;
   const rank = career.rankTitle || (career.rank > 0 ? `Rank ${career.rank}` : 'unranked');
   const retired = document.status.retired
@@ -335,8 +337,10 @@ export function buildFinalCharacterRecord(document) {
   return box([
     `FINAL PERSONNEL RECORD // GAMEPLAY DOCUMENT v${document.schemaVersion}`,
     `NAME ${document.identity.name || '(unnamed)'}`,
-    `UPP ${document.upp}    AGE ${document.age}    STATUS ${document.status.alive ? 'ALIVE' : 'DECEASED'}`,
+    `UPP ${document.upp}    AGE ${document.age}    STATUS ${document.status.alive ? String(document.status.consciousness ?? 'conscious').toUpperCase() : 'DECEASED'}`,
     `STR ${c.STR}    DEX ${c.DEX}    END ${c.END}    INT ${c.INT}    EDU ${c.EDU}    SOC ${c.SOC}`,
+    `CURRENT STR ${current.STR}    DEX ${current.DEX}    END ${current.END}`,
+    `LOADOUT ${getPersonalWeapon(document.loadout?.weaponKey ?? 'hands').name} / ${(document.loadout?.armor ?? 'none').toUpperCase()} ARMOR`,
     `CAREER ${serviceName(career.service)} / ${rank}`,
     `TERMS ${career.terms}    YEARS SERVED ${career.yearsServed}    DRAFTED ${career.drafted ? 'YES' : 'NO'}`,
     `CREDITS ${formatCredits(document.finances.credits)}    RETIRED ${retired}`,

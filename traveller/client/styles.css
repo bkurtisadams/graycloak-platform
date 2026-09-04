@@ -1426,6 +1426,15 @@ input[readonly] {
   font-size: 11px;
 }
 
+.header-character-link {
+  display: block;
+  padding: 0;
+  color: var(--link);
+  font-family: inherit;
+  font-weight: 700;
+  text-align: left;
+}
+
 .header-characteristics {
   display: flex;
   flex-wrap: wrap;
@@ -1434,6 +1443,237 @@ input[readonly] {
   padding: 6px 0 5px;
   border-top: 1px solid var(--disabled);
   border-bottom: 1px solid var(--disabled);
+}
+
+.traveller-character-sheet {
+  margin-top: 0.75rem;
+  border: 4px solid var(--ink);
+  background: #f7f5ed;
+  color: var(--ink);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.traveller-character-sheet span,
+.traveller-character-sheet label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.055em;
+}
+
+.sheet-banner,
+.sheet-identity-grid,
+.sheet-two-column {
+  display: grid;
+}
+
+.sheet-banner {
+  grid-template-columns: 2fr 1fr;
+  border-bottom: 3px solid var(--ink);
+}
+
+.sheet-banner > div,
+.sheet-identity-grid > div,
+.sheet-block {
+  padding: 0.55rem 0.65rem;
+}
+
+.sheet-banner > div + div,
+.sheet-identity-grid > div + div {
+  border-left: 2px solid var(--ink);
+}
+
+.sheet-banner strong {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 1.25rem;
+}
+
+.sheet-banner .sheet-number {
+  font-size: 1rem;
+}
+
+.sheet-identity-grid {
+  grid-template-columns: 0.8fr 1.35fr 0.55fr 1.3fr;
+  border-bottom: 3px solid var(--ink);
+}
+
+.sheet-identity-grid strong {
+  display: block;
+  margin-top: 0.22rem;
+  font-size: 0.95rem;
+}
+
+.sheet-block {
+  border-bottom: 3px solid var(--ink);
+}
+
+.sheet-block h3 {
+  margin: -0.55rem -0.65rem 0.55rem;
+  padding: 0.35rem 0.65rem;
+  border-bottom: 2px solid var(--ink);
+  font-size: 0.9rem;
+  letter-spacing: 0.06em;
+}
+
+.sheet-characteristics {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.sheet-characteristic {
+  min-height: 4.25rem;
+  border: 2px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.sheet-characteristic:hover,
+.sheet-characteristic:focus-visible,
+.sheet-skill:hover,
+.sheet-skill:focus-visible {
+  background: var(--action-ready);
+}
+
+.sheet-characteristic .sheet-stat-code,
+.sheet-characteristic .sheet-stat-value,
+.sheet-characteristic .sheet-stat-current {
+  display: block;
+}
+
+.sheet-characteristic .sheet-stat-value {
+  margin-top: 0.2rem;
+  font-size: 1.35rem;
+}
+
+.sheet-characteristic .sheet-stat-current {
+  margin-top: 0.1rem;
+  font-size: 0.62rem;
+}
+
+.sheet-characteristic.injured {
+  background: var(--attention);
+}
+
+.sheet-health-status {
+  margin-top: 0.45rem;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--ink);
+  font-weight: 700;
+}
+
+.sheet-two-column {
+  grid-template-columns: 1fr 1fr;
+}
+
+.sheet-two-column > .sheet-block:first-child {
+  border-right: 3px solid var(--ink);
+}
+
+.sheet-data-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+}
+
+.sheet-data-list dt {
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.sheet-data-list dd {
+  margin: 0;
+}
+
+.sheet-loadout-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+}
+
+.sheet-loadout-grid label,
+.sheet-loadout-grid select {
+  display: block;
+  width: 100%;
+}
+
+.sheet-loadout-grid select,
+.traveller-character-sheet textarea {
+  margin-top: 0.25rem;
+  border: 2px solid var(--ink);
+  background: #fffef8;
+  color: var(--ink);
+  font: 0.78rem Consolas, "Courier New", monospace;
+}
+
+.sheet-list {
+  margin-top: 0.55rem;
+  white-space: pre-wrap;
+  font: 0.78rem Consolas, "Courier New", monospace;
+}
+
+.sheet-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.sheet-skill {
+  border: 1px solid var(--ink);
+  padding: 0.25rem 0.4rem;
+  background: transparent;
+  color: var(--ink);
+  font: 0.76rem Consolas, "Courier New", monospace;
+  cursor: pointer;
+}
+
+.sheet-psionics h3 {
+  display: flex;
+  justify-content: space-between;
+}
+
+.sheet-history {
+  padding: 0;
+}
+
+.sheet-history summary {
+  padding: 0.45rem 0.65rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.sheet-history .record {
+  margin: 0;
+  border-width: 2px 0 0;
+}
+
+.traveller-character-sheet textarea {
+  box-sizing: border-box;
+  width: 100%;
+  resize: vertical;
+}
+
+@media (max-width: 760px) {
+  .sheet-banner,
+  .sheet-two-column {
+    grid-template-columns: 1fr;
+  }
+  .sheet-banner > div + div,
+  .sheet-two-column > .sheet-block:first-child {
+    border-left: 0;
+    border-right: 0;
+    border-top: 2px solid var(--ink);
+  }
+  .sheet-identity-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .sheet-characteristics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .header-roll-button,
@@ -1456,6 +1696,12 @@ input[readonly] {
   color: var(--ink);
   outline: 1px dotted var(--ink);
   outline-offset: 2px;
+}
+
+.header-roll-button.injured {
+  background: var(--attention);
+  color: var(--ink);
+  font-weight: 700;
 }
 
 .header-skill-button.context-relevant {

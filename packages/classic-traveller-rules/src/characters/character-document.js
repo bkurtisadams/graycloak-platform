@@ -3,15 +3,16 @@ import { CHARGEN_PHASES } from './chargen.js';
 import { assertValidCharacter } from './serialization.js';
 import { SERVICE_KEYS, getService } from '../careers/services.js';
 import { stableDocumentId } from '../documents/ids.js';
+import { PERSONAL_ARMOR_TYPES, PERSONAL_WEAPONS, getPersonalWeapon } from '../combat/personal-combat.js';
 
 export const CHARACTER_DOCUMENT_TYPE = 'classic-traveller-character';
-export const CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION = 2;
-export const SUPPORTED_CHARACTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2]);
+export const CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION = 3;
+export const SUPPORTED_CHARACTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3]);
 
 const SERVICE_VALUES = new Set(SERVICE_KEYS);
 const TOP_LEVEL_KEYS = new Set([
   'documentType', 'schemaVersion', 'identity', 'age', 'chronology',
-  'characteristics', 'upp', 'status', 'career', 'skills', 'finances',
+  'characteristics', 'current', 'upp', 'status', 'career', 'skills', 'loadout', 'finances',
   'benefits', 'shipRefs', 'history', 'notes', 'provenance'
 ]);
 const LEGACY_V1_TOP_LEVEL_KEYS = new Set([
@@ -97,6 +98,18 @@ function normalizeShipEntitlement(name, rolls) {
   };
 }
 
+function defaultCharacterWeaponKey({ benefits, skills }) {
+  const equipment = new Set((benefits?.equipment ?? []).map((entry) => String(entry.name).toLowerCase()));
+  const weapons = Object.entries(PERSONAL_WEAPONS);
+  const equipped = weapons.find(([, weapon]) => equipment.has(weapon.name.toLowerCase()));
+  if (equipped) return equipped[0];
+  const trained = weapons
+    .map(([key, weapon]) => ({ key, level: Math.max(...weapon.skillNames.map((name) => Number(skills?.[name] ?? -1))) }))
+    .filter((entry) => entry.level >= 0)
+    .sort((left, right) => right.level - left.level || left.key.localeCompare(right.key));
+  return trained[0]?.key ?? 'hands';
+}
+
 export function summarizeMaterialBenefits(materialBenefits = []) {
   if (!Array.isArray(materialBenefits)) throw new TypeError('materialBenefits must be an array');
 
@@ -171,6 +184,7 @@ export function createCharacterDocument(character, { id, aliases = [], notes = '
   }
   if (typeof notes !== 'string') throw new TypeError('notes must be a string');
 
+  const benefits = summarizeMaterialBenefits(character.materialBenefits);
   const document = {
     documentType: CHARACTER_DOCUMENT_TYPE,
     schemaVersion: CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION,
@@ -186,9 +200,11 @@ export function createCharacterDocument(character, { id, aliases = [], notes = '
       nextAgingCheckAgeMonths: character.nextAgingCheckAgeMonths
     },
     characteristics: { ...character.characteristics },
+    current: Object.fromEntries(['STR', 'DEX', 'END'].map((key) => [key, character.characteristics[key]])),
     upp: character.upp,
     status: {
       alive: character.alive,
+      consciousness: 'conscious',
       retired: character.retired
     },
     career: {
@@ -201,11 +217,15 @@ export function createCharacterDocument(character, { id, aliases = [], notes = '
       separationReason: character.separationReason
     },
     skills: { ...character.skills },
+    loadout: {
+      weaponKey: defaultCharacterWeaponKey({ benefits, skills: character.skills }),
+      armor: 'none'
+    },
     finances: {
       credits: character.credits,
       retirementPayAnnual: character.retirementPayAnnual
     },
-    benefits: summarizeMaterialBenefits(character.materialBenefits),
+    benefits,
     shipRefs: [],
     history: cloneJson(character.history),
     notes,
@@ -372,13 +392,29 @@ export function validateCharacterDocument(document) {
   }
 
   validateCharacteristics(document, errors);
+  add(errors, isPlainObject(document.current), 'current must be an object');
+  if (isPlainObject(document.current)) {
+    add(errors, Object.keys(document.current).length === 3 && ['STR', 'DEX', 'END'].every((key) => Object.hasOwn(document.current, key)), 'current must contain exactly STR, DEX, and END');
+    for (const key of ['STR', 'DEX', 'END']) {
+      add(errors, integerAtLeast(document.current[key], 0), `current ${key} must be a non-negative integer`);
+      if (integerAtLeast(document.current[key], 0) && integerAtLeast(document.characteristics?.[key], 0)) add(errors, document.current[key] <= document.characteristics[key], `current ${key} cannot exceed original ${key}`);
+    }
+  }
   add(errors, isPlainObject(document.status), 'status must be an object');
   if (isPlainObject(document.status)) {
-    add(errors, document.status.alive === true, 'gameplay character documents currently require status.alive true');
+    add(errors, typeof document.status.alive === 'boolean', 'status.alive must be boolean');
+    add(errors, ['conscious', 'unconscious', 'not-applicable'].includes(document.status.consciousness), 'status.consciousness is invalid');
+    if (document.status.alive === false) add(errors, document.status.consciousness === 'not-applicable', 'dead characters require not-applicable consciousness');
+    if (document.status.alive === true) add(errors, document.status.consciousness !== 'not-applicable', 'living characters require a consciousness state');
     add(errors, typeof document.status.retired === 'boolean', 'status.retired must be boolean');
   }
   validateCareer(document, errors);
   validateSkills(document, errors);
+  add(errors, isPlainObject(document.loadout), 'loadout must be an object');
+  if (isPlainObject(document.loadout)) {
+    try { getPersonalWeapon(document.loadout.weaponKey); } catch (error) { errors.push(error.message); }
+    add(errors, PERSONAL_ARMOR_TYPES.includes(document.loadout.armor), 'loadout.armor is invalid');
+  }
 
   add(errors, isPlainObject(document.finances), 'finances must be an object');
   if (isPlainObject(document.finances)) {
@@ -425,7 +461,7 @@ function migrateV1CharacterDocument(document) {
   if (document.schemaVersion !== 1) throw new CharacterDocumentValidationError(`unsupported character document schemaVersion: ${document.schemaVersion}`);
 
   const migrated = cloneJson(document);
-  migrated.schemaVersion = CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION;
+  migrated.schemaVersion = 2;
   migrated.identity = {
     id: stableDocumentId('char', characterDocumentSeedFromLegacy(document)),
     name: document.identity?.name ?? '',
@@ -444,7 +480,18 @@ function migrateV1CharacterDocument(document) {
 export function migrateCharacterDocument(document) {
   if (!isPlainObject(document)) throw new CharacterDocumentValidationError('character document must be an object');
   if (document.schemaVersion === CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION) return cloneJson(document);
-  if (document.schemaVersion === 1) return migrateV1CharacterDocument(document);
+  let migrated = cloneJson(document);
+  if (migrated.schemaVersion === 1) migrated = migrateV1CharacterDocument(migrated);
+  if (migrated.schemaVersion === 2) {
+    migrated.current = Object.fromEntries(['STR', 'DEX', 'END'].map((key) => [key, migrated.characteristics[key]]));
+    migrated.status = { ...migrated.status, consciousness: migrated.status.alive === false ? 'not-applicable' : 'conscious' };
+    migrated.loadout = {
+      weaponKey: defaultCharacterWeaponKey({ benefits: migrated.benefits, skills: migrated.skills }),
+      armor: 'none'
+    };
+    migrated.schemaVersion = 3;
+  }
+  if (migrated.schemaVersion === CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION) return migrated;
   throw new CharacterDocumentValidationError(`unsupported character document schemaVersion: ${document.schemaVersion}`);
 }
 
@@ -465,6 +512,18 @@ export function importCharacterDocument(input) {
   const migrated = migrateCharacterDocument(parsed);
   assertValidCharacterDocument(migrated);
   return cloneJson(migrated);
+}
+
+export function updateCharacterGameplayState(document, { current, alive, consciousness, weaponKey, armor, notes } = {}) {
+  const next = importCharacterDocument(document);
+  if (current !== undefined) next.current = cloneJson(current);
+  if (alive !== undefined) next.status.alive = Boolean(alive);
+  if (consciousness !== undefined) next.status.consciousness = consciousness;
+  if (weaponKey !== undefined) next.loadout.weaponKey = weaponKey;
+  if (armor !== undefined) next.loadout.armor = armor;
+  if (notes !== undefined) next.notes = String(notes);
+  assertValidCharacterDocument(next);
+  return next;
 }
 
 export function updateCharacterShipReference(document, { shipId, shipType, shipName, relationship } = {}) {
