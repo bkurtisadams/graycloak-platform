@@ -1,4 +1,7 @@
-// @graycloak/battlesystem-engine v0.15.0 - 2026-09-04
+// @graycloak/battlesystem-engine v0.16.0 - 2026-09-04
+// v0.16.0: magic-healing.js adds pure BATTLESYSTEM [14.16] curative-magic recognition:
+//          named cure/heal/raise/wish spells, HD cured per spell level, hp÷4 conversion,
+//          and the cumulative ½-HD Wound-marker threshold. Hosts own targets/state/logs.
 // v0.15.0: aerial.js adds pure BATTLESYSTEM [15.4] bombing data: fixed target
 //          AC by altitude, whole man-sized weight-equivalent normalization, the
 //          2d6 damage profile, and the one-class maneuverability penalty.
@@ -95,6 +98,7 @@ export { BattlesystemAttackRoutines } from './src/attack-routines.js';
 export { BattlesystemMagicDefenses } from './src/magic-defenses.js';
 export { BattlesystemCreatureDefenses } from './src/creature-defenses.js';
 export { BattlesystemMagicMovement } from './src/magic-movement.js';
+export { BattlesystemMagicHealing } from './src/magic-healing.js';
 export { BattlesystemInnateActions } from './src/innate-actions.js';
 export { BattlesystemSecondaryEffects } from './src/secondary-effects.js';
 export { BattlesystemAerial } from './src/aerial.js';

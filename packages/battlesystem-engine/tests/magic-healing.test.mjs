@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict';
+import { BattlesystemMagicHealing as H } from '../src/magic-healing.js';
+
+assert.equal(H.healingProfile({name:'Cure Light Wounds',level:1})?.healingHd,1);
+assert.equal(H.healingProfile({name:'Cure Serious Wounds',level:4})?.healingHd,4);
+assert.equal(H.healingProfile({name:'Cure Critical Wounds',level:5})?.healingHd,5);
+assert.equal(H.healingProfile({name:'Heal',level:6})?.healingHd,12);
+assert.equal(H.healingProfile({name:'Restoration',level:7})?.healingHd,14);
+assert.equal(H.healingProfile({name:'Raise Dead',level:5})?.healingMode,'raise');
+assert.equal(H.healingProfile({name:'Limited Wish',level:7})?.healingMode,'wound');
+assert.equal(H.healingProfile({name:'Wish',level:9})?.healingMarkers,2);
+assert.equal(H.healingProfile({name:'Cure Light Wounds'})?.rangeIn,1);
+assert.equal(H.healingProfile({name:'Cure Light Wounds'},{touchRangeIn:0.5})?.rangeIn,0.5);
+assert.equal(H.healingProfile({name:'Wish'})?.rangeIn,null);
+assert.equal(H.healingProfile({name:'Fireball',level:3}),null);
+assert.equal(H.healingProfile({name:'Staff of Curing',functionName:'Cure Serious Wounds',kind:'item',level:4})?.healingKey,'cure-serious-wounds');
+assert.equal(H.hpToHd(14),4);
+assert.equal(H.hpToHd(9),2);
+assert.equal(H.hpToHd(0),0);
+assert.deepEqual({...H.cureWound(10,0,1)},{threshold:5,before:0,cured:1,total:1,removed:false,carry:1});
+assert.equal(H.cureWound(10,1,4).removed,true);
+assert.equal(H.cureWound(10,1,4).carry,0);
+assert.equal(H.cureWound(2,0,1).removed,true);
+console.log('magic-healing: ok');

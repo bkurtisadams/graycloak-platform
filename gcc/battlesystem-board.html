@@ -1,4 +1,5 @@
 <!doctype html>
+<!-- battlesystem-board.html · v0.66.0 · CAMPAIGN RULES [16.1]/[16.2]. A kill ledger (state.campaign, snapshotted, fresh at Begin battle) credits every casualty path — melee, hero-vs-unit, set spears, free attacks, invisible contact attacks, break-through, missile, artillery, magic, turning — with creatures removed × the victim's XP kill value, and a unit that routs off the table credits the unit that broke it. Where destroyed and routed-off units left the board is recorded. ⚑ Result beside Restart asks which side holds the field (A, B, or split at mid-depth), then logs and downloads: [16.1] ⅔ of a side's dead recovered on its own ground, ⅓ of enemy dead on held ground taken prisoner, ⅔ of routed-off forces returned; [16.2] unit XP ÷ surviving creatures, Unit Commander 25% of kills less 25% of own losses (never negative), Brigade 25% of subordinate awards and skirmish/mob unit XP, Army 50% of brigades, Hero kills listed for normal AD&D awards. BOARD PROCEDURE: a unit's dead lie where it stands or fell. Baseline 1281 ok. -->
 <!-- battlesystem-board.html · v0.65.0 · CLERIC SLICE. [14.16] Curative magic reaches the Wound marker at last: a cure cures 1 HD per spell level and heal/regeneration/restoration/resurrection 2 HD per level, the marker clears once the HD cured by such magic in total reaches half the figure's HD (running total kept on the marker), hp cures convert at hp ÷ 4, Raise Dead returns a dead individual at 1 hp under an indefinite Immobilized status, Limited Wish/Alter Reality remove one marker and Wish removes the marker or brings one lost figure back; a 1:1 individual heals hit points by the normal AD&D expression. BOARD PROCEDURE: touch cures use a 1″ adjacency. [14.19] ☩ Turn on the rail for a cleric or 3rd+ paladin in Missile & Magic, resolved on the OSRIC 3.0 turn-undead kernel the dungeon sim already uses (one d20, automatic T/D, kernel creature dice, 3d4 rounds); the unit's undead type is recorded on the sheet and Skeleton/Zombie/Ghoul roster rows carry it. BATTLESYSTEM's additions applied: at least one figure routs or is destroyed even when the count falls short of a figure, one attempt per unit per round until a failure locks that cleric out of that unit, turned figures detach and rout under a fear status that blocks rally for the duration, and an evil cleric's 61+ commands them as a mass charm ranged by his CR (ruling, open to veto). [14.20] Ring of Human Influence +1 CB and Rod of Rulership +2 read from the active inventory; Drums of Panic force a Morale Check on every enemy unit within 12″. [14.22] A Hero bard who is not commanding is taken to be singing: +1 on friendly morale within his CR (ruling, open to veto). Engine v0.16.0 (magic-healing.js); the harness loaders now handle the second import; baseline 1271 ok. -->
 <!-- battlesystem-board.html · v0.64.2 · HARNESS TRIAGE. Three self-tests had gone red since the v0.62.3 baseline without any behaviour intended to change: the v0.61.6 Restart test measured the Undo stack by length, which the 60-entry cap holds flat once the suite fills it, so it now checks that the top entry is the restart record; the v0.62.10 preset test built a Pegasus with no flight fields, and v0.62.4's refusal to fly without a FLY MV correctly left it with no aerial modes, so the fixture is a flyer now; and the battlefield hover for an army unit read the roster type name without the unit's own number, so a hover on 'Men-at-Arms #6' said only 'Men-at-Arms' — it now reads the same unit name as the log and the sheet. Harness baseline 1249 ok (one known jsdom-only failure). -->
 <!-- battlesystem-board.html · v0.64.1 · BOMB BUTTON DISCOVERABILITY. A selected flyer with a configured bomb capacity now keeps the Bomb control visible in every phase and after its load is exhausted. The disabled control explains the unmet timing, altitude, target, action, or ammunition requirement instead of disappearing until every gate is already satisfied. -->
@@ -8,7 +9,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Battlesystem — Battlefield · v0.65.0</title>
+<title>Battlesystem — Battlefield · v0.66.0</title>
 <style>
   :root {
     --bg:#ece0c4; --panel:#f5eedb; --field:#a8b094; --field-edge:#6d735a; --ink:#2c2316; --ink-soft:#6e6047; --rule:#b6a682;
@@ -782,7 +783,7 @@
 
   /* ── Spectate/player seats in the board-first dock. ───────────────────── */
   #spectate-panel { display:none; margin:8px; min-height:0; overflow:auto; }
-  body.spectate #btn-save, body.spectate #btn-load, body.spectate #btn-reset, body.spectate #btn-restart, body.spectate #btn-board,
+  body.spectate #btn-save, body.spectate #btn-load, body.spectate #btn-reset, body.spectate #btn-restart, body.spectate #btn-campaign, body.spectate #btn-board,
   body.spectate #btn-undo, body.spectate #btn-redo,
   body.spectate #btn-melee, body.spectate #btn-melee-all, body.spectate #btn-charge, body.spectate #btn-aerial-pass, body.spectate #btn-rally, body.spectate #btn-magic, body.spectate #btn-fire, body.spectate #btn-pt,
   body.spectate #btn-begin, body.spectate #btn-back-setup, body.spectate #btn-advance, body.spectate #btn-pass-move, body.spectate #btn-pass-flow, body.spectate #btn-elect-order, body.spectate #btn-automove,
@@ -794,7 +795,7 @@
     text-transform:uppercase; color:var(--ink-soft); margin:3px 0; }
   #spectate-panel .sp-warn { color:#8a6a1e; font-size:11.5px; margin-top:8px; }
   /* Player mode keeps the compact session banner plus the live Selected inspector. */
-  body.player #btn-save, body.player #btn-load, body.player #btn-reset, body.player #btn-restart, body.player #btn-board,
+  body.player #btn-save, body.player #btn-load, body.player #btn-reset, body.player #btn-restart, body.player #btn-campaign, body.player #btn-board,
   body.player #btn-undo, body.player #btn-redo,
   body.player #btn-melee, body.player #btn-melee-all, body.player #btn-charge, body.player #btn-aerial-pass, body.player #btn-rally, body.player #btn-magic, body.player #btn-fire, body.player #btn-pt,
   body.player #btn-begin, body.player #btn-back-setup, body.player #btn-advance, body.player #btn-pass-move, body.player #btn-pass-flow, body.player #btn-elect-order, body.player #btn-automove,
@@ -950,6 +951,7 @@
       <button id="btn-save">Save</button>
       <button id="btn-load">Load</button><input type="file" id="file-load" accept=".json" style="display:none">
       <button id="btn-reset">Reset</button>
+      <button id="btn-campaign" title="Post-battle campaign result [16.1]/[16.2]: casualty recovery, prisoners, and experience awards from the kill ledger. Logs the result and downloads it as JSON.">⚑ Result</button>
       <button id="btn-restart" title="Restart the battle from its deployment: everything returns to how it stood at Begin battle (one Undo restores the battle). Reset clears the board; ↩ Setup keeps the battle so far.">↺ Restart</button>
       <span class="tb-sep"></span>
       <button id="btn-undo" disabled>Undo</button>
@@ -1132,7 +1134,7 @@
 
 <script type="module">
 
-const SIM_VERSION = '0.65.0';
+const SIM_VERSION = '0.66.0';
 import {
   BattlesystemCombat, CombatResultsTable, BattlesystemMorale, BattlesystemMovement, BattlesystemCavalry,
   BattlesystemEffects, BattlesystemActions, BattlesystemItems, BattlesystemSpells, BattlesystemIndividualCombat, BattlesystemAttackRoutines, BattlesystemMagicDefenses, BattlesystemCreatureDefenses, BattlesystemMagicMovement, BattlesystemInnateActions, BattlesystemSecondaryEffects, BattlesystemAerial, EFFECT_MODES, CHARACTER_ACTION_KINDS,
@@ -2006,7 +2008,7 @@ function resolveInvisibilityFreeMassMelee(A,D){
   const aw=shiftWeaponDamage(meleeWeaponFor(A),scA.damage),r=resolveMeleeCombatFractional({thaco:aT.thaco,ratio:ratioOf(A),modifiers:{openFormation:A.formation==='open'||A.formation==='skirmish',outOfCommand:isOOC(A),commanderFighting:commanderFightingWithUnit(A)},weapon:aw,numberOfAttacks:aw.numberOfAttacks||1,arBaseOverride:effectiveAR(A),eligibleFigures:eligible,arDelta:(arc==='rear'?-2:(arc==='flank'&&dT.shield?-1:0))+weaponHitDelta(A)+terrainMeleeSum(A,D)+conditionMeleeARDelt(A)+scA.ar-magicTargetHitState(D).bonus},{ac:invisibilityAdjustedAC(D,dT.ac+scD.ac-(wallProtects(D,arc)?2:0)),hitDice:hdPerFig(D),size:dT.size},roll2d6);
   Object.assign(r,applyCreatureAttackEffects(A,D,r,aw,eligible,{melee:true}));Object.assign(r,addConditionDamage(D,r,eligible));
   log('melee',`◌ FREE INVISIBILITY MELEE · ${esc(uName(A))} → ${esc(uName(D))}`,`one-way immediate attack · Roll ${r.totalAttackRoll} → ${fmt(r.totalDamage)} HD → ${r.killed} killed${r.wounds?', 1 wound':''}`,`${eligible} attacking figure${eligible===1?'':'s'} · ${esc(activeWeaponName(A))} · no immediate return attack; normal Melee remains later [14.8]`);
-  applyCasualties(D,r);moraleTriggers(D,A);if(D.routed&&D.figures>0&&r.totalDamage>0)autoRout(D,effectiveMoveRate(D),'is struck by an invisible contact attack and ROUTS [6.4/14.8]');return true;
+  {const b0=D.figures;applyCasualties(D,r);creditKills(D,b0,A,'invisible contact attack');}moraleTriggers(D,A);if(D.routed&&D.figures>0&&r.totalDamage>0)autoRout(D,effectiveMoveRate(D),'is struck by an invisible contact attack and ROUTS [6.4/14.8]');return true;
 }
 function resolveInvisibilityFreeHeroMelee(A,D,rng=Math.random){
   invisibilityBreakOnAttack(A,'immediate invisibility melee attack');D.wasAttackedThisPhase=true;D.wasAttackedThisRound=true;
@@ -2507,7 +2509,7 @@ function magicResolveDamage(caster,entry,geometry,target,targetMode,saveRes,opts
       if(saveRes?.type==='none'||saveEffect==='none')outcome=failOutcome;else if(sr?.due){if(failOutcome===saveOutcome)outcome=failOutcome;else{unitDue++;continue;}}else outcome=sr?.saved?saveOutcome:failOutcome;
       if(outcome==='remove')rem++;else if(outcome==='wound')wnd++;
     }
-    const net=applyMagicArmyOutcomes(u,rem,wnd,damageTag);totalRemoved+=net.removed;totalWounds+=wnd;due+=unitDue;lines.push(`${uName(u)}: ${hit.count} fig${hit.count===1?'':'s'} · ${fmt(creatureHd)} HD creature${response.response!=='normal'?` · ${creatureDefenseTagLabel(damageTag)} ${creatureDamageResponseSymbol(response.response)}`:''} · ${net.removed} removed${wnd?` · ${wnd} wound result${wnd===1?'':'s'}`:''}${unitDue?` · ${unitDue} DUE`:''}`);moraleTriggers(u,caster);
+    const net=applyMagicArmyOutcomes(u,rem,wnd,damageTag);creditKills(u,u.figures+net.removed,caster,'magic');totalRemoved+=net.removed;totalWounds+=wnd;due+=unitDue;lines.push(`${uName(u)}: ${hit.count} fig${hit.count===1?'':'s'} · ${fmt(creatureHd)} HD creature${response.response!=='normal'?` · ${creatureDefenseTagLabel(damageTag)} ${creatureDamageResponseSymbol(response.response)}`:''} · ${net.removed} removed${wnd?` · ${wnd} wound result${wnd===1?'':'s'}`:''}${unitDue?` · ${unitDue} DUE`:''}`);moraleTriggers(u,caster);
   }
   cleanupDead();return{resolved:true,due,damage,totalRemoved,totalWounds,totalHp,lines,saveEffect,damageTag};
 }
@@ -2825,7 +2827,7 @@ function resolveTurnUndead(a,d,rng=Math.random){
   const destroy=st.cell.result==='destroyed'&&!st.evil;
   let control=false;if(st.evil&&!destroy){const c=BattlesystemIndividualCombat.rollDamage('1d100',rng).total;control=c>=EVIL_CONTROL_ROLL.controlOn;log('phase',`◇ ${esc(uName(a))} evil cleric control roll`,`d100 ${c} vs ${EVIL_CONTROL_ROLL.controlOn}+ → ${control?'the undead fall under his command':'the undead are turned away'} [14.19/OSRIC 1.6.5]`);}
   log('phase',`☩ ${esc(uName(a))} ${destroy?'DESTROYS':control?'COMMANDS':'TURNS'} ${esc(uName(d))}`,`${how} · turning level ${st.lvl} vs ${esc(UNDEAD_TYPE_LABELS[st.ut])} · ${st.cell.affected} = ${creatures} creature${creatures===1?'':'s'} ÷ ${cpf}/figure → ${figs} figure${figs===1?'':'s'} (minimum one) [14.19]`);
-  if(destroy){d.figures-=figs;if(d.figures<=0){d.figures=0;log('melee',`☠ ${esc(uName(d))} destroyed by turning`,'[14.19]');cleanupDead();}return{ok:true,success:true,destroyed:figs,roll};}
+  if(destroy){const b0=d.figures;d.figures-=figs;if(d.figures<=0){d.figures=0;}creditKills(d,b0,a,'turning');if(d.figures<=0){log('melee',`☠ ${esc(uName(d))} destroyed by turning`,'[14.19]');cleanupDead();}return{ok:true,success:true,destroyed:figs,roll};}
   const body=figs>=d.figures?d:splitSkirmishFigures(d,figs,'turned',a);
   const duration=BattlesystemIndividualCombat.rollDamage(TURNED_DURATION_ROUNDS_DICE,rng).total,all=Array.from({length:body.figures},(_,i)=>i);
   if(control){addMagicStatus(body,'massCharm',`Commanded by ${uName(a)} [14.19]`,a,all,null,'evil cleric commands turned undead until killed, turned by an enemy evil cleric, or outside his CR [14.19]',{controlRangeIn:crOfUnit(a)});log('phase',`◆ ${esc(uName(body))} obeys ${esc(uName(a))}`,`${body.figures} figure${body.figures===1?'':'s'} under the cleric's command · CR ${fmt(crOfUnit(a))}″ as control range · moves with side ${a.side} [14.19/14.6A]`);}
@@ -4181,6 +4183,7 @@ const state = {
   grid: 1, measure: { on:false, a:null, live:null, dragging:false },   // grid: 0 off · 1 six-inch · 2 six+one-inch sub-grid
   terrain: [],                        // v0.31.0 [11.8]: {id,type,x,y,w,h,rot,heightFt} rects + {id,type,pts,widthIn} lines (inches, snapshotted)
   conditions: { humidity:'clear', temperature:'warm', wind:'calm', weather:'none', extreme:'none', night:false }, // v0.42.0 [12.0], snapshotted
+  campaign: { kills:{}, fallen:[] },                              // v0.66.0 [16.1]/[16.2] kill ledger + where units fell; snapshotted
   terrainMode: false, terrainSelId: null, terrainDraft: null,          // editor state (not snapshotted)
   labels: 1, hoverId: null,       // labels: 0 off · 1 compact · 2 full; hoverId retained as transient compatibility state, but hover uses native SVG titles only
   trails: 1,                       // 0 off · 1 selected · 2 all; current-round movement traces (view-local)
@@ -6392,10 +6395,10 @@ function chargeSummary(u) {
 }
 
 /* === D. UNDO / SAVE / LOG ================================================ */
-function snap() { return JSON.parse(JSON.stringify({ units: state.units, setup: state.setup, round: state.round, phaseIdx: state.phaseIdx, initiativeWinner: state.initiativeWinner, moverSide: state.moverSide, moveStep: state.moveStep, firstMover: state.firstMover, autoMovedSides: state.autoMovedSides, phaseStepId:state.phaseStepId, flowPhaseId:state.flowPhaseId, flowStep:state.flowStep, meleeResolvedPairs:state.meleeResolvedPairs, meleeDeferred:state.meleeDeferred||[], meleeAllocations:state.meleeAllocations||{}, individualCombatPending:state.individualCombatPending, individualCombatCadence:state.individualCombatCadence, deployment:state.deployment||null, boardWIn:state.boardWIn, boardHIn:state.boardHIn, optional:state.optional, detectionGrants:normalizeDetectionGrants(state.detectionGrants), intelRecords:normalizeIntelRecords(state.intelRecords), autoMove: state.autoMove, enforce: state.enforce, terrain: state.terrain, conditions:normalizeConditions(state.conditions), phaseVer: PHASE_VER, nextId })); }
+function snap() { return JSON.parse(JSON.stringify({ units: state.units, setup: state.setup, round: state.round, phaseIdx: state.phaseIdx, initiativeWinner: state.initiativeWinner, moverSide: state.moverSide, moveStep: state.moveStep, firstMover: state.firstMover, autoMovedSides: state.autoMovedSides, phaseStepId:state.phaseStepId, flowPhaseId:state.flowPhaseId, flowStep:state.flowStep, meleeResolvedPairs:state.meleeResolvedPairs, meleeDeferred:state.meleeDeferred||[], meleeAllocations:state.meleeAllocations||{}, individualCombatPending:state.individualCombatPending, individualCombatCadence:state.individualCombatCadence, deployment:state.deployment||null, campaign:normalizeCampaign(state.campaign), boardWIn:state.boardWIn, boardHIn:state.boardHIn, optional:state.optional, detectionGrants:normalizeDetectionGrants(state.detectionGrants), intelRecords:normalizeIntelRecords(state.intelRecords), autoMove: state.autoMove, enforce: state.enforce, terrain: state.terrain, conditions:normalizeConditions(state.conditions), phaseVer: PHASE_VER, nextId })); }
 function applySnap(s) { state.units = s.units; state.setup = s.setup; state.round = s.round; state.phaseIdx = s.phaseIdx; state.initiativeWinner = s.initiativeWinner ?? s.sideA ?? null; state.moverSide = s.moverSide ?? null; state.moveStep = s.moveStep ?? 0; state.firstMover = Object.prototype.hasOwnProperty.call(s,'firstMover') ? s.firstMover : (s.moverSide ?? s.initiativeWinner ?? null); state.autoMovedSides = Array.isArray(s.autoMovedSides) ? s.autoMovedSides : []; { const phaseId=PHASES[state.phaseIdx]?.id||null, hasStep=Object.prototype.hasOwnProperty.call(s,'phaseStepId'); if(hasStep){ state.phaseStepId=typeof s.phaseStepId==='string'?s.phaseStepId:null; state.flowPhaseId=typeof s.flowPhaseId==='string'?s.flowPhaseId:null; state.flowStep=Math.max(0,Math.round(Number(s.flowStep)||0)); if(state.flowPhaseId===phaseId)syncPhaseSequenceMirrors(); } else { state.phaseStepId=legacyPhaseStepId(phaseId,s.flowStep,s.moveStep); state.flowPhaseId=phaseId; state.flowStep=Math.max(0,Math.round(Number(s.flowStep)||0)); syncPhaseSequenceMirrors(); } } state.meleeResolvedPairs = Array.isArray(s.meleeResolvedPairs) ? [...new Set(s.meleeResolvedPairs.map(String))] : []; state.meleeDeferred = Array.isArray(s.meleeDeferred) ? s.meleeDeferred : []; state.meleeAllocations = s.meleeAllocations && typeof s.meleeAllocations==='object' ? s.meleeAllocations : {}; state.individualCombatPending = s.individualCombatPending && typeof s.individualCombatPending==='object' ? s.individualCombatPending : null; state.individualCombatCadence = s.individualCombatCadence && typeof s.individualCombatCadence==='object' && !Array.isArray(s.individualCombatCadence) ? s.individualCombatCadence : {}; state.optional = { tribalStandard: !!(s.optional?.tribalStandard) };   // v0.61.7.6
   state.boardWIn = clampBoardIn(s.boardWIn, 72); state.boardHIn = clampBoardIn(s.boardHIn, 48); applyBoardSize();   // v0.61.7: the scenario carries its own table size
-  state.deployment = s.deployment && typeof s.deployment==='object' && Array.isArray(s.deployment.units) ? s.deployment : null; state.detectionGrants=normalizeDetectionGrants(s.detectionGrants); state.intelRecords=normalizeIntelRecords(s.intelRecords); state.autoMove = s.autoMove !== false; state.enforce = s.enforce !== false; state.terrain = Array.isArray(s.terrain) ? s.terrain : []; state.conditions=normalizeConditions(s.conditions||CONDITION_DEFAULTS); if (state.terrainSelId != null && !state.terrain.some(r => r.id === state.terrainSelId)) state.terrainSelId = null;
+  state.deployment = s.deployment && typeof s.deployment==='object' && Array.isArray(s.deployment.units) ? s.deployment : null; state.campaign=normalizeCampaign(s.campaign); state.detectionGrants=normalizeDetectionGrants(s.detectionGrants); state.intelRecords=normalizeIntelRecords(s.intelRecords); state.autoMove = s.autoMove !== false; state.enforce = s.enforce !== false; state.terrain = Array.isArray(s.terrain) ? s.terrain : []; state.conditions=normalizeConditions(s.conditions||CONDITION_DEFAULTS); if (state.terrainSelId != null && !state.terrain.some(r => r.id === state.terrainSelId)) state.terrainSelId = null;
   if (s.phaseVer !== PHASE_VER) state.phaseIdx = PHASE_MIGRATE_5[Math.min(state.phaseIdx, 4)] ?? 0;   // pre-v0.24 saves
   nextId = s.nextId; }
 /* pushUndo is the complete map of mutating actions — the publish pipe rides its
@@ -6768,6 +6771,7 @@ function beginBattle() {
   for (const u of state.units) { resetUnitRoundActionState(u); const ms=magicStateOf(u); ms.statuses=ms.statuses.filter(s=>!(s.kind==='invisibility'&&Number(s.brokenRound)===0)); } // Setup/test ordinary-invisibility breaks do not linger into Round 1
   state.setup = false; state.round = 1; state.phaseIdx = 0; state.initiativeWinner = null; state.moverSide = null; state.moveStep = 0; state.firstMover = null; state.autoMovedSides = []; state.phaseStepId=null; state.flowPhaseId=null; state.flowStep=0; state.meleeResolvedPairs=[]; state.meleeDeferred=[]; state.meleeAllocations={};
   state.deployment = captureDeployment();                           // v0.61.6: ↺ Restart returns here
+  state.campaign = normalizeCampaign();                             // v0.66.0: a fresh kill ledger per battle
   advancePendingAweFearIntoBattleStart();
   setDockTab('selected');                                           // battle-first inspector
   log('phase', '⚔ Battle Begins', `BATTLESYSTEM · ${PHASES.length} phases · Round 1`);
@@ -7452,7 +7456,7 @@ function resolveOneWayMelee(att, def, arDelta=-2, label='free attack') { // [8.8
   r=magicApplyShadowReality(att,def,r,ow,eligible);
   def.wasAttackedThisPhase=true; def.wasAttackedThisRound=true; att.acted.fought=true;
   log('melee',`↯ ${esc(uName(att))} ${label} → ${esc(uName(def))}`,`rear bonus −2 · ${fmt(r.totalDamage)} HD → ${r.killed} killed${r.wounds?', 1 wound':''} [8.8]${r._specialNotes?.length?` · ${r._specialNotes.map(esc).join(' · ')}`:''}`);
-  applyCasualties(def,r);
+  {const b0=def.figures;applyCasualties(def,r);creditKills(def,b0,att,'free attack');}
   moraleTriggers(def,att); return r;
 }
 function fleeMelee(u) {                                             // [8.8]
@@ -7496,7 +7500,7 @@ function minimumChargeBreakThrough(u,d) {                            // assisted
 }
 function breakThrough(u,d) {
   const st=minimumChargeBreakThrough(u,d); if(!st.ok){log('phase',`${esc(uName(u))} cannot Break Through`,`${st.minKills||0} minimum kills vs ${st.blockers||1} blocking figures [7.14]`);return false;}
-  pushUndo('break-through'); const n=Math.min(d.figures,st.blockers);d.figures-=n;u.chargeSucceeded=false;u.contactedThisMove=false;u.breakThrough={throughId:d.id,figures:n,heading:lastMoveHeading(u)};u.chargeTargetId=null;
+  pushUndo('break-through'); const n=Math.min(d.figures,st.blockers);{const b0=d.figures;d.figures-=n;creditKills(d,b0,u,'break-through');}u.chargeSucceeded=false;u.contactedThisMove=false;u.breakThrough={throughId:d.id,figures:n,heading:lastMoveHeading(u)};u.chargeTargetId=null;
   log('melee',`⚡ ${esc(uName(u))} BREAKS THROUGH ${esc(uName(d))}`,`${n} blocking figure${n===1?'':'s'} removed; minimum possible charge damage would kill them · charge must continue [7.14]`);
   if(d.figures<=0) cleanupDead(); renderAll(); return true;
 }
@@ -8140,6 +8144,7 @@ function autoRout(u, mvOverride, why, source=null, chainDepth=0) {    // [7.15]/
   const t=profileOf(u), initial = !u.routDir;
   const baseWeatherMV=effectiveMoveRate(u), routMV=mvOverride ?? (initial ? BattlesystemMovement.getRoutMovement(baseWeatherMV) : baseWeatherMV);
   if(initial){
+    if(source&&source.id!=null&&magicTacticalEnemy(u,source))u.routCauseId=source.id;   // v0.66.0 [16.2]: who gets credit if this rout leaves the table
     const own={x:0,y:u.side==='A'?1:-1};let dx=own.x,dy=own.y; // toward own lines if no specific cause
     if(source){const uc=unitCenter(u),sc=unitCenter(source),vx=uc.cx-sc.cx,vy=uc.cy-sc.cy,m=Math.hypot(vx,vy)||1;dx=vx/m;dy=vy/m;
       // [7.15] away from the cause AND toward own lines if possible (v0.59.1): when the away vector
@@ -8166,7 +8171,7 @@ function autoRout(u, mvOverride, why, source=null, chainDepth=0) {    // [7.15]/
   passThroughSweep(u, c0, centerPoint(u));                           // [10.6] routs crossing a wedge draw fire
   routPathConsequences(u, c0, centerPoint(u), source, chainDepth);   // [7.15] friendlies in the flight path
   if (initial) skirmishFriendlyRoutChecks(u, source, chainDepth, c0);  // [2.9] skirmish figures within their MV of the rout point check morale
-  if (u.x < -1 || u.y < -1 || u.x > BOARD_W || u.y > BOARD_H) { log('morale',`☠ ${esc(uName(u))} routs off the field`,'removed from play [7.15]');removeUnitFromPlay(u); }
+  if (u.x < -1 || u.y < -1 || u.x > BOARD_W || u.y > BOARD_H) { log('morale',`☠ ${esc(uName(u))} routs off the field`,'removed from play [7.15]');noteFallen(u,'routedOff');removeUnitFromPlay(u); }
   else log('morale',`${esc(uName(u))} ${why||'ROUTS'}`,`${fmt(routMV)}″ ${initial?'away from the cause':'in the same rout direction'} · back to enemy [7.15]/[6.4]`);
 }
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -8928,7 +8933,7 @@ function netCasualtyResult(u, beforeFigures, beforeWounded) {
 }
 function applyMagicCreationCasualties(def,r,att){
   r=magicApplyMirrorImageCombatResult(def,r,'BATTLESYSTEM created/illusion troop damage');
-  if(magicCreationKind(att)!=='illusion')return{gapFill:applyCasualties(def,r),cataleptic:0};
+  if(magicCreationKind(att)!=='illusion'){const b0=def.figures,gapFill=applyCasualties(def,r);creditKills(def,b0,att,'melee');return{gapFill,cataleptic:0};}
   const already=magicStatusIndexes(def,['cataleptic']),available=Array.from({length:Math.max(0,def.figures||0)},(_,i)=>i).filter(i=>!already.has(i)),n=Math.min(Math.max(0,Math.round(Number(r?.killed)||0)),available.length),idx=available.slice(-n);
   if(idx.length)addMagicStatus(def,'cataleptic',`${uName(att)} illusion`,att,idx,null,'illusion killing damage produces catalepsy rather than actual casualties [14.10]');
   const woundOnly={...r,killed:0},gapFill=applyCasualties(def,woundOnly);if(idx.length)log('melee',`☾ ${esc(uName(def))}: ${idx.length} figure${idx.length===1?'':'s'} CATALEPTIC`,`${esc(uName(att))} is an ordinary illusion-created troop; figure-killing damage does not kill [14.10]`);return{gapFill,cataleptic:idx.length};
@@ -9090,13 +9095,75 @@ function resolveEliminatedUnitCharacters(u){
   if(legacyCommanderMode(u)&&u.cmdr){const f=rollFateTable11(u.cmdr.name);log('melee',`⚑ Table 11 · ${esc(u.cmdr.name||'Unit Commander')} (${esc(name)} eliminated)`,`1d10 = ${f.roll} → ${esc(f.text)}${f.result!=='killed'?' · captured if the enemy holds this ground at battle\'s end [9.1]':''}`);u.cmdrFate=f;}
   for(const ind of state.units)if(isIndividual(ind)&&(ind.char?.memberOf===u.id||(Number(u.commanderId)===ind.id&&ind.char?.role==='unitCommander'))&&(ind.char?.hp||0)>0)applyFateToCharacter(ind,rollFateTable11(uName(ind)),name);
 }
+/* v0.66.0 §16 CAMPAIGN RULES. A kill ledger credits each attacker (unit or
+   individual) with the XP kill value of the creatures it removed, and with the
+   value of units it routed off the table; where a unit fell is recorded so
+   [16.1] can ask which side holds that ground at the end. XP kill value per
+   represented creature is the roster field from v0.62.7 ([16.2]); a unit with no
+   value recorded contributes 0 and is flagged. Recovery [16.1]: on ground you
+   hold, ⅔ of your dead return and ⅓ of the enemy dead are prisoners; ⅔ of forces
+   routed off the table return. BOARD PROCEDURE: the field is held by one side,
+   or split at the table's mid-depth (Side A the near half it deployed on), chosen
+   by the GM at resolution; a unit's dead lie where the unit stands (or fell).
+   Fractions round down. */
+function normalizeCampaign(raw){raw=raw&&typeof raw==='object'?raw:{};const kills={};for(const [k,v] of Object.entries(raw.kills||{})){if(!v||typeof v!=='object')continue;kills[k]={side:String(v.side||''),name:String(v.name||''),xp:Math.max(0,Number(v.xp)||0),creatures:Math.max(0,Number(v.creatures)||0),figures:Math.max(0,Number(v.figures)||0),entries:Array.isArray(v.entries)?v.entries.slice(-200):[]};}return{kills,fallen:Array.isArray(raw.fallen)?raw.fallen.filter(x=>x&&typeof x==='object'):[]};}
+function campaignLedger(){if(!state.campaign||typeof state.campaign!=='object')state.campaign=normalizeCampaign();if(!state.campaign.kills)state.campaign.kills={};if(!Array.isArray(state.campaign.fallen))state.campaign.fallen=[];return state.campaign;}
+function xpValuePer(u){const v=Number(profileOf(u)?.xpValue);return Number.isFinite(v)&&v>0?v:0;}
+function creditKills(victim,beforeFigures,attacker,why=''){
+  if(!victim||isIndividual(victim)||!attacker||!magicTacticalEnemy(attacker,victim))return null;
+  const killed=Math.max(0,Math.round(Number(beforeFigures)||0)-Math.max(0,Math.round(Number(victim.figures)||0)));if(!killed)return null;
+  const cpf=magicCreaturesPerFigure(victim),creatures=killed*cpf,xp=creatures*xpValuePer(victim),L=campaignLedger(),k=String(attacker.id);
+  const rec=L.kills[k]||(L.kills[k]={side:attacker.side,name:uName(attacker),xp:0,creatures:0,figures:0,entries:[]});
+  rec.name=uName(attacker);rec.xp+=xp;rec.creatures+=creatures;rec.figures+=killed;rec.entries.push({round:state.round,victim:uName(victim),victimId:victim.id,figures:killed,creatures,xp,why});
+  return rec;
+}
+function noteFallen(u,kind){
+  if(!u||isIndividual(u))return;const L=campaignLedger(),c=unitCenter(u),cpf=magicCreaturesPerFigure(u),start=Math.max(u.startFigures||0,u.figures||0),dead=kind==='destroyed'?start:Math.max(0,start-(u.figures||0)),routed=kind==='routedOff'?Math.max(0,u.figures||0):0;
+  L.fallen.push({unitId:u.id,name:uName(u),side:u.side,type:u.type,kind,x:c.cx,y:c.cy,cpf,xpPer:xpValuePer(u),deadFigures:dead,routedFigures:routed,round:state.round});
+  if(kind==='routedOff'&&u.routCauseId!=null){const by=state.units.find(v=>v.id===u.routCauseId);if(by&&routed){const L2=campaignLedger(),k=String(by.id),rec=L2.kills[k]||(L2.kills[k]={side:by.side,name:uName(by),xp:0,creatures:0,figures:0,entries:[]});const creatures=routed*cpf,xp=creatures*xpValuePer(u);rec.xp+=xp;rec.creatures+=creatures;rec.figures+=routed;rec.entries.push({round:state.round,victim:uName(u),victimId:u.id,figures:routed,creatures,xp,why:'routed off the table'});}}
+}
+function campaignHolderAt(holder,y){return holder==='A'||holder==='B'?holder:(y<BOARD_H/2?'A':'B');}
+function campaignResolution(holder='split'){
+  const L=campaignLedger(),third=n=>Math.floor(n/3),twoThirds=n=>Math.floor(n*2/3),sides={A:{},B:{}};
+  for(const S of ['A','B'])sides[S]={side:S,recoveredDead:0,recoveredRouted:0,prisoners:0,deadOnField:0,units:[],commanders:[],missingXp:[]};
+  const groups=[];
+  for(const u of state.units){if(isIndividual(u))continue;const c=unitCenter(u),start=Math.max(u.startFigures||0,u.figures||0),dead=Math.max(0,start-(u.figures||0));if(dead)groups.push({name:uName(u),side:u.side,x:c.cx,y:c.cy,dead:dead*magicCreaturesPerFigure(u),routed:0});}
+  for(const f of L.fallen)groups.push({name:f.name,side:f.side,x:f.x,y:f.y,dead:f.deadFigures*f.cpf,routed:f.routedFigures*f.cpf});
+  for(const g of groups){const h=campaignHolderAt(holder,g.y),own=sides[g.side],foe=sides[otherSide(g.side)];own.deadOnField+=g.dead;if(g.dead){if(h===g.side)own.recoveredDead+=twoThirds(g.dead);else foe.prisoners+=third(g.dead);}if(g.routed)own.recoveredRouted+=twoThirds(g.routed);}
+  const cmdrAward=new Map();
+  for(const u of state.units){if(isIndividual(u))continue;const rec=L.kills[String(u.id)],killXp=rec?rec.xp:0,cpf=magicCreaturesPerFigure(u),survivors=(u.figures||0)*cpf,start=Math.max(u.startFigures||0,u.figures||0),lostXp=Math.max(0,start-(u.figures||0))*cpf*xpValuePer(u);
+    if(!xpValuePer(u))sides[u.side].missingXp.push(uName(u));
+    const perSoldier=survivors>0?Math.floor(killXp/survivors):0;sides[u.side].units.push({name:uName(u),type:profileOf(u).unitType,killXp,survivors,perSoldier,lostXp});
+    const cs=commandSource(u);if(cs&&!cs.legacy&&cs.commander&&isIndividual(cs.commander)&&cs.role==='unitCommander'){const c=cs.commander,cur=cmdrAward.get(c.id)||{cmdr:c,role:'Unit Commander',gross:0,penalty:0};cur.gross+=killXp*0.25;cur.penalty+=lostXp*0.25;cmdrAward.set(c.id,cur);}}
+  for(const [,a] of cmdrAward){a.award=Math.max(0,Math.floor(a.gross-a.penalty));sides[a.cmdr.side].commanders.push({name:uName(a.cmdr),role:a.role,award:a.award,gross:Math.floor(a.gross),penalty:Math.floor(a.penalty)});}
+  for(const S of ['A','B']){const bri=state.units.filter(v=>isIndividual(v)&&v.side===S&&v.char?.role==='brigadeCommander'),army=state.units.find(v=>isIndividual(v)&&v.side===S&&v.char?.role==='armyCommander');
+    const brigadeOf=b=>{let x=0;for(const u of state.units){if(isIndividual(u)||u.side!==S||Number(u.brigadeCommanderId)!==b.id)continue;const cs=commandSource(u),ucAward=cs&&!cs.legacy&&cs.role==='unitCommander'?(cmdrAward.get(cs.commander.id)?.award||0):0;const rec=L.kills[String(u.id)],killXp=rec?rec.xp:0,ut=profileOf(u).unitType;x+=ut==='regular'?ucAward*0.25:killXp*0.25;}return Math.floor(x);};
+    const briAwards=bri.map(b=>{const a=brigadeOf(b);sides[S].commanders.push({name:uName(b),role:'Brigade Commander',award:a});return a;});
+    if(army){let a=0;if(briAwards.length)a=Math.floor(briAwards.reduce((n,x)=>n+x,0)*0.5);else{for(const u of state.units){if(isIndividual(u)||u.side!==S)continue;const cs=commandSource(u),ucAward=cs&&!cs.legacy&&cs.role==='unitCommander'?(cmdrAward.get(cs.commander.id)?.award||0):0;const rec=L.kills[String(u.id)],killXp=rec?rec.xp:0;a+=profileOf(u).unitType==='regular'?ucAward*0.25:killXp*0.25;}a=Math.floor(a);}sides[S].commanders.push({name:uName(army),role:'Army Commander',award:Math.max(0,a)});}
+    sides[S].heroes=state.units.filter(v=>isIndividual(v)&&v.side===S&&L.kills[String(v.id)]).map(v=>({name:uName(v),killXp:L.kills[String(v.id)].xp,creatures:L.kills[String(v.id)].creatures}));}
+  return{holder,round:state.round,sides,at:new Date().toISOString(),simVersion:SIM_VERSION};
+}
+function campaignResultAvailable(){return !state.setup&&!state.net.player&&!state.net.spectate;}
+function resolveCampaignResult(holderArg){
+  if(!campaignResultAvailable()){log('phase','Campaign result needs a battle in progress','[16.1]/[16.2] resolve after Begin battle; GM seat only');return null;}
+  let holder=holderArg;if(!holder){const raw=prompt('Who holds the field at the end of the battle? [16.1]\n\nA — Side A holds all of it\nB — Side B holds all of it\nS — split at the table\'s mid-depth (each side holds the half it deployed on)','S');if(raw==null)return null;holder=/^a/i.test(raw)?'A':/^b/i.test(raw)?'B':'split';}
+  const res=campaignResolution(holder);
+  for(const S of ['A','B']){const r=res.sides[S];
+    log('phase',`⚑ Campaign result · Side ${S} [16.1]`,`${r.deadOnField} dead on the field · recovers ${r.recoveredDead} of them and ${r.recoveredRouted} routed off · takes ${r.prisoners} prisoner${r.prisoners===1?'':'s'} · field held by ${holder==='split'?'each side on its own half':`Side ${holder}`}`);
+    log('phase',`⚑ Campaign result · Side ${S} units [16.2]`,r.units.map(u=>`${esc(u.name)}: ${u.killXp} XP ÷ ${u.survivors} survivor${u.survivors===1?'':'s'} = ${u.perSoldier} each`).join(' · ')||'no units');
+    if(r.commanders.length)log('phase',`⚑ Campaign result · Side ${S} commanders [16.2]`,r.commanders.map(c=>`${esc(c.name)} (${c.role}): ${c.award} XP${c.penalty?` (25% of ${c.gross*4} kills − 25% of losses)`:''}`).join(' · '));
+    if(r.heroes.length)log('phase',`⚑ Campaign result · Side ${S} heroes [16.2]`,r.heroes.map(h=>`${esc(h.name)}: ${h.killXp} XP of kills (${h.creatures} creatures) — add to normal AD&D awards`).join(' · '));
+    if(r.missingXp.length)log('phase',`⚑ Side ${S} units without an XP kill value`,`${r.missingXp.map(esc).join(', ')} — set XP KILL / CREATURE on the unit sheet [16.2]`);}
+  return res;
+}
+function downloadCampaignResult(){const res=resolveCampaignResult();if(res)downloadJsonRecord(`battlesystem-campaign-${new Date().toISOString().slice(0,10)}.json`,{format:'battlesystem-campaign-result',...res,ledger:campaignLedger()});}
 function cleanupDead() {
   checkCommanderDowns();
   // Army figures with no survivors leave the board. Optional 1:1 PC/NPC counters
   // are individuals, not casualty-count units; DOWN characters remain present [9.4B].
   for (const u of state.units) {
     if(isIndividual(u)){u.figures=u.removedFromBattle?0:Math.max(1,Math.round(Number(u.figures)||1));continue;}
-    if(u.figures<=0){if(u.magicCreation)unlinkMagicCreatedUnit(u.id);log('melee', `☠ ${esc(uName(u))} destroyed`);resolveEliminatedUnitCharacters(u);}
+    if(u.figures<=0){if(u.magicCreation)unlinkMagicCreatedUnit(u.id);log('melee', `☠ ${esc(uName(u))} destroyed`);noteFallen(u,'destroyed');resolveEliminatedUnitCharacters(u);}
   }
   state.units = state.units.filter(u => isIndividual(u) || u.figures > 0);
   if (state.selId && !state.units.find(u => u.id === state.selId)) state.selId = null;
@@ -10933,7 +11000,7 @@ function resolveVolley(a, d, st, opts = {}) {                        // shared b
     `${firingText} · ${missileBandLabel(band)} ${fmt(dist)}″${opts.caughtAt!=null?` · caught ${fmt(opts.caughtAt)}″ along its move`:''}${mods.length?' · '+mods.join(' · '):''} · Roll ${r.totalAttackRoll}`,
     `${fmt(rApply.totalDamage)} HD → ${rApply.killed} killed${rApply.wounds ? ', 1 wound' : ''}${!arty&&ammoAfter?` · ${esc(ammoAfter.name)} ${esc(ammoCountText(a,ammoAfter))}`:''} [10.8]/[8.4]${opts.passThrough?'/[10.6]':''}${arty?'/[10.9]':''}${opts.invisibilityFree?'/[14.8]':''}`);
   if (figSlots.length && rApply.killed > 0) clearFigureTarget();      // v0.61.3: the designated figures are the ones removed
-  applyCasualties(d, rApply, figSlots.length ? { victims: figSlots.slice(0, Math.min(rApply.killed, figSlots.length)) } : {});   // [10.x]: missile kills remove IMMEDIATELY — no return fire
+  {const b0=d.figures;applyCasualties(d, rApply, figSlots.length ? { victims: figSlots.slice(0, Math.min(rApply.killed, figSlots.length)) } : {});creditKills(d,b0,a,'missile fire');}   // [10.x]: missile kills remove IMMEDIATELY — no return fire
   moraleTriggers(d, a);
   return r;
 }
@@ -10983,7 +11050,7 @@ function resolveBombDrop(a,d,equivalents=1,rng=Math.random){
     const roll=()=>{const dice=[rollDie(6,rng),rollDie(6,rng)];return{total:dice[0]+dice[1],dice};};
     const r=resolveMeleeCombatFractional({thaco:profileOf(a).arThaco??profileOf(a).thaco,ratio:ratioOf(a),modifiers:{outOfCommand:isOOC(a)},weapon,numberOfAttacks:count,arBaseOverride:effectiveAR(a),eligibleFigures:st.eligible,arDelta:0},{ac:spec.targetAC,hitDice:hdPerFig(d),size:profileOf(d).size},roll);
     let applied=applyCreatureAttackEffects(a,d,r,weapon,st.eligible,{melee:false,poison:false,weaponName:'Bomb',suppressAttackerEffects:true,attackTags:ordinaryBombTags});
-    applyCasualties(d,applied);moraleTriggers(d,a);result={attack:r,applied};
+    {const b0=d.figures;applyCasualties(d,applied);creditKills(d,b0,a,'artillery');}moraleTriggers(d,a);result={attack:r,applied};
     log('missile',`☄ ${esc(uName(a))} bombs ${esc(uName(d))}`,`${esc(altitudeLabel(a))} · unit centre over target · ${st.eligible} flying figure${st.eligible===1?'':'s'} · ${count} man-sized equivalent${count===1?'':'s'} each · 2d6 damage · target treated as AC ${spec.targetAC} [15.4] · Roll ${r.totalAttackRoll}`,`${fmt(applied.totalDamage)} HD → ${applied.killed} killed${applied.wounds?', 1 wound':''}`);
   }
   st.carrier.bombEquivalentsRemaining=Math.max(0,st.remaining-count);a.bombedThisRound=true;a.acted||(a.acted={});a.acted.fired=true;a.lastShotRound=state.round;d.wasAttackedThisRound=true;d.wasAttackedThisPhase=true;
@@ -11653,6 +11720,7 @@ function renderAll() { syncMountedPairs(); pruneIndividualCombatCadence(); syncI
   $('#btn-advance').style.display = state.setup ? 'none' : '';
   { const bs=$('#btn-back-setup'); if(bs){ bs.hidden=false; bs.classList.toggle('parked', state.setup || state.net.player || state.net.spectate); } }
   { const rb=$('#btn-restart'); if(rb) rb.disabled=!restartAvailable(); }
+  { const cb=$('#btn-campaign'); if(cb) cb.disabled=!campaignResultAvailable(); }
   { const bb=$('#btn-board'); if(bb) bb.textContent=`Table: ${BOARD_W}×${BOARD_H}″`; }
   // v0.60.5: Elect order lives on the rail (click a Movement pill); no button
   const dueBtn=$('#btn-due'),dueSum=dueCheckSummary();                 // v0.55.2: referee-global visibility for persistent advisory obligations
@@ -11891,7 +11959,7 @@ function commitDraggedMove(dg) {
       faceFigures(u, nearestFacing(fd2[0], fd2[1]));                 // back to enemy; ranks do not re-form [7.15]
       u.routDir={ x:fd2[0], y:fd2[1] };
       routPathConsequences(u, dg.startCenter, centerPoint(u), null); // [7.15] applies to hand-executed routs too
-      if (u.x < -1 || u.y < -1 || u.x > BOARD_W || u.y > BOARD_H) { log('morale',`☠ ${esc(uName(u))} routs off the field`,'removed from play [7.15]'); removeUnitFromPlay(u); }
+      if (u.x < -1 || u.y < -1 || u.x > BOARD_W || u.y > BOARD_H) { log('morale',`☠ ${esc(uName(u))} routs off the field`,'removed from play [7.15]'); noteFallen(u,'routedOff'); removeUnitFromPlay(u); }
     }
     delete u.pendingAuto;
   }
@@ -12284,6 +12352,7 @@ $('#btn-intel').onclick=()=>openIntelDialog();
 $('#btn-begin').onclick = beginBattle;
 $('#btn-back-setup').onclick = backToSetup;
 $('#btn-restart').onclick = () => restartBattle();
+$('#btn-campaign').onclick = downloadCampaignResult;
 
 $('#btn-board').onclick = () => {                                    // v0.61.7: presets mirror chainmail-board's Settings ▸ Board size
   if (state.net.player || state.net.spectate) return;
@@ -16108,6 +16177,25 @@ window.addEventListener('mousedown', e => {   // assign menu closes on any outsi
       t('[14.20/v0.65.0] Drums of Panic resolve as an item preset with a self target',magicUsePreset({name:'Drums of Panic',kind:'item',itemType:'misc'},'',B)?.executionResolver==='drums-of-panic');
     }
   }finally{applySnap(bak);}})();
+  // v0.66.0 §16 campaign regressions: kill ledger, fallen records, recovery, prisoners, XP allocation.
+  (()=>{const bak=snap();try{
+    const A=mkUnit('MEN_HF','A',12,20,10),O=mkUnit('ORC','B',12,20,40),C=mkUnit('PCNPC','A',1,21,10);C.char=mkCharacter({name:'Captain',cls:'Fighter',level:5,cha:12,role:'unitCommander'});C.char.role='unitCommander';A.commanderId=C.id;A.cmdr=null;
+    A.prof.xpValue=20;O.prof.xpValue=10;state.units=[A,O,C];state.setup=true;beginBattle();
+    t('[16.2/v0.66.0] Begin battle opens a fresh kill ledger',!!state.campaign&&Object.keys(state.campaign.kills).length===0&&state.campaign.fallen.length===0);
+    const b0=O.figures;O.figures=9;const rec=creditKills(O,b0,A,'test');
+    t('[16.2/v0.66.0] kills credit the attacker with creatures × XP kill value',!!rec&&rec.figures===3&&rec.creatures===30&&rec.xp===300&&state.campaign.kills[String(A.id)]===rec);
+    t('[16.2/v0.66.0] friendly fire and individual victims are not credited',creditKills(A,12,C,'x')===null&&creditKills(C,1,O,'x')===null);
+    A.figures=10;const res=campaignResolution('split');
+    t('[16.1/v0.66.0] on its own half a side recovers ⅔ of its dead and the enemy takes none prisoner',res.sides.B.deadOnField===30&&res.sides.B.recoveredDead===20&&res.sides.A.prisoners===0);
+    const resA=campaignResolution('A');t('[16.1/v0.66.0] the holding side takes ⅓ of the enemy dead on its ground as prisoners',resA.sides.B.recoveredDead===0&&resA.sides.A.prisoners===10&&resA.sides.A.recoveredDead===13);
+    const ua=res.sides.A.units.find(x=>x.name===uName(A));t('[16.2/v0.66.0] unit XP is kill XP divided by surviving soldiers',ua&&ua.killXp===300&&ua.survivors===100&&ua.perSoldier===3);
+    const cc=res.sides.A.commanders.find(x=>x.name===uName(C));t('[16.2/v0.66.0] a Unit Commander gets 25% of kills less 25% of his own losses, never negative',cc&&cc.gross===75&&cc.penalty===100&&cc.award===0);
+    O.routCauseId=A.id;setUnitCenter(O,20,BOARD_H+3);O.routed=true;noteFallen(O,'routedOff');
+    t('[16.1/16.2/v0.66.0] a unit routed off the table is recorded where it left and its creatures credit the cause of the rout',state.campaign.fallen.some(f=>f.unitId===O.id&&f.kind==='routedOff'&&f.routedFigures===9&&f.deadFigures===3)&&state.campaign.kills[String(A.id)].xp===300+900);
+    const res2=campaignResolution('split');t('[16.1/v0.66.0] ⅔ of forces routed off the table return regardless of who holds the field',res2.sides.B.recoveredRouted===60);
+    const sn=snap();t('[16/v0.66.0] the ledger rides the snapshot',!!sn.campaign&&sn.campaign.fallen.length===1&&sn.campaign.kills[String(A.id)].xp===1200);
+    state.setup=true;
+  }finally{applySnap(bak);}})();
   // v0.48.2: §14.11 regressions intentionally exercise log-producing privacy paths; none may survive boot.
   $('#log').innerHTML = logBeforeTests; syncLogCount();
   t('[UI/v0.48.2] boot self-tests restore Battle Log exactly after §14.11 side-effect tests', $('#log').innerHTML === logBeforeTests);
@@ -16119,7 +16207,7 @@ NET.init();
 setDockTab(state.setup ? 'muster' : 'selected');
 renderAll(); syncLogCount();
 log('phase', `Battlesystem Board v${SIM_VERSION}`, 'Hover uses one compact native tooltip; persistent Labels remain compact/full/off · Mounted 1:1 pairs use derived [11.2] cavalry ratings; an explicitly killed rider or steed removes the whole cavalry figure [11.1] · Muster (click board to place) · shift+click targets an enemy · lit buttons show legal actions',
-  "Engine: @graycloak/battlesystem-engine v0.16.0 · v0.65.0 cleric slice: [14.16] curative magic on Wound markers and individuals, [14.19] turning on the OSRIC 3.0 kernel with the BATTLESYSTEM minimum-one-figure and once-until-failure rules, [14.20] command items and Drums of Panic, [14.22] bard song · v0.63.2 mounted rider aerial strikes + first same-altitude counter-pass interception + always-visible version tag · v0.63.0 playable straight 1:1 DMG aerial attack passes: authored mode attack point + exit, MC-facing geometry, Low-vs-ground / same-altitude air targets, dive ×2, [15.3] ground AC +2, per-creature Haste/Slow · v0.62.10.1 quick 1:1 ammunition selector/count beside Fire with + existing per-shot [10.3] decrement · v0.62.10 structured DMG aerial attack modes + source presets + quick selector · v0.62.9.3 direct-hp 1:1 missile combat for individual shooters + §10 range/LOS/ammo/modifiers · v0.62.9.2 mounted 1:1 combat bridge: carried mounts excluded from rider LOS blockers, quick melee/missile weapon selectors, one-initiative rider+mount §9.4B routines, per-creature Haste/Slow · v0.62.9.1 compact native hover tooltip; no hover-driven battlefield detail overlay · v0.62.9 mounted 1:1 combat [11.1-11.2] · v0.62.8.4 Character/Creature 1:1 presentation + creature-default cleanup · v0.62.8.3 aerial label/view polish · v0.62.8.2 mounted-pair UX: mount/FLY labels behind tokens, compact individual altitude chip, selected rider + targeted mount workflow with Setup fallback · v0.62.8.1 mounted PC/NPC footprint correction: linked 1:1 riders keep the §2.3 individual counter while ordinary cavalry units keep cavalry bases · v0.62.8 mounted 1:1 pairs: separate rider/mount records, one rider token, mount-owned movement/flight/MC, setup/beginning-move link + ground dismount, airborne breakup referee DUE · v0.62.7.2 1:1 editor ownership: Inventory owns item weapons/ammunition, Attack Routines owns natural attacks, Spell dialogs own spell records · v0.61.0 figure model + partial facing · v0.60.2 rail-slot dock + ↩ Setup · v0.60.1 skirmish hotfix · v0.60.0 skirmish units [2.9]/[7.4] + §10/§11 fixes · v0.59.1 §7/§2 audit fixes · v0.59.0 multi-target melee + Resolve all · v0.58.3 multi-unit melee designation + phase-level simultaneous losses · v0.58.2 play-sheet cleanup + v0.58.1 compact Edit Hero + v0.58.0 unified inline Attacks (weapons + natural routines), canonical AD&D damage expressions for §9.4B with flagged CRT approximation for §9.4A, inventory kind/primary/duplicate fixes · v0.57.8.3 Gate point/range hotfix + v0.57.8 generic Secondary Effects + v0.57.7 structured Innate Actions + v0.57.6.5 canonical roster MR + Magic Missile MR/damage preset · v0.57.2 mainhand authority/re-import preservation + v0.57.1 melee-weapon fallback + v0.57.0 AD&D ordered attack routines + DMG whole-routine cadence · v0.56.19 compact flight MV + v0.56.17 record dialogs/spellbook fixes · Multiplayer: private feeds + GM privacy diagnostics (Firestore v10 rules required) · Advanced [12.0]-[14.13]: weather/night, special creatures, exact spell preparation, magic casting/damage/status, Create Troops, private Detection/Information, §14.13 Movement-magic Missile-&-Magic-only timing including innate Teleport + referee-managed AD&D movement effects, v0.56.12 Mirror Image low-damage rule clarification + regression lock, §14.12 defensive-magic recognition + Mirror Image damage sharing, v0.56.10 Army-Roster Level/Race/Class identity correction + compact Unit Commander/Deputy CR display + v0.56.9 giant Hurl-rocks unit-name/custom-range integration fix + v0.56.6 guided unresolved-Melee navigation + v0.56.5 Pass-Through Fire Fire-now/Hold decision UX + PT battlefield cues + v0.56.4 self-test fixture correction + v0.56.3 sequence fixture-compatibility hotfix + v0.56.2 Chainmail-style explicit stable subphase sequence for Initial Missile/Rally/Movement/Magic/Missile/Artillery + exhausted-entry auto-skip + Movement-only pass-through declaration, v0.56.1 action-flow/engagement-progress foundation, v0.56.0 engine-extracted §9.4B individual combat, v0.55.9 stable phase rail + compact ? help with familiar visible header controls, v0.55.7 flat TSR-grid Hero play view plus v0.55.6 Hero missile-arc/weapon-switch consistency, §14.6A Charm/Mass Charm temporary-control rules, persistent/actionable advisory DUE tracking, engine-extracted Hero items/actions/effects, PHB spell catalog, canonical spell + source-override presets, and shared spell execution contracts for resolver/target/save/damage/timing/status routing");
+  "Engine: @graycloak/battlesystem-engine v0.16.0 · v0.66.0 campaign rules: [16.1] casualty recovery and prisoners by held ground, [16.2] kill ledger and XP awards for units, commanders and heroes (⚑ Result) · v0.65.0 cleric slice: [14.16] curative magic on Wound markers and individuals, [14.19] turning on the OSRIC 3.0 kernel with the BATTLESYSTEM minimum-one-figure and once-until-failure rules, [14.20] command items and Drums of Panic, [14.22] bard song · v0.63.2 mounted rider aerial strikes + first same-altitude counter-pass interception + always-visible version tag · v0.63.0 playable straight 1:1 DMG aerial attack passes: authored mode attack point + exit, MC-facing geometry, Low-vs-ground / same-altitude air targets, dive ×2, [15.3] ground AC +2, per-creature Haste/Slow · v0.62.10.1 quick 1:1 ammunition selector/count beside Fire with + existing per-shot [10.3] decrement · v0.62.10 structured DMG aerial attack modes + source presets + quick selector · v0.62.9.3 direct-hp 1:1 missile combat for individual shooters + §10 range/LOS/ammo/modifiers · v0.62.9.2 mounted 1:1 combat bridge: carried mounts excluded from rider LOS blockers, quick melee/missile weapon selectors, one-initiative rider+mount §9.4B routines, per-creature Haste/Slow · v0.62.9.1 compact native hover tooltip; no hover-driven battlefield detail overlay · v0.62.9 mounted 1:1 combat [11.1-11.2] · v0.62.8.4 Character/Creature 1:1 presentation + creature-default cleanup · v0.62.8.3 aerial label/view polish · v0.62.8.2 mounted-pair UX: mount/FLY labels behind tokens, compact individual altitude chip, selected rider + targeted mount workflow with Setup fallback · v0.62.8.1 mounted PC/NPC footprint correction: linked 1:1 riders keep the §2.3 individual counter while ordinary cavalry units keep cavalry bases · v0.62.8 mounted 1:1 pairs: separate rider/mount records, one rider token, mount-owned movement/flight/MC, setup/beginning-move link + ground dismount, airborne breakup referee DUE · v0.62.7.2 1:1 editor ownership: Inventory owns item weapons/ammunition, Attack Routines owns natural attacks, Spell dialogs own spell records · v0.61.0 figure model + partial facing · v0.60.2 rail-slot dock + ↩ Setup · v0.60.1 skirmish hotfix · v0.60.0 skirmish units [2.9]/[7.4] + §10/§11 fixes · v0.59.1 §7/§2 audit fixes · v0.59.0 multi-target melee + Resolve all · v0.58.3 multi-unit melee designation + phase-level simultaneous losses · v0.58.2 play-sheet cleanup + v0.58.1 compact Edit Hero + v0.58.0 unified inline Attacks (weapons + natural routines), canonical AD&D damage expressions for §9.4B with flagged CRT approximation for §9.4A, inventory kind/primary/duplicate fixes · v0.57.8.3 Gate point/range hotfix + v0.57.8 generic Secondary Effects + v0.57.7 structured Innate Actions + v0.57.6.5 canonical roster MR + Magic Missile MR/damage preset · v0.57.2 mainhand authority/re-import preservation + v0.57.1 melee-weapon fallback + v0.57.0 AD&D ordered attack routines + DMG whole-routine cadence · v0.56.19 compact flight MV + v0.56.17 record dialogs/spellbook fixes · Multiplayer: private feeds + GM privacy diagnostics (Firestore v10 rules required) · Advanced [12.0]-[14.13]: weather/night, special creatures, exact spell preparation, magic casting/damage/status, Create Troops, private Detection/Information, §14.13 Movement-magic Missile-&-Magic-only timing including innate Teleport + referee-managed AD&D movement effects, v0.56.12 Mirror Image low-damage rule clarification + regression lock, §14.12 defensive-magic recognition + Mirror Image damage sharing, v0.56.10 Army-Roster Level/Race/Class identity correction + compact Unit Commander/Deputy CR display + v0.56.9 giant Hurl-rocks unit-name/custom-range integration fix + v0.56.6 guided unresolved-Melee navigation + v0.56.5 Pass-Through Fire Fire-now/Hold decision UX + PT battlefield cues + v0.56.4 self-test fixture correction + v0.56.3 sequence fixture-compatibility hotfix + v0.56.2 Chainmail-style explicit stable subphase sequence for Initial Missile/Rally/Movement/Magic/Missile/Artillery + exhausted-entry auto-skip + Movement-only pass-through declaration, v0.56.1 action-flow/engagement-progress foundation, v0.56.0 engine-extracted §9.4B individual combat, v0.55.9 stable phase rail + compact ? help with familiar visible header controls, v0.55.7 flat TSR-grid Hero play view plus v0.55.6 Hero missile-arc/weapon-switch consistency, §14.6A Charm/Mass Charm temporary-control rules, persistent/actionable advisory DUE tracking, engine-extracted Hero items/actions/effects, PHB spell catalog, canonical spell + source-override presets, and shared spell execution contracts for resolver/target/save/damage/timing/status routing");
 log('phase','§15.4 Bombing ready','Engine: @graycloak/battlesystem-engine v0.15.0 · Board v0.64.0 · RAW AC 10/8/4 and 2d6 per man-sized weight-equivalent; timing and unit-centre geometry are labeled board procedure');
 </script>
 </body>
