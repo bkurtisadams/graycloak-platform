@@ -1,4 +1,5 @@
 <!doctype html>
+<!-- battlesystem-board.html · v0.67.0 · BOARD PERFORMANCE. Live drags (unit, figure, terrain, measure, magic aim) now coalesce to one SVG render per animation frame instead of one per mousemove; wheel zoom writes the viewBox only and rebuilds the SVG just when the fine 1″-grid threshold is crossed, the single zoom-dependent element; hover titles are built on first mouseover of a figure or card instead of a <title> per figure per render (the v0.62.9.1 hover system had been adding ~200 strings and nodes to every render of a 16-unit field); renderUnit hoists per-unit values (selection, facings, target set, commander predicate) out of the figure loop. No rules or visuals change. Baseline 1285 ok. -->
 <!-- battlesystem-board.html · v0.66.2 · ROSTER XP VALUES [16.2]. Every stock roster row now carries its DMG Appendix E XP kill value per creature at the row's average hit points (Orc 15, Goblin 14, Hobgoblin 31, Gnoll 46, Bugbear 193, Ogre 185, Skeleton 19, Zombie 38, Ghoul 83, Griffon 690, Pegasus 132, Hippogriff 126, Elf 31, Dwarf 15, Peasant 8); 0-level men and artillery crews use the DMG <1-1 row (10); cavalry is rider plus mount on its hit-dice bracket (light 39, medium 41, heavy 95, pegasus 142, hippogriff 136, griffon 700). Chariots and CUSTOM stay blank for the sheet, and a sheet value overrides the roster. ⚑ Result no longer reports missing values for stock units. Baseline 1285 ok. -->
 <!-- battlesystem-board.html · v0.66.1 · TURNING RANGE + CLASS DETECTION. Turning reaches 6″ (edge to edge) — the rulebook gives no range and 6″ is the accepted table distance (Kurt, board procedure). The turning level now also reads a cleric or paladin level recorded only on the spell roster's class line, so a character whose class field says something else still gets ☩ Turn. Baseline 1283 ok. -->
 <!-- battlesystem-board.html · v0.66.0 · CAMPAIGN RULES [16.1]/[16.2]. A kill ledger (state.campaign, snapshotted, fresh at Begin battle) credits every casualty path — melee, hero-vs-unit, set spears, free attacks, invisible contact attacks, break-through, missile, artillery, magic, turning — with creatures removed × the victim's XP kill value, and a unit that routs off the table credits the unit that broke it. Where destroyed and routed-off units left the board is recorded. ⚑ Result beside Restart asks which side holds the field (A, B, or split at mid-depth), then logs and downloads: [16.1] ⅔ of a side's dead recovered on its own ground, ⅓ of enemy dead on held ground taken prisoner, ⅔ of routed-off forces returned; [16.2] unit XP ÷ surviving creatures, Unit Commander 25% of kills less 25% of own losses (never negative), Brigade 25% of subordinate awards and skirmish/mob unit XP, Army 50% of brigades, Hero kills listed for normal AD&D awards. BOARD PROCEDURE: a unit's dead lie where it stands or fell. Baseline 1281 ok. -->
@@ -11,7 +12,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Battlesystem — Battlefield · v0.66.2</title>
+<title>Battlesystem — Battlefield · v0.67.0</title>
 <style>
   :root {
     --bg:#ece0c4; --panel:#f5eedb; --field:#a8b094; --field-edge:#6d735a; --ink:#2c2316; --ink-soft:#6e6047; --rule:#b6a682;
@@ -1136,7 +1137,7 @@
 
 <script type="module">
 
-const SIM_VERSION = '0.66.2';
+const SIM_VERSION = '0.67.0';
 import {
   BattlesystemCombat, CombatResultsTable, BattlesystemMorale, BattlesystemMovement, BattlesystemCavalry,
   BattlesystemEffects, BattlesystemActions, BattlesystemItems, BattlesystemSpells, BattlesystemIndividualCombat, BattlesystemAttackRoutines, BattlesystemMagicDefenses, BattlesystemCreatureDefenses, BattlesystemMagicMovement, BattlesystemInnateActions, BattlesystemSecondaryEffects, BattlesystemAerial, EFFECT_MODES, CHARACTER_ACTION_KINDS,
@@ -9558,6 +9559,7 @@ function renderMountedFlightLabelUnderlay(units){
 }
 function renderBoard() {
   syncMountedPairs();
+  if(typeof zoomRenderedFine!=='undefined')zoomRenderedFine=state.grid===2&&state.view.k>=fineGridZoomMin;   // v0.67.0: zoom re-renders only across this threshold
   svg.setAttribute('viewBox', viewBox());
   svg.innerHTML = '';
   svg.appendChild(el('rect', { x:0, y:0, width:BOARD_W*PXI, height:BOARD_H*PXI, fill:'var(--field)' }));
@@ -9651,7 +9653,7 @@ function renderUnit(u, combatCue=null) {
   const g = el('g', { transform:`translate(${u.x*PXI},${u.y*PXI})`, 'data-uid':u.id, style:'cursor:grab' });
   // Slice 7A: the card group rotates about the local center; overlay text stays upright.
   const gr = el('g', { transform:`rotate(${physFacing(u)}, ${r.w*PXI/2}, ${r.h*PXI/2})` });
-  const gt=el('title');gt.textContent=battlefieldHoverText(u);g.appendChild(gt); // card/chrome hover uses the same compact summary
+  // v0.67.0: hover text is built on first mouseover (see svg 'mouseover' below), not for every figure on every render
   g.appendChild(gr);
   const bb = worldBounds(u);                                         // world-inch bounds for the upright overlay
   const ox0 = (bb.x0 - u.x)*PXI, oy0 = (bb.y0 - u.y)*PXI, ox1 = (bb.x1 - u.x)*PXI, oy1 = (bb.y1 - u.y)*PXI;
@@ -9675,19 +9677,21 @@ function renderUnit(u, combatCue=null) {
   const pipK = looseFootprint ? 0.92 : 0.58;                         // v0.61.3.1: skirmish pips are the bases themselves, so the 1″ spacing reads true [7.4]
   const sq = r.bw*PXI*pipK, sqD = r.bd*PXI*pipK;
   const off = (r.bw*PXI - sq)/2, offD = (r.bd*PXI - sqD)/2;
+  const fsel=figureSelectionFor(u), tacF=tacFacing(u), physF=physFacing(u), uIsIndividual=isIndividual(u), figTargets=tgt?figureTargetFor(u):null;   // v0.67.0: per-unit values hoisted out of the figure loop
+  const firstIsCommander=legacyCommanderMode(u) || (uIsIndividual && /Commander$/.test(CHARACTER_ROLES[u.char?.role]||''));            // v0.51.1: commander predicate only matters for first pip // legacy embedded or standalone [9.2]; explicit links use the separate PC/NPC figure
   for (let i=0; i<u.figures; i++) {
     const c = i % r.cols, rw = Math.floor(i / r.cols);
     const isFront = rw === 0;
     const isWounded = u.wounded && i === u.figures - 1;
-    const isCommander = i === 0 && (legacyCommanderMode(u) || (isIndividual(u) && /Commander$/.test(CHARACTER_ROLES[u.char?.role]||''))); // v0.51.1: commander predicate only matters for first pip // legacy embedded or standalone [9.2]; explicit links use the separate PC/NPC figure
-    const fo=figureOffset(u,i);                                       // v0.61.3: displaced figures (wrap wings, skirmish moves) draw where they stand
+    const isCommander = i === 0 && firstIsCommander;
+    const fo=figureOffset(u,i), figF=figureFacing(u,i);                                       // v0.61.3: displaced figures (wrap wings, skirmish moves) draw where they stand
     gr.appendChild(el('rect', { x:(c*per+fo.dx)*PXI+off, y:(rw*perD+fo.dy)*PXI+offD, width:sq, height:sqD, rx:2,
       'class': isCommander ? 'commander-pip' : '',
       fill: isWounded ? '#e0a6a0' : isFront ? sideC : sideL,
       stroke: isCommander ? '#a97f1f' : sideD,
       'stroke-width': isCommander ? 1.8 : isFront ? .9 : .6, opacity: isFront ? 1 : .9 }));
     const pcx=(c*per+fo.dx)*PXI+r.bw*PXI/2, pcy=(rw*perD+fo.dy)*PXI+r.bd*PXI/2;
-    { const pip=gr.lastElementChild, fsel=figureSelectionFor(u), turned=Math.abs(angleDelta(figureFacing(u,i),tacFacing(u)))>1e-6;   // v0.61.0 figure model
+    { const pip=gr.lastElementChild, turned=Math.abs(angleDelta(figF,tacF))>1e-6;   // v0.61.0 figure model
       // v0.61.8: a displaced figure (wrap wing, moved skirmisher) stands away from
       // its card, so out of context there is nothing to say whose it is. Give it a
       // ring in its own unit's dark side colour, and put the unit's name on every
@@ -9696,15 +9700,13 @@ function renderUnit(u, combatCue=null) {
       if (displaced) { pip.classList.add('fig-displaced');
         gr.appendChild(el('rect', { x:(c*per+fo.dx)*PXI+off-1.6, y:(rw*perD+fo.dy)*PXI+offD-1.6, width:sq+3.2, height:sqD+3.2, rx:3,
           fill:'none', stroke:sideD, 'stroke-width':1, opacity:.75, 'pointer-events':'none', 'class':'fig-displaced-ring' })); }
-      { const ft=el('title');
-        ft.textContent = battlefieldHoverText(u,{index:i,rank:rw,isCommander,isWounded,displaced,turned,facing:figureFacing(u,i)});
-        pip.appendChild(ft); }
+      pip.setAttribute('data-fig-hover', String(i));   // v0.67.0: lazy hover title (was a <title> per figure per render)
       if (fsel.includes(i)) { pip.setAttribute('stroke','#c9a227'); pip.setAttribute('stroke-width','2'); pip.classList.add('fig-selected'); }
       if (turned) pip.setAttribute('stroke-dasharray','2 1.5');
-      if ((sel || tgt) && !isIndividual(u) && !state.net.spectate) { pip.style.cursor='pointer'; pip.setAttribute('data-fig', String(i)); }   // selection/targeting is handled in the board mousedown (renderAll rebuilds the SVG before 'click' could fire)
-      if (tgt && figureTargetFor(u).includes(i)) { pip.setAttribute('stroke','#f2a900'); pip.setAttribute('stroke-width','2.4'); pip.setAttribute('filter','drop-shadow(0 0 1.2px #3a2a06)'); pip.classList.add('fig-targeted'); }   // v0.61.1.1: amber on either side colour
+      if ((sel || tgt) && !uIsIndividual && !state.net.spectate) { pip.style.cursor='pointer'; pip.setAttribute('data-fig', String(i)); }   // selection/targeting is handled in the board mousedown (renderAll rebuilds the SVG before 'click' could fire)
+      if (figTargets && figTargets.includes(i)) { pip.setAttribute('stroke','#f2a900'); pip.setAttribute('stroke-width','2.4'); pip.setAttribute('filter','drop-shadow(0 0 1.2px #3a2a06)'); pip.classList.add('fig-targeted'); }   // v0.61.1.1: amber on either side colour
     }
-    const ah=Math.max(2.2,Math.min(sq,sqD)*0.34), aw=ah*0.72, rel=angleDelta(figureFacing(u,i),physFacing(u));
+    const ah=Math.max(2.2,Math.min(sq,sqD)*0.34), aw=ah*0.72, rel=angleDelta(figF,physF);
     gr.appendChild(el('path', { d:`M ${pcx} ${pcy-ah} L ${pcx+aw} ${pcy+ah*.55} L ${pcx} ${pcy+ah*.18} L ${pcx-aw} ${pcy+ah*.55} Z`,
       transform:`rotate(${rel}, ${pcx}, ${pcy})`, fill:'#fffaf0', stroke:sideD, 'stroke-width':.55, opacity:.96, 'pointer-events':'none' }));
     const mst=magicFigureStatus(u,i);if(mst){const mt=el('text',{x:pcx,y:pcy+3,'text-anchor':'middle','font-family':'var(--sans)','font-size':Math.max(7,Math.min(10,sq*.5)),'font-weight':900,fill:'#fff7cf',stroke:'#35240a','stroke-width':2.2,'paint-order':'stroke','pointer-events':'none','class':'magic-status-marker'});mt.textContent=MAGIC_STATUS_GLYPHS[mst.kind]||'✦';gr.appendChild(mt);}
@@ -12150,24 +12152,24 @@ svg.addEventListener('mousedown',evt=>{
 });
 window.addEventListener('mousemove',evt=>{
   if(drag||pan||tdrag||figDrag||(state.measure.on&&state.measure.dragging)){evt.preventDefault();} // v0.56.18: keep active board gestures out of browser selection/drag mode
-  if(figDrag){ const p2=boardPt(evt), q=snapMoveAnchor(p2.x-figDrag.grab.dx,p2.y-figDrag.grab.dy,moveSnapStep,evt.altKey); figDrag.plan=figureDragPlan(figDrag.u,figDrag.slot,figDrag.start,q.x,q.y); placeFigureAtWorld(figDrag.u,figDrag.slot,figDrag.plan.x,figDrag.plan.y); renderBoard(); return; }   // v0.61.3
-  if(magicAim&&svg.contains(evt.target)&&!document.querySelector('.magic-aim-confirm')?.open&&!pan&&!drag){magicAim.livePoint=boardPt(evt);renderBoard();return;}
+  if(figDrag){ const p2=boardPt(evt), q=snapMoveAnchor(p2.x-figDrag.grab.dx,p2.y-figDrag.grab.dy,moveSnapStep,evt.altKey); figDrag.plan=figureDragPlan(figDrag.u,figDrag.slot,figDrag.start,q.x,q.y); placeFigureAtWorld(figDrag.u,figDrag.slot,figDrag.plan.x,figDrag.plan.y); scheduleLiveRender(); return; }   // v0.61.3
+  if(magicAim&&svg.contains(evt.target)&&!document.querySelector('.magic-aim-confirm')?.open&&!pan&&!drag){magicAim.livePoint=boardPt(evt);scheduleLiveRender();return;}
   if(tdrag){const p2=boardPt(evt),r=state.terrain.find(z=>z.id===tdrag.id);
     if(r){tdrag.moved=true;
       if(tdrag.kind==='resize')resizeTerrainRect(r,tdrag.gx,tdrag.gy,p2.x,p2.y);
       else if(tdrag.kind==='vertex')r.pts[tdrag.idx]={x:p2.x,y:p2.y};
       else if(tdrag.kind==='line'){const dx=p2.x-tdrag.sx,dy=p2.y-tdrag.sy;r.pts=tdrag.pts0.map(q=>({x:q.x+dx,y:q.y+dy}));}
       else{r.x=p2.x-tdrag.dx;r.y=p2.y-tdrag.dy;}
-      renderBoard();}
+      scheduleLiveRender();}
     return;}
-  if(state.terrainMode&&state.terrainDraft){state.terrainDraft.cursor=boardPt(evt);renderBoard();return;}
+  if(state.terrainMode&&state.terrainDraft){state.terrainDraft.cursor=boardPt(evt);scheduleLiveRender();return;}
   if(pan){state.view.x=pan.vx-(evt.clientX-pan.sx)/pan.s;state.view.y=pan.vy-(evt.clientY-pan.sy)/pan.s;schedulePanViewBox();return;}
-  const p=boardPt(evt);if(state.measure.on&&state.measure.dragging){state.measure.live={x:p.x,y:p.y};renderBoard();return;}if(!drag)return;
+  const p=boardPt(evt);if(state.measure.on&&state.measure.dragging){state.measure.live={x:p.x,y:p.y};scheduleLiveRender();return;}if(!drag)return;
   drag.cursor={...p};
   const raw=snapMoveAnchor(p.x-drag.grab.dx,p.y-drag.grab.dy,moveSnapStep,evt.altKey); // v0.42.2: snap BEFORE dragPlan so every rule sees the snapped destination
   drag.requested={x:raw.x,y:raw.y};                                  // v0.44.16: retain attempted endpoint for red illegal-tail feedback
   drag.plan=dragPlan(drag.u,drag.start,raw.x,raw.y,drag.spent0,drag.baseFacing);
-  {const _r=unitRect(drag.u);drag.u.x=clamp(drag.plan.x,0,BOARD_W-_r.w);drag.u.y=clamp(drag.plan.y,0,BOARD_H-_r.h);}renderBoard();
+  {const _r=unitRect(drag.u);drag.u.x=clamp(drag.plan.x,0,BOARD_W-_r.w);drag.u.y=clamp(drag.plan.y,0,BOARD_H-_r.h);}scheduleLiveRender();   // v0.67.0: one render per frame while dragging
 },{passive:false});
 window.addEventListener('mouseup',()=>{
   if(figDrag){ const fd=figDrag; figDrag=null; setFigureOffset(fd.u,fd.slot,fd.off0.dx,fd.off0.dy);   // v0.61.3: restore, then commit through the same path the self-tests use
@@ -12183,6 +12185,27 @@ window.addEventListener('mouseup',()=>{
   }else{drag.u.x=drag.start.x;drag.u.y=drag.start.y;restoreUnitFacing(drag.u,drag.baseFacing,drag.baseFormationFacing ?? drag.baseFacing);renderBoard();}
   drag=null;renderSel();
 });
+/* v0.67.0 PERFORMANCE. Three hot paths were rebuilding the whole SVG more than
+   they needed to: (1) every render built a native <title> for every figure
+   (193 hover strings and DOM nodes on a 16-unit field), so titles are now built
+   on first mouseover of a figure or card; (2) a unit drag re-rendered on every
+   mousemove, so live drags now coalesce to one render per animation frame;
+   (3) wheel zoom rebuilt the SVG although only the viewBox changes — the
+   fine 1″ grid is the single zoom-dependent element, so zoom writes the
+   viewBox and re-renders only when the fine-grid threshold is crossed. */
+function ensureFigureHoverTitle(target){
+  const pip=target?.closest?.('[data-fig-hover]'),g=target?.closest?.('g[data-uid]');if(!g)return;
+  const u=state.units.find(x=>String(x.id)===g.getAttribute('data-uid'));if(!u)return;
+  const host=pip||g;if([...host.children].some(n=>n.tagName&&n.tagName.toLowerCase()==='title'))return;
+  const tt=el('title');
+  if(pip){const i=Number(pip.getAttribute('data-fig-hover')),r=unitRect(u),rw=Math.floor(i/Math.max(1,r.cols)),fo=figureOffset(u,i),fig=figureFacing(u,i);
+    tt.textContent=battlefieldHoverText(u,{index:i,rank:rw,isCommander:i===0&&(legacyCommanderMode(u)||(isIndividual(u)&&/Commander$/.test(CHARACTER_ROLES[u.char?.role]||''))),isWounded:!!u.wounded&&i===u.figures-1,displaced:Math.abs(fo.dx)>1e-6||Math.abs(fo.dy)>1e-6,turned:Math.abs(angleDelta(fig,tacFacing(u)))>1e-6,facing:fig});}
+  else tt.textContent=battlefieldHoverText(u);
+  host.insertBefore(tt,host.firstChild);
+}
+svg.addEventListener('mouseover',evt=>{ensureFigureHoverTitle(evt.target);});
+let liveRenderRaf=0;
+function scheduleLiveRender(){ if(liveRenderRaf) return; liveRenderRaf=requestAnimationFrame(()=>{ liveRenderRaf=0; renderBoard(); }); }
 svg.addEventListener('wheel',evt=>{
   evt.preventDefault();
   if(evt.ctrlKey&&state.terrainMode&&!state.net.spectate&&!state.net.player){   // v0.31.3: ctrl+wheel rotates the selected terrain rect 5°/notch
@@ -12193,8 +12216,8 @@ svg.addEventListener('wheel',evt=>{
   if(evt.ctrlKey&&!state.net.spectate&&!state.net.player){const u=state.units.find(x=>x.id===state.selId);if(u&&u.figures>0&&!u.routed){wheelFace(u,evt.deltaY>0?'right':'left');return;}}
   const k0=state.view.k;state.view.k=clamp(k0*(evt.deltaY<0?1.12:.9),VIEW_ZOOM_MIN,VIEW_ZOOM_MAX);const p=boardPt(evt);state.view.x+=(p.x*PXI-state.view.x)*(1-k0/state.view.k);state.view.y+=(p.y*PXI-state.view.y)*(1-k0/state.view.k);scheduleZoomRender();   // v0.61.5.2: one render per frame, not per wheel tick
 },{passive:false});
-let zoomRaf=0;
-function scheduleZoomRender(){ if(zoomRaf) return; zoomRaf=requestAnimationFrame(()=>{ zoomRaf=0; renderBoard(); }); }
+let zoomRaf=0,zoomRenderedFine=null;
+function scheduleZoomRender(){ if(zoomRaf) return; zoomRaf=requestAnimationFrame(()=>{ zoomRaf=0; const fine=state.grid===2&&state.view.k>=fineGridZoomMin; if(zoomRenderedFine===null||fine!==zoomRenderedFine){zoomRenderedFine=fine;renderBoard();} else svg.setAttribute('viewBox',viewBox()); }); }
 window.addEventListener('keydown',evt=>{if(state.net.spectate||state.net.player)return;
   if(evt.key==='Escape'&&magicAim){cancelMagicAim();return;}                   // v0.44.1: cancel pending area placement
   if(evt.target&&/^(INPUT|TEXTAREA|SELECT)$/.test(evt.target.tagName))return;   // never steal keys from the editor
@@ -14311,10 +14334,10 @@ window.addEventListener('mousedown', e => {   // assign menu closes on any outsi
       { const g=document.querySelector(`[data-unit-id="${WA.id}"]`)||document.querySelector('#board');
         const base=[...document.querySelectorAll('rect')].find(n=>n.getAttribute('fill')==='#efe7d2'&&n.getAttribute('fill-opacity'));
         t('[UI/v0.61.8] the card base is translucent so an overlapped card reads through',!!base&&Number(base.getAttribute('fill-opacity'))<1&&Number(base.getAttribute('fill-opacity'))>=.6); }
-      t('[UI/v0.62.9.1] every figure carries the compact unit hover summary',(()=>{const ts=[...document.querySelectorAll('title')].map(n=>n.textContent||'');return ts.some(x=>x.includes(uName(WA))&&/figure/.test(x)&&/AC/.test(x)&&/ML/.test(x));})());
+      t('[UI/v0.62.9.1→0.67.0] a figure gains the compact unit hover summary on first mouseover and no titles are built on render',(()=>{const before=document.querySelectorAll('#board title, svg title').length;const pip=document.querySelector(`g[data-uid="${WA.id}"] [data-fig-hover]`);if(!pip)return false;pip.dispatchEvent(new MouseEvent('mouseover',{bubbles:true}));const ts=[...document.querySelectorAll('title')].map(n=>n.textContent||'');return before===0&&ts.some(x=>x.includes(uName(WA))&&/figure/.test(x)&&/AC/.test(x)&&/ML/.test(x));})());
       setFigureOffset(WA,11,2,-3); renderBoard();
       t('[UI/v0.61.8] a displaced figure gets a ring in its own unit colour',!!document.querySelector('.fig-displaced-ring'));
-      t('[UI/v0.62.9.1] displaced-figure hover keeps the exceptional placement note',[...document.querySelectorAll('title')].some(n=>/displaced from rank/.test(n.textContent||'')));
+      {const pip=document.querySelector('.fig-displaced');if(pip)pip.dispatchEvent(new MouseEvent('mouseover',{bubbles:true}));t('[UI/v0.62.9.1→0.67.0] displaced-figure hover keeps the exceptional placement note',[...document.querySelectorAll('title')].some(n=>/displaced from rank/.test(n.textContent||'')));}
       clearFigureOffsets(WA); renderBoard();
       t('[UI/v0.61.8] the ring goes when the figure returns to its rank',!document.querySelector('.fig-displaced-ring'));
       state.units=ku4; state.selId=ks4; }
