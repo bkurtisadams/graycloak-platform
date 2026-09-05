@@ -186,6 +186,7 @@ import {
   removeEncounterCombatant,
   setEncounterCombatantCondition
 } from '../src/encounter-document.js';
+import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js';
 
 import {
   createContactDocument,
@@ -1141,6 +1142,38 @@ function currentPartyCharacters() {
   if (gameplayDocument) byId.set(gameplayDocument.identity.id, gameplayDocument);
   const order = campaignDocument?.party?.characterIds ?? [...byId.keys()];
   return order.map((id) => byId.get(id)).filter(Boolean);
+}
+
+function physicalStateText(current) {
+  return `STR ${current.STR} / DEX ${current.DEX} / END ${current.END}`;
+}
+
+function synchronizeEncounterParticipantDocuments(encounter, { log = true } = {}) {
+  const result = synchronizeEncounterDocuments({
+    encounter,
+    characters: currentPartyCharacters(),
+    npcActors: npcActorDocuments
+  });
+  partyCharacterDocuments = result.characters;
+  npcActorDocuments = result.npcActors;
+  if (gameplayDocument) {
+    gameplayDocument = result.characters.find((entry) => entry.identity.id === gameplayDocument.identity.id) ?? gameplayDocument;
+  }
+  if (log) {
+    for (const change of result.changes) {
+      const status = change.documentKind === 'character'
+        ? ` / ${change.after.alive ? change.after.consciousness.toUpperCase() : 'DEAD'}`
+        : '';
+      logActivity(
+        'COMBAT',
+        `${change.name} combat state updated / ${physicalStateText(change.after.current)}${status}`,
+        change.documentKind === 'character'
+          ? { sourceDocumentId: change.sourceId }
+          : { sourceActorId: change.sourceId }
+      );
+    }
+  }
+  return result.changes;
 }
 
 function systemByName(name) {
@@ -3522,6 +3555,9 @@ function combatEnemyGroupSpecs() {
     const weaponKey = field('weapon').value;
     const weapon = getPersonalWeapon(weaponKey);
     const skillLevel = setupInteger(field('skill'), `enemy type ${groupIndex + 1} weapon skill`, 0, 5);
+    const rosterActor = group.dataset.actorId
+      ? npcActorDocuments.find((entry) => entry.identity.id === group.dataset.actorId)
+      : null;
     return {
       baseName, count,
       opponents: Array.from({ length: count }, (_, index) => ({
@@ -3532,6 +3568,7 @@ function combatEnemyGroupSpecs() {
         conditions: group.dataset.conditions ? JSON.parse(group.dataset.conditions) : [],
         name: count === 1 ? baseName : `${baseName} ${index + 1}`,
         characteristics,
+        current: rosterActor?.current ?? null,
         skills: { [weapon.skillNames[0]]: skillLevel },
         weaponKey,
         armor: field('armor').value
@@ -3578,6 +3615,7 @@ function startManualEncounter() {
     for (const entry of result.entries) logActivity('COMBAT', entry.text);
   }
   encounterDocuments.push(encounter);
+  synchronizeEncounterParticipantDocuments(encounter);
   campaignDocument = addEncounterToCampaign(campaignDocument, encounter);
   selectedEncounterActorId = encounter.combatants.find((entry) => entry.side === 'party' && entry.status === 'active')?.id ?? null;
   selectedEncounterTargetId = encounter.combatants.find((entry) => entry.side === 'opposition' && entry.status === 'active')?.id ?? null;
@@ -3648,6 +3686,7 @@ function startSituationEncounter(situation) {
       for (const entry of result.entries) logActivity('COMBAT', entry.text);
     }
     encounterDocuments.push(encounter);
+    synchronizeEncounterParticipantDocuments(encounter);
     campaignDocument = addEncounterToCampaign(campaignDocument, encounter);
     selectedEncounterActorId = encounter.combatants.find((entry) => entry.side === 'party' && entry.status === 'active')?.id ?? null;
     selectedEncounterTargetId = encounter.combatants.find((entry) => entry.side === 'opposition' && entry.status === 'active')?.id ?? null;
@@ -3675,6 +3714,7 @@ function resolveActiveEncounterAction(action, modifier = 0, targetId = null, act
     });
     encounterDocuments[index] = result.encounter;
     for (const entry of result.entries) logActivity('COMBAT', entry.text);
+    synchronizeEncounterParticipantDocuments(result.encounter);
     resolveLinkedCombatSituation(result.encounter);
     syncCampaignRefs();
     persistCampaignState();
@@ -3717,6 +3757,7 @@ function avoidActiveEncounter() {
     const resolved = avoidEncounter(active, { date: campaignDateSnapshot() });
     encounterDocuments[index] = resolved;
     logActivity('COMBAT', resolved.history.at(-1).text);
+    synchronizeEncounterParticipantDocuments(resolved);
     resolveLinkedCombatSituation(resolved);
     persistCampaignState();
     setStatus('ENCOUNTER AVOIDED', 'ok');
@@ -4310,13 +4351,17 @@ function restoreCampaignFromRegistry(campaign) {
   npcActorDocuments = resolved.npcActors;
   mediaAssetDocuments = resolved.assets;
   activityLogDocument = resolved.activityLogs[0] ?? null;
+  let participantStateChanged = false;
+  for (const encounter of encounterDocuments.filter((entry) => entry.status === 'active')) {
+    if (synchronizeEncounterParticipantDocuments(encounter, { log: false }).length) participantStateChanged = true;
+  }
   documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
   character = createCharacter();
   setActivityContext();
   const expired = reconcileExpiredContracts();
   const createdSituation = ensureArrivalSituation({ log: false });
   const consequencesChanged = reconcileAdventureConsequences({ log: false });
-  if (expired.length || createdSituation || consequencesChanged) persistCampaignState();
+  if (expired.length || createdSituation || consequencesChanged || participantStateChanged) persistCampaignState();
 }
 
 function newCampaign() {
@@ -4872,9 +4917,9 @@ async function loadDocument(file, { campaignOnly = false } = {}) {
       if (campaignDocument && encounter.campaignId === campaignDocument.identity.id) {
         encounterDocuments = encounterDocuments.filter((entry) => entry.identity.id !== encounter.identity.id);
         encounterDocuments.push(encounter);
+        synchronizeEncounterParticipantDocuments(encounter);
         campaignDocument = addEncounterToCampaign(campaignDocument, encounter);
-        syncCampaignRefs();
-        registry.put(campaignDocument);
+        persistCampaignState();
         logActivity('COMBAT', `Encounter loaded: ${encounter.identity.title}`);
         setStatus('ENCOUNTER DOCUMENT LOADED / ADDED TO CAMPAIGN', 'ok');
       } else {

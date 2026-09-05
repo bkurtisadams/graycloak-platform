@@ -60,11 +60,26 @@ function initialPosition(side, index, total, range) {
   return { column: initialEnemyColumn(range), row: clamp(firstRow + index * 2, 0, ENCOUNTER_MAP_ROWS - 1) };
 }
 function withPosition(combatant, position) { return { ...combatant, position }; }
+function withCurrentState(combatant, current = null, status = 'active') {
+  return {
+    ...combatant,
+    current: current
+      ? Object.fromEntries(['STR', 'DEX', 'END'].map((key) => [key, current[key]]))
+      : combatant.current,
+    status
+  };
+}
+function characterEncounterStatus(character) {
+  if (character.status?.alive === false) return 'dead';
+  if (character.status?.consciousness === 'unconscious') return 'unconscious';
+  return 'active';
+}
 function partyDocuments(character, characters) {
   const entries = Array.isArray(characters) && characters.length ? characters : character ? [character] : [];
   if (!entries.length || entries.some((entry) => !entry?.identity?.id)) throw new TypeError('one or more party characters are required');
   if (entries.length > 8) throw new RangeError('an encounter supports at most eight party characters');
   if (new Set(entries.map((entry) => entry.identity.id)).size !== entries.length) throw new TypeError('party character IDs must be unique');
+  if (entries.every((entry) => characterEncounterStatus(entry) !== 'active')) throw new Error('at least one conscious living party character is required');
   return entries;
 }
 
@@ -79,28 +94,34 @@ export function createEncounterDocument({ campaign, situation = null, character 
   const party = characterDocuments.map((entry, index) => {
     const military = ['Navy', 'Army', 'Marines', 'Scouts'].includes(entry.career?.service);
     const loadout = partyLoadouts[entry.identity.id] ?? {};
-    return { ...withPosition(createPersonalCombatant({
+    return { ...withPosition(withCurrentState(createPersonalCombatant({
       id: entry.identity.id, name: entry.identity.name, side: 'party', playerCharacter: true,
       characteristics: entry.characteristics, skills: entry.skills,
       armor: loadout.armor ?? opponentSpecs[0].playerArmor ?? 'none',
       weaponKey: loadout.weaponKey ?? opponentSpecs[0].playerWeaponKey ?? 'rifle',
       surpriseDM: (military ? 1 : 0) + Math.min(1, Number(entry.skills?.Leadership ?? 0)) + Math.min(1, Number(entry.skills?.Tactics ?? 0))
-    }), initialPosition('party', index, characterDocuments.length, range)), sourceActorId: entry.identity.id,
+    }), entry.current, characterEncounterStatus(entry)), initialPosition('party', index, characterDocuments.length, range)), sourceActorId: entry.identity.id,
       actorType: 'pc', bodyModel: 'biological', tokenLabel: entry.identity.name.charAt(0).toUpperCase(), conditions: [] };
   });
   const hostiles = opponentSpecs.map((spec, index) => {
     const weaponKey = spec.weaponKey ?? 'automatic-pistol';
     const defaultSkill = getPersonalWeapon(weaponKey).skillNames[0];
-    return { ...withPosition(createPersonalCombatant({
+    return { ...withPosition(withCurrentState(createPersonalCombatant({
       id: spec.id ?? stableDocumentId('foe', `${campaign.identity.id}|${encounterKey ?? situation?.identity?.id ?? date.dayOfYear}|${index}|${spec.name}`),
       name: spec.name, side: 'opposition', characteristics: spec.characteristics ?? { STR: 7, DEX: 7, END: 7, INT: 7 },
       skills: spec.skills ?? { [defaultSkill]: 0 }, armor: spec.armor ?? 'jack',
       weaponKey, surpriseDM: Number(spec.surpriseDM ?? 0)
-    }), initialPosition('opposition', index, opponentSpecs.length, range)), sourceActorId: spec.actorId ?? null,
+    }), spec.current), initialPosition('opposition', index, opponentSpecs.length, range)), sourceActorId: spec.actorId ?? null,
       actorType: spec.actorType ?? 'npc', bodyModel: spec.bodyModel ?? (spec.actorType === 'robot' ? 'robotic' : 'biological'),
       tokenLabel: String(spec.tokenLabel ?? spec.name).charAt(0).toUpperCase(), conditions: Array.isArray(spec.conditions) ? [...spec.conditions] : [] };
   });
-  const surprise = resolvePersonalSurprise({ sides: [{ id: 'party', combatants: party }, { id: 'opposition', combatants: hostiles }], dice });
+  const surprise = resolvePersonalSurprise({
+    sides: [
+      { id: 'party', combatants: party.filter((entry) => entry.status === 'active') },
+      { id: 'opposition', combatants: hostiles.filter((entry) => entry.status === 'active') }
+    ],
+    dice
+  });
   const seed = `${campaign.identity.id}|${encounterKey ?? situation?.identity?.id ?? 'encounter'}|${date.year}-${date.dayOfYear}`;
   const encounterTitle = nonblank(title) ? title.trim() : `Encounter / ${opponentSpecs[0].name}${opponentSpecs.length > 1 ? ` +${opponentSpecs.length - 1}` : ''}`;
   const document = {
@@ -323,7 +344,7 @@ export function addEncounterCombatantFromActor(document, { actor, side = 'opposi
   if (!Number.isInteger(column) || column < 0 || column >= ENCOUNTER_MAP_COLUMNS || !Number.isInteger(row) || row < 0 || row >= ENCOUNTER_MAP_ROWS) throw new RangeError('map position is outside the encounter workspace');
   const weaponKey = actor.loadout?.weaponKey ?? 'hands';
   const combatant = {
-    ...createPersonalCombatant({
+    ...withCurrentState(createPersonalCombatant({
       id: stableDocumentId('participant', `${next.identity.id}|${actor.identity.id}`),
       name: actor.identity.name,
       side,
@@ -332,7 +353,7 @@ export function addEncounterCombatantFromActor(document, { actor, side = 'opposi
       armor: actor.loadout?.armor ?? 'none',
       weaponKey,
       surpriseDM: 0
-    }),
+    }), actor.current),
     position: { column, row },
     sourceActorId: actor.identity.id,
     actorType: actor.profile.actorType ?? 'npc',

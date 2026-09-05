@@ -1,5 +1,11 @@
 # Graycloak Traveller
 
+## v0.17.1 persistent combat wounds
+
+v0.17.1 makes the campaign Character Document and linked NPC Actor Documents carry the physical results of personal combat instead of leaving wounds isolated inside the Encounter Document. New encounters begin from each traveller's current STR, DEX, and END rather than silently restoring the original UPP values. After every resolved round, the browser writes the encounter's current physical values and Book 1 conscious, unconscious, or dead state back to the linked Character Document before the campaign is saved or exported. The existing end-of-combat halfway recovery therefore reaches the playable character sheet as part of the same synchronization step.
+
+Linked roster actors likewise retain their current STR, DEX, and END between encounters. Their body-aware condition and robot integrity fields remain referee-managed: numeric Book 1 wounds do not silently invent biological, robotic, alien, or hybrid condition effects. Loading an active campaign reconciles active Encounter Documents so a v0.17.0 campaign saved during combat does not lose wounds that had not yet reached its character records.
+
 ## v0.17.0 single-select campaign workspace
 
 v0.17.0 replaces the campaign header's detail toggles with one single-select workspace tab strip: `PLAY`, `CHARACTER`, `SHIP`, `CAMPAIGN`, and `THREADS`. The former `[ CHARACTER ]`, `[ SHIP ]`, `[ CAMPAIGN ]`, `[ THREADS ]`, and `[ CHARGEN RECORD ]` links were independent accordion panels that inserted above or below the navigation workspace, so opening a record pushed the subsector map off screen and several records could stack at once. Exactly one workspace is now visible beneath the sticky campaign header; `PLAY` holds the existing Operations Desk and subsector map unchanged, and the Operations Desk tabs become the sub-tabs of that workspace. Clicking the header character name opens the `CHARACTER` sheet, a thread task opens `THREADS`, and situation, combat, and contract tasks return to `PLAY` before selecting their Operations Desk tab. The `SHIP` tab is disabled until a ship is assigned.

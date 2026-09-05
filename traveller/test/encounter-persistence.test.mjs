@@ -103,6 +103,7 @@ test('roster actors can be placed and removed at an explicit map position withou
   assert.equal(placed.combatant.tokenLabel, 'R7');
   assert.deepEqual(placed.combatant.position, { column: 22, row: 4 });
   assert.deepEqual(placed.combatant.conditions, ['disrupted']);
+  assert.deepEqual(placed.combatant.current, robot.current);
   assert.throws(() => addEncounterCombatantFromActor(placed.encounter, { actor: robot, side: 'party', column: 2, row: 2 }), /already in this encounter/);
   const removed = removeEncounterCombatant(placed.encounter, { combatantId: placed.combatant.id });
   assert.equal(removed.encounter.combatants.some((entry) => entry.sourceActorId === 'actor-r17'), false);
