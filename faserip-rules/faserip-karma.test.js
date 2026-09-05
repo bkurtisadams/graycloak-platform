@@ -11,6 +11,7 @@ import {
   MIN_KARMA_DECLARATION, EFFECT_REDUCTION_COST, POWER_STUNT_COST,
   powerStuntRequiredColor, POWER_STUNT_MASTERY, advancementOptions,
   powerAdditionCost, TALENT_ADDITION_COST, contactAdditionCost,
+  KARMA_FORBIDDEN_FEATS, karmaAllowedFor,
   KARMA_VERSION, KARMA_CERTIFIED,
 } from './faserip-karma.js';
 
@@ -194,6 +195,11 @@ t('[CERT] RULED 2026-09-02: Contact Addition is flat 500+10xRes; no extradimensi
   eq(contactAdditionCost(10), 600);
   eq(contactAdditionCost(10, { extradimensional: true }), 600);
   eq(contactAdditionCost(0), 500);
+});
+
+t('[CERT] Karma may not manipulate Resource or Popularity FEATs, nor Blindside/unexpected-attack FEATs unless forewarned', () => {
+  eq(KARMA_FORBIDDEN_FEATS, ['resource', 'popularity', 'blindsided', 'unexpected-attack']);
+  eq([karmaAllowedFor('resource'), karmaAllowedFor('popularity'), karmaAllowedFor('blindsided'), karmaAllowedFor('blindsided', { forewarned: true }), karmaAllowedFor('resource', { forewarned: true }), karmaAllowedFor('fighting')], [false, false, false, true, false, true]);
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

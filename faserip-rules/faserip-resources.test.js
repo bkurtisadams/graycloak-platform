@@ -1,7 +1,7 @@
 // faserip-resources test suite — run: node faserip-resources.test.js
 import {
   purchaseColor, resourceFeatAvailable, purchaseBlockedByFailure, resolveResourceFeat, bankLoan,
-  RESOURCE_FEAT_INTERVAL_DAYS, RESOURCES_VERSION, RESOURCES_CERTIFIED,
+  RESOURCE_FEAT_INTERVAL_DAYS, RESOURCE_KARMA_ALLOWED, RESOURCES_VERSION, RESOURCES_CERTIFIED,
 } from './faserip-resources.js';
 
 let pass = 0, fail = 0;
@@ -45,6 +45,12 @@ t('[CERT] after a failure, no item of that rank or higher for a week (saving up)
   eq(purchaseBlockedByFailure({ failedRank: 'GD', failedAt: 0, itemRank: 'EX', now: 3 * DAY }), true);
   eq(purchaseBlockedByFailure({ failedRank: 'GD', failedAt: 0, itemRank: 'TY', now: 3 * DAY }), false);
   eq(purchaseBlockedByFailure({ failedRank: 'GD', failedAt: 0, itemRank: 'GD', now: 7 * DAY }), false);
+});
+
+t('[CERT] Karma may not manipulate a Resource FEAT (Excellent, Good car, roll 30 stays white)', () => {
+  eq(RESOURCE_KARMA_ALLOWED, false);
+  const r = resolveResourceFeat({ resourceRank: 'EX', itemRank: 'GD', roll: 30, karma: 40 });
+  eq([r.total, r.karma, r.karmaAllowed, r.success], [30, 0, false, false]);
 });
 
 t('[CERT] resolution rolls on the Resource column; automatic purchases need no roll', () => {

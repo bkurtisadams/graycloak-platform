@@ -1,7 +1,7 @@
 // faserip-popularity test suite — run: node faserip-popularity.test.js
 import {
   DISPOSITION_COLOR, REQUEST_MODIFIERS, requestShift, popularityRank, popularityFeat,
-  resolvePopularityFeat, FAILURE_CONSEQUENCE, POPULARITY_VERSION, POPULARITY_CERTIFIED,
+  resolvePopularityFeat, FAILURE_CONSEQUENCE, POPULARITY_KARMA_ALLOWED, POPULARITY_VERSION, POPULARITY_CERTIFIED,
 } from './faserip-popularity.js';
 
 let pass = 0, fail = 0;
@@ -51,9 +51,10 @@ t('[CERT] negative Popularity: everything yellow, only the benefit modifier, Con
   eq([c.allowed, c.needed, c.baseRank, c.shift, c.column], [true, 'yellow', 'TY', 2, 'EX']);
 });
 
-t('[CERT] resolution uses the Universal Table on the shifted column with Karma capped at 100', () => {
+t('[CERT] resolution uses the Universal Table on the shifted column; Karma may not manipulate a Popularity FEAT', () => {
+  eq(POPULARITY_KARMA_ALLOWED, false);
   const r = resolvePopularityFeat({ popularity: 100, disposition: 'neutral', request: { targetBenefits: true }, roll: 60, karma: 50 });
-  eq([r.total, r.color, r.success], [100, 'red', true]);
+  eq([r.total, r.karma, r.karmaAllowed, r.color, r.success], [60, 0, false, 'yellow', true]);
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);
