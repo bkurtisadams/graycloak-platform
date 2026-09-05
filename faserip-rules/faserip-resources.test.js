@@ -53,9 +53,9 @@ t('[CERT] resolution rolls on the Resource column; automatic purchases need no r
   eq(resolveResourceFeat({ resourceRank: 'EX', itemRank: 'PR', roll: 1 }).success, true);
 });
 
-t('[CERT] Bank Loan: one rank above Resources, monthly FEAT two ranks below the item for rank-number months', () => {
+t('[CERT] Bank Loan: one rank above Resources with no purchase FEAT (RULED 2026-09-05), monthly FEAT two ranks below the item for rank-number months', () => {
   const loan = bankLoan({ resourceRank: 'GD', itemRank: 'EX' });
-  eq([loan.allowed, loan.paymentRank, loan.months], [true, 'TY', 20]);
+  eq([loan.allowed, loan.purchaseFeat, loan.paymentRank, loan.months], [true, null, 'TY', 20]);
   eq(loan.monthlyFeat.automatic, false);
   eq(loan.monthlyFeat.needed, 'green');
   eq(bankLoan({ resourceRank: 'GD', itemRank: 'RM' }).allowed, false);

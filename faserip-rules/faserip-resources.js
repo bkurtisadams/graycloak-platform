@@ -56,14 +56,15 @@ export function resolveResourceFeat({ resourceRank, itemRank, roll, karma = 0 })
 }
 
 /**
- * Bank Loan option: buy up to one rank above Resources, then make a monthly
- * Resource FEAT against a cost two ranks below the item for as many months
- * as the item's rank number. Failure to pay: the bank takes the item back.
+ * Bank Loan option: buy up to one rank above Resources with no purchase
+ * FEAT (RULED 2026-09-05), then make a monthly Resource FEAT against a cost
+ * two ranks below the item for as many months as the item's rank number.
+ * Failure to pay: the bank takes the item back.
  */
 export function bankLoan({ resourceRank, itemRank }) {
   const above = rankDistance(resourceRank, itemRank);
   if (above > LOAN_MAX_RANKS_ABOVE) return { allowed: false, reason: `loans reach at most ${LOAN_MAX_RANKS_ABOVE} rank above Resources` };
   const paymentRank = shiftRank(itemRank, LOAN_PAYMENT_SHIFT).key;
   const months = rankByKey(itemRank).standard;
-  return { allowed: true, paymentRank, months, monthlyFeat: purchaseColor({ resourceRank, itemRank: paymentRank }) };
+  return { allowed: true, purchaseFeat: null, paymentRank, months, monthlyFeat: purchaseColor({ resourceRank, itemRank: paymentRank }) };
 }
