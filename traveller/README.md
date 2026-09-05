@@ -1,5 +1,9 @@
 # Graycloak Traveller
 
+## v0.20.1 compact personnel sheet
+
+v0.20.1 reduces the vertical footprint of the shared character-generation and playable personnel form without shrinking its type or removing rules information. Banner, identity, section, characteristic, skill, and status spacing are tightened; benefits and finances now render as a two-column labeled grid; Psionics is a single compact row; and Notes starts at two lines but expands on focus. Service history and equipment remain side by side, while the full generation history stays collapsed until requested.
+
 ## v0.20.0 campaign entry workflow and command-centered play shell
 
 v0.20.0 closes the gap between character generation and campaign play. A completed character now receives prominent `[ START NEW CAMPAIGN ]` and, when browser storage contains one, `[ ADD TO ... ]` actions alongside export. Starting a new character from an active campaign saves and remembers that campaign, then offers `[ ADD TO ... AND RETURN ]` when generation finishes. The Campaign menu adds `[ ADD CHARACTER ]`, which imports a completed Character Document into the loaded party without unloading the campaign or silently replacing the controlled character.

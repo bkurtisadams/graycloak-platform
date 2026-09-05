@@ -2242,3 +2242,141 @@ input[readonly] {
   .scene-footer { grid-template-columns: 1fr; }
   .scene-footer-cell + .scene-footer-cell { border-left: 0; border-top: 1px solid var(--rule); }
 }
+
+/* =========================================================================
+   v0.20.1: compact Book 1 personnel form without reducing type size.
+   ========================================================================= */
+.traveller-character-sheet {
+  margin-top: 0.4rem;
+}
+
+.traveller-character-sheet .sheet-banner > div,
+.traveller-character-sheet .sheet-identity-grid > div,
+.traveller-character-sheet .sheet-block {
+  padding: 0.36rem 0.5rem;
+}
+
+.traveller-character-sheet .sheet-banner strong {
+  display: inline-block;
+  margin: 0 0 0 0.55rem;
+}
+
+.traveller-character-sheet .sheet-identity-grid strong {
+  margin-top: 0.1rem;
+}
+
+.traveller-character-sheet .sheet-block h3 {
+  margin: -0.36rem -0.5rem 0.35rem;
+  padding: 0.22rem 0.5rem;
+}
+
+.traveller-character-sheet .sheet-characteristics {
+  gap: 0.25rem;
+}
+
+.traveller-character-sheet .sheet-characteristic {
+  min-height: 3.25rem;
+  padding: 0.18rem;
+}
+
+.traveller-character-sheet .sheet-characteristic .sheet-stat-value {
+  margin-top: 0.05rem;
+}
+
+.traveller-character-sheet .sheet-characteristic .sheet-stat-current {
+  margin-top: 0;
+}
+
+.traveller-character-sheet .sheet-health-status {
+  margin-top: 0.25rem;
+  padding: 0.16rem 0.32rem;
+}
+
+.traveller-character-sheet .sheet-data-list {
+  gap: 0.12rem 0.6rem;
+}
+
+.traveller-character-sheet .sheet-loadout-grid {
+  gap: 0.35rem;
+}
+
+.traveller-character-sheet .sheet-loadout-grid select,
+.traveller-character-sheet textarea {
+  margin-top: 0.12rem;
+}
+
+.traveller-character-sheet .sheet-list {
+  margin-top: 0.3rem;
+}
+
+.traveller-character-sheet .sheet-skills {
+  gap: 0.22rem;
+}
+
+.traveller-character-sheet .sheet-skill {
+  padding: 0.16rem 0.34rem;
+}
+
+.sheet-benefit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.3rem 0.45rem;
+}
+
+.sheet-benefit-item {
+  min-width: 0;
+  border-left: 2px solid var(--ink);
+  padding-left: 0.4rem;
+}
+
+.sheet-benefit-item span,
+.sheet-benefit-item strong {
+  display: block;
+}
+
+.sheet-benefit-item strong {
+  margin-top: 0.08rem;
+  overflow-wrap: anywhere;
+  font: 0.78rem Consolas, "Courier New", monospace;
+}
+
+.traveller-character-sheet .sheet-psionics {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.traveller-character-sheet .sheet-psionics h3 {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 0.55rem;
+  justify-content: flex-start;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.traveller-character-sheet .sheet-history summary {
+  padding: 0.32rem 0.5rem;
+}
+
+.traveller-character-sheet .sheet-notes-block textarea {
+  min-height: 2.75rem;
+  transition: min-height 120ms ease;
+}
+
+.traveller-character-sheet .sheet-notes-block textarea:focus {
+  min-height: 6.5rem;
+}
+
+@media (max-width: 760px) {
+  .sheet-benefit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .traveller-character-sheet .sheet-banner strong {
+    display: block;
+    margin: 0.12rem 0 0;
+  }
+}

@@ -12,7 +12,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.20.0</div>
+          <div id="app-subtitle" class="subtitle">v0.20.1</div>
         </div>
         <nav class="utility campaign-utility" aria-label="Campaign and view commands">
           <button id="new-character-from-campaign" class="text-button utility-button" type="button" title="Leave campaign play and start a new character generation" hidden>[ NEW CHARACTER ]</button>
@@ -231,11 +231,11 @@
           <div id="sheet-health-status" class="sheet-health-status">STATUS --</div>
         </section>
         <div class="sheet-two-column">
-          <section class="sheet-block">
+          <section class="sheet-block sheet-service-block">
             <h3>SERVICE HISTORY</h3>
             <dl id="sheet-service" class="sheet-data-list"></dl>
           </section>
-          <section class="sheet-block">
+          <section class="sheet-block sheet-equipment-block">
             <h3>EQUIPMENT AND COMBAT</h3>
             <div class="sheet-loadout-grid">
               <label>READY WEAPON<select id="sheet-weapon"></select></label>
@@ -244,14 +244,14 @@
             <div id="sheet-equipment" class="sheet-list"></div>
           </section>
         </div>
-        <section class="sheet-block">
+        <section class="sheet-block sheet-skills-block">
           <h3>SKILLS</h3>
           <div id="sheet-skills" class="sheet-skills"></div>
         </section>
         <div class="sheet-two-column">
-          <section class="sheet-block">
+          <section class="sheet-block sheet-benefits-block">
             <h3>BENEFITS AND FINANCES</h3>
-            <div id="sheet-benefits" class="sheet-list"></div>
+            <div id="sheet-benefits" class="sheet-benefit-grid"></div>
           </section>
           <section class="sheet-block sheet-psionics">
             <h3>PSIONICS <span>CONFIDENTIAL</span></h3>
@@ -264,7 +264,7 @@
         </details>
         <section class="sheet-block sheet-notes-block">
           <h3>NOTES</h3>
-          <textarea id="sheet-notes" rows="4" maxlength="4000" spellcheck="true"></textarea>
+          <textarea id="sheet-notes" rows="2" maxlength="4000" spellcheck="true"></textarea>
         </section>
       </article>
     </section>

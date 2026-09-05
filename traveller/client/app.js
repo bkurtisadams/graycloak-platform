@@ -850,6 +850,20 @@ function appendSheetDatum(list, label, value) {
   list.append(term, detail);
 }
 
+function renderSheetBenefitRows(rows) {
+  el.sheetBenefits.replaceChildren();
+  for (const [label, value] of rows) {
+    const item = document.createElement('div');
+    item.className = 'sheet-benefit-item';
+    const heading = document.createElement('span');
+    heading.textContent = label;
+    const detail = document.createElement('strong');
+    detail.textContent = value;
+    item.append(heading, detail);
+    el.sheetBenefits.append(item);
+  }
+}
+
 function renderCharacterSheet() {
   if (!gameplayDocument || !campaignPlayActive()) return;
   const currentWorld = mappedCurrentSystem()?.mainWorld?.name ?? campaignDocument.location.worldName ?? 'UNMAPPED';
@@ -906,7 +920,12 @@ function renderCharacterSheet() {
   const passages = gameplayDocument.benefits.passages.map((entry) => `${entry.name}${entry.count > 1 ? ` x${entry.count}` : ''}`).join(' / ') || 'NONE';
   const memberships = gameplayDocument.benefits.memberships.map((entry) => entry.name).join(' / ') || 'NONE';
   const ships = gameplayDocument.shipRefs.map((entry) => entry.shipName || entry.shipType || entry.shipId).join(' / ') || 'NONE';
-  el.sheetBenefits.textContent = `CREDITS ${formatCr(gameplayDocument.finances.credits)}\nPASSAGES ${passages}\nMEMBERSHIPS ${memberships}\nASSIGNED SHIP ${ships}`;
+  renderSheetBenefitRows([
+    ['CREDITS', formatCr(gameplayDocument.finances.credits)],
+    ['PASSAGES', passages],
+    ['MEMBERSHIPS', memberships],
+    ['ASSIGNED SHIP', ships],
+  ]);
   el.sheetHistoryRecord.textContent = `${buildServiceHistory(gameplayDocument)}\n\n${buildGenerationLog(gameplayDocument)}`;
   if (document.activeElement !== el.sheetNotes) el.sheetNotes.value = gameplayDocument.notes;
 }
@@ -975,9 +994,13 @@ function renderChargenSheet() {
   }
 
   const benefits = character.materialBenefits.map((entry) => entry.name);
-  el.sheetBenefits.textContent = character.musterOut || character.credits || benefits.length
-    ? `CREDITS ${formatCr(character.credits)}\nBENEFITS ${benefits.join(' / ') || 'NONE'}${character.musterOut ? `\nMUSTER ROLLS ${character.musterOut.remainingRolls ?? 0} REMAINING` : ''}`
-    : 'MUSTERING OUT NOT YET REACHED';
+  renderSheetBenefitRows(character.musterOut || character.credits || benefits.length
+    ? [
+        ['CREDITS', formatCr(character.credits)],
+        ['BENEFITS', benefits.join(' / ') || 'NONE'],
+        ['MUSTER ROLLS', character.musterOut ? `${character.musterOut.remainingRolls ?? 0} REMAINING` : 'NOT YET REACHED'],
+      ]
+    : [['MUSTERING OUT', 'NOT YET REACHED']]);
   el.sheetHistoryRecord.textContent = buildServiceHistory(character);
   if (el.sheetNotes) el.sheetNotes.value = '';
 }
