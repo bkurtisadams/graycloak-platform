@@ -1,7 +1,14 @@
 import { stableDocumentId } from '../../packages/classic-traveller-rules/index.js';
 
 export const ACTIVITY_LOG_DOCUMENT_TYPE = 'graycloak-traveller-activity-log';
-export const CURRENT_ACTIVITY_LOG_DOCUMENT_SCHEMA_VERSION = 1;
+export const CURRENT_ACTIVITY_LOG_DOCUMENT_SCHEMA_VERSION = 2;
+export const SUPPORTED_ACTIVITY_LOG_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2]);
+export const ACTIVITY_VISIBILITY = Object.freeze({
+  PUBLIC: 'public',
+  PLAYERS: 'players',
+  REFEREE: 'referee'
+});
+const ACTIVITY_VISIBILITY_VALUES = new Set(Object.values(ACTIVITY_VISIBILITY));
 
 export class ActivityLogDocumentValidationError extends Error {
   constructor(errors) {
@@ -34,7 +41,9 @@ function normalizeEntry(entry, sequence, campaignId) {
     dateLabel,
     createdAt,
     sourceDocumentId: entry.sourceDocumentId ?? null,
-    sourceActorId: entry.sourceActorId ?? null
+    sourceActorId: entry.sourceActorId ?? null,
+    visibility: entry.visibility ?? ACTIVITY_VISIBILITY.PUBLIC,
+    audiencePlayerIds: [...new Set((entry.audiencePlayerIds ?? []).map(String).filter((id) => id.trim()))]
   };
 }
 
@@ -78,6 +87,14 @@ export function validateActivityLogDocument(document) {
     add(nonblank(entry.createdAt) && !Number.isNaN(Date.parse(entry.createdAt)), `entries[${index}].createdAt must be an ISO date string`);
     add(entry.sourceDocumentId === null || nonblank(entry.sourceDocumentId), `entries[${index}].sourceDocumentId is invalid`);
     add(entry.sourceActorId === null || nonblank(entry.sourceActorId), `entries[${index}].sourceActorId is invalid`);
+    add(ACTIVITY_VISIBILITY_VALUES.has(entry.visibility), `entries[${index}].visibility is invalid`);
+    add(Array.isArray(entry.audiencePlayerIds), `entries[${index}].audiencePlayerIds must be an array`);
+    if (Array.isArray(entry.audiencePlayerIds)) {
+      add(entry.audiencePlayerIds.every(nonblank), `entries[${index}].audiencePlayerIds contains an invalid player id`);
+      add(new Set(entry.audiencePlayerIds).size === entry.audiencePlayerIds.length, `entries[${index}].audiencePlayerIds must be unique`);
+    }
+    if (entry.visibility === ACTIVITY_VISIBILITY.PLAYERS) add(entry.audiencePlayerIds.length > 0, `entries[${index}] player visibility requires an audience`);
+    else add(entry.audiencePlayerIds.length === 0, `entries[${index}] audience is only valid for player visibility`);
   });
   return errors;
 }
@@ -90,6 +107,13 @@ export function assertValidActivityLogDocument(document) {
 
 export function importActivityLogDocument(input) {
   const document = clone(parse(input));
+  if (!SUPPORTED_ACTIVITY_LOG_DOCUMENT_SCHEMA_VERSIONS.includes(document?.schemaVersion)) {
+    throw new ActivityLogDocumentValidationError(`unsupported schemaVersion: ${document?.schemaVersion}`);
+  }
+  if (document.schemaVersion === 1) {
+    document.schemaVersion = 2;
+    document.entries = document.entries.map((entry, index) => normalizeEntry(entry, index + 1, document.campaignId));
+  }
   assertValidActivityLogDocument(document);
   return document;
 }
@@ -98,11 +122,24 @@ export function exportActivityLogDocument(document, { space = 2 } = {}) {
   return JSON.stringify(importActivityLogDocument(document), null, space);
 }
 
-export function appendActivityLogEntry(document, { category = 'SYSLOG', message, dateLabel = 'SESSION', createdAt = new Date().toISOString(), sourceDocumentId = null, sourceActorId = null } = {}) {
+export function appendActivityLogEntry(document, { category = 'SYSLOG', message, dateLabel = 'SESSION', createdAt = new Date().toISOString(), sourceDocumentId = null, sourceActorId = null, visibility = ACTIVITY_VISIBILITY.PUBLIC, audiencePlayerIds = [] } = {}) {
   const next = importActivityLogDocument(document);
-  next.entries.push(normalizeEntry({ category, message, dateLabel, createdAt, sourceDocumentId, sourceActorId }, next.entries.length + 1, next.campaignId));
+  next.entries.push(normalizeEntry({ category, message, dateLabel, createdAt, sourceDocumentId, sourceActorId, visibility, audiencePlayerIds }, next.entries.length + 1, next.campaignId));
   assertValidActivityLogDocument(next);
   return next;
+}
+
+export function activityEntryVisibleTo(entry, session) {
+  if (!entry || !session?.player) return false;
+  if (entry.visibility === ACTIVITY_VISIBILITY.PUBLIC) return true;
+  if (session.player.role === 'solo' || session.player.role === 'referee') return true;
+  if (entry.visibility === ACTIVITY_VISIBILITY.REFEREE) return false;
+  return entry.visibility === ACTIVITY_VISIBILITY.PLAYERS && entry.audiencePlayerIds.includes(session.player.id);
+}
+
+export function visibleActivityLogEntries(document, session) {
+  const current = importActivityLogDocument(document);
+  return current.entries.filter((entry) => activityEntryVisibleTo(entry, session));
 }
 
 export function clearActivityLogDocument(document) {

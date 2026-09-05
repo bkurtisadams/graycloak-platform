@@ -135,8 +135,7 @@ import {
   updateCampaignLocation,
   updateCampaignTime,
   speculativeLotPurchasedQuantity,
-  recordSpeculativeLotPurchase,
-  setActiveCampaignCharacter
+  recordSpeculativeLotPurchase
 } from '../src/campaign-document.js';
 
 import {
@@ -150,11 +149,20 @@ import {
 } from '../src/npc-actor-document.js';
 import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js';
 import {
+  ACTIVITY_VISIBILITY,
   createActivityLogDocument,
   appendActivityLogEntry,
   clearActivityLogDocument,
-  importActivityLogDocument
+  importActivityLogDocument,
+  visibleActivityLogEntries
 } from '../src/activity-log-document.js';
+
+import {
+  PLAYER_ROLES,
+  createPlayerSession,
+  createPlayerSessionStore,
+  setPlayerViewedCharacter
+} from '../src/player-session.js';
 
 import {
   exportCampaignBundle
@@ -467,6 +475,7 @@ let threadDocuments = [];
 let npcActorDocuments = [];
 let mediaAssetDocuments = [];
 let activityLogDocument = null;
+let playerSession = null;
 let activityFilter = 'play';
 let activityOrder = 'newest';
 let activityPanelVisible = true;
@@ -495,6 +504,7 @@ const WORKSPACE_VIEWS = ['play', 'character', 'ship', 'campaign', 'threads'];
 let activeWorkspaceView = 'play';
 let systemDetailsOpen = false;
 let registry = null;
+let playerSessionStore = null;
 
 const ACTIVITY_ORDER_STORAGE_KEY = 'graycloak.traveller.activity-order.v1';
 const ACTIVITY_VISIBLE_STORAGE_KEY = 'graycloak.traveller.activity-visible.v1';
@@ -510,6 +520,7 @@ try {
 
 try {
   registry = createDocumentRegistry({ storage: window.localStorage });
+  playerSessionStore = createPlayerSessionStore({ storage: window.localStorage });
 } catch (error) {
   console.error(error);
 }
@@ -524,6 +535,31 @@ try {
 function activityDateLabel() {
   if (!campaignDocument) return 'SESSION';
   return `${String(campaignDocument.time.dayOfYear).padStart(3, '0')}-${campaignDocument.time.year}`;
+}
+
+function establishLocalPlayerSession(campaign = campaignDocument) {
+  if (!campaign) { playerSession = null; return null; }
+  const partyIds = campaign.party.characterIds;
+  const existing = playerSessionStore?.get(campaign.identity.id, 'local-solo') ?? null;
+  const controlledCharacterIds = existing?.player.role === PLAYER_ROLES.SOLO
+    ? partyIds
+    : (existing?.controlledCharacterIds ?? partyIds);
+  const preferred = existing?.viewedCharacterId ?? campaign.activeCharacterId ?? controlledCharacterIds[0] ?? partyIds[0];
+  const viewedCharacterId = partyIds.includes(preferred)
+    && (existing?.player.role === PLAYER_ROLES.REFEREE || existing?.player.role === PLAYER_ROLES.SPECTATOR || controlledCharacterIds.includes(preferred))
+    ? preferred
+    : (controlledCharacterIds.find((id) => partyIds.includes(id)) ?? partyIds[0] ?? null);
+  playerSession = createPlayerSession({
+    id: existing?.identity.id,
+    campaignId: campaign.identity.id,
+    playerId: existing?.player.id ?? 'local-solo',
+    displayName: existing?.player.displayName ?? 'Local Player',
+    role: existing?.player.role ?? PLAYER_ROLES.SOLO,
+    controlledCharacterIds,
+    viewedCharacterId
+  });
+  if (playerSessionStore) playerSession = playerSessionStore.put(playerSession);
+  return playerSession;
 }
 
 function setActivityContext({ initialEntries = [] } = {}) {
@@ -608,7 +644,9 @@ function renderActivity() {
   if (el.activityFilter.value !== activityFilter) el.activityFilter.value = activityFilter;
   if (el.activityOrder.value !== activityOrder) el.activityOrder.value = activityOrder;
   el.activityFeed.replaceChildren();
-  const allEntries = campaignDocument ? (activityLogDocument?.entries ?? []) : (activityLog ? activityLog.list() : []);
+  const allEntries = campaignDocument
+    ? (activityLogDocument && playerSession ? visibleActivityLogEntries(activityLogDocument, playerSession) : (activityLogDocument?.entries ?? []))
+    : (activityLog ? activityLog.list() : []);
   const filterCategories = {
     character: new Set(['CHAR', 'CHECK']),
     trade: new Set(['TRADE', 'JOB', 'CONTRACT']),
@@ -650,14 +688,14 @@ function renderActivity() {
   el.activityFeed.scrollTop = activityOrder === 'newest' ? 0 : el.activityFeed.scrollHeight;
 }
 
-function logActivity(category, message, { dateLabel = activityDateLabel(), sourceDocumentId = null, sourceActorId = null } = {}) {
+function logActivity(category, message, { dateLabel = activityDateLabel(), sourceDocumentId = null, sourceActorId = null, visibility = ACTIVITY_VISIBILITY.PUBLIC, audiencePlayerIds = [] } = {}) {
   if (campaignDocument) {
     if (!activityLogDocument) {
       activityLogDocument = createActivityLogDocument({ campaign: campaignDocument });
       campaignDocument = addActivityLogToCampaign(campaignDocument, activityLogDocument);
       if (registry) registry.put(campaignDocument);
     }
-    activityLogDocument = appendActivityLogEntry(activityLogDocument, { category, message, dateLabel, sourceDocumentId, sourceActorId });
+    activityLogDocument = appendActivityLogEntry(activityLogDocument, { category, message, dateLabel, sourceDocumentId, sourceActorId, visibility, audiencePlayerIds });
     if (registry) registry.put(activityLogDocument);
   } else if (activityLog) activityLog.append({ category, message, dateLabel });
   if (campaignDocument && registry) markAutosaved();
@@ -1769,7 +1807,7 @@ function renderCampaign() {
     const document = resolved.characters.find((entry) => entry.identity.id === id);
     return new Option((document?.identity.name || id).toUpperCase(), id);
   }));
-  el.campaignActiveCharacter.value = campaignDocument.activeCharacterId;
+  el.campaignActiveCharacter.value = playerSession?.viewedCharacterId ?? campaignDocument.activeCharacterId;
   el.campaignRecord.textContent = buildCampaignRecord(campaignDocument, resolved);
   el.threadRecord.textContent = buildAdventureThreadRecord({ threads: resolved.threads, contacts: resolved.contacts });
   renderCampaignHeader();
@@ -4509,7 +4547,8 @@ function restoreCampaignFromRegistry(campaign) {
   if (resolved.missing.length) {
     throw new Error(`campaign references missing documents: ${resolved.missing.join(', ')}`);
   }
-  const preferredCharacterId = campaign.activeCharacterId;
+  const session = establishLocalPlayerSession(campaign);
+  const preferredCharacterId = session?.viewedCharacterId ?? campaign.activeCharacterId;
   const nextCharacter = resolved.characters.find((entry) => entry.identity.id === preferredCharacterId) ?? resolved.characters[0];
   if (!nextCharacter) throw new Error('campaign has no resolvable party character');
   const nextShip = campaign.activeShipId
@@ -4556,6 +4595,13 @@ function addCharacterDocumentToCampaign(characterDocument, campaignId, { makeAct
   registry.put(nextCampaign);
   registry.setActiveCampaignId(nextCampaign.identity.id);
   restoreCampaignFromRegistry(nextCampaign);
+  if (makeActive) {
+    playerSession = setPlayerViewedCharacter(playerSession, characterDocument.identity.id, {
+      partyCharacterIds: nextCampaign.party.characterIds
+    });
+    if (playerSessionStore) playerSession = playerSessionStore.put(playerSession);
+    gameplayDocument = characterDocument;
+  }
   returnCampaignId = null;
   logActivity('CHAR', `${characterDocument.identity.name || characterDocument.identity.id} added to campaign${makeActive ? ' / active character' : ''}`, {
     sourceDocumentId: characterDocument.identity.id
@@ -4579,16 +4625,17 @@ function addCompletedCharacterToSavedCampaign() {
 }
 
 function activatePartyCharacter(characterId) {
-  if (!campaignDocument || characterId === campaignDocument.activeCharacterId) return;
+  if (!campaignDocument || characterId === playerSession?.viewedCharacterId) return;
   try {
     const nextCharacter = partyCharacterDocuments.find((entry) => entry.identity.id === characterId) ?? registry?.get(characterId);
     if (!nextCharacter) throw new Error(`party character document is missing: ${characterId}`);
-    campaignDocument = setActiveCampaignCharacter(campaignDocument, characterId);
+    playerSession = setPlayerViewedCharacter(playerSession ?? establishLocalPlayerSession(), characterId, {
+      partyCharacterIds: campaignDocument.party.characterIds
+    });
+    if (playerSessionStore) playerSession = playerSessionStore.put(playerSession);
     gameplayDocument = nextCharacter;
     documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
-    persistCampaignState();
-    logActivity('CHAR', `Active character: ${nextCharacter.identity.name || characterId}`, { sourceDocumentId: characterId });
-    setStatus(`ACTIVE CHARACTER: ${nextCharacter.identity.name || characterId}`, 'ok');
+    setStatus(`VIEWING CHARACTER: ${nextCharacter.identity.name || characterId}`, 'ok');
     render();
   } catch (error) {
     console.error(error);
@@ -4628,6 +4675,7 @@ function newCampaign() {
       activeCharacterId: gameplay.identity.id,
       activeShipId: shipDocument?.identity.id ?? null
     });
+    establishLocalPlayerSession(campaignDocument);
     returnCampaignId = null;
     documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
     setActivityContext({ initialEntries: sessionActivity });

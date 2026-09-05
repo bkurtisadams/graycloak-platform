@@ -1,5 +1,11 @@
 # Graycloak Traveller
 
+## v0.21.0 multiplayer-readiness foundation
+
+v0.21.0 introduces the architectural boundary needed before live simultaneous play. Player sessions now distinguish solo, player, referee, and spectator roles; record controlled characters; and keep each client's viewed character outside shared Campaign Document state. The Campaign record selector is therefore labeled Viewed Character and no longer rewrites the campaign when a local player changes sheets.
+
+Activity Log Document v2 adds public, addressed-player, and referee-only visibility with automatic migration of v1 entries to public. A revisioned campaign-state store and transport-agnostic command service add stale-write rejection, command idempotency, actor authorization hooks, normalized player choices, and subscriptions. Two-client tests exercise simultaneous reads, a rejected stale mutation, a successful retry, private-log projections, and role/ownership restrictions. This is a tested multiplayer foundation, not yet a live Firestore connection; see `docs/multiplayer-foundation.md` for the boundary and remaining work.
+
 ## v0.20.1 compact personnel sheet
 
 v0.20.1 reduces the vertical footprint of the shared character-generation and playable personnel form without shrinking its type or removing rules information. Banner, identity, section, characteristic, skill, and status spacing are tightened; benefits and finances now render as a two-column labeled grid; Psionics is a single compact row; and Notes starts at two lines but expands on focus. Service history and equipment remain side by side, while the full generation history stays collapsed until requested.
