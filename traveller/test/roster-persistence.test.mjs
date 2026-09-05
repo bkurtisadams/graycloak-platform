@@ -80,7 +80,7 @@ test('body-aware actor conditions distinguish robot shutdown and destruction fro
   assert.equal(robot.state.integrity, 'intact');
 });
 
-test('Campaign v8 and Bundle v7 preserve roster folders, actors, and portrait assets through the registry', async () => {
+test('Campaign v9 and Bundle v7 preserve roster folders, actors, and portrait assets through the registry', async () => {
   const { character, campaign, portrait, actor } = await fixture();
   const importedCampaign = importCampaignDocument(JSON.stringify(campaign));
   assert.deepEqual(importedCampaign.documentRefs.npcActors, [{ id: 'actor-veyra', name: 'Veyra Kade', role: 'Agent', archived: false }]);

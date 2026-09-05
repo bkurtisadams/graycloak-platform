@@ -10,13 +10,15 @@ import {
 } from '../../packages/classic-traveller-rules/index.js';
 
 import {
+  addCharacterToCampaign,
   createCampaignDocument,
   exportCampaignDocument,
   importCampaignDocument,
   updateCampaignLocation,
   updateCampaignTime,
   speculativeLotPurchasedQuantity,
-  recordSpeculativeLotPurchase
+  recordSpeculativeLotPurchase,
+  setActiveCampaignCharacter
 } from '../src/campaign-document.js';
 
 import {
@@ -56,14 +58,15 @@ function campaignFor(character, ship) {
   });
 }
 
-test('Campaign Document v8 links campaign records by stable IDs without embedding them', async () => {
+test('Campaign Document v9 links campaign records and identifies the active party character', async () => {
   const { character, ship } = await acceptanceDocuments();
   const campaign = campaignFor(character, ship);
   const roundTrip = importCampaignDocument(exportCampaignDocument(campaign));
 
   assert.equal(roundTrip.documentType, 'graycloak-traveller-campaign');
-  assert.equal(roundTrip.schemaVersion, 8);
+  assert.equal(roundTrip.schemaVersion, 9);
   assert.deepEqual(roundTrip.party.characterIds, [character.identity.id]);
+  assert.equal(roundTrip.activeCharacterId, character.identity.id);
   assert.equal(roundTrip.activeShipId, ship.identity.id);
   assert.deepEqual(roundTrip.documentRefs.characters, [{ id: character.identity.id, name: 'Hawkeye' }]);
   assert.equal(roundTrip.documentRefs.ships[0].name, 'Marisol');
@@ -75,6 +78,32 @@ test('Campaign Document v8 links campaign records by stable IDs without embeddin
   assert.deepEqual(roundTrip.documentRefs.activityLogs, []);
   assert.deepEqual(roundTrip.commerce.speculativeLots, []);
   assert.equal(roundTrip.documents, undefined);
+});
+
+test('a campaign can add a party character without changing focus, then activate it explicitly', async () => {
+  const { character, ship } = await acceptanceDocuments();
+  const second = structuredClone(character);
+  second.identity.id = 'char-second-traveller';
+  second.identity.name = 'Second Traveller';
+  let campaign = campaignFor(character, ship);
+
+  campaign = addCharacterToCampaign(campaign, second, { active: true, makeActive: false });
+  assert.deepEqual(campaign.party.characterIds, [character.identity.id, second.identity.id]);
+  assert.equal(campaign.activeCharacterId, character.identity.id);
+
+  campaign = setActiveCampaignCharacter(campaign, second.identity.id);
+  assert.equal(campaign.activeCharacterId, second.identity.id);
+});
+
+test('Campaign Document v8 migrates its first party member to activeCharacterId', async () => {
+  const { character, ship } = await acceptanceDocuments();
+  const legacy = structuredClone(campaignFor(character, ship));
+  legacy.schemaVersion = 8;
+  delete legacy.activeCharacterId;
+
+  const migrated = importCampaignDocument(legacy);
+  assert.equal(migrated.schemaVersion, 9);
+  assert.equal(migrated.activeCharacterId, character.identity.id);
 });
 
 test('campaign date and free-text location remain editable campaign state', async () => {
@@ -138,18 +167,18 @@ test('campaign status record shows date, location, party, and active Marisol', a
   assert.match(record, /DATE 001-4800 00:00/);
   assert.match(record, /LOCATION SYSTEM Port Meridian \/ WORLD New Esperanza/);
   assert.match(record, /ACTIVE SHIP Marisol \/ S-17384 \/ TYPE S/);
-  assert.match(record, /PARTY Hawkeye \/ SCOUTS \/ UPP AB5678 \/ Cr80,000/);
+  assert.match(record, /ACTIVE CHARACTER Hawkeye \/ SCOUTS \/ UPP AB5678 \/ Cr80,000/);
 });
 
 
-test('Campaign Document v1 imports migrate to v8 with empty continuity, roster, and activity collections', async () => {
+test('Campaign Document v1 imports migrate to v9 with empty continuity, roster, and activity collections', async () => {
   const { character, ship } = await acceptanceDocuments();
   const current = campaignFor(character, ship);
   const legacy = structuredClone(current);
   legacy.schemaVersion = 1;
   delete legacy.documentRefs.contracts;
   const migrated = importCampaignDocument(legacy);
-  assert.equal(migrated.schemaVersion, 8);
+  assert.equal(migrated.schemaVersion, 9);
   assert.deepEqual(migrated.documentRefs.contracts, []);
   assert.deepEqual(migrated.documentRefs.situations, []);
   assert.deepEqual(migrated.documentRefs.encounters, []);
@@ -170,7 +199,7 @@ test('Campaign Bundle v1 imports migrate to v7 and add empty continuity, roster,
   delete legacy.documents.contracts;
   const migrated = importCampaignBundle(legacy);
   assert.equal(migrated.schemaVersion, 7);
-  assert.equal(migrated.campaign.schemaVersion, 8);
+  assert.equal(migrated.campaign.schemaVersion, 9);
   assert.deepEqual(migrated.campaign.commerce.speculativeLots, []);
   assert.deepEqual(migrated.documents.contracts, []);
   assert.deepEqual(migrated.documents.situations, []);
@@ -180,14 +209,14 @@ test('Campaign Bundle v1 imports migrate to v7 and add empty continuity, roster,
   assert.deepEqual(migrated.documents.activityLogs, []);
 });
 
-test('Campaign Document v2 migrates to v8 and speculative lot purchases survive round-trip', async () => {
+test('Campaign Document v2 migrates to v9 and speculative lot purchases survive round-trip', async () => {
   const { character, ship } = await acceptanceDocuments();
   let campaign = campaignFor(character, ship);
   const legacy = structuredClone(campaign);
   legacy.schemaVersion = 2;
   delete legacy.commerce;
   campaign = importCampaignDocument(legacy);
-  assert.equal(campaign.schemaVersion, 8);
+  assert.equal(campaign.schemaVersion, 9);
   assert.equal(speculativeLotPurchasedQuantity(campaign, 'weekly-lot'), 0);
   campaign = recordSpeculativeLotPurchase(campaign, {
     key: 'weekly-lot', systemId: 'calder', tradeGoodCode: 62, quantity: 2
@@ -200,7 +229,7 @@ test('Campaign Document v2 migrates to v8 and speculative lot purchases survive 
 });
 
 
-test('Campaign Document v8 and Bundle v7 persist Situation Documents through the registry', async () => {
+test('Campaign Document v9 and Bundle v7 persist Situation Documents through the registry', async () => {
   const { createSituationDocument } = await import('../src/situation-document.js');
   const { addSituationToCampaign } = await import('../src/campaign-document.js');
   const { character, ship } = await acceptanceDocuments();
@@ -224,13 +253,13 @@ test('Campaign Document v8 and Bundle v7 persist Situation Documents through the
   assert.equal(bundle.documents.situations.length, 1);
 });
 
-test('Campaign Document v3 migrates to v8 with empty situation, continuity, roster, and activity collections', async () => {
+test('Campaign Document v3 migrates to v9 with empty situation, continuity, roster, and activity collections', async () => {
   const { character, ship } = await acceptanceDocuments();
   const legacy = structuredClone(campaignFor(character, ship));
   legacy.schemaVersion = 3;
   delete legacy.documentRefs.situations;
   const migrated = importCampaignDocument(legacy);
-  assert.equal(migrated.schemaVersion, 8);
+  assert.equal(migrated.schemaVersion, 9);
   assert.deepEqual(migrated.documentRefs.situations, []);
   assert.deepEqual(migrated.documentRefs.encounters, []);
   assert.deepEqual(migrated.documentRefs.contacts, []);
@@ -239,21 +268,21 @@ test('Campaign Document v3 migrates to v8 with empty situation, continuity, rost
 });
 
 
-test('Campaign Document v4 migrates to v8 with empty contact, thread, encounter, roster, and activity collections', async () => {
+test('Campaign Document v4 migrates to v9 with empty contact, thread, encounter, roster, and activity collections', async () => {
   const { character, ship } = await acceptanceDocuments();
   const legacy = structuredClone(campaignFor(character, ship));
   legacy.schemaVersion = 4;
   delete legacy.documentRefs.contacts;
   delete legacy.documentRefs.threads;
   const migrated = importCampaignDocument(legacy);
-  assert.equal(migrated.schemaVersion, 8);
+  assert.equal(migrated.schemaVersion, 9);
   assert.deepEqual(migrated.documentRefs.contacts, []);
   assert.deepEqual(migrated.documentRefs.threads, []);
   assert.deepEqual(migrated.documentRefs.encounters, []);
   assert.deepEqual(migrated.documentRefs.activityLogs, []);
 });
 
-test('Campaign Document v8 and Bundle v7 persist named contacts and adventure threads through the registry', async () => {
+test('Campaign Document v9 and Bundle v7 persist named contacts and adventure threads through the registry', async () => {
   const { createContactDocument } = await import('../src/contact-document.js');
   const { createAdventureThreadDocument } = await import('../src/adventure-thread-document.js');
   const { addContactToCampaign, addAdventureThreadToCampaign } = await import('../src/campaign-document.js');
@@ -296,7 +325,7 @@ test('Campaign Bundle v3 from v0.12.0 migrates to v7 with empty contacts, thread
   delete legacy.documents.threads;
   const migrated = importCampaignBundle(legacy);
   assert.equal(migrated.schemaVersion, 7);
-  assert.equal(migrated.campaign.schemaVersion, 8);
+  assert.equal(migrated.campaign.schemaVersion, 9);
   assert.deepEqual(migrated.documents.contacts, []);
   assert.deepEqual(migrated.documents.threads, []);
   assert.deepEqual(migrated.documents.encounters, []);

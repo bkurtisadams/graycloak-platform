@@ -1,8 +1,8 @@
 import { stableDocumentId } from '../../packages/classic-traveller-rules/index.js';
 
 export const CAMPAIGN_DOCUMENT_TYPE = 'graycloak-traveller-campaign';
-export const CURRENT_CAMPAIGN_DOCUMENT_SCHEMA_VERSION = 8;
-export const SUPPORTED_CAMPAIGN_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8]);
+export const CURRENT_CAMPAIGN_DOCUMENT_SCHEMA_VERSION = 9;
+export const SUPPORTED_CAMPAIGN_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
 export const DEFAULT_CAMPAIGN_TIME = Object.freeze({
   year: 4800,
@@ -12,7 +12,7 @@ export const DEFAULT_CAMPAIGN_TIME = Object.freeze({
 
 const TOP_LEVEL_KEYS = Object.freeze([
   'documentType', 'schemaVersion', 'identity', 'time', 'location',
-  'party', 'activeShipId', 'documentRefs', 'roster', 'commerce', 'notes'
+  'party', 'activeCharacterId', 'activeShipId', 'documentRefs', 'roster', 'commerce', 'notes'
 ]);
 
 export class CampaignDocumentValidationError extends Error {
@@ -160,6 +160,7 @@ export function createCampaignDocument({
   roster = {},
   commerce = {},
   partyCharacterIds,
+  activeCharacterId,
   activeShipId,
   notes = ''
 } = {}) {
@@ -194,6 +195,9 @@ export function createCampaignDocument({
   const resolvedActiveShipId = activeShipId === undefined
     ? (shipRefs[0]?.id ?? null)
     : activeShipId;
+  const resolvedActiveCharacterId = activeCharacterId === undefined
+    ? partyIds[0]
+    : activeCharacterId;
   const seed = `${name}\u0000${characterRefs.map((entry) => entry.id).join(',')}\u0000${Date.now()}\u0000${Math.random()}`;
 
   const document = {
@@ -213,6 +217,7 @@ export function createCampaignDocument({
     party: {
       characterIds: partyIds
     },
+    activeCharacterId: resolvedActiveCharacterId,
     activeShipId: resolvedActiveShipId,
     documentRefs: {
       characters: characterRefs,
@@ -284,6 +289,7 @@ export function validateCampaignDocument(document) {
     }
   }
 
+  add(errors, nonblank(document.activeCharacterId), 'activeCharacterId must be a nonblank string');
   add(errors, document.activeShipId === null || nonblank(document.activeShipId), 'activeShipId must be null or a nonblank string');
 
   add(errors, isPlainObject(document.documentRefs), 'documentRefs must be an object');
@@ -463,6 +469,7 @@ export function validateCampaignDocument(document) {
 
   if (Array.isArray(document.party?.characterIds)) {
     for (const id of document.party.characterIds) add(errors, characterIds.has(id), `party character is not in documentRefs: ${id}`);
+    add(errors, document.party.characterIds.includes(document.activeCharacterId), 'activeCharacterId must reference a party character');
   }
   if (document.activeShipId !== null) add(errors, shipIds.has(document.activeShipId), 'activeShipId must reference a ship in documentRefs');
 
@@ -537,6 +544,10 @@ export function migrateCampaignDocument(input) {
   if (next.schemaVersion === 7) {
     next.schemaVersion = 8;
     next.documentRefs = { ...next.documentRefs, activityLogs: [] };
+  }
+  if (next.schemaVersion === 8) {
+    next.schemaVersion = 9;
+    next.activeCharacterId = next.party?.characterIds?.[0] ?? null;
   }
   assertValidCampaignDocument(next);
   return next;
@@ -646,10 +657,21 @@ export function refreshCampaignDocumentRefs(document, { characters = [], ships =
   return next;
 }
 
-export function addCharacterToCampaign(document, characterDocument, { active = true } = {}) {
+export function addCharacterToCampaign(document, characterDocument, { active = true, makeActive = active } = {}) {
   const next = cloneJson(document);
   next.documentRefs.characters = uniqueById([...next.documentRefs.characters, characterRef(characterDocument)]);
   if (active && !next.party.characterIds.includes(characterDocument.identity.id)) next.party.characterIds.push(characterDocument.identity.id);
+  if (active && makeActive) next.activeCharacterId = characterDocument.identity.id;
+  assertValidCampaignDocument(next);
+  return next;
+}
+
+export function setActiveCampaignCharacter(document, characterId) {
+  const next = cloneJson(document);
+  if (!next.party.characterIds.includes(characterId)) {
+    throw new CampaignDocumentValidationError(`active character is not in the campaign party: ${characterId}`);
+  }
+  next.activeCharacterId = characterId;
   assertValidCampaignDocument(next);
   return next;
 }

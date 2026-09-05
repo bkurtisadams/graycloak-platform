@@ -2164,3 +2164,81 @@ input[readonly] {
   .context-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .context-focus-toggle { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--rule); }
 }
+
+/* =========================================================================
+   v0.20.0: operations left | scene center | procedure and journal right.
+   ========================================================================= */
+.stage,
+.activity-log-hidden .stage {
+  grid-template-columns: 390px minmax(520px, 1fr) 340px;
+  gap: 0 14px;
+}
+
+.center-stack { display: contents; }
+.scene { grid-column: 2; grid-row: 1; min-width: 0; }
+.context,
+#chargen-tables-section { grid-column: 1; grid-row: 1; min-width: 0; margin: 0; }
+.context { position: sticky; top: 10px; }
+.context-scroll { max-height: calc(100vh - 125px); }
+.context-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+.command-rail {
+  grid-column: 3;
+  grid-row: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: sticky;
+  top: 10px;
+  max-height: calc(100vh - 20px);
+}
+.command-rail > * { margin: 0; }
+.command-rail .activity-panel {
+  position: static;
+  width: auto;
+  height: min(520px, calc(100vh - 260px));
+  min-height: 300px;
+  margin: 0;
+}
+.campaign-transition-action { background: var(--action-ready); border-color: var(--action-border); font-weight: 700; }
+.campaign-field select { width: 100%; }
+
+.scene-route-summary { border-top: 0; border-bottom: 1px solid var(--rule); }
+.scene-route-summary + .canvas { border-top: 0; }
+
+.chargen-mode .center-stack { display: contents; }
+.chargen-mode #chargen-tables-section { display: block; }
+
+@media (max-width: 1299px) {
+  .stage,
+  .activity-log-hidden .stage { grid-template-columns: 350px minmax(0, 1fr); }
+  .scene { grid-column: 2; }
+  .context,
+  #chargen-tables-section { grid-column: 1; }
+  .command-rail {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    position: static;
+    max-height: none;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+    margin-top: 10px;
+  }
+  .command-rail .activity-panel { height: 380px; min-height: 300px; }
+}
+
+@media (max-width: 860px) {
+  .stage,
+  .activity-log-hidden .stage { grid-template-columns: 1fr; }
+  .scene,
+  .context,
+  #chargen-tables-section,
+  .command-rail { grid-column: 1; grid-row: auto; position: static; }
+  .context { order: 1; }
+  .scene { order: 2; }
+  .command-rail { display: flex; margin-top: 10px; }
+  .scene-footer { grid-template-columns: 1fr; }
+  .scene-footer-cell + .scene-footer-cell { border-left: 0; border-top: 1px solid var(--rule); }
+}

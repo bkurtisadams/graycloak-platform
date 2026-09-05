@@ -118,6 +118,7 @@ import {
 } from './commerce-market.js';
 
 import {
+  addCharacterToCampaign,
   addShipToCampaign,
   addContractToCampaign,
   addSituationToCampaign,
@@ -134,7 +135,8 @@ import {
   updateCampaignLocation,
   updateCampaignTime,
   speculativeLotPurchasedQuantity,
-  recordSpeculativeLotPurchase
+  recordSpeculativeLotPurchase,
+  setActiveCampaignCharacter
 } from '../src/campaign-document.js';
 
 import {
@@ -254,8 +256,6 @@ const el = {
   footerCurrentMeta: document.querySelector('#footer-current-meta'),
   contextTabs: document.querySelector('#context-tabs'),
   contextTakeover: document.querySelector('#context-takeover'),
-  centerStack: document.querySelector('#center-stack'),
-  toggleContextFocus: document.querySelector('#toggle-context-focus'),
   chargenTablesSection: document.querySelector('#chargen-tables-section'),
   chargenTables: document.querySelector('#chargen-tables'),
   personnelSection: document.querySelector('#personnel-section'),
@@ -304,6 +304,7 @@ const el = {
   loadCharacter: document.querySelector('#load-character'),
   loadFile: document.querySelector('#load-file'),
   newCampaign: document.querySelector('#new-campaign'),
+  addCharacterToCampaign: document.querySelector('#add-character-to-campaign'),
   saveCampaign: document.querySelector('#save-campaign'),
   loadCampaign: document.querySelector('#load-campaign'),
   importCampaign: document.querySelector('#import-campaign'),
@@ -314,6 +315,7 @@ const el = {
   campaignYear: document.querySelector('#campaign-year'),
   campaignSystem: document.querySelector('#campaign-system'),
   campaignWorld: document.querySelector('#campaign-world'),
+  campaignActiveCharacter: document.querySelector('#campaign-active-character'),
   campaignRecord: document.querySelector('#campaign-record'),
   threadSection: document.querySelector('#thread-section'),
   threadRecord: document.querySelector('#thread-record'),
@@ -468,8 +470,8 @@ let activityLogDocument = null;
 let activityFilter = 'play';
 let activityOrder = 'newest';
 let activityPanelVisible = true;
-let contextFocused = false;
 let lastAutosaveAt = null;
+let returnCampaignId = null;
 let pendingNpcPortraitAsset = null;
 let documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
 let openHelpTopic = null;
@@ -1162,19 +1164,9 @@ function applyCampaignLayout() {
 function setWorkspaceView(view) {
   if (!WORKSPACE_VIEWS.includes(view)) return;
   if (view === 'ship' && !shipDocument) return;
-  if (view !== 'play' && contextFocused) setContextFocused(false);
   activeWorkspaceView = view;
   applyCampaignLayout();
   renderSelectedSystemSummary();
-}
-
-function setContextFocused(focused) {
-  contextFocused = Boolean(focused);
-  el.centerStack?.classList.toggle('context-focused', contextFocused);
-  if (el.toggleContextFocus) {
-    el.toggleContextFocus.textContent = contextFocused ? '[ SHOW MAP ]' : '[ FOCUS ]';
-    el.toggleContextFocus.setAttribute('aria-pressed', contextFocused ? 'true' : 'false');
-  }
 }
 
 function toggleSystemDetails() {
@@ -1734,6 +1726,7 @@ function renderCampaign() {
   el.saveCampaign.disabled = !campaignDocument || !registry;
   el.exportCampaign.disabled = !campaignDocument || !registry;
   el.loadCampaign.disabled = !registry || !registry.getActiveCampaignId();
+  el.addCharacterToCampaign.hidden = !campaignDocument;
   if (!campaignDocument) {
     el.campaignSection.hidden = true;
     renderCampaignHeader();
@@ -1749,6 +1742,11 @@ function renderCampaign() {
   if (el.campaignSystem.value !== campaignDocument.location.systemName) el.campaignSystem.value = campaignDocument.location.systemName;
   if (el.campaignWorld.value !== campaignDocument.location.worldName) el.campaignWorld.value = campaignDocument.location.worldName;
   const resolved = campaignDocumentsForDisplay();
+  el.campaignActiveCharacter.replaceChildren(...campaignDocument.party.characterIds.map((id) => {
+    const document = resolved.characters.find((entry) => entry.identity.id === id);
+    return new Option((document?.identity.name || id).toUpperCase(), id);
+  }));
+  el.campaignActiveCharacter.value = campaignDocument.activeCharacterId;
   el.campaignRecord.textContent = buildCampaignRecord(campaignDocument, resolved);
   el.threadRecord.textContent = buildAdventureThreadRecord({ threads: resolved.threads, contacts: resolved.contacts });
   renderCampaignHeader();
@@ -4067,8 +4065,6 @@ function applyOperationsDeskTab() {
       : 'SITUATION · RESOLVE IT OR RETURN TO PORT · [ BACK TO PORT ]';
   }
   el.contextTabs?.classList.toggle('suspended', takeover);
-  if (takeover && contextFocused) setContextFocused(false);
-  if (el.toggleContextFocus) el.toggleContextFocus.hidden = takeover || !campaignPlayActive();
   el.subsectorSection?.classList.toggle('encounter-workspace-active', encounterWorkspaceActive);
   el.subsectorSection?.classList.remove('navigation-workspace-active');
   if (el.subsectorHeading) el.subsectorHeading.textContent = encounterWorkspaceActive ? 'PERSONAL COMBAT' : 'SUBSECTOR NAVIGATION';
@@ -4490,7 +4486,7 @@ function restoreCampaignFromRegistry(campaign) {
   if (resolved.missing.length) {
     throw new Error(`campaign references missing documents: ${resolved.missing.join(', ')}`);
   }
-  const preferredCharacterId = campaign.party.characterIds[0];
+  const preferredCharacterId = campaign.activeCharacterId;
   const nextCharacter = resolved.characters.find((entry) => entry.identity.id === preferredCharacterId) ?? resolved.characters[0];
   if (!nextCharacter) throw new Error('campaign has no resolvable party character');
   const nextShip = campaign.activeShipId
@@ -4523,6 +4519,60 @@ function restoreCampaignFromRegistry(campaign) {
   if (expired.length || createdSituation || consequencesChanged) persistCampaignState();
 }
 
+function addCharacterDocumentToCampaign(characterDocument, campaignId, { makeActive = false, linkedShip = null } = {}) {
+  if (!registry) throw new Error('browser local storage is unavailable');
+  const storedCampaign = registry.get(campaignId);
+  if (!storedCampaign) throw new Error(`saved campaign document is missing: ${campaignId}`);
+
+  registry.put(characterDocument);
+  let nextCampaign = addCharacterToCampaign(storedCampaign, characterDocument, { active: true, makeActive });
+  if (linkedShip && shipMatchesCharacter(linkedShip, characterDocument)) {
+    registry.put(linkedShip);
+    nextCampaign = addShipToCampaign(nextCampaign, linkedShip, { makeActive: !nextCampaign.activeShipId });
+  }
+  registry.put(nextCampaign);
+  registry.setActiveCampaignId(nextCampaign.identity.id);
+  restoreCampaignFromRegistry(nextCampaign);
+  returnCampaignId = null;
+  logActivity('CHAR', `${characterDocument.identity.name || characterDocument.identity.id} added to campaign${makeActive ? ' / active character' : ''}`, {
+    sourceDocumentId: characterDocument.identity.id
+  });
+  persistCampaignState();
+  setStatus(`CHARACTER ADDED TO ${nextCampaign.identity.name || 'CAMPAIGN'}`, 'ok');
+  render();
+}
+
+function addCompletedCharacterToSavedCampaign() {
+  try {
+    const gameplay = ensureGameplayDocument();
+    if (!gameplay) throw new Error('complete the character before adding it to a campaign');
+    const campaignId = returnCampaignId ?? registry?.getActiveCampaignId();
+    if (!campaignId) throw new Error('no saved campaign is available');
+    addCharacterDocumentToCampaign(gameplay, campaignId, { makeActive: true, linkedShip: shipDocument });
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function activatePartyCharacter(characterId) {
+  if (!campaignDocument || characterId === campaignDocument.activeCharacterId) return;
+  try {
+    const nextCharacter = partyCharacterDocuments.find((entry) => entry.identity.id === characterId) ?? registry?.get(characterId);
+    if (!nextCharacter) throw new Error(`party character document is missing: ${characterId}`);
+    campaignDocument = setActiveCampaignCharacter(campaignDocument, characterId);
+    gameplayDocument = nextCharacter;
+    documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
+    persistCampaignState();
+    logActivity('CHAR', `Active character: ${nextCharacter.identity.name || characterId}`, { sourceDocumentId: characterId });
+    setStatus(`ACTIVE CHARACTER: ${nextCharacter.identity.name || characterId}`, 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
 function newCampaign() {
   try {
     const sessionActivity = activityLog && !campaignDocument ? activityLog.list() : [];
@@ -4552,8 +4602,10 @@ function newCampaign() {
       assets: [],
       activityLogs: [],
       partyCharacterIds: [gameplay.identity.id],
+      activeCharacterId: gameplay.identity.id,
       activeShipId: shipDocument?.identity.id ?? null
     });
+    returnCampaignId = null;
     documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
     setActivityContext({ initialEntries: sessionActivity });
     logActivity('SYSLOG', `Campaign created: ${campaignDocument.identity.name || 'Unnamed Campaign'}`);
@@ -4671,6 +4723,26 @@ function renderActions(procedure) {
 
   if (documentMode === TRAVELLER_DOCUMENT_KINDS.CHARACTER || character.phase === CHARGEN_PHASES.COMPLETE) {
     const gameplay = ensureGameplayDocument();
+
+    const startCampaignButton = document.createElement('button');
+    startCampaignButton.type = 'button';
+    startCampaignButton.className = 'text-button action-button campaign-transition-action';
+    startCampaignButton.textContent = '[ START NEW CAMPAIGN ]';
+    startCampaignButton.addEventListener('click', newCampaign);
+    el.actions.append(startCampaignButton);
+
+    const savedCampaignId = returnCampaignId ?? registry?.getActiveCampaignId();
+    const savedCampaign = savedCampaignId ? registry?.get(savedCampaignId) : null;
+    if (savedCampaign) {
+      const addToCampaignButton = document.createElement('button');
+      addToCampaignButton.type = 'button';
+      addToCampaignButton.className = 'text-button action-button campaign-transition-action';
+      addToCampaignButton.textContent = returnCampaignId
+        ? `[ ADD TO ${(savedCampaign.identity.name || 'CAMPAIGN').toUpperCase()} AND RETURN ]`
+        : `[ ADD TO ${(savedCampaign.identity.name || 'SAVED CAMPAIGN').toUpperCase()} ]`;
+      addToCampaignButton.addEventListener('click', addCompletedCharacterToSavedCampaign);
+      el.actions.append(addToCampaignButton);
+    }
 
     const exportCharacterButton = document.createElement('button');
     exportCharacterButton.type = 'button';
@@ -5245,13 +5317,19 @@ function saveCharacter() {
   }
 }
 
-async function loadDocument(file, { campaignOnly = false } = {}) {
+async function loadDocument(file, { campaignOnly = false, addToCampaign = false } = {}) {
   if (!file) return;
   try {
     const text = await file.text();
     const loaded = loadTravellerDocument(text);
     if (campaignOnly && ![TRAVELLER_DOCUMENT_KINDS.CAMPAIGN, TRAVELLER_DOCUMENT_KINDS.CAMPAIGN_BUNDLE].includes(loaded.kind)) {
       throw new Error('select a Traveller Campaign Document or portable Campaign Bundle');
+    }
+    if (addToCampaign) {
+      if (!campaignDocument) throw new Error('load a campaign before adding a character');
+      if (loaded.kind !== TRAVELLER_DOCUMENT_KINDS.CHARACTER) throw new Error('select a completed Traveller Character Document');
+      addCharacterDocumentToCampaign(loaded.characterDocument, campaignDocument.identity.id, { makeActive: false });
+      return;
     }
 
     if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CHARGEN) {
@@ -5273,6 +5351,7 @@ async function loadDocument(file, { campaignOnly = false } = {}) {
       logActivity('SYSLOG', `Chargen JSON loaded: ${file.name}`);
       setStatus('CHARGEN JSON LOADED', 'ok');
     } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CHARACTER) {
+      returnCampaignId = null;
       gameplayDocument = loaded.characterDocument;
       partyCharacterDocuments = [gameplayDocument];
       documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
@@ -5429,12 +5508,14 @@ async function loadDocument(file, { campaignOnly = false } = {}) {
         setStatus('ACTIVITY LOG DOCUMENT LOADED / ADDED TO CAMPAIGN', 'ok');
       } else setStatus('ACTIVITY LOG DOCUMENT REGISTERED LOCALLY', 'ok');
     } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CAMPAIGN) {
+      returnCampaignId = null;
       if (!registry) throw new Error('browser local storage is unavailable');
       registry.put(loaded.campaignDocument);
       registry.setActiveCampaignId(loaded.campaignDocument.identity.id);
       restoreCampaignFromRegistry(loaded.campaignDocument);
       setStatus('CAMPAIGN DOCUMENT LOADED FROM LOCAL REGISTRY', 'ok');
     } else if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CAMPAIGN_BUNDLE) {
+      returnCampaignId = null;
       if (!registry) throw new Error('browser local storage is unavailable');
       const bundle = registry.putBundle(loaded.campaignBundle);
       registry.setActiveCampaignId(bundle.campaign.identity.id);
@@ -5579,10 +5660,17 @@ el.generateShipRegistry.addEventListener('click', () => {
 });
 
 function startNewCharacter() {
-  const prompt = campaignPlayActive()
-    ? 'Leave campaign play and start a new character? Unsaved campaign changes will be lost. Save or export first if needed.'
+  const fromCampaign = campaignPlayActive();
+  const prompt = fromCampaign
+    ? `Start a new character for ${campaignDocument.identity.name || 'this campaign'}? The campaign will be saved and offered again when chargen is complete.`
     : 'Discard the current chargen state and create a new character?';
   if (!window.confirm(prompt)) return;
+  if (fromCampaign) {
+    persistCampaignState();
+    returnCampaignId = campaignDocument.identity.id;
+  } else {
+    returnCampaignId = null;
+  }
   character = createCharacter();
   documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
   gameplayDocument = null;
@@ -5612,6 +5700,7 @@ el.newCharacter.addEventListener('click', startNewCharacter);
 el.newCharacterFromCampaign.addEventListener('click', startNewCharacter);
 
 el.campaignName.addEventListener('input', () => updateCampaignName(el.campaignName.value));
+el.campaignActiveCharacter.addEventListener('change', () => activatePartyCharacter(el.campaignActiveCharacter.value));
 el.campaignDay.addEventListener('change', updateCampaignDate);
 el.campaignYear.addEventListener('change', updateCampaignDate);
 el.campaignName.addEventListener('change', () => {
@@ -5641,7 +5730,6 @@ el.activityOrder.addEventListener('change', () => {
   renderActivity();
 });
 el.toggleActivity.addEventListener('click', () => setActivityPanelVisible(!activityPanelVisible));
-el.toggleContextFocus.addEventListener('click', () => setContextFocused(!contextFocused));
 el.campaignMenu.addEventListener('click', (event) => {
   if (!event.target.closest('button')) return;
   window.setTimeout(() => { el.campaignMenu.open = false; }, 0);
@@ -5847,6 +5935,10 @@ el.importCampaign.addEventListener('click', () => {
   el.loadFile.dataset.scope = 'campaign';
   el.loadFile.click();
 });
+el.addCharacterToCampaign.addEventListener('click', () => {
+  el.loadFile.dataset.scope = 'character-to-campaign';
+  el.loadFile.click();
+});
 el.exportCampaign.addEventListener('click', exportCampaignPortable);
 
 el.saveCharacter.addEventListener('click', saveCharacter);
@@ -5854,11 +5946,13 @@ el.loadCharacter.addEventListener('click', () => {
   el.loadFile.dataset.scope = 'any';
   el.loadFile.click();
 });
-el.loadFile.addEventListener('change', () => loadDocument(el.loadFile.files?.[0], { campaignOnly: el.loadFile.dataset.scope === 'campaign' }));
+el.loadFile.addEventListener('change', () => loadDocument(el.loadFile.files?.[0], {
+  campaignOnly: el.loadFile.dataset.scope === 'campaign',
+  addToCampaign: el.loadFile.dataset.scope === 'character-to-campaign'
+}));
 
 setActivityContext();
 setActivityPanelVisible(activityPanelVisible);
-setContextFocused(false);
 render();
 window.setInterval(updateAutosaveStatus, 10000);
 if (!registry) setStatus('READY / LOCAL CAMPAIGN STORAGE UNAVAILABLE', 'error');

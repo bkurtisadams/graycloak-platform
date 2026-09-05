@@ -1,5 +1,13 @@
 # Graycloak Traveller
 
+## v0.20.0 campaign entry workflow and command-centered play shell
+
+v0.20.0 closes the gap between character generation and campaign play. A completed character now receives prominent `[ START NEW CAMPAIGN ]` and, when browser storage contains one, `[ ADD TO ... ]` actions alongside export. Starting a new character from an active campaign saves and remembers that campaign, then offers `[ ADD TO ... AND RETURN ]` when generation finishes. The Campaign menu adds `[ ADD CHARACTER ]`, which imports a completed Character Document into the loaded party without unloading the campaign or silently replacing the controlled character.
+
+Campaign Document v9 adds `activeCharacterId`, validated as a member of the party and migrated deterministically from the first party member in v1-v8 documents. The Campaign record has an explicit Active Character selector. Imported party members remain inactive until selected; characters generated from the active campaign become active when they return.
+
+The desktop shell is reorganized around the play loop: a wider 390px left rail contains WORLD, TRADE, JOBS, and NPCS (or Book 1 tables during chargen); the center remains the map, combat scene, or character sheet; and a 340px right rail stacks WHAT NOW? directly above the persistent Log. Current Port and Selected Destination now form a route strip above the subsector map. The former context-focus control is removed because the operations panel no longer competes vertically with the map. Responsive layouts retain two-column and single-column fallbacks.
+
 ## v0.19.1 mustering-result highlights and noble titles
 
 v0.19.1 highlights the resolved die/result cells in the Book 1 Benefits or Cash table after every mustering-out roll, including modified totals. It also displays the character's civilian hereditary noble-title entitlement separately from military rank on the in-progress sheet, playable sheet, and text records. The title options are derived from Social Standing through the rules package's source-backed Book 1 p.6 table, so no duplicate title state can become stale if SOC changes. SOC above F remains noble-eligible but is explicitly left to referee determination because Book 1 names no title above Duke/Duchess.

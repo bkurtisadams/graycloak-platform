@@ -545,7 +545,8 @@ export function buildCampaignRecord(campaign, { characters = [], ships = [], con
   const partyLines = campaign.party.characterIds.map((id) => {
     const character = characterMap.get(id);
     if (!character) return `PARTY ${id} / DOCUMENT MISSING`;
-    return `PARTY ${character.identity.name || id} / ${serviceName(character.career.service).toUpperCase()} / UPP ${character.upp} / ${formatCredits(character.finances.credits)}`;
+    const active = id === campaign.activeCharacterId ? 'ACTIVE CHARACTER' : 'PARTY';
+    return `${active} ${character.identity.name || id} / ${serviceName(character.career.service).toUpperCase()} / UPP ${character.upp} / ${formatCredits(character.finances.credits)}`;
   });
   const activeShipLine = activeShip
     ? `ACTIVE SHIP ${activeShip.identity.name || activeShip.identity.id} / ${activeShip.identity.registry || 'NO REGISTRY'} / TYPE ${activeShip.design.typeCode}`

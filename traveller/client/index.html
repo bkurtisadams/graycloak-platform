@@ -12,7 +12,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.19.1</div>
+          <div id="app-subtitle" class="subtitle">v0.20.0</div>
         </div>
         <nav class="utility campaign-utility" aria-label="Campaign and view commands">
           <button id="new-character-from-campaign" class="text-button utility-button" type="button" title="Leave campaign play and start a new character generation" hidden>[ NEW CHARACTER ]</button>
@@ -24,6 +24,7 @@
               <button id="load-campaign" class="text-button utility-button" type="button" title="Load the campaign saved in this browser">[ LOAD CAMPAIGN ]</button>
               <button id="import-campaign" class="text-button utility-button" type="button" title="Import a portable campaign JSON file">[ IMPORT CAMPAIGN ]</button>
               <button id="export-campaign" class="text-button utility-button" type="button" title="Export a portable campaign JSON file" disabled>[ EXPORT CAMPAIGN ]</button>
+              <button id="add-character-to-campaign" class="text-button utility-button" type="button" title="Add a completed Character Document to the active campaign" hidden>[ ADD CHARACTER ]</button>
               <button id="open-campaign-view" class="text-button utility-button" type="button" title="Campaign record" hidden>[ CAMPAIGN RECORD ]</button>
               <button id="open-threads-view" class="text-button utility-button" type="button" title="Adventure threads" hidden>[ ADVENTURE THREADS ]</button>
             </div>
@@ -73,7 +74,7 @@
     <input id="load-file" type="file" accept="application/json,.json" hidden>
 
     <div class="stage">
-      <aside class="dock" aria-label="Procedure and Book 1 tables">
+      <aside class="command-rail" aria-label="Procedure and activity log">
         <section id="procedure-section" class="panel whatnow" aria-labelledby="procedure-heading">
           <div class="whatnow-head">
             <h2 id="procedure-heading" class="whatnow-title">WHAT NOW?</h2>
@@ -82,12 +83,6 @@
           <div id="procedure" class="procedure" aria-live="polite"></div>
           <div id="actions" class="actions"></div>
           <div id="play-procedure" class="play-procedure" hidden aria-live="polite"></div>
-        </section>
-        <section id="chargen-tables-section" class="panel context-panel" hidden aria-labelledby="chargen-tables-heading">
-          <div class="section-heading">
-            <h2 id="chargen-tables-heading" class="section-title">BOOK 1 TABLES</h2>
-          </div>
-          <div id="chargen-tables" class="chargen-tables"></div>
         </section>
     <section id="chargen-record-section" class="panel chargen-record" hidden aria-label="Character history and generation log">
       <div>
@@ -105,9 +100,27 @@
         <pre id="generation-log" class="history"></pre>
       </div>
     </section>
+        <aside id="activity-panel" class="activity-panel panel" aria-labelledby="activity-heading">
+          <div class="activity-header">
+            <h2 id="activity-heading" class="activity-title">LOG</h2>
+            <span class="activity-header-actions"><button id="add-activity-note" class="text-button" type="button">[ NOTE ]</button><button id="clear-activity" class="text-button activity-clear" type="button">[ CLEAR ]</button></span>
+          </div>
+          <div id="activity-context" class="activity-context">SESSION</div>
+          <div class="activity-controls">
+            <label class="activity-filter-label">SHOW<select id="activity-filter"><option value="play" selected>PLAY</option><option value="all">ALL</option><option value="character">CHARACTER</option><option value="trade">TRADE + JOBS</option><option value="ship">SHIP + TRAVEL</option><option value="personal-combat">PERSONAL COMBAT</option><option value="space-combat">SPACE COMBAT</option><option value="campaign">CAMPAIGN + NOTES</option><option value="system">SYSTEM</option></select></label>
+            <label class="activity-order-label">ORDER<select id="activity-order"><option value="newest" selected>NEWEST FIRST</option><option value="oldest">OLDEST FIRST</option></select></label>
+          </div>
+          <div id="activity-feed" class="activity-feed" role="log" aria-live="polite" aria-relevant="additions"></div>
+        </aside>
       </aside>
 
       <div id="center-stack" class="center-stack">
+      <section id="chargen-tables-section" class="panel context-panel" hidden aria-labelledby="chargen-tables-heading">
+        <div class="section-heading">
+          <h2 id="chargen-tables-heading" class="section-title">BOOK 1 TABLES</h2>
+        </div>
+        <div id="chargen-tables" class="chargen-tables"></div>
+      </section>
       <section class="scene" aria-label="Scene">
         <div class="scenebar">
           <div class="scenebar-main">
@@ -125,6 +138,21 @@
           <button id="map-zoom-in" class="text-button map-zoom-button" type="button" aria-label="Zoom in">[ + ]</button>
           <button id="map-zoom-fit" class="text-button map-zoom-button" type="button">[ FIT ]</button>
         </div>
+          </div>
+        </div>
+        <div id="selected-system-summary" class="scene-footer scene-route-summary" hidden>
+          <div class="scene-footer-cell">
+            <div class="campaign-header-kicker">CURRENT PORT</div>
+            <div id="footer-current-name" class="scene-footer-name">--</div>
+            <div id="footer-current-meta" class="scene-footer-meta">--</div>
+          </div>
+          <div class="scene-footer-cell">
+            <div class="campaign-header-kicker">SELECTED DESTINATION</div>
+            <div id="selected-system-summary-text" class="scene-footer-name">--</div>
+            <div class="scene-footer-actions">
+              <div id="jump-actions" class="actions jump-actions"></div>
+              <button id="toggle-system-details" class="text-button" type="button" aria-expanded="false" aria-controls="system-record-section">[ DETAILS ]</button>
+            </div>
           </div>
         </div>
         <div class="canvas">
@@ -264,6 +292,7 @@
         <div class="campaign-field compact"><label for="campaign-year">YEAR</label><input id="campaign-year" type="number" min="0" step="1"></div>
         <div class="campaign-field"><label for="campaign-system">SYSTEM</label><input id="campaign-system" type="text" maxlength="100" autocomplete="off" spellcheck="false" readonly></div>
         <div class="campaign-field"><label for="campaign-world">WORLD</label><input id="campaign-world" type="text" maxlength="100" autocomplete="off" spellcheck="false" readonly></div>
+        <div class="campaign-field"><label for="campaign-active-character">ACTIVE CHARACTER</label><select id="campaign-active-character"></select></div>
       </div>
       <pre id="campaign-record" class="record campaign-record" aria-live="polite"></pre>
     </section>
@@ -275,21 +304,6 @@
       </div>
       <pre id="thread-record" class="record thread-record" aria-live="polite"></pre>
     </section>
-        </div>
-        <div id="selected-system-summary" class="scene-footer" hidden>
-          <div class="scene-footer-cell">
-            <div class="campaign-header-kicker">CURRENT PORT</div>
-            <div id="footer-current-name" class="scene-footer-name">--</div>
-            <div id="footer-current-meta" class="scene-footer-meta">--</div>
-          </div>
-          <div class="scene-footer-cell">
-            <div class="campaign-header-kicker">SELECTED DESTINATION</div>
-            <div id="selected-system-summary-text" class="scene-footer-name">--</div>
-            <div class="scene-footer-actions">
-              <div id="jump-actions" class="actions jump-actions"></div>
-              <button id="toggle-system-details" class="text-button" type="button" aria-expanded="false" aria-controls="system-record-section">[ DETAILS ]</button>
-            </div>
-          </div>
         </div>
       <section id="system-record-section" class="system-record-section" hidden aria-labelledby="system-record-heading">
         <div class="section-heading">
@@ -306,7 +320,6 @@
           <button id="operations-tab-trade" class="text-button context-tab" type="button" role="tab" aria-controls="commerce-section" aria-selected="false">TRADE</button>
           <button id="operations-tab-jobs" class="text-button context-tab" type="button" role="tab" aria-controls="contract-section" aria-selected="false">JOBS</button>
           <button id="operations-tab-roster" class="text-button context-tab" type="button" role="tab" aria-controls="roster-section" aria-selected="false" title="Persistent NPC, creature, and robot roster">NPCS</button>
-          <button id="toggle-context-focus" class="text-button context-focus-toggle" type="button" aria-pressed="false">[ FOCUS ]</button>
         </div>
         <div id="context-takeover" class="context-takeover" hidden></div>
         <div class="context-scroll">
@@ -361,18 +374,6 @@
       </aside>
       </div>
 
-      <aside id="activity-panel" class="activity-panel panel" aria-labelledby="activity-heading">
-        <div class="activity-header">
-          <h2 id="activity-heading" class="activity-title">LOG</h2>
-          <span class="activity-header-actions"><button id="add-activity-note" class="text-button" type="button">[ NOTE ]</button><button id="clear-activity" class="text-button activity-clear" type="button">[ CLEAR ]</button></span>
-        </div>
-        <div id="activity-context" class="activity-context">SESSION</div>
-        <div class="activity-controls">
-          <label class="activity-filter-label">SHOW<select id="activity-filter"><option value="play" selected>PLAY</option><option value="all">ALL</option><option value="character">CHARACTER</option><option value="trade">TRADE + JOBS</option><option value="ship">SHIP + TRAVEL</option><option value="personal-combat">PERSONAL COMBAT</option><option value="space-combat">SPACE COMBAT</option><option value="campaign">CAMPAIGN + NOTES</option><option value="system">SYSTEM</option></select></label>
-          <label class="activity-order-label">ORDER<select id="activity-order"><option value="newest" selected>NEWEST FIRST</option><option value="oldest">OLDEST FIRST</option></select></label>
-        </div>
-        <div id="activity-feed" class="activity-feed" role="log" aria-live="polite" aria-relevant="additions"></div>
-      </aside>
     </div>
 
     <dialog id="roll-dialog" class="roll-dialog" aria-labelledby="roll-dialog-title">
