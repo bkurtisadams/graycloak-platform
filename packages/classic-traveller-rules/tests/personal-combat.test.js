@@ -9,7 +9,11 @@ import {
   resolvePersonalMorale,
   weaponTargetNumber,
   movePersonalCombatRange,
-  endPersonalCombatRecovery
+  endPersonalCombatRecovery,
+  PERSONAL_WEAPONS,
+  PERSONAL_ARMOR_TYPES,
+  WEAPONS_MATRIX,
+  evasionDefenseDM
 } from '../index.js';
 
 function hawkeye() {
@@ -22,10 +26,38 @@ function raider() {
     characteristics: { STR: 7, DEX: 7, END: 7, INT: 6 }, skills: { 'Automatic Pistol': 0 }, armor: 'jack', weaponKey: 'automatic-pistol' });
 }
 
-test('corrected Rifle table resolves armor and range throws', () => {
+test('Book 1 pp.46-47 (errata applied) target numbers derive from the printed matrices', () => {
+  // Rifle: nothing +3 / short +1 -> 4; cloth -3 / medium 0 -> 11; combat -5 / very long -3 -> 16.
   assert.equal(weaponTargetNumber('rifle', 'none', 'short'), 4);
-  assert.equal(weaponTargetNumber('rifle', 'cloth', 'medium'), 10);
-  assert.equal(weaponTargetNumber('rifle', 'combat', 'very-long'), 15);
+  assert.equal(weaponTargetNumber('rifle', 'cloth', 'medium'), 11);
+  assert.equal(weaponTargetNumber('rifle', 'combat', 'very-long'), 16);
+  // Reflec is the anti-laser armor: laser rifle -8 / short +2 -> 14.
+  assert.equal(weaponTargetNumber('laser-rifle', 'reflec', 'short'), 14);
+  assert.equal(weaponTargetNumber('laser-carbine', 'reflec', 'close'), 18);
+  // Errata: carbine vs ablat -1, SMG at long -3, dagger vs combat -7.
+  assert.equal(weaponTargetNumber('carbine', 'ablat', 'short'), 8);
+  assert.equal(weaponTargetNumber('submachine-gun', 'none', 'long'), 6);
+  assert.equal(weaponTargetNumber('dagger', 'combat', 'close'), 14);
+  // Body pistol vs reflec -4; hands vs jack -1; body pistol wounds 2D (errata).
+  assert.equal(weaponTargetNumber('body-pistol', 'reflec', 'close'), 10);
+  assert.equal(weaponTargetNumber('hands', 'jack', 'close'), 7);
+  assert.equal(PERSONAL_WEAPONS['body-pistol'].damageDice, 2);
+  assert.equal(PERSONAL_WEAPONS.hands.characteristic, 'STR');
+  assert.equal(PERSONAL_WEAPONS.cutlass.fatigueDM, -4);
+  for (const [key, spec] of Object.entries(PERSONAL_WEAPONS)) {
+    PERSONAL_ARMOR_TYPES.forEach((armor, ai) => spec.rangeDMs.forEach((rangeDM, ri) => {
+      const expected = rangeDM === null ? null : 8 - WEAPONS_MATRIX[key][ai] - rangeDM;
+      assert.equal(spec.targets[armor][ri], expected, `${key} ${armor} ${ri}`);
+    }));
+  }
+});
+
+test('Book 1 p.32 evasion DM scales with range', () => {
+  assert.equal(evasionDefenseDM('close'), -1);
+  assert.equal(evasionDefenseDM('short'), -1);
+  assert.equal(evasionDefenseDM('medium'), -2);
+  assert.equal(evasionDefenseDM('long'), -4);
+  assert.equal(evasionDefenseDM('very-long'), -4);
 });
 
 test('surprise requires a three-point margin after party DMs', () => {

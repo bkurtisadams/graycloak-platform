@@ -44,7 +44,7 @@ test('patron situation key is stable for one port call', async () => {
 
 test('Book 3 Scout patron contact becomes a Sea of Suns skill situation after suitability succeeds', async () => {
   const { campaign, ship, system } = await fixture('cinder');
-  const contact = generatePatronContact(createSequenceDice([1, 3, 5, 4, 4])); // Scout, reaction 8
+  const contact = generatePatronContact(createSequenceDice([5, 3, 5, 4, 4])); // availability 5 finds a patron: Scout, reaction 8
   const offer = buildPatronSituationOffer({ campaign, ship, system, contact, dice: createSequenceDice([2]) });
   assert.equal(offer.kind, 'patron-contact');
   assert.equal(offer.actor.type, 'Scout');
@@ -54,16 +54,17 @@ test('Book 3 Scout patron contact becomes a Sea of Suns skill situation after su
 
 test('Book 3 no-patron result is preserved as a resolved port-call attempt', async () => {
   const { campaign, ship, system } = await fixture('cinder');
-  const contact = generatePatronContact(createSequenceDice([6]));
+  const contact = generatePatronContact(createSequenceDice([3])); // 1-4: no patron this week
   const offer = buildPatronSituationOffer({ campaign, ship, system, contact, dice: createSequenceDice([]) });
   assert.equal(offer.status, 'resolved');
   assert.equal(offer.title, 'No Patron Contact');
-  assert.match(offer.detail, /roll: 6/i);
+  assert.match(offer.detail, /roll: 3/i);
+  assert.match(offer.detail, /5 or 6 finds/i);
 });
 
 test('hostile Book 3 patron reactions stay unresolved instead of being silently converted into a declined job', async () => {
   const { campaign, ship, system } = await fixture('cinder');
-  const contact = generatePatronContact(createSequenceDice([1, 1, 1, 1, 1])); // Arsonist, reaction 2: immediate attack
+  const contact = generatePatronContact(createSequenceDice([6, 1, 1, 1, 1])); // Arsonist, reaction 2: immediate attack
   const offer = buildPatronSituationOffer({ campaign, ship, system, contact, dice: createSequenceDice([]) });
   assert.equal(contact.reaction.tableTotal, 2);
   assert.equal(offer.status, undefined);

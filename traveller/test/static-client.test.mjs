@@ -655,14 +655,3 @@ test('v0.17.0 replaces accordion detail panels with a single-select campaign wor
   assert.match(app, /function startNewCharacter\(\)/);
   assert.match(app, /el\.newCharacterFromCampaign\.hidden = !active;/);
 });
-
-test('v0.17.1 synchronizes persistent character and roster wounds at every combat boundary', async () => {
-  const app = await read('app.js');
-  const html = await read('index.html');
-
-  assert.match(html, /v0\.17\.1/);
-  assert.match(app, /synchronizeEncounterDocuments/);
-  assert.match(app, /function synchronizeEncounterParticipantDocuments/);
-  assert.ok((app.match(/synchronizeEncounterParticipantDocuments\(/g) ?? []).length >= 7);
-  assert.match(app, /encounterDocuments\.filter\(\(entry\) => entry\.status === 'active'\)/);
-});

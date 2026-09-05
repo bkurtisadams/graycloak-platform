@@ -79,7 +79,7 @@ test('accepted job cargo does not block a partial fuel purchase when a full refi
     notes: 'Contract cargo'
   });
 
-  assert.equal(ship.state.currentFuelTons, 25);
+  assert.equal(ship.state.currentFuelTons, 20);
   assert.equal(ship.state.finances.balanceCr, 500);
   assert.equal(ship.state.cargoUsedTons, 1);
 
@@ -90,7 +90,7 @@ test('accepted job cargo does not block a partial fuel purchase when a full refi
     source: 'STARPORT C',
     dateLabel: '008-4800'
   });
-  assert.equal(partial.ship.state.currentFuelTons, 30);
+  assert.equal(partial.ship.state.currentFuelTons, 25);
   assert.equal(partial.ship.state.finances.balanceCr, 0);
   assert.equal(partial.ship.state.cargoUsedTons, 1);
 });
@@ -118,7 +118,7 @@ test('Hawkeye and Marisol can establish fuel, fund the ship, jump, pay port cost
   assert.equal(ship.state.finances.balanceCr, 5000);
 
   ship = consumeJumpFuel(ship, 1).ship;
-  assert.equal(ship.state.currentFuelTons, 25);
+  assert.equal(ship.state.currentFuelTons, 20);
   ship = beginPortCall(ship, { systemId: 'calder', arrivalDate: '008-4800', berthingDueCr: 100 });
   ship = payCurrentBerthing(ship, { dateLabel: '008-4800', description: 'Calder starport berthing' }).ship;
   assert.equal(ship.state.finances.balanceCr, 4900);
@@ -135,11 +135,11 @@ test('Hawkeye and Marisol can establish fuel, fund the ship, jump, pay port cost
     dateLabel: '008-4800'
   });
   ship = refueled.ship;
-  assert.equal(refueled.addedTons, 15);
-  assert.equal(refueled.costCr, 1500);
+  assert.equal(refueled.addedTons, 20);
+  assert.equal(refueled.costCr, 2000);
   assert.equal(ship.state.currentFuelTons, 40);
   assert.equal(ship.state.fuelQuality, 'mixed');
-  assert.equal(ship.state.finances.balanceCr, 3400);
+  assert.equal(ship.state.finances.balanceCr, 2900);
 
   let campaign = createCampaignDocument({
     id: 'campaign-port-ops-test', name: 'Sea of Suns',

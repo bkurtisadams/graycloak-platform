@@ -1,10 +1,8 @@
 # Graycloak Traveller
 
-## v0.17.1 persistent combat wounds
+## v0.17.1 rules audit alignment
 
-v0.17.1 makes the campaign Character Document and linked NPC Actor Documents carry the physical results of personal combat instead of leaving wounds isolated inside the Encounter Document. New encounters begin from each traveller's current STR, DEX, and END rather than silently restoring the original UPP values. After every resolved round, the browser writes the encounter's current physical values and Book 1 conscious, unconscious, or dead state back to the linked Character Document before the campaign is saved or exported. The existing end-of-combat halfway recovery therefore reaches the playable character sheet as part of the same synchronization step.
-
-Linked roster actors likewise retain their current STR, DEX, and END between encounters. Their body-aware condition and robot integrity fields remain referee-managed: numeric Book 1 wounds do not silently invent biological, robotic, alien, or hybrid condition effects. Loading an active campaign reconciles active Encounter Documents so a v0.17.0 campaign saved during combat does not lose wounds that had not yet reached its character records.
+v0.17.1 carries the client onto `@graycloak/classic-traveller-rules` v0.14.0 after the facsimile audit (`AUDIT-2026-09-facsimile.md`). The patron port-call text now states the Book 3 p.25 rule correctly (a 5 or 6 finds a patron), and the port-operations, encounter, and situation tests were re-pinned to the corrected fuel consumption (20t per Type S Jump-1 including the two-week power-plant share), the range-scaled evasion DM, and the corrected patron availability. No client UI changes.
 
 ## v0.17.0 single-select campaign workspace
 

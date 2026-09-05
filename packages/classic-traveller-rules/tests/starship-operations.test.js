@@ -60,14 +60,15 @@ test('Book 2 baseline berthing is Cr100 for six days then Cr100 each additional 
   assert.equal(calculateBerthingCost(10), 500);
 });
 
-test('Type S one-week Jump-1 and Jump-2 fuel requirements include proportional power-plant use', async () => {
+test('Type S Jump-1 and Jump-2 fuel requirements consume the two-week share of the four-week power-plant allowance', async () => {
   const ship = await fixtureShip();
   assert.deepEqual(calculateJumpFuelRequirement(ship, 1), {
-    distance: 1, jumpFuelTons: 10, powerPlantFuelTons: 5, totalTons: 15, travelDays: 7
+    distance: 1, jumpFuelTons: 10, powerPlantFuelTons: 10, totalTons: 20, travelDays: 14
   });
   assert.deepEqual(calculateJumpFuelRequirement(ship, 2), {
-    distance: 2, jumpFuelTons: 20, powerPlantFuelTons: 5, totalTons: 25, travelDays: 7
+    distance: 2, jumpFuelTons: 20, powerPlantFuelTons: 10, totalTons: 30, travelDays: 14
   });
+  assert.equal(calculateJumpFuelRequirement(ship, 1, { travelDays: 28 }).powerPlantFuelTons, 20);
 });
 
 test('legacy unrecorded fuel blocks operational jumps until fuel state is established', async () => {
@@ -144,8 +145,8 @@ test('jump fuel consumption and port berthing payment persist in ship state', as
   let ship = createTypeSScoutReserveShipForCharacter(await hawkeye()).ship;
   ship = refuelShipToCapacity(ship, { quality: 'refined', pricePerTonCr: 0 }).ship;
   const jump = consumeJumpFuel(ship, 1);
-  assert.equal(jump.consumedTons, 15);
-  assert.equal(jump.ship.state.currentFuelTons, 25);
+  assert.equal(jump.consumedTons, 20);
+  assert.equal(jump.ship.state.currentFuelTons, 20);
 
   const character = await hawkeye();
   const funded = transferCharacterCreditsToShip(character, jump.ship, 1000, { dateLabel: '008-4800' });
@@ -161,7 +162,7 @@ test('streamlined Type S can skim a gas giant to full capacity with unrefined fu
   ship = refuelShipToCapacity(ship, { quality: 'refined', pricePerTonCr: 0 }).ship;
   ship = consumeJumpFuel(ship, 1).ship;
   const skim = skimGasGiantToCapacity(ship);
-  assert.equal(skim.addedTons, 15);
+  assert.equal(skim.addedTons, 20);
   assert.equal(skim.elapsedDays, 7);
   assert.equal(skim.ship.state.currentFuelTons, 40);
   assert.equal(skim.ship.state.fuelQuality, 'mixed');

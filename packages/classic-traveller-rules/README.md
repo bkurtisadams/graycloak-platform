@@ -2,6 +2,20 @@
 
 Pure JavaScript rules package for the Graycloak Classic Traveller browser-game project. It intentionally has no HTML, Foundry, Firebase, or server dependencies.
 
+## v0.14.0 facsimile audit corrections
+
+v0.14.0 applies the corrections from a page-by-page audit of the package against the Classic Traveller Facsimile Edition (1981 Books 1-3 with the printed errata). See `AUDIT-2026-09-facsimile.md` in the traveller/ directory for the full findings.
+
+- Book 3 p.25 patron availability was inverted: a 5 or 6 on the weekly throw *finds* a patron. `PATRON_AVAILABILITY_NO_PATRON_ROLLS` is replaced by `PATRON_AVAILABILITY_FOUND_ROLLS`.
+- Book 3 p.27 reaction throws: natural 2 and 12 are not subject to DMs and modified results floor at 3 (`modifiedReactionTotal`). The two standard reaction DMs are exposed as `REACTION_DMS`.
+- Book 1 pp.45-47 personal weapons are now derived from the printed `WEAPONS_MATRIX` and `RANGE_MATRIX` (errata applied) as `8 - armorDM - rangeDM`, replacing hand-typed target rows that had transcription errors: laser carbine/rifle and body pistol vs Reflec, Hands vs Jack/Mesh/Reflec, Dagger at Short, Carbine vs Ablat, Rifle vs Cloth/Reflec/Combat, SMG at Long, Automatic Pistol and Revolver at Medium/Long. Body Pistol wounds 2D (errata), Hands key off Strength, Cutlass weakened-blow DM -4.
+- Book 1 p.32 evasion DM scales with range (-1 close/short, -2 medium, -4 long/very long) via `evasionDefenseDM`.
+- Book 1 p.33 subsequent wound dice are never applied to a characteristic already at zero.
+- Book 2 p.15 power-plant fuel (ruling): 10 x Pn tons covers four weeks; each jump now consumes the two-week share (`STANDARD_TRIP_DAYS = 14`), so a Type S burns 20t for Jump-1 and 30t for Jump-2.
+- Book 2 p.16 steward requirement is one steward per eight high passengers (`HIGH_PASSENGERS_PER_STEWARD`).
+- Book 2 p.48 broker fees are owed even when the seller declines to sell (`payDeclinedBrokerFee`).
+- Rulings confirmed as already implemented: Gambling gives a flat +1 on the cash table; trade goods 11-46 and 61-66 are in tons (Vacc Suits included), 51-56 are individual items.
+
 ## v0.13.1 playable character state
 
 Character Document v3 separates original characteristics and UPP from current STR/DEX/END, records consciousness, and carries an explicit ready weapon and worn armor. Existing v1/v2 gameplay documents migrate deterministically without inventing wounds or armor. `updateCharacterGameplayState()` provides the strict boundary used by the browser character sheet while leaving encounter-to-character wound synchronization for the host's next milestone.

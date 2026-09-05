@@ -180,7 +180,7 @@ export function buildPatronSituationOffer({ campaign, system, ship, contact, dic
       title: 'No Patron Contact', location: { systemId: system.id, systemName: system.name }, createdDate,
       actor: null,
       summary: 'No potential patron is encountered during this port call.',
-      detail: `Book 3 patron availability roll: ${contact.availabilityRoll}. Rolls of 5 or 6 indicate no patron.`,
+      detail: `Book 3 patron availability roll: ${contact.availabilityRoll}. Book 3 p.25: only a 5 or 6 finds a likely patron this week.`,
       choices: [], status: 'resolved',
       resolution: { date: createdDate, choiceId: null, success: null, roll: null, notes: 'No patron encountered.' },
       notes: 'Book 3 patron availability, using a Graycloak once-per-port-call cadence instead of explicit weekly downtime.'

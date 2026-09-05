@@ -11,6 +11,7 @@ import {
 export const REFINED_FUEL_COST_PER_TON_CR = 500;
 export const UNREFINED_FUEL_COST_PER_TON_CR = 100;
 export const BASE_BERTHING_COST_CR = 100;
+export const HIGH_PASSENGERS_PER_STEWARD = 8;
 
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
@@ -95,7 +96,14 @@ export function calculateBerthingCost(days = 1) {
   return BASE_BERTHING_COST_CR + Math.max(0, days - 6) * BASE_BERTHING_COST_CR;
 }
 
-export function calculateJumpFuelRequirement(ship, distance, { travelDays = 7 } = {}) {
+// Book 2 p.15: 10 x Pn tons of fuel allows routine operation and maneuver for
+// four weeks. Ruling (Graycloak, Sep 2026): a standard commercial cycle is one
+// week in jump plus one week in system, so each jump consumes the two-week
+// share of that four-week allowance alongside the 0.1 x M x Jn jump fuel.
+export const POWER_PLANT_FUEL_WEEKS = 4;
+export const STANDARD_TRIP_DAYS = 14;
+
+export function calculateJumpFuelRequirement(ship, distance, { travelDays = STANDARD_TRIP_DAYS } = {}) {
   assertValidShipDocument(ship);
   if (!Number.isInteger(distance) || distance < 1) throw new TypeError('jump distance must be a positive integer');
   const jumpRating = ship.specifications.drives.jump.rating;
@@ -105,10 +113,7 @@ export function calculateJumpFuelRequirement(ship, distance, { travelDays = 7 } 
   const hullTons = ship.specifications.hull.tons;
   const powerRating = ship.specifications.drives.powerPlant.rating;
   const jumpFuelTons = 0.1 * hullTons * distance;
-  // Book 2 specifies 10*Pn tons for four weeks of power-plant operation.
-  // The campaign's jump interval is seven days, so consume the proportional
-  // one-week share while the vessel is in jump space.
-  const powerPlantFuelTons = 10 * powerRating * (travelDays / 28);
+  const powerPlantFuelTons = 10 * powerRating * (travelDays / (POWER_PLANT_FUEL_WEEKS * 7));
   const totalTons = jumpFuelTons + powerPlantFuelTons;
   return Object.freeze({
     distance,
@@ -376,8 +381,14 @@ export function bookPassenger(ship, {
   if (!origin || !destination) throw new TypeError('passenger origin and destination must be nonblank');
   if (origin === destination) throw new RangeError('passenger destination must differ from origin');
   if (availablePassengerCapacity(ship, passageClass) < 1) throw new RangeError(`no ${passageClass} passenger capacity available`);
-  if (passageClass === 'high' && !ship.crew.assignments.some((entry) => entry.role.toLowerCase() === 'steward')) {
-    throw new RangeError('high passage requires a steward aboard');
+  if (passageClass === 'high') {
+    // Book 2 p.16: at least one steward (Steward-0 or better) per eight high passengers.
+    const stewards = ship.crew.assignments.filter((entry) => entry.role.toLowerCase() === 'steward').length;
+    const highAboard = ship.state.passengerManifest.filter((entry) => entry.class === 'high').length;
+    if (stewards < 1) throw new RangeError('high passage requires a steward aboard');
+    if (highAboard + 1 > stewards * HIGH_PASSENGERS_PER_STEWARD) {
+      throw new RangeError(`Book 2 requires one steward per ${HIGH_PASSENGERS_PER_STEWARD} high passengers; ${stewards} steward${stewards === 1 ? '' : 's'} aboard`);
+    }
   }
   const next = cloneJson(ship);
   next.state.passengerManifest.push({
@@ -491,6 +502,23 @@ export function purchaseSpeculativeCargo(ship, offer, quantity, {
     notes: `Base Cr${tradeGood.basePriceCr}; purchased at ${offer.percentage}% of base.`
   });
   return Object.freeze({ ship: next, cargoId: id, costCr: cost.totalCr, handlingFeeCr: cost.handlingFeeCr });
+}
+
+// Book 2 p.48: a broker must be paid his fee even if the seller decides not to
+// sell. Call this when a brokered quote is declined.
+export function payDeclinedBrokerFee(ship, quote, { dateLabel = null } = {}) {
+  assertValidShipDocument(ship);
+  if (!quote || typeof quote !== 'object') throw new TypeError('quote must be an object');
+  const feeCr = Number(quote.brokerCommissionCr ?? 0);
+  if (!Number.isInteger(feeCr) || feeCr < 0) throw new TypeError('quote brokerCommissionCr must be a non-negative integer');
+  if (feeCr === 0) return Object.freeze({ ship: cloneJson(ship), feeCr: 0 });
+  const next = appendLedger(ship, {
+    kind: 'broker-fee',
+    amountCr: -feeCr,
+    description: `Broker fee (DM +${quote.brokerDM}) on declined sale of ${quote.quantity} ${quote.unit} ${quote.name}`,
+    dateLabel
+  });
+  return Object.freeze({ ship: next, feeCr });
 }
 
 export function sellSpeculativeCargo(ship, cargoId, quote, { dateLabel = null, destinationSystemId } = {}) {

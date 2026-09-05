@@ -1,4 +1,4 @@
-// @graycloak/classic-traveller-rules v0.13.1
+// @graycloak/classic-traveller-rules v0.14.0
 // Source-backed Classic Traveller Books 1-3 character, starship, world, and subsector rules engine.
 // Pure rules/state logic: no host, UI, persistence, Foundry, or Firebase dependencies.
 
@@ -150,6 +150,9 @@ export {
   REFINED_FUEL_COST_PER_TON_CR,
   UNREFINED_FUEL_COST_PER_TON_CR,
   BASE_BERTHING_COST_CR,
+  HIGH_PASSENGERS_PER_STEWARD,
+  POWER_PLANT_FUEL_WEEKS,
+  STANDARD_TRIP_DAYS,
   starportFuelService,
   calculateBerthingCost,
   calculateJumpFuelRequirement,
@@ -173,6 +176,7 @@ export {
   deliverFreightAtDestination,
   disembarkPassengersAtDestination,
   purchaseSpeculativeCargo,
+  payDeclinedBrokerFee,
   sellSpeculativeCargo
 } from './src/starships/operations.js';
 
@@ -232,7 +236,9 @@ export {
 
 
 export {
-  PATRON_AVAILABILITY_NO_PATRON_ROLLS,
+  PATRON_AVAILABILITY_FOUND_ROLLS,
+  REACTION_DMS,
+  modifiedReactionTotal,
   PATRON_SUITABILITY_TARGET,
   PATRON_ENCOUNTER_TABLE,
   REACTION_TABLE,
@@ -256,6 +262,10 @@ export {
   personalWeaponSkillLevel,
   weaponCharacteristicDM,
   weaponTargetNumber,
+  WEAPONS_MATRIX,
+  RANGE_MATRIX,
+  BASIC_HIT_THROW,
+  evasionDefenseDM,
   createPersonalCombatant,
   resolvePersonalSurprise,
   movePersonalCombatRange,
