@@ -11,7 +11,9 @@ import {
   MIN_KARMA_DECLARATION, EFFECT_REDUCTION_COST, POWER_STUNT_COST,
   powerStuntRequiredColor, POWER_STUNT_MASTERY, advancementOptions,
   powerAdditionCost, TALENT_ADDITION_COST, contactAdditionCost,
-  KARMA_FORBIDDEN_FEATS, karmaAllowedFor,
+  KARMA_FORBIDDEN_FEATS, karmaAllowedFor, AWARD_TIMING, CHARITY_APPEARANCE, POOL_RULES,
+  KARMA_INCREMENT_OPTION, EFFECT_REDUCTION_COLUMNS, declaredKarmaSpend, BUILD_KARMA,
+  ADVANCEMENT_FUND_RULES, abilityAdvancementNeedsRationale, POPULARITY_ADVANCEMENT_CHARITY_WINDOW_DAYS,
   KARMA_VERSION, KARMA_CERTIFIED,
 } from './faserip-karma.js';
 
@@ -200,6 +202,43 @@ t('[CERT] RULED 2026-09-02: Contact Addition is flat 500+10xRes; no extradimensi
 t('[CERT] Karma may not manipulate Resource or Popularity FEATs, nor Blindside/unexpected-attack FEATs unless forewarned', () => {
   eq(KARMA_FORBIDDEN_FEATS, ['resource', 'popularity', 'blindsided', 'unexpected-attack']);
   eq([karmaAllowedFor('resource'), karmaAllowedFor('popularity'), karmaAllowedFor('blindsided'), karmaAllowedFor('blindsided', { forewarned: true }), karmaAllowedFor('resource', { forewarned: true }), karmaAllowedFor('fighting')], [false, false, false, true, false, true]);
+});
+
+t('[CERT] declared spend: at least 10 (or the remainder); 68 + 30 = 98; a 98 still costs 10; a hopeless 13 still costs 10', () => {
+  eq(declaredKarmaSpend({ reserve: 30, wanted: 30 }).amount, 30);
+  eq(declaredKarmaSpend({ reserve: 30 }).amount, 10);
+  eq(declaredKarmaSpend({ reserve: 7 }).amount, 7);
+  eq(KARMA_INCREMENT_OPTION, 5);
+});
+
+t('[CERT] effect reduction applies to Edged, Shooting and Energy (Kill-capable) attacks', () => {
+  eq(EFFECT_REDUCTION_COLUMNS, ['edged', 'shooting', 'energy']);
+});
+
+t('[CERT] Building Things fixes the amount before the roll; undeclared = 10', () => {
+  eq(BUILD_KARMA, { amountBeforeRoll: true, undeclaredDefault: 10 });
+});
+
+t('[CERT] awards at battle end / task / session; crimes, rescues, deaths immediate; gaming awards individual', () => {
+  eq(AWARD_TIMING.immediate, ['stopCrime', 'rescue', 'preventDisaster', 'commitCrime', 'death']);
+  eq(AWARD_TIMING.gamingAwardsIndividualOnly, true);
+});
+
+t('[CERT] charity appearance: red Popularity FEAT to be accepted, one per week', () => {
+  eq(CHARITY_APPEARANCE, { popularityFeatColor: 'red', maxPerWeek: 1 });
+});
+
+t('[CERT] pool by-laws: no advancement from a pool, one pool per hero, re-form after next session, optional lock', () => {
+  eq([POOL_RULES.minMembers, POOL_RULES.advancementFromPool, POOL_RULES.poolsPerHero, POOL_RULES.reformAfterNextSession], [2, false, 1, true]);
+  eq(POOL_RULES.lock.dissolveUnanimous, true);
+});
+
+t('[CERT] advancement fund: one purpose at a time, quiet time only, immune to losses; rationale beyond Excellent or +1 rank', () => {
+  eq([ADVANCEMENT_FUND_RULES.fundsAtOnce, ADVANCEMENT_FUND_RULES.quietTimeOnly, ADVANCEMENT_FUND_RULES.immuneToLosses], [1, true, true]);
+  eq(abilityAdvancementNeedsRationale({ originalRankKey: 'GD', newRankKey: 'EX' }), false);
+  eq(abilityAdvancementNeedsRationale({ originalRankKey: 'EX', newRankKey: 'RM' }), true);
+  eq(abilityAdvancementNeedsRationale({ originalRankKey: 'PR', newRankKey: 'GD' }), true);
+  eq(POPULARITY_ADVANCEMENT_CHARITY_WINDOW_DAYS, 21);
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);
