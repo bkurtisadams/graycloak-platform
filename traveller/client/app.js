@@ -280,6 +280,7 @@ const el = {
   helpBody: document.querySelector('#help-body'),
   closeHelp: document.querySelector('#close-help'),
   newCharacter: document.querySelector('#new-character'),
+  newCharacterFromCampaign: document.querySelector('#new-character-from-campaign'),
   saveCharacter: document.querySelector('#save-character'),
   loadCharacter: document.querySelector('#load-character'),
   loadFile: document.querySelector('#load-file'),
@@ -851,6 +852,7 @@ function saveCharacterSheetState(patch, message) {
 function renderCampaignHeader() {
   const active = campaignPlayActive();
   el.campaignHeader.hidden = !active;
+  el.newCharacterFromCampaign.hidden = !active;
   el.terminal?.classList.toggle('campaign-play', active);
   el.appTitle.textContent = 'TRAVELLER';
   el.headerCampaignName.textContent = active
@@ -5100,8 +5102,11 @@ el.generateShipRegistry.addEventListener('click', () => {
   updateShipRegistry(generateShipRegistry(shipDocument.design.typeCode), 'SHIP REGISTRY CANDIDATE GENERATED');
 });
 
-el.newCharacter.addEventListener('click', () => {
-  if (!window.confirm('Discard the current chargen state and create a new character?')) return;
+function startNewCharacter() {
+  const prompt = campaignPlayActive()
+    ? 'Leave campaign play and start a new character? Unsaved campaign changes will be lost. Save or export first if needed.'
+    : 'Discard the current chargen state and create a new character?';
+  if (!window.confirm(prompt)) return;
   character = createCharacter();
   documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
   gameplayDocument = null;
@@ -5124,7 +5129,10 @@ el.newCharacter.addEventListener('click', () => {
   logActivity('CHAR', 'New character generation started');
   setStatus('NEW CHARACTER GENERATED', 'ok');
   render();
-});
+}
+
+el.newCharacter.addEventListener('click', startNewCharacter);
+el.newCharacterFromCampaign.addEventListener('click', startNewCharacter);
 
 el.campaignName.addEventListener('input', () => updateCampaignName(el.campaignName.value));
 el.campaignDay.addEventListener('change', updateCampaignDate);

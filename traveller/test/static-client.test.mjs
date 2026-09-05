@@ -651,4 +651,7 @@ test('v0.17.0 replaces accordion detail panels with a single-select campaign wor
   assert.match(css, /\.workspace-tab\[aria-selected="true"\]/);
   assert.match(css, /\.operations-tab \{[\s\S]*white-space: nowrap;/);
   assert.doesNotMatch(css, /\.detail-view-open/);
+  assert.match(html, /id="new-character-from-campaign"/);
+  assert.match(app, /function startNewCharacter\(\)/);
+  assert.match(app, /el\.newCharacterFromCampaign\.hidden = !active;/);
 });
