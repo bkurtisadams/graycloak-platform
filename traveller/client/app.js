@@ -1,6 +1,7 @@
 import {
   CHARGEN_ACTIONS,
   CHARGEN_PHASES,
+  formatUPP,
   createDice,
   createCharacter,
   createCharacterDocument,
@@ -81,7 +82,9 @@ import {
   buildSituationRecord,
   buildSystemRecord,
   helpForTopic,
+  nobleTitleLabel,
   serviceName,
+  PHASE_LABELS,
   skillTableName
 } from './ui-model.js';
 
@@ -228,6 +231,8 @@ const el = {
   appTitle: document.querySelector('#app-title'),
   appSubtitle: document.querySelector('#app-subtitle'),
   headerCampaignName: document.querySelector('#header-campaign-name'),
+  campaignMenu: document.querySelector('#campaign-menu'),
+  autosaveStatus: document.querySelector('#autosave-status'),
   toggleActivity: document.querySelector('#toggle-activity'),
   terminal: document.querySelector('.terminal'),
   campaignHeader: document.querySelector('#campaign-header'),
@@ -249,6 +254,8 @@ const el = {
   footerCurrentMeta: document.querySelector('#footer-current-meta'),
   contextTabs: document.querySelector('#context-tabs'),
   contextTakeover: document.querySelector('#context-takeover'),
+  centerStack: document.querySelector('#center-stack'),
+  toggleContextFocus: document.querySelector('#toggle-context-focus'),
   chargenTablesSection: document.querySelector('#chargen-tables-section'),
   chargenTables: document.querySelector('#chargen-tables'),
   personnelSection: document.querySelector('#personnel-section'),
@@ -437,6 +444,7 @@ const el = {
   clearActivity: document.querySelector('#clear-activity'),
   addActivityNote: document.querySelector('#add-activity-note'),
   activityFilter: document.querySelector('#activity-filter'),
+  activityOrder: document.querySelector('#activity-order'),
   activityNoteDialog: document.querySelector('#activity-note-dialog'),
   activityNoteForm: document.querySelector('#activity-note-form'),
   activityNoteText: document.querySelector('#activity-note-text'),
@@ -458,7 +466,10 @@ let npcActorDocuments = [];
 let mediaAssetDocuments = [];
 let activityLogDocument = null;
 let activityFilter = 'play';
+let activityOrder = 'newest';
 let activityPanelVisible = true;
+let contextFocused = false;
+let lastAutosaveAt = null;
 let pendingNpcPortraitAsset = null;
 let documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
 let openHelpTopic = null;
@@ -482,6 +493,18 @@ const WORKSPACE_VIEWS = ['play', 'character', 'ship', 'campaign', 'threads'];
 let activeWorkspaceView = 'play';
 let systemDetailsOpen = false;
 let registry = null;
+
+const ACTIVITY_ORDER_STORAGE_KEY = 'graycloak.traveller.activity-order.v1';
+const ACTIVITY_VISIBLE_STORAGE_KEY = 'graycloak.traveller.activity-visible.v1';
+
+try {
+  const storedOrder = window.localStorage.getItem(ACTIVITY_ORDER_STORAGE_KEY);
+  if (storedOrder === 'newest' || storedOrder === 'oldest') activityOrder = storedOrder;
+  const storedVisibility = window.localStorage.getItem(ACTIVITY_VISIBLE_STORAGE_KEY);
+  if (storedVisibility === 'hidden') activityPanelVisible = false;
+} catch (error) {
+  console.error(error);
+}
 
 try {
   registry = createDocumentRegistry({ storage: window.localStorage });
@@ -581,6 +604,7 @@ function renderActivity() {
   el.activityContext.textContent = contextName.toUpperCase();
   el.addActivityNote.disabled = !campaignDocument;
   if (el.activityFilter.value !== activityFilter) el.activityFilter.value = activityFilter;
+  if (el.activityOrder.value !== activityOrder) el.activityOrder.value = activityOrder;
   el.activityFeed.replaceChildren();
   const allEntries = campaignDocument ? (activityLogDocument?.entries ?? []) : (activityLog ? activityLog.list() : []);
   const filterCategories = {
@@ -603,9 +627,11 @@ function renderActivity() {
     el.activityFeed.append(empty);
     return;
   }
-  entries.forEach((entry, index) => {
+  const latestEntry = entries.at(-1) ?? null;
+  const orderedEntries = activityOrder === 'newest' ? [...entries].reverse() : entries;
+  orderedEntries.forEach((entry) => {
     const row = document.createElement('div');
-    row.className = `activity-entry${index === entries.length - 1 ? ' latest' : ''}`;
+    row.className = `activity-entry${entry === latestEntry ? ' latest' : ''}`;
     row.dataset.category = entry.category;
     const meta = document.createElement('div');
     meta.className = 'activity-meta';
@@ -619,7 +645,7 @@ function renderActivity() {
     appendActivityMessage(row, entry);
     el.activityFeed.append(row);
   });
-  el.activityFeed.scrollTop = el.activityFeed.scrollHeight;
+  el.activityFeed.scrollTop = activityOrder === 'newest' ? 0 : el.activityFeed.scrollHeight;
 }
 
 function logActivity(category, message, { dateLabel = activityDateLabel(), sourceDocumentId = null, sourceActorId = null } = {}) {
@@ -632,6 +658,7 @@ function logActivity(category, message, { dateLabel = activityDateLabel(), sourc
     activityLogDocument = appendActivityLogEntry(activityLogDocument, { category, message, dateLabel, sourceDocumentId, sourceActorId });
     if (registry) registry.put(activityLogDocument);
   } else if (activityLog) activityLog.append({ category, message, dateLabel });
+  if (campaignDocument && registry) markAutosaved();
   renderActivity();
 }
 
@@ -641,6 +668,36 @@ function setActivityPanelVisible(visible) {
   el.terminal.classList.toggle('activity-log-hidden', !activityPanelVisible);
   el.toggleActivity.textContent = activityPanelVisible ? '[ HIDE LOG ]' : '[ ACTIVITY LOG ]';
   el.toggleActivity.setAttribute('aria-expanded', activityPanelVisible ? 'true' : 'false');
+  try { window.localStorage.setItem(ACTIVITY_VISIBLE_STORAGE_KEY, activityPanelVisible ? 'visible' : 'hidden'); } catch (error) { console.error(error); }
+}
+
+function updateAutosaveStatus() {
+  if (!el.autosaveStatus) return;
+  if (!campaignDocument) {
+    el.autosaveStatus.textContent = 'NO CAMPAIGN';
+    el.autosaveStatus.title = 'Create or load a campaign to enable browser autosave.';
+    return;
+  }
+  if (!registry) {
+    el.autosaveStatus.textContent = 'AUTOSAVE UNAVAILABLE';
+    el.autosaveStatus.title = 'Browser local storage is unavailable.';
+    return;
+  }
+  if (!lastAutosaveAt) {
+    el.autosaveStatus.textContent = 'AUTOSAVE READY';
+    el.autosaveStatus.title = 'Campaign changes are saved automatically in this browser.';
+    return;
+  }
+  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - lastAutosaveAt) / 1000));
+  const age = elapsedSeconds < 5 ? 'JUST NOW' : elapsedSeconds < 60 ? `${elapsedSeconds}s AGO` : `${Math.floor(elapsedSeconds / 60)}m AGO`;
+  el.autosaveStatus.textContent = `AUTOSAVED ${age}`;
+  el.autosaveStatus.title = `Campaign changes are saved automatically in this browser. Last save: ${new Date(lastAutosaveAt).toLocaleTimeString()}.`;
+}
+
+function markAutosaved() {
+  if (!campaignDocument || !registry) return updateAutosaveStatus();
+  lastAutosaveAt = Date.now();
+  updateAutosaveStatus();
 }
 
 function openActivityNoteDialog() {
@@ -767,8 +824,12 @@ function shipHeaderMeta() {
   const fuelCapacity = shipDocument.specifications?.fuel?.capacityTons ?? '--';
   const cargo = Number.isFinite(shipDocument.state?.cargoUsedTons) ? shipDocument.state.cargoUsedTons : 0;
   const cargoCapacity = shipDocument.specifications?.cargo?.capacityTons ?? '--';
+  const staterooms = shipDocument.specifications?.accommodations?.staterooms ?? 0;
+  const crewPeople = new Set((shipDocument.crew?.assignments ?? []).map((entry) => entry?.characterId).filter(Boolean)).size;
+  const passengers = (shipDocument.state?.passengerManifest ?? []).filter((entry) => entry.class === 'high' || entry.class === 'middle').length;
+  const occupiedStaterooms = crewPeople + passengers;
   const account = shipDocument.state?.finances?.balanceCr;
-  return `J${jump} / FUEL ${fuel}/${fuelCapacity}t / CARGO ${cargo}/${cargoCapacity}t / ${Number.isInteger(account) ? formatCr(account) : 'ACCOUNT --'}`;
+  return `J${jump} / FUEL ${fuel}/${fuelCapacity}t / STATEROOMS ${occupiedStaterooms}/${staterooms} / PASSENGERS ${passengers} / HOLD ${cargo}/${cargoCapacity}t / ${Number.isInteger(account) ? formatCr(account) : 'ACCOUNT --'}`;
 }
 
 function characterHealthLabel(document = gameplayDocument) {
@@ -818,6 +879,7 @@ function renderCharacterSheet() {
   appendSheetDatum(el.sheetService, 'SERVICE', serviceName(gameplayDocument.career.service).toUpperCase());
   appendSheetDatum(el.sheetService, 'TERMS SERVED', String(gameplayDocument.career.terms));
   appendSheetDatum(el.sheetService, 'FINAL RANK', gameplayDocument.career.rankTitle || 'NONE');
+  appendSheetDatum(el.sheetService, 'NOBLE TITLE', nobleTitleLabel(gameplayDocument.characteristics.SOC));
   appendSheetDatum(el.sheetService, 'RETIRED', gameplayDocument.status.retired ? 'YES' : 'NO');
   appendSheetDatum(el.sheetService, 'RETIREMENT PAY', formatCr(gameplayDocument.finances.retirementPayAnnual));
 
@@ -847,6 +909,77 @@ function renderCharacterSheet() {
   if (document.activeElement !== el.sheetNotes) el.sheetNotes.value = gameplayDocument.notes;
 }
 
+// v0.18.1: the in-progress chargen character fills the same Book 1 form the
+// playable sheet uses, so the scene is the sheet from the first roll.
+function renderChargenSheet() {
+  if (campaignPlayActive() || !character) return;
+  const inProgress = character.phase !== CHARGEN_PHASES.COMPLETE && character.phase !== CHARGEN_PHASES.DEAD;
+  el.sheetName.textContent = character.name || '(UNNAMED)';
+  el.sheetDate.textContent = inProgress ? 'IN GENERATION' : (character.phase === CHARGEN_PHASES.DEAD ? 'DECEASED' : 'FINAL');
+  el.sheetUpp.textContent = formatUPP(character.characteristics);
+  el.sheetRank.textContent = character.rankTitle || (character.service ? 'NO RANK' : '--');
+  el.sheetAge.textContent = String(character.age);
+  el.sheetWorld.textContent = character.service ? serviceName(character.service).toUpperCase() : 'NO SERVICE';
+  const phaseLabel = PHASE_LABELS[character.phase] ?? character.phase.toUpperCase();
+  el.sheetHealthStatus.textContent = `PHASE ${phaseLabel}${character.currentTerm ? ` // TERM ${character.currentTerm.number}` : ''}${character.drafted ? ' // DRAFTED' : ''}`;
+
+  el.sheetCharacteristics.replaceChildren();
+  const createdUpp = character.history?.find((entry) => entry.type === 'character-created')?.upp;
+  const original = typeof createdUpp === 'string' && createdUpp.length === 6
+    ? Object.fromEntries(['STR', 'DEX', 'END', 'INT', 'EDU', 'SOC'].map((k, i) => [k, parseInt(createdUpp[i], 36)]))
+    : character.characteristics;
+  for (const [key, label] of HEADER_CHARACTERISTICS) {
+    const value = character.characteristics[key];
+    const base = original[key];
+    const box = document.createElement('div');
+    box.className = `sheet-characteristic${value < base ? ' injured' : ''}`;
+    box.title = `${label} ${value}`;
+    const code = document.createElement('span'); code.className = 'sheet-stat-code'; code.textContent = key;
+    const strong = document.createElement('strong'); strong.className = 'sheet-stat-value'; strong.textContent = String(value);
+    const note = document.createElement('span'); note.className = 'sheet-stat-current'; note.textContent = value === base ? 'CURRENT' : `WAS ${base}`;
+    box.append(code, strong, note);
+    el.sheetCharacteristics.append(box);
+  }
+
+  el.sheetService.replaceChildren();
+  appendSheetDatum(el.sheetService, 'SERVICE', character.service ? serviceName(character.service).toUpperCase() : 'UNASSIGNED');
+  appendSheetDatum(el.sheetService, 'TERMS', `${character.terms}${character.currentTerm ? ` (TERM ${character.currentTerm.number} IN PROGRESS)` : ''}`);
+  appendSheetDatum(el.sheetService, 'YEARS SERVED', String(character.yearsServed));
+  appendSheetDatum(el.sheetService, 'RANK', character.rankTitle || 'NONE');
+  appendSheetDatum(el.sheetService, 'NOBLE TITLE', nobleTitleLabel(character.characteristics.SOC));
+  appendSheetDatum(el.sheetService, 'DRAFTED', character.drafted ? 'YES' : 'NO');
+  if (character.retired) appendSheetDatum(el.sheetService, 'RETIREMENT PAY', formatCr(character.retirementPayAnnual));
+
+  el.sheetWeapon.replaceChildren();
+  el.sheetArmor.replaceChildren();
+  el.sheetEquipment.textContent = character.materialBenefits.filter((entry) => entry.type === 'weapon' || entry.category).map((entry) => entry.name).join(' / ') || 'NONE YET';
+
+  el.sheetSkills.replaceChildren();
+  const skills = Object.entries(character.skills).sort(([left], [right]) => left.localeCompare(right));
+  const lastRoll = character.currentTerm?.skillRolls?.at?.(-1) ?? null;
+  const justGained = lastRoll ? (lastRoll.specialization?.specialization ?? (lastRoll.outcome?.type === 'skill' ? lastRoll.outcome.name : null)) : null;
+  if (!skills.length) el.sheetSkills.textContent = 'NONE YET';
+  for (const [name, level] of skills) {
+    const chip = document.createElement('span');
+    chip.className = `sheet-skill${name === justGained ? ' sheet-skill-new' : ''}`;
+    chip.textContent = `${name}-${level}`;
+    el.sheetSkills.append(chip);
+  }
+  if (character.skillsDue > 0) {
+    const pending = document.createElement('span');
+    pending.className = 'sheet-skill sheet-skill-pending';
+    pending.textContent = `${character.skillsDue} PENDING`;
+    el.sheetSkills.append(pending);
+  }
+
+  const benefits = character.materialBenefits.map((entry) => entry.name);
+  el.sheetBenefits.textContent = character.musterOut || character.credits || benefits.length
+    ? `CREDITS ${formatCr(character.credits)}\nBENEFITS ${benefits.join(' / ') || 'NONE'}${character.musterOut ? `\nMUSTER ROLLS ${character.musterOut.remainingRolls ?? 0} REMAINING` : ''}`
+    : 'MUSTERING OUT NOT YET REACHED';
+  el.sheetHistoryRecord.textContent = buildServiceHistory(character);
+  if (el.sheetNotes) el.sheetNotes.value = '';
+}
+
 function saveCharacterSheetState(patch, message) {
   if (!gameplayDocument) return;
   gameplayDocument = updateCharacterGameplayState(gameplayDocument, patch);
@@ -868,6 +1001,7 @@ function renderCampaignHeader() {
     ? (campaignDocument.identity.name || 'UNNAMED CAMPAIGN').toUpperCase()
     : 'NO CAMPAIGN';
   if (!active) {
+    updateAutosaveStatus();
     return;
   }
 
@@ -883,6 +1017,7 @@ function renderCampaignHeader() {
     ? `${shipDocument.identity.name || '(UNNAMED)'}${shipDocument.identity.registry ? ` / ${shipDocument.identity.registry}` : ''}`
     : 'NO ACTIVE SHIP';
   el.headerShipMeta.textContent = shipHeaderMeta();
+  updateAutosaveStatus();
 
   el.headerCharacteristics.replaceChildren();
   for (const [key, label] of HEADER_CHARACTERISTICS) {
@@ -972,16 +1107,17 @@ function applyCampaignLayout() {
   const active = campaignPlayActive();
   el.terminal?.classList.toggle('chargen-mode', !active);
   if (!active) {
-    // Character generation: the sheet is the scene, the Book 1 tables are the context.
+    // Character generation: the sheet is the scene, with the governing Book 1
+    // tables directly beneath WHAT NOW? in the left dock.
     el.legacyPersonnelFields.hidden = false;
-    el.characterSheet.hidden = true;
+    el.characterSheet.hidden = false;
     el.personnelSection.hidden = false;
     el.personnelSection.classList.remove('sheet-overlay');
     el.procedureSection.hidden = false;
     el.procedure.hidden = false;
     el.actions.hidden = false;
     el.playProcedure.hidden = true;
-    el.chargenRecordSection.hidden = false;
+    el.chargenRecordSection.hidden = true;
     el.subsectorSection.hidden = true;
     el.shipSection.hidden = !shipDocument;
     el.shipSection.classList.toggle('sheet-overlay', false);
@@ -992,6 +1128,7 @@ function applyCampaignLayout() {
     el.chargenTablesSection.hidden = false;
     el.openCampaignView.hidden = true;
     el.openThreadsView.hidden = true;
+    if (el.subsectorHeading) el.subsectorHeading.textContent = 'CHARACTER GENERATION';
     if (el.procedureScope) el.procedureScope.textContent = character?.service ? `${serviceName(character.service).toUpperCase()} · TERM ${character.currentTerm?.number ?? character.terms}` : 'CHARACTER GENERATION';
     return;
   }
@@ -1025,9 +1162,19 @@ function applyCampaignLayout() {
 function setWorkspaceView(view) {
   if (!WORKSPACE_VIEWS.includes(view)) return;
   if (view === 'ship' && !shipDocument) return;
+  if (view !== 'play' && contextFocused) setContextFocused(false);
   activeWorkspaceView = view;
   applyCampaignLayout();
   renderSelectedSystemSummary();
+}
+
+function setContextFocused(focused) {
+  contextFocused = Boolean(focused);
+  el.centerStack?.classList.toggle('context-focused', contextFocused);
+  if (el.toggleContextFocus) {
+    el.toggleContextFocus.textContent = contextFocused ? '[ SHOW MAP ]' : '[ FOCUS ]';
+    el.toggleContextFocus.setAttribute('aria-pressed', contextFocused ? 'true' : 'false');
+  }
 }
 
 function toggleSystemDetails() {
@@ -1473,6 +1620,7 @@ function persistCampaignState() {
   syncCampaignRefs();
   persistGameplayDocuments();
   if (registry && campaignDocument) registry.put(campaignDocument);
+  markAutosaved();
 }
 
 function reconcileExpiredContracts({ log = true } = {}) {
@@ -3919,6 +4067,8 @@ function applyOperationsDeskTab() {
       : 'SITUATION · RESOLVE IT OR RETURN TO PORT · [ BACK TO PORT ]';
   }
   el.contextTabs?.classList.toggle('suspended', takeover);
+  if (takeover && contextFocused) setContextFocused(false);
+  if (el.toggleContextFocus) el.toggleContextFocus.hidden = takeover || !campaignPlayActive();
   el.subsectorSection?.classList.toggle('encounter-workspace-active', encounterWorkspaceActive);
   el.subsectorSection?.classList.remove('navigation-workspace-active');
   if (el.subsectorHeading) el.subsectorHeading.textContent = encounterWorkspaceActive ? 'PERSONAL COMBAT' : 'SUBSECTOR NAVIGATION';
@@ -4423,6 +4573,7 @@ function saveCampaignLocal() {
     persistGameplayDocuments();
     registry.put(campaignDocument);
     registry.setActiveCampaignId(campaignDocument.identity.id);
+    markAutosaved();
     setStatus('CAMPAIGN SAVED TO THIS BROWSER', 'ok');
     renderCampaign();
   } catch (error) {
@@ -4439,6 +4590,7 @@ function loadSavedCampaign() {
     const campaign = registry.get(id);
     if (!campaign) throw new Error(`saved campaign document is missing: ${id}`);
     restoreCampaignFromRegistry(campaign);
+    lastAutosaveAt = null;
     setStatus('CAMPAIGN RESTORED FROM THIS BROWSER', 'ok');
     closeHelp();
     render();
@@ -4786,12 +4938,23 @@ function renderPlayProcedure() {
 // ---------------------------------------------------------------------------
 // v0.18.0 chargen context: the Book 1 tables that apply to the current phase
 // ---------------------------------------------------------------------------
-function tableElement(title, headers, rows, { highlight = null, note = null } = {}) {
+function tableElement(title, headers, rows, { highlight = null, note = null, hitCell = null, action = null } = {}) {
   const box = document.createElement('div');
   box.className = 'chargen-table';
   const head = document.createElement('div');
   head.className = 'chargen-table-head';
-  head.textContent = title;
+  const label = document.createElement('span');
+  label.textContent = title;
+  head.append(label);
+  if (action) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'text-button action-button chargen-table-action';
+    button.textContent = action.label;
+    button.disabled = Boolean(action.disabled);
+    if (!action.disabled) button.addEventListener('click', action.run);
+    head.append(button);
+  }
   box.append(head);
   if (note) { const n = document.createElement('div'); n.className = 'chargen-table-note'; n.textContent = note; box.append(n); }
   const table = document.createElement('table');
@@ -4804,7 +4967,13 @@ function tableElement(title, headers, rows, { highlight = null, note = null } = 
   rows.forEach((row, index) => {
     const tr = document.createElement('tr');
     if (highlight !== null && index === highlight) tr.className = 'hit';
-    for (const cell of row) { const td = document.createElement('td'); td.textContent = cell; tr.append(td); }
+    row.forEach((cell, cellIndex) => {
+      const td = document.createElement('td');
+      td.textContent = cell;
+      // hitCell = [rowIndex, firstCellIndex]: highlight the die and its result only.
+      if (hitCell && hitCell[0] === index && (cellIndex === hitCell[1] || cellIndex === hitCell[1] + 1)) td.className = 'hit-cell';
+      tr.append(td);
+    });
     table.append(tr);
   });
   box.append(table);
@@ -4832,7 +5001,7 @@ function renderChargenTables() {
   const intro = document.createElement('div');
   intro.className = 'chargen-tables-intro';
   intro.textContent = mode === 'skills'
-    ? `Acquired Skills · ${service?.name ?? 'service'} column (Book 1 p.15). Choose a table, then roll one die.`
+    ? `Acquired Skills · ${service?.name ?? 'service'} column (Book 1 p.15). ${character.skillsDue > 0 ? `${character.skillsDue} roll${character.skillsDue === 1 ? '' : 's'} due: pick a table and roll here.` : 'Resolve the pending result in WHAT NOW?.'}`
     : mode === 'muster' ? `Mustering Out · ${service?.name ?? 'service'} (Book 1 p.14). One roll per term plus rank bonus; at most three on cash.`
       : mode === 'aging' ? 'Aging (Book 1 p.12). Throw the number shown or lose the amount listed.'
         : service ? `Prior Service · ${service.name} (Book 1 p.14).` : 'Prior Service Table (Book 1 p.14). Choose a service to enlist in.';
@@ -4846,29 +5015,43 @@ function renderChargenTables() {
       const locked = table.minimumEducation !== null && edu < table.minimumEducation;
       const rows = [];
       for (let i = 0; i < 6; i += 2) rows.push([String(i + 1), describeOutcome(column[i]), String(i + 2), describeOutcome(column[i + 1])]);
-      const hitIndex = lastRoll && lastRoll.table === key ? Math.floor((lastRoll.roll - 1) / 2) : null;
-      const box = tableElement(table.name.toUpperCase(), null, rows, { highlight: hitIndex, note: locked ? `Requires EDU ${table.minimumEducation}+ (EDU ${edu}).` : null });
+      const hitCell = lastRoll && lastRoll.table === key ? [Math.floor((lastRoll.roll - 1) / 2), (lastRoll.roll - 1) % 2 === 0 ? 0 : 2] : null;
+      const canRoll = character.phase === CHARGEN_PHASES.SKILLS_PENDING && !locked;
+      const box = tableElement(table.name.toUpperCase(), null, rows, {
+        hitCell,
+        note: locked ? `Requires EDU ${table.minimumEducation}+ (EDU ${edu}).` : null,
+        action: { label: canRoll ? '[ ROLL 1D HERE ]' : (locked ? `[ EDU ${edu} ]` : '[ ROLL ]'), disabled: !canRoll, run: () => execute(CHARGEN_ACTIONS.ROLL_SKILL, { tableKey: key }) }
+      });
       if (locked) box.classList.add('locked');
       el.chargenTables.append(box);
     }
   } else if (mode === 'muster' && service) {
     const tables = MUSTERING_OUT_TABLES[serviceKey];
-    el.chargenTables.append(tableElement('BENEFITS', ['ROLL', 'BENEFIT'], tables.benefits.map((b, i) => [String(i + 1), describeOutcome(b)]), { note: character.rank >= 5 ? 'Rank 5–6: DM +1 on this table.' : null }));
-    el.chargenTables.append(tableElement('CASH', ['ROLL', 'CR'], tables.cash.map((c, i) => [String(i + 1), c.toLocaleString('en-US')]), { note: (character.skills?.Gambling ?? 0) >= 1 ? 'Gambling: DM +1 on this table.' : 'Maximum three rolls on cash.' }));
+    const lastMusterRoll = character.musterOut?.results?.at?.(-1) ?? null;
+    const benefitHit = lastMusterRoll?.type === 'benefit' ? [lastMusterRoll.total - 1, 0] : null;
+    const cashHit = lastMusterRoll?.type === 'cash' ? [lastMusterRoll.total - 1, 0] : null;
+    el.chargenTables.append(tableElement('BENEFITS', ['ROLL', 'BENEFIT'], tables.benefits.map((b, i) => [String(i + 1), describeOutcome(b)]), { hitCell: benefitHit, note: character.rank >= 5 ? 'Rank 5–6: DM +1 on this table.' : null }));
+    el.chargenTables.append(tableElement('CASH', ['ROLL', 'CR'], tables.cash.map((c, i) => [String(i + 1), c.toLocaleString('en-US')]), { hitCell: cashHit, note: (character.skills?.Gambling ?? 0) >= 1 ? 'Gambling: DM +1 on this table.' : 'Maximum three rolls on cash.' }));
   } else if (mode === 'aging') {
     el.chargenTables.append(tableElement('AGING', ['AGE', 'STR', 'DEX', 'END', 'INT'], AGING_BANDS.map((band) => [
       `${band.minimumAge}–${Number.isFinite(band.maximumAge) ? band.maximumAge : '+'}`,
       ...['STR', 'DEX', 'END', 'INT'].map((k) => { const r = band.rules.find((rule) => rule.characteristic === k); return r ? `−${r.loss} (${r.target}+)` : '—'; })
     ])));
   } else {
-    const keys = service ? [serviceKey] : Object.keys(SERVICES);
-    const rows = [];
-    const dm = (list) => list.map((d) => `+${d.modifier} ${d.characteristic} ${d.minimum}+`).join(', ') || '—';
-    for (const key of keys) {
-      const svc = SERVICES[key];
-      rows.push([svc.name, `${svc.enlistment.target}+`, dm(svc.enlistment.dms), `${svc.survival.target}+`, dm(svc.survival.dms), svc.commission ? `${svc.commission.target}+` : '—', svc.promotion ? `${svc.promotion.target}+` : '—', `${svc.reenlistment.target}+`]);
+    const dm = (list) => list.map((d) => `+${d.modifier} if ${d.characteristic} ${d.minimum}+`).join(', ');
+    if (service) {
+      const svc = service;
+      const line = (check) => check ? `${check.target}+${check.dms?.length ? ` (${dm(check.dms)})` : ''}` : '—';
+      el.chargenTables.append(tableElement(`PRIOR SERVICE · ${svc.name.toUpperCase()}`, ['THROW', 'TARGET'], [
+        ['Enlistment', line(svc.enlistment)],
+        ['Survival', line(svc.survival)],
+        ['Commission', line(svc.commission)],
+        ['Promotion', line(svc.promotion)],
+        ['Reenlistment', `${svc.reenlistment.target}+ (12 exactly is mandatory)`]
+      ], { highlight: ({ 'survival-required': 1, 'commission-option': 2, 'promotion-option': 3, 'reenlistment-required': 4 })[character.phase] ?? null }));
+    } else {
+      el.chargenTables.append(tableElement('PRIOR SERVICE · ENLISTMENT', ['SERVICE', 'ENLIST', 'DMS', 'SURVIVE'], Object.values(SERVICES).map((svc) => [svc.name, `${svc.enlistment.target}+`, dm(svc.enlistment.dms) || '—', `${svc.survival.target}+`])));
     }
-    el.chargenTables.append(tableElement('PRIOR SERVICE', ['SERVICE', 'ENLIST', 'DMS', 'SURVIVE', 'DMS', 'COMM', 'PROMO', 'REENLIST'], rows));
     if (service && service.ranks.length > 1) {
       el.chargenTables.append(tableElement('RANKS', ['RANK', 'TITLE'], service.ranks.slice(1).map((r, i) => [String(i + 1), r]), { highlight: character.rank > 0 ? character.rank - 1 : null }));
     }
@@ -4925,6 +5108,7 @@ function render() {
   renderActions(procedure);
   renderCampaign();
   renderCharacterSheet();
+  renderChargenSheet();
   renderSubsector();
   renderSystemRecord();
   renderPortServices();
@@ -5412,6 +5596,7 @@ function startNewCharacter() {
   threadDocuments = [];
   npcActorDocuments = [];
   mediaAssetDocuments = [];
+  lastAutosaveAt = null;
   selectedSystemId = null;
   activeWorkspaceView = 'play';
   systemDetailsOpen = false;
@@ -5444,12 +5629,23 @@ el.clearActivity.addEventListener('click', () => {
   if (campaignDocument && activityLogDocument) {
     activityLogDocument = clearActivityLogDocument(activityLogDocument);
     if (registry) registry.put(activityLogDocument);
+    markAutosaved();
   } else activityLog?.clear();
   renderActivity();
   setStatus('ACTIVITY LOG CLEARED', 'ok');
 });
 el.activityFilter.addEventListener('change', () => { activityFilter = el.activityFilter.value; renderActivity(); });
+el.activityOrder.addEventListener('change', () => {
+  activityOrder = el.activityOrder.value === 'oldest' ? 'oldest' : 'newest';
+  try { window.localStorage.setItem(ACTIVITY_ORDER_STORAGE_KEY, activityOrder); } catch (error) { console.error(error); }
+  renderActivity();
+});
 el.toggleActivity.addEventListener('click', () => setActivityPanelVisible(!activityPanelVisible));
+el.toggleContextFocus.addEventListener('click', () => setContextFocused(!contextFocused));
+el.campaignMenu.addEventListener('click', (event) => {
+  if (!event.target.closest('button')) return;
+  window.setTimeout(() => { el.campaignMenu.open = false; }, 0);
+});
 el.addActivityNote.addEventListener('click', openActivityNoteDialog);
 el.activityNoteClose.addEventListener('click', closeActivityNoteDialog);
 el.activityNoteCancel.addEventListener('click', closeActivityNoteDialog);
@@ -5661,6 +5857,8 @@ el.loadCharacter.addEventListener('click', () => {
 el.loadFile.addEventListener('change', () => loadDocument(el.loadFile.files?.[0], { campaignOnly: el.loadFile.dataset.scope === 'campaign' }));
 
 setActivityContext();
-setActivityPanelVisible(true);
+setActivityPanelVisible(activityPanelVisible);
+setContextFocused(false);
 render();
+window.setInterval(updateAutosaveStatus, 10000);
 if (!registry) setStatus('READY / LOCAL CAMPAIGN STORAGE UNAVAILABLE', 'error');

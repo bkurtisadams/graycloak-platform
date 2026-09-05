@@ -2,6 +2,10 @@
 
 Pure JavaScript rules package for the Graycloak Classic Traveller browser-game project. It intentionally has no HTML, Foundry, Firebase, or server dependencies.
 
+## v0.15.0 noble-title entitlement
+
+Adds the Book 1 p.6 `NOBLE_TITLE_TABLE` for Social Standing B (11) through F (15) and `nobleTitleEntitlement()` for deriving a character's hereditary-title options, including the optional `von`, `haut`, or `hault` prefixes at SOC C. SOC 11+ is modeled as noble eligibility; ancestral lands or ruling power remain referee-discretionary. SOC above 15 remains eligible but deliberately returns no named title because Book 1 does not define one above Duke/Duchess.
+
 ## v0.14.0 facsimile audit corrections
 
 v0.14.0 applies the corrections from a page-by-page audit of the package against the Classic Traveller Facsimile Edition (1981 Books 1-3 with the printed errata). See `AUDIT-2026-09-facsimile.md` in the traveller/ directory for the full findings.

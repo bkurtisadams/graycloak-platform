@@ -14,7 +14,8 @@ import {
   describeLawLevel,
   describeTradeClassifications,
   starportFuelService,
-  getPersonalWeapon
+  getPersonalWeapon,
+  nobleTitleEntitlement
 } from '../../packages/classic-traveller-rules/index.js';
 
 export const PHASE_LABELS = Object.freeze({
@@ -289,6 +290,18 @@ function formatBenefits(benefits = []) {
   }).join(', ');
 }
 
+export function nobleTitleLabel(socialStanding) {
+  const entitlement = nobleTitleEntitlement(socialStanding);
+  if (!entitlement.eligible) return 'NONE';
+  if (entitlement.listed) {
+    const titles = entitlement.titles.join(' / ');
+    return entitlement.alternatePrefixes.length
+      ? `${titles} (OR ${entitlement.alternatePrefixes.map((prefix) => prefix.toUpperCase()).join(' / ')})`
+      : titles;
+  }
+  return `HEREDITARY NOBLE / SPECIFIC TITLE NOT LISTED FOR SOC ${entitlement.code}`;
+}
+
 export function buildCharacterRecord(character) {
   const c = character.characteristics;
   const rank = character.rankTitle || (character.rank > 0 ? `Rank ${character.rank}` : 'none');
@@ -299,6 +312,7 @@ export function buildCharacterRecord(character) {
   return box([
     `UPP ${character.upp}    AGE ${character.age}    STATUS ${character.alive ? 'ALIVE' : 'DECEASED'}`,
     `STR ${c.STR}    DEX ${c.DEX}    END ${c.END}    INT ${c.INT}    EDU ${c.EDU}    SOC ${c.SOC}`,
+    `NOBLE TITLE ${nobleTitleLabel(c.SOC)}`,
     `CAREER ${career}`,
     `TERMS ${character.terms}    YEARS SERVED ${character.yearsServed}    DRAFTED ${character.drafted ? 'YES' : 'NO'}`,
     `CREDITS ${formatCredits(character.credits)}    RETIRED ${retired}`,
@@ -339,6 +353,7 @@ export function buildFinalCharacterRecord(document) {
     `NAME ${document.identity.name || '(unnamed)'}`,
     `UPP ${document.upp}    AGE ${document.age}    STATUS ${document.status.alive ? String(document.status.consciousness ?? 'conscious').toUpperCase() : 'DECEASED'}`,
     `STR ${c.STR}    DEX ${c.DEX}    END ${c.END}    INT ${c.INT}    EDU ${c.EDU}    SOC ${c.SOC}`,
+    `NOBLE TITLE ${nobleTitleLabel(c.SOC)}`,
     `CURRENT STR ${current.STR}    DEX ${current.DEX}    END ${current.END}`,
     `LOADOUT ${getPersonalWeapon(document.loadout?.weaponKey ?? 'hands').name} / ${(document.loadout?.armor ?? 'none').toUpperCase()} ARMOR`,
     `CAREER ${serviceName(career.service)} / ${rank}`,

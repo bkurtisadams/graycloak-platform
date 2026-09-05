@@ -1,4 +1,4 @@
-// @graycloak/classic-traveller-rules v0.14.0
+// @graycloak/classic-traveller-rules v0.15.0
 // Source-backed Classic Traveller Books 1-3 character, starship, world, and subsector rules engine.
 // Pure rules/state logic: no host, UI, persistence, Foundry, or Firebase dependencies.
 
@@ -15,6 +15,11 @@ export {
   generateCharacteristics,
   generateUPP
 } from './src/characters/upp.js';
+
+export {
+  NOBLE_TITLE_TABLE,
+  nobleTitleEntitlement
+} from './src/characters/noble-titles.js';
 
 export {
   SERVICE_KEYS,

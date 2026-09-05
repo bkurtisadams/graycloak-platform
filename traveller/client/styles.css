@@ -2083,3 +2083,84 @@ input[readonly] {
 
 .masthead, .masthead-main, .campaign-header, .stage { width: 100%; max-width: none; }
 @media (max-width: 1200px) { .terminal > :not(.activity-panel), .activity-panel { grid-column: auto; } }
+
+/* v0.18.1 chargen sheet + tables */
+.chargen-mode #character-record, .chargen-mode .sheet-loadout-grid, .chargen-mode #sheet-notes, .chargen-mode .sheet-notes-block, .chargen-mode #chargen-record-section { display: none; }
+.chargen-mode .sheet-characteristic { cursor: default; }
+.sheet-skill-new { background: var(--action-ready); border-color: var(--action-border); }
+.sheet-skill-pending { border-style: dashed; color: var(--muted); }
+.chargen-table-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.chargen-table-action { font-size: 11px; white-space: nowrap; }
+.chargen-grid td.hit-cell { background: var(--attention); font-weight: 700; }
+.chargen-mode .procedure .what-now, .chargen-mode .context .live-ship-panel, .chargen-mode .scenebar-tools { display: none; }
+
+/* =========================================================================
+   v0.19.0: procedure/tables | scene with context below | persistent log.
+   ========================================================================= */
+.campaign-utility { align-items: center; }
+.campaign-menu { position: relative; }
+.campaign-menu > summary { list-style: none; white-space: nowrap; }
+.campaign-menu > summary::-webkit-details-marker { display: none; }
+.campaign-menu-popover {
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  min-width: 210px;
+  border: 2px solid var(--rule);
+  background: var(--help-paper);
+  padding: 6px 9px;
+}
+.campaign-menu-popover .utility-button { padding: 5px 2px; text-align: left; }
+.campaign-menu-popover .utility-button + .utility-button { border-top: 1px dashed var(--disabled); }
+.autosave-status { color: var(--muted); font-size: 10px; white-space: nowrap; }
+
+.stage { grid-template-columns: 300px minmax(520px, 1fr) 300px; gap: 0 14px; }
+.center-stack { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.center-stack .context { margin: 0; }
+.center-stack .context-scroll { max-height: min(42vh, 480px); }
+.center-stack.context-focused .scene .canvas { min-height: 260px; max-height: 260px; overflow: hidden; }
+.center-stack.context-focused .context-scroll { max-height: none; }
+.context-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)) auto; }
+.context-focus-toggle { padding: 6px 9px; border-left: 1px solid var(--rule); white-space: nowrap; font-size: 10px; }
+
+.activity-panel {
+  grid-column: auto;
+  grid-row: auto;
+  position: sticky;
+  top: 10px;
+  height: min(760px, calc(100vh - 20px));
+  min-height: 420px;
+  max-height: none;
+  margin: 0;
+}
+.activity-controls { border-bottom: 1px solid var(--disabled); padding: 3px 0 5px; }
+.activity-filter-label, .activity-order-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.activity-filter-label { border-bottom: 0; padding: 2px 0; }
+.activity-order-label { padding: 2px 0; }
+.activity-filter-label select, .activity-order-label select { min-width: 0; flex: 1 1 auto; font-size: 10px; }
+
+.activity-log-hidden .stage { grid-template-columns: 300px minmax(520px, 1fr); }
+.chargen-mode .context { display: none; }
+.chargen-mode .center-stack { display: block; }
+
+@media (max-width: 1299px) {
+  .stage, .activity-log-hidden .stage { grid-template-columns: 280px minmax(0, 1fr); }
+  .activity-panel { grid-column: 2; position: static; height: 380px; min-height: 300px; margin-top: 10px; }
+}
+
+@media (max-width: 860px) {
+  .stage, .activity-log-hidden .stage { grid-template-columns: 1fr; }
+  .center-stack, .activity-panel { grid-column: 1; }
+  .activity-panel { height: 360px; }
+  .campaign-menu-popover { left: 0; right: auto; }
+  .context-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .context-focus-toggle { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--rule); }
+}

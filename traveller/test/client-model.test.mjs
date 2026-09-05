@@ -23,7 +23,8 @@ import {
   buildShipRecord,
   buildSystemRecord,
   buildServiceHistory,
-  formatHistoryEvent
+  formatHistoryEvent,
+  nobleTitleLabel
 } from '../client/ui-model.js';
 
 import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js';
@@ -46,6 +47,17 @@ test('initial browser model renders a personnel record and six legal service cho
   assert.equal(procedure.available.phase, CHARGEN_PHASES.SERVICE_SELECTION);
   assert.deepEqual(procedure.available.actions, [CHARGEN_ACTIONS.ATTEMPT_ENLISTMENT]);
   assert.equal(procedure.available.choices.services.length, 6);
+});
+
+test('browser records distinguish noble titles from military rank', () => {
+  const character = sevenCharacter();
+  character.characteristics.SOC = 12;
+  character.upp = '77777C';
+
+  assert.equal(nobleTitleLabel(12), 'Baron / Baronet / Baroness (OR VON / HAUT / HAULT)');
+  assert.match(buildCharacterRecord(character), /NOBLE TITLE Baron \/ Baronet \/ Baroness \(OR VON \/ HAUT \/ HAULT\)/);
+  assert.equal(nobleTitleLabel(10), 'NONE');
+  assert.match(nobleTitleLabel(16), /SPECIFIC TITLE NOT LISTED FOR SOC G/);
 });
 
 test('browser model follows engine state after enlistment without carrying target numbers', () => {
