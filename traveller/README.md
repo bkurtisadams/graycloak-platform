@@ -1,5 +1,15 @@
 # Graycloak Traveller
 
+## v0.18.0 play layout: identity strip, WHAT NOW? dock, persistent scene, context panel
+
+v0.18.0 rebuilds the client shell around the mockups agreed in September 2026. The campaign header becomes a three-cell identity strip (character, current location, ship) over a roll bar of clickable characteristics and quick skills with the TASK line at the right; the character and ship names open their sheets. Below it the page is a three-column stage: a left dock holding WHAT NOW? over the activity log, a center scene that is always the subsector map (or the personal-combat workspace while an encounter is active), and a right context panel with four places, WORLD, TRADE, JOBS, and NPCS. Situations and combat are not tabs; they take the context panel over with a yellow bar that returns to WORLD when clicked. The v0.17 workspace tab strip and the NAV/SITUATION/COMBAT operations tabs are removed. CHARACTER, SHIP, CAMPAIGN, and THREADS open as overlays over the map (Escape or [ CLOSE ] returns). A two-cell footer under the scene shows the current port and the selected destination with the JUMP button and [ DETAILS ].
+
+WHAT NOW? in play is driven by `buildPlayProcedure()` in `ui-model.js`, a pure function over a state snapshot that returns grouped cards tagged REQUIRED / READY / BLOCKED / OPTIONAL / DONE with a one-line reason and the context tab to open. It encodes the Book 2 port-call order: berthing first, fuel for the selected jump, cargo announces the destination, passengers are blocked until cargo is accepted (p.8), one speculative lot per week (p.46), patron search once per port call (Book 3 p.25), life support charged at departure (p.7). The Done group collapses by default. Tests in `test/play-procedure.test.mjs`.
+
+Character generation uses the same frame: WHAT NOW? shows the existing chargen procedure and actions, the Personnel Record is the scene, and the context panel shows the Book 1 tables that apply to the current phase (Prior Service and ranks; the four Acquired Skills tables for the character's service with the last roll highlighted and EDU 8+ locked when unavailable; Mustering Out benefits and cash; Aging). Service History and the Generation Log sit in the dock under the procedure.
+
+Not in this slice: the boxed Book 1 form for the in-progress chargen sheet (the ASCII Personnel Record remains), the range-band combat scene (the v0.16 token map remains inside the scene), the Finance-first ship register tabs, and the broker-decline action in TRADE. No rules or persistent document schema changes.
+
 ## v0.17.1 rules audit alignment
 
 v0.17.1 carries the client onto `@graycloak/classic-traveller-rules` v0.14.0 after the facsimile audit (`AUDIT-2026-09-facsimile.md`). The patron port-call text now states the Book 3 p.25 rule correctly (a 5 or 6 finds a patron), and the port-operations, encounter, and situation tests were re-pinned to the corrected fuel consumption (20t per Type S Jump-1 including the two-week power-plant share), the range-scaled evasion DM, and the corrected patron availability. No client UI changes.

@@ -54,7 +54,11 @@ import {
   resolveRefereeSkillCheck,
   getPersonalWeapon,
   PERSONAL_WEAPONS,
-  PERSONAL_ARMOR_TYPES
+  PERSONAL_ARMOR_TYPES,
+  SERVICES,
+  SKILL_TABLES,
+  MUSTERING_OUT_TABLES,
+  AGING_BANDS
 } from '../../packages/classic-traveller-rules/index.js';
 
 import {
@@ -71,6 +75,8 @@ import {
   buildPortServicesRecord,
   buildShipRecord,
   buildProcedure,
+  buildPlayProcedure,
+  chargenTablesForPhase,
   buildServiceHistory,
   buildSituationRecord,
   buildSystemRecord,
@@ -234,11 +240,17 @@ const el = {
   headerCharacteristics: document.querySelector('#header-characteristics'),
   headerQuickSkills: document.querySelector('#header-quick-skills'),
   headerTask: document.querySelector('#header-task'),
-  workspaceTabPlay: document.querySelector('#workspace-tab-play'),
-  workspaceTabCharacter: document.querySelector('#workspace-tab-character'),
-  workspaceTabShip: document.querySelector('#workspace-tab-ship'),
-  workspaceTabCampaign: document.querySelector('#workspace-tab-campaign'),
-  workspaceTabThreads: document.querySelector('#workspace-tab-threads'),
+  headerShipName: document.querySelector('#header-ship-name'),
+  openCampaignView: document.querySelector('#open-campaign-view'),
+  openThreadsView: document.querySelector('#open-threads-view'),
+  procedureScope: document.querySelector('#procedure-scope'),
+  playProcedure: document.querySelector('#play-procedure'),
+  footerCurrentName: document.querySelector('#footer-current-name'),
+  footerCurrentMeta: document.querySelector('#footer-current-meta'),
+  contextTabs: document.querySelector('#context-tabs'),
+  contextTakeover: document.querySelector('#context-takeover'),
+  chargenTablesSection: document.querySelector('#chargen-tables-section'),
+  chargenTables: document.querySelector('#chargen-tables'),
   personnelSection: document.querySelector('#personnel-section'),
   procedureSection: document.querySelector('#procedure-section'),
   chargenRecordSection: document.querySelector('#chargen-record-section'),
@@ -331,8 +343,6 @@ const el = {
   situationSection: document.querySelector('#situation-section'),
   situationRecord: document.querySelector('#situation-record'),
   situationActions: document.querySelector('#situation-actions'),
-  operationsTabNavigation: document.querySelector('#operations-tab-navigation'),
-  operationsTabSituation: document.querySelector('#operations-tab-situation'),
   encounterSection: document.querySelector('#encounter-section'),
   encounterDetails: document.querySelector('#encounter-details'),
   encounterRecord: document.querySelector('#encounter-record'),
@@ -352,7 +362,6 @@ const el = {
   encounterRoster: document.querySelector('#encounter-roster'),
   encounterTokenTooltip: document.querySelector('#encounter-token-tooltip'),
   encounterTokenMenu: document.querySelector('#encounter-token-menu'),
-  operationsTabEncounter: document.querySelector('#operations-tab-encounter'),
   operationsTabPort: document.querySelector('#operations-tab-port'),
   operationsTabTrade: document.querySelector('#operations-tab-trade'),
   operationsTabJobs: document.querySelector('#operations-tab-jobs'),
@@ -456,7 +465,7 @@ let openHelpTopic = null;
 let selectedSystemId = null;
 let subsectorZoom = 1;
 let speculativeBrokerDM = 0;
-let operationsDeskTab = 'navigation';
+let operationsDeskTab = 'port';
 let pendingRoll = null;
 let selectedEncounterActorId = null;
 let selectedEncounterTargetId = null;
@@ -938,44 +947,78 @@ function renderSelectedSystemSummary() {
   const profile = parseUniversalWorldProfile(system.mainWorld.uwp);
   const bases = [system.bases.scout ? 'SCOUT' : '', system.bases.naval ? 'NAVAL' : ''].filter(Boolean).join('+') || 'NO BASE';
   const zone = system.travelZone === 'none' ? 'NORMAL' : system.travelZone.toUpperCase();
-  el.selectedSystemSummaryText.textContent = `${selected && selected.id !== current?.id ? 'SELECTED' : 'CURRENT'}: ${system.name.toUpperCase()} // ${system.hex} // ${system.mainWorld.uwp} // TL ${profile.techLevel} // ${bases} // GAS GIANT ${system.gasGiant ? 'YES' : 'NO'} // ${zone}`;
+  const isSelection = Boolean(selected && selected.id !== current?.id);
+  el.selectedSystemSummaryText.textContent = isSelection
+    ? `${system.name.toUpperCase()} · ${system.hex} · ${system.mainWorld.uwp} · TL ${profile.techLevel} · ${bases} · ${zone}`
+    : 'NONE · SELECT A SYSTEM ON THE MAP';
+  if (current) {
+    const cp = parseUniversalWorldProfile(current.mainWorld.uwp);
+    const cb = [current.bases.scout ? 'SCOUT' : '', current.bases.naval ? 'NAVAL' : ''].filter(Boolean).join('+') || 'NO BASE';
+    const cz = current.travelZone === 'none' ? 'NORMAL' : current.travelZone.toUpperCase();
+    const portCall = currentBerthingDue();
+    el.footerCurrentName.textContent = `${current.name.toUpperCase()} · ${current.hex}`;
+    el.footerCurrentMeta.textContent = `${current.mainWorld.uwp} · TL ${cp.techLevel} · ${cb} · GAS GIANT ${current.gasGiant ? 'YES' : 'NO'} · ${cz}${portCall ? (portCall.berthingPaid ? ' · BERTHED' : ' · BERTHING DUE') : ''}`;
+  } else {
+    el.footerCurrentName.textContent = 'UNMAPPED';
+    el.footerCurrentMeta.textContent = 'Select a system and set it as the starting location.';
+  }
   el.selectedSystemSummary.hidden = false;
   el.toggleSystemDetails.textContent = systemDetailsOpen ? '[ HIDE DETAILS ]' : '[ DETAILS ]';
   el.toggleSystemDetails.setAttribute('aria-expanded', systemDetailsOpen ? 'true' : 'false');
+  if (typeof renderPlayProcedure === 'function') renderPlayProcedure();
 }
 
 function applyCampaignLayout() {
   const active = campaignPlayActive();
+  el.terminal?.classList.toggle('chargen-mode', !active);
   if (!active) {
+    // Character generation: the sheet is the scene, the Book 1 tables are the context.
     el.legacyPersonnelFields.hidden = false;
     el.characterSheet.hidden = true;
     el.personnelSection.hidden = false;
+    el.personnelSection.classList.remove('sheet-overlay');
     el.procedureSection.hidden = false;
+    el.procedure.hidden = false;
+    el.actions.hidden = false;
+    el.playProcedure.hidden = true;
     el.chargenRecordSection.hidden = false;
+    el.subsectorSection.hidden = true;
+    el.shipSection.hidden = !shipDocument;
+    el.shipSection.classList.toggle('sheet-overlay', false);
+    el.campaignSection.hidden = true;
+    el.threadSection.hidden = true;
+    el.contextTabs.hidden = true;
+    el.contextTakeover.hidden = true;
+    el.chargenTablesSection.hidden = false;
+    el.openCampaignView.hidden = true;
+    el.openThreadsView.hidden = true;
+    if (el.procedureScope) el.procedureScope.textContent = character?.service ? `${serviceName(character.service).toUpperCase()} · TERM ${character.currentTerm?.number ?? character.terms}` : 'CHARACTER GENERATION';
     return;
   }
   if (activeWorkspaceView === 'ship' && !shipDocument) activeWorkspaceView = 'play';
   const view = activeWorkspaceView;
   el.legacyPersonnelFields.hidden = true;
   el.characterSheet.hidden = false;
-  el.procedureSection.hidden = true;
+  el.procedureSection.hidden = false;
+  el.procedure.hidden = true;
+  el.actions.hidden = true;
+  el.playProcedure.hidden = false;
   el.chargenRecordSection.hidden = true;
-  el.subsectorSection.hidden = view !== 'play';
-  el.personnelSection.hidden = view !== 'character';
-  el.shipSection.hidden = view !== 'ship';
-  el.campaignSection.hidden = view !== 'campaign';
-  el.threadSection.hidden = view !== 'threads';
+  el.chargenTablesSection.hidden = true;
+  el.contextTabs.hidden = false;
+  el.openCampaignView.hidden = false;
+  el.openThreadsView.hidden = false;
+  // The map is the persistent scene; documents open over it.
+  el.subsectorSection.hidden = false;
+  for (const [key, section] of [['character', el.personnelSection], ['ship', el.shipSection], ['campaign', el.campaignSection], ['threads', el.threadSection]]) {
+    section.hidden = view !== key;
+    section.classList.toggle('sheet-overlay', view === key);
+  }
   el.systemRecordSection.hidden = !(systemDetailsOpen && el.systemRecord.textContent);
-  el.workspaceTabShip.disabled = !shipDocument;
-  el.workspaceTabShip.title = shipDocument ? '' : 'No active ship assigned';
-  for (const [key, tab] of [
-    ['play', el.workspaceTabPlay],
-    ['character', el.workspaceTabCharacter],
-    ['ship', el.workspaceTabShip],
-    ['campaign', el.workspaceTabCampaign],
-    ['threads', el.workspaceTabThreads]
-  ]) {
-    tab?.setAttribute('aria-selected', key === view ? 'true' : 'false');
+  el.headerShipName.disabled = !shipDocument;
+  if (el.procedureScope) {
+    const current = mappedCurrentSystem();
+    el.procedureScope.textContent = current ? `PORT CALL · ${current.name.toUpperCase()} · WEEK ${campaignWeekKey(campaignDocument)}` : 'NO MAPPED LOCATION';
   }
 }
 
@@ -3850,28 +3893,39 @@ function applyOperationsDeskTab() {
     roster: el.rosterSection
   };
   const tabs = {
-    navigation: el.operationsTabNavigation,
     port: el.operationsTabPort,
     trade: el.operationsTabTrade,
     jobs: el.operationsTabJobs,
-    situation: el.operationsTabSituation,
-    encounter: el.operationsTabEncounter,
     roster: el.operationsTabRoster
   };
+  // Situations and combat are takeovers, not tabs: they hold the context panel
+  // only while something is active, then fall back to WORLD.
+  if (operationsDeskTab === 'situation' && !activeSituationAtCurrentSystem()) operationsDeskTab = 'port';
+  if (operationsDeskTab === 'encounter' && !activeEncounterAtCurrentSystem() && !latestEncounterAtCurrentSystem()) operationsDeskTab = 'port';
+  const encounterWorkspaceActive = operationsDeskTab === 'encounter' && panels.encounter?.dataset.available === 'true';
+  const situationTakeover = operationsDeskTab === 'situation' && panels.situation?.dataset.available === 'true';
   for (const [key, panel] of Object.entries(panels)) {
     const available = panel?.dataset.available === 'true';
     if (panel) panel.hidden = key !== operationsDeskTab || !available;
   }
+  // The encounter panel lives in the scene; while combat is active the context
+  // panel shows the situation/roster only if selected, otherwise the takeover bar.
   for (const [key, tab] of Object.entries(tabs)) tab?.setAttribute('aria-selected', key === operationsDeskTab ? 'true' : 'false');
-  const encounterWorkspaceActive = operationsDeskTab === 'encounter' && panels.encounter?.dataset.available === 'true';
-  const navigationWorkspaceActive = operationsDeskTab === 'navigation';
+  const takeover = encounterWorkspaceActive || situationTakeover;
+  if (el.contextTakeover) {
+    el.contextTakeover.hidden = !takeover || !campaignPlayActive();
+    el.contextTakeover.textContent = encounterWorkspaceActive
+      ? 'PERSONAL COMBAT · WORLD / TRADE / JOBS / NPCS SUSPENDED · [ BACK TO PORT ]'
+      : 'SITUATION · RESOLVE IT OR RETURN TO PORT · [ BACK TO PORT ]';
+  }
+  el.contextTabs?.classList.toggle('suspended', takeover);
   el.subsectorSection?.classList.toggle('encounter-workspace-active', encounterWorkspaceActive);
-  el.subsectorSection?.classList.toggle('navigation-workspace-active', navigationWorkspaceActive);
+  el.subsectorSection?.classList.remove('navigation-workspace-active');
   if (el.subsectorHeading) el.subsectorHeading.textContent = encounterWorkspaceActive ? 'PERSONAL COMBAT' : 'SUBSECTOR NAVIGATION';
 }
 
 function setOperationsDeskTab(tab) {
-  if (!['navigation', 'port', 'trade', 'jobs', 'situation', 'encounter', 'roster'].includes(tab)) return;
+  if (!['port', 'trade', 'jobs', 'situation', 'encounter', 'roster'].includes(tab)) return;
   operationsDeskTab = tab;
   applyOperationsDeskTab();
 }
@@ -4295,7 +4349,7 @@ function restoreCampaignFromRegistry(campaign) {
 
   campaignDocument = campaign;
   selectedSystemId = null;
-  operationsDeskTab = 'navigation';
+  operationsDeskTab = 'port';
   normalizeCampaignMappedLocation();
   gameplayDocument = nextCharacter;
   partyCharacterDocuments = campaign.party.characterIds
@@ -4326,7 +4380,7 @@ function newCampaign() {
     if (!gameplay) throw new Error('complete or load a gameplay character before creating a campaign');
     persistGameplayDocuments();
     selectedSystemId = null;
-    operationsDeskTab = 'navigation';
+    operationsDeskTab = 'port';
     contractDocuments = [];
     situationDocuments = [];
     encounterDocuments = [];
@@ -4585,6 +4639,242 @@ function renderActions(procedure) {
   renderGenericActions(available.actions);
 }
 
+// ---------------------------------------------------------------------------
+// v0.18.0 WHAT NOW? dock for campaign play
+// ---------------------------------------------------------------------------
+function playProcedureSnapshot() {
+  if (!campaignPlayActive()) return null;
+  const current = mappedCurrentSystem();
+  if (!current) return { currentSystem: null };
+  const selected = selectedSystemId ? getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, selectedSystemId) : null;
+  const jumpRating = activeJumpRating();
+  const distance = selected && selected.id !== current.id ? jumpDistanceBetweenSystems(FAR_MERIDIAN_SUBSECTOR, current.id, selected.id) : null;
+  const reachable = Boolean(shipDocument && Number.isInteger(distance) && distance >= 1 && Number.isInteger(jumpRating) && distance <= jumpRating);
+  const destination = selected && selected.id !== current.id ? { name: selected.name, distance, reachable } : null;
+  const portCall = currentBerthingDue();
+  const profile = parseUniversalWorldProfile(current.mainWorld.uwp);
+  const fuelService = shipDocument ? starportFuelService(profile.starport, { scoutBase: current.bases.scout, ship: shipDocument }) : null;
+  const fuelCheck = reachable ? canShipMakeJump(shipDocument, distance) : null;
+  const route = reachable ? commerceRouteSnapshot() : null;
+  const freeHold = shipDocument ? shipDocument.specifications.cargo.capacityTons - shipDocument.state.cargoUsedTons : 0;
+  let freight = null;
+  let passengers = null;
+  if (route?.reachable) {
+    const acceptedIds = new Set(shipDocument.state.cargoManifest.filter((entry) => entry.category === 'freight').map((entry) => entry.id));
+    const remaining = route.freight.offers.filter((entry) => !acceptedIds.has(entry.id));
+    const acceptedForDestination = shipDocument.state.cargoManifest.filter((entry) => entry.destinationSystemId === selected.id).length;
+    freight = { offers: remaining.length, fitting: remaining.filter((entry) => entry.tons <= freeHold + 1e-9).length, accepted: acceptedForDestination };
+    const booked = ['high', 'middle', 'low'].reduce((sum, cls) => sum + bookedPassengerCount(route, cls), 0);
+    const capacity = availablePassengerCapacity(shipDocument, 'middle') + availablePassengerCapacity(shipDocument, 'low');
+    passengers = { demand: route.passengerDemand, booked, capacity, blockReason: passengerRouteBlockReason(selected.id) };
+  }
+  const offer = weeklySpeculativeOffer();
+  const speculation = offer ? {
+    available: true,
+    name: offer.name.toUpperCase(),
+    quantity: `${offer.quantityAvailable}${offer.unit === 'tons' ? 't' : ' units'}`,
+    purchased: offer.unit === 'tons' ? speculativeQuantityPurchased(offer, current.id) : 0,
+    holdFree: freeHold
+  } : null;
+  const patronKey = currentPatronEventKey();
+  const patron = shipDocument ? {
+    available: Boolean(portCall && !activeSituationAtCurrentSystem()),
+    attemptedThisCall: Boolean(patronKey && situationForEventKey(patronKey))
+  } : null;
+  const situation = activeSituationAtCurrentSystem();
+  const encounter = activeEncounterAtCurrentSystem();
+  const lifeSupport = shipDocument ? calculateLifeSupportCostForTrip(shipDocument) : null;
+  const departureBlocked = currentBerthingBlocksDeparture();
+  const commerceBlock = reachable ? passengerRouteBlockReason(selected.id) : null;
+  const contractBlock = reachable ? contractRouteBlockReason(selected.id) : null;
+  const lifeSupportBlocked = Boolean(lifeSupport && lifeSupport.totalCr > (shipDocument?.state?.finances?.balanceCr ?? 0));
+  let jumpBlockReason = null;
+  if (!shipDocument) jumpBlockReason = 'No active ship.';
+  else if (fuelCheck && !fuelCheck.allowed) jumpBlockReason = fuelCheck.reason === 'FUEL UNRECORDED' ? 'Fuel is unrecorded; refuel or skim first.' : `Fuel: need ${fuelCheck.requirement.totalTons}t, have ${fuelCheck.availableTons}t.`;
+  else if (departureBlocked) jumpBlockReason = 'Berthing must be paid before departure.';
+  else if (commerceBlock) jumpBlockReason = commerceBlock;
+  else if (contractBlock) jumpBlockReason = contractBlock;
+  else if (lifeSupportBlocked) jumpBlockReason = `Ship account cannot cover life support Cr${lifeSupport.totalCr.toLocaleString('en-US')}.`;
+  else if (situation) jumpBlockReason = 'Resolve the active situation first.';
+  else if (encounter) jumpBlockReason = 'Resolve the encounter first.';
+  return {
+    currentSystem: { name: current.name, starport: profile.starport, hasGasGiant: Boolean(current.gasGiant) },
+    destination,
+    encounterActive: Boolean(encounter),
+    situationActive: situation ? { title: situation.identity.title, copy: 'Choose a response in the context panel.' } : null,
+    berthing: portCall ? { due: portCall.berthingDueCr > 0, dueCr: portCall.berthingDueCr, paid: Boolean(portCall.berthingPaid) } : null,
+    fuel: shipDocument ? {
+      currentTons: shipDocument.state.currentFuelTons ?? 0,
+      capacityTons: shipDocument.specifications.fuel.capacityTons,
+      requiredTons: fuelCheck?.requirement?.totalTons ?? null,
+      sufficient: fuelCheck ? fuelCheck.allowed : null,
+      canBuy: Boolean(fuelService?.available),
+      canSkim: Boolean(current.gasGiant && shipDocument.specifications.hull.streamlined)
+    } : null,
+    freight,
+    passengers,
+    speculation,
+    patron,
+    jobs: { offers: availableContractOffers().length, active: activeContracts().length },
+    lifeSupportCr: lifeSupport?.totalCr ?? 0,
+    jumpReady: Boolean(reachable && !jumpBlockReason),
+    jumpBlockReason
+  };
+}
+
+function playProcedureAction(action) {
+  if (action === 'nav') { el.subsectorMap?.scrollIntoView({ block: 'nearest' }); return; }
+  if (action === 'port') { setOperationsDeskTab('port'); return; }
+  if (action === 'trade') { setOperationsDeskTab('trade'); return; }
+  if (action === 'jobs') { setOperationsDeskTab('jobs'); return; }
+  if (action === 'situation') { setOperationsDeskTab('situation'); return; }
+  if (action === 'encounter') { setOperationsDeskTab('encounter'); return; }
+  if (action === 'jump') { el.jumpActions.querySelector('button:not(:disabled)')?.focus(); }
+}
+
+let playProcedureDoneOpen = false;
+
+function renderPlayProcedure() {
+  if (!el.playProcedure) return;
+  el.playProcedure.replaceChildren();
+  const snapshot = playProcedureSnapshot();
+  if (!snapshot) return;
+  const model = buildPlayProcedure(snapshot);
+  for (const group of model.groups) {
+    const wrap = document.createElement('div');
+    wrap.className = 'procedure-group';
+    const label = document.createElement('div');
+    label.className = 'procedure-group-label';
+    label.textContent = group.label;
+    wrap.append(label);
+    if (group.collapsed) {
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'text-button procedure-group-toggle';
+      toggle.textContent = playProcedureDoneOpen ? `[ HIDE ${group.cards.length} ]` : `[ SHOW ${group.cards.length} ]`;
+      toggle.addEventListener('click', () => { playProcedureDoneOpen = !playProcedureDoneOpen; renderPlayProcedure(); });
+      label.append(toggle);
+      if (!playProcedureDoneOpen) { el.playProcedure.append(wrap); continue; }
+    }
+    for (const card of group.cards) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `procedure-card ${card.tone}`;
+      button.disabled = !card.action;
+      const title = document.createElement('div');
+      title.className = 'procedure-card-title';
+      const name = document.createElement('span');
+      name.textContent = card.title;
+      const tag = document.createElement('span');
+      tag.className = 'procedure-card-tag';
+      tag.textContent = card.tag;
+      title.append(name, tag);
+      button.append(title);
+      if (card.copy) {
+        const copy = document.createElement('div');
+        copy.className = 'procedure-card-copy';
+        copy.textContent = card.copy;
+        button.append(copy);
+      }
+      if (card.action) button.addEventListener('click', () => playProcedureAction(card.action));
+      wrap.append(button);
+    }
+    el.playProcedure.append(wrap);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// v0.18.0 chargen context: the Book 1 tables that apply to the current phase
+// ---------------------------------------------------------------------------
+function tableElement(title, headers, rows, { highlight = null, note = null } = {}) {
+  const box = document.createElement('div');
+  box.className = 'chargen-table';
+  const head = document.createElement('div');
+  head.className = 'chargen-table-head';
+  head.textContent = title;
+  box.append(head);
+  if (note) { const n = document.createElement('div'); n.className = 'chargen-table-note'; n.textContent = note; box.append(n); }
+  const table = document.createElement('table');
+  table.className = 'chargen-grid';
+  if (headers?.length) {
+    const tr = document.createElement('tr');
+    for (const h of headers) { const th = document.createElement('th'); th.textContent = h; tr.append(th); }
+    table.append(tr);
+  }
+  rows.forEach((row, index) => {
+    const tr = document.createElement('tr');
+    if (highlight !== null && index === highlight) tr.className = 'hit';
+    for (const cell of row) { const td = document.createElement('td'); td.textContent = cell; tr.append(td); }
+    table.append(tr);
+  });
+  box.append(table);
+  return box;
+}
+
+function describeOutcome(outcome) {
+  if (!outcome) return '—';
+  if (outcome.type === 'characteristic') return `${outcome.amount > 0 ? '+' : ''}${outcome.amount} ${outcome.characteristic}`;
+  if (outcome.type === 'skill' || outcome.type === 'specialization') return outcome.name;
+  if (outcome.type === 'material') return outcome.name;
+  if (outcome.type === 'weapon') return outcome.category === 'gun' ? 'Gun' : 'Blade';
+  if (outcome.type === 'none') return '—';
+  return String(outcome.name ?? outcome.type);
+}
+
+function renderChargenTables() {
+  if (!el.chargenTables) return;
+  el.chargenTables.replaceChildren();
+  if (campaignPlayActive() || !character) return;
+  const mode = chargenTablesForPhase(character.phase);
+  const serviceKey = character.service;
+  const service = serviceKey ? SERVICES[serviceKey] : null;
+  const lastRoll = character.currentTerm?.skillRolls?.at?.(-1) ?? null;
+  const intro = document.createElement('div');
+  intro.className = 'chargen-tables-intro';
+  intro.textContent = mode === 'skills'
+    ? `Acquired Skills · ${service?.name ?? 'service'} column (Book 1 p.15). Choose a table, then roll one die.`
+    : mode === 'muster' ? `Mustering Out · ${service?.name ?? 'service'} (Book 1 p.14). One roll per term plus rank bonus; at most three on cash.`
+      : mode === 'aging' ? 'Aging (Book 1 p.12). Throw the number shown or lose the amount listed.'
+        : service ? `Prior Service · ${service.name} (Book 1 p.14).` : 'Prior Service Table (Book 1 p.14). Choose a service to enlist in.';
+  el.chargenTables.append(intro);
+
+  if (mode === 'skills' && service) {
+    const edu = character.characteristics.EDU;
+    for (const key of ['personal-development', 'service-skills', 'advanced-education', 'advanced-education-8']) {
+      const table = SKILL_TABLES[key];
+      const column = table.columns[serviceKey];
+      const locked = table.minimumEducation !== null && edu < table.minimumEducation;
+      const rows = [];
+      for (let i = 0; i < 6; i += 2) rows.push([String(i + 1), describeOutcome(column[i]), String(i + 2), describeOutcome(column[i + 1])]);
+      const hitIndex = lastRoll && lastRoll.table === key ? Math.floor((lastRoll.roll - 1) / 2) : null;
+      const box = tableElement(table.name.toUpperCase(), null, rows, { highlight: hitIndex, note: locked ? `Requires EDU ${table.minimumEducation}+ (EDU ${edu}).` : null });
+      if (locked) box.classList.add('locked');
+      el.chargenTables.append(box);
+    }
+  } else if (mode === 'muster' && service) {
+    const tables = MUSTERING_OUT_TABLES[serviceKey];
+    el.chargenTables.append(tableElement('BENEFITS', ['ROLL', 'BENEFIT'], tables.benefits.map((b, i) => [String(i + 1), describeOutcome(b)]), { note: character.rank >= 5 ? 'Rank 5–6: DM +1 on this table.' : null }));
+    el.chargenTables.append(tableElement('CASH', ['ROLL', 'CR'], tables.cash.map((c, i) => [String(i + 1), c.toLocaleString('en-US')]), { note: (character.skills?.Gambling ?? 0) >= 1 ? 'Gambling: DM +1 on this table.' : 'Maximum three rolls on cash.' }));
+  } else if (mode === 'aging') {
+    el.chargenTables.append(tableElement('AGING', ['AGE', 'STR', 'DEX', 'END', 'INT'], AGING_BANDS.map((band) => [
+      `${band.minimumAge}–${Number.isFinite(band.maximumAge) ? band.maximumAge : '+'}`,
+      ...['STR', 'DEX', 'END', 'INT'].map((k) => { const r = band.rules.find((rule) => rule.characteristic === k); return r ? `−${r.loss} (${r.target}+)` : '—'; })
+    ])));
+  } else {
+    const keys = service ? [serviceKey] : Object.keys(SERVICES);
+    const rows = [];
+    const dm = (list) => list.map((d) => `+${d.modifier} ${d.characteristic} ${d.minimum}+`).join(', ') || '—';
+    for (const key of keys) {
+      const svc = SERVICES[key];
+      rows.push([svc.name, `${svc.enlistment.target}+`, dm(svc.enlistment.dms), `${svc.survival.target}+`, dm(svc.survival.dms), svc.commission ? `${svc.commission.target}+` : '—', svc.promotion ? `${svc.promotion.target}+` : '—', `${svc.reenlistment.target}+`]);
+    }
+    el.chargenTables.append(tableElement('PRIOR SERVICE', ['SERVICE', 'ENLIST', 'DMS', 'SURVIVE', 'DMS', 'COMM', 'PROMO', 'REENLIST'], rows));
+    if (service && service.ranks.length > 1) {
+      el.chargenTables.append(tableElement('RANKS', ['RANK', 'TITLE'], service.ranks.slice(1).map((r, i) => [String(i + 1), r]), { highlight: character.rank > 0 ? character.rank - 1 : null }));
+    }
+  }
+}
+
 function render() {
   const gameplayOnly = documentMode === TRAVELLER_DOCUMENT_KINDS.CHARACTER;
   const displayName = gameplayOnly ? gameplayDocument?.identity.name : character.name;
@@ -4648,6 +4938,8 @@ function render() {
   renderCampaignHeader();
   renderSelectedSystemSummary();
   applyCampaignLayout();
+  renderPlayProcedure();
+  renderChargenTables();
   renderActivity();
 }
 
@@ -5171,12 +5463,14 @@ el.activityNoteForm.addEventListener('submit', (event) => {
   setStatus('CAMPAIGN NOTE RECORDED', 'ok');
 });
 
-el.workspaceTabPlay.addEventListener('click', () => setWorkspaceView('play'));
-el.workspaceTabCharacter.addEventListener('click', () => setWorkspaceView('character'));
-el.workspaceTabShip.addEventListener('click', () => setWorkspaceView('ship'));
-el.workspaceTabCampaign.addEventListener('click', () => setWorkspaceView('campaign'));
-el.workspaceTabThreads.addEventListener('click', () => setWorkspaceView('threads'));
-el.headerCharacterName.addEventListener('click', () => setWorkspaceView('character'));
+el.headerCharacterName.addEventListener('click', () => setWorkspaceView(activeWorkspaceView === 'character' ? 'play' : 'character'));
+el.headerShipName.addEventListener('click', () => setWorkspaceView(activeWorkspaceView === 'ship' ? 'play' : 'ship'));
+el.openCampaignView.addEventListener('click', () => setWorkspaceView(activeWorkspaceView === 'campaign' ? 'play' : 'campaign'));
+el.openThreadsView.addEventListener('click', () => setWorkspaceView(activeWorkspaceView === 'threads' ? 'play' : 'threads'));
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && campaignPlayActive() && activeWorkspaceView !== 'play' && !document.querySelector('dialog[open]')) setWorkspaceView('play');
+});
+document.querySelectorAll('.sheet-close').forEach((button) => button.addEventListener('click', () => setWorkspaceView('play')));
 el.sheetWeapon.addEventListener('change', () => saveCharacterSheetState(
   { weaponKey: el.sheetWeapon.value },
   `Ready weapon set: ${getPersonalWeapon(el.sheetWeapon.value).name}`
@@ -5344,12 +5638,10 @@ el.mapZoomOut.addEventListener('click', () => setSubsectorZoom(subsectorZoom - S
 el.mapZoomIn.addEventListener('click', () => setSubsectorZoom(subsectorZoom + SUBSECTOR_ZOOM_STEP));
 el.mapZoomFit.addEventListener('click', () => setSubsectorZoom(1));
 
-el.operationsTabNavigation.addEventListener('click', () => setOperationsDeskTab('navigation'));
 el.operationsTabPort.addEventListener('click', () => setOperationsDeskTab('port'));
 el.operationsTabTrade.addEventListener('click', () => setOperationsDeskTab('trade'));
 el.operationsTabJobs.addEventListener('click', () => setOperationsDeskTab('jobs'));
-el.operationsTabSituation.addEventListener('click', () => setOperationsDeskTab('situation'));
-el.operationsTabEncounter.addEventListener('click', () => setOperationsDeskTab('encounter'));
+el.contextTakeover.addEventListener('click', () => setOperationsDeskTab('port'));
 el.operationsTabRoster.addEventListener('click', () => setOperationsDeskTab('roster'));
 
 el.newCampaign.addEventListener('click', newCampaign);

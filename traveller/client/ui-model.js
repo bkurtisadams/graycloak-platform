@@ -870,3 +870,152 @@ export function buildEncounterRecord({ system = null, encounters = [] } = {}) {
   }
   return box(lines, 106);
 }
+
+// ---------------------------------------------------------------------------
+// v0.18.0 play procedure. Pure: takes a snapshot of campaign state and returns
+// grouped WHAT NOW? cards. The host builds the snapshot; the dock renders the
+// result. Card `action` values are host intents (which context tab or command
+// to open), never rules logic.
+// ---------------------------------------------------------------------------
+
+export const PLAY_PROCEDURE_TAGS = Object.freeze({
+  required: 'REQUIRED',
+  ready: 'READY',
+  blocked: 'BLOCKED',
+  optional: 'OPTIONAL',
+  done: 'DONE'
+});
+
+function card(id, title, tag, copy, { action = null, tone = null } = {}) {
+  const resolvedTone = tone ?? (tag === PLAY_PROCEDURE_TAGS.required ? 'required'
+    : tag === PLAY_PROCEDURE_TAGS.ready ? 'ready'
+      : (tag === PLAY_PROCEDURE_TAGS.blocked || tag === PLAY_PROCEDURE_TAGS.done) ? 'blocked' : 'plain');
+  return Object.freeze({ id, title, tag, copy, action, tone: resolvedTone });
+}
+
+/**
+ * @param {object} s snapshot
+ *   s.currentSystem {name, starport, hasGasGiant} | null
+ *   s.destination {name, distance, reachable} | null
+ *   s.encounterActive, s.situationActive {title} | null
+ *   s.berthing {due:boolean, dueCr:number, paid:boolean} | null
+ *   s.fuel {currentTons, capacityTons, requiredTons|null, sufficient|null, canBuy, canSkim}
+ *   s.freight {offers:number, fitting:number, accepted:number} | null
+ *   s.passengers {demand:{high,middle,low}, booked:number, capacity:number, blockReason|null} | null
+ *   s.speculation {available:boolean, name, quantity, purchased:number, holdFree:number} | null
+ *   s.patron {available:boolean, attemptedThisCall:boolean}
+ *   s.jobs {offers:number, active:number}
+ *   s.lifeSupportCr number
+ *   s.jumpReady boolean, s.jumpBlockReason string|null
+ */
+export function buildPlayProcedure(s = {}) {
+  const groups = [];
+  const attention = [];
+  const readyAfter = [];
+  const opportunities = [];
+  const done = [];
+
+  if (!s.currentSystem) {
+    attention.push(card('map-location', 'Set the starting location', PLAY_PROCEDURE_TAGS.required, 'Select a system on the map and set it as the current location. Nothing else opens until the ship is somewhere.', { action: 'nav' }));
+    return Object.freeze({ headline: 'Set the starting location', groups: [Object.freeze({ label: 'NEEDS ATTENTION', cards: attention })] });
+  }
+
+  if (s.encounterActive) {
+    attention.push(card('combat', 'Personal combat in progress', PLAY_PROCEDURE_TAGS.required, 'Resolve the encounter. Port, trade, and jobs are suspended until it ends (Book 1 p.30).', { action: 'encounter' }));
+  }
+  if (s.situationActive) {
+    attention.push(card('situation', s.situationActive.title || 'Situation requires a decision', PLAY_PROCEDURE_TAGS.required, s.situationActive.copy || 'Choose a response before continuing the port call.', { action: 'situation' }));
+  }
+  if (s.berthing?.due && !s.berthing.paid) {
+    attention.push(card('berthing', `Pay berthing at ${s.currentSystem.name}`, PLAY_PROCEDURE_TAGS.required, `Cr${s.berthing.dueCr.toLocaleString('en-US')} covers six days at the starport (Book 2 p.8).`, { action: 'port' }));
+  } else if (s.berthing?.paid) {
+    done.push(card('berthing-done', 'Berthed', PLAY_PROCEDURE_TAGS.done, `Cr${s.berthing.dueCr.toLocaleString('en-US')} paid.`));
+  }
+
+  // Fuel
+  if (s.fuel) {
+    const { currentTons, capacityTons, requiredTons, sufficient, canBuy, canSkim } = s.fuel;
+    if (s.destination?.reachable && sufficient === false) {
+      const how = canBuy ? 'Buy fuel at the starport' : canSkim ? 'Skim the gas giant (+7 days)' : 'No fuel source here';
+      attention.push(card('fuel', `Refuel for ${s.destination.name}`, canBuy || canSkim ? PLAY_PROCEDURE_TAGS.required : PLAY_PROCEDURE_TAGS.blocked, `${currentTons}/${capacityTons}t aboard; the jump needs ${requiredTons}t. ${how}.`, { action: 'port' }));
+    } else if (currentTons < capacityTons && (canBuy || canSkim)) {
+      opportunities.push(card('fuel-top', 'Top off fuel', PLAY_PROCEDURE_TAGS.optional, `${currentTons}/${capacityTons}t aboard. ${canBuy ? 'Starport fuel available.' : 'Gas giant skim available.'}`, { action: 'port' }));
+    } else {
+      done.push(card('fuel-done', 'Refuel', PLAY_PROCEDURE_TAGS.done, `${currentTons}/${capacityTons}t aboard${currentTons >= capacityTons ? ' · tanks full' : ' · nothing to buy here'}.`));
+    }
+  }
+
+  // Destination and Book 2 p.8 ordering: cargo announces the destination, passengers follow.
+  if (!s.destination) {
+    attention.push(card('destination', 'Choose a destination', PLAY_PROCEDURE_TAGS.required, 'Select a system within jump range on the map. Cargo and passengers are offered per destination (Book 2 p.8).', { action: 'nav' }));
+  } else if (!s.destination.reachable) {
+    attention.push(card('destination', `${s.destination.name} is out of jump range`, PLAY_PROCEDURE_TAGS.blocked, `${s.destination.distance} parsec${s.destination.distance === 1 ? '' : 's'}. Select a nearer system.`, { action: 'nav' }));
+  } else {
+    if (s.freight) {
+      if (s.freight.accepted > 0) {
+        done.push(card('freight-done', `Cargo accepted for ${s.destination.name}`, PLAY_PROCEDURE_TAGS.done, `${s.freight.accepted} lot${s.freight.accepted === 1 ? '' : 's'} aboard · destination announced.`));
+      } else if (s.freight.fitting > 0) {
+        attention.push(card('freight', `Accept cargo for ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready, `${s.freight.fitting} of ${s.freight.offers} lots fit the hold at Cr${(1000).toLocaleString('en-US')}/ton. Accepting cargo announces the destination (Book 2 p.8).`, { action: 'trade' }));
+      } else {
+        opportunities.push(card('freight-none', `No cargo fits for ${s.destination.name}`, PLAY_PROCEDURE_TAGS.optional, s.freight.offers ? `${s.freight.offers} lots offered, none fit the free hold.` : 'No lots offered this week.', { action: 'trade' }));
+      }
+    }
+    if (s.passengers) {
+      const demandTotal = s.passengers.demand.high + s.passengers.demand.middle + s.passengers.demand.low;
+      // Cargo announces the destination (Book 2 p.8). With no acceptable cargo the
+      // ship simply declares it, so passengers are not held hostage to an empty board.
+      const announced = !s.freight || s.freight.accepted > 0 || s.freight.fitting === 0;
+      if (s.passengers.blockReason) {
+        readyAfter.push(card('passengers', `Passengers to ${s.destination.name}`, PLAY_PROCEDURE_TAGS.blocked, s.passengers.blockReason, { action: 'trade' }));
+      } else if (!announced && s.passengers.booked === 0) {
+        readyAfter.push(card('passengers', `Passengers to ${s.destination.name}`, PLAY_PROCEDURE_TAGS.blocked, `Book 2 p.8: passengers present themselves after cargo is accepted for the destination. Demand H${s.passengers.demand.high} M${s.passengers.demand.middle} L${s.passengers.demand.low}.`, { action: 'trade' }));
+      } else if (demandTotal > s.passengers.booked && s.passengers.capacity > 0) {
+        attention.push(card('passengers', `Book passengers to ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready, `Demand H${s.passengers.demand.high} M${s.passengers.demand.middle} L${s.passengers.demand.low} · ${s.passengers.booked} booked · ${s.passengers.capacity} berths free.`, { action: 'trade' }));
+      } else {
+        done.push(card('passengers-done', 'Passengers', PLAY_PROCEDURE_TAGS.done, `${s.passengers.booked} booked · ${s.passengers.capacity} berths free.`));
+      }
+    }
+    if (s.jumpReady) {
+      readyAfter.push(card('jump', `Depart → ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready, `${s.destination.distance} parsec${s.destination.distance === 1 ? '' : 's'} · 7 days in jump · life support Cr${(s.lifeSupportCr ?? 0).toLocaleString('en-US')} charged at departure (Book 2 p.7).`, { action: 'jump' }));
+    } else {
+      readyAfter.push(card('jump', `Depart → ${s.destination.name}`, PLAY_PROCEDURE_TAGS.blocked, s.jumpBlockReason || 'Not ready to jump.', { action: 'nav' }));
+    }
+  }
+
+  // Weekly opportunities at the current world
+  if (s.speculation) {
+    if (s.speculation.purchased > 0) {
+      done.push(card('spec-done', 'Speculative lot', PLAY_PROCEDURE_TAGS.done, `${s.speculation.purchased} bought from this week's lot (${s.speculation.name}).`));
+    } else if (s.speculation.available) {
+      opportunities.push(card('spec', 'Speculative lot', s.speculation.holdFree > 0 ? PLAY_PROCEDURE_TAGS.ready : PLAY_PROCEDURE_TAGS.blocked, `This week: ${s.speculation.quantity} ${s.speculation.name}. One lot per week (Book 2 p.46). Hold ${s.speculation.holdFree}t free.`, { action: 'trade' }));
+    }
+  }
+  if (s.jobs) {
+    if (s.jobs.offers > 0) opportunities.push(card('jobs', 'Local jobs', `${s.jobs.offers} OFFER${s.jobs.offers === 1 ? '' : 'S'}`, `Contracts originating at ${s.currentSystem.name}.${s.jobs.active ? ` ${s.jobs.active} active.` : ''}`, { action: 'jobs', tone: 'plain' }));
+  }
+  if (s.patron) {
+    if (s.patron.attemptedThisCall) done.push(card('patron-done', 'Patron search', PLAY_PROCEDURE_TAGS.done, 'Attempted this port call.'));
+    else if (s.patron.available) opportunities.push(card('patron', 'Seek a patron', PLAY_PROCEDURE_TAGS.optional, 'Uses the week. A 5 or 6 on one die finds a likely patron (Book 3 p.25).', { action: 'jobs' }));
+  }
+
+  if (attention.length) groups.push(Object.freeze({ label: 'NEEDS ATTENTION', cards: Object.freeze(attention) }));
+  if (readyAfter.length) groups.push(Object.freeze({ label: attention.length ? 'THEN' : 'READY', cards: Object.freeze(readyAfter) }));
+  if (opportunities.length) groups.push(Object.freeze({ label: `OPPORTUNITIES AT ${s.currentSystem.name.toUpperCase()}`, cards: Object.freeze(opportunities) }));
+  if (done.length) groups.push(Object.freeze({ label: 'DONE THIS PORT CALL', cards: Object.freeze(done), collapsed: true }));
+
+  const first = attention[0] ?? readyAfter.find((entry) => entry.tone === 'ready') ?? opportunities[0] ?? null;
+  return Object.freeze({ headline: first ? first.title : 'Port call complete', groups: Object.freeze(groups) });
+}
+
+// Chargen context: which Book 1 tables apply to the current phase.
+export function chargenTablesForPhase(phase) {
+  const skill = ['skills-pending', 'skill-specialization-required'];
+  const service = ['service-selection', 'draft-required', 'term-ready', 'survival-required', 'commission-option', 'promotion-option', 'term-completion-ready', 'reenlistment-required', 'reenlistment-decision'];
+  const muster = ['muster-out-required', 'muster-out-rolls-pending', 'muster-benefit-specialization-required', 'complete'];
+  const aging = ['aging-required', 'aging-crisis-required'];
+  if (skill.includes(phase)) return 'skills';
+  if (muster.includes(phase)) return 'muster';
+  if (aging.includes(phase)) return 'aging';
+  if (service.includes(phase)) return 'service';
+  return 'service';
+}
