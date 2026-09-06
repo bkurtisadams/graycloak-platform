@@ -7,6 +7,8 @@ import {
   resolvePersonalSurprise,
   resolvePersonalAttack,
   rollPersonalAttack,
+  SURPRISE_DMS,
+  surpriseDMTotal,
   applyPersonalDamage,
   weaponTargetNumber,
   movePersonalCombatRange,
@@ -16,8 +18,20 @@ import {
 } from '../../packages/classic-traveller-rules/index.js';
 
 export const ENCOUNTER_DOCUMENT_TYPE = 'graycloak-traveller-personal-encounter';
-export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 7;
-export const SUPPORTED_ENCOUNTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7]);
+export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 9;
+export const SUPPORTED_ENCOUNTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+// Book 1 p.31 surprise DMs. Five are derivable from the encounter itself; the
+// referee supplies the three that describe circumstances the document does not
+// model. Battle dress is not in the Book 1 armour list, so it stays a flag.
+export const REFEREE_SURPRISE_CONDITIONS = Object.freeze(['inAVehicle', 'pouncerAnimals', 'battleDress']);
+// Book 1 p.31 errata. Darkness is a property of the encounter; cover and
+// concealment protect whoever is being shot at, whoever shoots; a folding
+// stock belongs to the firer's weapon. None of them are per-attack ticks.
+export const ENCOUNTER_LIGHTING = Object.freeze(['normal', 'darkness', 'darkness-light-intensifier']);
+export const ENCOUNTER_LIGHTING_DMS = Object.freeze({ normal: 0, darkness: -9, 'darkness-light-intensifier': -6 });
+export const COMBATANT_COVER = Object.freeze(['none', 'concealment', 'cover']);
+export const COMBATANT_COVER_DMS = Object.freeze({ none: 0, concealment: -1, cover: -4 });
+export const FOLDING_STOCK_DM = -1;
 // Book 1 p.32: escape is thrown at 9+, with a DM for the range escaped from.
 export const ESCAPE_TARGET = 9;
 export const ESCAPE_RANGE_DMS = Object.freeze({ close: -1, short: -1, medium: 1, long: 2, 'very-long': 3 });
@@ -93,7 +107,7 @@ function partyDocuments(character, characters) {
   return entries;
 }
 
-export function createEncounterDocument({ campaign, situation = null, character = null, characters = null, partyLoadouts = {}, opponent = null, opponents = null, title = null, encounterKey = null, date, range = 'medium', metersPerSquare = null, dice } = {}) {
+export function createEncounterDocument({ campaign, situation = null, character = null, characters = null, partyLoadouts = {}, opponent = null, opponents = null, title = null, encounterKey = null, date, range = 'medium', metersPerSquare = null, surpriseConditions = {}, dice } = {}) {
   if (!campaign?.identity?.id) throw new TypeError('campaign is required');
   const characterDocuments = partyDocuments(character, characters);
   const opponentSpecs = Array.isArray(opponents) && opponents.length ? opponents : opponent ? [opponent] : [];
@@ -110,7 +124,7 @@ export function createEncounterDocument({ campaign, situation = null, character 
       armor: loadout.armor ?? opponentSpecs[0].playerArmor ?? 'none',
       weaponKey: loadout.weaponKey ?? opponentSpecs[0].playerWeaponKey ?? 'rifle',
       surpriseDM: (military ? 1 : 0) + Math.min(1, Number(entry.skills?.Leadership ?? 0)) + Math.min(1, Number(entry.skills?.Tactics ?? 0))
-    }), entry.current, characterEncounterStatus(entry)), initialPosition('party', index, characterDocuments.length, range)), sourceActorId: entry.identity.id,
+    }), entry.current, characterEncounterStatus(entry)), initialPosition('party', index, characterDocuments.length, range)), cover: 'none', foldingStock: false, militaryExperience: military, sourceActorId: entry.identity.id,
       actorType: 'pc', bodyModel: 'biological', tokenLabel: entry.identity.name.charAt(0).toUpperCase(), conditions: [] };
   });
   const hostiles = opponentSpecs.map((spec, index) => {
@@ -121,17 +135,23 @@ export function createEncounterDocument({ campaign, situation = null, character 
       name: spec.name, side: 'opposition', characteristics: spec.characteristics ?? { STR: 7, DEX: 7, END: 7, INT: 7 },
       skills: spec.skills ?? { [defaultSkill]: 0 }, armor: spec.armor ?? 'jack',
       weaponKey, surpriseDM: Number(spec.surpriseDM ?? 0)
-    }), spec.current), initialPosition('opposition', index, opponentSpecs.length, range)), sourceActorId: spec.actorId ?? null,
+    }), spec.current), initialPosition('opposition', index, opponentSpecs.length, range)), cover: 'none', foldingStock: false, militaryExperience: Boolean(spec.militaryExperience), sourceActorId: spec.actorId ?? null,
       actorType: spec.actorType ?? 'npc', bodyModel: spec.bodyModel ?? (spec.actorType === 'robot' ? 'robotic' : 'biological'),
       tokenLabel: String(spec.tokenLabel ?? spec.name).charAt(0).toUpperCase(), conditions: Array.isArray(spec.conditions) ? [...spec.conditions] : [] };
   });
-  const surprise = resolvePersonalSurprise({
+  const partySurprise = surpriseConditionsForSide(party, surpriseConditions.party ?? {});
+  const oppositionSurprise = surpriseConditionsForSide(hostiles, surpriseConditions.opposition ?? {});
+  const surpriseThrow = resolvePersonalSurprise({
     sides: [
-      { id: 'party', combatants: party.filter((entry) => entry.status === 'active') },
-      { id: 'opposition', combatants: hostiles.filter((entry) => entry.status === 'active') }
+      { id: 'party', combatants: party.filter((entry) => entry.status === 'active'), dm: partySurprise.total },
+      { id: 'opposition', combatants: hostiles.filter((entry) => entry.status === 'active'), dm: oppositionSurprise.total }
     ],
     dice
   });
+  const surprise = {
+    ...surpriseThrow,
+    conditions: { party: partySurprise.conditions, opposition: oppositionSurprise.conditions }
+  };
   const seed = `${campaign.identity.id}|${encounterKey ?? situation?.identity?.id ?? 'encounter'}|${date.year}-${date.dayOfYear}`;
   const encounterTitle = nonblank(title) ? title.trim() : `Encounter / ${opponentSpecs[0].name}${opponentSpecs.length > 1 ? ` +${opponentSpecs.length - 1}` : ''}`;
   const document = {
@@ -146,6 +166,7 @@ export function createEncounterDocument({ campaign, situation = null, character 
     },
     timing: { createdDate: { year: date.year, dayOfYear: date.dayOfYear }, resolvedDate: null },
     status: 'active', round: 1, range, surprise,
+    conditions: { lighting: 'normal' },
     map: { grid: 'square', columns: ENCOUNTER_MAP_COLUMNS, rows: ENCOUNTER_MAP_ROWS, rangeGuide: ENCOUNTER_RANGE_GUIDE_VERSION, metersPerSquare },
     roundState: { declaredActions: [] },
     combatants: [...party, ...hostiles],
@@ -172,6 +193,7 @@ export function validateEncounterDocument(document) {
   add(errors, ENCOUNTER_STATUSES.includes(document.status), 'status is invalid');
   add(errors, Number.isInteger(document.round) && document.round >= 1, 'round must be a positive integer');
   add(errors, PERSONAL_COMBAT_RANGES.includes(document.range), 'range is invalid');
+  add(errors, ENCOUNTER_LIGHTING.includes(document.conditions?.lighting), 'encounter lighting is invalid');
   for (const declaration of document.roundState?.declaredActions ?? []) {
     add(errors, nonblank(declaration.side), 'each declared action must name the acting side');
   }
@@ -194,6 +216,8 @@ export function validateEncounterDocument(document) {
     // A side is any nonblank label: 'party' and 'opposition' are the usual two,
     // but a third faction is a legitimate encounter.
     add(errors, nonblank(entry.id) && nonblank(entry.name) && nonblank(entry.side), 'combatant identity is invalid');
+    add(errors, COMBATANT_COVER.includes(entry.cover), `combatant ${entry.name ?? ''} cover is invalid`);
+    add(errors, typeof entry.foldingStock === 'boolean', `combatant ${entry.name ?? ''} folding stock flag is invalid`);
     for (const key of ['STR', 'DEX', 'END', 'INT']) add(errors, Number.isInteger(entry.characteristics?.[key]) && entry.characteristics[key] >= 0, `combatant ${entry.name ?? ''} ${key} is invalid`);
     for (const key of ['STR', 'DEX', 'END']) add(errors, Number.isInteger(entry.current?.[key]) && entry.current[key] >= 0, `combatant ${entry.name ?? ''} current ${key} is invalid`);
     add(errors, plain(entry.skills), `combatant ${entry.name ?? ''} skills are invalid`);
@@ -295,6 +319,19 @@ function migrateEncounterDocument(document) {
     };
     document.schemaVersion = 7;
   }
+  if (document.schemaVersion === 7) {
+    document.conditions = { lighting: 'normal' };
+    document.combatants = document.combatants.map((entry) => ({ ...entry, cover: 'none', foldingStock: false }));
+    document.schemaVersion = 8;
+  }
+  if (document.schemaVersion === 8) {
+    document.combatants = document.combatants.map((entry) => ({ ...entry, militaryExperience: Boolean(entry.militaryExperience) }));
+    document.surprise = {
+      ...document.surprise,
+      conditions: document.surprise?.conditions ?? { party: {}, opposition: {} }
+    };
+    document.schemaVersion = 9;
+  }
   return document;
 }
 
@@ -384,6 +421,9 @@ export function addEncounterCombatantFromActor(document, { actor, side = 'opposi
       surpriseDM: 0
     }), actor.current),
     position: { column, row },
+    cover: 'none',
+    foldingStock: false,
+    militaryExperience: false,
     sourceActorId: actor.identity.id,
     actorType: actor.profile.actorType ?? 'npc',
     bodyModel: actor.profile.bodyModel,
@@ -429,6 +469,51 @@ export function setEncounterCombatantCondition(document, { combatantId, conditio
   if (entry) next.history.push(entry);
   assertValidEncounterDocument(next);
   return { encounter: next, combatant, entry };
+}
+
+// Referee override of Book 1 wound status. Conditions are annotations and
+// never move status, so this is the only way to put someone back on their
+// feet. Restoring to active must also lift any zeroed characteristic off
+// zero, or the next wound would immediately recompute them unconscious.
+export function setCombatantStatus(document, { combatantId, status } = {}) {
+  const next = importEncounterDocument(document);
+  if (!PERSONAL_COMBAT_STATUSES.includes(status)) throw new RangeError(`unknown combat status: ${status}`);
+  const combatant = next.combatants.find((entry) => entry.id === combatantId);
+  if (!combatant) throw new Error('combatant is unavailable');
+  const before = combatant.status;
+  if (before === status) return { encounter: next, combatant, entry: null };
+  combatant.status = status;
+  const restored = [];
+  if (status === 'active') {
+    for (const key of ['STR', 'DEX', 'END']) {
+      if (combatant.current[key] <= 0) { combatant.current[key] = 1; restored.push(key); }
+    }
+  }
+  const entry = {
+    round: next.round, kind: 'status', side: 'referee', combatantId,
+    text: `Referee sets ${combatant.name} from ${before} to ${status}${restored.length ? `; ${restored.join(', ')} restored to 1 so the change holds` : ''}.`
+  };
+  next.history.push(entry);
+  assertValidEncounterDocument(next);
+  return { encounter: next, combatant, entry };
+}
+
+// Referee ends the fight without playing it out.
+export function endEncounterByReferee(document, { date, reason = 'referee-ended' } = {}) {
+  const next = importEncounterDocument(document);
+  if (next.status !== 'active') throw new Error('encounter is already resolved');
+  if (!validDate(date)) throw new TypeError('valid date is required');
+  const partyStanding = next.combatants.some((entry) => entry.side === 'party' && entry.status === 'active');
+  const foesStanding = next.combatants.some((entry) => entry.side !== 'party' && entry.status === 'active');
+  next.status = !foesStanding ? 'victory' : !partyStanding ? 'defeat' : 'avoided';
+  next.outcome = { winner: !foesStanding ? 'party' : !partyStanding ? 'opposition' : null, reason };
+  next.roundState.declaredActions = [];
+  next.timing.resolvedDate = { year: date.year, dayOfYear: date.dayOfYear };
+  next.combatants = next.combatants.map(endPersonalCombatRecovery);
+  const entry = { round: next.round, kind: 'outcome', side: 'referee', text: `Referee ends the encounter: ${next.status}.` };
+  next.history.push(entry);
+  assertValidEncounterDocument(next);
+  return { encounter: next, entry };
 }
 
 export function setEncounterRangeFromPositions(document, { actorId, targetId } = {}) {
@@ -492,6 +577,71 @@ function closestOpposingBand(entries) {
 // Declaring and resolving are separate acts. The referee sets orders for as
 // many combatants as matter, looks at the board, and then commits the round;
 // anyone left undeclared falls back to attacking their nearest enemy.
+// Book 1 p.31 errata, derived from state rather than re-ticked per attack:
+// the encounter's lighting, the defender's cover, and whether the firer's
+// weapon has a folding stock.
+// Book 1 p.31: the surprise DM belongs to a side, not to one combatant.
+// Leader, tactical and military experience come from the characters; the
+// crowd penalties come from counting them; the rest the referee ticks.
+// Graycloak ruling: "military experience" is service in the Navy, Army,
+// Marines or Scouts, the book giving no definition.
+export function surpriseConditionsForSide(combatants, overrides = {}) {
+  const present = combatants.filter((entry) => entry.status === 'active');
+  const has = (skill) => present.some((entry) => Number(entry.skills?.[skill] ?? 0) >= 1);
+  const conditions = {
+    leaderSkill: has('Leadership'),
+    tacticalSkill: has('Tactics'),
+    militaryExperience: present.some((entry) => entry.militaryExperience === true),
+    eightOrMoreAdventurers: present.length >= 8,
+    tenOrMoreAnimals: present.filter((entry) => entry.actorType === 'creature').length >= 10
+  };
+  for (const key of REFEREE_SURPRISE_CONDITIONS) conditions[key] = Boolean(overrides[key]);
+  const parts = Object.entries(conditions)
+    .filter(([, value]) => value)
+    .map(([key]) => ({ key, dm: SURPRISE_DMS[key] }));
+  return { conditions, parts, total: surpriseDMTotal(conditions) };
+}
+
+export function encounterSituationDMs(encounter, attacker, defender) {
+  const parts = [];
+  const lighting = encounter.conditions?.lighting ?? 'normal';
+  if (lighting !== 'normal') {
+    parts.push({ key: 'lighting', label: lighting === 'darkness' ? 'DARKNESS' : 'DARKNESS / INTENSIFIER', dm: ENCOUNTER_LIGHTING_DMS[lighting] });
+  }
+  if (defender?.cover && defender.cover !== 'none') {
+    parts.push({ key: 'cover', label: defender.cover.toUpperCase(), dm: COMBATANT_COVER_DMS[defender.cover] });
+  }
+  if (attacker?.foldingStock) parts.push({ key: 'foldingStock', label: 'FOLDING STOCK', dm: FOLDING_STOCK_DM });
+  return { parts, total: parts.reduce((sum, part) => sum + part.dm, 0) };
+}
+
+export function setEncounterLighting(document, lighting) {
+  const next = importEncounterDocument(document);
+  if (!ENCOUNTER_LIGHTING.includes(lighting)) throw new RangeError(`unknown encounter lighting: ${lighting}`);
+  next.conditions = { ...next.conditions, lighting };
+  assertValidEncounterDocument(next);
+  return { encounter: next };
+}
+
+export function setCombatantCover(document, { combatantId, cover } = {}) {
+  const next = importEncounterDocument(document);
+  if (!COMBATANT_COVER.includes(cover)) throw new RangeError(`unknown cover: ${cover}`);
+  const combatant = next.combatants.find((entry) => entry.id === combatantId);
+  if (!combatant) throw new Error('combatant is unavailable');
+  combatant.cover = cover;
+  assertValidEncounterDocument(next);
+  return { encounter: next };
+}
+
+export function setCombatantFoldingStock(document, { combatantId, foldingStock } = {}) {
+  const next = importEncounterDocument(document);
+  const combatant = next.combatants.find((entry) => entry.id === combatantId);
+  if (!combatant) throw new Error('combatant is unavailable');
+  combatant.foldingStock = Boolean(foldingStock);
+  assertValidEncounterDocument(next);
+  return { encounter: next };
+}
+
 export function declareEncounterAction(document, { action = 'attack', modifier = 0, actorId = null, targetId = null } = {}) {
   const next = importEncounterDocument(document);
   if (next.status !== 'active') throw new Error('encounter is already resolved');
@@ -575,8 +725,9 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
     if (!attacker || !defender || attacker.status !== 'active' || defender.status !== 'active') return;
     const band = encounterPairRange(attacker, defender);
     let result;
+    const derived = encounterSituationDMs(next, attacker, defender);
     try {
-      result = rollPersonalAttack({ attacker, defender, range: band, situationalDM, dice });
+      result = rollPersonalAttack({ attacker, defender, range: band, situationalDM: situationalDM + derived.total, dice });
     } catch (error) {
       entries.push({ round: next.round, kind: 'attack', side, actorId: attacker.id, targetId: defender.id, text: `${attacker.name} cannot engage ${defender.name} at ${band} range with ${getPersonalWeapon(attacker.weaponKey).name}.` });
       return;

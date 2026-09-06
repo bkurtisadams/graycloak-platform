@@ -41,7 +41,7 @@ test('v0.11.0.1 retains contextual help and highlighted legal actions', async ()
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.41\.0/);
+  assert.match(html, /v0\.46\.0/);
   assert.match(html, /data-help-topic="personnel-record"/);
   assert.match(html, /id="context-help"/);
   assert.match(app, /helpForTopic/);
@@ -58,7 +58,7 @@ test('v0.11.0 specialization UI uses engine-supplied legal choices instead of fr
   const html = await read('index.html');
   const app = await read('app.js');
 
-  assert.match(html, /v0\.41\.0/);
+  assert.match(html, /v0\.46\.0/);
   assert.match(app, /available\.choices\.specializations/);
   assert.doesNotMatch(app, /id = 'skill-specialization'/);
   assert.doesNotMatch(app, /id = 'benefit-specialization'/);
@@ -211,7 +211,7 @@ test('v0.11.0.1 adds base markers, map zoom controls, and a left navigation rail
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.41\.0/);
+  assert.match(html, /v0\.46\.0/);
   assert.match(html, /class="scene"/);
   assert.match(html, /id="map-zoom-out"/);
   assert.match(html, /id="map-zoom-in"/);
@@ -230,7 +230,7 @@ test('v0.11.0.2 highlights navigation and port states that require attention', a
   const css = await read('styles.css');
   const model = await read('ui-model.js');
 
-  assert.match(html, /v0\.41\.0/);
+  assert.match(html, /v0\.46\.0/);
   assert.match(app, /renderRecordWithHighlights/);
   assert.match(app, /jumpAttention\.push\('FUEL NEED '/);
   assert.match(model, /panelRow\('BERTHING'/);
@@ -247,7 +247,7 @@ test('v0.11.1 exposes Book 2 passengers, freight, speculative trade, and life-su
   const model = await read('ui-model.js');
   const market = await read('commerce-market.js');
 
-  assert.match(html, /v0\.41\.0/);
+  assert.match(html, /v0\.46\.0/);
   assert.match(html, /id="commerce-section"/);
   assert.match(html, /data-help-topic="commerce"/);
   assert.match(app, /generatePassengerDemand/);
@@ -272,7 +272,7 @@ test('v0.11.2 exposes persistent contracts and the port Contract Board', async (
   const app = await read('app.js');
   const model = await read('ui-model.js');
 
-  assert.match(html, /v0\.41\.0/);
+  assert.match(html, /v0\.46\.0/);
   assert.match(html, /id="contract-section"/);
   assert.match(html, /CONTRACT BOARD/);
   assert.match(app, /createContractDocument/);
@@ -288,7 +288,7 @@ test('v0.11.2.1 keeps port, trade, and jobs beside the map and guards repaired s
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.41\.0/);
+  assert.match(html, /v0\.46\.0/);
   assert.match(html, /id="operations-tab-port"/);
   assert.match(html, /id="operations-tab-trade"/);
   assert.match(html, /id="operations-tab-jobs"/);
@@ -308,7 +308,7 @@ test('v0.12.0 exposes persistent situations, patrons, and non-combat skill check
   const model = await read('ui-model.js');
   const loader = await read('document-loader.js');
 
-  assert.match(html, /v0\.41\.0/);
+  assert.match(html, /v0\.46\.0/);
   assert.match(html, /id="context-takeover"/);
   assert.match(html, /id="situation-section"/);
   assert.match(app, /generatePatronContact/);
@@ -325,7 +325,7 @@ test('v0.12.0.1 promotes campaign status and interactive rolls into a compact pl
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.41\.0/);
+  assert.match(html, /v0\.46\.0/);
   assert.match(html, /class="campaign-header-strip"/);
   assert.match(html, /id="roll-dialog"/);
   assert.match(html, /id="roll-modifier"[^>]*value="0"/);
@@ -344,7 +344,7 @@ test('v0.12.0.2 keeps tab actions above independently scrolling records', async 
   const html = await read('index.html');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.41\.0/);
+  assert.match(html, /v0\.46\.0/);
   for (const [actions, record] of [
     ['port-actions', 'port-services-record'],
     ['commerce-actions', 'commerce-record'],
@@ -365,7 +365,7 @@ test('v0.12.0.3 makes Activity Log dice and outcomes visually explicit', async (
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.41\.0/);
+  assert.match(html, /v0\.46\.0/);
   assert.match(app, /ROLL 2D \[\$\{dice\.dice\[0\]\}\] \[\$\{dice\.dice\[1\]\}\]/);
   assert.match(app, /appendActivityDiceLine/);
   assert.match(app, /RESULT \/\/ SUCCESS/);
@@ -381,7 +381,7 @@ test('v0.12.0.4 keeps chargen history hidden until explicitly opened in campaign
   const css = await read('styles.css');
   const app = await read('app.js');
 
-  assert.match(html, /v0\.41\.0/);
+  assert.match(html, /v0\.46\.0/);
   assert.match(html, /id="chargen-record-section"[^>]*hidden/);
   assert.match(css, /\[hidden\]\s*\{[\s\S]*display:\s*none\s*!important/);
   assert.match(app, /el\.chargenRecordSection\.hidden = true;/);
@@ -397,7 +397,7 @@ test('v0.12.1.1 keeps generic adventure machinery separate from Sea of Suns auth
   const engine = await read('../src/adventure-engine.js');
   const definition = await read('../campaigns/sea-of-suns/adventures/carranza-route.js');
 
-  assert.match(html, /v0\.41\.0/);
+  assert.match(html, /v0\.46\.0/);
   assert.match(html, /id="open-threads-view"/);
   assert.match(html, /id="thread-section"/);
   assert.match(app, /applySituationThreadConsequences/);
@@ -425,7 +425,7 @@ test('v0.12.1.3 keeps live ship state beside navigation and makes the job board 
   const css = await read('styles.css');
   const model = await read('ui-model.js');
 
-  assert.match(html, /v0\.41\.0/);
+  assert.match(html, /v0\.46\.0/);
   assert.match(html, /id="live-ship-panel"/);
   assert.match(html, /id="live-ship-status"/);
   assert.match(app, /renderLiveShipStatus/);
@@ -448,7 +448,7 @@ test('v0.13 exposes compact persistent personal combat', async () => {
   const model = await read('ui-model.js');
   const encounter = await read('../src/encounter-document.js');
 
-  assert.match(html, /v0\.41\.0/);
+  assert.match(html, /v0\.46\.0/);
   assert.match(html, /id="encounter-section"/);
   assert.match(html, /id="encounter-actions"/);
   assert.match(html, /id="encounter-record"/);
@@ -467,7 +467,7 @@ test('v0.13.1 adds referee-started combat, a square token map, and enemy equipme
   const css = await read('styles.css');
   const encounter = await read('../src/encounter-document.js');
 
-  assert.match(html, /v0\.41\.0/);
+  assert.match(html, /v0\.46\.0/);
   assert.match(html, /id="combat-setup-dialog"/);
   assert.match(html, /id="encounter-map"/);
   assert.match(html, /id="encounter-roster"/);
@@ -476,7 +476,8 @@ test('v0.13.1 adds referee-started combat, a square token map, and enemy equipme
   assert.match(app, /START COMBAT/);
   assert.match(app, /startManualEncounter/);
   assert.match(app, /selectedEncounterTargetId/);
-  assert.match(css, /\.encounter-token-enemy\.selected/);
+  // v0.45.0: selection is shown by a ring, not by restyling the token.
+  assert.match(css, /\.encounter-token-target-ring/);
   assert.match(encounter, /grid: 'square'/);
   assert.match(encounter, /opponents = null/);
 });
@@ -509,7 +510,7 @@ test('v0.14.1 gives the encounter map a fluid viewBox camera and live token drag
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.41\.0/);
+  assert.match(html, /v0\.46\.0/);
   assert.match(html, /data-help-topic="personal-combat"/);
   assert.match(app, /function encounterMapPoint/);
   assert.match(app, /getScreenCTM\(\)/);
@@ -527,7 +528,7 @@ test('v0.15.1 adds a persistent actor roster and token inspection actions', asyn
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.41\.0/);
+  assert.match(html, /v0\.46\.0/);
   assert.match(html, /id="operations-tab-roster"/);
   assert.match(html, /id="npc-actor-dialog"/);
   assert.match(html, /id="combat-roster-actor"/);
@@ -545,7 +546,7 @@ test('v0.15.1.1 makes the activity journal portable and anchors token menus to t
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.41\.0/);
+  assert.match(html, /v0\.46\.0/);
   assert.match(html, /id="activity-filter"/);
   assert.match(html, /id="add-activity-note"/);
   assert.match(html, /id="activity-note-dialog"/);
@@ -566,7 +567,7 @@ test('v0.15.2 establishes a Traveller-first campaign hierarchy and removes dupli
   const model = await read('ui-model.js');
 
   assert.match(html, /id="app-title" class="title">TRAVELLER</);
-  assert.match(html, /id="app-subtitle" class="subtitle">v0\.41\.0</);
+  assert.match(html, /id="app-subtitle" class="subtitle">v0\.46\.0</);
   assert.match(html, /<strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN<\/strong>/);
   for (const id of ['new-campaign', 'save-campaign', 'load-campaign', 'import-campaign', 'export-campaign']) {
     assert.match(html, new RegExp(`id="${id}"`));
@@ -626,7 +627,7 @@ test('v0.20.0 lays play out as operations left, scene center, and procedure plus
   const css = await read('styles.css');
   const model = await read('ui-model.js');
 
-  assert.match(html, /id="app-subtitle" class="subtitle">v0\.41\.0</);
+  assert.match(html, /id="app-subtitle" class="subtitle">v0\.46\.0</);
   assert.match(html, /class="campaign-header-strip"/);
   assert.match(html, /class="stage"/);
   assert.match(html, /class="command-rail"/);
@@ -1074,7 +1075,7 @@ test('v0.36.0 puts the encounter map in the centre scene and the DM panel and ro
   }
 
   // The DM panel reads the same rules call the resolver uses.
-  assert.match(app, /previewPersonalAttack\(\{ attacker: actor, defender: target, range: band, situationalDM: situationDM \}\)/);
+  assert.match(app, /previewPersonalAttack\(\{ attacker: actor, defender: target, range: band, situationalDM: derived\.total \}\)/);
   assert.match(app, /const band = encounterPairRange\(actor, target\);/);
 
   // Declaration tally, not a "target already down" warning.
@@ -1158,7 +1159,8 @@ test('v0.39.0 lets the referee declare for any side in the UI', async () => {
   // v0.41.0: the token menu declares directly for whichever token it opened on.
   assert.match(app, /const declare = \(action, targetId = null\) => \{/);
   // v0.41.0: any tracker row selects its combatant, so shift-click is gone.
-  assert.match(app, /row\.addEventListener\('click', \(\) => setEncounterActor\(encounter\.identity\.id, combatant\.id\)\);/);
+  // v0.46.0: opening a tracker row selects that combatant.
+  assert.match(app, /summary\.addEventListener\('click', \(\) => \{[\s\S]*?setEncounterActor\(encounter\.identity\.id, combatant\.id\);/);
   assert.match(app, /function declarationText\(encounter, combatant\)/);
 
   // The roster covers every non-party side, not just 'opposition'.
@@ -1176,11 +1178,12 @@ test('v0.40.0 runs a campaign clock, ticks situation DMs, and tracks the round',
 
   // Situation conditions are ticked, feed the preview and the throw, and do
   // not persist past the attack they describe.
-  assert.match(app, /function renderEncounterSituationControls\(\)/);
-  assert.match(app, /const situationDM = situationDMTotal\(encounterSituationConditions\);/);
-  assert.match(app, /modifier \+ situationDMTotal\(encounterSituationConditions\)/);
-  assert.match(app, /encounterSituationConditions = \{\};/);
-  assert.match(css, /\.combat-rail \.encounter-situation-option \{ display: flex;/);
+  // v0.43.0: lighting sits on the scene toolbar, cover on the token menu.
+  assert.match(app, /function renderEncounterLighting\(encounter\)/);
+  assert.match(app, /const derived = encounterSituationDMs\(encounter, actor, target\);/);
+  assert.match(app, /resolveActiveEncounterAction\('attack', modifier, pendingRoll\.targetId, pendingRoll\.actorId\);/);
+  assert.doesNotMatch(app, /encounterSituationConditions/);
+  assert.match(css, /\.encounter-light-control \{ display: inline-flex;/);
 
   // Round tracker: round number, surprise, and who still owes a declaration.
   assert.match(app, /`ROUND \$\{encounter\.round\}\$\{surprised\}\$\{roundState\}/);
@@ -1215,5 +1218,117 @@ test('v0.41.0 replaces the rosters with a combat tracker and declares from the t
 
   // The terminal aesthetic has no rounded shapes and no shadows.
   assert.doesNotMatch(css, /border-radius:\s*[1-9]/);
+  assert.doesNotMatch(css, /box-shadow/);
+});
+
+test('v0.42.0 compacts the combat panel and gives each condition an owner', async () => {
+  const app = await read('app.js');
+  const css = await read('styles.css');
+
+  // The breakdown collapses behind a headline that names the throw.
+  assert.match(app, /const details = document\.createElement\('details'\);/);
+  assert.match(app, /summary\.className = 'encounter-dm-summary';/);
+  assert.match(css, /\.combat-rail \.encounter-dm-summary \{ font-size: 11px;/);
+
+  // Action verbs are chips, not full-width buttons.
+  assert.match(css, /\.combat-rail \.encounter-actions \.action-button,[\s\S]*?font-size: 11px; padding: 2px 6px;/);
+
+  // Lighting is the encounter's, cover is the defender's, the stock is the firer's.
+  assert.match(app, /setEncounterLighting\(doc, el\.encounterLighting\.value\)/);
+  assert.match(app, /setCombatantCover\(doc, \{ combatantId: combatant\.id, cover: value \}\)/);
+  assert.match(app, /setCombatantFoldingStock\(doc, \{ combatantId: combatant\.id, foldingStock: !combatant\.foldingStock \}\)/);
+  assert.doesNotMatch(app, /encounterSituationConditions/);
+  assert.doesNotMatch(css, /box-shadow/);
+});
+
+test('v0.43.0 moves lighting to the scene, marks selection and targets, and drops the duplicate tooltip', async () => {
+  const html = await read('index.html');
+  const app = await read('app.js');
+  const css = await read('styles.css');
+
+  // Lighting describes the scene, so it sits above the map it describes.
+  assert.match(html, /<select id="encounter-lighting" aria-label="Scene lighting">/);
+  assert.ok(html.indexOf('id="encounter-lighting"') < html.indexOf('id="encounter-map-viewport"'));
+
+  // Rings: yellow for the combatant taking orders, pulsing red for targets.
+  assert.match(app, /class: 'encounter-token-selected-ring'/);
+  assert.match(app, /svgElement\('animate', \{ attributeName: 'r'/);
+  assert.match(css, /\.encounter-token-selected-ring \{ fill: none; stroke: #d8b53a/);
+  // The ring is the only selection mark; the token itself no longer restyles.
+  assert.doesNotMatch(css, /\.encounter-token-pc\.selected/);
+  assert.doesNotMatch(css, /\.encounter-token-enemy\.selected/);
+  assert.match(css, /\.encounter-token-target-ring \{ fill: none; stroke: var\(--failure-border\)/);
+
+  // T targets the hovered token; Shift+T marks several.
+  assert.match(app, /if \(event\.key !== 't' && event\.key !== 'T'\) return;/);
+  assert.match(app, /if \(encounterExtraTargetIds\.has\(candidate\.id\)\)/);
+
+  // One hover text: the styled overlay, not a second native SVG title.
+  assert.doesNotMatch(app, /const title = svgElement\('title'\);/);
+
+  // The token menu carries COVER and no longer carries MOVE or SELECT.
+  assert.match(app, /addCascade\('COVER'/);
+  assert.doesNotMatch(app, /addCascade\('MOVE'/);
+  assert.doesNotMatch(app, /'ORDERS GIVEN' : 'SELECT'/);
+  assert.doesNotMatch(css, /box-shadow/);
+});
+
+test('v0.44.0 totals surprise DMs per side and shows the throw', async () => {
+  const html = await read('index.html');
+  const app = await read('app.js');
+
+  // The three conditions the document cannot derive are asked for at setup.
+  for (const id of ['combat-party-vehicle', 'combat-party-battledress', 'combat-enemy-vehicle', 'combat-enemy-battledress', 'combat-enemy-pouncer']) {
+    assert.match(html, new RegExp(`id="${id}"`));
+  }
+  assert.match(app, /surpriseConditions: \{\s*party: \{ inAVehicle: el\.combatPartyVehicle\.checked/);
+
+  // The round tracker shows each side's roll, DM and total.
+  assert.match(app, /`\$\{entry\.sideId\.toUpperCase\(\)\} \$\{entry\.roll\}\$\{entry\.dm >= 0 \? '\+' : ''\}\$\{entry\.dm\}=\$\{entry\.total\}`/);
+});
+
+test('v0.45.0 shows the Book 1 sheet lines, a referee status override, and start/end controls', async () => {
+  const app = await read('app.js');
+  const css = await read('styles.css');
+
+  // The selected panel reads like the Book 1 character sheet.
+  // v0.46.0: the sheet lines live in each tracker row's dropdown, and the
+  // pistol / blade line appears only when that is the weapon in hand.
+  assert.match(app, /function combatantSheetRows\(combatant\)/);
+  assert.match(app, /\['PRIMARY', ranked\[0\]/);
+  assert.match(app, /const kind = PISTOL_KEYS\.includes\(combatant\.weaponKey\) \? 'PISTOL' : BLADE_KEYS\.includes\(combatant\.weaponKey\) \? 'BLADE' : 'WEAPON';/);
+  assert.match(app, /const PISTOL_KEYS = Object\.freeze/);
+
+  // Status is a referee override; conditions remain annotations.
+  assert.match(app, /addCascade\('STATUS'/);
+  assert.match(app, /setCombatantStatus\(doc, \{ combatantId: combatant\.id, status: value \}\)/);
+
+  // Ending the fight is explicit, and starting one is offered once it is over.
+  assert.match(app, /function endActiveEncounter\(\)/);
+  assert.match(app, /makePortButton\('END COMBAT'/);
+  assert.match(app, /makePortButton\('START COMBAT', openCombatSetupDialog\)/);
+  // Two places, both the tracker slot: no encounter yet, and one just ended.
+  // The actions row no longer repeats it.
+  assert.equal(app.match(/makePortButton\('START COMBAT', openCombatSetupDialog\)/g).length, 2);
+  assert.doesNotMatch(app, /el\.encounterActions\.append\(button\);/);
+
+  // The tracker always states status; orders only replace it while active.
+  assert.match(app, /const status = combatantRulesStatus\(combatant\)\.toUpperCase\(\);/);
+  assert.doesNotMatch(css, /box-shadow/);
+});
+
+test('v0.46.0 folds the sheet into each tracker row and stops repeating it', async () => {
+  const app = await read('app.js');
+  const css = await read('styles.css');
+
+  // Each combatant is a dropdown; there is no permanent panel above the list.
+  assert.match(app, /const row = document\.createElement\('details'\);/);
+  assert.match(app, /summary\.className = 'encounter-tracker-summary';/);
+  assert.match(app, /el\.encounterSelected\.replaceChildren\(\);/);
+  assert.doesNotMatch(app, /function renderEncounterSelected/);
+  assert.match(css, /\.combat-rail \.encounter-tracker-summary \{/);
+
+  // Open state survives a re-render.
+  assert.match(app, /row\.open = expandedTrackerIds\.has\(combatant\.id\);/);
   assert.doesNotMatch(css, /box-shadow/);
 });

@@ -720,13 +720,11 @@ input[readonly] {
 .encounter-token { cursor: grab; touch-action: none; }
 .encounter-token.dragging { cursor: grabbing; opacity: 0.78; }
 .encounter-token-pc { fill: #29465c; stroke: #111311; stroke-width: 2; }
-.encounter-token-pc.selected { stroke: #e7dfb6; stroke-width: 5; }
 .encounter-token-pc.declared { fill: #667783; opacity: 0.72; }
 .encounter-token-pc-label { fill: #f2f2ed; font: 700 18px Consolas, monospace; text-anchor: middle; dominant-baseline: central; }
 .encounter-token-enemy { fill: #6a1f1f; stroke: #111311; stroke-width: 1.5; cursor: pointer; }
 .encounter-token-enemy:hover,
 .encounter-token-enemy:focus { stroke: #29465c; stroke-width: 4; outline: none; }
-.encounter-token-enemy.selected { fill: #111311; stroke: #e7dfb6; stroke-width: 5; }
 .encounter-token-enemy.inactive { fill: #777a75; opacity: 0.55; cursor: default; }
 .encounter-token-enemy-label { fill: #f2f2ed; font: 700 10px Consolas, monospace; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
 .encounter-token-condition-marker { fill: #6a1f1f; stroke: #e7dfb6; stroke-width: 0.5px; font: 700 16px Consolas, monospace; pointer-events: none; }
@@ -2916,12 +2914,6 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .combat-focus #context-panel .live-ship-panel { max-height: none; overflow: visible; padding-bottom: 5px; }
 .combat-focus #context-panel .live-ship-heading { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 
-/* --- v0.40.0: the referee's situation conditions, ticked rather than typed. */
-.combat-rail .encounter-situation { border-top: 1px dotted var(--disabled); margin-top: 6px; padding-top: 5px; }
-.combat-rail .encounter-situation-heading { font-size: 10px; letter-spacing: .1em; color: var(--muted); font-weight: 700; padding-bottom: 3px; }
-.combat-rail .encounter-situation-option { display: flex; align-items: center; gap: 6px; font-size: 11px; padding: 1px 0; }
-.combat-rail .encounter-situation-option input { margin: 0; }
-
 /* =========================================================================
    v0.41.0: the combat tracker. Traveller rounds are simultaneous (B1 p.30),
    so this is a declaration checklist, not a turn order: party first, other
@@ -2950,11 +2942,19 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .encounter-side-dot.side-2 { background: var(--muted); }
 
 .combat-rail .encounter-target-list, .combat-rail .encounter-tracker { display: flex; flex-direction: column; gap: 3px; margin-bottom: 7px; }
-.combat-rail .encounter-target-row, .combat-rail .encounter-tracker-row {
+.combat-rail .encounter-target-row {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   font: inherit; font-size: 11px; text-align: left; padding: 4px 7px;
   border: 1px solid var(--rule); background: var(--paper);
 }
+.combat-rail .encounter-tracker-row { border: 1px solid var(--rule); background: var(--paper); font-size: 11px; }
+.combat-rail .encounter-tracker-summary {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 4px 7px; cursor: pointer; list-style: none;
+}
+.combat-rail .encounter-tracker-summary::-webkit-details-marker { display: none; }
+.combat-rail .encounter-tracker-body { padding: 3px 7px 5px; border-top: 1px dotted var(--disabled); }
+.combat-rail .encounter-tracker-body .panel-row { font-size: 11px; padding: 1px 0; }
 .combat-rail .encounter-target-row span, .combat-rail .encounter-tracker-name { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .combat-rail .encounter-target-row.selected, .combat-rail .encounter-tracker-row.selected { background: var(--tab-selected); border-color: var(--tab-selected-border); }
 .combat-rail .encounter-target-row.unreachable { color: var(--disabled); border-style: dashed; }
@@ -2975,3 +2975,39 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .encounter-menu-cascade { display: flex; flex-direction: column; }
 .encounter-menu-submenu { display: flex; flex-direction: column; border-left: 2px solid var(--disabled); margin-left: 6px; }
 .encounter-menu-submenu[hidden] { display: none; }
+
+/* --- v0.42.0: a denser combat panel. The action verbs are chips, the DM
+   breakdown collapses behind its headline, and each condition sits with the
+   thing it belongs to: lighting with the encounter, cover with the defender,
+   the folding stock with the firer. */
+.combat-rail .encounter-actions { gap: 4px; margin-bottom: 6px; }
+.combat-rail .encounter-actions .action-button,
+.combat-rail .encounter-actions .text-button {
+  font-size: 11px; padding: 2px 6px; letter-spacing: 0;
+}
+
+.combat-rail .encounter-dm-details { border-top: 1px dotted var(--disabled); border-bottom: 1px dotted var(--disabled); padding: 4px 0; margin-bottom: 6px; }
+.combat-rail .encounter-dm-summary { font-size: 11px; font-weight: 700; letter-spacing: .03em; cursor: pointer; list-style: none; }
+.combat-rail .encounter-dm-summary::-webkit-details-marker { display: none; }
+.combat-rail .encounter-dm-summary::before { content: '\25b8 '; color: var(--muted); }
+.combat-rail .encounter-dm-details[open] .encounter-dm-summary::before { content: '\25be '; }
+.combat-rail .encounter-dm-summary.impossible { background: var(--attention); }
+.combat-rail .encounter-dm-details .panel-row { font-size: 11px; padding: 1px 0; }
+
+/* --- v0.43.0: selection and targeting read off the map. Yellow ring: the
+   combatant you are giving orders to. Red ring: a marked target, pulsing so
+   it is visible without hunting for it. */
+.encounter-token-selected-ring { fill: none; stroke: #d8b53a; stroke-width: 3.5; }
+.encounter-token-target-ring { fill: none; stroke: var(--failure-border); stroke-width: 2; stroke-dasharray: 4 3; }
+.encounter-light-control { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; letter-spacing: .1em; color: var(--muted); }
+.encounter-light-control select { font: inherit; font-size: 10px; padding: 1px 2px; }
+
+/* --- v0.44.0: the referee's Book 1 p.31 surprise conditions at setup. */
+.combat-surprise-footer { flex-wrap: wrap; gap: 6px 14px; font-size: 11px; }
+.combat-surprise-footer label { display: inline-flex; align-items: center; gap: 5px; }
+.combat-surprise-label { font-size: 10px; letter-spacing: .1em; color: var(--muted); font-weight: 700; }
+
+/* --- v0.45.0: the selected combatant's Book 1 sheet lines. */
+.combat-rail .encounter-selected-sheet { margin-top: 4px; }
+.combat-rail .encounter-selected-sheet .panel-row { font-size: 11px; padding: 1px 0; }
+.combat-rail .encounter-combat-controls { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 6px; }

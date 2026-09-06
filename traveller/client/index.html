@@ -12,7 +12,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.41.0</div>
+          <div id="app-subtitle" class="subtitle">v0.46.0</div>
         </div>
         <nav class="utility campaign-utility" aria-label="Campaign and view commands">
           <details id="campaign-menu" class="campaign-menu">
@@ -209,6 +209,9 @@
           <div class="encounter-map-toolbar">
             <span id="encounter-heading" class="encounter-caption-main">COMBAT</span>
             <strong id="encounter-selection-status">ACTOR -- // TARGET --</strong>
+            <label class="encounter-light-control">LIGHT
+              <select id="encounter-lighting" aria-label="Scene lighting"></select>
+            </label>
             <span class="encounter-map-tools" aria-label="Encounter map zoom controls">
               <button class="help-button" type="button" data-help-topic="personal-combat" aria-label="Explain personal combat">[?]</button>
               <button id="encounter-zoom-out" class="text-button" type="button" aria-label="Zoom out">[ &minus; ]</button>
@@ -435,6 +438,14 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
             </select>
           </label>
           <label>METERS / SQUARE <input id="combat-map-scale" type="number" min="0.1" max="1000" step="0.1" placeholder="UNSET"></label>
+        </div>
+        <div class="combat-setup-footer combat-surprise-footer">
+          <span class="combat-surprise-label">SURPRISE DMs / BOOK 1 p.31</span>
+          <label><input id="combat-party-vehicle" type="checkbox"> PARTY IN A VEHICLE &minus;1</label>
+          <label><input id="combat-party-battledress" type="checkbox"> PARTY BATTLE DRESS +2</label>
+          <label><input id="combat-enemy-vehicle" type="checkbox"> ENEMY IN A VEHICLE &minus;1</label>
+          <label><input id="combat-enemy-battledress" type="checkbox"> ENEMY BATTLE DRESS +2</label>
+          <label><input id="combat-enemy-pouncer" type="checkbox"> ENEMY POUNCER ANIMALS +1</label>
         </div>
         <div class="roll-dialog-actions">
           <button class="text-button action-button" type="submit">[ START COMBAT ]</button>

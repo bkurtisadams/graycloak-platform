@@ -22,7 +22,14 @@ import {
   encounterPairRange,
   declaredTargetCounts,
   ESCAPE_TARGET,
-  ESCAPE_RANGE_DMS
+  ESCAPE_RANGE_DMS,
+  encounterSituationDMs,
+  setEncounterLighting,
+  setCombatantCover,
+  setCombatantFoldingStock,
+  surpriseConditionsForSide,
+  setCombatantStatus,
+  endEncounterByReferee
 } from '../src/encounter-document.js';
 import { createNpcActorDocument, setNpcActorCondition } from '../src/npc-actor-document.js';
 import { createDocumentRegistry, createMemoryStorage } from '../src/document-registry.js';
@@ -60,10 +67,10 @@ async function encounterFixture() {
   return { character, ship, campaign, situation, encounter };
 }
 
-test('Encounter Document v7 round-trips the expanded workspace, declarations, positions, range, and audit history', async () => {
+test('Encounter Document v9 round-trips the expanded workspace, declarations, positions, range, and audit history', async () => {
   const { encounter } = await encounterFixture();
   const roundTrip = importEncounterDocument(exportEncounterDocument(encounter));
-  assert.equal(roundTrip.schemaVersion, 7);
+  assert.equal(roundTrip.schemaVersion, 9);
   assert.deepEqual(roundTrip.map, { grid: 'square', columns: 32, rows: 20, rangeGuide: 'graycloak-band-guide-v2', metersPerSquare: null });
   assert.deepEqual(roundTrip.roundState, { declaredActions: [] });
   assert.deepEqual(roundTrip.combatants[0].position, { column: 4, row: 9 });
@@ -75,14 +82,14 @@ test('Encounter Document v7 round-trips the expanded workspace, declarations, po
   assert.equal(avoided.status, 'avoided');
 });
 
-test('Encounter Document v1 imports migrate through v7 to the expanded workspace', async () => {
+test('Encounter Document v1 imports migrate through v9 to the expanded workspace', async () => {
   const { encounter } = await encounterFixture();
   const legacy = structuredClone(encounter);
   legacy.schemaVersion = 1;
   delete legacy.map;
   for (const combatant of legacy.combatants) delete combatant.position;
   const migrated = importEncounterDocument(legacy);
-  assert.equal(migrated.schemaVersion, 7);
+  assert.equal(migrated.schemaVersion, 9);
   assert.equal(migrated.map.grid, 'square');
   assert.equal(migrated.map.columns, 32);
   assert.equal(migrated.map.rows, 20);
@@ -400,4 +407,116 @@ test('v0.39.0 a third side fights both others and the party can win by outlastin
   // each picked its nearest enemy rather than defaulting to the party.
   const militiaMove = result.entries.find((entry) => entry.side === 'militia' && entry.kind === 'movement');
   assert.equal(result.encounter.combatants.find((entry) => entry.id === militiaMove.targetId).side, 'opposition');
+});
+
+test('v0.42.0 derives lighting, cover and folding stock from state, not per-attack ticks', async () => {
+  const fixture = await encounterFixture();
+  let encounter = createEncounterDocument({
+    campaign: fixture.campaign, character: fixture.character,
+    opponent: { name: 'Raider', weaponKey: 'automatic-pistol', armor: 'none', characteristics: { STR: 7, DEX: 7, END: 7, INT: 7 }, skills: {} },
+    encounterKey: 'situation-state-test', date: { year: 4800, dayOfYear: 106 }, range: 'medium', dice: sequenceDice([3, 3])
+  });
+  const pc = encounter.combatants.find((entry) => entry.side === 'party');
+  const raider = encounter.combatants.find((entry) => entry.side === 'opposition');
+
+  // Defaults are clean, so nothing is applied until the referee sets it.
+  assert.equal(encounter.conditions.lighting, 'normal');
+  assert.equal(raider.cover, 'none');
+  assert.equal(raider.foldingStock, false);
+  assert.equal(encounterSituationDMs(encounter, pc, raider).total, 0);
+
+  // Cover belongs to the defender: it applies to whoever shoots at them.
+  encounter = setCombatantCover(encounter, { combatantId: raider.id, cover: 'cover' }).encounter;
+  const covered = encounter.combatants.find((entry) => entry.id === raider.id);
+  assert.equal(encounterSituationDMs(encounter, pc, covered).total, -4);
+  // ...and not to that combatant's own attacks.
+  assert.equal(encounterSituationDMs(encounter, covered, encounter.combatants.find((entry) => entry.id === pc.id)).total, 0);
+
+  // Lighting belongs to the encounter: it applies to every pair.
+  encounter = setEncounterLighting(encounter, 'darkness-light-intensifier').encounter;
+  const both = encounter.combatants.find((entry) => entry.id === raider.id);
+  assert.equal(encounterSituationDMs(encounter, pc, both).total, -10);
+  assert.deepEqual(encounterSituationDMs(encounter, pc, both).parts.map((part) => part.key), ['lighting', 'cover']);
+
+  // The folding stock belongs to the firer's weapon.
+  encounter = setCombatantFoldingStock(encounter, { combatantId: pc.id, foldingStock: true }).encounter;
+  const firer = encounter.combatants.find((entry) => entry.id === pc.id);
+  assert.equal(encounterSituationDMs(encounter, firer, both).total, -11);
+
+  assert.throws(() => setEncounterLighting(encounter, 'dusk'), RangeError);
+  assert.throws(() => setCombatantCover(encounter, { combatantId: pc.id, cover: 'bunker' }), RangeError);
+});
+
+test('v0.44.0 totals the Book 1 p.31 surprise DMs per side', async () => {
+  const fixture = await encounterFixture();
+
+  // Derivable conditions: leader, tactical, military service, and the crowd
+  // penalty at eight or more.
+  const skilled = [{ status: 'active', skills: { Leadership: 1, Tactics: 2 }, militaryExperience: true, actorType: 'pc' }];
+  const skilledSide = surpriseConditionsForSide(skilled);
+  assert.deepEqual(skilledSide.conditions.leaderSkill, true);
+  assert.deepEqual(skilledSide.conditions.tacticalSkill, true);
+  assert.deepEqual(skilledSide.conditions.militaryExperience, true);
+  assert.equal(skilledSide.total, 3);
+
+  const crowd = Array.from({ length: 8 }, () => ({ status: 'active', skills: {}, actorType: 'pc' }));
+  assert.equal(surpriseConditionsForSide(crowd).total, -1);
+
+  const pack = Array.from({ length: 10 }, () => ({ status: 'active', skills: {}, actorType: 'creature' }));
+  assert.equal(surpriseConditionsForSide(pack).conditions.tenOrMoreAnimals, true);
+
+  // Referee-supplied conditions the document cannot know.
+  assert.equal(surpriseConditionsForSide(skilled, { inAVehicle: true }).total, 2);
+  assert.equal(surpriseConditionsForSide(skilled, { battleDress: true }).total, 5);
+
+  // Only active combatants count toward a side's DM.
+  const downed = [{ status: 'unconscious', skills: { Leadership: 1 }, actorType: 'pc' }];
+  assert.equal(surpriseConditionsForSide(downed).total, 0);
+
+  // The encounter records what each side carried into the throw.
+  const encounter = createEncounterDocument({
+    campaign: fixture.campaign, character: fixture.character,
+    opponent: { name: 'Raider', weaponKey: 'blade', armor: 'none', characteristics: { STR: 7, DEX: 7, END: 7, INT: 7 }, skills: {} },
+    encounterKey: 'surprise-dm-test', date: { year: 4800, dayOfYear: 106 }, range: 'medium',
+    surpriseConditions: { opposition: { battleDress: true } }, dice: sequenceDice([3, 3])
+  });
+  assert.equal(encounter.surprise.conditions.opposition.battleDress, true);
+  assert.equal(encounter.surprise.results.find((entry) => entry.sideId === 'opposition').dm, 2);
+});
+
+test('v0.45.0 lets the referee restore a downed combatant and end the fight', async () => {
+  const fixture = await encounterFixture();
+  const encounter = createEncounterDocument({
+    campaign: fixture.campaign, character: fixture.character,
+    opponent: { name: 'Raider', weaponKey: 'blade', armor: 'none', characteristics: { STR: 7, DEX: 7, END: 7, INT: 7 }, skills: {} },
+    encounterKey: 'referee-status-test', date: { year: 4800, dayOfYear: 106 }, range: 'medium', dice: sequenceDice([3, 3])
+  });
+  const raiderId = encounter.combatants.find((entry) => entry.side === 'opposition').id;
+
+  // Knock the raider out by hand, as a resolved round would.
+  const downed = {
+    ...encounter,
+    combatants: encounter.combatants.map((entry) => entry.id === raiderId
+      ? { ...entry, status: 'unconscious', current: { ...entry.current, END: 0 } }
+      : entry)
+  };
+
+  // A condition is an annotation: it must not change wound status.
+  const annotated = setEncounterCombatantCondition(downed, { combatantId: raiderId, condition: null });
+  assert.equal(annotated.encounter.combatants.find((entry) => entry.id === raiderId).status, 'unconscious');
+
+  // The status override does, and lifts the zeroed characteristic off zero so
+  // the restoration survives the next recomputation.
+  const restored = setCombatantStatus(annotated.encounter, { combatantId: raiderId, status: 'active' });
+  const back = restored.encounter.combatants.find((entry) => entry.id === raiderId);
+  assert.equal(back.status, 'active');
+  assert.equal(back.current.END, 1);
+  assert.match(restored.entry.text, /END restored to 1/);
+
+  // Ending with both sides standing is neither a victory nor a defeat.
+  const ended = endEncounterByReferee(restored.encounter, { date: { year: 4800, dayOfYear: 106 } });
+  assert.equal(ended.encounter.status, 'avoided');
+  assert.equal(ended.encounter.outcome.reason, 'referee-ended');
+  assert.deepEqual(ended.encounter.timing.resolvedDate, { year: 4800, dayOfYear: 106 });
+  assert.throws(() => endEncounterByReferee(ended.encounter, { date: { year: 4800, dayOfYear: 106 } }), /already resolved/);
 });

@@ -218,3 +218,17 @@ test('surprise and situation DMs sum only the ticked conditions (B1 p.31)', () =
   assert.equal(situationDMTotal({ darknessWithLightIntensifier: true }), -6);
   assert.throws(() => situationDMTotal({ fog: true }), RangeError);
 });
+
+test('a side may carry its own surprise DM rather than the best individual one (B1 p.31)', () => {
+  const dice = { rollD6: () => 3, roll2D6: () => 6 };
+  const make = (id, side, surpriseDM) => createPersonalCombatant({
+    id, name: id, side, characteristics: { STR: 7, DEX: 7, END: 7, INT: 7 }, weaponKey: 'rifle', surpriseDM
+  });
+  const sides = [
+    { id: 'party', combatants: [make('a', 'party', 2)], dm: -1 },
+    { id: 'opposition', combatants: [make('b', 'opposition', 0)] }
+  ];
+  const result = resolvePersonalSurprise({ sides, dice });
+  assert.equal(result.results[0].dm, -1, 'an explicit side DM wins');
+  assert.equal(result.results[1].dm, 0, 'a side without one falls back to its combatants');
+});

@@ -152,7 +152,10 @@ export function resolvePersonalSurprise({ sides, dice } = {}) {
   const results = sides.map((side) => {
     if (!side || typeof side.id !== 'string' || !Array.isArray(side.combatants)) throw new TypeError('invalid surprise side');
     const roll = dice.rollD6();
-    const dm = Math.max(0, ...side.combatants.map((entry) => Number(entry.surpriseDM ?? 0)));
+    // Book 1 p.31: the DM belongs to the party, not to an individual. A caller
+    // that has totalled the side's conditions passes `dm`; otherwise fall back
+    // to the best individual DM present.
+    const dm = Number.isInteger(side.dm) ? side.dm : Math.max(0, ...side.combatants.map((entry) => Number(entry.surpriseDM ?? 0)));
     return { sideId: side.id, roll, dm, total: roll + dm };
   });
   const difference = Math.abs(results[0].total - results[1].total);

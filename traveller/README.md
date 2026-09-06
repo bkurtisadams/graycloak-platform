@@ -1,5 +1,71 @@
 # Graycloak Traveller
 
+## v0.46.0 one combatant, one row
+
+The rail said everything twice: a permanent panel at the top described the selected combatant, and the tracker below listed the same combatant again. Now each combatant is a single row that opens.
+
+Collapsed, a row is name, faction marker and status — or its declared orders while the fight is on. Opening it shows that combatant's characteristics and Book 1 sheet lines beneath, and selects them at the same time, so inspecting and choosing are one gesture rather than two. Rows remember whether they were open across re-renders, and several can be open at once, which was the original point of wanting multiple sheets on screen.
+
+**The preferred pistol and blade lines only appear for the weapon actually in hand.** A combatant here carries one weapon, so listing a preferred pistol *and* blade advertised guns nobody had — an unarmed thug read `PISTOL BODY PISTOL-0 / BLADE DAGGER-0`, which is the first entry of each table at skill zero rather than anything he owns. The line is now labelled `PISTOL`, `BLADE` or `WEAPON` according to what the combatant is holding.
+
+**START COMBAT appeared twice** — once in the action row and once beside the tracker. It now lives only with the tracker, in both of the states where it makes sense: before a fight exists, and after one has ended.
+
+Encounter schema unchanged at 9. No rules-package changes.
+
+## v0.45.0 selection you can see, status you can change
+
+**The party token looked permanently selected** because `.encounter-token-pc.selected` restyled the token with a heavy cream stroke, and with one PC that class was always on. The token restyling is gone on both sides; the yellow ring added in v0.43.0 is now the only selection mark, in a stronger gold so it reads against the token.
+
+**A downed enemy could not be brought back.** Referee conditions are annotations — the log line even says so — and never touch Book 1 wound status, so there was no way to move a combatant out of `unconscious`. `setCombatantStatus()` is that override, offered as `STATUS ▸` on the token menu. Restoring someone to active also lifts any zeroed characteristic to 1, because status is recomputed from those values and the change would otherwise be undone by the next wound.
+
+**Starting and ending a fight are explicit.** `END COMBAT` sits beside `RESOLVE ROUND` and resolves the encounter as victory, defeat, or — with both sides still standing — avoided; once it is over, the same slot offers `START COMBAT`.
+
+**The selected panel reads like the Book 1 character sheet:** primary skill, secondary skill, the carried weapon with its skill level and any cover or folding stock, preferred pistol and preferred blade. The tracker rows always state faction and status, with declared orders replacing the status only while a combatant is still active.
+
+Encounter schema unchanged at 9. No rules-package changes.
+
+## v0.44.0 surprise DMs, totalled per side
+
+Book 1 p.31 gives eight surprise DMs. Three were being applied — leader skill, tactical skill and military service — and then only as the best single combatant's value, when the book gives the DM to the *party*. `surpriseConditionsForSide()` now derives five of the eight from the encounter itself: leader skill, tactical skill, military experience, the −1 for eight or more adventurers, and the −1 for ten or more animals. The other three describe circumstances a document cannot know, so the setup dialog asks: in a vehicle −1 per side, battle dress +2 per side, and pouncer animals +1 for the opposition.
+
+`resolvePersonalSurprise` takes an explicit side DM when the caller has totalled one and falls back to the old best-individual reading otherwise, so nothing that called it before changes behaviour.
+
+The round tracker shows the throw rather than only its outcome: `SURPRISE PARTY 4−1=3 / OPPOSITION 2+2=4 // NEITHER`.
+
+**Two things recorded in the audit rather than guessed at.** The book gives +1 for "military experience" without defining it; Graycloak reads that as service in the Navy, Army, Marines or Scouts, noting that the Book 3 reaction DM names the same branches but adds a five-term requirement the surprise table does not state. And battle dress is not in the Book 1 armour list at all, so it stays a referee flag rather than becoming an eighth armour type.
+
+Rules package v0.20.0. Encounter schema 9 records each side's conditions and flags military service on each combatant; v8 documents migrate with no conditions set.
+
+## v0.43.0 selection and targeting on the map
+
+**Each condition moved to where it belongs.** Lighting describes the scene, so its selector sits on the map toolbar above the map it describes. Cover belongs to a token, so it is set from that token's right-click menu; so is the folding stock. The rail's condition controls are gone — the selected panel now *reports* what a combatant carries (`LASER RIFLE / SKILL-1 / JACK / COVER −4 / ACTIVE`) rather than offering switches for it.
+
+**Rings, not inference.** The combatant taking orders wears a yellow ring; a targeted combatant wears a pulsing red one. Both are drawn beneath the token art so the glyph stays legible.
+
+**`T` targets the token under the pointer.** `Shift+T` adds or removes a token from the marked set instead of replacing it, so several enemies can carry the red ring at once. Marks clear when the round resolves.
+
+**The token menu is shorter:** ATTACK ▸ with each target priced, COVER ▸, folding stock, the movement and posture verbs, condition, roster actor, remove. MOVE ▸ and SELECT are gone — the movement verbs act on the token the menu opened on, and left-click already selects.
+
+**Fixed:** tokens carried two hover texts, a native SVG `<title>` and the styled overlay, which surfaced as a doubled tooltip. The native one is gone.
+
+No rules, schema or rules-package changes.
+
+## v0.42.0 a denser combat panel, and conditions that belong to something
+
+Three problems with the rail, one of which was not a layout problem at all.
+
+**The action verbs are chips.** Six full-width buttons took four rows; they now take two.
+
+**The DM breakdown collapses.** The headline — `HAWKEYE → HOSTILE 1 / MEDIUM / 13+ / 5D` — is the only line that has to be visible, and it turns yellow when no 2D throw can make it. The weapon, target number and every contributing DM sit behind it, remembered open or closed across renders.
+
+**Conditions now belong to the thing they describe.** Ticking cover, darkness and a folding stock per attack was wrong in kind, not just in size: cover protects whoever is being shot at no matter who shoots, darkness covers the whole fight, and a folding stock belongs to the firer's weapon. Encounter schema 8 puts lighting on the encounter and `cover` and `foldingStock` on each combatant; `encounterSituationDMs()` derives the DM for a given attacker–target pair, and the resolver applies it to every throw automatically. The rail shows one lighting selector for the scene, a cover selector labelled with the target's own name, and a folding-stock box for the selected combatant.
+
+The effect is visible in the target list, which prices each candidate separately: with the scene dark and one hostile behind cover, `HOSTILE 1 / MEDIUM / 13+` sits next to `HOSTILE 2 / MEDIUM / 9+`. Under the old ticked scheme both would have read the same, because the modifier belonged to the attack rather than to the target.
+
+Measured at 1680×990: the combat panel fits the rail without scrolling, collapsed or expanded.
+
+Encounter schema 8 migrates v7 documents with normal lighting, no cover and no folding stock. No rules-package changes.
+
 ## v0.41.0 a combat tracker, and orders given at the token
 
 The flow split one decision across three places: pick an actor in the rail, pick a target in the rail or on the map, then press a verb in the rail — while the map, where you are actually looking, showed only a range line. Both halves of this version put the decision where the attention is.
