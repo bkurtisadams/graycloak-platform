@@ -67,10 +67,10 @@ async function encounterFixture() {
   return { character, ship, campaign, situation, encounter };
 }
 
-test('Encounter Document v9 round-trips the expanded workspace, declarations, positions, range, and audit history', async () => {
+test('Encounter Document v10 round-trips the expanded workspace, declarations, positions, range, and audit history', async () => {
   const { encounter } = await encounterFixture();
   const roundTrip = importEncounterDocument(exportEncounterDocument(encounter));
-  assert.equal(roundTrip.schemaVersion, 9);
+  assert.equal(roundTrip.schemaVersion, 10);
   assert.deepEqual(roundTrip.map, { grid: 'square', columns: 32, rows: 20, rangeGuide: 'graycloak-band-guide-v2', metersPerSquare: null });
   assert.deepEqual(roundTrip.roundState, { declaredActions: [] });
   assert.deepEqual(roundTrip.combatants[0].position, { column: 4, row: 9 });
@@ -82,14 +82,14 @@ test('Encounter Document v9 round-trips the expanded workspace, declarations, po
   assert.equal(avoided.status, 'avoided');
 });
 
-test('Encounter Document v1 imports migrate through v9 to the expanded workspace', async () => {
+test('Encounter Document v1 imports migrate through v10 to the expanded workspace', async () => {
   const { encounter } = await encounterFixture();
   const legacy = structuredClone(encounter);
   legacy.schemaVersion = 1;
   delete legacy.map;
   for (const combatant of legacy.combatants) delete combatant.position;
   const migrated = importEncounterDocument(legacy);
-  assert.equal(migrated.schemaVersion, 9);
+  assert.equal(migrated.schemaVersion, 10);
   assert.equal(migrated.map.grid, 'square');
   assert.equal(migrated.map.columns, 32);
   assert.equal(migrated.map.rows, 20);
@@ -519,4 +519,41 @@ test('v0.45.0 lets the referee restore a downed combatant and end the fight', as
   assert.equal(ended.encounter.outcome.reason, 'referee-ended');
   assert.deepEqual(ended.encounter.timing.resolvedDate, { year: 4800, dayOfYear: 106 });
   assert.throws(() => endEncounterByReferee(ended.encounter, { date: { year: 4800, dayOfYear: 106 } }), /already resolved/);
+});
+
+test('v0.48.0 sets the blow allowance from endurance as the encounter opens (B1 p.36)', async () => {
+  const fixture = await encounterFixture();
+  // A character who arrives already wounded brings a smaller allowance.
+  const wounded = {
+    ...fixture.character,
+    current: { ...fixture.character.current, END: 2 }
+  };
+  const encounter = createEncounterDocument({
+    campaign: fixture.campaign, character: wounded,
+    opponent: { name: 'Brawler', weaponKey: 'hands', armor: 'none', characteristics: { STR: 9, DEX: 7, END: 6, INT: 7 }, skills: { Brawling: 1 } },
+    encounterKey: 'endurance-test', date: { year: 4800, dayOfYear: 106 }, range: 'close', dice: sequenceDice([3, 3])
+  });
+  const pc = encounter.combatants.find((entry) => entry.side === 'party');
+  const foe = encounter.combatants.find((entry) => entry.side === 'opposition');
+  assert.equal(pc.blowAllowance, 2, 'prior wounds reduce the allowance');
+  assert.equal(pc.blowsUsed, 0);
+  assert.equal(foe.blowAllowance, 6);
+
+  // Spending is recorded while the fight is still running. (A resolved fight
+  // reaches the Book 1 p.36 rest and the allowance resets, so this uses a
+  // party member who survives the round.)
+  const standing = createEncounterDocument({
+    campaign: fixture.campaign, character: fixture.character,
+    opponent: { name: 'Brawler', weaponKey: 'hands', armor: 'none', characteristics: { STR: 9, DEX: 7, END: 6, INT: 7 }, skills: { Brawling: 1 } },
+    encounterKey: 'endurance-spend-test', date: { year: 4800, dayOfYear: 106 }, range: 'close', dice: sequenceDice([3, 3])
+  });
+  const brawlerId = standing.combatants.find((entry) => entry.side === 'opposition').id;
+  const shooterId = standing.combatants.find((entry) => entry.side === 'party').id;
+  const result = resolveEncounterRound(standing, {
+    action: 'attack', targetId: brawlerId, date: { year: 4800, dayOfYear: 106 },
+    dice: sequenceDice(Array.from({ length: 40 }, () => 3))
+  });
+  assert.equal(result.encounter.status, 'active', 'the fight is still running');
+  assert.equal(result.encounter.combatants.find((entry) => entry.id === brawlerId).blowsUsed, 1, 'a melee combat blow spends the allowance');
+  assert.equal(result.encounter.combatants.find((entry) => entry.id === shooterId).blowsUsed, 0, 'gun combat is not affected by endurance');
 });

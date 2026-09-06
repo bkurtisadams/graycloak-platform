@@ -1,5 +1,21 @@
 # Graycloak Traveller
 
+## v0.48.0 brawls that tire, and a history you can read
+
+**Endurance, blows and swings.** Book 1 p.36 limits combat blows to endurance as it stands when the encounter opens; once that allowance is spent every further blow is weakened and takes the weapon's negative DM. The package had carried a `fatigueDM` on every melee weapon and a `blows` counter since the beginning and read neither, so a bar fight ran for ever with nobody tiring.
+
+Now `classifyBlow()` sorts each attack into the book's four classes. Combat blows spend the allowance. Weakened blows take the DM and cost nothing, and may be chosen deliberately to conserve it. Surprise blows in the surprise round and special blows against a helpless opponent are free. Gun combat is unaffected — a rifleman with endurance 2 shoots as well as one with 12. Half an hour's rest restores the allowance, which for the client is the end of the fight. A character who arrives already wounded brings a smaller allowance, because the wound reduced endurance first; wounds taken during the fight do not shrink it.
+
+The tracker shows `BLOWS 5/7` for anyone with a melee weapon in hand, and nothing for anyone shooting.
+
+**Long guns can parry.** p.36 lets a rifle or carbine parry as a cudgel — not a pistol. The package allowed parry only for weapons flagged `parry`, so a rifleman in a melee had no defence at all. `parryExpertise()` now returns club expertise for a long gun, the weapon's own for a blade or brawling weapon, and nothing for a pistol.
+
+**The encounter record is structured.** It was the last ASCII `box()` record in the combat scene, and it sat in a 250px window that showed about four lines of a long fight. It is now `ENCOUNTER HISTORY`: newest round first, each line tagged with its kind, as tall as it needs to be inside a rail that already scrolls.
+
+**Also recorded in the audit as still missing:** Book 1 p.36 weight and encumbrance, and the p.36 morale DMs, which `resolvePersonalMorale` accepts but nothing computes.
+
+Rules package v0.21.0. Encounter schema 10 adds the allowance to each combatant; v9 documents migrate with their current endurance.
+
 ## v0.47.0 the rail is the list
 
 A twenty-body fight needs twenty rows, so everything in the rail that was not a row had to justify itself. Three blocks could not.

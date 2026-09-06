@@ -143,7 +143,10 @@ export function createPersonalCombatant({ id, name, side, characteristics, skill
   for (const key of ['STR', 'DEX', 'END', 'INT']) base[key] = integer(characteristics[key], `combatant ${key}`);
   getPersonalWeapon(weaponKey);
   if (!PERSONAL_ARMOR_TYPES.includes(armor)) throw new RangeError(`unknown personal armor: ${armor}`);
-  return { id: id.trim(), name: name.trim(), side: side.trim(), playerCharacter: Boolean(playerCharacter), characteristics: clone(base), current: { STR: base.STR, DEX: base.DEX, END: base.END }, skills: clone(skills), armor, weaponKey, status: 'active', firstBlood: true, surpriseDM: integer(surpriseDM, 'surpriseDM'), evading: false, blows: 0, hitsTaken: 0 };
+  // Book 1 p.36: the blow and swing allowance is endurance as it stands at the
+  // start of the encounter. Wounds taken during the fight do not reduce it;
+  // wounds taken before it do, because they reduced endurance first.
+  return { id: id.trim(), name: name.trim(), side: side.trim(), playerCharacter: Boolean(playerCharacter), characteristics: clone(base), current: { STR: base.STR, DEX: base.DEX, END: base.END }, skills: clone(skills), armor, weaponKey, status: 'active', firstBlood: true, surpriseDM: integer(surpriseDM, 'surpriseDM'), evading: false, blows: 0, blowAllowance: base.END, blowsUsed: 0, hitsTaken: 0 };
 }
 
 export function resolvePersonalSurprise({ sides, dice } = {}) {
@@ -282,10 +285,44 @@ export function situationDMTotal(conditions = {}) {
   return total;
 }
 
+// Book 1 p.36 classes a blow or swing as surprise, combat, weakened or
+// special. Only combat blows draw on the endurance allowance; weakened blows
+// take the weapon's negative DM instead and may be chosen deliberately to
+// conserve it. Gun combat is not affected at all.
+export const BLOW_CLASSES = Object.freeze(['surprise', 'combat', 'weakened', 'special']);
+// Book 1 p.36: a long gun may be used to parry, treated as a cudgel; a pistol
+// may not. Treated as a cudgel means the club's parry, not the gun skill.
+export const LONG_GUN_PARRY_KEYS = Object.freeze(['rifle', 'carbine', 'automatic-rifle', 'shotgun', 'laser-rifle', 'laser-carbine', 'submachine-gun']);
+
+// Book 1 p.36: expertise in a brawling or blade weapon parries a blow or
+// swing. A long gun parries as a cudgel, so it is the club's expertise that
+// counts, not the gun's; a pistol cannot parry at all.
+export function parryExpertise(defender) {
+  if (!defender?.weaponKey) return 0;
+  const weapon = getPersonalWeapon(defender.weaponKey);
+  if (weapon.parry) return personalWeaponSkillLevel(defender, defender.weaponKey);
+  if (LONG_GUN_PARRY_KEYS.includes(defender.weaponKey)) return personalWeaponSkillLevel(defender, 'club');
+  return 0;
+}
+
+export function classifyBlow(attacker, weaponKey, { surprise = false, weakened = false, special = false } = {}) {
+  const spec = getPersonalWeapon(weaponKey);
+  if (!spec.melee) return { blowClass: null, fatigueDM: 0, spendsAllowance: false };
+  if (special) return { blowClass: 'special', fatigueDM: 0, spendsAllowance: false };
+  if (surprise) return { blowClass: 'surprise', fatigueDM: 0, spendsAllowance: false };
+  const remaining = Math.max(0, Number(attacker.blowAllowance ?? attacker.current?.END ?? 0) - Number(attacker.blowsUsed ?? 0));
+  if (weakened || remaining <= 0) return { blowClass: 'weakened', fatigueDM: spec.fatigueDM ?? 0, spendsAllowance: false };
+  return { blowClass: 'combat', fatigueDM: 0, spendsAllowance: true };
+}
+
+export function blowsRemaining(combatant) {
+  return Math.max(0, Number(combatant.blowAllowance ?? combatant.current?.END ?? 0) - Number(combatant.blowsUsed ?? 0));
+}
+
 // The same throw and DMs as rollPersonalAttack, computed without dice so the
 // referee can see what an attack would need before declaring it. Returns null
 // for `target` when the weapon cannot reach that range.
-export function previewPersonalAttack({ attacker, defender, range, situationalDM = 0, defenderDM = 0 } = {}) {
+export function previewPersonalAttack({ attacker, defender, range, situationalDM = 0, defenderDM = 0, surprise = false, weakened = false, special = false } = {}) {
   const spec = getPersonalWeapon(attacker.weaponKey);
   if (!PERSONAL_ARMOR_TYPES.includes(defender.armor)) throw new RangeError(`unknown personal armor: ${defender.armor}`);
   const target = weaponTargetNumber(attacker.weaponKey, defender.armor, range);
@@ -299,12 +336,16 @@ export function previewPersonalAttack({ attacker, defender, range, situationalDM
   const defenderTrained = defenderWeapon ? defenderWeapon.skillNames.some((name) => Object.hasOwn(defender.skills ?? {}, name)) : true;
   // Book 1 p.33: an evading combatant may not attack and may not use the
   // weapon to parry or block, so evasion and parry are mutually exclusive.
-  const parryDM = !defender.evading && spec.melee && defenderWeapon?.parry ? -personalWeaponSkillLevel(defender, defender.weaponKey) : 0;
+  // Book 1 p.36: a long gun — rifle or carbine, not a pistol — may parry,
+  // treated as a cudgel, so the defender's skill with it does not apply.
+  const parryDM = !defender.evading && spec.melee ? -parryExpertise(defender) || 0 : 0;
   const evasionDM = defender.evading ? evasionDefenseDM(range) : 0;
   const defenderUntrainedDM = defenderTrained ? 0 : 3;
-  const totalDM = skillDM + characteristicDM + untrainedDM + parryDM + evasionDM + defenderUntrainedDM + situationalDM + defenderDM;
+  const blow = classifyBlow(attacker, attacker.weaponKey, { surprise, weakened, special });
+  const totalDM = skillDM + characteristicDM + untrainedDM + parryDM + evasionDM + defenderUntrainedDM + situationalDM + defenderDM + blow.fatigueDM;
   return {
     weaponKey: attacker.weaponKey, weaponName: spec.name, range, armor: defender.armor, target,
+    blowClass: blow.blowClass, fatigueDM: blow.fatigueDM, blowsRemaining: blowsRemaining(attacker),
     skillDM, characteristicDM, untrainedDM, parryDM, evasionDM, defenderUntrainedDM, situationalDM, defenderDM, totalDM,
     damageDice: spec.damageDice,
     canAttack: target !== null,
@@ -317,7 +358,7 @@ export function previewPersonalAttack({ attacker, defender, range, situationalDM
 // here because they depend on nothing but the weapon, but no wound is applied:
 // step 2C inflicts wounds at the END of the round, so a caller resolving a
 // whole round rolls every attack first and applies the damage afterwards.
-export function rollPersonalAttack({ attacker, defender, range, situationalDM = 0, defenderDM = 0, dice } = {}) {
+export function rollPersonalAttack({ attacker, defender, range, situationalDM = 0, defenderDM = 0, surprise = false, weakened = false, special = false, dice } = {}) {
   requireDice(dice);
   if (attacker?.status !== 'active') throw new Error('attacker is not active');
   if (defender?.status !== 'active') throw new Error('defender is not active');
@@ -334,26 +375,30 @@ export function rollPersonalAttack({ attacker, defender, range, situationalDM = 
   const defenderTrained = defenderWeapon ? defenderWeapon.skillNames.some((name) => Object.hasOwn(defender.skills ?? {}, name)) : true;
   // Book 1 p.33: an evading combatant may not attack and may not use the
   // weapon to parry or block, so evasion and parry are mutually exclusive.
-  const parryDM = !defender.evading && spec.melee && defenderWeapon?.parry ? -personalWeaponSkillLevel(defender, defender.weaponKey) : 0;
+  // Book 1 p.36: a long gun — rifle or carbine, not a pistol — may parry,
+  // treated as a cudgel, so the defender's skill with it does not apply.
+  const parryDM = !defender.evading && spec.melee ? -parryExpertise(defender) || 0 : 0;
   const evasionDM = defender.evading ? evasionDefenseDM(range) : 0;
   const defenderUntrainedDM = defenderTrained ? 0 : 3;
+  const blow = classifyBlow(attacker, attacker.weaponKey, { surprise, weakened, special });
   const diceRoll = [dice.rollD6(), dice.rollD6()];
   const roll = diceRoll[0] + diceRoll[1];
-  const totalDM = skillDM + characteristicDM + untrainedDM + parryDM + evasionDM + defenderUntrainedDM + situationalDM + defenderDM;
+  const totalDM = skillDM + characteristicDM + untrainedDM + parryDM + evasionDM + defenderUntrainedDM + situationalDM + defenderDM + blow.fatigueDM;
   const total = roll + totalDM;
   const success = total >= target;
   const damageDice = success ? Array.from({ length: spec.damageDice }, () => dice.rollD6()) : [];
   const nextAttacker = clone(attacker);
   if (spec.melee) nextAttacker.blows += 1;
+  if (blow.spendsAllowance) nextAttacker.blowsUsed = Number(nextAttacker.blowsUsed ?? 0) + 1;
   nextAttacker.evading = false;
-  return { attacker: nextAttacker, attackerId: attacker.id, defenderId: defender.id, weaponKey: attacker.weaponKey, weaponName: spec.name, range, armor: defender.armor, target, dice: diceRoll, roll, skillDM, characteristicDM, untrainedDM, parryDM, evasionDM, defenderUntrainedDM, situationalDM, defenderDM, totalDM, total, success, damageDice, damageTotal: damageDice.reduce((sum, die) => sum + die, 0) };
+  return { attacker: nextAttacker, attackerId: attacker.id, blowClass: blow.blowClass, fatigueDM: blow.fatigueDM, blowsRemaining: blowsRemaining(nextAttacker), defenderId: defender.id, weaponKey: attacker.weaponKey, weaponName: spec.name, range, armor: defender.armor, target, dice: diceRoll, roll, skillDM, characteristicDM, untrainedDM, parryDM, evasionDM, defenderUntrainedDM, situationalDM, defenderDM, totalDM, total, success, damageDice, damageTotal: damageDice.reduce((sum, die) => sum + die, 0) };
 }
 
 // Roll and apply in one step. Kept for single exchanges outside a round
 // structure; a round resolver should use rollPersonalAttack + applyPersonalDamage
 // so that wounds land at the end of the round per Book 1 p.30 step 2C.
-export function resolvePersonalAttack({ attacker, defender, range, situationalDM = 0, defenderDM = 0, dice } = {}) {
-  const result = rollPersonalAttack({ attacker, defender, range, situationalDM, defenderDM, dice });
+export function resolvePersonalAttack({ attacker, defender, range, situationalDM = 0, defenderDM = 0, surprise = false, weakened = false, special = false, dice } = {}) {
+  const result = rollPersonalAttack({ attacker, defender, range, situationalDM, defenderDM, surprise, weakened, special, dice });
   const firstBloodRoll = result.success && defender.firstBlood ? dice.rollD6() : null;
   const damage = result.success
     ? applyPersonalDamage(defender, result.damageDice, firstBloodRoll)
@@ -372,8 +417,11 @@ export function resolvePersonalMorale({ casualties, originalStrength, moraleTarg
   return { required: true, roll, dice: results, dm, total, target: moraleTarget, stands: total >= moraleTarget };
 }
 
+// Book 1 p.36: half an hour's rest restores the blow allowance. End of combat
+// is the point the client reaches that rest, so the allowance resets here.
 export function endPersonalCombatRecovery(combatant) {
   const next = clone(combatant);
+  next.blowsUsed = 0;
   if (next.status === 'active' && PHYSICAL_KEYS.some((key) => next.current[key] < next.characteristics[key])) {
     for (const key of PHYSICAL_KEYS) next.current[key] = Math.floor((next.current[key] + next.characteristics[key]) / 2);
   } else if (next.status === 'unconscious') {

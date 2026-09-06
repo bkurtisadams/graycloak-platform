@@ -18,8 +18,8 @@ import {
 } from '../../packages/classic-traveller-rules/index.js';
 
 export const ENCOUNTER_DOCUMENT_TYPE = 'graycloak-traveller-personal-encounter';
-export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 9;
-export const SUPPORTED_ENCOUNTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 10;
+export const SUPPORTED_ENCOUNTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 // Book 1 p.31 surprise DMs. Five are derivable from the encounter itself; the
 // referee supplies the three that describe circumstances the document does not
 // model. Battle dress is not in the Book 1 armour list, so it stays a flag.
@@ -85,13 +85,18 @@ function initialPosition(side, index, total, range) {
 }
 function withPosition(combatant, position) { return { ...combatant, position }; }
 function withCurrentState(combatant, current = null, status = 'active') {
-  return {
+  const next = {
     ...combatant,
     current: current
       ? Object.fromEntries(['STR', 'DEX', 'END'].map((key) => [key, current[key]]))
       : combatant.current,
     status
   };
+  // Book 1 p.36: the blow allowance is endurance as the encounter opens, so a
+  // character who arrives already wounded brings a smaller allowance.
+  next.blowAllowance = next.current.END;
+  next.blowsUsed = 0;
+  return next;
 }
 function characterEncounterStatus(character) {
   if (character.status?.alive === false) return 'dead';
@@ -217,6 +222,8 @@ export function validateEncounterDocument(document) {
     // but a third faction is a legitimate encounter.
     add(errors, nonblank(entry.id) && nonblank(entry.name) && nonblank(entry.side), 'combatant identity is invalid');
     add(errors, COMBATANT_COVER.includes(entry.cover), `combatant ${entry.name ?? ''} cover is invalid`);
+    add(errors, Number.isInteger(entry.blowAllowance) && entry.blowAllowance >= 0, `combatant ${entry.name ?? ''} blow allowance is invalid`);
+    add(errors, Number.isInteger(entry.blowsUsed) && entry.blowsUsed >= 0, `combatant ${entry.name ?? ''} blows used is invalid`);
     add(errors, typeof entry.foldingStock === 'boolean', `combatant ${entry.name ?? ''} folding stock flag is invalid`);
     for (const key of ['STR', 'DEX', 'END', 'INT']) add(errors, Number.isInteger(entry.characteristics?.[key]) && entry.characteristics[key] >= 0, `combatant ${entry.name ?? ''} ${key} is invalid`);
     for (const key of ['STR', 'DEX', 'END']) add(errors, Number.isInteger(entry.current?.[key]) && entry.current[key] >= 0, `combatant ${entry.name ?? ''} current ${key} is invalid`);
@@ -331,6 +338,16 @@ function migrateEncounterDocument(document) {
       conditions: document.surprise?.conditions ?? { party: {}, opposition: {} }
     };
     document.schemaVersion = 9;
+  }
+  if (document.schemaVersion === 9) {
+    // Book 1 p.36: the allowance is endurance at the start of the encounter,
+    // so a fight already under way keeps whatever endurance it has now.
+    document.combatants = document.combatants.map((entry) => ({
+      ...entry,
+      blowAllowance: Number.isInteger(entry.blowAllowance) ? entry.blowAllowance : entry.current.END,
+      blowsUsed: Number.isInteger(entry.blowsUsed) ? entry.blowsUsed : 0
+    }));
+    document.schemaVersion = 10;
   }
   return document;
 }
@@ -727,13 +744,14 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
     let result;
     const derived = encounterSituationDMs(next, attacker, defender);
     try {
-      result = rollPersonalAttack({ attacker, defender, range: band, situationalDM: situationalDM + derived.total, dice });
+      result = rollPersonalAttack({ attacker, defender, range: band, situationalDM: situationalDM + derived.total, surprise: surpriseRound === attacker.side, dice });
     } catch (error) {
       entries.push({ round: next.round, kind: 'attack', side, actorId: attacker.id, targetId: defender.id, text: `${attacker.name} cannot engage ${defender.name} at ${band} range with ${getPersonalWeapon(attacker.weaponKey).name}.` });
       return;
     }
     const acting = live.get(attacker.id);
     acting.blows = result.attacker.blows;
+    acting.blowsUsed = result.attacker.blowsUsed;
     acting.evading = false;
     if (result.success) pendingWounds.push({ defenderId: defender.id, damageDice: result.damageDice, result });
     entries.push({ round: next.round, kind: 'attack', side, actorId: attacker.id, targetId: defender.id, band, text: '', prefix: `${attacker.name} attacks ${defender.name} at ${band} range`, detail: result });

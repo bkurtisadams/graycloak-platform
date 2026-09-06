@@ -899,13 +899,18 @@ input[readonly] {
   cursor: pointer;
 }
 
+/* v0.48.0: the history is structured and as tall as it needs to be; the rail
+   scrolls, so it does not need a window of its own. */
 .encounter-details .encounter-record {
-  max-height: 250px;
   margin-top: 4px;
-  padding: 7px 4px;
-  overflow: auto;
+  padding: 5px 0 2px;
   border-top: 1px solid var(--disabled);
+  font-size: 11px;
 }
+.encounter-history-heading { font-size: 10px; letter-spacing: .1em; color: var(--muted); font-weight: 700; padding: 5px 0 2px; }
+.encounter-history-line { display: flex; gap: 6px; padding: 2px 0; border-top: 1px dotted var(--disabled); }
+.encounter-history-kind { flex: 0 0 4.5rem; color: var(--muted); font-size: 10px; letter-spacing: .06em; }
+.encounter-history-line.kind-attack .encounter-history-kind { color: var(--ink); }
 
 
 .subsector-map-column {

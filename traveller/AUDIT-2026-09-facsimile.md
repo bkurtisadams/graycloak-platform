@@ -91,6 +91,12 @@ B1 p.33: once a characteristic is at zero, further points must go to non-zero ch
 | NPC weapon expertise 0 avoids the −5 untrained penalty | B1 p.36 | Package treats a missing skill key as untrained; host must supply `{Weapon: 0}` for NPCs | OPEN (host concern) |
 | Can the Type S sole crewman double as steward? | B2 p.16 ("some ships will have more than one person performing the same function") | Package requires a `steward` crew assignment | OPEN |
 
+### 2.8 Endurance, blows and swings not modelled — **FIXED (v0.48.0)**
+B1 p.36: blows and swings are surprise, combat, weakened or special. Combat blows are limited to endurance as it stands at the start of the encounter (prior wounds reduce it, wounds taken during the fight do not); once spent, further blows are weakened and take the weapon's negative DM; a character may elect a weakened blow to conserve the allowance; surprise and special blows cost nothing; gun combat is unaffected; half an hour's rest restores the allowance. The package carried a `fatigueDM` on every melee weapon and a `blows` counter and read neither, so a bar fight never tired anyone. Now `classifyBlow()`, `blowsRemaining()`, and `blowAllowance` / `blowsUsed` on each combatant.
+
+### 2.9 Long guns could not parry — **FIXED (v0.48.0)**
+B1 p.36: a long gun — rifle or carbine, not a pistol — may parry, treated as a cudgel. The package allowed parry only for weapons flagged `parry`, so a rifleman in a melee had no defence. `parryExpertise()` now returns club expertise for a long gun, blade or brawling expertise for those weapons, and zero for a pistol.
+
 ## 4. Missing rules (not in the README's "not implemented" list)
 
 **Book 2**
@@ -114,6 +120,10 @@ B1 p.33: once a characteristic is at zero, further points must go to non-zero ch
 - Water / Desert / Vacuum / Asteroid / Ice-capped classifications (p.16).
 - Random person encounters (p.26), legal encounters, animal encounters (pp.28–35).
 - Reaction DMs applied automatically for military terms and population (data now exposed).
+
+**Book 1**
+- Weight and encumbrance (p.36): normal load equal to strength in kg; double load at STR/DEX/END −1; triple load for military units at −2; the world-size gravity adjustment. Nothing is implemented, and no equipment carries weight yet.
+- Morale DMs (p.36): +1 military unit, +1 leader present, +1 leader has tactical skill, −2 leader killed for at least two rounds, −2 casualties above 50%. `resolvePersonalMorale` accepts a DM but nothing computes these.
 
 **Book 1 errata**
 - Maximum skills ≤ INT + EDU (level-0 excluded).

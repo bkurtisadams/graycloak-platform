@@ -56,6 +56,7 @@ import {
   resolveRefereeSkillCheck,
   getPersonalWeapon,
   previewPersonalAttack,
+  blowsRemaining,
   PERSONAL_WEAPONS,
   PERSONAL_ARMOR_TYPES,
   SERVICES,
@@ -3934,6 +3935,42 @@ function renderEncounterMap(encounter) {
   renderEncounterLighting(encounter);
   renderEncounterTracker(encounter, actor);
 }
+// The encounter's own history, grouped by round. This replaced the ASCII
+// box() record, which was the last of them in the combat scene and sat in a
+// 250px window that could show about four lines of a long fight.
+function renderEncounterHistory(encounter) {
+  if (!encounter) { el.encounterRecord.replaceChildren(); return; }
+  const rounds = new Map();
+  for (const entry of encounter.history ?? []) {
+    if (!rounds.has(entry.round)) rounds.set(entry.round, []);
+    rounds.get(entry.round).push(entry);
+  }
+  const blocks = [...rounds.entries()].reverse().map(([round, entries]) => {
+    const block = document.createElement('div');
+    block.className = 'encounter-history-round';
+    const heading = document.createElement('div');
+    heading.className = 'encounter-history-heading';
+    heading.textContent = `ROUND ${round}`;
+    block.append(heading);
+    for (const entry of entries) {
+      const line = document.createElement('div');
+      line.className = `encounter-history-line kind-${entry.kind}`;
+      const kind = document.createElement('span');
+      kind.className = 'encounter-history-kind';
+      kind.textContent = entry.kind.toUpperCase();
+      const text = document.createElement('span');
+      text.textContent = entry.text;
+      line.append(kind, text);
+      block.append(line);
+    }
+    return block;
+  });
+  const outcome = document.createElement('div');
+  outcome.className = 'encounter-history-heading';
+  outcome.textContent = `${encounter.identity.title.toUpperCase()} / ${encounter.status.toUpperCase().replace('-', ' ')}`;
+  el.encounterRecord.replaceChildren(outcome, ...blocks);
+}
+
 // One row per combatant: party first, then every other side, each with its
 // token glyph, a side marker, and the orders it is holding for this round.
 function sideDotClass(encounter, combatant) {
@@ -4024,7 +4061,11 @@ function renderEncounterTracker(encounter, actor) {
     body.className = 'encounter-tracker-body';
     const stats = document.createElement('div');
     stats.className = 'encounter-selected-stats';
-    stats.textContent = `STR ${combatant.current.STR}/${combatant.characteristics.STR}  DEX ${combatant.current.DEX}/${combatant.characteristics.DEX}  END ${combatant.current.END}/${combatant.characteristics.END}`;
+    // Book 1 p.36: blows and swings left before they become weakened. Guns are
+    // not affected, so this only means anything with a melee weapon in hand.
+    const melee = getPersonalWeapon(combatant.weaponKey).melee;
+    stats.textContent = `STR ${combatant.current.STR}/${combatant.characteristics.STR}  DEX ${combatant.current.DEX}/${combatant.characteristics.DEX}  END ${combatant.current.END}/${combatant.characteristics.END}`
+      + (melee ? `  BLOWS ${blowsRemaining(combatant)}/${combatant.blowAllowance}` : '');
     body.append(stats);
     for (const [key, value] of combatantSheetRows(combatant)) {
       const line = document.createElement('div');
@@ -4594,10 +4635,10 @@ function renderEncounter() {
     return;
   }
   el.encounterRailSection.dataset.available = 'true';
-  el.encounterRecord.textContent = buildEncounterRecord({ system: current, encounters: encounterDocuments });
   const active = activeEncounterAtCurrentSystem();
   const displayed = active ?? latestEncounterAtCurrentSystem();
   el.encounterDetails.hidden = !displayed;
+  renderEncounterHistory(displayed);
   renderEncounterMap(displayed);
   el.operationsTabEncounter?.classList.toggle('attention', Boolean(active));
   if (el.operationsTabEncounter) el.operationsTabEncounter.textContent = 'COMBAT';

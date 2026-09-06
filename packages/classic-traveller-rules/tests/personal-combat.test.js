@@ -7,6 +7,8 @@ import {
   resolvePersonalSurprise,
   resolvePersonalAttack,
   rollPersonalAttack,
+  classifyBlow,
+  blowsRemaining,
   previewPersonalAttack,
   encounterRangeForThrow,
   rollEncounterRange,
@@ -231,4 +233,71 @@ test('a side may carry its own surprise DM rather than the best individual one (
   const result = resolvePersonalSurprise({ sides, dice });
   assert.equal(result.results[0].dm, -1, 'an explicit side DM wins');
   assert.equal(result.results[1].dm, 0, 'a side without one falls back to its combatants');
+});
+
+test('the blow and swing allowance follows Book 1 p.36', () => {
+  const dice = { rollD6: () => 6, roll2D6: () => 12 };
+  const brawler = createPersonalCombatant({
+    id: 'a', name: 'a', side: 'party', characteristics: { STR: 9, DEX: 7, END: 3, INT: 7 },
+    skills: { Brawling: 1 }, armor: 'none', weaponKey: 'hands'
+  });
+  const foe = createPersonalCombatant({ id: 'd', name: 'd', side: 'opposition', characteristics: { STR: 7, DEX: 7, END: 7, INT: 7 }, armor: 'none', weaponKey: 'hands' });
+
+  // The allowance is endurance at the start of the encounter.
+  assert.equal(brawler.blowAllowance, 3);
+  assert.equal(blowsRemaining(brawler), 3);
+
+  // Three combat blows, each spending one.
+  let attacker = brawler;
+  for (let blow = 1; blow <= 3; blow += 1) {
+    const result = rollPersonalAttack({ attacker, defender: foe, range: 'close', dice });
+    assert.equal(result.blowClass, 'combat');
+    assert.equal(result.fatigueDM, 0);
+    attacker = result.attacker;
+    assert.equal(blowsRemaining(attacker), 3 - blow);
+  }
+
+  // The fourth is weakened automatically, at the weapon's fatigue DM, and
+  // costs nothing further.
+  const weakened = rollPersonalAttack({ attacker, defender: foe, range: 'close', dice });
+  assert.equal(weakened.blowClass, 'weakened');
+  assert.equal(weakened.fatigueDM, -2);
+  assert.equal(weakened.attacker.blowsUsed, 3);
+
+  // A character may elect a weakened blow to conserve the allowance.
+  const chosen = rollPersonalAttack({ attacker: brawler, defender: foe, range: 'close', weakened: true, dice });
+  assert.equal(chosen.blowClass, 'weakened');
+  assert.equal(blowsRemaining(chosen.attacker), 3);
+
+  // Surprise and special blows are unrestricted and unweakened.
+  assert.equal(rollPersonalAttack({ attacker, defender: foe, range: 'close', surprise: true, dice }).blowClass, 'surprise');
+  assert.equal(rollPersonalAttack({ attacker, defender: foe, range: 'close', special: true, dice }).fatigueDM, 0);
+
+  // Gun combat is not affected by endurance at all.
+  const shooter = createPersonalCombatant({ id: 'g', name: 'g', side: 'party', characteristics: { STR: 7, DEX: 7, END: 2, INT: 7 }, skills: { Rifle: 1 }, armor: 'none', weaponKey: 'rifle' });
+  const shot = rollPersonalAttack({ attacker: { ...shooter, blowsUsed: 99 }, defender: foe, range: 'medium', dice });
+  assert.equal(shot.blowClass, null);
+  assert.equal(shot.fatigueDM, 0);
+
+  // Rest restores the allowance.
+  assert.equal(endPersonalCombatRecovery(attacker).blowsUsed, 0);
+});
+
+test('a long gun parries as a cudgel, a pistol not at all (B1 p.36)', () => {
+  const attacker = createPersonalCombatant({ id: 'a', name: 'a', side: 'party', characteristics: { STR: 9, DEX: 7, END: 7, INT: 7 }, skills: { Blade: 1 }, armor: 'none', weaponKey: 'blade' });
+  const make = (weaponKey, skills) => createPersonalCombatant({ id: 'd', name: 'd', side: 'opposition', characteristics: { STR: 7, DEX: 7, END: 7, INT: 7 }, skills, armor: 'none', weaponKey });
+
+  // A blade defender parries with blade expertise.
+  assert.equal(previewPersonalAttack({ attacker, defender: make('sword', { Sword: 2 }), range: 'short' }).parryDM, -2);
+
+  // A rifleman parries as a cudgel: club expertise counts, rifle skill does not.
+  assert.equal(previewPersonalAttack({ attacker, defender: make('rifle', { Rifle: 3 }), range: 'short' }).parryDM, 0);
+  assert.equal(previewPersonalAttack({ attacker, defender: make('rifle', { Club: 2 }), range: 'short' }).parryDM, -2);
+
+  // A pistol cannot parry.
+  assert.equal(previewPersonalAttack({ attacker, defender: make('automatic-pistol', { Club: 2 }), range: 'short' }).parryDM, 0);
+
+  // Shots are never parried.
+  const shooter = createPersonalCombatant({ id: 's', name: 's', side: 'party', characteristics: { STR: 7, DEX: 7, END: 7, INT: 7 }, skills: { Rifle: 1 }, armor: 'none', weaponKey: 'rifle' });
+  assert.equal(previewPersonalAttack({ attacker: shooter, defender: make('sword', { Sword: 2 }), range: 'medium' }).parryDM, 0);
 });
