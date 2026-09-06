@@ -3011,3 +3011,11 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .combat-rail .encounter-selected-sheet { margin-top: 4px; }
 .combat-rail .encounter-selected-sheet .panel-row { font-size: 11px; padding: 1px 0; }
 .combat-rail .encounter-combat-controls { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 6px; }
+
+/* --- v0.47.0: the rail is the list. Rows are tight enough that a twenty-body
+   fight fits, and each combatant's verbs live inside its own row. */
+.combat-rail .encounter-tracker { gap: 2px; }
+.combat-rail .encounter-tracker-summary { padding: 2px 6px; }
+.combat-rail .encounter-tracker-verbs { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+.combat-rail .encounter-tracker-verbs .action-button,
+.combat-rail .encounter-tracker-verbs .text-button { font-size: 10px; padding: 1px 5px; letter-spacing: 0; }

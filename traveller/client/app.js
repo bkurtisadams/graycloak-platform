@@ -404,9 +404,7 @@ const el = {
   encounterSection: document.querySelector('#encounter-section'),
   encounterDetails: document.querySelector('#encounter-details'),
   encounterRecord: document.querySelector('#encounter-record'),
-  encounterActions: document.querySelector('#encounter-actions'),
   encounterRailSection: document.querySelector('#combat-rail-section'),
-  encounterDmPanel: document.querySelector('#encounter-dm-panel'),
   encounterSelectionStatus: document.querySelector('#encounter-selection-status'),
   encounterMapViewport: document.querySelector('#encounter-map-viewport'),
   encounterMap: document.querySelector('#encounter-map'),
@@ -416,8 +414,6 @@ const el = {
   encounterZoomFit: document.querySelector('#encounter-zoom-fit'),
   encounterPartyRoster: document.querySelector('#encounter-party-roster'),
   encounterLighting: document.querySelector('#encounter-lighting'),
-  encounterSelected: document.querySelector('#encounter-selected'),
-  encounterTargetList: document.querySelector('#encounter-target-list'),
   encounterTracker: document.querySelector('#encounter-tracker'),
   encounterResolve: document.querySelector('#encounter-resolve'),
   encounterRoster: document.querySelector('#encounter-roster'),
@@ -549,7 +545,6 @@ let encounterMapZoom = 1;
 let encounterMapView = { x: 0, y: 0, width: ENCOUNTER_MAP_WIDTH, height: ENCOUNTER_MAP_HEIGHT };
 let encounterMapViewFrame = 0;
 let framedEncounterId = null;
-let encounterDmPanelOpen = false;
 let encounterExtraTargetIds = new Set();
 let expandedTrackerIds = new Set();
 let hoveredEncounterCombatantId = null;
@@ -3787,71 +3782,9 @@ function updateEncounterDocument(encounterId, mutate) {
   }
 }
 
-function renderEncounterDmPanel(encounter, actor, target) {
-  const rows = [];
-  const line = (label, value, className = '') => {
-    const row = document.createElement('div');
-    row.className = `panel-row${className ? ` ${className}` : ''}`;
-    const key = document.createElement('span');
-    key.className = 'panel-row-label';
-    key.textContent = label;
-    const held = document.createElement('span');
-    held.className = 'panel-row-value';
-    held.textContent = value;
-    row.append(key, held);
-    rows.push(row);
-  };
-
-  if (!actor || !target) {
-    const hint = document.createElement('div');
-    hint.className = 'encounter-dm-hint';
-    hint.textContent = actor ? 'SELECT A TARGET' : 'SELECT A COMBATANT';
-    el.encounterDmPanel.replaceChildren(hint);
-    return;
-  }
-
-  const band = encounterPairRange(actor, target);
-  const derived = encounterSituationDMs(encounter, actor, target);
-  const preview = previewPersonalAttack({ attacker: actor, defender: target, range: band, situationalDM: derived.total });
-
-  // The headline is the only line that has to be visible: who, at what band,
-  // needing what. The full breakdown is one click away.
-  const summary = document.createElement('summary');
-  summary.className = 'encounter-dm-summary';
-  summary.textContent = preview.canAttack
-    ? `${actor.name.toUpperCase()} → ${target.name.toUpperCase()} / ${band.toUpperCase().replace('-', ' ')} / ${Math.max(2, preview.requiredRoll)}+ / ${preview.damageDice}D`
-    : `${actor.name.toUpperCase()} → ${target.name.toUpperCase()} / ${band.toUpperCase().replace('-', ' ')} / NO REACH`;
-  if (preview.canAttack && preview.requiredRoll > 12) summary.classList.add('impossible');
-
-  line('WEAPON', `${preview.weaponName.toUpperCase()} vs ${preview.armor.toUpperCase()}`);
-  if (preview.canAttack) {
-    line('TARGET', `${preview.target}+`);
-    for (const [label, value] of [
-      ['SKILL', preview.skillDM], ['CHARACTERISTIC', preview.characteristicDM], ['UNTRAINED', preview.untrainedDM],
-      ['PARRY', preview.parryDM], ['EVASION', preview.evasionDM], ['DEFENDER UNTRAINED', preview.defenderUntrainedDM]
-    ]) {
-      if (value !== 0) line(label, signedDM(value));
-    }
-    for (const part of derived.parts) line(part.label, signedDM(part.dm));
-    line('TOTAL DM', signedDM(preview.totalDM));
-  } else {
-    line('THROW', 'CANNOT REACH', 'attention');
-  }
-
-  const note = document.createElement('div');
-  note.className = 'encounter-dm-note';
-  note.textContent = preview.canAttack
-    ? 'Book 1 pp.45–47. Wounds are inflicted at the end of the round (p.30).'
-    : `${preview.weaponName} has no ${band.replace('-', ' ')} range column (Book 1 p.46).`;
-
-  const details = document.createElement('details');
-  details.className = 'encounter-dm-details';
-  details.open = encounterDmPanelOpen;
-  details.addEventListener('toggle', () => { encounterDmPanelOpen = details.open; });
-  details.append(summary, ...rows, note);
-  el.encounterDmPanel.replaceChildren(details);
-}
-
+// Book 1 lists a preferred pistol and blade on the character sheet, but a
+// combatant here carries one weapon, so those lines appear only when the
+// weapon in hand is of that kind rather than advertising a gun nobody has.
 function renderEncounterMap(encounter) {
   if (!encounter) {
     hideEncounterTokenOverlays();
@@ -3864,7 +3797,6 @@ function renderEncounterMap(encounter) {
     el.encounterMap.replaceChildren();
     el.encounterPartyRoster.replaceChildren();
     el.encounterRoster.replaceChildren();
-    el.encounterDmPanel.replaceChildren();
     el.encounterSelectionStatus.textContent = 'ACTOR -- // TARGET --';
     return;
   }
@@ -3998,16 +3930,12 @@ function renderEncounterMap(encounter) {
       ? ` // AWAITING ${awaiting.map((entry) => entry.name.toUpperCase()).join(', ')}`
       : ' // ALL DECLARED';
   el.encounterSelectionStatus.textContent = `ROUND ${encounter.round}${surprised}${roundState} // ACTOR ${actor?.name.toUpperCase() ?? '--'} // TARGET ${target?.name.toUpperCase() ?? '--'}${guideText}`;
-  renderEncounterDmPanel(encounter, actor, target);
 
   renderEncounterLighting(encounter);
-  el.encounterSelected.replaceChildren();
-  renderEncounterTargetList(encounter, actor, target);
   renderEncounterTracker(encounter, actor);
 }
-
 // One row per combatant: party first, then every other side, each with its
-// token glyph, a side dot, and the orders it is holding for this round.
+// token glyph, a side marker, and the orders it is holding for this round.
 function sideDotClass(encounter, combatant) {
   if (combatant.side === 'party') return 'encounter-side-dot party';
   const otherSides = [...new Set(encounter.combatants.filter((entry) => entry.side !== 'party').map((entry) => entry.side))];
@@ -4030,25 +3958,10 @@ function declarationText(encounter, combatant) {
   return `${declaration.action.toUpperCase()}${target ? ` → ${target.name.toUpperCase()}` : ''}`;
 }
 
-// Book 1's character sheet lists primary and secondary skill and the
-// character's preferred weapon, pistol and blade. The same five lines say
-// more about a combatant at a glance than a full skill list.
-const PISTOL_KEYS = Object.freeze(['body-pistol', 'automatic-pistol', 'revolver']);
-const BLADE_KEYS = Object.freeze(['dagger', 'blade', 'cutlass', 'sword', 'broadsword', 'bayonet']);
-
 function rankedSkills(combatant) {
   return Object.entries(combatant.skills ?? {})
     .filter(([, level]) => Number(level) > 0)
     .sort((left, right) => Number(right[1]) - Number(left[1]) || left[0].localeCompare(right[0]));
-}
-
-function preferredWeaponOfKind(combatant, keys) {
-  let best = null;
-  for (const key of keys) {
-    const level = personalWeaponSkillLevelFor(combatant, key);
-    if (best === null || level > best.level) best = { key, level };
-  }
-  return best;
 }
 
 function personalWeaponSkillLevelFor(combatant, weaponKey) {
@@ -4056,9 +3969,9 @@ function personalWeaponSkillLevelFor(combatant, weaponKey) {
   return Math.max(0, ...weapon.skillNames.map((name) => Number(combatant.skills?.[name] ?? 0)));
 }
 
-// Book 1 lists a preferred pistol and blade on the character sheet, but a
-// combatant here carries one weapon, so those lines appear only when the
-// weapon in hand is of that kind rather than advertising a gun nobody has.
+const PISTOL_KEYS = Object.freeze(['body-pistol', 'automatic-pistol', 'revolver']);
+const BLADE_KEYS = Object.freeze(['dagger', 'blade', 'cutlass', 'sword', 'broadsword', 'bayonet']);
+
 function combatantSheetRows(combatant) {
   const ranked = rankedSkills(combatant);
   const carried = getPersonalWeapon(combatant.weaponKey);
@@ -4076,38 +3989,6 @@ function combatantSheetRows(combatant) {
 
 // Every legal target, priced: band, needed throw, or why the weapon cannot
 // reach. previewPersonalAttack is dice-free, so this costs nothing to show.
-function renderEncounterTargetList(encounter, actor, selectedTarget) {
-  if (!actor) { el.encounterTargetList.replaceChildren(); return; }
-  const heading = document.createElement('div');
-  heading.className = 'encounter-roster-heading';
-  heading.textContent = 'TARGET';
-  const rows = encounter.combatants
-    .filter((entry) => entry.side !== actor.side && entry.status === 'active')
-    .map((candidate) => {
-      const band = encounterPairRange(actor, candidate);
-      const preview = previewPersonalAttack({ attacker: actor, defender: candidate, range: band, situationalDM: encounterSituationDMs(encounter, actor, candidate).total });
-      const row = document.createElement('button');
-      row.type = 'button';
-      row.className = `encounter-target-row${selectedTarget?.id === candidate.id ? ' selected' : ''}${preview.canAttack ? '' : ' unreachable'}`;
-      const label = document.createElement('span');
-      label.append(Object.assign(document.createElement('i'), { className: sideDotClass(encounter, candidate) }), document.createTextNode(candidate.name.toUpperCase()));
-      const detail = document.createElement('span');
-      detail.className = 'encounter-target-detail';
-      detail.textContent = preview.canAttack
-        ? `${band.toUpperCase().replace('-', ' ')} / ${Math.max(2, preview.requiredRoll)}+`
-        : `${band.toUpperCase().replace('-', ' ')} / NO REACH`;
-      row.title = preview.canAttack
-        ? `${preview.weaponName} vs ${candidate.armor} at ${band} range (Book 1 pp.45–47)`
-        : `${preview.weaponName} has no ${band.replace('-', ' ')} range column (Book 1 p.46)`;
-      row.append(label, detail);
-      row.addEventListener('click', () => setEncounterTarget(encounter.identity.id, candidate.id));
-      return row;
-    });
-  el.encounterTargetList.replaceChildren(heading, ...(rows.length ? rows : [Object.assign(document.createElement('div'), { className: 'encounter-dm-hint', textContent: 'NO ACTIVE OPPOSING COMBATANT' })]));
-}
-
-// Traveller rounds are simultaneous (B1 p.30), so this is not a turn order:
-// it is a declaration checklist that empties, and then the round resolves.
 function renderEncounterTracker(encounter, actor) {
   const heading = document.createElement('div');
   heading.className = 'encounter-roster-heading';
@@ -4154,6 +4035,25 @@ function renderEncounterTracker(encounter, actor) {
       );
       body.append(line);
     }
+
+    // This combatant's own orders, in this combatant's own row. The map's
+    // right-click cascade does the same job at the token; neither needs a
+    // global verb row taking space from the list.
+    const declaredIds = new Set(encounter.roundState?.declaredActions?.map((entry) => entry.actorId) ?? []);
+    const canOrder = combatant.status === 'active' && !declaredIds.has(combatant.id) && encounter.status === 'active';
+    const verbs = document.createElement('div');
+    verbs.className = 'encounter-tracker-verbs';
+    const foe = encounter.combatants.find((entry) => entry.id === selectedEncounterTargetId && entry.side !== combatant.side && entry.status === 'active')
+      ?? encounter.combatants.find((entry) => entry.side !== combatant.side && entry.status === 'active');
+    verbs.append(
+      makePortButton('ATTACK', () => { setEncounterActor(encounter.identity.id, combatant.id); openEncounterAttackDialog(encounter); }, { disabled: !canOrder || !foe }),
+      makePortButton('EVADE', () => resolveActiveEncounterAction('evade', 0, null, combatant.id), { disabled: !canOrder }),
+      makePortButton('CLOSE', () => resolveActiveEncounterAction('close', 0, foe?.id ?? null, combatant.id), { disabled: !canOrder || !foe }),
+      makePortButton('OPEN', () => resolveActiveEncounterAction('open', 0, foe?.id ?? null, combatant.id), { disabled: !canOrder || !foe }),
+      makePortButton('ESCAPE', () => resolveActiveEncounterAction('escape', 0, null, combatant.id), { disabled: !canOrder }),
+      makePortButton('STAND', () => resolveActiveEncounterAction('wait', 0, null, combatant.id), { disabled: !canOrder })
+    );
+    body.append(verbs);
     row.append(summary, body);
     return row;
   });
@@ -4689,35 +4589,18 @@ function renderEncounter() {
     el.encounterRailSection.dataset.available = 'false';
     el.encounterDetails.hidden = true;
     el.encounterRecord.textContent = '';
-    el.encounterActions.replaceChildren();
     renderEncounterMap(null);
     applyOperationsDeskTab();
     return;
   }
   el.encounterRailSection.dataset.available = 'true';
   el.encounterRecord.textContent = buildEncounterRecord({ system: current, encounters: encounterDocuments });
-  el.encounterActions.replaceChildren();
   const active = activeEncounterAtCurrentSystem();
   const displayed = active ?? latestEncounterAtCurrentSystem();
   el.encounterDetails.hidden = !displayed;
   renderEncounterMap(displayed);
   el.operationsTabEncounter?.classList.toggle('attention', Boolean(active));
   if (el.operationsTabEncounter) el.operationsTabEncounter.textContent = 'COMBAT';
-  if (active) {
-    const actor = selectedEncounterActor(active);
-    const target = selectedEncounterTarget(active);
-    if (active.round === 1 && active.surprise.surpriseSideId === 'party') {
-      el.encounterActions.append(makePortButton('AVOID', avoidActiveEncounter));
-    }
-    el.encounterActions.append(
-      makePortButton(actor && target ? `${actor.name.toUpperCase()}: ATTACK ${target.name.toUpperCase()}` : 'SELECT ACTOR + TARGET', () => openEncounterAttackDialog(active), { disabled: !actor || !target }),
-      makePortButton('EVADE', () => resolveActiveEncounterAction('evade', 0, null, actor?.id), { disabled: !actor }),
-      makePortButton('CLOSE RANGE', () => resolveActiveEncounterAction('close', 0, target?.id ?? null, actor?.id), { disabled: !actor || !target }),
-      makePortButton('OPEN RANGE', () => resolveActiveEncounterAction('open', 0, target?.id ?? null, actor?.id), { disabled: !actor || !target }),
-      makePortButton('ESCAPE', () => resolveActiveEncounterAction('escape', 0, null, actor?.id), { disabled: !actor }),
-      makePortButton('WAIT', () => resolveActiveEncounterAction('wait', 0, null, actor?.id), { disabled: !actor })
-    );
-  }
   applyOperationsDeskTab();
 }
 

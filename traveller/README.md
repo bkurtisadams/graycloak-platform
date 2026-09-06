@@ -1,5 +1,19 @@
 # Graycloak Traveller
 
+## v0.47.0 the rail is the list
+
+A twenty-body fight needs twenty rows, so everything in the rail that was not a row had to justify itself. Three blocks could not.
+
+**The target list is gone.** Which enemies exist and where they are is what the map is for; the red ring says which one is targeted.
+
+**The DM panel is gone.** `HOSTILE → HAWKEYE / MEDIUM / 11+ / 3D` restated the arrow already drawn on the map, and the throw it quoted is quoted again — per target, before you commit — inside the right-click `ATTACK ▸` cascade. That is where the decision is made, so that is where the number belongs.
+
+**The global verb row is gone.** Its buttons acted on "the selected combatant", which is the same thing as "this row"; they now sit inside the row that owns them, alongside that combatant's characteristics and sheet lines. The map's cascade does the same job at the token.
+
+What remains is the tracker, its heading, and the resolve controls. Rows are 22px collapsed, so nine combatants occupy 374px of a 662px rail and twenty still fit without scrolling.
+
+Encounter schema unchanged at 9. No rules-package changes.
+
 ## v0.46.0 one combatant, one row
 
 The rail said everything twice: a permanent panel at the top described the selected combatant, and the tracker below listed the same combatant again. Now each combatant is a single row that opens.
