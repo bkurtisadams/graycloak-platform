@@ -27,6 +27,7 @@ Status key: **FIXED** shipped in v0.14.0 · **RULED** Graycloak ruling applied �
 | Trade classifications (Ag, Na, In, Ni, Ri, Po) | B3 p.16 | CLEAN |
 | Type S Scout/Courier specification and MCr29.43 | B2 p.19 + errata | CLEAN |
 | Surprise (1D each, 3+ margin); morale (25% casualties, 7+ stand) | B1 pp.30, 36 | CLEAN |
+| Combat round sequence: movement, then all attacks, wounds inflicted at end of round, then morale | B1 p.30 step 2 | CLEAN (deferred wounds shipped v0.35.0; the round resolver previously applied party wounds mid-round) |
 | Untrained −5 attack / +3 defence (errata); wound status (1 zero unconscious, 3 zero dead); end-of-combat recovery halfway rule (errata) | B1 pp.34, 36 + errata | CLEAN |
 | Referee skill-check helper vs Electronics errata paragraph | B1 p.18 errata | CLEAN |
 | Weapons Table required/advantageous levels and DMs (all 18 weapons) | B1 p.45 | CLEAN (except Hands characteristic and Cutlass weakened DM, below) |
@@ -96,7 +97,7 @@ B1 p.33: once a characteristic is at zero, further points must go to non-zero ch
 - Charter of non-starships Cr1/ton/hour (p.9).
 
 **Book 3**
-- Encounter range table and terrain DMs (B1 p.31) — the client uses its own range handling.
+- Encounter range table and terrain DMs (B1 p.31) — the client computes the band per attacker-target pair from map positions (Graycloak policy: square workspace with a band guide; the bands themselves are RAW). Terrain DMs are still not implemented.
 - Water / Desert / Vacuum / Asteroid / Ice-capped classifications (p.16).
 - Random person encounters (p.26), legal encounters, animal encounters (pp.28–35).
 - Reaction DMs applied automatically for military terms and population (data now exposed).

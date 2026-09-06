@@ -275,6 +275,7 @@ export {
   resolvePersonalSurprise,
   movePersonalCombatRange,
   applyPersonalDamage,
+  rollPersonalAttack,
   resolvePersonalAttack,
   resolvePersonalMorale,
   endPersonalCombatRecovery

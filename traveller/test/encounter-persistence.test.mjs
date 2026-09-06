@@ -18,7 +18,9 @@ import {
   setEncounterRangeFromPositions,
   addEncounterCombatantFromActor,
   removeEncounterCombatant,
-  setEncounterCombatantCondition
+  setEncounterCombatantCondition,
+  encounterPairRange,
+  declaredTargetCounts
 } from '../src/encounter-document.js';
 import { createNpcActorDocument, setNpcActorCondition } from '../src/npc-actor-document.js';
 import { createDocumentRegistry, createMemoryStorage } from '../src/document-registry.js';
@@ -56,11 +58,11 @@ async function encounterFixture() {
   return { character, ship, campaign, situation, encounter };
 }
 
-test('Encounter Document v5 round-trips the expanded workspace, declarations, positions, range, and audit history', async () => {
+test('Encounter Document v6 round-trips the expanded workspace, declarations, positions, range, and audit history', async () => {
   const { encounter } = await encounterFixture();
   const roundTrip = importEncounterDocument(exportEncounterDocument(encounter));
-  assert.equal(roundTrip.schemaVersion, 5);
-  assert.deepEqual(roundTrip.map, { grid: 'square', columns: 32, rows: 20, rangeGuide: 'graycloak-band-guide-v1', metersPerSquare: null });
+  assert.equal(roundTrip.schemaVersion, 6);
+  assert.deepEqual(roundTrip.map, { grid: 'square', columns: 32, rows: 20, rangeGuide: 'graycloak-band-guide-v2', metersPerSquare: null });
   assert.deepEqual(roundTrip.roundState, { declaredActions: [] });
   assert.deepEqual(roundTrip.combatants[0].position, { column: 4, row: 9 });
   assert.equal(roundTrip.surprise.surpriseSideId, 'party');
@@ -71,14 +73,14 @@ test('Encounter Document v5 round-trips the expanded workspace, declarations, po
   assert.equal(avoided.status, 'avoided');
 });
 
-test('Encounter Document v1 imports migrate through v5 to the expanded workspace', async () => {
+test('Encounter Document v1 imports migrate through v6 to the expanded workspace', async () => {
   const { encounter } = await encounterFixture();
   const legacy = structuredClone(encounter);
   legacy.schemaVersion = 1;
   delete legacy.map;
   for (const combatant of legacy.combatants) delete combatant.position;
   const migrated = importEncounterDocument(legacy);
-  assert.equal(migrated.schemaVersion, 5);
+  assert.equal(migrated.schemaVersion, 6);
   assert.equal(migrated.map.grid, 'square');
   assert.equal(migrated.map.columns, 32);
   assert.equal(migrated.map.rows, 20);
@@ -195,7 +197,9 @@ test('ordinary combat rounds resolve both declared attacks before wound effects'
   });
   const result = resolveEncounterRound(encounter, {
     action: 'attack', date: { year: 4800, dayOfYear: 106 },
-    dice: sequenceDice([2, 3, 1, 1, 1, 1, 1, 1, 6, 6, 1, 1, 1, 1])
+    // Book 1 p.30 step 2C order: both to-hit throws and their damage dice are
+    // rolled first, then the first-blood location dice at the end of the round.
+    dice: sequenceDice([1, 1, 1, 1, 1, 1, 1, 6, 6, 1, 1, 1, 1, 1])
   });
   assert.equal(result.entries.filter((entry) => entry.kind === 'attack').length, 2);
   assert.ok(result.encounter.combatants.find((entry) => entry.side === 'party').current.STR < fixture.character.characteristics.STR);
@@ -254,4 +258,58 @@ test('multiple PCs each declare once before one simultaneous round resolves', as
   assert.equal(secondDeclaration.encounter.roundState.declaredActions.length, 0);
   assert.equal(secondDeclaration.entries.filter((entry) => entry.kind === 'attack' && entry.side === 'opposition').length, 2);
   assert.equal(new Set(secondDeclaration.entries.filter((entry) => entry.side === 'opposition').map((entry) => entry.targetId)).size, 2);
+});
+
+test('v0.35.0 wounds land at the end of the round, so a dropped foe is still a legal target (B1 p.30 step 2C)', async () => {
+  const fixture = await encounterFixture();
+  const second = { ...fixture.character, identity: { ...fixture.character.identity, id: 'hawkeye-two', name: 'Second Gun' } };
+  const encounter = createEncounterDocument({
+    campaign: fixture.campaign, characters: [fixture.character, second],
+    opponent: { name: 'Veyra Kade', weaponKey: 'automatic-pistol', armor: 'none', characteristics: { STR: 2, DEX: 7, END: 2, INT: 7 }, skills: {} },
+    encounterKey: 'simultaneity-test', date: { year: 4800, dayOfYear: 106 }, range: 'medium', dice: sequenceDice([3, 3])
+  });
+  const foeId = encounter.combatants.find((entry) => entry.side === 'opposition').id;
+  const [first, third] = encounter.combatants.filter((entry) => entry.side === 'party');
+
+  // Both characters declare against the same foe; the first shot drops him.
+  const pending = resolveEncounterRound(encounter, {
+    action: 'attack', actorId: first.id, targetId: foeId,
+    date: { year: 4800, dayOfYear: 106 }, dice: sequenceDice([6, 6])
+  });
+  assert.equal(pending.pending, true);
+  assert.deepEqual(declaredTargetCounts(pending.encounter), { [foeId]: 1 });
+
+  const result = resolveEncounterRound(pending.encounter, {
+    action: 'attack', actorId: third.id, targetId: foeId,
+    date: { year: 4800, dayOfYear: 106 },
+    dice: sequenceDice([6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6])
+  });
+  // The second attack resolved rather than throwing "defender is not active".
+  const attacks = result.entries.filter((entry) => entry.kind === 'attack' && entry.side === 'party');
+  assert.equal(attacks.length, 2);
+  assert.ok(attacks.every((entry) => entry.detail.success));
+  // Two separate wounds landed on the one foe.
+  assert.equal(result.encounter.combatants.find((entry) => entry.id === foeId).hitsTaken, 2);
+});
+
+test('v0.35.0 throws each attack at the band between that pair, not one encounter-wide band', async () => {
+  const fixture = await encounterFixture();
+  const opponents = [
+    { name: 'Near Raider', weaponKey: 'automatic-pistol', armor: 'none', characteristics: { STR: 7, DEX: 7, END: 7, INT: 7 }, skills: {} },
+    { name: 'Far Raider', weaponKey: 'automatic-pistol', armor: 'none', characteristics: { STR: 7, DEX: 7, END: 7, INT: 7 }, skills: {} }
+  ];
+  let encounter = createEncounterDocument({
+    campaign: fixture.campaign, character: fixture.character, opponents,
+    encounterKey: 'pair-range-test', date: { year: 4800, dayOfYear: 106 }, range: 'medium', dice: sequenceDice([3, 3])
+  });
+  const actor = encounter.combatants.find((entry) => entry.side === 'party');
+  const near = encounter.combatants.find((entry) => entry.name === 'Near Raider');
+  const far = encounter.combatants.find((entry) => entry.name === 'Far Raider');
+
+  encounter = repositionEncounterCombatant(encounter, { combatantId: near.id, column: actor.position.column + 1, row: actor.position.row }).encounter;
+  encounter = repositionEncounterCombatant(encounter, { combatantId: far.id, column: actor.position.column + 20, row: actor.position.row }).encounter;
+
+  const positioned = (id) => encounter.combatants.find((entry) => entry.id === id);
+  assert.equal(encounterPairRange(positioned(actor.id), positioned(near.id)), 'close');
+  assert.equal(encounterPairRange(positioned(actor.id), positioned(far.id)), 'very-long');
 });

@@ -211,7 +211,11 @@ export function applyPersonalDamage(combatant, damageDice, firstBloodRoll = null
   return { combatant: next, allocations, status: next.status };
 }
 
-export function resolvePersonalAttack({ attacker, defender, range, situationalDM = 0, defenderDM = 0, dice } = {}) {
+// Book 1 p.30 step 2B: the attack roll and its DMs. Damage dice are rolled
+// here because they depend on nothing but the weapon, but no wound is applied:
+// step 2C inflicts wounds at the END of the round, so a caller resolving a
+// whole round rolls every attack first and applies the damage afterwards.
+export function rollPersonalAttack({ attacker, defender, range, situationalDM = 0, defenderDM = 0, dice } = {}) {
   requireDice(dice);
   if (attacker?.status !== 'active') throw new Error('attacker is not active');
   if (defender?.status !== 'active') throw new Error('defender is not active');
@@ -235,12 +239,22 @@ export function resolvePersonalAttack({ attacker, defender, range, situationalDM
   const total = roll + totalDM;
   const success = total >= target;
   const damageDice = success ? Array.from({ length: spec.damageDice }, () => dice.rollD6()) : [];
-  const firstBloodRoll = success && defender.firstBlood ? dice.rollD6() : null;
-  const damage = success ? applyPersonalDamage(defender, damageDice, firstBloodRoll) : { combatant: clone(defender), allocations: [], status: defender.status };
   const nextAttacker = clone(attacker);
   if (spec.melee) nextAttacker.blows += 1;
   nextAttacker.evading = false;
-  return { attacker: nextAttacker, defender: damage.combatant, weaponKey: attacker.weaponKey, weaponName: spec.name, range, armor: defender.armor, target, dice: diceRoll, roll, skillDM, characteristicDM, untrainedDM, parryDM, evasionDM, defenderUntrainedDM, situationalDM, defenderDM, totalDM, total, success, damageDice, damageTotal: damageDice.reduce((sum, die) => sum + die, 0), firstBloodRoll, allocations: damage.allocations, defenderStatus: damage.status };
+  return { attacker: nextAttacker, attackerId: attacker.id, defenderId: defender.id, weaponKey: attacker.weaponKey, weaponName: spec.name, range, armor: defender.armor, target, dice: diceRoll, roll, skillDM, characteristicDM, untrainedDM, parryDM, evasionDM, defenderUntrainedDM, situationalDM, defenderDM, totalDM, total, success, damageDice, damageTotal: damageDice.reduce((sum, die) => sum + die, 0) };
+}
+
+// Roll and apply in one step. Kept for single exchanges outside a round
+// structure; a round resolver should use rollPersonalAttack + applyPersonalDamage
+// so that wounds land at the end of the round per Book 1 p.30 step 2C.
+export function resolvePersonalAttack({ attacker, defender, range, situationalDM = 0, defenderDM = 0, dice } = {}) {
+  const result = rollPersonalAttack({ attacker, defender, range, situationalDM, defenderDM, dice });
+  const firstBloodRoll = result.success && defender.firstBlood ? dice.rollD6() : null;
+  const damage = result.success
+    ? applyPersonalDamage(defender, result.damageDice, firstBloodRoll)
+    : { combatant: clone(defender), allocations: [], status: defender.status };
+  return { ...result, defender: damage.combatant, firstBloodRoll, allocations: damage.allocations, defenderStatus: damage.status };
 }
 
 export function resolvePersonalMorale({ casualties, originalStrength, moraleTarget = 7, dm = 0, dice } = {}) {

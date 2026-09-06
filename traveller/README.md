@@ -1,5 +1,19 @@
 # Graycloak Traveller
 
+## v0.35.0 wounds at the end of the round; range per pair
+
+**Book 1 p.30, step 2C: "If attack succeeds, determine wounds inflicted at end of the round."** The round resolver honoured that on the opposition side — foes attacked from a pre-round snapshot, so a foe cut down still shot back — but not on the party side, where attacks resolved against live state. Two characters declaring against the same enemy would fail with `defender is not active` if the first shot dropped him, which under 2C is information the characters do not have yet.
+
+The resolver is now one shape for both sides. Step 2A movement and posture resolve first; every attack in step 2B is thrown against the snapshot taken after movement; wounds apply in step 2C, after the last attack, in declaration order so that first blood falls on the first wound a combatant takes. Surprise is unchanged and orthogonal: it decides *who may act*, not when damage lands.
+
+`rollPersonalAttack` in the rules package now does the throw and the damage dice without touching the defender; `resolvePersonalAttack` is a thin wrapper over it plus `applyPersonalDamage`, so single exchanges outside a round structure behave exactly as before.
+
+**Each attack is thrown at the band between that attacker and that target**, computed from post-movement map positions rather than one encounter-wide band. `close` and `open` move the token and the band follows from the new position. `encounter.range` remains on the document as the scene band for placement and display, and now reports the closest opposing pair. Schema 6 migrates v5 documents and marks the map `graycloak-band-guide-v2`, so a stored encounter records which range policy resolved it.
+
+`declaredTargetCounts()` reports how many party attacks are aimed at each target this round. Declarations are the party's own information, so showing this reveals nothing the characters would not know — unlike a warning that a target is already down, which the round has not yet established.
+
+Rules package v0.16.0. Encounter schema 6. No other document schemas change.
+
 ## v0.34.0 the rail border stops cutting into the tab bodies
 
 The WORLD, TRADE and JOBS panels looked clipped on the right: every value ran hard against a vertical line, and the BERTHING attention box lost its right border into it. Nothing was clipped. The v0.25.0 rule `.context-panel { border-right: 1px solid var(--rule) }` was written for the rail, but `.context-panel` is also the class on the five tab sections inside `.context-scroll`, so each of them drew its own right border at the content edge, ten pixels inside the real rail border. Found at 4× zoom; invisible at 1×, exactly the kind of thing a stylesheet grep does not show.

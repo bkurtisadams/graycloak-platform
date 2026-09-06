@@ -6,6 +6,8 @@ import {
   createPersonalCombatant,
   resolvePersonalSurprise,
   resolvePersonalAttack,
+  rollPersonalAttack,
+  applyPersonalDamage,
   resolvePersonalMorale,
   weaponTargetNumber,
   movePersonalCombatRange,
@@ -103,4 +105,37 @@ test('an untrained defender grants the printed +3 attack DM', () => {
   const result = resolvePersonalAttack({ attacker: hawkeye(), defender, range: 'medium', dice: createSequenceDice([1, 1, 1, 1, 1, 1]) });
   assert.equal(result.defenderUntrainedDM, 3);
   assert.equal(result.totalDM, 6);
+});
+
+test('rollPersonalAttack leaves the defender untouched so wounds can land at round end (B1 p.30 step 2C)', () => {
+  const dice = { rollD6: () => 6, roll2D6: () => 12 };
+  const make = (id, side) => createPersonalCombatant({
+    id, name: id, side, characteristics: { STR: 7, DEX: 7, END: 7, INT: 7 },
+    skills: { 'Gun Combat': 1 }, armor: 'none', weaponKey: 'rifle'
+  });
+  const foe = make('foe', 'opposition');
+  const first = rollPersonalAttack({ attacker: make('a', 'party'), defender: foe, range: 'medium', dice });
+  assert.equal(first.success, true);
+  assert.equal(foe.status, 'active');
+  assert.deepEqual(foe.current, { STR: 7, DEX: 7, END: 7 });
+
+  // A second attacker in the same round still sees an active target.
+  const second = rollPersonalAttack({ attacker: make('b', 'party'), defender: foe, range: 'medium', dice });
+  assert.equal(second.success, true);
+
+  // Both wounds then apply in declaration order; only the first is first blood.
+  const afterFirst = applyPersonalDamage(foe, first.damageDice, 4);
+  assert.equal(afterFirst.combatant.firstBlood, false);
+  const afterSecond = applyPersonalDamage(afterFirst.combatant, second.damageDice, null);
+  assert.equal(afterSecond.combatant.hitsTaken, 2);
+});
+
+test('resolvePersonalAttack still rolls and applies in one step', () => {
+  const dice = { rollD6: () => 6, roll2D6: () => 12 };
+  const foe = createPersonalCombatant({ id: 'f', name: 'f', side: 'opposition', characteristics: { STR: 7, DEX: 7, END: 7, INT: 7 }, armor: 'none', weaponKey: 'hands' });
+  const attacker = createPersonalCombatant({ id: 'a', name: 'a', side: 'party', characteristics: { STR: 7, DEX: 7, END: 7, INT: 7 }, skills: { 'Gun Combat': 1 }, armor: 'none', weaponKey: 'rifle' });
+  const result = resolvePersonalAttack({ attacker, defender: foe, range: 'medium', dice });
+  assert.equal(result.success, true);
+  assert.ok(result.allocations.length > 0);
+  assert.notDeepEqual(result.defender.current, foe.current);
 });

@@ -113,7 +113,7 @@ test('encounters reference roster actors without replacing Book 1 range state', 
   const opposition = roundTrip.combatants.find((entry) => entry.side === 'opposition');
   assert.equal(opposition.sourceActorId, actor.identity.id);
   assert.equal(roundTrip.range, 'long');
-  assert.equal(roundTrip.map.rangeGuide, 'graycloak-band-guide-v1');
+  assert.equal(roundTrip.map.rangeGuide, 'graycloak-band-guide-v2');
 });
 
 test('document loader recognizes standalone NPC actor and media asset documents', async () => {

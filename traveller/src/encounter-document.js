@@ -6,6 +6,8 @@ import {
   createPersonalCombatant,
   resolvePersonalSurprise,
   resolvePersonalAttack,
+  rollPersonalAttack,
+  applyPersonalDamage,
   movePersonalCombatRange,
   resolvePersonalMorale,
   endPersonalCombatRecovery,
@@ -13,8 +15,12 @@ import {
 } from '../../packages/classic-traveller-rules/index.js';
 
 export const ENCOUNTER_DOCUMENT_TYPE = 'graycloak-traveller-personal-encounter';
-export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 5;
-export const SUPPORTED_ENCOUNTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5]);
+export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 6;
+export const SUPPORTED_ENCOUNTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6]);
+// v1 resolved every attack at one encounter-wide band. From v2 the band is
+// computed per attacker-target pair from map positions, so the guide marker
+// records which policy resolved a stored encounter.
+export const ENCOUNTER_RANGE_GUIDE_VERSION = 'graycloak-band-guide-v2';
 export const ENCOUNTER_STATUSES = Object.freeze(['active', 'victory', 'defeat', 'escaped', 'avoided', 'opposition-withdrew']);
 export const ENCOUNTER_ACTOR_TYPES = Object.freeze(['pc', 'npc', 'robot', 'creature']);
 export const ENCOUNTER_BODY_MODELS = Object.freeze(['biological', 'robotic', 'hybrid']);
@@ -136,7 +142,7 @@ export function createEncounterDocument({ campaign, situation = null, character 
     },
     timing: { createdDate: { year: date.year, dayOfYear: date.dayOfYear }, resolvedDate: null },
     status: 'active', round: 1, range, surprise,
-    map: { grid: 'square', columns: ENCOUNTER_MAP_COLUMNS, rows: ENCOUNTER_MAP_ROWS, rangeGuide: 'graycloak-band-guide-v1', metersPerSquare },
+    map: { grid: 'square', columns: ENCOUNTER_MAP_COLUMNS, rows: ENCOUNTER_MAP_ROWS, rangeGuide: ENCOUNTER_RANGE_GUIDE_VERSION, metersPerSquare },
     roundState: { declaredActions: [] },
     combatants: [...party, ...hostiles],
     history: [{ round: 0, kind: 'surprise', text: surprise.surpriseSideId ? `${surprise.surpriseSideId} achieved surprise.` : 'Neither side achieved surprise.', detail: surprise }],
@@ -162,7 +168,7 @@ export function validateEncounterDocument(document) {
   add(errors, ENCOUNTER_STATUSES.includes(document.status), 'status is invalid');
   add(errors, Number.isInteger(document.round) && document.round >= 1, 'round must be a positive integer');
   add(errors, PERSONAL_COMBAT_RANGES.includes(document.range), 'range is invalid');
-  add(errors, document.map?.grid === 'square' && document.map?.columns === ENCOUNTER_MAP_COLUMNS && document.map?.rows === ENCOUNTER_MAP_ROWS && document.map?.rangeGuide === 'graycloak-band-guide-v1', 'map must be the supported square encounter workspace');
+  add(errors, document.map?.grid === 'square' && document.map?.columns === ENCOUNTER_MAP_COLUMNS && document.map?.rows === ENCOUNTER_MAP_ROWS && document.map?.rangeGuide === ENCOUNTER_RANGE_GUIDE_VERSION, 'map must be the supported square encounter workspace');
   add(errors, document.map?.metersPerSquare === null || (typeof document.map?.metersPerSquare === 'number' && Number.isFinite(document.map.metersPerSquare) && document.map.metersPerSquare > 0 && document.map.metersPerSquare <= 1000), 'map.metersPerSquare must be null or a positive number no greater than 1000');
   add(errors, plain(document.roundState) && Array.isArray(document.roundState?.declaredActions), 'roundState must contain declaredActions');
   if (Array.isArray(document.roundState?.declaredActions)) for (const declaration of document.roundState.declaredActions) {
@@ -265,6 +271,10 @@ function migrateEncounterDocument(document) {
       conditions: []
     }));
     document.schemaVersion = 5;
+  }
+  if (document.schemaVersion === 5) {
+    document.map = { ...document.map, rangeGuide: ENCOUNTER_RANGE_GUIDE_VERSION };
+    document.schemaVersion = 6;
   }
   return document;
 }
@@ -433,6 +443,33 @@ function nearestActiveOpponent(combatant, candidates) {
     .sort((left, right) => distanceSquared(left) - distanceSquared(right) || left.id.localeCompare(right.id))[0] ?? null;
 }
 
+// Book 1 p.30 step 2B: each attack is thrown at the band between that
+// attacker and that target, computed from their post-movement map positions.
+export function encounterPairRange(first, second) {
+  return rangeBandForMapDistance(encounterMapDistance(first, second));
+}
+
+// How many attacks the party has declared against each target this round.
+// Declarations are the party's own information, so the UI may show this
+// without revealing anything the characters would not know.
+export function declaredTargetCounts(document) {
+  const counts = {};
+  for (const declaration of document.roundState?.declaredActions ?? []) {
+    if (declaration.action !== 'attack' || !declaration.targetId) continue;
+    counts[declaration.targetId] = (counts[declaration.targetId] ?? 0) + 1;
+  }
+  return counts;
+}
+
+function closestOpposingBand(entries) {
+  const party = entries.filter((entry) => entry.side === 'party' && entry.status === 'active');
+  const foes = entries.filter((entry) => entry.side === 'opposition' && entry.status === 'active');
+  if (!party.length || !foes.length) return null;
+  let best = Infinity;
+  for (const actor of party) for (const foe of foes) best = Math.min(best, encounterMapDistance(actor, foe));
+  return rangeBandForMapDistance(best);
+}
+
 export function resolveEncounterRound(document, { action = 'attack', modifier = 0, actorId = null, targetId = null, dice, date } = {}) {
   const next = importEncounterDocument(document);
   if (next.status !== 'active') throw new Error('encounter is already resolved');
@@ -461,21 +498,23 @@ export function resolveEncounterRound(document, { action = 'attack', modifier = 
   }
 
   const entries = [];
-  let range = next.range;
   const finalParty = new Map(party.map((entry) => [entry.id, entry]));
   const finalFoes = new Map(foes.map((entry) => [entry.id, entry]));
+  const unit = (id) => finalParty.get(id) ?? finalFoes.get(id);
   const declarations = partyMayAct ? next.roundState.declaredActions : [];
 
+  // --- Step 2A: movement and posture resolve first and are visible at once.
   for (const declaration of declarations) {
     const actor = finalParty.get(declaration.actorId);
     const target = declaration.targetId === null ? null : finalFoes.get(declaration.targetId);
     if (declaration.action === 'close' || declaration.action === 'open') {
-      range = movePersonalCombatRange(range, declaration.action);
-      placeAtRange(actor, target, range);
-      entries.push({ round: next.round, kind: 'movement', side: 'party', actorId: actor.id, targetId: target?.id ?? null, text: `${actor.name} moves to ${range} range${target ? ` from ${target.name}` : ''}.` });
+      const band = target ? movePersonalCombatRange(encounterPairRange(actor, target), declaration.action) : next.range;
+      placeAtRange(actor, target, band);
+      entries.push({ round: next.round, kind: 'movement', side: 'party', actorId: actor.id, targetId: target?.id ?? null, text: `${actor.name} moves to ${band} range${target ? ` from ${target.name}` : ''}.` });
     }
     if (declaration.action === 'escape') {
-      const rangeDM = { close: -1, short: -1, medium: 1, long: 2, 'very-long': 3 }[range];
+      const band = closestOpposingBand([...finalParty.values(), ...finalFoes.values()]) ?? next.range;
+      const rangeDM = { close: -1, short: -1, medium: 1, long: 2, 'very-long': 3 }[band];
       const results = [dice.rollD6(), dice.rollD6()];
       const total = results[0] + results[1] + rangeDM + declaration.modifier;
       entries.push({ round: next.round, kind: 'escape', side: 'party', actorId: actor.id, text: `${actor.name} escape / 2D [${results.join('] [')}] / RANGE ${rangeDM >= 0 ? '+' : ''}${rangeDM} / MOD ${declaration.modifier >= 0 ? '+' : ''}${declaration.modifier} / TOTAL ${total} vs 7+.` });
@@ -484,44 +523,81 @@ export function resolveEncounterRound(document, { action = 'attack', modifier = 
     if (declaration.action === 'evade') actor.evading = true;
   }
 
+  // --- Step 2B: every attack is thrown against the state at this instant.
+  // Nobody's wounds have been inflicted yet, so a combatant cut down this
+  // round still attacks, and a target dropped by one attack is still a legal
+  // target for another (Book 1 p.30, step 2C).
+  const snapshot = new Map([...finalParty.values(), ...finalFoes.values()].map((entry) => [entry.id, clone(entry)]));
+  const pendingWounds = [];
+
   for (const declaration of declarations.filter((entry) => entry.action === 'attack')) {
-    const actor = finalParty.get(declaration.actorId);
-    const target = finalFoes.get(declaration.targetId);
-    const result = resolvePersonalAttack({ attacker: actor, defender: target, range, situationalDM: declaration.modifier, dice });
-    finalParty.set(actor.id, { ...result.attacker, position: actor.position });
-    finalFoes.set(target.id, { ...result.defender, position: target.position });
-    entries.push({ round: next.round, kind: 'attack', side: 'party', actorId: actor.id, targetId: target.id, text: `${actor.name} attacks ${target.name}: ${attackText(result)}`, detail: result });
+    const actor = snapshot.get(declaration.actorId);
+    const target = snapshot.get(declaration.targetId);
+    if (actor.status !== 'active' || target.status !== 'active') continue;
+    const band = encounterPairRange(actor, target);
+    let result;
+    try {
+      result = rollPersonalAttack({ attacker: actor, defender: target, range: band, situationalDM: declaration.modifier, dice });
+    } catch (error) {
+      entries.push({ round: next.round, kind: 'attack', side: 'party', actorId: actor.id, targetId: target.id, text: `${actor.name} cannot engage ${target.name} at ${band} range with ${getPersonalWeapon(actor.weaponKey).name}.` });
+      continue;
+    }
+    const live = finalParty.get(actor.id);
+    live.blows = result.attacker.blows;
+    live.evading = false;
+    if (result.success) pendingWounds.push({ defenderId: target.id, damageDice: result.damageDice, result });
+    entries.push({ round: next.round, kind: 'attack', side: 'party', actorId: actor.id, targetId: target.id, band, text: '', prefix: `${actor.name} attacks ${target.name} at ${band} range`, detail: result });
   }
 
   if (oppositionMayAct) {
-    let oppositionClosed = false;
-    const declaredTargets = new Map(activeFoes.map((foe) => [foe.id, nearestActiveOpponent(foe, [...finalParty.values()])?.id ?? null]));
     for (const foe of activeFoes) {
-      const defenderId = declaredTargets.get(foe.id);
-      const woundedDefender = defenderId === null ? null : finalParty.get(defenderId);
-      if (!woundedDefender) break;
+      const attacker = snapshot.get(foe.id);
+      const target = nearestActiveOpponent(attacker, [...snapshot.values()].filter((entry) => entry.side === 'party'));
+      if (!target) break;
+      let band = encounterPairRange(attacker, target);
+      let result = null;
       try {
-        const defender = woundedDefender.status === 'active' ? woundedDefender : { ...clone(woundedDefender), status: 'active' };
-        const result = resolvePersonalAttack({ attacker: foe, defender, range, dice });
-        const woundedFoe = finalFoes.get(foe.id);
-        finalFoes.set(foe.id, { ...result.attacker, current: woundedFoe.current, status: woundedFoe.status, firstBlood: woundedFoe.firstBlood, hitsTaken: woundedFoe.hitsTaken, position: woundedFoe.position });
-        finalParty.set(woundedDefender.id, { ...result.defender, position: woundedDefender.position });
-        entries.push({ round: next.round, kind: 'attack', side: 'opposition', actorId: foe.id, targetId: woundedDefender.id, text: `${foe.name} attacks ${woundedDefender.name}: ${attackText(result)}`, detail: result });
+        result = rollPersonalAttack({ attacker, defender: target, range: band, dice });
       } catch (error) {
-        if (oppositionClosed) continue;
-        const previousRange = range;
-        range = movePersonalCombatRange(range, 'close');
-        const target = woundedDefender;
-        for (const entry of activeFoes) placeAtRange(finalFoes.get(entry.id), target, range);
-        entries.push({ round: next.round, kind: 'movement', side: 'opposition', actorId: foe.id, text: `${foe.name} cannot attack at ${previousRange} range; the opposition closes to ${range} range.` });
-        oppositionClosed = true;
+        // The weapon cannot reach: this individual closes instead of firing.
+        const live = finalFoes.get(foe.id);
+        const closed = movePersonalCombatRange(band, 'close');
+        placeAtRange(live, finalParty.get(target.id) ?? target, closed);
+        snapshot.get(foe.id).position = { ...live.position };
+        entries.push({ round: next.round, kind: 'movement', side: 'opposition', actorId: foe.id, targetId: target.id, text: `${foe.name} cannot attack at ${band} range and closes to ${closed} range.` });
+        continue;
       }
+      const live = finalFoes.get(foe.id);
+      live.blows = result.attacker.blows;
+      live.evading = false;
+      if (result.success) pendingWounds.push({ defenderId: target.id, damageDice: result.damageDice, result });
+      entries.push({ round: next.round, kind: 'attack', side: 'opposition', actorId: foe.id, targetId: target.id, band, text: '', prefix: `${foe.name} attacks ${target.name} at ${band} range`, detail: result });
     }
+  }
+
+  // --- Step 2C: wounds are inflicted at the end of the round, in declaration
+  // order so that first blood falls on the first wound a combatant takes.
+  for (const wound of pendingWounds) {
+    const defender = unit(wound.defenderId);
+    const firstBloodRoll = defender.firstBlood ? dice.rollD6() : null;
+    const damage = applyPersonalDamage(defender, wound.damageDice, firstBloodRoll);
+    const updated = { ...damage.combatant, position: defender.position };
+    if (finalParty.has(wound.defenderId)) finalParty.set(wound.defenderId, updated);
+    else finalFoes.set(wound.defenderId, updated);
+    wound.result.firstBloodRoll = firstBloodRoll;
+    wound.result.allocations = damage.allocations;
+    wound.result.defenderStatus = damage.status;
+  }
+  for (const entry of entries) {
+    if (entry.kind !== 'attack' || !entry.detail) continue;
+    entry.detail.defenderStatus ??= 'active';
+    entry.text = `${entry.prefix}: ${attackText(entry.detail)}`;
+    delete entry.prefix;
   }
 
   for (const entry of finalParty.values()) entry.evading = false;
   replaceCombatants(next, ...finalParty.values(), ...finalFoes.values());
-  next.range = range;
+  next.range = closestOpposingBand(next.combatants) ?? next.range;
   next.roundState.declaredActions = [];
   const partyDefeated = [...finalParty.values()].every((entry) => entry.status !== 'active');
   const partyEscaped = [...finalParty.values()].every((entry) => entry.status === 'escaped');
