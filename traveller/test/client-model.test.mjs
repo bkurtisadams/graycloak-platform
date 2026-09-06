@@ -1,4 +1,15 @@
 import test from 'node:test';
+
+function panelRows(panel) {
+  const out = {};
+  for (const group of panel.groups ?? []) {
+    for (const item of group.items ?? []) {
+      if (item.kind === 'row') out[item.label] = item.value;
+    }
+  }
+  return out;
+}
+
 import assert from 'node:assert/strict';
 
 import {
@@ -14,11 +25,11 @@ import {
 
 import {
   buildCharacterRecord,
-  buildContractBoardRecord,
+  buildContractBoardPanel,
   buildFinalCharacterRecord,
   buildGenerationLog,
   buildJumpPlan,
-  buildPortServicesRecord,
+  buildPortServicesPanel,
   buildProcedure,
   buildShipRecord,
   buildSystemRecord,
@@ -251,15 +262,45 @@ test('port services record exposes fuel, berthing, cargo, and operating funds at
   const migrated = importCharacterDocument(document);
   const { ship } = createTypeSScoutReserveShipForCharacter(migrated);
   const aster = FAR_MERIDIAN_SUBSECTOR.systems.find((system) => system.id === 'aster');
-  const record = buildPortServicesRecord({ system: aster, ship, character: migrated });
-  assert.match(record, /PORT SERVICES \/\/ ASTER \/\/ 0505/);
-  assert.match(record, /TRADE RICH/);
-  assert.match(record, /FUEL UNRECORDED\/40t \/ UNKNOWN/);
-  assert.match(record, /SERVICE REFINED \/ FREE AT SCOUT BASE/);
-  assert.match(record, /BERTHING NO CURRENT FEE RECORDED/);
-  assert.match(record, /CARGO 0\/3t/);
-  assert.match(record, /SHIP ACCOUNT Cr0\s+CHARACTER Cr80,000/);
+  const panel = buildPortServicesPanel({ system: aster, ship, character: migrated });
+  const rows = panelRows(panel);
+  assert.equal(panel.groups[0].label, 'ASTER / 0505');
+  assert.match(rows.TRADE, /RICH/);
+  assert.equal(rows.FUEL, 'UNRECORDED');
+  assert.ok(panel.groups[1].items.find((item) => item.label === 'FUEL').attention);
+  assert.equal(rows.SERVICE, 'REFINED / FREE AT SCOUT BASE');
+  assert.equal(rows.BERTHING, 'NO CURRENT FEE RECORDED');
+  assert.match(rows.HOLD, /^0\/3t/);
+  assert.equal(rows.ACCOUNT, 'Cr0');
+  assert.equal(rows.CHARACTER, 'Cr80,000');
 });
+
+
+test('jump plan distinguishes starting location, in-range jump, and out-of-range selection', () => {
+  const campaign = { identity: { name: 'Sea of Suns' } };
+  const currentSystem = { id: 'port-meridian', hex: '0405', name: 'Port Meridian', mainWorld: { id: 'new-esperanza', name: 'New Esperanza' } };
+  const selectedSystem = { id: 'aster', hex: '0505', name: 'Aster', mainWorld: { id: 'aster-prime', name: 'Aster Prime' } };
+
+  assert.match(buildJumpPlan({ campaign, selectedSystem }), /SET CURRENT LOCATION/);
+  assert.match(buildJumpPlan({ campaign, currentSystem, selectedSystem, distance: 1, jumpRating: 2 }), /STATUS IN RANGE/);
+  assert.match(buildJumpPlan({ campaign, currentSystem, selectedSystem, distance: 3, jumpRating: 2 }), /STATUS OUT OF RANGE/);
+});
+
+
+test('system record renders Aster UWP meanings and system contents', () => {
+  const aster = FAR_MERIDIAN_SUBSECTOR.systems.find((system) => system.id === 'aster');
+  const record = buildSystemRecord(aster);
+  assert.match(record, /SYSTEM RECORD \/\/ ASTER \/\/ 0505/);
+  assert.match(record, /MAIN WORLD ASTER PRIME\s+UWP B765845-9/);
+  assert.match(record, /STARPORT B \/ GOOD QUALITY INSTALLATION/);
+  assert.match(record, /ATMOSPHERE 6 \/ STANDARD/);
+  assert.match(record, /HYDROGRAPHICS 5 \/ 50% WATER/);
+  assert.match(record, /POPULATION 8 \/ HUNDREDS OF MILLIONS/);
+  assert.match(record, /GOVERNMENT 4 \/ REPRESENTATIVE DEMOCRACY/);
+  assert.match(record, /TRADE CLASSIFICATIONS RICH/);
+  assert.match(record, /BASES SCOUT\s+GAS GIANT YES\s+TRAVEL ZONE NONE \/ NORMAL/);
+});
+
 
 
 test('job board labels current port, map selection, and origin-to-destination routes', () => {
@@ -279,12 +320,14 @@ test('job board labels current port, map selection, and origin-to-destination ro
     paymentCr: 16000, deadlineDays: 14, cargoTons: 0, exclusiveShip: false,
     rulesBasis: 'sea-of-suns-original', requirementsDescription: 'Sealed packet.'
   };
-  const record = buildContractBoardRecord({ system, selectedSystem, contracts: [active], offers: [offer] });
-  assert.match(record, /CURRENT PORT ORISON \/ 0704/);
-  assert.match(record, /MAP SELECTED ASTER \/ NAVIGATION SELECTION ONLY/);
-  assert.match(record, /ALL NEW OFFERS ORIGINATE AT THE CURRENT PORT/);
-  assert.match(record, /ACTIVE JOBS/);
-  assert.match(record, /ORISON -> ASTER/);
-  assert.match(record, /AVAILABLE AT ORISON/);
-  assert.match(record, /ORISON -> CINDER/);
+  const panel = buildContractBoardPanel({ system, selectedSystem, contracts: [active], offers: [offer] });
+  const [activeGroup, offerGroup] = panel.groups;
+  assert.equal(activeGroup.label, 'ACTIVE 1');
+  assert.equal(activeGroup.items[0].title, 'PRIORITY DELIVERY');
+  assert.equal(activeGroup.items[0].meta, 'ORISON -> ASTER');
+  assert.equal(offerGroup.label, 'OFFERS 1 AT ORISON / 0704');
+  assert.match(offerGroup.note, /MAP SELECTED ASTER \/ NAVIGATION SELECTION ONLY/);
+  assert.match(offerGroup.note, /ALL NEW OFFERS ORIGINATE AT THE CURRENT PORT/);
+  assert.equal(offerGroup.items[0].meta, 'ORISON -> CINDER / 14 DAYS');
+  assert.equal(offerGroup.items[0].actionLabel, '[ ACCEPT ]');
 });

@@ -43,6 +43,7 @@ import {
   deliverFreightAtDestination,
   disembarkPassengersAtDestination,
   purchaseSpeculativeCargo,
+  payDeclinedBrokerFee,
   sellSpeculativeCargo,
   generatePassengerDemand,
   generateFreightOffers,
@@ -67,13 +68,15 @@ import {
   buildCampaignRecord,
   buildAdventureThreadRecord,
   buildEncounterRecord,
-  buildContractBoardRecord,
+  buildContractBoardPanel,
+  panelCard,
+  panelRow,
   buildCharacterRecord,
   buildFinalCharacterRecord,
   buildGenerationLog,
   formatHistoryEvent,
   buildJumpPlan,
-  buildPortServicesRecord,
+  buildPortServicesPanel,
   buildShipRecord,
   buildProcedure,
   buildPlayProcedure,
@@ -253,19 +256,16 @@ const el = {
   autosaveStatus: document.querySelector('#autosave-status'),
   toggleActivity: document.querySelector('#toggle-activity'),
   terminal: document.querySelector('.terminal'),
-  campaignHeader: document.querySelector('#campaign-header'),
+  campaignHeader: document.querySelector('.campaign-header-strip'),
   headerCharacterName: document.querySelector('#header-character-name'),
-  headerCharacterMeta: document.querySelector('#header-character-meta'),
-  headerWorld: document.querySelector('#header-world'),
-  headerDate: document.querySelector('#header-date'),
-  headerShipName: document.querySelector('#header-ship-name'),
-  headerShipMeta: document.querySelector('#header-ship-meta'),
+  headerUpp: document.querySelector('#header-upp'),
+  headerStatus: document.querySelector('#header-status'),
+  headerPosture: document.querySelector('#header-posture'),
+  headerCredits: document.querySelector('#header-credits'),
+  mastheadDate: document.querySelector('#masthead-date'),
   headerCharacteristics: document.querySelector('#header-characteristics'),
   headerQuickSkills: document.querySelector('#header-quick-skills'),
-  headerTask: document.querySelector('#header-task'),
   headerAllSkills: document.querySelector('#header-all-skills'),
-  headerWorldMeta: document.querySelector('#header-world-meta'),
-  headerShipMetaTwo: document.querySelector('#header-ship-meta-two'),
   quickSlotDialog: document.querySelector('#quick-slot-dialog'),
   quickSlotForm: document.querySelector('#quick-slot-form'),
   quickSlotChoices: document.querySelector('#quick-slot-choices'),
@@ -273,7 +273,7 @@ const el = {
   quickSlotClose: document.querySelector('#quick-slot-close'),
   quickSlotReset: document.querySelector('#quick-slot-reset'),
   quickSlotCancel: document.querySelector('#quick-slot-cancel'),
-  headerShipName: document.querySelector('#header-ship-name'),
+  openShipView: document.querySelector('#open-ship-view'),
   openCampaignView: document.querySelector('#open-campaign-view'),
   openThreadsView: document.querySelector('#open-threads-view'),
   procedureScope: document.querySelector('#procedure-scope'),
@@ -347,6 +347,11 @@ const el = {
   threadRecord: document.querySelector('#thread-record'),
   subsectorSection: document.querySelector('#subsector-section'),
   subsectorHeading: document.querySelector('#subsector-heading'),
+  sceneTabs: [...document.querySelectorAll('[data-scene-tab]')],
+  sceneTabsRow: document.querySelector('.scene-tabs'),
+  sceneStatusStrip: document.querySelector('#scene-status-strip'),
+  sceneShipName: document.querySelector('#scene-ship-name'),
+  sceneShipMeta: document.querySelector('#scene-ship-meta'),
   subsectorName: document.querySelector('#subsector-name'),
   jumpCapability: document.querySelector('#jump-capability'),
   subsectorLegend: document.querySelector('#subsector-legend'),
@@ -467,7 +472,6 @@ const el = {
   npcPortrait: document.querySelector('#npc-portrait'), npcPortraitStatus: document.querySelector('#npc-portrait-status'),
   npcPublicNotes: document.querySelector('#npc-public-notes'), npcRefereeNotes: document.querySelector('#npc-referee-notes'),
   activityPanel: document.querySelector('#activity-panel'),
-  activityContext: document.querySelector('#activity-context'),
   activityFeed: document.querySelector('#activity-feed'),
   clearActivity: document.querySelector('#clear-activity'),
   addActivityNote: document.querySelector('#add-activity-note'),
@@ -518,7 +522,7 @@ const ENCOUNTER_MAP_MAX_ZOOM = 4;
 let encounterMapZoom = 1;
 let encounterMapView = { x: 0, y: 0, width: ENCOUNTER_MAP_WIDTH, height: ENCOUNTER_MAP_HEIGHT };
 let encounterMapViewFrame = 0;
-const WORKSPACE_VIEWS = ['play', 'character', 'ship', 'campaign', 'threads'];
+const WORKSPACE_VIEWS = ['play', 'ship', 'campaign', 'threads'];
 let activeWorkspaceView = 'play';
 let systemDetailsOpen = false;
 let registry = null;
@@ -657,8 +661,6 @@ function appendActivityMessage(row, entry) {
 }
 
 function renderActivity() {
-  const contextName = campaignDocument?.identity?.name || 'SESSION / NO CAMPAIGN';
-  el.activityContext.textContent = contextName.toUpperCase();
   el.addActivityNote.disabled = !campaignDocument;
   if (el.activityFilter.value !== activityFilter) el.activityFilter.value = activityFilter;
   if (el.activityOrder.value !== activityOrder) el.activityOrder.value = activityOrder;
@@ -811,6 +813,19 @@ function quickSkillNames() {
   return resolveQuickSlots({ store: quickSlotStore, characterId: quickSlotCharacterId(), skillNames: names }).slots;
 }
 
+function activeThreadObjective() {
+  const thread = threadDocuments
+    .filter((entry) => entry.status === 'active' && entry.objective?.text)
+    .slice()
+    .sort((a, b) => {
+      const av = (a.timing?.updatedDate?.year ?? 0) * 400 + (a.timing?.updatedDate?.dayOfYear ?? 0);
+      const bv = (b.timing?.updatedDate?.year ?? 0) * 400 + (b.timing?.updatedDate?.dayOfYear ?? 0);
+      return bv - av;
+    })[0];
+  if (!thread) return null;
+  return { id: thread.identity.id, title: thread.identity.title, objective: thread.objective.text };
+}
+
 function headerTaskSnapshot() {
   const encounter = activeEncounterAtCurrentSystem();
   if (encounter) {
@@ -897,6 +912,29 @@ function headerBaseLabel(system) {
   if (system.bases?.naval) bases.push('NAVAL');
   if (system.bases?.scout) bases.push('SCOUT');
   return bases.length ? bases.join(' + ') : 'NO BASES';
+}
+
+function nearestContractDeadlineDays() {
+  const today = campaignDateSnapshot();
+  if (!today) return null;
+  const days = activeContracts()
+    .map((contract) => contract.timing?.deadlineDate)
+    .filter((date) => Number.isInteger(date?.year) && Number.isInteger(date?.dayOfYear))
+    .map((date) => (date.year - today.year) * 365 + (date.dayOfYear - today.dayOfYear));
+  if (!days.length) return null;
+  return Math.min(...days);
+}
+
+function characterPostureLabel() {
+  const encounter = activeEncounterAtCurrentSystem();
+  if (!encounter || !gameplayDocument) return '';
+  const me = (encounter.combatants ?? []).find((entry) => entry.id === gameplayDocument.identity.id)
+    ?? (encounter.combatants ?? []).find((entry) => entry.playerCharacter && entry.status === 'active');
+  if (!me) return '';
+  const parts = [];
+  if (me.evading) parts.push('EVADING');
+  if (Number.isInteger(me.blows) && me.blows > 0) parts.push(`BLOWS ${me.blows}`);
+  return parts.join(' / ');
 }
 
 function characterHealthLabel(document = gameplayDocument) {
@@ -1084,6 +1122,12 @@ function saveCharacterSheetState(patch, message) {
 function renderCampaignHeader() {
   const active = campaignPlayActive();
   el.campaignHeader.hidden = !active;
+  if (el.mastheadDate) {
+    const deadline = active ? nearestContractDeadlineDays() : null;
+    el.mastheadDate.textContent = active
+      ? `${activityDateLabel()} / WEEK ${campaignWeekKey(campaignDocument)}${deadline === null ? '' : ` / DEADLINE ${deadline}d`}`
+      : '--';
+  }
   el.newCharacterFromCampaign.hidden = !active;
   el.terminal?.classList.toggle('campaign-play', active);
   el.appTitle.textContent = 'TRAVELLER';
@@ -1100,16 +1144,18 @@ function renderCampaignHeader() {
   const career = gameplayDocument.career;
   const careerLabel = serviceName(career.service).toUpperCase();
   el.headerCharacterName.textContent = gameplayDocument.identity.name || '(UNNAMED)';
-  el.headerCharacterMeta.textContent = `${gameplayDocument.upp} / ${careerLabel} / AGE ${gameplayDocument.age} / ${characterHealthLabel()} / ${formatCr(gameplayDocument.finances.credits)}`;
-  el.headerWorld.textContent = current?.mainWorld?.name || campaignDocument.location.worldName || 'UNMAPPED';
-  el.headerDate.textContent = `${current?.name ? `${current.name.toUpperCase()} ${current.hex} / ` : ''}${current?.mainWorld?.uwp ?? '--'}`;
-  el.headerWorldMeta.textContent = `${activityDateLabel()} / ${headerBaseLabel(current)}`;
-  el.headerShipName.textContent = shipDocument
-    ? `${shipDocument.identity.name || '(UNNAMED)'}${shipDocument.identity.registry ? ` / ${shipDocument.identity.registry}` : ''}`
-    : 'NO ACTIVE SHIP';
-  const shipMeta = shipHeaderMetaLines();
-  el.headerShipMeta.textContent = shipMeta[0];
-  el.headerShipMetaTwo.textContent = shipMeta[1];
+  el.headerUpp.textContent = gameplayDocument.upp;
+  el.headerUpp.title = `Original UPP as generated / ${careerLabel} / age ${gameplayDocument.age}`;
+
+  const health = characterHealthLabel();
+  el.headerStatus.textContent = health;
+  el.headerStatus.className = `header-status${health === 'READY' ? '' : health === 'WOUNDED' ? ' wounded' : ' critical'}`;
+
+  const posture = characterPostureLabel();
+  el.headerPosture.hidden = !posture;
+  if (posture) el.headerPosture.textContent = posture;
+
+  el.headerCredits.textContent = formatCr(gameplayDocument.finances.credits);
   updateAutosaveStatus();
 
   el.headerCharacteristics.replaceChildren();
@@ -1118,8 +1164,12 @@ function renderCampaignHeader() {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = `header-roll-button${value < gameplayDocument.characteristics[key] ? ' injured' : ''}`;
-    button.textContent = `${key} ${value}`;
-    button.title = `${label} ${value} / click for an ad hoc characteristic-or-less roll`;
+    const base = gameplayDocument.characteristics[key];
+    const injured = value < base;
+    button.textContent = injured ? `${key} ${value}/${base}` : `${key} ${value}`;
+    button.title = injured
+      ? `${label} ${value} of ${base} / wounded / click for an ad hoc characteristic-or-less roll`
+      : `${label} ${value} / click for an ad hoc characteristic-or-less roll`;
     button.addEventListener('click', () => openCharacteristicRollDialog(key, label));
     el.headerCharacteristics.append(button);
   }
@@ -1169,11 +1219,6 @@ function renderCampaignHeader() {
   }
   el.headerAllSkills.disabled = !allSkills.length;
 
-  el.headerTask.textContent = task.label;
-  el.headerTask.disabled = task.kind === 'none';
-  el.headerTask.classList.toggle('attention', task.attention);
-  el.headerTask.dataset.taskKind = task.kind;
-  el.headerTask.dataset.taskId = task.id ?? '';
 }
 
 function renderSelectedSystemSummary() {
@@ -1201,12 +1246,19 @@ function renderSelectedSystemSummary() {
     const cz = current.travelZone === 'none' ? 'NORMAL' : current.travelZone.toUpperCase();
     const portCall = currentBerthingDue();
     el.footerCurrentName.textContent = `${current.name.toUpperCase()} · ${current.hex}`;
-    el.footerCurrentMeta.textContent = `${current.mainWorld.uwp} · TL ${cp.techLevel} · ${cb} · GAS GIANT ${current.gasGiant ? 'YES' : 'NO'} · ${cz}${portCall ? (portCall.berthingPaid ? ' · BERTHED' : ' · BERTHING DUE') : ''}`;
+    const deadline = nearestContractDeadlineDays();
+    el.footerCurrentMeta.textContent = `${current.mainWorld.uwp} · TL ${cp.techLevel} · ${cb} · GAS GIANT ${current.gasGiant ? 'YES' : 'NO'} · ${cz}${portCall ? (portCall.berthingPaid ? ' · BERTHED' : ' · BERTHING DUE') : ''}${deadline === null ? '' : ` · NEXT DEADLINE ${deadline}d`}`;
   } else {
     el.footerCurrentName.textContent = 'UNMAPPED';
     el.footerCurrentMeta.textContent = 'Select a system and set it as the starting location.';
   }
-  el.selectedSystemSummary.hidden = false;
+  el.sceneShipName.textContent = shipDocument
+    ? `${shipDocument.identity.name || '(UNNAMED)'}${shipDocument.identity.registry ? ` / ${shipDocument.identity.registry}` : ''}`
+    : 'NO ACTIVE SHIP';
+  el.sceneShipName.disabled = !shipDocument;
+  el.sceneShipMeta.textContent = shipDocument
+    ? `${shipDocument.design.typeCode} ${shipDocument.design.name.toUpperCase()} / OPEN REGISTER`
+    : 'NO ACTIVE SHIP';
   el.toggleSystemDetails.textContent = systemDetailsOpen ? '[ HIDE DETAILS ]' : '[ DETAILS ]';
   el.toggleSystemDetails.setAttribute('aria-expanded', systemDetailsOpen ? 'true' : 'false');
   if (typeof renderPlayProcedure === 'function') renderPlayProcedure();
@@ -1235,6 +1287,10 @@ function applyCampaignLayout() {
     el.contextTabs.hidden = true;
     el.contextTakeover.hidden = true;
     el.chargenTablesSection.hidden = false;
+    el.encounterSection.hidden = true;
+    el.sceneStatusStrip.hidden = true;
+    el.sceneTabsRow.hidden = true;
+    el.openShipView.hidden = true;
     el.openCampaignView.hidden = true;
     el.openThreadsView.hidden = true;
     if (el.subsectorHeading) el.subsectorHeading.textContent = 'CHARACTER GENERATION';
@@ -1252,20 +1308,44 @@ function applyCampaignLayout() {
   el.chargenRecordSection.hidden = true;
   el.chargenTablesSection.hidden = true;
   el.contextTabs.hidden = false;
+  el.openShipView.hidden = !shipDocument;
   el.openCampaignView.hidden = false;
   el.openThreadsView.hidden = false;
-  // The map is the persistent scene; documents open over it.
-  el.subsectorSection.hidden = false;
-  for (const [key, section] of [['character', el.personnelSection], ['ship', el.shipSection], ['campaign', el.campaignSection], ['threads', el.threadSection]]) {
+  // The centre is a tabbed scene: CHARACTER / SYSTEM / COMBAT.
+  el.sceneTabsRow.hidden = false;
+  if (activeSceneTab === 'combat' && !activeEncounterAtCurrentSystem()) activeSceneTab = 'system';
+  el.personnelSection.hidden = activeSceneTab !== 'character';
+  el.subsectorSection.hidden = activeSceneTab !== 'system';
+  el.encounterSection.hidden = activeSceneTab !== 'combat';
+  el.sceneStatusStrip.hidden = activeSceneTab !== 'system';
+  el.personnelSection.classList.remove('sheet-overlay');
+  for (const button of el.sceneTabs) {
+    const isActive = button.dataset.sceneTab === activeSceneTab;
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    if (button.dataset.sceneTab === 'combat') button.classList.toggle('attention', Boolean(activeEncounterAtCurrentSystem()));
+  }
+  // Ship, campaign and threads remain documents opened over the scene.
+  for (const [key, section] of [['ship', el.shipSection], ['campaign', el.campaignSection], ['threads', el.threadSection]]) {
     section.hidden = view !== key;
     section.classList.toggle('sheet-overlay', view === key);
   }
   el.systemRecordSection.hidden = !(systemDetailsOpen && el.systemRecord.textContent);
-  el.headerShipName.disabled = !shipDocument;
   if (el.procedureScope) {
     const current = mappedCurrentSystem();
     el.procedureScope.textContent = current ? `PORT CALL · ${current.name.toUpperCase()} · WEEK ${campaignWeekKey(campaignDocument)}` : 'NO MAPPED LOCATION';
   }
+}
+
+let activeSceneTab = 'system';
+
+function setSceneTab(tab) {
+  if (!['character', 'system', 'combat'].includes(tab)) return;
+  if (tab === 'combat' && !activeEncounterAtCurrentSystem()) return;
+  activeSceneTab = tab;
+  if (activeWorkspaceView !== 'play') activeWorkspaceView = 'play';
+  applyCampaignLayout();
+  renderSelectedSystemSummary();
 }
 
 function setWorkspaceView(view) {
@@ -2545,9 +2625,34 @@ function sellSpeculativeLot(cargoId) {
   }
 }
 
-function commerceLine(label, value) {
-  return `${label.padEnd(16, ' ')}${value}`;
+function declineSpeculativeQuote(cargoId) {
+  try {
+    assertCommerceAvailable();
+    const system = mappedCurrentSystem();
+    if (!shipDocument || !system) throw new Error('active ship at a mapped system is required');
+    const cargo = shipDocument.state.cargoManifest.find((entry) => entry.id === cargoId);
+    if (!cargo) throw new Error('speculative cargo lot is no longer aboard');
+    const quote = speculativeSaleQuote(cargo);
+    if (!quote) throw new Error('unable to quote this cargo');
+    const result = payDeclinedBrokerFee(shipDocument, quote, { dateLabel: activityDateLabel() });
+    shipDocument = result.ship;
+    declinedQuoteIds.add(cargoId);
+    persistCampaignState();
+    if (result.feeCr > 0) {
+      logActivity('TRADE', `${cargo.tons}t ${cargo.description} sale declined / broker fee ${formatCr(result.feeCr)} owed (Book 2 p.48)`);
+      setStatus(`QUOTE DECLINED / BROKER FEE ${formatCr(result.feeCr)} CHARGED`, 'ok');
+    } else {
+      logActivity('TRADE', `${cargo.tons}t ${cargo.description} sale declined / no broker engaged`);
+      setStatus('QUOTE DECLINED / NO BROKER FEE OWED', 'ok');
+    }
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
 }
+
+const declinedQuoteIds = new Set();
 
 function renderCommerce() {
   const current = mappedCurrentSystem();
@@ -2565,11 +2670,15 @@ function renderCommerce() {
   const route = commerceRouteSnapshot();
   const offer = weeklySpeculativeOffer();
   const freeHold = freeCargoTons();
-  const lines = [
-    `COMMERCE // ${current.name.toUpperCase()} // ${current.hex}`,
-    commerceLine('SHIP ACCOUNT', formatCr(shipDocument.state.finances.balanceCr)),
-    commerceLine('CARGO HOLD', `${shipDocument.state.cargoUsedTons}/${shipDocument.specifications.cargo.capacityTons}t / ${freeHold}t FREE`)
-  ];
+  const groups = [];
+
+  groups.push({
+    label: `${current.name.toUpperCase()} / ${current.hex}`,
+    items: [
+      panelRow('ACCOUNT', formatCr(shipDocument.state.finances.balanceCr)),
+      panelRow('HOLD', `${shipDocument.state.cargoUsedTons}/${shipDocument.specifications.cargo.capacityTons}t / ${freeHold}t FREE`)
+    ]
+  });
 
   if (route?.destination && route.reachable) {
     const bookedHigh = bookedPassengerCount(route, 'high');
@@ -2583,62 +2692,120 @@ function renderCommerce() {
     const lowCapacity = availablePassengerCapacity(shipDocument, 'low');
     const steward = shipDocument.crew.assignments.some((entry) => entry.role.toLowerCase() === 'steward');
     const acceptedFreightIds = new Set(shipDocument.state.cargoManifest.filter((entry) => entry.category === 'freight').map((entry) => entry.id));
-    const remainingFreight = route.freight.offers.filter((entry) => !acceptedFreightIds.has(entry.id));
-    const fittingFreight = remainingFreight.filter((entry) => entry.tons <= freeHold + 1e-9);
-    lines.push(
-      '',
-      commerceLine('ROUTE', `${route.origin.name} -> ${route.destination.name} / ${route.distance} parsec${route.distance === 1 ? '' : 's'}`),
-      commerceLine('PASSENGERS', `DEMAND H${route.passengerDemand.high} M${route.passengerDemand.middle} L${route.passengerDemand.low} / BOOKED H${bookedHigh} M${bookedMiddle} L${bookedLow}`),
-      commerceLine('CABIN SPACE', `HIGH ${highCapacity}${steward ? '' : ' / STEWARD REQUIRED'} / MIDDLE ${middleCapacity} / LOW ${lowCapacity}`),
-      commerceLine('BOOKABLE', `HIGH ${steward ? Math.min(highRemaining, highCapacity) : 0} / MIDDLE ${Math.min(middleRemaining, middleCapacity)} / LOW ${Math.min(lowRemaining, lowCapacity)}`),
-      commerceLine('FREIGHT', `MAJOR ${route.freight.counts.major} / MINOR ${route.freight.counts.minor} / INCIDENTAL ${route.freight.counts.incidental}`),
-      commerceLine('FREIGHT FIT', `${fittingFreight.length} SHIPMENT${fittingFreight.length === 1 ? '' : 'S'} FIT CURRENT ${freeHold}t HOLD`)
-    );
-    for (const freight of fittingFreight.slice(0, 4)) {
-      lines.push(commerceLine('OFFER', `${freight.tons}t ${freight.category.toUpperCase()} / ${formatCr(freight.revenueCr)} ON DELIVERY`));
-    }
-  } else if (route?.destination) {
-    lines.push('', commerceLine('ROUTE', `${current.name} -> ${route.destination.name} / OUT OF JUMP RANGE`));
+    const fittingFreight = route.freight.offers.filter((entry) => !acceptedFreightIds.has(entry.id) && entry.tons <= freeHold + 1e-9);
+    groups.push({
+      label: `ROUTE / ${route.origin.name.toUpperCase()} -> ${route.destination.name.toUpperCase()} / ${route.distance} PC`,
+      items: [
+        panelRow('HIGH', `${highRemaining} DEMAND / ${steward ? `${Math.min(highRemaining, highCapacity)} BOOKABLE` : 'STEWARD REQUIRED'}`, { attention: !steward && highRemaining > 0 }),
+        panelRow('MIDDLE', `${middleRemaining} DEMAND / ${Math.min(middleRemaining, middleCapacity)} BOOKABLE`),
+        panelRow('LOW', `${lowRemaining} DEMAND / ${Math.min(lowRemaining, lowCapacity)} BOOKABLE`),
+        panelRow('FREIGHT', `${route.freight.counts.major} MAJ / ${route.freight.counts.minor} MIN / ${route.freight.counts.incidental} INC`),
+        ...fittingFreight.slice(0, 4).map((freight) => panelCard({
+          title: `${freight.tons}t ${freight.category.toUpperCase()} LOT`,
+          rows: [panelRow('PAYS', `${formatCr(freight.revenueCr)} ON DELIVERY`)],
+          actionId: `freight:${freight.id}`,
+          actionLabel: '[ ACCEPT ]'
+        }))
+      ]
+    });
   } else {
-    lines.push('', commerceLine('ROUTE', 'SELECT A REACHABLE DESTINATION FOR PASSENGERS / FREIGHT'));
+    groups.push({
+      label: 'ROUTE',
+      items: [panelRow('STATUS', route?.destination
+        ? `${route.destination.name.toUpperCase()} / OUT OF JUMP RANGE`
+        : 'SELECT A REACHABLE DESTINATION', { attention: Boolean(route?.destination) })]
+    });
   }
 
   if (offer) {
     const aboard = offer.unit === 'tons' ? speculativeQuantityPurchased(offer, current.id) : 0;
     const remaining = Math.max(0, offer.quantityAvailable - aboard);
-    lines.push(
-      '',
-      commerceLine('SPECULATION', `WEEK ${campaignWeekKey(campaignDocument)} / LOT ${offer.code} ${offer.name.toUpperCase()}`),
-      commerceLine('AVAILABLE', `${remaining}/${offer.quantityAvailable} ${offer.unit.toUpperCase()} / BASE ${formatCr(offer.basePriceCr)} EACH ${offer.unit === 'tons' ? 'TON' : 'ITEM'}`),
-      commerceLine('BUY QUOTE', `${formatCr(offer.pricePerUnitCr)} / ${offer.percentage}% OF BASE / PURCHASE DM ${offer.purchaseDM >= 0 ? '+' : ''}${offer.purchaseDM}`)
-    );
-    if (offer.unit === 'each') lines.push(commerceLine('AUTOMATION', 'REFEREE TONNAGE REQUIRED FOR INDIVIDUAL ITEMS'));
+    const specBuy = { max: 0, cost: 0, blockedReason: '' };
+    if (offer.unit === 'tons') {
+      const maxByHold = Math.min(Math.floor(freeHold), remaining);
+      for (let quantity = maxByHold; quantity >= 1; quantity -= 1) {
+        const cost = calculateSpeculativePurchaseCost(offer, quantity).totalCr;
+        if (cost <= shipDocument.state.finances.balanceCr) { specBuy.max = quantity; specBuy.cost = cost; break; }
+      }
+      if (!specBuy.max) {
+        specBuy.blockedReason = maxByHold < 1
+          ? `NO FREE HOLD / ${freeHold}t AVAILABLE`
+          : `ACCOUNT SHORT / 1t COSTS ${formatCr(calculateSpeculativePurchaseCost(offer, 1).totalCr)}`;
+      } else if (specBuy.max < maxByHold) {
+        specBuy.blockedReason = `ACCOUNT COVERS ${specBuy.max}t OF ${maxByHold}t THAT FIT`;
+      }
+    }
+    groups.push({
+      label: `SPECULATION / WEEK ${campaignWeekKey(campaignDocument)}`,
+      items: [panelCard({
+        title: `LOT ${offer.code} / ${offer.name.toUpperCase()}`,
+        meta: `BASE ${formatCr(offer.basePriceCr)} PER ${offer.unit === 'tons' ? 'TON' : 'ITEM'}`,
+        rows: [
+          panelRow('AVAILABLE', `${remaining}/${offer.quantityAvailable} ${offer.unit.toUpperCase()}`),
+          panelRow('QUOTE', `${formatCr(offer.pricePerUnitCr)} / ${offer.percentage}% OF BASE`),
+          panelRow('DM', `PURCHASE ${signedNumber(offer.purchaseDM)}`)
+        ],
+        note: offer.unit === 'each'
+          ? 'REFEREE TONNAGE REQUIRED FOR INDIVIDUAL ITEMS / BOOK 2 p.48'
+          : specBuy.blockedReason,
+        actionId: specBuy.max >= 1 ? `spec:${specBuy.max}` : null,
+        actionLabel: specBuy.max >= 1 ? `[ BUY ${specBuy.max}t / ${formatCr(specBuy.cost)} ]` : '',
+        actionDisabled: false
+      })]
+    });
   }
 
   const passengers = shipDocument.state.passengerManifest;
   const freightAboard = shipDocument.state.cargoManifest.filter((entry) => entry.category === 'freight');
   const saleCargo = shipDocument.state.cargoManifest.filter((entry) => /^speculative:\d{2}$/.test(entry.category));
-  lines.push('', commerceLine('ABOARD', `${passengers.length} PASSENGER${passengers.length === 1 ? '' : 'S'} / ${freightAboard.length} FREIGHT / ${saleCargo.length} SPECULATIVE LOT${saleCargo.length === 1 ? '' : 'S'}`));
+  const aboardItems = [
+    panelRow('MANIFEST', `${passengers.length} PAX / ${freightAboard.length} FREIGHT / ${saleCargo.length} LOT${saleCargo.length === 1 ? '' : 'S'}`)
+  ];
   for (const passenger of passengers.slice(0, 4)) {
     const dest = getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, passenger.destinationSystemId);
-    lines.push(commerceLine('PASSENGER', `${passenger.class.toUpperCase()} -> ${(dest?.name ?? passenger.destinationSystemId).toUpperCase()} / ${formatCr(passenger.fareCr)}`));
+    aboardItems.push(panelRow(passenger.class.toUpperCase(), `${(dest?.name ?? passenger.destinationSystemId).toUpperCase()} / ${formatCr(passenger.fareCr)}`));
   }
   for (const cargo of freightAboard.slice(0, 4)) {
     const dest = getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, cargo.destinationSystemId);
-    lines.push(commerceLine('FREIGHT ABOARD', `${cargo.tons}t -> ${(dest?.name ?? cargo.destinationSystemId).toUpperCase()} / ${formatCr(cargo.tons * FREIGHT_RATE_PER_TON_CR)}`));
+    aboardItems.push(panelRow('FREIGHT', `${cargo.tons}t -> ${(dest?.name ?? cargo.destinationSystemId).toUpperCase()} / ${formatCr(cargo.tons * FREIGHT_RATE_PER_TON_CR)}`));
   }
   for (const cargo of saleCargo.slice(0, 4)) {
     if (cargo.originSystemId === current.id) {
-      lines.push(commerceLine('RESALE', `${cargo.tons}t ${cargo.description.toUpperCase()} / TRANSPORT TO ANOTHER WORLD REQUIRED`));
+      aboardItems.push(panelCard({
+        title: `${cargo.tons}t ${cargo.description.toUpperCase()}`,
+        note: 'TRANSPORT TO ANOTHER WORLD REQUIRED / SAME-WORLD RESALE REJECTED'
+      }));
       continue;
     }
     const quote = speculativeSaleQuote(cargo);
-    lines.push(commerceLine('RESALE QUOTE', `${cargo.tons}t ${cargo.description.toUpperCase()} / NET ${formatCr(quote.netCr)} / ${quote.percentage}% / DM ${quote.worldDM + quote.characterSkillDM + quote.brokerDM >= 0 ? '+' : ''}${quote.worldDM + quote.characterSkillDM + quote.brokerDM}`));
+    const declined = declinedQuoteIds.has(cargo.id);
+    aboardItems.push(panelCard({
+      title: `RESALE / ${cargo.tons}t ${cargo.description.toUpperCase()}`,
+      meta: `${quote.percentage}% OF BASE`,
+      rows: [
+        panelRow('NET', formatCr(quote.netCr), { ok: true }),
+        panelRow('DM', signedNumber(quote.worldDM + quote.characterSkillDM + quote.brokerDM))
+      ],
+      note: `WORLD ${signedNumber(quote.worldDM)} / CHARACTER ${signedNumber(quote.characterSkillDM)} / BROKER ${signedNumber(quote.brokerDM)}`
+        + (quote.brokerCommissionCr ? ` / DECLINING OWES ${formatCr(quote.brokerCommissionCr)} (BOOK 2 p.48)` : '')
+        + (declined ? ' / QUOTE DECLINED THIS CALL' : ''),
+      actionId: `sell:${cargo.id}`,
+      actionLabel: '[ SELL ]',
+      secondaryActionId: declined ? null : `decline:${cargo.id}`,
+      secondaryActionLabel: '[ DECLINE ]'
+    }));
   }
-  if (saleCargo.length) {
-    lines.push(commerceLine('SALE DMS', `CHARACTER +${currentCommerceSkillDM()} / BROKER +${speculativeBrokerDM} / COMMISSION ${speculativeBrokerDM * 5}%`));
-  }
-  el.commerceRecord.textContent = lines.join('\n');
+  groups.push({ label: 'ABOARD', items: aboardItems });
+
+  renderPanelModel(el.commerceRecord, { groups }, {
+    onAction: (id) => {
+      const [kind, value] = String(id).split(':');
+      if (kind === 'freight') return acceptFreightOffer(value);
+      if (kind === 'spec') return buySpeculativeQuantity(Number(value));
+      if (kind === 'sell') return sellSpeculativeLot(value);
+      if (kind === 'decline') return declineSpeculativeQuote(value);
+    }
+  });
 
   el.commerceActions.replaceChildren();
   if (route?.destination && route.reachable) {
@@ -2654,39 +2821,6 @@ function renderCommerce() {
     }
     if (lowRemaining > 0 && availablePassengerCapacity(shipDocument, 'low') > 0) {
       el.commerceActions.append(makePortButton(`BOOK LOW / FARE ${formatCr(PASSAGE_FARES_CR.low)}`, () => bookRoutePassenger('low')));
-    }
-
-    const acceptedFreightIds = new Set(shipDocument.state.cargoManifest.filter((entry) => entry.category === 'freight').map((entry) => entry.id));
-    const fittingFreight = route.freight.offers
-      .filter((entry) => !acceptedFreightIds.has(entry.id) && entry.tons <= freeHold + 1e-9)
-      .slice(0, 4);
-    for (const freight of fittingFreight) {
-      el.commerceActions.append(makePortButton(`ACCEPT ${freight.tons}t FREIGHT / ${formatCr(freight.revenueCr)}`, () => acceptFreightOffer(freight.id)));
-    }
-  }
-
-  if (offer?.unit === 'tons') {
-    const aboard = speculativeQuantityPurchased(offer, current.id);
-    const remaining = Math.max(0, offer.quantityAvailable - aboard);
-    const maxByHold = Math.min(Math.floor(freeHold), remaining);
-    if (maxByHold >= 1) {
-      const oneCost = calculateSpeculativePurchaseCost(offer, 1).totalCr;
-      el.commerceActions.append(makePortButton(`BUY 1t ${offer.name.toUpperCase()} / ${formatCr(oneCost)}`, () => buySpeculativeQuantity(1), {
-        disabled: oneCost > shipDocument.state.finances.balanceCr
-      }));
-      if (maxByHold > 1) {
-        let affordableMax = 0;
-        for (let quantity = maxByHold; quantity >= 1; quantity -= 1) {
-          if (calculateSpeculativePurchaseCost(offer, quantity).totalCr <= shipDocument.state.finances.balanceCr) {
-            affordableMax = quantity;
-            break;
-          }
-        }
-        if (affordableMax > 1) {
-          const maxCost = calculateSpeculativePurchaseCost(offer, affordableMax).totalCr;
-          el.commerceActions.append(makePortButton(`BUY ${affordableMax}t MAX / ${formatCr(maxCost)}`, () => buySpeculativeQuantity(affordableMax)));
-        }
-      }
     }
   }
 
@@ -2710,11 +2844,6 @@ function renderCommerce() {
     });
     broker.append(label, input);
     el.commerceActions.append(broker);
-    for (const cargo of saleCargo.slice(0, 4)) {
-      if (cargo.originSystemId === current.id) continue;
-      const quote = speculativeSaleQuote(cargo);
-      el.commerceActions.append(makePortButton(`SELL ${cargo.tons}t ${cargo.description.toUpperCase()} / ${formatCr(quote.netCr)}`, () => sellSpeculativeLot(cargo.id)));
-    }
   }
 
   if (!el.commerceActions.childNodes.length) {
@@ -2740,41 +2869,35 @@ function renderContracts() {
   el.contractSection.dataset.available = 'true';
   el.contractSection.hidden = false;
   const offers = availableContractOffers();
-  const selected = selectedSystemId ? getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, selectedSystemId) : null;
-  el.contractRecord.textContent = buildContractBoardRecord({
-    system: current,
-    selectedSystem: selected,
-    contracts: contractDocuments,
-    offers
-  });
-  el.contractActions.replaceChildren();
-
   const exclusive = activeExclusiveContract();
-  offers.forEach((offer, index) => {
+  const offerState = (offer) => {
     const requiresEmptyShip = offer.exclusiveShip && (
       activeContracts().length > 0
       || shipDocument.state.cargoManifest.length > 0
       || shipDocument.state.passengerManifest.length > 0
     );
-    const disabled = Boolean(exclusive)
-      || requiresEmptyShip
-      || offer.cargoTons > freeCargoTons();
-    const button = makePortButton(`ACCEPT ${index + 1} / ${offer.originSystemName.toUpperCase()} -> ${offer.destinationSystemName.toUpperCase()} / ${offer.title.toUpperCase()} / ${formatCr(offer.paymentCr)}`, () => acceptContractOffer(offer.offerId), { disabled });
-    button.title = `${contractSourceLabel(offer)} / LOCAL OFFER AT ${offer.originSystemName} / DESTINATION ${offer.destinationSystemName}`;
-    el.contractActions.append(button);
-  });
-
-  if (!offers.length) {
-    const note = document.createElement('span');
-    note.className = 'commerce-note';
-    note.textContent = 'NO UNUSED CONTRACT OFFERS AT THIS PORT CALL.';
-    el.contractActions.append(note);
-  } else if (exclusive) {
-    const note = document.createElement('span');
-    note.className = 'attention-message';
-    note.textContent = `EXCLUSIVE CHARTER ACTIVE TO ${exclusive.destination.systemName.toUpperCase()} / COMPLETE IT BEFORE ACCEPTING OTHER WORK.`;
-    el.contractActions.append(note);
-  }
+    const noRoom = offer.cargoTons > freeCargoTons();
+    const blockedReason = exclusive
+      ? `EXCLUSIVE CHARTER ACTIVE TO ${exclusive.destination.systemName.toUpperCase()}`
+      : requiresEmptyShip
+        ? 'MANIFEST MUST BE EMPTY / BOOK 2 p.9'
+        : noRoom
+          ? `NEEDS ${offer.cargoTons}t / ${freeCargoTons()}t FREE IN HOLD`
+          : '';
+    return {
+      disabled: Boolean(exclusive) || requiresEmptyShip || noRoom,
+      blockedReason,
+      title: `${contractSourceLabel(offer)} / LOCAL OFFER AT ${offer.originSystemName} / DESTINATION ${offer.destinationSystemName}`
+    };
+  };
+  renderPanelModel(el.contractRecord, buildContractBoardPanel({
+    system: current,
+    selectedSystem: selectedSystemId ? getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, selectedSystemId) : null,
+    contracts: contractDocuments,
+    offers,
+    offerState
+  }), { onAction: (offerId) => acceptContractOffer(offerId) });
+  el.contractActions.replaceChildren();
   applyOperationsDeskTab();
 }
 
@@ -4172,9 +4295,14 @@ function applyOperationsDeskTab() {
       : 'SITUATION · RESOLVE IT OR RETURN TO PORT · [ BACK TO PORT ]';
   }
   el.contextTabs?.classList.toggle('suspended', takeover);
-  el.subsectorSection?.classList.toggle('encounter-workspace-active', encounterWorkspaceActive);
-  el.subsectorSection?.classList.remove('navigation-workspace-active');
-  if (el.subsectorHeading) el.subsectorHeading.textContent = encounterWorkspaceActive ? 'PERSONAL COMBAT' : 'SUBSECTOR NAVIGATION';
+  el.subsectorSection?.classList.remove('encounter-workspace-active', 'navigation-workspace-active');
+  if (encounterWorkspaceActive && activeSceneTab !== 'combat') {
+    activeSceneTab = 'combat';
+    applyCampaignLayout();
+  } else if (!encounterWorkspaceActive && activeSceneTab === 'combat') {
+    activeSceneTab = 'system';
+    applyCampaignLayout();
+  }
 }
 
 function setOperationsDeskTab(tab) {
@@ -4204,16 +4332,11 @@ function renderPortServices() {
 
   el.portServicesSection.dataset.available = 'true';
   el.portServicesSection.hidden = false;
-  const portRecordText = buildPortServicesRecord({
+  renderPanelModel(el.portServicesRecord, buildPortServicesPanel({
     system,
     ship: shipDocument,
     character: gameplayDocument
-  });
-  const portAttention = [];
-  if (shipDocument?.state?.currentFuelTons === null || shipDocument?.state?.currentFuelTons === undefined) portAttention.push('FUEL ');
-  const currentPortCall = shipDocument?.state?.portCall?.systemId === system.id ? shipDocument.state.portCall : null;
-  if (currentPortCall && !currentPortCall.berthingPaid && currentPortCall.berthingDueCr > 0) portAttention.push('BERTHING ');
-  renderRecordWithHighlights(el.portServicesRecord, portRecordText, portAttention);
+  }));
   el.portActions.replaceChildren();
 
   if (!shipDocument) {
@@ -4334,6 +4457,100 @@ function renderRecordWithHighlights(target, text, attentionPrefixes = []) {
     }
     if (index < lines.length - 1) target.append(document.createTextNode('\n'));
   });
+}
+
+function renderPanelRow(row) {
+  const el2 = document.createElement('div');
+  el2.className = `panel-row${row.attention ? ' attention' : ''}${row.ok ? ' ok' : ''}`;
+  if (row.title) el2.title = row.title;
+  const label = document.createElement('span');
+  label.className = 'panel-row-label';
+  label.textContent = row.label;
+  const value = document.createElement('span');
+  value.className = 'panel-row-value';
+  value.textContent = row.value;
+  el2.append(label, value);
+  return el2;
+}
+
+function renderPanelCard(card, onAction) {
+  const wrap = document.createElement('div');
+  wrap.className = `panel-card${card.attention ? ' attention' : ''}`;
+  const title = document.createElement('div');
+  title.className = 'panel-card-title';
+  title.textContent = card.title;
+  wrap.append(title);
+  if (card.meta) {
+    const meta = document.createElement('div');
+    meta.className = 'panel-card-meta';
+    meta.textContent = card.meta;
+    wrap.append(meta);
+  }
+  for (const row of card.rows ?? []) wrap.append(renderPanelRow(row));
+  if (card.note) {
+    const note = document.createElement('div');
+    note.className = 'panel-card-note';
+    note.textContent = card.note;
+    wrap.append(note);
+  }
+  if (card.actionId && onAction) {
+    const actions = document.createElement('div');
+    actions.className = 'panel-card-actions';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'text-button action-button panel-card-action';
+    button.textContent = card.actionLabel || '[ ACCEPT ]';
+    button.disabled = Boolean(card.actionDisabled);
+    if (card.actionTitle) button.title = card.actionTitle;
+    button.addEventListener('click', () => onAction(card.actionId));
+    actions.append(button);
+    if (card.secondaryActionId) {
+      const secondary = document.createElement('button');
+      secondary.type = 'button';
+      secondary.className = 'text-button panel-card-action panel-card-action-secondary';
+      secondary.textContent = card.secondaryActionLabel || '[ DECLINE ]';
+      secondary.addEventListener('click', () => onAction(card.secondaryActionId));
+      actions.append(secondary);
+    }
+    wrap.append(actions);
+  }
+  return wrap;
+}
+
+function renderPanelModel(target, model, { onAction = null } = {}) {
+  target.replaceChildren();
+  for (const group of model?.groups ?? []) {
+    const section = document.createElement('div');
+    section.className = 'panel-group';
+    if (group.label) {
+      const label = document.createElement('div');
+      label.className = 'panel-group-label';
+      label.textContent = group.label;
+      section.append(label);
+    }
+    if (group.note) {
+      const note = document.createElement('div');
+      note.className = 'panel-group-note';
+      note.textContent = group.note;
+      section.append(note);
+    }
+    const body = document.createElement('div');
+    body.className = 'panel-group-body';
+    for (const item of group.items ?? []) {
+      body.append(item.kind === 'card' ? renderPanelCard(item, onAction) : renderPanelRow(item));
+    }
+    if (group.collapsible) {
+      const details = document.createElement('details');
+      details.className = 'panel-group-collapsible';
+      const summary = document.createElement('summary');
+      summary.textContent = 'SHOW';
+      details.append(summary, body);
+      section.append(details);
+    } else {
+      section.append(body);
+    }
+    target.append(section);
+  }
 }
 
 function appendLiveShipRow(labelText, valueText, { stateClass = '', tab = null, title = '' } = {}) {
@@ -5057,6 +5274,7 @@ function playProcedureSnapshot() {
     speculation,
     patron,
     jobs: { offers: availableContractOffers().length, active: activeContracts().length },
+    thread: activeThreadObjective(),
     lifeSupportCr: lifeSupport?.totalCr ?? 0,
     jumpReady: Boolean(reachable && !jumpBlockReason),
     jumpBlockReason
@@ -5070,6 +5288,8 @@ function playProcedureAction(action) {
   if (action === 'jobs') { setOperationsDeskTab('jobs'); return; }
   if (action === 'situation') { setOperationsDeskTab('situation'); return; }
   if (action === 'encounter') { setOperationsDeskTab('encounter'); return; }
+  if (action === 'threads') { setWorkspaceView('threads'); return; }
+  if (action === 'character') { setSceneTab('character'); return; }
   if (action === 'jump') { el.jumpActions.querySelector('button:not(:disabled)')?.focus(); }
 }
 
@@ -5864,8 +6084,8 @@ el.activityNoteForm.addEventListener('submit', (event) => {
   setStatus('CAMPAIGN NOTE RECORDED', 'ok');
 });
 
-el.headerCharacterName.addEventListener('click', () => setWorkspaceView(activeWorkspaceView === 'character' ? 'play' : 'character'));
-el.headerShipName.addEventListener('click', () => setWorkspaceView(activeWorkspaceView === 'ship' ? 'play' : 'ship'));
+el.headerCharacterName.addEventListener('click', () => setSceneTab('character'));
+el.openShipView.addEventListener('click', () => setWorkspaceView(activeWorkspaceView === 'ship' ? 'play' : 'ship'));
 el.openCampaignView.addEventListener('click', () => setWorkspaceView(activeWorkspaceView === 'campaign' ? 'play' : 'campaign'));
 el.openThreadsView.addEventListener('click', () => setWorkspaceView(activeWorkspaceView === 'threads' ? 'play' : 'threads'));
 document.addEventListener('keydown', (event) => {
@@ -5935,21 +6155,10 @@ el.quickSlotForm.addEventListener('submit', (event) => {
   setStatus(`QUICK SLOTS SET: ${slots.length ? slots.join(' / ').toUpperCase() : 'DEFAULTS'}`, 'ok');
 });
 
-el.headerTask.addEventListener('click', () => {
-  const kind = el.headerTask.dataset.taskKind;
-  if (kind === 'encounter') {
-    setWorkspaceView('play');
-    setOperationsDeskTab('encounter');
-  } else if (kind === 'situation') {
-    setWorkspaceView('play');
-    setOperationsDeskTab('situation');
-  } else if (kind === 'contract') {
-    setWorkspaceView('play');
-    setOperationsDeskTab('jobs');
-  } else if (kind === 'thread') {
-    setWorkspaceView('threads');
-  } else return;
-});
+for (const button of el.sceneTabs) {
+  button.addEventListener('click', () => setSceneTab(button.dataset.sceneTab));
+}
+el.sceneShipName.addEventListener('click', () => setWorkspaceView(activeWorkspaceView === 'ship' ? 'play' : 'ship'));
 
 el.rollDialogClose.addEventListener('click', closeRollDialog);
 el.rollCancel.addEventListener('click', closeRollDialog);

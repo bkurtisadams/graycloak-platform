@@ -41,7 +41,7 @@ test('v0.11.0.1 retains contextual help and highlighted legal actions', async ()
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.22\.0/);
+  assert.match(html, /v0\.34\.0/);
   assert.match(html, /data-help-topic="personnel-record"/);
   assert.match(html, /id="context-help"/);
   assert.match(app, /helpForTopic/);
@@ -58,7 +58,7 @@ test('v0.11.0 specialization UI uses engine-supplied legal choices instead of fr
   const html = await read('index.html');
   const app = await read('app.js');
 
-  assert.match(html, /v0\.22\.0/);
+  assert.match(html, /v0\.34\.0/);
   assert.match(app, /available\.choices\.specializations/);
   assert.doesNotMatch(app, /id = 'skill-specialization'/);
   assert.doesNotMatch(app, /id = 'benefit-specialization'/);
@@ -201,7 +201,7 @@ test('v0.11.0 exposes port operations and ship commerce foundation', async () =>
   assert.match(app, /payCurrentBerthing/);
   assert.match(app, /skimGasGiantToCapacity/);
   assert.match(app, /canShipMakeJump/);
-  assert.match(model, /buildPortServicesRecord/);
+  assert.match(model, /buildPortServicesPanel/);
   assert.match(model, /TRADE CLASSIFICATIONS/);
 });
 
@@ -211,7 +211,7 @@ test('v0.11.0.1 adds base markers, map zoom controls, and a left navigation rail
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.22\.0/);
+  assert.match(html, /v0\.34\.0/);
   assert.match(html, /class="scene"/);
   assert.match(html, /id="map-zoom-out"/);
   assert.match(html, /id="map-zoom-in"/);
@@ -228,11 +228,12 @@ test('v0.11.0.2 highlights navigation and port states that require attention', a
   const html = await read('index.html');
   const app = await read('app.js');
   const css = await read('styles.css');
+  const model = await read('ui-model.js');
 
-  assert.match(html, /v0\.22\.0/);
+  assert.match(html, /v0\.34\.0/);
   assert.match(app, /renderRecordWithHighlights/);
   assert.match(app, /jumpAttention\.push\('FUEL NEED '/);
-  assert.match(app, /portAttention\.push\('BERTHING '/);
+  assert.match(model, /panelRow\('BERTHING'/);
   assert.match(app, /attention-message/);
   assert.match(css, /\.record-attention/);
   assert.match(css, /\.attention-message/);
@@ -246,7 +247,7 @@ test('v0.11.1 exposes Book 2 passengers, freight, speculative trade, and life-su
   const model = await read('ui-model.js');
   const market = await read('commerce-market.js');
 
-  assert.match(html, /v0\.22\.0/);
+  assert.match(html, /v0\.34\.0/);
   assert.match(html, /id="commerce-section"/);
   assert.match(html, /data-help-topic="commerce"/);
   assert.match(app, /generatePassengerDemand/);
@@ -271,14 +272,14 @@ test('v0.11.2 exposes persistent contracts and the port Contract Board', async (
   const app = await read('app.js');
   const model = await read('ui-model.js');
 
-  assert.match(html, /v0\.22\.0/);
+  assert.match(html, /v0\.34\.0/);
   assert.match(html, /id="contract-section"/);
   assert.match(html, /CONTRACT BOARD/);
   assert.match(app, /createContractDocument/);
   assert.match(app, /generateContractBoard/);
   assert.match(app, /resolveContractsAtDestination/);
   assert.match(app, /creditShipAccount/);
-  assert.match(model, /buildContractBoardRecord/);
+  assert.match(model, /buildContractBoardPanel/);
 });
 
 
@@ -287,7 +288,7 @@ test('v0.11.2.1 keeps port, trade, and jobs beside the map and guards repaired s
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.22\.0/);
+  assert.match(html, /v0\.34\.0/);
   assert.match(html, /id="operations-tab-port"/);
   assert.match(html, /id="operations-tab-trade"/);
   assert.match(html, /id="operations-tab-jobs"/);
@@ -307,7 +308,7 @@ test('v0.12.0 exposes persistent situations, patrons, and non-combat skill check
   const model = await read('ui-model.js');
   const loader = await read('document-loader.js');
 
-  assert.match(html, /v0\.22\.0/);
+  assert.match(html, /v0\.34\.0/);
   assert.match(html, /id="context-takeover"/);
   assert.match(html, /id="situation-section"/);
   assert.match(app, /generatePatronContact/);
@@ -324,11 +325,8 @@ test('v0.12.0.1 promotes campaign status and interactive rolls into a compact pl
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.22\.0/);
-  assert.match(html, /id="campaign-header"/);
-  assert.match(html, /id="header-characteristics"/);
-  assert.match(html, /id="header-quick-skills"/);
-  assert.match(html, /id="header-task"/);
+  assert.match(html, /v0\.34\.0/);
+  assert.match(html, /class="campaign-header-strip"/);
   assert.match(html, /id="roll-dialog"/);
   assert.match(html, /id="roll-modifier"[^>]*value="0"/);
   assert.match(html, /id="selected-system-summary"/);
@@ -346,7 +344,7 @@ test('v0.12.0.2 keeps tab actions above independently scrolling records', async 
   const html = await read('index.html');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.22\.0/);
+  assert.match(html, /v0\.34\.0/);
   for (const [actions, record] of [
     ['port-actions', 'port-services-record'],
     ['commerce-actions', 'commerce-record'],
@@ -367,7 +365,7 @@ test('v0.12.0.3 makes Activity Log dice and outcomes visually explicit', async (
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.22\.0/);
+  assert.match(html, /v0\.34\.0/);
   assert.match(app, /ROLL 2D \[\$\{dice\.dice\[0\]\}\] \[\$\{dice\.dice\[1\]\}\]/);
   assert.match(app, /appendActivityDiceLine/);
   assert.match(app, /RESULT \/\/ SUCCESS/);
@@ -383,7 +381,7 @@ test('v0.12.0.4 keeps chargen history hidden until explicitly opened in campaign
   const css = await read('styles.css');
   const app = await read('app.js');
 
-  assert.match(html, /v0\.22\.0/);
+  assert.match(html, /v0\.34\.0/);
   assert.match(html, /id="chargen-record-section"[^>]*hidden/);
   assert.match(css, /\[hidden\]\s*\{[\s\S]*display:\s*none\s*!important/);
   assert.match(app, /el\.chargenRecordSection\.hidden = true;/);
@@ -399,7 +397,7 @@ test('v0.12.1.1 keeps generic adventure machinery separate from Sea of Suns auth
   const engine = await read('../src/adventure-engine.js');
   const definition = await read('../campaigns/sea-of-suns/adventures/carranza-route.js');
 
-  assert.match(html, /v0\.22\.0/);
+  assert.match(html, /v0\.34\.0/);
   assert.match(html, /id="open-threads-view"/);
   assert.match(html, /id="thread-section"/);
   assert.match(app, /applySituationThreadConsequences/);
@@ -427,7 +425,7 @@ test('v0.12.1.3 keeps live ship state beside navigation and makes the job board 
   const css = await read('styles.css');
   const model = await read('ui-model.js');
 
-  assert.match(html, /v0\.22\.0/);
+  assert.match(html, /v0\.34\.0/);
   assert.match(html, /id="live-ship-panel"/);
   assert.match(html, /id="live-ship-status"/);
   assert.match(app, /renderLiveShipStatus/);
@@ -438,11 +436,10 @@ test('v0.12.1.3 keeps live ship state beside navigation and makes the job board 
   assert.match(css, /\.live-state-ready/);
   assert.match(css, /\.live-state-attention/);
   assert.match(css, /\.live-state-critical/);
-  assert.match(model, /CURRENT PORT/);
   assert.match(model, /NAVIGATION SELECTION ONLY/);
   assert.match(model, /ALL NEW OFFERS ORIGINATE AT THE CURRENT PORT/);
-  assert.match(model, /ACTIVE JOBS/);
-  assert.match(model, /AVAILABLE AT/);
+  assert.match(model, /label: `ACTIVE \$\{active\.length\}`/);
+  assert.match(model, /label: `OFFERS \$\{offers\.length\} AT \$\{system\.name\.toUpperCase\(\)\}/);
 });
 
 test('v0.13 exposes compact persistent personal combat', async () => {
@@ -451,7 +448,7 @@ test('v0.13 exposes compact persistent personal combat', async () => {
   const model = await read('ui-model.js');
   const encounter = await read('../src/encounter-document.js');
 
-  assert.match(html, /v0\.22\.0/);
+  assert.match(html, /v0\.34\.0/);
   assert.match(html, /id="encounter-section"/);
   assert.match(html, /id="encounter-actions"/);
   assert.match(html, /id="encounter-record"/);
@@ -470,7 +467,7 @@ test('v0.13.1 adds referee-started combat, a square token map, and enemy equipme
   const css = await read('styles.css');
   const encounter = await read('../src/encounter-document.js');
 
-  assert.match(html, /v0\.22\.0/);
+  assert.match(html, /v0\.34\.0/);
   assert.match(html, /id="combat-setup-dialog"/);
   assert.match(html, /id="encounter-map"/);
   assert.match(html, /id="encounter-roster"/);
@@ -510,7 +507,7 @@ test('v0.14.1 gives the encounter map a fluid viewBox camera and live token drag
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.22\.0/);
+  assert.match(html, /v0\.34\.0/);
   assert.match(html, /data-help-topic="personal-combat"/);
   assert.match(app, /function encounterMapPoint/);
   assert.match(app, /getScreenCTM\(\)/);
@@ -528,7 +525,7 @@ test('v0.15.1 adds a persistent actor roster and token inspection actions', asyn
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.22\.0/);
+  assert.match(html, /v0\.34\.0/);
   assert.match(html, /id="operations-tab-roster"/);
   assert.match(html, /id="npc-actor-dialog"/);
   assert.match(html, /id="combat-roster-actor"/);
@@ -546,7 +543,7 @@ test('v0.15.1.1 makes the activity journal portable and anchors token menus to t
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.22\.0/);
+  assert.match(html, /v0\.34\.0/);
   assert.match(html, /id="activity-filter"/);
   assert.match(html, /id="add-activity-note"/);
   assert.match(html, /id="activity-note-dialog"/);
@@ -567,7 +564,7 @@ test('v0.15.2 establishes a Traveller-first campaign hierarchy and removes dupli
   const model = await read('ui-model.js');
 
   assert.match(html, /id="app-title" class="title">TRAVELLER</);
-  assert.match(html, /id="app-subtitle" class="subtitle">v0\.22\.0</);
+  assert.match(html, /id="app-subtitle" class="subtitle">v0\.34\.0</);
   assert.match(html, /<strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN<\/strong>/);
   for (const id of ['new-campaign', 'save-campaign', 'load-campaign', 'import-campaign', 'export-campaign']) {
     assert.match(html, new RegExp(`id="${id}"`));
@@ -578,7 +575,7 @@ test('v0.15.2 establishes a Traveller-first campaign hierarchy and removes dupli
   assert.doesNotMatch(html, /PERSONNEL INTAKE TERMINAL|CAMPAIGN TERMINAL|UPGRADED FROM|RULES ARE RESOLVED BY/);
   assert.doesNotMatch(html, /DRAG TOKENS \/\/ DRAG EMPTY MAP/);
   assert.match(app, /headerCampaignName\.textContent = active/);
-  assert.match(app, /encounterWorkspaceActive \? 'PERSONAL COMBAT' : 'SUBSECTOR NAVIGATION'/);
+  assert.match(app, /if \(encounterWorkspaceActive && activeSceneTab !== 'combat'\)/);
   assert.match(app, /activityFilter = 'play'/);
   assert.match(app, /entry\.category !== 'SYSLOG'/);
   assert.match(app, /campaignOnly/);
@@ -625,9 +622,8 @@ test('v0.20.0 lays play out as operations left, scene center, and procedure plus
   const css = await read('styles.css');
   const model = await read('ui-model.js');
 
-  assert.match(html, /id="app-subtitle" class="subtitle">v0\.22\.0</);
-  assert.match(html, /class="identity-strip"/);
-  assert.match(html, /class="identity-rollrow identity-skillrow"/);
+  assert.match(html, /id="app-subtitle" class="subtitle">v0\.34\.0</);
+  assert.match(html, /class="campaign-header-strip"/);
   assert.match(html, /class="stage"/);
   assert.match(html, /class="command-rail"/);
   assert.ok(html.indexOf('id="procedure-section"') < html.indexOf('id="activity-panel"'));
@@ -640,7 +636,6 @@ test('v0.20.0 lays play out as operations left, scene center, and procedure plus
   assert.doesNotMatch(html, /operations-tab-navigation|operations-tab-situation|operations-tab-encounter|workspace-tab-/);
   assert.match(html, /id="footer-current-name"/);
   assert.match(html, /id="chargen-tables"/);
-  assert.match(html, /id="header-ship-name"[^>]*type="button"/);
   assert.match(html, /id="campaign-menu"/);
   assert.match(html, /id="autosave-status"/);
   assert.match(html, /id="activity-order"/);
@@ -696,7 +691,7 @@ test('v0.20.1 compacts the shared character sheet without dropping its controls 
   assert.match(css, /\.sheet-psionics \{[\s\S]*display: flex/);
 });
 
-test('v0.22.0 separates local character focus and visibility from shared campaign state', async () => {
+test('v0.31.0 separates local character focus and visibility from shared campaign state', async () => {
   const html = await read('index.html');
   const app = await read('app.js');
 
@@ -708,7 +703,7 @@ test('v0.22.0 separates local character focus and visibility from shared campaig
   assert.doesNotMatch(app, /campaignDocument = setActiveCampaignCharacter\(campaignDocument, characterId\)/);
 });
 
-test('v0.22.0 compacts the header to two rows and gives the character cell the rolls and quick slots', async () => {
+test('v0.31.0 compacts the header to two rows and gives the character cell the rolls and quick slots', async () => {
   const html = await read('index.html');
   const app = await read('app.js');
   const css = await read('styles.css');
@@ -721,11 +716,10 @@ test('v0.22.0 compacts the header to two rows and gives the character cell the r
   assert.match(html, /id="system-status"[^>]*class="status masthead-status"/);
 
   const strip = html.slice(html.indexOf('class="identity-strip"'), html.indexOf('id="header-world"'));
-  for (const id of ['header-characteristics', 'header-quick-skills', 'header-all-skills', 'header-task']) {
-    assert.match(strip, new RegExp(`id="${id}"`));
+  const charStrip = html.slice(html.indexOf('class="campaign-header-strip"'), html.indexOf('id="live-ship-panel"'));
+  for (const id of ['header-character-name', 'header-upp', 'header-status', 'header-credits', 'header-characteristics', 'header-quick-skills', 'header-all-skills']) {
+    assert.match(charStrip, new RegExp(`id="${id}"`));
   }
-  assert.match(html, /id="header-world-meta"/);
-  assert.match(html, /id="header-ship-meta-two"/);
   assert.match(html, /id="quick-slot-dialog"/);
 
   assert.doesNotMatch(app, /QUICK_SKILL_PRIORITY/);
@@ -734,4 +728,306 @@ test('v0.22.0 compacts the header to two rows and gives the character cell the r
   assert.match(app, /STATEROOMS \$\{crewPeople \+ passengers\}\/\$\{staterooms\}/);
   assert.match(app, /header-skill-transient/);
   assert.match(css, /\.identity-strip \{ grid-template-columns: minmax\(0, 900px\)/);
+});
+
+test('v0.31.0 replaces the WORLD, TRADE, and JOBS box records with structured panels', async () => {
+  const app = await read('app.js');
+  const model = await read('ui-model.js');
+  const css = await read('styles.css');
+
+  assert.match(model, /export function buildPortServicesPanel\(/);
+  assert.match(model, /export function buildContractBoardPanel\(/);
+  assert.match(model, /export function panelRow\(/);
+  assert.match(model, /export function panelCard\(/);
+
+  assert.match(app, /function renderPanelModel\(/);
+  assert.match(app, /renderPanelModel\(el\.portServicesRecord/);
+  assert.match(app, /renderPanelModel\(el\.commerceRecord/);
+  assert.match(app, /renderPanelModel\(el\.contractRecord/);
+
+  assert.doesNotMatch(app, /el\.portServicesRecord\.textContent = build/);
+  assert.doesNotMatch(app, /el\.commerceRecord\.textContent = lines/);
+  assert.doesNotMatch(app, /el\.contractRecord\.textContent = build/);
+  assert.doesNotMatch(app, /function commerceLine\(/);
+
+  assert.match(app, /onAction: \(offerId\) => acceptContractOffer\(offerId\)/);
+  assert.match(app, /MANIFEST MUST BE EMPTY/);
+  assert.match(app, /NEEDS \$\{offer\.cargoTons\}t/);
+
+  assert.match(css, /\.panel-row \{ display: grid; grid-template-columns: minmax\(7ch, 11ch\)/);
+  assert.match(css, /\.panel-card \{/);
+  assert.doesNotMatch(css, /box-shadow/);
+});
+
+test('v0.31.0 keeps box() only for the chargen sheet, system, situation, encounter, and jump records', async () => {
+  const model = await read('ui-model.js');
+  const app = await read('app.js');
+
+  for (const retained of ['buildSystemRecord', 'buildSituationRecord', 'buildEncounterRecord', 'buildJumpPlan']) {
+    assert.match(model, new RegExp(`export function ${retained}\\(`));
+  }
+  assert.match(app, /renderRecordWithHighlights\(el\.jumpPlan/);
+  assert.doesNotMatch(model, /export function buildPortServicesRecord\(/);
+  assert.doesNotMatch(model, /export function buildContractBoardRecord\(/);
+});
+
+test('v0.31.0 leaves one scroller per column, a character-only header, and trade actions in their cards', async () => {
+  const html = await read('index.html');
+  const app = await read('app.js');
+  const css = await read('styles.css');
+  const model = await read('ui-model.js');
+
+  assert.match(css, /\.context-scroll \.operations-panel-record \{[^}]*overflow-y: visible/s);
+
+  assert.doesNotMatch(html, /id="header-world"|id="header-date"|id="header-world-meta"/);
+  assert.doesNotMatch(html, /id="header-ship-name"|id="header-ship-meta"/);
+  assert.doesNotMatch(html, /id="header-task"/);
+  assert.doesNotMatch(html, /campaign-header-location|campaign-header-ship/);
+  assert.doesNotMatch(app, /el\.headerTask|el\.headerShipName|el\.headerWorld/);
+
+  assert.match(app, /function activeThreadObjective\(\)/);
+  assert.match(app, /thread: activeThreadObjective\(\)/);
+  assert.match(model, /card\('thread', s\.thread\.title/);
+  assert.match(app, /if \(action === 'threads'\) \{ setWorkspaceView\('threads'\); return; \}/);
+
+  assert.match(app, /actionId: `freight:\$\{freight\.id\}`/);
+  assert.match(app, /actionId: specBuy\.max >= 1 \? `spec:\$\{specBuy\.max\}` : null/);
+  assert.match(app, /actionId: `sell:\$\{cargo\.id\}`/);
+  assert.match(app, /secondaryActionId: declined \? null : `decline:\$\{cargo\.id\}`/);
+  assert.match(app, /function declineSpeculativeQuote\(cargoId\)/);
+  assert.match(app, /payDeclinedBrokerFee\(shipDocument, quote/);
+  assert.match(app, /BOOK 2 p\.48/);
+  assert.doesNotMatch(app, /commerceActions\.append\(makePortButton\(`ACCEPT \$\{freight\.tons\}t/);
+  assert.doesNotMatch(app, /commerceActions\.append\(makePortButton\(`SELL \$\{cargo\.tons\}t/);
+  assert.match(app, /commerceActions\.append\(makePortButton\(`BOOK HIGH/);
+});
+
+test('v0.31.0 gives the centre three scene tabs, a status strip, and viewport-height columns', async () => {
+  const html = await read('index.html');
+  const app = await read('app.js');
+  const css = await read('styles.css');
+
+  for (const tab of ['character', 'system', 'combat']) {
+    assert.match(html, new RegExp(`data-scene-tab="${tab}"`));
+  }
+  assert.doesNotMatch(html, /class="scenebar"/);
+  assert.doesNotMatch(html, /class="scenebar-main"|class="scenebar-tools"/);
+
+  const strip = html.slice(html.indexOf('id="scene-status-strip"'), html.indexOf('class="canvas"'));
+  assert.match(strip, /CURRENT PORT/);
+  assert.match(strip, /SELECTED DESTINATION/);
+  assert.match(strip, /id="scene-ship-name"/);
+  assert.match(strip, /id="jump-actions"/);
+
+  const map = html.slice(html.indexOf('id="subsector-section"'), html.indexOf('id="encounter-section"'));
+  for (const id of ['map-zoom-out', 'map-zoom-in', 'map-zoom-fit', 'map-zoom-label', 'subsector-legend']) {
+    assert.match(map, new RegExp(`id="${id}"`));
+  }
+
+  assert.match(app, /let activeSceneTab = 'system';/);
+  assert.match(app, /function setSceneTab\(tab\)/);
+  assert.match(app, /if \(tab === 'combat' && !activeEncounterAtCurrentSystem\(\)\) return;/);
+  assert.match(app, /el\.personnelSection\.hidden = activeSceneTab !== 'character';/);
+  assert.match(app, /el\.subsectorSection\.hidden = activeSceneTab !== 'system';/);
+  assert.match(app, /el\.encounterSection\.hidden = activeSceneTab !== 'combat';/);
+  assert.match(app, /setSceneTab\('character'\)/);
+  assert.doesNotMatch(app, /WORKSPACE_VIEWS = \['play', 'character'/);
+  assert.match(html, /id="open-ship-view"/);
+
+  assert.match(css, /\.terminal \{ height: 100vh; overflow: hidden;/);
+  assert.match(css, /\.context-scroll \{ flex: 1 1 auto; min-height: 0; overflow-y: auto;/);
+  assert.match(css, /\.scene-tab\.is-active \{/);
+  assert.doesNotMatch(css, /box-shadow/);
+});
+
+test('v0.31.0 puts the character on one row, docks WHAT NOW? level with the masthead, and bounds the log', async () => {
+  const html = await read('index.html');
+  const css = await read('styles.css');
+
+  const strip = html.slice(html.indexOf('class="campaign-header-strip"'), html.indexOf('class="context-panel"'));
+  assert.doesNotMatch(strip, /identity-rollrow|identity-headline|identity-cell/);
+  assert.ok(html.indexOf('class="stage"') < html.indexOf('class="campaign-header-strip"'));
+
+
+  assert.match(css, /--tab-selected: #c3d4c3;/);
+  assert.match(css, /\.scene-tab\.is-active,[\s\S]*?background: var\(--tab-selected\)/);
+  assert.match(css, /#footer-current-name \{[\s\S]*?background: var\(--tab-selected\)/);
+
+  assert.match(css, /html, body \{ height: 100%; min-height: 0; overflow: hidden; \}/);
+  assert.match(css, /\.command-rail \.activity-panel,[\s\S]*?height: auto;[\s\S]*?max-height: none;/);
+  assert.match(css, /\.command-rail > \.activity-panel \.activity-feed \{ flex: 1 1 auto; min-height: 0; overflow-y: auto; \}/);
+  assert.doesNotMatch(css, /box-shadow/);
+});
+
+test('v0.31.0 places the rail by id, drops center-stack, and pins SHIP STATUS above the tabs', async () => {
+  const html = await read('index.html');
+  const css = await read('styles.css');
+
+  assert.doesNotMatch(html, /center-stack/);
+  const stage = html.slice(html.indexOf('class="stage"'), html.indexOf('id="help-panel"'));
+  assert.match(stage, /<aside id="context-panel" class="context"/);
+
+  const rail = html.slice(html.indexOf('id="context-panel"'), html.indexOf('class="context-scroll"'));
+  assert.ok(rail.indexOf('id="live-ship-panel"') < rail.indexOf('id="context-tabs"'));
+
+  assert.match(css, /\.stage > #context-panel \{ grid-row: 1; grid-column: 1; \}/);
+  assert.match(css, /\.stage > \.scene \{ grid-row: 1; grid-column: 2; \}/);
+  assert.match(css, /\.stage > \.command-rail \{ grid-row: 1; grid-column: 3; \}/);
+
+  // The inner panels must not inherit the rail's full-height treatment.
+  assert.match(css, /\.context-panel \{ height: auto; overflow: visible; display: block; \}/);
+  assert.match(css, /#context-panel \.context-scroll \{ flex: 1 1 auto; min-height: 0; max-height: none;/);
+  assert.match(css, /#context-panel \.context-tab\[aria-selected="true"\] \{[\s\S]*?background: var\(--tab-selected\)/);
+
+  assert.doesNotMatch(html, /id="scene-ship-meta-two"/);
+  assert.doesNotMatch(css, /box-shadow/);
+});
+
+test('v0.31.0 stops the rail oversizing the grid and reworks the character strip', async () => {
+  const html = await read('index.html');
+  const app = await read('app.js');
+  const css = await read('styles.css');
+
+  // The spanning rail must not contribute min-content height to the auto row.
+  assert.doesNotMatch(css, /\.command-rail > \.procedure-section \{\s*flex: 1 1 auto;/); // superseded; deleted v0.32.0
+  assert.match(css, /\.command-rail > \.activity-panel \{\s*flex: 1 1 auto; min-height: 0; max-height: none; height: auto;/);
+
+  const strip = html.slice(html.indexOf('class="campaign-header-strip"'), html.indexOf('id="live-ship-panel"'));
+  assert.doesNotMatch(strip, />ROLL</);
+  assert.doesNotMatch(strip, />SKILLS</);
+  assert.doesNotMatch(strip, /header-character-meta/);
+  for (const id of ['header-upp', 'header-status', 'header-posture', 'header-credits']) {
+    assert.match(strip, new RegExp(`id="${id}"`));
+  }
+
+  assert.match(app, /el\.headerUpp\.title = `Original UPP as generated/);
+  assert.match(app, /function characterPostureLabel\(\)/);
+  assert.match(app, /if \(me\.evading\) parts\.push\('EVADING'\)/);
+  assert.match(app, /injured \? `\$\{key\} \$\{value\}\/\$\{base\}` : `\$\{key\} \$\{value\}`/);
+  assert.match(app, /function nearestContractDeadlineDays\(\)/);
+  assert.match(app, /el\.mastheadDate\.textContent = active/);
+
+  assert.match(css, /\.header-status\.wounded \{ background: var\(--attention\)/);
+  assert.match(css, /\.header-status\.critical \{ background: var\(--failure-bg\)/);
+  assert.match(css, /\.header-roll-button\.injured \{ background: var\(--attention\)/);
+  assert.doesNotMatch(css, /box-shadow/);
+});
+
+test('v0.31.0 makes the height chain explicit and gives WHAT NOW? a definite share', async () => {
+  const css = await read('styles.css');
+
+  // The terminal owns the viewport height as a grid, not by inherited flex.
+  assert.match(css, /\.terminal \{\s*box-sizing: border-box;\s*display: grid;\s*grid-template-rows: auto auto minmax\(0, 1fr\);/);
+  assert.match(css, /\.terminal > \.masthead \{ grid-row: 1; \}/);
+  assert.match(css, /\.terminal > \.character-utility \{ grid-row: 2; \}/);
+  assert.match(css, /\.terminal > \.stage \{ grid-row: 3; min-height: 0; height: 100%; overflow: hidden; \}/);
+
+  // WHAT NOW? is capped in vh, never as a percentage of a content-derived height.
+  assert.doesNotMatch(css, /max-height: 44vh/); // superseded; deleted v0.32.0
+  assert.match(css, /\.command-rail > \.activity-panel \{\s*flex: 1 1 0%;\s*min-height: 120px;/);
+  assert.match(css, /#context-panel \.live-ship-panel \{ max-height: 34vh; \}/);
+
+  // Nothing in the scene may impose an intrinsic floor on its column.
+  assert.match(css, /\.stage > \.scene > \.canvas \{ flex: 1 1 auto; min-height: 0; max-height: 100%; overflow: hidden; \}/);
+  assert.match(css, /\.stage > \* \{ min-height: 0; \}/);
+  assert.doesNotMatch(css, /box-shadow/);
+});
+
+test('v0.31.0 moves character into the rail and makes the stage a single row', async () => {
+  const html = await read('index.html');
+  const css = await read('styles.css');
+
+  // The rail leads with character, then ship, then the port tabs.
+  const rail = html.slice(html.indexOf('id="context-panel"'), html.indexOf('class="context-scroll"'));
+  assert.ok(rail.indexOf('class="campaign-header-strip"') < rail.indexOf('id="live-ship-panel"'));
+  assert.ok(rail.indexOf('id="live-ship-panel"') < rail.indexOf('id="context-tabs"'));
+  assert.doesNotMatch(rail, /campaign-header-kicker">CHARACTER/);
+
+  // Single row: nothing spans, so no auto row can be sized by content.
+  assert.match(css, /\.stage \{\s*display: grid;\s*grid-template-rows: minmax\(0, 1fr\);\s*grid-template-columns: 440px minmax\(0, 1fr\) 340px;/);
+  for (const rule of [
+    /\.stage > #context-panel \{ grid-row: 1; grid-column: 1; \}/,
+    /\.stage > \.scene \{ grid-row: 1; grid-column: 2; \}/,
+    /\.stage > \.command-rail \{ grid-row: 1; grid-column: 3; \}/
+  ]) assert.match(css, rule);
+  assert.doesNotMatch(css, /grid-row: 1 \/ 3/);
+
+  // The strip is no longer a stage child.
+  const stage = html.slice(html.indexOf('class="stage"'), html.indexOf('id="context-panel"'));
+  assert.doesNotMatch(stage, /campaign-header-strip/);
+  assert.doesNotMatch(css, /box-shadow/);
+});
+
+test('v0.31.0 pins the terminal to the viewport, splits the rail 40/60, and labels the date', async () => {
+  const html = await read('index.html');
+  const app = await read('app.js');
+  const css = await read('styles.css');
+
+  // The viewport box is asserted, not derived from 100vh plus arithmetic.
+  assert.match(css, /\.terminal \{\s*position: fixed;\s*inset: 0;/);
+  assert.match(css, /html, body \{ height: 100%; overflow: hidden; margin: 0; \}/);
+
+  // WHAT NOW? 40 / log 60, each with its own scroller.
+  assert.match(css, /\.command-rail \{\s*display: grid;\s*grid-template-rows: minmax\(0, 2fr\) minmax\(0, 3fr\);/);
+  assert.match(css, /\.command-rail > #procedure-section \{\s*grid-row: 1;\s*min-height: 0;\s*max-height: none;\s*overflow-y: auto;/);
+  assert.match(css, /\.command-rail > \.activity-panel \{\s*grid-row: 2;/);
+
+  // The rail's fixed heads and its one scrolling body.
+  assert.match(css, /#context-panel \.context-scroll \{ flex: 1 1 auto; min-height: 0; max-height: none; overflow-y: auto; \}/);
+  assert.match(css, /#context-panel \.live-ship-panel \{ max-height: 30vh; overflow-y: auto; \}/);
+
+  // The date is in the masthead, labelled, and no longer in the port cell.
+  assert.match(html, /class="masthead-label">DATE<\/span>/);
+  assert.match(html, /id="masthead-date"/);
+  assert.match(app, /el\.mastheadDate\.textContent = active/);
+  assert.doesNotMatch(app, /footerCurrentMeta\.textContent = `\$\{activityDateLabel\(\)\}/);
+  assert.doesNotMatch(css, /box-shadow/);
+});
+
+test('v0.32.0 zeroes the centre sections\' top margin and makes WHAT NOW? scroll by id', async () => {
+  const css = await read('styles.css');
+
+  // The fix: every section in the scene canvas starts at the canvas top.
+  assert.match(css, /\.stage > \.scene > \.canvas > section \{ margin-top: 0; \}/);
+
+  // The stacked-page rule that put 12px above height: 100% boxes is gone.
+  assert.doesNotMatch(css, /\.campaign-play #subsector-section,\s*\.campaign-play #personnel-section/);
+
+  // The height chain from v0.29.0–v0.31.0 is unchanged.
+  assert.match(css, /\.stage > \.scene > \.canvas \{ flex: 1 1 auto; min-height: 0; max-height: 100%; overflow: hidden; \}/);
+  assert.match(css, /\.stage > \.scene #subsector-section \{ height: 100%; max-height: 100%; min-height: 0; \}/);
+  assert.match(css, /#subsector-legend \{ padding: 4px 12px; border-top: 1px dotted var\(--disabled\); font-size: 11px; color: var\(--muted\); flex: 0 0 auto; \}/);
+  // WHAT NOW? is addressed by its id; nothing targets a class the element lacks.
+  assert.match(css, /\.command-rail > #procedure-section \{\s*grid-row: 1;\s*min-height: 0;\s*max-height: none;\s*overflow-y: auto;/);
+  assert.doesNotMatch(css, /\.command-rail > \.procedure-section/);
+  assert.doesNotMatch(css, /box-shadow/);
+});
+
+test('v0.33.0 restores the chargen columns and puts the LOG header on one row', async () => {
+  const html = await read('index.html');
+  const app = await read('app.js');
+  const css = await read('styles.css');
+
+  // Chargen: the context rail yields column 1 by id, the sheet stays in column 2.
+  assert.match(css, /\.chargen-mode #context-panel \{ display: none; \}/);
+  assert.match(css, /\.chargen-mode \.stage > \.scene \{ grid-column: 2; \}/);
+  assert.doesNotMatch(css, /grid-column: 2 \/ 4/);
+
+  // LOG header: title, SHOW, ORDER, actions in one flex row; no campaign line.
+  assert.match(html, /<div class="activity-header">\s*<h2 id="activity-heading" class="activity-title">LOG<\/h2>\s*<select id="activity-filter" class="activity-filter" aria-label="Show">/);
+  assert.match(html, /<select id="activity-order" class="activity-order" aria-label="Order"><option value="newest" selected>NEWEST<\/option>/);
+  assert.doesNotMatch(html, /id="activity-context"/);
+  assert.doesNotMatch(html, /activity-controls|activity-filter-label|activity-order-label/);
+  assert.doesNotMatch(app, /activityContext/);
+  assert.match(css, /\.activity-header \{ display: flex; align-items: center; gap: 6px;/);
+  assert.doesNotMatch(css, /\.activity-context|\.activity-controls|\.activity-filter-label/);
+  assert.doesNotMatch(css, /box-shadow/);
+});
+
+test('v0.34.0 keeps the rail border on the rail, not on each tab body', async () => {
+  const css = await read('styles.css');
+  assert.match(css, /#context-panel \{ border-right: 1px solid var\(--rule\); \}/);
+  assert.doesNotMatch(css, /^\.context-panel \{ border-right/m);
+  assert.match(css, /\.context-scroll > \.context-panel \{ border-right: 0; \}/);
+  assert.doesNotMatch(css, /box-shadow/);
 });

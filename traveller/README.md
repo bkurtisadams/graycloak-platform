@@ -1,5 +1,157 @@
 # Graycloak Traveller
 
+## v0.34.0 the rail border stops cutting into the tab bodies
+
+The WORLD, TRADE and JOBS panels looked clipped on the right: every value ran hard against a vertical line, and the BERTHING attention box lost its right border into it. Nothing was clipped. The v0.25.0 rule `.context-panel { border-right: 1px solid var(--rule) }` was written for the rail, but `.context-panel` is also the class on the five tab sections inside `.context-scroll`, so each of them drew its own right border at the content edge, ten pixels inside the real rail border. Found at 4× zoom; invisible at 1×, exactly the kind of thing a stylesheet grep does not show.
+
+The rule is retargeted to `#context-panel`, and `.context-scroll > .context-panel { border-right: 0 }` guards the tab bodies. A test asserts no bare `.context-panel` border rule remains.
+
+No Classic Traveller rules and no persistent document schemas change.
+
+## v0.33.0 chargen gets its columns back; the LOG header is one row
+
+**Character generation was drawing the empty context rail over the Book 1 tables and the sheet under the command rail.** Both latent since v0.31.0. `.chargen-mode .context { display: none }` had been losing to `#context-panel { display: flex }` on specificity, so the (empty) context rail — `position: sticky`, hence painted above — covered `BOOK 1 TABLES`. And the v0.30.0 `.chargen-mode .stage > .scene { grid-column: 2 / 4 }` span, present twice, ran the sheet into the rail's column. The context rail now hides by id in chargen, the sheet keeps to column 2, and the spans are deleted.
+
+**The LOG header is `LOG · SHOW · ORDER · [ NOTE ] [ CLEAR ]` on a single row.** The campaign-name line beneath it is gone (the masthead already names the campaign) and the SHOW/ORDER text labels are gone with it; the selects carry `aria-label`s and the order options read `NEWEST` / `OLDEST`. Three rows of header become one, giving the feed the height back.
+
+No Classic Traveller rules and no persistent document schemas change.
+
+## v0.32.0 the legend is on screen, and WHAT NOW? scrolls
+
+The centre column clipping that survived v0.25.0 through v0.31.0 was never a height problem. Measured in the running app, `.canvas` was 708px tall and `#subsector-section` was 708px tall — but the section began 12px below the top of the canvas. A global `section { margin-top: 16px }` from the original stacked-page layout, and a `.campaign-play #subsector-section { margin-top: 12px }` rule from the same era, sat on top of a `height: 100%` box. Every version made the box the right size; the margin then pushed its last 12px — the legend — out through the bottom of an `overflow: hidden` parent, where the page's own `overflow: hidden` made it unreachable.
+
+`.stage > .scene > .canvas > section { margin-top: 0 }` removes the margin for every section the scene hosts, and the stacked-era `.campaign-play` margin rule is deleted rather than overridden. The CHARACTER view gets its last 12px back too (its sheet scroller was short by the same amount), and the COMBAT view its last 16px.
+
+**WHAT NOW? finally scrolls.** Every `.command-rail > .procedure-section` rule from v0.25.0 to v0.31.0 — six of them — matched nothing: the element is `<section id="procedure-section" class="panel whatnow">` and has never had a `.procedure-section` class. So the panel never received `overflow-y: auto`; with a long procedure list its cards ran underneath the LOG and the rail's `overflow: hidden` clipped them, which reads as the log having no bound. The log itself was always bounded (3fr track, feed scrolling). The v0.31.0 rule now targets `#procedure-section`; the five dead predecessors are deleted, and a test asserts no rule addresses the phantom class.
+
+Verified headlessly at 1400×640, 1366×768, 1600×900 and 1920×1080: the legend's bottom edge sits 1px inside the canvas at every size, and the character sheet scrolls internally to its true end. With 300 log entries and 20 extra WHAT NOW? cards injected, the rail stays at viewport height, both rail panels scroll, and the centre column does not move.
+
+No Classic Traveller rules and no persistent document schemas change.
+
+## v0.31.0 the terminal is the viewport
+
+Every version since v0.25.0 derived the available height from `100vh` and then depended on each intermediate box cooperating — terminal padding, masthead borders, grid gaps, flex floors. Any one of them being off by a few pixels put the bottom of the stage below the fold, and because the page is `overflow: hidden` the clipped content was unreachable rather than merely scrolled past.
+
+`.terminal` is now `position: fixed; inset: 0`, so it *is* the viewport box by definition. No arithmetic to drift, and no descendant can make the page taller than the screen. The width comes from horizontal padding rather than a centred `max-width`.
+
+**WHAT NOW? and the log split the rail 2fr / 3fr**, each with its own scroller. The previous flex arrangement let the log's content basis dominate; explicit grid tracks cannot. WHAT NOW? now scrolls internally when the procedure list is long instead of squeezing the log or overflowing.
+
+**The context rail has exactly one scrolling region.** Character, SHIP STATUS and the tab strip are `flex: 0 0 auto` heads; the tab body is the only thing that scrolls, so WORLD's content is no longer clipped by a parent that had run out of room. SHIP STATUS keeps a `30vh` cap with its own scroller for long manifests.
+
+**The campaign date moved to the masthead**, labelled `DATE`, showing the day, the campaign week, and the days remaining to the nearest active contract deadline. It is no longer duplicated in the CURRENT PORT meta line, which returns to describing the world.
+
+No Classic Traveller rules and no persistent document schemas change.
+
+## v0.30.0 character joins the rail; the stage is one row
+
+The character strip moves into the context rail, above SHIP STATUS: identity on one line, characteristics on the next, quick skills below. The `CHARACTER` label is dropped — it is obvious whose sheet you are looking at. The rail widens from 390px to 440px so the characteristics fit on a single line and the skills take two, with the width coming from the map, which has been over-served since v0.18.
+
+**This removes a class of bug rather than another instance of one.** The stage was two rows solely to carry a full-width character strip, which forced the command rail to span `grid-row: 1 / 3` to sit level with the masthead. A spanning item contributes its min-content height to an `auto` row, so the rail's procedure cards and log kept sizing row 1 and pushing the grid past `100vh`. That is what cut off the bottom of the UI in v0.25.0 through v0.29.0, and what collapsed WHAT NOW? in v0.28.0. With character in the rail there is one row, no spanning item, and nothing whose content can size a track.
+
+The grouping is also more honest: character and ship are what you brought, and the WORLD/TRADE/JOBS/NPCS tabs beneath them are where you are.
+
+**Dead layout rules are gone.** The superseded `.stage` placements — two `grid-row: 1 / 3` rules, the `grid-column: 1 / 3` strip placements and the `order` declarations — are deleted, along with all nine `.center-stack` rules for a wrapper removed in v0.27.0. Among them were `.center-stack .context-scroll { max-height: min(42vh, 480px) }` and the `context-focused` canvas clamp, both of which could still have won a specificity contest against current rules. A test now asserts `grid-row: 1 / 3` appears nowhere in the stylesheet.
+
+No Classic Traveller rules and no persistent document schemas change.
+
+## v0.29.0 an explicit height chain
+
+v0.28.0 fixed the wrong half of the problem. Capping `.procedure-section` by flex made WHAT NOW? collapse to a sliver, because flex shrink is weighted by content basis and the log's basis is enormous — the two sections could not share the rail fairly on `flex: 1 1 auto` alone. And the bottom of the UI still fell off, because the chain from `100vh` down to the map depended on rules accumulated across five layout eras, each of which had to cooperate.
+
+**The terminal now owns the viewport height directly.** It is a three-row grid — masthead, chargen utility nav, stage — with `minmax(0, 1fr)` on the stage row, `box-sizing: border-box`, and `overflow: hidden`. Every child is placed by an explicit `grid-row`, so nothing auto-places into an implicit fourth row and grows the page.
+
+**Every level below it states its own constraint.** `.stage > *` gets `min-height: 0`; the three columns get `height: 100%; max-height: 100%; overflow: hidden`; the canvas, the subsector section and the map each get an explicit floor of zero. None of this relies on an earlier rule still applying.
+
+**WHAT NOW? gets a definite share.** It is capped at `44vh` — a viewport unit, not a percentage of a parent whose height derives from its own content, which is the circularity that broke v0.28.0 — with `flex: 0 1 auto`. The log takes `flex: 1 1 0%` with a 120px floor, so it absorbs the remainder without crowding out the procedure cards. SHIP STATUS is capped the same way at `34vh`.
+
+Below 1300px the terminal reverts to a flex column and every cap is released, so the page scrolls normally on narrow screens.
+
+No Classic Traveller rules and no persistent document schemas change.
+
+## v0.28.0 the bottom of the UI, and a reworked character strip
+
+**The stage no longer overflows the viewport.** `.command-rail` spans `grid-row: 1 / 3` while row 1 is `auto`, so the rail's min-content height — every WHAT NOW? card plus the log — grew row 1 past the character strip and pushed the grid beyond `100vh`, cutting off the bottom at any window size. `.procedure-section` made it unrecoverable: its `max-height: 58%` was a percentage of a parent whose height derived from that same content, so it never resolved to a cap. WHAT NOW? and the log now share the rail by `flex: 1 1 auto` with `min-height: 0`, and the rail is explicitly `min-height: 0; overflow: hidden`.
+
+**The character strip is down to what changes.** `SCOUTS` and `AGE 38` are gone from the row and now live in the UPP's title text, together with a note that the UPP is the profile as originally generated — it does not track wounds, and players who never learn to read it lose nothing. The `ROLL` and `SKILLS` labels are gone; the chips are self-evident. The UPP is larger and bold, since it is the string most often consulted.
+
+**Wounds are visible in three places at once.** STR, DEX and END chips already carried current values; a wounded chip now reads `END 3/5` with the amber attention fill, so the loss is legible without arithmetic. The status word takes the same amber for `WOUNDED` and the failure red for `UNCONSCIOUS` and `DEAD`, and stays plain for `READY` so the colour keeps its meaning.
+
+**Posture is a second, read-only field.** Health and posture are separate axes — a character can be wounded and evading at once — so posture gets its own slot, shown only while an encounter is active at the current system. It surfaces `EVADING`, which `personal-combat.js` has always tracked and applied (Book 1 p.32: −1 at close or short range, −2 beyond), and the melee `BLOWS` count, which is capped against endurance. Neither was previously visible anywhere in the UI. It displays state and does not declare it; declaring evasion stays in the combat actions.
+
+**The campaign date is back.** It was lost when v0.24.0 deleted the CURRENT LOCATION header cell, leaving the day visible only on log entries after the fact. It now leads the CURRENT PORT meta line, followed by the days remaining to the nearest active contract deadline when there is one — the figure you would otherwise compute by hand before deciding to skim a gas giant or take a job.
+
+No Classic Traveller rules and no persistent document schemas change.
+
+## v0.27.0 correct rail placement, no .center-stack, SHIP STATUS on top
+
+v0.26.0's layout failed for one reason: `.context-panel` is the class on the five panels *inside* the rail — PORT SERVICES, COMMERCE, CONTRACT BOARD, SITUATION, ROSTER — while the rail itself is `<aside id="context-panel" class="context">`. The v0.25.0 rule `.context-panel, .command-rail, .scene { height: 100%; overflow: hidden }` therefore gave every inner panel full height inside a column that had none, and gave the column nothing. The panels self-clipped, SHIP STATUS became unreachable, and the rail — never placed by `.stage > .context-panel`, which matched nothing — auto-flowed into row 1 on top of the character strip.
+
+Placement is by id from here on: `.stage > #context-panel`, `.stage > .scene`, `.stage > .command-rail`, `.stage > .campaign-header-strip`. A companion rule resets `.context-panel` to `height: auto; overflow: visible`, so the inner panels size to their content and the rail is the only scroller.
+
+**`.center-stack` is gone.** The wrapper was a pre-v0.20 leftover that forced `display: contents` and carried two rules that were quietly capping the rail: `.center-stack .context-scroll { max-height: min(42vh, 480px) }` and a `context-focused` clamp on the canvas. Scene, context rail, and chargen tables are now direct grid children of `.stage`, so placement no longer has to survive a `display: contents` hop.
+
+**SHIP STATUS moved to the top of the rail**, above the WORLD/TRADE/JOBS/NPCS tabs, where it is persistent rather than scrolling away beneath whichever tab is open. It carries more than the scene strip did — `JUMP NEED` against the selected destination with any shortage, the cargo and passenger manifests line by line, and active jobs with their routes, each row clicking through to the relevant tab. It is capped at 40% of the rail with its own scroller so a long manifest cannot crowd out the tabs.
+
+The scene strip's SHIP cell is reduced to the ship name and type as the link into the register, since its summary numbers were a thinner copy of what SHIP STATUS now shows permanently. The selected context tab gets the `--tab-selected` fill, scoped under `#context-panel` so it outranks the older rule at equal specificity, and the ship link drops its link colour to match the port name beside it.
+
+No Classic Traveller rules and no persistent document schemas change.
+
+## v0.26.0 one-row character strip, masthead-level dock, and a bounded log
+
+**The character is one row.** The three-row identity strip is replaced by a single flex row: `CHARACTER`, the name, the UPP/career/age/status/credits line, the six characteristics, the quick skill slots, and `[ ALL SKILLS ]`. Nothing is removed — the previous layout stacked three rows that each used well under half the available width, so at full width it all fits on one line and wraps only when the window narrows. Two rows recovered.
+
+**WHAT NOW? starts level with the masthead.** The character strip moved inside the stage and spans the left and centre columns only; the command rail spans both grid rows in column three. So the dock begins where the masthead ends, beside `[ NEW CHARACTER ]` and `[ HIDE LOG ]`, instead of below the character block.
+
+**Selected tabs carry a colour.** `--tab-selected` gives the active scene tab and context tab a green-grey fill and a matching underline, rather than distinguishing them from the rest by lightness alone. The COMBAT tab keeps its amber attention fill, which now overrides the selected colour when an encounter is live.
+
+**The current port is highlighted.** The port name in the status strip gets the same fill and a border, so the world you are standing in reads before the destination you have not chosen yet.
+
+**The log is bounded again.** v0.25.0's viewport-height stage was defeated by an earlier rule — `.command-rail .activity-panel` carried a fixed `height: min(520px, calc(100vh - 260px))` with `min-height: 300px`, which outranked the flex sizing and let the rail exceed the viewport, so the page grew and the bottom of the UI became unreachable. The panel is now `height: auto; max-height: none` and flexes, `html, body` are pinned to `100%` with overflow hidden, and `.activity-feed` is the single scroller inside the log. WHAT NOW? is capped at 58% of the rail so the log always keeps a share.
+
+Below 1300px all of this reverts to a single stacked column that scrolls normally. No Classic Traveller rules and no persistent document schemas change.
+
+## v0.25.0 tabbed centre scene and a viewport-height stage
+
+The centre column is no longer a permanent map. It is a scene with three tabs — CHARACTER, SYSTEM, COMBAT — and the map is one scene among them rather than the default that everything else opens over.
+
+CHARACTER holds the character sheet, which had been a `sheet-view` absolutely positioned inside `.canvas` and therefore confined to the map's box. It now gets the full centre column, so the v0.20.1 compaction that was fighting a 560px container is no longer load-bearing. COMBAT holds the encounter record and is disabled unless an encounter is active at the current system; starting or ending one switches to and from it automatically, replacing the `encounter-workspace-active` class that used to hide the map in place.
+
+SYSTEM holds the map, and the `SCENE / SUBSECTOR NAVIGATION` label row is gone — the map identifies itself. Zoom, subsector name, and jump rating moved onto a thin tool row above the map; the legend moved beneath it. In their place is a three-cell status strip: CURRENT PORT, SELECTED DESTINATION (with the jump actions and `[ DETAILS ]`), and SHIP. The ship name opens the register, as it did before v0.24.0 removed the header cell.
+
+The stage is now `100vh` with three full-height columns. The WORLD/TRADE/JOBS/NPCS rail and the WHAT NOW?/LOG dock reach the bottom of the viewport and scroll internally, so the map no longer dictates page height and WHAT NOW? sits directly under the header. Below 1300px the stage falls back to a single stacked column that scrolls normally.
+
+Ship, campaign, and threads remain documents that open over the scene. The ship register gains a `[ SHIP REGISTER ]` entry in the Campaign menu alongside the existing campaign and threads entries, so all three are reachable without a header cell.
+
+COMBAT currently shows the existing encounter record. The combat scene proper — range bands, per-pair range, the DM panel, and wounds applied at round end — is deliberately left to its own milestone. No Classic Traveller rules and no persistent document schemas change.
+
+## v0.24.0 one scroller, a character-only header, and trade actions in their cards
+
+Three changes prompted by the v0.23.0 screenshot.
+
+**One scroller per column.** `.operations-panel-record` was `flex: 1 1 auto; overflow-y: auto` inside a fixed-height section, giving the context column a scroller inside a scroller. The box records needed it because they were unboundedly tall; the structured panels are not, so the record now sizes to its content and the column scrolls once. SHIP STATUS is reachable again without scrolling past PORT SERVICES.
+
+**The header keeps only the character.** With the WORLD panel structured, Orison's name, hex, UWP, and bases appeared in the header cell, the scene footer, and the WORLD panel; fuel, hold, and the account appeared in both the header cell and WORLD. The CURRENT LOCATION and SHIP cells are removed. The scene footer keeps CURRENT PORT because it is paired with SELECTED DESTINATION and the jump action, and the WORLD panel keeps the fuller record because it sits with the actions that change it. The identity strip is now a single full-width cell: name, UPP/career/age/status/credits, the six characteristics, and the quick skill slots.
+
+The header task button is removed with them. It had grown to a full sentence — a thread title, its objective, and a job count — and was duplicating the WHAT NOW? dock. The active thread objective is now a `THREAD` card in OPPORTUNITIES that opens the thread record, so nothing is lost and the copy sits where procedure copy belongs.
+
+**TRADE actions move into their cards.** Freight lots carry `[ ACCEPT ]`, the weekly speculative lot carries a single `[ BUY nt / Cr… ]` sized to whichever is smaller, the free hold or the operating account, with the binding constraint named beneath it. Resale lots carry `[ SELL ]` and `[ DECLINE ]`. Passenger booking keeps the action bar because high/middle/low are route actions rather than per-card ones, and the broker DM control stays there with them.
+
+`[ DECLINE ]` closes the gap the September facsimile audit recorded: `payDeclinedBrokerFee()` existed in the rules package but the client never called it. Declining a quote after engaging a broker now charges the commission to the ship ledger as Book 2 p.48 requires, and declining with no broker engaged charges nothing.
+
+No Classic Traveller rules and no persistent document schemas change; the broker fee was already implemented and tested in the rules package.
+
+## v0.23.0 structured WORLD, TRADE, and JOBS panels
+
+v0.23.0 retires the fixed-width `box()` records from the context column. At 390px those 96- and 106-character boxes were wrapped by `overflow-wrap: anywhere`, breaking the rules and gutters across lines and mangling the panels a player reads most during a port call.
+
+`ui-model.js` gains `panelRow()`, `panelCard()`, `buildPortServicesPanel()`, and `buildContractBoardPanel()`, which return plain view models rather than text; `app.js` renders them through one `renderPanelModel()`. Values right-align on a `minmax(7ch, 11ch)` label column so figures scan vertically, and attention state is a badge on the value rather than a highlighted whole line. TRADE builds its model where its data already lives, in `renderCommerce()`.
+
+JOBS offers are now cards carrying their own `[ ACCEPT ]`. A blocked offer stays visible as `[ BLOCKED ]` with its reason in place — an active exclusive charter, a manifest that must be empty (Book 2 p.9), or insufficient free hold — instead of a disabled entry in an action bar detached from the offer it belongs to. The map-selection disclaimer survives as a group note.
+
+`box()` is unchanged and still used for the chargen sheet, system record, situation record, encounter record, and jump plan, where the width is available and the boxed form reads correctly. The Book 2 fuel, berthing, cargo-before-passengers, and broker rules are untouched; no rules and no persistent document schemas change.
+
+Tests: `test/client-model.test.mjs` ports the port-services and job-board assertions onto the panel models, and `test/static-client.test.mjs` pins the renderer, the retained `box()` callers, and the terminal styling constraint.
+
 ## v0.22.0 two-row campaign header and quick skill slots
 
 v0.22.0 recovers two vertical rows above the stage without removing information. The masthead is now a single row: the campaign name sits immediately after `[ CAMPAIGN v ]`, followed by the autosave indicator and the transient status line, with `[ NEW CHARACTER ]` and `[ HIDE LOG ]` pushed right. The separate campaign-identity/status sub-row is gone, and so is the full-width roll bar beneath the identity strip.

@@ -1147,8 +1147,6 @@ input[readonly] {
   padding-bottom: 5px;
 }
 .activity-header-actions { display: inline-flex; align-items: center; gap: 5px; }
-.activity-filter-label { display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid var(--disabled); color: var(--muted); font-size: 10px; }
-.activity-filter-label select { min-width: 0; flex: 1 1 auto; font-size: 10px; }
 .activity-note-dialog { width: min(520px, calc(100vw - 24px)); }
 .activity-note-dialog label { display: grid; gap: 4px; }
 .activity-note-dialog textarea { resize: vertical; }
@@ -1158,13 +1156,6 @@ input[readonly] {
   font: inherit;
   font-weight: 700;
   letter-spacing: 0.04em;
-}
-
-.activity-context {
-  color: var(--muted);
-  font-size: 12px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--disabled);
 }
 
 .activity-feed {
@@ -1797,14 +1788,6 @@ input[readonly] {
   text-decoration: none;
 }
 
-.campaign-play #subsector-section,
-.campaign-play #personnel-section,
-.campaign-play #ship-section,
-.campaign-play #campaign-section,
-.campaign-play #thread-section {
-  margin-top: 12px;
-}
-
 .system-record-section {
   margin-top: 8px;
   padding-top: 6px;
@@ -2117,11 +2100,6 @@ input[readonly] {
 .autosave-status { color: var(--muted); font-size: 10px; white-space: nowrap; }
 
 .stage { grid-template-columns: 300px minmax(520px, 1fr) 300px; gap: 0 14px; }
-.center-stack { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
-.center-stack .context { margin: 0; }
-.center-stack .context-scroll { max-height: min(42vh, 480px); }
-.center-stack.context-focused .scene .canvas { min-height: 260px; max-height: 260px; overflow: hidden; }
-.center-stack.context-focused .context-scroll { max-height: none; }
 .context-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)) auto; }
 .context-focus-toggle { padding: 6px 9px; border-left: 1px solid var(--rule); white-space: nowrap; font-size: 10px; }
 
@@ -2135,21 +2113,9 @@ input[readonly] {
   max-height: none;
   margin: 0;
 }
-.activity-controls { border-bottom: 1px solid var(--disabled); padding: 3px 0 5px; }
-.activity-filter-label, .activity-order-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--muted);
-  font-size: 10px;
-}
-.activity-filter-label { border-bottom: 0; padding: 2px 0; }
-.activity-order-label { padding: 2px 0; }
-.activity-filter-label select, .activity-order-label select { min-width: 0; flex: 1 1 auto; font-size: 10px; }
 
 .activity-log-hidden .stage { grid-template-columns: 300px minmax(520px, 1fr); }
 .chargen-mode .context { display: none; }
-.chargen-mode .center-stack { display: block; }
 
 @media (max-width: 1299px) {
   .stage, .activity-log-hidden .stage { grid-template-columns: 280px minmax(0, 1fr); }
@@ -2158,7 +2124,6 @@ input[readonly] {
 
 @media (max-width: 860px) {
   .stage, .activity-log-hidden .stage { grid-template-columns: 1fr; }
-  .center-stack, .activity-panel { grid-column: 1; }
   .activity-panel { height: 360px; }
   .campaign-menu-popover { left: 0; right: auto; }
   .context-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -2174,7 +2139,6 @@ input[readonly] {
   gap: 0 14px;
 }
 
-.center-stack { display: contents; }
 .scene { grid-column: 2; grid-row: 1; min-width: 0; }
 .context,
 #chargen-tables-section { grid-column: 1; grid-row: 1; min-width: 0; margin: 0; }
@@ -2207,7 +2171,6 @@ input[readonly] {
 .scene-route-summary { border-top: 0; border-bottom: 1px solid var(--rule); }
 .scene-route-summary + .canvas { border-top: 0; }
 
-.chargen-mode .center-stack { display: contents; }
 .chargen-mode #chargen-tables-section { display: block; }
 
 @media (max-width: 1299px) {
@@ -2422,3 +2385,487 @@ input[readonly] {
   .identity-skillrow .header-task { margin-left: 0; }
   .quick-slot-choices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* =========================================================================
+   v0.23.0: structured WORLD / TRADE / JOBS panels. Label-value rows and
+   offer cards replace the fixed-width box() records in the context column.
+   ========================================================================= */
+.panel-group + .panel-group { margin-top: 11px; }
+.panel-group-label { display: flex; align-items: center; gap: 8px; font-size: 10px; font-weight: 700; letter-spacing: .08em; color: var(--muted); margin-bottom: 4px; }
+.panel-group-label::after { content: ""; flex: 1; border-top: 1px solid var(--disabled); }
+.panel-group-collapsible > summary { font-size: 10px; letter-spacing: .08em; color: var(--muted); cursor: pointer; padding: 2px 0; }
+.panel-group-collapsible[open] > summary { margin-bottom: 3px; }
+
+.panel-row { display: grid; grid-template-columns: minmax(7ch, 11ch) minmax(0, 1fr); gap: 0 8px; padding: 2px 0; border-top: 1px dotted var(--disabled); }
+.panel-group-body > .panel-row:first-child { border-top: 0; }
+.panel-row-label { font-size: 11px; letter-spacing: .04em; color: var(--muted); }
+.panel-row-value { text-align: right; overflow-wrap: anywhere; }
+.panel-row.attention .panel-row-value { background: var(--attention); border: 1px solid var(--attention-border); padding: 0 4px; font-weight: 700; }
+.panel-row.ok .panel-row-value { color: var(--ok); }
+
+.panel-card { border: 1px solid var(--rule); background: var(--help-paper); padding: 6px 8px; margin-top: 6px; }
+.panel-card.attention { background: var(--attention); border-color: var(--attention-border); }
+.panel-card .panel-row { border-top-color: var(--disabled); }
+.panel-card .panel-row:first-of-type { border-top: 0; }
+.panel-card-title { font-size: 12px; font-weight: 700; letter-spacing: .03em; }
+.panel-card-meta { font-size: 11px; color: var(--muted); margin-top: 1px; margin-bottom: 3px; }
+.panel-card-note { font-size: 11px; color: var(--muted); margin-top: 4px; border-top: 1px dotted var(--disabled); padding-top: 3px; }
+.panel-card-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 5px; }
+.panel-card-action { font-size: 11px; padding: 2px 9px; }
+.panel-card-action:disabled { background: transparent; border-color: var(--disabled); color: var(--muted); font-weight: 400; }
+
+.operations-panel-record:empty { display: none; }
+.panel-group-note { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+
+/* =========================================================================
+   v0.24.0: one scroller per column, character-only header.
+   ========================================================================= */
+.context-scroll .operations-panel-record {
+  flex: 0 0 auto;
+  overflow-y: visible;
+  overflow-x: visible;
+  padding-right: 0;
+  scrollbar-gutter: auto;
+}
+.context-scroll .context-panel { display: block; height: auto; max-height: none; }
+.context-scroll .context-panel[hidden] { display: none; }
+.identity-strip:has(> .identity-cell-wide:only-child) { grid-template-columns: minmax(0, 1fr); }
+.identity-cell-wide { border-right: 0; }
+.panel-card-action-secondary { background: transparent; border: 1px solid var(--disabled); color: var(--muted); font-weight: 400; }
+
+/* =========================================================================
+   v0.25.0: viewport-height stage, tabbed centre scene (CHARACTER / SYSTEM /
+   COMBAT), and a three-cell status strip replacing the scene label row.
+   ========================================================================= */
+.terminal { height: 100vh; overflow: hidden; padding-bottom: 0; }
+.stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 390px minmax(0, 1fr) 340px;
+  gap: 0;
+  align-items: stretch;
+}
+.stage > .command-rail { order: 3; }
+
+.context-panel, .command-rail, .scene {
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#context-panel { border-right: 1px solid var(--rule); }
+.command-rail { border-left: 1px solid var(--rule); gap: 0; }
+.context-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+.command-rail > .activity-panel { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.command-rail > .activity-panel .activity-feed { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+
+.scene-tabs { display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid var(--rule); flex: 0 0 auto; }
+.scene-tab {
+  background: var(--tab-rest); border: 0; border-right: 1px solid var(--disabled);
+  padding: 7px 2px; font: inherit; font-size: 12px; font-weight: 700;
+  letter-spacing: .06em; color: var(--muted); text-align: center;
+}
+.scene-tab:last-child { border-right: 0; }
+.scene-tab.is-active { background: var(--paper); color: var(--ink); border-bottom: 2px solid var(--rule); margin-bottom: -1px; }
+.scene-tab.attention { background: var(--attention); color: var(--ink); }
+
+.scene-status-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-bottom: 1px solid var(--rule); flex: 0 0 auto; }
+.scene-status-cell { padding: 7px 12px; border-right: 1px solid var(--disabled); min-width: 0; }
+.scene-status-cell:last-child { border-right: 0; }
+.scene-status-name { font-size: 14px; font-weight: 700; margin-top: 1px; }
+.scene-status-meta { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.scene-status-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 3px; }
+.scene-ship-link { font: inherit; font-size: 14px; font-weight: 700; padding: 0; }
+
+.canvas { flex: 1 1 auto; min-height: 0; position: relative; padding: 0; }
+.scene-view { height: 100%; min-height: 0; overflow-y: auto; padding: 10px 12px; }
+#subsector-section { height: 100%; min-height: 0; display: flex; flex-direction: column; }
+#subsector-section .subsector-map { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.subsector-map-tools {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 5px 12px; border-bottom: 1px dotted var(--disabled); font-size: 12px; flex: 0 0 auto;
+}
+.subsector-map-tools .map-zoom-button { font-size: 12px; }
+.subsector-map-tools #map-zoom-label { font-weight: 700; }
+.subsector-map-tools #map-zoom-out { margin-left: auto; }
+#subsector-legend { padding: 4px 12px; border-top: 1px dotted var(--disabled); font-size: 11px; color: var(--muted); flex: 0 0 auto; }
+
+.sheet-overlay { position: absolute; inset: 0; z-index: 4; background: var(--paper); overflow-y: auto; padding: 10px 12px; }
+
+@media (max-width: 1299px) {
+  .terminal { height: auto; overflow: visible; }
+  .stage { grid-template-columns: 1fr; }
+  .context-panel, .command-rail, .scene { height: auto; overflow: visible; }
+}
+.scenebar, .scenebar-main, .scenebar-tools, .scene-footer, .scene-footer-cell,
+.scene-footer-name, .scene-footer-meta, .scene-footer-actions, .scene-route-summary,
+#subsector-section.encounter-workspace-active .subsector-map { display: revert; }
+#selected-system-summary { display: none; }
+
+/* =========================================================================
+   v0.26.0: one-row character strip, right dock aligned to the masthead,
+   selected-tab highlight, highlighted current port, bounded log.
+   ========================================================================= */
+:root { --tab-selected: #c3d4c3; --tab-selected-border: #6f866f; }
+
+/* --- Full-height chain. Fixed panel heights from earlier eras must not win. */
+html, body { height: 100%; min-height: 0; overflow: hidden; }
+.terminal { box-sizing: border-box; height: 100vh; max-height: 100vh; overflow: hidden; padding: 8px 0 0; }
+.command-rail .activity-panel,
+.command-rail > .activity-panel {
+  height: auto;
+  max-height: none;
+  min-height: 0;
+  flex: 1 1 auto;
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.command-rail { max-height: none; }
+.command-rail > .activity-panel .activity-feed { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+
+/* --- Character on one row, and the dock starts level with the masthead. */
+.stage {
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-columns: 390px minmax(0, 1fr) 340px;
+}
+.stage > .scene, .stage .scene { grid-row: 2; grid-column: 2; }
+
+.campaign-header-strip {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 5px 14px;
+  padding: 6px 12px; border-bottom: 1px solid var(--rule); min-width: 0;
+}
+.campaign-header-strip .identity-rollrow { margin-top: 0; gap: 6px; }
+.campaign-header-strip .identity-headline { gap: 4px 10px; }
+.campaign-header-strip .campaign-header-meta { font-size: 12px; }
+.campaign-header-strip .header-all-skills { font-size: 11px; }
+
+/* --- Selected tabs carry a colour, not just a lighter grey. */
+.scene-tab.is-active,
+.context-tab[aria-selected="true"], .context-tab.is-active {
+  background: var(--tab-selected);
+  color: var(--ink);
+  border-bottom: 2px solid var(--tab-selected-border);
+}
+.scene-tab.attention { background: var(--attention); border-bottom-color: var(--attention-border); }
+
+/* --- The port you are standing in should read first. */
+#footer-current-name {
+  background: var(--tab-selected);
+  border: 1px solid var(--tab-selected-border);
+  padding: 0 6px;
+  display: inline-block;
+}
+
+@media (max-width: 1299px) {
+  html, body { height: auto; overflow: visible; }
+  .terminal { height: auto; max-height: none; overflow: visible; }
+  .stage { grid-template-rows: none; grid-template-columns: 1fr; }
+  .stage > #context-panel,
+  .stage > .scene, .stage .scene, .stage > .command-rail { grid-row: auto; grid-column: auto; }
+}
+
+/* =========================================================================
+   v0.27.0: correct the rail selector, drop the .center-stack wrapper, and
+   put SHIP STATUS at the top of the context rail.
+
+   v0.25.0-v0.26.0 styled `.context-panel`, which is the class on the five
+   panels INSIDE the rail, not the rail itself (`#context-panel.context`).
+   That gave each panel height:100% inside an unsized column instead of
+   sizing the column, so the panels self-clipped and SHIP STATUS was
+   unreachable. Placement is by id from here on.
+   ========================================================================= */
+.stage {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-columns: 390px minmax(0, 1fr) 340px;
+}
+.stage > #context-panel { grid-row: 2; grid-column: 1; }
+.stage > .scene { grid-row: 2; grid-column: 2; }
+
+#context-panel, .command-rail, .stage > .scene {
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin: 0;
+}
+#context-panel { border-right: 1px solid var(--rule); }
+
+/* Undo the v0.25.0 rule that hit the inner panels by mistake. */
+.context-panel { height: auto; overflow: visible; display: block; }
+.context-panel[hidden] { display: none; }
+#context-panel .context-scroll { flex: 1 1 auto; min-height: 0; max-height: none; overflow-y: auto; overflow-x: hidden; }
+#context-panel .context-tabs, #context-panel .context-takeover, #context-panel .live-ship-panel { flex: 0 0 auto; }
+
+/* SHIP STATUS is persistent above the tabs, not a panel that scrolls away. */
+#context-panel .live-ship-panel {
+  border-bottom: 1px solid var(--rule);
+  margin: 0;
+  padding: 7px 10px;
+  max-height: 40%;
+  overflow-y: auto;
+}
+
+/* The selected context tab reads as selected, not merely lighter. */
+#context-panel .context-tab[aria-selected="true"] {
+  background: var(--tab-selected);
+  color: var(--ink);
+  border-bottom: 2px solid var(--tab-selected-border);
+}
+.scene-ship-link { color: var(--ink); text-decoration: none; }
+.scene-ship-link:hover { text-decoration: underline; }
+
+@media (max-width: 1299px) {
+  .stage { grid-template-rows: none; grid-template-columns: 1fr; }
+  .stage > #context-panel,
+  .stage > .scene, .stage > .command-rail { grid-row: auto; grid-column: auto; }
+  #context-panel, .command-rail, .stage > .scene { height: auto; overflow: visible; }
+  #context-panel .live-ship-panel { max-height: none; }
+}
+.stage > #chargen-tables-section { grid-row: 2; grid-column: 1; min-height: 0; height: 100%; overflow-y: auto; border-right: 1px solid var(--rule); }
+.stage > #chargen-tables-section[hidden] { display: none; }
+@media (max-width: 1299px) {
+  .stage > #chargen-tables-section { grid-row: auto; grid-column: auto; height: auto; overflow: visible; }
+}
+
+/* =========================================================================
+   v0.28.0: stop the command rail forcing the auto row taller than the
+   viewport, and rework the character strip.
+
+   .command-rail spans grid-row 1/3 while row 1 is auto, so its min-content
+   height (procedure cards plus log) grew row 1 past the character strip and
+   pushed the grid beyond 100vh. .procedure-section's max-height: 58% was a
+   percentage of a parent whose own height derived from that content, so it
+   never resolved. Both sections now share the rail by flex instead.
+   ========================================================================= */
+.stage { margin-top: 0; overflow: hidden; align-items: stretch; }
+.stage > .command-rail { min-height: 0; height: 100%; overflow: hidden; }
+.command-rail > * { min-height: 0; }
+.command-rail > .activity-panel {
+  flex: 1 1 auto; min-height: 0; max-height: none; height: auto; overflow: hidden;
+}
+
+/* --- Character strip: the UPP leads, labels are gone, wounds are visible. */
+.header-upp {
+  font-size: 16px; font-weight: 700; letter-spacing: .06em;
+  border-bottom: 1px dotted var(--disabled); cursor: help;
+}
+.header-status { font-size: 12px; letter-spacing: .06em; font-weight: 700; color: var(--muted); }
+.header-status.wounded { background: var(--attention); border: 1px solid var(--attention-border); padding: 0 6px; color: var(--ink); }
+.header-status.critical { background: var(--failure-bg); border: 1px solid var(--failure-border); padding: 0 6px; color: var(--ink); }
+.header-posture { font-size: 12px; letter-spacing: .06em; font-weight: 700; background: var(--tab-selected); border: 1px solid var(--tab-selected-border); padding: 0 6px; }
+.header-posture[hidden] { display: none; }
+.header-credits { font-size: 13px; }
+.header-roll-button.injured { background: var(--attention); border-color: var(--attention-border); font-weight: 700; }
+
+/* =========================================================================
+   v0.29.0: make the height chain explicit rather than inherited.
+
+   v0.28.0 gave WHAT NOW? and the log `flex: 1 1 auto` each. Flex shrink is
+   weighted by basis, and the log's content basis is enormous, so WHAT NOW?
+   was squeezed to a sliver. WHAT NOW? now takes a definite vh cap (no
+   percentage of a parent whose height derives from content) and the log
+   takes whatever remains.
+   ========================================================================= */
+.terminal {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+  padding: 8px 0 0;
+}
+.terminal > * { grid-column: 1; }
+.terminal > .masthead { grid-row: 1; }
+.terminal > .character-utility { grid-row: 2; }
+.terminal > .stage { grid-row: 3; min-height: 0; height: 100%; overflow: hidden; }
+.terminal > dialog, .terminal > input, .terminal > #context-help { grid-row: 3; }
+
+.stage > * { min-height: 0; }
+#context-panel, .command-rail, .stage > .scene, .stage > #chargen-tables-section {
+  min-height: 0; height: 100%; max-height: 100%; overflow: hidden;
+}
+
+.command-rail > .activity-panel {
+  flex: 1 1 0%;
+  min-height: 120px;
+  max-height: none;
+  height: auto;
+  overflow: hidden;
+}
+
+/* Nothing inside the scene may impose an intrinsic floor on the column. */
+.stage > .scene > .canvas { flex: 1 1 auto; min-height: 0; max-height: 100%; overflow: hidden; }
+.stage > .scene #subsector-section { height: 100%; max-height: 100%; min-height: 0; }
+.stage > .scene .subsector-map { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.stage > .scene .scene-view { max-height: 100%; }
+#context-panel .live-ship-panel { max-height: 34vh; }
+
+@media (max-width: 1299px) {
+  .terminal { display: flex; flex-direction: column; height: auto; max-height: none; overflow: visible; }
+  .terminal > .stage { height: auto; overflow: visible; }
+  #context-panel, .command-rail, .stage > .scene, .stage > #chargen-tables-section {
+    height: auto; max-height: none; overflow: visible;
+  }
+  #context-panel .live-ship-panel { max-height: none; }
+  .stage > .scene > .canvas { max-height: none; overflow: visible; }
+}
+
+/* =========================================================================
+   v0.30.0: character moves into the context rail above SHIP STATUS, so the
+   stage becomes a single row of three columns.
+
+   The two-row stage existed only to carry a full-width character strip, and
+   the command rail had to span both rows to sit level with the masthead.
+   That spanning fed the rail's content back into sizing the auto row, which
+   is what repeatedly pushed the grid past 100vh. One row removes the class
+   of bug entirely: no spanning item, no content-sized row.
+   ========================================================================= */
+.stage {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: 440px minmax(0, 1fr) 340px;
+  align-items: stretch;
+  margin-top: 0;
+  overflow: hidden;
+}
+.stage > #context-panel { grid-row: 1; grid-column: 1; }
+.stage > #chargen-tables-section { grid-row: 1; grid-column: 1; }
+.stage > .scene { grid-row: 1; grid-column: 2; }
+.stage > .command-rail { grid-row: 1; grid-column: 3; }
+
+/* The character panel heads the rail; the label is implicit. */
+#context-panel .campaign-header-strip {
+  display: block;
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--rule);
+  padding: 7px 10px;
+  margin: 0;
+}
+.character-identity-line { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+.character-skill-line { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+#context-panel .header-characteristics { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+#context-panel .header-quick-skills { display: flex; flex-wrap: wrap; gap: 5px; margin: 0; }
+#context-panel .campaign-header-name { font-size: 15px; font-weight: 700; padding: 0; }
+#context-panel .header-credits { margin-left: auto; }
+
+/* =========================================================================
+   v0.31.0: pin the terminal to the viewport box instead of deriving it.
+
+   Every version since v0.25.0 computed the available height from 100vh and
+   then hoped each intermediate box cooperated: terminal padding, masthead
+   borders, grid gaps, flex floors. `position: fixed; inset: 0` makes the
+   terminal exactly the viewport by definition, so no arithmetic can drift
+   and no descendant can push the page taller than the screen.
+   ========================================================================= */
+.terminal {
+  position: fixed;
+  inset: 0;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  width: auto;
+  max-width: none;
+  height: auto;
+  max-height: none;
+  margin: 0;
+  padding: 0 14px;
+  overflow: hidden;
+}
+html, body { height: 100%; overflow: hidden; margin: 0; }
+
+/* WHAT NOW? and the log split the rail 40/60, each scrolling internally. */
+.command-rail {
+  display: grid;
+  grid-template-rows: minmax(0, 2fr) minmax(0, 3fr);
+  gap: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+.command-rail > #procedure-section {
+  grid-row: 1;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+}
+.command-rail > .activity-panel {
+  grid-row: 2;
+  min-height: 0;
+  max-height: none;
+  height: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.command-rail > .chargen-record-section { grid-row: 1; }
+
+/* The context rail: character and ship are fixed, the tab body scrolls. */
+#context-panel { display: flex; flex-direction: column; min-height: 0; height: 100%; overflow: hidden; }
+#context-panel .campaign-header-strip,
+#context-panel .live-ship-panel,
+#context-panel .context-tabs,
+#context-panel .context-takeover { flex: 0 0 auto; }
+#context-panel .live-ship-panel { max-height: 30vh; overflow-y: auto; }
+#context-panel .context-scroll { flex: 1 1 auto; min-height: 0; max-height: none; overflow-y: auto; }
+
+.masthead-label { font-size: 10px; letter-spacing: .1em; color: var(--muted); font-weight: 700; }
+.masthead-date { font-size: 12px; font-weight: 700; letter-spacing: .04em; }
+
+@media (max-width: 1299px) {
+  .terminal { position: static; inset: auto; display: flex; flex-direction: column; height: auto; overflow: visible; padding: 8px 14px 24px; }
+  html, body { height: auto; overflow: auto; }
+  .command-rail { display: flex; flex-direction: column; height: auto; overflow: visible; }
+  .command-rail > #procedure-section, .command-rail > .activity-panel { max-height: none; overflow: visible; }
+  #context-panel { height: auto; overflow: visible; }
+  #context-panel .live-ship-panel { max-height: none; }
+}
+
+/* =========================================================================
+   v0.32.0: the centre column's sections carry no top margin.
+
+   Measured, not inferred: .canvas was 708px tall and #subsector-section was
+   708px tall, but #subsector-section began 12px below .canvas's top. The
+   global `section { margin-top: 16px }` (and a `.campaign-play
+   #subsector-section { margin-top: 12px }` from the stacked-page era, now
+   deleted) sat above a `height: 100%` box, so the last 12px of the section
+   — the legend — hung out the bottom of an overflow: hidden parent. The
+   same margin cost the CHARACTER and COMBAT views their last 12–16px.
+
+   Also measured: every rail rule addressing a `.procedure-section` class since
+   v0.25.0 matched nothing — the element is #procedure-section.panel.whatnow
+   and has no such class — so WHAT NOW? never received overflow-y: auto and
+   its cards ran under the LOG. The v0.31.0 rule now targets the id; the
+   five dead predecessors are deleted.
+   ========================================================================= */
+.stage > .scene > .canvas > section { margin-top: 0; }
+
+/* --- Character generation: the context rail yields column 1 to the Book 1
+   tables, and the sheet keeps to column 2 so the command rail stays visible.
+   `.chargen-mode .context { display: none }` lost to v0.31.0's
+   `#context-panel { display: flex }` on specificity; the id form wins. The
+   v0.30.0 two-column span ran the sheet under the rail; deleted. */
+.chargen-mode #context-panel { display: none; }
+.chargen-mode .stage > .scene { grid-column: 2; }
+
+/* --- LOG header on one row: LOG · SHOW · ORDER · [ NOTE ] [ CLEAR ]. The
+   campaign name line is gone (the masthead already carries it). */
+.activity-header { display: flex; align-items: center; gap: 6px; padding-bottom: 5px; border-bottom: 1px solid var(--rule); }
+.activity-header .activity-title { flex: 0 0 auto; margin-right: 2px; }
+.activity-header .activity-filter, .activity-header .activity-order { flex: 1 1 0; min-width: 0; font-size: 10px; padding: 1px 2px; }
+.activity-header .activity-header-actions { flex: 0 0 auto; margin-left: auto; }
+
+/* --- v0.34.0: the rail border belongs to the rail, not to each tab body.
+   `.context-panel { border-right }` (v0.25.0) also matched the five inner
+   tab sections that share the class, drawing a rule flush against every
+   value's right edge. Retargeted to #context-panel above; nothing inside
+   .context-scroll carries a border-right. */
+.context-scroll > .context-panel { border-right: 0; }

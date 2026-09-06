@@ -12,7 +12,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.22.0</div>
+          <div id="app-subtitle" class="subtitle">v0.34.0</div>
         </div>
         <nav class="utility campaign-utility" aria-label="Campaign and view commands">
           <details id="campaign-menu" class="campaign-menu">
@@ -24,11 +24,14 @@
               <button id="import-campaign" class="text-button utility-button" type="button" title="Import a portable campaign JSON file">[ IMPORT CAMPAIGN ]</button>
               <button id="export-campaign" class="text-button utility-button" type="button" title="Export a portable campaign JSON file" disabled>[ EXPORT CAMPAIGN ]</button>
               <button id="add-character-to-campaign" class="text-button utility-button" type="button" title="Add a completed Character Document to the active campaign" hidden>[ ADD CHARACTER ]</button>
+              <button id="open-ship-view" class="text-button utility-button" type="button" title="Ship register" hidden>[ SHIP REGISTER ]</button>
               <button id="open-campaign-view" class="text-button utility-button" type="button" title="Campaign record" hidden>[ CAMPAIGN RECORD ]</button>
               <button id="open-threads-view" class="text-button utility-button" type="button" title="Adventure threads" hidden>[ ADVENTURE THREADS ]</button>
             </div>
           </details>
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
+          <span class="masthead-label">DATE</span>
+          <strong id="masthead-date" class="masthead-date">--</strong>
           <span id="autosave-status" class="autosave-status" aria-live="polite">NO CAMPAIGN</span>
           <div id="system-status" class="status masthead-status" aria-live="polite">READY</div>
           <span class="masthead-spacer"></span>
@@ -38,39 +41,6 @@
       </div>
     </header>
 
-    <section id="campaign-header" class="campaign-header" hidden aria-label="Current campaign character and ship status">
-      <div class="identity-strip">
-        <div class="identity-cell campaign-header-character">
-          <div class="identity-headline">
-            <span class="campaign-header-kicker">CHARACTER</span>
-            <span class="identity-main"><button id="header-character-name" class="campaign-header-name text-button header-character-link" type="button">--</button></span>
-            <span id="header-character-meta" class="campaign-header-meta">--</span>
-          </div>
-          <div class="identity-rollrow">
-            <span class="campaign-header-label">ROLL</span>
-            <div id="header-characteristics" class="header-characteristics" aria-label="Clickable character characteristics"></div>
-          </div>
-          <div class="identity-rollrow identity-skillrow">
-            <span class="campaign-header-label">SKILLS</span>
-            <div id="header-quick-skills" class="header-quick-skills" aria-label="Quick skill slots"></div>
-            <button id="header-all-skills" class="text-button header-all-skills" type="button" title="Choose which skills fill the quick slots">[ ALL SKILLS ]</button>
-            <button id="header-task" class="header-task text-button" type="button" disabled>NONE</button>
-          </div>
-        </div>
-        <div class="identity-cell campaign-header-location">
-          <div class="campaign-header-kicker">CURRENT LOCATION</div>
-          <div id="header-world" class="campaign-header-name identity-main">--</div>
-          <div id="header-date" class="campaign-header-meta">--</div>
-          <div id="header-world-meta" class="campaign-header-meta">--</div>
-        </div>
-        <div class="identity-cell campaign-header-ship">
-          <div class="campaign-header-kicker">SHIP</div>
-          <div class="identity-main"><button id="header-ship-name" class="campaign-header-name text-button header-ship-link" type="button">--</button></div>
-          <div id="header-ship-meta" class="campaign-header-meta">--</div>
-          <div id="header-ship-meta-two" class="campaign-header-meta">--</div>
-        </div>
-      </div>
-    </section>
 
     <nav class="utility character-utility" aria-label="Character file commands">
       <button id="new-character" class="text-button utility-button" type="button">[ NEW CHARACTER ]</button>
@@ -109,278 +79,289 @@
         <aside id="activity-panel" class="activity-panel panel" aria-labelledby="activity-heading">
           <div class="activity-header">
             <h2 id="activity-heading" class="activity-title">LOG</h2>
+            <select id="activity-filter" class="activity-filter" aria-label="Show"><option value="play" selected>PLAY</option><option value="all">ALL</option><option value="character">CHARACTER</option><option value="trade">TRADE + JOBS</option><option value="ship">SHIP + TRAVEL</option><option value="personal-combat">PERSONAL COMBAT</option><option value="space-combat">SPACE COMBAT</option><option value="campaign">CAMPAIGN + NOTES</option><option value="system">SYSTEM</option></select>
+            <select id="activity-order" class="activity-order" aria-label="Order"><option value="newest" selected>NEWEST</option><option value="oldest">OLDEST</option></select>
             <span class="activity-header-actions"><button id="add-activity-note" class="text-button" type="button">[ NOTE ]</button><button id="clear-activity" class="text-button activity-clear" type="button">[ CLEAR ]</button></span>
-          </div>
-          <div id="activity-context" class="activity-context">SESSION</div>
-          <div class="activity-controls">
-            <label class="activity-filter-label">SHOW<select id="activity-filter"><option value="play" selected>PLAY</option><option value="all">ALL</option><option value="character">CHARACTER</option><option value="trade">TRADE + JOBS</option><option value="ship">SHIP + TRAVEL</option><option value="personal-combat">PERSONAL COMBAT</option><option value="space-combat">SPACE COMBAT</option><option value="campaign">CAMPAIGN + NOTES</option><option value="system">SYSTEM</option></select></label>
-            <label class="activity-order-label">ORDER<select id="activity-order"><option value="newest" selected>NEWEST FIRST</option><option value="oldest">OLDEST FIRST</option></select></label>
           </div>
           <div id="activity-feed" class="activity-feed" role="log" aria-live="polite" aria-relevant="additions"></div>
         </aside>
       </aside>
 
-      <div id="center-stack" class="center-stack">
-      <section id="chargen-tables-section" class="panel context-panel" hidden aria-labelledby="chargen-tables-heading">
-        <div class="section-heading">
-          <h2 id="chargen-tables-heading" class="section-title">BOOK 1 TABLES</h2>
+    <section id="chargen-tables-section" class="panel context-panel" hidden aria-labelledby="chargen-tables-heading">
+      <div class="section-heading">
+        <h2 id="chargen-tables-heading" class="section-title">BOOK 1 TABLES</h2>
+      </div>
+      <div id="chargen-tables" class="chargen-tables"></div>
+    </section>
+    <section class="scene" aria-label="Scene">
+      <div class="scene-tabs" role="tablist" aria-label="Scene">
+        <button id="scene-tab-character" class="scene-tab" type="button" role="tab" data-scene-tab="character" aria-selected="false">CHARACTER</button>
+        <button id="scene-tab-system" class="scene-tab is-active" type="button" role="tab" data-scene-tab="system" aria-selected="true">SYSTEM</button>
+        <button id="scene-tab-combat" class="scene-tab" type="button" role="tab" data-scene-tab="combat" aria-selected="false">COMBAT</button>
+      </div>
+      <div id="scene-status-strip" class="scene-status-strip" hidden>
+        <div class="scene-status-cell">
+          <div class="campaign-header-kicker">CURRENT PORT</div>
+          <div id="footer-current-name" class="scene-status-name">--</div>
+          <div id="footer-current-meta" class="scene-status-meta">--</div>
         </div>
-        <div id="chargen-tables" class="chargen-tables"></div>
-      </section>
-      <section class="scene" aria-label="Scene">
-        <div class="scenebar">
-          <div class="scenebar-main">
-            <span class="scenebar-kicker">SCENE</span>
-            <span id="subsector-heading" class="scene-name">SUBSECTOR NAVIGATION</span>
-            <button class="help-button" type="button" data-help-topic="subsector-map" aria-label="Explain subsector navigation">[?]</button>
+        <div class="scene-status-cell">
+          <div class="campaign-header-kicker">SELECTED DESTINATION</div>
+          <div id="selected-system-summary-text" class="scene-status-name">--</div>
+          <div class="scene-status-actions">
+            <div id="jump-actions" class="actions jump-actions"></div>
+            <button id="toggle-system-details" class="text-button" type="button" aria-expanded="false" aria-controls="system-record-section">[ DETAILS ]</button>
           </div>
-          <div class="scenebar-tools">
+        </div>
+        <div class="scene-status-cell">
+          <div class="campaign-header-kicker">SHIP</div>
+          <div class="scene-status-name"><button id="scene-ship-name" class="text-button scene-ship-link" type="button">--</button></div>
+          <div id="scene-ship-meta" class="scene-status-meta">--</div>
+        </div>
+      </div>
+      <div id="selected-system-summary" hidden></div>
+      <div class="canvas">
+        <section id="personnel-section" class="scene-view" aria-labelledby="record-heading">
+    <div class="section-heading">
+      <h2 id="record-heading" class="section-title">PERSONNEL RECORD</h2>
+      <button class="text-button sheet-close" type="button" aria-label="Close and return to the map">[ CLOSE ]</button>
+      <button id="record-help" class="help-button" type="button" data-help-topic="personnel-record" aria-label="Explain the personnel record">[?]</button>
+    </div>
+    <div id="legacy-personnel-fields">
+    <div class="name-line">
+      <label for="character-name">NAME</label>
+      <span class="field-with-tool">
+        <input id="character-name" type="text" maxlength="80" autocomplete="off" spellcheck="false">
+        <button id="random-character-name" class="text-button field-tool" type="button">[ RANDOM ]</button>
+      </span>
+    </div>
+    <pre id="character-record" class="record" aria-live="polite"></pre>
+    </div>
+    <article id="character-sheet" class="traveller-character-sheet" hidden aria-label="Playable Traveller character sheet">
+      <header class="sheet-banner">
+        <div><span class="sheet-number">PERSONAL DATA AND HISTORY</span><strong id="sheet-name">--</strong></div>
+        <div><span>DATE OF RECORD</span><strong id="sheet-date">--</strong></div>
+      </header>
+      <div class="sheet-identity-grid">
+        <div><span>UPP</span><strong id="sheet-upp">------</strong></div>
+        <div><span>MILITARY RANK</span><strong id="sheet-rank">--</strong></div>
+        <div><span>AGE</span><strong id="sheet-age">--</strong></div>
+        <div><span>CURRENT WORLD</span><strong id="sheet-world">--</strong></div>
+      </div>
+      <section class="sheet-block sheet-characteristics-block">
+        <h3>CHARACTERISTICS</h3>
+        <div id="sheet-characteristics" class="sheet-characteristics" aria-label="Clickable original and current characteristics"></div>
+        <div id="sheet-health-status" class="sheet-health-status">STATUS --</div>
+      </section>
+      <div class="sheet-two-column">
+        <section class="sheet-block sheet-service-block">
+          <h3>SERVICE HISTORY</h3>
+          <dl id="sheet-service" class="sheet-data-list"></dl>
+        </section>
+        <section class="sheet-block sheet-equipment-block">
+          <h3>EQUIPMENT AND COMBAT</h3>
+          <div class="sheet-loadout-grid">
+            <label>READY WEAPON<select id="sheet-weapon"></select></label>
+            <label>WORN ARMOR<select id="sheet-armor"></select></label>
+          </div>
+          <div id="sheet-equipment" class="sheet-list"></div>
+        </section>
+      </div>
+      <section class="sheet-block sheet-skills-block">
+        <h3>SKILLS</h3>
+        <div id="sheet-skills" class="sheet-skills"></div>
+      </section>
+      <div class="sheet-two-column">
+        <section class="sheet-block sheet-benefits-block">
+          <h3>BENEFITS AND FINANCES</h3>
+          <div id="sheet-benefits" class="sheet-benefit-grid"></div>
+        </section>
+        <section class="sheet-block sheet-psionics">
+          <h3>PSIONICS <span>CONFIDENTIAL</span></h3>
+          <div>STATUS: UNTESTED</div>
+        </section>
+      </div>
+      <details class="sheet-block sheet-history">
+        <summary>SERVICE AND GENERATION HISTORY</summary>
+        <pre id="sheet-history-record" class="record"></pre>
+      </details>
+      <section class="sheet-block sheet-notes-block">
+        <h3>NOTES</h3>
+        <textarea id="sheet-notes" rows="2" maxlength="4000" spellcheck="true"></textarea>
+      </section>
+    </article>
+  </section>
+        <section id="subsector-section" hidden aria-label="Subsector map">
+          <div class="subsector-map-tools" aria-label="Subsector map zoom controls">
             <span id="subsector-name" class="subsector-caption-main">FAR MERIDIAN</span>
             <span id="jump-capability">JUMP --</span>
-            <span id="subsector-legend" class="subsector-legend">CURRENT ◆ &nbsp; RANGE ● &nbsp; SCOUT △ &nbsp; NAVAL ✦</span>
-        <div class="subsector-map-tools" aria-label="Subsector map zoom controls">
-          <button id="map-zoom-out" class="text-button map-zoom-button" type="button" aria-label="Zoom out">[ − ]</button>
-          <span id="map-zoom-label" class="map-zoom-label" aria-live="polite">100%</span>
-          <button id="map-zoom-in" class="text-button map-zoom-button" type="button" aria-label="Zoom in">[ + ]</button>
-          <button id="map-zoom-fit" class="text-button map-zoom-button" type="button">[ FIT ]</button>
-        </div>
+            <button id="map-zoom-out" class="text-button map-zoom-button" type="button" aria-label="Zoom out">[ &minus; ]</button>
+            <span id="map-zoom-label" class="map-zoom-label" aria-live="polite">100%</span>
+            <button id="map-zoom-in" class="text-button map-zoom-button" type="button" aria-label="Zoom in">[ + ]</button>
+            <button id="map-zoom-fit" class="text-button map-zoom-button" type="button">[ FIT ]</button>
           </div>
-        </div>
-        <div id="selected-system-summary" class="scene-footer scene-route-summary" hidden>
-          <div class="scene-footer-cell">
-            <div class="campaign-header-kicker">CURRENT PORT</div>
-            <div id="footer-current-name" class="scene-footer-name">--</div>
-            <div id="footer-current-meta" class="scene-footer-meta">--</div>
-          </div>
-          <div class="scene-footer-cell">
-            <div class="campaign-header-kicker">SELECTED DESTINATION</div>
-            <div id="selected-system-summary-text" class="scene-footer-name">--</div>
-            <div class="scene-footer-actions">
-              <div id="jump-actions" class="actions jump-actions"></div>
-              <button id="toggle-system-details" class="text-button" type="button" aria-expanded="false" aria-controls="system-record-section">[ DETAILS ]</button>
-            </div>
-          </div>
-        </div>
-        <div class="canvas">
-          <section id="subsector-section" hidden aria-label="Subsector map">
-            <div id="subsector-map" class="subsector-map" role="region" aria-label="Far Meridian subsector map"></div>
-            <pre id="jump-plan" class="record jump-plan" hidden aria-live="polite"></pre>
-          <section id="encounter-section" class="context-panel" hidden aria-labelledby="encounter-heading">
-                    <div class="section-heading">
-                      <h2 id="encounter-heading" class="section-title">COMBAT TURN</h2>
-                      <button class="help-button" type="button" data-help-topic="personal-combat" aria-label="Explain personal combat">[?]</button>
-                    </div>
-                    <div id="encounter-actions" class="actions operations-primary-actions encounter-actions" aria-label="Personal combat actions"></div>
-                    <div id="encounter-tactical" class="encounter-tactical" hidden>
-                      <div class="encounter-map-frame">
-                        <div class="encounter-map-toolbar">
-                          <strong id="encounter-selection-status">ACTOR -- // TARGET --</strong>
-                          <span class="encounter-map-tools" aria-label="Encounter map zoom controls">
-                            <button id="encounter-zoom-out" class="text-button" type="button">[ − ]</button>
-                            <span id="encounter-zoom-label">100%</span>
-                            <button id="encounter-zoom-in" class="text-button" type="button">[ + ]</button>
-                            <button id="encounter-zoom-fit" class="text-button" type="button">[ FIT ]</button>
-                            <button id="encounter-apply-range" class="text-button" type="button" hidden>[ APPLY MAP RANGE ]</button>
-                          </span>
-                        </div>
-                        <div id="encounter-map-viewport" class="encounter-map-viewport" tabindex="0" aria-label="Pan and zoom encounter map">
-                          <svg id="encounter-map" class="encounter-map" viewBox="0 0 1280 800" role="img" aria-label="32 by 20 square personal encounter map"></svg>
-                          <div id="encounter-token-tooltip" class="encounter-token-tooltip" hidden></div>
-                          <div id="encounter-token-menu" class="encounter-token-menu" hidden></div>
-                        </div>
-                        <div class="encounter-map-legend"><span><i class="encounter-legend-pc"></i> PARTY</span><span><i class="encounter-legend-enemy"></i> OPPOSITION</span><span>RIGHT-CLICK EMPTY MAP TO PLACE ROSTER ACTOR</span></div>
+          <div id="subsector-map" class="subsector-map" role="region" aria-label="Far Meridian subsector map"></div>
+          <div id="subsector-legend" class="subsector-legend">CURRENT &#9670; &nbsp; RANGE &#9679; &nbsp; SCOUT &#9651; &nbsp; NAVAL &#10022;</div>
+          <span id="subsector-heading" hidden>SUBSECTOR NAVIGATION</span>
+          <pre id="jump-plan" class="record jump-plan" hidden aria-live="polite"></pre>
+        </section>
+        <section id="encounter-section" class="scene-view" hidden aria-labelledby="encounter-heading">
+                  <div class="section-heading">
+                    <h2 id="encounter-heading" class="section-title">COMBAT TURN</h2>
+                    <button class="help-button" type="button" data-help-topic="personal-combat" aria-label="Explain personal combat">[?]</button>
+                  </div>
+                  <div id="encounter-actions" class="actions operations-primary-actions encounter-actions" aria-label="Personal combat actions"></div>
+                  <div id="encounter-tactical" class="encounter-tactical" hidden>
+                    <div class="encounter-map-frame">
+                      <div class="encounter-map-toolbar">
+                        <strong id="encounter-selection-status">ACTOR -- // TARGET --</strong>
+                        <span class="encounter-map-tools" aria-label="Encounter map zoom controls">
+                          <button id="encounter-zoom-out" class="text-button" type="button">[ − ]</button>
+                          <span id="encounter-zoom-label">100%</span>
+                          <button id="encounter-zoom-in" class="text-button" type="button">[ + ]</button>
+                          <button id="encounter-zoom-fit" class="text-button" type="button">[ FIT ]</button>
+                          <button id="encounter-apply-range" class="text-button" type="button" hidden>[ APPLY MAP RANGE ]</button>
+                        </span>
                       </div>
-                      <div class="encounter-side-panel">
-                        <div id="encounter-party-roster" class="encounter-party-roster" aria-label="Party combatants"></div>
-                        <details id="encounter-roster-panel" class="encounter-roster-panel" open>
-                          <summary id="encounter-roster-summary">ENEMY ROSTER</summary>
-                          <div id="encounter-roster" class="encounter-roster" aria-label="Enemy statistics and equipment"></div>
-                        </details>
+                      <div id="encounter-map-viewport" class="encounter-map-viewport" tabindex="0" aria-label="Pan and zoom encounter map">
+                        <svg id="encounter-map" class="encounter-map" viewBox="0 0 1280 800" role="img" aria-label="32 by 20 square personal encounter map"></svg>
+                        <div id="encounter-token-tooltip" class="encounter-token-tooltip" hidden></div>
+                        <div id="encounter-token-menu" class="encounter-token-menu" hidden></div>
                       </div>
+                      <div class="encounter-map-legend"><span><i class="encounter-legend-pc"></i> PARTY</span><span><i class="encounter-legend-enemy"></i> OPPOSITION</span><span>RIGHT-CLICK EMPTY MAP TO PLACE ROSTER ACTOR</span></div>
                     </div>
-                    <details id="encounter-details" class="encounter-details" hidden>
-                      <summary>ENCOUNTER DETAILS</summary>
-                      <pre id="encounter-record" class="record encounter-record" aria-live="polite"></pre>
-                    </details>
-                  </section>
-          </section>
-    <section id="personnel-section" class="sheet-view" aria-labelledby="record-heading">
-      <div class="section-heading">
-        <h2 id="record-heading" class="section-title">PERSONNEL RECORD</h2>
-        <button class="text-button sheet-close" type="button" aria-label="Close and return to the map">[ CLOSE ]</button>
-        <button id="record-help" class="help-button" type="button" data-help-topic="personnel-record" aria-label="Explain the personnel record">[?]</button>
-      </div>
-      <div id="legacy-personnel-fields">
-      <div class="name-line">
-        <label for="character-name">NAME</label>
-        <span class="field-with-tool">
-          <input id="character-name" type="text" maxlength="80" autocomplete="off" spellcheck="false">
-          <button id="random-character-name" class="text-button field-tool" type="button">[ RANDOM ]</button>
-        </span>
-      </div>
-      <pre id="character-record" class="record" aria-live="polite"></pre>
-      </div>
-      <article id="character-sheet" class="traveller-character-sheet" hidden aria-label="Playable Traveller character sheet">
-        <header class="sheet-banner">
-          <div><span class="sheet-number">PERSONAL DATA AND HISTORY</span><strong id="sheet-name">--</strong></div>
-          <div><span>DATE OF RECORD</span><strong id="sheet-date">--</strong></div>
-        </header>
-        <div class="sheet-identity-grid">
-          <div><span>UPP</span><strong id="sheet-upp">------</strong></div>
-          <div><span>MILITARY RANK</span><strong id="sheet-rank">--</strong></div>
-          <div><span>AGE</span><strong id="sheet-age">--</strong></div>
-          <div><span>CURRENT WORLD</span><strong id="sheet-world">--</strong></div>
-        </div>
-        <section class="sheet-block sheet-characteristics-block">
-          <h3>CHARACTERISTICS</h3>
-          <div id="sheet-characteristics" class="sheet-characteristics" aria-label="Clickable original and current characteristics"></div>
-          <div id="sheet-health-status" class="sheet-health-status">STATUS --</div>
-        </section>
-        <div class="sheet-two-column">
-          <section class="sheet-block sheet-service-block">
-            <h3>SERVICE HISTORY</h3>
-            <dl id="sheet-service" class="sheet-data-list"></dl>
-          </section>
-          <section class="sheet-block sheet-equipment-block">
-            <h3>EQUIPMENT AND COMBAT</h3>
-            <div class="sheet-loadout-grid">
-              <label>READY WEAPON<select id="sheet-weapon"></select></label>
-              <label>WORN ARMOR<select id="sheet-armor"></select></label>
-            </div>
-            <div id="sheet-equipment" class="sheet-list"></div>
-          </section>
-        </div>
-        <section class="sheet-block sheet-skills-block">
-          <h3>SKILLS</h3>
-          <div id="sheet-skills" class="sheet-skills"></div>
-        </section>
-        <div class="sheet-two-column">
-          <section class="sheet-block sheet-benefits-block">
-            <h3>BENEFITS AND FINANCES</h3>
-            <div id="sheet-benefits" class="sheet-benefit-grid"></div>
-          </section>
-          <section class="sheet-block sheet-psionics">
-            <h3>PSIONICS <span>CONFIDENTIAL</span></h3>
-            <div>STATUS: UNTESTED</div>
-          </section>
-        </div>
-        <details class="sheet-block sheet-history">
-          <summary>SERVICE AND GENERATION HISTORY</summary>
-          <pre id="sheet-history-record" class="record"></pre>
-        </details>
-        <section class="sheet-block sheet-notes-block">
-          <h3>NOTES</h3>
-          <textarea id="sheet-notes" rows="2" maxlength="4000" spellcheck="true"></textarea>
-        </section>
-      </article>
-    </section>
-    <section id="ship-section" class="sheet-view" hidden aria-labelledby="ship-heading">
-      <div class="section-heading">
-        <h2 id="ship-heading" class="section-title">SHIP'S REGISTER</h2>
-        <button class="text-button sheet-close" type="button" aria-label="Close and return to the map">[ CLOSE ]</button>
-        <button class="help-button" type="button" data-help-topic="ship-register" aria-label="Explain the ship register">[?]</button>
-      </div>
-      <div class="ship-fields">
-        <div class="ship-field"><label for="ship-name">NAME</label><span class="field-with-tool"><input id="ship-name" type="text" maxlength="80" autocomplete="off" spellcheck="false"><button id="random-ship-name" class="text-button field-tool" type="button">[ RANDOM ]</button></span></div>
-        <div class="ship-field"><label for="ship-registry">REGISTRY</label><span class="field-with-tool"><input id="ship-registry" type="text" maxlength="80" autocomplete="off" spellcheck="false"><button id="generate-ship-registry" class="text-button field-tool" type="button">[ GENERATE ]</button></span></div>
-      </div>
-      <pre id="ship-record" class="record ship-record" aria-live="polite"></pre>
-    </section>
-    <section id="campaign-section" class="sheet-view" hidden aria-labelledby="campaign-heading">
-      <div class="section-heading">
-        <h2 id="campaign-heading" class="section-title">CAMPAIGN STATUS</h2>
-        <button class="text-button sheet-close" type="button" aria-label="Close and return to the map">[ CLOSE ]</button>
-        <button class="help-button" type="button" data-help-topic="campaign-status" aria-label="Explain campaign status">[?]</button>
-      </div>
-      <div class="campaign-fields">
-        <div class="campaign-field"><label for="campaign-name">CAMPAIGN</label><input id="campaign-name" type="text" maxlength="100" autocomplete="off" spellcheck="false"></div>
-        <div class="campaign-field compact"><label for="campaign-day">DAY</label><input id="campaign-day" type="number" min="1" max="366" step="1"></div>
-        <div class="campaign-field compact"><label for="campaign-year">YEAR</label><input id="campaign-year" type="number" min="0" step="1"></div>
-        <div class="campaign-field"><label for="campaign-system">SYSTEM</label><input id="campaign-system" type="text" maxlength="100" autocomplete="off" spellcheck="false" readonly></div>
-        <div class="campaign-field"><label for="campaign-world">WORLD</label><input id="campaign-world" type="text" maxlength="100" autocomplete="off" spellcheck="false" readonly></div>
-        <div class="campaign-field"><label for="campaign-active-character">VIEWED CHARACTER</label><select id="campaign-active-character"></select></div>
-      </div>
-      <pre id="campaign-record" class="record campaign-record" aria-live="polite"></pre>
-    </section>
-    <section id="thread-section" class="sheet-view" hidden aria-labelledby="thread-heading">
-      <div class="section-heading">
-        <h2 id="thread-heading" class="section-title">ADVENTURE THREADS</h2>
-        <button class="text-button sheet-close" type="button" aria-label="Close and return to the map">[ CLOSE ]</button>
-        <button class="help-button" type="button" data-help-topic="adventure-threads" aria-label="Explain adventure threads">[?]</button>
-      </div>
-      <pre id="thread-record" class="record thread-record" aria-live="polite"></pre>
-    </section>
-        </div>
-      <section id="system-record-section" class="system-record-section" hidden aria-labelledby="system-record-heading">
-        <div class="section-heading">
-          <h2 id="system-record-heading" class="section-title">SYSTEM RECORD</h2>
-          <button class="help-button" type="button" data-help-topic="system-record" aria-label="Explain the system record">[?]</button>
-        </div>
-        <pre id="system-record" class="record system-record" aria-live="polite"></pre>
-      </section>
-      </section>
-
-      <aside id="context-panel" class="context" aria-label="Context panel">
-        <div id="context-tabs" class="context-tabs" role="tablist" aria-label="Context views">
-          <button id="operations-tab-port" class="text-button context-tab" type="button" role="tab" aria-controls="port-services-section" aria-selected="true">WORLD</button>
-          <button id="operations-tab-trade" class="text-button context-tab" type="button" role="tab" aria-controls="commerce-section" aria-selected="false">TRADE</button>
-          <button id="operations-tab-jobs" class="text-button context-tab" type="button" role="tab" aria-controls="contract-section" aria-selected="false">JOBS</button>
-          <button id="operations-tab-roster" class="text-button context-tab" type="button" role="tab" aria-controls="roster-section" aria-selected="false" title="Persistent NPC, creature, and robot roster">NPCS</button>
-        </div>
-        <div id="context-takeover" class="context-takeover" hidden></div>
-        <div class="context-scroll">
-              <section id="port-services-section" class="context-panel" hidden aria-labelledby="port-services-heading">
-                <div class="section-heading">
-                  <h2 id="port-services-heading" class="section-title">PORT SERVICES</h2>
-                  <button class="help-button" type="button" data-help-topic="port-services" aria-label="Explain port services">[?]</button>
-                </div>
-                <div id="port-actions" class="actions operations-primary-actions port-actions" aria-label="Port actions"></div>
-                <pre id="port-services-record" class="record operations-panel-record port-services-record" aria-live="polite"></pre>
-              </section>
-              <section id="commerce-section" class="context-panel" aria-labelledby="commerce-heading">
-                <div class="section-heading">
-                  <h2 id="commerce-heading" class="section-title">COMMERCE</h2>
-                  <button class="help-button" type="button" data-help-topic="commerce" aria-label="Explain commerce">[?]</button>
-                </div>
-                <div id="commerce-actions" class="actions operations-primary-actions commerce-actions" aria-label="Trade actions"></div>
-                <pre id="commerce-record" class="record operations-panel-record commerce-record" aria-live="polite"></pre>
-              </section>
-              <section id="contract-section" class="context-panel" hidden aria-labelledby="contract-heading">
-                <div class="section-heading">
-                  <h2 id="contract-heading" class="section-title">CONTRACT BOARD</h2>
-                  <button class="help-button" type="button" data-help-topic="contract-board" aria-label="Explain contracts">[?]</button>
-                </div>
-                <div id="contract-actions" class="actions operations-primary-actions contract-actions" aria-label="Job actions"></div>
-                <pre id="contract-record" class="record operations-panel-record contract-record" aria-live="polite"></pre>
-              </section>
-              <section id="situation-section" class="context-panel" hidden aria-labelledby="situation-heading">
-                <div class="section-heading">
-                  <h2 id="situation-heading" class="section-title">SITUATION</h2>
-                  <button class="help-button" type="button" data-help-topic="situations" aria-label="Explain situations and patrons">[?]</button>
-                </div>
-                <div id="situation-actions" class="actions operations-primary-actions situation-actions" aria-label="Situation actions"></div>
-                <pre id="situation-record" class="record operations-panel-record situation-record" aria-live="polite"></pre>
-              </section>
-              <section id="roster-section" class="context-panel" hidden aria-labelledby="roster-heading">
-                <div class="section-heading">
-                  <h2 id="roster-heading" class="section-title">ACTOR ROSTER</h2>
-                  <button id="roster-new-actor" class="text-button" type="button">[ NEW NPC ]</button>
-                </div>
-                <div class="roster-basis">PERSISTENT CAMPAIGN ACTORS // CLASSIC CHARACTERISTICS, SKILLS, EQUIPMENT, NOTES, PORTRAIT, AND BODY-AWARE STATE</div>
-                <div id="roster-folders" class="roster-folders" aria-live="polite"></div>
-              </section>
-              <section id="live-ship-panel" class="live-ship-panel" aria-labelledby="live-ship-heading">
-                <div class="live-ship-heading">
-                  <strong id="live-ship-heading">SHIP STATUS</strong>
-                  <span id="live-ship-identity" class="live-ship-identity">NO ACTIVE SHIP</span>
-                </div>
-                <div id="live-ship-status" class="live-ship-status" aria-live="polite"></div>
-              </section>
-        </div>
-      </aside>
-      </div>
-
+                    <div class="encounter-side-panel">
+                      <div id="encounter-party-roster" class="encounter-party-roster" aria-label="Party combatants"></div>
+                      <details id="encounter-roster-panel" class="encounter-roster-panel" open>
+                        <summary id="encounter-roster-summary">ENEMY ROSTER</summary>
+                        <div id="encounter-roster" class="encounter-roster" aria-label="Enemy statistics and equipment"></div>
+                      </details>
+                    </div>
+                  </div>
+                  <details id="encounter-details" class="encounter-details" hidden>
+                    <summary>ENCOUNTER DETAILS</summary>
+                    <pre id="encounter-record" class="record encounter-record" aria-live="polite"></pre>
+                  </details>
+                </section>
+  <section id="ship-section" class="sheet-view" hidden aria-labelledby="ship-heading">
+    <div class="section-heading">
+      <h2 id="ship-heading" class="section-title">SHIP'S REGISTER</h2>
+      <button class="text-button sheet-close" type="button" aria-label="Close and return to the map">[ CLOSE ]</button>
+      <button class="help-button" type="button" data-help-topic="ship-register" aria-label="Explain the ship register">[?]</button>
     </div>
+    <div class="ship-fields">
+      <div class="ship-field"><label for="ship-name">NAME</label><span class="field-with-tool"><input id="ship-name" type="text" maxlength="80" autocomplete="off" spellcheck="false"><button id="random-ship-name" class="text-button field-tool" type="button">[ RANDOM ]</button></span></div>
+      <div class="ship-field"><label for="ship-registry">REGISTRY</label><span class="field-with-tool"><input id="ship-registry" type="text" maxlength="80" autocomplete="off" spellcheck="false"><button id="generate-ship-registry" class="text-button field-tool" type="button">[ GENERATE ]</button></span></div>
+    </div>
+    <pre id="ship-record" class="record ship-record" aria-live="polite"></pre>
+  </section>
+  <section id="campaign-section" class="sheet-view" hidden aria-labelledby="campaign-heading">
+    <div class="section-heading">
+      <h2 id="campaign-heading" class="section-title">CAMPAIGN STATUS</h2>
+      <button class="text-button sheet-close" type="button" aria-label="Close and return to the map">[ CLOSE ]</button>
+      <button class="help-button" type="button" data-help-topic="campaign-status" aria-label="Explain campaign status">[?]</button>
+    </div>
+    <div class="campaign-fields">
+      <div class="campaign-field"><label for="campaign-name">CAMPAIGN</label><input id="campaign-name" type="text" maxlength="100" autocomplete="off" spellcheck="false"></div>
+      <div class="campaign-field compact"><label for="campaign-day">DAY</label><input id="campaign-day" type="number" min="1" max="366" step="1"></div>
+      <div class="campaign-field compact"><label for="campaign-year">YEAR</label><input id="campaign-year" type="number" min="0" step="1"></div>
+      <div class="campaign-field"><label for="campaign-system">SYSTEM</label><input id="campaign-system" type="text" maxlength="100" autocomplete="off" spellcheck="false" readonly></div>
+      <div class="campaign-field"><label for="campaign-world">WORLD</label><input id="campaign-world" type="text" maxlength="100" autocomplete="off" spellcheck="false" readonly></div>
+      <div class="campaign-field"><label for="campaign-active-character">VIEWED CHARACTER</label><select id="campaign-active-character"></select></div>
+    </div>
+    <pre id="campaign-record" class="record campaign-record" aria-live="polite"></pre>
+  </section>
+  <section id="thread-section" class="sheet-view" hidden aria-labelledby="thread-heading">
+    <div class="section-heading">
+      <h2 id="thread-heading" class="section-title">ADVENTURE THREADS</h2>
+      <button class="text-button sheet-close" type="button" aria-label="Close and return to the map">[ CLOSE ]</button>
+      <button class="help-button" type="button" data-help-topic="adventure-threads" aria-label="Explain adventure threads">[?]</button>
+    </div>
+    <pre id="thread-record" class="record thread-record" aria-live="polite"></pre>
+  </section>
+      </div>
+    <section id="system-record-section" class="system-record-section" hidden aria-labelledby="system-record-heading">
+      <div class="section-heading">
+        <h2 id="system-record-heading" class="section-title">SYSTEM RECORD</h2>
+        <button class="help-button" type="button" data-help-topic="system-record" aria-label="Explain the system record">[?]</button>
+      </div>
+      <pre id="system-record" class="record system-record" aria-live="polite"></pre>
+    </section>
+    </section>
+
+    <aside id="context-panel" class="context" aria-label="Context panel">
+      <section class="campaign-header-strip" aria-label="Character status">
+        <div class="character-identity-line">
+          <button id="header-character-name" class="campaign-header-name text-button header-character-link" type="button">--</button>
+          <span id="header-upp" class="header-upp" tabindex="0">--</span>
+          <span id="header-status" class="header-status">--</span>
+          <span id="header-posture" class="header-posture" hidden>--</span>
+          <span id="header-credits" class="header-credits">--</span>
+        </div>
+        <div id="header-characteristics" class="header-characteristics" aria-label="Clickable character characteristics"></div>
+        <div class="character-skill-line">
+          <div id="header-quick-skills" class="header-quick-skills" aria-label="Quick skill slots"></div>
+          <button id="header-all-skills" class="text-button header-all-skills" type="button" title="Choose which skills fill the quick slots">[ ALL SKILLS ]</button>
+        </div>
+      </section>
+      <section id="live-ship-panel" class="live-ship-panel" aria-labelledby="live-ship-heading">
+              <div class="live-ship-heading">
+                <strong id="live-ship-heading">SHIP STATUS</strong>
+                <span id="live-ship-identity" class="live-ship-identity">NO ACTIVE SHIP</span>
+              </div>
+              <div id="live-ship-status" class="live-ship-status" aria-live="polite"></div>
+            </section>
+      <div id="context-tabs" class="context-tabs" role="tablist" aria-label="Context views">
+        <button id="operations-tab-port" class="text-button context-tab" type="button" role="tab" aria-controls="port-services-section" aria-selected="true">WORLD</button>
+        <button id="operations-tab-trade" class="text-button context-tab" type="button" role="tab" aria-controls="commerce-section" aria-selected="false">TRADE</button>
+        <button id="operations-tab-jobs" class="text-button context-tab" type="button" role="tab" aria-controls="contract-section" aria-selected="false">JOBS</button>
+        <button id="operations-tab-roster" class="text-button context-tab" type="button" role="tab" aria-controls="roster-section" aria-selected="false" title="Persistent NPC, creature, and robot roster">NPCS</button>
+      </div>
+      <div id="context-takeover" class="context-takeover" hidden></div>
+      <div class="context-scroll">
+            <section id="port-services-section" class="context-panel" hidden aria-labelledby="port-services-heading">
+              <div class="section-heading">
+                <h2 id="port-services-heading" class="section-title">PORT SERVICES</h2>
+                <button class="help-button" type="button" data-help-topic="port-services" aria-label="Explain port services">[?]</button>
+              </div>
+              <div id="port-actions" class="actions operations-primary-actions port-actions" aria-label="Port actions"></div>
+              <pre id="port-services-record" class="record operations-panel-record port-services-record" aria-live="polite"></pre>
+            </section>
+            <section id="commerce-section" class="context-panel" aria-labelledby="commerce-heading">
+              <div class="section-heading">
+                <h2 id="commerce-heading" class="section-title">COMMERCE</h2>
+                <button class="help-button" type="button" data-help-topic="commerce" aria-label="Explain commerce">[?]</button>
+              </div>
+              <div id="commerce-actions" class="actions operations-primary-actions commerce-actions" aria-label="Trade actions"></div>
+              <pre id="commerce-record" class="record operations-panel-record commerce-record" aria-live="polite"></pre>
+            </section>
+            <section id="contract-section" class="context-panel" hidden aria-labelledby="contract-heading">
+              <div class="section-heading">
+                <h2 id="contract-heading" class="section-title">CONTRACT BOARD</h2>
+                <button class="help-button" type="button" data-help-topic="contract-board" aria-label="Explain contracts">[?]</button>
+              </div>
+              <div id="contract-actions" class="actions operations-primary-actions contract-actions" aria-label="Job actions"></div>
+              <pre id="contract-record" class="record operations-panel-record contract-record" aria-live="polite"></pre>
+            </section>
+            <section id="situation-section" class="context-panel" hidden aria-labelledby="situation-heading">
+              <div class="section-heading">
+                <h2 id="situation-heading" class="section-title">SITUATION</h2>
+                <button class="help-button" type="button" data-help-topic="situations" aria-label="Explain situations and patrons">[?]</button>
+              </div>
+              <div id="situation-actions" class="actions operations-primary-actions situation-actions" aria-label="Situation actions"></div>
+              <pre id="situation-record" class="record operations-panel-record situation-record" aria-live="polite"></pre>
+            </section>
+            <section id="roster-section" class="context-panel" hidden aria-labelledby="roster-heading">
+              <div class="section-heading">
+                <h2 id="roster-heading" class="section-title">ACTOR ROSTER</h2>
+                <button id="roster-new-actor" class="text-button" type="button">[ NEW NPC ]</button>
+              </div>
+              <div class="roster-basis">PERSISTENT CAMPAIGN ACTORS // CLASSIC CHARACTERISTICS, SKILLS, EQUIPMENT, NOTES, PORTRAIT, AND BODY-AWARE STATE</div>
+              <div id="roster-folders" class="roster-folders" aria-live="polite"></div>
+            </section>
+          </div>
+    </aside>
+        </div>
 
     <dialog id="roll-dialog" class="roll-dialog" aria-labelledby="roll-dialog-title">
       <form id="roll-dialog-form" class="roll-dialog-form" method="dialog">

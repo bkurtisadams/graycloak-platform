@@ -683,52 +683,6 @@ function formatContractDate(date) {
   return `${String(date.dayOfYear).padStart(3, '0')}-${date.year}`;
 }
 
-export function buildContractBoardRecord({ system, selectedSystem = null, contracts = [], offers = [] } = {}) {
-  if (!system) return '';
-  const active = contracts.filter((entry) => entry.status === 'accepted');
-  const resolved = contracts.filter((entry) => entry.status !== 'accepted').slice(-4);
-  const selectionNote = !selectedSystem
-    ? 'NONE / NAVIGATION SELECTION ONLY'
-    : selectedSystem.id === system.id
-      ? `${system.name.toUpperCase()} / CURRENT PORT`
-      : `${selectedSystem.name.toUpperCase()} / NAVIGATION SELECTION ONLY`;
-  const lines = [
-    `JOBS // ${system.name.toUpperCase()} STARPORT // LOCAL BOARD`,
-    `CURRENT PORT ${system.name.toUpperCase()} / ${system.hex}`,
-    `MAP SELECTED ${selectionNote}`,
-    'ALL NEW OFFERS ORIGINATE AT THE CURRENT PORT.',
-    `ACTIVE ${active.length} / OFFERS ${offers.length}`
-  ];
-  if (active.length) {
-    lines.push('', 'ACTIVE JOBS');
-    for (const contract of active) {
-      const cargo = contract.requirements.cargoTons ? ` / CARGO ${contract.requirements.cargoTons}t` : '';
-      const exclusive = contract.requirements.exclusiveShip ? ' / EXCLUSIVE SHIP' : '';
-      lines.push(`${contract.identity.title.toUpperCase()}`);
-      lines.push(`   ${contract.origin.systemName.toUpperCase()} -> ${contract.destination.systemName.toUpperCase()} / ${formatCredits(contract.economics.paymentCr)} / DUE ${formatContractDate(contract.timing.deadlineDate)}${cargo}${exclusive}`);
-    }
-  }
-  if (offers.length) {
-    lines.push('', `AVAILABLE AT ${system.name.toUpperCase()}`);
-    offers.forEach((offer, index) => {
-      const cargo = offer.cargoTons ? ` / CARGO ${offer.cargoTons}t` : '';
-      const exclusive = offer.exclusiveShip ? ' / EXCLUSIVE' : '';
-      lines.push(`${index + 1}. ${offer.title.toUpperCase()}`);
-      lines.push(`   ${offer.originSystemName.toUpperCase()} -> ${offer.destinationSystemName.toUpperCase()} / ${formatCredits(offer.paymentCr)} / ${offer.deadlineDays} DAYS${cargo}${exclusive}`);
-      lines.push(`   ${String(offer.rulesBasis).toUpperCase()} / ${offer.requirementsDescription}`);
-    });
-  } else {
-    lines.push('', `NO UNUSED JOB OFFERS AT ${system.name.toUpperCase()} THIS PORT CALL.`);
-  }
-  if (resolved.length) {
-    lines.push('', 'RECENT JOBS');
-    for (const contract of resolved) {
-      lines.push(`${contract.status.toUpperCase()} / ${contract.identity.title.toUpperCase()} / ${contract.origin.systemName.toUpperCase()} -> ${contract.destination.systemName.toUpperCase()} / ${formatCredits(contract.resolution.paymentCr)}`);
-    }
-  }
-  return box(lines, 96);
-}
-
 
 function worldCode(value) {
   return encodeTravellerDigit(Number(value));
@@ -760,51 +714,6 @@ export function buildSystemRecord(system) {
     `BASES ${formatBases(system.bases)}    GAS GIANT ${system.gasGiant ? 'YES' : 'NO'}    TRAVEL ZONE ${zone}`,
     `NOTES ${system.notes || 'none'}`
   ], 96);
-}
-
-export function buildPortServicesRecord({ system, ship = null, character = null } = {}) {
-  if (!system) return '';
-  const profile = parseUniversalWorldProfile(system.mainWorld.uwp);
-  const trade = describeTradeClassifications(profile).map((entry) => entry.label.toUpperCase()).join(' / ') || 'NONE';
-  const fuelService = ship ? starportFuelService(profile.starport, { scoutBase: system.bases.scout, ship }) : null;
-  const fuelCurrent = ship?.state?.currentFuelTons === null || ship?.state?.currentFuelTons === undefined
-    ? 'UNRECORDED'
-    : `${ship.state.currentFuelTons}t`;
-  const fuelCapacity = ship?.specifications?.fuel?.capacityTons ?? '--';
-  const fuelQuality = ship?.state?.fuelQuality?.toUpperCase?.() ?? 'UNKNOWN';
-  const serviceText = !fuelService
-    ? 'NO ACTIVE SHIP'
-    : !fuelService.available
-      ? 'NO STARPORT FUEL'
-      : fuelService.freeScoutFuel
-        ? `${fuelService.quality.toUpperCase()} / FREE AT SCOUT BASE`
-        : `${fuelService.quality.toUpperCase()} / ${formatCredits(fuelService.pricePerTonCr)} PER TON`;
-  const portCall = ship?.state?.portCall?.systemId === system.id ? ship.state.portCall : null;
-  const berthing = !ship
-    ? 'NO ACTIVE SHIP'
-    : !portCall
-      ? 'NO CURRENT FEE RECORDED'
-      : portCall.berthingPaid
-        ? `${formatCredits(portCall.berthingDueCr)} / PAID`
-        : `${formatCredits(portCall.berthingDueCr)} / DUE`;
-  const cargoUsed = Number.isFinite(ship?.state?.cargoUsedTons) ? ship.state.cargoUsedTons : 0;
-  const cargoCapacity = ship?.specifications?.cargo?.capacityTons ?? '--';
-  const ledger = ship?.state?.finances?.ledger ?? [];
-  const ledgerLines = ledger.slice(-6).map((entry) => {
-    const sign = entry.amountCr >= 0 ? '+' : '-';
-    return `LEDGER ${entry.date ?? 'UNDATED'}  ${entry.kind.toUpperCase()}  ${sign}${formatCredits(Math.abs(entry.amountCr))}  ${entry.description}`;
-  });
-  return box([
-    `PORT SERVICES // ${system.name.toUpperCase()} // ${system.hex}`,
-    `STARPORT ${profile.starport} / ${describeStarport(profile.starport).toUpperCase()}`,
-    `TRADE ${trade}`,
-    `FUEL ${fuelCurrent}/${fuelCapacity}t / ${fuelQuality}    SERVICE ${serviceText}`,
-    `GAS GIANT ${system.gasGiant ? 'YES / SKIMMING AVAILABLE TO STREAMLINED SHIPS' : 'NO'}`,
-    `BERTHING ${berthing}`,
-    `CARGO ${cargoUsed}/${cargoCapacity}t    MANIFEST ${ship?.state?.cargoManifest?.length ?? 0} LOT${ship?.state?.cargoManifest?.length === 1 ? '' : 'S'}`,
-    `SHIP ACCOUNT ${ship ? formatCredits(ship.state.finances.balanceCr) : 'none'}    CHARACTER ${character ? formatCredits(character.finances.credits) : 'none'}`,
-    ...(ledgerLines.length ? ledgerLines : ['LEDGER no transactions recorded'])
-  ], 106);
 }
 
 
@@ -1009,6 +918,9 @@ export function buildPlayProcedure(s = {}) {
   if (s.jobs) {
     if (s.jobs.offers > 0) opportunities.push(card('jobs', 'Local jobs', `${s.jobs.offers} OFFER${s.jobs.offers === 1 ? '' : 'S'}`, `Contracts originating at ${s.currentSystem.name}.${s.jobs.active ? ` ${s.jobs.active} active.` : ''}`, { action: 'jobs', tone: 'plain' }));
   }
+  if (s.thread?.objective) {
+    opportunities.push(card('thread', s.thread.title || 'Open thread', 'THREAD', s.thread.objective, { action: 'threads', tone: 'plain' }));
+  }
   if (s.patron) {
     if (s.patron.attemptedThisCall) done.push(card('patron-done', 'Patron search', PLAY_PROCEDURE_TAGS.done, 'Attempted this port call.'));
     else if (s.patron.available) opportunities.push(card('patron', 'Seek a patron', PLAY_PROCEDURE_TAGS.optional, 'Uses the week. A 5 or 6 on one die finds a likely patron (Book 3 p.25).', { action: 'jobs' }));
@@ -1034,4 +946,138 @@ export function chargenTablesForPhase(phase) {
   if (aging.includes(phase)) return 'aging';
   if (service.includes(phase)) return 'service';
   return 'service';
+}
+
+export function panelRow(label, value, { attention = false, ok = false, title = '' } = {}) {
+  return { kind: 'row', label, value: String(value ?? '--'), attention, ok, title };
+}
+
+export function panelCard({ title, meta = '', rows = [], note = '', attention = false, actionId = null, actionLabel = '', actionDisabled = false, actionTitle = '', secondaryActionId = null, secondaryActionLabel = '' } = {}) {
+  return { kind: 'card', title, meta, rows, note, attention, actionId, actionLabel, actionDisabled, actionTitle, secondaryActionId, secondaryActionLabel };
+}
+
+export function buildPortServicesPanel({ system, ship = null, character = null } = {}) {
+  if (!system) return { groups: [] };
+  const profile = parseUniversalWorldProfile(system.mainWorld.uwp);
+  const trade = describeTradeClassifications(profile).map((entry) => entry.label.toUpperCase()).join(' / ') || 'NONE';
+  const fuelService = ship ? starportFuelService(profile.starport, { scoutBase: system.bases.scout, ship }) : null;
+  const fuelUnrecorded = ship?.state?.currentFuelTons === null || ship?.state?.currentFuelTons === undefined;
+  const fuelCapacity = ship?.specifications?.fuel?.capacityTons ?? '--';
+  const serviceText = !fuelService
+    ? 'NO ACTIVE SHIP'
+    : !fuelService.available
+      ? 'NO STARPORT FUEL'
+      : fuelService.freeScoutFuel
+        ? `${fuelService.quality.toUpperCase()} / FREE AT SCOUT BASE`
+        : `${fuelService.quality.toUpperCase()} / ${formatCredits(fuelService.pricePerTonCr)} PER TON`;
+  const portCall = ship?.state?.portCall?.systemId === system.id ? ship.state.portCall : null;
+  const berthingDue = Boolean(portCall && !portCall.berthingPaid && portCall.berthingDueCr > 0);
+  const cargoUsed = Number.isFinite(ship?.state?.cargoUsedTons) ? ship.state.cargoUsedTons : 0;
+  const cargoCapacity = ship?.specifications?.cargo?.capacityTons ?? '--';
+  const manifest = ship?.state?.cargoManifest?.length ?? 0;
+  const ledger = (ship?.state?.finances?.ledger ?? []).slice(-4).reverse();
+
+  const world = [
+    panelRow('UWP', system.mainWorld.uwp),
+    panelRow('STARPORT', `${profile.starport} / ${describeStarport(profile.starport).toUpperCase()}`),
+    panelRow('TRADE', trade),
+    panelRow('BASES', formatBases(system.bases)),
+    panelRow('GAS GIANT', system.gasGiant ? 'YES / SKIMMING' : 'NO')
+  ];
+
+  const groups = [{ label: `${system.name.toUpperCase()} / ${system.hex}`, items: world }];
+
+  if (ship) {
+    groups.push({
+      label: `${(ship.identity?.name || 'SHIP').toUpperCase()}`,
+      items: [
+        panelRow('FUEL', fuelUnrecorded ? 'UNRECORDED' : `${ship.state.currentFuelTons}/${fuelCapacity}t / ${ship.state.fuelQuality?.toUpperCase?.() ?? 'UNKNOWN'}`, { attention: fuelUnrecorded }),
+        panelRow('SERVICE', serviceText),
+        panelRow('BERTHING', !portCall ? 'NO CURRENT FEE RECORDED' : `${formatCredits(portCall.berthingDueCr)} / ${portCall.berthingPaid ? 'PAID' : 'DUE'}`, { attention: berthingDue, ok: Boolean(portCall?.berthingPaid) }),
+        panelRow('HOLD', `${cargoUsed}/${cargoCapacity}t / ${manifest} LOT${manifest === 1 ? '' : 'S'}`),
+        panelRow('ACCOUNT', formatCredits(ship.state.finances.balanceCr)),
+        ...(character ? [panelRow('CHARACTER', formatCredits(character.finances.credits))] : [])
+      ]
+    });
+  } else {
+    groups.push({ label: 'SHIP', items: [panelRow('STATUS', 'NO ACTIVE SHIP')] });
+  }
+
+  groups.push({
+    label: 'LEDGER',
+    collapsible: true,
+    items: ledger.length
+      ? ledger.map((entry) => panelRow(
+        entry.date ?? 'UNDATED',
+        `${entry.kind.toUpperCase()} ${entry.amountCr >= 0 ? '+' : '-'}${formatCredits(Math.abs(entry.amountCr))}`,
+        { title: entry.description, ok: entry.amountCr >= 0 }
+      ))
+      : [panelRow('LEDGER', 'NO TRANSACTIONS RECORDED')]
+  });
+
+  return { groups };
+}
+
+export function buildContractBoardPanel({ system, selectedSystem = null, contracts = [], offers = [], offerState = () => ({}) } = {}) {
+  if (!system) return { groups: [] };
+  const active = contracts.filter((entry) => entry.status === 'accepted');
+  const resolved = contracts.filter((entry) => entry.status !== 'accepted').slice(-4).reverse();
+  const groups = [];
+
+  groups.push({
+    label: `ACTIVE ${active.length}`,
+    items: active.length
+      ? active.map((contract) => panelCard({
+        title: contract.identity.title.toUpperCase(),
+        meta: `${contract.origin.systemName.toUpperCase()} -> ${contract.destination.systemName.toUpperCase()}`,
+        rows: [
+          panelRow('PAYS', formatCredits(contract.economics.paymentCr)),
+          panelRow('DUE', formatContractDate(contract.timing.deadlineDate), { attention: true }),
+          ...(contract.requirements.cargoTons ? [panelRow('CARGO', `${contract.requirements.cargoTons}t`)] : []),
+          ...(contract.requirements.exclusiveShip ? [panelRow('TERMS', 'EXCLUSIVE SHIP')] : [])
+        ]
+      }))
+      : [panelRow('ACTIVE', 'NO ACCEPTED JOBS')]
+  });
+
+  const selectionNote = selectedSystem && selectedSystem.id !== system.id
+    ? `MAP SELECTED ${selectedSystem.name.toUpperCase()} / NAVIGATION SELECTION ONLY. ALL NEW OFFERS ORIGINATE AT THE CURRENT PORT.`
+    : '';
+  groups.push({
+    label: `OFFERS ${offers.length} AT ${system.name.toUpperCase()} / ${system.hex}`,
+    note: selectionNote,
+    items: offers.length
+      ? offers.map((offer) => {
+        const state = offerState(offer) ?? {};
+        return panelCard({
+          title: offer.title.toUpperCase(),
+          meta: `${offer.originSystemName.toUpperCase()} -> ${offer.destinationSystemName.toUpperCase()} / ${offer.deadlineDays} DAYS`,
+          rows: [
+            panelRow('PAYS', formatCredits(offer.paymentCr)),
+            panelRow('CARGO', offer.cargoTons ? `${offer.cargoTons}t` : 'NONE'),
+            ...(offer.exclusiveShip ? [panelRow('TERMS', 'EXCLUSIVE SHIP')] : [])
+          ],
+          note: state.blockedReason || `${String(offer.rulesBasis).toUpperCase()} / ${offer.requirementsDescription}`,
+          actionId: offer.offerId,
+          actionLabel: state.disabled ? '[ BLOCKED ]' : '[ ACCEPT ]',
+          actionDisabled: Boolean(state.disabled),
+          actionTitle: state.title ?? ''
+        });
+      })
+      : [panelRow('OFFERS', `NO UNUSED JOB OFFERS AT ${system.name.toUpperCase()} THIS PORT CALL`)]
+  });
+
+  if (resolved.length) {
+    groups.push({
+      label: 'RECENT',
+      collapsible: true,
+      items: resolved.map((contract) => panelRow(
+        contract.status.toUpperCase(),
+        `${contract.identity.title.toUpperCase()} / ${formatCredits(contract.resolution.paymentCr)}`,
+        { ok: contract.status === 'completed', attention: contract.status === 'failed', title: `${contract.origin.systemName} -> ${contract.destination.systemName}` }
+      ))
+    });
+  }
+
+  return { groups };
 }
