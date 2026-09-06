@@ -8,6 +8,7 @@ import {
   resolvePersonalAttack,
   rollPersonalAttack,
   applyPersonalDamage,
+  weaponTargetNumber,
   movePersonalCombatRange,
   resolvePersonalMorale,
   endPersonalCombatRecovery,
@@ -15,8 +16,11 @@ import {
 } from '../../packages/classic-traveller-rules/index.js';
 
 export const ENCOUNTER_DOCUMENT_TYPE = 'graycloak-traveller-personal-encounter';
-export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 6;
-export const SUPPORTED_ENCOUNTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6]);
+export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 7;
+export const SUPPORTED_ENCOUNTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7]);
+// Book 1 p.32: escape is thrown at 9+, with a DM for the range escaped from.
+export const ESCAPE_TARGET = 9;
+export const ESCAPE_RANGE_DMS = Object.freeze({ close: -1, short: -1, medium: 1, long: 2, 'very-long': 3 });
 // v1 resolved every attack at one encounter-wide band. From v2 the band is
 // computed per attacker-target pair from map positions, so the guide marker
 // records which policy resolved a stored encounter.
@@ -168,6 +172,9 @@ export function validateEncounterDocument(document) {
   add(errors, ENCOUNTER_STATUSES.includes(document.status), 'status is invalid');
   add(errors, Number.isInteger(document.round) && document.round >= 1, 'round must be a positive integer');
   add(errors, PERSONAL_COMBAT_RANGES.includes(document.range), 'range is invalid');
+  for (const declaration of document.roundState?.declaredActions ?? []) {
+    add(errors, nonblank(declaration.side), 'each declared action must name the acting side');
+  }
   add(errors, document.map?.grid === 'square' && document.map?.columns === ENCOUNTER_MAP_COLUMNS && document.map?.rows === ENCOUNTER_MAP_ROWS && document.map?.rangeGuide === ENCOUNTER_RANGE_GUIDE_VERSION, 'map must be the supported square encounter workspace');
   add(errors, document.map?.metersPerSquare === null || (typeof document.map?.metersPerSquare === 'number' && Number.isFinite(document.map.metersPerSquare) && document.map.metersPerSquare > 0 && document.map.metersPerSquare <= 1000), 'map.metersPerSquare must be null or a positive number no greater than 1000');
   add(errors, plain(document.roundState) && Array.isArray(document.roundState?.declaredActions), 'roundState must contain declaredActions');
@@ -179,12 +186,14 @@ export function validateEncounterDocument(document) {
   add(errors, plain(document.surprise) && Array.isArray(document.surprise.results) && document.surprise.results.length === 2, 'surprise must contain two side results');
   if (plain(document.surprise)) {
     add(errors, Number.isInteger(document.surprise.margin) && document.surprise.margin >= 0, 'surprise.margin must be a non-negative integer');
-    add(errors, document.surprise.surpriseSideId === null || ['party', 'opposition'].includes(document.surprise.surpriseSideId), 'surprise.surpriseSideId is invalid');
-    add(errors, document.surprise.surprisedSideId === null || ['party', 'opposition'].includes(document.surprise.surprisedSideId), 'surprise.surprisedSideId is invalid');
+    add(errors, document.surprise.surpriseSideId === null || nonblank(document.surprise.surpriseSideId), 'surprise.surpriseSideId is invalid');
+    add(errors, document.surprise.surprisedSideId === null || nonblank(document.surprise.surprisedSideId), 'surprise.surprisedSideId is invalid');
   }
   add(errors, Array.isArray(document.combatants) && document.combatants.length >= 2, 'combatants must contain at least two entries');
   if (Array.isArray(document.combatants)) for (const entry of document.combatants) {
-    add(errors, nonblank(entry.id) && nonblank(entry.name) && ['party', 'opposition'].includes(entry.side), 'combatant identity is invalid');
+    // A side is any nonblank label: 'party' and 'opposition' are the usual two,
+    // but a third faction is a legitimate encounter.
+    add(errors, nonblank(entry.id) && nonblank(entry.name) && nonblank(entry.side), 'combatant identity is invalid');
     for (const key of ['STR', 'DEX', 'END', 'INT']) add(errors, Number.isInteger(entry.characteristics?.[key]) && entry.characteristics[key] >= 0, `combatant ${entry.name ?? ''} ${key} is invalid`);
     for (const key of ['STR', 'DEX', 'END']) add(errors, Number.isInteger(entry.current?.[key]) && entry.current[key] >= 0, `combatant ${entry.name ?? ''} current ${key} is invalid`);
     add(errors, plain(entry.skills), `combatant ${entry.name ?? ''} skills are invalid`);
@@ -201,11 +210,14 @@ export function validateEncounterDocument(document) {
   }
   if (Array.isArray(document.combatants)) {
     add(errors, document.combatants.some((entry) => entry.side === 'party'), 'combatants require a party side');
-    add(errors, document.combatants.some((entry) => entry.side === 'opposition'), 'combatants require an opposition side');
+    add(errors, document.combatants.some((entry) => entry.side !== 'party'), 'combatants require at least one side opposing the party');
     add(errors, new Set(document.combatants.map((entry) => entry.id)).size === document.combatants.length, 'combatant IDs must be unique');
-    const partyIds = new Set(document.combatants.filter((entry) => entry.side === 'party').map((entry) => entry.id));
-    add(errors, new Set((document.roundState?.declaredActions ?? []).map((entry) => entry.actorId)).size === (document.roundState?.declaredActions ?? []).length, 'party combatants may declare only once per round');
-    add(errors, (document.roundState?.declaredActions ?? []).every((entry) => partyIds.has(entry.actorId)), 'declared action actor must be a party combatant');
+    // Any side may be given orders, so a declaration must name a combatant in
+    // the encounter and match that combatant's own side.
+    const combatantSides = new Map(document.combatants.map((entry) => [entry.id, entry.side]));
+    add(errors, new Set((document.roundState?.declaredActions ?? []).map((entry) => entry.actorId)).size === (document.roundState?.declaredActions ?? []).length, 'a combatant may declare only once per round');
+    add(errors, (document.roundState?.declaredActions ?? []).every((entry) => combatantSides.has(entry.actorId)), 'declared action actor must be a combatant in this encounter');
+    add(errors, (document.roundState?.declaredActions ?? []).every((entry) => combatantSides.get(entry.actorId) === entry.side), 'declared action side must match the actor');
   }
   add(errors, Array.isArray(document.history), 'history must be an array');
   if (Array.isArray(document.history)) for (const entry of document.history) {
@@ -275,6 +287,13 @@ function migrateEncounterDocument(document) {
   if (document.schemaVersion === 5) {
     document.map = { ...document.map, rangeGuide: ENCOUNTER_RANGE_GUIDE_VERSION };
     document.schemaVersion = 6;
+  }
+  if (document.schemaVersion === 6) {
+    // Declarations become side-bearing so any side may be given orders.
+    document.roundState = {
+      declaredActions: (document.roundState?.declaredActions ?? []).map((entry) => ({ ...entry, side: entry.side ?? 'party' }))
+    };
+    document.schemaVersion = 7;
   }
   return document;
 }
@@ -475,115 +494,115 @@ export function resolveEncounterRound(document, { action = 'attack', modifier = 
   if (next.status !== 'active') throw new Error('encounter is already resolved');
   if (!['attack', 'evade', 'close', 'open', 'escape', 'wait'].includes(action)) throw new RangeError(`unknown encounter action: ${action}`);
   if (!Number.isInteger(modifier) || modifier < -20 || modifier > 20) throw new RangeError('modifier must be an integer from -20 to 20');
-  const party = combatants(next, 'party').map(clone);
-  const foes = combatants(next, 'opposition').map(clone);
-  const activeParty = party.filter((entry) => entry.status === 'active');
-  const activeFoes = foes.filter((entry) => entry.status === 'active');
+  const everyone = next.combatants.map(clone);
+  const active = everyone.filter((entry) => entry.status === 'active');
+  const activeParty = active.filter((entry) => entry.side === 'party');
   const surpriseRound = next.round === 1 ? next.surprise.surpriseSideId : null;
-  const partyMayAct = surpriseRound === null || surpriseRound === 'party';
-  const oppositionMayAct = surpriseRound === null || surpriseRound === 'opposition';
-  if (!partyMayAct && action !== 'wait') throw new Error('the party is surprised and cannot act in the surprise round');
+  const mayAct = (side) => surpriseRound === null || surpriseRound === side;
+  if (!mayAct('party') && action !== 'wait') throw new Error('the party is surprised and cannot act in the surprise round');
 
-  if (partyMayAct) {
-    const actor = actorId === null ? activeParty.find((entry) => !next.roundState.declaredActions.some((declaration) => declaration.actorId === entry.id)) : activeParty.find((entry) => entry.id === actorId);
-    if (!actor) throw new Error(actorId ? 'selected party actor is unavailable' : 'no active party actor remains');
-    if (next.roundState.declaredActions.some((declaration) => declaration.actorId === actor.id)) throw new Error(`${actor.name} already declared an action this round`);
-    const target = targetId === null ? activeFoes[0] : activeFoes.find((entry) => entry.id === targetId);
-    if ((action === 'attack' || action === 'close' || action === 'open') && !target) throw new Error(targetId ? 'selected target is unavailable' : 'no active target remains');
-    next.roundState.declaredActions.push({ actorId: actor.id, action, modifier, targetId: target?.id ?? null });
-    if (next.roundState.declaredActions.length < activeParty.length) {
-      assertValidEncounterDocument(next);
-      return { encounter: next, entries: [], pending: true, awaitingActorIds: activeParty.filter((entry) => !next.roundState.declaredActions.some((declaration) => declaration.actorId === entry.id)).map((entry) => entry.id) };
-    }
+  const declaredBy = (id) => next.roundState.declaredActions.find((entry) => entry.actorId === id) ?? null;
+
+  // A declaration may be given for ANY side: the referee directs opposition and
+  // third parties exactly as players direct the party. Undeclared combatants
+  // fall back to attacking their nearest active enemy.
+  const actor = actorId === null
+    ? activeParty.find((entry) => !declaredBy(entry.id))
+    : active.find((entry) => entry.id === actorId);
+  if (!actor) throw new Error(actorId ? 'selected actor is unavailable' : 'no active party actor remains');
+  if (!mayAct(actor.side) && action !== 'wait') throw new Error(`${actor.name} is surprised and cannot act this round`);
+  if (declaredBy(actor.id)) throw new Error(`${actor.name} already declared an action this round`);
+  const enemiesOf = (entry) => active.filter((candidate) => candidate.side !== entry.side);
+  const target = targetId === null ? enemiesOf(actor)[0] : active.find((entry) => entry.id === targetId);
+  if ((action === 'attack' || action === 'close' || action === 'open') && !target) throw new Error(targetId ? 'selected target is unavailable' : 'no active target remains');
+  if (target && target.side === actor.side) throw new Error(`${actor.name} cannot target ${target.name} on the same side`);
+  next.roundState.declaredActions.push({ actorId: actor.id, side: actor.side, action, modifier, targetId: target?.id ?? null });
+
+  // The round resolves once every active party member has declared; the
+  // referee may declare for other sides before that, and need not.
+  const awaitingActorIds = activeParty.filter((entry) => !declaredBy(entry.id)).map((entry) => entry.id);
+  if (mayAct('party') && awaitingActorIds.length) {
+    assertValidEncounterDocument(next);
+    return { encounter: next, entries: [], pending: true, awaitingActorIds };
   }
 
   const entries = [];
-  const finalParty = new Map(party.map((entry) => [entry.id, entry]));
-  const finalFoes = new Map(foes.map((entry) => [entry.id, entry]));
-  const unit = (id) => finalParty.get(id) ?? finalFoes.get(id);
-  const declarations = partyMayAct ? next.roundState.declaredActions : [];
+  const live = new Map(everyone.map((entry) => [entry.id, entry]));
+  const declarations = next.roundState.declaredActions.filter((entry) => mayAct(entry.side));
 
-  // --- Step 2A: movement and posture resolve first and are visible at once.
+  // --- Step 2A: movement and posture, resolved before any attack.
   for (const declaration of declarations) {
-    const actor = finalParty.get(declaration.actorId);
-    const target = declaration.targetId === null ? null : finalFoes.get(declaration.targetId);
+    const mover = live.get(declaration.actorId);
+    const moveTarget = declaration.targetId === null ? null : live.get(declaration.targetId);
     if (declaration.action === 'close' || declaration.action === 'open') {
-      const band = target ? movePersonalCombatRange(encounterPairRange(actor, target), declaration.action) : next.range;
-      placeAtRange(actor, target, band);
-      entries.push({ round: next.round, kind: 'movement', side: 'party', actorId: actor.id, targetId: target?.id ?? null, text: `${actor.name} moves to ${band} range${target ? ` from ${target.name}` : ''}.` });
+      const band = moveTarget ? movePersonalCombatRange(encounterPairRange(mover, moveTarget), declaration.action) : next.range;
+      placeAtRange(mover, moveTarget, band);
+      entries.push({ round: next.round, kind: 'movement', side: declaration.side, actorId: mover.id, targetId: moveTarget?.id ?? null, text: `${mover.name} moves to ${band} range${moveTarget ? ` from ${moveTarget.name}` : ''}.` });
     }
     if (declaration.action === 'escape') {
-      const band = closestOpposingBand([...finalParty.values(), ...finalFoes.values()]) ?? next.range;
-      const rangeDM = { close: -1, short: -1, medium: 1, long: 2, 'very-long': 3 }[band];
+      const nearest = nearestActiveOpponent(mover, [...live.values()].filter((entry) => entry.side !== mover.side));
+      const band = nearest ? encounterPairRange(mover, nearest) : next.range;
+      const rangeDM = ESCAPE_RANGE_DMS[band];
       const results = [dice.rollD6(), dice.rollD6()];
       const total = results[0] + results[1] + rangeDM + declaration.modifier;
-      entries.push({ round: next.round, kind: 'escape', side: 'party', actorId: actor.id, text: `${actor.name} escape / 2D [${results.join('] [')}] / RANGE ${rangeDM >= 0 ? '+' : ''}${rangeDM} / MOD ${declaration.modifier >= 0 ? '+' : ''}${declaration.modifier} / TOTAL ${total} vs 7+.` });
-      if (total >= 7) actor.status = 'escaped';
+      entries.push({ round: next.round, kind: 'escape', side: declaration.side, actorId: mover.id, text: `${mover.name} escape / 2D [${results.join('] [')}] / RANGE ${rangeDM >= 0 ? '+' : ''}${rangeDM} / MOD ${declaration.modifier >= 0 ? '+' : ''}${declaration.modifier} / TOTAL ${total} vs ${ESCAPE_TARGET}+.` });
+      if (total >= ESCAPE_TARGET) mover.status = 'escaped';
     }
-    if (declaration.action === 'evade') actor.evading = true;
+    if (declaration.action === 'evade') mover.evading = true;
   }
 
-  // --- Step 2B: every attack is thrown against the state at this instant.
-  // Nobody's wounds have been inflicted yet, so a combatant cut down this
-  // round still attacks, and a target dropped by one attack is still a legal
-  // target for another (Book 1 p.30, step 2C).
-  const snapshot = new Map([...finalParty.values(), ...finalFoes.values()].map((entry) => [entry.id, clone(entry)]));
+  // --- Step 2B: every attack is thrown against this snapshot, so nobody's
+  // wounds are known until the round ends (Book 1 p.30 step 2C).
+  const snapshot = new Map([...live.values()].map((entry) => [entry.id, clone(entry)]));
   const pendingWounds = [];
-
-  for (const declaration of declarations.filter((entry) => entry.action === 'attack')) {
-    const actor = snapshot.get(declaration.actorId);
-    const target = snapshot.get(declaration.targetId);
-    if (actor.status !== 'active' || target.status !== 'active') continue;
-    const band = encounterPairRange(actor, target);
+  const throwAttack = (attackerId, defenderId, situationalDM, side) => {
+    const attacker = snapshot.get(attackerId);
+    const defender = snapshot.get(defenderId);
+    if (!attacker || !defender || attacker.status !== 'active' || defender.status !== 'active') return;
+    const band = encounterPairRange(attacker, defender);
     let result;
     try {
-      result = rollPersonalAttack({ attacker: actor, defender: target, range: band, situationalDM: declaration.modifier, dice });
+      result = rollPersonalAttack({ attacker, defender, range: band, situationalDM, dice });
     } catch (error) {
-      entries.push({ round: next.round, kind: 'attack', side: 'party', actorId: actor.id, targetId: target.id, text: `${actor.name} cannot engage ${target.name} at ${band} range with ${getPersonalWeapon(actor.weaponKey).name}.` });
+      entries.push({ round: next.round, kind: 'attack', side, actorId: attacker.id, targetId: defender.id, text: `${attacker.name} cannot engage ${defender.name} at ${band} range with ${getPersonalWeapon(attacker.weaponKey).name}.` });
+      return;
+    }
+    const acting = live.get(attacker.id);
+    acting.blows = result.attacker.blows;
+    acting.evading = false;
+    if (result.success) pendingWounds.push({ defenderId: defender.id, damageDice: result.damageDice, result });
+    entries.push({ round: next.round, kind: 'attack', side, actorId: attacker.id, targetId: defender.id, band, text: '', prefix: `${attacker.name} attacks ${defender.name} at ${band} range`, detail: result });
+  };
+
+  for (const declaration of declarations.filter((entry) => entry.action === 'attack')) {
+    throwAttack(declaration.actorId, declaration.targetId, declaration.modifier, declaration.side);
+  }
+
+  // Anyone active, allowed to act, and not given an order attacks their
+  // nearest enemy — the referee directs who matters and lets the rest fight.
+  for (const entry of active) {
+    if (declaredBy(entry.id) || !mayAct(entry.side)) continue;
+    const attacker = snapshot.get(entry.id);
+    const foe = nearestActiveOpponent(attacker, [...snapshot.values()].filter((candidate) => candidate.side !== attacker.side));
+    if (!foe) continue;
+    const band = encounterPairRange(attacker, foe);
+    if (weaponTargetNumber(attacker.weaponKey, foe.armor, band) === null) {
+      const acting = live.get(entry.id);
+      const closed = movePersonalCombatRange(band, 'close');
+      placeAtRange(acting, live.get(foe.id) ?? foe, closed);
+      snapshot.get(entry.id).position = { ...acting.position };
+      entries.push({ round: next.round, kind: 'movement', side: entry.side, actorId: entry.id, targetId: foe.id, text: `${entry.name} cannot attack at ${band} range and closes to ${closed} range.` });
       continue;
     }
-    const live = finalParty.get(actor.id);
-    live.blows = result.attacker.blows;
-    live.evading = false;
-    if (result.success) pendingWounds.push({ defenderId: target.id, damageDice: result.damageDice, result });
-    entries.push({ round: next.round, kind: 'attack', side: 'party', actorId: actor.id, targetId: target.id, band, text: '', prefix: `${actor.name} attacks ${target.name} at ${band} range`, detail: result });
+    throwAttack(entry.id, foe.id, 0, entry.side);
   }
 
-  if (oppositionMayAct) {
-    for (const foe of activeFoes) {
-      const attacker = snapshot.get(foe.id);
-      const target = nearestActiveOpponent(attacker, [...snapshot.values()].filter((entry) => entry.side === 'party'));
-      if (!target) break;
-      let band = encounterPairRange(attacker, target);
-      let result = null;
-      try {
-        result = rollPersonalAttack({ attacker, defender: target, range: band, dice });
-      } catch (error) {
-        // The weapon cannot reach: this individual closes instead of firing.
-        const live = finalFoes.get(foe.id);
-        const closed = movePersonalCombatRange(band, 'close');
-        placeAtRange(live, finalParty.get(target.id) ?? target, closed);
-        snapshot.get(foe.id).position = { ...live.position };
-        entries.push({ round: next.round, kind: 'movement', side: 'opposition', actorId: foe.id, targetId: target.id, text: `${foe.name} cannot attack at ${band} range and closes to ${closed} range.` });
-        continue;
-      }
-      const live = finalFoes.get(foe.id);
-      live.blows = result.attacker.blows;
-      live.evading = false;
-      if (result.success) pendingWounds.push({ defenderId: target.id, damageDice: result.damageDice, result });
-      entries.push({ round: next.round, kind: 'attack', side: 'opposition', actorId: foe.id, targetId: target.id, band, text: '', prefix: `${foe.name} attacks ${target.name} at ${band} range`, detail: result });
-    }
-  }
-
-  // --- Step 2C: wounds are inflicted at the end of the round, in declaration
-  // order so that first blood falls on the first wound a combatant takes.
+  // --- Step 2C: wounds land after the last attack, in declaration order.
   for (const wound of pendingWounds) {
-    const defender = unit(wound.defenderId);
+    const defender = live.get(wound.defenderId);
     const firstBloodRoll = defender.firstBlood ? dice.rollD6() : null;
     const damage = applyPersonalDamage(defender, wound.damageDice, firstBloodRoll);
-    const updated = { ...damage.combatant, position: defender.position };
-    if (finalParty.has(wound.defenderId)) finalParty.set(wound.defenderId, updated);
-    else finalFoes.set(wound.defenderId, updated);
+    live.set(wound.defenderId, { ...damage.combatant, position: defender.position });
     wound.result.firstBloodRoll = firstBloodRoll;
     wound.result.allocations = damage.allocations;
     wound.result.defenderStatus = damage.status;
@@ -595,25 +614,27 @@ export function resolveEncounterRound(document, { action = 'attack', modifier = 
     delete entry.prefix;
   }
 
-  for (const entry of finalParty.values()) entry.evading = false;
-  replaceCombatants(next, ...finalParty.values(), ...finalFoes.values());
+  for (const entry of live.values()) entry.evading = false;
+  replaceCombatants(next, ...live.values());
   next.range = closestOpposingBand(next.combatants) ?? next.range;
   next.roundState.declaredActions = [];
-  const partyDefeated = [...finalParty.values()].every((entry) => entry.status !== 'active');
-  const partyEscaped = [...finalParty.values()].every((entry) => entry.status === 'escaped');
+  const partyState = next.combatants.filter((entry) => entry.side === 'party');
+  const partyDefeated = partyState.every((entry) => entry.status !== 'active');
+  const partyEscaped = partyState.every((entry) => entry.status === 'escaped');
+  const foesLeft = next.combatants.some((entry) => entry.side !== 'party' && entry.status === 'active');
   if (partyEscaped) { next.status = 'escaped'; next.outcome = { winner: null, reason: 'party-escaped' }; }
   else if (partyDefeated) { next.status = 'defeat'; next.outcome = { winner: 'opposition', reason: 'party-incapacitated' }; }
-  else if ([...finalFoes.values()].every((entry) => entry.status !== 'active')) { next.status = 'victory'; next.outcome = { winner: 'party', reason: 'opposition-incapacitated' }; }
+  else if (!foesLeft) { next.status = 'victory'; next.outcome = { winner: 'party', reason: 'opposition-incapacitated' }; }
 
   if (next.status === 'active') {
-    const casualties = next.combatants.filter((entry) => entry.side === 'opposition' && entry.status !== 'active').length;
-    const originalStrength = next.combatants.filter((entry) => entry.side === 'opposition').length;
+    const casualties = next.combatants.filter((entry) => entry.side !== 'party' && entry.status !== 'active').length;
+    const originalStrength = next.combatants.filter((entry) => entry.side !== 'party').length;
     const morale = resolvePersonalMorale({ casualties, originalStrength, dice });
     if (morale.required) {
       entries.push({ round: next.round, kind: 'morale', side: 'opposition', text: `Opposition morale / 2D [${morale.dice.join('] [')}] / TOTAL ${morale.total} vs ${morale.target}+ / ${morale.stands ? 'STANDS' : 'WITHDRAWS'}.`, detail: morale });
       if (!morale.stands) {
         next.status = 'opposition-withdrew'; next.outcome = { winner: 'party', reason: 'morale' };
-        next.combatants = next.combatants.map((entry) => entry.side === 'opposition' && entry.status === 'active' ? { ...entry, status: 'withdrawn' } : entry);
+        next.combatants = next.combatants.map((entry) => entry.side !== 'party' && entry.status === 'active' ? { ...entry, status: 'withdrawn' } : entry);
       }
     }
   }

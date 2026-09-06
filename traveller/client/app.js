@@ -3227,7 +3227,8 @@ function latestEncounterAtCurrentSystem() {
 }
 
 function selectedEncounterTarget(encounter) {
-  const active = encounter?.combatants.filter((entry) => entry.side === 'opposition' && entry.status === 'active') ?? [];
+  const actorSide = encounter?.combatants.find((entry) => entry.id === selectedEncounterActorId)?.side ?? 'party';
+  const active = encounter?.combatants.filter((entry) => entry.side !== actorSide && entry.status === 'active') ?? [];
   let selected = active.find((entry) => entry.id === selectedEncounterTargetId) ?? null;
   if (!selected) {
     selected = active[0] ?? null;
@@ -3238,9 +3239,14 @@ function selectedEncounterTarget(encounter) {
 
 function selectedEncounterActor(encounter) {
   const declared = new Set(encounter?.roundState?.declaredActions?.map((entry) => entry.actorId) ?? []);
-  const active = encounter?.combatants.filter((entry) => entry.side === 'party' && entry.status === 'active') ?? [];
-  const awaiting = active.filter((entry) => !declared.has(entry.id));
-  let selected = awaiting.find((entry) => entry.id === selectedEncounterActorId) ?? awaiting[0] ?? active[0] ?? null;
+  const anySide = encounter?.combatants.filter((entry) => entry.status === 'active') ?? [];
+  // The referee may pick any active combatant; the default stays a party
+  // member still awaiting orders, since that is what advances the round.
+  const chosen = anySide.find((entry) => entry.id === selectedEncounterActorId && !declared.has(entry.id));
+  if (chosen) return chosen;
+  const party = anySide.filter((entry) => entry.side === 'party');
+  const awaiting = party.filter((entry) => !declared.has(entry.id));
+  const selected = awaiting[0] ?? party[0] ?? null;
   selectedEncounterActorId = selected?.id ?? null;
   return selected;
 }
@@ -3248,15 +3254,19 @@ function selectedEncounterActor(encounter) {
 function setEncounterActor(encounterId, actorId) {
   const encounter = encounterDocuments.find((entry) => entry.identity.id === encounterId);
   const declared = new Set(encounter?.roundState?.declaredActions?.map((entry) => entry.actorId) ?? []);
-  const actor = encounter?.combatants.find((entry) => entry.id === actorId && entry.side === 'party' && entry.status === 'active' && !declared.has(entry.id));
+  const actor = encounter?.combatants.find((entry) => entry.id === actorId && entry.status === 'active' && !declared.has(entry.id));
   if (!actor) return;
   selectedEncounterActorId = actor.id;
+  // A target on the newly selected actor's own side is no longer legal.
+  const target = encounter?.combatants.find((entry) => entry.id === selectedEncounterTargetId);
+  if (target && target.side === actor.side) selectedEncounterTargetId = null;
   renderEncounter();
 }
 
 function setEncounterTarget(encounterId, targetId) {
   const encounter = encounterDocuments.find((entry) => entry.identity.id === encounterId);
-  const target = encounter?.combatants.find((entry) => entry.id === targetId && entry.side === 'opposition' && entry.status === 'active');
+  const actorSide = encounter?.combatants.find((entry) => entry.id === selectedEncounterActorId)?.side ?? 'party';
+  const target = encounter?.combatants.find((entry) => entry.id === targetId && entry.side !== actorSide && entry.status === 'active');
   if (!target) return;
   selectedEncounterTargetId = target.id;
   renderEncounter();
@@ -3433,7 +3443,13 @@ function showEncounterTokenMenu(event, encounter, combatant, onSelect, anchorEle
   };
   add(combatant.side === 'party' ? 'SELECT ACTOR' : 'SELECT TARGET', onSelect, combatant.status !== 'active');
   const actor = selectedEncounterActor(encounter);
-  if (combatant.side === 'opposition') add('ATTACK TARGET', () => { setEncounterTarget(encounter.identity.id, combatant.id); openEncounterAttackDialog(encounter); }, !actor || combatant.status !== 'active');
+  const declaredIds = new Set(encounter.roundState?.declaredActions?.map((entry) => entry.actorId) ?? []);
+  // Any side may be given orders, so any active combatant can take the actor
+  // slot; the referee directs a foe exactly as a player directs a character.
+  if (combatant.side !== 'party') {
+    add('DECLARE FOR THIS ACTOR', () => setEncounterActor(encounter.identity.id, combatant.id), combatant.status !== 'active' || declaredIds.has(combatant.id));
+  }
+  if (actor && combatant.side !== actor.side) add('ATTACK TARGET', () => { setEncounterTarget(encounter.identity.id, combatant.id); openEncounterAttackDialog(encounter); }, combatant.status !== 'active');
   add('CHANGE CONDITION', () => openEncounterConditionDialog(encounter.identity.id, combatant.id));
   if (combatant.sourceActorId && npcActorDocuments.some((entry) => entry.identity.id === combatant.sourceActorId)) add('OPEN ROSTER ACTOR', () => { operationsDeskTab = 'roster'; render(); openNpcActorDialog(combatant.sourceActorId); });
   add('REMOVE FROM ENCOUNTER', () => removeCombatantFromActiveEncounter(encounter.identity.id, combatant.id));
@@ -3816,8 +3832,11 @@ function renderEncounterMap(encounter) {
 
   const heading = document.createElement('div');
   heading.className = 'encounter-roster-heading';
-  heading.textContent = 'ENEMY STATUS / EQUIPMENT';
-  const cards = encounter.combatants.filter((entry) => entry.side === 'opposition').map((enemy) => {
+  const otherSides = [...new Set(encounter.combatants.filter((entry) => entry.side !== 'party').map((entry) => entry.side))];
+  heading.textContent = otherSides.length > 1
+    ? `OTHER SIDES / ${otherSides.map((side) => side.toUpperCase()).join(' + ')}`
+    : 'ENEMY STATUS / EQUIPMENT';
+  const cards = encounter.combatants.filter((entry) => entry.side !== 'party').map((enemy) => {
     const card = document.createElement('button');
     card.type = 'button';
     card.className = `encounter-enemy-card${target?.id === enemy.id ? ' selected' : ''}${enemy.status === 'active' ? '' : ' inactive'}`;
@@ -3825,13 +3844,22 @@ function renderEncounterMap(encounter) {
     const name = document.createElement('span');
     name.className = 'encounter-enemy-name';
     const aimed = declaredOn[enemy.id] ? ` / DECLARED ×${declaredOn[enemy.id]}` : '';
-    name.textContent = `${target?.id === enemy.id ? '● ' : ''}${enemy.name.toUpperCase()} / ${enemy.actorType.toUpperCase()} / ${combatantRulesStatus(enemy).toUpperCase()}${aimed}`;
+    const ordered = encounter.roundState?.declaredActions?.find((entry) => entry.actorId === enemy.id);
+    const sideLabel = otherSides.length > 1 ? `${enemy.side.toUpperCase()} / ` : '';
+    const orders = ordered ? ` / ORDERED ${ordered.action.toUpperCase()}` : '';
+    name.textContent = `${target?.id === enemy.id ? '● ' : ''}${actor?.id === enemy.id ? '▶ ' : ''}${enemy.name.toUpperCase()} / ${sideLabel}${enemy.actorType.toUpperCase()} / ${combatantRulesStatus(enemy).toUpperCase()}${aimed}${orders}`;
     const stats = document.createElement('span');
     stats.textContent = `STR ${enemy.current.STR}/${enemy.characteristics.STR}  DEX ${enemy.current.DEX}/${enemy.characteristics.DEX}  END ${enemy.current.END}/${enemy.characteristics.END}`;
     const equipment = document.createElement('span');
     equipment.textContent = `${getPersonalWeapon(enemy.weaponKey).name} / SKILL-${combatantSkillLevel(enemy)} / ${enemy.armor.toUpperCase()} / CONDITION ${combatantConditionText(enemy)}`;
     card.append(name, document.createElement('br'), stats, document.createElement('br'), equipment);
-    card.addEventListener('click', () => setEncounterTarget(encounter.identity.id, enemy.id));
+    // Click selects as a target; shift-click takes the actor slot so the
+    // referee can declare this combatant's own action.
+    card.addEventListener('click', (event) => {
+      if (event.shiftKey) setEncounterActor(encounter.identity.id, enemy.id);
+      else setEncounterTarget(encounter.identity.id, enemy.id);
+    });
+    card.title = 'Click to target / shift-click to declare this combatant\u2019s own action';
     return card;
   });
   el.encounterRoster.replaceChildren(heading, ...cards);

@@ -1,5 +1,23 @@
 # Graycloak Traveller
 
+## v0.39.0 any side may be given orders
+
+**The referee can now direct the opposition, and a third faction is a legitimate encounter.** Declarations carry a `side`, and the resolver reads them from every side rather than the party alone. Targeting is side-relative throughout: a combatant may engage anyone not on their own side, and same-side targeting is refused. Anyone active and not given an order still attacks their nearest enemy, which is the old behaviour as a fallback rather than the only behaviour.
+
+Encounter validation no longer restricts a side to `party` or `opposition` — any nonblank label is a side — so a militia, a rival crew, or a mutinous half of the party can be placed and will fight on its own account. A test drops a third faction between the party and the raiders and checks that it closes on the *raiders*, its nearest enemy, rather than defaulting to the party.
+
+In the UI, shift-clicking a roster card takes the actor slot for that combatant, and the token menu offers `DECLARE FOR THIS ACTOR`. The action buttons and the DM panel follow the selected actor whichever side it is on, the card shows `ORDERED ATTACK` once declared, and the round still waits on the party before resolving. The roster covers every non-party side and names them when there is more than one.
+
+**Two rules bugs found in Book 1 pp.31–34 and fixed:**
+
+*Escape was thrown at 7+.* p.32 sets it at **9+** with the range DM (−1 close/short, +1 medium, +2 long, +3 very long). The DMs were right and the target was two points too generous, so escapes had been succeeding far more often than the book allows.
+
+*An evading defender still parried.* p.33 says an evading combatant may not attack and may not use the weapon to parry or block. The package applied the evasion DM and the parry DM independently, so an evading blade fighter received both.
+
+**Recorded as a ruling:** a RAW range band is 25 m, close and short share band 0, medium is 1–2 bands, long 3–10, very long 11–20, and beyond 20 bands is out of range. The square workspace's own square-to-band mapping does not correspond to those widths; the book permits expanding the line grid to a square grid, so the grid is RAW and the mapping is ours. The audit now says so.
+
+Rules package v0.18.0. Encounter schema 7 migrates v6 declarations by stamping them `party`.
+
 ## v0.38.0 the character strip tells the truth about the fight
 
 **The character stays whole during combat.** v0.37.0 collapsed the characteristics row and quick skills along with SHIP STATUS; that was the wrong half to hide, since status and wounds are exactly what a referee reads mid-fight. Only SHIP STATUS collapses now.

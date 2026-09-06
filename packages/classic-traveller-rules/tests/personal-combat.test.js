@@ -162,3 +162,17 @@ test('previewPersonalAttack reports weapons that cannot reach the range', () => 
   assert.equal(preview.target, null);
   assert.equal(preview.requiredRoll, null);
 });
+
+test('an evading defender loses parry as well as the attack (B1 p.33)', () => {
+  const dice = { rollD6: () => 3, roll2D6: () => 6 };
+  const attacker = createPersonalCombatant({ id: 'a', name: 'a', side: 'party', characteristics: { STR: 9, DEX: 7, END: 7, INT: 7 }, skills: { Blade: 1 }, armor: 'none', weaponKey: 'blade' });
+  const guard = createPersonalCombatant({ id: 'd', name: 'd', side: 'opposition', characteristics: { STR: 9, DEX: 7, END: 7, INT: 7 }, skills: { Blade: 3 }, armor: 'none', weaponKey: 'blade' });
+  const standing = previewPersonalAttack({ attacker, defender: guard, range: 'short' });
+  assert.equal(standing.parryDM, -3, 'a standing defender parries with blade skill');
+  assert.equal(standing.evasionDM, 0);
+
+  const evading = previewPersonalAttack({ attacker, defender: { ...guard, evading: true }, range: 'short' });
+  assert.equal(evading.parryDM, 0, 'an evading defender may not parry');
+  assert.equal(evading.evasionDM, -1, 'and takes the evasion DM instead');
+  assert.equal(rollPersonalAttack({ attacker, defender: { ...guard, evading: true }, range: 'short', dice }).parryDM, 0);
+});

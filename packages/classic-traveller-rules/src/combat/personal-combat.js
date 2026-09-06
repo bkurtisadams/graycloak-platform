@@ -226,7 +226,9 @@ export function previewPersonalAttack({ attacker, defender, range, situationalDM
   const untrainedDM = trained ? 0 : -5;
   const defenderWeapon = defender.weaponKey ? getPersonalWeapon(defender.weaponKey) : null;
   const defenderTrained = defenderWeapon ? defenderWeapon.skillNames.some((name) => Object.hasOwn(defender.skills ?? {}, name)) : true;
-  const parryDM = spec.melee && defenderWeapon?.parry ? -personalWeaponSkillLevel(defender, defender.weaponKey) : 0;
+  // Book 1 p.33: an evading combatant may not attack and may not use the
+  // weapon to parry or block, so evasion and parry are mutually exclusive.
+  const parryDM = !defender.evading && spec.melee && defenderWeapon?.parry ? -personalWeaponSkillLevel(defender, defender.weaponKey) : 0;
   const evasionDM = defender.evading ? evasionDefenseDM(range) : 0;
   const defenderUntrainedDM = defenderTrained ? 0 : 3;
   const totalDM = skillDM + characteristicDM + untrainedDM + parryDM + evasionDM + defenderUntrainedDM + situationalDM + defenderDM;
@@ -259,7 +261,9 @@ export function rollPersonalAttack({ attacker, defender, range, situationalDM = 
   const untrainedDM = trained ? 0 : -5;
   const defenderWeapon = defender.weaponKey ? getPersonalWeapon(defender.weaponKey) : null;
   const defenderTrained = defenderWeapon ? defenderWeapon.skillNames.some((name) => Object.hasOwn(defender.skills ?? {}, name)) : true;
-  const parryDM = spec.melee && defenderWeapon?.parry ? -personalWeaponSkillLevel(defender, defender.weaponKey) : 0;
+  // Book 1 p.33: an evading combatant may not attack and may not use the
+  // weapon to parry or block, so evasion and parry are mutually exclusive.
+  const parryDM = !defender.evading && spec.melee && defenderWeapon?.parry ? -personalWeaponSkillLevel(defender, defender.weaponKey) : 0;
   const evasionDM = defender.evading ? evasionDefenseDM(range) : 0;
   const defenderUntrainedDM = defenderTrained ? 0 : 3;
   const diceRoll = [dice.rollD6(), dice.rollD6()];
