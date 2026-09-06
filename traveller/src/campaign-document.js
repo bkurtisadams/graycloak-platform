@@ -593,6 +593,33 @@ export function advanceCampaignDays(document, days, { daysPerYear = 365 } = {}) 
   return next;
 }
 
+// Book 1 p.30: a combat round is 15 seconds, and Book 1 p.34 measures recovery
+// in minutes and hours, so the campaign clock has to move in less than a day.
+// Seconds roll into days and days into years by the same rule as
+// advanceCampaignDays, which this now shares.
+export const COMBAT_ROUND_SECONDS = 15;
+export const SECONDS_PER_DAY = 86400;
+
+export function advanceCampaignSeconds(document, seconds, { daysPerYear = 365 } = {}) {
+  if (!Number.isInteger(seconds) || seconds < 0) throw new RangeError('seconds must be a non-negative integer');
+  if (!Number.isInteger(daysPerYear) || daysPerYear < 1 || daysPerYear > 366) throw new RangeError('daysPerYear must be an integer from 1 to 366');
+  const total = document.time.secondsOfDay + seconds;
+  const days = Math.floor(total / SECONDS_PER_DAY);
+  const next = days > 0 ? advanceCampaignDays(document, days, { daysPerYear }) : cloneJson(document);
+  next.time.secondsOfDay = total % SECONDS_PER_DAY;
+  assertValidCampaignDocument(next);
+  return next;
+}
+
+// Seconds are shown because a combat round is 15 of them: an HH:MM clock would
+// sit still through a whole firefight.
+export function campaignClockLabel(document) {
+  const seconds = document?.time?.secondsOfDay ?? 0;
+  const hours = String(Math.floor(seconds / 3600)).padStart(2, '0');
+  const minutes = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+  return `${hours}:${minutes}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
 export function updateCampaignLocation(document, patch = {}) {
   const next = cloneJson(document);
   next.location = { ...next.location, ...patch };

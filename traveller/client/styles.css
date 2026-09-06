@@ -2915,3 +2915,63 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .combat-focus #context-panel .campaign-header-strip { padding: 5px 10px; }
 .combat-focus #context-panel .live-ship-panel { max-height: none; overflow: visible; padding-bottom: 5px; }
 .combat-focus #context-panel .live-ship-heading { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+
+/* --- v0.40.0: the referee's situation conditions, ticked rather than typed. */
+.combat-rail .encounter-situation { border-top: 1px dotted var(--disabled); margin-top: 6px; padding-top: 5px; }
+.combat-rail .encounter-situation-heading { font-size: 10px; letter-spacing: .1em; color: var(--muted); font-weight: 700; padding-bottom: 3px; }
+.combat-rail .encounter-situation-option { display: flex; align-items: center; gap: 6px; font-size: 11px; padding: 1px 0; }
+.combat-rail .encounter-situation-option input { margin: 0; }
+
+/* =========================================================================
+   v0.41.0: the combat tracker. Traveller rounds are simultaneous (B1 p.30),
+   so this is a declaration checklist, not a turn order: party first, other
+   sides below with a coloured dot, and orders shown per combatant.
+   ========================================================================= */
+.combat-rail .encounter-selected { border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: 6px 0; margin-bottom: 6px; }
+.combat-rail .encounter-selected-head { display: flex; align-items: center; gap: 7px; font-size: 13px; }
+.combat-rail .encounter-selected-side { margin-left: auto; font-size: 10px; letter-spacing: .1em; color: var(--muted); display: inline-flex; align-items: center; gap: 5px; }
+.combat-rail .encounter-selected-stats { font-size: 11px; margin-top: 4px; }
+.combat-rail .encounter-selected-gear { font-size: 11px; color: var(--muted); }
+
+.encounter-glyph {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border: 1px solid var(--rule);
+  font-size: 10px; font-weight: 700; flex: 0 0 auto;
+}
+.encounter-glyph.party { background: var(--tab-selected); border-color: var(--tab-selected-border); }
+.encounter-glyph.enemy { background: var(--failure-bg); border-color: var(--failure-border); }
+.encounter-glyph.inactive { color: var(--disabled); border-color: var(--disabled); background: transparent; }
+
+/* Square markers, not dots: the terminal aesthetic has no rounded shapes. */
+.encounter-side-dot { width: 7px; height: 7px; display: inline-block; flex: 0 0 auto; }
+.encounter-side-dot.party { background: var(--tab-selected-border); }
+.encounter-side-dot.enemy { background: var(--failure-border); }
+.encounter-side-dot.side-1 { background: var(--attention-border); }
+.encounter-side-dot.side-2 { background: var(--muted); }
+
+.combat-rail .encounter-target-list, .combat-rail .encounter-tracker { display: flex; flex-direction: column; gap: 3px; margin-bottom: 7px; }
+.combat-rail .encounter-target-row, .combat-rail .encounter-tracker-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  font: inherit; font-size: 11px; text-align: left; padding: 4px 7px;
+  border: 1px solid var(--rule); background: var(--paper);
+}
+.combat-rail .encounter-target-row span, .combat-rail .encounter-tracker-name { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.combat-rail .encounter-target-row.selected, .combat-rail .encounter-tracker-row.selected { background: var(--tab-selected); border-color: var(--tab-selected-border); }
+.combat-rail .encounter-target-row.unreachable { color: var(--disabled); border-style: dashed; }
+.combat-rail .encounter-tracker-row.inactive { color: var(--disabled); border-color: var(--disabled); }
+.combat-rail .encounter-target-detail, .combat-rail .encounter-tracker-orders { color: var(--muted); white-space: nowrap; }
+.combat-rail .encounter-resolve { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; padding-top: 4px; border-top: 1px solid var(--rule); }
+.combat-rail .encounter-resolve-note { font-size: 10px; letter-spacing: .06em; color: var(--muted); }
+
+/* --- Declared orders drawn on the map. */
+.encounter-order-line { stroke-width: 1.5; stroke-dasharray: 5 3; fill: none; }
+.encounter-order-line.party { stroke: var(--tab-selected-border); }
+.encounter-order-line.enemy { stroke: var(--failure-border); }
+.encounter-order-line.evade, .encounter-order-line.wait { stroke-dasharray: 2 4; }
+.encounter-order-head.party { fill: var(--tab-selected-border); }
+.encounter-order-head.enemy { fill: var(--failure-border); }
+
+/* --- Cascading token menu. */
+.encounter-menu-cascade { display: flex; flex-direction: column; }
+.encounter-menu-submenu { display: flex; flex-direction: column; border-left: 2px solid var(--disabled); margin-left: 6px; }
+.encounter-menu-submenu[hidden] { display: none; }

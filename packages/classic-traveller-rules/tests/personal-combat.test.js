@@ -8,6 +8,11 @@ import {
   resolvePersonalAttack,
   rollPersonalAttack,
   previewPersonalAttack,
+  encounterRangeForThrow,
+  rollEncounterRange,
+  TERRAIN_DMS,
+  surpriseDMTotal,
+  situationDMTotal,
   applyPersonalDamage,
   resolvePersonalMorale,
   weaponTargetNumber,
@@ -175,4 +180,41 @@ test('an evading defender loses parry as well as the attack (B1 p.33)', () => {
   assert.equal(evading.parryDM, 0, 'an evading defender may not parry');
   assert.equal(evading.evasionDM, -1, 'and takes the evasion DM instead');
   assert.equal(rollPersonalAttack({ attacker, defender: { ...guard, evading: true }, range: 'short', dice }).parryDM, 0);
+});
+
+test('the encounter range table and terrain DMs follow B1 p.31', () => {
+  // The printed table, entry by entry.
+  const printed = {
+    1: 'short', 2: 'close', 3: 'short', 4: 'medium', 5: 'short', 6: 'medium', 7: 'medium',
+    8: 'long', 9: 'medium', 10: 'very-long', 11: 'long', 12: 'very-long', 13: 'very-long'
+  };
+  for (const [total, range] of Object.entries(printed)) assert.equal(encounterRangeForThrow(Number(total)), range);
+  // Throws outside 1-13 clamp to the printed span.
+  assert.equal(encounterRangeForThrow(0), 'short');
+  assert.equal(encounterRangeForThrow(20), 'very-long');
+
+  assert.equal(TERRAIN_DMS.city, -4);
+  assert.equal(TERRAIN_DMS['building-interior'], -5);
+  assert.equal(TERRAIN_DMS.desert, 4);
+  assert.equal(TERRAIN_DMS.jungle, 0);
+
+  // A city encounter is pulled toward close range; a desert one toward long.
+  const dice = { rollD6: () => 3, roll2D6: () => ({ dice: [3, 3], total: 6 }) };
+  assert.equal(rollEncounterRange(dice, { terrain: 'city' }).range, 'close');
+  assert.equal(rollEncounterRange(dice, { terrain: 'desert' }).range, 'very-long');
+  assert.throws(() => rollEncounterRange(dice, { terrain: 'tundra' }), RangeError);
+});
+
+test('surprise and situation DMs sum only the ticked conditions (B1 p.31)', () => {
+  assert.equal(surpriseDMTotal({}), 0);
+  assert.equal(surpriseDMTotal({ leaderSkill: true, tacticalSkill: true, militaryExperience: true }), 3);
+  assert.equal(surpriseDMTotal({ battleDress: true, eightOrMoreAdventurers: true }), 1);
+  assert.equal(surpriseDMTotal({ leaderSkill: false }), 0);
+  assert.throws(() => surpriseDMTotal({ luck: true }), RangeError);
+
+  assert.equal(situationDMTotal({ cover: true }), -4);
+  assert.equal(situationDMTotal({ concealment: true, foldingStock: true }), -2);
+  assert.equal(situationDMTotal({ darkness: true }), -9);
+  assert.equal(situationDMTotal({ darknessWithLightIntensifier: true }), -6);
+  assert.throws(() => situationDMTotal({ fog: true }), RangeError);
 });

@@ -12,7 +12,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.39.0</div>
+          <div id="app-subtitle" class="subtitle">v0.41.0</div>
         </div>
         <nav class="utility campaign-utility" aria-label="Campaign and view commands">
           <details id="campaign-menu" class="campaign-menu">
@@ -305,13 +305,14 @@
                 <h2 id="combat-rail-heading" class="section-title">COMBAT</h2>
                 <button class="help-button" type="button" data-help-topic="personal-combat" aria-label="Explain personal combat">[?]</button>
               </div>
-              <div id="encounter-dm-panel" class="encounter-dm-panel" aria-label="Attack throw and modifiers" aria-live="polite"></div>
+              <div id="encounter-selected" class="encounter-selected" aria-label="Selected combatant" aria-live="polite"></div>
               <div id="encounter-actions" class="actions operations-primary-actions encounter-actions" aria-label="Personal combat actions"></div>
-              <div id="encounter-party-roster" class="encounter-party-roster" aria-label="Party combatants"></div>
-              <details id="encounter-roster-panel" class="encounter-roster-panel" open>
-                <summary id="encounter-roster-summary">ENEMY ROSTER</summary>
-                <div id="encounter-roster" class="encounter-roster" aria-label="Enemy statistics and equipment"></div>
-              </details>
+              <div id="encounter-target-list" class="encounter-target-list" aria-label="Legal targets"></div>
+              <div id="encounter-dm-panel" class="encounter-dm-panel" aria-label="Attack throw and modifiers" aria-live="polite"></div>
+              <div id="encounter-tracker" class="encounter-tracker" aria-label="Combat tracker"></div>
+              <div id="encounter-resolve" class="encounter-resolve"></div>
+              <div id="encounter-party-roster" class="encounter-party-roster" hidden></div>
+              <div id="encounter-roster" class="encounter-roster" hidden></div>
               <details id="encounter-details" class="encounter-details" hidden>
                 <summary>ENCOUNTER DETAILS</summary>
                 <pre id="encounter-record" class="record encounter-record" aria-live="polite"></pre>

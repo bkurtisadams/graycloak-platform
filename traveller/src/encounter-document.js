@@ -489,42 +489,56 @@ function closestOpposingBand(entries) {
   return rangeBandForMapDistance(best);
 }
 
-export function resolveEncounterRound(document, { action = 'attack', modifier = 0, actorId = null, targetId = null, dice, date } = {}) {
+// Declaring and resolving are separate acts. The referee sets orders for as
+// many combatants as matter, looks at the board, and then commits the round;
+// anyone left undeclared falls back to attacking their nearest enemy.
+export function declareEncounterAction(document, { action = 'attack', modifier = 0, actorId = null, targetId = null } = {}) {
   const next = importEncounterDocument(document);
   if (next.status !== 'active') throw new Error('encounter is already resolved');
   if (!['attack', 'evade', 'close', 'open', 'escape', 'wait'].includes(action)) throw new RangeError(`unknown encounter action: ${action}`);
   if (!Number.isInteger(modifier) || modifier < -20 || modifier > 20) throw new RangeError('modifier must be an integer from -20 to 20');
-  const everyone = next.combatants.map(clone);
-  const active = everyone.filter((entry) => entry.status === 'active');
-  const activeParty = active.filter((entry) => entry.side === 'party');
+  const active = next.combatants.filter((entry) => entry.status === 'active');
   const surpriseRound = next.round === 1 ? next.surprise.surpriseSideId : null;
   const mayAct = (side) => surpriseRound === null || surpriseRound === side;
-  if (!mayAct('party') && action !== 'wait') throw new Error('the party is surprised and cannot act in the surprise round');
-
   const declaredBy = (id) => next.roundState.declaredActions.find((entry) => entry.actorId === id) ?? null;
-
-  // A declaration may be given for ANY side: the referee directs opposition and
-  // third parties exactly as players direct the party. Undeclared combatants
-  // fall back to attacking their nearest active enemy.
   const actor = actorId === null
-    ? activeParty.find((entry) => !declaredBy(entry.id))
+    ? active.filter((entry) => entry.side === 'party').find((entry) => !declaredBy(entry.id))
     : active.find((entry) => entry.id === actorId);
   if (!actor) throw new Error(actorId ? 'selected actor is unavailable' : 'no active party actor remains');
   if (!mayAct(actor.side) && action !== 'wait') throw new Error(`${actor.name} is surprised and cannot act this round`);
   if (declaredBy(actor.id)) throw new Error(`${actor.name} already declared an action this round`);
-  const enemiesOf = (entry) => active.filter((candidate) => candidate.side !== entry.side);
-  const target = targetId === null ? enemiesOf(actor)[0] : active.find((entry) => entry.id === targetId);
+  const target = targetId === null
+    ? active.find((entry) => entry.side !== actor.side)
+    : active.find((entry) => entry.id === targetId);
   if ((action === 'attack' || action === 'close' || action === 'open') && !target) throw new Error(targetId ? 'selected target is unavailable' : 'no active target remains');
   if (target && target.side === actor.side) throw new Error(`${actor.name} cannot target ${target.name} on the same side`);
   next.roundState.declaredActions.push({ actorId: actor.id, side: actor.side, action, modifier, targetId: target?.id ?? null });
+  assertValidEncounterDocument(next);
+  return {
+    encounter: next,
+    declaration: next.roundState.declaredActions[next.roundState.declaredActions.length - 1],
+    awaitingActorIds: undeclaredCombatantIds(next)
+  };
+}
 
-  // The round resolves once every active party member has declared; the
-  // referee may declare for other sides before that, and need not.
-  const awaitingActorIds = activeParty.filter((entry) => !declaredBy(entry.id)).map((entry) => entry.id);
-  if (mayAct('party') && awaitingActorIds.length) {
-    assertValidEncounterDocument(next);
-    return { encounter: next, entries: [], pending: true, awaitingActorIds };
-  }
+// Who is active, allowed to act, and has no orders yet.
+export function undeclaredCombatantIds(document) {
+  const surpriseRound = document.round === 1 ? document.surprise.surpriseSideId : null;
+  const declared = new Set((document.roundState?.declaredActions ?? []).map((entry) => entry.actorId));
+  return document.combatants
+    .filter((entry) => entry.status === 'active' && !declared.has(entry.id))
+    .filter((entry) => surpriseRound === null || surpriseRound === entry.side)
+    .map((entry) => entry.id);
+}
+
+export function resolveDeclaredRound(document, { dice, date } = {}) {
+  const next = importEncounterDocument(document);
+  if (next.status !== 'active') throw new Error('encounter is already resolved');
+  const everyone = next.combatants.map(clone);
+  const active = everyone.filter((entry) => entry.status === 'active');
+  const surpriseRound = next.round === 1 ? next.surprise.surpriseSideId : null;
+  const mayAct = (side) => surpriseRound === null || surpriseRound === side;
+  const declaredBy = (id) => next.roundState.declaredActions.find((entry) => entry.actorId === id) ?? null;
 
   const entries = [];
   const live = new Map(everyone.map((entry) => [entry.id, entry]));
@@ -646,6 +660,23 @@ export function resolveEncounterRound(document, { action = 'attack', modifier = 
   }
   assertValidEncounterDocument(next);
   return { encounter: next, entries, pending: false, awaitingActorIds: [] };
+}
+
+// Declare and, once every active party member has orders, resolve. Kept so a
+// caller that does not want the two-step flow behaves exactly as before.
+export function resolveEncounterRound(document, { action = 'attack', modifier = 0, actorId = null, targetId = null, dice, date } = {}) {
+  const declared = declareEncounterAction(document, { action, modifier, actorId, targetId });
+  const encounter = declared.encounter;
+  const surpriseRound = encounter.round === 1 ? encounter.surprise.surpriseSideId : null;
+  const partyMayAct = surpriseRound === null || surpriseRound === 'party';
+  const declaredIds = new Set(encounter.roundState.declaredActions.map((entry) => entry.actorId));
+  const awaitingParty = encounter.combatants
+    .filter((entry) => entry.side === 'party' && entry.status === 'active' && !declaredIds.has(entry.id))
+    .map((entry) => entry.id);
+  if (partyMayAct && awaitingParty.length) {
+    return { encounter, entries: [], pending: true, awaitingActorIds: awaitingParty };
+  }
+  return resolveDeclaredRound(encounter, { dice, date });
 }
 
 export function avoidEncounter(document, { date } = {}) {

@@ -1,5 +1,31 @@
 # Graycloak Traveller
 
+## v0.41.0 a combat tracker, and orders given at the token
+
+The flow split one decision across three places: pick an actor in the rail, pick a target in the rail or on the map, then press a verb in the rail — while the map, where you are actually looking, showed only a range line. Both halves of this version put the decision where the attention is.
+
+**The rail is now a tracker.** Top to bottom: the selected combatant with its token glyph, side and current characteristics; its action buttons; every legal target *priced* — band and the throw needed, or `NO REACH` with the reason, since `previewPersonalAttack` is dice-free and costs nothing to run against each candidate; the DM breakdown; and then the tracker itself, party first and other sides below, each row carrying a side marker and the orders that combatant is holding. The separate party and enemy rosters are gone.
+
+**It is not a turn order.** Traveller rounds are simultaneous (Book 1 p.30), so there is nothing to sort by and no turn to advance. What the list does is show who still owes a declaration, which makes it a checklist that empties — and `[ RESOLVE ROUND ]` commits it. Declaring no longer resolves the round by itself: `declareEncounterAction` and `resolveDeclaredRound` are separate calls, so the referee can set orders for as many combatants as matter, look at the board, and then commit. Anyone left undeclared still attacks their nearest enemy, and the button says how many that is.
+
+**Orders are given at the token.** Right-clicking opens a cascade — `ATTACK ▸` listing each legal target with its band and needed throw, `MOVE ▸` with close and open per target, then evade, escape and stand — and each leaf is one complete declaration for that token. Left-click still selects. Declared orders are drawn on the map as dashed arrows from each combatant to its target, coloured by side, so concentrated fire and a three-way fight read at a glance.
+
+Fixed on the way: clicking a cascade closed the whole menu, because the map's pointer handler treated any press as a dismissal.
+
+No rules, schema or rules-package changes.
+
+## v0.40.0 a clock, named situation DMs, and a round tracker
+
+**The campaign clock runs.** `secondsOfDay` has been on the campaign document since the beginning, validated 0–86399 and advanced by nothing: `advanceCampaignDays` takes whole days only, so a combat round was fifteen seconds of no time at all. `advanceCampaignSeconds` rolls seconds into days and days into years, each resolved round advances the clock by the Book 1 p.30 round of 15 seconds, and the masthead shows `HH:MM:SS` beside the date — with seconds, because an HH:MM clock sits still through an entire firefight. This is also what the p.34 recovery intervals need: ten minutes to recover consciousness, three hours for a serious wound, neither of which can be modelled without a sub-day clock.
+
+**Situation DMs are ticked, not typed.** Book 1 p.31 errata gives cover −4, concealment −1, darkness −9, darkness with a light intensifier −6, and folding stock −1. They appear in the combat rail as labelled checkboxes with their page in the tooltip; the total feeds the preview and the actual throw, so `NEEDS 2D` moves from `2+` to `4+` the moment cover is ticked. The referee's MODIFIER field remains for anything the book does not name. Conditions describe one attack and clear when it resolves.
+
+Also new in the rules package and not yet wired to the client: the p.31 terrain DM table and encounter range table (`rollEncounterRange`), and the p.31 surprise DM table (`surpriseDMTotal`). The setup dialog still asks for a starting band rather than throwing for it.
+
+**The round tracker** replaces the bare actor/target strip above the map: round number, which side is surprised, and either who still owes a declaration or that all are in — `ROUND 1 // AWAITING HAWKEYE // ACTOR HAWKEYE // TARGET HOSTILE // RANGE MEDIUM / 8 SQ`.
+
+Rules package v0.19.0. No schema changes.
+
 ## v0.39.0 any side may be given orders
 
 **The referee can now direct the opposition, and a third faction is a legitimate encounter.** Declarations carry a `side`, and the resolver reads them from every side rather than the party alone. Targeting is side-relative throughout: a combatant may engage anyone not on their own side, and same-side targeting is refused. Anyone active and not given an order still attacks their nearest enemy, which is the old behaviour as a fallback rather than the only behaviour.

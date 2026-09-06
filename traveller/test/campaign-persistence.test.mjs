@@ -16,6 +16,9 @@ import {
   importCampaignDocument,
   updateCampaignLocation,
   updateCampaignTime,
+  advanceCampaignSeconds,
+  campaignClockLabel,
+  COMBAT_ROUND_SECONDS,
   speculativeLotPurchasedQuantity,
   recordSpeculativeLotPurchase,
   setActiveCampaignCharacter
@@ -330,4 +333,33 @@ test('Campaign Bundle v3 from v0.12.0 migrates to v7 with empty contacts, thread
   assert.deepEqual(migrated.documents.threads, []);
   assert.deepEqual(migrated.documents.encounters, []);
   assert.deepEqual(migrated.documents.activityLogs, []);
+});
+
+test('v0.40.0 advances the campaign clock in seconds, rolling into days and years', async () => {
+  const character = importCharacterDocument(await readFile(path.join(examples, 'Hawkeye.character.json'), 'utf8'));
+  const base = {
+    id: 'campaign-clock', name: 'Clock', location: { systemId: 'cinder', systemName: 'Cinder', worldId: 'cinder-main', worldName: 'Cinder' },
+    characters: [character], ships: [], partyCharacterIds: [character.identity.id], activeShipId: null
+  };
+  const start = createCampaignDocument({ ...base, time: { year: 4800, dayOfYear: 106, secondsOfDay: 0 } });
+
+  // A combat round is 15 seconds (B1 p.30).
+  const oneRound = advanceCampaignSeconds(start, COMBAT_ROUND_SECONDS);
+  assert.equal(oneRound.time.secondsOfDay, 15);
+  assert.equal(oneRound.time.dayOfYear, 106);
+  assert.equal(campaignClockLabel(oneRound), '00:00:15');
+
+  // Ten minutes: the B1 p.34 recovery interval for an unconscious character.
+  const tenMinutes = advanceCampaignSeconds(start, 600);
+  assert.equal(campaignClockLabel(tenMinutes), '00:10:00');
+
+  // Seconds roll into days, and days into years, without losing the remainder.
+  const yearEnd = createCampaignDocument({ ...base, time: { year: 4800, dayOfYear: 365, secondsOfDay: 86_390 } });
+  const rolled = advanceCampaignSeconds(yearEnd, 20);
+  assert.equal(rolled.time.year, 4801);
+  assert.equal(rolled.time.dayOfYear, 1);
+  assert.equal(rolled.time.secondsOfDay, 10);
+
+  assert.throws(() => advanceCampaignSeconds(start, -1), RangeError);
+  assert.throws(() => advanceCampaignSeconds(start, 1.5), RangeError);
 });

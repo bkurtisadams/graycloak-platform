@@ -82,6 +82,7 @@ B1 p.33: once a characteristic is at zero, further points must go to non-zero ch
 | Power-plant fuel consumption | B2 p.15 | 10×Pn covers four weeks of routine operation and maneuver; each jump consumes the two-week share (jump week + system week) | RULED — FIXED (`STANDARD_TRIP_DAYS = 14`; Type S Jump-1 = 20t, Jump-2 = 30t). Note the client advances 7 days per jump; the in-system week's burn is charged at jump time. |
 | Broker fee owed if seller declines to sell | B2 p.48 | RAW | RULED — FIXED (`payDeclinedBrokerFee`); **client does not yet call it** when a quote is declined |
 | Steward requirement | B2 p.16 | RAW: one steward (Steward-0+) per eight high passengers | RULED — FIXED (`HIGH_PASSENGERS_PER_STEWARD`) |
+| Combat round duration and the campaign clock | B1 p.30 | A combat round is 15 seconds. `secondsOfDay` existed on the campaign document and was validated but never advanced by anything, so sub-day time was unmodelled. `advanceCampaignSeconds` now rolls seconds into days and years, and each resolved round advances the clock | RULED — RAW, FIXED in v0.40.0 |
 | Range band scale and the square workspace | B1 p.32 | RAW: a range band is 25 m; close and short share band 0; medium 1–2 bands, long 3–10, very long 11–20; beyond 20 bands is out of range. The 32×20 square workspace maps squares to bands on its own scale (close 0–1, short 2–4, medium 5–8, long 9–14, very long 15+), which does not correspond to the RAW band widths. The book sanctions expanding the line grid to a square or hexagonal grid, so the grid itself is RAW-permitted; the square-to-band mapping is a Graycloak policy call | RULED — Graycloak policy, documented |
 | Actual Value results outside printed 2–15 | B2 p.46 | Package clamps to nearest endpoint (book silent) | OPEN — existing engine policy, flagged only |
 | Allocation of subsequent wound dice to characteristics | B1 p.33 | Book says each die goes to one characteristic but not who chooses; package round-robins STR/DEX/END | OPEN |
@@ -104,8 +105,8 @@ B1 p.33: once a characteristic is at zero, further points must go to non-zero ch
 - Charter of non-starships Cr1/ton/hour (p.9).
 
 **Book 3**
-- Encounter range table and terrain DMs (B1 p.31) — the client computes the band per attacker-target pair from map positions (Graycloak policy: square workspace with a band guide; the bands themselves are RAW). The initial-range throw (2D on the encounter range table, modified by terrain DM) and the terrain DM table are still not implemented; the setup dialog asks the referee for a starting band instead.
-- Surprise DMs (B1 p.31): leader +1, tactical +1, military experience +1, in a vehicle −1, 8+ adventurers −1, 10+ animals −1, pouncer animals +1, battle dress +2. `resolvePersonalSurprise` accepts a per-combatant `surpriseDM` but nothing computes one.
+- Encounter range table and terrain DMs (B1 p.31) — **the tables ship in v0.19.0** (`TERRAIN_DMS`, `ENCOUNTER_RANGE_TABLE`, `rollEncounterRange`); the client does not yet throw for the initial range, so the setup dialog still asks the referee for a starting band.
+- Surprise DMs (B1 p.31) — **the table ships in v0.19.0** (`SURPRISE_DMS`, `surpriseDMTotal`); nothing in the client computes the conditions yet, so `resolvePersonalSurprise` still receives whatever `surpriseDM` the host supplies.
 - Running as two bands and as a combat blow, prohibiting attack that round (B1 pp.32–33); the 20-band escape threshold.
 - Seriously wounded as a state distinct from unconscious (B1 p.34): two characteristics at zero recovers after three hours at the wounded level and needs a facility with medical-3; one at zero recovers after ten minutes at half, needing a kit and medical-1. The package collapses both into `unconscious`.
 - NPC parties with surprise that are outnumbered avoid on 7+, no DMs (B1 p.31).
@@ -115,7 +116,7 @@ B1 p.33: once a characteristic is at zero, further points must go to non-zero ch
 
 **Book 1 errata**
 - Maximum skills ≤ INT + EDU (level-0 excluded).
-- Cover/concealment (−4 / −1), darkness (−9 / −6), zero-G control throw, reloading rounds, folding stock −1, polearm short-range rule.
+- Cover/concealment (−4 / −1), darkness (−9 / −6) and folding stock −1 — **ship in v0.19.0** as `SITUATION_DMS` / `situationDMTotal`, ticked in the combat rail and added to the throw. Zero-G control throw, reloading rounds and the polearm short-range rule remain unimplemented.
 - Separate wound tracking per combat; first-blood applies per combat.
 
 ## 5. The Book 2 port call as written (pp.4–11)

@@ -211,6 +211,74 @@ export function applyPersonalDamage(combatant, damageDice, firstBloodRoll = null
   return { combatant: next, allocations, status: next.status };
 }
 
+// Book 1 p.31 terrain DMs, applied to the 2D encounter range throw.
+export const TERRAIN_DMS = Object.freeze({
+  clear: 3, prairie: 3, rough: 2, broken: 2, mountain: 3, forest: 1, jungle: 0,
+  river: 1, swamp: -4, desert: 4, 'maritime-surface': 2, 'maritime-subsurface': -1,
+  arctic: 2, city: -4, 'building-interior': -5
+});
+
+// Book 1 p.31 encounter range table: 2D plus the terrain DM, clamped to the
+// printed 1-13 span.
+export const ENCOUNTER_RANGE_TABLE = Object.freeze({
+  1: 'short', 2: 'close', 3: 'short', 4: 'medium', 5: 'short', 6: 'medium', 7: 'medium',
+  8: 'long', 9: 'medium', 10: 'very-long', 11: 'long', 12: 'very-long', 13: 'very-long'
+});
+
+export function encounterRangeForThrow(total) {
+  if (!Number.isInteger(total)) throw new TypeError('encounter range throw must be an integer');
+  return ENCOUNTER_RANGE_TABLE[Math.max(1, Math.min(13, total))];
+}
+
+export function rollEncounterRange(dice, { terrain = null, dm = 0 } = {}) {
+  requireDice(dice);
+  if (terrain !== null && !Object.hasOwn(TERRAIN_DMS, terrain)) throw new RangeError(`unknown terrain: ${terrain}`);
+  if (!Number.isInteger(dm)) throw new TypeError('encounter range dm must be an integer');
+  const terrainDM = terrain === null ? 0 : TERRAIN_DMS[terrain];
+  const roll = dice.roll2D6();
+  const total = roll.total + terrainDM + dm;
+  return Object.freeze({ dice: Object.freeze([...roll.dice]), roll: roll.total, terrain, terrainDM, dm, total, range: encounterRangeForThrow(total) });
+}
+
+// Book 1 p.31 surprise DMs. Each is a condition the referee ticks; the sum is
+// the side's surprise DM.
+export const SURPRISE_DMS = Object.freeze({
+  leaderSkill: 1, tacticalSkill: 1, militaryExperience: 1,
+  inAVehicle: -1, eightOrMoreAdventurers: -1, tenOrMoreAnimals: -1,
+  pouncerAnimals: 1, battleDress: 2
+});
+
+export function surpriseDMTotal(conditions = {}) {
+  let total = 0;
+  for (const [key, value] of Object.entries(conditions)) {
+    if (!value) continue;
+    if (!Object.hasOwn(SURPRISE_DMS, key)) throw new RangeError(`unknown surprise condition: ${key}`);
+    total += SURPRISE_DMS[key];
+  }
+  return total;
+}
+
+// Book 1 p.31 errata situational DMs applied to the basic 8+ throw. These are
+// conditions of the attack, not of the combatants, so the caller ticks them
+// and passes the total as the situational DM.
+export const SITUATION_DMS = Object.freeze({
+  cover: { dm: -4, label: 'Cover', page: 'B1 p.31 errata' },
+  concealment: { dm: -1, label: 'Concealment', page: 'B1 p.31 errata' },
+  darkness: { dm: -9, label: 'Darkness', page: 'B1 p.31 errata' },
+  darknessWithLightIntensifier: { dm: -6, label: 'Darkness / light intensifier', page: 'B1 p.31 errata' },
+  foldingStock: { dm: -1, label: 'Folding stock', page: 'B1 p.31 errata' }
+});
+
+export function situationDMTotal(conditions = {}) {
+  let total = 0;
+  for (const [key, value] of Object.entries(conditions)) {
+    if (!value) continue;
+    if (!Object.hasOwn(SITUATION_DMS, key)) throw new RangeError(`unknown situation condition: ${key}`);
+    total += SITUATION_DMS[key].dm;
+  }
+  return total;
+}
+
 // The same throw and DMs as rollPersonalAttack, computed without dice so the
 // referee can see what an attack would need before declaring it. Returns null
 // for `target` when the weapon cannot reach that range.
