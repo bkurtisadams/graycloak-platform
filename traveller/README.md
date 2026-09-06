@@ -1,5 +1,17 @@
 # Graycloak Traveller
 
+## v0.22.0 two-row campaign header and quick skill slots
+
+v0.22.0 recovers two vertical rows above the stage without removing information. The masthead is now a single row: the campaign name sits immediately after `[ CAMPAIGN v ]`, followed by the autosave indicator and the transient status line, with `[ NEW CHARACTER ]` and `[ HIDE LOG ]` pushed right. The separate campaign-identity/status sub-row is gone, and so is the full-width roll bar beneath the identity strip.
+
+Current Location and Ship remain their own cells. Each keeps its kicker, name, and metadata, and each gives up horizontal width to the Character cell in exchange for a second metadata line: Location now carries hex, UWP, date, and bases; Ship carries jump, fuel, and hold on one line and `STATEROOMS occupied/total`, passengers, and the operating account on the next. The v0.19.0 stateroom wording is unchanged.
+
+The Character cell absorbs the old roll bar. Its headline row holds the name and UPP/career/age/status/credits; below it sit the six clickable characteristics and then the quick skills, `[ ALL SKILLS ]`, and the current task.
+
+Quick skills are now chosen rather than inferred. `QUICK_SKILL_PRIORITY` is replaced by `client/quick-slots.js`, which resolves up to six slots per character. Slots are stored in the browser keyed by Character Document id, so they are a local view preference in the sense established by v0.21.0's player sessions; no Character Document, Campaign Document, or bundle schema changes. A character with no stored slots falls back to the previous priority order, so existing characters look exactly as they did. `[ ALL SKILLS ]` or an empty `+ SLOT` chip opens a picker; skills the character no longer has drop out of stored slots on read. When the active situation calls for a skill that is not slotted, that skill still appears as a temporary dotted chip so a check never becomes unreachable.
+
+Tests in `test/quick-slots.test.mjs` cover default order, normalization, per-character isolation, skill removal, and storage failure. `test/static-client.test.mjs` pins the two-row masthead, the absence of the sub-row and roll bar, the cell contents, and the picker dialog. This is a UI-only milestone: no Classic Traveller rules and no persistent document schemas change.
+
 ## v0.21.0 multiplayer-readiness foundation
 
 v0.21.0 introduces the architectural boundary needed before live simultaneous play. Player sessions now distinguish solo, player, referee, and spectator roles; record controlled characters; and keep each client's viewed character outside shared Campaign Document state. The Campaign record selector is therefore labeled Viewed Character and no longer rewrites the campaign when a local player changes sheets.

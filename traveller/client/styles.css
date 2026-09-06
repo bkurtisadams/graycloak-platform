@@ -2380,3 +2380,45 @@ input[readonly] {
     margin: 0.12rem 0 0;
   }
 }
+
+/* =========================================================================
+   v0.22.0: two-row header. Campaign identity joins the masthead row; the
+   character cell carries rolls and user-chosen quick skill slots.
+   ========================================================================= */
+.masthead-main { flex-wrap: wrap; row-gap: 4px; }
+.campaign-utility { flex: 1 1 auto; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; }
+.masthead-campaign-name { font-size: 13px; font-weight: 700; letter-spacing: .05em; white-space: nowrap; }
+.masthead-status { font-size: 11px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 46ch; }
+.masthead-spacer { flex: 1 1 auto; }
+.masthead-sub { display: none; }
+
+.identity-strip { grid-template-columns: minmax(0, 900px) minmax(0, 360px) minmax(0, 1fr); }
+.identity-headline { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; }
+.identity-headline .identity-main { margin-top: 0; }
+.identity-headline .campaign-header-meta { font-size: 12px; }
+.identity-rollrow { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-top: 7px; }
+.identity-rollrow .header-characteristics, .identity-rollrow .header-quick-skills { display: inline-flex; align-items: center; gap: 7px; flex-wrap: wrap; margin: 0; }
+.identity-skillrow { margin-top: 5px; }
+.identity-skillrow .header-all-skills { font-size: 11px; margin-left: 4px; }
+.identity-skillrow .header-task { margin-left: auto; white-space: nowrap; }
+.header-skill-slot { border-style: dashed; color: var(--muted); font-weight: 400; }
+.header-skill-transient { border-style: dotted; }
+.campaign-header-location .campaign-header-meta + .campaign-header-meta,
+.campaign-header-ship .campaign-header-meta + .campaign-header-meta { margin-top: 1px; }
+
+.quick-slot-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; max-height: 46vh; overflow-y: auto; padding: 4px 2px; }
+.quick-slot-choice { border: 1px solid var(--disabled); background: var(--help-paper); padding: 4px 7px; font: inherit; font-size: 12px; text-align: left; color: var(--ink); }
+.quick-slot-choice.selected { background: var(--attention); border-color: var(--attention-border); font-weight: 700; }
+.quick-slot-choice:disabled { color: var(--disabled); }
+.quick-slot-count { font-size: 11px; letter-spacing: .06em; color: var(--muted); margin-top: 6px; }
+
+@media (max-width: 1299px) {
+  .identity-strip { grid-template-columns: minmax(0, 1fr) minmax(0, 320px); }
+  .campaign-header-character { grid-column: 1 / -1; border-right: 0; border-bottom: 1px solid var(--rule); }
+}
+@media (max-width: 860px) {
+  .identity-strip { grid-template-columns: 1fr; }
+  .identity-cell { border-right: 0; border-bottom: 1px solid var(--disabled); padding-left: 0; }
+  .identity-skillrow .header-task { margin-left: 0; }
+  .quick-slot-choices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

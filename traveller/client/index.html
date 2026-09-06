@@ -12,10 +12,9 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.21.0</div>
+          <div id="app-subtitle" class="subtitle">v0.22.0</div>
         </div>
         <nav class="utility campaign-utility" aria-label="Campaign and view commands">
-          <button id="new-character-from-campaign" class="text-button utility-button" type="button" title="Leave campaign play and start a new character generation" hidden>[ NEW CHARACTER ]</button>
           <details id="campaign-menu" class="campaign-menu">
             <summary class="text-button utility-button">[ CAMPAIGN v ]</summary>
             <div class="campaign-menu-popover" role="group" aria-label="Campaign commands">
@@ -29,40 +28,47 @@
               <button id="open-threads-view" class="text-button utility-button" type="button" title="Adventure threads" hidden>[ ADVENTURE THREADS ]</button>
             </div>
           </details>
+          <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
           <span id="autosave-status" class="autosave-status" aria-live="polite">NO CAMPAIGN</span>
+          <div id="system-status" class="status masthead-status" aria-live="polite">READY</div>
+          <span class="masthead-spacer"></span>
+          <button id="new-character-from-campaign" class="text-button utility-button" type="button" title="Leave campaign play and start a new character generation" hidden>[ NEW CHARACTER ]</button>
           <button id="toggle-activity" class="text-button utility-button" type="button" aria-expanded="true" aria-controls="activity-panel">[ HIDE LOG ]</button>
         </nav>
-      </div>
-      <div class="masthead-sub">
-        <div id="campaign-identity" class="campaign-identity"><span>CAMPAIGN</span> // <strong id="header-campaign-name">NO CAMPAIGN</strong></div>
-        <div id="system-status" class="status" aria-live="polite">READY</div>
       </div>
     </header>
 
     <section id="campaign-header" class="campaign-header" hidden aria-label="Current campaign character and ship status">
       <div class="identity-strip">
         <div class="identity-cell campaign-header-character">
-          <div class="campaign-header-kicker">CHARACTER</div>
-          <div class="identity-main"><button id="header-character-name" class="campaign-header-name text-button header-character-link" type="button">--</button></div>
-          <div id="header-character-meta" class="campaign-header-meta">--</div>
+          <div class="identity-headline">
+            <span class="campaign-header-kicker">CHARACTER</span>
+            <span class="identity-main"><button id="header-character-name" class="campaign-header-name text-button header-character-link" type="button">--</button></span>
+            <span id="header-character-meta" class="campaign-header-meta">--</span>
+          </div>
+          <div class="identity-rollrow">
+            <span class="campaign-header-label">ROLL</span>
+            <div id="header-characteristics" class="header-characteristics" aria-label="Clickable character characteristics"></div>
+          </div>
+          <div class="identity-rollrow identity-skillrow">
+            <span class="campaign-header-label">SKILLS</span>
+            <div id="header-quick-skills" class="header-quick-skills" aria-label="Quick skill slots"></div>
+            <button id="header-all-skills" class="text-button header-all-skills" type="button" title="Choose which skills fill the quick slots">[ ALL SKILLS ]</button>
+            <button id="header-task" class="header-task text-button" type="button" disabled>NONE</button>
+          </div>
         </div>
         <div class="identity-cell campaign-header-location">
           <div class="campaign-header-kicker">CURRENT LOCATION</div>
           <div id="header-world" class="campaign-header-name identity-main">--</div>
           <div id="header-date" class="campaign-header-meta">--</div>
+          <div id="header-world-meta" class="campaign-header-meta">--</div>
         </div>
         <div class="identity-cell campaign-header-ship">
           <div class="campaign-header-kicker">SHIP</div>
           <div class="identity-main"><button id="header-ship-name" class="campaign-header-name text-button header-ship-link" type="button">--</button></div>
           <div id="header-ship-meta" class="campaign-header-meta">--</div>
+          <div id="header-ship-meta-two" class="campaign-header-meta">--</div>
         </div>
-      </div>
-      <div class="rollbar">
-        <span class="campaign-header-label">ROLL</span>
-        <div id="header-characteristics" class="header-characteristics" aria-label="Clickable character characteristics"></div>
-        <span class="campaign-header-label rollbar-skills-label">SKILLS</span>
-        <div id="header-quick-skills" class="header-quick-skills"></div>
-        <button id="header-task" class="header-task text-button" type="button" disabled>NONE</button>
       </div>
     </section>
 
@@ -500,6 +506,15 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
           <label class="npc-editor-wide">REFEREE NOTES<textarea id="npc-referee-notes" rows="2"></textarea></label>
         </div>
         <div class="roll-dialog-actions"><button class="text-button action-button" type="submit">[ SAVE ACTOR ]</button><button id="npc-actor-cancel" class="text-button" type="button">[ CANCEL ]</button></div>
+      </form>
+    </dialog>
+    <dialog id="quick-slot-dialog" class="roll-dialog quick-slot-dialog" aria-labelledby="quick-slot-title">
+      <form id="quick-slot-form" class="roll-dialog-form" method="dialog">
+        <div class="roll-dialog-header"><strong id="quick-slot-title">QUICK SKILL SLOTS</strong><button id="quick-slot-close" class="text-button" type="button">[ CLOSE ]</button></div>
+        <div class="roll-dialog-basis">CHOOSE UP TO SIX SKILLS FOR THE HEADER. STORED IN THIS BROWSER PER CHARACTER; THE CHARACTER DOCUMENT IS UNCHANGED.</div>
+        <div id="quick-slot-choices" class="quick-slot-choices" role="group" aria-label="Available skills"></div>
+        <div id="quick-slot-count" class="quick-slot-count">0 / 6 SELECTED</div>
+        <div class="roll-dialog-actions"><button class="text-button action-button" type="submit">[ SAVE SLOTS ]</button><button id="quick-slot-reset" class="text-button" type="button">[ USE DEFAULTS ]</button><button id="quick-slot-cancel" class="text-button" type="button">[ CANCEL ]</button></div>
       </form>
     </dialog>
     <dialog id="activity-note-dialog" class="roll-dialog activity-note-dialog" aria-labelledby="activity-note-title">

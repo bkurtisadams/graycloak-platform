@@ -165,6 +165,14 @@ import {
 } from '../src/player-session.js';
 
 import {
+  QUICK_SLOT_LIMIT,
+  createQuickSlotStore,
+  defaultQuickSlots,
+  normalizeQuickSlots,
+  resolveQuickSlots
+} from './quick-slots.js';
+
+import {
   exportCampaignBundle
 } from '../src/campaign-bundle.js';
 
@@ -255,6 +263,16 @@ const el = {
   headerCharacteristics: document.querySelector('#header-characteristics'),
   headerQuickSkills: document.querySelector('#header-quick-skills'),
   headerTask: document.querySelector('#header-task'),
+  headerAllSkills: document.querySelector('#header-all-skills'),
+  headerWorldMeta: document.querySelector('#header-world-meta'),
+  headerShipMetaTwo: document.querySelector('#header-ship-meta-two'),
+  quickSlotDialog: document.querySelector('#quick-slot-dialog'),
+  quickSlotForm: document.querySelector('#quick-slot-form'),
+  quickSlotChoices: document.querySelector('#quick-slot-choices'),
+  quickSlotCount: document.querySelector('#quick-slot-count'),
+  quickSlotClose: document.querySelector('#quick-slot-close'),
+  quickSlotReset: document.querySelector('#quick-slot-reset'),
+  quickSlotCancel: document.querySelector('#quick-slot-cancel'),
   headerShipName: document.querySelector('#header-ship-name'),
   openCampaignView: document.querySelector('#open-campaign-view'),
   openThreadsView: document.querySelector('#open-threads-view'),
@@ -521,6 +539,7 @@ try {
 try {
   registry = createDocumentRegistry({ storage: window.localStorage });
   playerSessionStore = createPlayerSessionStore({ storage: window.localStorage });
+  quickSlotStore = createQuickSlotStore({ storage: window.localStorage });
 } catch (error) {
   console.error(error);
 }
@@ -767,15 +786,15 @@ const HEADER_CHARACTERISTICS = Object.freeze([
   ['SOC', 'SOCIAL STANDING']
 ]);
 
-const QUICK_SKILL_PRIORITY = Object.freeze([
-  'Pilot',
-  'Navigation',
-  'Electronics',
-  'Mechanical',
-  'Jack-of-All-Trades',
-  'Grav Vehicle',
-  'Laser Rifle'
-]);
+let quickSlotStore = null;
+
+function characterSkillNames(document = gameplayDocument) {
+  return document?.skills ? Object.keys(document.skills) : [];
+}
+
+function quickSlotCharacterId() {
+  return gameplayDocument?.id ?? null;
+}
 
 function signedNumber(value) {
   const number = Number(value ?? 0);
@@ -787,11 +806,9 @@ function campaignPlayActive() {
 }
 
 function quickSkillNames() {
-  if (!gameplayDocument?.skills) return [];
-  const names = Object.keys(gameplayDocument.skills);
-  const prioritized = QUICK_SKILL_PRIORITY.filter((name) => names.includes(name));
-  const remaining = names.filter((name) => !prioritized.includes(name)).sort((a, b) => a.localeCompare(b));
-  return [...prioritized, ...remaining].slice(0, 6);
+  const names = characterSkillNames();
+  if (!names.length) return [];
+  return resolveQuickSlots({ store: quickSlotStore, characterId: quickSlotCharacterId(), skillNames: names }).slots;
 }
 
 function headerTaskSnapshot() {
@@ -857,8 +874,8 @@ function headerTaskSnapshot() {
   return { kind: 'none', id: null, label: 'NONE', attention: false, skillName: null };
 }
 
-function shipHeaderMeta() {
-  if (!shipDocument) return 'NO ACTIVE SHIP';
+function shipHeaderMetaLines() {
+  if (!shipDocument) return ['NO ACTIVE SHIP', ''];
   const jump = shipDocument.specifications?.drives?.jump?.rating ?? '--';
   const fuel = shipDocument.state?.currentFuelTons ?? '--';
   const fuelCapacity = shipDocument.specifications?.fuel?.capacityTons ?? '--';
@@ -867,9 +884,19 @@ function shipHeaderMeta() {
   const staterooms = shipDocument.specifications?.accommodations?.staterooms ?? 0;
   const crewPeople = new Set((shipDocument.crew?.assignments ?? []).map((entry) => entry?.characterId).filter(Boolean)).size;
   const passengers = (shipDocument.state?.passengerManifest ?? []).filter((entry) => entry.class === 'high' || entry.class === 'middle').length;
-  const occupiedStaterooms = crewPeople + passengers;
   const account = shipDocument.state?.finances?.balanceCr;
-  return `J${jump} / FUEL ${fuel}/${fuelCapacity}t / STATEROOMS ${occupiedStaterooms}/${staterooms} / PASSENGERS ${passengers} / HOLD ${cargo}/${cargoCapacity}t / ${Number.isInteger(account) ? formatCr(account) : 'ACCOUNT --'}`;
+  return [
+    `J${jump} / FUEL ${fuel}/${fuelCapacity}t / HOLD ${cargo}/${cargoCapacity}t`,
+    `STATEROOMS ${crewPeople + passengers}/${staterooms} / PASSENGERS ${passengers} / ${Number.isInteger(account) ? formatCr(account) : 'ACCOUNT --'}`
+  ];
+}
+
+function headerBaseLabel(system) {
+  if (!system) return 'BASES --';
+  const bases = [];
+  if (system.bases?.naval) bases.push('NAVAL');
+  if (system.bases?.scout) bases.push('SCOUT');
+  return bases.length ? bases.join(' + ') : 'NO BASES';
 }
 
 function characterHealthLabel(document = gameplayDocument) {
@@ -1075,11 +1102,14 @@ function renderCampaignHeader() {
   el.headerCharacterName.textContent = gameplayDocument.identity.name || '(UNNAMED)';
   el.headerCharacterMeta.textContent = `${gameplayDocument.upp} / ${careerLabel} / AGE ${gameplayDocument.age} / ${characterHealthLabel()} / ${formatCr(gameplayDocument.finances.credits)}`;
   el.headerWorld.textContent = current?.mainWorld?.name || campaignDocument.location.worldName || 'UNMAPPED';
-  el.headerDate.textContent = `${current?.name ? `${current.name.toUpperCase()} / ` : ''}${activityDateLabel()}`;
+  el.headerDate.textContent = `${current?.name ? `${current.name.toUpperCase()} ${current.hex} / ` : ''}${current?.mainWorld?.uwp ?? '--'}`;
+  el.headerWorldMeta.textContent = `${activityDateLabel()} / ${headerBaseLabel(current)}`;
   el.headerShipName.textContent = shipDocument
     ? `${shipDocument.identity.name || '(UNNAMED)'}${shipDocument.identity.registry ? ` / ${shipDocument.identity.registry}` : ''}`
     : 'NO ACTIVE SHIP';
-  el.headerShipMeta.textContent = shipHeaderMeta();
+  const shipMeta = shipHeaderMetaLines();
+  el.headerShipMeta.textContent = shipMeta[0];
+  el.headerShipMetaTwo.textContent = shipMeta[1];
   updateAutosaveStatus();
 
   el.headerCharacteristics.replaceChildren();
@@ -1095,33 +1125,49 @@ function renderCampaignHeader() {
   }
 
   el.headerQuickSkills.replaceChildren();
+  const allSkills = characterSkillNames();
   const quick = quickSkillNames();
-  if (!quick.length) {
+  const appendSkillChip = (skillName, extraClass = '') => {
+    const level = Number(gameplayDocument.skills[skillName] ?? 0);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `header-skill-button${task.skillName === skillName ? ' context-relevant' : ''}${extraClass ? ` ${extraClass}` : ''}`;
+    button.textContent = `${skillName}-${level}`;
+    button.title = task.skillName === skillName
+      ? `Current situation uses ${skillName}-${level}`
+      : `${skillName}-${level} / click for a referee skill check`;
+    button.addEventListener('click', () => {
+      if (task.kind === 'situation' && task.skillName === skillName) {
+        const situation = activeSituationAtCurrentSystem();
+        const choice = situation?.choices.find((entry) => entry.action === 'skill-check' && entry.skillName === skillName);
+        if (situation && choice) return openSituationSkillRollDialog(situation, choice);
+      }
+      openSkillRollDialog(skillName);
+    });
+    el.headerQuickSkills.append(button);
+  };
+
+  if (!allSkills.length) {
     const none = document.createElement('span');
     none.className = 'empty';
     none.textContent = 'NONE';
     el.headerQuickSkills.append(none);
   } else {
-    for (const skillName of quick) {
-      const level = Number(gameplayDocument.skills[skillName] ?? 0);
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = `header-skill-button${task.skillName === skillName ? ' context-relevant' : ''}`;
-      button.textContent = `${skillName}-${level}`;
-      button.title = task.skillName === skillName
-        ? `Current situation uses ${skillName}-${level}`
-        : `${skillName}-${level} / click for a referee skill check`;
-      button.addEventListener('click', () => {
-        if (task.kind === 'situation' && task.skillName === skillName) {
-          const situation = activeSituationAtCurrentSystem();
-          const choice = situation?.choices.find((entry) => entry.action === 'skill-check' && entry.skillName === skillName);
-          if (situation && choice) return openSituationSkillRollDialog(situation, choice);
-        }
-        openSkillRollDialog(skillName);
-      });
-      el.headerQuickSkills.append(button);
+    for (const skillName of quick) appendSkillChip(skillName);
+    if (task.skillName && allSkills.includes(task.skillName) && !quick.includes(task.skillName)) {
+      appendSkillChip(task.skillName, 'header-skill-transient');
+    }
+    if (quick.length < QUICK_SLOT_LIMIT && quick.length < allSkills.length) {
+      const slot = document.createElement('button');
+      slot.type = 'button';
+      slot.className = 'header-skill-button header-skill-slot';
+      slot.textContent = '+ SLOT';
+      slot.title = 'Choose which skills fill the quick slots';
+      slot.addEventListener('click', openQuickSlotDialog);
+      el.headerQuickSkills.append(slot);
     }
   }
+  el.headerAllSkills.disabled = !allSkills.length;
 
   el.headerTask.textContent = task.label;
   el.headerTask.disabled = task.kind === 'none';
@@ -5839,6 +5885,55 @@ el.sheetNotes.addEventListener('change', () => saveCharacterSheetState(
   'Character notes updated'
 ));
 el.toggleSystemDetails.addEventListener('click', toggleSystemDetails);
+
+let pendingQuickSlots = [];
+
+function renderQuickSlotChoices() {
+  const names = characterSkillNames();
+  el.quickSlotChoices.replaceChildren();
+  for (const skillName of names.slice().sort((a, b) => a.localeCompare(b))) {
+    const level = Number(gameplayDocument.skills[skillName] ?? 0);
+    const selected = pendingQuickSlots.includes(skillName);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `quick-slot-choice${selected ? ' selected' : ''}`;
+    button.textContent = `${skillName}-${level}`;
+    button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    button.disabled = !selected && pendingQuickSlots.length >= QUICK_SLOT_LIMIT;
+    button.addEventListener('click', () => {
+      pendingQuickSlots = selected
+        ? pendingQuickSlots.filter((entry) => entry !== skillName)
+        : [...pendingQuickSlots, skillName];
+      renderQuickSlotChoices();
+    });
+    el.quickSlotChoices.append(button);
+  }
+  el.quickSlotCount.textContent = `${pendingQuickSlots.length} / ${QUICK_SLOT_LIMIT} SELECTED`;
+}
+
+function openQuickSlotDialog() {
+  if (!campaignPlayActive() || !characterSkillNames().length) return;
+  pendingQuickSlots = quickSkillNames();
+  renderQuickSlotChoices();
+  el.quickSlotDialog.showModal();
+}
+
+el.headerAllSkills.addEventListener('click', openQuickSlotDialog);
+el.quickSlotClose.addEventListener('click', () => el.quickSlotDialog.close());
+el.quickSlotCancel.addEventListener('click', () => el.quickSlotDialog.close());
+el.quickSlotReset.addEventListener('click', () => {
+  pendingQuickSlots = defaultQuickSlots(characterSkillNames());
+  renderQuickSlotChoices();
+});
+el.quickSlotForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const names = characterSkillNames();
+  const slots = normalizeQuickSlots(pendingQuickSlots, names);
+  quickSlotStore?.write(quickSlotCharacterId(), slots, names);
+  el.quickSlotDialog.close();
+  renderCampaignHeader();
+  setStatus(`QUICK SLOTS SET: ${slots.length ? slots.join(' / ').toUpperCase() : 'DEFAULTS'}`, 'ok');
+});
 
 el.headerTask.addEventListener('click', () => {
   const kind = el.headerTask.dataset.taskKind;
