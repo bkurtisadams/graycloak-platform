@@ -151,6 +151,7 @@ import {
   setNpcActorCondition,
   clearNpcActorConditions
 } from '../src/npc-actor-document.js';
+import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js';
 import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js';
 import {
   ACTIVITY_VISIBILITY,
@@ -928,11 +929,24 @@ function nearestContractDeadlineDays() {
   return Math.min(...days);
 }
 
-function characterPostureLabel() {
+// Combat wounds live on the encounter combatant until the fight resolves, so
+// anything reporting the character's condition mid-fight must read this, not
+// the character document, or it reports the state they were in before it.
+function encounterSelfCombatant() {
   const encounter = activeEncounterAtCurrentSystem();
-  if (!encounter || !gameplayDocument) return '';
-  const me = (encounter.combatants ?? []).find((entry) => entry.id === gameplayDocument.identity.id)
-    ?? (encounter.combatants ?? []).find((entry) => entry.playerCharacter && entry.status === 'active');
+  if (!encounter || !gameplayDocument) return null;
+  return (encounter.combatants ?? []).find((entry) => entry.id === gameplayDocument.identity.id)
+    ?? (encounter.combatants ?? []).find((entry) => entry.playerCharacter) ?? null;
+}
+
+function characterCurrentValue(key) {
+  const me = encounterSelfCombatant();
+  if (me && ['STR', 'DEX', 'END'].includes(key)) return me.current[key];
+  return ['STR', 'DEX', 'END'].includes(key) ? gameplayDocument.current[key] : gameplayDocument.characteristics[key];
+}
+
+function characterPostureLabel() {
+  const me = encounterSelfCombatant();
   if (!me) return '';
   const parts = [];
   if (me.evading) parts.push('EVADING');
@@ -942,6 +956,13 @@ function characterPostureLabel() {
 
 function characterHealthLabel(document = gameplayDocument) {
   if (!document) return 'UNAVAILABLE';
+  const me = document === gameplayDocument ? encounterSelfCombatant() : null;
+  if (me) {
+    if (me.status === 'dead') return 'DEAD';
+    if (me.status === 'unconscious') return 'UNCONSCIOUS';
+    if (me.status !== 'active') return me.status.toUpperCase();
+    return ['STR', 'DEX', 'END'].some((key) => me.current[key] < me.characteristics[key]) ? 'WOUNDED' : 'READY';
+  }
   if (!document.status.alive) return 'DEAD';
   if (document.status.consciousness === 'unconscious') return 'UNCONSCIOUS';
   const wounded = ['STR', 'DEX', 'END'].some((key) => document.current[key] < document.characteristics[key]);
@@ -1163,7 +1184,7 @@ function renderCampaignHeader() {
 
   el.headerCharacteristics.replaceChildren();
   for (const [key, label] of HEADER_CHARACTERISTICS) {
-    const value = ['STR', 'DEX', 'END'].includes(key) ? gameplayDocument.current[key] : gameplayDocument.characteristics[key];
+    const value = characterCurrentValue(key);
     const button = document.createElement('button');
     button.type = 'button';
     button.className = `header-roll-button${value < gameplayDocument.characteristics[key] ? ' injured' : ''}`;
@@ -1412,9 +1433,7 @@ function openSkillRollDialog(skillName, { target = 8 } = {}) {
 
 function openCharacteristicRollDialog(characteristic, label) {
   if (!gameplayDocument) return;
-  const value = Number(['STR', 'DEX', 'END'].includes(characteristic)
-    ? gameplayDocument.current?.[characteristic]
-    : gameplayDocument.characteristics?.[characteristic] ?? 0);
+  const value = Number(characterCurrentValue(characteristic) ?? 0);
   openRollDialog({
     kind: 'characteristic',
     title: `${label.toUpperCase()} ${value} // ${gameplayDocument.identity.name.toUpperCase()}`,
@@ -4181,6 +4200,30 @@ function startSituationEncounter(situation) {
   }
 }
 
+// Combat wounds live on the encounter combatant; this writes them back to the
+// character and roster documents so the sheet, the header and a saved campaign
+// all report the state the fight actually left people in.
+function applyEncounterDocumentSync(encounter) {
+  const result = synchronizeEncounterDocuments({
+    encounter,
+    characters: currentPartyCharacters(),
+    npcActors: npcActorDocuments
+  });
+  if (!result.changes.length) return;
+  const byId = new Map(result.characters.map((entry) => [entry.identity.id, entry]));
+  partyCharacterDocuments = partyCharacterDocuments.map((entry) => byId.get(entry.identity.id) ?? entry);
+  if (gameplayDocument && byId.has(gameplayDocument.identity.id)) gameplayDocument = byId.get(gameplayDocument.identity.id);
+  npcActorDocuments = result.npcActors;
+  for (const change of result.changes) {
+    if (change.documentKind !== 'character') continue;
+    const before = change.before.current;
+    const after = change.after.current;
+    const moved = ['STR', 'DEX', 'END'].filter((key) => before[key] !== after[key])
+      .map((key) => `${key} ${before[key]}->${after[key]}`).join(' / ');
+    logActivity('CHAR', `${change.name} carries combat wounds off the field: ${moved || 'status change'} / ${change.after.alive ? change.after.consciousness.toUpperCase() : 'DEAD'}.`);
+  }
+}
+
 function resolveActiveEncounterAction(action, modifier = 0, targetId = null, actorId = null) {
   try {
     const active = activeEncounterAtCurrentSystem();
@@ -4192,6 +4235,7 @@ function resolveActiveEncounterAction(action, modifier = 0, targetId = null, act
     });
     encounterDocuments[index] = result.encounter;
     for (const entry of result.entries) logActivity('COMBAT', entry.text);
+    applyEncounterDocumentSync(result.encounter);
     resolveLinkedCombatSituation(result.encounter);
     syncCampaignRefs();
     persistCampaignState();

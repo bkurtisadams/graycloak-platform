@@ -2909,8 +2909,8 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
    line keeps the UPP, wound status and posture; SHIP STATUS keeps its heading
    and ship name. Everything else in those two panels waits until the fight is
    over. */
-.combat-focus #context-panel .header-characteristics,
-.combat-focus #context-panel .character-skill-line,
+/* The character stays whole during combat: status, wounds and skills are what
+   a referee reads mid-fight. Only SHIP STATUS collapses. */
 .combat-focus #context-panel .live-ship-status { display: none; }
 .combat-focus #context-panel .campaign-header-strip { padding: 5px 10px; }
 .combat-focus #context-panel .live-ship-panel { max-height: none; overflow: visible; padding-bottom: 5px; }

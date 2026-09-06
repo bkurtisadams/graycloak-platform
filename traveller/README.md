@@ -1,5 +1,17 @@
 # Graycloak Traveller
 
+## v0.38.0 the character strip tells the truth about the fight
+
+**The character stays whole during combat.** v0.37.0 collapsed the characteristics row and quick skills along with SHIP STATUS; that was the wrong half to hide, since status and wounds are exactly what a referee reads mid-fight. Only SHIP STATUS collapses now.
+
+**Two bugs behind that, both worse than the layout.**
+
+Combat wounds live on the encounter combatant until the fight resolves, but the header, the chips and the ad hoc characteristic roll all read the character document. Mid-fight the strip reported the state the character was in *before* the encounter — the header said READY while the party roster said UNCONSCIOUS with DEX 5/11. `encounterSelfCombatant()` and `characterCurrentValue()` now feed the health label, the chips and the roll dialog, so a wounded character cannot be offered a throw at a characteristic they no longer have.
+
+And the wounds never left the encounter at all. `src/combatant-document-sync.js` — written, exported and tested — was imported by nothing but its own test. Every fight since it was added left the character document untouched: survive an encounter at STR 2 and the sheet still read STR 10, and a saved campaign carried the pre-combat character. `applyEncounterDocumentSync()` now runs after each resolved round, writing physical characteristics, alive and consciousness back to the party characters and the roster actors, and logging what each character carried off the field.
+
+No rules, schema or rules-package changes; `synchronizeEncounterDocuments` is used as it was already written.
+
 ## v0.37.1 combat takes the whole rail
 
 The combat panel is now the first section in the rail scroller, and while it is up the other rail panels — WORLD, TRADE, JOBS, NPCS and the situation record — are hidden outright rather than merely deselected. The takeover bar already said they were suspended; now they behave that way, so selecting a suspended tab cannot render Port Services above the throw the referee is reading.
