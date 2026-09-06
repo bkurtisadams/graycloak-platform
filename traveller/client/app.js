@@ -55,6 +55,7 @@ import {
   generatePatronContact,
   resolveRefereeSkillCheck,
   getPersonalWeapon,
+  previewPersonalAttack,
   PERSONAL_WEAPONS,
   PERSONAL_ARMOR_TYPES,
   SERVICES,
@@ -211,7 +212,9 @@ import {
   avoidEncounter,
   encounterRangeGuide,
   repositionEncounterCombatant,
-  setEncounterRangeFromPositions,
+  encounterPairRange,
+  encounterMapDistance,
+  declaredTargetCounts,
   addEncounterCombatantFromActor,
   removeEncounterCombatant,
   setEncounterCombatantCondition
@@ -387,7 +390,8 @@ const el = {
   encounterDetails: document.querySelector('#encounter-details'),
   encounterRecord: document.querySelector('#encounter-record'),
   encounterActions: document.querySelector('#encounter-actions'),
-  encounterTactical: document.querySelector('#encounter-tactical'),
+  encounterRailSection: document.querySelector('#combat-rail-section'),
+  encounterDmPanel: document.querySelector('#encounter-dm-panel'),
   encounterSelectionStatus: document.querySelector('#encounter-selection-status'),
   encounterMapViewport: document.querySelector('#encounter-map-viewport'),
   encounterMap: document.querySelector('#encounter-map'),
@@ -395,7 +399,6 @@ const el = {
   encounterZoomLabel: document.querySelector('#encounter-zoom-label'),
   encounterZoomIn: document.querySelector('#encounter-zoom-in'),
   encounterZoomFit: document.querySelector('#encounter-zoom-fit'),
-  encounterApplyRange: document.querySelector('#encounter-apply-range'),
   encounterPartyRoster: document.querySelector('#encounter-party-roster'),
   encounterRosterPanel: document.querySelector('#encounter-roster-panel'),
   encounterRosterSummary: document.querySelector('#encounter-roster-summary'),
@@ -522,11 +525,13 @@ const ENCOUNTER_MAP_MAX_ZOOM = 4;
 let encounterMapZoom = 1;
 let encounterMapView = { x: 0, y: 0, width: ENCOUNTER_MAP_WIDTH, height: ENCOUNTER_MAP_HEIGHT };
 let encounterMapViewFrame = 0;
+let framedEncounterId = null;
 const WORKSPACE_VIEWS = ['play', 'ship', 'campaign', 'threads'];
 let activeWorkspaceView = 'play';
 let systemDetailsOpen = false;
 let registry = null;
 let playerSessionStore = null;
+let quickSlotStore = null;
 
 const ACTIVITY_ORDER_STORAGE_KEY = 'graycloak.traveller.activity-order.v1';
 const ACTIVITY_VISIBLE_STORAGE_KEY = 'graycloak.traveller.activity-visible.v1';
@@ -787,8 +792,6 @@ const HEADER_CHARACTERISTICS = Object.freeze([
   ['EDU', 'EDUCATION'],
   ['SOC', 'SOCIAL STANDING']
 ]);
-
-let quickSlotStore = null;
 
 function characterSkillNames(document = gameplayDocument) {
   return document?.skills ? Object.keys(document.skills) : [];
@@ -1313,7 +1316,6 @@ function applyCampaignLayout() {
   el.openThreadsView.hidden = false;
   // The centre is a tabbed scene: CHARACTER / SYSTEM / COMBAT.
   el.sceneTabsRow.hidden = false;
-  if (activeSceneTab === 'combat' && !activeEncounterAtCurrentSystem()) activeSceneTab = 'system';
   el.personnelSection.hidden = activeSceneTab !== 'character';
   el.subsectorSection.hidden = activeSceneTab !== 'system';
   el.encounterSection.hidden = activeSceneTab !== 'combat';
@@ -1341,11 +1343,12 @@ let activeSceneTab = 'system';
 
 function setSceneTab(tab) {
   if (!['character', 'system', 'combat'].includes(tab)) return;
-  if (tab === 'combat' && !activeEncounterAtCurrentSystem()) return;
   activeSceneTab = tab;
   if (activeWorkspaceView !== 'play') activeWorkspaceView = 'play';
   applyCampaignLayout();
   renderSelectedSystemSummary();
+  // COMBAT owns both the scene and its rail, so the rail follows the tab.
+  renderEncounter();
 }
 
 function setWorkspaceView(view) {
@@ -3331,6 +3334,24 @@ function setEncounterMapZoom(value, anchor = null) {
   scheduleEncounterMapView();
 }
 
+// Frame the combatants rather than the whole 32x20 workspace: at 100% the
+// tokens are specks on a wide screen, and what matters is who is in the fight.
+function frameEncounterCombatants(encounter) {
+  const cellWidth = ENCOUNTER_MAP_WIDTH / encounter.map.columns;
+  const cellHeight = ENCOUNTER_MAP_HEIGHT / encounter.map.rows;
+  const xs = encounter.combatants.map((entry) => entry.position.column * cellWidth + cellWidth / 2);
+  const ys = encounter.combatants.map((entry) => entry.position.row * cellHeight + cellHeight / 2);
+  if (!xs.length) { fitEncounterMap(); return; }
+  const padding = Math.max(cellWidth, cellHeight) * 2.5;
+  const left = Math.min(...xs) - padding;
+  const top = Math.min(...ys) - padding;
+  const width = Math.max(Math.max(...xs) - Math.min(...xs) + padding * 2, cellWidth * 8);
+  const height = Math.max(Math.max(...ys) - Math.min(...ys) + padding * 2, cellHeight * 6);
+  encounterMapZoom = ENCOUNTER_MAP_WIDTH / width;
+  encounterMapView = { x: left, y: top, width, height };
+  flushEncounterMapView();
+}
+
 function fitEncounterMap() {
   encounterMapZoom = 1;
   encounterMapView = { x: 0, y: 0, width: ENCOUNTER_MAP_WIDTH, height: ENCOUNTER_MAP_HEIGHT };
@@ -3600,18 +3621,84 @@ function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect
   });
 }
 
+function signedDM(value) { return `${value >= 0 ? '+' : ''}${value}`; }
+
+// Book 1 p.30 step 2B(1)(2): what this attacker needs against this target, at
+// the band between their two map positions. Every number here comes from the
+// same rules call the resolver uses, so the panel cannot drift from the throw.
+function renderEncounterDmPanel(encounter, actor, target) {
+  const rows = [];
+  const line = (label, value, className = '') => {
+    const row = document.createElement('div');
+    row.className = `panel-row${className ? ` ${className}` : ''}`;
+    const key = document.createElement('span');
+    key.className = 'panel-row-label';
+    key.textContent = label;
+    const held = document.createElement('span');
+    held.className = 'panel-row-value';
+    held.textContent = value;
+    row.append(key, held);
+    rows.push(row);
+  };
+
+  if (!actor || !target) {
+    const hint = document.createElement('div');
+    hint.className = 'encounter-dm-hint';
+    hint.textContent = actor ? 'SELECT A TARGET' : 'SELECT A PARTY ACTOR';
+    el.encounterDmPanel.replaceChildren(hint);
+    return;
+  }
+
+  const band = encounterPairRange(actor, target);
+  const preview = previewPersonalAttack({ attacker: actor, defender: target, range: band });
+  const heading = document.createElement('div');
+  heading.className = 'encounter-dm-heading';
+  heading.textContent = `${actor.name.toUpperCase()} → ${target.name.toUpperCase()}`;
+  line('RANGE', `${band.toUpperCase().replace('-', ' ')} / ${encounterMapDistance(actor, target)} SQ`);
+  line('WEAPON', `${preview.weaponName.toUpperCase()} vs ${preview.armor.toUpperCase()}`);
+
+  if (!preview.canAttack) {
+    line('THROW', 'CANNOT REACH', 'attention');
+    const note = document.createElement('div');
+    note.className = 'encounter-dm-note';
+    note.textContent = `${preview.weaponName} has no ${band.replace('-', ' ')} range column (Book 1 p.46).`;
+    el.encounterDmPanel.replaceChildren(heading, ...rows, note);
+    return;
+  }
+
+  line('TARGET', `${preview.target}+`);
+  for (const [label, value] of [
+    ['SKILL', preview.skillDM], ['CHARACTERISTIC', preview.characteristicDM], ['UNTRAINED', preview.untrainedDM],
+    ['PARRY', preview.parryDM], ['EVASION', preview.evasionDM], ['DEFENDER UNTRAINED', preview.defenderUntrainedDM]
+  ]) {
+    if (value !== 0) line(label, signedDM(value));
+  }
+  line('TOTAL DM', signedDM(preview.totalDM));
+  line('NEEDS 2D', `${Math.max(2, preview.requiredRoll)}+`, preview.requiredRoll > 12 ? 'attention' : 'ok');
+  line('DAMAGE', `${preview.damageDice}D`);
+  if (preview.requiredRoll > 12) {
+    const note = document.createElement('div');
+    note.className = 'encounter-dm-note';
+    note.textContent = 'No 2D throw can make this; close the range or change weapons.';
+    el.encounterDmPanel.replaceChildren(heading, ...rows, note);
+    return;
+  }
+  const note = document.createElement('div');
+  note.className = 'encounter-dm-note';
+  note.textContent = 'Book 1 pp.45–47. Wounds are inflicted at the end of the round (p.30).';
+  el.encounterDmPanel.replaceChildren(heading, ...rows, note);
+}
+
 function renderEncounterMap(encounter) {
   if (!encounter) {
     hideEncounterTokenOverlays();
-    el.encounterTactical.hidden = true;
     el.encounterMap.replaceChildren();
     el.encounterPartyRoster.replaceChildren();
     el.encounterRoster.replaceChildren();
+    el.encounterDmPanel.replaceChildren();
     el.encounterSelectionStatus.textContent = 'ACTOR -- // TARGET --';
-    el.encounterApplyRange.hidden = true;
     return;
   }
-  el.encounterTactical.hidden = false;
   const width = ENCOUNTER_MAP_WIDTH;
   const height = ENCOUNTER_MAP_HEIGHT;
   const cellWidth = width / encounter.map.columns;
@@ -3626,6 +3713,13 @@ function renderEncounterMap(encounter) {
   const actor = selectedEncounterActor(encounter);
   const target = selectedEncounterTarget(encounter);
   const declared = new Set(encounter.roundState?.declaredActions?.map((entry) => entry.actorId) ?? []);
+  // The party's own declarations: showing these reveals nothing the characters
+  // would not know, unlike the state of a target the round has not resolved.
+  const declaredOn = declaredTargetCounts(encounter);
+  if (framedEncounterId !== encounter.identity.id) {
+    framedEncounterId = encounter.identity.id;
+    frameEncounterCombatants(encounter);
+  }
   let guide = null;
   if (actor && target) {
     guide = encounterRangeGuide(encounter, actor.id, target.id);
@@ -3669,6 +3763,11 @@ function renderEncounterMap(encounter) {
     if (combatant.conditions?.length) {
       const marker = svgElement('text', { x: 12, y: -10, class: 'encounter-token-condition-marker' }); marker.textContent = '!'; group.append(marker);
     }
+    if (declaredOn[combatant.id]) {
+      const tally = svgElement('text', { x: 12, y: 14, class: 'encounter-token-declared-marker' });
+      tally.textContent = `\u00d7${declaredOn[combatant.id]}`;
+      group.append(tally);
+    }
     attachEncounterTokenInteraction(group, encounter, combatant, { onSelect: () => setEncounterTarget(encounter.identity.id, combatant.id) });
     fragments.push(group);
   }
@@ -3676,11 +3775,9 @@ function renderEncounterMap(encounter) {
   applyEncounterMapView();
 
   const distanceText = guide ? `${guide.distance} SQ${guide.meters === null ? ' / SCALE UNSET' : ` / ≈${guide.meters} M`}` : '';
-  const guideText = guide ? guide.matches
-    ? ` // MAP MATCHES ${guide.suggestedRange.toUpperCase().replace('-', ' ')} / ${distanceText}`
-    : ` // MAP SUGGESTS ${guide.suggestedRange.toUpperCase().replace('-', ' ')} / ${distanceText}` : '';
-  el.encounterSelectionStatus.textContent = `ACTOR ${actor?.name.toUpperCase() ?? '--'} // TARGET ${target?.name.toUpperCase() ?? '--'} // BOOK 1 RANGE ${encounter.range.toUpperCase().replace('-', ' ')}${guideText}`;
-  el.encounterApplyRange.hidden = !guide || guide.matches || encounter.status !== 'active';
+  const guideText = guide ? ` // RANGE ${guide.suggestedRange.toUpperCase().replace('-', ' ')} / ${distanceText}` : '';
+  el.encounterSelectionStatus.textContent = `ACTOR ${actor?.name.toUpperCase() ?? '--'} // TARGET ${target?.name.toUpperCase() ?? '--'}${guideText}`;
+  renderEncounterDmPanel(encounter, actor, target);
 
   const partyHeading = document.createElement('div');
   partyHeading.className = 'encounter-roster-heading';
@@ -3708,7 +3805,8 @@ function renderEncounterMap(encounter) {
     card.disabled = enemy.status !== 'active';
     const name = document.createElement('span');
     name.className = 'encounter-enemy-name';
-    name.textContent = `${target?.id === enemy.id ? '● ' : ''}${enemy.name.toUpperCase()} / ${enemy.actorType.toUpperCase()} / ${combatantRulesStatus(enemy).toUpperCase()}`;
+    const aimed = declaredOn[enemy.id] ? ` / DECLARED ×${declaredOn[enemy.id]}` : '';
+    name.textContent = `${target?.id === enemy.id ? '● ' : ''}${enemy.name.toUpperCase()} / ${enemy.actorType.toUpperCase()} / ${combatantRulesStatus(enemy).toUpperCase()}${aimed}`;
     const stats = document.createElement('span');
     stats.textContent = `STR ${enemy.current.STR}/${enemy.characteristics.STR}  DEX ${enemy.current.DEX}/${enemy.characteristics.DEX}  END ${enemy.current.END}/${enemy.characteristics.END}`;
     const equipment = document.createElement('span');
@@ -4109,24 +4207,6 @@ function resolveActiveEncounterAction(action, modifier = 0, targetId = null, act
   }
 }
 
-function applySelectedMapRange() {
-  try {
-    const active = activeEncounterAtCurrentSystem();
-    const actor = selectedEncounterActor(active);
-    const target = selectedEncounterTarget(active);
-    if (!active || !actor || !target) throw new Error('select an active party actor and enemy target');
-    const index = encounterDocuments.findIndex((entry) => entry.identity.id === active.identity.id);
-    const result = setEncounterRangeFromPositions(active, { actorId: actor.id, targetId: target.id });
-    encounterDocuments[index] = result.encounter;
-    logActivity('COMBAT', result.entry.text);
-    persistCampaignState();
-    setStatus(`BOOK 1 RANGE SET TO ${result.encounter.range.toUpperCase().replace('-', ' ')}`, 'ok');
-    renderEncounter();
-  } catch (error) {
-    console.error(error);
-    setStatus(error?.message ?? String(error), 'error');
-  }
-}
 
 function avoidActiveEncounter() {
   try {
@@ -4166,7 +4246,7 @@ function openEncounterAttackDialog(encounter) {
 function renderEncounter() {
   const current = mappedCurrentSystem();
   if (!campaignDocument || !current || !gameplayDocument) {
-    el.encounterSection.dataset.available = 'false';
+    el.encounterRailSection.dataset.available = 'false';
     el.encounterDetails.hidden = true;
     el.encounterRecord.textContent = '';
     el.encounterActions.replaceChildren();
@@ -4174,7 +4254,7 @@ function renderEncounter() {
     applyOperationsDeskTab();
     return;
   }
-  el.encounterSection.dataset.available = 'true';
+  el.encounterRailSection.dataset.available = 'true';
   el.encounterRecord.textContent = buildEncounterRecord({ system: current, encounters: encounterDocuments });
   el.encounterActions.replaceChildren();
   const active = activeEncounterAtCurrentSystem();
@@ -4265,7 +4345,6 @@ function applyOperationsDeskTab() {
     trade: el.commerceSection,
     jobs: el.contractSection,
     situation: el.situationSection,
-    encounter: el.encounterSection,
     roster: el.rosterSection
   };
   const tabs = {
@@ -4278,11 +4357,16 @@ function applyOperationsDeskTab() {
   // only while something is active, then fall back to WORLD.
   if (operationsDeskTab === 'situation' && !activeSituationAtCurrentSystem()) operationsDeskTab = 'port';
   if (operationsDeskTab === 'encounter' && !activeEncounterAtCurrentSystem() && !latestEncounterAtCurrentSystem()) operationsDeskTab = 'port';
-  const encounterWorkspaceActive = operationsDeskTab === 'encounter' && panels.encounter?.dataset.available === 'true';
+  const encounterWorkspaceActive = operationsDeskTab === 'encounter' && el.encounterRailSection?.dataset.available === 'true';
   const situationTakeover = operationsDeskTab === 'situation' && panels.situation?.dataset.available === 'true';
   for (const [key, panel] of Object.entries(panels)) {
     const available = panel?.dataset.available === 'true';
     if (panel) panel.hidden = key !== operationsDeskTab || !available;
+  }
+  // The combat rail belongs to the COMBAT scene: the map is the scene, the DM
+  // panel and rosters are its rail, so the two show and hide together.
+  if (el.encounterRailSection) {
+    el.encounterRailSection.hidden = !(campaignPlayActive() && activeSceneTab === 'combat' && el.encounterRailSection.dataset.available === 'true');
   }
   // The encounter panel lives in the scene; while combat is active the context
   // panel shows the situation/roster only if selected, otherwise the takeover bar.
@@ -4296,11 +4380,10 @@ function applyOperationsDeskTab() {
   }
   el.contextTabs?.classList.toggle('suspended', takeover);
   el.subsectorSection?.classList.remove('encounter-workspace-active', 'navigation-workspace-active');
+  // A live encounter pulls the scene to COMBAT; leaving COMBAT is the
+  // referee's own tab choice, so nothing drags the scene back to SYSTEM.
   if (encounterWorkspaceActive && activeSceneTab !== 'combat') {
     activeSceneTab = 'combat';
-    applyCampaignLayout();
-  } else if (!encounterWorkspaceActive && activeSceneTab === 'combat') {
-    activeSceneTab = 'system';
     applyCampaignLayout();
   }
 }
@@ -6213,7 +6296,6 @@ el.npcActorForm.addEventListener('submit', (event) => {
 el.encounterZoomOut.addEventListener('click', () => setEncounterMapZoom(encounterMapZoom - 0.25));
 el.encounterZoomIn.addEventListener('click', () => setEncounterMapZoom(encounterMapZoom + 0.25));
 el.encounterZoomFit.addEventListener('click', fitEncounterMap);
-el.encounterApplyRange.addEventListener('click', applySelectedMapRange);
 el.encounterMap.addEventListener('dragstart', (event) => event.preventDefault());
 {
   let pan = null;

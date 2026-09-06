@@ -211,6 +211,35 @@ export function applyPersonalDamage(combatant, damageDice, firstBloodRoll = null
   return { combatant: next, allocations, status: next.status };
 }
 
+// The same throw and DMs as rollPersonalAttack, computed without dice so the
+// referee can see what an attack would need before declaring it. Returns null
+// for `target` when the weapon cannot reach that range.
+export function previewPersonalAttack({ attacker, defender, range, situationalDM = 0, defenderDM = 0 } = {}) {
+  const spec = getPersonalWeapon(attacker.weaponKey);
+  if (!PERSONAL_ARMOR_TYPES.includes(defender.armor)) throw new RangeError(`unknown personal armor: ${defender.armor}`);
+  const target = weaponTargetNumber(attacker.weaponKey, defender.armor, range);
+  situationalDM = integer(situationalDM, 'situationalDM');
+  defenderDM = integer(defenderDM, 'defenderDM');
+  const skillDM = personalWeaponSkillLevel(attacker, attacker.weaponKey);
+  const characteristicDM = weaponCharacteristicDM(attacker, attacker.weaponKey);
+  const trained = spec.skillNames.some((name) => Object.hasOwn(attacker.skills ?? {}, name));
+  const untrainedDM = trained ? 0 : -5;
+  const defenderWeapon = defender.weaponKey ? getPersonalWeapon(defender.weaponKey) : null;
+  const defenderTrained = defenderWeapon ? defenderWeapon.skillNames.some((name) => Object.hasOwn(defender.skills ?? {}, name)) : true;
+  const parryDM = spec.melee && defenderWeapon?.parry ? -personalWeaponSkillLevel(defender, defender.weaponKey) : 0;
+  const evasionDM = defender.evading ? evasionDefenseDM(range) : 0;
+  const defenderUntrainedDM = defenderTrained ? 0 : 3;
+  const totalDM = skillDM + characteristicDM + untrainedDM + parryDM + evasionDM + defenderUntrainedDM + situationalDM + defenderDM;
+  return {
+    weaponKey: attacker.weaponKey, weaponName: spec.name, range, armor: defender.armor, target,
+    skillDM, characteristicDM, untrainedDM, parryDM, evasionDM, defenderUntrainedDM, situationalDM, defenderDM, totalDM,
+    damageDice: spec.damageDice,
+    canAttack: target !== null,
+    // What the 2D throw itself must show once DMs are counted.
+    requiredRoll: target === null ? null : target - totalDM
+  };
+}
+
 // Book 1 p.30 step 2B: the attack roll and its DMs. Damage dice are rolled
 // here because they depend on nothing but the weapon, but no wound is applied:
 // step 2C inflicts wounds at the END of the round, so a caller resolving a

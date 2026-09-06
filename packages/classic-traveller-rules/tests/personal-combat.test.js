@@ -7,6 +7,7 @@ import {
   resolvePersonalSurprise,
   resolvePersonalAttack,
   rollPersonalAttack,
+  previewPersonalAttack,
   applyPersonalDamage,
   resolvePersonalMorale,
   weaponTargetNumber,
@@ -138,4 +139,26 @@ test('resolvePersonalAttack still rolls and applies in one step', () => {
   assert.equal(result.success, true);
   assert.ok(result.allocations.length > 0);
   assert.notDeepEqual(result.defender.current, foe.current);
+});
+
+test('previewPersonalAttack reports the same throw and DMs as the rolled attack', () => {
+  const dice = { rollD6: () => 3, roll2D6: () => 6 };
+  const attacker = createPersonalCombatant({ id: 'a', name: 'a', side: 'party', characteristics: { STR: 7, DEX: 11, END: 7, INT: 7 }, skills: { Rifle: 2 }, armor: 'none', weaponKey: 'rifle' });
+  const defender = createPersonalCombatant({ id: 'd', name: 'd', side: 'opposition', characteristics: { STR: 7, DEX: 7, END: 7, INT: 7 }, armor: 'jack', weaponKey: 'blade' });
+  const preview = previewPersonalAttack({ attacker, defender, range: 'medium', situationalDM: 1 });
+  const rolled = rollPersonalAttack({ attacker, defender, range: 'medium', situationalDM: 1, dice });
+  for (const key of ['target', 'skillDM', 'characteristicDM', 'untrainedDM', 'parryDM', 'evasionDM', 'defenderUntrainedDM', 'situationalDM', 'totalDM']) {
+    assert.equal(preview[key], rolled[key], `preview ${key} must match the rolled attack`);
+  }
+  assert.equal(preview.requiredRoll, preview.target - preview.totalDM);
+  assert.equal(preview.canAttack, true);
+});
+
+test('previewPersonalAttack reports weapons that cannot reach the range', () => {
+  const attacker = createPersonalCombatant({ id: 'a', name: 'a', side: 'party', characteristics: { STR: 9, DEX: 7, END: 7, INT: 7 }, skills: { Blade: 1 }, armor: 'none', weaponKey: 'blade' });
+  const defender = createPersonalCombatant({ id: 'd', name: 'd', side: 'opposition', characteristics: { STR: 7, DEX: 7, END: 7, INT: 7 }, armor: 'none', weaponKey: 'rifle' });
+  const preview = previewPersonalAttack({ attacker, defender, range: 'long' });
+  assert.equal(preview.canAttack, false);
+  assert.equal(preview.target, null);
+  assert.equal(preview.requiredRoll, null);
 });

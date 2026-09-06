@@ -12,7 +12,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.35.0</div>
+          <div id="app-subtitle" class="subtitle">v0.36.0</div>
         </div>
         <nav class="utility campaign-utility" aria-label="Campaign and view commands">
           <details id="campaign-menu" class="campaign-menu">
@@ -205,44 +205,25 @@
           <span id="subsector-heading" hidden>SUBSECTOR NAVIGATION</span>
           <pre id="jump-plan" class="record jump-plan" hidden aria-live="polite"></pre>
         </section>
-        <section id="encounter-section" class="scene-view" hidden aria-labelledby="encounter-heading">
-                  <div class="section-heading">
-                    <h2 id="encounter-heading" class="section-title">COMBAT TURN</h2>
-                    <button class="help-button" type="button" data-help-topic="personal-combat" aria-label="Explain personal combat">[?]</button>
-                  </div>
-                  <div id="encounter-actions" class="actions operations-primary-actions encounter-actions" aria-label="Personal combat actions"></div>
-                  <div id="encounter-tactical" class="encounter-tactical" hidden>
-                    <div class="encounter-map-frame">
-                      <div class="encounter-map-toolbar">
-                        <strong id="encounter-selection-status">ACTOR -- // TARGET --</strong>
-                        <span class="encounter-map-tools" aria-label="Encounter map zoom controls">
-                          <button id="encounter-zoom-out" class="text-button" type="button">[ − ]</button>
-                          <span id="encounter-zoom-label">100%</span>
-                          <button id="encounter-zoom-in" class="text-button" type="button">[ + ]</button>
-                          <button id="encounter-zoom-fit" class="text-button" type="button">[ FIT ]</button>
-                          <button id="encounter-apply-range" class="text-button" type="button" hidden>[ APPLY MAP RANGE ]</button>
-                        </span>
-                      </div>
-                      <div id="encounter-map-viewport" class="encounter-map-viewport" tabindex="0" aria-label="Pan and zoom encounter map">
-                        <svg id="encounter-map" class="encounter-map" viewBox="0 0 1280 800" role="img" aria-label="32 by 20 square personal encounter map"></svg>
-                        <div id="encounter-token-tooltip" class="encounter-token-tooltip" hidden></div>
-                        <div id="encounter-token-menu" class="encounter-token-menu" hidden></div>
-                      </div>
-                      <div class="encounter-map-legend"><span><i class="encounter-legend-pc"></i> PARTY</span><span><i class="encounter-legend-enemy"></i> OPPOSITION</span><span>RIGHT-CLICK EMPTY MAP TO PLACE ROSTER ACTOR</span></div>
-                    </div>
-                    <div class="encounter-side-panel">
-                      <div id="encounter-party-roster" class="encounter-party-roster" aria-label="Party combatants"></div>
-                      <details id="encounter-roster-panel" class="encounter-roster-panel" open>
-                        <summary id="encounter-roster-summary">ENEMY ROSTER</summary>
-                        <div id="encounter-roster" class="encounter-roster" aria-label="Enemy statistics and equipment"></div>
-                      </details>
-                    </div>
-                  </div>
-                  <details id="encounter-details" class="encounter-details" hidden>
-                    <summary>ENCOUNTER DETAILS</summary>
-                    <pre id="encounter-record" class="record encounter-record" aria-live="polite"></pre>
-                  </details>
-                </section>
+        <section id="encounter-section" hidden aria-labelledby="encounter-heading">
+          <div class="encounter-map-toolbar">
+            <span id="encounter-heading" class="encounter-caption-main">COMBAT</span>
+            <strong id="encounter-selection-status">ACTOR -- // TARGET --</strong>
+            <span class="encounter-map-tools" aria-label="Encounter map zoom controls">
+              <button class="help-button" type="button" data-help-topic="personal-combat" aria-label="Explain personal combat">[?]</button>
+              <button id="encounter-zoom-out" class="text-button" type="button" aria-label="Zoom out">[ &minus; ]</button>
+              <span id="encounter-zoom-label">100%</span>
+              <button id="encounter-zoom-in" class="text-button" type="button" aria-label="Zoom in">[ + ]</button>
+              <button id="encounter-zoom-fit" class="text-button" type="button">[ FIT ]</button>
+            </span>
+          </div>
+          <div id="encounter-map-viewport" class="encounter-map-viewport" tabindex="0" aria-label="Pan and zoom encounter map">
+            <svg id="encounter-map" class="encounter-map" viewBox="0 0 1280 800" role="img" aria-label="32 by 20 square personal encounter map"></svg>
+            <div id="encounter-token-tooltip" class="encounter-token-tooltip" hidden></div>
+            <div id="encounter-token-menu" class="encounter-token-menu" hidden></div>
+          </div>
+          <div class="encounter-map-legend"><span><i class="encounter-legend-pc"></i> PARTY</span><span><i class="encounter-legend-enemy"></i> OPPOSITION</span><span>RIGHT-CLICK EMPTY MAP TO PLACE ROSTER ACTOR</span></div>
+        </section>
   <section id="ship-section" class="sheet-view" hidden aria-labelledby="ship-heading">
     <div class="section-heading">
       <h2 id="ship-heading" class="section-title">SHIP'S REGISTER</h2>
@@ -350,6 +331,23 @@
               </div>
               <div id="situation-actions" class="actions operations-primary-actions situation-actions" aria-label="Situation actions"></div>
               <pre id="situation-record" class="record operations-panel-record situation-record" aria-live="polite"></pre>
+            </section>
+            <section id="combat-rail-section" class="context-panel combat-rail" hidden aria-labelledby="combat-rail-heading">
+              <div class="section-heading">
+                <h2 id="combat-rail-heading" class="section-title">COMBAT</h2>
+                <button class="help-button" type="button" data-help-topic="personal-combat" aria-label="Explain personal combat">[?]</button>
+              </div>
+              <div id="encounter-dm-panel" class="encounter-dm-panel" aria-label="Attack throw and modifiers" aria-live="polite"></div>
+              <div id="encounter-actions" class="actions operations-primary-actions encounter-actions" aria-label="Personal combat actions"></div>
+              <div id="encounter-party-roster" class="encounter-party-roster" aria-label="Party combatants"></div>
+              <details id="encounter-roster-panel" class="encounter-roster-panel" open>
+                <summary id="encounter-roster-summary">ENEMY ROSTER</summary>
+                <div id="encounter-roster" class="encounter-roster" aria-label="Enemy statistics and equipment"></div>
+              </details>
+              <details id="encounter-details" class="encounter-details" hidden>
+                <summary>ENCOUNTER DETAILS</summary>
+                <pre id="encounter-record" class="record encounter-record" aria-live="polite"></pre>
+              </details>
             </section>
             <section id="roster-section" class="context-panel" hidden aria-labelledby="roster-heading">
               <div class="section-heading">

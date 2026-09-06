@@ -1,5 +1,21 @@
 # Graycloak Traveller
 
+## v0.36.0 the COMBAT scene
+
+The map is the centre scene and nothing else: a fixed toolbar with the selection strip and zoom, the workspace filling the middle, a fixed legend — the same three-part shape as the subsector scene, so COMBAT and SYSTEM feel like the same room. The tactical wrapper and the side panel that used to squeeze the rosters beside the map are gone.
+
+**The rail carries the throw.** `COMBAT` in the context rail shows, in order: the DM panel for the selected actor and target, the action buttons, the party's round declarations, and the enemy roster. The DM panel lists the range and squares, weapon versus armour, the target number, every non-zero DM, the total, and what the 2D throw itself must show — `NEEDS 2D 7+` — plus the damage dice. When the weapon has no column for that band it says so and cites Book 1 p.46 rather than offering a throw that cannot be made.
+
+Those numbers come from `previewPersonalAttack()` in the rules package, which computes the same throw and DMs as `rollPersonalAttack()` without dice. A test asserts the two agree field for field, so the panel cannot drift from what the resolver actually rolls.
+
+**The band shown is the band used.** Since v0.35.0 each attack is thrown at the band between that pair, so the old `[ APPLY MAP RANGE ]` control and the "MAP SUGGESTS" wording are gone — there is no longer a referee-set band for the map to disagree with.
+
+**Declarations are tallied, not judged.** A target with attacks declared against it carries `×2` on its token and `DECLARED ×2` on its roster card. That is the party's own information. There is deliberately no warning that a target is already down: under p.30 the round has not established that yet, and coordinating fire is table talk, not a prompt.
+
+**COMBAT is selectable without a live encounter**, so `START COMBAT` is reachable from the scene; a live encounter still pulls the scene to COMBAT, but leaving it is now the referee's own choice. Opening an encounter frames the combatants instead of the whole 32×20 workspace, which at 100% left the tokens as specks.
+
+Rules package v0.17.0. No schema changes.
+
 ## v0.35.0 wounds at the end of the round; range per pair
 
 **Book 1 p.30, step 2C: "If attack succeeds, determine wounds inflicted at end of the round."** The round resolver honoured that on the opposition side — foes attacked from a pre-round snapshot, so a foe cut down still shot back — but not on the party side, where attacks resolved against live state. Two characters declaring against the same enemy would fail with `defender is not active` if the first shot dropped him, which under 2C is information the characters do not have yet.
@@ -11,6 +27,8 @@ The resolver is now one shape for both sides. Step 2A movement and posture resol
 **Each attack is thrown at the band between that attacker and that target**, computed from post-movement map positions rather than one encounter-wide band. `close` and `open` move the token and the band follows from the new position. `encounter.range` remains on the document as the scene band for placement and display, and now reports the closest opposing pair. Schema 6 migrates v5 documents and marks the map `graycloak-band-guide-v2`, so a stored encounter records which range policy resolved it.
 
 `declaredTargetCounts()` reports how many party attacks are aimed at each target this round. Declarations are the party's own information, so showing this reveals nothing the characters would not know — unlike a warning that a target is already down, which the round has not yet established.
+
+**Fixed on the way past:** `quickSlotStore` was declared with `let` some 245 lines after the block that assigns it, so the assignment ran while the binding was still in the temporal dead zone and threw `Cannot access 'quickSlotStore' before initialization` on every load. The surrounding `try/catch` swallowed it, leaving the store null — quick slots fell back to defaults and never persisted. The declaration now sits with `registry` and `playerSessionStore`, and a test asserts the ordering.
 
 Rules package v0.16.0. Encounter schema 6. No other document schemas change.
 
