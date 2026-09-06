@@ -2904,3 +2904,14 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .combat-rail .encounter-enemy-card.declared { border-style: dashed; }
 .combat-rail .encounter-enemy-card.inactive { color: var(--disabled); border-color: var(--disabled); }
 .combat-rail .encounter-details { margin-top: 8px; }
+
+/* --- v0.37.0: combat collapses the rail heads to one line each. The identity
+   line keeps the UPP, wound status and posture; SHIP STATUS keeps its heading
+   and ship name. Everything else in those two panels waits until the fight is
+   over. */
+.combat-focus #context-panel .header-characteristics,
+.combat-focus #context-panel .character-skill-line,
+.combat-focus #context-panel .live-ship-status { display: none; }
+.combat-focus #context-panel .campaign-header-strip { padding: 5px 10px; }
+.combat-focus #context-panel .live-ship-panel { max-height: none; overflow: visible; padding-bottom: 5px; }
+.combat-focus #context-panel .live-ship-heading { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }

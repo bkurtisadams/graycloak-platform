@@ -12,7 +12,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.36.0</div>
+          <div id="app-subtitle" class="subtitle">v0.37.1</div>
         </div>
         <nav class="utility campaign-utility" aria-label="Campaign and view commands">
           <details id="campaign-menu" class="campaign-menu">
@@ -300,6 +300,23 @@
       </div>
       <div id="context-takeover" class="context-takeover" hidden></div>
       <div class="context-scroll">
+            <section id="combat-rail-section" class="context-panel combat-rail" hidden aria-labelledby="combat-rail-heading">
+              <div class="section-heading">
+                <h2 id="combat-rail-heading" class="section-title">COMBAT</h2>
+                <button class="help-button" type="button" data-help-topic="personal-combat" aria-label="Explain personal combat">[?]</button>
+              </div>
+              <div id="encounter-dm-panel" class="encounter-dm-panel" aria-label="Attack throw and modifiers" aria-live="polite"></div>
+              <div id="encounter-actions" class="actions operations-primary-actions encounter-actions" aria-label="Personal combat actions"></div>
+              <div id="encounter-party-roster" class="encounter-party-roster" aria-label="Party combatants"></div>
+              <details id="encounter-roster-panel" class="encounter-roster-panel" open>
+                <summary id="encounter-roster-summary">ENEMY ROSTER</summary>
+                <div id="encounter-roster" class="encounter-roster" aria-label="Enemy statistics and equipment"></div>
+              </details>
+              <details id="encounter-details" class="encounter-details" hidden>
+                <summary>ENCOUNTER DETAILS</summary>
+                <pre id="encounter-record" class="record encounter-record" aria-live="polite"></pre>
+              </details>
+            </section>
             <section id="port-services-section" class="context-panel" hidden aria-labelledby="port-services-heading">
               <div class="section-heading">
                 <h2 id="port-services-heading" class="section-title">PORT SERVICES</h2>
@@ -331,23 +348,6 @@
               </div>
               <div id="situation-actions" class="actions operations-primary-actions situation-actions" aria-label="Situation actions"></div>
               <pre id="situation-record" class="record operations-panel-record situation-record" aria-live="polite"></pre>
-            </section>
-            <section id="combat-rail-section" class="context-panel combat-rail" hidden aria-labelledby="combat-rail-heading">
-              <div class="section-heading">
-                <h2 id="combat-rail-heading" class="section-title">COMBAT</h2>
-                <button class="help-button" type="button" data-help-topic="personal-combat" aria-label="Explain personal combat">[?]</button>
-              </div>
-              <div id="encounter-dm-panel" class="encounter-dm-panel" aria-label="Attack throw and modifiers" aria-live="polite"></div>
-              <div id="encounter-actions" class="actions operations-primary-actions encounter-actions" aria-label="Personal combat actions"></div>
-              <div id="encounter-party-roster" class="encounter-party-roster" aria-label="Party combatants"></div>
-              <details id="encounter-roster-panel" class="encounter-roster-panel" open>
-                <summary id="encounter-roster-summary">ENEMY ROSTER</summary>
-                <div id="encounter-roster" class="encounter-roster" aria-label="Enemy statistics and equipment"></div>
-              </details>
-              <details id="encounter-details" class="encounter-details" hidden>
-                <summary>ENCOUNTER DETAILS</summary>
-                <pre id="encounter-record" class="record encounter-record" aria-live="polite"></pre>
-              </details>
             </section>
             <section id="roster-section" class="context-panel" hidden aria-labelledby="roster-heading">
               <div class="section-heading">

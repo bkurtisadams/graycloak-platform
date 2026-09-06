@@ -4365,9 +4365,16 @@ function applyOperationsDeskTab() {
   }
   // The combat rail belongs to the COMBAT scene: the map is the scene, the DM
   // panel and rosters are its rail, so the two show and hide together.
-  if (el.encounterRailSection) {
-    el.encounterRailSection.hidden = !(campaignPlayActive() && activeSceneTab === 'combat' && el.encounterRailSection.dataset.available === 'true');
-  }
+  const combatRailVisible = Boolean(campaignPlayActive() && activeSceneTab === 'combat' && el.encounterRailSection?.dataset.available === 'true');
+  if (el.encounterRailSection) el.encounterRailSection.hidden = !combatRailVisible;
+  // Combat owns the rail outright: WORLD, TRADE, JOBS, NPCS and the situation
+  // record are suspended for the duration, as the takeover bar says, so none
+  // of them sit above the throw the referee is reading.
+  if (combatRailVisible) for (const panel of Object.values(panels)) if (panel) panel.hidden = true;
+  // While combat holds the rail, the character strip and SHIP STATUS collapse
+  // to one line each: identity and wounds still matter mid-firefight, fuel and
+  // cargo do not, and the rosters need the room.
+  el.terminal?.classList.toggle('combat-focus', combatRailVisible);
   // The encounter panel lives in the scene; while combat is active the context
   // panel shows the situation/roster only if selected, otherwise the takeover bar.
   for (const [key, tab] of Object.entries(tabs)) tab?.setAttribute('aria-selected', key === operationsDeskTab ? 'true' : 'false');

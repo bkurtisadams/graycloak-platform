@@ -1,5 +1,21 @@
 # Graycloak Traveller
 
+## v0.37.1 combat takes the whole rail
+
+The combat panel is now the first section in the rail scroller, and while it is up the other rail panels — WORLD, TRADE, JOBS, NPCS and the situation record — are hidden outright rather than merely deselected. The takeover bar already said they were suspended; now they behave that way, so selecting a suspended tab cannot render Port Services above the throw the referee is reading.
+
+The character strip and SHIP STATUS are unaffected by this: they sit above the scroller and keep the one-line form from v0.37.0, with the identity line still carrying wound status and posture. Current characteristics during a fight are on the party roster cards inside the combat panel, which covers the whole party rather than just the active character.
+
+No rules, schema or rules-package changes.
+
+## v0.37.0 combat takes the rail
+
+While the COMBAT scene holds the context rail, the character strip and SHIP STATUS collapse to one line each. The identity line keeps the name, UPP, wound status, posture and credits — what you actually consult mid-firefight — and SHIP STATUS keeps its heading and the ship's name. Characteristics, quick skills and the fuel/cargo/jobs body wait until the fight is over. Measured at 1680×990: the rail's scrolling area goes from 461px to 775px, enough that a one-enemy encounter needs no scrolling at all. Both panels restore the moment you leave the COMBAT tab.
+
+It is one class, `combat-focus`, set only when the combat rail is actually visible, so nothing changes during ordinary play.
+
+No rules, schema or rules-package changes.
+
 ## v0.36.0 the COMBAT scene
 
 The map is the centre scene and nothing else: a fixed toolbar with the selection strip and zoom, the workspace filling the middle, a fixed legend — the same three-part shape as the subsector scene, so COMBAT and SYSTEM feel like the same room. The tactical wrapper and the side panel that used to squeeze the rosters beside the map are gone.
