@@ -1,5 +1,19 @@
 # Graycloak Traveller
 
+## v0.51.0 one sign-in across Graycloak
+
+Sign-in and nothing else. No campaign data crosses the network in this version: Traveller still keeps everything in this browser, and every version before this one behaves identically whether you sign in or not.
+
+The client uses the same Firebase project as GCC and graycloak-adnd — `graycloaks-campaign-corner` — so one Google account covers all three, and `auth.js` follows `adnd-auth.js`: the compat SDK loaded from the CDN at runtime, popup sign-in, a listener list so the client re-renders when the account changes. The config values are public by design; security is enforced by Firestore rules rather than by hiding them.
+
+**Being unable to sign in is a supported state, not an error.** Offline, blocked, or opened from `file://`, the masthead reads `LOCAL ONLY` and everything works exactly as before. Sign-in is also started *after* the client is usable, so a slow SDK never delays play. Verified with the SDK blocked at the network layer: campaign loads, no console errors, no behaviour changes.
+
+Where it shows up: the account name sits in the masthead with a sign-in or sign-out control, and each row of the campaign directory gains a `ME` button that assigns that actor to the signed-in account — filling in the `ownerUid` field that v0.50.0 added and that the Firestore rules will eventually key on.
+
+**Not yet done, deliberately:** no Firestore reads or writes, no rules changes, no player view. Those come next, tested against the emulator before anything is deployed.
+
+No schema or rules-package changes.
+
 ## v0.50.0 the campaign directory
 
 Every actor and vehicle in the campaign, listed in one place with the account that plays it — the groundwork for players logging into GCC and running their own characters.
