@@ -12,7 +12,8 @@ import {
   powerStuntRequiredColor, POWER_STUNT_MASTERY, advancementOptions,
   powerAdditionCost, TALENT_ADDITION_COST, contactAdditionCost,
   KARMA_FORBIDDEN_FEATS, karmaAllowedFor, AWARD_TIMING, CHARITY_APPEARANCE, POOL_RULES,
-  KARMA_INCREMENT_OPTION, EFFECT_REDUCTION_COLUMNS, declaredKarmaSpend, BUILD_KARMA,
+  KARMA_INCREMENT_OPTION, EFFECT_REDUCTION_COLUMNS, EFFECT_REDUCTION_COLUMN_KEYS,
+  declaredKarmaSpend, BUILD_KARMA,
   ADVANCEMENT_FUND_RULES, abilityAdvancementNeedsRationale, POPULARITY_ADVANCEMENT_CHARITY_WINDOW_DAYS,
   KARMA_VERSION, KARMA_CERTIFIED,
 } from './faserip-karma.js';
@@ -213,6 +214,11 @@ t('[CERT] declared spend: at least 10 (or the remainder); 68 + 30 = 98; a 98 sti
 
 t('[CERT] effect reduction applies to Edged, Shooting and Energy (Kill-capable) attacks', () => {
   eq(EFFECT_REDUCTION_COLUMNS, ['edged', 'shooting', 'energy']);
+});
+
+t('[CERT] RULED 2026-09-05: thrown edged is an Edged Attack, so the paid columns are EA/TE/Sh/En', () => {
+  eq(EFFECT_REDUCTION_COLUMN_KEYS, ['EA', 'TE', 'Sh', 'En']);
+  eq(EFFECT_REDUCTION_COLUMN_KEYS.length, EFFECT_REDUCTION_COLUMNS.length + 1);
 });
 
 t('[CERT] Building Things fixes the amount before the roll; undeclared = 10', () => {

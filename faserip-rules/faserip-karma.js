@@ -1,3 +1,9 @@
+// faserip-rules karma v0.7.1
+// v0.7.1: RULED 2026-09-05 — thrown edged counts as an Edged Attack for
+//         Modifying Results in Combat, so its effect is reducible only by
+//         spending Karma. EFFECT_REDUCTION_COLUMNS names the book's three
+//         categories; EFFECT_REDUCTION_COLUMN_KEYS names the table columns
+//         those categories cover, which is what callers key on.
 // faserip-rules karma v0.7.0
 // v0.7.0: Karma chapter pass (2026-09-05). Award timing, pool by-laws
 //         (no advancement from a pool, one pool per hero, reform only after
@@ -30,7 +36,7 @@
 
 import { rankForNumber, rankDistance, shiftRank, rankByKey } from './faserip-kernel.js';
 
-export const KARMA_VERSION = '0.7.0';
+export const KARMA_VERSION = '0.7.1';
 export const KARMA_CERTIFIED = true;
 
 // Certain FEATs may not be manipulated by Karma: Resource FEATs, Popularity
@@ -190,7 +196,11 @@ export function poolKillWipe() {
 export const MIN_KARMA_DECLARATION = 10;   // declared spends cost at least 10
 export const KARMA_INCREMENT_OPTION = 5;   // optional rule: spend in increments of 5
 export const EFFECT_REDUCTION_COST = 50;   // per color, Kill-capable columns
-export const EFFECT_REDUCTION_COLUMNS = ['edged', 'shooting', 'energy']; // attacks that cannot be pulled without Karma
+export const EFFECT_REDUCTION_COLUMNS = ['edged', 'shooting', 'energy']; // book categories that cannot be pulled without Karma
+// The Battle Effects columns those categories cover. RULED 2026-09-05: a
+// thrown edged weapon is an Edged Attack for this rule, so TE joins EA, Sh
+// and En. Callers key on columns, not on the book's category names.
+export const EFFECT_REDUCTION_COLUMN_KEYS = ['EA', 'TE', 'Sh', 'En'];
 export const POWER_STUNT_COST = 100;
 
 // The declared spend: at least 10 (or the remainder if less), the amount
