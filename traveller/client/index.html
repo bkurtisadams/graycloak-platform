@@ -12,7 +12,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.50.0</div>
+          <div id="app-subtitle" class="subtitle">v0.52.0</div>
         </div>
         <nav class="utility campaign-utility" aria-label="Campaign and view commands">
           <details id="campaign-menu" class="campaign-menu">
@@ -35,6 +35,8 @@
           <span id="autosave-status" class="autosave-status" aria-live="polite">NO CAMPAIGN</span>
           <div id="system-status" class="status masthead-status" aria-live="polite">READY</div>
           <span class="masthead-spacer"></span>
+          <span id="account-name" class="masthead-account" title="Graycloak account"></span>
+          <button id="account-button" class="text-button utility-button" type="button" hidden></button>
           <button id="new-character-from-campaign" class="text-button utility-button" type="button" title="Leave campaign play and start a new character generation" hidden>[ NEW CHARACTER ]</button>
           <button id="toggle-activity" class="text-button utility-button" type="button" aria-expanded="true" aria-controls="activity-panel">[ HIDE LOG ]</button>
         </nav>
@@ -355,6 +357,14 @@
                 <button id="roster-new-actor" class="text-button" type="button">[ NEW NPC ]</button>
               </div>
               <div class="roster-basis">PERSISTENT CAMPAIGN ACTORS // CLASSIC CHARACTERISTICS, SKILLS, EQUIPMENT, NOTES, PORTRAIT, AND BODY-AWARE STATE</div>
+              <div id="publish-panel" class="publish-panel">
+                <div class="directory-heading">CAMPAIGN ONLINE</div>
+                <div id="publish-status" class="publish-status">LOCAL ONLY</div>
+                <div class="actions">
+                  <button id="publish-campaign" class="text-button action-button" type="button">[ PUBLISH ]</button>
+                  <button id="publish-view" class="text-button action-button" type="button" hidden>[ PUBLISH SCENE ]</button>
+                </div>
+              </div>
               <div id="directory-actors" class="campaign-directory" aria-label="Actors" aria-live="polite"></div>
               <div id="directory-vehicles" class="campaign-directory" aria-label="Vehicles"></div>
               <div id="roster-folders" class="roster-folders" aria-live="polite"></div>

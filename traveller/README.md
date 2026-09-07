@@ -1,5 +1,23 @@
 # Graycloak Traveller
 
+## v0.52.0 publishing a campaign for players to read
+
+The first version where Traveller writes to Firestore. The local campaign stays authoritative — this publishes a copy players may read, nothing is read back, and going offline simply stops publishing.
+
+**`[ PUBLISH ]`** writes the campaign to `travellerCampaigns/{id}`: name, time, location and the ownership map. Not the party's character documents. Publishing also records the signed-in account as the campaign's `ownerUid`, because the v11 rules check that on create.
+
+**`[ PUBLISH SCENE ]`** writes the player-safe view of the current encounter to `encounters/{id}/view/current`. **The encounter document itself is never written.** It carries enemy characteristics, wounds, cover and blow allowances, and Firestore rules grant access per document without filtering fields — so a player who could read it would see everything the referee knows.
+
+`src/published-view.js` builds that projection: names, sides, positions, visible condition, and the round's narration — "Hawkeye attacks Raider at medium range" — which is the same prose the activity log already carries. Each combatant is exactly seven fields, and a test asserts the serialised payload contains none of `characteristics`, `current`, `armor`, `cover`, `blowAllowance`, `weaponKey` or `skills`. That test exists so a later change cannot quietly widen what players see.
+
+Weapons are deliberately omitted too: which gun a foe holds is something the narration reveals when it is fired, not something the roster announces.
+
+Firestore is loaded only when the referee first publishes, so a local game never fetches it at all. Verified with the network blocked: publishing refuses with `PUBLISH FAILED / sign in before publishing`, the campaign is untouched, and everything else works as before.
+
+**Not yet done:** nothing reads. Players cannot see the published view or write declarations — that is the next slice, and it is where the real work is.
+
+No schema or rules-package changes.
+
 ## v0.51.0 one sign-in across Graycloak
 
 Sign-in and nothing else. No campaign data crosses the network in this version: Traveller still keeps everything in this browser, and every version before this one behaves identically whether you sign in or not.

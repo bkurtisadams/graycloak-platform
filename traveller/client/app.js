@@ -137,6 +137,7 @@ import {
   advanceCampaignSeconds,
   campaignDirectory,
   setDocumentOwner,
+  setCampaignOwner,
   campaignClockLabel,
   COMBAT_ROUND_SECONDS,
   createCampaignDocument,
@@ -159,6 +160,9 @@ import {
 } from '../src/npc-actor-document.js';
 import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js';
 import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js';
+import { initAuth, onAuthChange, signIn, signOutOfTraveller, currentUserId, authStatus } from './auth.js';
+import { publishCampaign, publishEncounterView, publishStatus } from './publish.js';
+import { buildPublishedView, buildPublishedCampaign } from '../src/published-view.js';
 import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js';
 import {
   ACTIVITY_VISIBILITY,
@@ -429,6 +433,11 @@ const el = {
   operationsTabJobs: document.querySelector('#operations-tab-jobs'),
   operationsTabRoster: document.querySelector('#operations-tab-roster'),
   rosterSection: document.querySelector('#roster-section'),
+  publishStatusLine: document.querySelector('#publish-status'),
+  publishCampaignButton: document.querySelector('#publish-campaign'),
+  publishViewButton: document.querySelector('#publish-view'),
+  accountName: document.querySelector('#account-name'),
+  accountButton: document.querySelector('#account-button'),
   directoryActors: document.querySelector('#directory-actors'),
   directoryVehicles: document.querySelector('#directory-vehicles'),
   rosterFolders: document.querySelector('#roster-folders'),
@@ -554,6 +563,8 @@ let encounterMapViewFrame = 0;
 let framedEncounterId = null;
 let encounterExtraTargetIds = new Set();
 let expandedTrackerIds = new Set();
+let publishedCampaignId = null;
+let publishedAt = null;
 let hoveredEncounterCombatantId = null;
 const WORKSPACE_VIEWS = ['play', 'ship', 'campaign', 'threads'];
 let activeWorkspaceView = 'play';
@@ -4252,6 +4263,104 @@ function saveNpcActorFromForm() {
 // Ownership is recorded as `ownerUid` because that is the field every rule in
 // graycloak-adnd's Firestore ruleset keys on; when these documents move to
 // Firestore the permission model transfers rather than being rewritten.
+// Sign-in establishes an identity and nothing more: no campaign data crosses
+// the network in this version. Running signed out, or with the SDK
+// unreachable, is a supported state — the client stays entirely local, which
+// is how single-player has always worked.
+function renderAccount() {
+  if (!el.accountButton) return;
+  const { user, status } = authStatus();
+  if (status === 'unavailable') {
+    el.accountName.textContent = 'LOCAL ONLY';
+    el.accountName.title = 'Sign-in is unreachable; campaigns stay in this browser';
+    el.accountButton.hidden = true;
+    return;
+  }
+  if (status === 'loading') {
+    el.accountName.textContent = '';
+    el.accountButton.hidden = true;
+    return;
+  }
+  if (user) {
+    el.accountName.textContent = (user.displayName || user.email || user.uid).toUpperCase();
+    el.accountName.title = `Signed in as ${user.email ?? user.uid}`;
+    el.accountButton.hidden = false;
+    el.accountButton.textContent = '[ SIGN OUT ]';
+    el.accountButton.onclick = async () => {
+      try { await signOutOfTraveller(); } catch (error) { setStatus(error?.message ?? String(error), 'error'); }
+    };
+    return;
+  }
+  el.accountName.textContent = '';
+  el.accountButton.hidden = false;
+  el.accountButton.textContent = '[ SIGN IN ]';
+  el.accountButton.onclick = async () => {
+    try {
+      const account = await signIn();
+      setStatus(`SIGNED IN AS ${(account.displayName || account.email || account.uid).toUpperCase()}`, 'ok');
+    } catch (error) {
+      setStatus(error?.message ?? String(error), 'error');
+    }
+  };
+}
+
+// Publishing is explicit and one-way for now: the local campaign stays
+// authoritative and this pushes a copy players may read. Nothing is read back
+// in this version, so a failed publish costs nothing but the message.
+function renderPublishPanel() {
+  if (!el.publishStatusLine) return;
+  const uid = currentUserId();
+  const online = publishedCampaignId && publishedCampaignId === campaignDocument?.identity.id;
+  el.publishStatusLine.textContent = !campaignDocument
+    ? 'NO CAMPAIGN'
+    : !uid
+      ? 'SIGN IN TO PUBLISH'
+      : online
+        ? `ONLINE / ${publishedCampaignId.toUpperCase()}${publishedAt ? ` / ${new Date(publishedAt).toLocaleTimeString()}` : ''}`
+        : 'LOCAL ONLY';
+  el.publishCampaignButton.disabled = !campaignDocument || !uid;
+  el.publishCampaignButton.textContent = online ? '[ REPUBLISH ]' : '[ PUBLISH ]';
+  el.publishViewButton.hidden = !online || !activeEncounterAtCurrentSystem();
+}
+
+async function publishCurrentCampaign() {
+  try {
+    const uid = currentUserId();
+    if (!campaignDocument) throw new Error('no campaign to publish');
+    if (!uid) throw new Error('sign in before publishing');
+    // The referee owns what they publish; the rules check this on create.
+    if (campaignDocument.ownership?.ownerUid !== uid) {
+      campaignDocument = setCampaignOwner(campaignDocument, uid);
+      persistCampaignState();
+    }
+    publishedAt = Date.now();
+    const published = buildPublishedCampaign(campaignDocument, { publishedAt });
+    await publishCampaign(published);
+    publishedCampaignId = published.campaignId;
+    logActivity('SYSTEM', `Campaign published as ${published.campaignId}; players seated on it may read the shared state.`);
+    setStatus(`PUBLISHED ${published.campaignId.toUpperCase()}`, 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(`PUBLISH FAILED / ${error?.message ?? String(error)}`, 'error');
+  }
+}
+
+async function publishCurrentEncounterView() {
+  try {
+    const encounter = activeEncounterAtCurrentSystem();
+    if (!encounter) throw new Error('no active encounter');
+    if (!publishedCampaignId) throw new Error('publish the campaign first');
+    const view = buildPublishedView(encounter, { campaignId: publishedCampaignId, publishedAt: Date.now() });
+    await publishEncounterView(view);
+    logActivity('SYSTEM', `Scene published for round ${view.round}: ${view.combatants.length} combatants, ${view.narration.length} log lines.`);
+    setStatus(`SCENE PUBLISHED / ROUND ${view.round}`, 'ok');
+  } catch (error) {
+    console.error(error);
+    setStatus(`PUBLISH FAILED / ${error?.message ?? String(error)}`, 'error');
+  }
+}
+
 function renderCampaignDirectory() {
   if (!el.directoryActors) return;
   if (!campaignDocument) {
@@ -4301,6 +4410,21 @@ function renderCampaignDirectory() {
         }
       });
       row.append(name, detail, owner);
+      const uid = currentUserId();
+      if (uid && item.ownerUid !== uid) {
+        const claim = makePortButton('ME', () => {
+          try {
+            campaignDocument = setDocumentOwner(campaignDocument, { documentId: item.id, ownerUid: uid });
+            persistCampaignState();
+            render();
+          } catch (error) {
+            console.error(error);
+            setStatus(error?.message ?? String(error), 'error');
+          }
+        });
+        claim.title = 'Assign this actor to the signed-in account';
+        row.append(claim);
+      }
       return row;
     })];
   };
@@ -6091,6 +6215,8 @@ function render() {
   renderContracts();
   renderSituations();
   renderEncounter();
+  renderAccount();
+  renderPublishPanel();
   renderCampaignDirectory();
   renderRoster();
   applyOperationsDeskTab();
@@ -6927,3 +7053,10 @@ setActivityPanelVisible(activityPanelVisible);
 render();
 window.setInterval(updateAutosaveStatus, 10000);
 if (!registry) setStatus('READY / LOCAL CAMPAIGN STORAGE UNAVAILABLE', 'error');
+
+// Sign-in runs after the client is already usable, so a slow or unreachable
+// SDK never delays play. Every render reflects whatever identity is current.
+el.publishCampaignButton?.addEventListener('click', publishCurrentCampaign);
+el.publishViewButton?.addEventListener('click', publishCurrentEncounterView);
+onAuthChange(() => { renderAccount(); renderPublishPanel(); });
+initAuth().then(() => render());

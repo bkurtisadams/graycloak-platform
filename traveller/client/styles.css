@@ -3045,3 +3045,8 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .directory-name { flex: 0 0 auto; font-weight: 700; }
 .directory-detail { flex: 1 1 auto; min-width: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .directory-owner { flex: 0 0 7rem; font: inherit; font-size: 10px; padding: 1px 3px; }
+
+/* --- v0.52.0: publishing a campaign for players to read. */
+.publish-panel { border-bottom: 1px solid var(--rule); padding-bottom: 7px; margin-bottom: 7px; }
+.publish-status { font-size: 11px; color: var(--muted); padding: 2px 0 5px; }
+.publish-panel .actions { display: flex; gap: 5px; flex-wrap: wrap; }

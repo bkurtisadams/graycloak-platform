@@ -174,17 +174,37 @@ service cloud.firestore {
     // and wounds, so players must not read it at all. They read a projection
     // the referee publishes, and write only their own declarations.
 
+    // Every lookup below is guarded. Firestore evaluates a write's rules more
+    // than once, and in at least one of those passes the campaign document or
+    // request.resource may not be readable — dotting into either then raises,
+    // and Firestore reports the raise as a denial. Denials that arrive by
+    // exception are indistinguishable in the logs from real ones, so each
+    // access checks existence first and each field read carries a default.
+    function travellerCampaignExists(campaignId) {
+      return exists(/databases/$(database)/documents/travellerCampaigns/$(campaignId));
+    }
+
     function travellerRefereeUid(campaignId) {
-      return get(/databases/$(database)/documents/travellerCampaigns/$(campaignId)).data.ownership.ownerUid;
+      return get(/databases/$(database)/documents/travellerCampaigns/$(campaignId))
+        .data.get('ownership', {}).get('ownerUid', '');
     }
 
     function isTravellerReferee(campaignId) {
-      return isAuthed() && travellerRefereeUid(campaignId) == request.auth.uid;
+      return isAuthed()
+        && travellerCampaignExists(campaignId)
+        && travellerRefereeUid(campaignId) == request.auth.uid;
     }
 
     function isTravellerPlayer(campaignId) {
       return isAuthed()
         && exists(/databases/$(database)/documents/travellerCampaigns/$(campaignId)/players/$(request.auth.uid));
+    }
+
+    // What the write claims, without raising when the field is absent.
+    function declarationField(field) {
+      return request.resource != null
+        ? request.resource.data.get(field, '')
+        : '';
     }
 
     function isAtTravellerTable(campaignId) {
@@ -197,8 +217,9 @@ service cloud.firestore {
     // campaign document once rather than twice.
     function ownsTravellerCombatant(campaignId, combatantId) {
       return isAuthed()
+        && travellerCampaignExists(campaignId)
         && get(/databases/$(database)/documents/travellerCampaigns/$(campaignId))
-             .data.ownership.actors.get(combatantId, '') == request.auth.uid;
+             .data.get('ownership', {}).get('actors', {}).get(combatantId, '') == request.auth.uid;
     }
 
     match /travellerCampaigns/{campaignId} {
@@ -207,7 +228,8 @@ service cloud.firestore {
       // writes it.
       allow read: if isAtTravellerTable(campaignId);
       allow create: if isAuthed()
-        && request.resource.data.ownership.ownerUid == request.auth.uid;
+        && request.resource != null
+        && request.resource.data.get('ownership', {}).get('ownerUid', '') == request.auth.uid;
       allow update, delete: if isTravellerReferee(campaignId);
 
       // Who sits at this table. The referee admits and removes; a player may
@@ -239,8 +261,9 @@ service cloud.firestore {
         // the encounter document above.
         match /declarations/{combatantId} {
           allow read: if isAtTravellerTable(campaignId);
-          allow create: if request.resource.data.uid == request.auth.uid
-            && request.resource.data.actorId == combatantId
+          allow create: if isAuthed()
+            && declarationField('uid') == request.auth.uid
+            && declarationField('actorId') == combatantId
             && ownsTravellerCombatant(campaignId, combatantId);
           allow update: if false;
           allow delete: if isTravellerReferee(campaignId);
