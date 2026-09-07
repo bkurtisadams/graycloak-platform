@@ -565,6 +565,7 @@ let encounterMapViewFrame = 0;
 let framedEncounterId = null;
 let encounterExtraTargetIds = new Set();
 let expandedTrackerIds = new Set();
+let lastPublishedRound = null;
 let hoveredEncounterCombatantId = null;
 const WORKSPACE_VIEWS = ['play', 'ship', 'campaign', 'threads'];
 let activeWorkspaceView = 'play';
@@ -4323,7 +4324,11 @@ function renderPublishPanel() {
   el.publishCampaignButton.textContent = online ? '[ REPUBLISH ]' : '[ PUBLISH ]';
   // The scene control follows the encounter, not the rail: combat hides every
   // rail panel, so this lives in the campaign menu where it stays reachable.
-  el.publishViewButton.hidden = !online || !uid || !activeEncounterAtCurrentSystem();
+  const scene = activeEncounterAtCurrentSystem() ?? latestEncounterAtCurrentSystem();
+  el.publishViewButton.hidden = !online || !uid || !scene;
+  el.publishViewButton.textContent = scene && lastPublishedRound === `${scene.identity.id}|${scene.round}`
+    ? '[ SCENE PUBLISHED ]'
+    : '[ PUBLISH SCENE ]';
 }
 
 async function publishCurrentCampaign() {
@@ -4352,19 +4357,49 @@ async function publishCurrentCampaign() {
   }
 }
 
-async function publishCurrentEncounterView() {
-  try {
-    const encounter = activeEncounterAtCurrentSystem();
-    if (!encounter) throw new Error('no active encounter');
-    if (!campaignIsPublished(campaignDocument)) throw new Error('publish the campaign first');
-    const view = buildPublishedView(encounter, { campaignId: campaignDocument.identity.id, publishedAt: Date.now() });
-    await publishEncounterView(view);
+// Publishing a scene by hand is a step to forget mid-combat, and the moment
+// the players' view goes stale is exactly the moment a round resolves. So the
+// referee publishes automatically while the campaign is online; the manual
+// control stays for the cases automation does not cover — a scene set up
+// before the first round, or a republish after editing the board.
+async function publishEncounterViewFor(encounter, { silent = false } = {}) {
+  if (!encounter) throw new Error('no encounter to publish');
+  if (!campaignIsPublished(campaignDocument)) throw new Error('publish the campaign first');
+  const view = buildPublishedView(encounter, {
+    campaignId: campaignDocument.identity.id,
+    publishedAt: Date.now()
+  });
+  await publishEncounterView(view);
+  if (!silent) {
     logActivity('SYSTEM', `Scene published for round ${view.round}: ${view.combatants.length} combatants, ${view.narration.length} log lines.`);
     setStatus(`SCENE PUBLISHED / ROUND ${view.round}`, 'ok');
+  }
+  return view;
+}
+
+async function publishCurrentEncounterView() {
+  try {
+    await publishEncounterViewFor(activeEncounterAtCurrentSystem() ?? latestEncounterAtCurrentSystem());
+    render();
   } catch (error) {
     console.error(error);
     setStatus(`PUBLISH FAILED / ${error?.message ?? String(error)}`, 'error');
   }
+}
+
+// Called after every resolved round. A publishing failure must never interrupt
+// play: the round is already resolved locally, so this reports and carries on.
+function autoPublishEncounterView(encounter) {
+  if (!campaignIsPublished(campaignDocument) || !currentUserId() || !encounter) return;
+  publishEncounterViewFor(encounter, { silent: true })
+    .then((view) => {
+      lastPublishedRound = `${encounter.identity.id}|${view.round}`;
+      renderPublishPanel();
+    })
+    .catch((error) => {
+      console.error(error);
+      setStatus(`SCENE PUBLISH FAILED / ${error?.message ?? String(error)}`, 'error');
+    });
 }
 
 function renderCampaignDirectory() {
@@ -4753,6 +4788,7 @@ function endActiveEncounter() {
     resolveLinkedCombatSituation(result.encounter);
     syncCampaignRefs();
     persistCampaignState();
+    autoPublishEncounterView(result.encounter);
     setStatus(`ENCOUNTER ${result.encounter.status.toUpperCase()}`, 'ok');
     render();
   } catch (error) {
@@ -4799,6 +4835,7 @@ function resolveDeclaredEncounterRound() {
     resolveLinkedCombatSituation(result.encounter);
     syncCampaignRefs();
     persistCampaignState();
+    autoPublishEncounterView(result.encounter);
     setStatus(`ENCOUNTER ${result.encounter.status.toUpperCase()} / ROUND ${result.encounter.round}`, result.encounter.status === 'defeat' ? 'error' : 'ok');
     closeRollDialog();
     render();

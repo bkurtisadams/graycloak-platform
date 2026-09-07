@@ -1,5 +1,15 @@
 # Graycloak Traveller
 
+## v0.54.0 the scene publishes itself
+
+Publishing a scene by hand was a step to forget mid-combat, and the moment the players' view goes stale is precisely the moment a round resolves. So while the campaign is online and the referee is signed in, resolving a round — or ending the fight — publishes the player-safe view automatically. No button to remember.
+
+**A failure never interrupts play.** The round has already resolved locally; publishing is a side effect, so it reports and carries on rather than throwing. A campaign that is local, or a referee who is signed out, publishes nothing at all and makes no network call — verified by resolving a round on a local campaign with the SDK blocked: clean console, no attempt.
+
+`[ PUBLISH SCENE ]` stays in the campaign menu for the cases automation does not cover: a board set up before the first round is resolved, or a republish after moving tokens by hand. It now also covers a *finished* encounter, which is what caught you out — it previously required an active one, so it vanished the moment a fight ended. Once the current round has been published it reads `[ SCENE PUBLISHED ]`.
+
+No schema or rules-package changes.
+
 ## v0.53.1 the surprise round stops throwing
 
 `pendingNpcDeclarations()` selected every active combatant on auto that had no orders yet, without checking whether the surprise round let them act. On a round where the party surprised the opposition it declared for the surprised foes anyway, and `declareEncounterAction()` refused each one — correctly, per Book 1 p.30, but the console filled with `Hostile is surprised and cannot act this round` and those combatants lost their fallback rather than simply standing.
