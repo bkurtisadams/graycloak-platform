@@ -91,6 +91,23 @@ export async function signIn() {
   return credential.user;
 }
 
+// Email and password, for players without a Google account — and for making
+// test accounts, which Google will not let you invent.
+export async function signInWithEmail(email, password) {
+  if (!auth) throw new Error('sign-in is unavailable; the client is running local-only');
+  const credential = await auth.signInWithEmailAndPassword(email, password);
+  return credential.user;
+}
+
+export async function createAccountWithEmail(email, password, { displayName = null } = {}) {
+  if (!auth) throw new Error('sign-in is unavailable; the client is running local-only');
+  const credential = await auth.createUserWithEmailAndPassword(email, password);
+  if (displayName) {
+    try { await credential.user.updateProfile({ displayName }); } catch (error) { console.warn(error); }
+  }
+  return credential.user;
+}
+
 export async function signOutOfTraveller() {
   if (!auth) return;
   await auth.signOut();

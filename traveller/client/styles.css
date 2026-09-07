@@ -3110,3 +3110,13 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .player-narration-round { padding-bottom: 6px; }
 .player-narration-heading { font-size: 10px; letter-spacing: .1em; color: var(--muted); padding: 4px 0 2px; }
 .player-narration-line { font-size: 11px; padding: 2px 0; border-top: 1px dotted var(--disabled); }
+
+/* --- v0.58.0: sign in with Google or with an email and password. */
+.signin-dialog { min-width: 340px; }
+.signin-dialog .roll-dialog-form { display: flex; flex-direction: column; gap: 7px; }
+.signin-dialog label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; }
+.signin-dialog input { font: inherit; font-size: 12px; padding: 3px 5px; }
+.signin-basis { font-size: 11px; color: var(--muted); max-width: 44ch; }
+.signin-rule { font-size: 10px; letter-spacing: .2em; color: var(--muted); text-align: center; padding: 2px 0; }
+.signin-status { font-size: 11px; color: var(--muted); min-height: 1.2em; }
+.signin-status.error { color: var(--failure-border); }

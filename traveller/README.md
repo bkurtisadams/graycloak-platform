@@ -1,5 +1,15 @@
 # Graycloak Traveller
 
+## v0.58.0 sign in with an email as well as Google
+
+Firebase already had email and password enabled; the client only ever offered the Google button. That mattered more than it looked: Google will not let you invent an account, so making a test player meant registering a real Gmail address.
+
+`[ SIGN IN ]` now opens a dialog with both — Google for people who have it, email and password for everyone else, and a toggle to create an account with a display name your referee will see. One dialog module shared by the referee client and the player page, so the two cannot drift apart.
+
+Verified both paths against a stubbed SDK: signing in with an email, and creating an account with the name field appearing when the toggle is pressed.
+
+No schema or rules-package changes.
+
 ## v0.57.0 the player page
 
 `client/player.html` — the first thing a player can actually open. Sign in, paste the campaign id (or follow a link carrying `?campaign=…`), and watch the fight.

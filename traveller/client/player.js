@@ -8,7 +8,8 @@
 //
 // Everything here is read-only. Declarations come later.
 
-import { initAuth, onAuthChange, signIn, signOutOfTraveller, currentUserId, authStatus } from './auth.js';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js';
+import { openSignInDialog } from './signin-ui.js';
 import { ensureFirestore } from './publish.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -86,9 +87,7 @@ function renderAccount() {
   el.account.onclick = null;
   el.accountButton.hidden = false;
   el.accountButton.textContent = '[ SIGN IN ]';
-  el.accountButton.onclick = async () => {
-    try { await signIn(); } catch (error) { setStatus(error?.message ?? String(error), 'error'); }
-  };
+  el.accountButton.onclick = () => openSignInDialog();
 }
 
 function renderCampaign() {

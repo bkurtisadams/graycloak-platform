@@ -162,7 +162,8 @@ import {
 } from '../src/npc-actor-document.js';
 import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js';
 import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js';
-import { initAuth, onAuthChange, signIn, signOutOfTraveller, currentUserId, authStatus } from './auth.js';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js';
+import { openSignInDialog } from './signin-ui.js';
 import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers } from './publish.js';
 import { buildPublishedView, buildPublishedCampaign } from '../src/published-view.js';
 import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js';
@@ -4317,14 +4318,8 @@ function renderAccount() {
   el.accountName.onclick = null;
   el.accountButton.hidden = false;
   el.accountButton.textContent = '[ SIGN IN ]';
-  el.accountButton.onclick = async () => {
-    try {
-      const account = await signIn();
-      setStatus(`SIGNED IN AS ${(account.displayName || account.email || account.uid).toUpperCase()}`, 'ok');
-    } catch (error) {
-      setStatus(error?.message ?? String(error), 'error');
-    }
-  };
+  el.accountButton.onclick = () => openSignInDialog();
+;
 }
 
 // Publishing is explicit and one-way for now: the local campaign stays
