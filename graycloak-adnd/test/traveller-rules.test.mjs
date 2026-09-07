@@ -20,6 +20,7 @@ import {
 } from '@firebase/rules-unit-testing';
 
 const RULES = fs.readFileSync(fileURLToPath(new URL('../firestore.rules', import.meta.url)), 'utf8');
+const PROJECT_ID = 'graycloaks-campaign-corner';
 const HOST = '127.0.0.1';
 const PORT = 8080;
 
@@ -36,7 +37,7 @@ const FOE = 'foe-raider';
 // return 200 here and then fail the suite with an HTML error page.
 async function emulatorRunning() {
   try {
-    const response = await fetch(`http://${HOST}:${PORT}/emulator/v1/projects/traveller-rules-test:ruleCoverage.html`);
+    const response = await fetch(`http://${HOST}:${PORT}/emulator/v1/projects/${PROJECT_ID}:ruleCoverage.html`);
     if (!response.ok) return false;
     const body = await response.text();
     return !body.includes('Unsupported method') && response.headers.get('content-type') !== null;
@@ -48,10 +49,15 @@ async function emulatorRunning() {
 const available = await emulatorRunning();
 
 test('Traveller multiplayer rules', { skip: available ? false : `Firestore emulator not answering on ${HOST}:${PORT} (is something else using that port?)` }, async (t) => {
+  // The emulator runs in single-project mode, so a test-only project id logs a
+  // warning on every request and, in some emulator versions, is routed to the
+  // configured project anyway. Matching it keeps the log clean and the
+  // namespace unambiguous; the suite clears its own data at the end regardless.
   const env = await initializeTestEnvironment({
-    projectId: 'traveller-rules-test',
+    projectId: PROJECT_ID,
     firestore: { rules: RULES, host: HOST, port: PORT }
   });
+  await env.clearFirestore();
 
   // Seed the campaign and encounter with rules disabled, as the referee's
   // client would have created them.
@@ -181,5 +187,6 @@ test('Traveller multiplayer rules', { skip: available ? false : `Firestore emula
     await assertFails(referee.doc('events/e1').get());
   });
 
+  await env.clearFirestore();
   await env.cleanup();
 });
