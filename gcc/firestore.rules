@@ -1,4 +1,8 @@
-// Firestore Security Rules for GCC / Graycloak AD&D v10
+// Firestore Security Rules for GCC / Graycloak AD&D / Traveller v11
+// v11 adds Graycloak Traveller: travellerCampaigns, with the encounter
+//   document referee-only, a player-safe view published by the referee, and
+//   declarations writable only by the account that owns that combatant.
+//
 // v10 authority hardening:
 //   - campaigns.worldTick/worldRevision are server-authoritative.
 //   - character travel/runtime/identity fields are immutable to all clients after create.
@@ -156,6 +160,81 @@ service cloud.firestore {
           allow delete: if isAuthed()
             && (isCampaignOwner(campaignId) || isGM()
                 || resource.data.uid == request.auth.uid);
+        }
+      }
+    }
+
+    // ── Graycloak Traveller ────────────────────────────────────
+    // A Traveller campaign is one document owned by its referee. Players are
+    // listed in the shared campaigns/{id}/players roster by uid, so a Traveller
+    // seat and an AD&D seat are the same account.
+    //
+    // Three collections, because Firestore rules grant access per document and
+    // cannot filter fields: the encounter itself carries enemy characteristics
+    // and wounds, so players must not read it at all. They read a projection
+    // the referee publishes, and write only their own declarations.
+
+    function travellerRefereeUid(campaignId) {
+      return get(/databases/$(database)/documents/travellerCampaigns/$(campaignId)).data.ownership.ownerUid;
+    }
+
+    function isTravellerReferee(campaignId) {
+      return isAuthed() && travellerRefereeUid(campaignId) == request.auth.uid;
+    }
+
+    function isTravellerPlayer(campaignId) {
+      return isAuthed()
+        && exists(/databases/$(database)/documents/travellerCampaigns/$(campaignId)/players/$(request.auth.uid));
+    }
+
+    function isAtTravellerTable(campaignId) {
+      return isTravellerReferee(campaignId) || isTravellerPlayer(campaignId);
+    }
+
+    match /travellerCampaigns/{campaignId} {
+      // The campaign document holds the party, the ship, the world state and
+      // the ownership map. Everyone at the table reads it; only the referee
+      // writes it.
+      allow read: if isAtTravellerTable(campaignId);
+      allow create: if isAuthed()
+        && request.resource.data.ownership.ownerUid == request.auth.uid;
+      allow update, delete: if isTravellerReferee(campaignId);
+
+      // Who sits at this table. The referee admits and removes; a player may
+      // read the roster and update nothing but their own seat.
+      match /players/{playerUid} {
+        allow read: if isAtTravellerTable(campaignId);
+        allow create, delete: if isTravellerReferee(campaignId);
+        allow update: if isTravellerReferee(campaignId)
+          || (isAuthed() && request.auth.uid == playerUid);
+      }
+
+      // The full encounter: enemy characteristics, wounds, cover, blow
+      // allowances, and every combatant's position. Referee only — a player
+      // who could read this would see everything the referee knows.
+      match /encounters/{encounterId} {
+        allow read, write: if isTravellerReferee(campaignId);
+
+        // What the players are shown, published by the referee's client after
+        // each round: names, sides, positions, visible condition, and the
+        // narration of what happened. No characteristics, no wound totals.
+        match /view/{viewId} {
+          allow read: if isAtTravellerTable(campaignId);
+          allow write: if isTravellerReferee(campaignId);
+        }
+
+        // A declaration is an intent, not state. A player may write one for a
+        // combatant they own and for nobody else, may not alter it once made,
+        // and may not resolve anything: resolution is the referee's, through
+        // the encounter document above.
+        match /declarations/{combatantId} {
+          allow read: if isAtTravellerTable(campaignId);
+          allow create: if isAuthed()
+            && request.resource.data.uid == request.auth.uid
+            && request.resource.data.actorId == combatantId
+            && get(/databases/$(database)/documents/travellerCampaigns/$(campaignId)).data.ownership.actors[combatantId] == request.auth.uid;
+          allow update: if false;
+          allow delete: if isTravellerReferee(campaignId);
         }
       }
     }

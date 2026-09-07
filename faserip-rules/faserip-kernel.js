@@ -1,3 +1,6 @@
+// faserip-rules kernel v0.2.14
+// v0.2.14: ERRATA — Appendix A Absorption rulings (Judge, 2026-09-05);
+//          faserip-powers.js v0.1.0 opens the power-mechanics module.
 // faserip-rules kernel v0.2.13
 // v0.2.13: ERRATA — thrown edged is an Edged Attack for Modifying Results
 //          in Combat (faserip-karma v0.7.1 EFFECT_REDUCTION_COLUMN_KEYS);
@@ -295,6 +298,10 @@ export const ERRATA = [
   'RULED 2026-08-31: Commit Other Crimes is -10 Karma as the Summary Listing prints; the twice-the-listed rule does not override it.',
   'NOTE: Conspiracy example totals 185 but prints "55 points each" for three heroes; floor(185/3)=61. Kernel follows the stated split rule (100/3 -> 33 each), treating 55 as a book math error.',
   'NOTE: Karma Summary Listing prints Failing Commitment as -5; prose and the Reed Richards example say failure to show is -10 and leaving early is -5. Karma module encodes both per prose.',
+  'RULED 2026-09-05 (Judge): Absorption grants a temporary Health pool equal to the Power rank NUMBER, flat, whatever damage the absorbed attack carried — a 5-point shock and a 48-point bolt both give Amazing(48) Absorption 48. The book states the gain as \'the Power rank involved\' and its example (Health 100 -> 148) does not name the bolt\'s damage, so the flat reading is the one the arithmetic supports.',
+  'RULED 2026-09-05 (Judge): Absorption damage above the rank number is damage the absorber MUST take, against real Health; it may not be paid out of the pool the same attack grants. Amazing(48) at Health 100 hit for 60: real Health 88, pool 48, 136 displayed. The pool soaks only subsequent damage, so when it lapses the character stands at 88 — the 12 points really landed. Health loss thereafter comes off the pool first, then real Health (book text).',
+  'RULED 2026-09-05 (Judge): the Absorption pool caps at the Power rank number — a second absorption refreshes it rather than stacking — and one 10-round clock is refreshed by each absorption rather than a queue of staged expiries. The book is silent on repeat absorptions; without a cap a character standing in a storm accumulates without limit.',
+  'RULED 2026-09-05 (Judge): redirected Absorption excess resolves as the absorbed damage type on that type\'s own Battle Effects column at the absorber\'s Agility, for the excess amount, on the round after it was absorbed. The book gives the amount and the timing but names no attack form.',
   'RULED 2026-08-31: Teleporting into an object inflicts damage equal to the material strength (1x, Movement chapter text authoritative); the Appendix A power description saying twice is wrong. Body Armor gives no protection.',
   'RULED 2026-08-31: Fall impact resolves entirely as a Charging attack per the Charging rules (rebound mechanism); "damage equivalent to the distance" is descriptive, not an alternate formula.',
   'RULED 2026-08-31: Laser rifles are Energy attacks (Energy column, Body Armor at -20); the weapon table typing them "S" is wrong.',
