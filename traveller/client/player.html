@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Graycloak Traveller — Player</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body class="player-body">
+    <header class="masthead">
+      <div class="masthead-main">
+        <nav class="utility masthead-utility" aria-label="Player session">
+          <span class="masthead-title">TRAVELLER</span>
+          <span class="subtitle">PLAYER v0.57.0</span>
+          <strong id="player-campaign-name" class="masthead-campaign-name">NOT CONNECTED</strong>
+          <span class="masthead-label">DATE</span>
+          <strong id="player-clock" class="masthead-date">--</strong>
+          <span id="player-yours" class="player-yours"></span>
+          <span class="masthead-spacer"></span>
+          <span id="player-account" class="masthead-account" title="Graycloak account"></span>
+          <button id="player-account-button" class="text-button utility-button" type="button" hidden></button>
+        </nav>
+      </div>
+    </header>
+
+    <main class="player-main">
+      <section class="player-connect-bar" aria-label="Connect to a campaign">
+        <label>CAMPAIGN <input id="player-campaign-id" type="text" placeholder="campaign id from your referee" autocomplete="off" size="40"></label>
+        <button id="player-connect" class="text-button action-button" type="button">[ CONNECT ]</button>
+        <span id="player-status" class="player-status"></span>
+      </section>
+
+      <div class="player-stage">
+        <section class="player-scene-column" aria-label="Scene">
+          <div id="player-scene" class="player-scene-heading"></div>
+          <svg id="player-map" class="player-map" viewBox="0 0 1280 800" role="img" aria-label="Encounter map"></svg>
+        </section>
+        <aside class="player-side" aria-label="Combatants and events">
+          <div class="player-side-heading">COMBATANTS</div>
+          <div id="player-roster" class="player-roster"></div>
+          <div class="player-side-heading">WHAT HAPPENED</div>
+          <div id="player-narration" class="player-narration" aria-live="polite"></div>
+        </aside>
+      </div>
+    </main>
+
+    <script type="module" src="player.js"></script>
+  </body>
+</html>

@@ -1,5 +1,23 @@
 # Graycloak Traveller
 
+## v0.57.0 the player page
+
+`client/player.html` — the first thing a player can actually open. Sign in, paste the campaign id (or follow a link carrying `?campaign=…`), and watch the fight.
+
+It shows the map with everyone's tokens, the player's own ringed in gold; a roster of names and visible conditions; and what happened, newest round first. The masthead says `YOU PLAY HAWKEYE`, worked out from the campaign's ownership map rather than told to it.
+
+**It is read-only and asks for nothing it may not have.** Two documents: the published campaign, and the current scene's view. It never requests the encounter document — that one is referee-only — and never tries to list encounters, which cannot work anyway since the parent documents are deliberately absent. Tests assert all three.
+
+**It updates by itself.** Both documents are `onSnapshot` subscriptions, so when the referee resolves a round the board and the log move without the player doing anything. Switching scenes is handled by watching `currentEncounterId` on the campaign and re-subscribing when it changes.
+
+The signed-in name copies the account id, as in the referee client — which is how a player gets seated, and the only place they can find it.
+
+Verified by driving the page with a realistic published payload: three combatants, one ringed as the player's own, roster conditions correct, narration grouped by round with the latest at the top.
+
+**Still to come:** declarations. The page is a window, not yet a way to act.
+
+No schema or rules-package changes.
+
 ## v0.56.0 narration that does not leak the arithmetic
 
 Reading a real published scene in the browser showed the projection was leaking after all — not through the combatant records, which were clean, but through the prose:
