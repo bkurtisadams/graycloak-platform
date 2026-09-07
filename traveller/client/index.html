@@ -12,7 +12,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.52.0</div>
+          <div id="app-subtitle" class="subtitle">v0.53.0</div>
         </div>
         <nav class="utility campaign-utility" aria-label="Campaign and view commands">
           <details id="campaign-menu" class="campaign-menu">
@@ -27,6 +27,10 @@
               <button id="open-ship-view" class="text-button utility-button" type="button" title="Ship register" hidden>[ SHIP REGISTER ]</button>
               <button id="open-campaign-view" class="text-button utility-button" type="button" title="Campaign record" hidden>[ CAMPAIGN RECORD ]</button>
               <button id="open-threads-view" class="text-button utility-button" type="button" title="Adventure threads" hidden>[ ADVENTURE THREADS ]</button>
+              <hr class="campaign-menu-rule">
+              <div id="publish-status" class="publish-status">LOCAL ONLY</div>
+              <button id="publish-campaign" class="text-button utility-button" type="button" title="Publish this campaign so seated players can read it">[ PUBLISH ]</button>
+              <button id="publish-view" class="text-button utility-button" type="button" title="Publish the player-safe view of the current scene" hidden>[ PUBLISH SCENE ]</button>
             </div>
           </details>
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -357,14 +361,6 @@
                 <button id="roster-new-actor" class="text-button" type="button">[ NEW NPC ]</button>
               </div>
               <div class="roster-basis">PERSISTENT CAMPAIGN ACTORS // CLASSIC CHARACTERISTICS, SKILLS, EQUIPMENT, NOTES, PORTRAIT, AND BODY-AWARE STATE</div>
-              <div id="publish-panel" class="publish-panel">
-                <div class="directory-heading">CAMPAIGN ONLINE</div>
-                <div id="publish-status" class="publish-status">LOCAL ONLY</div>
-                <div class="actions">
-                  <button id="publish-campaign" class="text-button action-button" type="button">[ PUBLISH ]</button>
-                  <button id="publish-view" class="text-button action-button" type="button" hidden>[ PUBLISH SCENE ]</button>
-                </div>
-              </div>
               <div id="directory-actors" class="campaign-directory" aria-label="Actors" aria-live="polite"></div>
               <div id="directory-vehicles" class="campaign-directory" aria-label="Vehicles"></div>
               <div id="roster-folders" class="roster-folders" aria-live="polite"></div>

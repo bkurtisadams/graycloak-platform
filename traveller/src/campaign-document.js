@@ -242,7 +242,8 @@ export function createCampaignDocument({
     },
     ownership: {
       ownerUid: nonblank(ownership.ownerUid) ? String(ownership.ownerUid) : null,
-      actors: isPlainObject(ownership.actors) ? cloneJson(ownership.actors) : {}
+      actors: isPlainObject(ownership.actors) ? cloneJson(ownership.actors) : {},
+      publishedAt: Number.isInteger(ownership.publishedAt) ? ownership.publishedAt : null
     },
     roster: {
       folders: Array.isArray(roster.folders) && roster.folders.length
@@ -462,7 +463,8 @@ export function validateCampaignDocument(document) {
 
     add(errors, isPlainObject(document.ownership), 'ownership must be an object');
     if (isPlainObject(document.ownership)) {
-      exactKeys(document.ownership, ['ownerUid', 'actors'], 'ownership', errors);
+      exactKeys(document.ownership, ['ownerUid', 'actors', 'publishedAt'], 'ownership', errors);
+      add(errors, document.ownership.publishedAt === null || Number.isInteger(document.ownership.publishedAt), 'ownership.publishedAt must be a timestamp or null');
       add(errors, document.ownership.ownerUid === null || nonblank(document.ownership.ownerUid), 'ownership.ownerUid must be a string or null');
       add(errors, isPlainObject(document.ownership.actors), 'ownership.actors must be an object');
       if (isPlainObject(document.ownership.actors)) {
@@ -575,7 +577,7 @@ export function migrateCampaignDocument(input) {
   }
   if (next.schemaVersion === 9) {
     next.schemaVersion = 10;
-    next.ownership = { ownerUid: null, actors: {} };
+    next.ownership = { ownerUid: null, actors: {}, publishedAt: null };
   }
   assertValidCampaignDocument(next);
   return next;
@@ -585,6 +587,25 @@ export function migrateCampaignDocument(input) {
 // Characters and ships keep their own document types — a PC has a career and
 // mustering-out benefits an NPC does not — so this lists them side by side
 // rather than merging the schemas.
+// Publication is a fact about the campaign, not about this browser session:
+// recording it on the document means a reload still knows the campaign is
+// online, and the SCENE control stays available.
+export function markCampaignPublished(document, publishedAt = Date.now()) {
+  const next = cloneJson(document);
+  if (!Number.isInteger(publishedAt)) throw new TypeError('publishedAt must be an integer timestamp');
+  next.ownership = {
+    ownerUid: next.ownership?.ownerUid ?? null,
+    actors: { ...(next.ownership?.actors ?? {}) },
+    publishedAt
+  };
+  assertValidCampaignDocument(next);
+  return next;
+}
+
+export function campaignIsPublished(document) {
+  return Boolean(document?.ownership?.publishedAt) && Boolean(document?.ownership?.ownerUid);
+}
+
 export function campaignDirectory(document, { characters = [], npcActors = [], ships = [] } = {}) {
   const owners = document?.ownership?.actors ?? {};
   const entry = (kind, id, name, detail) => ({ kind, id, name, detail, ownerUid: owners[id] ?? null });
@@ -612,7 +633,7 @@ export function setDocumentOwner(document, { documentId, ownerUid } = {}) {
   const actors = { ...(next.ownership?.actors ?? {}) };
   if (nonblank(ownerUid)) actors[documentId] = String(ownerUid);
   else delete actors[documentId];
-  next.ownership = { ownerUid: next.ownership?.ownerUid ?? null, actors };
+  next.ownership = { ownerUid: next.ownership?.ownerUid ?? null, actors, publishedAt: next.ownership?.publishedAt ?? null };
   assertValidCampaignDocument(next);
   return next;
 }
@@ -621,7 +642,8 @@ export function setCampaignOwner(document, ownerUid) {
   const next = cloneJson(document);
   next.ownership = {
     ownerUid: nonblank(ownerUid) ? String(ownerUid) : null,
-    actors: { ...(next.ownership?.actors ?? {}) }
+    actors: { ...(next.ownership?.actors ?? {}) },
+    publishedAt: next.ownership?.publishedAt ?? null
   };
   assertValidCampaignDocument(next);
   return next;

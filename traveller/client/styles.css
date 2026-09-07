@@ -3047,6 +3047,7 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .directory-owner { flex: 0 0 7rem; font: inherit; font-size: 10px; padding: 1px 3px; }
 
 /* --- v0.52.0: publishing a campaign for players to read. */
-.publish-panel { border-bottom: 1px solid var(--rule); padding-bottom: 7px; margin-bottom: 7px; }
-.publish-status { font-size: 11px; color: var(--muted); padding: 2px 0 5px; }
-.publish-panel .actions { display: flex; gap: 5px; flex-wrap: wrap; }
+/* v0.53.0: publishing moved into the campaign menu, where it stays reachable
+   during combat — the combat rail hides every panel in the context column. */
+.campaign-menu-rule { border: 0; border-top: 1px solid var(--rule); margin: 5px 0; }
+.publish-status { font-size: 10px; letter-spacing: .06em; color: var(--muted); padding: 2px 4px 4px; }

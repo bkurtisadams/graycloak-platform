@@ -1,5 +1,17 @@
 # Graycloak Traveller
 
+## v0.53.0 the publish controls, where you can actually reach them
+
+Two bugs in v0.52.0, both from putting campaign-level controls inside a rail tab.
+
+**`[ PUBLISH SCENE ]` was unreachable exactly when it was useful.** Since v0.47.0 the combat rail hides every other panel in the context column — including the NPCS tab, where the publish panel sat. So the control for publishing a scene disappeared the moment a scene existed. Publishing is campaign-level, so both controls now live in the `[ CAMPAIGN v ]` menu beside the other campaign commands, which stays reachable during combat.
+
+**And it forgot it had published.** `publishedCampaignId` was a module variable, so a page reload lost it and the scene control hid itself again. Publication is a fact about the campaign, not about the browser session: campaign schema 10 gains `ownership.publishedAt`, and `campaignIsPublished()` reads it. The document is marked only *after* the write is acknowledged, so a failed publish leaves the campaign honestly marked local.
+
+The status line now reads `ONLINE / 14:37:42` rather than repeating the campaign id, which the log already records when publishing.
+
+No rules-package changes; campaign schema 10 gains one nullable field.
+
 ## v0.52.0 publishing a campaign for players to read
 
 The first version where Traveller writes to Firestore. The local campaign stays authoritative — this publishes a copy players may read, nothing is read back, and going offline simply stops publishing.

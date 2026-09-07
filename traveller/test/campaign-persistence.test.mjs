@@ -22,6 +22,8 @@ import {
   campaignDirectory,
   setDocumentOwner,
   setCampaignOwner,
+  markCampaignPublished,
+  campaignIsPublished,
   speculativeLotPurchasedQuantity,
   recordSpeculativeLotPurchase,
   setActiveCampaignCharacter
@@ -377,7 +379,7 @@ test('v0.50.0 lists actors and vehicles with the account that plays each', async
   });
 
   // Unowned by default: the referee runs everything.
-  assert.deepEqual(campaign.ownership, { ownerUid: null, actors: {} });
+  assert.deepEqual(campaign.ownership, { ownerUid: null, actors: {}, publishedAt: null });
   const empty = campaignDirectory(campaign, { characters: [character], ships: [ship] });
   assert.equal(empty.actors.length, 1);
   assert.equal(empty.actors[0].kind, 'character');
@@ -403,4 +405,11 @@ test('v0.50.0 lists actors and vehicles with the account that plays each', async
   assert.equal(roundTrip.ownership.actors[ship.identity.id], 'uid-player-2');
 
   assert.throws(() => setDocumentOwner(campaign, { documentId: '', ownerUid: 'x' }), TypeError);
+
+  // Publication is recorded on the document, so a reload still knows.
+  assert.equal(campaignIsPublished(campaign), false);
+  const published = markCampaignPublished(campaign, 1788788262335);
+  assert.equal(published.ownership.publishedAt, 1788788262335);
+  assert.equal(campaignIsPublished(published), true);
+  assert.equal(campaignIsPublished(importCampaignDocument(JSON.parse(exportCampaignDocument(published)))), true);
 });

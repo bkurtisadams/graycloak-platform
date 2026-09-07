@@ -138,6 +138,8 @@ import {
   campaignDirectory,
   setDocumentOwner,
   setCampaignOwner,
+  markCampaignPublished,
+  campaignIsPublished,
   campaignClockLabel,
   COMBAT_ROUND_SECONDS,
   createCampaignDocument,
@@ -563,8 +565,6 @@ let encounterMapViewFrame = 0;
 let framedEncounterId = null;
 let encounterExtraTargetIds = new Set();
 let expandedTrackerIds = new Set();
-let publishedCampaignId = null;
-let publishedAt = null;
 let hoveredEncounterCombatantId = null;
 const WORKSPACE_VIEWS = ['play', 'ship', 'campaign', 'threads'];
 let activeWorkspaceView = 'play';
@@ -4310,17 +4310,20 @@ function renderAccount() {
 function renderPublishPanel() {
   if (!el.publishStatusLine) return;
   const uid = currentUserId();
-  const online = publishedCampaignId && publishedCampaignId === campaignDocument?.identity.id;
+  const online = campaignIsPublished(campaignDocument);
+  const publishedAt = campaignDocument?.ownership?.publishedAt ?? null;
   el.publishStatusLine.textContent = !campaignDocument
     ? 'NO CAMPAIGN'
     : !uid
       ? 'SIGN IN TO PUBLISH'
       : online
-        ? `ONLINE / ${publishedCampaignId.toUpperCase()}${publishedAt ? ` / ${new Date(publishedAt).toLocaleTimeString()}` : ''}`
+        ? `ONLINE / ${new Date(publishedAt).toLocaleTimeString()}`
         : 'LOCAL ONLY';
   el.publishCampaignButton.disabled = !campaignDocument || !uid;
   el.publishCampaignButton.textContent = online ? '[ REPUBLISH ]' : '[ PUBLISH ]';
-  el.publishViewButton.hidden = !online || !activeEncounterAtCurrentSystem();
+  // The scene control follows the encounter, not the rail: combat hides every
+  // rail panel, so this lives in the campaign menu where it stays reachable.
+  el.publishViewButton.hidden = !online || !uid || !activeEncounterAtCurrentSystem();
 }
 
 async function publishCurrentCampaign() {
@@ -4331,18 +4334,21 @@ async function publishCurrentCampaign() {
     // The referee owns what they publish; the rules check this on create.
     if (campaignDocument.ownership?.ownerUid !== uid) {
       campaignDocument = setCampaignOwner(campaignDocument, uid);
-      persistCampaignState();
     }
-    publishedAt = Date.now();
+    const publishedAt = Date.now();
     const published = buildPublishedCampaign(campaignDocument, { publishedAt });
     await publishCampaign(published);
-    publishedCampaignId = published.campaignId;
+    // Only recorded once the write is acknowledged, so a failure leaves the
+    // campaign honestly marked local.
+    campaignDocument = markCampaignPublished(campaignDocument, publishedAt);
+    persistCampaignState();
     logActivity('SYSTEM', `Campaign published as ${published.campaignId}; players seated on it may read the shared state.`);
     setStatus(`PUBLISHED ${published.campaignId.toUpperCase()}`, 'ok');
     render();
   } catch (error) {
     console.error(error);
     setStatus(`PUBLISH FAILED / ${error?.message ?? String(error)}`, 'error');
+    render();
   }
 }
 
@@ -4350,8 +4356,8 @@ async function publishCurrentEncounterView() {
   try {
     const encounter = activeEncounterAtCurrentSystem();
     if (!encounter) throw new Error('no active encounter');
-    if (!publishedCampaignId) throw new Error('publish the campaign first');
-    const view = buildPublishedView(encounter, { campaignId: publishedCampaignId, publishedAt: Date.now() });
+    if (!campaignIsPublished(campaignDocument)) throw new Error('publish the campaign first');
+    const view = buildPublishedView(encounter, { campaignId: campaignDocument.identity.id, publishedAt: Date.now() });
     await publishEncounterView(view);
     logActivity('SYSTEM', `Scene published for round ${view.round}: ${view.combatants.length} combatants, ${view.narration.length} log lines.`);
     setStatus(`SCENE PUBLISHED / ROUND ${view.round}`, 'ok');
