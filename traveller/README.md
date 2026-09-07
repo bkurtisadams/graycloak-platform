@@ -1,5 +1,13 @@
 # Graycloak Traveller
 
+## v0.53.1 the surprise round stops throwing
+
+`pendingNpcDeclarations()` selected every active combatant on auto that had no orders yet, without checking whether the surprise round let them act. On a round where the party surprised the opposition it declared for the surprised foes anyway, and `declareEncounterAction()` refused each one — correctly, per Book 1 p.30, but the console filled with `Hostile is surprised and cannot act this round` and those combatants lost their fallback rather than simply standing.
+
+The routine now applies the same surprise test the resolver does. Reproduced by starting fights until one surprised a side, then resolving: clean console, and the surprised side sits the round out as the book says.
+
+No schema or rules-package changes.
+
 ## v0.53.0 the publish controls, where you can actually reach them
 
 Two bugs in v0.52.0, both from putting campaign-level controls inside a rail tab.

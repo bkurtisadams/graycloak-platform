@@ -101,11 +101,17 @@ export function chooseNpcDeclaration(encounter, combatant) {
   return { actorId: combatant.id, action: 'wait', targetId: null, modifier: 0, reason: 'nothing to engage' };
 }
 
-// Every combatant that is on auto and still without orders this round.
+// Every combatant that is on auto and still without orders this round —
+// excluding anyone the surprise round bars from acting (Book 1 p.30). Without
+// that check the routine declares for a surprised combatant and the resolver
+// refuses it, which is correct but noisy.
 export function pendingNpcDeclarations(encounter) {
   const declared = new Set((encounter.roundState?.declaredActions ?? []).map((entry) => entry.actorId));
+  const surpriseRound = encounter.round === 1 ? encounter.surprise?.surpriseSideId ?? null : null;
+  const mayAct = (side) => surpriseRound === null || surpriseRound === side;
   return encounter.combatants
     .filter((entry) => entry.status === 'active' && entry.tactics === 'auto' && !declared.has(entry.id))
+    .filter((entry) => mayAct(entry.side))
     .map((entry) => chooseNpcDeclaration(encounter, entry))
     .filter(Boolean);
 }

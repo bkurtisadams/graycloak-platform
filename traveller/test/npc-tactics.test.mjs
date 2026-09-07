@@ -107,3 +107,28 @@ test('only active combatants set to auto are declared for', async () => {
   assert.equal(pendingNpcDeclarations(downed).length, 1);
   assert.equal(chooseNpcDeclaration(downed, downed.combatants.find((entry) => entry.name === 'Bruiser')), null);
 });
+
+test('the surprise round bars the surprised side from automatic declarations', async () => {
+  const encounter = await fixture([raider('Gunman', 'automatic-pistol', { 'Automatic Pistol': 3 })]);
+
+  // Round 1 with the party surprising: the opposition may not act, so the
+  // routine must not declare for them. Declaring anyway is refused by the
+  // resolver, which is correct but leaves the round littered with errors.
+  const surprised = {
+    ...encounter,
+    round: 1,
+    surprise: { ...encounter.surprise, surpriseSideId: 'party', surprisedSideId: 'opposition' }
+  };
+  assert.equal(pendingNpcDeclarations(surprised).length, 0);
+
+  // With the opposition surprising, they act.
+  const surprising = {
+    ...encounter,
+    round: 1,
+    surprise: { ...encounter.surprise, surpriseSideId: 'opposition', surprisedSideId: 'party' }
+  };
+  assert.equal(pendingNpcDeclarations(surprising).length, 1);
+
+  // From round 2 surprise no longer applies.
+  assert.equal(pendingNpcDeclarations({ ...surprised, round: 2 }).length, 1);
+});
