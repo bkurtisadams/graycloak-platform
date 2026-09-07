@@ -191,13 +191,14 @@ service cloud.firestore {
       return isTravellerReferee(campaignId) || isTravellerPlayer(campaignId);
     }
 
-    // Ownership of one combatant. Membership is checked before the lookup:
-    // indexing a key that is absent raises an evaluation error, which Firestore
-    // treats as a denial, but a security decision should not rest on an error.
+    // Ownership of one combatant. Map.get(key, default) returns the default
+    // rather than raising when the key is absent, so an unowned combatant
+    // denies by comparison instead of by evaluation error — and it reads the
+    // campaign document once rather than twice.
     function ownsTravellerCombatant(campaignId, combatantId) {
       return isAuthed()
-        && (combatantId in get(/databases/$(database)/documents/travellerCampaigns/$(campaignId)).data.ownership.actors)
-        && get(/databases/$(database)/documents/travellerCampaigns/$(campaignId)).data.ownership.actors[combatantId] == request.auth.uid;
+        && get(/databases/$(database)/documents/travellerCampaigns/$(campaignId))
+             .data.ownership.actors.get(combatantId, '') == request.auth.uid;
     }
 
     match /travellerCampaigns/{campaignId} {

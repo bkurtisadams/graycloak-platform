@@ -191,6 +191,15 @@ service cloud.firestore {
       return isTravellerReferee(campaignId) || isTravellerPlayer(campaignId);
     }
 
+    // Ownership of one combatant. Membership is checked before the lookup:
+    // indexing a key that is absent raises an evaluation error, which Firestore
+    // treats as a denial, but a security decision should not rest on an error.
+    function ownsTravellerCombatant(campaignId, combatantId) {
+      return isAuthed()
+        && (combatantId in get(/databases/$(database)/documents/travellerCampaigns/$(campaignId)).data.ownership.actors)
+        && get(/databases/$(database)/documents/travellerCampaigns/$(campaignId)).data.ownership.actors[combatantId] == request.auth.uid;
+    }
+
     match /travellerCampaigns/{campaignId} {
       // The campaign document holds the party, the ship, the world state and
       // the ownership map. Everyone at the table reads it; only the referee
@@ -229,10 +238,9 @@ service cloud.firestore {
         // the encounter document above.
         match /declarations/{combatantId} {
           allow read: if isAtTravellerTable(campaignId);
-          allow create: if isAuthed()
-            && request.resource.data.uid == request.auth.uid
+          allow create: if request.resource.data.uid == request.auth.uid
             && request.resource.data.actorId == combatantId
-            && get(/databases/$(database)/documents/travellerCampaigns/$(campaignId)).data.ownership.actors[combatantId] == request.auth.uid;
+            && ownsTravellerCombatant(campaignId, combatantId);
           allow update: if false;
           allow delete: if isTravellerReferee(campaignId);
         }
