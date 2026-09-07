@@ -1,5 +1,27 @@
 # Graycloak Traveller
 
+## v0.56.0 narration that does not leak the arithmetic
+
+Reading a real published scene in the browser showed the projection was leaking after all — not through the combatant records, which were clean, but through the prose:
+
+    Hostile attacks Hawkeye at medium range: Automatic Pistol / 2D [6] [1] = 7 /
+    SKILL +0 / CHAR +0 / UNTRAINED +0 / DEF +0 / SITUATION +0 / TOTAL 7 vs 11+
+
+That `vs 11+` is the target number, which is the defender's armour; `SKILL` and `CHAR` are the attacker's characteristics. Everything carefully excluded from the combatant records was reconstructable from a few rounds of narration. My error: I reused the referee's log lines because they were "already written as narration", when they are written as an *audit trail*, which is a different thing.
+
+Player narration is now generated from the structured result — who acted, on whom, with what, and what happened:
+
+    Hawkeye hits Raider with Rifle and drops them.
+    Raider attacks Hawkeye with Automatic Pistol and misses.
+
+**Unrecognised entry kinds are dropped rather than passed through.** A new kind added later would otherwise publish whatever prose the referee's side happens to write; failing closed means a future change cannot leak by accident. A test asserts that an unknown kind carrying "the raider has 3 END left" never reaches the payload.
+
+**Two other things the live data showed.** The round was reported one behind on a resolved encounter, since the narration filter subtracted a round while the fight ran and kept doing so after it ended. And the view now carries the last four rounds rather than only the latest, so a player who looks away does not lose what happened.
+
+**The campaign names the current encounter.** A player cannot discover scenes: encounter documents are referee-only, and Firestore does not return missing parent documents from a collection query, so listing them returns empty even when the subcollection exists. `currentEncounterId` on the published campaign is how a player client will know where to look.
+
+No schema or rules-package changes.
+
 ## v0.55.0 seating players
 
 Nobody but the referee could read a published campaign: the rules test membership of `travellerCampaigns/{id}/players`, and nothing created those documents. `[ PLAYERS ]` in the campaign menu does now.

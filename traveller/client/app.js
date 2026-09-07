@@ -4364,7 +4364,11 @@ async function publishCurrentCampaign() {
       campaignDocument = setCampaignOwner(campaignDocument, uid);
     }
     const publishedAt = Date.now();
-    const published = buildPublishedCampaign(campaignDocument, { publishedAt });
+    const scene = activeEncounterAtCurrentSystem() ?? latestEncounterAtCurrentSystem();
+    const published = buildPublishedCampaign(campaignDocument, {
+      publishedAt,
+      currentEncounterId: scene?.identity.id ?? null
+    });
     await publishCampaign(published);
     // Only recorded once the write is acknowledged, so a failure leaves the
     // campaign honestly marked local.
@@ -4393,6 +4397,10 @@ async function publishEncounterViewFor(encounter, { silent = false } = {}) {
     publishedAt: Date.now()
   });
   await publishEncounterView(view);
+  await publishCampaign(buildPublishedCampaign(campaignDocument, {
+    publishedAt: campaignDocument.ownership?.publishedAt ?? Date.now(),
+    currentEncounterId: encounter.identity.id
+  }));
   if (!silent) {
     logActivity('SYSTEM', `Scene published for round ${view.round}: ${view.combatants.length} combatants, ${view.narration.length} log lines.`);
     setStatus(`SCENE PUBLISHED / ROUND ${view.round}`, 'ok');
@@ -4515,7 +4523,10 @@ async function seatPlayerFromDialog() {
       persistCampaignState();
       // The ownership map is what the declaration rule reads, so it has to
       // reach Firestore before that player can act.
-      await publishCampaign(buildPublishedCampaign(campaignDocument, { publishedAt: Date.now() }));
+      const scene = activeEncounterAtCurrentSystem() ?? latestEncounterAtCurrentSystem();
+      await publishCampaign(buildPublishedCampaign(campaignDocument, {
+        publishedAt: Date.now(), currentEncounterId: scene?.identity.id ?? null
+      }));
     }
     logActivity('SYSTEM', `${name || uid} seated at the table${characterId ? ' and assigned a character' : ''}.`);
     el.playersUid.value = '';

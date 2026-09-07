@@ -39,7 +39,8 @@ test('the published view carries names, sides, positions and condition', async (
   const { encounter } = await fixture();
   const view = buildPublishedView(encounter, { campaignId: 'published-view' });
 
-  assert.equal(view.round, 1);
+  // A fight that has not resolved a round yet is at round 0 played.
+  assert.equal(view.round, 0);
   assert.equal(view.combatants.length, 2);
   const raider = view.combatants.find((entry) => entry.name === 'Raider');
   assert.equal(raider.side, 'opposition');
@@ -88,8 +89,15 @@ test('the narration carries the round that just resolved', async () => {
   const view = buildPublishedView(result.encounter, { campaignId: 'published-view' });
   assert.ok(view.narration.length > 0, 'the round produced narration');
   assert.ok(view.narration.every((entry) => typeof entry.text === 'string' && entry.text.length > 0));
-  // Narration is prose, and prose is what the referee already logs.
-  assert.match(view.narration.map((entry) => entry.text).join(' '), /attacks|moves|cannot/);
+  const prose = view.narration.map((entry) => entry.text).join(' ');
+  assert.match(prose, /attacks|hits|misses|moves|breaks/);
+
+  // The referee's audit line carries the dice, every DM and the target number,
+  // and the target number is the defender's armour. None of it may appear.
+  for (const forbidden of ['2D', 'SKILL', 'CHAR', 'UNTRAINED', 'SITUATION', 'TOTAL', 'vs ', 'WOUND LOCATION', 'HIT ']) {
+    assert.ok(!prose.includes(forbidden), `player narration must not contain "${forbidden}"`);
+  }
+  assert.doesNotMatch(prose, /\[\d\]/, 'no dice results');
 });
 
 test('the published campaign carries shared state and the ownership map', async () => {
@@ -102,4 +110,58 @@ test('the published campaign carries shared state and the ownership map', async 
   assert.equal(published.publishedAt, 12345);
   // The party's character documents are not part of it.
   assert.equal(JSON.stringify(published).includes('Hawkeye'), false);
+});
+
+test('the published narration says what happened, not what was rolled', async () => {
+  const { encounter } = await fixture();
+  const target = encounter.combatants.find((entry) => entry.side === 'opposition');
+  const result = resolveEncounterRound(encounter, {
+    action: 'attack', targetId: target.id, date: { year: 4800, dayOfYear: 106 },
+    dice: sequenceDice(Array.from({ length: 40 }, () => 6))
+  });
+  const view = buildPublishedView(result.encounter, { campaignId: 'published-view' });
+  const prose = view.narration.map((entry) => entry.text).join(' ');
+
+  // Fiction, not arithmetic.
+  assert.match(prose, /hits|misses/);
+  assert.doesNotMatch(prose, /\d/, 'no numbers at all in attack narration');
+});
+
+test('an unrecognised entry kind is dropped rather than published', async () => {
+  const { encounter } = await fixture();
+  const withMystery = {
+    ...encounter,
+    round: 2,
+    history: [
+      ...encounter.history,
+      { round: 1, kind: 'referee-whisper', text: 'The raider has 3 END left and is bluffing.' }
+    ]
+  };
+  const view = buildPublishedView(withMystery, { campaignId: 'published-view' });
+  assert.equal(JSON.stringify(view).includes('bluffing'), false, 'unknown kinds fail closed');
+});
+
+test('the view carries several rounds so a player who looks away keeps them', async () => {
+  let { encounter } = await fixture();
+  const target = encounter.combatants.find((entry) => entry.side === 'opposition');
+  // Three rounds of movement, which never resolves the fight.
+  for (let round = 0; round < 3; round += 1) {
+    encounter = resolveEncounterRound(encounter, {
+      action: 'open', targetId: target.id, date: { year: 4800, dayOfYear: 106 },
+      dice: sequenceDice(Array.from({ length: 60 }, () => 3))
+    }).encounter;
+  }
+  const view = buildPublishedView(encounter, { campaignId: 'published-view', rounds: 4 });
+  const rounds = new Set(view.narration.map((entry) => entry.round));
+  assert.ok(rounds.size >= 2, 'more than the latest round is published');
+  assert.ok(Math.max(...rounds) <= view.round);
+});
+
+test('the published campaign names the current encounter', async () => {
+  const { campaign } = await fixture();
+  const published = buildPublishedCampaign(campaign, { currentEncounterId: 'encounter-1' });
+  // Players cannot list encounters: the encounter documents are referee-only
+  // and Firestore does not return missing parents.
+  assert.equal(published.currentEncounterId, 'encounter-1');
+  assert.equal(buildPublishedCampaign(campaign).currentEncounterId, null);
 });
