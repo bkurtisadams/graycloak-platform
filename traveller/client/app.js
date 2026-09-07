@@ -163,7 +163,7 @@ import {
 import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js';
 import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js';
 import { initAuth, onAuthChange, signIn, signOutOfTraveller, currentUserId, authStatus } from './auth.js';
-import { publishCampaign, publishEncounterView, publishStatus } from './publish.js';
+import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers } from './publish.js';
 import { buildPublishedView, buildPublishedCampaign } from '../src/published-view.js';
 import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js';
 import {
@@ -436,6 +436,15 @@ const el = {
   operationsTabRoster: document.querySelector('#operations-tab-roster'),
   rosterSection: document.querySelector('#roster-section'),
   publishStatusLine: document.querySelector('#publish-status'),
+  openPlayers: document.querySelector('#open-players'),
+  playersDialog: document.querySelector('#players-dialog'),
+  playersSeated: document.querySelector('#players-seated'),
+  playersUid: document.querySelector('#players-uid'),
+  playersName: document.querySelector('#players-name'),
+  playersCharacter: document.querySelector('#players-character'),
+  playersSeat: document.querySelector('#players-seat'),
+  playersStatus: document.querySelector('#players-status'),
+  playersClose: document.querySelector('#players-close'),
   publishCampaignButton: document.querySelector('#publish-campaign'),
   publishViewButton: document.querySelector('#publish-view'),
   accountName: document.querySelector('#account-name'),
@@ -4284,7 +4293,18 @@ function renderAccount() {
   }
   if (user) {
     el.accountName.textContent = (user.displayName || user.email || user.uid).toUpperCase();
-    el.accountName.title = `Signed in as ${user.email ?? user.uid}`;
+    // A player has to send this to their referee before they can be seated,
+    // so clicking it copies it rather than making them read it off the screen.
+    el.accountName.title = `${user.email ?? user.uid}\nAccount id: ${user.uid}\nClick to copy the id`;
+    el.accountName.classList.add('copyable');
+    el.accountName.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(user.uid);
+        setStatus('ACCOUNT ID COPIED / SEND IT TO YOUR REFEREE', 'ok');
+      } catch {
+        window.prompt('Account id — copy this and send it to your referee:', user.uid);
+      }
+    };
     el.accountButton.hidden = false;
     el.accountButton.textContent = '[ SIGN OUT ]';
     el.accountButton.onclick = async () => {
@@ -4293,6 +4313,8 @@ function renderAccount() {
     return;
   }
   el.accountName.textContent = '';
+  el.accountName.classList.remove('copyable');
+  el.accountName.onclick = null;
   el.accountButton.hidden = false;
   el.accountButton.textContent = '[ SIGN IN ]';
   el.accountButton.onclick = async () => {
@@ -4326,6 +4348,7 @@ function renderPublishPanel() {
   // rail panel, so this lives in the campaign menu where it stays reachable.
   const scene = activeEncounterAtCurrentSystem() ?? latestEncounterAtCurrentSystem();
   el.publishViewButton.hidden = !online || !uid || !scene;
+  if (el.openPlayers) el.openPlayers.hidden = !online || !uid;
   el.publishViewButton.textContent = scene && lastPublishedRound === `${scene.identity.id}|${scene.round}`
     ? '[ SCENE PUBLISHED ]'
     : '[ PUBLISH SCENE ]';
@@ -4400,6 +4423,129 @@ function autoPublishEncounterView(encounter) {
       console.error(error);
       setStatus(`SCENE PUBLISH FAILED / ${error?.message ?? String(error)}`, 'error');
     });
+}
+
+// Seating a player is what makes the campaign readable to them: the rules test
+// membership of travellerCampaigns/{id}/players. Assigning a character is a
+// separate act — it writes the ownership map, which is what lets them declare
+// that combatant's actions.
+//
+// Account ids are typed in by hand for now. A uid only exists once someone has
+// signed in, so there is no way to name a player before they have; invites
+// replace this by carrying a code the player redeems themselves.
+let seatedPlayers = [];
+
+function setPlayersStatus(text, kind = '') {
+  if (!el.playersStatus) return;
+  el.playersStatus.textContent = text;
+  el.playersStatus.className = `players-status${kind ? ` ${kind}` : ''}`;
+}
+
+async function openPlayersDialog() {
+  if (!el.playersDialog) return;
+  el.playersUid.value = '';
+  el.playersName.value = '';
+  setPlayersStatus('');
+  renderPlayerCharacterOptions();
+  el.playersDialog.showModal();
+  await refreshSeatedPlayers();
+}
+
+function renderPlayerCharacterOptions() {
+  if (!el.playersCharacter) return;
+  const options = [new Option('NOBODY YET', '')];
+  for (const character of currentPartyCharacters()) {
+    options.push(new Option(character.identity.name.toUpperCase(), character.identity.id));
+  }
+  el.playersCharacter.replaceChildren(...options);
+}
+
+async function refreshSeatedPlayers() {
+  try {
+    if (!campaignIsPublished(campaignDocument)) {
+      seatedPlayers = [];
+      renderSeatedPlayers();
+      setPlayersStatus('PUBLISH THE CAMPAIGN BEFORE SEATING PLAYERS', 'error');
+      return;
+    }
+    seatedPlayers = await listSeatedPlayers(campaignDocument.identity.id);
+    renderSeatedPlayers();
+  } catch (error) {
+    console.error(error);
+    setPlayersStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function renderSeatedPlayers() {
+  if (!el.playersSeated) return;
+  const owners = campaignDocument?.ownership?.actors ?? {};
+  if (!seatedPlayers.length) {
+    el.playersSeated.replaceChildren(Object.assign(document.createElement('div'), {
+      className: 'players-empty', textContent: 'NO PLAYERS SEATED'
+    }));
+    return;
+  }
+  const rows = seatedPlayers.map((player) => {
+    const row = document.createElement('div');
+    row.className = 'players-row';
+    const plays = Object.entries(owners)
+      .filter(([, uid]) => uid === player.uid)
+      .map(([documentId]) => currentPartyCharacters().find((entry) => entry.identity.id === documentId)?.identity.name ?? documentId);
+    row.append(
+      Object.assign(document.createElement('span'), { className: 'players-name', textContent: (player.name || player.uid).toUpperCase() }),
+      Object.assign(document.createElement('span'), { className: 'players-plays', textContent: plays.length ? plays.join(', ').toUpperCase() : 'NO CHARACTER' }),
+      makePortButton('REMOVE', () => removeSeatedPlayer(player.uid))
+    );
+    row.title = player.uid;
+    return row;
+  });
+  el.playersSeated.replaceChildren(...rows);
+}
+
+async function seatPlayerFromDialog() {
+  try {
+    const uid = el.playersUid.value.trim();
+    const name = el.playersName.value.trim() || null;
+    const characterId = el.playersCharacter.value;
+    if (!uid) throw new Error('paste the account id the player read from their screen');
+    if (!campaignIsPublished(campaignDocument)) throw new Error('publish the campaign first');
+    await seatPlayer(campaignDocument.identity.id, uid, { name });
+    if (characterId) {
+      campaignDocument = setDocumentOwner(campaignDocument, { documentId: characterId, ownerUid: uid });
+      persistCampaignState();
+      // The ownership map is what the declaration rule reads, so it has to
+      // reach Firestore before that player can act.
+      await publishCampaign(buildPublishedCampaign(campaignDocument, { publishedAt: Date.now() }));
+    }
+    logActivity('SYSTEM', `${name || uid} seated at the table${characterId ? ' and assigned a character' : ''}.`);
+    el.playersUid.value = '';
+    el.playersName.value = '';
+    setPlayersStatus('SEATED', 'ok');
+    await refreshSeatedPlayers();
+    render();
+  } catch (error) {
+    console.error(error);
+    setPlayersStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+async function removeSeatedPlayer(uid) {
+  try {
+    await unseatPlayer(campaignDocument.identity.id, uid);
+    // Their characters revert to the referee.
+    for (const [documentId, owner] of Object.entries(campaignDocument.ownership?.actors ?? {})) {
+      if (owner === uid) campaignDocument = setDocumentOwner(campaignDocument, { documentId, ownerUid: '' });
+    }
+    persistCampaignState();
+    await publishCampaign(buildPublishedCampaign(campaignDocument, { publishedAt: Date.now() }));
+    logActivity('SYSTEM', `${uid} removed from the table; their characters revert to the referee.`);
+    setPlayersStatus('REMOVED', 'ok');
+    await refreshSeatedPlayers();
+    render();
+  } catch (error) {
+    console.error(error);
+    setPlayersStatus(error?.message ?? String(error), 'error');
+  }
 }
 
 function renderCampaignDirectory() {
@@ -7101,5 +7247,8 @@ if (!registry) setStatus('READY / LOCAL CAMPAIGN STORAGE UNAVAILABLE', 'error');
 // SDK never delays play. Every render reflects whatever identity is current.
 el.publishCampaignButton?.addEventListener('click', publishCurrentCampaign);
 el.publishViewButton?.addEventListener('click', publishCurrentEncounterView);
+el.openPlayers?.addEventListener('click', openPlayersDialog);
+el.playersSeat?.addEventListener('click', seatPlayerFromDialog);
+el.playersClose?.addEventListener('click', () => el.playersDialog.close());
 onAuthChange(() => { renderAccount(); renderPublishPanel(); });
 initAuth().then(() => render());

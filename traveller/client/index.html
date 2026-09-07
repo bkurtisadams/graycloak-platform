@@ -12,7 +12,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.54.0</div>
+          <div id="app-subtitle" class="subtitle">v0.55.0</div>
         </div>
         <nav class="utility campaign-utility" aria-label="Campaign and view commands">
           <details id="campaign-menu" class="campaign-menu">
@@ -31,6 +31,7 @@
               <div id="publish-status" class="publish-status">LOCAL ONLY</div>
               <button id="publish-campaign" class="text-button utility-button" type="button" title="Publish this campaign so seated players can read it">[ PUBLISH ]</button>
               <button id="publish-view" class="text-button utility-button" type="button" title="Publish the player-safe view of the current scene" hidden>[ PUBLISH SCENE ]</button>
+              <button id="open-players" class="text-button utility-button" type="button" title="Seat players at this campaign and assign them characters" hidden>[ PLAYERS ]</button>
             </div>
           </details>
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -394,6 +395,30 @@
         </div>
       </form>
     </dialog>
+    <dialog id="players-dialog" class="roll-dialog players-dialog" aria-labelledby="players-dialog-title">
+      <form id="players-form" class="roll-dialog-form" method="dialog">
+        <div class="roll-dialog-heading">
+          <strong id="players-dialog-title">PLAYERS AT THIS TABLE</strong>
+          <button id="players-close" class="text-button" type="button">[ CLOSE ]</button>
+        </div>
+        <div class="players-basis">
+          A player reads their account id from their own screen and sends it to you.
+          Seating them lets them read this campaign; assigning a character lets them
+          declare its actions. Both take effect on the next publish.
+        </div>
+        <div id="players-seated" class="players-seated" aria-live="polite"></div>
+        <div class="players-add">
+          <label>ACCOUNT ID <input id="players-uid" type="text" placeholder="paste the player's id" autocomplete="off"></label>
+          <label>NAME <input id="players-name" type="text" placeholder="optional" autocomplete="off"></label>
+          <label>PLAYS
+            <select id="players-character"></select>
+          </label>
+          <button id="players-seat" class="text-button action-button" type="button">[ SEAT PLAYER ]</button>
+        </div>
+        <div id="players-status" class="players-status"></div>
+      </form>
+    </dialog>
+
     <dialog id="combat-setup-dialog" class="roll-dialog combat-setup-dialog" aria-labelledby="combat-setup-title">
       <form id="combat-setup-form" class="roll-dialog-form" method="dialog">
         <div class="roll-dialog-header">

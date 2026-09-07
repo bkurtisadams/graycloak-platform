@@ -3051,3 +3051,20 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
    during combat — the combat rail hides every panel in the context column. */
 .campaign-menu-rule { border: 0; border-top: 1px solid var(--rule); margin: 5px 0; }
 .publish-status { font-size: 10px; letter-spacing: .06em; color: var(--muted); padding: 2px 4px 4px; }
+
+/* --- v0.55.0: seating players. Account ids are typed by hand until invites
+   exist, so the signed-in name copies its own id on click. */
+.masthead-account.copyable { cursor: pointer; text-decoration: underline dotted; }
+.players-dialog { min-width: 520px; }
+.players-basis { font-size: 11px; color: var(--muted); padding: 4px 0 8px; max-width: 60ch; }
+.players-seated { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
+.players-row { display: flex; align-items: center; gap: 10px; font-size: 11px; padding: 4px 7px; border: 1px solid var(--rule); background: var(--paper); }
+.players-name { font-weight: 700; flex: 0 0 auto; }
+.players-plays { flex: 1 1 auto; color: var(--muted); }
+.players-empty { font-size: 11px; color: var(--disabled); padding: 3px 0; }
+.players-add { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; font-size: 11px; }
+.players-add label { display: flex; flex-direction: column; gap: 3px; }
+.players-add input, .players-add select { font: inherit; font-size: 11px; padding: 2px 4px; }
+.players-status { font-size: 11px; padding-top: 6px; color: var(--muted); }
+.players-status.error { color: var(--failure-border); }
+.players-status.ok { color: var(--ink); }

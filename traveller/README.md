@@ -1,5 +1,17 @@
 # Graycloak Traveller
 
+## v0.55.0 seating players
+
+Nobody but the referee could read a published campaign: the rules test membership of `travellerCampaigns/{id}/players`, and nothing created those documents. `[ PLAYERS ]` in the campaign menu does now.
+
+**Seating and assigning are two different acts.** Seating writes the player document, which is what lets that account *read* the campaign and the published scenes. Assigning them a character writes the `ownership.actors` map, which is what lets them *declare* that combatant's actions — and because the declaration rule reads that map from Firestore, assigning republishes the campaign immediately rather than waiting for the next manual publish. Removing a player reverts their characters to the referee and republishes.
+
+**Account ids are typed by hand, and that is the awkward part.** A uid exists only once someone has signed in, so there is no way to name a player before they have. The signed-in name in the masthead is therefore clickable: it copies the account id to the clipboard, so a player can send it to their referee, with a prompt box as the fallback where the clipboard is unavailable. Invites replace this later by carrying a code the player redeems themselves.
+
+The control only appears when the campaign is online and the referee is signed in. Opening it on a local campaign says so rather than failing obscurely.
+
+No schema or rules-package changes.
+
 ## v0.54.0 the scene publishes itself
 
 Publishing a scene by hand was a step to forget mid-combat, and the moment the players' view goes stale is precisely the moment a round resolves. So while the campaign is online and the referee is signed in, resolving a round — or ending the fight — publishes the player-safe view automatically. No button to remember.
