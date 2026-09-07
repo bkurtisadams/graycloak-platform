@@ -1,5 +1,17 @@
 # Graycloak Traveller
 
+## v0.50.0 the campaign directory
+
+Every actor and vehicle in the campaign, listed in one place with the account that plays it — the groundwork for players logging into GCC and running their own characters.
+
+**ACTORS** lists party characters and roster NPCs side by side, colour-keyed by kind. The two keep their own document types: a PC carries a career and mustering-out benefits that an NPC does not, so the directory lists them together rather than merging the schemas. **VEHICLES** lists ships — `MARISOL / SCOUT/COURIER / 100T / JUMP-2` — and is where other vehicles will go when they exist.
+
+**Ownership uses `ownerUid`**, deliberately, because that is the field every rule in graycloak-adnd's Firestore ruleset keys on: `resource.data.ownerUid == request.auth.uid` decides who may write a character, a freehold, an entity. Naming it the same here means that when these documents move to Firestore the permission model transfers rather than being rewritten. A blank owner means the referee runs it, which covers every NPC and all of solo play.
+
+For now ownership lives on the campaign document as `ownership: { ownerUid, actors }` — one map, covering characters, NPCs and ships alike, rather than a field added to four separate schemas. When the documents become individual Firestore records, each entry becomes an `ownerUid` field on its own document, which is the shape the rules expect.
+
+Campaign schema 10 adds the ownership map; v9 documents migrate unowned.
+
 ## v0.49.0 NPCs that decide for themselves
 
 Borrowed in shape from the AD&D sim's `aiDeclare()`, which returns a declaration rather than acting directly. That is the right idea, so `chooseNpcDeclaration()` does the same: it produces the intent that `declareEncounterAction()` already takes, which means an automatic combatant goes through the identical path as a referee's click or, later, a player's. No second route through the resolver.

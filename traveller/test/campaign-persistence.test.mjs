@@ -19,6 +19,9 @@ import {
   advanceCampaignSeconds,
   campaignClockLabel,
   COMBAT_ROUND_SECONDS,
+  campaignDirectory,
+  setDocumentOwner,
+  setCampaignOwner,
   speculativeLotPurchasedQuantity,
   recordSpeculativeLotPurchase,
   setActiveCampaignCharacter
@@ -61,13 +64,13 @@ function campaignFor(character, ship) {
   });
 }
 
-test('Campaign Document v9 links campaign records and identifies the active party character', async () => {
+test('Campaign Document v10 links campaign records and identifies the active party character', async () => {
   const { character, ship } = await acceptanceDocuments();
   const campaign = campaignFor(character, ship);
   const roundTrip = importCampaignDocument(exportCampaignDocument(campaign));
 
   assert.equal(roundTrip.documentType, 'graycloak-traveller-campaign');
-  assert.equal(roundTrip.schemaVersion, 9);
+  assert.equal(roundTrip.schemaVersion, 10);
   assert.deepEqual(roundTrip.party.characterIds, [character.identity.id]);
   assert.equal(roundTrip.activeCharacterId, character.identity.id);
   assert.equal(roundTrip.activeShipId, ship.identity.id);
@@ -105,7 +108,7 @@ test('Campaign Document v8 migrates its first party member to activeCharacterId'
   delete legacy.activeCharacterId;
 
   const migrated = importCampaignDocument(legacy);
-  assert.equal(migrated.schemaVersion, 9);
+  assert.equal(migrated.schemaVersion, 10);
   assert.equal(migrated.activeCharacterId, character.identity.id);
 });
 
@@ -174,14 +177,14 @@ test('campaign status record shows date, location, party, and active Marisol', a
 });
 
 
-test('Campaign Document v1 imports migrate to v9 with empty continuity, roster, and activity collections', async () => {
+test('Campaign Document v1 imports migrate to v10 with empty continuity, roster, and activity collections', async () => {
   const { character, ship } = await acceptanceDocuments();
   const current = campaignFor(character, ship);
   const legacy = structuredClone(current);
   legacy.schemaVersion = 1;
   delete legacy.documentRefs.contracts;
   const migrated = importCampaignDocument(legacy);
-  assert.equal(migrated.schemaVersion, 9);
+  assert.equal(migrated.schemaVersion, 10);
   assert.deepEqual(migrated.documentRefs.contracts, []);
   assert.deepEqual(migrated.documentRefs.situations, []);
   assert.deepEqual(migrated.documentRefs.encounters, []);
@@ -202,7 +205,7 @@ test('Campaign Bundle v1 imports migrate to v7 and add empty continuity, roster,
   delete legacy.documents.contracts;
   const migrated = importCampaignBundle(legacy);
   assert.equal(migrated.schemaVersion, 7);
-  assert.equal(migrated.campaign.schemaVersion, 9);
+  assert.equal(migrated.campaign.schemaVersion, 10);
   assert.deepEqual(migrated.campaign.commerce.speculativeLots, []);
   assert.deepEqual(migrated.documents.contracts, []);
   assert.deepEqual(migrated.documents.situations, []);
@@ -219,7 +222,7 @@ test('Campaign Document v2 migrates to v9 and speculative lot purchases survive 
   legacy.schemaVersion = 2;
   delete legacy.commerce;
   campaign = importCampaignDocument(legacy);
-  assert.equal(campaign.schemaVersion, 9);
+  assert.equal(campaign.schemaVersion, 10);
   assert.equal(speculativeLotPurchasedQuantity(campaign, 'weekly-lot'), 0);
   campaign = recordSpeculativeLotPurchase(campaign, {
     key: 'weekly-lot', systemId: 'calder', tradeGoodCode: 62, quantity: 2
@@ -232,7 +235,7 @@ test('Campaign Document v2 migrates to v9 and speculative lot purchases survive 
 });
 
 
-test('Campaign Document v9 and Bundle v7 persist Situation Documents through the registry', async () => {
+test('Campaign Document v10 and Bundle v7 persist Situation Documents through the registry', async () => {
   const { createSituationDocument } = await import('../src/situation-document.js');
   const { addSituationToCampaign } = await import('../src/campaign-document.js');
   const { character, ship } = await acceptanceDocuments();
@@ -256,13 +259,13 @@ test('Campaign Document v9 and Bundle v7 persist Situation Documents through the
   assert.equal(bundle.documents.situations.length, 1);
 });
 
-test('Campaign Document v3 migrates to v9 with empty situation, continuity, roster, and activity collections', async () => {
+test('Campaign Document v3 migrates to v10 with empty situation, continuity, roster, and activity collections', async () => {
   const { character, ship } = await acceptanceDocuments();
   const legacy = structuredClone(campaignFor(character, ship));
   legacy.schemaVersion = 3;
   delete legacy.documentRefs.situations;
   const migrated = importCampaignDocument(legacy);
-  assert.equal(migrated.schemaVersion, 9);
+  assert.equal(migrated.schemaVersion, 10);
   assert.deepEqual(migrated.documentRefs.situations, []);
   assert.deepEqual(migrated.documentRefs.encounters, []);
   assert.deepEqual(migrated.documentRefs.contacts, []);
@@ -271,21 +274,21 @@ test('Campaign Document v3 migrates to v9 with empty situation, continuity, rost
 });
 
 
-test('Campaign Document v4 migrates to v9 with empty contact, thread, encounter, roster, and activity collections', async () => {
+test('Campaign Document v4 migrates to v10 with empty contact, thread, encounter, roster, and activity collections', async () => {
   const { character, ship } = await acceptanceDocuments();
   const legacy = structuredClone(campaignFor(character, ship));
   legacy.schemaVersion = 4;
   delete legacy.documentRefs.contacts;
   delete legacy.documentRefs.threads;
   const migrated = importCampaignDocument(legacy);
-  assert.equal(migrated.schemaVersion, 9);
+  assert.equal(migrated.schemaVersion, 10);
   assert.deepEqual(migrated.documentRefs.contacts, []);
   assert.deepEqual(migrated.documentRefs.threads, []);
   assert.deepEqual(migrated.documentRefs.encounters, []);
   assert.deepEqual(migrated.documentRefs.activityLogs, []);
 });
 
-test('Campaign Document v9 and Bundle v7 persist named contacts and adventure threads through the registry', async () => {
+test('Campaign Document v10 and Bundle v7 persist named contacts and adventure threads through the registry', async () => {
   const { createContactDocument } = await import('../src/contact-document.js');
   const { createAdventureThreadDocument } = await import('../src/adventure-thread-document.js');
   const { addContactToCampaign, addAdventureThreadToCampaign } = await import('../src/campaign-document.js');
@@ -328,7 +331,7 @@ test('Campaign Bundle v3 from v0.12.0 migrates to v7 with empty contacts, thread
   delete legacy.documents.threads;
   const migrated = importCampaignBundle(legacy);
   assert.equal(migrated.schemaVersion, 7);
-  assert.equal(migrated.campaign.schemaVersion, 9);
+  assert.equal(migrated.campaign.schemaVersion, 10);
   assert.deepEqual(migrated.documents.contacts, []);
   assert.deepEqual(migrated.documents.threads, []);
   assert.deepEqual(migrated.documents.encounters, []);
@@ -362,4 +365,42 @@ test('v0.40.0 advances the campaign clock in seconds, rolling into days and year
 
   assert.throws(() => advanceCampaignSeconds(start, -1), RangeError);
   assert.throws(() => advanceCampaignSeconds(start, 1.5), RangeError);
+});
+
+test('v0.50.0 lists actors and vehicles with the account that plays each', async () => {
+  const character = importCharacterDocument(await readFile(path.join(examples, 'Hawkeye.character.json'), 'utf8'));
+  const ship = importShipDocument(await readFile(path.join(examples, 'Hawkeye.ship.json'), 'utf8'));
+  let campaign = createCampaignDocument({
+    id: 'directory', name: 'Directory', time: { year: 4800, dayOfYear: 106, secondsOfDay: 0 },
+    location: { systemId: 'cinder', systemName: 'Cinder', worldId: 'cinder-main', worldName: 'Cinder' },
+    characters: [character], ships: [ship], partyCharacterIds: [character.identity.id], activeShipId: ship.identity.id
+  });
+
+  // Unowned by default: the referee runs everything.
+  assert.deepEqual(campaign.ownership, { ownerUid: null, actors: {} });
+  const empty = campaignDirectory(campaign, { characters: [character], ships: [ship] });
+  assert.equal(empty.actors.length, 1);
+  assert.equal(empty.actors[0].kind, 'character');
+  assert.equal(empty.actors[0].ownerUid, null);
+  assert.equal(empty.vehicles.length, 1);
+  assert.equal(empty.vehicles[0].kind, 'ship');
+
+  // Assigning a player, and clearing it again.
+  campaign = setDocumentOwner(campaign, { documentId: character.identity.id, ownerUid: 'uid-player-1' });
+  assert.equal(campaign.ownership.actors[character.identity.id], 'uid-player-1');
+  assert.equal(campaignDirectory(campaign, { characters: [character] }).actors[0].ownerUid, 'uid-player-1');
+
+  campaign = setDocumentOwner(campaign, { documentId: character.identity.id, ownerUid: '' });
+  assert.equal(campaign.ownership.actors[character.identity.id], undefined);
+
+  campaign = setCampaignOwner(campaign, 'uid-referee');
+  assert.equal(campaign.ownership.ownerUid, 'uid-referee');
+
+  // Ownership survives export and import.
+  campaign = setDocumentOwner(campaign, { documentId: ship.identity.id, ownerUid: 'uid-player-2' });
+  const roundTrip = importCampaignDocument(JSON.parse(exportCampaignDocument(campaign)));
+  assert.equal(roundTrip.ownership.ownerUid, 'uid-referee');
+  assert.equal(roundTrip.ownership.actors[ship.identity.id], 'uid-player-2');
+
+  assert.throws(() => setDocumentOwner(campaign, { documentId: '', ownerUid: 'x' }), TypeError);
 });

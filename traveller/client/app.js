@@ -135,6 +135,8 @@ import {
   addAdventureThreadToCampaign,
   advanceCampaignDays,
   advanceCampaignSeconds,
+  campaignDirectory,
+  setDocumentOwner,
   campaignClockLabel,
   COMBAT_ROUND_SECONDS,
   createCampaignDocument,
@@ -427,6 +429,8 @@ const el = {
   operationsTabJobs: document.querySelector('#operations-tab-jobs'),
   operationsTabRoster: document.querySelector('#operations-tab-roster'),
   rosterSection: document.querySelector('#roster-section'),
+  directoryActors: document.querySelector('#directory-actors'),
+  directoryVehicles: document.querySelector('#directory-vehicles'),
   rosterFolders: document.querySelector('#roster-folders'),
   rosterNewActor: document.querySelector('#roster-new-actor'),
   rollDialog: document.querySelector('#roll-dialog'),
@@ -4244,6 +4248,67 @@ function saveNpcActorFromForm() {
   render();
 }
 
+// The directory: everyone and everything in the campaign, with who plays it.
+// Ownership is recorded as `ownerUid` because that is the field every rule in
+// graycloak-adnd's Firestore ruleset keys on; when these documents move to
+// Firestore the permission model transfers rather than being rewritten.
+function renderCampaignDirectory() {
+  if (!el.directoryActors) return;
+  if (!campaignDocument) {
+    el.directoryActors.replaceChildren();
+    el.directoryVehicles.replaceChildren();
+    return;
+  }
+  const directory = campaignDirectory(campaignDocument, {
+    characters: currentPartyCharacters(),
+    npcActors: npcActorDocuments,
+    ships: shipDocument ? [shipDocument] : []
+  });
+
+  const section = (title, entries, emptyText) => {
+    const heading = document.createElement('div');
+    heading.className = 'directory-heading';
+    heading.textContent = `${title} [${entries.length}]`;
+    if (!entries.length) {
+      const empty = document.createElement('div');
+      empty.className = 'directory-empty';
+      empty.textContent = emptyText;
+      return [heading, empty];
+    }
+    return [heading, ...entries.map((item) => {
+      const row = document.createElement('div');
+      row.className = `directory-row kind-${item.kind}`;
+      const name = document.createElement('span');
+      name.className = 'directory-name';
+      name.textContent = item.name.toUpperCase();
+      const detail = document.createElement('span');
+      detail.className = 'directory-detail';
+      detail.textContent = item.detail.toUpperCase();
+      const owner = document.createElement('input');
+      owner.className = 'directory-owner';
+      owner.type = 'text';
+      owner.value = item.ownerUid ?? '';
+      owner.placeholder = 'REFEREE';
+      owner.title = 'Account that plays this actor; blank means the referee runs it';
+      owner.addEventListener('change', () => {
+        try {
+          campaignDocument = setDocumentOwner(campaignDocument, { documentId: item.id, ownerUid: owner.value.trim() });
+          persistCampaignState();
+          render();
+        } catch (error) {
+          console.error(error);
+          setStatus(error?.message ?? String(error), 'error');
+        }
+      });
+      row.append(name, detail, owner);
+      return row;
+    })];
+  };
+
+  el.directoryActors.replaceChildren(...section('ACTORS', directory.actors, 'NO CHARACTERS OR NPCS'));
+  el.directoryVehicles.replaceChildren(...section('VEHICLES', directory.vehicles, 'NO SHIP OR VEHICLE'));
+}
+
 function renderRoster() {
   const available = Boolean(campaignDocument);
   el.rosterSection.dataset.available = available ? 'true' : 'false';
@@ -6026,6 +6091,7 @@ function render() {
   renderContracts();
   renderSituations();
   renderEncounter();
+  renderCampaignDirectory();
   renderRoster();
   applyOperationsDeskTab();
   renderShip();

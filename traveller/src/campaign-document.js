@@ -1,8 +1,16 @@
 import { stableDocumentId } from '../../packages/classic-traveller-rules/index.js';
 
 export const CAMPAIGN_DOCUMENT_TYPE = 'graycloak-traveller-campaign';
-export const CURRENT_CAMPAIGN_DOCUMENT_SCHEMA_VERSION = 9;
-export const SUPPORTED_CAMPAIGN_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+export const CURRENT_CAMPAIGN_DOCUMENT_SCHEMA_VERSION = 10;
+export const SUPPORTED_CAMPAIGN_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+
+// Who controls what. `ownerUid` is the referee; `actors` maps a document id to
+// the account that plays it. The field name follows graycloak-adnd, whose
+// Firestore rules key every permission decision on ownerUid — so when these
+// documents move to Firestore the rules transfer rather than being rewritten.
+// A null owner means the referee runs it, which is the case for every NPC and
+// for a solo game.
+export const DIRECTORY_KINDS = Object.freeze(['character', 'npc', 'ship', 'vehicle']);
 
 export const DEFAULT_CAMPAIGN_TIME = Object.freeze({
   year: 4800,
@@ -12,7 +20,7 @@ export const DEFAULT_CAMPAIGN_TIME = Object.freeze({
 
 const TOP_LEVEL_KEYS = Object.freeze([
   'documentType', 'schemaVersion', 'identity', 'time', 'location',
-  'party', 'activeCharacterId', 'activeShipId', 'documentRefs', 'roster', 'commerce', 'notes'
+  'party', 'activeCharacterId', 'activeShipId', 'documentRefs', 'roster', 'ownership', 'commerce', 'notes'
 ]);
 
 export class CampaignDocumentValidationError extends Error {
@@ -158,6 +166,7 @@ export function createCampaignDocument({
   assets = [],
   activityLogs = [],
   roster = {},
+  ownership = {},
   commerce = {},
   partyCharacterIds,
   activeCharacterId,
@@ -230,6 +239,10 @@ export function createCampaignDocument({
       npcActors: npcActorRefs,
       assets: assetRefs,
       activityLogs: activityLogRefs
+    },
+    ownership: {
+      ownerUid: nonblank(ownership.ownerUid) ? String(ownership.ownerUid) : null,
+      actors: isPlainObject(ownership.actors) ? cloneJson(ownership.actors) : {}
     },
     roster: {
       folders: Array.isArray(roster.folders) && roster.folders.length
@@ -447,6 +460,17 @@ export function validateCampaignDocument(document) {
       add(errors, nonblank(ref.id) && typeof ref.name === 'string', 'activity log reference fields are invalid');
     }
 
+    add(errors, isPlainObject(document.ownership), 'ownership must be an object');
+    if (isPlainObject(document.ownership)) {
+      exactKeys(document.ownership, ['ownerUid', 'actors'], 'ownership', errors);
+      add(errors, document.ownership.ownerUid === null || nonblank(document.ownership.ownerUid), 'ownership.ownerUid must be a string or null');
+      add(errors, isPlainObject(document.ownership.actors), 'ownership.actors must be an object');
+      if (isPlainObject(document.ownership.actors)) {
+        for (const [documentId, uid] of Object.entries(document.ownership.actors)) {
+          add(errors, nonblank(documentId) && nonblank(uid), `ownership entry for ${documentId} is invalid`);
+        }
+      }
+    }
     add(errors, isPlainObject(document.roster) && Array.isArray(document.roster?.folders), 'roster must contain folders');
     if (Array.isArray(document.roster?.folders)) {
       const folderIds = new Set();
@@ -549,6 +573,56 @@ export function migrateCampaignDocument(input) {
     next.schemaVersion = 9;
     next.activeCharacterId = next.party?.characterIds?.[0] ?? null;
   }
+  if (next.schemaVersion === 9) {
+    next.schemaVersion = 10;
+    next.ownership = { ownerUid: null, actors: {} };
+  }
+  assertValidCampaignDocument(next);
+  return next;
+}
+
+// The directory: every actor and vehicle in the campaign, with who plays it.
+// Characters and ships keep their own document types — a PC has a career and
+// mustering-out benefits an NPC does not — so this lists them side by side
+// rather than merging the schemas.
+export function campaignDirectory(document, { characters = [], npcActors = [], ships = [] } = {}) {
+  const owners = document?.ownership?.actors ?? {};
+  const entry = (kind, id, name, detail) => ({ kind, id, name, detail, ownerUid: owners[id] ?? null });
+  return {
+    actors: [
+      ...characters.map((character) => entry(
+        'character', character.identity.id, character.identity.name,
+        `${character.career?.service ?? 'UNASSIGNED'} / ${character.career?.terms ?? 0} TERMS`
+      )),
+      ...npcActors.map((actor) => entry(
+        'npc', actor.identity.id, actor.identity.name,
+        `${actor.profile?.actorType ?? 'npc'}${actor.profile?.role ? ` / ${actor.profile.role}` : ''}`
+      ))
+    ],
+    vehicles: ships.map((ship) => entry(
+      'ship', ship.identity.id, ship.identity.name,
+      `${ship.design?.name ?? 'SHIP'} / ${ship.specifications?.hull?.tons ?? '?'}T / JUMP-${ship.specifications?.drives?.jump?.rating ?? 0}`
+    ))
+  };
+}
+
+export function setDocumentOwner(document, { documentId, ownerUid } = {}) {
+  const next = cloneJson(document);
+  if (!nonblank(documentId)) throw new TypeError('documentId is required');
+  const actors = { ...(next.ownership?.actors ?? {}) };
+  if (nonblank(ownerUid)) actors[documentId] = String(ownerUid);
+  else delete actors[documentId];
+  next.ownership = { ownerUid: next.ownership?.ownerUid ?? null, actors };
+  assertValidCampaignDocument(next);
+  return next;
+}
+
+export function setCampaignOwner(document, ownerUid) {
+  const next = cloneJson(document);
+  next.ownership = {
+    ownerUid: nonblank(ownerUid) ? String(ownerUid) : null,
+    actors: { ...(next.ownership?.actors ?? {}) }
+  };
   assertValidCampaignDocument(next);
   return next;
 }

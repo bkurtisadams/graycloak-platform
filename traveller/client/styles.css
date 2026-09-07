@@ -3032,3 +3032,16 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .combat-rail .encounter-tracker-advice .text-button { font-size: 10px; padding: 1px 5px; }
 .combat-rail .encounter-tracker-tactics { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; letter-spacing: .1em; color: var(--muted); padding: 2px 0; }
 .combat-rail .encounter-tracker-tactics input { margin: 0; }
+
+/* --- v0.50.0: the campaign directory. Characters and NPCs listed together,
+   vehicles beneath, each with the account that plays it. */
+.campaign-directory { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.directory-heading { font-size: 10px; letter-spacing: .1em; color: var(--muted); font-weight: 700; padding: 5px 0 2px; }
+.directory-empty { font-size: 11px; color: var(--disabled); padding: 2px 0; }
+.directory-row { display: flex; align-items: center; gap: 8px; font-size: 11px; padding: 3px 6px; border: 1px solid var(--rule); background: var(--paper); }
+.directory-row.kind-character { border-left: 3px solid var(--tab-selected-border); }
+.directory-row.kind-npc { border-left: 3px solid var(--failure-border); }
+.directory-row.kind-ship { border-left: 3px solid var(--muted); }
+.directory-name { flex: 0 0 auto; font-weight: 700; }
+.directory-detail { flex: 1 1 auto; min-width: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.directory-owner { flex: 0 0 7rem; font: inherit; font-size: 10px; padding: 1px 3px; }
