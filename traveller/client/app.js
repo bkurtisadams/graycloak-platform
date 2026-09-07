@@ -156,6 +156,7 @@ import {
   clearNpcActorConditions
 } from '../src/npc-actor-document.js';
 import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js';
+import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js';
 import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js';
 import {
   ACTIVITY_VISIBILITY,
@@ -224,6 +225,7 @@ import {
   setCombatantCover,
   setCombatantFoldingStock,
   setCombatantStatus,
+  setCombatantTactics,
   endEncounterByReferee,
   ENCOUNTER_LIGHTING,
   COMBATANT_COVER,
@@ -4082,6 +4084,33 @@ function renderEncounterTracker(encounter, actor) {
     // global verb row taking space from the list.
     const declaredIds = new Set(encounter.roundState?.declaredActions?.map((entry) => entry.actorId) ?? []);
     const canOrder = combatant.status === 'active' && !declaredIds.has(combatant.id) && encounter.status === 'active';
+    // What the house routine would do, with one click to take it. A manual
+    // combatant gets the suggestion too — it is advice, not automation.
+    if (canOrder) {
+      const suggestion = chooseNpcDeclaration(encounter, combatant);
+      if (suggestion) {
+        const advice = document.createElement('div');
+        advice.className = 'encounter-tracker-advice';
+        const text = document.createElement('span');
+        const target = suggestion.targetId ? encounter.combatants.find((entry) => entry.id === suggestion.targetId) : null;
+        text.textContent = `SUGGESTS ${suggestion.action.toUpperCase()}${target ? ` → ${target.name.toUpperCase()}` : ''} / ${suggestion.reason}`;
+        const accept = makePortButton('ACCEPT', () => resolveActiveEncounterAction(suggestion.action, suggestion.modifier, suggestion.targetId, combatant.id));
+        advice.append(text, accept);
+        body.append(advice);
+      }
+    }
+
+    const tacticsRow = document.createElement('label');
+    tacticsRow.className = 'encounter-tracker-tactics';
+    const auto = document.createElement('input');
+    auto.type = 'checkbox';
+    auto.checked = combatant.tactics === 'auto';
+    auto.title = 'Declare this combatant automatically when the round resolves';
+    auto.addEventListener('change', () => updateEncounterDocument(encounter.identity.id, (doc) =>
+      setCombatantTactics(doc, { combatantId: combatant.id, tactics: auto.checked ? 'auto' : 'manual' }).encounter));
+    tacticsRow.append(auto, Object.assign(document.createElement('span'), { textContent: 'AUTO' }));
+    body.append(tacticsRow);
+
     const verbs = document.createElement('div');
     verbs.className = 'encounter-tracker-verbs';
     const foe = encounter.combatants.find((entry) => entry.id === selectedEncounterTargetId && entry.side !== combatant.side && entry.status === 'active')
@@ -4106,10 +4135,11 @@ function renderEncounterTracker(encounter, actor) {
     : makePortButton('START COMBAT', openCombatSetupDialog);
   const note = document.createElement('span');
   note.className = 'encounter-resolve-note';
+  const autoPending = pendingNpcDeclarations(encounter).length;
   note.textContent = encounter.status !== 'active'
     ? `ENCOUNTER ${encounter.status.toUpperCase().replace('-', ' ')}`
     : undeclared.length
-      ? `${undeclared.length} UNDECLARED / THEY ATTACK THEIR NEAREST ENEMY`
+      ? `${undeclared.length} UNDECLARED${autoPending ? ` / ${autoPending} ON AUTO` : ''} / THE REST ATTACK THEIR NEAREST ENEMY`
       : 'ALL DECLARED';
   const controls = [button];
   if (encounter.status === 'active') {
@@ -4536,10 +4566,31 @@ function endActiveEncounter() {
   }
 }
 
+// Combatants on auto declare through declareEncounterAction, exactly as a
+// referee click or a player's would, so automation is a source of intents
+// rather than a second path through the resolver.
+function applyNpcDeclarations(encounter) {
+  let next = encounter;
+  for (const declaration of pendingNpcDeclarations(encounter)) {
+    try {
+      next = declareEncounterAction(next, {
+        action: declaration.action, modifier: declaration.modifier,
+        actorId: declaration.actorId, targetId: declaration.targetId
+      }).encounter;
+      const actor = next.combatants.find((entry) => entry.id === declaration.actorId);
+      logActivity('COMBAT', `${actor?.name ?? 'Combatant'} (auto) declares ${declaration.action.toUpperCase()}: ${declaration.reason}.`);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+  return next;
+}
+
 function resolveDeclaredEncounterRound() {
   try {
-    const active = activeEncounterAtCurrentSystem();
-    if (!active) throw new Error('no active personal encounter');
+    const started = activeEncounterAtCurrentSystem();
+    if (!started) throw new Error('no active personal encounter');
+    const active = applyNpcDeclarations(started);
     const index = encounterDocuments.findIndex((entry) => entry.identity.id === active.identity.id);
     const result = resolveDeclaredRound(active, {
       date: campaignDateSnapshot(),

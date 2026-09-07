@@ -67,10 +67,10 @@ async function encounterFixture() {
   return { character, ship, campaign, situation, encounter };
 }
 
-test('Encounter Document v10 round-trips the expanded workspace, declarations, positions, range, and audit history', async () => {
+test('Encounter Document v11 round-trips the expanded workspace, declarations, positions, range, and audit history', async () => {
   const { encounter } = await encounterFixture();
   const roundTrip = importEncounterDocument(exportEncounterDocument(encounter));
-  assert.equal(roundTrip.schemaVersion, 10);
+  assert.equal(roundTrip.schemaVersion, 11);
   assert.deepEqual(roundTrip.map, { grid: 'square', columns: 32, rows: 20, rangeGuide: 'graycloak-band-guide-v2', metersPerSquare: null });
   assert.deepEqual(roundTrip.roundState, { declaredActions: [] });
   assert.deepEqual(roundTrip.combatants[0].position, { column: 4, row: 9 });
@@ -82,14 +82,14 @@ test('Encounter Document v10 round-trips the expanded workspace, declarations, p
   assert.equal(avoided.status, 'avoided');
 });
 
-test('Encounter Document v1 imports migrate through v10 to the expanded workspace', async () => {
+test('Encounter Document v1 imports migrate through v11 to the expanded workspace', async () => {
   const { encounter } = await encounterFixture();
   const legacy = structuredClone(encounter);
   legacy.schemaVersion = 1;
   delete legacy.map;
   for (const combatant of legacy.combatants) delete combatant.position;
   const migrated = importEncounterDocument(legacy);
-  assert.equal(migrated.schemaVersion, 10);
+  assert.equal(migrated.schemaVersion, 11);
   assert.equal(migrated.map.grid, 'square');
   assert.equal(migrated.map.columns, 32);
   assert.equal(migrated.map.rows, 20);

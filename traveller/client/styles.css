@@ -3024,3 +3024,11 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .combat-rail .encounter-tracker-verbs { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
 .combat-rail .encounter-tracker-verbs .action-button,
 .combat-rail .encounter-tracker-verbs .text-button { font-size: 10px; padding: 1px 5px; letter-spacing: 0; }
+
+/* --- v0.49.0: the house NPC routine, as advice or as automation. */
+.combat-rail .encounter-tracker-advice { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--muted); padding: 3px 0; }
+.combat-rail .encounter-tracker-advice span { flex: 1 1 auto; min-width: 0; }
+.combat-rail .encounter-tracker-advice .action-button,
+.combat-rail .encounter-tracker-advice .text-button { font-size: 10px; padding: 1px 5px; }
+.combat-rail .encounter-tracker-tactics { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; letter-spacing: .1em; color: var(--muted); padding: 2px 0; }
+.combat-rail .encounter-tracker-tactics input { margin: 0; }

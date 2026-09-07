@@ -1,5 +1,23 @@
 # Graycloak Traveller
 
+## v0.49.0 NPCs that decide for themselves
+
+Borrowed in shape from the AD&D sim's `aiDeclare()`, which returns a declaration rather than acting directly. That is the right idea, so `chooseNpcDeclaration()` does the same: it produces the intent that `declareEncounterAction()` already takes, which means an automatic combatant goes through the identical path as a referee's click or, later, a player's. No second route through the resolver.
+
+The routine, which is **Graycloak policy and not RAW** — Book 1 p.32 says only that an NPC escapes at the referee's option, and Book 3 leaves an encountered group's behaviour to the referee entirely:
+
+1. Rank the enemies by whether this weapon reaches them, then by the throw needed, then by distance.
+2. Attack the best of them.
+3. If even the best needs more than 12 on 2D — a target in cover, in darkness — close instead, because closing improves most bands and nothing is lost by waiting.
+4. If nothing is reachable at all, close on the nearest.
+5. Otherwise stand.
+
+It lives in `src/npc-tactics.js`, in the client rather than in `classic-traveller-rules`, so the rules package stays a facsimile of the books.
+
+**Two ways to use it.** Every combatant's row shows what the routine would do and why — `SUGGESTS ATTACK → HAWKEYE / medium range, needs 9+` — with one click to take it, so it works as advice for a referee running the opposition by hand. And each combatant has an AUTO toggle: opposition and roster actors default to auto, party members to manual. When the round resolves, everyone on auto declares first, and the log records what each chose and why.
+
+Encounter schema 11 adds `tactics` to each combatant; v10 documents migrate with the party manual and everyone else auto.
+
 ## v0.48.0 brawls that tire, and a history you can read
 
 **Endurance, blows and swings.** Book 1 p.36 limits combat blows to endurance as it stands when the encounter opens; once that allowance is spent every further blow is weakened and takes the weapon's negative DM. The package had carried a `fatigueDM` on every melee weapon and a `blows` counter since the beginning and read neither, so a bar fight ran for ever with nobody tiring.

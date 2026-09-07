@@ -18,8 +18,11 @@ import {
 } from '../../packages/classic-traveller-rules/index.js';
 
 export const ENCOUNTER_DOCUMENT_TYPE = 'graycloak-traveller-personal-encounter';
-export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 10;
-export const SUPPORTED_ENCOUNTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 11;
+export const SUPPORTED_ENCOUNTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+// Who decides a combatant's action: the referee (or its player), or the house
+// NPC routine. Party members default to manual, everyone else to auto.
+export const COMBATANT_TACTICS = Object.freeze(['manual', 'auto']);
 // Book 1 p.31 surprise DMs. Five are derivable from the encounter itself; the
 // referee supplies the three that describe circumstances the document does not
 // model. Battle dress is not in the Book 1 armour list, so it stays a flag.
@@ -129,7 +132,7 @@ export function createEncounterDocument({ campaign, situation = null, character 
       armor: loadout.armor ?? opponentSpecs[0].playerArmor ?? 'none',
       weaponKey: loadout.weaponKey ?? opponentSpecs[0].playerWeaponKey ?? 'rifle',
       surpriseDM: (military ? 1 : 0) + Math.min(1, Number(entry.skills?.Leadership ?? 0)) + Math.min(1, Number(entry.skills?.Tactics ?? 0))
-    }), entry.current, characterEncounterStatus(entry)), initialPosition('party', index, characterDocuments.length, range)), cover: 'none', foldingStock: false, militaryExperience: military, sourceActorId: entry.identity.id,
+    }), entry.current, characterEncounterStatus(entry)), initialPosition('party', index, characterDocuments.length, range)), cover: 'none', foldingStock: false, tactics: 'manual', militaryExperience: military, sourceActorId: entry.identity.id,
       actorType: 'pc', bodyModel: 'biological', tokenLabel: entry.identity.name.charAt(0).toUpperCase(), conditions: [] };
   });
   const hostiles = opponentSpecs.map((spec, index) => {
@@ -140,7 +143,7 @@ export function createEncounterDocument({ campaign, situation = null, character 
       name: spec.name, side: 'opposition', characteristics: spec.characteristics ?? { STR: 7, DEX: 7, END: 7, INT: 7 },
       skills: spec.skills ?? { [defaultSkill]: 0 }, armor: spec.armor ?? 'jack',
       weaponKey, surpriseDM: Number(spec.surpriseDM ?? 0)
-    }), spec.current), initialPosition('opposition', index, opponentSpecs.length, range)), cover: 'none', foldingStock: false, militaryExperience: Boolean(spec.militaryExperience), sourceActorId: spec.actorId ?? null,
+    }), spec.current), initialPosition('opposition', index, opponentSpecs.length, range)), cover: 'none', foldingStock: false, tactics: 'auto', militaryExperience: Boolean(spec.militaryExperience), sourceActorId: spec.actorId ?? null,
       actorType: spec.actorType ?? 'npc', bodyModel: spec.bodyModel ?? (spec.actorType === 'robot' ? 'robotic' : 'biological'),
       tokenLabel: String(spec.tokenLabel ?? spec.name).charAt(0).toUpperCase(), conditions: Array.isArray(spec.conditions) ? [...spec.conditions] : [] };
   });
@@ -222,6 +225,7 @@ export function validateEncounterDocument(document) {
     // but a third faction is a legitimate encounter.
     add(errors, nonblank(entry.id) && nonblank(entry.name) && nonblank(entry.side), 'combatant identity is invalid');
     add(errors, COMBATANT_COVER.includes(entry.cover), `combatant ${entry.name ?? ''} cover is invalid`);
+    add(errors, COMBATANT_TACTICS.includes(entry.tactics), `combatant ${entry.name ?? ''} tactics setting is invalid`);
     add(errors, Number.isInteger(entry.blowAllowance) && entry.blowAllowance >= 0, `combatant ${entry.name ?? ''} blow allowance is invalid`);
     add(errors, Number.isInteger(entry.blowsUsed) && entry.blowsUsed >= 0, `combatant ${entry.name ?? ''} blows used is invalid`);
     add(errors, typeof entry.foldingStock === 'boolean', `combatant ${entry.name ?? ''} folding stock flag is invalid`);
@@ -349,6 +353,13 @@ function migrateEncounterDocument(document) {
     }));
     document.schemaVersion = 10;
   }
+  if (document.schemaVersion === 10) {
+    document.combatants = document.combatants.map((entry) => ({
+      ...entry,
+      tactics: COMBATANT_TACTICS.includes(entry.tactics) ? entry.tactics : (entry.side === 'party' ? 'manual' : 'auto')
+    }));
+    document.schemaVersion = 11;
+  }
   return document;
 }
 
@@ -440,6 +451,7 @@ export function addEncounterCombatantFromActor(document, { actor, side = 'opposi
     position: { column, row },
     cover: 'none',
     foldingStock: false,
+    tactics: side === 'party' ? 'manual' : 'auto',
     militaryExperience: false,
     sourceActorId: actor.identity.id,
     actorType: actor.profile.actorType ?? 'npc',
@@ -492,6 +504,16 @@ export function setEncounterCombatantCondition(document, { combatantId, conditio
 // never move status, so this is the only way to put someone back on their
 // feet. Restoring to active must also lift any zeroed characteristic off
 // zero, or the next wound would immediately recompute them unconscious.
+export function setCombatantTactics(document, { combatantId, tactics } = {}) {
+  const next = importEncounterDocument(document);
+  if (!COMBATANT_TACTICS.includes(tactics)) throw new RangeError(`unknown tactics setting: ${tactics}`);
+  const combatant = next.combatants.find((entry) => entry.id === combatantId);
+  if (!combatant) throw new Error('combatant is unavailable');
+  combatant.tactics = tactics;
+  assertValidEncounterDocument(next);
+  return { encounter: next };
+}
+
 export function setCombatantStatus(document, { combatantId, status } = {}) {
   const next = importEncounterDocument(document);
   if (!PERSONAL_COMBAT_STATUSES.includes(status)) throw new RangeError(`unknown combat status: ${status}`);
@@ -761,8 +783,10 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
     throwAttack(declaration.actorId, declaration.targetId, declaration.modifier, declaration.side);
   }
 
-  // Anyone active, allowed to act, and not given an order attacks their
-  // nearest enemy — the referee directs who matters and lets the rest fight.
+  // Anyone active, allowed to act, and not given an order falls back to the
+  // nearest enemy. Combatants on auto have already had the house routine
+  // declare for them (see applyNpcDeclarations), so this only catches the ones
+  // the referee left alone.
   for (const entry of active) {
     if (declaredBy(entry.id) || !mayAct(entry.side)) continue;
     const attacker = snapshot.get(entry.id);
