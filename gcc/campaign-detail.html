@@ -229,7 +229,7 @@ a.ses-row-title:hover{color:var(--accent)}
 /* ── Recap layout: cover left + text right ── */
 .session-recap{display:flex;gap:14px;padding:12px 14px 10px;align-items:flex-start}
 .session-recap-img{flex:0 0 clamp(140px,28vw,260px);max-width:260px}
-.session-recap-img img{width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:3px;border:1px solid var(--brd);display:block}
+.session-recap-img img{width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:3px;border:1px solid var(--brd);display:block;background:var(--bg2)}
 .session-recap-text{flex:1;min-width:0;display:flex;flex-direction:column;align-self:stretch}
 .session-recap-noimg{padding:10px 14px 8px}
 .session-date-stack{display:flex;gap:12px;flex-wrap:wrap;margin:0 0 8px}
@@ -361,6 +361,9 @@ a.ses-row-title:hover{color:var(--accent)}
 .sm-sections-hdr{margin-top:10px}
 .sm-sections-hdr .gcc-dlg-label{margin:0}
 .sm-panel-style{display:inline-flex;align-items:center;gap:5px}
+.sm-cover-box{position:relative;display:inline-block;max-width:100%;line-height:0}
+.sm-cover-box.focusable{cursor:crosshair}
+.sm-cover-box .sm-cover-img{display:block;width:100%;max-width:320px;height:auto}
 .sm-preview{border:1px solid var(--brd);border-radius:3px;padding:8px;background:var(--bg-card,var(--bg));margin-top:3px}
 .sm-preview .gsec-text{font-size:11px}
 .sm-sec-thumb{width:22px;height:16px;object-fit:cover;border-radius:2px;border:1px solid var(--brd);flex-shrink:0;cursor:pointer;display:block}
@@ -649,6 +652,7 @@ const campId=new URLSearchParams(window.location.search).get('id');
 let currentTab='overview',sessionFilter='all',loreFilter='all';
 let sessionScope='all',sessionQuery='',sessionView='cards',lastImgMap={};
 const sesCollapsed=new Set(); // session ids collapsed in card view (in-memory)
+function recapUrlFor(s,idx){return`recap.html?id=${encodeURIComponent(campId)}&${s&&s._id?'ses='+encodeURIComponent(s._id):'idx='+idx}`}
 function sesId(s){return s&&(s.id||s._id||('ses_'+(s.date||'')+'_'+(s.title||'')))}
 function loadSessionViewPrefs(){try{const v=JSON.parse(localStorage.getItem('gcc_ses_view_'+campId)||'{}');if(v.view==='compact'||v.view==='cards')sessionView=v.view;if(v.scope)sessionScope=v.scope}catch(e){}}
 function saveSessionViewPrefs(){try{localStorage.setItem('gcc_ses_view_'+campId,JSON.stringify({view:sessionView,scope:sessionScope}))}catch(e){}}
@@ -813,7 +817,7 @@ function buildSessionCard(s,idx,total,camp,imgMap,charLookup,pm_){
   const isTimeline=s.type==='timeline',isDmOnly=s.visible===false;
   const sessions=camp.sessions||[],realNum=realSessionNum(sessions,idx);
   const collapsed=sesCollapsed.has(sesId(s));
-  const recapUrl=`recap.html?id=${encodeURIComponent(campId)}&idx=${idx}`;
+  const recapUrl=recapUrlFor(s,idx);
   const titleTxt=s.title?ESC(s.title):(isTimeline?'Timeline entry':'Untitled');
   const numHtml=isTimeline?`<span class="ses-num tl" title="Timeline entry">◷</span>`:`<span class="ses-num">#${realNum}</span>`;
   const titleHtml=isTimeline?`<span class="ses-title">${numHtml}${titleTxt}</span>`:`<a class="ses-title session-recap-link" href="${recapUrl}">${numHtml}${titleTxt}</a>`;
@@ -829,7 +833,7 @@ function buildSessionCard(s,idx,total,camp,imgMap,charLookup,pm_){
   const readButtonHtml=isTimeline?'':`<div class="session-read-row"><a class="session-read-btn" href="${recapUrl}">READ ${ESC(sesLabel)} →</a></div>`;
   const coverSrc=resolveImg(s.image,imgMap);
   const recapHtml=coverSrc
-    ?`<div class="session-recap"><div class="session-recap-img"><img src="${coverSrc}" alt="" loading="lazy"></div><div class="session-recap-text">${summaryHtml}${readButtonHtml}</div></div>`
+    ?`<div class="session-recap"><div class="session-recap-img"><img src="${coverSrc}" alt="" loading="lazy" style="${GCCSections.coverStyle(s,'16/10')}"></div><div class="session-recap-text">${summaryHtml}${readButtonHtml}</div></div>`
     :`<div class="session-recap-noimg"><div class="session-recap-text">${summaryHtml}${readButtonHtml}</div></div>`;
 
   let rosterHtml='';
@@ -846,7 +850,7 @@ function buildSessionCard(s,idx,total,camp,imgMap,charLookup,pm_){
 function buildSessionRow(s,idx,camp,charLookup,pm_){
   const isTimeline=s.type==='timeline',isDmOnly=s.visible===false;
   const sessions=camp.sessions||[],realNum=realSessionNum(sessions,idx);
-  const recapUrl=`recap.html?id=${encodeURIComponent(campId)}&idx=${idx}`;
+  const recapUrl=recapUrlFor(s,idx);
   const titleTxt=s.title?ESC(s.title):(isTimeline?'Timeline entry':'Untitled');
   const visDot=pm_?'':`<span class="ses-vis-dot${isDmOnly?' dm':''}" title="${isDmOnly?'DM only':'Players can see'}"></span>`;
   const title=isTimeline?`<span class="ses-row-title tl">${visDot}<span class="ses-num tl">◷</span>${titleTxt}</span>`:`<a class="ses-row-title" href="${recapUrl}">${visDot}${titleTxt}</a>`;
@@ -1814,7 +1818,7 @@ async function exportJournal(){
     if(playedStr)entriesHtml+=`<span class="j-date-played">PLAYED: ${ESC(playedStr)}</span>`;
     if(isDmOnly)entriesHtml+=`<span class="j-dm-badge">DM ONLY</span>`;
     entriesHtml+=`</div>`;
-    if(coverSrc)entriesHtml+=`<div class="j-cover"><img src="${coverSrc}" alt=""></div>`;
+    if(coverSrc)entriesHtml+=`<div class="j-cover"><img src="${coverSrc}" alt=""${GCCSections.coverAspect(s)?` style="${GCCSections.coverStyle(s)}"`:''}></div>`;
     if(s.text)entriesHtml+=`<div class="j-summary">${ESC(s.text)}</div>`;
     if(s.sections&&s.sections.length){
       const jComic=panelStyle(camp)==='comic';
@@ -1822,22 +1826,7 @@ async function exportJournal(){
         migrateSectionLayout(sec);
         entriesHtml+=`<div class="j-section">`;
         if(sec.title)entriesHtml+=`<h3 class="j-sec-title">${ESC(sec.title)}</h3>`;
-        const imgs=sec.images||[];
-        const fit=secFit(sec),asp=secAspect(sec);
-        let jImgs='';
-        imgs.forEach(img=>{
-          const src=rImg(img.src);if(!src)return;
-          const f=GCCSections.focus(img);
-          const st=asp==='none'?'':` style="aspect-ratio:${asp};object-position:${Math.round(f.x*100)}% ${Math.round(f.y*100)}%"`;
-          jImgs+=`<div class="j-img-wrap j-w-${imgWidth(img)}"><img class="j-img j-fit-${fit}" src="${src}" alt=""${st}>`;
-          if(img.caption)jImgs+=`<span class="j-caption">${ESC(img.caption)}</span>`;
-          jImgs+=`</div>`;
-        });
-        if(jImgs)jImgs=`<div class="j-sec-images${jComic?' comic':''}">${jImgs}</div>`;
-        const jText=sec.text?`<div class="j-sec-text">${ESC(sec.text)}</div>`:'';
-        const jp=jImgs?secPos(sec):'below',jr=GCCSections.railPct(sec);
-        const jStyle=jp==='left'?` style="grid-template-columns:minmax(0,${jr}%) minmax(0,1fr)"`:jp==='right'?` style="grid-template-columns:minmax(0,1fr) minmax(0,${jr}%)"`:jp.startsWith('inset')?` style="--j-inset:${jr}%"`:'';
-        entriesHtml+=`<div class="j-sec-content j-ip-${jp}"${jStyle}>${jImgs}${jText}</div>`;
+        entriesHtml+=GCCSections.render(sec,{escape:ESC,resolve:rImg,comic:jComic});
         entriesHtml+=`</div>`;
       });
     }
@@ -1872,33 +1861,8 @@ h1{font-size:28px;margin:0 0 4px;letter-spacing:.5px}
 .j-section{margin:10px 0}
 .j-sec-title{font-size:16px;color:#555;margin:0 0 4px;font-weight:600}
 .j-sec-text{font-size:15px;white-space:pre-line}
-.j-sec-content{display:flex;flex-direction:column;gap:12px}
-.j-sec-content.j-ip-above .j-sec-images{order:1}.j-sec-content.j-ip-above .j-sec-text{order:2}
-.j-sec-content.j-ip-below .j-sec-text{order:1}.j-sec-content.j-ip-below .j-sec-images{order:2}
-.j-sec-content.j-ip-left,.j-sec-content.j-ip-right{display:grid;gap:18px;align-items:start}
-.j-sec-content.j-ip-left{grid-template-columns:minmax(0,38%) minmax(0,1fr)}
-.j-sec-content.j-ip-left .j-sec-images{grid-column:1}.j-sec-content.j-ip-left .j-sec-text{grid-column:2}
-.j-sec-content.j-ip-right{grid-template-columns:minmax(0,1fr) minmax(0,38%)}
-.j-sec-content.j-ip-right .j-sec-text{grid-column:1}.j-sec-content.j-ip-right .j-sec-images{grid-column:2}
-.j-sec-images{display:flex;flex-wrap:wrap;gap:10px;align-content:start}
-.j-img-wrap{min-width:0;margin:0;text-align:center}
-.j-img-wrap.j-w-full{flex:0 1 100%}
-.j-img-wrap.j-w-half{flex:0 1 calc(50% - 5px)}
-.j-img-wrap.j-w-third{flex:0 1 calc(33.333% - 7px)}
-.j-img-wrap.j-w-quarter{flex:0 1 calc(25% - 8px)}
-.j-img{width:100%;height:auto;border-radius:3px;border:1px solid #ddd;display:block}
-.j-img.j-fit-cover{object-fit:cover}
-.j-sec-content.j-ip-inset-left,.j-sec-content.j-ip-inset-right{display:block}
-.j-sec-content.j-ip-inset-left::after,.j-sec-content.j-ip-inset-right::after{content:'';display:table;clear:both}
-.j-sec-content.j-ip-inset-left .j-sec-images,.j-sec-content.j-ip-inset-right .j-sec-images{width:var(--j-inset,33.333%);max-width:60%;flex-direction:column;flex-wrap:nowrap}
-.j-sec-content.j-ip-inset-left .j-sec-images{float:left;margin:0 16px 8px 0}
-.j-sec-content.j-ip-inset-right .j-sec-images{float:right;margin:0 0 8px 16px}
-.j-sec-content.j-ip-inset-left .j-img-wrap,.j-sec-content.j-ip-inset-right .j-img-wrap,.j-sec-content.j-ip-left .j-img-wrap,.j-sec-content.j-ip-right .j-img-wrap{flex:0 0 100%}
-.j-sec-images.comic{background:#111;padding:5px;gap:5px}
-.j-sec-images.comic .j-img{border:2px solid #111;border-radius:0}
-.j-sec-images.comic .j-caption{margin:0;padding:3px 8px;background:#f3e28a;color:#1a1a1a;font-style:normal;font-size:10px;letter-spacing:.4px;text-transform:uppercase;text-align:left}
-.j-img.j-fit-contain{object-fit:contain}
-.j-caption{display:block;font-size:11px;color:#888;font-style:italic;margin-top:2px;text-align:center}
+${GCCSections.css}
+.j-section .gsec-content{--gsec-gap:12px;--gsec-side-gap:18px;--gsec-img-gap:10px;--gsec-text-size:15px;--gsec-text-lh:1.7;--gsec-text-color:#222;--gsec-cap-size:11px;--gsec-inset-margin:16px;--gsec-comic-gap:5px;--brd:#ddd;--bg2:#f4f4f4;--tx3:#888}
 .j-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .j-tag{font-size:11px;padding:2px 8px;border:1px solid #ddd;border-radius:3px;color:#555}
 .j-xp{font-size:12px;color:#5090b0;margin-top:6px;font-weight:600}
@@ -1921,7 +1885,7 @@ ${entriesHtml}
 
 // ═══ SESSION MODAL ═══
 const sesModal=document.getElementById('session-modal');
-let sesEditIdx=-1,sesImageData='',sesSections=[],sesTags=[],sesRoster=[];
+let sesEditIdx=-1,sesImageData='',sesSections=[],sesTags=[],sesRoster=[],sesImageAspect='16/10',sesImageFocus=null;
 let sesDirty=false,sesClosing=false;
 let sesOpenSec=-1; // accordion: index of the expanded section
 
@@ -1960,7 +1924,8 @@ function buildSectionRow(sec,i){
 
 function buildSessionModalBody(camp,isTimeline){
   const xpLbl=GCC.xpLabel(camp.system);
-  const imgPreview=sesImageData?`<img class="gcc-dlg-img-preview" src="${sesImageData}">`:(sesImageData===null&&_sesImageOrigKey?`<div style="font-size:11px;color:var(--red);padding:6px 0">⚠ Saved cover image couldn't be loaded. Upload again to replace it; saving keeps the existing reference.</div>`:'');
+  const cvCropped=sesImageAspect!=='none',cvF=GCCSections.focus({focus:sesImageFocus});
+  const imgPreview=sesImageData?`<div class="sm-cover-box${cvCropped?' focusable':''}" id="sm-cover-focus" title="${cvCropped?'Click to set the focus point':''}"><img class="gcc-dlg-img-preview sm-cover-img" src="${sesImageData}" style="${GCCSections.coverStyle({imageAspect:sesImageAspect,imageFocus:sesImageFocus},'none')}">${cvCropped?`<span class="sm-focus-dot" style="left:${(cvF.x*100).toFixed(1)}%;top:${(cvF.y*100).toFixed(1)}%"></span>`:''}</div><div class="sm-place-row" style="margin-top:6px"><span class="sm-place-lbl">CROP</span><span class="sm-seg">${GCCSections.ASPECTS.map(ap=>`<button class="sm-seg-btn${sesImageAspect===ap?' on':''}" data-cover-aspect="${ap}" title="${ap==='none'?'Show the whole cover':'Crop the cover to '+GCCSections.ASPECT_LABELS[ap]+' on the card and recap'}">${GCCSections.ASPECT_LABELS[ap]}</button>`).join('')}</span>${cvCropped?'<span class="sm-hint">Click the image to set its focus point</span>':''}</div>`:(sesImageData===null&&_sesImageOrigKey?`<div style="font-size:11px;color:var(--red);padding:6px 0">⚠ Saved cover image couldn't be loaded. Upload again to replace it; saving keeps the existing reference.</div>`:'');
   let sectionsHtml='';
   if(!isTimeline){const ps=panelStyle(camp);sectionsHtml=`<div class="sm-rail-hdr sm-sections-hdr"><label class="gcc-dlg-label">SECTIONS (optional — for structured recaps)</label><span class="sm-panel-style" title="Panel style for every issue in this campaign. Saves immediately."><span class="sm-place-lbl">PANELS</span><span class="sm-seg"><button class="sm-seg-btn${ps==='plain'?' on':''}" data-panel-style="plain">Plain</button><button class="sm-seg-btn${ps==='comic'?' on':''}" data-panel-style="comic">Comic</button></span></span></div><div class="gcc-dlg-sections" id="sm-sections">${sesSections.map((sec,i)=>buildSectionRow(sec,i)).join('')}</div><button class="gcc-dlg-sec-add" id="sm-add-section">+ Add Section</button>`}
   // Character participation checklist
@@ -2141,6 +2106,7 @@ async function openSessionModal(editIdx,typeOverride){
     _sesImageOrigKey=s.image&&GCCImages.isKey(s.image)?s.image:'';
     sesImageData=s.image?(GCCImages.isKey(s.image)?await GCCImages.get(s.image):s.image):'';
     _sesImageOrigFp=imgFp(sesImageData);
+    sesImageAspect=GCCSections.coverAspect(s)||'16/10';sesImageFocus=s.imageFocus&&isFinite(s.imageFocus.x)?{x:+s.imageFocus.x,y:+s.imageFocus.y}:null;
     // Resolve section images array
     sesSections=[];for(const sec of(s.sections||[])){
       const copy={...sec,images:[...(sec.images||[])].map(img=>({...img}))};
@@ -2151,7 +2117,7 @@ async function openSessionModal(editIdx,typeOverride){
     }
     sesTags=(s.tags||[]).map(t=>({...t}));sesRoster=[...(s.roster||[])]
   }}
-  else{sesImageData='';sesSections=[];sesTags=[];sesRoster=[];_sesImageOrigKey='';_sesImageOrigFp=''}
+  else{sesImageData='';sesSections=[];sesTags=[];sesRoster=[];_sesImageOrigKey='';_sesImageOrigFp='';sesImageAspect='16/10';sesImageFocus=null}
   const sesLbl=GCC.sessionLabel(camp.system);
   document.getElementById('session-modal-title').textContent=isEdit?(isTimeline?'Edit timeline entry':'Edit '+sesLbl):(isTimeline?'New timeline entry':'New '+sesLbl);
   document.getElementById('session-modal-body').innerHTML=buildSessionModalBody(camp,isTimeline);
@@ -2180,7 +2146,10 @@ function wireSessionModalEvents(camp,isTimeline){
   document.getElementById('sm-img-upload')?.addEventListener('click',()=>document.getElementById('sm-img-file').click());
   document.getElementById('sm-img-file')?.addEventListener('change',e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{sesImageData=ev.target.result;refreshModalBody(camp,isTimeline)};reader.readAsDataURL(file)});
   document.getElementById('sm-img-paste')?.addEventListener('click',async()=>{try{const items=await navigator.clipboard.read();for(const item of items){const imgType=item.types.find(t=>t.startsWith('image/'));if(imgType){const blob=await item.getType(imgType);const reader=new FileReader();reader.onload=ev=>{sesImageData=ev.target.result;refreshModalBody(camp,isTimeline)};reader.readAsDataURL(blob);return}}}catch(e){console.warn('Clipboard paste failed:',e)}});
-  document.getElementById('sm-img-clear')?.addEventListener('click',()=>{sesImageData='';refreshModalBody(camp,isTimeline)});
+  document.getElementById('sm-img-clear')?.addEventListener('click',()=>{sesImageData='';sesImageFocus=null;refreshModalBody(camp,isTimeline)});
+  document.querySelectorAll('[data-cover-aspect]').forEach(btn=>{btn.addEventListener('click',()=>{const ap=btn.dataset.coverAspect;if(GCCSections.ASPECTS.includes(ap)){sesImageAspect=ap;refreshModalBody(camp,isTimeline)}})});
+  const cvBox=document.getElementById('sm-cover-focus');
+  if(cvBox&&cvBox.classList.contains('focusable'))cvBox.addEventListener('click',e=>{const r=cvBox.getBoundingClientRect();if(!r.width||!r.height)return;sesImageFocus={x:Math.round(Math.min(1,Math.max(0,(e.clientX-r.left)/r.width))*100)/100,y:Math.round(Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))*100)/100};refreshModalBody(camp,isTimeline)});
   if(!isTimeline){document.getElementById('sm-add-section')?.addEventListener('click',()=>{captureSessionSections();sesSections.push({title:'',text:'',images:[],imagePos:'below',fit:'contain'});sesOpenSec=sesSections.length-1;refreshModalBody(camp,isTimeline)});
     document.querySelectorAll('.sm-sec[data-sec-idx]').forEach(el=>wireSectionRow(el,camp,isTimeline));
     document.querySelectorAll('[data-panel-style]').forEach(btn=>{btn.addEventListener('click',()=>{const v=btn.dataset.panelStyle==='comic'?'comic':'plain';GCC.updateCampaign(campId,{panelStyle:v});const c=getCamp()||camp;if(c)c.panelStyle=v;const d=sesDirty;refreshModalBody(c,isTimeline);sesDirty=d})});
@@ -2304,7 +2273,7 @@ document.getElementById('sm-save').addEventListener('click',async()=>{
     _created:prevEntry&&prevEntry._created?prevEntry._created:new Date().toISOString(),
     date:document.getElementById('sm-date').value||'',gameDate:document.getElementById('sm-gamedate').value.trim()||'',
     title:document.getElementById('sm-title').value.trim()||'',text:document.getElementById('sm-text').value.trim()||'',
-    sections:sesSections.filter(s=>s.title||s.text||(s.images&&s.images.length)),image:imageKey,tags:sesTags,
+    sections:sesSections.filter(s=>s.title||s.text||(s.images&&s.images.length)),image:imageKey,imageAspect:sesImageAspect,imageFocus:sesImageFocus||null,tags:sesTags,
     roster:sesRoster.length?sesRoster:[],
     xp:parseInt(document.getElementById('sm-xp').value)||0,visible:document.getElementById('sm-visible').checked,
     type:sesModal.dataset.entryType||'session',_updated:new Date().toISOString()};
@@ -2507,33 +2476,43 @@ function parseHtmlJournal(html){
     // Cover image
     const coverImg=entry.querySelector('.j-cover img');
     const coverSrc=coverImg?coverImg.getAttribute('src'):'';
+    let imageAspect=null,imageFocus=null;
+    if(coverImg){const st=coverImg.getAttribute('style')||'';const am=st.match(/aspect-ratio:\s*([\d.]+\s*\/\s*[\d.]+|auto)/);if(am)imageAspect=am[1]==='auto'?'none':am[1].replace(/\s+/g,'');if(imageAspect&&!GCCSections.ASPECTS.includes(imageAspect))imageAspect=null;const fm=st.match(/object-position:\s*([\d.]+)%\s+([\d.]+)%/);if(fm)imageFocus={x:+fm[1]/100,y:+fm[2]/100}}
     // Sections
     const sections=[];
     entry.querySelectorAll('.j-section').forEach(secEl=>{
       const secTitle=secEl.querySelector('.j-sec-title')?.textContent?.trim()||'';
-      const secText=secEl.querySelector('.j-sec-text')?.textContent?.trim()||'';
-      const content=secEl.querySelector('.j-sec-content');
+      const secText=secEl.querySelector('.gsec-text,.j-sec-text')?.textContent?.trim()||'';
+      const content=secEl.querySelector('.gsec-content,.j-sec-content');
       let imagePos='below';
-      SEC_POS.forEach(p=>{if(content&&content.classList.contains('j-ip-'+p))imagePos=p});
-      const fit=secEl.querySelector('.j-img.j-fit-cover')?'cover':'contain';
+      SEC_POS.forEach(p=>{if(content&&(content.classList.contains('ip-'+p)||content.classList.contains('j-ip-'+p)))imagePos=p});
+      let aspect='none';
+      const anyImg=secEl.querySelector('.gsec-img,.j-img');
+      const aspM=anyImg&&(anyImg.getAttribute('style')||'').match(/aspect-ratio:\s*([\d.]+\s*\/\s*[\d.]+)/);
+      if(aspM){const v=aspM[1].replace(/\s+/g,'');if(GCCSections.ASPECTS.includes(v))aspect=v}
+      else if(secEl.querySelector('.j-img.j-fit-cover'))aspect='16/10';
+      const fit=aspect==='none'?'contain':'cover';
       const images=[];
-      secEl.querySelectorAll('.j-img-wrap').forEach(wrap=>{
-        const img=wrap.querySelector('.j-img');if(!img)return;
+      secEl.querySelectorAll('.gsec-img-wrap,.j-img-wrap').forEach(wrap=>{
+        const img=wrap.querySelector('.gsec-img,.j-img');if(!img)return;
         const src=img.getAttribute('src')||'';if(!src)return;
         let width='third';
-        IMG_WIDTHS.forEach(w=>{if(wrap.classList.contains('j-w-'+w))width=w});
+        IMG_WIDTHS.forEach(w=>{if(wrap.classList.contains('w-'+w)||wrap.classList.contains('j-w-'+w))width=w});
         // Older journals used per-image float classes; map them onto the flow model.
-        if(!wrap.className.includes('j-w-')){
+        if(!/\bj?-?w-/.test(wrap.className)&&!wrap.classList.contains('gsec-img-wrap')){
           if(img.classList.contains('j-sz-sm'))width='quarter';
           else if(img.classList.contains('j-sz-lg'))width='half';
           else if(img.classList.contains('j-sz-full'))width='full';
           if(wrap.classList.contains('j-pos-left'))imagePos='left';
           else if(wrap.classList.contains('j-pos-right'))imagePos='right';
         }
-        const caption=wrap.querySelector('.j-caption')?.textContent?.trim()||'';
-        images.push({src,width,caption});
+        const caption=wrap.querySelector('.gsec-cap,.j-caption')?.textContent?.trim()||'';
+        const entry={src,width,caption};
+        const fm=(img.getAttribute('style')||'').match(/object-position:\s*([\d.]+)%\s+([\d.]+)%/);
+        if(fm){const fx=+fm[1]/100,fy=+fm[2]/100;if(fx!==0.5||fy!==0.5)entry.focus={x:fx,y:fy}}
+        images.push(entry);
       });
-      sections.push({title:secTitle,text:secText,images,imagePos,fit});
+      sections.push({title:secTitle,text:secText,images,imagePos,fit,aspect});
     });
     // Tags
     const tags=[];
@@ -2541,7 +2520,7 @@ function parseHtmlJournal(html){
     // XP
     let xp=0;const xpEl=entry.querySelector('.j-xp');
     if(xpEl){const xpM=xpEl.textContent.match(/\+?([\d,]+)/);if(xpM)xp=parseInt(xpM[1].replace(/,/g,''))||0}
-    results.push({title,date,gameDate,text:summary,image:coverSrc,sections,tags,xp,visible:!isDmOnly,type:isTimeline?'timeline':'session'});
+    results.push({title,date,gameDate,text:summary,image:coverSrc,imageAspect,imageFocus,sections,tags,xp,visible:!isDmOnly,type:isTimeline?'timeline':'session'});
   });
   return results;
 }
@@ -2575,7 +2554,7 @@ async function importHtmlSessions(parsed){
     }
     const now=new Date().toISOString();
     const entry={date:ep.date,gameDate:ep.gameDate,title:ep.title,text:ep.text,
-      sections:ep.sections,image:imageKey,tags:ep.tags,roster:[],xp:ep.xp,visible:ep.visible,type:ep.type,_created:now,_updated:now};
+      sections:ep.sections,image:imageKey,imageAspect:ep.imageAspect||null,imageFocus:ep.imageFocus||null,tags:ep.tags,roster:[],xp:ep.xp,visible:ep.visible,type:ep.type,_created:now,_updated:now};
     entry._id=GCC.sessionStableId(entry);
     sessions.push(entry);
     existingTitles.add(normDedupeText(ep.title));

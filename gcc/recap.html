@@ -85,26 +85,8 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .recap-sec-title{font-family:var(--fd);font-size:14px;font-weight:700;letter-spacing:1.5px;color:var(--accent-dim);margin-bottom:12px;text-transform:uppercase}
 .recap-sec-text{font-size:15px;line-height:1.75;color:var(--tx);white-space:pre-line}
 
-/* ── Section layouts and image galleries ── */
-.clearfix::after{content:'';display:table;clear:both}
-".recap-sec-content{display:flex;flex-direction:column;gap:14px}
-.recap-sec-content.ip-above .recap-sec-images{order:1}.recap-sec-content.ip-above .recap-sec-text{order:2}
-.recap-sec-content.ip-below .recap-sec-text{order:1}.recap-sec-content.ip-below .recap-sec-images{order:2}
-.recap-sec-content.ip-left,.recap-sec-content.ip-right{display:grid;gap:22px;align-items:start}
-.recap-sec-content.ip-left{grid-template-columns:minmax(0,38%) minmax(0,1fr)}
-.recap-sec-content.ip-left .recap-sec-images{grid-column:1}.recap-sec-content.ip-left .recap-sec-text{grid-column:2}
-.recap-sec-content.ip-right{grid-template-columns:minmax(0,1fr) minmax(0,38%)}
-.recap-sec-content.ip-right .recap-sec-text{grid-column:1}.recap-sec-content.ip-right .recap-sec-images{grid-column:2}
-.recap-sec-images{display:flex;flex-wrap:wrap;gap:12px;align-content:start}
-.recap-sec-img-wrap{min-width:0;margin:0;text-align:center}
-.recap-sec-img-wrap.w-full{flex:0 1 100%}
-.recap-sec-img-wrap.w-half{flex:0 1 calc(50% - 6px)}
-.recap-sec-img-wrap.w-third{flex:0 1 calc(33.333% - 8px)}
-.recap-sec-img-wrap.w-quarter{flex:0 1 calc(25% - 9px)}
-.recap-sec-img{width:100%;height:auto;border-radius:4px;border:1px solid var(--brd);display:block;background:var(--bg2)}
-.recap-sec-img.fit-cover{aspect-ratio:16/10;object-fit:cover}
-.recap-sec-img.fit-contain{object-fit:contain}
-.recap-img-caption{display:block;font-size:11px;color:var(--tx3);font-style:italic;margin-top:4px;text-align:center;max-width:100%}
+/* ── Section layouts and image galleries (rendered by gcc-sections.js) ── */
+.recap-sections .gsec-content{--gsec-gap:14px;--gsec-side-gap:22px;--gsec-img-gap:12px;--gsec-text-size:15px;--gsec-text-lh:1.75;--gsec-text-color:var(--tx);--gsec-cap-size:11px;--gsec-inset-margin:20px;--gsec-radius:4px;--gsec-comic-gap:6px}
 
 /* ── Prev/Next navigation ── */
 .recap-pagination{display:flex;align-items:stretch;gap:0;margin:40px 0 0;border:1px solid var(--brd);border-radius:4px;overflow:hidden}
@@ -133,8 +115,6 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
   .recap-cover{flex-direction:column}
   .recap-cover-img{flex:none;max-width:100%}
   .recap-title{font-size:22px}
-  .recap-sec-content.ip-left,.recap-sec-content.ip-right{display:flex;flex-direction:column;gap:14px}
-  .recap-sec-img-wrap.w-third,.recap-sec-img-wrap.w-quarter{flex:0 1 calc(50% - 6px)}
 }
 </style>
 </head>
@@ -156,6 +136,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 <script src="gcc-dialog.js?v=d89481ae"></script>
 <script src="gcc-data.js?v=9971930b"></script>
 <script src="gcc-images.js?v=d771a7c0"></script>
+<script src="gcc-sections.js?v=1"></script>
 <script src="gcc-header.js?v=e1ca49dc"></script>
 <script src="gcc-firebase-config.js?v=ed16c91d"></script>
 <script src="gcc-auth.js?v=dc620d93"></script>
@@ -167,7 +148,15 @@ const ESC = s => { const d = document.createElement('div'); d.textContent = s ||
 
 const params = new URLSearchParams(window.location.search);
 const campId = params.get('id');
-const sesIdx  = parseInt(params.get('idx') ?? '-1');
+const sesRef  = params.get('ses') || '';          // stable _id link (preferred)
+let   sesIdx  = parseInt(params.get('idx') ?? '-1'); // legacy positional link
+function resolveSesIdx(sessions) {
+  if (sesRef) { const i = sessions.findIndex(s => s && s._id === sesRef); if (i >= 0) return i; }
+  return sesIdx;
+}
+function recapUrlFor(campId, s, idx) {
+  return `recap.html?id=${encodeURIComponent(campId)}&${s && s._id ? 'ses=' + encodeURIComponent(s._id) : 'idx=' + idx}`;
+}
 
 const LORE_COLORS = {
   npc: 'var(--lore-npc)', location: 'var(--lore-location)',
@@ -187,28 +176,9 @@ function resolveImg(val) {
   return val;
 }
 
-// ── Section layout model (mirrors campaign-detail.html) ──
-const SEC_POS = ['above','below','left','right'];
-const IMG_WIDTHS = ['quarter','third','half','full'];
-function migrateSectionLayout(sec) {
-  if (!sec || sec.imagePos) return false;
-  const imgs = sec.images || [];
-  const L = sec.layout || 'legacy';
-  let pos;
-  if (L === 'legacy') {
-    const p = (imgs[0] && imgs[0].pos) || 'right';
-    pos = (p === 'left' || p === 'right') ? p : 'above';
-  } else if (L === 'images-first' || L === 'gallery') pos = 'above';
-  else if (L === 'text-left') pos = 'right';
-  else if (L === 'images-left') pos = 'left';
-  else pos = 'below';
-  const colW = { '1':'full', '2':'half', '3':'third' }[String(sec.columns)];
-  const sizeW = { sm:'quarter', md:'third', lg:'half', full:'full' };
-  imgs.forEach(img => { if (!img.width) img.width = L === 'legacy' ? (sizeW[img.size] || 'third') : (colW || 'third') });
-  sec.imagePos = pos;
-  sec.fit = sec.fit === 'cover' ? 'cover' : 'contain';
-  return true;
-}
+// ── Section layout model (shared: gcc-sections.js) ──
+GCCSections.inject();
+function migrateSectionLayout(sec) { return GCCSections.migrate(sec); }
 
 // ── Real session number (skips timeline entries) ──
 function realSessionNum(sessions, idx) {
@@ -233,9 +203,9 @@ function adjacentSessions(sessions, idx, isPlayer) {
   };
 }
 
-function buildRecapNav(campId, sesIdx, label, title) {
+function buildRecapNav(campId, nav, label, title) {
   if (!label) return `<div class="recap-pag-btn disabled"></div>`;
-  const url = `recap.html?id=${encodeURIComponent(campId)}&idx=${sesIdx}`;
+  const url = recapUrlFor(campId, nav.s, nav.i);
   return `<a class="recap-pag-btn ${label === 'NEXT' ? 'next' : ''}" href="${ESC(url)}">
     <span class="recap-pag-label">${label}</span>
     <span class="recap-pag-arrow">${label === 'NEXT' ? '→' : '←'}</span>
@@ -246,7 +216,9 @@ function buildRecapNav(campId, sesIdx, label, title) {
 async function render(camp, isPlayer) {
   const root = document.getElementById('recap-root');
   const sessions = camp.sessions || [];
+  sesIdx = resolveSesIdx(sessions);
   const session = sessions[sesIdx];
+  if (session && !sesRef && session._id) history.replaceState(null, '', recapUrlFor(campId, session, sesIdx));
 
   if (!session) {
     root.innerHTML = `<div class="recap-error">
@@ -313,12 +285,13 @@ async function render(camp, isPlayer) {
 
   // ── Cover image + summary ──
   const coverSrc = resolveImg(session.image);
+  const coverSt = GCCSections.coverAspect(session) ? ` style="${GCCSections.coverStyle(session)}"` : '';
   let coverHtml = '';
   if (session.text) {
     const summaryHtml = `<div class="recap-summary-text">${ESC(session.text)}</div>`;
     if (coverSrc) {
       coverHtml = `<div class="recap-cover">
-        <div class="recap-cover-img"><img src="${ESC(coverSrc)}" alt=""></div>
+        <div class="recap-cover-img"><img src="${ESC(coverSrc)}" alt=""${coverSt}></div>
         <div class="recap-summary">${summaryHtml}</div>
       </div>`;
     } else {
@@ -326,7 +299,7 @@ async function render(camp, isPlayer) {
     }
   } else if (coverSrc) {
     coverHtml = `<div class="recap-cover">
-      <div class="recap-cover-img" style="flex:0 0 100%;max-width:100%"><img src="${ESC(coverSrc)}" alt="" style="max-height:360px;object-fit:contain;width:100%"></div>
+      <div class="recap-cover-img" style="flex:0 0 100%;max-width:100%"><img src="${ESC(coverSrc)}" alt="" style="${GCCSections.coverAspect(session) ? GCCSections.coverStyle(session) + ';max-height:480px' : 'max-height:360px;object-fit:contain'};width:100%"></div>
     </div>`;
   }
 
@@ -364,25 +337,7 @@ async function render(camp, isPlayer) {
       sectionsHtml += '<div class="recap-sec">';
       migrateSectionLayout(sec);
       if (sec.title) sectionsHtml += `<div class="recap-sec-title">${ESC(sec.title)}</div>`;
-      const imgs = sec.images || [];
-      const imagePos = SEC_POS.includes(sec.imagePos) ? sec.imagePos : 'below';
-      const fit = sec.fit === 'cover' ? 'cover' : 'contain';
-      let imagesHtml = '';
-      if (imgs.length) {
-        imagesHtml = '<div class="recap-sec-images">';
-        imgs.forEach(img => {
-          const src = resolveImg(img.src);
-          if (!src) return;
-          const width = IMG_WIDTHS.includes(img.width) ? img.width : 'third';
-          imagesHtml += `<div class="recap-sec-img-wrap w-${width}">`;
-          imagesHtml += `<img class="recap-sec-img fit-${fit}" src="${ESC(src)}" alt="">`;
-          if (img.caption) imagesHtml += `<span class="recap-img-caption">${ESC(img.caption)}</span>`;
-          imagesHtml += '</div>';
-        });
-        imagesHtml += '</div>';
-      }
-      const textHtml = sec.text ? `<div class="recap-sec-text">${ESC(sec.text)}</div>` : '';
-      sectionsHtml += `<div class="recap-sec-content ip-${imagePos}">${imagesHtml}${textHtml}</div>`;
+      sectionsHtml += GCCSections.render(sec, { escape: ESC, resolve: resolveImg, comic: camp.panelStyle === 'comic' });
       sectionsHtml += '</div>';
     });
     sectionsHtml += '</div>';
@@ -391,10 +346,10 @@ async function render(camp, isPlayer) {
   // ── Prev/Next ──
   const { prev, next } = adjacentSessions(sessions, sesIdx, isPlayer);
   const prevHtml = prev
-    ? buildRecapNav(campId, prev.i, 'PREVIOUS', (prev.s.title || `${sesLabel} #${realSessionNum(sessions, prev.i)}`))
+    ? buildRecapNav(campId, prev, 'PREVIOUS', (prev.s.title || `${sesLabel} #${realSessionNum(sessions, prev.i)}`))
     : `<div class="recap-pag-btn disabled"></div>`;
   const nextHtml = next
-    ? buildRecapNav(campId, next.i, 'NEXT', (next.s.title || `${sesLabel} #${realSessionNum(sessions, next.i)}`))
+    ? buildRecapNav(campId, next, 'NEXT', (next.s.title || `${sesLabel} #${realSessionNum(sessions, next.i)}`))
     : `<div class="recap-pag-btn next disabled"></div>`;
 
   root.innerHTML = `
@@ -424,7 +379,7 @@ function getCamp() {
 }
 
 async function boot() {
-  if (!campId || isNaN(sesIdx) || sesIdx < 0) {
+  if (!campId || (!sesRef && (isNaN(sesIdx) || sesIdx < 0))) {
     document.getElementById('recap-root').innerHTML = `<div class="recap-error">
       <div class="recap-error-title">INVALID LINK</div>
       <p><a href="index.html">← Return to dashboard</a></p>
