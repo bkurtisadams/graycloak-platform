@@ -1,5 +1,27 @@
 # Graycloak Traveller
 
+## v0.59.1 the campaign menu stays on screen
+
+The menu was anchored with `right: 0`, so it hung leftwards from a button that sits near the left of the masthead. That was fine while it held six short commands; the publish status, republish, scene and players controls widened it enough to run off the left edge of the window — measured at 1280×420, the popover started at `left: -104`.
+
+It now anchors left, and is capped to the viewport so a short window scrolls it rather than clipping it. Checked at 1680×990, 1440×900, 1280×420, 1024×600 and 800×480: fully on screen at every one.
+
+No schema or rules-package changes.
+
+## v0.59.0 players declare, the referee resolves
+
+The loop closes. A player picks a target and an action for the character they play; the referee's client sees it arrive and applies it as an ordinary intent, through the same `declareEncounterAction()` that a referee's click and the NPC routine already use. Nothing about resolution changes — the round still resolves on the referee's board, with the referee's dice.
+
+**A declaration is create-only.** The rules refuse updates, so once made it cannot be revised after seeing what anyone else did — which is the simultaneity of Book 1 p.30 enforced by the database rather than by good manners. The referee clears the round's declarations once it resolves, and the next round can be declared.
+
+**The round being declared for is published explicitly.** `round` is what has been *played*; `declaringRound` is the one in progress, and nothing once the fight is over. Reconciling those two by arithmetic was a mistake waiting to happen.
+
+**A refused declaration does not break anything.** If a combatant has already declared, or the order is no longer legal, the referee's board is authoritative: the declaration is marked applied, a warning is logged, and play continues. Each declaration is applied once however many times the subscription fires.
+
+**Fixed while building:** the player page kept a module-level `campaignId` that was shadowed by a parameter of the same name, so the assignment set the parameter and the module variable stayed null — declarations would have been written to a null path, and the scene failed to load at all. Both symptoms, one cause.
+
+No schema or rules-package changes; the rules for this shipped with ruleset v11.
+
 ## v0.58.0 sign in with an email as well as Google
 
 Firebase already had email and password enabled; the client only ever offered the Google button. That mattered more than it looked: Google will not let you invent an account, so making a test player meant registering a real Gmail address.

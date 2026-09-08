@@ -164,7 +164,7 @@ import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js
 import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js';
 import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js';
 import { openSignInDialog } from './signin-ui.js';
-import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers } from './publish.js';
+import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations } from './publish.js';
 import { buildPublishedView, buildPublishedCampaign } from '../src/published-view.js';
 import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js';
 import {
@@ -576,6 +576,9 @@ let framedEncounterId = null;
 let encounterExtraTargetIds = new Set();
 let expandedTrackerIds = new Set();
 let lastPublishedRound = null;
+let unsubscribeDeclarations = null;
+let watchedDeclarationEncounterId = null;
+let appliedDeclarationKeys = new Set();
 let hoveredEncounterCombatantId = null;
 const WORKSPACE_VIEWS = ['play', 'ship', 'campaign', 'threads'];
 let activeWorkspaceView = 'play';
@@ -4325,6 +4328,61 @@ function renderAccount() {
 // Publishing is explicit and one-way for now: the local campaign stays
 // authoritative and this pushes a copy players may read. Nothing is read back
 // in this version, so a failed publish costs nothing but the message.
+// Players write declarations; the referee reads them and applies them as
+// ordinary intents, the same path a click or the NPC routine takes. A
+// declaration is create-only for the player, so it cannot be revised after the
+// fact; the referee clears them once the round resolves.
+function watchPlayerDeclarations() {
+  const encounter = activeEncounterAtCurrentSystem();
+  const online = campaignIsPublished(campaignDocument) && currentUserId();
+  if (!online || !encounter) {
+    unsubscribeDeclarations?.();
+    unsubscribeDeclarations = null;
+    watchedDeclarationEncounterId = null;
+    return;
+  }
+  if (watchedDeclarationEncounterId === encounter.identity.id) return;
+  unsubscribeDeclarations?.();
+  watchedDeclarationEncounterId = encounter.identity.id;
+  watchDeclarations(campaignDocument.identity.id, encounter.identity.id, applyPlayerDeclarations)
+    .then((unsubscribe) => { unsubscribeDeclarations = unsubscribe; })
+    .catch((error) => console.error(error));
+}
+
+function applyPlayerDeclarations(entries) {
+  const encounter = activeEncounterAtCurrentSystem();
+  if (!encounter) return;
+  let changed = false;
+  for (const entry of entries) {
+    // One application per combatant per round, however many times the
+    // subscription fires.
+    const key = `${encounter.identity.id}|${entry.round}|${entry.actorId}`;
+    if (appliedDeclarationKeys.has(key)) continue;
+    if (entry.round !== encounter.round) continue;
+    const index = encounterDocuments.findIndex((document) => document.identity.id === encounter.identity.id);
+    try {
+      const result = declareEncounterAction(encounterDocuments[index], {
+        action: entry.action, modifier: 0, actorId: entry.actorId, targetId: entry.targetId ?? null
+      });
+      encounterDocuments[index] = result.encounter;
+      appliedDeclarationKeys.add(key);
+      const actor = result.encounter.combatants.find((combatant) => combatant.id === entry.actorId);
+      logActivity('COMBAT', `${actor?.name ?? 'A player'} declares ${entry.action.toUpperCase()} from their own screen.`);
+      changed = true;
+    } catch (error) {
+      // Already declared, or no longer legal: the referee's board is
+      // authoritative and a stale declaration is simply ignored.
+      appliedDeclarationKeys.add(key);
+      console.warn('[traveller] player declaration refused:', error?.message ?? error);
+    }
+  }
+  if (changed) {
+    syncCampaignRefs();
+    persistCampaignState();
+    render();
+  }
+}
+
 function renderPublishPanel() {
   if (!el.publishStatusLine) return;
   const uid = currentUserId();
@@ -4988,6 +5046,10 @@ function resolveDeclaredEncounterRound() {
     syncCampaignRefs();
     persistCampaignState();
     autoPublishEncounterView(result.encounter);
+    // The round is over, so the declarations belonging to it are spent.
+    if (campaignIsPublished(campaignDocument) && currentUserId()) {
+      clearDeclarations(campaignDocument.identity.id, result.encounter.identity.id).catch((error) => console.error(error));
+    }
     setStatus(`ENCOUNTER ${result.encounter.status.toUpperCase()} / ROUND ${result.encounter.round}`, result.encounter.status === 'defeat' ? 'error' : 'ok');
     closeRollDialog();
     render();
@@ -6412,6 +6474,7 @@ function render() {
   renderEncounter();
   renderAccount();
   renderPublishPanel();
+  watchPlayerDeclarations();
   renderCampaignDirectory();
   renderRoster();
   applyOperationsDeskTab();

@@ -81,6 +81,10 @@ export function buildPublishedView(encounter, { campaignId, publishedAt, rounds 
     encounterId: encounter.identity.id,
     title: encounter.identity.title,
     round: currentRound,
+    // The round a player would be declaring for: the one in progress while the
+    // fight runs, and nothing once it is over. `round` is what has been played,
+    // which is a different number and was confusing to reconcile.
+    declaringRound: encounter.status === 'active' ? encounter.round : null,
     status: encounter.status,
     range: encounter.range,
     lighting: encounter.conditions?.lighting ?? 'normal',

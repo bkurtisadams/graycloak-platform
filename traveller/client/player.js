@@ -10,7 +10,7 @@
 
 import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js';
 import { openSignInDialog } from './signin-ui.js';
-import { ensureFirestore } from './publish.js';
+import { ensureFirestore, writeDeclaration, watchDeclarations } from './publish.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -26,7 +26,8 @@ const el = {
   scene: document.querySelector('#player-scene'),
   map: document.querySelector('#player-map'),
   roster: document.querySelector('#player-roster'),
-  narration: document.querySelector('#player-narration')
+  narration: document.querySelector('#player-narration'),
+  orders: document.querySelector('#player-orders')
 };
 
 const CAMPAIGN_STORAGE_KEY = 'graycloak.traveller.player.campaign.v1';
@@ -36,6 +37,11 @@ let view = null;
 let unsubscribeCampaign = null;
 let unsubscribeView = null;
 let watchedEncounterId = null;
+let declarations = [];
+let unsubscribeDeclarations = null;
+// Named apart from the `campaignId` parameters below: a shadowed assignment
+// left this null and declarations were written to a null path.
+let connectedCampaignId = null;
 
 function setStatus(text, kind = '') {
   el.status.textContent = text;
@@ -114,6 +120,7 @@ function renderScene() {
   el.scene.textContent = `${view.title.toUpperCase()} / ROUND ${view.round} / ${view.status.toUpperCase().replace('-', ' ')}${scale}`;
   renderMap();
   renderRoster();
+  renderOrders();
   renderNarration();
 }
 
@@ -167,6 +174,101 @@ function renderRoster() {
   el.roster.replaceChildren(...rows);
 }
 
+// A player declares for the combatants they own, and for nobody else. The
+// declaration is an intent: the referee resolves it. Once made it cannot be
+// revised — the rules refuse updates — so what everyone else does stays hidden
+// until the round resolves.
+function renderOrders() {
+  if (!el.orders) return;
+  const owned = [...ownedCombatantIds()];
+  if (!view || !campaign) { el.orders.replaceChildren(); return; }
+  if (!owned.length) {
+    el.orders.replaceChildren(Object.assign(document.createElement('div'), {
+      className: 'player-orders-hint', textContent: 'NO CHARACTER ASSIGNED TO YOU'
+    }));
+    return;
+  }
+  if (!view.declaringRound) {
+    el.orders.replaceChildren(Object.assign(document.createElement('div'), {
+      className: 'player-orders-hint', textContent: 'THE FIGHT IS OVER'
+    }));
+    return;
+  }
+
+  const blocks = owned.map((combatantId) => {
+    const combatant = view.combatants.find((entry) => entry.id === combatantId);
+    const block = document.createElement('div');
+    block.className = 'player-orders-block';
+    if (!combatant) return block;
+
+    const declared = declarations.find((entry) => entry.actorId === combatantId && entry.round === view.declaringRound);
+    const heading = document.createElement('div');
+    heading.className = 'player-orders-heading';
+    heading.textContent = `${combatant.name.toUpperCase()} / ROUND ${view.declaringRound}`;
+    block.append(heading);
+
+    if (combatant.condition !== 'active') {
+      block.append(Object.assign(document.createElement('div'), {
+        className: 'player-orders-hint', textContent: combatant.condition.toUpperCase()
+      }));
+      return block;
+    }
+    if (declared) {
+      const target = declared.targetId ? view.combatants.find((entry) => entry.id === declared.targetId) : null;
+      block.append(Object.assign(document.createElement('div'), {
+        className: 'player-orders-declared',
+        textContent: `${declared.action.toUpperCase()}${target ? ` → ${target.name.toUpperCase()}` : ''} — WAITING FOR THE REFEREE`
+      }));
+      return block;
+    }
+
+    const foes = view.combatants.filter((entry) => entry.side !== combatant.side && entry.condition === 'active');
+    const targetRow = document.createElement('label');
+    targetRow.className = 'player-orders-target';
+    targetRow.append(Object.assign(document.createElement('span'), { textContent: 'TARGET' }));
+    const select = document.createElement('select');
+    for (const foe of foes) select.append(new Option(foe.name.toUpperCase(), foe.id));
+    if (!foes.length) select.append(new Option('NOBODY', ''));
+    targetRow.append(select);
+    block.append(targetRow);
+
+    const verbs = document.createElement('div');
+    verbs.className = 'player-orders-verbs';
+    const declare = (action, needsTarget) => async () => {
+      const targetId = needsTarget ? select.value || null : null;
+      if (needsTarget && !targetId) { setStatus('NO TARGET AVAILABLE', 'error'); return; }
+      try {
+        await writeDeclaration(connectedCampaignId, view.encounterId, {
+          uid: currentUserId(),
+          actorId: combatantId,
+          action,
+          targetId,
+          round: view.declaringRound,
+          declaredAt: Date.now()
+        });
+        setStatus(`DECLARED ${action.toUpperCase()}`, 'ok');
+      } catch (error) {
+        setStatus(error?.message ?? String(error), 'error');
+      }
+    };
+    for (const [label, action, needsTarget] of [
+      ['ATTACK', 'attack', true], ['CLOSE', 'close', true], ['OPEN', 'open', true],
+      ['EVADE', 'evade', false], ['ESCAPE', 'escape', false], ['STAND', 'wait', false]
+    ]) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'text-button action-button';
+      button.textContent = `[ ${label} ]`;
+      button.disabled = needsTarget && !foes.length;
+      button.addEventListener('click', declare(action, needsTarget));
+      verbs.append(button);
+    }
+    block.append(verbs);
+    return block;
+  });
+  el.orders.replaceChildren(...blocks);
+}
+
 function renderNarration() {
   // Newest round first, so the latest events are at the top where a player
   // glancing at the screen will see them.
@@ -215,6 +317,7 @@ async function connect(campaignId) {
           return;
         }
         campaign = snapshot.data();
+        connectedCampaignId = campaignId;
         window.localStorage?.setItem(CAMPAIGN_STORAGE_KEY, campaignId);
         setStatus(`CONNECTED / ${campaign.name}`, 'ok');
         watchScene(db, campaignId, campaign.currentEncounterId ?? null);
@@ -239,6 +342,10 @@ function watchScene(db, campaignId, encounterId) {
       (snapshot) => { view = snapshot.exists ? snapshot.data() : null; render(); },
       (error) => setStatus(error.message, 'error')
     );
+  unsubscribeDeclarations?.();
+  watchDeclarations(campaignId, encounterId, (entries) => { declarations = entries; render(); })
+    .then((unsubscribe) => { unsubscribeDeclarations = unsubscribe; })
+    .catch((error) => console.error(error));
 }
 
 el.connect.addEventListener('click', () => connect(el.campaignField.value.trim()));

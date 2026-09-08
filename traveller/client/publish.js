@@ -94,3 +94,41 @@ export async function listSeatedPlayers(campaignId) {
   const snapshot = await db.collection('travellerCampaigns').doc(campaignId).collection('players').get();
   return snapshot.docs.map((entry) => entry.data());
 }
+
+// --- Declarations -------------------------------------------------------
+// A player writes one document per combatant per round; the referee reads them
+// and clears them once the round is resolved. The rules make these create-only
+// for players, so a declaration cannot be revised after seeing what others did.
+
+export async function watchDeclarations(campaignId, encounterId, onChange) {
+  const db = await ensureFirestore();
+  return db
+    .collection('travellerCampaigns').doc(campaignId)
+    .collection('encounters').doc(encounterId)
+    .collection('declarations')
+    .onSnapshot(
+      (snapshot) => onChange(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }))),
+      (error) => console.error('[traveller-publish] declarations:', error)
+    );
+}
+
+export async function writeDeclaration(campaignId, encounterId, declaration) {
+  const db = await ensureFirestore();
+  await db
+    .collection('travellerCampaigns').doc(campaignId)
+    .collection('encounters').doc(encounterId)
+    .collection('declarations').doc(declaration.actorId)
+    .set(declaration);
+  return declaration.actorId;
+}
+
+export async function clearDeclarations(campaignId, encounterId) {
+  const db = await ensureFirestore();
+  const collection = db
+    .collection('travellerCampaigns').doc(campaignId)
+    .collection('encounters').doc(encounterId)
+    .collection('declarations');
+  const snapshot = await collection.get();
+  await Promise.all(snapshot.docs.map((entry) => entry.ref.delete()));
+  return snapshot.size;
+}

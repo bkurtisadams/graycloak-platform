@@ -2090,10 +2090,17 @@ input[readonly] {
 .campaign-menu-popover {
   position: absolute;
   top: calc(100% + 5px);
-  right: 0;
+  /* Anchored left, not right: the button sits near the left of the masthead,
+     so a right-anchored menu hangs off the left edge of the window — which it
+     did once the publish controls widened it. Also capped to the viewport so a
+     short window scrolls the menu rather than clipping it. */
+  left: 0;
   z-index: 20;
   display: grid;
   min-width: 210px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
   border: 2px solid var(--rule);
   background: var(--help-paper);
   padding: 6px 9px;
@@ -3120,3 +3127,14 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .signin-rule { font-size: 10px; letter-spacing: .2em; color: var(--muted); text-align: center; padding: 2px 0; }
 .signin-status { font-size: 11px; color: var(--muted); min-height: 1.2em; }
 .signin-status.error { color: var(--failure-border); }
+
+/* --- v0.59.0: a player's own orders. */
+.player-orders { display: flex; flex-direction: column; gap: 6px; }
+.player-orders-block { border: 1px solid var(--rule); background: var(--paper); padding: 5px 7px; }
+.player-orders-heading { font-size: 11px; font-weight: 700; letter-spacing: .04em; padding-bottom: 4px; }
+.player-orders-hint { font-size: 11px; color: var(--muted); }
+.player-orders-declared { font-size: 11px; color: var(--muted); }
+.player-orders-target { display: flex; align-items: center; gap: 6px; font-size: 10px; letter-spacing: .06em; color: var(--muted); padding-bottom: 5px; }
+.player-orders-target select { font: inherit; font-size: 11px; flex: 1 1 auto; min-width: 0; }
+.player-orders-verbs { display: flex; flex-wrap: wrap; gap: 4px; }
+.player-orders-verbs .action-button { font-size: 10px; padding: 1px 5px; }
