@@ -1,16 +1,17 @@
 // player.js — the player's view of a campaign.
 //
-// A player reads two documents and writes none: the published campaign, which
+// A player reads two published documents: the campaign, which
 // says who they play and which scene is current, and that scene's player-safe
 // view. The encounter document itself is referee-only and this never asks for
 // it; nor can it list encounters, which is why the campaign carries
 // currentEncounterId.
 //
-// Everything here is read-only. Declarations come later.
+// The only write is a create-only combat declaration for an assigned character.
 
 import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js';
 import { openSignInDialog } from './signin-ui.js';
 import { ensureFirestore, writeDeclaration, watchDeclarations } from './publish.js';
+import { createPlayerDeclaration } from '../src/player-declaration.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -42,6 +43,7 @@ let unsubscribeDeclarations = null;
 // Named apart from the `campaignId` parameters below: a shadowed assignment
 // left this null and declarations were written to a null path.
 let connectedCampaignId = null;
+let sceneWatchGeneration = 0;
 
 function setStatus(text, kind = '') {
   el.status.textContent = text;
@@ -238,14 +240,14 @@ function renderOrders() {
       const targetId = needsTarget ? select.value || null : null;
       if (needsTarget && !targetId) { setStatus('NO TARGET AVAILABLE', 'error'); return; }
       try {
-        await writeDeclaration(connectedCampaignId, view.encounterId, {
+        await writeDeclaration(connectedCampaignId, view.encounterId, createPlayerDeclaration({
           uid: currentUserId(),
           actorId: combatantId,
           action,
           targetId,
           round: view.declaringRound,
           declaredAt: Date.now()
-        });
+        }));
         setStatus(`DECLARED ${action.toUpperCase()}`, 'ok');
       } catch (error) {
         setStatus(error?.message ?? String(error), 'error');
@@ -332,7 +334,12 @@ async function connect(campaignId) {
 
 function watchScene(db, campaignId, encounterId) {
   if (encounterId === watchedEncounterId) return;
+  const generation = ++sceneWatchGeneration;
   unsubscribeView?.();
+  unsubscribeView = null;
+  unsubscribeDeclarations?.();
+  unsubscribeDeclarations = null;
+  declarations = [];
   watchedEncounterId = encounterId;
   view = null;
   if (!encounterId) { render(); return; }
@@ -342,9 +349,11 @@ function watchScene(db, campaignId, encounterId) {
       (snapshot) => { view = snapshot.exists ? snapshot.data() : null; render(); },
       (error) => setStatus(error.message, 'error')
     );
-  unsubscribeDeclarations?.();
   watchDeclarations(campaignId, encounterId, (entries) => { declarations = entries; render(); })
-    .then((unsubscribe) => { unsubscribeDeclarations = unsubscribe; })
+    .then((unsubscribe) => {
+      if (generation !== sceneWatchGeneration || encounterId !== watchedEncounterId) unsubscribe();
+      else unsubscribeDeclarations = unsubscribe;
+    })
     .catch((error) => console.error(error));
 }
 

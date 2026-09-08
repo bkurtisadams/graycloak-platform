@@ -1,5 +1,15 @@
 # Graycloak Traveller
 
+## v0.60.0 multiplayer acceptance and referee-side authorization
+
+Player combat declarations are now checked twice: Firestore remains the remote security boundary, and the referee client independently verifies the declaration's account, assigned combatant, current round, action shape, target, and campaign before applying it to local authoritative state. A stale assignment or misconfigured remote rule therefore cannot make the referee drive another player's character.
+
+Scene and declaration subscriptions now close when a scene ends and discard a late subscription that finishes connecting after the player or referee has already changed encounters. This prevents an old encounter from replacing the active listener after a reconnect.
+
+`docs/multiplayer-acceptance-v0.60.md` supplies the repeatable three-browser acceptance pass for seating, assignment, simultaneous declarations, refusal, republishing, scene changes and reconnects. The automated suite covers the new trust-boundary checks; the browser checklist covers authentication and live subscriptions that a Node test cannot reproduce.
+
+No schema or Classic Traveller rules-package changes.
+
 ## v0.59.1 the campaign menu stays on screen
 
 The menu was anchored with `right: 0`, so it hung leftwards from a button that sits near the left of the masthead. That was fine while it held six short commands; the publish status, republish, scene and players controls widened it enough to run off the left edge of the window — measured at 1280×420, the popover started at `left: -104`.

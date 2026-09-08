@@ -165,6 +165,7 @@ import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics
 import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js';
 import { openSignInDialog } from './signin-ui.js';
 import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations } from './publish.js';
+import { authorizePlayerDeclaration } from '../src/player-declaration.js';
 import { buildPublishedView, buildPublishedCampaign } from '../src/published-view.js';
 import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js';
 import {
@@ -4344,8 +4345,12 @@ function watchPlayerDeclarations() {
   if (watchedDeclarationEncounterId === encounter.identity.id) return;
   unsubscribeDeclarations?.();
   watchedDeclarationEncounterId = encounter.identity.id;
-  watchDeclarations(campaignDocument.identity.id, encounter.identity.id, applyPlayerDeclarations)
-    .then((unsubscribe) => { unsubscribeDeclarations = unsubscribe; })
+  const watchedId = encounter.identity.id;
+  watchDeclarations(campaignDocument.identity.id, watchedId, applyPlayerDeclarations)
+    .then((unsubscribe) => {
+      if (watchedDeclarationEncounterId !== watchedId) unsubscribe();
+      else unsubscribeDeclarations = unsubscribe;
+    })
     .catch((error) => console.error(error));
 }
 
@@ -4361,8 +4366,9 @@ function applyPlayerDeclarations(entries) {
     if (entry.round !== encounter.round) continue;
     const index = encounterDocuments.findIndex((document) => document.identity.id === encounter.identity.id);
     try {
+      const authorized = authorizePlayerDeclaration(entry, { campaign: campaignDocument, encounter: encounterDocuments[index] });
       const result = declareEncounterAction(encounterDocuments[index], {
-        action: entry.action, modifier: 0, actorId: entry.actorId, targetId: entry.targetId ?? null
+        action: authorized.action, modifier: 0, actorId: authorized.actorId, targetId: authorized.targetId
       });
       encounterDocuments[index] = result.encounter;
       appliedDeclarationKeys.add(key);
