@@ -1220,6 +1220,9 @@ async function render(){
 
   // Sessions tab
   lastImgMap=imgMap;
+  const allSessions=camp.sessions||[];
+  const sessions=pm_?allSessions.filter(s=>s.visible!==false):allSessions;
+  const realCount=countRealSessions(sessions);
   const sessHtml=buildSessionsTab(camp,imgMap,pm_);
 
   // Lore tab
