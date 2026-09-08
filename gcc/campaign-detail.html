@@ -139,7 +139,86 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .session-card{background:var(--bg-card);border:1px solid var(--brd);border-radius:4px;margin-bottom:12px;overflow:hidden;box-shadow:var(--card-shadow)}
 .session-card.timeline-entry{opacity:.75}
 .session-card.dm-only{border-left:2px solid var(--amber)}
-.session-card-header{display:flex;align-items:center;padding:10px 14px 6px;gap:10px;border-bottom:1px solid var(--brd)}
+.session-card-header{display:flex;align-items:center;padding:8px 10px 8px 12px;gap:8px;border-bottom:1px solid var(--brd)}
+.session-card.collapsed .session-card-header{border-bottom:none}
+.ses-caret{background:none;border:none;color:var(--tx3);cursor:pointer;font-size:12px;padding:2px 4px;line-height:1;flex-shrink:0}
+.ses-caret:hover{color:var(--tx)}
+.ses-vis-dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0}
+.ses-vis-dot.dm{background:none;border:1.5px solid var(--amber)}
+.ses-title{font-family:var(--fd);font-size:15px;font-weight:700;color:var(--tx);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:none}
+a.ses-title:hover{color:var(--accent);text-decoration:underline}
+.ses-num{font-family:var(--fm);font-size:12px;font-weight:400;color:var(--tx3);margin-right:8px}
+.ses-num.tl{font-size:13px}
+.ses-hdr-dates{display:flex;gap:14px;flex-shrink:0;font-family:var(--fm);font-size:11px;white-space:nowrap}
+.ses-hdr-date{color:var(--tx3)}.ses-hdr-date.game{color:var(--amber)}
+.ses-menu-wrap{position:relative;display:inline-flex;flex-shrink:0}
+.ses-kebab{width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;background:none;border:1px solid var(--brd);border-radius:3px;color:var(--tx2);cursor:pointer;font-size:14px;line-height:1;padding:0}
+.ses-kebab:hover{color:var(--tx);border-color:var(--brd-lt)}
+.ses-kebab.more{width:32px;height:28px;font-size:16px}
+.ses-menu{display:none;position:absolute;top:calc(100% + 4px);right:0;min-width:160px;background:var(--bg-card);border:1px solid var(--brd-lt);border-radius:4px;box-shadow:0 6px 18px rgba(0,0,0,.35);padding:4px;z-index:40;flex-direction:column}
+.ses-menu.open{display:flex}
+.ses-menu button{background:none;border:none;text-align:left;color:var(--tx);font-family:var(--fb);font-size:12px;padding:6px 10px;border-radius:3px;cursor:pointer;white-space:nowrap}
+.ses-menu button:hover:not(:disabled){background:var(--bg-card-hover);color:var(--accent-lt)}
+.ses-menu button:disabled{color:var(--tx3);cursor:default}
+.ses-menu button.danger{color:var(--red)}.ses-menu button.danger:hover{color:var(--red-lt)}
+.ses-menu-sep{height:1px;background:var(--brd);margin:4px 2px}
+.ses-flash{animation:sesFlash 1.2s ease-out}
+@keyframes sesFlash{0%{box-shadow:0 0 0 2px var(--accent)}100%{box-shadow:0 0 0 0 transparent}}
+/* ── Issues toolbar v2 ── */
+.ses-toolbar-v2{align-items:center;gap:8px;margin-bottom:8px}
+.ses-search{display:flex;align-items:center;gap:6px;flex:1;min-width:200px;height:30px;border:1px solid var(--brd);border-radius:3px;background:var(--bg2);padding:0 8px;color:var(--tx3)}
+.ses-search:focus-within{border-color:var(--accent-dim)}
+.ses-search-ico{font-size:14px}
+.ses-search input{flex:1;min-width:0;background:none;border:none;outline:none;color:var(--tx);font-family:var(--fb);font-size:12px}
+.ses-search input::placeholder{color:var(--tx3)}
+.ses-search input::-webkit-search-cancel-button{-webkit-appearance:none}
+.ses-search kbd{font-family:var(--fm);font-size:10px;border:1px solid var(--brd);border-radius:3px;padding:0 5px;color:var(--tx3)}
+.ses-view-toggle{display:inline-flex;height:30px;border:1px solid var(--brd);border-radius:3px;overflow:hidden}
+.ses-view-toggle button{background:none;border:none;border-right:1px solid var(--brd);color:var(--tx2);cursor:pointer;font-family:var(--fb);font-size:11px;font-weight:700;padding:0 10px}
+.ses-view-toggle button:last-child{border-right:none}
+.ses-view-toggle button:hover{color:var(--tx)}
+.ses-view-toggle button.on{color:var(--accent);background:rgba(96,160,208,0.1)}
+.ses-split{position:relative;display:inline-flex}
+.ses-split .btn-add{border-radius:3px 0 0 3px}
+.ses-split .ses-split-caret{border-radius:0 3px 3px 0;border-left:none;padding:5px 8px}
+.ses-split .ses-menu{right:auto;left:0}
+.ses-chips{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:12px}
+.ses-chip{padding:3px 10px;font-size:10px;font-family:var(--fb);font-weight:700;border:1px solid var(--brd);border-radius:12px;background:none;color:var(--tx3);cursor:pointer}
+.ses-chip b{font-weight:400;font-family:var(--fm);color:var(--tx3);margin-left:2px}
+.ses-chip:hover{color:var(--tx2);border-color:var(--brd-lt)}
+.ses-chip.active{color:var(--accent);border-color:var(--accent-dim);background:rgba(96,160,208,0.06)}
+.ses-chip.active b{color:var(--accent)}
+.ses-chip-sep{width:1px;height:16px;background:var(--brd);margin:0 4px}
+.ses-link-btn{background:none;border:none;color:var(--accent);cursor:pointer;font-family:var(--fb);font-size:12px;font-style:normal;padding:0;text-decoration:underline}
+/* ── Compact rows ── */
+.ses-table{list-style:none;border:1px solid var(--brd);border-radius:4px;background:var(--bg-card);box-shadow:var(--card-shadow)}
+.ses-row-hdr{border-radius:4px 4px 0 0}
+.ses-row{display:grid;grid-template-columns:52px minmax(0,1fr) 112px 78px 84px 40px 52px 32px;gap:8px;align-items:center;padding:7px 10px;border-bottom:1px solid var(--brd);font-size:12px}
+.ses-row:last-child{border-bottom:none}
+.ses-row:not(.ses-row-hdr):hover{background:var(--bg-card-hover)}
+.ses-row-hdr{font-family:var(--fsc);font-size:8px;letter-spacing:1px;color:var(--tx3);padding:5px 10px;background:var(--bg2)}
+.ses-row-hdr span{display:block;white-space:nowrap;overflow:hidden}
+.ses-row.timeline-entry{background:rgba(208,160,64,0.04)}
+.ses-row.dm-only{box-shadow:inset 2px 0 0 var(--amber)}
+.ses-row-num{font-family:var(--fm);font-size:11px;color:var(--tx3);display:flex;align-items:center;gap:2px}
+.ses-row-num .ses-drag-handle{opacity:.35;padding:0 3px 0 0}
+.ses-row-title{display:flex;align-items:center;gap:7px;min-width:0;color:var(--tx);text-decoration:none;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ses-row-title>*{flex-shrink:0}
+a.ses-row-title:hover{color:var(--accent)}
+.ses-row-title.tl{color:var(--tx2);font-weight:400}
+.ses-row-title .ses-num{margin-right:2px}
+.ses-row-date{font-family:var(--fm);font-size:11px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ses-row-date.game{color:var(--amber)}
+.ses-row-date i{color:var(--tx3);font-style:normal}
+.ses-row-tags,.ses-row-xp{font-family:var(--fm);font-size:11px;color:var(--tx3);text-align:right}
+.ses-row-xp{color:var(--accent)}
+.ses-row-menu{display:flex;justify-content:flex-end}
+.ses-avatars{display:inline-flex}
+.ses-avatar{width:20px;height:20px;border-radius:50%;object-fit:cover;border:1.5px solid var(--bg-card);margin-left:-6px;background:var(--bg-section)}
+.ses-avatar:first-child{margin-left:0}
+.ses-avatar.ph,.ses-avatar.more{display:inline-flex;align-items:center;justify-content:center;font-size:9px;color:var(--tx2);font-family:var(--fm)}
+@media(max-width:600px){.ses-hdr-date:not(.game){display:none}.ses-search{min-width:140px}}
+@media(max-width:760px){.ses-row{grid-template-columns:44px minmax(0,1fr) 84px 32px}.ses-row-date:not(.game),.ses-row-roster,.ses-row-tags,.ses-row-xp{display:none}}
 .session-num{font-family:var(--fd);font-size:15px;font-weight:700;color:var(--tx);flex:1;min-width:0;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .session-num-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .session-recap-link{color:inherit;text-decoration:none;transition:color .12s}
@@ -287,13 +366,12 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .sm-sec-thumb{width:22px;height:16px;object-fit:cover;border-radius:2px;border:1px solid var(--brd);flex-shrink:0;cursor:pointer;display:block}
 @media(max-width:760px){.sm-grid{grid-template-columns:1fr;gap:10px}.sm-rail{border-left:none;padding-left:0;border-top:1px solid var(--brd);padding-top:10px;position:static;max-height:none;overflow:visible}}
 .session-vis{font-size:9px;color:var(--tx3);display:flex;align-items:center;gap:3px}
-.session-actions{display:flex;gap:6px;opacity:0;transition:opacity .1s}
-.session-card:hover .session-actions{opacity:1}
+.session-actions{display:flex;gap:6px}
 @media(max-width:600px){.session-recap{flex-direction:column;padding:10px}.session-recap-img{flex:none;max-width:none;width:100%;margin:0}.session-date-stack{gap:8px}.session-date-item{min-width:calc(50% - 4px)}.session-read-btn{width:100%;padding:8px 12px}.session-actions{opacity:1}.ses-drag-handle{opacity:.45}.session-sec-content.ip-left,.session-sec-content.ip-right{display:flex;flex-direction:column}.session-sec-img-wrap.w-third,.session-sec-img-wrap.w-quarter{flex:0 1 calc(50% - 3px)}}
 .session-action-btn{background:none;border:none;color:var(--tx2);font-size:12px;cursor:pointer;padding:4px 8px;font-family:var(--fb);font-weight:700}
 .session-action-btn:hover{color:var(--tx)}.session-action-btn.danger{color:var(--red)}.session-action-btn.danger:hover{color:var(--red-lt)}
-.ses-drag-handle{cursor:grab;color:var(--tx3);font-size:12px;opacity:0;transition:opacity .15s;padding:0 4px 0 0;user-select:none;flex-shrink:0}
-.session-card:hover .ses-drag-handle{opacity:.4}
+.ses-drag-handle{cursor:grab;color:var(--tx3);font-size:12px;opacity:.35;transition:opacity .15s;padding:0 4px 0 0;user-select:none;flex-shrink:0}
+.session-card:hover .ses-drag-handle{opacity:.7}
 .ses-drag-handle:hover{opacity:1!important;color:var(--tx2)}
 .session-card.drag-over{border-top:2px solid var(--accent);margin-top:-1px}
 .session-card.dragging{opacity:.35}
@@ -569,6 +647,11 @@ function resolveChar(savedChar,systemId,storageKey){
 
 const campId=new URLSearchParams(window.location.search).get('id');
 let currentTab='overview',sessionFilter='all',loreFilter='all';
+let sessionScope='all',sessionQuery='',sessionView='cards',lastImgMap={};
+const sesCollapsed=new Set(); // session ids collapsed in card view (in-memory)
+function sesId(s){return s&&(s.id||s._id||('ses_'+(s.date||'')+'_'+(s.title||'')))}
+function loadSessionViewPrefs(){try{const v=JSON.parse(localStorage.getItem('gcc_ses_view_'+campId)||'{}');if(v.view==='compact'||v.view==='cards')sessionView=v.view;if(v.scope)sessionScope=v.scope}catch(e){}}
+function saveSessionViewPrefs(){try{localStorage.setItem('gcc_ses_view_'+campId,JSON.stringify({view:sessionView,scope:sessionScope}))}catch(e){}}
 let _sesImageOrigKey='',_sesImageOrigFp=''; // original IDB key + fingerprint, to avoid orphaning and re-encoding
 let _isPlayerMode=false,_sharedCamp=null;
 function getCamp(){
@@ -690,79 +773,141 @@ function dedupeCampaignData(camp){
 }
 
 // ── Build session card ──
-function buildSessionCard(s,idx,total,camp,imgMap){
+// Resolve every roster id once per render instead of re-parsing localStorage per chip per card
+function buildCharLookup(camp){
+  const out=new Map(),chars=camp.characters||[],cache=new Map();
+  const listFor=key=>{if(!key)return[];if(!cache.has(key)){let v=[];try{v=JSON.parse(localStorage.getItem(key))||[]}catch(e){}cache.set(key,v)}return cache.get(key)};
+  chars.forEach(ch=>{
+    const id=ch._id||ch.name;
+    let name=ch.heroName||ch.characterName||ch.name||'?',portrait=ch.portraitData||ch.portrait||ch._image||'';
+    const refKey=ch.storageKey||ch.listKey||(ch._ref?ch._ref.storageKey:'')||'';
+    const saved=listFor(refKey);
+    let found=ch._id?saved.find(x=>x._id===ch._id):null;
+    if(!found&&ch.name)found=saved.find(x=>(x.heroName||x.characterName||x.name)===ch.name);
+    if(!found)found=saved.find(x=>(x.heroName||x.characterName||x.name||'')===id);
+    if(found){name=found.heroName||found.characterName||found.name||name;portrait=found.portraitData||found.portrait||found._image||portrait}
+    out.set(id,{name,portrait});
+  });
+  return out;
+}
+function sessionExcerpt(s,limit){
+  let raw=String(s.text||'').trim();
+  if(!raw){const sec=(s.sections||[]).find(x=>x&&String(x.text||'').trim());raw=sec?String(sec.text).trim():''}
+  if(raw.length>limit)raw=raw.slice(0,limit).replace(/\s+\S*$/,'').trim()+'…';
+  return raw;
+}
+function rosterAvatars(s,charLookup,max){
+  const ids=(s.roster||[]).filter(id=>charLookup.has(id));if(!ids.length)return'';
+  let h='<span class="ses-avatars">';
+  ids.slice(0,max).forEach(id=>{const c=charLookup.get(id);h+=c.portrait?`<img class="ses-avatar" src="${c.portrait}" alt="" title="${ESC(c.name)}">`:`<span class="ses-avatar ph" title="${ESC(c.name)}">${ESC(c.name.slice(0,1))}</span>`});
+  if(ids.length>max)h+=`<span class="ses-avatar more" title="${ESC(ids.slice(max).map(id=>charLookup.get(id).name).join(', '))}">+${ids.length-max}</span>`;
+  return h+'</span>';
+}
+function sessionMenuHtml(s,idx,pm_){
+  if(pm_)return'';
+  const isDmOnly=s.visible===false;
+  return`<span class="ses-menu-wrap"><button class="ses-kebab" data-ses-menu="${idx}" title="Actions" aria-label="Actions">⋮</button><div class="ses-menu" data-ses-menu-for="${idx}"><button data-ses-edit="${idx}">Edit</button><button data-ses-vis="${idx}">${isDmOnly?'Show to players':'Hide from players'}</button><button data-ses-top="${idx}"${idx===0?' disabled':''}>Move to top</button><div class="ses-menu-sep"></div><button class="danger" data-ses-del="${idx}">Delete…</button></div></span>`;
+}
+function buildSessionCard(s,idx,total,camp,imgMap,charLookup,pm_){
   const sesLabel=GCC.sessionLabel(camp.system),xpLbl=GCC.xpLabel(camp.system);
   const isTimeline=s.type==='timeline',isDmOnly=s.visible===false;
-  // Count real session number for this entry
   const sessions=camp.sessions||[],realNum=realSessionNum(sessions,idx);
-
-  const titlePart=s.title?' — '+ESC(s.title):'';
+  const collapsed=sesCollapsed.has(sesId(s));
   const recapUrl=`recap.html?id=${encodeURIComponent(campId)}&idx=${idx}`;
-  const numLabel=isTimeline
-    ?`<span class="session-num"><span class="session-num-text" style="color:var(--tx3)">Timeline${titlePart}</span></span>`
-    :`<span class="session-num"><a class="session-num-text session-recap-link" href="${recapUrl}">${ESC(sesLabel)} #${realNum}${titlePart}</a></span>`;
+  const titleTxt=s.title?ESC(s.title):(isTimeline?'Timeline entry':'Untitled');
+  const numHtml=isTimeline?`<span class="ses-num tl" title="Timeline entry">◷</span>`:`<span class="ses-num">#${realNum}</span>`;
+  const titleHtml=isTimeline?`<span class="ses-title">${numHtml}${titleTxt}</span>`:`<a class="ses-title session-recap-link" href="${recapUrl}">${numHtml}${titleTxt}</a>`;
+  const visDot=pm_?'':`<span class="ses-vis-dot${isDmOnly?' dm':''}" title="${isDmOnly?'DM only':'Players can see'}"></span>`;
+  const gameDate=s.gameDate?`<span class="ses-hdr-date game" title="Game date">${ESC(s.gameDate)}</span>`:'';
+  const played=s.date?`<span class="ses-hdr-date" title="Played">${formatDate(s.date)}</span>`:'';
+  const grip=pm_?'':`<span class="ses-drag-handle" title="Drag to reorder">⠿</span>`;
+  const header=`<div class="session-card-header">${grip}<button class="ses-caret" data-ses-collapse="${idx}" title="${collapsed?'Expand':'Collapse'}" aria-label="${collapsed?'Expand':'Collapse'}">${collapsed?'▸':'▾'}</button>${visDot}${titleHtml}<span class="ses-hdr-dates">${gameDate}${played}</span>${sessionMenuHtml(s,idx,pm_)}</div>`;
+  if(collapsed)return`<li class="session-card collapsed${isTimeline?' timeline-entry':''}${isDmOnly?' dm-only':''}" data-ses-idx="${idx}" data-ses-id="${ESC(sesId(s))}" draggable="${pm_?'false':'true'}">${header}</li>`;
 
-  const gameDateValue=s.gameDate?ESC(s.gameDate):'Not recorded';
-  const realDateValue=s.date?formatDate(s.date):'Not recorded';
-  const dateStackHtml=isTimeline?'':`<div class="session-date-stack">
-    <span class="session-date-item game"><span class="session-date-label">GAME DATE</span><span class="session-date-value">${gameDateValue}</span></span>
-    <span class="session-date-item"><span class="session-date-label">PLAYED</span><span class="session-date-value">${realDateValue}</span></span>
-  </div>`;
-
-  // ── Recap layout: cover image left, summary text right ──
-  let recapHtml='';
-  const rawSummary=String(s.text||'').trim();
-  const excerptLimit=420;
-  const excerptText=rawSummary.length>excerptLimit
-    ?rawSummary.slice(0,excerptLimit).replace(/\s+\S*$/,'').trim()+'…'
-    :rawSummary;
-  const summaryHtml=excerptText?`<div class="session-summary-excerpt">${ESC(excerptText)}</div>`:'';
+  const excerpt=sessionExcerpt(s,420);
+  const summaryHtml=excerpt?`<div class="session-summary-excerpt">${ESC(excerpt)}</div>`:'';
   const readButtonHtml=isTimeline?'':`<div class="session-read-row"><a class="session-read-btn" href="${recapUrl}">READ ${ESC(sesLabel)} →</a></div>`;
   const coverSrc=resolveImg(s.image,imgMap);
-  if(coverSrc){
-    recapHtml=`<div class="session-recap"><div class="session-recap-img"><img src="${coverSrc}" alt=""></div><div class="session-recap-text">${dateStackHtml}${summaryHtml}${readButtonHtml}</div></div>`;
-  }else{
-    recapHtml=`<div class="session-recap-noimg"><div class="session-recap-text">${dateStackHtml}${summaryHtml}${readButtonHtml}</div></div>`;
-  }
+  const recapHtml=coverSrc
+    ?`<div class="session-recap"><div class="session-recap-img"><img src="${coverSrc}" alt="" loading="lazy"></div><div class="session-recap-text">${summaryHtml}${readButtonHtml}</div></div>`
+    :`<div class="session-recap-noimg"><div class="session-recap-text">${summaryHtml}${readButtonHtml}</div></div>`;
 
-  // ── Character roster strip ──
   let rosterHtml='';
-  if(s.roster&&s.roster.length){
-    const chars=camp.characters||[];
-    rosterHtml='<div class="session-roster"><span class="session-roster-label">ROSTER</span>';
-    s.roster.forEach(id=>{
-      const ch=chars.find(c=>(c._id||c.name)===id);
-      if(!ch)return;
-      let name=ch.heroName||ch.characterName||ch.name||'?',portrait=ch.portraitData||ch.portrait||ch._image||'';
-      const refKey=ch.storageKey||ch.listKey||(ch._ref?ch._ref.storageKey:'')||'';
-      if(refKey){try{const saved=JSON.parse(localStorage.getItem(refKey))||[];
-        let found=ch._id?saved.find(x=>x._id===ch._id):null;
-        if(!found&&ch.name)found=saved.find(x=>(x.heroName||x.characterName||x.name)===ch.name);
-        if(!found)found=saved.find(x=>(x.heroName||x.characterName||x.name||'')===id);
-        if(found){name=found.heroName||found.characterName||found.name||name;portrait=found.portraitData||found.portrait||found._image||portrait}}catch(e){}}
-      const ava=portrait?`<img src="${portrait}">`:`<span class="roster-ph">?</span>`;
-      rosterHtml+=`<span class="session-roster-chip">${ava} ${ESC(name)}</span>`;
-    });
-    rosterHtml+='</div>';
-  }
-
+  const ids=(s.roster||[]).filter(id=>charLookup.has(id));
+  if(ids.length){rosterHtml='<div class="session-roster"><span class="session-roster-label">ROSTER</span>';
+    ids.forEach(id=>{const c=charLookup.get(id);const ava=c.portrait?`<img src="${c.portrait}" alt="">`:`<span class="roster-ph">?</span>`;rosterHtml+=`<span class="session-roster-chip">${ava} ${ESC(c.name)}</span>`});
+    rosterHtml+='</div>'}
   let tagsHtml='';
-  if(s.tags&&s.tags.length){s.tags.forEach(tag=>{
-    const color=LORE_COLORS[tag.type]||'var(--tx3)';
-    tagsHtml+=`<span class="session-tag"><span class="tag-dot" style="background:${color}"></span> ${ESC(tag.name)}</span>`;
-  })}
-
+  (s.tags||[]).forEach(tag=>{const color=LORE_COLORS[tag.type]||'var(--tx3)';tagsHtml+=`<span class="session-tag"><span class="tag-dot" style="background:${color}"></span> ${ESC(tag.name)}</span>`});
   const xpHtml=s.xp?`<span class="session-xp"><span class="session-xp-label">${ESC(xpLbl.toUpperCase())} AWARDED</span><strong>${s.xp}</strong></span>`:'';
-  const visHtml=isDmOnly?`<span class="session-vis" style="color:var(--amber)">○ DM only</span>`:`<span class="session-vis">● Players can see</span>`;
-  const cardClass='session-card'+(isTimeline?' timeline-entry':'')+(isDmOnly?' dm-only':'');
-
-  return`<li class="${cardClass}" data-ses-idx="${idx}" draggable="true">
-    <div class="session-card-header"><span class="ses-drag-handle" title="Drag to reorder">⠿</span>${numLabel}<div class="session-hdr-right"><div class="session-actions"><button class="session-action-btn" data-ses-edit="${idx}">Edit</button><button class="session-action-btn danger" data-ses-del="${idx}">Del</button></div>
-    </div></div>
-    ${recapHtml}
-    ${rosterHtml}
-    <div class="session-footer">${tagsHtml}${xpHtml}${visHtml}</div>
+  const footer=(tagsHtml||xpHtml)?`<div class="session-footer">${tagsHtml}${xpHtml}</div>`:'';
+  return`<li class="session-card${isTimeline?' timeline-entry':''}${isDmOnly?' dm-only':''}" data-ses-idx="${idx}" data-ses-id="${ESC(sesId(s))}" draggable="${pm_?'false':'true'}">${header}${recapHtml}${rosterHtml}${footer}</li>`;
+}
+function buildSessionRow(s,idx,camp,charLookup,pm_){
+  const isTimeline=s.type==='timeline',isDmOnly=s.visible===false;
+  const sessions=camp.sessions||[],realNum=realSessionNum(sessions,idx);
+  const recapUrl=`recap.html?id=${encodeURIComponent(campId)}&idx=${idx}`;
+  const titleTxt=s.title?ESC(s.title):(isTimeline?'Timeline entry':'Untitled');
+  const visDot=pm_?'':`<span class="ses-vis-dot${isDmOnly?' dm':''}" title="${isDmOnly?'DM only':'Players can see'}"></span>`;
+  const title=isTimeline?`<span class="ses-row-title tl">${visDot}<span class="ses-num tl">◷</span>${titleTxt}</span>`:`<a class="ses-row-title" href="${recapUrl}">${visDot}${titleTxt}</a>`;
+  const grip=pm_?'':`<span class="ses-drag-handle" title="Drag to reorder">⠿</span>`;
+  return`<li class="ses-row${isTimeline?' timeline-entry':''}${isDmOnly?' dm-only':''}" data-ses-idx="${idx}" data-ses-id="${ESC(sesId(s))}" draggable="${pm_?'false':'true'}">
+    <span class="ses-row-num">${grip}${isTimeline?'—':'#'+realNum}</span>
+    ${title}
+    <span class="ses-row-date game">${s.gameDate?ESC(s.gameDate):'<i>—</i>'}</span>
+    <span class="ses-row-date">${s.date?formatDateShort(s.date):'<i>—</i>'}</span>
+    <span class="ses-row-roster">${rosterAvatars(s,charLookup,3)}</span>
+    <span class="ses-row-tags">${(s.tags||[]).length||''}</span>
+    <span class="ses-row-xp">${s.xp||''}</span>
+    <span class="ses-row-menu">${sessionMenuHtml(s,idx,pm_)}</span>
   </li>`;
+}
+function sessionMatchesQuery(s,q,camp){
+  if(!q)return true;
+  const sessions=camp.sessions||[],idx=sessions.indexOf(s);
+  const hay=[s.title,s.text,s.gameDate,s.date?formatDate(s.date):'',s.type!=='timeline'&&idx>=0?'#'+realSessionNum(sessions,idx):'',...(s.tags||[]).map(t=>t.name),...(s.sections||[]).map(x=>(x.title||'')+' '+(x.text||''))].join(' ').toLowerCase();
+  return q.toLowerCase().split(/\s+/).filter(Boolean).every(w=>hay.includes(w));
+}
+function applySessionFilters(sessions,camp){
+  return sessions.filter(s=>{
+    if(sessionScope==='issue'&&s.type==='timeline')return false;
+    if(sessionScope==='timeline'&&s.type!=='timeline')return false;
+    if(sessionScope==='dm'&&s.visible!==false)return false;
+    if(sessionFilter!=='all'&&!(s.tags||[]).some(t=>t.type===sessionFilter))return false;
+    return sessionMatchesQuery(s,sessionQuery,camp);
+  });
+}
+function pluralLabel(lbl){return/s$/i.test(lbl)?lbl:lbl+'s'}
+function buildSessionListHtml(camp,imgMap,pm_){
+  const allSessions=camp.sessions||[];
+  const sessions=pm_?allSessions.filter(s=>s.visible!==false):allSessions;
+  const list=applySessionFilters(sessions,camp),realCount=countRealSessions(sessions),charLookup=buildCharLookup(camp);
+  const lbl=pluralLabel(GCC.sessionLabel(camp.system)).toLowerCase();
+  if(!sessions.length)return`<div class="entity-empty">No ${ESC(lbl)} logged yet.</div>`;
+  if(!list.length)return`<div class="entity-empty">No ${ESC(lbl)} match this filter. <button class="ses-link-btn" data-ses-clear>Clear filters</button></div>`;
+  if(sessionView==='compact'){
+    const gLbl=GCC.xpLabel(camp.system);
+    return`<ul class="ses-table"><li class="ses-row ses-row-hdr"><span class="ses-row-num">#</span><span class="ses-row-title">Title</span><span class="ses-row-date">Game date</span><span class="ses-row-date">Played</span><span class="ses-row-roster">Roster</span><span class="ses-row-tags">Tags</span><span class="ses-row-xp">${ESC(gLbl)}</span><span class="ses-row-menu"></span></li>${list.map(s=>buildSessionRow(s,allSessions.indexOf(s),camp,charLookup,pm_)).join('')}</ul>`;
+  }
+  return`<ul class="session-list">${list.map(s=>buildSessionCard(s,allSessions.indexOf(s),realCount,camp,imgMap,charLookup,pm_)).join('')}</ul>`;
+}
+function buildSessionsTab(camp,imgMap,pm_){
+  const allSessions=camp.sessions||[];
+  const sessions=pm_?allSessions.filter(s=>s.visible!==false):allSessions;
+  const tagTypes=collectTagTypes(sessions),sesLabel=GCC.sessionLabel(camp.system),plural=pluralLabel(sesLabel);
+  const nIssue=countRealSessions(sessions),nTl=sessions.length-nIssue,nDm=sessions.filter(s=>s.visible===false).length;
+  const chip=(key,label,n)=>n||key==='all'?`<button class="ses-chip${sessionScope===key?' active':''}" data-ses-scope="${key}">${label} <b>${n}</b></button>`:'';
+  const scopeChips=chip('all','All',sessions.length)+chip('issue',plural,nIssue)+chip('timeline','Timeline',nTl)+(pm_?'':chip('dm','DM only',nDm));
+  const tagPills=tagTypes.map(t=>`<button class="filter-pill${sessionFilter===t?' active':''}" data-ses-filter="${ESC(t)}">${ESC(GCC.LORE_TYPE_LABELS[t]||t)}</button>`).join('');
+  const search=`<div class="ses-search"><span class="ses-search-ico">⌕</span><input type="search" id="ses-search" placeholder="Search ${ESC(plural.toLowerCase())}, tags, game dates" value="${ESC(sessionQuery)}" autocomplete="off"><kbd title="Press / to search">/</kbd></div>`;
+  const viewToggle=`<div class="ses-view-toggle"><button class="${sessionView==='cards'?'on':''}" data-ses-view="cards" title="Cards">▤ Cards</button><button class="${sessionView==='compact'?'on':''}" data-ses-view="compact" title="Compact rows">☰ Compact</button></div>`;
+  const gmTools=pm_?'':`<div class="ses-split"><button class="btn-add" id="btn-add-session">+ New ${ESC(sesLabel)}</button><button class="btn-add ses-split-caret" id="btn-add-session-menu" title="More" aria-label="More entry types">▾</button><div class="ses-menu" data-menu="add"><button id="btn-add-timeline">◷ Timeline entry</button></div></div><span class="ses-menu-wrap"><button class="ses-kebab more" id="btn-ses-more" title="More actions" aria-label="More actions">⋯</button><div class="ses-menu right" data-menu="more"><button id="btn-export-journal">Export Journal</button><button id="btn-import-sessions">Import Text</button>${allSessions.length?'<div class="ses-menu-sep"></div><button class="danger" id="btn-delete-all-sessions">Delete All…</button>':''}</div></span>`;
+  return`<div class="session-toolbar ses-toolbar-v2">${search}${viewToggle}${gmTools}</div><div class="ses-chips">${scopeChips}${tagPills?'<span class="ses-chip-sep"></span>'+tagPills:''}</div><div id="ses-list-wrap">${buildSessionListHtml(camp,imgMap,pm_)}</div>`;
+}
+function renderSessionList(){
+  const camp=getCamp(),wrap=document.getElementById('ses-list-wrap');if(!camp||!wrap)return;
+  wrap.innerHTML=buildSessionListHtml(camp,lastImgMap,_isPlayerMode);
+  wireSessionList();
 }
 
 function collectTagTypes(sessions){const t=new Set();(sessions||[]).forEach(s=>(s.tags||[]).forEach(tag=>t.add(tag.type)));return[...t]}
@@ -951,6 +1096,7 @@ async function render(){
   // Bulk load images from IndexedDB (GM mode); player mode uses Storage URLs directly
   const imgKeys=pm_?[]:collectImageKeys(camp);
   const imgMap=pm_?{}:await GCCImages.getBulk(imgKeys);
+  loadSessionViewPrefs();
 
   document.title=camp.name+' — GCC';
   const sys=GCC.SYSTEM_DEFS.find(s=>s.id===camp.system)||{},tools=sys.tools||[],status=camp.status||'active',nextStr=formatDateTime(camp.nextSession),gml=camp.gmTitle||'GM';
@@ -1073,14 +1219,8 @@ async function render(){
   });vehHtml+='</div>'}
 
   // Sessions tab
-  const allSessions=camp.sessions||[];
-  const sessions=pm_?allSessions.filter(s=>s.visible!==false):allSessions;
-  const filteredSessions=filterSessions(sessions,sessionFilter),realCount=countRealSessions(sessions),tagTypes=collectTagTypes(sessions);
-  let sessHtml=pm_
-    ?`<div class="session-toolbar"><div class="session-toolbar-right"><button class="filter-pill${sessionFilter==='all'?' active':''}" data-ses-filter="all">All</button>${tagTypes.map(t=>`<button class="filter-pill${sessionFilter===t?' active':''}" data-ses-filter="${ESC(t)}">${ESC(GCC.LORE_TYPE_LABELS[t]||t)}</button>`).join('')}</div></div>`
-    :`<div class="session-toolbar"><div class="session-toolbar-left"><button class="btn-add" id="btn-add-session">+ New ${ESC(GCC.sessionLabel(camp.system))}</button><button class="btn-add" id="btn-export-journal" style="background:none;border:1px solid var(--brd);color:var(--tx2)">Export Journal</button><button class="btn-add" id="btn-import-sessions" style="background:none;border:1px solid var(--brd);color:var(--tx2)">Import Text</button>${allSessions.length?'<button class="btn-add" id="btn-delete-all-sessions" style="background:none;border:1px solid rgba(192,48,48,0.3);color:var(--red)">Delete All</button>':''}</div><div class="session-toolbar-right"><button class="filter-pill${sessionFilter==='all'?' active':''}" data-ses-filter="all">All</button>${tagTypes.map(t=>`<button class="filter-pill${sessionFilter===t?' active':''}" data-ses-filter="${ESC(t)}">${ESC(GCC.LORE_TYPE_LABELS[t]||t)}</button>`).join('')}</div></div>`;
-  if(!filteredSessions.length){sessHtml+=`<div class="entity-empty">No sessions logged yet.</div>`}
-  else{sessHtml+='<ul class="session-list">';filteredSessions.forEach(s=>{const origIdx=allSessions.indexOf(s);sessHtml+=buildSessionCard(s,origIdx,realCount,camp,imgMap)});sessHtml+='</ul>'}
+  lastImgMap=imgMap;
+  const sessHtml=buildSessionsTab(camp,imgMap,pm_);
 
   // Lore tab
   const lore=camp.lore||[];
@@ -1165,6 +1305,66 @@ async function render(){
   if(render._gmConfirmed){clearTimeout(render._pushTimer);render._pushTimer=setTimeout(()=>{const c=getCamp();if(c&&GCCAuth?.getUser())pushSharedSanitized(campId,c)},2000)}
 }
 
+
+function closeSesMenus(){document.querySelectorAll('.ses-menu.open').forEach(m=>m.classList.remove('open'))}
+document.addEventListener('click',e=>{if(!e.target.closest('.ses-menu-wrap,.ses-split'))closeSesMenus()});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){closeSesMenus();const si=document.getElementById('ses-search');if(si&&document.activeElement===si&&si.value){si.value='';sessionQuery='';renderSessionList()}return}
+  if(e.key!=='/'||e.ctrlKey||e.metaKey||e.altKey)return;
+  const t=e.target,tag=(t&&t.tagName||'').toLowerCase();
+  if(tag==='input'||tag==='textarea'||tag==='select'||(t&&t.isContentEditable))return;
+  if(currentTab!=='sessions'||document.querySelector('.gcc-dlg-overlay.open,.modal-overlay.open'))return;
+  const si=document.getElementById('ses-search');if(si){e.preventDefault();si.focus();si.select()}
+});
+function toggleMenu(btn,menu){const open=menu.classList.contains('open');closeSesMenus();if(!open)menu.classList.add('open')}
+function wireSessionToolbar(){
+  const si=document.getElementById('ses-search');
+  if(si){let tmr=null;si.addEventListener('input',()=>{clearTimeout(tmr);tmr=setTimeout(()=>{sessionQuery=si.value.trim();renderSessionList()},120)})}
+  document.querySelectorAll('[data-ses-view]').forEach(btn=>{btn.addEventListener('click',()=>{sessionView=btn.dataset.sesView;saveSessionViewPrefs();document.querySelectorAll('[data-ses-view]').forEach(b=>b.classList.toggle('on',b===btn));renderSessionList()})});
+  document.querySelectorAll('[data-ses-scope]').forEach(btn=>{btn.addEventListener('click',()=>{sessionScope=btn.dataset.sesScope;saveSessionViewPrefs();document.querySelectorAll('[data-ses-scope]').forEach(b=>b.classList.toggle('active',b===btn));renderSessionList()})});
+  document.querySelectorAll('[data-ses-filter]').forEach(btn=>{btn.addEventListener('click',()=>{sessionFilter=sessionFilter===btn.dataset.sesFilter?'all':btn.dataset.sesFilter;document.querySelectorAll('[data-ses-filter]').forEach(b=>b.classList.toggle('active',b.dataset.sesFilter===sessionFilter));renderSessionList()})});
+  document.getElementById('btn-add-session')?.addEventListener('click',()=>openSessionModal(-1,'session'));
+  const addMenu=document.querySelector('.ses-menu[data-menu="add"]');
+  document.getElementById('btn-add-session-menu')?.addEventListener('click',e=>{e.stopPropagation();toggleMenu(e.currentTarget,addMenu)});
+  document.getElementById('btn-add-timeline')?.addEventListener('click',()=>{closeSesMenus();openSessionModal(-1,'timeline')});
+  const moreMenu=document.querySelector('.ses-menu[data-menu="more"]');
+  document.getElementById('btn-ses-more')?.addEventListener('click',e=>{e.stopPropagation();toggleMenu(e.currentTarget,moreMenu)});
+  document.getElementById('btn-export-journal')?.addEventListener('click',()=>{closeSesMenus();exportJournal()});
+  document.getElementById('btn-import-sessions')?.addEventListener('click',()=>{closeSesMenus();openSesImportModal()});
+  document.getElementById('btn-delete-all-sessions')?.addEventListener('click',async()=>{closeSesMenus();const camp=getCamp();if(!camp)return;const count=(camp.sessions||[]).length;const ok=await GCCDialog.confirm('Delete all sessions','Delete all '+count+' session/timeline entries? This cannot be undone.',{okText:'Delete All',danger:true});if(!ok)return;const deadKeys=[];(camp.sessions||[]).forEach(s=>{if(s.image&&GCCImages.isKey(s.image))deadKeys.push(s.image);(s.sections||[]).forEach(sec=>(sec.images||[]).forEach(img=>{if(img.src&&GCCImages.isKey(img.src))deadKeys.push(img.src)}))});if(deadKeys.length)GCCImages.removeBulk(deadKeys);appendSessionTombstones(camp,camp.sessions||[]);GCC.updateCampaign(campId,{sessions:[],session:0,deletedSessions:camp.deletedSessions||[]});const updated=GCC.getCampaign(campId);if(GCCAuth?.getUser()){pushSharedSanitized(campId,updated);if(typeof GCCSync!=='undefined'&&GCCSync.notifySync)GCCSync.notifySync('gcc-campaigns')}render()});
+}
+function wireSessionList(){
+  const pm_=_isPlayerMode;
+  document.querySelectorAll('[data-ses-clear]').forEach(btn=>{btn.addEventListener('click',()=>{sessionQuery='';sessionScope='all';sessionFilter='all';saveSessionViewPrefs();render()})});
+  document.querySelectorAll('[data-ses-collapse]').forEach(btn=>{btn.addEventListener('click',()=>{const card=btn.closest('.session-card');const id=card?.dataset.sesId;if(!id)return;if(sesCollapsed.has(id))sesCollapsed.delete(id);else sesCollapsed.add(id);renderSessionList()})});
+  document.querySelectorAll('[data-ses-menu]').forEach(btn=>{btn.addEventListener('click',e=>{e.stopPropagation();const m=document.querySelector(`.ses-menu[data-ses-menu-for="${btn.dataset.sesMenu}"]`);if(m)toggleMenu(btn,m)})});
+  document.querySelectorAll('[data-ses-edit]').forEach(btn=>{btn.addEventListener('click',()=>{closeSesMenus();openSessionModal(parseInt(btn.dataset.sesEdit))})});
+  document.querySelectorAll('[data-ses-vis]').forEach(btn=>{btn.addEventListener('click',()=>{closeSesMenus();const camp=getCamp();if(!camp)return;const sessions=camp.sessions||[];const s=sessions[parseInt(btn.dataset.sesVis)];if(!s)return;s.visible=s.visible===false?true:false;GCC.updateCampaign(campId,{sessions});render()})});
+  document.querySelectorAll('[data-ses-top]').forEach(btn=>{btn.addEventListener('click',()=>{closeSesMenus();const camp=getCamp();if(!camp)return;const sessions=camp.sessions||[];const i=parseInt(btn.dataset.sesTop);if(!(i>0))return;const moved=sessions.splice(i,1)[0];sessions.unshift(moved);GCC.updateCampaign(campId,{sessions});render()})});
+  document.querySelectorAll('[data-ses-del]').forEach(btn=>{btn.addEventListener('click',async()=>{closeSesMenus();const ok=await GCCDialog.confirm('Delete '+GCC.sessionLabel(getCamp()?.system).toLowerCase(),'Delete this entry? This cannot be undone.',{okText:'Delete',danger:true});if(!ok)return;const camp=getCamp();if(!camp)return;const sessions=camp.sessions||[];const s=sessions[parseInt(btn.dataset.sesDel)];if(s){const deadKeys=[];if(s.image&&GCCImages.isKey(s.image))deadKeys.push(s.image);(s.sections||[]).forEach(sec=>(sec.images||[]).forEach(img=>{if(img.src&&GCCImages.isKey(img.src))deadKeys.push(img.src)}));if(deadKeys.length)GCCImages.removeBulk(deadKeys);appendSessionTombstones(camp,[s])}sessions.splice(parseInt(btn.dataset.sesDel),1);GCC.updateCampaign(campId,{sessions,session:countRealSessions(sessions),deletedSessions:camp.deletedSessions||[]});render()})});
+  if(pm_)return;
+  // Drag-to-reorder (cards and compact rows)
+  let dragIdx=null;
+  const items=document.querySelectorAll('.session-card[draggable="true"],.ses-row[draggable="true"]');
+  items.forEach(card=>{
+    card.addEventListener('dragstart',e=>{
+      if(!e.target.closest('.ses-drag-handle')){e.preventDefault();return}
+      dragIdx=parseInt(card.dataset.sesIdx);card.classList.add('dragging');
+      e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',dragIdx);
+    });
+    card.addEventListener('dragend',()=>{dragIdx=null;card.classList.remove('dragging');
+      document.querySelectorAll('.drag-over').forEach(c=>c.classList.remove('drag-over'))});
+    card.addEventListener('dragover',e=>{if(dragIdx===null)return;e.preventDefault();e.dataTransfer.dropEffect='move';
+      document.querySelectorAll('.drag-over').forEach(c=>c.classList.remove('drag-over'));card.classList.add('drag-over')});
+    card.addEventListener('dragleave',()=>card.classList.remove('drag-over'));
+    card.addEventListener('drop',e=>{e.preventDefault();card.classList.remove('drag-over');
+      const dropIdx=parseInt(card.dataset.sesIdx);if(dragIdx===null||dragIdx===dropIdx)return;
+      const camp=getCamp();if(!camp)return;const sessions=camp.sessions||[];
+      const moved=sessions.splice(dragIdx,1)[0];sessions.splice(dropIdx,0,moved);
+      const movedId=sesId(moved);
+      GCC.updateCampaign(campId,{sessions});render().then(()=>{const el=document.querySelector(`[data-ses-id="${CSS.escape(movedId)}"]`);if(el){el.classList.add('ses-flash');setTimeout(()=>el.classList.remove('ses-flash'),1200)}})});
+  });
+}
 function wireEvents(){
   document.getElementById('tabs')?.addEventListener('click',e=>{const tab=e.target.closest('.tab');if(!tab)return;currentTab=tab.dataset.tab;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===currentTab));document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===currentTab))});
   document.getElementById('camp-desc')?.addEventListener('input',e=>{GCC.updateCampaign(campId,{description:e.target.value})});
@@ -1236,33 +1436,9 @@ function wireEvents(){
   }
   hqToggle?.addEventListener('click',()=>{hqEdit.style.display==='none'?hqShowEdit():hqShowView()});
   hqView?.addEventListener('click',hqShowEdit);
-  document.getElementById('btn-add-session')?.addEventListener('click',()=>openSessionModal(-1,'session'));
-  document.getElementById('btn-export-journal')?.addEventListener('click',exportJournal);
-  document.getElementById('btn-import-sessions')?.addEventListener('click',openSesImportModal);
-  document.getElementById('btn-delete-all-sessions')?.addEventListener('click',async()=>{const camp=getCamp();if(!camp)return;const count=(camp.sessions||[]).length;const ok=await GCCDialog.confirm('Delete all sessions','Delete all '+count+' session/timeline entries? This cannot be undone.',{okText:'Delete All',danger:true});if(!ok)return;const deadKeys=[];(camp.sessions||[]).forEach(s=>{if(s.image&&GCCImages.isKey(s.image))deadKeys.push(s.image);(s.sections||[]).forEach(sec=>(sec.images||[]).forEach(img=>{if(img.src&&GCCImages.isKey(img.src))deadKeys.push(img.src)}))});if(deadKeys.length)GCCImages.removeBulk(deadKeys);appendSessionTombstones(camp,camp.sessions||[]);GCC.updateCampaign(campId,{sessions:[],session:0,deletedSessions:camp.deletedSessions||[]});const updated=GCC.getCampaign(campId);if(GCCAuth?.getUser()){pushSharedSanitized(campId,updated);if(typeof GCCSync!=='undefined'&&GCCSync.notifySync)GCCSync.notifySync('gcc-campaigns')}render()});
-  document.querySelectorAll('[data-ses-filter]').forEach(btn=>{btn.addEventListener('click',()=>{sessionFilter=btn.dataset.sesFilter;render()})});
+  wireSessionToolbar();
+  wireSessionList();
   document.querySelectorAll('[data-lore-filter]').forEach(btn=>{btn.addEventListener('click',()=>{loreFilter=btn.dataset.loreFilter;render()})});
-  document.querySelectorAll('[data-ses-edit]').forEach(btn=>{btn.addEventListener('click',()=>openSessionModal(parseInt(btn.dataset.sesEdit)))});
-  document.querySelectorAll('[data-ses-del]').forEach(btn=>{btn.addEventListener('click',async()=>{const ok=await GCCDialog.confirm('Delete session','Delete this session entry?',{okText:'Delete',danger:true});if(!ok)return;const camp=getCamp();if(!camp)return;const sessions=camp.sessions||[];const s=sessions[parseInt(btn.dataset.sesDel)];if(s){const deadKeys=[];if(s.image&&GCCImages.isKey(s.image))deadKeys.push(s.image);(s.sections||[]).forEach(sec=>(sec.images||[]).forEach(img=>{if(img.src&&GCCImages.isKey(img.src))deadKeys.push(img.src)}));if(deadKeys.length)GCCImages.removeBulk(deadKeys);appendSessionTombstones(camp,[s])}sessions.splice(parseInt(btn.dataset.sesDel),1);GCC.updateCampaign(campId,{sessions,session:countRealSessions(sessions),deletedSessions:camp.deletedSessions||[]});render()})});
-  // Drag-to-reorder sessions
-  let dragIdx=null;
-  document.querySelectorAll('.session-card[draggable]').forEach(card=>{
-    card.addEventListener('dragstart',e=>{
-      if(!e.target.closest('.ses-drag-handle')){e.preventDefault();return}
-      dragIdx=parseInt(card.dataset.sesIdx);card.classList.add('dragging');
-      e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',dragIdx);
-    });
-    card.addEventListener('dragend',()=>{dragIdx=null;card.classList.remove('dragging');
-      document.querySelectorAll('.session-card.drag-over').forEach(c=>c.classList.remove('drag-over'))});
-    card.addEventListener('dragover',e=>{if(dragIdx===null)return;e.preventDefault();e.dataTransfer.dropEffect='move';
-      document.querySelectorAll('.session-card.drag-over').forEach(c=>c.classList.remove('drag-over'));card.classList.add('drag-over')});
-    card.addEventListener('dragleave',()=>card.classList.remove('drag-over'));
-    card.addEventListener('drop',e=>{e.preventDefault();card.classList.remove('drag-over');
-      const dropIdx=parseInt(card.dataset.sesIdx);if(dragIdx===null||dragIdx===dropIdx)return;
-      const camp=getCamp();if(!camp)return;const sessions=camp.sessions||[];
-      const moved=sessions.splice(dragIdx,1)[0];sessions.splice(dropIdx,0,moved);
-      GCC.updateCampaign(campId,{sessions});render()});
-  });
   document.getElementById('btn-add-lore')?.addEventListener('click',()=>openLoreModal(-1));
   document.getElementById('btn-import-lore')?.addEventListener('click',openLoreImportModal);
   document.getElementById('btn-export-lore')?.addEventListener('click',exportLore);
