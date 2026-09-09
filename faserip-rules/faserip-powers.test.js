@@ -38,13 +38,28 @@ t('[CERT] when the absorbed energy wears off the character still has 100 Health'
   eq(absorptionDisplayHealth({ health: 100, pool: 18, expired: true }), 100);
 });
 
-t('[RULED 2026-09-05] the pool is the Power rank number flat, whatever the damage absorbed', () => {
-  eq(absorbAttack({ rankNumber: 48, damage: 5, health: 100 }).pool, 48);
-  eq(absorbAttack({ rankNumber: 48, damage: 48, health: 100 }).pool, 48);
+t('[RULED 2026-09-09] absorbed points heal existing damage first: 70/100 hit by a 5-point shock -> 75, no pool', () => {
+  const r = absorbAttack({ rankNumber: 48, damage: 5, health: 70, maxHealth: 100 });
+  eq(r.absorbed, 5);
+  eq(r.healed, 5);
+  eq(r.health, 75);
+  eq(r.pool, 0);
+});
+
+t('[RULED 2026-09-09] only the remainder above max becomes pool: 70/100 absorbs 48 -> 100 real, pool 18', () => {
+  const r = absorbAttack({ rankNumber: 48, damage: 48, health: 70, maxHealth: 100 });
+  eq(r.healed, 30);
+  eq(r.health, 100);
+  eq(r.pool, 18);
+  eq(absorptionDisplayHealth({ health: r.health, pool: r.pool }), 118);
+});
+
+t('[RULED 2026-09-09] the gain is the absorbed amount, not the flat rank: 100/100 absorbs 5 -> pool 5', () => {
+  eq(absorbAttack({ rankNumber: 48, damage: 5, health: 100, maxHealth: 100 }).pool, 5);
 });
 
 t('[RULED 2026-09-05] damage above the rank number hits real Health and does not touch the pool', () => {
-  const r = absorbAttack({ rankNumber: 48, damage: 60, health: 100 });
+  const r = absorbAttack({ rankNumber: 48, damage: 60, health: 100, maxHealth: 100 });
   eq(r.absorbed, 48);
   eq(r.healthLoss, 12);
   eq(r.health, 88);
@@ -58,11 +73,22 @@ t('[RULED 2026-09-05] the excess is the absorber\'s attack the following round',
   eq(r.redirectRound, 4);
 });
 
-t('[RULED 2026-09-05] a second absorption refreshes the pool, it does not stack', () => {
-  const first = absorbAttack({ rankNumber: 48, damage: 48, health: 100, round: 1 });
-  const second = absorbAttack({ rankNumber: 48, damage: 48, health: first.health, round: 4 });
+t('[RULED 2026-09-05/09-09] the pool caps at the rank number and a second absorption refreshes the clock', () => {
+  const first = absorbAttack({ rankNumber: 48, damage: 30, health: 100, maxHealth: 100, round: 1 });
+  eq(first.pool, 30);
+  const second = absorbAttack({ rankNumber: 48, damage: 30, health: first.health, maxHealth: 100, pool: first.pool, round: 4 });
   eq(second.pool, 48);
+  eq(second.poolGain, 18);
   eq(second.poolExpiresRound, 14);
+});
+
+t('[RULED 2026-09-09] excess and heal in one hit: 70/100 hit for 60 at Amazing(48) -> heal 30, pool 18, 12 real damage', () => {
+  const r = absorbAttack({ rankNumber: 48, damage: 60, health: 70, maxHealth: 100 });
+  eq(r.healed, 30);
+  eq(r.pool, 18);
+  eq(r.healthLoss, 12);
+  eq(r.health, 88);
+  eq(r.redirect, 12);
 });
 
 t('[CERT] the pool dissipates 10 rounds after it was absorbed', () => {
