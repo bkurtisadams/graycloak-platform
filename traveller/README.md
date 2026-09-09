@@ -1,5 +1,13 @@
 # Graycloak Traveller
 
+## v0.63.4 readable drag label and compact hover
+
+The counter-scaled WALK/RUN label is larger and clearer at deep zoom while
+remaining bounded on screen. Referee token hover is reduced to two quick-read
+lines: identity and visible status, followed by weapon, armour, and conditions.
+Characteristics, skill level, body model, and biography remain available in
+the selected-token detail and roster instead of obscuring the battlefield.
+
 ## v0.63.3 fixed-size movement label
 
 The live WALK/RUN drag label now counter-scales against canvas zoom. Its text,

@@ -3529,9 +3529,7 @@ function hideEncounterTokenOverlays() {
 }
 
 function combatantHoverText(combatant) {
-  const source = npcActorDocuments.find((entry) => entry.identity.id === combatant.sourceActorId);
-  const identity = `${combatant.actorType.toUpperCase()} / ${combatant.bodyModel.toUpperCase()}`;
-  return `${combatant.name.toUpperCase()} // ${combatant.side.toUpperCase()} // ${identity}\nBOOK 1 STATUS ${combatantRulesStatus(combatant).toUpperCase()} // CONDITIONS ${combatantConditionText(combatant)}\nSTR ${combatant.current.STR}/${combatant.characteristics.STR}  DEX ${combatant.current.DEX}/${combatant.characteristics.DEX}  END ${combatant.current.END}/${combatant.characteristics.END}\n${getPersonalWeapon(combatant.weaponKey).name} / SKILL-${combatantSkillLevel(combatant)} / ${combatant.armor.toUpperCase()}${source?.presentation.description ? `\n${source.presentation.description}` : ''}`;
+  return `${combatant.name.toUpperCase()} // ${combatant.side.toUpperCase()} ${combatant.actorType.toUpperCase()} // ${combatantRulesStatus(combatant).toUpperCase()}\n${getPersonalWeapon(combatant.weaponKey).name.toUpperCase()} // ARMOR ${combatant.armor.toUpperCase()} // CONDITIONS ${combatantConditionText(combatant)}`;
 }
 
 function positionEncounterOverlay(node, event, anchorElement = null) {
@@ -3830,11 +3828,11 @@ function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect
         drag.trail.setAttribute('x1', drag.originX); drag.trail.setAttribute('y1', drag.originY);
         drag.trail.setAttribute('x2', drag.previewX); drag.trail.setAttribute('y2', drag.previewY);
         drag.trail.setAttribute('class', `movement-drag-trail ${drag.legality}`);
-        const labelOffset = 10 / encounterMapZoom;
+        const labelOffset = 12 / encounterMapZoom;
         drag.label.setAttribute('x', drag.previewX + labelOffset); drag.label.setAttribute('y', drag.previewY - labelOffset);
         drag.label.setAttribute('class', `movement-drag-label ${drag.legality}`);
-        drag.label.style.fontSize = `${12 / encounterMapZoom}px`;
-        drag.label.style.strokeWidth = `${2 / encounterMapZoom}px`;
+        drag.label.style.fontSize = `${18 / encounterMapZoom}px`;
+        drag.label.style.strokeWidth = `${2.5 / encounterMapZoom}px`;
         drag.label.textContent = encounter.status === 'active'
           ? `${drag.pace.toUpperCase()} / ${Number((drag.distance / encounter.map.metersPerSquare).toFixed(2))} SQ / ${drag.distance} M${drag.pace === 'run' ? ' / −1 BLOW / NO ATTACK' : ''}${drag.legality === 'limit' ? ' / LIMIT' : drag.legality === 'over' ? ' / OVER' : ''}`
           : `REFEREE POSITION / ${Number((drag.distance / encounter.map.metersPerSquare).toFixed(2))} SQ / ${drag.distance} M`;
