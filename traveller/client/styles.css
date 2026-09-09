@@ -3035,7 +3035,15 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .encounter-order-head.party { fill: var(--tab-selected-border); }
 .encounter-order-head.enemy { fill: var(--failure-border); }
 .encounter-movement-path, .player-movement-path { fill: none; stroke: #567d46; stroke-width: 2; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; pointer-events: none; }
-.encounter-movement-path.run, .player-movement-path.run { stroke: #b57d23; stroke-dasharray: 8 3; }
+.encounter-movement-path.run, .player-movement-path.run { stroke: #b57d23; }
+.movement-drag-trail { fill: none; stroke-width: 3; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; pointer-events: none; }
+.movement-drag-trail.legal { stroke: #3f7b43; }
+.movement-drag-trail.limit { stroke: #b57d23; }
+.movement-drag-trail.over { stroke: var(--failure-border); }
+.movement-drag-label { font: 700 4px Consolas, monospace; paint-order: stroke; stroke: var(--paper); stroke-width: 2px; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; }
+.movement-drag-label.legal { fill: #285c2f; }
+.movement-drag-label.limit { fill: #8a5b13; }
+.movement-drag-label.over { fill: var(--failure-border); }
 
 /* --- Cascading token menu. */
 .encounter-menu-cascade { display: flex; flex-direction: column; }
@@ -3148,6 +3156,8 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .player-stage { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; padding-top: 10px; align-items: start; }
 .player-scene-heading { font-size: 12px; font-weight: 700; letter-spacing: .06em; padding-bottom: 6px; }
 .player-map-tools { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: 10px; margin-bottom: 5px; }
+.player-map-tools label, .encounter-map-tools label { display: inline-flex; align-items: center; gap: 4px; }
+.player-map-tools select, .encounter-map-tools select { font: inherit; font-size: 10px; padding: 1px 2px; }
 .player-map-tools span:last-child { margin-left: auto; }
 .player-map-viewport { position: relative; height: min(74vh, 900px); overflow: hidden; border: 1px solid var(--rule); background: var(--paper); touch-action: none; }
 .player-map-viewport:focus { outline: 1px solid var(--link); outline-offset: 1px; }

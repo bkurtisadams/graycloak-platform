@@ -262,16 +262,33 @@ function attachPlayerTokenInteraction(group, combatant, owned, cell) {
   group.addEventListener('contextmenu', (event) => showPlayerTokenMenu(event, combatant, owned));
   group.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return; event.stopPropagation();
-    drag = { start: mapPoint(event), origin: { ...combatant.position }, moved: false };
+    drag = { start: mapPoint(event), origin: { ...combatant.position }, moved: false, trail: null, label: null };
+    if (owned) {
+      drag.trail = svg('line', { class: 'movement-drag-trail legal' });
+      drag.label = svg('text', { class: 'movement-drag-label legal' });
+      el.map.append(drag.trail, drag.label);
+    }
     group.setPointerCapture(event.pointerId);
   });
   group.addEventListener('pointermove', (event) => {
     if (!drag || !group.hasPointerCapture(event.pointerId)) return;
     const point = mapPoint(event); if (Math.hypot(point.x - drag.start.x, point.y - drag.start.y) > cell * .35) drag.moved = true;
-    if (drag.moved && owned) group.setAttribute('transform', `translate(${Math.max(cell / 2, Math.min(MAP_SIZE - cell / 2, point.x))} ${Math.max(cell / 2, Math.min(MAP_SIZE - cell / 2, point.y))})`);
+    if (drag.moved && owned) {
+      const column = Math.max(0, Math.min(view.map.columns - 1, Math.floor(point.x / cell)));
+      const row = Math.max(0, Math.min(view.map.rows - 1, Math.floor(point.y / cell)));
+      const x = column * cell + cell / 2; const y = row * cell + cell / 2;
+      const distance = Math.max(Math.abs(combatant.position.column - column), Math.abs(combatant.position.row - row));
+      const pace = el.movePace.value; const allowance = pace === 'run' ? 10 : 5;
+      const legality = distance > allowance ? 'over' : distance === allowance ? 'limit' : 'legal';
+      group.setAttribute('transform', `translate(${x} ${y})`);
+      drag.trail.setAttribute('x1', combatant.position.column * cell + cell / 2); drag.trail.setAttribute('y1', combatant.position.row * cell + cell / 2);
+      drag.trail.setAttribute('x2', x); drag.trail.setAttribute('y2', y); drag.trail.setAttribute('class', `movement-drag-trail ${legality}`);
+      drag.label.setAttribute('x', x + 4); drag.label.setAttribute('y', y - 4); drag.label.setAttribute('class', `movement-drag-label ${legality}`);
+      drag.label.textContent = `${pace.toUpperCase()} / ${distance} SQ / ${distance * 5} M${pace === 'run' ? ' / −1 BLOW / NO ATTACK' : ''}${legality === 'limit' ? ' / LIMIT' : legality === 'over' ? ' / OVER' : ''}`;
+    }
   });
   group.addEventListener('pointerup', async (event) => {
-    if (!drag) return; group.releasePointerCapture(event.pointerId); const wasMoved = drag.moved; drag = null;
+    if (!drag) return; group.releasePointerCapture(event.pointerId); const wasMoved = drag.moved; drag.trail?.remove(); drag.label?.remove(); drag = null;
     if (!wasMoved) { selectPlayerToken(combatant, event.shiftKey); return; }
     if (!owned) { renderMap(); setStatus('YOU MAY ONLY MOVE A TOKEN YOU PLAY', 'error'); return; }
     if (!view.declaringRound) { renderMap(); setStatus('THE ENCOUNTER IS NOT IN AN ACTIVE MOVEMENT ROUND', 'error'); return; }
@@ -286,6 +303,9 @@ function attachPlayerTokenInteraction(group, combatant, owned, cell) {
       await writeTokenMove(connectedCampaignId, view.encounterId, createPlayerTokenMove({ uid: currentUserId(), encounterId: view.encounterId, actorId: combatant.id, column, row, pace, round: view.declaringRound, movedAt: Date.now() }));
       setStatus(`${pace.toUpperCase()} SENT / ${combatant.name.toUpperCase()} / WAITING FOR REFEREE`, 'ok');
     } catch (error) { renderMap(); setStatus(error?.message ?? String(error), 'error'); }
+  });
+  group.addEventListener('pointercancel', () => {
+    drag?.trail?.remove(); drag?.label?.remove(); drag = null; renderMap();
   });
 }
 

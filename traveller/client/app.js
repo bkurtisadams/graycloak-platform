@@ -431,6 +431,7 @@ const el = {
   encounterZoomLabel: document.querySelector('#encounter-zoom-label'),
   encounterZoomIn: document.querySelector('#encounter-zoom-in'),
   encounterZoomFit: document.querySelector('#encounter-zoom-fit'),
+  encounterMovePace: document.querySelector('#encounter-move-pace'),
   encounterPartyRoster: document.querySelector('#encounter-party-roster'),
   encounterLighting: document.querySelector('#encounter-lighting'),
   encounterTracker: document.querySelector('#encounter-tracker'),
@@ -3497,7 +3498,10 @@ function moveEncounterToken(encounterId, combatantId, column, row) {
   try {
     const index = encounterDocuments.findIndex((entry) => entry.identity.id === encounterId);
     if (index < 0) throw new Error('encounter is unavailable');
-    const result = repositionEncounterCombatant(encounterDocuments[index], { combatantId, column, row });
+    const current = encounterDocuments[index];
+    const result = current.status === 'active'
+      ? moveEncounterCombatantByPlayer(current, { combatantId, column, row, pace: el.encounterMovePace.value, round: current.round })
+      : repositionEncounterCombatant(current, { combatantId, column, row });
     encounterDocuments[index] = result.encounter;
     if (result.entry) logActivity('COMBAT', result.entry.text);
     persistCampaignState();
@@ -3507,6 +3511,7 @@ function moveEncounterToken(encounterId, combatantId, column, row) {
   } catch (error) {
     console.error(error);
     setStatus(error?.message ?? String(error), 'error');
+    renderEncounter();
   }
 }
 
@@ -3782,8 +3787,11 @@ function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect
       previewX: originX,
       previewY: originY,
       moved: false,
-      frame: 0
+      frame: 0,
+      trail: svgElement('line', { class: 'movement-drag-trail legal' }),
+      label: svgElement('text', { class: 'movement-drag-label legal' })
     };
+    el.encounterMap.append(drag.trail, drag.label);
     group.setPointerCapture(event.pointerId);
     group.classList.add('dragging');
   });
@@ -3795,13 +3803,28 @@ function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect
     const point = encounterMapPoint(event.clientX, event.clientY);
     const cellWidth = ENCOUNTER_MAP_WIDTH / encounter.map.columns;
     const cellHeight = ENCOUNTER_MAP_HEIGHT / encounter.map.rows;
-    drag.previewX = Math.max(cellWidth / 2, Math.min(ENCOUNTER_MAP_WIDTH - cellWidth / 2, point.x - drag.grabX));
-    drag.previewY = Math.max(cellHeight / 2, Math.min(ENCOUNTER_MAP_HEIGHT - cellHeight / 2, point.y - drag.grabY));
+    const column = Math.max(0, Math.min(encounter.map.columns - 1, Math.floor((point.x - drag.grabX) / cellWidth)));
+    const row = Math.max(0, Math.min(encounter.map.rows - 1, Math.floor((point.y - drag.grabY) / cellHeight)));
+    drag.previewX = column * cellWidth + cellWidth / 2 + drag.offsetX;
+    drag.previewY = row * cellHeight + cellHeight / 2 + drag.offsetY;
+    const distance = Math.max(Math.abs(column - combatant.position.column), Math.abs(row - combatant.position.row));
+    const pace = el.encounterMovePace.value;
+    const allowance = pace === 'run' ? 10 : 5;
+    const legality = encounter.status !== 'active' ? 'legal' : distance > allowance ? 'over' : distance === allowance ? 'limit' : 'legal';
+    drag.distance = distance; drag.pace = pace; drag.legality = legality;
     if (!drag.frame) {
       drag.frame = window.requestAnimationFrame(() => {
         if (!drag) return;
         drag.frame = 0;
         group.setAttribute('transform', `translate(${drag.previewX} ${drag.previewY})`);
+        drag.trail.setAttribute('x1', drag.originX); drag.trail.setAttribute('y1', drag.originY);
+        drag.trail.setAttribute('x2', drag.previewX); drag.trail.setAttribute('y2', drag.previewY);
+        drag.trail.setAttribute('class', `movement-drag-trail ${drag.legality}`);
+        drag.label.setAttribute('x', drag.previewX + 4); drag.label.setAttribute('y', drag.previewY - 4);
+        drag.label.setAttribute('class', `movement-drag-label ${drag.legality}`);
+        drag.label.textContent = encounter.status === 'active'
+          ? `${drag.pace.toUpperCase()} / ${drag.distance} SQ / ${drag.distance * 5} M${drag.pace === 'run' ? ' / −1 BLOW / NO ATTACK' : ''}${drag.legality === 'limit' ? ' / LIMIT' : drag.legality === 'over' ? ' / OVER' : ''}`
+          : `REFEREE POSITION / ${drag.distance} SQ / ${drag.distance * 5} M`;
       });
     }
   });
@@ -3810,6 +3833,7 @@ function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect
     if (drag.frame) window.cancelAnimationFrame(drag.frame);
     const completed = drag;
     drag = null;
+    completed.trail.remove(); completed.label.remove();
     group.classList.remove('dragging');
     if (cancelled) {
       group.setAttribute('transform', `translate(${completed.originX} ${completed.originY})`);

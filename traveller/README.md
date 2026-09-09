@@ -1,5 +1,14 @@
 # Graycloak Traveller
 
+## v0.62.1 live movement trail
+
+Dragging a token now draws a local, grid-snapped movement preview on both the
+referee and player canvases. One consistent dashed line is green within the
+selected WALK/RUN allowance, amber exactly at its limit, and red beyond it. A
+compact label reports squares, metres, and the running blow/no-attack cost.
+Cancelled and rejected drags remove the preview; only accepted movement is
+published to the table.
+
 ## v0.62.0 Book 1 movement procedure
 
 Personal combat movement now follows Book 1 p.32 on the five-meter grid. A
