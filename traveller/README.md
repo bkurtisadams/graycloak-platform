@@ -1,5 +1,13 @@
 # Graycloak Traveller
 
+## v0.63.2 centered one-metre grid
+
+Grid lines are now boundaries between square centers, so tokens land inside
+their snapped square rather than on a vertex. Minor and 25 m major grid lines,
+plus the selected-pair range line, use non-scaling strokes and remain thin at
+deep zoom. Maximum referee and player canvas zoom increases to 6400%, where a
+1 m square is large enough for precise dragging and targeting.
+
 ## v0.63.1 one-metre token scale
 
 Human-sized combat tokens now occupy less than one physical metre instead of

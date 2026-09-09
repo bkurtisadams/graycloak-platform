@@ -580,7 +580,7 @@ let pendingEncounterConditionCombatantId = null;
 const ENCOUNTER_MAP_WIDTH = 1206;
 const ENCOUNTER_MAP_HEIGHT = 1206;
 const ENCOUNTER_MAP_MIN_ZOOM = 0.5;
-const ENCOUNTER_MAP_MAX_ZOOM = 32;
+const ENCOUNTER_MAP_MAX_ZOOM = 64;
 // Personal tokens occupy less than one physical metre. This keeps one figure
 // inside a 1 m square and leaves room for several figures in a 5 m square.
 const ENCOUNTER_TOKEN_RADIUS = 0.4;
@@ -3950,10 +3950,12 @@ function renderEncounterMap(encounter) {
   const gridScale = encounter.map.metersPerSquare;
   const fragments = [];
   for (let column = 0; column < encounter.map.columns; column += gridScale) {
-    fragments.push(svgElement('line', { x1: column * cellWidth, y1: 0, x2: column * cellWidth, y2: height, class: column % 25 === 0 ? 'encounter-grid-major' : 'encounter-grid-line' }));
+    const gridX = (column + gridScale / 2) * cellWidth;
+    fragments.push(svgElement('line', { x1: gridX, y1: 0, x2: gridX, y2: height, class: column % 25 === 0 ? 'encounter-grid-major' : 'encounter-grid-line' }));
   }
   for (let row = 0; row < encounter.map.rows; row += gridScale) {
-    fragments.push(svgElement('line', { x1: 0, y1: row * cellHeight, x2: width, y2: row * cellHeight, class: row % 25 === 0 ? 'encounter-grid-major' : 'encounter-grid-line' }));
+    const gridY = (row + gridScale / 2) * cellHeight;
+    fragments.push(svgElement('line', { x1: 0, y1: gridY, x2: width, y2: gridY, class: row % 25 === 0 ? 'encounter-grid-major' : 'encounter-grid-line' }));
   }
   const movementRound = Math.max(-1, ...encounter.history.filter((item) => item.kind === 'movement' && item.detail?.from && item.detail?.to).map((item) => item.round));
   for (const entry of encounter.history.filter((item) => item.kind === 'movement' && item.round === movementRound && item.detail?.from && item.detail?.to)) {

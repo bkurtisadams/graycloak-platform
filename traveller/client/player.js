@@ -65,7 +65,7 @@ let mapView = { x: 0, y: 0, width: 1206, height: 1206 };
 let mapPan = null;
 const MAP_SIZE = 1206;
 const MIN_ZOOM = 0.5;
-const MAX_ZOOM = 32;
+const MAX_ZOOM = 64;
 const TOKEN_RADIUS = 0.4;
 const TOKEN_RING_RADIUS = 0.48;
 
@@ -157,10 +157,12 @@ function renderMap() {
   const gridScale = view.map.metersPerSquare;
   const parts = [];
   for (let column = 0; column < columns; column += gridScale) {
-    parts.push(svg('line', { x1: column * cell, y1: 0, x2: column * cell, y2: (rows - 1) * cell, class: column % 25 ? 'player-grid' : 'player-grid major' }));
+    const gridX = (column + gridScale / 2) * cell;
+    parts.push(svg('line', { x1: gridX, y1: 0, x2: gridX, y2: (rows - 1) * cell, class: column % 25 ? 'player-grid' : 'player-grid major' }));
   }
   for (let row = 0; row < rows; row += gridScale) {
-    parts.push(svg('line', { x1: 0, y1: row * cell, x2: (columns - 1) * cell, y2: row * cell, class: row % 25 ? 'player-grid' : 'player-grid major' }));
+    const gridY = (row + gridScale / 2) * cell;
+    parts.push(svg('line', { x1: 0, y1: gridY, x2: (columns - 1) * cell, y2: gridY, class: row % 25 ? 'player-grid' : 'player-grid major' }));
   }
   for (const path of view.movementPaths ?? []) {
     parts.push(svg('line', {

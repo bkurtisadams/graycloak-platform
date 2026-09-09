@@ -714,10 +714,10 @@ input[readonly] {
   background: #d1d1ca;
 }
 
-.encounter-grid-line { stroke: #a3a59f; stroke-width: .35; }
-.encounter-grid-major { stroke: #777a75; stroke-width: .8; }
-.encounter-range-line { stroke: #2d3f4b; stroke-width: 1; stroke-dasharray: 3 2; pointer-events: none; }
-.encounter-range-line.contact { stroke: #c55a25; stroke-width: 2; stroke-dasharray: none; }
+.encounter-grid-line { stroke: #a3a59f; stroke-width: .5; vector-effect: non-scaling-stroke; }
+.encounter-grid-major { stroke: #777a75; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.encounter-range-line { stroke: #2d3f4b; stroke-width: 1; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; pointer-events: none; }
+.encounter-range-line.contact { stroke: #c55a25; stroke-width: 1.5; stroke-dasharray: none; }
 .encounter-range-boundary { fill: none; pointer-events: none; vector-effect: non-scaling-stroke; }
 .encounter-range-boundary.short { stroke: #c58b25; stroke-width: 2.5; }
 .encounter-range-boundary.medium { stroke: #3d7c50; stroke-width: 2; }
