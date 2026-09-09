@@ -17,6 +17,7 @@ import {
   avoidEncounter,
   encounterRangeGuide,
   repositionEncounterCombatant,
+  moveEncounterCombatantByPlayer,
   setEncounterRangeFromPositions,
   setEncounterPairRange,
   addEncounterCombatantFromActor,
@@ -214,7 +215,52 @@ test('Close is explicit contact, sharing a square is Short, and Open breaks cont
   const touching = setEncounterPairRange(shared, { actorId: player.id, targetId: foe.id, range: 'close' }).encounter;
   let declared = declareEncounterAction(touching, { actorId: player.id, targetId: foe.id, action: 'open' }).encounter;
   const opened = resolveDeclaredRound(declared, { date: { year: 4800, dayOfYear: 106 }, dice: sequenceDice([3, 3, 3, 3, 3, 3]) }).encounter;
-  assert.equal(encounterPairRange(opened.combatants.find((entry) => entry.id === player.id), opened.combatants.find((entry) => entry.id === foe.id)), 'short');
+  assert.equal(encounterPairRange(opened.combatants.find((entry) => entry.id === player.id), opened.combatants.find((entry) => entry.id === foe.id)), 'medium');
+});
+
+test('v0.62.0 walks five grid squares, runs ten, and charges a running blow', async () => {
+  const first = await encounterFixture();
+  const pc = first.encounter.combatants.find((entry) => entry.side === 'party');
+  const foe = first.encounter.combatants.find((entry) => entry.side === 'opposition');
+  let walking = repositionEncounterCombatant(first.encounter, { combatantId: pc.id, column: 80, row: 100 }).encounter;
+  walking = repositionEncounterCombatant(walking, { combatantId: foe.id, column: 100, row: 100 }).encounter;
+  walking = declareEncounterAction(walking, { actorId: pc.id, targetId: foe.id, action: 'close' }).encounter;
+  const walked = resolveDeclaredRound(walking, { date: { year: 4800, dayOfYear: 106 }, dice: sequenceDice([6, 6, 1, 1, 1, 3, 3, 1, 1, 1]) });
+  const walkMove = walked.entries.find((entry) => entry.kind === 'movement' && entry.actorId === pc.id);
+  assert.equal(walkMove.detail.squares, 5);
+  assert.equal(walkMove.detail.allowance, 5);
+  assert.ok(walked.entries.some((entry) => entry.kind === 'attack' && entry.actorId === pc.id), 'walking permits an attack');
+
+  const second = await encounterFixture();
+  const runner = second.encounter.combatants.find((entry) => entry.side === 'party');
+  const target = second.encounter.combatants.find((entry) => entry.side === 'opposition');
+  let running = repositionEncounterCombatant(second.encounter, { combatantId: runner.id, column: 80, row: 100 }).encounter;
+  running = repositionEncounterCombatant(running, { combatantId: target.id, column: 100, row: 100 }).encounter;
+  running = declareEncounterAction(running, { actorId: runner.id, targetId: target.id, action: 'close-run' }).encounter;
+  const ran = resolveDeclaredRound(running, { date: { year: 4800, dayOfYear: 106 }, dice: sequenceDice([3, 3, 1, 1, 1, 1]) });
+  const runMove = ran.entries.find((entry) => entry.kind === 'movement' && entry.actorId === runner.id);
+  assert.equal(runMove.detail.squares, 10);
+  assert.equal(runMove.detail.allowance, 10);
+  assert.equal(ran.encounter.combatants.find((entry) => entry.id === runner.id).blowsUsed, 1);
+  assert.equal(ran.entries.some((entry) => entry.kind === 'attack' && entry.actorId === runner.id), false, 'running prohibits an attack');
+});
+
+test('v0.62.0 player grid movement is once per round and running bars an attack', async () => {
+  const { encounter } = await encounterFixture();
+  const pc = encounter.combatants.find((entry) => entry.side === 'party');
+  const foe = encounter.combatants.find((entry) => entry.side === 'opposition');
+  const moved = moveEncounterCombatantByPlayer(encounter, {
+    combatantId: pc.id, column: pc.position.column + 5, row: pc.position.row, pace: 'walk', round: encounter.round
+  }).encounter;
+  assert.throws(() => moveEncounterCombatantByPlayer(moved, {
+    combatantId: pc.id, column: pc.position.column + 6, row: pc.position.row, pace: 'walk', round: encounter.round
+  }), /already moved/);
+  assert.doesNotThrow(() => declareEncounterAction(moved, { actorId: pc.id, targetId: foe.id, action: 'attack' }));
+
+  const ran = moveEncounterCombatantByPlayer(encounter, {
+    combatantId: pc.id, column: pc.position.column + 10, row: pc.position.row, pace: 'run', round: encounter.round
+  }).encounter;
+  assert.throws(() => declareEncounterAction(ran, { actorId: pc.id, targetId: foe.id, action: 'attack' }), /ran and cannot attack/);
 });
 
 test('campaign registry and portable Bundle v7 persist Encounter Documents', async () => {

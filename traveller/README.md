@@ -1,5 +1,25 @@
 # Graycloak Traveller
 
+## v0.62.0 Book 1 movement procedure
+
+Personal combat movement now follows Book 1 p.32 on the five-meter grid. A
+walking Close or Open declaration moves five squares (one 25-meter range band)
+and still permits an attack. Running moves ten squares, spends one combat blow,
+and prohibits attacking that round. Movement destinations are calculated from
+the same pre-movement snapshot, preserving simultaneous movement.
+
+A player may also drag an owned token once per round. The drop is checked on
+the player and again by the referee: WALK permits five squares and a later
+attack, while RUN permits ten squares, spends a blow, and bars an attack. This
+keeps the Foundry-like canvas interaction inside the Book 1 movement economy.
+
+Close remains explicit physical contact. Opening from contact moves one full
+range band and therefore ends at Medium range; merely sharing a square remains
+Short. Immediate 9+ escape is available only before combat in round one. Once
+combat begins, a combatant escapes by opening more than twenty bands from the
+nearest enemy. The last round's walking or running path is drawn on both the
+referee and published player maps.
+
 ## v0.61.0 shared Foundry-style canvas interaction
 
 Tokens now have separate selection and targeting states. The referee can select

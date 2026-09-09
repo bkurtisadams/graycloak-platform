@@ -11,7 +11,7 @@ import {
   surpriseDMTotal,
   applyPersonalDamage,
   weaponTargetNumber,
-  movePersonalCombatRange,
+  personalMovementConsequences,
   resolvePersonalMorale,
   endPersonalCombatRecovery,
   stableDocumentId
@@ -53,6 +53,7 @@ export const ENCOUNTER_CONDITIONS = Object.freeze({
 export const ENCOUNTER_MAP_COLUMNS = 201;
 export const ENCOUNTER_MAP_ROWS = 201;
 export const ENCOUNTER_METERS_PER_SQUARE = 5;
+export const ENCOUNTER_SQUARES_PER_RANGE_BAND = 5;
 export const ENCOUNTER_RANGE_GUIDE = Object.freeze({
   close: Object.freeze({ minimum: 0, maximum: 0, placement: 0 }),
   short: Object.freeze({ minimum: 0, maximum: 1, placement: 1 }),
@@ -213,7 +214,7 @@ export function validateEncounterDocument(document) {
   add(errors, document.map?.metersPerSquare === null || (typeof document.map?.metersPerSquare === 'number' && Number.isFinite(document.map.metersPerSquare) && document.map.metersPerSquare > 0 && document.map.metersPerSquare <= 1000), 'map.metersPerSquare must be null or a positive number no greater than 1000');
   add(errors, plain(document.roundState) && Array.isArray(document.roundState?.declaredActions), 'roundState must contain declaredActions');
   if (Array.isArray(document.roundState?.declaredActions)) for (const declaration of document.roundState.declaredActions) {
-    add(errors, nonblank(declaration.actorId) && ['attack', 'evade', 'close', 'open', 'escape', 'wait'].includes(declaration.action), 'declared party action is invalid');
+    add(errors, nonblank(declaration.actorId) && ['attack', 'evade', 'close', 'open', 'close-run', 'open-run', 'escape', 'wait'].includes(declaration.action), 'declared party action is invalid');
     add(errors, Number.isInteger(declaration.modifier) && declaration.modifier >= -20 && declaration.modifier <= 20, 'declared party action modifier is invalid');
     add(errors, declaration.targetId === null || nonblank(declaration.targetId), 'declared party action target is invalid');
   }
@@ -442,6 +443,36 @@ export function repositionEncounterCombatant(document, { combatantId, column, ro
   return { encounter: next, entry };
 }
 
+// A player drag during an active round is rules movement, not a referee map
+// correction. It is limited to one walk/run, records the path, breaks contact,
+// and makes running consume a blow and bar an attack.
+export function moveEncounterCombatantByPlayer(document, { combatantId, column, row, pace = 'walk', round } = {}) {
+  const next = importEncounterDocument(document);
+  if (next.status !== 'active' || round !== next.round) throw new Error('movement is not for the active encounter round');
+  if (!Number.isInteger(column) || column < 0 || column >= ENCOUNTER_MAP_COLUMNS || !Number.isInteger(row) || row < 0 || row >= ENCOUNTER_MAP_ROWS) throw new RangeError('map position is outside the encounter workspace');
+  const combatant = next.combatants.find((entry) => entry.id === combatantId && entry.status === 'active');
+  if (!combatant) throw new Error('combatant is unavailable');
+  if (next.history.some((entry) => entry.round === next.round && entry.kind === 'movement' && entry.actorId === combatantId && entry.detail?.playerMove)) throw new Error(`${combatant.name} already moved this round`);
+  const to = { column, row };
+  const squares = encounterMapDistance(combatant, { position: to });
+  const consequences = personalMovementConsequences({ status: 'open', pace });
+  const allowance = consequences.bands * ENCOUNTER_SQUARES_PER_RANGE_BAND;
+  if (squares > allowance) throw new Error(`${pace} movement exceeds ${allowance} five-meter squares`);
+  const from = { ...combatant.position };
+  clearContacts(next, combatant);
+  combatant.position = to;
+  if (consequences.blowCost) combatant.blowsUsed = Number(combatant.blowsUsed ?? 0) + consequences.blowCost;
+  const entry = {
+    round: next.round, kind: 'movement', side: combatant.side, actorId: combatant.id,
+    text: `${combatant.name} ${pace}s ${squares} square${squares === 1 ? '' : 's'} on the tactical grid${consequences.blowCost ? '; running spends one combat blow and prevents an attack' : ''}.`,
+    detail: { movementStatus: 'maneuver', pace, squares, allowance, from, to, blowCost: consequences.blowCost, playerMove: true }
+  };
+  next.history.push(entry);
+  next.range = closestOpposingBand(next.combatants) ?? next.range;
+  assertValidEncounterDocument(next);
+  return { encounter: next, entry };
+}
+
 function actorConditionKeys(actor) {
   return (actor.effects ?? [])
     .filter((effect) => effect?.active && effect.kind === 'condition')
@@ -630,6 +661,27 @@ function placeAtRange(actor, target, range) {
   actor.position.row = target.position.row;
 }
 
+function moveOnFiveMeterGrid(actor, target, direction, pace = 'walk') {
+  const consequences = personalMovementConsequences({ status: direction, pace });
+  const allowance = consequences.bands * ENCOUNTER_SQUARES_PER_RANGE_BAND;
+  const from = { ...actor.position };
+  const dx = target.position.column - actor.position.column;
+  const dy = target.position.row - actor.position.row;
+  const distance = Math.max(Math.abs(dx), Math.abs(dy));
+  if (direction === 'close' && distance <= allowance) {
+    actor.position = { ...target.position };
+  } else {
+    const sign = direction === 'close' ? 1 : -1;
+    const stepX = distance ? Math.round((dx / distance) * allowance) : -allowance;
+    const stepY = distance ? Math.round((dy / distance) * allowance) : 0;
+    actor.position = {
+      column: clamp(actor.position.column + sign * stepX, 0, ENCOUNTER_MAP_COLUMNS - 1),
+      row: clamp(actor.position.row + sign * stepY, 0, ENCOUNTER_MAP_ROWS - 1)
+    };
+  }
+  return { from, to: { ...actor.position }, squares: encounterMapDistance({ position: from }, actor), ...consequences };
+}
+
 function clearContacts(encounter, combatant) {
   for (const id of combatant.contactIds ?? []) {
     const other = encounter.combatants.find((entry) => entry.id === id);
@@ -749,7 +801,7 @@ export function setCombatantFoldingStock(document, { combatantId, foldingStock }
 export function declareEncounterAction(document, { action = 'attack', modifier = 0, actorId = null, targetId = null } = {}) {
   const next = importEncounterDocument(document);
   if (next.status !== 'active') throw new Error('encounter is already resolved');
-  if (!['attack', 'evade', 'close', 'open', 'escape', 'wait'].includes(action)) throw new RangeError(`unknown encounter action: ${action}`);
+  if (!['attack', 'evade', 'close', 'open', 'close-run', 'open-run', 'escape', 'wait'].includes(action)) throw new RangeError(`unknown encounter action: ${action}`);
   if (!Number.isInteger(modifier) || modifier < -20 || modifier > 20) throw new RangeError('modifier must be an integer from -20 to 20');
   const active = next.combatants.filter((entry) => entry.status === 'active');
   const surpriseRound = next.round === 1 ? next.surprise.surpriseSideId : null;
@@ -761,10 +813,14 @@ export function declareEncounterAction(document, { action = 'attack', modifier =
   if (!actor) throw new Error(actorId ? 'selected actor is unavailable' : 'no active party actor remains');
   if (!mayAct(actor.side) && action !== 'wait') throw new Error(`${actor.name} is surprised and cannot act this round`);
   if (declaredBy(actor.id)) throw new Error(`${actor.name} already declared an action this round`);
+  const gridMove = next.history.find((entry) => entry.round === next.round && entry.kind === 'movement' && entry.actorId === actor.id && entry.detail?.playerMove);
+  if (gridMove && !['attack', 'wait'].includes(action)) throw new Error(`${actor.name} already chose movement on the grid this round`);
+  if (gridMove?.detail?.pace === 'run' && action === 'attack') throw new Error(`${actor.name} ran and cannot attack this round`);
   const target = targetId === null
     ? active.find((entry) => entry.side !== actor.side)
     : active.find((entry) => entry.id === targetId);
-  if ((action === 'attack' || action === 'close' || action === 'open') && !target) throw new Error(targetId ? 'selected target is unavailable' : 'no active target remains');
+  if ((action === 'attack' || action === 'close' || action === 'open' || action === 'close-run' || action === 'open-run') && !target) throw new Error(targetId ? 'selected target is unavailable' : 'no active target remains');
+  if (action === 'escape' && next.round !== 1) throw new Error('after combat begins, escape is possible only by opening beyond 20 range bands');
   if (target && target.side === actor.side) throw new Error(`${actor.name} cannot target ${target.name} on the same side`);
   next.roundState.declaredActions.push({ actorId: actor.id, side: actor.side, action, modifier, targetId: target?.id ?? null });
   assertValidEncounterDocument(next);
@@ -799,15 +855,21 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
   const declarations = next.roundState.declaredActions.filter((entry) => mayAct(entry.side));
 
   // --- Step 2A: movement and posture, resolved before any attack.
+  // Destinations are calculated from the same pre-movement snapshot because
+  // Book 1 makes all movement simultaneous.
+  const beforeMovement = new Map([...live.entries()].map(([id, entry]) => [id, clone(entry)]));
+  const movementPlans = [];
   for (const declaration of declarations) {
     const mover = live.get(declaration.actorId);
     const moveTarget = declaration.targetId === null ? null : live.get(declaration.targetId);
-    if (declaration.action === 'close' || declaration.action === 'open') {
-      const band = moveTarget ? movePersonalCombatRange(encounterPairRange(mover, moveTarget), declaration.action) : next.range;
-      clearContacts({ combatants: [...live.values()] }, mover);
-      placeAtRange(mover, moveTarget, band);
-      if (band === 'close' && moveTarget) setContact(mover, moveTarget);
-      entries.push({ round: next.round, kind: 'movement', side: declaration.side, actorId: mover.id, targetId: moveTarget?.id ?? null, text: `${mover.name} moves to ${band} range${moveTarget ? ` from ${moveTarget.name}` : ''}.` });
+    const movement = declaration.action.match(/^(close|open)(-run)?$/);
+    if (movement && moveTarget) {
+      const direction = movement[1];
+      const pace = movement[2] ? 'run' : 'walk';
+      const moving = clone(beforeMovement.get(mover.id));
+      const targetBefore = beforeMovement.get(moveTarget.id);
+      const result = moveOnFiveMeterGrid(moving, targetBefore, direction, pace);
+      movementPlans.push({ declaration, mover, moveTarget, direction, pace, result });
     }
     if (declaration.action === 'escape') {
       const nearest = nearestActiveOpponent(mover, [...live.values()].filter((entry) => entry.side !== mover.side));
@@ -819,6 +881,22 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
       if (total >= ESCAPE_TARGET) mover.status = 'escaped';
     }
     if (declaration.action === 'evade') mover.evading = true;
+  }
+  for (const plan of movementPlans) {
+    clearContacts({ combatants: [...live.values()] }, plan.mover);
+    plan.mover.position = plan.result.to;
+    if (plan.result.blowCost) plan.mover.blowsUsed = Number(plan.mover.blowsUsed ?? 0) + plan.result.blowCost;
+  }
+  // Establish contact only after every destination has landed; otherwise the
+  // declaration order would change a simultaneous result.
+  for (const plan of movementPlans) {
+    if (plan.direction === 'close' && encounterMapDistance(plan.mover, plan.moveTarget) === 0) setContact(plan.mover, plan.moveTarget);
+    const band = encounterPairRange(plan.mover, plan.moveTarget);
+    entries.push({
+      round: next.round, kind: 'movement', side: plan.declaration.side, actorId: plan.mover.id, targetId: plan.moveTarget.id,
+      text: `${plan.mover.name} ${plan.pace}s ${plan.result.squares} square${plan.result.squares === 1 ? '' : 's'} ${plan.direction === 'close' ? 'toward' : 'away from'} ${plan.moveTarget.name}, ending at ${band} range${plan.result.blowCost ? '; running spends one combat blow and prevents an attack' : ''}.`,
+      detail: { movementStatus: plan.direction, pace: plan.pace, squares: plan.result.squares, allowance: plan.result.bands * ENCOUNTER_SQUARES_PER_RANGE_BAND, from: plan.result.from, to: plan.result.to, band, blowCost: plan.result.blowCost }
+    });
   }
 
   // --- Step 2B: every attack is thrown against this snapshot, so nobody's
@@ -846,7 +924,9 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
     entries.push({ round: next.round, kind: 'attack', side, actorId: attacker.id, targetId: defender.id, band, text: '', prefix: `${attacker.name} attacks ${defender.name} at ${band} range`, detail: result });
   };
 
-  for (const declaration of declarations.filter((entry) => entry.action === 'attack')) {
+  // Walking while closing or opening still permits an attack. Running and
+  // evading do not (Book 1 p.32).
+  for (const declaration of declarations.filter((entry) => ['attack', 'close', 'open'].includes(entry.action))) {
     throwAttack(declaration.actorId, declaration.targetId, declaration.modifier, declaration.side);
   }
 
@@ -856,16 +936,17 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
   // the referee left alone.
   for (const entry of active) {
     if (declaredBy(entry.id) || !mayAct(entry.side)) continue;
+    if (next.history.some((historyEntry) => historyEntry.round === next.round && historyEntry.kind === 'movement' && historyEntry.actorId === entry.id && historyEntry.detail?.playerMove)) continue;
     const attacker = snapshot.get(entry.id);
     const foe = nearestActiveOpponent(attacker, [...snapshot.values()].filter((candidate) => candidate.side !== attacker.side));
     if (!foe) continue;
     const band = encounterPairRange(attacker, foe);
     if (weaponTargetNumber(attacker.weaponKey, foe.armor, band) === null) {
       const acting = live.get(entry.id);
-      const closed = movePersonalCombatRange(band, 'close');
-      placeAtRange(acting, live.get(foe.id) ?? foe, closed);
+      const movement = moveOnFiveMeterGrid(acting, live.get(foe.id) ?? foe, 'close', 'walk');
       snapshot.get(entry.id).position = { ...acting.position };
-      entries.push({ round: next.round, kind: 'movement', side: entry.side, actorId: entry.id, targetId: foe.id, text: `${entry.name} cannot attack at ${band} range and closes to ${closed} range.` });
+      const closed = encounterPairRange(acting, live.get(foe.id) ?? foe);
+      entries.push({ round: next.round, kind: 'movement', side: entry.side, actorId: entry.id, targetId: foe.id, text: `${entry.name} cannot attack at ${band} range and walks ${movement.squares} squares closer, ending at ${closed} range.`, detail: { movementStatus: 'close', pace: 'walk', squares: movement.squares, allowance: ENCOUNTER_SQUARES_PER_RANGE_BAND, from: movement.from, to: movement.to, band: closed, blowCost: 0 } });
       continue;
     }
     throwAttack(entry.id, foe.id, 0, entry.side);
@@ -889,6 +970,11 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
   }
 
   for (const entry of live.values()) entry.evading = false;
+  for (const entry of live.values()) {
+    if (entry.status !== 'active') continue;
+    const nearest = nearestActiveOpponent(entry, [...live.values()].filter((candidate) => candidate.side !== entry.side));
+    if (nearest && encounterMapDistance(entry, nearest) > 20 * ENCOUNTER_SQUARES_PER_RANGE_BAND) entry.status = 'escaped';
+  }
   replaceCombatants(next, ...live.values());
   next.range = closestOpposingBand(next.combatants) ?? next.range;
   next.roundState.declaredActions = [];

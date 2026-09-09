@@ -3034,6 +3034,8 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .encounter-order-line.evade, .encounter-order-line.wait { stroke-dasharray: 2 4; }
 .encounter-order-head.party { fill: var(--tab-selected-border); }
 .encounter-order-head.enemy { fill: var(--failure-border); }
+.encounter-movement-path, .player-movement-path { fill: none; stroke: #567d46; stroke-width: 2; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; pointer-events: none; }
+.encounter-movement-path.run, .player-movement-path.run { stroke: #b57d23; stroke-dasharray: 8 3; }
 
 /* --- Cascading token menu. */
 .encounter-menu-cascade { display: flex; flex-direction: column; }

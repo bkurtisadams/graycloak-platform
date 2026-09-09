@@ -162,14 +162,17 @@ test('Traveller multiplayer rules', { skip: available ? false : `Firestore emula
   await t.test('a player submits immutable movement only for their owned token', async () => {
     const path = `travellerCampaigns/${CAMPAIGN}/encounters/${ENCOUNTER}/moves/move-1`;
     await assertSucceeds(player.doc(path).set({
-      uid: PLAYER, encounterId: ENCOUNTER, actorId: PC, column: 42, row: 87, movedAt: 1000
+      uid: PLAYER, encounterId: ENCOUNTER, actorId: PC, column: 42, row: 87, pace: 'walk', round: 1, movedAt: 1000
     }));
     await assertFails(player.doc(path).update({ column: 43 }));
     await assertFails(player.doc(`travellerCampaigns/${CAMPAIGN}/encounters/${ENCOUNTER}/moves/move-foe`).set({
-      uid: PLAYER, encounterId: ENCOUNTER, actorId: FOE, column: 1, row: 1, movedAt: 1001
+      uid: PLAYER, encounterId: ENCOUNTER, actorId: FOE, column: 1, row: 1, pace: 'walk', round: 1, movedAt: 1001
     }));
     await assertFails(player.doc(`travellerCampaigns/${CAMPAIGN}/encounters/${ENCOUNTER}/moves/move-bad`).set({
-      uid: PLAYER, encounterId: ENCOUNTER, actorId: PC, column: 201, row: 1, movedAt: 1002
+      uid: PLAYER, encounterId: ENCOUNTER, actorId: PC, column: 201, row: 1, pace: 'walk', round: 1, movedAt: 1002
+    }));
+    await assertFails(player.doc(`travellerCampaigns/${CAMPAIGN}/encounters/${ENCOUNTER}/moves/move-teleport`).set({
+      uid: PLAYER, encounterId: ENCOUNTER, actorId: PC, column: 1, row: 1, pace: 'teleport', round: 1, movedAt: 1003
     }));
     await assertFails(player.doc(path).delete());
     await assertSucceeds(referee.doc(path).delete());

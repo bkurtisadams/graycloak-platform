@@ -229,6 +229,7 @@ import {
   avoidEncounter,
   encounterRangeGuide,
   repositionEncounterCombatant,
+  moveEncounterCombatantByPlayer,
   encounterPairRange,
   declareEncounterAction,
   encounterSituationDMs,
@@ -3612,10 +3613,12 @@ function showEncounterTokenMenu(event, encounter, combatant, onSelect, anchorEle
 
   add(`FOLDING STOCK${combatant.foldingStock ? ' \u2713' : ''}`,
     () => updateEncounterDocument(encounter.identity.id, (doc) => setCombatantFoldingStock(doc, { combatantId: combatant.id, foldingStock: !combatant.foldingStock }).encounter));
-  add('CLOSE RANGE', () => declare('close', foes[0]?.id ?? null), !canOrder || !foes.length);
-  add('OPEN RANGE', () => declare('open', foes[0]?.id ?? null), !canOrder || !foes.length);
+  add('CLOSE + ATTACK', () => declare('close', foes[0]?.id ?? null), !canOrder || !foes.length);
+  add('OPEN + ATTACK', () => declare('open', foes[0]?.id ?? null), !canOrder || !foes.length);
+  add('RUN CLOSER', () => declare('close-run', foes[0]?.id ?? null), !canOrder || !foes.length);
+  add('RUN AWAY', () => declare('open-run', foes[0]?.id ?? null), !canOrder || !foes.length);
   add('EVADE', () => declare('evade'), !canOrder);
-  add('ESCAPE', () => declare('escape'), !canOrder);
+  add('ESCAPE', () => declare('escape'), !canOrder || encounter.round !== 1);
   add('STAND', () => declare('wait'), !canOrder);
   addCascade('STATUS', (submenu) => {
     for (const value of ['active', 'unconscious', 'dead', 'escaped', 'withdrawn']) {
@@ -3915,6 +3918,16 @@ function renderEncounterMap(encounter) {
   }
   for (let row = 0; row <= encounter.map.rows; row += 1) {
     fragments.push(svgElement('line', { x1: 0, y1: row * cellHeight, x2: width, y2: row * cellHeight, class: row % 5 === 0 ? 'encounter-grid-major' : 'encounter-grid-line' }));
+  }
+  const movementRound = Math.max(-1, ...encounter.history.filter((item) => item.kind === 'movement' && item.detail?.from && item.detail?.to).map((item) => item.round));
+  for (const entry of encounter.history.filter((item) => item.kind === 'movement' && item.round === movementRound && item.detail?.from && item.detail?.to)) {
+    fragments.push(svgElement('line', {
+      x1: entry.detail.from.column * cellWidth + cellWidth / 2,
+      y1: entry.detail.from.row * cellHeight + cellHeight / 2,
+      x2: entry.detail.to.column * cellWidth + cellWidth / 2,
+      y2: entry.detail.to.row * cellHeight + cellHeight / 2,
+      class: `encounter-movement-path ${entry.detail.pace}`
+    }));
   }
   const actor = selectedEncounterActor(encounter);
   const target = selectedEncounterTarget(encounter);
@@ -4244,9 +4257,11 @@ function renderEncounterTracker(encounter, actor) {
     verbs.append(
       makePortButton('ATTACK', () => { setEncounterActor(encounter.identity.id, combatant.id); openEncounterAttackDialog(encounter); }, { disabled: !canOrder || !foe }),
       makePortButton('EVADE', () => resolveActiveEncounterAction('evade', 0, null, combatant.id), { disabled: !canOrder }),
-      makePortButton('CLOSE', () => resolveActiveEncounterAction('close', 0, foe?.id ?? null, combatant.id), { disabled: !canOrder || !foe }),
-      makePortButton('OPEN', () => resolveActiveEncounterAction('open', 0, foe?.id ?? null, combatant.id), { disabled: !canOrder || !foe }),
-      makePortButton('ESCAPE', () => resolveActiveEncounterAction('escape', 0, null, combatant.id), { disabled: !canOrder }),
+      makePortButton('CLOSE + ATTACK', () => resolveActiveEncounterAction('close', 0, foe?.id ?? null, combatant.id), { disabled: !canOrder || !foe }),
+      makePortButton('OPEN + ATTACK', () => resolveActiveEncounterAction('open', 0, foe?.id ?? null, combatant.id), { disabled: !canOrder || !foe }),
+      makePortButton('RUN CLOSE', () => resolveActiveEncounterAction('close-run', 0, foe?.id ?? null, combatant.id), { disabled: !canOrder || !foe }),
+      makePortButton('RUN OPEN', () => resolveActiveEncounterAction('open-run', 0, foe?.id ?? null, combatant.id), { disabled: !canOrder || !foe }),
+      makePortButton('ESCAPE', () => resolveActiveEncounterAction('escape', 0, null, combatant.id), { disabled: !canOrder || encounter.round !== 1 }),
       makePortButton('STAND', () => resolveActiveEncounterAction('wait', 0, null, combatant.id), { disabled: !canOrder })
     );
     body.append(verbs);
@@ -4480,7 +4495,7 @@ function applyPlayerTokenMoves(entries) {
     if (appliedMoveIds.has(entry.id)) continue;
     try {
       const move = authorizePlayerTokenMove(entry, { campaign: campaignDocument, encounter: encounterDocuments[index] });
-      encounterDocuments[index] = repositionEncounterCombatant(encounterDocuments[index], move).encounter;
+      encounterDocuments[index] = moveEncounterCombatantByPlayer(encounterDocuments[index], move).encounter;
       appliedMoveIds.add(entry.id);
       changed = true;
     } catch (error) {

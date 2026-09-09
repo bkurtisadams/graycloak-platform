@@ -3,6 +3,8 @@ import { requireDice } from '../dice.js';
 export const PERSONAL_COMBAT_RANGES = Object.freeze(['close', 'short', 'medium', 'long', 'very-long']);
 export const PERSONAL_ARMOR_TYPES = Object.freeze(['none', 'jack', 'mesh', 'cloth', 'reflec', 'ablat', 'combat']);
 export const PERSONAL_COMBAT_STATUSES = Object.freeze(['active', 'unconscious', 'dead', 'escaped', 'withdrawn']);
+export const PERSONAL_MOVEMENT_STATUSES = Object.freeze(['evade', 'close', 'open', 'stand']);
+export const PERSONAL_MOVEMENT_PACES = Object.freeze(['walk', 'run']);
 
 const RANGE_INDEX = Object.freeze(Object.fromEntries(PERSONAL_COMBAT_RANGES.map((key, index) => [key, index])));
 const PHYSICAL_KEYS = Object.freeze(['STR', 'DEX', 'END']);
@@ -171,6 +173,19 @@ export function movePersonalCombatRange(range, direction) {
   if (!['close', 'open'].includes(direction)) throw new RangeError('range direction must be close or open');
   const delta = direction === 'close' ? -1 : 1;
   return PERSONAL_COMBAT_RANGES[Math.max(0, Math.min(PERSONAL_COMBAT_RANGES.length - 1, RANGE_INDEX[range] + delta))];
+}
+
+// Book 1 p.32: walking covers one 25 m range band; running covers two, costs
+// one combat blow, and prohibits an attack during that round.
+export function personalMovementBands(pace = 'walk') {
+  if (!PERSONAL_MOVEMENT_PACES.includes(pace)) throw new RangeError(`unknown personal movement pace: ${pace}`);
+  return pace === 'run' ? 2 : 1;
+}
+
+export function personalMovementConsequences({ status = 'stand', pace = 'walk' } = {}) {
+  if (!PERSONAL_MOVEMENT_STATUSES.includes(status)) throw new RangeError(`unknown personal movement status: ${status}`);
+  const bands = status === 'close' || status === 'open' ? personalMovementBands(pace) : 0;
+  return Object.freeze({ status, pace, bands, mayAttack: status !== 'evade' && pace !== 'run', blowCost: bands && pace === 'run' ? 1 : 0 });
 }
 
 // Book 1 p.32: an evading defender receives -1 at close or short range, -2 at

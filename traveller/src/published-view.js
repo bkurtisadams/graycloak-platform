@@ -76,6 +76,7 @@ export function buildPublishedView(encounter, { campaignId, publishedAt, rounds 
   // `round` is the last one played rather than the next one.
   const currentRound = encounter.status === 'active' ? encounter.round - 1 : encounter.round;
   const earliest = Math.max(0, currentRound - (rounds - 1));
+  const movementRound = Math.max(-1, ...(encounter.history ?? []).filter((entry) => entry.kind === 'movement' && entry.detail?.from && entry.detail?.to).map((entry) => entry.round));
   return {
     campaignId: campaignId ?? null,
     encounterId: encounter.identity.id,
@@ -94,6 +95,9 @@ export function buildPublishedView(encounter, { campaignId, publishedAt, rounds 
       rows: encounter.map.rows,
       metersPerSquare: encounter.map.metersPerSquare ?? null
     },
+    movementPaths: (encounter.history ?? [])
+      .filter((entry) => entry.kind === 'movement' && entry.round === movementRound && entry.detail?.from && entry.detail?.to)
+      .map((entry) => ({ actorId: entry.actorId, pace: entry.detail.pace, squares: entry.detail.squares, from: { ...entry.detail.from }, to: { ...entry.detail.to } })),
     // Names, sides, positions and visible condition. Deliberately no
     // characteristics, no current/maximum values, no armour, no cover, no blow
     // allowance, and no weapon: which gun a foe is holding is something the

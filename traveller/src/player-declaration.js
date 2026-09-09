@@ -2,7 +2,7 @@
 // remain the security boundary, but the referee also verifies every intent
 // against the campaign state it is about to mutate.
 
-export const PLAYER_DECLARATION_ACTIONS = Object.freeze(['attack', 'close', 'open', 'evade', 'escape', 'wait']);
+export const PLAYER_DECLARATION_ACTIONS = Object.freeze(['attack', 'close', 'open', 'close-run', 'open-run', 'evade', 'escape', 'wait']);
 
 function nonblank(value) {
   return typeof value === 'string' && value.trim().length > 0;
@@ -14,7 +14,7 @@ export function createPlayerDeclaration({ uid, actorId, action, targetId = null,
   if (!PLAYER_DECLARATION_ACTIONS.includes(action)) throw new RangeError(`unknown player action: ${action}`);
   if (!Number.isInteger(round) || round < 1) throw new RangeError('round must be a positive integer');
   if (!Number.isSafeInteger(declaredAt) || declaredAt < 0) throw new RangeError('declaredAt must be a non-negative integer');
-  const needsTarget = ['attack', 'close', 'open'].includes(action);
+  const needsTarget = ['attack', 'close', 'open', 'close-run', 'open-run'].includes(action);
   if (needsTarget && !nonblank(targetId)) throw new TypeError(`${action} requires a target`);
   if (!needsTarget && targetId !== null) throw new TypeError(`${action} does not take a target`);
   return Object.freeze({ uid: uid.trim(), actorId: actorId.trim(), action, targetId: targetId === null ? null : targetId.trim(), round, declaredAt });

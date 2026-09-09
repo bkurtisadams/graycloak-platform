@@ -36,6 +36,7 @@ const el = {
   zoomIn: document.querySelector('#player-zoom-in'),
   zoomFit: document.querySelector('#player-zoom-fit'),
   zoomLabel: document.querySelector('#player-zoom-label'),
+  movePace: document.querySelector('#player-move-pace'),
   roster: document.querySelector('#player-roster'),
   narration: document.querySelector('#player-narration'),
   orders: document.querySelector('#player-orders')
@@ -158,6 +159,13 @@ function renderMap() {
   for (let row = 0; row <= rows; row += 1) {
     parts.push(svg('line', { x1: 0, y1: row * cell, x2: columns * cell, y2: row * cell, class: row % 5 ? 'player-grid' : 'player-grid major' }));
   }
+  for (const path of view.movementPaths ?? []) {
+    parts.push(svg('line', {
+      x1: path.from.column * cell + cell / 2, y1: path.from.row * cell + cell / 2,
+      x2: path.to.column * cell + cell / 2, y2: path.to.row * cell + cell / 2,
+      class: `player-movement-path ${path.pace}`
+    }));
+  }
   const owned = ownedCombatantIds();
   for (const combatant of view.combatants) {
     const x = combatant.position.column * cell + cell / 2;
@@ -266,12 +274,17 @@ function attachPlayerTokenInteraction(group, combatant, owned, cell) {
     if (!drag) return; group.releasePointerCapture(event.pointerId); const wasMoved = drag.moved; drag = null;
     if (!wasMoved) { selectPlayerToken(combatant, event.shiftKey); return; }
     if (!owned) { renderMap(); setStatus('YOU MAY ONLY MOVE A TOKEN YOU PLAY', 'error'); return; }
+    if (!view.declaringRound) { renderMap(); setStatus('THE ENCOUNTER IS NOT IN AN ACTIVE MOVEMENT ROUND', 'error'); return; }
     const point = mapPoint(event);
     const column = Math.max(0, Math.min(view.map.columns - 1, Math.floor(point.x / cell)));
     const row = Math.max(0, Math.min(view.map.rows - 1, Math.floor(point.y / cell)));
+    const pace = el.movePace.value;
+    const distance = Math.max(Math.abs(combatant.position.column - column), Math.abs(combatant.position.row - row));
+    const allowance = pace === 'run' ? 10 : 5;
+    if (distance > allowance) { renderMap(); setStatus(`${pace.toUpperCase()} ALLOWS ${allowance} SQUARES / DROP WAS ${distance}`, 'error'); return; }
     try {
-      await writeTokenMove(connectedCampaignId, view.encounterId, createPlayerTokenMove({ uid: currentUserId(), encounterId: view.encounterId, actorId: combatant.id, column, row, movedAt: Date.now() }));
-      setStatus(`MOVE SENT / ${combatant.name.toUpperCase()} / WAITING FOR REFEREE`, 'ok');
+      await writeTokenMove(connectedCampaignId, view.encounterId, createPlayerTokenMove({ uid: currentUserId(), encounterId: view.encounterId, actorId: combatant.id, column, row, pace, round: view.declaringRound, movedAt: Date.now() }));
+      setStatus(`${pace.toUpperCase()} SENT / ${combatant.name.toUpperCase()} / WAITING FOR REFEREE`, 'ok');
     } catch (error) { renderMap(); setStatus(error?.message ?? String(error), 'error'); }
   });
 }
@@ -373,14 +386,15 @@ function renderOrders() {
       }
     };
     for (const [label, action, needsTarget] of [
-      ['ATTACK', 'attack', true], ['CLOSE', 'close', true], ['OPEN', 'open', true],
+      ['ATTACK / STAND', 'attack', true], ['CLOSE + ATTACK', 'close', true], ['OPEN + ATTACK', 'open', true],
+      ['RUN CLOSER', 'close-run', true], ['RUN AWAY', 'open-run', true],
       ['EVADE', 'evade', false], ['ESCAPE', 'escape', false], ['STAND', 'wait', false]
     ]) {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'text-button action-button';
       button.textContent = `[ ${label} ]`;
-      button.disabled = needsTarget && !foes.length;
+      button.disabled = (needsTarget && !foes.length) || (action === 'escape' && view.declaringRound !== 1);
       button.addEventListener('click', declare(action, needsTarget));
       verbs.append(button);
     }

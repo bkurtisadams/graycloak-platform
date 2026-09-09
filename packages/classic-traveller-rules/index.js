@@ -1,4 +1,4 @@
-// @graycloak/classic-traveller-rules v0.15.0
+// @graycloak/classic-traveller-rules v0.22.0
 // Source-backed Classic Traveller Books 1-3 character, starship, world, and subsector rules engine.
 // Pure rules/state logic: no host, UI, persistence, Foundry, or Firebase dependencies.
 
@@ -262,6 +262,8 @@ export {
   PERSONAL_COMBAT_RANGES,
   PERSONAL_ARMOR_TYPES,
   PERSONAL_COMBAT_STATUSES,
+  PERSONAL_MOVEMENT_STATUSES,
+  PERSONAL_MOVEMENT_PACES,
   PERSONAL_WEAPONS,
   getPersonalWeapon,
   personalWeaponSkillLevel,
@@ -274,6 +276,8 @@ export {
   createPersonalCombatant,
   resolvePersonalSurprise,
   movePersonalCombatRange,
+  personalMovementBands,
+  personalMovementConsequences,
   applyPersonalDamage,
   rollPersonalAttack,
   previewPersonalAttack,

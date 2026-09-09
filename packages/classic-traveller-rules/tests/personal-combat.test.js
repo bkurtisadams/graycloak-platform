@@ -19,6 +19,8 @@ import {
   resolvePersonalMorale,
   weaponTargetNumber,
   movePersonalCombatRange,
+  personalMovementBands,
+  personalMovementConsequences,
   endPersonalCombatRecovery,
   PERSONAL_WEAPONS,
   PERSONAL_ARMOR_TYPES,
@@ -98,6 +100,18 @@ test('movement changes one abstract range band and morale starts at 25 percent c
   const check = resolvePersonalMorale({ casualties: 1, originalStrength: 4, dice: createSequenceDice([2, 4]) });
   assert.equal(check.required, true);
   assert.equal(check.stands, false);
+});
+
+test('Book 1 p.32 walking and running have distinct movement and attack consequences', () => {
+  assert.equal(personalMovementBands('walk'), 1);
+  assert.equal(personalMovementBands('run'), 2);
+  assert.deepEqual(personalMovementConsequences({ status: 'close', pace: 'walk' }), {
+    status: 'close', pace: 'walk', bands: 1, mayAttack: true, blowCost: 0
+  });
+  assert.deepEqual(personalMovementConsequences({ status: 'open', pace: 'run' }), {
+    status: 'open', pace: 'run', bands: 2, mayAttack: false, blowCost: 1
+  });
+  assert.equal(personalMovementConsequences({ status: 'evade' }).mayAttack, false);
 });
 
 test('minor wounds receive the facsimile halfway reset when combat ends', () => {

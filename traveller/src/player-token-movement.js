@@ -4,19 +4,25 @@
 
 function nonblank(value) { return typeof value === 'string' && value.trim().length > 0; }
 
-export function createPlayerTokenMove({ uid, encounterId, actorId, column, row, movedAt = Date.now() } = {}) {
+export function createPlayerTokenMove({ uid, encounterId, actorId, column, row, pace = 'walk', round, movedAt = Date.now() } = {}) {
   if (!nonblank(uid) || !nonblank(encounterId) || !nonblank(actorId)) throw new TypeError('uid, encounterId, and actorId are required');
   if (!Number.isInteger(column) || column < 0 || column > 200 || !Number.isInteger(row) || row < 0 || row > 200) throw new RangeError('token position must be within the 201 by 201 map');
+  if (!['walk', 'run'].includes(pace)) throw new RangeError('pace must be walk or run');
+  if (!Number.isInteger(round) || round < 1) throw new RangeError('round must be a positive integer');
   if (!Number.isSafeInteger(movedAt) || movedAt < 0) throw new RangeError('movedAt must be a non-negative integer');
-  return Object.freeze({ uid: uid.trim(), encounterId: encounterId.trim(), actorId: actorId.trim(), column, row, movedAt });
+  return Object.freeze({ uid: uid.trim(), encounterId: encounterId.trim(), actorId: actorId.trim(), column, row, pace, round, movedAt });
 }
 
 export function authorizePlayerTokenMove(raw, { campaign, encounter } = {}) {
   const move = createPlayerTokenMove(raw);
   if (!campaign?.identity?.id || !encounter?.identity?.id) throw new TypeError('campaign and encounter are required');
   if (encounter.campaignId !== campaign.identity.id || move.encounterId !== encounter.identity.id) throw new Error('move does not belong to this encounter');
+  if (encounter.status !== 'active' || move.round !== encounter.round) throw new Error('move is not for the active encounter round');
   const actor = encounter.combatants?.find((entry) => entry.id === move.actorId);
   if (!actor || !actor.playerCharacter) throw new Error('move actor is not a player character in this encounter');
   if (campaign.ownership?.actors?.[move.actorId] !== move.uid) throw new Error('player does not own this combatant');
+  const distance = Math.max(Math.abs(actor.position.column - move.column), Math.abs(actor.position.row - move.row));
+  const allowance = move.pace === 'run' ? 10 : 5;
+  if (distance > allowance) throw new Error(`${move.pace} movement exceeds ${allowance} five-meter squares`);
   return move;
 }

@@ -2,6 +2,11 @@
 
 Pure JavaScript rules package for the Graycloak Classic Traveller browser-game project. It intentionally has no HTML, Foundry, Firebase, or server dependencies.
 
+## v0.22.0 Book 1 movement consequences
+
+Exports the printed walking/running movement allowances and their attack and
+combat-blow consequences for host encounter resolvers.
+
 ## v0.15.0 noble-title entitlement
 
 Adds the Book 1 p.6 `NOBLE_TITLE_TABLE` for Social Standing B (11) through F (15) and `nobleTitleEntitlement()` for deriving a character's hereditary-title options, including the optional `von`, `haut`, or `hault` prefixes at SOC C. SOC 11+ is modeled as noble eligibility; ancestral lands or ruling power remain referee-discretionary. SOC above 15 remains eligible but deliberately returns no named title because Book 1 does not define one above Duke/Duchess.
