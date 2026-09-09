@@ -427,7 +427,6 @@ export function encounterRangeGuide(document, actorId, targetId) {
 
 export function repositionEncounterCombatant(document, { combatantId, column, row } = {}) {
   const next = importEncounterDocument(document);
-  if (next.status !== 'active') throw new Error('encounter is already resolved');
   if (!Number.isInteger(column) || column < 0 || column >= ENCOUNTER_MAP_COLUMNS || !Number.isInteger(row) || row < 0 || row >= ENCOUNTER_MAP_ROWS) throw new RangeError('map position is outside the encounter workspace');
   const current = next.combatants.find((entry) => entry.id === combatantId);
   if (!current) throw new Error('combatant is unavailable');

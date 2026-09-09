@@ -724,6 +724,8 @@ input[readonly] {
 .encounter-range-boundary.long { stroke: #336b9b; stroke-width: 2; }
 .encounter-range-boundary.very-long { stroke: #7b4f91; stroke-width: 2.5; }
 .encounter-token { cursor: grab; touch-action: none; }
+.encounter-token:focus { outline: none; }
+.encounter-token-hit-area { fill: transparent; stroke: none; pointer-events: all; }
 .encounter-token.dragging { cursor: grabbing; opacity: 0.78; }
 .encounter-token-pc { fill: #29465c; stroke: #111311; stroke-width: .5; }
 .encounter-token-pc.declared { fill: #667783; opacity: 0.72; }
@@ -3054,8 +3056,8 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 /* --- v0.43.0: selection and targeting read off the map. Yellow ring: the
    combatant you are giving orders to. Red ring: a marked target, pulsing so
    it is visible without hunting for it. */
-.encounter-token-selected-ring { fill: none; stroke: #d8b53a; stroke-width: .8; }
-.encounter-token-target-ring { fill: none; stroke: var(--failure-border); stroke-width: .65; stroke-dasharray: 1.2 .8; }
+.encounter-token-selected-ring { fill: none; stroke: #d8b53a; stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; }
+.encounter-token-target-ring { fill: none; stroke: var(--failure-border); stroke-width: 2; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; pointer-events: none; }
 .encounter-light-control { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; letter-spacing: .1em; color: var(--muted); }
 .encounter-light-control select { font: inherit; font-size: 10px; padding: 1px 2px; }
 

@@ -1,5 +1,9 @@
 # Graycloak Traveller
 
+## v0.60.3 usable tactical-map interaction
+
+The encounter map now zooms to 1600%, with toolbar zoom steps large enough to reach token scale quickly. Compact non-scaling outlines replace the oversized browser/token focus rings. All tokens remain selectable, targetable, and draggable after an encounter reaches victory or another resolved state, allowing the referee to inspect or adjust the final battlefield. Clicking a party token selects the actor; clicking an opposing token selects the target; hovering a target and pressing `T` also works on a resolved battlefield.
+
 ## v0.60.2 five-meter tactical map
 
 Personal combat now uses a scalable 201×201 square map at 5 meters per square, with a heavier line every five squares (25 meters). Selecting an actor draws colored Short, Medium, Long, and Very Long boundaries around that actor, so the grid itself explains range without a separate clickable band strip. The full map covers a 500-meter radius from its center.

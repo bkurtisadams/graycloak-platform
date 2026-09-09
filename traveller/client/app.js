@@ -573,7 +573,7 @@ let pendingEncounterConditionCombatantId = null;
 const ENCOUNTER_MAP_WIDTH = 1206;
 const ENCOUNTER_MAP_HEIGHT = 1206;
 const ENCOUNTER_MAP_MIN_ZOOM = 0.5;
-const ENCOUNTER_MAP_MAX_ZOOM = 4;
+const ENCOUNTER_MAP_MAX_ZOOM = 16;
 let encounterMapZoom = 1;
 let encounterMapView = { x: 0, y: 0, width: ENCOUNTER_MAP_WIDTH, height: ENCOUNTER_MAP_HEIGHT };
 let encounterMapViewFrame = 0;
@@ -3289,10 +3289,10 @@ function latestEncounterAtCurrentSystem() {
 
 function selectedEncounterTarget(encounter) {
   const actorSide = encounter?.combatants.find((entry) => entry.id === selectedEncounterActorId)?.side ?? 'party';
-  const active = encounter?.combatants.filter((entry) => entry.side !== actorSide && entry.status === 'active') ?? [];
-  let selected = active.find((entry) => entry.id === selectedEncounterTargetId) ?? null;
+  const candidates = encounter?.combatants.filter((entry) => entry.side !== actorSide && (encounter.status !== 'active' || entry.status === 'active')) ?? [];
+  let selected = candidates.find((entry) => entry.id === selectedEncounterTargetId) ?? null;
   if (!selected) {
-    selected = active[0] ?? null;
+    selected = candidates[0] ?? null;
     selectedEncounterTargetId = selected?.id ?? null;
   }
   return selected;
@@ -3300,10 +3300,10 @@ function selectedEncounterTarget(encounter) {
 
 function selectedEncounterActor(encounter) {
   const declared = new Set(encounter?.roundState?.declaredActions?.map((entry) => entry.actorId) ?? []);
-  const anySide = encounter?.combatants.filter((entry) => entry.status === 'active') ?? [];
+  const anySide = encounter?.combatants.filter((entry) => encounter.status !== 'active' || entry.status === 'active') ?? [];
   // The referee may pick any active combatant; the default stays a party
   // member still awaiting orders, since that is what advances the round.
-  const chosen = anySide.find((entry) => entry.id === selectedEncounterActorId && !declared.has(entry.id));
+  const chosen = anySide.find((entry) => entry.id === selectedEncounterActorId);
   if (chosen) return chosen;
   const party = anySide.filter((entry) => entry.side === 'party');
   const awaiting = party.filter((entry) => !declared.has(entry.id));
@@ -3314,8 +3314,7 @@ function selectedEncounterActor(encounter) {
 
 function setEncounterActor(encounterId, actorId) {
   const encounter = encounterDocuments.find((entry) => entry.identity.id === encounterId);
-  const declared = new Set(encounter?.roundState?.declaredActions?.map((entry) => entry.actorId) ?? []);
-  const actor = encounter?.combatants.find((entry) => entry.id === actorId && entry.status === 'active' && !declared.has(entry.id));
+  const actor = encounter?.combatants.find((entry) => entry.id === actorId && (encounter.status !== 'active' || entry.status === 'active'));
   if (!actor) return;
   selectedEncounterActorId = actor.id;
   // A target on the newly selected actor's own side is no longer legal.
@@ -3327,7 +3326,7 @@ function setEncounterActor(encounterId, actorId) {
 function setEncounterTarget(encounterId, targetId) {
   const encounter = encounterDocuments.find((entry) => entry.identity.id === encounterId);
   const actorSide = encounter?.combatants.find((entry) => entry.id === selectedEncounterActorId)?.side ?? 'party';
-  const target = encounter?.combatants.find((entry) => entry.id === targetId && entry.side !== actorSide && entry.status === 'active');
+  const target = encounter?.combatants.find((entry) => entry.id === targetId && entry.side !== actorSide && (encounter.status !== 'active' || entry.status === 'active'));
   if (!target) return;
   selectedEncounterTargetId = target.id;
   renderEncounter();
@@ -3424,7 +3423,7 @@ function setEncounterMapZoom(value, anchor = null) {
   scheduleEncounterMapView();
 }
 
-// Frame the combatants, capped at a readable four-times zoom. FIT remains the
+// Frame the combatants, capped at the readable maximum zoom. FIT remains the
 // one-click view of the complete 1 km square workspace and all range bands.
 function frameEncounterCombatants(encounter) {
   const cellWidth = ENCOUNTER_MAP_WIDTH / encounter.map.columns;
@@ -3709,7 +3708,6 @@ function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect
   });
   group.addEventListener('pointerleave', () => { hoveredEncounterCombatantId = null; el.encounterTokenTooltip.hidden = true; });
   group.addEventListener('contextmenu', (event) => showEncounterTokenMenu(event, encounter, combatant, onSelect, group));
-  if (encounter.status !== 'active' || combatant.status !== 'active') return;
   let drag = null;
   group.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return;
@@ -3947,18 +3945,17 @@ function renderEncounterMap(encounter) {
   for (const combatant of encounter.combatants) {
     const { x, y, offsetX, offsetY } = centreOf(combatant);
     const group = svgElement('g', {
-      class: 'encounter-token', role: combatant.status === 'active' ? 'button' : 'img',
-      tabindex: combatant.status === 'active' ? 0 : -1,
+      class: 'encounter-token', role: 'button',
+      tabindex: 0,
       transform: `translate(${x} ${y})`,
       'aria-label': `${combatant.name}, ${combatant.side}, ${combatant.status}`
     });
+    group.append(svgElement('circle', { cx: 0, cy: 0, r: 3.2, class: 'encounter-token-hit-area' }));
     // Yellow ring: this is the combatant you are giving orders to.
     // Red ring: this combatant is targeted. It pulses so it reads at a glance.
-    if (actor?.id === combatant.id) group.append(svgElement('circle', { cx: 0, cy: 0, r: 3.1, class: 'encounter-token-selected-ring' }));
+    if (actor?.id === combatant.id) group.append(svgElement('circle', { cx: 0, cy: 0, r: 2.95, class: 'encounter-token-selected-ring' }));
     if (targetedIds.has(combatant.id)) {
-      const ring = svgElement('circle', { cx: 0, cy: 0, r: 3.5, class: 'encounter-token-target-ring' });
-      const pulse = svgElement('animate', { attributeName: 'r', values: '3.2;4;3.2', dur: '1.4s', repeatCount: 'indefinite' });
-      ring.append(pulse);
+      const ring = svgElement('circle', { cx: 0, cy: 0, r: 3.05, class: 'encounter-token-target-ring' });
       group.append(ring);
     }
     if (combatant.side === 'party') {
@@ -7217,8 +7214,8 @@ el.npcActorForm.addEventListener('submit', (event) => {
   event.preventDefault();
   try { saveNpcActorFromForm(); } catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); }
 });
-el.encounterZoomOut.addEventListener('click', () => setEncounterMapZoom(encounterMapZoom - 0.25));
-el.encounterZoomIn.addEventListener('click', () => setEncounterMapZoom(encounterMapZoom + 0.25));
+el.encounterZoomOut.addEventListener('click', () => setEncounterMapZoom(encounterMapZoom / 1.5));
+el.encounterZoomIn.addEventListener('click', () => setEncounterMapZoom(encounterMapZoom * 1.5));
 el.encounterZoomFit.addEventListener('click', fitEncounterMap);
 el.encounterGridToggle.addEventListener('click', () => {
   encounterGridHidden = !encounterGridHidden;
@@ -7273,13 +7270,13 @@ el.encounterMap.addEventListener('dragstart', (event) => event.preventDefault())
   // instead of replacing it, so several enemies can be marked at once.
   el.encounterMapViewport.addEventListener('keydown', (event) => {
     if (event.key !== 't' && event.key !== 'T') return;
-    const encounter = activeEncounterAtCurrentSystem();
+    const encounter = latestEncounterAtCurrentSystem();
     if (!encounter) return;
     const actor = selectedEncounterActor(encounter);
     const candidate = encounter.combatants.find((entry) => entry.id === hoveredEncounterCombatantId)
-      ?? encounter.combatants.find((entry) => actor && entry.side !== actor.side && entry.status === 'active');
-    if (!candidate || !actor || candidate.side === actor.side || candidate.status !== 'active') {
-      setStatus('HOVER AN ACTIVE OPPOSING TOKEN TO TARGET IT', 'error');
+      ?? encounter.combatants.find((entry) => actor && entry.side !== actor.side && (encounter.status !== 'active' || entry.status === 'active'));
+    if (!candidate || !actor || candidate.side === actor.side || (encounter.status === 'active' && candidate.status !== 'active')) {
+      setStatus('HOVER AN OPPOSING TOKEN TO TARGET IT', 'error');
       return;
     }
     event.preventDefault();

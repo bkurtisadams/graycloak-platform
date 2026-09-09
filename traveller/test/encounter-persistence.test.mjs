@@ -183,6 +183,15 @@ test('dragged token positions persist while Book 1 range changes only through an
   assert.equal(applied.entry.kind, 'range');
 });
 
+test('the referee can reposition tokens after an encounter is resolved', async () => {
+  const { encounter } = await encounterFixture();
+  const player = encounter.combatants.find((entry) => entry.side === 'party');
+  const resolved = avoidEncounter(encounter, { date: { year: 4800, dayOfYear: 106 } });
+  const moved = repositionEncounterCombatant(resolved, { combatantId: player.id, column: 101, row: 100 });
+  assert.equal(moved.encounter.status, 'avoided');
+  assert.deepEqual(moved.encounter.combatants.find((entry) => entry.id === player.id).position, { column: 101, row: 100 });
+});
+
 test('referee range-band selection repositions the selected pair and records the decision', async () => {
   const { encounter } = await encounterFixture();
   const player = encounter.combatants.find((entry) => entry.side === 'party');
