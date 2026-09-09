@@ -132,3 +132,40 @@ export async function clearDeclarations(campaignId, encounterId) {
   await Promise.all(snapshot.docs.map((entry) => entry.ref.delete()));
   return snapshot.size;
 }
+
+// --- Canvas interaction -------------------------------------------------
+export async function writeTokenMove(campaignId, encounterId, move) {
+  const db = await ensureFirestore();
+  const ref = await db.collection('travellerCampaigns').doc(campaignId)
+    .collection('encounters').doc(encounterId).collection('moves').add(move);
+  return ref.id;
+}
+
+export async function watchTokenMoves(campaignId, encounterId, onChange) {
+  const db = await ensureFirestore();
+  return db.collection('travellerCampaigns').doc(campaignId)
+    .collection('encounters').doc(encounterId).collection('moves')
+    .onSnapshot((snapshot) => onChange(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }))),
+      (error) => console.error('[traveller-publish] token moves:', error));
+}
+
+export async function clearTokenMove(campaignId, encounterId, moveId) {
+  const db = await ensureFirestore();
+  await db.collection('travellerCampaigns').doc(campaignId)
+    .collection('encounters').doc(encounterId).collection('moves').doc(moveId).delete();
+}
+
+export async function writeCanvasPresence(campaignId, encounterId, presence) {
+  const db = await ensureFirestore();
+  await db.collection('travellerCampaigns').doc(campaignId)
+    .collection('encounters').doc(encounterId).collection('presence').doc(presence.uid)
+    .set(presence);
+}
+
+export async function watchCanvasPresence(campaignId, encounterId, onChange) {
+  const db = await ensureFirestore();
+  return db.collection('travellerCampaigns').doc(campaignId)
+    .collection('encounters').doc(encounterId).collection('presence')
+    .onSnapshot((snapshot) => onChange(snapshot.docs.map((entry) => entry.data())),
+      (error) => console.error('[traveller-publish] canvas presence:', error));
+}

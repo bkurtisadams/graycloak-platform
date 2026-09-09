@@ -11,7 +11,7 @@
       <div class="masthead-main">
         <nav class="utility masthead-utility" aria-label="Player session">
           <span class="masthead-title">TRAVELLER</span>
-          <span class="subtitle">PLAYER v0.60.3</span>
+          <span class="subtitle">PLAYER v0.61.0</span>
           <strong id="player-campaign-name" class="masthead-campaign-name">NOT CONNECTED</strong>
           <span class="masthead-label">DATE</span>
           <strong id="player-clock" class="masthead-date">--</strong>
@@ -33,7 +33,11 @@
       <div class="player-stage">
         <section class="player-scene-column" aria-label="Scene">
           <div id="player-scene" class="player-scene-heading"></div>
-          <svg id="player-map" class="player-map" viewBox="0 0 1280 800" role="img" aria-label="Encounter map"></svg>
+          <div class="player-map-tools"><button id="player-zoom-out" class="text-button" type="button">[ − ]</button><span id="player-zoom-label">100%</span><button id="player-zoom-in" class="text-button" type="button">[ + ]</button><button id="player-zoom-fit" class="text-button" type="button">[ FIT ]</button><span>CLICK OWN TOKEN / DRAG TO MOVE / HOVER + T TO TARGET</span></div>
+          <div id="player-map-viewport" class="player-map-viewport" tabindex="0">
+            <svg id="player-map" class="player-map" viewBox="0 0 1206 1206" role="img" aria-label="Encounter map"></svg>
+            <div id="player-token-menu" class="encounter-token-menu player-token-menu" hidden></div>
+          </div>
         </section>
         <aside class="player-side" aria-label="Combatants and events">
           <div class="player-side-heading">COMBATANTS</div>

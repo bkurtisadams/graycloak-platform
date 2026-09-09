@@ -164,8 +164,9 @@ import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js
 import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js';
 import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js';
 import { openSignInDialog } from './signin-ui.js';
-import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations } from './publish.js';
+import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence } from './publish.js';
 import { authorizePlayerDeclaration } from '../src/player-declaration.js';
+import { authorizePlayerTokenMove } from '../src/player-token-movement.js';
 import { buildPublishedView, buildPublishedCampaign } from '../src/published-view.js';
 import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js';
 import {
@@ -568,6 +569,7 @@ let operationsDeskTab = 'port';
 let pendingRoll = null;
 let selectedEncounterActorId = null;
 let selectedEncounterTargetId = null;
+let selectedEncounterTokenIds = new Set();
 let pendingEncounterPlacement = null;
 let pendingEncounterConditionCombatantId = null;
 const ENCOUNTER_MAP_WIDTH = 1206;
@@ -587,6 +589,11 @@ let lastPublishedRound = null;
 let unsubscribeDeclarations = null;
 let watchedDeclarationEncounterId = null;
 let appliedDeclarationKeys = new Set();
+let unsubscribeTokenMoves = null;
+let watchedMoveEncounterId = null;
+let appliedMoveIds = new Set();
+let unsubscribeCanvasPresence = null;
+let canvasPresence = [];
 let hoveredEncounterCombatantId = null;
 const WORKSPACE_VIEWS = ['play', 'ship', 'campaign', 'threads'];
 let activeWorkspaceView = 'play';
@@ -708,6 +715,17 @@ function appendActivityMessage(row, entry) {
     return;
   }
 
+  let container = message;
+  if (entry.category === 'COMBAT' && parts.length > 2) {
+    const card = document.createElement('details');
+    card.className = 'activity-combat-card';
+    const summary = document.createElement('summary');
+    const outcome = parts.find((part) => /^(HIT|MISS|SUCCESS|FAILURE|NO EFFECT|DEAD|UNCONSCIOUS)/i.test(part));
+    summary.textContent = [parts[0], outcome].filter(Boolean).join(' // ');
+    card.append(summary, message);
+    row.append(card);
+    container = message;
+  }
   message.classList.add('activity-roll-message');
   for (const part of parts) {
     if (appendActivityDiceLine(message, part)) continue;
@@ -724,7 +742,7 @@ function appendActivityMessage(row, entry) {
     }
     message.append(line);
   }
-  row.append(message);
+  if (container === message && !message.parentNode) row.append(message);
 }
 
 function renderActivity() {
@@ -3290,7 +3308,8 @@ function latestEncounterAtCurrentSystem() {
 function selectedEncounterTarget(encounter) {
   const actorSide = encounter?.combatants.find((entry) => entry.id === selectedEncounterActorId)?.side ?? 'party';
   const candidates = encounter?.combatants.filter((entry) => entry.side !== actorSide && (encounter.status !== 'active' || entry.status === 'active')) ?? [];
-  let selected = candidates.find((entry) => entry.id === selectedEncounterTargetId) ?? null;
+  let selected = candidates.find((entry) => encounterExtraTargetIds.has(entry.id))
+    ?? candidates.find((entry) => entry.id === selectedEncounterTargetId) ?? null;
   if (!selected) {
     selected = candidates[0] ?? null;
     selectedEncounterTargetId = selected?.id ?? null;
@@ -3303,7 +3322,8 @@ function selectedEncounterActor(encounter) {
   const anySide = encounter?.combatants.filter((entry) => encounter.status !== 'active' || entry.status === 'active') ?? [];
   // The referee may pick any active combatant; the default stays a party
   // member still awaiting orders, since that is what advances the round.
-  const chosen = anySide.find((entry) => entry.id === selectedEncounterActorId);
+  const chosen = anySide.find((entry) => selectedEncounterTokenIds.has(entry.id))
+    ?? anySide.find((entry) => entry.id === selectedEncounterActorId);
   if (chosen) return chosen;
   const party = anySide.filter((entry) => entry.side === 'party');
   const awaiting = party.filter((entry) => !declared.has(entry.id));
@@ -3316,10 +3336,8 @@ function setEncounterActor(encounterId, actorId) {
   const encounter = encounterDocuments.find((entry) => entry.identity.id === encounterId);
   const actor = encounter?.combatants.find((entry) => entry.id === actorId && (encounter.status !== 'active' || entry.status === 'active'));
   if (!actor) return;
+  selectedEncounterTokenIds = new Set([actor.id]);
   selectedEncounterActorId = actor.id;
-  // A target on the newly selected actor's own side is no longer legal.
-  const target = encounter?.combatants.find((entry) => entry.id === selectedEncounterTargetId);
-  if (target && target.side === actor.side) selectedEncounterTargetId = null;
   renderEncounter();
 }
 
@@ -3328,7 +3346,32 @@ function setEncounterTarget(encounterId, targetId) {
   const actorSide = encounter?.combatants.find((entry) => entry.id === selectedEncounterActorId)?.side ?? 'party';
   const target = encounter?.combatants.find((entry) => entry.id === targetId && entry.side !== actorSide && (encounter.status !== 'active' || entry.status === 'active'));
   if (!target) return;
+  encounterExtraTargetIds = new Set([target.id]);
   selectedEncounterTargetId = target.id;
+  renderEncounter();
+}
+
+function selectEncounterToken(encounterId, tokenId, { additive = false } = {}) {
+  const encounter = encounterDocuments.find((entry) => entry.identity.id === encounterId);
+  const token = encounter?.combatants.find((entry) => entry.id === tokenId);
+  if (!token) return;
+  const next = additive ? new Set(selectedEncounterTokenIds) : new Set();
+  if (additive && next.has(tokenId)) next.delete(tokenId);
+  else next.add(tokenId);
+  selectedEncounterTokenIds = next;
+  selectedEncounterActorId = [...next][0] ?? null;
+  renderEncounter();
+}
+
+function toggleEncounterTarget(encounterId, tokenId, { additive = true } = {}) {
+  const encounter = encounterDocuments.find((entry) => entry.identity.id === encounterId);
+  const actor = selectedEncounterActor(encounter);
+  const token = encounter?.combatants.find((entry) => entry.id === tokenId);
+  if (!actor || !token) return setStatus('SELECT A TOKEN, THEN TARGET A VISIBLE TOKEN', 'error');
+  const next = additive ? new Set(encounterExtraTargetIds) : new Set();
+  if (next.has(tokenId)) next.delete(tokenId); else next.add(tokenId);
+  encounterExtraTargetIds = next;
+  selectedEncounterTargetId = [...next][0] ?? null;
   renderEncounter();
 }
 
@@ -3457,6 +3500,8 @@ function moveEncounterToken(encounterId, combatantId, column, row) {
     encounterDocuments[index] = result.encounter;
     if (result.entry) logActivity('COMBAT', result.entry.text);
     persistCampaignState();
+    const publishMovedEncounter = autoPublishEncounterView;
+    publishMovedEncounter(result.encounter);
     renderEncounter();
   } catch (error) {
     console.error(error);
@@ -3506,6 +3551,9 @@ function showEncounterTokenMenu(event, encounter, combatant, onSelect, anchorEle
   const declaredIds = new Set(encounter.roundState?.declaredActions?.map((entry) => entry.actorId) ?? []);
   const alreadyDeclared = declaredIds.has(combatant.id);
   const foes = encounter.combatants.filter((entry) => entry.side !== combatant.side && entry.status === 'active');
+  const selectedActor = selectedEncounterActor(encounter);
+  add(selectedEncounterTokenIds.has(combatant.id) ? 'DESELECT' : 'SELECT', () => selectEncounterToken(encounter.identity.id, combatant.id, { additive: true }));
+  add(encounterExtraTargetIds.has(combatant.id) ? 'UNTARGET' : 'TARGET', () => toggleEncounterTarget(encounter.identity.id, combatant.id), !selectedActor);
 
   // A submenu: the parent opens it, each child is one complete declaration for
   // this token, so an order is a single gesture at the token it applies to.
@@ -3764,14 +3812,14 @@ function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect
       group.setAttribute('transform', `translate(${completed.originX} ${completed.originY})`);
       return;
     }
-    if (!completed.moved) return onSelect?.();
+    if (!completed.moved) return onSelect?.(event);
     const cellWidth = ENCOUNTER_MAP_WIDTH / encounter.map.columns;
     const cellHeight = ENCOUNTER_MAP_HEIGHT / encounter.map.rows;
     const column = Math.max(0, Math.min(encounter.map.columns - 1, Math.floor((completed.previewX - completed.offsetX) / cellWidth)));
     const row = Math.max(0, Math.min(encounter.map.rows - 1, Math.floor((completed.previewY - completed.offsetY) / cellHeight)));
     if (column === combatant.position.column && row === combatant.position.row) {
       group.setAttribute('transform', `translate(${completed.originX} ${completed.originY})`);
-      onSelect?.();
+      onSelect?.(event);
       return;
     }
     moveEncounterToken(encounter.identity.id, combatant.id, column, row);
@@ -3779,7 +3827,7 @@ function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect
   group.addEventListener('pointerup', (event) => finishDrag(event));
   group.addEventListener('pointercancel', (event) => finishDrag(event, true));
   group.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect?.(); }
+    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect?.(event); }
     if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) showEncounterTokenMenu(event, encounter, combatant, onSelect, group);
   });
 }
@@ -3951,13 +3999,14 @@ function renderEncounterMap(encounter) {
       'aria-label': `${combatant.name}, ${combatant.side}, ${combatant.status}`
     });
     group.append(svgElement('circle', { cx: 0, cy: 0, r: 3.2, class: 'encounter-token-hit-area' }));
-    // Yellow ring: this is the combatant you are giving orders to.
-    // Red ring: this combatant is targeted. It pulses so it reads at a glance.
-    if (actor?.id === combatant.id) group.append(svgElement('circle', { cx: 0, cy: 0, r: 2.95, class: 'encounter-token-selected-ring' }));
+    // Corner brackets mark locally selected tokens; a compact red reticle marks targets.
+    if (selectedEncounterTokenIds.has(combatant.id) || actor?.id === combatant.id) group.append(svgElement('path', { d: 'M -3 -1.5 V -3 H -1.5 M 1.5 -3 H 3 V -1.5 M 3 1.5 V 3 H 1.5 M -1.5 3 H -3 V 1.5', class: 'encounter-token-selected-ring' }));
     if (targetedIds.has(combatant.id)) {
       const ring = svgElement('circle', { cx: 0, cy: 0, r: 3.05, class: 'encounter-token-target-ring' });
       group.append(ring);
     }
+    const remoteTargets = canvasPresence.filter((entry) => entry.uid !== currentUserId() && entry.targetIds?.includes(combatant.id));
+    remoteTargets.slice(0, 4).forEach((entry, index) => group.append(svgElement('circle', { cx: -2.4 + index * 1.6, cy: -3.8, r: .55, class: 'encounter-token-remote-target', 'data-user': entry.uid })));
     if (combatant.side === 'party') {
       group.append(svgElement('circle', { cx: 0, cy: 0, r: 2.5, class: `encounter-token-pc${declared.has(combatant.id) ? ' declared' : ''}` }));
       const label = svgElement('text', { x: 0, y: 0, class: 'encounter-token-pc-label' });
@@ -3966,7 +4015,7 @@ function renderEncounterMap(encounter) {
       if (combatant.conditions?.length) {
         const marker = svgElement('text', { x: 2.2, y: -1.8, class: 'encounter-token-condition-marker' }); marker.textContent = '!'; group.append(marker);
       }
-      attachEncounterTokenInteraction(group, encounter, combatant, { onSelect: () => setEncounterActor(encounter.identity.id, combatant.id), visualPoint: { x, y, offsetX, offsetY } });
+      attachEncounterTokenInteraction(group, encounter, combatant, { onSelect: (event) => selectEncounterToken(encounter.identity.id, combatant.id, { additive: Boolean(event?.shiftKey) }), visualPoint: { x, y, offsetX, offsetY } });
       fragments.push(group);
       continue;
     }
@@ -3985,7 +4034,7 @@ function renderEncounterMap(encounter) {
       tally.textContent = `\u00d7${declaredOn[combatant.id]}`;
       group.append(tally);
     }
-    attachEncounterTokenInteraction(group, encounter, combatant, { onSelect: () => setEncounterTarget(encounter.identity.id, combatant.id), visualPoint: { x, y, offsetX, offsetY } });
+    attachEncounterTokenInteraction(group, encounter, combatant, { onSelect: (event) => selectEncounterToken(encounter.identity.id, combatant.id, { additive: Boolean(event?.shiftKey) }), visualPoint: { x, y, offsetX, offsetY } });
     fragments.push(group);
   }
   el.encounterMap.replaceChildren(...fragments);
@@ -4399,6 +4448,53 @@ function watchPlayerDeclarations() {
       else unsubscribeDeclarations = unsubscribe;
     })
     .catch((error) => console.error(error));
+}
+
+function watchPlayerCanvas() {
+  const encounter = activeEncounterAtCurrentSystem() ?? latestEncounterAtCurrentSystem();
+  const online = campaignIsPublished(campaignDocument) && currentUserId();
+  if (!online || !encounter) {
+    unsubscribeTokenMoves?.(); unsubscribeTokenMoves = null; watchedMoveEncounterId = null;
+    unsubscribeCanvasPresence?.(); unsubscribeCanvasPresence = null; canvasPresence = [];
+    return;
+  }
+  if (watchedMoveEncounterId === encounter.identity.id) return;
+  unsubscribeTokenMoves?.();
+  unsubscribeCanvasPresence?.();
+  watchedMoveEncounterId = encounter.identity.id;
+  const watchedId = encounter.identity.id;
+  watchTokenMoves(campaignDocument.identity.id, watchedId, applyPlayerTokenMoves)
+    .then((unsubscribe) => { if (watchedMoveEncounterId !== watchedId) unsubscribe(); else unsubscribeTokenMoves = unsubscribe; })
+    .catch((error) => console.error(error));
+  watchCanvasPresence(campaignDocument.identity.id, watchedId, (entries) => { canvasPresence = entries; renderEncounter(); })
+    .then((unsubscribe) => { if (watchedMoveEncounterId !== watchedId) unsubscribe(); else unsubscribeCanvasPresence = unsubscribe; })
+    .catch((error) => console.error(error));
+}
+
+function applyPlayerTokenMoves(entries) {
+  const encounter = activeEncounterAtCurrentSystem() ?? latestEncounterAtCurrentSystem();
+  if (!encounter) return;
+  let changed = false;
+  const index = encounterDocuments.findIndex((entry) => entry.identity.id === encounter.identity.id);
+  for (const entry of entries.sort((a, b) => a.movedAt - b.movedAt)) {
+    if (appliedMoveIds.has(entry.id)) continue;
+    try {
+      const move = authorizePlayerTokenMove(entry, { campaign: campaignDocument, encounter: encounterDocuments[index] });
+      encounterDocuments[index] = repositionEncounterCombatant(encounterDocuments[index], move).encounter;
+      appliedMoveIds.add(entry.id);
+      changed = true;
+    } catch (error) {
+      appliedMoveIds.add(entry.id);
+      console.warn('[traveller] player token move refused:', error?.message ?? error);
+    }
+    clearTokenMove(campaignDocument.identity.id, encounter.identity.id, entry.id).catch((error) => console.error(error));
+  }
+  if (changed) {
+    syncCampaignRefs();
+    persistCampaignState();
+    autoPublishEncounterView(encounterDocuments[index]);
+    renderEncounter();
+  }
 }
 
 function applyPlayerDeclarations(entries) {
@@ -6528,6 +6624,7 @@ function render() {
   renderAccount();
   renderPublishPanel();
   watchPlayerDeclarations();
+  watchPlayerCanvas();
   renderCampaignDirectory();
   renderRoster();
   applyOperationsDeskTab();
@@ -7239,7 +7336,8 @@ el.encounterMap.addEventListener('dragstart', (event) => event.preventDefault())
       clientY: event.clientY,
       viewX: encounterMapView.x,
       viewY: encounterMapView.y,
-      scale
+      scale,
+      moved: false
     };
     el.encounterMapViewport.setPointerCapture(event.pointerId);
     el.encounterMapViewport.classList.add('panning');
@@ -7247,15 +7345,22 @@ el.encounterMap.addEventListener('dragstart', (event) => event.preventDefault())
   el.encounterMapViewport.addEventListener('pointermove', (event) => {
     if (!pan || pan.pointerId !== event.pointerId) return;
     event.preventDefault();
+    if (Math.hypot(event.clientX - pan.clientX, event.clientY - pan.clientY) > 6) pan.moved = true;
     encounterMapView.x = pan.viewX - (event.clientX - pan.clientX) / pan.scale;
     encounterMapView.y = pan.viewY - (event.clientY - pan.clientY) / pan.scale;
     scheduleEncounterMapView();
   });
   const endPan = (event) => {
     if (!pan || pan.pointerId !== event.pointerId) return;
+    const wasClick = !pan.moved;
     pan = null;
     el.encounterMapViewport.classList.remove('panning');
     flushEncounterMapView();
+    if (wasClick) {
+      selectedEncounterTokenIds = new Set();
+      selectedEncounterActorId = null;
+      renderEncounter();
+    }
   };
   el.encounterMapViewport.addEventListener('pointerup', endPan);
   el.encounterMapViewport.addEventListener('pointercancel', endPan);
@@ -7275,21 +7380,16 @@ el.encounterMap.addEventListener('dragstart', (event) => event.preventDefault())
     const actor = selectedEncounterActor(encounter);
     const candidate = encounter.combatants.find((entry) => entry.id === hoveredEncounterCombatantId)
       ?? encounter.combatants.find((entry) => actor && entry.side !== actor.side && (encounter.status !== 'active' || entry.status === 'active'));
-    if (!candidate || !actor || candidate.side === actor.side || (encounter.status === 'active' && candidate.status !== 'active')) {
-      setStatus('HOVER AN OPPOSING TOKEN TO TARGET IT', 'error');
+    if (!candidate || !actor) {
+      setStatus('HOVER A VISIBLE TOKEN TO TARGET IT', 'error');
       return;
     }
     event.preventDefault();
-    if (event.shiftKey) {
-      if (encounterExtraTargetIds.has(candidate.id)) encounterExtraTargetIds.delete(candidate.id);
-      else encounterExtraTargetIds.add(candidate.id);
-      setStatus(`MARKED ${[...encounterExtraTargetIds].length + 1} TARGETS`, 'ok');
-      renderEncounter();
-      return;
+    if (encounterExtraTargetIds.has(candidate.id)) {
+      // The shared toggle helper removes an already marked target.
     }
-    encounterExtraTargetIds = new Set();
-    setEncounterTarget(encounter.identity.id, candidate.id);
-    setStatus(`TARGET ${candidate.name.toUpperCase()}`, 'ok');
+    toggleEncounterTarget(encounter.identity.id, candidate.id, { additive: true });
+    setStatus(`${encounterExtraTargetIds.has(candidate.id) ? 'TARGET' : 'UNTARGET'} ${candidate.name.toUpperCase()}`, 'ok');
   });
 }
 el.combatSetupDialog.addEventListener('cancel', (event) => {

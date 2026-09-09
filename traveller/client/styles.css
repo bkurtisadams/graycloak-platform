@@ -1232,6 +1232,11 @@ input[readonly] {
   display: grid;
   gap: 3px;
 }
+.activity-combat-card { border-left: 3px solid var(--failure-border); padding-left: 6px; }
+.activity-combat-card > summary { cursor: pointer; font-weight: 700; list-style: none; overflow-wrap: anywhere; }
+.activity-combat-card > summary::before { content: '\25b8 '; color: var(--muted); }
+.activity-combat-card[open] > summary::before { content: '\25be '; }
+.activity-combat-card[open] > .activity-message { margin-top: 5px; padding-top: 4px; border-top: 1px dotted var(--disabled); }
 
 .activity-message-line {
   min-width: 0;
@@ -3056,7 +3061,8 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 /* --- v0.43.0: selection and targeting read off the map. Yellow ring: the
    combatant you are giving orders to. Red ring: a marked target, pulsing so
    it is visible without hunting for it. */
-.encounter-token-selected-ring { fill: none; stroke: #d8b53a; stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; }
+.encounter-token-selected-ring { fill: none; stroke: #d8b53a; stroke-width: 2; stroke-linecap: square; stroke-linejoin: miter; vector-effect: non-scaling-stroke; pointer-events: none; }
+.encounter-token-remote-target { fill: #63a9c7; stroke: var(--paper); stroke-width: .7; vector-effect: non-scaling-stroke; pointer-events: none; }
 .encounter-token-target-ring { fill: none; stroke: var(--failure-border); stroke-width: 2; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; pointer-events: none; }
 .encounter-light-control { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; letter-spacing: .1em; color: var(--muted); }
 .encounter-light-control select { font: inherit; font-size: 10px; padding: 1px 2px; }
@@ -3139,15 +3145,24 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 
 .player-stage { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; padding-top: 10px; align-items: start; }
 .player-scene-heading { font-size: 12px; font-weight: 700; letter-spacing: .06em; padding-bottom: 6px; }
-.player-map { width: 100%; border: 1px solid var(--rule); background: var(--paper); }
-.player-grid { stroke: var(--disabled); stroke-width: 0.5; }
-.player-token { stroke: #111311; stroke-width: 2; }
+.player-map-tools { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: 10px; margin-bottom: 5px; }
+.player-map-tools span:last-child { margin-left: auto; }
+.player-map-viewport { position: relative; height: min(74vh, 900px); overflow: hidden; border: 1px solid var(--rule); background: var(--paper); touch-action: none; }
+.player-map-viewport:focus { outline: 1px solid var(--link); outline-offset: 1px; }
+.player-map { width: 100%; height: 100%; display: block; background: var(--paper); }
+.player-grid { stroke: var(--disabled); stroke-width: .45; vector-effect: non-scaling-stroke; }
+.player-grid.major { stroke: var(--muted); stroke-width: 1.2; }
+.player-token-group { cursor: pointer; }
+.player-token { stroke: #111311; stroke-width: 1.2; vector-effect: non-scaling-stroke; }
 .player-token.party { fill: #29465c; }
 .player-token.enemy { fill: #6a1f1f; }
 .player-token.down { opacity: 0.45; }
-.player-token-yours { fill: none; stroke: #d8b53a; stroke-width: 3.5; }
-.player-token-label { fill: #f2f2ed; font: 700 15px Consolas, monospace; text-anchor: middle; dominant-baseline: central; }
-.player-token-name { fill: var(--ink); font: 10px Consolas, monospace; text-anchor: middle; }
+.player-token-selected { fill: none; stroke: #d8b53a; stroke-width: 2; stroke-linecap: square; vector-effect: non-scaling-stroke; pointer-events: none; }
+.player-token-target { fill: none; stroke: var(--failure-border); stroke-width: 2; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; pointer-events: none; }
+.player-token-remote-target { fill: #63a9c7; stroke: var(--paper); stroke-width: .7; vector-effect: non-scaling-stroke; pointer-events: none; }
+.player-token-label { fill: #f2f2ed; font: 700 2.2px Consolas, monospace; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.player-token-menu { position: absolute; z-index: 5; display: flex; flex-direction: column; }
+.player-token-menu[hidden] { display: none; }
 
 .player-side { border-left: 1px solid var(--rule); padding-left: 12px; }
 .player-side-heading { font-size: 10px; letter-spacing: .1em; color: var(--muted); font-weight: 700; padding: 6px 0 4px; }

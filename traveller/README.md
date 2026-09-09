@@ -1,5 +1,13 @@
 # Graycloak Traveller
 
+## v0.61.0 shared Foundry-style canvas interaction
+
+Tokens now have separate selection and targeting states. The referee can select
+any token; a signed-in player can select and drag only assigned characters,
+hover any visible token and press T to target it, or use the right-click token
+menu. Positions and player target markers update through the published encounter
+canvas. Combat activity is collapsed into compact, expandable cards.
+
 ## v0.60.3 usable tactical-map interaction
 
 The encounter map now zooms to 1600%, with toolbar zoom steps large enough to reach token scale quickly. Compact non-scaling outlines replace the oversized browser/token focus rings. All tokens remain selectable, targetable, and draggable after an encounter reaches victory or another resolved state, allowing the referee to inspect or adjust the final battlefield. Clicking a party token selects the actor; clicking an opposing token selects the target; hovering a target and pressing `T` also works on a resolved battlefield.

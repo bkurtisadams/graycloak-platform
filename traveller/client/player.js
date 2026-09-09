@@ -10,8 +10,12 @@
 
 import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js';
 import { openSignInDialog } from './signin-ui.js';
-import { ensureFirestore, writeDeclaration, watchDeclarations } from './publish.js';
+import {
+  ensureFirestore, writeDeclaration, watchDeclarations, writeTokenMove,
+  writeCanvasPresence, watchCanvasPresence
+} from './publish.js';
 import { createPlayerDeclaration } from '../src/player-declaration.js';
+import { createPlayerTokenMove } from '../src/player-token-movement.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -25,7 +29,13 @@ const el = {
   clock: document.querySelector('#player-clock'),
   yours: document.querySelector('#player-yours'),
   scene: document.querySelector('#player-scene'),
+  mapViewport: document.querySelector('#player-map-viewport'),
   map: document.querySelector('#player-map'),
+  mapMenu: document.querySelector('#player-token-menu'),
+  zoomOut: document.querySelector('#player-zoom-out'),
+  zoomIn: document.querySelector('#player-zoom-in'),
+  zoomFit: document.querySelector('#player-zoom-fit'),
+  zoomLabel: document.querySelector('#player-zoom-label'),
   roster: document.querySelector('#player-roster'),
   narration: document.querySelector('#player-narration'),
   orders: document.querySelector('#player-orders')
@@ -44,6 +54,17 @@ let unsubscribeDeclarations = null;
 // left this null and declarations were written to a null path.
 let connectedCampaignId = null;
 let sceneWatchGeneration = 0;
+let unsubscribePresence = null;
+let selectedTokenIds = new Set();
+let targetTokenIds = new Set();
+let hoveredTokenId = null;
+let canvasPresence = [];
+let mapZoom = 1;
+let mapView = { x: 0, y: 0, width: 1206, height: 1206 };
+let mapPan = null;
+const MAP_SIZE = 1206;
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 16;
 
 function setStatus(text, kind = '') {
   el.status.textContent = text;
@@ -129,34 +150,130 @@ function renderScene() {
 function renderMap() {
   const columns = view.map.columns;
   const rows = view.map.rows;
-  const cell = 40;
-  el.map.setAttribute('viewBox', `0 0 ${columns * cell} ${rows * cell}`);
+  const cell = MAP_SIZE / Math.max(columns, rows);
   const parts = [];
   for (let column = 0; column <= columns; column += 1) {
-    parts.push(svg('line', { x1: column * cell, y1: 0, x2: column * cell, y2: rows * cell, class: 'player-grid' }));
+    parts.push(svg('line', { x1: column * cell, y1: 0, x2: column * cell, y2: rows * cell, class: column % 5 ? 'player-grid' : 'player-grid major' }));
   }
   for (let row = 0; row <= rows; row += 1) {
-    parts.push(svg('line', { x1: 0, y1: row * cell, x2: columns * cell, y2: row * cell, class: 'player-grid' }));
+    parts.push(svg('line', { x1: 0, y1: row * cell, x2: columns * cell, y2: row * cell, class: row % 5 ? 'player-grid' : 'player-grid major' }));
   }
   const owned = ownedCombatantIds();
   for (const combatant of view.combatants) {
     const x = combatant.position.column * cell + cell / 2;
     const y = combatant.position.row * cell + cell / 2;
     const group = svg('g', { transform: `translate(${x} ${y})` });
-    if (owned.has(combatant.id)) group.append(svg('circle', { cx: 0, cy: 0, r: 17, class: 'player-token-yours' }));
+    group.dataset.tokenId = combatant.id;
+    group.classList.add('player-token-group');
+    group.setAttribute('tabindex', '0');
+    if (selectedTokenIds.has(combatant.id)) group.append(svg('path', { d: 'M -3 -1.5 V -3 H -1.5 M 1.5 -3 H 3 V -1.5 M 3 1.5 V 3 H 1.5 M -1.5 3 H -3 V 1.5', class: 'player-token-selected' }));
+    if (targetTokenIds.has(combatant.id)) group.append(svg('circle', { cx: 0, cy: 0, r: 4.2, class: 'player-token-target' }));
+    const remoteTargets = canvasPresence.filter((entry) => entry.uid !== currentUserId() && entry.targetIds?.includes(combatant.id));
+    remoteTargets.slice(0, 4).forEach((entry, index) => group.append(svg('circle', { cx: -3 + index * 2, cy: -4.8, r: .65, class: 'player-token-remote-target' })));
     group.append(svg('circle', {
-      cx: 0, cy: 0, r: 14,
+      cx: 0, cy: 0, r: 2.25,
       class: `player-token ${combatant.side === 'party' ? 'party' : 'enemy'}${combatant.condition === 'active' ? '' : ' down'}`
     }));
     const label = svg('text', { x: 0, y: 0, class: 'player-token-label' });
     label.textContent = combatant.tokenLabel || combatant.name.charAt(0).toUpperCase();
     group.append(label);
-    const name = svg('text', { x: 0, y: 26, class: 'player-token-name' });
-    name.textContent = combatant.name;
-    group.append(name);
+    const title = svg('title'); title.textContent = `${combatant.name} / ${combatant.condition}`; group.append(title);
+    attachPlayerTokenInteraction(group, combatant, owned.has(combatant.id), cell);
     parts.push(group);
   }
   el.map.replaceChildren(...parts);
+  applyMapView();
+}
+
+function applyMapView() {
+  const width = MAP_SIZE / mapZoom;
+  const height = MAP_SIZE / mapZoom;
+  mapView.width = width; mapView.height = height;
+  mapView.x = width >= MAP_SIZE ? (MAP_SIZE - width) / 2 : Math.max(0, Math.min(MAP_SIZE - width, mapView.x));
+  mapView.y = height >= MAP_SIZE ? (MAP_SIZE - height) / 2 : Math.max(0, Math.min(MAP_SIZE - height, mapView.y));
+  el.map.setAttribute('viewBox', `${mapView.x} ${mapView.y} ${width} ${height}`);
+  el.zoomLabel.textContent = `${Math.round(mapZoom * 100)}%`;
+}
+
+function mapPoint(event) {
+  const matrix = el.map.getScreenCTM();
+  if (!matrix) return { x: 0, y: 0 };
+  const point = el.map.createSVGPoint(); point.x = event.clientX; point.y = event.clientY;
+  return point.matrixTransform(matrix.inverse());
+}
+
+function setMapZoom(next, event = null) {
+  const point = event ? mapPoint(event) : { x: mapView.x + mapView.width / 2, y: mapView.y + mapView.height / 2 };
+  const old = mapZoom;
+  mapZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, next));
+  const ratio = old / mapZoom;
+  mapView.x = point.x - (point.x - mapView.x) * ratio;
+  mapView.y = point.y - (point.y - mapView.y) * ratio;
+  applyMapView();
+}
+
+function publishPresence() {
+  if (!connectedCampaignId || !watchedEncounterId || !currentUserId()) return;
+  writeCanvasPresence(connectedCampaignId, watchedEncounterId, {
+    uid: currentUserId(), selectedIds: [...selectedTokenIds], targetIds: [...targetTokenIds], updatedAt: Date.now()
+  }).catch((error) => console.error(error));
+}
+
+function selectPlayerToken(combatant, additive = false) {
+  if (!ownedCombatantIds().has(combatant.id)) return setStatus('YOU MAY ONLY SELECT A TOKEN YOU PLAY', 'error');
+  const next = additive ? new Set(selectedTokenIds) : new Set();
+  if (additive && next.has(combatant.id)) next.delete(combatant.id); else next.add(combatant.id);
+  selectedTokenIds = next; publishPresence(); renderMap(); renderOrders();
+}
+
+function targetPlayerToken(combatant) {
+  const next = new Set(targetTokenIds);
+  if (next.has(combatant.id)) next.delete(combatant.id); else next.add(combatant.id);
+  targetTokenIds = next; publishPresence(); renderMap(); renderOrders();
+}
+
+function showPlayerTokenMenu(event, combatant, owned) {
+  event.preventDefault(); event.stopPropagation();
+  const buttons = [];
+  const add = (label, handler, disabled = false) => {
+    const button = document.createElement('button'); button.type = 'button'; button.textContent = `[ ${label} ]`; button.disabled = disabled;
+    button.onclick = () => { el.mapMenu.hidden = true; handler(); }; buttons.push(button);
+  };
+  add(selectedTokenIds.has(combatant.id) ? 'DESELECT' : 'SELECT', () => selectPlayerToken(combatant, true), !owned);
+  add(targetTokenIds.has(combatant.id) ? 'UNTARGET' : 'TARGET', () => targetPlayerToken(combatant));
+  el.mapMenu.replaceChildren(...buttons); el.mapMenu.hidden = false;
+  const rect = el.mapViewport.getBoundingClientRect();
+  el.mapMenu.style.left = `${Math.max(4, event.clientX - rect.left + 8)}px`;
+  el.mapMenu.style.top = `${Math.max(4, event.clientY - rect.top + 8)}px`;
+}
+
+function attachPlayerTokenInteraction(group, combatant, owned, cell) {
+  let drag = null;
+  group.addEventListener('pointerenter', () => { hoveredTokenId = combatant.id; });
+  group.addEventListener('pointerleave', () => { if (!drag) hoveredTokenId = null; });
+  group.addEventListener('contextmenu', (event) => showPlayerTokenMenu(event, combatant, owned));
+  group.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return; event.stopPropagation();
+    drag = { start: mapPoint(event), origin: { ...combatant.position }, moved: false };
+    group.setPointerCapture(event.pointerId);
+  });
+  group.addEventListener('pointermove', (event) => {
+    if (!drag || !group.hasPointerCapture(event.pointerId)) return;
+    const point = mapPoint(event); if (Math.hypot(point.x - drag.start.x, point.y - drag.start.y) > cell * .35) drag.moved = true;
+    if (drag.moved && owned) group.setAttribute('transform', `translate(${Math.max(cell / 2, Math.min(MAP_SIZE - cell / 2, point.x))} ${Math.max(cell / 2, Math.min(MAP_SIZE - cell / 2, point.y))})`);
+  });
+  group.addEventListener('pointerup', async (event) => {
+    if (!drag) return; group.releasePointerCapture(event.pointerId); const wasMoved = drag.moved; drag = null;
+    if (!wasMoved) { selectPlayerToken(combatant, event.shiftKey); return; }
+    if (!owned) { renderMap(); setStatus('YOU MAY ONLY MOVE A TOKEN YOU PLAY', 'error'); return; }
+    const point = mapPoint(event);
+    const column = Math.max(0, Math.min(view.map.columns - 1, Math.floor(point.x / cell)));
+    const row = Math.max(0, Math.min(view.map.rows - 1, Math.floor(point.y / cell)));
+    try {
+      await writeTokenMove(connectedCampaignId, view.encounterId, createPlayerTokenMove({ uid: currentUserId(), encounterId: view.encounterId, actorId: combatant.id, column, row, movedAt: Date.now() }));
+      setStatus(`MOVE SENT / ${combatant.name.toUpperCase()} / WAITING FOR REFEREE`, 'ok');
+    } catch (error) { renderMap(); setStatus(error?.message ?? String(error), 'error'); }
+  });
 }
 
 function renderRoster() {
@@ -231,6 +348,8 @@ function renderOrders() {
     const select = document.createElement('select');
     for (const foe of foes) select.append(new Option(foe.name.toUpperCase(), foe.id));
     if (!foes.length) select.append(new Option('NOBODY', ''));
+    const marked = foes.find((foe) => targetTokenIds.has(foe.id));
+    if (marked) select.value = marked.id;
     targetRow.append(select);
     block.append(targetRow);
 
@@ -339,7 +458,12 @@ function watchScene(db, campaignId, encounterId) {
   unsubscribeView = null;
   unsubscribeDeclarations?.();
   unsubscribeDeclarations = null;
+  unsubscribePresence?.();
+  unsubscribePresence = null;
   declarations = [];
+  canvasPresence = [];
+  selectedTokenIds = new Set();
+  targetTokenIds = new Set();
   watchedEncounterId = encounterId;
   view = null;
   if (!encounterId) { render(); return; }
@@ -355,7 +479,46 @@ function watchScene(db, campaignId, encounterId) {
       else unsubscribeDeclarations = unsubscribe;
     })
     .catch((error) => console.error(error));
+  watchCanvasPresence(campaignId, encounterId, (entries) => { canvasPresence = entries; renderMap(); })
+    .then((unsubscribe) => {
+      if (generation !== sceneWatchGeneration || encounterId !== watchedEncounterId) unsubscribe();
+      else unsubscribePresence = unsubscribe;
+    })
+    .catch((error) => console.error(error));
 }
+
+el.zoomOut.addEventListener('click', () => setMapZoom(mapZoom / 1.4));
+el.zoomIn.addEventListener('click', () => setMapZoom(mapZoom * 1.4));
+el.zoomFit.addEventListener('click', () => { mapZoom = 1; mapView = { x: 0, y: 0, width: MAP_SIZE, height: MAP_SIZE }; applyMapView(); });
+el.mapViewport.addEventListener('wheel', (event) => { event.preventDefault(); setMapZoom(mapZoom * (event.deltaY < 0 ? 1.12 : 1 / 1.12), event); }, { passive: false });
+el.mapViewport.addEventListener('keydown', (event) => {
+  if (event.key !== 't' && event.key !== 'T') return;
+  const combatant = view?.combatants.find((entry) => entry.id === hoveredTokenId);
+  if (!combatant) return setStatus('HOVER A VISIBLE TOKEN, THEN PRESS T', 'error');
+  event.preventDefault(); targetPlayerToken(combatant);
+});
+el.mapViewport.addEventListener('pointerdown', (event) => {
+  if (event.target.closest?.('.player-token-group')) return;
+  el.mapMenu.hidden = true;
+  mapPan = { x: event.clientX, y: event.clientY, viewX: mapView.x, viewY: mapView.y, moved: false };
+  el.mapViewport.setPointerCapture(event.pointerId);
+});
+el.mapViewport.addEventListener('pointermove', (event) => {
+  if (!mapPan || !el.mapViewport.hasPointerCapture(event.pointerId)) return;
+  const rect = el.mapViewport.getBoundingClientRect();
+  const scale = Math.min(rect.width / mapView.width, rect.height / mapView.height) || 1;
+  const dx = event.clientX - mapPan.x; const dy = event.clientY - mapPan.y;
+  if (Math.hypot(dx, dy) > 4) mapPan.moved = true;
+  mapView.x = mapPan.viewX - dx / scale; mapView.y = mapPan.viewY - dy / scale; applyMapView();
+});
+const endMapPan = (event) => {
+  if (!mapPan) return;
+  const moved = mapPan.moved; mapPan = null;
+  if (el.mapViewport.hasPointerCapture(event.pointerId)) el.mapViewport.releasePointerCapture(event.pointerId);
+  if (!moved) { selectedTokenIds = new Set(); publishPresence(); renderMap(); }
+};
+el.mapViewport.addEventListener('pointerup', endMapPan);
+el.mapViewport.addEventListener('pointercancel', endMapPan);
 
 el.connect.addEventListener('click', () => connect(el.campaignField.value.trim()));
 el.campaignField.addEventListener('keydown', (event) => {

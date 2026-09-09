@@ -268,6 +268,38 @@ service cloud.firestore {
           allow update: if false;
           allow delete: if isTravellerReferee(campaignId);
         }
+
+        // Token positions are authoritative encounter state. Players submit
+        // immutable move intents for owned characters; the referee validates,
+        // applies, publishes the safe view, and removes the intent.
+        match /moves/{moveId} {
+          allow read: if isAtTravellerTable(campaignId);
+          allow create: if isAuthed()
+            && request.resource.data.keys().hasOnly(['uid', 'encounterId', 'actorId', 'column', 'row', 'movedAt'])
+            && request.resource.data.uid == request.auth.uid
+            && request.resource.data.encounterId == encounterId
+            && request.resource.data.actorId is string
+            && request.resource.data.column is int && request.resource.data.column >= 0 && request.resource.data.column <= 200
+            && request.resource.data.row is int && request.resource.data.row >= 0 && request.resource.data.row <= 200
+            && request.resource.data.movedAt is int
+            && ownsTravellerCombatant(campaignId, request.resource.data.actorId);
+          allow update: if false;
+          allow delete: if isTravellerReferee(campaignId);
+        }
+
+        // Selection and targeting are per-user transient presence, not combat
+        // authority. A seated user may publish only their own presence record.
+        match /presence/{playerUid} {
+          allow read: if isAtTravellerTable(campaignId);
+          allow create, update: if isTravellerPlayer(campaignId)
+            && request.auth.uid == playerUid
+            && request.resource.data.keys().hasOnly(['uid', 'selectedIds', 'targetIds', 'updatedAt'])
+            && request.resource.data.uid == playerUid
+            && request.resource.data.selectedIds is list && request.resource.data.selectedIds.size() <= 20
+            && request.resource.data.targetIds is list && request.resource.data.targetIds.size() <= 20
+            && request.resource.data.updatedAt is int;
+          allow delete: if isTravellerReferee(campaignId) || (isAuthed() && request.auth.uid == playerUid);
+        }
       }
     }
 
