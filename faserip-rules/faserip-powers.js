@@ -1,12 +1,3 @@
-// faserip-rules powers v0.2.0
-// v0.2.0: RULED 2026-09-09 (Judge), superseding the 2026-09-05 flat-pool
-//         ruling: the absorbed points are ONE budget. They first heal existing
-//         damage to max Health ("healing existing damage"), and only the
-//         remainder raises Health above max as the pool ("even temporarily
-//         raising"). Health 70/100 hit by a 5-point shock -> 75, no pool; at
-//         100/100 a 48-point bolt -> pool 48 (book example). The pool is
-//         capped at the Power rank number and one 10-round clock is refreshed
-//         by each absorption. absorbAttack takes maxHealth and the held pool.
 // faserip-rules powers v0.1.0
 // v0.1.0: Appendix A/B power mechanics, slice 1 — Absorption. RULED
 //         2026-09-05 (Judge): the pool granted is the Power rank NUMBER,
@@ -21,7 +12,7 @@
 // Certified against the Players Book Appendix A Absorption Power text and
 // its worked example (Health 100 + Amazing(48) -> 148).
 
-export const POWERS_VERSION = '0.2.0';
+export const POWERS_VERSION = '0.1.0';
 export const POWERS_CERTIFIED = true;
 
 // --- Absorption ---------------------------------------------------------
@@ -49,34 +40,21 @@ export function absorptionRedirectColumn(damageType) {
 //   rankNumber : the Absorption Power's rank number (R)
 //   damage     : incoming damage of the absorbed type
 //   health     : the absorber's current REAL Health
-//   maxHealth  : the absorber's max Health (heal ceiling)
-//   pool       : pool already held (0 if none)
 //   round      : current combat round (for the pool clock)
-// Up to R of the hit is absorbed. RULED 2026-09-09: the absorbed points heal
-// existing damage first, then the remainder joins the pool, which is capped
-// at R. Damage above R is taken against real Health and is NOT paid out of
-// the pool; it is the amount available to redirect next round. Each
-// absorption refreshes the single 10-round clock.
-export function absorbAttack({ rankNumber, damage, health, maxHealth, pool = 0, round = 0 }) {
+// The pool is granted flat at R and refreshed, never stacked. Damage above R
+// is taken against real Health and is NOT paid out of the pool granted by the
+// same attack; it is also the amount available to redirect next round.
+export function absorbAttack({ rankNumber, damage, health, round = 0 }) {
   const R = Math.max(0, Math.floor(Number(rankNumber) || 0));
   const dmg = Math.max(0, Math.floor(Number(damage) || 0));
-  const hp = Math.max(0, Math.floor(Number(health) || 0));
-  const max = Math.max(hp, Math.floor(Number(maxHealth ?? hp) || 0));
-  const held = Math.max(0, Math.floor(Number(pool) || 0));
-  const absorbed = Math.min(dmg, R);
-  const excess = dmg - absorbed;
-  const healed = Math.min(absorbed, max - hp);
-  const poolGain = absorbed - healed;
-  const newPool = Math.min(R, held + poolGain);
+  const excess = Math.max(0, dmg - R);
   return {
-    absorbed,
-    healed,
-    poolGain: newPool - held,
-    pool: newPool,                              // capped at R
+    absorbed: Math.min(dmg, R),
+    pool: R,                                   // flat, capped, refreshed
     poolExpiresRound: round + ABSORPTION_POOL_ROUNDS,
-    health: Math.max(0, hp + healed - excess),  // excess bypasses the pool
+    health: Math.max(0, health - excess),      // excess bypasses the pool
     healthLoss: excess,
-    redirect: excess,                           // usable the following round
+    redirect: excess,                          // usable the following round
     redirectRound: round + 1,
   };
 }

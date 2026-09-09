@@ -289,7 +289,10 @@ function attachPlayerTokenInteraction(group, combatant, owned, cell) {
       group.setAttribute('transform', `translate(${x} ${y})`);
       drag.trail.setAttribute('x1', combatant.position.column * cell); drag.trail.setAttribute('y1', combatant.position.row * cell);
       drag.trail.setAttribute('x2', x); drag.trail.setAttribute('y2', y); drag.trail.setAttribute('class', `movement-drag-trail ${legality}`);
-      drag.label.setAttribute('x', x + 4); drag.label.setAttribute('y', y - 4); drag.label.setAttribute('class', `movement-drag-label ${legality}`);
+      const labelOffset = 10 / mapZoom;
+      drag.label.setAttribute('x', x + labelOffset); drag.label.setAttribute('y', y - labelOffset); drag.label.setAttribute('class', `movement-drag-label ${legality}`);
+      drag.label.style.fontSize = `${12 / mapZoom}px`;
+      drag.label.style.strokeWidth = `${2 / mapZoom}px`;
       drag.label.textContent = `${pace.toUpperCase()} / ${Number((distance / gridScale).toFixed(2))} SQ / ${distance} M${pace === 'run' ? ' / −1 BLOW / NO ATTACK' : ''}${legality === 'limit' ? ' / LIMIT' : legality === 'over' ? ' / OVER' : ''}`;
     }
   });

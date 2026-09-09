@@ -1,5 +1,11 @@
 # Graycloak Traveller
 
+## v0.63.3 fixed-size movement label
+
+The live WALK/RUN drag label now counter-scales against canvas zoom. Its text,
+outline, and offset from the token remain compact and readable from the fitted
+map through 6400% zoom on both referee and player canvases.
+
 ## v0.63.2 centered one-metre grid
 
 Grid lines are now boundaries between square centers, so tokens land inside
