@@ -31,12 +31,12 @@ test('a player may not move somebody else or an NPC', () => {
 
 test('move intents reject forged encounter ids and off-map coordinates', () => {
   assert.throws(() => authorizePlayerTokenMove(move({ encounterId: 'elsewhere' }), { campaign, encounter }), /does not belong/);
-  assert.throws(() => createPlayerTokenMove(move({ column: 201 })), /201 by 201/);
-  assert.throws(() => createPlayerTokenMove(move({ row: -1 })), /201 by 201/);
+  assert.throws(() => createPlayerTokenMove(move({ column: 1001 })), /1000-meter map/);
+  assert.throws(() => createPlayerTokenMove(move({ row: -1 })), /1000-meter map/);
 });
 
 test('move intents enforce the current round and Book 1 grid allowance', () => {
   assert.throws(() => authorizePlayerTokenMove(move({ round: 2 }), { campaign, encounter }), /active encounter round/);
-  assert.throws(() => authorizePlayerTokenMove(move({ column: 46 }), { campaign, encounter }), /exceeds 5/);
-  assert.doesNotThrow(() => authorizePlayerTokenMove(move({ pace: 'run', column: 50, row: 85 }), { campaign, encounter }));
+  assert.throws(() => authorizePlayerTokenMove(move({ column: 66 }), { campaign, encounter }), /exceeds 25/);
+  assert.doesNotThrow(() => authorizePlayerTokenMove(move({ pace: 'run', column: 90, row: 85 }), { campaign, encounter }));
 });

@@ -169,7 +169,7 @@ test('Traveller multiplayer rules', { skip: available ? false : `Firestore emula
       uid: PLAYER, encounterId: ENCOUNTER, actorId: FOE, column: 1, row: 1, pace: 'walk', round: 1, movedAt: 1001
     }));
     await assertFails(player.doc(`travellerCampaigns/${CAMPAIGN}/encounters/${ENCOUNTER}/moves/move-bad`).set({
-      uid: PLAYER, encounterId: ENCOUNTER, actorId: PC, column: 201, row: 1, pace: 'walk', round: 1, movedAt: 1002
+      uid: PLAYER, encounterId: ENCOUNTER, actorId: PC, column: 1001, row: 1, pace: 'walk', round: 1, movedAt: 1002
     }));
     await assertFails(player.doc(`travellerCampaigns/${CAMPAIGN}/encounters/${ENCOUNTER}/moves/move-teleport`).set({
       uid: PLAYER, encounterId: ENCOUNTER, actorId: PC, column: 1, row: 1, pace: 'teleport', round: 1, movedAt: 1003

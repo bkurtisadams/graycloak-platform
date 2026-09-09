@@ -727,15 +727,15 @@ input[readonly] {
 .encounter-token:focus { outline: none; }
 .encounter-token-hit-area { fill: transparent; stroke: none; pointer-events: all; }
 .encounter-token.dragging { cursor: grabbing; opacity: 0.78; }
-.encounter-token-pc { fill: #29465c; stroke: #111311; stroke-width: .5; }
+.encounter-token-pc { fill: #29465c; stroke: #111311; stroke-width: 1.2; vector-effect: non-scaling-stroke; }
 .encounter-token-pc.declared { fill: #667783; opacity: 0.72; }
-.encounter-token-pc-label { fill: #f2f2ed; font: 700 2.8px Consolas, monospace; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
-.encounter-token-enemy { fill: #6a1f1f; stroke: #111311; stroke-width: .45; cursor: pointer; }
+.encounter-token-pc-label { fill: #f2f2ed; font: 700 .46px Consolas, monospace; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.encounter-token-enemy { fill: #6a1f1f; stroke: #111311; stroke-width: 1.2; vector-effect: non-scaling-stroke; cursor: pointer; }
 .encounter-token-enemy:hover,
-.encounter-token-enemy:focus { stroke: #29465c; stroke-width: 4; outline: none; }
+.encounter-token-enemy:focus { stroke: #29465c; stroke-width: 1.5; outline: none; }
 .encounter-token-enemy.inactive { fill: #777a75; opacity: 0.55; cursor: default; }
-.encounter-token-enemy-label { fill: #f2f2ed; font: 700 2.2px Consolas, monospace; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
-.encounter-token-condition-marker { fill: #6a1f1f; stroke: #e7dfb6; stroke-width: .15px; font: 700 2.5px Consolas, monospace; pointer-events: none; }
+.encounter-token-enemy-label { fill: #f2f2ed; font: 700 .42px Consolas, monospace; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.encounter-token-condition-marker { fill: #6a1f1f; stroke: #e7dfb6; stroke-width: .15px; font: 700 .45px Consolas, monospace; pointer-events: none; }
 .encounter-token-tooltip,
 .encounter-token-menu { position: absolute; z-index: 8; max-width: 280px; border: 1px solid #111311; background: #e5e5e1; color: #111311; padding: 5px 7px; font: 11px/1.35 Consolas, monospace; white-space: pre-line; pointer-events: none; }
 .encounter-token-menu { z-index: 9; display: grid; gap: 2px; min-width: 170px; pointer-events: auto; white-space: normal; }
@@ -2950,7 +2950,7 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
   display: flex; gap: 14px; flex-wrap: wrap; align-items: center;
   padding: 4px 12px; border-top: 1px dotted var(--disabled); font-size: 11px; color: var(--muted); flex: 0 0 auto;
 }
-.encounter-token-declared-marker { font-size: 2px; font-weight: 700; fill: var(--ink); }
+.encounter-token-declared-marker { font-size: .36px; font-weight: 700; fill: var(--ink); }
 
 /* --- The rail's combat panel: throw first, then actions, then who is here. */
 .combat-rail .encounter-dm-panel { border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: 6px 0; margin-bottom: 7px; font-size: 11px; }
@@ -3172,7 +3172,7 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .player-token-selected { fill: none; stroke: #d8b53a; stroke-width: 2; stroke-linecap: square; vector-effect: non-scaling-stroke; pointer-events: none; }
 .player-token-target { fill: none; stroke: var(--failure-border); stroke-width: 2; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; pointer-events: none; }
 .player-token-remote-target { fill: #63a9c7; stroke: var(--paper); stroke-width: .7; vector-effect: non-scaling-stroke; pointer-events: none; }
-.player-token-label { fill: #f2f2ed; font: 700 2.2px Consolas, monospace; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.player-token-label { fill: #f2f2ed; font: 700 .42px Consolas, monospace; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
 .player-token-menu { position: absolute; z-index: 5; display: flex; flex-direction: column; }
 .player-token-menu[hidden] { display: none; }
 

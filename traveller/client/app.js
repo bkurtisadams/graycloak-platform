@@ -234,6 +234,7 @@ import {
   declareEncounterAction,
   encounterSituationDMs,
   setEncounterLighting,
+  setEncounterGridScale,
   setCombatantCover,
   setCombatantFoldingStock,
   setCombatantStatus,
@@ -425,6 +426,8 @@ const el = {
   encounterRangeButtons: [...document.querySelectorAll('[data-encounter-range]')],
   encounterRangeGrid: document.querySelector('#encounter-range-grid'),
   encounterGridToggle: document.querySelector('#encounter-grid-toggle'),
+  encounterGridScale: document.querySelector('#encounter-grid-scale'),
+  encounterGridLegend: document.querySelector('#encounter-grid-legend'),
   encounterMapViewport: document.querySelector('#encounter-map-viewport'),
   encounterMap: document.querySelector('#encounter-map'),
   encounterZoomOut: document.querySelector('#encounter-zoom-out'),
@@ -577,7 +580,12 @@ let pendingEncounterConditionCombatantId = null;
 const ENCOUNTER_MAP_WIDTH = 1206;
 const ENCOUNTER_MAP_HEIGHT = 1206;
 const ENCOUNTER_MAP_MIN_ZOOM = 0.5;
-const ENCOUNTER_MAP_MAX_ZOOM = 16;
+const ENCOUNTER_MAP_MAX_ZOOM = 32;
+// Personal tokens occupy less than one physical metre. This keeps one figure
+// inside a 1 m square and leaves room for several figures in a 5 m square.
+const ENCOUNTER_TOKEN_RADIUS = 0.4;
+const ENCOUNTER_TOKEN_HIT_RADIUS = 0.58;
+const ENCOUNTER_TOKEN_RING_RADIUS = 0.48;
 let encounterMapZoom = 1;
 let encounterMapView = { x: 0, y: 0, width: ENCOUNTER_MAP_WIDTH, height: ENCOUNTER_MAP_HEIGHT };
 let encounterMapViewFrame = 0;
@@ -3471,14 +3479,14 @@ function setEncounterMapZoom(value, anchor = null) {
 // Frame the combatants, capped at the readable maximum zoom. FIT remains the
 // one-click view of the complete 1 km square workspace and all range bands.
 function frameEncounterCombatants(encounter) {
-  const cellWidth = ENCOUNTER_MAP_WIDTH / encounter.map.columns;
-  const cellHeight = ENCOUNTER_MAP_HEIGHT / encounter.map.rows;
-  const xs = encounter.combatants.map((entry) => entry.position.column * cellWidth + cellWidth / 2);
-  const ys = encounter.combatants.map((entry) => entry.position.row * cellHeight + cellHeight / 2);
+  const cellWidth = ENCOUNTER_MAP_WIDTH / (encounter.map.columns - 1);
+  const cellHeight = ENCOUNTER_MAP_HEIGHT / (encounter.map.rows - 1);
+  const xs = encounter.combatants.map((entry) => entry.position.column * cellWidth);
+  const ys = encounter.combatants.map((entry) => entry.position.row * cellHeight);
   if (!xs.length) { fitEncounterMap(); return; }
-  const padding = Math.max(cellWidth, cellHeight) * 2.5;
-  const boundsWidth = Math.max(Math.max(...xs) - Math.min(...xs) + padding * 2, cellWidth * 8);
-  const boundsHeight = Math.max(Math.max(...ys) - Math.min(...ys) + padding * 2, cellHeight * 6);
+  const padding = Math.max(cellWidth, cellHeight) * 12;
+  const boundsWidth = Math.max(Math.max(...xs) - Math.min(...xs) + padding * 2, cellWidth * 40);
+  const boundsHeight = Math.max(Math.max(...ys) - Math.min(...ys) + padding * 2, cellHeight * 30);
   encounterMapZoom = Math.min(ENCOUNTER_MAP_MAX_ZOOM, ENCOUNTER_MAP_WIDTH / Math.max(boundsWidth, boundsHeight));
   const width = ENCOUNTER_MAP_WIDTH / encounterMapZoom;
   const height = ENCOUNTER_MAP_HEIGHT / encounterMapZoom;
@@ -3646,8 +3654,9 @@ function showEncounterMapMenu(event) {
   const encounter = activeEncounterAtCurrentSystem();
   if (!encounter) return;
   const point = encounterMapPoint(event.clientX, event.clientY);
-  const column = Math.max(0, Math.min(encounter.map.columns - 1, Math.floor(point.x / (ENCOUNTER_MAP_WIDTH / encounter.map.columns))));
-  const row = Math.max(0, Math.min(encounter.map.rows - 1, Math.floor(point.y / (ENCOUNTER_MAP_HEIGHT / encounter.map.rows))));
+  const scale = encounter.map.metersPerSquare;
+  const column = Math.max(0, Math.min(encounter.map.columns - 1, Math.round(point.x / (ENCOUNTER_MAP_WIDTH / (encounter.map.columns - 1)) / scale) * scale));
+  const row = Math.max(0, Math.min(encounter.map.rows - 1, Math.round(point.y / (ENCOUNTER_MAP_HEIGHT / (encounter.map.rows - 1)) / scale) * scale));
   const place = document.createElement('button');
   place.type = 'button';
   place.textContent = '[ PLACE ROSTER ACTOR HERE ]';
@@ -3770,10 +3779,10 @@ function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect
     event.preventDefault();
     event.stopPropagation();
     const point = encounterMapPoint(event.clientX, event.clientY);
-    const cellWidth = ENCOUNTER_MAP_WIDTH / encounter.map.columns;
-    const cellHeight = ENCOUNTER_MAP_HEIGHT / encounter.map.rows;
-    const originX = visualPoint?.x ?? combatant.position.column * cellWidth + cellWidth / 2;
-    const originY = visualPoint?.y ?? combatant.position.row * cellHeight + cellHeight / 2;
+    const cellWidth = ENCOUNTER_MAP_WIDTH / (encounter.map.columns - 1);
+    const cellHeight = ENCOUNTER_MAP_HEIGHT / (encounter.map.rows - 1);
+    const originX = visualPoint?.x ?? combatant.position.column * cellWidth;
+    const originY = visualPoint?.y ?? combatant.position.row * cellHeight;
     drag = {
       pointerId: event.pointerId,
       startClientX: event.clientX,
@@ -3801,15 +3810,16 @@ function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect
     if (Math.hypot(event.clientX - drag.startClientX, event.clientY - drag.startClientY) > 4) drag.moved = true;
     if (!drag.moved) return;
     const point = encounterMapPoint(event.clientX, event.clientY);
-    const cellWidth = ENCOUNTER_MAP_WIDTH / encounter.map.columns;
-    const cellHeight = ENCOUNTER_MAP_HEIGHT / encounter.map.rows;
-    const column = Math.max(0, Math.min(encounter.map.columns - 1, Math.floor((point.x - drag.grabX) / cellWidth)));
-    const row = Math.max(0, Math.min(encounter.map.rows - 1, Math.floor((point.y - drag.grabY) / cellHeight)));
-    drag.previewX = column * cellWidth + cellWidth / 2 + drag.offsetX;
-    drag.previewY = row * cellHeight + cellHeight / 2 + drag.offsetY;
+    const cellWidth = ENCOUNTER_MAP_WIDTH / (encounter.map.columns - 1);
+    const cellHeight = ENCOUNTER_MAP_HEIGHT / (encounter.map.rows - 1);
+    const scale = encounter.map.metersPerSquare;
+    const column = Math.max(0, Math.min(encounter.map.columns - 1, Math.round((point.x - drag.grabX) / cellWidth / scale) * scale));
+    const row = Math.max(0, Math.min(encounter.map.rows - 1, Math.round((point.y - drag.grabY) / cellHeight / scale) * scale));
+    drag.previewX = column * cellWidth + drag.offsetX;
+    drag.previewY = row * cellHeight + drag.offsetY;
     const distance = Math.max(Math.abs(column - combatant.position.column), Math.abs(row - combatant.position.row));
     const pace = el.encounterMovePace.value;
-    const allowance = pace === 'run' ? 10 : 5;
+    const allowance = pace === 'run' ? 50 : 25;
     const legality = encounter.status !== 'active' ? 'legal' : distance > allowance ? 'over' : distance === allowance ? 'limit' : 'legal';
     drag.distance = distance; drag.pace = pace; drag.legality = legality;
     if (!drag.frame) {
@@ -3823,8 +3833,8 @@ function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect
         drag.label.setAttribute('x', drag.previewX + 4); drag.label.setAttribute('y', drag.previewY - 4);
         drag.label.setAttribute('class', `movement-drag-label ${drag.legality}`);
         drag.label.textContent = encounter.status === 'active'
-          ? `${drag.pace.toUpperCase()} / ${drag.distance} SQ / ${drag.distance * 5} M${drag.pace === 'run' ? ' / −1 BLOW / NO ATTACK' : ''}${drag.legality === 'limit' ? ' / LIMIT' : drag.legality === 'over' ? ' / OVER' : ''}`
-          : `REFEREE POSITION / ${drag.distance} SQ / ${drag.distance * 5} M`;
+          ? `${drag.pace.toUpperCase()} / ${Number((drag.distance / encounter.map.metersPerSquare).toFixed(2))} SQ / ${drag.distance} M${drag.pace === 'run' ? ' / −1 BLOW / NO ATTACK' : ''}${drag.legality === 'limit' ? ' / LIMIT' : drag.legality === 'over' ? ' / OVER' : ''}`
+          : `REFEREE POSITION / ${Number((drag.distance / encounter.map.metersPerSquare).toFixed(2))} SQ / ${drag.distance} M`;
       });
     }
   });
@@ -3840,10 +3850,11 @@ function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect
       return;
     }
     if (!completed.moved) return onSelect?.(event);
-    const cellWidth = ENCOUNTER_MAP_WIDTH / encounter.map.columns;
-    const cellHeight = ENCOUNTER_MAP_HEIGHT / encounter.map.rows;
-    const column = Math.max(0, Math.min(encounter.map.columns - 1, Math.floor((completed.previewX - completed.offsetX) / cellWidth)));
-    const row = Math.max(0, Math.min(encounter.map.rows - 1, Math.floor((completed.previewY - completed.offsetY) / cellHeight)));
+    const cellWidth = ENCOUNTER_MAP_WIDTH / (encounter.map.columns - 1);
+    const cellHeight = ENCOUNTER_MAP_HEIGHT / (encounter.map.rows - 1);
+    const scale = encounter.map.metersPerSquare;
+    const column = Math.max(0, Math.min(encounter.map.columns - 1, Math.round((completed.previewX - completed.offsetX) / cellWidth / scale) * scale));
+    const row = Math.max(0, Math.min(encounter.map.rows - 1, Math.round((completed.previewY - completed.offsetY) / cellHeight / scale) * scale));
     if (column === combatant.position.column && row === combatant.position.row) {
       group.setAttribute('transform', `translate(${completed.originX} ${completed.originY})`);
       onSelect?.(event);
@@ -3905,7 +3916,7 @@ function renderEncounterRangePanel(encounter, actor, target, guide = null) {
     ? `${actor.name.toUpperCase()} \u2192 ${target.name.toUpperCase()}`
     : 'ACTOR -- \u2192 TARGET --';
   el.encounterRangeGrid.textContent = guide
-    ? `${currentRange.toUpperCase().replace('-', ' ')} / ${guide.distance} SQ / ${guide.meters} M${currentRange === 'close' ? ' / CONTACT' : ''}`
+    ? `${currentRange.toUpperCase().replace('-', ' ')} / ${guide.squares} SQ / ${guide.meters} M${currentRange === 'close' ? ' / CONTACT' : ''}`
     : 'GRID --';
   el.encounterSection.classList.toggle('grid-hidden', encounterGridHidden);
   el.encounterGridToggle.textContent = encounterGridHidden ? '[ SHOW GRID ]' : '[ HIDE GRID ]';
@@ -3934,22 +3945,23 @@ function renderEncounterMap(encounter) {
   }
   const width = ENCOUNTER_MAP_WIDTH;
   const height = ENCOUNTER_MAP_HEIGHT;
-  const cellWidth = width / encounter.map.columns;
-  const cellHeight = height / encounter.map.rows;
+  const cellWidth = width / (encounter.map.columns - 1);
+  const cellHeight = height / (encounter.map.rows - 1);
+  const gridScale = encounter.map.metersPerSquare;
   const fragments = [];
-  for (let column = 0; column <= encounter.map.columns; column += 1) {
-    fragments.push(svgElement('line', { x1: column * cellWidth, y1: 0, x2: column * cellWidth, y2: height, class: column % 5 === 0 ? 'encounter-grid-major' : 'encounter-grid-line' }));
+  for (let column = 0; column < encounter.map.columns; column += gridScale) {
+    fragments.push(svgElement('line', { x1: column * cellWidth, y1: 0, x2: column * cellWidth, y2: height, class: column % 25 === 0 ? 'encounter-grid-major' : 'encounter-grid-line' }));
   }
-  for (let row = 0; row <= encounter.map.rows; row += 1) {
-    fragments.push(svgElement('line', { x1: 0, y1: row * cellHeight, x2: width, y2: row * cellHeight, class: row % 5 === 0 ? 'encounter-grid-major' : 'encounter-grid-line' }));
+  for (let row = 0; row < encounter.map.rows; row += gridScale) {
+    fragments.push(svgElement('line', { x1: 0, y1: row * cellHeight, x2: width, y2: row * cellHeight, class: row % 25 === 0 ? 'encounter-grid-major' : 'encounter-grid-line' }));
   }
   const movementRound = Math.max(-1, ...encounter.history.filter((item) => item.kind === 'movement' && item.detail?.from && item.detail?.to).map((item) => item.round));
   for (const entry of encounter.history.filter((item) => item.kind === 'movement' && item.round === movementRound && item.detail?.from && item.detail?.to)) {
     fragments.push(svgElement('line', {
-      x1: entry.detail.from.column * cellWidth + cellWidth / 2,
-      y1: entry.detail.from.row * cellHeight + cellHeight / 2,
-      x2: entry.detail.to.column * cellWidth + cellWidth / 2,
-      y2: entry.detail.to.row * cellHeight + cellHeight / 2,
+      x1: entry.detail.from.column * cellWidth,
+      y1: entry.detail.from.row * cellHeight,
+      x2: entry.detail.to.column * cellWidth,
+      y2: entry.detail.to.row * cellHeight,
       class: `encounter-movement-path ${entry.detail.pace}`
     }));
   }
@@ -3962,12 +3974,12 @@ function renderEncounterMap(encounter) {
     if (!cells.has(key)) cells.set(key, []);
     cells.get(key).push(combatant);
   }
-  const slots = [[0, 0], [-2, -2], [0, -2], [2, -2], [-2, 0], [2, 0], [-2, 2], [0, 2], [2, 2]];
+  const slots = [[0, 0], [-.55, -.55], [0, -.55], [.55, -.55], [-.55, 0], [.55, 0], [-.55, .55], [0, .55], [.55, .55]];
   for (const occupants of cells.values()) occupants.sort((a, b) => a.id.localeCompare(b.id)).forEach((combatant, index) => {
     const [offsetX, offsetY] = slots[index % slots.length];
     tokenCentres.set(combatant.id, {
-      x: combatant.position.column * cellWidth + cellWidth / 2 + offsetX,
-      y: combatant.position.row * cellHeight + cellHeight / 2 + offsetY,
+      x: combatant.position.column * cellWidth + offsetX,
+      y: combatant.position.row * cellHeight + offsetY,
       offsetX, offsetY
     });
   });
@@ -4009,12 +4021,12 @@ function renderEncounterMap(encounter) {
   let guide = null;
   if (actor && target) {
     guide = encounterRangeGuide(encounter, actor.id, target.id);
-    const actorX = actor.position.column * cellWidth + cellWidth / 2;
-    const actorY = actor.position.row * cellHeight + cellHeight / 2;
-    for (const [band, squares] of [['very-long', 100], ['long', 50], ['medium', 10], ['short', 1]]) {
+    const actorX = actor.position.column * cellWidth;
+    const actorY = actor.position.row * cellHeight;
+    for (const [band, meters] of [['very-long', 500], ['long', 250], ['medium', 50], ['short', 5]]) {
       fragments.push(svgElement('rect', {
-        x: actorX - squares * cellWidth, y: actorY - squares * cellHeight,
-        width: squares * cellWidth * 2, height: squares * cellHeight * 2,
+        x: actorX - meters * cellWidth, y: actorY - meters * cellHeight,
+        width: meters * cellWidth * 2, height: meters * cellHeight * 2,
         class: `encounter-range-boundary ${band}`
       }));
     }
@@ -4027,6 +4039,9 @@ function renderEncounterMap(encounter) {
     fragments.push(svgElement('line', { x1: actorXLine, y1: actorYLine, x2: targetX, y2: targetY, class: `encounter-range-line${guide.suggestedRange === 'close' ? ' contact' : ''}` }));
   }
   renderEncounterRangePanel(encounter, actor, target, guide);
+  el.encounterGridScale.value = String(gridScale);
+  el.encounterGridScale.disabled = encounter.status !== 'active';
+  el.encounterGridLegend.textContent = `${gridScale} M SQUARES / HEAVY LINE 25 M`;
   for (const combatant of encounter.combatants) {
     const { x, y, offsetX, offsetY } = centreOf(combatant);
     const group = svgElement('g', {
@@ -4035,39 +4050,39 @@ function renderEncounterMap(encounter) {
       transform: `translate(${x} ${y})`,
       'aria-label': `${combatant.name}, ${combatant.side}, ${combatant.status}`
     });
-    group.append(svgElement('circle', { cx: 0, cy: 0, r: 3.2, class: 'encounter-token-hit-area' }));
+    group.append(svgElement('circle', { cx: 0, cy: 0, r: ENCOUNTER_TOKEN_HIT_RADIUS, class: 'encounter-token-hit-area' }));
     // Corner brackets mark locally selected tokens; a compact red reticle marks targets.
-    if (selectedEncounterTokenIds.has(combatant.id) || actor?.id === combatant.id) group.append(svgElement('path', { d: 'M -3 -1.5 V -3 H -1.5 M 1.5 -3 H 3 V -1.5 M 3 1.5 V 3 H 1.5 M -1.5 3 H -3 V 1.5', class: 'encounter-token-selected-ring' }));
+    if (selectedEncounterTokenIds.has(combatant.id) || actor?.id === combatant.id) group.append(svgElement('path', { d: 'M -.48 -.24 V -.48 H -.24 M .24 -.48 H .48 V -.24 M .48 .24 V .48 H .24 M -.24 .48 H -.48 V .24', class: 'encounter-token-selected-ring' }));
     if (targetedIds.has(combatant.id)) {
-      const ring = svgElement('circle', { cx: 0, cy: 0, r: 3.05, class: 'encounter-token-target-ring' });
+      const ring = svgElement('circle', { cx: 0, cy: 0, r: ENCOUNTER_TOKEN_RING_RADIUS, class: 'encounter-token-target-ring' });
       group.append(ring);
     }
     const remoteTargets = canvasPresence.filter((entry) => entry.uid !== currentUserId() && entry.targetIds?.includes(combatant.id));
-    remoteTargets.slice(0, 4).forEach((entry, index) => group.append(svgElement('circle', { cx: -2.4 + index * 1.6, cy: -3.8, r: .55, class: 'encounter-token-remote-target', 'data-user': entry.uid })));
+    remoteTargets.slice(0, 4).forEach((entry, index) => group.append(svgElement('circle', { cx: -.42 + index * .28, cy: -.68, r: .09, class: 'encounter-token-remote-target', 'data-user': entry.uid })));
     if (combatant.side === 'party') {
-      group.append(svgElement('circle', { cx: 0, cy: 0, r: 2.5, class: `encounter-token-pc${declared.has(combatant.id) ? ' declared' : ''}` }));
+      group.append(svgElement('circle', { cx: 0, cy: 0, r: ENCOUNTER_TOKEN_RADIUS, class: `encounter-token-pc${declared.has(combatant.id) ? ' declared' : ''}` }));
       const label = svgElement('text', { x: 0, y: 0, class: 'encounter-token-pc-label' });
       label.textContent = (combatant.name || 'P').charAt(0).toUpperCase();
       group.append(label);
       if (combatant.conditions?.length) {
-        const marker = svgElement('text', { x: 2.2, y: -1.8, class: 'encounter-token-condition-marker' }); marker.textContent = '!'; group.append(marker);
+        const marker = svgElement('text', { x: .4, y: -.32, class: 'encounter-token-condition-marker' }); marker.textContent = '!'; group.append(marker);
       }
       attachEncounterTokenInteraction(group, encounter, combatant, { onSelect: (event) => selectEncounterToken(encounter.identity.id, combatant.id, { additive: Boolean(event?.shiftKey) }), visualPoint: { x, y, offsetX, offsetY } });
       fragments.push(group);
       continue;
     }
     const enemyClass = `encounter-token-enemy encounter-token-${combatant.actorType}${combatant.status === 'active' ? '' : ' inactive'}`;
-    if (combatant.actorType === 'robot') group.append(svgElement('rect', { x: -2, y: -2, width: 4, height: 4, class: enemyClass }));
-    else if (combatant.actorType === 'creature') group.append(svgElement('path', { d: 'M 0 -2.3 L 2.3 0 L 0 2.3 L -2.3 0 Z', class: enemyClass }));
-    else group.append(svgElement('circle', { cx: 0, cy: 0, r: 2, class: enemyClass }));
+    if (combatant.actorType === 'robot') group.append(svgElement('rect', { x: -.36, y: -.36, width: .72, height: .72, class: enemyClass }));
+    else if (combatant.actorType === 'creature') group.append(svgElement('path', { d: 'M 0 -.4 L .4 0 L 0 .4 L -.4 0 Z', class: enemyClass }));
+    else group.append(svgElement('circle', { cx: 0, cy: 0, r: .36, class: enemyClass }));
     const enemyLabel = svgElement('text', { x: 0, y: 0, class: 'encounter-token-enemy-label' });
     enemyLabel.textContent = combatant.tokenLabel || combatant.name.charAt(0).toUpperCase();
     group.append(enemyLabel);
     if (combatant.conditions?.length) {
-      const marker = svgElement('text', { x: 2.1, y: -1.7, class: 'encounter-token-condition-marker' }); marker.textContent = '!'; group.append(marker);
+      const marker = svgElement('text', { x: .4, y: -.32, class: 'encounter-token-condition-marker' }); marker.textContent = '!'; group.append(marker);
     }
     if (declaredOn[combatant.id]) {
-      const tally = svgElement('text', { x: 2.1, y: 2.5, class: 'encounter-token-declared-marker' });
+      const tally = svgElement('text', { x: .4, y: .48, class: 'encounter-token-declared-marker' });
       tally.textContent = `\u00d7${declaredOn[combatant.id]}`;
       group.append(tally);
     }
@@ -4077,7 +4092,7 @@ function renderEncounterMap(encounter) {
   el.encounterMap.replaceChildren(...fragments);
   applyEncounterMapView();
 
-  const distanceText = guide ? `${guide.distance} SQ${guide.meters === null ? ' / SCALE UNSET' : ` / ≈${guide.meters} M`}` : '';
+  const distanceText = guide ? `${guide.squares} SQ / ≈${guide.meters} M` : '';
   const guideText = guide ? ` // RANGE ${guide.suggestedRange.toUpperCase().replace('-', ' ')} / ${distanceText}` : '';
   // Round tracker: where the round stands and who still owes a declaration.
   const declaredIds = new Set(encounter.roundState?.declaredActions?.map((entry) => entry.actorId) ?? []);
@@ -7357,6 +7372,11 @@ el.encounterGridToggle.addEventListener('click', () => {
   encounterGridHidden = !encounterGridHidden;
   try { window.localStorage?.setItem(ENCOUNTER_GRID_VISIBILITY_KEY, encounterGridHidden ? 'hidden' : 'shown'); } catch { /* local preference only */ }
   renderEncounter();
+});
+el.encounterGridScale.addEventListener('change', () => {
+  const active = activeEncounterAtCurrentSystem();
+  if (!active) return;
+  updateEncounterDocument(active.identity.id, (doc) => setEncounterGridScale(doc, Number(el.encounterGridScale.value)).encounter);
 });
 el.encounterMap.addEventListener('dragstart', (event) => event.preventDefault());
 {

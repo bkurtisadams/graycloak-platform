@@ -65,7 +65,9 @@ let mapView = { x: 0, y: 0, width: 1206, height: 1206 };
 let mapPan = null;
 const MAP_SIZE = 1206;
 const MIN_ZOOM = 0.5;
-const MAX_ZOOM = 16;
+const MAX_ZOOM = 32;
+const TOKEN_RADIUS = 0.4;
+const TOKEN_RING_RADIUS = 0.48;
 
 function setStatus(text, kind = '') {
   el.status.textContent = text;
@@ -151,35 +153,36 @@ function renderScene() {
 function renderMap() {
   const columns = view.map.columns;
   const rows = view.map.rows;
-  const cell = MAP_SIZE / Math.max(columns, rows);
+  const cell = MAP_SIZE / Math.max(columns - 1, rows - 1);
+  const gridScale = view.map.metersPerSquare;
   const parts = [];
-  for (let column = 0; column <= columns; column += 1) {
-    parts.push(svg('line', { x1: column * cell, y1: 0, x2: column * cell, y2: rows * cell, class: column % 5 ? 'player-grid' : 'player-grid major' }));
+  for (let column = 0; column < columns; column += gridScale) {
+    parts.push(svg('line', { x1: column * cell, y1: 0, x2: column * cell, y2: (rows - 1) * cell, class: column % 25 ? 'player-grid' : 'player-grid major' }));
   }
-  for (let row = 0; row <= rows; row += 1) {
-    parts.push(svg('line', { x1: 0, y1: row * cell, x2: columns * cell, y2: row * cell, class: row % 5 ? 'player-grid' : 'player-grid major' }));
+  for (let row = 0; row < rows; row += gridScale) {
+    parts.push(svg('line', { x1: 0, y1: row * cell, x2: (columns - 1) * cell, y2: row * cell, class: row % 25 ? 'player-grid' : 'player-grid major' }));
   }
   for (const path of view.movementPaths ?? []) {
     parts.push(svg('line', {
-      x1: path.from.column * cell + cell / 2, y1: path.from.row * cell + cell / 2,
-      x2: path.to.column * cell + cell / 2, y2: path.to.row * cell + cell / 2,
+      x1: path.from.column * cell, y1: path.from.row * cell,
+      x2: path.to.column * cell, y2: path.to.row * cell,
       class: `player-movement-path ${path.pace}`
     }));
   }
   const owned = ownedCombatantIds();
   for (const combatant of view.combatants) {
-    const x = combatant.position.column * cell + cell / 2;
-    const y = combatant.position.row * cell + cell / 2;
+    const x = combatant.position.column * cell;
+    const y = combatant.position.row * cell;
     const group = svg('g', { transform: `translate(${x} ${y})` });
     group.dataset.tokenId = combatant.id;
     group.classList.add('player-token-group');
     group.setAttribute('tabindex', '0');
-    if (selectedTokenIds.has(combatant.id)) group.append(svg('path', { d: 'M -3 -1.5 V -3 H -1.5 M 1.5 -3 H 3 V -1.5 M 3 1.5 V 3 H 1.5 M -1.5 3 H -3 V 1.5', class: 'player-token-selected' }));
-    if (targetTokenIds.has(combatant.id)) group.append(svg('circle', { cx: 0, cy: 0, r: 4.2, class: 'player-token-target' }));
+    if (selectedTokenIds.has(combatant.id)) group.append(svg('path', { d: 'M -.48 -.24 V -.48 H -.24 M .24 -.48 H .48 V -.24 M .48 .24 V .48 H .24 M -.24 .48 H -.48 V .24', class: 'player-token-selected' }));
+    if (targetTokenIds.has(combatant.id)) group.append(svg('circle', { cx: 0, cy: 0, r: TOKEN_RING_RADIUS, class: 'player-token-target' }));
     const remoteTargets = canvasPresence.filter((entry) => entry.uid !== currentUserId() && entry.targetIds?.includes(combatant.id));
-    remoteTargets.slice(0, 4).forEach((entry, index) => group.append(svg('circle', { cx: -3 + index * 2, cy: -4.8, r: .65, class: 'player-token-remote-target' })));
+    remoteTargets.slice(0, 4).forEach((entry, index) => group.append(svg('circle', { cx: -.42 + index * .28, cy: -.68, r: .09, class: 'player-token-remote-target' })));
     group.append(svg('circle', {
-      cx: 0, cy: 0, r: 2.25,
+      cx: 0, cy: 0, r: TOKEN_RADIUS,
       class: `player-token ${combatant.side === 'party' ? 'party' : 'enemy'}${combatant.condition === 'active' ? '' : ' down'}`
     }));
     const label = svg('text', { x: 0, y: 0, class: 'player-token-label' });
@@ -272,19 +275,20 @@ function attachPlayerTokenInteraction(group, combatant, owned, cell) {
   });
   group.addEventListener('pointermove', (event) => {
     if (!drag || !group.hasPointerCapture(event.pointerId)) return;
-    const point = mapPoint(event); if (Math.hypot(point.x - drag.start.x, point.y - drag.start.y) > cell * .35) drag.moved = true;
+      const point = mapPoint(event); if (Math.hypot(point.x - drag.start.x, point.y - drag.start.y) > Math.max(2, cell * view.map.metersPerSquare * .35)) drag.moved = true;
     if (drag.moved && owned) {
-      const column = Math.max(0, Math.min(view.map.columns - 1, Math.floor(point.x / cell)));
-      const row = Math.max(0, Math.min(view.map.rows - 1, Math.floor(point.y / cell)));
-      const x = column * cell + cell / 2; const y = row * cell + cell / 2;
+      const gridScale = view.map.metersPerSquare;
+      const column = Math.max(0, Math.min(view.map.columns - 1, Math.round(point.x / cell / gridScale) * gridScale));
+      const row = Math.max(0, Math.min(view.map.rows - 1, Math.round(point.y / cell / gridScale) * gridScale));
+      const x = column * cell; const y = row * cell;
       const distance = Math.max(Math.abs(combatant.position.column - column), Math.abs(combatant.position.row - row));
-      const pace = el.movePace.value; const allowance = pace === 'run' ? 10 : 5;
+      const pace = el.movePace.value; const allowance = pace === 'run' ? 50 : 25;
       const legality = distance > allowance ? 'over' : distance === allowance ? 'limit' : 'legal';
       group.setAttribute('transform', `translate(${x} ${y})`);
-      drag.trail.setAttribute('x1', combatant.position.column * cell + cell / 2); drag.trail.setAttribute('y1', combatant.position.row * cell + cell / 2);
+      drag.trail.setAttribute('x1', combatant.position.column * cell); drag.trail.setAttribute('y1', combatant.position.row * cell);
       drag.trail.setAttribute('x2', x); drag.trail.setAttribute('y2', y); drag.trail.setAttribute('class', `movement-drag-trail ${legality}`);
       drag.label.setAttribute('x', x + 4); drag.label.setAttribute('y', y - 4); drag.label.setAttribute('class', `movement-drag-label ${legality}`);
-      drag.label.textContent = `${pace.toUpperCase()} / ${distance} SQ / ${distance * 5} M${pace === 'run' ? ' / −1 BLOW / NO ATTACK' : ''}${legality === 'limit' ? ' / LIMIT' : legality === 'over' ? ' / OVER' : ''}`;
+      drag.label.textContent = `${pace.toUpperCase()} / ${Number((distance / gridScale).toFixed(2))} SQ / ${distance} M${pace === 'run' ? ' / −1 BLOW / NO ATTACK' : ''}${legality === 'limit' ? ' / LIMIT' : legality === 'over' ? ' / OVER' : ''}`;
     }
   });
   group.addEventListener('pointerup', async (event) => {
@@ -293,12 +297,13 @@ function attachPlayerTokenInteraction(group, combatant, owned, cell) {
     if (!owned) { renderMap(); setStatus('YOU MAY ONLY MOVE A TOKEN YOU PLAY', 'error'); return; }
     if (!view.declaringRound) { renderMap(); setStatus('THE ENCOUNTER IS NOT IN AN ACTIVE MOVEMENT ROUND', 'error'); return; }
     const point = mapPoint(event);
-    const column = Math.max(0, Math.min(view.map.columns - 1, Math.floor(point.x / cell)));
-    const row = Math.max(0, Math.min(view.map.rows - 1, Math.floor(point.y / cell)));
+    const gridScale = view.map.metersPerSquare;
+    const column = Math.max(0, Math.min(view.map.columns - 1, Math.round(point.x / cell / gridScale) * gridScale));
+    const row = Math.max(0, Math.min(view.map.rows - 1, Math.round(point.y / cell / gridScale) * gridScale));
     const pace = el.movePace.value;
     const distance = Math.max(Math.abs(combatant.position.column - column), Math.abs(combatant.position.row - row));
-    const allowance = pace === 'run' ? 10 : 5;
-    if (distance > allowance) { renderMap(); setStatus(`${pace.toUpperCase()} ALLOWS ${allowance} SQUARES / DROP WAS ${distance}`, 'error'); return; }
+    const allowance = pace === 'run' ? 50 : 25;
+    if (distance > allowance) { renderMap(); setStatus(`${pace.toUpperCase()} ALLOWS ${allowance} METERS / DROP WAS ${distance}`, 'error'); return; }
     try {
       await writeTokenMove(connectedCampaignId, view.encounterId, createPlayerTokenMove({ uid: currentUserId(), encounterId: view.encounterId, actorId: combatant.id, column, row, pace, round: view.declaringRound, movedAt: Date.now() }));
       setStatus(`${pace.toUpperCase()} SENT / ${combatant.name.toUpperCase()} / WAITING FOR REFEREE`, 'ok');

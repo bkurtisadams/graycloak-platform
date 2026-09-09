@@ -1,5 +1,28 @@
 # Graycloak Traveller
 
+## v0.63.1 one-metre token scale
+
+Human-sized combat tokens now occupy less than one physical metre instead of
+roughly five metres. They fit inside a 1 m square, and several can visibly
+share a 5 m square. Selection brackets, target reticles, labels, condition
+markers, shared-position offsets, and the player canvas use the same physical
+scale. Maximum combat-map zoom increases from 1600% to 3200%, making a 1 m
+square large enough for practical selection and dragging.
+
+## v0.63.0 configurable metre grid
+
+Personal-combat positions are now stored in metres on a one-kilometre square
+battlefield. The referee can select 1 m, 5 m, or 25 m per displayed square when
+starting an encounter or from the live combat toolbar. Changing scale only
+changes grid spacing and token snapping: tokens stay at the same physical
+coordinates, Book 1 ranges stay 1–5 / 6–50 / 51–250 / 251–500 metres, and WALK
+and RUN remain 25 m and 50 m.
+
+Both referee and player canvases publish and render the chosen scale, report
+movement in metres and scale-relative squares, and keep the heavy 25 m guide.
+Encounter Document schema v13 migrates v12 coordinates and movement history
+from five-metre cells to metre coordinates without changing the battlefield.
+
 ## v0.62.1 live movement trail
 
 Dragging a token now draws a local, grid-snapped movement preview on both the

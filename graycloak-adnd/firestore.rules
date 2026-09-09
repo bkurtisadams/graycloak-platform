@@ -279,8 +279,8 @@ service cloud.firestore {
             && request.resource.data.uid == request.auth.uid
             && request.resource.data.encounterId == encounterId
             && request.resource.data.actorId is string
-            && request.resource.data.column is int && request.resource.data.column >= 0 && request.resource.data.column <= 200
-            && request.resource.data.row is int && request.resource.data.row >= 0 && request.resource.data.row <= 200
+            && request.resource.data.column is int && request.resource.data.column >= 0 && request.resource.data.column <= 1000
+            && request.resource.data.row is int && request.resource.data.row >= 0 && request.resource.data.row <= 1000
             && (request.resource.data.pace == 'walk' || request.resource.data.pace == 'run')
             && request.resource.data.round is int && request.resource.data.round >= 1
             && request.resource.data.movedAt is int

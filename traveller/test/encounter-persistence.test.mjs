@@ -29,6 +29,7 @@ import {
   ESCAPE_RANGE_DMS,
   encounterSituationDMs,
   setEncounterLighting,
+  setEncounterGridScale,
   setCombatantCover,
   setCombatantFoldingStock,
   surpriseConditionsForSide,
@@ -71,13 +72,13 @@ async function encounterFixture() {
   return { character, ship, campaign, situation, encounter };
 }
 
-test('Encounter Document v12 round-trips the five-meter workspace, declarations, positions, range, and audit history', async () => {
+test('Encounter Document v13 round-trips the metre workspace, grid scale, declarations, positions, range, and audit history', async () => {
   const { encounter } = await encounterFixture();
   const roundTrip = importEncounterDocument(exportEncounterDocument(encounter));
-  assert.equal(roundTrip.schemaVersion, 12);
-  assert.deepEqual(roundTrip.map, { grid: 'square', columns: 201, rows: 201, rangeGuide: 'graycloak-5m-grid-v3', metersPerSquare: 5 });
+  assert.equal(roundTrip.schemaVersion, 13);
+  assert.deepEqual(roundTrip.map, { grid: 'square', columns: 1001, rows: 1001, rangeGuide: 'graycloak-meter-grid-v4', metersPerSquare: 5 });
   assert.deepEqual(roundTrip.roundState, { declaredActions: [] });
-  assert.deepEqual(roundTrip.combatants[0].position, { column: 100, row: 99 });
+  assert.deepEqual(roundTrip.combatants[0].position, { column: 500, row: 495 });
   assert.equal(roundTrip.surprise.surpriseSideId, 'party');
   assert.equal(roundTrip.range, 'medium');
   assert.equal(roundTrip.combatants[0].name, 'Hawkeye');
@@ -86,17 +87,17 @@ test('Encounter Document v12 round-trips the five-meter workspace, declarations,
   assert.equal(avoided.status, 'avoided');
 });
 
-test('Encounter Document v1 imports migrate through v12 to the five-meter workspace', async () => {
+test('Encounter Document v1 imports migrate through v13 to the metre workspace', async () => {
   const { encounter } = await encounterFixture();
   const legacy = structuredClone(encounter);
   legacy.schemaVersion = 1;
   delete legacy.map;
   for (const combatant of legacy.combatants) delete combatant.position;
   const migrated = importEncounterDocument(legacy);
-  assert.equal(migrated.schemaVersion, 12);
+  assert.equal(migrated.schemaVersion, 13);
   assert.equal(migrated.map.grid, 'square');
-  assert.equal(migrated.map.columns, 201);
-  assert.equal(migrated.map.rows, 201);
+  assert.equal(migrated.map.columns, 1001);
+  assert.equal(migrated.map.rows, 1001);
   assert.ok(migrated.combatants.every((entry) => Number.isInteger(entry.position.column) && Number.isInteger(entry.position.row)));
   assert.ok(migrated.combatants.every((entry) => entry.bodyModel === 'biological' && Array.isArray(entry.conditions) && Array.isArray(entry.contactIds)));
 });
@@ -110,7 +111,7 @@ test('Encounter Document v11 migration preserves former close pairs as explicit 
   legacy.combatants[1].position = { column: 5, row: 9 };
   for (const combatant of legacy.combatants) delete combatant.contactIds;
   const migrated = importEncounterDocument(legacy);
-  assert.equal(migrated.schemaVersion, 12);
+  assert.equal(migrated.schemaVersion, 13);
   assert.equal(encounterPairRange(migrated.combatants[0], migrated.combatants[1]), 'close');
   assert.deepEqual(migrated.combatants[0].contactIds, [migrated.combatants[1].id]);
 });
@@ -151,21 +152,25 @@ test('body-aware referee conditions persist without replacing Book 1 wound statu
   assert.deepEqual(cleared.combatant.conditions, []);
 });
 
-test('the fixed five-meter map reports distance while map guidance remains non-authoritative', async () => {
+test('grid scale changes presentation while metre distance and map guidance remain stable', async () => {
   const fixture = await encounterFixture();
   const scaled = createEncounterDocument({
     campaign: fixture.campaign, character: fixture.character, opponent: { name: 'Scaled Raider' },
-    encounterKey: 'scaled-map', date: { year: 4800, dayOfYear: 106 }, range: 'medium', metersPerSquare: 1.5,
+    encounterKey: 'scaled-map', date: { year: 4800, dayOfYear: 106 }, range: 'medium', metersPerSquare: 1,
     dice: sequenceDice([3, 3])
   });
   const actor = scaled.combatants.find((entry) => entry.side === 'party');
   const foe = scaled.combatants.find((entry) => entry.side === 'opposition');
   const guide = encounterRangeGuide(scaled, actor.id, foe.id);
-  assert.equal(guide.distance, 10);
+  assert.equal(guide.distance, 50);
   assert.equal(guide.meters, 50);
+  assert.equal(guide.squares, 50);
   assert.equal(guide.authoritativeRange, 'medium');
-  const moved = repositionEncounterCombatant(scaled, { combatantId: actor.id, column: 102, row: actor.position.row });
-  assert.match(moved.entry.text, /approximately 10 m at the referee scale/);
+  const rescaled = setEncounterGridScale(scaled, 25).encounter;
+  assert.deepEqual(rescaled.combatants.map((entry) => entry.position), scaled.combatants.map((entry) => entry.position));
+  assert.equal(encounterRangeGuide(rescaled, actor.id, foe.id).squares, 2);
+  const moved = repositionEncounterCombatant(rescaled, { combatantId: actor.id, column: 510, row: actor.position.row });
+  assert.match(moved.entry.text, /10 m/);
   assert.equal(moved.encounter.range, 'medium');
 });
 
@@ -222,25 +227,27 @@ test('v0.62.0 walks five grid squares, runs ten, and charges a running blow', as
   const first = await encounterFixture();
   const pc = first.encounter.combatants.find((entry) => entry.side === 'party');
   const foe = first.encounter.combatants.find((entry) => entry.side === 'opposition');
-  let walking = repositionEncounterCombatant(first.encounter, { combatantId: pc.id, column: 80, row: 100 }).encounter;
-  walking = repositionEncounterCombatant(walking, { combatantId: foe.id, column: 100, row: 100 }).encounter;
+  let walking = repositionEncounterCombatant(first.encounter, { combatantId: pc.id, column: 400, row: 500 }).encounter;
+  walking = repositionEncounterCombatant(walking, { combatantId: foe.id, column: 500, row: 500 }).encounter;
   walking = declareEncounterAction(walking, { actorId: pc.id, targetId: foe.id, action: 'close' }).encounter;
   const walked = resolveDeclaredRound(walking, { date: { year: 4800, dayOfYear: 106 }, dice: sequenceDice([6, 6, 1, 1, 1, 3, 3, 1, 1, 1]) });
   const walkMove = walked.entries.find((entry) => entry.kind === 'movement' && entry.actorId === pc.id);
   assert.equal(walkMove.detail.squares, 5);
-  assert.equal(walkMove.detail.allowance, 5);
+  assert.equal(walkMove.detail.meters, 25);
+  assert.equal(walkMove.detail.allowanceMeters, 25);
   assert.ok(walked.entries.some((entry) => entry.kind === 'attack' && entry.actorId === pc.id), 'walking permits an attack');
 
   const second = await encounterFixture();
   const runner = second.encounter.combatants.find((entry) => entry.side === 'party');
   const target = second.encounter.combatants.find((entry) => entry.side === 'opposition');
-  let running = repositionEncounterCombatant(second.encounter, { combatantId: runner.id, column: 80, row: 100 }).encounter;
-  running = repositionEncounterCombatant(running, { combatantId: target.id, column: 100, row: 100 }).encounter;
+  let running = repositionEncounterCombatant(second.encounter, { combatantId: runner.id, column: 400, row: 500 }).encounter;
+  running = repositionEncounterCombatant(running, { combatantId: target.id, column: 500, row: 500 }).encounter;
   running = declareEncounterAction(running, { actorId: runner.id, targetId: target.id, action: 'close-run' }).encounter;
   const ran = resolveDeclaredRound(running, { date: { year: 4800, dayOfYear: 106 }, dice: sequenceDice([3, 3, 1, 1, 1, 1]) });
   const runMove = ran.entries.find((entry) => entry.kind === 'movement' && entry.actorId === runner.id);
   assert.equal(runMove.detail.squares, 10);
-  assert.equal(runMove.detail.allowance, 10);
+  assert.equal(runMove.detail.meters, 50);
+  assert.equal(runMove.detail.allowanceMeters, 50);
   assert.equal(ran.encounter.combatants.find((entry) => entry.id === runner.id).blowsUsed, 1);
   assert.equal(ran.entries.some((entry) => entry.kind === 'attack' && entry.actorId === runner.id), false, 'running prohibits an attack');
 });
@@ -413,7 +420,7 @@ test('v0.35.0 throws each attack at the band between that pair, not one encounte
   const far = encounter.combatants.find((entry) => entry.name === 'Far Raider');
 
   encounter = repositionEncounterCombatant(encounter, { combatantId: near.id, column: actor.position.column + 1, row: actor.position.row }).encounter;
-  encounter = repositionEncounterCombatant(encounter, { combatantId: far.id, column: actor.position.column + 20, row: actor.position.row }).encounter;
+  encounter = repositionEncounterCombatant(encounter, { combatantId: far.id, column: actor.position.column + 100, row: actor.position.row }).encounter;
 
   const positioned = (id) => encounter.combatants.find((entry) => entry.id === id);
   assert.equal(encounterPairRange(positioned(actor.id), positioned(near.id)), 'short');
@@ -481,7 +488,7 @@ test('v0.39.0 a third side fights both others and the party can win by outlastin
   });
   // A third faction is placed by hand, as a referee would from the roster.
   const raiderSource = encounter.combatants.find((entry) => entry.name === 'Raider');
-  const militia = { ...JSON.parse(JSON.stringify(raiderSource)), id: 'militia-1', name: 'Militia', side: 'militia', sourceActorId: null, contactIds: [], position: { column: 150, row: 99 } };
+  const militia = { ...JSON.parse(JSON.stringify(raiderSource)), id: 'militia-1', name: 'Militia', side: 'militia', sourceActorId: null, contactIds: [], position: { column: 600, row: 495 } };
   const threeWay = { ...encounter, combatants: [...encounter.combatants, militia] };
   const imported = importEncounterDocument(threeWay);
   assert.equal(imported.combatants.length, 3);

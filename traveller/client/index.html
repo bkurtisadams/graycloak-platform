@@ -12,7 +12,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.62.1</div>
+          <div id="app-subtitle" class="subtitle">v0.63.1</div>
         </div>
         <nav class="utility campaign-utility" aria-label="Campaign and view commands">
           <details id="campaign-menu" class="campaign-menu">
@@ -225,7 +225,8 @@
               <span id="encounter-zoom-label">100%</span>
               <button id="encounter-zoom-in" class="text-button" type="button" aria-label="Zoom in">[ + ]</button>
               <button id="encounter-zoom-fit" class="text-button" type="button">[ FIT ]</button>
-              <label>MOVE <select id="encounter-move-pace"><option value="walk">WALK / 5 SQ</option><option value="run">RUN / 10 SQ + 1 BLOW</option></select></label>
+              <label>MOVE <select id="encounter-move-pace"><option value="walk">WALK / 25 M</option><option value="run">RUN / 50 M + 1 BLOW</option></select></label>
+              <label>GRID <select id="encounter-grid-scale" aria-label="Meters per grid square"><option value="1">1 M</option><option value="5" selected>5 M</option><option value="25">25 M</option></select></label>
               <button id="encounter-grid-toggle" class="text-button" type="button" aria-pressed="false">[ HIDE GRID ]</button>
             </span>
           </div>
@@ -235,11 +236,11 @@
             <span id="encounter-range-grid" class="encounter-range-grid">GRID --</span>
           </div>
           <div id="encounter-map-viewport" class="encounter-map-viewport" tabindex="0" aria-label="Pan and zoom encounter map">
-            <svg id="encounter-map" class="encounter-map" viewBox="0 0 1206 1206" role="img" aria-label="201 by 201 square personal encounter map; each square is 5 meters"></svg>
+            <svg id="encounter-map" class="encounter-map" viewBox="0 0 1206 1206" role="img" aria-label="One-kilometer personal encounter map with configurable grid scale"></svg>
             <div id="encounter-token-tooltip" class="encounter-token-tooltip" hidden></div>
             <div id="encounter-token-menu" class="encounter-token-menu" hidden></div>
           </div>
-          <div class="encounter-map-legend"><span><i class="encounter-legend-pc"></i> PARTY</span><span><i class="encounter-legend-enemy"></i> OPPOSITION</span><span>5 M SQUARES / HEAVY LINE 25 M</span><span>SHARED SQUARE = SHORT; CLOSE = EXPLICIT CONTACT</span></div>
+          <div class="encounter-map-legend"><span><i class="encounter-legend-pc"></i> PARTY</span><span><i class="encounter-legend-enemy"></i> OPPOSITION</span><span id="encounter-grid-legend">5 M SQUARES / HEAVY LINE 25 M</span><span>SAME POSITION = SHORT; CLOSE = EXPLICIT CONTACT</span></div>
         </section>
   <section id="ship-section" class="sheet-view" hidden aria-labelledby="ship-heading">
     <div class="section-heading">
@@ -473,7 +474,7 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
               <option value="long">Long</option><option value="very-long">Very Long</option>
             </select>
           </label>
-          <label>METERS / SQUARE <input id="combat-map-scale" type="number" value="5" readonly aria-readonly="true"></label>
+          <label>METERS / SQUARE <select id="combat-map-scale"><option value="1">1</option><option value="5" selected>5</option><option value="25">25</option></select></label>
         </div>
         <div class="combat-setup-footer combat-surprise-footer">
           <span class="combat-surprise-label">SURPRISE DMs / BOOK 1 p.31</span>

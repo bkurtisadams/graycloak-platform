@@ -18,8 +18,8 @@ import {
 } from '../../packages/classic-traveller-rules/index.js';
 
 export const ENCOUNTER_DOCUMENT_TYPE = 'graycloak-traveller-personal-encounter';
-export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 12;
-export const SUPPORTED_ENCOUNTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 13;
+export const SUPPORTED_ENCOUNTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
 // Who decides a combatant's action: the referee (or its player), or the house
 // NPC routine. Party members default to manual, everyone else to auto.
 export const COMBATANT_TACTICS = Object.freeze(['manual', 'auto']);
@@ -41,7 +41,7 @@ export const ESCAPE_RANGE_DMS = Object.freeze({ close: -1, short: -1, medium: 1,
 // v1 resolved every attack at one encounter-wide band. From v2 the band is
 // computed per attacker-target pair from map positions, so the guide marker
 // records which policy resolved a stored encounter.
-export const ENCOUNTER_RANGE_GUIDE_VERSION = 'graycloak-5m-grid-v3';
+export const ENCOUNTER_RANGE_GUIDE_VERSION = 'graycloak-meter-grid-v4';
 export const ENCOUNTER_STATUSES = Object.freeze(['active', 'victory', 'defeat', 'escaped', 'avoided', 'opposition-withdrew']);
 export const ENCOUNTER_ACTOR_TYPES = Object.freeze(['pc', 'npc', 'robot', 'creature']);
 export const ENCOUNTER_BODY_MODELS = Object.freeze(['biological', 'robotic', 'hybrid']);
@@ -50,16 +50,17 @@ export const ENCOUNTER_CONDITIONS = Object.freeze({
   robotic: Object.freeze(['disrupted', 'powered-down', 'disabled', 'destroyed']),
   hybrid: Object.freeze(['stunned', 'unconscious', 'disrupted', 'powered-down', 'disabled', 'dead', 'destroyed'])
 });
-export const ENCOUNTER_MAP_COLUMNS = 201;
-export const ENCOUNTER_MAP_ROWS = 201;
+export const ENCOUNTER_MAP_COLUMNS = 1001;
+export const ENCOUNTER_MAP_ROWS = 1001;
 export const ENCOUNTER_METERS_PER_SQUARE = 5;
-export const ENCOUNTER_SQUARES_PER_RANGE_BAND = 5;
+export const ENCOUNTER_GRID_SCALES = Object.freeze([1, 5, 25]);
+export const ENCOUNTER_METERS_PER_RANGE_BAND = 25;
 export const ENCOUNTER_RANGE_GUIDE = Object.freeze({
   close: Object.freeze({ minimum: 0, maximum: 0, placement: 0 }),
-  short: Object.freeze({ minimum: 0, maximum: 1, placement: 1 }),
-  medium: Object.freeze({ minimum: 2, maximum: 10, placement: 10 }),
-  long: Object.freeze({ minimum: 11, maximum: 50, placement: 50 }),
-  'very-long': Object.freeze({ minimum: 51, maximum: 100, placement: 100 })
+  short: Object.freeze({ minimum: 1, maximum: 5, placement: 5 }),
+  medium: Object.freeze({ minimum: 6, maximum: 50, placement: 50 }),
+  long: Object.freeze({ minimum: 51, maximum: 250, placement: 250 }),
+  'very-long': Object.freeze({ minimum: 251, maximum: 500, placement: 500 })
 });
 
 export class EncounterDocumentValidationError extends Error {
@@ -82,11 +83,11 @@ function parse(input) {
 }
 function validDate(value) { return value && Number.isInteger(value.year) && Number.isInteger(value.dayOfYear) && value.dayOfYear >= 1 && value.dayOfYear <= 366; }
 function clamp(value, minimum, maximum) { return Math.max(minimum, Math.min(maximum, value)); }
-function initialEnemyColumn(range) { return 100 + ENCOUNTER_RANGE_GUIDE[range].placement; }
+function initialEnemyColumn(range) { return 500 + ENCOUNTER_RANGE_GUIDE[range].placement; }
 function initialPosition(side, index, total, range) {
-  const firstRow = clamp(Math.floor((ENCOUNTER_MAP_ROWS - total * 2) / 2), 1, ENCOUNTER_MAP_ROWS - 2);
-  if (side === 'party') return { column: 100, row: clamp(firstRow + index * 2, 0, ENCOUNTER_MAP_ROWS - 1) };
-  return { column: initialEnemyColumn(range), row: clamp(firstRow + index * 2, 0, ENCOUNTER_MAP_ROWS - 1) };
+  const firstRow = clamp(Math.floor((ENCOUNTER_MAP_ROWS - total * 10) / 2), 1, ENCOUNTER_MAP_ROWS - 2);
+  if (side === 'party') return { column: 500, row: clamp(firstRow + index * 10, 0, ENCOUNTER_MAP_ROWS - 1) };
+  return { column: initialEnemyColumn(range), row: clamp(firstRow + index * 10, 0, ENCOUNTER_MAP_ROWS - 1) };
 }
 function withPosition(combatant, position) { return { ...combatant, position }; }
 function withCurrentState(combatant, current = null, status = 'active') {
@@ -125,6 +126,8 @@ export function createEncounterDocument({ campaign, situation = null, character 
   if (opponentSpecs.length > 16) throw new RangeError('an encounter supports at most sixteen opponents');
   if (!validDate(date)) throw new TypeError('valid encounter date is required');
   if (!PERSONAL_COMBAT_RANGES.includes(range)) throw new RangeError(`unknown personal combat range: ${range}`);
+  const gridScale = metersPerSquare ?? ENCOUNTER_METERS_PER_SQUARE;
+  if (!ENCOUNTER_GRID_SCALES.includes(gridScale)) throw new RangeError('grid scale must be 1, 5, or 25 meters');
   const party = characterDocuments.map((entry, index) => {
     const military = ['Navy', 'Army', 'Marines', 'Scouts'].includes(entry.career?.service);
     const loadout = partyLoadouts[entry.identity.id] ?? {};
@@ -177,7 +180,7 @@ export function createEncounterDocument({ campaign, situation = null, character 
     timing: { createdDate: { year: date.year, dayOfYear: date.dayOfYear }, resolvedDate: null },
     status: 'active', round: 1, range, surprise,
     conditions: { lighting: 'normal' },
-    map: { grid: 'square', columns: ENCOUNTER_MAP_COLUMNS, rows: ENCOUNTER_MAP_ROWS, rangeGuide: ENCOUNTER_RANGE_GUIDE_VERSION, metersPerSquare: ENCOUNTER_METERS_PER_SQUARE },
+    map: { grid: 'square', columns: ENCOUNTER_MAP_COLUMNS, rows: ENCOUNTER_MAP_ROWS, rangeGuide: ENCOUNTER_RANGE_GUIDE_VERSION, metersPerSquare: gridScale },
     roundState: { declaredActions: [] },
     combatants: [...party, ...hostiles],
     history: [{ round: 0, kind: 'surprise', text: surprise.surpriseSideId ? `${surprise.surpriseSideId} achieved surprise.` : 'Neither side achieved surprise.', detail: surprise }],
@@ -211,7 +214,7 @@ export function validateEncounterDocument(document) {
     add(errors, nonblank(declaration.side), 'each declared action must name the acting side');
   }
   add(errors, document.map?.grid === 'square' && document.map?.columns === ENCOUNTER_MAP_COLUMNS && document.map?.rows === ENCOUNTER_MAP_ROWS && document.map?.rangeGuide === ENCOUNTER_RANGE_GUIDE_VERSION, 'map must be the supported square encounter workspace');
-  add(errors, document.map?.metersPerSquare === null || (typeof document.map?.metersPerSquare === 'number' && Number.isFinite(document.map.metersPerSquare) && document.map.metersPerSquare > 0 && document.map.metersPerSquare <= 1000), 'map.metersPerSquare must be null or a positive number no greater than 1000');
+  add(errors, ENCOUNTER_GRID_SCALES.includes(document.map?.metersPerSquare), 'map.metersPerSquare must be 1, 5, or 25');
   add(errors, plain(document.roundState) && Array.isArray(document.roundState?.declaredActions), 'roundState must contain declaredActions');
   if (Array.isArray(document.roundState?.declaredActions)) for (const declaration of document.roundState.declaredActions) {
     add(errors, nonblank(declaration.actorId) && ['attack', 'evade', 'close', 'open', 'close-run', 'open-run', 'escape', 'wait'].includes(declaration.action), 'declared party action is invalid');
@@ -279,9 +282,11 @@ export function assertValidEncounterDocument(document) {
 }
 
 function scaleLegacyPosition(position, columns, rows) {
+  const legacyColumns = 201;
+  const legacyRows = 201;
   return {
-    column: clamp(Math.round(Number(position?.column ?? 0) * (ENCOUNTER_MAP_COLUMNS - 1) / Math.max(1, columns - 1)), 0, ENCOUNTER_MAP_COLUMNS - 1),
-    row: clamp(Math.round(Number(position?.row ?? 0) * (ENCOUNTER_MAP_ROWS - 1) / Math.max(1, rows - 1)), 0, ENCOUNTER_MAP_ROWS - 1)
+    column: clamp(Math.round(Number(position?.column ?? 0) * (legacyColumns - 1) / Math.max(1, columns - 1)), 0, legacyColumns - 1),
+    row: clamp(Math.round(Number(position?.row ?? 0) * (legacyRows - 1) / Math.max(1, rows - 1)), 0, legacyRows - 1)
   };
 }
 
@@ -309,7 +314,7 @@ function migrateEncounterDocument(document) {
     const columns = document.map?.columns ?? 12;
     const rows = document.map?.rows ?? 8;
     document.combatants = document.combatants.map((entry) => ({ ...entry, position: scaleLegacyPosition(entry.position, columns, rows) }));
-    document.map = { grid: 'square', columns: ENCOUNTER_MAP_COLUMNS, rows: ENCOUNTER_MAP_ROWS, rangeGuide: 'graycloak-band-guide-v1' };
+    document.map = { grid: 'square', columns: 201, rows: 201, rangeGuide: 'graycloak-band-guide-v1' };
     document.roundState = { declaredActions: [] };
     document.schemaVersion = 3;
   }
@@ -380,8 +385,22 @@ function migrateEncounterDocument(document) {
         .filter((other) => other.id !== entry.id && other.side !== entry.side && encounterMapDistance(entry, other) <= 1)
         .map((other) => other.id)
     }));
-    document.map = { grid: 'square', columns: ENCOUNTER_MAP_COLUMNS, rows: ENCOUNTER_MAP_ROWS, rangeGuide: ENCOUNTER_RANGE_GUIDE_VERSION, metersPerSquare: ENCOUNTER_METERS_PER_SQUARE };
+    document.map = { grid: 'square', columns: 201, rows: 201, rangeGuide: 'graycloak-5m-grid-v3', metersPerSquare: 5 };
     document.schemaVersion = 12;
+  }
+  if (document.schemaVersion === 12) {
+    const scalePosition = (position) => ({ column: Number(position.column) * 5, row: Number(position.row) * 5 });
+    document.combatants = document.combatants.map((entry) => ({ ...entry, position: scalePosition(entry.position) }));
+    document.history = (document.history ?? []).map((entry) => entry.detail?.from && entry.detail?.to
+      ? { ...entry, detail: {
+        ...entry.detail,
+        from: scalePosition(entry.detail.from), to: scalePosition(entry.detail.to),
+        meters: Number(entry.detail.meters ?? Number(entry.detail.squares ?? 0) * 5),
+        allowanceMeters: Number(entry.detail.allowanceMeters ?? Number(entry.detail.allowance ?? 0) * 5)
+      } }
+      : entry);
+    document.map = { grid: 'square', columns: ENCOUNTER_MAP_COLUMNS, rows: ENCOUNTER_MAP_ROWS, rangeGuide: ENCOUNTER_RANGE_GUIDE_VERSION, metersPerSquare: ENCOUNTER_METERS_PER_SQUARE };
+    document.schemaVersion = 13;
   }
   return document;
 }
@@ -422,8 +441,9 @@ export function encounterRangeGuide(document, actorId, targetId) {
   if (!actor || !target || actor.side === target.side) throw new Error('range guide requires opposing combatants');
   const distance = encounterMapDistance(actor, target);
   const suggestedRange = encounterPairRange(actor, target);
-  const meters = encounter.map.metersPerSquare === null ? null : Number((distance * encounter.map.metersPerSquare).toFixed(2));
-  return { actorId, targetId, distance, meters, suggestedRange, authoritativeRange: encounter.range, matches: suggestedRange === encounter.range };
+  const meters = distance;
+  const squares = Number((meters / encounter.map.metersPerSquare).toFixed(2));
+  return { actorId, targetId, distance, meters, squares, suggestedRange, authoritativeRange: encounter.range, matches: suggestedRange === encounter.range };
 }
 
 export function repositionEncounterCombatant(document, { combatantId, column, row } = {}) {
@@ -436,8 +456,8 @@ export function repositionEncounterCombatant(document, { combatantId, column, ro
   current.position = { column, row };
   clearContacts(next, current);
   const distance = Math.max(Math.abs(prior.column - column), Math.abs(prior.row - row));
-  const metric = next.map.metersPerSquare === null ? '' : ` / approximately ${Number((distance * next.map.metersPerSquare).toFixed(2))} m at the referee scale`;
-  const entry = { round: next.round, kind: 'map-position', side: current.side, combatantId: current.id, text: `${current.name} repositioned ${distance} square${distance === 1 ? '' : 's'}${metric} on the visual map from ${prior.column + 1},${prior.row + 1} to ${column + 1},${row + 1}; Book 1 range remains ${next.range}.` };
+  const squares = Number((distance / next.map.metersPerSquare).toFixed(2));
+  const entry = { round: next.round, kind: 'map-position', side: current.side, combatantId: current.id, text: `${current.name} repositioned ${distance} m / ${squares} grid square${squares === 1 ? '' : 's'} on the visual map from ${prior.column},${prior.row} to ${column},${row}; Book 1 range remains ${next.range}.` };
   next.history.push(entry);
   assertValidEncounterDocument(next);
   return { encounter: next, entry };
@@ -454,18 +474,19 @@ export function moveEncounterCombatantByPlayer(document, { combatantId, column, 
   if (!combatant) throw new Error('combatant is unavailable');
   if (next.history.some((entry) => entry.round === next.round && entry.kind === 'movement' && entry.actorId === combatantId && entry.detail?.playerMove)) throw new Error(`${combatant.name} already moved this round`);
   const to = { column, row };
-  const squares = encounterMapDistance(combatant, { position: to });
+  const meters = encounterMapDistance(combatant, { position: to });
   const consequences = personalMovementConsequences({ status: 'open', pace });
-  const allowance = consequences.bands * ENCOUNTER_SQUARES_PER_RANGE_BAND;
-  if (squares > allowance) throw new Error(`${pace} movement exceeds ${allowance} five-meter squares`);
+  const allowanceMeters = consequences.bands * ENCOUNTER_METERS_PER_RANGE_BAND;
+  if (meters > allowanceMeters) throw new Error(`${pace} movement exceeds ${allowanceMeters} meters`);
+  const squares = Number((meters / next.map.metersPerSquare).toFixed(2));
   const from = { ...combatant.position };
   clearContacts(next, combatant);
   combatant.position = to;
   if (consequences.blowCost) combatant.blowsUsed = Number(combatant.blowsUsed ?? 0) + consequences.blowCost;
   const entry = {
     round: next.round, kind: 'movement', side: combatant.side, actorId: combatant.id,
-    text: `${combatant.name} ${pace}s ${squares} square${squares === 1 ? '' : 's'} on the tactical grid${consequences.blowCost ? '; running spends one combat blow and prevents an attack' : ''}.`,
-    detail: { movementStatus: 'maneuver', pace, squares, allowance, from, to, blowCost: consequences.blowCost, playerMove: true }
+    text: `${combatant.name} ${pace}s ${meters} m / ${squares} grid square${squares === 1 ? '' : 's'}${consequences.blowCost ? '; running spends one combat blow and prevents an attack' : ''}.`,
+    detail: { movementStatus: 'maneuver', pace, meters, squares, allowanceMeters, from, to, blowCost: consequences.blowCost, playerMove: true }
   };
   next.history.push(entry);
   next.range = closestOpposingBand(next.combatants) ?? next.range;
@@ -661,9 +682,9 @@ function placeAtRange(actor, target, range) {
   actor.position.row = target.position.row;
 }
 
-function moveOnFiveMeterGrid(actor, target, direction, pace = 'walk') {
+function moveOnMeterGrid(actor, target, direction, pace = 'walk') {
   const consequences = personalMovementConsequences({ status: direction, pace });
-  const allowance = consequences.bands * ENCOUNTER_SQUARES_PER_RANGE_BAND;
+  const allowance = consequences.bands * ENCOUNTER_METERS_PER_RANGE_BAND;
   const from = { ...actor.position };
   const dx = target.position.column - actor.position.column;
   const dy = target.position.row - actor.position.row;
@@ -679,7 +700,7 @@ function moveOnFiveMeterGrid(actor, target, direction, pace = 'walk') {
       row: clamp(actor.position.row + sign * stepY, 0, ENCOUNTER_MAP_ROWS - 1)
     };
   }
-  return { from, to: { ...actor.position }, squares: encounterMapDistance({ position: from }, actor), ...consequences };
+  return { from, to: { ...actor.position }, meters: encounterMapDistance({ position: from }, actor), ...consequences };
 }
 
 function clearContacts(encounter, combatant) {
@@ -779,6 +800,14 @@ export function setEncounterLighting(document, lighting) {
   return { encounter: next };
 }
 
+export function setEncounterGridScale(document, metersPerSquare) {
+  const next = importEncounterDocument(document);
+  if (!ENCOUNTER_GRID_SCALES.includes(metersPerSquare)) throw new RangeError('grid scale must be 1, 5, or 25 meters');
+  next.map.metersPerSquare = metersPerSquare;
+  assertValidEncounterDocument(next);
+  return { encounter: next };
+}
+
 export function setCombatantCover(document, { combatantId, cover } = {}) {
   const next = importEncounterDocument(document);
   if (!COMBATANT_COVER.includes(cover)) throw new RangeError(`unknown cover: ${cover}`);
@@ -868,7 +897,7 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
       const pace = movement[2] ? 'run' : 'walk';
       const moving = clone(beforeMovement.get(mover.id));
       const targetBefore = beforeMovement.get(moveTarget.id);
-      const result = moveOnFiveMeterGrid(moving, targetBefore, direction, pace);
+      const result = moveOnMeterGrid(moving, targetBefore, direction, pace);
       movementPlans.push({ declaration, mover, moveTarget, direction, pace, result });
     }
     if (declaration.action === 'escape') {
@@ -892,10 +921,11 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
   for (const plan of movementPlans) {
     if (plan.direction === 'close' && encounterMapDistance(plan.mover, plan.moveTarget) === 0) setContact(plan.mover, plan.moveTarget);
     const band = encounterPairRange(plan.mover, plan.moveTarget);
+    const squares = Number((plan.result.meters / next.map.metersPerSquare).toFixed(2));
     entries.push({
       round: next.round, kind: 'movement', side: plan.declaration.side, actorId: plan.mover.id, targetId: plan.moveTarget.id,
-      text: `${plan.mover.name} ${plan.pace}s ${plan.result.squares} square${plan.result.squares === 1 ? '' : 's'} ${plan.direction === 'close' ? 'toward' : 'away from'} ${plan.moveTarget.name}, ending at ${band} range${plan.result.blowCost ? '; running spends one combat blow and prevents an attack' : ''}.`,
-      detail: { movementStatus: plan.direction, pace: plan.pace, squares: plan.result.squares, allowance: plan.result.bands * ENCOUNTER_SQUARES_PER_RANGE_BAND, from: plan.result.from, to: plan.result.to, band, blowCost: plan.result.blowCost }
+      text: `${plan.mover.name} ${plan.pace}s ${plan.result.meters} m / ${squares} grid square${squares === 1 ? '' : 's'} ${plan.direction === 'close' ? 'toward' : 'away from'} ${plan.moveTarget.name}, ending at ${band} range${plan.result.blowCost ? '; running spends one combat blow and prevents an attack' : ''}.`,
+      detail: { movementStatus: plan.direction, pace: plan.pace, meters: plan.result.meters, squares, allowanceMeters: plan.result.bands * ENCOUNTER_METERS_PER_RANGE_BAND, from: plan.result.from, to: plan.result.to, band, blowCost: plan.result.blowCost }
     });
   }
 
@@ -943,10 +973,11 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
     const band = encounterPairRange(attacker, foe);
     if (weaponTargetNumber(attacker.weaponKey, foe.armor, band) === null) {
       const acting = live.get(entry.id);
-      const movement = moveOnFiveMeterGrid(acting, live.get(foe.id) ?? foe, 'close', 'walk');
+      const movement = moveOnMeterGrid(acting, live.get(foe.id) ?? foe, 'close', 'walk');
       snapshot.get(entry.id).position = { ...acting.position };
       const closed = encounterPairRange(acting, live.get(foe.id) ?? foe);
-      entries.push({ round: next.round, kind: 'movement', side: entry.side, actorId: entry.id, targetId: foe.id, text: `${entry.name} cannot attack at ${band} range and walks ${movement.squares} squares closer, ending at ${closed} range.`, detail: { movementStatus: 'close', pace: 'walk', squares: movement.squares, allowance: ENCOUNTER_SQUARES_PER_RANGE_BAND, from: movement.from, to: movement.to, band: closed, blowCost: 0 } });
+      const squares = Number((movement.meters / next.map.metersPerSquare).toFixed(2));
+      entries.push({ round: next.round, kind: 'movement', side: entry.side, actorId: entry.id, targetId: foe.id, text: `${entry.name} cannot attack at ${band} range and walks ${movement.meters} m / ${squares} grid squares closer, ending at ${closed} range.`, detail: { movementStatus: 'close', pace: 'walk', meters: movement.meters, squares, allowanceMeters: ENCOUNTER_METERS_PER_RANGE_BAND, from: movement.from, to: movement.to, band: closed, blowCost: 0 } });
       continue;
     }
     throwAttack(entry.id, foe.id, 0, entry.side);
@@ -973,7 +1004,7 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
   for (const entry of live.values()) {
     if (entry.status !== 'active') continue;
     const nearest = nearestActiveOpponent(entry, [...live.values()].filter((candidate) => candidate.side !== entry.side));
-    if (nearest && encounterMapDistance(entry, nearest) > 20 * ENCOUNTER_SQUARES_PER_RANGE_BAND) entry.status = 'escaped';
+    if (nearest && encounterMapDistance(entry, nearest) > 20 * ENCOUNTER_METERS_PER_RANGE_BAND) entry.status = 'escaped';
   }
   replaceCombatants(next, ...live.values());
   next.range = closestOpposingBand(next.combatants) ?? next.range;

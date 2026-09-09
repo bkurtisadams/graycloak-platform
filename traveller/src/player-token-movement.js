@@ -6,7 +6,7 @@ function nonblank(value) { return typeof value === 'string' && value.trim().leng
 
 export function createPlayerTokenMove({ uid, encounterId, actorId, column, row, pace = 'walk', round, movedAt = Date.now() } = {}) {
   if (!nonblank(uid) || !nonblank(encounterId) || !nonblank(actorId)) throw new TypeError('uid, encounterId, and actorId are required');
-  if (!Number.isInteger(column) || column < 0 || column > 200 || !Number.isInteger(row) || row < 0 || row > 200) throw new RangeError('token position must be within the 201 by 201 map');
+  if (!Number.isInteger(column) || column < 0 || column > 1000 || !Number.isInteger(row) || row < 0 || row > 1000) throw new RangeError('token position must be within the 1000-meter map');
   if (!['walk', 'run'].includes(pace)) throw new RangeError('pace must be walk or run');
   if (!Number.isInteger(round) || round < 1) throw new RangeError('round must be a positive integer');
   if (!Number.isSafeInteger(movedAt) || movedAt < 0) throw new RangeError('movedAt must be a non-negative integer');
@@ -22,7 +22,7 @@ export function authorizePlayerTokenMove(raw, { campaign, encounter } = {}) {
   if (!actor || !actor.playerCharacter) throw new Error('move actor is not a player character in this encounter');
   if (campaign.ownership?.actors?.[move.actorId] !== move.uid) throw new Error('player does not own this combatant');
   const distance = Math.max(Math.abs(actor.position.column - move.column), Math.abs(actor.position.row - move.row));
-  const allowance = move.pace === 'run' ? 10 : 5;
-  if (distance > allowance) throw new Error(`${move.pace} movement exceeds ${allowance} five-meter squares`);
+  const allowance = move.pace === 'run' ? 50 : 25;
+  if (distance > allowance) throw new Error(`${move.pace} movement exceeds ${allowance} meters`);
   return move;
 }

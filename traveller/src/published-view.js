@@ -97,7 +97,7 @@ export function buildPublishedView(encounter, { campaignId, publishedAt, rounds 
     },
     movementPaths: (encounter.history ?? [])
       .filter((entry) => entry.kind === 'movement' && entry.round === movementRound && entry.detail?.from && entry.detail?.to)
-      .map((entry) => ({ actorId: entry.actorId, pace: entry.detail.pace, squares: entry.detail.squares, from: { ...entry.detail.from }, to: { ...entry.detail.to } })),
+      .map((entry) => ({ actorId: entry.actorId, pace: entry.detail.pace, meters: entry.detail.meters, squares: entry.detail.squares, from: { ...entry.detail.from }, to: { ...entry.detail.to } })),
     // Names, sides, positions and visible condition. Deliberately no
     // characteristics, no current/maximum values, no armour, no cover, no blow
     // allowance, and no weapon: which gun a foe is holding is something the
