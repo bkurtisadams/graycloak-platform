@@ -1,5 +1,19 @@
 # Graycloak Traveller
 
+## v0.60.2 five-meter tactical map
+
+Personal combat now uses a scalable 201×201 square map at 5 meters per square, with a heavier line every five squares (25 meters). Selecting an actor draws colored Short, Medium, Long, and Very Long boundaries around that actor, so the grid itself explains range without a separate clickable band strip. The full map covers a 500-meter radius from its center.
+
+Tokens are compact enough for up to nine combatants to occupy visible positions within one 5-meter square. Sharing a square means Short range. Close is physical contact and is stored explicitly between combatants; CLOSE and OPEN orders create or break that contact. Moving a token also breaks its existing contacts. Encounter documents advance to schema v12 and older encounters migrate to the new workspace.
+
+## v0.60.1 selected-pair range strip
+
+Personal combat again puts the five Book 1 range bands in sight. The strip names the selected pair (`HAWKEYE -> RAIDER`), highlights their current CLOSE, SHORT, MEDIUM, LONG or VERY LONG band, and reports the grid distance beside it. In a multi-party fight it always follows the selected actor and target rather than pretending one global range applies to everyone.
+
+Clicking a band is an explicit referee range decision. It repositions the selected actor at that band from the selected target and records the change in encounter history and the Activity Log. The resolver still reads the pair's map positions, so the strip and grid remain two views of one state rather than competing range systems.
+
+`[ HIDE GRID ]` leaves the range strip and combat tracker available for theatre-of-the-mind play; `[ SHOW GRID ]` restores the map. The preference persists in that browser. No document schema or Classic Traveller rules-package changes.
+
 ## v0.60.0 multiplayer acceptance and referee-side authorization
 
 Player combat declarations are now checked twice: Firestore remains the remote security boundary, and the referee client independently verifies the declaration's account, assigned combatant, current round, action shape, target, and campaign before applying it to local authoritative state. A stale assignment or misconfigured remote rule therefore cannot make the referee drive another player's character.

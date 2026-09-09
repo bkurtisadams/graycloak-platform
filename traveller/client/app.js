@@ -419,6 +419,10 @@ const el = {
   encounterRecord: document.querySelector('#encounter-record'),
   encounterRailSection: document.querySelector('#combat-rail-section'),
   encounterSelectionStatus: document.querySelector('#encounter-selection-status'),
+  encounterRangePair: document.querySelector('#encounter-range-pair'),
+  encounterRangeButtons: [...document.querySelectorAll('[data-encounter-range]')],
+  encounterRangeGrid: document.querySelector('#encounter-range-grid'),
+  encounterGridToggle: document.querySelector('#encounter-grid-toggle'),
   encounterMapViewport: document.querySelector('#encounter-map-viewport'),
   encounterMap: document.querySelector('#encounter-map'),
   encounterZoomOut: document.querySelector('#encounter-zoom-out'),
@@ -566,8 +570,8 @@ let selectedEncounterActorId = null;
 let selectedEncounterTargetId = null;
 let pendingEncounterPlacement = null;
 let pendingEncounterConditionCombatantId = null;
-const ENCOUNTER_MAP_WIDTH = 1280;
-const ENCOUNTER_MAP_HEIGHT = 800;
+const ENCOUNTER_MAP_WIDTH = 1206;
+const ENCOUNTER_MAP_HEIGHT = 1206;
 const ENCOUNTER_MAP_MIN_ZOOM = 0.5;
 const ENCOUNTER_MAP_MAX_ZOOM = 4;
 let encounterMapZoom = 1;
@@ -576,6 +580,9 @@ let encounterMapViewFrame = 0;
 let framedEncounterId = null;
 let encounterExtraTargetIds = new Set();
 let expandedTrackerIds = new Set();
+const ENCOUNTER_GRID_VISIBILITY_KEY = 'graycloak.traveller.encounter.grid.v1';
+let encounterGridHidden = false;
+try { encounterGridHidden = window.localStorage?.getItem(ENCOUNTER_GRID_VISIBILITY_KEY) === 'hidden'; } catch { encounterGridHidden = false; }
 let lastPublishedRound = null;
 let unsubscribeDeclarations = null;
 let watchedDeclarationEncounterId = null;
@@ -3417,8 +3424,8 @@ function setEncounterMapZoom(value, anchor = null) {
   scheduleEncounterMapView();
 }
 
-// Frame the combatants rather than the whole 32x20 workspace: at 100% the
-// tokens are specks on a wide screen, and what matters is who is in the fight.
+// Frame the combatants, capped at a readable four-times zoom. FIT remains the
+// one-click view of the complete 1 km square workspace and all range bands.
 function frameEncounterCombatants(encounter) {
   const cellWidth = ENCOUNTER_MAP_WIDTH / encounter.map.columns;
   const cellHeight = ENCOUNTER_MAP_HEIGHT / encounter.map.rows;
@@ -3426,12 +3433,14 @@ function frameEncounterCombatants(encounter) {
   const ys = encounter.combatants.map((entry) => entry.position.row * cellHeight + cellHeight / 2);
   if (!xs.length) { fitEncounterMap(); return; }
   const padding = Math.max(cellWidth, cellHeight) * 2.5;
-  const left = Math.min(...xs) - padding;
-  const top = Math.min(...ys) - padding;
-  const width = Math.max(Math.max(...xs) - Math.min(...xs) + padding * 2, cellWidth * 8);
-  const height = Math.max(Math.max(...ys) - Math.min(...ys) + padding * 2, cellHeight * 6);
-  encounterMapZoom = ENCOUNTER_MAP_WIDTH / width;
-  encounterMapView = { x: left, y: top, width, height };
+  const boundsWidth = Math.max(Math.max(...xs) - Math.min(...xs) + padding * 2, cellWidth * 8);
+  const boundsHeight = Math.max(Math.max(...ys) - Math.min(...ys) + padding * 2, cellHeight * 6);
+  encounterMapZoom = Math.min(ENCOUNTER_MAP_MAX_ZOOM, ENCOUNTER_MAP_WIDTH / Math.max(boundsWidth, boundsHeight));
+  const width = ENCOUNTER_MAP_WIDTH / encounterMapZoom;
+  const height = ENCOUNTER_MAP_HEIGHT / encounterMapZoom;
+  const centreX = (Math.min(...xs) + Math.max(...xs)) / 2;
+  const centreY = (Math.min(...ys) + Math.max(...ys)) / 2;
+  encounterMapView = { x: centreX - width / 2, y: centreY - height / 2, width, height };
   flushEncounterMapView();
 }
 
@@ -3691,7 +3700,7 @@ function removeCombatantFromActiveEncounter(encounterId, combatantId) {
   }
 }
 
-function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect } = {}) {
+function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect, visualPoint = null } = {}) {
   group.addEventListener('pointerenter', (event) => {
     hoveredEncounterCombatantId = combatant.id;
     el.encounterTokenTooltip.textContent = combatantHoverText(combatant);
@@ -3709,14 +3718,16 @@ function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect
     const point = encounterMapPoint(event.clientX, event.clientY);
     const cellWidth = ENCOUNTER_MAP_WIDTH / encounter.map.columns;
     const cellHeight = ENCOUNTER_MAP_HEIGHT / encounter.map.rows;
-    const originX = combatant.position.column * cellWidth + cellWidth / 2;
-    const originY = combatant.position.row * cellHeight + cellHeight / 2;
+    const originX = visualPoint?.x ?? combatant.position.column * cellWidth + cellWidth / 2;
+    const originY = visualPoint?.y ?? combatant.position.row * cellHeight + cellHeight / 2;
     drag = {
       pointerId: event.pointerId,
       startClientX: event.clientX,
       startClientY: event.clientY,
       originX,
       originY,
+      offsetX: visualPoint?.offsetX ?? 0,
+      offsetY: visualPoint?.offsetY ?? 0,
       grabX: point.x - originX,
       grabY: point.y - originY,
       previewX: originX,
@@ -3758,8 +3769,8 @@ function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect
     if (!completed.moved) return onSelect?.();
     const cellWidth = ENCOUNTER_MAP_WIDTH / encounter.map.columns;
     const cellHeight = ENCOUNTER_MAP_HEIGHT / encounter.map.rows;
-    const column = Math.max(0, Math.min(encounter.map.columns - 1, Math.floor(completed.previewX / cellWidth)));
-    const row = Math.max(0, Math.min(encounter.map.rows - 1, Math.floor(completed.previewY / cellHeight)));
+    const column = Math.max(0, Math.min(encounter.map.columns - 1, Math.floor((completed.previewX - completed.offsetX) / cellWidth)));
+    const row = Math.max(0, Math.min(encounter.map.rows - 1, Math.floor((completed.previewY - completed.offsetY) / cellHeight)));
     if (column === combatant.position.column && row === combatant.position.row) {
       group.setAttribute('transform', `translate(${completed.originX} ${completed.originY})`);
       onSelect?.();
@@ -3815,6 +3826,20 @@ function updateEncounterDocument(encounterId, mutate) {
   }
 }
 
+function renderEncounterRangePanel(encounter, actor, target, guide = null) {
+  const currentRange = guide?.suggestedRange ?? null;
+  el.encounterRangePair.textContent = actor && target
+    ? `${actor.name.toUpperCase()} \u2192 ${target.name.toUpperCase()}`
+    : 'ACTOR -- \u2192 TARGET --';
+  el.encounterRangeGrid.textContent = guide
+    ? `${currentRange.toUpperCase().replace('-', ' ')} / ${guide.distance} SQ / ${guide.meters} M${currentRange === 'close' ? ' / CONTACT' : ''}`
+    : 'GRID --';
+  el.encounterSection.classList.toggle('grid-hidden', encounterGridHidden);
+  el.encounterGridToggle.textContent = encounterGridHidden ? '[ SHOW GRID ]' : '[ HIDE GRID ]';
+  el.encounterGridToggle.setAttribute('aria-pressed', String(encounterGridHidden));
+  el.encounterGridToggle.disabled = !encounter;
+}
+
 // Book 1 lists a preferred pistol and blade on the character sheet, but a
 // combatant here carries one weapon, so those lines appear only when the
 // weapon in hand is of that kind rather than advertising a gun nobody has.
@@ -3831,6 +3856,7 @@ function renderEncounterMap(encounter) {
     el.encounterPartyRoster.replaceChildren();
     el.encounterRoster.replaceChildren();
     el.encounterSelectionStatus.textContent = 'ACTOR -- // TARGET --';
+    renderEncounterRangePanel(null, null, null, null);
     return;
   }
   const width = ENCOUNTER_MAP_WIDTH;
@@ -3839,20 +3865,33 @@ function renderEncounterMap(encounter) {
   const cellHeight = height / encounter.map.rows;
   const fragments = [];
   for (let column = 0; column <= encounter.map.columns; column += 1) {
-    fragments.push(svgElement('line', { x1: column * cellWidth, y1: 0, x2: column * cellWidth, y2: height, class: column % 4 === 0 ? 'encounter-grid-major' : 'encounter-grid-line' }));
+    fragments.push(svgElement('line', { x1: column * cellWidth, y1: 0, x2: column * cellWidth, y2: height, class: column % 5 === 0 ? 'encounter-grid-major' : 'encounter-grid-line' }));
   }
   for (let row = 0; row <= encounter.map.rows; row += 1) {
-    fragments.push(svgElement('line', { x1: 0, y1: row * cellHeight, x2: width, y2: row * cellHeight, class: row % 4 === 0 ? 'encounter-grid-major' : 'encounter-grid-line' }));
+    fragments.push(svgElement('line', { x1: 0, y1: row * cellHeight, x2: width, y2: row * cellHeight, class: row % 5 === 0 ? 'encounter-grid-major' : 'encounter-grid-line' }));
   }
   const actor = selectedEncounterActor(encounter);
   const target = selectedEncounterTarget(encounter);
+  const tokenCentres = new Map();
+  const cells = new Map();
+  for (const combatant of encounter.combatants) {
+    const key = `${combatant.position.column},${combatant.position.row}`;
+    if (!cells.has(key)) cells.set(key, []);
+    cells.get(key).push(combatant);
+  }
+  const slots = [[0, 0], [-2, -2], [0, -2], [2, -2], [-2, 0], [2, 0], [-2, 2], [0, 2], [2, 2]];
+  for (const occupants of cells.values()) occupants.sort((a, b) => a.id.localeCompare(b.id)).forEach((combatant, index) => {
+    const [offsetX, offsetY] = slots[index % slots.length];
+    tokenCentres.set(combatant.id, {
+      x: combatant.position.column * cellWidth + cellWidth / 2 + offsetX,
+      y: combatant.position.row * cellHeight + cellHeight / 2 + offsetY,
+      offsetX, offsetY
+    });
+  });
   const declared = new Set(encounter.roundState?.declaredActions?.map((entry) => entry.actorId) ?? []);
   // Declared orders are drawn on the map: an arrow from each declaring token to
   // its target, so concentrated fire and a three-way fight read at a glance.
-  const centreOf = (combatant) => ({
-    x: combatant.position.column * cellWidth + cellWidth / 2,
-    y: combatant.position.row * cellHeight + cellHeight / 2
-  });
+  const centreOf = (combatant) => tokenCentres.get(combatant.id);
   for (const declaration of encounter.roundState?.declaredActions ?? []) {
     if (!declaration.targetId) continue;
     const from = encounter.combatants.find((entry) => entry.id === declaration.actorId);
@@ -3889,13 +3928,24 @@ function renderEncounterMap(encounter) {
     guide = encounterRangeGuide(encounter, actor.id, target.id);
     const actorX = actor.position.column * cellWidth + cellWidth / 2;
     const actorY = actor.position.row * cellHeight + cellHeight / 2;
-    const targetX = target.position.column * cellWidth + cellWidth / 2;
-    const targetY = target.position.row * cellHeight + cellHeight / 2;
-    fragments.push(svgElement('line', { x1: actorX, y1: actorY, x2: targetX, y2: targetY, class: 'encounter-range-line' }));
+    for (const [band, squares] of [['very-long', 100], ['long', 50], ['medium', 10], ['short', 1]]) {
+      fragments.push(svgElement('rect', {
+        x: actorX - squares * cellWidth, y: actorY - squares * cellHeight,
+        width: squares * cellWidth * 2, height: squares * cellHeight * 2,
+        class: `encounter-range-boundary ${band}`
+      }));
+    }
+    const actorPoint = centreOf(actor);
+    const targetPoint = centreOf(target);
+    const actorXLine = actorPoint.x;
+    const actorYLine = actorPoint.y;
+    const targetX = targetPoint.x;
+    const targetY = targetPoint.y;
+    fragments.push(svgElement('line', { x1: actorXLine, y1: actorYLine, x2: targetX, y2: targetY, class: `encounter-range-line${guide.suggestedRange === 'close' ? ' contact' : ''}` }));
   }
+  renderEncounterRangePanel(encounter, actor, target, guide);
   for (const combatant of encounter.combatants) {
-    const x = combatant.position.column * cellWidth + cellWidth / 2;
-    const y = combatant.position.row * cellHeight + cellHeight / 2;
+    const { x, y, offsetX, offsetY } = centreOf(combatant);
     const group = svgElement('g', {
       class: 'encounter-token', role: combatant.status === 'active' ? 'button' : 'img',
       tabindex: combatant.status === 'active' ? 0 : -1,
@@ -3904,41 +3954,41 @@ function renderEncounterMap(encounter) {
     });
     // Yellow ring: this is the combatant you are giving orders to.
     // Red ring: this combatant is targeted. It pulses so it reads at a glance.
-    if (actor?.id === combatant.id) group.append(svgElement('circle', { cx: 0, cy: 0, r: 17, class: 'encounter-token-selected-ring' }));
+    if (actor?.id === combatant.id) group.append(svgElement('circle', { cx: 0, cy: 0, r: 3.1, class: 'encounter-token-selected-ring' }));
     if (targetedIds.has(combatant.id)) {
-      const ring = svgElement('circle', { cx: 0, cy: 0, r: 20, class: 'encounter-token-target-ring' });
-      const pulse = svgElement('animate', { attributeName: 'r', values: '18;22;18', dur: '1.4s', repeatCount: 'indefinite' });
+      const ring = svgElement('circle', { cx: 0, cy: 0, r: 3.5, class: 'encounter-token-target-ring' });
+      const pulse = svgElement('animate', { attributeName: 'r', values: '3.2;4;3.2', dur: '1.4s', repeatCount: 'indefinite' });
       ring.append(pulse);
       group.append(ring);
     }
     if (combatant.side === 'party') {
-      group.append(svgElement('circle', { cx: 0, cy: 0, r: 15, class: `encounter-token-pc${declared.has(combatant.id) ? ' declared' : ''}` }));
+      group.append(svgElement('circle', { cx: 0, cy: 0, r: 2.5, class: `encounter-token-pc${declared.has(combatant.id) ? ' declared' : ''}` }));
       const label = svgElement('text', { x: 0, y: 0, class: 'encounter-token-pc-label' });
       label.textContent = (combatant.name || 'P').charAt(0).toUpperCase();
       group.append(label);
       if (combatant.conditions?.length) {
-        const marker = svgElement('text', { x: 13, y: -11, class: 'encounter-token-condition-marker' }); marker.textContent = '!'; group.append(marker);
+        const marker = svgElement('text', { x: 2.2, y: -1.8, class: 'encounter-token-condition-marker' }); marker.textContent = '!'; group.append(marker);
       }
-      attachEncounterTokenInteraction(group, encounter, combatant, { onSelect: () => setEncounterActor(encounter.identity.id, combatant.id) });
+      attachEncounterTokenInteraction(group, encounter, combatant, { onSelect: () => setEncounterActor(encounter.identity.id, combatant.id), visualPoint: { x, y, offsetX, offsetY } });
       fragments.push(group);
       continue;
     }
     const enemyClass = `encounter-token-enemy encounter-token-${combatant.actorType}${combatant.status === 'active' ? '' : ' inactive'}`;
-    if (combatant.actorType === 'robot') group.append(svgElement('rect', { x: -10, y: -10, width: 20, height: 20, class: enemyClass }));
-    else if (combatant.actorType === 'creature') group.append(svgElement('path', { d: 'M 0 -11 L 11 0 L 0 11 L -11 0 Z', class: enemyClass }));
-    else group.append(svgElement('circle', { cx: 0, cy: 0, r: 10, class: enemyClass }));
+    if (combatant.actorType === 'robot') group.append(svgElement('rect', { x: -2, y: -2, width: 4, height: 4, class: enemyClass }));
+    else if (combatant.actorType === 'creature') group.append(svgElement('path', { d: 'M 0 -2.3 L 2.3 0 L 0 2.3 L -2.3 0 Z', class: enemyClass }));
+    else group.append(svgElement('circle', { cx: 0, cy: 0, r: 2, class: enemyClass }));
     const enemyLabel = svgElement('text', { x: 0, y: 0, class: 'encounter-token-enemy-label' });
     enemyLabel.textContent = combatant.tokenLabel || combatant.name.charAt(0).toUpperCase();
     group.append(enemyLabel);
     if (combatant.conditions?.length) {
-      const marker = svgElement('text', { x: 12, y: -10, class: 'encounter-token-condition-marker' }); marker.textContent = '!'; group.append(marker);
+      const marker = svgElement('text', { x: 2.1, y: -1.7, class: 'encounter-token-condition-marker' }); marker.textContent = '!'; group.append(marker);
     }
     if (declaredOn[combatant.id]) {
-      const tally = svgElement('text', { x: 12, y: 14, class: 'encounter-token-declared-marker' });
+      const tally = svgElement('text', { x: 2.1, y: 2.5, class: 'encounter-token-declared-marker' });
       tally.textContent = `\u00d7${declaredOn[combatant.id]}`;
       group.append(tally);
     }
-    attachEncounterTokenInteraction(group, encounter, combatant, { onSelect: () => setEncounterTarget(encounter.identity.id, combatant.id) });
+    attachEncounterTokenInteraction(group, encounter, combatant, { onSelect: () => setEncounterTarget(encounter.identity.id, combatant.id), visualPoint: { x, y, offsetX, offsetY } });
     fragments.push(group);
   }
   el.encounterMap.replaceChildren(...fragments);
@@ -7170,6 +7220,11 @@ el.npcActorForm.addEventListener('submit', (event) => {
 el.encounterZoomOut.addEventListener('click', () => setEncounterMapZoom(encounterMapZoom - 0.25));
 el.encounterZoomIn.addEventListener('click', () => setEncounterMapZoom(encounterMapZoom + 0.25));
 el.encounterZoomFit.addEventListener('click', fitEncounterMap);
+el.encounterGridToggle.addEventListener('click', () => {
+  encounterGridHidden = !encounterGridHidden;
+  try { window.localStorage?.setItem(ENCOUNTER_GRID_VISIBILITY_KEY, encounterGridHidden ? 'hidden' : 'shown'); } catch { /* local preference only */ }
+  renderEncounter();
+});
 el.encounterMap.addEventListener('dragstart', (event) => event.preventDefault());
 {
   let pan = null;

@@ -12,7 +12,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.60.0</div>
+          <div id="app-subtitle" class="subtitle">v0.60.2</div>
         </div>
         <nav class="utility campaign-utility" aria-label="Campaign and view commands">
           <details id="campaign-menu" class="campaign-menu">
@@ -225,14 +225,20 @@
               <span id="encounter-zoom-label">100%</span>
               <button id="encounter-zoom-in" class="text-button" type="button" aria-label="Zoom in">[ + ]</button>
               <button id="encounter-zoom-fit" class="text-button" type="button">[ FIT ]</button>
+              <button id="encounter-grid-toggle" class="text-button" type="button" aria-pressed="false">[ HIDE GRID ]</button>
             </span>
           </div>
+          <div id="encounter-range-panel" class="encounter-range-panel" aria-label="Selected combatant range">
+            <strong id="encounter-range-pair" class="encounter-range-pair">ACTOR -- &rarr; TARGET --</strong>
+            <span class="encounter-range-key">RINGS: <i class="short">S</i> <i class="medium">M</i> <i class="long">L</i> <i class="very-long">VL</i></span>
+            <span id="encounter-range-grid" class="encounter-range-grid">GRID --</span>
+          </div>
           <div id="encounter-map-viewport" class="encounter-map-viewport" tabindex="0" aria-label="Pan and zoom encounter map">
-            <svg id="encounter-map" class="encounter-map" viewBox="0 0 1280 800" role="img" aria-label="32 by 20 square personal encounter map"></svg>
+            <svg id="encounter-map" class="encounter-map" viewBox="0 0 1206 1206" role="img" aria-label="201 by 201 square personal encounter map; each square is 5 meters"></svg>
             <div id="encounter-token-tooltip" class="encounter-token-tooltip" hidden></div>
             <div id="encounter-token-menu" class="encounter-token-menu" hidden></div>
           </div>
-          <div class="encounter-map-legend"><span><i class="encounter-legend-pc"></i> PARTY</span><span><i class="encounter-legend-enemy"></i> OPPOSITION</span><span>RIGHT-CLICK EMPTY MAP TO PLACE ROSTER ACTOR</span></div>
+          <div class="encounter-map-legend"><span><i class="encounter-legend-pc"></i> PARTY</span><span><i class="encounter-legend-enemy"></i> OPPOSITION</span><span>5 M SQUARES / HEAVY LINE 25 M</span><span>SHARED SQUARE = SHORT; CLOSE = EXPLICIT CONTACT</span></div>
         </section>
   <section id="ship-section" class="sheet-view" hidden aria-labelledby="ship-heading">
     <div class="section-heading">
@@ -466,7 +472,7 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
               <option value="long">Long</option><option value="very-long">Very Long</option>
             </select>
           </label>
-          <label>METERS / SQUARE <input id="combat-map-scale" type="number" min="0.1" max="1000" step="0.1" placeholder="UNSET"></label>
+          <label>METERS / SQUARE <input id="combat-map-scale" type="number" value="5" readonly aria-readonly="true"></label>
         </div>
         <div class="combat-setup-footer combat-surprise-footer">
           <span class="combat-surprise-label">SURPRISE DMs / BOOK 1 p.31</span>

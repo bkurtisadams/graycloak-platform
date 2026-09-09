@@ -714,20 +714,26 @@ input[readonly] {
   background: #d1d1ca;
 }
 
-.encounter-grid-line { stroke: #a3a59f; stroke-width: 1; }
-.encounter-grid-major { stroke: #777a75; stroke-width: 1.4; }
-.encounter-range-line { stroke: #2d3f4b; stroke-width: 3; stroke-dasharray: 8 6; pointer-events: none; }
+.encounter-grid-line { stroke: #a3a59f; stroke-width: .35; }
+.encounter-grid-major { stroke: #777a75; stroke-width: .8; }
+.encounter-range-line { stroke: #2d3f4b; stroke-width: 1; stroke-dasharray: 3 2; pointer-events: none; }
+.encounter-range-line.contact { stroke: #c55a25; stroke-width: 2; stroke-dasharray: none; }
+.encounter-range-boundary { fill: none; pointer-events: none; vector-effect: non-scaling-stroke; }
+.encounter-range-boundary.short { stroke: #c58b25; stroke-width: 2.5; }
+.encounter-range-boundary.medium { stroke: #3d7c50; stroke-width: 2; }
+.encounter-range-boundary.long { stroke: #336b9b; stroke-width: 2; }
+.encounter-range-boundary.very-long { stroke: #7b4f91; stroke-width: 2.5; }
 .encounter-token { cursor: grab; touch-action: none; }
 .encounter-token.dragging { cursor: grabbing; opacity: 0.78; }
-.encounter-token-pc { fill: #29465c; stroke: #111311; stroke-width: 2; }
+.encounter-token-pc { fill: #29465c; stroke: #111311; stroke-width: .5; }
 .encounter-token-pc.declared { fill: #667783; opacity: 0.72; }
-.encounter-token-pc-label { fill: #f2f2ed; font: 700 18px Consolas, monospace; text-anchor: middle; dominant-baseline: central; }
-.encounter-token-enemy { fill: #6a1f1f; stroke: #111311; stroke-width: 1.5; cursor: pointer; }
+.encounter-token-pc-label { fill: #f2f2ed; font: 700 2.8px Consolas, monospace; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.encounter-token-enemy { fill: #6a1f1f; stroke: #111311; stroke-width: .45; cursor: pointer; }
 .encounter-token-enemy:hover,
 .encounter-token-enemy:focus { stroke: #29465c; stroke-width: 4; outline: none; }
 .encounter-token-enemy.inactive { fill: #777a75; opacity: 0.55; cursor: default; }
-.encounter-token-enemy-label { fill: #f2f2ed; font: 700 10px Consolas, monospace; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
-.encounter-token-condition-marker { fill: #6a1f1f; stroke: #e7dfb6; stroke-width: 0.5px; font: 700 16px Consolas, monospace; pointer-events: none; }
+.encounter-token-enemy-label { fill: #f2f2ed; font: 700 2.2px Consolas, monospace; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.encounter-token-condition-marker { fill: #6a1f1f; stroke: #e7dfb6; stroke-width: .15px; font: 700 2.5px Consolas, monospace; pointer-events: none; }
 .encounter-token-tooltip,
 .encounter-token-menu { position: absolute; z-index: 8; max-width: 280px; border: 1px solid #111311; background: #e5e5e1; color: #111311; padding: 5px 7px; font: 11px/1.35 Consolas, monospace; white-space: pre-line; pointer-events: none; }
 .encounter-token-menu { z-index: 9; display: grid; gap: 2px; min-width: 170px; pointer-events: auto; white-space: normal; }
@@ -2892,13 +2898,52 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 }
 #encounter-section .encounter-caption-main { font-weight: 700; letter-spacing: .1em; }
 #encounter-section .encounter-map-tools { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.encounter-range-panel {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--rule);
+  background: color-mix(in srgb, var(--paper) 88%, var(--accent));
+  font-size: 11px;
+  flex: 0 0 auto;
+}
+.encounter-range-pair { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.encounter-range-key { white-space: nowrap; color: var(--muted); }
+.encounter-range-key i { display: inline-grid; place-items: center; min-width: 19px; height: 19px; border: 2px solid; font-style: normal; font-size: 9px; color: var(--ink); }
+.encounter-range-key .short { border-color: #c58b25; }
+.encounter-range-key .medium { border-color: #3d7c50; }
+.encounter-range-key .long { border-color: #336b9b; }
+.encounter-range-key .very-long { border-color: #7b4f91; }
+.encounter-range-buttons { display: flex; justify-content: center; gap: 3px; min-width: 0; }
+.encounter-range-button {
+  border: 1px solid var(--disabled);
+  padding: 3px 7px;
+  white-space: nowrap;
+}
+.encounter-range-button.current {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 700;
+}
+.encounter-range-button:disabled { opacity: .45; cursor: default; }
+.encounter-range-grid { color: var(--muted); white-space: nowrap; text-align: right; }
+#encounter-section.grid-hidden .encounter-map-viewport,
+#encounter-section.grid-hidden .encounter-map-legend { display: none; }
+@media (max-width: 1050px) {
+  .encounter-range-panel { grid-template-columns: 1fr; gap: 5px; }
+  .encounter-range-buttons { justify-content: flex-start; flex-wrap: wrap; }
+  .encounter-range-grid { text-align: left; }
+}
 #encounter-section .encounter-map-viewport { flex: 1 1 auto; min-height: 0; overflow: hidden; position: relative; }
 #encounter-section .encounter-map { width: 100%; height: 100%; }
 #encounter-section .encounter-map-legend {
   display: flex; gap: 14px; flex-wrap: wrap; align-items: center;
   padding: 4px 12px; border-top: 1px dotted var(--disabled); font-size: 11px; color: var(--muted); flex: 0 0 auto;
 }
-.encounter-token-declared-marker { font-size: 10px; font-weight: 700; fill: var(--ink); }
+.encounter-token-declared-marker { font-size: 2px; font-weight: 700; fill: var(--ink); }
 
 /* --- The rail's combat panel: throw first, then actions, then who is here. */
 .combat-rail .encounter-dm-panel { border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: 6px 0; margin-bottom: 7px; font-size: 11px; }
@@ -3009,8 +3054,8 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 /* --- v0.43.0: selection and targeting read off the map. Yellow ring: the
    combatant you are giving orders to. Red ring: a marked target, pulsing so
    it is visible without hunting for it. */
-.encounter-token-selected-ring { fill: none; stroke: #d8b53a; stroke-width: 3.5; }
-.encounter-token-target-ring { fill: none; stroke: var(--failure-border); stroke-width: 2; stroke-dasharray: 4 3; }
+.encounter-token-selected-ring { fill: none; stroke: #d8b53a; stroke-width: .8; }
+.encounter-token-target-ring { fill: none; stroke: var(--failure-border); stroke-width: .65; stroke-dasharray: 1.2 .8; }
 .encounter-light-control { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; letter-spacing: .1em; color: var(--muted); }
 .encounter-light-control select { font: inherit; font-size: 10px; padding: 1px 2px; }
 

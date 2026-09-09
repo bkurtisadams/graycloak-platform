@@ -12,10 +12,13 @@ import {
   exportEncounterDocument,
   importEncounterDocument,
   resolveEncounterRound,
+  resolveDeclaredRound,
+  declareEncounterAction,
   avoidEncounter,
   encounterRangeGuide,
   repositionEncounterCombatant,
   setEncounterRangeFromPositions,
+  setEncounterPairRange,
   addEncounterCombatantFromActor,
   removeEncounterCombatant,
   setEncounterCombatantCondition,
@@ -67,13 +70,13 @@ async function encounterFixture() {
   return { character, ship, campaign, situation, encounter };
 }
 
-test('Encounter Document v11 round-trips the expanded workspace, declarations, positions, range, and audit history', async () => {
+test('Encounter Document v12 round-trips the five-meter workspace, declarations, positions, range, and audit history', async () => {
   const { encounter } = await encounterFixture();
   const roundTrip = importEncounterDocument(exportEncounterDocument(encounter));
-  assert.equal(roundTrip.schemaVersion, 11);
-  assert.deepEqual(roundTrip.map, { grid: 'square', columns: 32, rows: 20, rangeGuide: 'graycloak-band-guide-v2', metersPerSquare: null });
+  assert.equal(roundTrip.schemaVersion, 12);
+  assert.deepEqual(roundTrip.map, { grid: 'square', columns: 201, rows: 201, rangeGuide: 'graycloak-5m-grid-v3', metersPerSquare: 5 });
   assert.deepEqual(roundTrip.roundState, { declaredActions: [] });
-  assert.deepEqual(roundTrip.combatants[0].position, { column: 4, row: 9 });
+  assert.deepEqual(roundTrip.combatants[0].position, { column: 100, row: 99 });
   assert.equal(roundTrip.surprise.surpriseSideId, 'party');
   assert.equal(roundTrip.range, 'medium');
   assert.equal(roundTrip.combatants[0].name, 'Hawkeye');
@@ -82,19 +85,33 @@ test('Encounter Document v11 round-trips the expanded workspace, declarations, p
   assert.equal(avoided.status, 'avoided');
 });
 
-test('Encounter Document v1 imports migrate through v11 to the expanded workspace', async () => {
+test('Encounter Document v1 imports migrate through v12 to the five-meter workspace', async () => {
   const { encounter } = await encounterFixture();
   const legacy = structuredClone(encounter);
   legacy.schemaVersion = 1;
   delete legacy.map;
   for (const combatant of legacy.combatants) delete combatant.position;
   const migrated = importEncounterDocument(legacy);
-  assert.equal(migrated.schemaVersion, 11);
+  assert.equal(migrated.schemaVersion, 12);
   assert.equal(migrated.map.grid, 'square');
-  assert.equal(migrated.map.columns, 32);
-  assert.equal(migrated.map.rows, 20);
+  assert.equal(migrated.map.columns, 201);
+  assert.equal(migrated.map.rows, 201);
   assert.ok(migrated.combatants.every((entry) => Number.isInteger(entry.position.column) && Number.isInteger(entry.position.row)));
-  assert.ok(migrated.combatants.every((entry) => entry.bodyModel === 'biological' && Array.isArray(entry.conditions)));
+  assert.ok(migrated.combatants.every((entry) => entry.bodyModel === 'biological' && Array.isArray(entry.conditions) && Array.isArray(entry.contactIds)));
+});
+
+test('Encounter Document v11 migration preserves former close pairs as explicit contact', async () => {
+  const { encounter } = await encounterFixture();
+  const legacy = structuredClone(encounter);
+  legacy.schemaVersion = 11;
+  legacy.map = { grid: 'square', columns: 32, rows: 20, rangeGuide: 'graycloak-band-guide-v2', metersPerSquare: null };
+  legacy.combatants[0].position = { column: 4, row: 9 };
+  legacy.combatants[1].position = { column: 5, row: 9 };
+  for (const combatant of legacy.combatants) delete combatant.contactIds;
+  const migrated = importEncounterDocument(legacy);
+  assert.equal(migrated.schemaVersion, 12);
+  assert.equal(encounterPairRange(migrated.combatants[0], migrated.combatants[1]), 'close');
+  assert.deepEqual(migrated.combatants[0].contactIds, [migrated.combatants[1].id]);
 });
 
 test('roster actors can be placed and removed at an explicit map position without rerolling surprise or range', async () => {
@@ -133,7 +150,7 @@ test('body-aware referee conditions persist without replacing Book 1 wound statu
   assert.deepEqual(cleared.combatant.conditions, []);
 });
 
-test('referee map scale adds approximate distance while map guidance remains non-authoritative', async () => {
+test('the fixed five-meter map reports distance while map guidance remains non-authoritative', async () => {
   const fixture = await encounterFixture();
   const scaled = createEncounterDocument({
     campaign: fixture.campaign, character: fixture.character, opponent: { name: 'Scaled Raider' },
@@ -143,11 +160,11 @@ test('referee map scale adds approximate distance while map guidance remains non
   const actor = scaled.combatants.find((entry) => entry.side === 'party');
   const foe = scaled.combatants.find((entry) => entry.side === 'opposition');
   const guide = encounterRangeGuide(scaled, actor.id, foe.id);
-  assert.equal(guide.distance, 8);
-  assert.equal(guide.meters, 12);
+  assert.equal(guide.distance, 10);
+  assert.equal(guide.meters, 50);
   assert.equal(guide.authoritativeRange, 'medium');
-  const moved = repositionEncounterCombatant(scaled, { combatantId: actor.id, column: 6, row: actor.position.row });
-  assert.match(moved.entry.text, /approximately 3 m at the referee scale/);
+  const moved = repositionEncounterCombatant(scaled, { combatantId: actor.id, column: 102, row: actor.position.row });
+  assert.match(moved.entry.text, /approximately 10 m at the referee scale/);
   assert.equal(moved.encounter.range, 'medium');
 });
 
@@ -155,7 +172,7 @@ test('dragged token positions persist while Book 1 range changes only through an
   const { encounter } = await encounterFixture();
   const player = encounter.combatants.find((entry) => entry.side === 'party');
   const foe = encounter.combatants.find((entry) => entry.side === 'opposition');
-  const moved = repositionEncounterCombatant(encounter, { combatantId: player.id, column: 10, row: 9 });
+  const moved = repositionEncounterCombatant(encounter, { combatantId: player.id, column: foe.position.column - 1, row: foe.position.row });
   assert.equal(moved.encounter.range, 'medium');
   assert.equal(moved.entry.kind, 'map-position');
   const guide = encounterRangeGuide(moved.encounter, player.id, foe.id);
@@ -164,6 +181,31 @@ test('dragged token positions persist while Book 1 range changes only through an
   const applied = setEncounterRangeFromPositions(moved.encounter, { actorId: player.id, targetId: foe.id });
   assert.equal(applied.encounter.range, 'short');
   assert.equal(applied.entry.kind, 'range');
+});
+
+test('referee range-band selection repositions the selected pair and records the decision', async () => {
+  const { encounter } = await encounterFixture();
+  const player = encounter.combatants.find((entry) => entry.side === 'party');
+  const foe = encounter.combatants.find((entry) => entry.side === 'opposition');
+  const result = setEncounterPairRange(encounter, { actorId: player.id, targetId: foe.id, range: 'long' });
+  const movedPlayer = result.encounter.combatants.find((entry) => entry.id === player.id);
+  const fixedFoe = result.encounter.combatants.find((entry) => entry.id === foe.id);
+  assert.equal(encounterPairRange(movedPlayer, fixedFoe), 'long');
+  assert.equal(result.range, 'long');
+  assert.equal(result.entry.kind, 'range');
+  assert.match(result.entry.text, /map position is synchronized/);
+});
+
+test('Close is explicit contact, sharing a square is Short, and Open breaks contact', async () => {
+  const { encounter } = await encounterFixture();
+  const player = encounter.combatants.find((entry) => entry.side === 'party');
+  const foe = encounter.combatants.find((entry) => entry.side === 'opposition');
+  const shared = repositionEncounterCombatant(encounter, { combatantId: player.id, column: foe.position.column, row: foe.position.row }).encounter;
+  assert.equal(encounterPairRange(shared.combatants.find((entry) => entry.id === player.id), shared.combatants.find((entry) => entry.id === foe.id)), 'short');
+  const touching = setEncounterPairRange(shared, { actorId: player.id, targetId: foe.id, range: 'close' }).encounter;
+  let declared = declareEncounterAction(touching, { actorId: player.id, targetId: foe.id, action: 'open' }).encounter;
+  const opened = resolveDeclaredRound(declared, { date: { year: 4800, dayOfYear: 106 }, dice: sequenceDice([3, 3, 3, 3, 3, 3]) }).encounter;
+  assert.equal(encounterPairRange(opened.combatants.find((entry) => entry.id === player.id), opened.combatants.find((entry) => entry.id === foe.id)), 'short');
 });
 
 test('campaign registry and portable Bundle v7 persist Encounter Documents', async () => {
@@ -319,8 +361,11 @@ test('v0.35.0 throws each attack at the band between that pair, not one encounte
   encounter = repositionEncounterCombatant(encounter, { combatantId: far.id, column: actor.position.column + 20, row: actor.position.row }).encounter;
 
   const positioned = (id) => encounter.combatants.find((entry) => entry.id === id);
-  assert.equal(encounterPairRange(positioned(actor.id), positioned(near.id)), 'close');
-  assert.equal(encounterPairRange(positioned(actor.id), positioned(far.id)), 'very-long');
+  assert.equal(encounterPairRange(positioned(actor.id), positioned(near.id)), 'short');
+  assert.equal(encounterPairRange(positioned(actor.id), positioned(far.id)), 'long');
+
+  const touching = setEncounterPairRange(encounter, { actorId: actor.id, targetId: near.id, range: 'close' }).encounter;
+  assert.equal(encounterPairRange(touching.combatants.find((entry) => entry.id === actor.id), touching.combatants.find((entry) => entry.id === near.id)), 'close');
 });
 
 test('v0.39.0 escape is thrown at 9+ with the range DM (B1 p.32)', async () => {
@@ -381,7 +426,7 @@ test('v0.39.0 a third side fights both others and the party can win by outlastin
   });
   // A third faction is placed by hand, as a referee would from the roster.
   const raiderSource = encounter.combatants.find((entry) => entry.name === 'Raider');
-  const militia = { ...JSON.parse(JSON.stringify(raiderSource)), id: 'militia-1', name: 'Militia', side: 'militia', sourceActorId: null, position: { column: 20, row: 9 } };
+  const militia = { ...JSON.parse(JSON.stringify(raiderSource)), id: 'militia-1', name: 'Militia', side: 'militia', sourceActorId: null, contactIds: [], position: { column: 150, row: 99 } };
   const threeWay = { ...encounter, combatants: [...encounter.combatants, militia] };
   const imported = importEncounterDocument(threeWay);
   assert.equal(imported.combatants.length, 3);

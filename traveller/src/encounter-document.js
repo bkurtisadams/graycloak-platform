@@ -18,8 +18,8 @@ import {
 } from '../../packages/classic-traveller-rules/index.js';
 
 export const ENCOUNTER_DOCUMENT_TYPE = 'graycloak-traveller-personal-encounter';
-export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 11;
-export const SUPPORTED_ENCOUNTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 12;
+export const SUPPORTED_ENCOUNTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
 // Who decides a combatant's action: the referee (or its player), or the house
 // NPC routine. Party members default to manual, everyone else to auto.
 export const COMBATANT_TACTICS = Object.freeze(['manual', 'auto']);
@@ -41,7 +41,7 @@ export const ESCAPE_RANGE_DMS = Object.freeze({ close: -1, short: -1, medium: 1,
 // v1 resolved every attack at one encounter-wide band. From v2 the band is
 // computed per attacker-target pair from map positions, so the guide marker
 // records which policy resolved a stored encounter.
-export const ENCOUNTER_RANGE_GUIDE_VERSION = 'graycloak-band-guide-v2';
+export const ENCOUNTER_RANGE_GUIDE_VERSION = 'graycloak-5m-grid-v3';
 export const ENCOUNTER_STATUSES = Object.freeze(['active', 'victory', 'defeat', 'escaped', 'avoided', 'opposition-withdrew']);
 export const ENCOUNTER_ACTOR_TYPES = Object.freeze(['pc', 'npc', 'robot', 'creature']);
 export const ENCOUNTER_BODY_MODELS = Object.freeze(['biological', 'robotic', 'hybrid']);
@@ -50,14 +50,15 @@ export const ENCOUNTER_CONDITIONS = Object.freeze({
   robotic: Object.freeze(['disrupted', 'powered-down', 'disabled', 'destroyed']),
   hybrid: Object.freeze(['stunned', 'unconscious', 'disrupted', 'powered-down', 'disabled', 'dead', 'destroyed'])
 });
-export const ENCOUNTER_MAP_COLUMNS = 32;
-export const ENCOUNTER_MAP_ROWS = 20;
+export const ENCOUNTER_MAP_COLUMNS = 201;
+export const ENCOUNTER_MAP_ROWS = 201;
+export const ENCOUNTER_METERS_PER_SQUARE = 5;
 export const ENCOUNTER_RANGE_GUIDE = Object.freeze({
-  close: Object.freeze({ minimum: 0, maximum: 1, placement: 1 }),
-  short: Object.freeze({ minimum: 2, maximum: 4, placement: 4 }),
-  medium: Object.freeze({ minimum: 5, maximum: 8, placement: 8 }),
-  long: Object.freeze({ minimum: 9, maximum: 14, placement: 14 }),
-  'very-long': Object.freeze({ minimum: 15, maximum: null, placement: 20 })
+  close: Object.freeze({ minimum: 0, maximum: 0, placement: 0 }),
+  short: Object.freeze({ minimum: 0, maximum: 1, placement: 1 }),
+  medium: Object.freeze({ minimum: 2, maximum: 10, placement: 10 }),
+  long: Object.freeze({ minimum: 11, maximum: 50, placement: 50 }),
+  'very-long': Object.freeze({ minimum: 51, maximum: 100, placement: 100 })
 });
 
 export class EncounterDocumentValidationError extends Error {
@@ -80,10 +81,10 @@ function parse(input) {
 }
 function validDate(value) { return value && Number.isInteger(value.year) && Number.isInteger(value.dayOfYear) && value.dayOfYear >= 1 && value.dayOfYear <= 366; }
 function clamp(value, minimum, maximum) { return Math.max(minimum, Math.min(maximum, value)); }
-function initialEnemyColumn(range) { return { close: 5, short: 8, medium: 12, long: 18, 'very-long': 25 }[range]; }
+function initialEnemyColumn(range) { return 100 + ENCOUNTER_RANGE_GUIDE[range].placement; }
 function initialPosition(side, index, total, range) {
   const firstRow = clamp(Math.floor((ENCOUNTER_MAP_ROWS - total * 2) / 2), 1, ENCOUNTER_MAP_ROWS - 2);
-  if (side === 'party') return { column: 4, row: clamp(firstRow + index * 2, 0, ENCOUNTER_MAP_ROWS - 1) };
+  if (side === 'party') return { column: 100, row: clamp(firstRow + index * 2, 0, ENCOUNTER_MAP_ROWS - 1) };
   return { column: initialEnemyColumn(range), row: clamp(firstRow + index * 2, 0, ENCOUNTER_MAP_ROWS - 1) };
 }
 function withPosition(combatant, position) { return { ...combatant, position }; }
@@ -133,7 +134,7 @@ export function createEncounterDocument({ campaign, situation = null, character 
       weaponKey: loadout.weaponKey ?? opponentSpecs[0].playerWeaponKey ?? 'rifle',
       surpriseDM: (military ? 1 : 0) + Math.min(1, Number(entry.skills?.Leadership ?? 0)) + Math.min(1, Number(entry.skills?.Tactics ?? 0))
     }), entry.current, characterEncounterStatus(entry)), initialPosition('party', index, characterDocuments.length, range)), cover: 'none', foldingStock: false, tactics: 'manual', militaryExperience: military, sourceActorId: entry.identity.id,
-      actorType: 'pc', bodyModel: 'biological', tokenLabel: entry.identity.name.charAt(0).toUpperCase(), conditions: [] };
+      actorType: 'pc', bodyModel: 'biological', tokenLabel: entry.identity.name.charAt(0).toUpperCase(), conditions: [], contactIds: [] };
   });
   const hostiles = opponentSpecs.map((spec, index) => {
     const weaponKey = spec.weaponKey ?? 'automatic-pistol';
@@ -145,7 +146,7 @@ export function createEncounterDocument({ campaign, situation = null, character 
       weaponKey, surpriseDM: Number(spec.surpriseDM ?? 0)
     }), spec.current), initialPosition('opposition', index, opponentSpecs.length, range)), cover: 'none', foldingStock: false, tactics: 'auto', militaryExperience: Boolean(spec.militaryExperience), sourceActorId: spec.actorId ?? null,
       actorType: spec.actorType ?? 'npc', bodyModel: spec.bodyModel ?? (spec.actorType === 'robot' ? 'robotic' : 'biological'),
-      tokenLabel: String(spec.tokenLabel ?? spec.name).charAt(0).toUpperCase(), conditions: Array.isArray(spec.conditions) ? [...spec.conditions] : [] };
+      tokenLabel: String(spec.tokenLabel ?? spec.name).charAt(0).toUpperCase(), conditions: Array.isArray(spec.conditions) ? [...spec.conditions] : [], contactIds: [] };
   });
   const partySurprise = surpriseConditionsForSide(party, surpriseConditions.party ?? {});
   const oppositionSurprise = surpriseConditionsForSide(hostiles, surpriseConditions.opposition ?? {});
@@ -175,13 +176,16 @@ export function createEncounterDocument({ campaign, situation = null, character 
     timing: { createdDate: { year: date.year, dayOfYear: date.dayOfYear }, resolvedDate: null },
     status: 'active', round: 1, range, surprise,
     conditions: { lighting: 'normal' },
-    map: { grid: 'square', columns: ENCOUNTER_MAP_COLUMNS, rows: ENCOUNTER_MAP_ROWS, rangeGuide: ENCOUNTER_RANGE_GUIDE_VERSION, metersPerSquare },
+    map: { grid: 'square', columns: ENCOUNTER_MAP_COLUMNS, rows: ENCOUNTER_MAP_ROWS, rangeGuide: ENCOUNTER_RANGE_GUIDE_VERSION, metersPerSquare: ENCOUNTER_METERS_PER_SQUARE },
     roundState: { declaredActions: [] },
     combatants: [...party, ...hostiles],
     history: [{ round: 0, kind: 'surprise', text: surprise.surpriseSideId ? `${surprise.surpriseSideId} achieved surprise.` : 'Neither side achieved surprise.', detail: surprise }],
     outcome: null,
     provenance: { rulesBasis: 'classic-traveller-book-1-personal-combat-1981-facsimile-errata', setting: 'Sea of Suns' }
   };
+  if (range === 'close') {
+    party.forEach((entry, index) => setContact(entry, hostiles[Math.min(index, hostiles.length - 1)]));
+  }
   assertValidEncounterDocument(document);
   return document;
 }
@@ -242,11 +246,15 @@ export function validateEncounterDocument(document) {
     add(errors, ENCOUNTER_BODY_MODELS.includes(entry.bodyModel), `combatant ${entry.name ?? ''} bodyModel is invalid`);
     add(errors, typeof entry.tokenLabel === 'string' && entry.tokenLabel.length <= 3, `combatant ${entry.name ?? ''} tokenLabel is invalid`);
     add(errors, Array.isArray(entry.conditions) && entry.conditions.every((condition) => ENCOUNTER_CONDITIONS[entry.bodyModel]?.includes(condition)), `combatant ${entry.name ?? ''} conditions are invalid`);
+    add(errors, Array.isArray(entry.contactIds) && entry.contactIds.every(nonblank), `combatant ${entry.name ?? ''} contacts are invalid`);
   }
   if (Array.isArray(document.combatants)) {
     add(errors, document.combatants.some((entry) => entry.side === 'party'), 'combatants require a party side');
     add(errors, document.combatants.some((entry) => entry.side !== 'party'), 'combatants require at least one side opposing the party');
     add(errors, new Set(document.combatants.map((entry) => entry.id)).size === document.combatants.length, 'combatant IDs must be unique');
+    const combatantIds = new Set(document.combatants.map((entry) => entry.id));
+    add(errors, document.combatants.every((entry) => (entry.contactIds ?? []).every((id) => id !== entry.id && combatantIds.has(id))), 'contacts must name another combatant');
+    add(errors, document.combatants.every((entry) => (entry.contactIds ?? []).every((id) => document.combatants.find((other) => other.id === id)?.contactIds?.includes(entry.id))), 'contacts must be reciprocal');
     // Any side may be given orders, so a declaration must name a combatant in
     // the encounter and match that combatant's own side.
     const combatantSides = new Map(document.combatants.map((entry) => [entry.id, entry.side]));
@@ -360,6 +368,20 @@ function migrateEncounterDocument(document) {
     }));
     document.schemaVersion = 11;
   }
+  if (document.schemaVersion === 11) {
+    const oldColumns = document.map?.columns ?? 32;
+    const oldRows = document.map?.rows ?? 20;
+    const oldCombatants = document.combatants;
+    document.combatants = oldCombatants.map((entry) => ({
+      ...entry,
+      position: scaleLegacyPosition(entry.position, oldColumns, oldRows),
+      contactIds: oldCombatants
+        .filter((other) => other.id !== entry.id && other.side !== entry.side && encounterMapDistance(entry, other) <= 1)
+        .map((other) => other.id)
+    }));
+    document.map = { grid: 'square', columns: ENCOUNTER_MAP_COLUMNS, rows: ENCOUNTER_MAP_ROWS, rangeGuide: ENCOUNTER_RANGE_GUIDE_VERSION, metersPerSquare: ENCOUNTER_METERS_PER_SQUARE };
+    document.schemaVersion = 12;
+  }
   return document;
 }
 
@@ -388,7 +410,8 @@ export function encounterMapDistance(first, second) {
 
 export function rangeBandForMapDistance(distance) {
   if (!Number.isInteger(distance) || distance < 0) throw new RangeError('map distance must be a non-negative integer');
-  return PERSONAL_COMBAT_RANGES.find((range) => ENCOUNTER_RANGE_GUIDE[range].maximum === null || distance <= ENCOUNTER_RANGE_GUIDE[range].maximum);
+  if (distance <= 1) return 'short';
+  return PERSONAL_COMBAT_RANGES.find((range) => range !== 'close' && distance <= ENCOUNTER_RANGE_GUIDE[range].maximum) ?? 'very-long';
 }
 
 export function encounterRangeGuide(document, actorId, targetId) {
@@ -397,7 +420,7 @@ export function encounterRangeGuide(document, actorId, targetId) {
   const target = encounter.combatants.find((entry) => entry.id === targetId);
   if (!actor || !target || actor.side === target.side) throw new Error('range guide requires opposing combatants');
   const distance = encounterMapDistance(actor, target);
-  const suggestedRange = rangeBandForMapDistance(distance);
+  const suggestedRange = encounterPairRange(actor, target);
   const meters = encounter.map.metersPerSquare === null ? null : Number((distance * encounter.map.metersPerSquare).toFixed(2));
   return { actorId, targetId, distance, meters, suggestedRange, authoritativeRange: encounter.range, matches: suggestedRange === encounter.range };
 }
@@ -411,6 +434,7 @@ export function repositionEncounterCombatant(document, { combatantId, column, ro
   if (current.position.column === column && current.position.row === row) return { encounter: next, entry: null };
   const prior = { ...current.position };
   current.position = { column, row };
+  clearContacts(next, current);
   const distance = Math.max(Math.abs(prior.column - column), Math.abs(prior.row - row));
   const metric = next.map.metersPerSquare === null ? '' : ` / approximately ${Number((distance * next.map.metersPerSquare).toFixed(2))} m at the referee scale`;
   const entry = { round: next.round, kind: 'map-position', side: current.side, combatantId: current.id, text: `${current.name} repositioned ${distance} square${distance === 1 ? '' : 's'}${metric} on the visual map from ${prior.column + 1},${prior.row + 1} to ${column + 1},${row + 1}; Book 1 range remains ${next.range}.` };
@@ -457,7 +481,8 @@ export function addEncounterCombatantFromActor(document, { actor, side = 'opposi
     actorType: actor.profile.actorType ?? 'npc',
     bodyModel: actor.profile.bodyModel,
     tokenLabel: String(actor.presentation?.tokenLabel || actor.identity.name).slice(0, 3).toUpperCase(),
-    conditions: actorConditionKeys(actor)
+    conditions: actorConditionKeys(actor),
+    contactIds: []
   };
   next.combatants.push(combatant);
   const entry = { round: next.round, kind: 'placement', side, combatantId: combatant.id, sourceActorId: actor.identity.id, text: `${actor.identity.name} placed for ${side} at ${column + 1},${row + 1}; surprise is not rerolled and Book 1 range remains ${next.range}.` };
@@ -472,6 +497,7 @@ export function removeEncounterCombatant(document, { combatantId } = {}) {
   const combatant = next.combatants.find((entry) => entry.id === combatantId);
   if (!combatant) throw new Error('combatant is unavailable');
   if (next.combatants.filter((entry) => entry.side === combatant.side).length <= 1) throw new Error(`cannot remove the last ${combatant.side} combatant`);
+  clearContacts(next, combatant);
   next.combatants = next.combatants.filter((entry) => entry.id !== combatantId);
   next.roundState.declaredActions = next.roundState.declaredActions.filter((entry) => entry.actorId !== combatantId && entry.targetId !== combatantId);
   const entry = { round: next.round, kind: 'removal', side: combatant.side, combatantId, sourceActorId: combatant.sourceActorId, text: `${combatant.name} removed from the encounter by the referee.` };
@@ -569,6 +595,32 @@ export function setEncounterRangeFromPositions(document, { actorId, targetId } =
   return { encounter: next, entry, guide: { ...guide, authoritativeRange: next.range, matches: true } };
 }
 
+// Referee range selection stays synchronized with the spatial workspace: the
+// chosen actor is placed at the selected Book 1 band from the chosen target.
+// Attacks continue to resolve from pairwise positions, so this is one state,
+// not a second range system layered over the map.
+export function setEncounterPairRange(document, { actorId, targetId, range } = {}) {
+  const next = importEncounterDocument(document);
+  if (next.status !== 'active') throw new Error('encounter is already resolved');
+  if (!PERSONAL_COMBAT_RANGES.includes(range)) throw new RangeError(`unknown personal combat range: ${range}`);
+  const actor = next.combatants.find((entry) => entry.id === actorId && entry.status === 'active');
+  const target = next.combatants.find((entry) => entry.id === targetId && entry.status === 'active');
+  if (!actor || !target || actor.side === target.side) throw new Error('range selection requires active opposing combatants');
+  const previousRange = encounterPairRange(actor, target);
+  clearContacts(next, actor);
+  placeAtRange(actor, target, range);
+  if (range === 'close') setContact(actor, target);
+  const appliedRange = encounterPairRange(actor, target);
+  next.range = closestOpposingBand(next.combatants) ?? appliedRange;
+  const entry = {
+    round: next.round, kind: 'range', side: 'referee', actorId, targetId,
+    text: `Referee sets ${actor.name} -> ${target.name} Book 1 range ${previousRange} -> ${appliedRange}; the map position is synchronized.`
+  };
+  next.history.push(entry);
+  assertValidEncounterDocument(next);
+  return { encounter: next, entry, range: appliedRange };
+}
+
 function placeAtRange(actor, target, range) {
   if (!target) return;
   const distance = ENCOUNTER_RANGE_GUIDE[range].placement;
@@ -577,6 +629,19 @@ function placeAtRange(actor, target, range) {
   if (column < 0 || column >= ENCOUNTER_MAP_COLUMNS) column = target.position.column - direction * distance;
   actor.position.column = clamp(column, 0, ENCOUNTER_MAP_COLUMNS - 1);
   actor.position.row = target.position.row;
+}
+
+function clearContacts(encounter, combatant) {
+  for (const id of combatant.contactIds ?? []) {
+    const other = encounter.combatants.find((entry) => entry.id === id);
+    if (other) other.contactIds = (other.contactIds ?? []).filter((entry) => entry !== combatant.id);
+  }
+  combatant.contactIds = [];
+}
+
+function setContact(first, second) {
+  first.contactIds = [...new Set([...(first.contactIds ?? []), second.id])];
+  second.contactIds = [...new Set([...(second.contactIds ?? []), first.id])];
 }
 
 function nearestActiveOpponent(combatant, candidates) {
@@ -589,6 +654,7 @@ function nearestActiveOpponent(combatant, candidates) {
 // Book 1 p.30 step 2B: each attack is thrown at the band between that
 // attacker and that target, computed from their post-movement map positions.
 export function encounterPairRange(first, second) {
+  if (first?.contactIds?.includes(second?.id) && second?.contactIds?.includes(first?.id)) return 'close';
   return rangeBandForMapDistance(encounterMapDistance(first, second));
 }
 
@@ -739,7 +805,9 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
     const moveTarget = declaration.targetId === null ? null : live.get(declaration.targetId);
     if (declaration.action === 'close' || declaration.action === 'open') {
       const band = moveTarget ? movePersonalCombatRange(encounterPairRange(mover, moveTarget), declaration.action) : next.range;
+      clearContacts({ combatants: [...live.values()] }, mover);
       placeAtRange(mover, moveTarget, band);
+      if (band === 'close' && moveTarget) setContact(mover, moveTarget);
       entries.push({ round: next.round, kind: 'movement', side: declaration.side, actorId: mover.id, targetId: moveTarget?.id ?? null, text: `${mover.name} moves to ${band} range${moveTarget ? ` from ${moveTarget.name}` : ''}.` });
     }
     if (declaration.action === 'escape') {
