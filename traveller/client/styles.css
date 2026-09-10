@@ -3239,3 +3239,37 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .player-log-meta { display: flex; gap: 8px; font-size: 10px; letter-spacing: .08em; color: var(--muted); }
 .player-log-category { font-weight: 700; }
 .player-log-message { padding-top: 1px; overflow-wrap: anywhere; }
+
+/* --- v0.67.0: the player's front door — sign in, your characters, chargen. */
+.enter-main { max-width: 1280px; margin: 0 auto; }
+.enter-signin { padding: 40px 0; max-width: 60ch; font-size: 12px; line-height: 1.5; }
+.enter-signin p { margin: 0 0 12px; }
+.enter-characters { padding-top: 12px; }
+.enter-character-list { display: flex; flex-direction: column; gap: 6px; }
+.enter-character { display: grid; grid-template-columns: 220px minmax(0, 1fr) auto; grid-template-areas: "name summary tools" "state state tools" "join join join"; gap: 2px 14px; align-items: center; padding: 8px 10px; border: 1px solid var(--rule); background: var(--paper); font-size: 11px; }
+.enter-character.enterable { border-left: 3px solid var(--tab-selected-border); }
+.enter-character-name { grid-area: name; font-size: 13px; letter-spacing: .06em; }
+.enter-character-summary { grid-area: summary; color: var(--muted); letter-spacing: .04em; }
+.enter-character-state { grid-area: state; color: var(--muted); font-size: 10px; letter-spacing: .1em; }
+.enter-character-tools { grid-area: tools; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.enter-character-tools a.text-button { text-decoration: none; }
+.enter-join-row { grid-area: join; display: flex; gap: 8px; align-items: center; padding-top: 6px; border-top: 1px dotted var(--disabled); margin-top: 4px; }
+.enter-join-row input { font: inherit; font-size: 11px; padding: 2px 4px; letter-spacing: .12em; text-transform: uppercase; }
+.enter-empty { font-size: 11px; letter-spacing: .06em; color: var(--muted); padding: 24px 0; }
+.enter-toolbar { padding-top: 12px; }
+.enter-chargen { display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 16px; padding-top: 12px; align-items: start; }
+.enter-chargen-rail { display: flex; flex-direction: column; gap: 10px; max-height: calc(100vh - 120px); overflow: auto; }
+.enter-name-row { display: flex; gap: 6px; align-items: center; font-size: 11px; }
+.enter-name-row label { display: flex; gap: 6px; align-items: center; flex: 1 1 auto; }
+.enter-name-row input { font: inherit; font-size: 12px; padding: 2px 4px; flex: 1 1 auto; }
+.enter-complete { display: flex; gap: 6px; flex-wrap: wrap; padding: 6px 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+.enter-sheet { max-height: calc(100vh - 120px); overflow: auto; }
+@media (max-width: 900px) {
+  .enter-chargen { grid-template-columns: minmax(0, 1fr); }
+  .enter-chargen-rail, .enter-sheet { max-height: none; }
+  .enter-character { grid-template-columns: minmax(0, 1fr); grid-template-areas: "name" "summary" "state" "tools" "join"; }
+  .enter-character-tools { justify-content: flex-start; }
+}
+.players-subheading { font-size: 10px; letter-spacing: .1em; color: var(--muted); font-weight: 700; padding: 8px 0 3px; border-top: 1px solid var(--rule); margin-top: 6px; }
+.players-invite-code { font-size: 13px; letter-spacing: .18em; font-weight: 700; }
+.players-invite-list, .players-joins-list { display: flex; flex-direction: column; gap: 3px; padding-bottom: 6px; }

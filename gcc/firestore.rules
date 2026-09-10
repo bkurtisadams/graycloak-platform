@@ -1,4 +1,13 @@
-// Firestore Security Rules for GCC / Graycloak AD&D / Traveller v12
+// Firestore Security Rules for GCC / Graycloak AD&D / Traveller v13
+// v13 adds the player's own Traveller characters and the way to a table:
+//   travellerCharacters/{id} — owned by the account that rolled it; only the
+//     referee of the campaign it is leaving or joining may change where it is,
+//     and they may change nothing else.
+//   travellerCampaigns/{id}/joins/{uid} — a request to sit down, create-only
+//     by the player redeeming a valid invite code for that campaign, read and
+//     cleared by the referee, withdrawable by the player. Traveller invites
+//     use the platform's invites/{code} collection unchanged.
+//
 // v12 adds per-player Traveller documents beneath the seat:
 //   travellerCampaigns/{id}/players/{uid}/characters/{characterId} and
 //   travellerCampaigns/{id}/players/{uid}/log/current — referee-written copies
@@ -226,6 +235,25 @@ service cloud.firestore {
              .data.get('ownership', {}).get('actors', {}).get(combatantId, '') == request.auth.uid;
     }
 
+    // v13: does this code open a seat at this campaign? A missing document
+    // denies by exists() rather than by evaluation error.
+    function travellerInviteOpens(code, campaignId) {
+      return code is string
+        && code != ''
+        && exists(/databases/$(database)/documents/invites/$(code))
+        && get(/databases/$(database)/documents/invites/$(code)).data.get('game', '') == 'traveller'
+        && get(/databases/$(database)/documents/invites/$(code)).data.get('campaignId', '') == campaignId;
+    }
+
+    // The referee of the campaign a character's world names. An unassigned
+    // world carries null in campaignId, which would raise inside a path, so
+    // the type is checked first and && short-circuits.
+    function isTravellerRefereeOfWorld(world) {
+      return world.get('campaignId', '') is string
+        && world.get('campaignId', '') != ''
+        && isTravellerReferee(world.get('campaignId', ''));
+    }
+
     match /travellerCampaigns/{campaignId} {
       // The campaign document holds the party, the ship, the world state and
       // the ownership map. Everyone at the table reads it; only the referee
@@ -261,6 +289,23 @@ service cloud.firestore {
             || (isAuthed() && request.auth.uid == playerUid && isTravellerPlayer(campaignId));
           allow write: if isTravellerReferee(campaignId);
         }
+      }
+
+      // v13: a request to sit down. A player creates one for themselves by
+      // redeeming a valid Traveller invite for this campaign, may withdraw it,
+      // and may not revise it. The referee reads and clears. The requester
+      // need not be seated — that is the point of the request.
+      match /joins/{playerUid} {
+        allow read: if isTravellerReferee(campaignId)
+          || (isAuthed() && request.auth.uid == playerUid);
+        allow create: if isAuthed()
+          && request.auth.uid == playerUid
+          && declarationField('uid') == playerUid
+          && declarationField('campaignId') == campaignId
+          && travellerInviteOpens(declarationField('code'), campaignId);
+        allow update: if false;
+        allow delete: if isTravellerReferee(campaignId)
+          || (isAuthed() && request.auth.uid == playerUid);
       }
 
       // The full encounter: enemy characteristics, wounds, cover, blow
@@ -325,6 +370,35 @@ service cloud.firestore {
           allow delete: if isTravellerReferee(campaignId) || (isAuthed() && request.auth.uid == playerUid);
         }
       }
+    }
+
+    // ── Graycloak Traveller: the player's own characters ───────
+    // v13. A character rolled at enter.html, owned by the account that rolled
+    // it and carrying where it is: nowhere yet, a referee's campaign, or the
+    // solo world. The owner reads, lists, edits and deletes it but may not
+    // move it between worlds by hand — a seat is the referee's to give and
+    // take — so the world changes only at the hands of the referee of the
+    // campaign it is leaving or joining, and they may change nothing else.
+    match /travellerCharacters/{characterId} {
+      allow read: if isAuthed()
+        && resource.data.get('ownerUid', '') == request.auth.uid;
+      allow create: if isAuthed()
+        && request.resource != null
+        && request.resource.data.get('ownerUid', '') == request.auth.uid
+        && request.resource.data.get('characterId', '') == characterId
+        && request.resource.data.get('world', {}).get('kind', '') == 'unassigned';
+      allow update: if isAuthed()
+        && request.resource != null
+        && (
+          (resource.data.get('ownerUid', '') == request.auth.uid
+            && request.resource.data.get('ownerUid', '') == request.auth.uid
+            && request.resource.data.get('world', {}) == resource.data.get('world', {}))
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['world', 'pendingJoin', 'updatedAt'])
+            && (isTravellerRefereeOfWorld(request.resource.data.get('world', {}))
+              || isTravellerRefereeOfWorld(resource.data.get('world', {}))))
+        );
+      allow delete: if isAuthed()
+        && resource.data.get('ownerUid', '') == request.auth.uid;
     }
 
     // ── GM roster ──────────────────────────────────────────────

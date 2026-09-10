@@ -90,6 +90,8 @@ import {
   loadTravellerDocument
 } from './document-loader.js';
 
+import { createTravellerInvite, generateInviteCode, unassignedWorld, WORLD_KINDS } from '../src/character-record.js';
+
 import {
   SHEET_CHARACTERISTICS as HEADER_CHARACTERISTICS,
   appendSheetDatum,
@@ -165,7 +167,7 @@ import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js
 import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js';
 import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js';
 import { openSignInDialog } from './signin-ui.js';
-import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog } from './publish.js';
+import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote } from './publish.js';
 import { authorizePlayerDeclaration } from '../src/player-declaration.js';
 import { authorizePlayerTokenMove } from '../src/player-token-movement.js';
 import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog } from '../src/published-view.js';
@@ -458,6 +460,9 @@ const el = {
   playersSeat: document.querySelector('#players-seat'),
   playersStatus: document.querySelector('#players-status'),
   playersClose: document.querySelector('#players-close'),
+  playersInviteList: document.querySelector('#players-invite-list'),
+  playersNewInvite: document.querySelector('#players-new-invite'),
+  playersJoins: document.querySelector('#players-joins'),
   publishCampaignButton: document.querySelector('#publish-campaign'),
   publishViewButton: document.querySelector('#publish-view'),
   accountName: document.querySelector('#account-name'),
@@ -4707,6 +4712,165 @@ async function openPlayersDialog() {
   renderPlayerCharacterOptions();
   el.playersDialog.showModal();
   await refreshSeatedPlayers();
+  await refreshInvites();
+  watchJoins();
+}
+
+// --- v0.67.0: invites and join requests ----------------------------------
+// A player rolls a character at enter.html and sits down by redeeming a code
+// the referee minted here. The request arrives beneath the campaign carrying
+// the character; seating it copies that character in, assigns and seats the
+// account, marks the player's own record as belonging to this campaign, and
+// clears the request.
+let campaignInvites = [];
+let joinRequests = [];
+let unsubscribeJoins = null;
+let watchedJoinsCampaignId = null;
+
+async function refreshInvites() {
+  if (!el.playersInviteList) return;
+  try {
+    campaignInvites = campaignIsPublished(campaignDocument) ? await listCampaignInvites(campaignDocument.identity.id) : [];
+  } catch (error) {
+    console.error(error);
+    campaignInvites = [];
+  }
+  renderInvites();
+}
+
+function inviteLink(code) {
+  const base = new URL('enter.html', window.location.href);
+  base.searchParams.set('invite', code);
+  return base.toString();
+}
+
+function renderInvites() {
+  if (!el.playersInviteList) return;
+  el.playersNewInvite.disabled = !campaignIsPublished(campaignDocument) || !currentUserId();
+  if (!campaignInvites.length) {
+    el.playersInviteList.replaceChildren(Object.assign(document.createElement('div'), { className: 'players-empty', textContent: 'NO OPEN INVITES' }));
+    return;
+  }
+  el.playersInviteList.replaceChildren(...campaignInvites.map((invite) => {
+    const row = document.createElement('div');
+    row.className = 'players-row';
+    const code = document.createElement('code'); code.className = 'players-invite-code'; code.textContent = invite.code;
+    const link = document.createElement('span'); link.className = 'players-plays'; link.textContent = inviteLink(invite.code);
+    const copy = makePortButton('COPY LINK', async () => {
+      try { await navigator.clipboard.writeText(inviteLink(invite.code)); setPlayersStatus('INVITE LINK COPIED', 'ok'); }
+      catch { window.prompt('Invite link:', inviteLink(invite.code)); }
+    });
+    const revoke = makePortButton('REVOKE', () => revokeInvite(invite.code));
+    row.append(code, link, copy, revoke);
+    return row;
+  }));
+}
+
+async function mintInvite() {
+  try {
+    const uid = currentUserId();
+    if (!campaignIsPublished(campaignDocument)) throw new Error('publish the campaign first');
+    if (!uid) throw new Error('sign in first');
+    const invite = createTravellerInvite({
+      code: generateInviteCode(), ownerUid: uid,
+      campaignId: campaignDocument.identity.id, campaignName: campaignDocument.identity.name ?? null
+    });
+    await createInvite(invite);
+    logActivity('SYSTEM', `Invite ${invite.code} opened for this table.`);
+    setPlayersStatus(`INVITE ${invite.code} OPEN`, 'ok');
+    await refreshInvites();
+  } catch (error) {
+    console.error(error);
+    setPlayersStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+async function revokeInvite(code) {
+  try {
+    await deleteInvite(code);
+    logActivity('SYSTEM', `Invite ${code} revoked.`);
+    setPlayersStatus(`INVITE ${code} REVOKED`, 'ok');
+    await refreshInvites();
+  } catch (error) {
+    console.error(error);
+    setPlayersStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function watchJoins() {
+  const campaignId = campaignIsPublished(campaignDocument) && currentUserId() ? campaignDocument.identity.id : null;
+  if (campaignId === watchedJoinsCampaignId) return;
+  unsubscribeJoins?.(); unsubscribeJoins = null;
+  joinRequests = []; watchedJoinsCampaignId = campaignId;
+  renderJoins();
+  if (!campaignId) return;
+  watchJoinRequests(campaignId, (entries) => { joinRequests = entries; renderJoins(); })
+    .then((unsubscribe) => { if (campaignId === watchedJoinsCampaignId) unsubscribeJoins = unsubscribe; else unsubscribe(); })
+    .catch((error) => console.error(error));
+}
+
+function renderJoins() {
+  if (!el.playersJoins) return;
+  if (!joinRequests.length) {
+    el.playersJoins.replaceChildren(Object.assign(document.createElement('div'), { className: 'players-empty', textContent: 'NOBODY WAITING' }));
+    return;
+  }
+  el.playersJoins.replaceChildren(...joinRequests.map((join) => {
+    const row = document.createElement('div');
+    row.className = 'players-row';
+    row.title = join.uid;
+    const who = document.createElement('span'); who.className = 'players-name'; who.textContent = (join.name || join.uid).toUpperCase();
+    const character = join.character ?? {};
+    const what = document.createElement('span'); what.className = 'players-plays';
+    what.textContent = `${String(join.characterName ?? character.identity?.name ?? '?').toUpperCase()} / ${character.upp ?? '------'} / ${String(character.career?.service ?? '').toUpperCase()}${character.career?.rankTitle ? ` / ${character.career.rankTitle.toUpperCase()}` : ''} / ${Object.keys(character.skills ?? {}).length} SKILLS`;
+    row.append(who, what, makePortButton('SEAT', () => seatJoinRequest(join)), makePortButton('DECLINE', () => declineJoinRequest(join)));
+    return row;
+  }));
+}
+
+async function seatJoinRequest(join) {
+  try {
+    if (!campaignIsPublished(campaignDocument)) throw new Error('publish the campaign first');
+    const campaignId = campaignDocument.identity.id;
+    const characterDocument = importCharacterDocument(join.character);
+    if (currentPartyCharacters().some((entry) => entry.identity.id === characterDocument.identity.id)) {
+      throw new Error(`${characterDocument.identity.name} is already in this campaign`);
+    }
+    // The player's character becomes a party character, owned by their account.
+    persistCampaignState();
+    addCharacterDocumentToCampaign(characterDocument, campaignId, { makeActive: false });
+    campaignDocument = setDocumentOwner(campaignDocument, { documentId: characterDocument.identity.id, ownerUid: join.uid });
+    persistCampaignState();
+    await seatPlayer(campaignId, join.uid, { name: join.name ?? null });
+    const scene = activeEncounterAtCurrentSystem() ?? latestEncounterAtCurrentSystem();
+    await publishCampaign(buildPublishedCampaign(campaignDocument, { publishedAt: Date.now(), currentEncounterId: scene?.identity.id ?? null }));
+    await publishPlayerDocuments();
+    // Their own record now says where the character is; the lobby's ENTER
+    // WORLD reads this.
+    await setCharacterRecordWorldRemote(join.characterId, {
+      kind: WORLD_KINDS.CAMPAIGN, campaignId, campaignName: campaignDocument.identity.name ?? null, since: Date.now()
+    }).catch((error) => console.error('[traveller] character record world:', error));
+    await deleteJoinRequest(campaignId, join.uid);
+    logActivity('SYSTEM', `${join.name || join.uid} seated with ${characterDocument.identity.name} from an invite.`);
+    setPlayersStatus(`${characterDocument.identity.name.toUpperCase()} SEATED`, 'ok');
+    renderPlayerCharacterOptions();
+    await refreshSeatedPlayers();
+    render();
+  } catch (error) {
+    console.error(error);
+    setPlayersStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+async function declineJoinRequest(join) {
+  try {
+    await deleteJoinRequest(campaignDocument.identity.id, join.uid);
+    logActivity('SYSTEM', `${join.name || join.uid}'s request to sit down declined.`);
+    setPlayersStatus('DECLINED', 'ok');
+  } catch (error) {
+    console.error(error);
+    setPlayersStatus(error?.message ?? String(error), 'error');
+  }
 }
 
 function renderPlayerCharacterOptions() {
@@ -4796,9 +4960,13 @@ async function seatPlayerFromDialog() {
 async function removeSeatedPlayer(uid) {
   try {
     await unseatPlayer(campaignDocument.identity.id, uid);
-    // Their characters revert to the referee.
+    // Their characters revert to the referee, and their own records go back
+    // to unassigned so the lobby offers a seat elsewhere. Best effort: a
+    // character seated by account id has no record to update.
     for (const [documentId, owner] of Object.entries(campaignDocument.ownership?.actors ?? {})) {
-      if (owner === uid) campaignDocument = setDocumentOwner(campaignDocument, { documentId, ownerUid: '' });
+      if (owner !== uid) continue;
+      campaignDocument = setDocumentOwner(campaignDocument, { documentId, ownerUid: '' });
+      await setCharacterRecordWorldRemote(documentId, unassignedWorld()).catch(() => {});
     }
     persistCampaignState();
     await publishCampaign(buildPublishedCampaign(campaignDocument, { publishedAt: Date.now() }));
@@ -7328,5 +7496,6 @@ el.publishViewButton?.addEventListener('click', publishCurrentEncounterView);
 el.openPlayers?.addEventListener('click', openPlayersDialog);
 el.playersSeat?.addEventListener('click', seatPlayerFromDialog);
 el.playersClose?.addEventListener('click', () => el.playersDialog.close());
+el.playersNewInvite?.addEventListener('click', mintInvite);
 onAuthChange(() => { renderAccount(); renderPublishPanel(); });
 initAuth().then(() => render());

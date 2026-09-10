@@ -7,6 +7,8 @@
 //
 // v12 adds the per-player documents beneath the seat — the character sheet
 // and the filtered log — which only the seated account and the referee read.
+// v13 adds the player's own travellerCharacters records and the invite → join
+// request path to a seat.
 //
 // Requires the emulator:  firebase emulators:start --only firestore
 // Skipped automatically when it is not running, so `npm test` still passes
@@ -251,6 +253,90 @@ test('Traveller multiplayer rules', { skip: available ? false : `Firestore emula
     await assertSucceeds(referee.doc(`travellerCampaigns/${CAMPAIGN}/players/${SECOND}`).delete());
     await assertFails(second.doc(secondSheet).get());
     await assertSucceeds(referee.doc(secondSheet).delete());
+  });
+
+  // --- v13: the player's own characters, invites and join requests ---------
+
+  const RECORD = `travellerCharacters/${PC}-own`;
+  const unassigned = { kind: 'unassigned', campaignId: null, campaignName: null, since: null };
+  const ownRecord = (uid, characterId, extra = {}) => ({
+    schemaVersion: 1, characterId, ownerUid: uid, name: 'Rolled', world: unassigned, pendingJoin: null,
+    createdAt: 1, updatedAt: 1, character: { identity: { id: characterId, name: 'Rolled' }, upp: '777777' }, ...extra
+  });
+
+  await t.test('a player creates, reads, lists, edits and deletes their own character record', async () => {
+    await assertSucceeds(player.doc(RECORD).set(ownRecord(PLAYER, `${PC}-own`)));
+    await assertSucceeds(player.doc(RECORD).get());
+    await assertSucceeds(player.collection('travellerCharacters').where('ownerUid', '==', PLAYER).get());
+    await assertSucceeds(player.doc(RECORD).update({ name: 'Renamed', updatedAt: 2 }));
+    // Not as someone else, not with a mismatched id, not already in a world.
+    await assertFails(player.doc('travellerCharacters/forged').set(ownRecord(OUTSIDER, 'forged')));
+    await assertFails(player.doc('travellerCharacters/mismatch').set(ownRecord(PLAYER, 'other-id')));
+    await assertFails(player.doc('travellerCharacters/preseated').set(ownRecord(PLAYER, 'preseated', { world: { kind: 'campaign', campaignId: CAMPAIGN } })));
+    await assertSucceeds(player.doc('travellerCharacters/temp').set(ownRecord(PLAYER, 'temp')));
+    await assertSucceeds(player.doc('travellerCharacters/temp').delete());
+  });
+
+  await t.test('nobody else reads a character record, and the owner cannot move it between worlds', async () => {
+    await assertFails(second.doc(RECORD).get());
+    await assertFails(outsider.doc(RECORD).get());
+    await assertFails(referee.doc(RECORD).get());
+    await assertFails(second.collection('travellerCharacters').where('ownerUid', '==', PLAYER).get());
+    await assertFails(player.doc(RECORD).update({ world: { kind: 'campaign', campaignId: CAMPAIGN, campaignName: null, since: 5 } }));
+    await assertFails(player.doc(RECORD).update({ world: { kind: 'solo', campaignId: null, campaignName: null, since: 5 } }));
+    await assertFails(player.doc(RECORD).update({ ownerUid: OUTSIDER }));
+  });
+
+  await t.test('a Traveller invite is a platform invite naming the campaign', async () => {
+    await assertSucceeds(referee.doc('invites/ABC234').set({ code: 'ABC234', game: 'traveller', ownerUid: REFEREE, campaignId: CAMPAIGN, campaignName: 'Sea of Suns', createdAt: 1 }));
+    await assertSucceeds(player.doc('invites/ABC234').get());
+    await assertFails(player.doc('invites/ABC234').delete());
+    await assertSucceeds(referee.collection('invites').where('campaignId', '==', CAMPAIGN).where('game', '==', 'traveller').get());
+  });
+
+  await t.test('a valid code lets a player ask to sit down, once, for themselves', async () => {
+    const path = `travellerCampaigns/${CAMPAIGN}/joins/${OUTSIDER}`;
+    const join = (extra = {}) => ({ uid: OUTSIDER, name: 'New', code: 'ABC234', campaignId: CAMPAIGN, characterId: 'new-pc', characterName: 'Rolled', character: { identity: { id: 'new-pc' } }, requestedAt: 1, ...extra });
+    // An account that is not yet seated anywhere: that is the whole point.
+    await assertSucceeds(outsider.doc(path).set(join()));
+    await assertFails(outsider.doc(path).update({ name: 'Revised' }));
+    await assertFails(outsider.doc(`travellerCampaigns/${CAMPAIGN}/joins/${PLAYER}`).set(join({ uid: PLAYER })));
+    await assertFails(outsider.doc(`travellerCampaigns/${CAMPAIGN}/joins/${OUTSIDER}-2`).set(join()));
+    await assertFails(outsider.doc(`travellerCampaigns/other-campaign/joins/${OUTSIDER}`).set(join({ campaignId: 'other-campaign' })));
+    await assertFails(second.doc(`travellerCampaigns/${CAMPAIGN}/joins/${SECOND}`).set(join({ uid: SECOND, code: 'NOSUCH' })));
+    await assertFails(second.doc(`travellerCampaigns/${CAMPAIGN}/joins/${SECOND}`).set(join({ uid: SECOND, code: '' })));
+    // Referee and requester read it; a seated player does not.
+    await assertSucceeds(referee.doc(path).get());
+    await assertSucceeds(outsider.doc(path).get());
+    await assertFails(player.doc(path).get());
+    await assertSucceeds(referee.collection(`travellerCampaigns/${CAMPAIGN}/joins`).get());
+  });
+
+  await t.test('the requester may withdraw and the referee may clear', async () => {
+    const path = `travellerCampaigns/${CAMPAIGN}/joins/${OUTSIDER}`;
+    await assertSucceeds(outsider.doc(path).delete());
+    await assertSucceeds(outsider.doc(path).set({ uid: OUTSIDER, name: 'New', code: 'ABC234', campaignId: CAMPAIGN, characterId: 'new-pc', characterName: 'Rolled', character: {}, requestedAt: 2 }));
+    await assertFails(player.doc(path).delete());
+    await assertSucceeds(referee.doc(path).delete());
+  });
+
+  await t.test('the referee moves a record into and out of their campaign, and nothing more', async () => {
+    const seated = { kind: 'campaign', campaignId: CAMPAIGN, campaignName: 'Sea of Suns', since: 9 };
+    await assertSucceeds(referee.doc(RECORD).update({ world: seated, pendingJoin: null, updatedAt: 9 }));
+    // Only the world, pendingJoin and updatedAt — never the character itself.
+    await assertFails(referee.doc(RECORD).update({ world: seated, 'character.upp': 'AAAAAA' }));
+    await assertFails(referee.doc(RECORD).update({ name: 'Mine' }));
+    // The owner still edits the rest, and still cannot leave the table alone.
+    await assertSucceeds(player.doc(RECORD).update({ name: 'Renamed again', updatedAt: 10 }));
+    await assertFails(player.doc(RECORD).update({ world: unassigned }));
+    // Another campaign's referee cannot take it.
+    await env.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc('travellerCampaigns/elsewhere').set({ name: 'Elsewhere', ownership: { ownerUid: SECOND, actors: {} } });
+    });
+    await assertFails(second.doc(RECORD).update({ world: { kind: 'campaign', campaignId: 'elsewhere', campaignName: null, since: 11 }, updatedAt: 11 }));
+    // Its own referee sends it back to unassigned when unseating.
+    await assertSucceeds(referee.doc(RECORD).update({ world: unassigned, pendingJoin: null, updatedAt: 12 }));
+    await assertFails(referee.doc(RECORD).update({ world: unassigned, updatedAt: 13 }), 'no longer the referee of its world');
   });
 
   await t.test('an outsider is shut out entirely', async () => {

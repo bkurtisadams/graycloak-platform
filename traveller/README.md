@@ -1,5 +1,62 @@
 # Graycloak Traveller
 
+## v0.67.0 the player's front door
+
+`enter.html` is where a player starts. Sign in with a Graycloak account; see
+the characters that account owns; roll another with the same Book 1 chargen
+the referee's client uses; sit one down at a referee's table by entering an
+invite code; enter the world it is in. The referee's client is never loaded.
+
+**A character now exists apart from any campaign.** `travellerCharacters/{id}`
+is the player's own record: the Character Document in full, `ownerUid`, and a
+`world` saying where the character is — nowhere yet, a referee's campaign, or
+the solo world. A character is in one world at a time, because a solo
+character and a table character would carry irreconcilable dates. The owner
+reads, edits and deletes the record but may not move it between worlds by
+hand: a seat is the referee's to give and take, so the rules let only the
+referee of the campaign it is leaving or joining change `world`, and let them
+change nothing else. `src/character-record.js` holds the shapes and is tested
+on its own.
+
+**A seat is by invite.** `[ PLAYERS ]` gains `[ NEW INVITE ]`, which mints a
+six-character code (no 0/O or 1/I) in the platform's existing `invites`
+collection with the campaign named on it, and shows the link
+`enter.html?invite=CODE` to copy. A player with an unseated character presses
+`[ JOIN A TABLE ]`, enters the code — pre-filled from the link — and
+`[ SIT DOWN ]` writes a join request beneath the campaign carrying a snapshot of
+the character. The rules accept it only from that account, for that campaign,
+with a code that opens it; it cannot be revised, and the player may withdraw.
+The request appears in the referee's dialog under `WAITING TO SIT DOWN` with
+UPP and service, live. `[ SEAT ]` copies the character into the party, assigns
+and seats the account, publishes, marks the player's record as belonging to
+this campaign, and clears the request; `[ DECLINE ]` just clears it. Removing
+a player sends their records back to unassigned. Seating by account id stays
+as the fallback.
+
+**The list is the MMO screen you described.** Each character shows name, UPP,
+service, rank, age and skill count, and where it is: `NOT YET AT A TABLE`,
+`AWAITING A SEAT AT …`, or `SEATED AT …` with `[ ENTER WORLD ]`, which opens
+`player.html` already connected with the sheet on the CHARACTER tab. With no
+characters the page says so and offers the roll. Solo characters show a
+disabled `[ SOLO WORLD / NOT YET OPEN ]`: solo play on the shared world clock
+is its own milestone and the record already knows the difference.
+
+**Chargen on this page is the lifted view.** WHAT NOW? and the Book 1 tables
+sit in a rail beside the sheet; a name field with `[ RANDOM ]`; a character
+in progress survives a reload. Mustering out ends in `[ SAVE CHARACTER ]`,
+which requires a name, or `[ DISCARD ]`. Verified in a jsdom harness with
+Firestore stubbed: sign in, empty state, a random career to completion, naming,
+save, the row and its status, join with the code from the link, the request
+carrying the character's UPP and skills, and the draft in storage.
+
+**Rules v13** is in `docs/firestore-rules-v13-characters-and-invites.md` with
+its suite cases; it has to be merged and deployed before any of this reaches
+Firestore. The acceptance additions are at the end of that note.
+
+No Classic Traveller rules-package changes. No persistent campaign document
+schema changes; the character record is a new document type outside the
+campaign.
+
 ## v0.66.0 the chargen view leaves app.js
 
 No visible change. This is the refactor that has to precede the player lobby:

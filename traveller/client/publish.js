@@ -212,3 +212,79 @@ export async function watchCanvasPresence(campaignId, encounterId, onChange) {
     .onSnapshot((snapshot) => onChange(snapshot.docs.map((entry) => entry.data())),
       (error) => console.error('[traveller-publish] canvas presence:', error));
 }
+
+// --- v0.67.0: the player's own characters, invites and join requests ------
+// travellerCharacters/{characterId} is owned by the account that rolled it:
+// the owner reads and writes it, and a referee may update only its `world`
+// once it is seated at their campaign. invites/{code} is the platform's
+// existing collection. travellerCampaigns/{id}/joins/{uid} is create-only by
+// the player redeeming a code and read and cleared by the referee.
+
+export async function saveCharacterRecord(record) {
+  const db = await ensureFirestore();
+  await db.collection('travellerCharacters').doc(record.characterId).set(record);
+  return record.characterId;
+}
+
+export async function deleteCharacterRecord(characterId) {
+  const db = await ensureFirestore();
+  await db.collection('travellerCharacters').doc(characterId).delete();
+  return characterId;
+}
+
+export async function watchOwnCharacterRecords(uid, onChange) {
+  const db = await ensureFirestore();
+  return db.collection('travellerCharacters').where('ownerUid', '==', uid)
+    .onSnapshot((snapshot) => onChange(snapshot.docs.map((entry) => entry.data())),
+      (error) => console.error('[traveller-publish] character records:', error));
+}
+
+// The referee may change where a character is, and nothing else about it.
+export async function setCharacterRecordWorldRemote(characterId, world, { updatedAt = Date.now() } = {}) {
+  const db = await ensureFirestore();
+  await db.collection('travellerCharacters').doc(characterId).update({ world, pendingJoin: null, updatedAt });
+  return characterId;
+}
+
+export async function readInvite(code) {
+  const db = await ensureFirestore();
+  const snapshot = await db.collection('invites').doc(code).get();
+  return snapshot.exists ? snapshot.data() : null;
+}
+
+export async function createInvite(invite) {
+  const db = await ensureFirestore();
+  await db.collection('invites').doc(invite.code).set(invite);
+  return invite.code;
+}
+
+export async function deleteInvite(code) {
+  const db = await ensureFirestore();
+  await db.collection('invites').doc(code).delete();
+  return code;
+}
+
+export async function listCampaignInvites(campaignId) {
+  const db = await ensureFirestore();
+  const snapshot = await db.collection('invites').where('campaignId', '==', campaignId).where('game', '==', 'traveller').get();
+  return snapshot.docs.map((entry) => entry.data());
+}
+
+export async function writeJoinRequest(join) {
+  const db = await ensureFirestore();
+  await db.collection('travellerCampaigns').doc(join.campaignId).collection('joins').doc(join.uid).set(join);
+  return join.uid;
+}
+
+export async function deleteJoinRequest(campaignId, uid) {
+  const db = await ensureFirestore();
+  await db.collection('travellerCampaigns').doc(campaignId).collection('joins').doc(uid).delete();
+  return uid;
+}
+
+export async function watchJoinRequests(campaignId, onChange) {
+  const db = await ensureFirestore();
+  return db.collection('travellerCampaigns').doc(campaignId).collection('joins')
+    .onSnapshot((snapshot) => onChange(snapshot.docs.map((entry) => entry.data())),
+      (error) => console.error('[traveller-publish] join requests:', error));
+}

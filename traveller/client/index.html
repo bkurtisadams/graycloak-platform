@@ -12,7 +12,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.66.0</div>
+          <div id="app-subtitle" class="subtitle">v0.67.0</div>
         </div>
         <nav class="utility campaign-utility" aria-label="Campaign and view commands">
           <details id="campaign-menu" class="campaign-menu">
@@ -415,6 +415,21 @@
           declare its actions. Both take effect on the next publish.
         </div>
         <div id="players-seated" class="players-seated" aria-live="polite"></div>
+        <div class="players-invites">
+          <div class="players-subheading">INVITES</div>
+          <div class="players-basis">
+            A player who has rolled a character at <code>enter.html</code> sits down by entering a code.
+            Their request appears below with the character attached; seating it copies the character
+            into this campaign and assigns it to them.
+          </div>
+          <div id="players-invite-list" class="players-invite-list" aria-live="polite"></div>
+          <button id="players-new-invite" class="text-button action-button" type="button">[ NEW INVITE ]</button>
+        </div>
+        <div class="players-joins">
+          <div class="players-subheading">WAITING TO SIT DOWN</div>
+          <div id="players-joins" class="players-joins-list" aria-live="polite"></div>
+        </div>
+        <div class="players-subheading">SEAT BY ACCOUNT ID</div>
         <div class="players-add">
           <label>ACCOUNT ID <input id="players-uid" type="text" placeholder="paste the player's id" autocomplete="off"></label>
           <label>NAME <input id="players-name" type="text" placeholder="optional" autocomplete="off"></label>
