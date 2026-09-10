@@ -322,7 +322,14 @@ test('Traveller multiplayer rules', { skip: available ? false : `Firestore emula
 
   await t.test('the referee moves a record into and out of their campaign, and nothing more', async () => {
     const seated = { kind: 'campaign', campaignId: CAMPAIGN, campaignName: 'Sea of Suns', since: 9 };
+    // Without the owner's own request to sit down, even this table's referee
+    // cannot pull the character in.
+    await assertFails(referee.doc(RECORD).update({ world: seated, pendingJoin: null, updatedAt: 8 }));
+    await env.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc(`travellerCampaigns/${CAMPAIGN}/joins/${PLAYER}`).set({ uid: PLAYER, code: 'ABC234', campaignId: CAMPAIGN, characterId: `${PC}-own`, character: {}, requestedAt: 8 });
+    });
     await assertSucceeds(referee.doc(RECORD).update({ world: seated, pendingJoin: null, updatedAt: 9 }));
+    await assertSucceeds(referee.doc(`travellerCampaigns/${CAMPAIGN}/joins/${PLAYER}`).delete());
     // Only the world, pendingJoin and updatedAt — never the character itself.
     await assertFails(referee.doc(RECORD).update({ world: seated, 'character.upp': 'AAAAAA' }));
     await assertFails(referee.doc(RECORD).update({ name: 'Mine' }));
@@ -332,6 +339,11 @@ test('Traveller multiplayer rules', { skip: available ? false : `Firestore emula
     // Another campaign's referee cannot take it.
     await env.withSecurityRulesDisabled(async (context) => {
       await context.firestore().doc('travellerCampaigns/elsewhere').set({ name: 'Elsewhere', ownership: { ownerUid: SECOND, actors: {} } });
+    });
+    await assertFails(second.doc(RECORD).update({ world: { kind: 'campaign', campaignId: 'elsewhere', campaignName: null, since: 11 }, updatedAt: 11 }));
+    // Not even with a request naming a different character.
+    await env.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc(`travellerCampaigns/elsewhere/joins/${PLAYER}`).set({ uid: PLAYER, code: 'X', campaignId: 'elsewhere', characterId: 'some-other-character', character: {}, requestedAt: 11 });
     });
     await assertFails(second.doc(RECORD).update({ world: { kind: 'campaign', campaignId: 'elsewhere', campaignName: null, since: 11 }, updatedAt: 11 }));
     // Its own referee sends it back to unassigned when unseating.

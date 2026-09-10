@@ -1,8 +1,8 @@
 // Firestore Security Rules for GCC / Graycloak AD&D / Traveller v13
 // v13 adds the player's own Traveller characters and the way to a table:
 //   travellerCharacters/{id} — owned by the account that rolled it; only the
-//     referee of the campaign it is leaving or joining may change where it is,
-//     and they may change nothing else.
+//     referee of the campaign it is leaving, or of one its owner has asked to
+//     join, may change where it is, and they may change nothing else.
 //   travellerCampaigns/{id}/joins/{uid} — a request to sit down, create-only
 //     by the player redeeming a valid invite code for that campaign, read and
 //     cleared by the referee, withdrawable by the player. Traveller invites
@@ -254,6 +254,17 @@ service cloud.firestore {
         && isTravellerReferee(world.get('campaignId', ''));
     }
 
+    // Has this account asked to sit this character down at this campaign?
+    // A referee may only pull a character into their world on the strength of
+    // the owner's own request; without this, any referee could claim any
+    // character.
+    function travellerJoinRequested(campaignId, uid, characterId) {
+      return campaignId is string && campaignId != ''
+        && uid is string && uid != ''
+        && exists(/databases/$(database)/documents/travellerCampaigns/$(campaignId)/joins/$(uid))
+        && get(/databases/$(database)/documents/travellerCampaigns/$(campaignId)/joins/$(uid)).data.get('characterId', '') == characterId;
+    }
+
     match /travellerCampaigns/{campaignId} {
       // The campaign document holds the party, the ship, the world state and
       // the ownership map. Everyone at the table reads it; only the referee
@@ -393,9 +404,13 @@ service cloud.firestore {
           (resource.data.get('ownerUid', '') == request.auth.uid
             && request.resource.data.get('ownerUid', '') == request.auth.uid
             && request.resource.data.get('world', {}) == resource.data.get('world', {}))
+          // The referee of the world it is in may move it out (or elsewhere);
+          // the referee of the world it is joining may move it in only if its
+          // owner has asked to sit down there.
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['world', 'pendingJoin', 'updatedAt'])
-            && (isTravellerRefereeOfWorld(request.resource.data.get('world', {}))
-              || isTravellerRefereeOfWorld(resource.data.get('world', {}))))
+            && (isTravellerRefereeOfWorld(resource.data.get('world', {}))
+              || (isTravellerRefereeOfWorld(request.resource.data.get('world', {}))
+                && travellerJoinRequested(request.resource.data.get('world', {}).get('campaignId', ''), resource.data.get('ownerUid', ''), characterId))))
         );
       allow delete: if isAuthed()
         && resource.data.get('ownerUid', '') == request.auth.uid;
