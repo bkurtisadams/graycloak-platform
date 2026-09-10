@@ -2403,6 +2403,10 @@ function createSvgElement(name, attributes = {}) {
   return createSvgNode(name, attributes);
 }
 
+const SUBSECTOR_ZOOM_MIN = 0.7;
+const SUBSECTOR_ZOOM_MAX = 1.6;
+const SUBSECTOR_ZOOM_STEP = 0.15;
+
 function clampSubsectorZoom(value) {
   return Math.min(SUBSECTOR_ZOOM_MAX, Math.max(SUBSECTOR_ZOOM_MIN, Math.round(value * 100) / 100));
 }

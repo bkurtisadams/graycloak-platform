@@ -1,5 +1,14 @@
 # Graycloak Traveller
 
+## v0.70.1 the zoom constants came out with the map
+
+Lifting the map renderer in v0.70.0 took `SUBSECTOR_ZOOM_MIN`, `_MAX` and
+`_STEP` with it, so the referee client threw in `applySubsectorZoom()` on the
+first render of a loaded campaign — after drawing the map, before the system
+record, selection and everything after. The constants are back, and a pin now
+checks every SCREAMING_CASE identifier used in `app.js` is declared or
+imported, so the next lift cannot leave one behind.
+
 ## v0.70.0 the world between fights, and boards that reach the players when they exist
 
 **The player sees where they are.** Until now "scene" on the player page meant
