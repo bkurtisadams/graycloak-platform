@@ -1,5 +1,13 @@
 # Graycloak Traveller
 
+## v0.70.2 the world wins over a finished fight
+
+A resolved encounter stayed the campaign's current scene, so the player page
+went on showing its board — `VICTORY`, tokens where they fell — instead of
+the world. Now the world shows whenever no fight is *active*; a finished one is
+noted above the map as `LAST FIGHT / … / VICTORY` with `[ SHOW BOARD ]`, and
+`[ BACK TO WORLD ]` returns. A new fight takes the scene as before.
+
 ## v0.70.1 the zoom constants came out with the map
 
 Lifting the map renderer in v0.70.0 took `SUBSECTOR_ZOOM_MIN`, `_MAX` and

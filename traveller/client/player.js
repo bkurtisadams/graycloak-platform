@@ -44,6 +44,10 @@ const el = {
   worldFuel: document.querySelector('#player-world-fuel'),
   worldHold: document.querySelector('#player-world-hold'),
   worldMap: document.querySelector('#player-world-map'),
+  lastFight: document.querySelector('#player-last-fight'),
+  lastFightLabel: document.querySelector('#player-last-fight-label'),
+  showBoard: document.querySelector('#player-show-board'),
+  backToWorld: document.querySelector('#player-back-to-world'),
   mapTools: document.querySelector('.player-map-tools'),
   mapViewport: document.querySelector('#player-map-viewport'),
   map: document.querySelector('#player-map'),
@@ -188,12 +192,21 @@ function renderCampaign() {
 // hold. Read-only — the player watches the referee jump — and it gives way to
 // the combat canvas while a fight is on.
 let worldMapSystemId = null;
+// A finished fight gives way to the world; its board stays a click away.
+let showFinishedBoard = false;
+function worldShowing() {
+  return Boolean(campaign) && (!view || (view.status !== 'active' && !showFinishedBoard));
+}
 function renderWorld() {
-  const show = Boolean(campaign) && !view;
+  const show = worldShowing();
   el.world.hidden = !show;
   el.mapViewport.hidden = show;
   el.mapTools.hidden = show;
-  el.scene.hidden = show;
+  el.scene.hidden = show && !view;
+  el.lastFight.hidden = !(show && view);
+  if (show && view) {
+    el.lastFightLabel.textContent = `LAST FIGHT / ${String(view.title ?? 'ENCOUNTER').toUpperCase()} / ${String(view.status ?? '').toUpperCase()}`;
+  }
   if (!show) return;
   const current = campaign.location?.systemId ? getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, campaign.location.systemId) : null;
   const port = current?.mainWorld;
@@ -699,7 +712,9 @@ function setTab(tab, { chosen = false } = {}) {
 // tab themselves; a page with no scene rests on the character.
 function renderTabs() {
   const fighting = view?.status === 'active';
-  el.tabScene.textContent = fighting ? `SCENE / ROUND ${view.declaringRound}` : view ? 'SCENE' : 'WORLD';
+  el.tabScene.textContent = fighting ? `SCENE / ROUND ${view.declaringRound}` : 'WORLD';
+  if (fighting) showFinishedBoard = false;
+  el.backToWorld.hidden = !(view && view.status !== 'active' && showFinishedBoard);
   if (chosenTab) { setTab(chosenTab); return; }
   setTab(fighting || !characters.size ? 'scene' : 'character');
 }
@@ -878,6 +893,8 @@ el.mapViewport.addEventListener('contextmenu', (event) => {
   if (!event.target.closest?.('.player-token-group')) event.preventDefault();
 });
 
+el.showBoard.addEventListener('click', () => { showFinishedBoard = true; render(); });
+el.backToWorld.addEventListener('click', () => { showFinishedBoard = false; render(); });
 el.tabCharacter.addEventListener('click', () => setTab('character', { chosen: true }));
 el.tabScene.addEventListener('click', () => setTab('scene', { chosen: true }));
 
