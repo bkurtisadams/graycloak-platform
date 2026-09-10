@@ -1,5 +1,16 @@
 # Graycloak Traveller
 
+## v0.64.0 complete Book 1 morale modifiers
+
+The rules package now represents every morale DM printed on Book 1 p.36:
+military unit, a leader with Tactics, a killed leader, and casualties exceeding
+50%. The casualty penalty is derived directly from party strength; unit and
+leader facts remain explicit inputs because the encounter cannot safely invent
+who commands a side. Morale history now displays a nonzero DM beside the dice
+and total.
+
+Rules package v0.23.0. No persistent document schema changes.
+
 ## v0.63.7 explicit canvas selection
 
 Starting or reopening combat no longer selects a party token or enemy target.

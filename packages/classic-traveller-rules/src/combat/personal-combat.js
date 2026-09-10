@@ -421,15 +421,37 @@ export function resolvePersonalAttack({ attacker, defender, range, situationalDM
   return { ...result, defender: damage.combatant, firstBloodRoll, allocations: damage.allocations, defenderStatus: damage.status };
 }
 
-export function resolvePersonalMorale({ casualties, originalStrength, moraleTarget = 7, dm = 0, dice } = {}) {
+// Book 1 p.36 morale DMs. The first three describe facts the caller must know;
+// the casualty penalty is derived from the strength figures by the resolver.
+export const MORALE_DMS = Object.freeze({
+  militaryUnit: 1,
+  leaderHasTactics: 1,
+  leaderKilled: -2,
+  casualtiesOverHalf: -2
+});
+
+export function moraleDMParts({ militaryUnit = false, leaderHasTactics = false, leaderKilled = false, casualtiesOverHalf = false } = {}) {
+  return Object.freeze([
+    militaryUnit && { key: 'militaryUnit', label: 'MILITARY UNIT', dm: MORALE_DMS.militaryUnit },
+    leaderHasTactics && { key: 'leaderHasTactics', label: 'LEADER TACTICS', dm: MORALE_DMS.leaderHasTactics },
+    leaderKilled && { key: 'leaderKilled', label: 'LEADER KILLED', dm: MORALE_DMS.leaderKilled },
+    casualtiesOverHalf && { key: 'casualtiesOverHalf', label: 'CASUALTIES OVER 50%', dm: MORALE_DMS.casualtiesOverHalf }
+  ].filter(Boolean));
+}
+
+export function resolvePersonalMorale({ casualties, originalStrength, moraleTarget = 7, dm = 0, militaryUnit = false, leaderHasTactics = false, leaderKilled = false, dice } = {}) {
   requireDice(dice);
   integer(casualties, 'casualties'); integer(originalStrength, 'originalStrength'); integer(moraleTarget, 'moraleTarget'); integer(dm, 'dm');
+  if (casualties < 0 || originalStrength < 0 || casualties > originalStrength) throw new RangeError('casualties must be from zero through originalStrength');
   const required = originalStrength > 0 && casualties / originalStrength >= 0.25;
-  if (!required) return { required: false, roll: null, dice: [], dm, total: null, target: moraleTarget, stands: true };
+  const parts = moraleDMParts({ militaryUnit, leaderHasTactics, leaderKilled, casualtiesOverHalf: originalStrength > 0 && casualties / originalStrength > 0.5 });
+  const rulesDM = parts.reduce((sum, part) => sum + part.dm, 0);
+  const totalDM = dm + rulesDM;
+  if (!required) return { required: false, roll: null, dice: [], dm: totalDM, refereeDM: dm, parts, total: null, target: moraleTarget, stands: true };
   const results = [dice.rollD6(), dice.rollD6()];
   const roll = results[0] + results[1];
-  const total = roll + dm;
-  return { required: true, roll, dice: results, dm, total, target: moraleTarget, stands: total >= moraleTarget };
+  const total = roll + totalDM;
+  return { required: true, roll, dice: results, dm: totalDM, refereeDM: dm, parts, total, target: moraleTarget, stands: total >= moraleTarget };
 }
 
 // Book 1 p.36: half an hour's rest restores the blow allowance. End of combat

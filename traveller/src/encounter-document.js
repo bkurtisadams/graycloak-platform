@@ -1028,7 +1028,8 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
     const originalStrength = next.combatants.filter((entry) => entry.side !== 'party').length;
     const morale = resolvePersonalMorale({ casualties, originalStrength, dice });
     if (morale.required) {
-      entries.push({ round: next.round, kind: 'morale', side: 'opposition', text: `Opposition morale / 2D [${morale.dice.join('] [')}] / TOTAL ${morale.total} vs ${morale.target}+ / ${morale.stands ? 'STANDS' : 'WITHDRAWS'}.`, detail: morale });
+      const moraleDM = morale.dm ? ` / DM ${morale.dm >= 0 ? '+' : ''}${morale.dm}` : '';
+      entries.push({ round: next.round, kind: 'morale', side: 'opposition', text: `Opposition morale / 2D [${morale.dice.join('] [')}]${moraleDM} / TOTAL ${morale.total} vs ${morale.target}+ / ${morale.stands ? 'STANDS' : 'WITHDRAWS'}.`, detail: morale });
       if (!morale.stands) {
         next.status = 'opposition-withdrew'; next.outcome = { winner: 'party', reason: 'morale' };
         next.combatants = next.combatants.map((entry) => entry.side !== 'party' && entry.status === 'active' ? { ...entry, status: 'withdrawn' } : entry);

@@ -2,6 +2,10 @@
 
 Pure JavaScript rules package for the Graycloak Classic Traveller browser-game project. It intentionally has no HTML, Foundry, Firebase, or server dependencies.
 
+## v0.23.0 complete Book 1 morale modifiers
+
+Personal morale now applies all four modifiers printed on Book 1 p.36: military unit, a leader with Tactics, a killed leader, and casualties exceeding 50%. The resolver derives the heavy-casualty penalty from the casualty counts, reports every applied part, and rejects impossible counts. Callers continue to supply leader and unit facts explicitly because those facts cannot be inferred safely from an attack roll.
+
 ## v0.22.0 Book 1 movement consequences
 
 Exports the printed walking/running movement allowances and their attack and

@@ -16,6 +16,7 @@ import {
   surpriseDMTotal,
   situationDMTotal,
   applyPersonalDamage,
+  moraleDMParts,
   resolvePersonalMorale,
   weaponTargetNumber,
   movePersonalCombatRange,
@@ -100,6 +101,27 @@ test('movement changes one abstract range band and morale starts at 25 percent c
   const check = resolvePersonalMorale({ casualties: 1, originalStrength: 4, dice: createSequenceDice([2, 4]) });
   assert.equal(check.required, true);
   assert.equal(check.stands, false);
+});
+
+test('Book 1 p.36 morale applies military, tactical-leader, leader-loss, and heavy-casualty DMs', () => {
+  assert.deepEqual(moraleDMParts({ militaryUnit: true, leaderHasTactics: true, leaderKilled: true, casualtiesOverHalf: true }), [
+    { key: 'militaryUnit', label: 'MILITARY UNIT', dm: 1 },
+    { key: 'leaderHasTactics', label: 'LEADER TACTICS', dm: 1 },
+    { key: 'leaderKilled', label: 'LEADER KILLED', dm: -2 },
+    { key: 'casualtiesOverHalf', label: 'CASUALTIES OVER 50%', dm: -2 }
+  ]);
+  const exactHalf = resolvePersonalMorale({ casualties: 2, originalStrength: 4, militaryUnit: true, leaderHasTactics: true, dice: createSequenceDice([2, 3]) });
+  assert.equal(exactHalf.dm, 2);
+  assert.equal(exactHalf.total, 7);
+  assert.equal(exactHalf.stands, true);
+  const overHalf = resolvePersonalMorale({ casualties: 3, originalStrength: 4, leaderKilled: true, dice: createSequenceDice([5, 5]) });
+  assert.equal(overHalf.dm, -4);
+  assert.equal(overHalf.total, 6);
+  assert.equal(overHalf.stands, false);
+});
+
+test('morale rejects impossible casualty counts', () => {
+  assert.throws(() => resolvePersonalMorale({ casualties: 5, originalStrength: 4, dice: createSequenceDice([]) }), /casualties/);
 });
 
 test('Book 1 p.32 walking and running have distinct movement and attack consequences', () => {
