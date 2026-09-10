@@ -11,6 +11,7 @@
 // request path to a seat.
 // v14 adds the campaign's home (state/current, referee-only) and the referee's
 // list of their own campaigns.
+// v15 lets an owner start a campaign of their own with their own character.
 //
 // Requires the emulator:  firebase emulators:start --only firestore
 // Skipped automatically when it is not running, so `npm test` still passes
@@ -351,6 +352,18 @@ test('Traveller multiplayer rules', { skip: available ? false : `Firestore emula
     // Its own referee sends it back to unassigned when unseating.
     await assertSucceeds(referee.doc(RECORD).update({ world: unassigned, pendingJoin: null, updatedAt: 12 }));
     await assertFails(referee.doc(RECORD).update({ world: unassigned, updatedAt: 13 }), 'no longer the referee of its world');
+  });
+
+  await t.test('an owner starts a campaign of their own with their own character (v15)', async () => {
+    // The player referees a campaign of their own: no join request needed.
+    await env.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc('travellerCampaigns/mine').set({ name: 'Mine', ownership: { ownerUid: PLAYER, actors: {} } });
+    });
+    await assertSucceeds(player.doc(RECORD).update({ world: { kind: 'campaign', campaignId: 'mine', campaignName: 'Mine', since: 20 }, pendingJoin: null, updatedAt: 20 }));
+    // But still not into a table they do not referee, and still not the sheet.
+    await assertSucceeds(player.doc(RECORD).update({ world: unassigned, pendingJoin: null, updatedAt: 21 }));
+    await assertFails(player.doc(RECORD).update({ world: { kind: 'campaign', campaignId: CAMPAIGN, campaignName: null, since: 22 }, updatedAt: 22 }));
+    await assertFails(player.doc(RECORD).update({ world: { kind: 'campaign', campaignId: 'mine', campaignName: 'Mine', since: 23 }, name: 'Sneaky', updatedAt: 23 }));
   });
 
   // --- v14: the campaign's home ------------------------------------------

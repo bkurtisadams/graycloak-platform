@@ -1,4 +1,7 @@
-// Firestore Security Rules for GCC / Graycloak AD&D / Traveller v14
+// Firestore Security Rules for GCC / Graycloak AD&D / Traveller v15
+// v15 lets a character's owner move it into a campaign they referee
+//   themselves — starting a campaign from the lobby — without a join request.
+//
 // v14 gives a Traveller campaign a home: travellerCampaigns/{id}/state/current
 //   is the whole campaign as a bundle, referee-only, and a referee may list
 //   the campaigns they own so the lobby can offer them.
@@ -423,7 +426,9 @@ service cloud.firestore {
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['world', 'pendingJoin', 'updatedAt'])
             && (isTravellerRefereeOfWorld(resource.data.get('world', {}))
               || (isTravellerRefereeOfWorld(request.resource.data.get('world', {}))
-                && travellerJoinRequested(request.resource.data.get('world', {}).get('campaignId', ''), resource.data.get('ownerUid', ''), characterId))))
+                && (travellerJoinRequested(request.resource.data.get('world', {}).get('campaignId', ''), resource.data.get('ownerUid', ''), characterId)
+                  // v15: or it is their own character and their own table.
+                  || resource.data.get('ownerUid', '') == request.auth.uid))))
         );
       allow delete: if isAuthed()
         && resource.data.get('ownerUid', '') == request.auth.uid;
