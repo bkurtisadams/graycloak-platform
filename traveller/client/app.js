@@ -3318,31 +3318,19 @@ function latestEncounterAtCurrentSystem() {
 
 function selectedEncounterTarget(encounter) {
   if (encounterSelectionCleared) return null;
-  const actorSide = encounter?.combatants.find((entry) => entry.id === selectedEncounterActorId)?.side ?? 'party';
+  const actor = encounter?.combatants.find((entry) => entry.id === selectedEncounterActorId);
+  if (!actor) return null;
+  const actorSide = actor.side;
   const candidates = encounter?.combatants.filter((entry) => entry.side !== actorSide && (encounter.status !== 'active' || entry.status === 'active')) ?? [];
-  let selected = candidates.find((entry) => encounterExtraTargetIds.has(entry.id))
+  return candidates.find((entry) => encounterExtraTargetIds.has(entry.id))
     ?? candidates.find((entry) => entry.id === selectedEncounterTargetId) ?? null;
-  if (!selected) {
-    selected = candidates[0] ?? null;
-    selectedEncounterTargetId = selected?.id ?? null;
-  }
-  return selected;
 }
 
 function selectedEncounterActor(encounter) {
   if (encounterSelectionCleared) return null;
-  const declared = new Set(encounter?.roundState?.declaredActions?.map((entry) => entry.actorId) ?? []);
   const anySide = encounter?.combatants.filter((entry) => encounter.status !== 'active' || entry.status === 'active') ?? [];
-  // The referee may pick any active combatant; the default stays a party
-  // member still awaiting orders, since that is what advances the round.
-  const chosen = anySide.find((entry) => selectedEncounterTokenIds.has(entry.id))
+  return anySide.find((entry) => selectedEncounterTokenIds.has(entry.id))
     ?? anySide.find((entry) => entry.id === selectedEncounterActorId);
-  if (chosen) return chosen;
-  const party = anySide.filter((entry) => entry.side === 'party');
-  const awaiting = party.filter((entry) => !declared.has(entry.id));
-  const selected = awaiting[0] ?? party[0] ?? null;
-  selectedEncounterActorId = selected?.id ?? null;
-  return selected;
 }
 
 function setEncounterActor(encounterId, actorId) {
@@ -3709,8 +3697,6 @@ function placeRosterActorInEncounter() {
   if (index < 0 || !actor) throw new Error('encounter or roster actor is unavailable');
   const result = addEncounterCombatantFromActor(encounterDocuments[index], { actor, side: el.encounterPlacementSide.value, column, row });
   encounterDocuments[index] = result.encounter;
-  if (result.combatant.side === 'party') selectedEncounterActorId = result.combatant.id;
-  else selectedEncounterTargetId = result.combatant.id;
   logActivity('COMBAT', result.entry.text);
   persistCampaignState();
   closeEncounterPlacementDialog();
@@ -3965,7 +3951,6 @@ function renderEncounterMap(encounter) {
     renderEncounterRangePanel(null, null, null, null);
     return;
   }
-  if (encounter.status !== 'active' && !encounterSelectionCleared) clearEncounterCanvasSelection();
   const width = ENCOUNTER_MAP_WIDTH;
   const height = ENCOUNTER_MAP_HEIGHT;
   const cellWidth = width / (encounter.map.columns - 1);
@@ -5104,9 +5089,7 @@ function startManualEncounter() {
   }
   encounterDocuments.push(encounter);
   campaignDocument = addEncounterToCampaign(campaignDocument, encounter);
-  selectedEncounterActorId = encounter.combatants.find((entry) => entry.side === 'party' && entry.status === 'active')?.id ?? null;
-  selectedEncounterTargetId = encounter.combatants.find((entry) => entry.side === 'opposition' && entry.status === 'active')?.id ?? null;
-  encounterSelectionCleared = false;
+  clearEncounterCanvasSelection();
   persistCampaignState();
   operationsDeskTab = 'encounter';
   closeCombatSetupDialog();
@@ -5175,9 +5158,7 @@ function startSituationEncounter(situation) {
     }
     encounterDocuments.push(encounter);
     campaignDocument = addEncounterToCampaign(campaignDocument, encounter);
-    selectedEncounterActorId = encounter.combatants.find((entry) => entry.side === 'party' && entry.status === 'active')?.id ?? null;
-    selectedEncounterTargetId = encounter.combatants.find((entry) => entry.side === 'opposition' && entry.status === 'active')?.id ?? null;
-    encounterSelectionCleared = false;
+    clearEncounterCanvasSelection();
     resolveLinkedCombatSituation(encounter);
     syncCampaignRefs();
     persistCampaignState();
@@ -5309,8 +5290,6 @@ function resolveActiveEncounterAction(action, modifier = 0, targetId = null, act
     syncCampaignRefs();
     persistCampaignState();
     // Selection moves on to the next combatant still without orders.
-    selectedEncounterActorId = result.awaitingActorIds?.[0] ?? null;
-    encounterSelectionCleared = false;
     setStatus(`${actorName.toUpperCase()} DECLARES ${action.toUpperCase()}${target ? ` → ${target.name.toUpperCase()}` : ''} / ${result.awaitingActorIds.length} UNDECLARED`, 'ok');
     closeRollDialog();
     render();
@@ -5328,6 +5307,7 @@ function avoidActiveEncounter() {
     const index = encounterDocuments.findIndex((entry) => entry.identity.id === active.identity.id);
     const resolved = avoidEncounter(active, { date: campaignDateSnapshot() });
     encounterDocuments[index] = resolved;
+    clearEncounterCanvasSelection();
     logActivity('COMBAT', resolved.history.at(-1).text);
     resolveLinkedCombatSituation(resolved);
     persistCampaignState();

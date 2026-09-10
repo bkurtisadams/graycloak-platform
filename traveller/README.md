@@ -1,5 +1,13 @@
 # Graycloak Traveller
 
+## v0.63.7 explicit canvas selection
+
+Starting or reopening combat no longer selects a party token or enemy target.
+The referee establishes both states only by interacting with tokens, just as a
+player selects an owned token and targets a visible token. Placing a roster
+actor and advancing to another pending declaration likewise no longer changes
+the referee's selection behind the scenes.
+
 ## v0.63.6 finished-canvas cleanup and mouse controls
 
 Completed combat canvases no longer draw the last movement trail, selected-pair

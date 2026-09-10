@@ -514,7 +514,16 @@ function watchScene(db, campaignId, encounterId) {
   unsubscribeView = db
     .doc(`travellerCampaigns/${campaignId}/encounters/${encounterId}/view/current`)
     .onSnapshot(
-      (snapshot) => { view = snapshot.exists ? snapshot.data() : null; render(); },
+      (snapshot) => {
+        const wasActive = view?.status === 'active';
+        view = snapshot.exists ? snapshot.data() : null;
+        if (wasActive && view?.status !== 'active') {
+          selectedTokenIds = new Set();
+          targetTokenIds = new Set();
+          publishPresence();
+        }
+        render();
+      },
       (error) => setStatus(error.message, 'error')
     );
   watchDeclarations(campaignId, encounterId, (entries) => { declarations = entries; render(); })
