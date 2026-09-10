@@ -1,5 +1,44 @@
 # Graycloak Traveller
 
+## v0.69.0 one chargen, campaigns start from a character, and a REFEREE menu
+
+**One place characters are made.** A character is rolled on the lobby and
+lands in `YOUR CHARACTERS`; that is the screen, and it was always there —
+`[ NEW CAMPAIGN ]` on the lobby just sent you past it into the referee client's
+own chargen, which ends in a campaign shell and never saves the character as
+yours. That link is gone. The referee client's chargen stays for rolling at
+the table — an NPC, or a PC for a player without an account — as
+`[ ROLL A CHARACTER ]` in the new menu, and a cold visit to `index.html` now
+goes to the lobby whether or not you are signed in.
+
+**A campaign starts from a character.** Each unseated character on the lobby
+offers `[ START A CAMPAIGN ]` beside `[ JOIN A TABLE ]`. It opens the referee
+client with `?start=<characterId>`, which reads your own record, creates the
+campaign around that character, saves it to its home at once, and marks the
+record as living there — the state a seat by invite produces, with you as both
+referee and player. Rules v15 permits an owner to move their own character into
+a campaign they referee; every other move still needs a join request.
+
+**A campaign file loads on the lobby** with `[ LOAD A CAMPAIGN FILE ]`, gets a
+home under your account immediately, and appears in `YOUR CAMPAIGNS`. A file
+whose campaign already has a home is refused with the suggestion to run it.
+
+**Two menus.** `[ CAMPAIGN v ]` keeps the file operations — save, reload from
+cloud, load the browser copy, import, export — and a `[ LOBBY ]` link.
+`[ REFEREE v ]` is running the table: publish status and controls,
+`[ PLAYERS AND INVITES ]`, `[ NEW CAMPAIGN ]` (from a character rolled at the
+table), `[ ADD CHARACTER ]`, `[ ROLL A CHARACTER ]`, ship register, campaign
+record, adventure threads. The masthead's `[ NEW CHARACTER ]` is retired.
+
+**v0.68.1, folded in:** the first cloud save of a campaign failed with
+`CLOUD FAILED` because the home is referee-only and "referee" is read off the
+envelope document, which did not exist yet — a chicken-and-egg that showed the
+moment a campaign was reloaded from a file after being deleted from Firestore.
+A first save now writes the envelope before the transaction.
+
+Rules v15 is in the rules changed-files zip with its case. No rules-package or
+campaign schema changes.
+
 ## v0.68.0 the campaign lives in Firestore; the browser is a cache
 
 Until now a campaign lived in one browser's registry and Firestore held only

@@ -90,7 +90,7 @@ import {
   loadTravellerDocument
 } from './document-loader.js';
 
-import { createTravellerInvite, generateInviteCode, unassignedWorld, WORLD_KINDS } from '../src/character-record.js';
+import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js';
 import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js';
 
 import {
@@ -168,7 +168,7 @@ import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js
 import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js';
 import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js';
 import { openSignInDialog } from './signin-ui.js';
-import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome } from './publish.js';
+import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord } from './publish.js';
 import { authorizePlayerDeclaration } from '../src/player-declaration.js';
 import { authorizePlayerTokenMove } from '../src/player-token-movement.js';
 import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog } from '../src/published-view.js';
@@ -291,6 +291,8 @@ const el = {
   appSubtitle: document.querySelector('#app-subtitle'),
   headerCampaignName: document.querySelector('#header-campaign-name'),
   campaignMenu: document.querySelector('#campaign-menu'),
+  refereeMenu: document.querySelector('#referee-menu'),
+  refereeNewNpc: document.querySelector('#referee-new-npc'),
   autosaveStatus: document.querySelector('#autosave-status'),
   toggleActivity: document.querySelector('#toggle-activity'),
   terminal: document.querySelector('.terminal'),
@@ -1189,7 +1191,10 @@ function renderCampaignHeader() {
       ? `${activityDateLabel()} ${campaignClockLabel(campaignDocument)} / WEEK ${campaignWeekKey(campaignDocument)}${deadline === null ? '' : ` / DEADLINE ${deadline}d`}`
       : '--';
   }
-  el.newCharacterFromCampaign.hidden = !active;
+  // v0.69.0: rolling a character at the table lives in the REFEREE menu; the
+  // masthead button stays wired but out of the way.
+  el.newCharacterFromCampaign.hidden = true;
+  if (el.refereeNewNpc) el.refereeNewNpc.hidden = !active;
   el.terminal?.classList.toggle('campaign-play', active);
   el.appTitle.textContent = 'TRAVELLER';
   el.headerCampaignName.textContent = active
@@ -1948,6 +1953,40 @@ async function openCampaignFromHome(campaignId, { quiet = false } = {}) {
   closeHelp();
   render();
   return true;
+}
+
+// v0.69.0: [ START A CAMPAIGN ] on the lobby. The character comes from the
+// account's own record; the campaign is created around it, saved to its home
+// at once (which creates the envelope), and the record is marked as living in
+// it — the same state a seat by invite produces, with the referee as player.
+async function startCampaignFromRecord(characterId) {
+  const uid = currentUserId();
+  if (!uid) throw new Error('sign in first');
+  const remote = await loadCharacterRecord(characterId);
+  if (!remote) throw new Error('that character is not in your records');
+  const record = importCharacterRecord(remote);
+  if (record.ownerUid !== uid) throw new Error('that character belongs to another account');
+  if (record.world.kind !== WORLD_KINDS.UNASSIGNED) throw new Error(`${record.name} is already in a world`);
+  const characterDocument = importCharacterDocument(record.character);
+  gameplayDocument = characterDocument;
+  partyCharacterDocuments = [characterDocument];
+  shipDocument = null;
+  documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
+  newCampaign();
+  if (!campaignDocument) throw new Error('the campaign could not be created');
+  campaignDocument = setCampaignOwner(campaignDocument, uid);
+  campaignDocument = setDocumentOwner(campaignDocument, { documentId: characterDocument.identity.id, ownerUid: uid });
+  if (registry) registry.setActiveCampaignId(campaignDocument.identity.id);
+  persistCampaignState();
+  await saveCampaignHomeNow();
+  await setCharacterRecordWorldRemote(characterId, {
+    kind: WORLD_KINDS.CAMPAIGN, campaignId: campaignDocument.identity.id,
+    campaignName: campaignDocument.identity.name ?? null, since: Date.now()
+  });
+  logActivity('SYSTEM', `${characterDocument.identity.name} starts this campaign from the lobby.`);
+  setStatus(`${(campaignDocument.identity.name || 'CAMPAIGN').toUpperCase()} STARTED WITH ${characterDocument.identity.name.toUpperCase()}`, 'ok');
+  window.history.replaceState(null, '', `${window.location.pathname}?campaign=${encodeURIComponent(campaignDocument.identity.id)}`);
+  render();
 }
 
 async function reloadCampaignFromCloud() {
@@ -7303,6 +7342,11 @@ el.activityOrder.addEventListener('change', () => {
   renderActivity();
 });
 el.toggleActivity.addEventListener('click', () => setActivityPanelVisible(!activityPanelVisible));
+el.refereeMenu?.addEventListener('click', (event) => {
+  if (!event.target.closest('button, a')) return;
+  window.setTimeout(() => { el.refereeMenu.open = false; }, 0);
+});
+el.refereeNewNpc?.addEventListener('click', startNewCharacter);
 el.campaignMenu.addEventListener('click', (event) => {
   if (!event.target.closest('button')) return;
   window.setTimeout(() => { el.campaignMenu.open = false; }, 0);
@@ -7647,9 +7691,16 @@ const bootParams = new URLSearchParams(window.location.search);
 initAuth().then(async () => {
   render();
   const wanted = bootParams.get('campaign');
+  const startWith = bootParams.get('start');
   const signedIn = Boolean(currentUserId());
-  if (!signedIn && !wanted && !bootParams.has('local') && !bootParams.has('new') && authStatus().status !== 'unavailable') {
+  // Nothing to run and nothing to start: this is not the front door.
+  if (!wanted && !startWith && !bootParams.has('local') && authStatus().status !== 'unavailable') {
     window.location.replace(new URL('enter.html', window.location.href).toString());
+    return;
+  }
+  if (startWith) {
+    try { await startCampaignFromRecord(startWith); }
+    catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); }
     return;
   }
   if (!wanted) return;

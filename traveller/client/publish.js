@@ -308,6 +308,12 @@ export async function saveCampaignHome(home, envelope, { expectedRevision = null
   const db = await ensureFirestore();
   const ref = homeRef(db, home.campaignId);
   const envelopeRef = db.collection('travellerCampaigns').doc(home.campaignId);
+  // v0.68.1: the home is referee-only and "referee" is read off the envelope,
+  // so a first save must create the envelope before the transaction can read
+  // or write beneath it. Creating is allowed to the account it names as owner.
+  if (expectedRevision === null) {
+    await envelopeRef.set({ ...envelope, homeRevision: null, homeSavedAt: null }, { merge: true });
+  }
   await db.runTransaction(async (transaction) => {
     const current = await transaction.get(ref);
     const currentRevision = current.exists ? (current.data().revision ?? 0) : null;
@@ -335,4 +341,11 @@ export async function listOwnCampaigns(uid) {
   const db = await ensureFirestore();
   const snapshot = await db.collection('travellerCampaigns').where('ownership.ownerUid', '==', uid).get();
   return snapshot.docs.map((entry) => entry.data());
+}
+
+// v0.69.0: a character record by id, for the account that owns it.
+export async function loadCharacterRecord(characterId) {
+  const db = await ensureFirestore();
+  const snapshot = await db.collection('travellerCharacters').doc(characterId).get();
+  return snapshot.exists ? snapshot.data() : null;
 }

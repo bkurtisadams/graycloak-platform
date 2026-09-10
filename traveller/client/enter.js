@@ -12,9 +12,12 @@ import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus }
 import { openSignInDialog } from './signin-ui.js';
 import {
   ensureFirestore, saveCharacterRecord, deleteCharacterRecord, watchOwnCharacterRecords,
-  readInvite, writeJoinRequest, deleteJoinRequest, listOwnCampaigns
+  readInvite, writeJoinRequest, deleteJoinRequest, listOwnCampaigns, saveCampaignHome
 } from './publish.js';
-import { campaignHomeSummary } from '../src/campaign-home.js';
+import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js';
+import { importCampaignBundle } from '../src/campaign-bundle.js';
+import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js';
+import { buildPublishedCampaign } from '../src/published-view.js';
 import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js';
 import { buildProcedure } from './ui-model.js';
 import { generateCharacterName } from './generators.js';
@@ -36,6 +39,8 @@ const el = {
   list: document.querySelector('#enter-character-list'),
   newCharacter: document.querySelector('#enter-new-character'),
   campaignList: document.querySelector('#enter-campaign-list'),
+  loadCampaign: document.querySelector('#enter-load-campaign'),
+  campaignFile: document.querySelector('#enter-campaign-file'),
   chargen: document.querySelector('#enter-chargen'),
   name: document.querySelector('#enter-character-name'),
   randomName: document.querySelector('#enter-random-name'),
@@ -148,6 +153,27 @@ async function loadCampaigns() {
   render();
 }
 
+// A campaign file loaded here gets its home at once, under this account.
+async function loadCampaignFile(file) {
+  try {
+    const uid = currentUserId();
+    if (!uid) throw new Error('sign in first');
+    const bundle = importCampaignBundle(await file.text());
+    let campaign = setCampaignOwner(bundle.campaign, uid);
+    const now = Date.now();
+    campaign = markCampaignPublished(campaign, now);
+    const home = createCampaignHome({ ...bundle, campaign }, { ownerUid: uid, savedAt: now });
+    const envelope = buildPublishedCampaign(campaign, { publishedAt: now });
+    await saveCampaignHome(home, envelope, { expectedRevision: null });
+    campaignsLoadedFor = null;
+    setStatus(`${(campaign.identity.name || 'CAMPAIGN').toUpperCase()} LOADED INTO THE CLOUD`, 'ok');
+    await loadCampaigns();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.name === 'StaleCampaignHomeError' ? 'THAT CAMPAIGN ALREADY HAS A CLOUD COPY / RUN IT INSTEAD' : (error?.message ?? String(error)), 'error');
+  }
+}
+
 function campaignDate(time) {
   return time ? `${String(time.dayOfYear).padStart(3, '0')}-${time.year}` : '--';
 }
@@ -213,6 +239,14 @@ function renderCharacterRow(record) {
     withdraw.addEventListener('click', () => withdrawJoin(record));
     tools.append(withdraw);
   } else {
+    // v0.69.0: a campaign starts from a character, here, not from the
+    // referee client's own chargen.
+    const start = document.createElement('a');
+    start.className = 'text-button action-button campaign-transition-action';
+    start.href = `index.html?start=${encodeURIComponent(record.characterId)}`;
+    start.textContent = '[ START A CAMPAIGN ]';
+    start.title = 'Create a campaign you referee, with this character in the party';
+    tools.append(start);
     const join = document.createElement('button');
     join.type = 'button'; join.className = 'text-button action-button';
     join.textContent = openJoinFor === record.characterId ? '[ CANCEL ]' : '[ JOIN A TABLE ]';
@@ -389,6 +423,12 @@ function render() {
 
 el.signinButton.addEventListener('click', () => openSignInDialog());
 el.newCharacter.addEventListener('click', () => startChargen());
+el.loadCampaign.addEventListener('click', () => el.campaignFile.click());
+el.campaignFile.addEventListener('change', () => {
+  const file = el.campaignFile.files?.[0];
+  el.campaignFile.value = '';
+  if (file) loadCampaignFile(file);
+});
 el.randomName.addEventListener('click', () => { el.name.value = generateCharacterName(); el.name.dispatchEvent(new Event('input')); });
 el.name.addEventListener('input', () => { if (character) { character = { ...character, name: el.name.value }; saveDraft(); el.sheet.name.textContent = el.name.value || '(UNNAMED)'; } });
 el.save.addEventListener('click', saveCharacter);

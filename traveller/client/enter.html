@@ -11,7 +11,7 @@
       <div class="masthead-main">
         <nav class="utility masthead-utility" aria-label="Player session">
           <span class="masthead-title">TRAVELLER</span>
-          <span class="subtitle">ENTER v0.68.0</span>
+          <span class="subtitle">ENTER v0.69.0</span>
           <strong id="enter-heading" class="masthead-campaign-name">YOUR CHARACTERS</strong>
           <span class="masthead-spacer"></span>
           <span id="enter-account" class="masthead-account" title="Graycloak account"></span>
@@ -41,8 +41,9 @@
         <div class="enter-section-heading">YOUR CAMPAIGNS</div>
         <div id="enter-campaign-list" class="enter-character-list" aria-live="polite"></div>
         <div class="enter-toolbar">
-          <a id="enter-new-campaign" class="text-button action-button" href="index.html?new=1">[ NEW CAMPAIGN ]</a>
-          <span class="enter-toolbar-note">A campaign saved only in a browser appears here after that browser runs it signed in.</span>
+          <button id="enter-load-campaign" class="text-button action-button" type="button">[ LOAD A CAMPAIGN FILE ]</button>
+          <input id="enter-campaign-file" type="file" accept="application/json,.json" hidden>
+          <span class="enter-toolbar-note">To start a new campaign, pick one of your characters above. A campaign file loaded here gets a cloud copy at once.</span>
         </div>
       </section>
 

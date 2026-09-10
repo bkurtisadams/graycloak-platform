@@ -12,27 +12,36 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.68.0</div>
+          <div id="app-subtitle" class="subtitle">v0.69.0</div>
         </div>
         <nav class="utility campaign-utility" aria-label="Campaign and view commands">
           <details id="campaign-menu" class="campaign-menu">
             <summary class="text-button utility-button">[ CAMPAIGN v ]</summary>
-            <div class="campaign-menu-popover" role="group" aria-label="Campaign commands">
-              <button id="new-campaign" class="text-button utility-button" type="button" title="Create a campaign from the current completed character">[ NEW CAMPAIGN ]</button>
-              <button id="save-campaign" class="text-button utility-button" type="button" title="Save the campaign in this browser" disabled>[ SAVE NOW ]</button>
-              <button id="load-campaign" class="text-button utility-button" type="button" title="Load the campaign saved in this browser">[ LOAD CAMPAIGN ]</button>
+            <div class="campaign-menu-popover" role="group" aria-label="Campaign file commands">
+              <button id="save-campaign" class="text-button utility-button" type="button" title="Save the campaign in this browser and, signed in, in the cloud" disabled>[ SAVE NOW ]</button>
               <button id="reload-campaign-cloud" class="text-button utility-button" type="button" title="Replace the browser copy with the campaign's cloud copy">[ RELOAD FROM CLOUD ]</button>
+              <button id="load-campaign" class="text-button utility-button" type="button" title="Load the campaign saved in this browser">[ LOAD BROWSER COPY ]</button>
               <button id="import-campaign" class="text-button utility-button" type="button" title="Import a portable campaign JSON file">[ IMPORT CAMPAIGN ]</button>
               <button id="export-campaign" class="text-button utility-button" type="button" title="Export a portable campaign JSON file" disabled>[ EXPORT CAMPAIGN ]</button>
-              <button id="add-character-to-campaign" class="text-button utility-button" type="button" title="Add a completed Character Document to the active campaign" hidden>[ ADD CHARACTER ]</button>
-              <button id="open-ship-view" class="text-button utility-button" type="button" title="Ship register" hidden>[ SHIP REGISTER ]</button>
-              <button id="open-campaign-view" class="text-button utility-button" type="button" title="Campaign record" hidden>[ CAMPAIGN RECORD ]</button>
-              <button id="open-threads-view" class="text-button utility-button" type="button" title="Adventure threads" hidden>[ ADVENTURE THREADS ]</button>
               <hr class="campaign-menu-rule">
+              <a id="open-lobby" class="text-button utility-button" href="enter.html" title="Your characters and campaigns">[ LOBBY ]</a>
+            </div>
+          </details>
+          <!-- v0.69.0: running the table is its own menu; the referee is the book's word. -->
+          <details id="referee-menu" class="campaign-menu">
+            <summary class="text-button utility-button">[ REFEREE v ]</summary>
+            <div class="campaign-menu-popover" role="group" aria-label="Referee commands">
               <div id="publish-status" class="publish-status">LOCAL ONLY</div>
               <button id="publish-campaign" class="text-button utility-button" type="button" title="Publish this campaign so seated players can read it">[ PUBLISH ]</button>
               <button id="publish-view" class="text-button utility-button" type="button" title="Publish the player-safe view of the current scene" hidden>[ PUBLISH SCENE ]</button>
-              <button id="open-players" class="text-button utility-button" type="button" title="Seat players at this campaign and assign them characters" hidden>[ PLAYERS ]</button>
+              <button id="open-players" class="text-button utility-button" type="button" title="Players, invites, and requests to sit down" hidden>[ PLAYERS AND INVITES ]</button>
+              <hr class="campaign-menu-rule">
+              <button id="new-campaign" class="text-button utility-button" type="button" title="Create a campaign from the current completed character">[ NEW CAMPAIGN ]</button>
+              <button id="add-character-to-campaign" class="text-button utility-button" type="button" title="Add a completed Character Document to the active campaign" hidden>[ ADD CHARACTER ]</button>
+              <button id="referee-new-npc" class="text-button utility-button" type="button" title="Roll a character at the table — an NPC, or a PC for a player without an account" hidden>[ ROLL A CHARACTER ]</button>
+              <button id="open-ship-view" class="text-button utility-button" type="button" title="Ship register" hidden>[ SHIP REGISTER ]</button>
+              <button id="open-campaign-view" class="text-button utility-button" type="button" title="Campaign record" hidden>[ CAMPAIGN RECORD ]</button>
+              <button id="open-threads-view" class="text-button utility-button" type="button" title="Adventure threads" hidden>[ ADVENTURE THREADS ]</button>
             </div>
           </details>
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
