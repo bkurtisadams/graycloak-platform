@@ -239,6 +239,24 @@ service cloud.firestore {
         allow create, delete: if isTravellerReferee(campaignId);
         allow update: if isTravellerReferee(campaignId)
           || (isAuthed() && request.auth.uid == playerUid);
+
+        // The player's own documents, beneath their seat. The character sheet
+        // in full and a log filtered to table knowledge, both written by the
+        // referee's client. Rules cannot filter fields, so the split between
+        // players is by path: only the seated account and the referee may
+        // read here, and a seat that is gone takes its documents with it in
+        // the rule as well as in the client.
+        match /characters/{characterId} {
+          allow read: if isTravellerReferee(campaignId)
+            || (isAuthed() && request.auth.uid == playerUid && isTravellerPlayer(campaignId));
+          allow write: if isTravellerReferee(campaignId);
+        }
+
+        match /log/{logId} {
+          allow read: if isTravellerReferee(campaignId)
+            || (isAuthed() && request.auth.uid == playerUid && isTravellerPlayer(campaignId));
+          allow write: if isTravellerReferee(campaignId);
+        }
       }
 
       // The full encounter: enemy characteristics, wounds, cover, blow
