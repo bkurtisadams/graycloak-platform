@@ -1,4 +1,8 @@
-// Firestore Security Rules for GCC / Graycloak AD&D / Traveller v11
+// Firestore Security Rules for GCC / Graycloak AD&D / Traveller v12
+// v12 adds per-player Traveller documents beneath the seat:
+//   travellerCampaigns/{id}/players/{uid}/characters/{characterId} and
+//   travellerCampaigns/{id}/players/{uid}/log/current — referee-written copies
+//   that only that account and the referee may read.
 // v11 adds Graycloak Traveller: travellerCampaigns, with the encounter
 //   document referee-only, a player-safe view published by the referee, and
 //   declarations writable only by the account that owns that combatant.
