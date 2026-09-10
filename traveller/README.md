@@ -1,5 +1,20 @@
 # Graycloak Traveller
 
+## v0.67.1 benefits received twice, as Book 1 has them
+
+Rules package v0.24.0. You remembered a repeated mustering-out benefit turning
+into cash; Book 1 pp.22–23 has no such rule, and now that the text is to hand
+the package follows what it does say. A second Travellers' Aid Society result is
+a wasted roll and a second Scout Ship is lost — recorded as such, still counted
+against the allowance, nothing added. A repeated Gun or Blade benefit may be
+taken as expertise only in a weapon already received as a benefit: ticking
+`TAKE AS SKILL` now greys out every weapon the character has not been handed,
+with the page reference in the tooltip. A repeated Free Trader is kept, because
+each additional receipt is ten years of payments made; that resolves with Free
+Trader finance, which is Book 2 work. The generation log marks a wasted roll.
+
+No persistent document schema changes.
+
 ## v0.67.0 the player's front door
 
 `enter.html` is where a player starts. Sign in with a Graycloak account; see

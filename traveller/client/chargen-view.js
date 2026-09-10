@@ -255,14 +255,29 @@ export function renderChargenActions(container, character, available, execute) {
     label.textContent = `CHOOSE ${String(available.choices.pendingBenefit?.category ?? 'WEAPON').toUpperCase()}:`;
     container.append(label);
 
-    for (const specialization of available.choices.specializations ?? []) {
-      container.append(actionButton(
+    // Book 1 p.22: expertise may only be taken in a weapon already received
+    // as a benefit, so ticking TAKE AS SKILL narrows the choice to those.
+    const skillable = new Set(available.choices.skillSpecializations ?? []);
+    const buttons = (available.choices.specializations ?? []).map((specialization) => {
+      const button = actionButton(
         specialization.toUpperCase(),
         CHARGEN_ACTIONS.RESOLVE_MUSTER_BENEFIT_SPECIALIZATION,
         () => ({ specialization, asSkill: asSkill.checked }),
         execute
-      ));
-    }
+      );
+      button.dataset.specialization = specialization;
+      container.append(button);
+      return button;
+    });
+    const applySkillFilter = () => {
+      for (const button of buttons) {
+        const allowed = !asSkill.checked || skillable.has(button.dataset.specialization);
+        button.disabled = !allowed;
+        button.title = allowed ? '' : 'Expertise may only be taken in a weapon received as a benefit (Book 1 p.22)';
+      }
+    };
+    asSkill.addEventListener('change', applySkillFilter);
+    applySkillFilter();
     return;
   }
 

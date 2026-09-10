@@ -162,11 +162,17 @@ export function getAvailableActions(character) {
       const canTakeAsSkill = Boolean(pendingBenefit && character.materialBenefits.some((benefit) => (
         benefit.type === 'weapon' && benefit.category === pendingBenefit.category
       )));
+      // Book 1 p.22: expertise may only be taken in a weapon already received
+      // as a benefit, so the skill option is limited to those.
+      const skillSpecializations = Object.freeze(specializations.filter((name) => character.materialBenefits.some((benefit) => (
+        benefit.type === 'weapon' && benefit.specialization === name
+      ))));
       return descriptor(character, [CHARGEN_ACTIONS.RESOLVE_MUSTER_BENEFIT_SPECIALIZATION], {
         pendingBenefit,
         specializationType,
         specializations,
-        canTakeAsSkill
+        canTakeAsSkill,
+        skillSpecializations
       });
     }
 

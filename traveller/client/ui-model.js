@@ -482,7 +482,7 @@ export function formatHistoryEvent(event) {
     case 'muster-out-cash':
       return `${age}  CASH  d6 ${event.roll}${event.dm ? ` DM +${event.dm}` : ''} -> ${formatCredits(event.amount)}`;
     case 'muster-out-benefit':
-      return `${age}  BENEFIT  d6 ${event.roll}${event.dm ? ` DM +${event.dm}` : ''} -> ${outcomeText(event.outcome)}${event.pendingSpecialization ? ' / DECLARATION REQUIRED' : ''}`;
+      return `${age}  BENEFIT  d6 ${event.roll}${event.dm ? ` DM +${event.dm}` : ''} -> ${outcomeText(event.outcome)}${event.pendingSpecialization ? ' / DECLARATION REQUIRED' : ''}${event.result?.type === 'wasted' ? ' / ROLL WASTED (ALREADY HELD, BOOK 1 P.22)' : ''}`;
     case 'muster-out-weapon':
       return `${age}  BENEFIT RESOLVED  ${event.type === 'skill' ? `${event.specialization}-${event.level}` : `${event.specialization} (${event.category})`}`;
     case 'chargen-complete':

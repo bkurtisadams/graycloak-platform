@@ -954,6 +954,8 @@ export function rollMusterOutCash(character, { dice = createDice() } = {}) {
   return { character: next, roll, dm, total, amount };
 }
 
+const ONCE_ONLY_MATERIAL_BENEFITS = new Set(["Travellers' Aid Society", 'Scout Ship']);
+
 export function rollMusterOutBenefit(character, { dice = createDice() } = {}) {
   requirePhase(character, CHARGEN_PHASES.MUSTER_OUT_ROLLS_PENDING);
   if (!character.musterOut || character.musterOut.remainingRolls < 1) {
@@ -995,8 +997,21 @@ export function rollMusterOutBenefit(character, { dice = createDice() } = {}) {
       newValue: next.characteristics[outcome.characteristic]
     });
   } else if (outcome.type === 'material') {
-    result = Object.freeze({ type: 'material', name: outcome.name });
-    next.materialBenefits.push(result);
+    // Book 1 p.22: Travellers' Aid membership "may be achieved only once per
+    // character. If a die roll indicates membership after it has already been
+    // achieved, the die roll is wasted, and the character receives nothing."
+    // p.23: "Only one scout ship may be acquired by a character, and throws
+    // resulting in additional scout ships are lost, gaining the character
+    // nothing." A repeated Free Trader is NOT wasted: each additional receipt
+    // is ten years of payments made, so it is kept and resolved by the ship.
+    const onceOnly = ONCE_ONLY_MATERIAL_BENEFITS.has(outcome.name)
+      && next.materialBenefits.some((benefit) => benefit.type === 'material' && benefit.name === outcome.name);
+    if (onceOnly) {
+      result = Object.freeze({ type: 'wasted', name: outcome.name });
+    } else {
+      result = Object.freeze({ type: 'material', name: outcome.name });
+      next.materialBenefits.push(result);
+    }
   } else if (outcome.type === 'none') {
     result = Object.freeze({ type: 'none' });
   }
@@ -1025,12 +1040,22 @@ export function resolveMusterBenefitSpecialization(character, {
   if (!choice) {
     throw new ChargenStateError(`invalid ${category} weapon specialization: ${String(specialization ?? '').trim() || '(blank)'}`);
   }
+  // Book 1 p.22: a repeated weapon benefit may be the same weapon again, a
+  // different weapon, or "+1 expertise in lieu of receiving a second or
+  // subsequent weapon of exactly the same type. Expertise may only be taken
+  // in a weapon received as a benefit."
   const previousBenefit = next.materialBenefits.some((benefit) => (
     benefit.type === 'weapon' && benefit.category === category
+  ));
+  const receivedThisWeapon = next.materialBenefits.some((benefit) => (
+    benefit.type === 'weapon' && benefit.specialization === choice
   ));
 
   if (asSkill && !previousBenefit) {
     throw new ChargenStateError(`the first ${category} mustering-out benefit must be taken as a weapon; only an additional benefit may be taken as skill`);
+  }
+  if (asSkill && !receivedThisWeapon) {
+    throw new ChargenStateError(`expertise may only be taken in a weapon received as a benefit; ${choice} has not been received`);
   }
 
   let result;

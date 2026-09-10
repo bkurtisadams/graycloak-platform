@@ -2,6 +2,17 @@
 
 Pure JavaScript rules package for the Graycloak Classic Traveller browser-game project. It intentionally has no HTML, Foundry, Firebase, or server dependencies.
 
+## v0.24.0 mustering-out benefits received twice (Book 1 pp.22-23)
+
+A second Travellers' Aid Society result is a wasted roll and a second Scout Ship
+is lost; both are recorded as `{ type: 'wasted' }` on the roll and in history,
+still count against the allowance, and add nothing to the character. A repeated
+weapon benefit may be taken as expertise only in a weapon already received as a
+benefit; `getAvailableActions()` now lists those as `choices.skillSpecializations`.
+A repeated Free Trader is kept as before: each additional receipt is ten years of
+payments made, resolved by the ship rather than here. There is no rule converting
+a repeated benefit to cash.
+
 ## v0.23.0 complete Book 1 morale modifiers
 
 Personal morale now applies all four modifiers printed on Book 1 p.36: military unit, a leader with Tactics, a killed leader, and casualties exceeding 50%. The resolver derives the heavy-casualty penalty from the casualty counts, reports every applied part, and rejects impossible counts. Callers continue to supply leader and unit facts explicitly because those facts cannot be inferred safely from an attack roll.

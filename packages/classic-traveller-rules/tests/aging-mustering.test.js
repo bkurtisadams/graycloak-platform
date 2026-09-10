@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import { getAvailableActions } from '../src/characters/lifecycle.js';
 import {
   CHARGEN_PHASES,
   ChargenStateError,
@@ -292,13 +293,51 @@ test('first Gun/Blade muster benefit is a weapon; an additional one may become s
   assert.equal(character.materialBenefits[0].specialization, 'Rifle');
 
   character = rollMusterOutBenefit(character, { dice: createSequenceDice([4]) }).character;
+  // Book 1 p.22: "Expertise may only be taken in a weapon received as a
+  // benefit." The rifle was received; a laser rifle was not.
+  assert.throws(
+    () => resolveMusterBenefitSpecialization(character, { specialization: 'Laser Rifle', asSkill: true }),
+    /received as a benefit/
+  );
+  assert.deepEqual(getAvailableActions(character).choices.skillSpecializations, ['Rifle']);
   character = resolveMusterBenefitSpecialization(character, {
-    specialization: 'Laser Rifle',
+    specialization: 'Rifle',
     asSkill: true
   }).character;
 
-  assert.equal(character.skills['Laser Rifle'], 1);
+  assert.equal(character.skills.Rifle, 1);
   assert.equal(character.phase, CHARGEN_PHASES.COMPLETE);
+});
+
+test("a second Travellers' Aid roll is wasted; a second Scout Ship is lost (Book 1 pp.22-23)", () => {
+  // Navy table 1: 5 = Travellers' Aid Society.
+  let character = state({ service: 'navy', terms: 3, phase: CHARGEN_PHASES.MUSTER_OUT_REQUIRED });
+  character = beginMusterOut(character);
+  character = rollMusterOutBenefit(character, { dice: createSequenceDice([5]) }).character;
+  const second = rollMusterOutBenefit(character, { dice: createSequenceDice([5]) });
+  assert.equal(second.result.type, 'wasted');
+  assert.equal(second.result.name, "Travellers' Aid Society");
+  assert.equal(second.character.materialBenefits.filter((entry) => entry.name === "Travellers' Aid Society").length, 1);
+  assert.equal(second.character.musterOut.remainingRolls, 1, 'the wasted roll still counts against the allowance');
+  assert.equal(second.character.history.at(-1).result.type, 'wasted');
+
+  // Scouts table 1: 6 = Scout Ship.
+  let scout = state({ service: 'scouts', terms: 2, phase: CHARGEN_PHASES.MUSTER_OUT_REQUIRED });
+  scout = beginMusterOut(scout);
+  scout = rollMusterOutBenefit(scout, { dice: createSequenceDice([6]) }).character;
+  const lost = rollMusterOutBenefit(scout, { dice: createSequenceDice([6]) });
+  assert.equal(lost.result.type, 'wasted');
+  assert.equal(lost.character.materialBenefits.filter((entry) => entry.name === 'Scout Ship').length, 1);
+});
+
+test('a repeated Free Trader is kept: each additional receipt is ten years of payments (Book 1 p.23)', () => {
+  // Merchant table 1: 7 = Free Trader, reachable with rank 5 DM +1 on a 6.
+  let character = state({ service: 'merchants', terms: 2, rank: 5, rankTitle: 'Captain', phase: CHARGEN_PHASES.MUSTER_OUT_REQUIRED });
+  character = beginMusterOut(character);
+  character = rollMusterOutBenefit(character, { dice: createSequenceDice([6]) }).character;
+  const again = rollMusterOutBenefit(character, { dice: createSequenceDice([6]) });
+  assert.equal(again.result.type, 'material');
+  assert.equal(again.character.materialBenefits.filter((entry) => entry.name === 'Free Trader').length, 2);
 });
 
 test('golden path: a deterministic Book 1 career reaches a complete final character', () => {
