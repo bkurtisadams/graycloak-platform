@@ -5,6 +5,9 @@
 // declaration and nothing else, and never reads the encounter document, which
 // carries enemy characteristics and wounds.
 //
+// v12 adds the per-player documents beneath the seat — the character sheet
+// and the filtered log — which only the seated account and the referee read.
+//
 // Requires the emulator:  firebase emulators:start --only firestore
 // Skipped automatically when it is not running, so `npm test` still passes
 // without it.
@@ -26,6 +29,7 @@ const PORT = 8080;
 
 const REFEREE = 'uid-referee';
 const PLAYER = 'uid-player';
+const SECOND = 'uid-second';
 const OUTSIDER = 'uid-outsider';
 const CAMPAIGN = 'sea-of-suns';
 const ENCOUNTER = 'encounter-1';
@@ -80,6 +84,7 @@ test('Traveller multiplayer rules', { skip: available ? false : `Firestore emula
 
   const referee = env.authenticatedContext(REFEREE).firestore();
   const player = env.authenticatedContext(PLAYER).firestore();
+  const second = env.authenticatedContext(SECOND).firestore();
   const outsider = env.authenticatedContext(OUTSIDER).firestore();
   const anonymous = env.unauthenticatedContext().firestore();
 
@@ -188,12 +193,73 @@ test('Traveller multiplayer rules', { skip: available ? false : `Firestore emula
     await assertFails(outsider.doc(path).get());
   });
 
+  // --- v12: the player's own documents beneath the seat --------------------
+  // The referee publishes each character in full to the account that plays
+  // it, and each seated account a log filtered to table knowledge. Firestore
+  // cannot filter fields, so the split between players is by path.
+
+  const SHEET = `travellerCampaigns/${CAMPAIGN}/players/${PLAYER}/characters/${PC}`;
+  const LOG = `travellerCampaigns/${CAMPAIGN}/players/${PLAYER}/log/current`;
+
+  await t.test('the referee publishes a player their sheet and log', async () => {
+    await assertSucceeds(referee.doc(SHEET).set({
+      campaignId: CAMPAIGN, characterId: PC, ownerUid: PLAYER,
+      identity: { name: 'Hawkeye' }, characteristics: { STR: 10, DEX: 11, END: 5 }, current: { STR: 10, DEX: 11, END: 3 }
+    }));
+    await assertSucceeds(referee.doc(LOG).set({
+      campaignId: CAMPAIGN, uid: PLAYER, entries: [{ category: 'JUMP', message: 'Marisol jumps for Cinder.' }]
+    }));
+    await assertSucceeds(referee.doc(SHEET).get());
+    await assertSucceeds(referee.doc(LOG).get());
+  });
+
+  await t.test('a player reads their own sheet and log', async () => {
+    await assertSucceeds(player.doc(SHEET).get());
+    await assertSucceeds(player.doc(LOG).get());
+    // And can list their own characters, which is how the page finds them.
+    await assertSucceeds(player.collection(`travellerCampaigns/${CAMPAIGN}/players/${PLAYER}/characters`).get());
+  });
+
+  await t.test('another seated player cannot read them', async () => {
+    // Seated, so at the table for everything the table shares — and still
+    // shut out of a document that sits beneath someone else's seat.
+    await env.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc(`travellerCampaigns/${CAMPAIGN}/players/${SECOND}`).set({ seatedAt: 2 });
+    });
+    await assertSucceeds(second.doc(`travellerCampaigns/${CAMPAIGN}`).get());
+    await assertFails(second.doc(SHEET).get());
+    await assertFails(second.doc(LOG).get());
+    await assertFails(second.collection(`travellerCampaigns/${CAMPAIGN}/players/${PLAYER}/characters`).get());
+    await assertFails(outsider.doc(SHEET).get());
+    await assertFails(anonymous.doc(LOG).get());
+  });
+
+  await t.test('a player cannot write beneath their own seat', async () => {
+    await assertFails(player.doc(SHEET).update({ 'current.END': 5 }));
+    await assertFails(player.doc(SHEET).set({ campaignId: CAMPAIGN, characterId: PC, ownerUid: PLAYER, skills: { Gunnery: 9 } }));
+    await assertFails(player.doc(LOG).update({ entries: [] }));
+    await assertFails(player.doc(`travellerCampaigns/${CAMPAIGN}/players/${PLAYER}/characters/${FOE}`).set({ ownerUid: PLAYER }));
+    await assertFails(player.doc(SHEET).delete());
+  });
+
+  await t.test('losing the seat loses the documents, in the rule and not only in the client', async () => {
+    const secondSheet = `travellerCampaigns/${CAMPAIGN}/players/${SECOND}/characters/other-pc`;
+    await assertSucceeds(referee.doc(secondSheet).set({ campaignId: CAMPAIGN, characterId: 'other-pc', ownerUid: SECOND }));
+    await assertSucceeds(second.doc(secondSheet).get());
+    // The referee unseats them; the client also deletes the subtree, but the
+    // rule must not depend on that having happened.
+    await assertSucceeds(referee.doc(`travellerCampaigns/${CAMPAIGN}/players/${SECOND}`).delete());
+    await assertFails(second.doc(secondSheet).get());
+    await assertSucceeds(referee.doc(secondSheet).delete());
+  });
+
   await t.test('an outsider is shut out entirely', async () => {
     await assertFails(outsider.doc(`travellerCampaigns/${CAMPAIGN}/encounters/${ENCOUNTER}/declarations/${PC}`).set({
       uid: OUTSIDER, actorId: PC, action: 'attack', targetId: FOE, round: 1
     }));
     await assertFails(outsider.doc(`travellerCampaigns/${CAMPAIGN}/encounters/${ENCOUNTER}/view/current`).get());
     await assertFails(outsider.doc(`travellerCampaigns/${CAMPAIGN}/players/${OUTSIDER}`).set({ seatedAt: 1 }));
+    await assertFails(outsider.doc(`travellerCampaigns/${CAMPAIGN}/players/${OUTSIDER}/characters/${PC}`).set({ ownerUid: OUTSIDER }));
   });
 
   await t.test('the existing AD&D rules still hold', async () => {
