@@ -1,8 +1,10 @@
 # Firestore rules v13 — player characters, invites, join requests (v0.67.0)
 
-Three additions to both `gcc/firestore.rules` and `graycloak-adnd/firestore.rules`.
-Bump the header to v13 in both. Suite cases are in
-`graycloak-adnd/test/traveller-rules.test.mjs` (the changed-files zip carries it).
+Three additions to both `gcc/firestore.rules` and `graycloak-adnd/firestore.rules`,
+shipped as the full files in the rules changed-files zip alongside the suite cases
+in `graycloak-adnd/test/traveller-rules.test.mjs` and the moved reminder line in
+`test-rules.bat` (the campaign-create guard is now L264). Recorded here so the
+change is readable without diffing.
 
 ## 1. Helpers — beside `ownsTravellerCombatant`
 
