@@ -1906,8 +1906,8 @@ async function saveCampaignHomeNow() {
       publishedAt: campaignDocument.ownership?.publishedAt ?? home.savedAt,
       currentEncounterId: scene?.identity.id ?? null
     });
-    await saveCampaignHome(home, envelope, { expectedRevision: campaignHomeRevision });
-    campaignHomeRevision = home.revision;
+    const written = await saveCampaignHome(home, envelope, { expectedRevision: campaignHomeRevision });
+    campaignHomeRevision = written;
     campaignHomeSavedAt = home.savedAt;
     campaignHomeError = null;
     // The envelope now exists and players seated later may read it: the

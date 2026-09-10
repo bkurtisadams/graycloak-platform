@@ -19,10 +19,15 @@ const FIRESTORE_SCRIPT = `https://www.gstatic.com/firebasejs/${SDK_VERSION}/fire
 let firestore = null;
 let status = 'idle';
 let lastError = null;
+// v0.69.1: one load per script. Two callers arriving together used to race —
+// the second found the tag already in the page, assumed it had loaded, and
+// threw "Firestore SDK did not load" before it had.
+const scriptLoads = new Map();
 
 function loadScript(url) {
-  return new Promise((resolve, reject) => {
-    if (document.querySelector(`script[src="${url}"]`)) { resolve(); return; }
+  if (scriptLoads.has(url)) return scriptLoads.get(url);
+  const pending = new Promise((resolve, reject) => {
+    if (globalThis.firebase?.firestore) { resolve(); return; }
     const script = document.createElement('script');
     script.src = url;
     script.async = true;
@@ -30,6 +35,9 @@ function loadScript(url) {
     script.addEventListener('error', () => reject(new Error(`failed to load ${url}`)));
     document.head.append(script);
   });
+  scriptLoads.set(url, pending);
+  pending.catch(() => scriptLoads.delete(url));
+  return pending;
 }
 
 export function publishStatus() {
@@ -38,8 +46,15 @@ export function publishStatus() {
 
 // Firestore is loaded only when the referee first publishes, so a local game
 // never fetches it at all.
-export async function ensureFirestore() {
-  if (firestore) return firestore;
+let firestoreReady = null;
+export function ensureFirestore() {
+  if (firestore) return Promise.resolve(firestore);
+  if (firestoreReady) return firestoreReady;
+  firestoreReady = initFirestore().catch((error) => { firestoreReady = null; throw error; });
+  return firestoreReady;
+}
+
+async function initFirestore() {
   status = 'loading';
   try {
     await loadScript(FIRESTORE_SCRIPT);
@@ -311,22 +326,34 @@ export async function saveCampaignHome(home, envelope, { expectedRevision = null
   // v0.68.1: the home is referee-only and "referee" is read off the envelope,
   // so a first save must create the envelope before the transaction can read
   // or write beneath it. Creating is allowed to the account it names as owner.
+  let envelopeExisted = true;
   if (expectedRevision === null) {
-    await envelopeRef.set({ ...envelope, homeRevision: null, homeSavedAt: null }, { merge: true });
+    envelopeExisted = (await envelopeRef.get()).exists;
+    if (!envelopeExisted) await envelopeRef.set({ ...envelope, homeRevision: null, homeSavedAt: null });
   }
+  let written = home.revision;
   await db.runTransaction(async (transaction) => {
     const current = await transaction.get(ref);
     const currentRevision = current.exists ? (current.data().revision ?? 0) : null;
+    let next = home;
     if (currentRevision !== null && currentRevision !== expectedRevision) {
-      throw new StaleCampaignHomeError({ campaignId: home.campaignId, expectedRevision, currentRevision, savedAt: current.data().savedAt ?? null });
-    }
-    if (current.exists && home.revision !== currentRevision + 1) {
+      // A home beneath an envelope that did not exist a moment ago is an
+      // orphan — a campaign document deleted in the console without its
+      // subcollections. Nothing can own it, so adopt it at the next revision
+      // rather than strand the referee.
+      if (!envelopeExisted && expectedRevision === null) {
+        next = { ...home, revision: currentRevision + 1 };
+      } else {
+        throw new StaleCampaignHomeError({ campaignId: home.campaignId, expectedRevision, currentRevision, savedAt: current.data().savedAt ?? null });
+      }
+    } else if (current.exists && home.revision !== currentRevision + 1) {
       throw new StaleCampaignHomeError({ campaignId: home.campaignId, expectedRevision, currentRevision });
     }
-    transaction.set(ref, home);
-    transaction.set(envelopeRef, { ...envelope, homeRevision: home.revision, homeSavedAt: home.savedAt }, { merge: true });
+    transaction.set(ref, next);
+    transaction.set(envelopeRef, { ...envelope, homeRevision: next.revision, homeSavedAt: next.savedAt }, { merge: true });
+    written = next.revision;
   });
-  return home.revision;
+  return written;
 }
 
 export async function loadCampaignHome(campaignId) {

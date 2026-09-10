@@ -3277,3 +3277,4 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .enter-toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .enter-toolbar a.text-button { text-decoration: none; }
 .enter-toolbar-note { font-size: 10px; color: var(--muted); letter-spacing: .04em; }
+.enter-character.enter-draft { border-style: dashed; }

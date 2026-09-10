@@ -171,6 +171,8 @@ async function loadCampaignFile(file) {
   } catch (error) {
     console.error(error);
     setStatus(error?.name === 'StaleCampaignHomeError' ? 'THAT CAMPAIGN ALREADY HAS A CLOUD COPY / RUN IT INSTEAD' : (error?.message ?? String(error)), 'error');
+    campaignsLoadedFor = null;
+    await loadCampaigns();
   }
 }
 
@@ -276,15 +278,38 @@ function renderCharacterRow(record) {
   return row;
 }
 
+// v0.69.1: a character in generation is offered on the list, not imposed.
+function renderDraftRow() {
+  const draft = loadDraft();
+  if (!draft) return null;
+  const row = document.createElement('div');
+  row.className = 'enter-character enter-draft';
+  const name = document.createElement('strong'); name.className = 'enter-character-name'; name.textContent = (draft.name || 'UNNAMED').toUpperCase();
+  const summary = document.createElement('span'); summary.className = 'enter-character-summary';
+  summary.textContent = `IN GENERATION / ${draft.service ? String(draft.service).toUpperCase() : 'NO SERVICE YET'} / AGE ${draft.age} / TERM ${draft.currentTerm?.number ?? draft.terms}`;
+  const state = document.createElement('span'); state.className = 'enter-character-state'; state.textContent = 'NOT YET SAVED';
+  const tools = document.createElement('div'); tools.className = 'enter-character-tools';
+  const resume = document.createElement('button');
+  resume.type = 'button'; resume.className = 'text-button action-button campaign-transition-action'; resume.textContent = '[ RESUME ]';
+  resume.addEventListener('click', () => startChargen(draft));
+  const discard = document.createElement('button');
+  discard.type = 'button'; discard.className = 'text-button action-button'; discard.textContent = '[ DISCARD ]';
+  discard.addEventListener('click', () => { if (window.confirm('Discard the character in generation?')) { character = null; saveDraft(); render(); } });
+  tools.append(resume, discard);
+  row.append(name, summary, state, tools);
+  return row;
+}
+
 function renderCharacters() {
-  if (!records.length) {
+  const draftRow = renderDraftRow();
+  if (!records.length && !draftRow) {
     const empty = document.createElement('div');
     empty.className = 'enter-empty';
     empty.textContent = 'YOU HAVE NO CHARACTERS YET. ROLL ONE TO BEGIN.';
     el.list.replaceChildren(empty);
     return;
   }
-  el.list.replaceChildren(...records.map(renderCharacterRow));
+  el.list.replaceChildren(...[draftRow, ...records.map(renderCharacterRow)].filter(Boolean));
 }
 
 async function removeRecord(record) {
@@ -441,9 +466,7 @@ onAuthChange(() => {
   watchRecords();
   if (currentUserId()) loadCampaigns().catch((error) => console.error(error));
   else { campaigns = []; campaignsLoadedFor = null; }
-  // A draft from before a reload comes back; a fresh sign-in starts on the list.
-  const draft = currentUserId() ? loadDraft() : null;
-  if (draft && !character) { character = draft; view = 'chargen'; }
+  // Sign-in lands on the list; a draft from before a reload is offered there.
   if (!currentUserId()) { character = null; view = 'characters'; }
   if (inviteFromUrl && currentUserId()) setStatus(`INVITE ${inviteFromUrl} READY / CHOOSE A CHARACTER AND SIT DOWN`, 'ok');
   render();

@@ -1,5 +1,29 @@
 # Graycloak Traveller
 
+## v0.69.1 the SDK race, orphaned homes, and the draft on the list
+
+**`Firestore SDK did not load`.** The lobby starts two things at once on
+sign-in — the character watcher and the campaigns query — and both called
+`ensureFirestore()`. The first appended the Firestore script and waited; the
+second found the tag already in the page, assumed it had loaded, and threw
+before it had. Which one lost was timing, which is why the campaigns list
+showed one minute and not the next. The loader now hands every caller the
+same pending promise and appends the script once. Verified with three
+concurrent callers against a scripted document: one tag, all resolve.
+
+**An orphaned home is adopted, not refused.** Deleting a campaign document in
+the Firebase console without its subcollections leaves `state/current`
+behind. A load then created a fresh envelope, found a home it had no revision
+for, and refused — stranding the campaign with no `[ RUN ]` and no way to
+load. A first save that itself created the envelope now adopts a home it finds
+beneath at the next revision; with the envelope already present, a
+revision-less save is still refused, as it should be. The campaigns list also
+refreshes after a failed load.
+
+**Sign-in lands on the list.** A character in generation is offered there as
+a row with `[ RESUME ]` and `[ DISCARD ]` rather than opening chargen on
+arrival.
+
 ## v0.69.0 one chargen, campaigns start from a character, and a REFEREE menu
 
 **One place characters are made.** A character is rolled on the lobby and
