@@ -1,5 +1,63 @@
 # Graycloak Traveller
 
+## v0.65.0 the player sees their own character, and the table's log
+
+Until now the player page was a scene window and a declaration form. A player
+could act in a fight and see nothing else: not the character they play, not
+the ship, not a line of what happened between fights. This puts the sheet and
+the log on that page.
+
+**Each character is published, in full, to the account that plays it.** Book 1
+puts the personnel record in the player's hands, so `buildPublishedCharacter()`
+is the document rather than a projection — characteristics with current
+values, skills, loadout, benefits, finances, ship references, history and
+notes — wrapped in the campaign envelope. It is written to
+`travellerCampaigns/{id}/players/{uid}/characters/{characterId}`, a path the
+rules let only that account and the referee read. Firestore grants access per
+document and cannot filter fields, so the split between players is done by
+path: one player's sheet is never in a document another player can open. The
+referee's document stays authoritative; this is a copy, and reassigning a
+character removes the copy from the previous owner's path.
+
+**The log a player gets is an allowlist, not a filter.** The activity log is
+the referee's audit trail. Its COMBAT lines carry the dice, every DM and the
+target number — the same arithmetic the scene narration was built to hide —
+and ROSTER, SITUATION and THREAD lines record what the party has not yet found
+out. So `buildPublishedLog()` passes a public entry only if its category is
+named as table knowledge (ARRIVAL, JUMP, NAV, PORT, SHIP, TRADE, JOB, CONTRACT,
+CHAR, CHECK, NOTE, SYSTEM), drops the source ids, and keeps the last 300. An
+entry the referee addressed to players passes regardless of category, and the
+audience may be named by account or by the character that account plays. A
+test asserts that a combat audit line with `ROLL 2D`, a roster line with an
+NPC's END, and a referee-only entry never reach the payload. Failing closed
+means a category added later cannot leak by default; the combat a player was
+in is already on the scene as narration.
+
+**Published when it matters, without a button.** Player documents go out with
+`[ PUBLISH ]` and `[ REPUBLISH ]`, when a player is seated, after every
+resolved round — wounds have just been written back to the sheet — and behind
+the activity log while online, debounced to one write per burst so a jump,
+its arrival and its berthing become one publish. A failure never interrupts
+play. Unseating a player clears their subtree.
+
+**The player page grows a CHARACTER / SCENE tab strip and a LOG column.** The
+sheet reuses the referee's Book 1 form and styles, read rather than edited:
+weapon and armour are shown, not selected, and notes are text, because editing
+arrives with the command service rather than through this page. A player with
+two characters gets a picker. A fight in progress brings the scene forward
+unless the player has picked a tab themselves; with no scene the page rests on
+the character. The log reads newest first, with addressed entries marked
+`TO YOU` and ruled in gold like the player's own token.
+
+**Not done here:** the Firestore rule for `players/{uid}/{document=**}` is in
+`docs/firestore-rules-player-documents.md` and has to be merged into the
+platform ruleset and run through `test-rules.bat` before deploying; the
+acceptance checklist gains a section for it. The player still cannot see the
+ship or roll anything from their own page.
+
+No Classic Traveller rules-package changes. No persistent document schema
+changes; the published character and log are projections.
+
 ## v0.64.0 complete Book 1 morale modifiers
 
 The rules package now represents every morale DM printed on Book 1 p.36:

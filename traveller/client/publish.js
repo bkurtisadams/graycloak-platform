@@ -1,4 +1,4 @@
-// publish.js v1.0.0 — the referee's client putting a campaign online.
+// publish.js v1.1.0 — the referee's client putting a campaign online.
 //
 // The local campaign remains authoritative. This publishes a copy to Firestore
 // so players can read it; nothing is read back in this version, and going
@@ -85,8 +85,51 @@ export async function seatPlayer(campaignId, uid, { name = null } = {}) {
 
 export async function unseatPlayer(campaignId, uid) {
   const db = await ensureFirestore();
+  // Their published character and log go with the seat: an unseated account
+  // must not keep reading a sheet the referee has taken back.
+  await clearPlayerDocuments(campaignId, uid);
   await db.collection('travellerCampaigns').doc(campaignId).collection('players').doc(uid).delete();
   return uid;
+}
+
+// --- v0.65.0: per-player documents ----------------------------------------
+// travellerCampaigns/{id}/players/{uid}/characters/{characterId} and
+// players/{uid}/log/current. The rules let that account and the referee read
+// them and only the referee write, so the split by reader is done by path:
+// one player's sheet and addressed log are never in a document another
+// player can open.
+
+function playerRef(db, campaignId, uid) {
+  return db.collection('travellerCampaigns').doc(campaignId).collection('players').doc(uid);
+}
+
+export async function publishPlayerCharacter(published) {
+  const db = await ensureFirestore();
+  await playerRef(db, published.campaignId, published.ownerUid)
+    .collection('characters').doc(published.characterId)
+    .set(published);
+  return published.characterId;
+}
+
+export async function removePlayerCharacter(campaignId, uid, characterId) {
+  const db = await ensureFirestore();
+  await playerRef(db, campaignId, uid).collection('characters').doc(characterId).delete();
+  return characterId;
+}
+
+export async function publishPlayerLog(published) {
+  const db = await ensureFirestore();
+  await playerRef(db, published.campaignId, published.uid).collection('log').doc('current').set(published);
+  return published.uid;
+}
+
+export async function clearPlayerDocuments(campaignId, uid) {
+  const db = await ensureFirestore();
+  const ref = playerRef(db, campaignId, uid);
+  const characters = await ref.collection('characters').get();
+  await Promise.all(characters.docs.map((entry) => entry.ref.delete()));
+  await ref.collection('log').doc('current').delete();
+  return characters.size;
 }
 
 export async function listSeatedPlayers(campaignId) {

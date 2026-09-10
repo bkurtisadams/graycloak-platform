@@ -7,7 +7,8 @@ import path from 'node:path';
 import { importCharacterDocument, importShipDocument } from '../../packages/classic-traveller-rules/index.js';
 import { createCampaignDocument } from '../src/campaign-document.js';
 import { createEncounterDocument, resolveEncounterRound, setCombatantCover } from '../src/encounter-document.js';
-import { buildPublishedView, buildPublishedCampaign } from '../src/published-view.js';
+import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, PLAYER_LOG_CATEGORIES } from '../src/published-view.js';
+import { createActivityLogDocument, appendActivityLogEntry, ACTIVITY_VISIBILITY } from '../src/activity-log-document.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const examples = path.resolve(here, '../examples');
@@ -164,4 +165,76 @@ test('the published campaign names the current encounter', async () => {
   // and Firestore does not return missing parents.
   assert.equal(published.currentEncounterId, 'encounter-1');
   assert.equal(buildPublishedCampaign(campaign).currentEncounterId, null);
+});
+
+// --- v0.65.0: the player's own character and the table's log ------------
+
+test('the published character is the sheet in full, in the campaign envelope', async () => {
+  const { campaign } = await fixture();
+  const character = importCharacterDocument(await readFile(path.join(examples, 'Hawkeye.character.json'), 'utf8'));
+  const published = buildPublishedCharacter(character, { campaignId: campaign.identity.id, ownerUid: 'uid-hawkeye', publishedAt: 99 });
+  assert.equal(published.campaignId, 'published-view');
+  assert.equal(published.characterId, character.identity.id);
+  assert.equal(published.ownerUid, 'uid-hawkeye');
+  assert.equal(published.publishedAt, 99);
+  assert.equal(published.identity.name, 'Hawkeye');
+  assert.deepEqual(published.characteristics, character.characteristics);
+  assert.deepEqual(published.current, character.current);
+  assert.deepEqual(published.skills, character.skills);
+  assert.equal(published.finances.credits, character.finances.credits);
+  assert.equal(published.history.length, character.history.length);
+  // A copy, not a reference: publishing must never let a later edit of the
+  // payload reach the referee's document.
+  published.skills.Pilot = 9;
+  assert.notEqual(character.skills.Pilot, 9);
+  assert.throws(() => buildPublishedCharacter(null), TypeError);
+});
+
+function logWith(entries) {
+  let log = createActivityLogDocument({ campaignId: 'published-view', name: 'log' });
+  for (const entry of entries) log = appendActivityLogEntry(log, entry);
+  return log;
+}
+
+test('the published log is an allowlist: combat arithmetic and referee bookkeeping stay home', () => {
+  const log = logWith([
+    { category: 'JUMP', message: 'Marisol jumps for Cinder.' },
+    { category: 'COMBAT', message: 'Hawkeye / Rifle-1 / ROLL 2D [4] [5] = 9 / SKILL +1 / vs 8+ / HIT / WOUND LOCATION END' },
+    { category: 'ROSTER', message: 'Raider placed from the roster with END 3.' },
+    { category: 'SITUATION', message: 'The patron is lying about the cargo.' },
+    { category: 'THREAD', message: 'Thread consequence: the port authority is now hostile.' },
+    { category: 'SYSLOG', message: 'Autosaved.' },
+    { category: 'TRADE', message: 'Sold 3 tons of textiles for Cr12,000.' }
+  ]);
+  const published = buildPublishedLog(log, { campaignId: 'published-view', uid: 'uid-a' });
+  assert.deepEqual(published.entries.map((entry) => entry.category), ['JUMP', 'TRADE']);
+  const serialised = JSON.stringify(published);
+  for (const forbidden of ['ROLL 2D', 'vs 8+', 'WOUND LOCATION', 'END 3', 'lying', 'hostile', 'Autosaved', 'sourceActorId', 'sourceDocumentId']) {
+    assert.ok(!serialised.includes(forbidden), `${forbidden} must not reach the published log`);
+  }
+  assert.ok(!PLAYER_LOG_CATEGORIES.includes('COMBAT'));
+});
+
+test('entries addressed to a player reach that player and nobody else', () => {
+  const log = logWith([
+    { category: 'SITUATION', message: 'A note slid under your door.', visibility: ACTIVITY_VISIBILITY.PLAYERS, audiencePlayerIds: ['uid-a'] },
+    { category: 'SITUATION', message: 'Your contact winks at you.', visibility: ACTIVITY_VISIBILITY.PLAYERS, audiencePlayerIds: ['char-b'] },
+    { category: 'SITUATION', message: 'The referee knows the truth.', visibility: ACTIVITY_VISIBILITY.REFEREE },
+    { category: 'NAV', message: 'Course laid in.' }
+  ]);
+  const forA = buildPublishedLog(log, { uid: 'uid-a' });
+  assert.deepEqual(forA.entries.map((entry) => entry.message), ['A note slid under your door.', 'Course laid in.']);
+  assert.equal(forA.entries[0].addressed, true);
+  // Addressed by the character they play, not only by account.
+  const forB = buildPublishedLog(log, { uid: 'uid-b', ownedCharacterIds: ['char-b'] });
+  assert.deepEqual(forB.entries.map((entry) => entry.message), ['Your contact winks at you.', 'Course laid in.']);
+  for (const published of [forA, forB]) assert.ok(!JSON.stringify(published).includes('knows the truth'));
+  assert.throws(() => buildPublishedLog(log, {}), TypeError);
+});
+
+test('the published log keeps only the most recent entries', () => {
+  const log = logWith(Array.from({ length: 12 }, (_, index) => ({ category: 'NAV', message: `line ${index}` })));
+  const published = buildPublishedLog(log, { uid: 'uid-a', limit: 5 });
+  assert.equal(published.entries.length, 5);
+  assert.equal(published.entries.at(-1).message, 'line 11');
 });

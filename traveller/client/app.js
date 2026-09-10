@@ -164,10 +164,10 @@ import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js
 import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js';
 import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js';
 import { openSignInDialog } from './signin-ui.js';
-import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence } from './publish.js';
+import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog } from './publish.js';
 import { authorizePlayerDeclaration } from '../src/player-declaration.js';
 import { authorizePlayerTokenMove } from '../src/player-token-movement.js';
-import { buildPublishedView, buildPublishedCampaign } from '../src/published-view.js';
+import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog } from '../src/published-view.js';
 import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js';
 import {
   ACTIVITY_VISIBILITY,
@@ -817,6 +817,7 @@ function logActivity(category, message, { dateLabel = activityDateLabel(), sourc
   } else if (activityLog) activityLog.append({ category, message, dateLabel });
   if (campaignDocument && registry) markAutosaved();
   renderActivity();
+  schedulePlayerDocumentPublish();
 }
 
 function setActivityPanelVisible(visible) {
@@ -4642,7 +4643,8 @@ async function publishCurrentCampaign() {
     // campaign honestly marked local.
     campaignDocument = markCampaignPublished(campaignDocument, publishedAt);
     persistCampaignState();
-    logActivity('SYSTEM', `Campaign published as ${published.campaignId}; players seated on it may read the shared state.`);
+    const counts = await publishPlayerDocuments({ publishedAt });
+    logActivity('SYSTEM', `Campaign published as ${published.campaignId}; players seated on it may read the shared state${counts.characters ? ` / ${counts.characters} character sheet${counts.characters === 1 ? '' : 's'} sent to ${counts.players} player${counts.players === 1 ? '' : 's'}` : ''}.`);
     setStatus(`PUBLISHED ${published.campaignId.toUpperCase()}`, 'ok');
     render();
   } catch (error) {
@@ -4694,11 +4696,75 @@ function autoPublishEncounterView(encounter) {
     .then((view) => {
       lastPublishedRound = `${encounter.identity.id}|${view.round}`;
       renderPublishPanel();
+      // Wounds were just written back to the character documents; the
+      // player's sheet should say so before the next round is declared.
+      return publishPlayerDocuments();
     })
     .catch((error) => {
       console.error(error);
       setStatus(`SCENE PUBLISH FAILED / ${error?.message ?? String(error)}`, 'error');
     });
+}
+
+// --- v0.65.0: the player's own documents ---------------------------------
+// Each assigned character is published in full to the account that plays it,
+// and each seated account gets a log filtered to table knowledge, under
+// players/{uid}/… where the rules let only that account and the referee read.
+// The referee's documents stay authoritative; these are copies.
+//
+// Ownership is reconciled against what was last published from this browser,
+// so reassigning a character removes it from the previous player's path.
+let publishedCharacterOwners = new Map();
+let playerPublishTimer = null;
+
+function seatedOwnership() {
+  const owners = new Map();
+  for (const [documentId, uid] of Object.entries(campaignDocument?.ownership?.actors ?? {})) {
+    if (typeof uid === 'string' && uid.trim()) owners.set(documentId, uid.trim());
+  }
+  return owners;
+}
+
+async function publishPlayerDocuments({ publishedAt = Date.now() } = {}) {
+  if (!campaignIsPublished(campaignDocument) || !currentUserId()) return { characters: 0, players: 0 };
+  if (playerPublishTimer) { clearTimeout(playerPublishTimer); playerPublishTimer = null; }
+  const campaignId = campaignDocument.identity.id;
+  const owners = seatedOwnership();
+  const characters = currentPartyCharacters();
+  let published = 0;
+  for (const [characterId, previousUid] of publishedCharacterOwners) {
+    if (owners.get(characterId) !== previousUid) {
+      await removePlayerCharacter(campaignId, previousUid, characterId).catch((error) => console.error(error));
+      publishedCharacterOwners.delete(characterId);
+    }
+  }
+  const byUid = new Map();
+  for (const character of characters) {
+    const uid = owners.get(character.identity.id);
+    if (!uid) continue;
+    await publishPlayerCharacter(buildPublishedCharacter(character, { campaignId, ownerUid: uid, publishedAt }));
+    publishedCharacterOwners.set(character.identity.id, uid);
+    byUid.set(uid, [...(byUid.get(uid) ?? []), character.identity.id]);
+    published += 1;
+  }
+  if (activityLogDocument) {
+    for (const [uid, ownedCharacterIds] of byUid) {
+      await publishPlayerLog(buildPublishedLog(activityLogDocument, { campaignId, uid, ownedCharacterIds, publishedAt }));
+    }
+  }
+  return { characters: published, players: byUid.size };
+}
+
+// Every log line while online would be a write per player; a short debounce
+// coalesces a burst — a jump, its arrival, its berthing — into one publish.
+// A failure never interrupts play.
+function schedulePlayerDocumentPublish() {
+  if (!campaignIsPublished(campaignDocument) || !currentUserId()) return;
+  if (playerPublishTimer) clearTimeout(playerPublishTimer);
+  playerPublishTimer = setTimeout(() => {
+    playerPublishTimer = null;
+    publishPlayerDocuments().catch((error) => console.error('[traveller] player documents:', error));
+  }, 1500);
 }
 
 // Seating a player is what makes the campaign readable to them: the rules test
@@ -4796,6 +4862,9 @@ async function seatPlayerFromDialog() {
         publishedAt: Date.now(), currentEncounterId: scene?.identity.id ?? null
       }));
     }
+    // Seated players get their sheet and log at once, not at the next
+    // republish — a player who has just been seated is looking at the page.
+    await publishPlayerDocuments();
     logActivity('SYSTEM', `${name || uid} seated at the table${characterId ? ' and assigned a character' : ''}.`);
     el.playersUid.value = '';
     el.playersName.value = '';

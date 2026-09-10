@@ -142,3 +142,87 @@ export function buildPublishedCampaign(campaign, { publishedAt, currentEncounter
     publishedAt: publishedAt ?? null
   };
 }
+
+// --- v0.65.0: what a player may see of the rest of the campaign ---------
+//
+// Two more projections, published per player under
+// travellerCampaigns/{id}/players/{uid}/…, where the rules let only that
+// account (and the referee) read. Firestore grants access per document, so the
+// split is by reader: a player's own character is theirs in full, and the log
+// they get is filtered to what the table would know.
+
+function cloneJson(value) { return JSON.parse(JSON.stringify(value)); }
+
+// A character document is the player's own record — Book 1 puts the whole
+// personnel file in the player's hands — so this is the sheet in full, not a
+// projection. Only the campaign's envelope is added. Anything a future schema
+// adds under a referee-only key would have to be stripped here, which is why
+// the fields are listed rather than spread.
+export function buildPublishedCharacter(character, { campaignId, ownerUid, publishedAt } = {}) {
+  if (!character?.identity?.id) throw new TypeError('a character document is required');
+  return {
+    campaignId: campaignId ?? null,
+    characterId: character.identity.id,
+    ownerUid: ownerUid ?? null,
+    publishedAt: publishedAt ?? null,
+    documentType: character.documentType,
+    schemaVersion: character.schemaVersion,
+    identity: cloneJson(character.identity),
+    age: character.age,
+    chronology: cloneJson(character.chronology ?? {}),
+    characteristics: cloneJson(character.characteristics),
+    current: cloneJson(character.current ?? {}),
+    upp: character.upp,
+    status: cloneJson(character.status ?? {}),
+    career: cloneJson(character.career ?? {}),
+    skills: cloneJson(character.skills ?? {}),
+    loadout: cloneJson(character.loadout ?? {}),
+    finances: cloneJson(character.finances ?? {}),
+    benefits: cloneJson(character.benefits ?? {}),
+    shipRefs: cloneJson(character.shipRefs ?? []),
+    history: cloneJson(character.history ?? []),
+    notes: character.notes ?? ''
+  };
+}
+
+// The activity log is the referee's audit trail. Its COMBAT lines carry the
+// dice, every DM and the target number — the same arithmetic the scene
+// narration exists to hide — and the ROSTER, SITUATION and THREAD lines are
+// the referee's bookkeeping of what the party has not yet found out. So the
+// published log is an allowlist, not a filter: a category reaches a player
+// only because it is named here as table knowledge. Failing closed means a
+// category added later cannot leak by default.
+export const PLAYER_LOG_CATEGORIES = Object.freeze([
+  'ARRIVAL', 'JUMP', 'NAV', 'PORT', 'SHIP', 'TRADE', 'JOB', 'CONTRACT', 'CHAR', 'CHECK', 'NOTE', 'SYSTEM'
+]);
+const PLAYER_LOG_CATEGORY_SET = new Set(PLAYER_LOG_CATEGORIES);
+
+// An entry addressed to players passes regardless of category — the referee
+// chose its audience — and the audience may be named either by account or by
+// the character that account plays.
+function addressedTo(entry, uid, ownedCharacterIds) {
+  if (entry.visibility !== 'players') return false;
+  const audience = entry.audiencePlayerIds ?? [];
+  return audience.includes(uid) || ownedCharacterIds.some((id) => audience.includes(id));
+}
+
+export function buildPublishedLog(log, { campaignId, uid, ownedCharacterIds = [], publishedAt, limit = 300 } = {}) {
+  if (!log?.entries) throw new TypeError('an activity log document is required');
+  if (!uid) throw new TypeError('the player uid is required');
+  const entries = log.entries
+    .filter((entry) => (entry.visibility === 'public' && PLAYER_LOG_CATEGORY_SET.has(entry.category))
+      || addressedTo(entry, uid, ownedCharacterIds))
+    .slice(-limit)
+    // Source ids are dropped: an NPC actor id in the audit trail is not the
+    // party's to read, and a player never needs them.
+    .map((entry) => ({
+      id: entry.id,
+      sequence: entry.sequence,
+      category: entry.category,
+      message: entry.message,
+      dateLabel: entry.dateLabel,
+      createdAt: entry.createdAt,
+      addressed: entry.visibility === 'players'
+    }));
+  return { campaignId: campaignId ?? null, uid, publishedAt: publishedAt ?? null, entries };
+}

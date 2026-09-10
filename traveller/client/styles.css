@@ -3212,3 +3212,30 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .player-orders-target select { font: inherit; font-size: 11px; flex: 1 1 auto; min-width: 0; }
 .player-orders-verbs { display: flex; flex-wrap: wrap; gap: 4px; }
 .player-orders-verbs .action-button { font-size: 10px; padding: 1px 5px; }
+
+/* --- v0.65.0: the player sees their own character and the table's log. */
+.player-tabs { display: flex; gap: 4px; padding: 8px 0 0; border-bottom: 1px solid var(--rule); }
+.player-tab { font-size: 11px; letter-spacing: .08em; font-weight: 700; padding: 4px 10px; border: 1px solid transparent; border-bottom: none; color: var(--muted); }
+.player-tab.selected, .player-tab[aria-selected="true"] { color: var(--ink); border-color: var(--tab-selected-border, var(--rule)); background: var(--paper); }
+.player-stage[data-tab="character"] .player-scene-column,
+.player-stage[data-tab="character"] .player-side { display: none; }
+.player-stage[data-tab="scene"] .player-character-column { display: none; }
+.player-stage[data-tab="character"] { grid-template-columns: minmax(0, 1fr) 320px; }
+.player-stage[data-tab="scene"] { grid-template-columns: minmax(0, 1fr) 300px 280px; }
+.player-character-column { min-width: 0; }
+.player-character-picker { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 0 8px; }
+.player-character-choice { font-size: 11px; letter-spacing: .06em; padding: 2px 8px; border: 1px solid var(--rule); color: var(--muted); }
+.player-character-choice.selected { color: var(--ink); border-color: var(--tab-selected-border, var(--ink)); }
+.player-character-empty { font-size: 11px; letter-spacing: .06em; color: var(--muted); padding: 24px 0; }
+.player-character-empty:empty, .player-character-empty[hidden] { display: none; }
+.player-sheet { max-height: min(80vh, 1000px); overflow: auto; }
+.player-sheet .sheet-characteristic { cursor: default; }
+.player-sheet .sheet-skill { cursor: default; }
+.player-log-column { border-left: 1px solid var(--rule); padding-left: 12px; min-width: 0; }
+.player-log { display: flex; flex-direction: column; gap: 3px; max-height: min(80vh, 1000px); overflow: auto; }
+.player-log-empty { font-size: 11px; color: var(--muted); padding: 6px 0; }
+.player-log-entry { border-top: 1px dotted var(--disabled); padding: 3px 0; font-size: 11px; }
+.player-log-entry.addressed { border-left: 3px solid #d8b53a; padding-left: 6px; }
+.player-log-meta { display: flex; gap: 8px; font-size: 10px; letter-spacing: .08em; color: var(--muted); }
+.player-log-category { font-weight: 700; }
+.player-log-message { padding-top: 1px; overflow-wrap: anywhere; }

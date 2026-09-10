@@ -6,6 +6,11 @@
 // it; nor can it list encounters, which is why the campaign carries
 // currentEncounterId.
 //
+// v0.65.0: it also reads two documents published to this account alone —
+// each character it plays, in full, and a log filtered to table knowledge —
+// under players/{uid}/…, which the rules let only that account and the
+// referee read.
+//
 // The only write is a create-only combat declaration for an assigned character.
 
 import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js';
@@ -16,6 +21,8 @@ import {
 } from './publish.js';
 import { createPlayerDeclaration } from '../src/player-declaration.js';
 import { createPlayerTokenMove } from '../src/player-token-movement.js';
+import { serviceName, nobleTitleLabel, buildServiceHistory, buildGenerationLog } from './ui-model.js';
+import { PERSONAL_WEAPONS } from '../../packages/classic-traveller-rules/index.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -39,7 +46,29 @@ const el = {
   movePace: document.querySelector('#player-move-pace'),
   roster: document.querySelector('#player-roster'),
   narration: document.querySelector('#player-narration'),
-  orders: document.querySelector('#player-orders')
+  orders: document.querySelector('#player-orders'),
+  stage: document.querySelector('#player-stage'),
+  tabCharacter: document.querySelector('#player-tab-character'),
+  tabScene: document.querySelector('#player-tab-scene'),
+  characterPicker: document.querySelector('#player-character-picker'),
+  characterEmpty: document.querySelector('#player-character-empty'),
+  sheet: document.querySelector('#player-sheet'),
+  sheetName: document.querySelector('#player-sheet-name'),
+  sheetDate: document.querySelector('#player-sheet-date'),
+  sheetUpp: document.querySelector('#player-sheet-upp'),
+  sheetRank: document.querySelector('#player-sheet-rank'),
+  sheetAge: document.querySelector('#player-sheet-age'),
+  sheetWorld: document.querySelector('#player-sheet-world'),
+  sheetCharacteristics: document.querySelector('#player-sheet-characteristics'),
+  sheetHealthStatus: document.querySelector('#player-sheet-health-status'),
+  sheetService: document.querySelector('#player-sheet-service'),
+  sheetLoadout: document.querySelector('#player-sheet-loadout'),
+  sheetEquipment: document.querySelector('#player-sheet-equipment'),
+  sheetSkills: document.querySelector('#player-sheet-skills'),
+  sheetBenefits: document.querySelector('#player-sheet-benefits'),
+  sheetHistoryRecord: document.querySelector('#player-sheet-history-record'),
+  sheetNotes: document.querySelector('#player-sheet-notes'),
+  log: document.querySelector('#player-log')
 };
 
 const CAMPAIGN_STORAGE_KEY = 'graycloak.traveller.player.campaign.v1';
@@ -55,6 +84,17 @@ let unsubscribeDeclarations = null;
 // left this null and declarations were written to a null path.
 let connectedCampaignId = null;
 let sceneWatchGeneration = 0;
+// v0.65.0: the account's own documents.
+let characters = new Map();          // characterId -> published character
+let viewedCharacterId = null;
+let unsubscribeCharacters = null;
+let playerLog = null;
+let unsubscribeLog = null;
+let watchedDocumentsUid = null;
+// The tab the player chose; null until they click, so a fight that starts can
+// bring the scene forward without overriding a deliberate choice.
+let chosenTab = null;
+let currentTab = 'character';
 let unsubscribePresence = null;
 let selectedTokenIds = new Set();
 let targetTokenIds = new Set();
@@ -130,7 +170,7 @@ function renderCampaign() {
     : '--';
   const owned = ownedCombatantIds();
   el.yours.textContent = owned.size
-    ? `YOU PLAY ${[...owned].map((id) => view?.combatants.find((entry) => entry.id === id)?.name ?? id).join(', ').toUpperCase()}`
+    ? `YOU PLAY ${[...owned].map((id) => view?.combatants.find((entry) => entry.id === id)?.name ?? characters.get(id)?.identity?.name ?? id).join(', ').toUpperCase()}`
     : campaign ? 'NO CHARACTER ASSIGNED TO YOU YET' : '';
 }
 
@@ -458,9 +498,203 @@ function renderNarration() {
   el.narration.replaceChildren(...blocks);
 }
 
+// --- v0.65.0: the sheet, the log and the tabs ---------------------------
+
+const SHEET_CHARACTERISTICS = [['STR', 'Strength'], ['DEX', 'Dexterity'], ['END', 'Endurance'], ['INT', 'Intelligence'], ['EDU', 'Education'], ['SOC', 'Social standing']];
+
+function formatCr(value) { return `Cr${Number(value ?? 0).toLocaleString('en-US')}`; }
+
+function appendDatum(list, label, value) {
+  const term = document.createElement('dt'); term.textContent = label;
+  const detail = document.createElement('dd'); detail.textContent = value;
+  list.append(term, detail);
+}
+
+function healthLabel(character) {
+  if (!character.status?.alive) return 'DEAD';
+  if (character.status?.consciousness === 'unconscious') return 'UNCONSCIOUS';
+  const wounded = ['STR', 'DEX', 'END'].some((key) => (character.current?.[key] ?? character.characteristics[key]) < character.characteristics[key]);
+  return wounded ? 'WOUNDED' : 'READY';
+}
+
+function viewedCharacter() {
+  if (viewedCharacterId && characters.has(viewedCharacterId)) return characters.get(viewedCharacterId);
+  return characters.values().next().value ?? null;
+}
+
+function renderCharacterPicker() {
+  const list = [...characters.values()];
+  el.characterPicker.hidden = list.length < 2;
+  if (list.length < 2) { el.characterPicker.replaceChildren(); return; }
+  const current = viewedCharacter();
+  el.characterPicker.replaceChildren(...list.map((character) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `text-button player-character-choice${character === current ? ' selected' : ''}`;
+    button.textContent = character.identity.name.toUpperCase();
+    button.addEventListener('click', () => { viewedCharacterId = character.characterId; renderSheet(); });
+    return button;
+  }));
+}
+
+function renderSheet() {
+  renderCharacterPicker();
+  const character = viewedCharacter();
+  if (!character) {
+    el.sheet.hidden = true;
+    el.characterEmpty.hidden = false;
+    el.characterEmpty.textContent = !campaign
+      ? 'CONNECT TO A CAMPAIGN TO SEE YOUR CHARACTER'
+      : ownedCombatantIds().size
+        ? 'YOUR SHEET HAS NOT BEEN PUBLISHED YET / ASK YOUR REFEREE TO REPUBLISH'
+        : 'NO CHARACTER ASSIGNED TO YOU YET';
+    return;
+  }
+  el.characterEmpty.hidden = true;
+  el.sheet.hidden = false;
+  el.sheetName.textContent = character.identity.name || '(UNNAMED)';
+  el.sheetDate.textContent = campaign?.time ? `${String(campaign.time.dayOfYear).padStart(3, '0')}-${campaign.time.year}` : 'SESSION';
+  el.sheetUpp.textContent = character.upp;
+  el.sheetRank.textContent = character.career?.rankTitle || 'NO RANK';
+  el.sheetAge.textContent = String(character.age);
+  el.sheetWorld.textContent = (campaign?.location?.worldName ?? 'UNMAPPED').toUpperCase();
+  el.sheetHealthStatus.textContent = `STATUS ${healthLabel(character)} // ORIGINAL UPP ${character.upp}`;
+
+  el.sheetCharacteristics.replaceChildren();
+  for (const [key, label] of SHEET_CHARACTERISTICS) {
+    const original = character.characteristics[key];
+    const current = ['STR', 'DEX', 'END'].includes(key) ? (character.current?.[key] ?? original) : original;
+    const box = document.createElement('div');
+    box.className = `sheet-characteristic${current < original ? ' injured' : ''}`;
+    box.title = `${label} ${current} / original ${original}`;
+    const code = document.createElement('span'); code.className = 'sheet-stat-code'; code.textContent = key;
+    const value = document.createElement('strong'); value.className = 'sheet-stat-value'; value.textContent = String(current);
+    const base = document.createElement('span'); base.className = 'sheet-stat-current'; base.textContent = current === original ? 'CURRENT' : `ORIGINAL ${original}`;
+    box.append(code, value, base);
+    el.sheetCharacteristics.append(box);
+  }
+
+  el.sheetService.replaceChildren();
+  appendDatum(el.sheetService, 'SERVICE', serviceName(character.career?.service).toUpperCase());
+  appendDatum(el.sheetService, 'TERMS SERVED', String(character.career?.terms ?? 0));
+  appendDatum(el.sheetService, 'FINAL RANK', character.career?.rankTitle || 'NONE');
+  appendDatum(el.sheetService, 'NOBLE TITLE', nobleTitleLabel(character.characteristics.SOC));
+  appendDatum(el.sheetService, 'RETIRED', character.status?.retired ? 'YES' : 'NO');
+  appendDatum(el.sheetService, 'RETIREMENT PAY', formatCr(character.finances?.retirementPayAnnual));
+
+  // The loadout is read here: which weapon is ready is a decision the sheet
+  // records and the referee's client changes, so a player sees it rather than
+  // editing it — editing arrives with the command service, not this page.
+  el.sheetLoadout.replaceChildren();
+  appendDatum(el.sheetLoadout, 'READY WEAPON', (PERSONAL_WEAPONS[character.loadout?.weaponKey]?.name ?? character.loadout?.weaponKey ?? 'NONE').toUpperCase());
+  appendDatum(el.sheetLoadout, 'WORN ARMOR', (character.loadout?.armor ?? 'none').toUpperCase());
+  const equipment = (character.benefits?.equipment ?? []).map((entry) => `${entry.name}${entry.count > 1 ? ` x${entry.count}` : ''}`);
+  el.sheetEquipment.textContent = equipment.length ? `OWNED: ${equipment.join(' / ')}` : 'OWNED: NONE RECORDED';
+
+  el.sheetSkills.replaceChildren();
+  const skills = Object.entries(character.skills ?? {}).sort(([left], [right]) => left.localeCompare(right));
+  if (!skills.length) el.sheetSkills.textContent = 'NONE RECORDED';
+  for (const [name, level] of skills) {
+    const chip = document.createElement('span');
+    chip.className = 'sheet-skill'; chip.textContent = `${name}-${level}`;
+    el.sheetSkills.append(chip);
+  }
+
+  const passages = (character.benefits?.passages ?? []).map((entry) => `${entry.name}${entry.count > 1 ? ` x${entry.count}` : ''}`).join(' / ') || 'NONE';
+  const memberships = (character.benefits?.memberships ?? []).map((entry) => entry.name).join(' / ') || 'NONE';
+  const ships = (character.shipRefs ?? []).map((entry) => entry.shipName || entry.shipType || entry.shipId).join(' / ') || 'NONE';
+  el.sheetBenefits.replaceChildren(...[
+    ['CREDITS', formatCr(character.finances?.credits)],
+    ['PASSAGES', passages],
+    ['MEMBERSHIPS', memberships],
+    ['ASSIGNED SHIP', ships]
+  ].map(([label, value]) => {
+    const item = document.createElement('div'); item.className = 'sheet-benefit-item';
+    const heading = document.createElement('span'); heading.textContent = label;
+    const detail = document.createElement('strong'); detail.textContent = value;
+    item.append(heading, detail);
+    return item;
+  }));
+  el.sheetHistoryRecord.textContent = `${buildServiceHistory(character)}\n\n${buildGenerationLog(character)}`;
+  el.sheetNotes.textContent = character.notes?.trim() ? character.notes : 'NONE';
+}
+
+function renderLog() {
+  const entries = playerLog?.entries ?? [];
+  if (!entries.length) {
+    el.log.replaceChildren(Object.assign(document.createElement('div'), {
+      className: 'player-log-empty',
+      textContent: campaign ? 'NOTHING IN THE LOG YET' : ''
+    }));
+    return;
+  }
+  // Newest first, like the referee's default: the line that just happened is
+  // the one a player is looking for.
+  el.log.replaceChildren(...[...entries].reverse().map((entry) => {
+    const row = document.createElement('div');
+    row.className = `player-log-entry${entry.addressed ? ' addressed' : ''}`;
+    row.dataset.category = entry.category;
+    const meta = document.createElement('div'); meta.className = 'player-log-meta';
+    const date = document.createElement('span'); date.textContent = entry.dateLabel;
+    const category = document.createElement('span'); category.className = 'player-log-category'; category.textContent = entry.addressed ? `${entry.category} / TO YOU` : entry.category;
+    meta.append(date, category);
+    const message = document.createElement('div'); message.className = 'player-log-message'; message.textContent = entry.message;
+    row.append(meta, message);
+    return row;
+  }));
+}
+
+function setTab(tab, { chosen = false } = {}) {
+  currentTab = tab;
+  if (chosen) chosenTab = tab;
+  el.stage.dataset.tab = tab;
+  el.tabCharacter.setAttribute('aria-selected', tab === 'character' ? 'true' : 'false');
+  el.tabScene.setAttribute('aria-selected', tab === 'scene' ? 'true' : 'false');
+  el.tabCharacter.classList.toggle('selected', tab === 'character');
+  el.tabScene.classList.toggle('selected', tab === 'scene');
+}
+
+// A fight in progress brings the scene forward unless the player has picked a
+// tab themselves; a page with no scene rests on the character.
+function renderTabs() {
+  const fighting = view?.status === 'active';
+  el.tabScene.textContent = fighting ? `SCENE / ROUND ${view.declaringRound}` : 'SCENE';
+  if (chosenTab) { setTab(chosenTab); return; }
+  setTab(fighting ? 'scene' : 'character');
+}
+
+function watchPlayerDocuments(db, campaignId) {
+  const uid = currentUserId();
+  const key = uid ? `${campaignId}|${uid}` : null;
+  if (key === watchedDocumentsUid) return;
+  unsubscribeCharacters?.(); unsubscribeCharacters = null;
+  unsubscribeLog?.(); unsubscribeLog = null;
+  characters = new Map(); playerLog = null;
+  watchedDocumentsUid = key;
+  if (!uid) { renderSheet(); renderLog(); return; }
+  // Listing here is the player's own subtree, players/{uid}/characters, which
+  // the rules grant that account; encounters are still never listed.
+  const root = db.doc(`travellerCampaigns/${campaignId}/players/${uid}`);
+  unsubscribeCharacters = root.collection('characters').onSnapshot(
+    (snapshot) => {
+      characters = new Map(snapshot.docs.map((entry) => [entry.id, entry.data()]));
+      renderSheet();
+      renderCampaign();
+    },
+    (error) => console.error('[traveller-player] characters:', error)
+  );
+  unsubscribeLog = root.collection('log').doc('current').onSnapshot(
+    (snapshot) => { playerLog = snapshot.exists ? snapshot.data() : null; renderLog(); },
+    (error) => console.error('[traveller-player] log:', error)
+  );
+}
+
 function render() {
   renderAccount();
   renderCampaign();
+  renderSheet();
+  renderLog();
+  renderTabs();
   renderScene();
 }
 
@@ -486,6 +720,7 @@ async function connect(campaignId) {
         window.localStorage?.setItem(CAMPAIGN_STORAGE_KEY, campaignId);
         setStatus(`CONNECTED / ${campaign.name}`, 'ok');
         watchScene(db, campaignId, campaign.currentEncounterId ?? null);
+        watchPlayerDocuments(db, campaignId);
         render();
       },
       (error) => setStatus(`${error.code === 'permission-denied' ? 'NOT SEATED AT THIS CAMPAIGN' : error.message}`, 'error')
@@ -601,6 +836,9 @@ el.mapViewport.addEventListener('pointercancel', endMapPan);
 el.mapViewport.addEventListener('contextmenu', (event) => {
   if (!event.target.closest?.('.player-token-group')) event.preventDefault();
 });
+
+el.tabCharacter.addEventListener('click', () => setTab('character', { chosen: true }));
+el.tabScene.addEventListener('click', () => setTab('scene', { chosen: true }));
 
 el.connect.addEventListener('click', () => connect(el.campaignField.value.trim()));
 el.campaignField.addEventListener('keydown', (event) => {
