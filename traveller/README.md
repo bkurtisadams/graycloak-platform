@@ -1,5 +1,43 @@
 # Graycloak Traveller
 
+## v0.66.0 the chargen view leaves app.js
+
+No visible change. This is the refactor that has to precede the player lobby:
+character generation was seventy-odd call sites woven through `app.js`,
+rendering into the referee's frame, and a page for players to roll their own
+characters cannot import the referee's client to get at it.
+
+**`client/chargen-view.js` now holds every chargen rendering path** — the Book
+1 sheet as it fills in, the WHAT NOW? actions for enlistment, skill tables,
+specializations, aging crises and mustering-out choices, and the phase-linked
+Book 1 tables. It renders from a chargen character into elements the caller
+passes and reports choices through an `execute(action, payload)` callback. It
+owns no state: the host page holds the character, runs the rules-package
+action itself, and re-renders. That keeps the referee client's `execute()` —
+which also resets campaign state when a fresh character is rolled — where it
+was, and lets the lobby page supply its own.
+
+`app.js` delegates and shrinks by about 240 lines. `renderChargenSheet()`
+supplies the sheet elements and calls the view; `renderActions()` keeps the
+completed-character branch (start a campaign, add to a saved one, export,
+assign the scout ship) and hands the in-progress branch to the module;
+`renderChargenTables()` clears the tables during campaign play and otherwise
+calls the view. The rules-package and ui-model imports the chargen code needed
+move with it.
+
+**Verified two ways.** The static pins that named the lifted code now point at
+the module, and a new pin asserts the bodies are gone from `app.js` and the
+module references no campaign, gameplay or storage state. Then a jsdom harness
+drove random complete careers through the module — enlistment, the draft,
+survival, commissions, skills and specializations, reenlistment, aging to 46,
+death in service, mustering out with benefit specializations — rendering the
+sheet, actions and tables at every step, with no exceptions and the expected
+elements present. The harness is not committed: it would add a dev dependency
+the suite does not otherwise need.
+
+No Classic Traveller rules-package changes. No persistent document schema
+changes.
+
 ## v0.65.0 the player sees their own character, and the table's log
 
 Until now the player page was a scene window and a declaration form. A player
