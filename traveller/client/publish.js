@@ -11,6 +11,7 @@
 // players read the projection in src/published-view.js instead.
 
 import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js';
+import { StaleCampaignHomeError } from '../src/campaign-home.js';
 
 const SDK_VERSION = '10.12.2';
 const FIRESTORE_SCRIPT = `https://www.gstatic.com/firebasejs/${SDK_VERSION}/firebase-firestore-compat.js`;
@@ -287,4 +288,51 @@ export async function watchJoinRequests(campaignId, onChange) {
   return db.collection('travellerCampaigns').doc(campaignId).collection('joins')
     .onSnapshot((snapshot) => onChange(snapshot.docs.map((entry) => entry.data())),
       (error) => console.error('[traveller-publish] join requests:', error));
+}
+
+// --- v0.68.0: the campaign's home --------------------------------------------
+// travellerCampaigns/{id}/state/current is the whole campaign as a bundle,
+// referee-only, revisioned. The envelope travellerCampaigns/{id} is written
+// in the same transaction so the two never disagree about the campaign's
+// name, clock, location, ownership map or home revision.
+
+function homeRef(db, campaignId) {
+  return db.collection('travellerCampaigns').doc(campaignId).collection('state').doc('current');
+}
+
+// Saves a home at its stated revision, refusing if the home has moved on.
+// `expectedRevision` is what this browser loaded (null for a campaign that
+// has never been saved to Firestore). On success the home's revision is what
+// was written; the caller keeps it for the next save.
+export async function saveCampaignHome(home, envelope, { expectedRevision = null } = {}) {
+  const db = await ensureFirestore();
+  const ref = homeRef(db, home.campaignId);
+  const envelopeRef = db.collection('travellerCampaigns').doc(home.campaignId);
+  await db.runTransaction(async (transaction) => {
+    const current = await transaction.get(ref);
+    const currentRevision = current.exists ? (current.data().revision ?? 0) : null;
+    if (currentRevision !== null && currentRevision !== expectedRevision) {
+      throw new StaleCampaignHomeError({ campaignId: home.campaignId, expectedRevision, currentRevision, savedAt: current.data().savedAt ?? null });
+    }
+    if (current.exists && home.revision !== currentRevision + 1) {
+      throw new StaleCampaignHomeError({ campaignId: home.campaignId, expectedRevision, currentRevision });
+    }
+    transaction.set(ref, home);
+    transaction.set(envelopeRef, { ...envelope, homeRevision: home.revision, homeSavedAt: home.savedAt }, { merge: true });
+  });
+  return home.revision;
+}
+
+export async function loadCampaignHome(campaignId) {
+  const db = await ensureFirestore();
+  const snapshot = await homeRef(db, campaignId).get();
+  return snapshot.exists ? snapshot.data() : null;
+}
+
+// The campaigns this account referees: the envelopes, which name the home's
+// revision and last save. A campaign saved only in a browser is not here.
+export async function listOwnCampaigns(uid) {
+  const db = await ensureFirestore();
+  const snapshot = await db.collection('travellerCampaigns').where('ownership.ownerUid', '==', uid).get();
+  return snapshot.docs.map((entry) => entry.data());
 }

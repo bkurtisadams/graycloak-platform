@@ -3273,3 +3273,7 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .players-subheading { font-size: 10px; letter-spacing: .1em; color: var(--muted); font-weight: 700; padding: 8px 0 3px; border-top: 1px solid var(--rule); margin-top: 6px; }
 .players-invite-code { font-size: 13px; letter-spacing: .18em; font-weight: 700; }
 .players-invite-list, .players-joins-list { display: flex; flex-direction: column; gap: 3px; padding-bottom: 6px; }
+.enter-section-heading { font-size: 10px; letter-spacing: .1em; color: var(--muted); font-weight: 700; padding: 14px 0 6px; border-bottom: 1px solid var(--rule); margin-bottom: 8px; }
+.enter-toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.enter-toolbar a.text-button { text-decoration: none; }
+.enter-toolbar-note { font-size: 10px; color: var(--muted); letter-spacing: .04em; }

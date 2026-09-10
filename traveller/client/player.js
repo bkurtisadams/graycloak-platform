@@ -854,4 +854,10 @@ onAuthChange(() => {
   render();
   if (currentUserId() && el.campaignField.value) connect(el.campaignField.value.trim());
 });
+
+// v0.68.0: this page is reached by ENTER WORLD, not by typing its address.
+// Opened without a campaign to connect to, it hands over to the lobby.
+if (!fromUrl && !remembered) {
+  window.location.replace(new URL('enter.html', window.location.href).toString());
+}
 initAuth().then(render);

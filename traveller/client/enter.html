@@ -11,7 +11,7 @@
       <div class="masthead-main">
         <nav class="utility masthead-utility" aria-label="Player session">
           <span class="masthead-title">TRAVELLER</span>
-          <span class="subtitle">ENTER v0.67.1</span>
+          <span class="subtitle">ENTER v0.68.0</span>
           <strong id="enter-heading" class="masthead-campaign-name">YOUR CHARACTERS</strong>
           <span class="masthead-spacer"></span>
           <span id="enter-account" class="masthead-account" title="Graycloak account"></span>
@@ -31,9 +31,18 @@
 
       <!-- Signed in: the account's characters, and the way to another. -->
       <section id="enter-characters" class="enter-characters" aria-label="Your characters" hidden>
+        <div class="enter-section-heading">YOUR CHARACTERS</div>
         <div id="enter-character-list" class="enter-character-list" aria-live="polite"></div>
         <div class="enter-toolbar">
           <button id="enter-new-character" class="text-button action-button" type="button">[ ROLL A NEW CHARACTER ]</button>
+        </div>
+
+        <!-- v0.68.0: the campaigns this account referees, from their homes. -->
+        <div class="enter-section-heading">YOUR CAMPAIGNS</div>
+        <div id="enter-campaign-list" class="enter-character-list" aria-live="polite"></div>
+        <div class="enter-toolbar">
+          <a id="enter-new-campaign" class="text-button action-button" href="index.html?new=1">[ NEW CAMPAIGN ]</a>
+          <span class="enter-toolbar-note">A campaign saved only in a browser appears here after that browser runs it signed in.</span>
         </div>
       </section>
 

@@ -91,6 +91,7 @@ import {
 } from './document-loader.js';
 
 import { createTravellerInvite, generateInviteCode, unassignedWorld, WORLD_KINDS } from '../src/character-record.js';
+import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js';
 
 import {
   SHEET_CHARACTERISTICS as HEADER_CHARACTERISTICS,
@@ -167,7 +168,7 @@ import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js
 import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js';
 import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js';
 import { openSignInDialog } from './signin-ui.js';
-import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote } from './publish.js';
+import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome } from './publish.js';
 import { authorizePlayerDeclaration } from '../src/player-declaration.js';
 import { authorizePlayerTokenMove } from '../src/player-token-movement.js';
 import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog } from '../src/published-view.js';
@@ -370,6 +371,7 @@ const el = {
   addCharacterToCampaign: document.querySelector('#add-character-to-campaign'),
   saveCampaign: document.querySelector('#save-campaign'),
   loadCampaign: document.querySelector('#load-campaign'),
+  reloadCampaignCloud: document.querySelector('#reload-campaign-cloud'),
   importCampaign: document.querySelector('#import-campaign'),
   exportCampaign: document.querySelector('#export-campaign'),
   campaignSection: document.querySelector('#campaign-section'),
@@ -569,6 +571,16 @@ let activityFilter = 'play';
 let activityOrder = 'newest';
 let activityPanelVisible = true;
 let lastAutosaveAt = null;
+// v0.68.0: the campaign's home in Firestore. `campaignHomeRevision` is the
+// revision this browser loaded (null: never saved there); a save that finds
+// the home moved on marks it stale and stops autosaving until a reload.
+let campaignHomeRevision = null;
+let campaignHomeStale = null;
+let campaignHomeSavedAt = null;
+let campaignHomeError = null;
+let campaignHomeTimer = null;
+let campaignHomeSaving = false;
+let campaignHomeQueued = false;
 let returnCampaignId = null;
 let pendingNpcPortraitAsset = null;
 let documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
@@ -854,8 +866,21 @@ function updateAutosaveStatus() {
   }
   const elapsedSeconds = Math.max(0, Math.floor((Date.now() - lastAutosaveAt) / 1000));
   const age = elapsedSeconds < 5 ? 'JUST NOW' : elapsedSeconds < 60 ? `${elapsedSeconds}s AGO` : `${Math.floor(elapsedSeconds / 60)}m AGO`;
-  el.autosaveStatus.textContent = `AUTOSAVED ${age}`;
-  el.autosaveStatus.title = `Campaign changes are saved automatically in this browser. Last save: ${new Date(lastAutosaveAt).toLocaleTimeString()}.`;
+  const cloud = campaignHomeStale
+    ? ' / CLOUD STALE'
+    : campaignHomeError
+      ? ' / CLOUD FAILED'
+      : !currentUserId()
+        ? ' / LOCAL ONLY'
+        : campaignHomeRevision === null
+          ? ' / CLOUD PENDING'
+          : ` / CLOUD R${campaignHomeRevision}`;
+  el.autosaveStatus.textContent = `AUTOSAVED ${age}${cloud}`;
+  el.autosaveStatus.title = campaignHomeStale
+    ? campaignHomeStale.message
+    : campaignHomeError
+      ? `The cloud save failed: ${campaignHomeError}. The browser copy is current.`
+      : `Saved in this browser at ${new Date(lastAutosaveAt).toLocaleTimeString()}${campaignHomeSavedAt ? `; in the cloud at ${new Date(campaignHomeSavedAt).toLocaleTimeString()} (revision ${campaignHomeRevision})` : currentUserId() ? '; the cloud copy follows shortly' : '; sign in to keep a copy in the cloud'}.`;
 }
 
 function markAutosaved() {
@@ -1834,6 +1859,117 @@ function persistCampaignState() {
   persistGameplayDocuments();
   if (registry && campaignDocument) registry.put(campaignDocument);
   markAutosaved();
+  scheduleCampaignHomeSave();
+}
+
+// --- v0.68.0: the campaign's home ------------------------------------------
+// The browser registry is a cache; Firestore is where the campaign lives.
+// Every autosave is followed, a couple of seconds later, by a revisioned
+// write of the whole bundle. A referee who is signed out, or offline, keeps
+// playing on the cache and the home catches up on the next signed-in save.
+function campaignHomeAvailable() {
+  return Boolean(campaignDocument && registry && currentUserId() && !campaignHomeStale);
+}
+
+function scheduleCampaignHomeSave() {
+  if (!campaignHomeAvailable()) return;
+  if (campaignHomeTimer) clearTimeout(campaignHomeTimer);
+  campaignHomeTimer = setTimeout(() => {
+    campaignHomeTimer = null;
+    saveCampaignHomeNow().catch((error) => console.error('[traveller] campaign home:', error));
+  }, 2000);
+}
+
+async function saveCampaignHomeNow() {
+  if (!campaignHomeAvailable()) return null;
+  if (campaignHomeSaving) { campaignHomeQueued = true; return null; }
+  campaignHomeSaving = true;
+  try {
+    const uid = currentUserId();
+    if (campaignDocument.ownership?.ownerUid !== uid) campaignDocument = setCampaignOwner(campaignDocument, uid);
+    syncCampaignRefs();
+    persistGameplayDocuments();
+    registry.put(campaignDocument);
+    const bundle = registry.buildBundle(campaignDocument.identity.id);
+    const home = campaignHomeRevision === null
+      ? createCampaignHome(bundle, { ownerUid: uid })
+      : nextCampaignHome({ ownerUid: uid, revision: campaignHomeRevision }, bundle);
+    const bytes = campaignHomeBytes(home);
+    if (bytes > CAMPAIGN_HOME_SOFT_LIMIT_BYTES) console.warn(`[traveller] campaign home is ${Math.round(bytes / 1024)} KB, near the 1 MiB document limit`);
+    const scene = activeEncounterAtCurrentSystem() ?? latestEncounterAtCurrentSystem();
+    const envelope = buildPublishedCampaign(campaignDocument, {
+      publishedAt: campaignDocument.ownership?.publishedAt ?? home.savedAt,
+      currentEncounterId: scene?.identity.id ?? null
+    });
+    await saveCampaignHome(home, envelope, { expectedRevision: campaignHomeRevision });
+    campaignHomeRevision = home.revision;
+    campaignHomeSavedAt = home.savedAt;
+    campaignHomeError = null;
+    // The envelope now exists and players seated later may read it: the
+    // campaign is published by virtue of having a home.
+    if (!campaignIsPublished(campaignDocument)) {
+      campaignDocument = markCampaignPublished(campaignDocument, home.savedAt);
+      registry.put(campaignDocument);
+    }
+    updateAutosaveStatus();
+    renderPublishPanel();
+    return home.revision;
+  } catch (error) {
+    if (error instanceof StaleCampaignHomeError) {
+      campaignHomeStale = error;
+      setStatus(`CAMPAIGN CHANGED ELSEWHERE / REVISION ${error.currentRevision} / RELOAD FROM CLOUD BEFORE CONTINUING`, 'error');
+    } else {
+      campaignHomeError = error?.message ?? String(error);
+    }
+    updateAutosaveStatus();
+    throw error;
+  } finally {
+    campaignHomeSaving = false;
+    if (campaignHomeQueued) { campaignHomeQueued = false; scheduleCampaignHomeSave(); }
+  }
+}
+
+// Bring a campaign down from its home into the cache and open it.
+async function openCampaignFromHome(campaignId, { quiet = false } = {}) {
+  if (!registry) throw new Error('browser local storage is unavailable');
+  const remote = await loadCampaignHome(campaignId);
+  if (!remote) return false;
+  const home = importCampaignHome(remote);
+  const bundle = registry.putBundle(home.bundle);
+  registry.setActiveCampaignId(bundle.campaign.identity.id);
+  campaignHomeRevision = home.revision;
+  campaignHomeSavedAt = home.savedAt;
+  campaignHomeStale = null;
+  campaignHomeError = null;
+  returnCampaignId = null;
+  restoreCampaignFromRegistry(bundle.campaign);
+  lastAutosaveAt = null;
+  if (!quiet) setStatus(`${(bundle.campaign.identity.name || 'CAMPAIGN').toUpperCase()} LOADED FROM CLOUD / REVISION ${home.revision}`, 'ok');
+  closeHelp();
+  render();
+  return true;
+}
+
+async function reloadCampaignFromCloud() {
+  try {
+    if (!campaignDocument) throw new Error('no campaign to reload');
+    if (!currentUserId()) throw new Error('sign in first');
+    const found = await openCampaignFromHome(campaignDocument.identity.id);
+    if (!found) throw new Error('this campaign has no cloud copy yet; it will get one on the next save');
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+// A campaign that arrives from the browser cache or a file does not know the
+// home's revision. Saving with null refuses if a home exists, which is right:
+// the referee must reload before overwriting what another browser saved.
+function forgetCampaignHome() {
+  campaignHomeRevision = null;
+  campaignHomeSavedAt = null;
+  campaignHomeStale = null;
+  campaignHomeError = null;
 }
 
 function reconcileExpiredContracts({ log = true } = {}) {
@@ -6226,6 +6362,7 @@ function newCampaign() {
     const sessionActivity = activityLog && !campaignDocument ? activityLog.list() : [];
     const gameplay = ensureGameplayDocument();
     if (!gameplay) throw new Error('complete or load a gameplay character before creating a campaign');
+    forgetCampaignHome();
     persistGameplayDocuments();
     selectedSystemId = null;
     operationsDeskTab = 'port';
@@ -6290,6 +6427,7 @@ function loadSavedCampaign() {
     if (!id) throw new Error('no saved campaign is recorded in this browser');
     const campaign = registry.get(id);
     if (!campaign) throw new Error(`saved campaign document is missing: ${id}`);
+    forgetCampaignHome();
     restoreCampaignFromRegistry(campaign);
     lastAutosaveAt = null;
     setStatus('CAMPAIGN RESTORED FROM THIS BROWSER', 'ok');
@@ -6948,6 +7086,7 @@ async function loadDocument(file, { campaignOnly = false, addToCampaign = false 
       if (!registry) throw new Error('browser local storage is unavailable');
       const bundle = registry.putBundle(loaded.campaignBundle);
       registry.setActiveCampaignId(bundle.campaign.identity.id);
+      forgetCampaignHome();
       restoreCampaignFromRegistry(bundle.campaign);
       setStatus('PORTABLE CAMPAIGN BUNDLE LOADED', 'ok');
     }
@@ -7497,5 +7636,36 @@ el.openPlayers?.addEventListener('click', openPlayersDialog);
 el.playersSeat?.addEventListener('click', seatPlayerFromDialog);
 el.playersClose?.addEventListener('click', () => el.playersDialog.close());
 el.playersNewInvite?.addEventListener('click', mintInvite);
-onAuthChange(() => { renderAccount(); renderPublishPanel(); });
-initAuth().then(() => render());
+el.reloadCampaignCloud?.addEventListener('click', reloadCampaignFromCloud);
+onAuthChange(() => { renderAccount(); renderPublishPanel(); scheduleCampaignHomeSave(); });
+
+// v0.68.0: the referee client is no longer a front door. Opened by [ RUN ]
+// from enter.html it loads that campaign from its home; opened cold and
+// signed out it sends you to enter.html, unless ?local=1 asks for the old
+// offline behaviour. ?new=1 starts a fresh character for a new campaign.
+const bootParams = new URLSearchParams(window.location.search);
+initAuth().then(async () => {
+  render();
+  const wanted = bootParams.get('campaign');
+  const signedIn = Boolean(currentUserId());
+  if (!signedIn && !wanted && !bootParams.has('local') && !bootParams.has('new') && authStatus().status !== 'unavailable') {
+    window.location.replace(new URL('enter.html', window.location.href).toString());
+    return;
+  }
+  if (!wanted) return;
+  try {
+    if (signedIn && await openCampaignFromHome(wanted)) return;
+    const cached = registry?.get(wanted);
+    if (cached) {
+      forgetCampaignHome();
+      restoreCampaignFromRegistry(cached);
+      setStatus(signedIn ? 'NO CLOUD COPY YET / OPENED FROM THIS BROWSER' : 'OPENED FROM THIS BROWSER / SIGN IN TO SAVE TO THE CLOUD', 'ok');
+      render();
+      return;
+    }
+    setStatus(`CAMPAIGN ${wanted.toUpperCase()} IS NOT IN THE CLOUD OR IN THIS BROWSER`, 'error');
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+});

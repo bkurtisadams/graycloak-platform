@@ -68,6 +68,11 @@ export async function initAuth() {
       ? globalThis.firebase.app()
       : globalThis.firebase.initializeApp(TRAVELLER_FIREBASE_CONFIG);
     auth = globalThis.firebase.auth(app);
+    // v0.68.0: sign in every visit. Session persistence keeps the account for
+    // this tab only, so a shared machine at the table does not carry one
+    // person's account into the next window.
+    try { await auth.setPersistence(globalThis.firebase.auth.Auth.Persistence.SESSION); }
+    catch (error) { console.warn('[traveller-auth] session persistence unavailable:', error?.message ?? error); }
     auth.onAuthStateChanged((user) => {
       currentUser = user ?? null;
       status = 'ready';

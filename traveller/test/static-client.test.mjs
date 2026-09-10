@@ -41,7 +41,7 @@ test('v0.11.0.1 retains contextual help and highlighted legal actions', async ()
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.67\.1/);
+  assert.match(html, /v0\.68\.0/);
   assert.match(html, /data-help-topic="personnel-record"/);
   assert.match(html, /id="context-help"/);
   assert.match(app, /helpForTopic/);
@@ -58,7 +58,7 @@ test('v0.11.0 specialization UI uses engine-supplied legal choices instead of fr
   const html = await read('index.html');
   const app = await read('app.js');
 
-  assert.match(html, /v0\.67\.1/);
+  assert.match(html, /v0\.68\.0/);
   const chargenView = await read('chargen-view.js');
   assert.match(chargenView, /available\.choices\.specializations/);
   assert.doesNotMatch(app, /id = 'skill-specialization'/);
@@ -212,7 +212,7 @@ test('v0.11.0.1 adds base markers, map zoom controls, and a left navigation rail
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.67\.1/);
+  assert.match(html, /v0\.68\.0/);
   assert.match(html, /class="scene"/);
   assert.match(html, /id="map-zoom-out"/);
   assert.match(html, /id="map-zoom-in"/);
@@ -231,7 +231,7 @@ test('v0.11.0.2 highlights navigation and port states that require attention', a
   const css = await read('styles.css');
   const model = await read('ui-model.js');
 
-  assert.match(html, /v0\.67\.1/);
+  assert.match(html, /v0\.68\.0/);
   assert.match(app, /renderRecordWithHighlights/);
   assert.match(app, /jumpAttention\.push\('FUEL NEED '/);
   assert.match(model, /panelRow\('BERTHING'/);
@@ -248,7 +248,7 @@ test('v0.11.1 exposes Book 2 passengers, freight, speculative trade, and life-su
   const model = await read('ui-model.js');
   const market = await read('commerce-market.js');
 
-  assert.match(html, /v0\.67\.1/);
+  assert.match(html, /v0\.68\.0/);
   assert.match(html, /id="commerce-section"/);
   assert.match(html, /data-help-topic="commerce"/);
   assert.match(app, /generatePassengerDemand/);
@@ -273,7 +273,7 @@ test('v0.11.2 exposes persistent contracts and the port Contract Board', async (
   const app = await read('app.js');
   const model = await read('ui-model.js');
 
-  assert.match(html, /v0\.67\.1/);
+  assert.match(html, /v0\.68\.0/);
   assert.match(html, /id="contract-section"/);
   assert.match(html, /CONTRACT BOARD/);
   assert.match(app, /createContractDocument/);
@@ -289,7 +289,7 @@ test('v0.11.2.1 keeps port, trade, and jobs beside the map and guards repaired s
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.67\.1/);
+  assert.match(html, /v0\.68\.0/);
   assert.match(html, /id="operations-tab-port"/);
   assert.match(html, /id="operations-tab-trade"/);
   assert.match(html, /id="operations-tab-jobs"/);
@@ -309,7 +309,7 @@ test('v0.12.0 exposes persistent situations, patrons, and non-combat skill check
   const model = await read('ui-model.js');
   const loader = await read('document-loader.js');
 
-  assert.match(html, /v0\.67\.1/);
+  assert.match(html, /v0\.68\.0/);
   assert.match(html, /id="context-takeover"/);
   assert.match(html, /id="situation-section"/);
   assert.match(app, /generatePatronContact/);
@@ -326,7 +326,7 @@ test('v0.12.0.1 promotes campaign status and interactive rolls into a compact pl
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.67\.1/);
+  assert.match(html, /v0\.68\.0/);
   assert.match(html, /class="campaign-header-strip"/);
   assert.match(html, /id="roll-dialog"/);
   assert.match(html, /id="roll-modifier"[^>]*value="0"/);
@@ -345,7 +345,7 @@ test('v0.12.0.2 keeps tab actions above independently scrolling records', async 
   const html = await read('index.html');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.67\.1/);
+  assert.match(html, /v0\.68\.0/);
   for (const [actions, record] of [
     ['port-actions', 'port-services-record'],
     ['commerce-actions', 'commerce-record'],
@@ -366,7 +366,7 @@ test('v0.12.0.3 makes Activity Log dice and outcomes visually explicit', async (
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.67\.1/);
+  assert.match(html, /v0\.68\.0/);
   assert.match(app, /ROLL 2D \[\$\{dice\.dice\[0\]\}\] \[\$\{dice\.dice\[1\]\}\]/);
   assert.match(app, /appendActivityDiceLine/);
   assert.match(app, /RESULT \/\/ SUCCESS/);
@@ -382,7 +382,7 @@ test('v0.12.0.4 keeps chargen history hidden until explicitly opened in campaign
   const css = await read('styles.css');
   const app = await read('app.js');
 
-  assert.match(html, /v0\.67\.1/);
+  assert.match(html, /v0\.68\.0/);
   assert.match(html, /id="chargen-record-section"[^>]*hidden/);
   assert.match(css, /\[hidden\]\s*\{[\s\S]*display:\s*none\s*!important/);
   assert.match(app, /el\.chargenRecordSection\.hidden = true;/);
@@ -398,7 +398,7 @@ test('v0.12.1.1 keeps generic adventure machinery separate from Sea of Suns auth
   const engine = await read('../src/adventure-engine.js');
   const definition = await read('../campaigns/sea-of-suns/adventures/carranza-route.js');
 
-  assert.match(html, /v0\.67\.1/);
+  assert.match(html, /v0\.68\.0/);
   assert.match(html, /id="open-threads-view"/);
   assert.match(html, /id="thread-section"/);
   assert.match(app, /applySituationThreadConsequences/);
@@ -426,7 +426,7 @@ test('v0.12.1.3 keeps live ship state beside navigation and makes the job board 
   const css = await read('styles.css');
   const model = await read('ui-model.js');
 
-  assert.match(html, /v0\.67\.1/);
+  assert.match(html, /v0\.68\.0/);
   assert.match(html, /id="live-ship-panel"/);
   assert.match(html, /id="live-ship-status"/);
   assert.match(app, /renderLiveShipStatus/);
@@ -449,7 +449,7 @@ test('v0.13 exposes compact persistent personal combat', async () => {
   const model = await read('ui-model.js');
   const encounter = await read('../src/encounter-document.js');
 
-  assert.match(html, /v0\.67\.1/);
+  assert.match(html, /v0\.68\.0/);
   assert.match(html, /id="encounter-section"/);
   // v0.47.0: orders are given per combatant, in that combatant's tracker row.
   assert.match(app, /verbs\.className = 'encounter-tracker-verbs';/);
@@ -469,7 +469,7 @@ test('v0.13.1 adds referee-started combat, a square token map, and enemy equipme
   const css = await read('styles.css');
   const encounter = await read('../src/encounter-document.js');
 
-  assert.match(html, /v0\.67\.1/);
+  assert.match(html, /v0\.68\.0/);
   assert.match(html, /id="combat-setup-dialog"/);
   assert.match(html, /id="encounter-map"/);
   assert.match(html, /id="encounter-roster"/);
@@ -512,7 +512,7 @@ test('v0.14.1 gives the encounter map a fluid viewBox camera and live token drag
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.67\.1/);
+  assert.match(html, /v0\.68\.0/);
   assert.match(html, /data-help-topic="personal-combat"/);
   assert.match(app, /function encounterMapPoint/);
   assert.match(app, /getScreenCTM\(\)/);
@@ -530,7 +530,7 @@ test('v0.15.1 adds a persistent actor roster and token inspection actions', asyn
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.67\.1/);
+  assert.match(html, /v0\.68\.0/);
   assert.match(html, /id="operations-tab-roster"/);
   assert.match(html, /id="npc-actor-dialog"/);
   assert.match(html, /id="combat-roster-actor"/);
@@ -548,7 +548,7 @@ test('v0.15.1.1 makes the activity journal portable and anchors token menus to t
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.67\.1/);
+  assert.match(html, /v0\.68\.0/);
   assert.match(html, /id="activity-filter"/);
   assert.match(html, /id="add-activity-note"/);
   assert.match(html, /id="activity-note-dialog"/);
@@ -569,7 +569,7 @@ test('v0.15.2 establishes a Traveller-first campaign hierarchy and removes dupli
   const model = await read('ui-model.js');
 
   assert.match(html, /id="app-title" class="title">TRAVELLER</);
-  assert.match(html, /id="app-subtitle" class="subtitle">v0\.67\.1</);
+  assert.match(html, /id="app-subtitle" class="subtitle">v0\.68\.0</);
   assert.match(html, /<strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN<\/strong>/);
   for (const id of ['new-campaign', 'save-campaign', 'load-campaign', 'import-campaign', 'export-campaign']) {
     assert.match(html, new RegExp(`id="${id}"`));
@@ -629,7 +629,7 @@ test('v0.20.0 lays play out as operations left, scene center, and procedure plus
   const css = await read('styles.css');
   const model = await read('ui-model.js');
 
-  assert.match(html, /id="app-subtitle" class="subtitle">v0\.67\.1</);
+  assert.match(html, /id="app-subtitle" class="subtitle">v0\.68\.0</);
   assert.match(html, /class="campaign-header-strip"/);
   assert.match(html, /class="stage"/);
   assert.match(html, /class="command-rail"/);
@@ -1432,7 +1432,7 @@ test('v0.51.0 adds sign-in without making the client depend on it', async () => 
   assert.match(app, /if \(status === 'unavailable'\) \{[\s\S]*?LOCAL ONLY/);
 
   // Sign-in runs after the client is already usable.
-  assert.match(app, /initAuth\(\)\.then\(\(\) => render\(\)\);/);
+  assert.match(app, /initAuth\(\)\.then\(async \(\) => \{\n  render\(\);/);
   assert.match(html, /id="account-button"/);
 
   // A signed-in referee can claim an actor for their own account.
@@ -1486,7 +1486,7 @@ test('v0.53.0 keeps the publish controls reachable and remembers being online', 
 
   // Marked only after the write is acknowledged.
   assert.ok(
-    app.indexOf('await publishCampaign(published);') < app.indexOf('campaignDocument = markCampaignPublished'),
+    app.indexOf('await publishCampaign(published);') < app.indexOf('campaignDocument = markCampaignPublished(campaignDocument, publishedAt)'),
     'the campaign is marked published only after the write succeeds'
   );
 });
@@ -1652,8 +1652,8 @@ test('v0.60.0 rechecks player ownership and retires stale scene listeners', asyn
   assert.match(app, /if \(watchedDeclarationEncounterId !== watchedId\) unsubscribe\(\);/);
   assert.match(player, /const generation = \+\+sceneWatchGeneration;/);
   assert.match(player, /if \(generation !== sceneWatchGeneration \|\| encounterId !== watchedEncounterId\) unsubscribe\(\);/);
-  assert.match(index, /v0\.67\.1/);
-  assert.match(playerPage, /PLAYER v0\.67\.1/);
+  assert.match(index, /v0\.68\.0/);
+  assert.match(playerPage, /PLAYER v0\.68\.0/);
 });
 
 test('v0.63.0 uses a configurable metre grid, compact shared-square tokens, and selected-actor range boundaries', async () => {
@@ -1846,7 +1846,7 @@ test('v0.67.0 gives players a front door: their own characters, chargen, and a s
 
   // The page: sign in, the list, chargen with the lifted view; the referee
   // client is never imported.
-  assert.match(html, /ENTER v0\.67\.1/);
+  assert.match(html, /ENTER v0\.68\.0/);
   assert.match(html, /id="enter-signin"/);
   assert.match(html, /id="enter-character-list"/);
   assert.match(html, /id="enter-new-character"/);
@@ -1888,4 +1888,44 @@ test('v0.67.1 narrows a repeated weapon benefit to weapons already received (Boo
   assert.match(view, /const skillable = new Set\(available\.choices\.skillSpecializations \?\? \[\]\);/);
   assert.match(view, /button\.disabled = !allowed;/);
   assert.match(model, /ROLL WASTED \(ALREADY HELD, BOOK 1 P\.22\)/);
+});
+
+test('v0.68.0 gives the campaign a home in Firestore and makes the browser a cache', async () => {
+  const app = await read('app.js');
+  const publish = await read('publish.js');
+  const auth = await read('auth.js');
+  const enter = await read('enter.js');
+  const enterHtml = await read('enter.html');
+  const player = await read('player.js');
+  const index = await read('index.html');
+
+  // Every autosave is followed by a revisioned cloud save; a stale home stops
+  // autosaving until a reload rather than overwriting another browser's work.
+  assert.match(app, /markAutosaved\(\);\n  scheduleCampaignHomeSave\(\);/);
+  assert.match(app, /await saveCampaignHome\(home, envelope, \{ expectedRevision: campaignHomeRevision \}\);/);
+  assert.match(app, /if \(error instanceof StaleCampaignHomeError\) \{/);
+  assert.match(app, /return Boolean\(campaignDocument && registry && currentUserId\(\) && !campaignHomeStale\);/);
+  assert.match(publish, /await db\.runTransaction\(async \(transaction\) => \{/);
+  assert.match(publish, /throw new StaleCampaignHomeError\(/);
+  // Loading from the cache or a file forgets the revision, so the next save
+  // cannot silently overwrite a home it has not seen.
+  assert.match(app, /forgetCampaignHome\(\);\n    restoreCampaignFromRegistry\(campaign\);/);
+  assert.match(app, /forgetCampaignHome\(\);\n      restoreCampaignFromRegistry\(bundle\.campaign\);/);
+  assert.match(index, /id="reload-campaign-cloud"/);
+
+  // Routing: index.html opened cold and signed out goes to the lobby; ?campaign
+  // loads from the home; player.html opened cold goes to the lobby too.
+  assert.match(app, /window\.location\.replace\(new URL\('enter\.html', window\.location\.href\)\.toString\(\)\);/);
+  assert.match(app, /if \(signedIn && await openCampaignFromHome\(wanted\)\) return;/);
+  assert.match(player, /if \(!fromUrl && !remembered\) \{\n  window\.location\.replace\(new URL\('enter\.html'/);
+
+  // Sign in every visit.
+  assert.match(auth, /Persistence\.SESSION/);
+
+  // The lobby lists the campaigns the account referees and runs one.
+  assert.match(enterHtml, /id="enter-campaign-list"/);
+  assert.match(enterHtml, /href="index\.html\?new=1"/);
+  assert.match(enter, /listOwnCampaigns\(uid\)/);
+  assert.match(enter, /index\.html\?campaign=\$\{encodeURIComponent\(campaign\.campaignId\)\}/);
+  assert.match(publish, /where\('ownership\.ownerUid', '==', uid\)/);
 });

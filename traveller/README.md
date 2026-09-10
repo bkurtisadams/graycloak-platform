@@ -1,5 +1,51 @@
 # Graycloak Traveller
 
+## v0.68.0 the campaign lives in Firestore; the browser is a cache
+
+Until now a campaign lived in one browser's registry and Firestore held only
+what players may read. Clear site data or switch machines and it was gone
+unless you had exported a bundle, and the lobby had no campaigns to list. The
+two stores gave nothing in return; this removes the second one.
+
+**The home.** `travellerCampaigns/{id}/state/current` is the whole campaign as
+the same portable bundle `[ EXPORT ]` produces, referee-only, with an owner, a
+revision and a save time. Every browser autosave is followed, two seconds
+later, by a write of the bundle to its home; the player-readable envelope is
+written in the same transaction, so the two never disagree about the
+campaign's name, clock, location, ownership or revision. A campaign has a
+home from its first signed-in save, and by having one it is published.
+
+**Revisions stop two browsers from overwriting each other.** A save names the
+revision this browser loaded and the transaction refuses if the home has moved
+on. A refused save marks the campaign stale — `AUTOSAVED … / CLOUD STALE` —
+and stops cloud saves until `[ RELOAD FROM CLOUD ]` in the campaign menu
+brings the home down; the browser copy keeps autosaving meanwhile, so nothing
+is lost in either direction. A campaign opened from the browser cache or from
+a file forgets the revision, and its first save is refused if a home already
+exists — the referee must reload before overwriting what another browser
+saved. Verified against a scripted Firestore: sequential saves advance, a
+stale browser is refused, a cache-loaded copy is refused over an existing
+home, and the envelope carries the home's revision.
+
+**The pages now agree about who goes where.** `enter.html` is the front door.
+Signed in, it lists the account's characters and, new, `YOUR CAMPAIGNS` — the
+campaigns this account referees, from their homes, each with `[ RUN ]`, plus
+`[ NEW CAMPAIGN ]`. `index.html` opened by `[ RUN ]` loads that campaign from
+its home (falling back to the browser copy, and saying so); opened cold and
+signed out it hands over to the lobby, unless `?local=1` asks for the old
+offline behaviour. `player.html` opened without a campaign hands over too.
+Sign-in is per tab now — session persistence — so you sign in every visit and
+a shared machine at the table does not carry one account into the next
+window.
+
+**Rules v14** adds the referee-only `state/{doc}` match and lets a referee
+list the campaigns they own; suite cases are in the rules changed-files zip.
+
+The autosave line reads `AUTOSAVED 3s AGO / CLOUD R12`, or `/ CLOUD PENDING`
+before the first cloud save, `/ LOCAL ONLY` signed out, `/ CLOUD FAILED` with
+the reason in the tooltip. No rules-package changes; no campaign document
+schema changes — the home is the existing bundle in a new place.
+
 ## v0.67.1 benefits received twice, as Book 1 has them
 
 Rules package v0.24.0. You remembered a repeated mustering-out benefit turning

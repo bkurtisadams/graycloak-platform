@@ -12,8 +12,9 @@ import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus }
 import { openSignInDialog } from './signin-ui.js';
 import {
   ensureFirestore, saveCharacterRecord, deleteCharacterRecord, watchOwnCharacterRecords,
-  readInvite, writeJoinRequest, deleteJoinRequest
+  readInvite, writeJoinRequest, deleteJoinRequest, listOwnCampaigns
 } from './publish.js';
+import { campaignHomeSummary } from '../src/campaign-home.js';
 import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js';
 import { buildProcedure } from './ui-model.js';
 import { generateCharacterName } from './generators.js';
@@ -34,6 +35,7 @@ const el = {
   characters: document.querySelector('#enter-characters'),
   list: document.querySelector('#enter-character-list'),
   newCharacter: document.querySelector('#enter-new-character'),
+  campaignList: document.querySelector('#enter-campaign-list'),
   chargen: document.querySelector('#enter-chargen'),
   name: document.querySelector('#enter-character-name'),
   randomName: document.querySelector('#enter-random-name'),
@@ -68,6 +70,8 @@ const el = {
 const DRAFT_STORAGE_PREFIX = 'graycloak.traveller.enter.draft.v1:';
 
 let records = [];
+let campaigns = [];
+let campaignsLoadedFor = null;
 let unsubscribeRecords = null;
 let watchedUid = null;
 let view = 'characters';
@@ -126,6 +130,53 @@ function watchRecords() {
     }))
     .then((unsubscribe) => { if (uid === watchedUid) unsubscribeRecords = unsubscribe; else unsubscribe(); })
     .catch((error) => setStatus(error?.message ?? String(error), 'error'));
+}
+
+// --- Campaigns ---------------------------------------------------------------
+
+async function loadCampaigns() {
+  const uid = currentUserId();
+  if (!uid || uid === campaignsLoadedFor) return;
+  campaignsLoadedFor = uid;
+  try {
+    campaigns = (await listOwnCampaigns(uid)).map(campaignHomeSummary)
+      .sort((left, right) => (right.savedAt ?? 0) - (left.savedAt ?? 0));
+  } catch (error) {
+    console.error(error);
+    campaigns = [];
+  }
+  render();
+}
+
+function campaignDate(time) {
+  return time ? `${String(time.dayOfYear).padStart(3, '0')}-${time.year}` : '--';
+}
+
+function renderCampaigns() {
+  if (!el.campaignList) return;
+  if (!campaigns.length) {
+    el.campaignList.replaceChildren(Object.assign(document.createElement('div'), {
+      className: 'enter-empty', textContent: 'YOU ARE NOT RUNNING ANY CAMPAIGNS IN THE CLOUD YET.'
+    }));
+    return;
+  }
+  el.campaignList.replaceChildren(...campaigns.map((campaign) => {
+    const row = document.createElement('div');
+    row.className = 'enter-character enterable';
+    const name = document.createElement('strong'); name.className = 'enter-character-name'; name.textContent = (campaign.name || campaign.campaignId).toUpperCase();
+    const summary = document.createElement('span'); summary.className = 'enter-character-summary';
+    summary.textContent = `${campaignDate(campaign.time)} / ${String(campaign.location?.worldName ?? campaign.location?.systemName ?? 'UNMAPPED').toUpperCase()}${campaign.revision ? ` / REVISION ${campaign.revision}` : ''}`;
+    const state = document.createElement('span'); state.className = 'enter-character-state';
+    state.textContent = campaign.savedAt ? `LAST SAVED ${new Date(campaign.savedAt).toLocaleString()}` : 'PUBLISHED, NO CLOUD COPY YET';
+    const tools = document.createElement('div'); tools.className = 'enter-character-tools';
+    const run = document.createElement('a');
+    run.className = 'text-button action-button campaign-transition-action';
+    run.href = `index.html?campaign=${encodeURIComponent(campaign.campaignId)}`;
+    run.textContent = '[ RUN ]';
+    tools.append(run);
+    row.append(name, summary, state, tools);
+    return row;
+  }));
 }
 
 function recordSummary(record) {
@@ -332,7 +383,7 @@ function render() {
   el.chargen.hidden = !signedIn || view !== 'chargen';
   el.heading.textContent = !signedIn ? 'GRAYCLOAK TRAVELLER' : view === 'chargen' ? 'CHARACTER GENERATION' : 'YOUR CHARACTERS';
   if (!signedIn) return;
-  if (view === 'characters') renderCharacters();
+  if (view === 'characters') { renderCharacters(); renderCampaigns(); }
   else renderChargen();
 }
 
@@ -348,6 +399,8 @@ const inviteFromUrl = normalizeInviteCode(new URLSearchParams(window.location.se
 
 onAuthChange(() => {
   watchRecords();
+  if (currentUserId()) loadCampaigns().catch((error) => console.error(error));
+  else { campaigns = []; campaignsLoadedFor = null; }
   // A draft from before a reload comes back; a fresh sign-in starts on the list.
   const draft = currentUserId() ? loadDraft() : null;
   if (draft && !character) { character = draft; view = 'chargen'; }
