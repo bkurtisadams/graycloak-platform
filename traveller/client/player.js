@@ -536,14 +536,41 @@ el.zoomIn.addEventListener('click', () => setMapZoom(mapZoom * 1.4));
 el.zoomFit.addEventListener('click', () => { mapZoom = 1; mapView = { x: 0, y: 0, width: MAP_SIZE, height: MAP_SIZE }; applyMapView(); });
 el.mapViewport.addEventListener('wheel', (event) => { event.preventDefault(); setMapZoom(mapZoom * (event.deltaY < 0 ? 1.12 : 1 / 1.12), event); }, { passive: false });
 el.mapViewport.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    event.stopPropagation();
+    selectedTokenIds = new Set();
+    targetTokenIds = new Set();
+    el.mapMenu.hidden = true;
+    publishPresence();
+    renderMap();
+    renderOrders();
+    return;
+  }
   if (event.key !== 't' && event.key !== 'T') return;
   const combatant = view?.combatants.find((entry) => entry.id === hoveredTokenId);
   if (!combatant) return setStatus('HOVER A VISIBLE TOKEN, THEN PRESS T', 'error');
   event.preventDefault(); targetPlayerToken(combatant);
 });
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+  selectedTokenIds = new Set();
+  targetTokenIds = new Set();
+  el.mapMenu.hidden = true;
+  publishPresence();
+  if (view) { renderMap(); renderOrders(); }
+});
 el.mapViewport.addEventListener('pointerdown', (event) => {
   if (event.target.closest?.('.player-token-group')) return;
   el.mapMenu.hidden = true;
+  if (event.button === 0) {
+    selectedTokenIds = new Set();
+    publishPresence();
+    renderMap();
+    return;
+  }
+  if (event.button !== 2) return;
+  event.preventDefault();
   mapPan = { x: event.clientX, y: event.clientY, viewX: mapView.x, viewY: mapView.y, moved: false };
   el.mapViewport.setPointerCapture(event.pointerId);
 });
@@ -559,10 +586,12 @@ const endMapPan = (event) => {
   if (!mapPan) return;
   const moved = mapPan.moved; mapPan = null;
   if (el.mapViewport.hasPointerCapture(event.pointerId)) el.mapViewport.releasePointerCapture(event.pointerId);
-  if (!moved) { selectedTokenIds = new Set(); publishPresence(); renderMap(); }
 };
 el.mapViewport.addEventListener('pointerup', endMapPan);
 el.mapViewport.addEventListener('pointercancel', endMapPan);
+el.mapViewport.addEventListener('contextmenu', (event) => {
+  if (!event.target.closest?.('.player-token-group')) event.preventDefault();
+});
 
 el.connect.addEventListener('click', () => connect(el.campaignField.value.trim()));
 el.campaignField.addEventListener('keydown', (event) => {

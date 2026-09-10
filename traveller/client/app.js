@@ -575,6 +575,7 @@ let pendingRoll = null;
 let selectedEncounterActorId = null;
 let selectedEncounterTargetId = null;
 let selectedEncounterTokenIds = new Set();
+let encounterSelectionCleared = false;
 let pendingEncounterPlacement = null;
 let pendingEncounterConditionCombatantId = null;
 const ENCOUNTER_MAP_WIDTH = 1206;
@@ -3316,6 +3317,7 @@ function latestEncounterAtCurrentSystem() {
 }
 
 function selectedEncounterTarget(encounter) {
+  if (encounterSelectionCleared) return null;
   const actorSide = encounter?.combatants.find((entry) => entry.id === selectedEncounterActorId)?.side ?? 'party';
   const candidates = encounter?.combatants.filter((entry) => entry.side !== actorSide && (encounter.status !== 'active' || entry.status === 'active')) ?? [];
   let selected = candidates.find((entry) => encounterExtraTargetIds.has(entry.id))
@@ -3328,6 +3330,7 @@ function selectedEncounterTarget(encounter) {
 }
 
 function selectedEncounterActor(encounter) {
+  if (encounterSelectionCleared) return null;
   const declared = new Set(encounter?.roundState?.declaredActions?.map((entry) => entry.actorId) ?? []);
   const anySide = encounter?.combatants.filter((entry) => encounter.status !== 'active' || entry.status === 'active') ?? [];
   // The referee may pick any active combatant; the default stays a party
@@ -3346,6 +3349,7 @@ function setEncounterActor(encounterId, actorId) {
   const encounter = encounterDocuments.find((entry) => entry.identity.id === encounterId);
   const actor = encounter?.combatants.find((entry) => entry.id === actorId && (encounter.status !== 'active' || entry.status === 'active'));
   if (!actor) return;
+  encounterSelectionCleared = false;
   selectedEncounterTokenIds = new Set([actor.id]);
   selectedEncounterActorId = actor.id;
   renderEncounter();
@@ -3356,6 +3360,7 @@ function setEncounterTarget(encounterId, targetId) {
   const actorSide = encounter?.combatants.find((entry) => entry.id === selectedEncounterActorId)?.side ?? 'party';
   const target = encounter?.combatants.find((entry) => entry.id === targetId && entry.side !== actorSide && (encounter.status !== 'active' || entry.status === 'active'));
   if (!target) return;
+  encounterSelectionCleared = false;
   encounterExtraTargetIds = new Set([target.id]);
   selectedEncounterTargetId = target.id;
   renderEncounter();
@@ -3365,6 +3370,7 @@ function selectEncounterToken(encounterId, tokenId, { additive = false } = {}) {
   const encounter = encounterDocuments.find((entry) => entry.identity.id === encounterId);
   const token = encounter?.combatants.find((entry) => entry.id === tokenId);
   if (!token) return;
+  encounterSelectionCleared = false;
   const next = additive ? new Set(selectedEncounterTokenIds) : new Set();
   if (additive && next.has(tokenId)) next.delete(tokenId);
   else next.add(tokenId);
@@ -3383,6 +3389,16 @@ function toggleEncounterTarget(encounterId, tokenId, { additive = true } = {}) {
   encounterExtraTargetIds = next;
   selectedEncounterTargetId = [...next][0] ?? null;
   renderEncounter();
+}
+
+function clearEncounterCanvasSelection({ targets = true } = {}) {
+  selectedEncounterTokenIds = new Set();
+  selectedEncounterActorId = null;
+  encounterSelectionCleared = true;
+  if (targets) {
+    encounterExtraTargetIds = new Set();
+    selectedEncounterTargetId = null;
+  }
 }
 
 function svgElement(name, attributes = {}) {
@@ -3508,7 +3524,7 @@ function moveEncounterToken(encounterId, combatantId, column, row) {
     if (index < 0) throw new Error('encounter is unavailable');
     const current = encounterDocuments[index];
     const result = current.status === 'active'
-      ? moveEncounterCombatantByPlayer(current, { combatantId, column, row, pace: el.encounterMovePace.value, round: current.round })
+      ? moveEncounterCombatantByPlayer(current, { combatantId, column, row, pace: el.encounterMovePace.value, round: current.round, replaceExisting: true })
       : repositionEncounterCombatant(current, { combatantId, column, row });
     encounterDocuments[index] = result.encounter;
     if (result.entry) logActivity('COMBAT', result.entry.text);
@@ -3781,12 +3797,17 @@ function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect
     const cellHeight = ENCOUNTER_MAP_HEIGHT / (encounter.map.rows - 1);
     const originX = visualPoint?.x ?? combatant.position.column * cellWidth;
     const originY = visualPoint?.y ?? combatant.position.row * cellHeight;
+    const existingMove = encounter.history.find((entry) => entry.round === encounter.round && entry.kind === 'movement' && entry.actorId === combatant.id && entry.detail?.playerMove);
+    const movementFrom = existingMove?.detail?.from ?? combatant.position;
     drag = {
       pointerId: event.pointerId,
       startClientX: event.clientX,
       startClientY: event.clientY,
       originX,
       originY,
+      movementFrom: { ...movementFrom },
+      trailOriginX: movementFrom.column * cellWidth,
+      trailOriginY: movementFrom.row * cellHeight,
       offsetX: visualPoint?.offsetX ?? 0,
       offsetY: visualPoint?.offsetY ?? 0,
       grabX: point.x - originX,
@@ -3815,7 +3836,7 @@ function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect
     const row = Math.max(0, Math.min(encounter.map.rows - 1, Math.round((point.y - drag.grabY) / cellHeight / scale) * scale));
     drag.previewX = column * cellWidth + drag.offsetX;
     drag.previewY = row * cellHeight + drag.offsetY;
-    const distance = Math.max(Math.abs(column - combatant.position.column), Math.abs(row - combatant.position.row));
+    const distance = Math.max(Math.abs(column - drag.movementFrom.column), Math.abs(row - drag.movementFrom.row));
     const pace = el.encounterMovePace.value;
     const allowance = pace === 'run' ? 50 : 25;
     const legality = encounter.status !== 'active' ? 'legal' : distance > allowance ? 'over' : distance === allowance ? 'limit' : 'legal';
@@ -3825,7 +3846,7 @@ function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect
         if (!drag) return;
         drag.frame = 0;
         group.setAttribute('transform', `translate(${drag.previewX} ${drag.previewY})`);
-        drag.trail.setAttribute('x1', drag.originX); drag.trail.setAttribute('y1', drag.originY);
+        drag.trail.setAttribute('x1', drag.trailOriginX); drag.trail.setAttribute('y1', drag.trailOriginY);
         drag.trail.setAttribute('x2', drag.previewX); drag.trail.setAttribute('y2', drag.previewY);
         drag.trail.setAttribute('class', `movement-drag-trail ${drag.legality}`);
         const labelOffset = 12 / encounterMapZoom;
@@ -3944,6 +3965,7 @@ function renderEncounterMap(encounter) {
     renderEncounterRangePanel(null, null, null, null);
     return;
   }
+  if (encounter.status !== 'active' && !encounterSelectionCleared) clearEncounterCanvasSelection();
   const width = ENCOUNTER_MAP_WIDTH;
   const height = ENCOUNTER_MAP_HEIGHT;
   const cellWidth = width / (encounter.map.columns - 1);
@@ -3958,7 +3980,9 @@ function renderEncounterMap(encounter) {
     const gridY = (row + gridScale / 2) * cellHeight;
     fragments.push(svgElement('line', { x1: 0, y1: gridY, x2: width, y2: gridY, class: row % 25 === 0 ? 'encounter-grid-major' : 'encounter-grid-line' }));
   }
-  const movementRound = Math.max(-1, ...encounter.history.filter((item) => item.kind === 'movement' && item.detail?.from && item.detail?.to).map((item) => item.round));
+  const movementRound = encounter.status === 'active'
+    ? Math.max(-1, ...encounter.history.filter((item) => item.kind === 'movement' && item.detail?.from && item.detail?.to).map((item) => item.round))
+    : -1;
   for (const entry of encounter.history.filter((item) => item.kind === 'movement' && item.round === movementRound && item.detail?.from && item.detail?.to)) {
     fragments.push(svgElement('line', {
       x1: entry.detail.from.column * cellWidth,
@@ -3990,7 +4014,7 @@ function renderEncounterMap(encounter) {
   // Declared orders are drawn on the map: an arrow from each declaring token to
   // its target, so concentrated fire and a three-way fight read at a glance.
   const centreOf = (combatant) => tokenCentres.get(combatant.id);
-  for (const declaration of encounter.roundState?.declaredActions ?? []) {
+  for (const declaration of encounter.status === 'active' ? (encounter.roundState?.declaredActions ?? []) : []) {
     if (!declaration.targetId) continue;
     const from = encounter.combatants.find((entry) => entry.id === declaration.actorId);
     const to = encounter.combatants.find((entry) => entry.id === declaration.targetId);
@@ -4022,7 +4046,7 @@ function renderEncounterMap(encounter) {
     frameEncounterCombatants(encounter);
   }
   let guide = null;
-  if (actor && target) {
+  if (encounter.status === 'active' && actor && target) {
     guide = encounterRangeGuide(encounter, actor.id, target.id);
     const actorX = actor.position.column * cellWidth;
     const actorY = actor.position.row * cellHeight;
@@ -5082,6 +5106,7 @@ function startManualEncounter() {
   campaignDocument = addEncounterToCampaign(campaignDocument, encounter);
   selectedEncounterActorId = encounter.combatants.find((entry) => entry.side === 'party' && entry.status === 'active')?.id ?? null;
   selectedEncounterTargetId = encounter.combatants.find((entry) => entry.side === 'opposition' && entry.status === 'active')?.id ?? null;
+  encounterSelectionCleared = false;
   persistCampaignState();
   operationsDeskTab = 'encounter';
   closeCombatSetupDialog();
@@ -5152,6 +5177,7 @@ function startSituationEncounter(situation) {
     campaignDocument = addEncounterToCampaign(campaignDocument, encounter);
     selectedEncounterActorId = encounter.combatants.find((entry) => entry.side === 'party' && entry.status === 'active')?.id ?? null;
     selectedEncounterTargetId = encounter.combatants.find((entry) => entry.side === 'opposition' && entry.status === 'active')?.id ?? null;
+    encounterSelectionCleared = false;
     resolveLinkedCombatSituation(encounter);
     syncCampaignRefs();
     persistCampaignState();
@@ -5199,6 +5225,7 @@ function endActiveEncounter() {
     const result = endEncounterByReferee(active, { date: campaignDateSnapshot() });
     encounterDocuments[index] = result.encounter;
     encounterExtraTargetIds = new Set();
+    clearEncounterCanvasSelection();
     logActivity('COMBAT', result.entry.text);
     applyEncounterDocumentSync(result.encounter);
     resolveLinkedCombatSituation(result.encounter);
@@ -5245,6 +5272,7 @@ function resolveDeclaredEncounterRound() {
     });
     encounterDocuments[index] = result.encounter;
     encounterExtraTargetIds = new Set();
+    if (result.encounter.status !== 'active') clearEncounterCanvasSelection();
     if (campaignDocument) campaignDocument = advanceCampaignSeconds(campaignDocument, COMBAT_ROUND_SECONDS);
     for (const entry of result.entries) logActivity('COMBAT', entry.text);
     applyEncounterDocumentSync(result.encounter);
@@ -5282,6 +5310,7 @@ function resolveActiveEncounterAction(action, modifier = 0, targetId = null, act
     persistCampaignState();
     // Selection moves on to the next combatant still without orders.
     selectedEncounterActorId = result.awaitingActorIds?.[0] ?? null;
+    encounterSelectionCleared = false;
     setStatus(`${actorName.toUpperCase()} DECLARES ${action.toUpperCase()}${target ? ` → ${target.name.toUpperCase()}` : ''} / ${result.awaitingActorIds.length} UNDECLARED`, 'ok');
     closeRollDialog();
     render();
@@ -7036,6 +7065,11 @@ for (const button of document.querySelectorAll('[data-help-topic]')) {
 el.closeHelp.addEventListener('click', closeHelp);
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !el.helpPanel.hidden) closeHelp();
+  if (event.key === 'Escape' && !el.encounterSection.hidden && !document.querySelector('dialog[open]')) {
+    clearEncounterCanvasSelection();
+    hideEncounterTokenOverlays();
+    renderEncounter();
+  }
 });
 
 function updateCharacterName(name, statusMessage = 'NAME UPDATED') {
@@ -7384,11 +7418,18 @@ el.encounterGridScale.addEventListener('change', () => {
 el.encounterMap.addEventListener('dragstart', (event) => event.preventDefault());
 {
   let pan = null;
+  let suppressMapContextMenu = false;
   el.encounterMapViewport.addEventListener('pointerdown', (event) => {
     // Opening a cascade is a click inside the menu, not a dismissal of it.
     if (event.target.closest?.('#encounter-token-menu')) return;
     hideEncounterTokenOverlays();
-    if (![0, 1].includes(event.button) || event.target.closest?.('.encounter-token')) return;
+    if (event.target.closest?.('.encounter-token')) return;
+    if (event.button === 0) {
+      clearEncounterCanvasSelection({ targets: false });
+      renderEncounter();
+      return;
+    }
+    if (event.button !== 2) return;
     event.preventDefault();
     const rect = el.encounterMap.getBoundingClientRect();
     const scale = Math.min(rect.width / encounterMapView.width, rect.height / encounterMapView.height) || 1;
@@ -7414,15 +7455,11 @@ el.encounterMap.addEventListener('dragstart', (event) => event.preventDefault())
   });
   const endPan = (event) => {
     if (!pan || pan.pointerId !== event.pointerId) return;
-    const wasClick = !pan.moved;
+    const wasDrag = pan.moved;
     pan = null;
     el.encounterMapViewport.classList.remove('panning');
     flushEncounterMapView();
-    if (wasClick) {
-      selectedEncounterTokenIds = new Set();
-      selectedEncounterActorId = null;
-      renderEncounter();
-    }
+    suppressMapContextMenu = wasDrag;
   };
   el.encounterMapViewport.addEventListener('pointerup', endPan);
   el.encounterMapViewport.addEventListener('pointercancel', endPan);
@@ -7431,11 +7468,26 @@ el.encounterMap.addEventListener('dragstart', (event) => event.preventDefault())
     const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
     setEncounterMapZoom(encounterMapZoom * factor, event);
   }, { passive: false });
-  el.encounterMapViewport.addEventListener('contextmenu', showEncounterMapMenu);
+  el.encounterMapViewport.addEventListener('contextmenu', (event) => {
+    if (suppressMapContextMenu) {
+      event.preventDefault();
+      suppressMapContextMenu = false;
+      return;
+    }
+    showEncounterMapMenu(event);
+  });
 
   // T targets whatever the pointer is over; Shift+T adds it to the target set
   // instead of replacing it, so several enemies can be marked at once.
   el.encounterMapViewport.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      clearEncounterCanvasSelection();
+      hideEncounterTokenOverlays();
+      renderEncounter();
+      return;
+    }
     if (event.key !== 't' && event.key !== 'T') return;
     const encounter = latestEncounterAtCurrentSystem();
     if (!encounter) return;

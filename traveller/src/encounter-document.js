@@ -466,27 +466,33 @@ export function repositionEncounterCombatant(document, { combatantId, column, ro
 // A player drag during an active round is rules movement, not a referee map
 // correction. It is limited to one walk/run, records the path, breaks contact,
 // and makes running consume a blow and bar an attack.
-export function moveEncounterCombatantByPlayer(document, { combatantId, column, row, pace = 'walk', round } = {}) {
+export function moveEncounterCombatantByPlayer(document, { combatantId, column, row, pace = 'walk', round, replaceExisting = false } = {}) {
   const next = importEncounterDocument(document);
   if (next.status !== 'active' || round !== next.round) throw new Error('movement is not for the active encounter round');
   if (!Number.isInteger(column) || column < 0 || column >= ENCOUNTER_MAP_COLUMNS || !Number.isInteger(row) || row < 0 || row >= ENCOUNTER_MAP_ROWS) throw new RangeError('map position is outside the encounter workspace');
   const combatant = next.combatants.find((entry) => entry.id === combatantId && entry.status === 'active');
   if (!combatant) throw new Error('combatant is unavailable');
-  if (next.history.some((entry) => entry.round === next.round && entry.kind === 'movement' && entry.actorId === combatantId && entry.detail?.playerMove)) throw new Error(`${combatant.name} already moved this round`);
+  const existingMoveIndex = next.history.findIndex((entry) => entry.round === next.round && entry.kind === 'movement' && entry.actorId === combatantId && entry.detail?.playerMove);
+  if (existingMoveIndex >= 0 && !replaceExisting) throw new Error(`${combatant.name} already moved this round`);
+  const existingMove = existingMoveIndex >= 0 ? next.history[existingMoveIndex] : null;
   const to = { column, row };
-  const meters = encounterMapDistance(combatant, { position: to });
+  const from = existingMove?.detail?.from ? { ...existingMove.detail.from } : { ...combatant.position };
+  const meters = encounterMapDistance({ position: from }, { position: to });
   const consequences = personalMovementConsequences({ status: 'open', pace });
   const allowanceMeters = consequences.bands * ENCOUNTER_METERS_PER_RANGE_BAND;
   if (meters > allowanceMeters) throw new Error(`${pace} movement exceeds ${allowanceMeters} meters`);
   const squares = Number((meters / next.map.metersPerSquare).toFixed(2));
-  const from = { ...combatant.position };
+  if (existingMove) {
+    combatant.blowsUsed = Math.max(0, Number(combatant.blowsUsed ?? 0) - Number(existingMove.detail?.blowCost ?? 0));
+    next.history.splice(existingMoveIndex, 1);
+  }
   clearContacts(next, combatant);
   combatant.position = to;
   if (consequences.blowCost) combatant.blowsUsed = Number(combatant.blowsUsed ?? 0) + consequences.blowCost;
   const entry = {
     round: next.round, kind: 'movement', side: combatant.side, actorId: combatant.id,
     text: `${combatant.name} ${pace}s ${meters} m / ${squares} grid square${squares === 1 ? '' : 's'}${consequences.blowCost ? '; running spends one combat blow and prevents an attack' : ''}.`,
-    detail: { movementStatus: 'maneuver', pace, meters, squares, allowanceMeters, from, to, blowCost: consequences.blowCost, playerMove: true }
+    detail: { movementStatus: 'maneuver', pace, meters, squares, allowanceMeters, from, to, blowCost: consequences.blowCost, playerMove: true, revisedByReferee: Boolean(existingMove && replaceExisting) }
   };
   next.history.push(entry);
   next.range = closestOpposingBand(next.combatants) ?? next.range;

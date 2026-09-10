@@ -270,6 +270,25 @@ test('v0.62.0 player grid movement is once per round and running bars an attack'
   assert.throws(() => declareEncounterAction(ran, { actorId: pc.id, targetId: foe.id, action: 'attack' }), /ran and cannot attack/);
 });
 
+test('the referee can revise the current-round move without granting extra distance', async () => {
+  const { encounter } = await encounterFixture();
+  const pc = encounter.combatants.find((entry) => entry.side === 'party');
+  const first = moveEncounterCombatantByPlayer(encounter, {
+    combatantId: pc.id, column: pc.position.column + 4, row: pc.position.row, pace: 'walk', round: encounter.round
+  }).encounter;
+  const revised = moveEncounterCombatantByPlayer(first, {
+    combatantId: pc.id, column: pc.position.column + 12, row: pc.position.row, pace: 'walk', round: encounter.round, replaceExisting: true
+  }).encounter;
+  const moves = revised.history.filter((entry) => entry.round === revised.round && entry.kind === 'movement' && entry.actorId === pc.id && entry.detail?.playerMove);
+  assert.equal(moves.length, 1);
+  assert.deepEqual(moves[0].detail.from, pc.position);
+  assert.equal(moves[0].detail.meters, 12);
+  assert.equal(moves[0].detail.revisedByReferee, true);
+  assert.throws(() => moveEncounterCombatantByPlayer(first, {
+    combatantId: pc.id, column: pc.position.column + 26, row: pc.position.row, pace: 'walk', round: encounter.round, replaceExisting: true
+  }), /exceeds 25 meters/);
+});
+
 test('campaign registry and portable Bundle v7 persist Encounter Documents', async () => {
   const { character, ship, campaign, situation, encounter } = await encounterFixture();
   const registry = createDocumentRegistry({ storage: createMemoryStorage() });

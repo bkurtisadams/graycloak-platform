@@ -1,5 +1,22 @@
 # Graycloak Traveller
 
+## v0.63.6 finished-canvas cleanup and mouse controls
+
+Completed combat canvases no longer draw the last movement trail, selected-pair
+line, or range boundaries. Escape clears every local selection and target;
+left-clicking empty canvas clears controlled tokens while leaving targets
+independent. Empty-canvas viewport panning now uses right-button drag on both
+referee and player canvases. A stationary referee right-click still opens the
+placement menu.
+
+## v0.63.5 referee movement revision
+
+Dragging a token again on the referee canvas now revises that combatant's
+current-round move instead of previewing successfully and snapping back on
+release. The replacement is measured from the round's original position,
+replaces the prior trail, and remains subject to the same 25 m WALK or 50 m RUN
+allowance. A player submission remains immutable and limited to one per round.
+
 ## v0.63.4 readable drag label and compact hover
 
 The counter-scaled WALK/RUN label is larger and clearer at deep zoom while
