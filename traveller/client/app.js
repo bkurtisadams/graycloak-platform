@@ -110,8 +110,10 @@ import {
 
 import {
   SUBSECTOR_SVG_GEOMETRY,
+  createSvgNode,
   flatTopHexPoints,
   formatSvgPoints,
+  renderSubsectorMap,
   splitSystemName,
   subsectorHexCenter,
   subsectorSvgViewBox
@@ -1904,9 +1906,18 @@ async function saveCampaignHomeNow() {
     const scene = activeEncounterAtCurrentSystem() ?? latestEncounterAtCurrentSystem();
     const envelope = buildPublishedCampaign(campaignDocument, {
       publishedAt: campaignDocument.ownership?.publishedAt ?? home.savedAt,
-      currentEncounterId: scene?.identity.id ?? null
+      currentEncounterId: scene?.identity.id ?? null,
+      ship: shipDocument
     });
     const written = await saveCampaignHome(home, envelope, { expectedRevision: campaignHomeRevision });
+    // v0.70.0: a fight in progress reaches the players with every save —
+    // starting it, placing a roster NPC, moving a token by hand — not only
+    // when a round resolves. Failure here never blocks the save.
+    if (scene?.status === 'active') {
+      publishEncounterView(buildPublishedView(scene, { campaignId: campaignDocument.identity.id, publishedAt: home.savedAt }))
+        .then(() => { lastPublishedRound = `${scene.identity.id}|${scene.round - 1}`; renderPublishPanel(); })
+        .catch((error) => console.error('[traveller] scene publish:', error));
+    }
     campaignHomeRevision = written;
     campaignHomeSavedAt = home.savedAt;
     campaignHomeError = null;
@@ -2389,16 +2400,8 @@ function jumpToSelectedSystem() {
 
 
 function createSvgElement(name, attributes = {}) {
-  const node = document.createElementNS('http://www.w3.org/2000/svg', name);
-  for (const [key, value] of Object.entries(attributes)) {
-    node.setAttribute(key, String(value));
-  }
-  return node;
+  return createSvgNode(name, attributes);
 }
-
-const SUBSECTOR_ZOOM_MIN = 0.7;
-const SUBSECTOR_ZOOM_MAX = 1.6;
-const SUBSECTOR_ZOOM_STEP = 0.15;
 
 function clampSubsectorZoom(value) {
   return Math.min(SUBSECTOR_ZOOM_MAX, Math.max(SUBSECTOR_ZOOM_MIN, Math.round(value * 100) / 100));
@@ -2421,139 +2424,14 @@ function setSubsectorZoom(value) {
   applySubsectorZoom();
 }
 
-function appendBaseMarkers(group, system, center) {
-  const bases = system?.bases ?? {};
-  if (!bases.scout && !bases.naval) return;
-  const radius = SUBSECTOR_SVG_GEOMETRY.radius;
-  let x = center.x + radius * 0.47;
-  const y = center.y - (Math.sqrt(3) * radius) / 2 + 11;
-
-  if (bases.naval) {
-    const naval = createSvgElement('g', { class: 'subsector-base-marker naval-base-marker' });
-    const navalTitle = createSvgElement('title');
-    navalTitle.textContent = 'Naval Base';
-    naval.append(navalTitle);
-    const diamond = createSvgElement('path', {
-      d: `M ${x} ${y - 4.2} L ${x + 4.2} ${y} L ${x} ${y + 4.2} L ${x - 4.2} ${y} Z`,
-      class: 'subsector-base-icon-shape'
-    });
-    const cross = createSvgElement('path', {
-      d: `M ${x - 5.2} ${y} H ${x + 5.2} M ${x} ${y - 5.2} V ${y + 5.2}`,
-      class: 'subsector-base-icon-line'
-    });
-    naval.append(diamond, cross);
-    group.append(naval);
-    x -= 12;
-  }
-
-  if (bases.scout) {
-    const scout = createSvgElement('g', { class: 'subsector-base-marker scout-base-marker' });
-    const scoutTitle = createSvgElement('title');
-    scoutTitle.textContent = 'Scout Base';
-    scout.append(scoutTitle);
-    const triangle = createSvgElement('path', {
-      d: `M ${x} ${y - 5} L ${x + 5} ${y + 4} L ${x - 5} ${y + 4} Z`,
-      class: 'subsector-base-icon-shape'
-    });
-    scout.append(triangle);
-    group.append(scout);
-  }
-}
-
+// v0.70.0: the hex map is drawn by subsector-svg.js so the player page draws
+// the same one; the referee's version is interactive.
 function renderSubsectorSvg({ current, selected, reachable }) {
-  const viewBox = subsectorSvgViewBox(SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, SUBSECTOR_SVG_GEOMETRY);
-  const svg = createSvgElement('svg', {
-    class: 'subsector-svg',
-    viewBox: `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`,
-    role: 'group',
-    'aria-label': `${FAR_MERIDIAN_SUBSECTOR.name} subsector hex map`,
-    preserveAspectRatio: 'xMidYMid meet'
+  return renderSubsectorMap({
+    subsector: FAR_MERIDIAN_SUBSECTOR, columns: SUBSECTOR_COLUMNS, rows: SUBSECTOR_ROWS,
+    current, selected, reachable, onSelect: (system) => selectSubsectorSystem(system.id)
   });
-
-  const systemByHex = new Map(FAR_MERIDIAN_SUBSECTOR.systems.map((system) => [system.hex, system]));
-  for (let column = 1; column <= SUBSECTOR_COLUMNS; column += 1) {
-    for (let row = 1; row <= SUBSECTOR_ROWS; row += 1) {
-      const hex = formatSubsectorHex(column, row);
-      const system = systemByHex.get(hex) ?? null;
-      const center = subsectorHexCenter(column, row, SUBSECTOR_SVG_GEOMETRY);
-      const points = formatSvgPoints(flatTopHexPoints(center, SUBSECTOR_SVG_GEOMETRY.radius));
-      const group = createSvgElement('g', { class: 'subsector-hex' });
-      const polygon = createSvgElement('polygon', { points, class: 'subsector-hex-shape' });
-      group.append(polygon);
-
-      const coordinate = createSvgElement('text', {
-        x: center.x - SUBSECTOR_SVG_GEOMETRY.radius * 0.63,
-        y: center.y - (Math.sqrt(3) * SUBSECTOR_SVG_GEOMETRY.radius) / 2 + 9,
-        class: 'subsector-hex-coordinate'
-      });
-      coordinate.textContent = hex;
-      group.append(coordinate);
-
-      if (!system) {
-        group.classList.add('empty-hex');
-        svg.append(group);
-        continue;
-      }
-
-      group.classList.add('system-hex');
-      if (current && reachable.has(system.id)) group.classList.add('reachable');
-      if (current?.id === system.id) group.classList.add('current');
-      if (selected?.id === system.id) group.classList.add('selected');
-
-      const relation = current?.id === system.id
-        ? 'current system'
-        : reachable.has(system.id)
-          ? `${reachable.get(system.id)} parsecs, in range`
-          : current
-            ? 'out of range'
-            : 'available starting system';
-      group.setAttribute('role', 'button');
-      group.setAttribute('tabindex', '0');
-      const baseNames = [system.bases?.scout ? 'Scout Base' : null, system.bases?.naval ? 'Naval Base' : null].filter(Boolean);
-      const baseLabel = baseNames.length ? `, ${baseNames.join(' and ')}` : '';
-      group.setAttribute('aria-label', `${system.name}, hex ${hex}, ${relation}${baseLabel}`);
-      group.dataset.systemId = system.id;
-
-      const title = createSvgElement('title');
-      title.textContent = `${system.name} / ${system.mainWorld.name} / ${system.mainWorld.uwp} / ${hex} / ${relation}${baseNames.length ? ` / ${baseNames.join(' + ')}` : ''}`;
-      group.append(title);
-
-      const marker = createSvgElement('text', {
-        x: center.x,
-        y: center.y + 3,
-        class: 'subsector-system-marker',
-        'text-anchor': 'middle'
-      });
-      marker.textContent = current?.id === system.id ? '◆' : '●';
-      group.append(marker);
-
-      const lines = splitSystemName(system.name);
-      lines.forEach((line, index) => {
-        const label = createSvgElement('text', {
-          x: center.x,
-          y: center.y + 17 + index * 10,
-          class: 'subsector-system-name',
-          'text-anchor': 'middle'
-        });
-        label.textContent = line;
-        group.append(label);
-      });
-
-      appendBaseMarkers(group, system, center);
-
-      const select = () => selectSubsectorSystem(system.id);
-      group.addEventListener('click', select);
-      group.addEventListener('keydown', (event) => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        event.preventDefault();
-        select();
-      });
-      svg.append(group);
-    }
-  }
-  return svg;
 }
-
 
 function renderSystemRecord() {
   if (!campaignDocument) {
@@ -4732,7 +4610,8 @@ async function publishCurrentCampaign() {
     const scene = activeEncounterAtCurrentSystem() ?? latestEncounterAtCurrentSystem();
     const published = buildPublishedCampaign(campaignDocument, {
       publishedAt,
-      currentEncounterId: scene?.identity.id ?? null
+      currentEncounterId: scene?.identity.id ?? null,
+      ship: shipDocument
     });
     await publishCampaign(published);
     // Only recorded once the write is acknowledged, so a failure leaves the
@@ -4765,7 +4644,8 @@ async function publishEncounterViewFor(encounter, { silent = false } = {}) {
   await publishEncounterView(view);
   await publishCampaign(buildPublishedCampaign(campaignDocument, {
     publishedAt: campaignDocument.ownership?.publishedAt ?? Date.now(),
-    currentEncounterId: encounter.identity.id
+    currentEncounterId: encounter.identity.id,
+    ship: shipDocument
   }));
   if (!silent) {
     logActivity('SYSTEM', `Scene published for round ${view.round}: ${view.combatants.length} combatants, ${view.narration.length} log lines.`);

@@ -1,5 +1,7 @@
 const SQRT3 = Math.sqrt(3);
 
+import { formatSubsectorHex } from '../../packages/classic-traveller-rules/index.js';
+
 export const SUBSECTOR_SVG_GEOMETRY = Object.freeze({
   radius: 38,
   paddingX: 18,
@@ -75,3 +77,152 @@ export function splitSystemName(name, maxCharacters = 11) {
   if (current) lines.push(current);
   return lines.slice(0, 2);
 }
+
+
+export function createSvgNode(name, attributes = {}) {
+  const node = document.createElementNS('http://www.w3.org/2000/svg', name);
+  for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, String(value));
+  return node;
+}
+
+function appendBaseMarkers(group, system, center) {
+  const bases = system?.bases ?? {};
+  if (!bases.scout && !bases.naval) return;
+  const radius = SUBSECTOR_SVG_GEOMETRY.radius;
+  let x = center.x + radius * 0.47;
+  const y = center.y - (Math.sqrt(3) * radius) / 2 + 11;
+
+  if (bases.naval) {
+    const naval = createSvgNode('g', { class: 'subsector-base-marker naval-base-marker' });
+    const navalTitle = createSvgNode('title');
+    navalTitle.textContent = 'Naval Base';
+    naval.append(navalTitle);
+    const diamond = createSvgNode('path', {
+      d: `M ${x} ${y - 4.2} L ${x + 4.2} ${y} L ${x} ${y + 4.2} L ${x - 4.2} ${y} Z`,
+      class: 'subsector-base-icon-shape'
+    });
+    const cross = createSvgNode('path', {
+      d: `M ${x - 5.2} ${y} H ${x + 5.2} M ${x} ${y - 5.2} V ${y + 5.2}`,
+      class: 'subsector-base-icon-line'
+    });
+    naval.append(diamond, cross);
+    group.append(naval);
+    x -= 12;
+  }
+
+  if (bases.scout) {
+    const scout = createSvgNode('g', { class: 'subsector-base-marker scout-base-marker' });
+    const scoutTitle = createSvgNode('title');
+    scoutTitle.textContent = 'Scout Base';
+    scout.append(scoutTitle);
+    const triangle = createSvgNode('path', {
+      d: `M ${x} ${y - 5} L ${x + 5} ${y + 4} L ${x - 5} ${y + 4} Z`,
+      class: 'subsector-base-icon-shape'
+    });
+    scout.append(triangle);
+    group.append(scout);
+  }
+}
+
+// v0.70.0: the subsector hex map, lifted from the referee client so the
+// player page draws the same one. `reachable` is a Map of systemId -> parsecs
+// (empty for a read-only map); with no `onSelect` the hexes are not buttons.
+export function renderSubsectorMap({ subsector, columns, rows, current = null, selected = null, reachable = new Map(), onSelect = null } = {}) {
+  const viewBox = subsectorSvgViewBox(columns, rows, SUBSECTOR_SVG_GEOMETRY);
+  const svg = createSvgNode('svg', {
+    class: 'subsector-svg',
+    viewBox: `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`,
+    role: 'group',
+    'aria-label': `${subsector.name} subsector hex map`,
+    preserveAspectRatio: 'xMidYMid meet'
+  });
+
+  const systemByHex = new Map(subsector.systems.map((system) => [system.hex, system]));
+  for (let column = 1; column <= columns; column += 1) {
+    for (let row = 1; row <= rows; row += 1) {
+      const hex = formatSubsectorHex(column, row);
+      const system = systemByHex.get(hex) ?? null;
+      const center = subsectorHexCenter(column, row, SUBSECTOR_SVG_GEOMETRY);
+      const points = formatSvgPoints(flatTopHexPoints(center, SUBSECTOR_SVG_GEOMETRY.radius));
+      const group = createSvgNode('g', { class: 'subsector-hex' });
+      const polygon = createSvgNode('polygon', { points, class: 'subsector-hex-shape' });
+      group.append(polygon);
+
+      const coordinate = createSvgNode('text', {
+        x: center.x - SUBSECTOR_SVG_GEOMETRY.radius * 0.63,
+        y: center.y - (Math.sqrt(3) * SUBSECTOR_SVG_GEOMETRY.radius) / 2 + 9,
+        class: 'subsector-hex-coordinate'
+      });
+      coordinate.textContent = hex;
+      group.append(coordinate);
+
+      if (!system) {
+        group.classList.add('empty-hex');
+        svg.append(group);
+        continue;
+      }
+
+      group.classList.add('system-hex');
+      if (current && reachable.has(system.id)) group.classList.add('reachable');
+      if (current?.id === system.id) group.classList.add('current');
+      if (selected?.id === system.id) group.classList.add('selected');
+
+      const relation = current?.id === system.id
+        ? 'current system'
+        : reachable.has(system.id)
+          ? `${reachable.get(system.id)} parsecs, in range`
+          : current
+            ? 'out of range'
+            : 'available starting system';
+      if (onSelect) {
+        group.setAttribute('role', 'button');
+        group.setAttribute('tabindex', '0');
+      }
+      const baseNames = [system.bases?.scout ? 'Scout Base' : null, system.bases?.naval ? 'Naval Base' : null].filter(Boolean);
+      const baseLabel = baseNames.length ? `, ${baseNames.join(' and ')}` : '';
+      group.setAttribute('aria-label', `${system.name}, hex ${hex}, ${relation}${baseLabel}`);
+      group.dataset.systemId = system.id;
+
+      const title = createSvgNode('title');
+      title.textContent = `${system.name} / ${system.mainWorld.name} / ${system.mainWorld.uwp} / ${hex} / ${relation}${baseNames.length ? ` / ${baseNames.join(' + ')}` : ''}`;
+      group.append(title);
+
+      const marker = createSvgNode('text', {
+        x: center.x,
+        y: center.y + 3,
+        class: 'subsector-system-marker',
+        'text-anchor': 'middle'
+      });
+      marker.textContent = current?.id === system.id ? '◆' : '●';
+      group.append(marker);
+
+      const lines = splitSystemName(system.name);
+      lines.forEach((line, index) => {
+        const label = createSvgNode('text', {
+          x: center.x,
+          y: center.y + 17 + index * 10,
+          class: 'subsector-system-name',
+          'text-anchor': 'middle'
+        });
+        label.textContent = line;
+        group.append(label);
+      });
+
+      appendBaseMarkers(group, system, center);
+
+      if (onSelect) {
+        const select = () => onSelect(system);
+        group.addEventListener('click', select);
+        group.addEventListener('keydown', (event) => {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          select();
+        });
+      }
+      svg.append(group);
+    }
+  }
+  return svg;
+}
+
+

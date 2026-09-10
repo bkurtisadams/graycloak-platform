@@ -22,7 +22,9 @@ import {
 import { createPlayerDeclaration } from '../src/player-declaration.js';
 import { createPlayerTokenMove } from '../src/player-token-movement.js';
 import { serviceName, nobleTitleLabel, buildServiceHistory, buildGenerationLog } from './ui-model.js';
-import { PERSONAL_WEAPONS } from '../../packages/classic-traveller-rules/index.js';
+import { PERSONAL_WEAPONS, SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getSubsectorSystem } from '../../packages/classic-traveller-rules/index.js';
+import { renderSubsectorMap } from './subsector-svg.js';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -36,6 +38,13 @@ const el = {
   clock: document.querySelector('#player-clock'),
   yours: document.querySelector('#player-yours'),
   scene: document.querySelector('#player-scene'),
+  world: document.querySelector('#player-world'),
+  worldPort: document.querySelector('#player-world-port'),
+  worldShip: document.querySelector('#player-world-ship'),
+  worldFuel: document.querySelector('#player-world-fuel'),
+  worldHold: document.querySelector('#player-world-hold'),
+  worldMap: document.querySelector('#player-world-map'),
+  mapTools: document.querySelector('.player-map-tools'),
   mapViewport: document.querySelector('#player-map-viewport'),
   map: document.querySelector('#player-map'),
   mapMenu: document.querySelector('#player-token-menu'),
@@ -174,9 +183,41 @@ function renderCampaign() {
     : campaign ? 'NO CHARACTER ASSIGNED TO YOU YET' : '';
 }
 
+// v0.70.0: the world scene. Where the party is, from the envelope: current
+// system on the subsector map, the port, the ship's name and its fuel and
+// hold. Read-only — the player watches the referee jump — and it gives way to
+// the combat canvas while a fight is on.
+let worldMapSystemId = null;
+function renderWorld() {
+  const show = Boolean(campaign) && !view;
+  el.world.hidden = !show;
+  el.mapViewport.hidden = show;
+  el.mapTools.hidden = show;
+  el.scene.hidden = show;
+  if (!show) return;
+  const current = campaign.location?.systemId ? getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, campaign.location.systemId) : null;
+  const port = current?.mainWorld;
+  el.worldPort.textContent = current
+    ? `${current.name.toUpperCase()} / ${port?.uwp ?? '------'} / HEX ${current.hex}`
+    : (campaign.location?.worldName ?? 'UNMAPPED').toUpperCase();
+  const ship = campaign.ship;
+  el.worldShip.textContent = ship
+    ? `${(ship.name || 'UNNAMED').toUpperCase()} / ${ship.typeCode ?? ''} ${(ship.typeName ?? '').toUpperCase()} / ${ship.tons ?? '--'}T / JUMP-${ship.jumpRating ?? '-'}`
+    : 'NO SHIP';
+  el.worldFuel.textContent = ship?.fuel?.capacityTons != null ? `${ship.fuel.aboardTons ?? '--'} / ${ship.fuel.capacityTons} T` : '--';
+  el.worldHold.textContent = ship?.cargo?.capacityTons != null ? `${ship.cargo.usedTons} / ${ship.cargo.capacityTons} T${ship.passengers ? ` / ${ship.passengers} PASSENGER${ship.passengers === 1 ? '' : 'S'}` : ''}` : '--';
+  if (worldMapSystemId !== (current?.id ?? null) || !el.worldMap.firstChild) {
+    worldMapSystemId = current?.id ?? null;
+    el.worldMap.replaceChildren(renderSubsectorMap({
+      subsector: FAR_MERIDIAN_SUBSECTOR, columns: SUBSECTOR_COLUMNS, rows: SUBSECTOR_ROWS, current
+    }));
+  }
+}
+
 function renderScene() {
+  renderWorld();
   if (!view) {
-    el.scene.textContent = campaign ? 'NO SCENE PUBLISHED YET' : '';
+    el.scene.textContent = campaign ? 'NO FIGHT IN PROGRESS' : '';
     el.map.replaceChildren();
     el.roster.replaceChildren();
     el.narration.replaceChildren();
@@ -658,9 +699,9 @@ function setTab(tab, { chosen = false } = {}) {
 // tab themselves; a page with no scene rests on the character.
 function renderTabs() {
   const fighting = view?.status === 'active';
-  el.tabScene.textContent = fighting ? `SCENE / ROUND ${view.declaringRound}` : 'SCENE';
+  el.tabScene.textContent = fighting ? `SCENE / ROUND ${view.declaringRound}` : view ? 'SCENE' : 'WORLD';
   if (chosenTab) { setTab(chosenTab); return; }
-  setTab(fighting ? 'scene' : 'character');
+  setTab(fighting || !characters.size ? 'scene' : 'character');
 }
 
 function watchPlayerDocuments(db, campaignId) {

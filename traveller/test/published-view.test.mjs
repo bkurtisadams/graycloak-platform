@@ -7,7 +7,7 @@ import path from 'node:path';
 import { importCharacterDocument, importShipDocument } from '../../packages/classic-traveller-rules/index.js';
 import { createCampaignDocument } from '../src/campaign-document.js';
 import { createEncounterDocument, resolveEncounterRound, setCombatantCover } from '../src/encounter-document.js';
-import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, PLAYER_LOG_CATEGORIES } from '../src/published-view.js';
+import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedShip, PLAYER_LOG_CATEGORIES } from '../src/published-view.js';
 import { createActivityLogDocument, appendActivityLogEntry, ACTIVITY_VISIBILITY } from '../src/activity-log-document.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -109,6 +109,7 @@ test('the published campaign carries shared state and the ownership map', async 
   assert.deepEqual(published.time, campaign.time);
   assert.deepEqual(published.ownership, { ownerUid: null, actors: {} });
   assert.equal(published.publishedAt, 12345);
+  assert.equal(published.ship, null);
   // The party's character documents are not part of it.
   assert.equal(JSON.stringify(published).includes('Hawkeye'), false);
 });
@@ -237,4 +238,20 @@ test('the published log keeps only the most recent entries', () => {
   const published = buildPublishedLog(log, { uid: 'uid-a', limit: 5 });
   assert.equal(published.entries.length, 5);
   assert.equal(published.entries.at(-1).message, 'line 11');
+});
+
+test('the published ship is what the party knows: no account, no manifests', async () => {
+  const ship = importShipDocument(await readFile(path.join(examples, 'Hawkeye.ship.json'), 'utf8'));
+  const published = buildPublishedShip(ship);
+  assert.equal(published.name, ship.identity.name);
+  assert.equal(published.typeCode, 'S');
+  assert.equal(published.jumpRating, 2);
+  assert.equal(published.fuel.capacityTons, 40);
+  assert.equal(published.cargo.capacityTons, 3);
+  const serialised = JSON.stringify(published);
+  for (const forbidden of ['finances', 'operatingAccount', 'cargoManifest', 'passengerManifest', 'crew']) {
+    assert.ok(!serialised.includes(forbidden), `${forbidden} must not reach the published ship`);
+  }
+  const { campaign } = await fixture();
+  assert.equal(buildPublishedCampaign(campaign, { ship }).ship.shipId, ship.identity.id);
 });

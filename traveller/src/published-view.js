@@ -122,8 +122,31 @@ export function buildPublishedView(encounter, { campaignId, publishedAt, rounds 
   };
 }
 
+// v0.70.0: the ship as the party knows it — name, type, jump, fuel, hold and
+// berths. Not the operating account, not the manifests: money and cargo are
+// the referee's tables until the player page can act on them.
+export function buildPublishedShip(ship) {
+  if (!ship) return null;
+  const specs = ship.specifications ?? {};
+  const state = ship.state ?? {};
+  return {
+    shipId: ship.identity?.id ?? null,
+    name: ship.identity?.name ?? null,
+    registry: ship.identity?.registry ?? null,
+    typeCode: ship.design?.typeCode ?? null,
+    typeName: ship.design?.name ?? null,
+    tons: specs.hull?.tons ?? null,
+    jumpRating: specs.drives?.jump?.rating ?? null,
+    fuel: { aboardTons: Number.isFinite(state.currentFuelTons) ? state.currentFuelTons : null, capacityTons: specs.fuel?.capacityTons ?? null },
+    cargo: { usedTons: state.cargoUsedTons ?? 0, capacityTons: specs.cargo?.capacityTons ?? null },
+    staterooms: specs.accommodations?.staterooms ?? null,
+    passengers: Array.isArray(state.passengerManifest) ? state.passengerManifest.length : 0,
+    operationalStatus: state.operationalStatus ?? null
+  };
+}
+
 // A campaign document trimmed to what a player may see of the shared state.
-export function buildPublishedCampaign(campaign, { publishedAt, currentEncounterId = null } = {}) {
+export function buildPublishedCampaign(campaign, { publishedAt, currentEncounterId = null, ship = null } = {}) {
   if (!campaign) throw new TypeError('a campaign is required');
   return {
     campaignId: campaign.identity.id,
@@ -139,6 +162,8 @@ export function buildPublishedCampaign(campaign, { publishedAt, currentEncounter
     // referee-only and Firestore does not return missing parents — so the
     // campaign has to say which scene is current.
     currentEncounterId: currentEncounterId ?? null,
+    // v0.70.0: the world scene the player page draws between fights.
+    ship: buildPublishedShip(ship),
     publishedAt: publishedAt ?? null
   };
 }

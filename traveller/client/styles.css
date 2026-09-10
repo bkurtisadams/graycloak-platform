@@ -3278,3 +3278,13 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .enter-toolbar a.text-button { text-decoration: none; }
 .enter-toolbar-note { font-size: 10px; color: var(--muted); letter-spacing: .04em; }
 .enter-character.enter-draft { border-style: dashed; }
+
+/* --- v0.70.0: the world scene on the player page. */
+.player-world { display: flex; flex-direction: column; gap: 8px; }
+.player-world-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; font-size: 11px; }
+.player-world-strip > div { display: flex; flex-direction: column; gap: 2px; padding: 4px 6px; border: 1px solid var(--rule); background: var(--paper); }
+.player-world-strip span { font-size: 9px; letter-spacing: .1em; color: var(--muted); }
+.player-world-strip strong { font-size: 11px; letter-spacing: .04em; overflow-wrap: anywhere; }
+.player-world-map { height: min(74vh, 900px); border: 1px solid var(--rule); background: var(--paper); overflow: hidden; }
+.player-world-map .subsector-svg { width: 100%; height: 100%; display: block; }
+.player-world-map .system-hex { cursor: default; }

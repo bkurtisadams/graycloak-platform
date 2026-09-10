@@ -1,5 +1,35 @@
 # Graycloak Traveller
 
+## v0.70.0 the world between fights, and boards that reach the players when they exist
+
+**The player sees where they are.** Until now "scene" on the player page meant
+a combat scene, and between fights the tab said `NO SCENE PUBLISHED YET` —
+which is what a player pressing `[ ENTER WORLD ]` saw first. The scene column
+now draws the world when no fight is on: the subsector map with the party's
+system marked, and a strip with the current port and UWP, the ship's name,
+type, tonnage and jump, its fuel and its hold. Read-only — the player watches
+the referee jump — and it gives way to the combat canvas the moment a fight
+is published. The tab reads `WORLD` between fights, `SCENE / ROUND n` during
+one.
+
+The map is the referee's map, lifted: `renderSubsectorMap()` in
+`subsector-svg.js` now draws it for both pages, interactive when given an
+`onSelect` and inert otherwise, so the two cannot drift. The ship rides on the
+campaign envelope as `buildPublishedShip()` — name, type, jump, fuel, hold,
+berths, passengers — and a test asserts the operating account and the
+manifests are not in it: money and cargo stay the referee's until the player
+page can act on them.
+
+**An active board publishes with every save.** The player-safe view of a
+fight used to go out when a round resolved or on `[ PUBLISH SCENE ]`, so a
+board just set up sat unpublished and the player's page said so. Now any
+autosave while an encounter is active — starting it, placing a roster NPC,
+moving a token by hand — publishes the view. The manual control stays for
+holding a board back.
+
+No rules-package changes; no campaign schema changes; the envelope gains a
+`ship` field.
+
 ## v0.69.1 the SDK race, orphaned homes, and the draft on the list
 
 **`Firestore SDK did not load`.** The lobby starts two things at once on
