@@ -1,4 +1,8 @@
-// Firestore Security Rules for GCC / Graycloak AD&D / Traveller v13
+// Firestore Security Rules for GCC / Graycloak AD&D / Traveller v14
+// v14 gives a Traveller campaign a home: travellerCampaigns/{id}/state/current
+//   is the whole campaign as a bundle, referee-only, and a referee may list
+//   the campaigns they own so the lobby can offer them.
+//
 // v13 adds the player's own Traveller characters and the way to a table:
 //   travellerCharacters/{id} — owned by the account that rolled it; only the
 //     referee of the campaign it is leaving, or of one its owner has asked to
@@ -269,11 +273,20 @@ service cloud.firestore {
       // The campaign document holds the party, the ship, the world state and
       // the ownership map. Everyone at the table reads it; only the referee
       // writes it.
-      allow read: if isAtTravellerTable(campaignId);
+      allow get: if isAtTravellerTable(campaignId);
+      // v14: a referee lists the campaigns they own; the query must say so.
+      allow list: if isAuthed()
+        && resource.data.get('ownership', {}).get('ownerUid', '') == request.auth.uid;
       allow create: if isAuthed()
         && request.resource != null
         && request.resource.data.get('ownership', {}).get('ownerUid', '') == request.auth.uid;
       allow update, delete: if isTravellerReferee(campaignId);
+
+      // v14: the campaign's home. The whole bundle — every enemy statistic,
+      // situation secret and referee note — so nobody but the referee.
+      match /state/{stateId} {
+        allow read, write: if isTravellerReferee(campaignId);
+      }
 
       // Who sits at this table. The referee admits and removes; a player may
       // read the roster and update nothing but their own seat.

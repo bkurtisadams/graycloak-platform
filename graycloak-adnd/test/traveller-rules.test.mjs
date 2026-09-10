@@ -9,6 +9,8 @@
 // and the filtered log — which only the seated account and the referee read.
 // v13 adds the player's own travellerCharacters records and the invite → join
 // request path to a seat.
+// v14 adds the campaign's home (state/current, referee-only) and the referee's
+// list of their own campaigns.
 //
 // Requires the emulator:  firebase emulators:start --only firestore
 // Skipped automatically when it is not running, so `npm test` still passes
@@ -349,6 +351,29 @@ test('Traveller multiplayer rules', { skip: available ? false : `Firestore emula
     // Its own referee sends it back to unassigned when unseating.
     await assertSucceeds(referee.doc(RECORD).update({ world: unassigned, pendingJoin: null, updatedAt: 12 }));
     await assertFails(referee.doc(RECORD).update({ world: unassigned, updatedAt: 13 }), 'no longer the referee of its world');
+  });
+
+  // --- v14: the campaign's home ------------------------------------------
+
+  await t.test('the campaign home is referee-only, in every direction', async () => {
+    const path = `travellerCampaigns/${CAMPAIGN}/state/current`;
+    await assertSucceeds(referee.doc(path).set({ schemaVersion: 1, campaignId: CAMPAIGN, ownerUid: REFEREE, revision: 1, savedAt: 1, bundle: { secrets: 'everything' } }));
+    await assertSucceeds(referee.doc(path).get());
+    await assertSucceeds(referee.doc(path).update({ revision: 2 }));
+    await assertFails(player.doc(path).get());
+    await assertFails(player.doc(path).set({ revision: 99 }));
+    await assertFails(second.doc(path).get());
+    await assertFails(outsider.doc(path).get());
+    await assertFails(player.collection(`travellerCampaigns/${CAMPAIGN}/state`).get());
+  });
+
+  await t.test('a referee lists the campaigns they own and nobody else\'s', async () => {
+    await assertSucceeds(referee.collection('travellerCampaigns').where('ownership.ownerUid', '==', REFEREE).get());
+    await assertFails(referee.collection('travellerCampaigns').where('ownership.ownerUid', '==', SECOND).get());
+    await assertFails(referee.collection('travellerCampaigns').get());
+    // A seated player still reads the one campaign they sit at, and cannot list.
+    await assertSucceeds(player.doc(`travellerCampaigns/${CAMPAIGN}`).get());
+    await assertFails(player.collection('travellerCampaigns').where('ownership.ownerUid', '==', REFEREE).get());
   });
 
   await t.test('an outsider is shut out entirely', async () => {
