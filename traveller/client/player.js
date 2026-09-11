@@ -118,7 +118,7 @@ let mapView = { x: 0, y: 0, width: 1206, height: 1206 };
 let mapPan = null;
 const MAP_SIZE = 1206;
 const MIN_ZOOM = 0.5;
-const MAX_ZOOM = 64;
+const MAX_ZOOM = 16;
 const TOKEN_RADIUS = 0.4;
 const TOKEN_RING_RADIUS = 0.48;
 
@@ -266,10 +266,12 @@ function renderMap() {
     }));
   }
   const owned = ownedCombatantIds();
+  // v0.71.0: a token is drawn in units of one grid square.
+  const tokenScale = gridScale * cell;
   for (const combatant of view.combatants) {
     const x = combatant.position.column * cell;
     const y = combatant.position.row * cell;
-    const group = svg('g', { transform: `translate(${x} ${y})` });
+    const group = svg('g', { transform: `translate(${x} ${y}) scale(${tokenScale})` });
     group.dataset.tokenId = combatant.id;
     group.classList.add('player-token-group');
     group.setAttribute('tabindex', '0');
@@ -371,7 +373,7 @@ function attachPlayerTokenInteraction(group, combatant, owned, cell) {
   });
   group.addEventListener('pointermove', (event) => {
     if (!drag || !group.hasPointerCapture(event.pointerId)) return;
-      const point = mapPoint(event); if (Math.hypot(point.x - drag.start.x, point.y - drag.start.y) > Math.max(2, cell * view.map.metersPerSquare * .35)) drag.moved = true;
+      const point = mapPoint(event); if (Math.hypot(point.x - drag.start.x, point.y - drag.start.y) > Math.max(2 / mapZoom, cell * view.map.metersPerSquare * .35)) drag.moved = true;
     if (drag.moved && owned) {
       const gridScale = view.map.metersPerSquare;
       const column = Math.max(0, Math.min(view.map.columns - 1, Math.round(point.x / cell / gridScale) * gridScale));
@@ -380,7 +382,7 @@ function attachPlayerTokenInteraction(group, combatant, owned, cell) {
       const distance = Math.max(Math.abs(combatant.position.column - column), Math.abs(combatant.position.row - row));
       const pace = el.movePace.value; const allowance = pace === 'run' ? 50 : 25;
       const legality = distance > allowance ? 'over' : distance === allowance ? 'limit' : 'legal';
-      group.setAttribute('transform', `translate(${x} ${y})`);
+      group.setAttribute('transform', `translate(${x} ${y}) scale(${view.map.metersPerSquare * cell})`);
       drag.trail.setAttribute('x1', combatant.position.column * cell); drag.trail.setAttribute('y1', combatant.position.row * cell);
       drag.trail.setAttribute('x2', x); drag.trail.setAttribute('y2', y); drag.trail.setAttribute('class', `movement-drag-trail ${legality}`);
       const labelOffset = 12 / mapZoom;
@@ -739,8 +741,19 @@ function watchPlayerDocuments(db, campaignId) {
     },
     (error) => console.error('[traveller-player] characters:', error)
   );
+  let lastAddressedId = null;
   unsubscribeLog = root.collection('log').doc('current').onSnapshot(
-    (snapshot) => { playerLog = snapshot.exists ? snapshot.data() : null; renderLog(); },
+    (snapshot) => {
+      playerLog = snapshot.exists ? snapshot.data() : null;
+      renderLog();
+      // v0.71.0: a line addressed to this player is also the status line, so a
+      // refused move or order is seen where the drag happened.
+      const addressed = [...(playerLog?.entries ?? [])].reverse().find((entry) => entry.addressed);
+      if (addressed && addressed.id !== lastAddressedId) {
+        if (lastAddressedId !== null) setStatus(addressed.message.toUpperCase(), /refused/i.test(addressed.message) ? 'error' : 'ok');
+        lastAddressedId = addressed.id;
+      }
+    },
     (error) => console.error('[traveller-player] log:', error)
   );
 }

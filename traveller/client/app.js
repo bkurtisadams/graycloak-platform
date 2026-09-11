@@ -603,7 +603,8 @@ let pendingEncounterConditionCombatantId = null;
 const ENCOUNTER_MAP_WIDTH = 1206;
 const ENCOUNTER_MAP_HEIGHT = 1206;
 const ENCOUNTER_MAP_MIN_ZOOM = 0.5;
-const ENCOUNTER_MAP_MAX_ZOOM = 64;
+const ENCOUNTER_MAP_MAX_ZOOM = 16;
+let encounterTokenScale = 1;
 // Personal tokens occupy less than one physical metre. This keeps one figure
 // inside a 1 m square and leaves room for several figures in a 5 m square.
 const ENCOUNTER_TOKEN_RADIUS = 0.4;
@@ -3810,7 +3811,7 @@ function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect
       drag.frame = window.requestAnimationFrame(() => {
         if (!drag) return;
         drag.frame = 0;
-        group.setAttribute('transform', `translate(${drag.previewX} ${drag.previewY})`);
+        group.setAttribute('transform', `translate(${drag.previewX} ${drag.previewY}) scale(${encounterTokenScale})`);
         drag.trail.setAttribute('x1', drag.trailOriginX); drag.trail.setAttribute('y1', drag.trailOriginY);
         drag.trail.setAttribute('x2', drag.previewX); drag.trail.setAttribute('y2', drag.previewY);
         drag.trail.setAttribute('class', `movement-drag-trail ${drag.legality}`);
@@ -3833,7 +3834,7 @@ function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect
     completed.trail.remove(); completed.label.remove();
     group.classList.remove('dragging');
     if (cancelled) {
-      group.setAttribute('transform', `translate(${completed.originX} ${completed.originY})`);
+      group.setAttribute('transform', `translate(${completed.originX} ${completed.originY}) scale(${encounterTokenScale})`);
       return;
     }
     if (!completed.moved) return onSelect?.(event);
@@ -3843,7 +3844,7 @@ function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect
     const column = Math.max(0, Math.min(encounter.map.columns - 1, Math.round((completed.previewX - completed.offsetX) / cellWidth / scale) * scale));
     const row = Math.max(0, Math.min(encounter.map.rows - 1, Math.round((completed.previewY - completed.offsetY) / cellHeight / scale) * scale));
     if (column === combatant.position.column && row === combatant.position.row) {
-      group.setAttribute('transform', `translate(${completed.originX} ${completed.originY})`);
+      group.setAttribute('transform', `translate(${completed.originX} ${completed.originY}) scale(${encounterTokenScale})`);
       onSelect?.(event);
       return;
     }
@@ -3965,9 +3966,15 @@ function renderEncounterMap(encounter) {
     if (!cells.has(key)) cells.set(key, []);
     cells.get(key).push(combatant);
   }
+  // v0.71.0: a token is drawn in units of one grid square, so it fills the
+  // square at any scale — one metre on a metre grid, five on a five-metre one.
+  const tokenScale = gridScale * cellWidth;
+  encounterTokenScale = tokenScale;
   const slots = [[0, 0], [-.55, -.55], [0, -.55], [.55, -.55], [-.55, 0], [.55, 0], [-.55, .55], [0, .55], [.55, .55]];
   for (const occupants of cells.values()) occupants.sort((a, b) => a.id.localeCompare(b.id)).forEach((combatant, index) => {
-    const [offsetX, offsetY] = slots[index % slots.length];
+    const [slotX, slotY] = slots[index % slots.length];
+    const offsetX = slotX * tokenScale * 0.5;
+    const offsetY = slotY * tokenScale * 0.5;
     tokenCentres.set(combatant.id, {
       x: combatant.position.column * cellWidth + offsetX,
       y: combatant.position.row * cellHeight + offsetY,
@@ -3986,12 +3993,12 @@ function renderEncounterMap(encounter) {
     const a = centreOf(from);
     const b = centreOf(to);
     const angle = Math.atan2(b.y - a.y, b.x - a.x);
-    const stop = { x: b.x - Math.cos(angle) * 16, y: b.y - Math.sin(angle) * 16 };
+    const stop = { x: b.x - Math.cos(angle) * tokenScale * 0.55, y: b.y - Math.sin(angle) * tokenScale * 0.55 };
     fragments.push(svgElement('line', {
       x1: a.x, y1: a.y, x2: stop.x, y2: stop.y,
       class: `encounter-order-line ${from.side === 'party' ? 'party' : 'enemy'} ${declaration.action}`
     }));
-    const head = 7;
+    const head = tokenScale * 0.3;
     fragments.push(svgElement('polygon', {
       points: [
         `${stop.x},${stop.y}`,
@@ -4038,7 +4045,7 @@ function renderEncounterMap(encounter) {
     const group = svgElement('g', {
       class: 'encounter-token', role: 'button',
       tabindex: 0,
-      transform: `translate(${x} ${y})`,
+      transform: `translate(${x} ${y}) scale(${tokenScale})`,
       'aria-label': `${combatant.name}, ${combatant.side}, ${combatant.status}`
     });
     group.append(svgElement('circle', { cx: 0, cy: 0, r: ENCOUNTER_TOKEN_HIT_RADIUS, class: 'encounter-token-hit-area' }));
@@ -4516,6 +4523,13 @@ function watchPlayerCanvas() {
     .catch((error) => console.error(error));
 }
 
+// A line addressed to one player's log, which reaches their page whatever its
+// category and nobody else's.
+function tellPlayer(uid, message) {
+  if (!uid) return;
+  logActivity('COMBAT', message, { visibility: ACTIVITY_VISIBILITY.PLAYERS, audiencePlayerIds: [uid] });
+}
+
 function applyPlayerTokenMoves(entries) {
   const encounter = activeEncounterAtCurrentSystem() ?? latestEncounterAtCurrentSystem();
   if (!encounter) return;
@@ -4531,6 +4545,8 @@ function applyPlayerTokenMoves(entries) {
     } catch (error) {
       appliedMoveIds.add(entry.id);
       console.warn('[traveller] player token move refused:', error?.message ?? error);
+      // v0.71.0: the player sees why, on their own page, not only the referee.
+      tellPlayer(entry.uid, `Your move was refused: ${error?.message ?? error}`);
     }
     clearTokenMove(campaignDocument.identity.id, encounter.identity.id, entry.id).catch((error) => console.error(error));
   }
@@ -4568,6 +4584,7 @@ function applyPlayerDeclarations(entries) {
       // authoritative and a stale declaration is simply ignored.
       appliedDeclarationKeys.add(key);
       console.warn('[traveller] player declaration refused:', error?.message ?? error);
+      tellPlayer(entry.uid, `Your order was refused: ${error?.message ?? error}`);
     }
   }
   if (changed) {

@@ -1,5 +1,47 @@
 # Graycloak Traveller
 
+## v0.71.0 a board the size of the fight
+
+The combat audit found one cause behind the last four canvas bugs: the board
+was a kilometre square at metre resolution, tokens were a metre wide, and so a
+fit-to-view made a token one pixel and a usable view meant 6400% zoom — where
+everything defined in user units (focus rings, labels, order arrows) became
+enormous. This is the first of two cuts that replace that with Foundry's
+answer: a scene-sized board on which a token is a square.
+
+**The board is sized to the fight.** Encounter schema 14: `map.columns` and
+`rows` are per encounter, square, and chosen by `encounterBoardMeters()` from
+the initial range and grid scale — room for the range twice over plus margin,
+never fewer than 40 squares a side, never more than the kilometre. A
+medium-range fight on 5 m squares is a 200 m board; long is 520 m; very long
+is the kilometre, as before. The party stands a quarter of the way across and
+the opposition the initial range to their right, rows spread two squares apart
+around the middle. Positions remain metre cells snapped to the grid, so
+nothing about range, movement or contact changes; the movers and validators
+read the board from the document instead of a constant, and every pre-v0.71
+kilometre board is still valid, untouched.
+
+**A token is a square.** Both canvases now draw a token in units of one grid
+square — one metre on a metre grid, five on a five-metre one — so it fills its
+square at any scale and any zoom, and the tokens sharing a square are offset
+by half a square. The declared-order arrows are sized in squares too. Maximum
+zoom drops from 6400% to 1600%, which is all a 40-square board needs.
+
+**A refused move or order tells the player why.** The referee's client already
+logged the reason to its own console; it now also writes it as a line addressed
+to that player, which reaches their LOG and becomes their status line —
+`YOUR MOVE WAS REFUSED: MOVEMENT IS NOT FOR THE ACTIVE ENCOUNTER ROUND` where
+the drag happened.
+
+**Deferred to v0.72.0, deliberately:** scene documents (name, size, background
+image, folder) that encounters reference instead of carrying a map; Scenes,
+Actors and Vehicles folders in the campaign directory; placing an actor on a
+scene before a fight; rectangular boards; and lifting the two canvases into
+one shared module the way the subsector map was. Those are the structural
+part of the audit and belong together.
+
+No rules-package changes. Encounter schema 13 → 14 (no data change).
+
 ## v0.70.3 the giant white ring on a player's token
 
 Chrome draws the focus outline of a focused SVG group in user units, so on the
