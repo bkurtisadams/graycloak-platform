@@ -128,8 +128,8 @@
       "gwSource": "AC 9, HD 8, MV 3/16 (ground/fly), bite 2d6, carries ≤2kg in flight. 1.3m mutated flying insect, beast of burden.",
       "build": "Mutated flying insect; individually priced traits",
       "origin": "Mutated or Evolved",
-      "cpEstimate": "~75",
-      "abilities": "Size Change B: Smaller 4.5' (2.5 CP; Stays Active +2.5; Can't Hold Back -5; permanent; final 1 CP, from a calculated 0 CP minimum); Winged Flight 3/48 (7.5 CP; Wings -5; Non-Proportional Flight +2.5; final 5 CP); Natural Weaponry mandibles (+0 attack, +4 sharp damage); Heightened Physical Defense +3 (7.5 CP). Carries up to 2 kg while flying.",
+      "cpEstimate": "73",
+      "abilities": "Size Change B: Smaller 4.5' (base 2.5 CP; Stays Active +2.5; Can't Hold Back -5; calculated 0 CP; final 1 CP minimum); Winged Flight 3/48 (base 7.5 CP; Wings -5; Non-Proportional Flight +2.5; final 5 CP); Natural Weaponry mandibles (+0 attack 0 CP; +4 sharp damage 5 CP; final 5 CP); Heightened Physical Defense +3 (final 7.5 CP). Carries up to 2 kg while flying.",
       "weaknesses": null,
       "equipment": null,
       "forms": [
@@ -270,8 +270,8 @@
       "gwSource": "AC 8, HD 15, MV 6/15 (ground/fly). ~1m mutated moth, 2m wingspan, fearless and carnivorous. Glows brightly when attacking; emits intensity 18 radiation in 5m radius continuous. Self+kin immune. Post-kill feeding phase.",
       "build": "Mutated insect; individually priced source traits",
       "origin": "Mutated or Evolved",
-      "cpEstimate": "~75 (54 CP BCs + 18.5 CP listed Abilities, rounded; before any GM-assigned physical-defense adjustment)",
-      "abilities": "Size Change B: Smaller 4.5' (2.5 CP; Stays Active +2.5; Can't Hold Back -5; permanent; final 1 CP); Winged Flight 3/48 (7.5 CP; Wings -5; Non-Proportional Flight +2.5; final 5 CP); Change Environment: 7\" Hard Radiation field (7.5 CP — 5 Devitalization Entropy/round; active only while attacking); Adaptation: Radiation (5 CP). The bright abdominal glow is the field's visible manifestation, not a separate Light Control power.",
+      "cpEstimate": "73",
+      "abilities": "Size Change B: Smaller 4.5' (base 2.5 CP; Stays Active +2.5; Can't Hold Back -5; calculated 0 CP; final 1 CP minimum); Winged Flight 3/48 (base 7.5 CP; Wings -5; Non-Proportional Flight +2.5; final 5 CP); Change Environment: 7\" Hard Radiation field (base 5 CP; Hard Radiation +2.5; final 7.5 CP; 5 Devitalization Entropy/round; active only while attacking); Adaptation: Radiation (final 5 CP). The bright abdominal glow is the field's visible manifestation, not a separate Light Control power.",
       "weaknesses": null,
       "equipment": null,
       "forms": [
@@ -1250,8 +1250,8 @@
       "gwSource": "AC 4, HD 8, MV N/A. 1m tall flower-bush. Disturbed → glows rainbow → emits 3d6 random-intensity radiation in 15m radius. Each round different intensity. Damaged → 1d4 simultaneous blasts. Petals dry to 1 HP/g healing powder (20g/flower, 3-day sun; half effective if artificial drying).",
       "build": "Plant (immobile)",
       "origin": "Mutated or Evolved",
-      "cpEstimate": "~50 (listed BCs, Abilities, and Weaknesses; subject to the source attack calibration)",
-      "abilities": "Change Environment: 19\" Hard Radiation field (15 CP + 2.5 CP Hard Radiation; final 17.5 CP — 5 Devitalization Entropy/round in a 15m radius; triggered by disturbance after one melee round; random intensity each round); Light Control C Glare (5 CP — rainbow warning glow); Armor 9 = 4/3/0/2 K/E/B/Ent (15 CP)",
+      "cpEstimate": "51",
+      "abilities": "Change Environment: 19\" Hard Radiation field (base 15 CP; Hard Radiation +2.5; final 17.5 CP — 5 Devitalization Entropy/round in a 15m radius; triggered by disturbance after one melee round; random intensity each round); Light Control C Glare (final 5 CP — rainbow warning glow); Armor 9 = 4/3/0/2 K/E/B/Ent (final 15 CP)",
       "weaknesses": "Distinctive (stationary plant) -5, Low Self Control (reactive blasting only) -5",
       "equipment": null,
       "forms": [

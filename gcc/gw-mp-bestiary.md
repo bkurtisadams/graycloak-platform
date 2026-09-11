@@ -131,8 +131,9 @@ Hits        10      Power 45      Move 9 ground    Init d4
 HTH         d6      Inventing 3   Mass d3 (~40 lbs)   Profile /1.5
 ```
 
-**Abilities:** Size Change B: Smaller 4.5' (2.5 CP; Stays Active +2.5; Can't Hold Back -5; permanent; final 1 CP, from a calculated 0 CP minimum); Winged Flight 3/48 (7.5 CP; Wings -5; Non-Proportional Flight +2.5; final 5 CP); Natural Weaponry mandibles (+0 attack, +4 sharp damage); Heightened Physical Defense +3 (7.5 CP). Carries up to 2 kg while flying.
-**CP estimate:** ~75
+**Abilities:** Size Change B: Smaller 4.5' (base 2.5 CP; Stays Active +2.5; Can't Hold Back -5; calculated 0 CP; final 1 CP minimum); Winged Flight 3/48 (base 7.5 CP; Wings -5; Non-Proportional Flight +2.5; final 5 CP); Natural Weaponry mandibles (+0 attack 0 CP; +4 sharp damage 5 CP; final 5 CP); Heightened Physical Defense +3 (final 7.5 CP). Carries up to 2 kg while flying.
+**CP ledger:** BCs 54 + Abilities 18.5 + Weaknesses 0 = 72.5; round up = **73 CP**.
+**CP estimate:** 73
 **Origin:** Mutated or Evolved
 
 ---
@@ -223,9 +224,10 @@ Hits        11      Power 42      Move 13 (flight)  Init d6
 HTH         d4      Inventing 2   Mass d3 (~50 lbs)   Profile /1.5
 ```
 
-**Abilities:** Size Change B: Smaller 4.5' (2.5 CP; Stays Active +2.5; Can't Hold Back -5; permanent; final 1 CP); Winged Flight 3/48 (7.5 CP; Wings -5; Non-Proportional Flight +2.5; final 5 CP); Change Environment: 7" Hard Radiation field (7.5 CP — 5 Devitalization Entropy/round; active only while attacking); Adaptation: Radiation (5 CP). The bright abdominal glow is the field's visible manifestation, not a separate Light Control power.
+**Abilities:** Size Change B: Smaller 4.5' (base 2.5 CP; Stays Active +2.5; Can't Hold Back -5; calculated 0 CP; final 1 CP minimum); Winged Flight 3/48 (base 7.5 CP; Wings -5; Non-Proportional Flight +2.5; final 5 CP); Change Environment: 7" Hard Radiation field (base 5 CP; Hard Radiation +2.5; final 7.5 CP; 5 Devitalization Entropy/round; active only while attacking); Adaptation: Radiation (final 5 CP). The bright abdominal glow is the field's visible manifestation, not a separate Light Control power.
 **Tactics:** While attacking, the Blaash's 5m-radius radiation field affects everyone but itself and other blaash. Once it kills prey, it stops to eat voraciously. Fearless.
-**CP estimate:** ~75 (54 CP BCs + 18.5 CP listed Abilities, rounded; before any GM-assigned physical-defense adjustment)
+**CP ledger:** BCs 54 + Abilities 18.5 + Weaknesses 0 = 72.5; round up = **73 CP**.
+**CP estimate:** 73
 **Origin:** Mutated or Evolved
 
 ---
@@ -880,10 +882,11 @@ Hits        1       Power 17      Move 0      Init d3
 HTH         d2      Inventing 1   Mass d3 (~50 lbs)
 ```
 
-**Abilities:** Change Environment: 19" Hard Radiation field (15 CP + 2.5 CP Hard Radiation; final 17.5 CP — 5 Devitalization Entropy/round in a 15m radius; triggered by disturbance after one melee round; random intensity each round); Light Control C Glare (5 CP — rainbow warning glow); Armor 9 = 4/3/0/2 K/E/B/Ent (15 CP)
+**Abilities:** Change Environment: 19" Hard Radiation field (base 15 CP; Hard Radiation +2.5; final 17.5 CP — 5 Devitalization Entropy/round in a 15m radius; triggered by disturbance after one melee round; random intensity each round); Light Control C Glare (final 5 CP — rainbow warning glow); Armor 9 = 4/3/0/2 K/E/B/Ent (final 15 CP)
 **Weaknesses:** Distinctive (stationary plant) -5, Low Self Control (reactive blasting only) -5
 **Resource:** 20g/flower healing powder (1 HP/g sun-dried 3 days; 0.5 HP/g artificial).
-**CP estimate:** ~50 (listed BCs, Abilities, and Weaknesses; subject to the source attack calibration)
+**CP ledger:** BCs 23 + Abilities 37.5 + Weaknesses -10 = 50.5; round up = **51 CP**.
+**CP estimate:** 51
 **Origin:** Mutated or Evolved
 **Tactics:** Area-denial. PCs choose: engage at range, harvest at risk, or avoid. The source's random intensity and damaged-state 1d4 simultaneous blasts are encounter-level variations of the normal MP radiation field, not imported GW radiation-matrix outcomes.
 

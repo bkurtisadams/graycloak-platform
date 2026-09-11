@@ -195,7 +195,9 @@ Folded into Armor total. Wicker shield = +1 to Armor. Wooden shield = +2. Steel 
 
 ## 8. CP Policy and Caps
 
-Use the creature's actual purchased BCs, Abilities, and Modifiers to establish its CP total. Apply MP 2.1.16.5 caps to both base and final costs unless the GM explicitly waives one for a non-combat convenience or realism reason. Do not declare a larger NPC total merely to obtain a higher cap, and do not map HD directly to a CP tier.
+Use the creature's actual purchased BCs, Abilities, and Modifiers to establish its CP total. Each of the five BC scores costs 1 CP per point. For every Ability, record its base cost, each modifier, and its final payable cost; a final Ability cost never falls below 1 CP. Apply MP 2.1.16.5 caps to both base and final costs unless the GM explicitly waives one for a non-combat convenience or realism reason.
+
+Weaknesses reduce the total by their final negative CP value; normally their combined value may not exceed -20 CP. Add BC CP, final Ability CP, and Weakness CP, then round any fractional total **up** to a whole CP before using it for the creature's budget and caps. Do not declare a larger NPC total merely to obtain a higher cap, and do not map HD directly to a CP tier.
 
 For a total of 200 CP, the relevant caps are BC 50, Ability 40, and average damage 19. The expanded random-NPC power-level chart is construction guidance; it does not replace these caps.
 
