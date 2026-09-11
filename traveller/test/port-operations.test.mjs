@@ -16,7 +16,7 @@ import {
   refuelShipToCapacity,
   starportFuelService,
   transferCharacterCreditsToShip
-} from '../../packages/classic-traveller-rules/index.js';
+} from '../vendor/classic-traveller-rules/index.js';
 
 import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js';
 import { createDocumentRegistry, createMemoryStorage } from '../src/document-registry.js';

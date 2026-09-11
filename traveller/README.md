@@ -1,5 +1,26 @@
 # Graycloak Traveller
 
+## v0.72.1 graycloak.net/traveller
+
+Traveller lived outside `gcc/`, the folder GitHub Pages publishes as
+graycloak.net, and imported the rules package from two directories above
+itself — so there was no address for it but localhost. Now:
+
+- Every import of the rules package in `client/`, `src/`, `world/` and the
+  tests is `../vendor/classic-traveller-rules/`, and `scripts/sync-vendor.mjs`
+  makes that copy from `packages/classic-traveller-rules` — the source of
+  truth, untouched. `npm test` runs it first; `serve-traveller.bat` runs it
+  before serving; `traveller/vendor/` is git-ignored.
+- The Pages workflow vendors and assembles `gcc/traveller/` (client, src,
+  world, campaigns, vendor) at deploy time, with an `index.html` that forwards
+  to `client/enter.html`. Nothing is duplicated in the repository.
+
+The front door is **https://graycloak.net/traveller/** (→ `client/enter.html`),
+with `client/index.html` and `client/player.html` beside it, reached from the
+lobby as before. Firebase already authorises graycloak.net for the AD&D client,
+so sign-in and Firestore work unchanged. Verified locally by assembling the
+same tree and resolving every relative import in it.
+
 ## v0.72.0 scenes, in folders
 
 The structural half of the combat audit begins. A **scene** is a board on its

@@ -1,10 +1,12 @@
 {
   "name": "@graycloak/traveller",
-  "version": "0.72.0",
+  "version": "0.72.1",
   "private": true,
   "type": "module",
   "description": "Graycloak Classic Traveller browser client",
   "scripts": {
-    "test": "node --test test/*.test.mjs"
+    "pretest": "node scripts/sync-vendor.mjs",
+    "test": "node --test test/*.test.mjs",
+    "sync-vendor": "node scripts/sync-vendor.mjs"
   }
 }

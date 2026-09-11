@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { importCharacterDocument } from '../../packages/classic-traveller-rules/index.js';
+import { importCharacterDocument } from '../vendor/classic-traveller-rules/index.js';
 import { createMemoryStorage } from '../src/document-registry.js';
 import { createActivityLogStore } from '../src/activity-log.js';
 import {

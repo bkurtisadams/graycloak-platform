@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-import { importCharacterDocument, importShipDocument } from '../../packages/classic-traveller-rules/index.js';
+import { importCharacterDocument, importShipDocument } from '../vendor/classic-traveller-rules/index.js';
 import { createCampaignDocument } from '../src/campaign-document.js';
 import { createEncounterDocument, resolveEncounterRound, setCombatantCover } from '../src/encounter-document.js';
 import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedShip, PLAYER_LOG_CATEGORIES } from '../src/published-view.js';

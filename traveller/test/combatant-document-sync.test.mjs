@@ -7,7 +7,7 @@ import path from 'node:path';
 import {
   importCharacterDocument,
   updateCharacterGameplayState
-} from '../../packages/classic-traveller-rules/index.js';
+} from '../vendor/classic-traveller-rules/index.js';
 
 import { createCampaignDocument } from '../src/campaign-document.js';
 import { createEncounterDocument, resolveEncounterRound } from '../src/encounter-document.js';

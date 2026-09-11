@@ -2,7 +2,7 @@ import {
   PERSONAL_ARMOR_TYPES,
   getPersonalWeapon,
   stableDocumentId
-} from '../../packages/classic-traveller-rules/index.js';
+} from '../vendor/classic-traveller-rules/index.js';
 
 export const NPC_ACTOR_DOCUMENT_TYPE = 'graycloak-traveller-npc-actor';
 export const CURRENT_NPC_ACTOR_SCHEMA_VERSION = 1;

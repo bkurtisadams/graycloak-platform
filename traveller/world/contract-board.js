@@ -2,7 +2,7 @@ import {
   calculateShipCharterPrice,
   privateMessageAvailable,
   privateMessageHonorarium
-} from '../../packages/classic-traveller-rules/index.js';
+} from '../vendor/classic-traveller-rules/index.js';
 
 function seed32(text) {
   let hash = 2166136261;

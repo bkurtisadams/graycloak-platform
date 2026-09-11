@@ -17,7 +17,7 @@ import {
   SKILL_TABLES,
   MUSTERING_OUT_TABLES,
   AGING_BANDS
-} from '../../packages/classic-traveller-rules/index.js';
+} from '../vendor/classic-traveller-rules/index.js';
 import {
   ACTION_LABELS,
   buildServiceHistory,

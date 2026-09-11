@@ -20,3 +20,6 @@ service-account-key.json
 /graycloak-files.txt
 /list-graycloak-files.bat
 /zip-adnd-bridge.bat*.patch
+
+# Graycloak Traveller vendors the rules package at test/serve/deploy time.
+traveller/vendor/

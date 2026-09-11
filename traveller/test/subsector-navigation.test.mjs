@@ -8,7 +8,7 @@ import {
   validateAuthoredSubsector,
   validateAuthoredSystemRecord,
   parseUniversalWorldProfile
-} from '../../packages/classic-traveller-rules/index.js';
+} from '../vendor/classic-traveller-rules/index.js';
 
 import {
   advanceCampaignDays,

@@ -58,7 +58,7 @@ import {
   blowsRemaining,
   PERSONAL_WEAPONS,
   PERSONAL_ARMOR_TYPES
-} from '../../packages/classic-traveller-rules/index.js';
+} from '../vendor/classic-traveller-rules/index.js';
 
 import {
   ACTION_LABELS,

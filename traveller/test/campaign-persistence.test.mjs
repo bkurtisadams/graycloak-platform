@@ -7,7 +7,7 @@ import path from 'node:path';
 import {
   importCharacterDocument,
   importShipDocument
-} from '../../packages/classic-traveller-rules/index.js';
+} from '../vendor/classic-traveller-rules/index.js';
 
 import {
   addCharacterToCampaign,

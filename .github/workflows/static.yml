@@ -33,6 +33,23 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup Pages
         uses: actions/configure-pages@v5
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # Graycloak Traveller lives outside gcc/ and imports the rules package
+      # from ../vendor/. Vendor it, then assemble gcc/traveller/ for Pages.
+      - name: Assemble Traveller
+        run: |
+          node traveller/scripts/sync-vendor.mjs
+          rm -rf gcc/traveller
+          mkdir -p gcc/traveller
+          cp -r traveller/client traveller/src traveller/world traveller/campaigns traveller/vendor gcc/traveller/
+          cat > gcc/traveller/index.html <<'HTML'
+          <!doctype html><meta charset="utf-8"><title>Graycloak Traveller</title>
+          <meta http-equiv="refresh" content="0; url=client/enter.html">
+          <a href="client/enter.html">Graycloak Traveller</a>
+          HTML
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

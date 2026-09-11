@@ -12,9 +12,12 @@ REM Note: this holds port 8080, which the Firestore emulator also wants. If you
 REM run both, change the emulator port in graycloak-adnd\firebase.json.
 setlocal
 cd /d "%~dp0"
+echo Vendoring the rules package into traveller\vendor...
+node traveller\scripts\sync-vendor.mjs
+echo.
 echo Serving from %CD%
 echo.
-echo    Open:  http://localhost:8080/traveller/client/index.html
+echo    Open:  http://localhost:8080/traveller/client/enter.html
 echo.
 echo Ctrl-C to stop.
 echo.

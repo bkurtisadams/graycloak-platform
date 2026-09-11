@@ -14,7 +14,7 @@
 // of the character. The referee seats the request; the player's record is
 // then marked as belonging to that campaign.
 
-import { importCharacterDocument } from '../../packages/classic-traveller-rules/index.js';
+import { importCharacterDocument } from '../vendor/classic-traveller-rules/index.js';
 
 export const CHARACTER_RECORD_SCHEMA_VERSION = 1;
 export const WORLD_KINDS = Object.freeze({

@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-import { importCharacterDocument, importShipDocument } from '../../packages/classic-traveller-rules/index.js';
+import { importCharacterDocument, importShipDocument } from '../vendor/classic-traveller-rules/index.js';
 import { createCampaignDocument, addContractToCampaign } from '../src/campaign-document.js';
 import { createContractDocument } from '../src/contract-document.js';
 import { createDocumentRegistry, createMemoryStorage } from '../src/document-registry.js';

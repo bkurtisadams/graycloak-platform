@@ -22,7 +22,7 @@ import {
 import { createPlayerDeclaration } from '../src/player-declaration.js';
 import { createPlayerTokenMove } from '../src/player-token-movement.js';
 import { serviceName, nobleTitleLabel, buildServiceHistory, buildGenerationLog } from './ui-model.js';
-import { PERSONAL_WEAPONS, SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getSubsectorSystem } from '../../packages/classic-traveller-rules/index.js';
+import { PERSONAL_WEAPONS, SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getSubsectorSystem } from '../vendor/classic-traveller-rules/index.js';
 import { renderSubsectorMap } from './subsector-svg.js';
 import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js';
 

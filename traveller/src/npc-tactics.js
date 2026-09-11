@@ -17,7 +17,7 @@ import {
   weaponTargetNumber,
   previewPersonalAttack,
   blowsRemaining
-} from '../../packages/classic-traveller-rules/index.js';
+} from '../vendor/classic-traveller-rules/index.js';
 
 import { encounterPairRange, encounterMapDistance, encounterSituationDMs } from './encounter-document.js';
 

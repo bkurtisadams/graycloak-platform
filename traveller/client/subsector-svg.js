@@ -1,6 +1,6 @@
 const SQRT3 = Math.sqrt(3);
 
-import { formatSubsectorHex } from '../../packages/classic-traveller-rules/index.js';
+import { formatSubsectorHex } from '../vendor/classic-traveller-rules/index.js';
 
 export const SUBSECTOR_SVG_GEOMETRY = Object.freeze({
   radius: 38,

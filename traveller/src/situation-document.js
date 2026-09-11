@@ -1,4 +1,4 @@
-import { stableDocumentId } from '../../packages/classic-traveller-rules/index.js';
+import { stableDocumentId } from '../vendor/classic-traveller-rules/index.js';
 
 export const SITUATION_DOCUMENT_TYPE = 'graycloak-traveller-situation';
 export const CURRENT_SITUATION_DOCUMENT_SCHEMA_VERSION = 1;

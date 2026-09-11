@@ -1,4 +1,4 @@
-import { stableDocumentId } from '../../packages/classic-traveller-rules/index.js';
+import { stableDocumentId } from '../vendor/classic-traveller-rules/index.js';
 
 export const CONTACT_DOCUMENT_TYPE = 'graycloak-traveller-contact';
 export const CURRENT_CONTACT_DOCUMENT_SCHEMA_VERSION = 1;

@@ -19,7 +19,7 @@ import {
   purchaseSpeculativeCargo,
   deliverFreightAtDestination,
   disembarkPassengersAtDestination
-} from '../../packages/classic-traveller-rules/index.js';
+} from '../vendor/classic-traveller-rules/index.js';
 import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js';
 import { seededDice, routeMarketSeed, weeklyTradeSeed } from '../client/commerce-market.js';
 

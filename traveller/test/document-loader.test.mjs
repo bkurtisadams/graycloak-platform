@@ -40,7 +40,7 @@ test('loader rejects unknown typed documents instead of misrouting them as charg
 
 
 test('loader recognizes Campaign Documents and portable Campaign Bundles', async () => {
-  const { importCharacterDocument, importShipDocument } = await import('../../packages/classic-traveller-rules/index.js');
+  const { importCharacterDocument, importShipDocument } = await import('../vendor/classic-traveller-rules/index.js');
   const { createCampaignDocument } = await import('../src/campaign-document.js');
   const { createCampaignBundle } = await import('../src/campaign-bundle.js');
   const character = importCharacterDocument(await readExample('Hawkeye.character.json'));

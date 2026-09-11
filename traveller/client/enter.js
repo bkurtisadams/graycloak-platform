@@ -26,7 +26,7 @@ import {
 } from '../src/character-record.js';
 import {
   CHARGEN_PHASES, createCharacter, createCharacterDocument, performChargenAction, exportCharacter, importCharacter
-} from '../../packages/classic-traveller-rules/index.js';
+} from '../vendor/classic-traveller-rules/index.js';
 
 const el = {
   status: document.querySelector('#enter-status'),

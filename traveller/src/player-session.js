@@ -1,4 +1,4 @@
-import { stableDocumentId } from '../../packages/classic-traveller-rules/index.js';
+import { stableDocumentId } from '../vendor/classic-traveller-rules/index.js';
 
 export const PLAYER_SESSION_SCHEMA_VERSION = 1;
 export const PLAYER_SESSION_STORAGE_PREFIX = 'graycloak-traveller-player-session-v1:';

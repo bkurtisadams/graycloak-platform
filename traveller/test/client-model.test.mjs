@@ -21,7 +21,7 @@ import {
   createTypeSScoutReserveShipForCharacter,
   importCharacterDocument,
   performChargenAction
-} from '../../packages/classic-traveller-rules/index.js';
+} from '../vendor/classic-traveller-rules/index.js';
 
 import {
   buildCharacterRecord,

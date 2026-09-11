@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-import { createSequenceDice, generatePatronContact, importCharacterDocument, importShipDocument } from '../../packages/classic-traveller-rules/index.js';
+import { createSequenceDice, generatePatronContact, importCharacterDocument, importShipDocument } from '../vendor/classic-traveller-rules/index.js';
 import { createCampaignDocument, updateCampaignLocation } from '../src/campaign-document.js';
 import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js';
 import { arrivalSituationEventKey, buildPatronSituationOffer, generateArrivalSituationOffer, patronSituationEventKey } from '../world/situation-events.js';

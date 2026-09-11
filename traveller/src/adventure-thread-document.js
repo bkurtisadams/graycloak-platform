@@ -1,4 +1,4 @@
-import { stableDocumentId } from '../../packages/classic-traveller-rules/index.js';
+import { stableDocumentId } from '../vendor/classic-traveller-rules/index.js';
 
 export const ADVENTURE_THREAD_DOCUMENT_TYPE = 'graycloak-traveller-thread';
 export const CURRENT_ADVENTURE_THREAD_DOCUMENT_SCHEMA_VERSION = 1;

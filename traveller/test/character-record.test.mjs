@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-import { importCharacterDocument } from '../../packages/classic-traveller-rules/index.js';
+import { importCharacterDocument } from '../vendor/classic-traveller-rules/index.js';
 import {
   createCharacterRecord, importCharacterRecord, validateCharacterRecord, characterRecordStatus,
   setCharacterRecordWorld, setCharacterRecordPendingJoin, generateInviteCode, normalizeInviteCode,
