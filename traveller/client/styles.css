@@ -3335,3 +3335,5 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .scene-drag-label.limit { fill: #7a5210; }
 .scene-drag-label.over { fill: var(--failure-border); }
 .panning { cursor: grabbing; }
+/* --- v0.74.0: the combat tracker on the referee's tracker slot. */
+.encounter-tracker-tools { display: flex; gap: 6px; flex-wrap: wrap; padding-top: 4px; }

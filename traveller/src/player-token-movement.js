@@ -35,3 +35,16 @@ export function authorizePlayerTokenMove(raw, { campaign, encounter } = {}) {
 export function playerMoveToCombatantMove(move) {
   return { combatantId: move.actorId, column: move.column, row: move.row, pace: move.pace, round: move.round, replaceExisting: true };
 }
+
+// v0.74.0: a player walks their own token about a staged scene. No round, no
+// allowance — nothing is running — only ownership and that the token is
+// there. The intent travels the same path as a fight's, keyed by the scene id.
+export function authorizePlayerSceneMove(raw, { campaign, scene } = {}) {
+  const move = createPlayerTokenMove(raw);
+  if (!campaign?.identity?.id || !scene?.identity?.id) throw new TypeError('campaign and scene are required');
+  if (scene.campaignId !== campaign.identity.id || move.encounterId !== scene.identity.id) throw new Error('move does not belong to this scene');
+  const token = scene.tokens?.find((entry) => entry.actorId === move.actorId);
+  if (!token) throw new Error('that character is not on this scene');
+  if (campaign.ownership?.actors?.[move.actorId] !== move.uid) throw new Error('player does not own this token');
+  return { ...move, tokenId: token.id };
+}

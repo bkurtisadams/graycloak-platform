@@ -92,7 +92,7 @@ import {
 
 import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js';
 import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js';
-import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, SCENE_MIN_SQUARES, SCENE_MAX_METERS } from '../src/scene-document.js';
+import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, setSceneTokenCombat, clearSceneCombatTracker, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS } from '../src/scene-document.js';
 import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js';
 
 import {
@@ -175,8 +175,8 @@ import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus }
 import { openSignInDialog } from './signin-ui.js';
 import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord } from './publish.js';
 import { authorizePlayerDeclaration } from '../src/player-declaration.js';
-import { authorizePlayerTokenMove, playerMoveToCombatantMove } from '../src/player-token-movement.js';
-import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog } from '../src/published-view.js';
+import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js';
+import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js';
 import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js';
 import {
   ACTIVITY_VISIBILITY,
@@ -257,8 +257,7 @@ import {
   declaredTargetCounts,
   addEncounterCombatantFromActor,
   removeEncounterCombatant,
-  setEncounterCombatantCondition
-} from '../src/encounter-document.js';
+  setEncounterCombatantCondition, opponentSpecFromNpcActor } from '../src/encounter-document.js';
 
 import {
   createContactDocument,
@@ -1929,7 +1928,8 @@ async function saveCampaignHomeNow() {
     const envelope = buildPublishedCampaign(campaignDocument, {
       publishedAt: campaignDocument.ownership?.publishedAt ?? home.savedAt,
       currentEncounterId: scene?.identity.id ?? null,
-      ship: shipDocument
+      ship: shipDocument,
+      activeScene: publishedActiveScene()
     });
     const written = await saveCampaignHome(home, envelope, { expectedRevision: campaignHomeRevision });
     // v0.70.0: a fight in progress reaches the players with every save —
@@ -3580,6 +3580,23 @@ function showEncounterMapMenu(event) {
   event.preventDefault();
   if (event.target.closest?.('[data-scene-token]')) return;
   const encounter = activeEncounterAtCurrentSystem();
+  if (!encounter && activeScene()) {
+    const scene = activeScene();
+    const point = encounterMapPoint(event.clientX, event.clientY);
+    const scale = scene.board.metersPerSquare;
+    const { cell } = encounterCanvas().metrics();
+    const cells = sceneBoardCells(scene);
+    const column = Math.max(0, Math.min(cells.columns - 1, Math.round(point.x / cell / scale) * scale));
+    const row = Math.max(0, Math.min(cells.rows - 1, Math.round(point.y / cell / scale) * scale));
+    const place = document.createElement('button');
+    place.type = 'button';
+    place.textContent = '[ PLACE ACTOR HERE ]';
+    place.addEventListener('click', () => { el.encounterTokenMenu.hidden = true; openScenePlacementDialog(scene.identity.id, column, row); });
+    el.encounterTokenTooltip.hidden = true;
+    el.encounterTokenMenu.replaceChildren(place);
+    positionEncounterOverlay(el.encounterTokenMenu, event);
+    return;
+  }
   if (!encounter) return;
   const point = encounterMapPoint(event.clientX, event.clientY);
   const scale = encounter.map.metersPerSquare;
@@ -3749,6 +3766,7 @@ function renderEncounterRangePanel(encounter, actor, target, guide = null) {
 // combatant here carries one weapon, so those lines appear only when the
 // weapon in hand is of that kind rather than advertising a gun nobody has.
 function renderEncounterMap(encounter) {
+  if (!encounter && activeScene()) { renderStagedScene(activeScene()); return; }
   if (!encounter) {
     hideEncounterTokenOverlays();
     // No encounter yet: the start control still belongs with the tracker slot,
@@ -4292,6 +4310,20 @@ function watchPlayerDeclarations() {
 function watchPlayerCanvas() {
   const encounter = activeEncounterAtCurrentSystem() ?? latestEncounterAtCurrentSystem();
   const online = campaignIsPublished(campaignDocument) && currentUserId();
+  // v0.74.0: with no fight and an active scene, players walk their tokens
+  // about the scene; the intents travel the same moves path keyed by scene.
+  const staging = !activeEncounterAtCurrentSystem() && activeScene();
+  if (online && staging) {
+    const scene = activeScene();
+    if (watchedMoveEncounterId === scene.identity.id) return;
+    unsubscribeTokenMoves?.(); unsubscribeCanvasPresence?.(); unsubscribeCanvasPresence = null; canvasPresence = [];
+    watchedMoveEncounterId = scene.identity.id;
+    const watchedId = scene.identity.id;
+    watchTokenMoves(campaignDocument.identity.id, watchedId, applyPlayerSceneMoves)
+      .then((unsubscribe) => { if (watchedMoveEncounterId !== watchedId) unsubscribe(); else unsubscribeTokenMoves = unsubscribe; })
+      .catch((error) => console.error(error));
+    return;
+  }
   if (!online || !encounter) {
     unsubscribeTokenMoves?.(); unsubscribeTokenMoves = null; watchedMoveEncounterId = null;
     unsubscribeCanvasPresence?.(); unsubscribeCanvasPresence = null; canvasPresence = [];
@@ -4419,7 +4451,8 @@ async function publishCurrentCampaign() {
     const published = buildPublishedCampaign(campaignDocument, {
       publishedAt,
       currentEncounterId: scene?.identity.id ?? null,
-      ship: shipDocument
+      ship: shipDocument,
+      activeScene: publishedActiveScene()
     });
     await publishCampaign(published);
     // Only recorded once the write is acknowledged, so a failure leaves the
@@ -4949,6 +4982,241 @@ function renderSceneDirectory() {
     }
   }
   el.directoryScenes.replaceChildren(...rows);
+}
+
+// --- v0.74.0: staging on the active scene, and the combat tracker -------
+// The Foundry shape: the referee activates a scene, everyone sees it, tokens
+// are placed and walked about, and a fight begins only when the referee adds
+// tokens to the tracker and presses START COMBAT.
+let stagedSelectedTokenIds = new Set();
+let framedSceneId = null;
+
+function sceneActorNames() {
+  const names = new Map();
+  for (const character of currentPartyCharacters()) names.set(character.identity.id, { name: character.identity.name, actorType: 'pc', kind: 'pc' });
+  for (const actor of npcActorDocuments) names.set(actor.identity.id, { name: actor.identity.name, actorType: actor.profile.actorType, kind: 'npc' });
+  return names;
+}
+
+function publishedActiveScene() {
+  const scene = activeScene();
+  return scene ? buildPublishedScene(scene, { names: sceneActorNames() }) : null;
+}
+
+function updateScene(sceneId, mutate) {
+  const index = sceneDocuments.findIndex((entry) => entry.identity.id === sceneId);
+  if (index < 0) throw new Error('scene is unavailable');
+  sceneDocuments[index] = mutate(sceneDocuments[index]);
+  if (registry) registry.put(sceneDocuments[index]);
+  persistCampaignState();
+  return sceneDocuments[index];
+}
+
+function renderStagedScene(scene) {
+  hideEncounterTokenOverlays();
+  const board = encounterCanvas();
+  board.setBoard(sceneBoardCells(scene));
+  const names = sceneActorNames();
+  const tracked = new Set(trackedSceneTokens(scene).map((token) => token.id));
+  const tokens = scene.tokens.map((token) => {
+    const named = names.get(token.actorId) ?? { name: token.label || '?', actorType: 'npc' };
+    return {
+      id: token.id, column: token.position.column, row: token.position.row,
+      side: token.side === 'party' ? 'party' : 'enemy',
+      kind: named.actorType,
+      shape: named.actorType === 'robot' ? 'square' : named.actorType === 'creature' ? 'diamond' : 'circle',
+      label: token.label || named.name.charAt(0),
+      ariaLabel: `${named.name}, ${token.side}, staged`,
+      title: `${named.name} / ${token.side}${tracked.has(token.id) ? ' / IN COMBAT TRACKER' : ''}`,
+      state: { selected: stagedSelectedTokenIds.has(token.id), targeted: tracked.has(token.id) },
+      token, named
+    };
+  });
+  if (framedSceneId !== scene.identity.id) { framedSceneId = scene.identity.id; board.camera.fit(); }
+  board.render({
+    tokens,
+    decorate: (group, token) => {
+      if (tracked.has(token.id)) { const mark = sceneSvgNode('text', { x: .4, y: -.32, class: 'encounter-token-condition-marker' }); mark.textContent = '\u2694'; group.append(mark); }
+    },
+    interaction: {
+      canDrag: () => true,
+      describe: (token, from, to) => ({ legal: 'legal', text: `STAGING / ${Number((Math.max(Math.abs(to.column - from.column), Math.abs(to.row - from.row)) / scene.board.metersPerSquare).toFixed(2))} SQ` }),
+      onDrop: (token, to) => {
+        try { updateScene(scene.identity.id, (doc) => moveSceneToken(doc, { tokenId: token.id, column: to.column, row: to.row })); renderEncounter(); }
+        catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); renderEncounter(); }
+      },
+      onSelect: (token, event) => {
+        if (event?.shiftKey) { if (stagedSelectedTokenIds.has(token.id)) stagedSelectedTokenIds.delete(token.id); else stagedSelectedTokenIds.add(token.id); }
+        else stagedSelectedTokenIds = new Set(stagedSelectedTokenIds.has(token.id) && stagedSelectedTokenIds.size === 1 ? [] : [token.id]);
+        renderEncounter();
+      },
+      onContextMenu: (token, event) => showStagedTokenMenu(event, scene, token),
+      onHover: (token, event, entering) => {
+        if (entering) { el.encounterTokenTooltip.textContent = `${token.named.name.toUpperCase()} // ${token.token.side.toUpperCase()} // STAGED${tracked.has(token.id) ? ' // IN COMBAT TRACKER' : ''}`; positionEncounterOverlay(el.encounterTokenTooltip, event); el.encounterTokenTooltip.hidden = false; }
+        else el.encounterTokenTooltip.hidden = true;
+      }
+    }
+  });
+  renderEncounterRangePanel(null, null, null, null);
+  el.encounterGridScale.value = String(scene.board.metersPerSquare);
+  el.encounterGridScale.disabled = true;
+  el.encounterGridLegend.textContent = `${scene.board.metersPerSquare} M SQUARES / ${sceneBoardMeters(scene)} M A SIDE / STAGING`;
+  el.encounterSelectionStatus.textContent = `SCENE ${scene.identity.name.toUpperCase()} / STAGING / ${scene.tokens.length} TOKEN${scene.tokens.length === 1 ? '' : 'S'} / ${tracked.size} IN TRACKER`;
+  renderSceneTracker(scene);
+  el.encounterPartyRoster.replaceChildren();
+  el.encounterRoster.replaceChildren();
+  renderEncounterLighting(null);
+}
+
+function renderSceneTracker(scene) {
+  const names = sceneActorNames();
+  const tracked = trackedSceneTokens(scene);
+  const heading = document.createElement('div');
+  heading.className = 'encounter-roster-heading';
+  heading.textContent = 'COMBAT TRACKER';
+  const rows = tracked.map((token) => {
+    const row = document.createElement('div');
+    row.className = 'encounter-tracker-row';
+    const name = document.createElement('span'); name.className = 'encounter-tracker-name';
+    name.textContent = `${(names.get(token.actorId)?.name ?? token.label).toUpperCase()} / ${token.side.toUpperCase()}`;
+    row.append(name, makePortButton('REMOVE', () => { updateScene(scene.identity.id, (doc) => setSceneTokenCombat(doc, token.id, false)); renderEncounter(); }));
+    return row;
+  });
+  if (!rows.length) rows.push(Object.assign(document.createElement('div'), { className: 'directory-empty', textContent: 'RIGHT-CLICK A TOKEN / ADD TO COMBAT. START NEEDS ONE PARTY TOKEN AND ONE OTHER.' }));
+  const selected = scene.tokens.filter((token) => stagedSelectedTokenIds.has(token.id) && !token.inCombat);
+  const tools = document.createElement('div');
+  tools.className = 'encounter-tracker-tools';
+  if (selected.length) tools.append(makePortButton(`ADD SELECTED (${selected.length})`, () => { updateScene(scene.identity.id, (doc) => selected.reduce((acc, token) => setSceneTokenCombat(acc, token.id, true), doc)); renderEncounter(); }));
+  if (tracked.length) tools.append(makePortButton('CLEAR TRACKER', () => { updateScene(scene.identity.id, clearSceneCombatTracker); renderEncounter(); }));
+  el.encounterTracker.replaceChildren(heading, ...rows, tools);
+  const canStart = tracked.some((token) => token.side === 'party') && tracked.some((token) => token.side !== 'party');
+  const start = makePortButton('START COMBAT', () => startCombatFromScene(scene));
+  start.disabled = !canStart;
+  start.title = canStart ? 'Begin the fight with the tracked tokens where they stand' : 'Track at least one party token and one opponent first';
+  const setup = makePortButton('MANUAL SETUP', openCombatSetupDialog);
+  setup.title = 'The combat setup dialog: opponents by hand, without staging';
+  el.encounterResolve.replaceChildren(start, setup);
+}
+
+function showStagedTokenMenu(event, scene, token) {
+  event.preventDefault(); event.stopPropagation();
+  const buttons = [];
+  const add = (label, handler) => {
+    const button = document.createElement('button'); button.type = 'button'; button.textContent = `[ ${label} ]`;
+    button.addEventListener('click', () => { el.encounterTokenMenu.hidden = true; try { handler(); } catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); } });
+    buttons.push(button);
+  };
+  add(token.token.inCombat ? 'REMOVE FROM COMBAT' : 'ADD TO COMBAT', () => { updateScene(scene.identity.id, (doc) => setSceneTokenCombat(doc, token.id, !token.token.inCombat)); renderEncounter(); });
+  add(`SIDE: ${token.token.side.toUpperCase()} / CHANGE`, () => {
+    const order = ['party', 'opposition', 'neutral'];
+    const next = order[(order.indexOf(token.token.side) + 1) % order.length];
+    updateScene(scene.identity.id, (doc) => { const copy = JSON.parse(JSON.stringify(doc)); copy.tokens.find((entry) => entry.id === token.id).side = next; return copy; });
+    renderEncounter();
+  });
+  add('REMOVE FROM SCENE', () => { updateScene(scene.identity.id, (doc) => removeSceneToken(doc, token.id)); stagedSelectedTokenIds.delete(token.id); renderEncounter(); });
+  el.encounterTokenTooltip.hidden = true;
+  el.encounterTokenMenu.replaceChildren(...buttons);
+  positionEncounterOverlay(el.encounterTokenMenu, event);
+}
+
+// Placement on a scene: any party character or roster NPC not already there.
+function openScenePlacementDialog(sceneId, column, row) {
+  const scene = sceneDocuments.find((entry) => entry.identity.id === sceneId);
+  if (!scene) return;
+  const present = new Set(scene.tokens.map((entry) => entry.actorId));
+  const options = [];
+  for (const character of currentPartyCharacters()) if (!present.has(character.identity.id)) options.push(new Option(`${character.identity.name} / party character`, `pc:${character.identity.id}`));
+  for (const actor of npcActorDocuments) if (!actor.state.archived && !present.has(actor.identity.id)) options.push(new Option(`${actor.identity.name} / ${actor.profile.actorType} / ${actor.profile.bodyModel}`, `npc:${actor.identity.id}`));
+  if (!options.length) return setStatus('EVERYONE IS ALREADY ON THIS SCENE', 'error');
+  pendingEncounterPlacement = { sceneId, column, row };
+  el.encounterPlacementActor.replaceChildren(...options);
+  el.encounterPlacementSide.replaceChildren(new Option('Opposition', 'opposition'), new Option('Party', 'party'), new Option('Neutral', 'neutral'));
+  el.encounterPlacementSide.value = options[0].value.startsWith('pc:') ? 'party' : 'opposition';
+  el.encounterPlacementActor.addEventListener('change', () => { el.encounterPlacementSide.value = el.encounterPlacementActor.value.startsWith('pc:') ? 'party' : 'opposition'; }, { once: true });
+  el.encounterPlacementPosition.textContent = `${column + 1},${row + 1}`;
+  if (typeof el.encounterPlacementDialog.showModal === 'function') el.encounterPlacementDialog.showModal();
+  else el.encounterPlacementDialog.setAttribute('open', '');
+}
+
+function placeActorOnScene() {
+  const { sceneId, column, row } = pendingEncounterPlacement;
+  const [kind, actorId] = el.encounterPlacementActor.value.split(':');
+  const named = sceneActorNames().get(actorId);
+  if (!named) throw new Error('actor is unavailable');
+  updateScene(sceneId, (doc) => placeSceneToken(doc, { actorId, side: el.encounterPlacementSide.value, column, row, label: named.name.charAt(0).toUpperCase() }).scene);
+  closeEncounterPlacementDialog();
+  setStatus(`${named.name.toUpperCase()} PLACED ON THE SCENE`, 'ok');
+  renderEncounter();
+}
+
+// The fight begins with the tracked tokens where they stand. The initial
+// range is read off the closest party/opponent pair; surprise is rolled as
+// in the setup dialog; the tracker is then cleared.
+function startCombatFromScene(scene) {
+  try {
+    if (!campaignDocument || !gameplayDocument) throw new Error('an active campaign character is required');
+    const tracked = trackedSceneTokens(scene);
+    const partyIds = new Set(tracked.filter((token) => token.side === 'party').map((token) => token.actorId));
+    const characters = currentPartyCharacters().filter((entry) => partyIds.has(entry.identity.id));
+    if (!characters.length) throw new Error('track at least one party character');
+    const foes = tracked.filter((token) => token.side !== 'party');
+    const opponents = foes.map((token) => npcActorDocuments.find((actor) => actor.identity.id === token.actorId)).filter(Boolean).map(opponentSpecFromNpcActor);
+    if (!opponents.length) throw new Error('track at least one opponent from the roster');
+    const partyLoadouts = Object.fromEntries(characters.map((entry) => [entry.identity.id, { weaponKey: entry.loadout?.weaponKey ?? preferredPersonalWeapon(entry), armor: entry.loadout?.armor ?? 'none' }]));
+    // Range from the closest pair on the board.
+    let closest = Infinity;
+    for (const pc of tracked.filter((token) => token.side === 'party')) for (const foe of foes) {
+      closest = Math.min(closest, Math.max(Math.abs(pc.position.column - foe.position.column), Math.abs(pc.position.row - foe.position.row)));
+    }
+    const range = closest === 0 ? 'close' : closest <= 5 ? 'short' : closest <= 50 ? 'medium' : closest <= 250 ? 'long' : 'very-long';
+    const date = campaignDateSnapshot();
+    const encounterKey = `${campaignDocument.identity.id}|scene-${scene.identity.id}|${date.year}-${date.dayOfYear}|${encounterDocuments.length + 1}`;
+    let encounter = createEncounterDocument({
+      campaign: campaignDocument, scene, characters, partyLoadouts, opponents,
+      title: `${scene.identity.name} / ${opponents.map((entry) => entry.name).join(' + ')}`,
+      encounterKey, date, range, dice: seededDice(`${encounterKey}|surprise`)
+    });
+    if (encounter.surprise.surpriseSideId === 'opposition') {
+      const result = resolveEncounterRound(encounter, { action: 'wait', date, dice: seededDice(`${encounter.identity.id}|round-1|surprise`) });
+      encounter = result.encounter;
+      for (const entry of result.entries) logActivity('COMBAT', entry.text);
+    }
+    encounterDocuments.push(encounter);
+    campaignDocument = addEncounterToCampaign(campaignDocument, encounter);
+    updateScene(scene.identity.id, clearSceneCombatTracker);
+    stagedSelectedTokenIds = new Set();
+    clearEncounterCanvasSelection();
+    persistCampaignState();
+    operationsDeskTab = 'encounter';
+    logActivity('COMBAT', `${encounter.identity.title} begins on ${scene.identity.name} / ${range} range / surprise ${encounter.surprise.surpriseSideId ?? 'none'}`);
+    setStatus(`COMBAT BEGINS ON ${scene.identity.name.toUpperCase()}`, 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+// A player's walk about the staged scene.
+function applyPlayerSceneMoves(entries) {
+  const scene = activeScene();
+  if (!scene || activeEncounterAtCurrentSystem()) return;
+  let changed = false;
+  for (const entry of entries.sort((a, b) => a.movedAt - b.movedAt)) {
+    if (appliedMoveIds.has(entry.id)) continue;
+    try {
+      const move = authorizePlayerSceneMove(entry, { campaign: campaignDocument, scene });
+      updateScene(scene.identity.id, (doc) => moveSceneToken(doc, { tokenId: move.tokenId, column: move.column, row: move.row }));
+      appliedMoveIds.add(entry.id);
+      changed = true;
+    } catch (error) {
+      appliedMoveIds.add(entry.id);
+      console.warn('[traveller] player scene move refused:', error?.message ?? error);
+      tellPlayer(entry.uid, `Your move was refused: ${error?.message ?? error}`);
+    }
+    clearTokenMove(campaignDocument.identity.id, scene.identity.id, entry.id).catch((error) => console.error(error));
+  }
+  if (changed) renderEncounter();
 }
 
 function setActiveScene(sceneId) {
@@ -7299,7 +7567,7 @@ el.encounterPlacementCancel.addEventListener('click', closeEncounterPlacementDia
 el.encounterPlacementDialog.addEventListener('cancel', (event) => { event.preventDefault(); closeEncounterPlacementDialog(); });
 el.encounterPlacementForm.addEventListener('submit', (event) => {
   event.preventDefault();
-  try { placeRosterActorInEncounter(); } catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); }
+  try { if (pendingEncounterPlacement?.sceneId) placeActorOnScene(); else placeRosterActorInEncounter(); } catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); }
 });
 el.encounterConditionClose.addEventListener('click', closeEncounterConditionDialog);
 el.encounterConditionCancel.addEventListener('click', closeEncounterConditionDialog);
@@ -7366,6 +7634,19 @@ el.encounterGridScale.addEventListener('change', () => {
 
   // T targets whatever the pointer is over; Shift+T adds it to the target set
   // instead of replacing it, so several enemies can be marked at once.
+  // v0.73.4: the key works wherever the pointer is over a token, not only when
+  // the viewport happens to hold focus — the shared canvas keeps focus where
+  // it was on pointerdown, so a token click no longer focused this element.
+  const typing = (event) => {
+    const tag = event.target?.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || event.target?.isContentEditable;
+  };
+  document.addEventListener('keydown', (event) => {
+    if (typing(event) || el.encounterMapViewport.contains(event.target)) return;
+    if (!hoveredEncounterCombatantId || (event.key !== 't' && event.key !== 'T')) return;
+    el.encounterMapViewport.dispatchEvent(new KeyboardEvent('keydown', { key: event.key, shiftKey: event.shiftKey, bubbles: false, cancelable: true }));
+    event.preventDefault();
+  });
   el.encounterMapViewport.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
       event.preventDefault();

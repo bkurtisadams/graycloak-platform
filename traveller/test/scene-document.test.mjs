@@ -2,8 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createSceneDocument, importSceneDocument, updateSceneDocument, placeSceneToken, moveSceneToken, removeSceneToken,
-  sceneBoardCells, sceneFolders, SceneDocumentValidationError
+  sceneBoardCells, sceneFolders, SceneDocumentValidationError, setSceneTokenCombat, clearSceneCombatTracker, trackedSceneTokens
 } from '../src/scene-document.js';
+import { buildPublishedScene } from '../src/published-view.js';
+import { authorizePlayerSceneMove } from '../src/player-token-movement.js';
 
 test('a scene is a named board with a size, a scale, a folder, and staged tokens', () => {
   const scene = createSceneDocument({ campaignId: 'sea', name: 'Aster Downport', folder: 'Ports/Aster', squares: 40, metersPerSquare: 5, createdAt: 1 });
@@ -43,4 +45,33 @@ test('folders group scenes by path, sorted', () => {
   const folders = sceneFolders([a, b, c, d]);
   assert.deepEqual(folders.map((entry) => entry.folder), ['Ports', 'Scenes', 'Wilderness']);
   assert.deepEqual(folders[0].scenes.map((entry) => entry.identity.name), ['Alpha Dock', 'Zeta Bar']);
+});
+
+test('the combat tracker marks staged tokens and clears after the fight starts', () => {
+  let scene = createSceneDocument({ campaignId: 'sea', name: 'Bar', squares: 20, metersPerSquare: 5, createdAt: 1 });
+  scene = placeSceneToken(scene, { actorId: 'pc-1', side: 'party', column: 10, row: 10 }).scene;
+  scene = placeSceneToken(scene, { actorId: 'npc-1', side: 'opposition', column: 40, row: 10 }).scene;
+  assert.equal(scene.tokens[0].inCombat, false);
+  scene = setSceneTokenCombat(scene, scene.tokens[1].id, true);
+  assert.deepEqual(trackedSceneTokens(scene).map((token) => token.actorId), ['npc-1']);
+  scene = clearSceneCombatTracker(scene);
+  assert.equal(trackedSceneTokens(scene).length, 0);
+  assert.throws(() => setSceneTokenCombat(scene, 'nope', true), /not on this scene/);
+});
+
+test('the published scene names tokens without exposing the tracker, and a player may walk only their own', () => {
+  let scene = createSceneDocument({ campaignId: 'sea', name: 'Bar', squares: 20, metersPerSquare: 5, createdAt: 1 });
+  scene = placeSceneToken(scene, { actorId: 'pc-1', side: 'party', column: 10, row: 10 }).scene;
+  scene = placeSceneToken(scene, { actorId: 'npc-1', side: 'opposition', column: 40, row: 10 }).scene;
+  scene = setSceneTokenCombat(scene, scene.tokens[1].id, true);
+  const published = buildPublishedScene(scene, { names: new Map([['pc-1', { name: 'Hawkeye', actorType: 'pc' }], ['npc-1', { name: 'Raider', actorType: 'npc' }]]) });
+  assert.deepEqual(published.map, { columns: 101, rows: 101, metersPerSquare: 5 });
+  assert.deepEqual(published.tokens.map((token) => token.name), ['Hawkeye', 'Raider']);
+  assert.ok(!JSON.stringify(published).includes('inCombat'));
+  const campaign = { identity: { id: 'sea' }, ownership: { actors: { 'pc-1': 'uid-a' } } };
+  const move = { uid: 'uid-a', encounterId: scene.identity.id, actorId: 'pc-1', column: 15, row: 10, pace: 'walk', round: 1, movedAt: 2 };
+  assert.equal(authorizePlayerSceneMove(move, { campaign, scene }).tokenId, scene.tokens[0].id);
+  assert.throws(() => authorizePlayerSceneMove({ ...move, actorId: 'npc-1' }, { campaign, scene }), /does not own/);
+  assert.throws(() => authorizePlayerSceneMove({ ...move, uid: 'uid-b' }, { campaign, scene }), /does not own/);
+  assert.throws(() => authorizePlayerSceneMove({ ...move, encounterId: 'other' }, { campaign, scene }), /does not belong/);
 });

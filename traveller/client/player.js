@@ -48,6 +48,10 @@ const el = {
   lastFight: document.querySelector('#player-last-fight'),
   lastFightLabel: document.querySelector('#player-last-fight-label'),
   showBoard: document.querySelector('#player-show-board'),
+  stagedScene: document.querySelector('#player-staged-scene'),
+  stagedSceneLabel: document.querySelector('#player-staged-scene-label'),
+  showScene: document.querySelector('#player-show-scene'),
+  sceneToWorld: document.querySelector('#player-scene-to-world'),
   backToWorld: document.querySelector('#player-back-to-world'),
   mapTools: document.querySelector('.player-map-tools'),
   mapViewport: document.querySelector('#player-map-viewport'),
@@ -196,8 +200,14 @@ function renderCampaign() {
 let worldMapSystemId = null;
 // A finished fight gives way to the world; its board stays a click away.
 let showFinishedBoard = false;
+// v0.74.0: with no fight on, the referee's active scene is what the player
+// sees; the subsector is a button away.
+let preferWorldOverScene = false;
+function stagedSceneShowing() {
+  return Boolean(campaign?.activeScene) && (!view || (view.status !== 'active' && !showFinishedBoard)) && !preferWorldOverScene;
+}
 function worldShowing() {
-  return Boolean(campaign) && (!view || (view.status !== 'active' && !showFinishedBoard));
+  return Boolean(campaign) && (!view || (view.status !== 'active' && !showFinishedBoard)) && !stagedSceneShowing();
 }
 function renderWorld() {
   const show = worldShowing();
@@ -206,6 +216,9 @@ function renderWorld() {
   el.mapTools.hidden = show;
   el.scene.hidden = show && !view;
   el.lastFight.hidden = !(show && view);
+  el.stagedScene.hidden = !(show && campaign?.activeScene);
+  if (show && campaign?.activeScene) el.stagedSceneLabel.textContent = `THE REFEREE HAS ${campaign.activeScene.name.toUpperCase()} OPEN`;
+  el.sceneToWorld.hidden = !stagedSceneShowing();
   if (show && view) {
     el.lastFightLabel.textContent = `LAST FIGHT / ${String(view.title ?? 'ENCOUNTER').toUpperCase()} / ${String(view.status ?? '').toUpperCase()}`;
   }
@@ -231,6 +244,7 @@ function renderWorld() {
 
 function renderScene() {
   renderWorld();
+  if (!view && stagedSceneShowing()) { renderStagedScene(campaign.activeScene); return; }
   if (!view) {
     el.scene.textContent = campaign ? 'NO FIGHT IN PROGRESS' : '';
     el.map.replaceChildren();
@@ -244,6 +258,46 @@ function renderScene() {
   renderRoster();
   renderOrders();
   renderNarration();
+}
+
+// The staged scene: everyone's token where the referee put it, the player's
+// own walkable. A drag is a move intent keyed by the scene, no allowance.
+function renderStagedScene(scene) {
+  const owned = ownedCombatantIds();
+  el.scene.textContent = `${scene.name.toUpperCase()} / ${scene.map.metersPerSquare}m PER SQUARE / NO FIGHT IN PROGRESS`;
+  el.roster.replaceChildren(...scene.tokens.map((token) => {
+    const row = document.createElement('div');
+    row.className = `player-roster-row ${token.side === 'party' ? 'party' : 'enemy'}`;
+    row.textContent = `${token.name.toUpperCase()} / ${token.side.toUpperCase()}${owned.has(token.actorId) ? ' / YOU' : ''}`;
+    return row;
+  }));
+  el.narration.replaceChildren();
+  const board = sceneCanvas();
+  board.setBoard(scene.map);
+  board.render({
+    tokens: scene.tokens.map((token) => ({
+      id: token.id, column: token.position.column, row: token.position.row,
+      side: token.side === 'party' ? 'party' : 'enemy',
+      shape: token.actorType === 'robot' ? 'square' : token.actorType === 'creature' ? 'diamond' : 'circle',
+      label: token.label || token.name.charAt(0),
+      title: `${token.name} / ${token.side}`,
+      ariaLabel: `${token.name}, ${token.side}`,
+      state: { owned: owned.has(token.actorId) },
+      token
+    })),
+    interaction: {
+      canDrag: (entry) => owned.has(entry.token.actorId),
+      describe: (entry, from, to) => ({ legal: 'legal', text: `WALK / ${Number((Math.max(Math.abs(to.column - from.column), Math.abs(to.row - from.row)) / scene.map.metersPerSquare).toFixed(2))} SQ` }),
+      onDrop: async (entry, to, { reset }) => {
+        try {
+          await writeTokenMove(connectedCampaignId, scene.sceneId, createPlayerTokenMove({ uid: currentUserId(), encounterId: scene.sceneId, actorId: entry.token.actorId, column: to.column, row: to.row, pace: 'walk', round: 1, movedAt: Date.now() }));
+          setStatus(`${entry.token.name.toUpperCase()} MOVES / WAITING FOR THE SCENE TO UPDATE`, 'ok');
+        } catch (error) { reset(); setStatus(error?.message ?? String(error), 'error'); }
+      },
+      onSelect: (entry) => { if (!owned.has(entry.token.actorId)) setStatus('YOU MAY ONLY MOVE A TOKEN YOU PLAY', 'error'); },
+      onHover: (entry, event, entering) => { hoveredTokenId = entering ? entry.id : null; }
+    }
+  });
 }
 
 function renderMap() {
@@ -648,7 +702,7 @@ function setTab(tab, { chosen = false } = {}) {
 // tab themselves; a page with no scene rests on the character.
 function renderTabs() {
   const fighting = view?.status === 'active';
-  el.tabScene.textContent = fighting ? `SCENE / ROUND ${view.declaringRound}` : 'WORLD';
+  el.tabScene.textContent = fighting ? `SCENE / ROUND ${view.declaringRound}` : campaign?.activeScene && !preferWorldOverScene ? 'SCENE' : 'WORLD';
   if (fighting) showFinishedBoard = false;
   el.backToWorld.hidden = !(view && view.status !== 'active' && showFinishedBoard);
   if (chosenTab) { setTab(chosenTab); return; }
@@ -781,6 +835,16 @@ function watchScene(db, campaignId, encounterId) {
 el.zoomOut.addEventListener('click', () => sceneCanvas().camera.zoomBy(1 / 1.4));
 el.zoomIn.addEventListener('click', () => sceneCanvas().camera.zoomBy(1.4));
 el.zoomFit.addEventListener('click', () => sceneCanvas().camera.fit());
+// v0.73.4: T targets the hovered token from anywhere on the page, as on the
+// referee's client.
+document.addEventListener('keydown', (event) => {
+  const tag = event.target?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || event.target?.isContentEditable) return;
+  if (el.mapViewport.contains(event.target)) return;
+  if (!hoveredTokenId || (event.key !== 't' && event.key !== 'T')) return;
+  el.mapViewport.dispatchEvent(new KeyboardEvent('keydown', { key: event.key, shiftKey: event.shiftKey, bubbles: false, cancelable: true }));
+  event.preventDefault();
+});
 el.mapViewport.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
     event.preventDefault();
@@ -819,6 +883,8 @@ el.mapViewport.addEventListener('contextmenu', (event) => {
 });
 
 el.showBoard.addEventListener('click', () => { showFinishedBoard = true; render(); });
+el.showScene.addEventListener('click', () => { preferWorldOverScene = false; render(); });
+el.sceneToWorld.addEventListener('click', () => { preferWorldOverScene = true; render(); });
 el.backToWorld.addEventListener('click', () => { showFinishedBoard = false; render(); });
 el.tabCharacter.addEventListener('click', () => setTab('character', { chosen: true }));
 el.tabScene.addEventListener('click', () => setTab('scene', { chosen: true }));

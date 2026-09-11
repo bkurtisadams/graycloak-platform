@@ -1,5 +1,47 @@
 # Graycloak Traveller
 
+## v0.74.0 the active scene, staged and seen, and the combat tracker
+
+The Foundry shape, as you asked for it. **The referee activates a scene and
+everyone sees it.** With no fight on, the referee's combat canvas shows the
+active scene: right-click an empty square to `[ PLACE ACTOR HERE ]` — any
+party character or roster NPC not already there, with a side — and drag tokens
+about freely; right-click a token to change its side or remove it. The
+campaign envelope carries the scene, by name and label, and the player page
+shows it in place of the subsector (a `[ SUBSECTOR MAP ]` button and a
+`[ SHOW SCENE ]` button switch between them). A player walks their own token
+on the staged scene by dragging it — no allowance, nothing is running — and
+the intent travels the same path a fight's move does, keyed by the scene.
+
+**Combat starts from the tracker.** Right-click a token → `[ ADD TO COMBAT ]`
+(or select several and `[ ADD SELECTED ]`); the COMBAT TRACKER lists them with
+a crossed-swords mark on the board; `[ START COMBAT ]` lights when at least one
+party token and one other are tracked. It creates the encounter on the scene
+with everyone where they stand, reads the initial range off the closest
+party/opponent pair, rolls surprise as the setup dialog does, and clears the
+tracker. The setup dialog remains as `[ MANUAL SETUP ]` for a fight without
+staging. The tracker is the referee's until then: the published scene does
+not say who is in it.
+
+`opponentSpecFromNpcActor()` gives a roster NPC the same combatant a placed
+one gets; `authorizePlayerSceneMove()` checks a scene move by ownership and
+presence only; `buildPublishedScene()` is the projection. Staged tokens gain
+an `inCombat` flag.
+
+No rules changes: scene moves use the existing `encounters/{id}/moves` rule
+with the scene id in the encounter's place, and ownership is checked by
+character id as before.
+
+## v0.73.4 T targets the hovered token again
+
+The T key handler lived on the map viewport and needed it to hold focus. The
+shared canvas cancels the default on a token's pointerdown so the drag can
+own the pointer, which also means a token click no longer moves focus into
+the viewport — and T went quiet. Both pages now listen on the document while
+the pointer is over a token (and nothing is being typed) and forward the key
+to the viewport's handler, so hover-and-T works from anywhere. Escape is
+unchanged.
+
 ## v0.73.3 a character file loads on the lobby
 
 `[ LOAD JSON ]` lived on the referee client's chargen bar, which campaign play

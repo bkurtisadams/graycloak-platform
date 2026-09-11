@@ -146,7 +146,7 @@ export function buildPublishedShip(ship) {
 }
 
 // A campaign document trimmed to what a player may see of the shared state.
-export function buildPublishedCampaign(campaign, { publishedAt, currentEncounterId = null, ship = null } = {}) {
+export function buildPublishedCampaign(campaign, { publishedAt, currentEncounterId = null, ship = null, activeScene = null } = {}) {
   if (!campaign) throw new TypeError('a campaign is required');
   return {
     campaignId: campaign.identity.id,
@@ -164,6 +164,8 @@ export function buildPublishedCampaign(campaign, { publishedAt, currentEncounter
     currentEncounterId: currentEncounterId ?? null,
     // v0.70.0: the world scene the player page draws between fights.
     ship: buildPublishedShip(ship),
+    // v0.74.0: the staged scene, when the referee has one active.
+    activeScene: activeScene ?? null,
     publishedAt: publishedAt ?? null
   };
 }
@@ -250,4 +252,21 @@ export function buildPublishedLog(log, { campaignId, uid, ownedCharacterIds = []
       addressed: entry.visibility === 'players'
     }));
   return { campaignId: campaignId ?? null, uid, publishedAt: publishedAt ?? null, entries };
+}
+
+// v0.74.0: the active scene as players see it — the board and who stands
+// where, by name and label. Which tokens are in the tracker is the referee's
+// business until the fight begins.
+export function buildPublishedScene(scene, { names = new Map() } = {}) {
+  if (!scene) return null;
+  const meters = scene.board.squares * scene.board.metersPerSquare;
+  return {
+    sceneId: scene.identity.id,
+    name: scene.identity.name,
+    map: { columns: meters + 1, rows: meters + 1, metersPerSquare: scene.board.metersPerSquare },
+    tokens: scene.tokens.map((token) => {
+      const named = names.get(token.actorId) ?? {};
+      return { id: token.id, actorId: token.actorId, name: named.name ?? token.label ?? '?', label: token.label || (named.name ?? '?').charAt(0), side: token.side, actorType: named.actorType ?? 'npc', position: { ...token.position } };
+    })
+  };
 }

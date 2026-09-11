@@ -11,7 +11,7 @@
       <div class="masthead-main">
         <nav class="utility masthead-utility" aria-label="Player session">
           <span class="masthead-title">TRAVELLER</span>
-          <span class="subtitle">PLAYER v0.73.3</span>
+          <span class="subtitle">PLAYER v0.74.0</span>
           <strong id="player-campaign-name" class="masthead-campaign-name">NOT CONNECTED</strong>
           <span class="masthead-label">DATE</span>
           <strong id="player-clock" class="masthead-date">--</strong>
@@ -103,10 +103,16 @@
               <span id="player-last-fight-label"></span>
               <button id="player-show-board" class="text-button" type="button">[ SHOW BOARD ]</button>
             </div>
+            <!-- v0.74.0: the referee's active scene sits in front of the subsector until a fight starts. -->
+            <div id="player-staged-scene" class="player-last-fight" hidden>
+              <span id="player-staged-scene-label"></span>
+              <button id="player-show-scene" class="text-button" type="button">[ SHOW SCENE ]</button>
+            </div>
             <div id="player-world-map" class="player-world-map"></div>
           </div>
           <div id="player-scene" class="player-scene-heading"></div>
           <button id="player-back-to-world" class="text-button player-back-to-world" type="button" hidden>[ BACK TO WORLD ]</button>
+          <button id="player-scene-to-world" class="text-button player-back-to-world" type="button" hidden>[ SUBSECTOR MAP ]</button>
           <div class="player-map-tools"><button id="player-zoom-out" class="text-button" type="button">[ − ]</button><span id="player-zoom-label">100%</span><button id="player-zoom-in" class="text-button" type="button">[ + ]</button><button id="player-zoom-fit" class="text-button" type="button">[ FIT ]</button><label>MOVE <select id="player-move-pace"><option value="walk">WALK / 25 M</option><option value="run">RUN / 50 M + 1 BLOW</option></select></label><span>CLICK OWN TOKEN / DRAG TO MOVE / HOVER + T TO TARGET</span></div>
           <div id="player-map-viewport" class="player-map-viewport" tabindex="0">
             <svg id="player-map" class="player-map" viewBox="0 0 1206 1206" role="img" aria-label="Encounter map"></svg>

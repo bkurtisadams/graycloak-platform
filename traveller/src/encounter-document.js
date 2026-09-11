@@ -1114,3 +1114,17 @@ export function avoidEncounter(document, { date } = {}) {
   assertValidEncounterDocument(next);
   return next;
 }
+
+// v0.74.0: a roster NPC as an opponent spec for createEncounterDocument, with
+// the same fields addEncounterCombatantFromActor gives a placed one.
+export function opponentSpecFromNpcActor(actor) {
+  if (!actor?.identity?.id || !actor?.identity?.name || !actor?.profile?.bodyModel) throw new TypeError('a roster actor is required');
+  return {
+    name: actor.identity.name, actorId: actor.identity.id,
+    characteristics: { ...actor.characteristics }, skills: { ...(actor.skills ?? {}) },
+    armor: actor.loadout?.armor ?? 'none', weaponKey: actor.loadout?.weaponKey ?? 'hands',
+    actorType: actor.profile.actorType ?? 'npc', bodyModel: actor.profile.bodyModel,
+    tokenLabel: String(actor.presentation?.tokenLabel || actor.identity.name).slice(0, 3).toUpperCase(),
+    conditions: actorConditionKeys(actor), current: actor.current ?? null
+  };
+}

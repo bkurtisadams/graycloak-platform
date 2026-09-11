@@ -96,6 +96,7 @@ export function validateSceneDocument(document) {
       add(errors, plain(token.position) && Number.isInteger(token.position.column) && Number.isInteger(token.position.row)
         && token.position.column >= 0 && token.position.column < cells && token.position.row >= 0 && token.position.row < cells, 'staged token position is off the board');
       add(errors, typeof token.label === 'string', 'staged token label must be a string');
+      add(errors, token.inCombat === undefined || typeof token.inCombat === 'boolean', 'inCombat must be a boolean');
     }
   }
   add(errors, typeof document.notes === 'string', 'notes must be a string');
@@ -149,7 +150,7 @@ export function placeSceneToken(document, { actorId, side = 'neutral', column, r
     column: Math.max(0, Math.min(cells - 1, snap(Number(column ?? 0), gridScale))),
     row: Math.max(0, Math.min(cells - 1, snap(Number(row ?? 0), gridScale)))
   };
-  const token = { id: stableDocumentId('token', `${next.identity.id}|${actorId}`), actorId, side, position, label: String(label ?? '') };
+  const token = { id: stableDocumentId('token', `${next.identity.id}|${actorId}`), actorId, side, position, label: String(label ?? ''), inCombat: false };
   next.tokens.push(token);
   assertValidSceneDocument(next);
   return { scene: next, token };
@@ -186,4 +187,25 @@ export function sceneFolders(scenes) {
   }
   return [...folders.entries()].sort(([left], [right]) => left.localeCompare(right))
     .map(([folder, entries]) => ({ folder, scenes: entries.sort((left, right) => left.identity.name.localeCompare(right.identity.name)) }));
+}
+
+// v0.74.0: the combat tracker. A staged token is added to the tracker or
+// taken off it; a fight starts from the tracked tokens, the way Foundry's
+// tracker works. After the fight is created every flag is cleared.
+export function setSceneTokenCombat(document, tokenId, inCombat) {
+  const next = importSceneDocument(document);
+  const token = next.tokens.find((entry) => entry.id === tokenId);
+  if (!token) throw new Error('token is not on this scene');
+  token.inCombat = Boolean(inCombat);
+  return next;
+}
+
+export function clearSceneCombatTracker(document) {
+  const next = importSceneDocument(document);
+  for (const token of next.tokens) token.inCombat = false;
+  return next;
+}
+
+export function trackedSceneTokens(document) {
+  return (document?.tokens ?? []).filter((token) => token.inCombat === true);
 }
