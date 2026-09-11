@@ -12,6 +12,7 @@
 // v14 adds the campaign's home (state/current, referee-only) and the referee's
 // list of their own campaigns.
 // v15 lets an owner start a campaign of their own with their own character.
+// v16 adds table chat.
 //
 // Requires the emulator:  firebase emulators:start --only firestore
 // Skipped automatically when it is not running, so `npm test` still passes
@@ -387,6 +388,22 @@ test('Traveller multiplayer rules', { skip: available ? false : `Firestore emula
     // A seated player still reads the one campaign they sit at, and cannot list.
     await assertSucceeds(player.doc(`travellerCampaigns/${CAMPAIGN}`).get());
     await assertFails(player.collection('travellerCampaigns').where('ownership.ownerUid', '==', REFEREE).get());
+  });
+
+  await t.test('table chat: anyone seated writes as themselves, everyone at the table reads, the referee tidies (v16)', async () => {
+    const path = `travellerCampaigns/${CAMPAIGN}/chat`;
+    await assertSucceeds(player.collection(path).add({ uid: PLAYER, name: 'Hawkeye', kind: 'say', text: 'We take the job.', roll: null, createdAt: 1 }));
+    await assertSucceeds(referee.collection(path).add({ uid: REFEREE, name: 'Referee', kind: 'roll', text: '', roll: { formula: '2d6', dice: [3, 4], modifier: 0, total: 7 }, createdAt: 2 }));
+    await assertFails(player.collection(path).add({ uid: REFEREE, name: 'Forged', kind: 'say', text: 'x', roll: null, createdAt: 3 }));
+    await assertFails(player.collection(path).add({ uid: PLAYER, name: 'Hawkeye', kind: 'whisper', text: 'x', roll: null, createdAt: 3 }));
+    await assertFails(outsider.collection(path).add({ uid: OUTSIDER, name: 'Nobody', kind: 'say', text: 'x', roll: null, createdAt: 3 }));
+    await assertSucceeds(player.collection(path).get());
+    await assertSucceeds(referee.collection(path).get());
+    await assertFails(outsider.collection(path).get());
+    const mine = await player.collection(path).add({ uid: PLAYER, name: 'Hawkeye', kind: 'say', text: 'Wait.', roll: null, createdAt: 4 });
+    await assertFails(player.doc(`${path}/${mine.id}`).update({ text: 'edited' }));
+    await assertFails(player.doc(`${path}/${mine.id}`).delete());
+    await assertSucceeds(referee.doc(`${path}/${mine.id}`).delete());
   });
 
   await t.test('an outsider is shut out entirely', async () => {

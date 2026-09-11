@@ -22,7 +22,7 @@ echo.
 if "%RESULT%"=="0" (
   echo ============================================================
   echo  Rules suite passed.
-  echo  Check above for "evaluation error at L285" - there should
+  echo  Check above for "evaluation error at L289" - there should
   echo  be none. Errors at other line numbers are the existing
   echo  AD^&D rules and are expected.
   echo ============================================================

@@ -1,4 +1,8 @@
-// Firestore Security Rules for GCC / Graycloak AD&D / Traveller v15
+// Firestore Security Rules for GCC / Graycloak AD&D / Traveller v16
+// v16 adds table chat: travellerCampaigns/{id}/chat/{messageId}, written by
+//   anyone at the table as themselves, read by the table, deleted by the
+//   referee.
+//
 // v15 lets a character's owner move it into a campaign they referee
 //   themselves — starting a campaign from the lobby — without a join request.
 //
@@ -316,6 +320,17 @@ service cloud.firestore {
             || (isAuthed() && request.auth.uid == playerUid && isTravellerPlayer(campaignId));
           allow write: if isTravellerReferee(campaignId);
         }
+      }
+
+      // v16: table chat. A message is the writer's own and says so; the
+      // table reads all of it; only the referee tidies. Rolls are messages.
+      match /chat/{messageId} {
+        allow read: if isAtTravellerTable(campaignId);
+        allow create: if isAtTravellerTable(campaignId)
+          && declarationField('uid') == request.auth.uid
+          && (declarationField('kind') == 'say' || declarationField('kind') == 'roll');
+        allow update: if false;
+        allow delete: if isTravellerReferee(campaignId);
       }
 
       // v13: a request to sit down. A player creates one for themselves by
