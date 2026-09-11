@@ -1,5 +1,12 @@
 # Graycloak Traveller
 
+## v0.70.3 the giant white ring on a player's token
+
+Chrome draws the focus outline of a focused SVG group in user units, so on the
+player canvas at deep zoom a clicked token sat inside a white ring wider than
+itself. The referee canvas has suppressed that outline since v0.60; the player
+canvas now does too. The gold corner brackets remain the selection mark.
+
 ## v0.70.2 the world wins over a finished fight
 
 A resolved encounter stayed the campaign's current scene, so the player page

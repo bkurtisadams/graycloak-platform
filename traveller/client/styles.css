@@ -3290,3 +3290,6 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .player-world-map .system-hex { cursor: default; }
 .player-last-fight { display: flex; gap: 10px; align-items: center; font-size: 10px; letter-spacing: .08em; color: var(--muted); }
 .player-back-to-world { font-size: 10px; margin-bottom: 4px; }
+/* v0.70.3: Chrome draws a focused SVG group's outline in user units, so at deep
+   zoom it swallowed the token. The gold corner brackets already show selection. */
+.player-token-group:focus, .player-token-group:focus-visible { outline: none; }
