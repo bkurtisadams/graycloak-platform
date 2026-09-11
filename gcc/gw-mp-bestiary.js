@@ -161,26 +161,26 @@
       "gwSource": "AC 4, HD 6, MV 12, Dex 18, MS 16, bite 1d6, mutation Empathy, hard of hearing, keen sense of smell. 1.5m intelligent mutated badger, medieval society. 10% chance of 1 random artifact weapon.",
       "build": "Humanoid (\"Short\" descriptor free at 1.5m)",
       "origin": "Mutated or Evolved",
-      "cpEstimate": "~80",
-      "abilities": "Heightened Senses: keen smell; Empathy (GW-derived MS effect, non-intelligent targets only; MS 16 attacks MS 12 at 15-); Experience Levels 5 CP for a trained warrior.",
-      "weaknesses": "Diminished Senses: hard of hearing",
-      "equipment": "Bite d6 sharp; spear or other class-3 weapon; wooden shield (+4 Physical Defense against seen attacks); simple armor if individually equipped; 10% random artifact weapon",
+      "cpEstimate": "73",
+      "abilities": "Heightened Senses: Odors, Full + Acute (final 10 CP); Telepathy: Empathy (base 10 CP; Non-Intelligent Targets Only -5; final 5 CP; resolves as a GW-derived MS 16 mental effect against MS 12 at 15-); Natural Weaponry bite (+0 attack 0 CP; +4 sharp damage 5 CP; final 5 CP).",
+      "weaknesses": "Diminished Senses: hard of hearing (final -5 CP).",
+      "equipment": "Spear or other class-3 weapon; wooden shield (+4 Physical Defense against seen attacks); simple armor if individually equipped; 10% random artifact weapon. The bite is included in Natural Weaponry, not listed as equipment.",
       "forms": [
         {
           "bc": {
-            "ST": 12,
-            "EN": 6,
+            "ST": 10,
+            "EN": 10,
             "AG": 18,
-            "IN": 12,
-            "CL": 12,
+            "IN": 10,
+            "CL": 10,
             "MS": 16
           },
           "hits": "9",
           "power": "48",
           "move": "12",
-          "init": "d6",
-          "hth": "d6",
-          "inventing": "6",
+          "init": "d4",
+          "hth": "d4",
+          "inventing": "5",
           "mass": "d4 (~100 lbs)",
           "form": null
         }
@@ -831,22 +831,22 @@
       "gwSource": "AC 9, HD 15, MV 18. 2.6m mutated rabbitoid bipeds. Leap 8m vertical. Intelligent (MS 3-18), telepathic, mass mind. Special: transmute metal to rubber (touch, 1m radius). Manipulative forepaws. Use Ancient weapons.",
       "build": "Humanoid (\"Tall\" descriptor free at 2.6m)",
       "origin": "Mutated or Evolved",
-      "cpEstimate": "~80 + equipment (65 CP BCs plus Size Change/Telepathy; pending final CP pricing for the metal-only Transmutation variant)",
-      "abilities": "Size Change Larger 7' (2.5 CP); Telepathy (10 CP); Transmutation: metal → rubber (touch; 1m radius; source-specific alternate-target construction). The 8m vertical leap is retained as a movement feature, not double-counted as Heightened Agility because AG 18 is already the Hoop's listed BC.",
+      "cpEstimate": "90",
+      "abilities": "Size Change Larger 7' (base 2.5 CP; Stays Active +2.5; Can't Hold Back -5; calculated 0 CP; final 1 CP minimum); Telepathy (final 10 CP; also supports mass-mind coordination); Transmutation: metal → rubber (base 17.5 CP; Touch/1m radius and metal-only source construction; final 17.5 CP). The 8m vertical leap is represented by the purchased AG 18, not double-counted as Heightened Agility.",
       "weaknesses": null,
       "equipment": "Ancient weapons preferred — pistol/rifle/blaster per individual",
       "forms": [
         {
           "bc": {
             "ST": 12,
-            "EN": 15,
+            "EN": 11,
             "AG": 18,
             "IN": 10,
             "CL": 10
           },
-          "hits": "15",
-          "power": "55",
-          "move": "15",
+          "hits": "12",
+          "power": "51",
+          "move": "14",
           "init": "d4",
           "hth": "d6",
           "inventing": "5",
@@ -1135,25 +1135,25 @@
       "gwSource": "AC 10, HD 12, MV 1/15 (ground/fly). 1m mutated fungus resembling a bat. Nearly immobile on ground, hawk-swift in air. Single black eye delivers intensity 16 radiation blast. Two clawed appendages strike for 3d6 each. Devours half of body, plants spores in remains; 1d6 young obbs emerge in 1 day. Resistant to radiation, all laser, light, heat. Sometimes peacefully associates with intelligent beings — alien logic.",
       "build": "Mutated fungus; individually priced source traits",
       "origin": "Mutated or Evolved",
-      "cpEstimate": "pending attack/range calibration",
-      "abilities": "Size Change B: Smaller 4.5' (2.5 CP; Stays Active +2.5; Can't Hold Back -5; permanent; final 1 CP); Winged Flight 3/48 (7.5 CP; Wings -5; Non-Proportional Flight +2.5; final 5 CP); Natural Weaponry: two clawed appendages (sharp; source damage 3d6 each, exact MP attack configuration pending calibration); Devitalization Ray: radiation eye (directed Entropy attack, not Change Environment; source intensity 16; exact damage/range pending calibration); Adaptation: Radiation, Laser/Light, Heat (source resistance).",
+      "cpEstimate": "95",
+      "abilities": "Size Change B: Smaller 4.5' (base 2.5 CP; Stays Active +2.5; Can't Hold Back -5; calculated 0 CP; final 1 CP minimum); Winged Flight 3/48 (base 7.5 CP; Wings -5; Non-Proportional Flight +2.5; final 5 CP); Natural Weaponry: two clawed appendages (+0 attack 0 CP; +6 sharp damage 7.5 CP; final 7.5 CP); Devitalization Ray: radiation eye (final 17.5 CP; directed 2d6 Entropy, range 25-30m; source intensity 16); Adaptation: Radiation (final 5 CP); Adaptation: Energy, Heat and Laser/Light (final 10 CP).",
       "weaknesses": null,
       "equipment": null,
       "forms": [
         {
           "bc": {
-            "ST": 7,
-            "EN": 12,
-            "AG": 14,
-            "IN": 12,
-            "CL": 12
+            "ST": 9,
+            "EN": 10,
+            "AG": 10,
+            "IN": 10,
+            "CL": 10
           },
-          "hits": "7",
-          "power": "45",
+          "hits": "5",
+          "power": "39",
           "move": "1 ground",
-          "init": "d6",
+          "init": "d4",
           "hth": "d3",
-          "inventing": "6",
+          "inventing": "5",
           "mass": "d3 (~50 lbs)",
           "form": null
         }

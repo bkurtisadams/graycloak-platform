@@ -146,16 +146,17 @@ HTH         d6      Inventing 3   Mass d3 (~40 lbs)   Profile /1.5
 **Build:** Humanoid ("Short" descriptor free at 1.5m)
 
 ```
-Base BCs:    ST 12  EN 6  AG 18  IN 12  CL 12  MS 16
+BCs:         ST 10  EN 10 AG 18  IN 10  CL 10  MS 16
 
-Hits        9       Power 48      Move 12      Init d6
-HTH         d6      Inventing 6   Mass d4 (~100 lbs)
+Hits        9       Power 48      Move 12      Init d4
+HTH         d4      Inventing 5   Mass d4 (~100 lbs)
 ```
 
-**Abilities:** Heightened Senses: keen smell; Empathy (GW-derived MS effect, non-intelligent targets only; MS 16 attacks MS 12 at 15-); Experience Levels 5 CP for a trained warrior.
-**Weaknesses:** Diminished Senses: hard of hearing
-**Equipment:** Bite d6 sharp; spear or other class-3 weapon; wooden shield (+4 Physical Defense against seen attacks); simple armor if individually equipped; 10% random artifact weapon
-**CP estimate:** ~80
+**Abilities:** Heightened Senses: Odors, Full + Acute (final 10 CP); Telepathy: Empathy (base 10 CP; Non-Intelligent Targets Only -5; final 5 CP; resolves as a GW-derived MS 16 mental effect against MS 12 at 15-); Natural Weaponry bite (+0 attack 0 CP; +4 sharp damage 5 CP; final 5 CP).
+**Weaknesses:** Diminished Senses: hard of hearing (final -5 CP).
+**Equipment:** Spear or other class-3 weapon; wooden shield (+4 Physical Defense against seen attacks); simple armor if individually equipped; 10% random artifact weapon. The bite is included in Natural Weaponry, not listed as equipment.
+**CP ledger:** BCs 58 + Abilities 20 + Weaknesses -5 = **73 CP**.
+**CP estimate:** 73
 **Origin:** Mutated or Evolved
 
 ---
@@ -590,18 +591,19 @@ HTH         d6+1    Inventing 7   Mass d6 (~400 lbs)   Profile x1.5
 **Build:** Humanoid ("Tall" descriptor free at 2.6m)
 
 ```
-Base BCs:    ST 10  EN 14  AG 18  IN 10  CL 10
-Size mod:    +2 ST, +1 EN  (Size Change Larger 2.5 CP, 7' tier)
-Effective:   ST 12  EN 15  AG 18  IN 10  CL 10
+Base BCs:    ST 10  EN 10  AG 18  IN 10  CL 10
+Size mod:    +2 ST, +1 EN  (Size Change Larger 7'; permanent: Stays Active +2.5, Can't Hold Back -5; final 1 CP)
+Effective:   ST 12  EN 11  AG 18  IN 10  CL 10
 
-Hits        15      Power 55      Move 15      Init d4
+Hits        12      Power 51      Move 14      Init d4
 HTH         d6      Inventing 5   Mass d4 (~150 lbs)   Profile x1.2
 ```
 
-**Abilities:** Size Change Larger 7' (2.5 CP); Telepathy (10 CP); Transmutation: metal → rubber (touch; 1m radius; source-specific alternate-target construction). The 8m vertical leap is retained as a movement feature, not double-counted as Heightened Agility because AG 18 is already the Hoop's listed BC.
-**Mass Mind:** Narrative coordination, no CP cost.
+**Abilities:** Size Change Larger 7' (base 2.5 CP; Stays Active +2.5; Can't Hold Back -5; calculated 0 CP; final 1 CP minimum); Telepathy (final 10 CP; also supports mass-mind coordination); Transmutation: metal → rubber (base 17.5 CP; Touch/1m radius and metal-only source construction; final 17.5 CP). The 8m vertical leap is represented by the purchased AG 18, not double-counted as Heightened Agility.
+**Mass Mind:** A use of Telepathy for group coordination, not a separate Ability.
 **Equipment:** Ancient weapons preferred — pistol/rifle/blaster per individual
-**CP estimate:** ~80 + equipment (65 CP BCs plus Size Change/Telepathy; pending final CP pricing for the metal-only Transmutation variant)
+**CP ledger:** BCs 61 + Abilities 28.5 + Weaknesses 0 = 89.5; round up = **90 CP**. Ordinary Ancient weapons are equipment, not additional Ability CP.
+**CP estimate:** 90
 **Origin:** Mutated or Evolved
 **GW MS variability:** Roll 3d6 per individual. Use it only for GW-derived mental mutations; it does not change MP CL. Chief status is social, not an automatic Heightened Cool purchase.
 **Note:** Transmutation devastates metal-armored/-armed PCs. Rubber armor = AC 9, rubber pistol = jammed, etc.
@@ -802,18 +804,19 @@ HTH         2d6     Inventing 1   Mass d12 (~5 tons rooted)   Profile x2.5
 **Build:** Mutated fungus; individually priced source traits
 
 ```
-Base BCs:    ST 8  EN 12  AG 14  IN 12  CL 12
+Base BCs:    ST 10  EN 10  AG 10  IN 10  CL 10
 Size mod:    -1 ST  (Size Change B: Smaller 4.5'; permanent: Stays Active +2.5, Can't Hold Back -5; final 1 CP)
-Effective:   ST 7  EN 12  AG 14  IN 12  CL 12
+Effective:   ST 9  EN 10  AG 10  IN 10  CL 10
 
-Hits        7       Power 45      Move 1 ground / 15 fly   Init d6
-HTH         d3      Inventing 6   Mass d3 (~50 lbs)   Profile /1.5
+Hits        5       Power 39      Move 1 ground / 15 fly   Init d4
+HTH         d3      Inventing 5   Mass d3 (~50 lbs)   Profile /1.5
 ```
 
-**Abilities:** Size Change B: Smaller 4.5' (2.5 CP; Stays Active +2.5; Can't Hold Back -5; permanent; final 1 CP); Winged Flight 3/48 (7.5 CP; Wings -5; Non-Proportional Flight +2.5; final 5 CP); Natural Weaponry: two clawed appendages (sharp; source damage 3d6 each, exact MP attack configuration pending calibration); Devitalization Ray: radiation eye (directed Entropy attack, not Change Environment; source intensity 16; exact damage/range pending calibration); Adaptation: Radiation, Laser/Light, Heat (source resistance).
-*GW MS 12 is normal and is not converted to MP Cool. No Animal/Plant bundle or bundle weaknesses are imposed.*
+**Abilities:** Size Change B: Smaller 4.5' (base 2.5 CP; Stays Active +2.5; Can't Hold Back -5; calculated 0 CP; final 1 CP minimum); Winged Flight 3/48 (base 7.5 CP; Wings -5; Non-Proportional Flight +2.5; final 5 CP); Natural Weaponry: two clawed appendages (+0 attack 0 CP; +6 sharp damage 7.5 CP; final 7.5 CP); Devitalization Ray: radiation eye (final 17.5 CP; directed 2d6 Entropy, range 25-30m; source intensity 16); Adaptation: Radiation (final 5 CP); Adaptation: Energy, Heat and Laser/Light (final 10 CP).
+*No Animal/Plant bundle or bundle weaknesses are imposed. The source's alien logic is roleplaying guidance, not an MP BC or an unpriced mental Ability.*
 **Reproduction:** Devours half of victim's body, plants spores in rest. 1d6 young obbs emerge from spore-host in 1 day. Encounter creates persistent local threat at kill site.
-**CP estimate:** pending attack/range calibration
+**CP ledger:** BCs 49 + Abilities 46 + Weaknesses 0 = **95 CP**.
+**CP estimate:** 95
 **Origin:** Mutated or Evolved
 **Reaction:** Alien logic — GM rolls with -2 to standard reaction modifiers; outcomes can be unpredictable peace or unpredictable hostility. May team up with intelligent beings for inscrutable reasons.
 

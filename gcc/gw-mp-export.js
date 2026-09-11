@@ -72,7 +72,10 @@
   function weaknessRows(text){
     if (!text) return [];
     return splitTop(text).filter(Boolean).map(seg => {
-      const m = seg.match(/(-\d+(?:\.\d+)?)\s*$/);
+      // Ledger-form weaknesses state their final cost in parentheses; retain
+      // support for the older trailing "-5" notation too.
+      const m = seg.match(/final\s+(-\d+(?:\.\d+)?)\s*CP/i)
+        || seg.match(/(-\d+(?:\.\d+)?)\s*$/);
       return { desc: seg, cp: m ? m[1] : '', ip: '' };
     });
   }
