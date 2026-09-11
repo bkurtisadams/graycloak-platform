@@ -583,7 +583,6 @@ let contactDocuments = [];
 let threadDocuments = [];
 let npcActorDocuments = [];
 let mediaAssetDocuments = [];
-    sceneDocuments = [];
 let sceneDocuments = [];
 let activityLogDocument = null;
 let playerSession = null;

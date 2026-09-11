@@ -42,6 +42,8 @@ jobs:
       - name: Assemble Traveller
         run: |
           node traveller/scripts/sync-vendor.mjs
+          # Jekyll excludes any directory named vendor/ unless told not to process the site at all.
+          touch gcc/.nojekyll
           rm -rf gcc/traveller
           mkdir -p gcc/traveller
           cp -r traveller/client traveller/src traveller/world traveller/campaigns traveller/vendor gcc/traveller/

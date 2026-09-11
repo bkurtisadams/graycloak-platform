@@ -1,5 +1,17 @@
 # Graycloak Traveller
 
+## v0.72.2 the referee client did not load
+
+v0.72.0 added the scene state with a text replacement that also matched the
+declaration line, leaving `sceneDocuments = [];` one line above
+`let sceneDocuments`, which is a temporal-dead-zone error at module load:
+nothing in `app.js` ran, on graycloak.net or locally, and the static pins
+could not see it because they read text rather than run it. The line is
+removed; `app.js` now loads to the masthead in a jsdom harness; and a pin
+refuses any bare assignment directly after a top-level `let`, the exact shape
+of that accident. The Pages workflow also writes `.nojekyll` so Jekyll cannot
+drop the `vendor/` directory from the site.
+
 ## v0.72.1 graycloak.net/traveller
 
 Traveller lived outside `gcc/`, the folder GitHub Pages publishes as
