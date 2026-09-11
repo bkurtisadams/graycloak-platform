@@ -73,13 +73,35 @@ function parseCreature(b) {
   const body = b.body.join('\n');
   // tolerant: matches "**Abilities:**" and "**Per-plant abilities:**" etc.
   const looseField = re => { const m = body.match(re); return m ? m[1].trim() : null; };
+  // A few high-complexity creatures use a Markdown bullet list beneath an
+  // "Abilities (full kit)" label. Preserve every bullet as a semicolon-
+  // separated ability so the Builder exporter can create one sheet row per
+  // item, rather than silently retaining only the first one.
+  const abilityField = () => {
+    const heading = /^\*\*[^*]*\babilities(?:\s*\([^)]*\))?:\*\*\s*(.*)$/i;
+    const lines = b.body;
+    for (let i = 0; i < lines.length; i++) {
+      const m = lines[i].match(heading);
+      if (!m) continue;
+      const parts = m[1].trim() ? [m[1].trim()] : [];
+      for (let j = i + 1; j < lines.length; j++) {
+        const line = lines[j];
+        if (!line.trim()) continue;
+        const bullet = line.match(/^\s*-\s+(.+)$/);
+        if (bullet) { parts.push(bullet[1].trim()); continue; }
+        break;
+      }
+      return parts.length ? parts.join('; ') : null;
+    }
+    return null;
+  };
   const entry = {
     name, aliases, title: b.title,
     gwSource:   field(b.body, 'GW source'),
     build:      field(b.body, 'Build'),
     origin:     field(b.body, 'Origin'),
     cpEstimate: field(b.body, 'CP estimate'),
-    abilities:  field(b.body, 'Abilities') || looseField(/^\*\*[^*]*\babilities(?:\s*\([^)]*\))?:\*\*\s*(.+)$/mi),
+    abilities:  abilityField() || field(b.body, 'Abilities') || looseField(/^\*\*[^*]*\babilities(?:\s*\([^)]*\))?:\*\*\s*(.+)$/mi),
     weaknesses: looseField(/^\*\*Weaknesses[^:]*:\*\*\s*(.+)$/mi),
     equipment:  field(b.body, 'Equipment'),
     forms: [],

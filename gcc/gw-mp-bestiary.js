@@ -129,7 +129,7 @@
       "build": "Mutated flying insect; individually priced traits",
       "origin": "Mutated or Evolved",
       "cpEstimate": "~75",
-      "abilities": "Size Change B: Smaller 4.5' (2.5 CP); Winged Flight 3/48 with Non-Proportional Flight (5 CP total); Natural Weaponry mandibles (+0 attack, +4 sharp damage); Heightened Physical Defense +3 (7.5 CP). Carries up to 2 kg while flying.",
+      "abilities": "Size Change B: Smaller 4.5' (2.5 CP; Stays Active +2.5; Can't Hold Back -5; permanent; final 1 CP, from a calculated 0 CP minimum); Winged Flight 3/48 (7.5 CP; Wings -5; Non-Proportional Flight +2.5; final 5 CP); Natural Weaponry mandibles (+0 attack, +4 sharp damage); Heightened Physical Defense +3 (7.5 CP). Carries up to 2 kg while flying.",
       "weaknesses": null,
       "equipment": null,
       "forms": [
@@ -268,11 +268,11 @@
       "name": "Blaash",
       "aliases": [],
       "gwSource": "AC 8, HD 15, MV 6/15 (ground/fly). ~1m mutated moth, 2m wingspan, fearless and carnivorous. Glows brightly when attacking; emits intensity 18 radiation in 5m radius continuous. Self+kin immune. Post-kill feeding phase.",
-      "build": "A/P Insect, Standard power level",
+      "build": "Mutated insect; individually priced source traits",
       "origin": "Mutated or Evolved",
-      "cpEstimate": "~50",
-      "abilities": "A/P Insect Standard (20 CP — Flight 15m, Heightened Senses, Natural Weaponry +d3 sharp), Size Change Smaller 4.5' (2.5 CP), Change Environment Damaging Hard Radiation 7\" diameter (7.5 CP — 5 Devitalization Entropy/round, supplement), Adaptation Energy/radiation complete (5 CP), Light Control C Glare (5 CP), Armor 3 = 1/2/0/0 (5 CP)",
-      "weaknesses": "Lowered Intelligence -5, Distinctive -5",
+      "cpEstimate": "~75 (54 CP BCs + 18.5 CP listed Abilities, rounded; before any GM-assigned physical-defense adjustment)",
+      "abilities": "Size Change B: Smaller 4.5' (2.5 CP; Stays Active +2.5; Can't Hold Back -5; permanent; final 1 CP); Winged Flight 3/48 (7.5 CP; Wings -5; Non-Proportional Flight +2.5; final 5 CP); Change Environment: 7\" Hard Radiation field (7.5 CP — 5 Devitalization Entropy/round; active only while attacking); Adaptation: Radiation (5 CP). The bright abdominal glow is the field's visible manifestation, not a separate Light Control power.",
+      "weaknesses": null,
       "equipment": null,
       "forms": [
         {
@@ -293,13 +293,6 @@
           "form": null
         }
       ],
-      "armor": {
-        "total": 3,
-        "k": 1,
-        "e": 2,
-        "b": 0,
-        "ent": 0
-      },
       "generatedOnly": false
     },
     "Blight": {
@@ -838,8 +831,8 @@
       "gwSource": "AC 9, HD 15, MV 18. 2.6m mutated rabbitoid bipeds. Leap 8m vertical. Intelligent (MS 3-18), telepathic, mass mind. Special: transmute metal to rubber (touch, 1m radius). Manipulative forepaws. Use Ancient weapons.",
       "build": "Humanoid (\"Tall\" descriptor free at 2.6m)",
       "origin": "Mutated or Evolved",
-      "cpEstimate": "~38 + equipment",
-      "abilities": "Size Change Larger 7' (2.5 CP), Heightened Agility ~+8 (8 CP — covers leap-8m), Telepathy (10 CP), Transmutation Metal→Rubber touch range 1m radius (17.5 CP)",
+      "cpEstimate": "~80 + equipment (65 CP BCs plus Size Change/Telepathy; pending final CP pricing for the metal-only Transmutation variant)",
+      "abilities": "Size Change Larger 7' (2.5 CP); Telepathy (10 CP); Transmutation: metal → rubber (touch; 1m radius; source-specific alternate-target construction). The 8m vertical leap is retained as a movement feature, not double-counted as Heightened Agility because AG 18 is already the Hoop's listed BC.",
       "weaknesses": null,
       "equipment": "Ancient weapons preferred — pistol/rifle/blaster per individual",
       "forms": [
@@ -986,8 +979,8 @@
       "gwSource": "AC 3, HD 7, MV Telekinetic Flight. Small white mutated amphibian in water. IN 18, MS 16. Mental mutations: Telekinetic Flight, Telekinesis, Telekinetic Arm, Force Field Generation, Life Leech, De-evolution, Mental Blast, Cryokinesis, Reflection. Uses any 2 per turn. Solitary, ruthless, greedy. Builds underwater stone dwellings telekinetically with air pockets, stockpiles Ancient devices.",
       "build": "Humanoid (intelligent — no A/P)",
       "origin": "Mutated or Evolved",
-      "cpEstimate": "~165 base + equipment (boss-tier despite HD 7; mental mutation kit dominates)",
-      "abilities": "- Heightened Intelligence ~+8 to IN (8 CP — for IN 18)",
+      "cpEstimate": "~180 base + equipment (61 CP BCs + 125 CP full mutation kit - 5 CP Weakness; boss-tier despite HD 7)",
+      "abilities": "Flight (Telekinetic, moderate speed) (10 CP); Telekinesis A (7.5 CP — also lifts/manipulates stone for dwelling-building); Stretching Abilities A Telekinetic Arm (10 CP); Force Field A Personal (17.5 CP); Siphon Hits Life Leech (12.5 CP); Transmutation Comprehensive De-evolution (25 CP); Mental Ability A Mental Blast (17.5 CP; use GW-derived MS 16 attack/defense mapping, not MP IN); Ice Abilities B Cryokinesis Blast (12.5 CP); Reflection (one type, e.g., energy) (12.5 CP)",
       "weaknesses": "Compulsion (greedy, gathers Ancient devices) -5 CP",
       "equipment": "Stockpile of Ancient artifacts in dwelling. Encountered Keeshin carries 1d6 random artifacts (15-30 CP avg).",
       "forms": [
@@ -1140,11 +1133,11 @@
       "name": "Obb",
       "aliases": [],
       "gwSource": "AC 10, HD 12, MV 1/15 (ground/fly). 1m mutated fungus resembling a bat. Nearly immobile on ground, hawk-swift in air. Single black eye delivers intensity 16 radiation blast. Two clawed appendages strike for 3d6 each. Devours half of body, plants spores in remains; 1d6 young obbs emerge in 1 day. Resistant to radiation, all laser, light, heat. Sometimes peacefully associates with intelligent beings — alien logic.",
-      "build": "A/P Plant (fungus), Standard power level — high-MS variant, skip Lowered Int",
+      "build": "Mutated fungus; individually priced source traits",
       "origin": "Mutated or Evolved",
-      "cpEstimate": "~50",
-      "abilities": "A/P Plant Standard (20 CP — Flight 15m, Natural Weaponry clawed appendages +d6 sharp x2, Heightened Senses), Size Change Smaller 4.5' (2.5 CP), Devitalization Ray radiation eye intensity 16 25-30m ~2d6 (17.5 CP — directed attack, not Change Environment), Adaptation Energy (radiation + laser + heat, multi-type) (10 CP), Adaptation Light (light immunity) (5 CP)",
-      "weaknesses": "Distinctive (fungus-bat) -5 CP",
+      "cpEstimate": "pending attack/range calibration",
+      "abilities": "Size Change B: Smaller 4.5' (2.5 CP; Stays Active +2.5; Can't Hold Back -5; permanent; final 1 CP); Winged Flight 3/48 (7.5 CP; Wings -5; Non-Proportional Flight +2.5; final 5 CP); Natural Weaponry: two clawed appendages (sharp; source damage 3d6 each, exact MP attack configuration pending calibration); Devitalization Ray: radiation eye (directed Entropy attack, not Change Environment; source intensity 16; exact damage/range pending calibration); Adaptation: Radiation, Laser/Light, Heat (source resistance).",
+      "weaknesses": null,
       "equipment": null,
       "forms": [
         {
@@ -1257,8 +1250,8 @@
       "gwSource": "AC 4, HD 8, MV N/A. 1m tall flower-bush. Disturbed → glows rainbow → emits 3d6 random-intensity radiation in 15m radius. Each round different intensity. Damaged → 1d4 simultaneous blasts. Petals dry to 1 HP/g healing powder (20g/flower, 3-day sun; half effective if artificial drying).",
       "build": "Plant (immobile)",
       "origin": "Mutated or Evolved",
-      "cpEstimate": "~45",
-      "abilities": "Change Environment Hard Radiation 19\" diameter (15 CP + 2.5 CP Hard Radiation — 5 Devitalization Entropy/round in a 15m radius; random-intensity source presentation), Light Control C Glare rainbow (5 CP), Armor 9 = 4/3/0/2 K/E/B/Ent (15 CP)",
+      "cpEstimate": "~50 (listed BCs, Abilities, and Weaknesses; subject to the source attack calibration)",
+      "abilities": "Change Environment: 19\" Hard Radiation field (15 CP + 2.5 CP Hard Radiation; final 17.5 CP — 5 Devitalization Entropy/round in a 15m radius; triggered by disturbance after one melee round; random intensity each round); Light Control C Glare (5 CP — rainbow warning glow); Armor 9 = 4/3/0/2 K/E/B/Ent (15 CP)",
       "weaknesses": "Distinctive (stationary plant) -5, Low Self Control (reactive blasting only) -5",
       "equipment": null,
       "forms": [
@@ -1555,8 +1548,8 @@
       "gwSource": "AC 6, HD 10, MV 12. Mutated humanoid. Heightened Strength, partial carapace, poison claws (intensity 8). MS 15. Mental mutations: Light Wave Manipulation, Density Control (others), Life Leech, Death Field Generation, Mental Blast, Telepathy. Semi-nomadic military \"brigades\", uniforms. General has ancient weapon. 90% prefer mental attacks.",
       "build": "Humanoid (intelligent — no A/P)",
       "origin": "Mutated or Evolved",
-      "cpEstimate": "~135 base + general's artifact (over HD-10 budget; full mutation list = boss-tier despite mid HD)",
-      "abilities": "- Heightened Strength ~+6 (6 CP, in ST 16)",
+      "cpEstimate": "~200 base + general's artifact (full Light Wave component pricing pending; set at High power level so the Death Field's CP/ability/damage caps can be respected)",
+      "abilities": "Natural Weaponry — poison claws +d4 sharp (5 CP); Poison/Venom A — claws contact intensity 8 (5 CP); Light Wave Manipulation — self-only Visible-Light Invisibility; Darkness Control (2m radius within 10m); Negation limited to laser attacks. These three source effects are one GW mutation, but require separately priced MP components.; Density Control (others) — Gravity Control A or Transmutation 30m (20 CP); Life Leech — Siphon Hits Area 10m radius 6 HP/turn (15 CP); Death Field Generation — Death Touch + Area 20m (35 CP); Mental Blast — Mental Ability A (17.5 CP; use GW-derived MS 15 attack/defense mapping, not MP IN); Telepathy (10 CP); Armor 6 = 4/1/0/1 (10 CP — partial carapace)",
       "weaknesses": "Distinctive (military uniform identity) -5",
       "equipment": "Old uniforms (cosmetic). General has ancient weapon (artifact, blast rifle/grenade launcher class, 15-20 CP).",
       "forms": [
@@ -1579,6 +1572,13 @@
           "form": null
         }
       ],
+      "armor": {
+        "total": 6,
+        "k": 4,
+        "e": 1,
+        "b": 0,
+        "ent": 1
+      },
       "generatedOnly": false
     },
     "Seroon Lou": {
@@ -1786,7 +1786,7 @@
       "build": "A/P Plant, Low power level (immobile)",
       "origin": "Mutated or Evolved",
       "cpEstimate": "~20 (aquatic) / ~40 (land)",
-      "abilities": "- A/P Plant Low (10 CP — Sonic Abilities A contact-trigger, Poison/Venom A intensity 14 contact)",
+      "abilities": "A/P Plant Low (10 CP — Sonic Abilities A contact-trigger, Poison/Venom A intensity 14 contact); *Land variety adds:* Magnetism A 50m 50kg ferrous 25 turn (15 CP), Emotion Control Pheromones (10 CP); *Aquatic variety adds:* Adaptation Aquatic (5 CP); Armor 0",
       "weaknesses": "Lowered Intelligence -5, Distinctive -5, Special Requirement (immobile, can be uprooted/burned) -5",
       "equipment": null,
       "forms": [

@@ -11,6 +11,20 @@
 - Apply normal MP BC, Ability, and damage caps from the creature's actual CP total.
 - Convert GW radiation through MP Change Environment and Hard Radiation, not the GW radiation matrix.
 
+## Source-backed radiation pass: Blaash, Obb, and Perth
+
+- **Blaash:** Removed the unsupported Animal/Plant bundle, Armor, senses, and natural-weapon assumptions. Its permanent 4.5-foot size trait is final (1) CP, its winged flight is final (5) CP, and its 5m source radius is represented by a 7-inch Hard Radiation field active only while it attacks. The glow is descriptive, not a separate power.
+- **Obb:** Removed the unsupported Animal/Plant bundle and weaknesses. Its permanent size trait and winged flight are now explicit. The source does establish two 3d6 claws and an intensity-16 radiation eye, but it does not establish the MP attack calibration; these remain deliberately unpriced rather than importing GW damage or radiation-matrix lethality.
+- **Perth:** Retained the existing immobile-plant model, but clarified that its 19-inch Hard Radiation field begins one melee round after disturbance, changes intensity each round, and can emit 1d4 simultaneous fields when damaged. Its final Change Environment cost is (17.5), not its (15) base area cost.
+
+## Source-backed MS pass: Cal Then, Hoop, Keeshin, and Serf
+
+- **Cal Then:** MS 18 remains a GW mental rating, not MP Cool. No additional mental Ability is implied by the source.
+- **Hoop:** MS remains individual and variable (3d6). Removed Heightened Agility, which duplicated the listed AG 18; its exceptional leap is retained as a source movement feature pending a dedicated MP movement construction.
+- **Keeshin:** Removed unsupported Telepathy, Adaptation: Aquatic, Armor, and duplicate Heightened Intelligence. The complete listed mental-mutation kit is retained; its Mental Blast uses the GW MS 16 mapping rather than MP IN.
+- **Serf:** Removed duplicate Heightened Strength because ST 16 is already recorded. Light Wave Manipulation is now represented by its actual three GW effects (self invisibility, remote darkness, laser negation), and Mental Blast uses the GW MS 15 mapping. Its full kit needs a High-level CP budget, principally because of Death Field Generation.
+- **Exporter:** Fixed the bestiary builder so Markdown `Abilities (full kit)` bullet lists are emitted as all individual abilities instead of silently exporting only their first entry.
+
 ## Arn
 
 **Existing entry:** A/P Insect Low; ST 7, EN 8, AG 14; Flight and Natural Weaponry are bundled; Armor 2.
@@ -18,14 +32,14 @@
 **Issues**
 
 - The mandatory A/P bundle creates unsupported weaknesses and makes Flight/Natural Weaponry fixed 10-CP selections.
-- A 1.3 m flying insect should use Size Change B: Smaller at the 4.5-foot tier, with Non-Proportional Flight so its flight movement is not reduced.
+- A 1.3 m flying insect should use Size Change B: Smaller at the 4.5-foot tier. Because the Arn cannot return to human size, construct it as a Continual trait: Stays Active (+2.5) plus Can't Hold Back (-5). The calculation reaches 0 CP, but MP's minimum final Ability cost makes it 1 CP. Non-Proportional Flight keeps its flight movement from being reduced.
 - Flight should carry the Wings modifier. The existing 16 m/turn notation does not identify an MP flight tier or its acceleration/top speed.
 - Armor 2 is not explained by the source; AC 9 is better treated mostly as the normal result of being an agile, small mount.
 
 **Recommended rework target**
 
 - Final BCs: ST 12, EN 12, AG 15, IN 6, CL 9.
-- Size Change B: Smaller (4.5 feet) + Non-Proportional Flight.
+- Permanent Size Change B: Smaller (4.5 feet; final 1 CP) + Non-Proportional Flight.
 - Winged Flight 3/48; Natural Weaponry attack +0, sharp damage +4.
 - Heightened Physical Defense +3. This gives Physical Defense 4 and a bite attack of 14-, which reproduces the selected source checks against a shielded Badder and the Arn's AC 9 role.
 

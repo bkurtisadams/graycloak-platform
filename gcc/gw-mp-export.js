@@ -38,7 +38,14 @@
     if (cur.trim()) out.push(cur.trim());
     return out;
   }
-  const cpOf = seg => { const m = seg.match(/\(\s*~?([\d.]+)\s*CP/i); return m ? m[1] : ''; };
+  // A row may document its base cost and modifiers.  Its final cost is what
+  // belongs in the Builder's CP column (e.g. permanent Size Change).
+  const cpOf = seg => {
+    const final = seg.match(/final\s+\(?\s*~?([\d.]+)\s*CP/i);
+    if (final) return final[1];
+    const m = seg.match(/\(\s*~?([\d.]+)\s*CP/i);
+    return m ? m[1] : '';
+  };
   const isArmorSeg = seg => /^Armor\b/i.test(seg) && /=/.test(seg);
   const estimatedCP = raw => {
     const m = String(raw || '').match(/~?([\d.]+)/);

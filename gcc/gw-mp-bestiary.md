@@ -124,14 +124,14 @@ HTH         d6+1    Inventing 7   Mass d6+1 (~700 lbs)   Profile x1.5
 
 ```
 Base BCs:    ST 13 EN 12 AG 15 IN 6  CL 9
-Size mod:    -1 ST  (Size Change Smaller 2.5 CP, 4.5' tier)
+Size mod:    -1 ST  (Size Change B: Smaller 4.5'; permanent: Stays Active +2.5, Can't Hold Back -5; final 1 CP, from a calculated 0 CP minimum)
 Effective:   ST 12 EN 12 AG 15 IN 6  CL 9
 
 Hits        10      Power 45      Move 9 ground    Init d4
 HTH         d6      Inventing 3   Mass d3 (~40 lbs)   Profile /1.5
 ```
 
-**Abilities:** Size Change B: Smaller 4.5' (2.5 CP); Winged Flight 3/48 with Non-Proportional Flight (5 CP total); Natural Weaponry mandibles (+0 attack, +4 sharp damage); Heightened Physical Defense +3 (7.5 CP). Carries up to 2 kg while flying.
+**Abilities:** Size Change B: Smaller 4.5' (2.5 CP; Stays Active +2.5; Can't Hold Back -5; permanent; final 1 CP, from a calculated 0 CP minimum); Winged Flight 3/48 (7.5 CP; Wings -5; Non-Proportional Flight +2.5; final 5 CP); Natural Weaponry mandibles (+0 attack, +4 sharp damage); Heightened Physical Defense +3 (7.5 CP). Carries up to 2 kg while flying.
 **CP estimate:** ~75
 **Origin:** Mutated or Evolved
 
@@ -212,21 +212,20 @@ HTH         d3      Inventing 1   Mass d6 (~600 lbs of plant matter)
 **GW source:** AC 8, HD 15, MV 6/15 (ground/fly). ~1m mutated moth, 2m wingspan, fearless and carnivorous. Glows brightly when attacking; emits intensity 18 radiation in 5m radius continuous. Self+kin immune. Post-kill feeding phase.
 **Encounter tables:** clear, forest, desert, radioactive (Tier 2, 4 tables)
 **Number appearing:** 1d10
-**Build:** A/P Insect, Standard power level
+**Build:** Mutated insect; individually priced source traits
 
 ```
 Base BCs:    ST 10  EN 15  AG 14  IN 4  CL 12
-Size mod:    -1 ST  (Size Change Smaller 2.5 CP, 4.5' tier)
+Size mod:    -1 ST  (Size Change B: Smaller 4.5'; permanent: Stays Active +2.5, Can't Hold Back -5; final 1 CP)
 Effective:   ST 9   EN 15  AG 14  IN 4  CL 12
 
 Hits        11      Power 42      Move 13 (flight)  Init d6
 HTH         d4      Inventing 2   Mass d3 (~50 lbs)   Profile /1.5
 ```
 
-**Abilities:** A/P Insect Standard (20 CP — Flight 15m, Heightened Senses, Natural Weaponry +d3 sharp), Size Change Smaller 4.5' (2.5 CP), Change Environment Damaging Hard Radiation 7" diameter (7.5 CP — 5 Devitalization Entropy/round, supplement), Adaptation Energy/radiation complete (5 CP), Light Control C Glare (5 CP), Armor 3 = 1/2/0/0 (5 CP)
-**Weaknesses (in A/P bundle):** Lowered Intelligence -5, Distinctive -5
-**Tactics:** Hard Radiation field always-on while attacking — anyone within 5m takes 5 Devit Entropy/round automatically (medical treatment may be required per supplement p. 119). Post-kill feeding = ambush window. Fearless.
-**CP estimate:** ~50
+**Abilities:** Size Change B: Smaller 4.5' (2.5 CP; Stays Active +2.5; Can't Hold Back -5; permanent; final 1 CP); Winged Flight 3/48 (7.5 CP; Wings -5; Non-Proportional Flight +2.5; final 5 CP); Change Environment: 7" Hard Radiation field (7.5 CP — 5 Devitalization Entropy/round; active only while attacking); Adaptation: Radiation (5 CP). The bright abdominal glow is the field's visible manifestation, not a separate Light Control power.
+**Tactics:** While attacking, the Blaash's 5m-radius radiation field affects everyone but itself and other blaash. Once it kills prey, it stops to eat voraciously. Fearless.
+**CP estimate:** ~75 (54 CP BCs + 18.5 CP listed Abilities, rounded; before any GM-assigned physical-defense adjustment)
 **Origin:** Mutated or Evolved
 
 ---
@@ -596,10 +595,10 @@ Hits        15      Power 55      Move 15      Init d4
 HTH         d6      Inventing 5   Mass d4 (~150 lbs)   Profile x1.2
 ```
 
-**Abilities:** Size Change Larger 7' (2.5 CP), Heightened Agility ~+8 (8 CP — covers leap-8m), Telepathy (10 CP), Transmutation Metal→Rubber touch range 1m radius (17.5 CP)
+**Abilities:** Size Change Larger 7' (2.5 CP); Telepathy (10 CP); Transmutation: metal → rubber (touch; 1m radius; source-specific alternate-target construction). The 8m vertical leap is retained as a movement feature, not double-counted as Heightened Agility because AG 18 is already the Hoop's listed BC.
 **Mass Mind:** Narrative coordination, no CP cost.
 **Equipment:** Ancient weapons preferred — pistol/rifle/blaster per individual
-**CP estimate:** ~38 + equipment
+**CP estimate:** ~80 + equipment (65 CP BCs plus Size Change/Telepathy; pending final CP pricing for the metal-only Transmutation variant)
 **Origin:** Mutated or Evolved
 **GW MS variability:** Roll 3d6 per individual. Use it only for GW-derived mental mutations; it does not change MP CL. Chief status is social, not an automatic Heightened Cool purchase.
 **Note:** Transmutation devastates metal-armored/-armed PCs. Rubber armor = AC 9, rubber pistol = jammed, etc.
@@ -693,24 +692,20 @@ HTH         d3      Inventing 9   Mass d3 (~50 lbs)
 ```
 
 **Abilities (full kit):**
-- Heightened Intelligence ~+8 to IN (8 CP — for IN 18)
-- Telepathy (10 CP — implied by mental mutation kit, communicates over Ancient device transactions)
 - Flight (Telekinetic, moderate speed) (10 CP)
 - Telekinesis A (7.5 CP — also lifts/manipulates stone for dwelling-building)
 - Stretching Abilities A Telekinetic Arm (10 CP)
 - Force Field A Personal (17.5 CP)
 - Siphon Hits Life Leech (12.5 CP)
 - Transmutation Comprehensive De-evolution (25 CP)
-- Mental Ability A Mental Blast (17.5 CP)
+- Mental Ability A Mental Blast (17.5 CP; use GW-derived MS 16 attack/defense mapping, not MP IN)
 - Ice Abilities B Cryokinesis Blast (12.5 CP)
 - Reflection (one type, e.g., energy) (12.5 CP)
-- Adaptation Aquatic (5 CP — water-dwelling)
-- Armor 6 = 3/2/0/1 (10 CP)
 
 **Action restriction:** Per GW: "may utilize any 2 of these mutations per melee turn." MP equivalent: 2 attack-class abilities per turn cap (interpret as standing limitation; no additional CP modifier).
 **Weaknesses:** Compulsion (greedy, gathers Ancient devices) -5 CP
 **Equipment:** Stockpile of Ancient artifacts in dwelling. Encountered Keeshin carries 1d6 random artifacts (15-30 CP avg).
-**CP estimate:** ~165 base + equipment (boss-tier despite HD 7; mental mutation kit dominates)
+**CP estimate:** ~180 base + equipment (61 CP BCs + 125 CP full mutation kit - 5 CP Weakness; boss-tier despite HD 7)
 **Origin:** Mutated or Evolved
 **Tactics:** Solitary ambush from underwater dwelling. Opens with Mental Blast or Cryokinesis at range while flying. Force Field always-on. De-evolution as endgame against tough opponents. Will kill PCs who threaten artifact hoard.
 **Note:** Like Serf, this is a low-HP boss-tier creature with massively over-budget mental kit. GM may scale picks (3-4 mutations active per encounter) for non-elite Keeshin.
@@ -801,22 +796,21 @@ HTH         2d6     Inventing 1   Mass d12 (~5 tons rooted)   Profile x2.5
 **GW source:** AC 10, HD 12, MV 1/15 (ground/fly). 1m mutated fungus resembling a bat. Nearly immobile on ground, hawk-swift in air. Single black eye delivers intensity 16 radiation blast. Two clawed appendages strike for 3d6 each. Devours half of body, plants spores in remains; 1d6 young obbs emerge in 1 day. Resistant to radiation, all laser, light, heat. Sometimes peacefully associates with intelligent beings — alien logic.
 **Encounter tables:** forest, desert (Tier 4, 2 tables)
 **Number appearing:** 1
-**Build:** A/P Plant (fungus), Standard power level — high-MS variant, skip Lowered Int
+**Build:** Mutated fungus; individually priced source traits
 
 ```
 Base BCs:    ST 8  EN 12  AG 14  IN 12  CL 12
-Size mod:    -1 ST  (Size Change Smaller 2.5 CP, 4.5' tier)
+Size mod:    -1 ST  (Size Change B: Smaller 4.5'; permanent: Stays Active +2.5, Can't Hold Back -5; final 1 CP)
 Effective:   ST 7  EN 12  AG 14  IN 12  CL 12
 
 Hits        7       Power 45      Move 1 ground / 15 fly   Init d6
 HTH         d3      Inventing 6   Mass d3 (~50 lbs)   Profile /1.5
 ```
 
-**Abilities:** A/P Plant Standard (20 CP — Flight 15m, Natural Weaponry clawed appendages +d6 sharp x2, Heightened Senses), Size Change Smaller 4.5' (2.5 CP), Devitalization Ray radiation eye intensity 16 25-30m ~2d6 (17.5 CP — directed attack, not Change Environment), Adaptation Energy (radiation + laser + heat, multi-type) (10 CP), Adaptation Light (light immunity) (5 CP)
-**Weaknesses:** Distinctive (fungus-bat) -5 CP
-*No Lowered Intelligence — MS 12 is normal.*
+**Abilities:** Size Change B: Smaller 4.5' (2.5 CP; Stays Active +2.5; Can't Hold Back -5; permanent; final 1 CP); Winged Flight 3/48 (7.5 CP; Wings -5; Non-Proportional Flight +2.5; final 5 CP); Natural Weaponry: two clawed appendages (sharp; source damage 3d6 each, exact MP attack configuration pending calibration); Devitalization Ray: radiation eye (directed Entropy attack, not Change Environment; source intensity 16; exact damage/range pending calibration); Adaptation: Radiation, Laser/Light, Heat (source resistance).
+*GW MS 12 is normal and is not converted to MP Cool. No Animal/Plant bundle or bundle weaknesses are imposed.*
 **Reproduction:** Devours half of victim's body, plants spores in rest. 1d6 young obbs emerge from spore-host in 1 day. Encounter creates persistent local threat at kill site.
-**CP estimate:** ~50
+**CP estimate:** pending attack/range calibration
 **Origin:** Mutated or Evolved
 **Reaction:** Alien logic — GM rolls with -2 to standard reaction modifiers; outcomes can be unpredictable peace or unpredictable hostility. May team up with intelligent beings for inscrutable reasons.
 
@@ -886,10 +880,10 @@ Hits        1       Power 17      Move 0      Init d3
 HTH         d2      Inventing 1   Mass d3 (~50 lbs)
 ```
 
-**Abilities:** Change Environment Hard Radiation 19" diameter (15 CP + 2.5 CP Hard Radiation — 5 Devitalization Entropy/round in a 15m radius; random-intensity source presentation), Light Control C Glare rainbow (5 CP), Armor 9 = 4/3/0/2 K/E/B/Ent (15 CP)
+**Abilities:** Change Environment: 19" Hard Radiation field (15 CP + 2.5 CP Hard Radiation; final 17.5 CP — 5 Devitalization Entropy/round in a 15m radius; triggered by disturbance after one melee round; random intensity each round); Light Control C Glare (5 CP — rainbow warning glow); Armor 9 = 4/3/0/2 K/E/B/Ent (15 CP)
 **Weaknesses:** Distinctive (stationary plant) -5, Low Self Control (reactive blasting only) -5
 **Resource:** 20g/flower healing powder (1 HP/g sun-dried 3 days; 0.5 HP/g artificial).
-**CP estimate:** ~45
+**CP estimate:** ~50 (listed BCs, Abilities, and Weaknesses; subject to the source attack calibration)
 **Origin:** Mutated or Evolved
 **Tactics:** Area-denial. PCs choose: engage at range, harvest at risk, or avoid. The source's random intensity and damaged-state 1d4 simultaneous blasts are encounter-level variations of the normal MP radiation field, not imported GW radiation-matrix outcomes.
 
@@ -1166,20 +1160,19 @@ HTH         d6+1    Inventing 8   Mass d4 (~150 lbs)
 ```
 
 **Abilities (full kit — typical Serf has all):**
-- Heightened Strength ~+6 (6 CP, in ST 16)
 - Natural Weaponry — poison claws +d4 sharp (5 CP)
 - Poison/Venom A — claws contact intensity 8 (5 CP)
-- Light Wave Manipulation — Invisibility Visible Light + Light Control C Glare (15 CP)
+- Light Wave Manipulation — self-only Visible-Light Invisibility; Darkness Control (2m radius within 10m); Negation limited to laser attacks. These three source effects are one GW mutation, but require separately priced MP components.
 - Density Control (others) — Gravity Control A or Transmutation 30m (20 CP)
 - Life Leech — Siphon Hits Area 10m radius 6 HP/turn (15 CP)
 - Death Field Generation — Death Touch + Area 20m (35 CP)
-- Mental Blast — Mental Ability A (17.5 CP)
+- Mental Blast — Mental Ability A (17.5 CP; use GW-derived MS 15 attack/defense mapping, not MP IN)
 - Telepathy (10 CP)
 - Armor 6 = 4/1/0/1 (10 CP — partial carapace)
 
 **Weaknesses:** Distinctive (military uniform identity) -5
 **Equipment:** Old uniforms (cosmetic). General has ancient weapon (artifact, blast rifle/grenade launcher class, 15-20 CP).
-**CP estimate:** ~135 base + general's artifact (over HD-10 budget; full mutation list = boss-tier despite mid HD)
+**CP estimate:** ~200 base + general's artifact (full Light Wave component pricing pending; set at High power level so the Death Field's CP/ability/damage caps can be respected)
 **Origin:** Mutated or Evolved
 **Tactics:** 90% open with mentals at range. Close to claws only when mentals exhausted. General coordinates via Telepathy. Light Wave Manipulation enables ambush.
 **Note:** GM may scale to 2-3 picked mutations per non-elite Serf; full list reserved for General + lieutenants.
