@@ -6,7 +6,7 @@
 **Conversion rules:** see `gcc/DESIGN-gw-mp-conversion.md`
 **MP character generation reference:** MP 2.1.7.1
 
-**v0.9.2 — BC-derived stat correction pass (2026-06-17):** Hits, HTH Damage, and Initiative recomputed for all 54 forms directly from the MP 2.1.7.2 Basic Characteristic Table (using each block's Effective BCs). The prior estimate markers (`~`) on Hits are removed — values are now exact. 97 corrections across 50 entries; see `gw-mp-bestiary-CHANGELOG-v0.9.2.md`. Power, Move, Inventing, and Armor allocations were already correct and are unchanged. **Open design item:** the Defense/Attack Borg and Death Machine Durability totals (30 and 280) are now arithmetically consistent (base × multiplier) but remain below the GW source HP targets noted in their ability text (e.g. Death Machine "for 750 HP"); closing that gap is a balance lever (raise the Durability multiplier), left as a deliberate decision rather than auto-applied.
+**v0.9.3 — conversion-policy correction pass (2026-09-11):** Arn, Badder, and Barl Nep now use individually priced traits rather than mandatory Animal/Plant bundles. GW HD is no longer treated as MP EN, GW Mental Strength is retained separately for GW-derived mental mutations, AC is source-split, and Barl Nep's radiation uses normal MP Change Environment rules. See `GW-MP-BESTIARY-AUDIT.md`.
 
 Stat blocks for GW1e wilderness encounter table creatures, converted to MP. Encounter tables defined in `gw-encounter-data.js`; this file is the matching MP stat catalog. Ordered alphabetically.
 
@@ -120,20 +120,19 @@ HTH         d6+1    Inventing 7   Mass d6+1 (~700 lbs)   Profile x1.5
 **GW source:** AC 9, HD 8, MV 3/16 (ground/fly), bite 2d6, carries ≤2kg in flight. 1.3m mutated flying insect, beast of burden.
 **Encounter tables:** clear, mountains, forest (Tier 3, 3 tables)
 **Number appearing:** 1d6
-**Build:** A/P Insect, Low power level
+**Build:** Mutated flying insect; individually priced traits
 
 ```
-Base BCs:    ST 8  EN 8  AG 14  IN 4  CL 6
+Base BCs:    ST 13 EN 12 AG 15 IN 6  CL 9
 Size mod:    -1 ST  (Size Change Smaller 2.5 CP, 4.5' tier)
-Effective:   ST 7  EN 8  AG 14  IN 4  CL 6
+Effective:   ST 12 EN 12 AG 15 IN 6  CL 9
 
-Hits        2       Power 33      Move 10 ground   Init d3
-HTH         d3      Inventing 2   Mass d2 (~40 lbs)   Profile /1.5
+Hits        10      Power 45      Move 9 ground    Init d4
+HTH         d6      Inventing 3   Mass d3 (~40 lbs)   Profile /1.5
 ```
 
-**Abilities:** A/P Insect Low (10 CP — Flight 16m/turn ≤2kg cargo, Natural Weaponry mandibles +4/+6 sharp), Size Change Smaller 4.5' (2.5 CP), Armor 2 = 1/0/0/1 (2.5 CP, chitin)
-**Weaknesses (in A/P bundle):** Lowered Intelligence -5, Distinctive -5
-**CP estimate:** ~15
+**Abilities:** Size Change B: Smaller 4.5' (2.5 CP); Winged Flight 3/48 with Non-Proportional Flight (5 CP total); Natural Weaponry mandibles (+0 attack, +4 sharp damage); Heightened Physical Defense +3 (7.5 CP). Carries up to 2 kg while flying.
+**CP estimate:** ~75
 **Origin:** Mutated or Evolved
 
 ---
@@ -146,16 +145,16 @@ HTH         d3      Inventing 2   Mass d2 (~40 lbs)   Profile /1.5
 **Build:** Humanoid ("Short" descriptor free at 1.5m)
 
 ```
-Base BCs:    ST 12  EN 6  AG 18  IN 13  CL 16
+Base BCs:    ST 12  EN 6  AG 18  IN 12  CL 12  MS 16
 
-Hits        9       Power 49      Move 12      Init d6+1
-HTH         d6      Inventing 7   Mass d4 (~100 lbs)
+Hits        9       Power 48      Move 12      Init d6
+HTH         d6      Inventing 6   Mass d4 (~100 lbs)
 ```
 
-**Abilities:** Heightened Agility ~+8 (8 CP), Heightened Cool ~+6 (6 CP), Heightened Intelligence ~+3 (3 CP), Heightened Senses Odors Full+Acute (10 CP), Telepathy visual+verbal+Mood Reading (10 CP — Empathy), Armor 3 = 1/1/0/1 (5 CP)
-**Weaknesses:** Diminished Senses hearing -5 CP
-**Equipment:** Spear (15 CP), wooden shield in Armor, 10% random artifact weapon
-**CP estimate:** ~57
+**Abilities:** Heightened Senses: keen smell; Empathy (GW-derived MS effect, non-intelligent targets only; MS 16 attacks MS 12 at 15-); Experience Levels 5 CP for a trained warrior.
+**Weaknesses:** Diminished Senses: hard of hearing
+**Equipment:** Bite d6 sharp; spear or other class-3 weapon; wooden shield (+4 Physical Defense against seen attacks); simple armor if individually equipped; 10% random artifact weapon
+**CP estimate:** ~80
 **Origin:** Mutated or Evolved
 
 ---
@@ -165,21 +164,20 @@ HTH         d6      Inventing 7   Mass d4 (~100 lbs)
 **GW source:** AC 3, HD 20, MV 20. 1m totally black fish. If attacked: secretes radioactive oil intensity 18 covering 10m diameter area, lasts 10 min in calm water. Killed: extracts intensity 12 oil for 10-min slick.
 **Encounter tables:** water (Tier 5, 1 table)
 **Number appearing:** 1
-**Build:** A/P Fish, High power level (HD 20 boss)
+**Build:** Mutated fish; individually priced traits
 
 ```
-Base BCs:    ST 10  EN 14  AG 14  IN 4  CL 10
-Size mod:    -1 ST  (Size Change Smaller 2.5 CP, 4.5' tier)
-Heightened EN +6 (6 CP)
-Effective:   ST 9   EN 20  AG 14  IN 4  CL 10
+Base BCs:    ST 9   EN 13  AG 19  IN 4  CL 8
+Size mod:    -1 ST  -1 EN  (Size Change B: Smaller 5 CP, 3' tier)
+Effective:   ST 8   EN 12  AG 19  IN 4  CL 8
 
-Hits        12      Power 47      Move 14 swim + Speed = 20   Init d4
-HTH         d4      Inventing 2   Mass d4 (~80 lbs)   Profile /1.5
+Hits        19      Power 43      Move 13 swim    Init d3
+HTH         d3      Inventing 2   Mass d3 (~80 lbs)   Profile /2
 ```
 
-**Abilities:** A/P Fish High (30 CP — Adaptation Aquatic, Heightened Senses, Speed swim, Natural Weaponry bite), Size Change Smaller 4.5' (2.5 CP), Heightened Endurance +6 (6 CP), Speed +6 swim (5 CP — for MV 20), Change Environment Damaging Hard Radiation 11" diameter (12.5 CP — supplement, defensive trigger when attacked, 10m oil slick area, 5 Devit Entropy/round in calm water for 10 min), Adaptation Energy radiation (5 CP), Armor 12 = 6/3/1/2 (20 CP)
-**Weaknesses (in A/P bundle):** Lowered Intelligence -5, Distinctive (totally black fish) -5
-**Resource:** If killed and harvested: yields intensity 12 oil for 10-min radioactive slick (lower intensity than living defense). Combat use: catapult-launched ammunition.
+**Abilities:** Size Change B: Smaller 3' (5 CP); Non-Proportional Swimming (2.5 CP); Heightened Physical Defense +6 (15 CP); Durability +10 Hits; Adaptation: Radiation; Natural Weaponry bite (+2 attack, +2 sharp damage); Change Environment: 7" stationary Hard Radiation slick, 10-minute duration (18.75 CP; Activation Power PR 2 once; triggers when attacked; 5 Devitalization Entropy/round).
+**Resource:** If killed and harvested: yields one 7" ordinary-radiation oil slick for 10 minutes (1 Devitalization Entropy/round). Treat as recoverable hazard/treasure, not a second living-creature attack.
+**CP estimate:** ~115
 **CP estimate:** ~83
 **Origin:** Mutated or Evolved
 **Tactics:** Defensive — secretes oil only when attacked. Field persists 10 min in calm water; deters pursuit.

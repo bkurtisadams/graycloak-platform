@@ -1,8 +1,8 @@
 # DESIGN: Gamma World 1e → Mighty Protectors Creature Conversion
 
-**Status:** v1.2
+**Status:** v1.3 (rules audit draft)
 **Destination:** `gcc/DESIGN-gw-mp-conversion.md`
-**Last updated:** 2026-05-09
+**Last updated:** 2026-09-11
 
 **MP rule sources:**
 - Mighty Protectors core rulebook
@@ -25,13 +25,14 @@ Direct attribute mappings:
 | GW1e Stat | MP Stat | Mapping |
 |---|---|---|
 | Physical Strength | ST | 1:1 in 3-18 range |
-| Constitution / HD | EN | 1:1 (HD = Con per GW rule) |
+| Constitution | EN | 1:1 when Constitution is actually stated |
+| Hit Dice | — | Source HP and natural-attack band; not an MP Basic Characteristic |
 | Dexterity | AG | 1:1 |
 | Intelligence | IN | 1:1 |
-| Mental Strength | CL | Willpower/fortitude framing |
+| Mental Strength | GW MS | Retained as a separate score for converted GW mental mutations |
 | Charisma | CL | Used via Influence Tasks (3.1.1) |
 
-When both GW MS and Cha are stated for the same creature, take the higher (or if both are notable, sum-and-cap to creature's CL ability cap). MP CL absorbs both roles since GW splits psionic-defense and leadership but MP unifies them.
+GW Mental Strength is not MP Intelligence or Cool. Keep it on the stat block as **GW MS** only when the creature has a GW-derived mental mutation. For those mutations, preserve the source matrix with: Mental Attack Save = MS + 1; Mental Defense Save = MS. This produces the GW target number of `11 + attacker MS - defender MS`, including automatic success and no-effect results. Native MP mental Abilities still use MP Intelligence and Mental Defense.
 
 For unstated GW BCs (typical for monster entries giving only AC, HD, MV), default to 10 baseline and adjust from description (size, frame, behavior, equipment use).
 
@@ -46,7 +47,7 @@ GW Charisma's mechanical effect → MP Influence Tasks (3.1.1). The reaction-tab
 GW HD does **not** carry over as MP Hits proportionally. GW HP is purely physical resilience (Con × d6); MP Hits is multi-factor survivability derived from ST + EN + AG + CL contributions per BC table. Trying to enforce HP-to-Hits proportionality re-imports GW combat attrition into MP and undermines the system swap.
 
 **Procedure:**
-1. Map GW Con/HD → MP EN directly (Con 8 → EN 8, etc.).
+1. Map stated GW Constitution → MP EN directly. Do not treat HD as Constitution.
 2. Set other BCs from GW description.
 3. Apply Size Change for non-human-sized creatures.
 4. Compute Hits from final BCs using MP BC table.
@@ -56,7 +57,7 @@ GW HD does **not** carry over as MP Hits proportionally. GW HP is purely physica
 
 **Roll-with damage** (1/10 Power per hit, rounded down) is the major defensive layer that makes MP combat survivable at low Hits totals. Power scales with BC sums, so toughening a creature via Size Change or Heightened-X automatically buffs both Hits and roll-with.
 
-**Durability ability** is **not** a systematic conversion bonus. Reserve for boss-tier creatures and per-encounter tuning. BC-derived Hits + Power roll-with + Armor handles most cases.
+**HD procedure:** HD supplies the natural-attack column on GW Physical Attack Matrix II and indicates source resilience. It does not automatically become EN, Experience Levels, or Durability. Use modest Durability only when the creature's described resilience needs it after MP play comparison.
 
 ---
 
@@ -64,20 +65,9 @@ GW HD does **not** carry over as MP Hits proportionally. GW HP is purely physica
 
 GW AC bundles damage reduction (hide/armor) with hit avoidance (size/speed/agility). MP separates: Armor reduces damage, Physical Defense governs hit chance.
 
-### 3.1 Worn-armor ladder
+### 3.1 AC is not a universal Armor conversion
 
-| GW AC | Description | MP Armor (total points, ~CP) |
-|---|---|---|
-| 10 | None | 0 (0) |
-| 9 | Shield only | 2 (2.5) |
-| 8 | Furs/skins | 3 (5) |
-| 7 | Furs + shield | 5 (7.5) |
-| 6 | Cured hide / partial carapace | 6 (10) |
-| 5 | Hide + shield | 8 (12.5) |
-| 4 | Piece metal / total carapace | 9 (15) |
-| 3 | Powered plate/plastic | 12 (20) |
-| 2 | Powered alloy/inertia | 16 (30) |
-| 1 | Powered attack/assault | 20+ (40+) |
+GW AC is an input to a hit matrix, not a damage-reduction rating. Do not apply a fixed AC-to-Armor ladder. Split the stated or implied source of AC among MP Physical Defense, actual Armor, shield, Size, Force Field, and/or Experience Levels. If the source gives no explanation, calibrate the resulting MP defense against representative source attacks rather than inventing armor.
 
 ### 3.2 AC source-splitting
 
@@ -92,7 +82,7 @@ GW creature AC is inherent and bundles multiple contributors. Determine which ap
 | Skill/training/experience | MP Experience Levels (defensive) |
 | Magical/supernatural deflection | MP Force Field |
 
-For creatures where AC is hide-dominant: load MP Armor heavily. For agility-dominant: bump AG, leave Armor low. Most creatures split: some Armor + AG-derived Phys Def.
+For creatures where AC is hide-dominant: use Armor. For agility-dominant: use AG and/or Heightened Physical Defense. Most creatures split these sources. A single MP Physical Defense cannot exactly reproduce both GW physical matrices at every AC; verify the creature's likely opponents instead.
 
 ---
 
@@ -136,45 +126,11 @@ For "humanoid-tier" base BCs of large creatures: assume base ST 10 (humanoid bas
 
 ## 5. Animal/Plant Ability
 
-### 5.1 When required
+The Animal/Plant package is useful for random MP species generation, but it is not required for an authored GW creature. Do not force its fixed 10-CP Abilities or random weaknesses onto a source creature. Price the creature's actual described traits individually.
 
-GW typology classifies creatures as Pure Strain Human, Humanoid, Mutated Animal, or Mutated Plant. For MP conversion, **behavior matters more than typology**:
+### 5.2 Individual trait picks
 
-- **A/P required:** creatures that behave as animals (no language, no tool use, no society) — e.g. mutated insects, regular animal mutants
-- **No A/P:** anthropomorphic intelligent species (talk, wield tools, have culture) — even if GW types them as Mutated Animal. Treat as Humanoid build with mutations.
-
-### 5.2 Type selection
-
-Map GW species description to closest MP A/P type:
-
-| GW species | MP A/P type | BC mods |
-|---|---|---|
-| Mutated mammal (canid, mustelid, etc.) | Mammal | 0/0/0 |
-| Mutated insect (arthropod) | Insect | 0/0/0 |
-| Mutated bird | Avian | -2/-2/+4 |
-| Mutated reptile (snake, lizard) | Reptile | +2/+2/-4 |
-| Mutated amphibian (frog, salamander) | Amphibian | +2/+2/-4 |
-| Mutated arachnid (spider) | Arachnid | -4/+2/+2 |
-| Mutated crustacean (lobster, crab) | Crustacean | +4/0/-4 |
-| Mutated mollusk | Mollusk | +2/+2/-4 |
-| Mutated fish | Fish | 0/+4/-4 |
-| Mutated plant | Plant/Fungus | +3/+3/-6 |
-| Single-celled (slime, ooze) | One-Celled | -4/+2/+2 |
-| Generic "lower lifeform" | Lower Class | -2/+2/0 |
-
-### 5.3 Power level
-
-Tier the A/P ability count by GW threat level:
-
-| Tier | A/P Power Level | Abilities | Net A/P CP |
-|---|---|---|---|
-| Beast / mount / minor critter | Low | 2 + 2 weak | ~10 |
-| Standard mutant | Standard | 3 + 2 weak | ~20 |
-| Apex / boss-tier | High | 4 + 2 weak | ~30 |
-
-### 5.4 Ability picks
-
-**Pick** abilities to match GW description; do not roll random. Match GW-stated traits to entries on the type's 2d6 ability table:
+**Pick** Abilities to match GW description; do not roll random. Common mappings include:
 
 - Keen smell → Heightened Senses
 - Flying → Flight
@@ -184,18 +140,7 @@ Tier the A/P ability count by GW threat level:
 - Strong → Heightened Strength
 - Senses surroundings well → Heightened Senses
 
-### 5.5 Bundling implication
-
-A/P abilities are fixed at 10 CP each. Picking Heightened-X via A/P always adds **+10** to that BC. If the GW creature's stat is between baseline and +10, either:
-
-- Don't pick Heightened-X via A/P; pay raw Heightened-X (1 CP per +1) outside the bundle, OR
-- Set base BC lower so the +10 lands on target (e.g., base AG 8 + A/P Heightened Agility +10 = effective AG 18)
-
-When base HTH damage from final ST already covers the GW bite/claw damage, **do not** add Natural Weaponry separately; the bite is just base HTH.
-
-### 5.6 A/P weaknesses
-
-A/P bundles 2 weaknesses at -5 CP each. Pick to match GW description (Diminished Senses for "hard of hearing", Phobia for explicit fears, Distinctive for visually unmistakable creatures). Substitute GW-stated weaknesses for the random rolls.
+When base HTH damage from final ST already covers the GW bite/claw damage, do not add Natural Weaponry damage. Natural Weaponry's accuracy and sharp-damage components are priced separately.
 
 ---
 
@@ -248,13 +193,25 @@ Folded into Armor total. Wicker shield = +1 to Armor. Wooden shield = +2. Steel 
 
 ---
 
-## 8. CP Policy
+## 8. CP Policy and Caps
 
-- **Creatures (NPCs):** GM-waived BC and Ability caps. Total CP recorded per creature for sanity check, but caps not enforced. Boss-tier creatures freely exceed standard caps.
-- **Player Characters:** Standard caps enforced per MP rules.
-- **Tier rough budget:** HD 1-3 → ~25-50 CP creature; HD 4-8 → ~75-100 CP; HD 9-12 → ~125-175 CP; HD 13+ → 200+ CP boss-tier.
+Use the creature's actual purchased BCs, Abilities, and Modifiers to establish its CP total. Apply MP 2.1.16.5 caps to both base and final costs unless the GM explicitly waives one for a non-combat convenience or realism reason. Do not declare a larger NPC total merely to obtain a higher cap, and do not map HD directly to a CP tier.
 
-CP totals in stat blocks are estimates; final pricing happens at MP Builder time.
+For a total of 200 CP, the relevant caps are BC 50, Ability 40, and average damage 19. The expanded random-NPC power-level chart is construction guidance; it does not replace these caps.
+
+## 8.1 Physical attack matrices
+
+GW monsters and mutations attacking without weapons use Physical Attack Matrix II: their HD band determines their source chance to hit. Armed creatures use Matrix I with their weapon class. Preserve this distinction in MP:
+
+- Calibrate an unarmed creature's AG plus Natural Weaponry accuracy against Matrix II at a representative AC/Physical Defense.
+- Calibrate an armed creature's weapon and attack bonus against Matrix I; do not use HD for its weapon attack.
+- Do not assume GW Dexterity modifies either matrix unless a specific source rule establishes that modifier.
+
+## 8.2 Radiation
+
+Convert GW radiation through MP radiation and Entropy rules, not GW's mutation/death matrix. Use Change Environment with Hard Radiation for a severe source radiation field: it inflicts 5 points of Devitalization Entropy per round. Use ordinary Change Environment radiation for a lesser field: 1 point per round.
+
+Convert area and duration literally where possible (10 m diameter is approximately 7 inches; 10 minutes is a GM-priced midpoint between the Duration table's 5 and 20 minutes). A stationary slick, cloud, or residue is a source-specific presentation of Change Environment; it does not automatically follow its creator. Entropy protection, rolling with damage, incapacitation, and death use ordinary MP rules. Do not import a flat GW percentage chance of death.
 
 ---
 
@@ -469,18 +426,19 @@ For a GW1e creature:
 
 1. **Determine type:** PSH, Humanoid, Mutated Animal, Mutated Plant. Pick based on **behavior**, not strict GW typology — anthropomorphic intelligent species use Humanoid build even if GW types them as Mutated Animal.
 
-2. **Map BCs:**
+2. **Map BCs and GW MS:**
    - PS → ST (1:1)
-   - Con / HD → EN (1:1)
+   - stated Con → EN (1:1)
+   - HD → source HP and natural-attack band, not EN
    - Dex → AG (1:1)
    - IN → IN (1:1)
-   - MS → CL (willpower framing)
-   - Cha → CL (Influence; if both Cha and MS stated, take higher)
+   - Cha → CL (Influence)
+   - MS → retained GW MS for GW-derived mental mutations; not an MP BC
    - Unstated BCs default to 10, adjust from description.
 
 3. **Apply Size Change** if non-human-sized. Modify ST/EN per table; record CP cost; note Profile.
 
-4. **Apply A/P Ability** if Mutated Animal/Plant in behavior. Pick type from §5.2; pick abilities matching GW description; pick 2 weaknesses. Net A/P CP = 10 (Low) / 20 (Standard) / 30 (High).
+4. **Price actual traits individually.** A/P may be used for a random MP species, but do not require its Ability/Weakness bundle for an authored GW creature.
 
 5. **Map AC** via §3.1 (worn) and §3.2 (source-split). Distribute MP Armor across damage types per §6.
 
@@ -502,7 +460,7 @@ For a GW1e creature:
    - Inventing Points = IN / 2, rounded up
    - Mass = creature weight / 2, find Carrying Capacity match in BC table, take HTH die
 
-10. **Tally CP estimate.** Note that creatures get GM-waived caps; standard caps don't apply.
+10. **Tally actual CP cost and apply MP caps.** Do not raise the total merely to buy a larger Ability.
 
 11. **Origin Type** = Mutated or Evolved by default.
 
