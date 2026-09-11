@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <!-- v0.75.0: the Foundry shape. The canvas fills the window; a tool rail on
+  <!-- v0.75.1: the Foundry shape. The canvas fills the window; a tool rail on
        the left, a tabbed sidebar on the right. Every id the client scripts
        know is still here; the panels moved, the code did not. -->
   <main class="terminal shell" aria-labelledby="app-title">
@@ -15,7 +15,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.75.0</div>
+          <div id="app-subtitle" class="subtitle">v0.75.1</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -231,6 +231,20 @@
     </section>
 
     <aside class="shell-sidebar" id="sidebar" aria-label="Sidebar">
+      <div class="sidebar-tabs" role="tablist" aria-label="Sidebar">
+        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="chat" aria-selected="true" title="CHAT"><span class="sidebar-tab-icon" aria-hidden="true">&#9993;</span><span class="sidebar-tab-label">CHAT</span></button>
+        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="combat" aria-selected="false" title="COMBAT"><span class="sidebar-tab-icon" aria-hidden="true">&#9876;</span><span class="sidebar-tab-label">COMBAT</span></button>
+        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="scenes" aria-selected="false" title="SCENES"><span class="sidebar-tab-icon" aria-hidden="true">&#9635;</span><span class="sidebar-tab-label">SCENES</span></button>
+        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="actors" aria-selected="false" title="ACTORS"><span class="sidebar-tab-icon" aria-hidden="true">&#9823;</span><span class="sidebar-tab-label">ACTORS</span></button>
+        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="vehicles" aria-selected="false" title="VEHICLES"><span class="sidebar-tab-icon" aria-hidden="true">&#9650;</span><span class="sidebar-tab-label">VEHICLES</span></button>
+        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="port" aria-selected="false" title="PORT"><span class="sidebar-tab-icon" aria-hidden="true">&#9737;</span><span class="sidebar-tab-label">PORT</span></button>
+        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="journal" aria-selected="false" title="JOURNAL"><span class="sidebar-tab-icon" aria-hidden="true">&#9998;</span><span class="sidebar-tab-label">JOURNAL</span></button>
+        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="tables" aria-selected="false" title="TABLES"><span class="sidebar-tab-icon" aria-hidden="true">&#9856;</span><span class="sidebar-tab-label">TABLES</span></button>
+        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="players" aria-selected="false" title="PLAYERS"><span class="sidebar-tab-icon" aria-hidden="true">&#9787;</span><span class="sidebar-tab-label">PLAYERS</span></button>
+        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="settings" aria-selected="false" title="SETTINGS"><span class="sidebar-tab-icon" aria-hidden="true">&#9881;</span><span class="sidebar-tab-label">SETTINGS</span></button>
+      </div>
+      <details id="sidebar-whatnow" class="sidebar-strip" open>
+        <summary class="sidebar-strip-summary">WHAT NOW?</summary>
         <section id="procedure-section" class="panel whatnow" aria-labelledby="procedure-heading">
           <div class="whatnow-head">
             <h2 id="procedure-heading" class="whatnow-title">WHAT NOW?</h2>
@@ -240,6 +254,9 @@
           <div id="actions" class="actions"></div>
           <div id="play-procedure" class="play-procedure" hidden aria-live="polite"></div>
         </section>
+      </details>
+      <details id="sidebar-character" class="sidebar-strip">
+        <summary class="sidebar-strip-summary"><span id="sidebar-character-summary">CHARACTER</span></summary>
       <section class="campaign-header-strip" aria-label="Character status">
         <div class="character-identity-line">
           <button id="header-character-name" class="campaign-header-name text-button header-character-link" type="button">--</button>
@@ -254,18 +271,7 @@
           <button id="header-all-skills" class="text-button header-all-skills" type="button" title="Choose which skills fill the quick slots">[ ALL SKILLS ]</button>
         </div>
       </section>
-      <div class="sidebar-tabs" role="tablist" aria-label="Sidebar">
-        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="chat" aria-selected="true" title="CHAT"><span class="sidebar-tab-icon" aria-hidden="true">&#9993;</span><span class="sidebar-tab-label">CHAT</span></button>
-        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="combat" aria-selected="false" title="COMBAT"><span class="sidebar-tab-icon" aria-hidden="true">&#9876;</span><span class="sidebar-tab-label">COMBAT</span></button>
-        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="scenes" aria-selected="false" title="SCENES"><span class="sidebar-tab-icon" aria-hidden="true">&#9635;</span><span class="sidebar-tab-label">SCENES</span></button>
-        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="actors" aria-selected="false" title="ACTORS"><span class="sidebar-tab-icon" aria-hidden="true">&#9823;</span><span class="sidebar-tab-label">ACTORS</span></button>
-        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="vehicles" aria-selected="false" title="VEHICLES"><span class="sidebar-tab-icon" aria-hidden="true">&#9650;</span><span class="sidebar-tab-label">VEHICLES</span></button>
-        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="port" aria-selected="false" title="PORT"><span class="sidebar-tab-icon" aria-hidden="true">&#9737;</span><span class="sidebar-tab-label">PORT</span></button>
-        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="journal" aria-selected="false" title="JOURNAL"><span class="sidebar-tab-icon" aria-hidden="true">&#9998;</span><span class="sidebar-tab-label">JOURNAL</span></button>
-        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="tables" aria-selected="false" title="TABLES"><span class="sidebar-tab-icon" aria-hidden="true">&#9856;</span><span class="sidebar-tab-label">TABLES</span></button>
-        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="players" aria-selected="false" title="PLAYERS"><span class="sidebar-tab-icon" aria-hidden="true">&#9787;</span><span class="sidebar-tab-label">PLAYERS</span></button>
-        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="settings" aria-selected="false" title="SETTINGS"><span class="sidebar-tab-icon" aria-hidden="true">&#9881;</span><span class="sidebar-tab-label">SETTINGS</span></button>
-      </div>
+      </details>
       <div class="sidebar-body">
         <section class="sidebar-panel" data-sidebar-panel="chat">
         <aside id="activity-panel" class="activity-panel panel" aria-labelledby="activity-heading">

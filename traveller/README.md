@@ -1,5 +1,17 @@
 # Graycloak Traveller
 
+## v0.75.1 the shell, straightened
+
+The first shell had three faults you could see at once. The masthead kept
+the terminal's wrapping rules, so its right-hand items — status, account,
+sign-out — wrapped down the left rail; it is one row now and never wraps.
+The sidebar opened on WHAT NOW? and the character strip at full height, with
+the tabs pushed to the bottom and the open panel reduced to a line; the tabs
+are at the top as in the mockup, and WHAT NOW? and the character are
+collapsible strips beneath them, each scrolling inside a bounded height,
+with the character strip's summary line saying who and how they are when
+closed. Tab labels no longer overrun their cells.
+
 ## v0.75.0 the shell: canvas first, a tool rail, a tabbed sidebar, and chat
 
 The referee client takes the Foundry shape. The canvas fills the window. A

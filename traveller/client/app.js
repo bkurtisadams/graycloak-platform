@@ -1540,6 +1540,18 @@ function applySidebar() {
 // The rail's tools follow the scene: the world scene offers navigation,
 // the combat scene offers token tools. Each is a button the stage already
 // answers to.
+// The collapsed character strip still says who and how they are.
+function renderSidebarStrips() {
+  const summary = document.querySelector('#sidebar-character-summary');
+  if (!summary) return;
+  const doc = campaignPlayActive() ? gameplayDocument : null;
+  summary.textContent = doc
+    ? `${doc.identity.name.toUpperCase()} · ${doc.upp} · ${el.headerStatus?.textContent || 'READY'}`
+    : 'CHARACTER';
+  const whatnow = document.querySelector('#sidebar-whatnow > summary');
+  if (whatnow) whatnow.textContent = `WHAT NOW? ${el.procedureScope?.textContent ? '· ' + el.procedureScope.textContent : ''}`;
+}
+
 function renderRailTools() {
   const rail = document.querySelector('#rail-tools');
   if (!rail) return;
@@ -6991,6 +7003,7 @@ function renderChargenTables() {
 function render() {
   applySidebar();
   renderRailTools();
+  renderSidebarStrips();
   const gameplayOnly = documentMode === TRAVELLER_DOCUMENT_KINDS.CHARACTER;
   const displayName = gameplayOnly ? gameplayDocument?.identity.name : character.name;
   if (el.name.value !== (displayName ?? '')) el.name.value = displayName ?? '';
