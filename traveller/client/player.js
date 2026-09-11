@@ -24,6 +24,7 @@ import { createPlayerTokenMove } from '../src/player-token-movement.js';
 import { serviceName, nobleTitleLabel, buildServiceHistory, buildGenerationLog } from './ui-model.js';
 import { PERSONAL_WEAPONS, SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getSubsectorSystem } from '../vendor/classic-traveller-rules/index.js';
 import { renderSubsectorMap } from './subsector-svg.js';
+import { createSceneCanvas, svgNode } from './scene-canvas.js';
 import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -113,14 +114,15 @@ let selectedTokenIds = new Set();
 let targetTokenIds = new Set();
 let hoveredTokenId = null;
 let canvasPresence = [];
-let mapZoom = 1;
-let mapView = { x: 0, y: 0, width: 1206, height: 1206 };
-let mapPan = null;
-const MAP_SIZE = 1206;
-const MIN_ZOOM = 0.5;
-const MAX_ZOOM = 16;
-const TOKEN_RADIUS = 0.4;
-const TOKEN_RING_RADIUS = 0.48;
+// v0.73.0: the board is drawn by scene-canvas.js, the same module the referee
+// client draws with; this page supplies tokens, overlays and the drop.
+let canvas = null;
+function sceneCanvas() {
+  if (!canvas) {
+    canvas = createSceneCanvas({ svg: el.map, viewport: el.mapViewport, onCamera: ({ zoom }) => { el.zoomLabel.textContent = `${Math.round(zoom * 100)}%`; } });
+  }
+  return canvas;
+}
 
 function setStatus(text, kind = '') {
   el.status.textContent = text;
@@ -245,80 +247,60 @@ function renderScene() {
 }
 
 function renderMap() {
-  const columns = view.map.columns;
-  const rows = view.map.rows;
-  const cell = MAP_SIZE / Math.max(columns - 1, rows - 1);
-  const gridScale = view.map.metersPerSquare;
-  const parts = [];
-  for (let column = 0; column < columns; column += gridScale) {
-    const gridX = (column + gridScale / 2) * cell;
-    parts.push(svg('line', { x1: gridX, y1: 0, x2: gridX, y2: (rows - 1) * cell, class: column % 25 ? 'player-grid' : 'player-grid major' }));
-  }
-  for (let row = 0; row < rows; row += gridScale) {
-    const gridY = (row + gridScale / 2) * cell;
-    parts.push(svg('line', { x1: 0, y1: gridY, x2: (columns - 1) * cell, y2: gridY, class: row % 25 ? 'player-grid' : 'player-grid major' }));
-  }
-  for (const path of view.movementPaths ?? []) {
-    parts.push(svg('line', {
-      x1: path.from.column * cell, y1: path.from.row * cell,
-      x2: path.to.column * cell, y2: path.to.row * cell,
-      class: `player-movement-path ${path.pace}`
-    }));
-  }
   const owned = ownedCombatantIds();
-  // v0.71.0: a token is drawn in units of one grid square.
-  const tokenScale = gridScale * cell;
-  for (const combatant of view.combatants) {
-    const x = combatant.position.column * cell;
-    const y = combatant.position.row * cell;
-    const group = svg('g', { transform: `translate(${x} ${y}) scale(${tokenScale})` });
-    group.dataset.tokenId = combatant.id;
-    group.classList.add('player-token-group');
-    group.setAttribute('tabindex', '0');
-    if (selectedTokenIds.has(combatant.id)) group.append(svg('path', { d: 'M -.48 -.24 V -.48 H -.24 M .24 -.48 H .48 V -.24 M .48 .24 V .48 H .24 M -.24 .48 H -.48 V .24', class: 'player-token-selected' }));
-    if (targetTokenIds.has(combatant.id)) group.append(svg('circle', { cx: 0, cy: 0, r: TOKEN_RING_RADIUS, class: 'player-token-target' }));
-    const remoteTargets = canvasPresence.filter((entry) => entry.uid !== currentUserId() && entry.targetIds?.includes(combatant.id));
-    remoteTargets.slice(0, 4).forEach((entry, index) => group.append(svg('circle', { cx: -.42 + index * .28, cy: -.68, r: .09, class: 'player-token-remote-target' })));
-    group.append(svg('circle', {
-      cx: 0, cy: 0, r: TOKEN_RADIUS,
-      class: `player-token ${combatant.side === 'party' ? 'party' : 'enemy'}${combatant.condition === 'active' ? '' : ' down'}`
-    }));
-    const label = svg('text', { x: 0, y: 0, class: 'player-token-label' });
-    label.textContent = combatant.tokenLabel || combatant.name.charAt(0).toUpperCase();
-    group.append(label);
-    const title = svg('title'); title.textContent = `${combatant.name} / ${combatant.condition}`; group.append(title);
-    attachPlayerTokenInteraction(group, combatant, owned.has(combatant.id), cell);
-    parts.push(group);
-  }
-  el.map.replaceChildren(...parts);
-  applyMapView();
-}
-
-function applyMapView() {
-  const width = MAP_SIZE / mapZoom;
-  const height = MAP_SIZE / mapZoom;
-  mapView.width = width; mapView.height = height;
-  mapView.x = width >= MAP_SIZE ? (MAP_SIZE - width) / 2 : Math.max(0, Math.min(MAP_SIZE - width, mapView.x));
-  mapView.y = height >= MAP_SIZE ? (MAP_SIZE - height) / 2 : Math.max(0, Math.min(MAP_SIZE - height, mapView.y));
-  el.map.setAttribute('viewBox', `${mapView.x} ${mapView.y} ${width} ${height}`);
-  el.zoomLabel.textContent = `${Math.round(mapZoom * 100)}%`;
-}
-
-function mapPoint(event) {
-  const matrix = el.map.getScreenCTM();
-  if (!matrix) return { x: 0, y: 0 };
-  const point = el.map.createSVGPoint(); point.x = event.clientX; point.y = event.clientY;
-  return point.matrixTransform(matrix.inverse());
-}
-
-function setMapZoom(next, event = null) {
-  const point = event ? mapPoint(event) : { x: mapView.x + mapView.width / 2, y: mapView.y + mapView.height / 2 };
-  const old = mapZoom;
-  mapZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, next));
-  const ratio = old / mapZoom;
-  mapView.x = point.x - (point.x - mapView.x) * ratio;
-  mapView.y = point.y - (point.y - mapView.y) * ratio;
-  applyMapView();
+  const board = sceneCanvas();
+  board.setBoard(view.map);
+  const tokens = view.combatants.map((combatant) => ({
+    id: combatant.id, column: combatant.position.column, row: combatant.position.row,
+    side: combatant.side === 'party' ? 'party' : 'enemy',
+    shape: combatant.actorType === 'robot' ? 'square' : combatant.actorType === 'creature' ? 'diamond' : 'circle',
+    label: combatant.tokenLabel || combatant.name.charAt(0),
+    title: `${combatant.name} / ${combatant.condition}`,
+    ariaLabel: `${combatant.name}, ${combatant.side}, ${combatant.condition}`,
+    state: { selected: selectedTokenIds.has(combatant.id), targeted: targetTokenIds.has(combatant.id), inactive: combatant.condition !== 'active', owned: owned.has(combatant.id) },
+    combatant
+  }));
+  const allowanceFor = (pace) => (pace === 'run' ? 50 : 25);
+  board.render({
+    tokens,
+    underlay: (fragments, { cell }) => {
+      for (const path of view.movementPaths ?? []) {
+        fragments.push(svgNode('line', { x1: path.from.column * cell, y1: path.from.row * cell, x2: path.to.column * cell, y2: path.to.row * cell, class: `player-movement-path ${path.pace}` }));
+      }
+    },
+    decorate: (group, token) => {
+      const remote = canvasPresence.filter((entry) => entry.uid !== currentUserId() && entry.targetIds?.includes(token.id));
+      remote.slice(0, 4).forEach((entry, index) => group.append(svgNode('circle', { cx: -.42 + index * .28, cy: -.68, r: .09, class: 'player-token-remote-target' })));
+    },
+    interaction: {
+      canDrag: (token) => owned.has(token.id) && Boolean(view.declaringRound),
+      describe: (token, from, to) => {
+        const pace = el.movePace.value;
+        const distance = Math.max(Math.abs(to.column - from.column), Math.abs(to.row - from.row));
+        const allowance = allowanceFor(pace);
+        const legal = distance > allowance ? 'over' : distance === allowance ? 'limit' : 'legal';
+        return { legal, text: `${pace.toUpperCase()} / ${Number((distance / view.map.metersPerSquare).toFixed(2))} SQ / ${distance} M${pace === 'run' ? ' / −1 BLOW / NO ATTACK' : ''}${legal === 'limit' ? ' / LIMIT' : legal === 'over' ? ' / OVER' : ''}` };
+      },
+      onDrop: async (token, to, { reset }) => {
+        const combatant = token.combatant;
+        const pace = el.movePace.value;
+        const distance = Math.max(Math.abs(combatant.position.column - to.column), Math.abs(combatant.position.row - to.row));
+        const allowance = allowanceFor(pace);
+        if (distance > allowance) { reset(); setStatus(`${pace.toUpperCase()} ALLOWS ${allowance} METERS / DROP WAS ${distance}`, 'error'); return; }
+        try {
+          await writeTokenMove(connectedCampaignId, view.encounterId, createPlayerTokenMove({ uid: currentUserId(), encounterId: view.encounterId, actorId: combatant.id, column: to.column, row: to.row, pace, round: view.declaringRound, movedAt: Date.now() }));
+          setStatus(`${pace.toUpperCase()} SENT / ${combatant.name.toUpperCase()} / WAITING FOR REFEREE`, 'ok');
+        } catch (error) { reset(); setStatus(error?.message ?? String(error), 'error'); }
+      },
+      onSelect: (token, event) => {
+        if (owned.has(token.id)) selectPlayerToken(token.combatant, Boolean(event?.shiftKey));
+        else if (!view.declaringRound && owned.size) setStatus('THE ENCOUNTER IS NOT IN AN ACTIVE MOVEMENT ROUND', 'error');
+        else if (owned.size) setStatus('YOU MAY ONLY MOVE A TOKEN YOU PLAY', 'error');
+      },
+      onContextMenu: (token, event) => showPlayerTokenMenu(event, token.combatant, owned.has(token.id)),
+      onHover: (token, event, entering) => { hoveredTokenId = entering ? token.id : null; }
+    }
+  });
 }
 
 function publishPresence() {
@@ -354,65 +336,6 @@ function showPlayerTokenMenu(event, combatant, owned) {
   const rect = el.mapViewport.getBoundingClientRect();
   el.mapMenu.style.left = `${Math.max(4, event.clientX - rect.left + 8)}px`;
   el.mapMenu.style.top = `${Math.max(4, event.clientY - rect.top + 8)}px`;
-}
-
-function attachPlayerTokenInteraction(group, combatant, owned, cell) {
-  let drag = null;
-  group.addEventListener('pointerenter', () => { hoveredTokenId = combatant.id; });
-  group.addEventListener('pointerleave', () => { if (!drag) hoveredTokenId = null; });
-  group.addEventListener('contextmenu', (event) => showPlayerTokenMenu(event, combatant, owned));
-  group.addEventListener('pointerdown', (event) => {
-    if (event.button !== 0) return; event.stopPropagation();
-    drag = { start: mapPoint(event), origin: { ...combatant.position }, moved: false, trail: null, label: null };
-    if (owned) {
-      drag.trail = svg('line', { class: 'movement-drag-trail legal' });
-      drag.label = svg('text', { class: 'movement-drag-label legal' });
-      el.map.append(drag.trail, drag.label);
-    }
-    group.setPointerCapture(event.pointerId);
-  });
-  group.addEventListener('pointermove', (event) => {
-    if (!drag || !group.hasPointerCapture(event.pointerId)) return;
-      const point = mapPoint(event); if (Math.hypot(point.x - drag.start.x, point.y - drag.start.y) > Math.max(2 / mapZoom, cell * view.map.metersPerSquare * .35)) drag.moved = true;
-    if (drag.moved && owned) {
-      const gridScale = view.map.metersPerSquare;
-      const column = Math.max(0, Math.min(view.map.columns - 1, Math.round(point.x / cell / gridScale) * gridScale));
-      const row = Math.max(0, Math.min(view.map.rows - 1, Math.round(point.y / cell / gridScale) * gridScale));
-      const x = column * cell; const y = row * cell;
-      const distance = Math.max(Math.abs(combatant.position.column - column), Math.abs(combatant.position.row - row));
-      const pace = el.movePace.value; const allowance = pace === 'run' ? 50 : 25;
-      const legality = distance > allowance ? 'over' : distance === allowance ? 'limit' : 'legal';
-      group.setAttribute('transform', `translate(${x} ${y}) scale(${view.map.metersPerSquare * cell})`);
-      drag.trail.setAttribute('x1', combatant.position.column * cell); drag.trail.setAttribute('y1', combatant.position.row * cell);
-      drag.trail.setAttribute('x2', x); drag.trail.setAttribute('y2', y); drag.trail.setAttribute('class', `movement-drag-trail ${legality}`);
-      const labelOffset = 12 / mapZoom;
-      drag.label.setAttribute('x', x + labelOffset); drag.label.setAttribute('y', y - labelOffset); drag.label.setAttribute('class', `movement-drag-label ${legality}`);
-      drag.label.style.fontSize = `${18 / mapZoom}px`;
-      drag.label.style.strokeWidth = `${2.5 / mapZoom}px`;
-      drag.label.textContent = `${pace.toUpperCase()} / ${Number((distance / gridScale).toFixed(2))} SQ / ${distance} M${pace === 'run' ? ' / −1 BLOW / NO ATTACK' : ''}${legality === 'limit' ? ' / LIMIT' : legality === 'over' ? ' / OVER' : ''}`;
-    }
-  });
-  group.addEventListener('pointerup', async (event) => {
-    if (!drag) return; group.releasePointerCapture(event.pointerId); const wasMoved = drag.moved; drag.trail?.remove(); drag.label?.remove(); drag = null;
-    if (!wasMoved) { selectPlayerToken(combatant, event.shiftKey); return; }
-    if (!owned) { renderMap(); setStatus('YOU MAY ONLY MOVE A TOKEN YOU PLAY', 'error'); return; }
-    if (!view.declaringRound) { renderMap(); setStatus('THE ENCOUNTER IS NOT IN AN ACTIVE MOVEMENT ROUND', 'error'); return; }
-    const point = mapPoint(event);
-    const gridScale = view.map.metersPerSquare;
-    const column = Math.max(0, Math.min(view.map.columns - 1, Math.round(point.x / cell / gridScale) * gridScale));
-    const row = Math.max(0, Math.min(view.map.rows - 1, Math.round(point.y / cell / gridScale) * gridScale));
-    const pace = el.movePace.value;
-    const distance = Math.max(Math.abs(combatant.position.column - column), Math.abs(combatant.position.row - row));
-    const allowance = pace === 'run' ? 50 : 25;
-    if (distance > allowance) { renderMap(); setStatus(`${pace.toUpperCase()} ALLOWS ${allowance} METERS / DROP WAS ${distance}`, 'error'); return; }
-    try {
-      await writeTokenMove(connectedCampaignId, view.encounterId, createPlayerTokenMove({ uid: currentUserId(), encounterId: view.encounterId, actorId: combatant.id, column, row, pace, round: view.declaringRound, movedAt: Date.now() }));
-      setStatus(`${pace.toUpperCase()} SENT / ${combatant.name.toUpperCase()} / WAITING FOR REFEREE`, 'ok');
-    } catch (error) { renderMap(); setStatus(error?.message ?? String(error), 'error'); }
-  });
-  group.addEventListener('pointercancel', () => {
-    drag?.trail?.remove(); drag?.label?.remove(); drag = null; renderMap();
-  });
 }
 
 function renderRoster() {
@@ -844,10 +767,9 @@ function watchScene(db, campaignId, encounterId) {
     .catch((error) => console.error(error));
 }
 
-el.zoomOut.addEventListener('click', () => setMapZoom(mapZoom / 1.4));
-el.zoomIn.addEventListener('click', () => setMapZoom(mapZoom * 1.4));
-el.zoomFit.addEventListener('click', () => { mapZoom = 1; mapView = { x: 0, y: 0, width: MAP_SIZE, height: MAP_SIZE }; applyMapView(); });
-el.mapViewport.addEventListener('wheel', (event) => { event.preventDefault(); setMapZoom(mapZoom * (event.deltaY < 0 ? 1.12 : 1 / 1.12), event); }, { passive: false });
+el.zoomOut.addEventListener('click', () => sceneCanvas().camera.zoomBy(1 / 1.4));
+el.zoomIn.addEventListener('click', () => sceneCanvas().camera.zoomBy(1.4));
+el.zoomFit.addEventListener('click', () => sceneCanvas().camera.fit());
 el.mapViewport.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
     event.preventDefault();
@@ -874,36 +796,15 @@ document.addEventListener('keydown', (event) => {
   if (view) { renderMap(); renderOrders(); }
 });
 el.mapViewport.addEventListener('pointerdown', (event) => {
-  if (event.target.closest?.('.player-token-group')) return;
+  if (event.target.closest?.('[data-scene-token]')) return;
   el.mapMenu.hidden = true;
-  if (event.button === 0) {
-    selectedTokenIds = new Set();
-    publishPresence();
-    renderMap();
-    return;
-  }
-  if (event.button !== 2) return;
-  event.preventDefault();
-  mapPan = { x: event.clientX, y: event.clientY, viewX: mapView.x, viewY: mapView.y, moved: false };
-  el.mapViewport.setPointerCapture(event.pointerId);
+  if (event.button !== 0) return;
+  selectedTokenIds = new Set();
+  publishPresence();
+  renderMap();
 });
-el.mapViewport.addEventListener('pointermove', (event) => {
-  if (!mapPan || !el.mapViewport.hasPointerCapture(event.pointerId)) return;
-  const rect = el.mapViewport.getBoundingClientRect();
-  const scale = Math.min(rect.width / mapView.width, rect.height / mapView.height) || 1;
-  const dx = event.clientX - mapPan.x; const dy = event.clientY - mapPan.y;
-  if (Math.hypot(dx, dy) > 4) mapPan.moved = true;
-  mapView.x = mapPan.viewX - dx / scale; mapView.y = mapPan.viewY - dy / scale; applyMapView();
-});
-const endMapPan = (event) => {
-  if (!mapPan) return;
-  const moved = mapPan.moved; mapPan = null;
-  if (el.mapViewport.hasPointerCapture(event.pointerId)) el.mapViewport.releasePointerCapture(event.pointerId);
-};
-el.mapViewport.addEventListener('pointerup', endMapPan);
-el.mapViewport.addEventListener('pointercancel', endMapPan);
 el.mapViewport.addEventListener('contextmenu', (event) => {
-  if (!event.target.closest?.('.player-token-group')) event.preventDefault();
+  if (!event.target.closest?.('[data-scene-token]')) event.preventDefault();
 });
 
 el.showBoard.addEventListener('click', () => { showFinishedBoard = true; render(); });

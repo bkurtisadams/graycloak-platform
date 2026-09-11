@@ -93,6 +93,7 @@ import {
 import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js';
 import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js';
 import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, SCENE_MIN_SQUARES, SCENE_MAX_METERS } from '../src/scene-document.js';
+import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js';
 
 import {
   SHEET_CHARACTERISTICS as HEADER_CHARACTERISTICS,
@@ -615,19 +616,22 @@ let selectedEncounterTokenIds = new Set();
 let encounterSelectionCleared = false;
 let pendingEncounterPlacement = null;
 let pendingEncounterConditionCombatantId = null;
-const ENCOUNTER_MAP_WIDTH = 1206;
-const ENCOUNTER_MAP_HEIGHT = 1206;
+// v0.73.0: the board is drawn by scene-canvas.js — the same module the player
+// page draws with — which owns the camera, the grid, token layout and the
+// drag. This client supplies tokens, overlays, decorations and the drop.
 const ENCOUNTER_MAP_MIN_ZOOM = 0.5;
 const ENCOUNTER_MAP_MAX_ZOOM = 16;
-let encounterTokenScale = 1;
-// Personal tokens occupy less than one physical metre. This keeps one figure
-// inside a 1 m square and leaves room for several figures in a 5 m square.
-const ENCOUNTER_TOKEN_RADIUS = 0.4;
-const ENCOUNTER_TOKEN_HIT_RADIUS = 0.58;
-const ENCOUNTER_TOKEN_RING_RADIUS = 0.48;
 let encounterMapZoom = 1;
-let encounterMapView = { x: 0, y: 0, width: ENCOUNTER_MAP_WIDTH, height: ENCOUNTER_MAP_HEIGHT };
-let encounterMapViewFrame = 0;
+let encounterCanvasInstance = null;
+function encounterCanvas() {
+  if (!encounterCanvasInstance) {
+    encounterCanvasInstance = createSceneCanvas({
+      svg: el.encounterMap, viewport: el.encounterMapViewport, minZoom: ENCOUNTER_MAP_MIN_ZOOM, maxZoom: ENCOUNTER_MAP_MAX_ZOOM,
+      onCamera: ({ zoom }) => { encounterMapZoom = zoom; if (el.encounterZoomLabel) el.encounterZoomLabel.textContent = `${Math.round(zoom * 100)}%`; }
+    });
+  }
+  return encounterCanvasInstance;
+}
 let framedEncounterId = null;
 let encounterExtraTargetIds = new Set();
 let expandedTrackerIds = new Set();
@@ -3409,98 +3413,23 @@ function combatantConditionText(combatant) {
   return combatant.conditions?.length ? combatant.conditions.map((entry) => entry.toUpperCase().replaceAll('-', ' ')).join(' + ') : 'NONE';
 }
 
-function clampEncounterMapView(view = encounterMapView) {
-  const width = ENCOUNTER_MAP_WIDTH / encounterMapZoom;
-  const height = ENCOUNTER_MAP_HEIGHT / encounterMapZoom;
-  const x = width >= ENCOUNTER_MAP_WIDTH
-    ? (ENCOUNTER_MAP_WIDTH - width) / 2
-    : Math.max(0, Math.min(ENCOUNTER_MAP_WIDTH - width, view.x));
-  const y = height >= ENCOUNTER_MAP_HEIGHT
-    ? (ENCOUNTER_MAP_HEIGHT - height) / 2
-    : Math.max(0, Math.min(ENCOUNTER_MAP_HEIGHT - height, view.y));
-  return { x, y, width, height };
-}
-
-function applyEncounterMapView() {
-  encounterMapView = clampEncounterMapView(encounterMapView);
-  el.encounterMap.setAttribute('viewBox', `${encounterMapView.x} ${encounterMapView.y} ${encounterMapView.width} ${encounterMapView.height}`);
-  el.encounterZoomLabel.textContent = `${Math.round(encounterMapZoom * 100)}%`;
-}
-
-function scheduleEncounterMapView() {
-  if (encounterMapViewFrame) return;
-  encounterMapViewFrame = window.requestAnimationFrame(() => {
-    encounterMapViewFrame = 0;
-    applyEncounterMapView();
-  });
-}
-
-function flushEncounterMapView() {
-  if (encounterMapViewFrame) {
-    window.cancelAnimationFrame(encounterMapViewFrame);
-    encounterMapViewFrame = 0;
-  }
-  applyEncounterMapView();
-}
-
 function encounterMapPoint(clientX, clientY) {
-  const matrix = el.encounterMap.getScreenCTM();
-  if (matrix) {
-    const point = el.encounterMap.createSVGPoint();
-    point.x = clientX;
-    point.y = clientY;
-    return point.matrixTransform(matrix.inverse());
-  }
-  const rect = el.encounterMap.getBoundingClientRect();
-  const scale = Math.min(rect.width / encounterMapView.width, rect.height / encounterMapView.height) || 1;
-  const offsetX = (rect.width - encounterMapView.width * scale) / 2;
-  const offsetY = (rect.height - encounterMapView.height * scale) / 2;
-  return {
-    x: encounterMapView.x + (clientX - rect.left - offsetX) / scale,
-    y: encounterMapView.y + (clientY - rect.top - offsetY) / scale
-  };
+  return encounterCanvas().camera.pointFromClient(clientX, clientY);
 }
 
 function setEncounterMapZoom(value, anchor = null) {
-  const nextZoom = Math.max(ENCOUNTER_MAP_MIN_ZOOM, Math.min(ENCOUNTER_MAP_MAX_ZOOM, value));
-  const point = anchor
-    ? encounterMapPoint(anchor.clientX, anchor.clientY)
-    : { x: encounterMapView.x + encounterMapView.width / 2, y: encounterMapView.y + encounterMapView.height / 2 };
-  const ratio = encounterMapZoom / nextZoom;
-  encounterMapView = {
-    x: point.x - (point.x - encounterMapView.x) * ratio,
-    y: point.y - (point.y - encounterMapView.y) * ratio,
-    width: ENCOUNTER_MAP_WIDTH / nextZoom,
-    height: ENCOUNTER_MAP_HEIGHT / nextZoom
-  };
-  encounterMapZoom = nextZoom;
-  scheduleEncounterMapView();
+  encounterCanvas().camera.setZoom(value, anchor);
 }
 
 // Frame the combatants, capped at the readable maximum zoom. FIT remains the
-// one-click view of the complete 1 km square workspace and all range bands.
+// one-click view of the complete board.
 function frameEncounterCombatants(encounter) {
-  const cellWidth = ENCOUNTER_MAP_WIDTH / (encounter.map.columns - 1);
-  const cellHeight = ENCOUNTER_MAP_HEIGHT / (encounter.map.rows - 1);
-  const xs = encounter.combatants.map((entry) => entry.position.column * cellWidth);
-  const ys = encounter.combatants.map((entry) => entry.position.row * cellHeight);
-  if (!xs.length) { fitEncounterMap(); return; }
-  const padding = Math.max(cellWidth, cellHeight) * 12;
-  const boundsWidth = Math.max(Math.max(...xs) - Math.min(...xs) + padding * 2, cellWidth * 40);
-  const boundsHeight = Math.max(Math.max(...ys) - Math.min(...ys) + padding * 2, cellHeight * 30);
-  encounterMapZoom = Math.min(ENCOUNTER_MAP_MAX_ZOOM, ENCOUNTER_MAP_WIDTH / Math.max(boundsWidth, boundsHeight));
-  const width = ENCOUNTER_MAP_WIDTH / encounterMapZoom;
-  const height = ENCOUNTER_MAP_HEIGHT / encounterMapZoom;
-  const centreX = (Math.min(...xs) + Math.max(...xs)) / 2;
-  const centreY = (Math.min(...ys) + Math.max(...ys)) / 2;
-  encounterMapView = { x: centreX - width / 2, y: centreY - height / 2, width, height };
-  flushEncounterMapView();
+  const { cell } = encounterCanvas().metrics();
+  encounterCanvas().camera.framePoints(encounter.combatants.map((entry) => ({ x: entry.position.column * cell, y: entry.position.row * cell })), { paddingSquares: 12, minSquares: 40 });
 }
 
 function fitEncounterMap() {
-  encounterMapZoom = 1;
-  encounterMapView = { x: 0, y: 0, width: ENCOUNTER_MAP_WIDTH, height: ENCOUNTER_MAP_HEIGHT };
-  flushEncounterMapView();
+  encounterCanvas().camera.fit();
 }
 
 function moveEncounterToken(encounterId, combatantId, column, row) {
@@ -3649,13 +3578,14 @@ function showEncounterTokenMenu(event, encounter, combatant, onSelect, anchorEle
 
 function showEncounterMapMenu(event) {
   event.preventDefault();
-  if (event.target.closest?.('.encounter-token')) return;
+  if (event.target.closest?.('[data-scene-token]')) return;
   const encounter = activeEncounterAtCurrentSystem();
   if (!encounter) return;
   const point = encounterMapPoint(event.clientX, event.clientY);
   const scale = encounter.map.metersPerSquare;
-  const column = Math.max(0, Math.min(encounter.map.columns - 1, Math.round(point.x / (ENCOUNTER_MAP_WIDTH / (encounter.map.columns - 1)) / scale) * scale));
-  const row = Math.max(0, Math.min(encounter.map.rows - 1, Math.round(point.y / (ENCOUNTER_MAP_HEIGHT / (encounter.map.rows - 1)) / scale) * scale));
+  const { cell } = encounterCanvas().metrics();
+  const column = Math.max(0, Math.min(encounter.map.columns - 1, Math.round(point.x / cell / scale) * scale));
+  const row = Math.max(0, Math.min(encounter.map.rows - 1, Math.round(point.y / cell / scale) * scale));
   const place = document.createElement('button');
   place.type = 'button';
   place.textContent = '[ PLACE ROSTER ACTOR HERE ]';
@@ -3761,120 +3691,6 @@ function removeCombatantFromActiveEncounter(encounterId, combatantId) {
   }
 }
 
-function attachEncounterTokenInteraction(group, encounter, combatant, { onSelect, visualPoint = null } = {}) {
-  group.addEventListener('pointerenter', (event) => {
-    hoveredEncounterCombatantId = combatant.id;
-    el.encounterTokenTooltip.textContent = combatantHoverText(combatant);
-    positionEncounterOverlay(el.encounterTokenTooltip, event);
-    el.encounterTokenTooltip.hidden = false;
-  });
-  group.addEventListener('pointerleave', () => { hoveredEncounterCombatantId = null; el.encounterTokenTooltip.hidden = true; });
-  group.addEventListener('contextmenu', (event) => showEncounterTokenMenu(event, encounter, combatant, onSelect, group));
-  let drag = null;
-  group.addEventListener('pointerdown', (event) => {
-    if (event.button !== 0) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const point = encounterMapPoint(event.clientX, event.clientY);
-    const cellWidth = ENCOUNTER_MAP_WIDTH / (encounter.map.columns - 1);
-    const cellHeight = ENCOUNTER_MAP_HEIGHT / (encounter.map.rows - 1);
-    const originX = visualPoint?.x ?? combatant.position.column * cellWidth;
-    const originY = visualPoint?.y ?? combatant.position.row * cellHeight;
-    const existingMove = encounter.history.find((entry) => entry.round === encounter.round && entry.kind === 'movement' && entry.actorId === combatant.id && entry.detail?.playerMove);
-    const movementFrom = existingMove?.detail?.from ?? combatant.position;
-    drag = {
-      pointerId: event.pointerId,
-      startClientX: event.clientX,
-      startClientY: event.clientY,
-      originX,
-      originY,
-      movementFrom: { ...movementFrom },
-      trailOriginX: movementFrom.column * cellWidth,
-      trailOriginY: movementFrom.row * cellHeight,
-      offsetX: visualPoint?.offsetX ?? 0,
-      offsetY: visualPoint?.offsetY ?? 0,
-      grabX: point.x - originX,
-      grabY: point.y - originY,
-      previewX: originX,
-      previewY: originY,
-      moved: false,
-      frame: 0,
-      trail: svgElement('line', { class: 'movement-drag-trail legal' }),
-      label: svgElement('text', { class: 'movement-drag-label legal' })
-    };
-    el.encounterMap.append(drag.trail, drag.label);
-    group.setPointerCapture(event.pointerId);
-    group.classList.add('dragging');
-  });
-  group.addEventListener('pointermove', (event) => {
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    event.preventDefault();
-    if (Math.hypot(event.clientX - drag.startClientX, event.clientY - drag.startClientY) > 4) drag.moved = true;
-    if (!drag.moved) return;
-    const point = encounterMapPoint(event.clientX, event.clientY);
-    const cellWidth = ENCOUNTER_MAP_WIDTH / (encounter.map.columns - 1);
-    const cellHeight = ENCOUNTER_MAP_HEIGHT / (encounter.map.rows - 1);
-    const scale = encounter.map.metersPerSquare;
-    const column = Math.max(0, Math.min(encounter.map.columns - 1, Math.round((point.x - drag.grabX) / cellWidth / scale) * scale));
-    const row = Math.max(0, Math.min(encounter.map.rows - 1, Math.round((point.y - drag.grabY) / cellHeight / scale) * scale));
-    drag.previewX = column * cellWidth + drag.offsetX;
-    drag.previewY = row * cellHeight + drag.offsetY;
-    const distance = Math.max(Math.abs(column - drag.movementFrom.column), Math.abs(row - drag.movementFrom.row));
-    const pace = el.encounterMovePace.value;
-    const allowance = pace === 'run' ? 50 : 25;
-    const legality = encounter.status !== 'active' ? 'legal' : distance > allowance ? 'over' : distance === allowance ? 'limit' : 'legal';
-    drag.distance = distance; drag.pace = pace; drag.legality = legality;
-    if (!drag.frame) {
-      drag.frame = window.requestAnimationFrame(() => {
-        if (!drag) return;
-        drag.frame = 0;
-        group.setAttribute('transform', `translate(${drag.previewX} ${drag.previewY}) scale(${encounterTokenScale})`);
-        drag.trail.setAttribute('x1', drag.trailOriginX); drag.trail.setAttribute('y1', drag.trailOriginY);
-        drag.trail.setAttribute('x2', drag.previewX); drag.trail.setAttribute('y2', drag.previewY);
-        drag.trail.setAttribute('class', `movement-drag-trail ${drag.legality}`);
-        const labelOffset = 12 / encounterMapZoom;
-        drag.label.setAttribute('x', drag.previewX + labelOffset); drag.label.setAttribute('y', drag.previewY - labelOffset);
-        drag.label.setAttribute('class', `movement-drag-label ${drag.legality}`);
-        drag.label.style.fontSize = `${18 / encounterMapZoom}px`;
-        drag.label.style.strokeWidth = `${2.5 / encounterMapZoom}px`;
-        drag.label.textContent = encounter.status === 'active'
-          ? `${drag.pace.toUpperCase()} / ${Number((drag.distance / encounter.map.metersPerSquare).toFixed(2))} SQ / ${drag.distance} M${drag.pace === 'run' ? ' / −1 BLOW / NO ATTACK' : ''}${drag.legality === 'limit' ? ' / LIMIT' : drag.legality === 'over' ? ' / OVER' : ''}`
-          : `REFEREE POSITION / ${Number((drag.distance / encounter.map.metersPerSquare).toFixed(2))} SQ / ${drag.distance} M`;
-      });
-    }
-  });
-  const finishDrag = (event, cancelled = false) => {
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    if (drag.frame) window.cancelAnimationFrame(drag.frame);
-    const completed = drag;
-    drag = null;
-    completed.trail.remove(); completed.label.remove();
-    group.classList.remove('dragging');
-    if (cancelled) {
-      group.setAttribute('transform', `translate(${completed.originX} ${completed.originY}) scale(${encounterTokenScale})`);
-      return;
-    }
-    if (!completed.moved) return onSelect?.(event);
-    const cellWidth = ENCOUNTER_MAP_WIDTH / (encounter.map.columns - 1);
-    const cellHeight = ENCOUNTER_MAP_HEIGHT / (encounter.map.rows - 1);
-    const scale = encounter.map.metersPerSquare;
-    const column = Math.max(0, Math.min(encounter.map.columns - 1, Math.round((completed.previewX - completed.offsetX) / cellWidth / scale) * scale));
-    const row = Math.max(0, Math.min(encounter.map.rows - 1, Math.round((completed.previewY - completed.offsetY) / cellHeight / scale) * scale));
-    if (column === combatant.position.column && row === combatant.position.row) {
-      group.setAttribute('transform', `translate(${completed.originX} ${completed.originY}) scale(${encounterTokenScale})`);
-      onSelect?.(event);
-      return;
-    }
-    moveEncounterToken(encounter.identity.id, combatant.id, column, row);
-  };
-  group.addEventListener('pointerup', (event) => finishDrag(event));
-  group.addEventListener('pointercancel', (event) => finishDrag(event, true));
-  group.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect?.(event); }
-    if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) showEncounterTokenMenu(event, encounter, combatant, onSelect, group);
-  });
-}
-
 function signedDM(value) { return `${value >= 0 ? '+' : ''}${value}`; }
 
 // Book 1 p.30 step 2B(1)(2): what this attacker needs against this target, at
@@ -3948,164 +3764,118 @@ function renderEncounterMap(encounter) {
     renderEncounterRangePanel(null, null, null, null);
     return;
   }
-  const width = ENCOUNTER_MAP_WIDTH;
-  const height = ENCOUNTER_MAP_HEIGHT;
-  const cellWidth = width / (encounter.map.columns - 1);
-  const cellHeight = height / (encounter.map.rows - 1);
+  const board = encounterCanvas();
+  board.setBoard(encounter.map);
   const gridScale = encounter.map.metersPerSquare;
-  const fragments = [];
-  for (let column = 0; column < encounter.map.columns; column += gridScale) {
-    const gridX = (column + gridScale / 2) * cellWidth;
-    fragments.push(svgElement('line', { x1: gridX, y1: 0, x2: gridX, y2: height, class: column % 25 === 0 ? 'encounter-grid-major' : 'encounter-grid-line' }));
-  }
-  for (let row = 0; row < encounter.map.rows; row += gridScale) {
-    const gridY = (row + gridScale / 2) * cellHeight;
-    fragments.push(svgElement('line', { x1: 0, y1: gridY, x2: width, y2: gridY, class: row % 25 === 0 ? 'encounter-grid-major' : 'encounter-grid-line' }));
-  }
-  const movementRound = encounter.status === 'active'
-    ? Math.max(-1, ...encounter.history.filter((item) => item.kind === 'movement' && item.detail?.from && item.detail?.to).map((item) => item.round))
-    : -1;
-  for (const entry of encounter.history.filter((item) => item.kind === 'movement' && item.round === movementRound && item.detail?.from && item.detail?.to)) {
-    fragments.push(svgElement('line', {
-      x1: entry.detail.from.column * cellWidth,
-      y1: entry.detail.from.row * cellHeight,
-      x2: entry.detail.to.column * cellWidth,
-      y2: entry.detail.to.row * cellHeight,
-      class: `encounter-movement-path ${entry.detail.pace}`
-    }));
-  }
   const actor = selectedEncounterActor(encounter);
   const target = selectedEncounterTarget(encounter);
-  const tokenCentres = new Map();
-  const cells = new Map();
-  for (const combatant of encounter.combatants) {
-    const key = `${combatant.position.column},${combatant.position.row}`;
-    if (!cells.has(key)) cells.set(key, []);
-    cells.get(key).push(combatant);
-  }
-  // v0.71.0: a token is drawn in units of one grid square, so it fills the
-  // square at any scale — one metre on a metre grid, five on a five-metre one.
-  const tokenScale = gridScale * cellWidth;
-  encounterTokenScale = tokenScale;
-  const slots = [[0, 0], [-.55, -.55], [0, -.55], [.55, -.55], [-.55, 0], [.55, 0], [-.55, .55], [0, .55], [.55, .55]];
-  for (const occupants of cells.values()) occupants.sort((a, b) => a.id.localeCompare(b.id)).forEach((combatant, index) => {
-    const [slotX, slotY] = slots[index % slots.length];
-    const offsetX = slotX * tokenScale * 0.5;
-    const offsetY = slotY * tokenScale * 0.5;
-    tokenCentres.set(combatant.id, {
-      x: combatant.position.column * cellWidth + offsetX,
-      y: combatant.position.row * cellHeight + offsetY,
-      offsetX, offsetY
-    });
-  });
   const declared = new Set(encounter.roundState?.declaredActions?.map((entry) => entry.actorId) ?? []);
-  // Declared orders are drawn on the map: an arrow from each declaring token to
-  // its target, so concentrated fire and a three-way fight read at a glance.
-  const centreOf = (combatant) => tokenCentres.get(combatant.id);
-  for (const declaration of encounter.status === 'active' ? (encounter.roundState?.declaredActions ?? []) : []) {
-    if (!declaration.targetId) continue;
-    const from = encounter.combatants.find((entry) => entry.id === declaration.actorId);
-    const to = encounter.combatants.find((entry) => entry.id === declaration.targetId);
-    if (!from || !to) continue;
-    const a = centreOf(from);
-    const b = centreOf(to);
-    const angle = Math.atan2(b.y - a.y, b.x - a.x);
-    const stop = { x: b.x - Math.cos(angle) * tokenScale * 0.55, y: b.y - Math.sin(angle) * tokenScale * 0.55 };
-    fragments.push(svgElement('line', {
-      x1: a.x, y1: a.y, x2: stop.x, y2: stop.y,
-      class: `encounter-order-line ${from.side === 'party' ? 'party' : 'enemy'} ${declaration.action}`
-    }));
-    const head = tokenScale * 0.3;
-    fragments.push(svgElement('polygon', {
-      points: [
-        `${stop.x},${stop.y}`,
-        `${stop.x - Math.cos(angle - 0.4) * head},${stop.y - Math.sin(angle - 0.4) * head}`,
-        `${stop.x - Math.cos(angle + 0.4) * head},${stop.y - Math.sin(angle + 0.4) * head}`
-      ].join(' '),
-      class: `encounter-order-head ${from.side === 'party' ? 'party' : 'enemy'}`
-    }));
-  }
-  // The party's own declarations: showing these reveals nothing the characters
-  // would not know, unlike the state of a target the round has not resolved.
   const declaredOn = declaredTargetCounts(encounter);
   const targetedIds = new Set([...encounterExtraTargetIds, target?.id].filter(Boolean));
+  const tokens = encounter.combatants.map((combatant) => ({
+    id: combatant.id, column: combatant.position.column, row: combatant.position.row,
+    side: combatant.side === 'party' ? 'party' : 'enemy',
+    kind: combatant.actorType,
+    shape: combatant.actorType === 'robot' ? 'square' : combatant.actorType === 'creature' ? 'diamond' : 'circle',
+    label: combatant.side === 'party' ? (combatant.name || 'P').charAt(0) : (combatant.tokenLabel || combatant.name.charAt(0)),
+    ariaLabel: `${combatant.name}, ${combatant.side}, ${combatant.status}`,
+    state: {
+      selected: selectedEncounterTokenIds.has(combatant.id) || actor?.id === combatant.id,
+      targeted: targetedIds.has(combatant.id),
+      declared: combatant.side === 'party' && declared.has(combatant.id),
+      inactive: combatant.side !== 'party' && combatant.status !== 'active'
+    },
+    // A player's drag this round measures from where the round began.
+    moveFrom: encounter.history.find((entry) => entry.round === encounter.round && entry.kind === 'movement' && entry.actorId === combatant.id && entry.detail?.playerMove)?.detail?.from ?? null,
+    combatant
+  }));
   if (framedEncounterId !== encounter.identity.id) {
     framedEncounterId = encounter.identity.id;
     frameEncounterCombatants(encounter);
   }
   let guide = null;
-  if (encounter.status === 'active' && actor && target) {
-    guide = encounterRangeGuide(encounter, actor.id, target.id);
-    const actorX = actor.position.column * cellWidth;
-    const actorY = actor.position.row * cellHeight;
-    for (const [band, meters] of [['very-long', 500], ['long', 250], ['medium', 50], ['short', 5]]) {
-      fragments.push(svgElement('rect', {
-        x: actorX - meters * cellWidth, y: actorY - meters * cellHeight,
-        width: meters * cellWidth * 2, height: meters * cellHeight * 2,
-        class: `encounter-range-boundary ${band}`
-      }));
+  if (encounter.status === 'active' && actor && target) guide = encounterRangeGuide(encounter, actor.id, target.id);
+  const movementRound = encounter.status === 'active'
+    ? Math.max(-1, ...encounter.history.filter((item) => item.kind === 'movement' && item.detail?.from && item.detail?.to).map((item) => item.round))
+    : -1;
+  const onSelect = (token, event) => selectEncounterToken(encounter.identity.id, token.id, { additive: Boolean(event?.shiftKey) });
+  board.render({
+    tokens,
+    underlay: (fragments, { cell }) => {
+      for (const entry of encounter.history.filter((item) => item.kind === 'movement' && item.round === movementRound && item.detail?.from && item.detail?.to)) {
+        fragments.push(sceneSvgNode('line', { x1: entry.detail.from.column * cell, y1: entry.detail.from.row * cell, x2: entry.detail.to.column * cell, y2: entry.detail.to.row * cell, class: `encounter-movement-path ${entry.detail.pace}` }));
+      }
+      if (guide && actor) {
+        const actorX = actor.position.column * cell;
+        const actorY = actor.position.row * cell;
+        for (const [band, meters] of [['very-long', 500], ['long', 250], ['medium', 50], ['short', 5]]) {
+          fragments.push(sceneSvgNode('rect', { x: actorX - meters * cell, y: actorY - meters * cell, width: meters * cell * 2, height: meters * cell * 2, class: `encounter-range-boundary ${band}` }));
+        }
+      }
+    },
+    overlay: (fragments, { tokenScale, centres }) => {
+      // Declared orders are drawn on the map: an arrow from each declaring
+      // token to its target, so concentrated fire reads at a glance.
+      for (const declaration of encounter.status === 'active' ? (encounter.roundState?.declaredActions ?? []) : []) {
+        if (!declaration.targetId) continue;
+        const from = encounter.combatants.find((entry) => entry.id === declaration.actorId);
+        const to = encounter.combatants.find((entry) => entry.id === declaration.targetId);
+        const a = from && centres.get(from.id); const b = to && centres.get(to.id);
+        if (!a || !b) continue;
+        const angle = Math.atan2(b.y - a.y, b.x - a.x);
+        const stop = { x: b.x - Math.cos(angle) * tokenScale * 0.55, y: b.y - Math.sin(angle) * tokenScale * 0.55 };
+        fragments.push(sceneSvgNode('line', { x1: a.x, y1: a.y, x2: stop.x, y2: stop.y, class: `encounter-order-line ${from.side === 'party' ? 'party' : 'enemy'} ${declaration.action}` }));
+        const head = tokenScale * 0.3;
+        fragments.push(sceneSvgNode('polygon', {
+          points: [`${stop.x},${stop.y}`, `${stop.x - Math.cos(angle - 0.4) * head},${stop.y - Math.sin(angle - 0.4) * head}`, `${stop.x - Math.cos(angle + 0.4) * head},${stop.y - Math.sin(angle + 0.4) * head}`].join(' '),
+          class: `encounter-order-head ${from.side === 'party' ? 'party' : 'enemy'}`
+        }));
+      }
+      if (guide && actor && target) {
+        const a = centres.get(actor.id); const b = centres.get(target.id);
+        if (a && b) fragments.push(sceneSvgNode('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: `encounter-range-line${guide.suggestedRange === 'close' ? ' contact' : ''}` }));
+      }
+    },
+    decorate: (group, token) => {
+      const combatant = token.combatant;
+      const remoteTargets = canvasPresence.filter((entry) => entry.uid !== currentUserId() && entry.targetIds?.includes(combatant.id));
+      remoteTargets.slice(0, 4).forEach((entry, index) => group.append(sceneSvgNode('circle', { cx: -.42 + index * .28, cy: -.68, r: .09, class: 'encounter-token-remote-target', 'data-user': entry.uid })));
+      if (combatant.conditions?.length) {
+        const marker = sceneSvgNode('text', { x: .4, y: -.32, class: 'encounter-token-condition-marker' }); marker.textContent = '!'; group.append(marker);
+      }
+      if (combatant.side !== 'party' && declaredOn[combatant.id]) {
+        const tally = sceneSvgNode('text', { x: .4, y: .48, class: 'encounter-token-declared-marker' }); tally.textContent = `\u00d7${declaredOn[combatant.id]}`; group.append(tally);
+      }
+    },
+    interaction: {
+      canDrag: () => true,
+      describe: (token, from, to) => {
+        const distance = Math.max(Math.abs(to.column - from.column), Math.abs(to.row - from.row));
+        const pace = el.encounterMovePace.value;
+        const allowance = pace === 'run' ? 50 : 25;
+        const legal = encounter.status !== 'active' ? 'legal' : distance > allowance ? 'over' : distance === allowance ? 'limit' : 'legal';
+        const squares = Number((distance / gridScale).toFixed(2));
+        return { legal, text: encounter.status === 'active'
+          ? `${pace.toUpperCase()} / ${squares} SQ / ${distance} M${pace === 'run' ? ' / −1 BLOW / NO ATTACK' : ''}${legal === 'limit' ? ' / LIMIT' : legal === 'over' ? ' / OVER' : ''}`
+          : `REFEREE POSITION / ${squares} SQ / ${distance} M` };
+      },
+      onDrop: (token, to) => moveEncounterToken(encounter.identity.id, token.id, to.column, to.row),
+      onSelect,
+      onContextMenu: (token, event, group) => showEncounterTokenMenu(event, encounter, token.combatant, (evt) => onSelect(token, evt), group),
+      onHover: (token, event, entering) => {
+        if (entering) {
+          hoveredEncounterCombatantId = token.id;
+          el.encounterTokenTooltip.textContent = combatantHoverText(token.combatant);
+          positionEncounterOverlay(el.encounterTokenTooltip, event);
+          el.encounterTokenTooltip.hidden = false;
+        } else { hoveredEncounterCombatantId = null; el.encounterTokenTooltip.hidden = true; }
+      }
     }
-    const actorPoint = centreOf(actor);
-    const targetPoint = centreOf(target);
-    const actorXLine = actorPoint.x;
-    const actorYLine = actorPoint.y;
-    const targetX = targetPoint.x;
-    const targetY = targetPoint.y;
-    fragments.push(svgElement('line', { x1: actorXLine, y1: actorYLine, x2: targetX, y2: targetY, class: `encounter-range-line${guide.suggestedRange === 'close' ? ' contact' : ''}` }));
-  }
+  });
   renderEncounterRangePanel(encounter, actor, target, guide);
   el.encounterGridScale.value = String(gridScale);
   el.encounterGridScale.disabled = encounter.status !== 'active';
   el.encounterGridLegend.textContent = `${gridScale} M SQUARES / HEAVY LINE 25 M`;
-  for (const combatant of encounter.combatants) {
-    const { x, y, offsetX, offsetY } = centreOf(combatant);
-    const group = svgElement('g', {
-      class: 'encounter-token', role: 'button',
-      tabindex: 0,
-      transform: `translate(${x} ${y}) scale(${tokenScale})`,
-      'aria-label': `${combatant.name}, ${combatant.side}, ${combatant.status}`
-    });
-    group.append(svgElement('circle', { cx: 0, cy: 0, r: ENCOUNTER_TOKEN_HIT_RADIUS, class: 'encounter-token-hit-area' }));
-    // Corner brackets mark locally selected tokens; a compact red reticle marks targets.
-    if (selectedEncounterTokenIds.has(combatant.id) || actor?.id === combatant.id) group.append(svgElement('path', { d: 'M -.48 -.24 V -.48 H -.24 M .24 -.48 H .48 V -.24 M .48 .24 V .48 H .24 M -.24 .48 H -.48 V .24', class: 'encounter-token-selected-ring' }));
-    if (targetedIds.has(combatant.id)) {
-      const ring = svgElement('circle', { cx: 0, cy: 0, r: ENCOUNTER_TOKEN_RING_RADIUS, class: 'encounter-token-target-ring' });
-      group.append(ring);
-    }
-    const remoteTargets = canvasPresence.filter((entry) => entry.uid !== currentUserId() && entry.targetIds?.includes(combatant.id));
-    remoteTargets.slice(0, 4).forEach((entry, index) => group.append(svgElement('circle', { cx: -.42 + index * .28, cy: -.68, r: .09, class: 'encounter-token-remote-target', 'data-user': entry.uid })));
-    if (combatant.side === 'party') {
-      group.append(svgElement('circle', { cx: 0, cy: 0, r: ENCOUNTER_TOKEN_RADIUS, class: `encounter-token-pc${declared.has(combatant.id) ? ' declared' : ''}` }));
-      const label = svgElement('text', { x: 0, y: 0, class: 'encounter-token-pc-label' });
-      label.textContent = (combatant.name || 'P').charAt(0).toUpperCase();
-      group.append(label);
-      if (combatant.conditions?.length) {
-        const marker = svgElement('text', { x: .4, y: -.32, class: 'encounter-token-condition-marker' }); marker.textContent = '!'; group.append(marker);
-      }
-      attachEncounterTokenInteraction(group, encounter, combatant, { onSelect: (event) => selectEncounterToken(encounter.identity.id, combatant.id, { additive: Boolean(event?.shiftKey) }), visualPoint: { x, y, offsetX, offsetY } });
-      fragments.push(group);
-      continue;
-    }
-    const enemyClass = `encounter-token-enemy encounter-token-${combatant.actorType}${combatant.status === 'active' ? '' : ' inactive'}`;
-    if (combatant.actorType === 'robot') group.append(svgElement('rect', { x: -.36, y: -.36, width: .72, height: .72, class: enemyClass }));
-    else if (combatant.actorType === 'creature') group.append(svgElement('path', { d: 'M 0 -.4 L .4 0 L 0 .4 L -.4 0 Z', class: enemyClass }));
-    else group.append(svgElement('circle', { cx: 0, cy: 0, r: .36, class: enemyClass }));
-    const enemyLabel = svgElement('text', { x: 0, y: 0, class: 'encounter-token-enemy-label' });
-    enemyLabel.textContent = combatant.tokenLabel || combatant.name.charAt(0).toUpperCase();
-    group.append(enemyLabel);
-    if (combatant.conditions?.length) {
-      const marker = svgElement('text', { x: .4, y: -.32, class: 'encounter-token-condition-marker' }); marker.textContent = '!'; group.append(marker);
-    }
-    if (declaredOn[combatant.id]) {
-      const tally = svgElement('text', { x: .4, y: .48, class: 'encounter-token-declared-marker' });
-      tally.textContent = `\u00d7${declaredOn[combatant.id]}`;
-      group.append(tally);
-    }
-    attachEncounterTokenInteraction(group, encounter, combatant, { onSelect: (event) => selectEncounterToken(encounter.identity.id, combatant.id, { additive: Boolean(event?.shiftKey) }), visualPoint: { x, y, offsetX, offsetY } });
-    fragments.push(group);
-  }
-  el.encounterMap.replaceChildren(...fragments);
-  applyEncounterMapView();
 
   const distanceText = guide ? `${guide.squares} SQ / ≈${guide.meters} M` : '';
   const guideText = guide ? ` // RANGE ${guide.suggestedRange.toUpperCase().replace('-', ' ')} / ${distanceText}` : '';
@@ -7566,8 +7336,8 @@ el.npcActorForm.addEventListener('submit', (event) => {
   event.preventDefault();
   try { saveNpcActorFromForm(); } catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); }
 });
-el.encounterZoomOut.addEventListener('click', () => setEncounterMapZoom(encounterMapZoom / 1.5));
-el.encounterZoomIn.addEventListener('click', () => setEncounterMapZoom(encounterMapZoom * 1.5));
+el.encounterZoomOut.addEventListener('click', () => encounterCanvas().camera.zoomBy(1 / 1.5));
+el.encounterZoomIn.addEventListener('click', () => encounterCanvas().camera.zoomBy(1.5));
 el.encounterZoomFit.addEventListener('click', fitEncounterMap);
 el.encounterGridToggle.addEventListener('click', () => {
   encounterGridHidden = !encounterGridHidden;
@@ -7579,65 +7349,18 @@ el.encounterGridScale.addEventListener('change', () => {
   if (!active) return;
   updateEncounterDocument(active.identity.id, (doc) => setEncounterGridScale(doc, Number(el.encounterGridScale.value)).encounter);
 });
-el.encounterMap.addEventListener('dragstart', (event) => event.preventDefault());
 {
-  let pan = null;
-  let suppressMapContextMenu = false;
   el.encounterMapViewport.addEventListener('pointerdown', (event) => {
     // Opening a cascade is a click inside the menu, not a dismissal of it.
     if (event.target.closest?.('#encounter-token-menu')) return;
     hideEncounterTokenOverlays();
-    if (event.target.closest?.('.encounter-token')) return;
-    if (event.button === 0) {
-      clearEncounterCanvasSelection({ targets: false });
-      renderEncounter();
-      return;
-    }
-    if (event.button !== 2) return;
-    event.preventDefault();
-    const rect = el.encounterMap.getBoundingClientRect();
-    const scale = Math.min(rect.width / encounterMapView.width, rect.height / encounterMapView.height) || 1;
-    pan = {
-      pointerId: event.pointerId,
-      clientX: event.clientX,
-      clientY: event.clientY,
-      viewX: encounterMapView.x,
-      viewY: encounterMapView.y,
-      scale,
-      moved: false
-    };
-    el.encounterMapViewport.setPointerCapture(event.pointerId);
-    el.encounterMapViewport.classList.add('panning');
+    if (event.target.closest?.('[data-scene-token]')) return;
+    if (event.button !== 0) return;
+    clearEncounterCanvasSelection({ targets: false });
+    renderEncounter();
   });
-  el.encounterMapViewport.addEventListener('pointermove', (event) => {
-    if (!pan || pan.pointerId !== event.pointerId) return;
-    event.preventDefault();
-    if (Math.hypot(event.clientX - pan.clientX, event.clientY - pan.clientY) > 6) pan.moved = true;
-    encounterMapView.x = pan.viewX - (event.clientX - pan.clientX) / pan.scale;
-    encounterMapView.y = pan.viewY - (event.clientY - pan.clientY) / pan.scale;
-    scheduleEncounterMapView();
-  });
-  const endPan = (event) => {
-    if (!pan || pan.pointerId !== event.pointerId) return;
-    const wasDrag = pan.moved;
-    pan = null;
-    el.encounterMapViewport.classList.remove('panning');
-    flushEncounterMapView();
-    suppressMapContextMenu = wasDrag;
-  };
-  el.encounterMapViewport.addEventListener('pointerup', endPan);
-  el.encounterMapViewport.addEventListener('pointercancel', endPan);
-  el.encounterMapViewport.addEventListener('wheel', (event) => {
-    event.preventDefault();
-    const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
-    setEncounterMapZoom(encounterMapZoom * factor, event);
-  }, { passive: false });
   el.encounterMapViewport.addEventListener('contextmenu', (event) => {
-    if (suppressMapContextMenu) {
-      event.preventDefault();
-      suppressMapContextMenu = false;
-      return;
-    }
+    if (encounterCanvas().contextMenuSuppressed()) { event.preventDefault(); return; }
     showEncounterMapMenu(event);
   });
 

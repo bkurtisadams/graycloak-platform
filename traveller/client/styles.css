@@ -3307,3 +3307,31 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .enter-generation-log { display: flex; flex-direction: column; gap: 2px; font-size: 10px; letter-spacing: .04em; max-height: 220px; overflow: auto; border-top: 1px dotted var(--disabled); padding-top: 4px; }
 .enter-generation-line { color: var(--muted); white-space: pre-wrap; }
 .enter-generation-line.latest { color: var(--ink); font-weight: 700; }
+
+/* --- v0.73.0: the shared combat canvas (scene-canvas.js), on both pages. */
+.scene-grid { stroke: #a3a59f; stroke-width: .5; vector-effect: non-scaling-stroke; }
+.scene-grid.major { stroke: #777a75; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.scene-token { cursor: pointer; touch-action: none; }
+.scene-token.draggable { cursor: grab; }
+.scene-token.dragging { cursor: grabbing; opacity: 0.78; }
+.scene-token:focus, .scene-token:focus-visible { outline: none; }
+.scene-token-hit { fill: transparent; stroke: none; pointer-events: all; }
+.scene-token-body { stroke: #111311; stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.scene-token-body.party { fill: #29465c; }
+.scene-token-body.party.declared { fill: #667783; opacity: 0.72; }
+.scene-token-body.party.owned { stroke: #d8b53a; stroke-width: 2; }
+.scene-token-body.enemy { fill: #6a1f1f; }
+.scene-token-body.inactive { fill: #777a75; opacity: 0.55; }
+.scene-token:hover .scene-token-body, .scene-token:focus .scene-token-body { stroke: #29465c; stroke-width: 1.5; }
+.scene-token-label { fill: #f2f2ed; font: 700 .44px Consolas, monospace; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.scene-token-selected { fill: none; stroke: #d8b53a; stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; }
+.scene-token-target { fill: none; stroke: #b52a2a; stroke-width: 2; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; pointer-events: none; }
+.scene-drag-trail { fill: none; stroke-width: 3; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; pointer-events: none; }
+.scene-drag-trail.legal { stroke: #3f7b43; }
+.scene-drag-trail.limit { stroke: #b57d23; }
+.scene-drag-trail.over { stroke: var(--failure-border); }
+.scene-drag-label { font: 700 4px Consolas, monospace; paint-order: stroke; stroke: var(--paper); stroke-width: 2px; stroke-linejoin: round; pointer-events: none; }
+.scene-drag-label.legal { fill: #285c2f; }
+.scene-drag-label.limit { fill: #7a5210; }
+.scene-drag-label.over { fill: var(--failure-border); }
+.panning { cursor: grabbing; }

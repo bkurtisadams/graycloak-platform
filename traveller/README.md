@@ -1,5 +1,45 @@
 # Graycloak Traveller
 
+## v0.73.0 one combat canvas
+
+The structural half of the combat audit, finished. `client/scene-canvas.js`
+is the board both pages draw with, the way `subsector-svg.js` is the one hex
+map. It owns the viewBox camera (zoom about the pointer, right-drag pan, fit,
+frame a set of points), the grid for a board of metre cells at a grid scale,
+token layout one square wide with the stacking of tokens that share a
+square, each token's base — circle for people, square for robots, diamond for
+creatures; party or enemy; selected brackets, target ring, declared, inactive,
+owned — and the drag: threshold, grid snap, trail from where the round's
+movement began, label in screen units, and a described legality (`legal`,
+`limit`, `over`) from the caller.
+
+It knows nothing about encounters, characters or Firestore. A page passes
+plain token records and callbacks — `underlay`, `overlay` and `decorate` with
+the board's metrics; `canDrag`, `describe`, `onDrop`, `onSelect`,
+`onContextMenu`, `onHover` — and gets the token groups back.
+
+**The referee client** keeps its range boundaries, range line, movement paths,
+declared-order arrows, condition and tally markers, remote-target dots,
+hover tooltip and token menus, drawn through those callbacks; its drop still
+goes through `moveEncounterToken` and the Book 1 check. **The player page**
+keeps its movement paths and remote-target dots, its drag still writes a
+`moves` intent for the referee, and its drop still refuses over-allowance
+locally. About 500 lines left the two pages; the module is 330. The focus
+ring (v0.70.3), the metre-vs-square label, the order arrow at zoom — each of
+those was one page drifting from the other, and there is now one place for
+them to be right.
+
+Verified by a jsdom harness driving the module directly: layout stacks
+tokens sharing a square, render draws the three shapes and both marks, the
+camera zooms, fits and frames, a click selects, a right-click opens the menu,
+a drag shows the trail and label and drops on the snapped square. The
+page-load test passes for all three pages.
+
+What this unlocks and does not yet do: staging tokens onto a scene by drag,
+background images, and rectangular boards — next.
+
+No rules-package changes; no schema changes.
+
 ## v0.72.4 the pages are loaded, not just read
 
 `test/pages-load.test.mjs` imports `app.js`, `player.js` and `enter.js` into a
