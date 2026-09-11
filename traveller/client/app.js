@@ -94,6 +94,7 @@ import { createTravellerInvite, generateInviteCode, unassignedWorld, importChara
 import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js';
 import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, setSceneTokenCombat, clearSceneCombatTracker, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS } from '../src/scene-document.js';
 import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js';
+import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js';
 
 import {
   SHEET_CHARACTERISTICS as HEADER_CHARACTERISTICS,
@@ -173,7 +174,7 @@ import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js
 import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js';
 import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js';
 import { openSignInDialog } from './signin-ui.js';
-import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord } from './publish.js';
+import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js';
 import { authorizePlayerDeclaration } from '../src/player-declaration.js';
 import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js';
 import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js';
@@ -469,6 +470,10 @@ const el = {
   playersStatus: document.querySelector('#players-status'),
   playersClose: document.querySelector('#players-close'),
   playersInviteList: document.querySelector('#players-invite-list'),
+  chatComposer: document.querySelector('#chat-composer'),
+  chatForm: document.querySelector('#chat-form'),
+  chatInput: document.querySelector('#chat-input'),
+  diceTray: document.querySelector('#dice-tray'),
   playersNewInvite: document.querySelector('#players-new-invite'),
   playersJoins: document.querySelector('#players-joins'),
   publishCampaignButton: document.querySelector('#publish-campaign'),
@@ -797,7 +802,78 @@ function appendActivityMessage(row, entry) {
   if (container === message && !message.parentNode) row.append(message);
 }
 
+// --- v0.75.0: table chat -----------------------------------------------------
+// Messages the table types, interleaved with the log by time. A roll from the
+// tray or "/roll 2d6+1" is a message like any other; a Shift-click on a die is
+// the referee's private roll, which goes to the referee-only log instead.
+let chatMessages = [];
+let unsubscribeChat = null;
+let watchedChatCampaignId = null;
+
+function watchTableChat() {
+  const campaignId = campaignIsPublished(campaignDocument) && currentUserId() ? campaignDocument.identity.id : null;
+  if (campaignId === watchedChatCampaignId) return;
+  unsubscribeChat?.(); unsubscribeChat = null;
+  chatMessages = []; watchedChatCampaignId = campaignId;
+  renderActivity();
+  if (!campaignId) return;
+  watchChat(campaignId, (messages) => { chatMessages = messages; renderActivity(); })
+    .then((unsubscribe) => { if (watchedChatCampaignId === campaignId) unsubscribeChat = unsubscribe; else unsubscribe(); })
+    .catch((error) => console.error(error));
+}
+
+function chatAuthorName() {
+  const { user } = authStatus();
+  return user?.displayName || user?.email || 'Referee';
+}
+
+async function postChat(message) {
+  try {
+    if (!campaignIsPublished(campaignDocument) || !currentUserId()) throw new Error('publish the campaign and sign in to use chat');
+    await sendChatMessage(campaignDocument.identity.id, message);
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function privateRoll(formula) {
+  const roll = rollFormula(formula);
+  logActivity('NOTE', `Referee rolls ${formatRoll(roll)} (private)`, { visibility: ACTIVITY_VISIBILITY.REFEREE });
+  setStatus(`PRIVATE ${formatRoll(roll)}`, 'ok');
+}
+
+function renderDiceTray() {
+  if (!el.diceTray) return;
+  const online = campaignIsPublished(campaignDocument) && currentUserId();
+  el.chatComposer.hidden = !campaignDocument;
+  el.diceTray.replaceChildren(...TRAY_DICE.map((die) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = die.traveller ? 'two-d' : '';
+    button.textContent = die.label;
+    button.title = die.formula ? `Roll ${die.formula} for the table; Shift-click for a private roll` : 'Roll dice of any size';
+    button.addEventListener('click', (event) => {
+      const formula = die.formula ?? window.prompt('Dice formula (for example 3d8+2):', '1d6');
+      if (!formula || !parseRollFormula(formula)) return;
+      if (event.shiftKey || !online) { privateRoll(formula); return; }
+      postChat(createChatMessage({ uid: currentUserId(), name: chatAuthorName(), kind: 'roll', roll: rollFormula(formula) }));
+    });
+    return button;
+  }));
+}
+
+function chatAsActivityEntries() {
+  return chatMessages.map((message) => ({
+    id: `chat:${message.id}`, category: message.kind === 'roll' ? 'ROLL' : 'CHAT',
+    message: message.kind === 'roll' ? `${message.name ?? 'Someone'}: ${formatRoll(message.roll)}` : `${message.name ?? 'Someone'}: ${message.text}`,
+    dateLabel: new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    createdAt: message.createdAt, chat: true
+  }));
+}
+
 function renderActivity() {
+  renderDiceTray();
   el.addActivityNote.disabled = !campaignDocument;
   if (el.activityFilter.value !== activityFilter) el.activityFilter.value = activityFilter;
   if (el.activityOrder.value !== activityOrder) el.activityOrder.value = activityOrder;
@@ -815,9 +891,12 @@ function renderActivity() {
     system: new Set(['SYSLOG', 'ERROR'])
   };
   const allowed = filterCategories[activityFilter];
+  const merged = chatMessages.length && (activityFilter === 'play' || activityFilter === 'all')
+    ? [...allEntries, ...chatAsActivityEntries()].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))
+    : allEntries;
   const entries = activityFilter === 'play'
-    ? allEntries.filter((entry) => entry.category !== 'SYSLOG')
-    : allowed ? allEntries.filter((entry) => allowed.has(entry.category)) : allEntries;
+    ? merged.filter((entry) => entry.category !== 'SYSLOG')
+    : allowed ? merged.filter((entry) => allowed.has(entry.category)) : merged;
   if (!entries.length) {
     const empty = document.createElement('div');
     empty.className = 'activity-empty';
@@ -1354,6 +1433,9 @@ function renderSelectedSystemSummary() {
 function applyCampaignLayout() {
   const active = campaignPlayActive();
   el.terminal?.classList.toggle('chargen-mode', !active);
+  // v0.75.0: character generation reads the Book 1 tables; the TABLES tab
+  // opens with it unless the referee has picked a tab.
+  if (!active && !sidebarChosen && sidebarTab !== 'tables') { sidebarTab = 'tables'; }
   if (!active) {
     // Character generation: the sheet is the scene, with the governing Book 1
     // tables directly beneath WHAT NOW? in the left dock.
@@ -1425,6 +1507,72 @@ function applyCampaignLayout() {
 
 let activeSceneTab = 'system';
 
+// --- v0.75.0: the sidebar and the tool rail --------------------------------
+// The sidebar is Foundry's: one tab open at a time, each a panel that was a
+// menu or a column before. A fight opens COMBAT unless the referee has chosen
+// a tab since; a situation opens PORT the same way.
+const SIDEBAR_TABS = ['chat', 'combat', 'scenes', 'actors', 'vehicles', 'port', 'journal', 'tables', 'players', 'settings'];
+let sidebarTab = 'chat';
+let sidebarChosen = false;
+let sidebarCollapsed = false;
+
+function setSidebarTab(tab, { chosen = true } = {}) {
+  if (!SIDEBAR_TABS.includes(tab)) return;
+  sidebarTab = tab;
+  if (chosen) sidebarChosen = true;
+  sidebarCollapsed = false;
+  applySidebar();
+  if (tab === 'port' && ['encounter'].includes(operationsDeskTab)) { operationsDeskTab = 'port'; applyOperationsDeskTab(); }
+}
+
+function applySidebar() {
+  for (const button of document.querySelectorAll('.sidebar-tab')) {
+    const active = button.dataset.sidebarTab === sidebarTab && !sidebarCollapsed;
+    button.setAttribute('aria-selected', active ? 'true' : 'false');
+    button.classList.toggle('is-active', active);
+    button.classList.toggle('attention', (button.dataset.sidebarTab === 'combat' && Boolean(activeEncounterAtCurrentSystem()))
+      || (button.dataset.sidebarTab === 'players' && joinRequests.length > 0));
+  }
+  for (const panel of document.querySelectorAll('.sidebar-panel')) panel.hidden = panel.dataset.sidebarPanel !== sidebarTab;
+  el.terminal?.classList.toggle('sidebar-collapsed', sidebarCollapsed);
+}
+
+// The rail's tools follow the scene: the world scene offers navigation,
+// the combat scene offers token tools. Each is a button the stage already
+// answers to.
+function renderRailTools() {
+  const rail = document.querySelector('#rail-tools');
+  if (!rail) return;
+  const tools = [];
+  const tool = (label, title, onClick, { pressed = false, disabled = false } = {}) => {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = `rail-tool${pressed ? ' is-active' : ''}`; button.title = title; button.textContent = label; button.disabled = disabled;
+    button.addEventListener('click', onClick);
+    tools.push(button);
+  };
+  if (!campaignPlayActive()) { rail.replaceChildren(); return; }
+  if (activeSceneTab === 'system') {
+    tool('FIT', 'Fit the subsector map', () => setSubsectorZoom(1));
+    tool('+', 'Zoom in', () => setSubsectorZoom(subsectorZoom + SUBSECTOR_ZOOM_STEP));
+    tool('\u2212', 'Zoom out', () => setSubsectorZoom(subsectorZoom - SUBSECTOR_ZOOM_STEP));
+    tool('SYS', 'System record for the selected system', () => el.toggleSystemDetails?.click(), { disabled: !selectedSystemId });
+    tool('PORT', 'Port services', () => { setSidebarTab('port'); setOperationsDeskTab('port'); });
+  } else if (activeSceneTab === 'combat') {
+    const canvas = encounterCanvasInstance;
+    tool('FIT', 'Fit the board', () => encounterCanvas().camera.fit());
+    tool('+', 'Zoom in', () => encounterCanvas().camera.zoomBy(1.5));
+    tool('\u2212', 'Zoom out', () => encounterCanvas().camera.zoomBy(1 / 1.5));
+    const fight = activeEncounterAtCurrentSystem();
+    tool('FRAME', 'Frame the combatants', () => { if (fight) frameEncounterCombatants(fight); }, { disabled: !fight });
+    tool('GRID', el.encounterGridToggle?.getAttribute('aria-pressed') === 'true' ? 'Show the grid' : 'Hide the grid', () => el.encounterGridToggle?.click(), { pressed: el.encounterGridToggle?.getAttribute('aria-pressed') === 'true' });
+    tool('TRK', 'The combat tracker', () => setSidebarTab('combat'));
+    void canvas;
+  } else {
+    tool('SHEET', 'The viewed character\'s sheet', () => setSidebarTab('actors'));
+  }
+  rail.replaceChildren(...tools);
+}
+
 function setSceneTab(tab) {
   if (!['character', 'system', 'combat'].includes(tab)) return;
   activeSceneTab = tab;
@@ -1433,6 +1581,7 @@ function setSceneTab(tab) {
   renderSelectedSystemSummary();
   // COMBAT owns both the scene and its rail, so the rail follows the tab.
   renderEncounter();
+  renderRailTools();
 }
 
 function setWorkspaceView(view) {
@@ -4308,6 +4457,7 @@ function watchPlayerDeclarations() {
 }
 
 function watchPlayerCanvas() {
+  watchTableChat();
   const encounter = activeEncounterAtCurrentSystem() ?? latestEncounterAtCurrentSystem();
   const online = campaignIsPublished(campaignDocument) && currentUserId();
   // v0.74.0: with no fight and an active scene, players walk their tokens
@@ -5873,12 +6023,11 @@ function applyOperationsDeskTab() {
   }
   // The combat rail belongs to the COMBAT scene: the map is the scene, the DM
   // panel and rosters are its rail, so the two show and hide together.
-  const combatRailVisible = Boolean(campaignPlayActive() && activeSceneTab === 'combat' && el.encounterRailSection?.dataset.available === 'true');
+  // v0.75.0: the combat rail is the COMBAT sidebar tab; the port panels are
+  // the PORT tab. Nothing hides the other any more — a tab is a tab.
+  const combatRailVisible = Boolean(campaignPlayActive() && el.encounterRailSection?.dataset.available === 'true');
   if (el.encounterRailSection) el.encounterRailSection.hidden = !combatRailVisible;
-  // Combat owns the rail outright: WORLD, TRADE, JOBS, NPCS and the situation
-  // record are suspended for the duration, as the takeover bar says, so none
-  // of them sit above the throw the referee is reading.
-  if (combatRailVisible) for (const panel of Object.values(panels)) if (panel) panel.hidden = true;
+  if (encounterWorkspaceActive && sidebarTab !== 'combat' && !sidebarChosen) setSidebarTab('combat', { chosen: false });
   // While combat holds the rail, the character strip and SHIP STATUS collapse
   // to one line each: identity and wounds still matter mid-firefight, fuel and
   // cargo do not, and the rosters need the room.
@@ -5888,10 +6037,8 @@ function applyOperationsDeskTab() {
   for (const [key, tab] of Object.entries(tabs)) tab?.setAttribute('aria-selected', key === operationsDeskTab ? 'true' : 'false');
   const takeover = encounterWorkspaceActive || situationTakeover;
   if (el.contextTakeover) {
-    el.contextTakeover.hidden = !takeover || !campaignPlayActive();
-    el.contextTakeover.textContent = encounterWorkspaceActive
-      ? 'PERSONAL COMBAT · WORLD / TRADE / JOBS / NPCS SUSPENDED · [ BACK TO PORT ]'
-      : 'SITUATION · RESOLVE IT OR RETURN TO PORT · [ BACK TO PORT ]';
+    el.contextTakeover.hidden = !situationTakeover || !campaignPlayActive();
+    el.contextTakeover.textContent = 'SITUATION · RESOLVE IT OR RETURN TO PORT · [ BACK TO PORT ]';
   }
   el.contextTabs?.classList.toggle('suspended', takeover);
   el.subsectorSection?.classList.remove('encounter-workspace-active', 'navigation-workspace-active');
@@ -6842,6 +6989,8 @@ function renderChargenTables() {
 }
 
 function render() {
+  applySidebar();
+  renderRailTools();
   const gameplayOnly = documentMode === TRAVELLER_DOCUMENT_KINDS.CHARACTER;
   const displayName = gameplayOnly ? gameplayDocument?.identity.name : character.name;
   if (el.name.value !== (displayName ?? '')) el.name.value = displayName ?? '';
@@ -7461,7 +7610,7 @@ el.refereeMenu?.addEventListener('click', (event) => {
   window.setTimeout(() => { el.refereeMenu.open = false; }, 0);
 });
 el.refereeNewNpc?.addEventListener('click', startNewCharacter);
-el.campaignMenu.addEventListener('click', (event) => {
+el.campaignMenu?.addEventListener('click', (event) => {
   if (!event.target.closest('button')) return;
   window.setTimeout(() => { el.campaignMenu.open = false; }, 0);
 });
@@ -7761,6 +7910,26 @@ el.playersSeat?.addEventListener('click', seatPlayerFromDialog);
 el.playersClose?.addEventListener('click', () => el.playersDialog.close());
 el.playersNewInvite?.addEventListener('click', mintInvite);
 el.reloadCampaignCloud?.addEventListener('click', reloadCampaignFromCloud);
+el.chatForm?.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const text = el.chatInput.value.trim();
+  if (!text) return;
+  if (!campaignIsPublished(campaignDocument) || !currentUserId()) {
+    // Offline the box still rolls, privately, and still notes.
+    const parsed = parseRollFormula(text);
+    if (parsed) privateRoll(text); else logActivity('NOTE', text);
+    el.chatInput.value = '';
+    return;
+  }
+  postChat(interpretChatInput(text, { uid: currentUserId(), name: chatAuthorName() }));
+  el.chatInput.value = '';
+});
+for (const button of document.querySelectorAll('.sidebar-tab')) {
+  button.addEventListener('click', () => {
+    if (button.dataset.sidebarTab === sidebarTab && !sidebarCollapsed) { sidebarCollapsed = true; applySidebar(); return; }
+    setSidebarTab(button.dataset.sidebarTab);
+  });
+}
 el.sceneClose?.addEventListener('click', () => el.sceneDialog.close());
 el.sceneSave?.addEventListener('click', createSceneFromDialog);
 el.sceneSquares?.addEventListener('input', updateSceneSizeNote);

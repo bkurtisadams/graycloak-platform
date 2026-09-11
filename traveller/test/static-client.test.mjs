@@ -41,7 +41,7 @@ test('v0.11.0.1 retains contextual help and highlighted legal actions', async ()
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.74\.1/);
+  assert.match(html, /v0\.75\.0/);
   assert.match(html, /data-help-topic="personnel-record"/);
   assert.match(html, /id="context-help"/);
   assert.match(app, /helpForTopic/);
@@ -58,7 +58,7 @@ test('v0.11.0 specialization UI uses engine-supplied legal choices instead of fr
   const html = await read('index.html');
   const app = await read('app.js');
 
-  assert.match(html, /v0\.74\.1/);
+  assert.match(html, /v0\.75\.0/);
   const chargenView = await read('chargen-view.js');
   assert.match(chargenView, /available\.choices\.specializations/);
   assert.doesNotMatch(app, /id = 'skill-specialization'/);
@@ -212,8 +212,8 @@ test('v0.11.0.1 adds base markers, map zoom controls, and a left navigation rail
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.74\.1/);
-  assert.match(html, /class="scene"/);
+  assert.match(html, /v0\.75\.0/);
+  assert.match(html, /class="scene shell-stage"/);
   assert.match(html, /id="map-zoom-out"/);
   assert.match(html, /id="map-zoom-in"/);
   assert.match(html, /id="map-zoom-fit"/);
@@ -232,7 +232,7 @@ test('v0.11.0.2 highlights navigation and port states that require attention', a
   const css = await read('styles.css');
   const model = await read('ui-model.js');
 
-  assert.match(html, /v0\.74\.1/);
+  assert.match(html, /v0\.75\.0/);
   assert.match(app, /renderRecordWithHighlights/);
   assert.match(app, /jumpAttention\.push\('FUEL NEED '/);
   assert.match(model, /panelRow\('BERTHING'/);
@@ -249,7 +249,7 @@ test('v0.11.1 exposes Book 2 passengers, freight, speculative trade, and life-su
   const model = await read('ui-model.js');
   const market = await read('commerce-market.js');
 
-  assert.match(html, /v0\.74\.1/);
+  assert.match(html, /v0\.75\.0/);
   assert.match(html, /id="commerce-section"/);
   assert.match(html, /data-help-topic="commerce"/);
   assert.match(app, /generatePassengerDemand/);
@@ -274,7 +274,7 @@ test('v0.11.2 exposes persistent contracts and the port Contract Board', async (
   const app = await read('app.js');
   const model = await read('ui-model.js');
 
-  assert.match(html, /v0\.74\.1/);
+  assert.match(html, /v0\.75\.0/);
   assert.match(html, /id="contract-section"/);
   assert.match(html, /CONTRACT BOARD/);
   assert.match(app, /createContractDocument/);
@@ -290,7 +290,7 @@ test('v0.11.2.1 keeps port, trade, and jobs beside the map and guards repaired s
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.74\.1/);
+  assert.match(html, /v0\.75\.0/);
   assert.match(html, /id="operations-tab-port"/);
   assert.match(html, /id="operations-tab-trade"/);
   assert.match(html, /id="operations-tab-jobs"/);
@@ -310,7 +310,7 @@ test('v0.12.0 exposes persistent situations, patrons, and non-combat skill check
   const model = await read('ui-model.js');
   const loader = await read('document-loader.js');
 
-  assert.match(html, /v0\.74\.1/);
+  assert.match(html, /v0\.75\.0/);
   assert.match(html, /id="context-takeover"/);
   assert.match(html, /id="situation-section"/);
   assert.match(app, /generatePatronContact/);
@@ -327,7 +327,7 @@ test('v0.12.0.1 promotes campaign status and interactive rolls into a compact pl
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.74\.1/);
+  assert.match(html, /v0\.75\.0/);
   assert.match(html, /class="campaign-header-strip"/);
   assert.match(html, /id="roll-dialog"/);
   assert.match(html, /id="roll-modifier"[^>]*value="0"/);
@@ -346,7 +346,7 @@ test('v0.12.0.2 keeps tab actions above independently scrolling records', async 
   const html = await read('index.html');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.74\.1/);
+  assert.match(html, /v0\.75\.0/);
   for (const [actions, record] of [
     ['port-actions', 'port-services-record'],
     ['commerce-actions', 'commerce-record'],
@@ -367,7 +367,7 @@ test('v0.12.0.3 makes Activity Log dice and outcomes visually explicit', async (
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.74\.1/);
+  assert.match(html, /v0\.75\.0/);
   assert.match(app, /ROLL 2D \[\$\{dice\.dice\[0\]\}\] \[\$\{dice\.dice\[1\]\}\]/);
   assert.match(app, /appendActivityDiceLine/);
   assert.match(app, /RESULT \/\/ SUCCESS/);
@@ -383,7 +383,7 @@ test('v0.12.0.4 keeps chargen history hidden until explicitly opened in campaign
   const css = await read('styles.css');
   const app = await read('app.js');
 
-  assert.match(html, /v0\.74\.1/);
+  assert.match(html, /v0\.75\.0/);
   assert.match(html, /id="chargen-record-section"[^>]*hidden/);
   assert.match(css, /\[hidden\]\s*\{[\s\S]*display:\s*none\s*!important/);
   assert.match(app, /el\.chargenRecordSection\.hidden = true;/);
@@ -399,7 +399,7 @@ test('v0.12.1.1 keeps generic adventure machinery separate from Sea of Suns auth
   const engine = await read('../src/adventure-engine.js');
   const definition = await read('../campaigns/sea-of-suns/adventures/carranza-route.js');
 
-  assert.match(html, /v0\.74\.1/);
+  assert.match(html, /v0\.75\.0/);
   assert.match(html, /id="open-threads-view"/);
   assert.match(html, /id="thread-section"/);
   assert.match(app, /applySituationThreadConsequences/);
@@ -427,7 +427,7 @@ test('v0.12.1.3 keeps live ship state beside navigation and makes the job board 
   const css = await read('styles.css');
   const model = await read('ui-model.js');
 
-  assert.match(html, /v0\.74\.1/);
+  assert.match(html, /v0\.75\.0/);
   assert.match(html, /id="live-ship-panel"/);
   assert.match(html, /id="live-ship-status"/);
   assert.match(app, /renderLiveShipStatus/);
@@ -450,7 +450,7 @@ test('v0.13 exposes compact persistent personal combat', async () => {
   const model = await read('ui-model.js');
   const encounter = await read('../src/encounter-document.js');
 
-  assert.match(html, /v0\.74\.1/);
+  assert.match(html, /v0\.75\.0/);
   assert.match(html, /id="encounter-section"/);
   // v0.47.0: orders are given per combatant, in that combatant's tracker row.
   assert.match(app, /verbs\.className = 'encounter-tracker-verbs';/);
@@ -470,7 +470,7 @@ test('v0.13.1 adds referee-started combat, a square token map, and enemy equipme
   const css = await read('styles.css');
   const encounter = await read('../src/encounter-document.js');
 
-  assert.match(html, /v0\.74\.1/);
+  assert.match(html, /v0\.75\.0/);
   assert.match(html, /id="combat-setup-dialog"/);
   assert.match(html, /id="encounter-map"/);
   assert.match(html, /id="encounter-roster"/);
@@ -513,7 +513,7 @@ test('v0.14.1 gives the encounter map a fluid viewBox camera and live token drag
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.74\.1/);
+  assert.match(html, /v0\.75\.0/);
   assert.match(html, /data-help-topic="personal-combat"/);
   assert.match(app, /function encounterMapPoint/);
   assert.match(await read('scene-canvas.js'), /getScreenCTM/);
@@ -531,7 +531,7 @@ test('v0.15.1 adds a persistent actor roster and token inspection actions', asyn
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.74\.1/);
+  assert.match(html, /v0\.75\.0/);
   assert.match(html, /id="operations-tab-roster"/);
   assert.match(html, /id="npc-actor-dialog"/);
   assert.match(html, /id="combat-roster-actor"/);
@@ -549,7 +549,7 @@ test('v0.15.1.1 makes the activity journal portable and anchors token menus to t
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.74\.1/);
+  assert.match(html, /v0\.75\.0/);
   assert.match(html, /id="activity-filter"/);
   assert.match(html, /id="add-activity-note"/);
   assert.match(html, /id="activity-note-dialog"/);
@@ -570,7 +570,7 @@ test('v0.15.2 establishes a Traveller-first campaign hierarchy and removes dupli
   const model = await read('ui-model.js');
 
   assert.match(html, /id="app-title" class="title">TRAVELLER</);
-  assert.match(html, /id="app-subtitle" class="subtitle">v0\.74\.1</);
+  assert.match(html, /id="app-subtitle" class="subtitle">v0\.75\.0</);
   assert.match(html, /<strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN<\/strong>/);
   for (const id of ['new-campaign', 'save-campaign', 'load-campaign', 'import-campaign', 'export-campaign']) {
     assert.match(html, new RegExp(`id="${id}"`));
@@ -630,12 +630,12 @@ test('v0.20.0 lays play out as operations left, scene center, and procedure plus
   const css = await read('styles.css');
   const model = await read('ui-model.js');
 
-  assert.match(html, /id="app-subtitle" class="subtitle">v0\.74\.1</);
+  assert.match(html, /id="app-subtitle" class="subtitle">v0\.75\.0</);
   assert.match(html, /class="campaign-header-strip"/);
-  assert.match(html, /class="stage"/);
-  assert.match(html, /class="command-rail"/);
+  assert.match(html, /class="terminal shell"/);
+  assert.match(html, /class="shell-rail"/);
   assert.ok(html.indexOf('id="procedure-section"') < html.indexOf('id="activity-panel"'));
-  assert.ok(html.indexOf('class="scene"') < html.indexOf('id="context-panel"'));
+  assert.ok(html.indexOf('class="scene shell-stage"') < html.indexOf('id="sidebar"'));
   assert.ok(html.indexOf('id="center-stack"') < html.indexOf('id="chargen-tables-section"'));
   assert.ok(html.indexOf('id="selected-system-summary"') < html.indexOf('class="canvas"'));
   assert.match(html, /id="play-procedure"/);
@@ -644,7 +644,7 @@ test('v0.20.0 lays play out as operations left, scene center, and procedure plus
   assert.doesNotMatch(html, /operations-tab-navigation|operations-tab-situation|operations-tab-encounter|workspace-tab-/);
   assert.match(html, /id="footer-current-name"/);
   assert.match(html, /id="chargen-tables"/);
-  assert.match(html, /id="campaign-menu"/);
+  assert.match(html, /id="sidebar"/);
   assert.match(html, /id="autosave-status"/);
   assert.match(html, /id="activity-order"/);
   assert.match(html, /id="add-character-to-campaign"/);
@@ -675,7 +675,7 @@ test('v0.20.0 lays play out as operations left, scene center, and procedure plus
   assert.match(css, /\.procedure-card\.required/);
   assert.match(css, /\.context-takeover/);
   assert.match(css, /grid-template-columns: 390px minmax\(520px, 1fr\) 340px/);
-  assert.match(css, /\.command-rail/);
+  assert.match(css, /\.shell-rail/);
   assert.match(css, /\.scene \{ grid-column: 2;/);
   assert.match(html, /id="new-character-from-campaign"/);
   assert.match(app, /function startNewCharacter\(\)/);
@@ -720,7 +720,7 @@ test('v0.31.0 compacts the header to two rows and gives the character cell the r
   assert.doesNotMatch(html, /class="masthead-sub"/);
   assert.doesNotMatch(html, /id="campaign-identity"/);
   assert.doesNotMatch(html, /class="rollbar"/);
-  assert.ok(html.indexOf('id="campaign-menu"') < html.indexOf('id="header-campaign-name"'));
+  assert.ok(html.indexOf('id="app-title"') < html.indexOf('id="header-campaign-name"'));
   assert.ok(html.indexOf('id="header-campaign-name"') < html.indexOf('id="autosave-status"'));
   assert.match(html, /id="system-status"[^>]*class="status masthead-status"/);
 
@@ -870,28 +870,17 @@ test('v0.31.0 puts the character on one row, docks WHAT NOW? level with the mast
   assert.doesNotMatch(css, /box-shadow/);
 });
 
-test('v0.31.0 places the rail by id, drops center-stack, and pins SHIP STATUS above the tabs', async () => {
+test('v0.31.0 places the rail by id, drops center-stack, and pins SHIP STATUS above the tabs (superseded by the v0.75.0 shell)', async () => {
   const html = await read('index.html');
   const css = await read('styles.css');
-
-  assert.doesNotMatch(html, /center-stack/);
-  const stage = html.slice(html.indexOf('class="stage"'), html.indexOf('id="help-panel"'));
-  assert.match(stage, /<aside id="context-panel" class="context"/);
-
-  const rail = html.slice(html.indexOf('id="context-panel"'), html.indexOf('class="context-scroll"'));
-  assert.ok(rail.indexOf('id="live-ship-panel"') < rail.indexOf('id="context-tabs"'));
-
-  assert.match(css, /\.stage > #context-panel \{ grid-row: 1; grid-column: 1; \}/);
-  assert.match(css, /\.stage > \.scene \{ grid-row: 1; grid-column: 2; \}/);
-  assert.match(css, /\.stage > \.command-rail \{ grid-row: 1; grid-column: 3; \}/);
-
-  // The inner panels must not inherit the rail's full-height treatment.
-  assert.match(css, /\.context-panel \{ height: auto; overflow: visible; display: block; \}/);
-  assert.match(css, /#context-panel \.context-scroll \{ flex: 1 1 auto; min-height: 0; max-height: none;/);
-  assert.match(css, /#context-panel \.context-tab\[aria-selected="true"\] \{[\s\S]*?background: var\(--tab-selected\)/);
-
-  assert.doesNotMatch(html, /id="scene-ship-meta-two"/);
-  assert.doesNotMatch(css, /box-shadow/);
+  // The sidebar leads with WHAT NOW? and the character strip, then the tabs.
+  const sidebar = html.slice(html.indexOf('id="sidebar"'), html.indexOf('class="sidebar-body"'));
+  assert.ok(sidebar.indexOf('id="procedure-section"') < sidebar.indexOf('class="campaign-header-strip"'));
+  assert.ok(sidebar.indexOf('class="campaign-header-strip"') < sidebar.indexOf('class="sidebar-tabs"'));
+  // SHIP STATUS lives in the VEHICLES tab.
+  const vehicles = html.slice(html.indexOf('data-sidebar-panel="vehicles"'), html.indexOf('data-sidebar-panel="port"'));
+  assert.ok(vehicles.includes('id="live-ship-panel"'));
+  assert.match(css, /grid-template-areas: "mast mast mast" "rail stage side";/);
 });
 
 test('v0.31.0 stops the rail oversizing the grid and reworks the character strip', async () => {
@@ -944,29 +933,12 @@ test('v0.31.0 makes the height chain explicit and gives WHAT NOW? a definite sha
   assert.doesNotMatch(css, /box-shadow/);
 });
 
-test('v0.31.0 moves character into the rail and makes the stage a single row', async () => {
+test('v0.31.0 moves character into the rail and makes the stage a single row (superseded by the v0.75.0 shell)', async () => {
   const html = await read('index.html');
   const css = await read('styles.css');
-
-  // The rail leads with character, then ship, then the port tabs.
-  const rail = html.slice(html.indexOf('id="context-panel"'), html.indexOf('class="context-scroll"'));
-  assert.ok(rail.indexOf('class="campaign-header-strip"') < rail.indexOf('id="live-ship-panel"'));
-  assert.ok(rail.indexOf('id="live-ship-panel"') < rail.indexOf('id="context-tabs"'));
-  assert.doesNotMatch(rail, /campaign-header-kicker">CHARACTER/);
-
-  // Single row: nothing spans, so no auto row can be sized by content.
-  assert.match(css, /\.stage \{\s*display: grid;\s*grid-template-rows: minmax\(0, 1fr\);\s*grid-template-columns: 440px minmax\(0, 1fr\) 340px;/);
-  for (const rule of [
-    /\.stage > #context-panel \{ grid-row: 1; grid-column: 1; \}/,
-    /\.stage > \.scene \{ grid-row: 1; grid-column: 2; \}/,
-    /\.stage > \.command-rail \{ grid-row: 1; grid-column: 3; \}/
-  ]) assert.match(css, rule);
-  assert.doesNotMatch(css, /grid-row: 1 \/ 3/);
-
-  // The strip is no longer a stage child.
-  const stage = html.slice(html.indexOf('class="stage"'), html.indexOf('id="context-panel"'));
-  assert.doesNotMatch(stage, /campaign-header-strip/);
-  assert.doesNotMatch(css, /box-shadow/);
+  const sidebar = html.slice(html.indexOf('id="sidebar"'), html.indexOf('class="sidebar-body"'));
+  assert.doesNotMatch(sidebar, /campaign-header-kicker">CHARACTER/);
+  assert.match(css, /\.terminal\.shell \{[^}]*grid-template-columns: 56px minmax\(0, 1fr\) 380px;/);
 });
 
 test('v0.31.0 pins the terminal to the viewport, splits the rail 40/60, and labels the date', async () => {
@@ -1088,7 +1060,7 @@ test('v0.36.0 puts the encounter map in the centre scene and the DM panel and ro
 
   // The rail follows the COMBAT scene tab, and COMBAT is selectable with no
   // live encounter so a referee can start one.
-  assert.match(app, /activeSceneTab === 'combat' && el\.encounterRailSection\?\.dataset\.available === 'true'/);
+  assert.match(app, /const combatRailVisible = Boolean\(campaignPlayActive\(\) && el\.encounterRailSection\?\.dataset\.available === 'true'\);/);
   assert.doesNotMatch(app, /if \(tab === 'combat' && !activeEncounterAtCurrentSystem\(\)\) return;/);
   assert.doesNotMatch(css, /box-shadow/);
 });
@@ -1098,7 +1070,7 @@ test('v0.37.0 collapses the character strip and SHIP STATUS while combat holds t
   const css = await read('styles.css');
 
   // One class, set only when the combat rail is actually showing.
-  assert.match(app, /const combatRailVisible = Boolean\(campaignPlayActive\(\) && activeSceneTab === 'combat'/);
+  assert.match(app, /const combatRailVisible = Boolean\(campaignPlayActive\(\) && el\.encounterRailSection/);
   assert.match(app, /el\.terminal\?\.classList\.toggle\('combat-focus', combatRailVisible\);/);
 
   // Characteristics, quick skills and the ship body collapse; the identity
@@ -1112,20 +1084,16 @@ test('v0.37.0 collapses the character strip and SHIP STATUS while combat holds t
   assert.doesNotMatch(css, /box-shadow/);
 });
 
-test('v0.37.1 gives combat the whole rail: first in the scroller, everything else suspended', async () => {
+test('v0.37.1 gives combat the whole rail: first in the scroller, everything else suspended (superseded by the v0.75.0 shell)', async () => {
   const html = await read('index.html');
   const app = await read('app.js');
-
-  // The combat panel is the first section in the rail scroller.
-  const scroller = html.indexOf('<div class="context-scroll">');
-  const order = ['combat-rail-section', 'port-services-section', 'commerce-section', 'contract-section', 'situation-section', 'roster-section']
-    .map((id) => html.indexOf(`id="${id}"`, scroller));
-  assert.ok(order.every((position) => position > scroller), 'all rail panels live in the scroller');
-  assert.deepEqual([...order].sort((a, b) => a - b), order, 'combat must come first in the rail scroller');
-
-  // While combat holds the rail, the other panels are hidden outright, so a
-  // suspended tab cannot render above the throw.
-  assert.match(app, /if \(combatRailVisible\) for \(const panel of Object\.values\(panels\)\) if \(panel\) panel\.hidden = true;/);
+  // COMBAT is a sidebar tab of its own; the port panels are the PORT tab.
+  const combat = html.slice(html.indexOf('data-sidebar-panel="combat"'), html.indexOf('data-sidebar-panel="scenes"'));
+  assert.ok(combat.includes('id="combat-rail-section"'));
+  const port = html.slice(html.indexOf('data-sidebar-panel="port"'), html.indexOf('data-sidebar-panel="journal"'));
+  for (const id of ['port-services-section', 'commerce-section', 'contract-section', 'situation-section']) assert.ok(port.includes(`id="${id}"`), `${id} in PORT`);
+  assert.doesNotMatch(app, /if \(combatRailVisible\) for \(const panel of Object\.values\(panels\)\) if \(panel\) panel\.hidden = true;/);
+  assert.match(app, /if \(encounterWorkspaceActive && sidebarTab !== 'combat' && !sidebarChosen\) setSidebarTab\('combat', \{ chosen: false \}\);/);
 });
 
 test('v0.38.0 keeps the character whole in combat and reports the fight, not the sheet', async () => {
@@ -1472,11 +1440,11 @@ test('v0.53.0 keeps the publish controls reachable and remembers being online', 
 
   // Publishing is campaign-level, so it lives in the campaign menu — the rail
   // hides every panel during combat, which is exactly when a scene exists.
-  const menu = html.indexOf('id="campaign-menu"');
-  const roster = html.indexOf('id="roster-section"');
+  const players = html.indexOf('data-sidebar-panel="players"');
+  const settings = html.indexOf('data-sidebar-panel="settings"');
   for (const id of ['publish-status', 'publish-campaign', 'publish-view']) {
     const at = html.indexOf(`id="${id}"`);
-    assert.ok(at > menu && at < roster, `${id} must sit in the campaign menu`);
+    assert.ok(at > players && at < settings, `${id} must sit in the PLAYERS tab`);
   }
 
   // Published state is read from the document, not a module variable, so a
@@ -1653,8 +1621,8 @@ test('v0.60.0 rechecks player ownership and retires stale scene listeners', asyn
   assert.match(app, /if \(watchedDeclarationEncounterId !== watchedId\) unsubscribe\(\);/);
   assert.match(player, /const generation = \+\+sceneWatchGeneration;/);
   assert.match(player, /if \(generation !== sceneWatchGeneration \|\| encounterId !== watchedEncounterId\) unsubscribe\(\);/);
-  assert.match(index, /v0\.74\.1/);
-  assert.match(playerPage, /PLAYER v0\.74\.1/);
+  assert.match(index, /v0\.75\.0/);
+  assert.match(playerPage, /PLAYER v0\.75\.0/);
 });
 
 test('v0.63.0 uses a configurable metre grid, compact shared-square tokens, and selected-actor range boundaries', async () => {
@@ -1847,7 +1815,7 @@ test('v0.67.0 gives players a front door: their own characters, chargen, and a s
 
   // The page: sign in, the list, chargen with the lifted view; the referee
   // client is never imported.
-  assert.match(html, /ENTER v0\.74\.1/);
+  assert.match(html, /ENTER v0\.75\.0/);
   assert.match(html, /id="enter-signin"/);
   assert.match(html, /id="enter-character-list"/);
   assert.match(html, /id="enter-new-character"/);
@@ -1957,11 +1925,15 @@ test('v0.69.0 makes the lobby the only chargen, starts campaigns from a characte
   assert.match(enter, /async function loadCampaignFile\(file\)/);
   assert.match(enter, /await saveCampaignHome\(home, envelope, \{ expectedRevision: null \}\);/);
 
-  // CAMPAIGN holds file operations; REFEREE holds the table.
-  const campaignMenu = html.slice(html.indexOf('id="campaign-menu"'), html.indexOf('id="referee-menu"'));
-  const refereeMenu = html.slice(html.indexOf('id="referee-menu"'), html.indexOf('id="header-campaign-name"'));
-  for (const id of ['save-campaign', 'reload-campaign-cloud', 'load-campaign', 'import-campaign', 'export-campaign', 'open-lobby']) assert.ok(campaignMenu.includes(`id="${id}"`), `${id} in CAMPAIGN`);
-  for (const id of ['publish-status', 'publish-campaign', 'publish-view', 'open-players', 'new-campaign', 'add-character-to-campaign', 'referee-new-npc', 'open-ship-view', 'open-campaign-view', 'open-threads-view']) assert.ok(refereeMenu.includes(`id="${id}"`), `${id} in REFEREE`);
+  // v0.75.0: the two menus became sidebar tabs — files and the table under
+  // SETTINGS, publishing under PLAYERS, records under JOURNAL, the ship under
+  // VEHICLES.
+  const panel = (name, next) => html.slice(html.indexOf(`data-sidebar-panel="${name}"`), html.indexOf(`data-sidebar-panel="${next}"`));
+  const settings = html.slice(html.indexOf('data-sidebar-panel="settings"'), html.indexOf('<dialog id="roll-dialog"'));
+  for (const id of ['save-campaign', 'reload-campaign-cloud', 'load-campaign', 'import-campaign', 'export-campaign', 'open-lobby', 'new-campaign', 'add-character-to-campaign', 'referee-new-npc']) assert.ok(settings.includes(`id="${id}"`), `${id} in SETTINGS`);
+  for (const id of ['publish-status', 'publish-campaign', 'publish-view', 'open-players']) assert.ok(panel('players', 'settings').includes(`id="${id}"`), `${id} in PLAYERS`);
+  for (const id of ['open-campaign-view', 'open-threads-view']) assert.ok(panel('journal', 'tables').includes(`id="${id}"`), `${id} in JOURNAL`);
+  assert.ok(panel('vehicles', 'port').includes('id="open-ship-view"'));
   assert.match(app, /el\.refereeNewNpc\?\.addEventListener\('click', startNewCharacter\);/);
 });
 
@@ -2183,4 +2155,34 @@ test('v0.74.0 the active scene is staged, seen by players, and fought from the c
 test('v0.74.1 the lobby chargen rail does not shrink WHAT NOW? under its buttons', async () => {
   const css = await read('styles.css');
   assert.match(css, /\.enter-chargen-rail > \* \{ flex: 0 0 auto; \}/);
+});
+
+test('v0.75.0 the shell: canvas first, a tool rail, a tabbed sidebar, and table chat with a dice tray', async () => {
+  const html = await read('index.html');
+  const app = await read('app.js');
+  const css = await read('styles.css');
+  const publish = await read('publish.js');
+  const player = await read('player.js');
+  const playerHtml = await read('player.html');
+  const dice = await read('../src/dice-tray.js');
+  assert.match(html, /<main class="terminal shell"/);
+  for (const area of ['shell-masthead', 'shell-rail', 'shell-stage', 'shell-sidebar']) assert.ok(html.includes(`class="${area}"`) || html.includes(` ${area}"`), area);
+  for (const tab of ['chat', 'combat', 'scenes', 'actors', 'vehicles', 'port', 'journal', 'tables', 'players', 'settings']) {
+    assert.ok(html.includes(`data-sidebar-tab="${tab}"`), `tab ${tab}`);
+    assert.ok(html.includes(`data-sidebar-panel="${tab}"`), `panel ${tab}`);
+  }
+  assert.doesNotMatch(html, /id="campaign-menu"|id="referee-menu"/);
+  assert.match(app, /const SIDEBAR_TABS = \['chat', 'combat', 'scenes', 'actors', 'vehicles', 'port', 'journal', 'tables', 'players', 'settings'\];/);
+  assert.match(app, /function renderRailTools\(\)/);
+  assert.match(css, /\.terminal\.shell \{/);
+  // Chat: a message is the writer's own; rolls are messages; private rolls
+  // are the referee-only log.
+  assert.match(dice, /export function interpretChatInput\(input, \{ uid, name, random \} = \{\}\)/);
+  assert.match(publish, /export async function sendChatMessage\(campaignId, message\)/);
+  assert.match(publish, /export async function watchChat\(campaignId, onChange, \{ limit = 200 \} = \{\}\)/);
+  assert.match(app, /logActivity\('NOTE', `Referee rolls \$\{formatRoll\(roll\)\} \(private\)`, \{ visibility: ACTIVITY_VISIBILITY\.REFEREE \}\);/);
+  assert.match(html, /id="dice-tray"/);
+  assert.match(playerHtml, /id="player-dice-tray"/);
+  assert.match(player, /watchTableChat\(campaignId\);/);
+  assert.match(player, /postChat\(interpretChatInput\(text, \{ uid: currentUserId\(\), name: chatAuthorName\(\) \}\)\);/);
 });

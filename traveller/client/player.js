@@ -17,14 +17,14 @@ import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus }
 import { openSignInDialog } from './signin-ui.js';
 import {
   ensureFirestore, writeDeclaration, watchDeclarations, writeTokenMove,
-  writeCanvasPresence, watchCanvasPresence
-} from './publish.js';
+  writeCanvasPresence, watchCanvasPresence, sendChatMessage, watchChat } from './publish.js';
 import { createPlayerDeclaration } from '../src/player-declaration.js';
 import { createPlayerTokenMove } from '../src/player-token-movement.js';
 import { serviceName, nobleTitleLabel, buildServiceHistory, buildGenerationLog } from './ui-model.js';
 import { PERSONAL_WEAPONS, SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getSubsectorSystem } from '../vendor/classic-traveller-rules/index.js';
 import { renderSubsectorMap } from './subsector-svg.js';
 import { createSceneCanvas, svgNode } from './scene-canvas.js';
+import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js';
 import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -86,7 +86,11 @@ const el = {
   sheetBenefits: document.querySelector('#player-sheet-benefits'),
   sheetHistoryRecord: document.querySelector('#player-sheet-history-record'),
   sheetNotes: document.querySelector('#player-sheet-notes'),
-  log: document.querySelector('#player-log')
+  log: document.querySelector('#player-log'),
+  chatComposer: document.querySelector('#player-chat-composer'),
+  chatForm: document.querySelector('#player-chat-form'),
+  chatInput: document.querySelector('#player-chat-input'),
+  diceTray: document.querySelector('#player-dice-tray')
 };
 
 const CAMPAIGN_STORAGE_KEY = 'graycloak.traveller.player.campaign.v1';
@@ -663,8 +667,54 @@ function renderSheet() {
   el.sheetNotes.textContent = character.notes?.trim() ? character.notes : 'NONE';
 }
 
+// v0.75.0: chat, merged with the log by time.
+let chatMessages = [];
+let unsubscribeChat = null;
+let watchedChatCampaignId = null;
+function watchTableChat(campaignId) {
+  if (campaignId === watchedChatCampaignId) return;
+  unsubscribeChat?.(); unsubscribeChat = null;
+  chatMessages = []; watchedChatCampaignId = campaignId;
+  if (!campaignId) return;
+  watchChat(campaignId, (messages) => { chatMessages = messages; renderLog(); })
+    .then((unsubscribe) => { if (watchedChatCampaignId === campaignId) unsubscribeChat = unsubscribe; else unsubscribe(); })
+    .catch((error) => console.error(error));
+}
+function chatAuthorName() {
+  const { user } = authStatus();
+  const owned = [...ownedCombatantIds()].map((id) => characters.get(id)?.identity?.name).filter(Boolean);
+  return owned[0] || user?.displayName || user?.email || 'Player';
+}
+async function postChat(message) {
+  try { await sendChatMessage(connectedCampaignId, message); }
+  catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); }
+}
+function renderDiceTray() {
+  if (!el.diceTray) return;
+  el.chatComposer.hidden = !connectedCampaignId;
+  el.diceTray.replaceChildren(...TRAY_DICE.map((die) => {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = die.traveller ? 'two-d' : ''; button.textContent = die.label;
+    button.title = die.formula ? `Roll ${die.formula} for the table` : 'Roll dice of any size';
+    button.addEventListener('click', () => {
+      const formula = die.formula ?? window.prompt('Dice formula (for example 3d8+2):', '1d6');
+      if (!formula || !parseRollFormula(formula)) return;
+      postChat(createChatMessage({ uid: currentUserId(), name: chatAuthorName(), kind: 'roll', roll: rollFormula(formula) }));
+    });
+    return button;
+  }));
+}
+
 function renderLog() {
-  const entries = playerLog?.entries ?? [];
+  renderDiceTray();
+  const logEntries = playerLog?.entries ?? [];
+  const chatEntries = chatMessages.map((message) => ({
+    id: `chat:${message.id}`, category: message.kind === 'roll' ? 'ROLL' : 'CHAT', createdAt: message.createdAt,
+    dateLabel: new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    message: message.kind === 'roll' ? `${message.name ?? 'Someone'}: ${formatRoll(message.roll)}` : `${message.name ?? 'Someone'}: ${message.text}`,
+    addressed: false, mine: message.uid === currentUserId()
+  }));
+  const entries = [...logEntries, ...chatEntries].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
   if (!entries.length) {
     el.log.replaceChildren(Object.assign(document.createElement('div'), {
       className: 'player-log-empty',
@@ -676,7 +726,7 @@ function renderLog() {
   // the one a player is looking for.
   el.log.replaceChildren(...[...entries].reverse().map((entry) => {
     const row = document.createElement('div');
-    row.className = `player-log-entry${entry.addressed ? ' addressed' : ''}`;
+    row.className = `player-log-entry${entry.addressed ? ' addressed' : ''}${entry.category === 'ROLL' ? ' roll' : ''}${entry.mine ? ' mine' : ''}`;
     row.dataset.category = entry.category;
     const meta = document.createElement('div'); meta.className = 'player-log-meta';
     const date = document.createElement('span'); date.textContent = entry.dateLabel;
@@ -778,6 +828,7 @@ async function connect(campaignId) {
         setStatus(`CONNECTED / ${campaign.name}`, 'ok');
         watchScene(db, campaignId, campaign.currentEncounterId ?? null);
         watchPlayerDocuments(db, campaignId);
+        watchTableChat(campaignId);
         render();
       },
       (error) => setStatus(`${error.code === 'permission-denied' ? 'NOT SEATED AT THIS CAMPAIGN' : error.message}`, 'error')
@@ -883,6 +934,13 @@ el.mapViewport.addEventListener('contextmenu', (event) => {
 });
 
 el.showBoard.addEventListener('click', () => { showFinishedBoard = true; render(); });
+el.chatForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const text = el.chatInput.value.trim();
+  if (!text || !connectedCampaignId || !currentUserId()) return;
+  postChat(interpretChatInput(text, { uid: currentUserId(), name: chatAuthorName() }));
+  el.chatInput.value = '';
+});
 el.showScene.addEventListener('click', () => { preferWorldOverScene = false; render(); });
 el.sceneToWorld.addEventListener('click', () => { preferWorldOverScene = true; render(); });
 el.backToWorld.addEventListener('click', () => { showFinishedBoard = false; render(); });

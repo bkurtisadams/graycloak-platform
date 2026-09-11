@@ -376,3 +376,27 @@ export async function loadCharacterRecord(characterId) {
   const snapshot = await db.collection('travellerCharacters').doc(characterId).get();
   return snapshot.exists ? snapshot.data() : null;
 }
+
+// --- v0.75.0: table chat ----------------------------------------------------
+// travellerCampaigns/{id}/chat/{messageId}: anyone at the table creates a
+// message as themselves and reads them all; the referee may delete.
+
+export async function sendChatMessage(campaignId, message) {
+  const db = await ensureFirestore();
+  const ref = await db.collection('travellerCampaigns').doc(campaignId).collection('chat').add(message);
+  return ref.id;
+}
+
+export async function watchChat(campaignId, onChange, { limit = 200 } = {}) {
+  const db = await ensureFirestore();
+  return db.collection('travellerCampaigns').doc(campaignId).collection('chat')
+    .orderBy('createdAt', 'desc').limit(limit)
+    .onSnapshot((snapshot) => onChange(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })).reverse()),
+      (error) => console.error('[traveller-publish] chat:', error));
+}
+
+export async function deleteChatMessage(campaignId, messageId) {
+  const db = await ensureFirestore();
+  await db.collection('travellerCampaigns').doc(campaignId).collection('chat').doc(messageId).delete();
+  return messageId;
+}

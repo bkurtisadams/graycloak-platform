@@ -1,5 +1,46 @@
 # Graycloak Traveller
 
+## v0.75.0 the shell: canvas first, a tool rail, a tabbed sidebar, and chat
+
+The referee client takes the Foundry shape. The canvas fills the window. A
+rail on the left carries the scene selector — CHARACTER, SYSTEM, COMBAT,
+turned on their sides — and, beneath it, the tools that scene answers to:
+fit, zoom, the system record and port on the world; fit, zoom, frame, grid
+and the tracker on a board. A sidebar on the right is tabbed: **CHAT**,
+**COMBAT**, **SCENES**, **ACTORS**, **VEHICLES**, **PORT**, **JOURNAL**,
+**TABLES**, **PLAYERS**, **SETTINGS**. WHAT NOW? and the character strip sit
+above the tabs, always in view. Clicking the open tab collapses the sidebar
+to its icon strip.
+
+Nothing the client knew was renamed: every panel moved into a tab and every
+id survived. The two dropdown menus are gone — files and the table's
+commands under SETTINGS, publishing and seats under PLAYERS, the campaign
+record and threads under JOURNAL, the ship register under VEHICLES. The
+operations desk is the PORT tab with its own WORLD / TRADE / JOBS strip;
+the combat tracker is the COMBAT tab, which opens itself when a fight starts
+unless the referee has picked a tab since; the Book 1 tables are the TABLES
+tab, which opens itself during character generation. Combat no longer
+suspends the other panels — a tab is a tab.
+
+**Chat.** The CHAT tab is the Activity Log with the table's messages
+interleaved by time, a message box, and a dice tray: 2D first, then D4 to
+D100 and DX. A tray roll, or `/roll 2d6+1` typed into the box, is a message
+the whole table sees — who rolled, the dice, the total. A Shift-click on a
+die is the referee's private roll, which goes to the referee-only log rather
+than to chat. The player page's LOG column is now CHAT, with the same box
+and tray, so a player types where they read. The rules engine keeps rolling
+its own seeded dice for combat, checks and chargen; the tray never decides a
+rules outcome. `src/dice-tray.js` holds the formula parser, the roll and the
+message shape, tested. **Rules v16** adds `travellerCampaigns/{id}/chat`.
+
+Nine layout pins from v0.20 to v0.69 described the terminal frame; they are
+rewritten against the shell and marked superseded. The page-load test
+passes on all three pages.
+
+Next, tab by tab: ACTORS with folders and drag-to-place, JOURNAL with the
+records inside it, TABLES with rollable Book 1-3 tables, SCENES with
+backgrounds, and a chat with whispers. Then back to the game.
+
 ## v0.74.1 WHAT NOW? no longer spills under its buttons on the lobby
 
 The chargen rail on `enter.html` is a column flex container with a maximum

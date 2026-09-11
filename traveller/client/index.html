@@ -7,43 +7,17 @@
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <main class="terminal" aria-labelledby="app-title">
-    <header class="masthead">
+  <!-- v0.75.0: the Foundry shape. The canvas fills the window; a tool rail on
+       the left, a tabbed sidebar on the right. Every id the client scripts
+       know is still here; the panels moved, the code did not. -->
+  <main class="terminal shell" aria-labelledby="app-title">
+    <header class="masthead shell-masthead">
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.74.1</div>
+          <div id="app-subtitle" class="subtitle">v0.75.0</div>
         </div>
-        <nav class="utility campaign-utility" aria-label="Campaign and view commands">
-          <details id="campaign-menu" class="campaign-menu">
-            <summary class="text-button utility-button">[ CAMPAIGN v ]</summary>
-            <div class="campaign-menu-popover" role="group" aria-label="Campaign file commands">
-              <button id="save-campaign" class="text-button utility-button" type="button" title="Save the campaign in this browser and, signed in, in the cloud" disabled>[ SAVE NOW ]</button>
-              <button id="reload-campaign-cloud" class="text-button utility-button" type="button" title="Replace the browser copy with the campaign's cloud copy">[ RELOAD FROM CLOUD ]</button>
-              <button id="load-campaign" class="text-button utility-button" type="button" title="Load the campaign saved in this browser">[ LOAD BROWSER COPY ]</button>
-              <button id="import-campaign" class="text-button utility-button" type="button" title="Import a portable campaign JSON file">[ IMPORT CAMPAIGN ]</button>
-              <button id="export-campaign" class="text-button utility-button" type="button" title="Export a portable campaign JSON file" disabled>[ EXPORT CAMPAIGN ]</button>
-              <hr class="campaign-menu-rule">
-              <a id="open-lobby" class="text-button utility-button" href="enter.html" title="Your characters and campaigns">[ LOBBY ]</a>
-            </div>
-          </details>
-          <!-- v0.74.1: running the table is its own menu; the referee is the book's word. -->
-          <details id="referee-menu" class="campaign-menu">
-            <summary class="text-button utility-button">[ REFEREE v ]</summary>
-            <div class="campaign-menu-popover" role="group" aria-label="Referee commands">
-              <div id="publish-status" class="publish-status">LOCAL ONLY</div>
-              <button id="publish-campaign" class="text-button utility-button" type="button" title="Publish this campaign so seated players can read it">[ PUBLISH ]</button>
-              <button id="publish-view" class="text-button utility-button" type="button" title="Publish the player-safe view of the current scene" hidden>[ PUBLISH SCENE ]</button>
-              <button id="open-players" class="text-button utility-button" type="button" title="Players, invites, and requests to sit down" hidden>[ PLAYERS AND INVITES ]</button>
-              <hr class="campaign-menu-rule">
-              <button id="new-campaign" class="text-button utility-button" type="button" title="Create a campaign from the current completed character">[ NEW CAMPAIGN ]</button>
-              <button id="add-character-to-campaign" class="text-button utility-button" type="button" title="Add a completed Character Document to the active campaign" hidden>[ ADD CHARACTER ]</button>
-              <button id="referee-new-npc" class="text-button utility-button" type="button" title="Roll a character at the table — an NPC, or a PC for a player without an account" hidden>[ ROLL A CHARACTER ]</button>
-              <button id="open-ship-view" class="text-button utility-button" type="button" title="Ship register" hidden>[ SHIP REGISTER ]</button>
-              <button id="open-campaign-view" class="text-button utility-button" type="button" title="Campaign record" hidden>[ CAMPAIGN RECORD ]</button>
-              <button id="open-threads-view" class="text-button utility-button" type="button" title="Adventure threads" hidden>[ ADVENTURE THREADS ]</button>
-            </div>
-          </details>
+        <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
           <span class="masthead-label">DATE</span>
           <strong id="masthead-date" class="masthead-date">--</strong>
@@ -53,12 +27,20 @@
           <span id="account-name" class="masthead-account" title="Graycloak account"></span>
           <button id="account-button" class="text-button utility-button" type="button" hidden></button>
           <button id="new-character-from-campaign" class="text-button utility-button" type="button" title="Leave campaign play and start a new character generation" hidden>[ NEW CHARACTER ]</button>
-          <button id="toggle-activity" class="text-button utility-button" type="button" aria-expanded="true" aria-controls="activity-panel">[ HIDE LOG ]</button>
         </nav>
       </div>
     </header>
 
+    <aside class="shell-rail" aria-label="Scene and tools">
+      <div class="scene-tabs" role="tablist" aria-label="Scene">
+        <button id="scene-tab-character" class="scene-tab" type="button" role="tab" data-scene-tab="character" aria-selected="false">CHARACTER</button>
+        <button id="scene-tab-system" class="scene-tab is-active" type="button" role="tab" data-scene-tab="system" aria-selected="true">SYSTEM</button>
+        <button id="scene-tab-combat" class="scene-tab" type="button" role="tab" data-scene-tab="combat" aria-selected="false">COMBAT</button>
+      </div>
+      <div id="rail-tools" class="rail-tools" aria-label="Tools"></div>
+    </aside>
 
+    <section class="scene shell-stage" aria-label="Scene">
     <nav class="utility character-utility" aria-label="Character file commands">
       <button id="new-character" class="text-button utility-button" type="button">[ NEW CHARACTER ]</button>
       <button id="save-character" class="text-button utility-button" type="button">[ SAVE CHARGEN JSON ]</button>
@@ -66,56 +48,6 @@
     </nav>
     <input id="load-file" type="file" accept="application/json,.json" hidden>
 
-    <div class="stage">
-      <aside class="command-rail" aria-label="Procedure and activity log">
-        <section id="procedure-section" class="panel whatnow" aria-labelledby="procedure-heading">
-          <div class="whatnow-head">
-            <h2 id="procedure-heading" class="whatnow-title">WHAT NOW?</h2>
-            <span id="procedure-scope" class="whatnow-scope"></span>
-          </div>
-          <div id="procedure" class="procedure" aria-live="polite"></div>
-          <div id="actions" class="actions"></div>
-          <div id="play-procedure" class="play-procedure" hidden aria-live="polite"></div>
-        </section>
-    <section id="chargen-record-section" class="panel chargen-record" hidden aria-label="Character history and generation log">
-      <div>
-        <div class="section-heading">
-          <h2 class="section-title">SERVICE HISTORY</h2>
-          <button class="help-button" type="button" data-help-topic="service-history" aria-label="Explain service history">[?]</button>
-        </div>
-        <pre id="service-history" class="history"></pre>
-      </div>
-      <div>
-        <div class="section-heading">
-          <h2 class="section-title">GENERATION LOG</h2>
-          <button class="help-button" type="button" data-help-topic="generation-log" aria-label="Explain generation log">[?]</button>
-        </div>
-        <pre id="generation-log" class="history"></pre>
-      </div>
-    </section>
-        <aside id="activity-panel" class="activity-panel panel" aria-labelledby="activity-heading">
-          <div class="activity-header">
-            <h2 id="activity-heading" class="activity-title">LOG</h2>
-            <select id="activity-filter" class="activity-filter" aria-label="Show"><option value="play" selected>PLAY</option><option value="all">ALL</option><option value="character">CHARACTER</option><option value="trade">TRADE + JOBS</option><option value="ship">SHIP + TRAVEL</option><option value="personal-combat">PERSONAL COMBAT</option><option value="space-combat">SPACE COMBAT</option><option value="campaign">CAMPAIGN + NOTES</option><option value="system">SYSTEM</option></select>
-            <select id="activity-order" class="activity-order" aria-label="Order"><option value="newest" selected>NEWEST</option><option value="oldest">OLDEST</option></select>
-            <span class="activity-header-actions"><button id="add-activity-note" class="text-button" type="button">[ NOTE ]</button><button id="clear-activity" class="text-button activity-clear" type="button">[ CLEAR ]</button></span>
-          </div>
-          <div id="activity-feed" class="activity-feed" role="log" aria-live="polite" aria-relevant="additions"></div>
-        </aside>
-      </aside>
-
-    <section id="chargen-tables-section" class="panel context-panel" hidden aria-labelledby="chargen-tables-heading">
-      <div class="section-heading">
-        <h2 id="chargen-tables-heading" class="section-title">BOOK 1 TABLES</h2>
-      </div>
-      <div id="chargen-tables" class="chargen-tables"></div>
-    </section>
-    <section class="scene" aria-label="Scene">
-      <div class="scene-tabs" role="tablist" aria-label="Scene">
-        <button id="scene-tab-character" class="scene-tab" type="button" role="tab" data-scene-tab="character" aria-selected="false">CHARACTER</button>
-        <button id="scene-tab-system" class="scene-tab is-active" type="button" role="tab" data-scene-tab="system" aria-selected="true">SYSTEM</button>
-        <button id="scene-tab-combat" class="scene-tab" type="button" role="tab" data-scene-tab="combat" aria-selected="false">COMBAT</button>
-      </div>
       <div id="scene-status-strip" class="scene-status-strip" hidden>
         <div class="scene-status-cell">
           <div class="campaign-header-kicker">CURRENT PORT</div>
@@ -298,7 +230,16 @@
     </section>
     </section>
 
-    <aside id="context-panel" class="context" aria-label="Context panel">
+    <aside class="shell-sidebar" id="sidebar" aria-label="Sidebar">
+        <section id="procedure-section" class="panel whatnow" aria-labelledby="procedure-heading">
+          <div class="whatnow-head">
+            <h2 id="procedure-heading" class="whatnow-title">WHAT NOW?</h2>
+            <span id="procedure-scope" class="whatnow-scope"></span>
+          </div>
+          <div id="procedure" class="procedure" aria-live="polite"></div>
+          <div id="actions" class="actions"></div>
+          <div id="play-procedure" class="play-procedure" hidden aria-live="polite"></div>
+        </section>
       <section class="campaign-header-strip" aria-label="Character status">
         <div class="character-identity-line">
           <button id="header-character-name" class="campaign-header-name text-button header-character-link" type="button">--</button>
@@ -313,21 +254,38 @@
           <button id="header-all-skills" class="text-button header-all-skills" type="button" title="Choose which skills fill the quick slots">[ ALL SKILLS ]</button>
         </div>
       </section>
-      <section id="live-ship-panel" class="live-ship-panel" aria-labelledby="live-ship-heading">
-              <div class="live-ship-heading">
-                <strong id="live-ship-heading">SHIP STATUS</strong>
-                <span id="live-ship-identity" class="live-ship-identity">NO ACTIVE SHIP</span>
-              </div>
-              <div id="live-ship-status" class="live-ship-status" aria-live="polite"></div>
-            </section>
-      <div id="context-tabs" class="context-tabs" role="tablist" aria-label="Context views">
-        <button id="operations-tab-port" class="text-button context-tab" type="button" role="tab" aria-controls="port-services-section" aria-selected="true">WORLD</button>
-        <button id="operations-tab-trade" class="text-button context-tab" type="button" role="tab" aria-controls="commerce-section" aria-selected="false">TRADE</button>
-        <button id="operations-tab-jobs" class="text-button context-tab" type="button" role="tab" aria-controls="contract-section" aria-selected="false">JOBS</button>
-        <button id="operations-tab-roster" class="text-button context-tab" type="button" role="tab" aria-controls="roster-section" aria-selected="false" title="Persistent NPC, creature, and robot roster">NPCS</button>
+      <div class="sidebar-tabs" role="tablist" aria-label="Sidebar">
+        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="chat" aria-selected="true" title="CHAT"><span class="sidebar-tab-icon" aria-hidden="true">&#9993;</span><span class="sidebar-tab-label">CHAT</span></button>
+        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="combat" aria-selected="false" title="COMBAT"><span class="sidebar-tab-icon" aria-hidden="true">&#9876;</span><span class="sidebar-tab-label">COMBAT</span></button>
+        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="scenes" aria-selected="false" title="SCENES"><span class="sidebar-tab-icon" aria-hidden="true">&#9635;</span><span class="sidebar-tab-label">SCENES</span></button>
+        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="actors" aria-selected="false" title="ACTORS"><span class="sidebar-tab-icon" aria-hidden="true">&#9823;</span><span class="sidebar-tab-label">ACTORS</span></button>
+        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="vehicles" aria-selected="false" title="VEHICLES"><span class="sidebar-tab-icon" aria-hidden="true">&#9650;</span><span class="sidebar-tab-label">VEHICLES</span></button>
+        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="port" aria-selected="false" title="PORT"><span class="sidebar-tab-icon" aria-hidden="true">&#9737;</span><span class="sidebar-tab-label">PORT</span></button>
+        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="journal" aria-selected="false" title="JOURNAL"><span class="sidebar-tab-icon" aria-hidden="true">&#9998;</span><span class="sidebar-tab-label">JOURNAL</span></button>
+        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="tables" aria-selected="false" title="TABLES"><span class="sidebar-tab-icon" aria-hidden="true">&#9856;</span><span class="sidebar-tab-label">TABLES</span></button>
+        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="players" aria-selected="false" title="PLAYERS"><span class="sidebar-tab-icon" aria-hidden="true">&#9787;</span><span class="sidebar-tab-label">PLAYERS</span></button>
+        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="settings" aria-selected="false" title="SETTINGS"><span class="sidebar-tab-icon" aria-hidden="true">&#9881;</span><span class="sidebar-tab-label">SETTINGS</span></button>
       </div>
-      <div id="context-takeover" class="context-takeover" hidden></div>
-      <div class="context-scroll">
+      <div class="sidebar-body">
+        <section class="sidebar-panel" data-sidebar-panel="chat">
+        <aside id="activity-panel" class="activity-panel panel" aria-labelledby="activity-heading">
+          <div class="activity-header">
+            <h2 id="activity-heading" class="activity-title">LOG</h2>
+            <select id="activity-filter" class="activity-filter" aria-label="Show"><option value="play" selected>PLAY</option><option value="all">ALL</option><option value="character">CHARACTER</option><option value="trade">TRADE + JOBS</option><option value="ship">SHIP + TRAVEL</option><option value="personal-combat">PERSONAL COMBAT</option><option value="space-combat">SPACE COMBAT</option><option value="campaign">CAMPAIGN + NOTES</option><option value="system">SYSTEM</option></select>
+            <select id="activity-order" class="activity-order" aria-label="Order"><option value="newest" selected>NEWEST</option><option value="oldest">OLDEST</option></select>
+            <span class="activity-header-actions"><button id="add-activity-note" class="text-button" type="button">[ NOTE ]</button><button id="clear-activity" class="text-button activity-clear" type="button">[ CLEAR ]</button></span>
+          </div>
+          <div id="activity-feed" class="activity-feed" role="log" aria-live="polite" aria-relevant="additions"></div>
+        </aside>
+          <div id="chat-composer" class="chat-composer" hidden>
+            <div id="dice-tray" class="dice-tray" aria-label="Dice tray"></div>
+            <form id="chat-form" class="chat-form">
+              <input id="chat-input" type="text" maxlength="500" autocomplete="off" placeholder="say something, or /roll 2d6+1">
+              <button id="chat-send" class="text-button" type="submit">[ SEND ]</button>
+            </form>
+          </div>
+        </section>
+        <section class="sidebar-panel" data-sidebar-panel="combat" hidden>
             <section id="combat-rail-section" class="context-panel combat-rail" hidden aria-labelledby="combat-rail-heading">
               <div class="section-heading">
                 <h2 id="combat-rail-heading" class="section-title">COMBAT</h2>
@@ -342,6 +300,42 @@
                 <div id="encounter-record" class="encounter-record" aria-live="polite"></div>
               </details>
             </section>
+        </section>
+        <section class="sidebar-panel" data-sidebar-panel="scenes" hidden>
+          <div id="directory-scenes" class="campaign-directory" aria-label="Scenes" aria-live="polite"></div>
+        </section>
+        <section class="sidebar-panel" data-sidebar-panel="actors" hidden>
+            <section id="roster-section" class="context-panel" hidden aria-labelledby="roster-heading">
+              <div class="section-heading">
+                <h2 id="roster-heading" class="section-title">ACTOR ROSTER</h2>
+                <button id="roster-new-actor" class="text-button" type="button">[ NEW NPC ]</button>
+              </div>
+              <div class="roster-basis">PERSISTENT CAMPAIGN ACTORS // CLASSIC CHARACTERISTICS, SKILLS, EQUIPMENT, NOTES, PORTRAIT, AND BODY-AWARE STATE</div>
+              <div id="directory-actors" class="campaign-directory" aria-label="Actors" aria-live="polite"></div>
+              <div id="roster-folders" class="roster-folders" aria-live="polite"></div>
+            </section>
+        </section>
+        <section class="sidebar-panel" data-sidebar-panel="vehicles" hidden>
+      <section id="live-ship-panel" class="live-ship-panel" aria-labelledby="live-ship-heading">
+              <div class="live-ship-heading">
+                <strong id="live-ship-heading">SHIP STATUS</strong>
+                <span id="live-ship-identity" class="live-ship-identity">NO ACTIVE SHIP</span>
+              </div>
+              <div id="live-ship-status" class="live-ship-status" aria-live="polite"></div>
+            </section>
+            <div class="sidebar-buttons">
+              <button id="open-ship-view" class="text-button utility-button" type="button" title="Ship register" hidden>[ SHIP REGISTER ]</button>
+            </div>
+            <div id="directory-vehicles" class="campaign-directory" aria-label="Vehicles"></div>
+        </section>
+        <section class="sidebar-panel" data-sidebar-panel="port" hidden>
+      <div id="context-tabs" class="context-tabs" role="tablist" aria-label="Context views">
+        <button id="operations-tab-port" class="text-button context-tab" type="button" role="tab" aria-controls="port-services-section" aria-selected="true">WORLD</button>
+        <button id="operations-tab-trade" class="text-button context-tab" type="button" role="tab" aria-controls="commerce-section" aria-selected="false">TRADE</button>
+        <button id="operations-tab-jobs" class="text-button context-tab" type="button" role="tab" aria-controls="contract-section" aria-selected="false">JOBS</button>
+        <button id="operations-tab-roster" class="text-button context-tab" type="button" role="tab" aria-controls="roster-section" aria-selected="false" title="Persistent NPC, creature, and robot roster">NPCS</button>
+      </div>
+      <div id="context-takeover" class="context-takeover" hidden></div>
             <section id="port-services-section" class="context-panel" hidden aria-labelledby="port-services-heading">
               <div class="section-heading">
                 <h2 id="port-services-heading" class="section-title">PORT SERVICES</h2>
@@ -374,21 +368,66 @@
               <div id="situation-actions" class="actions operations-primary-actions situation-actions" aria-label="Situation actions"></div>
               <pre id="situation-record" class="record operations-panel-record situation-record" aria-live="polite"></pre>
             </section>
-            <section id="roster-section" class="context-panel" hidden aria-labelledby="roster-heading">
-              <div class="section-heading">
-                <h2 id="roster-heading" class="section-title">ACTOR ROSTER</h2>
-                <button id="roster-new-actor" class="text-button" type="button">[ NEW NPC ]</button>
-              </div>
-              <div class="roster-basis">PERSISTENT CAMPAIGN ACTORS // CLASSIC CHARACTERISTICS, SKILLS, EQUIPMENT, NOTES, PORTRAIT, AND BODY-AWARE STATE</div>
-              <div id="directory-actors" class="campaign-directory" aria-label="Actors" aria-live="polite"></div>
-              <div id="directory-vehicles" class="campaign-directory" aria-label="Vehicles"></div>
-              <!-- v0.74.1: scenes, in folders, like the actors. -->
-              <div id="directory-scenes" class="campaign-directory" aria-label="Scenes" aria-live="polite"></div>
-              <div id="roster-folders" class="roster-folders" aria-live="polite"></div>
-            </section>
-          </div>
-    </aside>
+        </section>
+        <section class="sidebar-panel" data-sidebar-panel="journal" hidden>
+            <div class="sidebar-buttons">
+              <button id="open-campaign-view" class="text-button utility-button" type="button" title="Campaign record" hidden>[ CAMPAIGN RECORD ]</button>
+              <button id="open-threads-view" class="text-button utility-button" type="button" title="Adventure threads" hidden>[ ADVENTURE THREADS ]</button>
+            </div>
+    <section id="chargen-record-section" class="panel chargen-record" hidden aria-label="Character history and generation log">
+      <div>
+        <div class="section-heading">
+          <h2 class="section-title">SERVICE HISTORY</h2>
+          <button class="help-button" type="button" data-help-topic="service-history" aria-label="Explain service history">[?]</button>
         </div>
+        <pre id="service-history" class="history"></pre>
+      </div>
+      <div>
+        <div class="section-heading">
+          <h2 class="section-title">GENERATION LOG</h2>
+          <button class="help-button" type="button" data-help-topic="generation-log" aria-label="Explain generation log">[?]</button>
+        </div>
+        <pre id="generation-log" class="history"></pre>
+      </div>
+    </section>
+        </section>
+        <section class="sidebar-panel" data-sidebar-panel="tables" hidden>
+    <section id="chargen-tables-section" class="panel context-panel" hidden aria-labelledby="chargen-tables-heading">
+      <div class="section-heading">
+        <h2 id="chargen-tables-heading" class="section-title">BOOK 1 TABLES</h2>
+      </div>
+      <div id="chargen-tables" class="chargen-tables"></div>
+    </section>
+          <div id="rollable-tables" class="directory-empty">ROLLABLE TABLES ARRIVE WITH THE JOURNAL PASS. THE BOOK 1 TABLES SHOW HERE DURING CHARACTER GENERATION.</div>
+        </section>
+        <section class="sidebar-panel" data-sidebar-panel="players" hidden>
+            <div id="publish-status" class="publish-status">LOCAL ONLY</div>
+            <div class="sidebar-buttons">
+              <button id="publish-campaign" class="text-button utility-button" type="button" title="Publish this campaign so seated players can read it">[ PUBLISH ]</button>
+              <button id="publish-view" class="text-button utility-button" type="button" title="Publish the player-safe view of the current scene" hidden>[ PUBLISH SCENE ]</button>
+              <button id="open-players" class="text-button utility-button" type="button" title="Players, invites, and requests to sit down" hidden>[ PLAYERS AND INVITES ]</button>
+            </div>
+        </section>
+        <section class="sidebar-panel" data-sidebar-panel="settings" hidden>
+            <div class="sidebar-group-title">CAMPAIGN FILES</div>
+            <div class="sidebar-buttons">
+              <button id="save-campaign" class="text-button utility-button" type="button" title="Save the campaign in this browser and, signed in, in the cloud" disabled>[ SAVE NOW ]</button>
+              <button id="reload-campaign-cloud" class="text-button utility-button" type="button" title="Replace the browser copy with the campaign's cloud copy">[ RELOAD FROM CLOUD ]</button>
+              <button id="load-campaign" class="text-button utility-button" type="button" title="Load the campaign saved in this browser">[ LOAD BROWSER COPY ]</button>
+              <button id="import-campaign" class="text-button utility-button" type="button" title="Import a portable campaign JSON file">[ IMPORT CAMPAIGN ]</button>
+              <button id="export-campaign" class="text-button utility-button" type="button" title="Export a portable campaign JSON file" disabled>[ EXPORT CAMPAIGN ]</button>
+              <a id="open-lobby" class="text-button utility-button" href="enter.html" title="Your characters and campaigns">[ LOBBY ]</a>
+            </div>
+            <div class="sidebar-group-title">TABLE</div>
+            <div class="sidebar-buttons">
+              <button id="new-campaign" class="text-button utility-button" type="button" title="Create a campaign from the current completed character">[ NEW CAMPAIGN ]</button>
+              <button id="add-character-to-campaign" class="text-button utility-button" type="button" title="Add a completed Character Document to the active campaign" hidden>[ ADD CHARACTER ]</button>
+              <button id="referee-new-npc" class="text-button utility-button" type="button" title="Roll a character at the table — an NPC, or a PC for a player without an account" hidden>[ ROLL A CHARACTER ]</button>
+              <button id="toggle-activity" class="text-button utility-button" type="button" aria-expanded="true" aria-controls="activity-panel" hidden>[ HIDE LOG ]</button>
+            </div>
+        </section>
+      </div>
+    </aside>
 
     <dialog id="roll-dialog" class="roll-dialog" aria-labelledby="roll-dialog-title">
       <form id="roll-dialog-form" class="roll-dialog-form" method="dialog">
@@ -610,7 +649,6 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
       <div id="help-body" class="help-body"></div>
     </aside>
   </main>
-
   <script type="module" src="./app.js"></script>
 </body>
 </html>

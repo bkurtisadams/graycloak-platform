@@ -3341,3 +3341,69 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
    their own min-height (.procedure); WHAT NOW? text then spilled under the
    action buttons. Nothing in the rail shrinks — the rail scrolls. */
 .enter-chargen-rail > * { flex: 0 0 auto; }
+
+/* --- v0.75.0: the shell. The canvas fills the window; a rail on the left,
+   a tabbed sidebar on the right. Overrides the terminal's three-column grid. */
+.terminal.shell {
+  width: 100vw; max-width: none; margin: 0; padding: 0;
+  height: 100vh; box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) 380px;
+  grid-template-rows: 40px minmax(0, 1fr);
+  grid-template-areas: "mast mast mast" "rail stage side";
+  column-gap: 0; row-gap: 0;
+  overflow: hidden;
+}
+.terminal.shell.sidebar-collapsed { grid-template-columns: 56px minmax(0, 1fr) 44px; }
+.shell-masthead { grid-area: mast; align-items: center; padding: 0 12px; border-bottom: 1px solid var(--rule); background: var(--paper); margin: 0; }
+.shell-masthead .masthead-main { display: flex; align-items: center; gap: 14px; width: 100%; }
+.shell-masthead .product-line { display: flex; align-items: baseline; gap: 8px; }
+.shell-masthead .masthead-utility { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; font-size: 11px; }
+.shell-rail { grid-area: rail; display: flex; flex-direction: column; gap: 10px; padding: 8px 6px; border-right: 1px solid var(--rule); background: var(--paper); overflow: hidden; }
+.shell-rail .scene-tabs { display: flex; flex-direction: column; gap: 4px; padding: 0; border: 0; }
+.shell-rail .scene-tab { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 10px; letter-spacing: .12em; padding: 8px 4px; border: 1px solid var(--rule); background: var(--paper); text-align: center; }
+.shell-rail .scene-tab.is-active { background: var(--tab-selected); border-color: var(--tab-selected-border); font-weight: 700; }
+.shell-rail .scene-tab.attention { border-color: var(--failure-border); }
+.rail-tools { display: flex; flex-direction: column; gap: 4px; border-top: 1px dotted var(--disabled); padding-top: 8px; }
+.rail-tool { font: inherit; font-size: 10px; letter-spacing: .06em; padding: 5px 2px; border: 1px solid var(--rule); background: var(--paper); color: var(--ink); cursor: pointer; }
+.rail-tool.is-active { background: var(--tab-selected); border-color: var(--tab-selected-border); }
+.rail-tool:disabled { color: var(--disabled); cursor: default; }
+.shell-stage { grid-area: stage; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--paper); }
+.shell-stage .canvas { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.shell-stage #subsector-section, .shell-stage #encounter-section { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.shell-stage .subsector-map { flex: 1 1 auto; min-height: 0; height: auto; }
+.shell-stage .encounter-map-viewport { flex: 1 1 auto; min-height: 0; height: auto; }
+.shell-stage .sheet-view, .shell-stage #personnel-section { overflow: auto; }
+.shell-sidebar { grid-area: side; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--rule); background: var(--paper); }
+.sidebar-collapsed .shell-sidebar .sidebar-body, .sidebar-collapsed .shell-sidebar #procedure-section, .sidebar-collapsed .shell-sidebar .campaign-header-strip, .sidebar-collapsed .sidebar-tab-label { display: none; }
+.sidebar-collapsed .sidebar-tabs { grid-template-columns: 1fr; }
+.sidebar-tabs { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+.sidebar-tab { font: inherit; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 5px 0 3px; border: 0; border-right: 1px dotted var(--disabled); background: var(--paper); color: var(--muted); cursor: pointer; }
+.sidebar-tab:last-child { border-right: 0; }
+.sidebar-tab-icon { font-size: 14px; line-height: 1; }
+.sidebar-tab-label { font-size: 8px; letter-spacing: .06em; }
+.sidebar-tab.is-active { color: var(--ink); background: var(--tab-selected); }
+.sidebar-tab.attention .sidebar-tab-icon { color: var(--failure-border); }
+.sidebar-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 8px 10px; }
+.sidebar-panel > .context-panel { display: block; }
+.sidebar-panel .section-heading { margin-top: 0; }
+.sidebar-group-title { font-size: 10px; letter-spacing: .1em; color: var(--muted); font-weight: 700; padding: 8px 0 3px; }
+.sidebar-buttons { display: flex; flex-direction: column; gap: 4px; align-items: stretch; }
+.sidebar-buttons .utility-button { text-align: left; }
+.shell #procedure-section { margin: 8px 10px 0; }
+.shell .campaign-header-strip { margin: 8px 10px 0; }
+.shell .activity-panel { border: 0; padding: 0; margin: 0; }
+.shell .activity-feed { max-height: none; }
+.chat-composer { border-top: 1px solid var(--rule); padding-top: 6px; margin-top: 6px; }
+.chat-form { display: flex; gap: 6px; }
+.chat-form input { flex: 1 1 auto; font: inherit; font-size: 11px; padding: 3px 5px; }
+.dice-tray { display: flex; flex-wrap: wrap; gap: 4px; padding-bottom: 6px; }
+.dice-tray button { font: inherit; font-size: 10px; letter-spacing: .04em; padding: 3px 6px; border: 1px solid var(--rule); background: var(--paper); color: var(--ink); cursor: pointer; }
+.dice-tray button.two-d { font-weight: 700; border-color: var(--tab-selected-border); }
+.chat-line { border-top: 1px dotted var(--disabled); padding: 3px 0; font-size: 11px; }
+.chat-line.roll { background: var(--help-paper); padding: 4px 6px; }
+.chat-line .chat-who { font-weight: 700; letter-spacing: .06em; }
+.chat-line .chat-when { color: var(--muted); font-size: 10px; margin-left: 6px; }
+.chat-line.private { border-left: 3px solid var(--failure-border); padding-left: 6px; }
+.player-log-entry.roll { background: var(--help-paper); padding-left: 6px; }
+.player-log-entry.mine .player-log-message { color: var(--ink); font-weight: 700; }
