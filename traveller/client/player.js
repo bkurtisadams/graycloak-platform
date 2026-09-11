@@ -274,6 +274,17 @@ function renderMap() {
     },
     interaction: {
       canDrag: (token) => owned.has(token.id) && Boolean(view.declaringRound),
+      // v0.73.2: the drag stops at the allowance. Each axis is capped so the
+      // token slides along the boundary rather than jumping back.
+      constrain: (token, from, to) => {
+        const allowance = allowanceFor(el.movePace.value);
+        const gridScale = view.map.metersPerSquare;
+        const cap = Math.floor(allowance / gridScale) * gridScale;
+        return {
+          column: from.column + Math.max(-cap, Math.min(cap, to.column - from.column)),
+          row: from.row + Math.max(-cap, Math.min(cap, to.row - from.row))
+        };
+      },
       describe: (token, from, to) => {
         const pace = el.movePace.value;
         const distance = Math.max(Math.abs(to.column - from.column), Math.abs(to.row - from.row));

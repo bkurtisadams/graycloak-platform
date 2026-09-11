@@ -199,8 +199,10 @@ export function createSceneCanvas({ svg, viewport = null, onCamera = null, maxZo
   }
 
   // Drag: threshold, grid snap, trail from where the move began, label in
-  // screen units. `describe(token, from, to)` returns { legal: 'legal'|'limit'|'over', text }.
-  function attachDrag(group, token, { canDrag, describe, onDrop, onSelect }) {
+  // screen units. `constrain(token, from, to)` may return a nearer square —
+  // the token then stops at the allowance rather than going past it — and
+  // `describe(token, from, to)` returns { legal: 'legal'|'limit'|'over', text }.
+  function attachDrag(group, token, { canDrag, constrain, describe, onDrop, onSelect }) {
     let drag = null;
     group.addEventListener('pointerdown', (event) => {
       if (event.button !== 0) return;
@@ -230,8 +232,11 @@ export function createSceneCanvas({ svg, viewport = null, onCamera = null, maxZo
       if (!drag.moved) return;
       const { cell, gridScale, tokenScale } = metrics();
       const point = pointFromClient(event.clientX, event.clientY);
-      drag.column = clamp(Math.round((point.x - drag.grabX) / cell / gridScale) * gridScale, 0, board.columns - 1);
-      drag.row = clamp(Math.round((point.y - drag.grabY) / cell / gridScale) * gridScale, 0, board.rows - 1);
+      let column = clamp(Math.round((point.x - drag.grabX) / cell / gridScale) * gridScale, 0, board.columns - 1);
+      let row = clamp(Math.round((point.y - drag.grabY) / cell / gridScale) * gridScale, 0, board.rows - 1);
+      const constrained = constrain?.(token, drag.from, { column, row });
+      if (constrained) { column = clamp(constrained.column, 0, board.columns - 1); row = clamp(constrained.row, 0, board.rows - 1); }
+      drag.column = column; drag.row = row;
       const described = describe?.(token, drag.from, { column: drag.column, row: drag.row }) ?? { legal: 'legal', text: '' };
       if (drag.frame) return;
       drag.frame = window.requestAnimationFrame(() => {

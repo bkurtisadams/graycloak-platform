@@ -1,5 +1,14 @@
 # Graycloak Traveller
 
+## v0.73.2 the drag stops at the allowance
+
+A player could drag past the walk or run allowance, drop, and watch the token
+go back. The canvas gains a `constrain` hook a page may use to cap the
+destination while the drag is in progress; the player page caps each axis to
+the allowance in whole grid squares, so the token slides along the boundary
+and the label reads `LIMIT` there. The referee's own drags are not capped —
+the referee places tokens where the fiction puts them.
+
 ## v0.73.1 a player's drag reaches the referee's board
 
 Every player token drag since v0.61.0 was refused by the referee's client with
