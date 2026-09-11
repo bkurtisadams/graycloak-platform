@@ -175,7 +175,7 @@ import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus }
 import { openSignInDialog } from './signin-ui.js';
 import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord } from './publish.js';
 import { authorizePlayerDeclaration } from '../src/player-declaration.js';
-import { authorizePlayerTokenMove } from '../src/player-token-movement.js';
+import { authorizePlayerTokenMove, playerMoveToCombatantMove } from '../src/player-token-movement.js';
 import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog } from '../src/published-view.js';
 import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js';
 import {
@@ -4326,7 +4326,7 @@ function applyPlayerTokenMoves(entries) {
     if (appliedMoveIds.has(entry.id)) continue;
     try {
       const move = authorizePlayerTokenMove(entry, { campaign: campaignDocument, encounter: encounterDocuments[index] });
-      encounterDocuments[index] = moveEncounterCombatantByPlayer(encounterDocuments[index], move).encounter;
+      encounterDocuments[index] = moveEncounterCombatantByPlayer(encounterDocuments[index], playerMoveToCombatantMove(move)).encounter;
       appliedMoveIds.add(entry.id);
       changed = true;
     } catch (error) {

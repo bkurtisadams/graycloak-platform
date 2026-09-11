@@ -1,5 +1,19 @@
 # Graycloak Traveller
 
+## v0.73.1 a player's drag reaches the referee's board
+
+Every player token drag since v0.61.0 was refused by the referee's client with
+`combatant is unavailable`. The move intent speaks of an `actorId`; the
+encounter's mover expects a `combatantId`; the referee passed one where the
+other was wanted. The Firestore rules for `moves` were never in the console
+until this week, so the refusal never had a chance to appear. There is no
+approval step and never was: a legal drag is applied and republished at once,
+and only an illegal one is refused, with the reason on the player's page.
+
+`playerMoveToCombatantMove()` in `src/player-token-movement.js` is the
+adapter, and a test applies an authorized intent to a real encounter — and
+asserts the raw intent still fails, so the bug stays named.
+
 ## v0.73.0 one combat canvas
 
 The structural half of the combat audit, finished. `client/scene-canvas.js`

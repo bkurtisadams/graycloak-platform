@@ -26,3 +26,12 @@ export function authorizePlayerTokenMove(raw, { campaign, encounter } = {}) {
   if (distance > allowance) throw new Error(`${move.pace} movement exceeds ${allowance} meters`);
   return move;
 }
+
+// v0.73.1: the shape moveEncounterCombatantByPlayer takes. A move intent
+// speaks of an actorId; the encounter speaks of a combatantId. They are the
+// same id, and the referee's client passed one where the other was expected
+// for twelve versions — every player drag was refused as "combatant is
+// unavailable" the first time a rule let the write through.
+export function playerMoveToCombatantMove(move) {
+  return { combatantId: move.actorId, column: move.column, row: move.row, pace: move.pace, round: move.round, replaceExisting: true };
+}
