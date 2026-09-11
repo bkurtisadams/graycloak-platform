@@ -169,17 +169,18 @@ HTH         d6      Inventing 6   Mass d4 (~100 lbs)
 
 ```
 Base BCs:    ST 9   EN 13  AG 19  IN 4  CL 8
-Size mod:    -1 ST  -1 EN  (Size Change B: Smaller 5 CP, 3' tier)
+Size mod:    -1 ST  -1 EN  (Size Change B: Smaller 3'; permanent: Stays Active +2.5, Can't Hold Back -5; final 2.5 CP)
 Effective:   ST 8   EN 12  AG 19  IN 4  CL 8
 
 Hits        19      Power 43      Move 13 swim    Init d3
 HTH         d3      Inventing 2   Mass d3 (~80 lbs)   Profile /2
 ```
 
-**Abilities:** Size Change B: Smaller 3' (5 CP); Non-Proportional Swimming (2.5 CP); Heightened Physical Defense +6 (15 CP); Durability +10 Hits; Adaptation: Radiation; Natural Weaponry bite (+2 attack, +2 sharp damage); Change Environment: 7" stationary Hard Radiation slick, 10-minute duration (18.75 CP; Activation Power PR 2 once; triggers when attacked; 5 Devitalization Entropy/round).
+**Abilities:** Size Change B: Smaller 3' (base 5 CP; Stays Active +2.5; Can't Hold Back -5; final 2.5 CP); Non-Proportional Swimming (final 2.5 CP); Adaptation: Aquatic (final 5 CP); Adaptation: Radiation (final 5 CP); Natural Weaponry bite (+0 attack 0 CP; +4 sharp damage 5 CP; final 5 CP); Change Environment: 7" Hard Radiation field (base 5 CP; Hard Radiation +2.5; final 7.5 CP; 5 Devitalization Entropy/round; released only when attacked).
+**Source hazard:** When attacked, the Barl Nep releases its 10m-diameter (7") oil slick. It remains in calm water for 10 minutes. Treat the stationary slick and its duration as the source-defined aftermath of Change Environment, using normal MP Entropy protection, rolling, incapacitation, and death rules; do not price it as an extra unverified duration or activation modifier.
 **Resource:** If killed and harvested: yields one 7" ordinary-radiation oil slick for 10 minutes (1 Devitalization Entropy/round). Treat as recoverable hazard/treasure, not a second living-creature attack.
-**CP estimate:** ~115
-**CP estimate:** ~83
+**CP ledger:** BCs 51 + Abilities 27.5 + Weaknesses 0 = 78.5; round up = **79 CP**.
+**CP estimate:** 79
 **Origin:** Mutated or Evolved
 **Tactics:** Defensive — secretes oil only when attacked. Field persists 10 min in calm water; deters pursuit.
 

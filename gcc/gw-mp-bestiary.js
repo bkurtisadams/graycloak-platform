@@ -197,8 +197,8 @@
       "gwSource": "AC 3, HD 20, MV 20. 1m totally black fish. If attacked: secretes radioactive oil intensity 18 covering 10m diameter area, lasts 10 min in calm water. Killed: extracts intensity 12 oil for 10-min slick.",
       "build": "Mutated fish; individually priced traits",
       "origin": "Mutated or Evolved",
-      "cpEstimate": "~115",
-      "abilities": "Size Change B: Smaller 3' (5 CP); Non-Proportional Swimming (2.5 CP); Heightened Physical Defense +6 (15 CP); Durability +10 Hits; Adaptation: Radiation; Natural Weaponry bite (+2 attack, +2 sharp damage); Change Environment: 7\" stationary Hard Radiation slick, 10-minute duration (18.75 CP; Activation Power PR 2 once; triggers when attacked; 5 Devitalization Entropy/round).",
+      "cpEstimate": "79",
+      "abilities": "Size Change B: Smaller 3' (base 5 CP; Stays Active +2.5; Can't Hold Back -5; final 2.5 CP); Non-Proportional Swimming (final 2.5 CP); Adaptation: Aquatic (final 5 CP); Adaptation: Radiation (final 5 CP); Natural Weaponry bite (+0 attack 0 CP; +4 sharp damage 5 CP; final 5 CP); Change Environment: 7\" Hard Radiation field (base 5 CP; Hard Radiation +2.5; final 7.5 CP; 5 Devitalization Entropy/round; released only when attacked).",
       "weaknesses": null,
       "equipment": null,
       "forms": [
