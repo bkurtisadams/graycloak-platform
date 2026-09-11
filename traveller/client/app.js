@@ -93,6 +93,7 @@ import {
 import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js';
 import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js';
 import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, setSceneTokenCombat, clearSceneCombatTracker, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS } from '../src/scene-document.js';
+import { directoryFolders } from '../src/campaign-document.js';
 import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js';
 import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js';
 
@@ -5038,6 +5039,84 @@ async function removeSeatedPlayer(uid) {
   }
 }
 
+// v0.76.0: actors are folders you drag from. Dropped on a staged scene an
+// actor is placed there and then follows the scene the way ADD CHARACTER
+// always did; dropped on the combat setup dialog it fills the next open
+// opponent or party slot the way the picker did — the same actions, reached
+// by drag as well as by button, because a picker is still there for anyone
+// who would rather click.
+function directoryOwnerControl(item) {
+  const owner = document.createElement('input');
+  owner.className = 'directory-owner';
+  owner.type = 'text';
+  owner.value = item.ownerUid ?? '';
+  owner.placeholder = 'REFEREE';
+  owner.title = 'Account that plays this actor; blank means the referee runs it';
+  owner.addEventListener('change', () => {
+    try {
+      campaignDocument = setDocumentOwner(campaignDocument, { documentId: item.id, ownerUid: owner.value.trim() });
+      persistCampaignState();
+      render();
+    } catch (error) {
+      console.error(error);
+      setStatus(error?.message ?? String(error), 'error');
+    }
+  });
+  return owner;
+}
+
+function directoryClaimButton(item) {
+  const uid = currentUserId();
+  if (!uid || item.ownerUid === uid) return null;
+  const claim = makePortButton('ME', () => {
+    try {
+      campaignDocument = setDocumentOwner(campaignDocument, { documentId: item.id, ownerUid: uid });
+      persistCampaignState();
+      render();
+    } catch (error) {
+      console.error(error);
+      setStatus(error?.message ?? String(error), 'error');
+    }
+  });
+  claim.title = 'Assign this actor to the signed-in account';
+  return claim;
+}
+
+function directoryDragPayload(item) {
+  return JSON.stringify({ graycloakActor: item.kind, id: item.id });
+}
+
+function renderDirectoryFolders(container, entries, { emptyText, draggable = false } = {}) {
+  const rows = [];
+  if (!entries.length) {
+    rows.push(Object.assign(document.createElement('div'), { className: 'directory-empty', textContent: emptyText }));
+    container.replaceChildren(...rows);
+    return;
+  }
+  for (const { folder, items } of directoryFolders(entries)) {
+    const folderRow = document.createElement('div');
+    folderRow.className = 'directory-folder';
+    folderRow.textContent = `${folder.toUpperCase()} [${items.length}]`;
+    rows.push(folderRow);
+    for (const item of items) {
+      const row = document.createElement('div');
+      row.className = `directory-row kind-${item.kind}`;
+      if (draggable) {
+        row.draggable = true;
+        row.classList.add('draggable');
+        row.title = 'Drag onto a staged scene or the combat setup dialog to place';
+        row.addEventListener('dragstart', (event) => { event.dataTransfer.setData('application/x-graycloak-actor', directoryDragPayload(item)); event.dataTransfer.effectAllowed = 'copy'; });
+      }
+      const name = document.createElement('span'); name.className = 'directory-name'; name.textContent = item.name.toUpperCase();
+      const detail = document.createElement('span'); detail.className = 'directory-detail'; detail.textContent = item.detail.toUpperCase();
+      row.append(name, detail);
+      if (item.kind !== 'ship') { row.append(directoryOwnerControl(item)); const claim = directoryClaimButton(item); if (claim) row.append(claim); }
+      rows.push(row);
+    }
+  }
+  container.replaceChildren(...rows);
+}
+
 function renderCampaignDirectory() {
   if (!el.directoryActors) return;
   if (!campaignDocument) {
@@ -5050,65 +5129,22 @@ function renderCampaignDirectory() {
     npcActors: npcActorDocuments,
     ships: shipDocument ? [shipDocument] : []
   });
-
-  const section = (title, entries, emptyText) => {
-    const heading = document.createElement('div');
-    heading.className = 'directory-heading';
-    heading.textContent = `${title} [${entries.length}]`;
-    if (!entries.length) {
-      const empty = document.createElement('div');
-      empty.className = 'directory-empty';
-      empty.textContent = emptyText;
-      return [heading, empty];
-    }
-    return [heading, ...entries.map((item) => {
-      const row = document.createElement('div');
-      row.className = `directory-row kind-${item.kind}`;
-      const name = document.createElement('span');
-      name.className = 'directory-name';
-      name.textContent = item.name.toUpperCase();
-      const detail = document.createElement('span');
-      detail.className = 'directory-detail';
-      detail.textContent = item.detail.toUpperCase();
-      const owner = document.createElement('input');
-      owner.className = 'directory-owner';
-      owner.type = 'text';
-      owner.value = item.ownerUid ?? '';
-      owner.placeholder = 'REFEREE';
-      owner.title = 'Account that plays this actor; blank means the referee runs it';
-      owner.addEventListener('change', () => {
-        try {
-          campaignDocument = setDocumentOwner(campaignDocument, { documentId: item.id, ownerUid: owner.value.trim() });
-          persistCampaignState();
-          render();
-        } catch (error) {
-          console.error(error);
-          setStatus(error?.message ?? String(error), 'error');
-        }
-      });
-      row.append(name, detail, owner);
-      const uid = currentUserId();
-      if (uid && item.ownerUid !== uid) {
-        const claim = makePortButton('ME', () => {
-          try {
-            campaignDocument = setDocumentOwner(campaignDocument, { documentId: item.id, ownerUid: uid });
-            persistCampaignState();
-            render();
-          } catch (error) {
-            console.error(error);
-            setStatus(error?.message ?? String(error), 'error');
-          }
-        });
-        claim.title = 'Assign this actor to the signed-in account';
-        row.append(claim);
-      }
-      return row;
-    })];
-  };
-
-  el.directoryActors.replaceChildren(...section('ACTORS', directory.actors, 'NO CHARACTERS OR NPCS'));
-  el.directoryVehicles.replaceChildren(...section('VEHICLES', directory.vehicles, 'NO SHIP OR VEHICLE'));
+  renderDirectoryFolders(el.directoryActors, directory.actors, { emptyText: 'NO CHARACTERS OR NPCS', draggable: true });
+  renderDirectoryFolders(el.directoryVehicles, directory.vehicles, { emptyText: 'NO SHIP OR VEHICLE' });
   renderSceneDirectory();
+}
+
+// Reads what a drop carries, whichever panel dropped it: an actor id and
+// whether it is a party character or a roster actor.
+function readActorDrop(event) {
+  const raw = event.dataTransfer?.getData('application/x-graycloak-actor');
+  if (!raw) return null;
+  try {
+    const payload = JSON.parse(raw);
+    if (payload.graycloakActor === 'character') return { kind: 'character', actorId: payload.id, side: 'party' };
+    if (payload.graycloakActor === 'npc') return { kind: 'npc', actorId: payload.id, side: 'opposition' };
+    return null;
+  } catch { return null; }
 }
 
 // --- v0.72.0: scenes in the directory, grouped by folder -------------------
@@ -5178,6 +5214,28 @@ function renderStagedScene(scene) {
   hideEncounterTokenOverlays();
   const board = encounterCanvas();
   board.setBoard(sceneBoardCells(scene));
+  // v0.76.0: drag an actor from the ACTORS sidebar onto the board to place it,
+  // at the square the pointer lands on.
+  const viewport = el.encounterMapViewport;
+  viewport.ondragover = (event) => { if (event.dataTransfer?.types.includes('application/x-graycloak-actor')) event.preventDefault(); };
+  viewport.ondrop = (event) => {
+    const dropped = readActorDrop(event);
+    if (!dropped) return;
+    event.preventDefault();
+    if (scene.tokens.some((token) => token.actorId === dropped.actorId)) { setStatus('THAT ACTOR IS ALREADY ON THIS SCENE', 'error'); return; }
+    const point = encounterMapPoint(event.clientX, event.clientY);
+    const { cell } = encounterCanvas().metrics();
+    const cells = sceneBoardCells(scene);
+    const column = Math.max(0, Math.min(cells.columns - 1, Math.round(point.x / cell / scene.board.metersPerSquare) * scene.board.metersPerSquare));
+    const row = Math.max(0, Math.min(cells.rows - 1, Math.round(point.y / cell / scene.board.metersPerSquare) * scene.board.metersPerSquare));
+    const named = sceneActorNames().get(dropped.actorId);
+    if (!named) { setStatus('ACTOR IS UNAVAILABLE', 'error'); return; }
+    try {
+      updateScene(scene.identity.id, (doc) => placeSceneToken(doc, { actorId: dropped.actorId, side: dropped.side, column, row, label: named.name.charAt(0).toUpperCase() }).scene);
+      setStatus(`${named.name.toUpperCase()} PLACED ON THE SCENE`, 'ok');
+      renderEncounter();
+    } catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); }
+  };
   const names = sceneActorNames();
   const tracked = new Set(trackedSceneTokens(scene).map((token) => token.id));
   const tokens = scene.tokens.map((token) => {
@@ -5537,7 +5595,26 @@ function addRosterActorToCombatSetup(actorId = el.combatRosterActor.value) {
   setStatus(`ROSTER ACTOR ADDED TO COMBAT SETUP: ${actor.identity.name.toUpperCase()}`, 'ok');
 }
 
+// Dropping an actor on the combat setup dialog is the same as picking it in
+// ADD ROSTER ACTOR / ADD CHARACTER — it fills the next slot, once.
+function combatSetupDropZone() {
+  const zone = el.combatSetupDialog;
+  if (!zone || zone.dataset.dropWired) return;
+  zone.dataset.dropWired = 'true';
+  zone.addEventListener('dragover', (event) => { if (event.dataTransfer?.types.includes('application/x-graycloak-actor')) event.preventDefault(); });
+  zone.addEventListener('drop', (event) => {
+    const dropped = readActorDrop(event);
+    if (!dropped) return;
+    event.preventDefault();
+    try {
+      if (dropped.kind === 'character') { setStatus('EVERY PARTY CHARACTER IS ALREADY IN A MANUAL SETUP', 'ok'); return; }
+      addRosterActorToCombatSetup(dropped.actorId);
+    } catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); }
+  });
+}
+
 function openCombatSetupDialog() {
+  combatSetupDropZone();
   if (!campaignDocument || !gameplayDocument || !mappedCurrentSystem()) {
     setStatus('AN ACTIVE CHARACTER AT A MAPPED CAMPAIGN LOCATION IS REQUIRED', 'error');
     return;

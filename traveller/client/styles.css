@@ -3432,3 +3432,7 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .shell #procedure-section .whatnow-title { display: none; }
 .sidebar-tab { overflow: hidden; min-width: 0; }
 .sidebar-tab-label { font-size: 7px; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: clip; max-width: 100%; }
+/* --- v0.76.0: draggable directory rows. */
+.directory-row.draggable { cursor: grab; }
+.directory-row.draggable:active { cursor: grabbing; }
+.directory-folder { font-size: 10px; letter-spacing: .1em; color: var(--muted); font-weight: 700; padding: 6px 0 2px 2px; border-bottom: 1px dotted var(--disabled); }

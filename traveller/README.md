@@ -1,5 +1,21 @@
 # Graycloak Traveller
 
+## v0.76.0 the ACTORS tab: folders, and drag onto the canvas
+
+`campaignDirectory()` gives each entry a folder — party characters under
+Party, roster NPCs grouped by type (Robots, Creatures, NPCs), ships under
+Vehicles — and `directoryFolders()` groups and sorts them, the way scenes
+already do. The ACTORS and VEHICLES tabs render folders instead of a flat
+list.
+
+Every actor row is draggable. Dropped on a staged scene's board, it is placed
+at the square the pointer lands on — the same as right-click →
+`[ PLACE ACTOR HERE ]`, reached by drag. Dropped on the combat setup dialog,
+a roster NPC fills the next opponent slot the way `[ ADD ROSTER ACTOR ]`
+always did; a party character notes that the whole party is already in a
+manual setup. Nothing that clicked before stopped working — the drag is
+another way in, not a replacement.
+
 ## v0.75.1 the shell, straightened
 
 The first shell had three faults you could see at once. The masthead kept

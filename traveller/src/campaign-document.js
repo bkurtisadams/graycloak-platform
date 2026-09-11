@@ -638,23 +638,40 @@ export function campaignIsPublished(document) {
 
 export function campaignDirectory(document, { characters = [], npcActors = [], ships = [] } = {}) {
   const owners = document?.ownership?.actors ?? {};
-  const entry = (kind, id, name, detail) => ({ kind, id, name, detail, ownerUid: owners[id] ?? null });
+  const entry = (kind, id, name, detail, folder) => ({ kind, id, name, detail, ownerUid: owners[id] ?? null, folder });
   return {
     actors: [
       ...characters.map((character) => entry(
         'character', character.identity.id, character.identity.name,
-        `${character.career?.service ?? 'UNASSIGNED'} / ${character.career?.terms ?? 0} TERMS`
+        `${character.career?.service ?? 'UNASSIGNED'} / ${character.career?.terms ?? 0} TERMS`, 'Party'
       )),
       ...npcActors.map((actor) => entry(
         'npc', actor.identity.id, actor.identity.name,
-        `${actor.profile?.actorType ?? 'npc'}${actor.profile?.role ? ` / ${actor.profile.role}` : ''}`
+        `${actor.profile?.actorType ?? 'npc'}${actor.profile?.role ? ` / ${actor.profile.role}` : ''}`,
+        // v0.76.0: NPCs group by type, Foundry-style, so a full roster is
+        // still scannable — the folder is a fact about the actor, not
+        // something set separately.
+        actor.profile?.actorType ? actor.profile.actorType.charAt(0).toUpperCase() + actor.profile.actorType.slice(1) + 's' : 'NPCs'
       ))
     ],
     vehicles: ships.map((ship) => entry(
       'ship', ship.identity.id, ship.identity.name,
-      `${ship.design?.name ?? 'SHIP'} / ${ship.specifications?.hull?.tons ?? '?'}T / JUMP-${ship.specifications?.drives?.jump?.rating ?? 0}`
+      `${ship.design?.name ?? 'SHIP'} / ${ship.specifications?.hull?.tons ?? '?'}T / JUMP-${ship.specifications?.drives?.jump?.rating ?? 0}`, 'Vehicles'
     ))
   };
+}
+
+// Group directory entries by folder, sorted, the way sceneFolders does for
+// scenes — one function, two directories.
+export function directoryFolders(entries) {
+  const folders = new Map();
+  for (const item of entries) {
+    const key = item.folder || 'Actors';
+    if (!folders.has(key)) folders.set(key, []);
+    folders.get(key).push(item);
+  }
+  return [...folders.entries()].sort(([left], [right]) => left.localeCompare(right))
+    .map(([folder, items]) => ({ folder, items: items.sort((left, right) => left.name.localeCompare(right.name)) }));
 }
 
 export function setDocumentOwner(document, { documentId, ownerUid } = {}) {
