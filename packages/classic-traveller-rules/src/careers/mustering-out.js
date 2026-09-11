@@ -95,7 +95,10 @@ export function musterRollAllowance(terms, rank = 0) {
     throw new RangeError(`rank must be a non-negative integer; received ${rank}`);
   }
 
-  const rankBonus = rank >= 5 ? 3 : rank >= 3 ? 2 : rank >= 1 ? 1 : 0;
+  // Book 1 p.8: rank 1-2 one extra roll; rank 3-4 two; rank 5-6 two extra
+  // rolls AND +1 on Table 1 (benefitTableDM). Jamison, a rank-5 Captain
+  // with five terms, rolls 5 + 2 = 7 on p.25.
+  const rankBonus = rank >= 3 ? 2 : rank >= 1 ? 1 : 0;
   return Object.freeze({ terms, rankBonus, total: terms + rankBonus });
 }
 

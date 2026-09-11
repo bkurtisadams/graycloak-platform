@@ -27,5 +27,9 @@ test('rank adds the correct number of extra mustering-out rolls', () => {
   assert.deepEqual(musterRollAllowance(4, 0), { terms: 4, rankBonus: 0, total: 4 });
   assert.deepEqual(musterRollAllowance(4, 1), { terms: 4, rankBonus: 1, total: 5 });
   assert.deepEqual(musterRollAllowance(4, 3), { terms: 4, rankBonus: 2, total: 6 });
-  assert.deepEqual(musterRollAllowance(4, 5), { terms: 4, rankBonus: 3, total: 7 });
+  // Book 1 p.8: rank 5-6 gets two extra rolls plus +1 on Table 1, not a third
+  // roll. Jamison (p.25): rank 5, five terms, seven rolls.
+  assert.deepEqual(musterRollAllowance(4, 5), { terms: 4, rankBonus: 2, total: 6 });
+  assert.deepEqual(musterRollAllowance(5, 5), { terms: 5, rankBonus: 2, total: 7 });
+  assert.deepEqual(musterRollAllowance(4, 6), { terms: 4, rankBonus: 2, total: 6 });
 });

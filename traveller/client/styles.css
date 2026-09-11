@@ -3304,3 +3304,6 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .scene-dialog input, .scene-dialog select { font: inherit; font-size: 12px; padding: 3px 4px; }
 .scene-size-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: end; }
 .scene-size-note { grid-column: 1 / -1; font-size: 10px; letter-spacing: .06em; color: var(--muted); }
+.enter-generation-log { display: flex; flex-direction: column; gap: 2px; font-size: 10px; letter-spacing: .04em; max-height: 220px; overflow: auto; border-top: 1px dotted var(--disabled); padding-top: 4px; }
+.enter-generation-line { color: var(--muted); white-space: pre-wrap; }
+.enter-generation-line.latest { color: var(--ink); font-weight: 700; }

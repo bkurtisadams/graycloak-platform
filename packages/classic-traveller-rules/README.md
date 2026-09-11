@@ -2,6 +2,12 @@
 
 Pure JavaScript rules package for the Graycloak Classic Traveller browser-game project. It intentionally has no HTML, Foundry, Firebase, or server dependencies.
 
+## v0.24.1 rank 5-6 mustering-out rolls (Book 1 p.8)
+
+Rank 5 or 6 grants two extra mustering-out rolls and +1 on Table 1 — not a
+third roll. The allowance gave three. Jamison on p.25 rolls 5 + 2 = 7 as a
+five-term Captain, which the code now matches.
+
 ## v0.24.0 mustering-out benefits received twice (Book 1 pp.22-23)
 
 A second Travellers' Aid Society result is a wasted roll and a second Scout Ship

@@ -19,7 +19,7 @@ import { importCampaignBundle } from '../src/campaign-bundle.js';
 import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js';
 import { buildPublishedCampaign } from '../src/published-view.js';
 import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js';
-import { buildProcedure } from './ui-model.js';
+import { buildProcedure, formatHistoryEvent } from './ui-model.js';
 import { generateCharacterName } from './generators.js';
 import {
   createCharacterRecord, characterRecordStatus, setCharacterRecordPendingJoin, normalizeInviteCode, createJoinRequest, WORLD_KINDS
@@ -50,6 +50,7 @@ const el = {
   save: document.querySelector('#enter-save-character'),
   discard: document.querySelector('#enter-discard-character'),
   tables: document.querySelector('#enter-tables'),
+  generationLog: document.querySelector('#enter-generation-log'),
   sheet: {
     name: document.querySelector('#enter-sheet-name'),
     date: document.querySelector('#enter-sheet-date'),
@@ -401,6 +402,21 @@ function renderChargen() {
   if (!done && !dead) renderChargenActions(el.actions, character, procedure.available, execute);
   renderChargenSheet(character, el.sheet);
   renderChargenTables(el.tables, character, execute);
+  renderGenerationLog();
+}
+
+// The referee's client logs every chargen event to its Activity Log; the lobby
+// had nothing, so a mustering-out roll landed on the sheet without a word.
+function renderGenerationLog() {
+  if (!el.generationLog) return;
+  const events = character?.history ?? [];
+  if (!events.length) { el.generationLog.replaceChildren(); return; }
+  el.generationLog.replaceChildren(...[...events].reverse().slice(0, 40).map((event, index) => {
+    const row = document.createElement('div');
+    row.className = `enter-generation-line${index === 0 ? ' latest' : ''}`;
+    row.textContent = formatHistoryEvent(event);
+    return row;
+  }));
 }
 
 async function saveCharacter() {

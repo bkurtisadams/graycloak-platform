@@ -1,5 +1,16 @@
 # Graycloak Traveller
 
+## v0.72.3 the lobby says what you rolled; rank 5-6 rolls corrected
+
+Rules package v0.24.1: rank 5 or 6 grants two extra mustering-out rolls and
++1 on Table 1, not a third roll (Book 1 p.8; Jamison on p.25 rolls seven as a
+five-term Captain). The allowance had given three.
+
+The lobby's chargen now has a GENERATION LOG under the tables — every event as
+the referee's Activity Log has always worded it (`AGE 30  BENEFIT  d6 4 ->
+Gun weapon`), newest first and bold. Rolling on `enter.html` no longer changes
+the sheet in silence.
+
 ## v0.72.2 the referee client did not load
 
 v0.72.0 added the scene state with a text replacement that also matched the
