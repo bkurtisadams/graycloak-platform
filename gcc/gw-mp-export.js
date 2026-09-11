@@ -1,4 +1,4 @@
-// gw-mp-export.js v0.2.0 — export a GWBestiary creature as MP Builder JSON,
+// gw-mp-export.js v0.2.1 — export a GWBestiary creature as MP Builder JSON,
 // the exact shape consumed by mp_engine.js `!mp import --name <handout>`.
 //
 // Workflow: roll encounter -> GWMPExport.json(name) -> paste into a Roll20
@@ -17,13 +17,22 @@
   'use strict';
   const B = () => window.GWBestiary;
 
-  // split on top-level commas only (ignore commas inside parentheses)
+  // Bestiary ability entries are separated by semicolons.  Some older entries
+  // use commas instead.  Prefer semicolons whenever present: commas can be
+  // part of a single ability's descriptive clause (e.g. duration/range).
   function splitTop(s){
-    const out = []; let depth = 0, cur = '';
+    let depth = 0, hasSemicolon = false;
     for (const ch of s){
       if (ch === '(') depth++;
       else if (ch === ')') depth = Math.max(0, depth - 1);
-      if (ch === ',' && depth === 0){ out.push(cur.trim()); cur = ''; }
+      else if (ch === ';' && depth === 0) hasSemicolon = true;
+    }
+    const delimiter = hasSemicolon ? ';' : ',';
+    const out = []; depth = 0; let cur = '';
+    for (const ch of s){
+      if (ch === '(') depth++;
+      else if (ch === ')') depth = Math.max(0, depth - 1);
+      if (ch === delimiter && depth === 0){ out.push(cur.trim()); cur = ''; }
       else cur += ch;
     }
     if (cur.trim()) out.push(cur.trim());
@@ -31,6 +40,10 @@
   }
   const cpOf = seg => { const m = seg.match(/\(\s*~?([\d.]+)\s*CP/i); return m ? m[1] : ''; };
   const isArmorSeg = seg => /^Armor\b/i.test(seg) && /=/.test(seg);
+  const estimatedCP = raw => {
+    const m = String(raw || '').match(/~?([\d.]+)/);
+    return m ? m[1] : '';
+  };
 
   // "d4 (~150 lbs)" -> { mass:'d4', weight:'150' }
   function parseMass(raw){
@@ -75,23 +88,32 @@
     data.stats = {};
     for (const k in BCK){ const v = bc[BCK[k]]; if (v != null) data.stats[k] = { cp: String(v) }; }
 
-    // identity / bio
+    // identity / bio.  Keep Story open for the GM's actual narrative.  The
+    // source text and conversion rationale are retained in gwBuildNotes, a
+    // field the Builder preserves on later exports without cramming them into
+    // the visible Story box.
     data.originType = e.origin || '';
     data.species    = e.build || '';
     data.mass       = mw.mass;
     data.weight     = mw.weight;
     if (f.inventing) data.inventing = String(f.inventing);
-    const bioParts = [];
-    if (e.gwSource)  bioParts.push('GW source: ' + e.gwSource);
-    if (e.abilities) bioParts.push('Abilities: ' + e.abilities);
-    if (e.weaknesses)bioParts.push('Weaknesses: ' + e.weaknesses);
-    if (e.equipment) bioParts.push('Equipment: ' + e.equipment);
-    if (e.cpEstimate)bioParts.push('CP estimate: ' + e.cpEstimate);
-    bioParts.push(`Encounter: ${e.encounterName} (No. appearing ${e.numberAppearing}). HTH ${f.hth||'—'}, Init ${f.init||'—'}.`);
-    data.story = bioParts.join('\n');
+    if (e.cpEstimate) data.xpBase = estimatedCP(e.cpEstimate);
+    data.story = '';
+    data.gwBuildNotes = {
+      source: e.gwSource || '',
+      conversion: e.build || '',
+      cpEstimate: e.cpEstimate || '',
+      encounter: `${e.encounterName} (No. appearing ${e.numberAppearing})`,
+      combat: `HTH ${f.hth || '—'}; Init ${f.init || '—'}; Move ${f.move || '—'}`,
+      equipment: e.equipment || ''
+    };
 
-    // abilities (descriptive) + weaknesses (negative-CP) as repeating rows
-    data.abilities = abilityRows(e.abilities).concat(weaknessRows(e.weaknesses));
+    // Abilities and weaknesses belong in the printed ability rows.  Put
+    // equipment there as a CP-less reminder until it can be priced/entered as
+    // a specific attack or protection item.
+    data.abilities = abilityRows(e.abilities)
+      .concat(weaknessRows(e.weaknesses));
+    if (e.equipment) data.abilities.push({ desc: 'Equipment: ' + e.equipment, cp: '', ip: '' });
     while (data.abilities.length < 12) data.abilities.push({ cp: '', desc: '', ip: '' });
 
     // attacks: Base HTH is auto on the sheet from ST; provide one melee row
@@ -130,5 +152,5 @@
   }
 
   window.GWMPExport = { build, json, handoutName, copy, download };
-  try { console.log('[gw-mp-export] v0.2.0 loaded'); } catch(_){}
+  try { console.log('[gw-mp-export] v0.2.1 loaded'); } catch(_){}
 })();
