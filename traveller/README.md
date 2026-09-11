@@ -1,5 +1,19 @@
 # Graycloak Traveller
 
+## v0.72.4 the pages are loaded, not just read
+
+`test/pages-load.test.mjs` imports `app.js`, `player.js` and `enter.js` into a
+jsdom document — a staged copy of the client tree with `auth.js` and
+`signin-ui.js` stubbed so no network or Firebase project is needed — and
+asserts each reaches its masthead with the current version. Reinserting the
+v0.72.0 temporal-dead-zone line makes it fail with the exact error the
+browser showed; the static pins never could. It skips with a note when jsdom
+is absent.
+
+This is the client's first dev dependency, `jsdom ^24.1.3` — the same
+package, same major, that `gcc` already carries, so `pnpm install` at the
+repo root adds nothing new to the lockfile's resolutions.
+
 ## v0.72.3 the lobby says what you rolled; rank 5-6 rolls corrected
 
 Rules package v0.24.1: rank 5 or 6 grants two extra mustering-out rolls and
