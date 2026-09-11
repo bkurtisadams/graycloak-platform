@@ -1,5 +1,12 @@
 # Graycloak Traveller
 
+## v0.74.1 WHAT NOW? no longer spills under its buttons on the lobby
+
+The chargen rail on `enter.html` is a column flex container with a maximum
+height, and `.procedure` sets its own `min-height`, which lets flexbox shrink
+it below its text when the rail is short — the description ran under the
+action buttons. Rail children no longer shrink; the rail scrolls instead.
+
 ## v0.74.0 the active scene, staged and seen, and the combat tracker
 
 The Foundry shape, as you asked for it. **The referee activates a scene and

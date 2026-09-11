@@ -3337,3 +3337,7 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .panning { cursor: grabbing; }
 /* --- v0.74.0: the combat tracker on the referee's tracker slot. */
 .encounter-tracker-tools { display: flex; gap: 6px; flex-wrap: wrap; padding-top: 4px; }
+/* v0.74.1: a column flex rail with a max-height may shrink children that set
+   their own min-height (.procedure); WHAT NOW? text then spilled under the
+   action buttons. Nothing in the rail shrinks — the rail scrolls. */
+.enter-chargen-rail > * { flex: 0 0 auto; }
