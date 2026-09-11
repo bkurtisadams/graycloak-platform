@@ -3754,13 +3754,15 @@ function showEncounterTokenMenu(event, encounter, combatant, onSelect, anchorEle
   });
   add('CHANGE CONDITION', () => openEncounterConditionDialog(encounter.identity.id, combatant.id));
   if (combatant.sourceActorId && npcActorDocuments.some((entry) => entry.identity.id === combatant.sourceActorId)) add('OPEN ROSTER ACTOR', () => { operationsDeskTab = 'roster'; render(); openNpcActorDialog(combatant.sourceActorId); });
-  // A side left empty mid-fight has no clean Book 1 meaning, so the last
-  // combatant on a side cannot be removed one at a time — the encounter is
-  // resolved instead. The button says so rather than only throwing when
-  // clicked.
+  // v0.76.3: removeEncounterCombatant refuses two things — a resolved
+  // encounter (nothing left to edit) and emptying a side (no clean Book 1
+  // meaning) — and used to only surface either as a thrown error after the
+  // click. Both are now visible on the button itself before it is pressed.
   const lastOnSide = encounter.combatants.filter((entry) => entry.side === combatant.side).length <= 1;
-  add('REMOVE FROM ENCOUNTER', () => removeCombatantFromActiveEncounter(encounter.identity.id, combatant.id), lastOnSide);
-  if (lastOnSide) actions.at(-1).title = `${combatant.name} is the last ${combatant.side} combatant; resolve the encounter instead of emptying a side`;
+  const resolved = encounter.status !== 'active';
+  add('REMOVE FROM ENCOUNTER', () => removeCombatantFromActiveEncounter(encounter.identity.id, combatant.id), resolved || lastOnSide);
+  if (resolved) actions.at(-1).title = `${encounter.identity.title} is ${encounter.status}; a resolved encounter cannot be edited`;
+  else if (lastOnSide) actions.at(-1).title = `${combatant.name} is the last ${combatant.side} combatant; resolve the encounter instead of emptying a side`;
   el.encounterTokenMenu.replaceChildren(...actions);
   positionEncounterOverlay(el.encounterTokenMenu, event, anchorElement);
   actions.find((button) => !button.disabled)?.focus({ preventScroll: true });

@@ -3369,10 +3369,20 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .rail-tool.is-active { background: var(--tab-selected); border-color: var(--tab-selected-border); }
 .rail-tool:disabled { color: var(--disabled); cursor: default; }
 .shell-stage { grid-area: stage; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--paper); }
-.shell-stage .canvas { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-.shell-stage #subsector-section, .shell-stage #encounter-section { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-.shell-stage .subsector-map { flex: 1 1 auto; min-height: 0; height: auto; }
-.shell-stage .encounter-map-viewport { flex: 1 1 auto; min-height: 0; height: auto; }
+/* v0.76.3: nested flex columns mixed with the older layout's own height:100%
+   and fixed-height rules — some inherited by class, some by a higher-specificity
+   id selector I could not simply override with flex:1 1 auto. A percentage
+   height on an item whose own ancestor chain has no definite height does not
+   resolve; the browser falls back to the SVG's intrinsic aspect ratio against
+   its (definite) width instead, which is why a 1:1 viewBox rendered as a huge
+   square that ran off the bottom of the window with no scrollbar to reach it.
+   flex-basis: 0 with an explicit height: 0 sidesteps percentage resolution
+   entirely at every level, so each flex item is sized purely by flex-grow. */
+.shell-stage .canvas { flex: 1 1 0; height: 0; min-height: 0; display: flex; flex-direction: column; }
+.shell-stage #subsector-section, .shell-stage #encounter-section { flex: 1 1 0; height: 0; min-height: 0; display: flex; flex-direction: column; }
+.shell-stage .encounter-map-viewport { flex: 1 1 0; height: 0; min-height: 0; }
+.shell-stage .subsector-map { flex: 1 1 0; height: 0; min-height: 0; max-height: none; align-items: stretch; }
+.shell-stage .subsector-svg { width: 100%; height: 100%; flex: 0 0 auto; }
 .shell-stage .sheet-view, .shell-stage #personnel-section { overflow: auto; }
 .shell-sidebar { grid-area: side; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--rule); background: var(--paper); }
 .sidebar-collapsed .shell-sidebar .sidebar-body, .sidebar-collapsed .shell-sidebar #procedure-section, .sidebar-collapsed .shell-sidebar .campaign-header-strip, .sidebar-collapsed .sidebar-tab-label { display: none; }
@@ -3415,7 +3425,9 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .shell-masthead { display: block; min-height: 40px; border-bottom: 1px solid var(--rule); }
 .shell-masthead .masthead-main { display: flex; flex-wrap: nowrap; align-items: center; gap: 14px; border-bottom: 0; padding: 0; min-height: 40px; }
 .shell-masthead .product-line { flex: 0 0 auto; flex-wrap: nowrap; }
-.shell-masthead .masthead-utility { display: flex; flex-wrap: nowrap; align-items: center; gap: 10px; padding: 0; overflow: hidden; white-space: nowrap; min-width: 0; }
+/* v0.76.3: hidden could clip status, account, or sign-out entirely with
+   nothing to say they existed. Scrolling keeps everything reachable. */
+.shell-masthead .masthead-utility { display: flex; flex-wrap: nowrap; align-items: center; gap: 10px; padding: 0; overflow-x: auto; overflow-y: hidden; white-space: nowrap; min-width: 0; scrollbar-width: thin; }
 .shell-masthead .masthead-utility > * { flex: 0 0 auto; }
 .shell-masthead .masthead-utility .masthead-spacer { flex: 1 1 auto; }
 .shell-masthead .masthead-status { max-width: 30ch; }

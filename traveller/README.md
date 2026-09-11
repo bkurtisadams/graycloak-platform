@@ -1,5 +1,38 @@
 # Graycloak Traveller
 
+## v0.76.3 the combat map was sizing itself from an unresolved percentage height
+
+The actual cause of the map running off the bottom of the window: several
+layers of the shell's flex column relied on `height: 100%` inherited from
+the pre-shell layout, and the ancestor those percentages needed was itself
+never given a definite height — a percentage against an indefinite ancestor
+does not resolve, so the browser fell back to the SVG's intrinsic 1:1
+aspect ratio against its (definite) width instead. A 1206×1206 board
+rendered as a tall square sized to the window's width, with no scrollbar to
+reach the rest of it. `.canvas`, `#encounter-section` / `#subsector-section`,
+the viewport, and the subsector map are now sized by `flex: 1 1 0` with an
+explicit `height: 0` at every level, which sidesteps percentage resolution
+entirely — each level is sized purely by flex-grow distributing the space
+its parent actually has. I can't run a real layout engine here to confirm
+the fix pixel-for-pixel; what I can confirm is that the rules are now the
+only ones setting `height` on each element (nothing else contests it), which
+is what was missing before.
+
+**Removing a token was also refused for a reason the button didn't show.**
+`removeEncounterCombatant` refuses two things — a resolved encounter, and
+emptying a side — and only the second got a tooltip in v0.76.2. Your
+screenshot's encounter had already reached VICTORY, so REMOVE was throwing
+"encounter is already resolved" on every click. Both reasons now disable the
+button before you press it, with the reason named. Dragging onto that same
+resolved board is correctly refused too — there's nothing left to add to —
+though I haven't yet given that case its own visible message beyond the
+browser's own "no drop" cursor.
+
+**The masthead now scrolls instead of clipping.** `overflow: hidden` on the
+status row could hide the campaign name, the autosave state, or the account
+entirely with nothing to say they were there. It scrolls horizontally now,
+so nothing in it is ever unreachable.
+
 ## v0.76.2 the token menu couldn't be trusted, and reinforcements needed a drop target
 
 Three real faults, likely all behind the same report.
