@@ -71,7 +71,7 @@
   // CP is a trailing signed number, e.g. "Distinctive (two-headed) -5".
   function weaknessRows(text){
     if (!text) return [];
-    return splitTop(text).filter(Boolean).map(seg => {
+    return splitTop(text).filter(seg => seg && !/^None\b/i.test(seg)).map(seg => {
       // Ledger-form weaknesses state their final cost in parentheses; retain
       // support for the older trailing "-5" notation too.
       const m = seg.match(/final\s+(-\d+(?:\.\d+)?)\s*CP/i)

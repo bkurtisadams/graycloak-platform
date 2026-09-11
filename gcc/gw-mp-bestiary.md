@@ -292,20 +292,21 @@ HTH         d6+1    Inventing 4   Mass d8 (~2200 lbs)   Profile x1.5
 **Build:** Intelligent mutated flying insect; individually priced traits
 
 ```
-Base BCs:    ST 10  EN 3  AG 14  IN 8  CL 12  MS 18
-Size mod:    +3 ST, +3 EN  (Size Change Larger 5 CP, 8' tier)
-Effective:   ST 13  EN 6  AG 14  IN 8  CL 12  MS 18
+Base BCs:    ST 10  EN 10 AG 14  IN 10  CL 10  MS 18
+Size mod:    +3 ST, +3 EN  (Size Change Larger 8'; permanent: Stays Active +2.5, Can't Hold Back -5; final 2.5 CP)
+Effective:   ST 13  EN 13  AG 14  IN 10  CL 10  MS 18
 
-Hits        6       Power 41      Move 12 fly      Init d6
-HTH         d6      Inventing 4   Mass d4 (~150 lbs)   Profile x1.3
+Hits        10      Power 50      Move 4 ground / 12 fly      Init d4
+HTH         d6      Inventing 5   Mass d4 (~150 lbs)   Profile x1.3
 ```
 
-**Abilities:** Winged Flight 12m; Natural Weaponry crushing mandibles; Heightened Senses bone-detection; Size Change Larger 8' (5 CP); Heightened Strength ~+4 (4 CP — for crushing power); Heightened Attack +2d6 (10 CP — 10d6 GW = high-tier MP bite); Unprotection -3 Kinetic associated with bite, Max -6 (10 CP — supplement ability, for "given time, crush even duralloy" — each bite reduces target armor); Adaptation Energy heat+cold (5 CP)
+**Abilities:** Size Change Larger 8' (base 5 CP; Stays Active +2.5; Can't Hold Back -5; final 2.5 CP); Winged Flight 3/48 (base 7.5 CP; Wings -5; Non-Proportional Flight +2.5; final 5 CP); Natural Weaponry crushing mandibles (+0 attack 0 CP; source uses base HTH as sharp; final 1 CP minimum); Heightened Attack +1d6 (final 5 CP); Adaptation: Energy, Heat (final 5 CP); Adaptation: Energy, Cold (final 5 CP).
 **Weaknesses:**
-- Compulsion (gourmand for bones, distractible by fresh bones) -5 CP
-**CP estimate:** ~57
+- Compulsion (gourmand for bones, distractible by fresh bones; final -5 CP)
+**CP ledger:** BCs 60 + Abilities 23.5 + Weaknesses -5 = 78.5; round up = **79 CP**.
+**CP estimate:** 79
 **Origin:** Mutated or Evolved
-**Tactics:** Smart — calculates approach, picks isolated targets. Crushing bite + Unprotection = each bite both deals damage AND reduces target's kinetic armor by 3 (max -6 stacked) — duralloy crushed in 2 bites. Pause to pick bones from a kill (ambush window).
+**Tactics:** Smart — calculates approach and picks isolated targets. The bite is a capped MP attack; against an inanimate metal barrier or armor, sustained chewing can degrade it at GM discretion, preserving the source's “given time, crush even duralloy” effect without an additional unverified Unprotection purchase. Pause to pick bones from a kill (ambush window).
 
 ---
 
@@ -690,27 +691,28 @@ HTH         d6+1    Inventing 2   Mass d6 (~600 lbs)   Profile x1.5
 **Build:** Humanoid (intelligent — no A/P)
 
 ```
-BCs:        ST 8  EN 7  AG 16  IN 18  CL 12  MS 16
+BCs:        ST 10 EN 10 AG 10  IN 18  CL 10  MS 16
 
-Hits        4       Power 49      Move via Telekinetic Flight   Init d6+1
-HTH         d3      Inventing 9   Mass d3 (~50 lbs)
+Hits        4       Power 48      Move via Telekinetic Flight   Init d4
+HTH         d4      Inventing 9   Mass d3 (~50 lbs)
 ```
 
 **Abilities (full kit):**
-- Flight (Telekinetic, moderate speed) (10 CP)
-- Telekinesis A (7.5 CP — also lifts/manipulates stone for dwelling-building)
-- Stretching Abilities A Telekinetic Arm (10 CP)
-- Force Field A Personal (17.5 CP)
-- Siphon Hits Life Leech (12.5 CP)
-- Transmutation Comprehensive De-evolution (25 CP)
-- Mental Ability A Mental Blast (17.5 CP; use GW-derived MS 16 attack/defense mapping, not MP IN)
-- Ice Abilities B Cryokinesis Blast (12.5 CP)
-- Reflection (one type, e.g., energy) (12.5 CP)
+- Flight (Telekinetic, moderate speed; final 10 CP)
+- Telekinesis A (final 7.5 CP — also lifts/manipulates stone for dwelling-building)
+- Stretching Abilities A Telekinetic Arm (final 10 CP)
+- Force Field A Personal (final 17.5 CP)
+- Siphon Hits Life Leech (final 12.5 CP)
+- Transmutation Comprehensive De-evolution (final 25 CP)
+- Mental Ability A Mental Blast (final 17.5 CP; use GW-derived MS 16 attack/defense mapping, not MP IN)
+- Ice Abilities B Cryokinesis Blast (final 12.5 CP)
+- Reflection (one type, e.g., energy; final 12.5 CP)
 
 **Action restriction:** Per GW: "may utilize any 2 of these mutations per melee turn." MP equivalent: 2 attack-class abilities per turn cap (interpret as standing limitation; no additional CP modifier).
-**Weaknesses:** Compulsion (greedy, gathers Ancient devices) -5 CP
+**Weaknesses:** Compulsion (greedy, gathers Ancient devices; final -5 CP)
 **Equipment:** Stockpile of Ancient artifacts in dwelling. Encountered Keeshin carries 1d6 random artifacts (15-30 CP avg).
-**CP estimate:** ~180 base + equipment (61 CP BCs + 125 CP full mutation kit - 5 CP Weakness; boss-tier despite HD 7)
+**CP ledger:** BCs 58 + Abilities 125 + Weaknesses -5 = **178 CP**. The 1d6 carried artifacts are equipment/treasure, not part of the creature's Ability CP.
+**CP estimate:** 178
 **Origin:** Mutated or Evolved
 **Tactics:** Solitary ambush from underwater dwelling. Opens with Mental Blast or Cryokinesis at range while flying. Force Field always-on. De-evolution as endgame against tough opponents. Will kill PCs who threaten artifact hoard.
 **Note:** Like Serf, this is a low-HP boss-tier creature with massively over-budget mental kit. GM may scale picks (3-4 mutations active per encounter) for non-elite Keeshin.
@@ -1160,26 +1162,30 @@ HTH         d8+1    Inventing 2   Mass d10 (~2000 lbs)   Profile x2
 **Build:** Humanoid (intelligent — no A/P)
 
 ```
-Base BCs:    ST 16  EN 10  AG 12  IN 14  CL 12  MS 15
+BCs:         ST 16  EN 10  AG 10  IN 10  CL 10  MS 15
 
-Hits        10      Power 52      Move 12      Init d6
-HTH         d6+1    Inventing 8   Mass d4 (~150 lbs)
+Hits        10      Power 46      Move 12      Init d4
+HTH         d6+1    Inventing 5   Mass d4 (~150 lbs)
 ```
 
 **Abilities (full kit — typical Serf has all):**
-- Natural Weaponry — poison claws +d4 sharp (5 CP)
-- Poison/Venom A — claws contact intensity 8 (5 CP)
-- Light Wave Manipulation — self-only Visible-Light Invisibility; Darkness Control (2m radius within 10m); Negation limited to laser attacks. These three source effects are one GW mutation, but require separately priced MP components.
-- Density Control (others) — Gravity Control A or Transmutation 30m (20 CP)
-- Life Leech — Siphon Hits Area 10m radius 6 HP/turn (15 CP)
-- Death Field Generation — Death Touch + Area 20m (35 CP)
-- Mental Blast — Mental Ability A (17.5 CP; use GW-derived MS 15 attack/defense mapping, not MP IN)
-- Telepathy (10 CP)
-- Armor 6 = 4/1/0/1 (10 CP — partial carapace)
+- Natural Weaponry — poison claws +d4 sharp (final 5 CP)
+- Poison/Venom A — claws contact intensity 8 (final 5 CP)
+- Light Wave: Visible-Light Invisibility, self only (final 7.5 CP)
+- Light Wave: Darkness Control, 2m radius within 10m (final 5 CP)
+- Light Wave: Negation, laser attacks only (final 5 CP)
+- Density Control (others) — Gravity Control A or Transmutation 30m (final 20 CP)
+- Life Leech — Siphon Hits Area 10m radius 6 HP/turn (final 15 CP)
+- Death Field Generation — Death Touch + Area 20m (final 35 CP)
+- Mental Blast — Mental Ability A (final 17.5 CP; use GW-derived MS 15 attack/defense mapping, not MP IN)
+- Telepathy (final 10 CP)
+- Armor 6 = 4/1/0/1 (final 10 CP — partial carapace)
 
-**Weaknesses:** Distinctive (military uniform identity) -5
+**Weaknesses:** None.
+**Weakness note:** The uniform identifies brigade membership but is ordinary equipment, not an MP Weakness.
 **Equipment:** Old uniforms (cosmetic). General has ancient weapon (artifact, blast rifle/grenade launcher class, 15-20 CP).
-**CP estimate:** ~200 base + general's artifact (full Light Wave component pricing pending; set at High power level so the Death Field's CP/ability/damage caps can be respected)
+**CP ledger:** BCs 56 + Abilities 135 + Weaknesses 0 = **191 CP**. The General's ancient weapon is equipment/artifact treasure, not part of the base Serf Ability CP.
+**CP estimate:** 191
 **Origin:** Mutated or Evolved
 **Tactics:** 90% open with mentals at range. Close to claws only when mentals exhausted. General coordinates via Telepathy. Light Wave Manipulation enables ambush.
 **Note:** GM may scale to 2-3 picked mutations per non-elite Serf; full list reserved for General + lieutenants.
