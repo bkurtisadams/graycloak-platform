@@ -1,5 +1,15 @@
 # Graycloak Traveller
 
+## v0.73.3 a character file loads on the lobby
+
+`[ LOAD JSON ]` lived on the referee client's chargen bar, which campaign play
+hides and which the lobby has replaced as the place characters are made. The
+lobby now has `[ LOAD A CHARACTER FILE ]` beside `[ ROLL A NEW CHARACTER ]`: a
+finished Character Document — an earlier export, a file from the referee
+client — becomes one of the account's characters at once, and a chargen in
+progress resumes as the draft. The referee's `[ ADD CHARACTER ]` in the
+REFEREE menu still takes a file straight into the campaign.
+
 ## v0.73.2 the drag stops at the allowance
 
 A player could drag past the walk or run allowance, drop, and watch the token

@@ -20,6 +20,7 @@ import { setCampaignOwner, markCampaignPublished } from '../src/campaign-documen
 import { buildPublishedCampaign } from '../src/published-view.js';
 import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js';
 import { buildProcedure, formatHistoryEvent } from './ui-model.js';
+import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js';
 import { generateCharacterName } from './generators.js';
 import {
   createCharacterRecord, characterRecordStatus, setCharacterRecordPendingJoin, normalizeInviteCode, createJoinRequest, WORLD_KINDS
@@ -38,6 +39,8 @@ const el = {
   characters: document.querySelector('#enter-characters'),
   list: document.querySelector('#enter-character-list'),
   newCharacter: document.querySelector('#enter-new-character'),
+  loadCharacter: document.querySelector('#enter-load-character'),
+  characterFile: document.querySelector('#enter-character-file'),
   campaignList: document.querySelector('#enter-campaign-list'),
   loadCampaign: document.querySelector('#enter-load-campaign'),
   campaignFile: document.querySelector('#enter-campaign-file'),
@@ -136,6 +139,34 @@ function watchRecords() {
     }))
     .then((unsubscribe) => { if (uid === watchedUid) unsubscribeRecords = unsubscribe; else unsubscribe(); })
     .catch((error) => setStatus(error?.message ?? String(error), 'error'));
+}
+
+// A character JSON — a finished Character Document from any Graycloak client
+// or an older export, or a chargen in progress — becomes one of this
+// account's characters, or resumes as the draft.
+async function loadCharacterFile(file) {
+  try {
+    const uid = currentUserId();
+    if (!uid) throw new Error('sign in first');
+    const loaded = loadTravellerDocument(await file.text());
+    if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CHARACTER) {
+      if (records.some((entry) => entry.characterId === loaded.characterDocument.identity.id)) throw new Error(`${loaded.characterDocument.identity.name} is already one of your characters`);
+      const record = createCharacterRecord(loaded.characterDocument, { ownerUid: uid });
+      await saveCharacterRecord(record);
+      setStatus(`${record.name.toUpperCase()} LOADED`, 'ok');
+      return;
+    }
+    if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CHARGEN) {
+      if (character && !window.confirm('Replace the character in generation with this file?')) return;
+      startChargen(loaded.character);
+      setStatus(`${(loaded.character.name || 'UNNAMED').toUpperCase()} RESUMED IN GENERATION`, 'ok');
+      return;
+    }
+    throw new Error('that file is a ship or a campaign, not a character');
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
 }
 
 // --- Campaigns ---------------------------------------------------------------
@@ -464,6 +495,12 @@ function render() {
 
 el.signinButton.addEventListener('click', () => openSignInDialog());
 el.newCharacter.addEventListener('click', () => startChargen());
+el.loadCharacter.addEventListener('click', () => el.characterFile.click());
+el.characterFile.addEventListener('change', () => {
+  const file = el.characterFile.files?.[0];
+  el.characterFile.value = '';
+  if (file) loadCharacterFile(file);
+});
 el.loadCampaign.addEventListener('click', () => el.campaignFile.click());
 el.campaignFile.addEventListener('change', () => {
   const file = el.campaignFile.files?.[0];
