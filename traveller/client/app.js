@@ -1519,9 +1519,21 @@ let sidebarCollapsed = false;
 
 function setSidebarTab(tab, { chosen = true } = {}) {
   if (!SIDEBAR_TABS.includes(tab)) return;
+  const changed = tab !== sidebarTab;
   sidebarTab = tab;
   if (chosen) sidebarChosen = true;
   sidebarCollapsed = false;
+  // v0.76.1: WHAT NOW? and the character strip used to stay open across every
+  // tab, so on an ordinary screen they filled the sidebar and the tab just
+  // selected — ACTORS, COMBAT, anything — sat below the fold with nothing to
+  // say it was there. Picking a tab now closes both; either reopens with one
+  // click, and stays open while the referee keeps working within that tab.
+  if (changed) {
+    const whatnow = document.querySelector('#sidebar-whatnow');
+    const character = document.querySelector('#sidebar-character');
+    if (whatnow) whatnow.open = false;
+    if (character) character.open = false;
+  }
   applySidebar();
   if (tab === 'port' && ['encounter'].includes(operationsDeskTab)) { operationsDeskTab = 'port'; applyOperationsDeskTab(); }
 }

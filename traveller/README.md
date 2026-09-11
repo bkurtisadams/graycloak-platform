@@ -1,5 +1,15 @@
 # Graycloak Traveller
 
+## v0.76.1 a tab is no longer buried under WHAT NOW?
+
+WHAT NOW? opened by default and stayed open across every sidebar tab, so on
+an ordinary screen it filled the sidebar and whichever tab had just been
+selected — ACTORS, COMBAT, anything — sat below the fold with no sign it was
+there. Picking a tab now closes both WHAT NOW? and the character strip;
+either reopens with one click and stays open while you keep working in that
+tab. WHAT NOW? starts closed rather than open, with its summary line still
+naming what needs attention.
+
 ## v0.76.0 the ACTORS tab: folders, and drag onto the canvas
 
 `campaignDirectory()` gives each entry a folder — party characters under
