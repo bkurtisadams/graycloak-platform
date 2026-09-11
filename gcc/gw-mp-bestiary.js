@@ -13,10 +13,10 @@
       "gwSource": "Three sub-types — Thinker (HP 50, AC 6, MV 12), Worker (HP 40, AC 5, MV 12), Warrior (HP 75, AC 4, MV 15). Look indistinguishable from PSH. Specific 18s required by sub-type; remaining BCs rolled per MP 2.1.7.1 Normal Power Level. Consider humans existential threat; travel heavily armed; always fight to the death.",
       "build": "Humanoid (synthetic). GM picks sub-type per encounter or rolls 1d3.",
       "origin": null,
-      "cpEstimate": "~31 + equipment",
-      "abilities": "Heightened Intelligence ~+8 (8 CP), Heightened Cool ~+8 (8 CP), Heightened Defense Mental (5 CP), Armor 6 = 4/1/0/1 K/E/B/Ent (10 CP)",
+      "cpEstimate": "Thinker 73; Worker 74; Warrior 92. The data export defaults to the Thinker form; select another form in the bestiary reference before exporting a subtype sheet.",
+      "abilities": "Armor 6 = 4/1/0/1 K/E/B/Ent (final 10 CP)",
       "weaknesses": null,
-      "equipment": "GM choice — pistol (5 CP) or short blade (5 CP)",
+      "equipment": "GM choice — pistol or short blade.",
       "forms": [
         {
           "bc": {

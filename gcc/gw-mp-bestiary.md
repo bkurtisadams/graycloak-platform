@@ -45,8 +45,7 @@ After consolidations: Choo→Horl Choo, Lou→Seroon Lou; phantoms Erl/Sert/Choo
 
 **Common traits (all sub-types):**
 - Origin: **Science Project** (synthetic humanoid, not mutated)
-- Compulsion: fight to the death vs. humans -5 CP
-- Phobia / Hostility: humans treated as existential threat -5 CP
+- Compulsion: fight to the death against humans (final -5 CP)
 - "Heavily armed" — GM picks weapons per sub-type
 - Unspecified BCs roll per MP 2.1.7.1 Normal Power Level (14/12/10/8/6); stat blocks below show baseline
 
@@ -59,9 +58,10 @@ Hits        8       Power 50      Move 11      Init d8+1
 HTH         d4      Inventing 9   Mass d4 (~150 lbs)
 ```
 
-**Abilities:** Heightened Intelligence ~+8 (8 CP), Heightened Cool ~+8 (8 CP), Heightened Defense Mental (5 CP), Armor 6 = 4/1/0/1 K/E/B/Ent (10 CP)
-**Equipment:** GM choice — pistol (5 CP) or short blade (5 CP)
-**CP estimate:** ~31 + equipment
+**Abilities:** Armor 6 = 4/1/0/1 K/E/B/Ent (final 10 CP)
+**Note:** The IN 18 and CL 18 are purchased BCs, not additional Heightened abilities.
+**CP ledger:** BCs 68 + Abilities 10 + Weaknesses -5 = **73 CP**.
+**Equipment:** GM choice — pistol or short blade.
 
 #### Android — Worker
 
@@ -72,9 +72,10 @@ Hits        16      Power 56      Move 15      Init d4
 HTH         d8+1    Inventing 5   Mass d6 (~250 lbs)
 ```
 
-**Abilities:** Heightened Strength/Endurance ~+8 each (16 CP), Armor 8 = 6/1/0/1 (12.5 CP)
-**Equipment:** GM choice — large club (15 CP) or heavy blade (15 CP)
-**CP estimate:** ~33.5 + equipment
+**Abilities:** Armor 8 = 6/1/0/1 K/E/B/Ent (final 12.5 CP)
+**Note:** The ST 18 and EN 18 are purchased BCs, not additional Heightened abilities.
+**CP ledger:** BCs 66 + Abilities 12.5 + Weaknesses -5 = 73.5; round up = **74 CP**.
+**Equipment:** GM choice — large club or heavy blade.
 
 #### Android — Warrior
 
@@ -85,9 +86,12 @@ Hits        20      Power 72      Move 18      Init d4
 HTH         d8+1    Inventing 9   Mass d6 (~250 lbs)
 ```
 
-**Abilities:** Heightened Strength/Endurance/Agility/Intelligence ~+8 each (32 CP), Armor 9 = 7/1/0/1 (15 CP)
-**Equipment:** GM choice — auto rifle (15 CP) or blast rifle (15 CP) + large blade (10 CP)
-**CP estimate:** ~57 + equipment
+**Abilities:** Armor 9 = 7/1/0/1 K/E/B/Ent (final 15 CP)
+**Note:** The ST/EN/AG/IN 18s are purchased BCs, not additional Heightened abilities.
+**CP ledger:** BCs 82 + Abilities 15 + Weaknesses -5 = **92 CP**.
+**Equipment:** GM choice — auto rifle, blast rifle, and/or large blade.
+
+**CP estimate:** Thinker 73; Worker 74; Warrior 92. The data export defaults to the Thinker form; select another form in the bestiary reference before exporting a subtype sheet.
 
 ---
 
