@@ -19,7 +19,7 @@
 <script src="gw-subhex-atlas.js?v=886a2839"></script>
 <script src="gw-subhex-tile-renderer.js?v=0a7a992e"></script>
 <script src="gw-stock.js?v=70096b9e"></script>
-<script src="gw-mp-bestiary.js?v=314e573d"></script>
+<script src="gw-mp-bestiary.js?v=d0876db4"></script>
 <script src="gw-mp-export.js?v=11e02ff3"></script>
 
 <style>
@@ -71,6 +71,12 @@
   #hud-encounter { bottom:12px; left:12px; width:300px; min-width:260px; min-height:112px; }
   #hud-data      { bottom:82px; right:12px; width:380px; min-width:280px; min-height:190px; }
   #hud-data.is-hidden { display:none; }
+  #hud-bestiary  { bottom:82px; right:12px; width:380px; min-width:280px; min-height:250px; }
+  #hud-bestiary.is-hidden { display:none; }
+  #bestiary-result { margin-top:9px; padding-top:8px; border-top:1px solid var(--panel-border); font-size:11px; line-height:1.5; }
+  #bestiary-result .bst-name { color:var(--gamma-orange-light); font-family:'Cinzel',serif; font-size:14px; }
+  #bestiary-result .bst-meta { color:#aaa899; font-size:10px; }
+  #bestiary-result .bst-label { color:#c8a96e; }
   #hud-zoom      { min-width:140px; }
   #hud-br        { position:fixed; bottom:12px; right:12px; display:flex; flex-direction:column; gap:8px; align-items:flex-end; z-index:50; }
   #hud-br .hud   { position:static; }
@@ -122,10 +128,11 @@
 
 <div id="topbar">
   <h1>GAMMA WORLD — Campaign Map</h1>
-  <span class="ver">v0.59.1</span>
+  <span class="ver">v0.59.2</span>
   <span class="sep"></span>
   <button id="btn-reset">Fit View</button>
   <button id="btn-map-data" aria-expanded="false">Map Data</button>
+  <button id="btn-bestiary" aria-expanded="false">Bestiary</button>
   <span class="spacer"></span>
 </div>
 
@@ -221,6 +228,13 @@
   <div id="export-status" style="font-size:11px;color:var(--gamma-orange-light);margin-top:6px;min-height:14px;">Bakes your edits to <code>gw-authored.js</code></div>
   <div id="atlas-status" style="font-size:11px;color:#c8a96e;margin-top:6px;min-height:14px;">Atlas facade ready for whole-world subhex generation.</div>
   <div id="tile-status" style="font-size:11px;color:#c8a96e;margin-top:6px;min-height:14px;">Tile renderer preview is opt-in and does not replace the viewer.</div>
+</div>
+
+<div id="hud-bestiary" class="hud hud-window is-hidden">
+  <h3>Bestiary <button id="btn-close-bestiary" class="hud-close" title="Close Bestiary" aria-label="Close Bestiary">×</button></h3>
+  <input id="bestiary-search" type="search" placeholder="Search creature…" autocomplete="off" style="width:100%;box-sizing:border-box;background:#1a0e02;border:1px solid var(--panel-border);color:var(--parchment-light);font-family:'Crimson Text',serif;font-size:14px;padding:4px 6px;border-radius:2px;">
+  <select id="bestiary-select" size="7" style="width:100%;box-sizing:border-box;margin-top:6px;"></select>
+  <div id="bestiary-result"><span class="bst-meta">Choose a creature to inspect its converted MP data.</span></div>
 </div>
 
 <div id="hud-br">
@@ -782,6 +796,7 @@ const GW_MAP_UI_KEYS = {
   cellPanel: 'gw-map-ui-panel-cell',
   encounterPanel: 'gw-map-ui-panel-encounter',
   dataPanel: 'gw-map-ui-panel-data',
+  bestiaryPanel: 'gw-map-ui-panel-bestiary',
 };
 
 function loadUiState(key){
@@ -902,6 +917,7 @@ function makeHudWindow(panelId, storageKey){
 const cellHudWindow = makeHudWindow('hud-cell', GW_MAP_UI_KEYS.cellPanel);
 const encounterHudWindow = makeHudWindow('hud-encounter', GW_MAP_UI_KEYS.encounterPanel);
 const dataHudWindow = makeHudWindow('hud-data', GW_MAP_UI_KEYS.dataPanel);
+const bestiaryHudWindow = makeHudWindow('hud-bestiary', GW_MAP_UI_KEYS.bestiaryPanel);
 
 const mapDataPanel = document.getElementById('hud-data');
 const mapDataButton = document.getElementById('btn-map-data');
@@ -920,10 +936,62 @@ mapDataButton.addEventListener('click', () => setMapDataOpen(mapDataPanel.classL
 document.getElementById('btn-close-map-data').addEventListener('click', () => setMapDataOpen(false));
 setMapDataOpen(false);
 
+const bestiaryPanel = document.getElementById('hud-bestiary');
+const bestiaryButton = document.getElementById('btn-bestiary');
+const bestiarySearch = document.getElementById('bestiary-search');
+const bestiarySelect = document.getElementById('bestiary-select');
+const bestiaryResult = document.getElementById('bestiary-result');
+
+function escHtml(value){
+  return String(value == null ? '' : value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+}
+function listBestiary(){
+  const query = bestiarySearch.value.trim().toLowerCase();
+  const entries = Object.values(window.GWBestiary || {}).filter((entry, index, all) =>
+    all.findIndex(x => x.name === entry.name) === index &&
+    (!query || (entry.name + ' ' + (entry.aliases || []).join(' ') + ' ' + (entry.gwSource || '')).toLowerCase().includes(query))
+  ).sort((a,b) => a.name.localeCompare(b.name));
+  const selected = bestiarySelect.value;
+  bestiarySelect.innerHTML = entries.map(e => `<option value="${escHtml(e.name)}">${escHtml(e.name)}${e.aliases?.length ? ' (' + escHtml(e.aliases.join(', ')) + ')' : ''}</option>`).join('');
+  if (entries.some(e => e.name === selected)) bestiarySelect.value = selected;
+  else if (entries.length) { bestiarySelect.value = entries[0].name; showBestiary(entries[0].name); }
+  else bestiaryResult.innerHTML = '<span class="bst-meta">No matching creatures.</span>';
+}
+function showBestiary(name){
+  const entry = (window.GWBestiary || {})[name];
+  if (!entry) return;
+  const form = entry.forms?.[0] || {};
+  const bc = form.bc ? ['ST','EN','AG','IN','CL','MS'].filter(k => form.bc[k] != null).map(k => k + ' ' + form.bc[k]).join(' · ') : '—';
+  bestiaryResult.innerHTML =
+    `<div class="bst-name">${escHtml(entry.name)}</div>`+
+    `<div class="bst-meta">${escHtml(entry.gwSource || '')}</div>`+
+    `<div style="margin-top:6px"><span class="bst-label">BCs:</span> ${escHtml(bc)}</div>`+
+    `<div><span class="bst-label">Hits/Power/Move:</span> ${escHtml(form.hits || '—')} / ${escHtml(form.power || '—')} / ${escHtml(form.move || '—')}</div>`+
+    `<div><span class="bst-label">Abilities:</span> ${escHtml(entry.abilities || '—')}</div>`+
+    `${entry.weaknesses ? `<div><span class="bst-label">Weaknesses:</span> ${escHtml(entry.weaknesses)}</div>` : ''}`+
+    `${entry.equipment ? `<div><span class="bst-label">Equipment:</span> ${escHtml(entry.equipment)}</div>` : ''}`;
+  attachExport(bestiaryResult, entry.name);
+}
+function setBestiaryOpen(open){
+  bestiaryPanel.classList.toggle('is-hidden', !open);
+  bestiaryButton.classList.toggle('primary', open);
+  bestiaryButton.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open){
+    listBestiary();
+    requestAnimationFrame(() => { bestiaryHudWindow?.restore(); bestiaryHudWindow?.constrain(); bestiarySearch.focus(); });
+  }
+}
+bestiaryButton.addEventListener('click', () => setBestiaryOpen(bestiaryPanel.classList.contains('is-hidden')));
+document.getElementById('btn-close-bestiary').addEventListener('click', () => setBestiaryOpen(false));
+bestiarySearch.addEventListener('input', listBestiary);
+bestiarySelect.addEventListener('change', () => showBestiary(bestiarySelect.value));
+setBestiaryOpen(false);
+
 window.addEventListener('resize', () => {
   cellHudWindow?.constrain();
   encounterHudWindow?.constrain();
   if (!mapDataPanel.classList.contains('is-hidden')) dataHudWindow?.constrain();
+  if (!bestiaryPanel.classList.contains('is-hidden')) bestiaryHudWindow?.constrain();
 });
 
 // ─── Layer toggles ───────────────────────────────────────────────────────────

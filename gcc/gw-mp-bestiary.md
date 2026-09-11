@@ -223,9 +223,9 @@ Hits        11      Power 42      Move 13 (flight)  Init d6
 HTH         d4      Inventing 2   Mass d3 (~50 lbs)   Profile /1.5
 ```
 
-**Abilities:** A/P Insect Standard (20 CP — Flight 15m, Heightened Senses, Natural Weaponry +d3 sharp), Size Change Smaller 4.5' (2.5 CP), Change Environment Damaging Hard Radiation 11" diameter (12.5 CP — 5 Devitalization Entropy/round, supplement), Adaptation Energy/radiation complete (5 CP), Light Control C Glare (5 CP), Armor 3 = 1/2/0/0 (5 CP)
+**Abilities:** A/P Insect Standard (20 CP — Flight 15m, Heightened Senses, Natural Weaponry +d3 sharp), Size Change Smaller 4.5' (2.5 CP), Change Environment Damaging Hard Radiation 7" diameter (7.5 CP — 5 Devitalization Entropy/round, supplement), Adaptation Energy/radiation complete (5 CP), Light Control C Glare (5 CP), Armor 3 = 1/2/0/0 (5 CP)
 **Weaknesses (in A/P bundle):** Lowered Intelligence -5, Distinctive -5
-**Tactics:** Hard Radiation field always-on while engaged — anyone within 5m takes 5 Devit Entropy/round automatically (medical treatment may be required per supplement p. 119). Post-kill feeding = ambush window. Fearless.
+**Tactics:** Hard Radiation field always-on while attacking — anyone within 5m takes 5 Devit Entropy/round automatically (medical treatment may be required per supplement p. 119). Post-kill feeding = ambush window. Fearless.
 **CP estimate:** ~50
 **Origin:** Mutated or Evolved
 
@@ -286,22 +286,20 @@ HTH         d6+1    Inventing 4   Mass d8 (~2200 lbs)   Profile x1.5
 **GW source:** AC 9, HD 6, MV 4/12 (ground/fly). Intelligent (MS 18) flying insect, up to 2.5m. Huge mandibles 10d6 dmg, can crush duralloy given time. Gourmet for bones — rips flesh off living creatures to get to bones. Resistant to all heat and cold.
 **Encounter tables:** mountains, desert (Tier 4, 2 tables)
 **Number appearing:** 1
-**Build:** A/P Insect, Standard power level (high-MS variant — skip Lowered Int weakness)
+**Build:** Intelligent mutated flying insect; individually priced traits
 
 ```
-Base BCs:    ST 10  EN 3  AG 14  IN 8  CL 18
+Base BCs:    ST 10  EN 3  AG 14  IN 8  CL 12  MS 18
 Size mod:    +3 ST, +3 EN  (Size Change Larger 5 CP, 8' tier)
-Effective:   ST 13  EN 6  AG 14  IN 8  CL 18
+Effective:   ST 13  EN 6  AG 14  IN 8  CL 12  MS 18
 
-Hits        7       Power 41      Move 12 fly      Init d8+1
+Hits        6       Power 41      Move 12 fly      Init d6
 HTH         d6      Inventing 4   Mass d4 (~150 lbs)   Profile x1.3
 ```
 
-**Abilities:** A/P Insect Standard (20 CP — Flight 12m, Natural Weaponry crushing mandibles +d8 sharp, Heightened Senses bone-detection), Size Change Larger 8' (5 CP), Heightened Cool ~+8 outside A/P (8 CP — for MS 18), Heightened Strength ~+4 (4 CP — for crushing power), Heightened Attack +2d6 (10 CP — 10d6 GW = high-tier MP bite), Unprotection -3 Kinetic associated with bite, Max -6 (10 CP — supplement ability, for "given time, crush even duralloy" — each bite reduces target armor), Adaptation Energy heat+cold (5 CP)
+**Abilities:** Winged Flight 12m; Natural Weaponry crushing mandibles; Heightened Senses bone-detection; Size Change Larger 8' (5 CP); Heightened Strength ~+4 (4 CP — for crushing power); Heightened Attack +2d6 (10 CP — 10d6 GW = high-tier MP bite); Unprotection -3 Kinetic associated with bite, Max -6 (10 CP — supplement ability, for "given time, crush even duralloy" — each bite reduces target armor); Adaptation Energy heat+cold (5 CP)
 **Weaknesses:**
-- Distinctive (giant flying insect) -5 CP (in A/P bundle)
-- Compulsion (gourmand for bones, distractible by fresh bones) -5 CP (in A/P bundle)
-- *No Lowered Intelligence weakness — MS 18 is brilliant*
+- Compulsion (gourmand for bones, distractible by fresh bones) -5 CP
 **CP estimate:** ~57
 **Origin:** Mutated or Evolved
 **Tactics:** Smart — calculates approach, picks isolated targets. Crushing bite + Unprotection = each bite both deals damage AND reduces target's kinetic armor by 3 (max -6 stacked) — duralloy crushed in 2 bites. Pause to pick bones from a kill (ambush window).
@@ -590,11 +588,11 @@ HTH         d6+1    Inventing 7   Mass d6 (~400 lbs)   Profile x1.5
 **Build:** Humanoid ("Tall" descriptor free at 2.6m)
 
 ```
-Base BCs:    ST 10  EN 14  AG 18  IN 10  CL 14
+Base BCs:    ST 10  EN 14  AG 18  IN 10  CL 10
 Size mod:    +2 ST, +1 EN  (Size Change Larger 2.5 CP, 7' tier)
-Effective:   ST 12  EN 15  AG 18  IN 10  CL 14
+Effective:   ST 12  EN 15  AG 18  IN 10  CL 10
 
-Hits        16      Power 55      Move 15      Init d6
+Hits        15      Power 55      Move 15      Init d4
 HTH         d6      Inventing 5   Mass d4 (~150 lbs)   Profile x1.2
 ```
 
@@ -603,7 +601,7 @@ HTH         d6      Inventing 5   Mass d4 (~150 lbs)   Profile x1.2
 **Equipment:** Ancient weapons preferred — pistol/rifle/blaster per individual
 **CP estimate:** ~38 + equipment
 **Origin:** Mutated or Evolved
-**MS variability:** Roll 3d6 per individual for MS → CL. Chief-tier hoops get full Heightened Cool ~+8.
+**GW MS variability:** Roll 3d6 per individual. Use it only for GW-derived mental mutations; it does not change MP CL. Chief status is social, not an automatic Heightened Cool purchase.
 **Note:** Transmutation devastates metal-armored/-armed PCs. Rubber armor = AC 9, rubber pistol = jammed, etc.
 
 ---
@@ -688,7 +686,7 @@ HTH         d6+1    Inventing 2   Mass d6 (~600 lbs)   Profile x1.5
 **Build:** Humanoid (intelligent — no A/P)
 
 ```
-BCs:        ST 8  EN 7  AG 16  IN 18  CL 16
+BCs:        ST 8  EN 7  AG 16  IN 18  CL 12  MS 16
 
 Hits        4       Power 49      Move via Telekinetic Flight   Init d6+1
 HTH         d3      Inventing 9   Mass d3 (~50 lbs)
@@ -696,7 +694,6 @@ HTH         d3      Inventing 9   Mass d3 (~50 lbs)
 
 **Abilities (full kit):**
 - Heightened Intelligence ~+8 to IN (8 CP — for IN 18)
-- Heightened Cool ~+6 to CL (6 CP — for MS 16)
 - Telepathy (10 CP — implied by mental mutation kit, communicates over Ancient device transactions)
 - Flight (Telekinetic, moderate speed) (10 CP)
 - Telekinesis A (7.5 CP — also lifts/manipulates stone for dwelling-building)
@@ -815,7 +812,7 @@ Hits        7       Power 45      Move 1 ground / 15 fly   Init d6
 HTH         d3      Inventing 6   Mass d3 (~50 lbs)   Profile /1.5
 ```
 
-**Abilities:** A/P Plant Standard (20 CP — Flight 15m, Natural Weaponry clawed appendages +d6 sharp x2, Heightened Senses), Size Change Smaller 4.5' (2.5 CP), Power Blast Energy radiation eye intensity 16 25-30m ~2d6 (17.5 CP), Adaptation Energy (radiation + laser + heat, multi-type) (10 CP), Adaptation Light (light immunity) (5 CP)
+**Abilities:** A/P Plant Standard (20 CP — Flight 15m, Natural Weaponry clawed appendages +d6 sharp x2, Heightened Senses), Size Change Smaller 4.5' (2.5 CP), Devitalization Ray radiation eye intensity 16 25-30m ~2d6 (17.5 CP — directed attack, not Change Environment), Adaptation Energy (radiation + laser + heat, multi-type) (10 CP), Adaptation Light (light immunity) (5 CP)
 **Weaknesses:** Distinctive (fungus-bat) -5 CP
 *No Lowered Intelligence — MS 12 is normal.*
 **Reproduction:** Devours half of victim's body, plants spores in rest. 1d6 young obbs emerge from spore-host in 1 day. Encounter creates persistent local threat at kill site.
@@ -889,12 +886,12 @@ Hits        1       Power 17      Move 0      Init d3
 HTH         d2      Inventing 1   Mass d3 (~50 lbs)
 ```
 
-**Abilities:** Change Environment Damaging Hard Radiation 33" diameter (25 CP — 5 Devitalization Entropy/round in 15m radius, supplement), Light Control C Glare rainbow (5 CP), Armor 9 = 4/3/0/2 K/E/B/Ent (15 CP)
+**Abilities:** Change Environment Hard Radiation 19" diameter (15 CP + 2.5 CP Hard Radiation — 5 Devitalization Entropy/round in a 15m radius; random-intensity source presentation), Light Control C Glare rainbow (5 CP), Armor 9 = 4/3/0/2 K/E/B/Ent (15 CP)
 **Weaknesses:** Distinctive (stationary plant) -5, Low Self Control (reactive blasting only) -5
 **Resource:** 20g/flower healing powder (1 HP/g sun-dried 3 days; 0.5 HP/g artificial).
 **CP estimate:** ~45
 **Origin:** Mutated or Evolved
-**Tactics:** Area-denial. PCs choose: engage at range, harvest at risk, or avoid. Damaged-state multi-blast: when Perth takes damage, next round's radiation field deals 1d4× damage (1d4 simultaneous color-blasts of varying intensity per source). Encounter mechanic, not separate ability.
+**Tactics:** Area-denial. PCs choose: engage at range, harvest at risk, or avoid. The source's random intensity and damaged-state 1d4 simultaneous blasts are encounter-level variations of the normal MP radiation field, not imported GW radiation-matrix outcomes.
 
 ---
 
@@ -1162,9 +1159,9 @@ HTH         d8+1    Inventing 2   Mass d10 (~2000 lbs)   Profile x2
 **Build:** Humanoid (intelligent — no A/P)
 
 ```
-Base BCs:    ST 16  EN 10  AG 12  IN 14  CL 15
+Base BCs:    ST 16  EN 10  AG 12  IN 14  CL 12  MS 15
 
-Hits        10      Power 52      Move 12      Init d6+1
+Hits        10      Power 52      Move 12      Init d6
 HTH         d6+1    Inventing 8   Mass d4 (~150 lbs)
 ```
 

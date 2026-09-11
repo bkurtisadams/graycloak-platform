@@ -70,3 +70,29 @@
 1. Confirm the proposed rework targets.
 2. Update the Markdown bestiary entries.
 3. Regenerate `gcc/gw-mp-bestiary.js`; do not edit the generated file directly.
+
+## Phase 2 source-book findings (2026-09-11)
+
+The source books are now available for the remaining audit. Do not bulk-replace entries from keyword matches: each must be checked against its original Gamma World description.
+
+### Priority MS corrections
+
+| Creature | Source finding | Required conversion change |
+|---|---|---|
+| Cal Then | Intelligent flying insect; MS 18. | Keep GW MS 18; remove Heightened Cool used solely to represent MS. |
+| Hoop | Intelligent rabbitoid; MS varies 3-18 per individual. | Roll and retain GW MS separately; do not set CL from the result. |
+| Keeshin | IN 18 and MS 16 are both stated. | Keep IN 18 and GW MS 16 independently; remove Heightened Cool used solely for MS. |
+| Serf | MS 15 plus several mental mutations. | Keep GW MS 15 for its GW-derived mental effects; do not turn it into Cool. |
+
+### Priority radiation corrections
+
+| Creature | GW source | Required MP direction |
+|---|---|---|
+| Blaash | Intensity 18 radiation in a 5 m radius; active while attacking; self and kin immune. | 7-inch diameter stationary/engaged Hard Radiation field, not the existing 11-inch field. |
+| Barl Nep | Intensity 18, 10 m diameter defensive oil slick; intensity 12 recoverable oil after death. | Already revised: 7-inch Hard Radiation slick; ordinary-radiation recovered slick. |
+| Obb | Directed intensity 16 radiation blast from its eye. | Use a directed MP radiation/Entropy attack, not Change Environment. |
+| Perth | Disturbed: random intensity 3d6 radiation each round in a 15 m radius; damaged: 1d4 simultaneous random blasts. | 19-inch random-intensity radiation field. Requires an individual MP variant; do not reduce it to a fixed 33-inch Hard Radiation field. |
+
+### A/P migration
+
+Thirty current entries still use an Animal/Plant bundle. They should be migrated in source-checked batches, starting with the already source-extracted radiation creatures (Blaash, Obb, Perth) and the MS creatures above. The remaining bundles are candidates for individual pricing, not automatic errors in their descriptive content.

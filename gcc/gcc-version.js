@@ -62,7 +62,7 @@ window.GCC_VERSION = {
     "gw-flavor-tables": "0.1.1",
     "gw-map-sync": "0.1.1",
     "gw-mp-animal": "1.0.0",
-    "gw-mp-bestiary": "0.2.1",
+    "gw-mp-bestiary": "0.2.3",
     "gw-mp-export": "0.2.0",
     "gw-mp-roles": "0.1.0",
     "gw-mp-weaknesses": "1.0.2",
