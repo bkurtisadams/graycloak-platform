@@ -72,7 +72,7 @@ test('Campaign Document v10 links campaign records and identifies the active par
   const roundTrip = importCampaignDocument(exportCampaignDocument(campaign));
 
   assert.equal(roundTrip.documentType, 'graycloak-traveller-campaign');
-  assert.equal(roundTrip.schemaVersion, 10);
+  assert.equal(roundTrip.schemaVersion, 11);
   assert.deepEqual(roundTrip.party.characterIds, [character.identity.id]);
   assert.equal(roundTrip.activeCharacterId, character.identity.id);
   assert.equal(roundTrip.activeShipId, ship.identity.id);
@@ -110,7 +110,7 @@ test('Campaign Document v8 migrates its first party member to activeCharacterId'
   delete legacy.activeCharacterId;
 
   const migrated = importCampaignDocument(legacy);
-  assert.equal(migrated.schemaVersion, 10);
+  assert.equal(migrated.schemaVersion, 11);
   assert.equal(migrated.activeCharacterId, character.identity.id);
 });
 
@@ -186,7 +186,7 @@ test('Campaign Document v1 imports migrate to v10 with empty continuity, roster,
   legacy.schemaVersion = 1;
   delete legacy.documentRefs.contracts;
   const migrated = importCampaignDocument(legacy);
-  assert.equal(migrated.schemaVersion, 10);
+  assert.equal(migrated.schemaVersion, 11);
   assert.deepEqual(migrated.documentRefs.contracts, []);
   assert.deepEqual(migrated.documentRefs.situations, []);
   assert.deepEqual(migrated.documentRefs.encounters, []);
@@ -206,8 +206,8 @@ test('Campaign Bundle v1 imports migrate to v7 and add empty continuity, roster,
   delete legacy.campaign.documentRefs.contracts;
   delete legacy.documents.contracts;
   const migrated = importCampaignBundle(legacy);
-  assert.equal(migrated.schemaVersion, 7);
-  assert.equal(migrated.campaign.schemaVersion, 10);
+  assert.equal(migrated.schemaVersion, 8);
+  assert.equal(migrated.campaign.schemaVersion, 11);
   assert.deepEqual(migrated.campaign.commerce.speculativeLots, []);
   assert.deepEqual(migrated.documents.contracts, []);
   assert.deepEqual(migrated.documents.situations, []);
@@ -224,7 +224,7 @@ test('Campaign Document v2 migrates to v9 and speculative lot purchases survive 
   legacy.schemaVersion = 2;
   delete legacy.commerce;
   campaign = importCampaignDocument(legacy);
-  assert.equal(campaign.schemaVersion, 10);
+  assert.equal(campaign.schemaVersion, 11);
   assert.equal(speculativeLotPurchasedQuantity(campaign, 'weekly-lot'), 0);
   campaign = recordSpeculativeLotPurchase(campaign, {
     key: 'weekly-lot', systemId: 'calder', tradeGoodCode: 62, quantity: 2
@@ -257,7 +257,7 @@ test('Campaign Document v10 and Bundle v7 persist Situation Documents through th
   assert.equal(resolved.situations.length, 1);
   assert.equal(resolved.situations[0].identity.title, 'Dead Approach Beacon');
   const bundle = registry.buildBundle(campaign.identity.id);
-  assert.equal(bundle.schemaVersion, 7);
+  assert.equal(bundle.schemaVersion, 8);
   assert.equal(bundle.documents.situations.length, 1);
 });
 
@@ -267,7 +267,7 @@ test('Campaign Document v3 migrates to v10 with empty situation, continuity, ros
   legacy.schemaVersion = 3;
   delete legacy.documentRefs.situations;
   const migrated = importCampaignDocument(legacy);
-  assert.equal(migrated.schemaVersion, 10);
+  assert.equal(migrated.schemaVersion, 11);
   assert.deepEqual(migrated.documentRefs.situations, []);
   assert.deepEqual(migrated.documentRefs.encounters, []);
   assert.deepEqual(migrated.documentRefs.contacts, []);
@@ -283,7 +283,7 @@ test('Campaign Document v4 migrates to v10 with empty contact, thread, encounter
   delete legacy.documentRefs.contacts;
   delete legacy.documentRefs.threads;
   const migrated = importCampaignDocument(legacy);
-  assert.equal(migrated.schemaVersion, 10);
+  assert.equal(migrated.schemaVersion, 11);
   assert.deepEqual(migrated.documentRefs.contacts, []);
   assert.deepEqual(migrated.documentRefs.threads, []);
   assert.deepEqual(migrated.documentRefs.encounters, []);
@@ -316,7 +316,7 @@ test('Campaign Document v10 and Bundle v7 persist named contacts and adventure t
   assert.equal(resolved.contacts[0].identity.name, 'Mara Venn');
   assert.equal(resolved.threads[0].identity.title, 'Carranza Route');
   const bundle = registry.buildBundle(campaign.identity.id);
-  assert.equal(bundle.schemaVersion, 7);
+  assert.equal(bundle.schemaVersion, 8);
   assert.equal(bundle.documents.contacts.length, 1);
   assert.equal(bundle.documents.threads.length, 1);
 });
@@ -332,8 +332,8 @@ test('Campaign Bundle v3 from v0.12.0 migrates to v7 with empty contacts, thread
   delete legacy.documents.contacts;
   delete legacy.documents.threads;
   const migrated = importCampaignBundle(legacy);
-  assert.equal(migrated.schemaVersion, 7);
-  assert.equal(migrated.campaign.schemaVersion, 10);
+  assert.equal(migrated.schemaVersion, 8);
+  assert.equal(migrated.campaign.schemaVersion, 11);
   assert.deepEqual(migrated.documents.contacts, []);
   assert.deepEqual(migrated.documents.threads, []);
   assert.deepEqual(migrated.documents.encounters, []);

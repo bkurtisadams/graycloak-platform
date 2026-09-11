@@ -89,7 +89,7 @@ test('Campaign v9 and Bundle v7 preserve roster folders, actors, and portrait as
 
   const bundle = createCampaignBundle(campaign, { characters: [character], npcActors: [actor], assets: [portrait] });
   const roundTrip = importCampaignBundle(JSON.stringify(bundle));
-  assert.equal(roundTrip.schemaVersion, 7);
+  assert.equal(roundTrip.schemaVersion, 8);
   assert.equal(roundTrip.documents.npcActors[0].identity.id, 'actor-veyra');
   assert.equal(roundTrip.documents.assets[0].identity.id, 'asset-veyra');
 

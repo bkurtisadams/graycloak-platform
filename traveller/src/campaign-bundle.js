@@ -35,10 +35,11 @@ import { assertValidEncounterDocument, importEncounterDocument } from './encount
 import { assertValidNpcActorDocument, importNpcActorDocument } from './npc-actor-document.js';
 import { assertValidMediaAssetDocument, importMediaAssetDocument } from './media-asset-document.js';
 import { assertValidActivityLogDocument, importActivityLogDocument } from './activity-log-document.js';
+import { assertValidSceneDocument, importSceneDocument } from './scene-document.js';
 
 export const CAMPAIGN_BUNDLE_TYPE = 'graycloak-traveller-campaign-bundle';
-export const CURRENT_CAMPAIGN_BUNDLE_SCHEMA_VERSION = 7;
-export const SUPPORTED_CAMPAIGN_BUNDLE_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7]);
+export const CURRENT_CAMPAIGN_BUNDLE_SCHEMA_VERSION = 8;
+export const SUPPORTED_CAMPAIGN_BUNDLE_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8]);
 
 export class CampaignBundleValidationError extends Error {
   constructor(errors) {
@@ -68,7 +69,7 @@ function exactIdSet(actual, expected, label) {
   }
 }
 
-export function createCampaignBundle(campaign, { characters = [], ships = [], contracts = [], situations = [], contacts = [], threads = [], encounters = [], npcActors = [], assets = [], activityLogs = [] } = {}) {
+export function createCampaignBundle(campaign, { characters = [], ships = [], contracts = [], situations = [], contacts = [], threads = [], encounters = [], npcActors = [], assets = [], activityLogs = [], scenes = [] } = {}) {
   assertValidCampaignDocument(campaign);
   for (const document of characters) assertValidCharacterDocument(document);
   for (const document of ships) assertValidShipDocument(document);
@@ -80,6 +81,7 @@ export function createCampaignBundle(campaign, { characters = [], ships = [], co
   for (const document of npcActors) assertValidNpcActorDocument(document);
   for (const document of assets) assertValidMediaAssetDocument(document);
   for (const document of activityLogs) assertValidActivityLogDocument(document);
+  for (const document of scenes) assertValidSceneDocument(document);
   assertUnique(characters, 'character');
   assertUnique(ships, 'ship');
   assertUnique(contracts, 'contract');
@@ -90,6 +92,7 @@ export function createCampaignBundle(campaign, { characters = [], ships = [], co
   assertUnique(npcActors, 'NPC actor');
   assertUnique(assets, 'asset');
   assertUnique(activityLogs, 'activity log');
+  assertUnique(scenes, 'scene');
 
   exactIdSet(ids(characters), campaign.documentRefs.characters.map((ref) => ref.id), 'character');
   exactIdSet(ids(ships), campaign.documentRefs.ships.map((ref) => ref.id), 'ship');
@@ -101,6 +104,8 @@ export function createCampaignBundle(campaign, { characters = [], ships = [], co
   exactIdSet(ids(npcActors), campaign.documentRefs.npcActors.map((ref) => ref.id), 'NPC actor');
   exactIdSet(ids(assets), campaign.documentRefs.assets.map((ref) => ref.id), 'asset');
   exactIdSet(ids(activityLogs), campaign.documentRefs.activityLogs.map((ref) => ref.id), 'activity log');
+  exactIdSet(ids(scenes), (campaign.documentRefs.scenes ?? []).map((ref) => ref.id), 'scene');
+  for (const scene of scenes) if (scene.campaignId !== campaign.identity.id) throw new CampaignBundleValidationError(`scene ${scene.identity.id} belongs to another campaign`);
   for (const activityLog of activityLogs) if (activityLog.campaignId !== campaign.identity.id) {
     throw new CampaignBundleValidationError(`activity log ${activityLog.identity.id} belongs to another campaign: ${activityLog.campaignId}`);
   }
@@ -153,7 +158,8 @@ export function createCampaignBundle(campaign, { characters = [], ships = [], co
       encounters: cloneJson(encounters),
       npcActors: cloneJson(npcActors),
       assets: cloneJson(assets),
-      activityLogs: cloneJson(activityLogs)
+      activityLogs: cloneJson(activityLogs),
+      scenes: cloneJson(scenes)
     }
   };
 }
@@ -183,7 +189,8 @@ export function importCampaignBundle(input) {
   const npcActors = (parsed.documents.npcActors ?? []).map((entry) => importNpcActorDocument(entry));
   const assets = (parsed.documents.assets ?? []).map((entry) => importMediaAssetDocument(entry));
   const activityLogs = (parsed.documents.activityLogs ?? []).map((entry) => importActivityLogDocument(entry));
-  return createCampaignBundle(campaign, { characters, ships, contracts, situations, contacts, threads, encounters, npcActors, assets, activityLogs });
+  const scenes = (parsed.documents.scenes ?? []).map((entry) => importSceneDocument(entry));
+  return createCampaignBundle(campaign, { characters, ships, contracts, situations, contacts, threads, encounters, npcActors, assets, activityLogs, scenes });
 }
 
 export function exportCampaignBundle(bundle, { space = 2 } = {}) {

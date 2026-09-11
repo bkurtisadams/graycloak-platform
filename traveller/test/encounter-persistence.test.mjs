@@ -7,6 +7,7 @@ import path from 'node:path';
 import { importCharacterDocument, importShipDocument } from '../../packages/classic-traveller-rules/index.js';
 import { createCampaignDocument, addSituationToCampaign, addEncounterToCampaign } from '../src/campaign-document.js';
 import { createSituationDocument } from '../src/situation-document.js';
+import { createSceneDocument, placeSceneToken } from '../src/scene-document.js';
 import {
   createEncounterDocument,
   exportEncounterDocument,
@@ -72,10 +73,11 @@ async function encounterFixture() {
   return { character, ship, campaign, situation, encounter };
 }
 
-test('Encounter Document v14 round-trips the metre workspace, grid scale, declarations, positions, range, and audit history', async () => {
+test('Encounter Document v15 round-trips the metre workspace, grid scale, declarations, positions, range, and audit history', async () => {
   const { encounter } = await encounterFixture();
   const roundTrip = importEncounterDocument(exportEncounterDocument(encounter));
-  assert.equal(roundTrip.schemaVersion, 14);
+  assert.equal(roundTrip.schemaVersion, 15);
+  assert.equal(roundTrip.sceneId, null);
   // v0.71.0: a medium-range fight on 5 m squares is a 200 m board (40 squares).
   assert.deepEqual(roundTrip.map, { grid: 'square', columns: 201, rows: 201, rangeGuide: 'graycloak-meter-grid-v4', metersPerSquare: 5 });
   assert.deepEqual(roundTrip.roundState, { declaredActions: [] });
@@ -89,14 +91,15 @@ test('Encounter Document v14 round-trips the metre workspace, grid scale, declar
   assert.equal(avoided.status, 'avoided');
 });
 
-test('Encounter Document v1 imports migrate through v14 to the metre workspace', async () => {
+test('Encounter Document v1 imports migrate through v15 to the metre workspace', async () => {
   const { encounter } = await encounterFixture();
   const legacy = structuredClone(encounter);
   legacy.schemaVersion = 1;
   delete legacy.map;
   for (const combatant of legacy.combatants) delete combatant.position;
   const migrated = importEncounterDocument(legacy);
-  assert.equal(migrated.schemaVersion, 14);
+  assert.equal(migrated.schemaVersion, 15);
+  assert.equal(migrated.sceneId, null);
   assert.equal(migrated.map.grid, 'square');
   // A pre-v0.71 board stays a kilometre; nothing about its positions changes.
   assert.equal(migrated.map.columns, 1001);
@@ -114,7 +117,7 @@ test('Encounter Document v11 migration preserves former close pairs as explicit 
   legacy.combatants[1].position = { column: 5, row: 9 };
   for (const combatant of legacy.combatants) delete combatant.contactIds;
   const migrated = importEncounterDocument(legacy);
-  assert.equal(migrated.schemaVersion, 14);
+  assert.equal(migrated.schemaVersion, 15);
   assert.equal(encounterPairRange(migrated.combatants[0], migrated.combatants[1]), 'close');
   assert.deepEqual(migrated.combatants[0].contactIds, [migrated.combatants[1].id]);
 });
@@ -300,7 +303,7 @@ test('campaign registry and portable Bundle v7 persist Encounter Documents', asy
   assert.deepEqual(resolved.missing, []);
   assert.equal(resolved.encounters[0].identity.id, encounter.identity.id);
   const bundle = registry.buildBundle(campaign.identity.id);
-  assert.equal(bundle.schemaVersion, 7);
+  assert.equal(bundle.schemaVersion, 8);
   assert.equal(bundle.documents.encounters[0].identity.title, 'Encounter / Veyra Kade');
 });
 
@@ -704,4 +707,24 @@ test('v0.71.0 sizes the board to the fight, never smaller than 40 squares or lar
   assert.equal(foe.position.column - party.position.column, 50, 'the initial range is on the board');
   assert.equal(party.position.column % 5, 0, 'positions sit on the grid');
   assert.throws(() => repositionEncounterCombatant(medium, { combatantId: party.id, column: 500, row: 100 }), RangeError);
+});
+
+test('v0.72.0 a fight on a scene takes its board and its staged tokens', async () => {
+  const fixture = await encounterFixture();
+  let scene = createSceneDocument({ campaignId: fixture.campaign.identity.id, name: 'Warehouse', squares: 20, metersPerSquare: 5, createdAt: 1 });
+  scene = placeSceneToken(scene, { actorId: fixture.character.identity.id, side: 'party', column: 10, row: 50 }).scene;
+  scene = placeSceneToken(scene, { actorId: 'npc-raider', side: 'opposition', column: 80, row: 45 }).scene;
+  const encounter = createEncounterDocument({
+    campaign: fixture.campaign, character: fixture.character, scene,
+    opponents: [{ name: 'Raider', actorId: 'npc-raider' }, { name: 'Second Raider' }],
+    encounterKey: 'on-a-scene', date: { year: 4800, dayOfYear: 106 }, range: 'medium', dice: sequenceDice([3, 3])
+  });
+  assert.equal(encounter.sceneId, scene.identity.id);
+  assert.deepEqual(encounter.map, { grid: 'square', columns: 101, rows: 101, rangeGuide: 'graycloak-meter-grid-v4', metersPerSquare: 5 });
+  const party = encounter.combatants.find((entry) => entry.side === 'party');
+  const raider = encounter.combatants.find((entry) => entry.name === 'Raider');
+  const second = encounter.combatants.find((entry) => entry.name === 'Second Raider');
+  assert.deepEqual(party.position, { column: 10, row: 50 }, 'staged where the referee put them');
+  assert.deepEqual(raider.position, { column: 80, row: 45 });
+  assert.ok(second.position.column > party.position.column, 'an unstaged foe takes the initial-range default');
 });

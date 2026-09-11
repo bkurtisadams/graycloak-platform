@@ -96,7 +96,7 @@ test('campaign registry and portable bundle preserve the campaign Activity Log D
   assert.equal(resolved.activityLogs.length, 1);
   assert.equal(resolved.activityLogs[0].entries[0].category, 'NOTE');
   const bundle = registry.buildBundle(campaign.identity.id);
-  assert.equal(bundle.schemaVersion, 7);
+  assert.equal(bundle.schemaVersion, 8);
   assert.equal(bundle.documents.activityLogs[0].campaignId, campaign.identity.id);
   assert.equal(bundle.documents.activityLogs[0].entries[0].message, 'Patron expects discretion.');
 });

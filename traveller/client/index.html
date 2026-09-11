@@ -12,7 +12,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.71.0</div>
+          <div id="app-subtitle" class="subtitle">v0.72.0</div>
         </div>
         <nav class="utility campaign-utility" aria-label="Campaign and view commands">
           <details id="campaign-menu" class="campaign-menu">
@@ -27,7 +27,7 @@
               <a id="open-lobby" class="text-button utility-button" href="enter.html" title="Your characters and campaigns">[ LOBBY ]</a>
             </div>
           </details>
-          <!-- v0.71.0: running the table is its own menu; the referee is the book's word. -->
+          <!-- v0.72.0: running the table is its own menu; the referee is the book's word. -->
           <details id="referee-menu" class="campaign-menu">
             <summary class="text-button utility-button">[ REFEREE v ]</summary>
             <div class="campaign-menu-popover" role="group" aria-label="Referee commands">
@@ -382,6 +382,8 @@
               <div class="roster-basis">PERSISTENT CAMPAIGN ACTORS // CLASSIC CHARACTERISTICS, SKILLS, EQUIPMENT, NOTES, PORTRAIT, AND BODY-AWARE STATE</div>
               <div id="directory-actors" class="campaign-directory" aria-label="Actors" aria-live="polite"></div>
               <div id="directory-vehicles" class="campaign-directory" aria-label="Vehicles"></div>
+              <!-- v0.72.0: scenes, in folders, like the actors. -->
+              <div id="directory-scenes" class="campaign-directory" aria-label="Scenes" aria-live="polite"></div>
               <div id="roster-folders" class="roster-folders" aria-live="polite"></div>
             </section>
           </div>
@@ -413,6 +415,27 @@
         </div>
       </form>
     </dialog>
+    <dialog id="scene-dialog" class="roll-dialog scene-dialog" aria-labelledby="scene-dialog-title">
+      <form id="scene-form" class="roll-dialog-form" method="dialog">
+        <div class="roll-dialog-heading">
+          <strong id="scene-dialog-title">NEW SCENE</strong>
+          <button id="scene-close" class="text-button" type="button">[ CLOSE ]</button>
+        </div>
+        <div class="scene-basis">A board a fight can be fought on. Square for now; a background image and a rectangular board come with the shared canvas.</div>
+        <label>NAME <input id="scene-name" type="text" maxlength="80" autocomplete="off" required></label>
+        <label>FOLDER <input id="scene-folder" type="text" maxlength="80" autocomplete="off" placeholder="Scenes" list="scene-folder-list"><datalist id="scene-folder-list"></datalist></label>
+        <div class="scene-size-row">
+          <label>SQUARES A SIDE <input id="scene-squares" type="number" min="10" max="1000" step="1" value="40"></label>
+          <label>METERS / SQUARE <select id="scene-scale"><option value="1">1</option><option value="5" selected>5</option><option value="25">25</option></select></label>
+          <span id="scene-size-note" class="scene-size-note">200 M A SIDE</span>
+        </div>
+        <div class="roll-dialog-actions">
+          <button id="scene-save" class="text-button action-button" type="button">[ CREATE SCENE ]</button>
+        </div>
+        <div id="scene-status" class="players-status"></div>
+      </form>
+    </dialog>
+
     <dialog id="players-dialog" class="roll-dialog players-dialog" aria-labelledby="players-dialog-title">
       <form id="players-form" class="roll-dialog-form" method="dialog">
         <div class="roll-dialog-heading">
@@ -500,6 +523,7 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
             </select>
           </label>
           <label>METERS / SQUARE <select id="combat-map-scale"><option value="1">1</option><option value="5" selected>5</option><option value="25">25</option></select></label>
+          <label>SCENE <select id="combat-scene"><option value="">SIZED TO THE FIGHT</option></select></label>
         </div>
         <div class="combat-setup-footer combat-surprise-footer">
           <span class="combat-surprise-label">SURPRISE DMs / BOOK 1 p.31</span>

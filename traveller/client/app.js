@@ -92,6 +92,7 @@ import {
 
 import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js';
 import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js';
+import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, SCENE_MIN_SQUARES, SCENE_MAX_METERS } from '../src/scene-document.js';
 
 import {
   SHEET_CHARACTERISTICS as HEADER_CHARACTERISTICS,
@@ -154,7 +155,8 @@ import {
   updateCampaignLocation,
   updateCampaignTime,
   speculativeLotPurchasedQuantity,
-  recordSpeculativeLotPurchase
+  recordSpeculativeLotPurchase,
+  addSceneToCampaign, removeSceneFromCampaign, setActiveCampaignScene
 } from '../src/campaign-document.js';
 
 import {
@@ -475,6 +477,18 @@ const el = {
   accountButton: document.querySelector('#account-button'),
   directoryActors: document.querySelector('#directory-actors'),
   directoryVehicles: document.querySelector('#directory-vehicles'),
+  directoryScenes: document.querySelector('#directory-scenes'),
+  sceneDialog: document.querySelector('#scene-dialog'),
+  sceneClose: document.querySelector('#scene-close'),
+  sceneName: document.querySelector('#scene-name'),
+  sceneFolder: document.querySelector('#scene-folder'),
+  sceneFolderList: document.querySelector('#scene-folder-list'),
+  sceneSquares: document.querySelector('#scene-squares'),
+  sceneScale: document.querySelector('#scene-scale'),
+  sceneSizeNote: document.querySelector('#scene-size-note'),
+  sceneSave: document.querySelector('#scene-save'),
+  sceneStatus: document.querySelector('#scene-status'),
+  combatScene: document.querySelector('#combat-scene'),
   rosterFolders: document.querySelector('#roster-folders'),
   rosterNewActor: document.querySelector('#roster-new-actor'),
   rollDialog: document.querySelector('#roll-dialog'),
@@ -569,6 +583,8 @@ let contactDocuments = [];
 let threadDocuments = [];
 let npcActorDocuments = [];
 let mediaAssetDocuments = [];
+    sceneDocuments = [];
+let sceneDocuments = [];
 let activityLogDocument = null;
 let playerSession = null;
 let activityFilter = 'play';
@@ -1843,6 +1859,7 @@ function persistGameplayDocuments() {
   for (const thread of threadDocuments) registry.put(thread);
   for (const actor of npcActorDocuments) registry.put(actor);
   for (const asset of mediaAssetDocuments) registry.put(asset);
+  for (const scene of sceneDocuments) registry.put(scene);
   if (activityLogDocument) registry.put(activityLogDocument);
 }
 
@@ -1858,7 +1875,8 @@ function syncCampaignRefs() {
     threads: threadDocuments,
     npcActors: npcActorDocuments,
     assets: mediaAssetDocuments,
-    activityLogs: activityLogDocument ? [activityLogDocument] : []
+    activityLogs: activityLogDocument ? [activityLogDocument] : [],
+    scenes: sceneDocuments
   });
 }
 
@@ -5126,6 +5144,146 @@ function renderCampaignDirectory() {
 
   el.directoryActors.replaceChildren(...section('ACTORS', directory.actors, 'NO CHARACTERS OR NPCS'));
   el.directoryVehicles.replaceChildren(...section('VEHICLES', directory.vehicles, 'NO SHIP OR VEHICLE'));
+  renderSceneDirectory();
+}
+
+// --- v0.72.0: scenes in the directory, grouped by folder -------------------
+function renderSceneDirectory() {
+  if (!el.directoryScenes) return;
+  const heading = document.createElement('div');
+  heading.className = 'directory-heading';
+  const title = document.createElement('span'); title.textContent = 'SCENES';
+  heading.append(title, makePortButton('NEW SCENE', openSceneDialog));
+  const rows = [heading];
+  if (!sceneDocuments.length) {
+    rows.push(Object.assign(document.createElement('div'), { className: 'directory-empty', textContent: 'NO SCENES YET / A FIGHT WITHOUT ONE IS SIZED TO ITSELF' }));
+    el.directoryScenes.replaceChildren(...rows);
+    return;
+  }
+  for (const { folder, scenes } of sceneFolders(sceneDocuments)) {
+    const folderRow = document.createElement('div');
+    folderRow.className = 'directory-folder';
+    folderRow.textContent = folder.toUpperCase();
+    rows.push(folderRow);
+    for (const scene of scenes) {
+      const row = document.createElement('div');
+      row.className = `directory-row kind-scene${campaignDocument?.activeSceneId === scene.identity.id ? ' active' : ''}`;
+      const name = document.createElement('span'); name.className = 'directory-name'; name.textContent = scene.identity.name.toUpperCase();
+      const detail = document.createElement('span'); detail.className = 'directory-detail';
+      detail.textContent = `${scene.board.squares} SQ / ${scene.board.metersPerSquare} M / ${sceneBoardMeters(scene)} M A SIDE${scene.tokens.length ? ` / ${scene.tokens.length} STAGED` : ''}`;
+      row.append(name, detail);
+      const active = campaignDocument?.activeSceneId === scene.identity.id;
+      row.append(makePortButton(active ? 'ACTIVE' : 'ACTIVATE', () => setActiveScene(active ? null : scene.identity.id)));
+      row.append(makePortButton('RENAME', () => renameScene(scene)));
+      row.append(makePortButton('DELETE', () => deleteScene(scene)));
+      rows.push(row);
+    }
+  }
+  el.directoryScenes.replaceChildren(...rows);
+}
+
+function setActiveScene(sceneId) {
+  try {
+    campaignDocument = setActiveCampaignScene(campaignDocument, sceneId);
+    persistCampaignState();
+    setStatus(sceneId ? `ACTIVE SCENE: ${sceneDocuments.find((entry) => entry.identity.id === sceneId)?.identity.name.toUpperCase() ?? sceneId}` : 'NO ACTIVE SCENE', 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function renameScene(scene) {
+  const name = window.prompt('Scene name:', scene.identity.name);
+  if (name === null) return;
+  const folder = window.prompt('Folder (a path such as Ports/Aster):', scene.folder);
+  if (folder === null) return;
+  try {
+    const next = updateSceneDocument(scene, { name, folder });
+    sceneDocuments = sceneDocuments.map((entry) => entry.identity.id === next.identity.id ? next : entry);
+    if (registry) registry.put(next);
+    persistCampaignState();
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function deleteScene(scene) {
+  if (encounterDocuments.some((entry) => entry.sceneId === scene.identity.id)) {
+    setStatus(`${scene.identity.name.toUpperCase()} HAS A FIGHT ON IT AND CANNOT BE DELETED`, 'error');
+    return;
+  }
+  if (!window.confirm(`Delete the scene ${scene.identity.name}?`)) return;
+  try {
+    campaignDocument = removeSceneFromCampaign(campaignDocument, scene.identity.id);
+    sceneDocuments = sceneDocuments.filter((entry) => entry.identity.id !== scene.identity.id);
+    if (registry) registry.remove(scene.identity.id);
+    persistCampaignState();
+    logActivity('SYSTEM', `Scene ${scene.identity.name} deleted.`);
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function setSceneStatus(text, kind = '') {
+  if (!el.sceneStatus) return;
+  el.sceneStatus.textContent = text;
+  el.sceneStatus.className = `players-status${kind ? ` ${kind}` : ''}`;
+}
+
+function updateSceneSizeNote() {
+  const squares = Number.parseInt(el.sceneSquares.value, 10) || 0;
+  const scale = Number.parseFloat(el.sceneScale.value) || 5;
+  const meters = squares * scale;
+  el.sceneSizeNote.textContent = meters > SCENE_MAX_METERS
+    ? `${meters} M A SIDE / TOO LARGE (MAXIMUM ${SCENE_MAX_METERS} M)`
+    : squares < SCENE_MIN_SQUARES ? `TOO SMALL (MINIMUM ${SCENE_MIN_SQUARES} SQUARES)` : `${meters} M A SIDE`;
+}
+
+function openSceneDialog() {
+  if (!campaignDocument) { setStatus('A CAMPAIGN IS REQUIRED FOR SCENES', 'error'); return; }
+  if (!el.sceneDialog) return;
+  el.sceneName.value = '';
+  el.sceneFolder.value = '';
+  el.sceneSquares.value = '40';
+  el.sceneScale.value = '5';
+  el.sceneFolderList.replaceChildren(...[...new Set(sceneDocuments.map((entry) => entry.folder))].sort().map((folder) => new Option(folder)));
+  setSceneStatus('');
+  updateSceneSizeNote();
+  el.sceneDialog.showModal();
+  window.setTimeout(() => el.sceneName.focus(), 0);
+}
+
+function createSceneFromDialog() {
+  try {
+    const scene = createSceneDocument({
+      campaignId: campaignDocument.identity.id,
+      name: el.sceneName.value,
+      folder: el.sceneFolder.value,
+      squares: Number.parseInt(el.sceneSquares.value, 10),
+      metersPerSquare: Number.parseFloat(el.sceneScale.value)
+    });
+    sceneDocuments.push(scene);
+    if (registry) registry.put(scene);
+    campaignDocument = addSceneToCampaign(campaignDocument, scene, { makeActive: !campaignDocument.activeSceneId });
+    persistCampaignState();
+    logActivity('SYSTEM', `Scene ${scene.identity.name} created / ${scene.board.squares} squares of ${scene.board.metersPerSquare} m in ${scene.folder}.`);
+    el.sceneDialog.close();
+    setStatus(`SCENE ${scene.identity.name.toUpperCase()} CREATED`, 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setSceneStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function activeScene() {
+  return sceneDocuments.find((entry) => entry.identity.id === campaignDocument?.activeSceneId) ?? null;
 }
 
 function renderRoster() {
@@ -5188,6 +5346,15 @@ function openCombatSetupDialog() {
   const options = [new Option('-- SELECT SAVED NPC --', '')];
   for (const actor of npcActorDocuments.filter((entry) => !entry.state.archived)) options.push(new Option(`${actor.identity.name} / ${actor.profile.role || actor.profile.actorType}`, actor.identity.id));
   el.combatRosterActor.replaceChildren(...options);
+  // v0.72.0: the fight may be on a scene; the active one is offered first.
+  if (el.combatScene) {
+    const sceneOptions = [new Option('SIZED TO THE FIGHT', '')];
+    for (const { folder, scenes } of sceneFolders(sceneDocuments)) for (const scene of scenes) {
+      sceneOptions.push(new Option(`${folder} / ${scene.identity.name} / ${sceneBoardMeters(scene)} M`, scene.identity.id));
+    }
+    el.combatScene.replaceChildren(...sceneOptions);
+    el.combatScene.value = campaignDocument?.activeSceneId ?? '';
+  }
   if (typeof el.combatSetupDialog.showModal === 'function') el.combatSetupDialog.showModal();
   else el.combatSetupDialog.setAttribute('open', '');
   window.setTimeout(() => el.combatEnemyName.focus(), 0);
@@ -5286,12 +5453,14 @@ function startManualEncounter() {
     armor: entry.loadout?.armor ?? 'none'
   }]));
   const typeTitle = setup.groups.map((entry) => entry.baseName).join(' + ');
+  const scene = sceneDocuments.find((entry) => entry.identity.id === el.combatScene?.value) ?? null;
   let encounter = createEncounterDocument({
     campaign: campaignDocument,
+    scene,
     characters,
     partyLoadouts,
     opponents: setup.opponents,
-    title: `Manual Combat / ${typeTitle}`,
+    title: `Manual Combat / ${scene ? `${scene.identity.name} / ` : ''}${typeTitle}`,
     encounterKey,
     date,
     range: el.combatStartingRange.value,
@@ -5367,6 +5536,7 @@ function startSituationEncounter(situation) {
     let encounter = createEncounterDocument({
       campaign: campaignDocument,
       situation,
+      scene: activeScene(),
       characters,
       partyLoadouts,
       opponent: {
@@ -6225,6 +6395,7 @@ function restoreCampaignFromRegistry(campaign) {
   threadDocuments = resolved.threads;
   npcActorDocuments = resolved.npcActors;
   mediaAssetDocuments = resolved.assets;
+  sceneDocuments = resolved.scenes ?? [];
   activityLogDocument = resolved.activityLogs[0] ?? null;
   documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
   character = createCharacter();
@@ -6313,6 +6484,7 @@ function newCampaign() {
     threadDocuments = [];
     npcActorDocuments = [];
     mediaAssetDocuments = [];
+    sceneDocuments = [];
     activityLogDocument = null;
     partyCharacterDocuments = [gameplay];
     campaignDocument = createCampaignDocument({
@@ -6852,6 +7024,7 @@ async function loadDocument(file, { campaignOnly = false, addToCampaign = false 
       threadDocuments = [];
       npcActorDocuments = [];
       mediaAssetDocuments = [];
+    sceneDocuments = [];
       selectedSystemId = null;
       documentMode = TRAVELLER_DOCUMENT_KINDS.CHARGEN;
       setActivityContext();
@@ -6870,6 +7043,7 @@ async function loadDocument(file, { campaignOnly = false, addToCampaign = false 
       threadDocuments = [];
       npcActorDocuments = [];
       mediaAssetDocuments = [];
+    sceneDocuments = [];
       selectedSystemId = null;
       if (shipDocument && !shipMatchesCharacter(shipDocument, gameplayDocument)) shipDocument = null;
       if (registry) registry.put(gameplayDocument);
@@ -6889,6 +7063,7 @@ async function loadDocument(file, { campaignOnly = false, addToCampaign = false 
       threadDocuments = [];
       npcActorDocuments = [];
       mediaAssetDocuments = [];
+    sceneDocuments = [];
       selectedSystemId = null;
       if (gameplayDocument) shipDocument = updateShipAssignedCharacterName(shipDocument, gameplayDocument.identity.name);
       if (registry) registry.put(shipDocument);
@@ -7197,6 +7372,7 @@ function startNewCharacter() {
   threadDocuments = [];
   npcActorDocuments = [];
   mediaAssetDocuments = [];
+    sceneDocuments = [];
   lastAutosaveAt = null;
   selectedSystemId = null;
   activeWorkspaceView = 'play';
@@ -7582,6 +7758,10 @@ el.playersSeat?.addEventListener('click', seatPlayerFromDialog);
 el.playersClose?.addEventListener('click', () => el.playersDialog.close());
 el.playersNewInvite?.addEventListener('click', mintInvite);
 el.reloadCampaignCloud?.addEventListener('click', reloadCampaignFromCloud);
+el.sceneClose?.addEventListener('click', () => el.sceneDialog.close());
+el.sceneSave?.addEventListener('click', createSceneFromDialog);
+el.sceneSquares?.addEventListener('input', updateSceneSizeNote);
+el.sceneScale?.addEventListener('change', updateSceneSizeNote);
 onAuthChange(() => { renderAccount(); renderPublishPanel(); scheduleCampaignHomeSave(); });
 
 // v0.68.0: the referee client is no longer a front door. Opened by [ RUN ]

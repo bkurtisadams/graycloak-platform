@@ -1,8 +1,8 @@
 import { stableDocumentId } from '../../packages/classic-traveller-rules/index.js';
 
 export const CAMPAIGN_DOCUMENT_TYPE = 'graycloak-traveller-campaign';
-export const CURRENT_CAMPAIGN_DOCUMENT_SCHEMA_VERSION = 10;
-export const SUPPORTED_CAMPAIGN_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+export const CURRENT_CAMPAIGN_DOCUMENT_SCHEMA_VERSION = 11;
+export const SUPPORTED_CAMPAIGN_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
 
 // Who controls what. `ownerUid` is the referee; `actors` maps a document id to
 // the account that plays it. The field name follows graycloak-adnd, whose
@@ -20,7 +20,7 @@ export const DEFAULT_CAMPAIGN_TIME = Object.freeze({
 
 const TOP_LEVEL_KEYS = Object.freeze([
   'documentType', 'schemaVersion', 'identity', 'time', 'location',
-  'party', 'activeCharacterId', 'activeShipId', 'documentRefs', 'roster', 'ownership', 'commerce', 'notes'
+  'party', 'activeCharacterId', 'activeShipId', 'activeSceneId', 'documentRefs', 'roster', 'ownership', 'commerce', 'notes'
 ]);
 
 export class CampaignDocumentValidationError extends Error {
@@ -144,6 +144,12 @@ function activityLogRef(document) {
   return { id: document.identity.id, name: document.identity.name };
 }
 
+// v0.72.0: scenes. The folder rides on the reference so the directory can
+// group without opening every document.
+function sceneRef(document) {
+  return { id: document.identity.id, name: document.identity.name, folder: document.folder };
+}
+
 function uniqueById(entries) {
   const byId = new Map();
   for (const entry of entries) byId.set(entry.id, entry);
@@ -165,12 +171,14 @@ export function createCampaignDocument({
   npcActors = [],
   assets = [],
   activityLogs = [],
+  scenes = [],
   roster = {},
   ownership = {},
   commerce = {},
   partyCharacterIds,
   activeCharacterId,
   activeShipId,
+  activeSceneId = null,
   notes = ''
 } = {}) {
   if (!Array.isArray(characters) || characters.length === 0) {
@@ -185,6 +193,7 @@ export function createCampaignDocument({
   if (!Array.isArray(npcActors)) throw new TypeError('npcActors must be an array');
   if (!Array.isArray(assets)) throw new TypeError('assets must be an array');
   if (!Array.isArray(activityLogs) || activityLogs.length > 1) throw new TypeError('activityLogs must contain at most one document');
+  if (!Array.isArray(scenes)) throw new TypeError('scenes must be an array');
   if (typeof name !== 'string') throw new TypeError('name must be a string');
   if (typeof notes !== 'string') throw new TypeError('notes must be a string');
 
@@ -198,6 +207,7 @@ export function createCampaignDocument({
   const npcActorRefs = uniqueById(npcActors.map(npcActorRef));
   const assetRefs = uniqueById(assets.map(mediaAssetRef));
   const activityLogRefs = uniqueById(activityLogs.map(activityLogRef));
+  const sceneRefs = uniqueById(scenes.map(sceneRef));
   const partyIds = partyCharacterIds === undefined
     ? characterRefs.map((entry) => entry.id)
     : [...partyCharacterIds];
@@ -228,6 +238,7 @@ export function createCampaignDocument({
     },
     activeCharacterId: resolvedActiveCharacterId,
     activeShipId: resolvedActiveShipId,
+    activeSceneId: nonblank(activeSceneId) ? activeSceneId : null,
     documentRefs: {
       characters: characterRefs,
       ships: shipRefs,
@@ -238,7 +249,8 @@ export function createCampaignDocument({
       encounters: encounterRefs,
       npcActors: npcActorRefs,
       assets: assetRefs,
-      activityLogs: activityLogRefs
+      activityLogs: activityLogRefs,
+      scenes: sceneRefs
     },
     ownership: {
       ownerUid: nonblank(ownership.ownerUid) ? String(ownership.ownerUid) : null,
@@ -305,12 +317,13 @@ export function validateCampaignDocument(document) {
 
   add(errors, nonblank(document.activeCharacterId), 'activeCharacterId must be a nonblank string');
   add(errors, document.activeShipId === null || nonblank(document.activeShipId), 'activeShipId must be null or a nonblank string');
+  add(errors, document.activeSceneId === null || nonblank(document.activeSceneId), 'activeSceneId must be null or a nonblank string');
 
   add(errors, isPlainObject(document.documentRefs), 'documentRefs must be an object');
   const characterIds = new Set();
   const shipIds = new Set();
   if (isPlainObject(document.documentRefs)) {
-    exactKeys(document.documentRefs, ['characters', 'ships', 'contracts', 'situations', 'contacts', 'threads', 'encounters', 'npcActors', 'assets', 'activityLogs'], 'documentRefs', errors);
+    exactKeys(document.documentRefs, ['characters', 'ships', 'contracts', 'situations', 'contacts', 'threads', 'encounters', 'npcActors', 'assets', 'activityLogs', 'scenes'], 'documentRefs', errors);
     add(errors, Array.isArray(document.documentRefs.characters) && document.documentRefs.characters.length > 0, 'documentRefs.characters must be a non-empty array');
     add(errors, Array.isArray(document.documentRefs.ships), 'documentRefs.ships must be an array');
     add(errors, Array.isArray(document.documentRefs.contracts), 'documentRefs.contracts must be an array');
@@ -321,6 +334,18 @@ export function validateCampaignDocument(document) {
     add(errors, Array.isArray(document.documentRefs.npcActors), 'documentRefs.npcActors must be an array');
     add(errors, Array.isArray(document.documentRefs.assets), 'documentRefs.assets must be an array');
     add(errors, Array.isArray(document.documentRefs.activityLogs) && document.documentRefs.activityLogs.length <= 1, 'documentRefs.activityLogs must contain at most one reference');
+    add(errors, Array.isArray(document.documentRefs.scenes), 'documentRefs.scenes must be an array');
+    if (Array.isArray(document.documentRefs.scenes)) {
+      const sceneIds = new Set();
+      for (const ref of document.documentRefs.scenes) {
+        add(errors, isPlainObject(ref), 'scene reference must be an object');
+        if (!isPlainObject(ref)) continue;
+        exactKeys(ref, ['id', 'name', 'folder'], 'documentRefs.scenes[]', errors);
+        add(errors, nonblank(ref.id) && nonblank(ref.name) && nonblank(ref.folder), 'scene reference is invalid');
+        if (nonblank(ref.id)) { add(errors, !sceneIds.has(ref.id), `duplicate scene reference: ${ref.id}`); sceneIds.add(ref.id); }
+      }
+      if (nonblank(document.activeSceneId)) add(errors, sceneIds.has(document.activeSceneId), 'activeSceneId must reference a scene');
+    }
 
     if (Array.isArray(document.documentRefs.characters)) {
       for (const ref of document.documentRefs.characters) {
@@ -579,6 +604,11 @@ export function migrateCampaignDocument(input) {
     next.schemaVersion = 10;
     next.ownership = { ownerUid: null, actors: {}, publishedAt: null };
   }
+  if (next.schemaVersion === 10) {
+    next.schemaVersion = 11;
+    next.documentRefs = { ...next.documentRefs, scenes: [] };
+    next.activeSceneId = null;
+  }
   assertValidCampaignDocument(next);
   return next;
 }
@@ -723,7 +753,7 @@ export function updateCampaignLocation(document, patch = {}) {
   return next;
 }
 
-export function refreshCampaignDocumentRefs(document, { characters = [], ships = [], contracts = [], situations = [], contacts = [], threads = [], encounters = [], npcActors = [], assets = [], activityLogs = [] } = {}) {
+export function refreshCampaignDocumentRefs(document, { characters = [], ships = [], contracts = [], situations = [], contacts = [], threads = [], encounters = [], npcActors = [], assets = [], activityLogs = [], scenes = [] } = {}) {
   const next = cloneJson(document);
   const characterMap = new Map(characters.map((entry) => [entry.identity.id, entry]));
   const shipMap = new Map(ships.map((entry) => [entry.identity.id, entry]));
@@ -771,6 +801,11 @@ export function refreshCampaignDocumentRefs(document, { characters = [], ships =
   next.documentRefs.assets = next.documentRefs.assets.map((ref) => {
     const source = assetMap.get(ref.id);
     return source ? mediaAssetRef(source) : ref;
+  });
+  const sceneMap = new Map(scenes.map((entry) => [entry.identity.id, entry]));
+  next.documentRefs.scenes = (next.documentRefs.scenes ?? []).map((ref) => {
+    const source = sceneMap.get(ref.id);
+    return source ? sceneRef(source) : ref;
   });
   next.documentRefs.activityLogs = next.documentRefs.activityLogs.map((ref) => {
     const source = activityLogMap.get(ref.id);
@@ -853,6 +888,29 @@ export function addNpcActorToCampaign(document, actorDocument, { folderId = 'fol
   }
   for (const entry of next.roster.folders) entry.actorIds = entry.actorIds.filter((id) => id !== actorDocument.identity.id);
   folder.actorIds.push(actorDocument.identity.id);
+  assertValidCampaignDocument(next);
+  return next;
+}
+
+export function addSceneToCampaign(document, sceneDocument, { makeActive = false } = {}) {
+  const next = cloneJson(document);
+  next.documentRefs.scenes = uniqueById([...(next.documentRefs.scenes ?? []), sceneRef(sceneDocument)]);
+  if (makeActive) next.activeSceneId = sceneDocument.identity.id;
+  assertValidCampaignDocument(next);
+  return next;
+}
+
+export function removeSceneFromCampaign(document, sceneId) {
+  const next = cloneJson(document);
+  next.documentRefs.scenes = (next.documentRefs.scenes ?? []).filter((ref) => ref.id !== sceneId);
+  if (next.activeSceneId === sceneId) next.activeSceneId = null;
+  assertValidCampaignDocument(next);
+  return next;
+}
+
+export function setActiveCampaignScene(document, sceneId) {
+  const next = cloneJson(document);
+  next.activeSceneId = nonblank(sceneId) ? sceneId : null;
   assertValidCampaignDocument(next);
   return next;
 }

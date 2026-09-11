@@ -1,5 +1,33 @@
 # Graycloak Traveller
 
+## v0.72.0 scenes, in folders
+
+The structural half of the combat audit begins. A **scene** is a board on its
+own: a name, a size in squares, a grid scale, a folder in the directory, and
+tokens staged on it before anything is declared. `src/scene-document.js` holds
+the shape; the campaign document (schema 11) lists scenes in `documentRefs`
+and names an `activeSceneId`; the bundle (v8) and the registry carry them;
+the cloud home carries them with everything else, so no rules change.
+
+**The directory gains SCENES**, grouped by folder — folders are paths on the
+scene, `Ports/Aster`, the way Foundry does it — with `[ NEW SCENE ]` opening
+a dialog for name, folder, squares a side and metres per square, and each row
+offering `[ ACTIVATE ]`, `[ RENAME ]` and `[ DELETE ]`. A scene with a fight on
+it cannot be deleted.
+
+**A fight is fought on a scene.** Encounter schema 15 records `sceneId`. The
+combat setup dialog offers `SCENE`, defaulting to the active one, and a fight
+on a scene takes the scene's board and puts any staged token where the
+referee left it — an unstaged combatant still takes the initial-range default.
+A situation-driven fight uses the active scene if there is one.
+
+**Not yet:** staging tokens by dragging from the directory onto the board, a
+background image, and rectangular boards. Those need the shared canvas, which
+is v0.73.0.
+
+No rules-package changes. Campaign 10 → 11, bundle 7 → 8, encounter 14 → 15;
+all migrations are additive.
+
 ## v0.71.0 a board the size of the fight
 
 The combat audit found one cause behind the last four canvas bugs: the board

@@ -18,8 +18,8 @@ import {
 } from '../../packages/classic-traveller-rules/index.js';
 
 export const ENCOUNTER_DOCUMENT_TYPE = 'graycloak-traveller-personal-encounter';
-export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 14;
-export const SUPPORTED_ENCOUNTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
+export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 15;
+export const SUPPORTED_ENCOUNTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
 // Who decides a combatant's action: the referee (or its player), or the house
 // NPC routine. Party members default to manual, everyone else to auto.
 export const COMBATANT_TACTICS = Object.freeze(['manual', 'auto']);
@@ -140,7 +140,7 @@ function partyDocuments(character, characters) {
   return entries;
 }
 
-export function createEncounterDocument({ campaign, situation = null, character = null, characters = null, partyLoadouts = {}, opponent = null, opponents = null, title = null, encounterKey = null, date, range = 'medium', metersPerSquare = null, boardMeters = null, surpriseConditions = {}, dice } = {}) {
+export function createEncounterDocument({ campaign, situation = null, scene = null, character = null, characters = null, partyLoadouts = {}, opponent = null, opponents = null, title = null, encounterKey = null, date, range = 'medium', metersPerSquare = null, boardMeters = null, surpriseConditions = {}, dice } = {}) {
   if (!campaign?.identity?.id) throw new TypeError('campaign is required');
   const characterDocuments = partyDocuments(character, characters);
   const opponentSpecs = Array.isArray(opponents) && opponents.length ? opponents : opponent ? [opponent] : [];
@@ -148,9 +148,11 @@ export function createEncounterDocument({ campaign, situation = null, character 
   if (opponentSpecs.length > 16) throw new RangeError('an encounter supports at most sixteen opponents');
   if (!validDate(date)) throw new TypeError('valid encounter date is required');
   if (!PERSONAL_COMBAT_RANGES.includes(range)) throw new RangeError(`unknown personal combat range: ${range}`);
-  const gridScale = metersPerSquare ?? ENCOUNTER_METERS_PER_SQUARE;
+  // v0.72.0: a fight on a scene takes the scene's board and its staged tokens.
+  const gridScale = scene ? scene.board.metersPerSquare : (metersPerSquare ?? ENCOUNTER_METERS_PER_SQUARE);
   if (!ENCOUNTER_GRID_SCALES.includes(gridScale)) throw new RangeError('grid scale must be 1, 5, or 25 meters');
-  const sideMeters = boardMeters ?? encounterBoardMeters(range, gridScale);
+  const sideMeters = scene ? scene.board.squares * scene.board.metersPerSquare : (boardMeters ?? encounterBoardMeters(range, gridScale));
+  const staged = new Map((scene?.tokens ?? []).map((token) => [token.actorId, token.position]));
   if (!Number.isInteger(sideMeters) || sideMeters < ENCOUNTER_MAP_MIN_METERS || sideMeters > ENCOUNTER_MAP_COLUMNS - 1 || sideMeters % gridScale !== 0) throw new RangeError('board size must be a whole number of grid squares between 50 m and 1000 m a side');
   const board = { columns: sideMeters + 1, rows: sideMeters + 1, gridScale };
   const party = characterDocuments.map((entry, index) => {
@@ -162,7 +164,7 @@ export function createEncounterDocument({ campaign, situation = null, character 
       armor: loadout.armor ?? opponentSpecs[0].playerArmor ?? 'none',
       weaponKey: loadout.weaponKey ?? opponentSpecs[0].playerWeaponKey ?? 'rifle',
       surpriseDM: (military ? 1 : 0) + Math.min(1, Number(entry.skills?.Leadership ?? 0)) + Math.min(1, Number(entry.skills?.Tactics ?? 0))
-    }), entry.current, characterEncounterStatus(entry)), initialPosition('party', index, characterDocuments.length, range, board)), cover: 'none', foldingStock: false, tactics: 'manual', militaryExperience: military, sourceActorId: entry.identity.id,
+    }), entry.current, characterEncounterStatus(entry)), staged.get(entry.identity.id) ?? initialPosition('party', index, characterDocuments.length, range, board)), cover: 'none', foldingStock: false, tactics: 'manual', militaryExperience: military, sourceActorId: entry.identity.id,
       actorType: 'pc', bodyModel: 'biological', tokenLabel: entry.identity.name.charAt(0).toUpperCase(), conditions: [], contactIds: [] };
   });
   const hostiles = opponentSpecs.map((spec, index) => {
@@ -173,7 +175,7 @@ export function createEncounterDocument({ campaign, situation = null, character 
       name: spec.name, side: 'opposition', characteristics: spec.characteristics ?? { STR: 7, DEX: 7, END: 7, INT: 7 },
       skills: spec.skills ?? { [defaultSkill]: 0 }, armor: spec.armor ?? 'jack',
       weaponKey, surpriseDM: Number(spec.surpriseDM ?? 0)
-    }), spec.current), initialPosition('opposition', index, opponentSpecs.length, range, board)), cover: 'none', foldingStock: false, tactics: 'auto', militaryExperience: Boolean(spec.militaryExperience), sourceActorId: spec.actorId ?? null,
+    }), spec.current), (spec.actorId && staged.get(spec.actorId)) ?? initialPosition('opposition', index, opponentSpecs.length, range, board)), cover: 'none', foldingStock: false, tactics: 'auto', militaryExperience: Boolean(spec.militaryExperience), sourceActorId: spec.actorId ?? null,
       actorType: spec.actorType ?? 'npc', bodyModel: spec.bodyModel ?? (spec.actorType === 'robot' ? 'robotic' : 'biological'),
       tokenLabel: String(spec.tokenLabel ?? spec.name).charAt(0).toUpperCase(), conditions: Array.isArray(spec.conditions) ? [...spec.conditions] : [], contactIds: [] };
   });
@@ -198,6 +200,7 @@ export function createEncounterDocument({ campaign, situation = null, character 
     identity: { id: stableDocumentId('encounter', seed), title: encounterTitle },
     campaignId: campaign.identity.id,
     situationId: situation?.identity?.id ?? null,
+    sceneId: scene?.identity?.id ?? null,
     location: {
       systemId: situation?.location?.systemId ?? campaign.location.systemId,
       systemName: situation?.location?.systemName ?? campaign.location.systemName
@@ -228,6 +231,7 @@ export function validateEncounterDocument(document) {
   add(errors, nonblank(document.identity?.id) && nonblank(document.identity?.title), 'identity must contain id and title');
   add(errors, nonblank(document.campaignId), 'campaignId must be nonblank');
   add(errors, document.situationId === null || nonblank(document.situationId), 'situationId must be null or nonblank');
+  add(errors, document.sceneId === null || nonblank(document.sceneId), 'sceneId must be null or nonblank');
   add(errors, nonblank(document.location?.systemId) && nonblank(document.location?.systemName), 'location must contain systemId and systemName');
   add(errors, validDate(document.timing?.createdDate), 'timing.createdDate must be valid');
   add(errors, document.timing?.resolvedDate === null || validDate(document.timing?.resolvedDate), 'timing.resolvedDate must be null or valid');
@@ -432,6 +436,11 @@ function migrateEncounterDocument(document) {
     // v0.71.0: boards are sized per encounter. A kilometre board stays a
     // kilometre; nothing about its positions changes.
     document.schemaVersion = 14;
+  }
+  if (document.schemaVersion === 14) {
+    // v0.72.0: an encounter may be fought on a scene.
+    document.sceneId = null;
+    document.schemaVersion = 15;
   }
   return document;
 }

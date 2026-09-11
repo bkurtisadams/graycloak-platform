@@ -3293,3 +3293,14 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 /* v0.70.3: Chrome draws a focused SVG group's outline in user units, so at deep
    zoom it swallowed the token. The gold corner brackets already show selection. */
 .player-token-group:focus, .player-token-group:focus-visible { outline: none; }
+
+/* --- v0.72.0: scenes in the directory, in folders. */
+.directory-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.directory-folder { font-size: 10px; letter-spacing: .1em; color: var(--muted); padding: 6px 0 2px 2px; border-bottom: 1px dotted var(--disabled); }
+.directory-row.kind-scene { border-left: 3px solid #6f866f; }
+.directory-row.kind-scene.active { background: #eef3ee; }
+.scene-basis { font-size: 10px; letter-spacing: .04em; color: var(--muted); max-width: 46ch; padding-bottom: 6px; }
+.scene-dialog label { display: flex; flex-direction: column; gap: 3px; font-size: 10px; letter-spacing: .08em; }
+.scene-dialog input, .scene-dialog select { font: inherit; font-size: 12px; padding: 3px 4px; }
+.scene-size-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: end; }
+.scene-size-note { grid-column: 1 / -1; font-size: 10px; letter-spacing: .06em; color: var(--muted); }
