@@ -1,5 +1,41 @@
 # Graycloak Traveller
 
+## v0.76.2 the token menu couldn't be trusted, and reinforcements needed a drop target
+
+Three real faults, likely all behind the same report.
+
+**A bad foe could blank the whole context menu.** `showEncounterTokenMenu`
+built its actions in one pass with no error handling; if computing the
+attack preview for one foe threw — an odd loadout, an actor type the preview
+did not expect — the exception aborted the function before it ever reached
+`REMOVE FROM ENCOUNTER`, which is added last. The right-click menu would
+then show only SELECT and TARGET, or nothing at all, with no sign why. Each
+foe's preview is now wrapped on its own; a failure marks that one entry
+UNAVAILABLE and the rest of the menu — including REMOVE — still builds.
+
+**Removing the last combatant on a side was a silent throw.** An active
+encounter needs at least one participant per side, so removing the last one
+was always refused — correctly — but only as a caught exception and a status
+line easy to miss. The button is now disabled with a tooltip that says why,
+before you click it rather than after.
+
+**Dragging an actor onto a fight already in progress had no drop target at
+all.** `[ LOAD A CAMPAIGN FILE ]`'s sibling from v0.76.0 wired drag-and-drop
+onto a *staged* scene only; once a fight starts, or after it ends, the
+viewport had no `ondrop`, so a drag did nothing and said nothing. A roster
+NPC dragged onto an active fight now reinforces it, at the dropped square,
+the way `[ PLACE ROSTER ACTOR HERE ]` always has; dropping a party character
+is refused with a plain reason — joining a fight mid-combat isn't something
+Book 1 gives a character a way to do, so the client says so rather than
+trying. A resolved encounter still takes no drops: there is nothing left to
+add to.
+
+If your two other party members still don't appear in ACTORS after this,
+that's not one of these three — it means their character ids aren't in the
+campaign's party list, which happens when a character reaches the party by
+some path other than an invite seat or [ ADD CHARACTER ]. Worth checking
+under JOURNAL → CAMPAIGN RECORD.
+
 ## v0.76.1 a tab is no longer buried under WHAT NOW?
 
 WHAT NOW? opened by default and stayed open across every sidebar tab, so on

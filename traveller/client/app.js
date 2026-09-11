@@ -3705,14 +3705,24 @@ function showEncounterTokenMenu(event, encounter, combatant, onSelect, anchorEle
   };
 
   const canOrder = combatant.status === 'active' && !alreadyDeclared && encounter.status === 'active';
+  // v0.76.2: a malformed foe (odd loadout, a body model the preview does not
+  // expect) used to throw here and abort the whole menu before REMOVE FROM
+  // ENCOUNTER — the one action that would have fixed the bad token — was ever
+  // added. One foe's preview failing no longer takes the rest of the menu
+  // with it.
   addCascade('ATTACK', (submenu) => {
     for (const foe of foes) {
-      const band = encounterPairRange(combatant, foe);
-      const preview = previewPersonalAttack({ attacker: combatant, defender: foe, range: band, situationalDM: encounterSituationDMs(encounter, combatant, foe).total });
-      subItem(submenu,
-        `${foe.name.toUpperCase()} / ${band.toUpperCase().replace('-', ' ')} / ${preview.canAttack ? `${Math.max(2, preview.requiredRoll)}+` : 'NO REACH'}`,
-        () => declare('attack', foe.id), !preview.canAttack,
-        preview.canAttack ? `Book 1 pp.45–47` : `${preview.weaponName} has no ${band.replace('-', ' ')} range column (Book 1 p.46)`);
+      try {
+        const band = encounterPairRange(combatant, foe);
+        const preview = previewPersonalAttack({ attacker: combatant, defender: foe, range: band, situationalDM: encounterSituationDMs(encounter, combatant, foe).total });
+        subItem(submenu,
+          `${foe.name.toUpperCase()} / ${band.toUpperCase().replace('-', ' ')} / ${preview.canAttack ? `${Math.max(2, preview.requiredRoll)}+` : 'NO REACH'}`,
+          () => declare('attack', foe.id), !preview.canAttack,
+          preview.canAttack ? `Book 1 pp.45\u201347` : `${preview.weaponName} has no ${band.replace('-', ' ')} range column (Book 1 p.46)`);
+      } catch (error) {
+        console.error('[traveller] attack preview failed for', foe.name, error);
+        subItem(submenu, `${foe.name.toUpperCase()} / UNAVAILABLE`, () => {}, true, error?.message ?? String(error));
+      }
     }
     if (!foes.length) subItem(submenu, 'NO ACTIVE TARGET', () => {}, true);
   }, !canOrder);
@@ -3744,7 +3754,13 @@ function showEncounterTokenMenu(event, encounter, combatant, onSelect, anchorEle
   });
   add('CHANGE CONDITION', () => openEncounterConditionDialog(encounter.identity.id, combatant.id));
   if (combatant.sourceActorId && npcActorDocuments.some((entry) => entry.identity.id === combatant.sourceActorId)) add('OPEN ROSTER ACTOR', () => { operationsDeskTab = 'roster'; render(); openNpcActorDialog(combatant.sourceActorId); });
-  add('REMOVE FROM ENCOUNTER', () => removeCombatantFromActiveEncounter(encounter.identity.id, combatant.id));
+  // A side left empty mid-fight has no clean Book 1 meaning, so the last
+  // combatant on a side cannot be removed one at a time — the encounter is
+  // resolved instead. The button says so rather than only throwing when
+  // clicked.
+  const lastOnSide = encounter.combatants.filter((entry) => entry.side === combatant.side).length <= 1;
+  add('REMOVE FROM ENCOUNTER', () => removeCombatantFromActiveEncounter(encounter.identity.id, combatant.id), lastOnSide);
+  if (lastOnSide) actions.at(-1).title = `${combatant.name} is the last ${combatant.side} combatant; resolve the encounter instead of emptying a side`;
   el.encounterTokenMenu.replaceChildren(...actions);
   positionEncounterOverlay(el.encounterTokenMenu, event, anchorElement);
   actions.find((button) => !button.disabled)?.focus({ preventScroll: true });
@@ -3943,6 +3959,7 @@ function renderEncounterMap(encounter) {
   if (!encounter && activeScene()) { renderStagedScene(activeScene()); return; }
   if (!encounter) {
     hideEncounterTokenOverlays();
+    if (el.encounterMapViewport) { el.encounterMapViewport.ondragover = null; el.encounterMapViewport.ondrop = null; }
     // No encounter yet: the start control still belongs with the tracker slot,
     // which is the one place start and end live.
     el.encounterTracker.replaceChildren();
@@ -4064,6 +4081,42 @@ function renderEncounterMap(encounter) {
       }
     }
   });
+  // v0.76.2: a roster actor dragged onto an in-progress fight reinforces it,
+  // at the square the pointer lands on — the same as PLACE ROSTER ACTOR HERE,
+  // reached by drag. A resolved encounter (shown after the fight, before the
+  // world scene returns) does not accept drops: there is nothing to add to.
+  const viewport = el.encounterMapViewport;
+  if (viewport) {
+    if (encounter.status === 'active') {
+      viewport.ondragover = (event) => { if (event.dataTransfer?.types.includes('application/x-graycloak-actor')) event.preventDefault(); };
+      viewport.ondrop = (event) => {
+        const dropped = readActorDrop(event);
+        if (!dropped) return;
+        event.preventDefault();
+        if (dropped.kind === 'character') { setStatus('A PARTY CHARACTER CANNOT BE ADDED TO A FIGHT ALREADY IN PROGRESS', 'error'); return; }
+        if (encounter.combatants.some((entry) => entry.sourceActorId === dropped.actorId)) { setStatus('THAT ACTOR IS ALREADY IN THIS ENCOUNTER', 'error'); return; }
+        const actor = npcActorDocuments.find((entry) => entry.identity.id === dropped.actorId);
+        if (!actor) { setStatus('ACTOR IS UNAVAILABLE', 'error'); return; }
+        const point = encounterMapPoint(event.clientX, event.clientY);
+        const scale = encounter.map.metersPerSquare;
+        const { cell } = encounterCanvas().metrics();
+        const column = Math.max(0, Math.min(encounter.map.columns - 1, Math.round(point.x / cell / scale) * scale));
+        const row = Math.max(0, Math.min(encounter.map.rows - 1, Math.round(point.y / cell / scale) * scale));
+        try {
+          const index = encounterDocuments.findIndex((entry) => entry.identity.id === encounter.identity.id);
+          const result = addEncounterCombatantFromActor(encounterDocuments[index], { actor, side: dropped.side, column, row });
+          encounterDocuments[index] = result.encounter;
+          logActivity('COMBAT', result.entry.text);
+          persistCampaignState();
+          setStatus(`${actor.identity.name.toUpperCase()} PLACED IN ENCOUNTER`, 'ok');
+          renderEncounter();
+        } catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); }
+      };
+    } else {
+      viewport.ondragover = null;
+      viewport.ondrop = null;
+    }
+  }
   renderEncounterRangePanel(encounter, actor, target, guide);
   el.encounterGridScale.value = String(gridScale);
   el.encounterGridScale.disabled = encounter.status !== 'active';
