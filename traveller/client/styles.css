@@ -746,9 +746,10 @@ input[readonly] {
    band, drawn at real pixel scale rather than the 1-unit-per-cell scale the
    tactical board's tokens use above. */
 .range-line-row { fill: transparent; stroke: none; }
-.range-line-row.escaped { fill: #6a1f1f; opacity: .08; }
-.range-line-divider { stroke: #111311; stroke-width: 1; opacity: .35; }
-.range-line-zone-label { fill: #6b6a63; font: 700 12px Consolas, monospace; dominant-baseline: central; letter-spacing: .04em; }
+.range-line-row:nth-of-type(odd) { fill: #00000008; }
+.range-line-row.escaped { fill: #6a1f1f; opacity: .12; }
+.range-line-divider { stroke: #111311; stroke-width: 1; opacity: .6; }
+.range-line-zone-label { fill: #3a3934; font: 700 14px Consolas, monospace; dominant-baseline: central; letter-spacing: .04em; }
 .range-line-token { cursor: pointer; }
 .range-line-token circle { stroke: #111311; stroke-width: 1.5; }
 .range-line-token.party circle { fill: #29465c; }

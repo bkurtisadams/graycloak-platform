@@ -449,6 +449,9 @@ const el = {
   encounterGridToggle: document.querySelector('#encounter-grid-toggle'),
   encounterGridScale: document.querySelector('#encounter-grid-scale'),
   encounterGridLegend: document.querySelector('#encounter-grid-legend'),
+  encounterLegendContactNote: document.querySelector('#encounter-legend-contact-note'),
+  encounterMapTools: document.querySelector('.encounter-map-tools'),
+  encounterRangePanel: document.querySelector('#encounter-range-panel'),
   encounterMapViewport: document.querySelector('#encounter-map-viewport'),
   encounterMap: document.querySelector('#encounter-map'),
   encounterZoomOut: document.querySelector('#encounter-zoom-out'),
@@ -4458,6 +4461,15 @@ function renderEncounterRangePanel(encounter, actor, target, guide = null) {
 // straight off the same data the tactical board uses, just grouped by row
 // instead of drawn as x/y coordinates on a grid.
 function renderRangeLineBoard(encounter) {
+  // v0.96.7: the tactical toolbar (zoom, MOVE pace, GRID scale, HIDE GRID),
+  // the RINGS/grid-distance panel, and the meters-based legend lines are
+  // all specific to a real board — none of them mean anything on a line
+  // with no meters at all, and leaving them showing was most of why this
+  // view read as an oversized header sitting on top of a tiny board.
+  if (el.encounterMapTools) el.encounterMapTools.hidden = true;
+  if (el.encounterRangePanel) el.encounterRangePanel.hidden = true;
+  if (el.encounterGridLegend) el.encounterGridLegend.hidden = true;
+  if (el.encounterLegendContactNote) el.encounterLegendContactNote.hidden = true;
   // The board keeps its default 0 0 1206 1206 viewBox — camera control stays
   // exclusively in scene-canvas.js (v0.73.0), and this view has no camera to
   // begin with: nothing here pans or zooms, so it simply lays its rows out
@@ -4539,7 +4551,6 @@ function renderRangeLineBoard(encounter) {
     ? ` // ${encounter.status.toUpperCase().replace('-', ' ')}`
     : awaiting.length ? ` // AWAITING ${awaiting.map((entry) => entry.name.toUpperCase()).join(', ')}` : ' // ALL DECLARED';
   el.encounterSelectionStatus.textContent = `ROUND ${encounter.round}${roundState} // ACTOR ${actor?.name.toUpperCase() ?? '--'} // TARGET ${target?.name.toUpperCase() ?? '--'}${guideText} // BOOK 1 RANGE LINE`;
-  renderEncounterRangePanel(encounter, actor, target, guide);
   renderEncounterLighting(encounter);
   renderEncounterTracker(encounter, actor);
 }
@@ -4591,6 +4602,12 @@ function renderEncounterMap(encounter) {
   // counts, not meters. It gets its own renderer entirely; everything below
   // this point assumes a square, meters-based board.
   if (encounter.map.spatialMode === 'range-line') { renderRangeLineBoard(encounter); return; }
+  // Restore whatever the range-line view above hides, in case the previous
+  // render was a range-line fight and this one is a real, mapped board.
+  if (el.encounterMapTools) el.encounterMapTools.hidden = false;
+  if (el.encounterRangePanel) el.encounterRangePanel.hidden = false;
+  if (el.encounterGridLegend) el.encounterGridLegend.hidden = false;
+  if (el.encounterLegendContactNote) el.encounterLegendContactNote.hidden = false;
   const board = encounterCanvas();
   board.setBoard(encounter.map);
   const gridScale = encounter.map.metersPerSquare;
