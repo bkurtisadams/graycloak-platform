@@ -1,5 +1,24 @@
 # Graycloak Traveller
 
+## v0.92.3 START COMBAT says what it needs instead of throwing
+
+v0.92.1 pointed the tracker's START COMBAT at `startCombatFromScene` when a
+scene is on the canvas, which was right — but a resolving fight *clears* the
+combat tracker (v0.74.0, deliberately: those declarations are spent). So the
+button always had nothing to start and threw `track at least one party
+character` on every press. I traded one bug for another and shipped it.
+
+The button now reads the tracker before offering itself: disabled until at
+least one party token and one opponent are tracked, with a tooltip naming
+which is missing and how to add it — `add a party token and an opponent to
+the combat tracker first — right-click a token, ADD TO COMBAT`. Both routes
+are guarded, the resolved-encounter one and the no-encounter one, since they
+fail identically and I have now twice fixed only the caller in front of me.
+
+A fight ending leaves its tokens on the scene, just untracked, so a second
+fight is: track who is involved, then START COMBAT. That is the same
+sequence as the first fight, which is the point.
+
 ## v0.92.2 the navigation bar clears the tool rail
 
 v0.92.1 moved the bar out of the subsector's header and into the stage's

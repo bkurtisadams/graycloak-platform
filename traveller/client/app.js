@@ -4363,9 +4363,17 @@ function renderEncounterMap(encounter) {
     const start = scene
       ? makePortButton('START COMBAT', () => startCombatFromScene(scene))
       : makePortButton('START COMBAT', openCombatSetupDialog);
-    start.title = scene
-      ? `Begin a fight on ${scene.identity.name} from the tracked tokens`
-      : 'Create a manual personal encounter with referee-defined enemy statistics and equipment';
+    if (scene) {
+      const tracked = trackedSceneTokens(scene);
+      const needParty = !tracked.some((token) => token.side === 'party');
+      const needFoe = !tracked.some((token) => token.side !== 'party');
+      start.disabled = needParty || needFoe;
+      start.title = start.disabled
+        ? `${scene.identity.name}: add ${[needParty ? 'a party token' : null, needFoe ? 'an opponent' : null].filter(Boolean).join(' and ')} to the combat tracker first — right-click a token, ADD TO COMBAT`
+        : `Begin a fight on ${scene.identity.name} from the ${tracked.length} tracked token${tracked.length === 1 ? '' : 's'}`;
+    } else {
+      start.title = 'Create a manual personal encounter with referee-defined enemy statistics and equipment';
+    }
     el.encounterResolve.replaceChildren(start);
     el.encounterMap.replaceChildren();
     el.encounterPartyRoster.replaceChildren();
@@ -4875,10 +4883,20 @@ function renderEncounterTracker(encounter, actor) {
     : scene
       ? makePortButton('START COMBAT', () => startCombatFromScene(scene))
       : makePortButton('START COMBAT', openCombatSetupDialog);
-  if (encounter.status !== 'active') {
-    button.title = scene
-      ? `Begin a new fight on ${scene.identity.name} from the tracked tokens`
-      : 'Create a manual personal encounter with referee-defined enemy statistics and equipment';
+  if (encounter.status !== 'active' && scene) {
+    // v0.92.3: resolving a fight clears the tracker, so this button had
+    // nothing to start and threw "track at least one party character" every
+    // time. A new fight needs tokens tracked again; the button says so and
+    // stays disabled until they are, rather than failing when pressed.
+    const tracked = trackedSceneTokens(scene);
+    const needParty = !tracked.some((token) => token.side === 'party');
+    const needFoe = !tracked.some((token) => token.side !== 'party');
+    button.disabled = needParty || needFoe;
+    button.title = button.disabled
+      ? `${scene.identity.name}: add ${[needParty ? 'a party token' : null, needFoe ? 'an opponent' : null].filter(Boolean).join(' and ')} to the combat tracker first — right-click a token, ADD TO COMBAT`
+      : `Begin a new fight on ${scene.identity.name} from the ${tracked.length} tracked token${tracked.length === 1 ? '' : 's'}`;
+  } else if (encounter.status !== 'active') {
+    button.title = 'Create a manual personal encounter with referee-defined enemy statistics and equipment';
   }
   const note = document.createElement('span');
   note.className = 'encounter-resolve-note';
