@@ -1,5 +1,43 @@
 # Graycloak Traveller
 
+## v0.92.0 viewing a scene and activating it are different acts
+
+The bug you hit — a scene activates but the canvas does not move, and VIEW is
+the only path that works — was two ideas wearing one name. `activeSceneId` on
+the campaign is *what players see*; `activeSceneTab` on the rail was *what the
+referee is looking at*. Clicking a card set the first and not the second, so
+the scene really did activate and the canvas really did stay put.
+
+They are separate now, as in Foundry and for the reason Book 1 cares about —
+the referee manages information secretly:
+
+- **VIEW** (click a card, or pick from the navigation bar) moves the
+  referee's canvas only. Laying out an ambush no longer shows it to the table.
+- **ACTIVATE** (the card's menu) commits the scene to every player *and* takes
+  the referee there, because in play those happen together: you activate to
+  draw the table somewhere, then start the fight.
+
+**The world map is a scene.** `WORLD_SCENE_ID` is an id like any other, so
+"back to the subsector" is an ordinary selection rather than a special
+button — which is what your question exposed as missing. The rail's SYSTEM
+button is retired; the rail is tools now, as Foundry's is.
+
+**The navigation bar** sits over the top of the canvas: the viewed scene's
+name, a marker when the table is seeing it too, and a dropdown of the world
+map, any manual fight, and every scene by folder, with a tick on the viewed
+one and a filled circle on the activated one. That is how you leave a scene
+as well as enter it.
+
+**On reload,** the activated scene — your answer, and right for players too,
+who have no notion of "viewed" at all. A scene viewed later in the same
+session wins, being the more recent deliberate choice. And a fight beginning
+while the referee looks elsewhere brings the canvas to it; if they are
+already there, nothing moves.
+
+Driven in jsdom: the bar reads SUBSECTOR, the dropdown lists the folder and
+the activated scene, picking it views it and swaps the canvas to the board
+without activating it, and SUBSECTOR brings the map back.
+
 ## v0.91.0 the phase, the statuses, and the composer's 16 pixels
 
 **The composer, solved by arithmetic.** `gcDebug('#chat-composer')` gave the

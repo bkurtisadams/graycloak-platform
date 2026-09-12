@@ -503,6 +503,10 @@ const el = {
   sceneStatus: document.querySelector('#scene-status'),
   combatScene: document.querySelector('#combat-scene'),
   combatSetupBoard: document.querySelector('#combat-setup-board'),
+  sceneNav: document.querySelector('#scene-nav'),
+  sceneNavButton: document.querySelector('#scene-nav-button'),
+  sceneNavName: document.querySelector('#scene-nav-name'),
+  sceneNavActive: document.querySelector('#scene-nav-active'),
   rosterFolders: document.querySelector('#roster-folders'),
   rosterNewActor: document.querySelector('#roster-new-actor'),
   rollDialog: document.querySelector('#roll-dialog'),
@@ -1518,9 +1522,11 @@ function applyCampaignLayout() {
   // as a floating window over whichever is showing, rather than replacing it.
   el.sceneTabsRow.hidden = false;
   applyDocumentWindow(characterWindow);
-  el.subsectorSection.hidden = activeSceneTab !== 'system';
-  el.encounterSection.hidden = activeSceneTab !== 'combat';
-  el.sceneStatusStrip.hidden = activeSceneTab !== 'system';
+  const board = viewedSceneIsBoard();
+  el.subsectorSection.hidden = board;
+  el.encounterSection.hidden = !board;
+  el.sceneStatusStrip.hidden = board;
+  renderSceneNav();
   for (const button of el.sceneTabs) {
     const characterButton = button.dataset.sceneTab === 'character';
     const isActive = characterButton ? characterWindow.state.open : button.dataset.sceneTab === activeSceneTab;
@@ -1540,7 +1546,82 @@ function applyCampaignLayout() {
   }
 }
 
+// v0.92.0: viewed and activated are different things, and conflating them was
+// the bug. `viewedSceneId` is the referee's own canvas — the world map
+// (WORLD_SCENE_ID) or a scene's id. The campaign's `activeSceneId` is what
+// players see. Clicking a scene views it; ACTIVATE commits it to the table
+// and takes the referee along, which is how the gesture is used in play.
+const WORLD_SCENE_ID = 'world';
+let viewedSceneId = WORLD_SCENE_ID;
 let activeSceneTab = 'system';
+
+function viewedScene() {
+  return viewedSceneId === WORLD_SCENE_ID ? null : sceneDocuments.find((entry) => entry.identity.id === viewedSceneId) ?? null;
+}
+
+// The canvas shows exactly one scene. A fight on the viewed scene, or a fight
+// with no scene at all while the world map is viewed, puts the board up.
+function viewedSceneIsBoard() {
+  const fight = activeEncounterAtCurrentSystem() ?? latestEncounterAtCurrentSystem();
+  if (viewedSceneId === WORLD_SCENE_ID) return false;
+  if (viewedSceneId === 'manual') return Boolean(fight);
+  if (fight && (fight.sceneId === viewedSceneId || !fight.sceneId)) return true;
+  return Boolean(viewedScene());
+}
+
+// The navigation bar: what is on the canvas, whether the table sees it, and a
+// dropdown of everywhere you can go — the world map first, then every scene by
+// folder. This is the answer to "how do I get back", which a rail button was
+// never going to be.
+function renderSceneNav() {
+  if (!el.sceneNav) return;
+  el.sceneNav.hidden = !campaignPlayActive();
+  if (!campaignPlayActive()) return;
+  const scene = viewedScene();
+  const fight = activeEncounterAtCurrentSystem();
+  el.sceneNavName.textContent = scene
+    ? `${scene.identity.name.toUpperCase()}${fight && fight.sceneId === scene.identity.id ? ' \u00b7 IN COMBAT' : ''}`
+    : fight && !fight.sceneId ? 'MANUAL FIGHT' : 'SUBSECTOR';
+  const activated = Boolean(scene && campaignDocument?.activeSceneId === scene.identity.id);
+  el.sceneNavActive.hidden = !activated;
+  el.sceneNavButton.title = activated
+    ? 'Players are seeing this scene'
+    : scene ? 'You are viewing this scene; players are not' : 'The subsector map';
+}
+
+function sceneNavItems() {
+  const items = [
+    { label: `SUBSECTOR${viewedSceneId === WORLD_SCENE_ID ? ' \u2713' : ''}`, title: 'The world map', action: () => viewScene(WORLD_SCENE_ID) }
+  ];
+  const fight = activeEncounterAtCurrentSystem();
+  if (fight && !fight.sceneId) {
+    items.push({ label: `MANUAL FIGHT${viewedSceneId === 'manual' ? ' \u2713' : ''}`, title: 'A fight begun without a scene',
+      action: () => { viewedSceneId = 'manual'; activeSceneTab = 'combat'; render(); } });
+  }
+  if (!sceneDocuments.length) return items;
+  for (const { folder, scenes } of sceneFolders(sceneDocuments)) {
+    items.push({ heading: folder.toUpperCase() });
+    for (const scene of scenes) {
+      const activated = campaignDocument?.activeSceneId === scene.identity.id;
+      items.push({
+        label: `${scene.identity.name.toUpperCase()}${activated ? ' \u25C9' : ''}${viewedSceneId === scene.identity.id ? ' \u2713' : ''}`,
+        title: activated ? 'Activated: players see this scene' : 'Viewed by you only',
+        action: () => viewScene(scene.identity.id)
+      });
+    }
+  }
+  return items;
+}
+
+function viewScene(sceneId) {
+  const exists = sceneId === WORLD_SCENE_ID || sceneId === 'manual' || sceneDocuments.some((entry) => entry.identity.id === sceneId);
+  if (!exists) return;
+  viewedSceneId = sceneId;
+  activeSceneTab = sceneId === WORLD_SCENE_ID ? 'system' : 'combat';
+  if (activeWorkspaceView !== 'play') activeWorkspaceView = 'play';
+  try { window.sessionStorage.setItem('graycloak.traveller.viewed-scene', sceneId); } catch { /* private mode */ }
+  render();
+}
 
 // --- v0.77.0: floating document windows ------------------------------------
 // A document window wraps one section element (the character sheet today; a
@@ -4577,7 +4658,7 @@ function combatantSheetRows(combatant) {
 // Frame the canvas on one combatant and select it — the tracker's click
 // gesture. Uses the shared canvas camera, so it behaves the same on any board.
 function frameEncounterCombatant(encounter, combatant) {
-  setSceneTab('combat');
+  if (!viewedSceneIsBoard()) viewScene(encounter.sceneId ?? campaignDocument?.activeSceneId ?? viewedSceneId);
   setEncounterActor(encounter.identity.id, combatant.id);
   const { cell } = encounterCanvas().metrics();
   encounterCanvas().camera.centreOnPoint({ x: combatant.position.column * cell, y: combatant.position.row * cell });
@@ -5876,8 +5957,9 @@ function showContextMenu(event, items, { parent = null } = {}) {
 function sceneContextMenuItems(scene) {
   const active = campaignDocument?.activeSceneId === scene.identity.id;
   return [
-    { label: active ? 'DEACTIVATE' : 'ACTIVATE', action: () => setActiveScene(active ? null : scene.identity.id) },
-    { label: 'VIEW', action: () => { if (!active) setActiveScene(scene.identity.id); setSceneTab('combat'); } },
+    { label: 'VIEW', title: 'Show this scene on your canvas only', action: () => viewScene(scene.identity.id) },
+    { label: active ? 'DEACTIVATE' : 'ACTIVATE', title: active ? 'Stop showing this scene to players' : 'Show this scene to every player, and view it yourself',
+      action: () => setActiveScene(active ? null : scene.identity.id) },
     '-',
     { label: 'EDIT', action: () => editScene(scene) },
     { label: 'DUPLICATE', action: () => addScene(duplicateSceneDocument(scene)) },
@@ -5992,8 +6074,8 @@ function sceneCard(scene) {
   meta.textContent = `${scene.board.squares} SQ · ${scene.board.metersPerSquare} M${scene.tokens.length ? ` · ${scene.tokens.length} STAGED` : ''}${active ? ' · ACTIVE' : ''}`;
   caption.append(name, meta);
   card.append(thumb, caption);
-  card.addEventListener('click', () => setActiveScene(active ? null : scene.identity.id));
-  card.addEventListener('dblclick', () => { if (!active) setActiveScene(scene.identity.id); setSceneTab('combat'); });
+  card.addEventListener('click', () => viewScene(scene.identity.id));
+  card.addEventListener('dblclick', () => setActiveScene(scene.identity.id));
   card.addEventListener('contextmenu', (event) => showContextMenu(event, sceneContextMenuItems(scene)));
   card.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); card.click(); } });
   return card;
@@ -6348,6 +6430,8 @@ function applyPlayerSceneMoves(entries) {
 function setActiveScene(sceneId) {
   try {
     campaignDocument = setActiveCampaignScene(campaignDocument, sceneId);
+    // Activation is "everyone look here", so the referee goes too.
+    if (sceneId) viewedSceneId = sceneId;
     persistCampaignState();
     setStatus(sceneId ? `ACTIVE SCENE: ${sceneDocuments.find((entry) => entry.identity.id === sceneId)?.identity.name.toUpperCase() ?? sceneId}` : 'NO ACTIVE SCENE', 'ok');
     render();
@@ -7040,7 +7124,12 @@ function applyOperationsDeskTab() {
   el.subsectorSection?.classList.remove('encounter-workspace-active', 'navigation-workspace-active');
   // A live encounter pulls the scene to COMBAT; leaving COMBAT is the
   // referee's own tab choice, so nothing drags the scene back to SYSTEM.
-  if (encounterWorkspaceActive && activeSceneTab !== 'combat') {
+  // v0.92.0: a fight beginning while the referee looks elsewhere brings the
+  // canvas to it; if they are already on that scene, nothing moves.
+  if (encounterWorkspaceActive && !viewedSceneIsBoard()) {
+    const fight = activeEncounterAtCurrentSystem();
+    viewedSceneId = fight?.sceneId ?? (campaignDocument?.activeSceneId ?? viewedSceneId);
+    if (viewedSceneId === WORLD_SCENE_ID && fight) viewedSceneId = fight.sceneId ?? WORLD_SCENE_ID;
     activeSceneTab = 'combat';
     applyCampaignLayout();
   }
@@ -7545,6 +7634,20 @@ function renderSubsector() {
 
 }
 
+// v0.92.0: on load the canvas shows the activated scene, as Foundry does —
+// that is the scene the table is on, and almost certainly why you reloaded.
+// A scene viewed earlier in this session takes precedence, since that is a
+// deliberate choice made more recently.
+function restoreViewedScene() {
+  let saved = null;
+  try { saved = window.sessionStorage.getItem('graycloak.traveller.viewed-scene'); } catch { saved = null; }
+  const valid = (id) => id === WORLD_SCENE_ID || id === 'manual' || sceneDocuments.some((entry) => entry.identity.id === id);
+  viewedSceneId = valid(saved) ? saved
+    : campaignDocument?.activeSceneId && valid(campaignDocument.activeSceneId) ? campaignDocument.activeSceneId
+    : WORLD_SCENE_ID;
+  activeSceneTab = viewedSceneId === WORLD_SCENE_ID ? 'system' : 'combat';
+}
+
 function restoreCampaignFromRegistry(campaign) {
   if (!registry) throw new Error('browser local storage is unavailable');
   const resolved = registry.resolveCampaign(campaign);
@@ -7576,6 +7679,7 @@ function restoreCampaignFromRegistry(campaign) {
   npcActorDocuments = resolved.npcActors;
   mediaAssetDocuments = resolved.assets;
   sceneDocuments = resolved.scenes ?? [];
+  restoreViewedScene();
   activityLogDocument = resolved.activityLogs[0] ?? null;
   documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
   character = createCharacter();
@@ -8993,6 +9097,7 @@ el.playersSeat?.addEventListener('click', seatPlayerFromDialog);
 el.playersClose?.addEventListener('click', () => el.playersDialog.close());
 el.playersNewInvite?.addEventListener('click', mintInvite);
 el.reloadCampaignCloud?.addEventListener('click', reloadCampaignFromCloud);
+el.sceneNavButton?.addEventListener('click', (event) => showContextMenu(event, sceneNavItems()));
 el.chatForm?.addEventListener('submit', (event) => {
   event.preventDefault();
   const text = el.chatInput.value.trim();

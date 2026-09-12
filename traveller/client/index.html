@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <!-- v0.91.0: Foundry's interaction model. The canvas is permanent; scene
+  <!-- v0.92.0: Foundry's interaction model. The canvas is permanent; scene
        layers and their contextual tools stay left, while one collapsible
        game directory or tracker opens from the right rail. -->
   <main class="terminal shell" aria-labelledby="app-title">
@@ -16,7 +16,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.91.0</div>
+          <div id="app-subtitle" class="subtitle">v0.92.0</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -35,7 +35,7 @@
     <aside class="shell-rail" aria-label="Scene and tools">
       <div class="scene-tabs" role="group" aria-label="Scene and character window">
         <button id="scene-tab-character" class="scene-tab scene-tab-character" type="button" data-scene-tab="character" aria-pressed="false" title="Open character sheet"><span aria-hidden="true">&#9823;</span><span class="tool-label">CHARACTER</span></button>
-        <button id="scene-tab-system" class="scene-tab is-active" type="button" role="tab" data-scene-tab="system" aria-selected="true" title="Subsector scene"><span aria-hidden="true">&#9673;</span><span class="tool-label">SYSTEM</span></button>
+        <button id="scene-tab-system" class="scene-tab is-active" type="button" role="tab" data-scene-tab="system" aria-selected="true" title="Subsector scene" hidden><span aria-hidden="true">&#9673;</span><span class="tool-label">SYSTEM</span></button>
         <button id="scene-tab-combat" class="scene-tab scene-tab-combat-proxy" type="button" role="tab" data-scene-tab="combat" aria-selected="false" hidden>COMBAT</button>
       </div>
       <div id="rail-tools" class="rail-tools" aria-label="Tools"></div>
@@ -70,6 +70,16 @@
         </div>
       </div>
       <div id="selected-system-summary" hidden></div>
+      <!-- v0.92.0: scene navigation. The viewed scene, a marker when it is
+           also the activated one, and a dropdown of the world map plus every
+           scene by folder. This is how you leave a scene as well as enter one. -->
+      <div id="scene-nav" class="scene-nav" aria-label="Scene navigation">
+        <button id="scene-nav-button" class="scene-nav-button" type="button" aria-haspopup="true" aria-expanded="false">
+          <span id="scene-nav-name" class="scene-nav-name">SUBSECTOR</span>
+          <span id="scene-nav-active" class="scene-nav-active" hidden title="This scene is activated: players see it">&#9673;</span>
+          <span class="scene-nav-caret" aria-hidden="true">&#9662;</span>
+        </button>
+      </div>
       <div id="panel-popouts" class="panel-popouts"></div>
       <div class="canvas">
         <section id="personnel-section" class="scene-view" aria-labelledby="record-heading">

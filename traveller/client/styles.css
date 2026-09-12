@@ -4042,3 +4042,12 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .encounter-token-status-glyph.unconscious { fill: #7a5210; }
 .encounter-token-status-glyph.escaped, .encounter-token-status-glyph.withdrawn { fill: #33372f; }
 .encounter-tracker-ready { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* --- v0.92.0: the scene navigation bar, over the canvas at the top. */
+.scene-nav { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); z-index: 24; }
+.scene-nav[hidden] { display: none; }
+.scene-nav-button { display: flex; align-items: center; gap: 7px; font: inherit; font-size: 11px; letter-spacing: .08em; padding: 4px 10px; border: 1px solid var(--rule); background: var(--paper); color: var(--ink); cursor: pointer; max-width: 46ch; }
+.scene-nav-button:hover { border-color: var(--link); }
+.scene-nav-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; }
+.scene-nav-active { color: var(--action-border); }
+.scene-nav-caret { color: var(--muted); font-size: 9px; }
