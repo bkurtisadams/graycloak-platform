@@ -7,15 +7,15 @@
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <!-- v0.77.0: the Foundry shape. The canvas fills the window; a tool rail on
-       the left, a tabbed sidebar on the right. Every id the client scripts
-       know is still here; the panels moved, the code did not. -->
+  <!-- v0.78.0: Foundry's spatial grammar. Scene tools form a compact palette
+       at left; game/document tools form a separate rail beside the persistent
+       activity sidebar at right. -->
   <main class="terminal shell" aria-labelledby="app-title">
     <header class="masthead shell-masthead">
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.77.0</div>
+          <div id="app-subtitle" class="subtitle">v0.78.0</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -33,9 +33,9 @@
 
     <aside class="shell-rail" aria-label="Scene and tools">
       <div class="scene-tabs" role="group" aria-label="Scene and character window">
-        <button id="scene-tab-character" class="scene-tab" type="button" data-scene-tab="character" aria-pressed="false" title="Open the character sheet as a window">CHARACTER</button>
-        <button id="scene-tab-system" class="scene-tab is-active" type="button" role="tab" data-scene-tab="system" aria-selected="true">SYSTEM</button>
-        <button id="scene-tab-combat" class="scene-tab" type="button" role="tab" data-scene-tab="combat" aria-selected="false">COMBAT</button>
+        <button id="scene-tab-character" class="scene-tab scene-tab-character" type="button" data-scene-tab="character" aria-pressed="false" title="Open character sheet"><span aria-hidden="true">&#9823;</span><span class="tool-label">CHARACTER</span></button>
+        <button id="scene-tab-system" class="scene-tab is-active" type="button" role="tab" data-scene-tab="system" aria-selected="true" title="Subsector scene"><span aria-hidden="true">&#9673;</span><span class="tool-label">SYSTEM</span></button>
+        <button id="scene-tab-combat" class="scene-tab scene-tab-combat-proxy" type="button" role="tab" data-scene-tab="combat" aria-selected="false" hidden>COMBAT</button>
       </div>
       <div id="rail-tools" class="rail-tools" aria-label="Tools"></div>
     </aside>

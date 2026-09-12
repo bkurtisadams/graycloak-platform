@@ -14,10 +14,10 @@ function fakeStorage() {
 
 test('a fresh window centres itself in the container at the default size', () => {
   const geometry = clampWindowGeometry({}, { width: 1200, height: 800 });
-  assert.equal(geometry.width, 720);
-  assert.equal(geometry.height, 640);
-  assert.equal(geometry.x, Math.round((1200 - 720) / 2));
-  assert.equal(geometry.y, Math.round((800 - 640) / 2));
+  assert.equal(geometry.width, 520);
+  assert.equal(geometry.height, 500);
+  assert.equal(geometry.x, Math.round((1200 - 520) / 2));
+  assert.equal(geometry.y, Math.round((800 - 500) / 2));
 });
 
 test('geometry never exceeds the container, minus the inset, even when asked to', () => {
@@ -30,8 +30,8 @@ test('geometry never exceeds the container, minus the inset, even when asked to'
 
 test('a container smaller than the minimum size still yields a usable window, not a negative one', () => {
   const geometry = clampWindowGeometry({}, { width: 200, height: 100 });
-  assert.equal(geometry.width, 320);
-  assert.equal(geometry.height, 220);
+  assert.equal(geometry.width, 300);
+  assert.equal(geometry.height, 200);
   assert.ok(geometry.x >= 16 - 1e-9);
   assert.ok(geometry.y >= 16 - 1e-9);
 });

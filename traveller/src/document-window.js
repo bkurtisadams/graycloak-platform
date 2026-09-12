@@ -1,14 +1,14 @@
 // document-window.js — the floating window a document (character sheet,
 // later a ship or journal record) opens as, over the current scene.
 //
-// v0.77.0. Everything here is pure: geometry clamped into a container,
+// v0.78.0. Everything here is pure: geometry clamped into a container,
 // state transitions as plain objects, and persistence through an injected
 // storage (so it is testable without a browser, unlike the DOM wiring that
 // uses it). The DOM layer decides *when* to call these; it does not decide
 // *what* the resulting geometry or state is.
 
 export const DOCUMENT_WINDOW_DEFAULTS = Object.freeze({
-  width: 720, height: 640, minWidth: 320, minHeight: 220, inset: 16
+  width: 520, height: 500, minWidth: 300, minHeight: 200, inset: 16
 });
 
 function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }

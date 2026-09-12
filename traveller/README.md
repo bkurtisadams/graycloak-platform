@@ -1,5 +1,9 @@
 # Graycloak Traveller
 
+## v0.78.0 Foundry-style tool rails and persistent activity sidebar
+
+The referee client now uses the UI skeleton established by the Foundry reference: a compact two-column scene palette at left, a large icon-only game/document rail at right, and an activity/chat sidebar that stays visible when another right-side tool is open. Combat remains a right-rail game tool and opens the combat scene and tracker together. The default character window is reduced from 720 by 640 pixels to 520 by 500, with 300 by 200 minimum dimensions.
+
 ## v0.77.0 the character sheet opens as a floating document window
 
 Built the way I said I would after the last attempt broke: the geometry and

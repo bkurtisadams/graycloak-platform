@@ -1678,7 +1678,9 @@ const characterWindow = createWindowController({
   titlebar: el.characterWindowTitlebar,
   minimizeButton: el.characterWindowMinimize,
   closeButton: el.characterWindowClose,
-  storageKey: 'traveller.character-window.v1',
+  // v2 prevents the oversized v0.77 default saved in localStorage from
+  // defeating the new compact v0.78 first-open geometry.
+  storageKey: 'traveller.character-window.v2',
   onOpen: () => renderCharacterSheet()
 });
 
@@ -1721,7 +1723,11 @@ function applySidebar() {
     button.classList.toggle('attention', (button.dataset.sidebarTab === 'combat' && Boolean(activeEncounterAtCurrentSystem()))
       || (button.dataset.sidebarTab === 'players' && joinRequests.length > 0));
   }
-  for (const panel of document.querySelectorAll('.sidebar-panel')) panel.hidden = panel.dataset.sidebarPanel !== sidebarTab;
+  for (const panel of document.querySelectorAll('.sidebar-panel')) {
+    const isChat = panel.dataset.sidebarPanel === 'chat';
+    panel.hidden = !isChat && panel.dataset.sidebarPanel !== sidebarTab;
+  }
+  el.terminal?.classList.toggle('sidebar-has-context', sidebarTab !== 'chat' && !sidebarCollapsed);
   el.terminal?.classList.toggle('sidebar-collapsed', sidebarCollapsed);
 }
 
@@ -1752,20 +1758,20 @@ function renderRailTools() {
   };
   if (!campaignPlayActive()) { rail.replaceChildren(); return; }
   if (activeSceneTab === 'system') {
-    tool('FIT', 'Fit the subsector map', () => setSubsectorZoom(1));
+    tool('\u2922', 'Fit the subsector map', () => setSubsectorZoom(1));
     tool('+', 'Zoom in', () => setSubsectorZoom(subsectorZoom + SUBSECTOR_ZOOM_STEP));
     tool('\u2212', 'Zoom out', () => setSubsectorZoom(subsectorZoom - SUBSECTOR_ZOOM_STEP));
-    tool('SYS', 'System record for the selected system', () => el.toggleSystemDetails?.click(), { disabled: !selectedSystemId });
-    tool('PORT', 'Port services', () => { setSidebarTab('port'); setOperationsDeskTab('port'); });
+    tool('\u25a4', 'System record for the selected system', () => el.toggleSystemDetails?.click(), { disabled: !selectedSystemId });
+    tool('\u2693', 'Port services', () => { setSidebarTab('port'); setOperationsDeskTab('port'); });
   } else if (activeSceneTab === 'combat') {
     const canvas = encounterCanvasInstance;
-    tool('FIT', 'Fit the board', () => encounterCanvas().camera.fit());
+    tool('\u2922', 'Fit the board', () => encounterCanvas().camera.fit());
     tool('+', 'Zoom in', () => encounterCanvas().camera.zoomBy(1.5));
     tool('\u2212', 'Zoom out', () => encounterCanvas().camera.zoomBy(1 / 1.5));
     const fight = activeEncounterAtCurrentSystem();
-    tool('FRAME', 'Frame the combatants', () => { if (fight) frameEncounterCombatants(fight); }, { disabled: !fight });
-    tool('GRID', el.encounterGridToggle?.getAttribute('aria-pressed') === 'true' ? 'Show the grid' : 'Hide the grid', () => el.encounterGridToggle?.click(), { pressed: el.encounterGridToggle?.getAttribute('aria-pressed') === 'true' });
-    tool('TRK', 'The combat tracker', () => setSidebarTab('combat'));
+    tool('\u25ce', 'Frame the combatants', () => { if (fight) frameEncounterCombatants(fight); }, { disabled: !fight });
+    tool('#', el.encounterGridToggle?.getAttribute('aria-pressed') === 'true' ? 'Show the grid' : 'Hide the grid', () => el.encounterGridToggle?.click(), { pressed: el.encounterGridToggle?.getAttribute('aria-pressed') === 'true' });
+    tool('\u2637', 'The combat tracker', () => setSidebarTab('combat'));
     void canvas;
   } else {
     tool('SHEET', 'The viewed character\'s sheet', () => setSidebarTab('actors'));
@@ -8273,7 +8279,14 @@ el.chatForm?.addEventListener('submit', (event) => {
 });
 for (const button of document.querySelectorAll('.sidebar-tab')) {
   button.addEventListener('click', () => {
-    if (button.dataset.sidebarTab === sidebarTab && !sidebarCollapsed) { sidebarCollapsed = true; applySidebar(); return; }
+    // v0.78.0: the activity/chat rail is persistent. Clicking the selected
+    // game tool closes its context pane and returns focus to the log instead
+    // of collapsing the whole right side.
+    if (button.dataset.sidebarTab === sidebarTab && !sidebarCollapsed) {
+      if (sidebarTab !== 'chat') setSidebarTab('chat');
+      return;
+    }
+    if (button.dataset.sidebarTab === 'combat') setSceneTab('combat');
     setSidebarTab(button.dataset.sidebarTab);
   });
 }
