@@ -331,6 +331,10 @@ const el = {
   chargenTablesSection: document.querySelector('#chargen-tables-section'),
   chargenTables: document.querySelector('#chargen-tables'),
   personnelSection: document.querySelector('#personnel-section'),
+  characterWindowTitlebar: document.querySelector('#character-window-titlebar'),
+  characterWindowBody: document.querySelector('#character-window-body'),
+  characterWindowMinimize: document.querySelector('#character-window-minimize'),
+  characterWindowClose: document.querySelector('#character-window-close'),
   procedureSection: document.querySelector('#procedure-section'),
   chargenRecordSection: document.querySelector('#chargen-record-section'),
   name: document.querySelector('#character-name'),
@@ -1443,7 +1447,16 @@ function applyCampaignLayout() {
     el.legacyPersonnelFields.hidden = false;
     el.characterSheet.hidden = false;
     el.personnelSection.hidden = false;
+    characterWindowOpen = false;
+    characterWindowMinimized = false;
     el.personnelSection.classList.remove('sheet-overlay');
+    el.personnelSection.classList.remove('character-document-window', 'is-minimized');
+    el.personnelSection.removeAttribute('role');
+    el.personnelSection.removeAttribute('aria-modal');
+    el.personnelSection.style.removeProperty('left');
+    el.personnelSection.style.removeProperty('top');
+    el.personnelSection.style.removeProperty('width');
+    el.personnelSection.style.removeProperty('height');
     el.procedureSection.hidden = false;
     el.procedure.hidden = false;
     el.actions.hidden = false;
@@ -1481,17 +1494,23 @@ function applyCampaignLayout() {
   el.openShipView.hidden = !shipDocument;
   el.openCampaignView.hidden = false;
   el.openThreadsView.hidden = false;
-  // The centre is a tabbed scene: CHARACTER / SYSTEM / COMBAT.
+  // SYSTEM or COMBAT remains the scene. CHARACTER is a document window over it.
   el.sceneTabsRow.hidden = false;
-  el.personnelSection.hidden = activeSceneTab !== 'character';
+  if (activeSceneTab === 'character') activeSceneTab = 'system';
+  el.personnelSection.hidden = !characterWindowOpen;
+  el.personnelSection.classList.add('character-document-window');
+  el.personnelSection.classList.toggle('is-minimized', characterWindowMinimized);
+  el.personnelSection.setAttribute('role', 'dialog');
+  el.personnelSection.setAttribute('aria-modal', 'false');
   el.subsectorSection.hidden = activeSceneTab !== 'system';
   el.encounterSection.hidden = activeSceneTab !== 'combat';
   el.sceneStatusStrip.hidden = activeSceneTab !== 'system';
   el.personnelSection.classList.remove('sheet-overlay');
   for (const button of el.sceneTabs) {
-    const isActive = button.dataset.sceneTab === activeSceneTab;
+    const characterButton = button.dataset.sceneTab === 'character';
+    const isActive = characterButton ? characterWindowOpen : button.dataset.sceneTab === activeSceneTab;
     button.classList.toggle('is-active', isActive);
-    button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     if (button.dataset.sceneTab === 'combat') button.classList.toggle('attention', Boolean(activeEncounterAtCurrentSystem()));
   }
   // Ship, campaign and threads remain documents opened over the scene.
@@ -1507,6 +1526,133 @@ function applyCampaignLayout() {
 }
 
 let activeSceneTab = 'system';
+
+// --- v0.77.0: first floating document window ------------------------------
+// Character generation still owns the canvas. During campaign play the same
+// sheet becomes one non-modal window so the system or combat scene remains
+// visible and usable underneath it.
+const CHARACTER_WINDOW_STORAGE_KEY = 'traveller.character-window.v1';
+let characterWindowOpen = false;
+let characterWindowMinimized = false;
+
+function readCharacterWindowGeometry() {
+  try {
+    const parsed = JSON.parse(window.sessionStorage.getItem(CHARACTER_WINDOW_STORAGE_KEY));
+    if (parsed && ['x', 'y', 'width', 'height'].every((key) => Number.isFinite(parsed[key]))) return parsed;
+  } catch (error) { console.error(error); }
+  return null;
+}
+
+function clampCharacterWindowGeometry(candidate = {}) {
+  const canvas = el.personnelSection?.parentElement;
+  if (!canvas) return { x: 16, y: 16, width: 720, height: 640 };
+  const inset = 16;
+  const maxWidth = Math.max(280, canvas.clientWidth - inset * 2);
+  const maxHeight = Math.max(180, canvas.clientHeight - inset * 2);
+  const width = Math.min(maxWidth, Math.max(Math.min(440, maxWidth), candidate.width ?? Math.min(780, maxWidth)));
+  const height = Math.min(maxHeight, Math.max(Math.min(260, maxHeight), candidate.height ?? Math.min(720, maxHeight)));
+  const x = Math.min(Math.max(inset, candidate.x ?? Math.round((canvas.clientWidth - width) / 2)), Math.max(inset, canvas.clientWidth - width - inset));
+  const y = Math.min(Math.max(inset, candidate.y ?? Math.round((canvas.clientHeight - height) / 2)), Math.max(inset, canvas.clientHeight - height - inset));
+  return { x, y, width, height };
+}
+
+function characterWindowGeometry() {
+  return clampCharacterWindowGeometry(readCharacterWindowGeometry() ?? {});
+}
+
+function currentCharacterWindowGeometry() {
+  return clampCharacterWindowGeometry({
+    x: el.personnelSection.offsetLeft,
+    y: el.personnelSection.offsetTop,
+    width: el.personnelSection.offsetWidth,
+    height: el.personnelSection.offsetHeight
+  });
+}
+
+function applyCharacterWindowGeometry(geometry = characterWindowGeometry()) {
+  if (!campaignPlayActive() || !el.personnelSection) return;
+  geometry = clampCharacterWindowGeometry(geometry);
+  el.personnelSection.style.left = `${geometry.x}px`;
+  el.personnelSection.style.top = `${geometry.y}px`;
+  el.personnelSection.style.width = `${geometry.width}px`;
+  el.personnelSection.style.height = `${geometry.height}px`;
+}
+
+function saveCharacterWindowGeometry() {
+  if (!campaignPlayActive() || !characterWindowOpen || !el.personnelSection) return;
+  const geometry = characterWindowMinimized
+    ? clampCharacterWindowGeometry({
+        ...(readCharacterWindowGeometry() ?? {}),
+        x: el.personnelSection.offsetLeft,
+        y: el.personnelSection.offsetTop
+      })
+    : currentCharacterWindowGeometry();
+  applyCharacterWindowGeometry(geometry);
+  try { window.sessionStorage.setItem(CHARACTER_WINDOW_STORAGE_KEY, JSON.stringify(geometry)); }
+  catch (error) { console.error(error); }
+}
+
+function openCharacterWindow() {
+  if (!campaignPlayActive()) return;
+  characterWindowOpen = true;
+  applyCampaignLayout();
+  applyCharacterWindowGeometry();
+  renderCharacterSheet();
+  el.characterWindowTitlebar?.focus({ preventScroll: true });
+}
+
+function closeCharacterWindow() {
+  if (!characterWindowOpen) return;
+  saveCharacterWindowGeometry();
+  characterWindowOpen = false;
+  characterWindowMinimized = false;
+  applyCampaignLayout();
+}
+
+function toggleCharacterWindowMinimized() {
+  if (!characterWindowOpen) return;
+  if (!characterWindowMinimized) saveCharacterWindowGeometry();
+  characterWindowMinimized = !characterWindowMinimized;
+  el.characterWindowMinimize.setAttribute('aria-expanded', characterWindowMinimized ? 'false' : 'true');
+  el.characterWindowMinimize.textContent = characterWindowMinimized ? '[ + ]' : '[ \u2212 ]';
+  applyCampaignLayout();
+}
+
+function wireCharacterWindow() {
+  const titlebar = el.characterWindowTitlebar;
+  const windowElement = el.personnelSection;
+  if (!titlebar || !windowElement) return;
+  titlebar.addEventListener('pointerdown', (event) => {
+    if (!campaignPlayActive() || !characterWindowOpen || event.button !== 0 || event.target.closest('button, input, select, textarea, a')) return;
+    const start = characterWindowGeometry();
+    const originX = event.clientX;
+    const originY = event.clientY;
+    titlebar.setPointerCapture(event.pointerId);
+    windowElement.classList.add('is-dragging');
+    const move = (moveEvent) => applyCharacterWindowGeometry({
+      ...start,
+      x: start.x + moveEvent.clientX - originX,
+      y: start.y + moveEvent.clientY - originY
+    });
+    const finish = () => {
+      titlebar.removeEventListener('pointermove', move);
+      titlebar.removeEventListener('pointerup', finish);
+      titlebar.removeEventListener('pointercancel', finish);
+      windowElement.classList.remove('is-dragging');
+      saveCharacterWindowGeometry();
+    };
+    titlebar.addEventListener('pointermove', move);
+    titlebar.addEventListener('pointerup', finish);
+    titlebar.addEventListener('pointercancel', finish);
+  });
+  windowElement.addEventListener('pointerup', (event) => {
+    if (event.target === titlebar || titlebar.contains(event.target)) return;
+    saveCharacterWindowGeometry();
+  });
+  window.addEventListener('resize', () => {
+    if (characterWindowOpen) applyCharacterWindowGeometry(currentCharacterWindowGeometry());
+  });
+}
 
 // --- v0.75.0: the sidebar and the tool rail --------------------------------
 // The sidebar is Foundry's: one tab open at a time, each a panel that was a
@@ -1600,6 +1746,7 @@ function renderRailTools() {
 
 function setSceneTab(tab) {
   if (!['character', 'system', 'combat'].includes(tab)) return;
+  if (tab === 'character') { openCharacterWindow(); return; }
   activeSceneTab = tab;
   if (activeWorkspaceView !== 'play') activeWorkspaceView = 'play';
   applyCampaignLayout();
@@ -7784,14 +7931,21 @@ el.activityNoteForm.addEventListener('submit', (event) => {
   setStatus('CAMPAIGN NOTE RECORDED', 'ok');
 });
 
-el.headerCharacterName.addEventListener('click', () => setSceneTab('character'));
+el.headerCharacterName.addEventListener('click', openCharacterWindow);
 el.openShipView.addEventListener('click', () => setWorkspaceView(activeWorkspaceView === 'ship' ? 'play' : 'ship'));
 el.openCampaignView.addEventListener('click', () => setWorkspaceView(activeWorkspaceView === 'campaign' ? 'play' : 'campaign'));
 el.openThreadsView.addEventListener('click', () => setWorkspaceView(activeWorkspaceView === 'threads' ? 'play' : 'threads'));
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && campaignPlayActive() && activeWorkspaceView !== 'play' && !document.querySelector('dialog[open]')) setWorkspaceView('play');
+  if (event.key !== 'Escape' || !campaignPlayActive() || document.querySelector('dialog[open]')) return;
+  if (characterWindowOpen) { closeCharacterWindow(); return; }
+  if (activeWorkspaceView !== 'play') setWorkspaceView('play');
 });
-document.querySelectorAll('.sheet-close').forEach((button) => button.addEventListener('click', () => setWorkspaceView('play')));
+document.querySelectorAll('.sheet-close').forEach((button) => button.addEventListener('click', () => {
+  if (button === el.characterWindowClose) closeCharacterWindow();
+  else setWorkspaceView('play');
+}));
+el.characterWindowMinimize.addEventListener('click', toggleCharacterWindowMinimized);
+wireCharacterWindow();
 el.sheetWeapon.addEventListener('change', () => saveCharacterSheetState(
   { weaponKey: el.sheetWeapon.value },
   `Ready weapon set: ${getPersonalWeapon(el.sheetWeapon.value).name}`

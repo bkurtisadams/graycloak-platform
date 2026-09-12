@@ -728,3 +728,31 @@ test('v0.72.0 a fight on a scene takes its board and its staged tokens', async (
   assert.deepEqual(raider.position, { column: 80, row: 45 });
   assert.ok(second.position.column > party.position.column, 'an unstaged foe takes the initial-range default');
 });
+
+test('v0.77.1 a valid ten-meter interior scene can host an encounter', async () => {
+  const fixture = await encounterFixture();
+  const scene = createSceneDocument({
+    campaignId: fixture.campaign.identity.id,
+    name: 'Ship Compartment',
+    squares: 10,
+    metersPerSquare: 1,
+    createdAt: 2
+  });
+  const encounter = createEncounterDocument({
+    campaign: fixture.campaign,
+    character: fixture.character,
+    scene,
+    opponent: { name: 'Boarder' },
+    encounterKey: 'small-scene',
+    date: { year: 4800, dayOfYear: 106 },
+    range: 'short',
+    dice: sequenceDice([3, 3])
+  });
+  assert.equal(encounter.sceneId, scene.identity.id);
+  assert.deepEqual(encounter.map, {
+    grid: 'square', columns: 11, rows: 11,
+    rangeGuide: 'graycloak-meter-grid-v4', metersPerSquare: 1
+  });
+  assert.ok(encounter.combatants.every((entry) => entry.position.column >= 0 && entry.position.column <= 10));
+  assert.ok(encounter.combatants.every((entry) => entry.position.row >= 0 && entry.position.row <= 10));
+});

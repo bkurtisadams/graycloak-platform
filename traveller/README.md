@@ -1,5 +1,23 @@
 # Graycloak Traveller
 
+## v0.77.1 lets every valid Scene host an encounter
+
+A Scene may legally be as small as ten squares, including a 10 m interior on
+the 1 m grid. Encounter creation still required every board to be at least 50
+m across, so selecting a smaller valid Scene in manual combat threw a RangeError.
+Scene-backed encounters now accept the Scene system's 10 m absolute minimum;
+automatically sized encounters retain their existing 50 m minimum.
+
+## v0.77.0 opens the Character sheet as a floating document window
+
+During campaign play, CHARACTER now opens the existing sheet over the current
+SYSTEM or COMBAT canvas instead of replacing it. The first document-window
+prototype is draggable, resizable, minimizable and closable; it retains its
+geometry in session storage and is constrained back inside the canvas after a
+viewport change. Character generation deliberately keeps the same full-canvas
+sheet. This establishes the interaction model for later Actor, Ship and Journal
+windows without redesigning their contents in the same release.
+
 ## v0.76.3 the combat map was sizing itself from an unresolved percentage height
 
 The actual cause of the map running off the bottom of the window: several

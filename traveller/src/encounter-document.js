@@ -57,6 +57,10 @@ export const ENCOUNTER_CONDITIONS = Object.freeze({
 export const ENCOUNTER_MAP_COLUMNS = 1001;
 export const ENCOUNTER_MAP_ROWS = 1001;
 export const ENCOUNTER_MAP_MIN_METERS = 50;
+// A staged Scene may be an interior room smaller than the generated-fight
+// minimum. Scene Documents already guarantee at least 10 squares, so their
+// absolute minimum is 10 m on the 1 m grid.
+export const ENCOUNTER_SCENE_MIN_METERS = 10;
 export const ENCOUNTER_METERS_PER_SQUARE = 5;
 export const ENCOUNTER_GRID_SCALES = Object.freeze([1, 5, 25]);
 
@@ -152,8 +156,11 @@ export function createEncounterDocument({ campaign, situation = null, scene = nu
   const gridScale = scene ? scene.board.metersPerSquare : (metersPerSquare ?? ENCOUNTER_METERS_PER_SQUARE);
   if (!ENCOUNTER_GRID_SCALES.includes(gridScale)) throw new RangeError('grid scale must be 1, 5, or 25 meters');
   const sideMeters = scene ? scene.board.squares * scene.board.metersPerSquare : (boardMeters ?? encounterBoardMeters(range, gridScale));
+  const minimumSideMeters = scene ? ENCOUNTER_SCENE_MIN_METERS : ENCOUNTER_MAP_MIN_METERS;
   const staged = new Map((scene?.tokens ?? []).map((token) => [token.actorId, token.position]));
-  if (!Number.isInteger(sideMeters) || sideMeters < ENCOUNTER_MAP_MIN_METERS || sideMeters > ENCOUNTER_MAP_COLUMNS - 1 || sideMeters % gridScale !== 0) throw new RangeError('board size must be a whole number of grid squares between 50 m and 1000 m a side');
+  if (!Number.isInteger(sideMeters) || sideMeters < minimumSideMeters || sideMeters > ENCOUNTER_MAP_COLUMNS - 1 || sideMeters % gridScale !== 0) {
+    throw new RangeError(`board size must be a whole number of grid squares between ${minimumSideMeters} m and 1000 m a side`);
+  }
   const board = { columns: sideMeters + 1, rows: sideMeters + 1, gridScale };
   const party = characterDocuments.map((entry, index) => {
     const military = ['Navy', 'Army', 'Marines', 'Scouts'].includes(entry.career?.service);
@@ -243,7 +250,8 @@ export function validateEncounterDocument(document) {
     add(errors, nonblank(declaration.side), 'each declared action must name the acting side');
   }
   add(errors, document.map?.grid === 'square' && document.map?.rangeGuide === ENCOUNTER_RANGE_GUIDE_VERSION, 'map must be the supported square encounter workspace');
-  add(errors, Number.isInteger(document.map?.columns) && document.map.columns === document.map?.rows && document.map.columns - 1 >= ENCOUNTER_MAP_MIN_METERS && document.map.columns <= ENCOUNTER_MAP_COLUMNS, 'map must be square, between 50 m and 1000 m a side');
+  const minimumMapMeters = document.sceneId ? ENCOUNTER_SCENE_MIN_METERS : ENCOUNTER_MAP_MIN_METERS;
+  add(errors, Number.isInteger(document.map?.columns) && document.map.columns === document.map?.rows && document.map.columns - 1 >= minimumMapMeters && document.map.columns <= ENCOUNTER_MAP_COLUMNS, `map must be square, between ${minimumMapMeters} m and 1000 m a side`);
   add(errors, ENCOUNTER_GRID_SCALES.includes(document.map?.metersPerSquare), 'map.metersPerSquare must be 1, 5, or 25');
   add(errors, plain(document.roundState) && Array.isArray(document.roundState?.declaredActions), 'roundState must contain declaredActions');
   if (Array.isArray(document.roundState?.declaredActions)) for (const declaration of document.roundState.declaredActions) {
