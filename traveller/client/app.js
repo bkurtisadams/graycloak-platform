@@ -1547,8 +1547,8 @@ let activeSceneTab = 'system';
 // over the current scene instead of replacing it. All the geometry math and
 // state transitions are the tested pure functions in src/document-window.js;
 // everything here is DOM wiring around them.
-function createWindowController({ element, titlebar, minimizeButton, closeButton, storageKey, onOpen }) {
-  return { state: createDocumentWindowState(), element, titlebar, minimizeButton, closeButton, storageKey, onOpen };
+function createWindowController({ element, titlebar, minimizeButton, closeButton, storageKey, onOpen, defaultSize = null }) {
+  return { state: createDocumentWindowState(), element, titlebar, minimizeButton, closeButton, storageKey, onOpen, defaultSize };
 }
 
 function windowContainer(controller) {
@@ -1619,7 +1619,7 @@ function openWindowController(controller, { requireCampaign = true } = {}) {
   if (requireCampaign && !campaignPlayActive()) return;
   const container = windowContainer(controller);
   const saved = loadWindowGeometry(window.sessionStorage, controller.storageKey);
-  const geometry = clampWindowGeometry(saved ?? controller.state.geometry ?? {}, container);
+  const geometry = clampWindowGeometry(saved ?? controller.state.geometry ?? controller.defaultSize ?? {}, container);
   controller.state = openDocumentWindow(controller.state, geometry);
   applyDocumentWindow(controller);
   controller.onOpen?.();
@@ -1782,7 +1782,8 @@ function popOutPanel(tab) {
   host.append(frame);
   const controller = createWindowController({
     element: frame, titlebar, minimizeButton: minimize, closeButton: null,
-    storageKey: `traveller.panel-popout.${tab}.v1`
+    storageKey: `traveller.panel-popout.${tab}.v2`,
+    defaultSize: tab === 'chat' ? { width: 360, height: 560 } : { width: 380, height: 520 }
   });
   wireDocumentWindow(controller);
   close.addEventListener('click', () => dockPanel(tab));

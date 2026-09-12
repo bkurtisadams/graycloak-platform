@@ -1,5 +1,33 @@
 # Graycloak Traveller
 
+## v0.88.0 the chat box stays put; the popout is panel-sized
+
+**The composer was a real bug, not tightness.** v0.81.0 pinned the dice tray
+and message box beneath a scrolling feed, which works — but the drawer's own
+body also scrolls, so a short drawer pushed the whole CHAT panel down and the
+box with it. The popout rule made it worse: `.panel-popout .sidebar-panel`
+turned every panel into a scrolling block, so inside a window the composer
+scrolled away too. CHAT now owns the height it is given and scrolls only its
+feed, in the drawer and in a window alike, and a popped-out chat will not
+shrink below 280px — Foundry's behaviour, and for the same reason: the one
+control you always need should not be the first thing to go.
+
+**The popout is sized for a panel.** It inherited the character sheet's
+720x640, which is a page, not a column of rows; panels open at 380x520 and
+chat at 360x560, each remembering its own size afterwards. The titlebar
+controls no longer wrap onto a second line, and the panel's own heading is
+hidden once popped out — the titlebar already says COMBAT, so the window was
+saying it twice.
+
+**Still to do: the token right-click menu.** You are right that it is the old
+design — fifteen bracketed items in a flat column, from before the compact
+`showContextMenu` built for scenes in v0.82.0. It should use that instead:
+grouped, tighter, with the destructive item marked. The reason it is not in
+this version is that three of its entries (ATTACK, COVER, STATUS) are
+cascades, and `showContextMenu` has no submenu support yet — adding that
+properly is its own change rather than something to rush in beside two CSS
+fixes. Next, if you want it.
+
 ## v0.87.0 pop a panel out over the canvas
 
 With the tracker open you could not see chat, because the drawer shows one

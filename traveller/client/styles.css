@@ -3974,3 +3974,28 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .panel-popout.is-minimized .document-window-body { display: none; }
 .sidebar-tab.is-popped { opacity: .55; }
 .sidebar-tab.is-popped .sidebar-tab-icon::after { content: '⇱'; font-size: 8px; vertical-align: super; }
+
+/* --- v0.88.0: the chat composer is never scrolled away, in the drawer or in
+   a popped-out window. The drawer's body scrolls, which let a short drawer
+   push the dice tray and message box below the fold; CHAT now owns the height
+   it is given and scrolls only its feed. The popout rule made every panel a
+   scrolling block, which did the same thing inside a window. */
+.sidebar-body:has(> .sidebar-panel[data-sidebar-panel="chat"]:not([hidden])) { overflow: hidden; }
+.sidebar-panel[data-sidebar-panel="chat"]:not([hidden]) { height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.panel-popout .sidebar-panel[data-sidebar-panel="chat"] { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; padding: 0; }
+.panel-popout .sidebar-panel[data-sidebar-panel="chat"] > #activity-panel { flex: 1 1 0; min-height: 0; }
+.panel-popout .sidebar-panel[data-sidebar-panel="chat"] > #chat-composer { flex: 0 0 auto; }
+/* Below this the feed would be unreadable, so the window stops shrinking. */
+.panel-popout:has(.sidebar-panel[data-sidebar-panel="chat"]) { min-height: 280px; }
+
+/* --- v0.88.0: a tidier popout. Narrower by default, no doubled heading, and
+   the titlebar controls sized so they cannot wrap onto a second line. */
+.panel-popout .panel-popout-titlebar { min-height: 28px; padding: 3px 6px; flex-wrap: nowrap; }
+.panel-popout .panel-popout-titlebar .section-title { font-size: 12px; letter-spacing: .08em; white-space: nowrap; }
+.panel-popout .panel-popout-titlebar .text-button { white-space: nowrap; flex: 0 0 auto; font-size: 10px; }
+.panel-popout .panel-popout-titlebar .document-window-control { margin-left: auto; }
+/* The panel's own heading repeats the titlebar once it is popped out. */
+.panel-popout .sidebar-panel > .context-panel > .section-heading,
+.panel-popout .sidebar-panel > .context-panel > .encounter-roster-heading { display: none; }
+.panel-popout .encounter-tracker-row { font-size: 11px; }
+.panel-popout .encounter-tracker-summary { padding: 3px 5px; }
