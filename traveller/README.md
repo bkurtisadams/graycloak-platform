@@ -1,5 +1,9 @@
 # Graycloak Traveller
 
+## v0.79.0 permanent canvas and Foundry-style control behavior
+
+The scene now occupies an explicit inset workspace instead of relying on a zero-height flex item, fixing the canvas disappearance seen in v0.78.0. The left palette is organized like Foundry: primary canvas layers in one column and tools for the selected layer in the adjacent column. The right sidebar now shows one directory or tracker at a time and collapses when its selected icon is clicked, returning the drawer width to the canvas. Combat remains on the right rail and opens the Traveller combat scene and tracker together.
+
 ## v0.78.0 Foundry-style tool rails and persistent activity sidebar
 
 The referee client now uses the UI skeleton established by the Foundry reference: a compact two-column scene palette at left, a large icon-only game/document rail at right, and an activity/chat sidebar that stays visible when another right-side tool is open. Combat remains a right-rail game tool and opens the combat scene and tracker together. The default character window is reduced from 720 by 640 pixels to 520 by 500, with 300 by 200 minimum dimensions.

@@ -1723,11 +1723,7 @@ function applySidebar() {
     button.classList.toggle('attention', (button.dataset.sidebarTab === 'combat' && Boolean(activeEncounterAtCurrentSystem()))
       || (button.dataset.sidebarTab === 'players' && joinRequests.length > 0));
   }
-  for (const panel of document.querySelectorAll('.sidebar-panel')) {
-    const isChat = panel.dataset.sidebarPanel === 'chat';
-    panel.hidden = !isChat && panel.dataset.sidebarPanel !== sidebarTab;
-  }
-  el.terminal?.classList.toggle('sidebar-has-context', sidebarTab !== 'chat' && !sidebarCollapsed);
+  for (const panel of document.querySelectorAll('.sidebar-panel')) panel.hidden = panel.dataset.sidebarPanel !== sidebarTab;
   el.terminal?.classList.toggle('sidebar-collapsed', sidebarCollapsed);
 }
 
@@ -8279,13 +8275,10 @@ el.chatForm?.addEventListener('submit', (event) => {
 });
 for (const button of document.querySelectorAll('.sidebar-tab')) {
   button.addEventListener('click', () => {
-    // v0.78.0: the activity/chat rail is persistent. Clicking the selected
-    // game tool closes its context pane and returns focus to the log instead
-    // of collapsing the whole right side.
-    if (button.dataset.sidebarTab === sidebarTab && !sidebarCollapsed) {
-      if (sidebarTab !== 'chat') setSidebarTab('chat');
-      return;
-    }
+    // v0.79.0: Foundry's sidebar presents one directory/tracker at a time.
+    // Clicking its active tool collapses the drawer and returns that space to
+    // the canvas; clicking any tool opens the drawer on that panel.
+    if (button.dataset.sidebarTab === sidebarTab && !sidebarCollapsed) { sidebarCollapsed = true; applySidebar(); return; }
     if (button.dataset.sidebarTab === 'combat') setSceneTab('combat');
     setSidebarTab(button.dataset.sidebarTab);
   });
