@@ -4359,8 +4359,13 @@ function renderEncounterMap(encounter) {
     // No encounter yet: the start control still belongs with the tracker slot,
     // which is the one place start and end live.
     el.encounterTracker.replaceChildren();
-    const start = makePortButton('START COMBAT', openCombatSetupDialog);
-    start.title = 'Create a manual personal encounter with referee-defined enemy statistics and equipment';
+    const scene = viewedScene();
+    const start = scene
+      ? makePortButton('START COMBAT', () => startCombatFromScene(scene))
+      : makePortButton('START COMBAT', openCombatSetupDialog);
+    start.title = scene
+      ? `Begin a fight on ${scene.identity.name} from the tracked tokens`
+      : 'Create a manual personal encounter with referee-defined enemy statistics and equipment';
     el.encounterResolve.replaceChildren(start);
     el.encounterMap.replaceChildren();
     el.encounterPartyRoster.replaceChildren();
@@ -4861,9 +4866,20 @@ function renderEncounterTracker(encounter, actor) {
   el.encounterTracker.replaceChildren(heading, ...rows);
 
   const undeclared = undeclaredCombatantIds(encounter);
+  // v0.92.1: the manual dialog is for a fight with no board. With a scene on
+  // the canvas, START COMBAT means "fight on this scene" — the tracker's own
+  // path — and the dialog interrupting a displayed board was simply wrong.
+  const scene = viewedScene();
   const button = encounter.status === 'active'
     ? makePortButton(`RESOLVE ROUND ${encounter.round}`, resolveDeclaredEncounterRound)
-    : makePortButton('START COMBAT', openCombatSetupDialog);
+    : scene
+      ? makePortButton('START COMBAT', () => startCombatFromScene(scene))
+      : makePortButton('START COMBAT', openCombatSetupDialog);
+  if (encounter.status !== 'active') {
+    button.title = scene
+      ? `Begin a new fight on ${scene.identity.name} from the tracked tokens`
+      : 'Create a manual personal encounter with referee-defined enemy statistics and equipment';
+  }
   const note = document.createElement('span');
   note.className = 'encounter-resolve-note';
   const autoPending = pendingNpcDeclarations(encounter).length;
@@ -6598,6 +6614,12 @@ function renderCombatSetupBoard() {
 }
 
 function openCombatSetupDialog() {
+  // Belt and braces: every route in is guarded, not just the buttons. A board
+  // on the canvas already answers everything this dialog asks.
+  if (viewedSceneIsBoard()) {
+    setStatus('A SCENE IS ON THE CANVAS / USE THE TRACKER\u2019S START COMBAT, OR VIEW THE SUBSECTOR FOR A FIGHT WITHOUT A BOARD', 'error');
+    return;
+  }
   combatSetupDropZone();
   renderCombatSetupBoard();
   if (!campaignDocument || !gameplayDocument || !mappedCurrentSystem()) {

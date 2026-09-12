@@ -1,5 +1,22 @@
 # Graycloak Traveller
 
+## v0.92.1 the dialog stays away from a board; the bar stops covering the header
+
+**The manual dialog was still reachable from a displayed board.** I guarded
+the tracker's own START COMBAT in v0.85.1 but missed the one on a *resolved*
+encounter — your DEFEAT / ROUND 5 offered START COMBAT, and that button still
+opened the dialog. Two fixes rather than one: with a scene on the canvas
+START COMBAT now begins a fight on *that scene* from its tracked tokens, and
+`openCombatSetupDialog()` refuses outright while a board is showing, whatever
+route reaches it, with a line saying where to go instead. Guarding the
+function and not only the buttons is the difference between a fix and another
+missed caller.
+
+**The navigation bar covered the subsector's header.** It was centred over the
+top of the canvas, which put it straight through `SELECTED DESTINATION` and
+the ship line. It sits at the stage's top-left now and the stage reserves the
+row, so nothing is behind it.
+
 ## v0.92.0 viewing a scene and activating it are different acts
 
 The bug you hit — a scene activates but the canvas does not move, and VIEW is

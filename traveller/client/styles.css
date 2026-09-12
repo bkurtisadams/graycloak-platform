@@ -4051,3 +4051,10 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .scene-nav-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; }
 .scene-nav-active { color: var(--action-border); }
 .scene-nav-caret { color: var(--muted); font-size: 9px; }
+
+/* --- v0.92.1: the navigation bar sat centred over the canvas and covered the
+   subsector's own header. It belongs in the stage's top-left, clear of both
+   the masthead and the header text; the stage reserves the row. */
+.scene-nav { top: 38px; left: 8px; transform: none; }
+.shell-stage { padding-top: 66px; }
+.scene-nav-button { max-width: 34ch; }
