@@ -3763,3 +3763,76 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 /* v0.79.2: the three row items fill the row regardless of content, and shed
    the global section margin that offset the stage 16px below its row. */
 .shell-rail, .shell-stage, .shell-sidebar { align-self: stretch; justify-self: stretch; margin: 0; min-height: 0; height: auto; }
+
+/* =========================================================================
+   v0.80.0: the canvas is the window. Foundry's arrangement, matched to the
+   reference screenshot: the scene fills the viewport as the base layer; the
+   scene controls float at the top-left as two icon columns; the sidebar is an
+   icon strip on the far right edge with its drawer opening to the left, over
+   the canvas, collapsing to the strip alone; the masthead is a thin strip over
+   the top. Nothing takes width from the canvas any more — the earlier
+   three-column grid, and every narrow-window fight it caused, is retired.
+   ========================================================================= */
+.terminal.shell, .terminal.shell.sidebar-collapsed {
+  display: block;
+  grid-template-columns: none; grid-template-rows: none; grid-template-areas: none;
+}
+.shell-masthead {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 30;
+  min-height: 32px; height: 32px;
+  background: rgba(217, 217, 211, 0.92);
+  border-bottom: 1px solid var(--rule);
+}
+.shell-masthead .masthead-main { min-height: 32px; }
+/* The stage is the base layer. Its in-flow headers (COMBAT / ROUND, the
+   status strip) are kept clear of the masthead and the controls; the map
+   itself runs to the right edge and under the sidebar drawer, as in Foundry. */
+.shell-stage {
+  position: absolute; inset: 0; z-index: 1;
+  box-sizing: border-box; padding: 34px 0 0 96px;
+  margin: 0; height: auto; overflow: hidden;
+}
+.shell-stage .canvas { border: 0; }
+/* Scene controls: two icon columns floating over the canvas, top-left. */
+.shell-rail {
+  position: absolute; top: 40px; left: 8px; bottom: auto; z-index: 20;
+  height: auto; width: auto;
+  padding: 0; border: 0; background: transparent; overflow: visible;
+}
+.shell-rail .scene-tab, .rail-tool {
+  background: rgba(217, 217, 211, 0.94);
+  border: 1px solid var(--rule);
+}
+/* Sidebar: icon strip on the far right, drawer to its left over the canvas. */
+.shell-sidebar {
+  position: absolute; top: 34px; right: 0; bottom: 0; z-index: 25;
+  height: auto; width: auto; max-width: calc(100vw - 96px);
+  grid-template-columns: minmax(0, 360px) 52px;
+  border: 0; background: transparent; overflow: visible;
+}
+.shell-sidebar .sidebar-tabs {
+  grid-column: 2; grid-row: 1 / -1;
+  border-right: 0; border-left: 1px solid var(--rule);
+  background: rgba(217, 217, 211, 0.94);
+}
+.shell-sidebar > .sidebar-strip,
+.shell-sidebar > .sidebar-body {
+  grid-column: 1; min-width: 0;
+  background: rgba(217, 217, 211, 0.96);
+  border-left: 1px solid var(--rule);
+}
+.shell-sidebar > #sidebar-whatnow { grid-row: 1; }
+.shell-sidebar > #sidebar-character { grid-row: 2; }
+.shell-sidebar > .sidebar-body { grid-row: 3; }
+.sidebar-collapsed .shell-sidebar { grid-template-columns: 0 52px; }
+.sidebar-collapsed .shell-sidebar > .sidebar-strip,
+.sidebar-collapsed .shell-sidebar > .sidebar-body { display: none; }
+.sidebar-collapsed .shell-sidebar .sidebar-tabs { grid-column: 2; }
+/* Narrow windows: the drawer shrinks rather than the canvas. */
+@media (max-width: 1100px) {
+  .shell-sidebar { grid-template-columns: minmax(0, 300px) 52px; }
+}
+@media (max-width: 900px) {
+  .shell-sidebar { grid-template-columns: minmax(0, 260px) 44px; }
+  .shell-stage { padding-left: 88px; }
+}

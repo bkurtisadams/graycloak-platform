@@ -1,5 +1,25 @@
 # Graycloak Traveller
 
+## v0.80.0 the canvas is the window
+
+Matched to the Foundry reference screenshot rather than to a description of
+it. The scene fills the viewport as the base layer. The scene controls float
+at the top-left as two icon columns — the scene kind, and that scene's
+tools. The sidebar is an icon strip on the far right edge, with its drawer
+opening to the left *over* the canvas, exactly where Foundry's chat cabinet
+sits; clicking the active tab collapses it back to the strip. The masthead
+is a thin strip across the top. Nothing takes width from the canvas any
+more: the three-column grid — and every narrow-window fight it caused from
+v0.75 to v0.79.2 — is retired. The map runs to the right edge and under the
+drawer, as it does under Foundry's chat.
+
+Kept from the Traveller side: paper, monospace, hairline borders, no
+shadows (a pin enforced that last one when I tried a shadow on the rail
+buttons — the aesthetic is guarded, which is how it should be). The
+document window now clamps to the near-full-viewport canvas.
+
+Also: a favicon, so the console stops reporting a 404 on every load.
+
 ## v0.79.2 the stage was one pixel tall
 
 Measured in the browser rather than inferred: at 1025×682 the shell's root
