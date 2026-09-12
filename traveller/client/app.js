@@ -926,8 +926,21 @@ function renderActivity() {
     system: new Set(['SYSLOG', 'ERROR'])
   };
   const allowed = filterCategories[activityFilter];
+  // v0.95.5: this compared createdAt with plain subtraction. Activity-log
+  // entries store createdAt as an ISO date STRING (the document schema
+  // requires it — Date.parse must succeed); chat messages store it as a
+  // NUMBER (Date.now()). "isoString" - number is NaN for every pairing, and
+  // a comparator that returns NaN is a no-op — sort left the concatenation
+  // order untouched, so every activity/combat entry rendered before every
+  // chat message regardless of actual time, and a fresh COMBAT line landed
+  // just above the whole chat block instead of at the true bottom. new
+  // Date(x).getTime() reads either shape correctly.
+  const chronological = (entry) => {
+    const at = new Date(entry.createdAt).getTime();
+    return Number.isNaN(at) ? 0 : at;
+  };
   const merged = chatMessages.length && (activityFilter === 'play' || activityFilter === 'all')
-    ? [...allEntries, ...chatAsActivityEntries()].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))
+    ? [...allEntries, ...chatAsActivityEntries()].sort((a, b) => chronological(a) - chronological(b))
     : allEntries;
   const entries = activityFilter === 'play'
     ? merged.filter((entry) => entry.category !== 'SYSLOG')
