@@ -209,3 +209,69 @@ export function clearSceneCombatTracker(document) {
 export function trackedSceneTokens(document) {
   return (document?.tokens ?? []).filter((token) => token.inCombat === true);
 }
+
+// --- v0.82.0: the Scenes directory --------------------------------------
+
+// A copy with a new identity, tokens and tracker included, named "<name> (copy)".
+export function duplicateSceneDocument(document, { createdAt = Date.now(), name = null } = {}) {
+  const source = importSceneDocument(document);
+  const copy = createSceneDocument({
+    campaignId: source.campaignId,
+    name: name ?? `${source.identity.name} (copy)`,
+    folder: source.folder,
+    squares: source.board.squares,
+    metersPerSquare: source.board.metersPerSquare,
+    backgroundAssetId: source.background.assetId,
+    notes: source.notes,
+    createdAt
+  });
+  copy.tokens = source.tokens.map((token) => ({ ...token, id: stableDocumentId('token', `${copy.identity.id}|${token.actorId}`), position: { ...token.position }, inCombat: false }));
+  assertValidSceneDocument(copy);
+  return copy;
+}
+
+// Move every scene in a folder to another (default: the root folder).
+export function moveScenesToFolder(scenes, fromFolder, toFolder = DEFAULT_SCENE_FOLDER) {
+  return scenes.map((scene) => (scene.folder === fromFolder ? updateSceneDocument(scene, { folder: toFolder }) : scene));
+}
+
+// A scene imported from a file belongs to the campaign it is imported into,
+// and takes a fresh identity so two imports of one file do not collide.
+export function adoptSceneDocument(document, { campaignId, createdAt = Date.now() } = {}) {
+  const source = importSceneDocument(document);
+  const adopted = createSceneDocument({
+    campaignId, name: source.identity.name, folder: source.folder,
+    squares: source.board.squares, metersPerSquare: source.board.metersPerSquare,
+    backgroundAssetId: source.background.assetId, notes: source.notes, createdAt
+  });
+  adopted.tokens = source.tokens.map((token) => ({ ...token, id: stableDocumentId('token', `${adopted.identity.id}|${token.actorId}`), position: { ...token.position }, inCombat: false }));
+  assertValidSceneDocument(adopted);
+  return adopted;
+}
+
+// The directory's thumbnail: the board as a small SVG string — a faint grid
+// at the scene's own scale and each staged token as a dot by side. No DOM,
+// so it renders anywhere and is testable.
+export function sceneThumbnailSvg(scene, { size = 96 } = {}) {
+  const squares = scene.board.squares;
+  const cell = size / squares;
+  const step = squares > 40 ? Math.ceil(squares / 20) : squares > 20 ? 2 : 1;
+  const lines = [];
+  for (let i = 0; i <= squares; i += step) {
+    const at = (i * cell).toFixed(2);
+    lines.push(`<line x1="${at}" y1="0" x2="${at}" y2="${size}"/>`, `<line x1="0" y1="${at}" x2="${size}" y2="${at}"/>`);
+  }
+  const dots = scene.tokens.map((token) => {
+    const x = ((token.position.column / scene.board.metersPerSquare) * cell).toFixed(2);
+    const y = ((token.position.row / scene.board.metersPerSquare) * cell).toFixed(2);
+    const fill = token.side === 'party' ? '#29465c' : token.side === 'opposition' ? '#6a1f1f' : '#777a75';
+    return `<circle cx="${x}" cy="${y}" r="${Math.max(2, cell * 0.45).toFixed(2)}" fill="${fill}"/>`;
+  }).join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img" aria-label="${scene.identity.name.replace(/"/g, '&quot;')}"><rect width="${size}" height="${size}" fill="#d9d9d3"/><g stroke="#b8bab4" stroke-width="0.5">${lines.join('')}</g>${dots}</svg>`;
+}
+
+export function sceneMatchesSearch(scene, query) {
+  const text = String(query ?? '').trim().toLowerCase();
+  if (!text) return true;
+  return scene.identity.name.toLowerCase().includes(text) || scene.folder.toLowerCase().includes(text);
+}

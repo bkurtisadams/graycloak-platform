@@ -92,7 +92,7 @@ import {
 
 import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js';
 import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js';
-import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, setSceneTokenCombat, clearSceneCombatTracker, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS } from '../src/scene-document.js';
+import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, setSceneTokenCombat, clearSceneCombatTracker, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js';
 import { directoryFolders } from '../src/campaign-document.js';
 import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js';
 import {
@@ -5445,36 +5445,207 @@ function readActorDrop(event) {
 }
 
 // --- v0.72.0: scenes in the directory, grouped by folder -------------------
+// --- v0.82.0: the Scenes directory, Foundry's shape ------------------------
+// Create Scene / Create Folder and a search at the top; collapsible folders
+// with a per-folder "new scene here"; a thumbnail card per scene with the
+// active one outlined; a right-click context menu that does the rest.
+let sceneSearch = '';
+let sceneFolderOpen = new Map();
+let sceneFolderDrafts = new Set(); // folders created this session that hold no scene yet
+
+function showContextMenu(event, items) {
+  event.preventDefault();
+  event.stopPropagation();
+  document.querySelector('.context-menu')?.remove();
+  const menu = document.createElement('div');
+  menu.className = 'context-menu';
+  menu.setAttribute('role', 'menu');
+  for (const item of items) {
+    if (item === '-') { menu.append(Object.assign(document.createElement('div'), { className: 'context-menu-rule' })); continue; }
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.setAttribute('role', 'menuitem');
+    button.textContent = item.label;
+    button.disabled = Boolean(item.disabled);
+    if (item.danger) button.classList.add('danger');
+    button.addEventListener('click', () => { menu.remove(); try { item.action(); } catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); } });
+    menu.append(button);
+  }
+  document.body.append(menu);
+  const x = Math.min(event.clientX, window.innerWidth - menu.offsetWidth - 8);
+  const y = Math.min(event.clientY, window.innerHeight - menu.offsetHeight - 8);
+  menu.style.left = `${Math.max(4, x)}px`;
+  menu.style.top = `${Math.max(4, y)}px`;
+  const dismiss = (evt) => { if (menu.contains(evt.target)) return; menu.remove(); document.removeEventListener('pointerdown', dismiss, true); document.removeEventListener('keydown', escape, true); };
+  const escape = (evt) => { if (evt.key === 'Escape') { menu.remove(); document.removeEventListener('pointerdown', dismiss, true); document.removeEventListener('keydown', escape, true); } };
+  window.setTimeout(() => { document.addEventListener('pointerdown', dismiss, true); document.addEventListener('keydown', escape, true); }, 0);
+}
+
+function sceneContextMenuItems(scene) {
+  const active = campaignDocument?.activeSceneId === scene.identity.id;
+  return [
+    { label: active ? 'DEACTIVATE' : 'ACTIVATE', action: () => setActiveScene(active ? null : scene.identity.id) },
+    { label: 'VIEW', action: () => { if (!active) setActiveScene(scene.identity.id); setSceneTab('combat'); } },
+    '-',
+    { label: 'EDIT', action: () => editScene(scene) },
+    { label: 'DUPLICATE', action: () => addScene(duplicateSceneDocument(scene)) },
+    '-',
+    { label: 'EXPORT DATA', action: () => downloadSceneFile(scene) },
+    { label: 'IMPORT DATA', action: () => importSceneFile() },
+    '-',
+    { label: 'DELETE', danger: true, action: () => deleteScene(scene) }
+  ];
+}
+
+function folderContextMenuItems(folder) {
+  return [
+    { label: 'NEW SCENE HERE', action: () => openSceneDialog({ folder }) },
+    { label: 'RENAME FOLDER', action: () => renameFolder(folder) },
+    '-',
+    { label: 'CLEAR FOLDER', action: () => clearFolder(folder), disabled: folder === DEFAULT_SCENE_FOLDER }
+  ];
+}
+
+function addScene(scene, { makeActive = false } = {}) {
+  sceneDocuments.push(scene);
+  if (registry) registry.put(scene);
+  campaignDocument = addSceneToCampaign(campaignDocument, scene, { makeActive: makeActive || !campaignDocument.activeSceneId });
+  sceneFolderDrafts.delete(scene.folder);
+  persistCampaignState();
+  logActivity('SYSTEM', `Scene ${scene.identity.name} created / ${scene.board.squares} squares of ${scene.board.metersPerSquare} m in ${scene.folder}.`);
+  render();
+  return scene;
+}
+
+function editScene(scene) {
+  const name = window.prompt('Scene name:', scene.identity.name);
+  if (name === null) return;
+  const folder = window.prompt('Folder (a path such as Ports/Aster):', scene.folder);
+  if (folder === null) return;
+  const squares = window.prompt(`Squares a side (${SCENE_MIN_SQUARES}+; larger shrinks nothing, smaller drops tokens off the edge):`, String(scene.board.squares));
+  if (squares === null) return;
+  const parsedSquares = Number.parseInt(squares, 10);
+  const next = updateSceneDocument(scene, { name, folder, squares: Number.isInteger(parsedSquares) ? parsedSquares : scene.board.squares });
+  sceneDocuments = sceneDocuments.map((entry) => entry.identity.id === next.identity.id ? next : entry);
+  if (registry) registry.put(next);
+  persistCampaignState();
+  render();
+}
+
+function renameFolder(folder) {
+  const next = window.prompt('Folder name:', folder);
+  if (next === null || !next.trim() || next.trim() === folder) return;
+  sceneDocuments = moveScenesToFolder(sceneDocuments, folder, next.trim());
+  if (registry) for (const scene of sceneDocuments) registry.put(scene);
+  if (sceneFolderDrafts.has(folder)) { sceneFolderDrafts.delete(folder); sceneFolderDrafts.add(next.trim()); }
+  persistCampaignState();
+  render();
+}
+
+function clearFolder(folder) {
+  if (!window.confirm(`Move every scene in ${folder} to ${DEFAULT_SCENE_FOLDER} and remove the folder?`)) return;
+  sceneDocuments = moveScenesToFolder(sceneDocuments, folder);
+  if (registry) for (const scene of sceneDocuments) registry.put(scene);
+  sceneFolderDrafts.delete(folder);
+  persistCampaignState();
+  render();
+}
+
+function createFolder() {
+  const name = window.prompt('New folder (a path such as Ports/Aster):', '');
+  if (name === null || !name.trim()) return;
+  sceneFolderDrafts.add(name.trim());
+  sceneFolderOpen.set(name.trim(), true);
+  renderSceneDirectory();
+}
+
+function downloadSceneFile(scene) {
+  const blob = new Blob([exportSceneDocument(scene)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${safeFilename(scene.identity.name)}.scene.json`;
+  document.body.append(a); a.click(); a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function importSceneFile() {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = 'application/json,.json';
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      const parsed = importSceneDocument(await file.text());
+      addScene(adoptSceneDocument(parsed, { campaignId: campaignDocument.identity.id }));
+      setStatus(`SCENE ${parsed.identity.name.toUpperCase()} IMPORTED`, 'ok');
+    } catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); }
+  });
+  input.click();
+}
+
+function sceneCard(scene) {
+  const active = campaignDocument?.activeSceneId === scene.identity.id;
+  const card = document.createElement('div');
+  card.className = `scene-card${active ? ' is-active' : ''}`;
+  card.setAttribute('role', 'button');
+  card.tabIndex = 0;
+  card.title = `${scene.identity.name} — ${scene.board.squares} squares of ${scene.board.metersPerSquare} m${active ? ' (active)' : ''}. Right-click for more.`;
+  const thumb = document.createElement('div');
+  thumb.className = 'scene-card-thumb';
+  thumb.innerHTML = sceneThumbnailSvg(scene, { size: 96 });
+  const caption = document.createElement('div');
+  caption.className = 'scene-card-caption';
+  const name = document.createElement('span'); name.className = 'scene-card-name'; name.textContent = scene.identity.name.toUpperCase();
+  const meta = document.createElement('span'); meta.className = 'scene-card-meta';
+  meta.textContent = `${scene.board.squares} SQ · ${scene.board.metersPerSquare} M${scene.tokens.length ? ` · ${scene.tokens.length} STAGED` : ''}${active ? ' · ACTIVE' : ''}`;
+  caption.append(name, meta);
+  card.append(thumb, caption);
+  card.addEventListener('click', () => setActiveScene(active ? null : scene.identity.id));
+  card.addEventListener('dblclick', () => { if (!active) setActiveScene(scene.identity.id); setSceneTab('combat'); });
+  card.addEventListener('contextmenu', (event) => showContextMenu(event, sceneContextMenuItems(scene)));
+  card.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); card.click(); } });
+  return card;
+}
+
 function renderSceneDirectory() {
   if (!el.directoryScenes) return;
-  const heading = document.createElement('div');
-  heading.className = 'directory-heading';
-  const title = document.createElement('span'); title.textContent = 'SCENES';
-  heading.append(title, makePortButton('NEW SCENE', openSceneDialog));
-  const rows = [heading];
-  if (!sceneDocuments.length) {
-    rows.push(Object.assign(document.createElement('div'), { className: 'directory-empty', textContent: 'NO SCENES YET / A FIGHT WITHOUT ONE IS SIZED TO ITSELF' }));
-    el.directoryScenes.replaceChildren(...rows);
-    return;
+  const toolbar = document.createElement('div');
+  toolbar.className = 'directory-toolbar';
+  toolbar.append(makePortButton('CREATE SCENE', () => openSceneDialog()), makePortButton('CREATE FOLDER', createFolder));
+  const search = document.createElement('input');
+  search.type = 'search'; search.className = 'directory-search'; search.placeholder = 'Search scenes'; search.value = sceneSearch;
+  search.setAttribute('aria-label', 'Search scenes');
+  search.addEventListener('input', () => { sceneSearch = search.value; renderSceneDirectory(); const again = el.directoryScenes.querySelector('.directory-search'); again?.focus(); again?.setSelectionRange(again.value.length, again.value.length); });
+  const rows = [toolbar, search];
+  if (!campaignDocument) { el.directoryScenes.replaceChildren(...rows, Object.assign(document.createElement('div'), { className: 'directory-empty', textContent: 'A CAMPAIGN IS REQUIRED FOR SCENES' })); return; }
+  const visible = sceneDocuments.filter((scene) => sceneMatchesSearch(scene, sceneSearch));
+  const folders = sceneFolders(visible);
+  for (const draft of sceneFolderDrafts) if (!folders.some((entry) => entry.folder === draft)) folders.push({ folder: draft, scenes: [] });
+  folders.sort((a, b) => a.folder.localeCompare(b.folder));
+  if (!folders.length) {
+    rows.push(Object.assign(document.createElement('div'), { className: 'directory-empty', textContent: sceneSearch ? 'NO SCENE MATCHES' : 'NO SCENES YET / A FIGHT WITHOUT ONE IS SIZED TO ITSELF' }));
   }
-  for (const { folder, scenes } of sceneFolders(sceneDocuments)) {
-    const folderRow = document.createElement('div');
-    folderRow.className = 'directory-folder';
-    folderRow.textContent = folder.toUpperCase();
-    rows.push(folderRow);
-    for (const scene of scenes) {
-      const row = document.createElement('div');
-      row.className = `directory-row kind-scene${campaignDocument?.activeSceneId === scene.identity.id ? ' active' : ''}`;
-      const name = document.createElement('span'); name.className = 'directory-name'; name.textContent = scene.identity.name.toUpperCase();
-      const detail = document.createElement('span'); detail.className = 'directory-detail';
-      detail.textContent = `${scene.board.squares} SQ / ${scene.board.metersPerSquare} M / ${sceneBoardMeters(scene)} M A SIDE${scene.tokens.length ? ` / ${scene.tokens.length} STAGED` : ''}`;
-      row.append(name, detail);
-      const active = campaignDocument?.activeSceneId === scene.identity.id;
-      row.append(makePortButton(active ? 'ACTIVE' : 'ACTIVATE', () => setActiveScene(active ? null : scene.identity.id)));
-      row.append(makePortButton('RENAME', () => renameScene(scene)));
-      row.append(makePortButton('DELETE', () => deleteScene(scene)));
-      rows.push(row);
-    }
+  for (const { folder, scenes } of folders) {
+    const details = document.createElement('details');
+    details.className = 'directory-folder-block';
+    details.open = sceneFolderOpen.has(folder) ? sceneFolderOpen.get(folder) : true;
+    details.addEventListener('toggle', () => sceneFolderOpen.set(folder, details.open));
+    const summary = document.createElement('summary');
+    summary.className = 'directory-folder';
+    const label = document.createElement('span'); label.textContent = `${folder.toUpperCase()} [${scenes.length}]`;
+    const plus = document.createElement('button');
+    plus.type = 'button'; plus.className = 'directory-folder-add'; plus.textContent = '+'; plus.title = `New scene in ${folder}`;
+    plus.setAttribute('aria-label', `New scene in ${folder}`);
+    plus.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); openSceneDialog({ folder }); });
+    summary.append(label, plus);
+    summary.addEventListener('contextmenu', (event) => showContextMenu(event, folderContextMenuItems(folder)));
+    details.append(summary);
+    const grid = document.createElement('div');
+    grid.className = 'scene-card-grid';
+    for (const scene of scenes) grid.append(sceneCard(scene));
+    if (!scenes.length) grid.append(Object.assign(document.createElement('div'), { className: 'directory-empty', textContent: 'EMPTY FOLDER' }));
+    details.append(grid);
+    rows.push(details);
   }
   el.directoryScenes.replaceChildren(...rows);
 }
@@ -5748,23 +5919,6 @@ function setActiveScene(sceneId) {
   }
 }
 
-function renameScene(scene) {
-  const name = window.prompt('Scene name:', scene.identity.name);
-  if (name === null) return;
-  const folder = window.prompt('Folder (a path such as Ports/Aster):', scene.folder);
-  if (folder === null) return;
-  try {
-    const next = updateSceneDocument(scene, { name, folder });
-    sceneDocuments = sceneDocuments.map((entry) => entry.identity.id === next.identity.id ? next : entry);
-    if (registry) registry.put(next);
-    persistCampaignState();
-    render();
-  } catch (error) {
-    console.error(error);
-    setStatus(error?.message ?? String(error), 'error');
-  }
-}
-
 function deleteScene(scene) {
   if (encounterDocuments.some((entry) => entry.sceneId === scene.identity.id)) {
     setStatus(`${scene.identity.name.toUpperCase()} HAS A FIGHT ON IT AND CANNOT BE DELETED`, 'error');
@@ -5799,11 +5953,11 @@ function updateSceneSizeNote() {
     : squares < SCENE_MIN_SQUARES ? `TOO SMALL (MINIMUM ${SCENE_MIN_SQUARES} SQUARES)` : `${meters} M A SIDE`;
 }
 
-function openSceneDialog() {
+function openSceneDialog({ folder = '' } = {}) {
   if (!campaignDocument) { setStatus('A CAMPAIGN IS REQUIRED FOR SCENES', 'error'); return; }
   if (!el.sceneDialog) return;
   el.sceneName.value = '';
-  el.sceneFolder.value = '';
+  el.sceneFolder.value = folder;
   el.sceneSquares.value = '40';
   el.sceneScale.value = '5';
   el.sceneFolderList.replaceChildren(...[...new Set(sceneDocuments.map((entry) => entry.folder))].sort().map((folder) => new Option(folder)));
@@ -5822,14 +5976,9 @@ function createSceneFromDialog() {
       squares: Number.parseInt(el.sceneSquares.value, 10),
       metersPerSquare: Number.parseFloat(el.sceneScale.value)
     });
-    sceneDocuments.push(scene);
-    if (registry) registry.put(scene);
-    campaignDocument = addSceneToCampaign(campaignDocument, scene, { makeActive: !campaignDocument.activeSceneId });
-    persistCampaignState();
-    logActivity('SYSTEM', `Scene ${scene.identity.name} created / ${scene.board.squares} squares of ${scene.board.metersPerSquare} m in ${scene.folder}.`);
     el.sceneDialog.close();
+    addScene(scene);
     setStatus(`SCENE ${scene.identity.name.toUpperCase()} CREATED`, 'ok');
-    render();
   } catch (error) {
     console.error(error);
     setSceneStatus(error?.message ?? String(error), 'error');

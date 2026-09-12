@@ -1,5 +1,35 @@
 # Graycloak Traveller
 
+## v0.82.0 the Scenes directory, Foundry's shape
+
+Borrowed from the reference screenshot: `[ CREATE SCENE ]` and
+`[ CREATE FOLDER ]` at the top with a search beneath; folders as collapsible
+blocks, each with a `+` that opens the new-scene dialog with that folder
+filled in; a thumbnail card per scene — the board as a small SVG, a faint
+grid at the scene's own scale and each staged token as a dot by side — with
+name and size, the active scene outlined in red the way Foundry marks the
+viewed one; click to activate, double-click to activate and go to the
+board; and a right-click menu on cards (ACTIVATE / DEACTIVATE, VIEW, EDIT,
+DUPLICATE, EXPORT DATA, IMPORT DATA, DELETE) and on folders (NEW SCENE
+HERE, RENAME FOLDER, CLEAR FOLDER). Foundry's remaining items — preload,
+thumbnails from artwork, ownership — wait on scene backgrounds and are not
+faked here.
+
+Folders remain a path on the scene rather than a document of their own; a
+folder created empty lives for the session until a scene is put in it. The
+rules side gained `duplicateSceneDocument` (tokens copied, tracker not),
+`adoptSceneDocument` (an imported file takes the campaign and a fresh
+identity), `moveScenesToFolder`, `sceneMatchesSearch`, and
+`sceneThumbnailSvg` — all pure, all tested. The generic `showContextMenu` is
+the first one in the client and will serve actors and tokens next.
+
+Driven in jsdom: two scenes made in two folders, thumbnails rendered, one
+outlined, search narrowing to one, the context menu listing its seven
+items, DUPLICATE producing "Downport (copy)", the folder `+` prefilling the
+dialog. One thing I broke and caught: the directory rewrite sliced out the
+v0.74 staging block that lived between it and `setActiveScene`; a pin now
+asserts each of those functions is still defined.
+
 ## v0.81.0 the log is chat
 
 The chat has existed since v0.75 — the table's messages interleaved with the

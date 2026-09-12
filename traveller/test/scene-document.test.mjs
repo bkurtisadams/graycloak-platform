@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createSceneDocument, importSceneDocument, updateSceneDocument, placeSceneToken, moveSceneToken, removeSceneToken,
-  sceneBoardCells, sceneFolders, SceneDocumentValidationError, setSceneTokenCombat, clearSceneCombatTracker, trackedSceneTokens
+  sceneBoardCells, sceneFolders, SceneDocumentValidationError, setSceneTokenCombat, clearSceneCombatTracker, trackedSceneTokens,
+  duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch
 } from '../src/scene-document.js';
 import { buildPublishedScene } from '../src/published-view.js';
 import { authorizePlayerSceneMove } from '../src/player-token-movement.js';
@@ -74,4 +75,31 @@ test('the published scene names tokens without exposing the tracker, and a playe
   assert.throws(() => authorizePlayerSceneMove({ ...move, actorId: 'npc-1' }, { campaign, scene }), /does not own/);
   assert.throws(() => authorizePlayerSceneMove({ ...move, uid: 'uid-b' }, { campaign, scene }), /does not own/);
   assert.throws(() => authorizePlayerSceneMove({ ...move, encounterId: 'other' }, { campaign, scene }), /does not belong/);
+});
+
+test('v0.82.0 duplicate, adopt, folder moves, search and the thumbnail', () => {
+  let scene = createSceneDocument({ campaignId: 'sea', name: 'Downport', folder: 'Ports', squares: 20, metersPerSquare: 5, createdAt: 1 });
+  scene = placeSceneToken(scene, { actorId: 'pc-1', side: 'party', column: 10, row: 10 }).scene;
+  scene = setSceneTokenCombat(scene, scene.tokens[0].id, true);
+  const copy = duplicateSceneDocument(scene, { createdAt: 2 });
+  assert.notEqual(copy.identity.id, scene.identity.id);
+  assert.equal(copy.identity.name, 'Downport (copy)');
+  assert.equal(copy.tokens.length, 1);
+  assert.equal(copy.tokens[0].inCombat, false, 'the tracker does not copy');
+  assert.notEqual(copy.tokens[0].id, scene.tokens[0].id);
+  const adopted = adoptSceneDocument(scene, { campaignId: 'other', createdAt: 3 });
+  assert.equal(adopted.campaignId, 'other');
+  assert.equal(adopted.identity.name, 'Downport');
+  const other = createSceneDocument({ campaignId: 'sea', name: 'Cave', folder: 'Wild', createdAt: 4 });
+  const moved = moveScenesToFolder([scene, other], 'Ports');
+  assert.equal(moved[0].folder, 'Scenes');
+  assert.equal(moved[1].folder, 'Wild');
+  assert.ok(sceneMatchesSearch(scene, 'down'));
+  assert.ok(sceneMatchesSearch(scene, 'PORTS'));
+  assert.ok(!sceneMatchesSearch(scene, 'cave'));
+  assert.ok(sceneMatchesSearch(scene, ''));
+  const svg = sceneThumbnailSvg(scene, { size: 96 });
+  assert.match(svg, /^<svg /);
+  assert.match(svg, /<circle cx="9\.60" cy="9\.60"/, 'token at column 10 of a 5 m grid is 2 squares in');
+  assert.match(svg, /aria-label="Downport"/);
 });
