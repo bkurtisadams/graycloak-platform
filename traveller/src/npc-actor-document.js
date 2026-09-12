@@ -232,3 +232,33 @@ export function clearNpcActorConditions(document) {
   }
   return actor;
 }
+
+// --- v0.83.0: the Actors directory --------------------------------------
+export function duplicateNpcActorDocument(document, { name = null } = {}) {
+  const source = importNpcActorDocument(document);
+  // A copy is a new actor with a fresh id and nothing inherited from the
+  // original's state beyond how it is built.
+  return createNpcActorDocument({
+    name: name ?? `${source.identity.name} (copy)`, aliases: source.identity.aliases,
+    description: source.presentation.description, portraitAssetId: source.presentation.portraitAssetId, tokenLabel: source.presentation.tokenLabel,
+    actorType: source.profile.actorType, species: source.profile.species, bodyModel: source.profile.bodyModel,
+    role: source.profile.role, faction: source.profile.faction, homeworld: source.profile.homeworld, age: source.profile.age,
+    characteristics: source.characteristics, current: source.current, career: source.career, benefits: source.benefits,
+    skills: source.skills, weaponKey: source.loadout?.weaponKey, armor: source.loadout?.armor, inventory: source.loadout?.inventory ?? [],
+    credits: source.finances?.credits ?? 0, retirementPayAnnual: source.finances?.retirementPayAnnual ?? 0,
+    effects: source.effects ?? [], state: { ...source.state, archived: false },
+    publicNotes: source.notes?.public ?? '', refereeNotes: source.notes?.referee ?? ''
+  });
+}
+
+export function setNpcActorArchived(document, archived) {
+  const current = importNpcActorDocument(document);
+  return updateNpcActorDocument(current, { state: { ...current.state, archived: Boolean(archived) } });
+}
+
+export function npcActorMatchesSearch(document, query) {
+  const text = String(query ?? '').trim().toLowerCase();
+  if (!text) return true;
+  return [document.identity.name, document.profile.role, document.profile.actorType, document.profile.faction, ...(document.identity.aliases ?? [])]
+    .filter(Boolean).some((value) => String(value).toLowerCase().includes(text));
+}

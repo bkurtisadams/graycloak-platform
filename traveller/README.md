@@ -1,5 +1,30 @@
 # Graycloak Traveller
 
+## v0.83.0 the Actors directory, the same shape as Scenes
+
+`[ CREATE ACTOR ]` and `[ CREATE FOLDER ]` on top, search beneath; folders
+as collapsible blocks — Party first, then NPCs by type (NPCs, Robots,
+Creatures) — each NPC folder with a `+`; a card per actor with a token
+glyph (circle for people, square for robots, diamond for creatures; party
+blue, opposition red), name, role and who plays it. Every card still drags
+onto a staged scene or the combat setup dialog. Right-click: VIEW SHEET
+(party — switches the viewed character and opens the sheet window) or EDIT
+(NPC), PLACE ON ACTIVE SCENE (at its centre), ASSIGN TO ME / CLEAR OWNER,
+and for NPCs DUPLICATE, EXPORT DATA, IMPORT DATA, ARCHIVE / RESTORE.
+Folders: NEW ACTOR HERE, RENAME FOLDER, SHOW / HIDE ARCHIVED. Vehicles use
+the same card.
+
+VIEW SHEET goes through `activatePartyCharacter`, the v0.31 path that keeps
+the *viewed* character a local player-session choice rather than the
+campaign's shared `activeCharacterId` — a pin from that version caught me
+about to change the shared one, which is what those pins are for. The rules
+side gained `duplicateNpcActorDocument`, `setNpcActorArchived` and
+`npcActorMatchesSearch`, tested.
+
+Driven in jsdom: the party card with its menu, an NPC made from the toolbar
+appearing under NPCS with the fuller menu, PLACE ON ACTIVE SCENE staging it
+(the Scenes card reads `1 STAGED`), and search by role.
+
 ## v0.82.0 the Scenes directory, Foundry's shape
 
 Borrowed from the reference screenshot: `[ CREATE SCENE ]` and

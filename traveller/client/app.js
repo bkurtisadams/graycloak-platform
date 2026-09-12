@@ -173,8 +173,7 @@ import {
   importNpcActorDocument,
   activeNpcActorConditions,
   setNpcActorCondition,
-  clearNpcActorConditions
-} from '../src/npc-actor-document.js';
+  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js';
 import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js';
 import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js';
 import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js';
@@ -5383,33 +5382,175 @@ function directoryDragPayload(item) {
   return JSON.stringify({ graycloakActor: item.kind, id: item.id });
 }
 
-function renderDirectoryFolders(container, entries, { emptyText, draggable = false } = {}) {
-  const rows = [];
-  if (!entries.length) {
-    rows.push(Object.assign(document.createElement('div'), { className: 'directory-empty', textContent: emptyText }));
-    container.replaceChildren(...rows);
-    return;
+// --- v0.83.0: the Actors directory, the same shape as Scenes ---------------
+// Toolbar (CREATE ACTOR / CREATE FOLDER) and search; collapsible folders —
+// Party, then NPCs by type — each with a "+"; a card per actor with a token
+// glyph (circle for people, square for robots, diamond for creatures, party
+// blue or opposition red), name, detail and owner; drag any card onto a scene
+// or the setup dialog as before; a right-click menu for the rest.
+let actorSearch = '';
+let actorFolderOpen = new Map();
+let actorFolderDrafts = new Set();
+let showArchivedActors = false;
+
+function actorGlyphSvg(item) {
+  const party = item.kind === 'character';
+  const fill = party ? '#29465c' : '#6a1f1f';
+  const type = item.actorType ?? 'pc';
+  const shape = type === 'robot' ? '<rect x="8" y="8" width="24" height="24" rx="2"/>'
+    : type === 'creature' ? '<path d="M20 5 L35 20 L20 35 L5 20 Z"/>'
+    : '<circle cx="20" cy="20" r="15"/>';
+  const label = (item.tokenLabel || item.name).charAt(0).toUpperCase();
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" aria-hidden="true"><g fill="${fill}" stroke="#111311" stroke-width="1.2">${shape}</g><text x="20" y="25" text-anchor="middle" font-family="Consolas,monospace" font-weight="700" font-size="15" fill="#f2f2ed">${label}</text></svg>`;
+}
+
+function actorContextMenuItems(item) {
+  const uid = currentUserId();
+  const scene = activeScene();
+  const npc = item.kind === 'npc' ? npcActorDocuments.find((entry) => entry.identity.id === item.id) : null;
+  const onScene = Boolean(scene?.tokens.some((token) => token.actorId === item.id));
+  const items = [
+    { label: item.kind === 'character' ? 'VIEW SHEET' : 'EDIT', action: () => {
+      if (item.kind === 'character') { activatePartyCharacter(item.id); if (!characterWindow.state.open) openWindowController(characterWindow); applyCampaignLayout(); }
+      else openNpcActorDialog(item.id);
+    } },
+    { label: onScene ? 'ALREADY ON THE ACTIVE SCENE' : 'PLACE ON ACTIVE SCENE', disabled: !scene || onScene, action: () => placeActorOnActiveScene(item) },
+    '-',
+    { label: item.ownerUid === uid && uid ? 'PLAYED BY ME' : 'ASSIGN TO ME', disabled: !uid || item.ownerUid === uid, action: () => setOwner(item.id, uid) },
+    { label: 'CLEAR OWNER', disabled: !item.ownerUid, action: () => setOwner(item.id, '') },
+  ];
+  if (npc) {
+    items.push('-',
+      { label: 'DUPLICATE', action: () => addNpcActor(duplicateNpcActorDocument(npc)) },
+      { label: 'EXPORT DATA', action: () => downloadNpcFile(npc) },
+      { label: 'IMPORT DATA', action: () => importNpcFile() },
+      '-',
+      { label: npc.state.archived ? 'RESTORE' : 'ARCHIVE', danger: !npc.state.archived, action: () => {
+        const next = setNpcActorArchived(npc, !npc.state.archived);
+        npcActorDocuments = npcActorDocuments.map((entry) => entry.identity.id === next.identity.id ? next : entry);
+        if (registry) registry.put(next);
+        persistCampaignState(); render();
+      } });
   }
-  for (const { folder, items } of directoryFolders(entries)) {
-    const folderRow = document.createElement('div');
-    folderRow.className = 'directory-folder';
-    folderRow.textContent = `${folder.toUpperCase()} [${items.length}]`;
-    rows.push(folderRow);
-    for (const item of items) {
-      const row = document.createElement('div');
-      row.className = `directory-row kind-${item.kind}`;
-      if (draggable) {
-        row.draggable = true;
-        row.classList.add('draggable');
-        row.title = 'Drag onto a staged scene or the combat setup dialog to place';
-        row.addEventListener('dragstart', (event) => { event.dataTransfer.setData('application/x-graycloak-actor', directoryDragPayload(item)); event.dataTransfer.effectAllowed = 'copy'; });
-      }
-      const name = document.createElement('span'); name.className = 'directory-name'; name.textContent = item.name.toUpperCase();
-      const detail = document.createElement('span'); detail.className = 'directory-detail'; detail.textContent = item.detail.toUpperCase();
-      row.append(name, detail);
-      if (item.kind !== 'ship') { row.append(directoryOwnerControl(item)); const claim = directoryClaimButton(item); if (claim) row.append(claim); }
-      rows.push(row);
+  return items;
+}
+
+function actorFolderContextMenuItems(folder) {
+  return [
+    { label: 'NEW ACTOR HERE', action: () => openNpcActorDialog(null), disabled: folder === 'Party' },
+    { label: 'RENAME FOLDER', action: () => { const next = window.prompt('Folder name:', folder); if (next && next.trim() && next.trim() !== folder) { if (actorFolderDrafts.has(folder)) { actorFolderDrafts.delete(folder); actorFolderDrafts.add(next.trim()); } renderCampaignDirectory(); } }, disabled: folder === 'Party' },
+    '-',
+    { label: showArchivedActors ? 'HIDE ARCHIVED' : 'SHOW ARCHIVED', action: () => { showArchivedActors = !showArchivedActors; renderCampaignDirectory(); } }
+  ];
+}
+
+function setOwner(documentId, ownerUid) {
+  campaignDocument = setDocumentOwner(campaignDocument, { documentId, ownerUid: ownerUid ?? '' });
+  persistCampaignState();
+  render();
+}
+
+function addNpcActor(actor) {
+  npcActorDocuments.push(actor);
+  if (registry) registry.put(actor);
+  campaignDocument = addNpcActorToCampaign(campaignDocument, actor);
+  persistCampaignState();
+  logActivity('SYSTEM', `Roster actor ${actor.identity.name} added.`);
+  render();
+}
+
+function placeActorOnActiveScene(item) {
+  const scene = activeScene();
+  if (!scene) return setStatus('ACTIVATE A SCENE FIRST', 'error');
+  const cells = sceneBoardCells(scene);
+  const centre = Math.round(((cells.columns - 1) / 2) / scene.board.metersPerSquare) * scene.board.metersPerSquare;
+  const named = sceneActorNames().get(item.id);
+  updateScene(scene.identity.id, (doc) => placeSceneToken(doc, { actorId: item.id, side: item.kind === 'character' ? 'party' : 'opposition', column: centre, row: centre, label: (named?.name ?? item.name).charAt(0).toUpperCase() }).scene);
+  setStatus(`${item.name.toUpperCase()} PLACED ON ${scene.identity.name.toUpperCase()}`, 'ok');
+  render();
+}
+
+function downloadNpcFile(actor) {
+  const blob = new Blob([exportNpcActorDocument(actor)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${safeFilename(actor.identity.name)}.npc.json`;
+  document.body.append(a); a.click(); a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function importNpcFile() {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = 'application/json,.json';
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      const parsed = importNpcActorDocument(await file.text());
+      addNpcActor(duplicateNpcActorDocument(parsed, { name: parsed.identity.name }));
+      setStatus(`ACTOR ${parsed.identity.name.toUpperCase()} IMPORTED`, 'ok');
+    } catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); }
+  });
+  input.click();
+}
+
+function actorCard(item) {
+  const card = document.createElement('div');
+  card.className = `actor-card kind-${item.kind}${item.archived ? ' is-archived' : ''}`;
+  card.setAttribute('role', 'button');
+  card.tabIndex = 0;
+  card.draggable = true;
+  card.title = `${item.name} — ${item.detail}. Drag onto a scene or combat setup to place; right-click for more.`;
+  card.addEventListener('dragstart', (event) => { event.dataTransfer.setData('application/x-graycloak-actor', directoryDragPayload(item)); event.dataTransfer.effectAllowed = 'copy'; });
+  const glyph = document.createElement('div'); glyph.className = 'actor-card-glyph'; glyph.innerHTML = actorGlyphSvg(item);
+  const body = document.createElement('div'); body.className = 'actor-card-body';
+  const name = document.createElement('span'); name.className = 'actor-card-name'; name.textContent = item.name.toUpperCase();
+  const detail = document.createElement('span'); detail.className = 'actor-card-detail'; detail.textContent = `${item.detail.toUpperCase()}${item.archived ? ' · ARCHIVED' : ''}`;
+  const owner = document.createElement('span'); owner.className = 'actor-card-owner';
+  owner.textContent = item.ownerUid ? (item.ownerUid === currentUserId() ? 'PLAYED BY ME' : `PLAYED BY ${item.ownerUid.slice(0, 8)}`) : 'REFEREE';
+  body.append(name, detail, owner);
+  card.append(glyph, body);
+  if (item.kind !== 'ship') card.addEventListener('contextmenu', (event) => showContextMenu(event, actorContextMenuItems(item)));
+  card.addEventListener('dblclick', () => actorContextMenuItems(item)[0].action());
+  card.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); actorContextMenuItems(item)[0].action(); } });
+  return card;
+}
+
+function renderCardDirectory(container, entries, { emptyText, folderMenu = null, searchValue = '', onSearch = null, toolbar = [], folderOpen, drafts = new Set() }) {
+  const rows = [];
+  if (toolbar.length) {
+    const bar = document.createElement('div'); bar.className = 'directory-toolbar'; bar.append(...toolbar); rows.push(bar);
+  }
+  if (onSearch) {
+    const search = document.createElement('input');
+    search.type = 'search'; search.className = 'directory-search'; search.placeholder = 'Search'; search.value = searchValue;
+    search.addEventListener('input', () => { onSearch(search.value); const again = container.querySelector('.directory-search'); again?.focus(); again?.setSelectionRange(again.value.length, again.value.length); });
+    rows.push(search);
+  }
+  const folders = directoryFolders(entries);
+  for (const draft of drafts) if (!folders.some((entry) => entry.folder === draft)) folders.push({ folder: draft, items: [] });
+  folders.sort((a, b) => (a.folder === 'Party' ? -1 : b.folder === 'Party' ? 1 : a.folder.localeCompare(b.folder)));
+  if (!folders.length) rows.push(Object.assign(document.createElement('div'), { className: 'directory-empty', textContent: emptyText }));
+  for (const { folder, items } of folders) {
+    const details = document.createElement('details');
+    details.className = 'directory-folder-block';
+    details.open = folderOpen.has(folder) ? folderOpen.get(folder) : true;
+    details.addEventListener('toggle', () => folderOpen.set(folder, details.open));
+    const summary = document.createElement('summary'); summary.className = 'directory-folder';
+    const label = document.createElement('span'); label.textContent = `${folder.toUpperCase()} [${items.length}]`;
+    summary.append(label);
+    if (folder !== 'Party' && folder !== 'Vehicles') {
+      const plus = document.createElement('button'); plus.type = 'button'; plus.className = 'directory-folder-add'; plus.textContent = '+'; plus.title = `New actor in ${folder}`;
+      plus.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); openNpcActorDialog(null); });
+      summary.append(plus);
     }
+    if (folderMenu) summary.addEventListener('contextmenu', (event) => showContextMenu(event, folderMenu(folder)));
+    details.append(summary);
+    const grid = document.createElement('div'); grid.className = 'actor-card-grid';
+    for (const item of items) grid.append(actorCard(item));
+    if (!items.length) grid.append(Object.assign(document.createElement('div'), { className: 'directory-empty', textContent: 'EMPTY FOLDER' }));
+    details.append(grid);
+    rows.push(details);
   }
   container.replaceChildren(...rows);
 }
@@ -5417,17 +5558,32 @@ function renderDirectoryFolders(container, entries, { emptyText, draggable = fal
 function renderCampaignDirectory() {
   if (!el.directoryActors) return;
   if (!campaignDocument) {
-    el.directoryActors.replaceChildren();
+    el.directoryActors.replaceChildren(Object.assign(document.createElement('div'), { className: 'directory-empty', textContent: 'A CAMPAIGN IS REQUIRED FOR ACTORS' }));
     el.directoryVehicles.replaceChildren();
     return;
   }
   const directory = campaignDirectory(campaignDocument, {
     characters: currentPartyCharacters(),
-    npcActors: npcActorDocuments,
+    npcActors: npcActorDocuments.filter((entry) => showArchivedActors || !entry.state.archived),
     ships: shipDocument ? [shipDocument] : []
   });
-  renderDirectoryFolders(el.directoryActors, directory.actors, { emptyText: 'NO CHARACTERS OR NPCS', draggable: true });
-  renderDirectoryFolders(el.directoryVehicles, directory.vehicles, { emptyText: 'NO SHIP OR VEHICLE' });
+  const byId = new Map(npcActorDocuments.map((entry) => [entry.identity.id, entry]));
+  const actors = directory.actors
+    .map((item) => {
+      const npc = byId.get(item.id);
+      return { ...item, actorType: npc?.profile.actorType ?? 'pc', tokenLabel: npc?.presentation.tokenLabel ?? '', archived: Boolean(npc?.state.archived) };
+    })
+    .filter((item) => item.kind === 'character' ? (!actorSearch || item.name.toLowerCase().includes(actorSearch.toLowerCase())) : npcActorMatchesSearch(byId.get(item.id), actorSearch));
+  renderCardDirectory(el.directoryActors, actors, {
+    emptyText: actorSearch ? 'NO ACTOR MATCHES' : 'NO CHARACTERS OR NPCS',
+    folderMenu: actorFolderContextMenuItems,
+    searchValue: actorSearch,
+    onSearch: (value) => { actorSearch = value; renderCampaignDirectory(); },
+    toolbar: [makePortButton('CREATE ACTOR', () => openNpcActorDialog(null)), makePortButton('CREATE FOLDER', () => { const name = window.prompt('New folder:', ''); if (name && name.trim()) { actorFolderDrafts.add(name.trim()); renderCampaignDirectory(); } })],
+    folderOpen: actorFolderOpen,
+    drafts: actorFolderDrafts
+  });
+  renderCardDirectory(el.directoryVehicles, directory.vehicles, { emptyText: 'NO SHIP OR VEHICLE', folderOpen: new Map() });
   renderSceneDirectory();
 }
 
