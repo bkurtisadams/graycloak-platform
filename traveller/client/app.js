@@ -4409,6 +4409,15 @@ function renderEncounterRangePanel(encounter, actor, target, guide = null) {
 // combatant here carries one weapon, so those lines appear only when the
 // weapon in hand is of that kind rather than advertising a gun nobody has.
 function renderEncounterMap(encounter) {
+  // v0.93.3: a fight belonging to no scene — a Manual Combat — was drawn on
+  // the canvas whenever *any* scene was viewed, so the board looked full of
+  // tokens while the viewed scene was empty. START COMBAT then read the empty
+  // scene and refused, which is the whole of the last six versions. A scene
+  // shows its own staged tokens; a fight shows its board only when it belongs
+  // to that scene, or when MANUAL FIGHT is the thing being viewed.
+  const scene = viewedScene();
+  if (encounter && scene && encounter.sceneId !== scene.identity.id) { renderStagedScene(scene); return; }
+  if (!encounter && scene) { renderStagedScene(scene); return; }
   if (!encounter && activeScene()) { renderStagedScene(activeScene()); return; }
   if (!encounter) {
     hideEncounterTokenOverlays();
@@ -4426,7 +4435,9 @@ function renderEncounterMap(encounter) {
       const needFoe = !tracked.some((token) => token.side !== 'party');
       start.disabled = needParty || needFoe;
       start.title = start.disabled
-        ? `${scene.identity.name} has no tracked tokens (the list above is the last fight's combatants). Add ${[needParty ? 'a party token' : null, needFoe ? 'an opponent' : null].filter(Boolean).join(' and ')}: right-click a token on the board, ADD TO COMBAT`
+        ? (!scene.tokens.length
+        ? `${scene.identity.name} has no tokens at all. Drag an actor from the ACTORS tab onto the board, or right-click an empty square and PLACE ACTOR HERE.`
+        : `${scene.identity.name} has no tracked tokens. Add ${[needParty ? 'a party token' : null, needFoe ? 'an opponent' : null].filter(Boolean).join(' and ')}: right-click a token on the board, ADD TO COMBAT`)
         : `Begin a fight on ${scene.identity.name} from the ${tracked.length} tracked token${tracked.length === 1 ? '' : 's'}`;
     } else {
       start.title = 'Create a manual personal encounter with referee-defined enemy statistics and equipment';
@@ -4950,7 +4961,9 @@ function renderEncounterTracker(encounter, actor) {
     const needFoe = !tracked.some((token) => token.side !== 'party');
     button.disabled = needParty || needFoe;
     button.title = button.disabled
-      ? `${scene.identity.name} has no tracked tokens (the list above is the last fight's combatants). Add ${[needParty ? 'a party token' : null, needFoe ? 'an opponent' : null].filter(Boolean).join(' and ')}: right-click a token on the board, ADD TO COMBAT`
+      ? (!scene.tokens.length
+        ? `${scene.identity.name} has no tokens at all. Drag an actor from the ACTORS tab onto the board, or right-click an empty square and PLACE ACTOR HERE.`
+        : `${scene.identity.name} has no tracked tokens. Add ${[needParty ? 'a party token' : null, needFoe ? 'an opponent' : null].filter(Boolean).join(' and ')}: right-click a token on the board, ADD TO COMBAT`)
       : `Begin a new fight on ${scene.identity.name} from the ${tracked.length} tracked token${tracked.length === 1 ? '' : 's'}`;
   } else if (encounter.status !== 'active') {
     button.title = 'Create a manual personal encounter with referee-defined enemy statistics and equipment';
@@ -6337,7 +6350,9 @@ function renderStagedScene(scene) {
   el.encounterGridScale.value = String(scene.board.metersPerSquare);
   el.encounterGridScale.disabled = true;
   el.encounterGridLegend.textContent = `${scene.board.metersPerSquare} M SQUARES / ${sceneBoardMeters(scene)} M A SIDE / STAGING`;
-  el.encounterSelectionStatus.textContent = `SCENE ${scene.identity.name.toUpperCase()} / STAGING / ${scene.tokens.length} TOKEN${scene.tokens.length === 1 ? '' : 'S'} / ${tracked.size} IN TRACKER`;
+  el.encounterSelectionStatus.textContent = scene.tokens.length
+    ? `SCENE ${scene.identity.name.toUpperCase()} / STAGING / ${scene.tokens.length} TOKEN${scene.tokens.length === 1 ? '' : 'S'} / ${tracked.size} IN TRACKER`
+    : `SCENE ${scene.identity.name.toUpperCase()} / EMPTY / DRAG AN ACTOR FROM THE ACTORS TAB, OR RIGHT-CLICK A SQUARE`;
   renderSceneTracker(scene);
   el.encounterPartyRoster.replaceChildren();
   el.encounterRoster.replaceChildren();

@@ -1,5 +1,33 @@
 # Graycloak Traveller
 
+## v0.93.3 the board was another fight's, and the scene was empty
+
+`gcDebug.combat()` gave the answer in one line: `tokens: Array(0)`. The
+"Starting scene" has no staged tokens at all, and never did. The board on the
+canvas was a **Manual Combat** — a fight with no scene — being drawn whenever
+*any* scene was viewed. So the canvas looked full of tokens while the viewed
+scene was empty, and START COMBAT read the empty scene and refused. Six
+versions of "the button is broken", and the button was right every time.
+
+A scene now shows its own staged tokens. A fight's board is drawn only when
+the fight belongs to that scene, or when MANUAL FIGHT is the thing being
+viewed from the navigation bar. And an empty scene says so where it matters:
+`SCENE STARTING SCENE / EMPTY / DRAG AN ACTOR FROM THE ACTORS TAB, OR
+RIGHT-CLICK A SQUARE` on the board, and on the disabled button, `Starting
+scene has no tokens at all. Drag an actor from the ACTORS tab onto the board,
+or right-click an empty square and PLACE ACTOR HERE.`
+
+So the sequence to fight on a scene is, and always was: view the scene, put
+actors on it, track them, START COMBAT. What was missing was any indication
+that the first two steps had not happened — because somebody else's fight was
+filling the screen.
+
+The lesson I should have learned five versions earlier: when a control
+reports something that contradicts what is on screen, the question is not
+"which one is wrong" but "are they even looking at the same object". Twice in
+this session the answer was no. `gcDebug.combat()` exists because I asked
+that question far too late.
+
 ## v0.93.2 gcDebug.combat() — which precondition is refusing
 
 Five versions of patching START COMBAT from the outside, and a jsdom trace
