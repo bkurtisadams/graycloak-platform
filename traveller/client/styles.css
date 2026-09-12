@@ -4066,3 +4066,7 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
    frontmost chrome on the canvas. */
 .scene-nav { left: 104px; z-index: 26; }
 @media (max-width: 900px) { .scene-nav { left: 96px; } }
+
+/* --- v0.93.0: the after-fight group in the tracker. */
+.encounter-after-fight { border-top: 1px dotted var(--disabled); margin-top: 7px; padding-top: 5px; }
+.encounter-after-fight-row { display: flex; flex-wrap: wrap; gap: 5px; }

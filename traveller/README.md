@@ -1,5 +1,38 @@
 # Graycloak Traveller
 
+## v0.93.0 after the fight
+
+Thinking through what a resolved fight leaves behind, three separate
+lifecycles were being shown in one panel and treated as one: the encounter
+document (historical), the scene's staged tokens (props that stay on the
+board), and the scene's tracked flags (who was in *that* fight). Plus a
+fourth thing that is not UI state at all — the wounds, which Book 1 carries
+until treated.
+
+The missing transition was dismissal. **A resolved fight never left the
+panel**, because nothing put it away; it sat there indefinitely with the
+staged scene invisible underneath, which is what made the last three
+versions so confusing. The tracker now has an AFTER THE FIGHT group with the
+things a referee actually wants next, named separately because one button
+cannot mean all of them:
+
+- **CLEAR TRACKER** — empty the scene's tracked set; the tokens stay on the
+  board. Disabled, with a reason, when there is nothing tracked.
+- **RESET COMBAT** — the pre-fight state you asked for: every combatant back
+  to full strength, carried out to the character and roster documents along
+  the same path a wound takes on the way in, and the fight put away. The one
+  thing here that undoes wounds, and it asks first.
+- **PUT AWAY** — the panel returns to the staged scene; the fight and its
+  wounds stand, and its record stays in ENCOUNTER HISTORY.
+
+And **FIGHT AGAIN is just START COMBAT**, unchanged from v0.92.4, since the
+tracker survives a fight now.
+
+**Wounds persist by default**, per your ruling and Book 1: injuries carry
+until treated, which is a real constraint on a campaign rather than an
+inconvenience. RESET COMBAT is the deliberate exception and says so in its
+tooltip.
+
 ## v0.92.4 the tracker you can see and the tracker the button reads were different lists
 
 The screenshot showed a COMBAT tracker full of combatants and a START COMBAT

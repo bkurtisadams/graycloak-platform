@@ -3892,11 +3892,57 @@ function activeEncounterAtCurrentSystem() {
   return encounterDocuments.find((entry) => entry.status === 'active' && entry.location.systemId === current.id) ?? null;
 }
 
+// v0.93.0: a resolved fight never left the panel — nothing dismissed it, so it
+// sat there indefinitely while the staged scene underneath was invisible. Put
+// away here means "shown in history, not on the desk"; the document is
+// untouched, and the record and its wounds stand.
+let dismissedEncounterIds = new Set();
+
 function latestEncounterAtCurrentSystem() {
   const current = mappedCurrentSystem();
   if (!current) return null;
-  const local = encounterDocuments.filter((entry) => entry.location.systemId === current.id);
+  const local = encounterDocuments.filter((entry) => entry.location.systemId === current.id
+    && !(entry.status !== 'active' && dismissedEncounterIds.has(entry.identity.id)));
   return local.find((entry) => entry.status === 'active') ?? local.at(-1) ?? null;
+}
+
+// --- v0.93.0: after the fight ---------------------------------------------
+// Book 1 wounds persist until treated, so nothing here undoes them by
+// default. These are the four things a referee actually wants next, named
+// separately because one button cannot mean all of them.
+
+function putAwayEncounter(encounter) {
+  dismissedEncounterIds.add(encounter.identity.id);
+  clearEncounterCanvasSelection();
+  setStatus(`${encounter.identity.title.toUpperCase()} PUT AWAY / IN ENCOUNTER HISTORY`, 'ok');
+  render();
+}
+
+// The pre-fight state you asked for: every combatant back to full, the fight
+// put away, the tracker left as it is so the same group can go again. Wounds
+// already carried back to the characters are restored with them.
+function resetCombat(encounter) {
+  if (!window.confirm(`Reset ${encounter.identity.title}? Every combatant returns to full strength and the fight is put away. Its record stays in history.`)) return;
+  try {
+    const index = encounterDocuments.findIndex((entry) => entry.identity.id === encounter.identity.id);
+    let next = encounterDocuments[index];
+    for (const combatant of next.combatants) {
+      next = restoreCombatant(next, { combatantId: combatant.id }).encounter;
+    }
+    encounterDocuments[index] = next;
+    // Carry the restoration out to the character and roster documents, the
+    // same path a wound takes on the way in.
+    applyEncounterDocumentSync(next);
+    logActivity('COMBAT', `Referee resets ${next.identity.title}: every combatant restored to full strength.`);
+    dismissedEncounterIds.add(next.identity.id);
+    clearEncounterCanvasSelection();
+    persistCampaignState();
+    setStatus(`${next.identity.title.toUpperCase()} RESET / EVERYONE AT FULL STRENGTH`, 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
 }
 
 function selectedEncounterTarget(encounter) {
@@ -4911,6 +4957,29 @@ function renderEncounterTracker(encounter, actor) {
     controls.push(makePortButton('END COMBAT', () => endActiveEncounter()));
   }
   el.encounterResolve.replaceChildren(...controls, note);
+  // v0.93.0: the four things wanted after a fight, named separately because
+  // one button cannot mean all of them. Wounds persist by default — Book 1
+  // carries injuries until treated — so only RESET COMBAT undoes them.
+  if (encounter.status !== 'active') {
+    const after = document.createElement('div');
+    after.className = 'encounter-after-fight';
+    after.append(Object.assign(document.createElement('div'), { className: 'sidebar-group-title', textContent: 'AFTER THE FIGHT' }));
+    const row = document.createElement('div');
+    row.className = 'encounter-after-fight-row';
+    if (scene) {
+      const clear = makePortButton('CLEAR TRACKER', () => { updateScene(scene.identity.id, clearSceneCombatTracker); renderEncounter(); });
+      clear.disabled = !trackedSceneTokens(scene).length;
+      clear.title = clear.disabled ? `${scene.identity.name} has no tracked tokens` : `Empty ${scene.identity.name}'s combat tracker; the tokens stay on the board`;
+      row.append(clear);
+    }
+    const reset = makePortButton('RESET COMBAT', () => resetCombat(encounter));
+    reset.title = 'Return every combatant to full strength and put the fight away — the pre-fight state. Wounds otherwise persist (Book 1).';
+    const away = makePortButton('PUT AWAY', () => putAwayEncounter(encounter));
+    away.title = 'Return the panel to the staged scene. The fight and its wounds stand; its record stays in ENCOUNTER HISTORY.';
+    row.append(reset, away);
+    after.append(row);
+    el.encounterResolve.append(after);
+  }
 }
 
 function assetForActor(actor) {
