@@ -888,6 +888,14 @@ export function addAdventureThreadToCampaign(document, threadDocument) {
   return next;
 }
 
+// v0.95.0: ending combat empties the tracker, so its reference goes too.
+export function removeEncounterFromCampaign(document, encounterId) {
+  const next = cloneJson(document);
+  next.documentRefs.encounters = next.documentRefs.encounters.filter((ref) => ref.id !== encounterId);
+  assertValidCampaignDocument(next);
+  return next;
+}
+
 export function addEncounterToCampaign(document, encounterDocument) {
   const next = cloneJson(document);
   next.documentRefs.encounters = uniqueById([...next.documentRefs.encounters, encounterRef(encounterDocument)]);

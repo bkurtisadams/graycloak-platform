@@ -93,7 +93,8 @@ import {
 import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js';
 import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js';
 import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, setSceneTokenCombat, clearSceneCombatTracker, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js';
-import { directoryFolders } from '../src/campaign-document.js';
+import { directoryFolders, removeEncounterFromCampaign
+} from '../src/campaign-document.js';
 import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js';
 import {
   clampWindowGeometry, dragWindowGeometry, resizeWindowGeometry, loadWindowGeometry, saveWindowGeometry,
@@ -263,7 +264,7 @@ import {
   declaredTargetCounts,
   addEncounterCombatantFromActor,
   removeEncounterCombatant,
-  setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant } from '../src/encounter-document.js';
+  setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant, addEncounterCombatantFromCharacter, beginEncounter } from '../src/encounter-document.js';
 
 import {
   createContactDocument,
@@ -6359,56 +6360,169 @@ function renderStagedScene(scene) {
   renderEncounterLighting(null);
 }
 
+// v0.95.0: the tracker shows who is in the fight — the encounter's own
+// combatants — and nothing else. There is no list of tokens that once fought.
 function renderSceneTracker(scene) {
-  const names = sceneActorNames();
-  const tracked = trackedSceneTokens(scene);
+  const combat = combatEncounterForScene(scene);
   const heading = document.createElement('div');
-  heading.className = 'encounter-roster-heading';
-  heading.textContent = 'COMBAT TRACKER';
-  const rows = tracked.map((token) => {
+  heading.className = 'encounter-tracker-header';
+  const state = document.createElement('strong');
+  state.className = 'encounter-tracker-state';
+  state.textContent = combat
+    ? combat.status === 'setup' ? `COMBAT TRACKER \u00b7 ${combat.combatants.length} IN` : `ROUND ${combat.round}`
+    : 'NO COMBAT';
+  heading.append(state);
+  if (!combat) {
+    el.encounterTracker.replaceChildren(heading, Object.assign(document.createElement('div'), {
+      className: 'directory-empty',
+      textContent: scene.tokens.length
+        ? 'RIGHT-CLICK A TOKEN AND ADD TO COMBAT TO OPEN THE TRACKER'
+        : 'THIS SCENE HAS NO TOKENS / DRAG AN ACTOR FROM THE ACTORS TAB ONTO THE BOARD'
+    }));
+    el.encounterResolve.replaceChildren();
+    return;
+  }
+  const names = sceneActorNames();
+  const rows = combat.combatants.map((combatant) => {
     const row = document.createElement('div');
-    row.className = 'encounter-tracker-row';
-    const name = document.createElement('span'); name.className = 'encounter-tracker-name';
-    name.textContent = `${(names.get(token.actorId)?.name ?? token.label).toUpperCase()} / ${token.side.toUpperCase()}`;
-    row.append(name, makePortButton('REMOVE', () => { updateScene(scene.identity.id, (doc) => setSceneTokenCombat(doc, token.id, false)); renderEncounter(); }));
+    row.className = `encounter-tracker-row${combatant.side === 'party' ? '' : ' enemy'}`;
+    const label = document.createElement('span');
+    label.className = 'encounter-tracker-name';
+    label.textContent = `${(names.get(combatant.sourceActorId ?? combatant.id)?.name ?? combatant.name).toUpperCase()} / ${combatant.side.toUpperCase()}`;
+    const out = makePortButton('REMOVE', () => removeCombatantFromTracker(combat, combatant.id));
+    out.title = 'Take this combatant out of the tracker';
+    row.append(label, out);
     return row;
   });
-  if (!rows.length) rows.push(Object.assign(document.createElement('div'), { className: 'directory-empty', textContent: 'RIGHT-CLICK A TOKEN / ADD TO COMBAT. START NEEDS ONE PARTY TOKEN AND ONE OTHER.' }));
-  const selected = scene.tokens.filter((token) => stagedSelectedTokenIds.has(token.id) && !token.inCombat);
-  const tools = document.createElement('div');
-  tools.className = 'encounter-tracker-tools';
-  if (selected.length) tools.append(makePortButton(`ADD SELECTED (${selected.length})`, () => { updateScene(scene.identity.id, (doc) => selected.reduce((acc, token) => setSceneTokenCombat(acc, token.id, true), doc)); renderEncounter(); }));
-  // v0.93.1: filling the tracker took a right-click per token, which is why an
-  // emptied one looked like a dead end. One button for everyone on the board.
-  const untracked = scene.tokens.filter((token) => !token.inCombat);
-  if (untracked.length) {
-    const all = makePortButton(`TRACK ALL (${untracked.length})`, () => {
-      updateScene(scene.identity.id, (doc) => untracked.reduce((acc, token) => setSceneTokenCombat(acc, token.id, true), doc));
-      renderEncounter();
-    });
-    all.title = 'Put every token on this scene into the combat tracker';
-    tools.append(all);
+  el.encounterTracker.replaceChildren(heading, ...rows);
+  // BEGIN needs both sides; END empties the tracker, as Foundry's prompt says.
+  const party = combat.combatants.filter((entry) => entry.side === 'party');
+  const foes = combat.combatants.filter((entry) => entry.side !== 'party');
+  const controls = [];
+  if (combat.status === 'setup') {
+    const begin = makePortButton('BEGIN COMBAT', () => beginCombatFromTracker(combat));
+    const missing = [!party.length ? 'a party character' : null, !foes.length ? 'an opponent' : null].filter(Boolean);
+    begin.disabled = missing.length > 0;
+    begin.title = missing.length
+      ? `Add ${missing.join(' and ')} to the tracker: right-click a token on the board, ADD TO COMBAT`
+      : `Roll surprise and begin round 1 with ${combat.combatants.length} combatants`;
+    controls.push(begin);
   }
-  if (tracked.length) tools.append(makePortButton('CLEAR TRACKER', () => { updateScene(scene.identity.id, clearSceneCombatTracker); renderEncounter(); }));
-  el.encounterTracker.replaceChildren(heading, ...rows, tools);
-  const canStart = tracked.some((token) => token.side === 'party') && tracked.some((token) => token.side !== 'party');
-  const start = makePortButton('START COMBAT', () => startCombatFromScene(scene));
-  // v0.91.0: Book 1 needs someone still standing. The refusal used to reach
-  // the masthead, where nobody looks; it is on the button now.
-  const standing = currentPartyCharacters().some((entry) => {
-    const live = entry.current ?? entry.characteristics;
-    return ['STR', 'DEX', 'END'].every((key) => (live?.[key] ?? 1) > 0);
+  const end = makePortButton(combat.status === 'setup' ? 'CLOSE TRACKER' : 'END COMBAT', () => {
+    const question = combat.status === 'setup'
+      ? 'Close the combat tracker and empty it?'
+      : `End ${combat.identity.title} and empty the tracker? Its record stays in the log, and wounds persist.`;
+    if (!window.confirm(question)) return;
+    if (combat.status === 'setup') { discardEncounter(combat); return; }
+    endActiveEncounter({ thenDiscard: combat.identity.id });
   });
-  const blocked = !canStart ? 'Track at least one party token and one opponent first'
-    : !standing ? 'At least one conscious, living party character is required (Book 1)' : '';
-  start.disabled = Boolean(blocked);
-  start.title = blocked || 'Begin the fight with the tracked tokens where they stand';
-  const setup = makePortButton('MANUAL SETUP', openCombatSetupDialog);
-  setup.title = 'The combat setup dialog: opponents by hand, without staging';
-  setup.textContent = '[ FIGHT WITHOUT A SCENE ]';
-  setup.title = 'The manual setup dialog: opponents by hand, on a board sized to the range';
-  el.encounterResolve.replaceChildren(start, setup);
+  end.title = 'Ending combat empties the tracker';
+  controls.push(end);
+  el.encounterResolve.replaceChildren(...controls);
   renderSceneSurpriseConditions(el.encounterResolve);
+}
+
+// --- v0.95.0: the tracker is the combat document ---------------------------
+// Foundry's model, and the end of the two-list problem: ADD TO COMBAT creates
+// the encounter if none exists and joins it if one does. There is no separate
+// "who will fight" flag on the scene any more.
+function combatEncounterForScene(scene) {
+  return encounterDocuments.find((entry) => entry.sceneId === scene?.identity?.id
+    && ['setup', 'active'].includes(entry.status)) ?? null;
+}
+
+function addTokenToCombat(scene, token) {
+  try {
+    const named = sceneActorNames().get(token.actorId);
+    if (!named) throw new Error('this token has no character or roster actor behind it');
+    let encounter = combatEncounterForScene(scene);
+    let index = encounter ? encounterDocuments.findIndex((entry) => entry.identity.id === encounter.identity.id) : -1;
+    if (!encounter) {
+      const date = campaignDateSnapshot();
+      encounter = createEncounterDocument({
+        campaign: campaignDocument, scene, setup: true,
+        encounterKey: `${campaignDocument.identity.id}|scene-${scene.identity.id}|${date.year}-${date.dayOfYear}|${encounterDocuments.length + 1}`,
+        date, dice: seededDice(`${scene.identity.id}|setup`)
+      });
+      encounterDocuments.push(encounter);
+      campaignDocument = addEncounterToCampaign(campaignDocument, encounter);
+      index = encounterDocuments.length - 1;
+      logActivity('COMBAT', `Combat tracker opened on ${scene.identity.name}.`);
+    }
+    if (encounter.combatants.some((entry) => entry.id === token.actorId || entry.sourceActorId === token.actorId)) {
+      setStatus(`${named.name.toUpperCase()} IS ALREADY IN THE TRACKER`, 'error');
+      return;
+    }
+    const character = currentPartyCharacters().find((entry) => entry.identity.id === token.actorId);
+    const actor = npcActorDocuments.find((entry) => entry.identity.id === token.actorId);
+    const result = character
+      ? addEncounterCombatantFromCharacter(encounterDocuments[index], { character, column: token.position.column, row: token.position.row })
+      : addEncounterCombatantFromActor(encounterDocuments[index], { actor, side: token.side === 'party' ? 'party' : 'opposition', column: token.position.column, row: token.position.row });
+    encounterDocuments[index] = result.encounter;
+    persistCampaignState();
+    setStatus(`${named.name.toUpperCase()} ADDED TO COMBAT`, 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function removeCombatantFromTracker(encounter, combatantId) {
+  try {
+    const index = encounterDocuments.findIndex((entry) => entry.identity.id === encounter.identity.id);
+    // Taking the last combatant out closes the tracker, as emptying it should.
+    if (encounter.combatants.length <= 1) { discardEncounter(encounter); return; }
+    const result = removeEncounterCombatant(encounterDocuments[index], { combatantId });
+    encounterDocuments[index] = result.encounter;
+    persistCampaignState();
+    setStatus(`${result.combatant.name.toUpperCase()} REMOVED FROM COMBAT`, 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+// Ending combat empties the tracker, as Foundry's confirmation says outright.
+// A fight that was actually fought keeps its record; a tracker that never
+// began leaves nothing behind.
+function discardEncounter(encounter) {
+  const fought = encounter.status !== 'setup';
+  encounterDocuments = encounterDocuments.filter((entry) => entry.identity.id !== encounter.identity.id);
+  campaignDocument = removeEncounterFromCampaign(campaignDocument, encounter.identity.id);
+  if (registry) registry.remove(encounter.identity.id);
+  clearEncounterCanvasSelection();
+  encounterTargetsByActor = new Map();
+  syncCampaignRefs();
+  persistCampaignState();
+  if (fought) logActivity('COMBAT', `${encounter.identity.title} closed; the tracker is empty.`);
+  setStatus('COMBAT TRACKER EMPTIED', 'ok');
+  render();
+}
+
+function beginCombatFromTracker(encounter) {
+  try {
+    const index = encounterDocuments.findIndex((entry) => entry.identity.id === encounter.identity.id);
+    const result = beginEncounter(encounterDocuments[index], {
+      surpriseConditions: JSON.parse(JSON.stringify(sceneSurpriseConditions)),
+      dice: seededDice(`${encounter.identity.id}|surprise`)
+    });
+    encounterDocuments[index] = result.encounter;
+    logActivity('COMBAT', result.entry.text);
+    if (result.encounter.surprise.surpriseSideId === 'opposition') {
+      const waited = resolveEncounterRound(result.encounter, { action: 'wait', date: campaignDateSnapshot(), dice: seededDice(`${encounter.identity.id}|round-1|surprise`) });
+      encounterDocuments[index] = waited.encounter;
+      for (const entry of waited.entries) logActivity('COMBAT', entry.text);
+    }
+    operationsDeskTab = 'encounter';
+    persistCampaignState();
+    setStatus('COMBAT BEGINS', 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
 }
 
 function showStagedTokenMenu(event, scene, token) {
@@ -6416,9 +6530,13 @@ function showStagedTokenMenu(event, scene, token) {
   const order = ['party', 'opposition', 'neutral'];
   const next = order[(order.indexOf(token.token.side) + 1) % order.length];
   showContextMenu(event, [
-    { label: token.token.inCombat ? 'REMOVE FROM COMBAT' : 'ADD TO COMBAT',
-      title: 'The combat tracker decides who is in the fight when it starts',
-      action: () => { updateScene(scene.identity.id, (doc) => setSceneTokenCombat(doc, token.id, !token.token.inCombat)); renderEncounter(); } },
+    ...(() => {
+      const combat = combatEncounterForScene(scene);
+      const inCombat = combat?.combatants.find((entry) => entry.id === token.token.actorId || entry.sourceActorId === token.token.actorId);
+      return [inCombat
+        ? { label: 'REMOVE FROM COMBAT', title: 'Take this combatant out of the tracker', action: () => removeCombatantFromTracker(combat, inCombat.id) }
+        : { label: 'ADD TO COMBAT', title: combat ? 'Join the combat tracker' : 'Open a combat tracker with this token in it', action: () => addTokenToCombat(scene, token.token) }];
+    })(),
     { label: 'OPEN SHEET', action: () => { const named = sceneActorNames().get(token.token.actorId); if (named?.kind === 'npc') openNpcActorDialog(token.token.actorId); else { activatePartyCharacter(token.token.actorId); if (!characterWindow.state.open) openWindowController(characterWindow); applyCampaignLayout(); } } },
     { heading: 'SCENE' },
     { label: `SIDE: ${token.token.side.toUpperCase()} \u2192 ${next.toUpperCase()}`,
@@ -7025,6 +7143,9 @@ function endActiveEncounter() {
     syncCampaignRefs();
     persistCampaignState();
     autoPublishEncounterView(result.encounter);
+    // v0.95.0: ending combat empties the tracker. The record stays in the log
+    // and the wounds stand; what goes is the list of who was in it.
+    if (thenDiscard === result.encounter.identity.id) { discardEncounter(result.encounter); return; }
     setStatus(`ENCOUNTER ${result.encounter.status.toUpperCase()}`, 'ok');
     render();
   } catch (error) {

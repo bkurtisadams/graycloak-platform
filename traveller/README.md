@@ -1,5 +1,37 @@
 # Graycloak Traveller
 
+## v0.95.0 the rebuild, part two: the tracker is the combat document
+
+Your screenshot supplied the last piece — Foundry asks *"End this combat and
+empty the turn tracker?"* Ending a fight **deletes** it. The tracker is not a
+record of who ever fought; it exists only while a fight does.
+
+The client now works that way, and the two-list problem is gone:
+
+- **ADD TO COMBAT** on a token creates the encounter if none exists on the
+  scene and joins it if one does — Foundry's gesture exactly. **REMOVE FROM
+  COMBAT** takes a combatant out, and removing the last one closes the
+  tracker, because an empty tracker is no tracker.
+- **The tracker lists the encounter's own combatants.** Nothing reads a flag
+  on the scene; `renderSceneTracker` no longer mentions `trackedSceneTokens`
+  at all, which a pin now enforces.
+- **BEGIN COMBAT** replaces START COMBAT: it needs a party character and an
+  opponent in the tracker, says which is missing, and rolls surprise at that
+  moment rather than at creation.
+- **END COMBAT empties the tracker**, after asking, with the record left in
+  the log and the wounds standing. A tracker that never began just closes and
+  leaves nothing behind.
+
+So the whole sequence is now: view a scene, drag actors onto it, right-click
+ADD TO COMBAT for whoever is fighting, BEGIN COMBAT, declare and resolve, END
+COMBAT. One list throughout.
+
+The six bugs from v0.92.4 to v0.93.3 were all the same fault — two lists both
+called "the tracker" — and they are not fixed so much as no longer expressible.
+`inCombat` and `trackedSceneTokens` still exist in `scene-document.js` and
+will be removed once this has run in a real session; leaving them for one
+version costs nothing and keeps a rollback simple.
+
 ## v0.94.0 the rebuild, part one: an encounter that exists before the fight
 
 Foundry's documentation names the mistake exactly. There, you add a combatant
