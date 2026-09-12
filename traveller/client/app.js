@@ -9562,7 +9562,13 @@ window.gcDebug.combat = function combat() {
     viewedScene: scene ? `${scene.identity.name} (${scene.identity.id})` : viewedSceneId,
     boardShowing: viewedSceneIsBoard(),
     fight: fight ? `${fight.identity.title} — ${fight.status}, round ${fight.round}` : 'none',
-    fightPutAway: fight ? dismissedEncounterIds.has(fight.identity.id) : false
+    fightPutAway: fight ? dismissedEncounterIds.has(fight.identity.id) : false,
+    // v0.96.5: neither branch below surfaced the fight's own map shape, so
+    // there was no console one-liner that actually worked to tell a scene
+    // encounter apart from a range-line one — activeEncounterAtCurrentSystem
+    // itself is module-internal and was never reachable from the console at
+    // all, unlike this function.
+    fightMap: fight ? fight.map : null
   };
   if (!scene) {
     console.log('No scene is viewed, so START COMBAT opens the manual dialog.');
