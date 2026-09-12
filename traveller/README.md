@@ -1,5 +1,32 @@
 # Graycloak Traveller
 
+## v0.92.4 the tracker you can see and the tracker the button reads were different lists
+
+The screenshot showed a COMBAT tracker full of combatants and a START COMBAT
+disabled with "add a party token". Both were correct, which is what made it
+baffling: **those are two different lists.** The panel after a fight shows
+`renderEncounterTracker` — the *encounter's* combatants, the people who just
+fought. `startCombatFromScene` reads the *scene's* tracked tokens, the
+`inCombat` flags. And v0.74.0 cleared those flags when the fight began.
+
+So the sequence was: track tokens, start a fight, flags cleared, fight ends,
+the encounter's combatant list fills the panel, and the button reports the
+truth about a list that had been silently emptied while a full-looking one
+sat on screen. My v0.92.3 "fix" made the button honest without noticing it
+was honest about the wrong thing.
+
+Starting a fight no longer clears the scene tracker. The flags mean "the
+group that fights here" and persist until the referee changes them —
+`CLEAR TRACKER` is right there for that. A second fight with the same people
+is now simply START COMBAT again. And the disabled tooltip, when the scene
+genuinely has nothing tracked, says so in a way that distinguishes the two
+lists: "*Starting scene* has no tracked tokens (the list above is the last
+fight's combatants)."
+
+Three versions on one button, and the lesson is the same each time: I kept
+fixing the caller in front of me instead of asking what the two sides of the
+call actually held.
+
 ## v0.92.3 START COMBAT says what it needs instead of throwing
 
 v0.92.1 pointed the tracker's START COMBAT at `startCombatFromScene` when a

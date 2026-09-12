@@ -4369,7 +4369,7 @@ function renderEncounterMap(encounter) {
       const needFoe = !tracked.some((token) => token.side !== 'party');
       start.disabled = needParty || needFoe;
       start.title = start.disabled
-        ? `${scene.identity.name}: add ${[needParty ? 'a party token' : null, needFoe ? 'an opponent' : null].filter(Boolean).join(' and ')} to the combat tracker first — right-click a token, ADD TO COMBAT`
+        ? `${scene.identity.name} has no tracked tokens (the list above is the last fight's combatants). Add ${[needParty ? 'a party token' : null, needFoe ? 'an opponent' : null].filter(Boolean).join(' and ')}: right-click a token on the board, ADD TO COMBAT`
         : `Begin a fight on ${scene.identity.name} from the ${tracked.length} tracked token${tracked.length === 1 ? '' : 's'}`;
     } else {
       start.title = 'Create a manual personal encounter with referee-defined enemy statistics and equipment';
@@ -4893,7 +4893,7 @@ function renderEncounterTracker(encounter, actor) {
     const needFoe = !tracked.some((token) => token.side !== 'party');
     button.disabled = needParty || needFoe;
     button.title = button.disabled
-      ? `${scene.identity.name}: add ${[needParty ? 'a party token' : null, needFoe ? 'an opponent' : null].filter(Boolean).join(' and ')} to the combat tracker first — right-click a token, ADD TO COMBAT`
+      ? `${scene.identity.name} has no tracked tokens (the list above is the last fight's combatants). Add ${[needParty ? 'a party token' : null, needFoe ? 'an opponent' : null].filter(Boolean).join(' and ')}: right-click a token on the board, ADD TO COMBAT`
       : `Begin a new fight on ${scene.identity.name} from the ${tracked.length} tracked token${tracked.length === 1 ? '' : 's'}`;
   } else if (encounter.status !== 'active') {
     button.title = 'Create a manual personal encounter with referee-defined enemy statistics and equipment';
@@ -6425,7 +6425,14 @@ function startCombatFromScene(scene) {
     }
     encounterDocuments.push(encounter);
     campaignDocument = addEncounterToCampaign(campaignDocument, encounter);
-    updateScene(scene.identity.id, clearSceneCombatTracker);
+    // v0.92.4: the tracker is no longer emptied when the fight begins. Clearing
+    // it made a second fight impossible — the scene's tracked tokens are what
+    // startCombatFromScene reads, and the tracker the referee is looking at
+    // after a fight is the *encounter's* combatant list, a different thing
+    // entirely. So START COMBAT reported "add a party token" about a list that
+    // had been silently emptied while a full-looking one sat on screen. The
+    // flags now mean "the group that fights here" and persist until the
+    // referee changes them; CLEAR TRACKER is there to change them.
     stagedSelectedTokenIds = new Set();
     clearEncounterCanvasSelection();
     persistCampaignState();
