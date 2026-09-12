@@ -600,7 +600,7 @@ let sceneDocuments = [];
 let activityLogDocument = null;
 let playerSession = null;
 let activityFilter = 'play';
-let activityOrder = 'newest';
+let activityOrder = 'oldest'; // v0.81.0: chat order — oldest at the top, newest at the bottom, like Foundry
 let activityPanelVisible = true;
 let lastAutosaveAt = null;
 // v0.68.0: the campaign's home in Firestore. `campaignHomeRevision` is the
@@ -667,7 +667,7 @@ let registry = null;
 let playerSessionStore = null;
 let quickSlotStore = null;
 
-const ACTIVITY_ORDER_STORAGE_KEY = 'graycloak.traveller.activity-order.v1';
+const ACTIVITY_ORDER_STORAGE_KEY = 'graycloak.traveller.activity-order.v2'; // v0.81.0: v2 so a stored NEWEST-at-top from the log days does not defeat the chat default
 const ACTIVITY_VISIBLE_STORAGE_KEY = 'graycloak.traveller.activity-visible.v1';
 
 try {

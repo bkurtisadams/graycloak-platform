@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <!-- v0.80.2: Foundry's interaction model. The canvas is permanent; scene
+  <!-- v0.81.0: Foundry's interaction model. The canvas is permanent; scene
        layers and their contextual tools stay left, while one collapsible
        game directory or tracker opens from the right rail. -->
   <main class="terminal shell" aria-labelledby="app-title">
@@ -16,7 +16,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.80.2</div>
+          <div id="app-subtitle" class="subtitle">v0.81.0</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -280,9 +280,9 @@
         <section class="sidebar-panel" data-sidebar-panel="chat">
         <aside id="activity-panel" class="activity-panel panel" aria-labelledby="activity-heading">
           <div class="activity-header">
-            <h2 id="activity-heading" class="activity-title">LOG</h2>
+            <h2 id="activity-heading" class="activity-title">CHAT</h2>
             <select id="activity-filter" class="activity-filter" aria-label="Show"><option value="play" selected>PLAY</option><option value="all">ALL</option><option value="character">CHARACTER</option><option value="trade">TRADE + JOBS</option><option value="ship">SHIP + TRAVEL</option><option value="personal-combat">PERSONAL COMBAT</option><option value="space-combat">SPACE COMBAT</option><option value="campaign">CAMPAIGN + NOTES</option><option value="system">SYSTEM</option></select>
-            <select id="activity-order" class="activity-order" aria-label="Order"><option value="newest" selected>NEWEST</option><option value="oldest">OLDEST</option></select>
+            <select id="activity-order" class="activity-order" aria-label="Order"><option value="oldest" selected>NEWEST AT BOTTOM</option><option value="newest">NEWEST AT TOP</option></select>
             <span class="activity-header-actions"><button id="add-activity-note" class="text-button" type="button">[ NOTE ]</button><button id="clear-activity" class="text-button activity-clear" type="button">[ CLEAR ]</button></span>
           </div>
           <div id="activity-feed" class="activity-feed" role="log" aria-live="polite" aria-relevant="additions"></div>
@@ -290,7 +290,7 @@
           <div id="chat-composer" class="chat-composer" hidden>
             <div id="dice-tray" class="dice-tray" aria-label="Dice tray"></div>
             <form id="chat-form" class="chat-form">
-              <input id="chat-input" type="text" maxlength="500" autocomplete="off" placeholder="say something, or /roll 2d6+1">
+              <input id="chat-input" type="text" maxlength="500" autocomplete="off" placeholder="Say something, or /roll 2d6+1">
               <button id="chat-send" class="text-button" type="submit">[ SEND ]</button>
             </form>
           </div>

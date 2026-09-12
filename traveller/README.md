@@ -1,5 +1,20 @@
 # Graycloak Traveller
 
+## v0.81.0 the log is chat
+
+The chat has existed since v0.75 — the table's messages interleaved with the
+log by time, a message box, the dice tray, `/roll 2d6+1` — but it was laid
+out like a log: newest entry at the top and the composer at the *end* of a
+scrolling column, so with any history at all the box and dice sat below the
+fold where nobody would find them. It is laid out like Foundry's chat now:
+the feed fills the panel and scrolls, oldest at the top and newest at the
+bottom, auto-scrolled to the latest, with the dice tray and the message box
+pinned beneath it regardless of length. The heading says CHAT; the order
+control reads NEWEST AT BOTTOM / NEWEST AT TOP; the stored order key is
+bumped so a saved "newest at top" from the log days doesn't defeat the
+default. Players type, roll, and read results in the same place, as before —
+it's the same data on both pages — just where they'd expect it.
+
 ## v0.80.2 the drawer pushes; the world map pans
 
 Two Foundry conventions, checked against its documentation. The sidebar
