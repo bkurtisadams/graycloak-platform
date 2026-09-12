@@ -3933,7 +3933,18 @@ function resetCombat(encounter) {
     // Carry the restoration out to the character and roster documents, the
     // same path a wound takes on the way in.
     applyEncounterDocumentSync(next);
-    logActivity('COMBAT', `Referee resets ${next.identity.title}: every combatant restored to full strength.`);
+    // v0.93.1: "pre-fight" has to include being ready to fight. The scene's
+    // tracked flags are what START COMBAT reads, and a fight begun before
+    // v0.92.4 emptied them — so a reset left the tracker blank and the button
+    // greyed. Re-track the tokens for the combatants just restored.
+    const scene = sceneDocuments.find((entry) => entry.identity.id === next.sceneId) ?? viewedScene();
+    if (scene) {
+      const actorIds = new Set(next.combatants.map((entry) => entry.sourceActorId ?? entry.sourceCharacterId ?? entry.id));
+      updateScene(scene.identity.id, (doc) => doc.tokens
+        .filter((token) => actorIds.has(token.actorId))
+        .reduce((acc, token) => setSceneTokenCombat(acc, token.id, true), doc));
+    }
+    logActivity('COMBAT', `Referee resets ${next.identity.title}: every combatant restored to full strength${scene ? ` and re-tracked on ${scene.identity.name}` : ''}.`);
     dismissedEncounterIds.add(next.identity.id);
     clearEncounterCanvasSelection();
     persistCampaignState();
@@ -6352,6 +6363,17 @@ function renderSceneTracker(scene) {
   const tools = document.createElement('div');
   tools.className = 'encounter-tracker-tools';
   if (selected.length) tools.append(makePortButton(`ADD SELECTED (${selected.length})`, () => { updateScene(scene.identity.id, (doc) => selected.reduce((acc, token) => setSceneTokenCombat(acc, token.id, true), doc)); renderEncounter(); }));
+  // v0.93.1: filling the tracker took a right-click per token, which is why an
+  // emptied one looked like a dead end. One button for everyone on the board.
+  const untracked = scene.tokens.filter((token) => !token.inCombat);
+  if (untracked.length) {
+    const all = makePortButton(`TRACK ALL (${untracked.length})`, () => {
+      updateScene(scene.identity.id, (doc) => untracked.reduce((acc, token) => setSceneTokenCombat(acc, token.id, true), doc));
+      renderEncounter();
+    });
+    all.title = 'Put every token on this scene into the combat tracker';
+    tools.append(all);
+  }
   if (tracked.length) tools.append(makePortButton('CLEAR TRACKER', () => { updateScene(scene.identity.id, clearSceneCombatTracker); renderEncounter(); }));
   el.encounterTracker.replaceChildren(heading, ...rows, tools);
   const canStart = tracked.some((token) => token.side === 'party') && tracked.some((token) => token.side !== 'party');

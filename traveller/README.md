@@ -1,5 +1,30 @@
 # Graycloak Traveller
 
+## v0.93.1 a reset leaves the group ready to fight again
+
+START COMBAT stayed greyed after RESET COMBAT, and the cause is data rather
+than logic: the scene's tracked flags are what START COMBAT reads, and a
+fight begun *before* v0.92.4 emptied them on the way in. v0.92.4 stopped the
+clearing but could not un-clear what had already happened, so a reset
+restored everyone's wounds onto a scene with nothing tracked — and my tooltip
+correctly reported an empty list nobody could see a way to fill.
+
+Two changes. **RESET COMBAT re-tracks** the tokens for the combatants it just
+restored, matched by actor id, because "the pre-fight state" has to include
+being ready to fight; healing the party and leaving the button dead is half
+an answer. And **TRACK ALL** appears in the scene tracker whenever tokens are
+untracked — filling the tracker previously took a right-click per token,
+which is why an emptied one looked like a dead end rather than a state you
+could leave.
+
+That is four versions on this button. The sequence is worth recording, since
+each fix exposed the next: the dialog interrupting a board, then the button
+pointing at a function whose precondition it did not check, then two lists
+called "the tracker" holding different things, then a resolved fight that
+nothing could dismiss, and now flags emptied by code that no longer runs. The
+common thread is that I kept treating the symptom in front of me as the whole
+fault.
+
 ## v0.93.0 after the fight
 
 Thinking through what a resolved fight leaves behind, three separate
