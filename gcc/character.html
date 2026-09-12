@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- character.html v0.2.0 — Adds previewed JSON import normalization and scrollable, extensible Abilities, Attacks, and Protection collections. -->
 <!-- character.html v0.1.3 — Delete and Manage now record sync tombstones via GCCSync.recordListDeletes before notifySync, so deleted characters stay dead when the cloud push dies on navigation or a second device merges (requires gcc-sync.js v2.5.0). -->
 <!-- character.html v0.1.2 — Manage dialog is now multi-delete: pickMulti selection of any number of saved characters, single confirm listing the names, one-pass removal with edit-idx pointer repair. -->
 <!-- character.html v0.1.1 — Preserves GW transfer build-note metadata while keeping concise imported ability labels visible on the sheet. -->
@@ -47,6 +48,24 @@ body { min-height: 100vh; background: var(--bg); color: var(--tx); font-family: 
 .hdr-btn { padding: 3px 7px; font-size: 9px; background: #2a3a4a; border: 1px solid #4a6a7a; color: #ccc; border-radius: 2px; cursor: pointer; font-family: var(--fb); font-weight: 700 }
 .hdr-btn:hover { border-color: var(--accent); background: #3a4a5a }
 .mp-ftr { font-size: 8px; color: var(--tx2); text-align: center; padding: 6px; background: var(--bg2); border-top: 1px solid #8ab4d0 }
+
+/* JSON import dialog */
+.import-dialog { width:min(620px,calc(100vw - 24px)); border:2px solid #1a2a3a; border-radius:5px; padding:0; color:#1a2a3a; font-family:var(--fb); background:#fff; box-shadow:0 18px 60px #0008 }
+.import-dialog::backdrop { background:#10202ecc }
+.import-dialog h2 { font-family:var(--fd); letter-spacing:1px; font-size:22px; padding:12px 16px 8px; background:#1a2a3a; color:#fff }
+.import-body { padding:14px 16px }
+.import-intro { color:#3a5a70; font-size:10px; line-height:1.5; margin-bottom:10px }
+.import-drop { display:block; border:2px dashed #8aa9bc; border-radius:5px; padding:16px; text-align:center; background:#f2f8fb; cursor:pointer; font-weight:700 }
+.import-drop:hover,.import-drop.is-over { border-color:var(--accent); background:#fff7ef }
+.import-or { text-align:center; font-size:9px; font-weight:700; color:#71818c; margin:8px 0 }
+.import-paste { width:100%; min-height:120px; resize:vertical; padding:8px; border:1px solid #9aabb5; border-radius:3px; font:10px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace }
+.import-summary { min-height:42px; margin-top:9px; padding:8px 10px; background:#eef5f8; border-left:4px solid #789; line-height:1.5 }
+.import-summary.good { border-color:#287a45; background:#eef8f1 }
+.import-summary.bad { border-color:#b00020; background:#fff0f2; color:#8b0019 }
+.import-actions { display:flex; justify-content:flex-end; gap:6px; padding:10px 16px; background:#edf2f5; border-top:1px solid #c7d2d8 }
+.import-action { padding:6px 12px; border:1px solid #70818c; border-radius:3px; background:#fff; color:#1a2a3a; font:700 10px var(--fb); cursor:pointer }
+.import-action.primary { background:var(--accent); color:#fff; border-color:var(--accent) }
+.import-action:disabled { opacity:.45; cursor:not-allowed }
 
 /* Sheet container */
 .sheet-wrap { flex: 1; overflow-y: auto; overflow-x: auto; padding: 10px; -webkit-overflow-scrolling: touch }
@@ -123,6 +142,22 @@ body { min-height: 100vh; background: var(--bg); color: var(--tx); font-family: 
 .ab-cell input { border: none; background: transparent; font-family: var(--fb); font-size: 10px; height: 20px; outline: none }
 .ab-cell input:focus { border-bottom: 1px solid var(--accent) }
 
+/* Scrollable repeating sheet sections */
+.section-scroll { overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; border-bottom: 1px solid #bbb }
+.ab-scroll { max-height: 264px }
+.ab-scroll .ab-area { margin-top: 0 }
+.atk-scroll { max-height: 88px }
+.prot-scroll { max-height: 90px; margin-top: 2px }
+.section-scroll::-webkit-scrollbar { width: 8px }
+.section-scroll::-webkit-scrollbar-thumb { background: #9aaab5; border: 2px solid #fff; border-radius: 6px }
+.section-scroll::-webkit-scrollbar-track { background: #edf2f5 }
+.list-add { width: 17px; height: 17px; border: 1px solid #777; border-radius: 50%; background: #fff; color: #1a2a3a; font: 700 13px/14px Arial,sans-serif; cursor: pointer; flex: none }
+.list-add:hover { color: #fff; background: var(--accent); border-color: var(--accent) }
+.item-del { width: 15px; height: 15px; border: 0; background: transparent; color: #999; font: 700 14px/12px Arial,sans-serif; cursor: pointer; opacity: 0; flex: none }
+.ab-cell:hover .item-del,.atk-tbl tr:hover .item-del,.prot-row:hover .item-del { opacity: 1 }
+.item-del:hover { color: #b00020 }
+.ab-cell-desc { gap: 2px }
+
 /* Bottom: Stats left, Combat right */
 .bottom { display: grid; grid-template-columns: 230px 1fr; gap: 0 12px; margin-top: 4px; align-items: start }
 
@@ -145,6 +180,7 @@ body { min-height: 100vh; background: var(--bg); color: var(--tx); font-family: 
 /* Attacks table */
 .atk-tbl { width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 2px }
 .atk-tbl th { font-weight: 700; font-size: 8px; text-align: center; padding: 1px 3px; border-bottom: 1.5px solid #000 }
+.atk-tbl thead { position: sticky; top: 0; z-index: 2; background: #fff }
 .atk-tbl th:first-child { text-align: left }
 .atk-tbl td { padding: 1px 3px; border-bottom: 1px solid #ddd; height: 22px }
 .atk-tbl td:first-child { text-align: left }
@@ -160,6 +196,8 @@ body { min-height: 100vh; background: var(--bg); color: var(--tx); font-family: 
 /* Protection */
 .prot-row { display: flex; align-items: center; gap: 0; margin-top: 4px }
 .prot-row .lbl { margin-right: 4px }
+.prot-name { width: 80px; flex: none; padding-right: 4px; display: flex; align-items: center }
+.prot-name input { width: 62px; font-weight: 700 }
 .prot-cell { display: flex; flex-direction: column; align-items: center; flex: 1 }
 .prot-cell-label { font-size: 8px; font-weight: 700 }
 .prot-cell input { width: 90%; text-align: center }
@@ -232,6 +270,8 @@ body.view-mode .gcc-mp-btn-view-edit{display:inline-block}
   /* Prevent page breaks inside sections */
   .bottom, .derived-bottom, .ab-area, .id-grid, .mol-grid, .bio-portrait { page-break-inside: avoid }
   .portrait-box { border-color: #000 !important }
+  .section-scroll { max-height: none !important; overflow: visible !important; border-bottom: 0 }
+  .list-add,.item-del { display: none !important }
   /* Size down slightly to guarantee single page */
   @page { size: letter; margin: 0.25in }
 }
@@ -319,6 +359,21 @@ body.view-mode .gcc-mp-btn-view-edit{display:inline-block}
     </div>
   </div>
 </div>
+
+<dialog class="import-dialog" id="import-dialog">
+  <h2>IMPORT CHARACTER JSON</h2>
+  <div class="import-body">
+    <p class="import-intro">Choose a JSON file or paste JSON below. The preview shows where recognized entries will go before the current sheet is replaced.</p>
+    <label class="import-drop" id="import-drop" for="inp-import"><span id="import-drop-label">Choose a .json file or drop it here</span></label>
+    <div class="import-or">OR PASTE JSON</div>
+    <textarea class="import-paste" id="import-paste" spellcheck="false" placeholder="Paste Mighty Protectors, Roll20, or compatible character JSON…"></textarea>
+    <div class="import-summary" id="import-summary">No JSON selected.</div>
+  </div>
+  <div class="import-actions">
+    <button type="button" class="import-action" id="import-cancel">Cancel</button>
+    <button type="button" class="import-action primary" id="import-confirm" disabled>Import Character</button>
+  </div>
+</dialog>
 
 <div class="sheet-wrap">
 <div class="sheet">
@@ -430,6 +485,7 @@ body.view-mode .gcc-mp-btn-view-edit{display:inline-block}
   <div class="ab-header">
     <span class="lbl" style="min-width:36px; text-align:center">CPs:</span>
     <span class="ab-title">ABILITIES</span>
+    <button type="button" class="list-add" id="btn-add-ability" title="Add ability" aria-label="Add ability">+</button>
     <span style="flex:1"></span>
     <span class="lbl" style="font-style:italic">INVENTING:</span>
     <input class="si" style="width:30px; text-align:center" data-field="inventing">
@@ -440,8 +496,10 @@ body.view-mode .gcc-mp-btn-view-edit{display:inline-block}
   </div>
 
   <!-- Ability rows: CPs | description | IPs -->
-  <div class="ab-area" id="ab-area">
-    <!-- 12 blank rows matching the official sheet -->
+  <div class="section-scroll ab-scroll" id="ab-scroll">
+    <div class="ab-area" id="ab-area">
+      <!-- 12 visible rows matching the official sheet; more rows scroll -->
+    </div>
   </div>
 
   <!-- Bottom: Stats (left) | Combat (right) -->
@@ -497,16 +555,12 @@ body.view-mode .gcc-mp-btn-view-edit{display:inline-block}
 
       <!-- Attacks + Defenses side by side -->
       <div class="atk-def-grid" style="display:grid; grid-template-columns:1fr auto; gap:0 8px; align-items:start">
-        <table class="atk-tbl">
+        <div class="section-scroll atk-scroll" id="atk-scroll"><table class="atk-tbl">
           <thead>
-            <tr><th style="text-align:left">ATTACKS:</th><th>To Hit</th><th>Damage</th><th>Dmg Type</th><th style="width:36px">KB</th></tr>
+            <tr><th style="text-align:left">ATTACKS: <button type="button" class="list-add" id="btn-add-attack" title="Add attack or weapon" aria-label="Add attack or weapon">+</button></th><th>To Hit</th><th>Damage</th><th>Dmg Type</th><th style="width:46px">KB</th></tr>
           </thead>
-          <tbody>
-            <tr><td><input></td><td><input></td><td><input></td><td><input></td><td><input></td></tr>
-            <tr><td><input></td><td><input></td><td><input></td><td><input></td><td><input></td></tr>
-            <tr><td><input></td><td><input></td><td><input></td><td><input></td><td><input></td></tr>
-          </tbody>
-        </table>
+          <tbody id="atk-body"></tbody>
+        </table></div>
 
         <div style="padding-top:0">
           <div class="lbl" style="text-align:center; font-size:9px; margin-bottom:2px">DEFENSES:</div>
@@ -522,33 +576,16 @@ body.view-mode .gcc-mp-btn-view-edit{display:inline-block}
       </div>
 
       <!-- Protection -->
-      <div class="prot-row">
-        <span class="lbl" style="min-width:80px; text-align:right">PROTECTION:</span>
-        <div class="prot-cell"><span class="prot-cell-label">Kinetic</span><input class="si" style="width:48px; text-align:center" data-field="protKinetic"></div>
-        <div class="prot-cell"><span class="prot-cell-label">Energy</span><input class="si" style="width:48px; text-align:center" data-field="protEnergy"></div>
-        <div class="prot-cell"><span class="prot-cell-label">Bio</span><input class="si" style="width:48px; text-align:center" data-field="protBio"></div>
-        <div class="prot-cell"><span class="prot-cell-label">Entropy</span><input class="si" style="width:48px; text-align:center" data-field="protEntropy"></div>
-        <div class="prot-cell"><span class="prot-cell-label">Psychic</span><input class="si" style="width:48px; text-align:center" data-field="protPsychic"></div>
-        <div class="prot-cell"><span class="prot-cell-label">Other</span><input class="si" style="width:48px; text-align:center" data-field="protOther"></div>
+      <div class="prot-row" style="margin-top:5px">
+        <span class="lbl" style="min-width:80px; text-align:right">PROTECTION: <button type="button" class="list-add" id="btn-add-protection" title="Add armor or protection" aria-label="Add armor or protection">+</button></span>
+        <div class="prot-cell"><span class="prot-cell-label">Kinetic</span></div>
+        <div class="prot-cell"><span class="prot-cell-label">Energy</span></div>
+        <div class="prot-cell"><span class="prot-cell-label">Bio</span></div>
+        <div class="prot-cell"><span class="prot-cell-label">Entropy</span></div>
+        <div class="prot-cell"><span class="prot-cell-label">Psychic</span></div>
+        <div class="prot-cell"><span class="prot-cell-label">Other</span></div>
       </div>
-      <div class="prot-row">
-        <span class="lbl" style="min-width:80px; text-align:right"></span>
-        <div class="prot-cell"><input class="si" style="width:48px; text-align:center" data-field="protKinetic2"></div>
-        <div class="prot-cell"><input class="si" style="width:48px; text-align:center" data-field="protEnergy2"></div>
-        <div class="prot-cell"><input class="si" style="width:48px; text-align:center" data-field="protBio2"></div>
-        <div class="prot-cell"><input class="si" style="width:48px; text-align:center" data-field="protEntropy2"></div>
-        <div class="prot-cell"><input class="si" style="width:48px; text-align:center" data-field="protPsychic2"></div>
-        <div class="prot-cell"><input class="si" style="width:48px; text-align:center" data-field="protOther2"></div>
-      </div>
-      <div class="prot-row">
-        <span class="lbl" style="min-width:80px; text-align:right"></span>
-        <div class="prot-cell"><input class="si" style="width:48px; text-align:center" data-field="protKinetic3"></div>
-        <div class="prot-cell"><input class="si" style="width:48px; text-align:center" data-field="protEnergy3"></div>
-        <div class="prot-cell"><input class="si" style="width:48px; text-align:center" data-field="protBio3"></div>
-        <div class="prot-cell"><input class="si" style="width:48px; text-align:center" data-field="protEntropy3"></div>
-        <div class="prot-cell"><input class="si" style="width:48px; text-align:center" data-field="protPsychic3"></div>
-        <div class="prot-cell"><input class="si" style="width:48px; text-align:center" data-field="protOther3"></div>
-      </div>
+      <div class="section-scroll prot-scroll" id="prot-scroll"><div id="prot-body"></div></div>
     </div>
   </div>
 
@@ -602,6 +639,7 @@ body.view-mode .gcc-mp-btn-view-edit{display:inline-block}
 const STORE_KEY = 'mp-char-sheet';
 const AB_COUNT = 12;
 const ATK_COUNT = 3;
+const PROT_COUNT = 3;
 const STATS = ['st','en','ag','in','cl'];
 
 // ── Populate Dropdowns ──
@@ -656,23 +694,83 @@ function addAbilityRow() {
   cp.innerHTML = `<input data-ab="${idx}" data-abf="cp">`;
   const desc = document.createElement('div');
   desc.className = 'ab-cell ab-cell-desc';
-  desc.innerHTML = `<input data-ab="${idx}" data-abf="desc">`;
+  desc.innerHTML = `<input data-ab="${idx}" data-abf="desc"><button type="button" class="item-del" title="Remove ability" aria-label="Remove ability">×</button>`;
   const ip = document.createElement('div');
   ip.className = 'ab-cell ab-cell-ip';
   ip.innerHTML = `<input data-ab="${idx}" data-abf="ip">`;
   abArea.appendChild(cp);
   abArea.appendChild(desc);
   abArea.appendChild(ip);
+  desc.querySelector('.item-del').addEventListener('click', () => removeAbilityRow(Number(desc.querySelector('[data-ab]').dataset.ab)));
+  return idx;
 }
 
-// Tag attack rows
-document.querySelectorAll('.atk-tbl tbody tr').forEach((tr, i) => {
+function renumberRows(selector, attr) {
+  document.querySelectorAll(selector).forEach((row, i) => {
+    row.querySelectorAll(`[${attr}]`).forEach(el => el.setAttribute(attr, i));
+  });
+}
+
+function clearCollectionRow(kind, idx) {
+  document.querySelectorAll(`[data-${kind}="${idx}"]`).forEach(el => { if (el.matches('input')) el.value = ''; });
+}
+
+function removeAbilityRow(idx) {
+  const rows = document.querySelectorAll('[data-ab][data-abf="cp"]').length;
+  if (rows <= AB_COUNT) return clearCollectionRow('ab', idx);
+  abArea.querySelectorAll(`[data-ab="${idx}"]`).forEach(el => el.closest('.ab-cell').remove());
+  Array.from(abArea.children).forEach((cell, cellIndex) => {
+    const input = cell.querySelector('[data-ab]'); if (input) input.dataset.ab = Math.floor(cellIndex / 3);
+  });
+  recalcDerived();
+}
+
+function addAttackRow(values = {}) {
+  const body = document.getElementById('atk-body');
+  const idx = body.rows.length;
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td><input></td><td><input></td><td><input></td><td><input></td><td style="display:flex;align-items:center"><input><button type="button" class="item-del" title="Remove attack" aria-label="Remove attack">×</button></td>';
   const fields = ['name','toHit','damage','dmgType','kb'];
   tr.querySelectorAll('input').forEach((inp, j) => {
-    inp.setAttribute('data-atk', i);
+    inp.setAttribute('data-atk', idx);
     inp.setAttribute('data-atkf', fields[j]);
+    inp.value = values[fields[j]] ?? '';
   });
-});
+  tr.querySelector('.item-del').addEventListener('click', () => {
+    const currentIdx = Number(tr.querySelector('[data-atk]').dataset.atk);
+    if (body.rows.length <= ATK_COUNT) clearCollectionRow('atk', currentIdx);
+    else { tr.remove(); renumberRows('#atk-body tr', 'data-atk'); }
+  });
+  body.appendChild(tr);
+  return idx;
+}
+
+const PROT_FIELDS = ['name','kinetic','energy','bio','entropy','psychic','other'];
+function addProtectionRow(values = {}) {
+  const body = document.getElementById('prot-body');
+  const idx = body.children.length;
+  const row = document.createElement('div');
+  row.className = 'prot-row';
+  row.innerHTML = '<div class="prot-name"><input class="si" placeholder="Armor"><button type="button" class="item-del" title="Remove protection" aria-label="Remove protection">×</button></div>' + PROT_FIELDS.slice(1).map(() => '<div class="prot-cell"><input class="si" style="width:48px;text-align:center"></div>').join('');
+  row.querySelectorAll('input').forEach((inp, j) => {
+    inp.dataset.prot = idx;
+    inp.dataset.protf = PROT_FIELDS[j];
+    inp.value = values[PROT_FIELDS[j]] ?? '';
+  });
+  row.querySelector('.item-del').addEventListener('click', () => {
+    const currentIdx = Number(row.querySelector('[data-prot]').dataset.prot);
+    if (body.children.length <= PROT_COUNT) clearCollectionRow('prot', currentIdx);
+    else { row.remove(); renumberRows('#prot-body .prot-row', 'data-prot'); }
+  });
+  body.appendChild(row);
+  return idx;
+}
+
+for (let i = 0; i < ATK_COUNT; i++) addAttackRow();
+for (let i = 0; i < PROT_COUNT; i++) addProtectionRow();
+document.getElementById('btn-add-ability').addEventListener('click', () => { addAbilityRow(); document.getElementById('ab-scroll').scrollTop = 99999; });
+document.getElementById('btn-add-attack').addEventListener('click', () => { addAttackRow(); document.getElementById('atk-scroll').scrollTop = 99999; });
+document.getElementById('btn-add-protection').addEventListener('click', () => { addProtectionRow(); document.getElementById('prot-scroll').scrollTop = 99999; });
 
 // ── Auto-Compute Derived Stats ──
 function recalcDerived() {
@@ -1014,13 +1112,28 @@ function gatherData() {
     d.abilities.push({ cp: cp.value, desc: desc.value, ip: ip.value });
   }
   d.attacks = [];
-  for (let i = 0; i < ATK_COUNT; i++) {
+  const atkCount = document.querySelectorAll('#atk-body tr').length;
+  for (let i = 0; i < atkCount; i++) {
     const row = {};
     document.querySelectorAll(`[data-atk="${i}"]`).forEach(inp => {
       row[inp.dataset.atkf] = inp.value;
     });
     d.attacks.push(row);
   }
+  d.protection = [];
+  const protCount = document.querySelectorAll('#prot-body .prot-row').length;
+  for (let i = 0; i < protCount; i++) {
+    const row = {};
+    document.querySelectorAll(`[data-prot="${i}"]`).forEach(inp => { row[inp.dataset.protf] = inp.value; });
+    d.protection.push(row);
+  }
+  // Keep the original three-row scalar fields for backwards compatibility.
+  d.protection.slice(0, 3).forEach((row, i) => {
+    PROT_FIELDS.slice(1).forEach(f => {
+      const legacy = 'prot' + f[0].toUpperCase() + f.slice(1) + (i ? i + 1 : '');
+      d[legacy] = row[f] || '';
+    });
+  });
   // Preserve image, campaign, and entity ID from existing saved data
   if (window._charMeta) {
     if (window._charMeta._image) d._image = window._charMeta._image;
@@ -1087,12 +1200,32 @@ function populateData(d) {
     });
   }
   if (d.attacks) {
+    while (document.getElementById('atk-body').rows.length < d.attacks.length) addAttackRow();
     d.attacks.forEach((atk, i) => {
       Object.keys(atk).forEach(f => {
         const inp = document.querySelector(`[data-atk="${i}"][data-atkf="${f}"]`);
         if (inp) inp.value = atk[f] || '';
       });
     });
+  }
+  const protection = Array.isArray(d.protection) ? d.protection : [];
+  if (protection.length) {
+    while (document.getElementById('prot-body').children.length < protection.length) addProtectionRow();
+    protection.forEach((prot, i) => {
+      PROT_FIELDS.forEach(f => {
+        const inp = document.querySelector(`[data-prot="${i}"][data-protf="${f}"]`);
+        if (inp) inp.value = prot[f] ?? '';
+      });
+    });
+  } else {
+    // Load files exported before protection became a named repeating collection.
+    for (let i = 0; i < PROT_COUNT; i++) {
+      PROT_FIELDS.slice(1).forEach(f => {
+        const legacy = 'prot' + f[0].toUpperCase() + f.slice(1) + (i ? i + 1 : '');
+        const inp = document.querySelector(`[data-prot="${i}"][data-protf="${f}"]`);
+        if (inp && d[legacy] != null) inp.value = d[legacy];
+      });
+    }
   }
   // Recalc derived after populating
   recalcDerived();
@@ -1108,6 +1241,10 @@ function clearAll() {
   // Trim extra ability rows back to default
   const abCells = abArea.children;
   while (abCells.length > AB_COUNT * 3) abArea.removeChild(abArea.lastChild);
+  const atkBody = document.getElementById('atk-body');
+  while (atkBody.rows.length > ATK_COUNT) atkBody.deleteRow(-1);
+  const protBody = document.getElementById('prot-body');
+  while (protBody.children.length > PROT_COUNT) protBody.lastElementChild.remove();
   // Reset CP box from dropdown default
   const pl = MP.CG.POWER_LEVELS.find(p => p.id === document.getElementById('cg-power-level').value);
   if (pl) document.getElementById('cg-base-cps').value = pl.totalCPs;
@@ -1296,30 +1433,161 @@ document.getElementById('btn-export').addEventListener('click', () => {
   URL.revokeObjectURL(a.href);
 });
 
-// Import JSON
-document.getElementById('btn-import').addEventListener('click', () => {
-  document.getElementById('inp-import').click();
-});
-document.getElementById('inp-import').addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    try {
-      const data = JSON.parse(ev.target.result);
-      clearAll();
-      window._charMeta = {};
-      localStorage.setItem('mp-char-edit-idx', '-1');
-      if (data._image) window._charMeta._image = data._image;
-      if (data._campaign) window._charMeta._campaign = data._campaign;
-      populateData(data);
-      showPortrait(data._image || null);
-      saveToSlot();
-      MPDialog.alert('Imported', 'Character imported: ' + file.name);
-    } catch(err) { MPDialog.alert('Error', 'Import failed: ' + err.message); }
+// Import JSON — normalize common MP/Roll20 shapes, preview, then replace the sheet.
+const importDialog = document.getElementById('import-dialog');
+const importPaste = document.getElementById('import-paste');
+const importSummary = document.getElementById('import-summary');
+const importConfirm = document.getElementById('import-confirm');
+const importDrop = document.getElementById('import-drop');
+let pendingImport = null;
+
+function valuesOf(value) {
+  if (Array.isArray(value)) return value;
+  if (value && typeof value === 'object') return Object.values(value);
+  return value == null ? [] : [value];
+}
+function pickValue(obj, names) {
+  if (!obj || typeof obj !== 'object') return '';
+  const keyed = {};
+  Object.keys(obj).forEach(k => { keyed[k.toLowerCase().replace(/[^a-z0-9]/g, '')] = obj[k]; });
+  for (const name of names) {
+    const v = keyed[name.toLowerCase().replace(/[^a-z0-9]/g, '')];
+    if (v != null) return v;
+  }
+  return '';
+}
+function uniqRows(rows) {
+  const seen = new Set();
+  return rows.filter(row => {
+    const key = JSON.stringify(row);
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+}
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+function abilityRow(item) {
+  if (typeof item === 'string' || typeof item === 'number') return { cp:'', desc:String(item), ip:'' };
+  return {
+    cp: pickValue(item, ['cp','cps','cost','characterPoints','points']),
+    desc: pickValue(item, ['desc','description','name','ability','power','label','title']),
+    ip: pickValue(item, ['ip','ips','inventingPoints'])
   };
-  reader.readAsText(file);
+}
+function attackRow(item) {
+  if (typeof item === 'string' || typeof item === 'number') return { name:String(item), toHit:'', damage:'', dmgType:'', kb:'' };
+  return {
+    name: pickValue(item, ['name','weapon','attack','label','title']),
+    toHit: pickValue(item, ['toHit','attackBonus','hit','accuracy','toHitNumber']),
+    damage: pickValue(item, ['damage','dmg','damageDice','effect']),
+    dmgType: pickValue(item, ['dmgType','damageType','typeOfDamage','damageKind']),
+    kb: pickValue(item, ['kb','knockback','knockBack'])
+  };
+}
+function protectionRow(item) {
+  if (typeof item === 'string' || typeof item === 'number') return { name:String(item), kinetic:'', energy:'', bio:'', entropy:'', psychic:'', other:'' };
+  return {
+    name: pickValue(item, ['name','armor','armour','protection','label','title']),
+    kinetic: pickValue(item, ['kinetic','physical','pd','protKinetic']),
+    energy: pickValue(item, ['energy','ed','protEnergy']),
+    bio: pickValue(item, ['bio','biological','protBio']),
+    entropy: pickValue(item, ['entropy','entropic','protEntropy']),
+    psychic: pickValue(item, ['psychic','mental','md','protPsychic']),
+    other: pickValue(item, ['other','special','protOther'])
+  };
+}
+function useful(row) { return Object.values(row).some(v => v != null && String(v).trim() !== ''); }
+
+function normalizeImport(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('The JSON root must be a character object.');
+  const source = raw.character && typeof raw.character === 'object' ? raw.character : raw;
+  const out = { ...source };
+  const equipment = source.equipment && typeof source.equipment === 'object' ? source.equipment : {};
+  const gear = source.gear && typeof source.gear === 'object' ? source.gear : {};
+  const looseItems = [...valuesOf(Array.isArray(source.items) ? source.items : []), ...valuesOf(Array.isArray(source.equipment) ? source.equipment : [])];
+  const classified = { abilities:[], attacks:[], protection:[], skipped:0 };
+  looseItems.forEach(item => {
+    const type = String(pickValue(item, ['type','category','kind','itemType'])).toLowerCase();
+    if (/abilit|power|weakness|skill/.test(type)) classified.abilities.push(item);
+    else if (/weapon|attack/.test(type)) classified.attacks.push(item);
+    else if (/armo|protection|shield/.test(type)) classified.protection.push(item);
+    else classified.skipped++;
+  });
+  out.abilities = uniqRows([
+    ...valuesOf(source.abilities), ...valuesOf(source.powers), ...classified.abilities
+  ].map(abilityRow).filter(useful));
+  out.attacks = uniqRows([
+    ...valuesOf(source.attacks), ...valuesOf(source.weapons), ...valuesOf(equipment.weapons), ...valuesOf(gear.weapons), ...classified.attacks
+  ].map(attackRow).filter(useful));
+  out.protection = uniqRows([
+    ...valuesOf(source.protection), ...valuesOf(source.armor), ...valuesOf(source.armour), ...valuesOf(equipment.armor || equipment.armour), ...valuesOf(gear.armor || gear.armour), ...classified.protection
+  ].map(protectionRow).filter(useful));
+  // Recover the original unnamed three protection rows when importing an older sheet export.
+  if (!out.protection.length && Object.keys(source).some(k => /^prot(Kinetic|Energy|Bio|Entropy|Psychic|Other)[23]?$/i.test(k))) {
+    for (let i = 0; i < PROT_COUNT; i++) {
+      const row = { name:'' };
+      PROT_FIELDS.slice(1).forEach(f => {
+        const legacy = 'prot' + f[0].toUpperCase() + f.slice(1) + (i ? i + 1 : '');
+        row[f] = source[legacy] ?? '';
+      });
+      if (useful(row)) out.protection.push(row);
+    }
+  }
+  if (!out.stats && source.basicCharacteristics) out.stats = source.basicCharacteristics;
+  return { data:out, skipped:classified.skipped };
+}
+
+function parseImportText(text, label = 'Pasted JSON') {
+  let json = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
+    .replace(/<\/?pre[^>]*>/gi, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&nbsp;/g, ' ').trim();
+  const normalized = normalizeImport(JSON.parse(json));
+  pendingImport = normalized.data;
+  const name = pendingImport.name || pendingImport.characterName || 'Unnamed character';
+  importSummary.className = 'import-summary good';
+  importSummary.innerHTML = `<b>${escapeHtml(String(name))}</b><br>${pendingImport.abilities.length} abilities → Abilities &nbsp;·&nbsp; ${pendingImport.attacks.length} weapons/attacks → Attacks &nbsp;·&nbsp; ${pendingImport.protection.length} armor/protection → Protection${normalized.skipped ? `<br>${normalized.skipped} untyped item${normalized.skipped === 1 ? '' : 's'} will be left out.` : ''}`;
+  document.getElementById('import-drop-label').textContent = label;
+  importConfirm.disabled = false;
+}
+function showImportError(err) {
+  pendingImport = null; importConfirm.disabled = true;
+  importSummary.className = 'import-summary bad';
+  importSummary.textContent = 'Cannot import: ' + err.message;
+}
+function applyImportedCharacter(data, sourceLabel) {
+  clearAll(); window._charMeta = {}; localStorage.setItem('mp-char-edit-idx', '-1');
+  if (data._image) window._charMeta._image = data._image;
+  if (data._campaign) window._charMeta._campaign = data._campaign;
+  populateData(data); showPortrait(data._image || null); saveToSlot();
+  MPDialog.alert('Imported', 'Character imported from <b>' + escapeHtml(sourceLabel) + '</b>.');
+}
+
+document.getElementById('btn-import').addEventListener('click', () => {
+  pendingImport = null; importPaste.value = ''; importConfirm.disabled = true;
+  importSummary.className = 'import-summary'; importSummary.textContent = 'No JSON selected.';
+  document.getElementById('import-drop-label').textContent = 'Choose a .json file or drop it here';
+  importDialog.showModal();
+});
+document.getElementById('import-cancel').addEventListener('click', () => importDialog.close());
+importPaste.addEventListener('input', () => {
+  if (!importPaste.value.trim()) { pendingImport = null; importConfirm.disabled = true; importSummary.className='import-summary'; importSummary.textContent='No JSON selected.'; return; }
+  try { parseImportText(importPaste.value); } catch(err) { showImportError(err); }
+});
+document.getElementById('inp-import').addEventListener('change', async e => {
+  const file = e.target.files[0]; if (!file) return;
+  try { parseImportText(await file.text(), file.name); } catch(err) { showImportError(err); }
   e.target.value = '';
+});
+['dragenter','dragover'].forEach(type => importDrop.addEventListener(type, e => { e.preventDefault(); importDrop.classList.add('is-over'); }));
+['dragleave','drop'].forEach(type => importDrop.addEventListener(type, e => { e.preventDefault(); importDrop.classList.remove('is-over'); }));
+importDrop.addEventListener('drop', async e => {
+  const file = e.dataTransfer.files[0]; if (!file) return;
+  try { parseImportText(await file.text(), file.name); } catch(err) { showImportError(err); }
+});
+importConfirm.addEventListener('click', () => {
+  if (!pendingImport) return;
+  const sourceLabel = document.getElementById('import-drop-label').textContent === 'Choose a .json file or drop it here' ? 'pasted JSON' : document.getElementById('import-drop-label').textContent;
+  const data = pendingImport; importDialog.close(); applyImportedCharacter(data, sourceLabel);
 });
 
 // Paste from Roll20
@@ -1341,16 +1609,8 @@ document.getElementById('btn-r20-import').addEventListener('click', async () => 
       .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
       .replace(/&quot;/g, '"').replace(/&nbsp;/g, ' ')
       .trim();
-    const data = JSON.parse(json);
-    clearAll();
-    window._charMeta = {};
-    localStorage.setItem('mp-char-edit-idx', '-1');
-    if (data._image) window._charMeta._image = data._image;
-    if (data._campaign) window._charMeta._campaign = data._campaign;
-    populateData(data);
-    showPortrait(data._image || null);
-    saveToSlot();
-    MPDialog.alert('Imported', 'Character imported from Roll20: <b>' + (data.name || 'Unknown') + '</b>');
+    const data = normalizeImport(JSON.parse(json)).data;
+    applyImportedCharacter(data, 'Roll20');
   } catch(err) { MPDialog.alert('Error', 'Import failed: ' + err.message); }
 });
 
