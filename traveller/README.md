@@ -1,5 +1,19 @@
 # Graycloak Traveller
 
+## v0.80.1 start collapsed, strips current, drawer opaque
+
+From the first on-load screenshot of v0.80.0. The sidebar now starts
+collapsed to its strip, as Foundry's cabinet does. The client passes through
+its chargen state while a cloud campaign is loading, which auto-chose the
+TABLES tab and left the drawer open on a placeholder; once the campaign is
+active an auto-chosen TABLES yields to CHAT. The WHAT NOW? and character
+summary strips were rendered at the top of `render()`, before the layout
+pass that sets their text, so they were always one pass stale
+(`CHARACTER GENERATION`, `--`); they render last now. The drawer and strip
+are opaque — no zoom row ghosting through — the stage keeps clear of the
+strip so a collapsed sidebar covers nothing, and the sidebar has one
+scrollbar rather than two.
+
 ## v0.80.0 the canvas is the window
 
 Matched to the Foundry reference screenshot rather than to a description of

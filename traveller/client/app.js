@@ -1444,6 +1444,10 @@ function applyCampaignLayout() {
   // v0.75.0: character generation reads the Book 1 tables; the TABLES tab
   // opens with it unless the referee has picked a tab.
   if (!active && !sidebarChosen && sidebarTab !== 'tables') { sidebarTab = 'tables'; }
+  // v0.80.1: the client passes through its chargen state while a cloud
+  // campaign loads; once the campaign is active, an auto-chosen TABLES yields
+  // to CHAT so the drawer does not open on a placeholder.
+  if (active && !sidebarChosen && sidebarTab === 'tables') { sidebarTab = 'chat'; }
   if (!active) {
     // Character generation: the sheet is the scene, with the governing Book 1
     // tables directly beneath WHAT NOW? in the left dock.
@@ -1692,7 +1696,7 @@ const characterWindow = createWindowController({
 const SIDEBAR_TABS = ['chat', 'combat', 'scenes', 'actors', 'vehicles', 'port', 'journal', 'tables', 'players', 'settings'];
 let sidebarTab = 'chat';
 let sidebarChosen = false;
-let sidebarCollapsed = false;
+let sidebarCollapsed = true; // v0.80.1: collapsed on load, as Foundry's cabinet is, to draw the eye to the canvas
 
 function setSidebarTab(tab, { chosen = true } = {}) {
   if (!SIDEBAR_TABS.includes(tab)) return;
@@ -7332,7 +7336,6 @@ function renderChargenTables() {
 function render() {
   applySidebar();
   renderRailTools();
-  renderSidebarStrips();
   const gameplayOnly = documentMode === TRAVELLER_DOCUMENT_KINDS.CHARACTER;
   const displayName = gameplayOnly ? gameplayDocument?.identity.name : character.name;
   if (el.name.value !== (displayName ?? '')) el.name.value = displayName ?? '';
@@ -7404,6 +7407,10 @@ function render() {
   renderPlayProcedure();
   renderChargenTables();
   renderActivity();
+  // v0.80.1: after the layout pass has set WHAT NOW?'s scope and the
+  // character's status — rendering them first left them a pass behind.
+  renderSidebarStrips();
+  applySidebar();
 }
 
 function execute(action, payload = {}) {

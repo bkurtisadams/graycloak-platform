@@ -3836,3 +3836,14 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
   .shell-sidebar { grid-template-columns: minmax(0, 260px) 44px; }
   .shell-stage { padding-left: 88px; }
 }
+
+/* v0.80.1: the drawer and strip are opaque, as Foundry's cabinet is — no map
+   or zoom row ghosting through; the stage keeps clear of the strip so a
+   collapsed sidebar covers nothing; one scrollbar on the drawer, not two. */
+.shell-sidebar .sidebar-tabs,
+.shell-sidebar > .sidebar-strip,
+.shell-sidebar > .sidebar-body { background: var(--paper); }
+.shell-sidebar .sidebar-tabs { overflow: hidden; }
+.shell-sidebar > .sidebar-body { overflow-x: hidden; overflow-y: auto; }
+.shell-stage { padding-right: 52px; }
+@media (max-width: 900px) { .shell-stage { padding-right: 44px; } }
