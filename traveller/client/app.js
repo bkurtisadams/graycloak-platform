@@ -92,7 +92,7 @@ import {
 
 import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js';
 import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js';
-import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, setSceneTokenCombat, clearSceneCombatTracker, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js';
+import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, setSceneTokenCombat, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js';
 import { directoryFolders, removeEncounterFromCampaign
 } from '../src/campaign-document.js';
 import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js';
@@ -5000,9 +5000,17 @@ function renderEncounterTracker(encounter, actor) {
     const row = document.createElement('div');
     row.className = 'encounter-after-fight-row';
     if (scene) {
-      const clear = makePortButton('CLEAR TRACKER', () => { updateScene(scene.identity.id, clearSceneCombatTracker); renderEncounter(); });
-      clear.disabled = !trackedSceneTokens(scene).length;
-      clear.title = clear.disabled ? `${scene.identity.name} has no tracked tokens` : `Empty ${scene.identity.name}'s combat tracker; the tokens stay on the board`;
+      // v0.95.3: this used to flip the scene token's vestigial inCombat
+      // flag — a v0.94.0-and-earlier idea nothing has read since v0.95.0
+      // made the encounter document the tracker. The panel's own rows come
+      // from encounter.combatants, so the button visibly did nothing.
+      // Emptying the tracker now means what it means everywhere else
+      // post-fight: discard this resolved encounter.
+      const clear = makePortButton('CLEAR TRACKER', () => {
+        if (!window.confirm(`Empty ${scene.identity.name}'s combat tracker? ${encounter.identity.title} is removed from the tracker; the tokens stay on the board.`)) return;
+        discardEncounter(encounter);
+      });
+      clear.title = `Empty ${scene.identity.name}'s combat tracker; the tokens stay on the board`;
       row.append(clear);
     }
     const reset = makePortButton('RESET COMBAT', () => resetCombat(encounter));
