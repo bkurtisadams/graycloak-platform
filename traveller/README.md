@@ -1,5 +1,38 @@
 # Graycloak Traveller
 
+## v0.89.0 the token menu, and a way to undo a wound
+
+**The token menu is on the shared menu.** It was the last of the old
+bracket-list menus — fifteen items in a flat column — and it needed the
+shared `showContextMenu` to learn submenus first, which it now has (plus
+group headings and a danger style). The menu reads: SELECT / TARGET / OPEN
+SHEET, then **ORDERS** with the Book 1 declarations (ATTACK as a submenu of
+foes with their range band and the number needed, then CLOSE, OPEN, RUN
+CLOSER, RUN AWAY, EVADE, ESCAPE, STAND), then **REFEREE** with COVER and
+STATUS as submenus, folding stock, the wound controls below, and REMOVE
+marked as destructive. The heading says whether orders are available at all,
+so a declared combatant no longer offers nine greyed items with no
+explanation. The staged-scene token menu moved across as well — there is one
+menu implementation in the client now, not two.
+
+**A wound can be undone.** Book 1 wounds fall on STR, DEX and END and the
+engine only ever reduced them; there was no way back short of editing the
+JSON, which made a ruling awkward and running the same test fight twice
+impossible. `setCombatantCurrent()` and `restoreCombatant()` are the two
+directions, both through the document so the history records the change, with
+the character's original as the ceiling — healing restores towards the sheet,
+never past it — and anyone brought back above zero stops being unconscious.
+On the menu: `WOUNDS: 6/8/5 — SET` for one prompt covering all three, and
+`RESTORE TO FULL`, disabled when there is nothing to undo. Tested.
+
+**Still open: the character sheet header, and clicking a characteristic.** You
+are right on both. A characteristic on the sheet rolls a check, which is the
+only thing it can do at present — there is no way to *edit* one, and for a
+referee that is the more common need. Now that `setCombatantCurrent` exists
+for combatants, the equivalent for a character document is the matching piece,
+and the sheet's header is worth redrawing at the same time rather than
+separately. Next, if you want it.
+
 ## v0.88.0 the chat box stays put; the popout is panel-sized
 
 **The composer was a real bug, not tightness.** v0.81.0 pinned the dice tray

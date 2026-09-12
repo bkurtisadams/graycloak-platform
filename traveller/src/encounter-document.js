@@ -1136,3 +1136,49 @@ export function opponentSpecFromNpcActor(actor) {
     conditions: actorConditionKeys(actor), current: actor.current ?? null
   };
 }
+
+// --- v0.89.0: referee fiat over a combatant's wound track ------------------
+// Book 1 wounds fall on STR, DEX and END, and the engine reduces them as
+// blows land. A referee needs the other direction too — first aid between
+// fights, a ruling, or simply resetting a token while testing — and there was
+// no way to do it short of editing the JSON. Both go through the document so
+// the history records who was changed and from what.
+
+export function setCombatantCurrent(document, { combatantId, scores = {} } = {}) {
+  const next = importEncounterDocument(document);
+  const combatant = next.combatants.find((entry) => entry.id === combatantId);
+  if (!combatant) throw new Error('combatant is unavailable');
+  const changes = [];
+  for (const key of ['STR', 'DEX', 'END']) {
+    if (scores[key] === undefined) continue;
+    const value = Number(scores[key]);
+    if (!Number.isInteger(value) || value < 0) throw new RangeError(`${key} must be a whole number of 0 or more`);
+    // A characteristic above its original is not a Book 1 state: the original
+    // is the ceiling, and healing restores towards it rather than past it.
+    const capped = Math.min(value, combatant.characteristics[key]);
+    if (capped === combatant.current[key]) continue;
+    changes.push(`${key} ${combatant.current[key]} to ${capped}`);
+    combatant.current[key] = capped;
+  }
+  if (!changes.length) return { encounter: next, combatant, entry: null };
+  // Someone brought back above zero is conscious again unless dead.
+  const downed = ['STR', 'DEX', 'END'].some((key) => combatant.current[key] <= 0);
+  if (!downed && combatant.status === 'unconscious') combatant.status = 'active';
+  const entry = {
+    round: next.round, kind: 'status', side: 'referee', combatantId,
+    text: `Referee sets ${combatant.name}: ${changes.join(', ')}.`
+  };
+  next.history.push(entry);
+  assertValidEncounterDocument(next);
+  return { encounter: next, combatant, entry };
+}
+
+// Back to the character as generated: every wound undone.
+export function restoreCombatant(document, { combatantId } = {}) {
+  const next = importEncounterDocument(document);
+  const combatant = next.combatants.find((entry) => entry.id === combatantId);
+  if (!combatant) throw new Error('combatant is unavailable');
+  return setCombatantCurrent(next, { combatantId, scores: {
+    STR: combatant.characteristics.STR, DEX: combatant.characteristics.DEX, END: combatant.characteristics.END
+  } });
+}

@@ -262,7 +262,7 @@ import {
   declaredTargetCounts,
   addEncounterCombatantFromActor,
   removeEncounterCombatant,
-  setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters } from '../src/encounter-document.js';
+  setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant } from '../src/encounter-document.js';
 
 import {
   createContactDocument,
@@ -3975,119 +3975,106 @@ function positionEncounterOverlay(node, event, anchorElement = null) {
   node.style.visibility = '';
 }
 
+// v0.89.0: the token menu on the shared compact menu, grouped rather than a
+// flat column of fifteen brackets. ORDERS holds the Book 1 declarations, the
+// referee's overrides sit under their own heading, and the destructive item is
+// marked. ATTACK, COVER and STATUS are submenus, which is what the shared menu
+// needed adding before this could move off the old implementation.
 function showEncounterTokenMenu(event, encounter, combatant, onSelect, anchorElement = null) {
-  event.preventDefault();
-  event.stopPropagation();
-  el.encounterTokenTooltip.hidden = true;
-  const actions = [];
-  const add = (label, handler, disabled = false) => {
-    const button = document.createElement('button');
-    button.type = 'button'; button.textContent = `[ ${label} ]`; button.disabled = disabled;
-    button.addEventListener('click', () => { el.encounterTokenMenu.hidden = true; handler(); });
-    actions.push(button);
-  };
+  const selectedActor = selectedEncounterActor(encounter);
   const declaredIds = new Set(encounter.roundState?.declaredActions?.map((entry) => entry.actorId) ?? []);
   const alreadyDeclared = declaredIds.has(combatant.id);
   const foes = encounter.combatants.filter((entry) => entry.side !== combatant.side && entry.status === 'active');
-  const selectedActor = selectedEncounterActor(encounter);
-  add(selectedEncounterTokenIds.has(combatant.id) ? 'DESELECT' : 'SELECT', () => selectEncounterToken(encounter.identity.id, combatant.id, { additive: true }));
-  add(selectedActor && actorTargetIds(selectedActor.id).has(combatant.id) ? 'UNTARGET' : 'TARGET', () => toggleEncounterTarget(encounter.identity.id, combatant.id), !selectedActor);
-
-  // A submenu: the parent opens it, each child is one complete declaration for
-  // this token, so an order is a single gesture at the token it applies to.
-  const addCascade = (label, build, disabled = false) => {
-    const holder = document.createElement('div');
-    holder.className = 'encounter-menu-cascade';
-    const parent = document.createElement('button');
-    parent.type = 'button';
-    parent.textContent = `[ ${label} \u25b8 ]`;
-    parent.disabled = disabled;
-    const submenu = document.createElement('div');
-    submenu.className = 'encounter-menu-submenu';
-    submenu.hidden = true;
-    build(submenu);
-    parent.addEventListener('click', () => { submenu.hidden = !submenu.hidden; });
-    holder.append(parent, submenu);
-    actions.push(holder);
-  };
-  const subItem = (submenu, label, handler, disabled = false, title = '') => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = `[ ${label} ]`;
-    button.disabled = disabled;
-    if (title) button.title = title;
-    button.addEventListener('click', () => { el.encounterTokenMenu.hidden = true; handler(); });
-    submenu.append(button);
-    return button;
-  };
+  const canOrder = combatant.status === 'active' && !alreadyDeclared && encounter.status === 'active';
+  const resolved = encounter.status !== 'active';
+  const lastOnSide = encounter.combatants.filter((entry) => entry.side === combatant.side).length <= 1;
   const declare = (action, targetId = null) => {
     setEncounterActor(encounter.identity.id, combatant.id);
-    if (targetId) setEncounterTarget(encounter.identity.id, targetId);
     resolveActiveEncounterAction(action, 0, targetId, combatant.id);
   };
+  const edit = (mutate) => updateEncounterDocument(encounter.identity.id, mutate);
+  const tick = (on) => (on ? ' \u2713' : '');
 
-  const canOrder = combatant.status === 'active' && !alreadyDeclared && encounter.status === 'active';
-  // v0.76.2: a malformed foe (odd loadout, a body model the preview does not
-  // expect) used to throw here and abort the whole menu before REMOVE FROM
-  // ENCOUNTER — the one action that would have fixed the bad token — was ever
-  // added. One foe's preview failing no longer takes the rest of the menu
-  // with it.
-  addCascade('ATTACK', (submenu) => {
-    for (const foe of foes) {
+  const attackItems = () => {
+    if (!foes.length) return [{ label: 'NO ACTIVE TARGET', disabled: true, action: () => {} }];
+    return foes.map((foe) => {
       try {
         const band = encounterPairRange(combatant, foe);
         const preview = previewPersonalAttack({ attacker: combatant, defender: foe, range: band, situationalDM: encounterSituationDMs(encounter, combatant, foe).total });
-        subItem(submenu,
-          `${foe.name.toUpperCase()} / ${band.toUpperCase().replace('-', ' ')} / ${preview.canAttack ? `${Math.max(2, preview.requiredRoll)}+` : 'NO REACH'}`,
-          () => declare('attack', foe.id), !preview.canAttack,
-          preview.canAttack ? `Book 1 pp.45\u201347` : `${preview.weaponName} has no ${band.replace('-', ' ')} range column (Book 1 p.46)`);
+        return {
+          label: `${foe.name.toUpperCase()} / ${band.toUpperCase().replace('-', ' ')} / ${preview.canAttack ? `${Math.max(2, preview.requiredRoll)}+` : 'NO REACH'}`,
+          disabled: !preview.canAttack,
+          title: preview.canAttack ? 'Book 1 pp.45\u201347' : `${preview.weaponName} has no ${band.replace('-', ' ')} range column (Book 1 p.46)`,
+          action: () => declare('attack', foe.id)
+        };
       } catch (error) {
         console.error('[traveller] attack preview failed for', foe.name, error);
-        subItem(submenu, `${foe.name.toUpperCase()} / UNAVAILABLE`, () => {}, true, error?.message ?? String(error));
+        return { label: `${foe.name.toUpperCase()} / UNAVAILABLE`, disabled: true, title: error?.message ?? String(error), action: () => {} };
       }
-    }
-    if (!foes.length) subItem(submenu, 'NO ACTIVE TARGET', () => {}, true);
-  }, !canOrder);
+    });
+  };
 
-  addCascade('COVER', (submenu) => {
-    for (const value of COMBATANT_COVER) {
-      const label = value === 'none' ? 'NONE' : value === 'concealment' ? 'CONCEALMENT \u22121' : 'COVER \u22124';
-      subItem(submenu, `${label}${combatant.cover === value ? ' \u2713' : ''}`,
-        () => updateEncounterDocument(encounter.identity.id, (doc) => setCombatantCover(doc, { combatantId: combatant.id, cover: value }).encounter),
-        false, 'Protects this combatant against every attacker (Book 1 p.31 errata)');
-    }
+  const items = [
+    { label: selectedEncounterTokenIds.has(combatant.id) ? 'DESELECT' : 'SELECT', action: () => selectEncounterToken(encounter.identity.id, combatant.id, { additive: true }) },
+    { label: selectedActor && actorTargetIds(selectedActor.id).has(combatant.id) ? 'UNTARGET' : 'TARGET',
+      disabled: !selectedActor, title: selectedActor ? `Target for ${selectedActor.name}` : 'Select a combatant first', action: () => toggleEncounterTarget(encounter.identity.id, combatant.id) },
+    { label: 'OPEN SHEET', action: () => openCombatantSheet(combatant) },
+    { heading: `ORDERS${canOrder ? '' : alreadyDeclared ? ' — DECLARED' : ' — UNAVAILABLE'}` },
+    { label: 'ATTACK', items: attackItems, disabled: !canOrder },
+    { label: 'CLOSE + ATTACK', disabled: !canOrder || !foes.length, action: () => declare('close', foes[0]?.id ?? null) },
+    { label: 'OPEN + ATTACK', disabled: !canOrder || !foes.length, action: () => declare('open', foes[0]?.id ?? null) },
+    { label: 'RUN CLOSER', disabled: !canOrder || !foes.length, action: () => declare('close-run', foes[0]?.id ?? null) },
+    { label: 'RUN AWAY', disabled: !canOrder || !foes.length, action: () => declare('open-run', foes[0]?.id ?? null) },
+    { label: 'EVADE', disabled: !canOrder, action: () => declare('evade') },
+    { label: 'ESCAPE', disabled: !canOrder || encounter.round !== 1, title: 'Book 1: escape is available in the first round only', action: () => declare('escape') },
+    { label: 'STAND', disabled: !canOrder, action: () => declare('wait') },
+    { heading: 'REFEREE' },
+    { label: 'COVER', items: () => COMBATANT_COVER.map((value) => ({
+        label: (value === 'none' ? 'NONE' : value === 'concealment' ? 'CONCEALMENT \u22121' : 'COVER \u22124') + tick(combatant.cover === value),
+        title: 'Protects this combatant against every attacker (Book 1 p.31 errata)',
+        action: () => edit((doc) => setCombatantCover(doc, { combatantId: combatant.id, cover: value }).encounter)
+      })) },
+    { label: `FOLDING STOCK${tick(combatant.foldingStock)}`, action: () => edit((doc) => setCombatantFoldingStock(doc, { combatantId: combatant.id, foldingStock: !combatant.foldingStock }).encounter) },
+    { label: 'STATUS', items: () => ['active', 'unconscious', 'dead', 'escaped', 'withdrawn'].map((value) => ({
+        label: value.toUpperCase() + tick(combatant.status === value),
+        title: 'Referee override of Book 1 wound status; restoring to active lifts a zeroed characteristic to 1',
+        action: () => edit((doc) => setCombatantStatus(doc, { combatantId: combatant.id, status: value }).encounter)
+      })) },
+    // v0.89.0: the wound track, both directions. There was no way to undo a
+    // wound short of editing the JSON — awkward for a ruling, and impossible
+    // while testing a fight you want to run twice.
+    { label: `WOUNDS: ${combatant.current.STR}/${combatant.current.DEX}/${combatant.current.END} — SET`, title: 'Set current STR, DEX and END; the original is the ceiling', action: () => setCombatantWoundsFromPrompt(encounter, combatant) },
+    { label: 'RESTORE TO FULL', disabled: ['STR', 'DEX', 'END'].every((key) => combatant.current[key] === combatant.characteristics[key]),
+      title: 'Undo every wound on this combatant', action: () => edit((doc) => restoreCombatant(doc, { combatantId: combatant.id }).encounter) },
+    { label: 'CHANGE CONDITION', action: () => openEncounterConditionDialog(encounter.identity.id, combatant.id) }
+  ];
+  if (combatant.sourceActorId && npcActorDocuments.some((entry) => entry.identity.id === combatant.sourceActorId)) {
+    items.push({ label: 'OPEN ROSTER ACTOR', action: () => openNpcActorDialog(combatant.sourceActorId) });
+  }
+  items.push('-', {
+    label: 'REMOVE FROM ENCOUNTER', danger: true, disabled: resolved || lastOnSide,
+    title: resolved ? `${encounter.identity.title} is ${encounter.status}; a resolved encounter cannot be edited`
+      : lastOnSide ? `${combatant.name} is the last ${combatant.side} combatant; resolve the encounter instead of emptying a side` : '',
+    action: () => removeCombatantFromActiveEncounter(encounter.identity.id, combatant.id)
   });
+  void onSelect; void anchorElement;
+  showContextMenu(event, items);
+}
 
-  add(`FOLDING STOCK${combatant.foldingStock ? ' \u2713' : ''}`,
-    () => updateEncounterDocument(encounter.identity.id, (doc) => setCombatantFoldingStock(doc, { combatantId: combatant.id, foldingStock: !combatant.foldingStock }).encounter));
-  add('CLOSE + ATTACK', () => declare('close', foes[0]?.id ?? null), !canOrder || !foes.length);
-  add('OPEN + ATTACK', () => declare('open', foes[0]?.id ?? null), !canOrder || !foes.length);
-  add('RUN CLOSER', () => declare('close-run', foes[0]?.id ?? null), !canOrder || !foes.length);
-  add('RUN AWAY', () => declare('open-run', foes[0]?.id ?? null), !canOrder || !foes.length);
-  add('EVADE', () => declare('evade'), !canOrder);
-  add('ESCAPE', () => declare('escape'), !canOrder || encounter.round !== 1);
-  add('STAND', () => declare('wait'), !canOrder);
-  addCascade('STATUS', (submenu) => {
-    for (const value of ['active', 'unconscious', 'dead', 'escaped', 'withdrawn']) {
-      subItem(submenu, `${value.toUpperCase()}${combatant.status === value ? ' \u2713' : ''}`,
-        () => updateEncounterDocument(encounter.identity.id, (doc) => setCombatantStatus(doc, { combatantId: combatant.id, status: value }).encounter),
-        false, 'Referee override of Book 1 wound status; restoring to active lifts a zeroed characteristic to 1');
-    }
-  });
-  add('CHANGE CONDITION', () => openEncounterConditionDialog(encounter.identity.id, combatant.id));
-  if (combatant.sourceActorId && npcActorDocuments.some((entry) => entry.identity.id === combatant.sourceActorId)) add('OPEN ROSTER ACTOR', () => { operationsDeskTab = 'roster'; render(); openNpcActorDialog(combatant.sourceActorId); });
-  // v0.76.3: removeEncounterCombatant refuses two things — a resolved
-  // encounter (nothing left to edit) and emptying a side (no clean Book 1
-  // meaning) — and used to only surface either as a thrown error after the
-  // click. Both are now visible on the button itself before it is pressed.
-  const lastOnSide = encounter.combatants.filter((entry) => entry.side === combatant.side).length <= 1;
-  const resolved = encounter.status !== 'active';
-  add('REMOVE FROM ENCOUNTER', () => removeCombatantFromActiveEncounter(encounter.identity.id, combatant.id), resolved || lastOnSide);
-  if (resolved) actions.at(-1).title = `${encounter.identity.title} is ${encounter.status}; a resolved encounter cannot be edited`;
-  else if (lastOnSide) actions.at(-1).title = `${combatant.name} is the last ${combatant.side} combatant; resolve the encounter instead of emptying a side`;
-  el.encounterTokenMenu.replaceChildren(...actions);
-  positionEncounterOverlay(el.encounterTokenMenu, event, anchorElement);
-  actions.find((button) => !button.disabled)?.focus({ preventScroll: true });
+// One prompt for all three, so a referee can set a whole wound track at once.
+function setCombatantWoundsFromPrompt(encounter, combatant) {
+  const answer = window.prompt(
+    `${combatant.name} — current STR/DEX/END (originals ${combatant.characteristics.STR}/${combatant.characteristics.DEX}/${combatant.characteristics.END}):`,
+    `${combatant.current.STR}/${combatant.current.DEX}/${combatant.current.END}`
+  );
+  if (answer === null) return;
+  const parts = answer.split(/[\s/,]+/).filter(Boolean).map((value) => Number.parseInt(value, 10));
+  if (parts.length !== 3 || parts.some((value) => !Number.isInteger(value) || value < 0)) {
+    setStatus('GIVE THREE WHOLE NUMBERS, FOR EXAMPLE 6/8/5', 'error');
+    return;
+  }
+  updateEncounterDocument(encounter.identity.id, (doc) =>
+    setCombatantCurrent(doc, { combatantId: combatant.id, scores: { STR: parts[0], DEX: parts[1], END: parts[2] } }).encounter);
 }
 
 function showEncounterMapMenu(event) {
@@ -5803,22 +5790,48 @@ let sceneSearch = '';
 let sceneFolderOpen = new Map();
 let sceneFolderDrafts = new Set(); // folders created this session that hold no scene yet
 
-function showContextMenu(event, items) {
+function closeContextMenus() {
+  for (const menu of document.querySelectorAll('.context-menu')) menu.remove();
+}
+
+function showContextMenu(event, items, { parent = null } = {}) {
   event.preventDefault();
   event.stopPropagation();
-  document.querySelector('.context-menu')?.remove();
+  // A submenu keeps its parent open; a fresh menu replaces everything.
+  if (parent) for (const open of document.querySelectorAll('.context-menu.is-submenu')) open.remove();
+  else closeContextMenus();
   const menu = document.createElement('div');
-  menu.className = 'context-menu';
+  menu.className = `context-menu${parent ? ' is-submenu' : ''}`;
   menu.setAttribute('role', 'menu');
   for (const item of items) {
     if (item === '-') { menu.append(Object.assign(document.createElement('div'), { className: 'context-menu-rule' })); continue; }
+    if (item.heading) { menu.append(Object.assign(document.createElement('div'), { className: 'context-menu-heading', textContent: item.heading })); continue; }
     const button = document.createElement('button');
     button.type = 'button';
     button.setAttribute('role', 'menuitem');
     button.textContent = item.label;
     button.disabled = Boolean(item.disabled);
+    if (item.title) button.title = item.title;
     if (item.danger) button.classList.add('danger');
-    button.addEventListener('click', () => { menu.remove(); try { item.action(); } catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); } });
+    // v0.89.0: submenus. An item with `items` opens a nested menu beside it
+    // rather than acting — the token menu's ATTACK, COVER and STATUS need it,
+    // and without it they had to stay as the old flat bracket list.
+    if (item.items) {
+      button.classList.add('has-submenu');
+      button.setAttribute('aria-haspopup', 'true');
+      const open = (event) => {
+        const rect = button.getBoundingClientRect();
+        showContextMenu({
+          clientX: rect.right - 4, clientY: rect.top,
+          preventDefault: () => {}, stopPropagation: () => {}
+        }, typeof item.items === 'function' ? item.items() : item.items, { parent: menu });
+        event?.preventDefault?.();
+      };
+      button.addEventListener('click', open);
+      button.addEventListener('pointerenter', open);
+    } else {
+      button.addEventListener('click', () => { closeContextMenus(); try { item.action(); } catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); } });
+    }
     menu.append(button);
   }
   document.body.append(menu);
@@ -5826,8 +5839,9 @@ function showContextMenu(event, items) {
   const y = Math.min(event.clientY, window.innerHeight - menu.offsetHeight - 8);
   menu.style.left = `${Math.max(4, x)}px`;
   menu.style.top = `${Math.max(4, y)}px`;
-  const dismiss = (evt) => { if (menu.contains(evt.target)) return; menu.remove(); document.removeEventListener('pointerdown', dismiss, true); document.removeEventListener('keydown', escape, true); };
-  const escape = (evt) => { if (evt.key === 'Escape') { menu.remove(); document.removeEventListener('pointerdown', dismiss, true); document.removeEventListener('keydown', escape, true); } };
+  const inAnyMenu = (node) => [...document.querySelectorAll('.context-menu')].some((open) => open.contains(node));
+  const dismiss = (evt) => { if (inAnyMenu(evt.target)) return; closeContextMenus(); document.removeEventListener('pointerdown', dismiss, true); document.removeEventListener('keydown', escape, true); };
+  const escape = (evt) => { if (evt.key === 'Escape') { closeContextMenus(); document.removeEventListener('pointerdown', dismiss, true); document.removeEventListener('keydown', escape, true); } };
   window.setTimeout(() => { document.addEventListener('pointerdown', dismiss, true); document.addEventListener('keydown', escape, true); }, 0);
 }
 
@@ -6140,24 +6154,28 @@ function renderSceneTracker(scene) {
 }
 
 function showStagedTokenMenu(event, scene, token) {
-  event.preventDefault(); event.stopPropagation();
-  const buttons = [];
-  const add = (label, handler) => {
-    const button = document.createElement('button'); button.type = 'button'; button.textContent = `[ ${label} ]`;
-    button.addEventListener('click', () => { el.encounterTokenMenu.hidden = true; try { handler(); } catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); } });
-    buttons.push(button);
-  };
-  add(token.token.inCombat ? 'REMOVE FROM COMBAT' : 'ADD TO COMBAT', () => { updateScene(scene.identity.id, (doc) => setSceneTokenCombat(doc, token.id, !token.token.inCombat)); renderEncounter(); });
-  add(`SIDE: ${token.token.side.toUpperCase()} / CHANGE`, () => {
-    const order = ['party', 'opposition', 'neutral'];
-    const next = order[(order.indexOf(token.token.side) + 1) % order.length];
-    updateScene(scene.identity.id, (doc) => { const copy = JSON.parse(JSON.stringify(doc)); copy.tokens.find((entry) => entry.id === token.id).side = next; return copy; });
-    renderEncounter();
-  });
-  add('REMOVE FROM SCENE', () => { updateScene(scene.identity.id, (doc) => removeSceneToken(doc, token.id)); stagedSelectedTokenIds.delete(token.id); renderEncounter(); });
-  el.encounterTokenTooltip.hidden = true;
-  el.encounterTokenMenu.replaceChildren(...buttons);
-  positionEncounterOverlay(el.encounterTokenMenu, event);
+  // v0.89.0: on the shared compact menu, like every other menu in the client.
+  const order = ['party', 'opposition', 'neutral'];
+  const next = order[(order.indexOf(token.token.side) + 1) % order.length];
+  showContextMenu(event, [
+    { label: token.token.inCombat ? 'REMOVE FROM COMBAT' : 'ADD TO COMBAT',
+      title: 'The combat tracker decides who is in the fight when it starts',
+      action: () => { updateScene(scene.identity.id, (doc) => setSceneTokenCombat(doc, token.id, !token.token.inCombat)); renderEncounter(); } },
+    { label: 'OPEN SHEET', action: () => { const named = sceneActorNames().get(token.token.actorId); if (named?.kind === 'npc') openNpcActorDialog(token.token.actorId); else { activatePartyCharacter(token.token.actorId); if (!characterWindow.state.open) openWindowController(characterWindow); applyCampaignLayout(); } } },
+    { heading: 'SCENE' },
+    { label: `SIDE: ${token.token.side.toUpperCase()} \u2192 ${next.toUpperCase()}`,
+      action: () => {
+        updateScene(scene.identity.id, (doc) => {
+          const copy = JSON.parse(JSON.stringify(doc));
+          copy.tokens.find((entry) => entry.id === token.id).side = next;
+          return copy;
+        });
+        renderEncounter();
+      } },
+    '-',
+    { label: 'REMOVE FROM SCENE', danger: true,
+      action: () => { updateScene(scene.identity.id, (doc) => removeSceneToken(doc, token.id)); stagedSelectedTokenIds.delete(token.id); renderEncounter(); } }
+  ]);
 }
 
 // Placement on a scene: any party character or roster NPC not already there.

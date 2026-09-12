@@ -3999,3 +3999,6 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .panel-popout .sidebar-panel > .context-panel > .encounter-roster-heading { display: none; }
 .panel-popout .encounter-tracker-row { font-size: 11px; }
 .panel-popout .encounter-tracker-summary { padding: 3px 5px; }
+.context-menu-heading { font-size: 9px; letter-spacing: .12em; color: var(--muted); padding: 5px 8px 2px; border-top: 1px dotted var(--disabled); margin-top: 2px; }
+.context-menu button.has-submenu::after { content: ' \25B8'; float: right; color: var(--muted); }
+.context-menu.is-submenu { min-width: 200px; }
