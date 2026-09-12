@@ -544,21 +544,22 @@ Mass        d2 (~10 lbs)   Profile /2
 **GW source:** AC 3, HD 20, MV 10. 3.5m carnivorous mutated beetle, flightless. Wing case reflects sonic. Acid stream 30m, 15d6 dmg, eats through 1/2 cm duralloy in 3 turns. All-weather tracking.
 **Encounter tables:** clear, mountains, forest (Tier 3, 3 tables)
 **Number appearing:** 1
-**Build:** A/P Insect, High power level (HD 20 boss)
+**Build:** Mutated insect; individually priced source traits
 
 ```
-Base BCs:    ST 10  EN 10  AG 10  IN 5  CL 10
-Size mod:    +9 ST, +9 EN  (Size Change Larger 15 CP, 12' tier)
-Effective:   ST 19  EN 19  AG 10  IN 5  CL 10
+Base BCs:    ST 10  EN 10  AG 10  IN 10  CL 10
+Size mod:    +9 ST, +9 EN  (Size Change Larger 12'; permanent: Stays Active +2.5, Can't Hold Back -5; final 12.5 CP)
+Effective:   ST 19  EN 19  AG 10  IN 10  CL 10
 
-Hits        16      Power 53      Move 16      Init d4
-HTH         d8+1    Inventing 3   Mass d8 (~1000 lbs)   Profile x2
+Hits        16      Power 58      Move 16      Init d4
+HTH         d8+1    Inventing 5   Mass d8 (~1000 lbs)   Profile x2
 ```
 
-**Abilities:** A/P Insect High (30 CP — Natural Weaponry mandibles, Heightened Senses all-weather tracking, Heightened Attack +1d6, Reflection Sonic), Size Change Larger 12' (15 CP), Power Blast Bio acid stream 30m ~3d8 sharp/bio (25 CP), Armor 12 = 8/2/0/2 (20 CP)
-**Weaknesses (in A/P bundle):** Lowered Intelligence -5, Distinctive -5, Compulsion (fight to death) -5
+**Abilities:** Size Change Larger 12' (base 15 CP; Stays Active +2.5; Can't Hold Back -5; final 12.5 CP); Natural Weaponry mandibles (+0 attack 0 CP; +4 sharp damage 5 CP; final 5 CP); Heightened Senses: all-weather tracking (final 10 CP); Reflection: Sonic (final 5 CP); Power Blast: Bio acid stream, 30m, 3d8 sharp/bio (final 25 CP); Armor 12 = 8/2/0/2 K/E/B/Ent (final 20 CP).
+**Weaknesses:** None inherent.
 **Tactics:** Acid stream at range first; closes only when prey wounded. Reflective wing case turns sonic attacks back on attacker.
-**CP estimate:** ~90
+**CP ledger:** BCs 68 + Abilities 77.5 + Weaknesses 0 = 145.5; round up = **146 CP**.
+**CP estimate:** 146
 **Origin:** Mutated or Evolved
 
 ---
@@ -568,21 +569,23 @@ HTH         d8+1    Inventing 3   Mass d8 (~1000 lbs)   Profile x2
 **GW source:** AC 3, HD 18, MV 12. 3m half-man-half-snake, arid regions. Telepathic, MS 12. Mass mind, sonic attack ability, +1 random mental mutation per individual. Scaly skin laser+sonic resistant. Matriarchal (queen + 70 males). No spoken language — all telepathic. Use Ancient artifacts.
 **Encounter tables:** mountains, forest, water, radioactive (Tier 3, 4 tables)
 **Number appearing:** 1d10
-**Build:** Humanoid (intelligent — no A/P)
+**Build:** Mutated humanoid; individually priced source traits
 
 ```
-Base BCs:    ST 12  EN 14  AG 14  IN 12  CL 12
-Size mod:    +5 ST, +4 EN  (Size Change Larger 7.5 CP, 9' tier)
-Effective:   ST 17  EN 18  AG 14  IN 12  CL 12
+Base BCs:    ST 10  EN 10  AG 10  IN 10  CL 10
+Size mod:    +5 ST, +4 EN  (Size Change Larger 9'; permanent: Stays Active +2.5, Can't Hold Back -5; final 5 CP)
+Effective:   ST 15  EN 14  AG 10  IN 10  CL 10
 
-Hits        17      Power 61      Move 16      Init d6
-HTH         d6+1    Inventing 7   Mass d6 (~400 lbs)   Profile x1.5
+Hits        11      Power 49      Move 12      Init d4
+HTH         d6+1    Inventing 5   Mass d6 (~400 lbs)   Profile x1.5
 ```
 
-**Abilities:** Size Change Larger 9' (7.5 CP), Telepathy visual+verbal (10 CP), Sonic Abilities A + Area Effect (12.5 CP), Random mutation per individual ~10 CP (roll on §10-12), Armor 12 = 6/3/1/2 (20 CP — laser/sonic-weighted)
-**Mass Mind:** Narrative coordination — when 3+ hissers act together, +1 to hit, shared awareness. No CP cost.
+**Abilities:** Size Change Larger 9' (base 7.5 CP; Stays Active +2.5; Can't Hold Back -5; final 5 CP); Telepathy visual+verbal (final 10 CP; also supports mass-mind coordination); Sonic Abilities A + Area Effect (final 12.5 CP); Armor 12 = 6/3/1/2 K/E/B/Ent (final 20 CP — laser/sonic-weighted).
+**Mass Mind:** A use of Telepathy for group coordination, not a separate Ability.
 **Equipment:** Recovered tech artifact per individual (~10-15 CP)
-**CP estimate:** ~60 + per-individual mutation + equipment
+**Individual mutation:** Roll one additional GW mental mutation per Hisser and add its final MP CP to this base ledger; recheck caps after adding it.
+**CP ledger:** BCs 59 + Abilities 47.5 + Weaknesses 0 = 106.5; round up = **107 CP**, before the individual mutation and equipment.
+**CP estimate:** 107 base + individual mutation + equipment
 **Origin:** Mutated or Evolved
 **Note:** 1 in 70 is queen-aspirant: + Heightened Cool +6, Heightened Defense Mental.
 
@@ -1138,21 +1141,22 @@ GW HP equivalent: 72
 **GW source:** AC 5, HD 17, MV 10. Mutated land-shark. Telekinetic sand-burrowing. Detects creatures up to 50m. Springs from ground, bites 9d6, burrows back, maneuvers 1-2 turns underground, attacks from new direction.
 **Encounter tables:** mountains, forest, desert (Tier 3, 3 tables)
 **Number appearing:** 1d6
-**Build:** A/P Fish, Standard power level
+**Build:** Mutated land-shark; individually priced source traits
 
 ```
-Base BCs:    ST 10  EN 8  AG 6  IN 4  CL 10
-Size mod:    +9 ST, +9 EN  (Size Change Larger 15 CP, 12' tier)
-Effective:   ST 19  EN 17  AG 6  IN 4  CL 10
+Base BCs:    ST 10  EN 10  AG 10  IN 10  CL 10
+Size mod:    +9 ST, +9 EN  (Size Change Larger 12'; permanent: Stays Active +2.5, Can't Hold Back -5; final 12.5 CP)
+Effective:   ST 19  EN 19  AG 10  IN 10  CL 10
 
-Hits        13      Power 46      Move 14 ground   Init d4
-HTH         d8+1    Inventing 2   Mass d10 (~2000 lbs)   Profile x2
+Hits        16      Power 58      Move 14 ground   Init d4
+HTH         d8+1    Inventing 5   Mass d10 (~2000 lbs)   Profile x2
 ```
 
-**Abilities:** A/P Fish Standard (20 CP — Natural Weaponry massive bite ~2d10 sharp, Heightened Senses 50m, Tunneling associated with bite for sand-burrow primary locomotion — Max SR 2 sand 5 CP + Max Speed 12 = 10 CP, total 15 CP within or supplementing A/P), Size Change Larger 12' (15 CP), Tunneling (sand burrow, Max SR 2, Max Speed 12, +2 dmg bonus on bite from CP overflow) (15 CP — supplement ability), Heightened Strength ~+4 (4 CP), Heightened Attack +2 hit (4 CP), Armor 8 = 5/1/0/2 (12.5 CP — hide)
-**Weaknesses (in A/P bundle):** Lowered Intelligence -5, Distinctive -5
+**Abilities:** Size Change Larger 12' (base 15 CP; Stays Active +2.5; Can't Hold Back -5; final 12.5 CP); Natural Weaponry bite (+0 attack 0 CP; +4 sharp damage 5 CP; final 5 CP); Heightened Attack +1d6 (final 5 CP); Heightened Senses: detects creatures to 50m (final 7.5 CP); Tunneling: telekinetic sand-burrow, Max SR 2 / Max Speed 12 (final 15 CP); Armor 8 = 5/1/0/2 K/E/B/Ent (final 12.5 CP).
+**Weaknesses:** None inherent.
 **Tactics:** Burrow → ambush → bite (9d6) → re-burrow → reposition 1-2 turns → attack from new angle.
-**CP estimate:** ~70
+**CP ledger:** BCs 68 + Abilities 57.5 + Weaknesses 0 = 125.5; round up = **126 CP**.
+**CP estimate:** 126
 **Origin:** Mutated or Evolved
 **Note:** Tunneling cleanly models sand-burrow locomotion (per New Abilities supplement). +2 bite damage bonus from Tunneling CP overflow stacks with massive bite.
 

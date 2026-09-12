@@ -749,11 +749,11 @@
       "name": "Herp",
       "aliases": [],
       "gwSource": "AC 3, HD 20, MV 10. 3.5m carnivorous mutated beetle, flightless. Wing case reflects sonic. Acid stream 30m, 15d6 dmg, eats through 1/2 cm duralloy in 3 turns. All-weather tracking.",
-      "build": "A/P Insect, High power level (HD 20 boss)",
+      "build": "Mutated insect; individually priced source traits",
       "origin": "Mutated or Evolved",
-      "cpEstimate": "~90",
-      "abilities": "A/P Insect High (30 CP — Natural Weaponry mandibles, Heightened Senses all-weather tracking, Heightened Attack +1d6, Reflection Sonic), Size Change Larger 12' (15 CP), Power Blast Bio acid stream 30m ~3d8 sharp/bio (25 CP), Armor 12 = 8/2/0/2 (20 CP)",
-      "weaknesses": "Lowered Intelligence -5, Distinctive -5, Compulsion (fight to death) -5",
+      "cpEstimate": "146",
+      "abilities": "Size Change Larger 12' (base 15 CP; Stays Active +2.5; Can't Hold Back -5; final 12.5 CP); Natural Weaponry mandibles (+0 attack 0 CP; +4 sharp damage 5 CP; final 5 CP); Heightened Senses: all-weather tracking (final 10 CP); Reflection: Sonic (final 5 CP); Power Blast: Bio acid stream, 30m, 3d8 sharp/bio (final 25 CP); Armor 12 = 8/2/0/2 K/E/B/Ent (final 20 CP).",
+      "weaknesses": "None inherent.",
       "equipment": null,
       "forms": [
         {
@@ -761,15 +761,15 @@
             "ST": 19,
             "EN": 19,
             "AG": 10,
-            "IN": 5,
+            "IN": 10,
             "CL": 10
           },
           "hits": "16",
-          "power": "53",
+          "power": "58",
           "move": "16",
           "init": "d4",
           "hth": "d8+1",
-          "inventing": "3",
+          "inventing": "5",
           "mass": "d8 (~1000 lbs)",
           "form": null
         }
@@ -789,27 +789,27 @@
       "name": "Hisser",
       "aliases": [],
       "gwSource": "AC 3, HD 18, MV 12. 3m half-man-half-snake, arid regions. Telepathic, MS 12. Mass mind, sonic attack ability, +1 random mental mutation per individual. Scaly skin laser+sonic resistant. Matriarchal (queen + 70 males). No spoken language — all telepathic. Use Ancient artifacts.",
-      "build": "Humanoid (intelligent — no A/P)",
+      "build": "Mutated humanoid; individually priced source traits",
       "origin": "Mutated or Evolved",
-      "cpEstimate": "~60 + per-individual mutation + equipment",
-      "abilities": "Size Change Larger 9' (7.5 CP), Telepathy visual+verbal (10 CP), Sonic Abilities A + Area Effect (12.5 CP), Random mutation per individual ~10 CP (roll on §10-12), Armor 12 = 6/3/1/2 (20 CP — laser/sonic-weighted)",
+      "cpEstimate": "107 base + individual mutation + equipment",
+      "abilities": "Size Change Larger 9' (base 7.5 CP; Stays Active +2.5; Can't Hold Back -5; final 5 CP); Telepathy visual+verbal (final 10 CP; also supports mass-mind coordination); Sonic Abilities A + Area Effect (final 12.5 CP); Armor 12 = 6/3/1/2 K/E/B/Ent (final 20 CP — laser/sonic-weighted).",
       "weaknesses": null,
       "equipment": "Recovered tech artifact per individual (~10-15 CP)",
       "forms": [
         {
           "bc": {
-            "ST": 17,
-            "EN": 18,
-            "AG": 14,
-            "IN": 12,
-            "CL": 12
+            "ST": 15,
+            "EN": 14,
+            "AG": 10,
+            "IN": 10,
+            "CL": 10
           },
-          "hits": "17",
-          "power": "61",
-          "move": "16",
-          "init": "d6",
+          "hits": "11",
+          "power": "49",
+          "move": "12",
+          "init": "d4",
           "hth": "d6+1",
-          "inventing": "7",
+          "inventing": "5",
           "mass": "d6 (~400 lbs)",
           "form": null
         }
@@ -1506,27 +1506,27 @@
       "name": "Sep",
       "aliases": [],
       "gwSource": "AC 5, HD 17, MV 10. Mutated land-shark. Telekinetic sand-burrowing. Detects creatures up to 50m. Springs from ground, bites 9d6, burrows back, maneuvers 1-2 turns underground, attacks from new direction.",
-      "build": "A/P Fish, Standard power level",
+      "build": "Mutated land-shark; individually priced source traits",
       "origin": "Mutated or Evolved",
-      "cpEstimate": "~70",
-      "abilities": "A/P Fish Standard (20 CP — Natural Weaponry massive bite ~2d10 sharp, Heightened Senses 50m, Tunneling associated with bite for sand-burrow primary locomotion — Max SR 2 sand 5 CP + Max Speed 12 = 10 CP, total 15 CP within or supplementing A/P), Size Change Larger 12' (15 CP), Tunneling (sand burrow, Max SR 2, Max Speed 12, +2 dmg bonus on bite from CP overflow) (15 CP — supplement ability), Heightened Strength ~+4 (4 CP), Heightened Attack +2 hit (4 CP), Armor 8 = 5/1/0/2 (12.5 CP — hide)",
-      "weaknesses": "Lowered Intelligence -5, Distinctive -5",
+      "cpEstimate": "126",
+      "abilities": "Size Change Larger 12' (base 15 CP; Stays Active +2.5; Can't Hold Back -5; final 12.5 CP); Natural Weaponry bite (+0 attack 0 CP; +4 sharp damage 5 CP; final 5 CP); Heightened Attack +1d6 (final 5 CP); Heightened Senses: detects creatures to 50m (final 7.5 CP); Tunneling: telekinetic sand-burrow, Max SR 2 / Max Speed 12 (final 15 CP); Armor 8 = 5/1/0/2 K/E/B/Ent (final 12.5 CP).",
+      "weaknesses": "None inherent.",
       "equipment": null,
       "forms": [
         {
           "bc": {
             "ST": 19,
-            "EN": 17,
-            "AG": 6,
-            "IN": 4,
+            "EN": 19,
+            "AG": 10,
+            "IN": 10,
             "CL": 10
           },
-          "hits": "13",
-          "power": "46",
+          "hits": "16",
+          "power": "58",
           "move": "14 ground",
           "init": "d4",
           "hth": "d8+1",
-          "inventing": "2",
+          "inventing": "5",
           "mass": "d10 (~2000 lbs)",
           "form": null
         }
