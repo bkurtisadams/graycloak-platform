@@ -3960,3 +3960,5 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .encounter-tracker-wounds { font-size: 11px; font-weight: 700; min-width: 3.5em; text-align: right; }
 .scene-token.is-pinged .scene-token-body { animation: token-ping 0.4s ease-out 3; }
 @keyframes token-ping { 0%, 100% { stroke: #111311; stroke-width: 1.2; } 50% { stroke: #d8b53a; stroke-width: 4; } }
+.encounter-tracker-conditions { display: flex; flex-direction: column; gap: 2px; padding-top: 6px; border-top: 1px dotted var(--disabled); }
+.encounter-tracker-condition { display: flex; align-items: center; gap: 5px; font-size: 10px; letter-spacing: .04em; }

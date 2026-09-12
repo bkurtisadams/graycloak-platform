@@ -262,7 +262,7 @@ import {
   declaredTargetCounts,
   addEncounterCombatantFromActor,
   removeEncounterCombatant,
-  setEncounterCombatantCondition, opponentSpecFromNpcActor } from '../src/encounter-document.js';
+  setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters } from '../src/encounter-document.js';
 
 import {
   createContactDocument,
@@ -501,6 +501,7 @@ const el = {
   sceneSave: document.querySelector('#scene-save'),
   sceneStatus: document.querySelector('#scene-status'),
   combatScene: document.querySelector('#combat-scene'),
+  combatSetupBoard: document.querySelector('#combat-setup-board'),
   rosterFolders: document.querySelector('#roster-folders'),
   rosterNewActor: document.querySelector('#roster-new-actor'),
   rollDialog: document.querySelector('#roll-dialog'),
@@ -6033,7 +6034,10 @@ function renderSceneTracker(scene) {
   start.title = canStart ? 'Begin the fight with the tracked tokens where they stand' : 'Track at least one party token and one opponent first';
   const setup = makePortButton('MANUAL SETUP', openCombatSetupDialog);
   setup.title = 'The combat setup dialog: opponents by hand, without staging';
+  setup.textContent = '[ FIGHT WITHOUT A SCENE ]';
+  setup.title = 'The manual setup dialog: opponents by hand, on a board sized to the range';
   el.encounterResolve.replaceChildren(start, setup);
+  renderSceneSurpriseConditions(el.encounterResolve);
 }
 
 function showStagedTokenMenu(event, scene, token) {
@@ -6090,6 +6094,35 @@ function placeActorOnScene() {
 // The fight begins with the tracked tokens where they stand. The initial
 // range is read off the closest party/opponent pair; surprise is rolled as
 // in the setup dialog; the tracker is then cleared.
+// v0.85.1: the Book 1 p.31 surprise conditions were reachable only through the
+// manual dialog, so a fight begun from a staged scene could not say the party
+// was in a vehicle or in battle dress — a rule available from one direction
+// only. The tracker carries them now and both paths read the same state.
+let sceneSurpriseConditions = { party: { inAVehicle: false, battleDress: false }, opposition: { inAVehicle: false, battleDress: false, pouncerAnimals: false } };
+
+function renderSceneSurpriseConditions(container) {
+  const row = document.createElement('div');
+  row.className = 'encounter-tracker-conditions';
+  row.append(Object.assign(document.createElement('div'), { className: 'sidebar-group-title', textContent: 'SURPRISE (BOOK 1 P.31)' }));
+  const toggle = (label, side, key, title) => {
+    const wrap = document.createElement('label');
+    wrap.className = 'encounter-tracker-condition';
+    wrap.title = title;
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = sceneSurpriseConditions[side][key];
+    box.addEventListener('change', () => { sceneSurpriseConditions[side][key] = box.checked; });
+    wrap.append(box, Object.assign(document.createElement('span'), { textContent: label }));
+    row.append(wrap);
+  };
+  toggle('PARTY IN A VEHICLE −1', 'party', 'inAVehicle', 'Book 1 p.31: a party in a vehicle is less likely to surprise');
+  toggle('PARTY BATTLE DRESS +2', 'party', 'battleDress', 'Book 1 p.31: battle dress aids surprise');
+  toggle('FOES IN A VEHICLE −1', 'opposition', 'inAVehicle', 'Book 1 p.31');
+  toggle('FOES BATTLE DRESS +2', 'opposition', 'battleDress', 'Book 1 p.31');
+  toggle('FOES POUNCERS +2', 'opposition', 'pouncerAnimals', 'Book 1 p.31: pouncing animals aid surprise');
+  container.append(row);
+}
+
 function startCombatFromScene(scene) {
   try {
     if (!campaignDocument || !gameplayDocument) throw new Error('an active campaign character is required');
@@ -6112,7 +6145,9 @@ function startCombatFromScene(scene) {
     let encounter = createEncounterDocument({
       campaign: campaignDocument, scene, characters, partyLoadouts, opponents,
       title: `${scene.identity.name} / ${opponents.map((entry) => entry.name).join(' + ')}`,
-      encounterKey, date, range, dice: seededDice(`${encounterKey}|surprise`)
+      encounterKey, date, range,
+      surpriseConditions: JSON.parse(JSON.stringify(sceneSurpriseConditions)),
+      dice: seededDice(`${encounterKey}|surprise`)
     });
     if (encounter.surprise.surpriseSideId === 'opposition') {
       const result = resolveEncounterRound(encounter, { action: 'wait', date, dice: seededDice(`${encounter.identity.id}|round-1|surprise`) });
@@ -6309,8 +6344,25 @@ function combatSetupDropZone() {
   });
 }
 
+// v0.85.1: the dialog claimed a "32 x 20 VISUAL WORKSPACE", which stopped
+// being true at v0.71.0 when boards became sized to the fight. It now reports
+// the board these settings will actually produce, from the same function that
+// builds it.
+function renderCombatSetupBoard() {
+  if (!el.combatSetupBoard) return;
+  const scene = sceneDocuments.find((entry) => entry.identity.id === el.combatScene?.value) ?? null;
+  if (scene) {
+    el.combatSetupBoard.textContent = `BOARD: ${scene.identity.name} — ${scene.board.squares} squares of ${scene.board.metersPerSquare} m (${sceneBoardMeters(scene)} m a side), tokens where they stand.`;
+    return;
+  }
+  const gridScale = el.combatMapScale.value === '' ? 5 : Number.parseFloat(el.combatMapScale.value);
+  const meters = encounterBoardMeters(el.combatStartingRange.value, gridScale);
+  el.combatSetupBoard.textContent = `BOARD: ${meters / gridScale} squares of ${gridScale} m (${meters} m a side), sized to ${el.combatStartingRange.value.replace('-', ' ')} range.`;
+}
+
 function openCombatSetupDialog() {
   combatSetupDropZone();
+  renderCombatSetupBoard();
   if (!campaignDocument || !gameplayDocument || !mappedCurrentSystem()) {
     setStatus('AN ACTIVE CHARACTER AT A MAPPED CAMPAIGN LOCATION IS REQUIRED', 'error');
     return;
@@ -8524,6 +8576,10 @@ el.rollDialog.addEventListener('cancel', (event) => {
   event.preventDefault();
   closeRollDialog();
 });
+// Keep the board line honest as the settings change.
+for (const control of [el.combatStartingRange, el.combatMapScale, el.combatScene]) {
+  control?.addEventListener('change', renderCombatSetupBoard);
+}
 el.combatSetupClose.addEventListener('click', closeCombatSetupDialog);
 el.combatSetupCancel.addEventListener('click', closeCombatSetupDialog);
 el.encounterPlacementClose.addEventListener('click', closeEncounterPlacementDialog);

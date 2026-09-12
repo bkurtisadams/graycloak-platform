@@ -1,5 +1,30 @@
 # Graycloak Traveller
 
+## v0.85.1 the manual dialog stops lying, and surprise reaches both paths
+
+The manual dialog stays — it is the only way to build a fight that is not on
+a scene, and a referee who wants "three raiders at long range, and they
+surprised us" should not have to place six tokens first. But it needed three
+corrections.
+
+It announced a `32 × 20 VISUAL WORKSPACE`, which stopped being true at
+v0.71.0 when boards became sized to the fight, and had been wrong for
+fourteen versions. It now reports the board the current settings will
+actually produce — read from `encounterBoardMeters()`, the same function that
+builds it — and updates as the range, grid scale or scene changes. Pick a
+scene in the dialog and it names that scene's board instead.
+
+The Book 1 p.31 **surprise conditions** were reachable only through the
+dialog, so a fight begun from a staged scene's tracker could not record that
+the party was in a vehicle or wearing battle dress — a rule available from
+one direction only, which is the kind of gap that quietly makes the engine
+wrong rather than merely awkward. The tracker carries all five toggles now,
+and both paths pass the same conditions into the document.
+
+And `[ MANUAL SETUP ]` reads `[ FIGHT WITHOUT A SCENE ]`, because sitting
+next to START COMBAT it looked like another route to the same thing rather
+than the route for when there is no board.
+
 ## v0.85.0 the combat tracker takes Foundry's gestures; the build says what it is
 
 **The tracker.** The header names the state — NOT STARTED before anything has

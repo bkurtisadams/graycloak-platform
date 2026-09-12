@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <!-- v0.85.0: Foundry's interaction model. The canvas is permanent; scene
+  <!-- v0.85.1: Foundry's interaction model. The canvas is permanent; scene
        layers and their contextual tools stay left, while one collapsible
        game directory or tracker opens from the right rail. -->
   <main class="terminal shell" aria-labelledby="app-title">
@@ -16,7 +16,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.85.0</div>
+          <div id="app-subtitle" class="subtitle">v0.85.1</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -530,7 +530,8 @@
           <strong id="combat-setup-title">START COMBAT</strong>
           <button id="combat-setup-close" class="text-button" type="button">[ CLOSE ]</button>
         </div>
-        <div class="roll-dialog-basis">MANUAL PERSONAL ENCOUNTER // 32 × 20 VISUAL WORKSPACE
+        <div class="roll-dialog-basis">MANUAL PERSONAL ENCOUNTER &mdash; A FIGHT WITHOUT A SCENE. To fight on a staged scene instead, activate it and use the combat tracker's START COMBAT.
+<span id="combat-setup-board">BOARD: sized to the starting range.</span>
 Dragging tokens suggests a range band. Book 1 range changes only through an explicit combat or referee action.</div>
         <div class="combat-roster-picker"><label>ROSTER ACTOR<select id="combat-roster-actor"><option value="">-- SELECT SAVED NPC --</option></select></label><button id="combat-add-roster-actor" class="text-button" type="button">[ ADD TO SETUP ]</button></div>
         <div id="combat-enemy-groups" class="combat-enemy-groups">
