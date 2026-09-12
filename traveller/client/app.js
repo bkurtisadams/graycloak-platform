@@ -541,7 +541,6 @@ const el = {
   combatEnemyArmor: document.querySelector('#combat-enemy-armor'),
   combatStartingRange: document.querySelector('#combat-starting-range'),
   combatMapScale: document.querySelector('#combat-map-scale'),
-  combatSpatialMode: document.querySelector('#combat-spatial-mode'),
   combatPartyVehicle: document.querySelector('#combat-party-vehicle'),
   combatPartyBattleDress: document.querySelector('#combat-party-battledress'),
   combatEnemyVehicle: document.querySelector('#combat-enemy-vehicle'),
@@ -7024,24 +7023,24 @@ function combatSetupDropZone() {
 // builds it.
 function renderCombatSetupBoard() {
   if (!el.combatSetupBoard) return;
-  const scene = sceneDocuments.find((entry) => entry.identity.id === el.combatScene?.value) ?? null;
-  // v0.96.3: range-line only makes sense with no scene to draw a grid on —
-  // choosing a scene always means a real, mapped board, so the selector is
-  // forced back and disabled the moment a scene is picked.
-  if (el.combatSpatialMode) {
-    el.combatSpatialMode.disabled = Boolean(scene);
-    if (scene) el.combatSpatialMode.value = 'scene';
-  }
-  if (scene) {
-    el.combatSetupBoard.textContent = `BOARD: ${scene.identity.name} — ${scene.board.squares} squares of ${scene.board.metersPerSquare} m (${sceneBoardMeters(scene)} m a side), tokens where they stand.`;
-    return;
-  }
-  if (el.combatSpatialMode?.value === 'range-line') {
+  // v0.96.4: SCENE and a separate BOARD selector used to interact silently —
+  // SCENE defaulted to whatever the campaign calls its "active" scene (even
+  // while viewing the subsector, with no scene on the canvas), which forced
+  // BOARD back to a tactical grid whether or not that was ever chosen. One
+  // dropdown carrying all three choices removes the hidden interaction
+  // entirely: what you see in SCENE is the whole decision.
+  const boardValue = el.combatScene?.value ?? '';
+  if (boardValue === 'range-line') {
     if (el.combatMapScale) el.combatMapScale.disabled = true;
     el.combatSetupBoard.textContent = `BOARD: Book 1 range line — one row per band, no map. Starting range: ${el.combatStartingRange.value.replace('-', ' ')}.`;
     return;
   }
   if (el.combatMapScale) el.combatMapScale.disabled = false;
+  const scene = sceneDocuments.find((entry) => entry.identity.id === boardValue) ?? null;
+  if (scene) {
+    el.combatSetupBoard.textContent = `BOARD: ${scene.identity.name} — ${scene.board.squares} squares of ${scene.board.metersPerSquare} m (${sceneBoardMeters(scene)} m a side), tokens where they stand.`;
+    return;
+  }
   const gridScale = el.combatMapScale.value === '' ? 5 : Number.parseFloat(el.combatMapScale.value);
   const meters = encounterBoardMeters(el.combatStartingRange.value, gridScale);
   el.combatSetupBoard.textContent = `BOARD: ${meters / gridScale} squares of ${gridScale} m (${meters} m a side), sized to ${el.combatStartingRange.value.replace('-', ' ')} range.`;
@@ -7065,7 +7064,7 @@ function openCombatSetupDialog() {
   el.combatRosterActor.replaceChildren(...options);
   // v0.72.0: the fight may be on a scene; the active one is offered first.
   if (el.combatScene) {
-    const sceneOptions = [new Option('SIZED TO THE FIGHT', '')];
+    const sceneOptions = [new Option('SIZED TO THE FIGHT', ''), new Option('BOOK 1 RANGE LINE (UNMAPPED)', 'range-line')];
     for (const { folder, scenes } of sceneFolders(sceneDocuments)) for (const scene of scenes) {
       sceneOptions.push(new Option(`${folder} / ${scene.identity.name} / ${sceneBoardMeters(scene)} M`, scene.identity.id));
     }
@@ -7171,8 +7170,9 @@ function startManualEncounter() {
     armor: entry.loadout?.armor ?? 'none'
   }]));
   const typeTitle = setup.groups.map((entry) => entry.baseName).join(' + ');
-  const scene = sceneDocuments.find((entry) => entry.identity.id === el.combatScene?.value) ?? null;
-  const spatialMode = scene ? 'scene' : (el.combatSpatialMode?.value === 'range-line' ? 'range-line' : 'scene');
+  const boardValue = el.combatScene?.value ?? '';
+  const scene = boardValue === 'range-line' ? null : (sceneDocuments.find((entry) => entry.identity.id === boardValue) ?? null);
+  const spatialMode = boardValue === 'range-line' ? 'range-line' : 'scene';
   let encounter = createEncounterDocument({
     campaign: campaignDocument,
     scene,
@@ -9313,7 +9313,7 @@ el.rollDialog.addEventListener('cancel', (event) => {
   closeRollDialog();
 });
 // Keep the board line honest as the settings change.
-for (const control of [el.combatStartingRange, el.combatMapScale, el.combatScene, el.combatSpatialMode]) {
+for (const control of [el.combatStartingRange, el.combatMapScale, el.combatScene]) {
   control?.addEventListener('change', renderCombatSetupBoard);
 }
 el.combatSetupClose.addEventListener('click', closeCombatSetupDialog);
