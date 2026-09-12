@@ -1,5 +1,43 @@
 # Graycloak Traveller
 
+## v0.94.0 the rebuild, part one: an encounter that exists before the fight
+
+Foundry's documentation names the mistake exactly. There, you add a combatant
+by right-clicking a token and toggling its combat state, and **if an encounter
+does not exist on the scene, an encounter is created for the combatant**. One
+list. The tracker *is* the combat document; adding a token creates or joins
+it; Begin Combat starts round one on whoever is in it.
+
+What I built was a staging concept Foundry does not have: an `inCombat` flag
+on each scene token, read later by START COMBAT to build a *separate*
+encounter document with its own combatant list. Two parallel lists of "who is
+fighting", which is the single cause of six versions of bugs —
+v0.92.4 (the tracker you see and the one the button reads were different
+lists), v0.93.1 (flags emptied by code that no longer runs), v0.93.3 (the
+board was one list, the scene the other). I kept fixing the symptom because I
+never questioned the design.
+
+This pass rebuilds the document so one list is possible. The encounter gains
+a **`setup`** status: it exists, holds any number of combatants including
+none, and is not yet a fight. `addEncounterCombatantFromCharacter()` is the
+counterpart of `addEncounterCombatantFromActor()` — a party character can now
+join an existing encounter, which was impossible before, and is exactly why
+the client had to gather everybody in advance. `beginEncounter()` turns setup
+into active, refusing until both sides are present, and **rolls surprise
+there** rather than at creation, because that is when the fight starts. Four
+validator rules that assumed a begun fight now allow setup. One-shot creation
+is untouched, so nothing that works today changes.
+
+Also: one scrollbar in the tracker instead of two. The panel scrolled and the
+tracker inside it scrolled as well; the panel scrolls now and the tracker
+sizes to its content.
+
+**Part two** wires the client to this: ADD TO COMBAT creates or joins the
+encounter, START COMBAT becomes BEGIN COMBAT over the encounter's own
+combatants, `inCombat` and `trackedSceneTokens` are deleted, and TRACK ALL
+becomes "add every token on this scene". That removes code rather than adding
+it, and makes those six bugs structurally impossible.
+
 ## v0.93.3 the board was another fight's, and the scene was empty
 
 `gcDebug.combat()` gave the answer in one line: `tokens: Array(0)`. The

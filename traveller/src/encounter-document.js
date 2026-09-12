@@ -42,7 +42,12 @@ export const ESCAPE_RANGE_DMS = Object.freeze({ close: -1, short: -1, medium: 1,
 // computed per attacker-target pair from map positions, so the guide marker
 // records which policy resolved a stored encounter.
 export const ENCOUNTER_RANGE_GUIDE_VERSION = 'graycloak-meter-grid-v4';
-export const ENCOUNTER_STATUSES = Object.freeze(['active', 'victory', 'defeat', 'escaped', 'avoided', 'opposition-withdrew']);
+// v0.94.0: 'setup' is the phase Foundry's tracker occupies — the encounter
+// exists and collects combatants, and BEGIN COMBAT turns it into a fight. Our
+// document required two combatants with opposing sides at creation, which is
+// why the client had to keep a second list of "who will fight" on the scene
+// and why that list kept diverging from this one.
+export const ENCOUNTER_STATUSES = Object.freeze(['setup', 'active', 'victory', 'defeat', 'escaped', 'avoided', 'opposition-withdrew']);
 export const ENCOUNTER_ACTOR_TYPES = Object.freeze(['pc', 'npc', 'robot', 'creature']);
 export const ENCOUNTER_BODY_MODELS = Object.freeze(['biological', 'robotic', 'hybrid']);
 export const ENCOUNTER_CONDITIONS = Object.freeze({
@@ -135,20 +140,22 @@ function characterEncounterStatus(character) {
   if (character.status?.consciousness === 'unconscious') return 'unconscious';
   return 'active';
 }
-function partyDocuments(character, characters) {
+function partyDocuments(character, characters, { allowEmpty = false } = {}) {
   const entries = Array.isArray(characters) && characters.length ? characters : character ? [character] : [];
+  if (allowEmpty && !entries.length) return entries;
   if (!entries.length || entries.some((entry) => !entry?.identity?.id)) throw new TypeError('one or more party characters are required');
   if (entries.length > 8) throw new RangeError('an encounter supports at most eight party characters');
   if (new Set(entries.map((entry) => entry.identity.id)).size !== entries.length) throw new TypeError('party character IDs must be unique');
-  if (entries.every((entry) => characterEncounterStatus(entry) !== 'active')) throw new Error('at least one conscious living party character is required');
+  if (!allowEmpty && entries.every((entry) => characterEncounterStatus(entry) !== 'active')) throw new Error('at least one conscious living party character is required');
   return entries;
 }
 
-export function createEncounterDocument({ campaign, situation = null, scene = null, character = null, characters = null, partyLoadouts = {}, opponent = null, opponents = null, title = null, encounterKey = null, date, range = 'medium', metersPerSquare = null, boardMeters = null, surpriseConditions = {}, dice } = {}) {
+export function createEncounterDocument({ campaign, situation = null, scene = null, character = null, characters = null, partyLoadouts = {}, opponent = null, opponents = null, title = null, encounterKey = null, date, range = 'medium', metersPerSquare = null, boardMeters = null, surpriseConditions = {}, setup = false, dice } = {}) {
   if (!campaign?.identity?.id) throw new TypeError('campaign is required');
-  const characterDocuments = partyDocuments(character, characters);
+  const characterDocuments = partyDocuments(character, characters, { allowEmpty: setup });
   const opponentSpecs = Array.isArray(opponents) && opponents.length ? opponents : opponent ? [opponent] : [];
-  if (!opponentSpecs.length || opponentSpecs.some((entry) => !nonblank(entry?.name))) throw new TypeError('one or more named opponents are required');
+  if (!setup && (!opponentSpecs.length || opponentSpecs.some((entry) => !nonblank(entry?.name)))) throw new TypeError('one or more named opponents are required');
+  if (setup && opponentSpecs.some((entry) => !nonblank(entry?.name))) throw new TypeError('an opponent needs a name');
   if (opponentSpecs.length > 16) throw new RangeError('an encounter supports at most sixteen opponents');
   if (!validDate(date)) throw new TypeError('valid encounter date is required');
   if (!PERSONAL_COMBAT_RANGES.includes(range)) throw new RangeError(`unknown personal combat range: ${range}`);
@@ -200,7 +207,9 @@ export function createEncounterDocument({ campaign, situation = null, scene = nu
     conditions: { party: partySurprise.conditions, opposition: oppositionSurprise.conditions }
   };
   const seed = `${campaign.identity.id}|${encounterKey ?? situation?.identity?.id ?? 'encounter'}|${date.year}-${date.dayOfYear}`;
-  const encounterTitle = nonblank(title) ? title.trim() : `Encounter / ${opponentSpecs[0].name}${opponentSpecs.length > 1 ? ` +${opponentSpecs.length - 1}` : ''}`;
+  const encounterTitle = nonblank(title) ? title.trim()
+    : opponentSpecs.length ? `Encounter / ${opponentSpecs[0].name}${opponentSpecs.length > 1 ? ` +${opponentSpecs.length - 1}` : ''}`
+    : scene ? `${scene.identity.name} / setting up` : 'Encounter / setting up';
   const document = {
     documentType: ENCOUNTER_DOCUMENT_TYPE,
     schemaVersion: CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION,
@@ -213,7 +222,7 @@ export function createEncounterDocument({ campaign, situation = null, scene = nu
       systemName: situation?.location?.systemName ?? campaign.location.systemName
     },
     timing: { createdDate: { year: date.year, dayOfYear: date.dayOfYear }, resolvedDate: null },
-    status: 'active', round: 1, range, surprise,
+    status: setup ? 'setup' : 'active', round: 1, range, surprise,
     conditions: { lighting: 'normal' },
     map: { grid: 'square', columns: board.columns, rows: board.rows, rangeGuide: ENCOUNTER_RANGE_GUIDE_VERSION, metersPerSquare: gridScale },
     roundState: { declaredActions: [] },
@@ -265,7 +274,7 @@ export function validateEncounterDocument(document) {
     add(errors, document.surprise.surpriseSideId === null || nonblank(document.surprise.surpriseSideId), 'surprise.surpriseSideId is invalid');
     add(errors, document.surprise.surprisedSideId === null || nonblank(document.surprise.surprisedSideId), 'surprise.surprisedSideId is invalid');
   }
-  add(errors, Array.isArray(document.combatants) && document.combatants.length >= 2, 'combatants must contain at least two entries');
+  add(errors, Array.isArray(document.combatants) && (document.status === 'setup' || document.combatants.length >= 2), 'combatants must contain at least two entries');
   if (Array.isArray(document.combatants)) for (const entry of document.combatants) {
     // A side is any nonblank label: 'party' and 'opposition' are the usual two,
     // but a third faction is a legitimate encounter.
@@ -291,8 +300,8 @@ export function validateEncounterDocument(document) {
     add(errors, Array.isArray(entry.contactIds) && entry.contactIds.every(nonblank), `combatant ${entry.name ?? ''} contacts are invalid`);
   }
   if (Array.isArray(document.combatants)) {
-    add(errors, document.combatants.some((entry) => entry.side === 'party'), 'combatants require a party side');
-    add(errors, document.combatants.some((entry) => entry.side !== 'party'), 'combatants require at least one side opposing the party');
+    add(errors, document.status === 'setup' || document.combatants.some((entry) => entry.side === 'party'), 'combatants require a party side');
+    add(errors, document.status === 'setup' || document.combatants.some((entry) => entry.side !== 'party'), 'combatants require at least one side opposing the party');
     add(errors, new Set(document.combatants.map((entry) => entry.id)).size === document.combatants.length, 'combatant IDs must be unique');
     const combatantIds = new Set(document.combatants.map((entry) => entry.id));
     add(errors, document.combatants.every((entry) => (entry.contactIds ?? []).every((id) => id !== entry.id && combatantIds.has(id))), 'contacts must name another combatant');
@@ -308,8 +317,8 @@ export function validateEncounterDocument(document) {
   if (Array.isArray(document.history)) for (const entry of document.history) {
     add(errors, Number.isInteger(entry.round) && entry.round >= 0 && nonblank(entry.kind) && nonblank(entry.text), 'history entry is invalid');
   }
-  add(errors, document.status === 'active' ? document.timing?.resolvedDate === null : validDate(document.timing?.resolvedDate), 'timing.resolvedDate does not match encounter status');
-  add(errors, document.status === 'active' ? document.outcome === null : plain(document.outcome), 'outcome does not match encounter status');
+  add(errors, ['setup', 'active'].includes(document.status) ? document.timing?.resolvedDate === null : validDate(document.timing?.resolvedDate), 'timing.resolvedDate does not match encounter status');
+  add(errors, ['setup', 'active'].includes(document.status) ? document.outcome === null : plain(document.outcome), 'outcome does not match encounter status');
   return errors;
 }
 
@@ -557,9 +566,15 @@ function actorConditionKeys(actor) {
 
 export function addEncounterCombatantFromActor(document, { actor, side = 'opposition', column, row } = {}) {
   const next = importEncounterDocument(document);
-  if (next.status !== 'active') throw new Error('encounter is already resolved');
+  // v0.94.0: setup accepts combatants too — that is the phase whose whole
+  // purpose is collecting them.
+  if (!['setup', 'active'].includes(next.status)) throw new Error('encounter is already resolved');
   if (!actor?.identity?.id || !actor?.identity?.name || !actor?.profile?.bodyModel) throw new TypeError('a roster actor is required');
   if (!['party', 'opposition'].includes(side)) throw new RangeError('combatant side must be party or opposition');
+  if (!Number.isInteger(column) || !Number.isInteger(row)) {
+    column = Math.round((next.map.columns - 1) * 0.75);
+    row = Math.round((next.map.rows - 1) / 2);
+  }
   if (next.combatants.some((entry) => entry.sourceActorId === actor.identity.id)) throw new Error(`${actor.identity.name} is already in this encounter`);
   const sideCount = next.combatants.filter((entry) => entry.side === side).length;
   const sideLimit = side === 'party' ? 8 : 16;
@@ -1181,4 +1196,67 @@ export function restoreCombatant(document, { combatantId } = {}) {
   return setCombatantCurrent(next, { combatantId, scores: {
     STR: combatant.characteristics.STR, DEX: combatant.characteristics.DEX, END: combatant.characteristics.END
   } });
+}
+
+// v0.94.0: a party character joins an encounter the same way a roster actor
+// does. Without this, one side of the tracker could only be populated at
+// creation, which is why the client had to gather everybody first.
+export function addEncounterCombatantFromCharacter(document, { character, loadout = {}, column, row } = {}) {
+  const next = importEncounterDocument(document);
+  if (!['setup', 'active'].includes(next.status)) throw new Error('encounter is already resolved');
+  if (!character?.identity?.id || !nonblank(character.identity.name)) throw new TypeError('a character document is required');
+  if (next.combatants.some((entry) => entry.id === character.identity.id)) throw new Error(`${character.identity.name} is already in this encounter`);
+  const military = ['Navy', 'Army', 'Marines', 'Scouts'].includes(character.career?.service);
+  const placed = Number.isInteger(column) && Number.isInteger(row)
+    ? { column, row }
+    : { column: Math.round((next.map.columns - 1) * 0.25), row: Math.round((next.map.rows - 1) / 2) };
+  const combatant = {
+    ...withPosition(withCurrentState(createPersonalCombatant({
+      id: character.identity.id, name: character.identity.name, side: 'party', playerCharacter: true,
+      characteristics: character.characteristics, skills: character.skills,
+      weaponKey: loadout.weaponKey ?? character.loadout?.weaponKey ?? 'hands',
+      armor: loadout.armor ?? character.loadout?.armor ?? 'none'
+    }), character.current, characterEncounterStatus(character)), placed),
+    cover: 'none', foldingStock: false, tactics: 'manual', militaryExperience: military,
+    sourceActorId: null, actorType: 'pc', bodyModel: 'biological',
+    tokenLabel: String(character.identity.name).charAt(0).toUpperCase(),
+    conditions: [], contactIds: []
+  };
+  next.combatants.push(combatant);
+  const entry = { round: next.round, kind: 'placement', side: 'party', combatantId: combatant.id, sourceActorId: null,
+    text: `${character.identity.name} joins the encounter at ${placed.column + 1},${placed.row + 1}.` };
+  next.history.push(entry);
+  assertValidEncounterDocument(next);
+  return { encounter: next, combatant, entry };
+}
+
+// setup -> active. Both sides must be present, and surprise is rolled here
+// rather than at creation, because that is when the fight actually starts.
+export function beginEncounter(document, { surpriseConditions = {}, dice } = {}) {
+  const next = importEncounterDocument(document);
+  if (next.status !== 'setup') throw new Error('encounter has already begun');
+  const party = next.combatants.filter((entry) => entry.side === 'party');
+  const foes = next.combatants.filter((entry) => entry.side !== 'party');
+  if (!party.length) throw new Error('add at least one party character to the tracker');
+  if (!foes.length) throw new Error('add at least one opponent to the tracker');
+  if (party.every((entry) => entry.status !== 'active')) throw new Error('at least one conscious living party character is required');
+  const partySurprise = surpriseConditionsForSide(party, surpriseConditions.party ?? {});
+  const oppositionSurprise = surpriseConditionsForSide(foes, surpriseConditions.opposition ?? {});
+  next.surprise = {
+    ...resolvePersonalSurprise({
+      sides: [
+        { id: 'party', combatants: party.filter((entry) => entry.status === 'active'), dm: partySurprise.total },
+        { id: 'opposition', combatants: foes.filter((entry) => entry.status === 'active'), dm: oppositionSurprise.total }
+      ],
+      dice
+    }),
+    conditions: { party: partySurprise.conditions, opposition: oppositionSurprise.conditions }
+  };
+  next.status = 'active';
+  next.round = 1;
+  const entry = { round: 1, kind: 'status', side: 'referee', combatantId: null,
+    text: `Combat begins: ${party.length} party against ${foes.length}; surprise ${next.surprise.surpriseSideId ?? 'neither side'}.` };
+  next.history.push(entry);
+  assertValidEncounterDocument(next);
+  return { encounter: next, entry };
 }

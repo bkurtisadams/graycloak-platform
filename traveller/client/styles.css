@@ -4070,3 +4070,13 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 /* --- v0.93.0: the after-fight group in the tracker. */
 .encounter-after-fight { border-top: 1px dotted var(--disabled); margin-top: 7px; padding-top: 5px; }
 .encounter-after-fight-row { display: flex; flex-wrap: wrap; gap: 5px; }
+
+/* --- v0.94.0: one scrollbar in the combat tracker, not two. The panel
+   scrolled and the tracker inside it scrolled as well, so a long combatant
+   list produced a scrollbar within a scrollbar. The panel scrolls; the
+   tracker sizes to its content. */
+.sidebar-panel[data-sidebar-panel="combat"] #combat-rail-section { overflow: visible; max-height: none; }
+.sidebar-panel[data-sidebar-panel="combat"] #encounter-tracker { overflow: visible; max-height: none; }
+.panel-popout .sidebar-panel[data-sidebar-panel="combat"] { overflow: auto; }
+.panel-popout .sidebar-panel[data-sidebar-panel="combat"] #combat-rail-section,
+.panel-popout .sidebar-panel[data-sidebar-panel="combat"] #encounter-tracker { overflow: visible; max-height: none; }
