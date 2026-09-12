@@ -1,5 +1,28 @@
 # Graycloak Traveller
 
+## v0.79.2 the stage was one pixel tall
+
+Measured in the browser rather than inferred: at 1025×682 the shell's root
+was the full viewport, but `.shell-stage` was 645×1 — one pixel tall — while
+the sidebar was 486px and the rail 274px, each exactly its own content
+height rather than the row's. The grid row was not stretching its items.
+
+The cause is the very first `.terminal` rule in the stylesheet, from v0.1:
+`align-items: start`. No shell rule ever overrode it, so every grid item
+sized to its content. The stage's children are all absolutely positioned
+(zero in-flow content), so it collapsed to its border. Why it appeared to
+depend on window width is that at some widths a hidden-but-measured strip or
+wrapped toolbar happened to give the stage enough incidental height to show
+something; that was never the row doing its job.
+
+`.terminal.shell` now sets `align-items: stretch; justify-items: stretch`,
+and the rail, stage and sidebar each `align-self: stretch` with the global
+`section { margin-top: 16px }` zeroed — that margin was the 16px offset
+visible in the stage's `@80,59` against the row's top at 43.
+
+The v0.79.1 change (scoping the legacy 1299px rule off the shell) stays; it
+was a real fossil, just not this one.
+
 ## v0.79.1 the canvas below 1300px wide
 
 The canvas showed only in a wide enough window. The width-dependent rule

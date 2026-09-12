@@ -3349,6 +3349,12 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
   position: fixed; inset: 0;
   width: 100vw; max-width: none; margin: 0; padding: 0;
   height: 100vh; box-sizing: border-box;
+  /* v0.79.2: the base .terminal rule (line ~44) sets align-items: start and
+     nothing in the shell overrode it, so every grid item sized to its own
+     content instead of the row — measured: sidebar 486px, rail 274px, the
+     stage 1px, because its children are all absolutely positioned. Stretch
+     makes the row height authoritative at every window width. */
+  align-items: stretch; justify-items: stretch;
   display: grid;
   grid-template-columns: 56px minmax(0, 1fr) 380px;
   grid-template-rows: 40px minmax(0, 1fr);
@@ -3753,3 +3759,7 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
   .terminal.shell,
   .terminal.shell.sidebar-collapsed { grid-template-columns: 48px minmax(0, 1fr) 52px; }
 }
+
+/* v0.79.2: the three row items fill the row regardless of content, and shed
+   the global section margin that offset the stage 16px below its row. */
+.shell-rail, .shell-stage, .shell-sidebar { align-self: stretch; justify-self: stretch; margin: 0; min-height: 0; height: auto; }
