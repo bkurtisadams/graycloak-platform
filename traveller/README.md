@@ -1,5 +1,35 @@
 # Graycloak Traveller
 
+## v0.93.2 gcDebug.combat() — which precondition is refusing
+
+Five versions of patching START COMBAT from the outside, and a jsdom trace
+that cleared the button logic entirely: TRACK ALL works, the button enables
+once tokens are tracked, and `startCombatFromScene` runs all the way to
+document creation. So "never activates" is a precondition failing on the
+real campaign's documents, and guessing which one has not worked.
+
+`gcDebug.combat()` answers it directly. It prints the viewed scene and any
+fight, then a table of **every token on the scene** — its side, whether it is
+tracked, and whether its `actorId` resolves to a party character, a roster
+actor, or nothing at all — then the party's STR/DEX/END, and finally the list
+of reasons the button is refusing, each with its remedy:
+
+- nothing tracked on this scene
+- no tracked token resolves to a party character
+- no tracked token resolves to a roster actor
+- every party character has a zeroed STR, DEX or END
+
+The third is my main suspicion: a fight needs opponents that exist in ACTORS,
+and a token placed from an encounter's combatant list rather than the roster
+would resolve to nothing while looking perfectly normal on the board. The
+fourth is the other: wounds persist by design, and a party at DEFEAT cannot
+start a fight until restored.
+
+Two traces in this session failed on my synthetic campaign missing fields a
+real one has — a character with no name, then a campaign with no location.
+That is the argument for this tool rather than another harness: the answer
+has to come from the documents in front of you.
+
 ## v0.93.1 a reset leaves the group ready to fight again
 
 START COMBAT stayed greyed after RESET COMBAT, and the cause is data rather

@@ -9209,6 +9209,56 @@ window.gcDebug = function gcDebug(selector = null) {
   return rows;
 };
 
+// v0.93.2: why START COMBAT is disabled, as data. Five versions of patching
+// this button taught me that guessing at a precondition from the outside does
+// not work: the answer is which specific check fails, on this campaign's
+// actual documents.
+window.gcDebug.combat = function combat() {
+  const scene = viewedScene();
+  const fight = activeEncounterAtCurrentSystem() ?? latestEncounterAtCurrentSystem();
+  if (!campaignDocument) { console.log('No campaign loaded.'); return null; }
+  const report = {
+    viewedScene: scene ? `${scene.identity.name} (${scene.identity.id})` : viewedSceneId,
+    boardShowing: viewedSceneIsBoard(),
+    fight: fight ? `${fight.identity.title} — ${fight.status}, round ${fight.round}` : 'none',
+    fightPutAway: fight ? dismissedEncounterIds.has(fight.identity.id) : false
+  };
+  if (!scene) {
+    console.log('No scene is viewed, so START COMBAT opens the manual dialog.');
+    console.table([report]);
+    return report;
+  }
+  const tracked = trackedSceneTokens(scene);
+  const partyIds = new Set(currentPartyCharacters().map((entry) => entry.identity.id));
+  const rosterIds = new Set(npcActorDocuments.map((entry) => entry.identity.id));
+  // Every tracked token, and whether it resolves to a document a fight needs.
+  const tokens = scene.tokens.map((token) => ({
+    label: token.label || token.actorId.slice(0, 12),
+    actorId: token.actorId,
+    side: token.side,
+    tracked: token.inCombat === true,
+    resolvesTo: partyIds.has(token.actorId) ? 'party character'
+      : rosterIds.has(token.actorId) ? 'roster actor'
+      : 'NOTHING — no character or roster actor has this id'
+  }));
+  const trackedParty = tokens.filter((t) => t.tracked && t.side === 'party' && t.resolvesTo === 'party character');
+  const trackedFoes = tokens.filter((t) => t.tracked && t.side !== 'party' && t.resolvesTo === 'roster actor');
+  const standing = currentPartyCharacters().filter((entry) => {
+    const live = entry.current ?? entry.characteristics;
+    return ['STR', 'DEX', 'END'].every((key) => (live?.[key] ?? 1) > 0);
+  });
+  const reasons = [];
+  if (!tracked.length) reasons.push('nothing is tracked on this scene — TRACK ALL, or right-click a token and ADD TO COMBAT');
+  if (!trackedParty.length) reasons.push('no tracked token resolves to a party character (check side and actorId in the table)');
+  if (!trackedFoes.length) reasons.push('no tracked token resolves to a roster actor — an opponent must exist in ACTORS');
+  if (!standing.length) reasons.push('every party character has a zeroed STR, DEX or END — RESET COMBAT, or heal them');
+  console.table([report]);
+  console.table(tokens);
+  console.log('party characters:', currentPartyCharacters().map((entry) => `${entry.identity.name} (${entry.identity.id}) STR/DEX/END ${['STR','DEX','END'].map((k) => (entry.current ?? entry.characteristics)?.[k]).join('/')}`));
+  console.log(reasons.length ? `START COMBAT is disabled because:\n  - ${reasons.join('\n  - ')}` : 'Every precondition passes: START COMBAT should be enabled.');
+  return { ...report, tokens, reasons };
+};
+
 window.gcDebug.version = function version() {
   const stamp = {
     client: el.appSubtitle?.textContent ?? document.querySelector('#app-subtitle')?.textContent ?? 'unknown',
