@@ -512,6 +512,17 @@ function migrateEncounterDocument(document) {
     document.map = { ...document.map, spatialMode: document.map.spatialMode ?? 'scene' };
     document.schemaVersion = 16;
   }
+  // Defensive, independent of the version-gated step above: a document can
+  // reach here already marked schemaVersion 16 without a valid spatialMode —
+  // for instance one written by a different, incompatible version of this
+  // code during development. grid already tells us which shape the document
+  // actually has, so derive from that rather than assuming 'scene' blindly
+  // (which would otherwise fight the (spatialMode==='range-line') ===
+  // (grid==='line') consistency check below for a genuine range-line
+  // document missing only this one field).
+  if (!['scene', 'range-line'].includes(document.map?.spatialMode)) {
+    document.map = { ...document.map, spatialMode: document.map?.grid === 'line' ? 'range-line' : 'scene' };
+  }
   return document;
 }
 

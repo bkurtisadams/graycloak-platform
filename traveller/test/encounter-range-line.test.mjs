@@ -13,6 +13,7 @@ import {
   resolveDeclaredRound,
   rangeBandForBandGap,
   encounterPairRange,
+  importEncounterDocument,
   ENCOUNTER_RANGE_LINE_BAND_GAP,
   ENCOUNTER_RANGE_LINE_ESCAPE_BANDS,
   ENCOUNTER_RANGE_LINE_COLUMNS,
@@ -140,4 +141,34 @@ test('opening beyond fifteen bands escapes, per Book 1 p.29, not the scene\'s tw
   }
   const escapedParty = encounter.combatants.find((entry) => entry.id === party.id);
   assert.equal(escapedParty.status, 'escaped');
+});
+
+test('a document already marked schemaVersion 16 but missing spatialMode is repaired, not rejected', () => {
+  // Reproduces a real failure: a document that reached schemaVersion 16 by
+  // some path other than the clean v15->v16 step above (an incompatible
+  // intermediate version written during development) and so never got
+  // spatialMode set. The version-gated migration step is a no-op here since
+  // schemaVersion is already 16 — this has to be repaired independently of
+  // that check, deriving from map.grid so a genuine range-line document
+  // missing only this field doesn't get incorrectly flipped to 'scene'.
+  const broken = {
+    documentType: 'graycloak-traveller-personal-encounter', schemaVersion: 16,
+    identity: { id: 'e1', title: 'T' }, campaignId: 'c1', situationId: null, sceneId: null,
+    location: { systemId: 's', systemName: 'S' },
+    timing: { createdDate: { year: 4800, dayOfYear: 1 }, resolvedDate: null },
+    status: 'setup', round: 1, range: 'medium',
+    surprise: {
+      results: [{ sideId: 'party', roll: 1, dm: 0, total: 1 }, { sideId: 'opposition', roll: 1, dm: 0, total: 1 }],
+      margin: 0, surpriseSideId: null, surprisedSideId: null, conditions: { party: {}, opposition: {} }
+    },
+    conditions: { lighting: 'normal' },
+    map: { grid: 'square', columns: 201, rows: 201, rangeGuide: 'graycloak-meter-grid-v4', metersPerSquare: 5 },
+    roundState: { declaredActions: [] }, combatants: [], history: [], outcome: null,
+    provenance: { rulesBasis: 'classic-traveller-book-1-personal-combat-1981-facsimile-errata', setting: 'x' }
+  };
+  const fixed = importEncounterDocument(broken);
+  assert.equal(fixed.map.spatialMode, 'scene');
+  const brokenLine = { ...broken, map: { ...broken.map, grid: 'line', columns: 41, rows: 1, rangeGuide: 'graycloak-book1-line-grid-v1' } };
+  const fixedLine = importEncounterDocument(brokenLine);
+  assert.equal(fixedLine.map.spatialMode, 'range-line', 'derives from grid rather than defaulting blindly');
 });
