@@ -3353,7 +3353,19 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .terminal.shell {
   position: fixed; inset: 0;
   width: 100vw; max-width: none; margin: 0; padding: 0;
-  height: 100vh; box-sizing: border-box;
+  /* v0.95.6: this budgeted every nested box to land exactly on the
+     viewport's own bottom edge — inset: 0 pins the shell flush to a
+     fractional pixel (907.8518676757812 measured at one non-integer zoom
+     level, not a round number). Every descendant rounds its own box to
+     device pixels independently at paint time, so a stack computed to
+     land exactly on that fraction can lose part of a pixel at the very
+     bottom row — here, the chat composer's own content, though its CSS
+     box was never actually clipped (scrollHeight === clientHeight
+     throughout). 2px of deliberate slack (height follows from top: 0 plus
+     this) keeps every nested bottom edge off the exact viewport boundary
+     regardless of zoom or DPI rounding. */
+  bottom: 2px;
+  box-sizing: border-box;
   /* v0.79.2: the base .terminal rule (line ~44) sets align-items: start and
      nothing in the shell overrode it, so every grid item sized to its own
      content instead of the row — measured: sidebar 486px, rail 274px, the
