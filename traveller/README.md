@@ -1,5 +1,38 @@
 # Graycloak Traveller
 
+## v0.90.0 gcDebug()
+
+Four rendering failures in a row turned out to be an ancestor two or three
+levels above the element — `#roster-section` switched off by the retired
+operations desk, the stage collapsed to 645x1 by an inherited
+`align-items: start`, a stage sized from a percentage height with no definite
+ancestor, a panel below the fold under WHAT NOW?. In every case the element
+itself was correct, my reasoning about the code was wrong, and the browser's
+own numbers found it in a single paste. This is that paste, built in.
+
+```
+gcDebug()                      every panel: its size, or the reason it is not visible
+gcDebug('#directory-actors')   one element's ancestor chain and the verdict
+gcDebug.version()              what this client actually is
+```
+
+`gcDebug()` prints a table of the stage, canvas, rail, sidebar, drawer, all
+ten panels and the maps, each either measured or named with the first reason
+it cannot be seen — `display:none`, `hidden attribute`, `visibility:hidden`,
+`opacity:0`, or collapsed to nothing — **and the ancestor responsible**,
+which is the part that was always missing. `gcDebug.version()` answers the
+question that cost a day: the masthead version, the script URL actually
+loaded, the current tab, the campaign and cloud revision.
+
+The inspection logic is `src/ui-debug.js`, pure and injected with its
+readers, so it is tested without a browser — a broken diagnostic is worse
+than none, because it sends you hunting the wrong thing. Its tests are the
+real bugs: the ACTORS chain returns `display:none at section#roster-section`,
+not at the element. Writing them caught a flaw in my first version — it
+tested for *exactly* zero size, which would have missed the stage collapse
+that actually happened, because a border still occupies a pixel. The
+threshold is four.
+
 ## v0.89.1 the composer sticks; the sheet titlebar is one row
 
 **The sheet's titlebar** got the treatment the popouts got in v0.88.0 and I

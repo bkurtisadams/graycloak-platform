@@ -100,6 +100,7 @@ import {
   createDocumentWindowState, openDocumentWindow, closeDocumentWindow, toggleMinimizeDocumentWindow, moveDocumentWindow
 } from '../src/document-window.js';
 import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js';
+import { inspectElement, formatInspection } from '../src/ui-debug.js';
 
 import {
   SHEET_CHARACTERISTICS as HEADER_CHARACTERISTICS,
@@ -8884,6 +8885,66 @@ el.loadFile.addEventListener('change', () => loadDocument(el.loadFile.files?.[0]
 
 setActivityContext();
 setActivityPanelVisible(activityPanelVisible);
+
+// --- v0.90.0: gcDebug() ----------------------------------------------------
+// Four rendering failures in a row were an ancestor two or three levels above
+// the element, and the browser's own numbers found each one in a single paste
+// while reasoning about the code did not. This is that paste, built in.
+//
+//   gcDebug()                  every panel: visible, or why not
+//   gcDebug('#directory-actors')  one element's ancestor chain and verdict
+//   gcDebug.version()          what this client actually is
+window.gcDebug = function gcDebug(selector = null) {
+  const readers = {
+    box: (node) => node.getBoundingClientRect(),
+    style: (node) => window.getComputedStyle(node),
+    parentOf: (node) => node.parentElement
+  };
+  if (selector) {
+    const node = document.querySelector(selector);
+    if (!node) { console.log(`gcDebug: nothing matches ${selector}`); return null; }
+    const result = inspectElement(node, readers);
+    console.log(formatInspection(result));
+    return result;
+  }
+  // Every panel and stage at once, with the first reason each is not visible.
+  const targets = [
+    ['stage', '.shell-stage'], ['canvas', '.shell-stage .canvas'],
+    ['rail', '.shell-rail'], ['sidebar', '.shell-sidebar'], ['drawer', '.sidebar-body'],
+    ...SIDEBAR_TABS.map((tab) => [tab, `.sidebar-panel[data-sidebar-panel="${tab}"]`]),
+    ['actors directory', '#directory-actors'], ['scenes directory', '#directory-scenes'],
+    ['chat feed', '#activity-feed'], ['chat composer', '#chat-composer'],
+    ['encounter map', '#encounter-map'], ['subsector map', '#subsector-map']
+  ];
+  const rows = [];
+  for (const [name, target] of targets) {
+    const node = document.querySelector(target);
+    if (!node) { rows.push({ panel: name, state: 'MISSING FROM THE DOM', where: target }); continue; }
+    const { visible, reason, at, chain } = inspectElement(node, readers);
+    rows.push({
+      panel: name,
+      state: visible ? `${chain[0].width}x${chain[0].height}` : reason,
+      where: visible ? target : at
+    });
+  }
+  console.table(rows);
+  console.log(`gcDebug: ${rows.filter((row) => /^\d+x\d+$/.test(row.state)).length} of ${rows.length} visible. gcDebug('<selector>') for one element's chain.`);
+  return rows;
+};
+
+window.gcDebug.version = function version() {
+  const stamp = {
+    client: el.appSubtitle?.textContent ?? document.querySelector('#app-subtitle')?.textContent ?? 'unknown',
+    script: document.querySelector('script[src*="app.js"]')?.getAttribute('src') ?? 'unknown',
+    sidebarTab, sidebarCollapsed,
+    campaign: campaignDocument ? `${campaignDocument.identity.name} r${campaignHomeRevision ?? "?"}` : 'none',
+    poppedOut: [...poppedPanels.keys()]
+  };
+  console.table([stamp]);
+  return stamp;
+};
+
+
 render();
 window.setInterval(updateAutosaveStatus, 10000);
 if (!registry) setStatus('READY / LOCAL CAMPAIGN STORAGE UNAVAILABLE', 'error');
