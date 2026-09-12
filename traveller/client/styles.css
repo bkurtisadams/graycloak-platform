@@ -1,22 +1,27 @@
 :root {
   color-scheme: light;
-  --paper: #d9d9d3;
-  --paper-deep: #cdcdc6;
-  --ink: #111311;
-  --muted: #565a56;
-  --link: #29465c;
-  --rule: #272a27;
-  --error: #6a1f1f;
-  --ok: #28442f;
+  /* v0.84.0: a readability pass. The character sheet reads well — near-black
+     ink on cream, with weight — and the rest of the client was mid-grey on
+     grey (#565a56 on #d9d9d3, about 4:1). Cream paper, secondary text dark
+     enough to read at a glance (about 9:1), harder rules, and one point of
+     size. The monospace terminal identity is unchanged; it stops being faint. */
+  --paper: #eeece4;
+  --paper-deep: #e2e0d6;
+  --ink: #101210;
+  --muted: #33372f;
+  --link: #1f3a4d;
+  --rule: #1a1c1a;
+  --error: #5c1616;
+  --ok: #1f3a26;
   --action-ready: #cfe0cf;
-  --action-ready-hover: #bdd3bd;
-  --action-border: #6f866f;
-  --failure-bg: #e5c9c9;
-  --failure-border: #8b4b4b;
-  --attention: #e7dfb6;
-  --attention-border: #978d58;
-  --disabled: #a9aaa5;
-  --help-paper: #e4e4de;
+  --action-ready-hover: #bad1ba;
+  --action-border: #4f6a4f;
+  --failure-bg: #e6c5c5;
+  --failure-border: #7a3a3a;
+  --attention: #eadfaa;
+  --attention-border: #7d7340;
+  --disabled: #7c7f79;
+  --help-paper: #e5e3da;
 }
 
 * { box-sizing: border-box; }
@@ -28,8 +33,8 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: Consolas, "Cascadia Mono", "Lucida Console", "Courier New", monospace;
-  font-size: 14px;
-  line-height: 1.35;
+  font-size: 15px;
+  line-height: 1.4;
 }
 
 button, input, select { font: inherit; }
@@ -3920,3 +3925,24 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .actor-card-name { font-size: 11px; font-weight: 700; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .actor-card-detail { font-size: 9px; letter-spacing: .06em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .actor-card-owner { font-size: 9px; letter-spacing: .06em; color: var(--muted); }
+
+/* v0.84.0: the readability pass, where the palette alone is not enough — the
+   drawer, cards and captions that ran at 9-11px on grey. Backgrounds tied to
+   the old grey keep the new paper; the sheet window keeps its own cream. */
+.shell-masthead, .shell-rail .scene-tab, .rail-tool, .shell-sidebar .sidebar-tabs,
+.shell-sidebar > .sidebar-strip, .shell-sidebar > .sidebar-body, .context-menu, .scene-card, .actor-card { background: var(--paper); }
+.sidebar-tab { color: var(--muted); }
+.sidebar-tab.is-active { color: var(--ink); }
+.sidebar-tab-label { font-size: 8px; }
+.directory-folder, .directory-heading, .sidebar-group-title, .sidebar-strip-summary { color: var(--ink); font-size: 11px; }
+.scene-card-meta, .actor-card-detail, .actor-card-owner, .directory-detail { font-size: 10px; color: var(--muted); }
+.scene-card-name, .actor-card-name, .directory-name { font-size: 12px; }
+.directory-empty { color: var(--muted); font-size: 11px; }
+.player-log-entry, .chat-line, .activity-entry { font-size: 12px; }
+.activity-date, .activity-category, .chat-when { color: var(--muted); }
+.scene-status-meta, .scene-status-kicker, .campaign-header-kicker { color: var(--muted); }
+.masthead-status, .autosave-status { color: var(--muted); }
+.encounter-map-legend, .subsector-legend { color: var(--ink); }
+.text-button, .utility-button { color: var(--link); }
+.shell-sidebar > #sidebar-character[hidden] { display: none; }
+.shell-sidebar > .sidebar-body { grid-row: 2 / 4; }

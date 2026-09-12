@@ -1,5 +1,25 @@
 # Graycloak Traveller
 
+## v0.84.0 the drawer shows its tab; the client reads at a glance
+
+The ACTORS directory of v0.83 was there, buried: the old campaign header —
+name, UPP, characteristics, skills — sat above every tab's content as a
+strip in the drawer and, opened, took the whole visible height. It is
+retired from the drawer. The sheet window shows all of it, and the sheet's
+skill buttons open the same referee skill-check dialog, so nothing is
+lost. (The element stays in the DOM, hidden: the client still writes those
+fields and its roll controls answer keyboard shortcuts.) The drawer now opens
+straight on the tab you picked, toolbar first.
+
+And a readability pass on the palette itself. The character sheet reads
+well — near-black on cream, with weight — and the rest of the client was
+mid-grey on grey: `#565a56` on `#d9d9d3`, about 4:1. Paper is cream now,
+secondary text dark enough to read without leaning in (about 9:1), rules
+harder, base type one point larger, and the 9–11px captions in the drawer
+and cards brought up a size. The monospace terminal identity is unchanged;
+it stops being faint. If a screen looks washed out after this, that's a
+place that hard-coded the old grey — say which and I'll chase it.
+
 ## v0.83.0 the Actors directory, the same shape as Scenes
 
 `[ CREATE ACTOR ]` and `[ CREATE FOLDER ]` on top, search beneath; folders
