@@ -3902,7 +3902,12 @@ let dismissedEncounterIds = new Set();
 function latestEncounterAtCurrentSystem() {
   const current = mappedCurrentSystem();
   if (!current) return null;
+  // v0.95.1: a tracker still in setup is not a fight to display. Returning it
+  // here sent ADD TO COMBAT straight into the fight renderer, whose START
+  // COMBAT reads the vestigial inCombat flags and is therefore always
+  // disabled — BEGIN COMBAT in renderSceneTracker was unreachable.
   const local = encounterDocuments.filter((entry) => entry.location.systemId === current.id
+    && entry.status !== 'setup'
     && !(entry.status !== 'active' && dismissedEncounterIds.has(entry.identity.id)));
   return local.find((entry) => entry.status === 'active') ?? local.at(-1) ?? null;
 }
@@ -4979,7 +4984,10 @@ function renderEncounterTracker(encounter, actor) {
       : 'ALL DECLARED';
   const controls = [button];
   if (encounter.status === 'active') {
-    controls.push(makePortButton('END COMBAT', () => endActiveEncounter()));
+    controls.push(makePortButton('END COMBAT', () => {
+      if (!window.confirm(`End ${encounter.identity.title} and empty the tracker? Its record stays in the log, and wounds persist.`)) return;
+      endActiveEncounter({ thenDiscard: encounter.identity.id });
+    }));
   }
   el.encounterResolve.replaceChildren(...controls, note);
   // v0.93.0: the four things wanted after a fight, named separately because
@@ -6307,7 +6315,8 @@ function renderStagedScene(scene) {
     } catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); }
   };
   const names = sceneActorNames();
-  const tracked = new Set(trackedSceneTokens(scene).map((token) => token.id));
+  const trackerIds = new Set(combatEncounterForScene(scene)?.combatants.flatMap((entry) => [entry.id, entry.sourceActorId]).filter(Boolean) ?? []);
+  const tracked = new Set(scene.tokens.filter((token) => trackerIds.has(token.actorId)).map((token) => token.id));
   const tokens = scene.tokens.map((token) => {
     const named = names.get(token.actorId) ?? { name: token.label || '?', actorType: 'npc' };
     return {
@@ -6318,7 +6327,13 @@ function renderStagedScene(scene) {
       label: token.label || named.name.charAt(0),
       ariaLabel: `${named.name}, ${token.side}, staged`,
       title: `${named.name} / ${token.side}${tracked.has(token.id) ? ' / IN COMBAT TRACKER' : ''}`,
-      state: { selected: stagedSelectedTokenIds.has(token.id), targeted: tracked.has(token.id) },
+      // v0.95.2: `targeted` draws the same red attack-target reticle the fight
+      // canvas uses for "who the selected actor is aiming at" — reusing it
+      // here for tracker membership meant ADD TO COMBAT visibly "targeted"
+      // the token, before any attack existed to target. Foundry keeps these
+      // separate (target crosshair vs. a small in-combat icon beside the
+      // token); the tracker's own signal is the sword-glyph decoration below.
+      state: { selected: stagedSelectedTokenIds.has(token.id) },
       token, named
     };
   });
@@ -7129,7 +7144,7 @@ function applyEncounterDocumentSync(encounter) {
 
 // Declaring no longer resolves: the referee sets orders for whoever matters,
 // looks at the board, and commits with RESOLVE ROUND.
-function endActiveEncounter() {
+function endActiveEncounter({ thenDiscard = null } = {}) {
   try {
     const active = activeEncounterAtCurrentSystem();
     if (!active) throw new Error('no active personal encounter');
@@ -9364,7 +9379,9 @@ window.gcDebug.combat = function combat() {
     console.table([report]);
     return report;
   }
-  const tracked = trackedSceneTokens(scene);
+  const tracker = combatEncounterForScene(scene);
+  const trackerIds = new Set(tracker?.combatants.flatMap((entry) => [entry.id, entry.sourceActorId]).filter(Boolean) ?? []);
+  report.tracker = tracker ? `${tracker.identity.title} — ${tracker.status}, ${tracker.combatants.length} in` : 'none';
   const partyIds = new Set(currentPartyCharacters().map((entry) => entry.identity.id));
   const rosterIds = new Set(npcActorDocuments.map((entry) => entry.identity.id));
   // Every tracked token, and whether it resolves to a document a fight needs.
@@ -9372,7 +9389,7 @@ window.gcDebug.combat = function combat() {
     label: token.label || token.actorId.slice(0, 12),
     actorId: token.actorId,
     side: token.side,
-    tracked: token.inCombat === true,
+    tracked: trackerIds.has(token.actorId),
     resolvesTo: partyIds.has(token.actorId) ? 'party character'
       : rosterIds.has(token.actorId) ? 'roster actor'
       : 'NOTHING — no character or roster actor has this id'
@@ -9384,14 +9401,14 @@ window.gcDebug.combat = function combat() {
     return ['STR', 'DEX', 'END'].every((key) => (live?.[key] ?? 1) > 0);
   });
   const reasons = [];
-  if (!tracked.length) reasons.push('nothing is tracked on this scene — TRACK ALL, or right-click a token and ADD TO COMBAT');
+  if (!tracker) reasons.push('no combat tracker is open on this scene — right-click a token and ADD TO COMBAT');
   if (!trackedParty.length) reasons.push('no tracked token resolves to a party character (check side and actorId in the table)');
   if (!trackedFoes.length) reasons.push('no tracked token resolves to a roster actor — an opponent must exist in ACTORS');
   if (!standing.length) reasons.push('every party character has a zeroed STR, DEX or END — RESET COMBAT, or heal them');
   console.table([report]);
   console.table(tokens);
   console.log('party characters:', currentPartyCharacters().map((entry) => `${entry.identity.name} (${entry.identity.id}) STR/DEX/END ${['STR','DEX','END'].map((k) => (entry.current ?? entry.characteristics)?.[k]).join('/')}`));
-  console.log(reasons.length ? `START COMBAT is disabled because:\n  - ${reasons.join('\n  - ')}` : 'Every precondition passes: START COMBAT should be enabled.');
+  console.log(reasons.length ? `BEGIN COMBAT is disabled because:\n  - ${reasons.join('\n  - ')}` : 'Every precondition passes: BEGIN COMBAT should be enabled.');
   return { ...report, tokens, reasons };
 };
 
