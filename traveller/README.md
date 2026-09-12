@@ -1,5 +1,27 @@
 # Graycloak Traveller
 
+## v0.89.1 the composer sticks; the sheet titlebar is one row
+
+**The sheet's titlebar** got the treatment the popouts got in v0.88.0 and I
+had not applied to the character window: one row, `[ − ]` and `[ CLOSE ]`
+sized so they cannot wrap onto a second line, the title truncating instead of
+pushing them, and the decorative rule under it hidden — the window frame
+already separates the header from the sheet.
+
+**The composer is sticky now.** The v0.88.0 fix was a flex chain, which only
+holds if every ancestor gives CHAT a definite height — and one of them still
+is not, which is why the box was still being pushed under. Rather than hunt
+that ancestor through another round of measurements, the dice tray and message
+box are `position: sticky; bottom: 0`, so they stay in view whether CHAT is a
+flex column, a scrolling block, in the drawer, or in a popped-out window. It
+is the less clever fix and the one that cannot be undone by a layout change
+somewhere above it.
+
+If the box is *still* obscured after this, then something is clipping rather
+than scrolling, and the ancestor-chain measurement would settle it — that
+snippet found the ACTORS bug in one paste when three of my theories had
+failed.
+
 ## v0.89.0 the token menu, and a way to undo a wound
 
 **The token menu is on the shared menu.** It was the last of the old

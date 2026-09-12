@@ -4002,3 +4002,28 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .context-menu-heading { font-size: 9px; letter-spacing: .12em; color: var(--muted); padding: 5px 8px 2px; border-top: 1px dotted var(--disabled); margin-top: 2px; }
 .context-menu button.has-submenu::after { content: ' \25B8'; float: right; color: var(--muted); }
 .context-menu.is-submenu { min-width: 200px; }
+
+/* --- v0.89.1: the character window's titlebar, same treatment the popouts
+   got in v0.88.0 — one row, controls that cannot wrap, and no decorative
+   rule under the title (the window frame already separates them). */
+.document-window .document-window-titlebar { flex-wrap: nowrap; min-height: 28px; padding: 3px 6px; }
+.document-window .document-window-titlebar .section-title { font-size: 12px; letter-spacing: .08em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.document-window .document-window-titlebar .text-button,
+.document-window .document-window-titlebar .help-button { white-space: nowrap; flex: 0 0 auto; font-size: 10px; }
+.document-window .document-window-titlebar .document-window-control { margin-left: auto; }
+.document-window .document-window-titlebar::after,
+.document-window .document-window-titlebar .section-rule { display: none; }
+
+/* --- v0.89.1: the composer sticks to the bottom of the chat panel. The
+   v0.88.0 flex fix depends on every ancestor giving CHAT a definite height,
+   and one of them still isn't; sticky positioning holds the tray and the
+   message box in view whether the panel is a flex column, a scrolling block,
+   in the drawer, or in a popped-out window. */
+#chat-composer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: var(--help-paper);
+  border-top: 1px solid var(--rule);
+}
+.sidebar-panel[data-sidebar-panel="chat"] { padding-bottom: 0; }
