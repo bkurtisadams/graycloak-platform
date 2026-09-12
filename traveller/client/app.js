@@ -1615,8 +1615,8 @@ function persistWindowGeometry(controller) {
   saveWindowGeometry(window.sessionStorage, controller.storageKey, geometry);
 }
 
-function openWindowController(controller) {
-  if (!campaignPlayActive()) return;
+function openWindowController(controller, { requireCampaign = true } = {}) {
+  if (requireCampaign && !campaignPlayActive()) return;
   const container = windowContainer(controller);
   const saved = loadWindowGeometry(window.sessionStorage, controller.storageKey);
   const geometry = clampWindowGeometry(saved ?? controller.state.geometry ?? {}, container);
@@ -1740,15 +1740,89 @@ function setSidebarTab(tab, { chosen = true } = {}) {
   if (tab === 'port' && ['encounter'].includes(operationsDeskTab)) { operationsDeskTab = 'port'; applyOperationsDeskTab(); }
 }
 
+// --- v0.87.0: pop a sidebar panel out over the canvas ----------------------
+// Foundry's answer to needing two panels at once, and ours reuses the tested
+// window controller from v0.77.0: the panel's own element is *moved* into a
+// floating window, not cloned, so every id and every render path keeps
+// working untouched. Right-click a sidebar tab to pop it out or send it back.
+const poppedPanels = new Map();
+
+function panelTitle(tab) {
+  return document.querySelector(`.sidebar-tab[data-sidebar-tab="${tab}"] .sidebar-tab-label`)?.textContent ?? tab.toUpperCase();
+}
+
+function popOutPanel(tab) {
+  if (poppedPanels.has(tab)) return;
+  const panel = document.querySelector(`.sidebar-panel[data-sidebar-panel="${tab}"]`);
+  const host = document.querySelector('#panel-popouts');
+  if (!panel || !host) return;
+  const frame = document.createElement('section');
+  frame.className = 'panel-popout';
+  const titlebar = document.createElement('div');
+  titlebar.className = 'document-window-titlebar panel-popout-titlebar';
+  titlebar.tabIndex = -1;
+  const title = document.createElement('strong');
+  title.className = 'section-title';
+  title.textContent = panelTitle(tab);
+  const minimize = document.createElement('button');
+  minimize.type = 'button'; minimize.className = 'text-button document-window-control'; minimize.textContent = '[ \u2212 ]';
+  minimize.setAttribute('aria-label', `Minimize ${panelTitle(tab)}`);
+  const close = document.createElement('button');
+  close.type = 'button'; close.className = 'text-button'; close.textContent = '[ DOCK ]';
+  close.title = 'Return this panel to the sidebar';
+  titlebar.append(title, minimize, close);
+  const body = document.createElement('div');
+  body.className = 'document-window-body';
+  // Remember where it came from so docking puts it back in order.
+  const anchor = document.createComment(`panel:${tab}`);
+  panel.parentElement.insertBefore(anchor, panel);
+  body.append(panel);
+  panel.hidden = false;
+  frame.append(titlebar, body);
+  host.append(frame);
+  const controller = createWindowController({
+    element: frame, titlebar, minimizeButton: minimize, closeButton: null,
+    storageKey: `traveller.panel-popout.${tab}.v1`
+  });
+  wireDocumentWindow(controller);
+  close.addEventListener('click', () => dockPanel(tab));
+  poppedPanels.set(tab, { controller, frame, anchor, panel });
+  openWindowController(controller, { requireCampaign: false });
+  applySidebar();
+}
+
+function dockPanel(tab) {
+  const popped = poppedPanels.get(tab);
+  if (!popped) return;
+  popped.anchor.parentElement?.insertBefore(popped.panel, popped.anchor);
+  popped.anchor.remove();
+  popped.frame.remove();
+  poppedPanels.delete(tab);
+  applySidebar();
+}
+
+function sidebarTabContextMenuItems(tab) {
+  const out = poppedPanels.has(tab);
+  return [
+    { label: out ? 'RETURN TO SIDEBAR' : 'POP OUT', action: () => (out ? dockPanel(tab) : popOutPanel(tab)) },
+    { label: 'SHOW IN SIDEBAR', disabled: out, action: () => setSidebarTab(tab) }
+  ];
+}
+
 function applySidebar() {
   for (const button of document.querySelectorAll('.sidebar-tab')) {
     const active = button.dataset.sidebarTab === sidebarTab && !sidebarCollapsed;
     button.setAttribute('aria-selected', active ? 'true' : 'false');
     button.classList.toggle('is-active', active);
+    button.classList.toggle('is-popped', poppedPanels.has(button.dataset.sidebarTab));
     button.classList.toggle('attention', (button.dataset.sidebarTab === 'combat' && Boolean(activeEncounterAtCurrentSystem()))
       || (button.dataset.sidebarTab === 'players' && joinRequests.length > 0));
   }
-  for (const panel of document.querySelectorAll('.sidebar-panel')) panel.hidden = panel.dataset.sidebarPanel !== sidebarTab;
+  for (const panel of document.querySelectorAll('.sidebar-panel')) {
+    // A popped-out panel lives in its own window over the canvas and is always
+    // shown; only the ones still in the drawer follow the selected tab.
+    panel.hidden = poppedPanels.has(panel.dataset.sidebarPanel) ? false : panel.dataset.sidebarPanel !== sidebarTab;
+  }
   el.terminal?.classList.toggle('sidebar-collapsed', sidebarCollapsed);
 }
 
@@ -8819,7 +8893,9 @@ el.chatForm?.addEventListener('submit', (event) => {
   el.chatInput.value = '';
 });
 for (const button of document.querySelectorAll('.sidebar-tab')) {
+  button.addEventListener('contextmenu', (event) => showContextMenu(event, sidebarTabContextMenuItems(button.dataset.sidebarTab)));
   button.addEventListener('click', () => {
+    if (poppedPanels.has(button.dataset.sidebarTab)) { poppedPanels.get(button.dataset.sidebarTab).controller.titlebar?.focus(); return; }
     // v0.79.0: Foundry's sidebar presents one directory/tracker at a time.
     // Clicking its active tool collapses the drawer and returns that space to
     // the canvas; clicking any tool opens the drawer on that panel.

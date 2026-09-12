@@ -3962,3 +3962,15 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 @keyframes token-ping { 0%, 100% { stroke: #111311; stroke-width: 1.2; } 50% { stroke: #d8b53a; stroke-width: 4; } }
 .encounter-tracker-conditions { display: flex; flex-direction: column; gap: 2px; padding-top: 6px; border-top: 1px dotted var(--disabled); }
 .encounter-tracker-condition { display: flex; align-items: center; gap: 5px; font-size: 10px; letter-spacing: .04em; }
+
+/* --- v0.87.0: popped-out sidebar panels, floating over the canvas. */
+.panel-popouts { position: absolute; inset: 0; z-index: 22; pointer-events: none; }
+.panel-popout { position: absolute; pointer-events: auto; display: flex; flex-direction: column; overflow: hidden; resize: both; border: 2px solid var(--rule); background: var(--paper); }
+.panel-popout[hidden] { display: none; }
+.panel-popout .panel-popout-titlebar { display: flex; align-items: center; gap: 8px; }
+.panel-popout .document-window-body { padding: 0; }
+.panel-popout .sidebar-panel { display: block; height: 100%; overflow: auto; padding: 8px 10px; }
+.panel-popout.is-minimized { height: auto !important; resize: none; }
+.panel-popout.is-minimized .document-window-body { display: none; }
+.sidebar-tab.is-popped { opacity: .55; }
+.sidebar-tab.is-popped .sidebar-tab-icon::after { content: '⇱'; font-size: 8px; vertical-align: super; }

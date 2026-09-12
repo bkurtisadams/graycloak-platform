@@ -1,5 +1,33 @@
 # Graycloak Traveller
 
+## v0.87.0 pop a panel out over the canvas
+
+With the tracker open you could not see chat, because the drawer shows one
+tab at a time. Foundry's answer is to pop a panel out into its own window,
+and ours reuses the document-window controller built for the character sheet
+in v0.77.0 — the same tested geometry, drag, resize, minimise and saved
+position, with no second window implementation to keep in step.
+
+**Right-click any sidebar tab** for POP OUT (or RETURN TO SIDEBAR). The panel
+floats over the canvas, draggable by its titlebar and resizable from its
+corner, `[ − ]` to minimise and `[ DOCK ]` to send it back. The tab dims and
+gains a marker while its panel is out, and clicking it focuses the window
+rather than doing nothing. Several panels can be out at once — tracker on the
+board, chat in the drawer, which is what you were after.
+
+The panel's own element is **moved** into the window, not cloned, with a
+comment left behind as its anchor so docking returns it to the same place in
+the drawer. That matters more than it sounds: every id and every render path
+keeps working untouched, so the tracker in a popped-out window is the same
+tracker, updating from the same code, with nothing duplicated to drift.
+
+Driven in jsdom: POP OUT moves the COMBAT panel into a floating window with
+the tracker intact inside it, CHAT then shows in the drawer while COMBAT
+stays visible in its window, the tab is marked, and DOCK puts it back in the
+sidebar. That run also caught a silent miss — one of my edits hadn't applied
+and the tab was never marked — which the harness reported as
+`marked popped: false`.
+
 ## v0.86.0 a target belongs to a combatant, not to the canvas
 
 You were right, and it was a modelling error rather than a UI preference.
