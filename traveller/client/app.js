@@ -7210,6 +7210,13 @@ function startManualEncounter() {
   clearEncounterCanvasSelection();
   persistCampaignState();
   operationsDeskTab = 'encounter';
+  // v0.96.6: this switched the sidebar to the combat tracker but never the
+  // canvas itself — viewedSceneId stayed at whatever it was before the
+  // dialog opened, so the referee saw nothing change at all after starting
+  // a fight until they separately found and picked MANUAL FIGHT from the
+  // scene selector. Matches what that menu item itself already does.
+  viewedSceneId = 'manual';
+  activeSceneTab = 'combat';
   closeCombatSetupDialog();
   logActivity('COMBAT', `${encounter.identity.title} started manually / ${characters.length} PC${characters.length === 1 ? '' : 's'} / ${setup.total} opponent${setup.total === 1 ? '' : 's'} in ${setup.groups.length} type${setup.groups.length === 1 ? '' : 's'} / ${encounter.range} range / surprise ${surpriseWinner ?? 'none'}`);
   setStatus(`MANUAL COMBAT STARTED: ${encounter.identity.title.toUpperCase()}`, encounter.status === 'defeat' ? 'error' : 'ok');

@@ -1,6 +1,6 @@
 {
   "name": "@graycloak/traveller",
-  "version": "0.96.5",
+  "version": "0.96.6",
   "private": true,
   "type": "module",
   "description": "Graycloak Classic Traveller browser client",
