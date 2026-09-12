@@ -92,7 +92,7 @@ import {
 
 import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js';
 import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js';
-import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, setSceneTokenCombat, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js';
+import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js';
 import { directoryFolders, removeEncounterFromCampaign
 } from '../src/campaign-document.js';
 import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js';
@@ -544,6 +544,7 @@ const el = {
   combatEnemyArmor: document.querySelector('#combat-enemy-armor'),
   combatStartingRange: document.querySelector('#combat-starting-range'),
   combatMapScale: document.querySelector('#combat-map-scale'),
+  combatGridOptions: document.querySelector('#combat-grid-options'),
   combatPartyVehicle: document.querySelector('#combat-party-vehicle'),
   combatPartyBattleDress: document.querySelector('#combat-party-battledress'),
   combatEnemyVehicle: document.querySelector('#combat-enemy-vehicle'),
@@ -3932,12 +3933,11 @@ function activeEncounterAtCurrentSystem() {
   return encounterDocuments.find((entry) => entry.status === 'active' && entry.location.systemId === current.id) ?? null;
 }
 
-// v0.93.0: a resolved fight never left the panel — nothing dismissed it, so it
-// sat there indefinitely while the staged scene underneath was invisible. Put
-// away here means "shown in history, not on the desk"; the document is
-// untouched, and the record and its wounds stand.
-let dismissedEncounterIds = new Set();
-
+// v0.96.8: dismissedEncounterIds is gone with PUT AWAY. A resolved fight
+// stays on the desk until END COMBAT (or RESET COMBAT) removes it — there is
+// no longer a "hidden but still holding every combatant" state for the
+// tracker to be in, which is what kept actors in it after a referee thought
+// they had closed it.
 function latestEncounterAtCurrentSystem() {
   const current = mappedCurrentSystem();
   if (!current) return null;
@@ -3945,29 +3945,23 @@ function latestEncounterAtCurrentSystem() {
   // here sent ADD TO COMBAT straight into the fight renderer, whose START
   // COMBAT reads the vestigial inCombat flags and is therefore always
   // disabled — BEGIN COMBAT in renderSceneTracker was unreachable.
-  const local = encounterDocuments.filter((entry) => entry.location.systemId === current.id
-    && entry.status !== 'setup'
-    && !(entry.status !== 'active' && dismissedEncounterIds.has(entry.identity.id)));
+  const local = encounterDocuments.filter((entry) => entry.location.systemId === current.id && entry.status !== 'setup');
   return local.find((entry) => entry.status === 'active') ?? local.at(-1) ?? null;
 }
 
 // --- v0.93.0: after the fight ---------------------------------------------
-// Book 1 wounds persist until treated, so nothing here undoes them by
-// default. These are the four things a referee actually wants next, named
-// separately because one button cannot mean all of them.
+// Book 1 wounds persist until treated, so END COMBAT never undoes them.
+// RESET COMBAT is the one genuinely different thing a referee wants next.
 
-function putAwayEncounter(encounter) {
-  dismissedEncounterIds.add(encounter.identity.id);
-  clearEncounterCanvasSelection();
-  setStatus(`${encounter.identity.title.toUpperCase()} PUT AWAY / IN ENCOUNTER HISTORY`, 'ok');
-  render();
-}
-
-// The pre-fight state you asked for: every combatant back to full, the fight
-// put away, the tracker left as it is so the same group can go again. Wounds
-// already carried back to the characters are restored with them.
+// v0.96.8: the pre-fight state — every combatant back to full strength, and
+// then the same emptying END COMBAT does. Wounds already carried back to the
+// characters are restored with them. This used to "put the fight away"
+// (hide it but keep every combatant in the tracker, via dismissedEncounterIds)
+// and re-track scene tokens through the inCombat flag nothing has read since
+// v0.95.0 — the very thing that left actors sitting in a tracker the referee
+// thought they had closed.
 function resetCombat(encounter) {
-  if (!window.confirm(`Reset ${encounter.identity.title}? Every combatant returns to full strength and the fight is put away. Its record stays in history.`)) return;
+  if (!window.confirm(`Reset ${encounter.identity.title}? Every combatant returns to full strength, then the tracker is emptied. Its record stays in the log.`)) return;
   try {
     const index = encounterDocuments.findIndex((entry) => entry.identity.id === encounter.identity.id);
     let next = encounterDocuments[index];
@@ -3978,23 +3972,9 @@ function resetCombat(encounter) {
     // Carry the restoration out to the character and roster documents, the
     // same path a wound takes on the way in.
     applyEncounterDocumentSync(next);
-    // v0.93.1: "pre-fight" has to include being ready to fight. The scene's
-    // tracked flags are what START COMBAT reads, and a fight begun before
-    // v0.92.4 emptied them — so a reset left the tracker blank and the button
-    // greyed. Re-track the tokens for the combatants just restored.
-    const scene = sceneDocuments.find((entry) => entry.identity.id === next.sceneId) ?? viewedScene();
-    if (scene) {
-      const actorIds = new Set(next.combatants.map((entry) => entry.sourceActorId ?? entry.sourceCharacterId ?? entry.id));
-      updateScene(scene.identity.id, (doc) => doc.tokens
-        .filter((token) => actorIds.has(token.actorId))
-        .reduce((acc, token) => setSceneTokenCombat(acc, token.id, true), doc));
-    }
-    logActivity('COMBAT', `Referee resets ${next.identity.title}: every combatant restored to full strength${scene ? ` and re-tracked on ${scene.identity.name}` : ''}.`);
-    dismissedEncounterIds.add(next.identity.id);
-    clearEncounterCanvasSelection();
-    persistCampaignState();
+    logActivity('COMBAT', `Referee resets ${next.identity.title}: every combatant restored to full strength.`);
+    discardEncounter(next);
     setStatus(`${next.identity.title.toUpperCase()} RESET / EVERYONE AT FULL STRENGTH`, 'ok');
-    render();
   } catch (error) {
     console.error(error);
     setStatus(error?.message ?? String(error), 'error');
@@ -5143,40 +5123,39 @@ function renderEncounterTracker(encounter, actor) {
       ? `${undeclared.length} UNDECLARED${autoPending ? ` / ${autoPending} ON AUTO` : ''} / THE REST ATTACK THEIR NEAREST ENEMY`
       : 'ALL DECLARED';
   const controls = [button];
+  // v0.96.8: one verb, one destination, in every phase. This was CLOSE
+  // TRACKER (setup), END COMBAT (active) and CLEAR TRACKER (resolved) —
+  // three names for the same action, sat beside PUT AWAY, which looked like
+  // a fourth way to "close" the fight but deliberately kept every combatant
+  // in the tracker. Foundry has exactly one control here, End Combat,
+  // always present and always destructive; that is what this now is.
   if (encounter.status === 'active') {
     controls.push(makePortButton('END COMBAT', () => {
       if (!window.confirm(`End ${encounter.identity.title} and empty the tracker? Its record stays in the log, and wounds persist.`)) return;
       endActiveEncounter({ thenDiscard: encounter.identity.id });
     }));
   } else {
-    // v0.95.4: this lived only inside the "AFTER THE FIGHT" block below,
-    // so emptying the tracker looked like an outcome-specific option next
-    // to RESET COMBAT and PUT AWAY, rather than the same always-available
-    // action setup (CLOSE TRACKER) and an active fight (END COMBAT) already
-    // have. It belongs with them, every time a fight is on the desk.
-    const clear = makePortButton('CLEAR TRACKER', () => {
-      if (!window.confirm(`Empty the combat tracker? ${encounter.identity.title} is removed from the tracker; the tokens stay on the board.`)) return;
+    const end = makePortButton('END COMBAT', () => {
+      if (!window.confirm(`End ${encounter.identity.title} and empty the tracker? Its record stays in the log, and wounds persist.`)) return;
       discardEncounter(encounter);
     });
-    clear.title = 'Empty the combat tracker; the tokens stay on the board';
-    controls.push(clear);
+    end.title = 'Empty the combat tracker. Wounds persist (Book 1); the record stays in the log.';
+    controls.push(end);
   }
   el.encounterResolve.replaceChildren(...controls, note);
-  // v0.93.0: the two things wanted after a fight beyond emptying the
-  // tracker (CLEAR TRACKER, above, at all times). Wounds persist by
-  // default — Book 1 carries injuries until treated — so only RESET COMBAT
-  // undoes them.
+  // Book 1 carries injuries until treated, so END COMBAT above leaves wounds
+  // standing. RESET COMBAT is the one genuinely different thing a referee
+  // wants afterwards — full strength restored, then the same emptying — and
+  // it sits visibly apart so it never reads as the way to close a fight.
   if (encounter.status !== 'active') {
     const after = document.createElement('div');
     after.className = 'encounter-after-fight';
-    after.append(Object.assign(document.createElement('div'), { className: 'sidebar-group-title', textContent: 'OUTCOME' }));
+    after.append(Object.assign(document.createElement('div'), { className: 'sidebar-group-title', textContent: 'RECOVERY' }));
     const row = document.createElement('div');
     row.className = 'encounter-after-fight-row';
     const reset = makePortButton('RESET COMBAT', () => resetCombat(encounter));
-    reset.title = 'Return every combatant to full strength and put the fight away — the pre-fight state. Wounds otherwise persist (Book 1).';
-    const away = makePortButton('PUT AWAY', () => putAwayEncounter(encounter));
-    away.title = 'Return the panel to the staged scene. The fight and its wounds stand; its record stays in ENCOUNTER HISTORY.';
-    row.append(reset, away);
+    reset.title = 'Return every combatant to full strength, then empty the tracker — the pre-fight state. Wounds otherwise persist (Book 1).';
+    row.append(reset);
     after.append(row);
     el.encounterResolve.append(after);
   }
@@ -6596,9 +6575,11 @@ function renderSceneTracker(scene) {
       : `Roll surprise and begin round 1 with ${combat.combatants.length} combatants`;
     controls.push(begin);
   }
-  const end = makePortButton(combat.status === 'setup' ? 'CLOSE TRACKER' : 'END COMBAT', () => {
+  // v0.96.8: END COMBAT in every phase — this said CLOSE TRACKER during
+  // setup, which was the same action under a different name.
+  const end = makePortButton('END COMBAT', () => {
     const question = combat.status === 'setup'
-      ? 'Close the combat tracker and empty it?'
+      ? 'End combat and empty the tracker? Nothing has happened yet, so nothing is recorded.'
       : `End ${combat.identity.title} and empty the tracker? Its record stays in the log, and wounds persist.`;
     if (!window.confirm(question)) return;
     if (combat.status === 'setup') { discardEncounter(combat); return; }
@@ -7038,22 +7019,25 @@ function combatSetupDropZone() {
 // being true at v0.71.0 when boards became sized to the fight. It now reports
 // the board these settings will actually produce, from the same function that
 // builds it.
+// The one board choice, read from the radio at the top of the dialog.
+function combatSetupBoardMode() {
+  return document.querySelector('input[name="combat-board-mode"]:checked')?.value === 'range-line' ? 'range-line' : 'scene';
+}
+
 function renderCombatSetupBoard() {
   if (!el.combatSetupBoard) return;
-  // v0.96.4: SCENE and a separate BOARD selector used to interact silently —
-  // SCENE defaulted to whatever the campaign calls its "active" scene (even
-  // while viewing the subsector, with no scene on the canvas), which forced
-  // BOARD back to a tactical grid whether or not that was ever chosen. One
-  // dropdown carrying all three choices removes the hidden interaction
-  // entirely: what you see in SCENE is the whole decision.
-  const boardValue = el.combatScene?.value ?? '';
-  if (boardValue === 'range-line') {
-    if (el.combatMapScale) el.combatMapScale.disabled = true;
+  // v0.96.8: how position is tracked is now the first thing the dialog
+  // asks, as two option cards, rather than an entry buried in the SCENE
+  // dropdown beside real scene names. Choosing RANGE LINE hides the grid-
+  // only controls (SCENE, METERS/SQUARE) outright — there is nothing for
+  // them to configure — instead of merely disabling them.
+  const mode = combatSetupBoardMode();
+  if (el.combatGridOptions) el.combatGridOptions.hidden = mode === 'range-line';
+  if (mode === 'range-line') {
     el.combatSetupBoard.textContent = `BOARD: Book 1 range line — one row per band, no map. Starting range: ${el.combatStartingRange.value.replace('-', ' ')}.`;
     return;
   }
-  if (el.combatMapScale) el.combatMapScale.disabled = false;
-  const scene = sceneDocuments.find((entry) => entry.identity.id === boardValue) ?? null;
+  const scene = sceneDocuments.find((entry) => entry.identity.id === el.combatScene?.value) ?? null;
   if (scene) {
     el.combatSetupBoard.textContent = `BOARD: ${scene.identity.name} — ${scene.board.squares} squares of ${scene.board.metersPerSquare} m (${sceneBoardMeters(scene)} m a side), tokens where they stand.`;
     return;
@@ -7071,6 +7055,9 @@ function openCombatSetupDialog() {
     return;
   }
   combatSetupDropZone();
+  // Each opening starts from GRID, the behavior every prior version had.
+  const gridChoice = document.querySelector('input[name="combat-board-mode"][value="scene"]');
+  if (gridChoice) gridChoice.checked = true;
   renderCombatSetupBoard();
   if (!campaignDocument || !gameplayDocument || !mappedCurrentSystem()) {
     setStatus('AN ACTIVE CHARACTER AT A MAPPED CAMPAIGN LOCATION IS REQUIRED', 'error');
@@ -7081,7 +7068,7 @@ function openCombatSetupDialog() {
   el.combatRosterActor.replaceChildren(...options);
   // v0.72.0: the fight may be on a scene; the active one is offered first.
   if (el.combatScene) {
-    const sceneOptions = [new Option('SIZED TO THE FIGHT', ''), new Option('BOOK 1 RANGE LINE (UNMAPPED)', 'range-line')];
+    const sceneOptions = [new Option('SIZED TO THE FIGHT', '')];
     for (const { folder, scenes } of sceneFolders(sceneDocuments)) for (const scene of scenes) {
       sceneOptions.push(new Option(`${folder} / ${scene.identity.name} / ${sceneBoardMeters(scene)} M`, scene.identity.id));
     }
@@ -7187,9 +7174,8 @@ function startManualEncounter() {
     armor: entry.loadout?.armor ?? 'none'
   }]));
   const typeTitle = setup.groups.map((entry) => entry.baseName).join(' + ');
-  const boardValue = el.combatScene?.value ?? '';
-  const scene = boardValue === 'range-line' ? null : (sceneDocuments.find((entry) => entry.identity.id === boardValue) ?? null);
-  const spatialMode = boardValue === 'range-line' ? 'range-line' : 'scene';
+  const spatialMode = combatSetupBoardMode();
+  const scene = spatialMode === 'range-line' ? null : (sceneDocuments.find((entry) => entry.identity.id === el.combatScene?.value) ?? null);
   let encounter = createEncounterDocument({
     campaign: campaignDocument,
     scene,
@@ -9340,6 +9326,9 @@ el.rollDialog.addEventListener('cancel', (event) => {
 for (const control of [el.combatStartingRange, el.combatMapScale, el.combatScene]) {
   control?.addEventListener('change', renderCombatSetupBoard);
 }
+for (const radio of document.querySelectorAll('input[name="combat-board-mode"]')) {
+  radio.addEventListener('change', renderCombatSetupBoard);
+}
 el.combatSetupClose.addEventListener('click', closeCombatSetupDialog);
 el.combatSetupCancel.addEventListener('click', closeCombatSetupDialog);
 el.encounterPlacementClose.addEventListener('click', closeEncounterPlacementDialog);
@@ -9586,7 +9575,6 @@ window.gcDebug.combat = function combat() {
     viewedScene: scene ? `${scene.identity.name} (${scene.identity.id})` : viewedSceneId,
     boardShowing: viewedSceneIsBoard(),
     fight: fight ? `${fight.identity.title} — ${fight.status}, round ${fight.round}` : 'none',
-    fightPutAway: fight ? dismissedEncounterIds.has(fight.identity.id) : false,
     // v0.96.5: neither branch below surfaced the fight's own map shape, so
     // there was no console one-liner that actually worked to tell a scene
     // encounter apart from a range-line one — activeEncounterAtCurrentSystem

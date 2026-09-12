@@ -16,7 +16,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.96.7</div>
+          <div id="app-subtitle" class="subtitle">v0.96.8</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -545,6 +545,13 @@
         <div class="roll-dialog-basis">MANUAL PERSONAL ENCOUNTER &mdash; A FIGHT WITHOUT A SCENE. To fight on a staged scene instead, activate it and use the combat tracker's START COMBAT.
 <span id="combat-setup-board">BOARD: sized to the starting range.</span>
 Dragging tokens suggests a range band. Book 1 range changes only through an explicit combat or referee action.</div>
+        <fieldset class="combat-board-choice" aria-label="How positions are tracked">
+          <legend>HOW IS POSITION TRACKED?</legend>
+          <label class="combat-board-option"><input type="radio" name="combat-board-mode" value="scene" checked>
+            <strong>GRID</strong><span>Tokens on a tactical board, real meters and squares. Pick a scene, or let one be sized to the fight.</span></label>
+          <label class="combat-board-option"><input type="radio" name="combat-board-mode" value="range-line">
+            <strong>RANGE LINE</strong><span>Book 1's own line of bands (p.29). No map: range is how many bands apart two combatants stand.</span></label>
+        </fieldset>
         <div class="combat-roster-picker"><label>ROSTER ACTOR<select id="combat-roster-actor"><option value="">-- SELECT SAVED NPC --</option></select></label><button id="combat-add-roster-actor" class="text-button" type="button">[ ADD TO SETUP ]</button></div>
         <div id="combat-enemy-groups" class="combat-enemy-groups">
           <fieldset class="combat-enemy-group" data-enemy-group>
@@ -584,8 +591,10 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
               <option value="long">Long</option><option value="very-long">Very Long</option>
             </select>
           </label>
+          <span id="combat-grid-options" class="combat-grid-options">
           <label>METERS / SQUARE <select id="combat-map-scale"><option value="1">1</option><option value="5" selected>5</option><option value="25">25</option></select></label>
-          <label>SCENE <select id="combat-scene"><option value="">SIZED TO THE FIGHT</option><option value="range-line">BOOK 1 RANGE LINE (UNMAPPED)</option></select></label>
+          <label>SCENE <select id="combat-scene"><option value="">SIZED TO THE FIGHT</option></select></label>
+          </span>
         </div>
         <div class="combat-setup-footer combat-surprise-footer">
           <span class="combat-surprise-label">SURPRISE DMs / BOOK 1 p.31</span>

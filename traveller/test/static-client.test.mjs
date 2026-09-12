@@ -41,7 +41,7 @@ test('v0.11.0.1 retains contextual help and highlighted legal actions', async ()
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.96\.7/);
+  assert.match(html, /v0\.96\.8/);
   assert.match(html, /data-help-topic="personnel-record"/);
   assert.match(html, /id="context-help"/);
   assert.match(app, /helpForTopic/);
@@ -58,7 +58,7 @@ test('v0.11.0 specialization UI uses engine-supplied legal choices instead of fr
   const html = await read('index.html');
   const app = await read('app.js');
 
-  assert.match(html, /v0\.96\.7/);
+  assert.match(html, /v0\.96\.8/);
   const chargenView = await read('chargen-view.js');
   assert.match(chargenView, /available\.choices\.specializations/);
   assert.doesNotMatch(app, /id = 'skill-specialization'/);
@@ -212,7 +212,7 @@ test('v0.11.0.1 adds base markers, map zoom controls, and a left navigation rail
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.96\.7/);
+  assert.match(html, /v0\.96\.8/);
   assert.match(html, /class="scene shell-stage"/);
   assert.match(html, /id="map-zoom-out"/);
   assert.match(html, /id="map-zoom-in"/);
@@ -232,7 +232,7 @@ test('v0.11.0.2 highlights navigation and port states that require attention', a
   const css = await read('styles.css');
   const model = await read('ui-model.js');
 
-  assert.match(html, /v0\.96\.7/);
+  assert.match(html, /v0\.96\.8/);
   assert.match(app, /renderRecordWithHighlights/);
   assert.match(app, /jumpAttention\.push\('FUEL NEED '/);
   assert.match(model, /panelRow\('BERTHING'/);
@@ -249,7 +249,7 @@ test('v0.11.1 exposes Book 2 passengers, freight, speculative trade, and life-su
   const model = await read('ui-model.js');
   const market = await read('commerce-market.js');
 
-  assert.match(html, /v0\.96\.7/);
+  assert.match(html, /v0\.96\.8/);
   assert.match(html, /id="commerce-section"/);
   assert.match(html, /data-help-topic="commerce"/);
   assert.match(app, /generatePassengerDemand/);
@@ -274,7 +274,7 @@ test('v0.11.2 exposes persistent contracts and the port Contract Board', async (
   const app = await read('app.js');
   const model = await read('ui-model.js');
 
-  assert.match(html, /v0\.96\.7/);
+  assert.match(html, /v0\.96\.8/);
   assert.match(html, /id="contract-section"/);
   assert.match(html, /CONTRACT BOARD/);
   assert.match(app, /createContractDocument/);
@@ -290,7 +290,7 @@ test('v0.11.2.1 keeps port, trade, and jobs beside the map and guards repaired s
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.96\.7/);
+  assert.match(html, /v0\.96\.8/);
   assert.match(html, /id="operations-tab-port"/);
   assert.match(html, /id="operations-tab-trade"/);
   assert.match(html, /id="operations-tab-jobs"/);
@@ -310,7 +310,7 @@ test('v0.12.0 exposes persistent situations, patrons, and non-combat skill check
   const model = await read('ui-model.js');
   const loader = await read('document-loader.js');
 
-  assert.match(html, /v0\.96\.7/);
+  assert.match(html, /v0\.96\.8/);
   assert.match(html, /id="context-takeover"/);
   assert.match(html, /id="situation-section"/);
   assert.match(app, /generatePatronContact/);
@@ -327,7 +327,7 @@ test('v0.12.0.1 promotes campaign status and interactive rolls into a compact pl
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.96\.7/);
+  assert.match(html, /v0\.96\.8/);
   assert.match(html, /class="campaign-header-strip"/);
   assert.match(html, /id="roll-dialog"/);
   assert.match(html, /id="roll-modifier"[^>]*value="0"/);
@@ -346,7 +346,7 @@ test('v0.12.0.2 keeps tab actions above independently scrolling records', async 
   const html = await read('index.html');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.96\.7/);
+  assert.match(html, /v0\.96\.8/);
   for (const [actions, record] of [
     ['port-actions', 'port-services-record'],
     ['commerce-actions', 'commerce-record'],
@@ -367,7 +367,7 @@ test('v0.12.0.3 makes Activity Log dice and outcomes visually explicit', async (
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.96\.7/);
+  assert.match(html, /v0\.96\.8/);
   assert.match(app, /ROLL 2D \[\$\{dice\.dice\[0\]\}\] \[\$\{dice\.dice\[1\]\}\]/);
   assert.match(app, /appendActivityDiceLine/);
   assert.match(app, /RESULT \/\/ SUCCESS/);
@@ -383,7 +383,7 @@ test('v0.12.0.4 keeps chargen history hidden until explicitly opened in campaign
   const css = await read('styles.css');
   const app = await read('app.js');
 
-  assert.match(html, /v0\.96\.7/);
+  assert.match(html, /v0\.96\.8/);
   assert.match(html, /id="chargen-record-section"[^>]*hidden/);
   assert.match(css, /\[hidden\]\s*\{[\s\S]*display:\s*none\s*!important/);
   assert.match(app, /el\.chargenRecordSection\.hidden = true;/);
@@ -399,7 +399,7 @@ test('v0.12.1.1 keeps generic adventure machinery separate from Sea of Suns auth
   const engine = await read('../src/adventure-engine.js');
   const definition = await read('../campaigns/sea-of-suns/adventures/carranza-route.js');
 
-  assert.match(html, /v0\.96\.7/);
+  assert.match(html, /v0\.96\.8/);
   assert.match(html, /id="open-threads-view"/);
   assert.match(html, /id="thread-section"/);
   assert.match(app, /applySituationThreadConsequences/);
@@ -427,7 +427,7 @@ test('v0.12.1.3 keeps live ship state beside navigation and makes the job board 
   const css = await read('styles.css');
   const model = await read('ui-model.js');
 
-  assert.match(html, /v0\.96\.7/);
+  assert.match(html, /v0\.96\.8/);
   assert.match(html, /id="live-ship-panel"/);
   assert.match(html, /id="live-ship-status"/);
   assert.match(app, /renderLiveShipStatus/);
@@ -450,7 +450,7 @@ test('v0.13 exposes compact persistent personal combat', async () => {
   const model = await read('ui-model.js');
   const encounter = await read('../src/encounter-document.js');
 
-  assert.match(html, /v0\.96\.7/);
+  assert.match(html, /v0\.96\.8/);
   assert.match(html, /id="encounter-section"/);
   // v0.47.0: orders are given per combatant, in that combatant's tracker row.
   assert.match(app, /verbs\.className = 'encounter-tracker-verbs';/);
@@ -470,7 +470,7 @@ test('v0.13.1 adds referee-started combat, a square token map, and enemy equipme
   const css = await read('styles.css');
   const encounter = await read('../src/encounter-document.js');
 
-  assert.match(html, /v0\.96\.7/);
+  assert.match(html, /v0\.96\.8/);
   assert.match(html, /id="combat-setup-dialog"/);
   assert.match(html, /id="encounter-map"/);
   assert.match(html, /id="encounter-roster"/);
@@ -513,7 +513,7 @@ test('v0.14.1 gives the encounter map a fluid viewBox camera and live token drag
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.96\.7/);
+  assert.match(html, /v0\.96\.8/);
   assert.match(html, /data-help-topic="personal-combat"/);
   assert.match(app, /function encounterMapPoint/);
   assert.match(await read('scene-canvas.js'), /getScreenCTM/);
@@ -531,7 +531,7 @@ test('v0.15.1 adds a persistent actor roster and token inspection actions', asyn
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.96\.7/);
+  assert.match(html, /v0\.96\.8/);
   assert.match(html, /id="operations-tab-roster"/);
   assert.match(html, /id="npc-actor-dialog"/);
   assert.match(html, /id="combat-roster-actor"/);
@@ -549,7 +549,7 @@ test('v0.15.1.1 makes the activity journal portable and anchors token menus to t
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.96\.7/);
+  assert.match(html, /v0\.96\.8/);
   assert.match(html, /id="activity-filter"/);
   assert.match(html, /id="add-activity-note"/);
   assert.match(html, /id="activity-note-dialog"/);
@@ -570,7 +570,7 @@ test('v0.15.2 establishes a Traveller-first campaign hierarchy and removes dupli
   const model = await read('ui-model.js');
 
   assert.match(html, /id="app-title" class="title">TRAVELLER</);
-  assert.match(html, /id="app-subtitle" class="subtitle">v0\.96\.7</);
+  assert.match(html, /id="app-subtitle" class="subtitle">v0\.96\.8</);
   assert.match(html, /<strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN<\/strong>/);
   for (const id of ['new-campaign', 'save-campaign', 'load-campaign', 'import-campaign', 'export-campaign']) {
     assert.match(html, new RegExp(`id="${id}"`));
@@ -630,7 +630,7 @@ test('v0.20.0 lays play out as operations left, scene center, and procedure plus
   const css = await read('styles.css');
   const model = await read('ui-model.js');
 
-  assert.match(html, /id="app-subtitle" class="subtitle">v0\.96\.7</);
+  assert.match(html, /id="app-subtitle" class="subtitle">v0\.96\.8</);
   assert.match(html, /class="campaign-header-strip"/);
   assert.match(html, /class="terminal shell"/);
   assert.match(html, /class="shell-rail"/);
@@ -1621,8 +1621,8 @@ test('v0.60.0 rechecks player ownership and retires stale scene listeners', asyn
   assert.match(app, /if \(watchedDeclarationEncounterId !== watchedId\) unsubscribe\(\);/);
   assert.match(player, /const generation = \+\+sceneWatchGeneration;/);
   assert.match(player, /if \(generation !== sceneWatchGeneration \|\| encounterId !== watchedEncounterId\) unsubscribe\(\);/);
-  assert.match(index, /v0\.96\.7/);
-  assert.match(playerPage, /PLAYER v0\.96\.7/);
+  assert.match(index, /v0\.96\.8/);
+  assert.match(playerPage, /PLAYER v0\.96\.8/);
 });
 
 test('v0.63.0 uses a configurable metre grid, compact shared-square tokens, and selected-actor range boundaries', async () => {
@@ -1815,7 +1815,7 @@ test('v0.67.0 gives players a front door: their own characters, chargen, and a s
 
   // The page: sign in, the list, chargen with the lifted view; the referee
   // client is never imported.
-  assert.match(html, /ENTER v0\.96\.7/);
+  assert.match(html, /ENTER v0\.96\.8/);
   assert.match(html, /id="enter-signin"/);
   assert.match(html, /id="enter-character-list"/);
   assert.match(html, /id="enter-new-character"/);
@@ -2035,11 +2035,10 @@ test('v0.72.0 adds scene documents in folders and lets a fight be fought on one'
   assert.match(html, /id="combat-scene"/);
   assert.match(app, /function renderSceneDirectory\(\)/);
   assert.match(app, /for \(const \{ folder, scenes \} of sceneFolders\(sceneDocuments\)\)/);
-  // v0.96.4: SCENE now also offers BOOK 1 RANGE LINE as a third option, so
-  // the lookup goes through a shared boardValue rather than reading
-  // el.combatScene.value directly at each site.
-  assert.match(app, /const boardValue = el\.combatScene\?\.value \?\? '';/);
-  assert.match(app, /scene = boardValue === 'range-line' \? null : \(sceneDocuments\.find\(\(entry\) => entry\.identity\.id === boardValue\) \?\? null\)/);
+  // v0.96.8: the scene lookup reads el.combatScene.value directly again —
+  // SCENE is back to scenes only, now that the range-line choice lives on
+  // its own radio at the top of the dialog.
+  assert.match(app, /const scene = spatialMode === 'range-line' \? null : \(sceneDocuments\.find\(\(entry\) => entry\.identity\.id === el\.combatScene\?\.value\) \?\? null\);/);
   assert.match(app, /scene: activeScene\(\),/);
   assert.match(app, /scenes: sceneDocuments\n  \}\);/);
 });
@@ -2276,7 +2275,7 @@ test('v0.79.0 keeps an explicit canvas and follows Foundry control behavior', as
   const html = await read('index.html');
   const css = await read('styles.css');
   const win = await read('../src/document-window.js');
-  assert.match(html, /id="app-subtitle" class="subtitle">v0\.96\.7</);
+  assert.match(html, /id="app-subtitle" class="subtitle">v0\.96\.8</);
   assert.match(html, /class="scene-tab scene-tab-combat-proxy"[^>]*hidden/);
   assert.match(css, /grid-template-columns: 80px minmax\(0, 1fr\) 360px;/);
   assert.match(css, /\.shell-stage \.canvas \{[\s\S]*?height: auto;[\s\S]*?overflow: hidden;/);
@@ -2601,38 +2600,45 @@ test('v0.92.4 starting a fight leaves the scene tracker intact so the group can 
   // reads, while the referee looked at the encounter's combatant list.
   const start = app.slice(app.indexOf('function startCombatFromScene'), app.indexOf('function startCombatFromScene') + 4000);
   assert.doesNotMatch(start, /clearSceneCombatTracker/);
-  // CLEAR TRACKER remains the deliberate way to empty it — as of v0.95.4,
-  // by discarding the resolved encounter, and it is always shown once a
-  // fight is resolved rather than gated behind an "AFTER THE FIGHT" block.
+  // v0.96.8: END COMBAT is the one verb for emptying the tracker, in every
+  // phase, discarding the encounter. CLEAR TRACKER and CLOSE TRACKER were
+  // the same action under two other names.
   assert.doesNotMatch(app, /clearSceneCombatTracker/);
-  assert.match(app, /const clear = makePortButton\('CLEAR TRACKER', \(\) => \{/);
-  assert.match(app, /if \(!window\.confirm\(`Empty the combat tracker\? \$\{encounter\.identity\.title\} is removed from the tracker; the tokens stay on the board\.`\)\) return;/);
+  assert.doesNotMatch(app, /'CLEAR TRACKER'/);
+  assert.doesNotMatch(app, /'CLOSE TRACKER'/);
+  assert.match(app, /const end = makePortButton\('END COMBAT', \(\) => \{/);
   assert.match(app, /discardEncounter\(encounter\);/);
 });
 
-test('v0.93.0 a resolved fight can be put away or reset, and wounds otherwise persist', async () => {
+test('v0.93.0 a resolved fight can be reset, and wounds otherwise persist', async () => {
   const app = await read('app.js');
-  // A resolved fight never left the panel before: nothing dismissed it.
-  assert.match(app, /let dismissedEncounterIds = new Set\(\);/);
-  assert.match(app, /&& !\(entry\.status !== 'active' && dismissedEncounterIds\.has\(entry\.identity\.id\)\)/);
-  assert.match(app, /function putAwayEncounter\(encounter\)/);
+  // v0.96.8: PUT AWAY and dismissedEncounterIds are gone. "Hidden but still
+  // holding every combatant" was the state that kept actors in a tracker the
+  // referee thought they had closed. A resolved fight now stays on the desk
+  // until END COMBAT or RESET COMBAT removes it.
+  assert.doesNotMatch(app, /let dismissedEncounterIds = new Set\(\);/);
+  assert.doesNotMatch(app, /function putAwayEncounter\(encounter\)/);
+  assert.doesNotMatch(app, /'PUT AWAY'/);
   assert.match(app, /function resetCombat\(encounter\)/);
-  // RESET restores every combatant and carries it out to the documents.
+  // RESET restores every combatant, carries it out to the documents, then
+  // empties the tracker the same way END COMBAT does.
   assert.match(app, /next = restoreCombatant\(next, \{ combatantId: combatant\.id \}\)\.encounter;/);
   assert.match(app, /applyEncounterDocumentSync\(next\);/);
-  assert.match(app, /logActivity\('COMBAT', `Referee resets \$\{next\.identity\.title\}/);
-  // The after-fight group, and nothing that silently undoes wounds.
-  assert.match(app, /textContent: 'OUTCOME'/);
-  assert.match(app, /reset\.title = 'Return every combatant to full strength and put the fight away/);
-  assert.match(app, /away\.title = 'Return the panel to the staged scene\. The fight and its wounds stand/);
+  assert.match(app, /logActivity\('COMBAT', `Referee resets \$\{next\.identity\.title\}: every combatant restored to full strength\.`\);/);
+  assert.match(app, /discardEncounter\(next\);/);
+  // Demoted to its own RECOVERY group, visibly apart from END COMBAT.
+  assert.match(app, /textContent: 'RECOVERY'/);
+  assert.match(app, /reset\.title = 'Return every combatant to full strength, then empty the tracker/);
 });
 
-test('v0.93.1 a reset leaves the group ready to fight again, and TRACK ALL fills the tracker', async () => {
+test('v0.93.1 a reset no longer re-tracks through the vestigial inCombat flag', async () => {
   const app = await read('app.js');
-  // Pre-fight has to mean ready to fight: the flags START COMBAT reads are
-  // restored for the combatants that were just healed.
-  assert.match(app, /const actorIds = new Set\(next\.combatants\.map\(\(entry\) => entry\.sourceActorId \?\? entry\.sourceCharacterId \?\? entry\.id\)\);/);
-  assert.match(app, /\.reduce\(\(acc, token\) => setSceneTokenCombat\(acc, token\.id, true\), doc\)\);/);
+  // v0.96.8: resetCombat used to "re-track" scene tokens via
+  // setSceneTokenCombat — the inCombat flag nothing has read since v0.95.0
+  // made the encounter document the tracker. Its own log line claimed the
+  // group was "re-tracked" when nothing had happened. Gone, along with the
+  // import; the function itself stays in scene-document.js.
+  assert.doesNotMatch(app, /setSceneTokenCombat/);
   assert.match(app, /function addTokenToCombat\(scene, token\)/);
   assert.match(app, /function discardEncounter\(encounter\)/);
 });
@@ -2687,7 +2693,8 @@ test('v0.95.0 the tracker is the combat document: add creates or joins, ending e
   assert.match(app, /if \(!encounter\) \{\n {6}const date = campaignDateSnapshot\(\);/);
   // Ending combat empties the tracker rather than leaving a resolved fight in it.
   assert.match(app, /if \(thenDiscard === result\.encounter\.identity\.id\) \{ discardEncounter\(result\.encounter\); return; \}/);
-  assert.match(app, /Close the combat tracker and empty it\?/);
+  // v0.96.8: the setup-phase button is END COMBAT too, same as every phase.
+  assert.match(app, /End combat and empty the tracker\? Nothing has happened yet, so nothing is recorded\./);
   // The tracker no longer reads the scene's flags.
   const tracker = app.slice(app.indexOf('function renderSceneTracker'), app.indexOf('function renderSceneTracker') + 3000);
   assert.doesNotMatch(tracker, /trackedSceneTokens|setSceneTokenCombat|\.inCombat/);
@@ -2740,22 +2747,27 @@ test('v0.96.0 a range-line encounter gets its own board, and never touches the c
   assert.match(fn, /ENCOUNTER_RANGE_LINE_ESCAPE_BANDS \+ 1/);
 });
 
-test('v0.96.4 the range-line board is one option on the same SCENE dropdown, not a second selector', async () => {
+test('v0.96.8 how position is tracked is the first, unavoidable choice in Manual Combat', async () => {
   const html = await read('index.html');
   const app = await read('app.js');
-  // v0.96.3 added a separate BOARD selector alongside SCENE, which
-  // defaulted to whatever the campaign calls its "active" scene even while
-  // viewing the subsector with nothing on the canvas — silently forcing
-  // BOARD back to a tactical grid unless the referee also remembered to
-  // clear SCENE. Two controls quietly overriding each other, plus a fourth
-  // item that overflowed the dialog's fixed-width footer row. One dropdown
-  // removes both problems: what's selected in SCENE is the whole decision.
+  const css = await read('styles.css');
+  // v0.96.3 put it on a separate BOARD dropdown that silently fought SCENE;
+  // v0.96.4 folded it into SCENE as an entry beside real scene names. Both
+  // made the single most consequential decision in a fight easy to miss.
+  // It is now two option cards at the top of the dialog, and the grid-only
+  // controls (SCENE, METERS/SQUARE) disappear outright under RANGE LINE.
+  assert.match(html, /<input type="radio" name="combat-board-mode" value="scene" checked>/);
+  assert.match(html, /<input type="radio" name="combat-board-mode" value="range-line">/);
+  assert.match(html, /id="combat-grid-options"/);
+  assert.doesNotMatch(html, /<option value="range-line">/);
   assert.doesNotMatch(html, /id="combat-spatial-mode"/);
-  assert.doesNotMatch(app, /el\.combatSpatialMode/);
-  assert.match(html, /<option value="">SIZED TO THE FIGHT<\/option><option value="range-line">BOOK 1 RANGE LINE \(UNMAPPED\)<\/option>/);
-  assert.match(app, /new Option\('SIZED TO THE FIGHT', ''\), new Option\('BOOK 1 RANGE LINE \(UNMAPPED\)', 'range-line'\)/);
-  assert.match(app, /const spatialMode = boardValue === 'range-line' \? 'range-line' : 'scene';/);
+  assert.match(app, /function combatSetupBoardMode\(\)/);
+  assert.match(app, /el\.combatGridOptions\.hidden = mode === 'range-line';/);
+  assert.match(app, /const spatialMode = combatSetupBoardMode\(\);/);
   assert.match(app, /metersPerSquare: spatialMode === 'range-line' \|\| el\.combatMapScale\.value === '' \? null : Number\.parseFloat\(el\.combatMapScale\.value\),/);
+  // display: contents keeps the wrapper out of the footer's flex layout, so
+  // it must not also swallow the hidden attribute.
+  assert.match(css, /\.combat-grid-options\[hidden\] \{ display: none; \}/);
 });
 
 test('v0.96.5 gcDebug.combat() exposes the fight\'s own map shape', async () => {
