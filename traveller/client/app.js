@@ -95,6 +95,10 @@ import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeB
 import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, setSceneTokenCombat, clearSceneCombatTracker, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS } from '../src/scene-document.js';
 import { directoryFolders } from '../src/campaign-document.js';
 import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js';
+import {
+  clampWindowGeometry, dragWindowGeometry, resizeWindowGeometry, loadWindowGeometry, saveWindowGeometry,
+  createDocumentWindowState, openDocumentWindow, closeDocumentWindow, toggleMinimizeDocumentWindow, moveDocumentWindow
+} from '../src/document-window.js';
 import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js';
 
 import {
@@ -332,7 +336,6 @@ const el = {
   chargenTables: document.querySelector('#chargen-tables'),
   personnelSection: document.querySelector('#personnel-section'),
   characterWindowTitlebar: document.querySelector('#character-window-titlebar'),
-  characterWindowBody: document.querySelector('#character-window-body'),
   characterWindowMinimize: document.querySelector('#character-window-minimize'),
   characterWindowClose: document.querySelector('#character-window-close'),
   procedureSection: document.querySelector('#procedure-section'),
@@ -1447,16 +1450,7 @@ function applyCampaignLayout() {
     el.legacyPersonnelFields.hidden = false;
     el.characterSheet.hidden = false;
     el.personnelSection.hidden = false;
-    characterWindowOpen = false;
-    characterWindowMinimized = false;
-    el.personnelSection.classList.remove('sheet-overlay');
-    el.personnelSection.classList.remove('character-document-window', 'is-minimized');
-    el.personnelSection.removeAttribute('role');
-    el.personnelSection.removeAttribute('aria-modal');
-    el.personnelSection.style.removeProperty('left');
-    el.personnelSection.style.removeProperty('top');
-    el.personnelSection.style.removeProperty('width');
-    el.personnelSection.style.removeProperty('height');
+    resetDocumentWindow(characterWindow);
     el.procedureSection.hidden = false;
     el.procedure.hidden = false;
     el.actions.hidden = false;
@@ -1494,21 +1488,16 @@ function applyCampaignLayout() {
   el.openShipView.hidden = !shipDocument;
   el.openCampaignView.hidden = false;
   el.openThreadsView.hidden = false;
-  // SYSTEM or COMBAT remains the scene. CHARACTER is a document window over it.
+  // v0.77.0: SYSTEM and COMBAT are the scene; CHARACTER opens the same sheet
+  // as a floating window over whichever is showing, rather than replacing it.
   el.sceneTabsRow.hidden = false;
-  if (activeSceneTab === 'character') activeSceneTab = 'system';
-  el.personnelSection.hidden = !characterWindowOpen;
-  el.personnelSection.classList.add('character-document-window');
-  el.personnelSection.classList.toggle('is-minimized', characterWindowMinimized);
-  el.personnelSection.setAttribute('role', 'dialog');
-  el.personnelSection.setAttribute('aria-modal', 'false');
+  applyDocumentWindow(characterWindow);
   el.subsectorSection.hidden = activeSceneTab !== 'system';
   el.encounterSection.hidden = activeSceneTab !== 'combat';
   el.sceneStatusStrip.hidden = activeSceneTab !== 'system';
-  el.personnelSection.classList.remove('sheet-overlay');
   for (const button of el.sceneTabs) {
     const characterButton = button.dataset.sceneTab === 'character';
-    const isActive = characterButton ? characterWindowOpen : button.dataset.sceneTab === activeSceneTab;
+    const isActive = characterButton ? characterWindow.state.open : button.dataset.sceneTab === activeSceneTab;
     button.classList.toggle('is-active', isActive);
     button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     if (button.dataset.sceneTab === 'combat') button.classList.toggle('attention', Boolean(activeEncounterAtCurrentSystem()));
@@ -1527,132 +1516,172 @@ function applyCampaignLayout() {
 
 let activeSceneTab = 'system';
 
-// --- v0.77.0: first floating document window ------------------------------
-// Character generation still owns the canvas. During campaign play the same
-// sheet becomes one non-modal window so the system or combat scene remains
-// visible and usable underneath it.
-const CHARACTER_WINDOW_STORAGE_KEY = 'traveller.character-window.v1';
-let characterWindowOpen = false;
-let characterWindowMinimized = false;
-
-function readCharacterWindowGeometry() {
-  try {
-    const parsed = JSON.parse(window.sessionStorage.getItem(CHARACTER_WINDOW_STORAGE_KEY));
-    if (parsed && ['x', 'y', 'width', 'height'].every((key) => Number.isFinite(parsed[key]))) return parsed;
-  } catch (error) { console.error(error); }
-  return null;
+// --- v0.77.0: floating document windows ------------------------------------
+// A document window wraps one section element (the character sheet today; a
+// ship or journal record later, reusing the same controller) so it floats
+// over the current scene instead of replacing it. All the geometry math and
+// state transitions are the tested pure functions in src/document-window.js;
+// everything here is DOM wiring around them.
+function createWindowController({ element, titlebar, minimizeButton, closeButton, storageKey, onOpen }) {
+  return { state: createDocumentWindowState(), element, titlebar, minimizeButton, closeButton, storageKey, onOpen };
 }
 
-function clampCharacterWindowGeometry(candidate = {}) {
-  const canvas = el.personnelSection?.parentElement;
-  if (!canvas) return { x: 16, y: 16, width: 720, height: 640 };
-  const inset = 16;
-  const maxWidth = Math.max(280, canvas.clientWidth - inset * 2);
-  const maxHeight = Math.max(180, canvas.clientHeight - inset * 2);
-  const width = Math.min(maxWidth, Math.max(Math.min(440, maxWidth), candidate.width ?? Math.min(780, maxWidth)));
-  const height = Math.min(maxHeight, Math.max(Math.min(260, maxHeight), candidate.height ?? Math.min(720, maxHeight)));
-  const x = Math.min(Math.max(inset, candidate.x ?? Math.round((canvas.clientWidth - width) / 2)), Math.max(inset, canvas.clientWidth - width - inset));
-  const y = Math.min(Math.max(inset, candidate.y ?? Math.round((canvas.clientHeight - height) / 2)), Math.max(inset, canvas.clientHeight - height - inset));
-  return { x, y, width, height };
+function windowContainer(controller) {
+  const parent = controller.element.parentElement;
+  return { width: parent?.clientWidth ?? 0, height: parent?.clientHeight ?? 0 };
 }
 
-function characterWindowGeometry() {
-  return clampCharacterWindowGeometry(readCharacterWindowGeometry() ?? {});
+// Paint the controller's current state onto its element. Safe to call any
+// number of times — it only ever reflects state, never changes it.
+function applyDocumentWindow(controller) {
+  const { element, state } = controller;
+  if (!element) return;
+  element.hidden = !state.open;
+  element.classList.toggle('document-window', state.open);
+  element.classList.toggle('is-minimized', state.open && state.minimized);
+  if (controller.minimizeButton) {
+    controller.minimizeButton.hidden = !state.open;
+    controller.minimizeButton.setAttribute('aria-expanded', state.minimized ? 'false' : 'true');
+    controller.minimizeButton.textContent = state.minimized ? '[ + ]' : '[ \u2212 ]';
+  }
+  if (!state.open || !state.geometry) return;
+  element.style.left = `${state.geometry.x}px`;
+  element.style.top = `${state.geometry.y}px`;
+  element.style.width = `${state.geometry.width}px`;
+  element.style.height = `${state.geometry.height}px`;
 }
 
-function currentCharacterWindowGeometry() {
-  return clampCharacterWindowGeometry({
-    x: el.personnelSection.offsetLeft,
-    y: el.personnelSection.offsetTop,
-    width: el.personnelSection.offsetWidth,
-    height: el.personnelSection.offsetHeight
-  });
+// Character generation shows the same element as the full-canvas sheet, not
+// a window; this clears every trace of the window so the two never mix.
+function resetDocumentWindow(controller) {
+  controller.state = createDocumentWindowState();
+  controller.element.classList.remove('document-window', 'is-minimized', 'is-dragging');
+  controller.element.style.removeProperty('left');
+  controller.element.style.removeProperty('top');
+  controller.element.style.removeProperty('width');
+  controller.element.style.removeProperty('height');
 }
 
-function applyCharacterWindowGeometry(geometry = characterWindowGeometry()) {
-  if (!campaignPlayActive() || !el.personnelSection) return;
-  geometry = clampCharacterWindowGeometry(geometry);
-  el.personnelSection.style.left = `${geometry.x}px`;
-  el.personnelSection.style.top = `${geometry.y}px`;
-  el.personnelSection.style.width = `${geometry.width}px`;
-  el.personnelSection.style.height = `${geometry.height}px`;
+// Read the element's actual on-screen box back into state and save it —
+// called after a drag, after a native resize, on minimize, and on close, so
+// none of those can lose what the referee just did.
+// Reads the element's own inline style rather than offsetLeft/Width — both a
+// drag (this file) and the browser's native resize handle set left/top/
+// width/height as inline pixel styles, so the style attribute is the
+// authoritative, already-numeric record of where the window actually is.
+function elementGeometryFromStyle(element, fallback) {
+  const left = Number.parseFloat(element.style.left);
+  const top = Number.parseFloat(element.style.top);
+  const width = Number.parseFloat(element.style.width);
+  const height = Number.parseFloat(element.style.height);
+  return {
+    x: Number.isFinite(left) ? left : fallback.x,
+    y: Number.isFinite(top) ? top : fallback.y,
+    width: Number.isFinite(width) ? width : fallback.width,
+    height: Number.isFinite(height) ? height : fallback.height
+  };
 }
 
-function saveCharacterWindowGeometry() {
-  if (!campaignPlayActive() || !characterWindowOpen || !el.personnelSection) return;
-  const geometry = characterWindowMinimized
-    ? clampCharacterWindowGeometry({
-        ...(readCharacterWindowGeometry() ?? {}),
-        x: el.personnelSection.offsetLeft,
-        y: el.personnelSection.offsetTop
-      })
-    : currentCharacterWindowGeometry();
-  applyCharacterWindowGeometry(geometry);
-  try { window.sessionStorage.setItem(CHARACTER_WINDOW_STORAGE_KEY, JSON.stringify(geometry)); }
-  catch (error) { console.error(error); }
+function persistWindowGeometry(controller) {
+  if (!controller.state.open || controller.state.minimized) return;
+  const fallback = controller.state.geometry ?? clampWindowGeometry({}, windowContainer(controller));
+  const geometry = elementGeometryFromStyle(controller.element, fallback);
+  controller.state = moveDocumentWindow(controller.state, geometry);
+  saveWindowGeometry(window.sessionStorage, controller.storageKey, geometry);
 }
 
-function openCharacterWindow() {
+function openWindowController(controller) {
   if (!campaignPlayActive()) return;
-  characterWindowOpen = true;
-  applyCampaignLayout();
-  applyCharacterWindowGeometry();
-  renderCharacterSheet();
-  el.characterWindowTitlebar?.focus({ preventScroll: true });
+  const container = windowContainer(controller);
+  const saved = loadWindowGeometry(window.sessionStorage, controller.storageKey);
+  const geometry = clampWindowGeometry(saved ?? controller.state.geometry ?? {}, container);
+  controller.state = openDocumentWindow(controller.state, geometry);
+  applyDocumentWindow(controller);
+  controller.onOpen?.();
+  controller.titlebar?.focus({ preventScroll: true });
 }
 
-function closeCharacterWindow() {
-  if (!characterWindowOpen) return;
-  saveCharacterWindowGeometry();
-  characterWindowOpen = false;
-  characterWindowMinimized = false;
-  applyCampaignLayout();
+function closeWindowController(controller) {
+  if (!controller.state.open) return;
+  persistWindowGeometry(controller);
+  controller.state = closeDocumentWindow(controller.state);
+  applyDocumentWindow(controller);
 }
 
-function toggleCharacterWindowMinimized() {
-  if (!characterWindowOpen) return;
-  if (!characterWindowMinimized) saveCharacterWindowGeometry();
-  characterWindowMinimized = !characterWindowMinimized;
-  el.characterWindowMinimize.setAttribute('aria-expanded', characterWindowMinimized ? 'false' : 'true');
-  el.characterWindowMinimize.textContent = characterWindowMinimized ? '[ + ]' : '[ \u2212 ]';
-  applyCampaignLayout();
+function toggleMinimizeWindowController(controller) {
+  if (!controller.state.open) return;
+  if (!controller.state.minimized) persistWindowGeometry(controller);
+  controller.state = toggleMinimizeDocumentWindow(controller.state);
+  applyDocumentWindow(controller);
 }
 
-function wireCharacterWindow() {
-  const titlebar = el.characterWindowTitlebar;
-  const windowElement = el.personnelSection;
-  if (!titlebar || !windowElement) return;
+// Drag (titlebar), native resize (a ResizeObserver, since resizing an
+// arbitrary element fires no DOM event), minimize, close, and keeping the
+// window on-screen when the browser itself is resized.
+function wireDocumentWindow(controller) {
+  const { element, titlebar } = controller;
+  if (!element || !titlebar) return;
   titlebar.addEventListener('pointerdown', (event) => {
-    if (!campaignPlayActive() || !characterWindowOpen || event.button !== 0 || event.target.closest('button, input, select, textarea, a')) return;
-    const start = characterWindowGeometry();
+    if (!controller.state.open || controller.state.minimized || event.button !== 0) return;
+    if (event.target.closest('button, input, select, textarea, a')) return;
+    const start = controller.state.geometry ?? clampWindowGeometry({}, windowContainer(controller));
     const originX = event.clientX;
     const originY = event.clientY;
-    titlebar.setPointerCapture(event.pointerId);
-    windowElement.classList.add('is-dragging');
-    const move = (moveEvent) => applyCharacterWindowGeometry({
-      ...start,
-      x: start.x + moveEvent.clientX - originX,
-      y: start.y + moveEvent.clientY - originY
-    });
+    titlebar.setPointerCapture?.(event.pointerId);
+    element.classList.add('is-dragging');
+    const move = (moveEvent) => {
+      const geometry = dragWindowGeometry(start, { x: moveEvent.clientX - originX, y: moveEvent.clientY - originY }, windowContainer(controller));
+      element.style.left = `${geometry.x}px`;
+      element.style.top = `${geometry.y}px`;
+    };
     const finish = () => {
       titlebar.removeEventListener('pointermove', move);
       titlebar.removeEventListener('pointerup', finish);
       titlebar.removeEventListener('pointercancel', finish);
-      windowElement.classList.remove('is-dragging');
-      saveCharacterWindowGeometry();
+      element.classList.remove('is-dragging');
+      persistWindowGeometry(controller);
     };
     titlebar.addEventListener('pointermove', move);
     titlebar.addEventListener('pointerup', finish);
     titlebar.addEventListener('pointercancel', finish);
   });
-  windowElement.addEventListener('pointerup', (event) => {
-    if (event.target === titlebar || titlebar.contains(event.target)) return;
-    saveCharacterWindowGeometry();
-  });
+  if (typeof ResizeObserver !== 'undefined') {
+    const observer = new ResizeObserver(() => {
+      if (!controller.state.open || controller.state.minimized) return;
+      const current = controller.state.geometry ?? clampWindowGeometry({}, windowContainer(controller));
+      const geometry = resizeWindowGeometry(current, { width: element.offsetWidth, height: element.offsetHeight }, windowContainer(controller));
+      // The browser's own native resize already set width/height as it went;
+      // this reasserts all four as the clamped, canonical values (a resize
+      // near an edge can move x/y too) so later reads of the inline style —
+      // persistWindowGeometry, a later minimize or close — are never stale
+      // regardless of exactly how the browser implements the resize handle.
+      element.style.left = `${geometry.x}px`;
+      element.style.top = `${geometry.y}px`;
+      element.style.width = `${geometry.width}px`;
+      element.style.height = `${geometry.height}px`;
+      controller.state = moveDocumentWindow(controller.state, geometry);
+      saveWindowGeometry(window.sessionStorage, controller.storageKey, geometry);
+    });
+    observer.observe(element);
+  }
+  controller.minimizeButton?.addEventListener('click', () => toggleMinimizeWindowController(controller));
+  controller.closeButton?.addEventListener('click', () => closeWindowController(controller));
   window.addEventListener('resize', () => {
-    if (characterWindowOpen) applyCharacterWindowGeometry(currentCharacterWindowGeometry());
+    if (!controller.state.open) return;
+    controller.state = moveDocumentWindow(controller.state, clampWindowGeometry(controller.state.geometry ?? {}, windowContainer(controller)));
+    applyDocumentWindow(controller);
   });
 }
+
+const characterWindow = createWindowController({
+  element: el.personnelSection,
+  titlebar: el.characterWindowTitlebar,
+  minimizeButton: el.characterWindowMinimize,
+  closeButton: el.characterWindowClose,
+  storageKey: 'traveller.character-window.v1',
+  onOpen: () => renderCharacterSheet()
+});
+
 
 // --- v0.75.0: the sidebar and the tool rail --------------------------------
 // The sidebar is Foundry's: one tab open at a time, each a panel that was a
@@ -1746,7 +1775,14 @@ function renderRailTools() {
 
 function setSceneTab(tab) {
   if (!['character', 'system', 'combat'].includes(tab)) return;
-  if (tab === 'character') { openCharacterWindow(); return; }
+  // v0.77.0: CHARACTER opens the sheet as a window over whatever scene is
+  // showing; it is not a scene of its own any more.
+  if (tab === 'character') {
+    if (characterWindow.state.open) closeWindowController(characterWindow);
+    else openWindowController(characterWindow);
+    applyCampaignLayout();
+    return;
+  }
   activeSceneTab = tab;
   if (activeWorkspaceView !== 'play') activeWorkspaceView = 'play';
   applyCampaignLayout();
@@ -7931,21 +7967,21 @@ el.activityNoteForm.addEventListener('submit', (event) => {
   setStatus('CAMPAIGN NOTE RECORDED', 'ok');
 });
 
-el.headerCharacterName.addEventListener('click', openCharacterWindow);
+el.headerCharacterName.addEventListener('click', () => setSceneTab('character'));
+wireDocumentWindow(characterWindow);
 el.openShipView.addEventListener('click', () => setWorkspaceView(activeWorkspaceView === 'ship' ? 'play' : 'ship'));
 el.openCampaignView.addEventListener('click', () => setWorkspaceView(activeWorkspaceView === 'campaign' ? 'play' : 'campaign'));
 el.openThreadsView.addEventListener('click', () => setWorkspaceView(activeWorkspaceView === 'threads' ? 'play' : 'threads'));
 document.addEventListener('keydown', (event) => {
-  if (event.key !== 'Escape' || !campaignPlayActive() || document.querySelector('dialog[open]')) return;
-  if (characterWindowOpen) { closeCharacterWindow(); return; }
+  if (event.key === 'Escape' && campaignPlayActive() && !document.querySelector('dialog[open]')) {
+  if (characterWindow.state.open) { closeWindowController(characterWindow); applyCampaignLayout(); return; }
   if (activeWorkspaceView !== 'play') setWorkspaceView('play');
+}
 });
 document.querySelectorAll('.sheet-close').forEach((button) => button.addEventListener('click', () => {
-  if (button === el.characterWindowClose) closeCharacterWindow();
-  else setWorkspaceView('play');
+  if (button === el.characterWindowClose) { closeWindowController(characterWindow); applyCampaignLayout(); return; }
+  setWorkspaceView('play');
 }));
-el.characterWindowMinimize.addEventListener('click', toggleCharacterWindowMinimized);
-wireCharacterWindow();
 el.sheetWeapon.addEventListener('change', () => saveCharacterSheetState(
   { weaponKey: el.sheetWeapon.value },
   `Ready weapon set: ${getPersonalWeapon(el.sheetWeapon.value).name}`

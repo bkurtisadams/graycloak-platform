@@ -156,8 +156,8 @@ export function createEncounterDocument({ campaign, situation = null, scene = nu
   const gridScale = scene ? scene.board.metersPerSquare : (metersPerSquare ?? ENCOUNTER_METERS_PER_SQUARE);
   if (!ENCOUNTER_GRID_SCALES.includes(gridScale)) throw new RangeError('grid scale must be 1, 5, or 25 meters');
   const sideMeters = scene ? scene.board.squares * scene.board.metersPerSquare : (boardMeters ?? encounterBoardMeters(range, gridScale));
-  const minimumSideMeters = scene ? ENCOUNTER_SCENE_MIN_METERS : ENCOUNTER_MAP_MIN_METERS;
   const staged = new Map((scene?.tokens ?? []).map((token) => [token.actorId, token.position]));
+  const minimumSideMeters = scene ? ENCOUNTER_SCENE_MIN_METERS : ENCOUNTER_MAP_MIN_METERS;
   if (!Number.isInteger(sideMeters) || sideMeters < minimumSideMeters || sideMeters > ENCOUNTER_MAP_COLUMNS - 1 || sideMeters % gridScale !== 0) {
     throw new RangeError(`board size must be a whole number of grid squares between ${minimumSideMeters} m and 1000 m a side`);
   }

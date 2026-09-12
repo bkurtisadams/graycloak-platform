@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <!-- v0.77.1: the Foundry shape. The canvas fills the window; a tool rail on
+  <!-- v0.77.0: the Foundry shape. The canvas fills the window; a tool rail on
        the left, a tabbed sidebar on the right. Every id the client scripts
        know is still here; the panels moved, the code did not. -->
   <main class="terminal shell" aria-labelledby="app-title">
@@ -15,7 +15,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.77.1</div>
+          <div id="app-subtitle" class="subtitle">v0.77.0</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -32,10 +32,10 @@
     </header>
 
     <aside class="shell-rail" aria-label="Scene and tools">
-      <div class="scene-tabs" role="group" aria-label="Scene and documents">
-        <button id="scene-tab-character" class="scene-tab" type="button" data-scene-tab="character" aria-pressed="false" title="Open the viewed character sheet">CHARACTER</button>
-        <button id="scene-tab-system" class="scene-tab is-active" type="button" data-scene-tab="system" aria-pressed="true">SYSTEM</button>
-        <button id="scene-tab-combat" class="scene-tab" type="button" data-scene-tab="combat" aria-pressed="false">COMBAT</button>
+      <div class="scene-tabs" role="group" aria-label="Scene and character window">
+        <button id="scene-tab-character" class="scene-tab" type="button" data-scene-tab="character" aria-pressed="false" title="Open the character sheet as a window">CHARACTER</button>
+        <button id="scene-tab-system" class="scene-tab is-active" type="button" role="tab" data-scene-tab="system" aria-selected="true">SYSTEM</button>
+        <button id="scene-tab-combat" class="scene-tab" type="button" role="tab" data-scene-tab="combat" aria-selected="false">COMBAT</button>
       </div>
       <div id="rail-tools" class="rail-tools" aria-label="Tools"></div>
     </aside>
@@ -73,8 +73,8 @@
         <section id="personnel-section" class="scene-view" aria-labelledby="record-heading">
     <div id="character-window-titlebar" class="section-heading document-window-titlebar" tabindex="-1">
       <h2 id="record-heading" class="section-title">PERSONNEL RECORD</h2>
-      <button id="character-window-minimize" class="text-button document-window-control" type="button" aria-label="Minimize character sheet" aria-expanded="true">[ &minus; ]</button>
-      <button id="character-window-close" class="text-button sheet-close document-window-control" type="button" aria-label="Close character sheet">[ CLOSE ]</button>
+      <button id="character-window-minimize" class="text-button document-window-control" type="button" aria-label="Minimize character sheet" aria-expanded="true" hidden>[ &minus; ]</button>
+      <button id="character-window-close" class="text-button sheet-close" type="button" aria-label="Close and return to the map">[ CLOSE ]</button>
       <button id="record-help" class="help-button" type="button" data-help-topic="personnel-record" aria-label="Explain the personnel record">[?]</button>
     </div>
     <div id="character-window-body" class="document-window-body">
@@ -103,7 +103,7 @@
         <h3>CHARACTERISTICS</h3>
         <div id="sheet-characteristics" class="sheet-characteristics" aria-label="Clickable original and current characteristics"></div>
         <div id="sheet-health-status" class="sheet-health-status">STATUS --</div>
-      </section>
+        </section>
       <div class="sheet-two-column">
         <section class="sheet-block sheet-service-block">
           <h3>SERVICE HISTORY</h3>

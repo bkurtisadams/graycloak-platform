@@ -3449,52 +3449,38 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .directory-row.draggable:active { cursor: grabbing; }
 .directory-folder { font-size: 10px; letter-spacing: .1em; color: var(--muted); font-weight: 700; padding: 6px 0 2px 2px; border-bottom: 1px dotted var(--disabled); }
 
-/* --- v0.77.0: the character is the first reusable-style document window.
-   It is deliberately square-edged and shadowless so the interaction model is
-   Foundry-like while the presentation remains Traveller. */
-.shell-stage #personnel-section.character-document-window {
+/* --- v0.77.0: the character sheet as a floating document window over the
+   current scene, built on the tested geometry in src/document-window.js.
+   Square-edged and shadowless, matching the terminal's own restraint. */
+.shell-stage #personnel-section.document-window {
   position: absolute;
   z-index: 20;
   display: flex;
   flex-direction: column;
-  min-width: min(440px, calc(100% - 32px));
-  min-height: 260px;
-  max-width: calc(100% - 32px);
-  max-height: calc(100% - 32px);
   padding: 0;
   overflow: hidden;
   resize: both;
   border: 2px solid var(--rule);
   background: var(--paper);
 }
-.shell-stage #personnel-section.character-document-window[hidden] { display: none; }
-.character-document-window .document-window-titlebar {
+.shell-stage #personnel-section.document-window[hidden] { display: none; }
+.document-window .document-window-titlebar {
   flex: 0 0 auto;
   align-items: center;
   min-height: 32px;
   margin: 0;
   padding: 4px 7px;
   border-bottom: 1px solid var(--rule);
-  background: var(--paper-deep);
+  background: var(--help-paper);
   cursor: move;
   user-select: none;
   touch-action: none;
 }
-.character-document-window.is-dragging .document-window-titlebar { cursor: grabbing; }
-.character-document-window .document-window-titlebar .section-title { margin: 0; }
-.character-document-window .document-window-titlebar .document-window-control:first-of-type { margin-left: auto; }
-.character-document-window .document-window-titlebar .sheet-close { margin-left: 0; }
-.character-document-window .document-window-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-  padding: 10px 12px;
-}
-.character-document-window.is-minimized {
-  height: auto !important;
-  min-height: 0;
-  resize: none;
-}
-.character-document-window.is-minimized .document-window-body { display: none; }
+.document-window.is-dragging { opacity: 0.92; }
+.document-window.is-dragging .document-window-titlebar { cursor: grabbing; }
+.document-window .document-window-titlebar .section-title { margin: 0; }
+.document-window-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 10px 12px; }
+.document-window.is-minimized { height: auto !important; min-height: 0; resize: none; }
+.document-window.is-minimized .document-window-body { display: none; }
 .chargen-mode #personnel-section .document-window-body { display: block; padding: 0; overflow: visible; }
 .chargen-mode #character-window-minimize { display: none; }

@@ -729,7 +729,7 @@ test('v0.72.0 a fight on a scene takes its board and its staged tokens', async (
   assert.ok(second.position.column > party.position.column, 'an unstaged foe takes the initial-range default');
 });
 
-test('v0.77.1 a valid ten-meter interior scene can host an encounter', async () => {
+test('v0.76.4 a ten-meter interior scene can host an encounter', async () => {
   const fixture = await encounterFixture();
   const scene = createSceneDocument({
     campaignId: fixture.campaign.identity.id,
@@ -755,4 +755,10 @@ test('v0.77.1 a valid ten-meter interior scene can host an encounter', async () 
   });
   assert.ok(encounter.combatants.every((entry) => entry.position.column >= 0 && entry.position.column <= 10));
   assert.ok(encounter.combatants.every((entry) => entry.position.row >= 0 && entry.position.row <= 10));
+  // A generated (non-scene) fight keeps the 50 m floor.
+  assert.throws(() => createEncounterDocument({
+    campaign: fixture.campaign, character: fixture.character, opponent: { name: 'Raider' },
+    encounterKey: 'too-small', date: { year: 4800, dayOfYear: 106 }, range: 'short', boardMeters: 20,
+    dice: sequenceDice([3, 3])
+  }), /between 50 m and 1000 m/);
 });

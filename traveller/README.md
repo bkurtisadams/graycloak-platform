@@ -1,22 +1,59 @@
 # Graycloak Traveller
 
-## v0.77.1 lets every valid Scene host an encounter
+## v0.77.0 the character sheet opens as a floating document window
 
-A Scene may legally be as small as ten squares, including a 10 m interior on
-the 1 m grid. Encounter creation still required every board to be at least 50
-m across, so selecting a smaller valid Scene in manual combat threw a RangeError.
-Scene-backed encounters now accept the Scene system's 10 m absolute minimum;
-automatically sized encounters retain their existing 50 m minimum.
+Built the way I said I would after the last attempt broke: the geometry and
+state are pure functions in `src/document-window.js` — clamp, drag-by-delta,
+resize, and open/close/minimize as plain state transitions, all with an
+injectable storage — tested without a browser, 8 cases. The DOM wiring is a
+generic `createWindowController()` any section can use (character today,
+ship and journal later), built on nothing but those tested functions.
 
-## v0.77.0 opens the Character sheet as a floating document window
+CHARACTER is now a toggle, not a tab: SYSTEM and COMBAT remain the scene;
+opening CHARACTER floats the same sheet over whichever is showing, draggable
+by its titlebar, resizable from its corner, with `[ − ]` to minimize and
+`[ CLOSE ]` to return to the empty canvas. Geometry persists in session
+storage and re-clamps if the window is reopened somewhere the canvas has
+since shrunk. Character generation is unaffected — the sheet is still the
+whole canvas there, window state fully reset on entry.
 
-During campaign play, CHARACTER now opens the existing sheet over the current
-SYSTEM or COMBAT canvas instead of replacing it. The first document-window
-prototype is draggable, resizable, minimizable and closable; it retains its
-geometry in session storage and is constrained back inside the canvas after a
-viewport change. Character generation deliberately keeps the same full-canvas
-sheet. This establishes the interaction model for later Actor, Ship and Journal
-windows without redesigning their contents in the same release.
+I integration-tested this by actually driving chargen to completion in a
+jsdom harness, starting a campaign, and exercising the window end to end:
+open (centred, correctly clamped to a 1200x800 container), drag (exact
+pointer delta, persisted), a simulated native resize (persisted across all
+four fields, not just position), minimize, restore, close, and reopening at
+the exact saved geometry. That harness caught two real bugs before you ever
+saw them — geometry was read from `offsetLeft`/`offsetWidth`, which needs a
+real layout engine and reads as zero in jsdom; reading the element's own
+inline style instead is both correct in a real browser (a drag and a native
+resize both set it directly) and verifiable without one. The resize observer
+now reasserts all four geometry fields as the canonical clamped values, not
+just the two it used to touch.
+
+## v0.76.4 a Scene may host an encounter even at its own minimum size
+
+The board-size floor for a generated fight is 50 m — right for a fight the
+engine sizes itself, wrong for a fight staged on a Scene, since Scene
+Documents already permit a 10-square, 1 m-grid interior (a ship's compartment,
+a small room) down to 10 m a side. Starting combat from a Scene that small
+threw a RangeError instead of starting the fight. A Scene-backed encounter
+now takes the Scene's own 10 m floor; a generated one keeps 50 m.
+
+This is the one change from a third party's attempt at the next UI pass
+(draggable, resizable document windows for the character sheet) that I could
+verify as correct — it's a small, well-scoped fix to code I own, with a
+regression test. The window feature itself is not carried forward: it
+shipped with no test of its own, in code (DOM geometry, native CSS resize,
+pointer-drag persistence) that is genuinely hard to verify without a real
+browser, and was reported broken along with other parts of the client. This
+release is v0.76.3 with only the Scene-size fix added, so the shell, chat,
+dice tray, and the ACTORS/COMBAT work from the last several versions are
+exactly as they were and pass every existing test.
+
+Floating document windows for the character sheet — and later the ship and
+journal — remain a good direction, matching the mockup this shell was built
+from; I'd rather build that increment myself, with whatever verification is
+possible, than carry forward a version I can't confirm works.
 
 ## v0.76.3 the combat map was sizing itself from an unresolved percentage height
 
