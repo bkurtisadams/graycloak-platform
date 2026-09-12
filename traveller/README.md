@@ -1,5 +1,27 @@
 # Graycloak Traveller
 
+## v0.79.1 the canvas below 1300px wide
+
+The canvas showed only in a wide enough window. The width-dependent rule
+responsible predates the shell: a v0.31-era `@media (max-width: 1299px)`
+block that un-fixes `.terminal` (`position: static; inset: auto`) and makes
+the body scroll, written for the old three-column terminal. `.terminal.shell`
+overrode most of what it set but never claimed `position` or `inset`, so
+below 1300px the shell quietly lost its viewport anchoring. That rule is now
+scoped to `.terminal:not(.shell)`, and the shell explicitly owns
+`position: fixed; inset: 0` so no legacy width rule can move it.
+
+The shell's own narrow breakpoint (added in v0.78/v0.79) also never applied:
+the fixed-column rule came later in the file at the same specificity and
+overrode it at every width. The shell's breakpoints now come last — the
+sidebar narrows to 300px below 1100px and starts collapsed below 900px, so
+the canvas keeps its width instead of the sidebar taking it.
+
+I can't render a narrow window here; what I can confirm is that this is the
+only width-conditional rule in the stylesheet that touches the shell's root,
+that the shell now owns every property it set, and that its breakpoints are
+no longer dead.
+
 ## v0.79.0 permanent canvas and Foundry-style control behavior
 
 The scene now occupies an explicit inset workspace instead of relying on a zero-height flex item, fixing the canvas disappearance seen in v0.78.0. The left palette is organized like Foundry: primary canvas layers in one column and tools for the selected layer in the adjacent column. The right sidebar now shows one directory or tracker at a time and collapses when its selected icon is clicked, returning the drawer width to the canvas. Combat remains on the right rail and opens the Traveller combat scene and tracker together.
