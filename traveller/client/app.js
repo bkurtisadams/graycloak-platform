@@ -4824,6 +4824,14 @@ function renderEncounterTracker(encounter, actor) {
     const row = document.createElement('details');
     row.className = `encounter-tracker-row${actor?.id === combatant.id ? ' selected' : ''}${combatant.status === 'active' ? '' : ' inactive'}`;
     row.open = expandedTrackerIds.has(combatant.id);
+    // v0.95.4: Foundry's own tracker takes a right-click on the row itself,
+    // not only on the token — reuse the same per-combatant menu the canvas
+    // token already opens, so REMOVE FROM ENCOUNTER (and everything else)
+    // works identically from either place.
+    row.addEventListener('contextmenu', (event) => {
+      event.preventDefault();
+      showEncounterTokenMenu(event, encounter, combatant);
+    });
     const summary = document.createElement('summary');
     summary.className = 'encounter-tracker-summary';
     const label = document.createElement('span');
@@ -4988,31 +4996,30 @@ function renderEncounterTracker(encounter, actor) {
       if (!window.confirm(`End ${encounter.identity.title} and empty the tracker? Its record stays in the log, and wounds persist.`)) return;
       endActiveEncounter({ thenDiscard: encounter.identity.id });
     }));
+  } else {
+    // v0.95.4: this lived only inside the "AFTER THE FIGHT" block below,
+    // so emptying the tracker looked like an outcome-specific option next
+    // to RESET COMBAT and PUT AWAY, rather than the same always-available
+    // action setup (CLOSE TRACKER) and an active fight (END COMBAT) already
+    // have. It belongs with them, every time a fight is on the desk.
+    const clear = makePortButton('CLEAR TRACKER', () => {
+      if (!window.confirm(`Empty the combat tracker? ${encounter.identity.title} is removed from the tracker; the tokens stay on the board.`)) return;
+      discardEncounter(encounter);
+    });
+    clear.title = 'Empty the combat tracker; the tokens stay on the board';
+    controls.push(clear);
   }
   el.encounterResolve.replaceChildren(...controls, note);
-  // v0.93.0: the four things wanted after a fight, named separately because
-  // one button cannot mean all of them. Wounds persist by default — Book 1
-  // carries injuries until treated — so only RESET COMBAT undoes them.
+  // v0.93.0: the two things wanted after a fight beyond emptying the
+  // tracker (CLEAR TRACKER, above, at all times). Wounds persist by
+  // default — Book 1 carries injuries until treated — so only RESET COMBAT
+  // undoes them.
   if (encounter.status !== 'active') {
     const after = document.createElement('div');
     after.className = 'encounter-after-fight';
-    after.append(Object.assign(document.createElement('div'), { className: 'sidebar-group-title', textContent: 'AFTER THE FIGHT' }));
+    after.append(Object.assign(document.createElement('div'), { className: 'sidebar-group-title', textContent: 'OUTCOME' }));
     const row = document.createElement('div');
     row.className = 'encounter-after-fight-row';
-    if (scene) {
-      // v0.95.3: this used to flip the scene token's vestigial inCombat
-      // flag — a v0.94.0-and-earlier idea nothing has read since v0.95.0
-      // made the encounter document the tracker. The panel's own rows come
-      // from encounter.combatants, so the button visibly did nothing.
-      // Emptying the tracker now means what it means everywhere else
-      // post-fight: discard this resolved encounter.
-      const clear = makePortButton('CLEAR TRACKER', () => {
-        if (!window.confirm(`Empty ${scene.identity.name}'s combat tracker? ${encounter.identity.title} is removed from the tracker; the tokens stay on the board.`)) return;
-        discardEncounter(encounter);
-      });
-      clear.title = `Empty ${scene.identity.name}'s combat tracker; the tokens stay on the board`;
-      row.append(clear);
-    }
     const reset = makePortButton('RESET COMBAT', () => resetCombat(encounter));
     reset.title = 'Return every combatant to full strength and put the fight away — the pre-fight state. Wounds otherwise persist (Book 1).';
     const away = makePortButton('PUT AWAY', () => putAwayEncounter(encounter));
@@ -6415,6 +6422,12 @@ function renderSceneTracker(scene) {
     const out = makePortButton('REMOVE', () => removeCombatantFromTracker(combat, combatant.id));
     out.title = 'Take this combatant out of the tracker';
     row.append(label, out);
+    // v0.95.4: Foundry's own combat tracker takes a right-click on the row
+    // itself, not only on the token — this is that entry point.
+    row.addEventListener('contextmenu', (event) => {
+      event.preventDefault();
+      showContextMenu(event, [{ label: 'REMOVE FROM COMBAT', danger: true, action: () => removeCombatantFromTracker(combat, combatant.id) }]);
+    });
     return row;
   });
   el.encounterTracker.replaceChildren(heading, ...rows);

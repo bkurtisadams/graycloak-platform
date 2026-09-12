@@ -613,7 +613,11 @@ export function addEncounterCombatantFromActor(document, { actor, side = 'opposi
 
 export function removeEncounterCombatant(document, { combatantId } = {}) {
   const next = importEncounterDocument(document);
-  if (next.status !== 'active') throw new Error('encounter is already resolved');
+  // v0.95.4: this required status === 'active', so removing a combatant
+  // from a tracker still in setup — before BEGIN COMBAT — always threw.
+  // Foundry allows freely adding and removing combatants before a fight
+  // starts; only a resolved fight's record is closed to editing.
+  if (!['setup', 'active'].includes(next.status)) throw new Error('encounter is already resolved');
   const combatant = next.combatants.find((entry) => entry.id === combatantId);
   if (!combatant) throw new Error('combatant is unavailable');
   if (next.combatants.filter((entry) => entry.side === combatant.side).length <= 1) throw new Error(`cannot remove the last ${combatant.side} combatant`);
