@@ -1,5 +1,40 @@
 # Graycloak Traveller
 
+## v0.91.0 the phase, the statuses, and the composer's 16 pixels
+
+**The composer, solved by arithmetic.** `gcDebug('#chat-composer')` gave the
+numbers: the composer sat at y=746 with height 104, so its bottom was 850 in
+an 834px window, and the chat panel started at y=91 while its container's
+content ended at 833. The panel was `height: 100%` of `.sidebar-body` but
+begins below that container's top padding — 100% plus a 16px offset overflows
+by exactly 16px. Three versions of flex and sticky could not fix that because
+none of them addressed it. The body is a flex column now and the panel flexes
+into the space that actually exists. This is the fourth time the browser's own
+numbers have beaten my reasoning, which is why v0.90.0 exists.
+
+**The tracker names the phase.** A Book 1 round is simultaneous: everyone
+declares, then all of it resolves together. That makes a round two states the
+tracker never distinguished — `ROUND 5 · DECLARING 3/6`, then
+`ROUND 5 · READY TO RESOLVE` — with the names of whoever still owes an order
+beside it, which is the referee's actual next question. Declaration is a
+commitment made in ignorance, and that is the tactical heart of the book; the
+UI should show the boundary rather than blur it.
+
+**Book 1 statuses on the token.** A downed combatant differed only by a faint
+opacity change, invisible on a crowded board: unconscious, dead, escaped and
+withdrawn now carry a glyph under the token with a tooltip. "Who is still
+standing" is the question a referee asks most in a fight.
+
+**And the refusal is on the button.** `at least one conscious living party
+character is required` was appearing in the masthead, where nobody looks. It
+is START COMBAT's disabled tooltip now, alongside the existing "track one of
+each side first".
+
+Next, as agreed: the round summary block, then the manual dialog made
+unreachable while a board is showing, then the mapless range-band encounter —
+which is Book 1's own procedure rather than a shortcut, since the book
+resolves combat in range bands and never requires a map at all.
+
 ## v0.90.0 gcDebug()
 
 Four rendering failures in a row turned out to be an ancestor two or three

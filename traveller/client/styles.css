@@ -4027,3 +4027,18 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
   border-top: 1px solid var(--rule);
 }
 .sidebar-panel[data-sidebar-panel="chat"] { padding-bottom: 0; }
+
+/* --- v0.91.0: the composer overflow, from gcDebug's numbers rather than a
+   theory. The chat panel was height:100% of .sidebar-body, but it starts
+   below that container's top padding — 100% plus a 16px offset overflows by
+   16px, which put the composer's bottom at 850 in an 834px window. The body
+   is a flex column now and the panel flexes into its content box, so the
+   height is what is actually available and nothing hangs off the screen. */
+.sidebar-body { display: flex; flex-direction: column; }
+.sidebar-body > .sidebar-panel:not([hidden]) { flex: 1 1 0; min-height: 0; }
+.sidebar-panel[data-sidebar-panel="chat"]:not([hidden]) { height: auto; }
+.encounter-token-status-glyph { font: 700 .5px Consolas, monospace; text-anchor: middle; paint-order: stroke; stroke: var(--paper); stroke-width: .08px; pointer-events: none; }
+.encounter-token-status-glyph.dead { fill: #5c1616; }
+.encounter-token-status-glyph.unconscious { fill: #7a5210; }
+.encounter-token-status-glyph.escaped, .encounter-token-status-glyph.withdrawn { fill: #33372f; }
+.encounter-tracker-ready { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

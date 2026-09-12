@@ -4370,6 +4370,19 @@ function renderEncounterMap(encounter) {
       if (combatant.conditions?.length) {
         const marker = sceneSvgNode('text', { x: .4, y: -.32, class: 'encounter-token-condition-marker' }); marker.textContent = '!'; group.append(marker);
       }
+      // v0.91.0: Book 1's statuses on the token itself. A downed combatant
+      // differed only by a faint opacity change, which is invisible on a
+      // crowded board — and "who is still standing" is the question a
+      // referee asks most often in a fight.
+      const statusGlyph = { unconscious: '\u25CC', dead: '\u2020', escaped: '\u2192', withdrawn: '\u21A9' }[combatant.status];
+      if (statusGlyph) {
+        const mark = sceneSvgNode('text', { x: 0, y: .78, class: `encounter-token-status-glyph ${combatant.status}` });
+        mark.textContent = statusGlyph;
+        const title = sceneSvgNode('title');
+        title.textContent = `${combatant.name} — ${combatant.status}`;
+        mark.append(title);
+        group.append(mark);
+      }
       if (combatant.side !== 'party' && declaredOn[combatant.id]) {
         const tally = sceneSvgNode('text', { x: .4, y: .48, class: 'encounter-token-declared-marker' }); tally.textContent = `\u00d7${declaredOn[combatant.id]}`; group.append(tally);
       }
@@ -4608,14 +4621,28 @@ function renderEncounterTracker(encounter, actor) {
   heading.className = 'encounter-tracker-header';
   const state = document.createElement('strong');
   state.className = 'encounter-tracker-state';
-  state.textContent = encounter.status !== 'active' ? encounter.status.toUpperCase() : started ? `ROUND ${encounter.round}` : 'NOT STARTED';
+  // v0.91.0: a Book 1 round has two states the tracker never distinguished —
+  // DECLARING, where intentions are being collected and nothing has happened
+  // yet, and RESOLVED, where the dice have fallen. Everything resolves at
+  // once, so the phase is the thing to read, not a turn pointer.
+  const declaringCount = encounter.roundState?.declaredActions?.length ?? 0;
+  const liveCount = encounter.combatants.filter((entry) => entry.status === 'active').length;
+  const phase = declaringCount >= liveCount && liveCount > 0 ? 'READY TO RESOLVE' : `DECLARING ${declaringCount}/${liveCount}`;
+  state.textContent = encounter.status !== 'active'
+    ? `${encounter.status.toUpperCase()} / ROUND ${encounter.round}`
+    : started ? `ROUND ${encounter.round} \u00b7 ${phase}` : `NOT STARTED \u00b7 ${phase}`;
+  state.title = encounter.status !== 'active'
+    ? 'The fight is over; the tracker shows how it ended.'
+    : 'Book 1 rounds are simultaneous: every combatant declares, then all of it resolves together.';
   const nav = document.createElement('span');
   nav.className = 'encounter-tracker-nav';
-  const declaredCount = encounter.roundState?.declaredActions?.length ?? 0;
-  const activeCount = encounter.combatants.filter((entry) => entry.status === 'active').length;
   const ready = document.createElement('span');
   ready.className = 'encounter-tracker-ready';
-  ready.textContent = encounter.status === 'active' ? `DECLARED ${declaredCount}/${activeCount}` : '';
+  // Who still owes an order — the referee's actual next question.
+  const awaiting = encounter.combatants.filter((entry) => entry.status === 'active'
+    && !encounter.roundState?.declaredActions?.some((order) => order.actorId === entry.id));
+  ready.textContent = encounter.status !== 'active' ? ''
+    : awaiting.length ? `AWAITING ${awaiting.map((entry) => entry.name.split(' ')[0].toUpperCase()).join(', ')}` : '';
   nav.append(ready);
   heading.append(state, nav);
   const ordered = [
@@ -6144,8 +6171,16 @@ function renderSceneTracker(scene) {
   el.encounterTracker.replaceChildren(heading, ...rows, tools);
   const canStart = tracked.some((token) => token.side === 'party') && tracked.some((token) => token.side !== 'party');
   const start = makePortButton('START COMBAT', () => startCombatFromScene(scene));
-  start.disabled = !canStart;
-  start.title = canStart ? 'Begin the fight with the tracked tokens where they stand' : 'Track at least one party token and one opponent first';
+  // v0.91.0: Book 1 needs someone still standing. The refusal used to reach
+  // the masthead, where nobody looks; it is on the button now.
+  const standing = currentPartyCharacters().some((entry) => {
+    const live = entry.current ?? entry.characteristics;
+    return ['STR', 'DEX', 'END'].every((key) => (live?.[key] ?? 1) > 0);
+  });
+  const blocked = !canStart ? 'Track at least one party token and one opponent first'
+    : !standing ? 'At least one conscious, living party character is required (Book 1)' : '';
+  start.disabled = Boolean(blocked);
+  start.title = blocked || 'Begin the fight with the tracked tokens where they stand';
   const setup = makePortButton('MANUAL SETUP', openCombatSetupDialog);
   setup.title = 'The combat setup dialog: opponents by hand, without staging';
   setup.textContent = '[ FIGHT WITHOUT A SCENE ]';
