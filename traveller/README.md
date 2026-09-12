@@ -1,5 +1,40 @@
 # Graycloak Traveller
 
+## v0.84.2 the ACTORS tab was switched off by a mechanism that no longer exists
+
+The directory was correct all along. `#roster-section`, which holds
+`#directory-actors`, moved into the ACTORS sidebar panel in the v0.75.0
+shell — but it was left in `applyOperationsDeskTab()`'s panel map, the
+pre-shell WORLD / TRADE / JOBS / ROSTER sub-tab system. That function hides
+every panel whose key is not the current desk tab, and the desk tab can
+never be `roster` any more because those sub-tabs are gone. So every render
+set `hidden` on the section while the ACTORS panel around it measured a
+perfectly healthy 345x606. The cards were built, the content was in the DOM,
+and `display: none` two levels down made it invisible.
+
+ROSTER is out of that map, and the section is unhidden before the map runs:
+the sidebar tab owns its own visibility now. A pin asserts both.
+
+Diagnosed by walking the ancestor chain in the browser and reading the
+computed `display` at each level — the fourth measurement in a row that beat
+my reasoning. Three versions of theories (a throwing render stage, a
+squeezed grid row, a duplicated element) were all wrong; the chain took one
+paste.
+
+## v0.84.1 a failing panel no longer takes the rest of the screen with it
+
+`render()` ran its eleven panels as one straight sequence, so the first one
+to throw on a particular campaign's data abandoned every panel after it. The
+ACTORS directory is sixth in that line, which is why it sat empty — not
+missing, not unwired, just never reached — with nothing in the UI to say so.
+Each stage now runs on its own: a failure logs `render stage "<name>"
+failed` with the exception and shows `RENDER FAILED IN <NAME>` in the
+masthead, and the remaining panels still draw.
+
+This does not yet fix whatever is throwing on the Sea of Suns data — it
+makes the throw name itself instead of hiding as an empty panel, which is
+what I needed and did not have.
+
 ## v0.84.0 the drawer shows its tab; the client reads at a glance
 
 The ACTORS directory of v0.83 was there, buried: the old campaign header —

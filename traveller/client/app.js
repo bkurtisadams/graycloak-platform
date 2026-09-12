@@ -6689,12 +6689,18 @@ function renderSituations() {
 }
 
 function applyOperationsDeskTab() {
+  // v0.84.2: ROSTER left the operations desk in v0.75.0 — the actor roster is
+  // the ACTORS sidebar tab now, and that tab owns its own visibility. It stayed
+  // in this map, so every render hid #roster-section because the desk tab was
+  // never 'roster' (those sub-tabs no longer exist). The ACTORS panel measured
+  // a healthy 345x606 with the section inside it display:none, which is why
+  // the directory rendered its cards correctly and showed nothing at all.
+  if (el.rosterSection) el.rosterSection.hidden = false;
   const panels = {
     port: el.portServicesSection,
     trade: el.commerceSection,
     jobs: el.contractSection,
-    situation: el.situationSection,
-    roster: el.rosterSection
+    situation: el.situationSection
   };
   const tabs = {
     port: el.operationsTabPort,
@@ -7737,17 +7743,30 @@ function render() {
   renderPortServices();
   renderCommerce();
   renderContracts();
-  renderSituations();
-  renderEncounter();
-  renderAccount();
-  renderPublishPanel();
-  watchPlayerDeclarations();
-  watchPlayerCanvas();
-  renderCampaignDirectory();
-  renderRoster();
-  applyOperationsDeskTab();
-  renderShip();
-  renderCampaignHeader();
+  // v0.84.1: each panel renders on its own. These ran as one sequence, so the
+  // first one to throw on a particular campaign's data silently abandoned
+  // every panel after it — the ACTORS directory, sixth in line, would simply
+  // stay empty with nothing in the UI to say why. A failure is now logged
+  // with the stage that caused it and the rest of the screen still draws.
+  for (const [stage, run] of [
+    ['situations', renderSituations],
+    ['encounter', renderEncounter],
+    ['account', renderAccount],
+    ['publish', renderPublishPanel],
+    ['player-declarations', watchPlayerDeclarations],
+    ['player-canvas', watchPlayerCanvas],
+    ['directory', renderCampaignDirectory],
+    ['roster', renderRoster],
+    ['operations-desk', applyOperationsDeskTab],
+    ['ship', renderShip],
+    ['campaign-header', renderCampaignHeader]
+  ]) {
+    try { run(); }
+    catch (error) {
+      console.error(`[traveller] render stage "${stage}" failed:`, error);
+      setStatus(`RENDER FAILED IN ${stage.toUpperCase()} / ${error?.message ?? error}`, 'error');
+    }
+  }
   renderSelectedSystemSummary();
   applyCampaignLayout();
   renderPlayProcedure();
