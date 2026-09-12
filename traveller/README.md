@@ -1,5 +1,34 @@
 # Graycloak Traveller
 
+## v0.86.0 a target belongs to a combatant, not to the canvas
+
+You were right, and it was a modelling error rather than a UI preference.
+There was one global `selectedEncounterTargetId` and one global set of extra
+targets, so "the target" existed independently of who was aiming. Select a
+second party member and they inherited the first one's target; two characters
+could not be aiming at different foes at all, which is incoherent the moment
+a party of three fights a pair of raiders — and Book 1 declarations are
+actor-and-target pairs, so the document had always known better than the UI.
+
+Targets are now kept per actor, `Map<actorId, Set<targetId>>`:
+
+- Selecting a combatant shows **its own** targets. Stepping through the
+  tracker — which the glyph click now does — walks each combatant's aim in
+  turn, which is the behaviour you described.
+- A **declared** action's target is the document's truth and overrides any
+  pending mark, so once an order is given the ring follows the order.
+- `T` and the token menu mark targets **for the selected combatant**, and
+  refuse a combatant's own side.
+- Removing a combatant drops it as everyone's target, not just as an actor.
+- A resolved round clears every pending mark, since its declarations are
+  spent.
+
+Three pins that described the old globals are rewritten. Foundry keeps
+targets per *user*, which is the right model when every player targets for
+themselves; ours are per *combatant*, which is the same idea expressed
+through Book 1's declaration structure — and it means the referee can set up
+a whole round's aims before resolving any of it.
+
 ## v0.85.1 the manual dialog stops lying, and surprise reaches both paths
 
 The manual dialog stays — it is the only way to build a fight that is not on

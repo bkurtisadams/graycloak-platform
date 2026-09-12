@@ -623,7 +623,6 @@ let speculativeBrokerDM = 0;
 let operationsDeskTab = 'port';
 let pendingRoll = null;
 let selectedEncounterActorId = null;
-let selectedEncounterTargetId = null;
 let selectedEncounterTokenIds = new Set();
 let encounterSelectionCleared = false;
 let pendingEncounterPlacement = null;
@@ -645,7 +644,29 @@ function encounterCanvas() {
   return encounterCanvasInstance;
 }
 let framedEncounterId = null;
-let encounterExtraTargetIds = new Set();
+// v0.86.0: a target belongs to a combatant, not to the canvas. Book 1
+// declarations are actor-and-target pairs, so a single global "the target" was
+// incoherent as soon as two party members aimed at different foes — selecting
+// a second actor inherited the first one's target. Targets are now kept per
+// actor: Map<actorId, Set<targetId>>. Selecting a combatant shows its own
+// targets; a declared action's target, once declared, is the document's truth
+// and overrides anything pending.
+let encounterTargetsByActor = new Map();
+
+function actorTargetIds(actorId) {
+  return encounterTargetsByActor.get(actorId) ?? new Set();
+}
+
+// What this combatant is aiming at: its declaration if it has one, otherwise
+// what the referee has marked for it.
+function declaredTargetIdFor(encounter, actorId) {
+  return encounter?.roundState?.declaredActions?.find((entry) => entry.actorId === actorId)?.targetId ?? null;
+}
+
+function effectiveTargetIds(encounter, actorId) {
+  const declared = declaredTargetIdFor(encounter, actorId);
+  return declared ? new Set([declared]) : actorTargetIds(actorId);
+}
 let expandedTrackerIds = new Set();
 const ENCOUNTER_GRID_VISIBILITY_KEY = 'graycloak.traveller.encounter.grid.v1';
 let encounterGridHidden = false;
@@ -3727,8 +3748,8 @@ function selectedEncounterTarget(encounter) {
   if (!actor) return null;
   const actorSide = actor.side;
   const candidates = encounter?.combatants.filter((entry) => entry.side !== actorSide && (encounter.status !== 'active' || entry.status === 'active')) ?? [];
-  return candidates.find((entry) => encounterExtraTargetIds.has(entry.id))
-    ?? candidates.find((entry) => entry.id === selectedEncounterTargetId) ?? null;
+  const mine = effectiveTargetIds(encounter, actor.id);
+  return candidates.find((entry) => mine.has(entry.id)) ?? null;
 }
 
 function selectedEncounterActor(encounter) {
@@ -3754,8 +3775,7 @@ function setEncounterTarget(encounterId, targetId) {
   const target = encounter?.combatants.find((entry) => entry.id === targetId && entry.side !== actorSide && (encounter.status !== 'active' || entry.status === 'active'));
   if (!target) return;
   encounterSelectionCleared = false;
-  encounterExtraTargetIds = new Set([target.id]);
-  selectedEncounterTargetId = target.id;
+  if (selectedEncounterActorId) encounterTargetsByActor.set(selectedEncounterActorId, new Set([target.id]));
   renderEncounter();
 }
 
@@ -3777,10 +3797,10 @@ function toggleEncounterTarget(encounterId, tokenId, { additive = true } = {}) {
   const actor = selectedEncounterActor(encounter);
   const token = encounter?.combatants.find((entry) => entry.id === tokenId);
   if (!actor || !token) return setStatus('SELECT A TOKEN, THEN TARGET A VISIBLE TOKEN', 'error');
-  const next = additive ? new Set(encounterExtraTargetIds) : new Set();
+  if (token.side === actor.side) return setStatus('A COMBATANT CANNOT TARGET ITS OWN SIDE', 'error');
+  const next = additive ? new Set(actorTargetIds(actor.id)) : new Set();
   if (next.has(tokenId)) next.delete(tokenId); else next.add(tokenId);
-  encounterExtraTargetIds = next;
-  selectedEncounterTargetId = [...next][0] ?? null;
+  encounterTargetsByActor.set(actor.id, next);
   renderEncounter();
 }
 
@@ -3788,10 +3808,7 @@ function clearEncounterCanvasSelection({ targets = true } = {}) {
   selectedEncounterTokenIds = new Set();
   selectedEncounterActorId = null;
   encounterSelectionCleared = true;
-  if (targets) {
-    encounterExtraTargetIds = new Set();
-    selectedEncounterTargetId = null;
-  }
+  if (targets) encounterTargetsByActor = new Map();
 }
 
 function svgElement(name, attributes = {}) {
@@ -3899,7 +3916,7 @@ function showEncounterTokenMenu(event, encounter, combatant, onSelect, anchorEle
   const foes = encounter.combatants.filter((entry) => entry.side !== combatant.side && entry.status === 'active');
   const selectedActor = selectedEncounterActor(encounter);
   add(selectedEncounterTokenIds.has(combatant.id) ? 'DESELECT' : 'SELECT', () => selectEncounterToken(encounter.identity.id, combatant.id, { additive: true }));
-  add(encounterExtraTargetIds.has(combatant.id) ? 'UNTARGET' : 'TARGET', () => toggleEncounterTarget(encounter.identity.id, combatant.id), !selectedActor);
+  add(selectedActor && actorTargetIds(selectedActor.id).has(combatant.id) ? 'UNTARGET' : 'TARGET', () => toggleEncounterTarget(encounter.identity.id, combatant.id), !selectedActor);
 
   // A submenu: the parent opens it, each child is one complete declaration for
   // this token, so an order is a single gesture at the token it applies to.
@@ -4119,7 +4136,10 @@ function removeCombatantFromActiveEncounter(encounterId, combatantId) {
     const result = removeEncounterCombatant(encounterDocuments[index], { combatantId });
     encounterDocuments[index] = result.encounter;
     if (selectedEncounterActorId === combatantId) selectedEncounterActorId = null;
-    if (selectedEncounterTargetId === combatantId) selectedEncounterTargetId = null;
+    encounterTargetsByActor.delete(combatantId);
+    for (const [actorId, targets] of encounterTargetsByActor) {
+      if (targets.delete(combatantId)) encounterTargetsByActor.set(actorId, targets);
+    }
     logActivity('COMBAT', result.entry.text);
     persistCampaignState();
     setStatus(`${result.combatant.name.toUpperCase()} REMOVED FROM ENCOUNTER`, 'ok');
@@ -4212,7 +4232,10 @@ function renderEncounterMap(encounter) {
   const target = selectedEncounterTarget(encounter);
   const declared = new Set(encounter.roundState?.declaredActions?.map((entry) => entry.actorId) ?? []);
   const declaredOn = declaredTargetCounts(encounter);
-  const targetedIds = new Set([...encounterExtraTargetIds, target?.id].filter(Boolean));
+  // Rings mark what the selected combatant is aiming at — its declaration if
+  // it has one, otherwise its pending marks. Every other combatant's targets
+  // stay on their own rows and on their declared order arrows.
+  const targetedIds = actor ? effectiveTargetIds(encounter, actor.id) : new Set();
   const tokens = encounter.combatants.map((combatant) => ({
     id: combatant.id, column: combatant.position.column, row: combatant.position.row,
     side: combatant.side === 'party' ? 'party' : 'enemy',
@@ -4647,7 +4670,8 @@ function renderEncounterTracker(encounter, actor) {
 
     const verbs = document.createElement('div');
     verbs.className = 'encounter-tracker-verbs';
-    const foe = encounter.combatants.find((entry) => entry.id === selectedEncounterTargetId && entry.side !== combatant.side && entry.status === 'active')
+    // This combatant's own target first, then any live foe as a fallback.
+    const foe = encounter.combatants.find((entry) => effectiveTargetIds(encounter, combatant.id).has(entry.id) && entry.side !== combatant.side && entry.status === 'active')
       ?? encounter.combatants.find((entry) => entry.side !== combatant.side && entry.status === 'active');
     verbs.append(
       makePortButton('ATTACK', () => { setEncounterActor(encounter.identity.id, combatant.id); openEncounterAttackDialog(encounter); }, { disabled: !canOrder || !foe }),
@@ -6628,7 +6652,6 @@ function endActiveEncounter() {
     const index = encounterDocuments.findIndex((entry) => entry.identity.id === active.identity.id);
     const result = endEncounterByReferee(active, { date: campaignDateSnapshot() });
     encounterDocuments[index] = result.encounter;
-    encounterExtraTargetIds = new Set();
     clearEncounterCanvasSelection();
     logActivity('COMBAT', result.entry.text);
     applyEncounterDocumentSync(result.encounter);
@@ -6675,7 +6698,8 @@ function resolveDeclaredEncounterRound() {
       dice: seededDice(`${active.identity.id}|round-${active.round}|resolve`)
     });
     encounterDocuments[index] = result.encounter;
-    encounterExtraTargetIds = new Set();
+    // The round's declarations are spent, so every pending mark goes with them.
+    encounterTargetsByActor = new Map();
     if (result.encounter.status !== 'active') clearEncounterCanvasSelection();
     if (campaignDocument) campaignDocument = advanceCampaignSeconds(campaignDocument, COMBAT_ROUND_SECONDS);
     for (const entry of result.entries) logActivity('COMBAT', entry.text);
@@ -8687,11 +8711,9 @@ el.encounterGridScale.addEventListener('change', () => {
       return;
     }
     event.preventDefault();
-    if (encounterExtraTargetIds.has(candidate.id)) {
-      // The shared toggle helper removes an already marked target.
-    }
+    const had = actorTargetIds(actor.id).has(candidate.id);
     toggleEncounterTarget(encounter.identity.id, candidate.id, { additive: true });
-    setStatus(`${encounterExtraTargetIds.has(candidate.id) ? 'TARGET' : 'UNTARGET'} ${candidate.name.toUpperCase()}`, 'ok');
+    setStatus(`${had ? 'UNTARGET' : 'TARGET'} ${candidate.name.toUpperCase()} / ${actor.name.toUpperCase()}`, 'ok');
   });
 }
 el.combatSetupDialog.addEventListener('cancel', (event) => {
