@@ -1,5 +1,20 @@
 # Graycloak Traveller
 
+## v0.92.2 the navigation bar clears the tool rail
+
+v0.92.1 moved the bar out of the subsector's header and into the stage's
+top-left — straight onto the tool rail, which is an overlay at the same
+`left: 8px`. Two pieces of chrome in one place, the rail drawn over the top.
+The stage already reserves 96px on the left for the rail, so the bar starts
+beyond that, and sits above the rail in the stacking order since it is the
+frontmost thing on the canvas.
+
+Worth admitting: this is the third position for one small bar. Centred covered
+the header, top-left covered the rail, and only the third reading of the
+existing overlays — both absolutely positioned, both with their own z-index —
+gave somewhere it actually fits. I should have read what was already claiming
+that corner before moving it there.
+
 ## v0.92.1 the dialog stays away from a board; the bar stops covering the header
 
 **The manual dialog was still reachable from a displayed board.** I guarded

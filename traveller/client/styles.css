@@ -4058,3 +4058,11 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .scene-nav { top: 38px; left: 8px; transform: none; }
 .shell-stage { padding-top: 66px; }
 .scene-nav-button { max-width: 34ch; }
+
+/* --- v0.92.2: the navigation bar clears the tool rail. The rail is an overlay
+   at left:8px with z-index 20, and putting the bar at the same left stacked
+   the two on top of each other. The stage already reserves 96px on the left
+   for the rail, so the bar starts there — and sits above it, since it is the
+   frontmost chrome on the canvas. */
+.scene-nav { left: 104px; z-index: 26; }
+@media (max-width: 900px) { .scene-nav { left: 96px; } }
