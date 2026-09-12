@@ -5,8 +5,9 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 import { importCharacterDocument } from '../vendor/classic-traveller-rules/index.js';
-import { createCampaignDocument } from '../src/campaign-document.js';
+import { createCampaignDocument, addEncounterToCampaign } from '../src/campaign-document.js';
 import { createSceneDocument } from '../src/scene-document.js';
+import { createCampaignBundle, importCampaignBundle } from '../src/campaign-bundle.js';
 import {
   createEncounterDocument,
   declareEncounterAction,
@@ -171,4 +172,30 @@ test('a document already marked schemaVersion 16 but missing spatialMode is repa
   const brokenLine = { ...broken, map: { ...broken.map, grid: 'line', columns: 41, rows: 1, rangeGuide: 'graycloak-book1-line-grid-v1' } };
   const fixedLine = importEncounterDocument(brokenLine);
   assert.equal(fixedLine.map.spatialMode, 'range-line', 'derives from grid rather than defaulting blindly');
+});
+
+test('a corrupt embedded encounter is dropped, not fatal to the whole campaign bundle', async () => {
+  const { campaign, character } = await fixture();
+  const good = createEncounterDocument({
+    campaign, character, opponent: { name: 'Thug' }, spatialMode: 'range-line',
+    date: { year: 4800, dayOfYear: 141 }, range: 'close', dice: sequenceDice([3, 3])
+  });
+  let withGood = addEncounterToCampaign(campaign, good);
+  // A hand-corrupted encounter, standing in for the real-world failure: some
+  // incompatible write left a document that fails validation outright. The
+  // whole campaign used to fail to open over this single tracker. (Shrinking
+  // the line-grid board below the escape band's own width isn't something
+  // any repair step patches — unlike a missing spatialMode, there's no
+  // single correct value to infer here.)
+  const corrupt = { ...good, identity: { id: 'corrupt-encounter', title: 'Corrupt' }, map: { ...good.map, columns: 3 } };
+  const withBoth = addEncounterToCampaign(withGood, corrupt);
+  const bundle = createCampaignBundle(withGood, { characters: [character], encounters: [good] });
+  const raw = JSON.parse(JSON.stringify(bundle));
+  raw.campaign = withBoth; // campaign now references the corrupt encounter too
+  raw.documents.encounters.push(corrupt); // ...and it's present in the bundle
+  const reimported = importCampaignBundle(raw);
+  assert.equal(reimported.documents.encounters.length, 1, 'the corrupt encounter is dropped, the good one kept');
+  assert.equal(reimported.documents.encounters[0].identity.id, good.identity.id);
+  assert.equal(reimported.campaign.documentRefs.encounters.length, 1, 'the campaign\'s own reference list is trimmed to match');
+  assert.ok(!reimported.campaign.documentRefs.encounters.some((ref) => ref.id === 'corrupt-encounter'));
 });

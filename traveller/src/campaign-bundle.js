@@ -185,12 +185,32 @@ export function importCampaignBundle(input) {
   const situations = (parsed.documents.situations ?? []).map((entry) => importSituationDocument(entry));
   const contacts = (parsed.documents.contacts ?? []).map((entry) => importContactDocument(entry));
   const threads = (parsed.documents.threads ?? []).map((entry) => importAdventureThreadDocument(entry));
-  const encounters = (parsed.documents.encounters ?? []).map((entry) => importEncounterDocument(entry));
+  // v0.96.2: one corrupt encounter used to fail this .map() outright, which
+  // threw all the way up through importCampaignHome and left the entire
+  // campaign unopenable — not just combat. A tracker is disposable by this
+  // app's own design (a resolved fight's outcome already lives as text in
+  // the activity log); a single one that won't import is not worth losing
+  // the whole game over. Encounters that fail are dropped and logged
+  // instead, with their references in the campaign document trimmed to
+  // match so the exactIdSet check below still holds.
+  const droppedEncounterIds = new Set();
+  const encounters = (parsed.documents.encounters ?? []).flatMap((entry) => {
+    try { return [importEncounterDocument(entry)]; }
+    catch (error) {
+      const id = entry?.identity?.id ?? '(unknown id)';
+      console.warn(`[traveller] dropping unreadable encounter ${id} while loading campaign bundle: ${error?.message ?? error}`);
+      droppedEncounterIds.add(id);
+      return [];
+    }
+  });
+  const campaignWithEncountersReconciled = droppedEncounterIds.size
+    ? { ...campaign, documentRefs: { ...campaign.documentRefs, encounters: campaign.documentRefs.encounters.filter((ref) => !droppedEncounterIds.has(ref.id)) } }
+    : campaign;
   const npcActors = (parsed.documents.npcActors ?? []).map((entry) => importNpcActorDocument(entry));
   const assets = (parsed.documents.assets ?? []).map((entry) => importMediaAssetDocument(entry));
   const activityLogs = (parsed.documents.activityLogs ?? []).map((entry) => importActivityLogDocument(entry));
   const scenes = (parsed.documents.scenes ?? []).map((entry) => importSceneDocument(entry));
-  return createCampaignBundle(campaign, { characters, ships, contracts, situations, contacts, threads, encounters, npcActors, assets, activityLogs, scenes });
+  return createCampaignBundle(campaignWithEncountersReconciled, { characters, ships, contracts, situations, contacts, threads, encounters, npcActors, assets, activityLogs, scenes });
 }
 
 export function exportCampaignBundle(bundle, { space = 2 } = {}) {
