@@ -76,10 +76,10 @@ async function encounterFixture() {
 test('Encounter Document v15 round-trips the metre workspace, grid scale, declarations, positions, range, and audit history', async () => {
   const { encounter } = await encounterFixture();
   const roundTrip = importEncounterDocument(exportEncounterDocument(encounter));
-  assert.equal(roundTrip.schemaVersion, 15);
+  assert.equal(roundTrip.schemaVersion, 16);
   assert.equal(roundTrip.sceneId, null);
   // v0.71.0: a medium-range fight on 5 m squares is a 200 m board (40 squares).
-  assert.deepEqual(roundTrip.map, { grid: 'square', columns: 201, rows: 201, rangeGuide: 'graycloak-meter-grid-v4', metersPerSquare: 5 });
+  assert.deepEqual(roundTrip.map, { grid: 'square', columns: 201, rows: 201, rangeGuide: 'graycloak-meter-grid-v4', metersPerSquare: 5, spatialMode: 'scene' });
   assert.deepEqual(roundTrip.roundState, { declaredActions: [] });
   assert.deepEqual(roundTrip.combatants[0].position, { column: 50, row: 100 });
   assert.deepEqual(roundTrip.combatants[1].position, { column: 100, row: 100 });
@@ -98,7 +98,7 @@ test('Encounter Document v1 imports migrate through v15 to the metre workspace',
   delete legacy.map;
   for (const combatant of legacy.combatants) delete combatant.position;
   const migrated = importEncounterDocument(legacy);
-  assert.equal(migrated.schemaVersion, 15);
+  assert.equal(migrated.schemaVersion, 16);
   assert.equal(migrated.sceneId, null);
   assert.equal(migrated.map.grid, 'square');
   // A pre-v0.71 board stays a kilometre; nothing about its positions changes.
@@ -117,7 +117,7 @@ test('Encounter Document v11 migration preserves former close pairs as explicit 
   legacy.combatants[1].position = { column: 5, row: 9 };
   for (const combatant of legacy.combatants) delete combatant.contactIds;
   const migrated = importEncounterDocument(legacy);
-  assert.equal(migrated.schemaVersion, 15);
+  assert.equal(migrated.schemaVersion, 16);
   assert.equal(encounterPairRange(migrated.combatants[0], migrated.combatants[1]), 'close');
   assert.deepEqual(migrated.combatants[0].contactIds, [migrated.combatants[1].id]);
 });
@@ -720,7 +720,7 @@ test('v0.72.0 a fight on a scene takes its board and its staged tokens', async (
     encounterKey: 'on-a-scene', date: { year: 4800, dayOfYear: 106 }, range: 'medium', dice: sequenceDice([3, 3])
   });
   assert.equal(encounter.sceneId, scene.identity.id);
-  assert.deepEqual(encounter.map, { grid: 'square', columns: 101, rows: 101, rangeGuide: 'graycloak-meter-grid-v4', metersPerSquare: 5 });
+  assert.deepEqual(encounter.map, { grid: 'square', columns: 101, rows: 101, rangeGuide: 'graycloak-meter-grid-v4', metersPerSquare: 5, spatialMode: 'scene' });
   const party = encounter.combatants.find((entry) => entry.side === 'party');
   const raider = encounter.combatants.find((entry) => entry.name === 'Raider');
   const second = encounter.combatants.find((entry) => entry.name === 'Second Raider');
@@ -751,7 +751,7 @@ test('v0.76.4 a ten-meter interior scene can host an encounter', async () => {
   assert.equal(encounter.sceneId, scene.identity.id);
   assert.deepEqual(encounter.map, {
     grid: 'square', columns: 11, rows: 11,
-    rangeGuide: 'graycloak-meter-grid-v4', metersPerSquare: 1
+    rangeGuide: 'graycloak-meter-grid-v4', metersPerSquare: 1, spatialMode: 'scene'
   });
   assert.ok(encounter.combatants.every((entry) => entry.position.column >= 0 && entry.position.column <= 10));
   assert.ok(encounter.combatants.every((entry) => entry.position.row >= 0 && entry.position.row <= 10));

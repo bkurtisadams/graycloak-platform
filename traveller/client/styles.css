@@ -741,6 +741,27 @@ input[readonly] {
 .encounter-token-enemy.inactive { fill: #777a75; opacity: 0.55; cursor: default; }
 .encounter-token-enemy-label { fill: #f2f2ed; font: 700 .42px Consolas, monospace; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
 .encounter-token-condition-marker { fill: #6a1f1f; stroke: #e7dfb6; stroke-width: .15px; font: 700 .45px Consolas, monospace; pointer-events: none; }
+
+/* v0.96.0: Book 1 p.29's own line grid — plain rectangular rows, one per
+   band, drawn at real pixel scale rather than the 1-unit-per-cell scale the
+   tactical board's tokens use above. */
+.range-line-row { fill: transparent; stroke: none; }
+.range-line-row.escaped { fill: #6a1f1f; opacity: .08; }
+.range-line-divider { stroke: #111311; stroke-width: 1; opacity: .35; }
+.range-line-zone-label { fill: #6b6a63; font: 700 12px Consolas, monospace; dominant-baseline: central; letter-spacing: .04em; }
+.range-line-token { cursor: pointer; }
+.range-line-token circle { stroke: #111311; stroke-width: 1.5; }
+.range-line-token.party circle { fill: #29465c; }
+.range-line-token.party.declared circle { fill: #667783; opacity: .72; }
+.range-line-token.enemy circle { fill: #6a1f1f; }
+.range-line-token.enemy.inactive circle { fill: #777a75; opacity: .55; cursor: default; }
+.range-line-token.selected circle { stroke: #e7dfb6; stroke-width: 3; }
+.range-line-token.targeted circle { stroke-dasharray: 3 2; stroke: #b52a2a; stroke-width: 2; }
+.range-line-token:hover circle,
+.range-line-token:focus circle { stroke: #29465c; }
+.range-line-token-label { fill: #f2f2ed; font: 700 16px Consolas, monospace; pointer-events: none; }
+.range-line-status-glyph { fill: #6a1f1f; stroke: #e7dfb6; stroke-width: .5px; font: 700 16px Consolas, monospace; pointer-events: none; }
+.range-line-declared-marker { fill: var(--ink); font: 700 13px Consolas, monospace; pointer-events: none; }
 .encounter-token-tooltip,
 .encounter-token-menu { position: absolute; z-index: 8; max-width: 280px; border: 1px solid #111311; background: #e5e5e1; color: #111311; padding: 5px 7px; font: 11px/1.35 Consolas, monospace; white-space: pre-line; pointer-events: none; }
 .encounter-token-menu { z-index: 9; display: grid; gap: 2px; min-width: 170px; pointer-events: auto; white-space: normal; }
@@ -3883,10 +3904,19 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 }
 .sidebar-panel[data-sidebar-panel="chat"] > #activity-panel {
   flex: 1 1 0; min-height: 0; display: flex; flex-direction: column;
-  border: 0; margin: 0; padding: 6px 10px 0;
+  border: 0; margin: 0; padding: 6px 10px 0; position: relative;
 }
 .sidebar-panel[data-sidebar-panel="chat"] .activity-header { flex: 0 0 auto; }
 .sidebar-panel[data-sidebar-panel="chat"] #activity-feed { flex: 1 1 0; min-height: 0; max-height: none; overflow-y: auto; }
+/* v0.96.0: a fresh render used to always jump the feed to whichever edge is
+   "latest" for the current order, even when the user had scrolled away to
+   read older lines — the very thing that made this button seem missing. It
+   now only auto-pins when already near that edge, and floats this control
+   over the feed the rest of the time. */
+.activity-scroll-latest {
+  position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+  z-index: 2; background: var(--help-paper); border: 1px solid var(--rule);
+}
 .sidebar-panel[data-sidebar-panel="chat"] > #chat-composer {
   flex: 0 0 auto; margin: 0; padding: 6px 10px 8px;
   border-top: 1px solid var(--rule); background: var(--help-paper);

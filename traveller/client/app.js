@@ -264,7 +264,7 @@ import {
   declaredTargetCounts,
   addEncounterCombatantFromActor,
   removeEncounterCombatant,
-  setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant, addEncounterCombatantFromCharacter, beginEncounter } from '../src/encounter-document.js';
+  setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant, addEncounterCombatantFromCharacter, beginEncounter, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js';
 
 import {
   createContactDocument,
@@ -579,6 +579,7 @@ const el = {
   npcPublicNotes: document.querySelector('#npc-public-notes'), npcRefereeNotes: document.querySelector('#npc-referee-notes'),
   activityPanel: document.querySelector('#activity-panel'),
   activityFeed: document.querySelector('#activity-feed'),
+  activityScrollLatest: document.querySelector('#activity-scroll-latest'),
   clearActivity: document.querySelector('#clear-activity'),
   addActivityNote: document.querySelector('#add-activity-note'),
   activityFilter: document.querySelector('#activity-filter'),
@@ -912,7 +913,19 @@ function renderActivity() {
   el.addActivityNote.disabled = !campaignDocument;
   if (el.activityFilter.value !== activityFilter) el.activityFilter.value = activityFilter;
   if (el.activityOrder.value !== activityOrder) el.activityOrder.value = activityOrder;
-  el.activityFeed.replaceChildren();
+  // v0.96.0: this always jumped the feed to whichever edge is "latest" for
+  // the current order — reading old lines got you yanked back to the bottom
+  // on every new message, and there was no way to tell the feed had moved
+  // out from under you (or a way back) short of scrolling manually. Measured
+  // before the rebuild, since replaceChildren() below removes the very
+  // element scrollHeight/scrollTop describe.
+  const feed = el.activityFeed;
+  const pinTolerancePx = 32;
+  const wasEmpty = feed.childElementCount === 0;
+  const wasPinnedToLatest = activityOrder === 'newest'
+    ? feed.scrollTop <= pinTolerancePx
+    : feed.scrollHeight - feed.scrollTop - feed.clientHeight <= pinTolerancePx;
+  feed.replaceChildren();
   const allEntries = campaignDocument
     ? (activityLogDocument && playerSession ? visibleActivityLogEntries(activityLogDocument, playerSession) : (activityLogDocument?.entries ?? []))
     : (activityLog ? activityLog.list() : []);
@@ -949,7 +962,8 @@ function renderActivity() {
     const empty = document.createElement('div');
     empty.className = 'activity-empty';
     empty.textContent = allEntries.length ? 'NO ACTIVITY IN THIS FILTER.' : 'NO RECORDED ACTIVITY.';
-    el.activityFeed.append(empty);
+    feed.append(empty);
+    el.activityScrollLatest.hidden = true;
     return;
   }
   const latestEntry = entries.at(-1) ?? null;
@@ -968,9 +982,18 @@ function renderActivity() {
     meta.append(date, category);
     row.append(meta);
     appendActivityMessage(row, entry);
-    el.activityFeed.append(row);
+    feed.append(row);
   });
-  el.activityFeed.scrollTop = activityOrder === 'newest' ? 0 : el.activityFeed.scrollHeight;
+  // A switch of filter or order, or the very first render, has nothing
+  // meaningful to preserve — jump to latest exactly as before. Otherwise,
+  // only re-pin if the reader was already at that edge; leave them where
+  // they were and let them know there's more with the floating button.
+  if (wasEmpty || wasPinnedToLatest) {
+    feed.scrollTop = activityOrder === 'newest' ? 0 : feed.scrollHeight;
+    el.activityScrollLatest.hidden = true;
+  } else {
+    el.activityScrollLatest.hidden = false;
+  }
 }
 
 function logActivity(category, message, { dateLabel = activityDateLabel(), sourceDocumentId = null, sourceActorId = null, visibility = ACTIVITY_VISIBILITY.PUBLIC, audiencePlayerIds = [] } = {}) {
@@ -4427,6 +4450,100 @@ function renderEncounterRangePanel(encounter, actor, target, guide = null) {
 // Book 1 lists a preferred pistol and blade on the character sheet, but a
 // combatant here carries one weapon, so those lines appear only when the
 // weapon in hand is of that kind rather than advertising a gun nobody has.
+// v0.96.0: Book 1 p.29's own line grid — a stack of plain rectangular rows,
+// one per band. Range between any two combatants is read from how many rows
+// separate them; there is no anchor and no meters. combatant.position.column
+// IS the band index for a range-line encounter (row is always 0 and carries
+// no meaning of its own — see createEncounterDocument), so this reads
+// straight off the same data the tactical board uses, just grouped by row
+// instead of drawn as x/y coordinates on a grid.
+function renderRangeLineBoard(encounter) {
+  // The board keeps its default 0 0 1206 1206 viewBox — camera control stays
+  // exclusively in scene-canvas.js (v0.73.0), and this view has no camera to
+  // begin with: nothing here pans or zooms, so it simply lays its rows out
+  // inside the space already declared in the markup.
+  const rowCount = ENCOUNTER_RANGE_LINE_ESCAPE_BANDS + 1; // 0..14 fightable, 15 is the escape row
+  const width = 1206;
+  const height = 1206;
+  const rowHeight = height / rowCount;
+  const labelWidth = 130;
+  const zoneNameForRow = (row) => row === 0 ? 'CLOSE' : row === 1 ? 'SHORT' : row === 2 ? 'MEDIUM' : row === 6 ? 'LONG' : row === 10 ? 'VERY LONG' : row === ENCOUNTER_RANGE_LINE_ESCAPE_BANDS ? 'ESCAPED' : null;
+  const yForRow = (row) => height - (row + 1) * rowHeight; // row 0 (close, the party's own line) at the bottom
+  const byRow = new Map();
+  for (const combatant of encounter.combatants) {
+    const row = Math.min(combatant.position.column, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS);
+    if (!byRow.has(row)) byRow.set(row, []);
+    byRow.get(row).push(combatant);
+  }
+  const actor = selectedEncounterActor(encounter);
+  const target = selectedEncounterTarget(encounter);
+  const declared = new Set(encounter.roundState?.declaredActions?.map((entry) => entry.actorId) ?? []);
+  const declaredOn = declaredTargetCounts(encounter);
+  const fragments = [];
+  for (let row = 0; row < rowCount; row += 1) {
+    const y = yForRow(row);
+    fragments.push(sceneSvgNode('rect', { x: 0, y, width, height: rowHeight, class: `range-line-row${row === ENCOUNTER_RANGE_LINE_ESCAPE_BANDS ? ' escaped' : ''}` }));
+    fragments.push(sceneSvgNode('line', { x1: 0, y1: y, x2: width, y2: y, class: 'range-line-divider' }));
+    const zoneName = zoneNameForRow(row);
+    if (zoneName) {
+      const label = sceneSvgNode('text', { x: 12, y: y + rowHeight / 2, class: 'range-line-zone-label' });
+      label.textContent = zoneName;
+      fragments.push(label);
+    }
+    const occupants = byRow.get(row) ?? [];
+    const slotWidth = (width - labelWidth) / Math.max(1, occupants.length);
+    occupants.forEach((combatant, index) => {
+      const cx = labelWidth + slotWidth * (index + 0.5);
+      const cy = y + rowHeight / 2;
+      const group = sceneSvgNode('g', {
+        class: `range-line-token ${combatant.side === 'party' ? 'party' : 'enemy'}${selectedEncounterTokenIds.has(combatant.id) || actor?.id === combatant.id ? ' selected' : ''}${target?.id === combatant.id ? ' targeted' : ''}${combatant.side === 'party' && declared.has(combatant.id) ? ' declared' : ''}${combatant.side !== 'party' && combatant.status !== 'active' ? ' inactive' : ''}`,
+        transform: `translate(${cx}, ${cy})`, tabindex: '0'
+      });
+      group.append(sceneSvgNode('circle', { r: 22 }));
+      const label = sceneSvgNode('text', { class: 'range-line-token-label', 'text-anchor': 'middle', 'dominant-baseline': 'central' });
+      label.textContent = combatant.side === 'party' ? (combatant.name || 'P').charAt(0) : (combatant.tokenLabel || combatant.name.charAt(0));
+      group.append(label);
+      const statusGlyph = { unconscious: '\u25CC', dead: '\u2020', escaped: '\u2192', withdrawn: '\u21A9' }[combatant.status];
+      if (statusGlyph) {
+        const mark = sceneSvgNode('text', { class: 'range-line-status-glyph', x: 16, y: 20 });
+        mark.textContent = statusGlyph;
+        group.append(mark);
+      }
+      if (combatant.side !== 'party' && declaredOn[combatant.id]) {
+        const tally = sceneSvgNode('text', { class: 'range-line-declared-marker', x: 16, y: -14 });
+        tally.textContent = `\u00d7${declaredOn[combatant.id]}`;
+        group.append(tally);
+      }
+      const onSelect = (event) => selectEncounterToken(encounter.identity.id, combatant.id, { additive: Boolean(event?.shiftKey) });
+      group.addEventListener('click', onSelect);
+      group.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(event); } });
+      group.addEventListener('contextmenu', (event) => { event.preventDefault(); showEncounterTokenMenu(event, encounter, combatant); });
+      group.addEventListener('mouseenter', (event) => {
+        el.encounterTokenTooltip.textContent = combatantHoverText(combatant);
+        positionEncounterOverlay(el.encounterTokenTooltip, event);
+        el.encounterTokenTooltip.hidden = false;
+      });
+      group.addEventListener('mouseleave', () => { el.encounterTokenTooltip.hidden = true; });
+      fragments.push(group);
+    });
+  }
+  el.encounterMap.replaceChildren(...fragments);
+  if (el.encounterMapViewport) { el.encounterMapViewport.ondragover = null; el.encounterMapViewport.ondrop = null; }
+  let guide = null;
+  if (encounter.status === 'active' && actor && target) guide = encounterRangeGuide(encounter, actor.id, target.id);
+  const distanceText = guide ? `${Math.abs(actor.position.column - target.position.column)} BAND${Math.abs(actor.position.column - target.position.column) === 1 ? '' : 'S'}` : '';
+  const guideText = guide ? ` // RANGE ${guide.suggestedRange.toUpperCase().replace('-', ' ')} / ${distanceText}` : '';
+  const declaredIds = new Set(encounter.roundState?.declaredActions?.map((entry) => entry.actorId) ?? []);
+  const awaiting = encounter.combatants.filter((entry) => entry.side === 'party' && entry.status === 'active' && !declaredIds.has(entry.id));
+  const roundState = encounter.status !== 'active'
+    ? ` // ${encounter.status.toUpperCase().replace('-', ' ')}`
+    : awaiting.length ? ` // AWAITING ${awaiting.map((entry) => entry.name.toUpperCase()).join(', ')}` : ' // ALL DECLARED';
+  el.encounterSelectionStatus.textContent = `ROUND ${encounter.round}${roundState} // ACTOR ${actor?.name.toUpperCase() ?? '--'} // TARGET ${target?.name.toUpperCase() ?? '--'}${guideText} // BOOK 1 RANGE LINE`;
+  renderEncounterRangePanel(encounter, actor, target, guide);
+  renderEncounterLighting(encounter);
+  renderEncounterTracker(encounter, actor);
+}
+
 function renderEncounterMap(encounter) {
   // v0.93.3: a fight belonging to no scene — a Manual Combat — was drawn on
   // the canvas whenever *any* scene was viewed, so the board looked full of
@@ -4469,6 +4586,11 @@ function renderEncounterMap(encounter) {
     renderEncounterRangePanel(null, null, null, null);
     return;
   }
+  // v0.96.0: a range-line encounter has no board to draw a square grid on —
+  // its map is a single row, 41 columns wide, where the columns are band
+  // counts, not meters. It gets its own renderer entirely; everything below
+  // this point assumes a square, meters-based board.
+  if (encounter.map.spatialMode === 'range-line') { renderRangeLineBoard(encounter); return; }
   const board = encounterCanvas();
   board.setBoard(encounter.map);
   const gridScale = encounter.map.metersPerSquare;
@@ -7118,6 +7240,11 @@ function startSituationEncounter(situation) {
       campaign: campaignDocument,
       situation,
       scene: activeScene(),
+      // v0.96.0: a random/patron encounter that starts with no scene showing
+      // — travelling, in space, aboard a ship — now fights on Book 1's own
+      // range-band line instead of a generated tactical board. If a scene
+      // happens to be active, the fight stays mapped as it always has.
+      spatialMode: activeScene() ? 'scene' : 'range-line',
       characters,
       partyLoadouts,
       opponent: {
@@ -9043,6 +9170,18 @@ el.activityOrder.addEventListener('change', () => {
   activityOrder = el.activityOrder.value === 'oldest' ? 'oldest' : 'newest';
   try { window.localStorage.setItem(ACTIVITY_ORDER_STORAGE_KEY, activityOrder); } catch (error) { console.error(error); }
   renderActivity();
+});
+el.activityScrollLatest.addEventListener('click', () => {
+  el.activityFeed.scrollTop = activityOrder === 'newest' ? 0 : el.activityFeed.scrollHeight;
+  el.activityScrollLatest.hidden = true;
+});
+el.activityFeed.addEventListener('scroll', () => {
+  const feed = el.activityFeed;
+  const pinTolerancePx = 32;
+  const atLatestEdge = activityOrder === 'newest'
+    ? feed.scrollTop <= pinTolerancePx
+    : feed.scrollHeight - feed.scrollTop - feed.clientHeight <= pinTolerancePx;
+  el.activityScrollLatest.hidden = atLatestEdge || feed.childElementCount === 0;
 });
 el.toggleActivity.addEventListener('click', () => setActivityPanelVisible(!activityPanelVisible));
 el.refereeMenu?.addEventListener('click', (event) => {

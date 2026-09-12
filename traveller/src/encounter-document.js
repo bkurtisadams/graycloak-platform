@@ -18,8 +18,8 @@ import {
 } from '../vendor/classic-traveller-rules/index.js';
 
 export const ENCOUNTER_DOCUMENT_TYPE = 'graycloak-traveller-personal-encounter';
-export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 15;
-export const SUPPORTED_ENCOUNTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 16;
+export const SUPPORTED_ENCOUNTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
 // Who decides a combatant's action: the referee (or its player), or the house
 // NPC routine. Party members default to manual, everyone else to auto.
 export const COMBATANT_TACTICS = Object.freeze(['manual', 'auto']);
@@ -42,6 +42,15 @@ export const ESCAPE_RANGE_DMS = Object.freeze({ close: -1, short: -1, medium: 1,
 // computed per attacker-target pair from map positions, so the guide marker
 // records which policy resolved a stored encounter.
 export const ENCOUNTER_RANGE_GUIDE_VERSION = 'graycloak-meter-grid-v4';
+// v0.96.0: an encounter with no scene fights on Book 1's own line grid (p.29)
+// instead of a generated tactical board — one row per band, range read from
+// how many rows separate two combatants, not from meters. ROW IS ALWAYS 0:
+// the line has no width, so every combatant shares it; only column carries
+// meaning, and it is a raw band count, never multiplied into meters.
+export const ENCOUNTER_RANGE_LINE_GUIDE_VERSION = 'graycloak-book1-line-grid-v1';
+export const ENCOUNTER_RANGE_LINE_BAND_GAP = Object.freeze({ close: 0, short: 1, medium: 5, long: 9, 'very-long': 14 });
+export const ENCOUNTER_RANGE_LINE_ESCAPE_BANDS = 15;
+export const ENCOUNTER_RANGE_LINE_COLUMNS = 41;
 // v0.94.0: 'setup' is the phase Foundry's tracker occupies — the encounter
 // exists and collects combatants, and BEGIN COMBAT turns it into a fight. Our
 // document required two combatants with opposing sides at creation, which is
@@ -111,7 +120,16 @@ function snapToGrid(value, gridScale) { return Math.round(value / gridScale) * g
 // The party stands a quarter of the way across; the opposition stands the
 // initial range away to the right. Rows are spread two squares apart around
 // the middle, so a party of eight and sixteen foes both fit a 40-square board.
-function initialPosition(side, index, total, range, { columns, rows, gridScale }) {
+function initialPosition(side, index, total, range, { columns, rows, gridScale, spatialMode }) {
+  // v0.96.0: on the line grid, row carries no meaning (Book 1 p.29 — position
+  // within a band's row is only there to avoid tokens covering each other),
+  // so everyone starts at row 0. Column is a raw band count: 0 for the party,
+  // the far edge of the rolled/chosen range for the opposition, mirroring how
+  // the scene board already uses each named range's far edge as "placement".
+  if (spatialMode === 'range-line') {
+    const column = side === 'party' ? 0 : clamp(ENCOUNTER_RANGE_LINE_BAND_GAP[range], 0, columns - 1);
+    return { column, row: 0 };
+  }
   const spacing = gridScale * 2;
   const firstRow = clamp(snapToGrid((rows - 1) / 2 - ((total - 1) * spacing) / 2, gridScale), 0, rows - 1);
   const row = clamp(firstRow + index * spacing, 0, rows - 1);
@@ -150,7 +168,7 @@ function partyDocuments(character, characters, { allowEmpty = false } = {}) {
   return entries;
 }
 
-export function createEncounterDocument({ campaign, situation = null, scene = null, character = null, characters = null, partyLoadouts = {}, opponent = null, opponents = null, title = null, encounterKey = null, date, range = 'medium', metersPerSquare = null, boardMeters = null, surpriseConditions = {}, setup = false, dice } = {}) {
+export function createEncounterDocument({ campaign, situation = null, scene = null, character = null, characters = null, partyLoadouts = {}, opponent = null, opponents = null, title = null, encounterKey = null, date, range = 'medium', metersPerSquare = null, boardMeters = null, spatialMode = 'scene', surpriseConditions = {}, setup = false, dice } = {}) {
   if (!campaign?.identity?.id) throw new TypeError('campaign is required');
   const characterDocuments = partyDocuments(character, characters, { allowEmpty: setup });
   const opponentSpecs = Array.isArray(opponents) && opponents.length ? opponents : opponent ? [opponent] : [];
@@ -159,16 +177,31 @@ export function createEncounterDocument({ campaign, situation = null, scene = nu
   if (opponentSpecs.length > 16) throw new RangeError('an encounter supports at most sixteen opponents');
   if (!validDate(date)) throw new TypeError('valid encounter date is required');
   if (!PERSONAL_COMBAT_RANGES.includes(range)) throw new RangeError(`unknown personal combat range: ${range}`);
-  // v0.72.0: a fight on a scene takes the scene's board and its staged tokens.
-  const gridScale = scene ? scene.board.metersPerSquare : (metersPerSquare ?? ENCOUNTER_METERS_PER_SQUARE);
-  if (!ENCOUNTER_GRID_SCALES.includes(gridScale)) throw new RangeError('grid scale must be 1, 5, or 25 meters');
-  const sideMeters = scene ? scene.board.squares * scene.board.metersPerSquare : (boardMeters ?? encounterBoardMeters(range, gridScale));
+  if (!['scene', 'range-line'].includes(spatialMode)) throw new RangeError('spatialMode must be scene or range-line');
+  if (spatialMode === 'range-line' && scene) throw new TypeError('a range-line encounter cannot also be placed on a scene');
+  // v0.96.0, corrected: "no scene" already had an established meaning here —
+  // Manual Combat has never required a scene, and boardMeters/metersPerSquare
+  // exist precisely so a scene-less fight can still get a real tactical
+  // board (test v0.71.0 exercises exactly that). spatialMode is therefore an
+  // explicit request, defaulting to 'scene' regardless of whether a scene was
+  // passed, so every existing caller is unaffected. The client opts a
+  // specific encounter into 'range-line' — the case that motivated this:
+  // combat beginning with no scene actually being viewed at all.
   const staged = new Map((scene?.tokens ?? []).map((token) => [token.actorId, token.position]));
-  const minimumSideMeters = scene ? ENCOUNTER_SCENE_MIN_METERS : ENCOUNTER_MAP_MIN_METERS;
-  if (!Number.isInteger(sideMeters) || sideMeters < minimumSideMeters || sideMeters > ENCOUNTER_MAP_COLUMNS - 1 || sideMeters % gridScale !== 0) {
-    throw new RangeError(`board size must be a whole number of grid squares between ${minimumSideMeters} m and 1000 m a side`);
+  let board;
+  if (spatialMode === 'range-line') {
+    board = { columns: ENCOUNTER_RANGE_LINE_COLUMNS, rows: 1, gridScale: 1, spatialMode };
+  } else {
+    // v0.72.0: a fight on a scene takes the scene's board and its staged tokens.
+    const gridScale = scene ? scene.board.metersPerSquare : (metersPerSquare ?? ENCOUNTER_METERS_PER_SQUARE);
+    if (!ENCOUNTER_GRID_SCALES.includes(gridScale)) throw new RangeError('grid scale must be 1, 5, or 25 meters');
+    const sideMeters = scene ? scene.board.squares * scene.board.metersPerSquare : (boardMeters ?? encounterBoardMeters(range, gridScale));
+    const minimumSideMeters = scene ? ENCOUNTER_SCENE_MIN_METERS : ENCOUNTER_MAP_MIN_METERS;
+    if (!Number.isInteger(sideMeters) || sideMeters < minimumSideMeters || sideMeters > ENCOUNTER_MAP_COLUMNS - 1 || sideMeters % gridScale !== 0) {
+      throw new RangeError(`board size must be a whole number of grid squares between ${minimumSideMeters} m and 1000 m a side`);
+    }
+    board = { columns: sideMeters + 1, rows: sideMeters + 1, gridScale, spatialMode };
   }
-  const board = { columns: sideMeters + 1, rows: sideMeters + 1, gridScale };
   const party = characterDocuments.map((entry, index) => {
     const military = ['Navy', 'Army', 'Marines', 'Scouts'].includes(entry.career?.service);
     const loadout = partyLoadouts[entry.identity.id] ?? {};
@@ -224,7 +257,9 @@ export function createEncounterDocument({ campaign, situation = null, scene = nu
     timing: { createdDate: { year: date.year, dayOfYear: date.dayOfYear }, resolvedDate: null },
     status: setup ? 'setup' : 'active', round: 1, range, surprise,
     conditions: { lighting: 'normal' },
-    map: { grid: 'square', columns: board.columns, rows: board.rows, rangeGuide: ENCOUNTER_RANGE_GUIDE_VERSION, metersPerSquare: gridScale },
+    map: spatialMode === 'range-line'
+      ? { grid: 'line', columns: board.columns, rows: 1, rangeGuide: ENCOUNTER_RANGE_LINE_GUIDE_VERSION, metersPerSquare: board.gridScale, spatialMode }
+      : { grid: 'square', columns: board.columns, rows: board.rows, rangeGuide: ENCOUNTER_RANGE_GUIDE_VERSION, metersPerSquare: board.gridScale, spatialMode },
     roundState: { declaredActions: [] },
     combatants: [...party, ...hostiles],
     history: [{ round: 0, kind: 'surprise', text: surprise.surpriseSideId ? `${surprise.surpriseSideId} achieved surprise.` : 'Neither side achieved surprise.', detail: surprise }],
@@ -258,10 +293,18 @@ export function validateEncounterDocument(document) {
   for (const declaration of document.roundState?.declaredActions ?? []) {
     add(errors, nonblank(declaration.side), 'each declared action must name the acting side');
   }
-  add(errors, document.map?.grid === 'square' && document.map?.rangeGuide === ENCOUNTER_RANGE_GUIDE_VERSION, 'map must be the supported square encounter workspace');
-  const minimumMapMeters = document.sceneId ? ENCOUNTER_SCENE_MIN_METERS : ENCOUNTER_MAP_MIN_METERS;
-  add(errors, Number.isInteger(document.map?.columns) && document.map.columns === document.map?.rows && document.map.columns - 1 >= minimumMapMeters && document.map.columns <= ENCOUNTER_MAP_COLUMNS, `map must be square, between ${minimumMapMeters} m and 1000 m a side`);
-  add(errors, ENCOUNTER_GRID_SCALES.includes(document.map?.metersPerSquare), 'map.metersPerSquare must be 1, 5, or 25');
+  add(errors, ['scene', 'range-line'].includes(document.map?.spatialMode), 'map.spatialMode is invalid');
+  add(errors, (document.map?.spatialMode === 'range-line') === (document.map?.grid === 'line'), 'map.spatialMode and map.grid must agree');
+  if (document.map?.grid === 'line') {
+    add(errors, document.map?.rangeGuide === ENCOUNTER_RANGE_LINE_GUIDE_VERSION, 'map must be the supported range-line encounter workspace');
+    add(errors, document.map?.rows === 1, 'a range-line map must be a single row — horizontal position within it carries no rules meaning');
+    add(errors, Number.isInteger(document.map?.columns) && document.map.columns > ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, 'a range-line map must have room for at least the escape band');
+  } else {
+    add(errors, document.map?.grid === 'square' && document.map?.rangeGuide === ENCOUNTER_RANGE_GUIDE_VERSION, 'map must be the supported square encounter workspace');
+    const minimumMapMeters = document.sceneId ? ENCOUNTER_SCENE_MIN_METERS : ENCOUNTER_MAP_MIN_METERS;
+    add(errors, Number.isInteger(document.map?.columns) && document.map.columns === document.map?.rows && document.map.columns - 1 >= minimumMapMeters && document.map.columns <= ENCOUNTER_MAP_COLUMNS, `map must be square, between ${minimumMapMeters} m and 1000 m a side`);
+    add(errors, ENCOUNTER_GRID_SCALES.includes(document.map?.metersPerSquare), 'map.metersPerSquare must be 1, 5, or 25');
+  }
   add(errors, plain(document.roundState) && Array.isArray(document.roundState?.declaredActions), 'roundState must contain declaredActions');
   if (Array.isArray(document.roundState?.declaredActions)) for (const declaration of document.roundState.declaredActions) {
     add(errors, nonblank(declaration.actorId) && ['attack', 'evade', 'close', 'open', 'close-run', 'open-run', 'escape', 'wait'].includes(declaration.action), 'declared party action is invalid');
@@ -459,6 +502,16 @@ function migrateEncounterDocument(document) {
     document.sceneId = null;
     document.schemaVersion = 15;
   }
+  if (document.schemaVersion === 15) {
+    // v0.96.0: an encounter with no scene now fights on Book 1's range-band
+    // line instead of a generated tactical board. Every encounter that
+    // reached v15 was placed and moved on the meters board regardless of
+    // whether it had a scene, so 'scene' is the correct, behavior-preserving
+    // default here — only newly created scene-less encounters become
+    // 'range-line', at creation time in createEncounterDocument.
+    document.map = { ...document.map, spatialMode: document.map.spatialMode ?? 'scene' };
+    document.schemaVersion = 16;
+  }
   return document;
 }
 
@@ -491,13 +544,28 @@ export function rangeBandForMapDistance(distance) {
   return PERSONAL_COMBAT_RANGES.find((range) => range !== 'close' && distance <= ENCOUNTER_RANGE_GUIDE[range].maximum) ?? 'very-long';
 }
 
+// Book 1 p.29's own line-grid table: same band is close, one row apart is
+// short, 2-5 rows is medium, 6-9 is long, 10-14 is very long. Fifteen or more
+// means one side has left the fight — resolveDeclaredRound handles that as an
+// escape, not as a combat range, so this never needs to express it.
+export function rangeBandForBandGap(gap) {
+  if (!Number.isInteger(gap) || gap < 0) throw new RangeError('band gap must be a non-negative integer');
+  if (gap === 0) return 'close';
+  if (gap === 1) return 'short';
+  if (gap <= 5) return 'medium';
+  if (gap <= 9) return 'long';
+  return 'very-long';
+}
+
 export function encounterRangeGuide(document, actorId, targetId) {
   const encounter = importEncounterDocument(document);
   const actor = encounter.combatants.find((entry) => entry.id === actorId);
   const target = encounter.combatants.find((entry) => entry.id === targetId);
   if (!actor || !target || actor.side === target.side) throw new Error('range guide requires opposing combatants');
   const distance = encounterMapDistance(actor, target);
-  const suggestedRange = encounterPairRange(actor, target);
+  const suggestedRange = encounterPairRange(actor, target, encounter.map.spatialMode);
+  // meters/squares are only meaningful on a scene's tactical board; on the
+  // range-line, distance is already a raw band count, not a real distance.
   const meters = distance;
   const squares = Number((meters / encounter.map.metersPerSquare).toFixed(2));
   return { actorId, targetId, distance, meters, squares, suggestedRange, authoritativeRange: encounter.range, matches: suggestedRange === encounter.range };
@@ -552,7 +620,7 @@ export function moveEncounterCombatantByPlayer(document, { combatantId, column, 
     detail: { movementStatus: 'maneuver', pace, meters, squares, allowanceMeters, from, to, blowCost: consequences.blowCost, playerMove: true, revisedByReferee: Boolean(existingMove && replaceExisting) }
   };
   next.history.push(entry);
-  next.range = closestOpposingBand(next.combatants) ?? next.range;
+  next.range = closestOpposingBand(next.combatants, next.map.spatialMode) ?? next.range;
   assertValidEncounterDocument(next);
   return { encounter: next, entry };
 }
@@ -572,8 +640,13 @@ export function addEncounterCombatantFromActor(document, { actor, side = 'opposi
   if (!actor?.identity?.id || !actor?.identity?.name || !actor?.profile?.bodyModel) throw new TypeError('a roster actor is required');
   if (!['party', 'opposition'].includes(side)) throw new RangeError('combatant side must be party or opposition');
   if (!Number.isInteger(column) || !Number.isInteger(row)) {
-    column = Math.round((next.map.columns - 1) * 0.75);
-    row = Math.round((next.map.rows - 1) / 2);
+    if (next.map.spatialMode === 'range-line') {
+      column = side === 'party' ? 0 : clamp(ENCOUNTER_RANGE_LINE_BAND_GAP.medium, 0, next.map.columns - 1);
+      row = 0;
+    } else {
+      column = Math.round((next.map.columns - 1) * 0.75);
+      row = Math.round((next.map.rows - 1) / 2);
+    }
   }
   if (next.combatants.some((entry) => entry.sourceActorId === actor.identity.id)) throw new Error(`${actor.identity.name} is already in this encounter`);
   const sideCount = next.combatants.filter((entry) => entry.side === side).length;
@@ -730,12 +803,12 @@ export function setEncounterPairRange(document, { actorId, targetId, range } = {
   const actor = next.combatants.find((entry) => entry.id === actorId && entry.status === 'active');
   const target = next.combatants.find((entry) => entry.id === targetId && entry.status === 'active');
   if (!actor || !target || actor.side === target.side) throw new Error('range selection requires active opposing combatants');
-  const previousRange = encounterPairRange(actor, target);
+  const previousRange = encounterPairRange(actor, target, next.map.spatialMode);
   clearContacts(next, actor);
   placeAtRange(actor, target, range, next.map);
   if (range === 'close') setContact(actor, target);
-  const appliedRange = encounterPairRange(actor, target);
-  next.range = closestOpposingBand(next.combatants) ?? appliedRange;
+  const appliedRange = encounterPairRange(actor, target, next.map.spatialMode);
+  next.range = closestOpposingBand(next.combatants, next.map.spatialMode) ?? appliedRange;
   const entry = {
     round: next.round, kind: 'range', side: 'referee', actorId, targetId,
     text: `Referee sets ${actor.name} -> ${target.name} Book 1 range ${previousRange} -> ${appliedRange}; the map position is synchronized.`
@@ -747,7 +820,7 @@ export function setEncounterPairRange(document, { actorId, targetId, range } = {
 
 function placeAtRange(actor, target, range, board = { columns: ENCOUNTER_MAP_COLUMNS, rows: ENCOUNTER_MAP_ROWS }) {
   if (!target) return;
-  const distance = ENCOUNTER_RANGE_GUIDE[range].placement;
+  const distance = board.spatialMode === 'range-line' ? ENCOUNTER_RANGE_LINE_BAND_GAP[range] : ENCOUNTER_RANGE_GUIDE[range].placement;
   const direction = actor.position.column <= target.position.column ? -1 : 1;
   let column = target.position.column + direction * distance;
   if (column < 0 || column >= board.columns) column = target.position.column - direction * distance;
@@ -757,7 +830,11 @@ function placeAtRange(actor, target, range, board = { columns: ENCOUNTER_MAP_COL
 
 function moveOnMeterGrid(actor, target, direction, pace = 'walk', board = { columns: ENCOUNTER_MAP_COLUMNS, rows: ENCOUNTER_MAP_ROWS }) {
   const consequences = personalMovementConsequences({ status: direction, pace });
-  const allowance = consequences.bands * ENCOUNTER_METERS_PER_RANGE_BAND;
+  // v0.96.0: Book 1 p.29 states the line-grid rule directly — one band per
+  // round walking, two running — with no meters conversion at all. The
+  // ENCOUNTER_METERS_PER_RANGE_BAND multiplier exists only to express that
+  // same rule as a real distance on a tactical board.
+  const allowance = board.spatialMode === 'range-line' ? consequences.bands : consequences.bands * ENCOUNTER_METERS_PER_RANGE_BAND;
   const from = { ...actor.position };
   const dx = target.position.column - actor.position.column;
   const dy = target.position.row - actor.position.row;
@@ -798,9 +875,12 @@ function nearestActiveOpponent(combatant, candidates) {
 
 // Book 1 p.30 step 2B: each attack is thrown at the band between that
 // attacker and that target, computed from their post-movement map positions.
-export function encounterPairRange(first, second) {
+// spatialMode defaults to 'scene' so any caller that predates this parameter
+// (or passes only two arguments) keeps exactly its old behavior.
+export function encounterPairRange(first, second, spatialMode = 'scene') {
   if (first?.contactIds?.includes(second?.id) && second?.contactIds?.includes(first?.id)) return 'close';
-  return rangeBandForMapDistance(encounterMapDistance(first, second));
+  const gap = encounterMapDistance(first, second);
+  return spatialMode === 'range-line' ? rangeBandForBandGap(gap) : rangeBandForMapDistance(gap);
 }
 
 // How many attacks the party has declared against each target this round.
@@ -815,13 +895,13 @@ export function declaredTargetCounts(document) {
   return counts;
 }
 
-function closestOpposingBand(entries) {
+function closestOpposingBand(entries, spatialMode = 'scene') {
   const party = entries.filter((entry) => entry.side === 'party' && entry.status === 'active');
   const foes = entries.filter((entry) => entry.side === 'opposition' && entry.status === 'active');
   if (!party.length || !foes.length) return null;
   let best = Infinity;
   for (const actor of party) for (const foe of foes) best = Math.min(best, encounterMapDistance(actor, foe));
-  return rangeBandForMapDistance(best);
+  return spatialMode === 'range-line' ? rangeBandForBandGap(best) : rangeBandForMapDistance(best);
 }
 
 // Declaring and resolving are separate acts. The referee sets orders for as
@@ -975,7 +1055,7 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
     }
     if (declaration.action === 'escape') {
       const nearest = nearestActiveOpponent(mover, [...live.values()].filter((entry) => entry.side !== mover.side));
-      const band = nearest ? encounterPairRange(mover, nearest) : next.range;
+      const band = nearest ? encounterPairRange(mover, nearest, next.map.spatialMode) : next.range;
       const rangeDM = ESCAPE_RANGE_DMS[band];
       const results = [dice.rollD6(), dice.rollD6()];
       const total = results[0] + results[1] + rangeDM + declaration.modifier;
@@ -993,7 +1073,7 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
   // declaration order would change a simultaneous result.
   for (const plan of movementPlans) {
     if (plan.direction === 'close' && encounterMapDistance(plan.mover, plan.moveTarget) === 0) setContact(plan.mover, plan.moveTarget);
-    const band = encounterPairRange(plan.mover, plan.moveTarget);
+    const band = encounterPairRange(plan.mover, plan.moveTarget, next.map.spatialMode);
     const squares = Number((plan.result.meters / next.map.metersPerSquare).toFixed(2));
     entries.push({
       round: next.round, kind: 'movement', side: plan.declaration.side, actorId: plan.mover.id, targetId: plan.moveTarget.id,
@@ -1010,7 +1090,7 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
     const attacker = snapshot.get(attackerId);
     const defender = snapshot.get(defenderId);
     if (!attacker || !defender || attacker.status !== 'active' || defender.status !== 'active') return;
-    const band = encounterPairRange(attacker, defender);
+    const band = encounterPairRange(attacker, defender, next.map.spatialMode);
     let result;
     const derived = encounterSituationDMs(next, attacker, defender);
     try {
@@ -1043,12 +1123,12 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
     const attacker = snapshot.get(entry.id);
     const foe = nearestActiveOpponent(attacker, [...snapshot.values()].filter((candidate) => candidate.side !== attacker.side));
     if (!foe) continue;
-    const band = encounterPairRange(attacker, foe);
+    const band = encounterPairRange(attacker, foe, next.map.spatialMode);
     if (weaponTargetNumber(attacker.weaponKey, foe.armor, band) === null) {
       const acting = live.get(entry.id);
       const movement = moveOnMeterGrid(acting, live.get(foe.id) ?? foe, 'close', 'walk', next.map);
       snapshot.get(entry.id).position = { ...acting.position };
-      const closed = encounterPairRange(acting, live.get(foe.id) ?? foe);
+      const closed = encounterPairRange(acting, live.get(foe.id) ?? foe, next.map.spatialMode);
       const squares = Number((movement.meters / next.map.metersPerSquare).toFixed(2));
       entries.push({ round: next.round, kind: 'movement', side: entry.side, actorId: entry.id, targetId: foe.id, text: `${entry.name} cannot attack at ${band} range and walks ${movement.meters} m / ${squares} grid squares closer, ending at ${closed} range.`, detail: { movementStatus: 'close', pace: 'walk', meters: movement.meters, squares, allowanceMeters: ENCOUNTER_METERS_PER_RANGE_BAND, from: movement.from, to: movement.to, band: closed, blowCost: 0 } });
       continue;
@@ -1077,10 +1157,11 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
   for (const entry of live.values()) {
     if (entry.status !== 'active') continue;
     const nearest = nearestActiveOpponent(entry, [...live.values()].filter((candidate) => candidate.side !== entry.side));
-    if (nearest && encounterMapDistance(entry, nearest) > 20 * ENCOUNTER_METERS_PER_RANGE_BAND) entry.status = 'escaped';
+    const escapeThreshold = next.map.spatialMode === 'range-line' ? ENCOUNTER_RANGE_LINE_ESCAPE_BANDS : 20 * ENCOUNTER_METERS_PER_RANGE_BAND;
+    if (nearest && encounterMapDistance(entry, nearest) > escapeThreshold) entry.status = 'escaped';
   }
   replaceCombatants(next, ...live.values());
-  next.range = closestOpposingBand(next.combatants) ?? next.range;
+  next.range = closestOpposingBand(next.combatants, next.map.spatialMode) ?? next.range;
   next.roundState.declaredActions = [];
   const partyState = next.combatants.filter((entry) => entry.side === 'party');
   const partyDefeated = partyState.every((entry) => entry.status !== 'active');
@@ -1213,7 +1294,9 @@ export function addEncounterCombatantFromCharacter(document, { character, loadou
   const military = ['Navy', 'Army', 'Marines', 'Scouts'].includes(character.career?.service);
   const placed = Number.isInteger(column) && Number.isInteger(row)
     ? { column, row }
-    : { column: Math.round((next.map.columns - 1) * 0.25), row: Math.round((next.map.rows - 1) / 2) };
+    : next.map.spatialMode === 'range-line'
+      ? { column: 0, row: 0 }
+      : { column: Math.round((next.map.columns - 1) * 0.25), row: Math.round((next.map.rows - 1) / 2) };
   const combatant = {
     ...withPosition(withCurrentState(createPersonalCombatant({
       id: character.identity.id, name: character.identity.name, side: 'party', playerCharacter: true,
