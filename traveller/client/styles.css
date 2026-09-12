@@ -3847,3 +3847,12 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .shell-sidebar > .sidebar-body { overflow-x: hidden; overflow-y: auto; }
 .shell-stage { padding-right: 52px; }
 @media (max-width: 900px) { .shell-stage { padding-right: 44px; } }
+
+/* v0.80.2: the drawer pushes the stage rather than covering it — the map and
+   the port/ship strip are never under an open panel. Collapsed, only the
+   strip is reserved. The world map pans by right-drag like the board. */
+.terminal.shell:not(.sidebar-collapsed) .shell-stage { padding-right: calc(360px + 52px); }
+@media (max-width: 1100px) { .terminal.shell:not(.sidebar-collapsed) .shell-stage { padding-right: calc(300px + 52px); } }
+@media (max-width: 900px) { .terminal.shell:not(.sidebar-collapsed) .shell-stage { padding-right: calc(260px + 44px); } }
+.subsector-map { cursor: grab; touch-action: none; }
+.subsector-map.panning { cursor: grabbing; user-select: none; }

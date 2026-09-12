@@ -2813,6 +2813,47 @@ function setSubsectorZoom(value) {
   applySubsectorZoom();
 }
 
+// v0.80.2: the world map pans the way the combat board already does and the
+// way Foundry does — hold the right button and drag. The wrapper scrolls, so a
+// pan is a scroll by the pointer's delta; the wheel zooms.
+function wireSubsectorPan() {
+  const wrapper = el.subsectorMap;
+  if (!wrapper || wrapper.dataset.panWired) return;
+  wrapper.dataset.panWired = 'true';
+  let pan = null;
+  wrapper.addEventListener('pointerdown', (event) => {
+    if (event.button !== 2) return;
+    event.preventDefault();
+    pan = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, left: wrapper.scrollLeft, top: wrapper.scrollTop, moved: false };
+    wrapper.setPointerCapture?.(event.pointerId);
+    wrapper.classList.add('panning');
+  });
+  wrapper.addEventListener('pointermove', (event) => {
+    if (!pan || pan.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    const dx = event.clientX - pan.x;
+    const dy = event.clientY - pan.y;
+    if (Math.hypot(dx, dy) > 4) pan.moved = true;
+    wrapper.scrollLeft = pan.left - dx;
+    wrapper.scrollTop = pan.top - dy;
+  });
+  const end = (event) => {
+    if (!pan || pan.pointerId !== event.pointerId) return;
+    wrapper.classList.remove('panning');
+    wrapper.dataset.suppressContextMenu = pan.moved ? 'true' : '';
+    pan = null;
+  };
+  wrapper.addEventListener('pointerup', end);
+  wrapper.addEventListener('pointercancel', end);
+  wrapper.addEventListener('contextmenu', (event) => {
+    if (wrapper.dataset.suppressContextMenu === 'true') { event.preventDefault(); wrapper.dataset.suppressContextMenu = ''; }
+  });
+  wrapper.addEventListener('wheel', (event) => {
+    event.preventDefault();
+    setSubsectorZoom(subsectorZoom + (event.deltaY < 0 ? SUBSECTOR_ZOOM_STEP : -SUBSECTOR_ZOOM_STEP));
+  }, { passive: false });
+}
+
 // v0.70.0: the hex map is drawn by subsector-svg.js so the player page draws
 // the same one; the referee's version is interactive.
 function renderSubsectorSvg({ current, selected, reachable }) {
@@ -8219,6 +8260,7 @@ el.rollDialogForm.addEventListener('submit', (event) => {
 });
 
 el.mapZoomOut.addEventListener('click', () => setSubsectorZoom(subsectorZoom - SUBSECTOR_ZOOM_STEP));
+wireSubsectorPan();
 el.mapZoomIn.addEventListener('click', () => setSubsectorZoom(subsectorZoom + SUBSECTOR_ZOOM_STEP));
 el.mapZoomFit.addEventListener('click', () => setSubsectorZoom(1));
 

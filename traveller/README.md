@@ -1,5 +1,18 @@
 # Graycloak Traveller
 
+## v0.80.2 the drawer pushes; the world map pans
+
+Two Foundry conventions, checked against its documentation. The sidebar
+drawer, when open, now reserves its width: the stage — map and the port /
+destination / ship strip alike — is never underneath it. Collapsed, only the
+icon strip is reserved. And the world map pans by holding the right button
+and dragging, as the combat board already did through the shared canvas and
+as Foundry does; the wheel zooms. A right-click that did not move still
+opens the context menu; one that panned does not. Driven in jsdom: a
+right-drag of (−50, −20) scrolls the map by exactly (+50, +20), the grab
+cursor comes and goes, and the menu is suppressed after a pan and allowed
+after a click.
+
 ## v0.80.1 start collapsed, strips current, drawer opaque
 
 From the first on-load screenshot of v0.80.0. The sidebar now starts
