@@ -1,5 +1,40 @@
 # Graycloak Traveller
 
+## v0.85.0 the combat tracker takes Foundry's gestures; the build says what it is
+
+**The tracker.** The header names the state — NOT STARTED before anything has
+happened, ROUND n after, or the outcome once resolved — with the declared
+count beside it. Each row's glyph is now the Foundry gesture: one click frames
+the canvas on that token and selects it, a double-click opens its sheet (the
+character window for a party member, the roster dialog for an NPC). Beside the
+name sit PING, which frames and flashes the token so a referee can say "this
+one" on a crowded board without moving anything, DEFEATED, which toggles
+unconscious through the existing Book 1 status setter, and the wound figure —
+current over original END, which is the closest honest equivalent of
+Foundry's HP, since Book 1 p.36 puts wounds on the three physical
+characteristics.
+
+Two of Foundry's tracker features are deliberately absent rather than faked.
+There is no initiative column and no turn pointer to step through, because
+Book 1 rounds are simultaneous — everyone declares, then everything resolves
+at once. And token visibility is not there: Foundry's eye toggle hides a token
+from players, which for us would mean a new field on the combatant, filtering
+in the published view, and a rule about what a player may infer from a gap on
+the board. Worth doing, but as its own change with the player page in view.
+
+**BUILD.txt and version-stamped assets.** After a day lost to a version that
+was never where I thought it was, the deploy now writes
+`graycloak.net/traveller/BUILD.txt` with the version, commit and build time,
+and stamps `?v=<version>` onto every `app.js`, `enter.js`, `player.js` and
+`styles.css` URL in the published pages. A new version is now a new URL, so
+neither a browser nor a CDN can serve old code; and "is the site current?" is
+one glance at a text file. The assemble step also runs under `set -euo
+pipefail`, so a failed copy fails the job instead of publishing a half-built
+site behind a green tick. I verified the stamping by running the same `sed`
+against the real `index.html` — it rewrites both the module and the
+stylesheet, and I fixed the stylesheet pattern when the first attempt missed
+`./styles.css`.
+
 ## v0.84.2 the ACTORS tab was switched off by a mechanism that no longer exists
 
 The directory was correct all along. `#roster-section`, which holds

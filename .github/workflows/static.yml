@@ -41,6 +41,7 @@ jobs:
       # from ../vendor/. Vendor it, then assemble gcc/traveller/ for Pages.
       - name: Assemble Traveller
         run: |
+          set -euo pipefail
           node traveller/scripts/sync-vendor.mjs
           # Jekyll excludes any directory named vendor/ unless told not to process the site at all.
           touch gcc/.nojekyll
@@ -52,6 +53,20 @@ jobs:
           <meta http-equiv="refresh" content="0; url=client/enter.html">
           <a href="client/enter.html">Graycloak Traveller</a>
           HTML
+          # The published version and commit, readable at
+          # graycloak.net/traveller/BUILD.txt — so "is the site current?" is one
+          # glance rather than an investigation.
+          VERSION=$(node -p "require('./traveller/package.json').version")
+          printf 'version %s\ncommit %s\nbuilt %s\n' "$VERSION" "$GITHUB_SHA" "$(date -u +%FT%TZ)" > gcc/traveller/BUILD.txt
+          # Stamp the version into every asset URL. index.html loads ./app.js at
+          # a URL that never changes, so a browser or CDN holding it has no way
+          # to know there is new code; ?v=<version> makes a new version a new
+          # URL and staleness structurally impossible.
+          for page in gcc/traveller/client/*.html; do
+            sed -i "s#\(src=\"\./app\.js\)\"#\1?v=$VERSION\"#; s#\(src=\"\./\(player\|enter\)\.js\)\"#\1?v=$VERSION\"#; s#\(href=\"\./styles\.css\)\"#\1?v=$VERSION\"#" "$page"
+          done
+          echo "stamped assets with v$VERSION"
+          grep -o 'app\.js?v=[^"]*' gcc/traveller/client/index.html || true
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

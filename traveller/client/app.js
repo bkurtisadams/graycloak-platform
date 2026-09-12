@@ -4467,10 +4467,70 @@ function combatantSheetRows(combatant) {
 
 // Every legal target, priced: band, needed throw, or why the weapon cannot
 // reach. previewPersonalAttack is dice-free, so this costs nothing to show.
+// v0.85.0: the tracker takes Foundry's shape. The header names the state —
+// NOT STARTED before the first round, ROUND n after — and carries the round
+// controls; each row's glyph pans the canvas to that token and selects it,
+// double-click opens its sheet, and the row carries PING and DEFEATED beside
+// the wound figure. Traveller has no initiative (Book 1 rounds are
+// simultaneous), so there is no initiative column and no turn pointer to step
+// through; the arrow resolves the round, which is our equivalent of advancing.
+// Frame the canvas on one combatant and select it — the tracker's click
+// gesture. Uses the shared canvas camera, so it behaves the same on any board.
+function frameEncounterCombatant(encounter, combatant) {
+  setSceneTab('combat');
+  setEncounterActor(encounter.identity.id, combatant.id);
+  const { cell } = encounterCanvas().metrics();
+  encounterCanvas().camera.centreOnPoint({ x: combatant.position.column * cell, y: combatant.position.row * cell });
+}
+
+// A ping: frame it and flash the token, so a referee can say "this one" on a
+// crowded board without moving anything.
+function pingEncounterCombatant(encounter, combatant) {
+  frameEncounterCombatant(encounter, combatant);
+  const group = el.encounterMap?.querySelector(`[data-scene-token="${combatant.id}"]`);
+  if (!group) return;
+  group.classList.remove('is-pinged');
+  // Reflow so the animation restarts when the same token is pinged twice.
+  void group.getBoundingClientRect();
+  group.classList.add('is-pinged');
+  window.setTimeout(() => group.classList.remove('is-pinged'), 1200);
+}
+
+// The sheet behind a combatant: a party character opens the document window,
+// a roster actor opens its dialog.
+function openCombatantSheet(combatant) {
+  if (combatant.side === 'party' && partyCharacterDocuments.some((entry) => entry.identity.id === combatant.sourceCharacterId || entry.identity.id === combatant.id)) {
+    const id = partyCharacterDocuments.find((entry) => entry.identity.id === combatant.sourceCharacterId)?.identity.id ?? combatant.id;
+    activatePartyCharacter(id);
+    if (!characterWindow.state.open) openWindowController(characterWindow);
+    applyCampaignLayout();
+    return;
+  }
+  if (combatant.sourceActorId && npcActorDocuments.some((entry) => entry.identity.id === combatant.sourceActorId)) {
+    openNpcActorDialog(combatant.sourceActorId);
+    return;
+  }
+  // No document behind it (an ad-hoc opponent): open its tracker row instead.
+  expandedTrackerIds.add(combatant.id);
+  renderEncounter();
+}
+
 function renderEncounterTracker(encounter, actor) {
+  const started = encounter.round > 1 || (encounter.history?.some((entry) => entry.kind === 'attack' || entry.kind === 'movement') ?? false);
   const heading = document.createElement('div');
-  heading.className = 'encounter-roster-heading';
-  heading.textContent = `TRACKER / ROUND ${encounter.round}`;
+  heading.className = 'encounter-tracker-header';
+  const state = document.createElement('strong');
+  state.className = 'encounter-tracker-state';
+  state.textContent = encounter.status !== 'active' ? encounter.status.toUpperCase() : started ? `ROUND ${encounter.round}` : 'NOT STARTED';
+  const nav = document.createElement('span');
+  nav.className = 'encounter-tracker-nav';
+  const declaredCount = encounter.roundState?.declaredActions?.length ?? 0;
+  const activeCount = encounter.combatants.filter((entry) => entry.status === 'active').length;
+  const ready = document.createElement('span');
+  ready.className = 'encounter-tracker-ready';
+  ready.textContent = encounter.status === 'active' ? `DECLARED ${declaredCount}/${activeCount}` : '';
+  nav.append(ready);
+  heading.append(state, nav);
   const ordered = [
     ...encounter.combatants.filter((entry) => entry.side === 'party'),
     ...encounter.combatants.filter((entry) => entry.side !== 'party')
@@ -4486,11 +4546,45 @@ function renderEncounterTracker(encounter, actor) {
     summary.className = 'encounter-tracker-summary';
     const label = document.createElement('span');
     label.className = 'encounter-tracker-name';
-    label.append(combatantGlyph(combatant), Object.assign(document.createElement('i'), { className: sideDotClass(encounter, combatant) }), document.createTextNode(combatant.name.toUpperCase()));
+    // The glyph is the Foundry gesture: one click frames and selects the
+    // token on the canvas, two opens the actor's sheet.
+    const glyph = combatantGlyph(combatant);
+    glyph.classList.add('encounter-tracker-glyph');
+    glyph.title = `${combatant.name} — click to frame on the board, double-click for the sheet`;
+    glyph.addEventListener('click', (event) => {
+      event.preventDefault(); event.stopPropagation();
+      frameEncounterCombatant(encounter, combatant);
+    });
+    glyph.addEventListener('dblclick', (event) => {
+      event.preventDefault(); event.stopPropagation();
+      openCombatantSheet(combatant);
+    });
+    label.append(glyph, Object.assign(document.createElement('i'), { className: sideDotClass(encounter, combatant) }), document.createTextNode(combatant.name.toUpperCase()));
+    const tools = document.createElement('span');
+    tools.className = 'encounter-tracker-tools-inline';
+    const wounds = document.createElement('span');
+    wounds.className = 'encounter-tracker-wounds';
+    // Book 1 p.36: the three physical characteristics are the wound track, so
+    // current-over-original END is the figure that reads like Foundry's HP.
+    wounds.textContent = `${combatant.current.END}/${combatant.characteristics.END}`;
+    wounds.title = `END ${combatant.current.END} of ${combatant.characteristics.END} — Book 1 wounds fall on STR, DEX and END`;
+    const ping = document.createElement('button');
+    ping.type = 'button'; ping.className = 'encounter-tracker-icon'; ping.textContent = '◎';
+    ping.title = 'Ping this token on the board';
+    ping.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); pingEncounterCombatant(encounter, combatant); });
+    const defeat = document.createElement('button');
+    defeat.type = 'button'; defeat.className = `encounter-tracker-icon${combatant.status === 'active' ? '' : ' is-on'}`;
+    defeat.textContent = '☠';
+    defeat.title = combatant.status === 'active' ? 'Mark defeated (unconscious)' : `${combatant.status.toUpperCase()} — restore to active`;
+    defeat.addEventListener('click', (event) => {
+      event.preventDefault(); event.stopPropagation();
+      updateEncounterDocument(encounter.identity.id, (doc) => setCombatantStatus(doc, { combatantId: combatant.id, status: combatant.status === 'active' ? 'unconscious' : 'active' }).encounter);
+    });
+    tools.append(ping, defeat, wounds);
     const orders = document.createElement('span');
     orders.className = 'encounter-tracker-orders';
     orders.textContent = declarationText(encounter, combatant);
-    summary.append(label, orders);
+    summary.append(label, tools, orders);
     summary.addEventListener('click', () => {
       // Opening a combatant also selects it: one gesture, not two.
       if (row.open) expandedTrackerIds.delete(combatant.id);
