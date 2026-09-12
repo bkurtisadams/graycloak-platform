@@ -541,6 +541,7 @@ const el = {
   combatEnemyArmor: document.querySelector('#combat-enemy-armor'),
   combatStartingRange: document.querySelector('#combat-starting-range'),
   combatMapScale: document.querySelector('#combat-map-scale'),
+  combatSpatialMode: document.querySelector('#combat-spatial-mode'),
   combatPartyVehicle: document.querySelector('#combat-party-vehicle'),
   combatPartyBattleDress: document.querySelector('#combat-party-battledress'),
   combatEnemyVehicle: document.querySelector('#combat-enemy-vehicle'),
@@ -7024,10 +7025,23 @@ function combatSetupDropZone() {
 function renderCombatSetupBoard() {
   if (!el.combatSetupBoard) return;
   const scene = sceneDocuments.find((entry) => entry.identity.id === el.combatScene?.value) ?? null;
+  // v0.96.3: range-line only makes sense with no scene to draw a grid on —
+  // choosing a scene always means a real, mapped board, so the selector is
+  // forced back and disabled the moment a scene is picked.
+  if (el.combatSpatialMode) {
+    el.combatSpatialMode.disabled = Boolean(scene);
+    if (scene) el.combatSpatialMode.value = 'scene';
+  }
   if (scene) {
     el.combatSetupBoard.textContent = `BOARD: ${scene.identity.name} — ${scene.board.squares} squares of ${scene.board.metersPerSquare} m (${sceneBoardMeters(scene)} m a side), tokens where they stand.`;
     return;
   }
+  if (el.combatSpatialMode?.value === 'range-line') {
+    if (el.combatMapScale) el.combatMapScale.disabled = true;
+    el.combatSetupBoard.textContent = `BOARD: Book 1 range line — one row per band, no map. Starting range: ${el.combatStartingRange.value.replace('-', ' ')}.`;
+    return;
+  }
+  if (el.combatMapScale) el.combatMapScale.disabled = false;
   const gridScale = el.combatMapScale.value === '' ? 5 : Number.parseFloat(el.combatMapScale.value);
   const meters = encounterBoardMeters(el.combatStartingRange.value, gridScale);
   el.combatSetupBoard.textContent = `BOARD: ${meters / gridScale} squares of ${gridScale} m (${meters} m a side), sized to ${el.combatStartingRange.value.replace('-', ' ')} range.`;
@@ -7057,6 +7071,7 @@ function openCombatSetupDialog() {
     }
     el.combatScene.replaceChildren(...sceneOptions);
     el.combatScene.value = campaignDocument?.activeSceneId ?? '';
+    renderCombatSetupBoard();
   }
   if (typeof el.combatSetupDialog.showModal === 'function') el.combatSetupDialog.showModal();
   else el.combatSetupDialog.setAttribute('open', '');
@@ -7157,9 +7172,11 @@ function startManualEncounter() {
   }]));
   const typeTitle = setup.groups.map((entry) => entry.baseName).join(' + ');
   const scene = sceneDocuments.find((entry) => entry.identity.id === el.combatScene?.value) ?? null;
+  const spatialMode = scene ? 'scene' : (el.combatSpatialMode?.value === 'range-line' ? 'range-line' : 'scene');
   let encounter = createEncounterDocument({
     campaign: campaignDocument,
     scene,
+    spatialMode,
     characters,
     partyLoadouts,
     opponents: setup.opponents,
@@ -7167,7 +7184,7 @@ function startManualEncounter() {
     encounterKey,
     date,
     range: el.combatStartingRange.value,
-    metersPerSquare: el.combatMapScale.value === '' ? null : Number.parseFloat(el.combatMapScale.value),
+    metersPerSquare: spatialMode === 'range-line' || el.combatMapScale.value === '' ? null : Number.parseFloat(el.combatMapScale.value),
     // The three Book 1 p.31 conditions the document cannot work out for itself.
     surpriseConditions: {
       party: { inAVehicle: el.combatPartyVehicle.checked, battleDress: el.combatPartyBattleDress.checked },
@@ -9296,7 +9313,7 @@ el.rollDialog.addEventListener('cancel', (event) => {
   closeRollDialog();
 });
 // Keep the board line honest as the settings change.
-for (const control of [el.combatStartingRange, el.combatMapScale, el.combatScene]) {
+for (const control of [el.combatStartingRange, el.combatMapScale, el.combatScene, el.combatSpatialMode]) {
   control?.addEventListener('change', renderCombatSetupBoard);
 }
 el.combatSetupClose.addEventListener('click', closeCombatSetupDialog);
