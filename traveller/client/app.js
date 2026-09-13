@@ -944,6 +944,19 @@ function chatAsActivityEntries() {
   }));
 }
 
+// v0.110.1: the feed is usually rebuilt while the drawer is collapsed, where
+// it has no height at all — scrollHeight is 0, so pinning to the bottom does
+// nothing, and opening CHAT later showed the oldest message with the newest
+// off the end of a scroll the reader had to make by hand. Re-apply once the
+// element actually has a box.
+function scrollActivityToLatest() {
+  const feed = el.activityFeed;
+  if (!feed) return;
+  const apply = () => { feed.scrollTop = activityOrder === 'newest' ? 0 : feed.scrollHeight; };
+  apply();
+  if (feed.clientHeight === 0) requestAnimationFrame(apply);
+}
+
 function renderActivity() {
   renderDiceTray();
   el.addActivityNote.disabled = !campaignDocument;
@@ -1025,7 +1038,7 @@ function renderActivity() {
   // only re-pin if the reader was already at that edge; leave them where
   // they were and let them know there's more with the floating button.
   if (wasEmpty || wasPinnedToLatest) {
-    feed.scrollTop = activityOrder === 'newest' ? 0 : feed.scrollHeight;
+    scrollActivityToLatest();
     el.activityScrollLatest.hidden = true;
   } else {
     el.activityScrollLatest.hidden = false;
@@ -1990,6 +2003,9 @@ function applySidebar() {
     // A popped-out panel lives in its own window over the canvas and is always
     // shown; only the ones still in the drawer follow the selected tab.
     panel.hidden = poppedPanels.has(panel.dataset.sidebarPanel) ? false : panel.dataset.sidebarPanel !== sidebarTab;
+    // Opening CHAT is usually the first moment the feed has a height, so the
+    // pin applied during render had nothing to measure.
+    if (panel.dataset.sidebarPanel === 'chat' && !panel.hidden) scrollActivityToLatest();
   }
   el.terminal?.classList.toggle('sidebar-collapsed', sidebarCollapsed);
 }
@@ -3367,7 +3383,7 @@ function acceptFreightOffer(offerId) {
     shipDocument = loadCargo(shipDocument, {
       id: offer.id,
       category: 'freight',
-      description: `${offer.category} freight to ${route.destination.name}`,
+      description: `${offer.tons}t freight to ${route.destination.name}`,
       tons: offer.tons,
       originSystemId: route.origin.id,
       destinationSystemId: route.destination.id,
@@ -3375,7 +3391,7 @@ function acceptFreightOffer(offerId) {
       notes: `Book 2 freight / ${formatCr(FREIGHT_RATE_PER_TON_CR)} per ton on delivery.`
     });
     persistGameplayDocuments();
-    logActivity('TRADE', `${shipDocument.identity.name || 'Ship'} accepted ${offer.tons}t ${offer.category} freight / ${route.origin.name} to ${route.destination.name} / ${formatCr(offer.revenueCr)} on delivery`);
+    logActivity('TRADE', `${shipDocument.identity.name || 'Ship'} accepted a ${offer.tons}t shipment / ${route.origin.name} to ${route.destination.name} / ${formatCr(offer.revenueCr)} on delivery`);
     setStatus(`FREIGHT ACCEPTED: ${offer.tons}t TO ${route.destination.name.toUpperCase()}`, 'ok');
     render();
   } catch (error) {
@@ -3556,12 +3572,20 @@ function renderCommerce() {
         // Book 2 p.7 has no lot categories: one die per point of destination
         // population, each a shipment of five-ton multiples.
         panelRow('FREIGHT', `${route.freight.offers.length} SHIPMENT${route.freight.offers.length === 1 ? '' : 'S'} OFFERED`),
+        // v0.110.1: a shipment has no category under Book 2 p.7, and reading
+        // one threw the moment any shipment fitted a hold.
         ...fittingFreight.slice(0, 4).map((freight) => panelCard({
-          title: `${freight.tons}t ${freight.category.toUpperCase()} LOT`,
+          title: `${freight.tons}t SHIPMENT`,
           rows: [panelRow('PAYS', `${formatCr(freight.revenueCr)} ON DELIVERY`)],
           actionId: `freight:${freight.id}`,
           actionLabel: '[ ACCEPT ]'
-        }))
+        })),
+        // Every shipment is a multiple of five tons and may not be broken
+        // down, so a small hold takes none of them. Say so rather than
+        // listing a heading with nothing under it.
+        ...(route.freight.offers.length && !fittingFreight.length
+          ? [panelRow('NONE FIT', `SMALLEST IS ${Math.min(...route.freight.offers.map((entry) => entry.tons))}t / HOLD HAS ${freeHold}t FREE`, { attention: true })]
+          : [])
       ]
     });
   } else {
@@ -8884,7 +8908,9 @@ function playProcedureSnapshot() {
     freight = {
       offers: remaining.length, fitting: fittingOffers.length, accepted: acceptedForDestination,
       bestCr: fittingOffers.reduce((best, entry) => Math.max(best, Number(entry.revenueCr) || 0), 0),
-      lots: fittingOffers.slice(0, 4).map((entry) => ({ id: entry.id, tons: entry.tons, category: entry.category, revenueCr: entry.revenueCr }))
+      lots: fittingOffers.slice(0, 4).map((entry) => ({ id: entry.id, tons: entry.tons, revenueCr: entry.revenueCr })),
+      // The smallest shipment on offer, so a hold that fits none can say why.
+      smallestTons: remaining.length ? Math.min(...remaining.map((entry) => entry.tons)) : null
     };
     const booked = ['high', 'middle', 'low'].reduce((sum, cls) => sum + bookedPassengerCount(route, cls), 0);
     const capacity = availablePassengerCapacity(shipDocument, 'middle') + availablePassengerCapacity(shipDocument, 'low');
@@ -9769,7 +9795,7 @@ el.activityOrder.addEventListener('change', () => {
   renderActivity();
 });
 el.activityScrollLatest.addEventListener('click', () => {
-  el.activityFeed.scrollTop = activityOrder === 'newest' ? 0 : el.activityFeed.scrollHeight;
+  scrollActivityToLatest();
   el.activityScrollLatest.hidden = true;
 });
 el.activityFeed.addEventListener('scroll', () => {

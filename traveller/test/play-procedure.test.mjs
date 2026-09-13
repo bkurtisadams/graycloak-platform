@@ -143,8 +143,8 @@ test('v0.97.1 every trade step acts from the dock instead of opening a panel', (
   s.berthing = { due: true, dueCr: 100, paid: false };
   s.fuel = { currentTons: 10, capacityTons: 40, requiredTons: 20, sufficient: false, canBuy: true, canSkim: true, priceCr: 15000 };
   s.freight = { offers: 3, fitting: 2, accepted: 0, bestCr: 18000, lots: [
-    { id: 'f1', tons: 12, category: 'Machine parts', revenueCr: 12000 },
-    { id: 'f2', tons: 6, category: 'Textiles', revenueCr: 6000 }
+    { id: 'f1', tons: 15, revenueCr: 15000 },
+    { id: 'f2', tons: 5, revenueCr: 5000 }
   ] };
   s.passengers = { demand: { high: 1, middle: 2, low: 0 }, booked: 0, capacity: 3, blockReason: null, classes: [
     { passageClass: 'high', available: 1, fareCr: 10000, berths: 2 },
@@ -157,8 +157,8 @@ test('v0.97.1 every trade step acts from the dock instead of opening a panel', (
   assert.equal(byId(model, 'fuel').action, 'fuel:buy');
   assert.match(byId(model, 'fuel').copy, /Cr15,000/);
   assert.equal(byId(model, 'freight-f1').action, 'freight:f1');
-  assert.match(byId(model, 'freight-f1').title, /Accept 12t Machine parts/);
-  assert.match(byId(model, 'freight-f2').copy, /Cr6,000 on delivery/);
+  assert.match(byId(model, 'freight-f1').title, /Accept 15t shipment/);
+  assert.match(byId(model, 'freight-f2').copy, /Cr5,000 on delivery/);
   assert.equal(byId(model, 'spec').action, 'spec:3');
   assert.match(byId(model, 'spec').copy, /Buying 3t costs Cr2,850,000/);
   // Nothing in the trade cycle sends the player to a panel to find a button.

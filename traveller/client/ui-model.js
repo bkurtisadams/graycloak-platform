@@ -916,7 +916,7 @@ export function buildPlayProcedure(s = {}) {
         // obvious; a single card reading "accept cargo" made the player go
         // looking for the list.
         for (const lot of s.freight.lots ?? []) {
-          attention.push(card(`freight-${lot.id}`, `Accept ${lot.tons}t ${lot.category} for ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready,
+          attention.push(card(`freight-${lot.id}`, `Accept ${lot.tons}t shipment for ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready,
             `Cr${lot.revenueCr.toLocaleString('en-US')} on delivery at Cr${(1000).toLocaleString('en-US')}/ton. Accepting cargo announces the destination (Book 2 p.8).`,
             { action: `freight:${lot.id}`, verb: '[ ACCEPT ]' }));
         }
@@ -924,7 +924,12 @@ export function buildPlayProcedure(s = {}) {
           attention.push(card('freight', `Accept cargo for ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready, `${s.freight.fitting} of ${s.freight.offers} lots fit the hold${s.freight.bestCr ? `, up to Cr${s.freight.bestCr.toLocaleString('en-US')} on delivery` : ''} at Cr${(1000).toLocaleString('en-US')}/ton.`, { action: 'trade' }));
         }
       } else {
-        opportunities.push(card('freight-none', `No cargo fits for ${s.destination.name}`, PLAY_PROCEDURE_TAGS.optional, s.freight.offers ? `${s.freight.offers} lots offered, none fit the free hold.` : 'No lots offered this week.'));
+        // Book 2 p.7: every shipment is a multiple of five tons and cannot be
+        // broken down, so a small hold is simply out of the freight trade.
+        opportunities.push(card('freight-none', `No cargo fits for ${s.destination.name}`, PLAY_PROCEDURE_TAGS.optional,
+          s.freight.offers
+            ? `${s.freight.offers} shipment${s.freight.offers === 1 ? '' : 's'} offered; the smallest is ${s.freight.smallestTons ?? 5}t and a shipment cannot be split (Book 2 p.7).`
+            : 'No shipments offered for this destination.'));
       }
     }
     if (s.passengers) {
