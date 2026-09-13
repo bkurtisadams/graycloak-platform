@@ -4240,3 +4240,21 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
     animation: none; stroke-width: 1.8;
   }
 }
+
+/* v0.100.1: the scene navigation bar and the dock's reopen button both sat at
+   left: 104px, which the WHAT NOW? column has occupied since v0.98.1 (left:
+   96px, 300px wide). The bar has a higher z-index, so it drew over the dock
+   header rather than being lost — but with the canvas on a scene it was the
+   only way back to the subsector map, sitting on top of another panel. Both
+   clear the dock while it is open. */
+.terminal.shell:not(.dock-collapsed) .scene-nav { left: calc(96px + 300px + 8px); }
+@media (max-width: 1400px) {
+  .terminal.shell:not(.dock-collapsed) .scene-nav { left: calc(96px + 260px + 8px); }
+}
+@media (max-width: 900px) {
+  .terminal.shell:not(.dock-collapsed) .scene-nav { left: calc(88px + 240px + 8px); }
+}
+/* Collapsed, the reopen button would land on the bar's own coordinates, so it
+   sits a row beneath it rather than under it. */
+.terminal.shell.dock-collapsed .scene-nav { left: 104px; }
+.dock-reopen { top: 68px; left: 104px; }

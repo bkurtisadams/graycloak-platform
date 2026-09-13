@@ -8610,7 +8610,15 @@ function playProcedureAction(action) {
   if (intent === 'spec') { buySpeculativeQuantity(Number(argument)); return; }
   if (intent === 'berthing') { payBerthingAtCurrentPort(); return; }
   if (intent === 'fuel') { if (argument === 'skim') skimCurrentGasGiant(); else fillTanksAtCurrentPort(); return; }
-  if (action === 'nav') { el.subsectorMap?.scrollIntoView({ block: 'nearest' }); return; }
+  // v0.100.1: the canvas may be showing a scene or a combat board, in which
+  // case #subsector-section is hidden and scrolling to it does nothing at
+  // all. A card that says to pick a system on the map has to bring the map
+  // back first.
+  if (action === 'nav') {
+    if (viewedSceneId !== WORLD_SCENE_ID) { viewScene(WORLD_SCENE_ID); return; }
+    el.subsectorMap?.scrollIntoView({ block: 'nearest' });
+    return;
+  }
   if (action === 'port') { setOperationsDeskTab('port'); return; }
   if (action === 'trade') { setOperationsDeskTab('trade'); return; }
   if (action === 'jobs') { setOperationsDeskTab('jobs'); return; }
