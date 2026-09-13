@@ -40,21 +40,21 @@ function raider() {
 }
 
 test('Book 1 pp.46-47 (errata applied) target numbers derive from the printed matrices', () => {
-  // Rifle: nothing +3 / short +1 -> 4; cloth -3 / medium 0 -> 11; combat -5 / very long -3 -> 16.
+  // Rifle: nothing +3 / short +1 -> 4; cloth -3 / medium 0 -> 11; combat -5 / very long -3 -> 16. → cloth -2 / medium 0 -> 10; combat -4 / very long -3 -> 15
   assert.equal(weaponTargetNumber('rifle', 'none', 'short'), 4);
-  assert.equal(weaponTargetNumber('rifle', 'cloth', 'medium'), 11);
-  assert.equal(weaponTargetNumber('rifle', 'combat', 'very-long'), 16);
+  assert.equal(weaponTargetNumber('rifle', 'cloth', 'medium'), 10);
+  assert.equal(weaponTargetNumber('rifle', 'combat', 'very-long'), 15);
   // Reflec is the anti-laser armor: laser rifle -8 / short +2 -> 14.
   assert.equal(weaponTargetNumber('laser-rifle', 'reflec', 'short'), 14);
   assert.equal(weaponTargetNumber('laser-carbine', 'reflec', 'close'), 18);
-  // Errata: carbine vs ablat -1, SMG at long -3, dagger vs combat -7.
-  assert.equal(weaponTargetNumber('carbine', 'ablat', 'short'), 8);
-  assert.equal(weaponTargetNumber('submachine-gun', 'none', 'long'), 6);
-  assert.equal(weaponTargetNumber('dagger', 'combat', 'close'), 14);
-  // Body pistol vs reflec -4; hands vs jack -1; body pistol wounds 2D (errata).
+  // Errata: carbine vs ablat -1, SMG at long -3, dagger vs combat -7. → // 1977: carbine vs ablat +1, SMG at long -6, dagger vs combat -5.
+  assert.equal(weaponTargetNumber('carbine', 'ablat', 'short'), 6);
+  assert.equal(weaponTargetNumber('submachine-gun', 'none', 'long'), 9);
+  assert.equal(weaponTargetNumber('dagger', 'combat', 'close'), 12);
+  // Body pistol vs reflec -4; hands vs jack -1; body pistol wounds 2D (errata). → body pistol wounds 3D-8
   assert.equal(weaponTargetNumber('body-pistol', 'reflec', 'close'), 10);
   assert.equal(weaponTargetNumber('hands', 'jack', 'close'), 7);
-  assert.equal(PERSONAL_WEAPONS['body-pistol'].damageDice, 2);
+  assert.equal(PERSONAL_WEAPONS['body-pistol'].damageDice, 3);
   assert.equal(PERSONAL_WEAPONS.hands.characteristic, 'STR');
   assert.equal(PERSONAL_WEAPONS.cutlass.fatigueDM, -4);
   for (const [key, spec] of Object.entries(PERSONAL_WEAPONS)) {
@@ -84,8 +84,8 @@ test('Rifle skill and DEX DM produce a visible Book 1 effective hit', () => {
   const result = resolvePersonalAttack({ attacker: hawkeye(), defender: raider(), range: 'medium', dice: createSequenceDice([2, 3, 4, 3, 2, 1]) });
   assert.equal(result.target, 5);
   assert.equal(result.skillDM, 2);
-  assert.equal(result.characteristicDM, 1);
-  assert.equal(result.total, 8);
+  assert.equal(result.characteristicDM, 2);
+  assert.equal(result.total, 9);
   assert.equal(result.success, true);
   assert.deepEqual(result.damageDice, [4, 3, 2]);
   assert.equal(result.damageTotal, 9);
@@ -148,7 +148,7 @@ test('an untrained defender grants the printed +3 attack DM', () => {
   defender.skills = {};
   const result = resolvePersonalAttack({ attacker: hawkeye(), defender, range: 'medium', dice: createSequenceDice([1, 1, 1, 1, 1, 1]) });
   assert.equal(result.defenderUntrainedDM, 3);
-  assert.equal(result.totalDM, 6);
+  assert.equal(result.totalDM, 7);
 });
 
 test('rollPersonalAttack leaves the defender untouched so wounds can land at round end (B1 p.30 step 2C)', () => {

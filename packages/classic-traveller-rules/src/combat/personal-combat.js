@@ -9,36 +9,64 @@ export const PERSONAL_MOVEMENT_PACES = Object.freeze(['walk', 'run']);
 const RANGE_INDEX = Object.freeze(Object.fromEntries(PERSONAL_COMBAT_RANGES.map((key, index) => [key, index])));
 const PHYSICAL_KEYS = Object.freeze(['STR', 'DEX', 'END']);
 
-// Classic Traveller Book 1 (1981) pp.45-47 as printed in the facsimile edition,
-// with the p.46/p.47 errata already applied. Armor columns: Nothing, Jack,
-// Mesh, Cloth, Reflec, Ablat, Combat Armor. Range columns: Close, Short,
-// Medium, Long, Very Long; null means the weapon cannot attack at that range.
-// The basic throw to hit is 8+, so the unmodified target for an armor/range
-// combination is 8 - armorDM - rangeDM.
+// ---------------------------------------------------------------------------
+// Classic Traveller Book 1: Characters & Combat (1977), pp. 42-44.
+// Generated from the publisher PDF's text layer. The 1977 edition is the
+// rules authority for this project; this REPLACES the 1981 facsimile tables.
+//
+// New since the facsimile port: foil, spear, halberd, pike, cudgel, and the
+// six animal rows (claws, teeth, horns, hooves, stinger, thrasher) that Book 3
+// animal encounters resolve through.
+//
+// Armor columns: none, jack, mesh, cloth, reflec, ablat, combat.
+// Range columns: close, short, medium, long, very-long; null means the weapon
+// cannot attack at that range at all (NOT a DM of 0).
+// ---------------------------------------------------------------------------
 export const BASIC_HIT_THROW = 8;
 
 export const WEAPONS_MATRIX = Object.freeze({
+  'body-pistol': [0, 0, -2, -4, -4, -2, -7],
+  revolver: [1, 1, -1, -3, 1, -1, -5],
+  'automatic-pistol': [1, 1, -1, -3, 1, -1, -5],
+  carbine: [2, 2, 0, -3, 2, 1, -5],
+  rifle: [3, 3, 0, -2, 3, 1, -4],
+  'automatic-rifle': [6, 6, 2, -1, 6, 3, -3],
+  shotgun: [5, 5, -1, -3, 5, 2, -5],
+  'submachine-gun': [5, 5, 0, -3, 5, 2, -4],
+  'laser-carbine': [2, 2, 1, 1, -8, -7, -6],
+  'laser-rifle': [3, 3, 2, 2, -8, -7, -6],
   hands: [1, -1, -4, -4, 0, -1, -6],
   club: [0, 0, -2, -3, 0, -2, -7],
-  dagger: [0, -1, -4, -4, 0, -2, -7],
+  dagger: [0, -1, -4, -4, 0, -2, -5],
   blade: [1, 0, -4, -4, 1, -3, -5],
   cutlass: [4, 3, -2, -3, 4, -2, -6],
   sword: [3, 3, -3, -3, 3, -2, -6],
   broadsword: [5, 5, 1, 0, 5, 1, -4],
   bayonet: [2, 1, 0, -1, 2, -2, -6],
-  'body-pistol': [0, 0, -2, -4, -4, -2, -7],
-  'automatic-pistol': [1, 1, -1, -3, 1, -1, -5],
-  revolver: [1, 1, -1, -3, 1, -1, -5],
-  carbine: [2, 2, 0, -3, 2, -1, -5],
-  rifle: [3, 3, 0, -3, 2, 1, -5],
-  'automatic-rifle': [6, 6, 2, -1, 6, 3, -3],
-  shotgun: [5, 5, -1, -3, 5, 2, -5],
-  'submachine-gun': [5, 5, 0, -3, 5, 2, -4],
-  'laser-carbine': [2, 2, 1, 1, -8, -7, -6],
-  'laser-rifle': [3, 3, 2, 2, -8, -7, -6]
+  foil: [2, 0, -4, -3, 2, -2, -8],
+  spear: [1, 0, -2, -2, -1, -3, -6],
+  halberd: [4, 3, -2, -3, 4, -2, -5],
+  pike: [1, 0, -2, -2, -1, -3, -6],
+  cudgel: [0, 0, -2, -3, 0, -2, -7],
+  claws: [3, 0, 0, 1, -1, -3, -7],
+  teeth: [2, 1, -1, 0, -2, -4, -7],
+  horns: [2, 1, 0, -1, 2, -2, -5],
+  hooves: [3, 3, 2, 2, 3, 2, -6],
+  stinger: [4, 3, 0, 1, 2, 0, -6],
+  thrasher: [7, 7, 4, 4, 7, 4, 0],
 });
 
 export const RANGE_MATRIX = Object.freeze({
+  'body-pistol': [2, 1, -6, null, null],
+  revolver: [1, 2, -3, -5, null],
+  'automatic-pistol': [1, 2, -4, -6, null],
+  carbine: [-4, 1, -2, -4, -5],
+  rifle: [-4, 1, 0, -1, -3],
+  'automatic-rifle': [-8, 0, 2, 1, -2],
+  shotgun: [-8, 1, 3, -6, null],
+  'submachine-gun': [-4, 3, 3, -6, -9],
+  'laser-carbine': [-2, 1, 1, 1, 0],
+  'laser-rifle': [-4, 2, 2, 2, 1],
   hands: [2, 1, null, null, null],
   club: [1, 2, null, null, null],
   dagger: [1, -1, null, null, null],
@@ -47,16 +75,17 @@ export const RANGE_MATRIX = Object.freeze({
   sword: [-2, 1, null, null, null],
   broadsword: [-8, 3, null, null, null],
   bayonet: [-1, 2, null, null, null],
-  'body-pistol': [2, 1, -6, null, null],
-  'automatic-pistol': [1, 2, -4, -6, null],
-  revolver: [1, 2, -3, -5, null],
-  carbine: [-4, 1, -2, -4, -5],
-  rifle: [-4, 1, 0, -1, -3],
-  'automatic-rifle': [-8, 0, 2, 1, -2],
-  shotgun: [-8, 1, 3, -6, null],
-  'submachine-gun': [-4, 3, 3, -3, -9],
-  'laser-carbine': [-2, 1, 1, 1, 0],
-  'laser-rifle': [-4, 2, 2, 2, 1]
+  foil: [-1, 0, null, null, null],
+  spear: [-2, 1, null, null, null],
+  halberd: [0, 1, null, null, null],
+  pike: [-4, 4, null, null, null],
+  cudgel: [0, 0, null, null, null],
+  claws: [1, 2, null, null, null],
+  teeth: [2, 0, null, null, null],
+  horns: [-1, 1, null, null, null],
+  hooves: [-1, 2, null, null, null],
+  stinger: [4, 2, null, null, null],
+  thrasher: [5, 1, null, null, null],
 });
 
 function weapon(key, spec) {
@@ -78,31 +107,48 @@ function weapon(key, spec) {
   });
 }
 
-// Book 1 p.45 Weapons Table (required/advantageous characteristic levels and
-// DMs, weakened blow DM) and the p.47 wound column. Melee weapons key off
+// Book 1 p.44 Weapons Table (required/advantageous characteristic levels and
+// DMs, weakened blow DM) and the p.43 wound column. Melee weapons key off
 // Strength; guns key off Dexterity. Required level applies when the
 // characteristic is BELOW that level, so lowMax is one less than the printed
 // required level.
+//
+// damageModifier is the constant term of the p.43 wound formula: Body Pistol
+// is 3D-8, not 3D. Weapons with a bare nD formula carry a modifier of 0.
+// The animal rows have no required/advantageous characteristic in the book
+// (their entries are dashes), so their characteristic fields are null.
 export const PERSONAL_WEAPONS = Object.freeze({
-  'body-pistol': weapon('body-pistol', { name: 'Body Pistol', damageDice: 2, characteristic: 'DEX', lowMax: 7, lowDM: -3, highMin: 11, highDM: 1, skillNames: ['Body Pistol', 'Gun Combat'], melee: false }),
-  revolver: weapon('revolver', { name: 'Revolver', damageDice: 3, characteristic: 'DEX', lowMax: 6, lowDM: -2, highMin: 9, highDM: 1, skillNames: ['Revolver', 'Gun Combat'], melee: false }),
-  'automatic-pistol': weapon('automatic-pistol', { name: 'Automatic Pistol', damageDice: 3, characteristic: 'DEX', lowMax: 6, lowDM: -2, highMin: 10, highDM: 1, skillNames: ['Automatic Pistol', 'Auto Pistol', 'Gun Combat'], melee: false }),
-  carbine: weapon('carbine', { name: 'Carbine', damageDice: 3, characteristic: 'DEX', lowMax: 4, lowDM: -1, highMin: 9, highDM: 1, skillNames: ['Carbine', 'Gun Combat'], melee: false }),
-  rifle: weapon('rifle', { name: 'Rifle', damageDice: 3, characteristic: 'DEX', lowMax: 5, lowDM: -2, highMin: 8, highDM: 1, skillNames: ['Rifle', 'Gun Combat'], melee: false }),
-  'automatic-rifle': weapon('automatic-rifle', { name: 'Automatic Rifle', damageDice: 3, characteristic: 'DEX', lowMax: 6, lowDM: -2, highMin: 10, highDM: 2, skillNames: ['Automatic Rifle', 'Auto Rifle', 'Gun Combat'], melee: false, automatic: true }),
-  shotgun: weapon('shotgun', { name: 'Shotgun', damageDice: 4, characteristic: 'DEX', lowMax: 3, lowDM: -1, highMin: 9, highDM: 1, skillNames: ['Shotgun', 'Gun Combat'], melee: false }),
-  'submachine-gun': weapon('submachine-gun', { name: 'Submachine Gun', damageDice: 3, characteristic: 'DEX', lowMax: 5, lowDM: -2, highMin: 9, highDM: 2, skillNames: ['Submachine Gun', 'SMG', 'Gun Combat'], melee: false, automatic: true }),
-  'laser-carbine': weapon('laser-carbine', { name: 'Laser Carbine', damageDice: 4, characteristic: 'DEX', lowMax: 5, lowDM: -3, highMin: 10, highDM: 2, skillNames: ['Laser Carbine', 'Gun Combat'], melee: false }),
-  'laser-rifle': weapon('laser-rifle', { name: 'Laser Rifle', damageDice: 5, characteristic: 'DEX', lowMax: 6, lowDM: -3, highMin: 11, highDM: 2, skillNames: ['Laser Rifle', 'Gun Combat'], melee: false }),
-  hands: weapon('hands', { name: 'Hands', damageDice: 1, characteristic: 'STR', lowMax: 5, lowDM: -2, highMin: 9, highDM: 1, skillNames: ['Brawling'], melee: true, parry: true, fatigueDM: -2 }),
-  club: weapon('club', { name: 'Club', damageDice: 2, characteristic: 'STR', lowMax: 4, lowDM: -4, highMin: 8, highDM: 2, skillNames: ['Club', 'Brawling'], melee: true, parry: true, fatigueDM: -1 }),
-  dagger: weapon('dagger', { name: 'Dagger', damageDice: 2, characteristic: 'STR', lowMax: 3, lowDM: -2, highMin: 8, highDM: 2, skillNames: ['Dagger', 'Blade Combat', 'Blade'], melee: true, parry: true, fatigueDM: -2 }),
-  blade: weapon('blade', { name: 'Blade', damageDice: 2, characteristic: 'STR', lowMax: 4, lowDM: -2, highMin: 9, highDM: 1, skillNames: ['Blade', 'Blade Combat'], melee: true, parry: true, fatigueDM: -2 }),
-  cutlass: weapon('cutlass', { name: 'Cutlass', damageDice: 3, characteristic: 'STR', lowMax: 6, lowDM: -2, highMin: 11, highDM: 2, skillNames: ['Cutlass', 'Blade Combat', 'Blade'], melee: true, parry: true, fatigueDM: -4 }),
-  sword: weapon('sword', { name: 'Sword', damageDice: 2, characteristic: 'STR', lowMax: 5, lowDM: -2, highMin: 10, highDM: 1, skillNames: ['Sword', 'Blade Combat', 'Blade'], melee: true, parry: true, fatigueDM: -3 }),
-  broadsword: weapon('broadsword', { name: 'Broadsword', damageDice: 4, characteristic: 'STR', lowMax: 7, lowDM: -4, highMin: 12, highDM: 2, skillNames: ['Broadsword', 'Blade Combat', 'Blade'], melee: true, parry: true, fatigueDM: -4 }),
-  bayonet: weapon('bayonet', { name: 'Bayonet', damageDice: 3, characteristic: 'STR', lowMax: 4, lowDM: -2, highMin: 9, highDM: 2, skillNames: ['Bayonet', 'Dagger', 'Blade Combat', 'Blade'], melee: true, parry: true, fatigueDM: -2 })
+  'body-pistol': weapon('body-pistol', { name: 'Body Pistol', damageDice: 3, damageModifier: -8, characteristic: 'DEX', lowMax: 7, lowDM: -3, highMin: 11, highDM: 1, skillNames: ['Body Pistol', 'Gun Combat'], melee: false }),
+  revolver: weapon('revolver', { name: 'Revolver', damageDice: 3, damageModifier: -3, characteristic: 'DEX', lowMax: 6, lowDM: -2, highMin: 9, highDM: 1, skillNames: ['Revolver', 'Gun Combat'], melee: false }),
+  'automatic-pistol': weapon('automatic-pistol', { name: 'Automatic Pistol', damageDice: 3, damageModifier: -3, characteristic: 'DEX', lowMax: 6, lowDM: -2, highMin: 10, highDM: 1, skillNames: ['Automatic Pistol', 'Auto Pistol', 'Gun Combat'], melee: false }),
+  carbine: weapon('carbine', { name: 'Carbine', damageDice: 4, damageModifier: -8, characteristic: 'DEX', lowMax: 4, lowDM: -1, highMin: 9, highDM: 1, skillNames: ['Carbine', 'Gun Combat'], melee: false }),
+  rifle: weapon('rifle', { name: 'Rifle', damageDice: 3, damageModifier: 0, characteristic: 'DEX', lowMax: 5, lowDM: -2, highMin: 8, highDM: 2, skillNames: ['Rifle', 'Gun Combat'], melee: false }),
+  'automatic-rifle': weapon('automatic-rifle', { name: 'Automatic Rifle', damageDice: 3, damageModifier: 0, characteristic: 'DEX', lowMax: 6, lowDM: -2, highMin: 10, highDM: 2, skillNames: ['Automatic Rifle', 'Auto Rifle', 'Gun Combat'], melee: false, automatic: true }),
+  shotgun: weapon('shotgun', { name: 'Shotgun', damageDice: 4, damageModifier: 0, characteristic: 'DEX', lowMax: 3, lowDM: -1, highMin: 9, highDM: 1, skillNames: ['Shotgun', 'Gun Combat'], melee: false }),
+  'submachine-gun': weapon('submachine-gun', { name: 'Submachine Gun', damageDice: 3, damageModifier: -3, characteristic: 'DEX', lowMax: 5, lowDM: -2, highMin: 9, highDM: 2, skillNames: ['Submachine Gun', 'SMG', 'Gun Combat'], melee: false, automatic: true }),
+  'laser-carbine': weapon('laser-carbine', { name: 'Laser Carbine', damageDice: 4, damageModifier: 0, characteristic: 'DEX', lowMax: 5, lowDM: -3, highMin: 10, highDM: 2, skillNames: ['Laser Carbine', 'Gun Combat'], melee: false }),
+  'laser-rifle': weapon('laser-rifle', { name: 'Laser Rifle', damageDice: 5, damageModifier: 0, characteristic: 'DEX', lowMax: 6, lowDM: -3, highMin: 11, highDM: 2, skillNames: ['Laser Rifle', 'Gun Combat'], melee: false }),
+  hands: weapon('hands', { name: 'Hands', damageDice: 1, damageModifier: 0, characteristic: 'STR', lowMax: 5, lowDM: -2, highMin: 9, highDM: 1, skillNames: ['Brawling'], melee: true, parry: true, fatigueDM: -2 }),
+  club: weapon('club', { name: 'Club', damageDice: 2, damageModifier: -3, characteristic: 'STR', lowMax: 4, lowDM: -4, highMin: 8, highDM: 2, skillNames: ['Club', 'Brawling'], melee: true, parry: true, fatigueDM: -1 }),
+  dagger: weapon('dagger', { name: 'Dagger', damageDice: 2, damageModifier: -3, characteristic: 'STR', lowMax: 3, lowDM: -2, highMin: 8, highDM: 2, skillNames: ['Dagger', 'Blade Combat', 'Blade'], melee: true, parry: true, fatigueDM: -2 }),
+  blade: weapon('blade', { name: 'Blade', damageDice: 2, damageModifier: 0, characteristic: 'STR', lowMax: 4, lowDM: -2, highMin: 9, highDM: 1, skillNames: ['Blade', 'Blade Combat'], melee: true, parry: true, fatigueDM: -2 }),
+  cutlass: weapon('cutlass', { name: 'Cutlass', damageDice: 2, damageModifier: 4, characteristic: 'STR', lowMax: 6, lowDM: -2, highMin: 11, highDM: 2, skillNames: ['Cutlass', 'Blade Combat', 'Blade'], melee: true, parry: true, fatigueDM: -4 }),
+  sword: weapon('sword', { name: 'Sword', damageDice: 2, damageModifier: 1, characteristic: 'STR', lowMax: 5, lowDM: -2, highMin: 10, highDM: 1, skillNames: ['Sword', 'Blade Combat', 'Blade'], melee: true, parry: true, fatigueDM: -3 }),
+  broadsword: weapon('broadsword', { name: 'Broadsword', damageDice: 4, damageModifier: 0, characteristic: 'STR', lowMax: 7, lowDM: -4, highMin: 12, highDM: 2, skillNames: ['Broadsword', 'Blade Combat', 'Blade'], melee: true, parry: true, fatigueDM: -4 }),
+  bayonet: weapon('bayonet', { name: 'Bayonet', damageDice: 3, damageModifier: 0, characteristic: 'STR', lowMax: 4, lowDM: -2, highMin: 9, highDM: 2, skillNames: ['Bayonet', 'Dagger', 'Blade Combat', 'Blade'], melee: true, parry: true, fatigueDM: -2 }),
+  foil: weapon('foil', { name: 'Foil', damageDice: 1, damageModifier: 4, characteristic: 'STR', lowMax: 4, lowDM: -1, highMin: 10, highDM: 1, skillNames: ['Foil', 'Blade Combat', 'Blade'], melee: true, parry: true, fatigueDM: -2 }),
+  spear: weapon('spear', { name: 'Spear', damageDice: 2, damageModifier: 2, characteristic: 'STR', lowMax: 4, lowDM: -1, highMin: 9, highDM: 2, skillNames: ['Spear', 'Blade Combat', 'Blade'], melee: true, parry: true, fatigueDM: -3 }),
+  halberd: weapon('halberd', { name: 'Halberd', damageDice: 3, damageModifier: 0, characteristic: 'STR', lowMax: 5, lowDM: -2, highMin: 10, highDM: 2, skillNames: ['Halberd', 'Blade Combat', 'Blade'], melee: true, parry: true, fatigueDM: -3 }),
+  pike: weapon('pike', { name: 'Pike', damageDice: 3, damageModifier: 0, characteristic: 'STR', lowMax: 6, lowDM: -3, highMin: 10, highDM: 2, skillNames: ['Pike', 'Blade Combat', 'Blade'], melee: true, parry: true, fatigueDM: -3 }),
+  cudgel: weapon('cudgel', { name: 'Cudgel', damageDice: 2, damageModifier: 0, characteristic: 'STR', lowMax: 4, lowDM: -1, highMin: 8, highDM: 2, skillNames: ['Cudgel', 'Blade Combat', 'Blade'], melee: true, parry: true, fatigueDM: -1 }),
+  claws: weapon('claws', { name: 'Claws', damageDice: 1, damageModifier: 3, characteristic: null, lowMax: null, lowDM: 0, highMin: null, highDM: 0, skillNames: [], melee: true, naturalWeapon: true }),
+  teeth: weapon('teeth', { name: 'Teeth', damageDice: 2, damageModifier: -3, characteristic: null, lowMax: null, lowDM: 0, highMin: null, highDM: 0, skillNames: [], melee: true, naturalWeapon: true }),
+  horns: weapon('horns', { name: 'Horns', damageDice: 2, damageModifier: -5, characteristic: null, lowMax: null, lowDM: 0, highMin: null, highDM: 0, skillNames: [], melee: true, naturalWeapon: true }),
+  hooves: weapon('hooves', { name: 'Hooves', damageDice: 2, damageModifier: -6, characteristic: null, lowMax: null, lowDM: 0, highMin: null, highDM: 0, skillNames: [], melee: true, naturalWeapon: true }),
+  stinger: weapon('stinger', { name: 'Stinger', damageDice: 3, damageModifier: -6, characteristic: null, lowMax: null, lowDM: 0, highMin: null, highDM: 0, skillNames: [], melee: true, naturalWeapon: true }),
+  thrasher: weapon('thrasher', { name: 'Thrasher', damageDice: 2, damageModifier: 2, characteristic: null, lowMax: null, lowDM: 0, highMin: null, highDM: 0, skillNames: [], melee: true, naturalWeapon: true }),
 });
+
 
 function integer(value, label) {
   if (!Number.isInteger(value)) throw new TypeError(`${label} must be an integer`);
@@ -118,11 +164,13 @@ export function getPersonalWeapon(key) {
 
 export function personalWeaponSkillLevel(combatant, weaponKey) {
   const spec = getPersonalWeapon(weaponKey);
+    if (!spec.skillNames.length) return 0;
   return Math.max(...spec.skillNames.map((name) => Number(combatant.skills?.[name] ?? 0)));
 }
 
 export function weaponCharacteristicDM(combatant, weaponKey) {
   const spec = getPersonalWeapon(weaponKey);
+  if (spec.characteristic === null) return 0;
   const value = Number(combatant.characteristics?.[spec.characteristic] ?? 0);
   if (value <= spec.lowMax) return spec.lowDM;
   if (value >= spec.highMin) return spec.highDM;
