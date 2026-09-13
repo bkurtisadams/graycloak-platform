@@ -8,10 +8,11 @@ import {
   TYPE_S_SCOUT_COURIER_KEY,
   getStandardShipDesign
 } from './standard-designs.js';
+import { TURRET_MOUNTS, TURRET_WEAPONS } from './components.js';
 
 export const SHIP_DOCUMENT_TYPE = 'classic-traveller-ship';
-export const CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION = 3;
-export const SUPPORTED_SHIP_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3]);
+export const CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION = 4;
+export const SUPPORTED_SHIP_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4]);
 
 const TOP_LEVEL_KEYS = new Set([
   'documentType', 'schemaVersion', 'identity', 'design', 'specifications',
@@ -197,6 +198,11 @@ export function createShipDocument({
         ledger: cloneJson(state.finances?.ledger ?? [])
       },
       portCall: state.portCall ? cloneJson(state.portCall) : null,
+      armament: {
+        turrets: cloneJson(state.armament?.turrets ?? []),
+        missiles: state.armament?.missiles ?? 0,
+        sandCanisters: state.armament?.sandCanisters ?? 0
+      },
       maintenance: {
         status: state.maintenance?.status ?? 'unknown',
         lastOverhaulDate: state.maintenance?.lastOverhaulDate ?? null,
@@ -387,13 +393,49 @@ function validatePortCall(document, errors) {
   if (portCall.berthingDueCr === 0) add(errors, portCall.berthingPaid === true, 'zero-cost berthing must be marked paid');
 }
 
+// Book 2 p.16: "Weapons are never included in ship plans and specifications,
+// and must be acquired and installed after delivery." So fitted weaponry is
+// state, not specification — which is also what keeps the canonical-design
+// comparison working on an armed ship.
+function validateArmamentState(document, errors) {
+  const armament = document.state.armament;
+  add(errors, isPlainObject(armament), 'state.armament must be an object');
+  if (!isPlainObject(armament)) return;
+  validateExactKeys(armament, ['turrets', 'missiles', 'sandCanisters'], 'state.armament', errors);
+  add(errors, integerAtLeast(armament.missiles, 0), 'state.armament.missiles must be a non-negative integer');
+  add(errors, integerAtLeast(armament.sandCanisters, 0), 'state.armament.sandCanisters must be a non-negative integer');
+  add(errors, Array.isArray(armament.turrets), 'state.armament.turrets must be an array');
+  if (!Array.isArray(armament.turrets)) return;
+
+  const fitted = document.specifications.armament.turrets;
+  for (const [index, entry] of armament.turrets.entries()) {
+    const path = `state.armament.turrets[${index}]`;
+    add(errors, isPlainObject(entry), `${path} must be an object`);
+    if (!isPlainObject(entry)) continue;
+    validateExactKeys(entry, ['id', 'weapons'], path, errors);
+    const turret = fitted.find((candidate) => candidate.id === entry.id);
+    add(errors, Boolean(turret), `${path}.id does not name a turret on this ship`);
+    add(errors, Array.isArray(entry.weapons), `${path}.weapons must be an array`);
+    if (!turret || !Array.isArray(entry.weapons)) continue;
+    // Book 2 p.15: a turret contains one, two or three weapons by mount.
+    const capacity = TURRET_MOUNTS[turret.mount]?.weapons ?? 0;
+    add(errors, entry.weapons.length <= capacity, `${path} holds more weapons than a ${turret.mount} turret mounts`);
+    for (const [slot, weapon] of entry.weapons.entries()) {
+      add(errors, typeof weapon === 'string' && weapon in TURRET_WEAPONS, `${path}.weapons[${slot}] is not a Book 2 turret weapon`);
+    }
+  }
+  const ids = armament.turrets.map((entry) => entry?.id);
+  add(errors, new Set(ids).size === ids.length, 'state.armament.turrets repeats a turret id');
+}
+
 function validateState(document, errors) {
   const state = document.state;
   add(errors, isPlainObject(state), 'state must be an object');
   if (!isPlainObject(state)) return;
   validateExactKeys(state, [
     'operationalStatus', 'currentFuelTons', 'fuelQuality', 'cargoUsedTons',
-    'cargoManifest', 'passengerManifest', 'finances', 'portCall', 'maintenance'
+    'cargoManifest', 'passengerManifest', 'finances', 'portCall', 'maintenance',
+    'armament'
   ], 'state', errors);
   add(errors, typeof state.operationalStatus === 'string' && state.operationalStatus.length > 0, 'state.operationalStatus must be nonblank');
   add(errors, state.currentFuelTons === null || finiteAtLeast(state.currentFuelTons, 0), 'state.currentFuelTons must be null or a non-negative number');
@@ -410,6 +452,7 @@ function validateState(document, errors) {
   }
   validateCargoManifest(document, errors);
   validatePassengerManifest(document, errors);
+  validateArmamentState(document, errors);
   validateShipFinances(document, errors);
   validatePortCall(document, errors);
   add(errors, isPlainObject(state.maintenance), 'state.maintenance must be an object');
@@ -528,6 +571,13 @@ export function migrateShipDocument(input) {
   if (next.schemaVersion === 2) {
     next.schemaVersion = 3;
     next.state.passengerManifest = [];
+  }
+
+  if (next.schemaVersion === 3) {
+    next.schemaVersion = 4;
+    // Every existing ship is unarmed: Book 2 delivers standard designs with
+    // empty turrets, and nothing could fit a weapon before this version.
+    next.state.armament = { turrets: [], missiles: 0, sandCanisters: 0 };
   }
 
   if (next.schemaVersion === CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION) {

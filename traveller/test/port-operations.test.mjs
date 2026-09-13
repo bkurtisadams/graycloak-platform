@@ -99,7 +99,7 @@ test('accepted job cargo does not block a partial fuel purchase when a full refi
 
 test('Hawkeye and Marisol can establish fuel, fund the ship, jump, pay port costs, and persist the ledger', async () => {
   let { character, ship } = await loadFixture();
-  assert.equal(ship.schemaVersion, 3);
+  assert.equal(ship.schemaVersion, 4);
   assert.equal(ship.state.currentFuelTons, null);
 
   const aster = system('aster');

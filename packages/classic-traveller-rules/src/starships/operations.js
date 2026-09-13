@@ -1,5 +1,12 @@
 import { assertValidCharacterDocument } from '../characters/character-document.js';
 import { assertValidShipDocument, DOUBLED_ROLE_SALARY_RATE } from './ship-document.js';
+import {
+  getTurretWeapon,
+  getTurretMount,
+  ROUNDS_PER_LAUNCHER,
+  MISSILE_PRICE_CR,
+  SAND_CANISTER_PRICE_CR
+} from './components.js';
 import { getStandardShipDesign } from './standard-designs.js';
 import {
   PASSAGE_FARES_CR,
@@ -881,4 +888,187 @@ export function shipDistributableCr(ship, { outstandingUpkeepCr = 0 } = {}) {
   const currentNet = voyages.length ? voyages[voyages.length - 1].netCr : 0;
   const spare = Math.min(ship.state.finances.balanceCr, currentNet) - outstandingUpkeepCr;
   return Math.max(0, spare);
+}
+
+// ---------------------------------------------------------------------------
+// Book 2 pp.15-18: arming a ship.
+//
+// "Weapons are never included in ship plans and specifications, and must be
+// acquired and installed after delivery." Every standard design is delivered
+// with empty turrets — the Scout's double turret, the cruiser's eight triples —
+// so fitting weaponry is a purchase made in play, and fitted weapons live in
+// ship state rather than in the canonical specification.
+//
+// Book 2 p.15 also notes a turret "requires a gunner, in most cases assigned as
+// a specific crew member, and requiring a stateroom, salary, and other crew
+// requirements", which is why armShipTurret reports the gunners a ship owes.
+// ---------------------------------------------------------------------------
+
+function turretSpecification(ship, turretId) {
+  const turret = ship.specifications.armament.turrets.find((entry) => entry.id === turretId);
+  if (!turret) throw new RangeError(`no turret ${turretId} on this ship`);
+  return turret;
+}
+
+function turretState(ship, turretId) {
+  return ship.state.armament.turrets.find((entry) => entry.id === turretId) ?? null;
+}
+
+/**
+ * The weapons fitted in a turret, which is state and may be empty.
+ */
+export function turretWeapons(ship, turretId) {
+  turretSpecification(ship, turretId);
+  return Object.freeze([...(turretState(ship, turretId)?.weapons ?? [])]);
+}
+
+/**
+ * Book 2 p.24's data card notation: the turret's weapon letters, e.g. "B, M".
+ */
+export function turretDataCardCode(ship, turretId) {
+  return turretWeapons(ship, turretId).map((key) => getTurretWeapon(key).code).join(', ');
+}
+
+export function shipIsArmed(ship) {
+  return ship.state.armament.turrets.some((entry) => entry.weapons.length > 0);
+}
+
+/**
+ * Book 2 p.17: "One gunner is required as a crew member for each turret mounted
+ * on the starship. In many cases, especially where trouble is not expected, the
+ * gunner position will be omitted." Reports the requirement against the crew
+ * actually assigned; an armed turret with no gunner is legal but unmanned.
+ */
+export function shipGunnerRequirement(ship) {
+  assertValidShipDocument(ship);
+  const armedTurrets = ship.state.armament.turrets.filter((entry) => entry.weapons.length > 0).length;
+  const gunners = ship.crew.assignments.filter((entry) => entry.role === 'gunner').length;
+  return Object.freeze({
+    armedTurrets,
+    gunners,
+    shortfall: Math.max(0, armedTurrets - gunners)
+  });
+}
+
+/**
+ * Buys a weapon and installs it in a turret, charging the ship's account.
+ * Pass `pricePerWeaponCr` to override the Book 2 base price at a referee's
+ * discretion; otherwise the printed price applies.
+ */
+export function armShipTurret(ship, {
+  turretId,
+  weapon,
+  pricePerWeaponCr = null,
+  dateLabel = null
+} = {}) {
+  assertValidShipDocument(ship);
+  const turret = turretSpecification(ship, turretId);
+  const entry = getTurretWeapon(weapon);
+  const capacity = getTurretMount(turret.mount).weapons;
+  const fitted = turretWeapons(ship, turretId);
+  if (fitted.length >= capacity) {
+    throw new RangeError(`turret ${turretId} is a ${turret.mount} mount and already holds ${fitted.length} weapons`);
+  }
+  const priceCr = pricePerWeaponCr === null
+    ? Math.round(entry.priceMCr * 1000000)
+    : pricePerWeaponCr;
+  if (!Number.isInteger(priceCr) || priceCr < 0) throw new TypeError('weapon price must be a non-negative integer of credits');
+
+  let next = appendLedger(ship, {
+    kind: 'armament',
+    amountCr: -priceCr,
+    description: `${entry.label} installed in turret ${turretId}`,
+    dateLabel
+  });
+  const existing = turretState(next, turretId);
+  if (existing) {
+    existing.weapons.push(entry.key);
+  } else {
+    next.state.armament.turrets.push({ id: turretId, weapons: [entry.key] });
+  }
+  assertValidShipDocument(next);
+  return Object.freeze({ ship: next, weapon: entry, priceCr, gunners: shipGunnerRequirement(next) });
+}
+
+/**
+ * Book 2 p.16: used turrets removed in renovation sell for 25% of original
+ * cost. The book does not price the removal of a weapon from a turret, so a
+ * stripped weapon returns nothing unless a resale is stated.
+ */
+export function stripShipTurret(ship, { turretId, weapon, resaleCr = 0, dateLabel = null } = {}) {
+  assertValidShipDocument(ship);
+  turretSpecification(ship, turretId);
+  const entry = getTurretWeapon(weapon);
+  const state = turretState(ship, turretId);
+  const index = state?.weapons.indexOf(entry.key) ?? -1;
+  if (index < 0) throw new RangeError(`turret ${turretId} has no ${entry.label} fitted`);
+  if (!Number.isInteger(resaleCr) || resaleCr < 0) throw new TypeError('resale must be a non-negative integer of credits');
+
+  let next = cloneJson(ship);
+  const nextState = turretState(next, turretId);
+  nextState.weapons.splice(index, 1);
+  if (nextState.weapons.length === 0) {
+    next.state.armament.turrets = next.state.armament.turrets.filter((candidate) => candidate.id !== turretId);
+  }
+  assertValidShipDocument(next);
+  if (resaleCr > 0) {
+    next = appendLedger(next, {
+      kind: 'armament',
+      amountCr: resaleCr,
+      description: `${entry.label} removed from turret ${turretId}`,
+      dateLabel
+    });
+  }
+  return Object.freeze({ ship: next, weapon: entry, resaleCr });
+}
+
+/**
+ * Book 2 p.18 expendables. Missiles CR 5000 each, sand CR 400 a canister.
+ *
+ * p.31: "Each launcher (sand or missile) has an inherent capacity for three
+ * missiles or canisters", so a ship's ready capacity is three per launcher
+ * fitted. Rounds beyond that are stores, and the book does not forbid them, so
+ * the ready figure is reported rather than enforced.
+ */
+export function magazineCapacity(ship) {
+  assertValidShipDocument(ship);
+  let launchers = 0;
+  let sandcasters = 0;
+  for (const turret of ship.state.armament.turrets) {
+    for (const weapon of turret.weapons) {
+      if (weapon === 'missile-launcher') launchers += 1;
+      if (weapon === 'sandcaster') sandcasters += 1;
+    }
+  }
+  return Object.freeze({
+    launchers,
+    sandcasters,
+    readyMissiles: launchers * ROUNDS_PER_LAUNCHER,
+    readySandCanisters: sandcasters * ROUNDS_PER_LAUNCHER,
+    missiles: ship.state.armament.missiles,
+    sandCanisters: ship.state.armament.sandCanisters
+  });
+}
+
+export function purchaseOrdnance(ship, { missiles = 0, sandCanisters = 0, dateLabel = null } = {}) {
+  assertValidShipDocument(ship);
+  if (!Number.isInteger(missiles) || missiles < 0) throw new TypeError('missiles must be a non-negative integer');
+  if (!Number.isInteger(sandCanisters) || sandCanisters < 0) throw new TypeError('sandCanisters must be a non-negative integer');
+  if (missiles === 0 && sandCanisters === 0) throw new RangeError('nothing to purchase');
+
+  const costCr = missiles * MISSILE_PRICE_CR + sandCanisters * SAND_CANISTER_PRICE_CR;
+  const parts = [];
+  if (missiles) parts.push(`${missiles} missile${missiles === 1 ? '' : 's'}`);
+  if (sandCanisters) parts.push(`${sandCanisters} sand canister${sandCanisters === 1 ? '' : 's'}`);
+
+  const next = appendLedger(ship, {
+    kind: 'ordnance',
+    amountCr: -costCr,
+    description: `Ordnance purchased: ${parts.join(', ')}`,
+    dateLabel
+  });
+  next.state.armament.missiles += missiles;
+  next.state.armament.sandCanisters += sandCanisters;
+  assertValidShipDocument(next);
+  return Object.freeze({ ship: next, costCr, missiles, sandCanisters });
 }

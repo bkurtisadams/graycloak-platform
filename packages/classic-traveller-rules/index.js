@@ -221,6 +221,17 @@ export {
 } from './src/starships/design-costing.js';
 
 export {
+  turretWeapons,
+  turretDataCardCode,
+  shipIsArmed,
+  shipGunnerRequirement,
+  armShipTurret,
+  stripShipTurret,
+  magazineCapacity,
+  purchaseOrdnance
+} from './src/starships/operations.js';
+
+export {
   SHIP_DOCUMENT_TYPE,
   CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION,
   SUPPORTED_SHIP_DOCUMENT_SCHEMA_VERSIONS,
