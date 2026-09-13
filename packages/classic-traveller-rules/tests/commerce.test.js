@@ -36,7 +36,12 @@ import {
   speculativeLotPosition,
   shipUpkeepDue,
   chargeShipUpkeep,
-  assignShipCrew
+  assignShipCrew,
+  summariseShipVoyages,
+  shipDistributableCr,
+  payCurrentBerthing,
+  beginPortCall,
+  disembarkPassengersAtDestination
 } from '../index.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -356,4 +361,60 @@ test('a year served brings the overhaul due, and an account that cannot cover it
   const settled = chargeShipUpkeep(funded, { dateLabel: '002-4801', sinceLabel: '001-4800', unpaid: [character.identity.id] });
   assert.equal(settled.maintenancePeriodsPaid, 1);
   assert.equal(settled.outstandingCr, 0);
+});
+
+test('the ledger splits into voyages at each departure, and states what each leg made', async () => {
+  const character = await hawkeye();
+  let vessel = createTypeSScoutReserveShipForCharacter(character).ship;
+  vessel = transferCharacterCreditsToShip(character, vessel, 20000, { dateLabel: "001-4800" }).ship;
+
+  // A leg: life support at departure, then a sale and berthing at the far end.
+  vessel = chargeLifeSupportForTrip(vessel, { dateLabel: '008-4800' }).ship;
+  vessel = loadCargo(vessel, {
+    id: 'lot-1', category: 'speculative:42', description: 'Firearms', tons: 3,
+    originSystemId: 'aster', destinationSystemId: null, acquisitionCostCr: 0, notes: ''
+  });
+  vessel = beginPortCall(vessel, { systemId: 'orison', arrivalDate: '015-4800', berthingDueCr: 100 });
+  vessel = payCurrentBerthing(vessel, { dateLabel: '015-4800' }).ship;
+
+  const voyages = summariseShipVoyages(vessel);
+  // The funding transfer opens a first voyage; the life-support charge starts
+  // the second.
+  assert.equal(voyages.length, 2);
+  assert.equal(voyages[0].incomeCr, 20000, 'the transfer in');
+  assert.equal(voyages[1].startDate, '008-4800');
+  assert.equal(voyages[1].open, true, 'the ship has not departed again');
+  assert.equal(voyages[1].expenseCr > 0, true, 'life support and berthing went out');
+  assert.equal(voyages[1].netCr, voyages[1].incomeCr - voyages[1].expenseCr);
+  assert.equal(voyages[1].closingBalanceCr, vessel.state.finances.balanceCr);
+});
+
+test('a losing leg affords no withdrawal, and upkeep owed comes off what can be drawn', async () => {
+  const character = await hawkeye();
+  let vessel = createTypeSScoutReserveShipForCharacter(character).ship;
+  vessel = transferCharacterCreditsToShip(character, vessel, 20000, { dateLabel: "001-4800" }).ship;
+
+  // Departure charges life support: Book 2 p.6, per stateroom built, so a Type
+  // S pays Cr8,000 a trip whether anyone is aboard or not.
+  vessel = chargeLifeSupportForTrip(vessel, { dateLabel: '008-4800' }).ship;
+  assert.equal(shipDistributableCr(vessel), 0, 'a leg in deficit distributes nothing');
+
+  // Three tons of freight pays Cr3,000 — less than the life support that got
+  // it there. A scout cannot trade its way out on carrying capacity alone.
+  vessel = loadCargo(vessel, {
+    id: 'freight-1', category: 'freight', description: 'Orison freight', tons: 3,
+    originSystemId: 'aster', destinationSystemId: 'orison', acquisitionCostCr: 0, notes: ''
+  });
+  vessel = deliverFreightAtDestination(vessel, 'orison', { dateLabel: '015-4800' }).ship;
+  assert.equal(shipDistributableCr(vessel), 0, 'Cr3,000 in against Cr8,000 out is still a loss');
+
+  // Passages are what actually pay for a hull this size: two middle berths at
+  // Cr8,000 clear the trip's life support on their own.
+  vessel = bookPassenger(vessel, { id: 'p1', passageClass: 'middle', originSystemId: 'aster', destinationSystemId: 'orison' });
+  vessel = bookPassenger(vessel, { id: 'p2', passageClass: 'middle', originSystemId: 'aster', destinationSystemId: 'orison' });
+  vessel = disembarkPassengersAtDestination(vessel, 'orison', { dateLabel: '016-4800' }).ship;
+  const spare = shipDistributableCr(vessel);
+  assert.ok(spare > 0, 'a leg in profit distributes its net');
+  // Wages owed are not available to withdraw.
+  assert.equal(shipDistributableCr(vessel, { outstandingUpkeepCr: spare + 1 }), 0);
 });

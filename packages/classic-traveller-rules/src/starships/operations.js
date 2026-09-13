@@ -795,3 +795,68 @@ export function chargeShipUpkeep(ship, { dateLabel, sinceLabel = null, skillLeve
     outstandingCr: due.totalDueCr - paidCr
   });
 }
+
+// ---------------------------------------------------------------------------
+// The ship's books. Every transaction has been recorded in state.finances
+// since the ledger was written; nothing ever read it back. A voyage account is
+// derived from those entries rather than stored, so it cannot drift from the
+// ledger and needs no schema of its own.
+//
+// Book 2 p.6 charges life support "per trip made", so a life-support entry
+// marks a departure — which makes it the boundary between one voyage and the
+// next. A voyage runs from its departure through the port call at the far end,
+// up to the moment the ship leaves again.
+// ---------------------------------------------------------------------------
+
+const VOYAGE_BOUNDARY_KIND = 'life-support';
+
+export function summariseShipVoyages(ship, { limit = null } = {}) {
+  assertValidShipDocument(ship);
+  const ledger = ship.state.finances.ledger;
+  const voyages = [];
+  let current = null;
+
+  for (const entry of ledger) {
+    if (entry.kind === VOYAGE_BOUNDARY_KIND || current === null) {
+      current = { entries: [], startDate: entry.date, endDate: entry.date };
+      voyages.push(current);
+    }
+    current.entries.push(entry);
+    current.endDate = entry.date;
+  }
+
+  const summarised = voyages.map((voyage, index) => {
+    let incomeCr = 0;
+    let expenseCr = 0;
+    for (const entry of voyage.entries) {
+      if (entry.amountCr >= 0) incomeCr += entry.amountCr;
+      else expenseCr += -entry.amountCr;
+    }
+    return Object.freeze({
+      startDate: voyage.startDate,
+      endDate: voyage.endDate,
+      entries: Object.freeze([...voyage.entries]),
+      incomeCr,
+      expenseCr,
+      netCr: incomeCr - expenseCr,
+      closingBalanceCr: voyage.entries[voyage.entries.length - 1].balanceCr,
+      // The last voyage is still running: the ship has not departed again.
+      open: index === voyages.length - 1
+    });
+  });
+
+  return Object.freeze(limit ? summarised.slice(-limit) : summarised);
+}
+
+/**
+ * What the ship can spare. The current voyage's net, less anything upkeep
+ * still owes — a withdrawal should not be funded out of wages the crew has
+ * not been paid. Never negative: a losing leg affords nothing.
+ */
+export function shipDistributableCr(ship, { outstandingUpkeepCr = 0 } = {}) {
+  assertValidShipDocument(ship);
+  const voyages = summariseShipVoyages(ship);
+  const currentNet = voyages.length ? voyages[voyages.length - 1].netCr : 0;
+  const spare = Math.min(ship.state.finances.balanceCr, currentNet) - outstandingUpkeepCr;
+  return Math.max(0, spare);
+}

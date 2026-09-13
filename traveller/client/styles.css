@@ -4329,3 +4329,37 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .procedure-card.blocked .procedure-card-tag { color: #8c3b30; }
 .procedure-card.blocked { border-color: #b08079; }
 .procedure-card.blocked .procedure-card-title { color: var(--ink); }
+
+/* v0.116.0: the ship's books. */
+.ship-ledger { margin-top: 4px; }
+.ledger-voyage { border-top: 1px dotted var(--disabled); padding: 4px 0; }
+.ledger-voyage > summary { cursor: pointer; font-weight: 700; letter-spacing: .02em; }
+.ledger-totals { color: var(--muted); font-size: 10px; }
+.ledger-entry { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; }
+.ledger-gain { color: var(--ok); }
+.ledger-loss { color: #8c3b30; }
+
+/* v0.117.0: the tool rail stops reserving a column.
+   It has floated over the canvas since v0.80.0, but the stage still padded 96px
+   on the left for it and the dock began after that — so the rail cost its width
+   twice, once as a float and once as reserved space it did not occupy. The rail
+   now sits just clear of the dock, over the canvas margin, and the stage
+   reserves only the dock. That returns ~96px to the map at every width. */
+.terminal.shell .shell-stage { padding-left: 0; }
+.terminal.shell:not(.dock-collapsed) .shell-stage { padding-left: 300px; }
+.terminal.shell .shell-dock { left: 0; }
+.terminal.shell .shell-rail { left: 308px; }
+.terminal.shell.dock-collapsed .shell-rail { left: 8px; }
+.terminal.shell.dock-collapsed .dock-reopen { left: 8px; top: 40px; }
+.terminal.shell.dock-collapsed .scene-nav { left: 52px; }
+.terminal.shell:not(.dock-collapsed) .scene-nav { left: 352px; }
+@media (max-width: 1400px) {
+  .terminal.shell:not(.dock-collapsed) .shell-stage { padding-left: 260px; }
+  .terminal.shell:not(.dock-collapsed) .shell-rail { left: 268px; }
+  .terminal.shell:not(.dock-collapsed) .scene-nav { left: 312px; }
+}
+@media (max-width: 900px) {
+  .terminal.shell:not(.dock-collapsed) .shell-stage { padding-left: 240px; }
+  .terminal.shell:not(.dock-collapsed) .shell-rail { left: 248px; }
+  .terminal.shell:not(.dock-collapsed) .scene-nav { left: 292px; }
+}

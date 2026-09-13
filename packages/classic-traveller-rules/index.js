@@ -214,6 +214,8 @@ export {
   calculateMonthlyCrewSalaries,
   annualMaintenanceCr,
   shipCashPriceCr,
+  summariseShipVoyages,
+  shipDistributableCr,
   shipUpkeepDue,
   chargeShipUpkeep,
   SALARY_PERIOD_DAYS,
