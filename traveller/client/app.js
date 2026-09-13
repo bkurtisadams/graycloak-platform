@@ -5,6 +5,9 @@ import {
   createCharacter,
   createCharacterDocument,
   createTypeSScoutReserveShipForCharacter,
+  SHIP_CREW_ROLES,
+  assignShipCrew,
+  releaseShipCrew,
   exportCharacter,
   exportCharacterDocument,
   exportShipDocument,
@@ -228,9 +231,6 @@ import {
   failContractDocument,
   importContractDocument,
   isContractOverdue,
-  SHIP_CREW_ROLES,
-  assignShipCrew,
-  releaseShipCrew,
   reconcileContractDeadlines
 } from '../src/contract-document.js';
 
