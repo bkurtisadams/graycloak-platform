@@ -137,6 +137,13 @@ export function renderSubsectorMap({ subsector, columns, rows, current = null, s
     preserveAspectRatio: 'xMidYMid meet'
   });
 
+  // v0.100.0: while a destination is required and unset, the in-range hexes
+  // pulse. Motion as a prompt, not decoration — it stops the moment one is
+  // picked, and the current port never pulses because it does not change
+  // during a port call.
+  if (current && !selected && reachable.size) svg.classList.add('destination-pending');
+
+  const centerBySystemId = new Map();
   const systemByHex = new Map(subsector.systems.map((system) => [system.hex, system]));
   for (let column = 1; column <= columns; column += 1) {
     for (let row = 1; row <= rows; row += 1) {
@@ -163,6 +170,7 @@ export function renderSubsectorMap({ subsector, columns, rows, current = null, s
       }
 
       group.classList.add('system-hex');
+      centerBySystemId.set(system.id, center);
       if (current && reachable.has(system.id)) group.classList.add('reachable');
       if (current?.id === system.id) group.classList.add('current');
       if (selected?.id === system.id) group.classList.add('selected');
@@ -208,6 +216,15 @@ export function renderSubsectorMap({ subsector, columns, rows, current = null, s
         group.append(label);
       });
 
+      // The destination carries its own ring so it reads at a glance without
+      // depending on stroke weight alone, which is easy to miss at low zoom.
+      if (selected?.id === system.id) {
+        group.append(createSvgNode('circle', {
+          cx: center.x, cy: center.y, r: SUBSECTOR_SVG_GEOMETRY.radius * 0.62,
+          class: 'subsector-destination-ring'
+        }));
+      }
+
       appendBaseMarkers(group, system, center);
 
       if (onSelect) {
@@ -221,6 +238,28 @@ export function renderSubsectorMap({ subsector, columns, rows, current = null, s
       }
       svg.append(group);
     }
+  }
+
+  // The jump line is drawn last so it sits over the hexes, and takes no
+  // pointer events so it never blocks a hex click. It states the parsecs
+  // being spent, which is the one number the choice turns on.
+  const origin = current ? centerBySystemId.get(current.id) : null;
+  const target = selected && selected.id !== current?.id ? centerBySystemId.get(selected.id) : null;
+  if (origin && target) {
+    const layer = createSvgNode('g', { class: 'subsector-jump-layer', 'aria-hidden': 'true' });
+    layer.append(createSvgNode('line', {
+      x1: origin.x, y1: origin.y, x2: target.x, y2: target.y, class: 'subsector-jump-line'
+    }));
+    const parsecs = reachable.get(selected.id);
+    if (Number.isFinite(parsecs)) {
+      const label = createSvgNode('text', {
+        x: (origin.x + target.x) / 2, y: (origin.y + target.y) / 2 - 4,
+        class: 'subsector-jump-label', 'text-anchor': 'middle'
+      });
+      label.textContent = `${parsecs} PC`;
+      layer.append(label);
+    }
+    svg.append(layer);
   }
   return svg;
 }

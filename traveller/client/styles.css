@@ -4208,3 +4208,35 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 /* A blocked card states why and offers nothing: no verb, and no hover that
    suggests one is hiding there. */
 .procedure-card.blocked { cursor: default; }
+
+/* v0.100.0: the map states the route itself. The destination carries a ring and
+   a heavy stroke; a line from the current port to it names the parsecs being
+   spent. The line takes no pointer events, so it never eats a hex click. */
+.subsector-destination-ring {
+  fill: none; stroke: var(--link); stroke-width: 1.6;
+  stroke-dasharray: 3 3; vector-effect: non-scaling-stroke;
+}
+.subsector-jump-layer { pointer-events: none; }
+.subsector-jump-line {
+  stroke: var(--link); stroke-width: 1.8; stroke-dasharray: 6 4;
+  vector-effect: non-scaling-stroke; opacity: 0.85;
+}
+.subsector-jump-label {
+  font-size: 9px; font-weight: 700; letter-spacing: .08em;
+  fill: var(--ink); paint-order: stroke;
+  stroke: var(--paper); stroke-width: 3px; stroke-linejoin: round;
+}
+/* Motion is a prompt, not decoration: the in-range hexes breathe only while a
+   destination is required and unset, and stop as soon as one is chosen. */
+.subsector-svg.destination-pending .subsector-hex.reachable .subsector-hex-shape {
+  animation: subsector-reachable-pulse 2.4s ease-in-out infinite;
+}
+@keyframes subsector-reachable-pulse {
+  0%, 100% { stroke-width: 1; }
+  50% { stroke-width: 2.6; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .subsector-svg.destination-pending .subsector-hex.reachable .subsector-hex-shape {
+    animation: none; stroke-width: 1.8;
+  }
+}
