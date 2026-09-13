@@ -26,7 +26,11 @@ import {
   PERSONAL_WEAPONS,
   PERSONAL_ARMOR_TYPES,
   WEAPONS_MATRIX,
-  evasionDefenseDM
+  evasionDefenseDM,
+  parryExpertise,
+  personalWeaponExpertise,
+  hasPersonalWeaponExpertise,
+  personalWeaponSkillLevel
 } from '../index.js';
 
 function hawkeye() {
@@ -336,4 +340,46 @@ test('a long gun parries as a cudgel, a pistol not at all (B1 p.36)', () => {
   // Shots are never parried.
   const shooter = createPersonalCombatant({ id: 's', name: 's', side: 'party', characteristics: { STR: 7, DEX: 7, END: 7, INT: 7 }, skills: { Rifle: 1 }, armor: 'none', weaponKey: 'rifle' });
   assert.equal(previewPersonalAttack({ attacker: shooter, defender: make('sword', { Sword: 2 }), range: 'medium' }).parryDM, 0);
+});
+
+test('Book 1 p.33 gives every player character an expertise of 1/2 in all weapons', () => {
+  const pc = createPersonalCombatant({ id: 'elias', name: 'Elias Esteban', side: 'party', playerCharacter: true,
+    characteristics: { STR: 8, DEX: 8, END: 8, INT: 8 }, skills: {}, weaponKey: 'dagger' });
+  assert.equal(personalWeaponExpertise(pc, 'dagger'), 0.5);
+  assert.equal(hasPersonalWeaponExpertise(pc, 'dagger'), true);
+  // Enough to avoid the penalty, never enough to be a DM.
+  assert.equal(personalWeaponSkillLevel(pc, 'dagger'), 0);
+});
+
+test('a player character takes neither the -5 untrained penalty nor the +3 defence gift', () => {
+  const pc = createPersonalCombatant({ id: 'elias', name: 'Elias Esteban', side: 'party', playerCharacter: true,
+    characteristics: { STR: 8, DEX: 8, END: 8, INT: 8 }, skills: {}, weaponKey: 'dagger' });
+  const foe = createPersonalCombatant({ id: 'raider', name: 'Raider', side: 'opposition',
+    characteristics: { STR: 7, DEX: 7, END: 7, INT: 7 }, skills: {}, armor: 'jack', weaponKey: 'automatic-pistol' });
+  const attack = previewPersonalAttack({ attacker: pc, defender: foe, range: 'close' });
+  assert.equal(attack.untrainedDM, 0);
+  const incoming = previewPersonalAttack({ attacker: foe, defender: pc, range: 'close' });
+  assert.equal(incoming.defenderUntrainedDM, 0);
+  // The NPC with no recorded skill still takes it.
+  assert.equal(incoming.untrainedDM, -5);
+});
+
+test('a recorded skill entry of zero counts as familiar, not untrained', () => {
+  assert.equal(hasPersonalWeaponExpertise(raider(), 'automatic-pistol'), true);
+  assert.equal(personalWeaponSkillLevel(raider(), 'automatic-pistol'), 0);
+});
+
+test('Book 1 p.33 rounds expertise down when computing DMs', () => {
+  const swordsman = createPersonalCombatant({ id: 'duelist', name: 'Duelist', side: 'party',
+    characteristics: { STR: 8, DEX: 8, END: 8, INT: 8 }, skills: { Foil: 1.5 }, weaponKey: 'foil' });
+  assert.equal(personalWeaponExpertise(swordsman, 'foil'), 1.5);
+  assert.equal(personalWeaponSkillLevel(swordsman, 'foil'), 1);
+  assert.equal(parryExpertise(swordsman), 1);
+});
+
+test('an animal is never untrained in its own natural weapon', () => {
+  const beast = createPersonalCombatant({ id: 'hound', name: 'Hound', side: 'opposition',
+    characteristics: { STR: 9, DEX: 9, END: 9, INT: 2 }, skills: {}, weaponKey: 'teeth' });
+  assert.equal(hasPersonalWeaponExpertise(beast, 'teeth'), true);
+  assert.equal(personalWeaponSkillLevel(beast, 'teeth'), 0);
 });

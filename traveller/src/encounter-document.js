@@ -523,6 +523,13 @@ function migrateEncounterDocument(document) {
   if (!['scene', 'range-line'].includes(document.map?.spatialMode)) {
     document.map = { ...document.map, spatialMode: document.map?.grid === 'line' ? 'range-line' : 'scene' };
   }
+  // Also defensive: Book 1 p.33's half-expertise floor is read from
+  // combatant.playerCharacter, which nothing consumed before now. A stored
+  // encounter may carry party entries written without the flag; actorType is
+  // the authority for what a combatant is.
+  for (const entry of document.combatants ?? []) {
+    if (typeof entry.playerCharacter !== 'boolean') entry.playerCharacter = entry.actorType === 'pc';
+  }
   return document;
 }
 

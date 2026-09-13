@@ -337,7 +337,9 @@ test('ordinary combat rounds resolve both declared attacks before wound effects'
     action: 'attack', date: { year: 4800, dayOfYear: 106 },
     // Book 1 p.30 step 2C order: both to-hit throws and their damage dice are
     // rolled first, then the first-blood location dice at the end of the round.
-    dice: sequenceDice([1, 1, 1, 1, 1, 1, 1, 6, 6, 1, 1, 1, 1, 1])
+    // The opposition's automatic pistol is 3D-3, so its damage dice have to
+    // beat the constant before a wound lands at all.
+    dice: sequenceDice([1, 1, 1, 1, 1, 1, 1, 6, 6, 4, 4, 4, 1, 1])
   });
   assert.equal(result.entries.filter((entry) => entry.kind === 'attack').length, 2);
   assert.ok(result.encounter.combatants.find((entry) => entry.side === 'party').current.STR < fixture.character.characteristics.STR);
@@ -761,4 +763,30 @@ test('v0.76.4 a ten-meter interior scene can host an encounter', async () => {
     encounterKey: 'too-small', date: { year: 4800, dayOfYear: 106 }, range: 'short', boardMeters: 20,
     dice: sequenceDice([3, 3])
   }), /between 50 m and 1000 m/);
+});
+
+test('Book 1 p.33: a player character never takes the untrained -5 or gives the +3 defence', async () => {
+  const fixture = await encounterFixture();
+  const encounter = createEncounterDocument({
+    campaign: fixture.campaign, situation: fixture.situation, character: fixture.character,
+    opponent: { name: 'Veyra Kade', playerWeaponKey: 'cutlass' }, date: { year: 4800, dayOfYear: 106 },
+    range: 'close', dice: sequenceDice([3, 3])
+  });
+  const result = resolveEncounterRound(encounter, {
+    action: 'attack', date: { year: 4800, dayOfYear: 106 },
+    dice: sequenceDice(Array.from({ length: 30 }, () => 3))
+  });
+  const attack = result.entries.find((entry) => entry.kind === 'attack' && entry.side === 'party');
+  assert.ok(attack.text.includes('UNTRAINED +0'), attack.text);
+  const incoming = result.entries.find((entry) => entry.kind === 'attack' && entry.side === 'opposition');
+  assert.ok(incoming.text.includes('DEF +0'), incoming.text);
+});
+
+test('a stored encounter written before the expertise floor backfills playerCharacter from actorType', async () => {
+  const fixture = await encounterFixture();
+  const stored = JSON.parse(exportEncounterDocument(fixture.encounter));
+  for (const entry of stored.combatants) delete entry.playerCharacter;
+  const restored = importEncounterDocument(stored);
+  assert.equal(restored.combatants.find((entry) => entry.side === 'party').playerCharacter, true);
+  assert.equal(restored.combatants.find((entry) => entry.side === 'opposition').playerCharacter, false);
 });

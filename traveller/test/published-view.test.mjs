@@ -150,7 +150,7 @@ test('the view carries several rounds so a player who looks away keeps them', as
   for (let round = 0; round < 3; round += 1) {
     encounter = resolveEncounterRound(encounter, {
       action: 'open', targetId: target.id, date: { year: 4800, dayOfYear: 106 },
-      dice: sequenceDice(Array.from({ length: 60 }, () => 3))
+      dice: sequenceDice(Array.from({ length: 60 }, () => 1))
     }).encounter;
   }
   const view = buildPublishedView(encounter, { campaignId: 'published-view', rounds: 4 });

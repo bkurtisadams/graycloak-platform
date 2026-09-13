@@ -162,10 +162,32 @@ export function getPersonalWeapon(key) {
   return result;
 }
 
-export function personalWeaponSkillLevel(combatant, weaponKey) {
+// Book 1 p.33: "all player characters have an expertise of 1/2 in all weapons.
+// This value is sufficient to avoid the no expertise penalty, but not enough to
+// provide a DM advantage." Other characters may hold fractional levels, and
+// expertise DMs always round down. A recorded skill entry counts as at least
+// the floor, so a level-0 entry means familiar-but-unskilled rather than
+// untrained. A natural weapon is never untrained: a beast is not unfamiliar
+// with its own claws.
+export const PERSONAL_EXPERTISE_FLOOR = 0.5;
+
+export function personalWeaponExpertise(combatant, weaponKey) {
   const spec = getPersonalWeapon(weaponKey);
-    if (!spec.skillNames.length) return 0;
-  return Math.max(...spec.skillNames.map((name) => Number(combatant.skills?.[name] ?? 0)));
+  const skills = combatant?.skills ?? {};
+  let expertise = combatant?.playerCharacter || spec.naturalWeapon ? PERSONAL_EXPERTISE_FLOOR : 0;
+  for (const name of spec.skillNames) {
+    if (!Object.hasOwn(skills, name)) continue;
+    expertise = Math.max(expertise, PERSONAL_EXPERTISE_FLOOR, Number(skills[name]) || 0);
+  }
+  return expertise;
+}
+
+export function hasPersonalWeaponExpertise(combatant, weaponKey) {
+  return personalWeaponExpertise(combatant, weaponKey) >= PERSONAL_EXPERTISE_FLOOR;
+}
+
+export function personalWeaponSkillLevel(combatant, weaponKey) {
+  return Math.floor(personalWeaponExpertise(combatant, weaponKey));
 }
 
 export function weaponCharacteristicDM(combatant, weaponKey) {
@@ -511,10 +533,8 @@ export function previewPersonalAttack({ attacker, defender, range, situationalDM
   defenderDM = integer(defenderDM, 'defenderDM');
   const skillDM = personalWeaponSkillLevel(attacker, attacker.weaponKey);
   const characteristicDM = weaponCharacteristicDM(attacker, attacker.weaponKey);
-  const trained = spec.skillNames.some((name) => Object.hasOwn(attacker.skills ?? {}, name));
-  const untrainedDM = trained ? 0 : -5;
-  const defenderWeapon = defender.weaponKey ? getPersonalWeapon(defender.weaponKey) : null;
-  const defenderTrained = defenderWeapon ? defenderWeapon.skillNames.some((name) => Object.hasOwn(defender.skills ?? {}, name)) : true;
+  const untrainedDM = hasPersonalWeaponExpertise(attacker, attacker.weaponKey) ? 0 : -5;
+  const defenderTrained = defender.weaponKey ? hasPersonalWeaponExpertise(defender, defender.weaponKey) : true;
   // Book 1 p.33: an evading combatant may not attack and may not use the
   // weapon to parry or block, so evasion and parry are mutually exclusive.
   // Book 1 p.36: a long gun — rifle or carbine, not a pistol — may parry,
@@ -558,10 +578,8 @@ export function rollPersonalAttack({ attacker, defender, range, situationalDM = 
   defenderDM = integer(defenderDM, 'defenderDM');
   const skillDM = personalWeaponSkillLevel(attacker, attacker.weaponKey);
   const characteristicDM = weaponCharacteristicDM(attacker, attacker.weaponKey);
-  const trained = spec.skillNames.some((name) => Object.hasOwn(attacker.skills ?? {}, name));
-  const untrainedDM = trained ? 0 : -5;
-  const defenderWeapon = defender.weaponKey ? getPersonalWeapon(defender.weaponKey) : null;
-  const defenderTrained = defenderWeapon ? defenderWeapon.skillNames.some((name) => Object.hasOwn(defender.skills ?? {}, name)) : true;
+  const untrainedDM = hasPersonalWeaponExpertise(attacker, attacker.weaponKey) ? 0 : -5;
+  const defenderTrained = defender.weaponKey ? hasPersonalWeaponExpertise(defender, defender.weaponKey) : true;
   // Book 1 p.33: an evading combatant may not attack and may not use the
   // weapon to parry or block, so evasion and parry are mutually exclusive.
   // Book 1 p.36: a long gun — rifle or carbine, not a pistol — may parry,
