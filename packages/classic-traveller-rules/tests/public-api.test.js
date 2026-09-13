@@ -82,6 +82,6 @@ test('public API exposes lifecycle and JSON boundary helpers', () => {
   assert.equal(publicApi.CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION, 3);
   assert.equal(publicApi.CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION, 3);
   assert.equal(publicApi.SHIP_DOCUMENT_TYPE, 'classic-traveller-ship');
-  assert.equal(publicApi.TYPE_S_SCOUT_COURIER.computer.model, '1bis');
+  assert.equal(publicApi.TYPE_S_SCOUT_COURIER.computer.model, '1');
   assert.equal(publicApi.CHARACTER_DOCUMENT_TYPE, 'classic-traveller-character');
 });

@@ -25,13 +25,24 @@ export const TYPE_S_SCOUT_COURIER = deepFreeze({
   fuel: {
     capacityTons: 40,
     jumpFuelTonsAtMaxJump: 20,
-    powerPlantFuelTonsForFourWeeks: 20
+    // Book 2 p.6: the power plant formula 10Pn provides power "for one trip".
+    // Pn is 2 for a power plant-A in a 100-ton hull (p.11 maximum drive
+    // potential), so 20 tons per trip, not a four-week allowance to prorate.
+    // The design's own 40-ton tankage is the proof: 20 jump + 20 power plant.
+    powerPlantFuelTonsPerTrip: 20
   },
   computer: {
-    model: '1bis',
+    // Book 2 p.19: the Scout/Courier ships with "Computer Model/1, with basic
+    // software package". p.14's computer models table gives Model/1 a CPU of 2
+    // and storage of 4 at MCr 2; the Model/1 bis recorded here previously is a
+    // different machine (CPU 4, no storage, MCr 5) and breaks the price proof —
+    // costing the hull with it yields MCr 35.19 rather than the printed 32.49.
+    // Book 2 p.24's sample data card for a Type S confirms Model/1, CPU 2,
+    // storage 4.
+    model: '1',
     tons: 1,
-    cpu: 4,
-    storage: 0,
+    cpu: 2,
+    storage: 4,
     maximumSupportedJump: 2
   },
   accommodations: {
@@ -76,7 +87,8 @@ export const TYPE_S_SCOUT_COURIER = deepFreeze({
     'Classic Traveller Book 2 p.19 (standard Scout/Courier design)',
     'Classic Traveller Book 2 p.15 (crew requirements)',
     'Classic Traveller Book 2 p.14 (fuel formula)',
-    'Classic Traveller Book 2 p.18 (base price CR 32,490,000, standard-design reduction already included)'
+    'Classic Traveller Book 2 p.18 (base price CR 32,490,000, standard-design reduction already included)',
+    'Classic Traveller Book 2 p.19 (Computer Model/1), p.14 (computer models table)'
   ]
 });
 

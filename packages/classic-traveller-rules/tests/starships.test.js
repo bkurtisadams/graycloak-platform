@@ -20,6 +20,8 @@ import {
   assignShipCrew,
   releaseShipCrew,
   shipCrewRole,
+  shipCrewMemberRoles,
+  calculateMonthlyCrewSalaries,
   shipCashPriceCr,
   annualMaintenanceCr,
   shipMortgage
@@ -41,9 +43,10 @@ test('canonical Type S Scout/Courier matches the 1977 Book 2', () => {
   assert.deepEqual(ship.drives.maneuver, { letter: 'A', rating: 2 });
   assert.deepEqual(ship.drives.powerPlant, { letter: 'A', rating: 2 });
   assert.equal(ship.fuel.capacityTons, 40);
-  assert.equal(ship.computer.model, '1bis');
-  assert.equal(ship.computer.cpu, 4);
-  assert.equal(ship.computer.storage, 0);
+  // Book 2 p.19 ships the Scout with Model/1; p.14 gives it CPU 2, storage 4.
+  assert.equal(ship.computer.model, '1');
+  assert.equal(ship.computer.cpu, 2);
+  assert.equal(ship.computer.storage, 4);
   assert.equal(ship.accommodations.staterooms, 4);
   assert.equal(ship.accommodations.lowBerths, 0);
   assert.equal(ship.cargo.capacityTons, 3);
@@ -143,20 +146,31 @@ test('ship import rejects altered canonical Type S specifications', async () => 
   const hawkeye = importCharacterDocument(await hawkeyeV06Document());
   const { ship } = createTypeSScoutReserveShipForCharacter(hawkeye);
   const altered = structuredClone(ship);
-  altered.specifications.computer.model = '1';
+  altered.specifications.cargo.capacityTons = 40;
   assert.throws(() => importShipDocument(altered), /canonical standard design/);
 });
 
+test('a stale computer block is refreshed from the design rather than rejected', async () => {
+  const hawkeye = importCharacterDocument(await hawkeyeV06Document());
+  const { ship } = createTypeSScoutReserveShipForCharacter(hawkeye);
+  const stale = structuredClone(ship);
+  // Every ship saved before the Model/1 correction carries the old block.
+  stale.specifications.computer = { model: '1bis', tons: 1, cpu: 4, storage: 0, maximumSupportedJump: 2 };
+  const imported = importShipDocument(stale);
+  assert.equal(imported.specifications.computer.model, '1');
+  assert.equal(imported.specifications.computer.cpu, 2);
+  assert.equal(imported.specifications.computer.storage, 4);
+});
 
-test('Book 2 crew: a role is assigned to a character, and one person holds one role', async () => {
+
+test('Book 2 crew: a role is assigned to a character, and a role is not held twice', async () => {
   const character = importCharacterDocument(await hawkeyeV06Document());
   let ship = createTypeSScoutReserveShipForCharacter(character).ship;
   assert.deepEqual(shipCrewRole(ship, 'steward'), []);
   // The reserve scout is created with its owner already flying it.
   assert.equal(shipCrewRole(ship, 'pilot')[0].characterId, character.identity.id);
 
-  // Graycloak ruling: the owner-pilot cannot double as the steward.
-  assert.throws(() => assignShipCrew(ship, { role: 'steward', characterId: character.identity.id }), /one person holds one role/);
+  assert.throws(() => assignShipCrew(ship, { role: 'pilot', characterId: character.identity.id }), /already holds the pilot position/);
 
   ship = assignShipCrew(ship, { role: 'steward', characterId: 'npc-mara-venn', characterName: 'Mara Venn' });
   assert.equal(shipCrewRole(ship, 'steward')[0].characterName, 'Mara Venn');
@@ -166,6 +180,37 @@ test('Book 2 crew: a role is assigned to a character, and one person holds one r
   ship = releaseShipCrew(ship, 'npc-mara-venn');
   assert.deepEqual(shipCrewRole(ship, 'steward'), []);
   assert.throws(() => releaseShipCrew(ship, 'npc-mara-venn'), /not assigned/);
+});
+
+test('Book 2 p.17: one person may fill two positions, at 75% of each and with no expertise DMs', async () => {
+  const character = importCharacterDocument(await hawkeyeV06Document());
+  const id = character.identity.id;
+  let ship = createTypeSScoutReserveShipForCharacter(character).ship;
+
+  assert.equal(shipCrewMemberRoles(ship, id).appliesExpertise, true);
+
+  // The owner-pilot of a scout takes the steward's post so the ship can carry a
+  // high passenger at all: Book 2 p.16 requires a steward, and p.17 exempts a
+  // 100-ton hull from needing an engineer, so there is no one else aboard.
+  ship = assignShipCrew(ship, { role: 'steward', characterId: id });
+  const held = shipCrewMemberRoles(ship, id);
+  assert.deepEqual([...held.roles].sort(), ['pilot', 'steward']);
+  assert.equal(held.doubledUp, true);
+  assert.equal(held.appliesExpertise, false);
+
+  // Two is the ceiling the book states.
+  assert.throws(() => assignShipCrew(ship, { role: 'medic', characterId: id }), /allows two/);
+
+  // Pilot CR 6000 and steward CR 3000, each at 75%.
+  const payroll = calculateMonthlyCrewSalaries(ship);
+  assert.equal(payroll.totalCr, 4500 + 2250);
+  assert.ok(payroll.entries.every((entry) => entry.doubledUp === true));
+
+  // Giving up one post restores full pay and expertise in the other.
+  ship = releaseShipCrew(ship, id, { role: 'steward' });
+  assert.deepEqual(shipCrewMemberRoles(ship, id).roles, ['pilot']);
+  assert.equal(shipCrewMemberRoles(ship, id).appliesExpertise, true);
+  assert.equal(calculateMonthlyCrewSalaries(ship).totalCr, 6000);
 });
 
 test('an unknown crew role is refused rather than stored', async () => {
@@ -200,4 +245,43 @@ test('a stored ship picks up a corrected design price instead of failing to load
   const tampered = structuredClone(ship);
   tampered.specifications.cargo.capacityTons = 99;
   assert.throws(() => importShipDocument(tampered), /canonical standard design/);
+});
+
+test('Book 2: the Type S printed price reproduces from the component tables', async () => {
+  const ship = TYPE_S_SCOUT_COURIER;
+  // Book 2 pp.10-16 component prices, in millions of credits.
+  const HULL_100 = 2;             // p.10 hull types
+  const JUMP_A = 10, MANEUVER_A = 4, POWER_PLANT_A = 8;  // p.11 drives and power plants
+  const MODEL_1 = 2;              // p.14 computer models
+  const BRIDGE_PER_100_TONS = 0.5;
+  const STATEROOM = 0.5;
+  const HARDPOINT = 0.1;
+  const DOUBLE_TURRET = 0.5;
+  const STREAMLINING_PER_100_TONS = 1;
+  const AIR_RAFT = 6;             // p.16 ship's vehicles
+  const STANDARD_DESIGN_REDUCTION = 0.9;  // p.9, already included in the printed price
+
+  const components = HULL_100
+    + JUMP_A + MANEUVER_A + POWER_PLANT_A
+    + MODEL_1
+    + BRIDGE_PER_100_TONS * (ship.hull.tons / 100)
+    + STATEROOM * ship.accommodations.staterooms
+    + HARDPOINT * ship.armament.hardpoints
+    + DOUBLE_TURRET
+    + STREAMLINING_PER_100_TONS * (ship.hull.tons / 100)
+    + AIR_RAFT;
+
+  assert.equal(components, 36.1);
+  assert.equal(Number((components * STANDARD_DESIGN_REDUCTION).toFixed(3)), ship.economics.newCostMCr);
+  assert.equal(ship.economics.newCostMCr, 32.49);
+});
+
+test('Book 2: the Type S tankage is exactly one jump-2 trip of fuel', () => {
+  const ship = TYPE_S_SCOUT_COURIER;
+  // p.6 formulae: 0.1 x M x Jn for the jump, 10Pn for the trip's power plant.
+  const jumpFuelTons = 0.1 * ship.hull.tons * ship.drives.jump.rating;
+  const powerPlantFuelTons = 10 * ship.drives.powerPlant.rating;
+  assert.equal(jumpFuelTons, ship.fuel.jumpFuelTonsAtMaxJump);
+  assert.equal(powerPlantFuelTons, ship.fuel.powerPlantFuelTonsPerTrip);
+  assert.equal(jumpFuelTons + powerPlantFuelTons, ship.fuel.capacityTons);
 });

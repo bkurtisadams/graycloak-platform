@@ -169,6 +169,9 @@ export {
   updateShipAssignedCharacterName,
   createTypeSScoutReserveShipForCharacter,
   SHIP_CREW_ROLES,
+  MAXIMUM_ROLES_PER_CREW_MEMBER,
+  DOUBLED_ROLE_SALARY_RATE,
+  shipCrewMemberRoles,
   assignShipCrew,
   releaseShipCrew,
   shipCrewRole
@@ -182,7 +185,6 @@ export {
   UNREFINED_FUEL_COST_PER_TON_CR,
   BASE_BERTHING_COST_CR,
   HIGH_PASSENGERS_PER_STEWARD,
-  POWER_PLANT_FUEL_WEEKS,
   STANDARD_TRIP_DAYS,
   starportFuelService,
   calculateBerthingCost,

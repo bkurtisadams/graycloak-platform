@@ -1,5 +1,5 @@
 import { assertValidCharacterDocument } from '../characters/character-document.js';
-import { assertValidShipDocument } from './ship-document.js';
+import { assertValidShipDocument, DOUBLED_ROLE_SALARY_RATE } from './ship-document.js';
 import { getStandardShipDesign } from './standard-designs.js';
 import {
   PASSAGE_FARES_CR,
@@ -97,11 +97,20 @@ export function calculateBerthingCost(days = 1) {
   return BASE_BERTHING_COST_CR + Math.max(0, days - 6) * BASE_BERTHING_COST_CR;
 }
 
-// Book 2 p.15: 10 x Pn tons of fuel allows routine operation and maneuver for
-// four weeks. Ruling (Graycloak, Sep 2026): a standard commercial cycle is one
-// week in jump plus one week in system, so each jump consumes the two-week
-// share of that four-week allowance alongside the 0.1 x M x Jn jump fuel.
-export const POWER_PLANT_FUEL_WEEKS = 4;
+// Book 2 p.6 (1977): "A power plant, to provide power for one trip (internal
+// power, maneuver drive power, and other necessities) requires fuel in
+// accordance with the formula: 10Pn." One trip, charged whole — there is no
+// four-week allowance in the 1977 printing and nothing to prorate.
+//
+// The six standard designs prove it. Each carries exactly 0.1 x M x Jn of jump
+// fuel plus a full 10Pn and no reserve:
+//   Scout S    100 hull A/A/A  Jn2 Pn2   20 + 20 = 40 tons  (printed 40)
+//   Free Trader 200 hull A/A/A Jn1 Pn1   20 + 10 = 30 tons  (printed 30)
+//   Merchant R  400 hull C/C/C Jn1 Pn1   40 + 10 = 50 tons  (printed 50)
+//   Merchant M  600 hull J/D/D Jn3 Pn1  180 + 10 = 190 tons (printed 190)
+//   Yacht Y     200 hull A/A/A Jn1 Pn1   20 + 10 + 9 for the ship's boat = 39
+// (The Type C cruiser does not reconcile — 240 jump + 30 power plant + 48 for
+// its pinnaces is 318 against a printed 288. Flagged for the printed books.)
 export const STANDARD_TRIP_DAYS = 14;
 
 export function calculateJumpFuelRequirement(ship, distance, { travelDays = STANDARD_TRIP_DAYS } = {}) {
@@ -114,7 +123,7 @@ export function calculateJumpFuelRequirement(ship, distance, { travelDays = STAN
   const hullTons = ship.specifications.hull.tons;
   const powerRating = ship.specifications.drives.powerPlant.rating;
   const jumpFuelTons = 0.1 * hullTons * distance;
-  const powerPlantFuelTons = 10 * powerRating * (travelDays / (POWER_PLANT_FUEL_WEEKS * 7));
+  const powerPlantFuelTons = 10 * powerRating;
   const totalTons = jumpFuelTons + powerPlantFuelTons;
   return Object.freeze({
     distance,
@@ -499,14 +508,27 @@ export function crewMemberSalaryCr(role, skillLevel = 1) {
 export function calculateMonthlyCrewSalaries(ship, { skillLevels = {}, unpaid = [] } = {}) {
   assertValidShipDocument(ship);
   const exempt = new Set(unpaid);
+  const rolesHeld = new Map();
+  for (const entry of ship.crew.assignments) {
+    rolesHeld.set(entry.characterId, (rolesHeld.get(entry.characterId) ?? 0) + 1);
+  }
   const entries = ship.crew.assignments
     .filter((entry) => !exempt.has(entry.characterId))
-    .map((entry) => Object.freeze({
-      characterId: entry.characterId,
-      characterName: entry.characterName,
-      role: entry.role,
-      salaryCr: crewMemberSalaryCr(entry.role, skillLevels[entry.characterId] ?? 1)
-    }));
+    .map((entry) => {
+      const doubledUp = (rolesHeld.get(entry.characterId) ?? 1) > 1;
+      const fullSalaryCr = crewMemberSalaryCr(entry.role, skillLevels[entry.characterId] ?? 1);
+      return Object.freeze({
+        characterId: entry.characterId,
+        characterName: entry.characterName,
+        role: entry.role,
+        doubledUp,
+        fullSalaryCr,
+        // Book 2 p.17: a person filling two positions "draws a salary equal to
+        // 75% of each job". Applied per post, so the doubled crewman is paid
+        // more in total than a single post and less than two.
+        salaryCr: doubledUp ? Math.round(fullSalaryCr * DOUBLED_ROLE_SALARY_RATE) : fullSalaryCr
+      });
+    });
   return Object.freeze({
     entries: Object.freeze(entries),
     totalCr: entries.reduce((sum, entry) => sum + entry.salaryCr, 0)

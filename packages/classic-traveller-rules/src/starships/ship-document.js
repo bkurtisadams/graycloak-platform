@@ -98,15 +98,39 @@ function assertJsonSafe(value, path = '$', seen = new Set()) {
 // A stored document's specifications must match the canonical design exactly,
 // which means a correction to a design record would otherwise stop every saved
 // ship from loading — as Book 2 p.18's CR 32,490,000 replacing a facsimile
-// figure did. Only the economics block is refreshed: price, build time and
-// maintenance are reference data the rules package maintains, whereas hull,
-// drives, computer and the rest define the vessel and a stored copy that
-// disagrees with the design is still rejected as tampering.
+// figure did. The economics and computer blocks are refreshed: price, build
+// time, maintenance and the installed computer model are reference data the
+// rules package maintains from the printed designs, whereas hull, drives,
+// accommodations, armament and the rest define the vessel and a stored copy
+// that disagrees with the design is still rejected as tampering.
+//
+// The computer joined this list when the Type S was corrected from Model/1 bis
+// to Book 2 p.19's Model/1 (CPU 2, storage 4 — see standard-designs.js). Every
+// ship saved before that correction carries the old block, and the alternative
+// to refreshing it is a schema migration that would have to know every past
+// value of a field the design already defines.
 function refreshSpecificationsFromDesign(document) {
   const design = getStandardShipDesign(document?.design?.key);
   if (!design || !isPlainObject(document.specifications)) return document;
   document.specifications.economics = cloneJson(design.economics);
+  document.specifications.computer = cloneJson(design.computer);
+  renameLegacyFuelAllowanceKey(document.specifications.fuel);
   return document;
+}
+
+// The power plant allowance was stored as `powerPlantFuelTonsForFourWeeks`
+// while the four-week reading was in force. Book 2 p.6 charges 10Pn per trip,
+// so the field was renamed rather than left holding a per-trip value under a
+// four-week name. The tonnage itself never changed, and fuel tankage defines
+// the vessel, so this is a key rename in migration rather than a blanket
+// refresh of the fuel block from the design.
+function renameLegacyFuelAllowanceKey(fuel) {
+  if (!isPlainObject(fuel)) return;
+  if (!('powerPlantFuelTonsForFourWeeks' in fuel)) return;
+  if (!('powerPlantFuelTonsPerTrip' in fuel)) {
+    fuel.powerPlantFuelTonsPerTrip = fuel.powerPlantFuelTonsForFourWeeks;
+  }
+  delete fuel.powerPlantFuelTonsForFourWeeks;
 }
 
 function specsFromDesign(design) {
@@ -621,12 +645,24 @@ export function createTypeSScoutReserveShipForCharacter(characterDocument, {
 // preferred. Nothing could write an assignment before this, so the
 // requirement was enforced and unsatisfiable.
 //
-// Graycloak ruling (Sep 2026): one person holds one role. A scout's
-// owner-pilot cannot also be its steward.
+// Book 2 p.17: "One person may fill two crew positions, providing he has
+// expertise to otherwise allow him to perform the work. However, because of the
+// added burden placed upon him, he is unable to apply his expertise to the
+// position (that is to say, he is not allowed expertise DMs in either
+// position), and draws a salary equal to 75% of each job."
+//
+// Ruling (Graycloak, Sep 2026): go with RAW, superseding the earlier one
+// person/one role ruling. A scout's owner-pilot may also be its steward — the
+// cost is 75% of each salary and the loss of expertise DMs in both posts, which
+// prices the choice rather than forbidding it. Two is the ceiling the book
+// states.
 // ---------------------------------------------------------------------------
 export const SHIP_CREW_ROLES = Object.freeze([
   'pilot', 'navigator', 'engineer', 'steward', 'medic', 'gunner'
 ]);
+
+export const MAXIMUM_ROLES_PER_CREW_MEMBER = 2;
+export const DOUBLED_ROLE_SALARY_RATE = 0.75;
 
 export function assignShipCrew(ship, { role, characterId, characterName = '' } = {}) {
   const document = importShipDocument(ship);
@@ -634,21 +670,52 @@ export function assignShipCrew(ship, { role, characterId, characterName = '' } =
   if (!SHIP_CREW_ROLES.includes(key)) throw new RangeError(`unknown crew role: ${role}`);
   if (typeof characterId !== 'string' || !characterId.trim()) throw new TypeError('characterId must be a nonblank string');
   const id = characterId.trim();
-  const held = document.crew.assignments.find((entry) => entry.characterId === id);
-  if (held) throw new Error(`${held.characterName || id} is already the ${held.role}; one person holds one role`);
+  const held = document.crew.assignments.filter((entry) => entry.characterId === id);
+  const name = held[0]?.characterName || String(characterName ?? '').trim() || id;
+  if (held.some((entry) => entry.role === key)) throw new Error(`${name} already holds the ${key} position`);
+  if (held.length >= MAXIMUM_ROLES_PER_CREW_MEMBER) {
+    throw new Error(`${name} already fills ${held.length} crew positions; Book 2 p.17 allows two`);
+  }
   document.crew.assignments.push({ role: key, characterId: id, characterName: String(characterName ?? '').trim() });
   assertValidShipDocument(document);
   return document;
 }
 
-export function releaseShipCrew(ship, characterId) {
+/**
+ * Releases a character from the ship. Pass `role` to give up one position while
+ * keeping the other; omit it to release the character entirely.
+ */
+export function releaseShipCrew(ship, characterId, { role = null } = {}) {
   const document = importShipDocument(ship);
   const id = String(characterId ?? '').trim();
+  const key = role === null ? null : String(role).trim().toLowerCase();
   const before = document.crew.assignments.length;
-  document.crew.assignments = document.crew.assignments.filter((entry) => entry.characterId !== id);
-  if (document.crew.assignments.length === before) throw new Error('that character is not assigned to this ship');
+  document.crew.assignments = document.crew.assignments.filter((entry) => {
+    if (entry.characterId !== id) return true;
+    return key !== null && entry.role !== key;
+  });
+  if (document.crew.assignments.length === before) {
+    throw new Error(key === null ? 'that character is not assigned to this ship' : `that character does not hold the ${key} position`);
+  }
   assertValidShipDocument(document);
   return document;
+}
+
+/**
+ * Book 2 p.17. The roles a character holds aboard this ship, and whether the
+ * doubled-up penalty applies. `appliesExpertise` is false for anyone filling
+ * two positions: they get no expertise DM in either one.
+ */
+export function shipCrewMemberRoles(ship, characterId) {
+  const id = String(characterId ?? '').trim();
+  const roles = (ship?.crew?.assignments ?? [])
+    .filter((entry) => entry.characterId === id)
+    .map((entry) => String(entry.role).toLowerCase());
+  return Object.freeze({
+    roles: Object.freeze(roles),
+    doubledUp: roles.length > 1,
+    appliesExpertise: roles.length === 1
+  });
 }
 
 export function shipCrewRole(ship, role) {

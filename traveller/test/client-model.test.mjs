@@ -209,7 +209,7 @@ test('ship register renders the source-backed Type S reserve assignment', () => 
   assert.match(record, /TYPE S SCOUT\/COURIER/);
   assert.match(record, /JUMP 2 \(A\)/);
   assert.match(record, /MANEUVER 2G \(A\)/);
-  assert.match(record, /COMPUTER MODEL\/1bis/);
+  assert.match(record, /COMPUTER MODEL\/1\b/);
   assert.match(record, /CARGO 0\/3t/);
   assert.match(record, /FUEL UNRECORDED\/40t/);
   assert.match(record, /SHIP ACCOUNT Cr0/);
