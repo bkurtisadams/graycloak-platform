@@ -214,6 +214,8 @@ export {
   calculateMonthlyCrewSalaries,
   annualMaintenanceCr,
   shipCashPriceCr,
+  transferShipCreditsToCharacter,
+  speculativeLotPosition,
   ANNUAL_MAINTENANCE_RATE,
   MAINTENANCE_WEEKS,
   MAINTENANCE_STARPORTS,

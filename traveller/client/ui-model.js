@@ -835,7 +835,8 @@ function card(id, title, tag, copy, { action = null, tone = null, verb = null } 
  *   s.speculation {available:boolean, name, quantity, purchased:number, holdFree:number,
  *     pricePerUnitCr:number, percentage:number} | null
  *   s.sales {lots:[{id, tons, description, netCr, percentage, dm, sellable:boolean,
- *     blockReason:string|null, declined:boolean, brokerCommissionCr:number}]} | null
+ *     blockReason:string|null, declined:boolean, brokerCommissionCr:number,
+ *     costCr:number, gainCr:number, returnPercent:number}]} | null
  *   s.patron {available:boolean, attemptedThisCall:boolean}
  *   s.jobs {offers:number, active:number}
  *   s.contracts [{id, title, destinationName, destinationSystemId, paymentCr,
@@ -879,8 +880,15 @@ export function buildPlayProcedure(s = {}) {
     }
     const owed = lot.brokerCommissionCr ? ` Declining owes Cr${lot.brokerCommissionCr.toLocaleString('en-US')} (Book 2 p.48).` : '';
     const declined = lot.declined ? ' Quote declined this call.' : '';
+    // The number that decides the sale is the position against what was paid,
+    // not the gross. Stated as a plain gain or loss with the basis, because a
+    // loss-making quote can still be the right sale (Book 2 p.42 notes some
+    // goods return less than the overhead and still beat an empty hold).
+    const position = Number.isFinite(lot.gainCr)
+      ? ` ${lot.gainCr >= 0 ? '+' : '\u2212'}Cr${Math.abs(lot.gainCr).toLocaleString('en-US')} on Cr${(lot.costCr ?? 0).toLocaleString('en-US')} paid${Number.isFinite(lot.returnPercent) ? ` (${lot.returnPercent >= 0 ? '+' : '\u2212'}${Math.abs(lot.returnPercent)}%)` : ''}.`
+      : '';
     readyAfter.push(card(`sale-${lot.id}`, title, PLAY_PROCEDURE_TAGS.ready,
-      `Cr${lot.netCr.toLocaleString('en-US')} at ${lot.percentage}% of base · DM ${lot.dm >= 0 ? '+' : ''}${lot.dm}.${owed}${declined}`,
+      `Cr${lot.netCr.toLocaleString('en-US')} at ${lot.percentage}% of base · DM ${lot.dm >= 0 ? '+' : ''}${lot.dm}.${position}${owed}${declined}`,
       { action: `sale:${lot.id}`, verb: `[ SELL FOR CR${lot.netCr.toLocaleString('en-US')} ]` }));
   }
 
@@ -916,7 +924,7 @@ export function buildPlayProcedure(s = {}) {
         // obvious; a single card reading "accept cargo" made the player go
         // looking for the list.
         for (const lot of s.freight.lots ?? []) {
-          attention.push(card(`freight-${lot.id}`, `Accept ${lot.tons}t shipment for ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready,
+          attention.push(card(`freight-${lot.id}`, `Accept shipment ${lot.ordinal ?? 1} of ${lot.ofFitting ?? 1}: ${lot.tons}t for ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready,
             `Carried for hire: nothing to pay, Cr${lot.revenueCr.toLocaleString('en-US')} on delivery at Cr${(1000).toLocaleString('en-US')}/ton. Accepting cargo announces the destination (Book 2 p.8).`,
             { action: `freight:${lot.id}`, verb: '[ ACCEPT ]' }));
         }

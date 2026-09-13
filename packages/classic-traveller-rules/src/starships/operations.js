@@ -264,6 +264,53 @@ export function transferCharacterCreditsToShip(character, ship, amountCr, { date
   return Object.freeze({ character: nextCharacter, ship: nextShip, amountCr });
 }
 
+/**
+ * The other direction. Money could flow into a ship and never out, so an owner
+ * had no way to spend the ship's balance on anything personal. Book 2 p.6 has
+ * an owner-aboard drawing his pay from the profits rather than a wage, which
+ * is exactly this: take what the venture can spare, when it can spare it.
+ */
+export function transferShipCreditsToCharacter(ship, character, amountCr, { dateLabel = null } = {}) {
+  assertValidShipDocument(ship);
+  assertValidCharacterDocument(character);
+  if (!Number.isInteger(amountCr) || amountCr <= 0) throw new TypeError('transfer amount must be a positive integer number of credits');
+  if (ship.state.finances.balanceCr < amountCr) throw new RangeError('ship operating account has insufficient credits');
+  const nextCharacter = cloneJson(character);
+  nextCharacter.finances.credits += amountCr;
+  assertValidCharacterDocument(nextCharacter);
+  const nextShip = appendLedger(ship, {
+    kind: 'transfer',
+    amountCr: -amountCr,
+    description: `Withdrawal to ${character.identity.name || character.identity.id}`,
+    dateLabel
+  });
+  return Object.freeze({ character: nextCharacter, ship: nextShip, amountCr });
+}
+
+/**
+ * Book 2 p.42/46: a speculative lot is bought at one world and resold at
+ * another. The manifest records what was paid, so the position against a
+ * current quote is simply proceeds less cost — the number that decides the
+ * sale, and the one the player otherwise has to remember.
+ */
+export function speculativeLotPosition(ship, cargoId, { proceedsCr = null } = {}) {
+  assertValidShipDocument(ship);
+  const cargo = ship.state.cargoManifest.find((entry) => entry.id === cargoId);
+  if (!cargo) throw new RangeError(`no cargo aboard with id: ${cargoId}`);
+  const costCr = cargo.acquisitionCostCr ?? 0;
+  if (proceedsCr === null) return Object.freeze({ cargoId, costCr, proceedsCr: null, gainCr: null, returnPercent: null });
+  const gainCr = proceedsCr - costCr;
+  return Object.freeze({
+    cargoId,
+    costCr,
+    proceedsCr,
+    gainCr,
+    // Against what was paid, not against base price: this is the return on the
+    // capital actually committed.
+    returnPercent: costCr > 0 ? Math.round((gainCr / costCr) * 1000) / 10 : null
+  });
+}
+
 export function beginPortCall(ship, { systemId, arrivalDate = null, berthingDueCr = BASE_BERTHING_COST_CR } = {}) {
   assertValidShipDocument(ship);
   if (typeof systemId !== 'string' || !systemId.trim()) throw new TypeError('systemId must be a nonblank string');

@@ -31,7 +31,9 @@ import {
   MAINTENANCE_STARPORTS,
   MAINTENANCE_WEEKS,
   shipMortgage,
-  shipCashPriceCr
+  shipCashPriceCr,
+  transferShipCreditsToCharacter,
+  speculativeLotPosition
 } from '../index.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -271,4 +273,38 @@ test('Book 2 p.43 base prices match the printed table, including the vehicles', 
   assert.equal(TRADE_GOODS[16].basePriceCr, 1000000, 'Radioactives');
   assert.equal(TRADE_GOODS[53].basePriceCr, 10000000, 'Computers');
   assert.equal(TRADE_GOODS[65].basePriceCr, 750000, 'Machine Tools');
+});
+
+test('credits move both ways between a character and the ship account', async () => {
+  const character = await hawkeye();
+  let vessel = createTypeSScoutReserveShipForCharacter(character).ship;
+  const funded = transferCharacterCreditsToShip(character, vessel, 5000, { dateLabel: '001-4800' });
+  vessel = funded.ship;
+  assert.equal(vessel.state.finances.balanceCr, 5000);
+
+  // Book 2 p.6's owner-aboard draws from the profits: the money has to be able
+  // to come back out, which it could not before.
+  const drawn = transferShipCreditsToCharacter(vessel, funded.character, 2000, { dateLabel: '002-4800' });
+  assert.equal(drawn.ship.state.finances.balanceCr, 3000);
+  assert.equal(drawn.character.finances.credits, funded.character.finances.credits + 2000);
+  assert.throws(() => transferShipCreditsToCharacter(drawn.ship, drawn.character, 99999), /insufficient credits/);
+});
+
+test('a speculative lot states its position against what was paid for it', async () => {
+  const character = await hawkeye();
+  let vessel = createTypeSScoutReserveShipForCharacter(character).ship;
+  vessel = loadCargo(vessel, {
+    id: 'lot-1', category: 'speculative:42', description: 'Firearms', tons: 3,
+    originSystemId: 'aster', destinationSystemId: null, acquisitionCostCr: 99990, notes: ''
+  });
+  // Cost basis alone, before any quote exists.
+  assert.deepEqual(speculativeLotPosition(vessel, 'lot-1'),
+    { cargoId: 'lot-1', costCr: 99990, proceedsCr: null, gainCr: null, returnPercent: null });
+  // Against a quote: the gain, and the return on capital actually committed.
+  const position = speculativeLotPosition(vessel, 'lot-1', { proceedsCr: 117000 });
+  assert.equal(position.gainCr, 17010);
+  assert.equal(position.returnPercent, 17);
+  // A losing quote is stated as a loss, not hidden.
+  assert.equal(speculativeLotPosition(vessel, 'lot-1', { proceedsCr: 80000 }).gainCr, -19990);
+  assert.throws(() => speculativeLotPosition(vessel, 'missing'), /no cargo aboard/);
 });

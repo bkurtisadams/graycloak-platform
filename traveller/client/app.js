@@ -39,6 +39,8 @@ import {
   canShipMakeJump,
   consumeJumpFuel,
   transferCharacterCreditsToShip,
+  transferShipCreditsToCharacter,
+  speculativeLotPosition,
   creditShipAccount,
   purchaseShipFuel,
   refuelShipToCapacity,
@@ -3246,6 +3248,26 @@ function transferFundsToShip() {
   }
 }
 
+function withdrawFundsFromShip() {
+  try {
+    if (!gameplayDocument || !shipDocument) throw new Error('active character and ship are required');
+    const input = el.portActions.querySelector('#ship-transfer-amount');
+    const amountCr = Number.parseInt(input?.value ?? '', 10);
+    const result = transferShipCreditsToCharacter(shipDocument, gameplayDocument, amountCr, {
+      dateLabel: activityDateLabel()
+    });
+    gameplayDocument = result.character;
+    shipDocument = result.ship;
+    persistGameplayDocuments();
+    logActivity('SHIP', `${gameplayDocument.identity.name || 'Character'} withdrew ${formatCr(amountCr)} from ${shipDocument.identity.name || 'ship'} operating account`);
+    setStatus(`WITHDRAWN TO CHARACTER: ${formatCr(amountCr)}`, 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
 function refuelAtCurrentPort() {
   try {
     const system = mappedCurrentSystem();
@@ -3588,8 +3610,8 @@ function renderCommerce() {
         panelRow('FREIGHT', `${route.freight.offers.length} SHIPMENT${route.freight.offers.length === 1 ? '' : 'S'} OFFERED`),
         // v0.110.1: a shipment has no category under Book 2 p.7, and reading
         // one threw the moment any shipment fitted a hold.
-        ...fittingFreight.slice(0, 4).map((freight) => panelCard({
-          title: `${freight.tons}t SHIPMENT`,
+        ...fittingFreight.slice(0, 4).map((freight, index) => panelCard({
+          title: `SHIPMENT ${index + 1} / ${freight.tons}t`,
           rows: [panelRow('PAYS', `${formatCr(freight.revenueCr)} ON DELIVERY`)],
           actionId: `freight:${freight.id}`,
           actionLabel: '[ ACCEPT ]'
@@ -7975,12 +7997,19 @@ function renderPortServices() {
     input.id = 'ship-transfer-amount';
     input.type = 'number';
     input.min = '1';
-    input.max = String(gameplayDocument.finances.credits);
+    // v0.112.0: credits could only ever move into the ship. An owner had no
+    // way to spend the ship's balance on anything personal — which is what
+    // Book 2 p.6's owner-aboard "drawing his pay from the profits" is.
+    input.max = String(Math.max(gameplayDocument.finances.credits, shipDocument.state.finances.balanceCr));
     input.step = '1';
     input.value = String(Math.min(5000, Math.max(0, gameplayDocument.finances.credits)));
-    transfer.append(label, input, makePortButton('TRANSFER TO SHIP', transferFundsToShip, {
-      disabled: gameplayDocument.finances.credits <= 0
-    }));
+    transfer.append(label, input,
+      makePortButton('TRANSFER TO SHIP', transferFundsToShip, {
+        disabled: gameplayDocument.finances.credits <= 0
+      }),
+      makePortButton('WITHDRAW TO CHARACTER', withdrawFundsFromShip, {
+        disabled: shipDocument.state.finances.balanceCr <= 0
+      }));
     el.portActions.append(transfer);
   }
 
@@ -8949,7 +8978,13 @@ function playProcedureSnapshot() {
     freight = {
       offers: remaining.length, fitting: fittingOffers.length, accepted: acceptedForDestination,
       bestCr: fittingOffers.reduce((best, entry) => Math.max(best, Number(entry.revenueCr) || 0), 0),
-      lots: fittingOffers.slice(0, 4).map((entry) => ({ id: entry.id, tons: entry.tons, revenueCr: entry.revenueCr })),
+      // v0.111.1: two shipments of the same tonnage are legitimate — they are
+      // separate lots — but two identical cards read as a duplication bug.
+      // Number them so each names which lot it is.
+      lots: fittingOffers.slice(0, 4).map((entry, index) => ({
+        id: entry.id, tons: entry.tons, revenueCr: entry.revenueCr, ordinal: index + 1,
+        ofFitting: Math.min(4, fittingOffers.length)
+      })),
       // The smallest shipment on offer, so a hold that fits none can say why.
       smallestTons: remaining.length ? Math.min(...remaining.map((entry) => entry.tons)) : null
     };
@@ -8993,8 +9028,10 @@ function playProcedureSnapshot() {
       }
       const quote = speculativeSaleQuote(cargo);
       if (!quote) return null;
+      const position = speculativeLotPosition(shipDocument, cargo.id, { proceedsCr: quote.netCr });
       return { id: cargo.id, tons: cargo.tons, description: cargo.description, sellable: true, blockReason: null,
         netCr: quote.netCr, percentage: quote.percentage,
+        costCr: position.costCr, gainCr: position.gainCr, returnPercent: position.returnPercent,
         dm: quote.worldDM + quote.characterSkillDM + quote.brokerDM,
         declined: declinedQuoteIds.has(cargo.id),
         brokerCommissionCr: quote.brokerCommissionCr ?? 0 };
