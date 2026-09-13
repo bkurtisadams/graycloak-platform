@@ -937,7 +937,15 @@ export function buildPlayProcedure(s = {}) {
       } else if (!announced && s.passengers.booked === 0) {
         readyAfter.push(card('passengers', `Passengers to ${s.destination.name}`, PLAY_PROCEDURE_TAGS.blocked, `Book 2 p.8: passengers present themselves after cargo is accepted for the destination. Demand H${s.passengers.demand.high} M${s.passengers.demand.middle} L${s.passengers.demand.low}.`));
       } else if (demandTotal > s.passengers.booked && s.passengers.capacity > 0) {
-        const classes = (s.passengers.classes ?? []).filter((entry) => entry.available > 0 && entry.berths > 0);
+        // Book 2 p.16: high passage needs a steward aboard, one per eight. A
+        // disabled BOOK HIGH button in a panel said nothing about why; the
+        // card names the requirement and offers the crew list.
+        for (const entry of (s.passengers.classes ?? []).filter((row) => row.available > 0 && row.blockedReason)) {
+          opportunities.push(card(`passengers-${entry.passageClass}-blocked`, `${entry.available} ${entry.passageClass} passenger${entry.available === 1 ? '' : 's'} waiting`, PLAY_PROCEDURE_TAGS.blocked,
+            `Cr${entry.fareCr.toLocaleString('en-US')} each. ${entry.blockedReason}`,
+            { action: 'crew', verb: '[ CREW ]' }));
+        }
+        const classes = (s.passengers.classes ?? []).filter((entry) => entry.available > 0 && entry.berths > 0 && !entry.blockedReason);
         for (const entry of classes) {
           attention.push(card(`passengers-${entry.passageClass}`, `Book ${entry.passageClass} passage to ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready,
             `${entry.available} waiting at Cr${entry.fareCr.toLocaleString('en-US')} each · ${entry.berths} berth${entry.berths === 1 ? '' : 's'} free (Book 2 p.8).`,

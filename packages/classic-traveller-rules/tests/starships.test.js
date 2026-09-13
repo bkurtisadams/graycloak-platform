@@ -15,7 +15,11 @@ import {
   importShipDocument,
   updateCharacterShipReference,
   updateShipIdentity,
-  validateShipDocument
+  validateShipDocument,
+  SHIP_CREW_ROLES,
+  assignShipCrew,
+  releaseShipCrew,
+  shipCrewRole
 } from '../index.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -137,4 +141,31 @@ test('ship import rejects altered canonical Type S specifications', async () => 
   const altered = structuredClone(ship);
   altered.specifications.computer.model = '1';
   assert.throws(() => importShipDocument(altered), /canonical standard design/);
+});
+
+
+test('Book 2 crew: a role is assigned to a character, and one person holds one role', async () => {
+  const character = importCharacterDocument(await hawkeyeV06Document());
+  let ship = createTypeSScoutReserveShipForCharacter(character).ship;
+  assert.deepEqual(shipCrewRole(ship, 'steward'), []);
+  // The reserve scout is created with its owner already flying it.
+  assert.equal(shipCrewRole(ship, 'pilot')[0].characterId, character.identity.id);
+
+  // Graycloak ruling: the owner-pilot cannot double as the steward.
+  assert.throws(() => assignShipCrew(ship, { role: 'steward', characterId: character.identity.id }), /one person holds one role/);
+
+  ship = assignShipCrew(ship, { role: 'steward', characterId: 'npc-mara-venn', characterName: 'Mara Venn' });
+  assert.equal(shipCrewRole(ship, 'steward')[0].characterName, 'Mara Venn');
+  // The document stays valid, so a crewed ship round-trips.
+  assert.equal(validateShipDocument(importShipDocument(exportShipDocument(ship))).valid, true);
+
+  ship = releaseShipCrew(ship, 'npc-mara-venn');
+  assert.deepEqual(shipCrewRole(ship, 'steward'), []);
+  assert.throws(() => releaseShipCrew(ship, 'npc-mara-venn'), /not assigned/);
+});
+
+test('an unknown crew role is refused rather than stored', async () => {
+  const ship = createTypeSScoutReserveShipForCharacter(importCharacterDocument(await hawkeyeV06Document())).ship;
+  assert.ok(SHIP_CREW_ROLES.includes('steward'));
+  assert.throws(() => assignShipCrew(ship, { role: 'sommelier', characterId: 'x' }), /unknown crew role/);
 });

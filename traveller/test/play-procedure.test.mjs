@@ -251,3 +251,22 @@ test('v0.102.0 with nothing accepted the tracker takes no room at all', () => {
   s.contracts = [];
   assert.equal(buildPlayProcedure(s).groups.some((g) => g.label.startsWith('ACCEPTED JOBS')), false);
 });
+
+test('v0.103.0 high passage with no steward says why, and offers the crew list', () => {
+  const s = base();
+  s.freight = { offers: 0, fitting: 0, accepted: 0, bestCr: 0, lots: [] };
+  s.passengers = { demand: { high: 2, middle: 1, low: 0 }, booked: 0, capacity: 4, blockReason: null, classes: [
+    { passageClass: 'high', available: 2, fareCr: 10000, berths: 2, blockedReason: 'Book 2 p.16 requires a steward aboard for high passage. Nobody is assigned.' },
+    { passageClass: 'middle', available: 1, fareCr: 8000, berths: 2, blockedReason: null },
+    { passageClass: 'low', available: 0, fareCr: 1000, berths: 4, blockedReason: null }
+  ] };
+  const model = buildPlayProcedure(s);
+  const blocked = byId(model, 'passengers-high-blocked');
+  assert.equal(blocked.tag, PLAY_PROCEDURE_TAGS.blocked);
+  assert.match(blocked.copy, /steward aboard/);
+  assert.equal(blocked.action, 'crew');
+  assert.equal(blocked.verb, '[ CREW ]');
+  // The class that is not blocked is still bookable, and high is not offered.
+  assert.equal(byId(model, 'passengers-middle').action, 'passenger:middle');
+  assert.equal(byId(model, 'passengers-high'), undefined);
+});

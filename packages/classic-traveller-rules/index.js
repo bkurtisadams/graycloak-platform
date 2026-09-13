@@ -145,7 +145,11 @@ export {
   migrateShipDocument,
   updateShipIdentity,
   updateShipAssignedCharacterName,
-  createTypeSScoutReserveShipForCharacter
+  createTypeSScoutReserveShipForCharacter,
+  SHIP_CREW_ROLES,
+  assignShipCrew,
+  releaseShipCrew,
+  shipCrewRole
 } from './src/starships/ship-document.js';
 
 

@@ -599,4 +599,45 @@ export function createTypeSScoutReserveShipForCharacter(characterDocument, {
   return { character: linkedCharacter, ship };
 }
 
+// ---------------------------------------------------------------------------
+// Crew assignment. Book 2 gates high passage on a steward aboard, and Book 1
+// p.19 says the position may be held by any character, expertise merely
+// preferred. Nothing could write an assignment before this, so the
+// requirement was enforced and unsatisfiable.
+//
+// Graycloak ruling (Sep 2026): one person holds one role. A scout's
+// owner-pilot cannot also be its steward.
+// ---------------------------------------------------------------------------
+export const SHIP_CREW_ROLES = Object.freeze([
+  'pilot', 'navigator', 'engineer', 'steward', 'medic', 'gunner'
+]);
+
+export function assignShipCrew(ship, { role, characterId, characterName = '' } = {}) {
+  const document = importShipDocument(ship);
+  const key = String(role ?? '').trim().toLowerCase();
+  if (!SHIP_CREW_ROLES.includes(key)) throw new RangeError(`unknown crew role: ${role}`);
+  if (typeof characterId !== 'string' || !characterId.trim()) throw new TypeError('characterId must be a nonblank string');
+  const id = characterId.trim();
+  const held = document.crew.assignments.find((entry) => entry.characterId === id);
+  if (held) throw new Error(`${held.characterName || id} is already the ${held.role}; one person holds one role`);
+  document.crew.assignments.push({ role: key, characterId: id, characterName: String(characterName ?? '').trim() });
+  assertValidShipDocument(document);
+  return document;
+}
+
+export function releaseShipCrew(ship, characterId) {
+  const document = importShipDocument(ship);
+  const id = String(characterId ?? '').trim();
+  const before = document.crew.assignments.length;
+  document.crew.assignments = document.crew.assignments.filter((entry) => entry.characterId !== id);
+  if (document.crew.assignments.length === before) throw new Error('that character is not assigned to this ship');
+  assertValidShipDocument(document);
+  return document;
+}
+
+export function shipCrewRole(ship, role) {
+  const key = String(role ?? '').trim().toLowerCase();
+  return (ship?.crew?.assignments ?? []).filter((entry) => String(entry.role).toLowerCase() === key);
+}
+
 export { TYPE_S_SCOUT_COURIER };

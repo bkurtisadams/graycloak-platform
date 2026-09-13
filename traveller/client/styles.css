@@ -4279,3 +4279,7 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 }
 .subsector-hex.objective .subsector-system-name { font-weight: 700; }
 .procedure-card-tag { white-space: nowrap; }
+
+/* v0.103.0: the crew list under SHIP STATUS. */
+.live-ship-crew-heading { display: flex; justify-content: space-between; align-items: baseline; margin-top: 8px; border-top: 1px solid var(--rule); padding-top: 5px; }
+.live-ship-crew .live-ship-row { display: flex; justify-content: space-between; gap: 8px; }

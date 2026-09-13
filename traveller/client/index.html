@@ -16,7 +16,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.102.0</div>
+          <div id="app-subtitle" class="subtitle">v0.103.0</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -341,6 +341,11 @@
                 <span id="live-ship-identity" class="live-ship-identity">NO ACTIVE SHIP</span>
               </div>
               <div id="live-ship-status" class="live-ship-status" aria-live="polite"></div>
+              <!-- v0.103.0: Book 2 gates high passage on a steward aboard, and
+                   until now nothing in the client could write a crew
+                   assignment at all. -->
+              <div class="live-ship-crew-heading"><strong>CREW</strong><button id="assign-crew" class="text-button" type="button">[ ASSIGN ]</button></div>
+              <div id="live-ship-crew" class="live-ship-crew" aria-live="polite"></div>
             </section>
             <div class="sidebar-buttons">
               <button id="open-ship-view" class="text-button utility-button" type="button" title="Ship register" hidden>[ SHIP REGISTER ]</button>
@@ -670,7 +675,19 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
         <div class="roll-dialog-actions"><button class="text-button action-button" type="submit">[ RECORD NOTE ]</button><button id="activity-note-cancel" class="text-button" type="button">[ CANCEL ]</button></div>
       </form>
     </dialog>
-    <aside id="context-help" class="help-panel" hidden aria-live="polite" aria-labelledby="help-title">
+    <dialog id="crew-dialog" class="roll-dialog crew-dialog" aria-label="Assign crew">
+    <form method="dialog" class="roll-dialog-form">
+      <div class="section-heading"><h2 class="section-title">ASSIGN CREW</h2></div>
+      <label>ROLE <select id="crew-role"></select></label>
+      <label>PERSON <select id="crew-person"></select></label>
+      <p id="crew-dialog-note" class="dialog-note"></p>
+      <div class="dialog-actions">
+        <button id="crew-assign-confirm" class="text-button" type="button">[ ASSIGN ]</button>
+        <button id="crew-cancel" class="text-button" type="button">[ CANCEL ]</button>
+      </div>
+    </form>
+  </dialog>
+  <aside id="context-help" class="help-panel" hidden aria-live="polite" aria-labelledby="help-title">
       <div class="help-header">
         <strong id="help-title">HELP</strong>
         <button id="close-help" class="help-button" type="button">[ CLOSE ]</button>

@@ -228,6 +228,9 @@ import {
   failContractDocument,
   importContractDocument,
   isContractOverdue,
+  SHIP_CREW_ROLES,
+  assignShipCrew,
+  releaseShipCrew,
   reconcileContractDeadlines
 } from '../src/contract-document.js';
 
@@ -408,6 +411,14 @@ const el = {
   sceneTabsRow: document.querySelector('.scene-tabs'),
   sceneStatusStrip: document.querySelector('#scene-status-strip'),
   sceneShipName: document.querySelector('#scene-ship-name'),
+  liveShipCrew: document.querySelector('#live-ship-crew'),
+  assignCrewButton: document.querySelector('#assign-crew'),
+  crewDialog: document.querySelector('#crew-dialog'),
+  crewRole: document.querySelector('#crew-role'),
+  crewPerson: document.querySelector('#crew-person'),
+  crewDialogNote: document.querySelector('#crew-dialog-note'),
+  crewAssignConfirm: document.querySelector('#crew-assign-confirm'),
+  crewCancel: document.querySelector('#crew-cancel'),
   sceneShipMeta: document.querySelector('#scene-ship-meta'),
   subsectorName: document.querySelector('#subsector-name'),
   jumpCapability: document.querySelector('#jump-capability'),
@@ -8052,6 +8063,98 @@ function renderLiveShipStatus({ currentSystem = null, selectedSystem = null, dis
     appendLiveShipRow('  JOB', `${contract.origin.systemName.toUpperCase()} -> ${contract.destination.systemName.toUpperCase()} / ${contract.identity.title.toUpperCase()}`);
   }
   appendLiveShipRow('ACCOUNT', formatCr(shipDocument.state.finances.balanceCr));
+  renderShipCrew();
+}
+
+// Book 2 gates high passage on a steward; the crew list is where you see who
+// is aboard and in what role, and the only place an assignment can be made.
+function renderShipCrew() {
+  if (!el.liveShipCrew) return;
+  el.liveShipCrew.replaceChildren();
+  if (el.assignCrewButton) el.assignCrewButton.hidden = !shipDocument;
+  if (!shipDocument) return;
+  const assignments = shipDocument.crew.assignments;
+  if (!assignments.length) {
+    const empty = document.createElement('div');
+    empty.className = 'live-ship-row';
+    empty.textContent = 'NOBODY ASSIGNED';
+    el.liveShipCrew.append(empty);
+    return;
+  }
+  for (const entry of assignments) {
+    const row = document.createElement('div');
+    row.className = 'live-ship-row';
+    const label = document.createElement('span');
+    label.textContent = `${entry.role.toUpperCase()} · ${entry.characterName || entry.characterId}`;
+    const release = document.createElement('button');
+    release.type = 'button';
+    release.className = 'text-button';
+    release.textContent = '[ RELEASE ]';
+    release.addEventListener('click', () => releaseCrewMember(entry.characterId));
+    row.append(label, release);
+    el.liveShipCrew.append(row);
+  }
+}
+
+function crewCandidates() {
+  const held = new Set((shipDocument?.crew?.assignments ?? []).map((entry) => entry.characterId));
+  const party = (campaignDocument?.characters ?? []).map((entry) => ({ id: entry.identity.id, name: entry.identity.name, kind: 'PC' }));
+  const npcs = npcActorDocuments.map((entry) => ({ id: entry.identity.id, name: entry.identity.name, kind: 'NPC' }));
+  return [...party, ...npcs].filter((entry) => !held.has(entry.id));
+}
+
+function openCrewDialog() {
+  if (!shipDocument || !el.crewDialog) return;
+  el.crewRole.replaceChildren(...SHIP_CREW_ROLES.map((role) => {
+    const option = document.createElement('option');
+    option.value = role;
+    option.textContent = role.toUpperCase();
+    return option;
+  }));
+  const candidates = crewCandidates();
+  el.crewPerson.replaceChildren(...candidates.map((entry) => {
+    const option = document.createElement('option');
+    option.value = entry.id;
+    option.textContent = `${entry.name} (${entry.kind})`;
+    return option;
+  }));
+  el.crewDialogNote.textContent = candidates.length
+    ? 'One person holds one role. Book 1 p.19: any character may hold a position; expertise is preferred, not required.'
+    : 'Nobody is free to assign. Roll an NPC in the ACTORS directory first (Book 1 p.8).';
+  el.crewAssignConfirm.disabled = !candidates.length;
+  el.crewDialog.showModal();
+}
+
+function confirmCrewAssignment() {
+  try {
+    const role = el.crewRole.value;
+    const id = el.crewPerson.value;
+    const person = crewCandidates().find((entry) => entry.id === id);
+    if (!person) throw new Error('choose someone to assign');
+    shipDocument = assignShipCrew(shipDocument, { role, characterId: id, characterName: person.name });
+    persistGameplayDocuments();
+    logActivity('SHIP', `${person.name} assigned as ${role} aboard ${shipDocument.identity.name || 'the ship'}`);
+    setStatus(`${person.name.toUpperCase()} ASSIGNED AS ${role.toUpperCase()}`, 'ok');
+    el.crewDialog.close();
+    render();
+  } catch (error) {
+    console.error(error);
+    el.crewDialogNote.textContent = error?.message ?? String(error);
+  }
+}
+
+function releaseCrewMember(characterId) {
+  try {
+    const entry = shipDocument.crew.assignments.find((row) => row.characterId === characterId);
+    shipDocument = releaseShipCrew(shipDocument, characterId);
+    persistGameplayDocuments();
+    logActivity('SHIP', `${entry?.characterName || characterId} released from ${entry?.role ?? 'duty'}`);
+    setStatus('CREW RELEASED', 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
 }
 
 function renderSubsector() {
@@ -8530,11 +8633,17 @@ function playProcedureSnapshot() {
     };
     const booked = ['high', 'middle', 'low'].reduce((sum, cls) => sum + bookedPassengerCount(route, cls), 0);
     const capacity = availablePassengerCapacity(shipDocument, 'middle') + availablePassengerCapacity(shipDocument, 'low');
+    const stewards = shipDocument.crew.assignments.filter((entry) => String(entry.role).toLowerCase() === 'steward').length;
     const classes = ['high', 'middle', 'low'].map((passageClass) => ({
       passageClass,
       available: Math.max(0, (route.passengerDemand[passageClass] ?? 0) - bookedPassengerCount(route, passageClass)),
       fareCr: PASSAGE_FARES_CR[passageClass],
-      berths: availablePassengerCapacity(shipDocument, passageClass)
+      berths: availablePassengerCapacity(shipDocument, passageClass),
+      // Book 2 p.16: one steward per eight high passengers, and none aboard
+      // means no high passage at all.
+      blockedReason: passageClass === 'high' && stewards < 1
+        ? 'Book 2 p.16 requires a steward aboard for high passage. Nobody is assigned.'
+        : null
     }));
     passengers = { demand: route.passengerDemand, booked, capacity, blockReason: passengerRouteBlockReason(selected.id), classes };
   }
@@ -8634,6 +8743,7 @@ function playProcedureAction(action) {
   // the percentage and the DMs, so routing the player to the TRADE panel to
   // read the same quote again was the click this dock exists to remove.
   const [intent, argument] = String(action).split(':');
+  if (intent === 'crew') { setSidebarTab('vehicles'); openCrewDialog(); return; }
   if (intent === 'contract') { showContractOnMap(argument); return; }
   if (intent === 'sale') { sellSpeculativeLot(argument); return; }
   if (intent === 'freight') { acceptFreightOffer(argument); return; }
@@ -9846,6 +9956,9 @@ for (const button of document.querySelectorAll('.sidebar-tab')) {
 el.dockToggle?.addEventListener('click', () => setDockCollapsed(true));
 el.dockReopen?.addEventListener('click', () => setDockCollapsed(false));
 applyDock();
+el.assignCrewButton?.addEventListener('click', openCrewDialog);
+el.crewAssignConfirm?.addEventListener('click', confirmCrewAssignment);
+el.crewCancel?.addEventListener('click', () => el.crewDialog.close());
 el.sceneClose?.addEventListener('click', () => el.sceneDialog.close());
 el.sceneSave?.addEventListener('click', createSceneFromDialog);
 el.sceneSquares?.addEventListener('input', updateSceneSizeNote);
