@@ -8255,7 +8255,9 @@ function renderLiveShipStatus({ currentSystem = null, selectedSystem = null, dis
 // berths are not what you are deciding mid-combat.
 function renderShipStrip() {
   if (!el.shipStrip) return;
-  const show = Boolean(shipDocument) && campaignPlayActive() && activeSceneTab === 'system';
+  // The map section is already hidden outside the system view, so the strip
+  // only has to know whether there is a ship to state.
+  const show = Boolean(shipDocument) && campaignPlayActive();
   el.shipStrip.hidden = !show;
   if (!show) return;
   el.shipStripName.textContent = `${(shipDocument.identity.name || 'SHIP').toUpperCase()} / ${(shipDocument.identity.registration || '').toUpperCase()} · ${(shipDocument.specifications.design?.name ?? '').toUpperCase()}`;
