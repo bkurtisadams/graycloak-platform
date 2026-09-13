@@ -126,6 +126,27 @@ export {
 } from './src/documents/ids.js';
 
 export {
+  ANIMAL_TERRAIN_DMS,
+  ANIMAL_TERRAIN_KEYS,
+  ANIMAL_CATEGORIES,
+  ANIMAL_TYPES,
+  ANIMAL_SPECIAL_ATTRIBUTES,
+  ANIMAL_SIZES,
+  ANIMAL_WEAPONS,
+  ANIMAL_ARMOR,
+  ANIMAL_BEHAVIOR,
+  ANIMAL_ENCOUNTER_THROW,
+  BLANK_ENCOUNTER_COLUMN,
+  animalCategoryForThrow,
+  animalEdibleMeatKg,
+  animalSpeed,
+  checkForAnimalEncounter,
+  generateAnimalEncounter,
+  isAnimalEdible,
+  resolveAnimalReaction
+} from './src/encounters/animals.js';
+
+export {
   TYPE_S_SCOUT_COURIER_KEY,
   TYPE_S_SCOUT_COURIER,
   STANDARD_SHIP_DESIGN_KEYS,
