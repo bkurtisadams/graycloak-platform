@@ -3390,6 +3390,19 @@ function bookRoutePassenger(passageClass) {
   }
 }
 
+// v0.104.0: booking one at a time meant a card offering three berths took
+// three presses, and a player who pressed once carried one passenger and left
+// two fares behind. The card fills the berths, as fuel and the speculative
+// lot already do.
+function bookRoutePassengers(passageClass) {
+  const route = commerceRouteSnapshot();
+  if (!route?.reachable || !shipDocument) { bookRoutePassenger(passageClass); return; }
+  const waiting = Math.max(0, (route.passengerDemand[passageClass] ?? 0) - bookedPassengerCount(route, passageClass));
+  const berths = availablePassengerCapacity(shipDocument, passageClass);
+  const count = Math.max(1, Math.min(waiting, berths));
+  for (let index = 0; index < count; index += 1) bookRoutePassenger(passageClass);
+}
+
 function buySpeculativeQuantity(quantity) {
   try {
     assertCommerceAvailable();
@@ -3718,11 +3731,35 @@ function renderContracts() {
     contracts: contractDocuments,
     offers,
     offerState
-  }), { onAction: (offerId) => acceptContractOffer(offerId) });
+  }), { onAction: (id) => {
+    // v0.104.0: an accepted contract could never be given up. A job you have
+    // decided not to do sat in the tracker forever with its clock running.
+    const [kind, contractId] = String(id).split(':');
+    if (kind === 'abandon') return abandonContract(contractId);
+    return acceptContractOffer(id);
+  } });
   el.contractActions.replaceChildren();
   applyOperationsDeskTab();
 }
 
+
+// Giving up a contract is failing it: Book 3 leaves the consequence to the
+// referee, but the record has to say it was not delivered.
+function abandonContract(contractId) {
+  try {
+    const contract = contractDocuments.find((entry) => entry.identity.id === contractId);
+    if (!contract) throw new Error('that contract is no longer active');
+    const failed = failContractDocument(contract, { date: campaignDateSnapshot(), notes: 'Abandoned by the crew.' });
+    contractDocuments = contractDocuments.map((entry) => (entry.identity.id === contractId ? failed : entry));
+    persistGameplayDocuments();
+    logActivity('CONTRACT', `${contract.identity.title} abandoned / recorded as failed`);
+    setStatus(`CONTRACT ABANDONED: ${contract.identity.title.toUpperCase()}`, 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
 
 function contactStandingFromReaction(reaction) {
   const text = String(reaction ?? '').toUpperCase();
@@ -8747,7 +8784,7 @@ function playProcedureAction(action) {
   if (intent === 'contract') { showContractOnMap(argument); return; }
   if (intent === 'sale') { sellSpeculativeLot(argument); return; }
   if (intent === 'freight') { acceptFreightOffer(argument); return; }
-  if (intent === 'passenger') { bookRoutePassenger(argument); return; }
+  if (intent === 'passenger') { bookRoutePassengers(argument); return; }
   if (intent === 'spec') { buySpeculativeQuantity(Number(argument)); return; }
   if (intent === 'berthing') { payBerthingAtCurrentPort(); return; }
   if (intent === 'fuel') { if (argument === 'skim') skimCurrentGasGiant(); else fillTanksAtCurrentPort(); return; }
@@ -8772,10 +8809,20 @@ function playProcedureAction(action) {
     if (panel && !panel.hidden) requestAnimationFrame(() => panel.scrollIntoView({ block: 'start' }));
     return;
   }
-  if (action === 'encounter') { setOperationsDeskTab('encounter'); return; }
+  // v0.104.0: the same shape as the jobs and map cards. The combat rail has
+  // been the COMBAT sidebar tab since v0.75.0, so setting a desk tab alone
+  // left the encounter card doing nothing the player could see.
+  if (action === 'encounter') {
+    setOperationsDeskTab('encounter');
+    setSceneTab('combat');
+    setSidebarTab('combat');
+    return;
+  }
   if (action === 'threads') { setWorkspaceView('threads'); return; }
   if (action === 'character') { setSceneTab('character'); return; }
-  if (action === 'jump') { el.jumpActions.querySelector('button:not(:disabled)')?.focus(); }
+  // v0.104.0: this focused the depart button instead of pressing it, so the
+  // card did nothing visible while the same action worked from the strip.
+  if (action === 'jump') { jumpToSelectedSystem(); return; }
 }
 
 let playProcedureDoneOpen = false;

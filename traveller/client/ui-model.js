@@ -947,9 +947,13 @@ export function buildPlayProcedure(s = {}) {
         }
         const classes = (s.passengers.classes ?? []).filter((entry) => entry.available > 0 && entry.berths > 0 && !entry.blockedReason);
         for (const entry of classes) {
+          // The verb states how many the press actually books and what that
+          // earns, so a card offering three berths is not three presses and a
+          // single press is not two fares left behind.
+          const takes = Math.min(entry.available, entry.berths);
           attention.push(card(`passengers-${entry.passageClass}`, `Book ${entry.passageClass} passage to ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready,
             `${entry.available} waiting at Cr${entry.fareCr.toLocaleString('en-US')} each · ${entry.berths} berth${entry.berths === 1 ? '' : 's'} free (Book 2 p.8).`,
-            { action: `passenger:${entry.passageClass}`, verb: `[ BOOK ONE / CR${entry.fareCr.toLocaleString('en-US')} ]` }));
+            { action: `passenger:${entry.passageClass}`, verb: `[ BOOK ${takes} / CR${(takes * entry.fareCr).toLocaleString('en-US')} ]` }));
         }
         if (!classes.length) {
           attention.push(card('passengers', `Book passengers to ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready, `Demand H${s.passengers.demand.high} M${s.passengers.demand.middle} L${s.passengers.demand.low} · ${s.passengers.booked} booked · ${s.passengers.capacity} berths free.`, { action: 'trade' }));
@@ -1115,6 +1119,9 @@ export function buildContractBoardPanel({ system, selectedSystem = null, contrac
     label: `ACTIVE ${active.length}`,
     items: active.length
       ? active.map((contract) => panelCard({
+        actionId: `abandon:${contract.identity.id}`,
+        actionLabel: '[ ABANDON ]',
+        actionTitle: 'Give up the contract. It is recorded as failed.',
         title: contract.identity.title.toUpperCase(),
         meta: `${contract.origin.systemName.toUpperCase()} -> ${contract.destination.systemName.toUpperCase()}`,
         rows: [

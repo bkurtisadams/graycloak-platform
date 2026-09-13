@@ -183,6 +183,9 @@ test('v0.97.1 each waiting passage class is its own card, once cargo has announc
   const model = buildPlayProcedure(s);
   assert.equal(byId(model, 'passengers-high').action, 'passenger:high');
   assert.match(byId(model, 'passengers-middle').copy, /2 waiting at Cr8,000 each/);
+  // v0.104.0: the verb books the berths, not one at a time.
+  assert.equal(byId(model, 'passengers-middle').verb, '[ BOOK 2 / CR16,000 ]');
+  assert.equal(byId(model, 'passengers-high').verb, '[ BOOK 1 / CR10,000 ]');
   // No low passengers are waiting, so no card offers a berth for them.
   assert.equal(byId(model, 'passengers-low'), undefined);
 });
