@@ -584,9 +584,26 @@ function formatDateTime(iso){if(!iso)return null;const d=new Date(iso);return d.
 function sysColorCSS(sysId){const c=SYSTEM_COLORS[sysId]||'#888';return`background:${c}18;color:${c};border:1px solid ${c}30`}
 function statusLabel(s){return{active:'Active',hiatus:'On Hiatus',completed:'Completed',archived:'Archived'}[s]||s}
 function countRealSessions(sessions){return sessions.filter(s=>s.type!=='timeline').length}
-// Canonical entry number: sessions are stored newest-first, so count from the
-// end. recap.html uses the same rule — every display of "#n" must go through this.
-function realSessionNum(sessions,idx){let n=0;for(let i=sessions.length-1;i>=0;i--){if(sessions[i].type!=='timeline')n++;if(i===idx)break}return n}
+// Episode/session numbers are persistent data, not a side effect of array order.
+// The fallback only serves unmigrated player/shared data until it is saved by a GM.
+function realSessionNum(sessions,idx){const s=sessions[idx];const stored=parseInt(s&&s.number);if(stored>0)return stored;let n=0;for(let i=sessions.length-1;i>=0;i--){if(sessions[i].type!=='timeline')n++;if(i===idx)break}return n}
+function ensureSessionNumbers(sessions){
+  const real=(Array.isArray(sessions)?sessions:[]).map((s,i)=>({s,i})).filter(x=>x.s&&x.s.type!=='timeline');
+  const used=new Set(real.map(x=>parseInt(x.s.number)).filter(n=>n>0));
+  const missing=real.filter(x=>!(parseInt(x.s.number)>0));
+  missing.sort((a,b)=>{
+    const ad=a.s.date||'',bd=b.s.date||'';
+    if(ad&&bd&&ad!==bd)return ad.localeCompare(bd);
+    if(ad&&!bd)return-1;if(!ad&&bd)return 1;
+    const ac=a.s._created||'',bc=b.s._created||'';
+    if(ac&&bc&&ac!==bc)return ac.localeCompare(bc);
+    return a.i-b.i;
+  });
+  let next=1,changed=false;
+  missing.forEach(x=>{while(used.has(next))next++;x.s.number=next;used.add(next);next++;changed=true});
+  return changed;
+}
+function nextSessionNumber(sessions){return Math.max(0,...(sessions||[]).filter(s=>s.type!=='timeline').map(s=>parseInt(s.number)||0))+1}
 // Cheap identity check for image data URLs, so untouched images are never re-encoded.
 function imgFp(d){return typeof d==='string'&&d?d.length+':'+d.slice(0,48):''}
 
@@ -650,12 +667,12 @@ function resolveChar(savedChar,systemId,storageKey){
 
 const campId=new URLSearchParams(window.location.search).get('id');
 let currentTab='overview',sessionFilter='all',loreFilter='all';
-let sessionScope='all',sessionQuery='',sessionView='cards',lastImgMap={};
+let sessionScope='all',sessionQuery='',sessionView='cards',sessionOrder='newest',lastImgMap={};
 const sesCollapsed=new Set(); // session ids collapsed in card view (in-memory)
 function recapUrlFor(s,idx){return`recap.html?id=${encodeURIComponent(campId)}&${s&&s._id?'ses='+encodeURIComponent(s._id):'idx='+idx}`}
 function sesId(s){return s&&(s.id||s._id||('ses_'+(s.date||'')+'_'+(s.title||'')))}
-function loadSessionViewPrefs(){try{const v=JSON.parse(localStorage.getItem('gcc_ses_view_'+campId)||'{}');if(v.view==='compact'||v.view==='cards')sessionView=v.view;if(v.scope)sessionScope=v.scope}catch(e){}}
-function saveSessionViewPrefs(){try{localStorage.setItem('gcc_ses_view_'+campId,JSON.stringify({view:sessionView,scope:sessionScope}))}catch(e){}}
+function loadSessionViewPrefs(){try{const v=JSON.parse(localStorage.getItem('gcc_ses_view_'+campId)||'{}');if(v.view==='compact'||v.view==='cards')sessionView=v.view;if(v.scope)sessionScope=v.scope;if(v.order==='oldest'||v.order==='newest')sessionOrder=v.order}catch(e){}}
+function saveSessionViewPrefs(){try{localStorage.setItem('gcc_ses_view_'+campId,JSON.stringify({view:sessionView,scope:sessionScope,order:sessionOrder}))}catch(e){}}
 let _sesImageOrigKey='',_sesImageOrigFp=''; // original IDB key + fingerprint, to avoid orphaning and re-encoding
 let _isPlayerMode=false,_sharedCamp=null;
 function getCamp(){
@@ -766,6 +783,7 @@ function dedupeCampaignData(camp){
     const newerSes=(a,b)=>{const ta=Date.parse(a&&(a._updated||a._created)||'')||0,tb=Date.parse(b&&(b._updated||b._created)||'')||0;return tb>ta?b:a};
     const res=dedupeByKeys(camp.sessions,[s=>s&&s._id?'id:'+s._id:'',sessionContentDedupeKey],newerSes);
     if(res.changed){camp.sessions=res.list;camp.session=countRealSessions(camp.sessions);changed=true}
+    if(ensureSessionNumbers(camp.sessions))changed=true;
     camp.sessions.forEach(s=>{
       if(!Array.isArray(s.roster)||!s.roster.length)return;
       const oldLen=s.roster.length;
@@ -810,7 +828,7 @@ function rosterAvatars(s,charLookup,max){
 function sessionMenuHtml(s,idx,pm_){
   if(pm_)return'';
   const isDmOnly=s.visible===false;
-  return`<span class="ses-menu-wrap"><button class="ses-kebab" data-ses-menu="${idx}" title="Actions" aria-label="Actions">⋮</button><div class="ses-menu" data-ses-menu-for="${idx}"><button data-ses-edit="${idx}">Edit</button><button data-ses-vis="${idx}">${isDmOnly?'Show to players':'Hide from players'}</button><button data-ses-top="${idx}"${idx===0?' disabled':''}>Move to top</button><div class="ses-menu-sep"></div><button class="danger" data-ses-del="${idx}">Delete…</button></div></span>`;
+  return`<span class="ses-menu-wrap"><button class="ses-kebab" data-ses-menu="${idx}" title="Actions" aria-label="Actions">⋮</button><div class="ses-menu" data-ses-menu-for="${idx}"><button data-ses-edit="${idx}">Edit</button><button data-ses-vis="${idx}">${isDmOnly?'Show to players':'Hide from players'}</button><div class="ses-menu-sep"></div><button class="danger" data-ses-del="${idx}">Delete…</button></div></span>`;
 }
 function buildSessionCard(s,idx,total,camp,imgMap,charLookup,pm_){
   const sesLabel=GCC.sessionLabel(camp.system),xpLbl=GCC.xpLabel(camp.system);
@@ -824,9 +842,9 @@ function buildSessionCard(s,idx,total,camp,imgMap,charLookup,pm_){
   const visDot=pm_?'':`<span class="ses-vis-dot${isDmOnly?' dm':''}" title="${isDmOnly?'DM only':'Players can see'}"></span>`;
   const gameDate=s.gameDate?`<span class="ses-hdr-date game" title="Game date">${ESC(s.gameDate)}</span>`:'';
   const played=s.date?`<span class="ses-hdr-date" title="Played">${formatDate(s.date)}</span>`:'';
-  const grip=pm_?'':`<span class="ses-drag-handle" title="Drag to reorder">⠿</span>`;
+  const grip='';
   const header=`<div class="session-card-header">${grip}<button class="ses-caret" data-ses-collapse="${idx}" title="${collapsed?'Expand':'Collapse'}" aria-label="${collapsed?'Expand':'Collapse'}">${collapsed?'▸':'▾'}</button>${visDot}${titleHtml}<span class="ses-hdr-dates">${gameDate}${played}</span>${sessionMenuHtml(s,idx,pm_)}</div>`;
-  if(collapsed)return`<li class="session-card collapsed${isTimeline?' timeline-entry':''}${isDmOnly?' dm-only':''}" data-ses-idx="${idx}" data-ses-id="${ESC(sesId(s))}" draggable="${pm_?'false':'true'}">${header}</li>`;
+  if(collapsed)return`<li class="session-card collapsed${isTimeline?' timeline-entry':''}${isDmOnly?' dm-only':''}" data-ses-idx="${idx}" data-ses-id="${ESC(sesId(s))}">${header}</li>`;
 
   const excerpt=sessionExcerpt(s,420);
   const summaryHtml=excerpt?`<div class="session-summary-excerpt">${ESC(excerpt)}</div>`:'';
@@ -845,7 +863,7 @@ function buildSessionCard(s,idx,total,camp,imgMap,charLookup,pm_){
   (s.tags||[]).forEach(tag=>{const color=LORE_COLORS[tag.type]||'var(--tx3)';tagsHtml+=`<span class="session-tag"><span class="tag-dot" style="background:${color}"></span> ${ESC(tag.name)}</span>`});
   const xpHtml=s.xp?`<span class="session-xp"><span class="session-xp-label">${ESC(xpLbl.toUpperCase())} AWARDED</span><strong>${s.xp}</strong></span>`:'';
   const footer=(tagsHtml||xpHtml)?`<div class="session-footer">${tagsHtml}${xpHtml}</div>`:'';
-  return`<li class="session-card${isTimeline?' timeline-entry':''}${isDmOnly?' dm-only':''}" data-ses-idx="${idx}" data-ses-id="${ESC(sesId(s))}" draggable="${pm_?'false':'true'}">${header}${recapHtml}${rosterHtml}${footer}</li>`;
+  return`<li class="session-card${isTimeline?' timeline-entry':''}${isDmOnly?' dm-only':''}" data-ses-idx="${idx}" data-ses-id="${ESC(sesId(s))}">${header}${recapHtml}${rosterHtml}${footer}</li>`;
 }
 function buildSessionRow(s,idx,camp,charLookup,pm_){
   const isTimeline=s.type==='timeline',isDmOnly=s.visible===false;
@@ -854,8 +872,8 @@ function buildSessionRow(s,idx,camp,charLookup,pm_){
   const titleTxt=s.title?ESC(s.title):(isTimeline?'Timeline entry':'Untitled');
   const visDot=pm_?'':`<span class="ses-vis-dot${isDmOnly?' dm':''}" title="${isDmOnly?'DM only':'Players can see'}"></span>`;
   const title=isTimeline?`<span class="ses-row-title tl">${visDot}<span class="ses-num tl">◷</span>${titleTxt}</span>`:`<a class="ses-row-title" href="${recapUrl}">${visDot}${titleTxt}</a>`;
-  const grip=pm_?'':`<span class="ses-drag-handle" title="Drag to reorder">⠿</span>`;
-  return`<li class="ses-row${isTimeline?' timeline-entry':''}${isDmOnly?' dm-only':''}" data-ses-idx="${idx}" data-ses-id="${ESC(sesId(s))}" draggable="${pm_?'false':'true'}">
+  const grip='';
+  return`<li class="ses-row${isTimeline?' timeline-entry':''}${isDmOnly?' dm-only':''}" data-ses-idx="${idx}" data-ses-id="${ESC(sesId(s))}">
     <span class="ses-row-num">${grip}${isTimeline?'—':'#'+realNum}</span>
     ${title}
     <span class="ses-row-date game">${s.gameDate?ESC(s.gameDate):'<i>—</i>'}</span>
@@ -885,7 +903,13 @@ function pluralLabel(lbl){return/s$/i.test(lbl)?lbl:lbl+'s'}
 function buildSessionListHtml(camp,imgMap,pm_){
   const allSessions=camp.sessions||[];
   const sessions=pm_?allSessions.filter(s=>s.visible!==false):allSessions;
-  const list=applySessionFilters(sessions,camp),realCount=countRealSessions(sessions),charLookup=buildCharLookup(camp);
+  const list=applySessionFilters(sessions,camp).slice().sort((a,b)=>{
+    const ad=a.date||'',bd=b.date||'';
+    let cmp=ad&&bd&&ad!==bd?ad.localeCompare(bd):0;
+    if(!cmp){const an=a.type==='timeline'?Number.MAX_SAFE_INTEGER:(parseInt(a.number)||Number.MAX_SAFE_INTEGER),bn=b.type==='timeline'?Number.MAX_SAFE_INTEGER:(parseInt(b.number)||Number.MAX_SAFE_INTEGER);cmp=an-bn}
+    if(!cmp)cmp=allSessions.indexOf(a)-allSessions.indexOf(b);
+    return sessionOrder==='oldest'?cmp:-cmp;
+  }),realCount=countRealSessions(sessions),charLookup=buildCharLookup(camp);
   const lbl=pluralLabel(GCC.sessionLabel(camp.system)).toLowerCase();
   if(!sessions.length)return`<div class="entity-empty">No ${ESC(lbl)} logged yet.</div>`;
   if(!list.length)return`<div class="entity-empty">No ${ESC(lbl)} match this filter. <button class="ses-link-btn" data-ses-clear>Clear filters</button></div>`;
@@ -905,8 +929,9 @@ function buildSessionsTab(camp,imgMap,pm_){
   const tagPills=tagTypes.map(t=>`<button class="filter-pill${sessionFilter===t?' active':''}" data-ses-filter="${ESC(t)}">${ESC(GCC.LORE_TYPE_LABELS[t]||t)}</button>`).join('');
   const search=`<div class="ses-search"><span class="ses-search-ico">⌕</span><input type="search" id="ses-search" placeholder="Search ${ESC(plural.toLowerCase())}, tags, game dates" value="${ESC(sessionQuery)}" autocomplete="off"><kbd title="Press / to search">/</kbd></div>`;
   const viewToggle=`<div class="ses-view-toggle"><button class="${sessionView==='cards'?'on':''}" data-ses-view="cards" title="Cards">▤ Cards</button><button class="${sessionView==='compact'?'on':''}" data-ses-view="compact" title="Compact rows">☰ Compact</button></div>`;
+  const orderToggle=`<div class="ses-view-toggle"><button class="${sessionOrder==='newest'?'on':''}" data-ses-order="newest" title="Newest episode first">Newest first</button><button class="${sessionOrder==='oldest'?'on':''}" data-ses-order="oldest" title="Oldest episode first">Oldest first</button></div>`;
   const gmTools=pm_?'':`<div class="ses-split"><button class="btn-add" id="btn-add-session">+ New ${ESC(sesLabel)}</button><button class="btn-add ses-split-caret" id="btn-add-session-menu" title="More" aria-label="More entry types">▾</button><div class="ses-menu" data-menu="add"><button id="btn-add-timeline">◷ Timeline entry</button></div></div><span class="ses-menu-wrap"><button class="ses-kebab more" id="btn-ses-more" title="More actions" aria-label="More actions">⋯</button><div class="ses-menu right" data-menu="more"><button id="btn-export-journal">Export Journal</button><button id="btn-import-sessions">Import Text</button>${allSessions.length?'<div class="ses-menu-sep"></div><button class="danger" id="btn-delete-all-sessions">Delete All…</button>':''}</div></span>`;
-  return`<div class="session-toolbar ses-toolbar-v2">${search}${viewToggle}${gmTools}</div><div class="ses-chips">${scopeChips}${tagPills?'<span class="ses-chip-sep"></span>'+tagPills:''}</div><div id="ses-list-wrap">${buildSessionListHtml(camp,imgMap,pm_)}</div>`;
+  return`<div class="session-toolbar ses-toolbar-v2">${search}${viewToggle}${orderToggle}${gmTools}</div><div class="ses-chips">${scopeChips}${tagPills?'<span class="ses-chip-sep"></span>'+tagPills:''}</div><div id="ses-list-wrap">${buildSessionListHtml(camp,imgMap,pm_)}</div>`;
 }
 function renderSessionList(){
   const camp=getCamp(),wrap=document.getElementById('ses-list-wrap');if(!camp||!wrap)return;
@@ -1328,6 +1353,7 @@ function wireSessionToolbar(){
   const si=document.getElementById('ses-search');
   if(si){let tmr=null;si.addEventListener('input',()=>{clearTimeout(tmr);tmr=setTimeout(()=>{sessionQuery=si.value.trim();renderSessionList()},120)})}
   document.querySelectorAll('[data-ses-view]').forEach(btn=>{btn.addEventListener('click',()=>{sessionView=btn.dataset.sesView;saveSessionViewPrefs();document.querySelectorAll('[data-ses-view]').forEach(b=>b.classList.toggle('on',b===btn));renderSessionList()})});
+  document.querySelectorAll('[data-ses-order]').forEach(btn=>{btn.addEventListener('click',()=>{sessionOrder=btn.dataset.sesOrder;saveSessionViewPrefs();document.querySelectorAll('[data-ses-order]').forEach(b=>b.classList.toggle('on',b===btn));renderSessionList()})});
   document.querySelectorAll('[data-ses-scope]').forEach(btn=>{btn.addEventListener('click',()=>{sessionScope=btn.dataset.sesScope;saveSessionViewPrefs();document.querySelectorAll('[data-ses-scope]').forEach(b=>b.classList.toggle('active',b===btn));renderSessionList()})});
   document.querySelectorAll('[data-ses-filter]').forEach(btn=>{btn.addEventListener('click',()=>{sessionFilter=sessionFilter===btn.dataset.sesFilter?'all':btn.dataset.sesFilter;document.querySelectorAll('[data-ses-filter]').forEach(b=>b.classList.toggle('active',b.dataset.sesFilter===sessionFilter));renderSessionList()})});
   document.getElementById('btn-add-session')?.addEventListener('click',()=>openSessionModal(-1,'session'));
@@ -1341,36 +1367,12 @@ function wireSessionToolbar(){
   document.getElementById('btn-delete-all-sessions')?.addEventListener('click',async()=>{closeSesMenus();const camp=getCamp();if(!camp)return;const count=(camp.sessions||[]).length;const ok=await GCCDialog.confirm('Delete all sessions','Delete all '+count+' session/timeline entries? This cannot be undone.',{okText:'Delete All',danger:true});if(!ok)return;const deadKeys=[];(camp.sessions||[]).forEach(s=>{if(s.image&&GCCImages.isKey(s.image))deadKeys.push(s.image);(s.sections||[]).forEach(sec=>(sec.images||[]).forEach(img=>{if(img.src&&GCCImages.isKey(img.src))deadKeys.push(img.src)}))});if(deadKeys.length)GCCImages.removeBulk(deadKeys);appendSessionTombstones(camp,camp.sessions||[]);GCC.updateCampaign(campId,{sessions:[],session:0,deletedSessions:camp.deletedSessions||[]});const updated=GCC.getCampaign(campId);if(GCCAuth?.getUser()){pushSharedSanitized(campId,updated);if(typeof GCCSync!=='undefined'&&GCCSync.notifySync)GCCSync.notifySync('gcc-campaigns')}render()});
 }
 function wireSessionList(){
-  const pm_=_isPlayerMode;
   document.querySelectorAll('[data-ses-clear]').forEach(btn=>{btn.addEventListener('click',()=>{sessionQuery='';sessionScope='all';sessionFilter='all';saveSessionViewPrefs();render()})});
   document.querySelectorAll('[data-ses-collapse]').forEach(btn=>{btn.addEventListener('click',()=>{const card=btn.closest('.session-card');const id=card?.dataset.sesId;if(!id)return;if(sesCollapsed.has(id))sesCollapsed.delete(id);else sesCollapsed.add(id);renderSessionList()})});
   document.querySelectorAll('[data-ses-menu]').forEach(btn=>{btn.addEventListener('click',e=>{e.stopPropagation();const m=document.querySelector(`.ses-menu[data-ses-menu-for="${btn.dataset.sesMenu}"]`);if(m)toggleMenu(btn,m)})});
   document.querySelectorAll('[data-ses-edit]').forEach(btn=>{btn.addEventListener('click',()=>{closeSesMenus();openSessionModal(parseInt(btn.dataset.sesEdit))})});
   document.querySelectorAll('[data-ses-vis]').forEach(btn=>{btn.addEventListener('click',()=>{closeSesMenus();const camp=getCamp();if(!camp)return;const sessions=camp.sessions||[];const s=sessions[parseInt(btn.dataset.sesVis)];if(!s)return;s.visible=s.visible===false?true:false;GCC.updateCampaign(campId,{sessions});render()})});
-  document.querySelectorAll('[data-ses-top]').forEach(btn=>{btn.addEventListener('click',()=>{closeSesMenus();const camp=getCamp();if(!camp)return;const sessions=camp.sessions||[];const i=parseInt(btn.dataset.sesTop);if(!(i>0))return;const moved=sessions.splice(i,1)[0];sessions.unshift(moved);GCC.updateCampaign(campId,{sessions});render()})});
   document.querySelectorAll('[data-ses-del]').forEach(btn=>{btn.addEventListener('click',async()=>{closeSesMenus();const ok=await GCCDialog.confirm('Delete '+GCC.sessionLabel(getCamp()?.system).toLowerCase(),'Delete this entry? This cannot be undone.',{okText:'Delete',danger:true});if(!ok)return;const camp=getCamp();if(!camp)return;const sessions=camp.sessions||[];const s=sessions[parseInt(btn.dataset.sesDel)];if(s){const deadKeys=[];if(s.image&&GCCImages.isKey(s.image))deadKeys.push(s.image);(s.sections||[]).forEach(sec=>(sec.images||[]).forEach(img=>{if(img.src&&GCCImages.isKey(img.src))deadKeys.push(img.src)}));if(deadKeys.length)GCCImages.removeBulk(deadKeys);appendSessionTombstones(camp,[s])}sessions.splice(parseInt(btn.dataset.sesDel),1);GCC.updateCampaign(campId,{sessions,session:countRealSessions(sessions),deletedSessions:camp.deletedSessions||[]});render()})});
-  if(pm_)return;
-  // Drag-to-reorder (cards and compact rows)
-  let dragIdx=null;
-  const items=document.querySelectorAll('.session-card[draggable="true"],.ses-row[draggable="true"]');
-  items.forEach(card=>{
-    card.addEventListener('dragstart',e=>{
-      if(!e.target.closest('.ses-drag-handle')){e.preventDefault();return}
-      dragIdx=parseInt(card.dataset.sesIdx);card.classList.add('dragging');
-      e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',dragIdx);
-    });
-    card.addEventListener('dragend',()=>{dragIdx=null;card.classList.remove('dragging');
-      document.querySelectorAll('.drag-over').forEach(c=>c.classList.remove('drag-over'))});
-    card.addEventListener('dragover',e=>{if(dragIdx===null)return;e.preventDefault();e.dataTransfer.dropEffect='move';
-      document.querySelectorAll('.drag-over').forEach(c=>c.classList.remove('drag-over'));card.classList.add('drag-over')});
-    card.addEventListener('dragleave',()=>card.classList.remove('drag-over'));
-    card.addEventListener('drop',e=>{e.preventDefault();card.classList.remove('drag-over');
-      const dropIdx=parseInt(card.dataset.sesIdx);if(dragIdx===null||dragIdx===dropIdx)return;
-      const camp=getCamp();if(!camp)return;const sessions=camp.sessions||[];
-      const moved=sessions.splice(dragIdx,1)[0];sessions.splice(dropIdx,0,moved);
-      const movedId=sesId(moved);
-      GCC.updateCampaign(campId,{sessions});render().then(()=>{const el=document.querySelector(`[data-ses-id="${CSS.escape(movedId)}"]`);if(el){el.classList.add('ses-flash');setTimeout(()=>el.classList.remove('ses-flash'),1200)}})});
-  });
 }
 function wireEvents(){
   document.getElementById('tabs')?.addEventListener('click',e=>{const tab=e.target.closest('.tab');if(!tab)return;currentTab=tab.dataset.tab;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===currentTab));document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===currentTab))});
@@ -1787,7 +1789,6 @@ async function exportJournal(){
   const sessions=camp.sessions||[];if(!sessions.length){await GCCDialog.alert('Export Journal','No entries to export.');return}
   const includeDM=await GCCDialog.confirm('Export Journal','Include DM-only sessions?',{okText:'Include DM-only',cancelText:'Players-only'}).catch(()=>false);
   const sesLbl=GCC.sessionLabel(camp.system),xpLbl=GCC.xpLabel(camp.system);
-  let realNum=0;
 
   // Resolve all images from IndexedDB
   const imgMap={};
@@ -1799,14 +1800,13 @@ async function exportJournal(){
   }
   function rImg(key){return imgMap[key]||key||''}
 
-  // Build entries in reverse (oldest first)
+  // Export in canonical oldest-first order, independent of the current screen sort.
   let entriesHtml='';
-  for(let i=sessions.length-1;i>=0;i--){
-    const s=sessions[i];
+  const exportSessions=sessions.slice().sort((a,b)=>{const ad=a.date||'',bd=b.date||'';if(ad&&bd&&ad!==bd)return ad.localeCompare(bd);return(parseInt(a.number)||Number.MAX_SAFE_INTEGER)-(parseInt(b.number)||Number.MAX_SAFE_INTEGER)});
+  for(const s of exportSessions){
     const isTimeline=s.type==='timeline',isDmOnly=s.visible===false;
-    if(!isTimeline)realNum++;
     if(isDmOnly&&!includeDM)continue;
-    const heading=isTimeline?('Timeline'+(s.title?' — '+s.title:'')):(sesLbl+' #'+realNum+(s.title?' — '+s.title:''));
+    const heading=isTimeline?('Timeline'+(s.title?' — '+s.title:'')):(sesLbl+' #'+(parseInt(s.number)||realSessionNum(sessions,sessions.indexOf(s)))+(s.title?' — '+s.title:''));
     const gameDateStr=s.gameDate?s.gameDate:'';
     const playedStr=s.date?formatDate(s.date):'';
     const coverSrc=rImg(s.image);
@@ -1944,36 +1944,23 @@ function buildSessionModalBody(camp,isTimeline){
     charCheckHtml+='</div></div>';
   }
   const tagPills=sesTags.map((t,i)=>{const color=LORE_COLORS[t.type]||'var(--tx3)';return`<span class="gcc-dlg-tag"><span class="tag-dot" style="background:${color};width:5px;height:5px;border-radius:50%;display:inline-block"></span> ${ESC(t.name)}<span class="tag-x" data-tag-remove="${i}">✕</span></span>`}).join('');
-  // Position picker for new sessions
-  let positionHtml='';
-  if(sesEditIdx<0){
-    const camp2=getCamp();const existingSessions=(camp2?.sessions||[]);
-    const sesLbl2=GCC.sessionLabel(camp2?.system);
-    let posOpts=`<option value="0">Beginning (newest)</option>`;
-    for(let i=0;i<existingSessions.length;i++){
-      const es=existingSessions[i];
-      const label=es.type==='timeline'?('Timeline'+(es.title?' — '+es.title:'')):(sesLbl2+' #'+realSessionNum(existingSessions,i)+(es.title?' — '+es.title:''));
-      posOpts+=`<option value="${i+1}">After ${ESC(label)}</option>`;
-    }
-    positionHtml=`<label class="gcc-dlg-label">POSITION</label><select class="gcc-dlg-input" id="sm-position">${posOpts}</select>`;
-  }
-  const dateBlock=`<div class="sm-block"><label class="gcc-dlg-label">SESSION DATE (real-world)</label><input class="gcc-dlg-input" id="sm-date" type="date"></div><div class="sm-block"><label class="gcc-dlg-label">IN-GAME DATE (text)</label><div style="display:flex;gap:4px"><input class="gcc-dlg-input" id="sm-gamedate" placeholder="e.g. Nov 13, 1976" style="flex:1;min-width:0">${camp&&camp.gameCalendar?'<button class="gcc-dlg-img-btn" id="sm-derive-gamedate" title="Derive the in-game date from the session date using this campaign\'s calendar">\u27F5 Derive</button>':''}</div></div>`;
+  const numberBlock=isTimeline?'':`<div class="sm-block"><label class="gcc-dlg-label">${ESC(GCC.sessionLabel(camp.system).toUpperCase())} NUMBER</label><input class="gcc-dlg-input" id="sm-number" type="number" min="1" step="1" value="${sesEditIdx>=0?(parseInt(camp.sessions?.[sesEditIdx]?.number)||''):nextSessionNumber(camp.sessions||[])}"></div>`;
+  const dateBlock=`${numberBlock}<div class="sm-block"><label class="gcc-dlg-label">SESSION DATE (real-world)</label><input class="gcc-dlg-input" id="sm-date" type="date"></div><div class="sm-block"><label class="gcc-dlg-label">IN-GAME DATE (text)</label><div style="display:flex;gap:4px"><input class="gcc-dlg-input" id="sm-gamedate" placeholder="e.g. Nov 13, 1976" style="flex:1;min-width:0">${camp&&camp.gameCalendar?'<button class="gcc-dlg-img-btn" id="sm-derive-gamedate" title="Derive the in-game date from the session date using this campaign\'s calendar">\u27F5 Derive</button>':''}</div></div>`;
   const coverBlock=`<div class="sm-block"><label class="gcc-dlg-label">ARTWORK / IMAGE</label><div class="gcc-dlg-img-area" id="sm-img-area">${imgPreview}<div class="gcc-dlg-img-btns"><button class="gcc-dlg-img-btn" id="sm-img-upload">Upload</button><button class="gcc-dlg-img-btn" id="sm-img-paste">Paste</button>${sesImageData?'<button class="gcc-dlg-img-btn danger" id="sm-img-clear">Remove</button>':''}</div><input type="file" id="sm-img-file" accept="image/*" style="display:none"></div></div>`;
   const tagBlock=`<div class="sm-block"><label class="gcc-dlg-label">ENTITY TAGS</label><div class="gcc-dlg-tags" id="sm-tags-area">${tagPills}<input class="gcc-dlg-tag-input" id="sm-tag-input" placeholder="Type name, Enter to add..."></div></div>`;
   const xpBlock=`<div class="sm-block"><label class="gcc-dlg-label">${ESC(xpLbl.toUpperCase())} AWARDED</label><input class="gcc-dlg-input" id="sm-xp" type="number" placeholder="0"></div><div class="sm-block"><label class="gcc-dlg-check"><input type="checkbox" id="sm-visible" checked> Visible to players</label></div>`;
-  const posBlock=positionHtml?`<div class="sm-block">${positionHtml}</div>`:'';
 
   const mainCol=`<label class="gcc-dlg-label">TITLE</label><input class="gcc-dlg-input" id="sm-title" placeholder="e.g. ESU Break-In"><label class="gcc-dlg-label">SUMMARY</label><textarea class="gcc-dlg-ta" id="sm-text" rows="4" placeholder="${isTimeline?'Brief timeline note...':'What happened this session...'}" style="min-height:${isTimeline?'60':'110'}px"></textarea>${sectionsHtml}`;
-  const railCol=`${posBlock}${dateBlock}${coverBlock}${charCheckHtml}${tagBlock}${xpBlock}`;
+  const railCol=`${dateBlock}${coverBlock}${charCheckHtml}${tagBlock}${xpBlock}`;
   return`<div class="sm-grid"><div class="sm-main">${mainCol}</div><div class="sm-rail">${railCol}</div></div>`;
 }
 
-function captureSessionFields(){return{date:document.getElementById('sm-date')?.value||'',gameDate:document.getElementById('sm-gamedate')?.value||'',title:document.getElementById('sm-title')?.value||'',text:document.getElementById('sm-text')?.value||'',xp:document.getElementById('sm-xp')?.value||'',visible:document.getElementById('sm-visible')?.checked!==false,position:document.getElementById('sm-position')?.value||'',tagDraft:document.getElementById('sm-tag-input')?.value||''}}
+function captureSessionFields(){return{number:document.getElementById('sm-number')?.value||'',date:document.getElementById('sm-date')?.value||'',gameDate:document.getElementById('sm-gamedate')?.value||'',title:document.getElementById('sm-title')?.value||'',text:document.getElementById('sm-text')?.value||'',xp:document.getElementById('sm-xp')?.value||'',visible:document.getElementById('sm-visible')?.checked!==false,tagDraft:document.getElementById('sm-tag-input')?.value||''}}
 function restoreSessionFields(vals){if(!vals)return;const f=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v||''};
   // Only set when present: openSessionModal calls this without position/tagDraft,
   // and blanking a <select> would leave it showing no option at all.
   const g=(id,v)=>{if(v==null||v==='')return;const el=document.getElementById(id);if(el)el.value=v};
-  f('sm-date',vals.date);f('sm-gamedate',vals.gameDate);f('sm-title',vals.title);f('sm-text',vals.text);f('sm-xp',vals.xp);g('sm-position',vals.position);g('sm-tag-input',vals.tagDraft);const vis=document.getElementById('sm-visible');if(vis)vis.checked=vals.visible!==false}
+  f('sm-number',vals.number);f('sm-date',vals.date);f('sm-gamedate',vals.gameDate);f('sm-title',vals.title);f('sm-text',vals.text);f('sm-xp',vals.xp);g('sm-tag-input',vals.tagDraft);const vis=document.getElementById('sm-visible');if(vis)vis.checked=vals.visible!==false}
 let sesCaptureStale=false; // set after a structural edit so the next capture doesn't read a stale DOM back over shifted indices
 function captureSessionSections(){if(sesCaptureStale){sesCaptureStale=false;return}document.querySelectorAll('[data-sec-title]').forEach(el=>{const i=parseInt(el.dataset.secTitle);if(sesSections[i])sesSections[i].title=el.value});document.querySelectorAll('[data-sec-text]').forEach(el=>{const i=parseInt(el.dataset.secText);if(sesSections[i])sesSections[i].text=el.value});document.querySelectorAll('[data-sec-img-cap]').forEach(el=>{const[si,ii]=el.dataset.secImgCap.split('-').map(Number);if(sesSections[si]&&sesSections[si].images&&sesSections[si].images[ii])sesSections[si].images[ii].caption=el.value})}
 
@@ -2121,7 +2108,7 @@ async function openSessionModal(editIdx,typeOverride){
   const sesLbl=GCC.sessionLabel(camp.system);
   document.getElementById('session-modal-title').textContent=isEdit?(isTimeline?'Edit timeline entry':'Edit '+sesLbl):(isTimeline?'New timeline entry':'New '+sesLbl);
   document.getElementById('session-modal-body').innerHTML=buildSessionModalBody(camp,isTimeline);
-  if(isEdit){const s=camp.sessions[sesEditIdx];restoreSessionFields({date:s.date,gameDate:s.gameDate,title:s.title,text:s.text,xp:s.xp,visible:s.visible})}
+  if(isEdit){const s=camp.sessions[sesEditIdx];restoreSessionFields({number:s.number,date:s.date,gameDate:s.gameDate,title:s.title,text:s.text,xp:s.xp,visible:s.visible})}
   else{document.getElementById('sm-date').value=new Date().toISOString().split('T')[0]}
   // Store type for save
   sesModal.dataset.entryType=isTimeline?'timeline':'session';
@@ -2200,6 +2187,12 @@ function compressImageData(dataUrl,maxKB,cb){
 
 document.getElementById('sm-save').addEventListener('click',async()=>{
   const camp=getCamp();if(!camp)return;const sessions=camp.sessions||[];captureSessionSections();
+  if(sesModal.dataset.entryType!=='timeline'){
+    const requested=parseInt(document.getElementById('sm-number')?.value);
+    if(!(requested>0)){await GCCDialog.alert('Invalid number','Enter an episode number of 1 or greater.');return}
+    const duplicate=sessions.some((s,i)=>i!==sesEditIdx&&s.type!=='timeline'&&parseInt(s.number)===requested);
+    if(duplicate){await GCCDialog.alert('Number already used','Another episode already uses #'+requested+'. Choose a different number.');return}
+  }
   const rawImage=sesImageData||'';
 
   // Store cover image in IndexedDB — never let an image-store failure abort the save
@@ -2275,13 +2268,12 @@ document.getElementById('sm-save').addEventListener('click',async()=>{
     title:document.getElementById('sm-title').value.trim()||'',text:document.getElementById('sm-text').value.trim()||'',
     sections:sesSections.filter(s=>s.title||s.text||(s.images&&s.images.length)),image:imageKey,imageAspect:sesImageAspect,imageFocus:sesImageFocus||null,tags:sesTags,
     roster:sesRoster.length?sesRoster:[],
+    number:sesModal.dataset.entryType==='timeline'?undefined:(parseInt(document.getElementById('sm-number')?.value)||nextSessionNumber(sessions)),
     xp:parseInt(document.getElementById('sm-xp').value)||0,visible:document.getElementById('sm-visible').checked,
     type:sesModal.dataset.entryType||'session',_updated:new Date().toISOString()};
   if(sesEditIdx>=0&&sessions[sesEditIdx]){entry.type=sessions[sesEditIdx].type}
   if(sesEditIdx>=0&&sesEditIdx<sessions.length){sessions[sesEditIdx]=entry}else{
-    const posEl=document.getElementById('sm-position');
-    const insertAt=posEl?parseInt(posEl.value):0;
-    sessions.splice(insertAt,0,entry);
+    sessions.push(entry);
   }
   console.log('[GCC] Saving session, entries:',sessions.length);
   GCC.updateCampaign(campId,{sessions,session:countRealSessions(sessions)});closeSessionModal();render();
@@ -2460,8 +2452,8 @@ function parseHtmlJournal(html){
   entries.forEach(entry=>{
     const heading=entry.querySelector('.j-heading')?.textContent?.trim()||'';
     // Parse heading: "Session #N — Title" or "Timeline — Title"
-    let title='';const hm=heading.match(/(?:Session|Issue|Episode)\s*#?\d+\s*(?:—|–|-)\s*(.+)/i);
-    if(hm)title=hm[1].trim();
+    let title='';const hm=heading.match(/(?:Session|Issue|Episode)\s*#?(\d+)\s*(?:—|–|-)\s*(.+)/i);
+    if(hm)title=hm[2].trim();
     else{const tm=heading.match(/Timeline\s*(?:—|–|-)\s*(.+)/i);title=tm?tm[1].trim():heading}
     const isTimeline=/^Timeline/i.test(heading);
     // Dates
@@ -2520,7 +2512,7 @@ function parseHtmlJournal(html){
     // XP
     let xp=0;const xpEl=entry.querySelector('.j-xp');
     if(xpEl){const xpM=xpEl.textContent.match(/\+?([\d,]+)/);if(xpM)xp=parseInt(xpM[1].replace(/,/g,''))||0}
-    results.push({title,date,gameDate,text:summary,image:coverSrc,imageAspect,imageFocus,sections,tags,xp,visible:!isDmOnly,type:isTimeline?'timeline':'session'});
+    results.push({number:hm?parseInt(hm[1]):undefined,title,date,gameDate,text:summary,image:coverSrc,imageAspect,imageFocus,sections,tags,xp,visible:!isDmOnly,type:isTimeline?'timeline':'session'});
   });
   return results;
 }
@@ -2531,9 +2523,8 @@ async function importHtmlSessions(parsed){
   const existingTitles=new Set(sessions.map(s=>normDedupeText(s.title)));
   const skipDupes=document.getElementById('sim-skip-dupes').checked;
   let added=0,skipped=0;
-  // Journal is oldest-first; sessions array is newest-first, so reverse
-  const reversed=[...parsed].reverse();
-  for(const ep of reversed){
+  // Preserve source order; display order is a separate per-campaign preference.
+  for(const ep of parsed){
     if(skipDupes&&existingTitles.has(normDedupeText(ep.title))){skipped++;continue}
     // Store cover image in IDB if it's a data URL
     let imageKey='';
@@ -2553,7 +2544,7 @@ async function importHtmlSessions(parsed){
       }
     }
     const now=new Date().toISOString();
-    const entry={date:ep.date,gameDate:ep.gameDate,title:ep.title,text:ep.text,
+    const entry={number:ep.type==='timeline'?undefined:ep.number,date:ep.date,gameDate:ep.gameDate,title:ep.title,text:ep.text,
       sections:ep.sections,image:imageKey,imageAspect:ep.imageAspect||null,imageFocus:ep.imageFocus||null,tags:ep.tags,roster:[],xp:ep.xp,visible:ep.visible,type:ep.type,_created:now,_updated:now};
     entry._id=GCC.sessionStableId(entry);
     sessions.push(entry);
@@ -2691,14 +2682,13 @@ document.getElementById('sim-import').addEventListener('click',async()=>{
   const skipDupes=document.getElementById('sim-skip-dupes').checked;
   const daysAsSections=document.getElementById('sim-days-as-sections').checked;
   let added=0,skipped=0;
-  // Reverse: sessions array is newest-first, so highest episode number goes first
-  const sorted=[...episodes].reverse();
-  sorted.forEach(ep=>{
+  episodes.forEach(ep=>{
     if(skipDupes&&existingTitles.has(normDedupeText(ep.title))){skipped++;return}
     const entry={
       date:ep.date,
       gameDate:ep.gameDate,
       title:ep.title,
+      number:ep.num,
       text:ep.summary,
       sections:daysAsSections?ep.sections.map(s=>({title:s.title,text:s.text,images:[]})):[],
       image:'',
