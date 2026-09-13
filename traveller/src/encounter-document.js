@@ -540,7 +540,14 @@ function attackText(result) {
   const signed = (value) => `${value >= 0 ? '+' : ''}${value}`;
   const dms = `SKILL ${signed(result.skillDM)} / CHAR ${signed(result.characteristicDM)} / UNTRAINED ${signed(result.untrainedDM)} / DEF ${signed(defence)} / SITUATION ${signed(result.situationalDM)}`;
   const placement = result.firstBloodRoll ? ` / WOUND LOCATION [${result.firstBloodRoll}]` : '';
-  const wound = result.success ? ` / HIT ${result.damageDice.map((die) => `[${die}]`).join(' ')} = ${result.damageTotal}${placement} / ${result.defenderStatus.toUpperCase()}` : ' / NO EFFECT';
+  const modifier = result.damageModifier ? (result.damageModifier > 0 ? ` +${result.damageModifier}` : ` ${result.damageModifier}`) : '';
+  const dice = result.damageDice.map((die) => `[${die}]`).join(' ');
+  const total = result.woundTotal ?? result.damageTotal;
+  // Book 1 p.30: a hit whose wound totals zero or less connects but inflicts
+  // nothing, which is not the same as a miss.
+  const wound = !result.success ? ' / NO EFFECT'
+    : result.noEffect ? ` / HIT ${dice}${modifier} = ${total} / NO WOUND`
+    : ` / HIT ${dice}${modifier} = ${total}${placement} / ${result.defenderStatus.toUpperCase()}`;
   return `${result.weaponName} / ${roll} / ${dms} / TOTAL ${result.total} vs ${result.target}+${wound}`;
 }
 
@@ -1150,12 +1157,18 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
   // --- Step 2C: wounds land after the last attack, in declaration order.
   for (const wound of pendingWounds) {
     const defender = live.get(wound.defenderId);
-    const firstBloodRoll = defender.firstBlood ? dice.rollD6() : null;
-    const damage = applyPersonalDamage(defender, wound.damageDice, firstBloodRoll);
+    // Book 1 p.30: the weapon's constant is part of the wound, and a result of
+    // zero or less has no effect - so it is not a wound received, and must not
+    // consume the first-blood roll.
+    const modifier = wound.result.damageModifier ?? 0;
+    const inflicts = wound.damageDice.reduce((sum, die) => sum + die, 0) + modifier > 0;
+    const firstBloodRoll = inflicts && defender.firstBlood ? dice.rollD6() : null;
+    const damage = applyPersonalDamage(defender, wound.damageDice, firstBloodRoll, { modifier });
     live.set(wound.defenderId, { ...damage.combatant, position: defender.position });
     wound.result.firstBloodRoll = firstBloodRoll;
     wound.result.allocations = damage.allocations;
     wound.result.defenderStatus = damage.status;
+    wound.result.noEffect = Boolean(damage.noEffect);
   }
   for (const entry of entries) {
     if (entry.kind !== 'attack' || !entry.detail) continue;

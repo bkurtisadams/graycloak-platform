@@ -252,33 +252,151 @@ function damageStatus(current) {
   return 'active';
 }
 
-export function applyPersonalDamage(combatant, damageDice, firstBloodRoll = null) {
-  if (!Array.isArray(damageDice) || !damageDice.length || damageDice.some((die) => !Number.isInteger(die) || die < 1 || die > 6)) throw new TypeError('damageDice must contain one or more d6 results');
+// ---------------------------------------------------------------------------
+// Book 1 pp.30-31 wounding, with the weapon's damage modifier distributable
+// across wound groups. Drop-in replacement for applyPersonalDamage plus one
+// new exported helper; see the notes file for what changes in the callers.
+//
+// The rule, as printed:
+//
+//   "Each die rolled ... is taken as a single wound or group of hits, and must
+//    be applied to a single characteristic; further modifications may be
+//    distributed against, or added to, such wound groups as desired (players do
+//    this themselves; the referee does it for non-player characters)."
+//
+// So a 3D-8 result of 4/5/2 is not the number 3. It is three wound groups and
+// a -8 the wounded player splits across them however they like: all onto the 5
+// to erase that group, or -4/-4/0, or any other division. This module computes
+// the groups; the choice of division belongs to the caller.
+//
+//   "A wound result of zero (or less) has no effect on a character."
+//
+// That is evaluated on the TOTAL, before any distribution: a body pistol
+// (3D-8) rolling 1/1/1 inflicts nothing at all.
+// ---------------------------------------------------------------------------
+
+// Distribute `modifier` across `dice` and return the resulting wound groups.
+//
+// allocation, when supplied, is an array parallel to dice giving the share of
+// the modifier applied to each group; its entries must sum to modifier. When
+// omitted, the modifier is spread as evenly as possible, earlier groups taking
+// the remainder — a referee default, not a rule. Players should be offered the
+// choice; NPCs can take the default.
+//
+// A group floors at zero: a -8 dumped onto a die of 5 erases that group rather
+// than healing the character.
+export function personalWoundGroups(damageDice, modifier = 0, allocation = null) {
+  if (!Array.isArray(damageDice) || !damageDice.length
+    || damageDice.some((die) => !Number.isInteger(die) || die < 1 || die > 6)) {
+    throw new TypeError('damageDice must contain one or more d6 results');
+  }
+  if (!Number.isInteger(modifier)) throw new TypeError('modifier must be an integer');
+
+  const rolled = damageDice.reduce((sum, die) => sum + die, 0);
+  const total = rolled + modifier;
+
+  // Book 1 p.30: zero or less has no effect. No groups, no wound, no first blood.
+  if (total <= 0) {
+    return Object.freeze({ dice: [...damageDice], rolled, modifier, total, groups: [], noEffect: true });
+  }
+
+  let shares;
+  if (allocation === null) {
+    shares = defaultAllocation(damageDice, modifier);
+  } else {
+    if (!Array.isArray(allocation) || allocation.length !== damageDice.length
+      || allocation.some((share) => !Number.isInteger(share))) {
+      throw new TypeError('allocation must be one integer share per damage die');
+    }
+    const allocated = allocation.reduce((sum, share) => sum + share, 0);
+    if (allocated !== modifier) {
+      throw new RangeError(`allocation must distribute the whole modifier (${modifier}), not ${allocated}`);
+    }
+    shares = [...allocation];
+  }
+
+  const groups = damageDice.map((die, index) => Math.max(0, die + shares[index]));
+  return Object.freeze({
+    dice: [...damageDice],
+    rolled,
+    modifier,
+    total,
+    shares: Object.freeze(shares),
+    groups: Object.freeze(groups),
+    groupTotal: groups.reduce((sum, group) => sum + group, 0),
+    noEffect: false
+  });
+}
+
+// Even spread, remainder to the earliest groups. Deliberately simple: this is
+// the referee's convenience, and any real choice should come in as `allocation`.
+function defaultAllocation(damageDice, modifier) {
+  const count = damageDice.length;
+  const base = Math.trunc(modifier / count);
+  let remainder = modifier - base * count;
+  return damageDice.map(() => {
+    const step = remainder === 0 ? 0 : (remainder > 0 ? 1 : -1);
+    remainder -= step;
+    return base + step;
+  });
+}
+
+// combatant, the rolled dice, the first-blood d6, and the weapon's modifier
+// with an optional player-chosen distribution.
+//
+// `targets`, when supplied, names the characteristic each wound group is
+// applied to — Book 1 p.30 leaves that to the wounded player as well. Omitted,
+// groups rotate STR/DEX/END as before. A group whose characteristic is already
+// at zero spills to the first non-zero one, per p.31.
+export function applyPersonalDamage(combatant, damageDice, firstBloodRoll = null, { modifier = 0, allocation = null, targets = null } = {}) {
+  const wound = personalWoundGroups(damageDice, modifier, allocation);
   const next = clone(combatant);
   const allocations = [];
+
+  // A wound of zero is not a wound received: first blood is not spent on it and
+  // it is not counted as a hit taken. (Judgement call - p.30 says such a result
+  // "has no effect on a character", and first blood is "the first wound
+  // received". Flag it if you read it otherwise.)
+  if (wound.noEffect) {
+    return { combatant: next, wound, allocations, status: next.status, noEffect: true };
+  }
+
   if (next.firstBlood) {
-    if (!Number.isInteger(firstBloodRoll) || firstBloodRoll < 1 || firstBloodRoll > 6) throw new TypeError('firstBloodRoll must be a d6 result for the first wound');
+    if (!Number.isInteger(firstBloodRoll) || firstBloodRoll < 1 || firstBloodRoll > 6) {
+      throw new TypeError('firstBloodRoll must be a d6 result for the first wound');
+    }
+    // Book 1 p.30: the first wound is applied ENTIRELY to one randomly
+    // determined characteristic, so the modifier is not distributed - the whole
+    // total lands in one place, and may incapacitate or kill outright.
     const key = PHYSICAL_KEYS[(firstBloodRoll - 1) % PHYSICAL_KEYS.length];
-    const amount = damageDice.reduce((sum, die) => sum + die, 0);
-    next.current[key] = Math.max(0, next.current[key] - amount);
-    allocations.push({ characteristic: key, amount });
+    next.current[key] = Math.max(0, next.current[key] - wound.total);
+    allocations.push({ characteristic: key, amount: wound.total, firstBlood: true });
     next.firstBlood = false;
   } else {
-    // Book 1 p.33: each die is a single wound applied to one characteristic;
-    // once a characteristic is at zero, further points go to non-zero ones.
-    damageDice.forEach((die, index) => {
-      const preferred = PHYSICAL_KEYS[index % PHYSICAL_KEYS.length];
+    if (targets !== null) {
+      if (!Array.isArray(targets) || targets.length !== wound.groups.length
+        || targets.some((key) => !PHYSICAL_KEYS.includes(key))) {
+        throw new TypeError('targets must name one physical characteristic per wound group');
+      }
+    }
+    wound.groups.forEach((amount, index) => {
+      if (amount <= 0) return;
+      const preferred = targets ? targets[index] : PHYSICAL_KEYS[index % PHYSICAL_KEYS.length];
+      // Book 1 p.31: once a characteristic is at zero, further points may not be
+      // applied to it and must go to a non-zero one.
       const key = next.current[preferred] > 0
         ? preferred
         : (PHYSICAL_KEYS.find((candidate) => next.current[candidate] > 0) ?? preferred);
-      next.current[key] = Math.max(0, next.current[key] - die);
-      allocations.push({ characteristic: key, amount: die });
+      next.current[key] = Math.max(0, next.current[key] - amount);
+      allocations.push({ characteristic: key, amount });
     });
   }
+
   next.hitsTaken += 1;
   next.status = damageStatus(next.current);
-  return { combatant: next, allocations, status: next.status };
+  return { combatant: next, wound, allocations, status: next.status, noEffect: false };
 }
+
 
 // Book 1 p.31 terrain DMs, applied to the 2D encounter range throw.
 export const TERRAIN_DMS = Object.freeze({
@@ -411,6 +529,14 @@ export function previewPersonalAttack({ attacker, defender, range, situationalDM
     blowClass: blow.blowClass, fatigueDM: blow.fatigueDM, blowsRemaining: blowsRemaining(attacker),
     skillDM, characteristicDM, untrainedDM, parryDM, evasionDM, defenderUntrainedDM, situationalDM, defenderDM, totalDM,
     damageDice: spec.damageDice,
+    damageModifier: spec.damageModifier ?? 0,
+    // Book 1 p.30: the wound is the dice total plus the weapon's constant, and
+    // a result of zero or less has no effect. Show the span so a player can see
+    // that e.g. a body pistol (3D-8) may inflict nothing at all.
+    woundRange: Object.freeze({
+      min: Math.max(0, spec.damageDice + (spec.damageModifier ?? 0)),
+      max: Math.max(0, spec.damageDice * 6 + (spec.damageModifier ?? 0))
+    }),
     canAttack: target !== null,
     // What the 2D throw itself must show once DMs are counted.
     requiredRoll: target === null ? null : target - totalDM
@@ -454,7 +580,7 @@ export function rollPersonalAttack({ attacker, defender, range, situationalDM = 
   if (spec.melee) nextAttacker.blows += 1;
   if (blow.spendsAllowance) nextAttacker.blowsUsed = Number(nextAttacker.blowsUsed ?? 0) + 1;
   nextAttacker.evading = false;
-  return { attacker: nextAttacker, attackerId: attacker.id, blowClass: blow.blowClass, fatigueDM: blow.fatigueDM, blowsRemaining: blowsRemaining(nextAttacker), defenderId: defender.id, weaponKey: attacker.weaponKey, weaponName: spec.name, range, armor: defender.armor, target, dice: diceRoll, roll, skillDM, characteristicDM, untrainedDM, parryDM, evasionDM, defenderUntrainedDM, situationalDM, defenderDM, totalDM, total, success, damageDice, damageTotal: damageDice.reduce((sum, die) => sum + die, 0) };
+  return { attacker: nextAttacker, attackerId: attacker.id, blowClass: blow.blowClass, fatigueDM: blow.fatigueDM, blowsRemaining: blowsRemaining(nextAttacker), defenderId: defender.id, weaponKey: attacker.weaponKey, weaponName: spec.name, range, armor: defender.armor, target, dice: diceRoll, roll, skillDM, characteristicDM, untrainedDM, parryDM, evasionDM, defenderUntrainedDM, situationalDM, defenderDM, totalDM, total, success, damageDice, damageTotal: damageDice.reduce((sum, die) => sum + die, 0), damageModifier: spec.damageModifier ?? 0, woundTotal: damageDice.reduce((sum, die) => sum + die, 0) + (spec.damageModifier ?? 0) };
 }
 
 // Roll and apply in one step. Kept for single exchanges outside a round
@@ -462,11 +588,15 @@ export function rollPersonalAttack({ attacker, defender, range, situationalDM = 
 // so that wounds land at the end of the round per Book 1 p.30 step 2C.
 export function resolvePersonalAttack({ attacker, defender, range, situationalDM = 0, defenderDM = 0, surprise = false, weakened = false, special = false, dice } = {}) {
   const result = rollPersonalAttack({ attacker, defender, range, situationalDM, defenderDM, surprise, weakened, special, dice });
-  const firstBloodRoll = result.success && defender.firstBlood ? dice.rollD6() : null;
+  // Book 1 p.30: a wound of zero or less has no effect, so it is not a wound
+  // received and must not consume the first-blood roll (or a die from a seeded
+  // sequence). Check the total before rolling.
+  const wounds = result.success && result.woundTotal > 0;
+  const firstBloodRoll = wounds && defender.firstBlood ? dice.rollD6() : null;
   const damage = result.success
-    ? applyPersonalDamage(defender, result.damageDice, firstBloodRoll)
-    : { combatant: clone(defender), allocations: [], status: defender.status };
-  return { ...result, defender: damage.combatant, firstBloodRoll, allocations: damage.allocations, defenderStatus: damage.status };
+    ? applyPersonalDamage(defender, result.damageDice, firstBloodRoll, { modifier: result.damageModifier })
+    : { combatant: clone(defender), allocations: [], status: defender.status, wound: null, noEffect: false };
+  return { ...result, defender: damage.combatant, firstBloodRoll, wound: damage.wound ?? null, allocations: damage.allocations, defenderStatus: damage.status, noEffect: Boolean(damage.noEffect) };
 }
 
 // Book 1 p.36 morale DMs. The first three describe facts the caller must know;
