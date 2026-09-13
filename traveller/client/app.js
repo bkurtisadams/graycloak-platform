@@ -1883,7 +1883,18 @@ const characterWindow = createWindowController({
 // menu or a column before. A fight opens COMBAT unless the referee has chosen
 // a tab since; a situation opens PORT the same way.
 const SIDEBAR_TABS = ['chat', 'combat', 'scenes', 'actors', 'vehicles', 'port', 'journal', 'tables', 'players', 'settings'];
+// v0.111.0: the chosen sidebar tab survives a reload. It was reset to CHAT on
+// every load, so a referee working in ACTORS or COMBAT had to reselect it
+// each time the page came back.
+const SIDEBAR_TAB_STORAGE_KEY = 'graycloak.traveller.sidebar-tab.v1';
 let sidebarTab = 'chat';
+// Restored here rather than beside the other stored preferences: both the tab
+// list and the key have to exist first, and const declarations are not hoisted
+// into a usable state.
+try {
+  const storedTab = window.localStorage.getItem(SIDEBAR_TAB_STORAGE_KEY);
+  if (storedTab && SIDEBAR_TABS.includes(storedTab)) sidebarTab = storedTab;
+} catch { /* private mode */ }
 let sidebarChosen = false;
 let sidebarCollapsed = true; // v0.80.1: collapsed on load, as Foundry's cabinet is, to draw the eye to the canvas
 // v0.98.0: the dock is open on load. A dock you collapse is a dock you find
@@ -1903,7 +1914,10 @@ function setSidebarTab(tab, { chosen = true } = {}) {
   if (!SIDEBAR_TABS.includes(tab)) return;
   const changed = tab !== sidebarTab;
   sidebarTab = tab;
-  if (chosen) sidebarChosen = true;
+  if (chosen) {
+    sidebarChosen = true;
+    try { window.localStorage.setItem(SIDEBAR_TAB_STORAGE_KEY, tab); } catch { /* private mode */ }
+  }
   sidebarCollapsed = false;
   // v0.76.1: WHAT NOW? and the character strip used to stay open across every
   // tab, so on an ordinary screen they filled the sidebar and the tab just
@@ -8289,7 +8303,14 @@ function renderShipStrip() {
   const show = Boolean(shipDocument) && campaignPlayActive();
   el.shipStrip.hidden = !show;
   if (!show) return;
-  el.shipStripName.textContent = `${(shipDocument.identity.name || 'SHIP').toUpperCase()} / ${(shipDocument.identity.registration || '').toUpperCase()} · ${(shipDocument.specifications.design?.name ?? '').toUpperCase()}`;
+  // v0.111.0: identity carries `registry`, not `registration`, and the design
+  // name is on the document rather than inside specifications — both read as
+  // undefined, so the strip said "MARISOL / \u00b7" with no registry and no type.
+  el.shipStripName.textContent = [
+    (shipDocument.identity.name || 'SHIP').toUpperCase(),
+    (shipDocument.identity.registry || '').toUpperCase(),
+    (shipDocument.design?.name ?? '').toUpperCase()
+  ].filter(Boolean).join(' / ');
   el.shipStripAccount.textContent = `ACCOUNT ${formatCr(shipDocument.state.finances.balanceCr)}`;
 
   const capacity = shipDocument.specifications.cargo.capacityTons;
@@ -8310,16 +8331,24 @@ function renderShipStrip() {
   // character actually owns is financed (Book 2 p.5).
   const financed = shipDocument.authority?.characterOwnsShip ? shipMortgage(shipDocument).monthlyPaymentCr : 0;
 
+  const jump = shipDocument.specifications.drives?.jump?.rating;
+  const maintenanceMonthlyCr = Math.round(annualMaintenanceCr(shipDocument) / 12);
+  const fuelNeeded = currentJumpFuelRequirement();
   const cells = [
-    ['FUEL', `${shipDocument.state.currentFuelTons}t / ${shipDocument.specifications.fuel.capacityTons}t`],
-    ['CARGO', capacity === 0 ? 'NO HOLD' : `${used}t / ${capacity}t${used >= capacity ? ' · FULL' : ''}`,
-      manifest.length ? manifest.map((entry) => `${entry.tons}t ${entry.description}`).join(' · ') : 'EMPTY'],
-    ['PASSENGERS', passengers.length ? `${passengers.length} aboard` : 'NONE',
-      `${berths} berth${berths === 1 ? '' : 's'} free`],
-    ['CREW', crew.length ? `${crew.length} assigned` : 'NOBODY ASSIGNED',
-      crew.map((entry) => `${entry.characterName || entry.characterId} ${entry.role}`).join(' · ')],
-    ['UPKEEP', `${formatCr(upkeep + financed)} / month`,
-      `${formatCr(payroll.totalCr)} crew · ${formatCr(Math.round(annualMaintenanceCr(shipDocument) / 12))} maint${financed ? ` · ${formatCr(financed)} mortgage` : ''}`]
+    ['FUEL', `${shipDocument.state.currentFuelTons}t of ${shipDocument.specifications.fuel.capacityTons}t`,
+      `${(shipDocument.state.fuelQuality ?? 'unknown').toUpperCase()}${fuelNeeded ? ` \u00b7 ${fuelNeeded}t needed for this jump` : ''}`],
+    ['CARGO', capacity === 0 ? 'No hold' : `${used}t of ${capacity}t${used >= capacity ? ' \u00b7 full' : ` \u00b7 ${capacity - used}t free`}`,
+      manifest.length ? manifest.map((entry) => `${entry.tons}t ${entry.description}`).join(' \u00b7 ') : 'Empty'],
+    ['PASSENGERS', passengers.length ? `${passengers.length} aboard` : 'None aboard',
+      `${berths} berth${berths === 1 ? '' : 's'} free of ${shipDocument.specifications.accommodations.staterooms} staterooms`],
+    ['CREW', crew.length ? `${crew.length} assigned` : 'Nobody assigned',
+      crew.map((entry) => `${entry.characterName || entry.characterId} ${entry.role}`).join(' \u00b7 ')],
+    ['UPKEEP', `${formatCr(upkeep + financed)} per month`,
+      [`${formatCr(payroll.totalCr)} crew salaries`,
+        `${formatCr(maintenanceMonthlyCr)} maintenance`,
+        financed ? `${formatCr(financed)} mortgage` : null].filter(Boolean).join(' \u00b7 ')],
+    ['DRIVE', Number.isInteger(jump) ? `Jump-${jump}` : 'Unrated',
+      `${shipDocument.specifications.hull.tons}t hull${shipDocument.specifications.hull.streamlined ? ' \u00b7 streamlined' : ''}`]
   ];
   el.shipStripCells.replaceChildren(...cells.map(([label, value, detail]) => {
     const cell = document.createElement('div');
@@ -8342,6 +8371,18 @@ function renderShipStrip() {
 
 // Book 2 p.6: an owner-aboard draws his pay from the profits rather than the
 // payroll, so a player character who owns the ship is not on salary.
+// What this jump would burn, so the fuel cell answers the question the player
+// is actually asking when they look at it.
+function currentJumpFuelRequirement() {
+  try {
+    const current = mappedCurrentSystem();
+    const selected = selectedSystemId ? getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, selectedSystemId) : null;
+    if (!current || !selected || !shipDocument || selected.id === current.id) return null;
+    const distance = jumpDistanceBetweenSystems(FAR_MERIDIAN_SUBSECTOR, current.id, selected.id);
+    return canShipMakeJump(shipDocument, distance)?.requirement?.totalTons ?? null;
+  } catch { return null; }
+}
+
 function ownerAboardIds() {
   const owner = shipDocument?.authority?.assignedCharacterId;
   return owner ? [owner] : [];
