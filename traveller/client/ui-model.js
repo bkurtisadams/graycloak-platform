@@ -917,7 +917,7 @@ export function buildPlayProcedure(s = {}) {
         // looking for the list.
         for (const lot of s.freight.lots ?? []) {
           attention.push(card(`freight-${lot.id}`, `Accept ${lot.tons}t shipment for ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready,
-            `Cr${lot.revenueCr.toLocaleString('en-US')} on delivery at Cr${(1000).toLocaleString('en-US')}/ton. Accepting cargo announces the destination (Book 2 p.8).`,
+            `Carried for hire: nothing to pay, Cr${lot.revenueCr.toLocaleString('en-US')} on delivery at Cr${(1000).toLocaleString('en-US')}/ton. Accepting cargo announces the destination (Book 2 p.8).`,
             { action: `freight:${lot.id}`, verb: '[ ACCEPT ]' }));
         }
         if (!(s.freight.lots ?? []).length) {
@@ -981,11 +981,11 @@ export function buildPlayProcedure(s = {}) {
   // Weekly opportunities at the current world
   if (s.speculation) {
     if (s.speculation.purchased > 0) {
-      done.push(card('spec-done', 'Speculative lot', PLAY_PROCEDURE_TAGS.done, `${s.speculation.purchased} bought from this week's lot (${s.speculation.name}).`));
+      done.push(card('spec-done', 'Speculative lot (bought to resell)', PLAY_PROCEDURE_TAGS.done, `${s.speculation.purchased} bought from this week's lot (${s.speculation.name}).`));
     } else if (s.speculation.available) {
       const lot = `This week: ${s.speculation.quantity} ${s.speculation.name}${s.speculation.pricePerUnitCr ? ` at Cr${s.speculation.pricePerUnitCr.toLocaleString('en-US')} each (${s.speculation.percentage}% of base)` : ''}. One lot per week (Book 2 p.46).`;
       if (s.speculation.buyQuantity > 0) {
-        opportunities.push(card('spec', 'Speculative lot', PLAY_PROCEDURE_TAGS.ready,
+        opportunities.push(card('spec', 'Speculative lot (bought to resell)', PLAY_PROCEDURE_TAGS.ready,
           `${lot} Buying ${s.speculation.buyQuantity}t costs Cr${s.speculation.buyCostCr.toLocaleString('en-US')}. Hold ${s.speculation.holdFree}t free.`,
           { action: `spec:${s.speculation.buyQuantity}`, verb: `[ BUY ${s.speculation.buyQuantity}T / CR${s.speculation.buyCostCr.toLocaleString('en-US')} ]` }));
       } else {

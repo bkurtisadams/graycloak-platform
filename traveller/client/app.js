@@ -3460,7 +3460,7 @@ function buySpeculativeQuantity(quantity) {
       quantity
     });
     persistCampaignState();
-    logActivity('TRADE', `${shipDocument.identity.name || 'Ship'} bought ${quantity}t ${offer.name} at ${system.name} / ${formatCr(result.costCr)}${result.handlingFeeCr ? ` incl. ${formatCr(result.handlingFeeCr)} handling` : ''}`);
+    logActivity('TRADE', `${shipDocument.identity.name || 'Ship'} bought a speculative lot: ${quantity}t ${offer.name} at ${system.name} / ${formatCr(result.costCr)}${result.handlingFeeCr ? ` incl. ${formatCr(result.handlingFeeCr)} partial-lot handling (Book 2 p.42)` : ''}`);
     setStatus(`SPECULATIVE CARGO BOUGHT: ${quantity}t ${offer.name.toUpperCase()} / ${formatCr(result.costCr)}`, 'ok');
     render();
   } catch (error) {
