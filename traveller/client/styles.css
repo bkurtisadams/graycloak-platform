@@ -4315,3 +4315,17 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
   from { background: rgba(150, 40, 30, 0.42); }
   to { background: rgba(150, 40, 30, 0.14); }
 }
+
+/* v0.115.0: the state tags read as a traffic light — red stop, amber get
+   ready, green go. Only the state axis is coloured: REQUIRED, READY and
+   BLOCKED say whether you can act and whether you must. ACCEPTED, THREAD,
+   OPTIONAL and the offer counts name a kind of thing rather than a state, and
+   stay in body colour so eight tags do not compete for one glance.
+
+   BLOCKED takes a muted red, deliberately not the error red used by the
+   status band: a card that is merely unavailable must not read like an action
+   that just failed. Colour is redundancy in every case — the word always
+   stays, which matters at 10px in a low-contrast palette. */
+.procedure-card.blocked .procedure-card-tag { color: #8c3b30; }
+.procedure-card.blocked { border-color: #b08079; }
+.procedure-card.blocked .procedure-card-title { color: var(--ink); }

@@ -1042,7 +1042,10 @@ export function buildPlayProcedure(s = {}) {
   if (accepted.length) groups.push(Object.freeze({ label: `ACCEPTED JOBS ${accepted.length}`, cards: Object.freeze(accepted) }));
 
   if (attention.length) groups.push(Object.freeze({ label: 'NEEDS ATTENTION', cards: Object.freeze(attention) }));
-  if (readyAfter.length) groups.push(Object.freeze({ label: attention.length ? 'THEN' : 'READY', cards: Object.freeze(readyAfter) }));
+  // v0.115.0: this group was labelled READY when nothing needed attention,
+  // which put the word directly above cards carrying a READY tag — the same
+  // word meaning "this group" and "this card's state" in adjacent lines.
+  if (readyAfter.length) groups.push(Object.freeze({ label: attention.length ? 'THEN' : 'NEXT', cards: Object.freeze(readyAfter) }));
   if (opportunities.length) groups.push(Object.freeze({ label: `OPPORTUNITIES AT ${s.currentSystem.name.toUpperCase()}`, cards: Object.freeze(opportunities) }));
   if (done.length) groups.push(Object.freeze({ label: 'DONE THIS PORT CALL', cards: Object.freeze(done), collapsed: true }));
 
