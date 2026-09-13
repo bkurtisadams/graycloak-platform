@@ -3411,23 +3411,15 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
      makes the row height authoritative at every window width. */
   align-items: stretch; justify-items: stretch;
   display: grid;
-  /* v0.98.0: WHAT NOW? is a permanent column, not a disclosure strip in the
-     sidebar drawer. It is the panel read on every turn of play, so it holds
-     its own width and the canvas takes the remainder. */
-  grid-template-columns: 56px 300px minmax(0, 1fr) 380px;
+  grid-template-columns: 56px minmax(0, 1fr) 380px;
   grid-template-rows: 40px minmax(0, 1fr);
-  grid-template-areas: "mast mast mast mast" "rail dock stage side";
+  grid-template-areas: "mast mast mast" "rail stage side";
   column-gap: 0; row-gap: 0;
   overflow: hidden;
 }
-.terminal.shell.sidebar-collapsed { grid-template-columns: 56px 300px minmax(0, 1fr) 44px; }
-.terminal.shell.dock-collapsed { grid-template-columns: 56px 0 minmax(0, 1fr) 380px; }
-.terminal.shell.dock-collapsed.sidebar-collapsed { grid-template-columns: 56px 0 minmax(0, 1fr) 44px; }
-.shell-dock { grid-area: dock; display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: auto; padding: 8px 10px; border-right: 1px solid var(--rule); background: var(--paper); }
-.dock-collapsed .shell-dock { display: none; }
+.terminal.shell.sidebar-collapsed { grid-template-columns: 56px minmax(0, 1fr) 44px; }
 .shell-dock .whatnow { border-width: 0; background: transparent; padding: 0; }
 .whatnow-collapse { font-size: 10px; margin-left: 6px; }
-.dock-reopen { grid-area: stage; align-self: start; justify-self: start; margin: 6px 0 0 6px; z-index: 3; font-size: 10px; background: var(--paper); border: 1px solid var(--rule); padding: 2px 6px; }
 .procedure-card-verb { margin-top: 6px; font-weight: 700; letter-spacing: .04em; color: var(--ok); }
 .procedure-card.required .procedure-card-verb { color: #6b5f1f; }
 .procedure-card.blocked .procedure-card-verb { display: none; }
@@ -4149,3 +4141,34 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .panel-popout .sidebar-panel[data-sidebar-panel="combat"] { overflow: auto; }
 .panel-popout .sidebar-panel[data-sidebar-panel="combat"] #combat-rail-section,
 .panel-popout .sidebar-panel[data-sidebar-panel="combat"] #encounter-tracker { overflow: visible; max-height: none; }
+
+
+/* v0.98.0: the WHAT NOW? dock. The shell stopped being a grid at v0.80.0 —
+   display: block with the stage as an absolute base layer and the rail,
+   masthead and sidebar as absolute overlays — so a grid-area does nothing
+   here. The dock is positioned the way the sidebar is, and follows the
+   v0.80.2 ruling: it pushes the stage rather than covering it, clearing the
+   scene controls that float at left: 8px. */
+.shell-dock {
+  position: absolute; top: 34px; left: 96px; bottom: 0; z-index: 24;
+  width: 300px; box-sizing: border-box;
+  display: flex; flex-direction: column; min-height: 0;
+  padding: 8px 10px; overflow-x: hidden; overflow-y: auto;
+  border-right: 1px solid var(--rule); background: var(--paper);
+}
+.terminal.shell:not(.dock-collapsed) .shell-stage { padding-left: calc(96px + 300px); }
+.dock-collapsed .shell-dock { display: none; }
+.dock-reopen {
+  position: absolute; top: 40px; left: 104px; z-index: 22;
+  background: rgba(217, 217, 211, 0.94); border: 1px solid var(--rule);
+  padding: 3px 7px; font-size: 10px;
+}
+@media (max-width: 1400px) {
+  .shell-dock { width: 260px; }
+  .terminal.shell:not(.dock-collapsed) .shell-stage { padding-left: calc(96px + 260px); }
+}
+@media (max-width: 900px) {
+  .shell-dock { left: 88px; width: 240px; }
+  .terminal.shell:not(.dock-collapsed) .shell-stage { padding-left: calc(88px + 240px); }
+  .dock-reopen { left: 96px; }
+}
