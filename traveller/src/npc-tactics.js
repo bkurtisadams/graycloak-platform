@@ -19,7 +19,7 @@ import {
   blowsRemaining
 } from '../vendor/classic-traveller-rules/index.js';
 
-import { encounterPairRange, encounterMapDistance, encounterSituationDMs } from './encounter-document.js';
+import { encounterPairRange, encounterMapDistance, encounterSituationDMs, activeSurpriseSide } from './encounter-document.js';
 
 export const NPC_TACTICS = Object.freeze(['manual', 'auto']);
 
@@ -107,7 +107,7 @@ export function chooseNpcDeclaration(encounter, combatant) {
 // refuses it, which is correct but noisy.
 export function pendingNpcDeclarations(encounter) {
   const declared = new Set((encounter.roundState?.declaredActions ?? []).map((entry) => entry.actorId));
-  const surpriseRound = encounter.round === 1 ? encounter.surprise?.surpriseSideId ?? null : null;
+  const surpriseRound = activeSurpriseSide(encounter);
   const mayAct = (side) => surpriseRound === null || surpriseRound === side;
   return encounter.combatants
     .filter((entry) => entry.status === 'active' && entry.tactics === 'auto' && !declared.has(entry.id))

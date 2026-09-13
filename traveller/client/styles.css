@@ -3256,6 +3256,10 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .player-orders-target select { font: inherit; font-size: 11px; flex: 1 1 auto; min-width: 0; }
 .player-orders-verbs { display: flex; flex-wrap: wrap; gap: 4px; }
 .player-orders-verbs .action-button { font-size: 10px; padding: 1px 5px; }
+.player-command-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 4px; align-items: end; }
+.player-command-row label { display: grid; gap: 2px; min-width: 0; font-size: 9px; letter-spacing: .06em; color: var(--muted); }
+.player-command-row select { width: 100%; min-width: 0; padding: 2px; font: inherit; font-size: 10px; }
+.player-command-row .action-button { padding: 2px 5px; font-size: 10px; white-space: nowrap; }
 
 /* --- v0.65.0: the player sees their own character and the table's log. */
 .player-tabs { display: flex; gap: 4px; padding: 8px 0 0; border-bottom: 1px solid var(--rule); }
@@ -4101,6 +4105,33 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .encounter-token-status-glyph.unconscious { fill: #7a5210; }
 .encounter-token-status-glyph.escaped, .encounter-token-status-glyph.withdrawn { fill: #33372f; }
 .encounter-tracker-ready { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* v0.97.0: procedure-first Book 1 declaration matrix. */
+.encounter-decision { display: grid; gap: 3px; padding: 7px; margin: 4px 0 7px; border: 1px solid var(--attention-border); background: var(--attention); font-size: 11px; }
+.encounter-decision-note { color: var(--muted); }
+.encounter-command-wrap { overflow-x: auto; border: 1px solid var(--rule); background: var(--paper); }
+.encounter-command-table { width: 100%; min-width: 690px; border-collapse: collapse; table-layout: fixed; font-size: 10px; }
+.encounter-command-table th { padding: 3px 4px; border-bottom: 1px solid var(--rule); color: var(--muted); letter-spacing: .07em; text-align: left; }
+.encounter-command-table td { padding: 3px 4px; border-bottom: 1px dotted var(--disabled); vertical-align: middle; }
+.encounter-command-table tr:last-child td { border-bottom: 0; }
+.encounter-command-table tr.selected { background: var(--tab-selected); }
+.encounter-command-table tr.inactive { color: var(--disabled); }
+.encounter-command-table th:nth-child(1), .encounter-command-table td:nth-child(1) { width: 22%; }
+.encounter-command-table th:nth-child(2), .encounter-command-table td:nth-child(2) { width: 14%; }
+.encounter-command-table th:nth-child(3), .encounter-command-table td:nth-child(3) { width: 18%; }
+.encounter-command-table th:nth-child(4), .encounter-command-table td:nth-child(4) { width: 17%; }
+.encounter-command-table th:nth-child(5), .encounter-command-table td:nth-child(5) { width: 9%; text-align: center; }
+.encounter-command-table th:nth-child(6), .encounter-command-table td:nth-child(6) { width: 20%; }
+.encounter-command-actor { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.encounter-command-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 0; padding: 0; background: transparent; color: inherit; font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
+.encounter-command-name:hover { text-decoration: underline; }
+.encounter-command-auto { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; font-size: 9px; color: var(--muted); }
+.encounter-command-auto input { margin: 0; }
+.encounter-command-select { width: 100%; min-width: 0; padding: 2px; border: 1px solid var(--rule); background: var(--paper); color: var(--ink); font: inherit; }
+.encounter-command-hit { border: 0; padding: 1px 3px; background: transparent; color: var(--link); font: inherit; font-weight: 700; cursor: pointer; }
+.encounter-command-hit:disabled { color: var(--disabled); cursor: default; }
+.encounter-command-table .action-button, .encounter-command-table .text-button { width: 100%; padding: 2px 3px; font-size: 9px; letter-spacing: 0; white-space: nowrap; }
+.encounter-morale-enforce { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; color: var(--muted); }
 
 /* --- v0.92.0: the scene navigation bar, over the canvas at the top. */
 .scene-nav { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); z-index: 24; }

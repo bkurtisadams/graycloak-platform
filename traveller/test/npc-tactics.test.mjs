@@ -117,7 +117,7 @@ test('the surprise round bars the surprised side from automatic declarations', a
   const surprised = {
     ...encounter,
     round: 1,
-    surprise: { ...encounter.surprise, surpriseSideId: 'party', surprisedSideId: 'opposition' }
+    surprise: { ...encounter.surprise, surpriseSideId: 'party', surprisedSideId: 'opposition', active: true, volley: 1 }
   };
   assert.equal(pendingNpcDeclarations(surprised).length, 0);
 
@@ -125,10 +125,11 @@ test('the surprise round bars the surprised side from automatic declarations', a
   const surprising = {
     ...encounter,
     round: 1,
-    surprise: { ...encounter.surprise, surpriseSideId: 'opposition', surprisedSideId: 'party' }
+    surprise: { ...encounter.surprise, surpriseSideId: 'opposition', surprisedSideId: 'party', active: true, volley: 1 }
   };
   assert.equal(pendingNpcDeclarations(surprising).length, 1);
 
-  // From round 2 surprise no longer applies.
-  assert.equal(pendingNpcDeclarations({ ...surprised, round: 2 }).length, 1);
+  // Surprise persists beyond round 1 until an alarm is raised.
+  assert.equal(pendingNpcDeclarations({ ...surprised, round: 2 }).length, 0);
+  assert.equal(pendingNpcDeclarations({ ...surprised, round: 2, surprise: { ...surprised.surprise, active: false } }).length, 1);
 });

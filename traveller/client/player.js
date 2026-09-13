@@ -440,7 +440,9 @@ function renderOrders() {
   }
   if (!view.declaringRound) {
     el.orders.replaceChildren(Object.assign(document.createElement('div'), {
-      className: 'player-orders-hint', textContent: 'THE FIGHT IS OVER'
+      className: 'player-orders-hint', textContent: view.phase === 'encounter'
+        ? 'ENCOUNTER DECISION WITH REFEREE'
+        : view.phase === 'morale' ? 'MORALE CHECK WITH REFEREE' : 'THE FIGHT IS OVER'
     }));
     return;
   }
@@ -463,6 +465,12 @@ function renderOrders() {
       }));
       return block;
     }
+    if (Array.isArray(view.eligibleActorIds) && !view.eligibleActorIds.includes(combatantId)) {
+      block.append(Object.assign(document.createElement('div'), {
+        className: 'player-orders-hint', textContent: view.surpriseVolley ? `SURPRISED / VOLLEY ${view.surpriseVolley}` : 'WAITING FOR REFEREE'
+      }));
+      return block;
+    }
     if (declared) {
       const target = declared.targetId ? view.combatants.find((entry) => entry.id === declared.targetId) : null;
       block.append(Object.assign(document.createElement('div'), {
@@ -473,8 +481,15 @@ function renderOrders() {
     }
 
     const foes = view.combatants.filter((entry) => entry.side !== combatant.side && entry.condition === 'active');
+    const command = document.createElement('div');
+    command.className = 'player-command-row';
+    const moveLabel = document.createElement('label'); moveLabel.append(Object.assign(document.createElement('span'), { textContent: 'MOVE' }));
+    const move = document.createElement('select');
+    for (const [value, label] of [['stand', 'STAND'], ['evade', 'EVADE'], ['close', 'CLOSE'], ['open', 'OPEN'], ['close-run', 'RUN CLOSE'], ['open-run', 'RUN OPEN']]) {
+      move.append(new Option(label, value));
+    }
+    moveLabel.append(move);
     const targetRow = document.createElement('label');
-    targetRow.className = 'player-orders-target';
     targetRow.append(Object.assign(document.createElement('span'), { textContent: 'TARGET' }));
     const select = document.createElement('select');
     for (const foe of foes) select.append(new Option(foe.name.toUpperCase(), foe.id));
@@ -482,11 +497,17 @@ function renderOrders() {
     const marked = foes.find((foe) => targetTokenIds.has(foe.id));
     if (marked) select.value = marked.id;
     targetRow.append(select);
-    block.append(targetRow);
-
-    const verbs = document.createElement('div');
-    verbs.className = 'player-orders-verbs';
-    const declare = (action, needsTarget) => async () => {
+    const attackLabel = document.createElement('label'); attackLabel.append(Object.assign(document.createElement('span'), { textContent: 'ATTACK' }));
+    const attack = document.createElement('select');
+    attack.append(new Option('READY WEAPON', 'attack'), new Option('NONE', 'none'));
+    attackLabel.append(attack);
+    const declare = async () => {
+      const withAttack = attack.value === 'attack';
+      const action = move.value === 'stand' ? (withAttack ? 'attack' : 'wait')
+        : move.value === 'evade' ? 'evade'
+        : move.value === 'close-run' || move.value === 'open-run' ? move.value
+        : withAttack ? move.value : `${move.value}-only`;
+      const needsTarget = !['wait', 'evade'].includes(action);
       const targetId = needsTarget ? select.value || null : null;
       if (needsTarget && !targetId) { setStatus('NO TARGET AVAILABLE', 'error'); return; }
       try {
@@ -503,20 +524,18 @@ function renderOrders() {
         setStatus(error?.message ?? String(error), 'error');
       }
     };
-    for (const [label, action, needsTarget] of [
-      ['ATTACK / STAND', 'attack', true], ['CLOSE + ATTACK', 'close', true], ['OPEN + ATTACK', 'open', true],
-      ['RUN CLOSER', 'close-run', true], ['RUN AWAY', 'open-run', true],
-      ['EVADE', 'evade', false], ['ESCAPE', 'escape', false], ['STAND', 'wait', false]
-    ]) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'text-button action-button';
-      button.textContent = `[ ${label} ]`;
-      button.disabled = (needsTarget && !foes.length) || (action === 'escape' && view.declaringRound !== 1);
-      button.addEventListener('click', declare(action, needsTarget));
-      verbs.append(button);
-    }
-    block.append(verbs);
+    const submit = document.createElement('button'); submit.type = 'button'; submit.className = 'text-button action-button'; submit.textContent = '[ DECLARE ]';
+    submit.addEventListener('click', declare);
+    const refresh = () => {
+      if (['evade', 'close-run', 'open-run'].includes(move.value)) attack.value = 'none';
+      attack.disabled = ['evade', 'close-run', 'open-run'].includes(move.value);
+      select.disabled = !foes.length || ['evade'].includes(move.value) || (move.value === 'stand' && attack.value === 'none');
+      const needsTarget = !['evade'].includes(move.value) && !(move.value === 'stand' && attack.value === 'none');
+      submit.disabled = needsTarget && !foes.length;
+    };
+    move.addEventListener('change', refresh); attack.addEventListener('change', refresh); refresh();
+    command.append(moveLabel, targetRow, attackLabel, submit);
+    block.append(command);
     return block;
   });
   el.orders.replaceChildren(...blocks);

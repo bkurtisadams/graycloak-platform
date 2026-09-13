@@ -15,6 +15,7 @@ import {
   resolveEncounterRound,
   resolveDeclaredRound,
   declareEncounterAction,
+  attemptEncounterEscape,
   avoidEncounter,
   encounterRangeGuide,
   repositionEncounterCombatant,
@@ -337,11 +338,13 @@ test('ordinary combat rounds resolve both declared attacks before wound effects'
     action: 'attack', date: { year: 4800, dayOfYear: 106 },
     // Book 1 p.30 step 2C order: both to-hit throws and their damage dice are
     // rolled first, then the first-blood location dice at the end of the round.
-    dice: sequenceDice([1, 1, 1, 1, 1, 1, 1, 6, 6, 1, 1, 1, 1, 1])
+    dice: sequenceDice(Array(40).fill(6))
   });
   assert.equal(result.entries.filter((entry) => entry.kind === 'attack').length, 2);
-  assert.ok(result.encounter.combatants.find((entry) => entry.side === 'party').current.STR < fixture.character.characteristics.STR);
-  assert.ok(result.encounter.combatants.find((entry) => entry.side === 'opposition').current.STR < 7);
+  const woundedParty = result.encounter.combatants.find((entry) => entry.side === 'party');
+  const woundedFoe = result.encounter.combatants.find((entry) => entry.side === 'opposition');
+  assert.ok(['STR', 'DEX', 'END'].some((key) => woundedParty.current[key] < woundedParty.characteristics[key]));
+  assert.ok(['STR', 'DEX', 'END'].some((key) => woundedFoe.current[key] < woundedFoe.characteristics[key]));
 });
 
 test('multi-enemy encounters preserve selectable targets and every active opponent acts', async () => {
@@ -462,16 +465,16 @@ test('v0.39.0 escape is thrown at 9+ with the range DM (B1 p.32)', async () => {
   const encounter = createEncounterDocument({
     campaign: fixture.campaign, character: fixture.character,
     opponent: { name: 'Veyra Kade', weaponKey: 'blade', armor: 'none', characteristics: { STR: 7, DEX: 7, END: 7, INT: 7 }, skills: {} },
-    encounterKey: 'escape-target-test', date: { year: 4800, dayOfYear: 106 }, range: 'medium', dice: sequenceDice([3, 3])
+    encounterKey: 'escape-target-test', date: { year: 4800, dayOfYear: 106 }, range: 'medium', contactStarted: false, dice: sequenceDice([3, 3])
   });
   // 2D of [4][4] = 8, +1 for medium range = 9: exactly the target under p.32,
   // and a failure under the old 7+ reading only if the target were higher.
-  const result = resolveEncounterRound(encounter, {
-    action: 'escape', date: { year: 4800, dayOfYear: 106 }, dice: sequenceDice([4, 4, 1, 1, 1, 1, 1, 1, 1, 1])
+  const result = attemptEncounterEscape(encounter, {
+    date: { year: 4800, dayOfYear: 106 }, dice: sequenceDice([4, 4])
   });
-  const escape = result.entries.find((entry) => entry.kind === 'escape');
+  const escape = result.entry;
   assert.match(escape.text, /vs 9\+/);
-  assert.equal(result.encounter.combatants.find((entry) => entry.side === 'party').status, 'escaped');
+  assert.equal(result.encounter.status, 'escaped');
 });
 
 test('v0.39.0 the referee may declare for the opposition and any side may target another', async () => {

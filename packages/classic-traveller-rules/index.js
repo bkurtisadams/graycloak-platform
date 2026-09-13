@@ -1,4 +1,4 @@
-// @graycloak/classic-traveller-rules v0.23.0
+// @graycloak/classic-traveller-rules v0.25.0
 // Source-backed Classic Traveller Books 1-3 character, starship, world, and subsector rules engine.
 // Pure rules/state logic: no host, UI, persistence, Foundry, or Firebase dependencies.
 
@@ -275,6 +275,7 @@ export {
   evasionDefenseDM,
   createPersonalCombatant,
   resolvePersonalSurprise,
+  resolveSurpriseAlarm,
   movePersonalCombatRange,
   personalMovementBands,
   personalMovementConsequences,

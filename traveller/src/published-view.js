@@ -77,6 +77,10 @@ export function buildPublishedView(encounter, { campaignId, publishedAt, rounds 
   const currentRound = encounter.status === 'active' ? encounter.round - 1 : encounter.round;
   const earliest = Math.max(0, currentRound - (rounds - 1));
   const movementRound = Math.max(-1, ...(encounter.history ?? []).filter((entry) => entry.kind === 'movement' && entry.detail?.from && entry.detail?.to).map((entry) => entry.round));
+  const contactStarted = Boolean(encounter.engagement?.contactStarted);
+  const moralePending = Boolean(encounter.engagement?.moraleDue?.length);
+  const surpriseSide = encounter.surprise?.active ? encounter.surprise.surpriseSideId : null;
+  const declarationsOpen = encounter.status === 'active' && contactStarted && !moralePending;
   return {
     campaignId: campaignId ?? null,
     encounterId: encounter.identity.id,
@@ -85,7 +89,12 @@ export function buildPublishedView(encounter, { campaignId, publishedAt, rounds 
     // The round a player would be declaring for: the one in progress while the
     // fight runs, and nothing once it is over. `round` is what has been played,
     // which is a different number and was confusing to reconcile.
-    declaringRound: encounter.status === 'active' ? encounter.round : null,
+    declaringRound: declarationsOpen ? encounter.round : null,
+    phase: encounter.status !== 'active' ? 'resolved' : !contactStarted ? 'encounter' : moralePending ? 'morale' : 'combat',
+    surpriseVolley: surpriseSide ? encounter.surprise.volley : null,
+    eligibleActorIds: declarationsOpen
+      ? encounter.combatants.filter((entry) => entry.status === 'active' && (!surpriseSide || entry.side === surpriseSide)).map((entry) => entry.id)
+      : [],
     status: encounter.status,
     range: encounter.range,
     lighting: encounter.conditions?.lighting ?? 'normal',

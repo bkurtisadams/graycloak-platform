@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { cp, mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 let JSDOM = null;
@@ -67,7 +67,9 @@ test('every page script loads to its masthead', { skip: JSDOM ? false : 'jsdom i
       const html = await readFile(path.join(dir, 'client', page.html), 'utf8');
       const { window, cleanup } = installDom(html, `http://localhost:8080/traveller/client/${page.html}${page.query}`);
       try {
-        await import(path.join(dir, 'client', page.script) + `?t=${Date.now()}`);
+        const scriptUrl = pathToFileURL(path.join(dir, 'client', page.script));
+        scriptUrl.searchParams.set('t', String(Date.now()));
+        await import(scriptUrl.href);
         // Let the page's own initAuth().then(...) settle.
         await new Promise((resolve) => setTimeout(resolve, 20));
         const masthead = window.document.querySelector(page.masthead);

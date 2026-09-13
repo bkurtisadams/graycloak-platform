@@ -110,10 +110,12 @@ test('closing walks one band, running closes two, matching Book 1 p.29\'s line-g
   const thug = encounter.combatants.find((entry) => entry.side === 'opposition');
   assert.equal(thug.position.column, ENCOUNTER_RANGE_LINE_BAND_GAP['very-long']);
   encounter = declareEncounterAction(encounter, { action: 'close', actorId: party.id, targetId: thug.id }).encounter;
+  encounter = declareEncounterAction(encounter, { action: 'wait', actorId: thug.id }).encounter;
   encounter = resolveDeclaredRound(encounter, { dice: sequenceDice([1, 1, 1, 1]), date: { year: 4800, dayOfYear: 141 } }).encounter;
   const afterWalk = encounter.combatants.find((entry) => entry.id === party.id);
   assert.equal(afterWalk.position.column, 1, 'walking closes exactly one band');
   encounter = declareEncounterAction(encounter, { action: 'close-run', actorId: party.id, targetId: thug.id }).encounter;
+  encounter = declareEncounterAction(encounter, { action: 'wait', actorId: thug.id }).encounter;
   encounter = resolveDeclaredRound(encounter, { dice: sequenceDice([1, 1, 1, 1]), date: { year: 4800, dayOfYear: 141 } }).encounter;
   const afterRun = encounter.combatants.find((entry) => entry.id === party.id);
   assert.equal(afterRun.position.column, 3, 'running closes exactly two bands');

@@ -2,6 +2,13 @@
 
 Pure JavaScript rules package for the Graycloak Classic Traveller browser-game project. It intentionally has no HTML, Foundry, Firebase, or server dependencies.
 
+## v0.25.0 persistent surprise alarms (Book 1 p.26)
+
+Adds `resolveSurpriseAlarm()` for the 1977 rule that surprise continues until
+an alarm is raised. Unsilenced firearms, conscious victims, and the 9+ check
+for an unattacked witness are resolved explicitly instead of treating surprise
+as a one-round condition.
+
 ## v0.24.1 rank 5-6 mustering-out rolls (Book 1 p.8)
 
 Rank 5 or 6 grants two extra mustering-out rolls and +1 on Table 1 — not a

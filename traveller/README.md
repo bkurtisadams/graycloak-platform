@@ -1,5 +1,20 @@
 # Graycloak Traveller
 
+## v0.97.0 procedure-first personal combat
+
+Personal combat now follows the 1977 Book 1 sequence in the interface: the
+encounter first shows range and surprise and offers talk/hold, avoidance,
+pre-contact escape, or fight. Once contact begins, a compact declaration
+matrix collects Move, Target, Attack, and the calculated throw for every
+combatant before resolving the simultaneous round. Range Line is the default;
+the mapped square grid is labelled as the optional tactical adaptation.
+
+Surprise persists through simultaneous volleys until the Book 1 alarm rules
+end it. Undeclared combatants no longer receive invented attacks from the
+strict resolver; enabled NPCs are filled only through the visible AUTO-FILL
+NPCs control. Morale is checked for either side at 25% unconscious or killed,
+with party withdrawal advisory unless the referee enables enforcement.
+
 ## v0.95.0 the rebuild, part two: the tracker is the combat document
 
 Your screenshot supplied the last piece — Foundry asks *"End this combat and

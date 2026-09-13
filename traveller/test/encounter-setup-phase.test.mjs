@@ -53,7 +53,7 @@ test('v0.94.0 combatants join one at a time, and BEGIN needs both sides', async 
   assert.equal(begun.encounter.status, 'active');
   assert.equal(begun.encounter.round, 1);
   assert.ok(begun.encounter.surprise, 'surprise is rolled when the fight begins, not at creation');
-  assert.match(begun.entry.text, /Combat begins: 1 party against 1/);
+  assert.match(begun.entry.text, /Encounter begins: 1 party against 1/);
   assert.throws(() => beginEncounter(begun.encounter, { dice }), /already begun/);
   assertValidEncounterDocument(begun.encounter);
 });

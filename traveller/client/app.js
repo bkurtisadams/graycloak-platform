@@ -241,13 +241,18 @@ import {
 import {
   createEncounterDocument,
   importEncounterDocument,
-  resolveEncounterRound,
   avoidEncounter,
   encounterRangeGuide,
   repositionEncounterCombatant,
   moveEncounterCombatantByPlayer,
   encounterPairRange,
   declareEncounterAction,
+  clearEncounterAction,
+  activeSurpriseSide,
+  startEncounterCombat,
+  attemptEncounterEscape,
+  resolveEncounterMorale,
+  setEncounterPartyMoraleEnforcement,
   encounterSituationDMs,
   setEncounterLighting,
   setEncounterGridScale,
@@ -4149,7 +4154,10 @@ function showEncounterTokenMenu(event, encounter, combatant, onSelect, anchorEle
   const declaredIds = new Set(encounter.roundState?.declaredActions?.map((entry) => entry.actorId) ?? []);
   const alreadyDeclared = declaredIds.has(combatant.id);
   const foes = encounter.combatants.filter((entry) => entry.side !== combatant.side && entry.status === 'active');
-  const canOrder = combatant.status === 'active' && !alreadyDeclared && encounter.status === 'active';
+  const surpriseSide = activeSurpriseSide(encounter);
+  const canOrder = combatant.status === 'active' && !alreadyDeclared && encounter.status === 'active'
+    && encounter.engagement?.contactStarted && !encounter.engagement?.moraleDue?.length
+    && (!surpriseSide || surpriseSide === combatant.side);
   const resolved = encounter.status !== 'active';
   const lastOnSide = encounter.combatants.filter((entry) => entry.side === combatant.side).length <= 1;
   const declare = (action, targetId = null) => {
@@ -4190,7 +4198,6 @@ function showEncounterTokenMenu(event, encounter, combatant, onSelect, anchorEle
     { label: 'RUN CLOSER', disabled: !canOrder || !foes.length, action: () => declare('close-run', foes[0]?.id ?? null) },
     { label: 'RUN AWAY', disabled: !canOrder || !foes.length, action: () => declare('open-run', foes[0]?.id ?? null) },
     { label: 'EVADE', disabled: !canOrder, action: () => declare('evade') },
-    { label: 'ESCAPE', disabled: !canOrder || encounter.round !== 1, title: 'Book 1: escape is available in the first round only', action: () => declare('escape') },
     { label: 'STAND', disabled: !canOrder, action: () => declare('wait') },
     { heading: 'REFEREE' },
     { label: 'COVER', items: () => COMBATANT_COVER.map((value) => ({
@@ -4525,8 +4532,8 @@ function renderRangeLineBoard(encounter) {
   if (encounter.status === 'active' && actor && target) guide = encounterRangeGuide(encounter, actor.id, target.id);
   const distanceText = guide ? `${Math.abs(actor.position.column - target.position.column)} BAND${Math.abs(actor.position.column - target.position.column) === 1 ? '' : 'S'}` : '';
   const guideText = guide ? ` // RANGE ${guide.suggestedRange.toUpperCase().replace('-', ' ')} / ${distanceText}` : '';
-  const declaredIds = new Set(encounter.roundState?.declaredActions?.map((entry) => entry.actorId) ?? []);
-  const awaiting = encounter.combatants.filter((entry) => entry.side === 'party' && entry.status === 'active' && !declaredIds.has(entry.id));
+  const awaitingIds = new Set(undeclaredCombatantIds(encounter));
+  const awaiting = encounter.combatants.filter((entry) => awaitingIds.has(entry.id));
   const roundState = encounter.status !== 'active'
     ? ` // ${encounter.status.toUpperCase().replace('-', ' ')}`
     : awaiting.length ? ` // AWAITING ${awaiting.map((entry) => entry.name.toUpperCase()).join(', ')}` : ' // ALL DECLARED';
@@ -4761,13 +4768,18 @@ function renderEncounterMap(encounter) {
   const surpriseDetail = (encounter.surprise.results ?? [])
     .map((entry) => `${entry.sideId.toUpperCase()} ${entry.roll}${entry.dm >= 0 ? '+' : ''}${entry.dm}=${entry.total}`)
     .join(' / ');
-  const surprised = encounter.round === 1 && encounter.surprise.surprisedSideId
-    ? ` // SURPRISE ${surpriseDetail} // ${encounter.surprise.surprisedSideId.toUpperCase()} SURPRISED`
-    : encounter.round === 1 && surpriseDetail
+  const currentSurprise = activeSurpriseSide(encounter);
+  const surprised = currentSurprise
+    ? ` // SURPRISE VOLLEY ${encounter.surprise.volley} // ${encounter.surprise.surprisedSideId.toUpperCase()} SURPRISED`
+    : encounter.round === 1 && !encounter.engagement?.contactStarted && surpriseDetail
       ? ` // SURPRISE ${surpriseDetail} // NEITHER`
       : '';
   const roundState = encounter.status !== 'active'
     ? ` // ${encounter.status.toUpperCase().replace('-', ' ')}`
+    : !encounter.engagement?.contactStarted
+      ? ' // DECIDE TALK, AVOID, ESCAPE, OR FIGHT'
+      : encounter.engagement?.moraleDue?.length
+        ? ' // MORALE CHECK DUE'
     : awaiting.length
       ? ` // AWAITING ${awaiting.map((entry) => entry.name.toUpperCase()).join(', ')}`
       : ' // ALL DECLARED';
@@ -4915,7 +4927,7 @@ function openCombatantSheet(combatant) {
   renderEncounter();
 }
 
-function renderEncounterTracker(encounter, actor) {
+function renderEncounterTrackerLegacy(encounter, actor) {
   const started = encounter.round > 1 || (encounter.history?.some((entry) => entry.kind === 'attack' || entry.kind === 'movement') ?? false);
   const heading = document.createElement('div');
   heading.className = 'encounter-tracker-header';
@@ -5159,6 +5171,202 @@ function renderEncounterTracker(encounter, actor) {
     after.append(row);
     el.encounterResolve.append(after);
   }
+}
+
+// v0.97.0: Book 1 presents combat as a declaration procedure, so the normal
+// tracker is a compact matrix rather than a stack of expandable mini-sheets.
+// Actor sheets and referee overrides remain available from names and context
+// menus; the matrix keeps the routine loop visible in one place.
+function renderEncounterTracker(encounter, actor) {
+  const active = encounter.status === 'active';
+  const contactStarted = Boolean(encounter.engagement?.contactStarted);
+  const moraleDue = encounter.engagement?.moraleDue ?? [];
+  const surpriseSide = activeSurpriseSide(encounter);
+  const declared = new Map((encounter.roundState?.declaredActions ?? []).map((entry) => [entry.actorId, entry]));
+  const awaitingIds = new Set(undeclaredCombatantIds(encounter));
+
+  const heading = document.createElement('div');
+  heading.className = 'encounter-tracker-header';
+  const state = document.createElement('strong');
+  state.className = 'encounter-tracker-state';
+  if (!active) state.textContent = `${encounter.status.toUpperCase().replace('-', ' ')} / ROUND ${encounter.round}`;
+  else if (!contactStarted) state.textContent = `ENCOUNTER / ${encounter.range.toUpperCase().replace('-', ' ')}`;
+  else if (moraleDue.length) state.textContent = `MORALE CHECK DUE / AFTER ROUND ${Math.max(1, encounter.round - 1)}`;
+  else if (surpriseSide) state.textContent = `SURPRISE VOLLEY ${encounter.surprise.volley} / ${surpriseSide.toUpperCase()}`;
+  else state.textContent = `ROUND ${encounter.round} / DECLARING ${declared.size}/${declared.size + awaitingIds.size}`;
+  const ready = document.createElement('span');
+  ready.className = 'encounter-tracker-ready';
+  ready.textContent = awaitingIds.size ? `AWAITING ${[...awaitingIds].map((id) => encounter.combatants.find((entry) => entry.id === id)?.name.split(' ')[0].toUpperCase()).filter(Boolean).join(', ')}` : '';
+  heading.append(state, ready);
+
+  const children = [heading];
+  if (active && !contactStarted) {
+    const decision = document.createElement('div');
+    decision.className = 'encounter-decision';
+    const surprise = encounter.surprise.surpriseSideId
+      ? `${encounter.surprise.surpriseSideId.toUpperCase()} HAS SURPRISE`
+      : 'NO SURPRISE';
+    decision.append(Object.assign(document.createElement('strong'), { textContent: encounter.identity.title.toUpperCase() }));
+    decision.append(Object.assign(document.createElement('span'), { textContent: `REACTION: REFEREE / RANGE: ${encounter.range.toUpperCase().replace('-', ' ')} / ${surprise}` }));
+    decision.append(Object.assign(document.createElement('span'), { className: 'encounter-decision-note', textContent: 'Choose the encounter outcome before combat declarations.' }));
+    children.push(decision);
+  }
+
+  const tableWrap = document.createElement('div');
+  tableWrap.className = 'encounter-command-wrap';
+  const table = document.createElement('table');
+  table.className = 'encounter-command-table';
+  const head = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  for (const label of ['ACTOR', 'MOVE', 'TARGET', 'ATTACK', 'TO HIT', 'ORDER']) headRow.append(Object.assign(document.createElement('th'), { textContent: label }));
+  head.append(headRow); table.append(head);
+  const body = document.createElement('tbody');
+
+  const ordered = [
+    ...encounter.combatants.filter((entry) => entry.side === 'party'),
+    ...encounter.combatants.filter((entry) => entry.side !== 'party')
+  ];
+  for (const combatant of ordered) {
+    const row = document.createElement('tr');
+    row.className = `${actor?.id === combatant.id ? 'selected ' : ''}${combatant.status === 'active' ? '' : 'inactive'}`.trim();
+    row.addEventListener('contextmenu', (event) => { event.preventDefault(); showEncounterTokenMenu(event, encounter, combatant); });
+    const actorCell = document.createElement('td'); actorCell.className = 'encounter-command-actor';
+    const name = document.createElement('button'); name.type = 'button'; name.className = 'encounter-command-name'; name.textContent = combatant.name.toUpperCase();
+    name.title = 'Open actor sheet'; name.addEventListener('click', () => openCombatantSheet(combatant));
+    const vital = document.createElement('span'); vital.textContent = `${combatant.current.END}/${combatant.characteristics.END}`;
+    vital.title = `Current/original END; STR ${combatant.current.STR}/${combatant.characteristics.STR}, DEX ${combatant.current.DEX}/${combatant.characteristics.DEX}`;
+    actorCell.append(Object.assign(document.createElement('i'), { className: sideDotClass(encounter, combatant) }), name, vital);
+    if (combatant.side !== 'party') {
+      const autoLabel = document.createElement('label'); autoLabel.className = 'encounter-command-auto';
+      const auto = document.createElement('input'); auto.type = 'checkbox'; auto.checked = combatant.tactics === 'auto';
+      auto.disabled = !active || Boolean(declared.get(combatant.id));
+      auto.addEventListener('change', () => updateEncounterDocument(encounter.identity.id, (doc) => setCombatantTactics(doc, { combatantId: combatant.id, tactics: auto.checked ? 'auto' : 'manual' }).encounter));
+      autoLabel.append(auto, document.createTextNode('AUTO')); actorCell.append(autoLabel);
+    }
+
+    const moveCell = document.createElement('td');
+    const move = document.createElement('select'); move.className = 'encounter-command-select';
+    const movements = [['stand', 'STAND'], ['evade', 'EVADE'], ['close', 'CLOSE'], ['open', 'OPEN'], ['close-run', 'RUN CLOSE'], ['open-run', 'RUN OPEN']];
+    for (const [value, label] of movements) move.append(Object.assign(document.createElement('option'), { value, textContent: label }));
+    moveCell.append(move);
+
+    const targetCell = document.createElement('td');
+    const target = document.createElement('select'); target.className = 'encounter-command-select';
+    const foes = encounter.combatants.filter((entry) => entry.side !== combatant.side && entry.status === 'active');
+    for (const foe of foes) target.append(Object.assign(document.createElement('option'), { value: foe.id, textContent: foe.name.toUpperCase() }));
+    const preferred = foes.find((foe) => effectiveTargetIds(encounter, combatant.id).has(foe.id)) ?? foes[0];
+    if (preferred) target.value = preferred.id;
+    targetCell.append(target);
+
+    const attackCell = document.createElement('td');
+    const attack = document.createElement('select'); attack.className = 'encounter-command-select';
+    attack.append(Object.assign(document.createElement('option'), { value: 'attack', textContent: getPersonalWeapon(combatant.weaponKey).name.toUpperCase() }));
+    attack.append(Object.assign(document.createElement('option'), { value: 'none', textContent: 'NONE' }));
+    attackCell.append(attack);
+
+    const hitCell = document.createElement('td');
+    const hit = document.createElement('button'); hit.type = 'button'; hit.className = 'encounter-command-hit'; hit.textContent = '--';
+    hitCell.append(hit);
+    const orderCell = document.createElement('td');
+    const order = makePortButton('DECLARE', () => {});
+    orderCell.append(order);
+
+    const existing = declared.get(combatant.id);
+    const canAct = active && contactStarted && !moraleDue.length && combatant.status === 'active' && (!surpriseSide || surpriseSide === combatant.side);
+    const refresh = () => {
+      const noAttack = attack.value === 'none' || ['evade', 'close-run', 'open-run'].includes(move.value);
+      if (['evade', 'close-run', 'open-run'].includes(move.value)) attack.value = 'none';
+      attack.disabled = ['evade', 'close-run', 'open-run'].includes(move.value) || !canAct || Boolean(existing);
+      target.disabled = !foes.length || !canAct || Boolean(existing);
+      move.disabled = !canAct || Boolean(existing);
+      const foe = foes.find((entry) => entry.id === target.value);
+      if (noAttack || !foe) { hit.textContent = '--'; hit.disabled = true; return; }
+      try {
+        const band = encounterPairRange(combatant, foe, encounter.map.spatialMode);
+        const preview = previewPersonalAttack({ attacker: combatant, defender: foe, range: band, situationalDM: encounterSituationDMs(encounter, combatant, foe).total });
+        hit.textContent = preview.canAttack ? `${Math.max(2, preview.requiredRoll)}+` : 'NO REACH';
+        hit.disabled = !preview.canAttack;
+        hit.title = preview.canAttack ? `${band.toUpperCase().replace('-', ' ')} range; click for the full modifier breakdown` : `${preview.weaponName} cannot attack at ${band.replace('-', ' ')} range`;
+      } catch (error) { hit.textContent = 'ERR'; hit.disabled = true; hit.title = error?.message ?? String(error); }
+    };
+    move.addEventListener('change', refresh);
+    attack.addEventListener('change', refresh);
+    target.addEventListener('change', () => {
+      if (target.value) encounterTargetsByActor.set(combatant.id, new Set([target.value]));
+      refresh();
+    });
+    hit.addEventListener('click', () => {
+      setEncounterActor(encounter.identity.id, combatant.id);
+      if (target.value) setEncounterTarget(encounter.identity.id, target.value);
+      openEncounterAttackDialog(encounter);
+    });
+
+    if (existing) {
+      const movementFor = { attack: 'stand', wait: 'stand', evade: 'evade', close: 'close', open: 'open', 'close-only': 'close', 'open-only': 'open', 'close-run': 'close-run', 'open-run': 'open-run' };
+      move.value = movementFor[existing.action] ?? 'stand';
+      attack.value = ['attack', 'close', 'open'].includes(existing.action) ? 'attack' : 'none';
+      if (existing.targetId) target.value = existing.targetId;
+      order.textContent = '[ CHANGE ]';
+      order.disabled = !active;
+      order.onclick = () => updateEncounterDocument(encounter.identity.id, (doc) => clearEncounterAction(doc, { actorId: combatant.id }).encounter);
+    } else if (!canAct) {
+      order.disabled = true;
+      order.textContent = combatant.status !== 'active' ? `[ ${combatant.status.toUpperCase()} ]` : !contactStarted ? '[ WAIT ]' : surpriseSide && surpriseSide !== combatant.side ? '[ SURPRISED ]' : '[ BLOCKED ]';
+    } else {
+      order.disabled = !foes.length;
+      order.onclick = () => {
+        const withAttack = attack.value === 'attack';
+        const action = move.value === 'stand' ? (withAttack ? 'attack' : 'wait')
+          : move.value === 'evade' ? 'evade'
+          : move.value === 'close-run' || move.value === 'open-run' ? move.value
+          : withAttack ? move.value : `${move.value}-only`;
+        const needsTarget = !['wait', 'evade'].includes(action);
+        resolveActiveEncounterAction(action, 0, needsTarget ? target.value : null, combatant.id);
+      };
+    }
+    refresh();
+    row.append(actorCell, moveCell, targetCell, attackCell, hitCell, orderCell);
+    body.append(row);
+  }
+  table.append(body); tableWrap.append(table); children.push(tableWrap);
+  el.encounterTracker.replaceChildren(...children);
+
+  const controls = [];
+  const note = document.createElement('span'); note.className = 'encounter-resolve-note';
+  if (active && !contactStarted) {
+    controls.push(makePortButton('TALK / HOLD', () => setStatus('ENCOUNTER HELD FOR ROLEPLAY / CHOOSE FIGHT IF CONTACT BECOMES VIOLENT', 'ok')));
+    if (encounter.surprise.surpriseSideId === 'party') controls.push(makePortButton('AVOID', avoidActiveEncounter));
+    if (encounter.surprise.surpriseSideId !== 'opposition') controls.push(makePortButton('ESCAPE', attemptActiveEncounterEscape));
+    controls.push(makePortButton('FIGHT', beginActiveEncounterCombat));
+    note.textContent = encounter.surprise.surpriseSideId === 'opposition' ? 'OPPOSITION HAS SURPRISE; PARTY CANNOT AVOID' : 'BOOK 1 STEPS 1-3 / DECIDE BEFORE CONTACT';
+  } else if (active && moraleDue.length) {
+    for (const due of moraleDue) controls.push(makePortButton(`ROLL ${due.side === 'party' ? 'PARTY' : due.side.toUpperCase()} MORALE`, () => resolveActiveEncounterMorale(due.side)));
+    if (moraleDue.some((entry) => entry.side === 'party')) {
+      const enforce = document.createElement('label'); enforce.className = 'encounter-morale-enforce';
+      const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = Boolean(encounter.engagement.enforcePartyMorale);
+      checkbox.addEventListener('change', () => updateEncounterDocument(encounter.identity.id, (doc) => setEncounterPartyMoraleEnforcement(doc, checkbox.checked).encounter));
+      enforce.append(checkbox, document.createTextNode('ENFORCE PC WITHDRAWAL')); controls.push(enforce);
+    }
+    note.textContent = 'BOOK 1: CHECK AT 25% UNCONSCIOUS OR KILLED';
+  } else if (active) {
+    const autoPending = pendingNpcDeclarations(encounter).length;
+    const autoFill = makePortButton(`AUTO-FILL NPCs${autoPending ? ` (${autoPending})` : ''}`, autoFillActiveEncounterNpcs);
+    autoFill.disabled = autoPending === 0;
+    const resolve = makePortButton(surpriseSide ? `RESOLVE VOLLEY ${encounter.surprise.volley}` : `RESOLVE ROUND ${encounter.round}`, resolveDeclaredEncounterRound);
+    resolve.disabled = awaitingIds.size > 0;
+    resolve.title = awaitingIds.size ? 'Every eligible combatant needs an explicit declaration; use AUTO-FILL NPCs for enabled NPCs.' : 'Resolve all declared movement and attacks simultaneously.';
+    controls.push(autoFill, resolve);
+    note.textContent = awaitingIds.size ? `${awaitingIds.size} UNDECLARED / RESOLUTION BLOCKED` : 'ALL DECLARED';
+  } else {
+    const scene = viewedScene();
+    const start = scene ? makePortButton('START ENCOUNTER', () => startCombatFromScene(scene)) : makePortButton('START ENCOUNTER', openCombatSetupDialog);
+    controls.push(start); note.textContent = `ENCOUNTER ${encounter.status.toUpperCase().replace('-', ' ')}`;
+  }
+  if (active) controls.push(makePortButton('END COMBAT', () => {
+    if (!window.confirm(`End ${encounter.identity.title} and empty the tracker? Its record stays in the log, and wounds persist.`)) return;
+    endActiveEncounter({ thenDiscard: encounter.identity.id });
+  }));
+  el.encounterResolve.replaceChildren(...controls, note);
 }
 
 function assetForActor(actor) {
@@ -6695,15 +6903,11 @@ function beginCombatFromTracker(encounter) {
     const index = encounterDocuments.findIndex((entry) => entry.identity.id === encounter.identity.id);
     const result = beginEncounter(encounterDocuments[index], {
       surpriseConditions: JSON.parse(JSON.stringify(sceneSurpriseConditions)),
+      contactStarted: false,
       dice: seededDice(`${encounter.identity.id}|surprise`)
     });
     encounterDocuments[index] = result.encounter;
     logActivity('COMBAT', result.entry.text);
-    if (result.encounter.surprise.surpriseSideId === 'opposition') {
-      const waited = resolveEncounterRound(result.encounter, { action: 'wait', date: campaignDateSnapshot(), dice: seededDice(`${encounter.identity.id}|round-1|surprise`) });
-      encounterDocuments[index] = waited.encounter;
-      for (const entry of waited.entries) logActivity('COMBAT', entry.text);
-    }
     operationsDeskTab = 'encounter';
     persistCampaignState();
     setStatus('COMBAT BEGINS', 'ok');
@@ -6834,14 +7038,10 @@ function startCombatFromScene(scene) {
       campaign: campaignDocument, scene, characters, partyLoadouts, opponents,
       title: `${scene.identity.name} / ${opponents.map((entry) => entry.name).join(' + ')}`,
       encounterKey, date, range,
+      contactStarted: false,
       surpriseConditions: JSON.parse(JSON.stringify(sceneSurpriseConditions)),
       dice: seededDice(`${encounterKey}|surprise`)
     });
-    if (encounter.surprise.surpriseSideId === 'opposition') {
-      const result = resolveEncounterRound(encounter, { action: 'wait', date, dice: seededDice(`${encounter.identity.id}|round-1|surprise`) });
-      encounter = result.encounter;
-      for (const entry of result.entries) logActivity('COMBAT', entry.text);
-    }
     encounterDocuments.push(encounter);
     campaignDocument = addEncounterToCampaign(campaignDocument, encounter);
     // v0.92.4: the tracker is no longer emptied when the fight begins. Clearing
@@ -7179,6 +7379,7 @@ function startManualEncounter() {
     title: `Manual Combat / ${scene ? `${scene.identity.name} / ` : ''}${typeTitle}`,
     encounterKey,
     date,
+    contactStarted: false,
     range: el.combatStartingRange.value,
     metersPerSquare: spatialMode === 'range-line' || el.combatMapScale.value === '' ? null : Number.parseFloat(el.combatMapScale.value),
     // The three Book 1 p.31 conditions the document cannot work out for itself.
@@ -7193,14 +7394,6 @@ function startManualEncounter() {
     dice: seededDice(`${encounterKey}|surprise`)
   });
   const surpriseWinner = encounter.surprise.surpriseSideId;
-  if (surpriseWinner === 'opposition') {
-    const result = resolveEncounterRound(encounter, {
-      action: 'wait', date,
-      dice: seededDice(`${encounter.identity.id}|round-1|surprise`)
-    });
-    encounter = result.encounter;
-    for (const entry of result.entries) logActivity('COMBAT', entry.text);
-  }
   encounterDocuments.push(encounter);
   campaignDocument = addEncounterToCampaign(campaignDocument, encounter);
   clearEncounterCanvasSelection();
@@ -7272,17 +7465,10 @@ function startSituationEncounter(situation) {
       },
       date: campaignDateSnapshot(),
       range: 'medium',
+      contactStarted: false,
       dice: seededDice(`${situation.provenance.eventKey}|personal-combat|surprise`)
     });
     const surpriseWinner = encounter.surprise.surpriseSideId;
-    if (surpriseWinner === 'opposition') {
-      const result = resolveEncounterRound(encounter, {
-        action: 'wait', date: campaignDateSnapshot(),
-        dice: seededDice(`${encounter.identity.id}|round-1|surprise`)
-      });
-      encounter = result.encounter;
-      for (const entry of result.entries) logActivity('COMBAT', entry.text);
-    }
     encounterDocuments.push(encounter);
     campaignDocument = addEncounterToCampaign(campaignDocument, encounter);
     clearEncounterCanvasSelection();
@@ -7374,7 +7560,7 @@ function resolveDeclaredEncounterRound() {
   try {
     const started = activeEncounterAtCurrentSystem();
     if (!started) throw new Error('no active personal encounter');
-    const active = applyNpcDeclarations(started);
+    const active = started;
     const index = encounterDocuments.findIndex((entry) => entry.identity.id === active.identity.id);
     const result = resolveDeclaredRound(active, {
       date: campaignDateSnapshot(),
@@ -7447,6 +7633,68 @@ function avoidActiveEncounter() {
     console.error(error);
     setStatus(error?.message ?? String(error), 'error');
   }
+}
+
+function beginActiveEncounterCombat() {
+  try {
+    const active = activeEncounterAtCurrentSystem();
+    if (!active) throw new Error('no active personal encounter');
+    const index = encounterDocuments.findIndex((entry) => entry.identity.id === active.identity.id);
+    const result = startEncounterCombat(active);
+    encounterDocuments[index] = result.encounter;
+    if (result.entry) logActivity('COMBAT', result.entry.text);
+    syncCampaignRefs(); persistCampaignState(); autoPublishEncounterView(result.encounter);
+    setStatus(result.encounter.surprise.active ? `SURPRISE VOLLEY 1 / ${result.encounter.surprise.surpriseSideId.toUpperCase()}` : 'COMBAT ROUND 1 / DECLARE ACTIONS', 'ok');
+    render();
+  } catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); }
+}
+
+function attemptActiveEncounterEscape() {
+  try {
+    const active = activeEncounterAtCurrentSystem();
+    if (!active) throw new Error('no active personal encounter');
+    const index = encounterDocuments.findIndex((entry) => entry.identity.id === active.identity.id);
+    const result = attemptEncounterEscape(active, {
+      date: campaignDateSnapshot(), dice: seededDice(`${active.identity.id}|pre-contact-escape`)
+    });
+    encounterDocuments[index] = result.encounter;
+    const entry = result.entry ?? result.encounter.history.at(-1);
+    if (entry) logActivity('COMBAT', entry.text);
+    if (result.encounter.status !== 'active') { clearEncounterCanvasSelection(); resolveLinkedCombatSituation(result.encounter); }
+    syncCampaignRefs(); persistCampaignState(); autoPublishEncounterView(result.encounter);
+    setStatus(result.escaped ? 'PARTY ESCAPES BEFORE CONTACT' : 'ESCAPE FAILS / COMBAT ROUND 1', result.escaped ? 'ok' : 'error');
+    render();
+  } catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); }
+}
+
+function autoFillActiveEncounterNpcs() {
+  try {
+    const active = activeEncounterAtCurrentSystem();
+    if (!active) throw new Error('no active personal encounter');
+    const next = applyNpcDeclarations(active);
+    const index = encounterDocuments.findIndex((entry) => entry.identity.id === active.identity.id);
+    encounterDocuments[index] = next;
+    syncCampaignRefs(); persistCampaignState();
+    setStatus(`NPC ORDERS FILLED / ${undeclaredCombatantIds(next).length} UNDECLARED`, 'ok');
+    render();
+  } catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); }
+}
+
+function resolveActiveEncounterMorale(side) {
+  try {
+    const active = activeEncounterAtCurrentSystem();
+    if (!active) throw new Error('no active personal encounter');
+    const index = encounterDocuments.findIndex((entry) => entry.identity.id === active.identity.id);
+    const result = resolveEncounterMorale(active, {
+      side, date: campaignDateSnapshot(), dice: seededDice(`${active.identity.id}|round-${active.round - 1}|morale|${side}`)
+    });
+    encounterDocuments[index] = result.encounter;
+    logActivity('COMBAT', result.entry.text);
+    if (result.encounter.status !== 'active') { clearEncounterCanvasSelection(); applyEncounterDocumentSync(result.encounter); resolveLinkedCombatSituation(result.encounter); }
+    syncCampaignRefs(); persistCampaignState(); autoPublishEncounterView(result.encounter);
+    setStatus(result.entry.text.toUpperCase(), result.encounter.status === 'defeat' ? 'error' : 'ok');
+    render();
+  } catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); }
 }
 
 function openEncounterAttackDialog(encounter) {

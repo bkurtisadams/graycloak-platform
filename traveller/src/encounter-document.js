@@ -5,6 +5,7 @@ import {
   getPersonalWeapon,
   createPersonalCombatant,
   resolvePersonalSurprise,
+  resolveSurpriseAlarm,
   resolvePersonalAttack,
   rollPersonalAttack,
   SURPRISE_DMS,
@@ -168,7 +169,7 @@ function partyDocuments(character, characters, { allowEmpty = false } = {}) {
   return entries;
 }
 
-export function createEncounterDocument({ campaign, situation = null, scene = null, character = null, characters = null, partyLoadouts = {}, opponent = null, opponents = null, title = null, encounterKey = null, date, range = 'medium', metersPerSquare = null, boardMeters = null, spatialMode = 'scene', surpriseConditions = {}, setup = false, dice } = {}) {
+export function createEncounterDocument({ campaign, situation = null, scene = null, character = null, characters = null, partyLoadouts = {}, opponent = null, opponents = null, title = null, encounterKey = null, date, range = 'medium', metersPerSquare = null, boardMeters = null, spatialMode = 'scene', surpriseConditions = {}, setup = false, contactStarted = true, dice } = {}) {
   if (!campaign?.identity?.id) throw new TypeError('campaign is required');
   const characterDocuments = partyDocuments(character, characters, { allowEmpty: setup });
   const opponentSpecs = Array.isArray(opponents) && opponents.length ? opponents : opponent ? [opponent] : [];
@@ -237,6 +238,8 @@ export function createEncounterDocument({ campaign, situation = null, scene = nu
   });
   const surprise = {
     ...surpriseThrow,
+    active: Boolean(surpriseThrow.surpriseSideId),
+    volley: surpriseThrow.surpriseSideId ? 1 : 0,
     conditions: { party: partySurprise.conditions, opposition: oppositionSurprise.conditions }
   };
   const seed = `${campaign.identity.id}|${encounterKey ?? situation?.identity?.id ?? 'encounter'}|${date.year}-${date.dayOfYear}`;
@@ -261,10 +264,11 @@ export function createEncounterDocument({ campaign, situation = null, scene = nu
       ? { grid: 'line', columns: board.columns, rows: 1, rangeGuide: ENCOUNTER_RANGE_LINE_GUIDE_VERSION, metersPerSquare: board.gridScale, spatialMode }
       : { grid: 'square', columns: board.columns, rows: board.rows, rangeGuide: ENCOUNTER_RANGE_GUIDE_VERSION, metersPerSquare: board.gridScale, spatialMode },
     roundState: { declaredActions: [] },
+    engagement: { contactStarted: setup ? false : Boolean(contactStarted), moraleDue: [], enforcePartyMorale: false },
     combatants: [...party, ...hostiles],
     history: [{ round: 0, kind: 'surprise', text: surprise.surpriseSideId ? `${surprise.surpriseSideId} achieved surprise.` : 'Neither side achieved surprise.', detail: surprise }],
     outcome: null,
-    provenance: { rulesBasis: 'classic-traveller-book-1-personal-combat-1981-facsimile-errata', setting: 'Sea of Suns' }
+    provenance: { rulesBasis: 'classic-traveller-book-1-personal-combat-1977', setting: 'Sea of Suns' }
   };
   if (range === 'close') {
     party.forEach((entry, index) => setContact(entry, hostiles[Math.min(index, hostiles.length - 1)]));
@@ -307,7 +311,7 @@ export function validateEncounterDocument(document) {
   }
   add(errors, plain(document.roundState) && Array.isArray(document.roundState?.declaredActions), 'roundState must contain declaredActions');
   if (Array.isArray(document.roundState?.declaredActions)) for (const declaration of document.roundState.declaredActions) {
-    add(errors, nonblank(declaration.actorId) && ['attack', 'evade', 'close', 'open', 'close-run', 'open-run', 'escape', 'wait'].includes(declaration.action), 'declared party action is invalid');
+    add(errors, nonblank(declaration.actorId) && ['attack', 'evade', 'close', 'open', 'close-only', 'open-only', 'close-run', 'open-run', 'escape', 'wait'].includes(declaration.action), 'declared party action is invalid');
     add(errors, Number.isInteger(declaration.modifier) && declaration.modifier >= -20 && declaration.modifier <= 20, 'declared party action modifier is invalid');
     add(errors, declaration.targetId === null || nonblank(declaration.targetId), 'declared party action target is invalid');
   }
@@ -316,6 +320,14 @@ export function validateEncounterDocument(document) {
     add(errors, Number.isInteger(document.surprise.margin) && document.surprise.margin >= 0, 'surprise.margin must be a non-negative integer');
     add(errors, document.surprise.surpriseSideId === null || nonblank(document.surprise.surpriseSideId), 'surprise.surpriseSideId is invalid');
     add(errors, document.surprise.surprisedSideId === null || nonblank(document.surprise.surprisedSideId), 'surprise.surprisedSideId is invalid');
+    add(errors, typeof document.surprise.active === 'boolean', 'surprise.active must be boolean');
+    add(errors, Number.isInteger(document.surprise.volley) && document.surprise.volley >= 0, 'surprise.volley must be a non-negative integer');
+  }
+  add(errors, plain(document.engagement), 'engagement state is required');
+  if (plain(document.engagement)) {
+    add(errors, typeof document.engagement.contactStarted === 'boolean', 'engagement.contactStarted must be boolean');
+    add(errors, Array.isArray(document.engagement.moraleDue), 'engagement.moraleDue must be an array');
+    add(errors, typeof document.engagement.enforcePartyMorale === 'boolean', 'engagement.enforcePartyMorale must be boolean');
   }
   add(errors, Array.isArray(document.combatants) && (document.status === 'setup' || document.combatants.length >= 2), 'combatants must contain at least two entries');
   if (Array.isArray(document.combatants)) for (const entry of document.combatants) {
@@ -522,6 +534,23 @@ function migrateEncounterDocument(document) {
   // document missing only this one field).
   if (!['scene', 'range-line'].includes(document.map?.spatialMode)) {
     document.map = { ...document.map, spatialMode: document.map?.grid === 'line' ? 'range-line' : 'scene' };
+  }
+  // v0.97.0 adds an explicit pre-contact encounter step, persistent surprise
+  // volleys, and referee-visible morale gates without changing the document
+  // schema number used by the v0.96 line-grid migration. Existing encounters
+  // were already in combat, so they resume with contact started.
+  if (!plain(document.engagement)) {
+    document.engagement = { contactStarted: document.status !== 'setup', moraleDue: [], enforcePartyMorale: false };
+  } else {
+    document.engagement.contactStarted = Boolean(document.engagement.contactStarted);
+    document.engagement.moraleDue = Array.isArray(document.engagement.moraleDue) ? document.engagement.moraleDue : [];
+    document.engagement.enforcePartyMorale = Boolean(document.engagement.enforcePartyMorale);
+  }
+  if (plain(document.surprise)) {
+    if (typeof document.surprise.active !== 'boolean') {
+      document.surprise.active = document.status === 'active' && document.round === 1 && Boolean(document.surprise.surpriseSideId);
+    }
+    if (!Number.isInteger(document.surprise.volley)) document.surprise.volley = document.surprise.active ? 1 : 0;
   }
   return document;
 }
@@ -963,6 +992,58 @@ export function encounterSituationDMs(encounter, attacker, defender) {
   return { parts, total: parts.reduce((sum, part) => sum + part.dm, 0) };
 }
 
+export function activeSurpriseSide(document) {
+  return document?.status === 'active' && document?.engagement?.contactStarted && document?.surprise?.active
+    ? document.surprise.surpriseSideId
+    : null;
+}
+
+export function startEncounterCombat(document) {
+  const next = importEncounterDocument(document);
+  if (next.status !== 'active') throw new Error('encounter is not awaiting contact');
+  if (next.engagement.contactStarted) return { encounter: next, entry: null };
+  next.engagement.contactStarted = true;
+  const entry = {
+    round: 0, kind: 'contact',
+    text: `Contact begins at ${next.range.replace('-', ' ')} range${next.surprise.active ? `; ${next.surprise.surpriseSideId} retains surprise` : ''}.`
+  };
+  next.history.push(entry);
+  assertValidEncounterDocument(next);
+  return { encounter: next, entry };
+}
+
+export function attemptEncounterEscape(document, { side = 'party', modifier = 0, dice, date } = {}) {
+  const next = importEncounterDocument(document);
+  if (next.status !== 'active' || next.engagement.contactStarted) throw new Error('escape is attempted before combat or contact begins');
+  if (!Number.isInteger(modifier) || modifier < -20 || modifier > 20) throw new RangeError('modifier must be an integer from -20 to 20');
+  if (side !== 'party') throw new Error('the player escape control is for the party');
+  if (next.surprise.surpriseSideId === 'opposition') throw new Error('the surprised party cannot attempt escape before the opposition acts');
+  if (next.surprise.surpriseSideId === 'party') return { encounter: avoidEncounter(next, { date }), entry: null, escaped: true };
+  const rangeDM = ESCAPE_RANGE_DMS[next.range];
+  const results = [dice.rollD6(), dice.rollD6()];
+  const total = results[0] + results[1] + rangeDM + modifier;
+  const escaped = total >= ESCAPE_TARGET;
+  const entry = {
+    round: 0, kind: 'escape', side,
+    text: `Party escape / 2D [${results.join('] [')}] / RANGE ${rangeDM >= 0 ? '+' : ''}${rangeDM} / MOD ${modifier >= 0 ? '+' : ''}${modifier} / TOTAL ${total} vs ${ESCAPE_TARGET}+ / ${escaped ? 'ESCAPES' : 'FAILS; CONTACT BEGINS'}.`,
+    detail: { dice: results, rangeDM, modifier, total, target: ESCAPE_TARGET, escaped }
+  };
+  next.history.push(entry);
+  if (escaped) {
+    next.status = 'escaped'; next.outcome = { winner: null, reason: 'party-escaped-before-contact' };
+    next.timing.resolvedDate = { year: date.year, dayOfYear: date.dayOfYear };
+  } else next.engagement.contactStarted = true;
+  assertValidEncounterDocument(next);
+  return { encounter: next, entry, escaped };
+}
+
+export function setEncounterPartyMoraleEnforcement(document, enforce) {
+  const next = importEncounterDocument(document);
+  next.engagement.enforcePartyMorale = Boolean(enforce);
+  assertValidEncounterDocument(next);
+  return { encounter: next };
+}
+
 export function setEncounterLighting(document, lighting) {
   const next = importEncounterDocument(document);
   if (!ENCOUNTER_LIGHTING.includes(lighting)) throw new RangeError(`unknown encounter lighting: ${lighting}`);
@@ -1001,10 +1082,12 @@ export function setCombatantFoldingStock(document, { combatantId, foldingStock }
 export function declareEncounterAction(document, { action = 'attack', modifier = 0, actorId = null, targetId = null } = {}) {
   const next = importEncounterDocument(document);
   if (next.status !== 'active') throw new Error('encounter is already resolved');
-  if (!['attack', 'evade', 'close', 'open', 'close-run', 'open-run', 'escape', 'wait'].includes(action)) throw new RangeError(`unknown encounter action: ${action}`);
+  if (!next.engagement.contactStarted) throw new Error('choose FIGHT or attempt ESCAPE before declaring combat actions');
+  if (next.engagement.moraleDue.length) throw new Error('resolve the due morale check before declaring the next round');
+  if (!['attack', 'evade', 'close', 'open', 'close-only', 'open-only', 'close-run', 'open-run', 'wait'].includes(action)) throw new RangeError(`unknown encounter action: ${action}`);
   if (!Number.isInteger(modifier) || modifier < -20 || modifier > 20) throw new RangeError('modifier must be an integer from -20 to 20');
   const active = next.combatants.filter((entry) => entry.status === 'active');
-  const surpriseRound = next.round === 1 ? next.surprise.surpriseSideId : null;
+  const surpriseRound = activeSurpriseSide(next);
   const mayAct = (side) => surpriseRound === null || surpriseRound === side;
   const declaredBy = (id) => next.roundState.declaredActions.find((entry) => entry.actorId === id) ?? null;
   const actor = actorId === null
@@ -1020,7 +1103,6 @@ export function declareEncounterAction(document, { action = 'attack', modifier =
     ? active.find((entry) => entry.side !== actor.side)
     : active.find((entry) => entry.id === targetId);
   if ((action === 'attack' || action === 'close' || action === 'open' || action === 'close-run' || action === 'open-run') && !target) throw new Error(targetId ? 'selected target is unavailable' : 'no active target remains');
-  if (action === 'escape' && next.round !== 1) throw new Error('after combat begins, escape is possible only by opening beyond 20 range bands');
   if (target && target.side === actor.side) throw new Error(`${actor.name} cannot target ${target.name} on the same side`);
   next.roundState.declaredActions.push({ actorId: actor.id, side: actor.side, action, modifier, targetId: target?.id ?? null });
   assertValidEncounterDocument(next);
@@ -1031,9 +1113,20 @@ export function declareEncounterAction(document, { action = 'attack', modifier =
   };
 }
 
+export function clearEncounterAction(document, { actorId } = {}) {
+  const next = importEncounterDocument(document);
+  if (next.status !== 'active' || !next.engagement.contactStarted) throw new Error('combat declarations are unavailable');
+  const before = next.roundState.declaredActions.length;
+  next.roundState.declaredActions = next.roundState.declaredActions.filter((entry) => entry.actorId !== actorId);
+  if (next.roundState.declaredActions.length === before) throw new Error('combatant has no declaration to clear');
+  assertValidEncounterDocument(next);
+  return { encounter: next };
+}
+
 // Who is active, allowed to act, and has no orders yet.
 export function undeclaredCombatantIds(document) {
-  const surpriseRound = document.round === 1 ? document.surprise.surpriseSideId : null;
+  if (document.status !== 'active' || !document.engagement?.contactStarted || document.engagement?.moraleDue?.length) return [];
+  const surpriseRound = activeSurpriseSide(document);
   const declared = new Set((document.roundState?.declaredActions ?? []).map((entry) => entry.actorId));
   return document.combatants
     .filter((entry) => entry.status === 'active' && !declared.has(entry.id))
@@ -1044,15 +1137,22 @@ export function undeclaredCombatantIds(document) {
 export function resolveDeclaredRound(document, { dice, date } = {}) {
   const next = importEncounterDocument(document);
   if (next.status !== 'active') throw new Error('encounter is already resolved');
+  if (!next.engagement.contactStarted) throw new Error('combat has not begun');
+  if (next.engagement.moraleDue.length) throw new Error('resolve the due morale check before the next round');
   const everyone = next.combatants.map(clone);
   const active = everyone.filter((entry) => entry.status === 'active');
-  const surpriseRound = next.round === 1 ? next.surprise.surpriseSideId : null;
+  const surpriseRound = activeSurpriseSide(next);
   const mayAct = (side) => surpriseRound === null || surpriseRound === side;
   const declaredBy = (id) => next.roundState.declaredActions.find((entry) => entry.actorId === id) ?? null;
 
   const entries = [];
   const live = new Map(everyone.map((entry) => [entry.id, entry]));
   const declarations = next.roundState.declaredActions.filter((entry) => mayAct(entry.side));
+  const missing = undeclaredCombatantIds(next);
+  if (missing.length) {
+    const names = missing.map((id) => next.combatants.find((entry) => entry.id === id)?.name ?? id);
+    throw new Error(`cannot resolve: declarations required for ${names.join(', ')}`);
+  }
 
   // --- Step 2A: movement and posture, resolved before any attack.
   // Destinations are calculated from the same pre-movement snapshot because
@@ -1062,7 +1162,7 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
   for (const declaration of declarations) {
     const mover = live.get(declaration.actorId);
     const moveTarget = declaration.targetId === null ? null : live.get(declaration.targetId);
-    const movement = declaration.action.match(/^(close|open)(-run)?$/);
+    const movement = declaration.action.match(/^(close|open)(?:-only)?(-run)?$/);
     if (movement && moveTarget) {
       const direction = movement[1];
       const pace = movement[2] ? 'run' : 'walk';
@@ -1131,29 +1231,6 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
     throwAttack(declaration.actorId, declaration.targetId, declaration.modifier, declaration.side);
   }
 
-  // Anyone active, allowed to act, and not given an order falls back to the
-  // nearest enemy. Combatants on auto have already had the house routine
-  // declare for them (see applyNpcDeclarations), so this only catches the ones
-  // the referee left alone.
-  for (const entry of active) {
-    if (declaredBy(entry.id) || !mayAct(entry.side)) continue;
-    if (next.history.some((historyEntry) => historyEntry.round === next.round && historyEntry.kind === 'movement' && historyEntry.actorId === entry.id && historyEntry.detail?.playerMove)) continue;
-    const attacker = snapshot.get(entry.id);
-    const foe = nearestActiveOpponent(attacker, [...snapshot.values()].filter((candidate) => candidate.side !== attacker.side));
-    if (!foe) continue;
-    const band = encounterPairRange(attacker, foe, next.map.spatialMode);
-    if (weaponTargetNumber(attacker.weaponKey, foe.armor, band) === null) {
-      const acting = live.get(entry.id);
-      const movement = moveOnMeterGrid(acting, live.get(foe.id) ?? foe, 'close', 'walk', next.map);
-      snapshot.get(entry.id).position = { ...acting.position };
-      const closed = encounterPairRange(acting, live.get(foe.id) ?? foe, next.map.spatialMode);
-      const squares = Number((movement.meters / next.map.metersPerSquare).toFixed(2));
-      entries.push({ round: next.round, kind: 'movement', side: entry.side, actorId: entry.id, targetId: foe.id, text: `${entry.name} cannot attack at ${band} range and walks ${movement.meters} m / ${squares} grid squares closer, ending at ${closed} range.`, detail: { movementStatus: 'close', pace: 'walk', meters: movement.meters, squares, allowanceMeters: ENCOUNTER_METERS_PER_RANGE_BAND, from: movement.from, to: movement.to, band: closed, blowCost: 0 } });
-      continue;
-    }
-    throwAttack(entry.id, foe.id, 0, entry.side);
-  }
-
   // --- Step 2C: wounds land after the last attack, in declaration order.
   for (const wound of pendingWounds) {
     const defender = live.get(wound.defenderId);
@@ -1177,6 +1254,24 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
     delete entry.prefix;
   }
 
+  if (surpriseRound) {
+    const defenders = [...live.values()].filter((entry) => entry.side !== surpriseRound);
+    const attacks = entries.filter((entry) => entry.kind === 'attack' && entry.detail).map((entry) => ({
+      weaponKey: snapshot.get(entry.actorId)?.weaponKey ?? 'hands', targetId: entry.targetId,
+      hit: Boolean(entry.detail.success), defenderStatus: live.get(entry.targetId)?.status ?? entry.detail.defenderStatus,
+      silenced: Boolean(snapshot.get(entry.actorId)?.silenced)
+    }));
+    const alarm = resolveSurpriseAlarm({ attacks, defendingCombatants: defenders, dice });
+    if (alarm.alarm) next.surprise.active = false;
+    else next.surprise.volley += 1;
+    const detail = alarm.reason === 'unsilenced-gunshot' ? 'an unsilenced gunshot raises the alarm'
+      : alarm.reason === 'conscious-victim' ? 'a conscious victim raises the alarm'
+      : alarm.reason === 'witness' ? `an unattacked comrade sees a victim fall on ${alarm.roll}`
+      : alarm.reason === 'witness-missed' ? `no unattacked comrade raises the alarm (${alarm.roll} vs 9+)`
+      : 'no alarm is raised';
+    entries.push({ round: next.round, kind: 'surprise-alarm', side: surpriseRound, text: `Surprise volley ${next.surprise.volley - (alarm.alarm ? 0 : 1)}: ${detail}; surprise ${alarm.alarm ? 'ends' : 'continues'}.`, detail: alarm });
+  }
+
   for (const entry of live.values()) entry.evading = false;
   for (const entry of live.values()) {
     if (entry.status !== 'active') continue;
@@ -1196,17 +1291,14 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
   else if (!foesLeft) { next.status = 'victory'; next.outcome = { winner: 'party', reason: 'opposition-incapacitated' }; }
 
   if (next.status === 'active') {
-    const casualties = next.combatants.filter((entry) => entry.side !== 'party' && entry.status !== 'active').length;
-    const originalStrength = next.combatants.filter((entry) => entry.side !== 'party').length;
-    const morale = resolvePersonalMorale({ casualties, originalStrength, dice });
-    if (morale.required) {
-      const moraleDM = morale.dm ? ` / DM ${morale.dm >= 0 ? '+' : ''}${morale.dm}` : '';
-      entries.push({ round: next.round, kind: 'morale', side: 'opposition', text: `Opposition morale / 2D [${morale.dice.join('] [')}]${moraleDM} / TOTAL ${morale.total} vs ${morale.target}+ / ${morale.stands ? 'STANDS' : 'WITHDRAWS'}.`, detail: morale });
-      if (!morale.stands) {
-        next.status = 'opposition-withdrew'; next.outcome = { winner: 'party', reason: 'morale' };
-        next.combatants = next.combatants.map((entry) => entry.side !== 'party' && entry.status === 'active' ? { ...entry, status: 'withdrawn' } : entry);
-      }
-    }
+    const sides = [...new Set(next.combatants.map((entry) => entry.side))];
+    next.engagement.moraleDue = sides.flatMap((side) => {
+      const members = next.combatants.filter((entry) => entry.side === side);
+      const casualties = members.filter((entry) => ['unconscious', 'dead'].includes(entry.status)).length;
+      return members.length > 0 && casualties / members.length >= 0.25
+        ? [{ side, casualties, originalStrength: members.length }]
+        : [];
+    });
   }
   next.history.push(...entries);
   if (next.status === 'active') next.round += 1;
@@ -1222,8 +1314,8 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
 // caller that does not want the two-step flow behaves exactly as before.
 export function resolveEncounterRound(document, { action = 'attack', modifier = 0, actorId = null, targetId = null, dice, date } = {}) {
   const declared = declareEncounterAction(document, { action, modifier, actorId, targetId });
-  const encounter = declared.encounter;
-  const surpriseRound = encounter.round === 1 ? encounter.surprise.surpriseSideId : null;
+  let encounter = declared.encounter;
+  const surpriseRound = activeSurpriseSide(encounter);
   const partyMayAct = surpriseRound === null || surpriseRound === 'party';
   const declaredIds = new Set(encounter.roundState.declaredActions.map((entry) => entry.actorId));
   const awaitingParty = encounter.combatants
@@ -1232,12 +1324,26 @@ export function resolveEncounterRound(document, { action = 'attack', modifier = 
   if (partyMayAct && awaitingParty.length) {
     return { encounter, entries: [], pending: true, awaitingActorIds: awaitingParty };
   }
+  // Compatibility one-step API: callers that deliberately use this helper
+  // still receive AUTO combatant orders. The normal client uses the strict
+  // declareEncounterAction + resolveDeclaredRound path and exposes a visible
+  // AUTO-FILL NPCs button, so no manual or player order is invented silently.
+  for (const id of undeclaredCombatantIds(encounter)) {
+    const auto = encounter.combatants.find((entry) => entry.id === id && entry.tactics === 'auto');
+    if (!auto) continue;
+    const foe = nearestActiveOpponent(auto, encounter.combatants.filter((entry) => entry.side !== auto.side));
+    const band = foe ? encounterPairRange(auto, foe, encounter.map.spatialMode) : null;
+    const autoAction = !foe ? 'wait' : weaponTargetNumber(auto.weaponKey, foe.armor, band) === null ? 'close' : 'attack';
+    encounter = declareEncounterAction(encounter, { action: autoAction, actorId: auto.id, targetId: foe?.id ?? null }).encounter;
+  }
   return resolveDeclaredRound(encounter, { dice, date });
 }
 
 export function avoidEncounter(document, { date } = {}) {
   const next = importEncounterDocument(document);
   if (next.status !== 'active') throw new Error('encounter is already resolved');
+  const combatOccurred = next.history.some((entry) => entry.kind === 'attack' || entry.kind === 'movement');
+  if (next.engagement.contactStarted && combatOccurred) throw new Error('contact has begun; leave through movement');
   if (next.surprise.surpriseSideId !== 'party') throw new Error('the party can avoid only when it has surprise');
   next.status = 'avoided'; next.outcome = { winner: null, reason: 'party-avoided-contact' };
   next.timing.resolvedDate = { year: date.year, dayOfYear: date.dayOfYear };
@@ -1245,6 +1351,29 @@ export function avoidEncounter(document, { date } = {}) {
   next.history.push({ round: 0, kind: 'avoidance', side: 'party', text: 'The party uses surprise to avoid the encounter.' });
   assertValidEncounterDocument(next);
   return next;
+}
+
+export function resolveEncounterMorale(document, { side, modifier = 0, dice, date } = {}) {
+  const next = importEncounterDocument(document);
+  const due = next.engagement.moraleDue.find((entry) => entry.side === side);
+  if (!due) throw new Error(`${side} has no morale check due`);
+  const morale = resolvePersonalMorale({ casualties: due.casualties, originalStrength: due.originalStrength, dm: modifier, dice });
+  const enforced = side !== 'party' || next.engagement.enforcePartyMorale;
+  const resultWord = morale.stands ? 'STANDS' : enforced ? 'WITHDRAWS' : 'FAILS; REFEREE DECIDES PLAYER RESPONSE';
+  const moraleDM = morale.dm ? ` / DM ${morale.dm >= 0 ? '+' : ''}${morale.dm}` : '';
+  const entry = { round: next.round - 1, kind: 'morale', side, text: `${side === 'party' ? 'Party' : side === 'opposition' ? 'Opposition' : side} morale / 2D [${morale.dice.join('] [')}]${moraleDM} / TOTAL ${morale.total} vs ${morale.target}+ / ${resultWord}.`, detail: { ...morale, enforced } };
+  next.history.push(entry);
+  next.engagement.moraleDue = next.engagement.moraleDue.filter((item) => item.side !== side);
+  if (!morale.stands && enforced) {
+    next.combatants = next.combatants.map((combatant) => combatant.side === side && combatant.status === 'active' ? { ...combatant, status: 'withdrawn' } : combatant);
+    next.status = side === 'party' ? 'defeat' : 'opposition-withdrew';
+    next.outcome = { winner: side === 'party' ? 'opposition' : 'party', reason: 'morale' };
+    next.timing.resolvedDate = { year: date.year, dayOfYear: date.dayOfYear };
+    next.engagement.moraleDue = [];
+    next.combatants = next.combatants.map(endPersonalCombatRecovery);
+  }
+  assertValidEncounterDocument(next);
+  return { encounter: next, entry };
 }
 
 // v0.74.0: a roster NPC as an opponent spec for createEncounterDocument, with
@@ -1343,7 +1472,7 @@ export function addEncounterCombatantFromCharacter(document, { character, loadou
 
 // setup -> active. Both sides must be present, and surprise is rolled here
 // rather than at creation, because that is when the fight actually starts.
-export function beginEncounter(document, { surpriseConditions = {}, dice } = {}) {
+export function beginEncounter(document, { surpriseConditions = {}, contactStarted = true, dice } = {}) {
   const next = importEncounterDocument(document);
   if (next.status !== 'setup') throw new Error('encounter has already begun');
   const party = next.combatants.filter((entry) => entry.side === 'party');
@@ -1361,12 +1490,17 @@ export function beginEncounter(document, { surpriseConditions = {}, dice } = {})
       ],
       dice
     }),
+    active: false,
+    volley: 0,
     conditions: { party: partySurprise.conditions, opposition: oppositionSurprise.conditions }
   };
+  next.surprise.active = Boolean(next.surprise.surpriseSideId);
+  next.surprise.volley = next.surprise.active ? 1 : 0;
   next.status = 'active';
   next.round = 1;
+  next.engagement = { contactStarted: Boolean(contactStarted), moraleDue: [], enforcePartyMorale: Boolean(next.engagement?.enforcePartyMorale) };
   const entry = { round: 1, kind: 'status', side: 'referee', combatantId: null,
-    text: `Combat begins: ${party.length} party against ${foes.length}; surprise ${next.surprise.surpriseSideId ?? 'neither side'}.` };
+    text: `Encounter begins: ${party.length} party against ${foes.length}; surprise ${next.surprise.surpriseSideId ?? 'neither side'}.` };
   next.history.push(entry);
   assertValidEncounterDocument(next);
   return { encounter: next, entry };

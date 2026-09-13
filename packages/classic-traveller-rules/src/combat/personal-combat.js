@@ -216,6 +216,46 @@ export function resolvePersonalSurprise({ sides, dice } = {}) {
   return { results, margin: difference, surprisedSideId, surpriseSideId: surprisedSideId === null ? null : results.find((entry) => entry.sideId !== surprisedSideId).sideId };
 }
 
+// Book 1 p.26: surprise lasts until an alarm is raised; it is not limited to
+// the first combat round. Unsilenced firearms raise the alarm immediately,
+// as does a hit which leaves the victim conscious. If a victim falls quietly,
+// an unattacked comrade notices on 9+. The caller supplies one record for each
+// simultaneous surprise attack so this routine can judge the whole volley.
+export function resolveSurpriseAlarm({ attacks = [], defendingCombatants = [], dice } = {}) {
+  requireDice(dice);
+  if (!Array.isArray(attacks) || !Array.isArray(defendingCombatants)) throw new TypeError('surprise alarm requires attack and defender arrays');
+  const normalized = attacks.map((attack) => {
+    if (!attack || typeof attack.weaponKey !== 'string') throw new TypeError('each surprise attack must name a weapon');
+    getPersonalWeapon(attack.weaponKey);
+    return {
+      weaponKey: attack.weaponKey,
+      targetId: attack.targetId ?? null,
+      hit: Boolean(attack.hit),
+      defenderStatus: attack.defenderStatus ?? null,
+      silenced: Boolean(attack.silenced)
+    };
+  });
+  const noisy = normalized.find((attack) => {
+    const weapon = getPersonalWeapon(attack.weaponKey);
+    const laser = attack.weaponKey === 'laser-carbine' || attack.weaponKey === 'laser-rifle';
+    return !weapon.melee && !laser && !attack.silenced;
+  });
+  if (noisy) return { alarm: true, reason: 'unsilenced-gunshot', roll: null, dice: [] };
+
+  const consciousHit = normalized.find((attack) => attack.hit && attack.defenderStatus === 'active');
+  if (consciousHit) return { alarm: true, reason: 'conscious-victim', roll: null, dice: [] };
+
+  const fallenTargets = new Set(normalized
+    .filter((attack) => attack.hit && ['unconscious', 'dead'].includes(attack.defenderStatus))
+    .map((attack) => attack.targetId));
+  const attackedTargets = new Set(normalized.map((attack) => attack.targetId).filter(Boolean));
+  const witness = fallenTargets.size > 0 && defendingCombatants.some((entry) => entry?.status === 'active' && !attackedTargets.has(entry.id));
+  if (!witness) return { alarm: false, reason: 'none', roll: null, dice: [] };
+  const results = [dice.rollD6(), dice.rollD6()];
+  const roll = results[0] + results[1];
+  return { alarm: roll >= 9, reason: roll >= 9 ? 'witness' : 'witness-missed', roll, dice: results };
+}
+
 export function movePersonalCombatRange(range, direction) {
   if (!Object.hasOwn(RANGE_INDEX, range)) throw new RangeError(`unknown personal combat range: ${range}`);
   if (!['close', 'open'].includes(direction)) throw new RangeError('range direction must be close or open');
