@@ -6642,6 +6642,21 @@ function addTokenToCombat(scene, token) {
   }
 }
 
+// Foundry's gesture: right-clicking a token inside a multi-token selection acts
+// on the whole selection, not just the one under the cursor.
+function addTokensToCombat(scene, tokens) {
+  let added = 0;
+  for (const token of tokens) {
+    const before = encounterDocuments.length;
+    const encounter = combatEncounterForScene(scene);
+    const count = encounter?.combatants.length ?? 0;
+    addTokenToCombat(scene, token);
+    const after = combatEncounterForScene(scene);
+    if (encounterDocuments.length > before || (after?.combatants.length ?? 0) > count) added += 1;
+  }
+  if (added > 1) setStatus(`${added} ADDED TO COMBAT`, 'ok');
+}
+
 function removeCombatantFromTracker(encounter, combatantId) {
   try {
     const index = encounterDocuments.findIndex((entry) => entry.identity.id === encounter.identity.id);
@@ -6709,7 +6724,13 @@ function showStagedTokenMenu(event, scene, token) {
       const inCombat = combat?.combatants.find((entry) => entry.id === token.token.actorId || entry.sourceActorId === token.token.actorId);
       return [inCombat
         ? { label: 'REMOVE FROM COMBAT', title: 'Take this combatant out of the tracker', action: () => removeCombatantFromTracker(combat, inCombat.id) }
-        : { label: 'ADD TO COMBAT', title: combat ? 'Join the combat tracker' : 'Open a combat tracker with this token in it', action: () => addTokenToCombat(scene, token.token) }];
+        : (() => {
+          const ids = stagedSelectedTokenIds.has(token.token.id) && stagedSelectedTokenIds.size > 1 ? [...stagedSelectedTokenIds] : [token.token.id];
+          const tokens = ids.map((id) => scene.tokens.find((entry) => entry.id === id)).filter(Boolean);
+          return { label: tokens.length > 1 ? `ADD ${tokens.length} TO COMBAT` : 'ADD TO COMBAT',
+            title: combat ? 'Join the combat tracker' : 'Open a combat tracker with these tokens in it',
+            action: () => addTokensToCombat(scene, tokens) };
+        })()];
     })(),
     { label: 'OPEN SHEET', action: () => { const named = sceneActorNames().get(token.token.actorId); if (named?.kind === 'npc') openNpcActorDialog(token.token.actorId); else { activatePartyCharacter(token.token.actorId); if (!characterWindow.state.open) openWindowController(characterWindow); applyCampaignLayout(); } } },
     { heading: 'SCENE' },
