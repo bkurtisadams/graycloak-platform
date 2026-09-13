@@ -8921,15 +8921,35 @@ function playProcedureSnapshot() {
   const commerceBlock = reachable ? passengerRouteBlockReason(selected.id) : null;
   const contractBlock = reachable ? contractRouteBlockReason(selected.id) : null;
   const lifeSupportBlocked = Boolean(lifeSupport && lifeSupport.totalCr > (shipDocument?.state?.finances?.balanceCr ?? 0));
+  // v0.107.0: a blocked jump has to say what would unblock it. The card used
+  // to offer [ MAP ], which does nothing about unpaid berthing or a charter.
+  let jumpBlockAction = null;
   let jumpBlockReason = null;
   if (!shipDocument) jumpBlockReason = 'No active ship.';
-  else if (fuelCheck && !fuelCheck.allowed) jumpBlockReason = fuelCheck.reason === 'FUEL UNRECORDED' ? 'Fuel is unrecorded; refuel or skim first.' : `Fuel: need ${fuelCheck.requirement.totalTons}t, have ${fuelCheck.availableTons}t.`;
-  else if (departureBlocked) jumpBlockReason = 'Berthing must be paid before departure.';
+  else if (fuelCheck && !fuelCheck.allowed) {
+    jumpBlockReason = fuelCheck.reason === 'FUEL UNRECORDED' ? 'Fuel is unrecorded; refuel or skim first.' : `Fuel: need ${fuelCheck.requirement.totalTons}t, have ${fuelCheck.availableTons}t.`;
+    jumpBlockAction = fuelService?.available ? { action: 'fuel:buy', verb: '[ FILL TANKS ]' } : current.gasGiant ? { action: 'fuel:skim', verb: '[ SKIM ]' } : null;
+  }
+  else if (departureBlocked) {
+    jumpBlockReason = `Berthing must be paid before departure${portCall?.berthingDueCr ? ` (Cr${portCall.berthingDueCr.toLocaleString('en-US')})` : ''}.`;
+    jumpBlockAction = { action: 'berthing:pay', verb: '[ PAY BERTHING ]' };
+  }
   else if (commerceBlock) jumpBlockReason = commerceBlock;
-  else if (contractBlock) jumpBlockReason = contractBlock;
+  else if (contractBlock) {
+    // An exclusive charter refuses every destination but its own, and the
+    // only ways out are delivering it or abandoning it on the board.
+    jumpBlockReason = `${contractBlock}. Deliver it, or abandon it on the contract board.`;
+    jumpBlockAction = { action: 'jobs', verb: '[ CONTRACT BOARD ]' };
+  }
   else if (lifeSupportBlocked) jumpBlockReason = `Ship account cannot cover life support Cr${lifeSupport.totalCr.toLocaleString('en-US')}.`;
-  else if (situation) jumpBlockReason = 'Resolve the active situation first.';
-  else if (encounter) jumpBlockReason = 'Resolve the encounter first.';
+  else if (situation) {
+    jumpBlockReason = 'Resolve the active situation first.';
+    jumpBlockAction = { action: 'situation', verb: '[ SITUATION ]' };
+  }
+  else if (encounter) {
+    jumpBlockReason = 'Resolve the encounter first.';
+    jumpBlockAction = { action: 'encounter', verb: '[ COMBAT ]' };
+  }
   return {
     currentSystem: { name: current.name, starport: profile.starport, hasGasGiant: Boolean(current.gasGiant) },
     destination,
@@ -8965,6 +8985,7 @@ function playProcedureSnapshot() {
     thread: activeThreadObjective(),
     lifeSupportCr: lifeSupport?.totalCr ?? 0,
     jumpReady: Boolean(reachable && !jumpBlockReason),
+    jumpBlockAction,
     jumpBlockReason
   };
 }

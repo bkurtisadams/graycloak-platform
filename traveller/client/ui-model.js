@@ -965,7 +965,11 @@ export function buildPlayProcedure(s = {}) {
     if (s.jumpReady) {
       readyAfter.push(card('jump', `Depart → ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready, `${s.destination.distance} parsec${s.destination.distance === 1 ? '' : 's'} · 7 days in jump · life support Cr${(s.lifeSupportCr ?? 0).toLocaleString('en-US')} charged at departure (Book 2 p.7).`, { action: 'jump', verb: '[ JUMP ]' }));
     } else {
-      readyAfter.push(card('jump', `Depart → ${s.destination.name}`, PLAY_PROCEDURE_TAGS.blocked, s.jumpBlockReason || 'Not ready to jump.', { action: 'nav', verb: '[ MAP ]' }));
+      // The verb is whatever would clear the block — paying the berthing fee,
+      // filling the tanks, opening the contract board. [ MAP ] was offered
+      // for every case and did nothing about any of them.
+      readyAfter.push(card('jump', `Depart → ${s.destination.name}`, PLAY_PROCEDURE_TAGS.blocked,
+        s.jumpBlockReason || 'Not ready to jump.', s.jumpBlockAction ?? {}));
     }
   }
 

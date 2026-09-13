@@ -273,3 +273,27 @@ test('v0.103.0 high passage with no steward says why, and offers the crew list',
   assert.equal(byId(model, 'passengers-middle').action, 'passenger:middle');
   assert.equal(byId(model, 'passengers-high'), undefined);
 });
+
+test('v0.107.0 a blocked jump offers the thing that would unblock it', () => {
+  const s = base();
+  s.destination = { name: 'San Telmo', distance: 1, reachable: true };
+  s.jumpReady = false;
+  s.jumpBlockReason = 'EXCLUSIVE CHARTER FOR SABLE. Deliver it, or abandon it on the contract board.';
+  s.jumpBlockAction = { action: 'jobs', verb: '[ CONTRACT BOARD ]' };
+  const card = byId(buildPlayProcedure(s), 'jump');
+  assert.equal(card.tag, PLAY_PROCEDURE_TAGS.blocked);
+  assert.match(card.copy, /EXCLUSIVE CHARTER FOR SABLE/);
+  assert.equal(card.action, 'jobs');
+  assert.equal(card.verb, '[ CONTRACT BOARD ]');
+});
+
+test('v0.107.0 a block with no remedy offers no verb at all', () => {
+  const s = base();
+  s.destination = { name: 'San Telmo', distance: 1, reachable: true };
+  s.jumpReady = false;
+  s.jumpBlockReason = 'No active ship.';
+  s.jumpBlockAction = null;
+  const card = byId(buildPlayProcedure(s), 'jump');
+  assert.equal(card.action, null);
+  assert.equal(card.verb, null);
+});
