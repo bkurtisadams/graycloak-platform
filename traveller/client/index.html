@@ -16,7 +16,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.121.0</div>
+          <div id="app-subtitle" class="subtitle">v0.122.0</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -367,6 +367,11 @@
                    assignment at all. -->
               <div class="live-ship-crew-heading"><strong>CREW</strong><button id="assign-crew" class="text-button" type="button">[ ASSIGN ]</button></div>
               <div id="live-ship-crew" class="live-ship-crew" aria-live="polite"></div>
+              <!-- v0.122.0: Book 2 p.16 delivers every standard design with
+                   empty turrets, so a ship is unarmed until weapons are bought
+                   and fitted here. -->
+              <div class="live-ship-crew-heading"><strong>ARMAMENT</strong><button id="fit-armament" class="text-button" type="button">[ FIT ]</button></div>
+              <div id="live-ship-armament" class="live-ship-crew" aria-live="polite"></div>
               <!-- v0.116.0: the ship's books. Every transaction has been in
                    state.finances since the ledger was written and nothing ever
                    read it back. -->
@@ -712,6 +717,25 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
         <button id="animal-check" class="text-button" type="button">[ CHECK ]</button>
         <button id="animal-fight" class="text-button" type="button" hidden>[ FIGHT ]</button>
         <button id="animal-close" class="text-button" type="button">[ CLOSE ]</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="armament-dialog" class="roll-dialog crew-dialog" aria-label="Fit armament">
+    <form method="dialog" class="roll-dialog-form">
+      <div class="section-heading"><h2 class="section-title">FIT ARMAMENT</h2></div>
+      <label>TURRET <select id="armament-turret"></select></label>
+      <label>WEAPON <select id="armament-weapon"></select></label>
+      <p id="armament-dialog-note" class="dialog-note"></p>
+      <div class="dialog-actions">
+        <button id="armament-fit-confirm" class="text-button" type="button">[ FIT ]</button>
+      </div>
+      <div class="section-heading"><h2 class="section-title">ORDNANCE</h2></div>
+      <label>MISSILES <input id="armament-missiles" type="number" min="0" step="1" value="0"></label>
+      <label>SAND CANISTERS <input id="armament-sand" type="number" min="0" step="1" value="0"></label>
+      <p id="armament-ordnance-note" class="dialog-note"></p>
+      <div class="dialog-actions">
+        <button id="armament-ordnance-confirm" class="text-button" type="button">[ BUY ]</button>
+        <button id="armament-cancel" class="text-button" type="button">[ CLOSE ]</button>
       </div>
     </form>
   </dialog>

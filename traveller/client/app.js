@@ -78,7 +78,19 @@ import {
   previewPersonalAttack,
   blowsRemaining,
   PERSONAL_WEAPONS,
-  PERSONAL_ARMOR_TYPES
+  PERSONAL_ARMOR_TYPES,
+  armShipTurret,
+  stripShipTurret,
+  purchaseOrdnance,
+  turretWeapons,
+  turretDataCardCode,
+  shipGunnerRequirement,
+  magazineCapacity,
+  getTurretMount,
+  getTurretWeapon,
+  TURRET_WEAPONS,
+  MISSILE_PRICE_CR,
+  SAND_CANISTER_PRICE_CR
 } from '../vendor/classic-traveller-rules/index.js';
 
 import {
@@ -441,6 +453,18 @@ const el = {
   shipStripAccount: document.querySelector('#ship-strip-account'),
   shipStripCells: document.querySelector('#ship-strip-cells'),
   assignCrewButton: document.querySelector('#assign-crew'),
+  liveShipArmament: document.querySelector('#live-ship-armament'),
+  fitArmamentButton: document.querySelector('#fit-armament'),
+  armamentDialog: document.querySelector('#armament-dialog'),
+  armamentTurret: document.querySelector('#armament-turret'),
+  armamentWeapon: document.querySelector('#armament-weapon'),
+  armamentDialogNote: document.querySelector('#armament-dialog-note'),
+  armamentFitConfirm: document.querySelector('#armament-fit-confirm'),
+  armamentMissiles: document.querySelector('#armament-missiles'),
+  armamentSand: document.querySelector('#armament-sand'),
+  armamentOrdnanceNote: document.querySelector('#armament-ordnance-note'),
+  armamentOrdnanceConfirm: document.querySelector('#armament-ordnance-confirm'),
+  armamentCancel: document.querySelector('#armament-cancel'),
   crewDialog: document.querySelector('#crew-dialog'),
   crewRole: document.querySelector('#crew-role'),
   crewPerson: document.querySelector('#crew-person'),
@@ -3930,7 +3954,7 @@ function renderCrewBoardInto(target) {
   assign.addEventListener('click', openCrewDialog);
   const note = document.createElement('div');
   note.className = 'commerce-note';
-  note.textContent = 'Book 1 p.19: any character may hold a position; expertise is preferred, not required. One person holds one role.';
+  note.textContent = 'Book 1 p.19: any character may hold a position; expertise is preferred, not required. Book 2 p.17: one person may fill two positions, at 75% of each salary and no expertise DMs in either.';
   target.append(roster, assign, note);
 }
 function renderContractBoardInto(target) {
@@ -8510,8 +8534,31 @@ function renderLiveShipStatus({ currentSystem = null, selectedSystem = null, dis
   for (const contract of jobs.slice(0, 2)) {
     appendLiveShipRow('  JOB', `${contract.origin.systemName.toUpperCase()} -> ${contract.destination.systemName.toUpperCase()} / ${contract.identity.title.toUpperCase()}`);
   }
+  // Book 2 p.16: turrets are fitted, weapons are bought. An unarmed ship in a
+  // fight can only run, so this belongs beside fuel and cargo rather than
+  // buried in a panel.
+  const gunners = shipGunnerRequirement(shipDocument);
+  const fittedWeapons = shipDocument.state.armament.turrets.reduce((sum, entry) => sum + entry.weapons.length, 0);
+  const turretCount = shipDocument.specifications.armament.turrets.length;
+  const armamentText = turretCount === 0
+    ? 'NO TURRET'
+    : `${fittedWeapons} FITTED / ${turretCount} TURRET${turretCount === 1 ? '' : 'S'}${gunners.shortfall ? ` / ${gunners.shortfall} GUNNER SHORT` : ''}`;
+  appendLiveShipRow('ARMAMENT', armamentText, {
+    stateClass: fittedWeapons === 0 ? 'live-state-attention' : (gunners.shortfall ? 'live-state-attention' : 'live-state-ready'),
+    title: fittedWeapons === 0
+      ? 'Book 2 p.16: standard designs are delivered with empty turrets. This ship cannot fire.'
+      : 'Book 2 p.17: one gunner is required for each turret mounted.'
+  });
+  const magazine = magazineCapacity(shipDocument);
+  if (magazine.launchers || magazine.sandcasters) {
+    appendLiveShipRow('ORDNANCE', `${magazine.missiles} MISSILES / ${magazine.sandCanisters} SAND`, {
+      stateClass: (magazine.launchers && !magazine.missiles) || (magazine.sandcasters && !magazine.sandCanisters) ? 'live-state-attention' : '',
+      title: `Ready capacity ${magazine.readyMissiles} missiles and ${magazine.readySandCanisters} canisters (Book 2 p.31: three per launcher).`
+    });
+  }
   appendLiveShipRow('ACCOUNT', formatCr(shipDocument.state.finances.balanceCr));
   renderShipCrew();
+  renderShipArmament();
   renderShipLedger();
   renderShipStrip();
   // After the strip, whose height is what moves the map down.
@@ -8726,6 +8773,153 @@ function renderShipCrew() {
   }
 }
 
+// --- Book 2 pp.15-18: arming the ship ------------------------------------
+//
+// Weapons are never part of a ship's plans and specifications (Book 2 p.16), so
+// every standard design arrives with empty turrets and the hull the campaign
+// flies cannot fire a shot until something is bought and fitted here.
+
+function renderShipArmament() {
+  if (!el.liveShipArmament) return;
+  el.liveShipArmament.replaceChildren();
+  if (el.fitArmamentButton) el.fitArmamentButton.hidden = !shipDocument;
+  if (!shipDocument) return;
+
+  const turrets = shipDocument.specifications.armament.turrets;
+  if (!turrets.length) {
+    const empty = document.createElement('div');
+    empty.className = 'live-ship-row';
+    empty.textContent = `NO TURRET / ${shipDocument.specifications.armament.hardpoints} HARDPOINT(S)`;
+    el.liveShipArmament.append(empty);
+    return;
+  }
+
+  for (const turret of turrets) {
+    const fitted = turretWeapons(shipDocument, turret.id);
+    const row = document.createElement('div');
+    row.className = 'live-ship-row';
+    const label = document.createElement('span');
+    const code = turretDataCardCode(shipDocument, turret.id);
+    label.textContent = `${turret.id} ${turret.mount.toUpperCase()} · ${fitted.length ? code : 'EMPTY'}`;
+    label.title = `Book 2 p.15: a ${turret.mount} turret mounts ${getTurretMount(turret.mount).weapons} weapons.`;
+    row.append(label);
+    if (fitted.length) {
+      const strip = document.createElement('button');
+      strip.type = 'button';
+      strip.className = 'text-button';
+      strip.textContent = '[ REMOVE ]';
+      strip.title = `Removes the ${getTurretWeapon(fitted.at(-1)).label}.`;
+      strip.addEventListener('click', () => removeTurretWeapon(turret.id, fitted.at(-1)));
+      row.append(strip);
+    }
+    el.liveShipArmament.append(row);
+  }
+
+  const gunners = shipGunnerRequirement(shipDocument);
+  if (gunners.shortfall) {
+    const warn = document.createElement('div');
+    warn.className = 'live-ship-row live-state-attention';
+    warn.textContent = `${gunners.shortfall} GUNNER(S) REQUIRED`;
+    warn.title = 'Book 2 p.17: one gunner is required as a crew member for each turret mounted.';
+    el.liveShipArmament.append(warn);
+  }
+}
+
+function armamentTurretOptions() {
+  return shipDocument.specifications.armament.turrets.map((turret) => {
+    const fitted = turretWeapons(shipDocument, turret.id);
+    const capacity = getTurretMount(turret.mount).weapons;
+    return {
+      id: turret.id,
+      full: fitted.length >= capacity,
+      label: `${turret.id} ${turret.mount.toUpperCase()} (${fitted.length}/${capacity})`
+    };
+  });
+}
+
+function openArmamentDialog() {
+  if (!shipDocument || !el.armamentDialog) return;
+  const turrets = armamentTurretOptions();
+  el.armamentTurret.replaceChildren(...turrets.map((entry) => {
+    const option = document.createElement('option');
+    option.value = entry.id;
+    option.textContent = entry.full ? `${entry.label} FULL` : entry.label;
+    option.disabled = entry.full;
+    return option;
+  }));
+  el.armamentWeapon.replaceChildren(...Object.values(TURRET_WEAPONS).map((weapon) => {
+    const option = document.createElement('option');
+    option.value = weapon.key;
+    option.textContent = `${weapon.label.toUpperCase()} (${weapon.code}) / ${formatCr(Math.round(weapon.priceMCr * 1000000))}`;
+    return option;
+  }));
+  const open = turrets.some((entry) => !entry.full);
+  el.armamentDialogNote.textContent = turrets.length
+    ? (open
+      ? 'Book 2 p.16: weapons are bought and installed after delivery. The ship account pays.'
+      : 'Every turret is full. Remove a weapon before fitting another.')
+    : 'This ship has no turret. A turret must be fitted at a hardpoint first (Book 2 p.15).';
+  el.armamentFitConfirm.disabled = !open;
+  el.armamentMissiles.value = '0';
+  el.armamentSand.value = '0';
+  const magazine = magazineCapacity(shipDocument);
+  el.armamentOrdnanceNote.textContent = magazine.launchers || magazine.sandcasters
+    ? `Missiles ${formatCr(MISSILE_PRICE_CR)} each, sand ${formatCr(SAND_CANISTER_PRICE_CR)} a canister. Ready capacity ${magazine.readyMissiles} / ${magazine.readySandCanisters}.`
+    : 'No launcher or sandcaster is fitted, so there is nothing to load.';
+  el.armamentDialog.showModal();
+}
+
+function confirmFitWeapon() {
+  try {
+    const turretId = el.armamentTurret.value;
+    const weapon = el.armamentWeapon.value;
+    const result = armShipTurret(shipDocument, { turretId, weapon, dateLabel: activityDateLabel() });
+    shipDocument = result.ship;
+    persistGameplayDocuments();
+    logActivity('SHIP', `${result.weapon.label} installed in turret ${turretId} for ${formatCr(result.priceCr)}`);
+    setStatus(`${result.weapon.label.toUpperCase()} FITTED / ${formatCr(result.priceCr)}`, 'ok');
+    if (result.gunners.shortfall) {
+      logActivity('SHIP', `${result.gunners.shortfall} gunner(s) still required (Book 2 p.17)`);
+    }
+    openArmamentDialog();
+    render();
+  } catch (error) {
+    console.error(error);
+    el.armamentDialogNote.textContent = error?.message ?? String(error);
+  }
+}
+
+function confirmBuyOrdnance() {
+  try {
+    const missiles = Number.parseInt(el.armamentMissiles.value, 10) || 0;
+    const sandCanisters = Number.parseInt(el.armamentSand.value, 10) || 0;
+    const result = purchaseOrdnance(shipDocument, { missiles, sandCanisters, dateLabel: activityDateLabel() });
+    shipDocument = result.ship;
+    persistGameplayDocuments();
+    logActivity('SHIP', `Ordnance purchased: ${missiles} missiles, ${sandCanisters} sand canisters for ${formatCr(result.costCr)}`);
+    setStatus(`ORDNANCE ABOARD / ${formatCr(result.costCr)}`, 'ok');
+    openArmamentDialog();
+    render();
+  } catch (error) {
+    console.error(error);
+    el.armamentOrdnanceNote.textContent = error?.message ?? String(error);
+  }
+}
+
+function removeTurretWeapon(turretId, weapon) {
+  try {
+    const result = stripShipTurret(shipDocument, { turretId, weapon, dateLabel: activityDateLabel() });
+    shipDocument = result.ship;
+    persistGameplayDocuments();
+    logActivity('SHIP', `${result.weapon.label} removed from turret ${turretId}`);
+    setStatus(`${result.weapon.label.toUpperCase()} REMOVED`, 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
 function crewCandidates() {
   const held = new Set((shipDocument?.crew?.assignments ?? []).map((entry) => entry.characterId));
   const party = (campaignDocument?.characters ?? []).map((entry) => ({ id: entry.identity.id, name: entry.identity.name, kind: 'PC' }));
@@ -8749,7 +8943,7 @@ function openCrewDialog() {
     return option;
   }));
   el.crewDialogNote.textContent = candidates.length
-    ? 'One person holds one role. Book 1 p.19: any character may hold a position; expertise is preferred, not required.'
+    ? 'Book 2 p.17: one person may fill two positions, at 75% of each salary and with no expertise DMs in either.'
     : 'Nobody is free to assign. Roll an NPC in the ACTORS directory first (Book 1 p.8).';
   el.crewAssignConfirm.disabled = !candidates.length;
   el.crewDialog.showModal();
@@ -10645,6 +10839,10 @@ el.animalClose?.addEventListener('click', () => el.animalDialog.close());
 el.assignCrewButton?.addEventListener('click', openCrewDialog);
 el.crewAssignConfirm?.addEventListener('click', confirmCrewAssignment);
 el.crewCancel?.addEventListener('click', () => el.crewDialog.close());
+el.fitArmamentButton?.addEventListener('click', openArmamentDialog);
+el.armamentFitConfirm?.addEventListener('click', confirmFitWeapon);
+el.armamentOrdnanceConfirm?.addEventListener('click', confirmBuyOrdnance);
+el.armamentCancel?.addEventListener('click', () => el.armamentDialog.close());
 el.sceneClose?.addEventListener('click', () => el.sceneDialog.close());
 el.sceneSave?.addEventListener('click', createSceneFromDialog);
 el.sceneSquares?.addEventListener('input', updateSceneSizeNote);
