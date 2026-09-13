@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { cp, mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 let JSDOM = null;
@@ -67,7 +67,12 @@ test('every page script loads to its masthead', { skip: JSDOM ? false : 'jsdom i
       const html = await readFile(path.join(dir, 'client', page.html), 'utf8');
       const { window, cleanup } = installDom(html, `http://localhost:8080/traveller/client/${page.html}${page.query}`);
       try {
-        await import(path.join(dir, 'client', page.script) + `?t=${Date.now()}`);
+        // import() takes a URL, not a filesystem path. A POSIX path happens to
+        // be accepted; a Windows one is read as a URL scheme and fails with
+        // ERR_UNSUPPORTED_ESM_URL_SCHEME ("Received protocol 'c:'").
+        const moduleUrl = pathToFileURL(path.join(dir, 'client', page.script));
+        moduleUrl.searchParams.set('t', String(Date.now()));
+        await import(moduleUrl.href);
         // Let the page's own initAuth().then(...) settle.
         await new Promise((resolve) => setTimeout(resolve, 20));
         const masthead = window.document.querySelector(page.masthead);
