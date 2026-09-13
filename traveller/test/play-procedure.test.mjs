@@ -92,3 +92,47 @@ test('chargen context tables follow the phase', () => {
   assert.equal(chargenTablesForPhase('survival-required'), 'service');
   assert.equal(chargenTablesForPhase('service-selection'), 'service');
 });
+
+test('Book 2 p.46 resale: a lot aboard becomes a READY card naming the money', () => {
+  const s = base();
+  s.sales = { lots: [{ id: 'lot-1', tons: 12, description: 'Textiles', netCr: 43200, percentage: 140, dm: 3, sellable: true, blockReason: null, declined: false, brokerCommissionCr: 0 }] };
+  const card = byId(buildPlayProcedure(s), 'sale-lot-1');
+  assert.equal(card.tag, PLAY_PROCEDURE_TAGS.ready);
+  assert.equal(card.title, 'Sell 12t Textiles');
+  assert.match(card.copy, /Cr43,200/);
+  assert.match(card.copy, /140% of base/);
+  assert.equal(card.action, 'sale:lot-1');
+});
+
+test('with the port call otherwise clear, selling is what the dock leads with', () => {
+  const s = base();
+  s.sales = { lots: [{ id: 'lot-1', tons: 12, description: 'Textiles', netCr: 43200, percentage: 140, dm: 3, sellable: true, blockReason: null, declined: false, brokerCommissionCr: 0 }] };
+  s.freight = { offers: 0, fitting: 0, accepted: 0 };
+  s.passengers = null;
+  assert.equal(buildPlayProcedure(s).headline, 'Sell 12t Textiles');
+});
+
+test('a lot bought at this world is blocked, not offered', () => {
+  const s = base();
+  s.sales = { lots: [{ id: 'lot-2', tons: 5, description: 'Radioactives', netCr: 0, percentage: 0, dm: 0, sellable: false, blockReason: 'Bought here.', declined: false, brokerCommissionCr: 0 }] };
+  const card = byId(buildPlayProcedure(s), 'sale-lot-2');
+  assert.equal(card.tag, PLAY_PROCEDURE_TAGS.blocked);
+  assert.equal(card.copy, 'Bought here.');
+});
+
+test('a declined quote still offers the sale and names the Book 2 p.48 commission', () => {
+  const s = base();
+  s.sales = { lots: [{ id: 'lot-3', tons: 8, description: 'Crystals', netCr: 12000, percentage: 90, dm: -1, sellable: true, blockReason: null, declined: true, brokerCommissionCr: 600 }] };
+  const card = byId(buildPlayProcedure(s), 'sale-lot-3');
+  assert.equal(card.tag, PLAY_PROCEDURE_TAGS.ready);
+  assert.match(card.copy, /Cr600/);
+  assert.match(card.copy, /declined this call/);
+});
+
+test('freight and speculative cards carry their numbers', () => {
+  const s = base();
+  s.freight = { offers: 3, fitting: 2, accepted: 0, bestCr: 18000 };
+  s.speculation = { available: true, name: 'RADIOACTIVES', quantity: '3t', purchased: 0, holdFree: 2, pricePerUnitCr: 950000, percentage: 95 };
+  assert.match(byId(buildPlayProcedure(s), 'freight').copy, /Cr18,000 on delivery/);
+  assert.match(byId(buildPlayProcedure(s), 'spec').copy, /Cr950,000 each \(95% of base\)/);
+});

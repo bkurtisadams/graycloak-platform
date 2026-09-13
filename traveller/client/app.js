@@ -8427,7 +8427,11 @@ function playProcedureSnapshot() {
     const acceptedIds = new Set(shipDocument.state.cargoManifest.filter((entry) => entry.category === 'freight').map((entry) => entry.id));
     const remaining = route.freight.offers.filter((entry) => !acceptedIds.has(entry.id));
     const acceptedForDestination = shipDocument.state.cargoManifest.filter((entry) => entry.destinationSystemId === selected.id).length;
-    freight = { offers: remaining.length, fitting: remaining.filter((entry) => entry.tons <= freeHold + 1e-9).length, accepted: acceptedForDestination };
+    const fittingOffers = remaining.filter((entry) => entry.tons <= freeHold + 1e-9);
+    freight = {
+      offers: remaining.length, fitting: fittingOffers.length, accepted: acceptedForDestination,
+      bestCr: fittingOffers.reduce((best, entry) => Math.max(best, Number(entry.revenueCr) || 0), 0)
+    };
     const booked = ['high', 'middle', 'low'].reduce((sum, cls) => sum + bookedPassengerCount(route, cls), 0);
     const capacity = availablePassengerCapacity(shipDocument, 'middle') + availablePassengerCapacity(shipDocument, 'low');
     passengers = { demand: route.passengerDemand, booked, capacity, blockReason: passengerRouteBlockReason(selected.id) };
@@ -8438,8 +8442,30 @@ function playProcedureSnapshot() {
     name: offer.name.toUpperCase(),
     quantity: `${offer.quantityAvailable}${offer.unit === 'tons' ? 't' : ' units'}`,
     purchased: offer.unit === 'tons' ? speculativeQuantityPurchased(offer, current.id) : 0,
-    holdFree: freeHold
+    holdFree: freeHold,
+    pricePerUnitCr: offer.pricePerUnitCr,
+    percentage: offer.percentage
   } : null;
+  // Book 2 p.46 resale. Every speculative lot aboard, quoted against this
+  // world, so the procedure dock can name the money instead of sending the
+  // player to the TRADE panel to find out whether the flight paid.
+  const sales = shipDocument ? { lots: shipDocument.state.cargoManifest
+    .filter((entry) => /^speculative:\d{2}$/.test(entry.category))
+    .map((cargo) => {
+      if (cargo.originSystemId === current.id) {
+        return { id: cargo.id, tons: cargo.tons, description: cargo.description, sellable: false,
+          blockReason: 'Bought here. Speculative cargo must be carried to another world before resale (Book 2 p.46).',
+          netCr: 0, percentage: 0, dm: 0, declined: false, brokerCommissionCr: 0 };
+      }
+      const quote = speculativeSaleQuote(cargo);
+      if (!quote) return null;
+      return { id: cargo.id, tons: cargo.tons, description: cargo.description, sellable: true, blockReason: null,
+        netCr: quote.netCr, percentage: quote.percentage,
+        dm: quote.worldDM + quote.characterSkillDM + quote.brokerDM,
+        declined: declinedQuoteIds.has(cargo.id),
+        brokerCommissionCr: quote.brokerCommissionCr ?? 0 };
+    })
+    .filter(Boolean) } : null;
   const patronKey = currentPatronEventKey();
   const patron = shipDocument ? {
     available: Boolean(portCall && !activeSituationAtCurrentSystem()),
@@ -8478,6 +8504,7 @@ function playProcedureSnapshot() {
     freight,
     passengers,
     speculation,
+    sales,
     patron,
     jobs: { offers: availableContractOffers().length, active: activeContracts().length },
     thread: activeThreadObjective(),
@@ -8488,6 +8515,10 @@ function playProcedureSnapshot() {
 }
 
 function playProcedureAction(action) {
+  // v0.97.0: a sale card sells from the dock. The card already states the net,
+  // the percentage and the DMs, so routing the player to the TRADE panel to
+  // read the same quote again was the click this dock exists to remove.
+  if (String(action).startsWith('sale:')) { sellSpeculativeLot(String(action).slice(5)); return; }
   if (action === 'nav') { el.subsectorMap?.scrollIntoView({ block: 'nearest' }); return; }
   if (action === 'port') { setOperationsDeskTab('port'); return; }
   if (action === 'trade') { setOperationsDeskTab('trade'); return; }

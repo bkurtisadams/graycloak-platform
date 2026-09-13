@@ -827,7 +827,10 @@ function card(id, title, tag, copy, { action = null, tone = null } = {}) {
  *   s.fuel {currentTons, capacityTons, requiredTons|null, sufficient|null, canBuy, canSkim}
  *   s.freight {offers:number, fitting:number, accepted:number} | null
  *   s.passengers {demand:{high,middle,low}, booked:number, capacity:number, blockReason|null} | null
- *   s.speculation {available:boolean, name, quantity, purchased:number, holdFree:number} | null
+ *   s.speculation {available:boolean, name, quantity, purchased:number, holdFree:number,
+ *     pricePerUnitCr:number, percentage:number} | null
+ *   s.sales {lots:[{id, tons, description, netCr, percentage, dm, sellable:boolean,
+ *     blockReason:string|null, declined:boolean, brokerCommissionCr:number}]} | null
  *   s.patron {available:boolean, attemptedThisCall:boolean}
  *   s.jobs {offers:number, active:number}
  *   s.lifeSupportCr number
@@ -857,6 +860,23 @@ export function buildPlayProcedure(s = {}) {
     done.push(card('berthing-done', 'Berthed', PLAY_PROCEDURE_TAGS.done, `Cr${s.berthing.dueCr.toLocaleString('en-US')} paid.`));
   }
 
+  // Book 2 p.46: speculative cargo is bought on one world and resold on
+  // another. This is the whole point of the flight, so it leads the port call
+  // rather than hiding in the TRADE panel — and the card carries the money,
+  // because the number is the reason the player came here.
+  for (const lot of s.sales?.lots ?? []) {
+    const title = `Sell ${lot.tons}t ${lot.description}`;
+    if (!lot.sellable) {
+      opportunities.push(card(`sale-${lot.id}`, title, PLAY_PROCEDURE_TAGS.blocked, lot.blockReason || 'Not saleable here.', { action: 'trade' }));
+      continue;
+    }
+    const owed = lot.brokerCommissionCr ? ` Declining owes Cr${lot.brokerCommissionCr.toLocaleString('en-US')} (Book 2 p.48).` : '';
+    const declined = lot.declined ? ' Quote declined this call.' : '';
+    readyAfter.push(card(`sale-${lot.id}`, title, PLAY_PROCEDURE_TAGS.ready,
+      `Cr${lot.netCr.toLocaleString('en-US')} at ${lot.percentage}% of base · DM ${lot.dm >= 0 ? '+' : ''}${lot.dm}.${owed}${declined}`,
+      { action: `sale:${lot.id}` }));
+  }
+
   // Fuel
   if (s.fuel) {
     const { currentTons, capacityTons, requiredTons, sufficient, canBuy, canSkim } = s.fuel;
@@ -880,7 +900,7 @@ export function buildPlayProcedure(s = {}) {
       if (s.freight.accepted > 0) {
         done.push(card('freight-done', `Cargo accepted for ${s.destination.name}`, PLAY_PROCEDURE_TAGS.done, `${s.freight.accepted} lot${s.freight.accepted === 1 ? '' : 's'} aboard · destination announced.`));
       } else if (s.freight.fitting > 0) {
-        attention.push(card('freight', `Accept cargo for ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready, `${s.freight.fitting} of ${s.freight.offers} lots fit the hold at Cr${(1000).toLocaleString('en-US')}/ton. Accepting cargo announces the destination (Book 2 p.8).`, { action: 'trade' }));
+        attention.push(card('freight', `Accept cargo for ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready, `${s.freight.fitting} of ${s.freight.offers} lots fit the hold${s.freight.bestCr ? `, up to Cr${s.freight.bestCr.toLocaleString('en-US')} on delivery` : ''} at Cr${(1000).toLocaleString('en-US')}/ton. Accepting cargo announces the destination (Book 2 p.8).`, { action: 'trade' }));
       } else {
         opportunities.push(card('freight-none', `No cargo fits for ${s.destination.name}`, PLAY_PROCEDURE_TAGS.optional, s.freight.offers ? `${s.freight.offers} lots offered, none fit the free hold.` : 'No lots offered this week.', { action: 'trade' }));
       }
@@ -912,7 +932,7 @@ export function buildPlayProcedure(s = {}) {
     if (s.speculation.purchased > 0) {
       done.push(card('spec-done', 'Speculative lot', PLAY_PROCEDURE_TAGS.done, `${s.speculation.purchased} bought from this week's lot (${s.speculation.name}).`));
     } else if (s.speculation.available) {
-      opportunities.push(card('spec', 'Speculative lot', s.speculation.holdFree > 0 ? PLAY_PROCEDURE_TAGS.ready : PLAY_PROCEDURE_TAGS.blocked, `This week: ${s.speculation.quantity} ${s.speculation.name}. One lot per week (Book 2 p.46). Hold ${s.speculation.holdFree}t free.`, { action: 'trade' }));
+      opportunities.push(card('spec', 'Speculative lot', s.speculation.holdFree > 0 ? PLAY_PROCEDURE_TAGS.ready : PLAY_PROCEDURE_TAGS.blocked, `This week: ${s.speculation.quantity} ${s.speculation.name}${s.speculation.pricePerUnitCr ? ` at Cr${s.speculation.pricePerUnitCr.toLocaleString('en-US')} each (${s.speculation.percentage}% of base)` : ''}. One lot per week (Book 2 p.46). Hold ${s.speculation.holdFree}t free.`, { action: 'trade' }));
     }
   }
   if (s.jobs) {
