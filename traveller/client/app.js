@@ -3553,7 +3553,9 @@ function renderCommerce() {
         panelRow('HIGH', `${highRemaining} DEMAND / ${steward ? `${Math.min(highRemaining, highCapacity)} BOOKABLE` : 'STEWARD REQUIRED'}`, { attention: !steward && highRemaining > 0 }),
         panelRow('MIDDLE', `${middleRemaining} DEMAND / ${Math.min(middleRemaining, middleCapacity)} BOOKABLE`),
         panelRow('LOW', `${lowRemaining} DEMAND / ${Math.min(lowRemaining, lowCapacity)} BOOKABLE`),
-        panelRow('FREIGHT', `${route.freight.counts.major} MAJ / ${route.freight.counts.minor} MIN / ${route.freight.counts.incidental} INC`),
+        // Book 2 p.7 has no lot categories: one die per point of destination
+        // population, each a shipment of five-ton multiples.
+        panelRow('FREIGHT', `${route.freight.offers.length} SHIPMENT${route.freight.offers.length === 1 ? '' : 'S'} OFFERED`),
         ...fittingFreight.slice(0, 4).map((freight) => panelCard({
           title: `${freight.tons}t ${freight.category.toUpperCase()} LOT`,
           rows: [panelRow('PAYS', `${formatCr(freight.revenueCr)} ON DELIVERY`)],

@@ -6,33 +6,47 @@ export const PASSAGE_FARES_CR = Object.freeze({ high: 10000, middle: 8000, low: 
 export const STATEROOM_LIFE_SUPPORT_PER_TRIP_CR = 2000;
 export const LOW_BERTH_LIFE_SUPPORT_PER_USE_CR = 100;
 
-const PASSENGER_TABLE = Object.freeze([
-  null,
-  { high: null, middle: '1D-2', low: '2D-6' },
-  { high: '1D-1D', middle: '1D', low: '2D' },
-  { high: '2D-2D', middle: '2D-1D', low: '2D' },
-  { high: '2D-1D', middle: '2D-1D', low: '3D-1D' },
-  { high: '2D-1D', middle: '3D-2D', low: '3D-1D' },
+// Book 2 p.7 passenger table, 1977 printing. Indexed by the ORIGINATING
+// world's population for the dice thrown, and by the DESTINATION world's
+// population for the die modifier applied to each class. Populations above 12
+// are treated as 12. Populations 0 and 1 generate no passengers at all.
+const PASSENGER_ORIGIN_TABLE = Object.freeze([
+  { high: null, middle: null, low: null },      // 0
+  { high: null, middle: null, low: null },      // 1
+  { high: '1D-1D', middle: '1D-1D', low: '3D-1D' },
+  { high: '3D-2D', middle: '2D-2D', low: '3D-1D' },
+  { high: '3D-3D', middle: '3D-3D', low: '4D-1D' },
+  { high: '3D-2D', middle: '3D-2D', low: '4D-1D' },
   { high: '3D-2D', middle: '3D-2D', low: '3D' },
-  { high: '3D-2D', middle: '3D-1D', low: '3D' },
-  { high: '3D-1D', middle: '3D-1D', low: '4D' },
-  { high: '3D-1D', middle: '3D', low: '5D' },
-  { high: '3D', middle: '4D', low: '6D' }
+  { high: '3D-2D', middle: '3D-2D', low: '3D' },
+  { high: '2D-1D', middle: '3D-2D', low: '4D' },
+  { high: '2D-1D', middle: '2D-1D', low: '4D' },
+  { high: '2D-1D', middle: '2D-1D', low: '4D' },
+  { high: '2D', middle: '2D-1D', low: '5D' },
+  { high: '2D', middle: '2D', low: '6D' }
 ]);
 
-const FREIGHT_TABLE = Object.freeze([
-  { major: null, minor: null, incidental: null },
-  { major: '1D-4', minor: '1D-4', incidental: null },
-  { major: '1D-2', minor: '1D-1', incidental: null },
-  { major: '1D-1', minor: '1D', incidental: null },
-  { major: '1D', minor: '1D+1', incidental: null },
-  { major: '1D+1', minor: '1D+2', incidental: null },
-  { major: '1D+2', minor: '1D+3', incidental: '1D-3' },
-  { major: '1D+3', minor: '1D+4', incidental: '1D-3' },
-  { major: '1D+4', minor: '1D+5', incidental: '1D-2' },
-  { major: '1D+5', minor: '1D+6', incidental: '1D-2' },
-  { major: '1D+6', minor: '1D+7', incidental: '1D' }
+const PASSENGER_DESTINATION_DMS = Object.freeze([
+  { high: 0, middle: 0, low: 0 },               // 0
+  { high: 0, middle: 0, low: 0 },               // 1
+  { high: -1, middle: -2, low: -4 },
+  { high: -1, middle: -1, low: -3 },
+  { high: -1, middle: -1, low: -2 },
+  { high: 0, middle: -1, low: -1 },
+  { high: 0, middle: 0, low: -1 },
+  { high: 0, middle: 0, low: 0 },
+  { high: 1, middle: 0, low: 0 },
+  { high: 1, middle: 1, low: 0 },
+  { high: 1, middle: 1, low: 2 },
+  { high: 0, middle: 1, low: 4 },
+  { high: 0, middle: 0, low: 0 }
 ]);
+
+// Book 2 p.7 cargo: "roll (for each such world) a number of dice equal to the
+// population number of the destination. Each die represents one shipment,
+// expressed in multiples of 5 tons." There are no lot categories and no
+// modifiers in the 1977 rules.
+export const FREIGHT_SHIPMENT_TONS_PER_PIP = 5;
 
 const ACTUAL_VALUE_PERCENT = Object.freeze({
   2: 40, 3: 50, 4: 70, 5: 80, 6: 90, 7: 100, 8: 110,
@@ -114,38 +128,28 @@ function rollExpression(dice, expression) {
   return Math.max(0, total);
 }
 
+// Book 2 p.7: "Treat worlds of population level greater than 12 as level 12."
 function populationRow(population) {
-  return Math.max(0, Math.min(10, population));
+  return Math.max(0, Math.min(12, Math.floor(population)));
 }
 
-function destinationDM(originProfile, destinationProfile, destinationTravelZone, kind) {
-  let dm = originProfile.techLevel - destinationProfile.techLevel;
-  if (kind === 'passenger') {
-    if (destinationProfile.population <= 4) dm -= 3;
-    if (destinationProfile.population >= 8) dm += 3;
-    if (destinationTravelZone === 'amber') dm -= 6;
-    if (destinationTravelZone === 'red') dm -= 12;
-  } else if (kind === 'freight') {
-    if (destinationProfile.population <= 4) dm -= 4;
-    if (destinationProfile.population >= 8) dm += 1;
-  }
-  return dm;
-}
 
 export function generatePassengerDemand(originProfile, destinationProfile, { destinationTravelZone = 'none', dice } = {}) {
   assertProfile(originProfile, 'originProfile');
   assertProfile(destinationProfile, 'destinationProfile');
   requireDice(dice);
-  const row = PASSENGER_TABLE[populationRow(originProfile.population)] ?? PASSENGER_TABLE[10];
-  const dm = destinationDM(originProfile, destinationProfile, destinationTravelZone, 'passenger');
+  const origin = PASSENGER_ORIGIN_TABLE[populationRow(originProfile.population)];
+  const dms = PASSENGER_DESTINATION_DMS[populationRow(destinationProfile.population)];
+  // Travel zones are not a 1977 Book 2 rule; they are a Graycloak overlay that
+  // suppresses traffic to a world the referee has flagged.
   const red = destinationTravelZone === 'red';
-  const resolveDemand = (expression) => expression ? Math.max(0, rollExpression(dice, expression) + dm) : 0;
+  const resolve = (expression, dm) => (expression ? Math.max(0, rollExpression(dice, expression) + dm) : 0);
   const demand = {
-    high: resolveDemand(row?.high),
-    middle: red ? 0 : resolveDemand(row?.middle),
-    low: red ? 0 : resolveDemand(row?.low)
+    high: red ? 0 : resolve(origin.high, dms.high),
+    middle: red ? 0 : resolve(origin.middle, dms.middle),
+    low: red ? 0 : resolve(origin.low, dms.low)
   };
-  return Object.freeze({ ...demand, dm, destinationTravelZone });
+  return Object.freeze({ ...demand, dm: dms, destinationTravelZone });
 }
 
 export function generateFreightOffers(originProfile, destinationProfile, {
@@ -154,31 +158,23 @@ export function generateFreightOffers(originProfile, destinationProfile, {
   assertProfile(originProfile, 'originProfile');
   assertProfile(destinationProfile, 'destinationProfile');
   requireDice(dice);
-  if (destinationTravelZone === 'red') return Object.freeze({ counts: Object.freeze({ major: 0, minor: 0, incidental: 0 }), offers: Object.freeze([]), dm: null });
-  const row = FREIGHT_TABLE[populationRow(originProfile.population)] ?? FREIGHT_TABLE[10];
-  const dm = destinationDM(originProfile, destinationProfile, destinationTravelZone, 'freight');
-  const resolveCount = (expression) => expression ? Math.max(0, rollExpression(dice, expression) + dm) : 0;
-  const counts = {
-    major: destinationTravelZone === 'amber' ? 0 : resolveCount(row.major),
-    minor: resolveCount(row.minor),
-    incidental: resolveCount(row.incidental)
-  };
-  const offers = [];
-  let sequence = 0;
-  for (const [category, count] of Object.entries(counts)) {
-    const multiplier = category === 'major' ? 10 : category === 'minor' ? 5 : 1;
-    for (let i = 0; i < count; i += 1) {
-      sequence += 1;
-      const tons = dice.rollD6() * multiplier;
-      offers.push(Object.freeze({
-        id: `${idPrefix}-${sequence}`,
-        category,
-        tons,
-        revenueCr: tons * FREIGHT_RATE_PER_TON_CR
-      }));
-    }
+  if (destinationTravelZone === 'red') {
+    return Object.freeze({ shipments: 0, offers: Object.freeze([]), dm: null });
   }
-  return Object.freeze({ counts: Object.freeze(counts), offers: Object.freeze(offers), dm });
+  // One die per point of the DESTINATION world's population; each die is one
+  // shipment of that many multiples of five tons. A shipment may not be broken
+  // down, which is what makes hold size matter.
+  const shipments = Math.max(0, Math.min(12, Math.floor(destinationProfile.population)));
+  const offers = [];
+  for (let index = 0; index < shipments; index += 1) {
+    const tons = dice.rollD6() * FREIGHT_SHIPMENT_TONS_PER_PIP;
+    offers.push(Object.freeze({
+      id: `${idPrefix}-${index + 1}`,
+      tons,
+      revenueCr: tons * FREIGHT_RATE_PER_TON_CR
+    }));
+  }
+  return Object.freeze({ shipments, offers: Object.freeze(offers), dm: null });
 }
 
 function worldTypeDM(profile, table) {

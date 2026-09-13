@@ -76,8 +76,8 @@ test('Calder commerce fixture exposes route passengers and a deterministic weekl
   assert.equal(arrived.revenueCr, 8000);
 });
 
-test('a fitting incidental freight offer can be loaded and pays Cr1000 per ton on delivery', async () => {
-  let { ship } = await fixtures();
+test('Book 2 p.7: the smallest shipment is five tons, so a Type S can carry no freight at all', async () => {
+  const { ship } = await fixtures();
   const calder = system('calder');
   const orison = system('orison');
   const freight = generateFreightOffers(
@@ -89,13 +89,30 @@ test('a fitting incidental freight offer can be loaded and pays Cr1000 per ton o
       idPrefix: 'commerce-flow'
     }
   );
-  const fitting = freight.offers.find((entry) => entry.tons <= 3);
-  assert.ok(fitting);
+  // One die per point of the destination's population, each die a shipment of
+  // that many multiples of five tons, and a shipment may not be broken down.
+  assert.ok(freight.offers.length > 0);
+  for (const offer of freight.offers) {
+    assert.equal(offer.tons % 5, 0);
+    assert.ok(offer.tons >= 5 && offer.tons <= 30);
+    assert.equal(offer.revenueCr, offer.tons * 1000);
+  }
+  // The scout's three-ton hold cannot take the smallest of them. A scout is
+  // not a freight hauler under these rules: it carries speculative goods and
+  // messages.
+  assert.equal(ship.specifications.cargo.capacityTons, 3);
+  assert.equal(freight.offers.filter((offer) => offer.tons <= 3).length, 0);
+});
+
+test('freight still pays Cr1000 per ton on delivery where a hold can take it', async () => {
+  let { ship } = await fixtures();
+  const calder = system('calder');
+  const orison = system('orison');
   ship = loadCargo(ship, {
-    id: fitting.id, category: 'freight', description: 'Orison freight', tons: fitting.tons,
+    id: 'manual-shipment', category: 'freight', description: 'Orison freight', tons: 3,
     originSystemId: calder.id, destinationSystemId: orison.id, acquisitionCostCr: 0, notes: ''
   });
   const delivered = deliverFreightAtDestination(ship, orison.id, { dateLabel: '008-4800' });
-  assert.equal(delivered.revenueCr, fitting.tons * 1000);
+  assert.equal(delivered.revenueCr, 3000);
   assert.equal(delivered.ship.state.cargoUsedTons, 0);
 });

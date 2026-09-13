@@ -41,25 +41,59 @@ async function hawkeye() {
 async function ship() { return createTypeSScoutReserveShipForCharacter(await hawkeye()).ship; }
 const neutralProfile = Object.freeze({ population: 7, techLevel: 9, atmosphere: 10, hydrographics: 5, government: 0 });
 
-test('Book 2 passenger table resolves demand from origin population and destination DMs', () => {
-  const origin = { population: 1, techLevel: 8 };
-  const destination = { population: 5, techLevel: 8 };
-  const demand = generatePassengerDemand(origin, destination, { dice: createSequenceDice([5, 4, 3]) });
-  assert.equal(demand.high, 0);
-  assert.equal(demand.middle, 3);
-  assert.equal(demand.low, 1);
-  assert.equal(demand.dm, 0);
+test('Book 2 p.7 passengers: origin population throws the dice, destination population modifies', () => {
+  // Origin population 6 throws 3D-2D high. Destination population 10 gives
+  // high +1, middle +1, low +2.
+  const origin = { population: 6, techLevel: 8 };
+  const destination = { population: 10, techLevel: 8 };
+  const demand = generatePassengerDemand(origin, destination, {
+    dice: createSequenceDice([5, 4, 3, 2, 1, 5, 4, 3, 2, 1, 6, 6, 6])
+  });
+  assert.deepEqual(demand.dm, { high: 1, middle: 1, low: 2 });
+  assert.ok(demand.high >= 0 && demand.middle >= 0 && demand.low >= 0);
 });
 
-test('Book 2 freight table generates distinct indivisible cargo shipments', () => {
+test('Book 2 p.7: populations 0 and 1 carry nobody, whatever the destination offers', () => {
+  const sixes = { rollD6: () => 6, roll2D6: () => ({ dice: [6, 6], total: 12 }) };
+  for (const population of [0, 1]) {
+    const demand = generatePassengerDemand({ population, techLevel: 8 }, { population: 11, techLevel: 8 }, { dice: sixes });
+    assert.deepEqual({ high: demand.high, middle: demand.middle, low: demand.low }, { high: 0, middle: 0, low: 0 });
+  }
+});
+
+test('Book 2 p.7: a destination DM cannot drive demand below zero', () => {
+  // Destination population 2 is high -1, middle -2, low -4.
+  const ones = { rollD6: () => 1, roll2D6: () => ({ dice: [1, 1], total: 2 }) };
+  const demand = generatePassengerDemand({ population: 7, techLevel: 8 }, { population: 2, techLevel: 8 }, { dice: ones });
+  assert.ok(demand.high >= 0 && demand.middle >= 0 && demand.low >= 0);
+});
+
+test('Book 2 p.7 cargo: one die per point of destination population, each a shipment of 5-ton multiples', () => {
+  // "roll a number of dice equal to the population number of the destination.
+  // Each die represents one shipment, expressed in multiples of 5 tons."
   const origin = { population: 1, techLevel: 8 };
   const destination = { population: 5, techLevel: 8 };
   const result = generateFreightOffers(origin, destination, {
     dice: createSequenceDice([6, 5, 1, 2, 3]), idPrefix: 'route'
   });
-  assert.deepEqual(result.counts, { major: 2, minor: 1, incidental: 0 });
-  assert.deepEqual(result.offers.map((entry) => entry.tons), [10, 20, 15]);
-  assert.deepEqual(result.offers.map((entry) => entry.revenueCr), [10000, 20000, 15000]);
+  assert.equal(result.shipments, 5);
+  assert.deepEqual(result.offers.map((entry) => entry.tons), [30, 25, 5, 10, 15]);
+  assert.deepEqual(result.offers.map((entry) => entry.revenueCr), [30000, 25000, 5000, 10000, 15000]);
+  // The origin world has no bearing on cargo at all in the 1977 rules.
+  const swapped = generateFreightOffers({ population: 12, techLevel: 3 }, destination, {
+    dice: createSequenceDice([6, 5, 1, 2, 3]), idPrefix: 'route'
+  });
+  assert.deepEqual(swapped.offers.map((entry) => entry.tons), [30, 25, 5, 10, 15]);
+});
+
+test('Book 2 p.7: a shipment may not be broken down, so hold size decides what fits', () => {
+  const result = generateFreightOffers({ population: 8, techLevel: 8 }, { population: 3, techLevel: 8 }, {
+    dice: createSequenceDice([6, 1, 4]), idPrefix: 'hold'
+  });
+  assert.deepEqual(result.offers.map((entry) => entry.tons), [30, 5, 20]);
+  // A three-ton hold can take none of them; a five-ton hold takes exactly one.
+  assert.equal(result.offers.filter((entry) => entry.tons <= 3).length, 0);
+  assert.equal(result.offers.filter((entry) => entry.tons <= 5).length, 1);
 });
 
 test('Book 2 speculative market finds one weekly lot and prices it from Actual Value', () => {
@@ -189,20 +223,6 @@ test('ship schema v2 migrates to v3 with an empty passenger manifest', async () 
 });
 
 
-test('Book 2 dash entries remain unavailable even when destination DMs are positive', () => {
-  const origin = { population: 1, techLevel: 10 };
-  const destination = { population: 9, techLevel: 8 };
-  const passengers = generatePassengerDemand(origin, destination, {
-    dice: { rollD6: () => 6, roll2D6: () => ({ dice: [6, 6], total: 12 }) }
-  });
-  assert.equal(passengers.high, 0);
-
-  const freight = generateFreightOffers(origin, destination, {
-    dice: { rollD6: () => 6, roll2D6: () => ({ dice: [6, 6], total: 12 }) }, idPrefix: 'dash-test'
-  });
-  assert.equal(freight.counts.incidental, 0);
-});
-
 test('Book 2 travel-zone restrictions suppress red-zone freight and non-high passengers', () => {
   const origin = { population: 9, techLevel: 10 };
   const destination = { population: 9, techLevel: 10 };
@@ -214,13 +234,14 @@ test('Book 2 travel-zone restrictions suppress red-zone freight and non-high pas
   assert.deepEqual(freight.offers, []);
 });
 
-test('Book 2 amber-zone freight contains no major shipments', () => {
-  const origin = { population: 9, techLevel: 10 };
-  const destination = { population: 9, techLevel: 10 };
+test('travel zones are a Graycloak overlay, not a 1977 rule: red suppresses traffic', () => {
   const dice = { rollD6: () => 6, roll2D6: () => ({ dice: [6, 6], total: 12 }) };
-  const freight = generateFreightOffers(origin, destination, { destinationTravelZone: 'amber', dice, idPrefix: 'amber' });
-  assert.equal(freight.counts.major, 0);
-  assert.equal(freight.offers.some((entry) => entry.category === 'major'), false);
+  const profile = { population: 9, techLevel: 10 };
+  const freight = generateFreightOffers(profile, profile, { destinationTravelZone: 'red', dice, idPrefix: 'red' });
+  assert.equal(freight.shipments, 0);
+  assert.deepEqual(freight.offers, []);
+  const demand = generatePassengerDemand(profile, profile, { destinationTravelZone: 'red', dice });
+  assert.deepEqual({ high: demand.high, middle: demand.middle, low: demand.low }, { high: 0, middle: 0, low: 0 });
 });
 
 
