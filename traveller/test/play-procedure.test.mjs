@@ -214,3 +214,11 @@ test('v0.98.0 an acting card states its verb with the money in it; a blocked car
     else assert.equal(card.verb, null, `${card.id} has no action but states a verb`);
   }
 });
+
+test('v0.99.0 the destination card says it is what gates the trade board', () => {
+  const s = base();
+  s.destination = null;
+  const card = byId(buildPlayProcedure(s), 'destination');
+  assert.match(card.copy, /Nothing to trade until this is set/);
+  assert.equal(card.verb, '[ MAP ]');
+});

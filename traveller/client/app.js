@@ -7622,10 +7622,20 @@ function applyOperationsDeskTab() {
   if (operationsDeskTab === 'encounter' && !activeEncounterAtCurrentSystem() && !latestEncounterAtCurrentSystem()) operationsDeskTab = 'port';
   const encounterWorkspaceActive = operationsDeskTab === 'encounter' && el.encounterRailSection?.dataset.available === 'true';
   const situationTakeover = operationsDeskTab === 'situation' && panels.situation?.dataset.available === 'true';
+  // v0.99.0: a port call needs WORLD, TRADE and JOBS at once — the world's
+  // trade classifications decide what is worth buying, the freight board
+  // decides where to fly, and a contract may pay better than either. Showing
+  // one at a time behind a tab picker hid the comparison the decision is made
+  // on. Situations and combat still take the panel over; they are one thing
+  // to answer, not three to weigh.
+  const portStacked = campaignPlayActive() && !encounterWorkspaceActive && !situationTakeover;
   for (const [key, panel] of Object.entries(panels)) {
     const available = panel?.dataset.available === 'true';
-    if (panel) panel.hidden = key !== operationsDeskTab || !available;
+    const stacked = portStacked && ['port', 'trade', 'jobs'].includes(key);
+    if (panel) panel.hidden = stacked ? !available : (key !== operationsDeskTab || !available);
   }
+  el.contextTabs?.classList.toggle('stacked', portStacked);
+  document.querySelector('#sidebar-port-panel')?.classList.toggle('port-stacked', portStacked);
   // The combat rail belongs to the COMBAT scene: the map is the scene, the DM
   // panel and rosters are its rail, so the two show and hide together.
   // v0.75.0: the combat rail is the COMBAT sidebar tab; the port panels are
@@ -7924,7 +7934,16 @@ function appendLiveShipRow(labelText, valueText, { stateClass = '', tab = null, 
     button.type = 'button';
     button.className = 'text-button live-ship-link';
     button.textContent = `[ ${tab.toUpperCase()} ]`;
-    button.addEventListener('click', () => setOperationsDeskTab(tab));
+    button.addEventListener('click', () => {
+      // While the port panels are stacked the row is a jump list, not a
+      // picker: scrolling to a panel beats hiding the other two.
+      const panel = { port: el.portServicesSection, trade: el.commerceSection, jobs: el.contractSection }[tab];
+      if (panel && !panel.hidden && document.querySelector('#sidebar-port-panel')?.classList.contains('port-stacked')) {
+        panel.scrollIntoView({ block: 'start' });
+        return;
+      }
+      setOperationsDeskTab(tab);
+    });
     row.append(button);
   }
   el.liveShipStatus.append(row);

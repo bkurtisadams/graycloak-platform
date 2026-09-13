@@ -4172,3 +4172,11 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
   .terminal.shell:not(.dock-collapsed) .shell-stage { padding-left: calc(88px + 240px); }
   .dock-reopen { left: 96px; }
 }
+
+/* v0.99.0: the port call shows WORLD, TRADE and JOBS stacked. The tab row
+   stops being a picker and becomes a jump list, so a long board is still
+   reachable in one click without hiding the other two panels. */
+.context-tabs.stacked { position: sticky; top: 0; z-index: 2; background: var(--paper); }
+.port-stacked .context-panel { display: block; }
+.port-stacked .context-panel + .context-panel { margin-top: 10px; border-top: 1px solid var(--rule); padding-top: 10px; }
+.port-stacked .context-panel[hidden] { display: none; }

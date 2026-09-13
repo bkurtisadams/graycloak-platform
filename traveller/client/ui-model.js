@@ -898,7 +898,10 @@ export function buildPlayProcedure(s = {}) {
 
   // Destination and Book 2 p.8 ordering: cargo announces the destination, passengers follow.
   if (!s.destination) {
-    attention.push(card('destination', 'Choose a destination', PLAY_PROCEDURE_TAGS.required, 'Select a system within jump range on the map. Cargo and passengers are offered per destination (Book 2 p.8).', { action: 'nav', verb: '[ MAP ]' }));
+    // Book 2 p.8 offers freight and passengers per destination, so with none
+    // chosen the trade board is legitimately empty. Say that here, or an
+    // empty board reads as a broken one.
+    attention.push(card('destination', 'Choose a destination', PLAY_PROCEDURE_TAGS.required, 'Nothing to trade until this is set: freight and passengers are offered per destination (Book 2 p.8). Pick a system within jump range on the map.', { action: 'nav', verb: '[ MAP ]' }));
   } else if (!s.destination.reachable) {
     attention.push(card('destination', `${s.destination.name} is out of jump range`, PLAY_PROCEDURE_TAGS.blocked, `${s.destination.distance} parsec${s.destination.distance === 1 ? '' : 's'}. Select a nearer system.`, { action: 'nav', verb: '[ MAP ]' }));
   } else {
