@@ -838,6 +838,8 @@ function card(id, title, tag, copy, { action = null, tone = null, verb = null } 
  *     blockReason:string|null, declined:boolean, brokerCommissionCr:number}]} | null
  *   s.patron {available:boolean, attemptedThisCall:boolean}
  *   s.jobs {offers:number, active:number}
+ *   s.contracts [{id, title, destinationName, destinationSystemId, paymentCr,
+ *     daysRemaining:number|null, overdue:boolean}]
  *   s.lifeSupportCr number
  *   s.jumpReady boolean, s.jumpBlockReason string|null
  */
@@ -975,7 +977,7 @@ export function buildPlayProcedure(s = {}) {
     }
   }
   if (s.jobs) {
-    if (s.jobs.offers > 0) opportunities.push(card('jobs', 'Local jobs', `${s.jobs.offers} OFFER${s.jobs.offers === 1 ? '' : 'S'}`, `Contracts originating at ${s.currentSystem.name}.${s.jobs.active ? ` ${s.jobs.active} active.` : ''}`, { action: 'jobs', tone: 'plain' }));
+    if (s.jobs.offers > 0) opportunities.push(card('jobs', 'Local jobs', `${s.jobs.offers} OFFER${s.jobs.offers === 1 ? '' : 'S'}`, `Contracts originating at ${s.currentSystem.name}.${s.jobs.active ? ` ${s.jobs.active} active.` : ''}`, { action: 'jobs', tone: 'plain', verb: '[ OPEN BOARD ]' }));
   }
   if (s.thread?.objective) {
     opportunities.push(card('thread', s.thread.title || 'Open thread', 'THREAD', s.thread.objective, { action: 'threads', tone: 'plain' }));
@@ -984,6 +986,24 @@ export function buildPlayProcedure(s = {}) {
     if (s.patron.attemptedThisCall) done.push(card('patron-done', 'Patron search', PLAY_PROCEDURE_TAGS.done, 'Attempted this port call.'));
     else if (s.patron.available) opportunities.push(card('patron', 'Seek a patron', PLAY_PROCEDURE_TAGS.optional, 'Uses the week. A 5 or 6 on one die finds a likely patron (Book 3 p.25).', { action: 'jobs', verb: '[ SEEK ]' }));
   }
+
+  // An accepted contract is a promise with a clock on it, and a clock nobody
+  // can see is a contract that fails by surprise. Offers stay on the board;
+  // what has been taken on is always up, the way a quest tracker is.
+  const accepted = [];
+  for (const contract of s.contracts ?? []) {
+    const due = contract.overdue
+      ? 'OVERDUE'
+      : contract.daysRemaining === null ? 'No deadline'
+        : contract.daysRemaining === 0 ? 'Due today'
+          : `${contract.daysRemaining}d left`;
+    const urgent = contract.overdue || (contract.daysRemaining !== null && contract.daysRemaining <= 2);
+    accepted.push(card(`contract-${contract.id}`, contract.title,
+      urgent ? PLAY_PROCEDURE_TAGS.required : 'ACCEPTED',
+      `Deliver to ${contract.destinationName} · Cr${contract.paymentCr.toLocaleString('en-US')} · ${due}.`,
+      { action: `contract:${contract.id}`, verb: '[ SHOW ]', tone: urgent ? 'required' : 'plain' }));
+  }
+  if (accepted.length) groups.push(Object.freeze({ label: `ACCEPTED JOBS ${accepted.length}`, cards: Object.freeze(accepted) }));
 
   if (attention.length) groups.push(Object.freeze({ label: 'NEEDS ATTENTION', cards: Object.freeze(attention) }));
   if (readyAfter.length) groups.push(Object.freeze({ label: attention.length ? 'THEN' : 'READY', cards: Object.freeze(readyAfter) }));

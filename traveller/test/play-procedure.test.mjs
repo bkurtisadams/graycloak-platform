@@ -222,3 +222,32 @@ test('v0.99.0 the destination card says it is what gates the trade board', () =>
   assert.match(card.copy, /Nothing to trade until this is set/);
   assert.equal(card.verb, '[ MAP ]');
 });
+
+test('v0.102.0 accepted jobs are always tracked, with their deadline on the card', () => {
+  const s = base();
+  s.contracts = [
+    { id: 'c1', title: 'Route Verification Survey', destinationName: 'Orison', destinationSystemId: 'orison', paymentCr: 12000, daysRemaining: 9, overdue: false },
+    { id: 'c2', title: 'Priority Courier Packet', destinationName: 'Calder', destinationSystemId: 'calder', paymentCr: 8000, daysRemaining: 1, overdue: false },
+    { id: 'c3', title: 'Ore Assay Run', destinationName: 'Sable', destinationSystemId: 'sable', paymentCr: 4000, daysRemaining: -3, overdue: true }
+  ];
+  const model = buildPlayProcedure(s);
+  const group = model.groups.find((entry) => entry.label.startsWith('ACCEPTED JOBS'));
+  assert.equal(group.label, 'ACCEPTED JOBS 3');
+  // The tracker leads the dock: what is owed is read before what is offered.
+  assert.equal(model.groups[0], group);
+  assert.match(byId(model, 'contract-c1').copy, /Deliver to Orison · Cr12,000 · 9d left/);
+  assert.equal(byId(model, 'contract-c1').tag, 'ACCEPTED');
+  // A deadline inside two days, or missed, is not a quiet line in a list.
+  assert.equal(byId(model, 'contract-c2').tag, PLAY_PROCEDURE_TAGS.required);
+  assert.match(byId(model, 'contract-c3').copy, /OVERDUE/);
+  assert.equal(byId(model, 'contract-c3').tag, PLAY_PROCEDURE_TAGS.required);
+  // Clicking one points at the system it concerns.
+  assert.equal(byId(model, 'contract-c1').action, 'contract:c1');
+  assert.equal(byId(model, 'contract-c1').verb, '[ SHOW ]');
+});
+
+test('v0.102.0 with nothing accepted the tracker takes no room at all', () => {
+  const s = base();
+  s.contracts = [];
+  assert.equal(buildPlayProcedure(s).groups.some((g) => g.label.startsWith('ACCEPTED JOBS')), false);
+});

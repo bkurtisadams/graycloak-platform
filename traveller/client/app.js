@@ -2342,6 +2342,26 @@ function activeContracts() {
   return contractDocuments.filter((entry) => entry.status === 'accepted');
 }
 
+// Book 3 leaves the calendar at 365 days; the contract document already dates
+// its deadline, so days remaining is a plain ordinal difference.
+function contractDaysRemaining(contract) {
+  const now = campaignDocument?.time;
+  const due = contract?.timing?.deadlineDate;
+  if (!now || !due) return null;
+  return (due.year - now.year) * 365 + (due.dayOfYear - now.dayOfYear);
+}
+
+// v0.102.0: a job card points at the thing the job is about — it selects the
+// destination system, so the map rings it and draws the route, and brings the
+// contract board into view for the detail.
+function showContractOnMap(contractId) {
+  const contract = contractDocuments.find((entry) => entry.identity.id === contractId);
+  if (!contract) return;
+  if (viewedSceneId !== WORLD_SCENE_ID) viewScene(WORLD_SCENE_ID);
+  selectSubsectorSystem(contract.destination.systemId);
+  playProcedureAction('jobs');
+}
+
 function activeExclusiveContract() {
   return activeContracts().find((entry) => entry.requirements.exclusiveShip) ?? null;
 }
@@ -3104,10 +3124,10 @@ function wireSubsectorPan() {
 
 // v0.70.0: the hex map is drawn by subsector-svg.js so the player page draws
 // the same one; the referee's version is interactive.
-function renderSubsectorSvg({ current, selected, reachable }) {
+function renderSubsectorSvg({ current, selected, reachable, objectives }) {
   return renderSubsectorMap({
     subsector: FAR_MERIDIAN_SUBSECTOR, columns: SUBSECTOR_COLUMNS, rows: SUBSECTOR_ROWS,
-    current, selected, reachable, onSelect: (system) => selectSubsectorSystem(system.id)
+    current, selected, reachable, objectives, onSelect: (system) => selectSubsectorSystem(system.id)
   });
 }
 
@@ -8066,7 +8086,8 @@ function renderSubsector() {
     ? 'CURRENT ◆   IN RANGE ●   OUT OF RANGE ●   SCOUT △   NAVAL ✦   EMPTY ·'
     : 'SYSTEM ●   SCOUT △   NAVAL ✦   SELECTED SYSTEM OUTLINED   EMPTY ·';
 
-  el.subsectorMap.replaceChildren(renderSubsectorSvg({ current, selected, reachable }));
+  const objectives = new Set(activeContracts().map((entry) => entry.destination.systemId));
+  el.subsectorMap.replaceChildren(renderSubsectorSvg({ current, selected, reachable, objectives }));
   applySubsectorZoom();
 
   const distance = current && selected && current.id !== selected.id
@@ -8592,6 +8613,15 @@ function playProcedureSnapshot() {
     sales,
     patron,
     jobs: { offers: availableContractOffers().length, active: activeContracts().length },
+    contracts: activeContracts().map((contract) => ({
+      id: contract.identity.id,
+      title: contract.identity.title,
+      destinationName: contract.destination.systemName,
+      destinationSystemId: contract.destination.systemId,
+      paymentCr: contract.economics.paymentCr,
+      daysRemaining: contractDaysRemaining(contract),
+      overdue: isContractOverdue(contract, campaignDocument.time)
+    })),
     thread: activeThreadObjective(),
     lifeSupportCr: lifeSupport?.totalCr ?? 0,
     jumpReady: Boolean(reachable && !jumpBlockReason),
@@ -8604,6 +8634,7 @@ function playProcedureAction(action) {
   // the percentage and the DMs, so routing the player to the TRADE panel to
   // read the same quote again was the click this dock exists to remove.
   const [intent, argument] = String(action).split(':');
+  if (intent === 'contract') { showContractOnMap(argument); return; }
   if (intent === 'sale') { sellSpeculativeLot(argument); return; }
   if (intent === 'freight') { acceptFreightOffer(argument); return; }
   if (intent === 'passenger') { bookRoutePassenger(argument); return; }

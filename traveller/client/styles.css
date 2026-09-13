@@ -4267,3 +4267,15 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
   padding: 4px 10px; grid-template-columns: none;
 }
 .scene-status-strip .jump-actions { display: flex; gap: 6px; margin: 0; padding: 0; border: 0; }
+
+/* v0.102.0: a system an accepted contract has to reach carries a corner mark,
+   so the map shows what is owed as well as where the ship can go. It is a
+   different statement from the destination ring, which is where the ship is
+   headed next, so the two must read differently when they land on one hex. */
+.subsector-hex.objective .subsector-hex-shape {
+  stroke: var(--attention-border);
+  stroke-width: 2;
+  stroke-dasharray: 5 2.5;
+}
+.subsector-hex.objective .subsector-system-name { font-weight: 700; }
+.procedure-card-tag { white-space: nowrap; }

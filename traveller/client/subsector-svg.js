@@ -127,7 +127,7 @@ function appendBaseMarkers(group, system, center) {
 // v0.70.0: the subsector hex map, lifted from the referee client so the
 // player page draws the same one. `reachable` is a Map of systemId -> parsecs
 // (empty for a read-only map); with no `onSelect` the hexes are not buttons.
-export function renderSubsectorMap({ subsector, columns, rows, current = null, selected = null, reachable = new Map(), onSelect = null } = {}) {
+export function renderSubsectorMap({ subsector, columns, rows, current = null, selected = null, reachable = new Map(), objectives = new Set(), onSelect = null } = {}) {
   const viewBox = subsectorSvgViewBox(columns, rows, SUBSECTOR_SVG_GEOMETRY);
   const svg = createSvgNode('svg', {
     class: 'subsector-svg',
@@ -174,6 +174,9 @@ export function renderSubsectorMap({ subsector, columns, rows, current = null, s
       if (current && reachable.has(system.id)) group.classList.add('reachable');
       if (current?.id === system.id) group.classList.add('current');
       if (selected?.id === system.id) group.classList.add('selected');
+      // v0.102.0: where an accepted contract has to be delivered. A job the
+      // player has taken on is marked on the map, not only in a panel.
+      if (objectives.has?.(system.id)) group.classList.add('objective');
 
       const relation = current?.id === system.id
         ? 'current system'
@@ -192,7 +195,8 @@ export function renderSubsectorMap({ subsector, columns, rows, current = null, s
       group.dataset.systemId = system.id;
 
       const title = createSvgNode('title');
-      title.textContent = `${system.name} / ${system.mainWorld.name} / ${system.mainWorld.uwp} / ${hex} / ${relation}${baseNames.length ? ` / ${baseNames.join(' + ')}` : ''}`;
+      const objective = objectives.has?.(system.id) ? ' / ACCEPTED JOB DESTINATION' : '';
+      title.textContent = `${system.name} / ${system.mainWorld.name} / ${system.mainWorld.uwp} / ${hex} / ${relation}${baseNames.length ? ` / ${baseNames.join(' + ')}` : ''}${objective}`;
       group.append(title);
 
       const marker = createSvgNode('text', {
