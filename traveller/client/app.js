@@ -8391,6 +8391,8 @@ function renderLiveShipStatus({ currentSystem = null, selectedSystem = null, dis
   renderShipCrew();
   renderShipLedger();
   renderShipStrip();
+  // After the strip, whose height is what moves the map down.
+  requestAnimationFrame(positionToolRail);
 }
 
 // Book 2 p.6 charges life support per trip, so a life-support entry marks a
@@ -8454,6 +8456,17 @@ function renderShipLedger() {
 // The ship, stated above the map. Four cells, no expanding: fuel, what is in
 // the hold, who is aboard, and who is crewing. A fight hides it — cargo and
 // berths are not what you are deciding mid-combat.
+// v0.117.2: park the tool rail just under whatever chrome sits above the map.
+// Measured, not constant: the ship strip and the map header both change
+// height, and every hand-tuned offset in this shell has needed correcting.
+function positionToolRail() {
+  const stage = document.querySelector('.shell-stage');
+  const map = el.subsectorMap;
+  if (!stage || !map || map.offsetParent === null) return;
+  const offset = Math.round(map.getBoundingClientRect().top - stage.getBoundingClientRect().top);
+  if (offset > 0) stage.style.setProperty('--rail-top', `${offset + 8}px`);
+}
+
 function renderShipStrip() {
   if (!el.shipStrip) return;
   // The map section is already hidden outside the system view, so the strip
@@ -10497,6 +10510,7 @@ for (const button of document.querySelectorAll('.sidebar-tab')) {
 el.dockToggle?.addEventListener('click', () => setDockCollapsed(true));
 el.dockReopen?.addEventListener('click', () => setDockCollapsed(false));
 applyDock();
+window.addEventListener('resize', positionToolRail);
 el.animalCheck?.addEventListener('click', checkForAnimals);
 el.animalFight?.addEventListener('click', fightPendingAnimals);
 el.animalClose?.addEventListener('click', () => el.animalDialog.close());
