@@ -4348,7 +4348,16 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .terminal.shell .shell-stage { padding-left: 0; }
 .terminal.shell:not(.dock-collapsed) .shell-stage { padding-left: 300px; }
 .terminal.shell .shell-dock { left: 0; }
-.terminal.shell .shell-rail { left: 308px; }
+/* v0.117.1: with the reserved column gone the rail landed on the ship strip
+   and the map's own header. A fixed top would only move the collision to
+   wherever those grow to, so the rail is centred on the stage instead: it
+   floats over the canvas margin beside the hexes, clear of everything above
+   it whatever height that chrome takes. */
+.terminal.shell .shell-rail {
+  left: 308px;
+  top: 50%; bottom: auto;
+  transform: translateY(-50%);
+}
 .terminal.shell.dock-collapsed .shell-rail { left: 8px; }
 .terminal.shell.dock-collapsed .dock-reopen { left: 8px; top: 40px; }
 .terminal.shell.dock-collapsed .scene-nav { left: 52px; }
