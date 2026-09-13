@@ -16,7 +16,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.97.1</div>
+          <div id="app-subtitle" class="subtitle">v0.98.0</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -245,6 +245,19 @@
     </section>
     </section>
 
+    <button id="dock-reopen" class="text-button dock-reopen" type="button" title="Show the WHAT NOW? column" hidden>[ WHAT NOW? ]</button>
+    <aside class="shell-dock" id="dock" aria-label="What now">
+      <section id="procedure-section" class="panel whatnow" aria-labelledby="procedure-heading">
+        <div class="whatnow-head">
+          <h2 id="procedure-heading" class="whatnow-title">WHAT NOW?</h2>
+          <span id="procedure-scope" class="whatnow-scope"></span>
+          <button id="dock-toggle" class="text-button whatnow-collapse" type="button" title="Collapse the WHAT NOW? column">[ &laquo; ]</button>
+        </div>
+        <div id="procedure" class="procedure" aria-live="polite"></div>
+        <div id="actions" class="actions"></div>
+        <div id="play-procedure" class="play-procedure" hidden aria-live="polite"></div>
+      </section>
+    </aside>
     <aside class="shell-sidebar" id="sidebar" aria-label="Sidebar">
       <div class="sidebar-tabs" role="tablist" aria-label="Sidebar">
         <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="chat" aria-selected="true" title="CHAT"><span class="sidebar-tab-icon" aria-hidden="true">&#9993;</span><span class="sidebar-tab-label">CHAT</span></button>
@@ -258,18 +271,6 @@
         <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="players" aria-selected="false" title="PLAYERS"><span class="sidebar-tab-icon" aria-hidden="true">&#9787;</span><span class="sidebar-tab-label">PLAYERS</span></button>
         <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="settings" aria-selected="false" title="SETTINGS"><span class="sidebar-tab-icon" aria-hidden="true">&#9881;</span><span class="sidebar-tab-label">SETTINGS</span></button>
       </div>
-      <details id="sidebar-whatnow" class="sidebar-strip">
-        <summary class="sidebar-strip-summary">WHAT NOW?</summary>
-        <section id="procedure-section" class="panel whatnow" aria-labelledby="procedure-heading">
-          <div class="whatnow-head">
-            <h2 id="procedure-heading" class="whatnow-title">WHAT NOW?</h2>
-            <span id="procedure-scope" class="whatnow-scope"></span>
-          </div>
-          <div id="procedure" class="procedure" aria-live="polite"></div>
-          <div id="actions" class="actions"></div>
-          <div id="play-procedure" class="play-procedure" hidden aria-live="polite"></div>
-        </section>
-      </details>
       <details id="sidebar-character" class="sidebar-strip" hidden>
         <summary class="sidebar-strip-summary"><span id="sidebar-character-summary">CHARACTER</span></summary>
       <section class="campaign-header-strip" aria-label="Character status">

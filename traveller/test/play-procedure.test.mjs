@@ -186,3 +186,31 @@ test('v0.97.1 each waiting passage class is its own card, once cargo has announc
   // No low passengers are waiting, so no card offers a berth for them.
   assert.equal(byId(model, 'passengers-low'), undefined);
 });
+
+test('a lot the ship cannot afford says so instead of quietly opening a panel', () => {
+  const s = base();
+  s.speculation = { available: true, name: 'RADIOACTIVES', quantity: '3t', purchased: 0, holdFree: 3,
+    pricePerUnitCr: 950000, percentage: 95, buyQuantity: 0, buyCostCr: 0,
+    buyBlockReason: 'Cr950,000 a ton is beyond the ship account (Cr12,400).' };
+  const card = byId(buildPlayProcedure(s), 'spec');
+  assert.equal(card.tag, PLAY_PROCEDURE_TAGS.blocked);
+  assert.match(card.copy, /beyond the ship account/);
+  assert.equal(card.action, null);
+});
+
+test('v0.98.0 an acting card states its verb with the money in it; a blocked card has none', () => {
+  const s = base();
+  s.berthing = { due: true, dueCr: 100, paid: false };
+  s.sales = { lots: [{ id: 'lot-1', tons: 12, description: 'Textiles', netCr: 43200, percentage: 140, dm: 3, sellable: true, blockReason: null, declined: false, brokerCommissionCr: 0 }] };
+  s.speculation = { available: true, name: 'RADIOACTIVES', quantity: '3t', purchased: 0, holdFree: 3, pricePerUnitCr: 950000, percentage: 95, buyQuantity: 0, buyCostCr: 0, buyBlockReason: 'Beyond the ship account.' };
+  const model = buildPlayProcedure(s);
+  assert.equal(byId(model, 'berthing').verb, '[ PAY CR100 ]');
+  assert.equal(byId(model, 'sale-lot-1').verb, '[ SELL FOR CR43,200 ]');
+  assert.equal(byId(model, 'jump').verb, '[ JUMP ]');
+  assert.equal(byId(model, 'spec').verb, null);
+  // Every card that can be clicked says what the click does.
+  for (const card of cards(model)) {
+    if (card.action) assert.ok(card.verb, `${card.id} acts but states no verb`);
+    else assert.equal(card.verb, null, `${card.id} has no action but states a verb`);
+  }
+});

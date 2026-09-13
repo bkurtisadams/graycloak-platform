@@ -811,11 +811,14 @@ export const PLAY_PROCEDURE_TAGS = Object.freeze({
   done: 'DONE'
 });
 
-function card(id, title, tag, copy, { action = null, tone = null } = {}) {
+// v0.98.0: a card that acts states its verb, so the number and the button
+// that spends it sit together. A card with no action has no verb: it is
+// telling the player something, not offering a click.
+function card(id, title, tag, copy, { action = null, tone = null, verb = null } = {}) {
   const resolvedTone = tone ?? (tag === PLAY_PROCEDURE_TAGS.required ? 'required'
     : tag === PLAY_PROCEDURE_TAGS.ready ? 'ready'
       : (tag === PLAY_PROCEDURE_TAGS.blocked || tag === PLAY_PROCEDURE_TAGS.done) ? 'blocked' : 'plain');
-  return Object.freeze({ id, title, tag, copy, action, tone: resolvedTone });
+  return Object.freeze({ id, title, tag, copy, action, tone: resolvedTone, verb: action ? (verb ?? '[ OPEN ]') : null });
 }
 
 /**
@@ -846,7 +849,7 @@ export function buildPlayProcedure(s = {}) {
   const done = [];
 
   if (!s.currentSystem) {
-    attention.push(card('map-location', 'Set the starting location', PLAY_PROCEDURE_TAGS.required, 'Select a system on the map and set it as the current location. Nothing else opens until the ship is somewhere.', { action: 'nav' }));
+    attention.push(card('map-location', 'Set the starting location', PLAY_PROCEDURE_TAGS.required, 'Select a system on the map and set it as the current location. Nothing else opens until the ship is somewhere.', { action: 'nav', verb: '[ MAP ]' }));
     return Object.freeze({ headline: 'Set the starting location', groups: [Object.freeze({ label: 'NEEDS ATTENTION', cards: attention })] });
   }
 
@@ -857,7 +860,7 @@ export function buildPlayProcedure(s = {}) {
     attention.push(card('situation', s.situationActive.title || 'Situation requires a decision', PLAY_PROCEDURE_TAGS.required, s.situationActive.copy || 'Choose a response before continuing the port call.', { action: 'situation' }));
   }
   if (s.berthing?.due && !s.berthing.paid) {
-    attention.push(card('berthing', `Pay berthing at ${s.currentSystem.name}`, PLAY_PROCEDURE_TAGS.required, `Cr${s.berthing.dueCr.toLocaleString('en-US')} covers six days at the starport (Book 2 p.8).`, { action: 'berthing:pay' }));
+    attention.push(card('berthing', `Pay berthing at ${s.currentSystem.name}`, PLAY_PROCEDURE_TAGS.required, `Cr${s.berthing.dueCr.toLocaleString('en-US')} covers six days at the starport (Book 2 p.8).`, { action: 'berthing:pay', verb: `[ PAY CR${s.berthing.dueCr.toLocaleString('en-US')} ]` }));
   } else if (s.berthing?.paid) {
     done.push(card('berthing-done', 'Berthed', PLAY_PROCEDURE_TAGS.done, `Cr${s.berthing.dueCr.toLocaleString('en-US')} paid.`));
   }
@@ -876,7 +879,7 @@ export function buildPlayProcedure(s = {}) {
     const declined = lot.declined ? ' Quote declined this call.' : '';
     readyAfter.push(card(`sale-${lot.id}`, title, PLAY_PROCEDURE_TAGS.ready,
       `Cr${lot.netCr.toLocaleString('en-US')} at ${lot.percentage}% of base · DM ${lot.dm >= 0 ? '+' : ''}${lot.dm}.${owed}${declined}`,
-      { action: `sale:${lot.id}` }));
+      { action: `sale:${lot.id}`, verb: `[ SELL FOR CR${lot.netCr.toLocaleString('en-US')} ]` }));
   }
 
   // Fuel
@@ -885,9 +888,9 @@ export function buildPlayProcedure(s = {}) {
     if (s.destination?.reachable && sufficient === false) {
       const how = canBuy ? 'Buy fuel at the starport' : canSkim ? 'Skim the gas giant (+7 days)' : 'No fuel source here';
       const fuelAction = canBuy ? 'fuel:buy' : canSkim ? 'fuel:skim' : 'port';
-      attention.push(card('fuel', `Refuel for ${s.destination.name}`, canBuy || canSkim ? PLAY_PROCEDURE_TAGS.required : PLAY_PROCEDURE_TAGS.blocked, `${currentTons}/${capacityTons}t aboard; the jump needs ${requiredTons}t. ${how}${canBuy && s.fuel.priceCr ? ` for Cr${s.fuel.priceCr.toLocaleString('en-US')}` : ''}.`, { action: fuelAction }));
+      attention.push(card('fuel', `Refuel for ${s.destination.name}`, canBuy || canSkim ? PLAY_PROCEDURE_TAGS.required : PLAY_PROCEDURE_TAGS.blocked, `${currentTons}/${capacityTons}t aboard; the jump needs ${requiredTons}t. ${how}${canBuy && s.fuel.priceCr ? ` for Cr${s.fuel.priceCr.toLocaleString('en-US')}` : ''}.`, { action: fuelAction, verb: canBuy ? '[ FILL TANKS ]' : canSkim ? '[ SKIM ]' : '[ OPEN PORT ]' }));
     } else if (currentTons < capacityTons && (canBuy || canSkim)) {
-      opportunities.push(card('fuel-top', 'Top off fuel', PLAY_PROCEDURE_TAGS.optional, `${currentTons}/${capacityTons}t aboard. ${canBuy ? `Starport fuel${s.fuel.priceCr ? ` Cr${s.fuel.priceCr.toLocaleString('en-US')}` : ''}.` : 'Gas giant skim available.'}`, { action: canBuy ? 'fuel:buy' : 'fuel:skim' }));
+      opportunities.push(card('fuel-top', 'Top off fuel', PLAY_PROCEDURE_TAGS.optional, `${currentTons}/${capacityTons}t aboard. ${canBuy ? `Starport fuel${s.fuel.priceCr ? ` Cr${s.fuel.priceCr.toLocaleString('en-US')}` : ''}.` : 'Gas giant skim available.'}`, { action: canBuy ? 'fuel:buy' : 'fuel:skim', verb: canBuy ? '[ FILL TANKS ]' : '[ SKIM ]' }));
     } else {
       done.push(card('fuel-done', 'Refuel', PLAY_PROCEDURE_TAGS.done, `${currentTons}/${capacityTons}t aboard${currentTons >= capacityTons ? ' · tanks full' : ' · nothing to buy here'}.`));
     }
@@ -895,9 +898,9 @@ export function buildPlayProcedure(s = {}) {
 
   // Destination and Book 2 p.8 ordering: cargo announces the destination, passengers follow.
   if (!s.destination) {
-    attention.push(card('destination', 'Choose a destination', PLAY_PROCEDURE_TAGS.required, 'Select a system within jump range on the map. Cargo and passengers are offered per destination (Book 2 p.8).', { action: 'nav' }));
+    attention.push(card('destination', 'Choose a destination', PLAY_PROCEDURE_TAGS.required, 'Select a system within jump range on the map. Cargo and passengers are offered per destination (Book 2 p.8).', { action: 'nav', verb: '[ MAP ]' }));
   } else if (!s.destination.reachable) {
-    attention.push(card('destination', `${s.destination.name} is out of jump range`, PLAY_PROCEDURE_TAGS.blocked, `${s.destination.distance} parsec${s.destination.distance === 1 ? '' : 's'}. Select a nearer system.`, { action: 'nav' }));
+    attention.push(card('destination', `${s.destination.name} is out of jump range`, PLAY_PROCEDURE_TAGS.blocked, `${s.destination.distance} parsec${s.destination.distance === 1 ? '' : 's'}. Select a nearer system.`, { action: 'nav', verb: '[ MAP ]' }));
   } else {
     if (s.freight) {
       if (s.freight.accepted > 0) {
@@ -910,7 +913,7 @@ export function buildPlayProcedure(s = {}) {
         for (const lot of s.freight.lots ?? []) {
           attention.push(card(`freight-${lot.id}`, `Accept ${lot.tons}t ${lot.category} for ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready,
             `Cr${lot.revenueCr.toLocaleString('en-US')} on delivery at Cr${(1000).toLocaleString('en-US')}/ton. Accepting cargo announces the destination (Book 2 p.8).`,
-            { action: `freight:${lot.id}` }));
+            { action: `freight:${lot.id}`, verb: '[ ACCEPT ]' }));
         }
         if (!(s.freight.lots ?? []).length) {
           attention.push(card('freight', `Accept cargo for ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready, `${s.freight.fitting} of ${s.freight.offers} lots fit the hold${s.freight.bestCr ? `, up to Cr${s.freight.bestCr.toLocaleString('en-US')} on delivery` : ''} at Cr${(1000).toLocaleString('en-US')}/ton.`, { action: 'trade' }));
@@ -933,7 +936,7 @@ export function buildPlayProcedure(s = {}) {
         for (const entry of classes) {
           attention.push(card(`passengers-${entry.passageClass}`, `Book ${entry.passageClass} passage to ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready,
             `${entry.available} waiting at Cr${entry.fareCr.toLocaleString('en-US')} each · ${entry.berths} berth${entry.berths === 1 ? '' : 's'} free (Book 2 p.8).`,
-            { action: `passenger:${entry.passageClass}` }));
+            { action: `passenger:${entry.passageClass}`, verb: `[ BOOK ONE / CR${entry.fareCr.toLocaleString('en-US')} ]` }));
         }
         if (!classes.length) {
           attention.push(card('passengers', `Book passengers to ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready, `Demand H${s.passengers.demand.high} M${s.passengers.demand.middle} L${s.passengers.demand.low} · ${s.passengers.booked} booked · ${s.passengers.capacity} berths free.`, { action: 'trade' }));
@@ -943,9 +946,9 @@ export function buildPlayProcedure(s = {}) {
       }
     }
     if (s.jumpReady) {
-      readyAfter.push(card('jump', `Depart → ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready, `${s.destination.distance} parsec${s.destination.distance === 1 ? '' : 's'} · 7 days in jump · life support Cr${(s.lifeSupportCr ?? 0).toLocaleString('en-US')} charged at departure (Book 2 p.7).`, { action: 'jump' }));
+      readyAfter.push(card('jump', `Depart → ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready, `${s.destination.distance} parsec${s.destination.distance === 1 ? '' : 's'} · 7 days in jump · life support Cr${(s.lifeSupportCr ?? 0).toLocaleString('en-US')} charged at departure (Book 2 p.7).`, { action: 'jump', verb: '[ JUMP ]' }));
     } else {
-      readyAfter.push(card('jump', `Depart → ${s.destination.name}`, PLAY_PROCEDURE_TAGS.blocked, s.jumpBlockReason || 'Not ready to jump.', { action: 'nav' }));
+      readyAfter.push(card('jump', `Depart → ${s.destination.name}`, PLAY_PROCEDURE_TAGS.blocked, s.jumpBlockReason || 'Not ready to jump.', { action: 'nav', verb: '[ MAP ]' }));
     }
   }
 
@@ -954,7 +957,18 @@ export function buildPlayProcedure(s = {}) {
     if (s.speculation.purchased > 0) {
       done.push(card('spec-done', 'Speculative lot', PLAY_PROCEDURE_TAGS.done, `${s.speculation.purchased} bought from this week's lot (${s.speculation.name}).`));
     } else if (s.speculation.available) {
-      opportunities.push(card('spec', 'Speculative lot', s.speculation.holdFree > 0 ? PLAY_PROCEDURE_TAGS.ready : PLAY_PROCEDURE_TAGS.blocked, `This week: ${s.speculation.quantity} ${s.speculation.name}${s.speculation.pricePerUnitCr ? ` at Cr${s.speculation.pricePerUnitCr.toLocaleString('en-US')} each (${s.speculation.percentage}% of base)` : ''}. One lot per week (Book 2 p.46). Hold ${s.speculation.holdFree}t free.${s.speculation.buyQuantity ? ` Buying ${s.speculation.buyQuantity}t costs Cr${s.speculation.buyCostCr.toLocaleString('en-US')}.` : ''}`, { action: s.speculation.buyQuantity ? `spec:${s.speculation.buyQuantity}` : 'trade' }));
+      const lot = `This week: ${s.speculation.quantity} ${s.speculation.name}${s.speculation.pricePerUnitCr ? ` at Cr${s.speculation.pricePerUnitCr.toLocaleString('en-US')} each (${s.speculation.percentage}% of base)` : ''}. One lot per week (Book 2 p.46).`;
+      if (s.speculation.buyQuantity > 0) {
+        opportunities.push(card('spec', 'Speculative lot', PLAY_PROCEDURE_TAGS.ready,
+          `${lot} Buying ${s.speculation.buyQuantity}t costs Cr${s.speculation.buyCostCr.toLocaleString('en-US')}. Hold ${s.speculation.holdFree}t free.`,
+          { action: `spec:${s.speculation.buyQuantity}`, verb: `[ BUY ${s.speculation.buyQuantity}T / CR${s.speculation.buyCostCr.toLocaleString('en-US')} ]` }));
+      } else {
+        // Out of reach: say why on the card. Silently falling back to the
+        // TRADE panel left the player to work out that the lot was simply
+        // unaffordable, which is the one thing the card should have said.
+        opportunities.push(card('spec', 'Speculative lot out of reach', PLAY_PROCEDURE_TAGS.blocked,
+          `${lot} ${s.speculation.buyBlockReason || 'Nothing can be bought from it here.'}`));
+      }
     }
   }
   if (s.jobs) {
@@ -965,7 +979,7 @@ export function buildPlayProcedure(s = {}) {
   }
   if (s.patron) {
     if (s.patron.attemptedThisCall) done.push(card('patron-done', 'Patron search', PLAY_PROCEDURE_TAGS.done, 'Attempted this port call.'));
-    else if (s.patron.available) opportunities.push(card('patron', 'Seek a patron', PLAY_PROCEDURE_TAGS.optional, 'Uses the week. A 5 or 6 on one die finds a likely patron (Book 3 p.25).', { action: 'jobs' }));
+    else if (s.patron.available) opportunities.push(card('patron', 'Seek a patron', PLAY_PROCEDURE_TAGS.optional, 'Uses the week. A 5 or 6 on one die finds a likely patron (Book 3 p.25).', { action: 'jobs', verb: '[ SEEK ]' }));
   }
 
   if (attention.length) groups.push(Object.freeze({ label: 'NEEDS ATTENTION', cards: Object.freeze(attention) }));

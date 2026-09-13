@@ -329,6 +329,8 @@ const el = {
   openThreadsView: document.querySelector('#open-threads-view'),
   procedureScope: document.querySelector('#procedure-scope'),
   playProcedure: document.querySelector('#play-procedure'),
+  dockToggle: document.querySelector('#dock-toggle'),
+  dockReopen: document.querySelector('#dock-reopen'),
   footerCurrentName: document.querySelector('#footer-current-name'),
   footerCurrentMeta: document.querySelector('#footer-current-meta'),
   contextTabs: document.querySelector('#context-tabs'),
@@ -1841,6 +1843,18 @@ const SIDEBAR_TABS = ['chat', 'combat', 'scenes', 'actors', 'vehicles', 'port', 
 let sidebarTab = 'chat';
 let sidebarChosen = false;
 let sidebarCollapsed = true; // v0.80.1: collapsed on load, as Foundry's cabinet is, to draw the eye to the canvas
+// v0.98.0: the dock is open on load. A dock you collapse is a dock you find
+// collapsed, which is how trading got buried, so the preference persists but
+// the default is shown.
+let dockCollapsed = localStorage.getItem('traveller.dock-collapsed.v1') === '1';
+
+function applyDock() {
+  el.terminal?.classList.toggle('dock-collapsed', dockCollapsed);
+  if (el.dockReopen) el.dockReopen.hidden = !dockCollapsed;
+  localStorage.setItem('traveller.dock-collapsed.v1', dockCollapsed ? '1' : '0');
+}
+
+function setDockCollapsed(next) { dockCollapsed = Boolean(next); applyDock(); }
 
 function setSidebarTab(tab, { chosen = true } = {}) {
   if (!SIDEBAR_TABS.includes(tab)) return;
@@ -1853,10 +1867,10 @@ function setSidebarTab(tab, { chosen = true } = {}) {
   // selected — ACTORS, COMBAT, anything — sat below the fold with nothing to
   // say it was there. Picking a tab now closes both; either reopens with one
   // click, and stays open while the referee keeps working within that tab.
+  // v0.98.0: WHAT NOW? is no longer one of these strips — it has its own
+  // column and never collapses behind a tab choice.
   if (changed) {
-    const whatnow = document.querySelector('#sidebar-whatnow');
     const character = document.querySelector('#sidebar-character');
-    if (whatnow) whatnow.open = false;
     if (character) character.open = false;
   }
   applySidebar();
@@ -1961,8 +1975,6 @@ function renderSidebarStrips() {
   summary.textContent = doc
     ? `${doc.identity.name.toUpperCase()} · ${doc.upp} · ${el.headerStatus?.textContent || 'READY'}`
     : 'CHARACTER';
-  const whatnow = document.querySelector('#sidebar-whatnow > summary');
-  if (whatnow) whatnow.textContent = `WHAT NOW? ${el.procedureScope?.textContent ? '· ' + el.procedureScope.textContent : ''}`;
 }
 
 function renderRailTools() {
@@ -2295,7 +2307,11 @@ function speculativeDockPurchase(offer, systemId, freeHold) {
     ? Math.floor((shipDocument.state.finances.balanceCr ?? 0) / offer.pricePerUnitCr)
     : remaining;
   const quantity = Math.max(0, Math.min(remaining, Math.floor(freeHold), affordable));
-  return { buyQuantity: quantity, buyCostCr: quantity * offer.pricePerUnitCr };
+  const blocked = quantity > 0 ? null
+    : affordable < 1 ? `Cr${offer.pricePerUnitCr.toLocaleString('en-US')} a ton is beyond the ship account (Cr${(shipDocument.state.finances.balanceCr ?? 0).toLocaleString('en-US')}).`
+      : Math.floor(freeHold) < 1 ? 'The hold is full.'
+        : 'This week\u2019s lot is already bought out.';
+  return { buyQuantity: quantity, buyCostCr: quantity * offer.pricePerUnitCr, buyBlockReason: blocked };
 }
 
 function weeklySpeculativeOffer() {
@@ -8630,6 +8646,12 @@ function renderPlayProcedure() {
         copy.textContent = card.copy;
         button.append(copy);
       }
+      if (card.verb) {
+        const verb = document.createElement('div');
+        verb.className = 'procedure-card-verb';
+        verb.textContent = card.verb;
+        button.append(verb);
+      }
       if (card.action) button.addEventListener('click', () => playProcedureAction(card.action));
       wrap.append(button);
     }
@@ -9753,6 +9775,9 @@ for (const button of document.querySelectorAll('.sidebar-tab')) {
     setSidebarTab(button.dataset.sidebarTab);
   });
 }
+el.dockToggle?.addEventListener('click', () => setDockCollapsed(true));
+el.dockReopen?.addEventListener('click', () => setDockCollapsed(false));
+applyDock();
 el.sceneClose?.addEventListener('click', () => el.sceneDialog.close());
 el.sceneSave?.addEventListener('click', createSceneFromDialog);
 el.sceneSquares?.addEventListener('input', updateSceneSizeNote);
