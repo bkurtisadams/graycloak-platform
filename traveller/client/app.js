@@ -5987,6 +5987,7 @@ function actorContextMenuItems(item) {
       else openNpcActorDialog(item.id);
     } },
     { label: onScene ? 'ALREADY ON THE ACTIVE SCENE' : 'PLACE ON ACTIVE SCENE', disabled: !scene || onScene, action: () => placeActorOnActiveScene(item) },
+    { label: 'ADD TO COMBAT', title: 'Open combat setup with this actor in it', action: () => { openCombatSetupDialog(); addRosterActorToCombatSetup(item.id); } },
     '-',
     { label: item.ownerUid === uid && uid ? 'PLAYED BY ME' : 'ASSIGN TO ME', disabled: !uid || item.ownerUid === uid, action: () => setOwner(item.id, uid) },
     { label: 'CLEAR OWNER', disabled: !item.ownerUid, action: () => setOwner(item.id, '') },
@@ -6943,39 +6944,6 @@ function createSceneFromDialog() {
 
 function activeScene() {
   return sceneDocuments.find((entry) => entry.identity.id === campaignDocument?.activeSceneId) ?? null;
-}
-
-function renderRoster() {
-  const available = Boolean(campaignDocument);
-  el.rosterSection.dataset.available = available ? 'true' : 'false';
-  el.rosterNewActor.disabled = !available;
-  if (!available) { el.rosterFolders.replaceChildren(); applyOperationsDeskTab(); return; }
-  const folders = campaignDocument.roster.folders.map((folder) => {
-    const details = document.createElement('details'); details.className = 'roster-folder'; details.open = true;
-    const summary = document.createElement('summary'); summary.textContent = `${folder.name} [${folder.actorIds.length}]`;
-    const body = document.createElement('div'); body.className = 'roster-folder-body';
-    const actors = folder.actorIds.map((id) => npcActorDocuments.find((entry) => entry.identity.id === id)).filter(Boolean);
-    if (!actors.length) { const empty = document.createElement('span'); empty.className = 'empty'; empty.textContent = 'NO SAVED ACTORS.'; body.append(empty); }
-    for (const actor of actors) {
-      const card = document.createElement('article'); card.className = 'roster-card';
-      const asset = assetForActor(actor);
-      const portrait = asset ? document.createElement('img') : document.createElement('span');
-      portrait.className = `roster-portrait${asset ? '' : ' roster-portrait-placeholder'}`;
-      if (asset) { portrait.src = asset.dataUrl; portrait.alt = asset.altText || actor.identity.name; } else portrait.textContent = actor.identity.name.charAt(0).toUpperCase();
-      const content = document.createElement('div');
-      const name = document.createElement('span'); name.className = 'roster-card-name'; name.textContent = `${actor.identity.name.toUpperCase()} / ${actor.upp}`;
-      const meta = document.createElement('span'); meta.className = 'roster-card-meta'; meta.textContent = `${actor.profile.actorType.toUpperCase()} / ${actor.profile.role || 'NO ROLE'} / ${actor.profile.bodyModel.toUpperCase()} / ${getPersonalWeapon(actor.loadout.weaponKey).name} / ${actor.loadout.armor.toUpperCase()}`;
-      const description = document.createElement('span'); description.className = 'roster-card-description'; description.textContent = actor.presentation.description || 'No description.';
-      const conditions = document.createElement('span'); conditions.className = `roster-card-conditions${activeNpcActorConditions(actor).length ? ' active' : ''}`; conditions.textContent = `CONDITION ${activeNpcActorConditions(actor).map((entry) => entry.toUpperCase().replaceAll('-', ' ')).join(' + ') || 'NONE'}`;
-      const actions = document.createElement('span'); actions.className = 'roster-card-actions';
-      const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'text-button'; edit.textContent = '[ EDIT ]'; edit.addEventListener('click', () => openNpcActorDialog(actor.identity.id));
-      const combat = document.createElement('button'); combat.type = 'button'; combat.className = 'text-button'; combat.textContent = '[ ADD TO COMBAT ]'; combat.addEventListener('click', () => { openCombatSetupDialog(); addRosterActorToCombatSetup(actor.identity.id); });
-      actions.append(edit, combat); content.append(name, meta, description, conditions, actions); card.append(portrait, content); body.append(card);
-    }
-    details.append(summary, body); return details;
-  });
-  el.rosterFolders.replaceChildren(...folders);
-  applyOperationsDeskTab();
 }
 
 function addRosterActorToCombatSetup(actorId = el.combatRosterActor.value) {
@@ -8636,7 +8604,7 @@ function render() {
     ['player-declarations', watchPlayerDeclarations],
     ['player-canvas', watchPlayerCanvas],
     ['directory', renderCampaignDirectory],
-    ['roster', renderRoster],
+
     ['operations-desk', applyOperationsDeskTab],
     ['ship', renderShip],
     ['campaign-header', renderCampaignHeader]
