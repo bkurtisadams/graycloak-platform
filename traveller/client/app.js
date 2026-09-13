@@ -5987,7 +5987,11 @@ function actorContextMenuItems(item) {
       else openNpcActorDialog(item.id);
     } },
     { label: onScene ? 'ALREADY ON THE ACTIVE SCENE' : 'PLACE ON ACTIVE SCENE', disabled: !scene || onScene, action: () => placeActorOnActiveScene(item) },
-    { label: 'ADD TO COMBAT', title: 'Open combat setup with this actor in it', action: () => { openCombatSetupDialog(); addRosterActorToCombatSetup(item.id); } },
+    { label: onScene ? 'ADD TO COMBAT' : 'PLACE AND ADD TO COMBAT', disabled: !scene, action: () => {
+      const placed = scene?.tokens.find((token) => token.actorId === item.id) ?? placeActorOnActiveScene(item);
+      const token = placed ?? activeScene()?.tokens.find((entry) => entry.actorId === item.id);
+      if (token) addTokenToCombat(activeScene(), token);
+    } },
     '-',
     { label: item.ownerUid === uid && uid ? 'PLAYED BY ME' : 'ASSIGN TO ME', disabled: !uid || item.ownerUid === uid, action: () => setOwner(item.id, uid) },
     { label: 'CLEAR OWNER', disabled: !item.ownerUid, action: () => setOwner(item.id, '') },
