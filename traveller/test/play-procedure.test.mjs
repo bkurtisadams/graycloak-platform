@@ -357,3 +357,15 @@ test('v0.118.0 the jobs card says whether pressing it opens or closes the board'
   s.jobs = { offers: 3, active: 0, open: true };
   assert.equal(byId(buildPlayProcedure(s), 'jobs').verb, '[ CLOSE BOARD ]');
 });
+
+test('v0.119.0 a card whose flyout is open offers to close it', () => {
+  const s = base();
+  s.freight = { offers: 0, fitting: 0, accepted: 0, bestCr: 0, lots: [] };
+  s.passengers = { demand: { high: 2, middle: 0, low: 0 }, booked: 0, capacity: 4, blockReason: null, classes: [
+    { passageClass: 'high', available: 2, fareCr: 10000, berths: 2,
+      blockedReason: 'Book 2 p.16 requires a steward aboard for high passage. Nobody is assigned.' }
+  ] };
+  assert.equal(byId(buildPlayProcedure(s), 'passengers-high-blocked').verb, '[ CREW ]');
+  s.openFlyout = 'crew';
+  assert.equal(byId(buildPlayProcedure(s), 'passengers-high-blocked').verb, '[ CLOSE CREW ]');
+});

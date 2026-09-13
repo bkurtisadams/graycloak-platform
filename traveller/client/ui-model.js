@@ -838,7 +838,8 @@ function card(id, title, tag, copy, { action = null, tone = null, verb = null } 
  *     blockReason:string|null, declined:boolean, brokerCommissionCr:number,
  *     costCr:number, gainCr:number, returnPercent:number}]} | null
  *   s.patron {available:boolean, attemptedThisCall:boolean}
- *   s.jobs {offers:number, active:number}
+ *   s.jobs {offers:number, active:number, open:boolean}
+ *   s.openFlyout 'jobs'|'trade'|'crew'|null — which dock panel is unfolded
  *   s.contracts [{id, title, destinationName, destinationSystemId, paymentCr,
  *     daysRemaining:number|null, overdue:boolean}]
  *   s.lifeSupportCr number
@@ -963,7 +964,7 @@ export function buildPlayProcedure(s = {}) {
         for (const entry of (s.passengers.classes ?? []).filter((row) => row.available > 0 && row.blockedReason)) {
           opportunities.push(card(`passengers-${entry.passageClass}-blocked`, `${entry.available} ${entry.passageClass} passenger${entry.available === 1 ? '' : 's'} waiting`, PLAY_PROCEDURE_TAGS.blocked,
             `Cr${entry.fareCr.toLocaleString('en-US')} each. ${entry.blockedReason}`,
-            { action: 'crew', verb: '[ CREW ]' }));
+            { action: 'crew', verb: s.openFlyout === 'crew' ? '[ CLOSE CREW ]' : '[ CREW ]' }));
         }
         const classes = (s.passengers.classes ?? []).filter((entry) => entry.available > 0 && entry.berths > 0 && !entry.blockedReason);
         for (const entry of classes) {

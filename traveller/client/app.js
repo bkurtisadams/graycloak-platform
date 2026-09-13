@@ -3779,15 +3779,8 @@ function renderCommerce() {
   }
   groups.push({ label: 'ABOARD', items: aboardItems });
 
-  renderPanelModel(el.commerceRecord, { groups }, {
-    onAction: (id) => {
-      const [kind, value] = splitIntent(id);
-      if (kind === 'freight') return acceptFreightOffer(value);
-      if (kind === 'spec') return buySpeculativeQuantity(Number(value));
-      if (kind === 'sell') return sellSpeculativeLot(value);
-      if (kind === 'decline') return declineSpeculativeQuote(value);
-    }
-  });
+  commerceBoardModel = { groups };
+  renderCommerceBoardInto(el.commerceRecord);
 
   el.commerceActions.replaceChildren();
   if (route?.destination && route.reachable) {
@@ -3888,6 +3881,57 @@ function renderContracts() {
 // One board, two homes: the sidebar panel and the dock flyout render the same
 // model, so an offer cannot appear in one and not the other.
 let contractBoardModel = null;
+let commerceBoardModel = null;
+
+function renderCommerceBoardInto(target) {
+  if (!target || !commerceBoardModel) return;
+  renderPanelModel(target, commerceBoardModel, {
+    onAction: (id) => {
+      const [kind, value] = splitIntent(id);
+      if (kind === 'freight') return acceptFreightOffer(value);
+      if (kind === 'spec') return buySpeculativeQuantity(Number(value));
+      if (kind === 'sell') return sellSpeculativeLot(value);
+      if (kind === 'decline') return declineSpeculativeQuote(value);
+    }
+  });
+}
+
+// The crew list is built for the flyout rather than shared: the sidebar copy
+// is a live element with its own buttons, not a panel model.
+function renderCrewBoardInto(target) {
+  if (!target || !shipDocument) return;
+  target.replaceChildren();
+  const roster = document.createElement('div');
+  roster.className = 'live-ship-crew';
+  for (const entry of shipDocument.crew.assignments) {
+    const row = document.createElement('div');
+    row.className = 'live-ship-row';
+    const label = document.createElement('span');
+    label.textContent = `${entry.role.toUpperCase()} \u00b7 ${entry.characterName || entry.characterId}`;
+    const release = document.createElement('button');
+    release.type = 'button';
+    release.className = 'text-button';
+    release.textContent = '[ RELEASE ]';
+    release.addEventListener('click', () => releaseCrewMember(entry.characterId));
+    row.append(label, release);
+    roster.append(row);
+  }
+  if (!shipDocument.crew.assignments.length) {
+    const empty = document.createElement('div');
+    empty.className = 'live-ship-row';
+    empty.textContent = 'NOBODY ASSIGNED';
+    roster.append(empty);
+  }
+  const assign = document.createElement('button');
+  assign.type = 'button';
+  assign.className = 'text-button';
+  assign.textContent = '[ ASSIGN ]';
+  assign.addEventListener('click', openCrewDialog);
+  const note = document.createElement('div');
+  note.className = 'commerce-note';
+  note.textContent = 'Book 1 p.19: any character may hold a position; expertise is preferred, not required. One person holds one role.';
+  target.append(roster, assign, note);
+}
 function renderContractBoardInto(target) {
   if (!target || !contractBoardModel) return;
   renderPanelModel(target, contractBoardModel, { onAction: (id) => {
@@ -3938,10 +3982,19 @@ function closeFlyout() {
 
 function renderFlyout() {
   if (!el.dockFlyout) return;
+  const system = mappedCurrentSystem();
   const panels = {
     jobs: {
-      title: `CONTRACT BOARD${mappedCurrentSystem() ? ` \u00b7 ${mappedCurrentSystem().name.toUpperCase()}` : ''}`,
+      title: `CONTRACT BOARD${system ? ` \u00b7 ${system.name.toUpperCase()}` : ''}`,
       render: renderContractBoardInto
+    },
+    trade: {
+      title: `TRADE${system ? ` \u00b7 ${system.name.toUpperCase()}` : ''}`,
+      render: renderCommerceBoardInto
+    },
+    crew: {
+      title: `CREW${shipDocument?.identity?.name ? ` \u00b7 ${shipDocument.identity.name.toUpperCase()}` : ''}`,
+      render: renderCrewBoardInto
     }
   };
   const panel = openFlyout ? panels[openFlyout] : null;
@@ -9306,6 +9359,7 @@ function playProcedureSnapshot() {
     sales,
     patron,
     jobs: { offers: availableContractOffers().length, active: activeContracts().length, open: openFlyout === 'jobs' },
+    openFlyout,
     contracts: activeContracts().map((contract) => ({
       id: contract.identity.id,
       title: contract.identity.title,
@@ -9339,7 +9393,7 @@ function playProcedureAction(action) {
   // <shipId>:spec:<systemId>:<code>:<n>, so [ SELL ] never found its lot and
   // failed silently. Split once, on the first colon only.
   const [intent, argument] = splitIntent(action);
-  if (intent === 'crew') { setSidebarTab('vehicles'); openCrewDialog(); return; }
+  if (intent === 'crew') { setFlyout('crew'); return; }
   if (intent === 'contract') { showContractOnMap(argument); return; }
   if (intent === 'sale') { sellSpeculativeLot(argument); return; }
   if (intent === 'freight') { acceptFreightOffer(argument); return; }
@@ -9360,8 +9414,8 @@ function playProcedureAction(action) {
   // may be collapsed, and since v0.99.0 the port panels are stacked anyway —
   // so pressing [ OPEN ] on a jobs card did nothing visible at all. Open the
   // drawer on the port panels, then bring the right one into view.
-  if (action === 'jobs') { setFlyout('jobs'); return; }
-  const deskPanels = { port: el.portServicesSection, trade: el.commerceSection, situation: el.situationSection };
+  if (action === 'jobs' || action === 'trade') { setFlyout(action); return; }
+  const deskPanels = { port: el.portServicesSection, situation: el.situationSection };
   if (Object.hasOwn(deskPanels, action)) {
     setOperationsDeskTab(action);
     setSidebarTab('port');
