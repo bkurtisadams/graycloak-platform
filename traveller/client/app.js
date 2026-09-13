@@ -8,6 +8,12 @@ import {
   SHIP_CREW_ROLES,
   assignShipCrew,
   releaseShipCrew,
+  ANIMAL_TERRAIN_DMS,
+  animalCategoryForThrow,
+  animalCombatantSpecs,
+  checkForAnimalEncounter,
+  generateAnimalEncounter,
+  resolveAnimalReaction,
   exportCharacter,
   exportCharacterDocument,
   exportShipDocument,
@@ -412,6 +418,10 @@ const el = {
   sceneStatusStrip: document.querySelector('#scene-status-strip'),
   sceneShipName: document.querySelector('#scene-ship-name'),
   liveShipCrew: document.querySelector('#live-ship-crew'),
+  shipStrip: document.querySelector('#ship-strip'),
+  shipStripName: document.querySelector('#ship-strip-name'),
+  shipStripAccount: document.querySelector('#ship-strip-account'),
+  shipStripCells: document.querySelector('#ship-strip-cells'),
   assignCrewButton: document.querySelector('#assign-crew'),
   crewDialog: document.querySelector('#crew-dialog'),
   crewRole: document.querySelector('#crew-role'),
@@ -419,6 +429,12 @@ const el = {
   crewDialogNote: document.querySelector('#crew-dialog-note'),
   crewAssignConfirm: document.querySelector('#crew-assign-confirm'),
   crewCancel: document.querySelector('#crew-cancel'),
+  animalDialog: document.querySelector('#animal-dialog'),
+  animalTerrain: document.querySelector('#animal-terrain'),
+  animalResult: document.querySelector('#animal-result'),
+  animalCheck: document.querySelector('#animal-check'),
+  animalFight: document.querySelector('#animal-fight'),
+  animalClose: document.querySelector('#animal-close'),
   sceneShipMeta: document.querySelector('#scene-ship-meta'),
   subsectorName: document.querySelector('#subsector-name'),
   jumpCapability: document.querySelector('#jump-capability'),
@@ -3634,7 +3650,7 @@ function renderCommerce() {
 
   renderPanelModel(el.commerceRecord, { groups }, {
     onAction: (id) => {
-      const [kind, value] = String(id).split(':');
+      const [kind, value] = splitIntent(id);
       if (kind === 'freight') return acceptFreightOffer(value);
       if (kind === 'spec') return buySpeculativeQuantity(Number(value));
       if (kind === 'sell') return sellSpeculativeLot(value);
@@ -3734,7 +3750,7 @@ function renderContracts() {
   }), { onAction: (id) => {
     // v0.104.0: an accepted contract could never be given up. A job you have
     // decided not to do sat in the tracker forever with its clock running.
-    const [kind, contractId] = String(id).split(':');
+    const [kind, contractId] = splitIntent(id);
     if (kind === 'abandon') return abandonContract(contractId);
     return acceptContractOffer(id);
   } });
@@ -3758,6 +3774,131 @@ function abandonContract(contractId) {
   } catch (error) {
     console.error(error);
     setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+// v0.106.0: ids are not colon-free. A speculative cargo id is
+// <shipId>:spec:<systemId>:<code>:<n>, and a naive split(':') truncated it to
+// the ship id, so SELL and DECLINE silently found no lot. Split once.
+function splitIntent(value) {
+  const text = String(value);
+  const separator = text.indexOf(':');
+  return separator === -1 ? [text, ''] : [text.slice(0, separator), text.slice(separator + 1)];
+}
+
+// --- Book 3 animal encounters -------------------------------------------
+let pendingAnimalEncounter = null;
+
+function openAnimalDialog() {
+  if (!el.animalDialog) return;
+  el.animalTerrain.replaceChildren(...Object.entries(ANIMAL_TERRAIN_DMS).map(([key, entry]) => {
+    const option = document.createElement('option');
+    option.value = key;
+    option.textContent = entry.label.toUpperCase();
+    return option;
+  }));
+  pendingAnimalEncounter = null;
+  el.animalResult.textContent = '';
+  el.animalFight.hidden = true;
+  el.animalDialog.showModal();
+}
+
+function checkForAnimals() {
+  try {
+    const system = mappedCurrentSystem();
+    if (!campaignDocument || !system) throw new Error('a mapped current system is required');
+    const terrain = el.animalTerrain.value;
+    const dice = createDice();
+    if (!checkForAnimalEncounter(dice)) {
+      pendingAnimalEncounter = null;
+      el.animalFight.hidden = true;
+      el.animalResult.textContent = 'NOTHING ENCOUNTERED (BOOK 3 P.26: 5+ ON ONE DIE).';
+      logActivity('CAMPAIGN', `Animal check in ${ANIMAL_TERRAIN_DMS[terrain].label.toLowerCase()} at ${system.name}: nothing encountered`);
+      return;
+    }
+    const category = animalCategoryForThrow(dice.rollD6() + dice.rollD6());
+    if (category === 'event') {
+      pendingAnimalEncounter = null;
+      el.animalFight.hidden = true;
+      el.animalResult.textContent = 'AN EVENT, NOT AN ANIMAL (BOOK 3 P.25 ENCOUNTER COLUMN). THE REFEREE SUPPLIES IT.';
+      logActivity('CAMPAIGN', `Animal check at ${system.name}: the encounter column gave an event rather than an animal`);
+      return;
+    }
+    const profile = parseUniversalWorldProfile(system.mainWorld.uwp);
+    const animal = generateAnimalEncounter(dice, { category, terrain, planetSize: profile.size });
+    const party = currentPartyCharacters();
+    const reaction = resolveAnimalReaction(dice, animal, { partySize: Math.max(1, party.length) });
+    pendingAnimalEncounter = { animal, reaction, terrain };
+    el.animalFight.hidden = reaction.action !== 'attack';
+    el.animalResult.textContent = describeAnimal(animal, reaction);
+    logActivity('CAMPAIGN', `${animal.quantity} ${animal.type} (${animal.category}) encountered in ${ANIMAL_TERRAIN_DMS[terrain].label.toLowerCase()} at ${system.name} / ${reaction.action}`);
+  } catch (error) {
+    console.error(error);
+    el.animalResult.textContent = error?.message ?? String(error);
+  }
+}
+
+function describeAnimal(animal, reaction) {
+  const wound = animal.woundMultiplier > 1
+    ? `x${animal.woundMultiplier}`
+    : animal.woundDice === 0 ? 'none' : `${animal.woundDice > 0 ? '+' : ''}${animal.woundDice}D`;
+  return [
+    `${animal.quantity} ${animal.type.toUpperCase()} / ${animal.category.toUpperCase()}`,
+    `WEIGHT   ${animal.weightKg} kg${animal.specialAttribute ? ` / ${animal.specialAttribute.toUpperCase()}` : ''}`,
+    `HITS     ${animal.hits.unconsciousDice}D unconscious / ${animal.hits.furtherDice}D further to kill`,
+    `WEAPONS  ${animal.weapons.join(' + ').toUpperCase()} / WOUNDS ${wound}`,
+    `ARMOR    ${animal.armor.toUpperCase()}`,
+    `REACTION ${reaction.action.toUpperCase()} / SPEED ${reaction.speed.toUpperCase()}`
+  ].join('\n');
+}
+
+function fightPendingAnimals() {
+  try {
+    if (!pendingAnimalEncounter) throw new Error('check for animals first');
+    if (!campaignDocument || !gameplayDocument) throw new Error('an active campaign character is required');
+    if (activeEncounterAtCurrentSystem()) throw new Error('resolve the active encounter before starting another');
+    const { animal, terrain } = pendingAnimalEncounter;
+    const opponents = animalCombatantSpecs(createDice(), animal);
+    const date = campaignDateSnapshot();
+    const characters = currentPartyCharacters();
+    const partyLoadouts = Object.fromEntries(characters.map((entry) => [entry.identity.id, {
+      weaponKey: entry.loadout?.weaponKey ?? preferredPersonalWeapon(entry),
+      armor: entry.loadout?.armor ?? 'none'
+    }]));
+    const encounterKey = `${campaignDocument.identity.id}|animal-${date.year}-${date.dayOfYear}-${encounterDocuments.length + 1}`;
+    let encounter = createEncounterDocument({
+      campaign: campaignDocument,
+      scene: null,
+      // Book 3 encounters happen in open terrain, which is what the Book 1
+      // range-band line is for.
+      spatialMode: 'range-line',
+      characters,
+      partyLoadouts,
+      opponents,
+      title: `Animal Encounter / ${ANIMAL_TERRAIN_DMS[terrain].label} / ${animal.quantity} ${animal.type}`,
+      encounterKey,
+      date,
+      range: 'medium',
+      metersPerSquare: null,
+      surpriseConditions: {
+        party: { inAVehicle: false, battleDress: false },
+        opposition: { inAVehicle: false, battleDress: false, pouncerAnimals: animal.type === 'pouncer' }
+      },
+      dice: createDice()
+    });
+    encounterDocuments = [...encounterDocuments, encounter];
+    campaignDocument = addEncounterToCampaign(campaignDocument, encounter);
+    persistGameplayDocuments();
+    logActivity('PERSONAL-COMBAT', `${animal.quantity} ${animal.type} attack in ${ANIMAL_TERRAIN_DMS[terrain].label.toLowerCase()}`);
+    setStatus(`ANIMAL ENCOUNTER: ${animal.quantity} ${animal.type.toUpperCase()}`, 'ok');
+    pendingAnimalEncounter = null;
+    el.animalDialog.close();
+    activeSceneTab = 'combat';
+    setSidebarTab('combat');
+    render();
+  } catch (error) {
+    console.error(error);
+    el.animalResult.textContent = error?.message ?? String(error);
   }
 }
 
@@ -7858,6 +7999,9 @@ function renderPortServices() {
       : 'STARPORT FUEL UNAVAILABLE.';
     el.portActions.append(note);
   }
+  // v0.105.0: Book 3 animal encounters. Leaving the starport is a world
+  // action, so the check sits with the world's other services.
+  el.portActions.append(makePortButton('CHECK FOR ANIMALS', openAnimalDialog));
 
   const portCall = currentBerthingDue();
   if (portCall && !portCall.berthingPaid && portCall.berthingDueCr > 0) {
@@ -8101,10 +8245,58 @@ function renderLiveShipStatus({ currentSystem = null, selectedSystem = null, dis
   }
   appendLiveShipRow('ACCOUNT', formatCr(shipDocument.state.finances.balanceCr));
   renderShipCrew();
+  renderShipStrip();
 }
 
 // Book 2 gates high passage on a steward; the crew list is where you see who
 // is aboard and in what role, and the only place an assignment can be made.
+// The ship, stated above the map. Four cells, no expanding: fuel, what is in
+// the hold, who is aboard, and who is crewing. A fight hides it — cargo and
+// berths are not what you are deciding mid-combat.
+function renderShipStrip() {
+  if (!el.shipStrip) return;
+  const show = Boolean(shipDocument) && campaignPlayActive() && activeSceneTab === 'system';
+  el.shipStrip.hidden = !show;
+  if (!show) return;
+  el.shipStripName.textContent = `${(shipDocument.identity.name || 'SHIP').toUpperCase()} / ${(shipDocument.identity.registration || '').toUpperCase()} · ${(shipDocument.specifications.design?.name ?? '').toUpperCase()}`;
+  el.shipStripAccount.textContent = `ACCOUNT ${formatCr(shipDocument.state.finances.balanceCr)}`;
+
+  const capacity = shipDocument.specifications.cargo.capacityTons;
+  const used = shipDocument.state.cargoManifest.reduce((sum, entry) => sum + entry.tons, 0);
+  const manifest = shipDocument.state.cargoManifest;
+  const passengers = shipDocument.state.passengers ?? [];
+  const berths = ['high', 'middle', 'low']
+    .reduce((sum, cls) => sum + availablePassengerCapacity(shipDocument, cls), 0);
+  const crew = shipDocument.crew.assignments;
+
+  const cells = [
+    ['FUEL', `${shipDocument.state.currentFuelTons}t / ${shipDocument.specifications.fuel.capacityTons}t`],
+    ['CARGO', capacity === 0 ? 'NO HOLD' : `${used}t / ${capacity}t${used >= capacity ? ' · FULL' : ''}`,
+      manifest.length ? manifest.map((entry) => `${entry.tons}t ${entry.description}`).join(' · ') : 'EMPTY'],
+    ['PASSENGERS', passengers.length ? `${passengers.length} aboard` : 'NONE',
+      `${berths} berth${berths === 1 ? '' : 's'} free`],
+    ['CREW', crew.length ? `${crew.length} assigned` : 'NOBODY ASSIGNED',
+      crew.map((entry) => `${entry.characterName || entry.characterId} ${entry.role}`).join(' · ')]
+  ];
+  el.shipStripCells.replaceChildren(...cells.map(([label, value, detail]) => {
+    const cell = document.createElement('div');
+    cell.className = 'ship-strip-cell';
+    const key = document.createElement('div');
+    key.className = 'ship-strip-key';
+    key.textContent = label;
+    const main = document.createElement('div');
+    main.textContent = value;
+    cell.append(key, main);
+    if (detail) {
+      const note = document.createElement('div');
+      note.className = 'ship-strip-detail';
+      note.textContent = detail;
+      cell.append(note);
+    }
+    return cell;
+  }));
+}
+
 function renderShipCrew() {
   if (!el.liveShipCrew) return;
   el.liveShipCrew.replaceChildren();
@@ -8779,7 +8971,11 @@ function playProcedureAction(action) {
   // v0.97.0: a sale card sells from the dock. The card already states the net,
   // the percentage and the DMs, so routing the player to the TRADE panel to
   // read the same quote again was the click this dock exists to remove.
-  const [intent, argument] = String(action).split(':');
+  // v0.106.0: split(':') on the whole string truncated any argument that
+  // itself contains a colon — and a speculative cargo id is
+  // <shipId>:spec:<systemId>:<code>:<n>, so [ SELL ] never found its lot and
+  // failed silently. Split once, on the first colon only.
+  const [intent, argument] = splitIntent(action);
   if (intent === 'crew') { setSidebarTab('vehicles'); openCrewDialog(); return; }
   if (intent === 'contract') { showContractOnMap(argument); return; }
   if (intent === 'sale') { sellSpeculativeLot(argument); return; }
@@ -10003,6 +10199,9 @@ for (const button of document.querySelectorAll('.sidebar-tab')) {
 el.dockToggle?.addEventListener('click', () => setDockCollapsed(true));
 el.dockReopen?.addEventListener('click', () => setDockCollapsed(false));
 applyDock();
+el.animalCheck?.addEventListener('click', checkForAnimals);
+el.animalFight?.addEventListener('click', fightPendingAnimals);
+el.animalClose?.addEventListener('click', () => el.animalDialog.close());
 el.assignCrewButton?.addEventListener('click', openCrewDialog);
 el.crewAssignConfirm?.addEventListener('click', confirmCrewAssignment);
 el.crewCancel?.addEventListener('click', () => el.crewDialog.close());

@@ -16,7 +16,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.104.0</div>
+          <div id="app-subtitle" class="subtitle">v0.106.0</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -151,6 +151,17 @@
     </article>
     </div>
   </section>
+        <!-- v0.106.0: the ship reads above the map. Cargo, berths and crew
+             are what the trade and booking decisions turn on, and they were
+             only visible inside the VEHICLES tab in the drawer. Unlike the
+             cells deleted in v0.101.0, nothing else on screen states this. -->
+        <section id="ship-strip" class="ship-strip" hidden aria-label="Ship status">
+          <div class="ship-strip-head">
+            <span id="ship-strip-name" class="ship-strip-name">--</span>
+            <span id="ship-strip-account" class="ship-strip-account">--</span>
+          </div>
+          <div id="ship-strip-cells" class="ship-strip-cells"></div>
+        </section>
         <section id="subsector-section" hidden aria-label="Subsector map">
           <div class="subsector-map-tools" aria-label="Subsector map zoom controls">
             <span id="subsector-name" class="subsector-caption-main">FAR MERIDIAN</span>
@@ -675,7 +686,20 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
         <div class="roll-dialog-actions"><button class="text-button action-button" type="submit">[ RECORD NOTE ]</button><button id="activity-note-cancel" class="text-button" type="button">[ CANCEL ]</button></div>
       </form>
     </dialog>
-    <dialog id="crew-dialog" class="roll-dialog crew-dialog" aria-label="Assign crew">
+    <dialog id="animal-dialog" class="roll-dialog animal-dialog" aria-label="Animal encounter">
+    <form method="dialog" class="roll-dialog-form">
+      <div class="section-heading"><h2 class="section-title">OVERLAND / ANIMAL ENCOUNTER</h2></div>
+      <label>TERRAIN <select id="animal-terrain"></select></label>
+      <p class="dialog-note">Book 3 p.26: one third chance per check, and the referee checks once while travelling and once while halted.</p>
+      <pre id="animal-result" class="record animal-result" aria-live="polite"></pre>
+      <div class="dialog-actions">
+        <button id="animal-check" class="text-button" type="button">[ CHECK ]</button>
+        <button id="animal-fight" class="text-button" type="button" hidden>[ FIGHT ]</button>
+        <button id="animal-close" class="text-button" type="button">[ CLOSE ]</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="crew-dialog" class="roll-dialog crew-dialog" aria-label="Assign crew">
     <form method="dialog" class="roll-dialog-form">
       <div class="section-heading"><h2 class="section-title">ASSIGN CREW</h2></div>
       <label>ROLE <select id="crew-role"></select></label>
