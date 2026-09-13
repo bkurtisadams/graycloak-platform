@@ -8646,10 +8646,11 @@ function renderPlayProcedure() {
       if (!playProcedureDoneOpen) { el.playProcedure.append(wrap); continue; }
     }
     for (const card of group.cards) {
-      const button = document.createElement('button');
-      button.type = 'button';
+      // v0.99.1: the card is a card, not a giant invisible button. The verb is
+      // the control, so what can be clicked has an edge, a fill and a hover
+      // state instead of being bracket text in body colour.
+      const button = document.createElement('div');
       button.className = `procedure-card ${card.tone}`;
-      button.disabled = !card.action;
       const title = document.createElement('div');
       title.className = 'procedure-card-title';
       const name = document.createElement('span');
@@ -8665,13 +8666,14 @@ function renderPlayProcedure() {
         copy.textContent = card.copy;
         button.append(copy);
       }
-      if (card.verb) {
-        const verb = document.createElement('div');
+      if (card.verb && card.action) {
+        const verb = document.createElement('button');
+        verb.type = 'button';
         verb.className = 'procedure-card-verb';
         verb.textContent = card.verb;
+        verb.addEventListener('click', () => playProcedureAction(card.action));
         button.append(verb);
       }
-      if (card.action) button.addEventListener('click', () => playProcedureAction(card.action));
       wrap.append(button);
     }
     el.playProcedure.append(wrap);

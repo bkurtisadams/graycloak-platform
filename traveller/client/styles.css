@@ -2035,9 +2035,7 @@ input[readonly] {
 .procedure-group-label { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; }
 .procedure-group-label::after { content: ""; flex: 1; border-top: 1px solid var(--disabled); }
 .procedure-group-toggle { font-size: 10px; order: 3; }
-.procedure-card { display: block; width: 100%; border: 1px solid var(--disabled); margin: 5px 0; padding: 7px 9px; background: rgba(255,255,255,.14); text-align: left; cursor: pointer; color: var(--ink); font: inherit; }
-.procedure-card:disabled { cursor: default; }
-.procedure-card:not(:disabled):hover, .procedure-card:focus-visible { border-color: var(--rule); outline: none; }
+.procedure-card { display: block; width: 100%; border: 1px solid var(--disabled); margin: 5px 0; padding: 7px 9px; background: rgba(255,255,255,.14); text-align: left; color: var(--ink); font: inherit; }
 .procedure-card-title { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-weight: 700; }
 .procedure-card-tag { font-size: 10px; letter-spacing: .08em; color: var(--muted); font-weight: 700; white-space: nowrap; }
 .procedure-card-copy { margin-top: 3px; font-size: 12px; color: var(--muted); }
@@ -3420,9 +3418,6 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .terminal.shell.sidebar-collapsed { grid-template-columns: 56px minmax(0, 1fr) 44px; }
 .shell-dock .whatnow { border-width: 0; background: transparent; padding: 0; }
 .whatnow-collapse { font-size: 10px; margin-left: 6px; }
-.procedure-card-verb { margin-top: 6px; font-weight: 700; letter-spacing: .04em; color: var(--ok); }
-.procedure-card.required .procedure-card-verb { color: #6b5f1f; }
-.procedure-card.blocked .procedure-card-verb { display: none; }
 .shell-masthead { grid-area: mast; align-items: center; padding: 0 12px; border-bottom: 1px solid var(--rule); background: var(--paper); margin: 0; }
 .shell-masthead .masthead-main { display: flex; align-items: center; gap: 14px; width: 100%; }
 .shell-masthead .product-line { display: flex; align-items: baseline; gap: 8px; }
@@ -4180,3 +4175,36 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .port-stacked .context-panel { display: block; }
 .port-stacked .context-panel + .context-panel { margin-top: 10px; border-top: 1px solid var(--rule); padding-top: 10px; }
 .port-stacked .context-panel[hidden] { display: none; }
+
+/* v0.99.1: a control has to look like one. Bracket text in body colour is a
+   convention, not an affordance — on screen every verb read as prose. Every
+   primary action now carries an edge, a fill, a pointer and a hover state,
+   and the dock's verb is a real button rather than the whole card being an
+   invisible one. */
+.procedure-card-verb,
+.panel-card-action,
+.operations-primary-actions .text-button {
+  display: inline-block; margin-top: 7px;
+  font: inherit; font-weight: 700; letter-spacing: .04em;
+  color: var(--ink); background: var(--action-ready);
+  border: 1px solid var(--action-border); border-radius: 0;
+  padding: 4px 10px; cursor: pointer; text-decoration: none;
+}
+.procedure-card-verb:hover, .procedure-card-verb:focus-visible,
+.panel-card-action:hover, .panel-card-action:focus-visible,
+.operations-primary-actions .text-button:hover,
+.operations-primary-actions .text-button:focus-visible {
+  background: var(--paper); border-color: var(--ink);
+  outline: 2px solid var(--ink); outline-offset: 1px;
+}
+.procedure-card.required .procedure-card-verb {
+  background: var(--attention); border-color: var(--attention-border);
+}
+.panel-card-action, .operations-primary-actions .text-button { margin-top: 0; font-size: 11px; padding: 3px 9px; }
+.panel-card-action:disabled {
+  background: transparent; border-color: var(--disabled);
+  color: var(--muted); font-weight: 400; cursor: default; outline: none;
+}
+/* A blocked card states why and offers nothing: no verb, and no hover that
+   suggests one is hiding there. */
+.procedure-card.blocked { cursor: default; }
