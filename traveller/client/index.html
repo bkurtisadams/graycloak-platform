@@ -16,7 +16,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.100.1</div>
+          <div id="app-subtitle" class="subtitle">v0.101.0</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -49,25 +49,21 @@
     </nav>
     <input id="load-file" type="file" accept="application/json,.json" hidden>
 
+      <!-- v0.101.0: the CURRENT PORT, SELECTED DESTINATION and SHIP cells are
+           gone. WORLD in the right rail has carried the port and ship content
+           since v0.99.0, and since v0.100.0 the map itself marks the
+           destination and draws the route with its parsec count. What is left
+           is the pair of controls that had no other home: depart, and the
+           system record toggle. The name elements stay as hidden nodes so the
+           renderers that write to them keep working. -->
       <div id="scene-status-strip" class="scene-status-strip" hidden>
-        <div class="scene-status-cell">
-          <div class="campaign-header-kicker">CURRENT PORT</div>
-          <div id="footer-current-name" class="scene-status-name">--</div>
-          <div id="footer-current-meta" class="scene-status-meta">--</div>
-        </div>
-        <div class="scene-status-cell">
-          <div class="campaign-header-kicker">SELECTED DESTINATION</div>
-          <div id="selected-system-summary-text" class="scene-status-name">--</div>
-          <div class="scene-status-actions">
-            <div id="jump-actions" class="actions jump-actions"></div>
-            <button id="toggle-system-details" class="text-button" type="button" aria-expanded="false" aria-controls="system-record-section">[ DETAILS ]</button>
-          </div>
-        </div>
-        <div class="scene-status-cell">
-          <div class="campaign-header-kicker">SHIP</div>
-          <div class="scene-status-name"><button id="scene-ship-name" class="text-button scene-ship-link" type="button">--</button></div>
-          <div id="scene-ship-meta" class="scene-status-meta">--</div>
-        </div>
+        <div id="jump-actions" class="actions jump-actions"></div>
+        <button id="toggle-system-details" class="text-button" type="button" aria-expanded="false" aria-controls="system-record-section">[ DETAILS ]</button>
+        <span id="footer-current-name" hidden></span>
+        <span id="footer-current-meta" hidden></span>
+        <span id="selected-system-summary-text" hidden></span>
+        <button id="scene-ship-name" type="button" hidden></button>
+        <span id="scene-ship-meta" hidden></span>
       </div>
       <div id="selected-system-summary" hidden></div>
       <!-- v0.95.0: scene navigation. The viewed scene, a marker when it is

@@ -8619,10 +8619,18 @@ function playProcedureAction(action) {
     el.subsectorMap?.scrollIntoView({ block: 'nearest' });
     return;
   }
-  if (action === 'port') { setOperationsDeskTab('port'); return; }
-  if (action === 'trade') { setOperationsDeskTab('trade'); return; }
-  if (action === 'jobs') { setOperationsDeskTab('jobs'); return; }
-  if (action === 'situation') { setOperationsDeskTab('situation'); return; }
+  // v0.101.0: setOperationsDeskTab alone selected a tab inside a drawer that
+  // may be collapsed, and since v0.99.0 the port panels are stacked anyway —
+  // so pressing [ OPEN ] on a jobs card did nothing visible at all. Open the
+  // drawer on the port panels, then bring the right one into view.
+  const deskPanels = { port: el.portServicesSection, trade: el.commerceSection, jobs: el.contractSection, situation: el.situationSection };
+  if (Object.hasOwn(deskPanels, action)) {
+    setOperationsDeskTab(action);
+    setSidebarTab('port');
+    const panel = deskPanels[action];
+    if (panel && !panel.hidden) requestAnimationFrame(() => panel.scrollIntoView({ block: 'start' }));
+    return;
+  }
   if (action === 'encounter') { setOperationsDeskTab('encounter'); return; }
   if (action === 'threads') { setWorkspaceView('threads'); return; }
   if (action === 'character') { setSceneTab('character'); return; }
