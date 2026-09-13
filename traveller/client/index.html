@@ -16,7 +16,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.115.0</div>
+          <div id="app-subtitle" class="subtitle">v0.116.1</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -356,6 +356,11 @@
                    assignment at all. -->
               <div class="live-ship-crew-heading"><strong>CREW</strong><button id="assign-crew" class="text-button" type="button">[ ASSIGN ]</button></div>
               <div id="live-ship-crew" class="live-ship-crew" aria-live="polite"></div>
+              <!-- v0.116.0: the ship's books. Every transaction has been in
+                   state.finances since the ledger was written and nothing ever
+                   read it back. -->
+              <div class="live-ship-crew-heading"><strong>SHIP'S BOOKS</strong><span id="ledger-balance" class="live-ship-identity"></span></div>
+              <div id="ship-ledger" class="ship-ledger" aria-live="polite"></div>
             </section>
             <div class="sidebar-buttons">
               <button id="open-ship-view" class="text-button utility-button" type="button" title="Ship register" hidden>[ SHIP REGISTER ]</button>

@@ -47,6 +47,8 @@ import {
   beginPortCall,
   shipUpkeepDue,
   chargeShipUpkeep,
+  summariseShipVoyages,
+  shipDistributableCr,
   payCurrentBerthing,
   skimGasGiantToCapacity,
   loadCargo,
@@ -425,6 +427,8 @@ const el = {
   sceneStatusStrip: document.querySelector('#scene-status-strip'),
   sceneShipName: document.querySelector('#scene-ship-name'),
   liveShipCrew: document.querySelector('#live-ship-crew'),
+  shipLedger: document.querySelector('#ship-ledger'),
+  ledgerBalance: document.querySelector('#ledger-balance'),
   shipStrip: document.querySelector('#ship-strip'),
   shipStripName: document.querySelector('#ship-strip-name'),
   shipStripAccount: document.querySelector('#ship-strip-account'),
@@ -2033,6 +2037,7 @@ function applySidebar() {
     // Opening CHAT is usually the first moment the feed has a height, so the
     // pin applied during render had nothing to measure.
     if (panel.dataset.sidebarPanel === 'chat' && !panel.hidden) scrollActivityToLatest();
+    if (panel.dataset.sidebarPanel === 'vehicles' && !panel.hidden) renderShipLedger();
   }
   el.terminal?.classList.toggle('sidebar-collapsed', sidebarCollapsed);
 }
@@ -3273,6 +3278,36 @@ function transferFundsToShip() {
     console.error(error);
     setStatus(error?.message ?? String(error), 'error');
   }
+}
+
+// v0.116.1: shipUpkeepDue() validates the ship document three times over —
+// once itself, once through calculateMonthlyCrewSalaries and once through
+// annualMaintenanceCr — and validation deep-compares the whole specification
+// against the canonical design. It was being called twice per render, for
+// fifteen full validations of an unchanged document. Computed once and
+// invalidated when the document is replaced.
+let upkeepCache = { ship: null, date: null, value: null };
+function currentUpkeepDue() {
+  if (!shipDocument) return null;
+  const date = activityDateLabel();
+  if (upkeepCache.ship === shipDocument && upkeepCache.date === date) return upkeepCache.value;
+  let value = null;
+  try {
+    value = shipUpkeepDue(shipDocument, {
+      dateLabel: date,
+      sinceLabel: shipLiabilityStartLabel(),
+      unpaid: ownerAboardIds()
+    });
+  } catch { value = null; }
+  upkeepCache = { ship: shipDocument, date, value };
+  return value;
+}
+
+function currentDistributableCr() {
+  if (!shipDocument) return 0;
+  try {
+    return shipDistributableCr(shipDocument, { outstandingUpkeepCr: currentUpkeepDue()?.totalDueCr ?? 0 });
+  } catch { return 0; }
 }
 
 function withdrawFundsFromShip() {
@@ -8037,6 +8072,16 @@ function renderPortServices() {
       makePortButton('WITHDRAW TO CHARACTER', withdrawFundsFromShip, {
         disabled: shipDocument.state.finances.balanceCr <= 0
       }));
+    // What the ship can spare: this leg's net, less any upkeep still owed.
+    // Book 2 p.6's owner-aboard draws from the profits, not from the wages
+    // his crew has not been paid.
+    const spare = currentDistributableCr();
+    const note = document.createElement('span');
+    note.className = 'commerce-note';
+    note.textContent = spare > 0
+      ? `THIS LEG CAN SPARE ${formatCr(spare)}`
+      : 'THIS LEG HAS NOTHING TO SPARE';
+    transfer.append(note);
     el.portActions.append(transfer);
   }
 
@@ -8344,7 +8389,64 @@ function renderLiveShipStatus({ currentSystem = null, selectedSystem = null, dis
   }
   appendLiveShipRow('ACCOUNT', formatCr(shipDocument.state.finances.balanceCr));
   renderShipCrew();
+  renderShipLedger();
   renderShipStrip();
+}
+
+// Book 2 p.6 charges life support per trip, so a life-support entry marks a
+// departure and bounds one voyage from the next. Each leg states what it made
+// against what it cost, with the entries beneath.
+// The whole sidebar renders on every render, visible or not. Building a node
+// per ledger entry for a panel nobody is looking at is pure cost, and the
+// ledger only grows.
+const LEDGER_ENTRIES_PER_VOYAGE = 12;
+function renderShipLedger() {
+  if (!el.shipLedger) return;
+  if (el.shipLedger.closest('[data-sidebar-panel]')?.hidden) return;
+  el.shipLedger.replaceChildren();
+  if (!shipDocument) { if (el.ledgerBalance) el.ledgerBalance.textContent = ''; return; }
+  const voyages = summariseShipVoyages(shipDocument, { limit: 4 });
+  if (el.ledgerBalance) el.ledgerBalance.textContent = formatCr(shipDocument.state.finances.balanceCr);
+  if (!voyages.length) {
+    const empty = document.createElement('div');
+    empty.className = 'live-ship-row';
+    empty.textContent = 'NO TRANSACTIONS RECORDED';
+    el.shipLedger.append(empty);
+    return;
+  }
+  for (const voyage of [...voyages].reverse()) {
+    const group = document.createElement('details');
+    group.className = 'ledger-voyage';
+    group.open = voyage.open;
+    const summary = document.createElement('summary');
+    const net = voyage.netCr;
+    summary.textContent = `${voyage.startDate} → ${voyage.endDate}${voyage.open ? ' (current)' : ''} · ${net >= 0 ? '+' : '−'}${formatCr(Math.abs(net))}`;
+    summary.className = net >= 0 ? 'ledger-gain' : 'ledger-loss';
+    group.append(summary);
+    const totals = document.createElement('div');
+    totals.className = 'live-ship-row ledger-totals';
+    totals.textContent = `In ${formatCr(voyage.incomeCr)} · Out ${formatCr(voyage.expenseCr)} · Balance ${formatCr(voyage.closingBalanceCr)}`;
+    group.append(totals);
+    const shown = voyage.entries.slice(-LEDGER_ENTRIES_PER_VOYAGE);
+    if (shown.length < voyage.entries.length) {
+      const more = document.createElement('div');
+      more.className = 'live-ship-row ledger-totals';
+      more.textContent = `${voyage.entries.length - shown.length} earlier entr${voyage.entries.length - shown.length === 1 ? 'y' : 'ies'} not shown`;
+      group.append(more);
+    }
+    for (const entry of shown) {
+      const row = document.createElement('div');
+      row.className = 'live-ship-row ledger-entry';
+      const left = document.createElement('span');
+      left.textContent = `${entry.date} ${entry.description}`;
+      const right = document.createElement('span');
+      right.className = entry.amountCr >= 0 ? 'ledger-gain' : 'ledger-loss';
+      right.textContent = `${entry.amountCr >= 0 ? '+' : '−'}${formatCr(Math.abs(entry.amountCr))}`;
+      row.append(left, right);
+      group.append(row);
+    }
+    el.shipLedger.append(group);
+  }
 }
 
 // Book 2 gates high passage on a steward; the crew list is where you see who
@@ -8388,14 +8490,7 @@ function renderShipStrip() {
   const financed = shipDocument.authority?.characterOwnsShip ? shipMortgage(shipDocument).monthlyPaymentCr : 0;
   // What is genuinely owed right now, as opposed to the monthly rate. An
   // account that could not cover a period leaves it due.
-  let outstandingCr = 0;
-  try {
-    outstandingCr = shipUpkeepDue(shipDocument, {
-      dateLabel: activityDateLabel(),
-      sinceLabel: shipLiabilityStartLabel(),
-      unpaid: ownerAboardIds()
-    }).totalDueCr;
-  } catch { outstandingCr = 0; }
+  const outstandingCr = currentUpkeepDue()?.totalDueCr ?? 0;
 
   const jump = shipDocument.specifications.drives?.jump?.rating;
   const maintenanceMonthlyCr = Math.round(annualMaintenanceCr(shipDocument) / 12);
