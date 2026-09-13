@@ -221,6 +221,30 @@ export {
 } from './src/starships/design-costing.js';
 
 export {
+  HIT_LOCATION_TABLE,
+  HIT_LOCATIONS,
+  MISSILE_HIT_LOCATION_DM,
+  FUEL_TONS_LOST_PER_HIT,
+  FUEL_LOSS_JUMP_THRESHOLD,
+  COMPUTER_BASE_OPERATION_THROW,
+  COMPUTER_PERMANENT_FAILURE_HITS,
+  DAMAGE_REPAIR_THROW,
+  emptyDamageState,
+  rollHitLocation,
+  currentDriveState,
+  canDoubleFire,
+  fuelDamage,
+  computerOperation,
+  turretOperational,
+  operationalTurrets,
+  hullDecompressed,
+  selectTurretHit,
+  applyHitToDamage,
+  damageReport,
+  repairableLocations
+} from './src/starships/damage.js';
+
+export {
   turretWeapons,
   turretDataCardCode,
   shipIsArmed,
@@ -250,6 +274,10 @@ export {
   DOUBLED_ROLE_SALARY_RATE,
   shipCrewMemberRoles,
   assignShipCrew,
+  applyShipHit,
+  applyMissileDetonation,
+  repairShipDamage,
+  clearShipDamage,
   releaseShipCrew,
   shipCrewRole
 } from './src/starships/ship-document.js';

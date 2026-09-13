@@ -9,10 +9,11 @@ import {
   getStandardShipDesign
 } from './standard-designs.js';
 import { TURRET_MOUNTS, TURRET_WEAPONS } from './components.js';
+import { emptyDamageState, applyHitToDamage, selectTurretHit, rollHitLocation, MISSILE_HIT_LOCATION_DM } from './damage.js';
 
 export const SHIP_DOCUMENT_TYPE = 'classic-traveller-ship';
-export const CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION = 4;
-export const SUPPORTED_SHIP_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4]);
+export const CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION = 5;
+export const SUPPORTED_SHIP_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5]);
 
 const TOP_LEVEL_KEYS = new Set([
   'documentType', 'schemaVersion', 'identity', 'design', 'specifications',
@@ -203,6 +204,7 @@ export function createShipDocument({
         missiles: state.armament?.missiles ?? 0,
         sandCanisters: state.armament?.sandCanisters ?? 0
       },
+      damage: state.damage ? cloneJson(state.damage) : emptyDamageState(),
       maintenance: {
         status: state.maintenance?.status ?? 'unknown',
         lastOverhaulDate: state.maintenance?.lastOverhaulDate ?? null,
@@ -428,6 +430,31 @@ function validateArmamentState(document, errors) {
   add(errors, new Set(ids).size === ids.length, 'state.armament.turrets repeats a turret id');
 }
 
+// Book 2 pp.33-34: damage reduces a drive letter, knocks out a turret,
+// decompresses the hull, punctures fuel tanks and degrades the computer. It is
+// state and never specification — the design says what the ship was built as,
+// and the damage block says what is currently true of it.
+const DAMAGE_COUNTERS = Object.freeze([
+  'powerPlant', 'maneuverDrive', 'jumpDrive', 'computer', 'hull', 'hold', 'fuel'
+]);
+
+function validateDamageState(document, errors) {
+  const damage = document.state.damage;
+  add(errors, isPlainObject(damage), 'state.damage must be an object');
+  if (!isPlainObject(damage)) return;
+  validateExactKeys(damage, [...DAMAGE_COUNTERS, 'turrets'], 'state.damage', errors);
+  for (const key of DAMAGE_COUNTERS) {
+    add(errors, integerAtLeast(damage[key], 0), `state.damage.${key} must be a non-negative integer`);
+  }
+  add(errors, Array.isArray(damage.turrets), 'state.damage.turrets must be an array');
+  if (!Array.isArray(damage.turrets)) return;
+  const ids = document.specifications.armament.turrets.map((turret) => turret.id);
+  for (const [index, id] of damage.turrets.entries()) {
+    add(errors, ids.includes(id), `state.damage.turrets[${index}] does not name a turret on this ship`);
+  }
+  add(errors, new Set(damage.turrets).size === damage.turrets.length, 'state.damage.turrets repeats a turret id');
+}
+
 function validateState(document, errors) {
   const state = document.state;
   add(errors, isPlainObject(state), 'state must be an object');
@@ -435,7 +462,7 @@ function validateState(document, errors) {
   validateExactKeys(state, [
     'operationalStatus', 'currentFuelTons', 'fuelQuality', 'cargoUsedTons',
     'cargoManifest', 'passengerManifest', 'finances', 'portCall', 'maintenance',
-    'armament'
+    'armament', 'damage'
   ], 'state', errors);
   add(errors, typeof state.operationalStatus === 'string' && state.operationalStatus.length > 0, 'state.operationalStatus must be nonblank');
   add(errors, state.currentFuelTons === null || finiteAtLeast(state.currentFuelTons, 0), 'state.currentFuelTons must be null or a non-negative number');
@@ -453,6 +480,7 @@ function validateState(document, errors) {
   validateCargoManifest(document, errors);
   validatePassengerManifest(document, errors);
   validateArmamentState(document, errors);
+  validateDamageState(document, errors);
   validateShipFinances(document, errors);
   validatePortCall(document, errors);
   add(errors, isPlainObject(state.maintenance), 'state.maintenance must be an object');
@@ -578,6 +606,13 @@ export function migrateShipDocument(input) {
     // Every existing ship is unarmed: Book 2 delivers standard designs with
     // empty turrets, and nothing could fit a weapon before this version.
     next.state.armament = { turrets: [], missiles: 0, sandCanisters: 0 };
+  }
+
+  if (next.schemaVersion === 4) {
+    next.schemaVersion = 5;
+    // Nothing could damage a ship before this version, so every existing ship
+    // is undamaged.
+    next.state.damage = emptyDamageState();
   }
 
   if (next.schemaVersion === CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION) {
@@ -771,6 +806,80 @@ export function shipCrewMemberRoles(ship, characterId) {
 export function shipCrewRole(ship, role) {
   const key = String(role ?? '').trim().toLowerCase();
   return (ship?.crew?.assignments ?? []).filter((entry) => String(entry.role).toLowerCase() === key);
+}
+
+/**
+ * Book 2 pp.30, 34: a hit is located on the target with the hit location table
+ * and marked on its data card. `kind` selects the p.34 column; missile
+ * detonation passes its own -4 through `dm`.
+ */
+export function applyShipHit(ship, dice, { kind = 'starship', dm = 0 } = {}) {
+  assertValidShipDocument(ship);
+  const located = rollHitLocation(dice, { kind, dm });
+  const next = cloneJson(ship);
+  const turretId = located.location === 'turret' ? selectTurretHit(next, dice) : null;
+  next.state.damage = applyHitToDamage(next.state.damage, located.location, { turretId });
+  assertValidShipDocument(next);
+  return Object.freeze({ ship: next, location: located.location, turretId, throw: located });
+}
+
+/**
+ * Book 2 p.31: each missile that survives anti-missile fire throws one die for
+ * the number of hits, and each hit type is determined separately with a -4.
+ */
+export function applyMissileDetonation(ship, dice) {
+  assertValidShipDocument(ship);
+  const hitCount = dice.rollD6();
+  let current = ship;
+  const hits = [];
+  for (let index = 0; index < hitCount; index += 1) {
+    const result = applyShipHit(current, dice, { dm: MISSILE_HIT_LOCATION_DM });
+    current = result.ship;
+    hits.push(Object.freeze({ location: result.location, turretId: result.turretId }));
+  }
+  return Object.freeze({ ship: current, hitCount, hits: Object.freeze(hits) });
+}
+
+/**
+ * Book 2 p.35 damage control: a throw of 9+ repairs one hit, skill a positive
+ * DM, one attempt per ten minute turn. A destroyed drive cannot be repaired,
+ * which repairableLocations already excludes.
+ */
+export function repairShipDamage(ship, { location, turretId = null } = {}) {
+  assertValidShipDocument(ship);
+  const next = cloneJson(ship);
+  const damage = next.state.damage;
+  if (location === 'turret') {
+    const index = damage.turrets.indexOf(turretId);
+    if (index < 0) throw new RangeError(`turret ${turretId} is not disabled`);
+    damage.turrets.splice(index, 1);
+  } else {
+    const key = {
+      'power-plant': 'powerPlant',
+      'maneuver-drive': 'maneuverDrive',
+      'jump-drive': 'jumpDrive',
+      computer: 'computer',
+      hull: 'hull',
+      hold: 'hold',
+      fuel: 'fuel'
+    }[location];
+    if (!key) throw new RangeError(`unknown damage location: ${location}`);
+    if (!damage[key]) throw new RangeError(`no ${location} damage to repair`);
+    damage[key] -= 1;
+  }
+  assertValidShipDocument(next);
+  return next;
+}
+
+/**
+ * Restores a ship to undamaged, as an overhaul or a referee's fiat.
+ */
+export function clearShipDamage(ship) {
+  assertValidShipDocument(ship);
+  const next = cloneJson(ship);
+  next.state.damage = emptyDamageState();
+  assertValidShipDocument(next);
+  return next;
 }
 
 export { TYPE_S_SCOUT_COURIER };
