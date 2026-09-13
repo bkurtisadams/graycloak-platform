@@ -347,6 +347,10 @@ const el = {
   openThreadsView: document.querySelector('#open-threads-view'),
   procedureScope: document.querySelector('#procedure-scope'),
   playProcedure: document.querySelector('#play-procedure'),
+  dockFlyout: document.querySelector('#dock-flyout'),
+  flyoutTitle: document.querySelector('#flyout-title'),
+  flyoutRecord: document.querySelector('#flyout-record'),
+  flyoutClose: document.querySelector('#flyout-close'),
   dockToggle: document.querySelector('#dock-toggle'),
   dockReopen: document.querySelector('#dock-reopen'),
   footerCurrentName: document.querySelector('#footer-current-name'),
@@ -3868,21 +3872,31 @@ function renderContracts() {
       title: `${contractSourceLabel(offer)} / LOCAL OFFER AT ${offer.originSystemName} / DESTINATION ${offer.destinationSystemName}`
     };
   };
-  renderPanelModel(el.contractRecord, buildContractBoardPanel({
+  contractBoardModel = buildContractBoardPanel({
     system: current,
     selectedSystem: selectedSystemId ? getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, selectedSystemId) : null,
     contracts: contractDocuments,
     offers,
     offerState
-  }), { onAction: (id) => {
+  });
+  renderContractBoardInto(el.contractRecord);
+  el.contractActions.replaceChildren();
+  applyOperationsDeskTab();
+  renderFlyout();
+}
+
+// One board, two homes: the sidebar panel and the dock flyout render the same
+// model, so an offer cannot appear in one and not the other.
+let contractBoardModel = null;
+function renderContractBoardInto(target) {
+  if (!target || !contractBoardModel) return;
+  renderPanelModel(target, contractBoardModel, { onAction: (id) => {
     // v0.104.0: an accepted contract could never be given up. A job you have
     // decided not to do sat in the tracker forever with its clock running.
     const [kind, contractId] = splitIntent(id);
     if (kind === 'abandon') return abandonContract(contractId);
     return acceptContractOffer(id);
   } });
-  el.contractActions.replaceChildren();
-  applyOperationsDeskTab();
 }
 
 
@@ -3907,6 +3921,39 @@ function abandonContract(contractId) {
 // v0.106.0: ids are not colon-free. A speculative cargo id is
 // <shipId>:spec:<systemId>:<code>:<n>, and a naive split(':') truncated it to
 // the ship id, so SELL and DECLINE silently found no lot. Split once.
+// v0.118.0: a dock card unfolds its panel beside the dock rather than sending
+// the player to the sidebar. One at a time: a second flyout would be a second
+// dock, and the dock is meant to stay the spine.
+let openFlyout = null;
+
+function setFlyout(key) {
+  openFlyout = openFlyout === key ? null : key;
+  renderFlyout();
+}
+
+function closeFlyout() {
+  openFlyout = null;
+  renderFlyout();
+}
+
+function renderFlyout() {
+  if (!el.dockFlyout) return;
+  const panels = {
+    jobs: {
+      title: `CONTRACT BOARD${mappedCurrentSystem() ? ` \u00b7 ${mappedCurrentSystem().name.toUpperCase()}` : ''}`,
+      render: renderContractBoardInto
+    }
+  };
+  const panel = openFlyout ? panels[openFlyout] : null;
+  el.terminal?.classList.toggle('flyout-open', Boolean(panel));
+  el.dockFlyout.hidden = !panel;
+  if (!panel) { el.flyoutRecord.replaceChildren(); return; }
+  el.flyoutTitle.textContent = panel.title;
+  panel.render(el.flyoutRecord);
+  // The stage moved, so the rail's measured offset is stale.
+  requestAnimationFrame(positionToolRail);
+}
+
 function splitIntent(value) {
   const text = String(value);
   const separator = text.indexOf(':');
@@ -9258,7 +9305,7 @@ function playProcedureSnapshot() {
     speculation,
     sales,
     patron,
-    jobs: { offers: availableContractOffers().length, active: activeContracts().length },
+    jobs: { offers: availableContractOffers().length, active: activeContracts().length, open: openFlyout === 'jobs' },
     contracts: activeContracts().map((contract) => ({
       id: contract.identity.id,
       title: contract.identity.title,
@@ -9313,7 +9360,8 @@ function playProcedureAction(action) {
   // may be collapsed, and since v0.99.0 the port panels are stacked anyway —
   // so pressing [ OPEN ] on a jobs card did nothing visible at all. Open the
   // drawer on the port panels, then bring the right one into view.
-  const deskPanels = { port: el.portServicesSection, trade: el.commerceSection, jobs: el.contractSection, situation: el.situationSection };
+  if (action === 'jobs') { setFlyout('jobs'); return; }
+  const deskPanels = { port: el.portServicesSection, trade: el.commerceSection, situation: el.situationSection };
   if (Object.hasOwn(deskPanels, action)) {
     setOperationsDeskTab(action);
     setSidebarTab('port');
@@ -10516,6 +10564,7 @@ el.dockToggle?.addEventListener('click', () => setDockCollapsed(true));
 el.dockReopen?.addEventListener('click', () => setDockCollapsed(false));
 applyDock();
 window.addEventListener('resize', positionToolRail);
+el.flyoutClose?.addEventListener('click', closeFlyout);
 el.animalCheck?.addEventListener('click', checkForAnimals);
 el.animalFight?.addEventListener('click', fightPendingAnimals);
 el.animalClose?.addEventListener('click', () => el.animalDialog.close());

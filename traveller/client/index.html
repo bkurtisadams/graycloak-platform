@@ -16,7 +16,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.117.3</div>
+          <div id="app-subtitle" class="subtitle">v0.118.0</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -252,6 +252,17 @@
     </section>
 
     <button id="dock-reopen" class="text-button dock-reopen" type="button" title="Show the WHAT NOW? column" hidden>[ WHAT NOW? ]</button>
+    <!-- v0.118.0: a dock card can unfold a panel beside the dock instead of
+         sending the player to the sidebar. It is a sibling column, not an
+         overlay: the stage's padding grows by its width, so the map shifts
+         right rather than being covered. -->
+    <aside class="shell-flyout" id="dock-flyout" aria-label="Dock panel" hidden>
+      <div class="flyout-head">
+        <span id="flyout-title" class="flyout-title"></span>
+        <button id="flyout-close" class="text-button" type="button">[ CLOSE ]</button>
+      </div>
+      <pre id="flyout-record" class="record flyout-record" aria-live="polite"></pre>
+    </aside>
     <aside class="shell-dock" id="dock" aria-label="What now">
       <section id="procedure-section" class="panel whatnow" aria-labelledby="procedure-heading">
         <div class="whatnow-head">

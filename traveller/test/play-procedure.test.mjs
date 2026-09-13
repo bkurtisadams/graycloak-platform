@@ -349,3 +349,11 @@ test('v0.113.0 an exclusive charter withdraws every commerce card and says why',
   assert.match(blocked.copy, /Exclusive charter for Vesper/);
   assert.equal(blocked.action, 'jobs');
 });
+
+test('v0.118.0 the jobs card says whether pressing it opens or closes the board', () => {
+  const s = base();
+  s.jobs = { offers: 3, active: 0, open: false };
+  assert.equal(byId(buildPlayProcedure(s), 'jobs').verb, '[ OPEN BOARD ]');
+  s.jobs = { offers: 3, active: 0, open: true };
+  assert.equal(byId(buildPlayProcedure(s), 'jobs').verb, '[ CLOSE BOARD ]');
+});

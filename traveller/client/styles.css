@@ -4372,3 +4372,36 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
   .terminal.shell:not(.dock-collapsed) .shell-rail { left: 248px; }
   .terminal.shell:not(.dock-collapsed) .scene-nav { left: 292px; }
 }
+
+/* v0.118.0: the dock flyout. A sibling column between the dock and the stage,
+   joined to the card that opened it. It pushes the stage rather than covering
+   it — the v0.80.2 ruling — and is positioned like the dock, against the
+   v0.80.0 block rather than a grid that no longer exists. */
+.shell-flyout {
+  position: absolute; top: 34px; left: 300px; bottom: 0; z-index: 24;
+  width: 260px; box-sizing: border-box;
+  display: flex; flex-direction: column; min-height: 0;
+  padding: 6px 9px; overflow-x: hidden; overflow-y: auto;
+  border-right: 1px solid var(--rule); background: var(--paper);
+}
+.flyout-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 5px; }
+.flyout-title { font-weight: 700; letter-spacing: .04em; }
+.flyout-record { margin: 0; border: 0; background: transparent; padding: 0; }
+.terminal.shell.flyout-open .shell-stage { padding-left: 560px; }
+.terminal.shell.flyout-open .shell-rail { left: 568px; }
+.terminal.shell.flyout-open .scene-nav { left: 612px; }
+.terminal.shell.dock-collapsed .shell-flyout { left: 0; }
+.terminal.shell.dock-collapsed.flyout-open .shell-stage { padding-left: 260px; }
+.terminal.shell.dock-collapsed.flyout-open .shell-rail { left: 268px; }
+@media (max-width: 1400px) {
+  .shell-flyout { left: 260px; width: 240px; }
+  .terminal.shell.flyout-open .shell-stage { padding-left: 500px; }
+  .terminal.shell.flyout-open .shell-rail { left: 508px; }
+  .terminal.shell.flyout-open .scene-nav { left: 552px; }
+}
+/* Below this the map has nothing left to give, so the flyout takes the stage
+   instead of squeezing the hexes into a strip. */
+@media (max-width: 1100px) {
+  .shell-flyout { left: 240px; width: calc(100vw - 240px - 52px); }
+  .terminal.shell.flyout-open .shell-rail { display: none; }
+}

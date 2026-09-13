@@ -1013,7 +1013,7 @@ export function buildPlayProcedure(s = {}) {
     }
   }
   if (s.jobs) {
-    if (s.jobs.offers > 0) opportunities.push(card('jobs', 'Local jobs', `${s.jobs.offers} OFFER${s.jobs.offers === 1 ? '' : 'S'}`, `Contracts originating at ${s.currentSystem.name}.${s.jobs.active ? ` ${s.jobs.active} active.` : ''}`, { action: 'jobs', tone: 'plain', verb: '[ OPEN BOARD ]' }));
+    if (s.jobs.offers > 0) opportunities.push(card('jobs', 'Local jobs', `${s.jobs.offers} OFFER${s.jobs.offers === 1 ? '' : 'S'}`, `Contracts originating at ${s.currentSystem.name}.${s.jobs.active ? ` ${s.jobs.active} active.` : ''}`, { action: 'jobs', tone: 'plain', verb: s.jobs.open ? '[ CLOSE BOARD ]' : '[ OPEN BOARD ]' }));
   }
   if (s.thread?.objective) {
     opportunities.push(card('thread', s.thread.title || 'Open thread', 'THREAD', s.thread.objective, { action: 'threads', tone: 'plain' }));
