@@ -8460,11 +8460,16 @@ function renderShipLedger() {
 // Measured, not constant: the ship strip and the map header both change
 // height, and every hand-tuned offset in this shell has needed correcting.
 function positionToolRail() {
-  const stage = document.querySelector('.shell-stage');
   const map = el.subsectorMap;
-  if (!stage || !map || map.offsetParent === null) return;
-  const offset = Math.round(map.getBoundingClientRect().top - stage.getBoundingClientRect().top);
-  if (offset > 0) stage.style.setProperty('--rail-top', `${offset + 8}px`);
+  if (!map || map.offsetParent === null) return;
+  // v0.117.3: set on the shell, not the stage. The rail is the stage's sibling
+  // and custom properties inherit down, not across — written on the stage the
+  // variable never reached the rail, which fell back to 160px and landed on
+  // the ship strip. Measured against the shell for the same reason.
+  const shell = el.terminal;
+  if (!shell) return;
+  const offset = Math.round(map.getBoundingClientRect().top - shell.getBoundingClientRect().top);
+  if (offset > 0) shell.style.setProperty('--rail-top', `${offset + 8}px`);
 }
 
 function renderShipStrip() {
