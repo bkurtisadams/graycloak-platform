@@ -1129,6 +1129,15 @@ function closeActivityNoteDialog() {
 function setStatus(message, kind = '') {
   el.status.textContent = message;
   el.status.className = `status${kind ? ` ${kind}` : ''}`;
+  // A refused action used to read as a button that did nothing: the reason
+  // was in the masthead in muted text and was missed. Announce it, and
+  // re-trigger the tint so a repeated refusal is visibly a new one.
+  el.status.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+  if (kind === 'error') {
+    el.status.style.animation = 'none';
+    void el.status.offsetWidth;
+    el.status.style.animation = '';
+  }
 }
 
 function characterSkillNames(document = gameplayDocument) {
@@ -9112,6 +9121,13 @@ function playProcedureSnapshot() {
     })),
     thread: activeThreadObjective(),
     lifeSupportCr: lifeSupport?.totalCr ?? 0,
+    // v0.113.0: an exclusive charter commits the ship's commercial capacity,
+    // and assertCommerceAvailable() refuses every booking and purchase while
+    // one runs. Nothing said so, so the dock offered READY cards that failed
+    // the moment they were pressed.
+    commerceBlockReason: activeExclusiveContract()
+      ? `Exclusive charter for ${activeExclusiveContract().destination.systemName} commits the ship's commercial capacity. Deliver it, or abandon it on the contract board.`
+      : null,
     jumpReady: Boolean(reachable && !jumpBlockReason),
     jumpBlockAction,
     jumpBlockReason

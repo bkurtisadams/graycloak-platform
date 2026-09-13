@@ -868,11 +868,18 @@ export function buildPlayProcedure(s = {}) {
     done.push(card('berthing-done', 'Berthed', PLAY_PROCEDURE_TAGS.done, `Cr${s.berthing.dueCr.toLocaleString('en-US')} paid.`));
   }
 
+  // An exclusive charter refuses every booking and purchase, so the commerce
+  // cards must not offer them. One card says why, with the way out.
+  if (s.commerceBlockReason) {
+    readyAfter.push(card('commerce-blocked', 'Commercial trade is committed', PLAY_PROCEDURE_TAGS.blocked,
+      s.commerceBlockReason, { action: 'jobs', verb: '[ CONTRACT BOARD ]' }));
+  }
+
   // Book 2 p.46: speculative cargo is bought on one world and resold on
   // another. This is the whole point of the flight, so it leads the port call
   // rather than hiding in the TRADE panel — and the card carries the money,
   // because the number is the reason the player came here.
-  for (const lot of s.sales?.lots ?? []) {
+  for (const lot of (s.commerceBlockReason ? [] : s.sales?.lots ?? [])) {
     const title = `Sell ${lot.tons}t ${lot.description}`;
     if (!lot.sellable) {
       opportunities.push(card(`sale-${lot.id}`, title, PLAY_PROCEDURE_TAGS.blocked, lot.blockReason || 'Not saleable here.'));
@@ -915,7 +922,7 @@ export function buildPlayProcedure(s = {}) {
   } else if (!s.destination.reachable) {
     attention.push(card('destination', `${s.destination.name} is out of jump range`, PLAY_PROCEDURE_TAGS.blocked, `${s.destination.distance} parsec${s.destination.distance === 1 ? '' : 's'}. Select a nearer system.`, { action: 'nav', verb: '[ MAP ]' }));
   } else {
-    if (s.freight) {
+    if (s.freight && !s.commerceBlockReason) {
       if (s.freight.accepted > 0) {
         done.push(card('freight-done', `Cargo accepted for ${s.destination.name}`, PLAY_PROCEDURE_TAGS.done, `${s.freight.accepted} lot${s.freight.accepted === 1 ? '' : 's'} aboard · destination announced.`));
       } else if (s.freight.fitting > 0) {
@@ -940,7 +947,7 @@ export function buildPlayProcedure(s = {}) {
             : 'No shipments offered for this destination.'));
       }
     }
-    if (s.passengers) {
+    if (s.passengers && !s.commerceBlockReason) {
       const demandTotal = s.passengers.demand.high + s.passengers.demand.middle + s.passengers.demand.low;
       // Cargo announces the destination (Book 2 p.8). With no acceptable cargo the
       // ship simply declares it, so passengers are not held hostage to an empty board.
@@ -987,7 +994,7 @@ export function buildPlayProcedure(s = {}) {
   }
 
   // Weekly opportunities at the current world
-  if (s.speculation) {
+  if (s.speculation && !s.commerceBlockReason) {
     if (s.speculation.purchased > 0) {
       done.push(card('spec-done', 'Speculative lot (bought to resell)', PLAY_PROCEDURE_TAGS.done, `${s.speculation.purchased} bought from this week's lot (${s.speculation.name}).`));
     } else if (s.speculation.available) {

@@ -332,3 +332,20 @@ test('v0.112.0 a losing quote is stated as a loss, not hidden', () => {
   assert.equal(card.tag, PLAY_PROCEDURE_TAGS.ready);
   assert.ok(card.action.startsWith('sale:'));
 });
+
+test('v0.113.0 an exclusive charter withdraws every commerce card and says why', () => {
+  const s = base();
+  s.commerceBlockReason = "Exclusive charter for Vesper commits the ship's commercial capacity. Deliver it, or abandon it on the contract board.";
+  s.passengers = { demand: { high: 9, middle: 3, low: 0 }, booked: 0, capacity: 2, blockReason: null, classes: [
+    { passageClass: 'high', available: 9, fareCr: 10000, berths: 2, blockedReason: null }
+  ] };
+  s.sales = { lots: [{ id: 'lot-1', tons: 3, description: 'Firearms', netCr: 117000, percentage: 130, dm: 0,
+    sellable: true, blockReason: null, declined: false, brokerCommissionCr: 0, costCr: 99990, gainCr: 17010, returnPercent: 17 }] };
+  const model = buildPlayProcedure(s);
+  assert.equal(byId(model, 'passengers-high'), undefined);
+  assert.equal(byId(model, 'sale-lot-1'), undefined);
+  const blocked = byId(model, 'commerce-blocked');
+  assert.equal(blocked.tag, PLAY_PROCEDURE_TAGS.blocked);
+  assert.match(blocked.copy, /Exclusive charter for Vesper/);
+  assert.equal(blocked.action, 'jobs');
+});
