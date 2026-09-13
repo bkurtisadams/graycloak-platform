@@ -45,6 +45,8 @@ import {
   purchaseShipFuel,
   refuelShipToCapacity,
   beginPortCall,
+  shipUpkeepDue,
+  chargeShipUpkeep,
   payCurrentBerthing,
   skimGasGiantToCapacity,
   loadCargo,
@@ -3092,12 +3094,28 @@ function jumpToSelectedSystem() {
       arrivalDate: activityDateLabel(),
       berthingDueCr: destinationProfile.starport === 'X' ? 0 : calculateBerthingCost(1)
     });
+    // Book 2 pp.6-7: crew are paid monthly and the ship overhauled annually.
+    // Charged on arrival, because that is when the ship is somewhere it can
+    // settle accounts. Whole elapsed periods only; anything the account cannot
+    // cover stays due and is charged at a later port.
+    const upkeep = chargeShipUpkeep(nextShip, {
+      dateLabel: activityDateLabel(),
+      sinceLabel: shipLiabilityStartLabel(),
+      unpaid: ownerAboardIds()
+    });
+    nextShip = upkeep.ship;
     shipDocument = nextShip;
     reconcileExpiredContracts();
     selectedSystemId = null;
     logActivity('ARRIVAL', `${shipLabel} arrived ${destination.name} / ${destination.hex} / ${destination.mainWorld.name} / fuel ${shipDocument.state.currentFuelTons}t`);
     ensureArrivalSituation({ log: true });
     persistCampaignState();
+    if (upkeep.paidCr > 0) {
+      logActivity('SHIP', `Upkeep settled at ${destination.name} / ${formatCr(upkeep.paidCr)} / ${upkeep.salaryPeriodsPaid} salary period${upkeep.salaryPeriodsPaid === 1 ? '' : 's'}${upkeep.maintenancePeriodsPaid ? `, ${upkeep.maintenancePeriodsPaid} overhaul` : ''}`);
+    }
+    if (upkeep.outstandingCr > 0) {
+      logActivity('SHIP', `Upkeep outstanding: ${formatCr(upkeep.outstandingCr)} the account could not cover`);
+    }
     if (freightDelivery.delivered.length) {
       logActivity('TRADE', `${freightDelivery.delivered.length} freight shipment${freightDelivery.delivered.length === 1 ? '' : 's'} delivered at ${destination.name} / +${formatCr(freightDelivery.revenueCr)}`);
     }
@@ -8368,6 +8386,16 @@ function renderShipStrip() {
   // character "may not sell or mortgage the vessel" (Book 1 p.23). A ship the
   // character actually owns is financed (Book 2 p.5).
   const financed = shipDocument.authority?.characterOwnsShip ? shipMortgage(shipDocument).monthlyPaymentCr : 0;
+  // What is genuinely owed right now, as opposed to the monthly rate. An
+  // account that could not cover a period leaves it due.
+  let outstandingCr = 0;
+  try {
+    outstandingCr = shipUpkeepDue(shipDocument, {
+      dateLabel: activityDateLabel(),
+      sinceLabel: shipLiabilityStartLabel(),
+      unpaid: ownerAboardIds()
+    }).totalDueCr;
+  } catch { outstandingCr = 0; }
 
   const jump = shipDocument.specifications.drives?.jump?.rating;
   const maintenanceMonthlyCr = Math.round(annualMaintenanceCr(shipDocument) / 12);
@@ -8381,10 +8409,12 @@ function renderShipStrip() {
       `${berths} berth${berths === 1 ? '' : 's'} free of ${shipDocument.specifications.accommodations.staterooms} staterooms`],
     ['CREW', crew.length ? `${crew.length} assigned` : 'Nobody assigned',
       crew.map((entry) => `${entry.characterName || entry.characterId} ${entry.role}`).join(' \u00b7 ')],
-    ['UPKEEP', `${formatCr(upkeep + financed)} per month`,
-      [`${formatCr(payroll.totalCr)} crew salaries`,
-        `${formatCr(maintenanceMonthlyCr)} maintenance`,
-        financed ? `${formatCr(financed)} mortgage` : null].filter(Boolean).join(' \u00b7 ')],
+    ['UPKEEP', outstandingCr > 0 ? `${formatCr(outstandingCr)} owed now` : `${formatCr(upkeep + financed)} per month`,
+      outstandingCr > 0
+        ? `${formatCr(upkeep + financed)} per month \u00b7 settled at the next port the account can cover it`
+        : [`${formatCr(payroll.totalCr)} crew salaries`,
+          `${formatCr(maintenanceMonthlyCr)} maintenance`,
+          financed ? `${formatCr(financed)} mortgage` : null].filter(Boolean).join(' \u00b7 ')],
     ['DRIVE', Number.isInteger(jump) ? `Jump-${jump}` : 'Unrated',
       `${shipDocument.specifications.hull.tons}t hull${shipDocument.specifications.hull.streamlined ? ' \u00b7 streamlined' : ''}`]
   ];
@@ -8419,6 +8449,12 @@ function currentJumpFuelRequirement() {
     const distance = jumpDistanceBetweenSystems(FAR_MERIDIAN_SUBSECTOR, current.id, selected.id);
     return canShipMakeJump(shipDocument, distance)?.requirement?.totalTons ?? null;
   } catch { return null; }
+}
+
+// Liability starts when the ship's account does: its first ledger entry. A
+// ship that has never held money has never owed anything either.
+function shipLiabilityStartLabel() {
+  return shipDocument?.state?.finances?.ledger?.[0]?.date ?? null;
 }
 
 function ownerAboardIds() {

@@ -679,3 +679,119 @@ export function sellSpeculativeCargo(ship, cargoId, quote, { dateLabel = null, d
   });
   return Object.freeze({ ship: next, cargo, revenueCr: quote.netCr, profitCr: quote.netCr - cargo.acquisitionCostCr });
 }
+
+// ---------------------------------------------------------------------------
+// Book 2 pp.6-7 recurring charges, applied against the campaign clock.
+//
+// The 1977 rules say crew are paid "monthly" and a ship is overhauled
+// "annually", but the Imperial calendar in these books has no months — Book 3
+// dates are a day number and a year. Graycloak ruling: a salary month is 30
+// days and a maintenance year is the 365-day game year.
+//
+// What is due is derived from the ledger rather than stored: the last charge
+// of each kind dates the period, so a period the account could not cover
+// stays uncharged and therefore stays due. Arrears need no schema field, and
+// the ship still flies while it owes.
+// ---------------------------------------------------------------------------
+
+export const SALARY_PERIOD_DAYS = 30;
+export const MAINTENANCE_PERIOD_DAYS = 365;
+const SALARY_LEDGER_KIND = 'crew-salaries';
+const MAINTENANCE_LEDGER_KIND = 'maintenance';
+
+function dayOrdinal(dateLabel) {
+  const match = /^(\d{1,3})-(\d{1,5})$/.exec(String(dateLabel ?? '').trim());
+  if (!match) return null;
+  return Number(match[2]) * MAINTENANCE_PERIOD_DAYS + Number(match[1]);
+}
+
+function lastChargeOrdinal(ship, kind) {
+  let latest = null;
+  for (const entry of ship.state.finances.ledger) {
+    if (entry.kind !== kind) continue;
+    const ordinal = dayOrdinal(entry.date);
+    if (ordinal !== null && (latest === null || ordinal > latest)) latest = ordinal;
+  }
+  return latest;
+}
+
+/**
+ * What the ship owes as of `dateLabel`, in whole elapsed periods. `sinceLabel`
+ * dates the start of liability for a ship that has never been charged.
+ */
+export function shipUpkeepDue(ship, { dateLabel, sinceLabel = null, skillLevels = {}, unpaid = [] } = {}) {
+  assertValidShipDocument(ship);
+  const now = dayOrdinal(dateLabel);
+  if (now === null) throw new TypeError('dateLabel must look like DDD-YYYY');
+  const start = dayOrdinal(sinceLabel);
+
+  const periodsFor = (kind, lengthDays) => {
+    const from = lastChargeOrdinal(ship, kind) ?? start;
+    if (from === null) return 0;
+    return Math.max(0, Math.floor((now - from) / lengthDays));
+  };
+
+  const salaryPeriods = periodsFor(SALARY_LEDGER_KIND, SALARY_PERIOD_DAYS);
+  const maintenancePeriods = periodsFor(MAINTENANCE_LEDGER_KIND, MAINTENANCE_PERIOD_DAYS);
+  const payroll = calculateMonthlyCrewSalaries(ship, { skillLevels, unpaid });
+  const maintenancePerPeriodCr = annualMaintenanceCr(ship);
+
+  return Object.freeze({
+    salaryPeriods,
+    salaryPerPeriodCr: payroll.totalCr,
+    salariesDueCr: salaryPeriods * payroll.totalCr,
+    maintenancePeriods,
+    maintenancePerPeriodCr,
+    maintenanceDueCr: maintenancePeriods * maintenancePerPeriodCr,
+    totalDueCr: salaryPeriods * payroll.totalCr + maintenancePeriods * maintenancePerPeriodCr
+  });
+}
+
+/**
+ * Charge as many whole periods as the account can cover, oldest first, and
+ * leave the rest due. Salaries are settled before maintenance: a crew is owed
+ * its wages before a shipyard is owed an overhaul.
+ */
+export function chargeShipUpkeep(ship, { dateLabel, sinceLabel = null, skillLevels = {}, unpaid = [] } = {}) {
+  const due = shipUpkeepDue(ship, { dateLabel, sinceLabel, skillLevels, unpaid });
+  let next = cloneJson(ship);
+  let salaryPeriodsPaid = 0;
+  let maintenancePeriodsPaid = 0;
+
+  if (due.salaryPerPeriodCr > 0) {
+    for (let index = 0; index < due.salaryPeriods; index += 1) {
+      if (next.state.finances.balanceCr < due.salaryPerPeriodCr) break;
+      next = appendLedger(next, {
+        kind: SALARY_LEDGER_KIND,
+        amountCr: -due.salaryPerPeriodCr,
+        description: `Crew salaries, ${SALARY_PERIOD_DAYS} days (Book 2 p.6)`,
+        dateLabel
+      });
+      salaryPeriodsPaid += 1;
+    }
+  } else {
+    // Nothing to pay, but the period is still served: date it so the next one
+    // is measured from here rather than accruing forever.
+    salaryPeriodsPaid = due.salaryPeriods;
+  }
+
+  for (let index = 0; index < due.maintenancePeriods; index += 1) {
+    if (next.state.finances.balanceCr < due.maintenancePerPeriodCr) break;
+    next = appendLedger(next, {
+      kind: MAINTENANCE_LEDGER_KIND,
+      amountCr: -due.maintenancePerPeriodCr,
+      description: `Annual overhaul, ${MAINTENANCE_WEEKS} weeks at a class ${MAINTENANCE_STARPORTS.join(' or ')} starport (Book 2 p.6)`,
+      dateLabel
+    });
+    maintenancePeriodsPaid += 1;
+  }
+
+  const paidCr = salaryPeriodsPaid * due.salaryPerPeriodCr + maintenancePeriodsPaid * due.maintenancePerPeriodCr;
+  return Object.freeze({
+    ship: next,
+    paidCr,
+    salaryPeriodsPaid,
+    maintenancePeriodsPaid,
+    outstandingCr: due.totalDueCr - paidCr
+  });
+}

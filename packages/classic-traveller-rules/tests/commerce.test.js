@@ -33,7 +33,10 @@ import {
   shipMortgage,
   shipCashPriceCr,
   transferShipCreditsToCharacter,
-  speculativeLotPosition
+  speculativeLotPosition,
+  shipUpkeepDue,
+  chargeShipUpkeep,
+  assignShipCrew
 } from '../index.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -307,4 +310,50 @@ test('a speculative lot states its position against what was paid for it', async
   // A losing quote is stated as a loss, not hidden.
   assert.equal(speculativeLotPosition(vessel, 'lot-1', { proceedsCr: 80000 }).gainCr, -19990);
   assert.throws(() => speculativeLotPosition(vessel, 'missing'), /no cargo aboard/);
+});
+
+test('Book 2 pp.6-7: upkeep accrues in whole periods and is charged against the clock', async () => {
+  const character = await hawkeye();
+  let vessel = createTypeSScoutReserveShipForCharacter(character).ship;
+  vessel = assignShipCrew(vessel, { role: 'steward', characterId: 'npc-venn', characterName: 'Mara Venn' });
+  vessel = transferCharacterCreditsToShip(character, vessel, 60000, { dateLabel: '001-4800' }).ship;
+
+  // Hawkeye owns her and draws from profits, so only the steward is on wages.
+  const due = shipUpkeepDue(vessel, { dateLabel: '101-4800', sinceLabel: '001-4800', unpaid: [character.identity.id] });
+  assert.equal(due.salaryPerPeriodCr, 3000);
+  assert.equal(due.salaryPeriods, 3, '100 days is three whole 30-day periods');
+  assert.equal(due.maintenancePeriods, 0, 'not yet a full year');
+  assert.equal(due.totalDueCr, 9000);
+
+  const charged = chargeShipUpkeep(vessel, { dateLabel: '101-4800', sinceLabel: '001-4800', unpaid: [character.identity.id] });
+  assert.equal(charged.paidCr, 9000);
+  assert.equal(charged.outstandingCr, 0);
+  assert.equal(charged.ship.state.finances.balanceCr, 51000);
+
+  // Charging again the same day finds nothing further due: the ledger dates
+  // the last period.
+  assert.equal(chargeShipUpkeep(charged.ship, { dateLabel: '101-4800', unpaid: [character.identity.id] }).paidCr, 0);
+});
+
+test('a year served brings the overhaul due, and an account that cannot cover it keeps owing', async () => {
+  const character = await hawkeye();
+  let vessel = createTypeSScoutReserveShipForCharacter(character).ship;
+  vessel = transferCharacterCreditsToShip(character, vessel, 20000, { dateLabel: '001-4800' }).ship;
+
+  const due = shipUpkeepDue(vessel, { dateLabel: '001-4801', sinceLabel: '001-4800', unpaid: [character.identity.id] });
+  assert.equal(due.maintenancePeriods, 1);
+  assert.equal(due.maintenancePerPeriodCr, 32490, '0.1% of the Book 2 p.18 price');
+
+  // Cr20,000 will not cover a Cr32,490 overhaul, so nothing is charged and the
+  // whole amount stays outstanding. The ship still flies while it owes.
+  const charged = chargeShipUpkeep(vessel, { dateLabel: '001-4801', sinceLabel: '001-4800', unpaid: [character.identity.id] });
+  assert.equal(charged.maintenancePeriodsPaid, 0);
+  assert.equal(charged.outstandingCr, 32490);
+  assert.equal(charged.ship.state.finances.balanceCr, 20000);
+
+  // Funded, the same call settles it.
+  const funded = transferCharacterCreditsToShip(character, charged.ship, 30000, { dateLabel: '002-4801' }).ship;
+  const settled = chargeShipUpkeep(funded, { dateLabel: '002-4801', sinceLabel: '001-4800', unpaid: [character.identity.id] });
+  assert.equal(settled.maintenancePeriodsPaid, 1);
+  assert.equal(settled.outstandingCr, 0);
 });
