@@ -49,7 +49,12 @@ function good(code, name, basePriceCr, purchaseDMs, resaleDMs, quantity, unit = 
   return Object.freeze({ code, name, basePriceCr, purchaseDMs: mods(purchaseDMs), resaleDMs: mods(resaleDMs), quantity, unit });
 }
 
-export const TRADE_GOODS = Object.freeze({
+export // Book 2 p.43 trade and speculation table. The four base prices corrected in
+// rules 0.28.0 were checked against the 1977 printing and cross-checked
+// against Book 3's equipment prices, which state the same figures: an
+// air/raft at CR 6,000,000 (B3 p.16), an ATV at CR 3,000,000 and an AFV at
+// CR 7,000,000 (B3 p.16). The engine had them at a tenth and a hundredth.
+const TRADE_GOODS = Object.freeze({
   11: good(11, 'Textiles', 3000, { A: -7, NA: -5, NI: -3 }, { A: -6, NA: 1, R: 3 }, qty(3, 5)),
   12: good(12, 'Polymers', 7000, { I: -2, R: -3, P: 2 }, { I: -2, R: 3 }, qty(4, 5)),
   13: good(13, 'Liquor', 10000, { A: -4 }, { A: -3, I: 1, R: 2 }, qty(1, 5)),
@@ -75,13 +80,13 @@ export const TRADE_GOODS = Object.freeze({
   45: good(45, 'Tools', 10000, { I: -3, R: -2, P: 3 }, { I: -2, R: -1, P: 3 }, qty(2)),
   46: good(46, 'Body Armor', 50000, { I: -1, R: -3, P: 3 }, { I: -2, R: 1, P: 4 }, qty(2)),
   51: good(51, 'Aircraft', 1000000, { I: -4, R: -3 }, { NI: 2, P: 1 }, qty(1), 'each'),
-  52: good(52, 'Air/Raft', 600000, { I: -3, R: -2 }, { NI: 2, P: 1 }, qty(1), 'each'),
+  52: good(52, 'Air/Raft', 6000000, { I: -3, R: -2 }, { NI: 2, P: 1 }, qty(1), 'each'),
   53: good(53, 'Computers', 10000000, { I: -2, R: -2 }, { NI: 2, P: 1, A: -3 }, qty(1), 'each'),
-  54: good(54, 'All Terrain Vehicles', 30000, { I: -2, R: -2 }, { NI: 2, P: 1, A: 1 }, qty(1), 'each'),
-  55: good(55, 'Armored Vehicles', 70000, { I: -5, R: -2, P: 4 }, { NA: -2, A: 2, R: 1 }, qty(1), 'each'),
+  54: good(54, 'All Terrain Vehicles', 3000000, { I: -2, R: -2 }, { NI: 2, P: 1, A: 1 }, qty(1), 'each'),
+  55: good(55, 'Armored Vehicles', 7000000, { I: -5, R: -2, P: 4 }, { NA: -2, A: 2, R: 1 }, qty(1), 'each'),
   56: good(56, 'Farm Machinery', 150000, { I: -5, R: -2 }, { A: 5, NA: -8, P: 1 }, qty(1), 'each'),
   61: good(61, 'Electronics Parts', 100000, { I: -4, R: -3 }, { NI: 2, P: 1 }, qty(1, 5)),
-  62: good(62, 'Mechanical Parts', 70000, { I: -5, R: -3 }, { NI: 3, A: 2 }, qty(1, 5)),
+  62: good(62, 'Mechanical Parts', 75000, { I: -5, R: -3 }, { NI: 3, A: 2 }, qty(1, 5)),
   63: good(63, 'Cybernetic Parts', 250000, { I: -4, R: -1 }, { NI: 4, A: 1, NA: 2 }, qty(1, 5)),
   64: good(64, 'Computer Parts', 150000, { I: -5, R: -3 }, { NI: 3, A: 1, NA: 2 }, qty(1, 5)),
   65: good(65, 'Machine Tools', 750000, { I: -5, R: -4 }, { NI: 3, A: 1, NA: 2 }, qty(1, 5)),

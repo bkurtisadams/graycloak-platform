@@ -184,9 +184,30 @@ test('Book 2 amber-zone freight contains no major shipments', () => {
 });
 
 
-test('facsimile trade-table errata are present in the source-backed goods table', () => {
-  assert.equal(TRADE_GOODS[52].basePriceCr, 600000);
-  assert.equal(TRADE_GOODS[54].basePriceCr, 30000);
-  assert.equal(TRADE_GOODS[55].basePriceCr, 70000);
+test('the vehicle prices follow the 1977 printing, not the facsimile scan', () => {
+  // These three were pinned at a tenth and a hundredth of their value as
+  // "facsimile errata". The 1977 printing gives 6,000,000 / 3,000,000 /
+  // 7,000,000, and Book 3 p.16 states the same figures for the vehicles
+  // themselves, so the facsimile values were dropped zeros in a scan rather
+  // than a real printing difference — the same failure as the 2.5m/25m range
+  // band. The 1977 books are the authority.
+  assert.equal(TRADE_GOODS[52].basePriceCr, 6000000);
+  assert.equal(TRADE_GOODS[54].basePriceCr, 3000000);
+  assert.equal(TRADE_GOODS[55].basePriceCr, 7000000);
   assert.deepEqual(TRADE_GOODS[31].quantity, { dice: 6, multiplier: 5 });
+});
+
+test('Book 2 p.43 base prices match the printed table, including the vehicles', async () => {
+  // These four were wrong in the engine until rules 0.28.0: Air/Raft by a
+  // factor of ten, ATV and AFV by a hundred, Mechanical Parts outright.
+  // Book 3 p.16 states the same figures for the vehicles themselves.
+  assert.equal(TRADE_GOODS[52].basePriceCr, 6000000, 'Air/Raft');
+  assert.equal(TRADE_GOODS[54].basePriceCr, 3000000, 'ATV');
+  assert.equal(TRADE_GOODS[55].basePriceCr, 7000000, 'AFV');
+  assert.equal(TRADE_GOODS[62].basePriceCr, 75000, 'Mechanical Parts');
+  // Spot checks across the rest of the table.
+  assert.equal(TRADE_GOODS[11].basePriceCr, 3000, 'Textiles');
+  assert.equal(TRADE_GOODS[16].basePriceCr, 1000000, 'Radioactives');
+  assert.equal(TRADE_GOODS[53].basePriceCr, 10000000, 'Computers');
+  assert.equal(TRADE_GOODS[65].basePriceCr, 750000, 'Machine Tools');
 });
