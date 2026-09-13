@@ -1,5 +1,6 @@
 import { assertValidCharacterDocument } from '../characters/character-document.js';
 import { assertValidShipDocument } from './ship-document.js';
+import { getStandardShipDesign } from './standard-designs.js';
 import {
   PASSAGE_FARES_CR,
   STATEROOM_LIFE_SUPPORT_PER_TRIP_CR,
@@ -402,15 +403,103 @@ export function bookPassenger(ship, {
   return next;
 }
 
+// Book 2 p.6: "Each stateroom on a starship, occupied or not, involves a
+// constant overhead cost of CR 2000 per trip made." The charge is per
+// stateroom built, not per person aboard — a Type S with four staterooms and
+// one crewman pays Cr8,000 a trip, not Cr2,000. The same page states the low
+// berth overhead per berth. Occupancy is still reported, because it is what
+// the referee and the player want to see.
 export function calculateLifeSupportCostForTrip(ship) {
   assertValidShipDocument(ship);
   const crewPeople = new Set(ship.crew.assignments.map((entry) => entry.characterId)).size;
   const stateroomPassengers = ship.state.passengerManifest.filter((entry) => entry.class === 'high' || entry.class === 'middle').length;
   const lowPassengers = ship.state.passengerManifest.filter((entry) => entry.class === 'low').length;
   const occupiedStaterooms = crewPeople + stateroomPassengers;
-  const stateroomCostCr = occupiedStaterooms * STATEROOM_LIFE_SUPPORT_PER_TRIP_CR;
-  const lowBerthCostCr = lowPassengers * LOW_BERTH_LIFE_SUPPORT_PER_USE_CR;
-  return Object.freeze({ occupiedStaterooms, lowPassengers, stateroomCostCr, lowBerthCostCr, totalCr: stateroomCostCr + lowBerthCostCr });
+  const staterooms = ship.specifications.accommodations?.staterooms ?? occupiedStaterooms;
+  const lowBerths = ship.specifications.accommodations?.lowBerths ?? lowPassengers;
+  const stateroomCostCr = staterooms * STATEROOM_LIFE_SUPPORT_PER_TRIP_CR;
+  const lowBerthCostCr = lowBerths * LOW_BERTH_LIFE_SUPPORT_PER_USE_CR;
+  return Object.freeze({
+    staterooms, lowBerths, occupiedStaterooms, lowPassengers,
+    stateroomCostCr, lowBerthCostCr, totalCr: stateroomCostCr + lowBerthCostCr
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Book 2 pp.6-7: the remaining operating expenses. None of these existed, so
+// crew worked for free, no ship was ever maintained, and no mortgage was ever
+// serviced — an account could only ever grow.
+// ---------------------------------------------------------------------------
+
+export const CREW_SALARIES_CR = Object.freeze({
+  pilot: 6000, navigator: 5000, engineer: 4000, steward: 3000, medic: 2000, gunner: 1000
+});
+
+// "generally +10% for each level of expertise above level-1"
+export function crewMemberSalaryCr(role, skillLevel = 1) {
+  const base = CREW_SALARIES_CR[String(role ?? '').toLowerCase()];
+  if (!base) throw new RangeError(`no Book 2 salary for crew role: ${role}`);
+  const above = Math.max(0, Math.floor(Number(skillLevel) || 1) - 1);
+  return Math.round(base * (1 + 0.1 * above));
+}
+
+/**
+ * Book 2 p.6. Monthly. `skillLevels` maps characterId to the level held in
+ * the skill for that role; anything absent is treated as level 1.
+ * A player character crewing their own ship draws pay only if `paid` says so —
+ * Book 2 notes an owner-aboard "drawing his pay from the profits" instead.
+ */
+export function calculateMonthlyCrewSalaries(ship, { skillLevels = {}, unpaid = [] } = {}) {
+  assertValidShipDocument(ship);
+  const exempt = new Set(unpaid);
+  const entries = ship.crew.assignments
+    .filter((entry) => !exempt.has(entry.characterId))
+    .map((entry) => Object.freeze({
+      characterId: entry.characterId,
+      characterName: entry.characterName,
+      role: entry.role,
+      salaryCr: crewMemberSalaryCr(entry.role, skillLevels[entry.characterId] ?? 1)
+    }));
+  return Object.freeze({
+    entries: Object.freeze(entries),
+    totalCr: entries.reduce((sum, entry) => sum + entry.salaryCr, 0)
+  });
+}
+
+// Book 2 p.6: annually, 0.1% of the cash price, and two weeks at a class A or
+// B starport.
+export const ANNUAL_MAINTENANCE_RATE = 0.001;
+export const MAINTENANCE_WEEKS = 2;
+export const MAINTENANCE_STARPORTS = Object.freeze(['A', 'B']);
+
+// The document carries only the design key; the price lives on the standard
+// design record.
+export function shipCashPriceCr(ship) {
+  assertValidShipDocument(ship);
+  const design = getStandardShipDesign(ship.design.key);
+  if (!design) throw new RangeError(`no standard design on file for ${ship.design.key}`);
+  return Math.round((design.economics?.newCostMCr ?? 0) * 1_000_000);
+}
+
+export function annualMaintenanceCr(ship) {
+  return Math.round(shipCashPriceCr(ship) * ANNUAL_MAINTENANCE_RATE);
+}
+
+// Book 2 p.5: 20% down, then 1/240th of the cash price monthly for 480 months
+// — so the financed total is 220% of the cash price over 40 years.
+export const MORTGAGE_DOWN_PAYMENT_RATE = 0.2;
+export const MORTGAGE_MONTHLY_DIVISOR = 240;
+export const MORTGAGE_TERM_MONTHS = 480;
+
+export function shipMortgage(ship) {
+  const cashPriceCr = shipCashPriceCr(ship);
+  return Object.freeze({
+    cashPriceCr,
+    downPaymentCr: Math.round(cashPriceCr * MORTGAGE_DOWN_PAYMENT_RATE),
+    monthlyPaymentCr: Math.round(cashPriceCr / MORTGAGE_MONTHLY_DIVISOR),
+    termMonths: MORTGAGE_TERM_MONTHS,
+    financedTotalCr: Math.round(cashPriceCr / MORTGAGE_MONTHLY_DIVISOR) * MORTGAGE_TERM_MONTHS
+  });
 }
 
 export function chargeLifeSupportForTrip(ship, { dateLabel = null } = {}) {

@@ -59,7 +59,9 @@ test('Calder commerce fixture exposes route passengers and a deterministic weekl
     id: 'pass-calder-aster-1', passageClass: 'middle',
     originSystemId: calder.id, destinationSystemId: aster.id
   });
-  assert.equal(calculateLifeSupportCostForTrip(ship).totalCr, 4000);
+  // Book 2 p.6 charges per stateroom built, occupied or not: the Type S has
+  // four, so a trip costs Cr8,000 whether one berth is filled or three.
+  assert.equal(calculateLifeSupportCostForTrip(ship).totalCr, 8000);
 
   const offer = generateSpeculativeTradeOffer(origin, {
     dice: seededDice(weeklyTradeSeed(campaign, calder.id))

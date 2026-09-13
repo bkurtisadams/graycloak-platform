@@ -24,7 +24,14 @@ import {
   purchaseSpeculativeCargo,
   sellSpeculativeCargo,
   CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION,
-  TRADE_GOODS
+  TRADE_GOODS,
+  crewMemberSalaryCr,
+  calculateMonthlyCrewSalaries,
+  annualMaintenanceCr,
+  MAINTENANCE_STARPORTS,
+  MAINTENANCE_WEEKS,
+  shipMortgage,
+  shipCashPriceCr
 } from '../index.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -82,17 +89,50 @@ test('Type S has three passenger staterooms after its one-person standard crew',
   assert.throws(() => bookPassenger(fresh, { id: 'h1', passageClass: 'high', originSystemId: 'calder', destinationSystemId: 'aster' }), /requires a steward/);
 });
 
-test('life support charges Cr2000 per occupied stateroom per trip', async () => {
+test('Book 2 p.6: life support is charged per stateroom built, occupied or not', async () => {
   const character = await hawkeye();
   let vessel = createTypeSScoutReserveShipForCharacter(character).ship;
-  vessel = transferCharacterCreditsToShip(character, vessel, 10000, { dateLabel: '001-4800' }).ship;
+  vessel = transferCharacterCreditsToShip(character, vessel, 20000, { dateLabel: '001-4800' }).ship;
   vessel = bookPassenger(vessel, { id: 'p1', passageClass: 'middle', originSystemId: 'calder', destinationSystemId: 'aster' });
   vessel = bookPassenger(vessel, { id: 'p2', passageClass: 'middle', originSystemId: 'calder', destinationSystemId: 'aster' });
+  // The Type S has four staterooms and no low berths. Three are occupied —
+  // one crew, two passengers — but the empty fourth is charged too.
   assert.deepEqual(calculateLifeSupportCostForTrip(vessel), {
-    occupiedStaterooms: 3, lowPassengers: 0, stateroomCostCr: 6000, lowBerthCostCr: 0, totalCr: 6000
+    staterooms: 4, lowBerths: 0, occupiedStaterooms: 3, lowPassengers: 0,
+    stateroomCostCr: 8000, lowBerthCostCr: 0, totalCr: 8000
   });
   const charged = chargeLifeSupportForTrip(vessel, { dateLabel: '001-4800' });
-  assert.equal(charged.ship.state.finances.balanceCr, 4000);
+  assert.equal(charged.ship.state.finances.balanceCr, 12000);
+});
+
+test('Book 2 pp.6-7: crew salaries, maintenance and the mortgage', async () => {
+  const character = await hawkeye();
+  const vessel = createTypeSScoutReserveShipForCharacter(character).ship;
+
+  // The printed schedule, and +10% per level of expertise above 1.
+  assert.equal(crewMemberSalaryCr('pilot'), 6000);
+  assert.equal(crewMemberSalaryCr('gunner'), 1000);
+  assert.equal(crewMemberSalaryCr('pilot', 3), 7200);
+  assert.throws(() => crewMemberSalaryCr('sommelier'), /no Book 2 salary/);
+
+  // The reserve scout comes with its owner already flying it.
+  const payroll = calculateMonthlyCrewSalaries(vessel, { skillLevels: { [character.identity.id]: 2 } });
+  assert.equal(payroll.entries.length, 1);
+  assert.equal(payroll.totalCr, 6600);
+  // Book 2 p.6 allows an owner-aboard to draw from profits instead of pay.
+  assert.equal(calculateMonthlyCrewSalaries(vessel, { unpaid: [character.identity.id] }).totalCr, 0);
+
+  // 0.1% of the cash price annually.
+  assert.equal(annualMaintenanceCr(vessel), Math.round(shipCashPriceCr(vessel) * 0.001));
+  assert.deepEqual(MAINTENANCE_STARPORTS, ['A', 'B']);
+  assert.equal(MAINTENANCE_WEEKS, 2);
+
+  // 20% down, 1/240th monthly for 480 months: 220% of cash price financed.
+  const mortgage = shipMortgage(vessel);
+  assert.equal(mortgage.downPaymentCr, Math.round(mortgage.cashPriceCr * 0.2));
+  assert.equal(mortgage.monthlyPaymentCr, Math.round(mortgage.cashPriceCr / 240));
+  assert.equal(mortgage.termMonths, 480);
+  assert.ok(Math.abs(mortgage.financedTotalCr / mortgage.cashPriceCr - 2) < 0.01);
 });
 
 test('freight pays Cr1000 per ton when delivered to its destination', async () => {

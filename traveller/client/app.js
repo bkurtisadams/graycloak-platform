@@ -8,6 +8,9 @@ import {
   SHIP_CREW_ROLES,
   assignShipCrew,
   releaseShipCrew,
+  calculateMonthlyCrewSalaries,
+  annualMaintenanceCr,
+  shipMortgage,
   ANIMAL_TERRAIN_DMS,
   animalCategoryForThrow,
   animalCombatantSpecs,
@@ -8271,6 +8274,16 @@ function renderShipStrip() {
     .reduce((sum, cls) => sum + availablePassengerCapacity(shipDocument, cls), 0);
   const crew = shipDocument.crew.assignments;
 
+  // Book 2 pp.6-7: what the ship owes. Salaries are monthly, maintenance is
+  // annual, and a reserve scout carries no mortgage — the Scout service keeps
+  // title, so there is nothing to pay off.
+  const payroll = calculateMonthlyCrewSalaries(shipDocument, { unpaid: ownerAboardIds() });
+  const upkeep = payroll.totalCr + Math.round(annualMaintenanceCr(shipDocument) / 12);
+  // A reserve scout carries no mortgage: the Scout service keeps title and the
+  // character "may not sell or mortgage the vessel" (Book 1 p.23). A ship the
+  // character actually owns is financed (Book 2 p.5).
+  const financed = shipDocument.authority?.characterOwnsShip ? shipMortgage(shipDocument).monthlyPaymentCr : 0;
+
   const cells = [
     ['FUEL', `${shipDocument.state.currentFuelTons}t / ${shipDocument.specifications.fuel.capacityTons}t`],
     ['CARGO', capacity === 0 ? 'NO HOLD' : `${used}t / ${capacity}t${used >= capacity ? ' · FULL' : ''}`,
@@ -8278,7 +8291,9 @@ function renderShipStrip() {
     ['PASSENGERS', passengers.length ? `${passengers.length} aboard` : 'NONE',
       `${berths} berth${berths === 1 ? '' : 's'} free`],
     ['CREW', crew.length ? `${crew.length} assigned` : 'NOBODY ASSIGNED',
-      crew.map((entry) => `${entry.characterName || entry.characterId} ${entry.role}`).join(' · ')]
+      crew.map((entry) => `${entry.characterName || entry.characterId} ${entry.role}`).join(' · ')],
+    ['UPKEEP', `${formatCr(upkeep + financed)} / month`,
+      `${formatCr(payroll.totalCr)} crew · ${formatCr(Math.round(annualMaintenanceCr(shipDocument) / 12))} maint${financed ? ` · ${formatCr(financed)} mortgage` : ''}`]
   ];
   el.shipStripCells.replaceChildren(...cells.map(([label, value, detail]) => {
     const cell = document.createElement('div');
@@ -8297,6 +8312,13 @@ function renderShipStrip() {
     }
     return cell;
   }));
+}
+
+// Book 2 p.6: an owner-aboard draws his pay from the profits rather than the
+// payroll, so a player character who owns the ship is not on salary.
+function ownerAboardIds() {
+  const owner = shipDocument?.authority?.assignedCharacterId;
+  return owner ? [owner] : [];
 }
 
 function renderShipCrew() {

@@ -208,7 +208,19 @@ export {
   disembarkPassengersAtDestination,
   purchaseSpeculativeCargo,
   payDeclinedBrokerFee,
-  sellSpeculativeCargo
+  sellSpeculativeCargo,
+  CREW_SALARIES_CR,
+  crewMemberSalaryCr,
+  calculateMonthlyCrewSalaries,
+  annualMaintenanceCr,
+  shipCashPriceCr,
+  ANNUAL_MAINTENANCE_RATE,
+  MAINTENANCE_WEEKS,
+  MAINTENANCE_STARPORTS,
+  shipMortgage,
+  MORTGAGE_DOWN_PAYMENT_RATE,
+  MORTGAGE_MONTHLY_DIVISOR,
+  MORTGAGE_TERM_MONTHS
 } from './src/starships/operations.js';
 
 export {
