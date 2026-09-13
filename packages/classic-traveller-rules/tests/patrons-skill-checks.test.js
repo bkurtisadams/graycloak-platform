@@ -12,7 +12,12 @@ import {
   rollPatronType,
   modifiedReactionTotal,
   rollReaction,
-  REACTION_DMS
+  REACTION_DMS,
+  rollShipEncounter,
+  rollPatrolOrPirateHull,
+  shipEncounterStarportDM,
+  SHIP_ENCOUNTER_TABLE,
+  SHIP_ENCOUNTER_TYPES,
 } from '../index.js';
 
 test('Book 3 patron table preserves the printed 6x6 entries', () => {
@@ -90,4 +95,55 @@ test('generalized referee skill check follows the Book 1 Electronics throw patte
   assert.equal(result.total, 8);
   assert.equal(result.success, true);
   assert.equal(result.basis, 'graycloak-generalized-from-book1-electronics');
+});
+
+test('Book 2 p.36: the starport decides how much traffic a system has', () => {
+  assert.equal(shipEncounterStarportDM('A'), 6);
+  assert.equal(shipEncounterStarportDM('B'), 4);
+  assert.equal(shipEncounterStarportDM('C'), 2);
+  assert.equal(shipEncounterStarportDM('D'), 1);
+  assert.equal(shipEncounterStarportDM('E'), -2);
+  assert.equal(shipEncounterStarportDM('X'), -4);
+
+  // An X-class port throws 2D-4, which cannot reach 9, so it never sees
+  // traffic at all. That is the rule working, not a gap.
+  const sixes = { rollD6: () => 6, roll2D6: () => ({ dice: [6, 6], total: 12 }) };
+  assert.equal(rollShipEncounter(sixes, { starport: 'X' }).type, null);
+  // The same throw at a class A port is a patrol.
+  assert.equal(rollShipEncounter(sixes, { starport: 'A' }).type, 'patrol');
+});
+
+test('Book 2 p.36: eight or less is no encounter', () => {
+  const ones = { rollD6: () => 1, roll2D6: () => ({ dice: [1, 1], total: 2 }) };
+  const result = rollShipEncounter(ones, { starport: 'C' });
+  assert.equal(result.total, 4);
+  assert.equal(result.type, null);
+});
+
+test('Book 2 p.36: only the pirate is hostile by default; merchants carry news', () => {
+  // "Free Traders, if friendly, may serve as a source of information...
+  // Patrols may be simple border pickets, or may be a form of pirate."
+  assert.equal(SHIP_ENCOUNTER_TYPES['free-trader'].hostileByDefault, false);
+  assert.equal(SHIP_ENCOUNTER_TYPES['free-trader'].informant, true);
+  assert.equal(SHIP_ENCOUNTER_TYPES['subsidized-merchant'].informant, true);
+  assert.equal(SHIP_ENCOUNTER_TYPES.patrol.hostileByDefault, false);
+  assert.equal(SHIP_ENCOUNTER_TYPES.pirate.hostileByDefault, true);
+  // Three of the ten table results are free traders.
+  const traders = Object.values(SHIP_ENCOUNTER_TABLE).filter((key) => key === 'free-trader');
+  assert.equal(traders.length, 3);
+});
+
+test('Book 2 p.36: a patrol or pirate rolls for its hull', () => {
+  const low = { rollD6: () => 1, roll2D6: () => ({ dice: [6, 6], total: 12 }) };
+  const encounter = rollShipEncounter(low, { starport: 'A' });
+  assert.equal(encounter.type, 'patrol');
+  // 2D of ones is 2, so 6- : a Type S Scout/Courier.
+  assert.equal(encounter.hull.hull, 'type-s-scout-courier');
+  // A seven exactly is the armed yacht.
+  assert.equal(rollPatrolOrPirateHull(createSequenceDice([3, 4])).hull, 'type-y-yacht-armed');
+  assert.equal(rollPatrolOrPirateHull(createSequenceDice([5, 5])).hull, 'type-c-cruiser');
+  // A trader is not a patrol and rolls no hull.
+  const trader = rollShipEncounter({ rollD6: () => 3, roll2D6: () => ({ dice: [3, 4], total: 7 }) }, { starport: 'C' });
+  assert.equal(trader.type, 'free-trader');
+  assert.equal(trader.hull, null);
 });

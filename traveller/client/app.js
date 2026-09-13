@@ -45,6 +45,9 @@ import {
   purchaseShipFuel,
   refuelShipToCapacity,
   beginPortCall,
+  rollShipEncounter,
+  rollReaction,
+  reactionForTotal,
   shipUpkeepDue,
   chargeShipUpkeep,
   summariseShipVoyages,
@@ -3114,6 +3117,7 @@ function jumpToSelectedSystem() {
     reconcileExpiredContracts();
     selectedSystemId = null;
     logActivity('ARRIVAL', `${shipLabel} arrived ${destination.name} / ${destination.hex} / ${destination.mainWorld.name} / fuel ${shipDocument.state.currentFuelTons}t`);
+    rollArrivalShipEncounter(destination, destinationProfile);
     ensureArrivalSituation({ log: true });
     persistCampaignState();
     if (upkeep.paidCr > 0) {
@@ -4008,6 +4012,31 @@ function splitIntent(value) {
   const text = String(value);
   const separator = text.indexOf(':');
   return separator === -1 ? [text, ''] : [text.slice(0, separator), text.slice(separator + 1)];
+}
+
+// Book 2 p.36: "When a ship enters a star system, there is a chance that any
+// one of a variety of ships will be encountered." Thrown on arrival, with the
+// starport of the primary world as the modifier — which is why a class A port
+// is busy and an X-class one never sees anyone.
+//
+// Only the pirate is hostile by default. Everything else takes a Book 3
+// reaction throw, because the book is explicit that a patrol "may be simple
+// border pickets, or may be a form of pirate", and that traders and merchants
+// are a source of information if friendly.
+function rollArrivalShipEncounter(system, profile) {
+  try {
+    const dice = createDice();
+    const encounter = rollShipEncounter(dice, { starport: profile.starport });
+    if (!encounter.type) return null;
+    const reaction = rollReaction(dice);
+    const hull = encounter.hull ? ` / ${encounter.hull.label}` : '';
+    logActivity('NAV', `${encounter.label} encountered at ${system.name}${hull} / reaction ${reaction.reaction.toUpperCase()}`);
+    setStatus(`SHIP ENCOUNTER: ${encounter.label.toUpperCase()}${encounter.hostileByDefault ? ' / HOSTILE' : ''}`, encounter.hostileByDefault ? 'error' : 'ok');
+    return { encounter, reaction };
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
 }
 
 // --- Book 3 animal encounters -------------------------------------------

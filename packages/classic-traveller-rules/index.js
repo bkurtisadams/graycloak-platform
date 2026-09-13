@@ -296,7 +296,13 @@ export {
   reactionForTotal,
   rollReaction,
   rollPatronType,
-  generatePatronContact
+  generatePatronContact,
+  rollShipEncounter,
+  rollPatrolOrPirateHull,
+  shipEncounterStarportDM,
+  SHIP_ENCOUNTER_TABLE,
+  SHIP_ENCOUNTER_TYPES,
+  SHIP_ENCOUNTER_STARPORT_DMS
 } from './src/encounters/patrons.js';
 
 export {
