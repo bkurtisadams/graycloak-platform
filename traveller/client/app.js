@@ -511,9 +511,6 @@ const el = {
   encounterTokenTooltip: document.querySelector('#encounter-token-tooltip'),
   encounterTokenMenu: document.querySelector('#encounter-token-menu'),
   operationsTabPort: document.querySelector('#operations-tab-port'),
-  operationsTabTrade: document.querySelector('#operations-tab-trade'),
-  operationsTabJobs: document.querySelector('#operations-tab-jobs'),
-  operationsTabRoster: document.querySelector('#operations-tab-roster'),
   rosterSection: document.querySelector('#roster-section'),
   publishStatusLine: document.querySelector('#publish-status'),
   openPlayers: document.querySelector('#open-players'),
@@ -8046,12 +8043,7 @@ function applyOperationsDeskTab() {
     jobs: el.contractSection,
     situation: el.situationSection
   };
-  const tabs = {
-    port: el.operationsTabPort,
-    trade: el.operationsTabTrade,
-    jobs: el.operationsTabJobs,
-    roster: el.operationsTabRoster
-  };
+  const tabs = { port: el.operationsTabPort };
   // Situations and combat are takeovers, not tabs: they hold the context panel
   // only while something is active, then fall back to WORLD.
   if (operationsDeskTab === 'situation' && !activeSituationAtCurrentSystem()) operationsDeskTab = 'port';
@@ -8067,7 +8059,9 @@ function applyOperationsDeskTab() {
   const portStacked = campaignPlayActive() && !encounterWorkspaceActive && !situationTakeover;
   for (const [key, panel] of Object.entries(panels)) {
     const available = panel?.dataset.available === 'true';
-    const stacked = portStacked && ['port', 'trade', 'jobs'].includes(key);
+    // v0.120.0: trade and jobs left this panel for the dock flyout, so only
+    // the world record is stacked here now.
+    const stacked = portStacked && key === 'port';
     if (panel) panel.hidden = stacked ? !available : (key !== operationsDeskTab || !available);
   }
   el.contextTabs?.classList.toggle('stacked', portStacked);
@@ -10427,10 +10421,7 @@ el.mapZoomIn.addEventListener('click', () => setSubsectorZoom(subsectorZoom + SU
 el.mapZoomFit.addEventListener('click', () => setSubsectorZoom(1));
 
 el.operationsTabPort.addEventListener('click', () => setOperationsDeskTab('port'));
-el.operationsTabTrade.addEventListener('click', () => setOperationsDeskTab('trade'));
-el.operationsTabJobs.addEventListener('click', () => setOperationsDeskTab('jobs'));
 el.contextTakeover.addEventListener('click', () => setOperationsDeskTab('port'));
-el.operationsTabRoster.addEventListener('click', () => setOperationsDeskTab('roster'));
 
 el.newCampaign.addEventListener('click', newCampaign);
 el.saveCampaign.addEventListener('click', saveCampaignLocal);

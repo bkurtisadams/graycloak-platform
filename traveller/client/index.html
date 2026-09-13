@@ -16,7 +16,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.119.0</div>
+          <div id="app-subtitle" class="subtitle">v0.120.0</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -379,11 +379,12 @@
             <div id="directory-vehicles" class="campaign-directory" aria-label="Vehicles"></div>
         </section>
         <section class="sidebar-panel" id="sidebar-port-panel" data-sidebar-panel="port" hidden>
-      <div id="context-tabs" class="context-tabs" role="tablist" aria-label="Context views">
+      <!-- v0.120.0: TRADE and JOBS are dock flyouts now, and NPCS pointed at
+           the ACTOR ROSTER that already lives in the ACTORS panel — the same
+           roster reached two ways. One tab left is no tab row at all; WORLD is
+           what this panel is. -->
+      <div id="context-tabs" class="context-tabs" role="tablist" aria-label="Context views" hidden>
         <button id="operations-tab-port" class="text-button context-tab" type="button" role="tab" aria-controls="port-services-section" aria-selected="true">WORLD</button>
-        <button id="operations-tab-trade" class="text-button context-tab" type="button" role="tab" aria-controls="commerce-section" aria-selected="false">TRADE</button>
-        <button id="operations-tab-jobs" class="text-button context-tab" type="button" role="tab" aria-controls="contract-section" aria-selected="false">JOBS</button>
-        <button id="operations-tab-roster" class="text-button context-tab" type="button" role="tab" aria-controls="roster-section" aria-selected="false" title="Persistent NPC, creature, and robot roster">NPCS</button>
       </div>
       <div id="context-takeover" class="context-takeover" hidden></div>
             <section id="port-services-section" class="context-panel" hidden aria-labelledby="port-services-heading">
