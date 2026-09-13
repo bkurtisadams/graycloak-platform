@@ -95,6 +95,20 @@ function assertJsonSafe(value, path = '$', seen = new Set()) {
   seen.delete(value);
 }
 
+// A stored document's specifications must match the canonical design exactly,
+// which means a correction to a design record would otherwise stop every saved
+// ship from loading — as Book 2 p.18's CR 32,490,000 replacing a facsimile
+// figure did. Only the economics block is refreshed: price, build time and
+// maintenance are reference data the rules package maintains, whereas hull,
+// drives, computer and the rest define the vessel and a stored copy that
+// disagrees with the design is still rejected as tampering.
+function refreshSpecificationsFromDesign(document) {
+  const design = getStandardShipDesign(document?.design?.key);
+  if (!design || !isPlainObject(document.specifications)) return document;
+  document.specifications.economics = cloneJson(design.economics);
+  return document;
+}
+
 function specsFromDesign(design) {
   return {
     hull: cloneJson(design.hull),
@@ -450,8 +464,9 @@ export function migrateShipDocument(input) {
     throw new ShipDocumentValidationError(`unsupported schemaVersion: ${version}`);
   }
   if (version === CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION) {
-    assertValidShipDocument(input);
-    return cloneJson(input);
+    const refreshed = refreshSpecificationsFromDesign(cloneJson(input));
+    assertValidShipDocument(refreshed);
+    return refreshed;
   }
 
   const next = cloneJson(input);
@@ -492,8 +507,9 @@ export function migrateShipDocument(input) {
   }
 
   if (next.schemaVersion === CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION) {
-    assertValidShipDocument(next);
-    return next;
+    const refreshed = refreshSpecificationsFromDesign(next);
+    assertValidShipDocument(refreshed);
+    return refreshed;
   }
 
   throw new ShipDocumentValidationError(`no migration path for schemaVersion: ${version}`);

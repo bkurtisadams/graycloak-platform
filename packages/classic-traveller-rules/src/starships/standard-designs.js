@@ -63,16 +63,20 @@ export const TYPE_S_SCOUT_COURIER = deepFreeze({
     notes: 'Book 2 general crew rules do not require a separate engineer on ships under 200 tons; the Type S standard-design description assigns engineering duties to its single crew member.'
   },
   economics: {
+    // Book 2 p.18 prints CR 32,490,000, and states on the same page that the
+    // standard-design prices already include the 10% reduction for standard
+    // designs. Nothing here or in operations.js applies that reduction again;
+    // the flag only records that the printed figure has it built in.
     standardDesignDiscountApplied: true,
-    newCostMCr: 29.43,
+    newCostMCr: 32.49,
     buildMonths: 9,
-    annualRoutineMaintenanceCr: 29430
+    annualRoutineMaintenanceCr: 32490
   },
   sources: [
     'Classic Traveller Book 2 p.19 (standard Scout/Courier design)',
     'Classic Traveller Book 2 p.15 (crew requirements)',
     'Classic Traveller Book 2 p.14 (fuel formula)',
-    'Classic Traveller Facsimile Errata p.158 (standard hull and corrected MCr29.43 cost)'
+    'Classic Traveller Book 2 p.18 (base price CR 32,490,000, standard-design reduction already included)'
   ]
 });
 

@@ -19,7 +19,10 @@ import {
   SHIP_CREW_ROLES,
   assignShipCrew,
   releaseShipCrew,
-  shipCrewRole
+  shipCrewRole,
+  shipCashPriceCr,
+  annualMaintenanceCr,
+  shipMortgage
 } from '../index.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -28,7 +31,7 @@ async function hawkeyeV06Document() {
   return readFile(path.join(here, 'fixtures/Hawkeye-v0.6.character.json'), 'utf8');
 }
 
-test('canonical Type S Scout/Courier matches Book 2 p.19 plus facsimile errata', () => {
+test('canonical Type S Scout/Courier matches the 1977 Book 2', () => {
   const ship = TYPE_S_SCOUT_COURIER;
   assert.equal(ship.typeCode, 'S');
   assert.equal(ship.hull.tons, 100);
@@ -51,9 +54,10 @@ test('canonical Type S Scout/Courier matches Book 2 p.19 plus facsimile errata',
   assert.equal(ship.vehicles[0].name, 'Air/Raft');
   assert.equal(ship.crew.standardCount, 1);
   assert.deepEqual(ship.crew.standardDuties, ['pilot', 'engineer']);
-  assert.equal(ship.economics.newCostMCr, 29.43);
+  // Book 2 p.18, 1977 printing.
+  assert.equal(ship.economics.newCostMCr, 32.49);
   assert.equal(ship.economics.buildMonths, 9);
-  assert.equal(ship.economics.annualRoutineMaintenanceCr, 29430);
+  assert.equal(ship.economics.annualRoutineMaintenanceCr, 32490);
 });
 
 test('Hawkeye v0.6 character document migrates duplicate Scout Ship rolls to the Book 1 reserve rule', async () => {
@@ -168,4 +172,32 @@ test('an unknown crew role is refused rather than stored', async () => {
   const ship = createTypeSScoutReserveShipForCharacter(importCharacterDocument(await hawkeyeV06Document())).ship;
   assert.ok(SHIP_CREW_ROLES.includes('steward'));
   assert.throws(() => assignShipCrew(ship, { role: 'sommelier', characterId: 'x' }), /unknown crew role/);
+});
+
+test('the Type S base price is the 1977 printed figure, with no second discount', async () => {
+  const design = TYPE_S_SCOUT_COURIER;
+  // Book 2 p.18: CR 32,490,000, a figure that already includes the 10%
+  // standard-design reduction. Nothing may apply that reduction again.
+  assert.equal(design.economics.newCostMCr, 32.49);
+  const ship = createTypeSScoutReserveShipForCharacter(importCharacterDocument(await hawkeyeV06Document())).ship;
+  assert.equal(shipCashPriceCr(ship), 32490000);
+  // Maintenance and the mortgage both scale off it.
+  assert.equal(annualMaintenanceCr(ship), 32490);
+  assert.equal(shipMortgage(ship).monthlyPaymentCr, Math.round(32490000 / 240));
+  assert.equal(shipMortgage(ship).downPaymentCr, 6498000);
+});
+
+test('a stored ship picks up a corrected design price instead of failing to load', async () => {
+  const hawkeye = importCharacterDocument(await hawkeyeV06Document());
+  const { ship } = createTypeSScoutReserveShipForCharacter(hawkeye);
+  const stale = structuredClone(ship);
+  // A document saved before the Book 2 p.18 correction.
+  stale.specifications.economics.newCostMCr = 29.43;
+  stale.specifications.economics.annualRoutineMaintenanceCr = 29430;
+  const loaded = importShipDocument(stale);
+  assert.equal(loaded.specifications.economics.newCostMCr, 32.49);
+  // Only economics is refreshed; the rest of the specs still reject tampering.
+  const tampered = structuredClone(ship);
+  tampered.specifications.cargo.capacityTons = 99;
+  assert.throws(() => importShipDocument(tampered), /canonical standard design/);
 });
