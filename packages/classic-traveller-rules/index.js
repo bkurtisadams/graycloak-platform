@@ -138,6 +138,7 @@ export {
   ANIMAL_ENCOUNTER_THROW,
   BLANK_ENCOUNTER_COLUMN,
   animalCategoryForThrow,
+  animalCombatantSpecs,
   animalEdibleMeatKg,
   animalSpeed,
   checkForAnimalEncounter,

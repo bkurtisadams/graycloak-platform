@@ -327,3 +327,42 @@ export function animalCategoryForThrow(total) {
   const index = Math.max(2, Math.min(12, total));
   return BLANK_ENCOUNTER_COLUMN[index];
 }
+
+/**
+ * Book 1's combat system wounds three physical characteristics; Book 3 gives
+ * animals a two-part hits formula instead. Graycloak mapping: the first throw
+ * becomes ENDURANCE, so the animal falls unconscious when it has taken that
+ * much, and the second is split across STRENGTH and DEXTERITY, so the sum of
+ * the three is what kills it — which is exactly what Book 3 p.25 describes.
+ * The animal's wound dice ride on its weapon, per the same page.
+ */
+export function animalCombatantSpecs(dice, animal, { namePrefix = null } = {}) {
+  requireDice(dice);
+  if (!animal?.hits) throw new TypeError('animal must carry its Book 3 hits formula');
+  const label = namePrefix ?? `${animal.type.replace(/-/g, ' ')}`;
+  const roll = (count) => Array.from({ length: count }, () => dice.rollD6()).reduce((sum, die) => sum + die, 0);
+  return Array.from({ length: animal.quantity }, (unused, index) => {
+    const unconscious = Math.max(1, roll(animal.hits.unconsciousDice));
+    const further = roll(animal.hits.furtherDice);
+    return Object.freeze({
+      name: animal.quantity === 1 ? label : `${label} ${index + 1}`,
+      characteristics: Object.freeze({
+        END: unconscious,
+        STR: Math.max(1, Math.ceil(further / 2)),
+        DEX: Math.max(1, Math.floor(further / 2)),
+        INT: 2
+      }),
+      // The engine fights with one weapon; a second is carried for the record
+      // and for a referee who wants to switch it mid-fight.
+      weaponKey: animal.weapons[0],
+      alternateWeapons: Object.freeze(animal.weapons.slice(1)),
+      armor: animal.armor,
+      skills: Object.freeze({}),
+      actorType: 'creature',
+      bodyModel: 'biological',
+      tokenLabel: label.charAt(0).toUpperCase(),
+      woundDice: animal.woundDice,
+      woundMultiplier: animal.woundMultiplier
+    });
+  });
+}

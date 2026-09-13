@@ -8,6 +8,7 @@ import {
   ANIMAL_BEHAVIOR,
   BLANK_ENCOUNTER_COLUMN,
   animalCategoryForThrow,
+  animalCombatantSpecs,
   animalEdibleMeatKg,
   checkForAnimalEncounter,
   createSequenceDice,
@@ -124,4 +125,23 @@ test('Book 3 p.26: one third chance of an encounter per check', () => {
   assert.equal(checkForAnimalEncounter(createSequenceDice([4])), false);
   // A guide contributes +2 or better (Book 3 p.28).
   assert.equal(checkForAnimalEncounter(createSequenceDice([3]), { dm: 2 }), true);
+});
+
+test('an animal becomes combatants whose characteristics carry its Book 3 hits', () => {
+  const animal = {
+    type: 'chaser', quantity: 2, weightKg: 400, weapons: ['claws', 'teeth'], armor: 'mesh',
+    hits: { unconsciousDice: 2, furtherDice: 2 }, woundDice: 2, woundMultiplier: 1,
+    behavior: ANIMAL_BEHAVIOR.chaser
+  };
+  // Two per animal for the unconscious throw, two for the further throw.
+  const specs = animalCombatantSpecs(createSequenceDice([3, 3, 2, 2, 4, 4, 3, 3]), animal);
+  assert.equal(specs.length, 2);
+  assert.equal(specs[0].name, 'chaser 1');
+  // Unconscious at 6 taken; dead at 6 + 4 across all three.
+  assert.equal(specs[0].characteristics.END, 6);
+  assert.equal(specs[0].characteristics.STR + specs[0].characteristics.DEX, 4);
+  assert.equal(specs[0].weaponKey, 'claws');
+  assert.deepEqual(specs[0].alternateWeapons, ['teeth']);
+  assert.equal(specs[0].armor, 'mesh');
+  assert.equal(specs[0].actorType, 'creature');
 });
