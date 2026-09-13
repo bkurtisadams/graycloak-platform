@@ -82,7 +82,8 @@ test('unpaid berthing is required before anything else at the port', () => {
   const s = base(); s.berthing.paid = false;
   const model = buildPlayProcedure(s);
   assert.equal(model.groups[0].cards[0].id, 'berthing');
-  assert.equal(model.groups[0].cards[0].action, 'port');
+  // v0.97.1: the card pays the fee instead of opening the port panel.
+  assert.equal(model.groups[0].cards[0].action, 'berthing:pay');
 });
 
 test('chargen context tables follow the phase', () => {
@@ -135,4 +136,53 @@ test('freight and speculative cards carry their numbers', () => {
   s.speculation = { available: true, name: 'RADIOACTIVES', quantity: '3t', purchased: 0, holdFree: 2, pricePerUnitCr: 950000, percentage: 95 };
   assert.match(byId(buildPlayProcedure(s), 'freight').copy, /Cr18,000 on delivery/);
   assert.match(byId(buildPlayProcedure(s), 'spec').copy, /Cr950,000 each \(95% of base\)/);
+});
+
+test('v0.97.1 every trade step acts from the dock instead of opening a panel', () => {
+  const s = base();
+  s.berthing = { due: true, dueCr: 100, paid: false };
+  s.fuel = { currentTons: 10, capacityTons: 40, requiredTons: 20, sufficient: false, canBuy: true, canSkim: true, priceCr: 15000 };
+  s.freight = { offers: 3, fitting: 2, accepted: 0, bestCr: 18000, lots: [
+    { id: 'f1', tons: 12, category: 'Machine parts', revenueCr: 12000 },
+    { id: 'f2', tons: 6, category: 'Textiles', revenueCr: 6000 }
+  ] };
+  s.passengers = { demand: { high: 1, middle: 2, low: 0 }, booked: 0, capacity: 3, blockReason: null, classes: [
+    { passageClass: 'high', available: 1, fareCr: 10000, berths: 2 },
+    { passageClass: 'middle', available: 2, fareCr: 8000, berths: 2 },
+    { passageClass: 'low', available: 0, fareCr: 1000, berths: 4 }
+  ] };
+  s.speculation = { available: true, name: 'RADIOACTIVES', quantity: '3t', purchased: 0, holdFree: 3, pricePerUnitCr: 950000, percentage: 95, buyQuantity: 3, buyCostCr: 2850000 };
+  const model = buildPlayProcedure(s);
+  assert.equal(byId(model, 'berthing').action, 'berthing:pay');
+  assert.equal(byId(model, 'fuel').action, 'fuel:buy');
+  assert.match(byId(model, 'fuel').copy, /Cr15,000/);
+  assert.equal(byId(model, 'freight-f1').action, 'freight:f1');
+  assert.match(byId(model, 'freight-f1').title, /Accept 12t Machine parts/);
+  assert.match(byId(model, 'freight-f2').copy, /Cr6,000 on delivery/);
+  assert.equal(byId(model, 'spec').action, 'spec:3');
+  assert.match(byId(model, 'spec').copy, /Buying 3t costs Cr2,850,000/);
+  // Nothing in the trade cycle sends the player to a panel to find a button.
+  const panelHunts = cards(model).filter((card) => card.action === 'trade' || card.action === 'port');
+  assert.deepEqual(panelHunts, []);
+});
+
+test('a fuel card with no starport pump skims the gas giant instead', () => {
+  const s = base();
+  s.fuel = { currentTons: 10, capacityTons: 40, requiredTons: 20, sufficient: false, canBuy: false, canSkim: true, priceCr: 0 };
+  assert.equal(byId(buildPlayProcedure(s), 'fuel').action, 'fuel:skim');
+});
+
+test('v0.97.1 each waiting passage class is its own card, once cargo has announced the destination', () => {
+  const s = base();
+  s.freight = { offers: 3, fitting: 2, accepted: 1, bestCr: 18000, lots: [] };
+  s.passengers = { demand: { high: 1, middle: 2, low: 0 }, booked: 0, capacity: 3, blockReason: null, classes: [
+    { passageClass: 'high', available: 1, fareCr: 10000, berths: 2 },
+    { passageClass: 'middle', available: 2, fareCr: 8000, berths: 2 },
+    { passageClass: 'low', available: 0, fareCr: 1000, berths: 4 }
+  ] };
+  const model = buildPlayProcedure(s);
+  assert.equal(byId(model, 'passengers-high').action, 'passenger:high');
+  assert.match(byId(model, 'passengers-middle').copy, /2 waiting at Cr8,000 each/);
+  // No low passengers are waiting, so no card offers a berth for them.
+  assert.equal(byId(model, 'passengers-low'), undefined);
 });

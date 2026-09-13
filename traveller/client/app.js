@@ -2285,6 +2285,19 @@ function commerceRouteSnapshot() {
   return { origin, destination, originProfile, destinationProfile, distance, reachable, passengerDemand, freight };
 }
 
+// v0.97.1: what the dock's one-click buy would actually buy — as much of the
+// weekly lot as the free hold and the ship account allow. A partial buy of a
+// specific quantity stays in the TRADE panel.
+function speculativeDockPurchase(offer, systemId, freeHold) {
+  if (!offer || offer.unit !== 'tons' || !shipDocument) return { buyQuantity: 0, buyCostCr: 0 };
+  const remaining = Math.max(0, offer.quantityAvailable - speculativeQuantityPurchased(offer, systemId));
+  const affordable = offer.pricePerUnitCr > 0
+    ? Math.floor((shipDocument.state.finances.balanceCr ?? 0) / offer.pricePerUnitCr)
+    : remaining;
+  const quantity = Math.max(0, Math.min(remaining, Math.floor(freeHold), affordable));
+  return { buyQuantity: quantity, buyCostCr: quantity * offer.pricePerUnitCr };
+}
+
 function weeklySpeculativeOffer() {
   const system = mappedCurrentSystem();
   if (!campaignDocument || !system) return null;
@@ -3188,6 +3201,32 @@ function buyFuelAtCurrentPort() {
       source,
       dateLabel: activityDateLabel()
     });
+    shipDocument = result.ship;
+    persistGameplayDocuments();
+    logActivity('SHIP', `${shipDocument.identity.name || 'Ship'} took on ${result.addedTons}t ${service.quality} fuel at ${system.name} / ${result.costCr ? formatCr(result.costCr) : 'FREE'}`);
+    setStatus(`FUEL PURCHASED: ${result.addedTons}t ${service.quality.toUpperCase()} / ${result.costCr ? formatCr(result.costCr) : 'FREE'}`, 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+// v0.97.1: the dock's fuel card fills the tanks. buyFuelAtCurrentPort() reads
+// a tons field out of the port panel, which is exactly the panel hunt the
+// procedure dock exists to remove; the partial purchase stays in the panel.
+function fillTanksAtCurrentPort() {
+  try {
+    const system = mappedCurrentSystem();
+    if (!system || !shipDocument) throw new Error('active ship at a mapped system is required');
+    const service = currentPortFuelService();
+    if (!service?.available) throw new Error('starport fuel is unavailable here');
+    const capacity = shipDocument.specifications.fuel.capacityTons;
+    const currentFuel = Number.isFinite(shipDocument.state.currentFuelTons) ? shipDocument.state.currentFuelTons : 0;
+    const tons = Math.max(0, capacity - currentFuel);
+    if (tons < 1) throw new Error('fuel tanks are already full');
+    const source = service.freeScoutFuel ? `${system.name} Scout Base` : service.source;
+    const result = purchaseShipFuel(shipDocument, { tons, quality: service.quality, pricePerTonCr: service.pricePerTonCr, source, dateLabel: activityDateLabel() });
     shipDocument = result.ship;
     persistGameplayDocuments();
     logActivity('SHIP', `${shipDocument.identity.name || 'Ship'} took on ${result.addedTons}t ${service.quality} fuel at ${system.name} / ${result.costCr ? formatCr(result.costCr) : 'FREE'}`);
@@ -8430,11 +8469,18 @@ function playProcedureSnapshot() {
     const fittingOffers = remaining.filter((entry) => entry.tons <= freeHold + 1e-9);
     freight = {
       offers: remaining.length, fitting: fittingOffers.length, accepted: acceptedForDestination,
-      bestCr: fittingOffers.reduce((best, entry) => Math.max(best, Number(entry.revenueCr) || 0), 0)
+      bestCr: fittingOffers.reduce((best, entry) => Math.max(best, Number(entry.revenueCr) || 0), 0),
+      lots: fittingOffers.slice(0, 4).map((entry) => ({ id: entry.id, tons: entry.tons, category: entry.category, revenueCr: entry.revenueCr }))
     };
     const booked = ['high', 'middle', 'low'].reduce((sum, cls) => sum + bookedPassengerCount(route, cls), 0);
     const capacity = availablePassengerCapacity(shipDocument, 'middle') + availablePassengerCapacity(shipDocument, 'low');
-    passengers = { demand: route.passengerDemand, booked, capacity, blockReason: passengerRouteBlockReason(selected.id) };
+    const classes = ['high', 'middle', 'low'].map((passageClass) => ({
+      passageClass,
+      available: Math.max(0, (route.passengerDemand[passageClass] ?? 0) - bookedPassengerCount(route, passageClass)),
+      fareCr: PASSAGE_FARES_CR[passageClass],
+      berths: availablePassengerCapacity(shipDocument, passageClass)
+    }));
+    passengers = { demand: route.passengerDemand, booked, capacity, blockReason: passengerRouteBlockReason(selected.id), classes };
   }
   const offer = weeklySpeculativeOffer();
   const speculation = offer ? {
@@ -8444,7 +8490,8 @@ function playProcedureSnapshot() {
     purchased: offer.unit === 'tons' ? speculativeQuantityPurchased(offer, current.id) : 0,
     holdFree: freeHold,
     pricePerUnitCr: offer.pricePerUnitCr,
-    percentage: offer.percentage
+    percentage: offer.percentage,
+    ...speculativeDockPurchase(offer, current.id, freeHold)
   } : null;
   // Book 2 p.46 resale. Every speculative lot aboard, quoted against this
   // world, so the procedure dock can name the money instead of sending the
@@ -8499,7 +8546,10 @@ function playProcedureSnapshot() {
       requiredTons: fuelCheck?.requirement?.totalTons ?? null,
       sufficient: fuelCheck ? fuelCheck.allowed : null,
       canBuy: Boolean(fuelService?.available),
-      canSkim: Boolean(current.gasGiant && shipDocument.specifications.hull.streamlined)
+      canSkim: Boolean(current.gasGiant && shipDocument.specifications.hull.streamlined),
+      priceCr: fuelService?.available
+        ? (fuelService.pricePerTonCr ?? 0) * Math.max(0, shipDocument.specifications.fuel.capacityTons - (shipDocument.state.currentFuelTons ?? 0))
+        : 0
     } : null,
     freight,
     passengers,
@@ -8518,7 +8568,13 @@ function playProcedureAction(action) {
   // v0.97.0: a sale card sells from the dock. The card already states the net,
   // the percentage and the DMs, so routing the player to the TRADE panel to
   // read the same quote again was the click this dock exists to remove.
-  if (String(action).startsWith('sale:')) { sellSpeculativeLot(String(action).slice(5)); return; }
+  const [intent, argument] = String(action).split(':');
+  if (intent === 'sale') { sellSpeculativeLot(argument); return; }
+  if (intent === 'freight') { acceptFreightOffer(argument); return; }
+  if (intent === 'passenger') { bookRoutePassenger(argument); return; }
+  if (intent === 'spec') { buySpeculativeQuantity(Number(argument)); return; }
+  if (intent === 'berthing') { payBerthingAtCurrentPort(); return; }
+  if (intent === 'fuel') { if (argument === 'skim') skimCurrentGasGiant(); else fillTanksAtCurrentPort(); return; }
   if (action === 'nav') { el.subsectorMap?.scrollIntoView({ block: 'nearest' }); return; }
   if (action === 'port') { setOperationsDeskTab('port'); return; }
   if (action === 'trade') { setOperationsDeskTab('trade'); return; }

@@ -825,8 +825,10 @@ function card(id, title, tag, copy, { action = null, tone = null } = {}) {
  *   s.encounterActive, s.situationActive {title} | null
  *   s.berthing {due:boolean, dueCr:number, paid:boolean} | null
  *   s.fuel {currentTons, capacityTons, requiredTons|null, sufficient|null, canBuy, canSkim}
- *   s.freight {offers:number, fitting:number, accepted:number} | null
- *   s.passengers {demand:{high,middle,low}, booked:number, capacity:number, blockReason|null} | null
+ *   s.freight {offers:number, fitting:number, accepted:number, bestCr:number,
+ *     lots:[{id, tons, category, revenueCr}]} | null
+ *   s.passengers {demand:{high,middle,low}, booked:number, capacity:number, blockReason|null,
+ *     classes:[{passageClass, available:number, fareCr:number, berths:number}]} | null
  *   s.speculation {available:boolean, name, quantity, purchased:number, holdFree:number,
  *     pricePerUnitCr:number, percentage:number} | null
  *   s.sales {lots:[{id, tons, description, netCr, percentage, dm, sellable:boolean,
@@ -855,7 +857,7 @@ export function buildPlayProcedure(s = {}) {
     attention.push(card('situation', s.situationActive.title || 'Situation requires a decision', PLAY_PROCEDURE_TAGS.required, s.situationActive.copy || 'Choose a response before continuing the port call.', { action: 'situation' }));
   }
   if (s.berthing?.due && !s.berthing.paid) {
-    attention.push(card('berthing', `Pay berthing at ${s.currentSystem.name}`, PLAY_PROCEDURE_TAGS.required, `Cr${s.berthing.dueCr.toLocaleString('en-US')} covers six days at the starport (Book 2 p.8).`, { action: 'port' }));
+    attention.push(card('berthing', `Pay berthing at ${s.currentSystem.name}`, PLAY_PROCEDURE_TAGS.required, `Cr${s.berthing.dueCr.toLocaleString('en-US')} covers six days at the starport (Book 2 p.8).`, { action: 'berthing:pay' }));
   } else if (s.berthing?.paid) {
     done.push(card('berthing-done', 'Berthed', PLAY_PROCEDURE_TAGS.done, `Cr${s.berthing.dueCr.toLocaleString('en-US')} paid.`));
   }
@@ -867,7 +869,7 @@ export function buildPlayProcedure(s = {}) {
   for (const lot of s.sales?.lots ?? []) {
     const title = `Sell ${lot.tons}t ${lot.description}`;
     if (!lot.sellable) {
-      opportunities.push(card(`sale-${lot.id}`, title, PLAY_PROCEDURE_TAGS.blocked, lot.blockReason || 'Not saleable here.', { action: 'trade' }));
+      opportunities.push(card(`sale-${lot.id}`, title, PLAY_PROCEDURE_TAGS.blocked, lot.blockReason || 'Not saleable here.'));
       continue;
     }
     const owed = lot.brokerCommissionCr ? ` Declining owes Cr${lot.brokerCommissionCr.toLocaleString('en-US')} (Book 2 p.48).` : '';
@@ -882,9 +884,10 @@ export function buildPlayProcedure(s = {}) {
     const { currentTons, capacityTons, requiredTons, sufficient, canBuy, canSkim } = s.fuel;
     if (s.destination?.reachable && sufficient === false) {
       const how = canBuy ? 'Buy fuel at the starport' : canSkim ? 'Skim the gas giant (+7 days)' : 'No fuel source here';
-      attention.push(card('fuel', `Refuel for ${s.destination.name}`, canBuy || canSkim ? PLAY_PROCEDURE_TAGS.required : PLAY_PROCEDURE_TAGS.blocked, `${currentTons}/${capacityTons}t aboard; the jump needs ${requiredTons}t. ${how}.`, { action: 'port' }));
+      const fuelAction = canBuy ? 'fuel:buy' : canSkim ? 'fuel:skim' : 'port';
+      attention.push(card('fuel', `Refuel for ${s.destination.name}`, canBuy || canSkim ? PLAY_PROCEDURE_TAGS.required : PLAY_PROCEDURE_TAGS.blocked, `${currentTons}/${capacityTons}t aboard; the jump needs ${requiredTons}t. ${how}${canBuy && s.fuel.priceCr ? ` for Cr${s.fuel.priceCr.toLocaleString('en-US')}` : ''}.`, { action: fuelAction }));
     } else if (currentTons < capacityTons && (canBuy || canSkim)) {
-      opportunities.push(card('fuel-top', 'Top off fuel', PLAY_PROCEDURE_TAGS.optional, `${currentTons}/${capacityTons}t aboard. ${canBuy ? 'Starport fuel available.' : 'Gas giant skim available.'}`, { action: 'port' }));
+      opportunities.push(card('fuel-top', 'Top off fuel', PLAY_PROCEDURE_TAGS.optional, `${currentTons}/${capacityTons}t aboard. ${canBuy ? `Starport fuel${s.fuel.priceCr ? ` Cr${s.fuel.priceCr.toLocaleString('en-US')}` : ''}.` : 'Gas giant skim available.'}`, { action: canBuy ? 'fuel:buy' : 'fuel:skim' }));
     } else {
       done.push(card('fuel-done', 'Refuel', PLAY_PROCEDURE_TAGS.done, `${currentTons}/${capacityTons}t aboard${currentTons >= capacityTons ? ' · tanks full' : ' · nothing to buy here'}.`));
     }
@@ -900,9 +903,20 @@ export function buildPlayProcedure(s = {}) {
       if (s.freight.accepted > 0) {
         done.push(card('freight-done', `Cargo accepted for ${s.destination.name}`, PLAY_PROCEDURE_TAGS.done, `${s.freight.accepted} lot${s.freight.accepted === 1 ? '' : 's'} aboard · destination announced.`));
       } else if (s.freight.fitting > 0) {
-        attention.push(card('freight', `Accept cargo for ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready, `${s.freight.fitting} of ${s.freight.offers} lots fit the hold${s.freight.bestCr ? `, up to Cr${s.freight.bestCr.toLocaleString('en-US')} on delivery` : ''} at Cr${(1000).toLocaleString('en-US')}/ton. Accepting cargo announces the destination (Book 2 p.8).`, { action: 'trade' }));
+        // Book 2 p.8: each lot is its own decision, so each gets its own card.
+        // Naming the lot and its delivery revenue is what makes the choice
+        // obvious; a single card reading "accept cargo" made the player go
+        // looking for the list.
+        for (const lot of s.freight.lots ?? []) {
+          attention.push(card(`freight-${lot.id}`, `Accept ${lot.tons}t ${lot.category} for ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready,
+            `Cr${lot.revenueCr.toLocaleString('en-US')} on delivery at Cr${(1000).toLocaleString('en-US')}/ton. Accepting cargo announces the destination (Book 2 p.8).`,
+            { action: `freight:${lot.id}` }));
+        }
+        if (!(s.freight.lots ?? []).length) {
+          attention.push(card('freight', `Accept cargo for ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready, `${s.freight.fitting} of ${s.freight.offers} lots fit the hold${s.freight.bestCr ? `, up to Cr${s.freight.bestCr.toLocaleString('en-US')} on delivery` : ''} at Cr${(1000).toLocaleString('en-US')}/ton.`, { action: 'trade' }));
+        }
       } else {
-        opportunities.push(card('freight-none', `No cargo fits for ${s.destination.name}`, PLAY_PROCEDURE_TAGS.optional, s.freight.offers ? `${s.freight.offers} lots offered, none fit the free hold.` : 'No lots offered this week.', { action: 'trade' }));
+        opportunities.push(card('freight-none', `No cargo fits for ${s.destination.name}`, PLAY_PROCEDURE_TAGS.optional, s.freight.offers ? `${s.freight.offers} lots offered, none fit the free hold.` : 'No lots offered this week.'));
       }
     }
     if (s.passengers) {
@@ -911,11 +925,19 @@ export function buildPlayProcedure(s = {}) {
       // ship simply declares it, so passengers are not held hostage to an empty board.
       const announced = !s.freight || s.freight.accepted > 0 || s.freight.fitting === 0;
       if (s.passengers.blockReason) {
-        readyAfter.push(card('passengers', `Passengers to ${s.destination.name}`, PLAY_PROCEDURE_TAGS.blocked, s.passengers.blockReason, { action: 'trade' }));
+        readyAfter.push(card('passengers', `Passengers to ${s.destination.name}`, PLAY_PROCEDURE_TAGS.blocked, s.passengers.blockReason));
       } else if (!announced && s.passengers.booked === 0) {
-        readyAfter.push(card('passengers', `Passengers to ${s.destination.name}`, PLAY_PROCEDURE_TAGS.blocked, `Book 2 p.8: passengers present themselves after cargo is accepted for the destination. Demand H${s.passengers.demand.high} M${s.passengers.demand.middle} L${s.passengers.demand.low}.`, { action: 'trade' }));
+        readyAfter.push(card('passengers', `Passengers to ${s.destination.name}`, PLAY_PROCEDURE_TAGS.blocked, `Book 2 p.8: passengers present themselves after cargo is accepted for the destination. Demand H${s.passengers.demand.high} M${s.passengers.demand.middle} L${s.passengers.demand.low}.`));
       } else if (demandTotal > s.passengers.booked && s.passengers.capacity > 0) {
-        attention.push(card('passengers', `Book passengers to ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready, `Demand H${s.passengers.demand.high} M${s.passengers.demand.middle} L${s.passengers.demand.low} · ${s.passengers.booked} booked · ${s.passengers.capacity} berths free.`, { action: 'trade' }));
+        const classes = (s.passengers.classes ?? []).filter((entry) => entry.available > 0 && entry.berths > 0);
+        for (const entry of classes) {
+          attention.push(card(`passengers-${entry.passageClass}`, `Book ${entry.passageClass} passage to ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready,
+            `${entry.available} waiting at Cr${entry.fareCr.toLocaleString('en-US')} each · ${entry.berths} berth${entry.berths === 1 ? '' : 's'} free (Book 2 p.8).`,
+            { action: `passenger:${entry.passageClass}` }));
+        }
+        if (!classes.length) {
+          attention.push(card('passengers', `Book passengers to ${s.destination.name}`, PLAY_PROCEDURE_TAGS.ready, `Demand H${s.passengers.demand.high} M${s.passengers.demand.middle} L${s.passengers.demand.low} · ${s.passengers.booked} booked · ${s.passengers.capacity} berths free.`, { action: 'trade' }));
+        }
       } else {
         done.push(card('passengers-done', 'Passengers', PLAY_PROCEDURE_TAGS.done, `${s.passengers.booked} booked · ${s.passengers.capacity} berths free.`));
       }
@@ -932,7 +954,7 @@ export function buildPlayProcedure(s = {}) {
     if (s.speculation.purchased > 0) {
       done.push(card('spec-done', 'Speculative lot', PLAY_PROCEDURE_TAGS.done, `${s.speculation.purchased} bought from this week's lot (${s.speculation.name}).`));
     } else if (s.speculation.available) {
-      opportunities.push(card('spec', 'Speculative lot', s.speculation.holdFree > 0 ? PLAY_PROCEDURE_TAGS.ready : PLAY_PROCEDURE_TAGS.blocked, `This week: ${s.speculation.quantity} ${s.speculation.name}${s.speculation.pricePerUnitCr ? ` at Cr${s.speculation.pricePerUnitCr.toLocaleString('en-US')} each (${s.speculation.percentage}% of base)` : ''}. One lot per week (Book 2 p.46). Hold ${s.speculation.holdFree}t free.`, { action: 'trade' }));
+      opportunities.push(card('spec', 'Speculative lot', s.speculation.holdFree > 0 ? PLAY_PROCEDURE_TAGS.ready : PLAY_PROCEDURE_TAGS.blocked, `This week: ${s.speculation.quantity} ${s.speculation.name}${s.speculation.pricePerUnitCr ? ` at Cr${s.speculation.pricePerUnitCr.toLocaleString('en-US')} each (${s.speculation.percentage}% of base)` : ''}. One lot per week (Book 2 p.46). Hold ${s.speculation.holdFree}t free.${s.speculation.buyQuantity ? ` Buying ${s.speculation.buyQuantity}t costs Cr${s.speculation.buyCostCr.toLocaleString('en-US')}.` : ''}`, { action: s.speculation.buyQuantity ? `spec:${s.speculation.buyQuantity}` : 'trade' }));
     }
   }
   if (s.jobs) {
