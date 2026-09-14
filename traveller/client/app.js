@@ -92,6 +92,7 @@ import {
   MISSILE_PRICE_CR,
   SAND_CANISTER_PRICE_CR,
   ABBREVIATED_SAND_DM_PER_CANISTER,
+  PRESSURE_SECTIONS,
   createShipDocument,
   importShipDocument,
   shipCrewRole,
@@ -498,6 +499,13 @@ const el = {
   assignCrewButton: document.querySelector('#assign-crew'),
   liveShipArmament: document.querySelector('#live-ship-armament'),
   fitArmamentButton: document.querySelector('#fit-armament'),
+  shipCombatSetupDialog: document.querySelector('#ship-combat-setup-dialog'),
+  setupIntruder: document.querySelector('#setup-intruder'),
+  setupIntruderNote: document.querySelector('#setup-intruder-note'),
+  setupPressure: document.querySelector('#setup-pressure'),
+  setupPressureNote: document.querySelector('#setup-pressure-note'),
+  setupEngageConfirm: document.querySelector('#setup-engage-confirm'),
+  setupCancel: document.querySelector('#setup-cancel'),
   armamentDialog: document.querySelector('#armament-dialog'),
   armamentTurret: document.querySelector('#armament-turret'),
   armamentWeapon: document.querySelector('#armament-weapon'),
@@ -8427,7 +8435,7 @@ function renderPortServices() {
   if (pendingShipEncounter && !shipCombatEncounter) {
     el.portActions.append(makePortButton(
       `ENGAGE / ${pendingShipEncounter.encounter.label.toUpperCase()}`,
-      engagePendingShipEncounter
+      openShipCombatSetup
     ));
   }
 
@@ -9298,11 +9306,72 @@ function playerShipSkills() {
   };
 }
 
+// Book 2 p.35 regulates engineering, hold, bridge, staterooms and turrets
+// individually. Put the crew where their post is, so a hull breach has people
+// in it — setup passed no occupants at all, which made the whole decompression
+// rule unreachable.
+function playerShipOccupants() {
+  const sections = { bridge: [], engineering: [], turrets: [], staterooms: [], hold: [] };
+  const sectionForRole = { pilot: 'bridge', navigator: 'bridge', engineer: 'engineering', gunner: 'turrets' };
+  const seen = new Set();
+  for (const entry of shipDocument.crew.assignments) {
+    if (seen.has(entry.characterId)) continue;
+    seen.add(entry.characterId);
+    const section = sectionForRole[String(entry.role).toLowerCase()] ?? 'staterooms';
+    const person = (campaignDocument?.characters ?? []).find((c) => c.identity.id === entry.characterId)
+      ?? npcActorDocuments.find((c) => c.identity.id === entry.characterId);
+    sections[section].push({
+      actorId: entry.characterId,
+      name: entry.characterName || entry.characterId,
+      // A depressurised ship's crew are already in suits (p.35); on a
+      // pressurised one they have to get one on, and Book 2 gives the throw
+      // vacc suit expertise and dexterity as DMs.
+      vaccSuitAvailable: true,
+      vaccSuitSkill: person?.skills?.['Vacc Suit'] ?? 0,
+      dexterity: person?.characteristics?.DEX ?? 0
+    });
+  }
+  // Passengers are in their staterooms and have no vacc suit of their own.
+  for (const passenger of shipDocument.state.passengerManifest) {
+    sections.staterooms.push({
+      actorId: passenger.id ?? `passenger-${sections.staterooms.length}`,
+      name: `${String(passenger.class).toUpperCase()} passenger`,
+      vaccSuitAvailable: false
+    });
+  }
+  return sections;
+}
+
+function openShipCombatSetup() {
+  if (!shipDocument || !pendingShipEncounter || !el.shipCombatSetupDialog) return;
+  const { encounter } = pendingShipEncounter;
+  // Book 2 p.22 names the sides "for convenience" and never says which is
+  // which. The initiator is the intruder and goes first in every game turn,
+  // which matters because p.29 makes damage immediate — so the proposal is
+  // visible and the referee can override it.
+  el.setupIntruder.replaceChildren(...[
+    { value: 'them', label: `${encounter.label.toUpperCase()} (INITIATED)` },
+    { value: 'us', label: `${(shipDocument.identity.name || 'YOUR SHIP').toUpperCase()}` }
+  ].map((option) => Object.assign(document.createElement('option'), { value: option.value, textContent: option.label })));
+  el.setupIntruder.value = encounter.hostileByDefault ? 'them' : 'us';
+  el.setupIntruderNote.textContent = encounter.hostileByDefault
+    ? 'A pirate is intruding on an otherwise peaceful ship, whoever arrived first. The intruder acts first in every game turn, and damage is immediate (Book 2 p.29).'
+    : 'No clear initiator here, so this is your call. The intruder acts first in every game turn.';
+
+  el.setupPressure.value = 'depressurised';
+  const crew = shipDocument.crew.assignments.length;
+  el.setupPressureNote.textContent = `Book 2 p.35: ships depressurise before combat whenever possible, and a depressurised section takes a hull hit harmlessly. Caught pressurised, a hull hit vents the interior and everyone aboard throws 9+ to get a suit on. ${crew} crew aboard.`;
+  el.shipCombatSetupDialog.showModal();
+}
+
 function engagePendingShipEncounter() {
   try {
     if (!shipDocument) throw new Error('no active ship');
     if (!pendingShipEncounter) throw new Error('no ship encounter to engage');
     const { encounter } = pendingShipEncounter;
+    // The referee's answers, or the proposal if the dialog was bypassed.
+    const theyIntrude = el.setupIntruder ? el.setupIntruder.value === 'them' : Boolean(encounter.hostileByDefault);
+    const pressurised = el.setupPressure?.value === 'pressurised';
     const designKey = opposingShipDesignKey(encounter);
     // The ship document's authority block is built around Book 1's scout
     // reserve assignment: it requires an assigned character who appears in the
@@ -9349,15 +9418,15 @@ function engagePendingShipEncounter() {
       // Book 2 p.22 never says which side is which. The initiator is the
       // intruder, so a hostile ship is proposed as the intruder and the
       // referee can say otherwise.
-      intruderSide: encounter.hostileByDefault ? 'intruder' : 'native',
-      intruderAssignmentNote: encounter.hostileByDefault
+      intruderSide: 'intruder',
+      intruderAssignmentNote: theyIntrude
         ? `${encounter.label} initiated the encounter`
-        : 'No clear initiator; referee assigned',
+        : 'Referee assigned the intruder turn to the player ship',
       participants: [
         {
           shipId: 'player',
           name: shipDocument.identity.name || 'SHIP',
-          side: encounter.hostileByDefault ? 'native' : 'intruder',
+          side: theyIntrude ? 'native' : 'intruder',
           ship: shipDocument,
           carriedPrograms: mine.carried,
           loadedPrograms: mine.loaded,
@@ -9367,13 +9436,16 @@ function engagePendingShipEncounter() {
           // Maneuver/Evade program resolved to a DM of zero. Book 2 p.30 and
           // p.31 hang the whole program layer off these numbers.
           skills: playerShipSkills(),
-          // Book 2 p.35: ships depressurise before combat whenever possible.
-          pressurisedSections: []
+          // Book 2 p.35: ships depressurise before combat whenever possible —
+          // but a ship caught unprepared has not, and then a hull hit vents
+          // the interior with the crew in it.
+          pressurisedSections: pressurised ? [...PRESSURE_SECTIONS] : [],
+          occupants: pressurised ? playerShipOccupants() : {}
         },
         {
           shipId: 'opponent',
           name: encounter.label,
-          side: encounter.hostileByDefault ? 'intruder' : 'native',
+          side: theyIntrude ? 'intruder' : 'native',
           ship: opponent,
           carriedPrograms: theirs.carried,
           loadedPrograms: theirs.loaded,
@@ -9384,8 +9456,9 @@ function engagePendingShipEncounter() {
     shipCombatAllocation = {};
     pendingShipEncounter = null;
     persistShipCombat();
+    el.shipCombatSetupDialog?.close();
     setOperationsDeskTab('encounter');
-    logActivity('COMBAT', `Ship combat engaged: ${shipCombatEncounter.participants.map((entry) => entry.name).join(' vs ')}`);
+    logActivity('COMBAT', `Ship combat engaged: ${shipCombatEncounter.participants.map((entry) => entry.name).join(' vs ')} / intruder ${theyIntrude ? encounter.label : (shipDocument.identity.name || 'your ship')}${pressurised ? ' / caught pressurised' : ''}`);
     setStatus('SHIP COMBAT ENGAGED / GAME TURN 1 / INTRUDER MOVEMENT', 'ok');
     render();
   } catch (error) {
@@ -11789,6 +11862,8 @@ el.crewAssignConfirm?.addEventListener('click', confirmCrewAssignment);
 el.crewCancel?.addEventListener('click', () => el.crewDialog.close());
 el.worldViewCurrent?.addEventListener('click', () => setWorldStripView('current'));
 el.worldViewSelected?.addEventListener('click', () => setWorldStripView('selected'));
+el.setupEngageConfirm?.addEventListener('click', engagePendingShipEncounter);
+el.setupCancel?.addEventListener('click', () => el.shipCombatSetupDialog.close());
 el.fitArmamentButton?.addEventListener('click', openArmamentDialog);
 el.armamentFitConfirm?.addEventListener('click', confirmFitWeapon);
 el.armamentOrdnanceConfirm?.addEventListener('click', confirmBuyOrdnance);
