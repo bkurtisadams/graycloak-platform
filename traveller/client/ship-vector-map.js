@@ -1,24 +1,47 @@
-import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.150.0';
+import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.151.0';
 const NS = 'http://www.w3.org/2000/svg';
 const node = (name, attrs = {}, text = '') => { const n = document.createElementNS(NS, name); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); n.textContent = text; return n; };
 let selected = null, encounterId = null;
+// v0.151.0: the plot's own camera. The subsector map's zoom controls drive
+// setSubsectorZoom, which touches the subsector SVG and nothing else, and they
+// live inside #subsector-section, which is hidden whenever the plot is up — so
+// the plot could neither be zoomed nor reached by them. It fits its content to
+// a fixed 800x430 box, which is the right default and no use at all when two
+// ships close to within a fraction of an inch of each other.
+//
+// Zoom is expressed as a viewBox over that same box rather than as a change to
+// the fit scale, so every coordinate the drawing code computes is unchanged and
+// getScreenCTM() keeps click-to-plot correct at any magnification.
+const VIEW_W = 800, VIEW_H = 430, ZOOM_MIN = 0.5, ZOOM_MAX = 8, ZOOM_STEP = 1.25, WHEEL_STEP = 1.15;
+const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
+let view = { zoom: 1, cx: VIEW_W / 2, cy: VIEW_H / 2 };
+const resetView = () => { view = { zoom: 1, cx: VIEW_W / 2, cy: VIEW_H / 2 }; };
 export function renderShipVectorMap(stage, encounter, { commit, setup }) {
   if (!stage) return;
   let panel = stage.querySelector('#ship-vector-workspace');
   if (!encounter || encounter.spatialMode !== 'vector') { panel?.remove(); return; }
   if (!panel) { panel = document.createElement('section'); panel.id = 'ship-vector-workspace'; stage.append(panel); }
-  if (encounterId !== encounter.id) { encounterId = encounter.id; selected = encounter.participants[0].id; }
+  if (encounterId !== encounter.id) { encounterId = encounter.id; selected = encounter.participants[0].id; resetView(); }
   panel.replaceChildren();
   const heading = document.createElement('div'); heading.className = 'vector-controls';
   const title = document.createElement('strong'); title.textContent = `SPACE / TURN ${encounter.gameTurn} / ${encounter.phasingSide.toUpperCase()}`;
   const select = document.createElement('select'); select.setAttribute('aria-label', 'Selected ship');
   encounter.participants.forEach(p => select.add(new Option(p.name, p.id)));
   select.value = selected; select.onchange = () => { selected = select.value; renderShipVectorMap(stage, encounter, { commit, setup }); };
-  heading.append(title, select); panel.append(heading);
+  const zoomButton = (text, label, handler) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'text-button map-zoom-button'; b.textContent = text; b.setAttribute('aria-label', label); b.onclick = handler; return b; };
+  const zoomLabel = document.createElement('span'); zoomLabel.className = 'map-zoom-label'; zoomLabel.setAttribute('aria-live', 'polite'); zoomLabel.textContent = '100%';
+  const zoomTools = document.createElement('span'); zoomTools.className = 'vector-zoom-tools'; zoomTools.setAttribute('aria-label', 'Vector plot zoom controls');
+  zoomTools.append(
+    zoomButton('[ \u2212 ]', 'Zoom out', () => zoomTo(view.zoom / ZOOM_STEP)),
+    zoomLabel,
+    zoomButton('[ + ]', 'Zoom in', () => zoomTo(view.zoom * ZOOM_STEP)),
+    zoomButton('[ FIT ]', 'Fit the whole plot', () => { resetView(); applyView(); })
+  );
+  heading.append(title, select, zoomTools); panel.append(heading);
   const tools = document.createElement('div'); tools.className = 'vector-controls';
   const field = (name, value) => { const label = document.createElement('label'); label.textContent = name + ' '; const input = document.createElement('input'); input.type = 'number'; input.value = value; input.step = '0.1'; label.append(input); tools.append(label); return input; };
   const ax = field('Thrust X (G)', '0'), ay = field('Thrust Y (G)', '0');
-  const button = document.createElement('button'); button.textContent = 'COMMIT MANEUVER'; tools.append(button); panel.append(tools);
+  const button = document.createElement('button'); button.id = 'vector-commit'; button.textContent = 'COMMIT MANEUVER'; tools.append(button); panel.append(tools);
   const p = encounter.participants.find(p => p.id === selected);
   button.disabled = encounter.outcome !== 'in-progress' || encounter.phaseIndex !== 0 || p.side !== encounter.phasingSide || encounter.spatial.ships[selected].movedTurn === encounter.gameTurn || p.escaped || p.surrendered;
   if (encounter.gameTurn === 1 && encounter.phaseIndex === 0 && !encounter.log.length && setup) {
@@ -35,14 +58,54 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
     settings.append(apply);panel.append(settings);
   }
   const svg = node('svg', { role:'img', 'aria-label':'Ship positions, velocity and acceleration vectors', viewBox:'0 0 800 430', preserveAspectRatio:'xMidYMid meet' }); svg.classList.add('ship-vector-svg'); panel.append(svg);
-  const status = document.createElement('div'); status.className='vector-controls'; status.setAttribute('aria-live','polite'); panel.append(status);
+  const toView = (clientX, clientY) => { const ctm = svg.getScreenCTM(); if (!ctm) return null; const point = svg.createSVGPoint(); point.x = clientX; point.y = clientY; return point.matrixTransform(ctm.inverse()); };
+  function applyView() {
+    const w = VIEW_W / view.zoom, h = VIEW_H / view.zoom;
+    view.cx = clamp(view.cx, 0, VIEW_W);
+    view.cy = clamp(view.cy, 0, VIEW_H);
+    svg.setAttribute('viewBox', `${view.cx - w / 2} ${view.cy - h / 2} ${w} ${h}`);
+    zoomLabel.textContent = `${Math.round(view.zoom * 100)}%`;
+  }
+  // Zooming about the pointer rather than the centre: at 800% the thing you are
+  // looking at is what you want to keep, not the middle of the box.
+  function zoomTo(next, anchor = null) {
+    const zoom = clamp(next, ZOOM_MIN, ZOOM_MAX);
+    if (anchor) {
+      view.cx = anchor.x - (anchor.x - view.cx) * (view.zoom / zoom);
+      view.cy = anchor.y - (anchor.y - view.cy) * (view.zoom / zoom);
+    }
+    view.zoom = zoom;
+    applyView();
+  }
+  svg.addEventListener('wheel', (e) => { e.preventDefault(); zoomTo(view.zoom * (e.deltaY < 0 ? WHEEL_STEP : 1 / WHEEL_STEP), toView(e.clientX, e.clientY)); }, { passive: false });
+  // Right-drag and middle-drag pan, matching the stage's own panning. Neither
+  // raises a click event, so plotting an endpoint with the left button is
+  // untouched and needs no drag threshold.
+  let panFrom = null;
+  svg.addEventListener('contextmenu', (e) => e.preventDefault());
+  svg.addEventListener('pointerdown', (e) => { if (e.button !== 1 && e.button !== 2) return; panFrom = { x: e.clientX, y: e.clientY }; svg.setPointerCapture(e.pointerId); e.preventDefault(); });
+  svg.addEventListener('pointermove', (e) => {
+    if (!panFrom) return;
+    const from = toView(panFrom.x, panFrom.y), to = toView(e.clientX, e.clientY);
+    if (!from || !to) return;
+    view.cx -= to.x - from.x;
+    view.cy -= to.y - from.y;
+    panFrom = { x: e.clientX, y: e.clientY };
+    applyView();
+  });
+  const endPan = (e) => { if (!panFrom) return; panFrom = null; if (svg.hasPointerCapture?.(e.pointerId)) svg.releasePointerCapture(e.pointerId); };
+  svg.addEventListener('pointerup', endPan);
+  svg.addEventListener('pointercancel', endPan);
+  applyView();
+  const status = document.createElement('div'); status.id='vector-status'; status.className='vector-controls'; status.setAttribute('aria-live','polite'); panel.append(status);
   const note = document.createElement('p');
   // v0.139.0: gravity is drawn now. Book 2 p.29 samples the band at the
   // MIDPOINT of the course, which is why the midpoint is marked — a ship can
   // end a turn deep in a well and still take no gravity, or the reverse.
-  note.textContent = encounter.spatial.planet
+  const CAMERA_NOTE = ' Wheel or [ + ] / [ \u2212 ] to zoom, right-drag or middle-drag to pan, [ FIT ] for the whole plot.';
+  note.textContent = (encounter.spatial.planet
     ? 'Coordinates in thousands of miles; turn = 10 minutes. Solid line: velocity. Dashed line: proposed movement. The shaded disc is the world and the rings are its quarter-G bands (Book 2 p.27). The cross marks the course midpoint, which is where gravity is sampled (p.29). Vector ordnance is not available.'
-    : 'Clear space: coordinates in thousands of miles; turn = 10 minutes. Solid line: velocity. Dashed line: proposed movement. ADVANCE coasts ships not yet committed. No world is placed, so no gravity applies. Vector ordnance is not available.';
+    : 'Clear space: coordinates in thousands of miles; turn = 10 minutes. Solid line: velocity. Dashed line: proposed movement. ADVANCE coasts ships not yet committed. No world is placed, so no gravity applies. Vector ordnance is not available.') + CAMERA_NOTE;
   panel.append(note);
   let transform;
   function draw() {

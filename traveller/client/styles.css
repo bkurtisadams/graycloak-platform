@@ -4528,3 +4528,11 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .ship-combat-note { margin: 6px 0; }
 .ship-combat-note summary { cursor: pointer; font-size: 10px; letter-spacing: .08em; color: var(--muted); }
 .ship-combat-note p { margin: 6px 0 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
+
+/* v0.151.0: the vector plot's own zoom controls, at the right of its heading
+   row where the subsector map's are. The map's [ − ] [ + ] [ FIT ] drive
+   setSubsectorZoom and live inside #subsector-section, which is hidden
+   whenever the plot is on the stage, so the plot needs its own. */
+.ship-vector-stage .vector-zoom-tools { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.ship-vector-stage .vector-zoom-tools .map-zoom-button { font-size: 12px; }
+.ship-vector-stage .vector-zoom-tools .map-zoom-label { font-weight: 700; }
