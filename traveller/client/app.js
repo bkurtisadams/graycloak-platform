@@ -137,7 +137,7 @@ import {
   SHIPS_LOCKER_DEFAULT_WEAPON,
   elapsedMinutes as shipCombatElapsedMinutes,
   COMPUTER_PROGRAMS
-} from '../vendor/classic-traveller-rules/index.js';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.146.0';
 
 import {
   ACTION_LABELS,
@@ -163,25 +163,25 @@ import {
   helpForTopic,
   nobleTitleLabel,
   serviceName
-} from './ui-model.js';
+} from './ui-model.js?v=v0.146.0';
 
 import {
   TRAVELLER_DOCUMENT_KINDS,
   loadTravellerDocument
-} from './document-loader.js';
+} from './document-loader.js?v=v0.146.0';
 
-import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js';
-import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js';
-import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js';
+import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.146.0';
+import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.146.0';
+import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.146.0';
 import { directoryFolders, removeEncounterFromCampaign
-} from '../src/campaign-document.js';
-import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js';
+} from '../src/campaign-document.js?v=v0.146.0';
+import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.146.0';
 import {
   clampWindowGeometry, dragWindowGeometry, resizeWindowGeometry, loadWindowGeometry, saveWindowGeometry,
   createDocumentWindowState, openDocumentWindow, closeDocumentWindow, toggleMinimizeDocumentWindow, moveDocumentWindow
-} from '../src/document-window.js';
-import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js';
-import { inspectElement, formatInspection } from '../src/ui-debug.js';
+} from '../src/document-window.js?v=v0.146.0';
+import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.146.0';
+import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.146.0';
 
 import {
   SHEET_CHARACTERISTICS as HEADER_CHARACTERISTICS,
@@ -190,13 +190,13 @@ import {
   renderChargenSheet as renderChargenSheetView,
   renderChargenActions,
   renderChargenTables as renderChargenTablesView
-} from './chargen-view.js';
+} from './chargen-view.js?v=v0.146.0';
 
 import {
   generateCharacterName,
   generateShipName,
   generateShipRegistry
-} from './generators.js';
+} from './generators.js?v=v0.146.0';
 
 import {
   SUBSECTOR_SVG_GEOMETRY,
@@ -207,7 +207,7 @@ import {
   splitSystemName,
   subsectorHexCenter,
   subsectorSvgViewBox
-} from './subsector-svg.js';
+} from './subsector-svg.js?v=v0.146.0';
 
 import {
   seededDice,
@@ -216,7 +216,7 @@ import {
   routeMarketSeed,
   weeklyTradeSeed,
   saleQuoteSeed
-} from './commerce-market.js';
+} from './commerce-market.js?v=v0.146.0';
 
 import {
   addCharacterToCampaign,
@@ -246,7 +246,7 @@ import {
   speculativeLotPurchasedQuantity,
   recordSpeculativeLotPurchase,
   addSceneToCampaign, removeSceneFromCampaign, setActiveCampaignScene
-} from '../src/campaign-document.js';
+} from '../src/campaign-document.js?v=v0.146.0';
 
 import {
   NPC_CONDITIONS,
@@ -255,16 +255,16 @@ import {
   importNpcActorDocument,
   activeNpcActorConditions,
   setNpcActorCondition,
-  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js';
-import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js';
-import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js';
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js';
-import { openSignInDialog } from './signin-ui.js';
-import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js';
-import { authorizePlayerDeclaration } from '../src/player-declaration.js';
-import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js';
-import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js';
-import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js';
+  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.146.0';
+import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.146.0';
+import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.146.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.146.0';
+import { openSignInDialog } from './signin-ui.js?v=v0.146.0';
+import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.146.0';
+import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.146.0';
+import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.146.0';
+import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.146.0';
+import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.146.0';
 import {
   ACTIVITY_VISIBILITY,
   createActivityLogDocument,
@@ -272,14 +272,14 @@ import {
   clearActivityLogDocument,
   importActivityLogDocument,
   visibleActivityLogEntries
-} from '../src/activity-log-document.js';
+} from '../src/activity-log-document.js?v=v0.146.0';
 
 import {
   PLAYER_ROLES,
   createPlayerSession,
   createPlayerSessionStore,
   setPlayerViewedCharacter
-} from '../src/player-session.js';
+} from '../src/player-session.js?v=v0.146.0';
 
 import {
   QUICK_SLOT_LIMIT,
@@ -287,19 +287,19 @@ import {
   defaultQuickSlots,
   normalizeQuickSlots,
   resolveQuickSlots
-} from './quick-slots.js';
+} from './quick-slots.js?v=v0.146.0';
 
 import {
   exportCampaignBundle
-} from '../src/campaign-bundle.js';
+} from '../src/campaign-bundle.js?v=v0.146.0';
 
 import {
   createDocumentRegistry
-} from '../src/document-registry.js';
+} from '../src/document-registry.js?v=v0.146.0';
 
 import {
   createActivityLogStore
-} from '../src/activity-log.js';
+} from '../src/activity-log.js?v=v0.146.0';
 
 import {
   CONTRACT_DOCUMENT_TYPE,
@@ -309,14 +309,14 @@ import {
   importContractDocument,
   isContractOverdue,
   reconcileContractDeadlines
-} from '../src/contract-document.js';
+} from '../src/contract-document.js?v=v0.146.0';
 
 import {
   SITUATION_DOCUMENT_TYPE,
   createSituationDocument,
   importSituationDocument,
   resolveSituationDocument
-} from '../src/situation-document.js';
+} from '../src/situation-document.js?v=v0.146.0';
 
 import {
   createEncounterDocument,
@@ -344,37 +344,37 @@ import {
   declaredTargetCounts,
   addEncounterCombatantFromActor,
   removeEncounterCombatant,
-  setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant, addEncounterCombatantFromCharacter, beginEncounter, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js';
+  setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant, addEncounterCombatantFromCharacter, beginEncounter, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.146.0';
 
 import {
   createContactDocument,
   importContactDocument,
   touchContactDocument
-} from '../src/contact-document.js';
+} from '../src/contact-document.js?v=v0.146.0';
 
 import {
   importAdventureThreadDocument,
   linkAdventureThreadDocument
-} from '../src/adventure-thread-document.js';
+} from '../src/adventure-thread-document.js?v=v0.146.0';
 
 import {
   arrivalSituationEventKey,
   patronSituationEventKey,
   generateArrivalSituationOffer,
   buildPatronSituationOffer
-} from '../world/situation-events.js';
+} from '../world/situation-events.js?v=v0.146.0';
 
 import {
   generateContractBoard
-} from '../world/contract-board.js';
+} from '../world/contract-board.js?v=v0.146.0';
 
 import {
   applySituationThreadConsequences
-} from '../world/thread-consequences.js';
+} from '../world/thread-consequences.js?v=v0.146.0';
 
 import {
   FAR_MERIDIAN_SUBSECTOR
-} from '../world/far-meridian-subsector.js';
+} from '../world/far-meridian-subsector.js?v=v0.146.0';
 
 const el = {
   status: document.querySelector('#system-status'),

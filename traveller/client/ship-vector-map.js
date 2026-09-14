@@ -1,4 +1,4 @@
-import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js';
+import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.146.0';
 const NS = 'http://www.w3.org/2000/svg';
 const node = (name, attrs = {}, text = '') => { const n = document.createElementNS(NS, name); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); n.textContent = text; return n; };
 let selected = null, encounterId = null;

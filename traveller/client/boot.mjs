@@ -16,7 +16,23 @@
 // before any code runs — so the rules module is imported dynamically first,
 // and app.js only after it resolves.
 
-const RULES = '../vendor/classic-traveller-rules/index.js';
+// v0.146.0: every module the browser fetches carries the client version.
+//
+// Nothing was stamped. index.html loaded boot.mjs unstamped, boot.mjs imported
+// the vendored rules index unstamped, and app.js imported its siblings
+// unstamped — so a browser could hold any of them indefinitely while the rest
+// updated around it. That produced two separate hunts: a cached ui-model.js in
+// v0.128.0, and a cached vendor index that survived a full re-extract and
+// several syncs while the file on disk was correct the whole time.
+//
+// The panel added in v0.145.0 could not tell those apart, because from inside
+// the browser a cached module and a stale file look identical. Stamping is the
+// only fix that removes the question.
+//
+// This constant is rewritten by the version bump alongside the mastheads.
+export const CLIENT_VERSION = 'v0.146.0';
+
+const RULES = `../vendor/classic-traveller-rules/index.js?v=${CLIENT_VERSION}`;
 
 // v0.145.0: the error names the module as well as the symbol, and the two are
 // different faults. A missing export from a CLIENT module is a stale browser
@@ -25,7 +41,8 @@ const RULES = '../vendor/classic-traveller-rules/index.js';
 // ui-model.js and again with the rules package, so the panel now reads the
 // specifier out of the message and says which fault it is.
 function describe(message) {
-  const specifier = /module '([^']+)'/.exec(message)?.[1] ?? '';
+  // The specifier now carries ?v=, so compare the path without the query.
+  const specifier = (/module '([^']+)'/.exec(message)?.[1] ?? '').split('?')[0];
   const symbol = /export named '([^']+)'/.exec(message)?.[1] ?? '';
   if (!specifier.includes('/vendor/')) {
     return {
@@ -88,7 +105,7 @@ function fail(detail) {
 
 try {
   await import(RULES);
-  await import('./app.js');
+  await import(`./app.js?v=${CLIENT_VERSION}`);
 } catch (error) {
   const message = String(error?.message ?? error);
   // A missing export is the stale-vendor signature. Anything else is a real
