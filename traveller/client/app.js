@@ -2625,19 +2625,27 @@ function renderShip() {
   applyCampaignLayout();
 }
 
-function persistGameplayDocuments() {
+// v0.124.0: one registry write for the whole pass. Each registry.put() parses
+// and reserializes the entire registry, so putting a document at a time made
+// this quadratic in the registry's size — 394ms for 100 documents where one
+// batched write is a few. It is called after almost every action, including
+// dropping a token, which is where the pause on release came from.
+function persistGameplayDocuments({ alsoCampaign = false } = {}) {
   if (!registry) return;
-  for (const partyCharacter of currentPartyCharacters()) registry.put(partyCharacter);
-  if (shipDocument) registry.put(shipDocument);
-  for (const contract of contractDocuments) registry.put(contract);
-  for (const situation of situationDocuments) registry.put(situation);
-  for (const encounter of encounterDocuments) registry.put(encounter);
-  for (const contact of contactDocuments) registry.put(contact);
-  for (const thread of threadDocuments) registry.put(thread);
-  for (const actor of npcActorDocuments) registry.put(actor);
-  for (const asset of mediaAssetDocuments) registry.put(asset);
-  for (const scene of sceneDocuments) registry.put(scene);
-  if (activityLogDocument) registry.put(activityLogDocument);
+  registry.putAll([
+    ...currentPartyCharacters(),
+    ...(shipDocument ? [shipDocument] : []),
+    ...contractDocuments,
+    ...situationDocuments,
+    ...encounterDocuments,
+    ...contactDocuments,
+    ...threadDocuments,
+    ...npcActorDocuments,
+    ...mediaAssetDocuments,
+    ...sceneDocuments,
+    ...(activityLogDocument ? [activityLogDocument] : []),
+    ...(alsoCampaign && campaignDocument ? [campaignDocument] : [])
+  ]);
 }
 
 function syncCampaignRefs() {
@@ -2659,8 +2667,9 @@ function syncCampaignRefs() {
 
 function persistCampaignState() {
   syncCampaignRefs();
-  persistGameplayDocuments();
-  if (registry && campaignDocument) registry.put(campaignDocument);
+  // The campaign document rides in the same batch, so the whole persist is one
+  // registry write rather than one per document plus one more.
+  persistGameplayDocuments({ alsoCampaign: true });
   markAutosaved();
   scheduleCampaignHomeSave();
 }

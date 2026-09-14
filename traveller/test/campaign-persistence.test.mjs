@@ -413,3 +413,76 @@ test('v0.50.0 lists actors and vehicles with the account that plays each', async
   assert.equal(campaignIsPublished(published), true);
   assert.equal(campaignIsPublished(importCampaignDocument(JSON.parse(exportCampaignDocument(published)))), true);
 });
+
+// ---------------------------------------------------------------------------
+// v0.124.0: batched registry writes
+//
+// Every put() parses and reserializes the whole registry, so a document at a
+// time made a persist pass quadratic in the registry's size. putAll does the
+// round-trip once.
+// ---------------------------------------------------------------------------
+
+async function batchShip(id) {
+  const raw = JSON.parse(await readFile(path.join(examples, 'Hawkeye.ship.json'), 'utf8'));
+  raw.identity.id = id;
+  raw.identity.name = id;
+  return importShipDocument(raw);
+}
+
+test('putAll writes many documents in one pass and they all read back', async () => {
+  const storage = createMemoryStorage();
+  const registry = createDocumentRegistry({ storage });
+  const ships = await Promise.all(['batch-a', 'batch-b', 'batch-c'].map(batchShip));
+
+  const written = registry.putAll(ships);
+  assert.equal(written.length, 3);
+  for (const ship of ships) {
+    assert.equal(registry.get(ship.identity.id)?.identity.id, ship.identity.id);
+  }
+});
+
+test('putAll validates every document before writing any of them', async () => {
+  const storage = createMemoryStorage();
+  const registry = createDocumentRegistry({ storage });
+  const good = await batchShip('batch-good');
+
+  // A bad document anywhere in the batch leaves the registry untouched, rather
+  // than half applied.
+  assert.throws(() => registry.putAll([good, { documentType: 'nonsense' }]), /unsupported registry documentType/);
+  assert.equal(registry.get('batch-good'), null);
+
+  // And one that has no id is refused the same way.
+  const idless = JSON.parse(JSON.stringify(good));
+  delete idless.identity.id;
+  assert.throws(() => registry.putAll([idless]));
+});
+
+test('put is putAll of one, so there is a single write path', async () => {
+  const storage = createMemoryStorage();
+  const registry = createDocumentRegistry({ storage });
+  const ship = await batchShip('batch-single');
+  const written = registry.put(ship);
+  assert.equal(written.identity.id, 'batch-single');
+  assert.equal(registry.get('batch-single').identity.id, 'batch-single');
+  assert.deepEqual(registry.putAll([]), []);
+  assert.throws(() => registry.putAll(ship), /takes an array/);
+});
+
+test('a batched write costs far less than a document at a time', async () => {
+  const storage = createMemoryStorage();
+  const registry = createDocumentRegistry({ storage });
+  const ships = await Promise.all(Array.from({ length: 60 }, (_, index) => batchShip(`perf-${index}`)));
+  registry.putAll(ships);
+
+  let start = performance.now();
+  for (const ship of ships) registry.put(ship);
+  const oneAtATime = performance.now() - start;
+
+  start = performance.now();
+  registry.putAll(ships);
+  const batched = performance.now() - start;
+
+  // Measured around 9x at this size; asserted loosely so the test is about the
+  // shape of the cost rather than the speed of the machine running it.
+  assert.ok(batched * 3 < oneAtATime, `batched ${batched.toFixed(1)}ms vs ${oneAtATime.toFixed(1)}ms one at a time`);
+});
