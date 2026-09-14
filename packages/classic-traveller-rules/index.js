@@ -232,6 +232,18 @@ export {
 } from './src/starships/planetary-gravity.js';
 
 export {
+  READY_CAPACITY,
+  createLauncherState,
+  validateLauncherState,
+  advanceLauncherClock,
+  startLauncherReload,
+  assertTurretCanFire,
+  fireLauncher,
+  setTurretOperational,
+  totalsAboard
+} from './src/starships/launcher-ammunition.js';
+
+export {
   placeVectorOrdnance,
   validateOrdnanceRuling,
   previewVectorOrdnance,
@@ -284,6 +296,8 @@ export {
   resolveLaserFire,
   returnFireEligibility,
   launchOrdnance,
+  reloadLauncher,
+  launcherStatus,
   moveOrdnance,
   ordnanceInFlight,
   resolveAntiMissileFire,

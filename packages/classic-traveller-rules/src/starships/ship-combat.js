@@ -39,6 +39,16 @@ import {
 import { applyShipHit, applyMissileDetonation, assertValidShipDocument } from './ship-document.js';
 import { createPersonalCombatant, PERSONAL_COMBAT_RANGES } from '../combat/personal-combat.js';
 import {
+  READY_CAPACITY,
+  createLauncherState,
+  advanceLauncherClock,
+  startLauncherReload,
+  assertTurretCanFire,
+  fireLauncher,
+  setTurretOperational as setAmmunitionTurretOperational,
+  totalsAboard
+} from './launcher-ammunition.js';
+import {
   placeVectorOrdnance,
   validateOrdnanceRuling,
   moveVectorOrdnance,
@@ -320,6 +330,35 @@ export function checkShipComputer(encounter, participant, dice) {
 // Encounter construction
 // ---------------------------------------------------------------------------
 
+/**
+ * Fill each rack to Book 2 p.31's three ready rounds out of the ship's
+ * magazine, in turret order, without exceeding what is aboard. Anything the
+ * caller states explicitly wins.
+ */
+function defaultReadyRacks(ship, stated = {}) {
+  const remaining = {
+    missiles: ship.state.armament.missiles,
+    sandCanisters: ship.state.armament.sandCanisters
+  };
+  const ready = {};
+  for (const turret of ship.state.armament.turrets) {
+    for (const [index, weapon] of turret.weapons.entries()) {
+      const pool = weapon === 'missile-launcher' ? 'missiles' : weapon === 'sandcaster' ? 'sandCanisters' : null;
+      if (!pool) continue;
+      const id = `${turret.id}:${index + 1}`;
+      if (Object.hasOwn(stated, id)) {
+        ready[id] = stated[id];
+        remaining[pool] -= stated[id];
+        continue;
+      }
+      const loaded = Math.max(0, Math.min(READY_CAPACITY, remaining[pool]));
+      ready[id] = loaded;
+      remaining[pool] -= loaded;
+    }
+  }
+  return ready;
+}
+
 function createParticipant({
   shipId,
   name = '',
@@ -331,7 +370,8 @@ function createParticipant({
   stations = {},
   skills = {},
   pressurisedSections = [...PRESSURE_SECTIONS],
-  occupants = {}
+  occupants = {},
+  readyByLauncher = {}
 } = {}) {
   if (!SHIP_COMBAT_SIDES.includes(side)) throw new RangeError(`unknown side: ${side}`);
   assertValidShipDocument(ship);
@@ -369,6 +409,26 @@ function createParticipant({
     // Once per weapon, per phase — so what has already been spent this phase
     // has to be recorded, or the same turret fires as often as it is allocated.
     spentThisPhase: { weapons: [], launchers: 0, sandcasters: 0, antiMissile: false, computer: null },
+    // Book 2 p.31: three ready rounds per launcher, reloaded by the turret's
+    // gunner in one turn, and "a gunner engaged in reloading is unable to fire
+    // other weaponry in the turret".
+    //
+    // A sidecar rather than a field inside ship.state.armament, whose schema
+    // validates exact keys and would reject it. The ship's totals stay the
+    // total aboard; this splits them into ready, reserve and being loaded.
+    ammunition: createLauncherState({
+      armament: ship.state.armament,
+      ownerSide: side,
+      gunners: { ...(stations.gunners ?? {}) },
+      // The ported module starts every rack empty unless told otherwise, to
+      // avoid inventing ammunition. Overridden here on purpose: Book 2 p.31
+      // calls three rounds per launcher "in immediate position", so a ship
+      // that comes to a fight has its racks loaded out of its magazine. A
+      // caller may still state the loadout — an ambushed ship with empty racks
+      // is a legitimate starting condition.
+      readyByLauncher: defaultReadyRacks(ship, readyByLauncher),
+      disabledTurretIds: [...(ship.state.damage?.turrets ?? [])]
+    }),
     wasFiredAtBy: [],
     expenditure: { missiles: 0, sandCanisters: 0 },
     casualties: [],
@@ -427,6 +487,30 @@ export function createShipCombatEncounter({
     participants: built,
     outcome: 'in-progress',
     log: []
+  };
+}
+
+/**
+ * The launcher whose reload is occupying this turret's gunner, or null. A
+ * gunner reloading in one turret cannot fire in another either — Book 2 p.17
+ * lets one person hold two posts, so the same gunner can be assigned twice.
+ */
+function reloadBlockingTurret(participant, turretId) {
+  const ammunition = participant.ammunition;
+  if (!ammunition) return null;
+  const turret = ammunition.turrets.find((entry) => entry.id === turretId);
+  const busy = ammunition.launchers.find((launcher) => launcher.reload
+    && (launcher.turretId === turretId
+      || (turret?.gunnerId && launcher.reload.gunnerId === turret.gunnerId)));
+  return busy ? busy.id : null;
+}
+
+/** The ammunition module's clock reads the phase this way. */
+function ammunitionContext(encounter) {
+  return {
+    gameTurn: encounter.gameTurn,
+    phasingSide: encounter.phasingSide,
+    phase: SHIP_COMBAT_PHASES[encounter.phaseIndex].key
   };
 }
 
@@ -495,7 +579,7 @@ export function advanceShipCombatPhase(encounter) {
 
   if (next.phaseIndex < SHIP_COMBAT_PHASES.length - 1) {
     next.phaseIndex += 1;
-    return next;
+    return advanceAmmunitionClocks(next);
   }
 
   next.phaseIndex = 0;
@@ -506,7 +590,7 @@ export function advanceShipCombatPhase(encounter) {
   }
   if (next.phasingSide === 'intruder') {
     next.phasingSide = 'native';
-    return next;
+    return advanceAmmunitionClocks(next);
   }
   // Game turn interphase.
   next.phasingSide = 'intruder';
@@ -518,7 +602,29 @@ export function advanceShipCombatPhase(encounter) {
     kind: 'interphase',
     description: `Game turn ${encounter.gameTurn} ends (${GAME_TURN_MINUTES} minutes elapsed)`
   });
-  return next;
+  return advanceAmmunitionClocks(next);
+}
+
+/**
+ * Book 2 p.31's reload takes one turn, so the ammunition clock has to move with
+ * the phase for BOTH sides — a native reload completes at the next native
+ * movement, not when the game turn number changes. Completion at the same tick
+ * is idempotent, so advancing twice cannot reload twice.
+ */
+function advanceAmmunitionClocks(encounter) {
+  const context = ammunitionContext(encounter);
+  for (const participant of encounter.participants) {
+    if (!participant.ammunition) continue;
+    const before = participant.ammunition.log.length;
+    participant.ammunition = advanceLauncherClock(participant.ammunition, context);
+    for (const entry of participant.ammunition.log.slice(before)) {
+      encounter.log.push({
+        gameTurn: encounter.gameTurn, phasingSide: encounter.phasingSide,
+        phase: context.phase, shipId: participant.id, ...entry
+      });
+    }
+  }
+  return encounter;
 }
 
 export function elapsedMinutes(encounter) {
@@ -851,6 +957,25 @@ export function resolveLaserFire(encounter, dice, { rangeDM = null } = {}) {
 
     // p.29: the throw is made once for each firing laser weapon — once per
     // phase, so a turret already fired this phase has nothing left to fire.
+    // Book 2 p.31: "A gunner engaged in reloading is unable to fire other
+    // weaponry in the turret." That covers return fire and anti-missile fire,
+    // since both are turret weapons.
+    //
+    // Deliberately narrower than the ported module's own guard, which also
+    // refuses to let ANY turret fire without an assigned gunner. Book 2 p.17
+    // says the opposite: "in many cases, especially where trouble is not
+    // expected, the gunner position will be omitted." An unmanned turret fires
+    // — it just gets nothing from Gunner Interact. The gunner requirement
+    // belongs to reloading, which p.31 gives to "the turret's gunner".
+    const reloading = reloadBlockingTurret(attacker, entry.turretId);
+    if (reloading) {
+      shots.push(Object.freeze({
+        shipId: entry.shipId, turretId: entry.turretId, targetId: entry.targetId,
+        fired: false, reason: `gunner is reloading ${reloading}`
+      }));
+      continue;
+    }
+
     const alreadySpent = attacker.spentThisPhase.weapons.includes(entry.turretId);
     if (alreadySpent) {
       shots.push(Object.freeze({
@@ -1031,7 +1156,7 @@ export function returnFireEligibility(participant) {
  * Book 2 p.30: missiles or sand may be launched "provided both launch and
  * target programs are running", one round per rack or sandcaster.
  */
-export function launchOrdnance(encounter, { shipId, missiles = 0, sandCanisters = 0, targetId = null, vectorRuling = null } = {}) {
+export function launchOrdnance(encounter, { shipId, missiles = 0, sandCanisters = 0, targetId = null, vectorRuling = null, launcherIds = [] } = {}) {
   const phase = currentPhase(encounter);
   if (phase.key !== 'ordnance-launch') throw new Error(`ordnance cannot be launched in the ${phase.label} phase`);
   const next = freeze(encounter);
@@ -1042,6 +1167,10 @@ export function launchOrdnance(encounter, { shipId, missiles = 0, sandCanisters 
   if (missiles > participant.ship.state.armament.missiles) throw new RangeError('not enough missiles aboard');
   if (sandCanisters > participant.ship.state.armament.sandCanisters) throw new RangeError('not enough sand aboard');
 
+  // Book 2 p.31: ready rounds are per launcher, three at a time. `launcherIds`
+  // names the racks firing; without it the racks are taken in order, which is
+  // what the older count-based callers expect.
+  //
   // Book 2 p.30: "only one missile or sand canister may be launched from a
   // launch rack or sandcaster" in the phase. So the limit is the number of
   // working launchers, not the number of rounds in the magazine — and a turret
@@ -1068,8 +1197,30 @@ export function launchOrdnance(encounter, { shipId, missiles = 0, sandCanisters 
     if (target.side === participant.side) throw new Error('a missile cannot be committed to its own side');
   }
 
-  participant.ship.state.armament.missiles -= missiles;
-  participant.ship.state.armament.sandCanisters -= sandCanisters;
+  // Book 2 p.31 ready rounds: spend them from the named racks, then reconcile
+  // the ship's totals from the sidecar rather than deducting twice.
+  if (participant.ammunition) {
+    const context = ammunitionContext(next);
+    const pick = (pool, count, named) => {
+      const chosen = named.filter((id) => participant.ammunition.launchers.some((l) => l.id === id && l.pool === pool));
+      const rest = participant.ammunition.launchers
+        .filter((l) => l.pool === pool && l.ready > 0 && !chosen.includes(l.id))
+        .map((l) => l.id);
+      return [...chosen, ...rest].slice(0, count);
+    };
+    for (const id of pick('missiles', missiles, launcherIds)) {
+      participant.ammunition = fireLauncher(participant.ammunition, context, id);
+    }
+    for (const id of pick('sandCanisters', sandCanisters, launcherIds)) {
+      participant.ammunition = fireLauncher(participant.ammunition, context, id);
+    }
+    const totals = totalsAboard(participant.ammunition);
+    participant.ship.state.armament.missiles = totals.missiles;
+    participant.ship.state.armament.sandCanisters = totals.sandCanisters;
+  } else {
+    participant.ship.state.armament.missiles -= missiles;
+    participant.ship.state.armament.sandCanisters -= sandCanisters;
+  }
   participant.expenditure.missiles += missiles;
   participant.expenditure.sandCanisters += sandCanisters;
   participant.sandDeployed += sandCanisters;
@@ -1282,6 +1433,41 @@ export function detonateContactedOrdnance(encounter, dice) {
 
   next = applyDisabledOutcomes(next);
   return Object.freeze({ encounter: next, detonations: Object.freeze(detonations) });
+}
+
+/**
+ * Book 2 p.31: "When a launcher's missiles or canisters are exhausted, it may
+ * be reloaded by the turret's gunner in one turn. Reloading three launchers
+ * would take three turns."
+ *
+ * Launcher ids are the turret id plus a one-based slot: T-1:1, T-1:2.
+ */
+export function reloadLauncher(encounter, { shipId, launcherId } = {}) {
+  const next = freeze(encounter);
+  next.log = encounter.log.map((entry) => ({ ...entry }));
+  const participant = getParticipant(next, shipId);
+  participant.ammunition = startLauncherReload(participant.ammunition, ammunitionContext(next), launcherId);
+  logEvent(next, { kind: 'reload-started', shipId, launcherId });
+  return next;
+}
+
+/**
+ * What each launcher holds ready, and what is being loaded. Book 2 p.31's nine
+ * rounds in a triple turret are three per rack, not a pool of nine.
+ */
+export function launcherStatus(participant) {
+  return Object.freeze({
+    launchers: Object.freeze(participant.ammunition.launchers.map((launcher) => Object.freeze({
+      id: launcher.id,
+      turretId: launcher.turretId,
+      pool: launcher.pool,
+      ready: launcher.ready,
+      reloading: Boolean(launcher.reload),
+      reloadRounds: launcher.reload?.rounds ?? 0
+    }))),
+    reserve: Object.freeze({ ...participant.ammunition.reserve }),
+    totals: totalsAboard(participant.ammunition)
+  });
 }
 
 // ---------------------------------------------------------------------------

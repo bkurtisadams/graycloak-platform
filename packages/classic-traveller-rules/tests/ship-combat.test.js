@@ -32,6 +32,8 @@ import {
   resolveLaserFire,
   returnFireEligibility,
   launchOrdnance,
+  reloadLauncher,
+  launcherStatus,
   moveOrdnance,
   ordnanceInFlight,
   resolveAntiMissileFire,
@@ -1230,4 +1232,145 @@ test('the referee can force a boarding the rules would refuse', async () => {
   assert.throws(() => prepareBoardingAction(encounter, {
     boarderShipId: 'pirate', defenderShipId: 'pirate', boarders: PARTY, refereeOverride: true
   }), /cannot board its own side/);
+});
+
+// ---------------------------------------------------------------------------
+// Book 2 p.31: ready ammunition per launcher, and the reload lock
+// ---------------------------------------------------------------------------
+
+async function rackedCruiser() {
+  // A triple turret of missile racks: Book 2 p.31's "a triple turret with three
+  // missile launchers has a total of 9 missiles in immediate position".
+  let ship = createShipDocument({
+    designKey: 'type-c-cruiser', id: 'racked', name: 'Racked',
+    authority: {
+      assignmentType: 'private-owner', controllingAuthority: 'Racked', legalTitleHolder: 'Captain',
+      legalTitleSourceStatus: 'test', characterOwnsShip: true, assignedCharacterId: 'npc-cap',
+      assignedCharacterName: 'Captain', recallable: false, saleAllowed: true, useAsDesired: true,
+      possessionAtServicePleasure: false,
+      servicePrivileges: { freeFuelAtScoutBases: false, freeMaintenanceAtScoutBasesAtClassBStarports: false },
+      operatorResponsibilities: { upkeep: true, crewCosts: true }
+    },
+    crewAssignments: [{ role: 'pilot', characterId: 'npc-cap', characterName: 'Captain' }]
+  });
+  ship = creditShipAccount(ship, 50000000, { kind: 'capital', description: 'Fitting-out fund' });
+  for (const weapon of ['missile-launcher', 'missile-launcher', 'beam-laser']) {
+    ship = armShipTurret(ship, { turretId: 'T-1', weapon, pricePerWeaponCr: 0 }).ship;
+  }
+  return purchaseOrdnance(ship, { missiles: 8 }).ship;
+}
+
+function rackedEncounter(ship, { gunner = 'npc-gunner' } = {}) {
+  const programs = ['target', 'launch'];
+  return createShipCombatEncounter({
+    id: 'racks', intruderSide: 'intruder',
+    participants: [
+      { shipId: 'a', side: 'intruder', ship, carriedPrograms: programs, loadedPrograms: programs,
+        stations: { pilot: 'npc-cap', gunners: { 'T-1': gunner } }, pressurisedSections: [] },
+      { shipId: 'b', side: 'native', ship, carriedPrograms: programs, loadedPrograms: programs, pressurisedSections: [] }
+    ]
+  });
+}
+
+test('Book 2 p.31: three ready rounds per rack, loaded from the magazine', async () => {
+  const encounter = rackedEncounter(await rackedCruiser());
+  const status = launcherStatus(getParticipant(encounter, 'a'));
+  // Two racks, three ready each, and the rest in stores out of eight aboard.
+  assert.deepEqual(status.launchers.map((entry) => [entry.id, entry.ready]), [['T-1:1', 3], ['T-1:2', 3]]);
+  assert.equal(status.reserve.missiles, 2);
+  // Loading moves rounds; only firing spends them, so the total is unchanged.
+  assert.equal(status.totals.missiles, 8);
+});
+
+test('Book 2 p.31: a rack runs dry and has to be reloaded', async () => {
+  let encounter = rackedEncounter(await rackedCruiser());
+  // Fire one rack dry over three ordnance phases.
+  for (let shot = 0; shot < 3; shot += 1) {
+    while (currentPhase(encounter).key !== 'ordnance-launch' || encounter.phasingSide !== 'intruder') {
+      encounter = advanceShipCombatPhase(encounter);
+    }
+    encounter = launchOrdnance(encounter, { shipId: 'a', missiles: 1, targetId: 'b', launcherIds: ['T-1:1'] });
+    encounter = advanceShipCombatPhase(encounter);
+  }
+  let status = launcherStatus(getParticipant(encounter, 'a'));
+  assert.equal(status.launchers.find((entry) => entry.id === 'T-1:1').ready, 0);
+  assert.equal(status.totals.missiles, 5);
+
+  // Reload is declared in the ship's own movement phase.
+  while (currentPhase(encounter).key !== 'movement' || encounter.phasingSide !== 'intruder') {
+    encounter = advanceShipCombatPhase(encounter);
+  }
+  encounter = reloadLauncher(encounter, { shipId: 'a', launcherId: 'T-1:1' });
+  status = launcherStatus(getParticipant(encounter, 'a'));
+  assert.equal(status.launchers.find((entry) => entry.id === 'T-1:1').reloading, true);
+  // Two rounds left in stores, so a partial fill — which still takes a turn.
+  assert.equal(status.launchers.find((entry) => entry.id === 'T-1:1').reloadRounds, 2);
+  assert.equal(status.reserve.missiles, 0);
+  // Nothing has been spent by loading.
+  assert.equal(status.totals.missiles, 5);
+
+  // "it may be reloaded by the turret's gunner in one turn" — one game turn,
+  // so ten phases on from the declaration, back at the ship's own movement.
+  encounter = advanceShipCombatPhase(encounter);
+  while (currentPhase(encounter).key !== 'movement' || encounter.phasingSide !== 'intruder') {
+    encounter = advanceShipCombatPhase(encounter);
+  }
+  // The declaration and the completion are one game turn apart, whichever turn
+  // the firing happened to leave us on.
+  const started = encounter.log.find((entry) => entry.kind === 'reload-started');
+  const finished = encounter.log.find((entry) => entry.kind === 'reload-completed');
+  assert.ok(started && finished, 'both reload events are logged');
+  status = launcherStatus(getParticipant(encounter, 'a'));
+  assert.equal(status.launchers.find((entry) => entry.id === 'T-1:1').ready, 2);
+  assert.equal(status.launchers.find((entry) => entry.id === 'T-1:1').reloading, false);
+  assert.equal(status.totals.missiles, 5);
+});
+
+test('Book 2 p.31: a reloading gunner cannot fire the turret, lasers included', async () => {
+  let encounter = rackedEncounter(await rackedCruiser());
+  // Empty the first rack so it can be reloaded at all.
+  for (let shot = 0; shot < 3; shot += 1) {
+    while (currentPhase(encounter).key !== 'ordnance-launch' || encounter.phasingSide !== 'intruder') {
+      encounter = advanceShipCombatPhase(encounter);
+    }
+    encounter = launchOrdnance(encounter, { shipId: 'a', missiles: 1, targetId: 'b', launcherIds: ['T-1:1'] });
+    encounter = advanceShipCombatPhase(encounter);
+  }
+  while (currentPhase(encounter).key !== 'movement' || encounter.phasingSide !== 'intruder') {
+    encounter = advanceShipCombatPhase(encounter);
+  }
+  encounter = reloadLauncher(encounter, { shipId: 'a', launcherId: 'T-1:1' });
+
+  // "A gunner engaged in reloading is unable to fire other weaponry in the
+  // turret" — and the beam laser in T-1 is other weaponry in the turret.
+  encounter = advanceShipCombatPhase(encounter);
+  assert.equal(currentPhase(encounter).key, 'laser-fire');
+  encounter = allocateLaserFire(encounter, [{ shipId: 'a', turretId: 'T-1', targetId: 'b' }]);
+  const blocked = resolveLaserFire(encounter, createSequenceDice([6, 6, 6, 6]));
+  assert.equal(blocked.shots.every((shot) => !shot.fired), true);
+  assert.match(blocked.shots[0].reason, /gunner is reloading T-1:1/);
+});
+
+test('Book 2 p.17: an unmanned turret still fires, it just gets no Gunner Interact', async () => {
+  // The ported module refused any turret action without an assigned gunner.
+  // p.17: "in many cases, especially where trouble is not expected, the gunner
+  // position will be omitted."
+  const encounter = rackedEncounter(await rackedCruiser(), { gunner: null });
+  let firing = advanceShipCombatPhase(encounter);
+  firing = allocateLaserFire(firing, [{ shipId: 'a', turretId: 'T-1', targetId: 'b' }]);
+  const resolved = resolveLaserFire(firing, createSequenceDice([1, 1]));
+  assert.equal(resolved.shots[0].fired, true);
+  // But reloading does need the turret's gunner, which p.31 is explicit about.
+  let moving = encounter;
+  while (currentPhase(moving).key !== 'ordnance-launch' || moving.phasingSide !== 'intruder') {
+    moving = advanceShipCombatPhase(moving);
+  }
+  for (let shot = 0; shot < 3; shot += 1) {
+    moving = launchOrdnance(moving, { shipId: 'a', missiles: 1, targetId: 'b', launcherIds: ['T-1:1'] });
+    for (let step = 0; step < 10; step += 1) moving = advanceShipCombatPhase(moving);
+  }
+  while (currentPhase(moving).key !== 'movement' || moving.phasingSide !== 'intruder') {
+    moving = advanceShipCombatPhase(moving);
+  }
+  assert.throws(() => reloadLauncher(moving, { shipId: 'a', launcherId: 'T-1:1' }), /assigned gunner required/);
 });
