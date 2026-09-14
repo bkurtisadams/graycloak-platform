@@ -4483,5 +4483,36 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 
 /* v0.144.0: the vector plot fills the stage the way the other boards do. */
 .shell-stage #ship-vector-section { flex: 1 1 0; height: 0; min-height: 0; display: flex; flex-direction: column; }
-.ship-vector-stage { flex: 1 1 0; height: 0; min-height: 0; overflow: auto; padding: 8px 10px; }
-.ship-vector-stage svg { width: 100%; height: auto; }
+
+/* v0.148.0: the map tool rail is an absolute overlay over the stage, so the
+   vector panel's own controls have to start clear of it or the rail is drawn
+   on top of the thrust fields. */
+.ship-vector-stage {
+  flex: 1 1 0;
+  height: 0;
+  min-height: 0;
+  overflow: auto;
+  /* The map tool rail is an absolute overlay over the stage, so the controls
+     have to start clear of it or the rail is drawn on top of the thrust
+     fields. */
+  padding: 8px 10px 8px 76px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+/* The SVG has a viewBox, so width:100% with height:auto scaled it to the full
+   width of the stage — about 1,180px tall on a wide window, which is why the
+   plot sat low with dead space around it. Give it the remaining height and let
+   the viewBox letterbox inside it instead. */
+.ship-vector-stage .ship-vector-svg {
+  flex: 1 1 auto;
+  width: 100%;
+  height: auto;
+  min-height: 260px;
+  max-height: 60vh;
+}
+.ship-vector-stage .vector-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 6px; }
+.ship-vector-stage .vector-controls label { display: inline-flex; align-items: center; gap: 4px; }
+.ship-vector-stage .vector-controls input[type="number"] { width: 7ch; }
+.ship-vector-stage details { margin: 4px 0; }
+.ship-vector-stage p { margin: 6px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }

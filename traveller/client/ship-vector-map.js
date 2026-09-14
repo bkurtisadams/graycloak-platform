@@ -1,4 +1,4 @@
-import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.147.0';
+import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.148.0';
 const NS = 'http://www.w3.org/2000/svg';
 const node = (name, attrs = {}, text = '') => { const n = document.createElementNS(NS, name); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); n.textContent = text; return n; };
 let selected = null, encounterId = null;
@@ -34,7 +34,7 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
     apply.onclick=()=>{const states=structuredClone(encounter.spatial.ships);states[selected]={position:{x:Number(values.x.value),y:Number(values.y.value)},velocity:{x:Number(values.vx.value),y:Number(values.vy.value)}};setup(states);};
     settings.append(apply);panel.append(settings);
   }
-  const svg = node('svg', { role:'img', 'aria-label':'Ship positions, velocity and acceleration vectors', viewBox:'0 0 800 430' }); svg.classList.add('ship-vector-svg'); panel.append(svg);
+  const svg = node('svg', { role:'img', 'aria-label':'Ship positions, velocity and acceleration vectors', viewBox:'0 0 800 430', preserveAspectRatio:'xMidYMid meet' }); svg.classList.add('ship-vector-svg'); panel.append(svg);
   const status = document.createElement('div'); status.className='vector-controls'; status.setAttribute('aria-live','polite'); panel.append(status);
   const note = document.createElement('p');
   // v0.139.0: gravity is drawn now. Book 2 p.29 samples the band at the
@@ -75,19 +75,31 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
       points.push({ x: planet.center.x - reach, y: planet.center.y - reach }, { x: planet.center.x + reach, y: planet.center.y + reach });
     }
     const minX=Math.min(...points.map(p=>p.x))-10,maxX=Math.max(...points.map(p=>p.x))+10,minY=Math.min(...points.map(p=>p.y))-10,maxY=Math.max(...points.map(p=>p.y))+10;
-    const scale=Math.min(700/(maxX-minX),330/(maxY-minY));
+    // v0.148.0: the drawing area is the viewBox less a margin on each side, and
+    // the content is centred in it. Previously the height allowance was well
+    // short of the box, which left the plot sitting low with empty space above.
+    const MARGIN = 28;
+    const width = 800 - MARGIN * 2;
+    const height = 430 - MARGIN * 2;
+    const scale = Math.min(width / (maxX - minX), height / (maxY - minY));
     const x=v=>400+(v-(minX+maxX)/2)*scale,y=v=>215-(v-(minY+maxY)/2)*scale;
     transform={x,y,scale};
     if (planet) {
       // Outermost band first, so the stronger inner bands read as denser.
-      for (const band of [...(planet.bands ?? [])].sort((a, b) => b.outerRadius - a.outerRadius)) {
+      for (const [bandIndex, band] of [...(planet.bands ?? [])].sort((a, b) => b.outerRadius - a.outerRadius).entries()) {
         svg.append(node('circle', {
           cx: x(planet.center.x), cy: y(planet.center.y), r: band.outerRadius * scale,
           fill: 'none', stroke: 'currentColor', 'stroke-opacity': 0.35, 'stroke-dasharray': '3 5'
         }));
+        // v0.148.0: every label sat at the top of its ring, so three bands
+        // 8.0, 5.7 and 4.6 apart printed almost on top of one another and the
+        // innermost landed on the planet's edge. Spread them around the circle
+        // instead, one band per bearing, so each label sits on open arc.
+        const bearing = (bandIndex / Math.max(1, planet.bands.length)) * Math.PI * 2 + Math.PI / 4;
         svg.append(node('text', {
-          x: x(planet.center.x), y: y(planet.center.y + band.outerRadius) + 11,
-          fill: 'currentColor', 'fill-opacity': 0.55, 'text-anchor': 'middle', 'font-size': '10'
+          x: x(planet.center.x + Math.cos(bearing) * band.outerRadius),
+          y: y(planet.center.y + Math.sin(bearing) * band.outerRadius) + 4,
+          fill: 'currentColor', 'fill-opacity': 0.6, 'text-anchor': 'middle', 'font-size': '10'
         }, `${band.g} G`));
       }
       svg.append(node('circle', {
@@ -101,8 +113,14 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
     }
     for(const ship of encounter.participants){const s=encounter.spatial.ships[ship.id];
       svg.append(node('line',{x1:x(s.position.x),y1:y(s.position.y),x2:x(s.position.x+s.velocity.x),y2:y(s.position.y+s.velocity.y),stroke:'currentColor','stroke-width':2}));
-      const dot=node('circle',{cx:x(s.position.x),cy:y(s.position.y),r:ship.id===selected?8:5,fill:'currentColor'}); dot.style.cursor='pointer';dot.addEventListener('click',()=>{selected=ship.id;renderShipVectorMap(stage,encounter,{commit, setup});});svg.append(dot);
-      svg.append(node('text',{x:x(s.position.x)+12,y:y(s.position.y)-12,fill:'currentColor'},ship.name));
+      const dot=node('circle',{cx:x(s.position.x),cy:y(s.position.y),r:ship.id===selected?5:3.5,fill:'currentColor'}); dot.style.cursor='pointer';dot.addEventListener('click',()=>{selected=ship.id;renderShipVectorMap(stage,encounter,{commit, setup});});svg.append(dot);
+      // v0.148.0: no font-size, so the names rendered at the document default
+      // and were larger than the world they orbit.
+      svg.append(node('text', {
+        x: x(s.position.x) + 10, y: y(s.position.y) - 9,
+        fill: 'currentColor', 'font-size': '11',
+        'font-weight': ship.id === selected ? '700' : '400'
+      }, ship.name));
     }
     if(preview){const s=encounter.spatial.ships[selected];svg.append(node('line',{x1:x(s.position.x),y1:y(s.position.y),x2:x(preview.endpoint.x),y2:y(preview.endpoint.y),stroke:'currentColor','stroke-dasharray':'6 4','stroke-width':2}));svg.append(node('circle',{cx:x(preview.endpoint.x),cy:y(preview.endpoint.y),r:5,fill:'none',stroke:'currentColor'}));
       // Book 2 p.29 reads the band at the midpoint of the course vector, before
