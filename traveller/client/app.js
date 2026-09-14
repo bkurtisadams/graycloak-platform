@@ -1771,9 +1771,13 @@ function renderSceneNav() {
     : fight && !fight.sceneId ? 'MANUAL FIGHT' : 'SUBSECTOR';
   const activated = Boolean(scene && campaignDocument?.activeSceneId === scene.identity.id);
   el.sceneNavActive.hidden = !activated;
-  el.sceneNavButton.title = activated
-    ? 'Players are seeing this scene'
-    : scene ? 'You are viewing this scene; players are not' : 'The subsector map';
+  // v0.130.1: the rail shows a glyph, so the scene name lives in the tooltip
+  // and the screen-reader label rather than on the face of the button.
+  const viewing = el.sceneNavName.textContent;
+  el.sceneNavButton.title = `${viewing} \u2014 ${activated
+    ? 'players are seeing this scene'
+    : scene ? 'you are viewing this scene; players are not' : 'the subsector map'}`;
+  el.sceneNavButton.setAttribute('aria-label', `Scene: ${viewing}`);
 }
 
 function sceneNavItems() {

@@ -3459,18 +3459,6 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .shell-rail .scene-tab { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 10px; letter-spacing: .12em; padding: 8px 4px; border: 1px solid var(--rule); background: var(--paper); text-align: center; }
 .shell-rail .scene-tab.is-active { background: var(--tab-selected); border-color: var(--tab-selected-border); font-weight: 700; }
 .shell-rail .scene-tab.attention { border-color: var(--failure-border); }
-/* v0.130.0: the scene picker reads as one more rail control, so it takes the
-   tabs' vertical form. The current scene name fits the column the same way
-   CHARACTER does. */
-.shell-rail .scene-nav { display: flex; }
-.shell-rail .scene-nav-button {
-  writing-mode: vertical-rl; transform: rotate(180deg);
-  display: flex; align-items: center; justify-content: center; gap: 4px;
-  width: 100%; font-size: 10px; letter-spacing: .12em; padding: 8px 4px;
-  border: 1px dotted var(--rule); background: var(--paper); text-align: center;
-}
-.shell-rail .scene-nav-button:hover { border-style: solid; }
-.shell-rail .scene-nav-name { overflow: hidden; text-overflow: ellipsis; max-height: 14ch; }
 .rail-tools { display: flex; flex-direction: column; gap: 4px; border-top: 1px dotted var(--disabled); padding-top: 8px; }
 .rail-tool { font: inherit; font-size: 10px; letter-spacing: .06em; padding: 5px 2px; border: 1px solid var(--rule); background: var(--paper); color: var(--ink); cursor: pointer; }
 .rail-tool.is-active { background: var(--tab-selected); border-color: var(--tab-selected-border); }
@@ -4461,3 +4449,24 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
   .shell-flyout { left: 240px; width: calc(100vw - 240px - 52px); }
   .terminal.shell.flyout-open .shell-rail { display: none; }
 }
+
+/* v0.130.1: in the rail the picker is a 34x38 icon button like every other
+   rail control, with its name in the tooltip and screen-reader label.
+   .scene-nav is position:absolute by default — it floated over the canvas and
+   was pinned by a stack of left offsets tuned to the dock width — so the rail
+   copy has to put it back in the flow. */
+.terminal.shell .shell-rail .scene-nav {
+  position: static; transform: none; z-index: auto;
+  display: grid; grid-template-columns: repeat(2, 34px); gap: 6px;
+  margin-top: 8px; padding-top: 8px; border-top: 1px dotted var(--disabled);
+}
+.terminal.shell .shell-rail .scene-nav-button {
+  box-sizing: border-box; width: 34px; height: 38px; min-width: 34px; max-width: none;
+  padding: 0; gap: 0; display: inline-flex; align-items: center; justify-content: center;
+  writing-mode: horizontal-tb; transform: none;
+  font: 700 18px/1 Consolas, monospace; letter-spacing: 0;
+  border: 1px dotted var(--rule); background: var(--paper); color: var(--ink);
+}
+.terminal.shell .shell-rail .scene-nav-button:hover { border-style: solid; border-color: var(--link); }
+.terminal.shell .shell-rail .scene-nav-caret { display: none; }
+.terminal.shell .shell-rail .scene-nav-active { position: absolute; margin: -14px 0 0 18px; font-size: 9px; }
