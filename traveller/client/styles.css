@@ -3459,6 +3459,18 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .shell-rail .scene-tab { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 10px; letter-spacing: .12em; padding: 8px 4px; border: 1px solid var(--rule); background: var(--paper); text-align: center; }
 .shell-rail .scene-tab.is-active { background: var(--tab-selected); border-color: var(--tab-selected-border); font-weight: 700; }
 .shell-rail .scene-tab.attention { border-color: var(--failure-border); }
+/* v0.130.0: the scene picker reads as one more rail control, so it takes the
+   tabs' vertical form. The current scene name fits the column the same way
+   CHARACTER does. */
+.shell-rail .scene-nav { display: flex; }
+.shell-rail .scene-nav-button {
+  writing-mode: vertical-rl; transform: rotate(180deg);
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+  width: 100%; font-size: 10px; letter-spacing: .12em; padding: 8px 4px;
+  border: 1px dotted var(--rule); background: var(--paper); text-align: center;
+}
+.shell-rail .scene-nav-button:hover { border-style: solid; }
+.shell-rail .scene-nav-name { overflow: hidden; text-overflow: ellipsis; max-height: 14ch; }
 .rail-tools { display: flex; flex-direction: column; gap: 4px; border-top: 1px dotted var(--disabled); padding-top: 8px; }
 .rail-tool { font: inherit; font-size: 10px; letter-spacing: .06em; padding: 5px 2px; border: 1px solid var(--rule); background: var(--paper); color: var(--ink); cursor: pointer; }
 .rail-tool.is-active { background: var(--tab-selected); border-color: var(--tab-selected-border); }
