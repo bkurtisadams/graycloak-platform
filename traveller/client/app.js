@@ -9425,6 +9425,7 @@ function engagePendingShipEncounter() {
       participants: [
         {
           shipId: 'player',
+          disposition: 'merchant',
           name: shipDocument.identity.name || 'SHIP',
           side: theyIntrude ? 'native' : 'intruder',
           ship: shipDocument,
@@ -9446,6 +9447,11 @@ function engagePendingShipEncounter() {
           shipId: 'opponent',
           name: encounter.label,
           side: theyIntrude ? 'intruder' : 'native',
+          // What the encountered ship wants, which decides what it does once
+          // the shooting starts. Book 2 p.36 names the type; the behaviour is
+          // a Graycloak extension on Book 3 p.29's attack/flee shape.
+          disposition: encounter.key === 'pirate' ? 'pirate'
+            : encounter.key === 'patrol' ? 'patrol' : 'merchant',
           ship: opponent,
           carriedPrograms: theirs.carried,
           loadedPrograms: theirs.loaded,
@@ -9734,6 +9740,7 @@ function renderShipCombatRail() {
     if (status.escaped) marks.push('ESCAPED');
     if (status.surrendered) marks.push('SURRENDERED');
     if (participant.fled && !status.escaped) marks.push(`FLEEING (${participant.shotsRemainingBeforeEscape})`);
+    if (status.toothless && !status.disabled) marks.push('DISARMED');
     label.textContent = `${card.name.toUpperCase()} / ${card.typeCode} / ${marks.join(' / ')}`;
     summary.append(label);
     row.append(summary);
@@ -9769,6 +9776,21 @@ function renderShipCombatRail() {
       shipCombatCardRow(row, 'INCOMING', `${incoming.length} MISSILE(S) IN CONTACT`, { stateClass: 'live-state-critical' });
     }
     el.shipCombatTracker.append(row);
+  }
+
+  // The fight is over, so say what it left rather than offering more phases.
+  if (encounter.outcome !== 'in-progress') {
+    const ending = document.createElement('div');
+    ending.className = 'live-ship-row live-state-attention';
+    ending.textContent = {
+      disarmed: 'COMBAT OVER / DISARMED \u00b7 SHE CAN STILL RUN',
+      disabled: 'COMBAT OVER / DISABLED \u00b7 ADRIFT AND UNARMED',
+      escaped: 'COMBAT OVER / ESCAPED',
+      surrendered: 'COMBAT OVER / SURRENDERED',
+      disengaged: 'COMBAT OVER / DISENGAGED'
+    }[encounter.outcome] ?? `COMBAT OVER / ${encounter.outcome.toUpperCase()}`;
+    ending.title = 'Graycloak ruling: combat ends when either side can no longer fire. Book 2 has no destruction rule — what happens next is a situation, not a combat round.';
+    el.shipCombatTracker.append(ending);
   }
 
   renderShipCombatActions(encounter, phase, acting);

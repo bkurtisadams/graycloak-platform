@@ -40,6 +40,10 @@ import {
   creditShotAgainstEscape,
   surrender,
   participantStatus,
+  shipCombatIntent,
+  shipDisposition,
+  SHIP_DISPOSITIONS,
+  SHIP_DISPOSITIONS_ARE_RAW,
   shipCombatOutcome,
   shipDataCard,
   shipStations,
@@ -1045,4 +1049,77 @@ test('Book 2 p.33: a hull hit decompresses the whole interior, not one section',
   // Suit to hand and the DMs to make 9+; no suit at all; already wearing one.
   assert.deepEqual(participant.casualties.map((entry) => entry.actorId), ['npc-tam']);
   assert.equal(event.occupants.find((entry) => entry.actorId === 'pc-marisol').alreadySuited, true);
+});
+
+// ---------------------------------------------------------------------------
+// Endings and NPC intent (Graycloak extensions on Book 3 p.29's shape)
+// ---------------------------------------------------------------------------
+
+test('combat ends when either side can no longer fire', async () => {
+  let encounter = await twoScoutEncounter();
+  encounter = advanceShipCombatPhase(encounter);
+  encounter = allocateLaserFire(encounter, [{ shipId: 'pirate', turretId: 'T-1', targetId: 'trader' }]);
+  // Two hits, both on a turret — the trader has exactly one.
+  encounter = resolveLaserFire(encounter, createSequenceDice([6, 6, 5, 5, 6, 6, 5, 5])).encounter;
+
+  // Disarmed, not disabled: her drives still work, so she may yet run. The old
+  // condition wanted adrift AND toothless, which left a mobile disarmed ship
+  // being shot at indefinitely — a thirty-turn test fight never ended.
+  assert.equal(encounter.outcome, 'disarmed');
+  const trader = participantStatus(getParticipant(encounter, 'trader'));
+  assert.equal(trader.toothless, true);
+  assert.equal(trader.adrift, false);
+});
+
+test('a pirate stops shooting once the prize cannot shoot back', async () => {
+  let encounter = await twoScoutEncounter({
+    pirate: { disposition: 'pirate' },
+    trader: { disposition: 'merchant' }
+  });
+  const dice = createSequenceDice([6, 6, 6, 6, 6, 6, 6, 6]);
+  // Undamaged and facing an armed target, a pirate presses.
+  assert.equal(shipCombatIntent(encounter, 'pirate', dice).intent, 'press-attack');
+
+  // Disarm the trader.
+  encounter = advanceShipCombatPhase(encounter);
+  encounter = allocateLaserFire(encounter, [{ shipId: 'pirate', turretId: 'T-1', targetId: 'trader' }]);
+  encounter = resolveLaserFire(encounter, createSequenceDice([6, 6, 5, 5, 6, 6, 5, 5])).encounter;
+
+  // It wants the hull, so with the target disarmed but still under power it
+  // goes for the drives rather than keeping up the fire.
+  const disarmed = shipCombatIntent(encounter, 'pirate', createSequenceDice([6, 6, 6, 6]));
+  assert.equal(disarmed.intent, 'disable-drives');
+  assert.equal(disarmed.raw, false);
+
+  // Adrift as well, and there is nothing to do but board.
+  getParticipant(encounter, 'trader').ship.state.damage.maneuverDrive = 1;
+  assert.equal(shipCombatIntent(encounter, 'pirate', createSequenceDice([6, 6, 6, 6])).intent, 'board');
+});
+
+test('a merchant runs and a ship that cannot fire always breaks off', async () => {
+  const encounter = await twoScoutEncounter({
+    pirate: { disposition: 'pirate' },
+    trader: { disposition: 'merchant' }
+  });
+  // Book 3 p.29's shape: a merchant's break-off target is 6 and its press
+  // target is 11, so it leaves on almost any throw.
+  const merchant = shipCombatIntent(encounter, 'trader', createSequenceDice([3, 3, 3, 3]));
+  assert.equal(merchant.intent, 'break-off');
+
+  // A disarmed ship has no choice, whatever it would have preferred.
+  const stripped = structuredClone(encounter);
+  stripped.participants.find((entry) => entry.id === 'pirate').ship.state.damage.turrets = ['T-1'];
+  const forced = shipCombatIntent(stripped, 'pirate', createSequenceDice([6, 6, 6, 6]));
+  assert.equal(forced.intent, 'break-off');
+  assert.equal(forced.reason, 'cannot fire');
+});
+
+test('the dispositions are labelled as house rules', () => {
+  assert.equal(SHIP_DISPOSITIONS_ARE_RAW, false);
+  // Book 2 gives no pursuit rule and names boarding in one clause, so these
+  // are modelled on Book 3 p.29 rather than printed anywhere.
+  assert.deepEqual(Object.keys(SHIP_DISPOSITIONS), ['pirate', 'patrol', 'merchant']);
+  assert.ok(SHIP_DISPOSITIONS.pirate.breakOff > SHIP_DISPOSITIONS.pirate.pressAttack);
+  assert.ok(SHIP_DISPOSITIONS.merchant.breakOff < SHIP_DISPOSITIONS.merchant.pressAttack);
+  assert.equal(shipDisposition('nonsense').label, 'Merchant');
 });

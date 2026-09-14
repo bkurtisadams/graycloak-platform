@@ -118,8 +118,51 @@ export const ECM_DESTROY_THROW = 7;
 export const ANTI_MISSILE_THROW = LASER_HIT_THROW;
 
 export const SHIP_COMBAT_OUTCOMES = Object.freeze([
-  'in-progress', 'disabled', 'escaped', 'surrendered', 'disengaged', 'referee-called'
+  'in-progress', 'disarmed', 'disabled', 'escaped', 'surrendered', 'disengaged', 'referee-called'
 ]);
+
+// ---------------------------------------------------------------------------
+// What an encountered ship does, and when a fight is over.
+//
+// GRAYCLOAK EXTENSION, not RAW. Book 2 gives no destruction rule, no pursuit
+// rule and no boarding procedure — p.37 names boarding in a single clause and
+// stops. So the endings below and the dispositions that drive them are house
+// rules, modelled on the one decision procedure the 1977 books do supply:
+// Book 3 p.29 gives every animal a throw to attack and a throw to flee, and
+// "If animals are attacked, they will attack if their throw to attack is less
+// than their to flee throw; otherwise they will flee."
+//
+// Ruling (Graycloak, Sep 2026): combat ends when EITHER side can no longer
+// fire, because neither has a move left in the combat system. What follows —
+// running, surrendering, being boarded — is a situation rather than a combat
+// round. A disarmed ship that still has a manoeuvre drive and fuel may try to
+// run, and p.37's referee shot count IS the chase.
+export const SHIP_DISPOSITIONS = Object.freeze({
+  // A pirate wants the hull and its cargo intact, so it shoots to disarm and
+  // then stops. A target still under power has to lose its manoeuvre drive
+  // before it can be boarded — the two hits that matter on a one-turret hull.
+  pirate: Object.freeze({
+    label: 'Pirate', pressAttack: 5, breakOff: 10,
+    wants: 'prize', aimsFor: ['turret', 'maneuver-drive'], boardsWhenDisarmed: true
+  }),
+  // p.36: a patrol "may be simple border pickets, or may be a form of pirate,
+  // exacting tolls or penalties". It wants compliance, not a kill.
+  patrol: Object.freeze({
+    label: 'Patrol', pressAttack: 8, breakOff: 9,
+    wants: 'compliance', aimsFor: ['turret'], boardsWhenDisarmed: true
+  }),
+  // A trader, a merchant or a yacht wants to leave, and fires only to cover
+  // the break-off.
+  merchant: Object.freeze({
+    label: 'Merchant', pressAttack: 11, breakOff: 6,
+    wants: 'escape', aimsFor: ['turret'], boardsWhenDisarmed: false
+  })
+});
+export const SHIP_DISPOSITIONS_ARE_RAW = false;
+
+export function shipDisposition(key) {
+  return SHIP_DISPOSITIONS[String(key ?? '').trim().toLowerCase()] ?? SHIP_DISPOSITIONS.merchant;
+}
 
 // Book 2 p.35: "The following parts of the ship may be individually regulated:
 // engineering section, hold, bridge, staterooms (individually), turrets
@@ -250,6 +293,7 @@ function createParticipant({
   shipId,
   name = '',
   side,
+  disposition = 'merchant',
   ship,
   carriedPrograms = [],
   loadedPrograms = [],
@@ -268,6 +312,7 @@ function createParticipant({
     id: shipId,
     name: name || ship.identity.name || shipId,
     side,
+    disposition: SHIP_DISPOSITIONS[String(disposition).toLowerCase()] ? String(disposition).toLowerCase() : 'merchant',
     ship: freeze(ship),
     computer: { carried: [...carriedPrograms], loaded: [...loadedPrograms] },
     // Stations: { pilot, computerOperator, engineer, gunners: { 'T-1': actorId } }
@@ -1271,6 +1316,7 @@ export function participantStatus(participant) {
   return Object.freeze({
     shipId: participant.id,
     name: participant.name,
+    disposition: participant.disposition,
     adrift: report.adrift,
     canJump: report.canJump,
     decompressed: hullDecompressed(participant.ship),
@@ -1286,19 +1332,90 @@ export function participantStatus(participant) {
   });
 }
 
+/**
+ * Ruling (Graycloak, Sep 2026): combat ends when either side can no longer
+ * fire. A ship with no working armed turret has no move left in the combat
+ * system, and the previous condition — adrift AND toothless — meant a disarmed
+ * but mobile ship was shot at indefinitely. A thirty-turn test fight never
+ * terminated for exactly that reason.
+ *
+ * 'disabled' is the stronger ending: no guns and no manoeuvre drive, so the
+ * ship is not going anywhere and a boarding is uncontested. 'disarmed' leaves
+ * a ship that may still run, which p.37's referee shot count adjudicates.
+ */
 function applyDisabledOutcomes(encounter) {
-  const statuses = encounter.participants.map(participantStatus);
   for (const side of SHIP_COMBAT_SIDES) {
-    const live = statuses.filter((status) => {
-      const participant = getParticipant(encounter, status.shipId);
-      return participant.side === side && !status.escaped && !status.surrendered && !status.disabled;
-    });
-    if (live.length === 0) {
-      encounter.outcome = 'disabled';
+    const present = encounter.participants.filter((participant) => participant.side === side
+      && !participant.escaped && !participant.surrendered);
+    if (!present.length) {
+      encounter.outcome = 'disengaged';
+      return encounter;
+    }
+    const statuses = present.map(participantStatus);
+    if (statuses.every((status) => status.toothless)) {
+      encounter.outcome = statuses.every((status) => status.adrift) ? 'disabled' : 'disarmed';
       return encounter;
     }
   }
   return encounter;
+}
+
+/**
+ * What an encountered ship does now, on the Book 3 p.29 shape: a throw to
+ * press the attack and a throw to break off, and if both are possible the
+ * lower target wins. GRAYCLOAK EXTENSION — Book 2 supplies no such procedure.
+ *
+ * The DMs are what the disposition cares about. A pirate wanting a prize has
+ * no reason to keep shooting once the target cannot shoot back, and every
+ * reason to break off once it is itself hurt: a damaged pirate cannot profit
+ * from a capture.
+ */
+export function shipCombatIntent(encounter, shipId, dice) {
+  requireDice(dice);
+  const participant = getParticipant(encounter, shipId);
+  const disposition = shipDisposition(participant.disposition);
+  const own = participantStatus(participant);
+  const foes = encounter.participants.filter((entry) => entry.side !== participant.side
+    && !entry.escaped && !entry.surrendered);
+  const foeStatuses = foes.map(participantStatus);
+  const allFoesDisarmed = foeStatuses.length > 0 && foeStatuses.every((status) => status.toothless);
+
+  if (own.toothless) {
+    return Object.freeze({ intent: 'break-off', reason: 'cannot fire', disposition: disposition.label, raw: false });
+  }
+  // A pirate or a patrol that has disarmed its target stops shooting: it wants
+  // the ship, and there is nothing left to shoot at.
+  if (allFoesDisarmed && disposition.boardsWhenDisarmed) {
+    const mobile = foeStatuses.some((status) => !status.adrift);
+    return Object.freeze({
+      intent: mobile ? 'disable-drives' : 'board',
+      reason: mobile ? 'target disarmed but still under power' : 'target disarmed and adrift',
+      disposition: disposition.label, raw: false
+    });
+  }
+  if (allFoesDisarmed) {
+    return Object.freeze({ intent: 'break-off', reason: 'nothing left to fight', disposition: disposition.label, raw: false });
+  }
+
+  const hurt = own.damage.totalHits;
+  const press = dice.roll2D6();
+  const flee = dice.roll2D6();
+  // Damage makes pressing harder and breaking off easier, in both directions.
+  const pressTotal = press.total - hurt;
+  const fleeTotal = flee.total + hurt;
+  const canPress = pressTotal >= disposition.pressAttack;
+  const wouldFlee = fleeTotal >= disposition.breakOff;
+  // Book 3 p.29's tie-break: the lower requirement wins.
+  const intent = canPress && wouldFlee
+    ? (disposition.pressAttack <= disposition.breakOff ? 'press-attack' : 'break-off')
+    : canPress ? 'press-attack' : wouldFlee ? 'break-off' : 'hold';
+  return Object.freeze({
+    intent,
+    reason: `press ${pressTotal} vs ${disposition.pressAttack}, break off ${fleeTotal} vs ${disposition.breakOff}`,
+    disposition: disposition.label,
+    hits: hurt,
+    raw: false
+  });
 }
 
 /**
