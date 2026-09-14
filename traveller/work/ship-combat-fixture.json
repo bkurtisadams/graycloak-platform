@@ -1,11 +1,11 @@
 {
   "version": 1,
   "campaignId": null,
-  "savedAt": 1789421650119,
+  "savedAt": 1789426061011,
   "encounter": {
-    "id": "fixture-ship-combat-1789421650118",
+    "id": "fixture-ship-combat-1789426061007",
     "campaignId": null,
-    "spatialMode": "abbreviated",
+    "spatialMode": "vector",
     "intruderSide": "intruder",
     "intruderAssignmentNote": "Fixture: the pirate initiated the encounter",
     "gameTurn": 1,
@@ -592,6 +592,60 @@
       }
     ],
     "outcome": "in-progress",
-    "log": []
+    "log": [],
+    "spatial": {
+      "ships": {
+        "opponent": {
+          "position": {
+            "x": 35,
+            "y": 0
+          },
+          "velocity": {
+            "x": 0,
+            "y": 0
+          },
+          "movedTurn": 0
+        },
+        "player": {
+          "position": {
+            "x": 5,
+            "y": 0
+          },
+          "velocity": {
+            "x": 0,
+            "y": 0
+          },
+          "movedTurn": 0
+        }
+      },
+      "planet": {
+        "name": "San Telmo",
+        "center": {
+          "x": 0,
+          "y": 0
+        },
+        "radius": 4,
+        "densityEarth": 1,
+        "massOverride": null,
+        "massEarth": 1,
+        "surfaceG": 1,
+        "bands": [
+          {
+            "g": 0.25,
+            "outerRadius": 8
+          },
+          {
+            "g": 0.5,
+            "outerRadius": 5.656854249492381
+          },
+          {
+            "g": 0.75,
+            "outerRadius": 4.618802153517006
+          }
+        ]
+      },
+      "atmosphere": 6,
+      "accelerationMode": "instantaneous"
+    }
   }
 }
