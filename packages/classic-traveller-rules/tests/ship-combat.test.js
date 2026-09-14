@@ -29,6 +29,10 @@ import {
   resolveLaserFire,
   returnFireEligibility,
   launchOrdnance,
+  moveOrdnance,
+  ordnanceInFlight,
+  resolveAntiMissileFire,
+  detonateContactedOrdnance,
   declareFlight,
   creditShotAgainstEscape,
   surrender,
@@ -370,11 +374,13 @@ test('Book 2 p.30: launching needs Launch and Target in the computer', async () 
     ]
   });
 
-  assert.throws(() => launchOrdnance(encounter, { shipId: 'pirate', missiles: 1 }), /cannot be launched in the Movement phase/);
+  assert.throws(() => launchOrdnance(encounter, { shipId: 'pirate', missiles: 1, targetId: 'trader' }), /cannot be launched in the Movement phase/);
   for (let step = 0; step < 3; step += 1) encounter = advanceShipCombatPhase(encounter);
   assert.equal(currentPhase(encounter).key, 'ordnance-launch');
 
-  encounter = launchOrdnance(encounter, { shipId: 'pirate', missiles: 2, sandCanisters: 1 });
+  // Book 2 p.18: a missile is committed to a specific target when fired.
+  assert.throws(() => launchOrdnance(encounter, { shipId: 'pirate', missiles: 1 }), /committed to a specific target/);
+  encounter = launchOrdnance(encounter, { shipId: 'pirate', missiles: 2, sandCanisters: 1, targetId: 'trader' });
   const participant = getParticipant(encounter, 'pirate');
   assert.equal(participant.ship.state.armament.missiles, 3);
   assert.equal(participant.expenditure.missiles, 2);
@@ -386,8 +392,8 @@ test('Book 2 p.30: launching needs Launch and Target in the computer', async () 
   assert.equal(defense.components.at(-1).raw, ABBREVIATED_SAND_DM_IS_RAW);
   assert.equal(ABBREVIATED_SAND_DM_IS_RAW, false);
 
-  assert.throws(() => launchOrdnance(encounter, { shipId: 'pirate', missiles: 99 }), /not enough missiles/);
-  assert.throws(() => launchOrdnance(encounter, { shipId: 'trader', missiles: 1 }), /missing launch, target/);
+  assert.throws(() => launchOrdnance(encounter, { shipId: 'pirate', missiles: 99, targetId: 'trader' }), /not enough missiles/);
+  assert.throws(() => launchOrdnance(encounter, { shipId: 'trader', missiles: 1, targetId: 'pirate' }), /missing launch, target/);
 });
 
 test('Book 2 p.37: fleeing is a referee ruling on how many shots remain', async () => {
@@ -566,4 +572,189 @@ test('the outcome is computed, not applied', async () => {
   assert.ok(outcome.log.length > 0);
   // No positions or velocities exist in abbreviated mode.
   assert.equal('positions' in outcome, false);
+});
+
+// ---------------------------------------------------------------------------
+// Missiles across the phases (Book 2 pp.18, 30-31)
+// ---------------------------------------------------------------------------
+
+async function missileEncounter({ traderPrograms = ['target'] } = {}) {
+  const pirate = await armedScout({ weapons: ['beam-laser', 'missile-launcher'], missiles: 6 });
+  const trader = await armedScout({ weapons: ['beam-laser'] });
+  return createShipCombatEncounter({
+    id: 'enc-missile', intruderSide: 'intruder',
+    participants: [
+      {
+        shipId: 'pirate', name: 'Corsair', side: 'intruder', ship: pirate,
+        carriedPrograms: ['target', 'launch'], loadedPrograms: ['target', 'launch'],
+        pressurisedSections: []
+      },
+      {
+        shipId: 'trader', name: 'Suleiman', side: 'native', ship: trader,
+        carriedPrograms: [...new Set([...traderPrograms, 'target'])],
+        loadedPrograms: traderPrograms,
+        pressurisedSections: []
+      }
+    ]
+  });
+}
+
+// Walks to a named phase of a named side, moving ordnance in each movement
+// phase as Book 2 p.23 phase A requires.
+function advanceTo(encounter, side, phaseKey) {
+  let current = encounter;
+  for (let step = 0; step < 40; step += 1) {
+    if (current.phasingSide === side && currentPhase(current).key === phaseKey) return current;
+    if (currentPhase(current).key === 'movement') current = moveOrdnance(current);
+    current = advanceShipCombatPhase(current);
+  }
+  throw new Error(`never reached ${side}:${phaseKey}`);
+}
+
+test('Book 2 p.30: a missile is launched, flies a turn, contacts, then detonates', async () => {
+  let encounter = await missileEncounter();
+  encounter = advanceTo(encounter, 'intruder', 'ordnance-launch');
+  encounter = launchOrdnance(encounter, { shipId: 'pirate', missiles: 1, targetId: 'trader' });
+
+  let round = ordnanceInFlight(encounter)[0];
+  assert.equal(round.status, 'in-flight');
+  assert.equal(round.targetShipId, 'trader');
+  assert.equal(round.launchedGameTurn, 1);
+  // Contact is automatic in abbreviated mode, and the record says so.
+  assert.equal(round.raw, false);
+
+  // It does not move in the launching player turn — phase D comes after phase A.
+  encounter = advanceShipCombatPhase(encounter);
+  assert.equal(currentPhase(encounter).key, 'reprogramming');
+  assert.equal(ordnanceInFlight(encounter)[0].status, 'in-flight');
+
+  // The next friendly movement phase is the intruder's, one game turn later.
+  encounter = advanceTo(encounter, 'intruder', 'movement');
+  assert.equal(encounter.gameTurn, 2);
+  encounter = moveOrdnance(encounter);
+  assert.equal(ordnanceInFlight(encounter)[0].status, 'contact');
+  assert.ok(encounter.log.some((entry) => entry.kind === 'ordnance-contact'));
+
+  // It detonates in the launcher's ordnance launch phase: one die of hits,
+  // each located at -4.
+  encounter = advanceShipCombatPhase(encounter);   // laser fire
+  encounter = advanceShipCombatPhase(encounter);   // return fire
+  encounter = advanceShipCombatPhase(encounter);   // ordnance launch
+  assert.equal(currentPhase(encounter).key, 'ordnance-launch');
+
+  const dice = createSequenceDice([2, 1, 1, 1, 1]);
+  const detonated = detonateContactedOrdnance(encounter, dice);
+  assert.equal(detonated.detonations.length, 1);
+  assert.equal(detonated.detonations[0].hitCount, 2);
+  assert.equal(ordnanceInFlight(detonated.encounter)[0].status, 'detonated');
+  // The -4 pushes both hits onto the power plant, which destroys an A plant.
+  assert.equal(getParticipant(detonated.encounter, 'trader').ship.state.damage.powerPlant, 2);
+});
+
+test('Book 2 p.30: anti-missile fire happens in the phase that belongs to the target', async () => {
+  let encounter = await missileEncounter({ traderPrograms: ['target', 'anti-missile'] });
+  encounter = advanceTo(encounter, 'intruder', 'ordnance-launch');
+  encounter = launchOrdnance(encounter, { shipId: 'pirate', missiles: 1, targetId: 'trader' });
+  encounter = advanceTo(encounter, 'intruder', 'movement');
+  encounter = moveOrdnance(encounter);
+
+  // Phase C of the intruder's turn is the native's, which is exactly where the
+  // target gets to shoot at what is about to hit it.
+  encounter = advanceShipCombatPhase(encounter);   // laser fire
+  encounter = advanceShipCombatPhase(encounter);   // return fire
+  assert.equal(currentPhase(encounter).key, 'return-fire');
+  assert.equal(actingSide(encounter), 'native');
+
+  const result = resolveAntiMissileFire(encounter, createSequenceDice([5, 4]), { shipId: 'trader' });
+  assert.equal(result.shots.length, 1);
+  assert.equal(result.shots[0].target, 8);
+  assert.equal(result.shots[0].hit, true);
+  assert.deepEqual([...result.destroyed], ['m-1']);
+
+  // Destroyed before it could explode, so phase D finds nothing.
+  encounter = advanceShipCombatPhase(result.encounter);
+  const detonated = detonateContactedOrdnance(encounter, createSequenceDice([1]));
+  assert.equal(detonated.detonations.length, 0);
+  assert.equal(getParticipant(detonated.encounter, 'trader').ship.state.damage.powerPlant, 0);
+});
+
+test('Book 2 p.30: a ship without the Anti-Missile program cannot shoot at missiles', async () => {
+  let encounter = await missileEncounter({ traderPrograms: ['target'] });
+  encounter = advanceTo(encounter, 'intruder', 'ordnance-launch');
+  encounter = launchOrdnance(encounter, { shipId: 'pirate', missiles: 1, targetId: 'trader' });
+  encounter = advanceTo(encounter, 'intruder', 'movement');
+  encounter = moveOrdnance(encounter);
+  encounter = advanceShipCombatPhase(encounter);
+  encounter = advanceShipCombatPhase(encounter);
+
+  const result = resolveAntiMissileFire(encounter, createSequenceDice([6, 6]), { shipId: 'trader' });
+  assert.equal(result.shots.length, 0);
+  assert.equal(result.ecm, null);
+  assert.deepEqual([...result.destroyed], []);
+});
+
+test('Book 2 p.30: ECM clears every contacting missile at once on 7+', async () => {
+  let encounter = await missileEncounter({ traderPrograms: ['target', 'ecm'] });
+  encounter = advanceTo(encounter, 'intruder', 'ordnance-launch');
+  encounter = launchOrdnance(encounter, { shipId: 'pirate', missiles: 3, targetId: 'trader' });
+  encounter = advanceTo(encounter, 'intruder', 'movement');
+  encounter = moveOrdnance(encounter);
+  assert.equal(ordnanceInFlight(encounter, { status: 'contact' }).length, 3);
+  encounter = advanceShipCombatPhase(encounter);
+  encounter = advanceShipCombatPhase(encounter);
+
+  // A 7 exactly: all three go without a laser being fired.
+  const result = resolveAntiMissileFire(encounter, createSequenceDice([4, 3]), { shipId: 'trader' });
+  assert.equal(result.ecm.cleared, true);
+  assert.equal(result.ecm.target, 7);
+  assert.equal(result.destroyed.length, 3);
+  assert.equal(result.shots.length, 0);
+
+  // A failed ECM throw leaves them all in contact.
+  const failed = resolveAntiMissileFire(encounter, createSequenceDice([1, 1]), { shipId: 'trader' });
+  assert.equal(failed.ecm.cleared, false);
+  assert.equal(failed.destroyed.length, 0);
+});
+
+test('Book 2 p.18: a missile whose target escapes has nothing left to home on', async () => {
+  let encounter = await missileEncounter();
+  encounter = advanceTo(encounter, 'intruder', 'ordnance-launch');
+  encounter = launchOrdnance(encounter, { shipId: 'pirate', missiles: 1, targetId: 'trader' });
+  encounter = declareFlight(encounter, { shipId: 'trader', shotsBeforeEscape: 1 });
+  encounter = creditShotAgainstEscape(encounter, 'trader');
+  assert.equal(getParticipant(encounter, 'trader').escaped, true);
+
+  encounter = advanceTo(encounter, 'intruder', 'movement');
+  encounter = moveOrdnance(encounter);
+  assert.equal(ordnanceInFlight(encounter)[0].status, 'spent');
+});
+
+test('ordnance does not move or detonate on the wrong side turn', async () => {
+  let encounter = await missileEncounter();
+  encounter = advanceTo(encounter, 'intruder', 'ordnance-launch');
+  encounter = launchOrdnance(encounter, { shipId: 'pirate', missiles: 1, targetId: 'trader' });
+
+  // The native's movement phase does not move the intruder's missile.
+  encounter = advanceTo(encounter, 'native', 'movement');
+  encounter = moveOrdnance(encounter);
+  assert.equal(ordnanceInFlight(encounter)[0].status, 'in-flight');
+
+  assert.throws(() => moveOrdnance(advanceShipCombatPhase(encounter)), /does not move in the Laser Fire phase/);
+  assert.throws(
+    () => resolveAntiMissileFire(encounter, createSequenceDice([1, 1]), { shipId: 'trader' }),
+    /anti-missile fire happens in the return fire phase/
+  );
+});
+
+test('the outcome carries ordnance still in flight', async () => {
+  let encounter = await missileEncounter();
+  encounter = advanceTo(encounter, 'intruder', 'ordnance-launch');
+  encounter = launchOrdnance(encounter, { shipId: 'pirate', missiles: 2, targetId: 'trader' });
+  const outcome = shipCombatOutcome(encounter);
+  assert.equal(outcome.ordnance.length, 2);
+  assert.equal(outcome.ordnance[0].status, 'in-flight');
+  // The magazine was debited at launch, and the expenditure is recorded.
+  const pirateOut = outcome.ships.find((entry) => entry.shipId === 'pirate');
+  assert.equal(pirateOut.ship.state.armament.missiles, 4);
+  assert.equal(pirateOut.expenditure.missiles, 2);
 });

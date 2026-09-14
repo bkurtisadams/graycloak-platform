@@ -35,7 +35,7 @@ import {
   canDoubleFire,
   hullDecompressed
 } from './damage.js';
-import { applyShipHit, assertValidShipDocument } from './ship-document.js';
+import { applyShipHit, applyMissileDetonation, assertValidShipDocument } from './ship-document.js';
 
 export const SHIP_COMBAT_SIDES = Object.freeze(['intruder', 'native']);
 
@@ -78,6 +78,43 @@ export const LASER_RANGE_DMS = Object.freeze([
 // so it reads as a house ruling on screen rather than a printed rule.
 export const ABBREVIATED_SAND_DM_PER_CANISTER = -3;
 export const ABBREVIATED_SAND_DM_IS_RAW = false;
+
+// ---------------------------------------------------------------------------
+// Ordnance in flight.
+//
+// Book 2 sequences a missile across three phases, and the phase structure holds
+// it without any help:
+//
+//   p.30, launch      — launched in the launcher's phase D; "The launched item
+//                       does not actually move until the following friendly
+//                       movement phase."
+//   p.30, movement    — it moves, and contacts, in the launcher's next phase A.
+//   p.30, return fire — "Anti-missile fire also takes place in the laser return
+//                       fire phase... at enemy missiles which have contacted the
+//                       ship during the preceding movement phase." Phase C
+//                       belongs to the target, so its one chance to stop the
+//                       missile falls in its own reactive phase.
+//   p.30, launch      — "missiles or sand which contacted a target in the
+//                       preceding movement phase now explode."
+//
+// GRAYCLOAK EXTENSION, not RAW: contact is automatic on arrival. In vector mode
+// a missile has to cross the distance and may fail to reach its target at all;
+// abbreviated mode has no distance, so flight is exactly one player-turn cycle
+// and a missile always arrives. Flagged on the record.
+export const ABBREVIATED_MISSILE_CONTACT_IS_AUTOMATIC = true;
+export const ABBREVIATED_MISSILE_CONTACT_IS_RAW = false;
+
+export const ORDNANCE_STATUSES = Object.freeze(['in-flight', 'contact', 'destroyed', 'detonated', 'spent']);
+
+// Book 2 p.30 ECM: "all missiles in contact with the ship are destroyed without
+// damage to the ship, on a throw of 7+."
+export const ECM_DESTROY_THROW = 7;
+
+// Book 2 gives anti-missile fire no throw of its own, so p.29's laser throw of
+// 8+ applies, and p.30 is explicit that "other programs do not effect the
+// functioning of these programs" — no Predict, no Gunner Interact, no target
+// program needed.
+export const ANTI_MISSILE_THROW = LASER_HIT_THROW;
 
 export const SHIP_COMBAT_OUTCOMES = Object.freeze([
   'in-progress', 'disabled', 'escaped', 'surrendered', 'disengaged', 'referee-called'
@@ -271,6 +308,8 @@ export function createShipCombatEncounter({
     phasingSide: 'intruder',
     phaseIndex: 0,
     fireAllocation: null,
+    ordnance: [],
+    ordnanceSequence: 0,
     participants: built,
     outcome: 'in-progress',
     log: []
@@ -679,7 +718,7 @@ export function returnFireEligibility(participant) {
  * Book 2 p.30: missiles or sand may be launched "provided both launch and
  * target programs are running", one round per rack or sandcaster.
  */
-export function launchOrdnance(encounter, { shipId, missiles = 0, sandCanisters = 0 } = {}) {
+export function launchOrdnance(encounter, { shipId, missiles = 0, sandCanisters = 0, targetId = null } = {}) {
   const phase = currentPhase(encounter);
   if (phase.key !== 'ordnance-launch') throw new Error(`ordnance cannot be launched in the ${phase.label} phase`);
   const next = freeze(encounter);
@@ -690,13 +729,189 @@ export function launchOrdnance(encounter, { shipId, missiles = 0, sandCanisters 
   if (missiles > participant.ship.state.armament.missiles) throw new RangeError('not enough missiles aboard');
   if (sandCanisters > participant.ship.state.armament.sandCanisters) throw new RangeError('not enough sand aboard');
 
+  // Book 2 p.18: "Such missiles are committed to a specific target when fired,
+  // and after launch, home towards that target until either the missile or the
+  // target is destroyed." So a missile needs a target at launch; sand does not,
+  // being dispensed into the path of whatever is shooting.
+  let target = null;
+  if (missiles > 0) {
+    if (!targetId) throw new TypeError('a missile is committed to a specific target when fired (Book 2 p.18)');
+    target = getParticipant(next, targetId);
+    if (target.side === participant.side) throw new Error('a missile cannot be committed to its own side');
+  }
+
   participant.ship.state.armament.missiles -= missiles;
   participant.ship.state.armament.sandCanisters -= sandCanisters;
   participant.expenditure.missiles += missiles;
   participant.expenditure.sandCanisters += sandCanisters;
   participant.sandDeployed += sandCanisters;
-  logEvent(next, { kind: 'ordnance-launch', shipId, missiles, sandCanisters });
+
+  for (let index = 0; index < missiles; index += 1) {
+    next.ordnanceSequence += 1;
+    next.ordnance.push({
+      id: `m-${next.ordnanceSequence}`,
+      kind: 'missile',
+      launcherShipId: shipId,
+      launcherSide: participant.side,
+      targetShipId: target.id,
+      launchedGameTurn: next.gameTurn,
+      status: 'in-flight',
+      contactIsAutomatic: ABBREVIATED_MISSILE_CONTACT_IS_AUTOMATIC,
+      raw: ABBREVIATED_MISSILE_CONTACT_IS_RAW
+    });
+  }
+
+  logEvent(next, { kind: 'ordnance-launch', shipId, missiles, sandCanisters, targetId: target?.id ?? null });
   return next;
+}
+
+/**
+ * Book 2 p.23 phase A: "Ordnance (missiles and sand) which he has launched in
+ * previous game turns is moved at the same time." In abbreviated mode there is
+ * nothing to cross, so a missile in flight reaches its target.
+ */
+export function moveOrdnance(encounter) {
+  const phase = currentPhase(encounter);
+  if (phase.key !== 'movement') throw new Error(`ordnance does not move in the ${phase.label} phase`);
+  const next = freeze(encounter);
+  next.log = encounter.log.map((entry) => ({ ...entry }));
+  const contacted = [];
+  for (const round of next.ordnance) {
+    if (round.status !== 'in-flight') continue;
+    // Only the phasing side's ordnance moves in its own movement phase, and not
+    // in the same player turn it was launched in.
+    if (round.launcherSide !== next.phasingSide) continue;
+    // Phase D comes after phase A within a player turn, so "the following
+    // friendly movement phase" is always the next game turn.
+    if (round.launchedGameTurn >= next.gameTurn) continue;
+    const target = next.participants.find((entry) => entry.id === round.targetShipId);
+    if (!target || target.escaped) {
+      // p.18: it homes until either the missile or the target is destroyed. A
+      // target that is gone leaves the missile with nothing to home on.
+      round.status = 'spent';
+      continue;
+    }
+    round.status = 'contact';
+    contacted.push(round.id);
+  }
+  if (contacted.length) logEvent(next, { kind: 'ordnance-contact', rounds: contacted });
+  return next;
+}
+
+export function ordnanceInFlight(encounter, { targetShipId = null, status = null } = {}) {
+  return Object.freeze(encounter.ordnance.filter((round) => {
+    if (targetShipId && round.targetShipId !== targetShipId) return false;
+    if (status && round.status !== status) return false;
+    return true;
+  }).map((round) => Object.freeze({ ...round })));
+}
+
+/**
+ * Book 2 p.30, laser return fire phase. Anti-missile fire needs the
+ * Anti-Missile program; ECM is separate and destroys contacting missiles on 7+
+ * without any laser being fired. Neither needs Target or Multi-Target, and
+ * "other programs do not effect the functioning of these programs", so no
+ * Predict or Gunner Interact applies.
+ */
+export function resolveAntiMissileFire(encounter, dice, { shipId } = {}) {
+  requireDice(dice);
+  const phase = currentPhase(encounter);
+  if (phase.key !== 'return-fire') throw new Error(`anti-missile fire happens in the return fire phase, not ${phase.label}`);
+  const next = freeze(encounter);
+  next.log = encounter.log.map((entry) => ({ ...entry }));
+  const participant = getParticipant(next, shipId);
+  const incoming = next.ordnance.filter((round) => round.targetShipId === shipId && round.status === 'contact');
+  const results = [];
+
+  if (!incoming.length) {
+    return Object.freeze({ encounter: next, ecm: null, shots: Object.freeze([]), destroyed: Object.freeze([]) });
+  }
+
+  // ECM first: it destroys all contacting missiles at once rather than one per
+  // laser, which is what makes a 3-point program worth its space.
+  let ecm = null;
+  if (programInComputer(participant, 'ecm')) {
+    const roll = dice.roll2D6();
+    const cleared = roll.total >= ECM_DESTROY_THROW;
+    ecm = Object.freeze({ dice: Object.freeze([...roll.dice]), total: roll.total, target: ECM_DESTROY_THROW, cleared });
+    if (cleared) {
+      for (const round of incoming) round.status = 'destroyed';
+      logEvent(next, { kind: 'anti-missile', shipId, ecm, destroyed: incoming.map((round) => round.id) });
+      return Object.freeze({
+        encounter: next, ecm, shots: Object.freeze([]),
+        destroyed: Object.freeze(incoming.map((round) => round.id))
+      });
+    }
+  }
+
+  if (programInComputer(participant, 'anti-missile')) {
+    // p.30: "any or all laser weaponry" may fire at contacting missiles.
+    const lasers = operationalTurrets(participant.ship)
+      .flatMap((turretId) => turretLasers(participant, turretId).map((weapon) => ({ turretId, weapon })));
+    let remaining = incoming.filter((round) => round.status === 'contact');
+    for (const laser of lasers) {
+      const round = remaining.find((entry) => entry.status === 'contact');
+      if (!round) break;
+      const roll = dice.roll2D6();
+      const hit = roll.total >= ANTI_MISSILE_THROW;
+      if (hit) round.status = 'destroyed';
+      results.push(Object.freeze({
+        turretId: laser.turretId,
+        weapon: laser.weapon,
+        roundId: round.id,
+        dice: Object.freeze([...roll.dice]),
+        total: roll.total,
+        target: ANTI_MISSILE_THROW,
+        hit
+      }));
+      remaining = remaining.filter((entry) => entry.status === 'contact');
+    }
+  }
+
+  const destroyed = incoming.filter((round) => round.status === 'destroyed').map((round) => round.id);
+  logEvent(next, { kind: 'anti-missile', shipId, ecm, shots: results, destroyed });
+  return Object.freeze({ encounter: next, ecm, shots: Object.freeze(results), destroyed: Object.freeze(destroyed) });
+}
+
+/**
+ * Book 2 p.30 phase D: "missiles or sand which contacted a target in the
+ * preceding movement phase now explode." p.31 gives the effect — one die for
+ * the number of hits, each located separately at -4.
+ */
+export function detonateContactedOrdnance(encounter, dice) {
+  requireDice(dice);
+  const phase = currentPhase(encounter);
+  if (phase.key !== 'ordnance-launch') throw new Error(`ordnance detonates in the ordnance launch phase, not ${phase.label}`);
+  let next = freeze(encounter);
+  next.log = encounter.log.map((entry) => ({ ...entry }));
+  const detonations = [];
+
+  for (const round of next.ordnance) {
+    if (round.status !== 'contact') continue;
+    if (round.launcherSide !== next.phasingSide) continue;
+    const target = next.participants.find((entry) => entry.id === round.targetShipId);
+    if (!target) { round.status = 'spent'; continue; }
+    const result = applyMissileDetonation(target.ship, dice);
+    target.ship = freeze(result.ship);
+    round.status = 'detonated';
+    const detonation = {
+      roundId: round.id,
+      targetShipId: round.targetShipId,
+      hitCount: result.hitCount,
+      hits: result.hits.map((hit) => ({ ...hit }))
+    };
+    // A hull hit still decompresses a pressurised section.
+    for (const hit of result.hits) {
+      if (hit.location !== 'hull') continue;
+      const decompression = resolveDecompression(target, dice);
+      if (decompression) detonation.decompression = decompression;
+    }
+    detonations.push(Object.freeze(detonation));
+    logEvent(next, { kind: 'missile-detonation', ...detonation });
+  }
+
+  next = applyDisabledOutcomes(next);
+  return Object.freeze({ encounter: next, detonations: Object.freeze(detonations) });
 }
 
 // ---------------------------------------------------------------------------
@@ -864,6 +1079,7 @@ export function shipCombatOutcome(encounter) {
       decompressionEvents: Object.freeze(participant.decompressionEvents.map((entry) => freeze(entry))),
       casualties: Object.freeze(participant.casualties.map((entry) => ({ ...entry })))
     }))),
+    ordnance: Object.freeze(encounter.ordnance.map((round) => Object.freeze({ ...round }))),
     log: Object.freeze(encounter.log.map((entry) => ({ ...entry })))
   });
 }
