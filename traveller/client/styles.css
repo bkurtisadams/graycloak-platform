@@ -4487,17 +4487,20 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 /* v0.148.0: the map tool rail is an absolute overlay over the stage, so the
    vector panel's own controls have to start clear of it or the rail is drawn
    on top of the thrust fields. */
+/* v0.150.0: the inset belongs to the SECTION, not the stage alone. The tool
+   rail is an absolute overlay 74px wide starting at --rail-top: 90px, which is
+   the toolbar row — and the toolbar is the stage's SIBLING, so padding on the
+   stage never covered it. v1.231.00 cleared the thrust controls and left the
+   rail sitting on the VECTOR PLOT caption and the status line. */
+#ship-vector-section > * {
+  padding-left: 104px;
+}
 .ship-vector-stage {
   flex: 1 1 0;
   height: 0;
   min-height: 0;
   overflow: auto;
-  /* The map tool rail is an absolute overlay over the stage, so the controls
-     have to start clear of it or the rail is drawn on top of the thrust
-     fields. */
-  /* The tool rail is about 100px wide; 76px was under-measured and the rail
-     was still drawn over the thrust fields. */
-  padding: 8px 10px 8px 112px;
+  padding: 8px 10px 8px 104px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -4510,8 +4513,10 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
   flex: 1 1 auto;
   width: 100%;
   height: auto;
-  min-height: 260px;
-  max-height: 60vh;
+  /* Take the height that is there rather than a fixed ceiling: the 60vh cap
+     left a large empty scroll region below the plot. */
+  min-height: 240px;
+  max-height: none;
 }
 .ship-vector-stage .vector-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 6px; }
 .ship-vector-stage .vector-controls label { display: inline-flex; align-items: center; gap: 4px; }
