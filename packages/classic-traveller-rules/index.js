@@ -216,6 +216,12 @@ export {
 } from './src/starships/components.js';
 
 export {
+  generateNpcCharacter,
+  NPC_TERM_RANGE,
+  NPC_GENERATION_ATTEMPTS
+} from './src/characters/npc-generator.js';
+
+export {
   costDesign,
   tonnageBudget
 } from './src/starships/design-costing.js';

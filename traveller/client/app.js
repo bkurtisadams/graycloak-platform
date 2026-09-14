@@ -3,6 +3,7 @@ import {
   CHARGEN_PHASES,
   createDice,
   createCharacter,
+  generateNpcCharacter,
   createCharacterDocument,
   createTypeSScoutReserveShipForCharacter,
   SHIP_CREW_ROLES,
@@ -641,6 +642,7 @@ const el = {
   sceneNavActive: document.querySelector('#scene-nav-active'),
   rosterFolders: document.querySelector('#roster-folders'),
   rosterNewActor: document.querySelector('#roster-new-actor'),
+  rosterRollActor: document.querySelector('#roster-roll-actor'),
   rollDialog: document.querySelector('#roll-dialog'),
   rollDialogForm: document.querySelector('#roll-dialog-form'),
   rollDialogTitle: document.querySelector('#roll-dialog-title'),
@@ -5878,6 +5880,56 @@ function closeNpcActorDialog() {
   pendingNpcPortraitAsset = null;
   if (typeof el.npcActorDialog.close === 'function') el.npcActorDialog.close();
   else el.npcActorDialog.removeAttribute('open');
+}
+
+// v0.142.0: a referee who needs somebody now. Book 1 has no separate NPC
+// procedure — p.8 generates a hired crewman the same way as anyone else, and
+// Book 3's encounter tables give a TYPE of person rather than statistics — so
+// this rolls an ordinary Book 1 career and fills the editor with it. Nothing is
+// saved until the referee presses save, because the one thing the books cannot
+// supply is a name: p.4's NAMING section is advice, not a table.
+function rollNpcActor() {
+  if (!campaignDocument) return setStatus('CREATE OR LOAD A CAMPAIGN BEFORE ADDING ROSTER ACTORS', 'error');
+  try {
+    const rolled = generateNpcCharacter({ name: 'Rolled NPC' });
+    const npc = rolled.character;
+
+    openNpcActorDialog();
+    // Left blank deliberately: the referee names them. Everything else is rolled.
+    el.npcName.value = '';
+    el.npcRole.value = npc.rankTitle || `Ex-${serviceName(npc.service)}`;
+    el.npcAge.value = String(npc.age);
+    for (const [element, key] of [[el.npcStr, 'STR'], [el.npcDex, 'DEX'], [el.npcEnd, 'END'],
+      [el.npcInt, 'INT'], [el.npcEdu, 'EDU'], [el.npcSoc, 'SOC']]) {
+      element.value = String(npc.characteristics[key]);
+    }
+    el.npcService.value = npc.service ?? '';
+    el.npcTerms.value = String(npc.terms);
+    el.npcRank.value = npc.rankTitle ?? '';
+    el.npcSkills.value = npcSkillsText(npc.skills);
+    el.npcCredits.value = String(npc.credits ?? 0);
+
+    // What mustering out gave them, which is often the most useful hook.
+    const benefits = npc.materialBenefits.map((entry) => entry.specialization ?? entry.name).filter(Boolean);
+    el.npcDescription.value = [
+      `${npc.upp} · ${serviceName(npc.service)} · ${npc.terms} term${npc.terms === 1 ? '' : 's'} · age ${npc.age}`,
+      npc.rankTitle ? `Rank: ${npc.rankTitle}` : null,
+      benefits.length ? `Mustering out: ${benefits.join(', ')}` : null,
+      npc.retirementPayAnnual ? `Pension: ${formatCr(npc.retirementPayAnnual)} a year` : null,
+      'Rolled on the Book 1 tables. Name them and save, or roll again.'
+    ].filter(Boolean).join('\n');
+
+    el.npcName.focus();
+    // Book 1 p.5 kills a character who fails survival and says to generate
+    // another. Saying how many died is more honest than hiding the attrition.
+    const lost = rolled.died
+      ? ` / ${rolled.died} career${rolled.died === 1 ? '' : 's'} lost in service first`
+      : '';
+    setStatus(`ROLLED ${serviceName(npc.service).toUpperCase()} / ${npc.terms} TERM${npc.terms === 1 ? '' : 'S'}${lost.toUpperCase()} / NAME AND SAVE`, 'ok');
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
 }
 
 function openNpcActorDialog(actorId = null) {
@@ -11672,6 +11724,7 @@ el.encounterConditionClear.addEventListener('click', () => {
 el.combatAddEnemyType.addEventListener('click', addCombatEnemyGroup);
 el.combatAddRosterActor.addEventListener('click', () => addRosterActorToCombatSetup());
 el.rosterNewActor.addEventListener('click', () => openNpcActorDialog());
+el.rosterRollActor?.addEventListener('click', rollNpcActor);
 el.npcActorClose.addEventListener('click', closeNpcActorDialog);
 el.npcActorCancel.addEventListener('click', closeNpcActorDialog);
 el.npcActorDialog.addEventListener('cancel', (event) => { event.preventDefault(); closeNpcActorDialog(); });
