@@ -94,6 +94,10 @@ import {
   createShipDocument,
   importShipDocument,
   shipCrewRole,
+  shipCrewMemberRoles,
+  MAXIMUM_ROLES_PER_CREW_MEMBER,
+  DOUBLED_ROLE_SALARY_RATE,
+  crewMemberSalaryCr,
   turretOperational,
   currentDriveState,
   damageReport,
@@ -2429,6 +2433,43 @@ function currentCommerceSkillDM() {
     Number(gameplayDocument.skills.Admin ?? 0),
     Number(gameplayDocument.skills.Bribery ?? 0)
   );
+}
+
+// Book 2 p.16 needs a steward aboard before a high passage can be sold, and
+// Book 2 p.17 says how to get one without hiring: "One person may fill two
+// crew positions... he is unable to apply his expertise to the position... and
+// draws a salary equal to 75% of each job." On a Type S with a crew of one
+// that is the only way a high passenger ever gets carried, so the card should
+// say so rather than stopping at "nobody is assigned".
+function stewardDoublingCandidates() {
+  if (!shipDocument) return [];
+  const seen = new Map();
+  for (const entry of shipDocument.crew.assignments) {
+    if (seen.has(entry.characterId)) continue;
+    const held = shipCrewMemberRoles(shipDocument, entry.characterId);
+    if (held.roles.length >= MAXIMUM_ROLES_PER_CREW_MEMBER) continue;
+    if (held.roles.includes('steward')) continue;
+    seen.set(entry.characterId, {
+      name: entry.characterName || entry.characterId,
+      role: entry.role,
+      // What doubling up actually costs: 75% of each post rather than the one
+      // full salary being drawn now.
+      extraCr: Math.round(crewMemberSalaryCr(entry.role) * DOUBLED_ROLE_SALARY_RATE)
+        + Math.round(crewMemberSalaryCr('steward') * DOUBLED_ROLE_SALARY_RATE)
+        - crewMemberSalaryCr(entry.role)
+    });
+  }
+  return [...seen.values()];
+}
+
+function stewardDoublingNote() {
+  const base = 'Book 2 p.16 requires a steward aboard for high passage. Nobody is assigned.';
+  const candidates = stewardDoublingCandidates();
+  if (!candidates.length) return base;
+  const first = candidates[0];
+  const others = candidates.length > 1 ? ` (or ${candidates.length - 1} other${candidates.length > 2 ? 's' : ''})` : '';
+  return `${base} Book 2 p.17 lets one person hold two posts: ${first.name}${others} could take it alongside ${first.role}`
+    + ` for ${formatCr(first.extraCr)} more a month, losing the expertise DMs in both.`;
 }
 
 function passengerRouteBlockReason(destinationSystemId) {
@@ -10193,7 +10234,7 @@ function playProcedureSnapshot() {
       // Book 2 p.16: one steward per eight high passengers, and none aboard
       // means no high passage at all.
       blockedReason: passageClass === 'high' && stewards < 1
-        ? 'Book 2 p.16 requires a steward aboard for high passage. Nobody is assigned.'
+        ? stewardDoublingNote()
         : null
     }));
     passengers = { demand: route.passengerDemand, booked, capacity, blockReason: passengerRouteBlockReason(selected.id), classes };
