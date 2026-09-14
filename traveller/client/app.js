@@ -95,6 +95,8 @@ import {
   importShipDocument,
   shipCrewRole,
   turretOperational,
+  currentDriveState,
+  damageReport,
   COMPUTER_MODELS,
   createShipCombatEncounter,
   currentPhase as currentShipCombatPhase,
@@ -142,6 +144,7 @@ import {
   buildServiceHistory,
   buildSituationRecord,
   buildSystemRecord,
+  buildWorldStripModel,
   helpForTopic,
   nobleTitleLabel,
   serviceName
@@ -481,6 +484,11 @@ const el = {
   shipStripName: document.querySelector('#ship-strip-name'),
   shipStripAccount: document.querySelector('#ship-strip-account'),
   shipStripCells: document.querySelector('#ship-strip-cells'),
+  worldStripName: document.querySelector('#world-strip-name'),
+  worldStripCells: document.querySelector('#world-strip-cells'),
+  worldStripRoute: document.querySelector('#world-strip-route'),
+  worldViewCurrent: document.querySelector('#world-view-current'),
+  worldViewSelected: document.querySelector('#world-view-selected'),
   assignCrewButton: document.querySelector('#assign-crew'),
   liveShipArmament: document.querySelector('#live-ship-armament'),
   fitArmamentButton: document.querySelector('#fit-armament'),
@@ -706,6 +714,10 @@ let shipDocument = null;
 let pendingShipEncounter = null;
 let shipCombatEncounter = null;
 let shipCombatAllocation = {};
+// v0.128.0: which world the strip's right-hand column is describing. Reading
+// "Starport A" without knowing whether that is here or the destination was the
+// ambiguity the two-column strip exists to remove.
+let worldStripView = 'current';
 let campaignDocument = null;
 let contractDocuments = [];
 let situationDocuments = [];
@@ -8703,6 +8715,83 @@ function positionToolRail() {
   if (offset > 0) shell.style.setProperty('--rail-top', `${offset + 8}px`);
 }
 
+function setWorldStripView(view) {
+  worldStripView = view === 'selected' ? 'selected' : 'current';
+  render();
+}
+
+function renderWorldStrip() {
+  if (!el.worldStripCells) return;
+  const current = mappedCurrentSystem();
+  const selected = selectedSystemId ? getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, selectedSystemId) : null;
+  const hasSelection = Boolean(selected && (!current || selected.id !== current.id));
+  // Nothing selected means there is nothing for SELECTED to describe, so the
+  // toggle falls back rather than showing an empty column.
+  const showing = worldStripView === 'selected' && hasSelection ? selected : current;
+  const role = showing && current && showing.id === current.id ? 'CURRENT' : 'SELECTED';
+
+  if (el.worldViewSelected) {
+    el.worldViewSelected.disabled = !hasSelection;
+    el.worldViewSelected.setAttribute('aria-pressed', String(role === 'SELECTED'));
+    el.worldViewSelected.title = hasSelection ? `Describe ${selected.name}` : 'Select a system on the map';
+  }
+  if (el.worldViewCurrent) el.worldViewCurrent.setAttribute('aria-pressed', String(role === 'CURRENT'));
+
+  const model = buildWorldStripModel({ system: showing, ship: shipDocument, role });
+  el.worldStripName.textContent = `${model.name} \u00b7 ${model.role}`;
+  el.worldStripCells.replaceChildren(...model.cells.map((row) => {
+    const cell = document.createElement('div');
+    cell.className = `ship-strip-cell${row.attention ? ' live-state-attention' : row.ok ? ' live-state-ready' : ''}`;
+    if (row.title) cell.title = row.title;
+    const key = document.createElement('div');
+    key.className = 'ship-strip-key';
+    key.textContent = row.label;
+    const main = document.createElement('div');
+    main.textContent = row.value;
+    cell.append(key, main);
+    return cell;
+  }));
+
+  renderWorldStripRoute(current, selected);
+}
+
+// The route, carrying the state Kurt ruled for the traffic lights: red
+// BLOCKED, amber REQUIRED, green READY. Co-locating fuel and distance is only
+// worth anything if a mismatch between them is visible.
+function renderWorldStripRoute(current, selected) {
+  const route = el.worldStripRoute;
+  if (!route) return;
+  route.className = 'world-strip-route';
+  if (!current || !selected || selected.id === current.id) {
+    route.textContent = shipDocument ? 'SELECT A DESTINATION ON THE MAP' : '';
+    return;
+  }
+  try {
+    const distance = jumpDistanceBetweenSystems(FAR_MERIDIAN_SUBSECTOR, current.id, selected.id);
+    const leg = `${current.name.toUpperCase()} \u2192 ${selected.name.toUpperCase()} \u00b7 ${distance} PC`;
+    if (!shipDocument) { route.textContent = leg; return; }
+    const check = canShipMakeJump(shipDocument, distance);
+    const required = check?.requirement?.totalTons ?? null;
+    const aboard = shipDocument.state.currentFuelTons;
+    if (check?.allowed) {
+      route.classList.add('live-state-ready');
+      route.textContent = `${leg} \u00b7 ${required}t OF ${aboard}t \u00b7 READY`;
+      return;
+    }
+    // Amber where the shortfall can be made good here, red where it cannot.
+    const profile = parseUniversalWorldProfile(current.mainWorld.uwp);
+    const service = starportFuelService(profile.starport, { scoutBase: current.bases.scout, ship: shipDocument });
+    const skimmable = Boolean(current.gasGiant && shipDocument.specifications.hull.streamlined);
+    const obtainable = Boolean(service?.available) || skimmable;
+    route.classList.add(obtainable ? 'live-state-attention' : 'live-state-critical');
+    const shortfall = Number.isFinite(required) && Number.isFinite(aboard) ? Math.max(0, required - aboard) : null;
+    route.textContent = `${leg} \u00b7 NEEDS ${required ?? '--'}t \u00b7 SHORT ${shortfall ?? '--'}t \u00b7 ${obtainable ? 'FUEL HERE' : 'NO FUEL HERE'}`;
+  } catch (error) {
+    // Out of jump range is not an error worth a red line; it is just not a leg.
+    route.textContent = `${current.name.toUpperCase()} \u2192 ${selected.name.toUpperCase()} \u00b7 NO ROUTE`;
+  }
+}
+
 function renderShipStrip() {
   if (!el.shipStrip) return;
   // The map section is already hidden outside the system view, so the strip
@@ -8748,7 +8837,33 @@ function renderShipStrip() {
   // account that could not cover a period leaves it due.
   const outstandingCr = currentUpkeepDue()?.totalDueCr ?? 0;
 
-  const jump = shipDocument.specifications.drives?.jump?.rating;
+  // v0.128.0: this read specifications.drives.jump.rating — the rating the ship
+  // was BUILT with. Book 2 p.33 reduces a drive's letter by one per hit and the
+  // potential is reread from p.11, so a ship with a destroyed jump drive still
+  // read "Jump-2" here. Damage lives in state; the design says what it was.
+  const jumpDrive = currentDriveState(shipDocument, 'jumpDrive');
+  const maneuverDrive = currentDriveState(shipDocument, 'maneuverDrive');
+  const powerPlant = currentDriveState(shipDocument, 'powerPlant');
+  const driveText = jumpDrive.destroyed
+    ? `Jump drive destroyed`
+    : jumpDrive.potential === null
+      ? `Jump drive inoperable`
+      : `Jump-${jumpDrive.potential}`;
+  const driveDetail = [
+    `${shipDocument.specifications.hull.tons}t hull${shipDocument.specifications.hull.streamlined ? ' \u00b7 streamlined' : ''}`,
+    maneuverDrive.functional ? `${maneuverDrive.potential}G` : 'no manoeuvre drive',
+    powerPlant.functional ? null : 'power plant out'
+  ].filter(Boolean).join(' \u00b7 ');
+  const damaged = [jumpDrive, maneuverDrive, powerPlant].some((entry) => entry.hits > 0);
+
+  // v0.128.0: the strip predated v1.190.00, so it said nothing about whether
+  // the ship could fire at all — which Book 2 makes the difference between an
+  // encounter survived and one lost.
+  const turrets = shipDocument.specifications.armament.turrets;
+  const fittedWeapons = shipDocument.state.armament.turrets
+    .flatMap((entry) => entry.weapons.map((key) => getTurretWeapon(key).code));
+  const gunners = shipGunnerRequirement(shipDocument);
+  const magazine = magazineCapacity(shipDocument);
   const maintenanceMonthlyCr = Math.round(annualMaintenanceCr(shipDocument) / 12);
   const fuelNeeded = currentJumpFuelRequirement();
   const cells = [
@@ -8770,9 +8885,23 @@ function renderShipStrip() {
         : [`${formatCr(payroll.totalCr)} crew salaries`,
           `${formatCr(maintenanceMonthlyCr)} maintenance`,
           financed ? `${formatCr(financed)} mortgage` : null].filter(Boolean).join(' \u00b7 ')],
-    ['DRIVE', Number.isInteger(jump) ? `Jump-${jump}` : 'Unrated',
-      `${shipDocument.specifications.hull.tons}t hull${shipDocument.specifications.hull.streamlined ? ' \u00b7 streamlined' : ''}`]
+    ['DRIVE', driveText, driveDetail],
+    ['ARMAMENT', turrets.length === 0
+      ? 'No turret'
+      : fittedWeapons.length
+        ? `${fittedWeapons.join(', ')} in ${turrets.length} turret${turrets.length === 1 ? '' : 's'}`
+        : `Unarmed \u00b7 ${turrets.length} empty turret${turrets.length === 1 ? '' : 's'}`,
+      [
+        gunners.shortfall ? `${gunners.shortfall} gunner${gunners.shortfall === 1 ? '' : 's'} required` : null,
+        magazine.launchers || magazine.sandcasters
+          ? `${magazine.missiles} missiles \u00b7 ${magazine.sandCanisters} sand`
+          : null,
+        turrets.length && !fittedWeapons.length ? 'Book 2 p.16: weapons are bought after delivery' : null
+      ].filter(Boolean).join(' \u00b7 ')]
   ];
+  if (damaged) cells.unshift(['DAMAGE', `${damageReport(shipDocument).totalHits} hit${damageReport(shipDocument).totalHits === 1 ? '' : 's'}`,
+    damageReport(shipDocument).adrift ? 'Adrift' : damageReport(shipDocument).canJump ? 'Can still jump' : 'Cannot jump']);
+  renderWorldStrip();
   el.shipStripCells.replaceChildren(...cells.map(([label, value, detail]) => {
     const cell = document.createElement('div');
     cell.className = 'ship-strip-cell';
@@ -11423,6 +11552,8 @@ el.animalClose?.addEventListener('click', () => el.animalDialog.close());
 el.assignCrewButton?.addEventListener('click', openCrewDialog);
 el.crewAssignConfirm?.addEventListener('click', confirmCrewAssignment);
 el.crewCancel?.addEventListener('click', () => el.crewDialog.close());
+el.worldViewCurrent?.addEventListener('click', () => setWorldStripView('current'));
+el.worldViewSelected?.addEventListener('click', () => setWorldStripView('selected'));
 el.fitArmamentButton?.addEventListener('click', openArmamentDialog);
 el.armamentFitConfirm?.addEventListener('click', confirmFitWeapon);
 el.armamentOrdnanceConfirm?.addEventListener('click', confirmBuyOrdnance);

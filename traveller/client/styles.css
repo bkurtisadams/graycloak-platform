@@ -4322,10 +4322,22 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .ship-strip-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 4px; }
 .ship-strip-name { font-weight: 700; letter-spacing: .03em; }
 .ship-strip-account { color: var(--muted); }
-.ship-strip-cells { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.ship-strip-cells { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+/* v0.128.0: ship on the left, world on the right, so a jump decision's two
+   halves can be read against each other. */
+.nav-strip { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.nav-strip-world { padding-left: 12px; border-left: 1px solid var(--rule); }
+.world-strip-toggle { display: inline-flex; gap: 6px; }
+.world-strip-toggle .text-button[aria-pressed="true"] { color: var(--ink); font-weight: 700; }
+.world-strip-toggle .text-button[aria-pressed="false"] { color: var(--muted); }
+.world-strip-route { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--disabled); font-size: 10px; letter-spacing: .06em; }
 .ship-strip-key { color: var(--muted); font-size: 10px; letter-spacing: .06em; }
 .ship-strip-detail { color: var(--muted); font-size: 10px; }
-@media (max-width: 1100px) { .ship-strip-cells { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1100px) {
+  .ship-strip-cells { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .nav-strip { grid-template-columns: minmax(0, 1fr); }
+  .nav-strip-world { padding-left: 0; border-left: 0; padding-top: 6px; border-top: 1px solid var(--rule); }
+}
 
 /* v0.113.0: an error in the masthead was muted red text at 11px against a
    busy strip, and was being missed entirely — a refused action read as a

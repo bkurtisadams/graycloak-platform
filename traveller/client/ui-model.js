@@ -1203,3 +1203,72 @@ export function buildContractBoardPanel({ system, selectedSystem = null, contrac
 
   return { groups };
 }
+
+// ---------------------------------------------------------------------------
+// v0.128.0: the navigation strip above the subsector map.
+//
+// One model for the world half, so the strip, the SYSTEM RECORD and the PORT
+// tab are not three renderers each parsing the same UWP. Three fields have
+// already gone stale in the strip by reading documents inline — `registration`
+// and the design name in v0.111.0, and state.passengers up to v0.126.0.
+// ---------------------------------------------------------------------------
+
+export function buildWorldStripModel({ system, ship = null, role = 'CURRENT' } = {}) {
+  if (!system) {
+    return { name: 'UNMAPPED', role, cells: [panelRow('STATUS', 'SELECT A SYSTEM ON THE MAP')] };
+  }
+  const profile = parseUniversalWorldProfile(system.mainWorld.uwp);
+  const trade = describeTradeClassifications(profile).map((entry) => entry.label.toUpperCase()).join(' / ') || 'NONE';
+  const zone = system.travelZone === 'none' ? 'NORMAL' : system.travelZone.toUpperCase();
+
+  // Book 3 p.5: what the starport class actually provides, which is the thing
+  // a captain is deciding on rather than the letter.
+  const port = String(profile.starport).toUpperCase();
+  const facilities = [];
+  if (port === 'A' || port === 'B') facilities.push('REFINED FUEL', 'OVERHAUL');
+  else if (port === 'C' || port === 'D') facilities.push('UNREFINED FUEL');
+  if (port === 'A') facilities.push('SHIPYARD');
+  else if (port === 'B') facilities.push('NON-STARSHIP YARD');
+  if (port === 'C') facilities.push('REPAIRS');
+  if (port === 'E') facilities.push('BEDROCK ONLY');
+  if (port === 'X') facilities.push('NO LANDING');
+
+  // Book 2 p.15: an unstreamlined hull cannot enter atmosphere, so cargo and
+  // passengers move by shuttle at CR 10 per ton (Book 2 p.8).
+  const streamlined = ship?.specifications?.hull?.streamlined;
+  const landing = ship
+    ? (port === 'X' ? 'NO STARPORT' : streamlined ? 'CAN LAND' : 'ORBIT ONLY / SHUTTLE')
+    : '--';
+
+  return {
+    name: `${system.name.toUpperCase()} / ${system.hex}`,
+    role,
+    profile,
+    cells: [
+      panelRow('STARPORT', `${profile.starport} / ${facilities.join(' \u00b7 ') || 'NONE'}`,
+        { attention: port === 'E' || port === 'X', title: describeStarport(profile.starport) }),
+      panelRow('POPULATION', `${worldCode(profile.population)} / ${describePopulation(profile.population).toUpperCase()}`,
+        { title: 'Book 2 p.7: freight is one die per point of destination population.' }),
+      panelRow('LAW', `${worldCode(profile.lawLevel)} / ${describeLawLevel(profile.lawLevel).toUpperCase()}`,
+        { title: 'Book 3 p.7. Law level is also the throw to avoid arrest by an enforcement agent.' }),
+      panelRow('TECH', `${worldCode(profile.techLevel)}${profile.techLevel > 9 ? ` / ${profile.techLevel}` : ''}`),
+      panelRow('ATMOSPHERE', `${worldCode(profile.atmosphere)} / ${describeAtmosphere(profile.atmosphere).toUpperCase()}`),
+      panelRow('SIZE', `${worldCode(profile.size)} / ${describeWorldSize(profile.size).toUpperCase()}`),
+      panelRow('BASES', formatBases(system.bases),
+        { ok: Boolean(system.bases.scout), title: 'Book 1 p.23: fuel is free at scout bases, and maintenance is free at scout bases at class B starports.' }),
+      panelRow('GAS GIANT', system.gasGiant ? 'YES / SKIMMING' : 'NO',
+        { ok: Boolean(system.gasGiant), title: 'Book 2 p.35: unrefined fuel by skimming, free, if the hull is streamlined.' }),
+      panelRow('LANDING', landing, { attention: ship ? !streamlined || port === 'X' : false }),
+      panelRow('TRADE', trade),
+      // Book 3: an amber zone warns, a red zone interdicts. Both are worth
+      // flagging — only amber was, so a red zone read as ordinary.
+      panelRow('ZONE', zone, {
+        attention: system.travelZone === 'amber' || system.travelZone === 'red',
+        title: system.travelZone === 'red'
+          ? 'Red zone: travel is interdicted.'
+          : system.travelZone === 'amber' ? 'Amber zone: travel is cautioned.' : ''
+      }),
+      panelRow('UWP', system.mainWorld.uwp)
+    ]
+  };
+}

@@ -16,7 +16,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.127.0</div>
+          <div id="app-subtitle" class="subtitle">v0.128.0</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -155,12 +155,33 @@
           <!-- v0.106.1: the strip belongs INSIDE the map section, which is a
                flex column at height 100%. As a sibling it had no flow space
                of its own and the section drew straight over it. -->
+          <!-- v0.128.0: ship and world side by side above the map. A jump
+               decision is a comparison — fuel against distance, hold against
+               what ships from there, streamlining against whether you can
+               land — and those two halves used to sit at opposite ends of the
+               screen. The ids are unchanged so existing renderers keep
+               working. -->
           <div id="ship-strip" class="ship-strip" hidden>
-            <div class="ship-strip-head">
-              <span id="ship-strip-name" class="ship-strip-name">--</span>
-              <span id="ship-strip-account" class="ship-strip-account">--</span>
+            <div class="nav-strip">
+              <div class="nav-strip-col">
+                <div class="ship-strip-head">
+                  <span id="ship-strip-name" class="ship-strip-name">--</span>
+                  <span id="ship-strip-account" class="ship-strip-account">--</span>
+                </div>
+                <div id="ship-strip-cells" class="ship-strip-cells"></div>
+              </div>
+              <div class="nav-strip-col nav-strip-world">
+                <div class="ship-strip-head">
+                  <span id="world-strip-name" class="ship-strip-name">--</span>
+                  <span class="world-strip-toggle">
+                    <button id="world-view-current" class="text-button" type="button" aria-pressed="true">[ CURRENT ]</button>
+                    <button id="world-view-selected" class="text-button" type="button" aria-pressed="false">[ SELECTED ]</button>
+                  </span>
+                </div>
+                <div id="world-strip-cells" class="ship-strip-cells"></div>
+                <div id="world-strip-route" class="world-strip-route" aria-live="polite"></div>
+              </div>
             </div>
-            <div id="ship-strip-cells" class="ship-strip-cells"></div>
           </div>
           <div class="subsector-map-tools" aria-label="Subsector map zoom controls">
             <span id="subsector-name" class="subsector-caption-main">FAR MERIDIAN</span>
@@ -340,7 +361,7 @@
                 <div id="encounter-record" class="encounter-record" aria-live="polite"></div>
               </details>
             </section>
-            <!-- v0.127.0: Book 2 starship combat. A separate rail section from
+            <!-- v0.128.0: Book 2 starship combat. A separate rail section from
                  personal combat because the turn is nothing like a Book 1
                  round: two player turns of five phases each, and phase C
                  belongs to the side that is NOT acting. -->
@@ -382,7 +403,7 @@
                    assignment at all. -->
               <div class="live-ship-crew-heading"><strong>CREW</strong><button id="assign-crew" class="text-button" type="button">[ ASSIGN ]</button></div>
               <div id="live-ship-crew" class="live-ship-crew" aria-live="polite"></div>
-              <!-- v0.127.0: Book 2 p.16 delivers every standard design with
+              <!-- v0.128.0: Book 2 p.16 delivers every standard design with
                    empty turrets, so a ship is unarmed until weapons are bought
                    and fitted here. -->
               <div class="live-ship-crew-heading"><strong>ARMAMENT</strong><button id="fit-armament" class="text-button" type="button">[ FIT ]</button></div>
@@ -735,7 +756,7 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
       </div>
     </form>
   </dialog>
-  <!-- v0.127.0: two purchases in one dialog, so each fieldset owns its own
+  <!-- v0.128.0: two purchases in one dialog, so each fieldset owns its own
        button and says what that button buys. The first version put [ FIT ]
        above the ORDNANCE rule and [ BUY ] at the foot, which read as the
        dialog's confirm pair — pressing it to buy a laser was the sensible
