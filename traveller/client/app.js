@@ -3055,7 +3055,7 @@ function acceptContractOffer(offerId) {
     contractDocuments = [...contractDocuments, contract];
     campaignDocument = addContractToCampaign(campaignDocument, contract);
     syncCampaignRefs();
-    persistGameplayDocuments();
+    persistCampaignState();
     if (registry) registry.put(campaignDocument);
     logActivity('JOB', `ACCEPTED / ${contract.identity.title} / ${contract.origin.systemName} -> ${contract.destination.systemName} / ${formatCr(contract.economics.paymentCr)} / DUE ${String(contract.timing.deadlineDate.dayOfYear).padStart(3, '0')}-${contract.timing.deadlineDate.year}`);
     setStatus(`JOB ACCEPTED: ${contract.identity.title.toUpperCase()} / ${contract.origin.systemName.toUpperCase()} -> ${contract.destination.systemName.toUpperCase()}`, 'ok');
@@ -3347,7 +3347,7 @@ function transferFundsToShip() {
     });
     gameplayDocument = result.character;
     shipDocument = result.ship;
-    persistGameplayDocuments();
+    persistCampaignState();
     logActivity('SHIP', `${gameplayDocument.identity.name || 'Character'} transferred ${formatCr(amountCr)} to ${shipDocument.identity.name || 'ship'} operating account`);
     setStatus(`SHIP ACCOUNT FUNDED: +${formatCr(amountCr)}`, 'ok');
     render();
@@ -3397,7 +3397,7 @@ function withdrawFundsFromShip() {
     });
     gameplayDocument = result.character;
     shipDocument = result.ship;
-    persistGameplayDocuments();
+    persistCampaignState();
     logActivity('SHIP', `${gameplayDocument.identity.name || 'Character'} withdrew ${formatCr(amountCr)} from ${shipDocument.identity.name || 'ship'} operating account`);
     setStatus(`WITHDRAWN TO CHARACTER: ${formatCr(amountCr)}`, 'ok');
     render();
@@ -3421,7 +3421,7 @@ function refuelAtCurrentPort() {
       dateLabel: activityDateLabel()
     });
     shipDocument = result.ship;
-    persistGameplayDocuments();
+    persistCampaignState();
     if (result.addedTons > 0) {
       logActivity('SHIP', `${shipDocument.identity.name || 'Ship'} refueled ${result.addedTons}t ${service.quality} at ${system.name} / ${result.costCr ? formatCr(result.costCr) : 'FREE'}`);
       setStatus(`REFUELED ${result.addedTons}t ${service.quality.toUpperCase()} / ${result.costCr ? formatCr(result.costCr) : 'FREE'}`, 'ok');
@@ -3459,7 +3459,7 @@ function buyFuelAtCurrentPort() {
       dateLabel: activityDateLabel()
     });
     shipDocument = result.ship;
-    persistGameplayDocuments();
+    persistCampaignState();
     logActivity('SHIP', `${shipDocument.identity.name || 'Ship'} took on ${result.addedTons}t ${service.quality} fuel at ${system.name} / ${result.costCr ? formatCr(result.costCr) : 'FREE'}`);
     setStatus(`FUEL PURCHASED: ${result.addedTons}t ${service.quality.toUpperCase()} / ${result.costCr ? formatCr(result.costCr) : 'FREE'}`, 'ok');
     render();
@@ -3485,7 +3485,7 @@ function fillTanksAtCurrentPort() {
     const source = service.freeScoutFuel ? `${system.name} Scout Base` : service.source;
     const result = purchaseShipFuel(shipDocument, { tons, quality: service.quality, pricePerTonCr: service.pricePerTonCr, source, dateLabel: activityDateLabel() });
     shipDocument = result.ship;
-    persistGameplayDocuments();
+    persistCampaignState();
     logActivity('SHIP', `${shipDocument.identity.name || 'Ship'} took on ${result.addedTons}t ${service.quality} fuel at ${system.name} / ${result.costCr ? formatCr(result.costCr) : 'FREE'}`);
     setStatus(`FUEL PURCHASED: ${result.addedTons}t ${service.quality.toUpperCase()} / ${result.costCr ? formatCr(result.costCr) : 'FREE'}`, 'ok');
     render();
@@ -3504,7 +3504,7 @@ function payBerthingAtCurrentPort() {
       description: `${system.name} starport berthing`
     });
     shipDocument = result.ship;
-    persistGameplayDocuments();
+    persistCampaignState();
     if (result.costCr > 0) {
       logActivity('PORT', `${shipDocument.identity.name || 'Ship'} paid ${formatCr(result.costCr)} berthing at ${system.name}`);
       setStatus(`BERTHING PAID: ${formatCr(result.costCr)}`, 'ok');
@@ -3565,7 +3565,7 @@ function acceptFreightOffer(offerId) {
       acquisitionCostCr: 0,
       notes: `Book 2 freight / ${formatCr(FREIGHT_RATE_PER_TON_CR)} per ton on delivery.`
     });
-    persistGameplayDocuments();
+    persistCampaignState();
     logActivity('TRADE', `${shipDocument.identity.name || 'Ship'} accepted a ${offer.tons}t shipment / ${route.origin.name} to ${route.destination.name} / ${formatCr(offer.revenueCr)} on delivery`);
     setStatus(`FREIGHT ACCEPTED: ${offer.tons}t TO ${route.destination.name.toUpperCase()}`, 'ok');
     render();
@@ -3590,7 +3590,7 @@ function bookRoutePassenger(passageClass) {
       originSystemId: route.origin.id,
       destinationSystemId: route.destination.id
     });
-    persistGameplayDocuments();
+    persistCampaignState();
     logActivity('TRADE', `${passageClass.toUpperCase()} passenger booked / ${route.origin.name} to ${route.destination.name} / fare ${formatCr(PASSAGE_FARES_CR[passageClass])}`);
     setStatus(`${passageClass.toUpperCase()} PASSENGER BOOKED TO ${route.destination.name.toUpperCase()}`, 'ok');
     render();
@@ -4025,7 +4025,7 @@ function abandonContract(contractId) {
     if (!contract) throw new Error('that contract is no longer active');
     const failed = failContractDocument(contract, { date: campaignDateSnapshot(), notes: 'Abandoned by the crew.' });
     contractDocuments = contractDocuments.map((entry) => (entry.identity.id === contractId ? failed : entry));
-    persistGameplayDocuments();
+    persistCampaignState();
     logActivity('CONTRACT', `${contract.identity.title} abandoned / recorded as failed`);
     setStatus(`CONTRACT ABANDONED: ${contract.identity.title.toUpperCase()}`, 'ok');
     render();
@@ -4217,7 +4217,7 @@ function fightPendingAnimals() {
     });
     encounterDocuments = [...encounterDocuments, encounter];
     campaignDocument = addEncounterToCampaign(campaignDocument, encounter);
-    persistGameplayDocuments();
+    persistCampaignState();
     logActivity('PERSONAL-COMBAT', `${animal.quantity} ${animal.type} attack in ${ANIMAL_TERRAIN_DMS[terrain].label.toLowerCase()}`);
     setStatus(`ANIMAL ENCOUNTER: ${animal.quantity} ${animal.type.toUpperCase()}`, 'ok');
     pendingAnimalEncounter = null;
@@ -8955,7 +8955,7 @@ function confirmFitWeapon() {
     const weapon = el.armamentWeapon.value;
     const result = armShipTurret(shipDocument, { turretId, weapon, dateLabel: activityDateLabel() });
     shipDocument = result.ship;
-    persistGameplayDocuments();
+    persistCampaignState();
     logActivity('SHIP', `${result.weapon.label} installed in turret ${turretId} for ${formatCr(result.priceCr)}`);
     setStatus(`${result.weapon.label.toUpperCase()} FITTED / ${formatCr(result.priceCr)}`, 'ok');
     if (result.gunners.shortfall) {
@@ -8986,7 +8986,7 @@ function confirmBuyOrdnance() {
     const sandCanisters = Number.parseInt(el.armamentSand.value, 10) || 0;
     const result = purchaseOrdnance(shipDocument, { missiles, sandCanisters, dateLabel: activityDateLabel() });
     shipDocument = result.ship;
-    persistGameplayDocuments();
+    persistCampaignState();
     logActivity('SHIP', `Ordnance purchased: ${missiles} missiles, ${sandCanisters} sand canisters for ${formatCr(result.costCr)}`);
     setStatus(`ORDNANCE ABOARD / ${formatCr(result.costCr)}`, 'ok');
     openArmamentDialog();
@@ -9001,7 +9001,7 @@ function removeTurretWeapon(turretId, weapon) {
   try {
     const result = stripShipTurret(shipDocument, { turretId, weapon, dateLabel: activityDateLabel() });
     shipDocument = result.ship;
-    persistGameplayDocuments();
+    persistCampaignState();
     logActivity('SHIP', `${result.weapon.label} removed from turret ${turretId}`);
     setStatus(`${result.weapon.label.toUpperCase()} REMOVED`, 'ok');
     render();
@@ -9274,7 +9274,7 @@ function closeShipCombat() {
     if (mine) {
       // The ship as the fight left it: damage, fuel, magazines.
       shipDocument = importShipDocument(mine.ship);
-      persistGameplayDocuments();
+      persistCampaignState();
     }
     logActivity('COMBAT', `Ship combat closed / ${outcome.outcome.toUpperCase()} / ${outcome.gameTurns} game turn(s), ${outcome.elapsedMinutes} minutes`);
     shipCombatEncounter = null;
@@ -9534,7 +9534,7 @@ function confirmCrewAssignment() {
     const person = crewCandidates().find((entry) => entry.id === id);
     if (!person) throw new Error('choose someone to assign');
     shipDocument = assignShipCrew(shipDocument, { role, characterId: id, characterName: person.name });
-    persistGameplayDocuments();
+    persistCampaignState();
     logActivity('SHIP', `${person.name} assigned as ${role} aboard ${shipDocument.identity.name || 'the ship'}`);
     setStatus(`${person.name.toUpperCase()} ASSIGNED AS ${role.toUpperCase()}`, 'ok');
     el.crewDialog.close();
@@ -9549,7 +9549,7 @@ function releaseCrewMember(characterId) {
   try {
     const entry = shipDocument.crew.assignments.find((row) => row.characterId === characterId);
     shipDocument = releaseShipCrew(shipDocument, characterId);
-    persistGameplayDocuments();
+    persistCampaignState();
     logActivity('SHIP', `${entry?.characterName || characterId} released from ${entry?.role ?? 'duty'}`);
     setStatus('CREW RELEASED', 'ok');
     render();
@@ -9861,6 +9861,9 @@ function newCampaign() {
     documentMode = TRAVELLER_DOCUMENT_KINDS.CHARACTER;
     setActivityContext({ initialEntries: sessionActivity });
     logActivity('SYSLOG', `Campaign created: ${campaignDocument.identity.name || 'Unnamed Campaign'}`);
+    // The persistGameplayDocuments() above runs before the campaign document
+    // exists, so the campaign itself has to be persisted once it does.
+    persistCampaignState();
     setStatus('NEW CAMPAIGN SHELL CREATED', 'ok');
     render();
   } catch (error) {
@@ -10459,7 +10462,10 @@ function assignScoutShip() {
     persistGameplayDocuments();
     if (campaignDocument) {
       campaignDocument = addShipToCampaign(campaignDocument, shipDocument, { makeActive: true });
-      syncCampaignRefs();
+      // v0.127.0: the registry is a cache and the campaign home is where the
+      // campaign lives, so a ship assignment has to reach the home save or it
+      // is gone on the next reload.
+      persistCampaignState();
     }
     logActivity('SHIP', `${shipDocument.identity.name || 'Type S Scout/Courier'} assigned on Scout reserve basis to ${gameplayDocument.identity.name}`);
     setStatus('SCOUT SHIP ASSIGNED ON RESERVE BASIS', 'ok');
@@ -10767,7 +10773,7 @@ function updateCharacterName(name, statusMessage = 'NAME UPDATED') {
   if (shipDocument && (!gameplayDocument || shipMatchesCharacter(shipDocument, gameplayDocument))) {
     shipDocument = updateShipAssignedCharacterName(shipDocument, name);
   }
-  persistGameplayDocuments();
+  persistCampaignState();
   syncCampaignRefs();
   setStatus(statusMessage, 'ok');
   render();
@@ -10782,7 +10788,7 @@ function updateShipName(name, statusMessage = 'SHIP NAME UPDATED') {
       shipName: shipDocument.identity.name
     });
   }
-  persistGameplayDocuments();
+  persistCampaignState();
   syncCampaignRefs();
   renderCampaign();
   renderSubsector();
@@ -10795,7 +10801,7 @@ function updateShipName(name, statusMessage = 'SHIP NAME UPDATED') {
 function updateShipRegistry(registry, statusMessage = 'SHIP REGISTRY UPDATED') {
   if (!shipDocument) return;
   shipDocument = updateShipIdentity(shipDocument, { registry });
-  persistGameplayDocuments();
+  persistCampaignState();
   syncCampaignRefs();
   renderCampaign();
   renderShip();
