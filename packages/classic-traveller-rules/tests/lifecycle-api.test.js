@@ -8,7 +8,8 @@ import {
   createCharacter,
   createSequenceDice,
   getAvailableActions,
-  performChargenAction
+  performChargenAction,
+  SKILL_TABLES
 } from '../index.js';
 
 function sevenCharacter() {
@@ -162,7 +163,22 @@ test('dispatcher forwards mustering-out weapon specialization payload', () => {
   assert.equal(result.character.phase, CHARGEN_PHASES.MUSTER_OUT_ROLLS_PENDING);
 });
 
-test('Vehicle specialization exposes legal vehicle choices and rejects Rifle', () => {
+test('no skill table yields a vehicle specialization; blade and gun still do', () => {
+  // v1.219.00: Book 1 p.11 requires a choice only for blade and gun combat —
+  // "when blade or gun combat is acquired, the specific weapon in which
+  // expertise is achieved must be specified immediately" — and its tables name
+  // ATV and Air/Raft outright. This test previously drove a vehicle choice off
+  // Scouts service skills roll 1, which the printing gives as Air/Raft.
+  for (const table of Object.values(SKILL_TABLES)) {
+    for (const column of Object.values(table.columns)) {
+      for (const entry of column) {
+        assert.notEqual(entry.specializationType, 'vehicle',
+          `${table.key} still offers a vehicle choice`);
+      }
+    }
+  }
+
+  // A Scout now simply receives Air/Raft, with nothing to choose.
   let character = sevenCharacter();
   character = performChargenAction(character, CHARGEN_ACTIONS.ATTEMPT_ENLISTMENT, {
     service: 'scouts', dice: createSequenceDice([3, 3])
@@ -174,23 +190,6 @@ test('Vehicle specialization exposes legal vehicle choices and rejects Rifle', (
   character = performChargenAction(character, CHARGEN_ACTIONS.ROLL_SKILL, {
     tableKey: 'service-skills', dice: createSequenceDice([1])
   }).character;
-
-  const available = getAvailableActions(character);
-  assert.equal(available.phase, CHARGEN_PHASES.SKILL_SPECIALIZATION_REQUIRED);
-  assert.equal(available.choices.pendingSkill.specializationType, 'vehicle');
-  assert.ok(available.choices.specializations.includes('Grav Vehicle'));
-  assert.ok(!available.choices.specializations.includes('Rifle'));
-
-  assert.throws(
-    () => performChargenAction(character, CHARGEN_ACTIONS.RESOLVE_SKILL_SPECIALIZATION, {
-      specialization: 'Rifle'
-    }),
-    (error) => error instanceof ChargenStateError && /invalid vehicle specialization/.test(error.message)
-  );
-
-  character = performChargenAction(character, CHARGEN_ACTIONS.RESOLVE_SKILL_SPECIALIZATION, {
-    specialization: 'Grav Vehicle'
-  }).character;
-  assert.equal(character.skills['Grav Vehicle'], 1);
-  assert.equal(character.skills.Rifle, undefined);
+  assert.equal(character.skills['Air/Raft'], 1);
+  assert.notEqual(getAvailableActions(character).phase, CHARGEN_PHASES.SKILL_SPECIALIZATION_REQUIRED);
 });

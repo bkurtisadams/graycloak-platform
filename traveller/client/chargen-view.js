@@ -43,6 +43,12 @@ function formatCr(value) {
 
 // --- the sheet ------------------------------------------------------------
 
+// A material benefit names itself differently by kind: a weapon carries the
+// chosen weapon in `specialization`, everything else carries `name`.
+function materialBenefitLabel(entry) {
+  return entry.specialization ?? entry.name ?? entry.category ?? entry.type ?? '';
+}
+
 export function appendSheetDatum(list, label, value) {
   const term = document.createElement('dt');
   term.textContent = label;
@@ -112,7 +118,13 @@ export function renderChargenSheet(character, el) {
 
   el.weapon.replaceChildren();
   el.armor.replaceChildren();
-  el.equipment.textContent = character.materialBenefits.filter((entry) => entry.type === 'weapon' || entry.category).map((entry) => entry.name).join(' / ') || 'NONE YET';
+  // v0.140.0: this read entry.name, which a weapon benefit does not have — it
+  // stores the chosen weapon as `specialization`. So a mustered-out Cutlass sat
+  // correctly in the record and showed as NONE YET on the sheet.
+  el.equipment.textContent = character.materialBenefits
+    .filter((entry) => entry.type === 'weapon' || entry.category)
+    .map(materialBenefitLabel)
+    .join(' / ') || 'NONE YET';
 
   el.skills.replaceChildren();
   const skills = Object.entries(character.skills).sort(([left], [right]) => left.localeCompare(right));
@@ -132,7 +144,7 @@ export function renderChargenSheet(character, el) {
     el.skills.append(pending);
   }
 
-  const benefits = character.materialBenefits.map((entry) => entry.name);
+  const benefits = character.materialBenefits.map(materialBenefitLabel);
   renderSheetBenefitRows(el.benefits, character.musterOut || character.credits || benefits.length
     ? [
         ['CREDITS', formatCr(character.credits)],
@@ -350,10 +362,14 @@ export function renderChargenTables(container, character, execute) {
   const intro = document.createElement('div');
   intro.className = 'chargen-tables-intro';
   intro.textContent = mode === 'skills'
-    ? `Acquired Skills · ${service?.name ?? 'service'} column (Book 1 p.15). ${character.skillsDue > 0 ? `${character.skillsDue} roll${character.skillsDue === 1 ? '' : 's'} due: pick a table and roll here.` : 'Resolve the pending result in WHAT NOW?.'}`
-    : mode === 'muster' ? `Mustering Out · ${service?.name ?? 'service'} (Book 1 p.14). One roll per term plus rank bonus; at most three on cash.`
-      : mode === 'aging' ? 'Aging (Book 1 p.12). Throw the number shown or lose the amount listed.'
-        : service ? `Prior Service · ${service.name} (Book 1 p.14).` : 'Prior Service Table (Book 1 p.14). Choose a service to enlist in.';
+    // v0.140.0: the page references were wrong throughout — p.15, p.14 and
+    // p.12 against a 1977 printing that puts the acquired skills table on p.11,
+    // the prior service table on p.10, aging on p.9 and mustering out on p.21.
+    // Checked against the page markers in the book itself.
+    ? `Acquired Skills · ${service?.name ?? 'service'} column (Book 1 p.11). ${character.skillsDue > 0 ? `${character.skillsDue} roll${character.skillsDue === 1 ? '' : 's'} due: pick a table and roll here.` : 'Resolve the pending result in WHAT NOW?.'}`
+    : mode === 'muster' ? `Mustering Out · ${service?.name ?? 'service'} (Book 1 p.21). One roll per term plus extra rolls for rank; at most three on cash. A rank 5 or 6 character MAY add +1 on the benefits table (p.7).`
+      : mode === 'aging' ? 'Aging (Book 1 p.9). Throw the number shown or lose the amount listed.'
+        : service ? `Prior Service · ${service.name} (Book 1 p.10).` : 'Prior Service Table (Book 1 p.10). Choose a service to enlist in.';
   container.append(intro);
 
   if (mode === 'skills' && service) {

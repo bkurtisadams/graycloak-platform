@@ -72,7 +72,10 @@ export const SERVICES = Object.freeze({
     name: 'Other',
     draftNumber: 6,
     enlistment: Object.freeze({ target: 3, dms: Object.freeze([]) }),
-    survival: Object.freeze({ target: 5, dms: Object.freeze([dm('INT', 9, 1)]) }),
+    // Book 1 p.10, prior service table: the survival row reads "DM of +2 if"
+    // across all six services, and Other's entry is Intel 9+. v1.219.00: this
+    // was +1, which killed a character on a raw 3 who should have survived.
+    survival: Object.freeze({ target: 5, dms: Object.freeze([dm('INT', 9, 2)]) }),
     commission: null,
     promotion: null,
     reenlistment: Object.freeze({ target: 5 }),

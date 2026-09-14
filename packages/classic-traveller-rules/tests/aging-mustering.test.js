@@ -65,11 +65,21 @@ function state(overrides = {}) {
   };
 }
 
-test('Scout service receives two acquired-skill eligibilities in every term', () => {
-  const character = state({ service: 'scouts', terms: 1 });
-  const term = beginTerm(character);
-  assert.equal(term.currentTerm.number, 2);
-  assert.equal(term.skillsDue, 2);
+test('Book 1 p.7: two skills in the first term, one thereafter, Scouts included', () => {
+  // v1.219.00: this asserted two every term for Scouts, citing an exception
+  // Book 1 does not contain. The 1977 text states the rule flatly, and the only
+  // Scout-specific provisions are no commissions or promotions (p.5) and no
+  // retirement pay (p.21).
+  const scout = beginTerm(state({ service: 'scouts', terms: 1 }));
+  assert.equal(scout.currentTerm.number, 2);
+  assert.equal(scout.skillsDue, 1);
+
+  // The first term is two for every service.
+  const first = beginTerm(state({ service: 'scouts', terms: 0 }));
+  assert.equal(first.currentTerm.number, 1);
+  assert.equal(first.skillsDue, 2);
+  assert.equal(beginTerm(state({ service: 'navy', terms: 0 })).skillsDue, 2);
+  assert.equal(beginTerm(state({ service: 'navy', terms: 1 })).skillsDue, 1);
 });
 
 test('aging begins at physical age 34 and applies Book 1 saving throws', () => {

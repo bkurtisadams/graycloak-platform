@@ -172,8 +172,22 @@ function skillPhase(skillsDue) {
   return skillsDue > 0 ? CHARGEN_PHASES.SKILLS_PENDING : CHARGEN_PHASES.TERM_COMPLETION_READY;
 }
 
+// Book 1 p.4: characteristics "may ultimately range from 1 to 15.
+// Characteristics (for player-characters) may never exceed 15, and do not go
+// below 1 except for calamitous injury or aging."
+//
+// v1.219.00: nothing enforced this. A STR 15 gaining +1 became 16 and encoded
+// as G in the UPP, and a SOC 1 losing 1 went to 0. Ordinary changes now clamp;
+// the aging and injury exceptions set values directly and bypass this.
+export const CHARACTERISTIC_MINIMUM = 1;
+export const CHARACTERISTIC_MAXIMUM = 15;
+
 function applyCharacteristic(next, characteristic, amount) {
-  next.characteristics[characteristic] += amount;
+  const raw = next.characteristics[characteristic] + amount;
+  next.characteristics[characteristic] = Math.max(
+    CHARACTERISTIC_MINIMUM,
+    Math.min(CHARACTERISTIC_MAXIMUM, raw)
+  );
   next.upp = formatUPP(next.characteristics);
 }
 
@@ -223,16 +237,31 @@ function applyRankServiceBenefits(next) {
   return applied;
 }
 
+// Book 1 p.21.
+const SERVICES_WITHOUT_PENSIONS = Object.freeze(['scouts', 'other']);
+
 function baseSkillEligibility(serviceKey, termNumber) {
-  // Book 1 exception: Scouts receive two skills every term, not merely in the first.
-  if (serviceKey === 'scouts') return 2;
+  // Book 1 p.7: "During a character's initial term of service, he becomes
+  // eligible for two skills; during each additional term of service, he becomes
+  // eligible for one skill."
+  //
+  // v1.219.00: this granted Scouts two every term, citing a Book 1 exception.
+  // There is none — the 1977 text states the rule without qualification, and
+  // the only Scout-specific provisions are that they have no commissions or
+  // promotions (p.5) and no retirement pay (p.21). Their automatic Pilot skill
+  // is separate and unaffected.
   return termNumber === 1 ? 2 : 1;
 }
 
 function markSeparated(next, reason) {
   next.separationReason = reason;
   next.retired = next.terms >= 5;
-  next.retirementPayAnnual = retirementPayForTerms(next.terms);
+  // Book 1 p.21: "Retirement pay is not available to characters serving in the
+  // Scout or the Other service." They still take every mustering-out benefit
+  // they are eligible for; only the pension is withheld.
+  next.retirementPayAnnual = SERVICES_WITHOUT_PENSIONS.includes(next.service)
+    ? 0
+    : retirementPayForTerms(next.terms);
   return next;
 }
 
@@ -956,7 +985,7 @@ export function rollMusterOutCash(character, { dice = createDice() } = {}) {
 
 const ONCE_ONLY_MATERIAL_BENEFITS = new Set(["Travellers' Aid Society", 'Scout Ship']);
 
-export function rollMusterOutBenefit(character, { dice = createDice() } = {}) {
+export function rollMusterOutBenefit(character, { dice = createDice(), applyRankDM = true } = {}) {
   requirePhase(character, CHARGEN_PHASES.MUSTER_OUT_ROLLS_PENDING);
   if (!character.musterOut || character.musterOut.remainingRolls < 1) {
     throw new ChargenStateError('no mustering-out rolls remain');
@@ -964,7 +993,12 @@ export function rollMusterOutBenefit(character, { dice = createDice() } = {}) {
   requireDice(dice);
 
   const roll = dice.rollD6();
-  const dm = benefitTableDM(character.rank);
+  // Book 1 p.7: "Characters with rank 5 or 6 MAY add +1 to their rolls on this
+  // table." v1.219.00: the +1 was always applied, which took the choice away —
+  // a Navy Captain rolling 4 was forced onto the 5 result instead of being
+  // allowed to keep the 4.
+  const availableDM = benefitTableDM(character.rank);
+  const dm = applyRankDM === false ? 0 : availableDM;
   const total = roll + dm;
   const outcome = getMusterBenefitOutcome(character.service, total);
   const next = copyCharacter(character);
@@ -972,7 +1006,7 @@ export function rollMusterOutBenefit(character, { dice = createDice() } = {}) {
   next.musterOut.benefitRolls += 1;
 
   const recordIndex = next.musterOut.results.length;
-  const baseRecord = { type: 'benefit', roll, dm, total, outcome: { ...outcome } };
+  const baseRecord = { type: 'benefit', roll, dm, availableDM, total, outcome: { ...outcome } };
 
   if (outcome.type === 'weapon') {
     next.pendingMusterBenefit = {

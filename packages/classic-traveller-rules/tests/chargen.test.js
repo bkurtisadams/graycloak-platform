@@ -218,6 +218,9 @@ test('repeated acquisitions of a basic skill increase its level', async () => {
     }
   });
 
+  // Scouts service skills roll 4 is Mechanical in the 1977 printing; roll 3 is
+  // Navigation. v1.219.00 corrected the column, so the repeated skill here is
+  // Mechanical.
   character = rollAcquiredSkill(character, 'service-skills', {
     dice: createSequenceDice([4])
   }).character;
@@ -225,7 +228,7 @@ test('repeated acquisitions of a basic skill increase its level', async () => {
     dice: createSequenceDice([4])
   }).character;
 
-  assert.equal(character.skills.Navigation, 2);
+  assert.equal(character.skills.Mechanical, 2);
   assert.equal(character.phase, CHARGEN_PHASES.TERM_COMPLETION_READY);
 });
 
@@ -242,8 +245,10 @@ test('weapon expertise waits for the required specific weapon choice', async () 
     }
   });
 
+  // Army service skills roll 5 is Gun Combat in the 1977 printing; roll 3 is
+  // Forward Observer, which needs no choice.
   const rolled = rollAcquiredSkill(character, 'service-skills', {
-    dice: createSequenceDice([3])
+    dice: createSequenceDice([5])
   });
   character = rolled.character;
 
@@ -351,4 +356,114 @@ test('a character already at the highest service rank is not offered another pro
   }).character;
 
   assert.equal(survived.phase, CHARGEN_PHASES.SKILLS_PENDING);
+});
+
+// ---------------------------------------------------------------------------
+// v1.219.00: written from the 1977 printing rather than from the code, which
+// is how 32 wrong table entries and four wrong rules survived 62 green tests.
+// ---------------------------------------------------------------------------
+
+test('Book 1 p.4: characteristics stay between 1 and 15', async () => {
+  const { rollAcquiredSkill } = await import('../index.js');
+  // Navy personal development roll 1 is +1 STR, so a STR 15 has nowhere to go.
+  let character = baseCharacter({
+    service: 'navy',
+    phase: CHARGEN_PHASES.SKILLS_PENDING,
+    skillsDue: 1,
+    skills: {},
+    characteristics: { STR: 15, DEX: 7, END: 7, INT: 7, EDU: 7, SOC: 7 },
+    currentTerm: {
+      number: 1, startAge: 18, plannedYears: 4, forcedSeparation: false,
+      survival: null, commission: null, promotion: null, skillRolls: [], automaticBenefits: []
+    }
+  });
+  character = rollAcquiredSkill(character, 'personal-development', { dice: createSequenceDice([1]) }).character;
+  // "Characteristics (for player-characters) may never exceed 15." It used to
+  // reach 16 and encode as G.
+  assert.equal(character.characteristics.STR, 15);
+  assert.ok(!character.upp.includes('G'));
+
+  // Other personal development roll 6 is -1 SOC, and 1 is the floor: values
+  // "do not go below 1 except for calamitous injury or aging".
+  let low = baseCharacter({
+    service: 'other',
+    phase: CHARGEN_PHASES.SKILLS_PENDING,
+    skillsDue: 1,
+    skills: {},
+    characteristics: { STR: 7, DEX: 7, END: 7, INT: 7, EDU: 7, SOC: 1 },
+    currentTerm: {
+      number: 1, startAge: 18, plannedYears: 4, forcedSeparation: false,
+      survival: null, commission: null, promotion: null, skillRolls: [], automaticBenefits: []
+    }
+  });
+  low = rollAcquiredSkill(low, 'personal-development', { dice: createSequenceDice([6]) }).character;
+  assert.equal(low.characteristics.SOC, 1);
+});
+
+test('Book 1 p.10: Other survival takes +2 on Intelligence 9+', async () => {
+  const { SERVICES, resolveSurvival } = await import('../index.js');
+  // The prior service table's survival row reads "DM of +2 if", and Other's
+  // entry is Intel 9+. It was +1, which killed a character on a raw 3 who
+  // should have made the 5+.
+  assert.deepEqual(SERVICES.other.survival.dms.map((entry) => [entry.characteristic, entry.minimum, entry.modifier]),
+    [['INT', 9, 2]]);
+
+  const character = baseCharacter({
+    service: 'other',
+    phase: CHARGEN_PHASES.SURVIVAL_REQUIRED,
+    characteristics: { STR: 7, DEX: 7, END: 7, INT: 9, EDU: 7, SOC: 7 },
+    currentTerm: {
+      number: 1, startAge: 18, plannedYears: 4, forcedSeparation: false,
+      survival: null, commission: null, promotion: null, skillRolls: [], automaticBenefits: []
+    }
+  });
+  // A raw 3 plus 2 clears the target of 5.
+  const survived = resolveSurvival(character, { dice: createSequenceDice([1, 2]) });
+  assert.equal(survived.character.currentTerm.survival.total, 5);
+  assert.equal(survived.character.currentTerm.survival.success, true);
+  assert.equal(survived.outcome, 'survived');
+});
+
+test('Book 1 p.21: Scouts and Other draw no retirement pay', async () => {
+  const { chooseMusterOut } = await import('../index.js');
+  const separated = (service) => chooseMusterOut(baseCharacter({
+    service,
+    terms: 5,
+    phase: CHARGEN_PHASES.REENLISTMENT_DECISION,
+    reenlistment: { roll: 6, total: 6, allowed: true, mandatory: false }
+  }));
+
+  // "Retirement pay is not available to characters serving in the Scout or the
+  // Other service." Both used to draw CR 4,000 a year after five terms.
+  assert.equal(separated('scouts').retirementPayAnnual, 0);
+  assert.equal(separated('other').retirementPayAnnual, 0);
+  // Everyone else still does, and they are still retired for every other
+  // purpose — only the pension is withheld.
+  assert.equal(separated('navy').retirementPayAnnual, 4000);
+  assert.equal(separated('scouts').retired, true);
+});
+
+test('Book 1 p.7: a rank 5 or 6 character MAY add +1 to a benefit roll', async () => {
+  const { rollMusterOutBenefit } = await import('../index.js');
+  const captain = () => baseCharacter({
+    service: 'navy',
+    rank: 5,
+    phase: CHARGEN_PHASES.MUSTER_OUT_ROLLS_PENDING,
+    musterOut: { remainingRolls: 2, cashRolls: 0, benefitRolls: 0, results: [] }
+  });
+
+  // The +1 is available and applied by default.
+  const taken = rollMusterOutBenefit(captain(), { dice: createSequenceDice([4]) }).character;
+  const withDM = taken.musterOut.results.at(-1);
+  assert.equal(withDM.dm, 1);
+  assert.equal(withDM.total, 5);
+
+  // But it is the player's option, and declining keeps the printed result.
+  const declined = rollMusterOutBenefit(captain(), { dice: createSequenceDice([4]), applyRankDM: false }).character;
+  const without = declined.musterOut.results.at(-1);
+  assert.equal(without.dm, 0);
+  assert.equal(without.total, 4);
+  // Either way the record says what was available, so the choice is visible.
+  assert.equal(without.availableDM, 1);
+  assert.notDeepEqual(withDM.outcome, without.outcome);
 });

@@ -37,9 +37,23 @@ function freezeTable({ key, name, minimumEducation = null, columns }) {
 
 
 
-// Book 1 requires broad Gun Combat, Blade Combat, and Vehicle results to be
-// resolved to a specific expertise immediately. Vehicle options incorporate
-// the facsimile errata clarification for Aircraft and Watercraft groups.
+// Book 1 p.11: "When blade or gun combat is acquired, the specific weapon in
+// which expertise is achieved must be specified immediately." ONLY those two —
+// the printed tables name ATV and Air/Raft as specific skills, not a Vehicle
+// group to choose from.
+//
+// v1.219.00: the tables were rewritten entry by entry against the 1977 p.11
+// printing, which differed in 32 places — 8 in Personal Development, 21 in
+// Service Skills, 3 in Advanced Education, and none in the education-8 table.
+// Most were transposed within a column (Navy personal development ran
+// INT/EDU/SOC where the book prints SOC/INT/EDU), and the rest came from
+// generalising the book's ATV and Air/Raft entries into a Vehicle choice. Both
+// changed which skills a character actually receives.
+//
+// The vehicle options below are kept as reference data — later printings group
+// vehicles this way, and a referee may want the list — but NO skill table
+// produces a vehicle specialization any more, because the 1977 tables name ATV
+// and Air/Raft outright.
 export const SPECIALIZATION_OPTIONS = Object.freeze({
   gun: Object.freeze([
     'Body Pistol',
@@ -119,10 +133,10 @@ export const SKILL_TABLES = Object.freeze({
     key: 'personal-development',
     name: 'Personal Development',
     columns: {
-      navy: [STR, DEX, END, INT, EDU, SOC],
+      navy: [STR, DEX, END, SOC, INT, EDU],
       marines: [STR, DEX, END, SK('Gambling'), SK('Brawling'), SPEC('Blade Combat', 'blade-or-polearm')],
-      army: [STR, DEX, END, SK('Gambling'), EDU, SK('Brawling')],
-      scouts: [STR, DEX, END, INT, EDU, SPEC('Gun Combat', 'gun')],
+      army: [STR, DEX, END, SK('Gambling'), SK('Brawling'), EDU],
+      scouts: [STR, DEX, END, SPEC('Gun Combat', 'gun'), INT, EDU],
       merchants: [STR, DEX, END, STR, SPEC('Blade Combat', 'blade-or-polearm'), SK('Bribery')],
       other: [STR, DEX, END, SPEC('Blade Combat', 'blade-or-polearm'), SK('Brawling'), () => characteristic('SOC', -1)]
     }
@@ -132,12 +146,12 @@ export const SKILL_TABLES = Object.freeze({
     key: 'service-skills',
     name: 'Service Skills',
     columns: {
-      navy: [SK("Ship's Boat"), SK('Vacc Suit'), SK('Forward Observer'), SK('Gunnery'), SPEC('Blade Combat', 'blade-or-polearm'), SPEC('Gun Combat', 'gun')],
-      marines: [SPEC('Vehicle', 'vehicle'), SK('Vacc Suit'), SPEC('Blade Combat', 'blade-or-polearm'), SPEC('Gun Combat', 'gun'), SPEC('Blade Combat', 'blade-or-polearm'), SPEC('Gun Combat', 'gun')],
-      army: [SPEC('Vehicle', 'vehicle'), SK('Air/Raft'), SPEC('Gun Combat', 'gun'), SK('Forward Observer'), SPEC('Blade Combat', 'blade-or-polearm'), SPEC('Gun Combat', 'gun')],
-      scouts: [SPEC('Vehicle', 'vehicle'), SK('Vacc Suit'), SK('Mechanical'), SK('Navigation'), SK('Electronics'), SK('Jack-of-All-Trades')],
-      merchants: [SPEC('Vehicle', 'vehicle'), SK('Vacc Suit'), SK('Jack-of-All-Trades'), SK('Steward'), SK('Electronics'), SPEC('Gun Combat', 'gun')],
-      other: [SPEC('Vehicle', 'vehicle'), SK('Gambling'), SK('Brawling'), SK('Bribery'), SPEC('Blade Combat', 'blade-or-polearm'), SPEC('Gun Combat', 'gun')]
+      navy: [SK("Ship's Boat"), SK('Vacc Suit'), SK('Forward Observer'), SPEC('Blade Combat', 'blade-or-polearm'), SPEC('Gun Combat', 'gun'), SK('Gunnery')],
+      marines: [SK('ATV'), SK('Vacc Suit'), SPEC('Blade Combat', 'blade-or-polearm'), SPEC('Blade Combat', 'blade-or-polearm'), SPEC('Gun Combat', 'gun'), SPEC('Gun Combat', 'gun')],
+      army: [SK('ATV'), SK('Air/Raft'), SK('Forward Observer'), SPEC('Blade Combat', 'blade-or-polearm'), SPEC('Gun Combat', 'gun'), SPEC('Gun Combat', 'gun')],
+      scouts: [SK('Air/Raft'), SK('Vacc Suit'), SK('Navigation'), SK('Mechanical'), SK('Electronics'), SK('Jack-of-All-Trades')],
+      merchants: [SK('Steward'), SK('Vacc Suit'), STR, SPEC('Gun Combat', 'gun'), SK('Electronics'), SK('Jack-of-All-Trades')],
+      other: [SK('Forgery'), SK('Gambling'), SK('Brawling'), SPEC('Blade Combat', 'blade-or-polearm'), SPEC('Gun Combat', 'gun'), SK('Bribery')]
     }
   }),
 
@@ -146,9 +160,9 @@ export const SKILL_TABLES = Object.freeze({
     name: 'Advanced Education',
     columns: {
       navy: [SK('Vacc Suit'), SK('Mechanical'), SK('Electronics'), SK('Engineering'), SK('Gunnery'), SK('Jack-of-All-Trades')],
-      marines: [SPEC('Vehicle', 'vehicle'), SK('Mechanical'), SK('Electronics'), SK('Tactics'), SPEC('Blade Combat', 'blade-or-polearm'), SPEC('Gun Combat', 'gun')],
-      army: [SPEC('Vehicle', 'vehicle'), SK('Mechanical'), SK('Electronics'), SK('Tactics'), SPEC('Blade Combat', 'blade-or-polearm'), SPEC('Gun Combat', 'gun')],
-      scouts: [SPEC('Vehicle', 'vehicle'), SK('Mechanical'), SK('Electronics'), SK('Jack-of-All-Trades'), SK('Gunnery'), SK('Medical')],
+      marines: [SK('ATV'), SK('Mechanical'), SK('Electronics'), SK('Tactics'), SPEC('Blade Combat', 'blade-or-polearm'), SPEC('Gun Combat', 'gun')],
+      army: [SK('ATV'), SK('Mechanical'), SK('Electronics'), SK('Tactics'), SPEC('Blade Combat', 'blade-or-polearm'), SPEC('Gun Combat', 'gun')],
+      scouts: [SK('Air/Raft'), SK('Mechanical'), SK('Electronics'), SK('Jack-of-All-Trades'), SK('Gunnery'), SK('Medical')],
       merchants: [SK('Streetwise'), SK('Mechanical'), SK('Electronics'), SK('Navigation'), SK('Gunnery'), SK('Medical')],
       other: [SK('Streetwise'), SK('Mechanical'), SK('Electronics'), SK('Gambling'), SK('Brawling'), SK('Forgery')]
     }
