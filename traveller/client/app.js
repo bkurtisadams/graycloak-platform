@@ -9677,11 +9677,23 @@ function renderShipCombatLog(encounter) {
   }
 }
 
+// v0.131.1: this excluded anyone already assigned to anything, which was right
+// under the one person/one role ruling and wrong the day v1.186.00 replaced it
+// with Book 2 p.17. The rules package was updated then; this list was not, so
+// the scout's owner-pilot vanished from the dropdown and the only person who
+// could ever take the steward's post could not be chosen.
+//
+// Book 2 p.17 allows two posts, so only somebody already at the ceiling is out.
 function crewCandidates() {
-  const held = new Set((shipDocument?.crew?.assignments ?? []).map((entry) => entry.characterId));
+  const rolesHeld = new Map();
+  for (const entry of shipDocument?.crew?.assignments ?? []) {
+    rolesHeld.set(entry.characterId, [...(rolesHeld.get(entry.characterId) ?? []), entry.role]);
+  }
   const party = (campaignDocument?.characters ?? []).map((entry) => ({ id: entry.identity.id, name: entry.identity.name, kind: 'PC' }));
   const npcs = npcActorDocuments.map((entry) => ({ id: entry.identity.id, name: entry.identity.name, kind: 'NPC' }));
-  return [...party, ...npcs].filter((entry) => !held.has(entry.id));
+  return [...party, ...npcs]
+    .filter((entry) => (rolesHeld.get(entry.id)?.length ?? 0) < MAXIMUM_ROLES_PER_CREW_MEMBER)
+    .map((entry) => ({ ...entry, roles: rolesHeld.get(entry.id) ?? [] }));
 }
 
 function openCrewDialog() {
@@ -9696,7 +9708,11 @@ function openCrewDialog() {
   el.crewPerson.replaceChildren(...candidates.map((entry) => {
     const option = document.createElement('option');
     option.value = entry.id;
-    option.textContent = `${entry.name} (${entry.kind})`;
+    // Somebody already aboard is taking a second post, so the option says which
+    // one they hold and that the Book 2 p.17 terms will apply.
+    option.textContent = entry.roles.length
+      ? `${entry.name} (${entry.kind}) \u00b7 already ${entry.roles.join(', ')} \u00b7 would double up`
+      : `${entry.name} (${entry.kind})`;
     return option;
   }));
   el.crewDialogNote.textContent = candidates.length
