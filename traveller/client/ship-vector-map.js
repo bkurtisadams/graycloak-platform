@@ -36,25 +36,91 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
   }
   const svg = node('svg', { role:'img', 'aria-label':'Ship positions, velocity and acceleration vectors', viewBox:'0 0 800 430' }); svg.classList.add('ship-vector-svg'); panel.append(svg);
   const status = document.createElement('div'); status.className='vector-controls'; status.setAttribute('aria-live','polite'); panel.append(status);
-  const note = document.createElement('p'); note.textContent = 'Clear space: coordinates in thousands of miles; turn = 10 minutes. Solid line: velocity. Dashed line: proposed movement. ADVANCE coasts ships not yet committed. Gravity and vector ordnance are not available.'; panel.append(note);
+  const note = document.createElement('p');
+  // v0.139.0: gravity is drawn now. Book 2 p.29 samples the band at the
+  // MIDPOINT of the course, which is why the midpoint is marked — a ship can
+  // end a turn deep in a well and still take no gravity, or the reverse.
+  note.textContent = encounter.spatial.planet
+    ? 'Coordinates in thousands of miles; turn = 10 minutes. Solid line: velocity. Dashed line: proposed movement. The shaded disc is the world and the rings are its quarter-G bands (Book 2 p.27). The cross marks the course midpoint, which is where gravity is sampled (p.29). Vector ordnance is not available.'
+    : 'Clear space: coordinates in thousands of miles; turn = 10 minutes. Solid line: velocity. Dashed line: proposed movement. ADVANCE coasts ships not yet committed. No world is placed, so no gravity applies. Vector ordnance is not available.';
+  panel.append(note);
   let transform;
   function draw() {
     svg.replaceChildren();
     let preview;
-    try { preview = previewShipVector(encounter, selected, { x:Number(ax.value)*2, y:Number(ay.value)*2 }); status.textContent = `${preview.g.toFixed(2)} G / max ${preview.maximumG} G · Endpoint ${preview.endpoint.x.toFixed(2)}, ${preview.endpoint.y.toFixed(2)}`; }
+    try {
+      preview = previewShipVector(encounter, selected, { x:Number(ax.value)*2, y:Number(ay.value)*2 });
+      if (preview.unresolved) {
+        // Book 2's bands are external; nothing in it describes motion inside a
+        // world, so the course goes to the referee rather than being guessed.
+        status.textContent = `${preview.g.toFixed(2)} G / max ${preview.maximumG} G · REFEREE: ${preview.reason}`;
+        preview = null;
+      } else {
+        const gravity = preview.bandG
+          ? ` · gravity ${preview.bandG} G band, ${Math.hypot(preview.gravity.x, preview.gravity.y).toFixed(2)} toward the world`
+          : '';
+        const braked = preview.braked ? ' · BRAKED by atmosphere (p.35)' : '';
+        const contact = preview.surfaceContact ? ' · SURFACE CONTACT' : '';
+        status.textContent = `${preview.g.toFixed(2)} G / max ${preview.maximumG} G · Endpoint ${preview.endpoint.x.toFixed(2)}, ${preview.endpoint.y.toFixed(2)}${gravity}${braked}${contact}`;
+      }
+    }
     catch(e) { status.textContent=e.message; }
     const points = Object.values(encounter.spatial.ships).flatMap(s => [s.position, {x:s.position.x+s.velocity.x,y:s.position.y+s.velocity.y}]);
     if (preview) points.push(preview.endpoint);
+    // The world has to fit too, out to its weakest band, or the disc is drawn
+    // off the edge of the surface it is meant to explain.
+    const planet = encounter.spatial.planet ?? null;
+    if (planet) {
+      const reach = Math.max(planet.radius, ...(planet.bands ?? []).map(b => b.outerRadius));
+      points.push({ x: planet.center.x - reach, y: planet.center.y - reach }, { x: planet.center.x + reach, y: planet.center.y + reach });
+    }
     const minX=Math.min(...points.map(p=>p.x))-10,maxX=Math.max(...points.map(p=>p.x))+10,minY=Math.min(...points.map(p=>p.y))-10,maxY=Math.max(...points.map(p=>p.y))+10;
     const scale=Math.min(700/(maxX-minX),330/(maxY-minY));
     const x=v=>400+(v-(minX+maxX)/2)*scale,y=v=>215-(v-(minY+maxY)/2)*scale;
     transform={x,y,scale};
+    if (planet) {
+      // Outermost band first, so the stronger inner bands read as denser.
+      for (const band of [...(planet.bands ?? [])].sort((a, b) => b.outerRadius - a.outerRadius)) {
+        svg.append(node('circle', {
+          cx: x(planet.center.x), cy: y(planet.center.y), r: band.outerRadius * scale,
+          fill: 'none', stroke: 'currentColor', 'stroke-opacity': 0.35, 'stroke-dasharray': '3 5'
+        }));
+        svg.append(node('text', {
+          x: x(planet.center.x), y: y(planet.center.y + band.outerRadius) + 11,
+          fill: 'currentColor', 'fill-opacity': 0.55, 'text-anchor': 'middle', 'font-size': '10'
+        }, `${band.g} G`));
+      }
+      svg.append(node('circle', {
+        cx: x(planet.center.x), cy: y(planet.center.y), r: planet.radius * scale,
+        fill: 'currentColor', 'fill-opacity': 0.18, stroke: 'currentColor', 'stroke-opacity': 0.5
+      }));
+      svg.append(node('text', {
+        x: x(planet.center.x), y: y(planet.center.y) + 4,
+        fill: 'currentColor', 'text-anchor': 'middle', 'font-size': '11'
+      }, planet.name));
+    }
     for(const ship of encounter.participants){const s=encounter.spatial.ships[ship.id];
       svg.append(node('line',{x1:x(s.position.x),y1:y(s.position.y),x2:x(s.position.x+s.velocity.x),y2:y(s.position.y+s.velocity.y),stroke:'currentColor','stroke-width':2}));
       const dot=node('circle',{cx:x(s.position.x),cy:y(s.position.y),r:ship.id===selected?8:5,fill:'currentColor'}); dot.style.cursor='pointer';dot.addEventListener('click',()=>{selected=ship.id;renderShipVectorMap(stage,encounter,{commit, setup});});svg.append(dot);
       svg.append(node('text',{x:x(s.position.x)+12,y:y(s.position.y)-12,fill:'currentColor'},ship.name));
     }
-    if(preview){const s=encounter.spatial.ships[selected];svg.append(node('line',{x1:x(s.position.x),y1:y(s.position.y),x2:x(preview.endpoint.x),y2:y(preview.endpoint.y),stroke:'currentColor','stroke-dasharray':'6 4','stroke-width':2}));svg.append(node('circle',{cx:x(preview.endpoint.x),cy:y(preview.endpoint.y),r:5,fill:'none',stroke:'currentColor'}));}
+    if(preview){const s=encounter.spatial.ships[selected];svg.append(node('line',{x1:x(s.position.x),y1:y(s.position.y),x2:x(preview.endpoint.x),y2:y(preview.endpoint.y),stroke:'currentColor','stroke-dasharray':'6 4','stroke-width':2}));svg.append(node('circle',{cx:x(preview.endpoint.x),cy:y(preview.endpoint.y),r:5,fill:'none',stroke:'currentColor'}));
+      // Book 2 p.29 reads the band at the midpoint of the course vector, before
+      // thrust. Drawing it stops the band a ship is "in" looking arbitrary.
+      if (planet) {
+        const midpoint = { x: s.position.x + s.velocity.x / 2, y: s.position.y + s.velocity.y / 2 };
+        const mx = x(midpoint.x), my = y(midpoint.y);
+        svg.append(node('line', { x1: mx - 4, y1: my, x2: mx + 4, y2: my, stroke: 'currentColor', 'stroke-opacity': 0.7 }));
+        svg.append(node('line', { x1: mx, y1: my - 4, x2: mx, y2: my + 4, stroke: 'currentColor', 'stroke-opacity': 0.7 }));
+        if (preview.bandG && preview.gravity) {
+          svg.append(node('line', {
+            x1: mx, y1: my,
+            x2: x(midpoint.x + preview.gravity.x), y2: y(midpoint.y + preview.gravity.y),
+            stroke: 'currentColor', 'stroke-width': 3, 'stroke-opacity': 0.8
+          }));
+        }
+      }
+    }
   }
   ax.oninput=ay.oninput=draw;
   button.onclick=()=>commit(selected,{x:Number(ax.value)*2,y:Number(ay.value)*2});
