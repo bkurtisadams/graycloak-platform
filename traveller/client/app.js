@@ -4,6 +4,7 @@ import {
   createDice,
   createCharacter,
   generateNpcCharacter,
+  generateCrewCandidate,
   createCharacterDocument,
   createTypeSScoutReserveShipForCharacter,
   SHIP_CREW_ROLES,
@@ -94,6 +95,9 @@ import {
   SAND_CANISTER_PRICE_CR,
   ABBREVIATED_SAND_DM_PER_CANISTER,
   PRESSURE_SECTIONS,
+  enableVectorMovement,
+  commitShipVector,
+  createPlanet,
   createShipDocument,
   importShipDocument,
   shipCrewRole,
@@ -509,6 +513,12 @@ const el = {
   setupIntruderNote: document.querySelector('#setup-intruder-note'),
   setupPressure: document.querySelector('#setup-pressure'),
   setupPressureNote: document.querySelector('#setup-pressure-note'),
+  setupSpaceMode: document.querySelector('#setup-space-mode'),
+  setupProximity: document.querySelector('#setup-proximity'),
+  setupSpaceNote: document.querySelector('#setup-space-note'),
+  shipVectorSection: document.querySelector('#ship-vector-section'),
+  shipVectorStage: document.querySelector('#ship-vector-stage'),
+  shipVectorStatus: document.querySelector('#ship-vector-status'),
   setupEngageConfirm: document.querySelector('#setup-engage-confirm'),
   setupCancel: document.querySelector('#setup-cancel'),
   armamentDialog: document.querySelector('#armament-dialog'),
@@ -528,6 +538,9 @@ const el = {
   crewDialogNote: document.querySelector('#crew-dialog-note'),
   crewAssignConfirm: document.querySelector('#crew-assign-confirm'),
   crewCancel: document.querySelector('#crew-cancel'),
+  crewFindCandidate: document.querySelector('#crew-find-candidate'),
+  crewAssignCandidate: document.querySelector('#crew-assign-candidate'),
+  crewCandidateNote: document.querySelector('#crew-candidate-note'),
   animalDialog: document.querySelector('#animal-dialog'),
   animalTerrain: document.querySelector('#animal-terrain'),
   animalResult: document.querySelector('#animal-result'),
@@ -1751,8 +1764,9 @@ function applyCampaignLayout() {
   el.sceneTabsRow.hidden = false;
   applyDocumentWindow(characterWindow);
   const board = viewedSceneIsBoard();
-  el.subsectorSection.hidden = board;
-  el.encounterSection.hidden = !board;
+  const vector = shipCombatIsVector();
+  el.subsectorSection.hidden = board || vector;
+  el.encounterSection.hidden = !board || vector;
   // v0.129.0: the jump action and DETAILS left this band, so on the subsector
   // view it holds nothing but the hidden compatibility spans. Leaving it shown
   // would render an empty row and give back neither of the two rows the move
@@ -8774,6 +8788,7 @@ function renderLiveShipStatus({ currentSystem = null, selectedSystem = null, dis
   renderShipCrew();
   renderShipArmament();
   renderShipCombatRail();
+  renderShipVectorStage();
   renderShipLedger();
   renderShipStrip();
   // After the strip, whose height is what moves the map down.
@@ -9433,6 +9448,59 @@ function openShipCombatSetup() {
   el.shipCombatSetupDialog.showModal();
 }
 
+// Book 3's size digit IS the world's diameter in thousands of miles, which is
+// exactly what Book 2 p.27's template formulae take — so a fight above a world
+// uses that world, with no data entry and no invented numbers. The atmosphere
+// digit is what p.35 braking needs, and only standard (6) and dense (8) brake.
+function planetForCurrentSystem(system) {
+  if (!system) return null;
+  const profile = parseUniversalWorldProfile(system.mainWorld.uwp);
+  // Size 0 is an asteroid belt: Book 3 gives it no diameter, so no template.
+  if (!profile.size) return null;
+  return {
+    specification: { name: system.name, diameter: profile.size },
+    atmosphere: profile.atmosphere
+  };
+}
+
+// Book 2 gives no starting range for a space battle — p.22 sets up a plot and
+// p.37 abbreviates it away — so where the ships begin is the referee's. These
+// are the three answers worth offering, and the numbers are stated rather than
+// hidden: the fight starts inside p.30's first range band either way, so range
+// bites only once someone runs.
+const VECTOR_OPENING_SEPARATION = 30;
+
+function vectorOpeningPlacement(planet, proximity) {
+  if (!planet || proximity === 'clear') {
+    return {
+      planet: null,
+      positions: [{ x: -VECTOR_OPENING_SEPARATION / 2, y: 0 }, { x: VECTOR_OPENING_SEPARATION / 2, y: 0 }],
+      note: 'Clear space: no world in reach, so no gravity applies.'
+    };
+  }
+  const built = createPlanet(planet.specification);
+  const outermost = Math.max(...built.bands.map((band) => band.outerRadius), built.radius);
+  // High orbit sits on the weakest band; near orbit inside the strongest, where
+  // a course midpoint will actually be pulled.
+  const distance = proximity === 'near'
+    ? built.radius + (outermost - built.radius) * 0.25
+    : outermost;
+  // Both ships on one line out from the world, not side by side: placing them
+  // abreast put each of them the separation distance from the world as well as
+  // from each other, so "near orbit" sat outside every band and no gravity
+  // applied. The ship being intercepted is the one in the well; the intruder
+  // comes in from outside, which is also the likelier picture.
+  return {
+    planet: built,
+    positions: [
+      { x: distance, y: 0 },
+      { x: distance + VECTOR_OPENING_SEPARATION, y: 0 }
+    ],
+    note: `${built.name}: ${built.radius * 2} thousand miles across, bands at `
+      + built.bands.map((band) => `${band.g}G at ${band.outerRadius.toFixed(1)}`).join(', ')
+  };
+}
+
 function engagePendingShipEncounter() {
   try {
     if (!shipDocument) throw new Error('no active ship');
@@ -9531,6 +9599,17 @@ function engagePendingShipEncounter() {
     shipCombatAllocation = {};
     pendingShipEncounter = null;
     persistShipCombat();
+    // v0.144.0: put the fight on a plot if that is what was asked for.
+    if (el.setupSpaceMode?.value === 'vector') {
+      const system = mappedCurrentSystem();
+      const world = planetForCurrentSystem(system);
+      const placement = vectorOpeningPlacement(world, el.setupProximity?.value ?? 'clear');
+      shipCombatEncounter = enableVectorMovement(shipCombatEncounter, {
+        player: { position: placement.positions[0], velocity: { x: 0, y: 0 } },
+        opponent: { position: placement.positions[1], velocity: { x: 0, y: 0 } }
+      }, placement.planet ? { planet: placement.planet, atmosphere: world.atmosphere } : {});
+      logActivity('COMBAT', `Vector plot engaged / ${placement.note}`);
+    }
     el.shipCombatSetupDialog?.close();
     setOperationsDeskTab('encounter');
     logActivity('COMBAT', `Ship combat engaged: ${shipCombatEncounter.participants.map((entry) => entry.name).join(' vs ')} / intruder ${theyIntrude ? encounter.label : (shipDocument.identity.name || 'your ship')}${pressurised ? ' / caught pressurised' : ''}`);
@@ -9845,6 +9924,32 @@ function shipCombatCardRow(target, label, value, { stateClass = '', title = '' }
   return row;
 }
 
+// The vector plot on the stage. Deliberately a stage mode: when ship stations
+// reach the declaration system this becomes a scene document so players can be
+// shown it, and the section is already separate for that reason.
+function shipCombatIsVector() {
+  return Boolean(shipCombatEncounter && shipCombatEncounter.spatialMode === 'vector');
+}
+
+function renderShipVectorStage() {
+  if (!el.shipVectorSection) return;
+  el.shipVectorSection.hidden = !shipCombatIsVector();
+  if (!shipCombatIsVector()) { el.shipVectorStage?.replaceChildren(); return; }
+  const encounter = shipCombatEncounter;
+  const planet = encounter.spatial.planet;
+  el.shipVectorStatus.textContent = [
+    `TURN ${encounter.gameTurn} \u00b7 ${encounter.phasingSide.toUpperCase()} ${currentShipCombatPhase(encounter).label.toUpperCase()}`,
+    planet ? `${planet.name.toUpperCase()} \u00b7 ${planet.bands.length} GRAVITY BAND${planet.bands.length === 1 ? '' : 'S'}` : 'CLEAR SPACE',
+    '1 UNIT = 1,000 MILES'
+  ].join(' \u00b7 ');
+  renderShipVectorMap(el.shipVectorStage, encounter, {
+    commit: (shipId, acceleration) => shipCombatStep(() => {
+      shipCombatEncounter = commitShipVector(shipCombatEncounter, shipId, acceleration, createDice());
+    }, 'MANEUVER'),
+    setup: () => {}
+  });
+}
+
 function renderShipCombatRail() {
   const section = el.shipCombatRailSection;
   if (!section) return;
@@ -10152,7 +10257,69 @@ function openCrewDialog() {
     ? 'Book 2 p.17: one person may fill two positions, at 75% of each salary and with no expertise DMs in either.'
     : 'Nobody is free to assign. Roll an NPC in the ACTORS directory first (Book 1 p.8).';
   el.crewAssignConfirm.disabled = !candidates.length;
-  el.crewDialog.showModal();
+  // v0.143.0: reopened from inside itself after hiring, to pick the new
+  // applicant up in the person list. showModal throws on an already-open
+  // dialog, so only open it when it is closed.
+  if (!el.crewDialog.open) el.crewDialog.showModal();
+}
+
+// Book 1, NON-PLAYER CHARACTERS: hiring crew at a port. The book generates
+// characters until one has the skill the post needs, and offers as an
+// alternative simply assigning it. Both are here; neither invents a delay,
+// because the book says "an appropriate delay" and names no number — so the
+// count of applicants passed over is reported for the referee to judge from.
+function hireCrewCandidate({ method }) {
+  if (!shipDocument || !campaignDocument) return;
+  const role = el.crewRole.value;
+  try {
+    const found = generateCrewCandidate({ role, method });
+    if (!found.character) {
+      el.crewCandidateNote.textContent = `No ${found.skill} applicant in ${found.generated} characters.`
+        + ` Book 1's alternative is to assign the skill instead.`;
+      setStatus(`NO ${found.skill.toUpperCase()} APPLICANT AFTER ${found.generated}`, 'error');
+      return;
+    }
+    const npc = found.character;
+    // A hired crewman is a roster actor like any other, so they can be assigned,
+    // fought over, and dropped on a scene.
+    const actor = createNpcActorDocument({
+      name: `${found.skill} applicant`,
+      role: npc.rankTitle || `Ex-${serviceName(npc.service)}`,
+      actorType: 'npc',
+      age: npc.age,
+      characteristics: { ...npc.characteristics },
+      current: { STR: npc.characteristics.STR, DEX: npc.characteristics.DEX, END: npc.characteristics.END },
+      career: { service: npc.service, terms: npc.terms, rankTitle: npc.rankTitle ?? '', yearsServed: npc.terms * 4 },
+      credits: npc.credits ?? 0,
+      skills: { ...npc.skills },
+      description: [
+        `${npc.upp} · ${serviceName(npc.service)} · ${npc.terms} term${npc.terms === 1 ? '' : 's'} · age ${npc.age}`,
+        found.assigned
+          ? `${found.skill}-${found.level} assigned by the referee (Book 1's alternative method).`
+          : `Presented himself for the ${role} post with ${found.skill}-${found.level}.`
+      ].join('\n')
+    });
+    npcActorDocuments.push(actor);
+    campaignDocument = addNpcActorToCampaign(campaignDocument, actor);
+    syncCampaignRefs();
+    persistCampaignState();
+
+    // Offer them for the post that was open, which the refresh would otherwise
+    // reset to the first role.
+    openCrewDialog();
+    el.crewRole.value = role;
+    el.crewPerson.value = actor.identity.id;
+    el.crewCandidateNote.textContent = found.assigned
+      ? `${found.skill}-${found.level} assigned after ${found.generated} character${found.generated === 1 ? '' : 's'}. Rename in the roster if you keep him.`
+      : `${found.skill}-${found.level}, ${serviceName(npc.service)}, ${npc.terms} term${npc.terms === 1 ? '' : 's'}.`
+        + ` ${found.passedOver} applicant${found.passedOver === 1 ? '' : 's'} passed over — an appropriate delay is your call.`;
+    logActivity('ROSTER', `${found.skill}-${found.level} applicant for the ${role} post`
+      + (found.assigned ? ' (skill assigned)' : ` (${found.passedOver} passed over)`));
+    setStatus(`APPLICANT: ${found.skill.toUpperCase()}-${found.level}`, 'ok');
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
 }
 
 function confirmCrewAssignment() {
@@ -12055,6 +12222,8 @@ el.animalClose?.addEventListener('click', () => el.animalDialog.close());
 el.assignCrewButton?.addEventListener('click', openCrewDialog);
 el.crewAssignConfirm?.addEventListener('click', confirmCrewAssignment);
 el.crewCancel?.addEventListener('click', () => el.crewDialog.close());
+el.crewFindCandidate?.addEventListener('click', () => hireCrewCandidate({ method: 'search' }));
+el.crewAssignCandidate?.addEventListener('click', () => hireCrewCandidate({ method: 'assign' }));
 el.worldViewCurrent?.addEventListener('click', () => setWorldStripView('current'));
 el.worldViewSelected?.addEventListener('click', () => setWorldStripView('selected'));
 el.setupEngageConfirm?.addEventListener('click', engagePendingShipEncounter);

@@ -237,7 +237,30 @@ if (args.has('fight')) {
   process.exit(0);
 }
 
-const payload = { version: 1, campaignId, savedAt: Date.now(), encounter };
+// --vector puts the fight on a Book 2 pp.22-29 plot instead of p.37's
+// abbreviated mode, with a world if one is asked for. Book 3's size digit is
+// the diameter in thousands of miles, which is what the p.27 templates take.
+let finalEncounter = encounter;
+if (args.has('vector')) {
+  const worldSize = Number.parseInt(args.get('world') ?? '8', 10);
+  const placed = worldSize > 0;
+  const planet = placed ? rules.createPlanet({ name: args.get('world-name') ?? 'San Telmo', diameter: worldSize }) : null;
+  const outermost = planet ? Math.max(...planet.bands.map((band) => band.outerRadius), planet.radius) : 0;
+  const distance = args.get('proximity') === 'near' && planet
+    ? planet.radius + (outermost - planet.radius) * 0.25
+    : outermost;
+  // On one line out from the world rather than abreast, so the ship in orbit is
+  // genuinely in a gravity band and the intruder is coming in from outside.
+  finalEncounter = rules.enableVectorMovement(encounter, {
+    player: { position: { x: distance, y: 0 }, velocity: { x: 0, y: 0 } },
+    opponent: { position: { x: distance + 30, y: 0 }, velocity: { x: 0, y: 0 } }
+  }, planet ? { planet, atmosphere: Number.parseInt(args.get('atmosphere') ?? '6', 10) } : {});
+  console.log(planet
+    ? `  vector plot at ${planet.name}: ${planet.radius * 2} thousand miles across, bands ${planet.bands.map((b) => `${b.g}G@${b.outerRadius.toFixed(1)}`).join(' ')}`
+    : '  vector plot in clear space');
+}
+
+const payload = { version: 1, campaignId, savedAt: Date.now(), encounter: finalEncounter };
 // work/ is a scratch directory and may not exist on a fresh checkout, so the
 // first run of this script would otherwise fail on ENOENT.
 await mkdir(path.dirname(outputPath), { recursive: true });
@@ -255,6 +278,7 @@ console.log(summary);
 console.log(`\n  turn ${encounter.gameTurn}, ${encounter.phasingSide} ${rules.currentPhase(encounter).label}`);
 console.log(`  player ship pressurised: ${pressurised ? 'yes — an ambush she was not ready for' : 'no — depressurised, crew in vacc suits'}`);
 console.log(`  campaign: ${campaignId ?? 'any (no id recorded)'}`);
+console.log(`  space: ${finalEncounter.spatialMode === 'vector' ? 'vector plot' : 'abbreviated, no range (Book 2 p.37)'}`);
 // The payload is far too big to paste, so the browser fetches the file this
 // script just wrote. The dev server is rooted at the platform directory, which
 // is why the path starts at /traveller.

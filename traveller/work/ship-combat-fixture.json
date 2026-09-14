@@ -1,0 +1,597 @@
+{
+  "version": 1,
+  "campaignId": null,
+  "savedAt": 1789421650119,
+  "encounter": {
+    "id": "fixture-ship-combat-1789421650118",
+    "campaignId": null,
+    "spatialMode": "abbreviated",
+    "intruderSide": "intruder",
+    "intruderAssignmentNote": "Fixture: the pirate initiated the encounter",
+    "gameTurn": 1,
+    "phasingSide": "intruder",
+    "phaseIndex": 0,
+    "fireAllocation": null,
+    "ordnance": [],
+    "ordnanceSequence": 0,
+    "participants": [
+      {
+        "id": "opponent",
+        "name": "Corsair",
+        "side": "intruder",
+        "disposition": "pirate",
+        "ship": {
+          "documentType": "classic-traveller-ship",
+          "schemaVersion": 5,
+          "identity": {
+            "id": "fixture-opponent",
+            "name": "Corsair",
+            "registry": ""
+          },
+          "design": {
+            "key": "type-s-scout-courier",
+            "typeCode": "S",
+            "name": "Scout/Courier"
+          },
+          "specifications": {
+            "hull": {
+              "tons": 100,
+              "standard": true,
+              "streamlined": true
+            },
+            "drives": {
+              "jump": {
+                "letter": "A",
+                "rating": 2
+              },
+              "maneuver": {
+                "letter": "A",
+                "rating": 2
+              },
+              "powerPlant": {
+                "letter": "A",
+                "rating": 2
+              }
+            },
+            "fuel": {
+              "capacityTons": 40,
+              "jumpFuelTonsAtMaxJump": 20,
+              "powerPlantFuelTonsPerTrip": 20
+            },
+            "computer": {
+              "model": "1",
+              "tons": 1,
+              "cpu": 2,
+              "storage": 4,
+              "maximumSupportedJump": 2
+            },
+            "accommodations": {
+              "staterooms": 4,
+              "lowBerths": 0
+            },
+            "cargo": {
+              "capacityTons": 3
+            },
+            "armament": {
+              "hardpoints": 1,
+              "turrets": [
+                {
+                  "id": "T-1",
+                  "mount": "double",
+                  "fireControlInstalled": true,
+                  "fireControlTons": 1,
+                  "weapons": []
+                }
+              ]
+            },
+            "vehicles": [
+              {
+                "name": "Air/Raft",
+                "tons": 4,
+                "stowage": "specially fitted hangar within ship"
+              }
+            ],
+            "crew": {
+              "standardCount": 1,
+              "standardDuties": [
+                "pilot",
+                "engineer"
+              ],
+              "rulesMinimumPositions": [
+                {
+                  "role": "pilot",
+                  "skill": "Pilot",
+                  "minimumLevel": 1
+                }
+              ],
+              "notes": "Book 2 general crew rules do not require a separate engineer on ships under 200 tons; the Type S standard-design description assigns engineering duties to its single crew member."
+            },
+            "economics": {
+              "standardDesignDiscountApplied": true,
+              "newCostMCr": 32.49,
+              "buildMonths": 9,
+              "annualRoutineMaintenanceCr": 32490
+            }
+          },
+          "authority": {
+            "assignmentType": "private-owner",
+            "controllingAuthority": "Corsair",
+            "legalTitleHolder": "Corsair captain",
+            "legalTitleSourceStatus": "referee-generated-encounter",
+            "characterOwnsShip": true,
+            "assignedCharacterId": "npc-opponent-captain",
+            "assignedCharacterName": "Corsair captain",
+            "recallable": false,
+            "saleAllowed": true,
+            "useAsDesired": true,
+            "possessionAtServicePleasure": false,
+            "servicePrivileges": {
+              "freeFuelAtScoutBases": false,
+              "freeMaintenanceAtScoutBasesAtClassBStarports": false
+            },
+            "operatorResponsibilities": {
+              "upkeep": true,
+              "crewCosts": true
+            }
+          },
+          "crew": {
+            "assignments": [
+              {
+                "role": "pilot",
+                "characterId": "npc-opponent-captain",
+                "characterName": "Corsair captain"
+              },
+              {
+                "role": "gunner",
+                "characterId": "npc-opponent-gunner",
+                "characterName": "Corsair gunner"
+              }
+            ]
+          },
+          "state": {
+            "operationalStatus": "available",
+            "currentFuelTons": null,
+            "fuelQuality": "unknown",
+            "cargoUsedTons": 0,
+            "cargoManifest": [],
+            "passengerManifest": [],
+            "finances": {
+              "balanceCr": 50000000,
+              "ledger": [
+                {
+                  "id": "fixture-opponent:UNDATED:capital:1",
+                  "date": null,
+                  "kind": "capital",
+                  "amountCr": 50000000,
+                  "description": "Fitting-out fund",
+                  "balanceCr": 50000000
+                },
+                {
+                  "id": "fixture-opponent:UNDATED:armament:2",
+                  "date": null,
+                  "kind": "armament",
+                  "amountCr": 0,
+                  "description": "Beam Laser installed in turret T-1",
+                  "balanceCr": 50000000
+                },
+                {
+                  "id": "fixture-opponent:UNDATED:armament:3",
+                  "date": null,
+                  "kind": "armament",
+                  "amountCr": 0,
+                  "description": "Beam Laser installed in turret T-1",
+                  "balanceCr": 50000000
+                }
+              ]
+            },
+            "portCall": null,
+            "armament": {
+              "turrets": [
+                {
+                  "id": "T-1",
+                  "weapons": [
+                    "beam-laser",
+                    "beam-laser"
+                  ]
+                }
+              ],
+              "missiles": 0,
+              "sandCanisters": 0
+            },
+            "damage": {
+              "powerPlant": 0,
+              "maneuverDrive": 0,
+              "jumpDrive": 0,
+              "computer": 0,
+              "hull": 0,
+              "hold": 0,
+              "fuel": 0,
+              "turrets": []
+            },
+            "maintenance": {
+              "status": "unknown",
+              "lastOverhaulDate": null,
+              "monthsPastDue": null
+            }
+          },
+          "notes": "",
+          "provenance": {
+            "source": "classic-traveller-book-2-standard-design",
+            "sourceDesign": "type-s-scout-courier",
+            "sourceReferences": [
+              "Classic Traveller Book 2 p.19 (standard Scout/Courier design)",
+              "Classic Traveller Book 2 p.15 (crew requirements)",
+              "Classic Traveller Book 2 p.14 (fuel formula)",
+              "Classic Traveller Book 2 p.18 (base price CR 32,490,000, standard-design reduction already included)",
+              "Classic Traveller Book 2 p.19 (Computer Model/1), p.14 (computer models table)"
+            ]
+          }
+        },
+        "computer": {
+          "carried": [
+            "target",
+            "return-fire",
+            "predict-1",
+            "gunner-interact",
+            "auto-evade",
+            "launch",
+            "anti-missile"
+          ],
+          "loaded": [
+            "target",
+            "predict-1",
+            "gunner-interact",
+            "auto-evade",
+            "launch"
+          ]
+        },
+        "stations": {
+          "pilot": "npc-opponent-captain",
+          "computerOperator": "npc-opponent-captain",
+          "engineer": null,
+          "gunners": {
+            "T-1": "npc-opponent-gunner"
+          }
+        },
+        "skills": {
+          "pilot": 1,
+          "computer": 0,
+          "engineering": 0,
+          "gunnery": {
+            "T-1": 1
+          }
+        },
+        "pressurisedSections": [],
+        "occupants": {},
+        "ready": {},
+        "fled": false,
+        "shotsRemainingBeforeEscape": null,
+        "escaped": false,
+        "surrendered": false,
+        "sandDeployed": 0,
+        "firedAt": [],
+        "spentThisPhase": {
+          "weapons": [],
+          "launchers": 0,
+          "sandcasters": 0,
+          "antiMissile": false,
+          "computer": null
+        },
+        "ammunition": {
+          "schemaVersion": 1,
+          "ownerSide": "intruder",
+          "clock": -1,
+          "turrets": [
+            {
+              "id": "T-1",
+              "gunnerId": "npc-opponent-gunner",
+              "operational": true
+            }
+          ],
+          "launchers": [],
+          "reserve": {
+            "missiles": 0,
+            "sandCanisters": 0
+          },
+          "log": []
+        },
+        "wasFiredAtBy": [],
+        "expenditure": {
+          "missiles": 0,
+          "sandCanisters": 0
+        },
+        "casualties": [],
+        "decompressionEvents": []
+      },
+      {
+        "id": "player",
+        "name": "Marisol",
+        "side": "native",
+        "disposition": "merchant",
+        "ship": {
+          "documentType": "classic-traveller-ship",
+          "schemaVersion": 5,
+          "identity": {
+            "id": "fixture-player",
+            "name": "Marisol",
+            "registry": ""
+          },
+          "design": {
+            "key": "type-s-scout-courier",
+            "typeCode": "S",
+            "name": "Scout/Courier"
+          },
+          "specifications": {
+            "hull": {
+              "tons": 100,
+              "standard": true,
+              "streamlined": true
+            },
+            "drives": {
+              "jump": {
+                "letter": "A",
+                "rating": 2
+              },
+              "maneuver": {
+                "letter": "A",
+                "rating": 2
+              },
+              "powerPlant": {
+                "letter": "A",
+                "rating": 2
+              }
+            },
+            "fuel": {
+              "capacityTons": 40,
+              "jumpFuelTonsAtMaxJump": 20,
+              "powerPlantFuelTonsPerTrip": 20
+            },
+            "computer": {
+              "model": "1",
+              "tons": 1,
+              "cpu": 2,
+              "storage": 4,
+              "maximumSupportedJump": 2
+            },
+            "accommodations": {
+              "staterooms": 4,
+              "lowBerths": 0
+            },
+            "cargo": {
+              "capacityTons": 3
+            },
+            "armament": {
+              "hardpoints": 1,
+              "turrets": [
+                {
+                  "id": "T-1",
+                  "mount": "double",
+                  "fireControlInstalled": true,
+                  "fireControlTons": 1,
+                  "weapons": []
+                }
+              ]
+            },
+            "vehicles": [
+              {
+                "name": "Air/Raft",
+                "tons": 4,
+                "stowage": "specially fitted hangar within ship"
+              }
+            ],
+            "crew": {
+              "standardCount": 1,
+              "standardDuties": [
+                "pilot",
+                "engineer"
+              ],
+              "rulesMinimumPositions": [
+                {
+                  "role": "pilot",
+                  "skill": "Pilot",
+                  "minimumLevel": 1
+                }
+              ],
+              "notes": "Book 2 general crew rules do not require a separate engineer on ships under 200 tons; the Type S standard-design description assigns engineering duties to its single crew member."
+            },
+            "economics": {
+              "standardDesignDiscountApplied": true,
+              "newCostMCr": 32.49,
+              "buildMonths": 9,
+              "annualRoutineMaintenanceCr": 32490
+            }
+          },
+          "authority": {
+            "assignmentType": "private-owner",
+            "controllingAuthority": "Marisol",
+            "legalTitleHolder": "Marisol captain",
+            "legalTitleSourceStatus": "referee-generated-encounter",
+            "characterOwnsShip": true,
+            "assignedCharacterId": "npc-player-captain",
+            "assignedCharacterName": "Marisol captain",
+            "recallable": false,
+            "saleAllowed": true,
+            "useAsDesired": true,
+            "possessionAtServicePleasure": false,
+            "servicePrivileges": {
+              "freeFuelAtScoutBases": false,
+              "freeMaintenanceAtScoutBasesAtClassBStarports": false
+            },
+            "operatorResponsibilities": {
+              "upkeep": true,
+              "crewCosts": true
+            }
+          },
+          "crew": {
+            "assignments": [
+              {
+                "role": "pilot",
+                "characterId": "npc-player-captain",
+                "characterName": "Marisol captain"
+              },
+              {
+                "role": "gunner",
+                "characterId": "npc-player-gunner",
+                "characterName": "Marisol gunner"
+              }
+            ]
+          },
+          "state": {
+            "operationalStatus": "available",
+            "currentFuelTons": null,
+            "fuelQuality": "unknown",
+            "cargoUsedTons": 0,
+            "cargoManifest": [],
+            "passengerManifest": [],
+            "finances": {
+              "balanceCr": 50000000,
+              "ledger": [
+                {
+                  "id": "fixture-player:UNDATED:capital:1",
+                  "date": null,
+                  "kind": "capital",
+                  "amountCr": 50000000,
+                  "description": "Fitting-out fund",
+                  "balanceCr": 50000000
+                },
+                {
+                  "id": "fixture-player:UNDATED:armament:2",
+                  "date": null,
+                  "kind": "armament",
+                  "amountCr": 0,
+                  "description": "Beam Laser installed in turret T-1",
+                  "balanceCr": 50000000
+                },
+                {
+                  "id": "fixture-player:UNDATED:armament:3",
+                  "date": null,
+                  "kind": "armament",
+                  "amountCr": 0,
+                  "description": "Beam Laser installed in turret T-1",
+                  "balanceCr": 50000000
+                }
+              ]
+            },
+            "portCall": null,
+            "armament": {
+              "turrets": [
+                {
+                  "id": "T-1",
+                  "weapons": [
+                    "beam-laser",
+                    "beam-laser"
+                  ]
+                }
+              ],
+              "missiles": 0,
+              "sandCanisters": 0
+            },
+            "damage": {
+              "powerPlant": 0,
+              "maneuverDrive": 0,
+              "jumpDrive": 0,
+              "computer": 0,
+              "hull": 0,
+              "hold": 0,
+              "fuel": 0,
+              "turrets": []
+            },
+            "maintenance": {
+              "status": "unknown",
+              "lastOverhaulDate": null,
+              "monthsPastDue": null
+            }
+          },
+          "notes": "",
+          "provenance": {
+            "source": "classic-traveller-book-2-standard-design",
+            "sourceDesign": "type-s-scout-courier",
+            "sourceReferences": [
+              "Classic Traveller Book 2 p.19 (standard Scout/Courier design)",
+              "Classic Traveller Book 2 p.15 (crew requirements)",
+              "Classic Traveller Book 2 p.14 (fuel formula)",
+              "Classic Traveller Book 2 p.18 (base price CR 32,490,000, standard-design reduction already included)",
+              "Classic Traveller Book 2 p.19 (Computer Model/1), p.14 (computer models table)"
+            ]
+          }
+        },
+        "computer": {
+          "carried": [
+            "target",
+            "return-fire",
+            "predict-1",
+            "gunner-interact",
+            "auto-evade",
+            "launch",
+            "anti-missile"
+          ],
+          "loaded": [
+            "target",
+            "return-fire",
+            "auto-evade",
+            "gunner-interact"
+          ]
+        },
+        "stations": {
+          "pilot": "npc-player-captain",
+          "computerOperator": "npc-player-captain",
+          "engineer": null,
+          "gunners": {
+            "T-1": "npc-player-gunner"
+          }
+        },
+        "skills": {
+          "pilot": 2,
+          "computer": 1,
+          "engineering": 0,
+          "gunnery": {
+            "T-1": 1
+          }
+        },
+        "pressurisedSections": [],
+        "occupants": {},
+        "ready": {},
+        "fled": false,
+        "shotsRemainingBeforeEscape": null,
+        "escaped": false,
+        "surrendered": false,
+        "sandDeployed": 0,
+        "firedAt": [],
+        "spentThisPhase": {
+          "weapons": [],
+          "launchers": 0,
+          "sandcasters": 0,
+          "antiMissile": false,
+          "computer": null
+        },
+        "ammunition": {
+          "schemaVersion": 1,
+          "ownerSide": "native",
+          "clock": -1,
+          "turrets": [
+            {
+              "id": "T-1",
+              "gunnerId": "npc-player-gunner",
+              "operational": true
+            }
+          ],
+          "launchers": [],
+          "reserve": {
+            "missiles": 0,
+            "sandCanisters": 0
+          },
+          "log": []
+        },
+        "wasFiredAtBy": [],
+        "expenditure": {
+          "missiles": 0,
+          "sandCanisters": 0
+        },
+        "casualties": [],
+        "decompressionEvents": []
+      }
+    ],
+    "outcome": "in-progress",
+    "log": []
+  }
+}
