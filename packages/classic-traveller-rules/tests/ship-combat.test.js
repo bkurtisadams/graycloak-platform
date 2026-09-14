@@ -187,11 +187,13 @@ test('an encounter needs two sides and an explicit intruder', async () => {
       { shipId: 'b', side: 'intruder', ship }
     ]
   }), /no ships on the native side/);
-  // Vector mode is a later milestone and says so rather than half-working.
+  // v1.214.00: vector mode is entered through enableVectorMovement, so an
+  // encounter still starts abbreviated and gains its spatial state before the
+  // first action.
   assert.throws(() => createShipCombatEncounter({
     id: 'x', spatialMode: 'vector',
     participants: [{ shipId: 'a', side: 'intruder', ship }, { shipId: 'b', side: 'native', ship }]
-  }), /vector mode is a later milestone/);
+  }), /call enableVectorMovement/);
 });
 
 // ---------------------------------------------------------------------------
@@ -883,15 +885,27 @@ test('Book 2 p.34: a computer that cannot operate paralyses the ship', async () 
   assert.equal(dead.shots.every((shot) => !shot.fired), true);
   assert.match(dead.shots[0].reason, /permanently malfunctioning/);
 
-  // Short of that it is a throw of 1+ with -1 per hit, made once per phase.
+  // Short of that it is a throw of 1+ on two dice with -1 per hit, made once
+  // per phase. v1.214.00: this was one die, which p.34 rules out — twelve hits
+  // is permanent malfunction, and on one die a computer would already be dead
+  // at six.
   let damaged = await twoScoutEncounter();
-  getParticipant(damaged, 'pirate').ship.state.damage.computer = 4;
+  getParticipant(damaged, 'pirate').ship.state.damage.computer = 6;
   damaged = advanceShipCombatPhase(damaged);
   damaged = allocateLaserFire(damaged, [{ shipId: 'pirate', turretId: 'T-1', targetId: 'trader' }]);
-  // One die of 2, less 4 hits, is -2 against a target of 1.
-  const failed = resolveLaserFire(damaged, createSequenceDice([2]));
+  // 2 and 2 is 4, less six hits, is -2 against a target of 1.
+  const failed = resolveLaserFire(damaged, createSequenceDice([2, 2]));
   assert.equal(failed.shots[0].fired, false);
   assert.match(failed.shots[0].reason, /failed its throw to operate/);
+
+  // A throw that cannot fail is not thrown at all: on 2D the floor is 2, so
+  // one hit still clears a target of 1 outright.
+  let light = await twoScoutEncounter();
+  getParticipant(light, 'pirate').ship.state.damage.computer = 1;
+  light = advanceShipCombatPhase(light);
+  light = allocateLaserFire(light, [{ shipId: 'pirate', turretId: 'T-1', targetId: 'trader' }]);
+  const lightly = resolveLaserFire(light, createSequenceDice([1, 1, 1, 1]));
+  assert.equal(lightly.shots[0].fired, true);
 
   // Computer expertise is a positive DM on that throw (p.34).
   let skilled = await twoScoutEncounter();
@@ -900,7 +914,7 @@ test('Book 2 p.34: a computer that cannot operate paralyses the ship', async () 
   pirate.skills.computer = 4;
   skilled = advanceShipCombatPhase(skilled);
   skilled = allocateLaserFire(skilled, [{ shipId: 'pirate', turretId: 'T-1', targetId: 'trader' }]);
-  assert.equal(resolveLaserFire(skilled, createSequenceDice([1, 1, 1, 1])).shots[0].fired, true);
+  assert.equal(resolveLaserFire(skilled, createSequenceDice([1, 1, 1, 1, 1, 1])).shots[0].fired, true);
 });
 
 test('Book 2 p.30: one round per rack per phase, and a dead turret launches none', async () => {

@@ -276,14 +276,37 @@ export function throwComputerOperation(participant, dice) {
   if (operation.permanentlyFailed) {
     return Object.freeze({ ...operation, roll: null, total: null, operating: false, permanentlyFailed: true });
   }
-  // An undamaged computer needs 1+ on one die with no DM, which cannot fail.
-  // Throwing anyway would be dice theatre for a foregone result.
-  if (operation.dm >= 0) {
+  // v1.214.00: this threw one die. Two is right, and p.34 settles it: a
+  // computer is permanently malfunctioning at twelve hits, which is only
+  // reachable on 2D — on one die it would already be dead at six, so the
+  // printed twelve could never mean anything. Traveller throws are 2D unless
+  // stated otherwise, and every other throw in these books is.
+  //
+  // It matters: at four hits, one die operates 33% of the time against 83% on
+  // two, which made a damaged computer far deadlier than Book 2 intends.
+  //
+  // A throw that cannot fail is not thrown — 2 is the floor on 2D, so any DM
+  // of -1 or better clears a target of 1 outright.
+  if (2 + operation.dm >= operation.target) {
     return Object.freeze({ ...operation, roll: null, total: null, operating: true });
   }
-  const roll = dice.rollD6();
-  const total = roll + operation.dm;
-  return Object.freeze({ ...operation, roll, total, operating: total >= operation.target });
+  const roll = dice.roll2D6();
+  const total = roll.total + operation.dm;
+  return Object.freeze({ ...operation, roll: roll.total, dice: Object.freeze([...roll.dice]), total, operating: total >= operation.target });
+}
+
+/**
+ * Boolean form of the p.34 throw, taken once per phase per ship and recorded so
+ * a phase cannot be re-thrown. Vector movement needs the same gate laser fire
+ * does: p.34's "a computer which is not operating effectively paralyses a
+ * starship" is not limited to gunnery.
+ */
+export function checkShipComputer(encounter, participant, dice) {
+  if (participant.spentThisPhase.computer) return participant.spentThisPhase.computer.operating;
+  const result = throwComputerOperation(participant, dice);
+  participant.spentThisPhase.computer = { operating: result.operating, hits: result.hits, roll: result.roll, dm: result.dm };
+  logEvent(encounter, { kind: 'computer-operation', shipId: participant.id, ...participant.spentThisPhase.computer });
+  return result.operating;
 }
 
 // ---------------------------------------------------------------------------
@@ -338,7 +361,7 @@ function createParticipant({
     // Book 2 p.29: "The dice throw is made once for each firing laser weapon."
     // Once per weapon, per phase — so what has already been spent this phase
     // has to be recorded, or the same turret fires as often as it is allocated.
-    spentThisPhase: { weapons: [], launchers: 0, sandcasters: 0, antiMissile: false },
+    spentThisPhase: { weapons: [], launchers: 0, sandcasters: 0, antiMissile: false, computer: null },
     wasFiredAtBy: [],
     expenditure: { missiles: 0, sandCanisters: 0 },
     casualties: [],
@@ -369,7 +392,10 @@ export function createShipCombatEncounter({
   intruderAssignmentNote = ''
 } = {}) {
   if (typeof id !== 'string' || !id.trim()) throw new TypeError('an encounter id is required');
-  if (spatialMode !== 'abbreviated') throw new RangeError(`unsupported spatial mode: ${spatialMode} (vector mode is a later milestone)`);
+  // v1.214.00: vector mode is a real mode now. It is entered through
+  // enableVectorMovement rather than here, so an encounter still starts
+  // abbreviated and the spatial state is added before the first action.
+  if (spatialMode !== 'abbreviated') throw new RangeError(`create the encounter abbreviated and call enableVectorMovement (got ${spatialMode})`);
   if (!SHIP_COMBAT_SIDES.includes(intruderSide)) throw new RangeError(`unknown intruder side: ${intruderSide}`);
   const built = participants.map(createParticipant);
   if (built.length < 2) throw new RangeError('a ship combat encounter needs at least two ships');
@@ -457,7 +483,7 @@ export function advanceShipCombatPhase(encounter) {
   // Every phase starts with nothing spent. A weapon fires once per phase, so
   // the record cannot outlive the phase it belongs to.
   for (const participant of next.participants) {
-    participant.spentThisPhase = { weapons: [], launchers: 0, sandcasters: 0, antiMissile: false };
+    participant.spentThisPhase = { weapons: [], launchers: 0, sandcasters: 0, antiMissile: false, computer: null };
   }
 
   if (next.phaseIndex < SHIP_COMBAT_PHASES.length - 1) {
@@ -469,7 +495,7 @@ export function advanceShipCombatPhase(encounter) {
   for (const participant of next.participants) {
     participant.ready = {};
     participant.firedAt = [];
-    participant.spentThisPhase = { weapons: [], launchers: 0, sandcasters: 0, antiMissile: false };
+    participant.spentThisPhase = { weapons: [], launchers: 0, sandcasters: 0, antiMissile: false, computer: null };
   }
   if (next.phasingSide === 'intruder') {
     next.phasingSide = 'native';
@@ -760,7 +786,7 @@ function turretLasers(participant, turretId) {
  * firing laser weapon, hits are located immediately, and return fire in the
  * following phase may only be conducted by ships still capable of it.
  */
-export function resolveLaserFire(encounter, dice) {
+export function resolveLaserFire(encounter, dice, { rangeDM = null } = {}) {
   requireDice(dice);
   const allocation = encounter.fireAllocation;
   if (!allocation) throw new Error('no fire has been allocated');
@@ -832,7 +858,12 @@ export function resolveLaserFire(encounter, dice) {
     for (const weaponKey of turretLasers(attacker, entry.turretId)) {
       const weapon = getTurretWeapon(weaponKey);
       const roll = dice.roll2D6();
-      const dm = attack.dm + defense.dm + weapon.attackDM + (entry.shifted ? SHIFTED_FIRE_DM : 0);
+      // Book 2 p.30's range DMs have no meaning in abbreviated mode, which has
+      // no range. In vector mode the caller measures it and passes it in —
+      // ship-combat does not import the vector module, because the vector
+      // module imports ship-combat.
+      const range = typeof rangeDM === 'function' ? rangeDM(entry.shipId, entry.targetId) : (rangeDM ?? 0);
+      const dm = attack.dm + defense.dm + weapon.attackDM + range + (entry.shifted ? SHIFTED_FIRE_DM : 0);
       const total = roll.total + dm;
       const hit = total >= LASER_HIT_THROW;
       const shot = {
@@ -851,6 +882,7 @@ export function resolveLaserFire(encounter, dice) {
           ...attack.components,
           ...defense.components,
           ...(weapon.attackDM ? [{ label: weapon.label, dm: weapon.attackDM }] : []),
+          ...(range ? [{ label: 'Range', dm: range }] : []),
           ...(entry.shifted ? [{ label: 'Shifted fire', dm: SHIFTED_FIRE_DM }] : [])
         ]
       };

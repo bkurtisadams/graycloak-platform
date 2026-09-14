@@ -221,6 +221,13 @@ export {
 } from './src/starships/design-costing.js';
 
 export {
+  enableVectorMovement,
+  previewShipVector,
+  commitShipVector,
+  vectorRangeDM
+} from './src/starships/vector-movement.js';
+
+export {
   SHIP_COMBAT_SIDES,
   SHIP_COMBAT_PHASES,
   SHIP_COMBAT_PHASE_KEYS,
@@ -283,7 +290,8 @@ export {
   markStationReady,
   sideAwaitingDeclaration,
   computerOperatorOf,
-  throwComputerOperation
+  throwComputerOperation,
+  checkShipComputer
 } from './src/starships/ship-combat.js';
 
 export {

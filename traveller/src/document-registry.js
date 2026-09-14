@@ -286,9 +286,45 @@ export function createDocumentRegistry({
     return storage.getItem(activeCampaignKey);
   }
 
+  // v1.214.00: a ship combat checkpoint, ported from a parallel implementation.
+  // This supersedes the localStorage resume added in v0.133.0 for the part that
+  // mattered: checking whether an outcome has already been applied, writing the
+  // final ship, and marking the fight closed are ONE registry write. A marker
+  // plus a separate write is not atomic, and a fight closed twice would
+  // otherwise apply its damage twice.
+  //
+  // Returns false when the fight has already been closed, so a duplicate close
+  // is a no-op rather than a second application.
+  // One registry write commits the checkpoint and final ship together locally.
+  function saveShipCombat(campaignId, encounter, { finalShip = null, finalCampaign = null } = {}) {
+    const state = readState();
+    state.shipCombats ??= {};
+    const previous = state.shipCombats[campaignId];
+    state.shipCombatArchives ??= {};
+    if (state.shipCombatArchives[encounter.id] || (previous?.encounter?.id === encounter.id && previous.closed)) return false;
+    if (encounter.campaignId !== campaignId) throw new Error('combat belongs to another campaign');
+    if (finalShip) {
+      const validated = validateDocument(finalShip);
+      if (!encounter.participants.some(p => p.ship.identity.id === idFor(validated))) throw new Error('final ship is not a participant');
+      state.documents[idFor(validated)] = validated;
+    }
+    if (finalCampaign) {
+      const validated = validateDocument(finalCampaign);
+      if (idFor(validated) !== campaignId) throw new Error('wrong campaign');
+      state.documents[campaignId] = validated;
+    }
+    state.shipCombats[campaignId] = { encounter: cloneJson(encounter), closed: Boolean(finalShip) };
+    if (finalShip) state.shipCombatArchives[encounter.id] = cloneJson(state.shipCombats[campaignId]);
+    writeState(state);
+    return true;
+  }
+  function getShipCombat(campaignId) { return cloneJson(readState().shipCombats?.[campaignId] ?? null); }
+
   return Object.freeze({
     put,
     putAll,
+    saveShipCombat,
+    getShipCombat,
     get,
     remove,
     putBundle,
