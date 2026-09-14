@@ -4495,7 +4495,9 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
   /* The map tool rail is an absolute overlay over the stage, so the controls
      have to start clear of it or the rail is drawn on top of the thrust
      fields. */
-  padding: 8px 10px 8px 76px;
+  /* The tool rail is about 100px wide; 76px was under-measured and the rail
+     was still drawn over the thrust fields. */
+  padding: 8px 10px 8px 112px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -4516,3 +4518,8 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .ship-vector-stage .vector-controls input[type="number"] { width: 7ch; }
 .ship-vector-stage details { margin: 4px 0; }
 .ship-vector-stage p { margin: 6px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+
+/* v0.149.0: the house-rules note was a paragraph in a rail four words wide. */
+.ship-combat-note { margin: 6px 0; }
+.ship-combat-note summary { cursor: pointer; font-size: 10px; letter-spacing: .08em; color: var(--muted); }
+.ship-combat-note p { margin: 6px 0 0; font-size: 11px; line-height: 1.5; color: var(--muted); }

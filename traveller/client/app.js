@@ -137,7 +137,7 @@ import {
   SHIPS_LOCKER_DEFAULT_WEAPON,
   elapsedMinutes as shipCombatElapsedMinutes,
   COMPUTER_PROGRAMS
-} from '../vendor/classic-traveller-rules/index.js?v=v0.148.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.149.0';
 
 import {
   ACTION_LABELS,
@@ -163,28 +163,28 @@ import {
   helpForTopic,
   nobleTitleLabel,
   serviceName
-} from './ui-model.js?v=v0.148.0';
+} from './ui-model.js?v=v0.149.0';
 
 import {
   TRAVELLER_DOCUMENT_KINDS,
   loadTravellerDocument
-} from './document-loader.js?v=v0.148.0';
+} from './document-loader.js?v=v0.149.0';
 
-import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.148.0';
-import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.148.0';
-import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.148.0';
+import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.149.0';
+import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.149.0';
+import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.149.0';
 import { directoryFolders, removeEncounterFromCampaign
-} from '../src/campaign-document.js?v=v0.148.0';
-import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.148.0';
+} from '../src/campaign-document.js?v=v0.149.0';
+import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.149.0';
 // v0.147.0: wired in v1.224.00 and never imported — the smoke test imported the
 // map module directly, so app.js's own imports were never exercised.
-import { renderShipVectorMap } from './ship-vector-map.js?v=v0.148.0';
+import { renderShipVectorMap } from './ship-vector-map.js?v=v0.149.0';
 import {
   clampWindowGeometry, dragWindowGeometry, resizeWindowGeometry, loadWindowGeometry, saveWindowGeometry,
   createDocumentWindowState, openDocumentWindow, closeDocumentWindow, toggleMinimizeDocumentWindow, moveDocumentWindow
-} from '../src/document-window.js?v=v0.148.0';
-import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.148.0';
-import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.148.0';
+} from '../src/document-window.js?v=v0.149.0';
+import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.149.0';
+import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.149.0';
 
 import {
   SHEET_CHARACTERISTICS as HEADER_CHARACTERISTICS,
@@ -193,13 +193,13 @@ import {
   renderChargenSheet as renderChargenSheetView,
   renderChargenActions,
   renderChargenTables as renderChargenTablesView
-} from './chargen-view.js?v=v0.148.0';
+} from './chargen-view.js?v=v0.149.0';
 
 import {
   generateCharacterName,
   generateShipName,
   generateShipRegistry
-} from './generators.js?v=v0.148.0';
+} from './generators.js?v=v0.149.0';
 
 import {
   SUBSECTOR_SVG_GEOMETRY,
@@ -210,7 +210,7 @@ import {
   splitSystemName,
   subsectorHexCenter,
   subsectorSvgViewBox
-} from './subsector-svg.js?v=v0.148.0';
+} from './subsector-svg.js?v=v0.149.0';
 
 import {
   seededDice,
@@ -219,7 +219,7 @@ import {
   routeMarketSeed,
   weeklyTradeSeed,
   saleQuoteSeed
-} from './commerce-market.js?v=v0.148.0';
+} from './commerce-market.js?v=v0.149.0';
 
 import {
   addCharacterToCampaign,
@@ -249,7 +249,7 @@ import {
   speculativeLotPurchasedQuantity,
   recordSpeculativeLotPurchase,
   addSceneToCampaign, removeSceneFromCampaign, setActiveCampaignScene
-} from '../src/campaign-document.js?v=v0.148.0';
+} from '../src/campaign-document.js?v=v0.149.0';
 
 import {
   NPC_CONDITIONS,
@@ -258,16 +258,16 @@ import {
   importNpcActorDocument,
   activeNpcActorConditions,
   setNpcActorCondition,
-  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.148.0';
-import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.148.0';
-import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.148.0';
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.148.0';
-import { openSignInDialog } from './signin-ui.js?v=v0.148.0';
-import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.148.0';
-import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.148.0';
-import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.148.0';
-import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.148.0';
-import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.148.0';
+  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.149.0';
+import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.149.0';
+import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.149.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.149.0';
+import { openSignInDialog } from './signin-ui.js?v=v0.149.0';
+import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.149.0';
+import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.149.0';
+import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.149.0';
+import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.149.0';
+import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.149.0';
 import {
   ACTIVITY_VISIBILITY,
   createActivityLogDocument,
@@ -275,14 +275,14 @@ import {
   clearActivityLogDocument,
   importActivityLogDocument,
   visibleActivityLogEntries
-} from '../src/activity-log-document.js?v=v0.148.0';
+} from '../src/activity-log-document.js?v=v0.149.0';
 
 import {
   PLAYER_ROLES,
   createPlayerSession,
   createPlayerSessionStore,
   setPlayerViewedCharacter
-} from '../src/player-session.js?v=v0.148.0';
+} from '../src/player-session.js?v=v0.149.0';
 
 import {
   QUICK_SLOT_LIMIT,
@@ -290,19 +290,19 @@ import {
   defaultQuickSlots,
   normalizeQuickSlots,
   resolveQuickSlots
-} from './quick-slots.js?v=v0.148.0';
+} from './quick-slots.js?v=v0.149.0';
 
 import {
   exportCampaignBundle
-} from '../src/campaign-bundle.js?v=v0.148.0';
+} from '../src/campaign-bundle.js?v=v0.149.0';
 
 import {
   createDocumentRegistry
-} from '../src/document-registry.js?v=v0.148.0';
+} from '../src/document-registry.js?v=v0.149.0';
 
 import {
   createActivityLogStore
-} from '../src/activity-log.js?v=v0.148.0';
+} from '../src/activity-log.js?v=v0.149.0';
 
 import {
   CONTRACT_DOCUMENT_TYPE,
@@ -312,14 +312,14 @@ import {
   importContractDocument,
   isContractOverdue,
   reconcileContractDeadlines
-} from '../src/contract-document.js?v=v0.148.0';
+} from '../src/contract-document.js?v=v0.149.0';
 
 import {
   SITUATION_DOCUMENT_TYPE,
   createSituationDocument,
   importSituationDocument,
   resolveSituationDocument
-} from '../src/situation-document.js?v=v0.148.0';
+} from '../src/situation-document.js?v=v0.149.0';
 
 import {
   createEncounterDocument,
@@ -347,37 +347,37 @@ import {
   declaredTargetCounts,
   addEncounterCombatantFromActor,
   removeEncounterCombatant,
-  setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant, addEncounterCombatantFromCharacter, beginEncounter, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.148.0';
+  setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant, addEncounterCombatantFromCharacter, beginEncounter, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.149.0';
 
 import {
   createContactDocument,
   importContactDocument,
   touchContactDocument
-} from '../src/contact-document.js?v=v0.148.0';
+} from '../src/contact-document.js?v=v0.149.0';
 
 import {
   importAdventureThreadDocument,
   linkAdventureThreadDocument
-} from '../src/adventure-thread-document.js?v=v0.148.0';
+} from '../src/adventure-thread-document.js?v=v0.149.0';
 
 import {
   arrivalSituationEventKey,
   patronSituationEventKey,
   generateArrivalSituationOffer,
   buildPatronSituationOffer
-} from '../world/situation-events.js?v=v0.148.0';
+} from '../world/situation-events.js?v=v0.149.0';
 
 import {
   generateContractBoard
-} from '../world/contract-board.js?v=v0.148.0';
+} from '../world/contract-board.js?v=v0.149.0';
 
 import {
   applySituationThreadConsequences
-} from '../world/thread-consequences.js?v=v0.148.0';
+} from '../world/thread-consequences.js?v=v0.149.0';
 
 import {
   FAR_MERIDIAN_SUBSECTOR
-} from '../world/far-meridian-subsector.js?v=v0.148.0';
+} from '../world/far-meridian-subsector.js?v=v0.149.0';
 
 const el = {
   status: document.querySelector('#system-status'),
@@ -522,6 +522,8 @@ const el = {
   shipVectorSection: document.querySelector('#ship-vector-section'),
   shipVectorStage: document.querySelector('#ship-vector-stage'),
   shipVectorStatus: document.querySelector('#ship-vector-status'),
+  shipVectorToMap: document.querySelector('#ship-vector-to-map'),
+  mapToShipVector: document.querySelector('#map-to-ship-vector'),
   setupEngageConfirm: document.querySelector('#setup-engage-confirm'),
   setupCancel: document.querySelector('#setup-cancel'),
   armamentDialog: document.querySelector('#armament-dialog'),
@@ -754,6 +756,10 @@ let shipCombatAllocation = {};
 // "Starport A" without knowing whether that is here or the destination was the
 // ambiguity the two-column strip exists to remove.
 let worldStripView = 'current';
+// v0.149.0: the vector plot took the stage and never gave it back, so the
+// subsector map was unreachable for the length of a fight — and a referee needs
+// to look at the map during one.
+let stageBoard = 'auto';
 let campaignDocument = null;
 let contractDocuments = [];
 let situationDocuments = [];
@@ -1767,7 +1773,7 @@ function applyCampaignLayout() {
   el.sceneTabsRow.hidden = false;
   applyDocumentWindow(characterWindow);
   const board = viewedSceneIsBoard();
-  const vector = shipCombatIsVector();
+  const vector = shipVectorOnStage();
   el.subsectorSection.hidden = board || vector;
   el.encounterSection.hidden = !board || vector;
   // v0.129.0: the jump action and DETAILS left this band, so on the subsector
@@ -8792,6 +8798,8 @@ function renderLiveShipStatus({ currentSystem = null, selectedSystem = null, dis
   renderShipArmament();
   renderShipCombatRail();
   renderShipVectorStage();
+  // The return route only exists while there is a plot to return to.
+  if (el.mapToShipVector) el.mapToShipVector.hidden = !(shipCombatIsVector() && stageBoard === 'subsector');
   renderShipLedger();
   renderShipStrip();
   // After the strip, whose height is what moves the map down.
@@ -8863,8 +8871,14 @@ function renderShipLedger() {
 // Measured, not constant: the ship strip and the map header both change
 // height, and every hand-tuned offset in this shell has needed correcting.
 function positionToolRail() {
-  const map = el.subsectorMap;
-  if (!map || map.offsetParent === null) return;
+  // v0.149.0: measure against whichever board is showing. This measured the
+  // subsector map only, so during a vector fight — when that map is hidden —
+  // it returned early and the rail stayed wherever it last was, drawn over the
+  // plot's thrust controls.
+  const map = el.subsectorMap?.offsetParent ? el.subsectorMap
+    : el.shipVectorSection?.offsetParent ? el.shipVectorSection
+      : null;
+  if (!map) return;
   // v0.117.3: set on the shell, not the stage. The rail is the stage's sibling
   // and custom properties inherit down, not across — written on the stage the
   // variable never reached the rail, which fell back to 160px and landed on
@@ -9934,10 +9948,21 @@ function shipCombatIsVector() {
   return Boolean(shipCombatEncounter && shipCombatEncounter.spatialMode === 'vector');
 }
 
+// Whether the plot is actually on the stage: it is available while a vector
+// fight runs, but the referee may send it away to look at the map.
+function shipVectorOnStage() {
+  return shipCombatIsVector() && stageBoard !== 'subsector';
+}
+
+function setStageBoard(board) {
+  stageBoard = board;
+  render();
+}
+
 function renderShipVectorStage() {
   if (!el.shipVectorSection) return;
-  el.shipVectorSection.hidden = !shipCombatIsVector();
-  if (!shipCombatIsVector()) { el.shipVectorStage?.replaceChildren(); return; }
+  el.shipVectorSection.hidden = !shipVectorOnStage();
+  if (!shipVectorOnStage()) { el.shipVectorStage?.replaceChildren(); return; }
   const encounter = shipCombatEncounter;
   const planet = encounter.spatial.planet;
   el.shipVectorStatus.textContent = [
@@ -9945,6 +9970,7 @@ function renderShipVectorStage() {
     planet ? `${planet.name.toUpperCase()} \u00b7 ${planet.bands.length} GRAVITY BAND${planet.bands.length === 1 ? '' : 'S'}` : 'CLEAR SPACE',
     '1 UNIT = 1,000 MILES'
   ].join(' \u00b7 ');
+  el.shipVectorToMap.hidden = false;
   renderShipVectorMap(el.shipVectorStage, encounter, {
     commit: (shipId, acceleration) => shipCombatStep(() => {
       shipCombatEncounter = commitShipVector(shipCombatEncounter, shipId, acceleration, createDice());
@@ -9978,14 +10004,29 @@ function renderShipCombatRail() {
   who.className = 'encounter-tracker-ready';
   who.textContent = `ACTING: ${acting.toUpperCase()}`;
   heading.append(state, who);
-  el.shipCombatTracker.append(heading);
+  // The heading goes above the actions, not above the cards, so the phase and
+  // the things you can do in it are read together.
+  el.shipCombatActions.append(heading);
 
   // The two house rules and the local-only resume, stated where the fight is
   // being run rather than only in the source.
-  const note = document.createElement('div');
-  note.className = 'live-ship-row live-ship-detail';
-  note.textContent = `ABBREVIATED (BOOK 2 P.37) \u00b7 NO RANGE \u00b7 HOUSE: SAND ${ABBREVIATED_SAND_DM_PER_CANISTER} PER CANISTER, MISSILE CONTACT AUTOMATIC \u00b7 RESUMES IN THIS BROWSER ONLY`;
-  note.title = 'Book 2 p.30 prices sand per half inch of cloud and a missile has to cross the distance; abbreviated mode has neither, so both are Graycloak extensions. The fight is saved locally, not to the campaign — the outcome is saved to the campaign when you close it.';
+  // v0.149.0: this was a paragraph of prose in a rail four words wide, and it
+  // said ABBREVIATED during a vector fight. Now it states the mode in a line
+  // and keeps the detail in a collapsible, where a referee can read it once.
+  const vectorFight = encounter.spatialMode === 'vector';
+  const note = document.createElement('details');
+  note.className = 'ship-combat-note';
+  const summary = document.createElement('summary');
+  summary.textContent = vectorFight ? 'VECTOR PLOT \u00b7 HOUSE RULES' : 'ABBREVIATED \u00b7 HOUSE RULES';
+  const body = document.createElement('p');
+  body.textContent = vectorFight
+    ? `Book 2 pp.22-29. Range, gravity and sand are measured, so the printed rules apply. `
+      + `The fight resumes in this browser only; the outcome is saved to the campaign when you close it.`
+    : `Book 2 p.37: no range, so two figures the book measures cannot be. House: sand `
+      + `${ABBREVIATED_SAND_DM_PER_CANISTER} per canister rather than per half inch of cloud, and missile `
+      + `contact automatic rather than crossing the distance. The fight resumes in this browser only; `
+      + `the outcome is saved to the campaign when you close it.`;
+  note.append(summary, body);
   el.shipCombatTracker.append(note);
 
   for (const participant of encounter.participants) {
@@ -12229,6 +12270,8 @@ el.crewFindCandidate?.addEventListener('click', () => hireCrewCandidate({ method
 el.crewAssignCandidate?.addEventListener('click', () => hireCrewCandidate({ method: 'assign' }));
 el.worldViewCurrent?.addEventListener('click', () => setWorldStripView('current'));
 el.worldViewSelected?.addEventListener('click', () => setWorldStripView('selected'));
+el.shipVectorToMap?.addEventListener('click', () => setStageBoard('subsector'));
+el.mapToShipVector?.addEventListener('click', () => setStageBoard('auto'));
 el.setupEngageConfirm?.addEventListener('click', engagePendingShipEncounter);
 el.setupCancel?.addEventListener('click', () => el.shipCombatSetupDialog.close());
 el.fitArmamentButton?.addEventListener('click', openArmamentDialog);
