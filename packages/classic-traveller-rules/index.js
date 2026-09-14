@@ -221,6 +221,17 @@ export {
 } from './src/starships/design-costing.js';
 
 export {
+  createPlanet,
+  gravityAt,
+  moveWithGravity,
+  applyAtmosphericBraking,
+  atmosphereBrakes,
+  closestApproach,
+  ATMOSPHERIC_BRAKING_BAND,
+  BRAKING_ATMOSPHERES
+} from './src/starships/planetary-gravity.js';
+
+export {
   enableVectorMovement,
   previewShipVector,
   commitShipVector,
