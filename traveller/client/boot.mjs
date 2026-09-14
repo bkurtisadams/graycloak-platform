@@ -18,6 +18,38 @@
 
 const RULES = '../vendor/classic-traveller-rules/index.js';
 
+// v0.145.0: the error names the module as well as the symbol, and the two are
+// different faults. A missing export from a CLIENT module is a stale browser
+// cache — app.js is stamped with ?v= and its sibling imports are not — and
+// telling the reader to run sync-vendor sends them nowhere. That happened with
+// ui-model.js and again with the rules package, so the panel now reads the
+// specifier out of the message and says which fault it is.
+function describe(message) {
+  const specifier = /module '([^']+)'/.exec(message)?.[1] ?? '';
+  const symbol = /export named '([^']+)'/.exec(message)?.[1] ?? '';
+  if (!specifier.includes('/vendor/')) {
+    return {
+      heading: 'A CLIENT MODULE FAILED TO LOAD',
+      body: `${specifier || 'A client module'} did not provide ${symbol ? `\u201c${symbol}\u201d` : 'an expected export'}. `
+        + 'This is usually a stale browser cache: app.js is stamped with a version and the modules it '
+        + 'imports are not, so a new app.js can run against an old sibling. Hard refresh, and if that '
+        + 'fails clear the site data. Running sync-vendor will not help — that module is not vendored.',
+      command: null
+    };
+  }
+  return {
+    heading: 'VENDORED RULES PACKAGE IS OUT OF DATE',
+    body: `The vendored rules package does not provide ${symbol ? `\u201c${symbol}\u201d` : 'an expected export'}. `
+      + 'traveller/vendor/ is a build artifact. Run this from the traveller directory, then reload:',
+    command: 'node scripts/sync-vendor.mjs',
+    // The other cause, and the one that is easy to miss: a patch spanning both
+    // trees whose packages/ half was not extracted. Syncing cannot add an
+    // export the source package does not have.
+    footnote: `If syncing does not fix it, check that packages/classic-traveller-rules exports ${symbol ? `\u201c${symbol}\u201d` : 'it'} `
+      + 'at all — a patch extracted into traveller/ alone leaves the client ahead of the package.'
+  };
+}
+
 function fail(detail) {
   const panel = document.createElement('div');
   panel.setAttribute('role', 'alert');
@@ -28,19 +60,28 @@ function fail(detail) {
   box.style.cssText = 'max-width:640px;border:1px solid #1a1a17;padding:20px 22px;background:#e7e7e1';
   const heading = document.createElement('div');
   heading.style.cssText = 'font-weight:700;letter-spacing:.04em;margin-bottom:10px';
-  heading.textContent = 'VENDORED RULES PACKAGE IS OUT OF DATE';
+  const diagnosis = describe(detail);
+  heading.textContent = diagnosis.heading;
   const body = document.createElement('p');
   body.style.cssText = 'margin:0 0 12px';
-  body.textContent = 'traveller/vendor/ is a build artifact and has not been rebuilt since '
-    + 'packages/classic-traveller-rules last changed. Run this from the traveller directory, '
-    + 'then reload:';
-  const command = document.createElement('pre');
-  command.style.cssText = 'margin:0 0 12px;padding:9px 11px;border:1px solid #1a1a17;background:#d9d9d3';
-  command.textContent = 'node scripts/sync-vendor.mjs';
+  body.textContent = diagnosis.body;
+  box.append(heading, body);
+  if (diagnosis.command) {
+    const command = document.createElement('pre');
+    command.style.cssText = 'margin:0 0 12px;padding:9px 11px;border:1px solid #1a1a17;background:#d9d9d3';
+    command.textContent = diagnosis.command;
+    box.append(command);
+  }
+  if (diagnosis.footnote) {
+    const footnote = document.createElement('p');
+    footnote.style.cssText = 'margin:0 0 12px';
+    footnote.textContent = diagnosis.footnote;
+    box.append(footnote);
+  }
   const cause = document.createElement('p');
   cause.style.cssText = 'margin:0;color:#5a5a52';
   cause.textContent = detail;
-  box.append(heading, body, command, cause);
+  box.append(cause);
   panel.append(box);
   document.body.append(panel);
 }
