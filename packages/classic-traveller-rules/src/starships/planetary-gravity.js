@@ -67,7 +67,7 @@ export function createPlanet({name='Planet', center={x:0,y:0}, diameter,
     if(outerRadius > radius) bands.push(Object.freeze({g,outerRadius}));
   }
   return Object.freeze({name:String(name),center:Object.freeze(point(center,'center')),
-    radius,massEarth:mass,surfaceG:actualSurfaceG,bands:Object.freeze(bands)});
+    radius,densityEarth,massOverride:massEarth??null,massEarth:mass,surfaceG:actualSurfaceG,bands:Object.freeze(bands)});
 }
 
 /** Band at a point; interior/surface flagged separately, never extrapolated. */

@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { importCharacterDocument, createTypeSScoutReserveShipForCharacter, createShipCombatEncounter, advanceShipCombatPhase, createSequenceDice } from '../index.js';
-import {enableVectorMovement,previewShipVector,commitShipVector,vectorRangeDM} from '../src/starships/vector-movement.js';
+import { importCharacterDocument, createTypeSScoutReserveShipForCharacter, createShipCombatEncounter, advanceShipCombatPhase, createSequenceDice, createShipDocument, creditShipAccount, armShipTurret, purchaseOrdnance, launchOrdnance, moveOrdnance, declareFlight, currentPhase, obscuringSand, validateOrdnanceRuling } from '../index.js';
+import {enableVectorMovement,previewShipVector,commitShipVector,vectorRangeDM,configureVectorPlanet,adjudicateVectorSurface} from '../src/starships/vector-movement.js';
 import {
   createPlanet,
   moveWithGravity,
@@ -112,4 +112,175 @@ test('a course whose midpoint is inside the planet is left to the referee', () =
   assert.equal(through.requiresReferee, true);
   // Book 2's bands are external; nothing in it describes motion inside a world.
   assert.match(through.reason, /surface/);
+});
+
+// ---------------------------------------------------------------------------
+// Vector ordnance (Book 2 pp.18, 23, 30) — ported, wired to this engine
+// ---------------------------------------------------------------------------
+
+function armedCruiserFor(id, weapons, missiles) {
+  const captain = `c-${id}`;
+  let ship = createShipDocument({
+    designKey: 'type-c-cruiser', id, name: id,
+    authority: {
+      assignmentType: 'private-owner', controllingAuthority: id, legalTitleHolder: 'Captain',
+      legalTitleSourceStatus: 'test', characterOwnsShip: true, assignedCharacterId: captain,
+      assignedCharacterName: 'Captain', recallable: false, saleAllowed: true, useAsDesired: true,
+      possessionAtServicePleasure: false,
+      servicePrivileges: { freeFuelAtScoutBases: false, freeMaintenanceAtScoutBasesAtClassBStarports: false },
+      operatorResponsibilities: { upkeep: true, crewCosts: true }
+    },
+    crewAssignments: [{ role: 'pilot', characterId: captain, characterName: 'Captain' }]
+  });
+  ship = creditShipAccount(ship, 50000000, { kind: 'capital', description: 'Fitting-out fund' });
+  weapons.forEach((weapon, index) => {
+    ship = armShipTurret(ship, { turretId: `T-${index + 1}`, weapon, pricePerWeaponCr: 0 }).ship;
+  });
+  return missiles ? purchaseOrdnance(ship, { missiles }).ship : ship;
+}
+
+// Book 2 never prints a missile's thrust or a contact radius, or the size of a
+// sand cloud, so the referee supplies them and the module refuses a ruling with
+// no recorded note.
+const MISSILE_RULING = { maxG: 6, contactRadius: 0.5, note: 'Homing missile: 6 G, contact within half a unit' };
+
+function ordnanceEncounter() {
+  const programs = ['target', 'launch', 'maneuver'];
+  let encounter = createShipCombatEncounter({
+    id: 'vo', intruderSide: 'intruder',
+    participants: [
+      { shipId: 'a', side: 'intruder', ship: armedCruiserFor('a', ['missile-launcher', 'beam-laser'], 4),
+        carriedPrograms: programs, loadedPrograms: programs, pressurisedSections: [] },
+      { shipId: 'b', side: 'native', ship: armedCruiserFor('b', ['beam-laser'], 0),
+        carriedPrograms: programs, loadedPrograms: programs, pressurisedSections: [] }
+    ]
+  });
+  return enableVectorMovement(encounter, {
+    a: { position: { x: 0, y: 0 }, velocity: { x: 4, y: 0 } },
+    b: { position: { x: 40, y: 0 }, velocity: { x: 0, y: 0 } }
+  });
+}
+
+test('Book 2 p.30: a round carries the launching ship\'s vector and waits a turn', () => {
+  let encounter = ordnanceEncounter();
+  for (let step = 0; step < 3; step += 1) encounter = advanceShipCombatPhase(encounter);
+  assert.equal(currentPhase(encounter).key, 'ordnance-launch');
+  encounter = launchOrdnance(encounter, { shipId: 'a', missiles: 1, targetId: 'b', vectorRuling: MISSILE_RULING });
+
+  const round = encounter.ordnance[0];
+  // "All ordnance which is launched has the launching ship's vector."
+  assert.deepEqual(round.position, { x: 0, y: 0 });
+  assert.deepEqual(round.velocity, { x: 4, y: 0 });
+  assert.equal(round.status, 'in-flight');
+  // "The launched item does not actually move until the following friendly
+  // movement phase", and this is still the launcher's own turn.
+  for (let step = 0; step < 2; step += 1) encounter = advanceShipCombatPhase(encounter);
+  assert.equal(currentPhase(encounter).key, 'movement');
+  encounter = moveOrdnance(encounter);
+  assert.equal(encounter.ordnance[0].status, 'in-flight');
+  assert.deepEqual(encounter.ordnance[0].position, { x: 0, y: 0 });
+});
+
+test('a vector missile has to cross the distance, and homes without overshooting', () => {
+  let encounter = ordnanceEncounter();
+  for (let step = 0; step < 3; step += 1) encounter = advanceShipCombatPhase(encounter);
+  encounter = launchOrdnance(encounter, { shipId: 'a', missiles: 1, targetId: 'b', vectorRuling: MISSILE_RULING });
+
+  const positions = [];
+  for (let turn = 0; turn < 6 && encounter.ordnance[0].status !== 'contact'; turn += 1) {
+    while (currentPhase(encounter).key !== 'movement' || encounter.phasingSide !== 'intruder') {
+      encounter = advanceShipCombatPhase(encounter);
+    }
+    encounter = moveOrdnance(encounter);
+    positions.push(Number(encounter.ordnance[0].position.x.toFixed(2)));
+    if (encounter.ordnance[0].status === 'contact') break;
+    encounter = advanceShipCombatPhase(encounter);
+  }
+  // Launcher's 4 plus a ruled 6 G, steering toward the target: it arrives at
+  // the contact circle rather than flying past it.
+  assert.equal(encounter.ordnance[0].status, 'contact');
+  assert.ok(positions.at(-1) > 39 && positions.at(-1) <= 40, `arrived at ${positions.at(-1)}`);
+  assert.equal(encounter.ordnance[0].contactedGameTurn, encounter.gameTurn);
+});
+
+test('Book 2 p.18: a missile whose target escapes has nothing to home on', () => {
+  let encounter = ordnanceEncounter();
+  for (let step = 0; step < 3; step += 1) encounter = advanceShipCombatPhase(encounter);
+  encounter = launchOrdnance(encounter, { shipId: 'a', missiles: 1, targetId: 'b', vectorRuling: MISSILE_RULING });
+  encounter = declareFlight(encounter, { shipId: 'b', shotsBeforeEscape: 0 });
+  while (currentPhase(encounter).key !== 'movement' || encounter.phasingSide !== 'intruder') {
+    encounter = advanceShipCombatPhase(encounter);
+  }
+  encounter = moveOrdnance(encounter);
+  assert.equal(encounter.ordnance[0].status, 'spent');
+});
+
+test('a vector launch refuses a ruling with no recorded note', () => {
+  let encounter = ordnanceEncounter();
+  for (let step = 0; step < 3; step += 1) encounter = advanceShipCombatPhase(encounter);
+  assert.throws(() => launchOrdnance(encounter, {
+    shipId: 'a', missiles: 1, targetId: 'b', vectorRuling: { maxG: 6, contactRadius: 0.5 }
+  }), /record the referee ordnance ruling/);
+  // Book 2 prints none of these figures, so there is no default to fall back on.
+  assert.throws(() => validateOrdnanceRuling('missile', { note: 'x' }), /missile G/);
+  assert.throws(() => validateOrdnanceRuling('sand', { note: 'x' }), /sand radius/);
+});
+
+test('Book 2 p.30: sand is measured along the firing line, -3 per complete half unit', () => {
+  // This replaces the abbreviated-mode house figure of -3 per canister with the
+  // printed rule, because vector mode has a line to measure.
+  const cloud = (x, y, radius) => ({ kind: 'sand', status: 'active', position: { x, y }, ruling: { radius, note: 'test cloud' } });
+  const across = { spatialMode: 'vector', ordnance: [cloud(10, 0, 1)] };
+  assert.equal(obscuringSand(across, { x: 0, y: 0 }, { x: 20, y: 0 }).dm, -12);
+
+  // Overlapping clouds are counted once — a referee convention, since the book
+  // does not say.
+  const overlapping = { spatialMode: 'vector', ordnance: [cloud(10, 0, 1), cloud(10.5, 0, 1)] };
+  assert.equal(obscuringSand(overlapping, { x: 0, y: 0 }, { x: 20, y: 0 }).dm, -15);
+
+  // A line that misses the cloud is unobscured.
+  assert.equal(obscuringSand(across, { x: 0, y: 5 }, { x: 20, y: 5 }).dm, 0);
+
+  // "per 1/2 inch" is per COMPLETE half inch, so a graze gives one step.
+  const grazing = { spatialMode: 'vector', ordnance: [cloud(10, 0.95, 1)] };
+  assert.equal(obscuringSand(grazing, { x: 0, y: 0 }, { x: 20, y: 0 }).dm, -3);
+});
+
+test('a course into the surface is the referee\'s, and the ruling is recorded', () => {
+  const programs = ['target', 'maneuver'];
+  let encounter = createShipCombatEncounter({
+    id: 'surface', intruderSide: 'intruder',
+    participants: [
+      { shipId: 'a', side: 'intruder', ship: armedCruiserFor('sa', ['beam-laser'], 0), carriedPrograms: programs, loadedPrograms: programs, pressurisedSections: [] },
+      { shipId: 'b', side: 'native', ship: armedCruiserFor('sb', ['beam-laser'], 0), carriedPrograms: programs, loadedPrograms: programs, pressurisedSections: [] }
+    ]
+  });
+  encounter = enableVectorMovement(encounter, {
+    // A course straight through an 8000-mile world.
+    a: { position: { x: -10, y: 0 }, velocity: { x: 20, y: 0 } },
+    b: { position: { x: 60, y: 0 }, velocity: { x: 0, y: 0 } }
+  });
+  encounter = configureVectorPlanet(encounter, { name: 'San Telmo', diameter: 8 }, 'instantaneous', { atmosphere: 6 });
+  assert.equal(encounter.spatial.planet.radius, 4);
+  assert.equal(encounter.spatial.accelerationMode, 'instantaneous');
+
+  // Book 2's bands are external; it says nothing about motion inside a world.
+  const blocked = previewShipVector(encounter, 'a', { x: 0, y: 0 });
+  assert.equal(blocked.unresolved, true);
+  assert.throws(() => commitShipVector(encounter, 'a', { x: 0, y: 0 }, createSequenceDice([6, 6])), /course cannot be resolved/);
+
+  // The referee places it instead, and has to say why.
+  assert.throws(() => adjudicateVectorSurface(encounter, { id: 'a', position: { x: 6, y: 0 }, velocity: { x: 2, y: 0 } }), /ruling note required/);
+  const ruled = adjudicateVectorSurface(encounter, {
+    id: 'a', position: { x: 6, y: 0 }, velocity: { x: 2, y: 0 }, note: 'Skimmed the atmosphere and came out the far side'
+  });
+  assert.deepEqual(ruled.spatial.ships.a.position, { x: 6, y: 0 });
+  const entry = ruled.log.at(-1);
+  assert.equal(entry.kind, 'surface-ruling');
+  assert.equal(entry.refereeRuling, true);
+  assert.equal(entry.raw, false);
+  // And it cannot be placed inside the world.
+  assert.throws(() => adjudicateVectorSurface(encounter, {
+    id: 'a', position: { x: 1, y: 0 }, velocity: { x: 0, y: 0 }, note: 'inside'
+  }), /outside the surface/);
 });

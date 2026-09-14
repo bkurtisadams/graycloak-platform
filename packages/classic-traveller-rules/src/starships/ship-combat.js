@@ -38,6 +38,13 @@ import {
 } from './damage.js';
 import { applyShipHit, applyMissileDetonation, assertValidShipDocument } from './ship-document.js';
 import { createPersonalCombatant, PERSONAL_COMBAT_RANGES } from '../combat/personal-combat.js';
+import {
+  placeVectorOrdnance,
+  validateOrdnanceRuling,
+  moveVectorOrdnance,
+  activateVectorSand,
+  obscuringSand
+} from './vector-ordnance.js';
 
 export const SHIP_COMBAT_SIDES = Object.freeze(['intruder', 'native']);
 
@@ -699,7 +706,7 @@ export function laserAttackDM(participant, turretId, { returnFire = false, multi
  * abbreviated mode because there is no range to measure; the sand figure is a
  * labelled Graycloak extension for the same reason.
  */
-export function laserDefenseDM(participant, { alsoRunning = [] } = {}) {
+export function laserDefenseDM(participant, { alsoRunning = [], encounter = null, firingLine = null } = {}) {
   const components = [];
   let dm = 0;
   const pilotSkill = participant.skills.pilot ?? 0;
@@ -724,7 +731,17 @@ export function laserDefenseDM(participant, { alsoRunning = [] } = {}) {
     dm += COMPUTER_PROGRAMS['auto-evade'].defenseDM;
     components.push({ label: 'Auto/Evade', dm: COMPUTER_PROGRAMS['auto-evade'].defenseDM });
   }
-  if (participant.sandDeployed > 0) {
+  // Book 2 p.30 prices sand at "-3 per 1/2 inch of obscuring sand", which is a
+  // measurement along the firing line. Vector mode can measure it, so it uses
+  // the printed rule; abbreviated mode has no line to measure and falls back to
+  // the per-canister house figure.
+  if (firingLine && encounter?.spatialMode === 'vector') {
+    const sand = obscuringSand(encounter, firingLine.from, firingLine.to);
+    if (sand.dm) {
+      dm += sand.dm;
+      components.push({ label: `Obscuring sand ${sand.length.toFixed(2)} units`, dm: sand.dm, raw: true });
+    }
+  } else if (participant.sandDeployed > 0) {
     const value = participant.sandDeployed * ABBREVIATED_SAND_DM_PER_CANISTER;
     dm += value;
     components.push({ label: `Obscuring sand x${participant.sandDeployed}`, dm: value, raw: ABBREVIATED_SAND_DM_IS_RAW });
@@ -852,7 +869,10 @@ export function resolveLaserFire(encounter, dice, { rangeDM = null } = {}) {
       }));
       continue;
     }
-    const defense = laserDefenseDM(target);
+    const defense = laserDefenseDM(target, next.spatialMode === 'vector' ? {
+      encounter: next,
+      firingLine: { from: next.spatial.ships[entry.shipId].position, to: next.spatial.ships[entry.targetId].position }
+    } : {});
 
     attacker.spentThisPhase.weapons.push(entry.turretId);
     for (const weaponKey of turretLasers(attacker, entry.turretId)) {
@@ -1011,7 +1031,7 @@ export function returnFireEligibility(participant) {
  * Book 2 p.30: missiles or sand may be launched "provided both launch and
  * target programs are running", one round per rack or sandcaster.
  */
-export function launchOrdnance(encounter, { shipId, missiles = 0, sandCanisters = 0, targetId = null } = {}) {
+export function launchOrdnance(encounter, { shipId, missiles = 0, sandCanisters = 0, targetId = null, vectorRuling = null } = {}) {
   const phase = currentPhase(encounter);
   if (phase.key !== 'ordnance-launch') throw new Error(`ordnance cannot be launched in the ${phase.label} phase`);
   const next = freeze(encounter);
@@ -1072,6 +1092,28 @@ export function launchOrdnance(encounter, { shipId, missiles = 0, sandCanisters 
     });
   }
 
+  if (next.spatialMode === 'vector') {
+    // Book 2 p.30: "All ordnance which is launched has the launching ship's
+    // vector, which must be taken into account." So a round starts where the
+    // launcher is, moving as the launcher moves.
+    //
+    // Book 2 never prints a missile's thrust, a contact radius, or the size of
+    // a sand cloud, so vectorRuling carries the referee's figures and refuses
+    // to proceed without a recorded note.
+    if (missiles) validateOrdnanceRuling('missile', vectorRuling);
+    if (sandCanisters) validateOrdnanceRuling('sand', vectorRuling);
+    const launcherState = next.spatial.ships[shipId];
+    for (let index = next.ordnance.length - missiles; index < next.ordnance.length; index += 1) {
+      next.ordnance[index] = placeVectorOrdnance(next.ordnance[index], launcherState, vectorRuling);
+    }
+    for (let index = 0; index < sandCanisters; index += 1) {
+      next.ordnanceSequence += 1;
+      next.ordnance.push(placeVectorOrdnance({
+        id: `s-${next.ordnanceSequence}`, kind: 'sand', launcherShipId: shipId,
+        launcherSide: participant.side, launchedGameTurn: next.gameTurn, status: 'in-flight'
+      }, launcherState, vectorRuling));
+    }
+  }
   logEvent(next, { kind: 'ordnance-launch', shipId, missiles, sandCanisters, targetId: target?.id ?? null });
   return next;
 }
@@ -1084,6 +1126,9 @@ export function launchOrdnance(encounter, { shipId, missiles = 0, sandCanisters 
 export function moveOrdnance(encounter) {
   const phase = currentPhase(encounter);
   if (phase.key !== 'movement') throw new Error(`ordnance does not move in the ${phase.label} phase`);
+  // In vector mode a round has to cross the distance, so contact is earned
+  // rather than automatic.
+  if (encounter.spatialMode === 'vector') return moveVectorOrdnance(encounter);
   const next = freeze(encounter);
   next.log = encounter.log.map((entry) => ({ ...entry }));
   const contacted = [];

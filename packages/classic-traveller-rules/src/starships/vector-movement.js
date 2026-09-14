@@ -2,7 +2,8 @@
 // Clear space only. No gravity or ordnance trajectories in this first slice.
 import { currentDriveState, damageReport } from './damage.js';
 import { currentPhase, checkShipComputer, cycleIntoCpu } from './ship-combat.js';
-import { moveWithGravity, applyAtmosphericBraking } from './planetary-gravity.js';
+import { createPlanet, moveWithGravity, applyAtmosphericBraking } from './planetary-gravity.js';
+import { previewVectorOrdnance } from './vector-ordnance.js';
 const copy = value => JSON.parse(JSON.stringify(value));
 function finitePoint(p) { return p && Number.isFinite(p.x) && Number.isFinite(p.y); }
 // v1.215.00: a planet may be placed in the encounter, which turns on Book 2
@@ -13,7 +14,7 @@ export function enableVectorMovement(encounter, states, { planet = null, atmosph
   const next = copy(encounter);
   if (encounter.gameTurn !== 1 || encounter.phaseIndex !== 0 || encounter.log.length) throw new Error('choose spatial mode before the first action');
   next.spatialMode = 'vector';
-  next.spatial = { ships: {}, planet: planet ? copy(planet) : null, atmosphere };
+  next.spatial = { ships: {}, planet: planet ? copy(planet) : null, atmosphere, accelerationMode: 'instantaneous' };
   for (const p of next.participants) {
     const s = states[p.id];
     if (!finitePoint(s?.position) || !finitePoint(s?.velocity)) throw new Error('finite starting position and velocity required');
@@ -36,7 +37,8 @@ export function previewShipVector(encounter, shipId, acceleration = { x: 0, y: 0
   // voluntary thrust, which is why it is checked above and gravity is not.
   const planet = encounter.spatial.planet ?? null;
   const moved = moveWithGravity({
-    position: s.position, velocity: s.velocity, thrust: acceleration, planet
+    position: s.position, velocity: s.velocity, thrust: acceleration, planet,
+    accelerationMode: encounter.spatial.accelerationMode ?? 'instantaneous'
   });
   if (!moved.resolved) {
     return { from: copy(s.position), unresolved: true, reason: moved.reason, requiresReferee: true, acceleration: copy(acceleration), g, maximumG };
@@ -82,4 +84,69 @@ export function vectorRangeDM(encounter, a, b) {
   const x = encounter.spatial.ships[a].position, y = encounter.spatial.ships[b].position;
   const distance = Math.hypot(x.x-y.x, x.y-y.y);
   return { distance, dm: distance > 300 ? -5 : distance > 150 ? -2 : 0 };
+}
+
+/**
+ * Place or replace the world after vector mode is on, and choose Book 2 p.37's
+ * optional constant-acceleration rule. Takes a specification rather than a
+ * built template so the encounter owns the planet it carries.
+ *
+ * Before the first action only: a world appearing mid-fight would change every
+ * course already plotted.
+ */
+export function configureVectorPlanet(encounter, specification, accelerationMode = 'instantaneous', { atmosphere = null } = {}) {
+  if (encounter.spatialMode !== 'vector' || encounter.gameTurn !== 1 || encounter.phaseIndex !== 0 || encounter.log.length) {
+    throw new Error('configure planet before the first action');
+  }
+  if (!['instantaneous', 'constant'].includes(accelerationMode)) throw new Error('invalid acceleration mode');
+  const next = copy(encounter);
+  next.spatial.planet = specification ? createPlanet(specification) : null;
+  next.spatial.accelerationMode = accelerationMode;
+  // Book 3's atmosphere digit, for p.35 braking. Only standard and dense brake.
+  if (atmosphere !== null) next.spatial.atmosphere = atmosphere;
+  return next;
+}
+
+/**
+ * Book 2's gravity bands are external and nothing in it describes motion inside
+ * a world, so a course that reaches the surface is the referee's to resolve.
+ * This records that ruling explicitly rather than inventing a landing, an
+ * atmospheric entry or a destruction rule.
+ *
+ * Requires a note, and refuses to place the object inside the surface — a ship
+ * that has genuinely landed or been destroyed ends the encounter instead.
+ */
+export function adjudicateVectorSurface(encounter, { id, position, velocity, note } = {}) {
+  if (encounter.outcome !== 'in-progress' || encounter.spatialMode !== 'vector' || currentPhase(encounter).key !== 'movement') {
+    throw new Error('surface ruling requires vector movement phase');
+  }
+  if (!finitePoint(position) || !finitePoint(velocity) || !String(note ?? '').trim()) {
+    throw new Error('finite position, velocity and ruling note required');
+  }
+  const next = copy(encounter);
+  const ship = next.participants.find((participant) => participant.id === id);
+  const object = ship ? next.spatial.ships[id] : next.ordnance.find((round) => round.id === id);
+  const side = ship?.side ?? object?.launcherSide;
+  if (!object || side !== next.phasingSide || object.movedTurn === next.gameTurn || (ship && (ship.escaped || ship.surrendered))) {
+    throw new Error('object cannot be adjudicated this phase');
+  }
+  if (!ship && !['in-flight', 'active', 'pending-effect'].includes(object.status)) throw new Error('ordnance cannot move');
+  if (!ship && object.launchedGameTurn >= next.gameTurn) throw new Error('ordnance waits until next friendly movement');
+  const preview = ship ? previewShipVector(next, id, { x: 0, y: 0 }) : previewVectorOrdnance(next, object);
+  if (preview.resolved !== false && !preview.surfaceContact && !preview.unresolved) {
+    throw new Error('no surface contact on the coasting course; choose another maneuver');
+  }
+  const planet = next.spatial.planet;
+  if (planet && Math.hypot(position.x - planet.center.x, position.y - planet.center.y) <= planet.radius) {
+    throw new Error('place the resolved object outside the surface; close the encounter for a landing or a loss');
+  }
+  object.position = copy(position);
+  object.velocity = copy(velocity);
+  object.movedTurn = next.gameTurn;
+  next.log.push({
+    gameTurn: next.gameTurn, phasingSide: next.phasingSide, phase: 'movement',
+    kind: 'surface-ruling', id, position: copy(position), velocity: copy(velocity),
+    note: String(note), refereeRuling: true, raw: false
+  });
+  return next;
 }

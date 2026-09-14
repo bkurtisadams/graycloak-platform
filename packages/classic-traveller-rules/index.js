@@ -232,10 +232,22 @@ export {
 } from './src/starships/planetary-gravity.js';
 
 export {
+  placeVectorOrdnance,
+  validateOrdnanceRuling,
+  previewVectorOrdnance,
+  moveVectorOrdnance,
+  activateVectorSand,
+  obscuringSand,
+  circleEntry
+} from './src/starships/vector-ordnance.js';
+
+export {
   enableVectorMovement,
   previewShipVector,
   commitShipVector,
-  vectorRangeDM
+  vectorRangeDM,
+  configureVectorPlanet,
+  adjudicateVectorSurface
 } from './src/starships/vector-movement.js';
 
 export {
