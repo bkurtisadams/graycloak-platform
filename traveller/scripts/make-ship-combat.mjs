@@ -18,12 +18,17 @@
 // restoreShipCombat only refuses a mismatch when an id is recorded.
 // ---------------------------------------------------------------------------
 
-import { writeFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
+import { writeFile, mkdir } from 'node:fs/promises';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const rules = await import(path.join(here, '..', 'vendor', 'classic-traveller-rules', 'index.js'));
+// import() takes a URL, not a filesystem path. On Windows a path begins C:\\,
+// which the ESM loader reads as the protocol "c:" and rejects with
+// ERR_UNSUPPORTED_ESM_URL_SCHEME. It happens to work on Linux and macOS, where
+// a leading / is harmlessly re-parsed, which is how this shipped. Same fault
+// v1.188.00 fixed in test/pages-load.test.mjs.
+const rules = await import(pathToFileURL(path.join(here, '..', 'vendor', 'classic-traveller-rules', 'index.js')).href);
 
 const args = new Map(process.argv.slice(2).map((arg) => {
   const [key, value = 'true'] = arg.replace(/^--/, '').split('=');
@@ -233,6 +238,9 @@ if (args.has('fight')) {
 }
 
 const payload = { version: 1, campaignId, savedAt: Date.now(), encounter };
+// work/ is a scratch directory and may not exist on a fresh checkout, so the
+// first run of this script would otherwise fail on ENOENT.
+await mkdir(path.dirname(outputPath), { recursive: true });
 await writeFile(outputPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
 
 const summary = encounter.participants.map((participant) => {
