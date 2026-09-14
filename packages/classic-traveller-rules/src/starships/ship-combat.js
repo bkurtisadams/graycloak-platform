@@ -505,39 +505,120 @@ export function sideAwaitingDeclaration(encounter, side) {
  * The attack DM for one turret firing, assembled from Book 2 p.30 plus the
  * programs that can actually cycle into the CPU this phase.
  */
-export function laserAttackDM(participant, turretId, { returnFire = false, multipleTargets = false } = {}) {
+/**
+ * Book 2 p.31: what a program is worth to a specific turret. Predict has a flat
+ * DM; Gunner Interact "interfaces the expertise of the gunner in a specific
+ * turret", so it is worth that gunner's skill and nothing on an unmanned one.
+ */
+function programAttackValue(key, gunnerSkill) {
+  if (key === 'gunner-interact') return gunnerSkill;
+  const program = COMPUTER_PROGRAMS[key];
+  return Number.isFinite(program.attackDM) ? program.attackDM : 0;
+}
+
+/**
+ * The programs a turret could run this phase beyond the mandatory ones, what
+ * each is worth to it, and what the CPU has left.
+ *
+ * Book 2 p.31 hands this choice to the player: its own worked example has a
+ * Model/1 player "select between predict 1 or gunner interact... depending on
+ * which would allow the greater benefit". So the options are reported rather
+ * than resolved, and `laserAttackDM` takes an explicit choice.
+ */
+export function cpuFireOptions(participant, turretId, { returnFire = false, multipleTargets = false } = {}) {
   const gunnerSkill = participant.skills.gunnery?.[turretId] ?? 0;
   const required = ['target'];
   if (returnFire) required.push('return-fire');
   if (multipleTargets) required.push('multi-target-2');
-  // Predict and Gunner Interact are the benefits, best first. A Model/1
-  // returning fire spends its whole CPU on Target and Return Fire and gets
-  // neither.
-  const optional = ['predict-5', 'predict-4', 'predict-3', 'predict-2', 'predict-1', 'gunner-interact'];
-  const cycle = cycleIntoCpu(participant, { required, optional });
+  const mandatory = cycleIntoCpu(participant, { required });
+  const candidates = ['predict-5', 'predict-4', 'predict-3', 'predict-2', 'predict-1', 'gunner-interact']
+    .filter((key) => programInComputer(participant, key))
+    .map((key) => Object.freeze({
+      key,
+      label: COMPUTER_PROGRAMS[key].label,
+      space: COMPUTER_PROGRAMS[key].space,
+      dm: programAttackValue(key, gunnerSkill)
+    }));
+  return Object.freeze({
+    required: Object.freeze([...required]),
+    possible: mandatory.possible,
+    missing: mandatory.missing,
+    cpu: mandatory.cpu,
+    requiredSpace: mandatory.used,
+    freeSpace: Math.max(0, mandatory.cpu - mandatory.used),
+    gunnerSkill,
+    candidates: Object.freeze(candidates)
+  });
+}
+
+/**
+ * The best-value set of optional programs that fits. Used as the default when
+ * no choice has been declared: a fixed preference order put Predict first and
+ * so traded a Gunner-3's +3 for Predict-1's +1, which is the opposite of p.31's
+ * own advice about the greater benefit.
+ */
+export function bestCpuFireChoice(participant, turretId, options = {}) {
+  const available = cpuFireOptions(participant, turretId, options);
+  if (!available.possible) return Object.freeze([]);
+  let best = { dm: 0, chosen: [] };
+  const total = available.candidates.length;
+  for (let mask = 0; mask < (1 << total); mask += 1) {
+    let space = 0;
+    let dm = 0;
+    const chosen = [];
+    for (let index = 0; index < total; index += 1) {
+      if (!(mask & (1 << index))) continue;
+      const candidate = available.candidates[index];
+      space += candidate.space;
+      dm += candidate.dm;
+      chosen.push(candidate.key);
+    }
+    if (space > available.freeSpace) continue;
+    // Ties go to the smaller set, so a program is not loaded for nothing.
+    if (dm > best.dm || (dm === best.dm && chosen.length < best.chosen.length && dm > 0)) best = { dm, chosen };
+  }
+  return Object.freeze(best.chosen);
+}
+
+/**
+ * The attack DM for one turret firing, from Book 2 p.30 plus whichever optional
+ * programs are running. `chosen` is the player's selection; omitted, the
+ * best-value set that fits is used.
+ */
+export function laserAttackDM(participant, turretId, { returnFire = false, multipleTargets = false, chosen = null } = {}) {
+  const gunnerSkill = participant.skills.gunnery?.[turretId] ?? 0;
+  const available = cpuFireOptions(participant, turretId, { returnFire, multipleTargets });
+  if (!available.possible) {
+    return Object.freeze({ possible: false, missing: available.missing, dm: 0, running: Object.freeze([]), components: Object.freeze([]), options: available });
+  }
+
+  const selection = chosen === null
+    ? bestCpuFireChoice(participant, turretId, { returnFire, multipleTargets })
+    : chosen.filter((key) => available.candidates.some((candidate) => candidate.key === key));
+  const cycle = cycleIntoCpu(participant, { required: available.required, optional: selection });
   if (!cycle.possible) {
-    return Object.freeze({ possible: false, missing: cycle.missing, dm: 0, running: cycle.running, components: Object.freeze([]) });
+    return Object.freeze({ possible: false, missing: cycle.missing, dm: 0, running: cycle.running, components: Object.freeze([]), options: available });
   }
 
   const components = [];
   let dm = 0;
   for (const key of cycle.running) {
-    const program = COMPUTER_PROGRAMS[key];
-    if (Number.isFinite(program.attackDM) && program.attackDM !== 0) {
-      dm += program.attackDM;
-      components.push({ label: program.label, dm: program.attackDM });
-    }
-    if (key === 'gunner-interact' && gunnerSkill) {
-      dm += gunnerSkill;
-      components.push({ label: `Gunner Interact (gunner-${gunnerSkill})`, dm: gunnerSkill });
-    }
+    if (available.required.includes(key)) continue;
+    const value = programAttackValue(key, gunnerSkill);
+    if (!value) continue;
+    dm += value;
+    components.push({
+      label: key === 'gunner-interact' ? `Gunner Interact (gunner-${gunnerSkill})` : COMPUTER_PROGRAMS[key].label,
+      dm: value
+    });
   }
   return Object.freeze({
     possible: true,
     missing: Object.freeze([]),
     running: cycle.running,
     dm,
-    components: Object.freeze(components)
+    components: Object.freeze(components),
+    options: available
   });
 }
 

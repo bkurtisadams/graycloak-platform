@@ -25,6 +25,8 @@ import {
   cycleIntoCpu,
   reprogramComputer,
   laserAttackDM,
+  cpuFireOptions,
+  bestCpuFireChoice,
   laserDefenseDM,
   allocateLaserFire,
   resolveLaserFire,
@@ -287,12 +289,31 @@ test('Book 2 p.30: attack DMs come from the programs that actually run', async (
   const encounter = await twoScoutEncounter();
   const pirate = getParticipant(encounter, 'pirate');
 
-  // Target is required; Predict-1 gives +1; Gunner Interact would add the
-  // gunner's 2 — but a CPU of 2 cannot run Target plus both.
+  // Target is required; Predict-1 gives +1; Gunner Interact gives the gunner's
+  // 2 — and a CPU of 2 runs Target plus exactly one of them.
+  //
+  // v1.208.00: a fixed preference order put Predict first and so traded a
+  // Gunner-2's +2 for Predict-1's +1. Book 2 p.31's own example has the player
+  // "select between predict 1 or gunner interact... depending on which would
+  // allow the greater benefit", so the options are reported and the default is
+  // the best-value set that fits.
+  const options = cpuFireOptions(pirate, 'T-1');
+  assert.equal(options.cpu, 2);
+  assert.equal(options.freeSpace, 1);
+  assert.deepEqual(options.candidates.map((entry) => [entry.key, entry.dm]), [['predict-1', 1], ['gunner-interact', 2]]);
+
   const attack = laserAttackDM(pirate, 'T-1');
   assert.equal(attack.possible, true);
-  assert.equal(attack.dm, 1);
-  assert.deepEqual([...attack.running], ['target', 'predict-1']);
+  assert.equal(attack.dm, 2);
+  assert.deepEqual([...attack.running], ['target', 'gunner-interact']);
+
+  // The player may still choose the other, which is the point of p.31.
+  assert.equal(laserAttackDM(pirate, 'T-1', { chosen: ['predict-1'] }).dm, 1);
+  // And may decline both.
+  assert.equal(laserAttackDM(pirate, 'T-1', { chosen: [] }).dm, 0);
+  // An unmanned turret gets nothing from Gunner Interact, so Predict wins.
+  const unmanned = { ...pirate, skills: { ...pirate.skills, gunnery: {} } };
+  assert.deepEqual([...bestCpuFireChoice(unmanned, 'T-1')], ['predict-1']);
 
   // Returning fire, the CPU is full before any benefit applies.
   const returning = laserAttackDM(pirate, 'T-1', { returnFire: true });

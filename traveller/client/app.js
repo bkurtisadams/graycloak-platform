@@ -125,6 +125,7 @@ import {
   shipDataCard,
   computerState,
   sideAwaitingDeclaration,
+  computerOperatorOf,
   elapsedMinutes as shipCombatElapsedMinutes,
   COMPUTER_PROGRAMS
 } from '../vendor/classic-traveller-rules/index.js';
@@ -9509,6 +9510,23 @@ function resolveShipCombatAntiMissile(shipId) {
   }, 'ANTI-MISSILE');
 }
 
+function reprogramShipCombat(shipId, programKey, loaded) {
+  shipCombatStep(() => {
+    const participant = getShipCombatParticipant(shipCombatEncounter, shipId);
+    // Book 2 p.16: the computer operator holds loadout authority; the engine
+    // refuses anyone else.
+    shipCombatEncounter = reprogramComputer(shipCombatEncounter, {
+      shipId,
+      load: loaded ? [] : [programKey],
+      unload: loaded ? [programKey] : [],
+      actorId: computerOperatorOf(participant)
+    });
+    const label = COMPUTER_PROGRAMS[programKey].label;
+    logActivity('COMBAT', `${participant.name}: ${label} ${loaded ? 'removed from' : 'loaded into'} the computer`);
+    setStatus(`${label.toUpperCase()} ${loaded ? 'REMOVED' : 'LOADED'}`, 'ok');
+  }, 'REPROGRAM');
+}
+
 function detonateShipCombatOrdnance() {
   shipCombatStep(() => {
     const result = detonateContactedOrdnance(shipCombatEncounter, createDice());
@@ -9751,11 +9769,40 @@ function renderShipCombatActions(encounter, phase, acting) {
   }
 
   if (phase.key === 'reprogramming') {
-    const note = document.createElement('div');
-    note.className = 'live-ship-row';
-    note.textContent = 'REPROGRAMMING: THE COMPUTER CHANGES ONLY IN THIS PHASE';
-    note.title = 'Book 2 p.23 phase E. Programs cycle into the CPU automatically; this is what is available to cycle.';
-    actions.append(note);
+    // v0.134.0: this phase described itself and offered nothing, so the
+    // computer could never be changed mid-fight — which is the whole purpose of
+    // Book 2 p.23 phase E.
+    for (const participant of actingShips) {
+      const state = computerState(participant);
+      const heading = document.createElement('div');
+      heading.className = 'live-ship-row';
+      heading.textContent = `${participant.name.toUpperCase()} \u00b7 MODEL/${state.model} \u00b7 ${state.loadedSpace}/${state.inComputerCapacity} POINTS`;
+      heading.title = 'Book 2 p.31: CPU plus storage is what the computer holds. Programs cycle into the CPU automatically as a phase needs them; this is what is available to cycle.';
+      actions.append(heading);
+
+      for (const key of state.carried) {
+        const program = COMPUTER_PROGRAMS[key];
+        const loaded = state.loaded.includes(key);
+        const row = document.createElement('div');
+        row.className = `live-ship-row${loaded ? ' live-state-ready' : ''}`;
+        const label = document.createElement('span');
+        label.className = 'live-ship-label';
+        label.textContent = `${program.label} (${program.space})`;
+        label.title = program.notes ?? '';
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'text-button';
+        button.textContent = loaded ? '[ REMOVE ]' : '[ LOAD ]';
+        // A program that will not fit cannot be loaded, and the button says so
+        // rather than raising an error after the click.
+        const wouldOverflow = !loaded && state.loadedSpace + program.space > state.inComputerCapacity;
+        button.disabled = wouldOverflow;
+        if (wouldOverflow) button.title = `Only ${state.inComputerCapacity - state.loadedSpace} point(s) free`;
+        button.addEventListener('click', () => reprogramShipCombat(participant.id, key, loaded));
+        row.append(label, button);
+        actions.append(row);
+      }
+    }
   }
 
   const player = live.find((entry) => entry.id === 'player');

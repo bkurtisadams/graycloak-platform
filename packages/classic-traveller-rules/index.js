@@ -247,6 +247,8 @@ export {
   cycleIntoCpu,
   reprogramComputer,
   laserAttackDM,
+  cpuFireOptions,
+  bestCpuFireChoice,
   laserDefenseDM,
   allocateLaserFire,
   resolveLaserFire,
