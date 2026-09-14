@@ -9488,8 +9488,13 @@ function resolveShipCombatFire() {
         continue;
       }
       logActivity('COMBAT', `${shot.shipId} ${shot.turretId} -> ${shot.targetId}: ${shot.roll}${shot.dm >= 0 ? '+' : ''}${shot.dm} = ${shot.total} vs ${shot.target} / ${shot.hit ? `HIT ${shot.location.toUpperCase()}` : 'MISS'}`);
-      for (const occupant of shot.decompression?.occupants ?? []) {
-        logActivity('COMBAT', `Decompression: ${occupant.name} ${occupant.survived ? 'suited up' : 'lost'}`);
+      // Book 2 p.33 decompresses the whole interior, so the event carries a
+      // section at a time.
+      for (const section of shot.decompression?.sections ?? []) {
+        for (const occupant of section.occupants) {
+          logActivity('COMBAT', `Decompression in ${section.section}: ${occupant.name} ${
+            occupant.alreadySuited ? 'was already suited' : occupant.survived ? 'suited up' : 'lost'}`);
+        }
       }
     }
     setStatus(`${hits.length}/${resolved.shots.length} HIT`, hits.length ? 'error' : 'ok');

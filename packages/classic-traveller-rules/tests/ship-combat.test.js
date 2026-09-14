@@ -324,14 +324,29 @@ test('Book 2 p.30: attack DMs come from the programs that actually run', async (
 test('Book 2 p.30: Maneuver/Evade scales with pilot expertise, Auto/Evade is a flat -2', async () => {
   const encounter = await twoScoutEncounter({
     trader: {
-      carriedPrograms: [...SCOUT_LOADOUT, 'maneuver-evade-4'],
-      loadedPrograms: ['target', 'maneuver-evade-4'],
-      skills: { pilot: 3, gunnery: { 'T-1': 1 } }
+      carriedPrograms: [...SCOUT_LOADOUT, 'maneuver-evade-2', 'maneuver-evade-4'],
+      loadedPrograms: ['target', 'maneuver-evade-2'],
+      skills: { pilot: 4, gunnery: { 'T-1': 1 } }
     }
   });
-  // Maneuver/Evade 4 is the full pilot expertise as a defensive DM.
+  // Maneuver/Evade 2 is half the pilot's expertise: pilot-4 gives -2.
   const evading = laserDefenseDM(getParticipant(encounter, 'trader'));
-  assert.equal(evading.dm, -3);
+  assert.equal(evading.dm, -2);
+
+  // Book 2 p.31: a program has to fit the CPU to run. Maneuver/Evade 4 is four
+  // points against a Model/1's two, so a Type S can carry it and never use it.
+  const overCapacity = await twoScoutEncounter({
+    trader: {
+      carriedPrograms: [...SCOUT_LOADOUT, 'maneuver-evade-4'],
+      loadedPrograms: ['maneuver-evade-4'],
+      skills: { pilot: 4, gunnery: { 'T-1': 1 } }
+    }
+  });
+  assert.equal(laserDefenseDM(getParticipant(overCapacity, 'trader')).dm, 0);
+
+  // And a ship already returning fire has spent its CPU on Target and Return
+  // Fire, so it cannot also evade.
+  assert.equal(laserDefenseDM(getParticipant(encounter, 'trader'), { alsoRunning: ['target', 'return-fire'] }).dm, 0);
 
   // The pirate carries Auto/Evade only.
   assert.equal(laserDefenseDM(getParticipant(encounter, 'pirate')).dm, -2);
@@ -630,14 +645,18 @@ test('the outcome is computed, not applied', async () => {
 // Missiles across the phases (Book 2 pp.18, 30-31)
 // ---------------------------------------------------------------------------
 
-async function missileEncounter({ traderPrograms = ['target'], racks = 1 } = {}) {
+async function missileEncounter({ traderPrograms = ['target'], racks = 1, traderIsCruiser = false } = {}) {
   // Book 2 p.30 allows one round per rack per phase, so a salvo needs racks.
   // A Scout's single double turret holds two weapons; three racks needs a hull
   // with more hardpoints.
   const pirate = racks > 1
     ? await armedCruiser({ racks, missiles: 6 })
     : await armedScout({ weapons: ['beam-laser', 'missile-launcher'], missiles: 6 });
-  const trader = await armedScout({ weapons: ['beam-laser'] });
+  // Book 2 p.31: ECM is three points, so a Model/1's CPU of 2 can carry it and
+  // never run it. A ship meant to use ECM needs a bigger computer.
+  const trader = traderIsCruiser
+    ? await armedCruiser({ racks: 1, missiles: 1 })
+    : await armedScout({ weapons: ['beam-laser'] });
   return createShipCombatEncounter({
     id: 'enc-missile', intruderSide: 'intruder',
     participants: [
@@ -751,7 +770,7 @@ test('Book 2 p.30: a ship without the Anti-Missile program cannot shoot at missi
 });
 
 test('Book 2 p.30: ECM clears every contacting missile at once on 7+', async () => {
-  let encounter = await missileEncounter({ traderPrograms: ['target', 'ecm'], racks: 3 });
+  let encounter = await missileEncounter({ traderPrograms: ['target', 'ecm'], racks: 3, traderIsCruiser: true });
   encounter = advanceTo(encounter, 'intruder', 'ordnance-launch');
   encounter = launchOrdnance(encounter, { shipId: 'pirate', missiles: 3, targetId: 'trader' });
   encounter = advanceTo(encounter, 'intruder', 'movement');
@@ -966,4 +985,64 @@ test('Book 2 p.30: two turrets on two targets need Multi-Target', async () => {
     { shipId: 'pirate', turretId: 'T-2', targetId: 'a' }
   ]);
   assert.equal(resolveLaserFire(single, createSequenceDice([1, 1, 1, 1])).shots.filter((shot) => shot.fired).length, 2);
+});
+
+test('Book 2 p.30: interception is once per phase and contends for the CPU', async () => {
+  let encounter = await missileEncounter({ traderPrograms: ['target', 'anti-missile'], racks: 1 });
+  encounter = advanceTo(encounter, 'intruder', 'ordnance-launch');
+  encounter = launchOrdnance(encounter, { shipId: 'pirate', missiles: 1, targetId: 'trader' });
+  encounter = advanceTo(encounter, 'intruder', 'movement');
+  encounter = moveOrdnance(encounter);
+  encounter = advanceShipCombatPhase(encounter);
+  encounter = advanceShipCombatPhase(encounter);
+  assert.equal(currentPhase(encounter).key, 'return-fire');
+
+  // A miss, so the round survives and could be shot at again.
+  const first = resolveAntiMissileFire(encounter, createSequenceDice([1, 1]), { shipId: 'trader' });
+  assert.equal(first.shots.length, 1);
+  assert.equal(first.shots[0].hit, false);
+
+  // p.30 allows the attempt once in the phase; a second pass fires nothing.
+  const second = resolveAntiMissileFire(first.encounter, createSequenceDice([6, 6]), { shipId: 'trader' });
+  assert.equal(second.shots.length, 0);
+  assert.match(second.reason, /already been made this phase/);
+});
+
+test('Book 2 p.33: a hull hit decompresses the whole interior, not one section', async () => {
+  const trader = await armedScout();
+  const pirate = await armedScout({ weapons: ['beam-laser'] });
+  let encounter = createShipCombatEncounter({
+    id: 'enc-decomp', intruderSide: 'intruder',
+    participants: [
+      { shipId: 'pirate', side: 'intruder', ship: pirate,
+        carriedPrograms: ['target'], loadedPrograms: ['target'], pressurisedSections: [] },
+      {
+        shipId: 'trader', side: 'native', ship: trader,
+        // p.35 regulates these individually; this ship depressurised none.
+        pressurisedSections: ['bridge', 'engineering', 'staterooms'],
+        occupants: {
+          bridge: [{ actorId: 'pc-hawkeye', name: 'Hawkeye', vaccSuitAvailable: true, vaccSuitSkill: 1, dexterity: 8 }],
+          engineering: [{ actorId: 'npc-tam', name: 'Tam', vaccSuitAvailable: false }],
+          // Already sealed into a suit before the shooting started, so the
+          // p.35 throw — which is to get one ON — does not apply.
+          staterooms: [{ actorId: 'pc-marisol', name: 'Marisol', vaccSuitWorn: true }]
+        }
+      }
+    ]
+  });
+
+  encounter = advanceShipCombatPhase(encounter);
+  encounter = allocateLaserFire(encounter, [{ shipId: 'pirate', turretId: 'T-1', targetId: 'trader' }]);
+  // A hit located on the hull (3,4), then one throw for each exposed occupant.
+  const resolved = resolveLaserFire(encounter, createSequenceDice([6, 6, 3, 4, 1, 1, 1, 1]));
+  const event = resolved.shots[0].decompression;
+  assert.ok(event);
+  assert.deepEqual(event.sections.map((entry) => entry.section), ['bridge', 'engineering', 'staterooms']);
+
+  const participant = getParticipant(resolved.encounter, 'trader');
+  // Nothing is left pressurised: p.33 decompresses the interior.
+  assert.deepEqual([...participant.pressurisedSections], []);
+  // Suit to hand and the DMs to make 9+; no suit at all; already wearing one.
+  assert.deepEqual(participant.casualties.map((entry) => entry.actorId), ['npc-tam']);
+  assert.equal(event.occupants.find((entry) => entry.actorId === 'pc-marisol').alreadySuited, true);
 });

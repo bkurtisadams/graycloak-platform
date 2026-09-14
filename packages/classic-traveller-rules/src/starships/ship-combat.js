@@ -627,12 +627,18 @@ export function laserAttackDM(participant, turretId, { returnFire = false, multi
  * abbreviated mode because there is no range to measure; the sand figure is a
  * labelled Graycloak extension for the same reason.
  */
-export function laserDefenseDM(participant) {
+export function laserDefenseDM(participant, { alsoRunning = [] } = {}) {
   const components = [];
   let dm = 0;
   const pilotSkill = participant.skills.pilot ?? 0;
+  // v1.209.00: this asked only whether a program was in the computer. Book 2
+  // p.31 requires it to be RUNNING, which means it has to fit the CPU
+  // alongside whatever else the ship is doing this phase — a Model/1 returning
+  // fire has both its points on Target and Return Fire and nothing left to
+  // evade with.
+  const fits = (key) => cycleIntoCpu(participant, { required: [...alsoRunning, key] }).possible;
   const evade = ['maneuver-evade-6', 'maneuver-evade-5', 'maneuver-evade-4', 'maneuver-evade-3', 'maneuver-evade-2', 'maneuver-evade-1']
-    .find((key) => programInComputer(participant, key));
+    .find((key) => programInComputer(participant, key) && fits(key));
   if (evade) {
     const program = COMPUTER_PROGRAMS[evade];
     const value = Number.isFinite(program.defenseDM)
@@ -642,7 +648,7 @@ export function laserDefenseDM(participant) {
       dm += value;
       components.push({ label: `${program.label} (pilot-${pilotSkill})`, dm: value });
     }
-  } else if (programInComputer(participant, 'auto-evade')) {
+  } else if (programInComputer(participant, 'auto-evade') && fits('auto-evade')) {
     dm += COMPUTER_PROGRAMS['auto-evade'].defenseDM;
     components.push({ label: 'Auto/Evade', dm: COMPUTER_PROGRAMS['auto-evade'].defenseDM });
   }
@@ -836,27 +842,58 @@ export function resolveLaserFire(encounter, dice) {
  * A depressurised ship takes the hit without any of this, which is why p.35
  * says ships depressurise before combat whenever possible.
  */
-function resolveDecompression(participant, dice, { section = 'bridge' } = {}) {
-  if (!participant.pressurisedSections.includes(section)) return null;
-  participant.pressurisedSections = participant.pressurisedSections.filter((entry) => entry !== section);
-  const occupants = participant.occupants[section] ?? [];
-  const results = occupants.map((occupant) => {
-    const roll = dice.roll2D6();
-    const dm = (occupant.vaccSuitSkill ?? 0) + (occupant.dexterity ?? 0);
-    const total = roll.total + dm;
-    const survived = Boolean(occupant.vaccSuitAvailable) && total >= VACC_SUIT_THROW;
-    if (!survived) participant.casualties.push({ actorId: occupant.actorId, name: occupant.name ?? occupant.actorId, section });
-    return Object.freeze({
-      actorId: occupant.actorId,
-      name: occupant.name ?? occupant.actorId,
-      vaccSuitAvailable: Boolean(occupant.vaccSuitAvailable),
-      dice: Object.freeze([...roll.dice]),
-      total,
-      target: VACC_SUIT_THROW,
-      survived
+function resolveDecompression(participant, dice) {
+  // Book 2 p.33: "A hull hit decompresses the ship's hull interior. Further
+  // hull hits have no effect." The interior, not a section — so every section
+  // still pressurised loses its air at once. p.35 then applies explosive
+  // decompression to the people in each: "kills all persons in that section
+  // unless a vacc suit is available and put on immediately. Throw 9+... DM +
+  // level of vacc suit expertise, and DM + dexterity of the individual."
+  //
+  // v1.209.00: this used to decompress one section, defaulting to the bridge,
+  // which left the rest of the ship pressurised after a hull breach and spared
+  // everyone who happened not to be on the bridge.
+  const breached = [...participant.pressurisedSections];
+  if (!breached.length) return null;
+  participant.pressurisedSections = [];
+
+  const sections = breached.map((section) => {
+    const occupants = participant.occupants[section] ?? [];
+    const results = occupants.map((occupant) => {
+      // Someone already sealed into a suit is not exposed at all — p.35's
+      // throw is to get one ON in time.
+      if (occupant.vaccSuitWorn) {
+        return Object.freeze({
+          actorId: occupant.actorId, name: occupant.name ?? occupant.actorId,
+          vaccSuitAvailable: true, alreadySuited: true,
+          dice: Object.freeze([]), total: null, target: VACC_SUIT_THROW, survived: true
+        });
+      }
+      const roll = dice.roll2D6();
+      const dm = (occupant.vaccSuitSkill ?? 0) + (occupant.dexterity ?? 0);
+      const total = roll.total + dm;
+      const survived = Boolean(occupant.vaccSuitAvailable) && total >= VACC_SUIT_THROW;
+      if (!survived) participant.casualties.push({ actorId: occupant.actorId, name: occupant.name ?? occupant.actorId, section });
+      return Object.freeze({
+        actorId: occupant.actorId,
+        name: occupant.name ?? occupant.actorId,
+        vaccSuitAvailable: Boolean(occupant.vaccSuitAvailable),
+        alreadySuited: false,
+        dice: Object.freeze([...roll.dice]),
+        total,
+        target: VACC_SUIT_THROW,
+        survived
+      });
     });
+    return Object.freeze({ section, occupants: Object.freeze(results) });
   });
-  const event = Object.freeze({ section, occupants: Object.freeze(results) });
+
+  const event = Object.freeze({
+    sections: Object.freeze(sections),
+    // Kept for callers that read a single section off the old shape.
+    section: sections[0]?.section ?? null,
+    occupants: Object.freeze(sections.flatMap((entry) => entry.occupants))
+  });
   participant.decompressionEvents.push(event);
   return event;
 }
@@ -1025,8 +1062,22 @@ export function resolveAntiMissileFire(encounter, dice, { shipId } = {}) {
 
   // ECM first: it destroys all contacting missiles at once rather than one per
   // laser, which is what makes a 3-point program worth its space.
+  // Book 2 p.30 puts anti-missile fire in the same phase as return fire, so a
+  // ship doing both contends for the same CPU. Whatever it has already
+  // committed this phase is counted against it.
+  const committed = participant.spentThisPhase.weapons.length ? ['target', 'return-fire'] : [];
+  const fitsWithCommitments = (key) => cycleIntoCpu(participant, { required: [...committed, key] }).possible;
+
+  // p.30 gives one interception attempt per phase; without a guard the same
+  // lasers could be fired at the same missiles repeatedly.
+  if (participant.spentThisPhase.antiMissile) {
+    return Object.freeze({ encounter: next, ecm: null, shots: Object.freeze([]), destroyed: Object.freeze([]),
+      reason: 'anti-missile fire has already been made this phase' });
+  }
+  participant.spentThisPhase.antiMissile = true;
+
   let ecm = null;
-  if (programInComputer(participant, 'ecm')) {
+  if (programInComputer(participant, 'ecm') && fitsWithCommitments('ecm')) {
     const roll = dice.roll2D6();
     const cleared = roll.total >= ECM_DESTROY_THROW;
     ecm = Object.freeze({ dice: Object.freeze([...roll.dice]), total: roll.total, target: ECM_DESTROY_THROW, cleared });
@@ -1040,7 +1091,7 @@ export function resolveAntiMissileFire(encounter, dice, { shipId } = {}) {
     }
   }
 
-  if (programInComputer(participant, 'anti-missile')) {
+  if (programInComputer(participant, 'anti-missile') && fitsWithCommitments('anti-missile')) {
     // p.30: "any or all laser weaponry" may fire at contacting missiles.
     const lasers = operationalTurrets(participant.ship)
       .flatMap((turretId) => turretLasers(participant, turretId).map((weapon) => ({ turretId, weapon })));
