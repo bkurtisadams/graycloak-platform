@@ -174,3 +174,107 @@ export function generateNpcCharacter({
   }
   throw new Error(`no character survived ${maximumAttempts} attempts at generation`);
 }
+
+// ---------------------------------------------------------------------------
+// Hiring crew at a starport — Book 1, NON-PLAYER CHARACTERS.
+//
+// The book gives the procedure outright, and both of its methods:
+//
+//   "a starship captain may be looking for a crew for his ship, in which case,
+//   the referee would generate characters until one occurs with the required
+//   skill (such as navigation, medical, etc.). Generally, the first appropriate
+//   character to be generated would present himself for employment, and if not
+//   accepted or considered suitable, an appropriate delay would occur before
+//   another presents himself.
+//
+//   As an alternative, the referee might simply generate a character and assign
+//   him the required skill, plus perhaps 1 or 2 more."
+//
+// So 'search' generates until the skill turns up, and 'assign' takes the
+// shortcut. The delay between candidates is the referee's — the book says "an
+// appropriate delay" and names no number — so what is reported here is how many
+// characters were generated to find this one, which is what a referee would
+// judge the delay from.
+// ---------------------------------------------------------------------------
+
+/** Book 2 p.16 crew positions and the expertise each wants. */
+export const CREW_ROLE_SKILLS = Object.freeze({
+  pilot: 'Pilot',
+  navigator: 'Navigation',
+  engineer: 'Engineering',
+  steward: 'Steward',
+  medic: 'Medical',
+  gunner: 'Gunnery'
+});
+
+/** How many characters to generate before the search is called off. */
+export const CREW_SEARCH_LIMIT = 40;
+
+export function generateCrewCandidate({
+  role,
+  dice = createDice(),
+  method = 'search',
+  minimumLevel = 1,
+  searchLimit = CREW_SEARCH_LIMIT,
+  name = 'Candidate',
+  options = {}
+} = {}) {
+  const key = String(role ?? '').trim().toLowerCase();
+  const skill = CREW_ROLE_SKILLS[key];
+  if (!skill) throw new RangeError(`unknown crew role: ${role}`);
+  if (!['search', 'assign'].includes(method)) throw new RangeError(`unknown method: ${method}`);
+
+  let generated = 0;
+  let died = 0;
+  let best = null;
+
+  for (let attempt = 1; attempt <= searchLimit; attempt += 1) {
+    const rolled = generateNpcCharacter({ dice, name, options });
+    generated += 1;
+    died += rolled.died;
+    const level = rolled.character.skills[skill] ?? 0;
+    // Keep the closest miss: a referee who calls off the search would rather
+    // see the best applicant than nobody.
+    if (!best || level > (best.character.skills[skill] ?? 0)) best = rolled;
+    if (level >= minimumLevel) {
+      return Object.freeze({
+        character: rolled.character,
+        role: key, skill, level,
+        method: 'search', assigned: false,
+        generated, died,
+        // "the first appropriate character to be generated would present
+        // himself for employment" — the rest were passed over.
+        passedOver: generated - 1,
+        raw: true
+      });
+    }
+  }
+
+  if (method === 'search') {
+    return Object.freeze({
+      character: null,
+      role: key, skill, level: 0,
+      method: 'search', assigned: false,
+      generated, died, passedOver: generated,
+      bestCandidate: best?.character ?? null,
+      exhausted: true,
+      raw: true
+    });
+  }
+
+  // The book's alternative: "generate a character and assign him the required
+  // skill, plus perhaps 1 or 2 more." The extra skills are left to the caller —
+  // "perhaps" is not a rule, and a referee assigning them should choose.
+  const character = best.character;
+  const assigned = {
+    ...character,
+    skills: { ...character.skills, [skill]: Math.max(minimumLevel, character.skills[skill] ?? 0) }
+  };
+  return Object.freeze({
+    character: assigned,
+    role: key, skill, level: assigned.skills[skill],
+    method: 'assign', assigned: true,
+    generated, died, passedOver: 0,
+    raw: true
+  });
+}

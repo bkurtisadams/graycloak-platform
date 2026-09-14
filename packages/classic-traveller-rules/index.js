@@ -217,6 +217,9 @@ export {
 
 export {
   generateNpcCharacter,
+  generateCrewCandidate,
+  CREW_ROLE_SKILLS,
+  CREW_SEARCH_LIMIT,
   NPC_TERM_RANGE,
   NPC_GENERATION_ATTEMPTS
 } from './src/characters/npc-generator.js';

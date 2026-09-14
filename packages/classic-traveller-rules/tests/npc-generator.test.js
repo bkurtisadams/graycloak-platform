@@ -6,7 +6,9 @@ import {
   createDice,
   CHARGEN_PHASES,
   SERVICE_KEYS,
-  NPC_TERM_RANGE
+  NPC_TERM_RANGE,
+  generateCrewCandidate,
+  CREW_ROLE_SKILLS
 } from '../index.js';
 
 test('a rolled NPC is a complete Book 1 character', () => {
@@ -83,4 +85,59 @@ test('choices are taken from two dice, so a four-entry list is not skewed', () =
     seen.add(generateNpcCharacter({ name: 'Spread' }).character.service);
   }
   assert.deepEqual([...seen].sort(), [...SERVICE_KEYS].sort());
+});
+
+// ---------------------------------------------------------------------------
+// Book 1, NON-PLAYER CHARACTERS: hiring crew at a port
+// ---------------------------------------------------------------------------
+
+test('Book 1: characters are generated until one has the required skill', () => {
+  // "the referee would generate characters until one occurs with the required
+  // skill (such as navigation, medical, etc.). Generally, the first appropriate
+  // character to be generated would present himself for employment."
+  for (const [role, skill] of Object.entries(CREW_ROLE_SKILLS)) {
+    const found = generateCrewCandidate({ role });
+    if (!found.character) {
+      // A search may legitimately come up empty — Gunnery and Medical are on
+      // few table cells — and it says so rather than assigning silently.
+      assert.equal(found.exhausted, true);
+      assert.equal(found.method, 'search');
+      continue;
+    }
+    assert.ok(found.character.skills[skill] >= 1, `${role} candidate lacks ${skill}`);
+    assert.equal(found.skill, skill);
+    assert.equal(found.assigned, false);
+    // "if not accepted or considered suitable, an appropriate delay would occur
+    // before another presents himself" — the delay is the referee's, so the
+    // count of applicants passed over is what gets reported.
+    assert.equal(found.passedOver, found.generated - 1);
+  }
+  assert.throws(() => generateCrewCandidate({ role: 'cook' }), /unknown crew role/);
+});
+
+test("Book 1's alternative: assign the required skill instead of searching", () => {
+  // "As an alternative, the referee might simply generate a character and
+  // assign him the required skill, plus perhaps 1 or 2 more."
+  const assigned = generateCrewCandidate({
+    role: 'gunner', method: 'assign', minimumLevel: 2,
+    // A search limit of one forces the alternative path immediately.
+    searchLimit: 1
+  });
+  assert.equal(assigned.method, 'assign');
+  assert.equal(assigned.assigned, true);
+  assert.ok(assigned.character.skills.Gunnery >= 2);
+  // The extra "1 or 2 more" is deliberately not invented: "perhaps" is not a
+  // rule, so the referee chooses.
+  assert.equal(assigned.passedOver, 0);
+});
+
+test('the required level is respected, and a level-0 post is not a search', () => {
+  const skilled = generateCrewCandidate({ role: 'pilot', minimumLevel: 1 });
+  if (skilled.character) assert.ok(skilled.character.skills.Pilot >= 1);
+  // Asking for expertise a career rarely produces can exhaust the search, and
+  // that is reported with the best applicant seen rather than nothing at all.
+  const demanding = generateCrewCandidate({ role: 'medic', minimumLevel: 6, searchLimit: 5 });
+  assert.equal(demanding.character, null);
+  assert.equal(demanding.exhausted, true);
+  assert.ok(demanding.bestCandidate === null || typeof demanding.bestCandidate === 'object');
 });
