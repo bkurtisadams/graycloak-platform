@@ -8723,7 +8723,14 @@ function renderShipStrip() {
   const capacity = shipDocument.specifications.cargo.capacityTons;
   const used = shipDocument.state.cargoManifest.reduce((sum, entry) => sum + entry.tons, 0);
   const manifest = shipDocument.state.cargoManifest;
-  const passengers = shipDocument.state.passengers ?? [];
+  // v0.126.0: this read state.passengers, which is not a field on the ship
+  // document — the manifest is state.passengerManifest. The ?? [] swallowed it,
+  // so the PASSENGERS cell said "None aboard" however many were booked. Same
+  // failure as the v0.111.0 note above: a plausible field name that silently
+  // reads undefined.
+  const passengerManifest = shipDocument.state.passengerManifest ?? [];
+  const cabinPassengers = passengerManifest.filter((entry) => entry.class === 'high' || entry.class === 'middle');
+  const lowPassengers = passengerManifest.filter((entry) => entry.class === 'low');
   const berths = ['high', 'middle', 'low']
     .reduce((sum, cls) => sum + availablePassengerCapacity(shipDocument, cls), 0);
   const crew = shipDocument.crew.assignments;
@@ -8749,8 +8756,12 @@ function renderShipStrip() {
       `${(shipDocument.state.fuelQuality ?? 'unknown').toUpperCase()}${fuelNeeded ? ` \u00b7 ${fuelNeeded}t needed for this jump` : ''}`],
     ['CARGO', capacity === 0 ? 'No hold' : `${used}t of ${capacity}t${used >= capacity ? ' \u00b7 full' : ` \u00b7 ${capacity - used}t free`}`,
       manifest.length ? manifest.map((entry) => `${entry.tons}t ${entry.description}`).join(' \u00b7 ') : 'Empty'],
-    ['PASSENGERS', passengers.length ? `${passengers.length} aboard` : 'None aboard',
-      `${berths} berth${berths === 1 ? '' : 's'} free of ${shipDocument.specifications.accommodations.staterooms} staterooms`],
+    ['PASSENGERS', passengerManifest.length ? `${passengerManifest.length} aboard` : 'None aboard',
+      [
+        cabinPassengers.length ? `${cabinPassengers.length} in staterooms` : null,
+        lowPassengers.length ? `${lowPassengers.length} in low berths` : null,
+        `${berths} berth${berths === 1 ? '' : 's'} free of ${shipDocument.specifications.accommodations.staterooms} staterooms`
+      ].filter(Boolean).join(' \u00b7 ')],
     ['CREW', crew.length ? `${crew.length} assigned` : 'Nobody assigned',
       crew.map((entry) => `${entry.characterName || entry.characterId} ${entry.role}`).join(' \u00b7 ')],
     ['UPKEEP', outstandingCr > 0 ? `${formatCr(outstandingCr)} owed now` : `${formatCr(upkeep + financed)} per month`,
