@@ -1130,6 +1130,10 @@ input[readonly] {
   margin-top: 8px;
   padding-top: 8px;
 }
+/* v0.130.2: with no destination chosen the jump action renders nothing, and an
+   empty flex box still drew its own margin and padding as a blank band under
+   the route line. */
+.jump-actions:empty { margin: 0; padding: 0; }
 
 .navigation-plan-panel .jump-actions .action-button {
   max-width: 100%;
@@ -4299,6 +4303,12 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
   padding: 4px 10px; grid-template-columns: none;
 }
 .scene-status-strip .jump-actions { display: flex; gap: 6px; margin: 0; padding: 0; border: 0; }
+/* v0.130.2: an author `display: flex` beats the hidden attribute's UA
+   `display: none`, so setting .hidden in JS left this drawing an empty flex row
+   with its padding and bottom border — the blank band above the map once the
+   jump action and DETAILS moved out. .scene-nav[hidden] on line 4148 exists
+   for the same reason. */
+.scene-status-strip[hidden] { display: none; }
 
 /* v0.102.0: a system an accepted contract has to reach carries a corner mark,
    so the map shows what is owed as well as where the ship can go. It is a
@@ -4458,15 +4468,15 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .terminal.shell .shell-rail .scene-nav {
   position: static; transform: none; z-index: auto;
   display: grid; grid-template-columns: repeat(2, 34px); gap: 6px;
-  margin-top: 8px; padding-top: 8px; border-top: 1px dotted var(--disabled);
+  margin: 6px 0 0; padding: 0; border: 0;
 }
 .terminal.shell .shell-rail .scene-nav-button {
   box-sizing: border-box; width: 34px; height: 38px; min-width: 34px; max-width: none;
   padding: 0; gap: 0; display: inline-flex; align-items: center; justify-content: center;
   writing-mode: horizontal-tb; transform: none;
   font: 700 18px/1 Consolas, monospace; letter-spacing: 0;
-  border: 1px dotted var(--rule); background: var(--paper); color: var(--ink);
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
 }
-.terminal.shell .shell-rail .scene-nav-button:hover { border-style: solid; border-color: var(--link); }
+.terminal.shell .shell-rail .scene-nav-button:hover { border-color: var(--link); }
 .terminal.shell .shell-rail .scene-nav-caret { display: none; }
 .terminal.shell .shell-rail .scene-nav-active { position: absolute; margin: -14px 0 0 18px; font-size: 9px; }
