@@ -416,6 +416,7 @@ const el = {
   contextTakeover: document.querySelector('#context-takeover'),
   chargenTablesSection: document.querySelector('#chargen-tables-section'),
   chargenTables: document.querySelector('#chargen-tables'),
+  rollableTables: document.querySelector('#rollable-tables'),
   personnelSection: document.querySelector('#personnel-section'),
   characterWindowTitlebar: document.querySelector('#character-window-titlebar'),
   characterWindowMinimize: document.querySelector('#character-window-minimize'),
@@ -1268,6 +1269,17 @@ function signedNumber(value) {
   return number >= 0 ? `+${number}` : String(number);
 }
 
+// v0.141.0: the Book 1 tables are shown while a character is being generated,
+// which is not the same question as whether a campaign is open. Both gates
+// asked campaignPlayActive(), so generating a character inside a campaign —
+// the normal way to add a party member — hid the tables the sidebar's own
+// placeholder promises.
+function chargenInProgress() {
+  return documentMode === TRAVELLER_DOCUMENT_KINDS.CHARGEN
+    && Boolean(character)
+    && character.phase !== CHARGEN_PHASES.COMPLETE;
+}
+
 function campaignPlayActive() {
   return Boolean(campaignDocument && gameplayDocument);
 }
@@ -1725,7 +1737,9 @@ function applyCampaignLayout() {
   el.actions.hidden = true;
   el.playProcedure.hidden = false;
   el.chargenRecordSection.hidden = true;
-  el.chargenTablesSection.hidden = true;
+  // Generating a character with a campaign open still shows its tables, in the
+  // sidebar's TABLES panel where the placeholder says they will be.
+  el.chargenTablesSection.hidden = !chargenInProgress();
   el.contextTabs.hidden = false;
   el.openShipView.hidden = !shipDocument;
   el.openCampaignView.hidden = false;
@@ -10864,7 +10878,7 @@ function renderPlayProcedure() {
 // Rendering lives in chargen-view.js since v0.66.0.
 function renderChargenTables() {
   if (!el.chargenTables) return;
-  if (campaignPlayActive()) { el.chargenTables.replaceChildren(); return; }
+  if (!chargenInProgress()) { el.chargenTables.replaceChildren(); return; }
   renderChargenTablesView(el.chargenTables, character, execute);
 }
 
@@ -10954,6 +10968,7 @@ function render() {
   applyCampaignLayout();
   renderPlayProcedure();
   renderChargenTables();
+  if (el.rollableTables) el.rollableTables.hidden = chargenInProgress();
   renderActivity();
   // v0.80.1: after the layout pass has set WHAT NOW?'s scope and the
   // character's status — rendering them first left them a pass behind.
