@@ -493,6 +493,7 @@ const el = {
   armamentSand: document.querySelector('#armament-sand'),
   armamentOrdnanceNote: document.querySelector('#armament-ordnance-note'),
   armamentOrdnanceConfirm: document.querySelector('#armament-ordnance-confirm'),
+  armamentOrdnanceGroup: document.querySelector('#armament-ordnance-group'),
   armamentCancel: document.querySelector('#armament-cancel'),
   crewDialog: document.querySelector('#crew-dialog'),
   crewRole: document.querySelector('#crew-role'),
@@ -8923,9 +8924,17 @@ function openArmamentDialog() {
   el.armamentMissiles.value = '0';
   el.armamentSand.value = '0';
   const magazine = magazineCapacity(shipDocument);
-  el.armamentOrdnanceNote.textContent = magazine.launchers || magazine.sandcasters
+  const canLoad = Boolean(magazine.launchers || magazine.sandcasters);
+  el.armamentOrdnanceNote.textContent = canLoad
     ? `Missiles ${formatCr(MISSILE_PRICE_CR)} each, sand ${formatCr(SAND_CANISTER_PRICE_CR)} a canister. Ready capacity ${magazine.readyMissiles} / ${magazine.readySandCanisters}.`
     : 'No launcher or sandcaster is fitted, so there is nothing to load.';
+  // An empty turret has nothing to load, and both counts start at zero, so the
+  // button would only ever raise "nothing to purchase". Better that it cannot
+  // be pressed than that it explains itself afterwards.
+  if (el.armamentOrdnanceGroup) el.armamentOrdnanceGroup.disabled = !canLoad;
+  el.armamentMissiles.max = String(magazine.readyMissiles || 0);
+  el.armamentSand.max = String(magazine.readySandCanisters || 0);
+  syncOrdnanceButton();
   el.armamentDialog.showModal();
 }
 
@@ -8947,6 +8956,17 @@ function confirmFitWeapon() {
     console.error(error);
     el.armamentDialogNote.textContent = error?.message ?? String(error);
   }
+}
+
+// Nothing ordered is not an error worth raising: the button stays disabled
+// until there is something to buy.
+function syncOrdnanceButton() {
+  if (!el.armamentOrdnanceConfirm) return;
+  const missiles = Number.parseInt(el.armamentMissiles?.value ?? '0', 10) || 0;
+  const sand = Number.parseInt(el.armamentSand?.value ?? '0', 10) || 0;
+  const magazine = shipDocument ? magazineCapacity(shipDocument) : null;
+  const canLoad = Boolean(magazine && (magazine.launchers || magazine.sandcasters));
+  el.armamentOrdnanceConfirm.disabled = !canLoad || (missiles === 0 && sand === 0);
 }
 
 function confirmBuyOrdnance() {
@@ -11389,6 +11409,8 @@ el.crewCancel?.addEventListener('click', () => el.crewDialog.close());
 el.fitArmamentButton?.addEventListener('click', openArmamentDialog);
 el.armamentFitConfirm?.addEventListener('click', confirmFitWeapon);
 el.armamentOrdnanceConfirm?.addEventListener('click', confirmBuyOrdnance);
+el.armamentMissiles?.addEventListener('input', syncOrdnanceButton);
+el.armamentSand?.addEventListener('input', syncOrdnanceButton);
 el.armamentCancel?.addEventListener('click', () => el.armamentDialog.close());
 el.sceneClose?.addEventListener('click', () => el.sceneDialog.close());
 el.sceneSave?.addEventListener('click', createSceneFromDialog);

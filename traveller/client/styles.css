@@ -1947,6 +1947,38 @@ input[readonly] {
   gap: 3px;
 }
 
+/* v0.125.0: the armament dialog holds two separate purchases. Each is a
+   bordered group with its own legend and its own button, so neither button
+   can be mistaken for the dialog's confirm. */
+.armament-group {
+  margin: 10px 0 0;
+  padding: 8px 10px 10px;
+  border: 1px solid var(--rule);
+}
+
+.armament-group legend {
+  padding: 0 6px;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.armament-group label {
+  display: grid;
+  grid-template-columns: 16ch minmax(0, 1fr);
+  gap: 1ch;
+  align-items: center;
+  min-height: 30px;
+}
+
+.armament-group input[type="number"] {
+  width: 8ch;
+}
+
+.armament-group[disabled] {
+  opacity: 0.55;
+}
+
 .roll-dialog-actions {
   display: flex;
   justify-content: flex-end;
