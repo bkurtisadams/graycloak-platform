@@ -11,6 +11,7 @@ import {
   armShipTurret,
   purchaseOrdnance,
   createSequenceDice,
+  createShipDocument,
   createShipCombatEncounter,
   SHIP_COMBAT_PHASE_KEYS,
   currentPhase,
@@ -60,6 +61,31 @@ async function armedScout({ weapons = ['beam-laser'], missiles = 0, sand = 0 } =
   for (const weapon of weapons) ship = armShipTurret(ship, { turretId: 'T-1', weapon }).ship;
   if (missiles || sand) ship = purchaseOrdnance(ship, { missiles, sandCanisters: sand }).ship;
   return ship;
+}
+
+async function armedCruiser({ racks = 3, missiles = 6 } = {}) {
+  // The Type C is the only standard design with enough hardpoints for a salvo:
+  // eight triple turrets against the Scout's one double. Built from the design
+  // rather than edited from another hull, which the canonical check refuses.
+  let ship = createShipDocument({
+    designKey: 'type-c-cruiser',
+    id: `cruiser-${racks}`,
+    name: 'Corsair',
+    authority: {
+      assignmentType: 'private-owner', controllingAuthority: 'Corsair',
+      legalTitleHolder: 'Captain', legalTitleSourceStatus: 'referee-generated-encounter',
+      characterOwnsShip: true, assignedCharacterId: 'npc-cap', assignedCharacterName: 'Captain',
+      recallable: false, saleAllowed: true, useAsDesired: true, possessionAtServicePleasure: false,
+      servicePrivileges: { freeFuelAtScoutBases: false, freeMaintenanceAtScoutBasesAtClassBStarports: false },
+      operatorResponsibilities: { upkeep: true, crewCosts: true }
+    },
+    crewAssignments: [{ role: 'pilot', characterId: 'npc-cap', characterName: 'Captain' }]
+  });
+  ship = creditShipAccount(ship, 50000000, { kind: 'capital', description: 'Fitting-out fund' });
+  for (let index = 0; index < racks; index += 1) {
+    ship = armShipTurret(ship, { turretId: `T-${index + 1}`, weapon: 'missile-launcher', pricePerWeaponCr: 0 }).ship;
+  }
+  return purchaseOrdnance(ship, { missiles }).ship;
 }
 
 // A Model/1 holds 6 points: CPU 2 plus storage 4.
@@ -360,7 +386,7 @@ test('Book 2 p.29: a ship whose turret is knocked out cannot return fire', async
 // ---------------------------------------------------------------------------
 
 test('Book 2 p.30: launching needs Launch and Target in the computer', async () => {
-  const pirate = await armedScout({ weapons: ['beam-laser', 'missile-launcher'], missiles: 5, sand: 2 });
+  const pirate = await armedScout({ weapons: ['sandcaster', 'missile-launcher'], missiles: 5, sand: 2 });
   const trader = await armedScout();
   let encounter = createShipCombatEncounter({
     id: 'enc-2', intruderSide: 'intruder',
@@ -380,11 +406,16 @@ test('Book 2 p.30: launching needs Launch and Target in the computer', async () 
 
   // Book 2 p.18: a missile is committed to a specific target when fired.
   assert.throws(() => launchOrdnance(encounter, { shipId: 'pirate', missiles: 1 }), /committed to a specific target/);
-  encounter = launchOrdnance(encounter, { shipId: 'pirate', missiles: 2, sandCanisters: 1, targetId: 'trader' });
+  // Book 2 p.30: one round per rack and one canister per sandcaster, per phase.
+  // This turret holds one of each.
+  assert.throws(() => launchOrdnance(encounter, { shipId: 'pirate', missiles: 2, targetId: 'trader' }), /launch rack/);
+  encounter = launchOrdnance(encounter, { shipId: 'pirate', missiles: 1, sandCanisters: 1, targetId: 'trader' });
   const participant = getParticipant(encounter, 'pirate');
-  assert.equal(participant.ship.state.armament.missiles, 3);
-  assert.equal(participant.expenditure.missiles, 2);
+  assert.equal(participant.ship.state.armament.missiles, 4);
+  assert.equal(participant.expenditure.missiles, 1);
   assert.equal(participant.sandDeployed, 1);
+  // And the rack is spent for the rest of this phase.
+  assert.throws(() => launchOrdnance(encounter, { shipId: 'pirate', missiles: 1, targetId: 'trader' }), /0 launch racks free/);
 
   // The sand DM is a Graycloak extension and says so.
   const defense = laserDefenseDM(participant);
@@ -578,8 +609,13 @@ test('the outcome is computed, not applied', async () => {
 // Missiles across the phases (Book 2 pp.18, 30-31)
 // ---------------------------------------------------------------------------
 
-async function missileEncounter({ traderPrograms = ['target'] } = {}) {
-  const pirate = await armedScout({ weapons: ['beam-laser', 'missile-launcher'], missiles: 6 });
+async function missileEncounter({ traderPrograms = ['target'], racks = 1 } = {}) {
+  // Book 2 p.30 allows one round per rack per phase, so a salvo needs racks.
+  // A Scout's single double turret holds two weapons; three racks needs a hull
+  // with more hardpoints.
+  const pirate = racks > 1
+    ? await armedCruiser({ racks, missiles: 6 })
+    : await armedScout({ weapons: ['beam-laser', 'missile-launcher'], missiles: 6 });
   const trader = await armedScout({ weapons: ['beam-laser'] });
   return createShipCombatEncounter({
     id: 'enc-missile', intruderSide: 'intruder',
@@ -694,7 +730,7 @@ test('Book 2 p.30: a ship without the Anti-Missile program cannot shoot at missi
 });
 
 test('Book 2 p.30: ECM clears every contacting missile at once on 7+', async () => {
-  let encounter = await missileEncounter({ traderPrograms: ['target', 'ecm'] });
+  let encounter = await missileEncounter({ traderPrograms: ['target', 'ecm'], racks: 3 });
   encounter = advanceTo(encounter, 'intruder', 'ordnance-launch');
   encounter = launchOrdnance(encounter, { shipId: 'pirate', missiles: 3, targetId: 'trader' });
   encounter = advanceTo(encounter, 'intruder', 'movement');
@@ -749,12 +785,164 @@ test('ordnance does not move or detonate on the wrong side turn', async () => {
 test('the outcome carries ordnance still in flight', async () => {
   let encounter = await missileEncounter();
   encounter = advanceTo(encounter, 'intruder', 'ordnance-launch');
-  encounter = launchOrdnance(encounter, { shipId: 'pirate', missiles: 2, targetId: 'trader' });
+  encounter = launchOrdnance(encounter, { shipId: 'pirate', missiles: 1, targetId: 'trader' });
   const outcome = shipCombatOutcome(encounter);
-  assert.equal(outcome.ordnance.length, 2);
+  assert.equal(outcome.ordnance.length, 1);
   assert.equal(outcome.ordnance[0].status, 'in-flight');
   // The magazine was debited at launch, and the expenditure is recorded.
   const pirateOut = outcome.ships.find((entry) => entry.shipId === 'pirate');
-  assert.equal(pirateOut.ship.state.armament.missiles, 4);
-  assert.equal(pirateOut.expenditure.missiles, 2);
+  assert.equal(pirateOut.ship.state.armament.missiles, 5);
+  assert.equal(pirateOut.expenditure.missiles, 1);
+});
+
+// ---------------------------------------------------------------------------
+// Rules the suite passed without: an action has to be spendable, and a broken
+// computer has to stop the ship.
+// ---------------------------------------------------------------------------
+
+test('Book 2 p.29: a laser fires once per phase, however often it is allocated', async () => {
+  let encounter = await twoScoutEncounter();
+  encounter = advanceShipCombatPhase(encounter);
+
+  encounter = allocateLaserFire(encounter, [{ shipId: 'pirate', turretId: 'T-1', targetId: 'trader' }]);
+  const first = resolveLaserFire(encounter, createSequenceDice([1, 1, 1, 1]));
+  encounter = first.encounter;
+  assert.equal(first.shots.filter((shot) => shot.fired).length, 2);
+
+  // Allocating the same turret again in the same phase is accepted — a turret
+  // may be reassigned — but it has nothing left to fire.
+  encounter = allocateLaserFire(encounter, [{ shipId: 'pirate', turretId: 'T-1', targetId: 'trader' }]);
+  const second = resolveLaserFire(encounter, createSequenceDice([6, 6, 6, 6]));
+  assert.equal(second.shots.filter((shot) => shot.fired).length, 0);
+  assert.match(second.shots[0].reason, /already fired this phase/);
+
+  // A new phase restores it: from the intruder's laser fire, five advances
+  // reach the native's.
+  let next = second.encounter;
+  for (let step = 0; step < 5; step += 1) next = advanceShipCombatPhase(next);
+  assert.equal(currentPhase(next).key, 'laser-fire');
+  assert.equal(next.phasingSide, 'native');
+  next = allocateLaserFire(next, [{ shipId: 'trader', turretId: 'T-1', targetId: 'pirate' }]);
+  assert.equal(resolveLaserFire(next, createSequenceDice([1, 1])).shots.filter((shot) => shot.fired).length, 1);
+});
+
+test('Book 2 p.34: a computer that cannot operate paralyses the ship', async () => {
+  let encounter = await twoScoutEncounter();
+  // Twelve hits is permanent malfunction.
+  getParticipant(encounter, 'pirate').ship.state.damage.computer = 12;
+  encounter = advanceShipCombatPhase(encounter);
+  encounter = allocateLaserFire(encounter, [{ shipId: 'pirate', turretId: 'T-1', targetId: 'trader' }]);
+  const dead = resolveLaserFire(encounter, createSequenceDice([6, 6, 6, 6]));
+  assert.equal(dead.shots.every((shot) => !shot.fired), true);
+  assert.match(dead.shots[0].reason, /permanently malfunctioning/);
+
+  // Short of that it is a throw of 1+ with -1 per hit, made once per phase.
+  let damaged = await twoScoutEncounter();
+  getParticipant(damaged, 'pirate').ship.state.damage.computer = 4;
+  damaged = advanceShipCombatPhase(damaged);
+  damaged = allocateLaserFire(damaged, [{ shipId: 'pirate', turretId: 'T-1', targetId: 'trader' }]);
+  // One die of 2, less 4 hits, is -2 against a target of 1.
+  const failed = resolveLaserFire(damaged, createSequenceDice([2]));
+  assert.equal(failed.shots[0].fired, false);
+  assert.match(failed.shots[0].reason, /failed its throw to operate/);
+
+  // Computer expertise is a positive DM on that throw (p.34).
+  let skilled = await twoScoutEncounter();
+  const pirate = getParticipant(skilled, 'pirate');
+  pirate.ship.state.damage.computer = 4;
+  pirate.skills.computer = 4;
+  skilled = advanceShipCombatPhase(skilled);
+  skilled = allocateLaserFire(skilled, [{ shipId: 'pirate', turretId: 'T-1', targetId: 'trader' }]);
+  assert.equal(resolveLaserFire(skilled, createSequenceDice([1, 1, 1, 1])).shots[0].fired, true);
+});
+
+test('Book 2 p.30: one round per rack per phase, and a dead turret launches none', async () => {
+  const pirate = await armedCruiser({ racks: 2, missiles: 6 });
+  const trader = await armedScout();
+  let encounter = createShipCombatEncounter({
+    id: 'enc-racks', intruderSide: 'intruder',
+    participants: [
+      { shipId: 'pirate', side: 'intruder', ship: pirate,
+        carriedPrograms: ['target', 'launch'], loadedPrograms: ['target', 'launch'], pressurisedSections: [] },
+      { shipId: 'trader', side: 'native', ship: trader, pressurisedSections: [] }
+    ]
+  });
+  for (let step = 0; step < 3; step += 1) encounter = advanceShipCombatPhase(encounter);
+
+  // Two racks, so two rounds this phase and no more, however full the magazine.
+  assert.throws(() => launchOrdnance(encounter, { shipId: 'pirate', missiles: 3, targetId: 'trader' }), /2 launch racks free/);
+  encounter = launchOrdnance(encounter, { shipId: 'pirate', missiles: 2, targetId: 'trader' });
+  assert.throws(() => launchOrdnance(encounter, { shipId: 'pirate', missiles: 1, targetId: 'trader' }), /0 launch racks free/);
+  assert.equal(getParticipant(encounter, 'pirate').ship.state.armament.missiles, 4);
+
+  // Book 2 p.33: a turret hit takes its launcher with it.
+  const knocked = structuredClone(encounter);
+  const participant = getParticipant(knocked, 'pirate');
+  participant.spentThisPhase.launchers = 0;
+  participant.ship.state.damage.turrets = ['T-1'];
+  assert.throws(() => launchOrdnance(knocked, { shipId: 'pirate', missiles: 2, targetId: 'trader' }), /1 launch rack free/);
+});
+
+test('Book 2 p.37: a referee who allows no shots has let the ship go', async () => {
+  let encounter = await twoScoutEncounter();
+  encounter = declareFlight(encounter, { shipId: 'trader', shotsBeforeEscape: 0, note: 'Clean break' });
+  const trader = getParticipant(encounter, 'trader');
+  assert.equal(trader.fled, true);
+  assert.equal(trader.escaped, true);
+  assert.ok(encounter.log.some((entry) => entry.kind === 'escape'));
+});
+
+test('Book 2 p.30: two turrets on two targets need Multi-Target', async () => {
+  // Two lasers in two turrets, so the ship can physically split its fire; the
+  // question is whether the software allows it.
+  let cruiser = createShipDocument({
+    designKey: 'type-c-cruiser', id: 'splitter', name: 'Splitter',
+    authority: {
+      assignmentType: 'private-owner', controllingAuthority: 'Splitter',
+      legalTitleHolder: 'Captain', legalTitleSourceStatus: 'referee-generated-encounter',
+      characterOwnsShip: true, assignedCharacterId: 'npc-cap', assignedCharacterName: 'Captain',
+      recallable: false, saleAllowed: true, useAsDesired: true, possessionAtServicePleasure: false,
+      servicePrivileges: { freeFuelAtScoutBases: false, freeMaintenanceAtScoutBasesAtClassBStarports: false },
+      operatorResponsibilities: { upkeep: true, crewCosts: true }
+    },
+    crewAssignments: [{ role: 'pilot', characterId: 'npc-cap', characterName: 'Captain' }]
+  });
+  cruiser = creditShipAccount(cruiser, 50000000, { kind: 'capital', description: 'Fitting-out fund' });
+  for (const turretId of ['T-1', 'T-2']) {
+    cruiser = armShipTurret(cruiser, { turretId, weapon: 'beam-laser', pricePerWeaponCr: 0 }).ship;
+  }
+
+  const build = (loaded) => createShipCombatEncounter({
+    id: 'enc-split', intruderSide: 'intruder',
+    participants: [
+      { shipId: 'pirate', side: 'intruder', ship: cruiser, carriedPrograms: ['target', 'multi-target-2'], loadedPrograms: loaded, pressurisedSections: [] },
+      { shipId: 'a', side: 'native', ship: cruiser, carriedPrograms: ['target'], loadedPrograms: ['target'], pressurisedSections: [] },
+      { shipId: 'b', side: 'native', ship: cruiser, carriedPrograms: ['target'], loadedPrograms: ['target'], pressurisedSections: [] }
+    ]
+  });
+  const split = [
+    { shipId: 'pirate', turretId: 'T-1', targetId: 'a' },
+    { shipId: 'pirate', turretId: 'T-2', targetId: 'b' }
+  ];
+
+  // Without Multi-Target in the computer, neither turret fires.
+  let without = advanceShipCombatPhase(build(['target']));
+  without = allocateLaserFire(without, split);
+  const refused = resolveLaserFire(without, createSequenceDice([6, 6, 6, 6, 6, 6]));
+  assert.equal(refused.shots.every((shot) => !shot.fired), true);
+  assert.match(refused.shots[0].reason, /multi-target-2/);
+
+  // With it, both do — and a Model/5 has the CPU to run it alongside Target.
+  let withIt = advanceShipCombatPhase(build(['target', 'multi-target-2']));
+  withIt = allocateLaserFire(withIt, split);
+  const allowed = resolveLaserFire(withIt, createSequenceDice([1, 1, 1, 1]));
+  assert.equal(allowed.shots.filter((shot) => shot.fired).length, 2);
+
+  // Both turrets on one target needs none of it.
+  let single = advanceShipCombatPhase(build(['target']));
+  single = allocateLaserFire(single, [
+    { shipId: 'pirate', turretId: 'T-1', targetId: 'a' },
+    { shipId: 'pirate', turretId: 'T-2', targetId: 'a' }
+  ]);
+  assert.equal(resolveLaserFire(single, createSequenceDice([1, 1, 1, 1])).shots.filter((shot) => shot.fired).length, 2);
 });

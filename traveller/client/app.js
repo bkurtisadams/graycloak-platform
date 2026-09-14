@@ -9239,8 +9239,12 @@ function shipCombatLoadout(ship) {
 
 function playerShipStations() {
   const gunners = {};
-  for (const turret of shipDocument.specifications.armament.turrets) {
-    const gunner = shipCrewRole(shipDocument, 'gunner')[0];
+  // v0.132.0: this assigned the FIRST gunner to every turret, so a second
+  // gunner never manned anything and one gunner's expertise applied to guns he
+  // was not at. Book 2 p.17 wants one gunner per turret; take them in order.
+  const assigned = shipCrewRole(shipDocument, 'gunner');
+  for (const [index, turret] of shipDocument.specifications.armament.turrets.entries()) {
+    const gunner = assigned[index];
     if (gunner) gunners[turret.id] = gunner.characterId;
   }
   const pilot = shipCrewRole(shipDocument, 'pilot')[0] ?? null;
@@ -9249,6 +9253,33 @@ function playerShipStations() {
     computerOperator: pilot?.characterId ?? null,
     engineer: shipCrewRole(shipDocument, 'engineer')[0]?.characterId ?? null,
     gunners
+  };
+}
+
+// Book 2 hangs its program layer on crew expertise: Maneuver/Evade scales with
+// pilot expertise (p.31), Gunner Interact adds the expertise of the gunner in
+// that specific turret (p.31), and computer expertise is a DM on the throw to
+// operate (p.34). Book 2 p.17: somebody filling two posts applies expertise to
+// neither, so a doubled-up crewman contributes nothing.
+function crewSkillFor(characterId, skillName) {
+  if (!characterId) return 0;
+  if (!shipCrewMemberRoles(shipDocument, characterId).appliesExpertise) return 0;
+  const party = (campaignDocument?.characters ?? []).find((entry) => entry.identity.id === characterId);
+  const npc = npcActorDocuments.find((entry) => entry.identity.id === characterId);
+  return party?.skills?.[skillName] ?? npc?.skills?.[skillName] ?? 0;
+}
+
+function playerShipSkills() {
+  const stations = playerShipStations();
+  const gunnery = {};
+  for (const [turretId, characterId] of Object.entries(stations.gunners)) {
+    gunnery[turretId] = crewSkillFor(characterId, 'Gunnery');
+  }
+  return {
+    pilot: crewSkillFor(stations.pilot, 'Pilot'),
+    computer: crewSkillFor(stations.computerOperator, 'Computer'),
+    engineering: crewSkillFor(stations.engineer, 'Engineering'),
+    gunnery
   };
 }
 
@@ -9316,7 +9347,11 @@ function engagePendingShipEncounter() {
           carriedPrograms: mine.carried,
           loadedPrograms: mine.loaded,
           stations: playerShipStations(),
-          skills: {},
+          // v0.132.0: this was `skills: {}`, so pilot and gunner expertise
+          // never reached the engine — Gunner Interact added nothing and every
+          // Maneuver/Evade program resolved to a DM of zero. Book 2 p.30 and
+          // p.31 hang the whole program layer off these numbers.
+          skills: playerShipSkills(),
           // Book 2 p.35: ships depressurise before combat whenever possible.
           pressurisedSections: []
         },
@@ -9379,6 +9414,18 @@ function resolveShipCombatFire() {
     const resolved = resolveLaserFire(shipCombatEncounter, createDice());
     shipCombatEncounter = resolved.encounter;
     shipCombatAllocation = {};
+    // Book 2 p.37: the referee allows a number of shots before the ship is out
+    // of range. Those shots have to count, or BREAK OFF records a number that
+    // nothing ever reduces.
+    for (const shot of resolved.shots) {
+      if (!shot.fired) continue;
+      const target = getShipCombatParticipant(shipCombatEncounter, shot.targetId);
+      if (!target.fled || target.escaped) continue;
+      shipCombatEncounter = creditShotAgainstEscape(shipCombatEncounter, shot.targetId);
+      if (getShipCombatParticipant(shipCombatEncounter, shot.targetId).escaped) {
+        logActivity('COMBAT', `${target.name} is out of range`);
+      }
+    }
     const hits = resolved.shots.filter((shot) => shot.hit);
     for (const shot of resolved.shots) {
       if (!shot.fired) {

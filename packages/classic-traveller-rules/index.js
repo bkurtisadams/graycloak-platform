@@ -271,7 +271,8 @@ export {
   stationsAwaitingDeclaration,
   markStationReady,
   sideAwaitingDeclaration,
-  computerOperatorOf
+  computerOperatorOf,
+  throwComputerOperation
 } from './src/starships/ship-combat.js';
 
 export {

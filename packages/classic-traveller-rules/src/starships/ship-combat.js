@@ -33,7 +33,8 @@ import {
   operationalTurrets,
   turretOperational,
   canDoubleFire,
-  hullDecompressed
+  hullDecompressed,
+  computerOperation
 } from './damage.js';
 import { applyShipHit, applyMissileDetonation, assertValidShipDocument } from './ship-document.js';
 
@@ -211,6 +212,36 @@ export function cycleIntoCpu(participant, { required = [], optional = [] } = {})
   return Object.freeze({ running: Object.freeze(running), missing: Object.freeze([]), cpu, used, possible: true });
 }
 
+/**
+ * Book 2 p.34: "The basic throw for a computer to operate in any situation is
+ * 1+... Each hit on the computer serves as a DM of -1 on the throw to operate.
+ * The throw to operate is made each time the computer is used (in combat, this
+ * is generally once per phase). A computer which does not make its throw to
+ * operate malfunctions for the remainder of the phase... A computer which has
+ * received 12 hits is permanently malfunctioning."
+ *
+ * And: "A computer which is not operating effectively paralyses a starship."
+ * So this gates every computer-dependent action — all laser fire, all launches,
+ * anti-missile fire and reprogramming — rather than being reported and ignored.
+ *
+ * Persons with computer expertise apply their skill as a DM.
+ */
+export function throwComputerOperation(participant, dice) {
+  requireDice(dice);
+  const operation = computerOperation(participant.ship, { computerSkill: participant.skills.computer ?? 0 });
+  if (operation.permanentlyFailed) {
+    return Object.freeze({ ...operation, roll: null, total: null, operating: false, permanentlyFailed: true });
+  }
+  // An undamaged computer needs 1+ on one die with no DM, which cannot fail.
+  // Throwing anyway would be dice theatre for a foregone result.
+  if (operation.dm >= 0) {
+    return Object.freeze({ ...operation, roll: null, total: null, operating: true });
+  }
+  const roll = dice.rollD6();
+  const total = roll + operation.dm;
+  return Object.freeze({ ...operation, roll, total, operating: total >= operation.target });
+}
+
 // ---------------------------------------------------------------------------
 // Encounter construction
 // ---------------------------------------------------------------------------
@@ -258,6 +289,10 @@ function createParticipant({
     surrendered: false,
     sandDeployed: 0,
     firedAt: [],
+    // Book 2 p.29: "The dice throw is made once for each firing laser weapon."
+    // Once per weapon, per phase — so what has already been spent this phase
+    // has to be recorded, or the same turret fires as often as it is allocated.
+    spentThisPhase: { weapons: [], launchers: 0, sandcasters: 0, antiMissile: false },
     wasFiredAtBy: [],
     expenditure: { missiles: 0, sandCanisters: 0 },
     casualties: [],
@@ -373,6 +408,12 @@ export function advanceShipCombatPhase(encounter) {
     for (const participant of next.participants) participant.wasFiredAtBy = [];
   }
 
+  // Every phase starts with nothing spent. A weapon fires once per phase, so
+  // the record cannot outlive the phase it belongs to.
+  for (const participant of next.participants) {
+    participant.spentThisPhase = { weapons: [], launchers: 0, sandcasters: 0, antiMissile: false };
+  }
+
   if (next.phaseIndex < SHIP_COMBAT_PHASES.length - 1) {
     next.phaseIndex += 1;
     return next;
@@ -382,6 +423,7 @@ export function advanceShipCombatPhase(encounter) {
   for (const participant of next.participants) {
     participant.ready = {};
     participant.firedAt = [];
+    participant.spentThisPhase = { weapons: [], launchers: 0, sandcasters: 0, antiMissile: false };
   }
   if (next.phasingSide === 'intruder') {
     next.phasingSide = 'native';
@@ -562,6 +604,19 @@ export function allocateLaserFire(encounter, allocations) {
   return next;
 }
 
+/**
+ * Launchers of a kind in turrets that still work. Book 2 p.33: a turret hit
+ * incapacitates the turret and everything in it.
+ */
+function launcherCount(participant, weaponKey) {
+  let count = 0;
+  for (const turret of participant.ship.state.armament.turrets) {
+    if (!turretOperational(participant.ship, turret.id)) continue;
+    count += turret.weapons.filter((key) => key === weaponKey).length;
+  }
+  return count;
+}
+
 function turretLasers(participant, turretId) {
   const turret = participant.ship.state.armament.turrets.find((entry) => entry.id === turretId);
   return (turret?.weapons ?? []).filter((key) => getTurretWeapon(key).fires === 'laser');
@@ -583,13 +638,54 @@ export function resolveLaserFire(encounter, dice) {
   next.log = encounter.log.map((entry) => ({ ...entry }));
   const shots = [];
 
+  // Book 2 p.30: "lasers from different turrets may fire on different targets if
+  // a multi-target program is running". Counted per ship across the whole
+  // allocation, before anything fires.
+  const targetsPerShip = new Map();
+  for (const entry of allocation.entries) {
+    const seen = targetsPerShip.get(entry.shipId) ?? new Set();
+    seen.add(entry.targetId);
+    targetsPerShip.set(entry.shipId, seen);
+  }
+
+  // p.34: the throw to operate is made once per phase per ship. A computer that
+  // fails paralyses the ship for the remainder of the phase.
+  const operation = new Map();
+  for (const shipId of new Set(allocation.entries.map((entry) => entry.shipId))) {
+    operation.set(shipId, throwComputerOperation(getParticipant(next, shipId), dice));
+  }
+
   for (const entry of allocation.entries) {
     const attacker = getParticipant(next, entry.shipId);
     const target = getParticipant(next, entry.targetId);
     if (target.escaped) continue;
     if (!turretOperational(attacker.ship, entry.turretId)) continue;
 
-    const attack = laserAttackDM(attacker, entry.turretId, { returnFire: phase.key === 'return-fire' });
+    const computer = operation.get(entry.shipId);
+    if (!computer.operating) {
+      shots.push(Object.freeze({
+        shipId: entry.shipId, turretId: entry.turretId, targetId: entry.targetId,
+        fired: false, reason: computer.permanentlyFailed
+          ? 'computer permanently malfunctioning (12 hits)'
+          : `computer failed its throw to operate (${computer.total} vs ${computer.target})`,
+        computer
+      }));
+      continue;
+    }
+
+    // p.29: the throw is made once for each firing laser weapon — once per
+    // phase, so a turret already fired this phase has nothing left to fire.
+    const alreadySpent = attacker.spentThisPhase.weapons.includes(entry.turretId);
+    if (alreadySpent) {
+      shots.push(Object.freeze({
+        shipId: entry.shipId, turretId: entry.turretId, targetId: entry.targetId,
+        fired: false, reason: `turret ${entry.turretId} has already fired this phase`
+      }));
+      continue;
+    }
+
+    const multipleTargets = (targetsPerShip.get(entry.shipId)?.size ?? 1) > 1;
+    const attack = laserAttackDM(attacker, entry.turretId, { returnFire: phase.key === 'return-fire', multipleTargets });
     if (!attack.possible) {
       shots.push(Object.freeze({
         shipId: entry.shipId, turretId: entry.turretId, targetId: entry.targetId,
@@ -599,6 +695,7 @@ export function resolveLaserFire(encounter, dice) {
     }
     const defense = laserDefenseDM(target);
 
+    attacker.spentThisPhase.weapons.push(entry.turretId);
     for (const weaponKey of turretLasers(attacker, entry.turretId)) {
       const weapon = getTurretWeapon(weaponKey);
       const roll = dice.roll2D6();
@@ -729,6 +826,21 @@ export function launchOrdnance(encounter, { shipId, missiles = 0, sandCanisters 
   if (missiles > participant.ship.state.armament.missiles) throw new RangeError('not enough missiles aboard');
   if (sandCanisters > participant.ship.state.armament.sandCanisters) throw new RangeError('not enough sand aboard');
 
+  // Book 2 p.30: "only one missile or sand canister may be launched from a
+  // launch rack or sandcaster" in the phase. So the limit is the number of
+  // working launchers, not the number of rounds in the magazine — and a turret
+  // that has been knocked out launches nothing.
+  const fittedLaunchers = launcherCount(participant, 'missile-launcher');
+  const fittedSandcasters = launcherCount(participant, 'sandcaster');
+  const launchersLeft = fittedLaunchers - participant.spentThisPhase.launchers;
+  const sandcastersLeft = fittedSandcasters - participant.spentThisPhase.sandcasters;
+  if (missiles > launchersLeft) {
+    throw new RangeError(`${participant.name} has ${launchersLeft} launch rack${launchersLeft === 1 ? '' : 's'} free this phase (Book 2 p.30: one round each)`);
+  }
+  if (sandCanisters > sandcastersLeft) {
+    throw new RangeError(`${participant.name} has ${sandcastersLeft} sandcaster${sandcastersLeft === 1 ? '' : 's'} free this phase (Book 2 p.30: one canister each)`);
+  }
+
   // Book 2 p.18: "Such missiles are committed to a specific target when fired,
   // and after launch, home towards that target until either the missile or the
   // target is destroyed." So a missile needs a target at launch; sand does not,
@@ -745,6 +857,9 @@ export function launchOrdnance(encounter, { shipId, missiles = 0, sandCanisters 
   participant.expenditure.missiles += missiles;
   participant.expenditure.sandCanisters += sandCanisters;
   participant.sandDeployed += sandCanisters;
+  // Book 2 p.30: one round per rack per phase, so the racks used are spent.
+  participant.spentThisPhase.launchers += missiles;
+  participant.spentThisPhase.sandcasters += sandCanisters;
 
   for (let index = 0; index < missiles; index += 1) {
     next.ordnanceSequence += 1;
@@ -975,6 +1090,9 @@ export function declareFlight(encounter, { shipId, shotsBeforeEscape, note = '' 
   const participant = getParticipant(next, shipId);
   participant.fled = true;
   participant.shotsRemainingBeforeEscape = shotsBeforeEscape;
+  // A referee who allows no further shots has said the ship is away. Recording
+  // zero and leaving it in the fight made BREAK OFF / 0 do nothing at all.
+  if (shotsBeforeEscape === 0) participant.escaped = true;
   logEvent(next, {
     kind: 'flight',
     shipId,
@@ -983,6 +1101,7 @@ export function declareFlight(encounter, { shipId, shotsBeforeEscape, note = '' 
     refereeRuling: true,
     raw: false
   });
+  if (participant.escaped) logEvent(next, { kind: 'escape', shipId });
   return next;
 }
 
