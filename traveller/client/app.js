@@ -91,6 +91,7 @@ import {
   TURRET_WEAPONS,
   MISSILE_PRICE_CR,
   SAND_CANISTER_PRICE_CR,
+  ABBREVIATED_SAND_DM_PER_CANISTER,
   createShipDocument,
   importShipDocument,
   shipCrewRole,
@@ -824,6 +825,19 @@ let quickSlotStore = null;
 
 const ACTIVITY_ORDER_STORAGE_KEY = 'graycloak.traveller.activity-order.v2'; // v0.81.0: v2 so a stored NEWEST-at-top from the log days does not defeat the chat default
 const ACTIVITY_VISIBLE_STORAGE_KEY = 'graycloak.traveller.activity-visible.v1';
+// v0.133.0: a fight in progress lived in a module variable, so a reload lost
+// the phase, the damage taken, the ordnance in flight and the allocations.
+//
+// This is deliberately a LOCAL resume rather than a campaign document. What the
+// campaign needs to remember is the outcome, which closeShipCombat already
+// writes through the normal path; what is at risk is losing a fight that lasts
+// minutes to an accidental refresh. A new document type would mean threading it
+// through documentRefs, the bundle, the registry and a migration for every
+// existing campaign — more machinery than transient state earns.
+//
+// The tradeoff is stated where the player can see it: a fight resumes in this
+// browser and nowhere else.
+const SHIP_COMBAT_RESUME_STORAGE_KEY = 'graycloak.traveller.ship-combat.v1';
 
 try {
   const storedOrder = window.localStorage.getItem(ACTIVITY_ORDER_STORAGE_KEY);
@@ -9368,6 +9382,7 @@ function engagePendingShipEncounter() {
     });
     shipCombatAllocation = {};
     pendingShipEncounter = null;
+    persistShipCombat();
     setOperationsDeskTab('encounter');
     logActivity('COMBAT', `Ship combat engaged: ${shipCombatEncounter.participants.map((entry) => entry.name).join(' vs ')}`);
     setStatus('SHIP COMBAT ENGAGED / GAME TURN 1 / INTRUDER MOVEMENT', 'ok');
@@ -9378,9 +9393,48 @@ function engagePendingShipEncounter() {
   }
 }
 
+function persistShipCombat() {
+  try {
+    if (!shipCombatEncounter) {
+      window.localStorage.removeItem(SHIP_COMBAT_RESUME_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(SHIP_COMBAT_RESUME_STORAGE_KEY, JSON.stringify({
+      version: 1,
+      campaignId: campaignDocument?.identity?.id ?? null,
+      savedAt: Date.now(),
+      encounter: shipCombatEncounter
+    }));
+  } catch (error) {
+    // Private browsing, or a quota. Losing the resume is not worth losing the
+    // fight that is on screen.
+    console.error('[traveller] ship combat resume:', error);
+  }
+}
+
+function restoreShipCombat() {
+  try {
+    const raw = window.localStorage.getItem(SHIP_COMBAT_RESUME_STORAGE_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (saved?.version !== 1 || !saved.encounter) return;
+    // A fight belongs to the campaign it was fought in.
+    if (saved.campaignId && campaignDocument && saved.campaignId !== campaignDocument.identity.id) return;
+    shipCombatEncounter = saved.encounter;
+    shipCombatAllocation = {};
+    const phase = currentShipCombatPhase(shipCombatEncounter);
+    logActivity('COMBAT', `Ship combat resumed / turn ${shipCombatEncounter.gameTurn} / ${shipCombatEncounter.phasingSide} ${phase.label}`);
+  } catch (error) {
+    console.error('[traveller] ship combat resume:', error);
+  }
+}
+
+// Every step that changes the fight saves it, so the resume is never behind
+// what is on screen.
 function shipCombatStep(action, label) {
   try {
     action();
+    persistShipCombat();
     render();
   } catch (error) {
     console.error(error);
@@ -9495,6 +9549,12 @@ function fleeShipCombat(shipId) {
 
 function closeShipCombat() {
   shipCombatStep(() => {
+    // A fight the referee closes while nobody has been disabled ended by
+    // disengagement, not by being still in progress — recording in-progress as
+    // a final outcome would leave the record saying the fight never finished.
+    if (shipCombatEncounter.outcome === 'in-progress') {
+      shipCombatEncounter = { ...shipCombatEncounter, outcome: 'disengaged' };
+    }
     const outcome = shipCombatOutcome(shipCombatEncounter);
     const mine = outcome.ships.find((entry) => entry.shipId === 'player');
     if (mine) {
@@ -9550,6 +9610,14 @@ function renderShipCombatRail() {
   who.textContent = `ACTING: ${acting.toUpperCase()}`;
   heading.append(state, who);
   el.shipCombatTracker.append(heading);
+
+  // The two house rules and the local-only resume, stated where the fight is
+  // being run rather than only in the source.
+  const note = document.createElement('div');
+  note.className = 'live-ship-row live-ship-detail';
+  note.textContent = `ABBREVIATED (BOOK 2 P.37) \u00b7 NO RANGE \u00b7 HOUSE: SAND ${ABBREVIATED_SAND_DM_PER_CANISTER} PER CANISTER, MISSILE CONTACT AUTOMATIC \u00b7 RESUMES IN THIS BROWSER ONLY`;
+  note.title = 'Book 2 p.30 prices sand per half inch of cloud and a missile has to cross the distance; abbreviated mode has neither, so both are Graycloak extensions. The fight is saved locally, not to the campaign — the outcome is saved to the campaign when you close it.';
+  el.shipCombatTracker.append(note);
 
   for (const participant of encounter.participants) {
     const card = shipDataCard(participant);
@@ -10000,6 +10068,8 @@ function restoreCampaignFromRegistry(campaign) {
   const createdSituation = ensureArrivalSituation({ log: false });
   const consequencesChanged = reconcileAdventureConsequences({ log: false });
   if (expired.length || createdSituation || consequencesChanged) persistCampaignState();
+  // A fight in progress survives a reload of the campaign it belongs to.
+  restoreShipCombat();
 }
 
 function addCharacterDocumentToCampaign(characterDocument, campaignId, { makeActive = false, linkedShip = null } = {}) {
